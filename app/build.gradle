@@ -186,6 +186,8 @@ android {
         release {
             minifyEnabled false
             signingConfig signingConfigs.testkey
+            applicationIdSuffix '.xr'
+            resValue 'string', 'app_name', 'DroidDeck XR Test'
         }
     }
 

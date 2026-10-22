@@ -28,6 +28,8 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ExitToApp
+import androidx.compose.material.icons.automirrored.filled.KeyboardReturn
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.CreateNewFolder
@@ -105,6 +107,7 @@ fun FileManagerScreen(
     initialDir: File? = null,
     pickerTitle: String? = null,
     onPick: ((File) -> Unit)? = null,
+    onExit: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -118,12 +121,14 @@ fun FileManagerScreen(
 
     val pickPrefs = remember { context.getSharedPreferences("file_manager", android.content.Context.MODE_PRIVATE) }
     val browsePrefs = pickPrefs
-    val rootDir = remember {
+    val rootDir = remember(initialDir) {
         initialDir?.takeIf { it.isDirectory } ?: File("/storage/emulated/0")
     }
-
+    val launchDir = remember(initialDir, pickMode) {
+        initialDir?.takeIf { it.isDirectory && !pickMode }
+    }
     var currentDir by remember { mutableStateOf(rootDir) }
-    var currentRoot by remember {
+    val initialRoot = remember(rootDir) {
         val abs = rootDir.absolutePath
         val internal = "/storage/emulated/0"
         val vol = when {
@@ -139,8 +144,9 @@ fun FileManagerScreen(
                     ?: rootDir
             }
         }
-        mutableStateOf(vol)
+        vol
     }
+    var currentRoot by remember { mutableStateOf(initialRoot) }
     var entries by remember { mutableStateOf(listOf<File>()) }
     var selectedEntry by remember { mutableStateOf<File?>(null) }
     var showMenuFor by remember { mutableStateOf<File?>(null) }
@@ -206,6 +212,19 @@ fun FileManagerScreen(
 
     fun openDrive(dir: File) {
         currentRoot = dir
+        loadDirectory(dir)
+    }
+
+    fun returnToStart() {
+        val dir = launchDir ?: return
+        if (!dir.isDirectory) {
+            Toast.makeText(context, R.string.fm_start_unavailable, Toast.LENGTH_SHORT).show()
+            return
+        }
+        showFavorites = false
+        showSearch = false
+        searchQuery = ""
+        currentRoot = initialRoot
         loadDirectory(dir)
     }
 
@@ -672,6 +691,13 @@ fun FileManagerScreen(
                 )
             }
 
+            if (launchDir != null) {
+                IconButton(onClick = { returnToStart() }) {
+                    Icon(Icons.AutoMirrored.Filled.KeyboardReturn, stringResource(R.string.fm_return_to_start), tint = MaterialTheme.colorScheme.primary)
+                }
+                if (LocalConfiguration.current.screenWidthDp >= 700) Spacer(Modifier.width(56.dp))
+            }
+
             if (!showFavorites) {
                 if (!pickMode) {
                     OutlinedButton(
@@ -745,6 +771,11 @@ fun FileManagerScreen(
                     Icon(Icons.Filled.Star, stringResource(R.string.fm_hide_favorites), tint = MaterialTheme.colorScheme.primary)
                 } else {
                     Icon(Icons.Filled.StarBorder, stringResource(R.string.fm_show_favorites), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            if (!pickMode && onExit != null) {
+                IconButton(onClick = onExit) {
+                    Icon(Icons.AutoMirrored.Filled.ExitToApp, stringResource(R.string.fm_exit), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
