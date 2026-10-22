@@ -109,6 +109,11 @@ int fstatat(int dirfd, const char *path, struct stat *st, int flags) {
   return ((int (*)(int, const char *, struct stat *, int))dlsym(RTLD_NEXT, "fstatat"))(dirfd, path, st, flags);
 }
 
+int fstatat64(int dirfd, const char *path, struct stat64 *st, int flags) {
+  stats++;
+  return ((int (*)(int, const char *, struct stat64 *, int))dlsym(RTLD_NEXT, "fstatat64"))(dirfd, path, st, flags);
+}
+
 ssize_t readlinkat(int dirfd, const char *path, char *buf, size_t size) {
   links++;
   return ((ssize_t (*)(int, const char *, char *, size_t))dlsym(RTLD_NEXT, "readlinkat"))(dirfd, path, buf, size);
