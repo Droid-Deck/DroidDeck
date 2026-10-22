@@ -4,6 +4,7 @@ out=$(realpath -m "${1:?out dir}")
 here=$(cd "$(dirname "$0")" && pwd)
 [ "$(uname -m)" = aarch64 ] || { echo 'KWin needs a native aarch64 runner' >&2; exit 1; }
 source "$here/kwin.env"
+source "$here/mesa.env"
 version=$DESKTOP_KWIN_VERSION
 source_sha=4bfaf31e29a8f9fdf231dc3bbb9b09b0ce07cae9fee7a01cfc86425ece796258
 mirror=https://fl.us.mirror.archlinuxarm.org/aarch64
@@ -24,11 +25,12 @@ case $kwin_package in
     "extra/kwin-$version"-[0-9]*-aarch64.pkg.tar.*) ;;
     *) echo "KWin package $kwin_package does not match source KWin $version" >&2; exit 1 ;;
 esac
-export work mirror builder here
+export work mirror builder here DESKTOP_MESA_PACKAGE DESKTOP_MESA_URL
 download() {
-    local entry=$1 sum=$2 file=${1#*/}
-    fetch "$work/pkgs/$file" "$mirror/$entry"
-    fetch "$work/pkgs/$file.sig" "$mirror/$entry.sig"
+    local entry=$1 sum=$2 file=${1#*/} url=$mirror/$1
+    [ "$file" != "$DESKTOP_MESA_PACKAGE" ] || url=$DESKTOP_MESA_URL
+    fetch "$work/pkgs/$file" "$url"
+    fetch "$work/pkgs/$file.sig" "$url.sig"
     gpgv --status-fd 1 --keyring "$here/archlinuxarm-builder.gpg" "$work/pkgs/$file.sig" "$work/pkgs/$file" 2>/dev/null \
         | grep -Eq "^\[GNUPG:\] VALIDSIG .* $builder\$"
     echo "$sum  $work/pkgs/$file" | sha256sum -c - >/dev/null

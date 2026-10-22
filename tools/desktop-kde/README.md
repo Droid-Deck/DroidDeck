@@ -36,6 +36,11 @@ The behavior is enabled only with `DROIDDECK_NESTED_SCALE`, which the desktop sc
 selected `KWIN_RENDER_NODES` device when host feedback cannot identify it. It does not guess
 between GPUs or change normal KWin device selection.
 
+`pins/mesa/desc` keeps Mesa 26.2.4 and its actual package dependencies ahead of the rolling
+repository metadata. Mesa 26.2.5 crashes in Zink shader compilation on Thor with the selected
+Turnip driver. `mesa.env` points at immutable copies of the original 26.2.4 package and signature;
+both build jobs verify the Arch Linux ARM signature and pinned SHA-256 as for every other package.
+
 The desktop workflow replaces the same-version `kwin_wayland` executable and `libkwin.so`; the rest
 comes from the signature-checked Arch packages. `desktop-kde.kwin.txt` records the source, patch,
 executable, library and build package hashes. Corresponding source is
