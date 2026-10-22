@@ -51,9 +51,9 @@ object SessionPrefs {
     )
 
     fun orientation(context: Context): Int =
-        prefs(context).getInt("orientation", ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE)
+        prefs(context).getInt("orientation", ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE)
             .takeIf { value -> orientationOptions.any { it.first == value } }
-            ?: ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+            ?: ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
 
     fun setOrientation(context: Context, orientation: Int) {
         require(orientationOptions.any { it.first == orientation })
