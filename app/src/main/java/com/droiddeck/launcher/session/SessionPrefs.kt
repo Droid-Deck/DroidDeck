@@ -759,6 +759,16 @@ object SessionPrefs {
         prefs(context).edit().putString("theme", id).apply()
     }
 
+    /** The custom Gradient theme's primary and secondary colours (ARGB). */
+    fun gradientColors(context: Context): Pair<Int, Int> = prefs(context).let {
+        it.getInt("gradientPrimary", com.droiddeck.launcher.ui.Themes.DEFAULT_PRIMARY) to
+            it.getInt("gradientSecondary", com.droiddeck.launcher.ui.Themes.DEFAULT_SECONDARY)
+    }
+
+    fun setGradientColors(context: Context, primary: Int, secondary: Int) {
+        prefs(context).edit().putInt("gradientPrimary", primary).putInt("gradientSecondary", secondary).apply()
+    }
+
     private fun customResolution(context: Context, mode: String): Pair<Int, Int>? =
         parseResolution(prefs(context).getString("customRes.$mode", null))
 
@@ -977,6 +987,13 @@ object SessionPrefs {
 
     fun setUnfoldedControls(context: Context, enabled: Boolean) {
         prefs(context).edit().putBoolean("unfoldedControls", enabled).apply()
+    }
+
+    fun unfoldedControlsWithController(context: Context): Boolean =
+        prefs(context).getBoolean("unfoldedControlsWithController", false)
+
+    fun setUnfoldedControlsWithController(context: Context, enabled: Boolean) {
+        prefs(context).edit().putBoolean("unfoldedControlsWithController", enabled).apply()
     }
 
     const val SURFACE_STICK = "stick"

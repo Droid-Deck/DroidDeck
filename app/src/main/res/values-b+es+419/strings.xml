@@ -1029,6 +1029,7 @@
     <string name="glasses_xreal_network_missing">Esperando la conexión Ethernet por USB de las gafas. Puede que este teléfono no la ofrezca a las apps.</string>
     <string name="glasses_xreal_connection_failed">La conexión con las XREAL se interrumpió o devolvió una respuesta no compatible. Reintentando…</string>
     <string name="glasses_xreal_experimental">Compatibilidad experimental con las 1S. Usa el modo Follow y desactiva la estabilización en el menú de las gafas. Aún falta probar en el dispositivo las direcciones del seguimiento y los modos de pantalla.</string>
+    <string name="glasses_pro2_experimental">Seguimiento de cabeza experimental para Pro 2. Los ajustes de brillo y volumen y el cambio de modo de pantalla aún no son compatibles.</string>
     <string name="ctrl_select_steam_hint">En lugar de View/Select.</string>
     <string name="setup_animations">Animaciones</string>
     <string name="ctrl_adaptive_hint">Los sticks aparecen donde tocas y se ocultan al soltar</string>
@@ -1468,6 +1469,14 @@
     <string name="theme_icon_blue_detail">Fondo negro, texto blanco y el azul para todo lo seleccionado, enfocado o presionado.</string>
     <string name="theme_electric">Azul marino eléctrico</string>
     <string name="theme_electric_detail">Un azul más vivo, sobre superficies que tiran a azul marino en vez de gris.</string>
+    <string name="theme_gradient">Degradado</string>
+    <string name="theme_gradient_detail">Tus propios colores primario y secundario, combinados en botones y resaltados.</string>
+    <string name="theme_gradient_primary">Primario</string>
+    <string name="theme_gradient_secondary">Secundario</string>
+    <string name="theme_color_hue">Tono</string>
+    <string name="theme_color_saturation">Saturación</string>
+    <string name="theme_color_brightness">Brillo</string>
+    <string name="theme_color_hex">Color hexadecimal</string>
     <string name="pckb_key_esc">Esc</string>
     <string name="pckb_key_ins">Insert</string>
     <string name="pckb_key_del">Supr</string>
