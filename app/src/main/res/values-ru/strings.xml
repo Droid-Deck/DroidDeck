@@ -1431,6 +1431,14 @@
     <string name="theme_icon_blue_detail">Черный фон, белый текст, синий — для всего выбранного, активного или нажатого.</string>
     <string name="theme_electric">Электрик</string>
     <string name="theme_electric_detail">Более яркий синий на поверхностях темно-синего, а не серого оттенка.</string>
+    <string name="theme_gradient">Градиент</string>
+    <string name="theme_gradient_detail">Ваши основной и дополнительный цвета, плавно переходящие на кнопках и выделениях.</string>
+    <string name="theme_gradient_primary">Основной</string>
+    <string name="theme_gradient_secondary">Дополнительный</string>
+    <string name="theme_color_hue">Оттенок</string>
+    <string name="theme_color_saturation">Насыщенность</string>
+    <string name="theme_color_brightness">Яркость</string>
+    <string name="theme_color_hex">Цвет hex</string>
     <string name="pckb_key_esc">Esc</string>
     <string name="pckb_key_ins">Ins</string>
     <string name="pckb_key_del">Del</string>
@@ -2545,6 +2553,7 @@
     <string name="glasses_xreal_network_missing">Ожидание подключения очков по USB Ethernet. Этот телефон может не предоставлять его приложениям.</string>
     <string name="glasses_xreal_connection_failed">Подключение к XREAL прервано или получен неподдерживаемый ответ. Повторная попытка…</string>
     <string name="glasses_xreal_experimental">Экспериментальная поддержка 1S. Включите режим Follow и отключите стабилизацию в меню очков. Направления отслеживания и режимы отображения ещё нужно проверить на устройстве.</string>
+    <string name="glasses_pro2_experimental">Экспериментальное отслеживание движений головы для Pro 2. Настройка яркости и громкости и переключение режимов отображения пока не поддерживаются.</string>
     <string name="stores_fact_developer">Разработчик</string>
     <string name="stores_fact_publisher">Издатель</string>
     <string name="stores_fact_released">Дата выхода</string>

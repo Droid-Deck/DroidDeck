@@ -1390,6 +1390,14 @@
     <string name="theme_icon_blue_detail">พื้นดำ ตัวอักษรขาว สีฟ้าสำหรับทุกสิ่งที่ถูกเลือก โฟกัส หรือกด</string>
     <string name="theme_electric">กรมท่าไฟฟ้า</string>
     <string name="theme_electric_detail">สีฟ้าสว่างขึ้น บนพื้นผิวที่เอียงไปทางกรมท่ามากกว่าเทา</string>
+    <string name="theme_gradient">ไล่เฉดสี</string>
+    <string name="theme_gradient_detail">สีหลักและสีรองที่คุณเลือกเอง ผสมกันบนปุ่มและส่วนที่เน้น</string>
+    <string name="theme_gradient_primary">สีหลัก</string>
+    <string name="theme_gradient_secondary">สีรอง</string>
+    <string name="theme_color_hue">เฉดสี</string>
+    <string name="theme_color_saturation">ความอิ่มตัว</string>
+    <string name="theme_color_brightness">ความสว่าง</string>
+    <string name="theme_color_hex">สีเลขฐานสิบหก</string>
     <string name="pckb_key_esc">Esc</string>
     <string name="pckb_key_ins">Ins</string>
     <string name="pckb_key_del">Del</string>
@@ -2474,6 +2482,7 @@
     <string name="glasses_xreal_network_missing">กำลังรอการเชื่อมต่อ USB Ethernet ของแว่นตา โทรศัพท์นี้อาจไม่เปิดให้แอปเข้าถึงการเชื่อมต่อนี้</string>
     <string name="glasses_xreal_connection_failed">การเชื่อมต่อ XREAL ขาดหายหรือได้รับการตอบกลับที่ไม่รองรับ กำลังลองใหม่…</string>
     <string name="glasses_xreal_experimental">รองรับ 1S แบบทดลอง ใช้โหมด Follow และปิดการกันสั่นในเมนูของแว่นตา ทิศทางการติดตามและโหมดการแสดงผลยังต้องทดสอบกับอุปกรณ์จริง</string>
+    <string name="glasses_pro2_experimental">การติดตามศีรษะแบบทดลองสำหรับ Pro 2 ยังไม่รองรับการปรับความสว่าง ระดับเสียง และการสลับโหมดการแสดงผล</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">โหมด Cardboard</string>
     <string name="cardboard_mode_hint">ภาพสำหรับตาซ้ายและตาขวาสำหรับแว่น VR ของโทรศัพท์</string>

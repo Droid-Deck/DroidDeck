@@ -1460,6 +1460,14 @@
     <string name="theme_icon_blue_detail">خلفية سوداء ونص أبيض، والأزرق لكل عنصر محدَّد أو مُركَّز عليه أو مضغوط.</string>
     <string name="theme_electric">كحلي كهربائي</string>
     <string name="theme_electric_detail">أزرق أكثر سطوعًا، على أسطح تميل إلى الكحلي بدلاً من الرمادي.</string>
+    <string name="theme_gradient">تدرج لوني</string>
+    <string name="theme_gradient_detail">لونك الأساسي والثانوي، ممزوجان على الأزرار وعناصر التمييز.</string>
+    <string name="theme_gradient_primary">الأساسي</string>
+    <string name="theme_gradient_secondary">الثانوي</string>
+    <string name="theme_color_hue">درجة اللون</string>
+    <string name="theme_color_saturation">التشبع</string>
+    <string name="theme_color_brightness">السطوع</string>
+    <string name="theme_color_hex">لون سداسي (Hex)</string>
     <string name="pckb_key_esc">Esc</string>
     <string name="pckb_key_ins">Ins</string>
     <string name="pckb_key_del">Del</string>
@@ -2599,6 +2607,7 @@
     <string name="glasses_xreal_network_missing">في انتظار اتصال USB Ethernet الخاص بالنظارة. قد لا يتيحه هذا الهاتف للتطبيقات.</string>
     <string name="glasses_xreal_connection_failed">انقطع اتصال XREAL أو أعاد استجابة غير مدعومة. جارٍ إعادة المحاولة…</string>
     <string name="glasses_xreal_experimental">دعم تجريبي لـ 1S. استخدم وضع Follow وعطّل تثبيت الصورة من قائمة النظارة. لا تزال اتجاهات التتبّع وأوضاع العرض بحاجة إلى اختبار على الجهاز.</string>
+    <string name="glasses_pro2_experimental">تتبّع تجريبي لحركة الرأس لنظارة Pro 2. لا يُدعم بعد ضبط السطوع ومستوى الصوت أو تبديل وضع العرض.</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">وضع Cardboard</string>
     <string name="cardboard_mode_hint">عرض للعين اليسرى وآخر لليمنى لنظارة واقع افتراضي للهاتف.</string>
