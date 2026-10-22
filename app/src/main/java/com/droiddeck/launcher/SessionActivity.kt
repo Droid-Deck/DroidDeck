@@ -382,7 +382,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (output.displayId != displayId) return
         if (output.refreshRate <= 1f) return
         val hz = activeRefreshHz(output)
-        if (CompositorHost.isStarted) applyOutputPacing(hz) else SessionState.refreshHz = hz
+        if (CompositorHost.isStarted) applyOutputPacingAt(hz) else SessionState.refreshHz = hz
     }
     private var isHomeApp by mutableStateOf(false)
     private var androidApps by mutableStateOf<List<HomeApp.LaunchableApp>>(emptyList())
@@ -1792,7 +1792,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun activeOutputDisplay(): Display? = glassesScreen?.display
-        ?: (if (Build.VERSION.SDK_INT >= 30) display else windowManager.defaultDisplay)
+        ?: runCatching { if (Build.VERSION.SDK_INT >= 30) display else windowManager.defaultDisplay }.getOrNull()
+        ?: getSystemService(android.hardware.display.DisplayManager::class.java)
+            ?.getDisplay(Display.DEFAULT_DISPLAY)
 
     private fun activeRefreshHz(output: Display): Float {
         val mirrorCap = mirrorRefreshLimit().takeIf { it > 0 }?.toFloat() ?: Float.POSITIVE_INFINITY
@@ -1808,7 +1810,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     private fun outputFpsLimit(): Int = GlassesRendering.fpsLimit(SessionState.fpsLimit, mirrorRefreshLimit())
 
-    private fun applyOutputPacing(activeHz: Float? = null) {
+    private fun applyOutputPacing() = applyOutputPacingAt(null)
+
+    private fun applyOutputPacingAt(activeHz: Float?) {
         Log.i(TAG, "perf: " + PerfMode.apply(this, outputFpsLimit(), mirrorRefreshLimit()))
         val hz = activeHz ?: activeOutputDisplay()?.let(::activeRefreshHz) ?: refreshHz()
         val changed = kotlin.math.abs(SessionState.refreshHz - hz) > 0.1f
