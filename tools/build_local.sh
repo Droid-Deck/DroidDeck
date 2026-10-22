@@ -12,7 +12,18 @@ else
     export DROIDDECK_BUILD_TREE_STATE=unknown
 fi
 sdk_dir=${ANDROID_HOME:-${ANDROID_SDK_ROOT:-"${HOME}/Library/Android/sdk"}}
-java_dir=${JAVA_HOME:-"/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home"}
+java_dir="${JAVA_HOME:-/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home}"
+[[ -x "$java_dir/bin/java" ]] || {
+  mise_java="$(mise -C "${repo_root}" which java 2>/dev/null)"
+  if [[ -n "$mise_java" ]]; then
+    mise_home="$(dirname "$mise_java")"
+    [[ "$mise_home" == */bin ]] && mise_home="$(dirname "$mise_home")"
+    [[ -x "$mise_home/bin/java" ]] && java_dir="$mise_home"
+  fi
+}
+[[ -x "$java_dir/bin/java" ]] || java_dir="${HOME}/.local/share/mise/installs/java/temurin-17"
+[[ "$java_dir" == */homebrew/* ]] && echo "using homebrew java path: $java_dir"
+[[ "$java_dir" == */mise/* ]] && echo "using mise java path: $java_dir"
 image_name=${DROIDDECK_BUILD_IMAGE:-droiddeck-local-cross:24.04-v3}
 build_variant=${DROIDDECK_BUILD_VARIANT:-release}
 case "$build_variant" in
@@ -278,6 +289,16 @@ docker run --rm --platform linux/amd64 --user "$(id -u):$(id -g)" -v "${repo_roo
 mkdir -p "${linuxfs_dir}/usr/local/bin"
 install -m644 "${repo_root}/tools/mangoapp/mangoapp" "${linuxfs_dir}/usr/local/bin/mangoapp"
 
+pw_pkgs="${staging_dir}/pw-pkgs"
+mkdir -p "${pw_pkgs}"
+while read -r package_sha256 package_url; do
+    [[ -n "${package_url}" ]] || continue
+    package_archive=$(cached "${package_sha256}" "$(basename "${package_url}")" \
+        bash -c 'curl -fsSL --retry 3 -o "$out" "$0"' "${package_url}")
+    zstd -dc "${package_archive}" | tar -xf - -C "${pw_pkgs}"
+done < <(grep -v '^#' "${repo_root}/tools/pipewire/packages.txt")
+"${repo_root}/tools/pipewire/assemble.sh" "${pw_pkgs}" "${linuxfs_dir}/usr/local/lib/droiddeck-pipewire.tzst"
+
 pa_source=${DROIDDECK_PA13_SOURCE_DIR:-"${staging_dir}/pulseaudio-13.0"}
 if [[ -z "${DROIDDECK_PA13_SOURCE_DIR:-}" ]]; then
     pa_tarball="${cache_dir}/pulseaudio-13.0.tar.gz"
@@ -351,12 +372,20 @@ fi
 
 cd "${repo_root}"
 python3 tools/quest/build-driver.py "${NDK}"
+xbox_out="${linuxfs_dir}/usr/local/lib/droiddeck-xbox"
+xbox_key=$(inputs_hash "native-arm64-ubuntu24.04" tools/xbox)
+if ! restore_step xbox "${xbox_key}" "${xbox_out}"; then
+    bash tools/xbox/build-local.sh
+    save_step xbox "${xbox_key}" "${xbox_out}"
+fi
+
 comet_out="${linuxfs_dir}/usr/local/lib/droiddeck-comet"
 comet_key=$(inputs_hash "${image_id}" tools/comet)
 if ! restore_step comet "${comet_key}" "${comet_out}"; then
     DROIDDECK_BUILD_IMAGE="${image_name}" bash tools/comet/build-local.sh
     save_step comet "${comet_key}" "${comet_out}"
 fi
+bash tools/packs/build.sh app/build/packs
 python3 tools/release/runtime_inputs.py record
 ./gradlew "${gradle_task}" --console=plain -PndkVersion="${ndk_version}" ${gradle_rust_arg}
 python3 tools/release/check_session_assets.py "app/build/outputs/apk/${build_variant}/app-${build_variant}.apk"

@@ -5,6 +5,14 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class GlassesRenderingTest {
+    @Test fun modelTwoDRatesLimitChoicesAndSavedRatesFallBackToAnOfferedOne() {
+        val rokid = GlassesState(displayId = 2, width = 1920, height = 1080, hz = 60f, rates2d = listOf(60, 120))
+        assertEquals(listOf(60, 120), GlassesRendering.refreshRates(GlassesSettings(), rokid))
+        assertEquals(60, GlassesRendering.outputHz(GlassesSettings(refreshHz = 90), rokid))
+        assertEquals(120, GlassesRendering.outputHz(GlassesSettings(refreshHz = 120), rokid))
+        assertEquals(listOf(60, 90, 120), GlassesRendering.refreshRates(GlassesSettings(), rokid.copy(rates2d = listOf(60, 90, 120))))
+    }
+
     private val ultra = GlassesState(
         model = "VITURE Luma Ultra", connected = true, controllable = true,
         displayId = 2, width = 1920, height = 1200,

@@ -74,6 +74,9 @@ bl_store_launch() {
 }
 
 bl_run() {
+  if [ -x /usr/local/bin/droiddeck-steamvr-flat ] && /usr/local/bin/droiddeck-steamvr-flat "${verb:-}"; then
+    set -- /usr/local/bin/droiddeck-steamvr-game "$@"
+  fi
   if [ -n "${BL_STORE_EXIT:-}" ]; then
     "$@"
     rc=$?
@@ -243,6 +246,13 @@ bl_vacdiag() {
 """
 
 BL_DIRECTAUDIO_SETUP = """
+bl_is_steam_installscript_target() {
+  local target=${1:-}
+  local steam_root=${STEAM_COMPAT_CLIENT_INSTALL_PATH:-${XDG_DATA_HOME:-$HOME/.local/share}/Steam}
+  local helper="$steam_root/legacycompat/iscriptevaluator.exe"
+  [ -f "$helper" ] && [[ -n "$target" && "$target" -ef "$helper" ]]
+}
+
 bl_directaudio() {
   case "${verb:-}" in
     run|waitforexitandrun|runinprefix) ;;
@@ -251,6 +261,17 @@ bl_directaudio() {
   base=$1
   [ -n "${BL_DIRECTAUDIO:-}" ] || return 0
   [ -d "$BL_DIRECTAUDIO" ] || return 0
+  if bl_is_steam_installscript_target "${2:-}"; then
+    echo "droiddeck-proton: DirectAudio skipped for Steam's install-script evaluator" >&2
+    return 0
+  fi
+  streamer=$(cat "${XDG_RUNTIME_DIR:-/tmp}/droiddeck-remote-play" 2>/dev/null)
+  if [ -n "$streamer" ] && kill -0 "$streamer" 2>/dev/null; then
+    WINE_AUDIO_DRIVER=pulse
+    export WINE_AUDIO_DRIVER
+    echo "droiddeck-proton: a Remote Play client is connected - game audio goes through PulseAudio so the stream carries it" >&2
+    return 0
+  fi
   version=$("$base/files/bin-arm64/wine" --version 2>/dev/null)
   major=${version#wine-}
   major=${major%%.*}
@@ -338,7 +359,7 @@ for name in %s; do
 done
 if [ -n "$depot" ]; then
   bl_components "$depot"
-  bl_directaudio "$depot"
+  bl_directaudio "$depot" "$@"
   bl_game_cpus
   bl_idtech3 "$@"
   bl_vacdiag "$@"
@@ -393,7 +414,7 @@ if [ -n "${PROOT_FP_KEY:-}" ] && [ -f "$audit" ]; then
   esac
 fi
 bl_components "$here"
-bl_directaudio "$here"
+bl_directaudio "$here" "$@"
 bl_game_cpus
 bl_idtech3 "$@"
 bl_vacdiag "$@"
@@ -445,6 +466,9 @@ verb=$1; shift
 case $verb in
   getcompatpath | getnativepath) printf '%s\\n' "$1"; exit 0 ;;
 esac
+if [ -x /usr/local/bin/droiddeck-steamvr-flat ] && /usr/local/bin/droiddeck-steamvr-flat "$verb"; then
+  exec /usr/local/bin/droiddeck-steamvr-game /usr/local/bin/droiddeck-fex steam "$verb" "$@"
+fi
 exec /usr/local/bin/droiddeck-fex steam "$verb" "$@"
 """
 
@@ -901,24 +925,33 @@ def fex_wanted_marker():
     return os.path.join(os.environ.get("HOME", "/root"), ".config", "droiddeck", "fex-wanted")
 
 
-def request_fex(steam_root, asked):
+def request_app(steam_root, app):
     import subprocess
+    client = os.path.join(steam_root, "steamrtarm64", "steam")
+    if not os.access(client, os.X_OK):
+        return []
+    try:
+        process = subprocess.Popen([client, "steam://install/%s" % app], stdout=subprocess.DEVNULL,
+                                   stderr=subprocess.DEVNULL, start_new_session=True)
+    except OSError:
+        return []
+    try:
+        process.wait(timeout=REQUEST_HANDOFF_SECONDS)
+    except subprocess.TimeoutExpired:
+        pass
+    return [app]
+
+
+def request_fex(steam_root, asked):
     client = os.path.join(steam_root, "steamrtarm64", "steam")
     missing = fex_missing(steam_root)
     if not os.access(client, os.X_OK) or any(app in asked for app in missing):
         return []
     for app in missing:
         asked.add(app)
-        try:
-            process = subprocess.Popen([client, "steam://install/%s" % app], stdout=subprocess.DEVNULL,
-                                       stderr=subprocess.DEVNULL, start_new_session=True)
-        except OSError:
-            continue
-        try:
-            process.wait(timeout=REQUEST_HANDOFF_SECONDS)
-        except subprocess.TimeoutExpired:
-            pass
-        return [app]
+        requested = request_app(steam_root, app)
+        if requested:
+            return requested
     return []
 
 
@@ -1020,6 +1053,16 @@ def plan_mapping(current, installed, runnable, default, auto, native=None, picks
             changes[app] = target
         kept[app] = target
     return changes, kept
+
+
+def picked_apps(state):
+    picked = state.get("picked", ())
+    return {app for app in picked if isinstance(app, str)} if isinstance(picked, list) else set()
+
+
+def picked_after(current, changes):
+    return sorted(({app for app, tool in current.items() if tool} - set(changes) |
+                   {app for app, tool in changes.items() if tool}) - {"0"}, key=app_order)
 
 
 def followers(state, current):
@@ -1267,6 +1310,8 @@ def register_default(config_path, apps=(), protect=(), default=None, catalog=Non
         native = native_targets(steam_root, set(apps) | set(picks) | set(managed) | set(native_choices))
         if linux_tool != FEX_TOOL:
             native = {app: linux_tool if tool == FEX_TOOL else tool for app, tool in native.items()}
+        for app in picked_apps(state) & set(native):
+            current.setdefault(app, "")
         changes, auto = plan_mapping(
             current, apps, names, default, followers(state, current), native, picks,
             overrides, managed, native_choices)
@@ -1277,6 +1322,7 @@ def register_default(config_path, apps=(), protect=(), default=None, catalog=Non
             write_changed(config_path, text)
         state["auto"] = {app: tool for app, tool in auto.items() if tool is not NATIVE_CHOICE}
         state["native_choices"] = sorted(app for app, tool in auto.items() if tool is NATIVE_CHOICE)
+        state["picked"] = picked_after(current, changes)
         state.pop("native", None)
         state["tools"] = catalog
         state.setdefault("default", default)

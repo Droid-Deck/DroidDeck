@@ -34,7 +34,9 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.hoverable
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
@@ -141,6 +143,11 @@ internal fun Modifier.controllerBack(onBack: () -> Unit): Modifier = onPreviewKe
     }
 }
 
+internal fun Modifier.blockTouches(): Modifier = pointerInput(Unit) { detectTapGestures { } }
+
+internal fun Modifier.tapOutside(onTap: () -> Unit): Modifier =
+    pointerInput(onTap) { detectTapGestures(onTap = { onTap() }) }
+
 internal fun Modifier.bumpers(onPrevious: () -> Unit, onNext: () -> Unit): Modifier = onPreviewKeyEvent { event ->
     val keyEvent = event.nativeKeyEvent
     val previous = keyEvent.keyCode == KeyEvent.KEYCODE_BUTTON_L1
@@ -157,6 +164,7 @@ internal fun Modifier.bumpers(onPrevious: () -> Unit, onNext: () -> Unit): Modif
 internal fun TabStrip(
     tabs: List<String>, selected: Int, onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier, focusRequesters: List<FocusRequester>? = null,
+    bumpers: Boolean = true, compact: Boolean = false,
 ) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
@@ -164,9 +172,9 @@ internal fun TabStrip(
     val scroll = rememberScrollState()
     var tight by remember(tabs) { mutableStateOf(false) }
     LaunchedEffect(scroll.maxValue) { if (scroll.maxValue in 1 until Int.MAX_VALUE) tight = true }
-    val tabPadding = if (tight) 10.dp else 16.dp
+    val tabPadding = if (compact) 10.dp else if (tight) 10.dp else 16.dp
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = modifier) {
-        BumperKey("LB", stringResource(R.string.widgets_prev_tab)) { onSelect((selected + tabs.size - 1) % tabs.size) }
+        if (bumpers) BumperKey("LB", stringResource(R.string.widgets_prev_tab)) { onSelect((selected + tabs.size - 1) % tabs.size) }
         Row(
             modifier = Modifier.weight(1f, fill = false).clip(shape).background(colors.surfaceVariant).border(1.dp, pal.line2, shape)
                 .horizontalScroll(scroll).padding(3.dp),
@@ -180,7 +188,7 @@ internal fun TabStrip(
                 val reveal = remember { androidx.compose.foundation.relocation.BringIntoViewRequester() }
                 if (on) LaunchedEffect(Unit) { reveal.bringIntoView() }
                 Text(
-                    label, fontSize = 14.sp, fontWeight = if (on) FontWeight.Bold else FontWeight.SemiBold, maxLines = 1,
+                    label, fontSize = if (compact) 12.sp else 14.sp, fontWeight = if (on) FontWeight.Bold else FontWeight.SemiBold, maxLines = 1,
                     color = if (on) pal.onSignal else if (hot) colors.onBackground else colors.onSurfaceVariant,
                     modifier = Modifier
                         .bringIntoViewRequester(reveal)
@@ -191,11 +199,11 @@ internal fun TabStrip(
                         .glideBorder(hot, tabShape, if (on) colors.onBackground else pal.signal)
                         .hoverable(src).clickable(interactionSource = src, indication = null, role = Role.Tab, onClick = pick)
                         .controllerConfirm(onClick = pick)
-                        .padding(horizontal = tabPadding, vertical = 12.dp),
+                        .padding(horizontal = tabPadding, vertical = if (compact) 6.dp else 12.dp),
                 )
             }
         }
-        BumperKey("RB", stringResource(R.string.widgets_next_tab)) { onSelect((selected + 1) % tabs.size) }
+        if (bumpers) BumperKey("RB", stringResource(R.string.widgets_next_tab)) { onSelect((selected + 1) % tabs.size) }
     }
 }
 
@@ -648,8 +656,8 @@ fun MultiRow(
 }
 
 @Composable
-fun ActionRow(label: String, hint: String?, button: String, onClick: () -> Unit, progress: Float? = null) {
-    SettingsRow(label, hint) { SecondaryButton(button, progress = progress, onClick = onClick) }
+fun ActionRow(label: String, hint: String?, button: String, onClick: () -> Unit, progress: Float? = null, modifier: Modifier = Modifier) {
+    SettingsRow(label, hint) { SecondaryButton(button, modifier = modifier, progress = progress, onClick = onClick) }
 }
 
 @Composable

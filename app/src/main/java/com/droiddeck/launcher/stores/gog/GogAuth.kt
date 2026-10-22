@@ -20,6 +20,8 @@ object GogAuth {
         "&redirect_uri=https%3A%2F%2Fembed.gog.com%2Fon_login_success%3Forigin%3Dclient&response_type=token&layout=client2"
     const val REDIRECT_PREFIX = "https://embed.gog.com/on_login_success"
     const val GALAXY_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) GOG Galaxy/2.0"
+    const val COOKIE_DOMAIN = ".gog.com"
+    val SIGN_IN_URLS = listOf("https://login.gog.com/", "https://auth.gog.com/")
 
     fun authUrl(state: String): String = "$AUTH_URL&state=${Uri.encode(state)}"
 
