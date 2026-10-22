@@ -1,6 +1,7 @@
 package com.droiddeck.launcher.stores
 
 import java.io.File
+import java.util.concurrent.Executor
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -11,7 +12,7 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [33])
+@Config(sdk = [33], application = android.app.Application::class)
 class CloudSavesTest {
     private val app get() = RuntimeEnvironment.getApplication()
 
@@ -83,9 +84,11 @@ class CloudSavesTest {
     }
 
     @Test fun aFirstLaunchWithoutAPrefixIsDeferredNotBlocked() {
+        val deferred = ArrayList<Runnable>()
         val folder = File(StoreInstallRoot.storeDir(StoreInstallRoot.internalRoot(app), Store.GOG), "ELDERBORN").apply { mkdirs() }
         File(folder, "ELDERBORN.exe").writeText("MZ")
         StoreGameSidecar(Store.GOG, "1207664643", "ELDERBORN", "ELDERBORN.exe").write(folder)
-        assertEquals("deferred", CloudSaves.downloadOrDefer(app, Store.GOG, "1207664643").result)
+        assertEquals("deferred", CloudSaves.downloadOrDefer(app, Store.GOG, "1207664643", Executor { deferred += it }).result)
+        assertEquals(1, deferred.size)
     }
 }

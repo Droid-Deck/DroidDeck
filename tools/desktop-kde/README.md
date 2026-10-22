@@ -22,9 +22,11 @@ through `kwin_wayland_wrapper`. KWin composites in software (QPainter) - the Adr
 DRM device - so games and emulators from the menu go through `droiddeck-gpu`, and Steam goes back
 to the app as a Steam session.
 
-`build-kwin.sh` builds KWin 6.7.5's Wayland executable and library on a native ARM64 runner, using a disposable
-Arch Linux ARM chroot with every build package signature-checked. The KDE source tarball is pinned
-by SHA-256 (the same digest in Arch's KWin PKGBUILD); `patches/0001-respect-nested-desktop-scale.patch`
+`kwin.env` pins the KWin version shared by the build and packaging jobs. `build-kwin.sh` builds that version's
+Wayland executable and library on a native ARM64 runner, using a disposable
+Arch Linux ARM chroot with every build package signature-checked. It matches the current KWin package
+in Arch Linux ARM even when that repository trails KDE's latest release. The source tarball is pinned
+by SHA-256 from KDE's official source inventory; `patches/0001-respect-nested-desktop-scale.patch`
 lets Display Settings control the inner desktop scale independently of the outer window size.
 It keeps layer sizes, pointer/touch coordinates and the cursor in the same physical pixels.
 The behavior is enabled only with `DROIDDECK_NESTED_SCALE`, which the desktop script supplies.
@@ -32,7 +34,7 @@ The behavior is enabled only with `DROIDDECK_NESTED_SCALE`, which the desktop sc
 The desktop workflow replaces the same-version `kwin_wayland` executable and `libkwin.so`; the rest
 comes from the signature-checked Arch packages. `desktop-kde.kwin.txt` records the source, patch,
 executable, library and build package hashes. Corresponding source is
-https://download.kde.org/stable/plasma/6.7.5/kwin-6.7.5.tar.xz plus the patch in this repository.
+https://download.kde.org/stable/plasma/6.8.0/kwin-6.8.0.tar.xz plus the patch in this repository.
 
 The inventories use `.gzip` rather than `.gz`: Android's asset packer expands `.gz` and strips
 its suffix. The shared local/CI runtime payload check verifies the exact APK names and bytes.

@@ -79,6 +79,33 @@ internal object GlassesTab {
     const val VR = "vr"
     const val HARDWARE = "hardware"
     const val TRACKING = "tracking"
+    const val CONTROLLERS = "controllers"
+}
+
+@Composable
+internal fun VrControllerGroups(host: MenuHost, track: (String) -> Modifier = { Modifier }) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    androidx.compose.runtime.LaunchedEffect(Unit) { com.droiddeck.launcher.input.VrControllers.load(context) }
+    val c by com.droiddeck.launcher.input.VrControllers.settings.collectAsState()
+    val emulate = com.droiddeck.launcher.input.VrControllers.Emulate.entries
+    SettingsGroup(stringResource(R.string.vr_controllers_group)) {
+        ChoiceRow(host, "vr-emulate", stringResource(R.string.vr_controllers_emulate), stringResource(R.string.vr_controllers_emulate_hint),
+            emulate.map { it to stringResource(when (it) {
+                com.droiddeck.launcher.input.VrControllers.Emulate.OFF -> R.string.vr_controllers_off
+                com.droiddeck.launcher.input.VrControllers.Emulate.INDEX -> R.string.vr_controllers_index
+                com.droiddeck.launcher.input.VrControllers.Emulate.TOUCH -> R.string.vr_controllers_touch
+                com.droiddeck.launcher.input.VrControllers.Emulate.VIVE -> R.string.vr_controllers_vive
+            }) }, c.emulate, chipModifier = track("vr-emulate")) { com.droiddeck.launcher.input.VrControllers.setEmulate(context, it) }
+        if (c.emulate != com.droiddeck.launcher.input.VrControllers.Emulate.OFF) ChoiceRow(host, "vr-sticks",
+            stringResource(R.string.vr_controllers_sticks), stringResource(R.string.vr_controllers_sticks_hint),
+            listOf(false to stringResource(R.string.vr_controllers_sticks_game), true to stringResource(R.string.vr_controllers_sticks_hands)),
+            c.sticksMoveHands, chipModifier = track("vr-sticks")) { com.droiddeck.launcher.input.VrControllers.setSticksMoveHands(context, it) }
+        SettingsRow(stringResource(R.string.vr_controllers_buttons), stringResource(when (c.emulate) {
+            com.droiddeck.launcher.input.VrControllers.Emulate.OFF -> R.string.vr_controllers_buttons_off
+            com.droiddeck.launcher.input.VrControllers.Emulate.VIVE -> R.string.vr_controllers_buttons_vive
+            else -> R.string.vr_controllers_buttons_stick
+        }), hintLines = 6) {}
+    }
 }
 
 @Composable
@@ -122,7 +149,8 @@ internal fun GlassesGroups(
         }
     }
     if (display) SettingsGroup(g.model) {
-        if (g.experimental) SettingsRow(stringResource(R.string.glasses_control), stringResource(R.string.glasses_xreal_experimental)) {}
+        if (g.experimental) SettingsRow(stringResource(R.string.glasses_control), stringResource(
+            if (g.supportsDisplayModeControl) R.string.glasses_xreal_experimental else R.string.glasses_pro2_experimental)) {}
         val status = if (g.hasDisplay) stringResource(R.string.glasses_status, g.width, g.height, kotlin.math.round(g.hz).toInt(),
             stringResource(if (g.sbs) R.string.glasses_mode_3d else R.string.glasses_mode_2d)) else null
         when {
@@ -141,7 +169,7 @@ internal fun GlassesGroups(
         ToggleRow(host, "glasses-game", stringResource(R.string.glasses_game_on), stringResource(R.string.glasses_game_on_hint),
             s.gameOnGlasses, chipModifier = track("glasses-game")) { Glasses.setGameOnGlasses(it) }
     }
-    if (display && g.canControl && (inSession || g.sbs || g.sbsSupport == GlassesState.SBS_FAILS)) {
+    if (display && g.canControl && g.supportsDisplayModeControl && (inSession || g.sbs || g.sbsSupport == GlassesState.SBS_FAILS)) {
         SettingsGroup(stringResource(R.string.glasses_display_mode)) {
             if (g.sbsSupport == GlassesState.SBS_FAILS && !g.sbs) {
                 ActionRow(stringResource(R.string.glasses_3d), stringResource(R.string.glasses_3d_failed),
@@ -150,7 +178,7 @@ internal fun GlassesGroups(
                 g.sbs, chipModifier = track("glasses-3d")) { Glasses.set3d(it) }
         }
     }
-    if (display && g.canControl) {
+    if (display && g.canControl && g.supportsDisplayModeControl) {
         val profiles = if (inSession) listOf(GlassesDisplayModes.profile(g.sbs, false))
             else listOf(GlassesDisplayProfile.TWO_D, GlassesDisplayProfile.THREE_D)
         for (profile in profiles) SettingsGroup(stringResource(if (profile == GlassesDisplayProfile.TWO_D)
@@ -187,9 +215,9 @@ internal fun GlassesGroups(
     }
     if (vr && (g.canControl || g.hasDisplay)) SettingsGroup(stringResource(R.string.cardboard_steamvr)) {
         steamVr()
-        ToggleRow(host, "glasses-auto3d", stringResource(R.string.glasses_auto3d), stringResource(R.string.glasses_auto3d_hint),
-            s.auto3d, chipModifier = track("glasses-auto3d")) { Glasses.setAuto3d(it) }
-        if (g.canControl) {
+        if (g.supportsDisplayModeControl) ToggleRow(host, "glasses-auto3d", stringResource(R.string.glasses_auto3d),
+            stringResource(R.string.glasses_auto3d_hint), s.auto3d, chipModifier = track("glasses-auto3d")) { Glasses.setAuto3d(it) }
+        if (g.canControl && g.supportsDisplayModeControl) {
             GlassesResolutionRow(host, g, s, GlassesDisplayProfile.VR, track)
             if (steamVrRunning && tab != null) GlassesRefreshRow(host, g, s, track)
         }
@@ -362,13 +390,3 @@ private fun GlassesRecenterAction(label: String, tag: String, tint: Int, opacity
     }
 }
 
-@Composable
-internal fun GlassesPlayingHint(model: String) {
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(GlassesIcon, null, tint = Color.White.copy(alpha = 0.35f), modifier = Modifier.size(56.dp))
-            Spacer(Modifier.height(10.dp))
-            Text(stringResource(R.string.glasses_playing, model), color = Color.White.copy(alpha = 0.45f), fontSize = 15.sp)
-        }
-    }
-}

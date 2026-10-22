@@ -118,7 +118,9 @@ object SessionArtifacts {
 
     private fun scrubFolder(dir: File, record: Record) {
         dir.listFiles { f -> f.isFile && !f.name.startsWith(".") && f !in record.files }?.forEach { f ->
-            if (!LogRedactor.isText(f)) return@forEach
+            if (LogRedactor.isBinary(f)) return@forEach
+            // Too large to rewrite in memory: the folder must not be recorded as scrubbed.
+            if (!LogRedactor.isText(f)) { record.failed = true; return@forEach }
             val done = scrubFile(dir, f)
             if (done == null) record.failed = true else record.files[f] = done
         }

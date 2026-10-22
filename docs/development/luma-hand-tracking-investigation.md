@@ -106,7 +106,7 @@ The optional Lite bundle can be rebuilt with `mediapipe==0.10.21` using:
 python tools/build_hand_lite.py --palm palm_detection_lite.tflite --lite hand_landmark_lite.tflite
 ```
 
-Source URLs and hashes are in `app/src/main/assets/models/hand_landmarker_lite.provenance.json`.
+Source URLs and hashes are in `tools/packs/tracking/hand_landmarker_lite.provenance.json`.
 These changes still need live moving-hand, closed-fist, gesture-continuity, and latency validation.
 Earlier Lite/normalized-input validation passed 52 focused JVM tests, and bundle rebuild and label-archive reproducibility
 checks passed. Desktop MediaPipe 0.10.21 inference succeeded on color hand fixtures. All six
