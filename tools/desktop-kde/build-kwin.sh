@@ -3,8 +3,8 @@ set -euo pipefail
 out=$(realpath -m "${1:?out dir}")
 here=$(cd "$(dirname "$0")" && pwd)
 [ "$(uname -m)" = aarch64 ] || { echo 'KWin needs a native aarch64 runner' >&2; exit 1; }
-version=6.7.5
-source_sha=6baa910b732d93c48c90f9c1cc685cc93d0b8de0cdf138c24192c045bc3a48e2
+version=6.8.0
+source_sha=4bfaf31e29a8f9fdf231dc3bbb9b09b0ce07cae9fee7a01cfc86425ece796258
 mirror=https://fl.us.mirror.archlinuxarm.org/aarch64
 builder=68B3537F39A313B3E574D06777193F152BDBE6A6
 work=$(mktemp -d)
@@ -18,7 +18,7 @@ for repo in core extra alarm; do
 done
 touch "$work/runtime.txt"
 python3 "$here/closure.py" "$work/db" "$work/runtime.txt" "$here/kwin-build-seeds.txt" > "$work/packages.txt"
-grep -Eq '^extra/kwin-6\.7\.5-[0-9]+-aarch64\.pkg\.tar\.' "$work/packages.txt"
+grep -Eq '^extra/kwin-6\.8\.0-[0-9]+-aarch64\.pkg\.tar\.' "$work/packages.txt"
 export work mirror builder here
 download() {
     local entry=$1 sum=$2 file=${1#*/}
