@@ -6,6 +6,7 @@
 #include <linux/netlink.h>
 #include <netinet/in.h>
 #include <stdio.h>
+#include <limits.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
@@ -309,11 +310,39 @@ static int maybe_answer_lsof(const char *path, char *const argv[]) {
   _exit(0);
 }
 
+static char **web_helper_redirect(const char *path, char *const argv[], const char **launcher) {
+  const char *want = getenv("BL_X64_ARM_WEBHELPER");
+  if (!want || !*want || !path) return NULL;
+  const char *base = strrchr(path, '/');
+  if (strcmp(base ? base + 1 : path, "steamwebhelper") != 0) return NULL;
+  if (!strstr(path, "/steamrt64/")) {
+    char cwd[PATH_MAX];
+    size_t n;
+    if (path[0] == '/' || !getcwd(cwd, sizeof(cwd))) return NULL;
+    n = strlen(cwd);
+    if (n < 10 || strcmp(cwd + n - 10, "/steamrt64") != 0) return NULL;
+  }
+  int argc = 0;
+  while (argv && argv[argc]) argc++;
+  char **out = calloc((size_t)argc + 2, sizeof(char *));
+  if (!out) return NULL;
+  out[0] = (char *)want;
+  for (int i = 1; i < argc; i++) out[i] = argv[i];
+  *launcher = want;
+  return out;
+}
+
 int execve(const char *path, char *const argv_in[], char *const envp[]) {
   char *const *argv = bl_webhelper_argv(path, argv_in);
   static int (*real)(const char *, char *const[], char *const[]);
   if (!real) real = (int (*)(const char *, char *const[], char *const[]))dlsym(RTLD_NEXT, "execve");
   maybe_answer_lsof(path, argv);
+  const char *launcher = NULL;
+  char **redirected = web_helper_redirect(path, argv, &launcher);
+  if (redirected) {
+    real(launcher, redirected, envp);
+    free(redirected);
+  }
   bl_binfmt_before(path, argv, envp);
   real(path, argv, envp);
   return bl_binfmt_retry(path, argv, envp, errno);
@@ -349,6 +378,12 @@ int execv(const char *path, char *const argv_in[]) {
   static int (*real)(const char *, char *const[]);
   if (!real) real = (int (*)(const char *, char *const[]))dlsym(RTLD_NEXT, "execv");
   maybe_answer_lsof(path, argv);
+  const char *launcher = NULL;
+  char **redirected = web_helper_redirect(path, argv, &launcher);
+  if (redirected) {
+    real(launcher, redirected);
+    free(redirected);
+  }
   bl_binfmt_before(path, argv, environ);
   real(path, argv);
   return bl_binfmt_retry(path, argv, environ, errno);

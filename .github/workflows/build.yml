@@ -26,7 +26,7 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
-  PRELOAD_CACHE_VERSION: v3
+  PRELOAD_CACHE_VERSION: v6
 
 jobs:
   build:
@@ -41,6 +41,7 @@ jobs:
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
+          submodules: true
 
       - name: Check co-authors
         if: github.event_name == 'pull_request'
@@ -184,7 +185,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: app/src/main/assets/linuxfs
-          key: preloads-${{ env.PRELOAD_CACHE_VERSION }}-${{ hashFiles('app/src/main/cpp/fakeinput_steam.cpp', 'app/src/main/cpp/adrenotools/src/hook/kgsl.h', 'tools/quest/*', 'tools/linuxfs/preload/*.c', 'tools/linuxfs/build-x86-preloads.sh', 'tools/linuxfs/fex/*', 'tools/linuxfs/clipboard/*.c', 'tools/linuxfs/ssbs/*.c', 'tools/linuxfs/xclipse-layer/*', 'tools/proot/fastpath/*.c', 'tools/linuxfs/overlay/usr/local/bin/*', 'tools/linuxfs/overlay/usr/bin/**', 'tools/linuxfs/desktop/*', 'tools/gamescope/release.env', 'tools/wlroots/release.env', 'tools/linuxfs/uruntime.env', 'tools/linuxfs/licenses/*', 'tools/mangoapp/*', 'tools/msitools/**', 'tools/comet/**', 'tools/vkbridge/client/**', 'tools/vkbridge/common/**', 'tools/vkbridge/tests/**', 'tools/vkbridge/build-client-linux.sh', 'tools/linuxfs/debian-image.env', 'tools/vr/**') }}
+          key: preloads-${{ env.PRELOAD_CACHE_VERSION }}-${{ hashFiles('app/src/main/cpp/fakeinput_steam.cpp', 'app/src/main/cpp/adrenotools/src/hook/kgsl.h', 'tools/quest/*', 'tools/linuxfs/preload/*.c', 'tools/linuxfs/build-x86-preloads.sh', 'tools/linuxfs/fex/*', 'tools/linuxfs/clipboard/*.c', 'tools/linuxfs/ssbs/*.c', 'tools/linuxfs/xclipse-layer/*', 'tools/proot/fastpath/*.c', 'tools/linuxfs/overlay/usr/local/bin/*', 'tools/linuxfs/overlay/usr/bin/**', 'tools/linuxfs/desktop/*', 'tools/gamescope/release.env', 'tools/wlroots/release.env', 'tools/linuxfs/uruntime.env', 'tools/linuxfs/licenses/*', 'tools/mangoapp/*', 'tools/msitools/**', 'tools/comet/**', 'external/MaliBridge/client/**', 'external/MaliBridge/common/**', 'external/MaliBridge/tests/**', 'external/MaliBridge/scripts/build-client-linux.sh', 'tools/venus/glprobe.c', 'tools/linuxfs/debian-image.env', 'tools/vr/**') }}
 
       - name: Build libfakeinput.so and libblsession.so (glibc aarch64)
         if: steps.preloads.outputs.cache-hit != 'true'
@@ -193,7 +194,7 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update -qq
-          sudo apt-get install -y -qq gcc-aarch64-linux-gnu g++-aarch64-linux-gnu libvulkan-dev >/dev/null
+          sudo apt-get install -y -qq gcc-aarch64-linux-gnu g++-aarch64-linux-gnu libvulkan-dev libvulkan1 mesa-vulkan-drivers >/dev/null
           D=app/src/main/assets/linuxfs
           mkdir -p "$D"
           aarch64-linux-gnu-g++ -shared -fPIC -O2 -Wall -Wno-attributes -Wno-nonnull-compare \
@@ -219,8 +220,11 @@ jobs:
           aarch64-linux-gnu-strip --strip-unneeded "$D/usr/local/lib/droiddeck-xclipse/libVkLayer_droiddeck_xclipse.so"
           install -m644 tools/linuxfs/xclipse-layer/VkLayer_droiddeck_xclipse.json "$D/usr/local/lib/droiddeck-xclipse/"
           mkdir -p "$D/usr/local/bin"
-          # The Mali bridge's Linux side: ICD, manifest and self-test (tools/vkbridge).
-          tools/vkbridge/build-client-linux.sh "$D" aarch64-linux-gnu-gcc
+          # The Mali bridge's Linux side: ICD, manifest and self-test (external/MaliBridge).
+          external/MaliBridge/scripts/build-client-linux.sh "$D" aarch64-linux-gnu-gcc
+          # GLX start-up probe for the Mali Venus route.
+          aarch64-linux-gnu-gcc -O2 -Wall -o "$D/usr/local/bin/droiddeck-glprobe" tools/venus/glprobe.c -ldl
+          aarch64-linux-gnu-strip --strip-unneeded "$D/usr/local/bin/droiddeck-glprobe"
           aarch64-linux-gnu-gcc -O2 -Wall -Wextra -o "$D/usr/local/bin/droiddeck-clipboard" tools/linuxfs/clipboard/clipboard.c -ldl
           aarch64-linux-gnu-strip --strip-unneeded "$D/usr/local/bin/droiddeck-clipboard"
           VK_INCLUDE=$(ls -d "${ANDROID_NDK_LATEST_HOME:-${ANDROID_NDK_HOME:-$ANDROID_NDK_ROOT}}"/toolchains/llvm/prebuilt/*/sysroot/usr/include | head -1) \
@@ -321,9 +325,15 @@ jobs:
           set -euo pipefail
           docker run --rm -v "$PWD:/src" -w /src public.ecr.aws/docker/library/debian:bullseye bash -c '
             set -euo pipefail
-            printf "deb http://archive.debian.org/debian bullseye main\ndeb http://archive.debian.org/debian-security bullseye-security main\n" > /etc/apt/sources.list
-            apt-get -o Acquire::Check-Valid-Until=false update -qq
-            DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends gcc g++ gcc-multilib g++-multilib binutils >/dev/null
+            install_compilers() {
+              apt-get -o Acquire::Check-Valid-Until=false update -qq &&
+                DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends gcc g++ gcc-multilib g++-multilib binutils >/dev/null
+            }
+            printf "deb http://deb.debian.org/debian bullseye main\ndeb http://security.debian.org/debian-security bullseye-security main\n" > /etc/apt/sources.list
+            if ! install_compilers; then
+              printf "deb http://archive.debian.org/debian bullseye main\ndeb http://archive.debian.org/debian-security bullseye-security main\n" > /etc/apt/sources.list
+              install_compilers
+            fi
             tools/linuxfs/build-x86-preloads.sh app/src/main/assets/linuxfs
           '
           sudo chown -R "$(id -u):$(id -g)" app/src/main/assets/linuxfs
@@ -428,6 +438,30 @@ jobs:
           test -f app/src/main/assets/venus/libvulkan_virtio.so
           rm venus.tzst
 
+      - name: Check Quest tracking IPC
+        run: |
+          set -euo pipefail
+          NDK="${ANDROID_NDK_LATEST_HOME:-${ANDROID_NDK_HOME:-$ANDROID_NDK_ROOT}}"
+          VK_INCLUDE=$(ls -d "$NDK"/toolchains/llvm/prebuilt/*/sysroot/usr/include | head -1)
+          mkdir -p build/vr/include
+          cp -R "$VK_INCLUDE/vulkan" build/vr/include/
+          if [ -d "$VK_INCLUDE/vk_video" ]; then cp -R "$VK_INCLUDE/vk_video" build/vr/include/; fi
+          g++ -std=c++17 -Wall -Wextra -Werror -pthread tools/vr/tests/test_xr_tracking.cpp -o /tmp/test-xr-tracking
+          /tmp/test-xr-tracking
+          g++ -std=c++17 -Wall -Wextra -Werror tools/vr/tests/test_xr_touch.cpp -o /tmp/test-xr-touch
+          /tmp/test-xr-touch
+          g++ -std=c++17 -Wall -Wextra -Werror -pthread tools/vr/tests/test_xr_vsync.cpp -o /tmp/test-xr-vsync
+          /tmp/test-xr-vsync
+          g++ -std=c++17 -Wall -Wextra -Werror -pthread tools/vr/tests/test_xr_frames.cpp -o /tmp/test-xr-frames
+          /tmp/test-xr-frames
+          cc -Itools/vr/third_party/wayland -c tools/vr/src/wayland_client_stub.c -o /tmp/test-wayland-stub.o
+          cc -Itools/vr/third_party/wayland -c app/src/main/cpp/waylandcomp/generated/xdg-shell-protocol.c -o /tmp/test-xdg-shell.o
+          g++ -std=c++17 -Wall -Wextra -Werror -Wno-unused-parameter -Wno-missing-field-initializers -pthread -Ibuild/vr/include \
+            -Itools/vr/third_party/wayland -Iapp/src/main/cpp/waylandcomp/generated \
+            tools/vr/tests/test_presenter_shutdown.cpp tools/vr/src/presenter.cpp /tmp/test-wayland-stub.o /tmp/test-xdg-shell.o \
+            -ldl -o /tmp/test-presenter-shutdown
+          timeout 10 /tmp/test-presenter-shutdown
+
       - name: Rust toolchain for the store engines (aarch64-linux-android)
         id: rust
         run: |
@@ -461,7 +495,7 @@ jobs:
           path: |
             app/.cxx
             app/build/intermediates/cxx
-          key: cxx-${{ env.NDK_VERSION }}-${{ hashFiles('app/src/main/cpp/**') }}
+          key: cxx-${{ env.NDK_VERSION }}-${{ hashFiles('app/src/main/cpp/**', 'tools/vr/src/xr_*.h') }}
           restore-keys: |
             cxx-${{ env.NDK_VERSION }}-
 
@@ -518,7 +552,24 @@ jobs:
           python3 -m unittest discover -s tools/tests -p 'test_*.py'
 
       - name: Unit tests
-        run: ./gradlew testReleaseUnitTest --console=plain -PndkVersion="$NDK_VERSION"
+        id: unit-tests
+        run: |
+          set -o pipefail
+          mkdir -p app/build
+          ./gradlew testReleaseUnitTest --console=plain --info --stacktrace -Drobolectric.logging=stderr -PndkVersion="$NDK_VERSION" 2>&1 | tee app/build/unit-tests.log
+
+      - name: Upload unit test diagnostics
+        id: unit-test-diagnostics
+        if: always() && steps.unit-tests.outcome != 'skipped'
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-results
+          path: |
+            app/build/unit-tests.log
+            app/build/test-results/testReleaseUnitTest/
+            app/build/reports/tests/testReleaseUnitTest/
+          if-no-files-found: ignore
+          retention-days: 14
 
       - name: Sign with the testkey (v1 + v2 + v3)
         run: |
@@ -548,6 +599,15 @@ jobs:
           grep -qi "CN=Android, OU=Android, O=Android" /tmp/sig.txt \
             || { echo "::error::apk is not signed with the AOSP testkey"; exit 1; }
 
+      - uses: actions/upload-artifact@v4
+        id: apk-upload
+        with:
+          name: droiddeck-apk
+          path: app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
       - name: Report on the pull request
         if: always() && github.event_name == 'pull_request'
         continue-on-error: true
@@ -556,6 +616,9 @@ jobs:
           PR: ${{ github.event.pull_request.number }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           BUILD_OUTCOME: ${{ steps.build.outcome }}
+          UNIT_TEST_OUTCOME: ${{ steps.unit-tests.outcome }}
+          TEST_DIAGNOSTICS_URL: ${{ steps.unit-test-diagnostics.outputs.artifact-url }}
+          APK_OUTCOME: ${{ steps.apk-upload.outcome }}
           SAME_REPO: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
         run: |
           set -uo pipefail
@@ -566,8 +629,8 @@ jobs:
             echo
             [ -f /tmp/pr-merge.md ] && cat /tmp/pr-merge.md
             echo
-            case "$BUILD_OUTCOME" in
-              success)
+            case "$BUILD_OUTCOME:$UNIT_TEST_OUTCOME:$APK_OUTCOME" in
+              success:success:success)
                 echo "###  Build passed"
                 echo
                 echo "The \`droiddeck-apk\` artifact is [on this run]($RUN_URL), signed with the public test key."
@@ -580,7 +643,28 @@ jobs:
                 echo
                 echo "Fallback: [open **PR Release Publish**]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/workflows/pr-release-publish.yml) on \`main\` and enter PR \`$PR\`."
                 ;;
-              failure)
+              success:success:*)
+                echo "###  APK publication incomplete"
+                echo
+                echo "Compilation and unit tests passed, but APK publication did not complete. See [the run]($RUN_URL)."
+                ;;
+              success:failure:*)
+                echo "### ERROR: Unit tests failed"
+                echo
+                echo "The APK compiled, but unit tests failed. No installable artifact was published."
+                echo
+                if [ -n "$TEST_DIAGNOSTICS_URL" ]; then
+                  echo "The [unit-test-results]($TEST_DIAGNOSTICS_URL) artifact contains the test log and any generated reports."
+                else
+                  echo "The test diagnostics upload did not complete. See [the test log]($RUN_URL)."
+                fi
+                ;;
+              success:*)
+                echo "###  Build incomplete"
+                echo
+                echo "The APK compiled, but unit tests did not complete successfully. See [the run]($RUN_URL)."
+                ;;
+              failure:*)
                 echo "### ERROR: Build failed"
                 echo
                 echo "The compiler's errors ([full log]($RUN_URL)):"
@@ -598,7 +682,7 @@ jobs:
                 echo '```'
                 echo "</details>"
                 ;;
-              skipped|cancelled)
+              skipped:*|cancelled:*)
                 echo "###  Not built"
                 echo
                 echo "The build did not run (see above, or [the run]($RUN_URL))."
@@ -613,14 +697,6 @@ jobs:
           else
             gh api -X POST "repos/${GITHUB_REPOSITORY}/issues/${PR}/comments" -F body=@/tmp/pr-report.md >/dev/null
           fi
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: droiddeck-apk
-          path: app/build/outputs/apk/release/*.apk
-          if-no-files-found: error
-          retention-days: 30
-          compression-level: 0
 
   sign:
     needs: build

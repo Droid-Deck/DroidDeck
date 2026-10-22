@@ -29,6 +29,10 @@ if [[ ! -x "${java_dir}/bin/java" ]]; then
     echo "Java 17 not found at ${java_dir}; set JAVA_HOME." >&2
     exit 1
 fi
+if [[ ! -f "${repo_root}/external/MaliBridge/scripts/build-client-linux.sh" ]]; then
+    echo "external/MaliBridge is empty; run: git submodule update --init" >&2
+    exit 1
+fi
 if ! command -v docker >/dev/null 2>&1; then
     echo "Docker is required to cross-compile the glibc ARM64 preload libraries." >&2
     exit 1
@@ -131,7 +135,9 @@ docker run --rm --platform linux/amd64 \
         aarch64-linux-gnu-strip --strip-unneeded "$d/usr/local/lib/droiddeck-xclipse/libVkLayer_droiddeck_xclipse.so"
         install -m644 tools/linuxfs/xclipse-layer/VkLayer_droiddeck_xclipse.json "$d/usr/local/lib/droiddeck-xclipse/"
         mkdir -p "$d/usr/local/bin"
-        tools/vkbridge/build-client-linux.sh "$d" aarch64-linux-gnu-gcc
+        external/MaliBridge/scripts/build-client-linux.sh "$d" aarch64-linux-gnu-gcc
+        aarch64-linux-gnu-gcc -O2 -Wall -o "$d/usr/local/bin/droiddeck-glprobe" tools/venus/glprobe.c -ldl
+        aarch64-linux-gnu-strip --strip-unneeded "$d/usr/local/bin/droiddeck-glprobe"
         aarch64-linux-gnu-gcc -O2 -Wall -Wextra -o "$d/usr/local/bin/droiddeck-clipboard" tools/linuxfs/clipboard/clipboard.c -ldl
         aarch64-linux-gnu-strip --strip-unneeded "$d/usr/local/bin/droiddeck-clipboard"
         for script in tools/linuxfs/overlay/usr/local/bin/droiddeck-* tools/linuxfs/overlay/usr/local/bin/steam-compatibility; do

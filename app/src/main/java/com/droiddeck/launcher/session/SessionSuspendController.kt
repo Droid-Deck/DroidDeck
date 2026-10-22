@@ -211,11 +211,14 @@ internal class SessionSuspendController(
             }
         }
         for (record in ordered) send(record, SIGCONT)
-        repeat(8) {
+        val waiting = ordered.toMutableList()
+        repeat(RESTORE_CHECKS) { check ->
             Thread.sleep(25L)
-            if (ordered.all(::isRunningOrGone)) return true
+            waiting.removeAll { isRunningOrGone(it) }
+            if (waiting.isEmpty()) return true
+            if (check % 8 == 7) for (record in waiting) send(record, SIGCONT)
         }
-        return ordered.all(::isRunningOrGone)
+        return false
     }
 
     private fun send(record: ProcessRecord, signal: Int) {
@@ -242,5 +245,6 @@ internal class SessionSuspendController(
     private companion object {
         const val SIGSTOP = 19
         const val SIGCONT = 18
+        const val RESTORE_CHECKS = 80
     }
 }

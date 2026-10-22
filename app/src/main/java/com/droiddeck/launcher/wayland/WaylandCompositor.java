@@ -45,6 +45,10 @@ public final class WaylandCompositor {
 
     private static volatile long lastFrameNanos;
     private static volatile long frameIntervalNanos;
+    private static volatile long gameFrames; // written by the compositor thread only
+
+    /** Frames the game has presented since the app started; the rate is the difference over time. */
+    public static long gameFrameCount() { return gameFrames; }
 
     public static long recentFrameIntervalMs() {
         long last = lastFrameNanos;
@@ -57,6 +61,7 @@ public final class WaylandCompositor {
         long now = System.nanoTime();
         long previous = lastFrameNanos;
         lastFrameNanos = now;
+        gameFrames++;
         if (previous != 0) {
             long interval = now - previous;
             long smoothed = frameIntervalNanos;
@@ -148,6 +153,7 @@ public final class WaylandCompositor {
                                                      String nativeLibDir);
 
     public static native void nativeSetSurface(Surface surface);
+    public static native boolean nativeWaitSurface(int timeoutMs);
 
     public static native void nativeSendPointer(int action, int x, int y);
 
@@ -289,9 +295,12 @@ public final class WaylandCompositor {
 
     public static native void nativeSetCardboard(boolean enabled, int source, float ipdM, float screenDistM,
                                                  float screenWidthM, float k1, float k2, float fovDeg,
-                                                 float lensInset, float chroma);
+                                                 float lensInset, float chroma, boolean mono, float displayHz);
 
     public static native void nativeSetCardboardPose(float[] rotation, boolean live);
+    public static native void nativeSetCardboardSpatialPose(float[] rotation, float[] position, boolean live);
+    public static native boolean nativeSetSpatialFile(String path);
+    public static native void nativePublishSpatial(java.nio.ByteBuffer snapshot);
 
     public static native void nativeSetCardboardPoseFile(String path);
 

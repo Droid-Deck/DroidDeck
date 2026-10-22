@@ -26,10 +26,12 @@ object PhantomProcessLimit {
         usesDeviceConfig(sdk) && enabled -> listOf(
             "device_config delete activity_manager max_phantom_processes",
             "device_config set_sync_disabled_for_tests none",
+            "settings put global $SETTING true",
         )
         usesDeviceConfig(sdk) -> listOf(
             "device_config set_sync_disabled_for_tests persistent",
             "device_config put activity_manager max_phantom_processes $MAX_PHANTOM",
+            "settings put global $SETTING false",
         )
         else -> listOf("settings put global $SETTING ${if (enabled) "true" else "false"}")
     }
@@ -57,7 +59,12 @@ object PhantomProcessLimit {
         if (sdk < Build.VERSION_CODES.S) return PhantomProcessStatus.NOT_APPLICABLE
         if (usesDeviceConfig(sdk)) {
             val off = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(PREF_ANDROID_12_OFF, false)
-            return if (off) PhantomProcessStatus.DISABLED else PhantomProcessStatus.UNREADABLE
+            val global = try {
+                Settings.Global.getString(context.contentResolver, SETTING)
+            } catch (_: Exception) {
+                null
+            }
+            return android12Status(off, global, systemProperty(OVERRIDE_PROPERTY))
         }
         val global = try {
             Settings.Global.getString(context.contentResolver, SETTING)
@@ -66,6 +73,10 @@ object PhantomProcessLimit {
         }
         return status(global, systemProperty(OVERRIDE_PROPERTY))
     }
+
+    fun android12Status(rememberedOff: Boolean, global: String?, override: String?): PhantomProcessStatus =
+        if (rememberedOff || status(global, override) == PhantomProcessStatus.DISABLED) PhantomProcessStatus.DISABLED
+        else PhantomProcessStatus.UNREADABLE
 
     fun status(global: String?, override: String?): PhantomProcessStatus {
         val value = global?.trim()?.lowercase()?.takeIf { it.isNotEmpty() }

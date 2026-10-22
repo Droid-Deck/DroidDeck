@@ -30,6 +30,7 @@ string(SUBSTRING "${WINFG_CHAIN_HASH_FULL}" 0 12 WINFG_CHAIN_HASH)
 message(STATUS "win-fg chain: ${WINFG_UPSTREAM} (src ${WINFG_CHAIN_HASH})")
 
 add_subdirectory(waylandcomp)
+add_subdirectory(questxr)
 add_library(sdnative SHARED sdnative/sdnative.c)
 target_link_libraries(sdnative log)
 
@@ -37,3 +38,24 @@ add_library(deviceinfo SHARED deviceinfo/vkinfo.c)
 target_link_libraries(deviceinfo dl)
 
 add_library(termux SHARED termux/termux.c)
+
+# The optional proprietary SDK is supplied locally; its headers/libraries are not vendored.
+if(DROIDDECK_VITURE_SDK_DIR)
+    add_library(droiddeck_viture SHARED viture/sdk_bridge.cpp)
+    target_compile_features(droiddeck_viture PRIVATE cxx_std_17)
+    target_include_directories(droiddeck_viture PRIVATE "${DROIDDECK_VITURE_SDK_DIR}/include")
+    target_link_directories(droiddeck_viture PRIVATE "${DROIDDECK_VITURE_SDK_DIR}/android/${ANDROID_ABI}")
+    target_link_libraries(droiddeck_viture PRIVATE glasses log)
+endif()
+
+if(DROIDDECK_UVC_DIR)
+    add_library(rgb_usb SHARED IMPORTED)
+    set_target_properties(rgb_usb PROPERTIES IMPORTED_LOCATION "${DROIDDECK_UVC_DIR}/${ANDROID_ABI}/libusb.so")
+    add_library(rgb_uvc STATIC IMPORTED)
+    set_target_properties(rgb_uvc PROPERTIES IMPORTED_LOCATION "${DROIDDECK_UVC_DIR}/${ANDROID_ABI}/libuvc.a")
+    add_library(droiddeck_uvc SHARED viture/uvc_bridge.cpp)
+    target_compile_features(droiddeck_uvc PRIVATE cxx_std_17)
+    target_include_directories(droiddeck_uvc PRIVATE "${DROIDDECK_UVC_DIR}/include")
+    target_link_libraries(droiddeck_uvc PRIVATE rgb_uvc rgb_usb log)
+    target_link_options(droiddeck_uvc PRIVATE -Wl,-z,max-page-size=16384)
+endif()

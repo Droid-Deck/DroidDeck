@@ -203,6 +203,7 @@ object SessionPrefs {
 
     const val GPU_DRIVERS_AUTO = "auto"
     const val GPU_DRIVERS_MANUAL = "manual"
+    const val GPU_DRIVERS_MIX = "mix"
 
     fun gpuDriverMode(context: Context): String =
         prefs(context).getString("gpuDriverMode", GPU_DRIVERS_AUTO) ?: GPU_DRIVERS_AUTO
@@ -371,6 +372,9 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("gpuClockPin", on).apply()
     }
 
+    /** Whether the game's busiest threads are named to the power HAL for a boost (GameThreadHints). */
+    fun gameThreadHints(context: Context): Boolean = prefs(context).getBoolean("gameThreadHints", true)
+
     fun prootNoSeccomp(context: Context): Boolean = prefs(context).getBoolean("prootNoSeccomp", false)
 
     fun setProotNoSeccomp(context: Context, on: Boolean) {
@@ -429,7 +433,7 @@ object SessionPrefs {
 
     /**
      * The Mali bridge (experimental): the session's Vulkan goes through the app's bridge server to
-     * the phone's own driver instead of Turnip (tools/vkbridge). Only offered, and only used, on a
+     * the phone's own driver instead of Turnip (external/MaliBridge). Only offered, and only used, on a
      * GPU without Adreno's KGSL; off by default everywhere.
      */
     @JvmStatic
@@ -491,6 +495,31 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("steamGpuCompositing", on && steamGpuCompositingAllowed()).apply()
     }
 
+    /**
+     * The route Auto switched on for a Mali that has no open driver pair yet ("venus" or "bridge"),
+     * or "" when the user's own Setup switches are in charge. Auto turns only its own choice off
+     * again once a pair is installed; a Setup switch the user flips clears this.
+     */
+    /** The last session's process was killed by Android for memory; the launcher says so once. */
+    fun takeMemoryKillNotice(context: Context): Boolean {
+        val on = prefs(context).getBoolean("memoryKillNotice", false)
+        if (on) prefs(context).edit().putBoolean("memoryKillNotice", false).apply()
+        return on
+    }
+
+    fun setMemoryKillNotice(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("memoryKillNotice", on).apply()
+    }
+
+    fun maliFallbackByAuto(context: Context): String = prefs(context).getString("maliFallbackByAuto", "").orEmpty()
+
+    /** Whether [maliFallbackByAuto] was ever recorded (builds before it left the bridge on without saying who). */
+    fun maliFallbackKnown(context: Context): Boolean = prefs(context).contains("maliFallbackByAuto")
+
+    fun setMaliFallbackByAuto(context: Context, route: String) {
+        prefs(context).edit().putString("maliFallbackByAuto", route).apply()
+    }
+
     fun setVenus(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("venus", on).apply()
     }
@@ -498,6 +527,23 @@ object SessionPrefs {
     fun setVkBridge(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("vkBridge", on).putBoolean("bridgeFellBack", false).apply()
     }
+
+    /**
+     * The Mali bridge's safe mode, on by default: the bridge keeps its proven workarounds wherever
+     * its startup probe has not verified this GPU and driver. Off is performance mode (native paths
+     * wherever the probe passed). Reaches the server as <cache dir>/mode (VkBridgeComponent) and
+     * the guest as VKBRIDGE_MODE (SessionService).
+     */
+    @JvmStatic
+    fun vkBridgeSafe(context: Context): Boolean = prefs(context).getBoolean("vkBridgeSafe", true)
+
+    fun setVkBridgeSafe(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("vkBridgeSafe", on).apply()
+    }
+
+    /** The bridge's mode as the server and the client read it: "safe" or "performance". */
+    @JvmStatic
+    fun vkBridgeMode(context: Context): String = if (vkBridgeSafe(context)) "safe" else "performance"
 
     fun setZinkLazy(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("zinkLazy", on).apply()
@@ -540,6 +586,12 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("storageDiagnostics", on).apply()
     }
 
+    fun vacDiagnostics(context: Context): Boolean =
+        prefs(context).getBoolean("vac_diagnostics", false)
+
+    fun setVacDiagnostics(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("vac_diagnostics", on).apply()
+    }
 
     private fun resolutionCap(context: Context, mode: String): Int = prefs(context).getInt("resolutionCap.$mode", 720)
 
@@ -585,6 +637,33 @@ object SessionPrefs {
         prefs(context).edit().putString("fexPreset", id).apply()
         runCatching { GameEnvironmentStore.publish(context) }
             .onFailure { android.util.Log.e("GameEnvironment", "Could not update game environment", it) }
+    }
+
+    fun steamClientArch(context: Context): String = prefs(context).getString("steamClientArch", null) ?: "arm64"
+
+    fun setSteamClientArch(context: Context, id: String) {
+        prefs(context).edit().putString("steamClientArch", id).apply()
+    }
+
+    /** The running session's client, else the selected one: a changed setting applies from the next session. */
+    fun activeSteamClientArch(context: Context): String =
+        SessionState.steamClientArch?.takeIf { SessionState.running } ?: steamClientArch(context)
+
+    fun activeSteamRoot(context: Context): java.io.File = steamRoot(context, activeSteamClientArch(context))
+
+    fun steamRoot(context: Context, arch: String): java.io.File = java.io.File(
+        com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(context),
+        if (arch == "x86_64") "root/.droiddeck-x64/.local/share/Steam" else "root/.local/share/Steam",
+    )
+
+    fun bootMovie(context: Context): String =
+        prefs(context).getString("bootMovie", BootMovie.DROIDDECK_30) ?: BootMovie.DROIDDECK_30
+    fun setBootMovie(context: Context, id: String) { prefs(context).edit().putString("bootMovie", id).apply() }
+    fun bootMovieSound(context: Context): Boolean = prefs(context).getBoolean("bootMovieSound", true)
+    fun setBootMovieSound(context: Context, on: Boolean) { prefs(context).edit().putBoolean("bootMovieSound", on).apply() }
+    fun bootMovieCustomName(context: Context): String? = prefs(context).getString("bootMovieCustomName", null)
+    fun setBootMovieCustomName(context: Context, name: String?) {
+        prefs(context).edit().apply { if (name == null) remove("bootMovieCustomName") else putString("bootMovieCustomName", name) }.apply()
     }
 
     fun runSteamAtStartup(context: Context): Boolean = prefs(context).getBoolean("runSteamAtStartup", false)
@@ -687,6 +766,36 @@ object SessionPrefs {
 
     fun addedGameStoredAppId(context: Context, folderPath: String): Long? =
         prefs(context).getLong("addedAppId:$folderPath", 0L).takeIf { it != 0L }
+
+    fun followStoreGame(context: Context, key: String, folderPath: String, gone: (String) -> Boolean) = synchronized(addedGameLock) {
+        val p = prefs(context)
+        val previous = p.getString("storeFolder:$key", null)
+        if (previous == folderPath) return@synchronized
+        if (previous != null && !gone(previous)) return@synchronized
+        val edit = p.edit().putString("storeFolder:$key", folderPath)
+        if (previous != null && !p.contains("addedAppId:$folderPath")) {
+            val moved = movedAddedGame(p.all, previous, folderPath)
+            moved.keys.forEach { edit.remove(it) }
+            moved.values.forEach { (name, value) ->
+                when (value) {
+                    is String -> edit.putString(name, value)
+                    is Long -> edit.putLong(name, value)
+                    is Int -> edit.putInt(name, value)
+                    is Boolean -> edit.putBoolean(name, value)
+                    is Float -> edit.putFloat(name, value)
+                }
+            }
+            val removed = removedAddedGames(context)
+            if (previous in removed) edit.putString("removedAddedGames", removed.map { if (it == previous) folderPath else it }.joinToString("\n"))
+        }
+        edit.apply()
+    }
+
+    internal fun movedAddedGame(all: Map<String, *>, from: String, to: String): Map<String, Pair<String, Any?>> =
+        all.filterKeys { it.startsWith("added") && it.endsWith(":$from") }.mapValues { (name, value) ->
+            val moved = if (value is String && (value == from || value.startsWith("$from/"))) to + value.removePrefix(from) else value
+            name.removeSuffix(from) + to to moved
+        }
 
     fun addedGameAppId(context: Context, folderPath: String, first: Long): Long = synchronized(addedGameLock) {
         val p = prefs(context)

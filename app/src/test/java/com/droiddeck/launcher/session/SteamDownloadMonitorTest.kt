@@ -24,6 +24,21 @@ class SteamDownloadMonitorTest {
         }
     }
 
+    @Test fun followsTheX8664ClientsOwnLibrary() {
+        val root = Files.createTempDirectory("droiddeck-steam-download-").toFile()
+        try {
+            val steam = File(root, "root/.droiddeck-x64/.local/share/Steam")
+            val manifest = manifest(steam, "49520", downloaded = 10, total = 100, flags = 6)
+            val monitor = SteamDownloadMonitor()
+
+            assertFalse(monitor.poll(root, now = 1_000L))
+            manifest.writeText(appManifest(downloaded = 20, total = 100, flags = 6))
+            assertTrue(monitor.poll(root, now = 3_000L))
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
     @Test fun findsDownloadsInAdditionalSteamLibraries() {
         val root = Files.createTempDirectory("droiddeck-steam-download-").toFile()
         try {
@@ -62,6 +77,51 @@ class SteamDownloadMonitorTest {
 
             contentLog.appendText("[2026-10-06 14:45:03] AppID 44 App update changed : None\n")
             assertFalse(monitor.poll(root, now = 93_000L))
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test fun theOtherClientsLogIsReadFromItsStart() {
+        val root = Files.createTempDirectory("droiddeck-steam-download-").toFile()
+        try {
+            File(root, "root/.local/share/Steam/logs/content_log.txt").apply {
+                check(parentFile?.mkdirs() != false)
+                writeText("[2026-10-06 14:00:00] Client version: 1\n" + "[2026-10-06 14:00:01] nothing to download\n".repeat(20))
+                setLastModified(10_000L)
+            }
+            val monitor = SteamDownloadMonitor()
+            assertFalse(monitor.poll(root, now = 1_000L))
+
+            File(root, "root/.droiddeck-x64/.local/share/Steam/logs/content_log.txt").apply {
+                check(parentFile?.mkdirs() != false)
+                writeText("[2026-10-06 14:44:17] AppID 44 App update changed : Running Update,Downloading,Staging,\n" +
+                    "[2026-10-06 14:44:18] Current download rate: 0.000 Mbps\n".repeat(30))
+                setLastModified(20_000L)
+            }
+            assertTrue(monitor.poll(root, now = 2_000L))
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test fun theRunningClientsLogIsFollowedWhenTheOtherOneIsNewer() {
+        val root = Files.createTempDirectory("droiddeck-steam-download-").toFile()
+        try {
+            File(root, "root/.local/share/Steam/logs/content_log.txt").apply {
+                check(parentFile?.mkdirs() != false)
+                writeText("[2026-10-06 14:44:17] AppID 44 App update changed : Running Update,Downloading,Staging,\n")
+                setLastModified(10_000L)
+            }
+            File(root, "root/.droiddeck-x64/.local/share/Steam/logs/content_log.txt").apply {
+                check(parentFile?.mkdirs() != false)
+                writeText("[2026-10-06 14:00:00] Client version: 1\n")
+                setLastModified(20_000L)
+            }
+            val monitor = SteamDownloadMonitor()
+            assertTrue(monitor.poll(root, now = 1_000L, client = "arm64"))
+            assertTrue(monitor.poll(root, now = 2_000L, client = "arm64"))
+            assertFalse(SteamDownloadMonitor().poll(root, now = 1_000L, client = "x86_64"))
         } finally {
             root.deleteRecursively()
         }

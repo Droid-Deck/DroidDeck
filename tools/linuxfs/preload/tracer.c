@@ -4,8 +4,10 @@
 
 #define _GNU_SOURCE
 #include <ctype.h>
+#include <dlfcn.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
 #include <sys/syscall.h>
@@ -31,9 +33,16 @@ static int is_status_path(const char *path) {
   return strcmp(rest, "/status") == 0;
 }
 
-static int is_web_helper(void) {
-  return strcmp(program_invocation_short_name, "steamwebhelper") == 0 ||
-         strcmp(program_invocation_short_name, "vrwebhelper") == 0;
+static int is_web_helper(const void *caller) {
+  if (strcmp(program_invocation_short_name, "steamwebhelper") != 0 &&
+      strcmp(program_invocation_short_name, "vrwebhelper") != 0)
+    return 0;
+  const char *hide = getenv("BL_WEBHELPER_HIDE_TRACER");
+  Dl_info info;
+  if (hide && hide[0] == '1' && caller && dladdr(caller, &info) && info.dli_fname
+      && strstr(info.dli_fname, "libtier0_s.so"))
+    return 0;
+  return 1;
 }
 
 static int write_all(int fd, const char *data, size_t len) {
@@ -47,13 +56,13 @@ static int write_all(int fd, const char *data, size_t len) {
   return 0;
 }
 
-__attribute__((visibility("hidden"))) int bl_status_without_tracer(const char *path, int flags) {
+__attribute__((visibility("hidden"))) int bl_status_without_tracer(const char *path, int flags, const void *caller) {
   char text[STATUS_MAX];
   size_t len = 0;
   int saved = errno;
   int out = -1;
 
-  if ((flags & O_ACCMODE) != O_RDONLY || !is_status_path(path) || is_web_helper()) return -1;
+  if ((flags & O_ACCMODE) != O_RDONLY || !is_status_path(path) || is_web_helper(caller)) return -1;
   int in = (int)syscall(SYS_openat, AT_FDCWD, path, O_RDONLY | O_CLOEXEC);
   if (in < 0) goto done;
   for (;;) {

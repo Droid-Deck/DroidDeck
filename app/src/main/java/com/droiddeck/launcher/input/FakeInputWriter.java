@@ -119,6 +119,10 @@ public class FakeInputWriter {
 
     private static native void nativeStoreFence();
 
+    public static void storeFence() {
+        nativeStoreFence();
+    }
+
     private final File eventFile;
     private final int slot;
     private final ByteBuffer buffer = ByteBuffer.allocateDirect(BUFFER_SIZE);

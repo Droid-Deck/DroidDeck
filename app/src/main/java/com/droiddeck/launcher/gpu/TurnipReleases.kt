@@ -1,18 +1,21 @@
 package com.droiddeck.launcher.gpu
 
+import com.droiddeck.launcher.core.DownloadSource
+import com.droiddeck.launcher.core.Downloader
 import com.droiddeck.launcher.core.Hashes
 import com.droiddeck.launcher.R
 import android.content.Context
+import android.util.Log
 import com.droiddeck.launcher.core.FileUtils
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
-import java.io.FileOutputStream
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
 
 object TurnipReleases {
+    private const val TAG = "TurnipReleases"
     private const val PREFS = "turnip_releases"
     private const val KEY_RELEASE = "latest"
     private const val KEY_DOWNLOADS = "downloads"
@@ -60,7 +63,7 @@ object TurnipReleases {
         // <Id>-Pair.zip: open drivers for GPUs that are not Adreno (PanVK for Mali, RADV for
         // Xclipse), both halves in one zip. One release per driver, replaced in place on each
         // rebuild; every one is a test build, published as a pre-release.
-        Source("Non-Adreno", NON_ADRENO_REPO, prerelease = true) { name, _ ->
+        Source(NON_ADRENO_LABEL, NON_ADRENO_REPO, prerelease = true) { name, _ ->
             val m = Regex("""^(RADV-Xclipse(?:-[A-Za-z0-9]+)*?|PanVK-[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*?)-Pair\.zip$""").find(name) ?: return@Source null
             val key = DriverPairs.nonAdreno(m.groupValues[1])
             Kind(false, "Android + Linux · " + DriverPairs.nonAdrenoName(key), key, bundle = true)
@@ -68,6 +71,7 @@ object TurnipReleases {
     )
 
     private const val NON_ADRENO_REPO = "The412Banner/droiddeck-nonadreno-drivers"
+    const val NON_ADRENO_LABEL = "Non-Adreno"
 
     private fun sources(): List<Source> =
         if (com.droiddeck.launcher.core.DeviceSupport.adreno()) SOURCES.filter { it.repo != NON_ADRENO_REPO } else SOURCES
@@ -85,7 +89,10 @@ object TurnipReleases {
         val sources = sources()
         for (src in sources) {
             try {
-                val releases = JSONArray(get(context, "https://api.github.com/repos/${src.repo}/releases?per_page=15"))
+                // The non-Adreno repo keeps one release per driver plus many component builds (gamescope,
+                // Venus): its driver pairs fall past the first 15, so it is read in one full page.
+                val perPage = if (src.repo == NON_ADRENO_REPO) 100 else 15
+                val releases = JSONArray(get(context, "https://api.github.com/repos/${src.repo}/releases?per_page=$perPage"))
                 val seen = HashSet<String>()
                 var newest: String? = null
                 for (i in 0 until releases.length()) {
@@ -123,7 +130,24 @@ object TurnipReleases {
     }
 
     private fun get(context: Context, url: String): String {
-        val c = URL(url).openConnection() as HttpURLConnection
+        val sources = DownloadSource.candidates(url)
+        var last: IOException? = null
+        for ((index, source) in sources.withIndex()) {
+            try {
+                val body = get(context, source, url)
+                DownloadSource.succeeded(source)
+                return body
+            } catch (e: IOException) {
+                last = e
+                if (index < sources.lastIndex) Log.i(TAG, "retrying $url via $source")
+            }
+        }
+        DownloadSource.failed()
+        throw last ?: IOException(context.getString(R.string.turnip_github_http, 0))
+    }
+
+    private fun get(context: Context, source: String, url: String): String {
+        val c = URL(source).openConnection() as HttpURLConnection
         c.connectTimeout = 15_000
         c.readTimeout = 20_000
         c.setRequestProperty("Accept", "application/vnd.github+json")
@@ -216,39 +240,13 @@ object TurnipReleases {
     fun download(context: Context, asset: Asset, progress: (Int) -> Unit): File {
         if (asset.sha256.isEmpty()) throw IOException(context.getString(R.string.turnip_list_predates_checksums))
         val target = File(context.cacheDir, asset.name)
-        val c = URL(asset.url).openConnection() as HttpURLConnection
-        c.connectTimeout = 15_000
-        c.readTimeout = 60_000
-        c.setRequestProperty("User-Agent", "DroidDeck-app")
-        c.instanceFollowRedirects = true
-        try {
-            if (c.responseCode != 200) throw IOException(context.getString(R.string.turnip_download_http, c.responseCode))
-            val total = c.contentLengthLong.takeIf { it > 0 } ?: asset.size
-            c.inputStream.use { input ->
-                FileOutputStream(target).use { out ->
-                    val buf = ByteArray(1 shl 16)
-                    var done = 0L
-                    var last = -1
-                    while (true) {
-                        val r = input.read(buf)
-                        if (r <= 0) break
-                        out.write(buf, 0, r)
-                        done += r
-                        val pct = if (total > 0) (done * 100 / total).toInt() else 0
-                        if (pct != last) { last = pct; progress(pct) }
-                    }
-                }
-            }
-            if (!asset.sha256.equals(Hashes.sha256(target), ignoreCase = true)) {
-                throw IOException(context.getString(R.string.turnip_checksum_mismatch))
-            }
-            return target
-        } catch (e: Exception) {
+        val ok = Downloader.downloadFile(asset.url, target, true, asset.sha256) { f -> progress(if (f < 0) -1 else (f * 100).toInt()) }
+        if (!ok) throw IOException(context.getString(R.string.turnip_download_failed))
+        if (!asset.sha256.equals(Hashes.sha256(target), ignoreCase = true)) {
             FileUtils.delete(target)
-            throw e
-        } finally {
-            c.disconnect()
+            throw IOException(context.getString(R.string.turnip_checksum_mismatch))
         }
+        return target
     }
 
     private fun downloads(context: Context): JSONObject =

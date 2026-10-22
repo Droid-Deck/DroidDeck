@@ -21,6 +21,7 @@ Requests: ping, exec, focus, cdp, quit. Each answer is {"ok": true, ...} or
 import base64
 import json
 import math
+import re
 import os
 import selectors
 import signal
@@ -177,6 +178,11 @@ class X:
             return list(struct.unpack("<%dI" % n, data))
         return data
 
+    def cardinals(self, window, name, values):
+        self.s.sendall(struct.pack("<BBHIIIB3xI", 18, 0, 6 + len(values), window,
+                                  self.atom(name), self.atom("CARDINAL"), 32, len(values))
+                       + struct.pack("<%dI" % len(values), *values))
+
 
 def windows(x):
     """Top-level windows that are mapped or carry an app id: what gamescope picks focus from."""
@@ -249,6 +255,67 @@ def focus_snapshot():
     return snap
 
 
+STEAM_APP_CLASS = re.compile(r"steam_app_(\d+)$")
+
+
+def tag_game_windows(snap):
+    if os.environ.get("BL_STEAM_CLIENT_ARCH") != "x86_64":
+        return False
+    tagged = False
+    for display, wins in snap.get("displays", {}).items():
+        if display == os.environ.get("DISPLAY"):
+            continue
+        for win in wins:
+            match = STEAM_APP_CLASS.match(win.get("class") or "")
+            if not match or win.get("appId") or win.get("map") != "viewable" or win.get("overrideRedirect"):
+                continue
+            try:
+                done = subprocess.run(["xprop", "-display", display, "-id", str(win["window"]), "-f", "STEAM_GAME", "32c",
+                                       "-set", "STEAM_GAME", match.group(1)],
+                                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5).returncode == 0
+            except (OSError, subprocess.TimeoutExpired):
+                done = False
+            log("game window %s on %s tagged STEAM_GAME=%s: %s" % (win["window"], display, match.group(1), "ok" if done else "failed"))
+            tagged = tagged or done
+    return tagged
+
+
+def vr_scene_app(path=Path('/run/droiddeck/droiddeck-steamvr/scene-focus.json'), proc=Path('/proc')):
+    """Only a live SteamVR scene with its dashboard hidden may claim game focus."""
+    try:
+        state = json.loads(path.read_text())
+        server, scene = int(state['serverPid']), int(state['scenePid'])
+        if server <= 0 or scene <= 0 or state['dashboard'] is not False:
+            return None
+        if (proc / str(server) / 'comm').read_text().strip() != 'vrserver':
+            return None
+        for entry in (proc / str(scene) / 'environ').read_bytes().split(b'\0'):
+            if entry.startswith(b'SteamAppId='):
+                app = int(entry.split(b'=', 1)[1])
+                return app if 0 < app < 2**32 else None
+    except (OSError, ValueError, TypeError, KeyError):
+        pass
+    return None
+
+
+class VrSceneFocus:
+    def __init__(self):
+        self.original = None
+        self.written = None
+
+    def order(self, current, focusable, app):
+        if app is None or app not in focusable:
+            restore = self.original if self.written == current else None
+            self.original = self.written = None
+            return restore
+        if current and current[0] == app:
+            return None
+        if self.original is None:
+            self.original = list(current)
+        self.written = [app] + [item for item in current if item != app]
+        return self.written
+
+
 class FocusWatcher(threading.Thread):
     """Rewrites focus.json when gamescope's focus properties change, and every few seconds when
     the windows do (a window can change without any root property moving)."""
@@ -259,18 +326,34 @@ class FocusWatcher(threading.Thread):
         self.changed = threading.Event()
         self.last = None
         self.seq = 0
+        self.vr_focus = VrSceneFocus()
 
     def run(self):
         threading.Thread(target=self.listen, daemon=True, name="focus-events").start()
+        last_app, last_snapshot = None, 0
         while True:
-            self.changed.wait(timeout=5)
+            notified = self.changed.wait(timeout=0.5)
             self.changed.clear()
+            app = vr_scene_app()
+            if not notified and app == last_app and time.monotonic() - last_snapshot < 5:
+                continue
+            last_app, last_snapshot = app, time.monotonic()
             time.sleep(0.2)
             try:
                 snap = focus_snapshot()
+                order = self.vr_focus.order(snap.get('baselayerAppIds', []), snap.get('focusableApps', []), app)
+                if order is not None:
+                    x = X(os.environ['DISPLAY'])
+                    try:
+                        x.cardinals(x.root, 'GAMESCOPECTRL_BASELAYER_APPID', order)
+                    finally:
+                        x.close()
             except (OSError, AgentError) as e:
                 log("focus snapshot failed: %s" % e)
                 time.sleep(2)
+                continue
+            if tag_game_windows(snap):
+                self.changed.set()
                 continue
             body = {k: v for k, v in snap.items() if k != "t"}
             if body == self.last:
@@ -525,6 +608,31 @@ def wait_for_steam_shortcut_overview(agent_dir, game_id, timeout=45):
                 raise
         time.sleep(min(0.25, max(0, deadline - time.monotonic())))
     raise AgentError("STEAM_OVERVIEW_TIMEOUT", "Steam did not load shortcut app overview %d" % app_id)
+
+
+def steam_shortcut_state(agent_dir, game_id, timeout=6):
+    if steam_shortcut_app_id(game_id) is None:
+        return "not-shortcut"
+    timeout = request_timeout({"timeout": timeout}, 6)
+    deadline = time.monotonic() + timeout
+    expression = """(() => {
+        const store = globalThis.appStore;
+        if (typeof store?.GetAppOverviewByGameID !== 'function' || !store.m_bIsInitialized) return 'loading';
+        if (store.GetAppOverviewByGameID(%s) != null) return 'ready';
+        return store.allApps.some(app => app.app_type == 1073741824) ? 'missing' : 'loading';
+    })()""" % json.dumps(game_id)
+    state = "loading"
+    while True:
+        try:
+            state = cdp_eval(agent_dir, expression, await_promise=False,
+                             timeout=min(5, max(0.25, deadline - time.monotonic()))).get("value") or "loading"
+        except AgentError as error:
+            if error.code not in ("NO_DEVTOOLS", "DEVTOOLS_UNREACHABLE", "NO_TARGET", "TIMEOUT"):
+                raise
+            state = "loading"
+        if state == "ready" or time.monotonic() >= deadline:
+            return state
+        time.sleep(min(0.5, max(0, deadline - time.monotonic())))
 
 
 def game_pids(app_id):
@@ -804,6 +912,28 @@ def main(argv):
             return 3
         print("droiddeck-agent: Steam overview is ready for shortcut app %d" % prepared["appId"])
         return 0
+    if argv and argv[0] == "--steam-asleep":
+        expression = """(() => {
+            const store = globalThis.SuspendResumeStore;
+            return store ? (store.m_bSuspending ? 'yes' : 'no') : 'unknown';
+        })()"""
+        try:
+            state = cdp_eval(Path(base) / "agent", expression, await_promise=False, timeout=3).get("value") or "unknown"
+        except (AgentError, OSError, ValueError):
+            state = "unknown"
+        print(state)
+        return {"yes": 0, "no": 5}.get(state, 1)
+    if argv and argv[0] == "--steam-shortcut-state":
+        if len(argv) not in (2, 3):
+            print("usage: droiddeck-agent --steam-shortcut-state <cgameid> [timeout-seconds]", file=sys.stderr)
+            return 2
+        try:
+            state = steam_shortcut_state(Path(base) / "agent", argv[1], argv[2] if len(argv) == 3 else 6)
+        except (AgentError, OSError, ValueError) as error:
+            print("droiddeck-agent: could not ask the client about the shortcut: %s" % error, file=sys.stderr)
+            return 1
+        print(state)
+        return {"ready": 0, "missing": 4, "not-shortcut": 3}.get(state, 1)
     serve(Path(base) / "agent", focus="--no-focus" not in argv)
     return 0
 

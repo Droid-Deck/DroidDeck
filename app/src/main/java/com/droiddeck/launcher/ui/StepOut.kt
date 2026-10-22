@@ -15,6 +15,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -22,6 +26,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
@@ -81,8 +86,9 @@ internal fun stepPath(
     val rbr = minOf(box, (pb - tt) / 2f)
     val rbl = minOf(lerpF(minOf(box, (pb - tt) / 2f), minOf(box, h / 2f), (sw / box).coerceIn(0f, 1f)), (r - l) / 2f)
     val rpl = minOf(box, sw / 2f, h / 2f)
-    val f = minOf(fillet, sw / 2f)
     val yl = minOf(pt + rpl, pb - rbl)
+    val sy = yl - rpl
+    val f = minOf(fillet, sw / 2f, (sy - tt - rt).coerceAtLeast(0f))
     fun corner(rect: Rect, start: Float, sweep: Float, endX: Float, endY: Float) {
         if (rect.width < 0.5f) path.lineTo(endX, endY) else path.arcTo(rect, start, sweep, false)
     }
@@ -94,9 +100,9 @@ internal fun stepPath(
     path.lineTo(l + rbl, pb)
     corner(Rect(l, pb - 2 * rbl, l + 2 * rbl, pb), 90f, 90f, l, pb - rbl)
     path.lineTo(l, yl)
-    corner(Rect(l, pt, l + 2 * rpl, pt + 2 * rpl), 180f, 90f, l + rpl, pt)
-    path.lineTo(tl - f, pt)
-    corner(Rect(tl - 2 * f, pt - 2 * f, tl, pt), 90f, -90f, tl, pt - f)
+    corner(Rect(l, sy, l + 2 * rpl, sy + 2 * rpl), 180f, 90f, l + rpl, sy)
+    path.lineTo(tl - f, sy)
+    corner(Rect(tl - 2 * f, sy - 2 * f, tl, sy), 90f, -90f, tl, sy - f)
     path.lineTo(tl, tt + rt)
     corner(Rect(tl, tt, tl + 2 * rt, tt + 2 * rt), 180f, 90f, tl + rt, tt)
     path.close()
@@ -305,6 +311,39 @@ internal fun StepChoice(
             maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = if (trailing != null) Modifier.weight(1f) else Modifier,
         )
         if (trailing != null) Text(trailing, fontSize = 12.sp, color = colors.onSurfaceVariant, maxLines = 1)
+    }
+}
+
+@Composable
+internal fun StepTile(
+    label: String,
+    icon: ImageVector,
+    modifier: Modifier = Modifier,
+    detail: String? = null,
+    warning: Boolean = false,
+    enabled: Boolean = true,
+    onClick: () -> Unit,
+) {
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    val src = remember { MutableInteractionSource() }
+    val hot = rememberHot(src)
+    val shape = RoundedCornerShape(18.dp)
+    Row(
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
+        modifier = modifier.width(184.dp).height(IntrinsicSize.Min).clip(shape)
+            .background(if (hot) pal.signal.copy(alpha = 0.14f) else colors.surface.copy(alpha = 0.5f))
+            .glideBorder(hot, shape, pal.signal, pal.line)
+            .hoverable(src)
+            .clickable(interactionSource = src, indication = LocalIndication.current, enabled = enabled, role = Role.Button, onClick = onClick)
+            .controllerConfirm(enabled = enabled, onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+    ) {
+        Icon(icon, null, tint = if (hot) pal.signal else colors.onBackground, modifier = Modifier.fillMaxHeight().aspectRatio(1f))
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(label, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (detail != null) Text(detail, fontSize = 12.sp, color = if (warning) colors.error else colors.onSurfaceVariant, maxLines = 2)
+        }
     }
 }
 
