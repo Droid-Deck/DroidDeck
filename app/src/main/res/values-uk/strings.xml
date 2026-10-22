@@ -1432,6 +1432,14 @@
     <string name="theme_icon_blue_detail">Чорне тло, білий текст і синій для всього вибраного, у фокусі чи натиснутого.</string>
     <string name="theme_electric">Електричний темно-синій</string>
     <string name="theme_electric_detail">Яскравіший синій на поверхнях із темно-синім відтінком замість сірого.</string>
+    <string name="theme_gradient">Градієнт</string>
+    <string name="theme_gradient_detail">Ваші основний і додатковий кольори, що плавно переходять на кнопках і виділеннях.</string>
+    <string name="theme_gradient_primary">Основний</string>
+    <string name="theme_gradient_secondary">Додатковий</string>
+    <string name="theme_color_hue">Відтінок</string>
+    <string name="theme_color_saturation">Насиченість</string>
+    <string name="theme_color_brightness">Яскравість</string>
+    <string name="theme_color_hex">Колір hex</string>
     <string name="pckb_key_esc">Esc</string>
     <string name="pckb_key_ins">Ins</string>
     <string name="pckb_key_del">Del</string>
@@ -2549,6 +2557,7 @@
     <string name="glasses_xreal_network_missing">Очікування з’єднання USB Ethernet від окулярів. Цей телефон може не надавати його додаткам.</string>
     <string name="glasses_xreal_connection_failed">З’єднання з XREAL перервалося або повернуло непідтримувану відповідь. Повторна спроба…</string>
     <string name="glasses_xreal_experimental">Експериментальна підтримка 1S. Увімкніть режим Follow і вимкніть стабілізацію в меню окулярів. Напрямки відстеження й режими відображення ще потрібно перевірити на пристрої.</string>
+    <string name="glasses_pro2_experimental">Експериментальне відстеження рухів голови для Pro 2. Налаштування яскравості й гучності та перемикання режимів відображення ще не підтримуються.</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Режим Cardboard</string>
     <string name="cardboard_mode_hint">Зображення для лівого й правого ока для VR-окулярів під телефон.</string>
