@@ -28,8 +28,11 @@ build wrote is removed - with it the game exited while loading.
     droiddeck-store-launch <the arguments Steam gave the compat tool>
 """
 
+import base64
+import binascii
 import json
 import os
+import re
 import sys
 import time
 import subprocess
@@ -268,6 +271,23 @@ def provision_prefix(compat_data, wait=SERVER_WAIT):
     return state + (" server-running" if busy else "")
 
 
+def create_prefix(compat_data, proton, timeout=120):
+    if not compat_data or not proton or not Path(proton).is_file():
+        return "no-proton"
+    reg = Path(compat_data) / "pfx/user.reg"
+    if reg.is_file():
+        return "present"
+    try:
+        Path(compat_data).mkdir(parents=True, exist_ok=True)
+        subprocess.run([proton, "run", "cmd.exe", "/d", "/c", "exit"], stdin=subprocess.DEVNULL,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        return "timeout"
+    except OSError:
+        return "failed"
+    return "created" if reg.is_file() else "failed"
+
+
 CLOUD_TIMEOUT = 15.0
 CLOUD_STORES = ("gog", "epic")
 STORE_GAME = 10
@@ -364,6 +384,123 @@ def prepare_gog(sidecar, compat_data, launch_dir):
     return state == "ready"
 
 
+GOG_SCRIPTS = "goggame-*.script"
+GOG_REGISTRY_MARK = ".droiddeck-gog-registry"
+GOG_ROOTS = {"HKEY_LOCAL_MACHINE": "HKEY_LOCAL_MACHINE", "HKLM": "HKEY_LOCAL_MACHINE",
+             "HKEY_CURRENT_USER": "HKEY_CURRENT_USER", "HKCU": "HKEY_CURRENT_USER",
+             "HKEY_CLASSES_ROOT": "HKEY_CLASSES_ROOT", "HKCR": "HKEY_CLASSES_ROOT"}
+WINE_USER = "C:\\users\\steamuser"
+
+
+def gog_paths(folder, product):
+    app = windows_path(str(folder))
+    support = app + "\\support\\" + product
+    return {"app": app, "productid": product, "support": support, "supportdir": support,
+            "localappdata": WINE_USER + "\\AppData\\Local", "userdocs": WINE_USER + "\\Documents"}
+
+
+def gog_expand(text, paths):
+    return re.sub(r"\{([A-Za-z]+)\}", lambda m: paths[m.group(1).lower()], text)
+
+
+def gog_number(data):
+    if isinstance(data, bool):
+        raise ValueError
+    if isinstance(data, int):
+        return data
+    text = str(data).strip()
+    try:
+        return int(text, 0)
+    except ValueError:
+        return int(text, 10)
+
+
+def gog_value(kind, data):
+    kind = str(kind).lower()
+    if kind == "string":
+        text = str(data)
+        if any(c in text for c in "\r\n\0"):
+            return None
+        return '"%s"' % reg_escape(text)
+    if kind == "dword":
+        return "dword:%08x" % (gog_number(data) & 0xFFFFFFFF)
+    if kind == "binary":
+        return "hex:" + ",".join("%02x" % b for b in base64.b64decode(str(data), validate=True))
+    return None
+
+
+def gog_entry(arguments, paths):
+    if not isinstance(arguments, dict):
+        return None
+    try:
+        root = GOG_ROOTS.get(str(arguments.get("root") or "").upper())
+        subkey = gog_expand(str(arguments.get("subkey") or ""), paths).strip("\\")
+        if root is None or not subkey or any(c in subkey for c in "\r\n\0"):
+            return None
+        section = "[%s\\%s]" % (root, subkey)
+        if not arguments.get("valueType"):
+            return section
+        data = arguments.get("valueData")
+        value = gog_value(arguments["valueType"], gog_expand(data, paths) if isinstance(data, str) else data)
+        name = gog_expand(str(arguments.get("valueName") or ""), paths)
+        if value is None or any(c in name for c in "\r\n\0"):
+            return None
+        return section + "\r\n" + ('"%s"' % reg_escape(name) if name else "@") + "=" + value
+    except (KeyError, ValueError, TypeError, binascii.Error):
+        return None
+
+
+def gog_registry(folder):
+    entries, skipped = [], 0
+    for script in sorted(Path(folder).glob(GOG_SCRIPTS)):
+        product = script.name[len("goggame-"):-len(".script")]
+        try:
+            actions = json.loads(script.read_text(encoding="utf-8-sig")).get("actions")
+        except (OSError, ValueError, AttributeError):
+            continue
+        paths = gog_paths(folder, product)
+        for action in actions if isinstance(actions, list) else []:
+            install = action.get("install") if isinstance(action, dict) else None
+            if not isinstance(install, dict) or install.get("action") != "setRegistry":
+                continue
+            entry = gog_entry(install.get("arguments"), paths)
+            if entry is None:
+                skipped += 1
+            else:
+                entries.append(entry)
+    return entries, skipped
+
+
+def apply_gog_registry(folder, compat_data, proton, timeout=90):
+    entries, skipped = gog_registry(folder)
+    note = " skipped=%d" % skipped if skipped else ""
+    if not entries:
+        return "none" + note
+    if not compat_data or not proton or not Path(proton).is_file():
+        return "no-proton" + note
+    text = "Windows Registry Editor Version 5.00\r\n\r\n" + "".join(entry + "\r\n\r\n" for entry in entries)
+    stamp = hashlib.sha256(text.encode("utf-8")).hexdigest()
+    pfx = Path(compat_data) / "pfx"
+    marker = pfx / GOG_REGISTRY_MARK
+    try:
+        if marker.is_file() and marker.read_text() == stamp and (pfx / "system.reg").is_file():
+            return "ready" + note
+        Path(compat_data).mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix="droiddeck-gog-") as tmp:
+            source = Path(tmp) / "registry.reg"
+            source.write_bytes(b"\xff\xfe" + text.encode("utf-16-le"))
+            run = subprocess.run([proton, "run", "reg.exe", "import", windows_path(str(source)), "/reg:32"],
+                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=timeout)
+        if run.returncode or not (pfx / "system.reg").is_file():
+            return "import-failed" + note
+        marker.write_text(stamp)
+        return "written=%d%s" % (len(entries), note)
+    except subprocess.TimeoutExpired:
+        return "timeout" + note
+    except OSError:
+        return "import-failed" + note
+
+
 def main(argv):
     if argv and argv[0] == "--exited":
         rest, code = argv[1:], 0
@@ -382,8 +519,13 @@ def main(argv):
     compat_data = os.environ.get("STEAM_COMPAT_DATA_PATH", "").rstrip("/")
     prefix_id = os.path.basename(compat_data) if compat_data else ""
     launch_dir = os.environ.get("BL_LAUNCH_DIR", "")
+    if launch_dir and cloud_on(sidecar):
+        made = create_prefix(compat_data, os.environ.get("BL_STORE_PROTON", ""))
+        if made != "present":
+            log("cloud %s %s prefix=%s" % (store, game, made))
     if store == "gog":
         prepare_gog(sidecar, compat_data, launch_dir)
+        log("gog registry: " + apply_gog_registry(folder, compat_data, os.environ.get("BL_STORE_PROTON", "")))
     if store == "epic":
         handled = os.environ.get(EPIC_HANDLED) == "1" and (folder / EPIC_ARGS).is_file()
         if not handled:

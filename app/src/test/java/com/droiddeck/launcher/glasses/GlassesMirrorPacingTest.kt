@@ -62,6 +62,12 @@ class GlassesMirrorPacingTest {
         assertEquals(30, SessionState.fpsLimit)
     }
 
+    @Test fun pacingFollowsThePanelWhenTheSystemKeepsALowerRateThanRequested() {
+        Shadow.extract<ModeDisplay>(activity.display).current = mode(2, 90f)
+        apply(GlassesState(), settings)
+        expect(3, 90f, 0)
+    }
+
     private fun apply(state: GlassesState, config: GlassesSettings) {
         ReflectionHelpers.getField<MutableState<GlassesState>>(activity, "glasses\$delegate").value = state
         ReflectionHelpers.getField<MutableState<GlassesSettings>>(activity, "glassesSettings\$delegate").value = config
@@ -83,5 +89,6 @@ class GlassesMirrorPacingTest {
         var supported = emptyArray<Display.Mode>()
         @Implementation protected fun getMode(): Display.Mode = current
         @Implementation protected fun getSupportedModes(): Array<Display.Mode> = supported
+        @Implementation override fun getRefreshRate(): Float = current.refreshRate
     }
 }

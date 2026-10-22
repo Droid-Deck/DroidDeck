@@ -1253,9 +1253,11 @@ ssize_t recvmsg(int fd, struct msghdr *msg, int flags) {
 }
 
 void bl_fsync_fds_closed(unsigned int first, unsigned int last) __attribute__((visibility("hidden")));
+void bl_venc_closed(int fd) __attribute__((visibility("hidden")));
 
 int close(int fd) {
   if (fd >= 0) bl_fsync_fds_closed((unsigned int)fd, (unsigned int)fd);
+  bl_venc_closed(fd);
   uint64_t *t = __atomic_load_n(&ns_fdt, __ATOMIC_ACQUIRE);
   if (t && fd >= 0 && fd < NS_FDS && __atomic_load_n(&t[fd], __ATOMIC_ACQUIRE)) ns_forget(fd);
   return ns_close_fd(fd);

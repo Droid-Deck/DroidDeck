@@ -39,8 +39,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.io.File
-import java.nio.ByteBuffer
-import java.nio.ByteOrder
 import java.util.concurrent.Executors
 import kotlin.math.abs
 
@@ -188,9 +186,8 @@ internal class HandCamera(
     private fun prepare() {
         if (stopped) return
         runCatching {
-            val bytes = context.assets.open(MODEL).use { it.readBytes() }
-            val model = ByteBuffer.allocateDirect(bytes.size).order(ByteOrder.nativeOrder()).put(bytes)
-            model.rewind()
+            check(TrackingPack.loadNative(context)) { "hand tracking download is not installed" }
+            val model = TrackingPack.model(context, TrackingPack.POSE)
             val options = PoseLandmarker.PoseLandmarkerOptions.builder()
                 .setBaseOptions(BaseOptions.builder().setModelAssetBuffer(model).setDelegate(Delegate.CPU).build())
                 .setRunningMode(RunningMode.VIDEO)
@@ -305,7 +302,6 @@ internal class HandCamera(
 
     companion object {
         private const val TAG = "HandCamera"
-        private const val MODEL = "handtracking/pose_landmarker_lite.task"
         private const val ANALYSIS_WIDTH = 960
         private const val ANALYSIS_HEIGHT = 720
         private const val MIN_CONFIDENCE = 0.5f
