@@ -181,6 +181,7 @@ object BwrapSpawner {
         request.optJSONObject("env")?.let { e -> e.keys().forEach { k -> env[k] = e.getString(k) } }
         if (binds.any { it.guest == "/dev" }) gpu(rootfs, root, env)?.forEach { addBind(it) }
         preload(session, rootfs, env).forEach { addBind(it) }
+        zypakShims(binds, root, dir).forEach { addBind(it) }
         browserSandboxes(env)
         return Plan(root, binds, request.optString("cwd", "/").ifEmpty { "/" }, argv, env)
     }
@@ -226,6 +227,20 @@ object BwrapSpawner {
     }
 
     private const val PRELOAD_DIR = "/run/droiddeck-preload"
+
+    private const val ZYPAK_SHIM = "#!/bin/sh\nprogram=\$1\nshift\nexec \"\$program\" --no-sandbox \"\$@\"\n"
+
+    private fun zypakShims(binds: List<Bind>, root: File, dir: File): List<Bind> {
+        val wrappers = listOf("/app/bin/zypak-wrapper.sh", "/app/bin/zypak-wrapper").filter { guest ->
+            val host = File(hostPath(binds, root.path, guest))
+            host.isFile && !Files.isSymbolicLink(host.toPath())
+        }
+        if (wrappers.isEmpty()) return emptyList()
+        val shim = File(dir, "zypak-wrapper")
+        shim.writeText(ZYPAK_SHIM)
+        chmod(shim, 0x1ed)
+        return wrappers.map { Bind(shim.path, it) }
+    }
 
     private fun browserSandboxes(env: MutableMap<String, String>) {
         env.putIfAbsent("ZYPAK_ZYGOTE_STRATEGY_SPAWN", "0")

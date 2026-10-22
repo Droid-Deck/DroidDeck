@@ -21,12 +21,14 @@ object SessionPrefs {
     const val SUSPEND_NEVER = "never"
     private const val LEGACY_SUSPEND_DOWNLOADS = "downloads"
     private const val STEAM_DOWNLOADS_IN_BACKGROUND = "steamDownloadsInBackground"
+    private const val DECKY_ZIP_WARNING_SEEN = "deckyZipWarningSeen"
 
     const val CONTROLLER_DECK = "deck"
     const val CONTROLLER_XBOX360 = "xbox360"
     const val CONTROLLER_STEAM = "steamcontroller"
     const val CONTROLLER_DS4 = "dualshock4"
     const val CONTROLLER_DUALSENSE = "dualsense"
+    const val CONTROLLER_NONE = "none"
     const val OSC_AUTO = "auto"
     const val OSC_ALWAYS = "always"
     const val OSC_STEAM_QAM = "steam-qam"
@@ -49,9 +51,9 @@ object SessionPrefs {
     )
 
     fun orientation(context: Context): Int =
-        prefs(context).getInt("orientation", ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE)
+        prefs(context).getInt("orientation", ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE)
             .takeIf { value -> orientationOptions.any { it.first == value } }
-            ?: ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+            ?: ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
 
     fun setOrientation(context: Context, orientation: Int) {
         require(orientationOptions.any { it.first == orientation })
@@ -118,8 +120,22 @@ object SessionPrefs {
         prefs(context).edit().putString("storesView", if (view in STORES_VIEWS) view else STORES_VIEWS.first()).apply()
     }
 
+    fun storesTabOrder(context: Context): List<String> = idList(prefs(context).getString("storesTabOrder", null))
+
+    fun setStoresTabOrder(context: Context, order: List<String>) {
+        prefs(context).edit().putString("storesTabOrder", order.joinToString(",")).apply()
+    }
+
+    fun storesTabHidden(context: Context): Set<String> = idList(prefs(context).getString("storesTabHidden", null)).toSet()
+
+    fun setStoresTabHidden(context: Context, hidden: Set<String>) {
+        prefs(context).edit().putString("storesTabHidden", hidden.joinToString(",")).apply()
+    }
+
+    private fun idList(raw: String?): List<String> = raw.orEmpty().split(',').map { it.trim() }.filter { it.isNotEmpty() }
+
     val STORES_SORTS = listOf("lastPlayed", "recentlyInstalled", "titleAsc", "titleDesc", "sizeDesc", "sizeAsc", "releaseDateDesc")
-    val STORES_VIEWS = listOf("cards", "list")
+    val STORES_VIEWS = listOf("cards", "capsules", "list")
 
     const val STORES_OPEN_LIBRARY = "library"
     const val STORES_OPEN_STORE = "store"
@@ -128,6 +144,13 @@ object SessionPrefs {
 
     fun setStoresInstallTarget(context: Context, path: String) {
         prefs(context).edit().putString("storesInstallTarget", path).apply()
+    }
+
+    /** Empty means follow the app/system language for GOG and Epic installs. */
+    fun storesInstallLanguage(context: Context): String = prefs(context).getString("storesInstallLanguage", "") ?: ""
+
+    fun setStoresInstallLanguage(context: Context, code: String) {
+        prefs(context).edit().putString("storesInstallLanguage", code).apply()
     }
 
     fun gameStoresParallel(context: Context): Int = prefs(context).getInt("gameStoresParallel", 1).coerceIn(1, 3)
@@ -141,6 +164,43 @@ object SessionPrefs {
     fun setHudEnabled(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean(hudKey(context), on).apply()
     }
+
+    fun hudShowFps(context: Context): Boolean = prefs(context).getBoolean("hudFps", true)
+
+    fun setHudShowFps(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("hudFps", on).apply()
+    }
+
+    fun hudShowBattery(context: Context): Boolean = prefs(context).getBoolean("hudBattery", true)
+
+    fun setHudShowBattery(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("hudBattery", on).apply()
+    }
+
+    fun hudShowGraph(context: Context): Boolean = prefs(context).getBoolean("hudGraph", true)
+
+    fun setHudShowGraph(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("hudGraph", on).apply()
+    }
+
+    fun hudColor(context: Context): String =
+        prefs(context).getString("hudColor", HUD_COLOR_MINT)?.takeIf { it in HUD_COLORS } ?: HUD_COLOR_MINT
+
+    fun setHudColor(context: Context, color: String) {
+        if (color in HUD_COLORS) prefs(context).edit().putString("hudColor", color).apply()
+    }
+
+    fun hudOpacity(context: Context): Int =
+        prefs(context).getInt("hudOpacity", HUD_OPACITY_DEFAULT).takeIf { it in HUD_OPACITY_RANGE } ?: HUD_OPACITY_DEFAULT
+
+    fun setHudOpacity(context: Context, percent: Int) {
+        prefs(context).edit().putInt("hudOpacity", percent.coerceIn(HUD_OPACITY_RANGE)).apply()
+    }
+
+    const val HUD_COLOR_MINT = "mint"
+    val HUD_COLORS = listOf(HUD_COLOR_MINT, "white", "sky", "amber", "violet")
+    val HUD_OPACITY_RANGE = 30..100
+    const val HUD_OPACITY_DEFAULT = 70
 
     private fun hudKey(context: Context) = if (mangoappSession(context)) "hudDeck" else "hud"
 
@@ -168,6 +228,7 @@ object SessionPrefs {
     const val TOUCH_AUTO = "auto"
     const val TOUCH_PAD = "touchpad"
     const val TOUCH_DIRECT = "direct"
+    const val TOUCH_GESTURES = "gestures"
     const val TOUCH_OFF = "off"
 
     fun touchMode(context: Context): String = prefs(context).getString("touch", TOUCH_AUTO) ?: TOUCH_AUTO
@@ -232,6 +293,16 @@ object SessionPrefs {
     fun setPicturePosition(context: Context, position: String) {
         prefs(context).edit().putString("picturePosition",
             position.takeIf { it in listOf("top", "bottom", "center") } ?: "center").apply()
+    }
+
+    /**
+     * After a game launched from the front end (or another launcher's link) closes, the client
+     * exits cleanly and the session returns there, instead of staying in Big Picture.
+     */
+    fun returnAfterGame(context: Context): Boolean = prefs(context).getBoolean("returnAfterGame", true)
+
+    fun setReturnAfterGame(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("returnAfterGame", on).apply()
     }
 
     fun stretch16x9(context: Context): Boolean = prefs(context).getBoolean("stretch16x9", false)
@@ -405,6 +476,8 @@ object SessionPrefs {
     fun steamController(context: Context): String =
         prefs(context).getString("steamController", CONTROLLER_DECK) ?: CONTROLLER_DECK
     fun setSteamController(context: Context, id: String) { prefs(context).edit().putString("steamController", id).apply() }
+
+    fun builtinPad(context: Context): Boolean = steamController(context) != CONTROLLER_NONE
     fun padType(id: String): Int = when (id) {
         CONTROLLER_STEAM -> com.droiddeck.launcher.input.FakeInputWriter.PAD_TYPE_STEAM
         CONTROLLER_XBOX360 -> com.droiddeck.launcher.input.FakeInputWriter.PAD_TYPE_XBOX
@@ -527,6 +600,17 @@ object SessionPrefs {
     fun setBootMovie(context: Context, id: String) { prefs(context).edit().putString("bootMovie", id).apply() }
     fun bootMovieSound(context: Context): Boolean = prefs(context).getBoolean("bootMovieSound", true)
     fun setBootMovieSound(context: Context, on: Boolean) { prefs(context).edit().putBoolean("bootMovieSound", on).apply() }
+    fun bootMovieVolume(context: Context): Int = prefs(context).getInt("bootMovieVolume", 100).coerceIn(0, 100)
+    fun setBootMovieVolume(context: Context, percent: Int) { prefs(context).edit().putInt("bootMovieVolume", percent.coerceIn(0, 100)).apply() }
+    /** How long the boot movie plays, in seconds; 0 plays all of it. */
+    fun bootMovieSeconds(context: Context): Int = prefs(context).getInt("bootMovieSeconds", 0).coerceAtLeast(0)
+    fun setBootMovieSeconds(context: Context, seconds: Int) { prefs(context).edit().putInt("bootMovieSeconds", seconds.coerceAtLeast(0)).apply() }
+    /** Set when a movie was picked here, so the next session makes it Steam's startup movie even if Steam had another one. */
+    fun bootMovieApplyNext(context: Context): Boolean = prefs(context).getBoolean("bootMovieApplyNext", false)
+    fun setBootMovieApplyNext(context: Context, on: Boolean) { prefs(context).edit().putBoolean("bootMovieApplyNext", on).apply() }
+    /** The startup movie path Steam's config held when it was last looked at, so only a change made in Steam is taken over. */
+    fun bootMovieSteamSeen(context: Context): String? = prefs(context).getString("bootMovieSteamSeen", null)
+    fun setBootMovieSteamSeen(context: Context, path: String) { prefs(context).edit().putString("bootMovieSteamSeen", path).apply() }
     fun bootMovieCustomName(context: Context): String? = prefs(context).getString("bootMovieCustomName", null)
     fun setBootMovieCustomName(context: Context, name: String?) {
         prefs(context).edit().apply { if (name == null) remove("bootMovieCustomName") else putString("bootMovieCustomName", name) }.apply()
@@ -878,6 +962,11 @@ object SessionPrefs {
 
     fun prefMode(mode: String): String = if (mode == SessionService.MODE_RUN) SessionService.MODE_STEAM else mode
 
+    fun displayMode(context: Context, mode: String, program: String?): String =
+        if (mode == SessionService.MODE_RUN && com.droiddeck.launcher.runtime.UserApps.launches(program) &&
+            resolutionChosen(context, SessionService.MODE_DESKTOP)) SessionService.MODE_DESKTOP
+        else prefMode(mode)
+
     fun pipAutoEnter(context: Context): Boolean = prefs(context).getBoolean("pipAutoEnter", false)
 
     fun setPipAutoEnter(context: Context, enabled: Boolean) {
@@ -920,6 +1009,12 @@ object SessionPrefs {
             }
             putString(key, normalized)
         }.apply()
+    }
+
+    fun deckyZipWarningSeen(context: Context): Boolean = prefs(context).getBoolean(DECKY_ZIP_WARNING_SEEN, false)
+
+    fun setDeckyZipWarningSeen(context: Context) {
+        prefs(context).edit().putBoolean(DECKY_ZIP_WARNING_SEEN, true).apply()
     }
 
     fun steamDownloadsInBackground(context: Context): Boolean {

@@ -147,6 +147,10 @@
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|density"
             android:theme="@style/AppTheme" />
 
+        <activity android:name=".stores.xbox.XboxLoginActivity" android:exported="false"
+            android:process=":xboxlogin" android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|density"
+            android:theme="@style/AppTheme" />
+
         <activity
             android:name=".stores.StoreLoginActivity"
             android:exported="false"
@@ -169,15 +173,6 @@
             android:launchMode="singleTask"
             android:theme="@style/SessionTheme"
             android:preferMinimalPostProcessing="true"
-            android:screenOrientation="sensorLandscape"
-            android:resizeableActivity="true"
-            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|uiMode|density" />
-
-        <activity
-            android:name=".ui.SecondScreenActivity"
-            android:exported="false"
-            android:excludeFromRecents="true"
-            android:theme="@style/SessionTheme"
             android:screenOrientation="sensorLandscape"
             android:resizeableActivity="true"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|uiMode|density" />
