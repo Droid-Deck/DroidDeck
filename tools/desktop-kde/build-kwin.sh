@@ -49,19 +49,26 @@ sudo mknod -m 666 "$work/root/dev/urandom" c 1 9
 sudo mount -t proc proc "$work/root/proc"
 sudo tar -xf "$work/kwin.tar.xz" -C "$work/root/build"
 sudo patch -d "$work/root/build/kwin-$version" -p1 < "$here/patches/0001-respect-nested-desktop-scale.patch"
+sudo patch -d "$work/root/build/kwin-$version" -p1 < "$here/patches/0002-select-explicit-nested-render-node.patch"
 sudo chroot "$work/root" /usr/bin/env PATH=/usr/bin:/bin HOME=/root LC_ALL=C.UTF-8 \
     /usr/bin/cmake -S "/build/kwin-$version" -B /build/out -G Ninja \
-    -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_INSTALL_LIBEXECDIR=lib -DBUILD_TESTING=OFF
+    -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_INSTALL_LIBEXECDIR=lib \
+    -DCMAKE_SKIP_RPATH=ON -DBUILD_TESTING=OFF
 sudo chroot "$work/root" /usr/bin/env PATH=/usr/bin:/bin HOME=/root LC_ALL=C.UTF-8 \
     /usr/bin/cmake --build /build/out --target kwin_wayland --parallel 4
 sudo cp "$work/root/build/out/bin/kwin_wayland" "$out/kwin_wayland"
 sudo cp "$work/root/build/out/bin/libkwin.so.$version" "$out/libkwin.so.$version"
 sudo chown "$(id -u):$(id -g)" "$out/kwin_wayland" "$out/libkwin.so.$version"
 strip --strip-unneeded "$out/kwin_wayland" "$out/libkwin.so.$version"
+if readelf -d "$out/kwin_wayland" "$out/libkwin.so.$version" | grep -Eq '\((RPATH|RUNPATH)\)'; then
+    echo 'KWin artifacts must not contain build-directory runtime search paths' >&2
+    exit 1
+fi
 grep -aq DROIDDECK_NESTED_SCALE "$out/libkwin.so.$version"
 {
     echo "KWin $version source sha256 $source_sha"
     echo "Patch sha256 $(sha256sum "$here/patches/0001-respect-nested-desktop-scale.patch" | cut -d' ' -f1)"
+    echo "Render node patch sha256 $(sha256sum "$here/patches/0002-select-explicit-nested-render-node.patch" | cut -d' ' -f1)"
     echo "Executable sha256 $(sha256sum "$out/kwin_wayland" | cut -d' ' -f1)"
     echo "Library sha256 $(sha256sum "$out/libkwin.so.$version" | cut -d' ' -f1)"
     echo 'Build packages (Arch Linux ARM signatures verified):'
