@@ -616,7 +616,9 @@ object Glasses {
                 switching3d = modeState.pendingStereo,
                 brightnessMax = m?.brightnessMax ?: 8, volumeMax = m?.volumeMax ?: 8,
                 sunblock = if (m === XrealModel) it.sunblock else _settings.value.sunblock ?: it.sunblock,
-                hardwareControls = device?.vendorId == VitureProtocol.VENDOR_ID || m === XrealModel || m is RokidModel,
+                hardwareControls = m?.hardwareControls == true &&
+                    (device?.vendorId == VitureProtocol.VENDOR_ID || m === XrealModel || m is RokidModel),
+                supportsDisplayModeControl = m?.supportsDisplayModeControl == true,
                 hasSunblock = m?.hasSunblock == true,
                 diagonalFovDeg = m?.diagonalFovDeg ?: 46f,
                 tracking = it.tracking && link != null,
