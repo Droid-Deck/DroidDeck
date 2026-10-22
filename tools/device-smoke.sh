@@ -67,26 +67,48 @@ if [ "$state" != "device" ]; then
   exit 2
 fi
 
-orig_density=$(sh_ wm density | sed -n 's/.*Physical density: \([0-9]*\).*/\1/p' | head -1)
-override_density=$(sh_ wm density | sed -n 's/.*Override density: \([0-9]*\).*/\1/p' | head -1)
-override_size=$(sh_ wm size | sed -n 's/.*Override size: \([0-9]*x[0-9]*\).*/\1/p' | head -1)
+density_snapshot=$(sh_ wm density) || density_snapshot=
+size_snapshot=$(sh_ wm size) || size_snapshot=
+orig_density=$(echo "$density_snapshot" | sed -n 's/.*Physical density: \([0-9]*\).*/\1/p' | head -1)
+override_density=$(echo "$density_snapshot" | sed -n 's/.*Override density: \([0-9]*\).*/\1/p' | head -1)
+override_size=$(echo "$size_snapshot" | sed -n 's/.*Override size: \([0-9]*x[0-9]*\).*/\1/p' | head -1)
 ds=$(sh_ cmd device_state state 2>/dev/null)
 orig_state=$(echo "$ds" | sed -n "s/.*Committed state: DeviceState{identifier=\([0-9]*\),.*/\1/p" | head -1)
 pre_override=$(echo "$ds" | sed -n "s/.*Override state: DeviceState{identifier=\([0-9]*\),.*/\1/p" | head -1)
 
 density_changed=0 size_changed=0 fold_changed=0
-restore_density() { if [ -n "$override_density" ]; then sh_ wm density "$override_density" >/dev/null; else sh_ wm density reset >/dev/null; fi; }
-restore_size() { if [ -n "$override_size" ]; then sh_ wm size "$override_size" >/dev/null; else sh_ wm size reset >/dev/null; fi; }
+wm_override() { sed -n "s/.*Override $1: \\([0-9x]*\\).*/\\1/p" | head -1; }
+restore_density() {
+  sh_ wm density "${override_density:-reset}" >/dev/null || return 1
+  local current
+  current=$(sh_ wm density) || return 1
+  echo "$current" | grep -q 'Physical density:' || return 1
+  [ "$(echo "$current" | wm_override density)" = "$override_density" ]
+}
+restore_size() {
+  sh_ wm size "${override_size:-reset}" >/dev/null || return 1
+  local current
+  current=$(sh_ wm size) || return 1
+  echo "$current" | grep -q 'Physical size:' || return 1
+  [ "$(echo "$current" | wm_override size)" = "$override_size" ]
+}
 # An override that was already in place (a test lab pins one) is put back; otherwise the request is cancelled.
 restore_fold() { if [ -n "$pre_override" ]; then sh_ cmd device_state state "$pre_override" >/dev/null; else sh_ cmd device_state state reset >/dev/null; fi; }
 
 restore() {
-  [ "$density_changed" = 1 ] && restore_density
-  [ "$size_changed" = 1 ] && restore_size
-  [ "$fold_changed" = 1 ] && restore_fold
-  return 0
+  local failed=0
+  if [ "$density_changed" = 1 ]; then
+    if restore_density; then density_changed=0; else bad "could not restore display density"; failed=1; fi
+  fi
+  if [ "$size_changed" = 1 ]; then
+    if restore_size; then size_changed=0; else bad "could not restore window size"; failed=1; fi
+  fi
+  if [ "$fold_changed" = 1 ]; then
+    if restore_fold; then fold_changed=0; else bad "could not restore fold override"; failed=1; fi
+  fi
+  return "$failed"
 }
-trap restore EXIT
+trap 'status=$?; restore || status=1; exit "$status"' EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
@@ -147,30 +169,35 @@ if [ "$do_density" = 1 ] && [ -n "$orig_density" ]; then
   wm_status=0
   sh_ wm density "$target" >/dev/null || wm_status=$?
   sleep 6
+  applied=$(sh_ wm density) || wm_status=1
   after=$(top_activity); pid1=$(app_pid)
-  if [ "$wm_status" -ne 0 ]; then
+  if [ "$wm_status" -ne 0 ] || [ "$(echo "$applied" | wm_override density)" != "$target" ]; then
     bad "wm density failed"
-  elif [ -n "$pid1" ] && [ "$pid0" = "$pid1" ]; then
-    ok "same process after $orig_density -> $target dpi"
   else
-    bad "process changed ($pid0 -> $pid1)"
+    if [ -n "$pid1" ] && [ "$pid0" = "$pid1" ]; then
+      ok "same process after $orig_density -> $target dpi"
+    else
+      bad "process changed ($pid0 -> $pid1)"
+    fi
+    case $before in "$pkg"/*)
+      n=$(relaunches_of "${before#*/}")
+      [ "${n:-0}" = 0 ] && ok "$before was not recreated" || bad "$before was recreated ${n}x"
+      [ "$after" = "$before" ] && ok "same top activity after the change" || bad "top activity changed ($before -> $after)"
+    ;; *) note "top activity was not the app ($before)" ;; esac
   fi
-  case $before in "$pkg"/*)
-    n=$(relaunches_of "${before#*/}")
-    [ "${n:-0}" = 0 ] && ok "$before was not recreated" || bad "$before was recreated ${n}x"
-    [ "$after" = "$before" ] && ok "same top activity after the change" || bad "top activity changed ($before -> $after)"
-  ;; *) note "top activity was not the app ($before)" ;; esac
   if restore_density; then
     density_changed=0
   else
     bad "could not restore display density"
   fi
   sleep 3
+elif [ "$do_density" = 1 ]; then
+  note "could not read the original display density"
 fi
 
 if [ "$do_size" = 1 ]; then
   head_ "Window size change"
-  phys=$(sh_ wm size | sed -n 's/.*Physical size: \([0-9]*\)x\([0-9]*\).*/\1 \2/p' | head -1)
+  phys=$(echo "$size_snapshot" | sed -n 's/.*Physical size: \([0-9]*\)x\([0-9]*\).*/\1 \2/p' | head -1)
   set -- $phys
   if [ -n "${1:-}" ]; then
     w=$(( ($2 * 2 / 3) / 2 * 2 )); h=$1   # a narrower, taller window, like a cover screen
@@ -179,8 +206,9 @@ if [ "$do_size" = 1 ]; then
     wm_status=0
     sh_ wm size "${w}x${h}" >/dev/null || wm_status=$?
     sleep 6
+    applied=$(sh_ wm size) || wm_status=1
     pid1=$(app_pid)
-    if [ "$wm_status" -ne 0 ]; then
+    if [ "$wm_status" -ne 0 ] || [ "$(echo "$applied" | wm_override size)" != "${w}x${h}" ]; then
       bad "wm size failed"
     elif [ -n "$pid1" ] && [ "$pid0" = "$pid1" ]; then
       ok "same process at ${w}x${h}"
