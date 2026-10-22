@@ -4,6 +4,9 @@
 
     <queries>
         <intent>
+            <action android:name="android.content.pm.action.CONFIRM_INSTALL" />
+        </intent>
+        <intent>
             <action android:name="android.content.pm.action.CONFIRM_PERMISSIONS" />
         </intent>
     </queries>
