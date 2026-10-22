@@ -307,6 +307,20 @@ public class DualSenseBridge {
             int seq = 0;
             int outReportLen = GetOutputReportByteLength(writeHandle, isBluetooth ? 78 : 48);
             Stopwatch sw = Stopwatch.StartNew();
+            object writeLock = new object();
+            byte[] deferred = null;
+            System.Threading.Timer resend = null;
+            Action<byte[], bool> sendBt = (usb, init) => {
+                lock (writeLock) {
+                    if (writeHandle == null || writeHandle.IsInvalid || writeHandle.IsClosed) return;
+                    byte[] btBuf = WrapUsbOutputToBt78(usb, seq, init, outReportLen);
+                    seq = (seq + 1) & 0x0F;
+                    int w = 0;
+                    if (!WriteFile(writeHandle, btBuf, outReportLen, out w, IntPtr.Zero)) {
+                        HidD_SetOutputReport(writeHandle, btBuf, outReportLen);
+                    }
+                }
+            };
             try {
                 while (true) {
                     int offset = 0;
@@ -318,11 +332,20 @@ public class DualSenseBridge {
                     if (writeHandle == null || writeHandle.IsInvalid || writeHandle.IsClosed) continue;
                     int written = 0;
                     if (isBluetooth) {
-                        bool btInit = sw.ElapsedMilliseconds < 3000;
-                        byte[] btBuf = WrapUsbOutputToBt78(buf, seq, btInit, outReportLen);
-                        seq = (seq + 1) & 0x0F;
-                        if (!WriteFile(writeHandle, btBuf, outReportLen, out written, IntPtr.Zero)) {
-                            HidD_SetOutputReport(writeHandle, btBuf, outReportLen);
+                        long elapsed = sw.ElapsedMilliseconds;
+                        bool btInit = elapsed < 3000;
+                        byte[] copy = (byte[])buf.Clone();
+                        lock (writeLock) { deferred = null; }
+                        sendBt(copy, btInit);
+                        // The handshake window strips the lightbar; replay the colour once the window closes.
+                        if (btInit && (copy[2] & 0x04) != 0) {
+                            lock (writeLock) { deferred = copy; }
+                            if (resend != null) resend.Dispose();
+                            resend = new System.Threading.Timer(_ => {
+                                byte[] pending;
+                                lock (writeLock) { pending = deferred; deferred = null; }
+                                if (pending != null) sendBt(pending, false);
+                            }, null, 3000 - elapsed + 50, System.Threading.Timeout.Infinite);
                         }
                     } else {
                         if (!WriteFile(writeHandle, buf, 48, out written, IntPtr.Zero)) {
