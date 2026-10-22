@@ -793,11 +793,17 @@ object ComponentsManager {
         try {
             if (dest.isFile && runCatching { Hashes.sha256(dest) }.getOrNull()?.equals(Hashes.sha256(part), true) == true) return
             if (dest.exists()) checkPackageUnused(context, loadState(context), dest.name)
+            val unpacked = File(launchDir(context), "store/" + safeName(dest.name.removeSuffix(".wcp")))
+            val complete = File(unpacked, ".complete")
+            if (complete.exists()) check(complete.delete()) { "Could not invalidate unpacked component ${dest.name}" }
             if (!part.renameTo(dest)) {
                 dest.delete()
                 check(part.renameTo(dest)) { "Could not store ${dest.name}" }
             }
-            File(launchDir(context), "store/" + safeName(dest.name.removeSuffix(".wcp"))).deleteRecursively()
+            if (!unpacked.deleteRecursively() && unpacked.exists()) {
+                check(!complete.exists()) { "Could not invalidate unpacked component ${dest.name}" }
+                Log.w(TAG, "Could not remove stale unpacked files for ${dest.name}; cache marker is invalidated")
+            }
         } finally {
             part.delete()
         }
