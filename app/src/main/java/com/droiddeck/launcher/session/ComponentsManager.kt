@@ -793,7 +793,10 @@ object ComponentsManager {
         try {
             if (dest.isFile && runCatching { Hashes.sha256(dest) }.getOrNull()?.equals(Hashes.sha256(part), true) == true) return
             if (dest.exists()) checkPackageUnused(context, loadState(context), dest.name)
-            val unpacked = File(launchDir(context), "store/" + safeName(dest.name.removeSuffix(".wcp")))
+            val store = File(launchDir(context), "store").canonicalFile
+            val cacheKey = unpackedCacheKey(dest.name)
+            val unpacked = File(store, cacheKey).canonicalFile
+            check(unpacked.parentFile == store) { "Invalid unpacked component cache path for ${dest.name}" }
             val complete = File(unpacked, ".complete")
             if (complete.exists()) check(complete.delete()) { "Could not invalidate unpacked component ${dest.name}" }
             if (!part.renameTo(dest)) {
@@ -807,6 +810,10 @@ object ComponentsManager {
         } finally {
             part.delete()
         }
+    }
+
+    internal fun unpackedCacheKey(filename: String): String = safeName(filename.removeSuffix(".wcp")).also {
+        require(it != "." && it != "..") { "Invalid component cache name" }
     }
 
     fun deletePackage(context: Context, file: String): String = synchronized(lock) {
