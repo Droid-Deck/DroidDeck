@@ -1431,6 +1431,14 @@
     <string name="theme_icon_blue_detail">Черный фон, белый текст, синий — для всего выбранного, активного или нажатого.</string>
     <string name="theme_electric">Электрик</string>
     <string name="theme_electric_detail">Более яркий синий на поверхностях темно-синего, а не серого оттенка.</string>
+    <string name="theme_gradient">Градиент</string>
+    <string name="theme_gradient_detail">Ваши основной и дополнительный цвета, плавно переходящие на кнопках и выделениях.</string>
+    <string name="theme_gradient_primary">Основной</string>
+    <string name="theme_gradient_secondary">Дополнительный</string>
+    <string name="theme_color_hue">Оттенок</string>
+    <string name="theme_color_saturation">Насыщенность</string>
+    <string name="theme_color_brightness">Яркость</string>
+    <string name="theme_color_hex">Цвет hex</string>
     <string name="pckb_key_esc">Esc</string>
     <string name="pckb_key_ins">Ins</string>
     <string name="pckb_key_del">Del</string>

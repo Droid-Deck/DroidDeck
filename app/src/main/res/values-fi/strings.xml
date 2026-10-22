@@ -1404,6 +1404,14 @@
     <string name="theme_icon_blue_detail">Musta pohja, valkoinen teksti, sininen kaikessa valitussa, kohdistetussa tai painetussa.</string>
     <string name="theme_electric">Sähköinen laivastonsininen</string>
     <string name="theme_electric_detail">Sininen kirkkaampana pinnoilla, jotka taittuvat harmaan sijaan laivastonsiniseen.</string>
+    <string name="theme_gradient">Liukuväri</string>
+    <string name="theme_gradient_detail">Omat ensisijainen ja toissijainen värisi, sulautettuina painikkeisiin ja korostuksiin.</string>
+    <string name="theme_gradient_primary">Ensisijainen</string>
+    <string name="theme_gradient_secondary">Toissijainen</string>
+    <string name="theme_color_hue">Sävy</string>
+    <string name="theme_color_saturation">Kylläisyys</string>
+    <string name="theme_color_brightness">Kirkkaus</string>
+    <string name="theme_color_hex">Hex-väri</string>
     <string name="pckb_key_esc">Esc</string>
     <string name="pckb_key_ins">Ins</string>
     <string name="pckb_key_del">Del</string>

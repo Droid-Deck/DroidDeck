@@ -1392,6 +1392,14 @@
     <string name="theme_icon_blue_detail">검은색 배경에 흰색 글자, 선택·포커스·누름 상태에는 파란색을 사용합니다.</string>
     <string name="theme_electric">일렉트릭 네이비</string>
     <string name="theme_electric_detail">회색 대신 네이비 톤의 화면에 더 밝은 파란색을 사용합니다.</string>
+    <string name="theme_gradient">그라데이션</string>
+    <string name="theme_gradient_detail">직접 고른 기본색과 보조색이 버튼과 강조 표시에 섞여 적용됩니다.</string>
+    <string name="theme_gradient_primary">기본색</string>
+    <string name="theme_gradient_secondary">보조색</string>
+    <string name="theme_color_hue">색조</string>
+    <string name="theme_color_saturation">채도</string>
+    <string name="theme_color_brightness">명도</string>
+    <string name="theme_color_hex">16진수 색상</string>
     <string name="pckb_key_esc">Esc</string>
     <string name="pckb_key_ins">Ins</string>
     <string name="pckb_key_del">Del</string>

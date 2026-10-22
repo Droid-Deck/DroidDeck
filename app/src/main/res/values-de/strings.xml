@@ -1393,6 +1393,14 @@
     <string name="theme_icon_blue_detail">Schwarzer Grund, weiße Schrift, das Blau für alles Ausgewählte, Fokussierte oder Gedrückte.</string>
     <string name="theme_electric">Elektrisches Marineblau</string>
     <string name="theme_electric_detail">Das Blau heller, auf Flächen, die eher zu Marineblau als zu Grau tendieren.</string>
+    <string name="theme_gradient">Farbverlauf</string>
+    <string name="theme_gradient_detail">Eigene Primär- und Sekundärfarbe, als Verlauf auf Schaltflächen und Hervorhebungen.</string>
+    <string name="theme_gradient_primary">Primär</string>
+    <string name="theme_gradient_secondary">Sekundär</string>
+    <string name="theme_color_hue">Farbton</string>
+    <string name="theme_color_saturation">Sättigung</string>
+    <string name="theme_color_brightness">Helligkeit</string>
+    <string name="theme_color_hex">Hex-Farbe</string>
     <string name="pckb_key_esc">Esc</string>
     <string name="pckb_key_ins">Einfg</string>
     <string name="pckb_key_del">Entf</string>

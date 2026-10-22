@@ -1459,6 +1459,14 @@
     <string name="theme_icon_blue_detail">Black ground, white type, the blue for everything selected, focused or pressed.</string>
     <string name="theme_electric">Electric navy</string>
     <string name="theme_electric_detail">The blue brighter, on surfaces that lean navy instead of grey.</string>
+    <string name="theme_gradient">Gradient</string>
+    <string name="theme_gradient_detail">Your own primary and secondary colors, blended on buttons and highlights.</string>
+    <string name="theme_gradient_primary">Primary</string>
+    <string name="theme_gradient_secondary">Secondary</string>
+    <string name="theme_color_hue">Hue</string>
+    <string name="theme_color_saturation">Saturation</string>
+    <string name="theme_color_brightness">Brightness</string>
+    <string name="theme_color_hex">Hex color</string>
     <string name="pckb_key_esc">Esc</string>
     <string name="pckb_key_ins">Ins</string>
     <string name="pckb_key_del">Del</string>

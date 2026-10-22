@@ -1404,6 +1404,14 @@
     <string name="theme_icon_blue_detail">काली ज़मीन, सफ़ेद टाइप, चुने, फ़ोकस या दबाए गए हर चीज़ के लिए ब्लू रंग।</string>
     <string name="theme_electric">इलेक्ट्रिक नेवी</string>
     <string name="theme_electric_detail">ब्लू रंग ज़्यादा चमकीला, उन सतहों पर जो ग्रे के बजाय नेवी की ओर झुकती हैं।</string>
+    <string name="theme_gradient">ग्रेडिएंट</string>
+    <string name="theme_gradient_detail">आपके अपने प्राथमिक और द्वितीयक रंग, बटनों और हाइलाइट पर मिश्रित।</string>
+    <string name="theme_gradient_primary">प्राथमिक</string>
+    <string name="theme_gradient_secondary">द्वितीयक</string>
+    <string name="theme_color_hue">रंगत</string>
+    <string name="theme_color_saturation">संतृप्ति</string>
+    <string name="theme_color_brightness">चमक</string>
+    <string name="theme_color_hex">हेक्स रंग</string>
     <string name="pckb_key_esc">Esc</string>
     <string name="pckb_key_ins">Ins</string>
     <string name="pckb_key_del">Del</string>

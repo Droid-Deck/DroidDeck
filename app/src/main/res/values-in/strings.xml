@@ -1390,6 +1390,14 @@
     <string name="theme_icon_blue_detail">Dasar hitam, tipe putih, biru untuk semua yang dipilih, difokuskan, atau ditekan.</string>
     <string name="theme_electric">Navy elektrik</string>
     <string name="theme_electric_detail">Biru yang lebih cerah, pada permukaan yang condong ke navy, bukan abu-abu.</string>
+    <string name="theme_gradient">Gradasi</string>
+    <string name="theme_gradient_detail">Warna primer dan sekunder pilihan Anda, dipadukan pada tombol dan sorotan.</string>
+    <string name="theme_gradient_primary">Primer</string>
+    <string name="theme_gradient_secondary">Sekunder</string>
+    <string name="theme_color_hue">Rona</string>
+    <string name="theme_color_saturation">Saturasi</string>
+    <string name="theme_color_brightness">Kecerahan</string>
+    <string name="theme_color_hex">Warna hex</string>
     <string name="pckb_key_esc">Esc</string>
     <string name="pckb_key_ins">Ins</string>
     <string name="pckb_key_del">Del</string>

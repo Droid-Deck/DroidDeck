@@ -1404,6 +1404,14 @@
     <string name="theme_icon_blue_detail">Sort baggrund, hvid skrift, blå til alt, der er valgt, fokuseret eller trykket.</string>
     <string name="theme_electric">Elektrisk marineblå</string>
     <string name="theme_electric_detail">Den blå er klarere, på overflader der trækker mod marineblåt i stedet for gråt.</string>
+    <string name="theme_gradient">Gradient</string>
+    <string name="theme_gradient_detail">Dine egne primære og sekundære farver, blandet på knapper og fremhævninger.</string>
+    <string name="theme_gradient_primary">Primær</string>
+    <string name="theme_gradient_secondary">Sekundær</string>
+    <string name="theme_color_hue">Farvetone</string>
+    <string name="theme_color_saturation">Mætning</string>
+    <string name="theme_color_brightness">Lysstyrke</string>
+    <string name="theme_color_hex">Hex-farve</string>
     <string name="pckb_key_esc">Esc</string>
     <string name="pckb_key_ins">Ins</string>
     <string name="pckb_key_del">Del</string>

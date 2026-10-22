@@ -1432,6 +1432,14 @@
     <string name="theme_icon_blue_detail">Czarne tło, biały tekst i niebieski dla wszystkiego, co zaznaczone, aktywne lub naciśnięte.</string>
     <string name="theme_electric">Elektryczny granat</string>
     <string name="theme_electric_detail">Jaśniejszy niebieski na powierzchniach wpadających w granat zamiast w szarość.</string>
+    <string name="theme_gradient">Gradient</string>
+    <string name="theme_gradient_detail">Własny kolor podstawowy i dodatkowy, płynnie przechodzące na przyciskach i wyróżnieniach.</string>
+    <string name="theme_gradient_primary">Podstawowy</string>
+    <string name="theme_gradient_secondary">Dodatkowy</string>
+    <string name="theme_color_hue">Odcień</string>
+    <string name="theme_color_saturation">Nasycenie</string>
+    <string name="theme_color_brightness">Jasność</string>
+    <string name="theme_color_hex">Kolor hex</string>
     <string name="pckb_key_esc">Esc</string>
     <string name="pckb_key_ins">Ins</string>
     <string name="pckb_key_del">Del</string>

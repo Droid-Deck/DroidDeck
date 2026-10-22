@@ -1404,6 +1404,14 @@
     <string name="theme_icon_blue_detail">Zwarte achtergrond, witte tekst, het blauw voor alles wat geselecteerd, gefocust of ingedrukt is.</string>
     <string name="theme_electric">Elektrisch marineblauw</string>
     <string name="theme_electric_detail">Het blauw feller, op vlakken die naar marineblauw neigen in plaats van grijs.</string>
+    <string name="theme_gradient">Kleurverloop</string>
+    <string name="theme_gradient_detail">Je eigen primaire en secundaire kleur, doorlopend op knoppen en accenten.</string>
+    <string name="theme_gradient_primary">Primair</string>
+    <string name="theme_gradient_secondary">Secundair</string>
+    <string name="theme_color_hue">Tint</string>
+    <string name="theme_color_saturation">Verzadiging</string>
+    <string name="theme_color_brightness">Helderheid</string>
+    <string name="theme_color_hex">Hex-kleur</string>
     <string name="pckb_key_esc">Esc</string>
     <string name="pckb_key_ins">Ins</string>
     <string name="pckb_key_del">Del</string>

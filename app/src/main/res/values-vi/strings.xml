@@ -1390,6 +1390,14 @@
     <string name="theme_icon_blue_detail">Nền đen, chữ trắng, xanh cho mọi thứ được chọn, lấy nét hoặc nhấn.</string>
     <string name="theme_electric">Xanh điện navy</string>
     <string name="theme_electric_detail">Màu xanh sáng hơn, trên các bề mặt nghiêng về navy thay vì xám.</string>
+    <string name="theme_gradient">Chuyển màu</string>
+    <string name="theme_gradient_detail">Màu chính và màu phụ do bạn chọn, hòa trộn trên các nút và phần nổi bật.</string>
+    <string name="theme_gradient_primary">Chính</string>
+    <string name="theme_gradient_secondary">Phụ</string>
+    <string name="theme_color_hue">Sắc độ</string>
+    <string name="theme_color_saturation">Độ bão hòa</string>
+    <string name="theme_color_brightness">Độ sáng</string>
+    <string name="theme_color_hex">Màu hex</string>
     <string name="pckb_key_esc">Esc</string>
     <string name="pckb_key_ins">Ins</string>
     <string name="pckb_key_del">Del</string>

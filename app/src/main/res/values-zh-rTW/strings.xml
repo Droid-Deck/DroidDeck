@@ -1392,6 +1392,14 @@
     <string name="theme_icon_blue_detail">黑色背景、白色文字，選取、聚焦或按下的項目使用藍色。</string>
     <string name="theme_electric">電光藏青</string>
     <string name="theme_electric_detail">更亮的藍色，搭配偏藏青而非灰色的介面。</string>
+    <string name="theme_gradient">漸層</string>
+    <string name="theme_gradient_detail">你自行選擇的主色與輔色，在按鈕與強調處以漸層呈現。</string>
+    <string name="theme_gradient_primary">主色</string>
+    <string name="theme_gradient_secondary">輔色</string>
+    <string name="theme_color_hue">色相</string>
+    <string name="theme_color_saturation">飽和度</string>
+    <string name="theme_color_brightness">亮度</string>
+    <string name="theme_color_hex">十六進位色彩</string>
     <string name="pckb_key_esc">Esc</string>
     <string name="pckb_key_ins">Ins</string>
     <string name="pckb_key_del">Del</string>

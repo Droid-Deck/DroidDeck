@@ -1417,6 +1417,14 @@
     <string name="theme_icon_blue_detail">Fond noir, texte blanc, et le bleu pour tout élément sélectionné, ciblé ou pressé.</string>
     <string name="theme_electric">Marine électrique</string>
     <string name="theme_electric_detail">Un bleu plus vif, sur des surfaces qui tirent vers le marine plutôt que vers le gris.</string>
+    <string name="theme_gradient">Dégradé</string>
+    <string name="theme_gradient_detail">Vos propres couleurs primaire et secondaire, fondues sur les boutons et les éléments en surbrillance.</string>
+    <string name="theme_gradient_primary">Primaire</string>
+    <string name="theme_gradient_secondary">Secondaire</string>
+    <string name="theme_color_hue">Teinte</string>
+    <string name="theme_color_saturation">Saturation</string>
+    <string name="theme_color_brightness">Luminosité</string>
+    <string name="theme_color_hex">Couleur hex</string>
     <string name="pckb_key_esc">Échap</string>
     <string name="pckb_key_ins">Inser</string>
     <string name="pckb_key_del">Suppr</string>

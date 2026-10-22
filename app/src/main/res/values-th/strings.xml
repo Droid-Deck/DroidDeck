@@ -1390,6 +1390,14 @@
     <string name="theme_icon_blue_detail">พื้นดำ ตัวอักษรขาว สีฟ้าสำหรับทุกสิ่งที่ถูกเลือก โฟกัส หรือกด</string>
     <string name="theme_electric">กรมท่าไฟฟ้า</string>
     <string name="theme_electric_detail">สีฟ้าสว่างขึ้น บนพื้นผิวที่เอียงไปทางกรมท่ามากกว่าเทา</string>
+    <string name="theme_gradient">ไล่เฉดสี</string>
+    <string name="theme_gradient_detail">สีหลักและสีรองที่คุณเลือกเอง ผสมกันบนปุ่มและส่วนที่เน้น</string>
+    <string name="theme_gradient_primary">สีหลัก</string>
+    <string name="theme_gradient_secondary">สีรอง</string>
+    <string name="theme_color_hue">เฉดสี</string>
+    <string name="theme_color_saturation">ความอิ่มตัว</string>
+    <string name="theme_color_brightness">ความสว่าง</string>
+    <string name="theme_color_hex">สีเลขฐานสิบหก</string>
     <string name="pckb_key_esc">Esc</string>
     <string name="pckb_key_ins">Ins</string>
     <string name="pckb_key_del">Del</string>

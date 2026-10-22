@@ -1404,6 +1404,14 @@
     <string name="theme_icon_blue_detail">Черен фон, бял текст, синьото за всичко избрано, на фокус или натиснато.</string>
     <string name="theme_electric">Яркосиньо</string>
     <string name="theme_electric_detail">По-яркото синьо, върху повърхности, по-близки до тъмносиньо, вместо сиво.</string>
+    <string name="theme_gradient">Градиент</string>
+    <string name="theme_gradient_detail">Вашите основен и вторичен цвят, смесени в бутоните и акцентите.</string>
+    <string name="theme_gradient_primary">Основен</string>
+    <string name="theme_gradient_secondary">Вторичен</string>
+    <string name="theme_color_hue">Нюанс</string>
+    <string name="theme_color_saturation">Наситеност</string>
+    <string name="theme_color_brightness">Яркост</string>
+    <string name="theme_color_hex">Hex цвят</string>
     <string name="pckb_key_esc">Esc</string>
     <string name="pckb_key_ins">Ins</string>
     <string name="pckb_key_del">Del</string>

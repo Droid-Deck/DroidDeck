@@ -1404,6 +1404,14 @@
     <string name="theme_icon_blue_detail">Fekete alap, fehér betűk, a kék minden kijelölt, fókuszált vagy lenyomott elemhez.</string>
     <string name="theme_electric">Elektromos tengerészkék</string>
     <string name="theme_electric_detail">Fényesebb kék, szürke helyett tengerészkék felületeken.</string>
+    <string name="theme_gradient">Színátmenet</string>
+    <string name="theme_gradient_detail">Saját elsődleges és másodlagos színed, átmenettel a gombokon és a kiemeléseken.</string>
+    <string name="theme_gradient_primary">Elsődleges</string>
+    <string name="theme_gradient_secondary">Másodlagos</string>
+    <string name="theme_color_hue">Színárnyalat</string>
+    <string name="theme_color_saturation">Telítettség</string>
+    <string name="theme_color_brightness">Fényerő</string>
+    <string name="theme_color_hex">Hex szín</string>
     <string name="pckb_key_esc">Esc</string>
     <string name="pckb_key_ins">Ins</string>
     <string name="pckb_key_del">Del</string>

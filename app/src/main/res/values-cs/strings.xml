@@ -1432,6 +1432,14 @@
     <string name="theme_icon_blue_detail">Černé pozadí, bílé písmo, modrá pro vše vybrané, zaměřené nebo stisknuté.</string>
     <string name="theme_electric">Elektrická modř</string>
     <string name="theme_electric_detail">Jasnější modrá na povrchách, které jsou spíše tmavomodré než šedé.</string>
+    <string name="theme_gradient">Přechod</string>
+    <string name="theme_gradient_detail">Vaše vlastní primární a sekundární barva, prolnuté na tlačítkách a zvýrazněních.</string>
+    <string name="theme_gradient_primary">Primární</string>
+    <string name="theme_gradient_secondary">Sekundární</string>
+    <string name="theme_color_hue">Odstín</string>
+    <string name="theme_color_saturation">Sytost</string>
+    <string name="theme_color_brightness">Jas</string>
+    <string name="theme_color_hex">Barva hex</string>
     <string name="pckb_key_esc">Esc</string>
     <string name="pckb_key_ins">Ins</string>
     <string name="pckb_key_del">Del</string>
