@@ -13,6 +13,7 @@ import android.content.Context
 import android.os.Handler
 import android.os.HandlerThread
 import android.util.Log
+import com.droiddeck.launcher.session.SessionState
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.ArrayDeque
@@ -51,6 +52,10 @@ class SteamControllerBle(private val context: Context) {
 
     private fun connect() {
         if (!running || gatt != null) return
+        if (SessionState.suspended) {
+            handler.postDelayed(::connect, RETRY_MS)
+            return
+        }
         val adapter = (context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager)?.adapter
         val bonded = runCatching { adapter?.takeIf(BluetoothAdapter::isEnabled)?.bondedDevices }
             .onFailure { Log.w(TAG, "paired devices unreadable", it) }
