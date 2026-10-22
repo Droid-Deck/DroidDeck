@@ -1159,6 +1159,8 @@
     <string name="pip_auto">Otomatik olarak PiP moduna geç</string>
     <string name="unfolded_controls">Açılmış ekrandaki kontroller</string>
     <string name="unfolded_controls_hint">Cihaz açıkken oyun, Steam Deck dokunmatik yüzeylerinin ve arka tutamaklarının üstünde durur. Katlıyken oyun tam ekran olur.</string>
+    <string name="unfolded_controls_with_controller">Kumanda bağlıyken de göster</string>
+    <string name="unfolded_controls_with_controller_hint">Telefonu tutan kumandalar için, kumanda bağlıyken de açılmış ekrandaki kontrolleri gösterir.</string>
     <string name="pip_suspended">Askıya alındı</string>
     <string name="pip_not_ready">Pencere içinde pencere, oturum hazır olduğunda kullanılabilir.</string>
     <string name="pip_permission">Android ayarlarında DroidDeck için pencere içinde pencereye izin verin.</string>
@@ -1393,6 +1395,14 @@
     <string name="theme_icon_blue_detail">Siyah zemin, beyaz yazı; seçilen, odaklanan veya basılan her şey için mavi.</string>
     <string name="theme_electric">Elektrik laciverti</string>
     <string name="theme_electric_detail">Daha parlak mavi; gri yerine laciverte çalan yüzeylerde.</string>
+    <string name="theme_gradient">Geçiş</string>
+    <string name="theme_gradient_detail">Kendi birincil ve ikincil renklerin, düğmelerde ve vurgularda harmanlanır.</string>
+    <string name="theme_gradient_primary">Birincil</string>
+    <string name="theme_gradient_secondary">İkincil</string>
+    <string name="theme_color_hue">Ton</string>
+    <string name="theme_color_saturation">Doygunluk</string>
+    <string name="theme_color_brightness">Parlaklık</string>
+    <string name="theme_color_hex">Hex rengi</string>
     <string name="pckb_key_esc">Esc</string>
     <string name="pckb_key_ins">Ins</string>
     <string name="pckb_key_del">Del</string>
@@ -2485,6 +2495,7 @@
     <string name="glasses_xreal_network_missing">Gözlüğün USB Ethernet bağlantısı bekleniyor. Bu telefon bu bağlantıyı uygulamalara açmıyor olabilir.</string>
     <string name="glasses_xreal_connection_failed">XREAL bağlantısı kesildi veya desteklenmeyen bir yanıt döndü. Yeniden deneniyor…</string>
     <string name="glasses_xreal_experimental">Deneysel 1S desteği. Gözlük menüsünde Follow modunu kullanın ve görüntü sabitlemeyi kapatın. Takip yönlerinin ve ekran modlarının hâlâ cihazda test edilmesi gerekiyor.</string>
+    <string name="glasses_pro2_experimental">Pro 2 için deneysel baş takibi. Parlaklık ve ses düzeyi ayarı ile ekran modu değiştirme henüz desteklenmiyor.</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Cardboard modu</string>
     <string name="cardboard_mode_hint">Telefon VR gözlüğü için sol ve sağ göz görüntüleri.</string>

@@ -1404,6 +1404,14 @@
     <string name="theme_icon_blue_detail">Svart bakgrunn, hvit skrift, det blå for alt som er valgt, fokusert eller trykket.</string>
     <string name="theme_electric">Elektrisk marineblå</string>
     <string name="theme_electric_detail">Det blå lysere, på flater som lener mer mot marineblått enn grått.</string>
+    <string name="theme_gradient">Gradient</string>
+    <string name="theme_gradient_detail">Dine egne primær- og sekundærfarger, blandet på knapper og uthevinger.</string>
+    <string name="theme_gradient_primary">Primær</string>
+    <string name="theme_gradient_secondary">Sekundær</string>
+    <string name="theme_color_hue">Fargetone</string>
+    <string name="theme_color_saturation">Metning</string>
+    <string name="theme_color_brightness">Lysstyrke</string>
+    <string name="theme_color_hex">Hex-farge</string>
     <string name="pckb_key_esc">Esc</string>
     <string name="pckb_key_ins">Ins</string>
     <string name="pckb_key_del">Del</string>
@@ -2499,6 +2507,7 @@
     <string name="glasses_xreal_network_missing">Venter på USB Ethernet-tilkoblingen til brillene. Denne telefonen gjør den kanskje ikke tilgjengelig for apper.</string>
     <string name="glasses_xreal_connection_failed">XREAL-tilkoblingen ble avbrutt eller ga et svar som ikke støttes. Prøver igjen…</string>
     <string name="glasses_xreal_experimental">Eksperimentell støtte for 1S. Bruk Follow-modus og slå av stabilisering i brillemenyen. Sporingsretninger og visningsmoduser må fortsatt testes på enheten.</string>
+    <string name="glasses_pro2_experimental">Eksperimentell hodesporing for Pro 2. Justering av lysstyrke og volum samt bytte av visningsmodus støttes ikke ennå.</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Cardboard-modus</string>
     <string name="cardboard_mode_hint">Bilder for venstre og høyre øye til en VR-brille for mobil.</string>

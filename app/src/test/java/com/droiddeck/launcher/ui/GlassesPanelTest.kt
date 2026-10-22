@@ -30,6 +30,21 @@ import org.robolectric.annotation.Config
 class GlassesPanelTest {
     @get:Rule val compose = createRobolectricComposeRule()
 
+    @Test fun trackingOnlyDeviceHidesDisplayWritesButKeepsHeadTracking() {
+        show(supportsDisplayModeControl = false)
+        compose.onNodeWithTag("setting-glasses-hz").assertDoesNotExist()
+        compose.onNodeWithTag("setting-glasses-resolution-two_d").assertDoesNotExist()
+        compose.onNodeWithTag("setting-glasses-3d").assertDoesNotExist()
+        compose.onNodeWithTag("setting-glasses-3dof").assertExists()
+    }
+
+    @Test fun trackingOnlyDeviceHidesVrDisplayWrites() {
+        show(supportsDisplayModeControl = false, tab = GlassesTab.VR, steamVrRunning = true)
+        compose.onNodeWithTag("setting-glasses-resolution-vr").assertDoesNotExist()
+        compose.onNodeWithTag("setting-glasses-3d-hz").assertDoesNotExist()
+        compose.onNodeWithTag("setting-glasses-auto3d").assertDoesNotExist()
+    }
+
     @Test fun flatResolutionMenuShowsPerEyeResolutionsBesideRefresh() {
         show()
         compose.onNodeWithTag("setting-glasses-hz").assertExists()
@@ -397,6 +412,7 @@ class GlassesPanelTest {
         outputActive: Boolean = inSession,
         controlAvailable: Boolean = true,
         supportsScreen3dof: Boolean = true,
+        supportsDisplayModeControl: Boolean = true,
         supportsSpatial: Boolean = false,
         supports30Hz: Boolean = false,
         sbs90: Boolean = true,
@@ -406,6 +422,7 @@ class GlassesPanelTest {
         onRecenter: (() -> Unit)? = {},
     ) {
         val state = GlassesState(present = true, connected = controlAvailable, controllable = true,
+            supportsDisplayModeControl = supportsDisplayModeControl,
             displayId = Display.DEFAULT_DISPLAY + 1, width = if (stereo) 3840 else 1920, height = 1200,
             model = "VITURE Luma Ultra", sbs = stereo, sbs90 = sbs90, supportsScreen3dof = supportsScreen3dof,
             supports30Hz = supports30Hz, supportsSpatial = supportsSpatial, resolutions = listOf(

@@ -1432,6 +1432,14 @@
     <string name="theme_icon_blue_detail">Černé pozadí, bílé písmo, modrá pro vše vybrané, zaměřené nebo stisknuté.</string>
     <string name="theme_electric">Elektrická modř</string>
     <string name="theme_electric_detail">Jasnější modrá na povrchách, které jsou spíše tmavomodré než šedé.</string>
+    <string name="theme_gradient">Přechod</string>
+    <string name="theme_gradient_detail">Vaše vlastní primární a sekundární barva, prolnuté na tlačítkách a zvýrazněních.</string>
+    <string name="theme_gradient_primary">Primární</string>
+    <string name="theme_gradient_secondary">Sekundární</string>
+    <string name="theme_color_hue">Odstín</string>
+    <string name="theme_color_saturation">Sytost</string>
+    <string name="theme_color_brightness">Jas</string>
+    <string name="theme_color_hex">Barva hex</string>
     <string name="pckb_key_esc">Esc</string>
     <string name="pckb_key_ins">Ins</string>
     <string name="pckb_key_del">Del</string>
@@ -2549,6 +2557,7 @@
     <string name="glasses_xreal_network_missing">Čeká se na připojení USB Ethernet brýlí. Tento telefon ho možná aplikacím nezpřístupňuje.</string>
     <string name="glasses_xreal_connection_failed">Připojení XREAL bylo přerušeno nebo vrátilo nepodporovanou odpověď. Zkouší se to znovu…</string>
     <string name="glasses_xreal_experimental">Experimentální podpora 1S. V nabídce brýlí použijte režim Follow a vypněte stabilizaci. Směry sledování a režimy zobrazení je ještě třeba otestovat na zařízení.</string>
+    <string name="glasses_pro2_experimental">Experimentální sledování pohybu hlavy pro Pro 2. Nastavení jasu, hlasitosti a přepínání režimů zobrazení zatím nejsou podporovány.</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Režim Cardboard</string>
     <string name="cardboard_mode_hint">Obraz pro levé a pravé oko pro VR brýle pro telefon.</string>

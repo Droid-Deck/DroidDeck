@@ -1432,6 +1432,14 @@
     <string name="theme_icon_blue_detail">Czarne tło, biały tekst i niebieski dla wszystkiego, co zaznaczone, aktywne lub naciśnięte.</string>
     <string name="theme_electric">Elektryczny granat</string>
     <string name="theme_electric_detail">Jaśniejszy niebieski na powierzchniach wpadających w granat zamiast w szarość.</string>
+    <string name="theme_gradient">Gradient</string>
+    <string name="theme_gradient_detail">Własny kolor podstawowy i dodatkowy, płynnie przechodzące na przyciskach i wyróżnieniach.</string>
+    <string name="theme_gradient_primary">Podstawowy</string>
+    <string name="theme_gradient_secondary">Dodatkowy</string>
+    <string name="theme_color_hue">Odcień</string>
+    <string name="theme_color_saturation">Nasycenie</string>
+    <string name="theme_color_brightness">Jasność</string>
+    <string name="theme_color_hex">Kolor hex</string>
     <string name="pckb_key_esc">Esc</string>
     <string name="pckb_key_ins">Ins</string>
     <string name="pckb_key_del">Del</string>
@@ -2552,6 +2560,7 @@
     <string name="glasses_xreal_network_missing">Oczekiwanie na połączenie USB Ethernet okularów. Ten telefon może nie udostępniać go aplikacjom.</string>
     <string name="glasses_xreal_connection_failed">Połączenie z XREAL zostało przerwane lub zwróciło nieobsługiwaną odpowiedź. Ponawianie…</string>
     <string name="glasses_xreal_experimental">Eksperymentalna obsługa 1S. Użyj trybu Follow i wyłącz stabilizację w menu okularów. Kierunki śledzenia i tryby wyświetlania wymagają jeszcze testów na urządzeniu.</string>
+    <string name="glasses_pro2_experimental">Eksperymentalne śledzenie ruchów głowy dla Pro 2. Regulacja jasności i głośności oraz przełączanie trybu wyświetlania nie są jeszcze obsługiwane.</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Tryb Cardboard</string>
     <string name="cardboard_mode_hint">Obraz dla lewego i prawego oka do gogli VR na telefon.</string>

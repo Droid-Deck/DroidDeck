@@ -1407,6 +1407,14 @@
     <string name="theme_icon_blue_detail">Fondo nero, testo bianco, il blu per tutto ciò che è selezionato, attivo o premuto.</string>
     <string name="theme_electric">Blu elettrico</string>
     <string name="theme_electric_detail">Il blu più brillante, su superfici che tendono al blu navy invece che al grigio.</string>
+    <string name="theme_gradient">Gradiente</string>
+    <string name="theme_gradient_detail">I tuoi colori primario e secondario, sfumati su pulsanti ed evidenziazioni.</string>
+    <string name="theme_gradient_primary">Primario</string>
+    <string name="theme_gradient_secondary">Secondario</string>
+    <string name="theme_color_hue">Tonalità</string>
+    <string name="theme_color_saturation">Saturazione</string>
+    <string name="theme_color_brightness">Luminosità</string>
+    <string name="theme_color_hex">Colore esadecimale</string>
     <string name="pckb_key_esc">Esc</string>
     <string name="pckb_key_ins">Ins</string>
     <string name="pckb_key_del">Canc</string>
@@ -2510,6 +2518,7 @@
     <string name="glasses_xreal_network_missing">In attesa della connessione USB Ethernet degli occhiali. Questo telefono potrebbe non renderla disponibile alle app.</string>
     <string name="glasses_xreal_connection_failed">La connessione XREAL si è interrotta o ha restituito una risposta non supportata. Nuovo tentativo…</string>
     <string name="glasses_xreal_experimental">Supporto sperimentale per 1S. Usa la modalità Follow e disattiva la stabilizzazione nel menu degli occhiali. Direzioni del tracciamento e modalità di visualizzazione devono ancora essere testate sul dispositivo.</string>
+    <string name="glasses_pro2_experimental">Tracciamento sperimentale della testa per Pro 2. La regolazione di luminosità e volume e il cambio della modalità di visualizzazione non sono ancora supportati.</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Modalità Cardboard</string>
     <string name="cardboard_mode_hint">Immagini per l\'occhio sinistro e destro, per un visore VR per telefono.</string>
