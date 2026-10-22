@@ -23,6 +23,7 @@ import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import android.widget.TextView
 import com.droiddeck.launcher.input.KeyboardHost
+import com.droiddeck.launcher.input.PadBridge
 import com.droiddeck.launcher.input.PointerGestures
 import com.droiddeck.launcher.input.SecondScreenMode
 import com.droiddeck.launcher.input.TouchpadGestures
@@ -36,7 +37,6 @@ import com.termux.terminal.TerminalSessionClient
 import com.termux.view.TerminalView
 import com.termux.view.TerminalViewClient
 
-/** Touch controls drawn on a second Android display while the compositor remains on the main one. */
 class SecondScreenPresentation(
     private val sessionActivity: SessionActivity,
     display: Display,
@@ -46,6 +46,7 @@ class SecondScreenPresentation(
     private val onSteamMenu: () -> Unit,
     private val onQam: () -> Unit,
     private val onClose: () -> Unit,
+    private val pad: PadBridge? = null,
 ) : Presentation(sessionActivity, display) {
     private val root = LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
@@ -83,7 +84,6 @@ class SecondScreenPresentation(
         if (created) renderMode()
     }
 
-    /** Releases the auxiliary Linux shell before the window is dismissed. */
     fun closeControls() {
         closeTerminal()
         keyboardHost?.hide()
@@ -111,12 +111,14 @@ class SecondScreenPresentation(
         keyboardHost = null
         closeTerminal()
         root.removeAllViews()
-        if (currentMode == SecondScreenMode.NONE) return
+        val mode = if (currentMode == SecondScreenMode.DECK_CONTROLS && !SessionState.deckPad) SecondScreenMode.NONE
+        else currentMode
+        if (mode == SecondScreenMode.NONE) return
 
-        when (currentMode) {
+        when (mode) {
             SecondScreenMode.KEYBOARD_TRACKPAD -> renderKeyboardAndTrackpad()
             SecondScreenMode.TERMINAL -> renderTerminal()
-            SecondScreenMode.DECK_CONTROLS -> root.addView(DeckControlsPanel(context, onClose, onSteamMenu, onQam), weightParams())
+            SecondScreenMode.DECK_CONTROLS -> root.addView(DeckControlsPanel(context, onClose, onSteamMenu, onQam, pad), weightParams())
             SecondScreenMode.NONE -> Unit
         }
     }
@@ -155,16 +157,18 @@ class SecondScreenPresentation(
             }
         }
         controls.addView(keyboardButton)
-        controls.addView(Button(context).apply {
-            text = "STEAM"
-            contentDescription = context.getString(R.string.deck_open_steam_menu)
-            setOnClickListener { onSteamMenu() }
-        })
-        controls.addView(Button(context).apply {
-            text = "…"
-            contentDescription = context.getString(R.string.drawer_open_qam)
-            setOnClickListener { onQam() }
-        })
+        if (SessionState.mode == SessionService.MODE_STEAM) {
+            controls.addView(Button(context).apply {
+                text = "STEAM"
+                contentDescription = context.getString(R.string.deck_open_steam_menu)
+                setOnClickListener { onSteamMenu() }
+            })
+            controls.addView(Button(context).apply {
+                text = "…"
+                contentDescription = context.getString(R.string.drawer_open_qam)
+                setOnClickListener { onQam() }
+            })
+        }
         panel.addView(controls, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
         root.addView(panel, weightParams())
         val host = KeyboardHost(context) { sessionActivity.dispatchKeyEvent(it) }

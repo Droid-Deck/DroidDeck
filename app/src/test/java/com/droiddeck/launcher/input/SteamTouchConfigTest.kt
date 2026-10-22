@@ -6,7 +6,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SteamTouchConfigTest {
-    // A layout DroidDeck saved for Geometry Wars on the Thor, as Steam keeps it.
     private val saved = "0aec0310012218080010011d0000703d255555d53d2d0000803f350000803f2218080110011d6666fe3e255555d53d2d0000803f350000803f2218080210011dba490c3e255c8f423f2d0000803f350000803f2218080410011d9a99593f255c8f423f2d0000803f350000803f2218080510011d8fc2353f25ae47613f2d0000803f350000803f2218080610011d2b87163e25d7a3f03e2d0000803f350000803f2218080710011dba49003f25f958053f2d293ab23f35293ab23f2218080810011d9a99683f25d227dd3e2d0000803f350000803f2218080910011d9a99483f25d227dd3e2d0000803f350000803f2218080a10011d9a99583f254444a43e2d0000803f350000803f2218080b10011d6666ce3e255555d53d2d0000803f350000803f2218080c10011d3333173f255555d53d2d0000803f350000803f2218080d10011d0ad7233e2585eb513e2d0000803f350000803f2218080e10011d3d0a573f2585eb513e2d0000803f350000803f2218080f10011d8fc2753d2585eb513e2d0000803f350000803f2218081010011dd7a3703f2585eb513e2d0000803f350000803f2218081c10011d0000713f255555d53d2d0000803f350000803f2218080310001de17a943e25ae47613f2d0000803f350000803f2a140d0000803f150000803f1d0000803f25cdcccc3e1002"
 
     @Test
@@ -65,5 +64,28 @@ class SteamTouchConfigTest {
 """).child("controller_mappings")
         val config = SteamTouchConfig.Config(null, null, null, emptyMap(), kv)
         assertEquals(listOf(1 to "Desktop", 2 to "Gamepad"), SteamTouchConfig.actionSets(config))
+    }
+
+    @Test
+    fun remapHeldKeepsSurvivingControlsAndDropsRemovedOrNullOnes() {
+        val layouts = SteamTouchConfig.decodeLayouts(SteamTouchConfig.hexToBytes(saved))
+        val baseConfig = SteamTouchConfig.Config(null, null, layouts, mapOf(0 to setOf(SteamTouchConfig.A, SteamTouchConfig.JOYSTICK_LEFT)))
+        val layerConfig = SteamTouchConfig.Config(null, null, layouts, mapOf(0 to setOf(SteamTouchConfig.A), 1 to setOf(SteamTouchConfig.B)))
+        val after = SteamTouchConfig.elementsFor(layerConfig, 0, listOf(2))
+
+        val remapped = SteamTouchConfig.remapHeld(
+            mapOf(
+                7 to SteamTouchConfig.A,
+                8 to SteamTouchConfig.JOYSTICK_LEFT,
+                9 to null,
+                10 to SteamTouchConfig.B,
+            ),
+            after,
+        )
+
+        assertEquals(setOf(7, 10), remapped.keys)
+        assertEquals(after.first { it.type == SteamTouchConfig.A }, remapped[7])
+        assertEquals(after.first { it.type == SteamTouchConfig.B }, remapped[10])
+        assertFalse(baseConfig.availableFor(0, emptyList()).isEmpty())
     }
 }

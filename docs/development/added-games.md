@@ -47,7 +47,7 @@ shortcut appid is stored per folder at the first scan and never changes after.
 
 The ✎ on a Custom game's page (`AddedGameEditor`) mirrors Steam's Properties for a
 non-Steam game: Name, Target (ranked exes, "?", Other exe… opening the picker in the
-game's folder), Start in (automatic = the exe's folder), Launch options, Artwork (Cover,
+game's folder), Start in (automatic = the exe's folder), Launch options, Artwork (Cover, Wide cover,
 Background, Logo, Icon, each with its thumbnail and source), and Remove (two presses; the
 files stay; adding it again brings it back). `AddedGameEdits` writes each change through
 the same shortcut: the listing (`name`, `exe`, `dir`, `launch`, `art`, the stored `appid`)
@@ -66,10 +66,47 @@ value holds on both sides.
 Automatic: the game folder's own images, then Steam (the appid the files name, else a
 store search whose result has the same name), then SteamGridDB, then the exe's icon. The
 art chooser (an Artwork row) shows the game folder's images, Steam's official piece and
-SteamGridDB's best few (fetched when it opens); a tap applies one, "Pick image…" takes a
-file through the same picker (png, jpg, jpeg, webp, ico), "Reset to automatic" drops the
-choice. A choice is a copy in `files/added-art/<appid>/chosen-<slot>.<ext>`, its source in
-the preferences.
+SteamGridDB's best few (fetched when it opens); a tap applies one, "Search SteamGridDB…"
+opens a search (it starts with the game's name and opens the match at once when one is
+exact; it lists every image SteamGridDB returns for the slot, up to four pages of 50), "Pick image…" takes a file through the same
+picker (png, jpg, jpeg, webp, ico), "Reset to automatic" drops the choice. A choice is a
+copy in `files/added-art/<appid>/chosen-<slot>.<ext>`, its source in the preferences.
+
+SteamGridDB failures are told apart (`SteamGridDb.Status`: no key, key refused, rate limit,
+offline, server, no match for the game) and shown under the SteamGridDB images instead of
+leaving the row out. The SteamGridDB game id is remembered per game in
+`added-art/<appid>/sgdb-id`; "none" (SteamGridDB has no such game) is kept for a week, but
+a failed request is never written as "none", a "none" older than the saved key is asked
+again, and the chooser always asks again when the user opens it. A background pass stops
+asking SteamGridDB after its first failure.
+
+Steam games (installed through Steam, not Custom) get the same ✎ on their page: an Artwork-only
+editor (`SteamGameArtEditor`) with the same rows and the same chooser (Steam's official piece,
+SteamGridDB's best few, "Search SteamGridDB…", "Pick image…", "Reset to automatic"), shared
+through `ArtTarget`. A choice is a copy in `files/steam-art/<appid>/chosen-<slot>.<ext>`
+(`SteamGameArt`); `Library.steamGames` shows it in place of the librarycache image, and with a
+client running the Cover / Wide cover / Background / Logo is also set in Steam
+(`SetCustomArtworkForApp` / `ClearCustomArtworkForApp`). Icon is launcher-only.
+
+`SteamGrid` keeps both sides in step through the client's grid folder
+(`userdata/<account>/config/grid`, `<appid>p`, `<appid>` for the wide cover, `_hero`, `_logo`), for Steam and Custom games alike.
+A choice is written there at once, so it reaches Steam while the client is closed. Every library
+scan (`Library.launchableGames`) compares the folder with what was last written or read
+(`grid-<slot>` in the game's art folder): a file Steam changed becomes the choice (source Steam),
+a file removed in Steam drops it, and files the shortcuts writer placed itself
+(`.droiddeck-art.json`) are not mistaken for choices. A chosen image is stored as
+`chosen-<slot>-<time>.<ext>`, so a new choice has a new path and shows at once. Installed GOG, Epic, Amazon, Xbox and itch games get the same rows through `StoreGameArtEditor`.
+
+"Adjust logo" (last row of every art editor, `LogoPositionDialog`) shows the game's Background with
+its Logo on top and lets the logo be pinned to one of Steam's five places (top left / top center /
+center / bottom left / bottom center) and resized (10-100 %). The value is Steam's own
+`{"nVersion":1,"logoPosition":{"pinnedPosition","nWidthPct","nHeightPct"}}` (`LogoPosition`). It is
+kept in the game's art folder (`logo-position`), written to `<appid>.json` in the grid folder (other
+keys in that file are kept; clearing the position removes the file only when nothing else is in it),
+and, with the client running, set through `SetCustomLogoPositionForApp` /
+`ClearCustomLogoPositionForApp`. `SteamGrid.sync` takes over a position changed or removed in Steam
+the same way it does for images (`grid-json` holds the last seen signature). Reset removes the
+custom position so Steam's default comes back.
 
 Setup › Launcher › Games holds the Artwork switch (automatic fetching) and the
 SteamGridDB API key: the user's own, sealed with `CredentialCipher`, wins over the build's
@@ -80,5 +117,5 @@ skipped.
 
 `AddedExesTest`, `AddedGameEditsTest` (bulk add and skip, edits to the listing on a stable
 appid, Steam-side read-back, art choice and reset), `AddedGamesCandidatesTest`,
-`AddedGameArtLookupTest` (key precedence), `GameIdentifierTest`, `PickListingTest`, and
+`AddedGameArtLookupTest` (key precedence), `SteamGameArtTest` (Steam game art choice and reset), `SteamGridTest` (grid folder both ways), `GameIdentifierTest`, `PickListingTest`, and
 `tools/tests/test_steam_shortcuts.py` for the writer.

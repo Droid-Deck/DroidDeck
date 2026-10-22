@@ -18,14 +18,12 @@ public final class FileUtils {
 
     private FileUtils() {}
 
-    /** Recursive delete that does not follow symlinks - a rootfs is full of them. */
     public static void delete(File file) {
         if (file == null || !file.exists() && !isSymlink(file)) return;
         if (file.isDirectory() && !isSymlink(file)) {
             File[] children = file.listFiles();
             if (children != null) for (File child : children) delete(child);
         }
-        //noinspection ResultOfMethodCallIgnored
         file.delete();
     }
 
@@ -37,7 +35,6 @@ public final class FileUtils {
         }
     }
 
-    /** Empties a directory without removing it. */
     public static void clear(File dir) {
         if (dir == null || !dir.isDirectory()) return;
         File[] children = dir.listFiles();
@@ -47,7 +44,7 @@ public final class FileUtils {
     public static boolean writeString(File file, String content) {
         try {
             File parent = file.getParentFile();
-            if (parent != null && !parent.isDirectory()) //noinspection ResultOfMethodCallIgnored
+            if (parent != null && !parent.isDirectory())
                 parent.mkdirs();
             Files.write(file.toPath(), content.getBytes(StandardCharsets.UTF_8));
             return true;
@@ -81,10 +78,9 @@ public final class FileUtils {
         }
     }
 
-    /** Copies an asset out of the apk, creating the parent directory. */
     public static boolean copyAsset(Context context, String assetPath, File destination) {
         File parent = destination.getParentFile();
-        if (parent != null && !parent.isDirectory()) //noinspection ResultOfMethodCallIgnored
+        if (parent != null && !parent.isDirectory())
             parent.mkdirs();
         try (InputStream in = context.getAssets().open(assetPath);
              OutputStream out = new FileOutputStream(destination)) {

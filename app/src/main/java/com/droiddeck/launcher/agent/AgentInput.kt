@@ -5,13 +5,7 @@ import com.droiddeck.launcher.session.SessionState
 import com.droiddeck.launcher.wayland.WaylandCompositor
 import org.json.JSONObject
 
-/**
- * Input into the running session the way a player gives it: keys and touches through the
- * compositor (what the session screen sends), and the virtual pad through the same PadBridge the
- * on-screen controls drive, so games that ignore touch still see a controller.
- */
 object AgentInput {
-    /** Out of the way of real fingers, which Android numbers from 0. */
     private const val TOUCH_ID = 9
     private const val TOUCH_SCALE_X = 1919f
     private const val TOUCH_SCALE_Y = 1079f
@@ -56,7 +50,6 @@ object AgentInput {
         return JSONObject().put("code", code)
     }
 
-    /** Typed as key presses (US layout), which reaches X programs that have no text-input support. */
     private fun text(request: JSONObject): JSONObject {
         val text = request.optString("text")
         if (request.optBoolean("commit")) {
@@ -99,11 +92,6 @@ object AgentInput {
         return JSONObject().put("from", org.json.JSONArray().put(x1).put(y1)).put("to", org.json.JSONArray().put(x2).put(y2))
     }
 
-    /**
-     * A point in the compositor's touch space (0..1919 x 0..1079 whatever the session's size), from
-     * the session's output pixels (space "output", the default: what the guest draws at) or 0..1
-     * fractions (space "fraction").
-     */
     private fun point(request: JSONObject, xKey: String, yKey: String): Pair<Int, Int> {
         if (!request.has(xKey) || !request.has(yKey)) throw AgentException("INVALID_INPUT", "$xKey and $yKey are required")
         val x = request.getDouble(xKey)
@@ -183,7 +171,6 @@ object AgentInput {
         "guide" to PadState.GUIDE, "steam" to PadState.GUIDE,
     )
 
-    /** Linux evdev codes (input-event-codes.h) by name. */
     private val KEYS: Map<String, Int> = buildMap {
         "1234567890".forEachIndexed { i, c -> put(c.toString(), 2 + i) }
         "QWERTYUIOP".forEachIndexed { i, c -> put(c.toString(), 16 + i) }
@@ -202,7 +189,6 @@ object AgentInput {
         ))
     }
 
-    /** US-layout characters as (evdev code, shift). */
     private val TYPED: Map<Char, Pair<Int, Boolean>> = buildMap {
         for (c in 'a'..'z') put(c, KEYS.getValue(c.uppercase()) to false)
         for (c in 'A'..'Z') put(c, KEYS.getValue(c.toString()) to true)

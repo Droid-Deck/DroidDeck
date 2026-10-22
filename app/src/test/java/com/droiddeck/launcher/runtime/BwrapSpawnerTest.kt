@@ -68,7 +68,6 @@ class BwrapSpawnerTest {
     }
 }
 
-/** The sandbox a Flatpak request describes, built on disk under a temporary directory. */
 @RunWith(RobolectricTestRunner::class)
 class BwrapSpawnerPlanTest {
     private lateinit var dir: File
@@ -76,7 +75,6 @@ class BwrapSpawnerPlanTest {
 
     @Before fun setUp() {
         dir = Files.createTempDirectory("bwrap-plan").toFile()
-        // Flatpak names the runtime by its path inside the rootfs.
         runtime = File(LinuxRuntime.rootDir(RuntimeEnvironment.getApplication()), "runtime-files")
         File(runtime, "lib").mkdirs()
     }
@@ -107,21 +105,44 @@ class BwrapSpawnerPlanTest {
             op("t" to "bind", "src" to "/nonexistent-${System.nanoTime()}", "dest" to "/run/x", "try" to true),
         ), dir)
 
-        // The runtime is bound at /usr, not written into.
         assertTrue(plan.binds.any { it.guest == "/usr" && File(it.host).canonicalPath == runtime.canonicalPath })
         assertFalse(File(runtime, "lib/GL").exists())
-        // The tmpfs under /usr is a directory of ours, and the link Flatpak makes inside it lands there.
         val gl = plan.binds.single { it.guest == "/usr/lib/GL" }
         assertTrue(gl.host.startsWith(dir.path))
         assertEquals("default/lib/libEGL.so", Files.readSymbolicLink(File(gl.host, "libEGL.so").toPath()).toString())
-        // Top-level links, directories and files are made in the sandbox root itself.
         assertEquals("usr/lib", Files.readSymbolicLink(File(plan.root, "lib").toPath()).toString())
         assertTrue(File(plan.root, "tmp").isDirectory)
         assertEquals("[Application]\nname=org.example.Game\n", File(plan.root, ".flatpak-info").readText())
-        // A --bind-try whose source is missing is left out.
         assertFalse(plan.binds.any { it.guest == "/run/x" })
         assertEquals(listOf("/app/bin/game"), plan.argv)
         assertEquals("/app", plan.cwd)
         assertEquals("org.example.Game", plan.env["FLATPAK_ID"])
+    }
+
+    @Test fun zypakLaunchesTheBrowserWithoutItsSandbox() {
+        val context = RuntimeEnvironment.getApplication()
+        val app = File(runtime, "app").apply { File(this, "bin").mkdirs() }
+        File(app, "bin/zypak-wrapper.sh").writeText("#!/usr/bin/bash\nexec zypak-helper host - \"\$@\"\n")
+        Files.createSymbolicLink(File(app, "bin/zypak-wrapper").toPath(), java.nio.file.Paths.get("/app/bin/zypak-wrapper.sh"))
+        val plan = BwrapSpawner.plan(context, request(
+            op("t" to "bind", "src" to "/runtime-files/app", "dest" to "/app", "ro" to true),
+        ), dir)
+
+        val shim = plan.binds.single { it.guest == "/app/bin/zypak-wrapper.sh" }
+        assertTrue(shim.host.startsWith(dir.path))
+        assertTrue(File(shim.host).readText().contains("exec \"\$program\" --no-sandbox \"\$@\""))
+        assertFalse(plan.binds.any { it.guest == "/app/bin/zypak-wrapper" })
+        assertTrue(File(app, "bin/zypak-wrapper.sh").readText().contains("zypak-helper"))
+    }
+
+    @Test fun appsWithoutZypakKeepTheirFiles() {
+        val context = RuntimeEnvironment.getApplication()
+        File(runtime, "app/bin").mkdirs()
+        val plan = BwrapSpawner.plan(context, request(
+            op("t" to "bind", "src" to "/runtime-files/app", "dest" to "/app", "ro" to true),
+        ), dir)
+
+        assertFalse(plan.binds.any { it.guest.startsWith("/app/bin/") })
+        assertFalse(File(dir, "zypak-wrapper").exists())
     }
 }

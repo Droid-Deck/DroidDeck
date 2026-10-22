@@ -38,7 +38,6 @@ class GameFilesTest {
         val provider = LaunchFileProvider(file)
         provider.attachInfo(context, android.content.pm.ProviderInfo().apply { authority = "frontend" })
         ShadowContentResolver.registerProviderInternal("frontend", provider)
-        // Providers often give opaque document IDs with no filename extension.
         val uri = Uri.parse("content://frontend/document/opaque%3A42")
         assertEquals("18446744073709551615", GameFiles.readIntent(context, Intent(Intent.ACTION_VIEW, uri)))
     }
@@ -131,6 +130,23 @@ class GameFilesTest {
             assertEquals(folder.canonicalFile, file.canonicalFile.parentFile)
             assertTrue(file.name.toByteArray().size < 255)
         }
+    }
+
+    @Test fun longTitlesKeepTheirEndingAndStayApart() {
+        val folder = tmp.newFolder()
+        val first = game("32370", "STAR WARS™ Knights of the Old Republic™")
+        val second = game("208580", "STAR WARS™ Knights of the Old Republic™ II - The Sith Lords™")
+        assertEquals("STAR WARS™ Knights of the Old Republic™ II - The Sith Lords™.steam", GameFiles.filename(second))
+        GameFiles.sync(app, folder, listOf(first, second))
+        GameFiles.sync(app, folder, listOf(first, second))
+        assertEquals("32370", File(folder, "STAR WARS™ Knights of the Old Republic™.steam").readText())
+        assertEquals("208580", File(folder, "STAR WARS™ Knights of the Old Republic™ II - The Sith Lords™.steam").readText())
+        assertEquals(2, folder.listFiles()!!.count { it.extension == GameFiles.EXTENSION })
+        assertEquals("a".repeat(200) + ".steam", GameFiles.filename(game(name = "a".repeat(300))))
+        assertEquals("a".repeat(199) + ".steam", GameFiles.filename(game(name = "a".repeat(199) + " b")))
+        assertEquals("Game.steam", GameFiles.filename(game(name = " . ")))
+        assertEquals("Game.steam", GameFiles.filename(game(name = "Game . .")))
+        assertEquals("a".repeat(197) + ".steam", GameFiles.filename(game(name = "a".repeat(197) + " . b")))
     }
 
     @Test fun refusesSymlinksLeavingTheExportFolder() {

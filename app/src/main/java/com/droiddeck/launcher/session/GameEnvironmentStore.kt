@@ -11,7 +11,6 @@ import java.io.File
 object GameEnvironmentStore {
     private const val SETTINGS = "game-environment.json"
     private const val GUEST_FILE = "root/.config/droiddeck/game-environment.json"
-    /** The published file's extra DXVK options (droiddeck-game-env reads it; the app's own file has none). */
     const val DXVK_CONFIG = "dxvkConfig"
     const val DXVK_CONFIG_GAMES = "dxvkConfigGames"
 
@@ -66,11 +65,23 @@ object GameEnvironmentStore {
     }
 
     @Synchronized
+    fun setGameSync(context: Context, scope: String, backend: String?): GameEnvironment.Config {
+        val config = GameEnvironment.withGameSync(read(context), scope, backend)
+        save(context, config)
+        return config
+    }
+
+    @Synchronized
+    fun setGameNoSteam(context: Context, scope: String, on: Boolean): GameEnvironment.Config {
+        val config = GameEnvironment.withGameNoSteam(read(context), scope, on)
+        save(context, config)
+        return config
+    }
+
+    @Synchronized
     fun publish(context: Context, config: GameEnvironment.Config = read(context)) {
         val resolved = config.copy(shared = GameEnvironment.defaults(SessionPrefs.fexPreset(context), SessionPrefs.forceSsbs(context)) + config.shared)
         val json = encode(resolved)
-        // The Display page's texture filtering, as DXVK options the launcher appends to
-        // DXVK_CONFIG after the profiles - a user's own DXVK_CONFIG entry keeps its options.
         val dxvk = TextureFiltering.dxvkOptions(
             SessionPrefs.textureAnisotropy(context), SessionPrefs.textureLodBias(context),
             TextureFiltering.autoLodBias(SessionState.upscaleRatio),

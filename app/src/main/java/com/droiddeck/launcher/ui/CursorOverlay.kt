@@ -11,18 +11,14 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 
-/**
- * The session's pointer. [image]: the program's own cursor (wl_pointer.set_cursor - labwc's resize
- * arrows, a text field's I-beam), in session pixels, drawn [imageScale] times larger with its hotspot
- * ([hotX], [hotY]) on [position]; null = the program has not set one, and the built-in arrow is drawn.
- */
 @Composable
 fun CursorOverlay(
-    position: Offset, visible: Boolean, scale: Float,
+    positionOf: () -> Offset, visible: Boolean, scale: Float,
     image: ImageBitmap? = null, hotX: Int = 0, hotY: Int = 0, imageScale: Float = 1f,
 ) {
     if (!visible) return
     Canvas(modifier = Modifier.fillMaxSize()) {
+        val position = positionOf()
         if (image != null) {
             val w = (image.width * imageScale).toInt().coerceAtLeast(1)
             val h = (image.height * imageScale).toInt().coerceAtLeast(1)

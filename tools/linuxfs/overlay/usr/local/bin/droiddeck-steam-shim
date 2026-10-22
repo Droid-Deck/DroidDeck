@@ -1,8 +1,4 @@
 #!/bin/bash
-# `steam` on the desktop. The client writes a menu entry per installed game that runs
-# `steam steam://rungameid/<id>`, and its own launchers say `steam`. On the desktop that goes
-# through droiddeck-steam-launch, which keeps the desktop client on KDE and
-# hands URLs to a client already running there. Anywhere else it is the client itself.
 set -u
 if [ "${BL_DESKTOP:-}" = 1 ]; then
   url=
@@ -15,4 +11,5 @@ if [ "${BL_DESKTOP:-}" = 1 ]; then
   done
   exec /usr/local/bin/droiddeck-steam-launch "$ui" ${url:+"$url"}
 fi
+[ "${BL_STEAM_CLIENT_ARCH:-}" = x86_64 ] && exec /usr/local/bin/droiddeck-steam-x64 --exec "$@"
 exec "${HOME:-/root}/.local/share/Steam/steamrtarm64/steam" "$@"

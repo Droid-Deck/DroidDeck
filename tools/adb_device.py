@@ -29,9 +29,9 @@ def _device_list(adb: str) -> list[str]:
         raise DeviceResolutionError(result.stderr.strip() or "adb devices failed")
     devices = []
     for line in result.stdout.splitlines()[1:]:
-        fields = line.split()
-        if len(fields) >= 2 and fields[1] == "device":
-            devices.append(fields[0])
+        match = re.match(r"^(.+?)\s+device(?:\s+\S+:\S+)*\s*$", line)
+        if match:
+            devices.append(match.group(1))
     return devices
 
 
@@ -45,7 +45,6 @@ def _identity(adb: str, serial: str) -> str | None:
 
 
 def _rank(serial: str) -> tuple[int, str]:
-    # Prefer a stable mDNS transport over a network address with an ephemeral port.
     if "_adb-tls-connect._tcp" in serial:
         return (0, serial)
     if not re.search(r":\d+$", serial):

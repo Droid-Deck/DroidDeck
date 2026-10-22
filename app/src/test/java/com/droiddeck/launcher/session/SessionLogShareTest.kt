@@ -27,16 +27,42 @@ class SessionLogShareTest {
             z.entries().toList().associate { it.name.substringAfter('/') to z.getInputStream(it).bufferedReader().readText() }
         }
 
-    /** A record as the session's ending writes it, listing [files] as they stand now. */
     private fun record(folder: File, vararg files: String, rules: Int = LogRedactor.RULES_VERSION) {
         File(folder, SessionArtifacts.SCRUBBED_TREE_MARKER).writeText(
             "rules $rules\n" + files.joinToString("") { val f = File(folder, it); "${f.length()}\t${f.lastModified()}\t$it\n" })
     }
 
+    @Test fun aLogPastTheInMemoryCapIsStillScrubbedIntoTheZip() {
+        val folder = tmp.newFolder("2026-10-18-01-steam")
+        val line = ("x".repeat(1023) + "\n").toByteArray()
+        File(folder, "session.log").outputStream().buffered().use { out ->
+            out.write("$secret\n".toByteArray())
+            repeat(65 * 1024) { out.write(line) }
+        }
+        assertTrue(File(folder, "session.log").length() >= LogRedactor.IN_MEMORY_SCRUB_MAX)
+        val out = zip(folder)
+        assertTrue(out.containsKey("session.log"))
+        assertFalse(out.getValue("session.log").contains(leaked))
+    }
+
+    @Test fun aLogWithANulByteIsScrubbedNotCopiedRaw() {
+        val folder = tmp.newFolder("2026-10-18-02-steam")
+        File(folder, "crash.log").writeBytes(byteArrayOf(0) + "$secret\n".toByteArray())
+        val out = zip(folder)
+        assertTrue(out.containsKey("crash.log"))
+        assertFalse(out.getValue("crash.log").contains(leaked))
+    }
+
+    @Test fun utf16SecretsDoNotEscapeInTheSharedZip() {
+        val folder = tmp.newFolder("2026-10-18-03-steam")
+        File(folder, "crash.log").writeBytes("sessionid=$leaked".toByteArray(Charsets.UTF_16LE))
+        val output = zip(folder).getValue("crash.log")
+        assertFalse(output.replace("\u0000", "").contains(leaked))
+        assertTrue(output.contains("withheld"))
+    }
+
     @Test fun aRecordedUnchangedFileIsScrubbedAgainOnTheWayIntoTheZip() {
         val folder = tmp.newFolder("2026-10-06-01-steam")
-        // A file the ending recorded as scrubbed still gets the share's final pass: the record
-        // may predate a rule, and a zip is the one way a log leaves the device.
         File(folder, "session.log").writeText("$secret\n")
         record(folder, "session.log")
         assertFalse(zip(folder).getValue("session.log").contains(leaked))
@@ -50,7 +76,6 @@ class SessionLogShareTest {
         File(folder, "steam/deep/nested.txt").writeText("$secret\n")
         File(folder, ".hidden.txt").writeText("$secret\n")
         record(folder, "app.log", "session.log")
-        // Appended to after the ending (the app's log capture), and touched with an older time.
         File(folder, "app.log").appendText("$secret\n")
         File(folder, "session.log").apply { writeText("$secret\n".padEnd(3, ' ')); setLastModified(1_000L) }
         File(folder, "events.jsonl").writeText("$secret\n")
@@ -109,7 +134,7 @@ class SessionLogShareTest {
     @Test fun aFileThatCouldNotBeScrubbedLeavesTheFolderUnrecorded() {
         val folder = tmp.newFolder("2026-10-06-06-steam")
         File(folder, "session.log").writeText("$secret\n")
-        // A folder the scrubbed copy cannot be written into: the scrub fails, the original stays.
+        org.junit.Assume.assumeFalse(System.getProperty("os.name").startsWith("Windows"))
         folder.setWritable(false)
         try {
             SessionArtifacts.scrubAndMark(folder)

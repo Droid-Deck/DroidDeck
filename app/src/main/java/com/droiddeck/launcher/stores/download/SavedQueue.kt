@@ -10,14 +10,6 @@ import org.json.JSONObject
 import java.io.File
 import java.util.concurrent.Executors
 
-/**
- * The download queue kept on disk, so what was queued, running or paused comes back after the app
- * closes or is killed: the queue itself lives in memory, and a queued game that never started has
- * nothing on disk to find. Each install records the game and where it goes ([remember]); every
- * change of state writes the active rows in queue order ([save]); the first refresh after the app
- * starts asks the stores for them again ([restore]) - running and queued ones carry on, paused ones
- * come back paused.
- */
 object SavedQueue {
     private const val TAG = "StoreDownloads"
     private const val FILE = "store-queue.json"
@@ -31,14 +23,12 @@ object SavedQueue {
 
     private fun key(item: CatalogItem) = "${item.store.id}:${item.id}"
 
-    /** An install is asked for: what to ask the store for again after a restart. */
     @Synchronized
     fun remember(context: Context, item: CatalogItem, root: File?) {
         app = context.applicationContext
         wanted[key(item)] = Wanted(item, root)
     }
 
-    /** The active rows, in queue order, as they are now. Any thread; written off it. */
     fun save(entries: List<DownloadEntry>) {
         val context = app ?: return
         val rows = synchronized(this) {
@@ -60,11 +50,9 @@ object SavedQueue {
         }
     }
 
-    /** Once per process: queues again what was in the queue when the app last closed. */
     fun restore(context: Context) {
         synchronized(this) { if (restored) return; restored = true }
         val app = context.applicationContext
-        // Read before anything may write it: an install started at once must not save over it.
         val rows = runCatching { JSONArray(File(app.filesDir, FILE).readText()) }.getOrNull()
         this.app = app
         rows ?: return
@@ -90,7 +78,7 @@ object SavedQueue {
         put("store", i.store.id); put("id", i.id); put("title", i.title)
         put("image", i.imageUrl ?: ""); put("tall", i.tallImageUrl ?: "")
         put("tags", i.tags); put("developer", i.developer); put("description", i.description)
-        put("size", i.sizeBytes); put("owned", i.owned)
+        put("size", i.sizeBytes); put("owned", i.owned); put("subscription", i.subscription)
         put("extra", JSONObject(i.extra))
     }
 
@@ -101,7 +89,7 @@ object SavedQueue {
             id = o.getString("id"), title = o.getString("title"),
             imageUrl = o.optString("image").ifEmpty { null }, tallImageUrl = o.optString("tall").ifEmpty { null },
             tags = o.optString("tags"), developer = o.optString("developer"), description = o.optString("description"),
-            owned = o.optBoolean("owned", true), sizeBytes = o.optLong("size"),
+            owned = o.optBoolean("owned", true), subscription = o.optBoolean("subscription"), sizeBytes = o.optLong("size"),
             extra = extra?.keys()?.asSequence()?.associateWith { extra.getString(it) } ?: emptyMap(),
         )
     }

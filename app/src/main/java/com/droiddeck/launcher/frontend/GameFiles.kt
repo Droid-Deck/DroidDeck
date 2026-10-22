@@ -11,14 +11,13 @@ import org.json.JSONObject
 import java.io.File
 import java.io.InputStream
 
-/** Small, portable launch files for frontends that scan ROM folders. No guest paths or commands. */
 object GameFiles {
     const val EXTENSION = "steam"
     private const val MAX_BYTES = 128
+    private const val MAX_NAME_BYTES = 200
     private const val INVENTORY = ".droiddeck-sync.json"
     private const val FORMAT = "droiddeck-game-files-v1"
 
-    /** Called on a worker: content providers and shared storage may block. */
     fun readIntent(context: Context, request: Intent): String? = runCatching {
         if (request.action != Intent.ACTION_VIEW) return null
         val uri = request.data ?: return null
@@ -36,7 +35,6 @@ object GameFiles {
     }.getOrNull()
 
     fun read(stream: InputStream): String? {
-        // An untrusted URI must not make us buffer an arbitrary ROM or parse a command.
         val bytes = ByteArray(MAX_BYTES + 1)
         var count = 0
         while (count < bytes.size) {
@@ -53,8 +51,15 @@ object GameFiles {
     fun filename(game: Library.SteamGame, disambiguate: Boolean = false): String {
         val sanitized = game.name.replace(Regex("[\\p{Cntrl}\\\\/:*?\"<>|]"), "_")
             .trim().trim('.').ifBlank { "Game" }
-        val points = sanitized.codePoints().limit(40).toArray()
-        val title = String(points, 0, points.size)
+        val points = sanitized.codePoints().toArray()
+        var end = 0
+        var bytes = 0
+        while (end < points.size) {
+            bytes += String(points, end, 1).toByteArray().size
+            if (bytes > MAX_NAME_BYTES) break
+            end++
+        }
+        val title = String(points, 0, end).trimEnd { it.isWhitespace() || it == '.' }.ifBlank { "Game" }
         val suffix = if (disambiguate) " (${game.gameIdString})" else ""
         return "$title$suffix.$EXTENSION"
     }
@@ -84,7 +89,6 @@ object GameFiles {
         } else target
     }
 
-    /** Cocoon matches icons in its data folder's images directory. Never replace custom art. */
     private fun exportArt(context: Context, folder: File, game: Library.SteamGame) {
         val art = listOfNotNull(game.icon, game.art).firstOrNull {
             it.isFile && it.extension.lowercase() in listOf("jpg", "jpeg", "png", "webp")
@@ -100,7 +104,6 @@ object GameFiles {
         if (!target.exists()) AtomicFile(target).writeBytes(art.readBytes())
     }
 
-    /** Only remove files in our inventory whose content is still exactly what we wrote. */
     @Synchronized fun sync(context: Context, folder: File, games: List<Library.SteamGame>) {
         require(folder.isDirectory) { context.getString(R.string.gfiles_folder_unavailable) }
         val inventory = child(context, folder, INVENTORY)
@@ -119,21 +122,17 @@ object GameFiles {
                 else exportTarget(context, folder, game, name)
             val text = contents(game.gameIdString)
             val existed = target.exists()
-            // Keep an edited export without letting it block the rest of the library sync.
             val owned = inventoryOwns(context, folder, previous, target, game.gameIdString)
             val file = if (owned && target.exists() &&
                 !matches(target, text)) target else exportNamed(context, folder, game, target.name)
             if (!existed || owned) next.put(file.name, game.gameIdString)
             file
         }
-        // Write new exports before pruning; a failed write must not remove old launch files.
         for (name in previous.keys()) {
             val id = previous.getString(name)
             if (!next.has(name) && name.endsWith(".$EXTENSION") && GameLaunchLink.validId(id)) {
                 val file = child(context, folder, name)
                 if (matches(file, contents(id))) {
-                    // Android shared storage is often case insensitive. A case-only rename may
-                    // still resolve to the live export, which must not be pruned as an old file.
                     val retained = exports.any { java.nio.file.Files.isSameFile(it.toPath(), file.toPath()) }
                     if (!retained) check(file.delete()) { context.getString(R.string.gfiles_remove_failed, name) }
                 }

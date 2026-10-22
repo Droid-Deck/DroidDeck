@@ -8,11 +8,6 @@ import com.droiddeck.launcher.R
 import com.droiddeck.launcher.gpu.FrameGen
 import com.droiddeck.launcher.gpu.Lossless
 
-/**
- * The frame generation picker, anchored to whatever opened it (host key "fg"). One copy for Setup,
- * a game's launch settings and the session drawer, so they say the same thing. Importing a
- * Lossless.dll is offered once the account is known to own Lossless Scaling.
- */
 @Composable
 internal fun FrameGenMenu(
     host: MenuHost, mode: FrameGen.Mode, lossless: Lossless.State,
@@ -32,7 +27,7 @@ internal fun FrameGenMenu(
                 onPick(m); host.open = null
             }
         item(FrameGen.Mode.OFF, focus = firstItemFocus)
-        for (m in 2..4) item(FrameGen.Mode(FrameGen.ENGINE_WINFG, m))
+        for (m in 2..4) item(FrameGen.Mode(FrameGen.ENGINE_DDFG, m))
         val lsfg = (2..4).map { FrameGen.Mode(FrameGen.ENGINE_LSFG, it) } +
             FrameGen.ADAPTIVE_TARGETS.map { FrameGen.Mode(FrameGen.ENGINE_LSFG, target = it) }
         lsfg.forEachIndexed { i, m -> item(m, enabled = lossless.ready, detail = need.takeIf { i == 0 }) }

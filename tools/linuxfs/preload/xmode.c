@@ -1,26 +1,9 @@
-/*
- * The Steam client's own screen, in a Follow screen session.
- *
- * With two Xwayland servers the client sizes them through GAMESCOPE_XWAYLAND_MODE_CONTROL
- * ({server, width, height, allow_super_res} on the root window): the games' server (1) to a game's
- * Game Resolution, and its own (0) to what it recommends for the display - 1920x1080 on a Fold's
- * 2448x1848 inner panel. From then on it reads that 16:9 size back as the display's "native" one,
- * so its interface and every game it starts are 16:9 with bars on a near-square panel, and stay so
- * when the phone folds onto the cover screen.
- *
- * gamescope already keeps server 0 at the output's size and resizes it when the output changes (a
- * Steam Deck docking; here, the app resizing the output as the phone folds and unfolds). So in a
- * Follow screen session (BL_FOLLOW_OUTPUT=1) a request for server 0 is dropped and the client's
- * screen stays the panel's; requests for the games' servers pass through untouched. Any other
- * session, and any other property, is passed straight on.
- */
 #define _GNU_SOURCE
 #include <dlfcn.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-/* Xlib's types, without needing its headers in the build image. */
 typedef struct _XDisplay Display;
 typedef unsigned long Atom;
 typedef unsigned long Window;
@@ -48,12 +31,10 @@ int XChangeProperty(Display *dpy, Window w, Atom property, Atom type, int format
     static Display *atom_dpy;
     static Atom mode_control;
     if (!intern) intern = (intern_atom_fn)dlsym(RTLD_NEXT, "XInternAtom");
-    /* Atoms belong to a connection; the client's is the one that writes this. */
     if (intern && atom_dpy != dpy) {
       mode_control = intern(dpy, "GAMESCOPE_XWAYLAND_MODE_CONTROL", 1);
       atom_dpy = dpy;
     }
-    /* Format-32 property data is an array of long in Xlib. */
     const long *v = (const long *)data;
     if (mode_control && property == mode_control && v[0] == 0) {
       static int said;

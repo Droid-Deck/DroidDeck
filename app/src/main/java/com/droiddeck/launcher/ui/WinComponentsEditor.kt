@@ -52,15 +52,9 @@ import androidx.compose.runtime.withFrameNanos
 import kotlinx.coroutines.withContext
 import java.io.File
 
-// Windows components for one added game, Bannerlator's list: what the game's folder suggests first,
-// then everything that installs here, then the ones that need a Windows installer (not yet). Each
-// one is a switch, downloaded the first time it is turned on for any game; the launch puts the
-// picked ones into the game's prefix (droiddeck-wincomponents).
 
-/** Bannerlator's detector names installers; here the DLL-copy twin is the one that installs. */
 private fun installable(name: String, all: Map<String, WinComponents.Component>): String = WinComponents.installable(name, all)
 
-/** A store as a list's owner names it in a reason line. */
 @Composable
 private fun originName(origin: String): String = stringResource(
     when (origin) {
@@ -71,7 +65,6 @@ private fun originName(origin: String): String = stringResource(
     },
 )
 
-/** Why a component was turned on by itself, from [WinComponents.AutoReason] (args: what the list called it, then the origin's own). */
 @Composable
 private fun autoReason(r: WinComponents.AutoReason): String = when (r.kind) {
     WinCompSources.Origin.STEAM.name -> stringResource(R.string.wincomp_auto_steam, r.args.getOrElse(1) { "" }, r.args.getOrElse(2) { "" }, r.args.getOrElse(3) { "" })
@@ -81,7 +74,6 @@ private fun autoReason(r: WinComponents.AutoReason): String = when (r.kind) {
     else -> ""
 }
 
-/** The reason line of a finding that is only recommended. */
 @Composable
 private fun findingReason(f: WinCompSources.Finding): String = when (f.origin) {
     WinCompSources.Origin.FOLDER -> stringResource(
@@ -96,9 +88,7 @@ private fun findingReason(f: WinCompSources.Finding): String = when (f.origin) {
 @Composable
 internal fun WinComponentsDialog(
     appKey: String, gameName: String, gameDir: File?, byPad: Boolean,
-    /** compatdata/<id>: what the prefix already has. [steamAppId]: a Steam title, whose appmanifest lists Steam's own redists. */
     compat: File? = null, steamAppId: Int? = null,
-    /** The game as the Games tab has it: its source decides whose list is trusted ([WinCompSources]). */
     game: com.droiddeck.launcher.frontend.Library.SteamGame? = null,
     onClose: () -> Unit,
 ) {
@@ -106,33 +96,22 @@ internal fun WinComponentsDialog(
     val coroutine = rememberCoroutineScope()
     val shown = rememberShown(onClose)
     val close = { shown.targetState = false }
-    // null while the catalog loads; empty when it could not be had.
     var catalog by remember { mutableStateOf<Map<String, WinComponents.Component>?>(null) }
     var offline by remember { mutableStateOf(false) }
     var findings by remember { mutableStateOf(emptyList<WinCompSources.Finding>()) }
-    // Whether the game's list has been worked out at least once (kept from an earlier time counts).
     var findingsKnown by remember { mutableStateOf(game == null) }
-    // "Loading the components" only when the catalog takes a while.
     var slowCatalog by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { kotlinx.coroutines.delay(300); slowCatalog = true }
     var installed by remember { mutableStateOf(emptySet<String>()) }
-    // Detector names (oalinst, physx...) already in the prefix from elsewhere.
     var present by remember { mutableStateOf(emptySet<String>()) }
     var selection by remember { mutableStateOf(WinComponents.selection(context, appKey)) }
     val picks = selection.effective
-    // The row being worked on: its id, the latest progress (a dependency's while that installs
-    // first), and whether it is turning off rather than on. The row greys out and shows the bar
-    // the moment the switch is pressed, and only that row; the rest of the page stays as it is.
     var busyId by remember { mutableStateOf<String?>(null) }
     var progress by remember { mutableStateOf<WinComponents.Progress?>(null) }
     var reverting by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
-    // The component the error is about, so it shows on its own row and not only at the bottom.
     var failed by remember { mutableStateOf<String?>(null) }
     var showWaiting by remember { mutableStateOf(false) }
-    // Done holds focus while the list loads, then the top switch takes it - opened by touch or by
-    // pad, so the d-pad always has somewhere to start; LB and RB jump between the sections, since
-    // the full list runs past sixty switches.
     val recFocus = remember { FocusRequester() }
     val recFocusAfterAuto = remember { FocusRequester() }
     val activeFocus = remember { FocusRequester() }
@@ -145,10 +124,7 @@ internal fun WinComponentsDialog(
     LaunchedEffect(Unit) {
         val (entries, found) = withContext(Dispatchers.IO) {
             val list = WinComponents.fetch(context)
-            // The source's list first (and what it turns on by itself, already installed), then the folder scan.
             if (game != null) {
-                // The list kept from last time, at once; it is worked out again (and its components
-                // queued) on the background worker, which this page then follows.
                 com.droiddeck.launcher.frontend.AutoComponents.queueGame(context, game, asked = true)
                 val kept = com.droiddeck.launcher.frontend.AutoComponents.cachedFindings(context, appKey)
                 if (kept != null) findingsKnown = true
@@ -166,11 +142,7 @@ internal fun WinComponentsDialog(
         present = withContext(Dispatchers.IO) { PrefixInstalledDetector.detect(compat) }
         installed = withContext(Dispatchers.IO) { WinComponents.installedIds(context).toSet() }
     }
-    /** The user's own switch for [id]: kept apart from what was turned on by itself, and over it. */
-    // Automatic picks still downloading show on their rows; when one lands the page reads the picks again.
     val autoDownloading by com.droiddeck.launcher.frontend.AutoComponents.downloading.collectAsState()
-    // Without a network a component not downloaded yet cannot be turned on; the rows say so and
-    // come back the moment the network does.
     val online = rememberOnline()
     val autoChanges by com.droiddeck.launcher.frontend.AutoComponents.changes.collectAsState()
     val pendingGames by com.droiddeck.launcher.frontend.AutoComponents.pendingGames.collectAsState()
@@ -186,14 +158,10 @@ internal fun WinComponentsDialog(
         coroutine.launch(Dispatchers.IO) { WinComponents.setUser(context, appKey, id, on) }
     }
     fun toggle(id: String, on: Boolean) {
-        // Switches stay enabled during a download - a disabled one drops the pad's focus - so a press
-        // then is ignored here; the busy row is greyed instead.
         if (busyId != null) return
         error = null
         failed = null
         if (!on) {
-            // Turning off is a saved pick, quick, but the row greys out until it is written so the
-            // press is seen to land; the files leave the prefix at the game's next launch.
             busyId = id; reverting = true; progress = null
             selection = WinComponents.Selection(selection.auto, selection.user + (id to false))
             coroutine.launch {
@@ -219,21 +187,12 @@ internal fun WinComponentsDialog(
     }
 
     val all = catalog
-    // The first data is in: rows that show up from now on ease in.
     var arrived by remember { mutableStateOf(false) }
     LaunchedEffect(all != null && findingsKnown) { if (all != null && findingsKnown) { withFrameNanos { }; arrived = true } }
     val here = if (all == null) emptySet() else present.map { installable(it, all) }.toSet()
     fun supportOf(id: String): Support =
         all?.get(id)?.let { WinComponents.support(it, all) } ?: if (id in installed) Support.READY else Support.UNSUPPORTED
-    // Turned on by itself for this game, each with its reason; then what is only recommended (the
-    // folder scan, a name match, an auto pick that cannot install here); then what the lists name
-    // that is no component here, by its own name.
-    // Still being worked out on the background worker: the page says so instead of "nothing found".
-    // Only before the game's list has ever been worked out: a list kept from before shows at once and
-    // is checked again quietly, its changes easing in.
     val checking = game != null && !findingsKnown
-    // Automatic picks on their way (queued or downloading) sit in their section already, with
-    // their progress, and settle there when they land.
     val turningOn = if (all == null) emptyMap() else findings.filter { it.auto && it.component != null }
         .associateBy { installable(it.component!!, all) }
         .filterKeys { it !in selection.auto && selection.user[it] != false && (it in pendingComponents || it in autoDownloading) }
@@ -244,10 +203,6 @@ internal fun WinComponentsDialog(
     val suggestions = findings.filter { it.component == null }.distinctBy { it.origin to it.original }
     val ready = all.orEmpty().values.filter { WinComponents.support(it, all.orEmpty()) == Support.READY }.map { it.name }
     val extra = (installed + picks).filter { all?.containsKey(it) != true }
-    // What is turned on for this game gets its own section under the recommendations, which stay
-    // where they are; the rest of the list is everything else, so a component turned off goes back
-    // to its place in the alphabet. A component is listed once: the recommendations are left out
-    // of the full list too.
     val recSet = recIds.map { installable(it.component!!, all.orEmpty()) }.toSet() + autoIds
     val active = picks.filter { it !in recSet && (all?.containsKey(it) == true || it in installed) }.distinct()
         .sortedBy { WinComponentNames.of(it).lowercase() }
@@ -263,12 +218,10 @@ internal fun WinComponentsDialog(
         runCatching { sections[section].requestFocus() }
     }
     LaunchedEffect(all != null) {
-        // The dialog's window starts in touch mode, where a switch cannot hold focus at all.
         inputMode.requestInputMode(InputMode.Keyboard)
         section = 0
         val target = if (all == null) doneFocus else sections.first()
         switchFocused = false
-        // It animates in and the list composes over a few frames: ask until the switch has it.
         repeat(60) {
             withFrameNanos { }
             runCatching { target.requestFocus() }
@@ -296,7 +249,6 @@ internal fun WinComponentsDialog(
                 support == Support.UNSUPPORTED -> stringResource(R.string.wincomp_unsupported)
                 else -> null
             }
-            // The catalog key stays in the detail: it is what a log or a bug report names.
             val detail = listOfNotNull(reason, c?.description?.takeIf { it.isNotEmpty() }, status, id).joinToString(" · ")
             val offlineHere = !online && id !in installed
             val usable = support == Support.READY && !offlineHere
@@ -323,13 +275,11 @@ internal fun WinComponentsDialog(
                     .onFocusChanged { if (it.isFocused) switchFocused = true },
             ) { on -> toggle(id, on) }
         }
-        /** The section's requester goes to its first switch that can take focus. */
         fun firstUsable(ids: List<String>, focus: FocusRequester): (String) -> FocusRequester? {
             val first = ids.firstOrNull { supportOf(it) == Support.READY }
             return { id -> focus.takeIf { id == first } }
         }
 
-        // The lists only once the catalog is in, faded in once: no half list counted before it.
         androidx.compose.animation.AnimatedVisibility(
             visible = all != null,
             enter = androidx.compose.animation.fadeIn(Motion.tw(220)),
@@ -429,7 +379,6 @@ internal fun WinComponentsDialog(
     }
 }
 
-/** Once the page has its first data ([arrived]), a row that shows up eases in; the first ones are simply there. */
 @Composable
 private fun Arrive(arrived: Boolean, content: @Composable () -> Unit) {
     val state = remember { androidx.compose.animation.core.MutableTransitionState(!arrived) }.apply { targetState = true }
@@ -442,7 +391,6 @@ private fun Arrive(arrived: Boolean, content: @Composable () -> Unit) {
     ) { content() }
 }
 
-/** Whether the default network is there and validated, followed live. */
 @Composable
 private fun rememberOnline(): Boolean {
     val context = LocalContext.current
@@ -474,12 +422,6 @@ private fun Panel(content: @Composable androidx.compose.foundation.layout.Column
 private fun Divider() =
     Box(Modifier.fillMaxWidth().padding(horizontal = 14.dp).heightIn(min = 1.dp, max = 1.dp).background(LocalPalette.current.line))
 
-/**
- * One component: name, detail and its switch; while [busy] the row is greyed and a thin bar runs
- * across it with [caption] above (the download, then the install, each 0..100 as [percent], or
- * indeterminate at -1). The switch stays enabled while busy so a pad's focus does not drop; the
- * press is ignored by the caller instead.
- */
 @Composable
 private fun ComponentRow(
     name: String, detail: String, checked: Boolean, enabled: Boolean, dim: Boolean, busy: Boolean = false,

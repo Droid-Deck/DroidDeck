@@ -17,7 +17,6 @@ import java.security.SecureRandom
 import javax.crypto.SecretKey
 import javax.crypto.spec.SecretKeySpec
 
-/** The stores' sign-in files sealed at rest; a plain key stands in for the AndroidKeyStore. */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
 class StoreAccountsCipherTest {
@@ -44,7 +43,6 @@ class StoreAccountsCipherTest {
         assertEquals("AES/GCM", envelope.getString("alg"))
         assertFalse(envelope.toString().contains("secret"))
         assertEquals(creds.toString(), CredentialCipher.open(envelope, fake))
-        // A fresh IV every time.
         assertFalse(envelope.getString("iv") == CredentialCipher.seal(creds.toString(), fake).getString("iv"))
     }
 
@@ -87,7 +85,6 @@ class StoreAccountsCipherTest {
 
     @Test fun aFileSealedUnderALostKeyReadsAsSignedOutAndIsDeleted() {
         StoreAccounts.write(app, Store.AMAZON, creds)
-        // Data cleared, or a backup restored on another device: the Keystore key is a new one.
         val other = newKey()
         StoreAccounts.keys = CredentialCipher.KeyProvider { other }
         assertNull(StoreAccounts.read(app, Store.AMAZON))
@@ -108,12 +105,30 @@ class StoreAccountsCipherTest {
         assertEquals(creds.toString(), StoreAccounts.read(app, Store.EPIC).toString())
         assertTrue(StoreAccounts.keystoreFailed)
 
-        // The next start, on a Keystore that works.
         StoreAccounts.keys = fake
         StoreAccounts.keystoreFailed = false
         StoreAccounts.encryptAll(app)
         assertTrue(CredentialCipher.isEnvelope(JSONObject(file(Store.EPIC).readText())))
         assertEquals(creds.toString(), StoreAccounts.read(app, Store.EPIC).toString())
+    }
+
+    @Test fun xboxNeverFallsBackToPlaintextWhenKeystoreFails() {
+        StoreAccounts.keys = broken
+        org.junit.Assert.assertThrows(IllegalStateException::class.java) {
+            StoreAccounts.write(app, Store.XBOX, JSONObject().put("username", "test@example.test").put("slots", JSONObject().put("user-tokens", "synthetic-secret")))
+        }
+        assertFalse(file(Store.XBOX).exists())
+        StoreAccounts.keys = fake
+        StoreAccounts.write(app, Store.XBOX, creds)
+        assertTrue(CredentialCipher.isEnvelope(JSONObject(file(Store.XBOX).readText())))
+    }
+
+    @Test fun xboxUsernameAndBackendSlotsAreEncryptedTogether() {
+        val xbox = JSONObject().put("username", "test@example.test").put("slots", JSONObject().put("user-tokens", "synthetic-secret"))
+        StoreAccounts.write(app, Store.XBOX, xbox)
+        assertFalse(file(Store.XBOX).readText().contains("synthetic-secret"))
+        assertFalse(file(Store.XBOX).readText().contains("test@example.test"))
+        assertEquals("test@example.test", StoreAccounts.signedInAs(app, Store.XBOX))
     }
 
     @Test fun signOutRemovesTheFile() {
@@ -123,7 +138,6 @@ class StoreAccountsCipherTest {
         assertNull(StoreAccounts.read(app, Store.GOG))
     }
 
-    /** A Keystore whose key is there but which fails to hand it over [failures] times first. */
     private class Flaky(private val key: SecretKey, var failures: Int, private val error: () -> Exception) : CredentialCipher.KeyProvider {
         override fun key(): SecretKey = key
         override fun existing(): SecretKey { if (failures > 0) { failures--; throw error() }; return key }
@@ -142,10 +156,8 @@ class StoreAccountsCipherTest {
             assertNull(StoreAccounts.read(app, Store.EPIC))
             assertTrue(StoreAccounts.isUnavailable(Store.EPIC))
             assertEquals(sealed, file(Store.EPIC).readText())
-            // Still signed in for the page: no sign-in card, and an action says why it failed.
             assertEquals("Epic sign-in could not be read: try again.", StoresState.notSignedInLine(Store.EPIC))
 
-            // The next access, once the Keystore answers.
             assertEquals(creds.toString(), StoreAccounts.read(app, Store.EPIC).toString())
             assertFalse(StoreAccounts.isUnavailable(Store.EPIC))
             assertEquals("Someone", StoreAccounts.signedInAs(app, Store.EPIC))

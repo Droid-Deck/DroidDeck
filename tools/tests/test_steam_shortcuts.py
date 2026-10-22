@@ -147,6 +147,18 @@ class ShortcutsTest(unittest.TestCase):
         self.assertEqual({'1': 'Favorites', '0': shortcuts.TAG}, entry['tags'])
         self.assertEqual({'0': shortcuts.TAG}, shortcuts.merge(shortcuts.shortcut(self.game()), dict(shortcuts.shortcut(self.game()), tags={}), None, 0)[0]['tags'])
 
+    def test_a_copy_the_running_client_added_of_an_added_game_is_dropped(self):
+        self.run_writer(self.game())
+        path = self.config / 'shortcuts.vdf'
+        data = shortcuts.parse(path.read_bytes())['shortcuts']
+        live = dict(shortcuts.shortcut(self.game(appid=0x91234567)), tags={})
+        own = dict(shortcuts.shortcut(self.game(exe='Other.exe', appid=0x92345678)), tags={})
+        renamed = dict(shortcuts.shortcut(self.game(appid=0x93456789, name='My copy')), tags={})
+        data.update({'7': live, '8': own, '9': renamed})
+        path.write_bytes(shortcuts.write({'shortcuts': data}))
+        entries = self.run_writer(self.game())
+        self.assertEqual({APPID, 0x92345678, 0x93456789}, set(entries))
+
     def test_a_damaged_record_is_started_over(self):
         self.run_writer(self.game())
         (self.config / shortcuts.RECORD).write_text('{not json')
@@ -172,7 +184,6 @@ class ShortcutsTest(unittest.TestCase):
         self.assertEqual('Example: Renamed', entry['AppName'])
         self.assertEqual('"%s/data"' % GUEST, entry['StartDir'])
         self.assertEqual('-dx11', entry['LaunchOptions'])
-        # One shortcut, the same appid.
         self.assertEqual([APPID], list(self.run_writer(game)))
 
     def test_a_target_chosen_in_the_app_updates_the_same_shortcut(self):

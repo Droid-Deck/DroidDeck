@@ -52,6 +52,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -93,12 +94,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-// The Desktop tab in the Steam tab's shape: a tilted wall of little windows behind the word and
-// one big Open desktop, with Play's lip and lifted sheet under it (Display, Controls, Session and
-// Files). Under the hero the page scrolls to two shelves - the apps that run in the desktop, and
-// what can be added - and the hero folds into a slim header as it goes.
 
-/** The desktop's own chips: its session settings, then Files. */
 private val DESKTOP_TABS = modeSheetTabs(steam = false) + SheetTab.FILES
 
 @Composable
@@ -108,7 +104,6 @@ internal fun DesktopPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
     val narrow = LocalNarrowPane.current
     val colors = MaterialTheme.colorScheme
     LaunchedEffect(Unit) { UserAppsState.refresh(ctx) }
-    // Flathub's installed apps sit with the others on the dock.
     LaunchedEffect(s.ready) { com.droiddeck.launcher.store.StoreState.refresh(ctx) }
     val installed = s.emulators.filter { it.installed }
     val apps = UserAppsState.items
@@ -116,14 +111,11 @@ internal fun DesktopPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
     val mode = SessionService.MODE_DESKTOP
     val tabs = DESKTOP_TABS.map { it to sheetTabLabel(it) }
     val open = if (s.desktopInstalled) stringResource(R.string.content_open_desktop) else stringResource(R.string.content_install_open_desktop)
-    // Opened from a card: the page floods out of it, its picture on the tile.
     fun openFrom(at: Rect?, art: Any?, page: String) {
         at?.let { PageOrigin.mark(Origin(it, 16f * density.density, art = art)) }
         onSelect(page)
     }
 
-    // The Steam tab's shape, the whole pane: the dock of apps along the top of the wall, the word
-    // and Open desktop at the foot, and nothing under the settings sheet but the hero itself.
     LiftHero(
         key = "desktop", tabs = tabs,
         onOpen = a.onDesktopSettings, onPrimary = a.onDesktop,
@@ -134,15 +126,12 @@ internal fun DesktopPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
         },
         scrim = { lifted ->
             WallFade()
-            // Over the fades, so the cards read at full strength; gone as the sheet lifts, so
-            // nothing but the wall is behind it.
             Box(Modifier.graphicsLayer { val v = lifted(); alpha = 1f - v; translationY = -12.dp.toPx() * v }) {
                 DesktopDock(s, a, installed, apps, openFrom = ::openFrom)
             }
         },
         words = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                // The word at the wordmark's size.
                 Text(
                     stringResource(R.string.rail_desktop), fontSize = if (narrow) 30.sp else 42.sp, lineHeight = if (narrow) 34.sp else 46.sp,
                     fontWeight = FontWeight.Black, color = colors.onBackground,
@@ -151,14 +140,16 @@ internal fun DesktopPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
             }
         },
         button = { click ->
-            // Enabled without a runtime or the desktop: the session's loading screen installs them first.
             PrimaryButton(open, enabled = !s.busy, main = true, large = true, icon = Icons.Outlined.DesktopWindows, onClick = click)
         },
         beside = {
-            // Flathub, whose apps run in the desktop: its storefront floods out of this button.
-            HeroIconButton(Icons.Outlined.Storefront, stringResource(R.string.flathub_name), FlathubTeal, "desktop:flathub") { at -> openFrom(at, null, "store") }
-            // Add your own app or game.
-            HeroIconButton(Icons.Filled.Add, stringResource(R.string.user_apps_add), null, "desktop:add") { if (!s.busy) adding = true }
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    HeroIconButton(Icons.Outlined.Storefront, stringResource(R.string.flathub_name), FlathubTeal, "desktop:flathub") { at -> openFrom(at, null, "store") }
+                    HeroIconButton(Icons.Filled.Add, stringResource(R.string.user_apps_add), null, "desktop:add") { if (!s.busy) adding = true }
+                }
+                if (s.desktopPresent) UninstallDesktop(enabled = !s.runtimeActionsBlocked, onUninstall = a.onRemoveDesktop)
+            }
         },
         rows = { tab ->
             if (tab == SheetTab.FILES) DesktopFiles(s, a)
@@ -168,11 +159,6 @@ internal fun DesktopPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
     if (adding && !s.busy) AddAppDialog(s.ready, onDismiss = { adding = false }) { request, label -> UserAppsState.add(ctx, request, label) }
 }
 
-/**
- * The dock along the top of the Desktop hero: what runs in the desktop (emulators installed, apps
- * added, Flathub's installed apps), then the emulators that can be added - one
- * row of cards that scrolls sideways, over the wall. It sinks back with the wall as the sheet lifts.
- */
 @Composable
 private fun DesktopDock(
     s: FrontEndState, a: FrontEndActions, installed: List<Library.Emulator>, apps: List<UserApps.App>,
@@ -184,14 +170,12 @@ private fun DesktopDock(
     val available = s.emulators.filter { !it.installed }
     val flatpaks = com.droiddeck.launcher.store.StoreState.installed
     val keys = installed.map { "emu:${it.id}" } + apps.map { "user:${it.key}" } + flatpaks.map { "flatpak:${it.id}" }
-    // Where the last of your apps sits, for a new emulator's dot to land after it.
     var lastAt by remember { mutableStateOf<Rect?>(null) }
     var dockAt by remember { mutableStateOf<Rect?>(null) }
     val seen = remember { mutableSetOf<String>() }
     val mounted = remember { booleanArrayOf(false) }
     LaunchedEffect(Unit) { mounted[0] = true }
     val scroll = rememberScrollState()
-    // Nothing yet (the emulators' catalog still on its way): no heading over an empty row.
     if (keys.isEmpty() && available.isEmpty() && UserAppsState.working == null && UserAppsState.lastError == null) return
     Column(Modifier.fillMaxWidth().padding(top = if (narrow) 14.dp else 22.dp)) {
         Text(
@@ -205,7 +189,6 @@ private fun DesktopDock(
         ) {
             keys.forEachIndexed { i, k ->
                 key(k) {
-                    // A card that arrives after the dock is up (an emulator just installed) opens in.
                     val state = remember { MutableTransitionState(!mounted[0] || k in seen) }.apply { targetState = true }
                     LaunchedEffect(Unit) { seen += k }
                     AnimatedVisibility(state, enter = expandHorizontally(Motion.sp(0.75f)) + fadeIn(Motion.tw(300, 80))) {
@@ -224,7 +207,6 @@ private fun DesktopDock(
                                 k, flatpak.name, flatpak.summary ?: stringResource(R.string.flathub_name),
                                 art = flatpak.icon ?: com.droiddeck.launcher.store.FlathubApi.iconUrl(flatpak.id), first = i == 0,
                             ) { at ->
-                                // Its page on Flathub: open, update or remove it there.
                                 com.droiddeck.launcher.store.StoreState.openRequest = flatpak.id
                                 openFrom(at, flatpak.icon, "store")
                             } else if (app != null) DesktopCard(k, app.name, stringResource(app.kind.label()), art = app.icon, fallback = if (app.kind == UserApps.Kind.SCRIPT) Icons.Outlined.Terminal else Icons.Outlined.Apps, first = i == 0) { at ->
@@ -234,7 +216,6 @@ private fun DesktopDock(
                     }
                 }
             }
-            // Between yours and what can be added: a thin rule.
             if (keys.isNotEmpty()) Box(Modifier.padding(horizontal = 4.dp).width(1.dp).height(120.dp).background(pal.line2))
             available.forEach { e ->
                 key(e.id) {
@@ -247,8 +228,6 @@ private fun DesktopDock(
                         art = e.iconRes, badge = if (busyHere) null else stringResource(R.string.comp_get),
                         progress = if (busyHere) s.packagePercent else null, first = keys.isEmpty() && e == available.first(),
                     ) { at ->
-                        // Get installs it there and then, and a dot flies to where its card will be;
-                        // when it cannot (no runtime, a session running), its page says why.
                         if (canGet && pkg != null && at != null) {
                             a.onInstallPackage(pkg.id)
                             val end = lastAt
@@ -268,10 +247,6 @@ private fun DesktopDock(
     }
 }
 
-/**
- * A square button the big one's height beside it on the hero: an icon in [tint] (the palette's
- * signal when null). [onClick] gets its bounds, for a page to flood out of.
- */
 @Composable
 private fun HeroIconButton(icon: androidx.compose.ui.graphics.vector.ImageVector, description: String, tint: Color?, id: String, onClick: (Rect?) -> Unit) {
     val colors = MaterialTheme.colorScheme
@@ -295,10 +270,6 @@ private fun HeroIconButton(icon: androidx.compose.ui.graphics.vector.ImageVector
     ) { Icon(icon, null, tint = accent, modifier = Modifier.size(26.dp)) }
 }
 
-/**
- * The hero's wall: little windows tilted and drifting as Steam's capsules do, each a window with a
- * bar along its foot and an emulator's or app's icon inside; blank windows when there are none.
- */
 @Composable
 private fun DesktopWall(icons: List<Any>) {
     val pal = LocalPalette.current
@@ -308,11 +279,6 @@ private fun DesktopWall(icons: List<Any>) {
     }
 }
 
-/**
- * One thing that runs in the desktop: its icon over a blurred, darkened copy of itself, a status on
- * the art (Get, or how far an install is), and under it its name on up to two lines and what it
- * is. [onClick] gets the art's bounds, for a page to flood out of or a dot to fly from.
- */
 @Composable
 private fun DesktopCard(
     key: String, name: String, detail: String, art: Any?,
@@ -384,10 +350,6 @@ private fun DesktopCard(
     }
 }
 
-/**
- * The desktop sheet's Files chip: the file manager and the ROMs folder (both from Setup's old
- * tools), how much the desktop takes, and Uninstall - its only home - which asks in red first.
- */
 @Composable
 private fun DesktopFiles(s: FrontEndState, a: FrontEndActions) {
     val ctx = LocalContext.current
@@ -408,9 +370,9 @@ private fun DesktopFiles(s: FrontEndState, a: FrontEndActions) {
     }
 }
 
-/** Uninstall the desktop: are you sure steps out of it in red, Keep first and focused. */
 @Composable
 private fun UninstallDesktop(enabled: Boolean, onUninstall: () -> Unit) {
+    val canUninstall by rememberUpdatedState(enabled)
     val colors = MaterialTheme.colorScheme
     val label = stringResource(R.string.common_uninstall)
     val title = stringResource(R.string.desktop_uninstall_title)
@@ -428,14 +390,13 @@ private fun UninstallDesktop(enabled: Boolean, onUninstall: () -> Unit) {
                 Text(note, fontSize = 13.sp, color = colors.onSurfaceVariant, modifier = Modifier.stepItem(1).padding(start = 4.dp, bottom = 12.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End), modifier = Modifier.fillMaxWidth().stepItem(2)) {
                     StepChoice(keep, enabled = open, modifier = Modifier.focusRequester(first)) { Steps.fold() }
-                    StepChoice(label, danger = true, enabled = open) { Steps.fold(); onUninstall() }
+                    StepChoice(label, danger = true, enabled = open && canUninstall) { Steps.fold(); onUninstall() }
                 }
             })
         }
     }
 }
 
-/** The add or remove under way, or why the last one failed. */
 @Composable
 private fun UserAppsProgressLine() {
     val colors = MaterialTheme.colorScheme

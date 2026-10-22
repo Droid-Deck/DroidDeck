@@ -17,22 +17,20 @@ import com.droiddeck.launcher.R
 import com.droiddeck.launcher.frontend.Library
 import com.droiddeck.launcher.stores.Store
 
-// Where a game came from, as a small coloured chip: Steam, one of the stores, or an added folder.
 
-/** Flathub's own accent, as each store has one, and the ink that reads on it. */
 internal val FlathubTeal = Color(0xFF3FB8AF)
 internal val FlathubInk = Color(0xFF04211F)
 
-/** The Store rail section's source id, for its colours. */
 internal const val FLATHUB = "flathub"
 
-/** The chip's colours per source: a tinted ground and a readable ink on it, one pair per store. */
 internal class SourceColours(val fill: Color, val ink: Color, val dot: Color)
 
 internal fun sourceColours(source: String): SourceColours = when (source) {
     Store.GOG.id -> SourceColours(Color(0xFF3A1A3C), Color(0xFFE6A3EA), Color(0xFFC25BC8))
     Store.EPIC.id -> SourceColours(Color(0xFF2A2A2A), Color(0xFFDDDDDD), Color(0xFFBDBDBD))
     Store.AMAZON.id -> SourceColours(Color(0xFF3A2A0A), Color(0xFFFFC266), Color(0xFFFF9900))
+    Store.XBOX.id -> SourceColours(Color(0xFF17381B), Color(0xFFC6EDC2), Color(0xFF70C850))
+    Store.ITCH.id -> SourceColours(Color(0xFF3A1A1E), Color(0xFFFFB3B3), Color(0xFFFF5C5C))
     Library.SOURCE_STEAM -> SourceColours(Color(0xFF16293D), Color(0xFF7CC4FF), Color(0xFF1A9FFF))
     FLATHUB -> SourceColours(Color(0xFF0B2E2B), Color(0xFF9FE3DD), FlathubTeal)
     else -> SourceColours(Color(0xFF1A1D22), Color(0xFF9AA3AF), Color(0xFF9AA3AF))
@@ -44,10 +42,11 @@ internal fun sourceLabel(source: String): String = when (source) {
     Store.GOG.id -> Store.GOG.label
     Store.EPIC.id -> Store.EPIC.label
     Store.AMAZON.id -> Store.AMAZON.label
+    Store.XBOX.id -> Store.XBOX.label
+    Store.ITCH.id -> Store.ITCH.label
     else -> stringResource(R.string.source_added)
 }
 
-/** The source chip itself; [small] for a list row, the regular size for a hero or a card. */
 @Composable
 internal fun SourceChip(source: String, small: Boolean = false, modifier: Modifier = Modifier) {
     val c = sourceColours(source)
@@ -59,7 +58,6 @@ internal fun SourceChip(source: String, small: Boolean = false, modifier: Modifi
     )
 }
 
-/** A status chip in the stores' colours: green for done ("Installed"), blue for busy, amber for a warning. */
 @Composable
 internal fun StateChip(text: String, tone: ChipTone, small: Boolean = false) {
     val pal = LocalPalette.current

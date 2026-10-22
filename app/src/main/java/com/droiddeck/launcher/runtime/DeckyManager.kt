@@ -16,21 +16,51 @@ import java.util.zip.ZipInputStream
 import org.json.JSONArray
 import org.json.JSONObject
 
-/** Optional Decky Loader installation for the ARM64 Linux guest. */
 object DeckyManager {
     private const val TAG = "DeckyManager"
-    const val REPOSITORY = "Droid-Deck/decky-loader"
+    const val REPOSITORY = "SteamDeckHomebrew/decky-loader"
     private const val RELEASES = "https://api.github.com/repos/$REPOSITORY/releases?per_page=30"
     private const val PATH = "root/homebrew/services/PluginLoader"
     private const val VERSION = "root/homebrew/services/.droiddeck-decky-version"
-    private const val CEF_REMOTE_DEBUG_MARKER = "root/.local/share/Steam/.cef-enable-remote-debugging"
+    private const val SETTINGS = "root/homebrew/settings/loader.json"
+    // droiddeck-session reads the marker from the root of the client it runs.
+    private val CEF_REMOTE_DEBUG_MARKERS = listOf(
+        "root/.local/share/Steam/.cef-enable-remote-debugging",
+        "root/.droiddeck-x64/.local/share/Steam/.cef-enable-remote-debugging",
+    )
 
-    /** True while a plugin's remote binary downloads: what the UI branches on, not the stage's words. */
     @Volatile var downloadingBinary = false
         private set
 
     data class Release(val tag: String, val prerelease: Boolean, val asset: String, val url: String, val digest: String?, val shaUrl: String?, val size: Long, val machine: Int)
-    data class ReleaseChannels(val stable: List<Release>, val prerelease: List<Release>)
+    data class ReleaseChannels(val stable: List<Release>, val prerelease: List<Release>, val all: List<Release> = stable + prerelease)
+
+    const val BRANCH_STABLE = 0
+    const val BRANCH_PRERELEASE = 1
+    const val BRANCH_TESTING = 2
+
+    private fun settingsFile(context: Context) = File(LinuxRuntime.rootDir(context), SETTINGS)
+
+    fun branch(context: Context): Int {
+        val saved = runCatching { JSONObject(settingsFile(context).readText()).optInt("branch", -1) }.getOrDefault(-1)
+        if (saved >= 0) return saved
+        val version = File(LinuxRuntime.rootDir(context), VERSION).takeIf { it.isFile }?.readText()?.trim().orEmpty()
+        return if (version.startsWith("v") && "-pre" in version) BRANCH_PRERELEASE else BRANCH_STABLE
+    }
+
+    fun setBranch(context: Context, branch: Int) {
+        val file = settingsFile(context)
+        val settings = runCatching { JSONObject(file.readText()) }.getOrDefault(JSONObject())
+        settings.put("branch", branch)
+        file.parentFile?.mkdirs()
+        val staged = File(file.parentFile, "${file.name}.tmp")
+        staged.writeText(settings.toString(4))
+        check(staged.renameTo(file)) { "cannot write ${file.path}" }
+    }
+
+    // Mirrors Decky's updater: Stable takes the newest non-prerelease tag, Prerelease the newest tag of either kind.
+    fun latest(channels: ReleaseChannels, branch: Int): Release? =
+        if (branch == BRANCH_STABLE) channels.stable.firstOrNull() else channels.all.firstOrNull()
 
     fun installed(context: Context): String? {
         val loader = loader(context)
@@ -41,36 +71,35 @@ object DeckyManager {
     fun loader(context: Context) = File(LinuxRuntime.rootDir(context), PATH)
     fun supervisorEnabled(context: Context) = File(LinuxRuntime.rootDir(context), "root/.droiddeck-decky-enabled").isFile
 
-    /** Remove the legacy install-time debugger marker unless the user opted into Decky. */
+    private fun cefMarkers(context: Context, creating: Boolean = false) =
+        CEF_REMOTE_DEBUG_MARKERS.map { File(LinuxRuntime.rootDir(context), it) }.filter { marker ->
+            !creating || !marker.path.contains("/.droiddeck-x64/") ||
+                com.droiddeck.launcher.storage.SteamStorage.x64ClientPresent(marker.parentFile ?: marker)
+        }
+
     fun syncCefMarker(context: Context) {
-        val marker = File(LinuxRuntime.rootDir(context), CEF_REMOTE_DEBUG_MARKER)
         if (!supervisorEnabled(context)) {
-            marker.delete()
+            cefMarkers(context).forEach { it.delete() }
             return
         }
-        runCatching {
-            marker.parentFile?.mkdirs()
-            marker.createNewFile()
+        for (marker in cefMarkers(context, creating = true)) {
+            runCatching {
+                marker.parentFile?.mkdirs()
+                marker.createNewFile()
+            }
         }
     }
 
     fun setSupervisorEnabled(context: Context, enabled: Boolean) {
         val marker = File(LinuxRuntime.rootDir(context), "root/.droiddeck-decky-enabled")
-        val cefMarker = File(LinuxRuntime.rootDir(context), CEF_REMOTE_DEBUG_MARKER)
         if (enabled) {
             marker.parentFile?.mkdirs()
             marker.writeText("enabled\n")
-            cefMarker.parentFile?.mkdirs()
-            cefMarker.createNewFile()
+            cefMarkers(context, creating = true).forEach { it.parentFile?.mkdirs(); it.createNewFile() }
         } else {
             marker.delete()
-            cefMarker.delete()
+            cefMarkers(context).forEach { it.delete() }
         }
-    }
-
-    fun releases(context: Context, prerelease: Boolean): List<Release> {
-        val channels = releaseChannels(context)
-        return if (prerelease) channels.prerelease else channels.stable
     }
 
     fun releaseChannels(context: Context): ReleaseChannels {
@@ -79,6 +108,7 @@ object DeckyManager {
             val array = JSONArray(body)
             val stable = mutableListOf<Release>()
             val prerelease = mutableListOf<Release>()
+            val all = mutableListOf<Release>()
             for (i in 0 until array.length()) {
                 val release = array.getJSONObject(i)
                 if (release.optBoolean("draft", false)) continue
@@ -99,24 +129,25 @@ object DeckyManager {
                 val size = binary.optLong("size", 0)
                 if (size <= 0) continue
                 val row = Release(release.optString("tag_name", "unknown"), isPrerelease, name, url, digest, checksum, size, if (name == "PluginLoader-arm64") 183 else 62)
-                (if (isPrerelease) prerelease else stable).add(row)
+                if (!row.tag.startsWith("v")) continue
+                all.add(row)
+                (if (isPrerelease || "-pre" in row.tag) prerelease else stable).add(row)
             }
-            ReleaseChannels(stable, prerelease)
+            ReleaseChannels(stable, prerelease, all)
         } catch (e: Exception) { Log.w(TAG, "release metadata", e); ReleaseChannels(emptyList(), emptyList()) }
     }
 
-    /** Downloads to a sibling temp file and atomically renames only after size, digest and ELF checks. */
     fun install(context: Context, release: Release, progress: (String, Int) -> Unit): String? {
         if (SessionState.running) return context.getString(R.string.deckymgr_stop_session_loader)
         val target = loader(context)
         target.parentFile?.mkdirs()
         val temp = File(target.parentFile, "PluginLoader.download")
         val downloading = context.getString(R.string.user_apps_downloading, release.tag)
-        val ok = Downloader.downloadFile(release.url, temp, false) { f -> progress(downloading, if (f < 0) -1 else (f * 100).toInt().coerceIn(0, 100)) }
+        val ok = Downloader.downloadFile(release.url, temp, true, release.digest?.substringAfter(':')) { f -> progress(downloading, if (f < 0) -1 else (f * 100).toInt().coerceIn(0, 100)) }
         if (!ok) { temp.delete(); return context.getString(R.string.deckymgr_download_failed) }
         if (temp.length() != release.size) { temp.delete(); return context.getString(R.string.deckymgr_size_mismatch) }
         val expected = release.digest?.substringAfter(':') ?: release.shaUrl?.let { checksumUrl ->
-            val checksumBody = Downloader.downloadString(checksumUrl) ?: run { temp.delete(); return context.getString(R.string.deckymgr_checksum_download_failed) }
+            val checksumBody = Downloader.downloadDirect(checksumUrl) ?: run { temp.delete(); return context.getString(R.string.deckymgr_checksum_download_failed) }
             Regex("(?i)\\b[0-9a-f]{64}\\b").find(checksumBody)?.value
         } ?: run { temp.delete(); return context.getString(R.string.deckymgr_checksum_missing) }
         if (!expected.matches(Regex("(?i)[0-9a-f]{64}"))) { temp.delete(); return context.getString(R.string.deckymgr_checksum_invalid) }
@@ -124,12 +155,12 @@ object DeckyManager {
         if (!validElf(temp, release.machine)) { temp.delete(); return context.getString(R.string.deckymgr_not_elf) }
         if (SessionState.running) { temp.delete(); return context.getString(R.string.deckymgr_session_started_loader) }
         if (!temp.setExecutable(true, false)) { temp.delete(); return context.getString(R.string.deckymgr_loader_not_executable) }
-        // Decky needs Steam's local CEF debugger only when its session supervisor is enabled.
-        val cefMarker = File(LinuxRuntime.rootDir(context), CEF_REMOTE_DEBUG_MARKER)
-        val cefReady = !supervisorEnabled(context) || cefMarker.isFile || runCatching {
-            cefMarker.parentFile?.mkdirs()
-            cefMarker.createNewFile() || cefMarker.isFile
-        }.getOrDefault(false)
+        val cefReady = !supervisorEnabled(context) || cefMarkers(context, creating = true).all { cefMarker ->
+            cefMarker.isFile || runCatching {
+                cefMarker.parentFile?.mkdirs()
+                cefMarker.createNewFile() || cefMarker.isFile
+            }.getOrDefault(false)
+        }
         if (!cefReady) { temp.delete(); return context.getString(R.string.deckymgr_cef_failed) }
         val staged = File(target.parentFile, "PluginLoader.new")
         staged.delete()
@@ -145,11 +176,10 @@ object DeckyManager {
         old.delete()
         File(target.parentFile, ".droiddeck-decky-version").writeText(release.tag + "\n")
         File(target.parentFile, ".droiddeck-decky-arch").writeText(if (release.machine == 183) "arm64\n" else "x86_64\n")
-        if (!supervisorEnabled(context)) cefMarker.delete()
+        if (!supervisorEnabled(context)) cefMarkers(context).forEach { it.delete() }
         return null
     }
 
-    /** Imports a Decky distribution ZIP into homebrew/plugins for the next Steam session. */
     fun installPluginZip(context: Context, archive: File, progress: (String, Int) -> Unit): String? {
         if (SessionState.running) return context.getString(R.string.deckymgr_stop_session_plugin)
         if (installed(context) == null) return context.getString(R.string.deckymgr_loader_required)
@@ -216,8 +246,6 @@ object DeckyManager {
                             out.write(buffer, 0, read)
                         }
                     }
-                    // Decky distributions place plugin executables under bin/. Java's ZIP reader
-                    // does not expose Unix mode bits, so restore execution on those payload files.
                     if (relative.split('/').dropLast(1).any { it == "bin" } && !output.setExecutable(true, false)) {
                         throw IllegalStateException(context.getString(R.string.deckymgr_bundled_not_executable))
                     }
@@ -244,7 +272,7 @@ object DeckyManager {
             downloadingBinary = true
             progress(downloading, -1)
             val downloaded = try {
-                Downloader.downloadFile(url, temp, false) { fraction ->
+                Downloader.downloadFile(url, temp, true, hash) { fraction ->
                     progress(downloading, if (fraction < 0) -1 else (fraction * 100).toInt().coerceIn(0, 100))
                 }
             } finally {
@@ -280,7 +308,7 @@ object DeckyManager {
         File(root, PATH).delete()
         File(root, VERSION).delete()
         File(root, "root/homebrew/services/.droiddeck-decky-arch").delete()
-        File(root, CEF_REMOTE_DEBUG_MARKER).delete()
+        CEF_REMOTE_DEBUG_MARKERS.forEach { File(root, it).delete() }
         if (wipeData) File(root, "root/homebrew").deleteRecursively()
     }
 

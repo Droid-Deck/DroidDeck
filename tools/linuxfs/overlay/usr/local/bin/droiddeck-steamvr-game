@@ -1,0 +1,23 @@
+#!/bin/sh
+set -eu
+
+[ "$#" -gt 0 ] || { echo 'usage: droiddeck-steamvr-game COMMAND [ARG...]' >&2; exit 2; }
+pgrep -x vrserver >/dev/null 2>&1 || {
+    echo 'Start SteamVR before launching a game with droiddeck-steamvr-game.' >&2
+    exit 1
+}
+# droiddeck-steamvr-flat skips a run that a launch option already wrapped.
+export DROIDDECK_STEAMVR_PANEL=1
+vrdir=${DROIDDECK_VR_DIR:-/usr/local/lib/droiddeck-vr}
+export VK_LAYER_PATH="$vrdir/layer${VK_LAYER_PATH:+:$VK_LAYER_PATH}"
+export VK_INSTANCE_LAYERS="VK_LAYER_DROIDDECK_vr${VK_INSTANCE_LAYERS:+:$VK_INSTANCE_LAYERS}"
+export VK_LOADER_LAYERS_DISABLE="${VK_LOADER_LAYERS_DISABLE:-~implicit~}"
+# Quest's guest GPU images use Vulkan sharing rather than DMA-BUF modifiers.
+if [ -S "/run/droiddeck/droiddeck-xr-frames" ]; then
+    export gamescope_vr_use_modifiers=${gamescope_vr_use_modifiers:-false}
+fi
+export gamescope_vr_nudge_to_visible=${gamescope_vr_nudge_to_visible:-true}
+exec gamescope --backend openvr \
+    --vr-overlay-key "gamescope.droiddeck.game.$$" \
+    --vr-overlay-default-name 'DroidDeck game' \
+    --vr-overlay-show-immediately --vr-overlay-physical-width 2.4 -- "$@"

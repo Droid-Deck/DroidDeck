@@ -17,26 +17,19 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import android.widget.TextView
 import com.droiddeck.launcher.input.DeckControls
 import com.droiddeck.launcher.input.PadBridge
 import com.droiddeck.launcher.input.PadState
+import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionPrefs
+import com.droiddeck.launcher.session.SessionState
 import kotlin.math.atan2
 import kotlin.math.hypot
 import kotlin.math.min
 
-/**
- * The Steam Deck controller's back grips and trackpads, on the second screen.
- *
- * Four tabs: the grips as a 2x2 grid (left grips on the left, upper above lower, as they sit on a
- * Deck); either trackpad on its own with a bar to click it; and both trackpads with the grips in a
- * row beneath. Given the [pad] (the unfolded screen's panel), a fifth: a whole gamepad, each side
- * an analog stick or a trackpad as the player picks. A trackpad clicks from its bar or from a second finger while the first is down.
- * Drawn for OLED: true black, with outlines rather than filled surfaces, and the Steam blue only
- * where something is being touched.
- */
 @SuppressLint("ViewConstructor")
 class DeckControlsPanel(
     context: Context,
@@ -57,15 +50,6 @@ class DeckControlsPanel(
         addView(topBar, LayoutParams(LayoutParams.MATCH_PARENT, dp(64)))
         addView(content, LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f))
         select(if (pad != null) selectedWithPad else selected)
-    }
-
-    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
-        super.onSizeChanged(w, h, oldw, oldh)
-        // Held flat the gamepad has no Panels button, so another tab would have no way back:
-        // turning the phone from upright onto its side returns to the gamepad.
-        if (pad != null && selectedWithPad != Tab.GAMEPAD && !GamepadGeometry.tall(w.toFloat(), h.toFloat())) {
-            post { if (selectedWithPad != Tab.GAMEPAD) select(Tab.GAMEPAD) }
-        }
     }
 
     override fun onDetachedFromWindow() {
@@ -97,13 +81,17 @@ class DeckControlsPanel(
                 addView(view, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.MATCH_PARENT))
             }
         }
-        val centre = FrameLayout(context).apply {
-            addView(tabs, FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, dp(44), Gravity.CENTER))
+        val centre = HorizontalScrollView(context).apply {
+            isHorizontalScrollBarEnabled = false
+            overScrollMode = View.OVER_SCROLL_NEVER
+            addView(tabs, FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, dp(44)))
         }
         addView(centre, LayoutParams(0, LayoutParams.MATCH_PARENT, 1f))
-        addView(roundButton("STEAM", context.getString(R.string.deck_open_steam_menu), onSteamMenu, wide = true))
-        addView(space(dp(8)))
-        addView(roundButton("•••", context.getString(R.string.drawer_open_qam), onQam, wide = true))
+        if (SessionState.mode == SessionService.MODE_STEAM) {
+            addView(roundButton("STEAM", context.getString(R.string.deck_open_steam_menu), onSteamMenu, wide = true))
+            addView(space(dp(8)))
+            addView(roundButton("•••", context.getString(R.string.drawer_open_qam), onQam, wide = true))
+        }
     }
 
     private fun select(tab: Tab) {
@@ -114,8 +102,18 @@ class DeckControlsPanel(
             view.background = if (on) filled(CORNER_PILL, ACCENT) else null
             view.setTextColor(if (on) ON_ACCENT else TEXT_DIM)
         }
+        tabViews[tab]?.let { selectedView ->
+            (selectedView.parent?.parent as? HorizontalScrollView)?.post {
+                val left = selectedView.left
+                val right = selectedView.right
+                val scroll = selectedView.parent?.parent as? HorizontalScrollView ?: return@post
+                when {
+                    left < scroll.scrollX -> scroll.smoothScrollTo(left, 0)
+                    right > scroll.scrollX + scroll.width -> scroll.smoothScrollTo(right - scroll.width, 0)
+                }
+            }
+        }
         content.removeAllViews()
-        // The gamepad needs every row of the panel; held upright its Panels button brings the tabs back.
         topBar.visibility = if (tab == Tab.GAMEPAD) View.GONE else View.VISIBLE
         content.addView(
             when (tab) {
@@ -159,7 +157,6 @@ class DeckControlsPanel(
             addView(TrackpadView(context, right = true), LayoutParams(0, LayoutParams.MATCH_PARENT, 1f).apply { leftMargin = dp(6) })
         }
         addView(pads, LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f).apply { bottomMargin = dp(12) })
-        // Mirrored, as hands hold them: the upper grips outside, the lower ones in the middle.
         val grips = LinearLayout(context).apply {
             orientation = HORIZONTAL
             val row = listOf("L4" to DeckControls.L4, "L5" to DeckControls.L5, "R5" to DeckControls.R5, "R4" to DeckControls.R4)
@@ -173,15 +170,6 @@ class DeckControlsPanel(
         addView(grips, LayoutParams(LayoutParams.MATCH_PARENT, dp(84)))
     }
 
-    /**
-     * A whole pad, placed for two thumbs rather than in columns (see [GamepadGeometry]): on each side
-     * a surface where the thumb rests - most of play is on the sticks or trackpads - and a short
-     * slide inward along its arc, the d-pad on the left and the face buttons on the right; the bumpers and triggers above, at the top of the arc; View, Steam, QAM and Menu in the
-     * middle, which a thumb only reaches on purpose. Each surface is an analog stick or a Steam
-     * trackpad, switched from its corner and remembered (SessionPrefs.gamepadSurface). Its tab bar
-     * is hidden; held upright, a Panels button brings the other tabs back, and held flat there is no
-     * room for one.
-     */
     private fun gamepad(pad: PadBridge): View = GamepadLayout(context).apply {
         fun pill(label: String, write: (PadState, Boolean) -> Unit) = PadButton(context, pad, label, write)
         place(surfaceSlot(pad, right = false), GamepadGeometry.Slot.LEFT_MAIN)
@@ -193,8 +181,10 @@ class DeckControlsPanel(
         place(pill("RB") { st, d -> st.press(PadState.RB, d) }, GamepadGeometry.Slot.RIGHT_INNER_SHOULDER)
         place(pill("RT") { st, d -> st.rightTrigger = if (d) 1f else 0f }, GamepadGeometry.Slot.RIGHT_OUTER_SHOULDER)
         place(pill("VIEW") { st, d -> st.press(PadState.SELECT, d) }, GamepadGeometry.Slot.VIEW)
-        place(centreTap("STEAM", context.getString(R.string.deck_open_steam_menu), onSteamMenu), GamepadGeometry.Slot.STEAM)
-        place(centreTap("\u2022\u2022\u2022", context.getString(R.string.drawer_open_qam), onQam), GamepadGeometry.Slot.QAM)
+        if (SessionState.mode == SessionService.MODE_STEAM) {
+            place(centreTap("STEAM", context.getString(R.string.deck_open_steam_menu), onSteamMenu), GamepadGeometry.Slot.STEAM)
+            place(centreTap("\u2022\u2022\u2022", context.getString(R.string.drawer_open_qam), onQam), GamepadGeometry.Slot.QAM)
+        }
         place(pill("MENU") { st, d -> st.press(PadState.START, d) }, GamepadGeometry.Slot.MENU)
         place(centreTap("\u25a6 " + context.getString(R.string.deck_panels), context.getString(R.string.deck_more_controls)) { select(Tab.BOTH) },
             GamepadGeometry.Slot.PANELS)
@@ -215,13 +205,11 @@ class DeckControlsPanel(
         }
     }
 
-    /** One side's stick or trackpad, with a chip in its outer corner that swaps the two. */
     private fun surfaceSlot(pad: PadBridge, right: Boolean): View = FrameLayout(context).apply {
         val slot = this
         fun show() {
             slot.removeAllViews()
             val stick = SessionPrefs.gamepadSurface(context, right) == SessionPrefs.SURFACE_STICK
-            // No caption: the switch in its corner says which it is.
             slot.addView(if (stick) StickView(context, pad, right) else TrackpadView(context, right, captioned = false),
                 FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
             val chip = TextView(context).apply {
@@ -239,7 +227,6 @@ class DeckControlsPanel(
                     show()
                 }
             }
-            // In the corner away from the thumb, so play does not swap it by accident.
             slot.addView(chip, FrameLayout.LayoutParams(dp(30), dp(30),
                 (if (right) Gravity.START else Gravity.END) or Gravity.TOP).apply { setMargins(dp(6), dp(6), dp(6), dp(6)) })
         }
@@ -280,7 +267,6 @@ class DeckControlsPanel(
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density + 0.5f).toInt()
 
-    /** A surface drawn the same way everywhere on the panel; pressed, it lights up in the accent. */
     private abstract class Surface(context: Context) : View(context) {
         protected val density = resources.displayMetrics.density
         protected val rect = RectF()
@@ -307,7 +293,6 @@ class DeckControlsPanel(
         }
     }
 
-    /** A held button: down while a finger is on it. */
     private open class HoldButton(
         context: Context,
         private val label: String,
@@ -353,10 +338,6 @@ class DeckControlsPanel(
     private class ClickBar(context: Context, right: Boolean) :
         HoldButton(context, context.getString(R.string.deck_click), if (right) context.getString(R.string.deck_right_trackpad) else context.getString(R.string.deck_left_trackpad), { DeckControls.setClick(right, it) })
 
-    /**
-     * One trackpad: where the first finger is, as the Deck reports it (-1..1, y up), and a click
-     * while a second finger is down.
-     */
     private class TrackpadView(context: Context, private val right: Boolean, private val captioned: Boolean = true) : Surface(context) {
         private var touching = false
         private var clicked = false
@@ -396,7 +377,6 @@ class DeckControlsPanel(
                 }
                 MotionEvent.ACTION_POINTER_DOWN -> click(true)
                 MotionEvent.ACTION_POINTER_UP -> {
-                    // The finger that lifted may be the first; the pad follows whichever stays.
                     val stays = if (event.actionIndex == 0) 1 else 0
                     touch(event.getX(stays), event.getY(stays))
                     click(event.pointerCount - 1 > 1)
@@ -428,7 +408,6 @@ class DeckControlsPanel(
         }
     }
 
-    /** A pad button held while a finger is on it, written into the shared pad as the on-screen pad does. */
     private class PadButton(
         context: Context,
         private val pad: PadBridge,
@@ -441,11 +420,6 @@ class DeckControlsPanel(
         }
     }
 
-    /**
-     * An analog stick that centres where the thumb lands, so it is never missed: the knob follows
-     * the finger from there out to the ring. Tapping it again and holding (within [CLICK_MS]) is
-     * the stick's click - L3 or R3 - for as long as the thumb stays down.
-     */
     private class StickView(context: Context, private val pad: PadBridge, private val right: Boolean) : Surface(context) {
         private var touching = false
         private var clicking = false
@@ -475,7 +449,6 @@ class DeckControlsPanel(
             val r = reach().coerceAtLeast(1f)
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
-                    // Centred where the thumb lands, but kept far enough in for the ring to fit.
                     originX = event.x.coerceIn(r, (width - r).coerceAtLeast(r))
                     originY = event.y.coerceIn(r, (height - r).coerceAtLeast(r))
                     touching = true
@@ -525,10 +498,9 @@ class DeckControlsPanel(
         }
     }
 
-    /** The d-pad: the direction is the finger's angle from the centre, diagonals included. */
     private class DirectionPad(context: Context, private val pad: PadBridge) : View(context) {
         private val density = resources.displayMetrics.density
-        private var held = 0 // bits: 1 up, 2 right, 4 down, 8 left
+        private var held = 0
         private val arm = Paint(Paint.ANTI_ALIAS_FLAG)
         private val rect = RectF()
 
@@ -558,7 +530,6 @@ class DeckControlsPanel(
                     val dx = event.getX(0) - width / 2f
                     val dy = event.getY(0) - height / 2f
                     if (hypot(dx, dy) < min(width, height) * 0.08f) 0 else {
-                        // Eight sectors of 45 degrees, starting with right and going clockwise.
                         val sector = ((Math.toDegrees(atan2(dy.toDouble(), dx.toDouble())) + 360 + 22.5) % 360 / 45).toInt()
                         intArrayOf(2, 2 or 4, 4, 4 or 8, 8, 8 or 1, 1, 1 or 2)[sector]
                     }
@@ -585,7 +556,6 @@ class DeckControlsPanel(
         }
     }
 
-    /** A, B, X and Y in a diamond, as on a Deck; several fingers can hold several at once. */
     private class FaceButtons(context: Context, private val pad: PadBridge) : View(context) {
         private val buttons = listOf(PadState.Y to "Y", PadState.B to "B", PadState.A to "A", PadState.X to "X")
         private var held = emptySet<Int>()
@@ -595,7 +565,6 @@ class DeckControlsPanel(
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
         }
 
-        /** Top, right, bottom, left - the centre of each, and the radius of all. */
         private fun layout(): Pair<List<Pair<Float, Float>>, Float> {
             val cx = width / 2f
             val cy = height / 2f
@@ -626,7 +595,6 @@ class DeckControlsPanel(
                 if (event.actionMasked == MotionEvent.ACTION_POINTER_UP && p == event.actionIndex) continue
                 val x = event.getX(p)
                 val y = event.getY(p)
-                // The nearest button within reach, so a thumb between two still lands on one.
                 val nearest = centres.indices.minByOrNull { hypot(centres[it].first - x, centres[it].second - y) } ?: continue
                 if (hypot(centres[nearest].first - x, centres[nearest].second - y) <= radius * 1.6f) now.add(buttons[nearest].first)
             }
@@ -649,7 +617,6 @@ class DeckControlsPanel(
         }
     }
 
-    /** Lays its controls out where [GamepadGeometry] puts them for the panel's size. */
     private class GamepadLayout(context: Context) : ViewGroup(context) {
         private val slots = LinkedHashMap<View, GamepadGeometry.Slot>()
 
@@ -686,13 +653,10 @@ class DeckControlsPanel(
     }
 
     companion object {
-        /** A second press on a stick this soon after the last is its click (L3, R3). */
         private const val CLICK_MS = 300L
 
-        /** The tab last shown, kept for the session so reopening the panel lands where it was. */
         private var selected = Tab.BOTH
-        /** The same for the unfolded screen's panel, which opens on the gamepad. */
-        private var selectedWithPad = Tab.GAMEPAD
+        private var selectedWithPad = Tab.BOTH
 
         private const val CORNER = 20f
         private const val CORNER_PILL = 22f

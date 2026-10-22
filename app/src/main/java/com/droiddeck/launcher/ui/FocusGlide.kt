@@ -48,27 +48,19 @@ import kotlin.math.abs
 import kotlin.math.hypot
 import kotlinx.coroutines.coroutineScope
 
-// One focus ring for a whole screen that slides from control to control. When focus moves, the
-// edge on the side it is heading springs ahead and the trailing edge catches up a beat later, so
-// the ring stretches like a drop and snaps into the new control's shape.
 
-/** A control that can show the ring: where it is and what its ring looks like there. */
 internal class GlideSource {
     var coords: LayoutCoordinates? = null
     var shape: Shape by mutableStateOf<Shape>(androidx.compose.ui.graphics.RectangleShape)
     var color by mutableStateOf(Color.Transparent)
     var width by mutableStateOf(2.dp)
-    /** Focuses the control again: a step-out hands focus back to the control it came out of. */
     val requester = androidx.compose.ui.focus.FocusRequester()
 }
 
 internal class FocusGlide(val view: View) {
     var host: LayoutCoordinates? = null
-    /** Controls that are hot, the latest last: focus and a hovering pointer can each hold one. */
     val hot = mutableStateListOf<GlideSource>()
-    /** Bumped when the current control moves (a scroll, a relayout). */
     var moves by mutableIntStateOf(0)
-    /** Off while a page floods in or out (PageFlood); back on, it appears on whatever has focus. */
     var hidden by mutableStateOf(false)
 
     val current: GlideSource? get() = hot.lastOrNull()
@@ -77,7 +69,6 @@ internal class FocusGlide(val view: View) {
     fun release(s: GlideSource) { hot.remove(s) }
     fun moved(s: GlideSource) { if (hot.lastOrNull() === s) moves++ }
 
-    /** [s]'s bounds in the host, cut to what is on screen; null when it is not laid out or is scrolled away. */
     fun boundsOf(s: GlideSource): Rect? {
         val h = host ?: return null
         val c = s.coords ?: return null
@@ -89,12 +80,10 @@ internal class FocusGlide(val view: View) {
 
 internal val LocalFocusGlide = staticCompositionLocalOf<FocusGlide?> { null }
 
-/** Floods on screen (a launch, a stop, the return from one): every ring keeps out of the way of them. */
 internal object RingVeil {
     var count by mutableIntStateOf(0)
 }
 
-/** Keeps the focus ring off while this is in the composition. */
 @Composable
 internal fun VeilRing() {
     DisposableEffect(Unit) {
@@ -110,11 +99,6 @@ private fun cornerOf(shape: Shape, size: Size, dir: LayoutDirection, density: De
         is Outline.Generic -> minOf(size.width, size.height) / 2f
     }
 
-/**
- * A control's outline: [restColor] at [restWidth] always, and [hotColor] at [hotWidth] while [hot].
- * Under a [FocusGlideHost] the hot outline is the host's one sliding ring; elsewhere (a dialog, a
- * popup, a screen with no host) it is drawn here, as a plain border.
- */
 @Composable
 internal fun Modifier.glideBorder(
     hot: Boolean,
@@ -140,54 +124,34 @@ internal fun Modifier.glideBorder(
     return base.focusRequester(src.requester).onGloballyPositioned { src.coords = it; glide.moved(src) }
 }
 
-/** Leading edge on a focus move: quick and a little loose. */
-/** A spring an edge chases its target on: damping ratio and stiffness, as Compose's. */
 private class Edge(val damping: Float, val stiffness: Float)
 
 private fun lead() = Edge(0.62f, 700f)
-/** Trailing edge: slower, settles without a bounce to speak of. */
 private fun trail() = Edge(0.78f, 360f)
-/** Following a control that moves under the ring (a scroll): tight, no wobble. */
 private fun follow() = Edge(1f, 2400f)
 
-/** How long after a focus move the ring keeps its stretchy springs and keeps checking where it is. */
 private const val SETTLE_MS = 450L
-/** How long the control must stand still before the ring stops checking where it is. */
 private const val STILL_MS = 120L
-/** The longest the ring keeps checking after a move, for a control that never stands still. */
 private const val TRACK_MAX_MS = 2_000L
 
-/** How strongly the ring tints what it holds. */
 private const val RING_FILL = 0.14f
 
-/** Moves closer together than this are a held direction: the ring runs along as one, no stretch. */
 private const val REPEAT_MS = 180L
 
-/** A move further than this goes as a droplet: pinched to a drop, carried across, opened onto the control. */
 private val FAR = 360.dp
 
-/**
- * Hosts the sliding focus ring for everything inside it. The ring is drawn over [content], in the
- * host's space, so put the host inside anything that moves as a whole (a sheet that slides in).
- */
 @Composable
 internal fun FocusGlideHost(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     val view = LocalView.current
     val density = LocalDensity.current
     val dir = LocalLayoutDirection.current
     val glide = remember(view) { FocusGlide(view) }
-    val edges = remember { List(4) { Animatable(0f) } } // left, top, right, bottom
+    val edges = remember { List(4) { Animatable(0f) } }
     val corner = remember { Animatable(0f) }
-    /** How solid the ring is: 1 while it travels as a drop, 0 (an outline) on a control. */
     val solid = remember { Animatable(0f) }
     val alpha = remember { Animatable(0f) }
     val scope = rememberCoroutineScope()
-    // An edge each, the corner, a droplet carrying all of them, its solid fill, and the chase.
     val jobs = remember { arrayOfNulls<Job>(8) }
-    // The chase: each edge on a spring of its own toward where focus is now. A new target only
-    // moves where it is heading - restarting an animation on every focus move started it from
-    // its first frame (which does not move), so a held direction over a busy page (each rail item
-    // swaps the page) left the ring standing while focus ran on ahead.
     val target = remember { FloatArray(4) }
     val vel = remember { FloatArray(4) }
     val springs = remember { Array(4) { follow() } }
@@ -206,15 +170,12 @@ internal fun FocusGlideHost(modifier: Modifier = Modifier, content: @Composable 
         var delays = LongArray(4)
         var lastMove = 0L
         fun go(i: Int, v: Float, spec: Edge, wait: Long) {
-            // A drop cut short by another move turns back into an outline on the way.
             if (jobs[5]?.isActive == true || solid.targetValue > 0f) {
                 jobs[5]?.cancel()
                 jobs[6]?.cancel()
                 jobs[6] = scope.launch { solid.animateTo(0f, Motion.tw(120)) }
             }
             val chasing = jobs[7]?.isActive == true
-            // An edge some other animation was moving (the appear, a drop's opening) is taken over
-            // at the speed it was going.
             jobs[i]?.let { if (it.isActive) { it.cancel(); vel[i] = edges[i].velocity } }
             if (!chasing) for (j in 0..3) if (jobs[j]?.isActive != true) vel[j] = edges[j].velocity
             target[i] = v
@@ -225,7 +186,6 @@ internal fun FocusGlideHost(modifier: Modifier = Modifier, content: @Composable 
                 var last = withFrameNanos { it }
                 while (true) {
                     val frame = withFrameNanos { it }
-                    // Real time, however long the frame took, in small steps so a stiff spring holds.
                     val dt = ((frame - last) / 1e9f).coerceAtMost(0.1f) / Motion.scale.coerceAtLeast(0.01f)
                     last = frame
                     val now = System.nanoTime()
@@ -251,7 +211,6 @@ internal fun FocusGlideHost(modifier: Modifier = Modifier, content: @Composable 
                 }
             }
         }
-        /** Pinch into a solid dot where it is, carry it over, and open it into [b] as it arrives. */
         fun droplet(s: GlideSource, b: Rect) {
             jobs.forEach { it?.cancel() }
             val size = s.coords?.size?.let { Size(it.width.toFloat(), it.height.toFloat()) } ?: b.size
@@ -260,19 +219,15 @@ internal fun FocusGlideHost(modifier: Modifier = Modifier, content: @Composable 
                 val r = with(density) { 6.dp.toPx() }
                 fun dot(c: Offset) = listOf(c.x - r, c.y - r, c.x + r, c.y + r)
                 val here = Offset((edges[0].value + edges[2].value) / 2f, (edges[1].value + edges[3].value) / 2f)
-                // Pinch into a solid drop where it is.
                 coroutineScope {
                     launch { solid.animateTo(1f, Motion.tw(80)) }
                     launch { corner.animateTo(r, Motion.tw(90)) }
                     dot(here).forEachIndexed { i, v -> launch { edges[i].animateTo(v, Motion.tw(90)) } }
                 }
-                // Across as a dot, every edge together, on a timed ease, steering each frame for
-                // where the control is now: one still rising into place is met where it ends up.
                 val distance = hypot(b.center.x - here.x, b.center.y - here.y) / density.density
                 val travel = (180 + distance * 0.12f).toInt().coerceIn(220, 380)
                 val p = Animatable(0f)
                 val flight = launch { p.animateTo(1f, Motion.tw(travel, easing = FastOutSlowInEasing)) }
-                // Takes the control's shape as it arrives, not after: no resting as a dot.
                 while (flight.isActive && p.value < 0.78f) {
                     val to = (glide.boundsOf(s) ?: b).center
                     dot(Offset(here.x + (to.x - here.x) * p.value, here.y + (to.y - here.y) * p.value)).forEachIndexed { i, v -> edges[i].snapTo(v) }
@@ -316,8 +271,6 @@ internal fun FocusGlideHost(modifier: Modifier = Modifier, content: @Composable 
                 return@collectLatest
             }
             if (src == null) {
-                // Focus passing between two controls can let go of one a moment before the next
-                // takes it: wait a beat, so that reads as a move and not a fade out and back in.
                 delay(60)
                 jobs.forEach { it?.cancel() }
                 solid.snapTo(0f)
@@ -342,7 +295,6 @@ internal fun FocusGlideHost(modifier: Modifier = Modifier, content: @Composable 
                     shown = src
                     first = false
                     if (!wasShowing) {
-                        // Appearing: a hair bigger, pulled in onto the control as it fades up.
                         val out = with(density) { 3.dp.toPx() }
                         val grown = listOf(b.left - out, b.top - out, b.right + out, b.bottom + out)
                         jobs.forEach { it?.cancel() }
@@ -352,7 +304,6 @@ internal fun FocusGlideHost(modifier: Modifier = Modifier, content: @Composable 
                         cornerTo(src, b, snap = true)
                         scope.launch { alpha.animateTo(1f, Motion.tw(140)) }
                     } else {
-                        // Moving: the edges on the side it is heading lead.
                         val dx = b.center.x - (edges[0].value + edges[2].value) / 2f
                         val dy = b.center.y - (edges[1].value + edges[3].value) / 2f
                         val horizontal = abs(dx) >= abs(dy)
@@ -365,7 +316,6 @@ internal fun FocusGlideHost(modifier: Modifier = Modifier, content: @Composable 
                         dropped = !held && hypot(dx, dy) > with(density) { FAR.toPx() }
                         if (dropped) droplet(src, b)
                         else {
-                            // A held direction runs along as one piece; a single press stretches.
                             dirSpecs = if (held) List(4) { Edge(0.9f, 900f) }
                                 else List(4) { i -> when (i) { leadIdx -> lead(); trailIdx -> trail(); else -> Edge(0.7f, 520f) } }
                             delays = LongArray(4) { i -> if (i == trailIdx && !held) 30L else 0L }
@@ -376,15 +326,11 @@ internal fun FocusGlideHost(modifier: Modifier = Modifier, content: @Composable 
                     if (!dropped) listOf(b.left, b.top, b.right, b.bottom).forEachIndexed { i, v -> go(i, v, dirSpecs[i], delays[i]) }
                     last = b
                 } else if (b != last && jobs[5]?.isActive != true) {
-                    // It moved under the ring: keep the stretch while the move is fresh, else follow.
                     val fresh = (System.nanoTime() - movedAt) / 1_000_000 < SETTLE_MS
                     listOf(b.left, b.top, b.right, b.bottom).forEachIndexed { i, v -> go(i, v, if (fresh) dirSpecs[i] else follow(), 0L) }
                     if (last == null) scope.launch { alpha.animateTo(1f, Motion.tw(120)) }
                     last = b
                 }
-                // Layer animations (a tile growing, a row sliding, a page rising in) move it without
-                // a relayout, so look again each frame until it has stood still a moment: a fixed
-                // window let the ring park mid-rise and jump over when something next laid out.
                 val now = System.nanoTime()
                 val settled = (now - start) / 1_000_000 > SETTLE_MS && (now - stillSince) / 1_000_000 > STILL_MS
                 if (settled || (now - start) / 1_000_000 > TRACK_MAX_MS) break
@@ -411,8 +357,6 @@ internal fun FocusGlideHost(modifier: Modifier = Modifier, content: @Composable 
                     cornerRadius = CornerRadius(corner.value), alpha = a * f,
                 )
                 if (f < 0.99f) {
-                    // The ring's own infill: the only fill a pad sees, so it is always exactly what
-                    // the ring holds and moves with it (a row's own sliding fill trailed it).
                     drawRoundRect(
                         color, topLeft = Offset(l + w / 2f, t + w / 2f), size = Size(sw, sh),
                         cornerRadius = CornerRadius(rad), alpha = a * (1f - f) * RING_FILL,

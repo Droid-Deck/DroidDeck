@@ -7,6 +7,7 @@ import android.net.LocalServerSocket
 import android.os.Build
 import android.os.CombinedVibration
 import android.os.Handler
+import android.os.HandlerThread
 import android.os.Looper
 import android.os.SystemClock
 import android.os.VibrationEffect
@@ -17,6 +18,7 @@ import android.view.InputDevice
 import androidx.annotation.RequiresApi
 import com.droiddeck.launcher.core.SessionPart
 import com.droiddeck.launcher.input.ControllerPrefs
+import com.droiddeck.launcher.input.JoyCon
 import com.droiddeck.launcher.input.PadBridge
 import java.io.DataInputStream
 import java.util.Locale
@@ -59,9 +61,10 @@ class RumbleComponent : SessionPart() {
     /** Last effect destinations and resolved targets, keyed by game slot. */
     private val playing = HashMap<Int, Motors>()
     private val controllerIds = HashMap<Int, Int>()
-    /** Per slot, the last effect handed to the motors and when, to drop the repeats games stream. */
-    private val sent = HashMap<Int, Sent>()
+    private val effects = HashMap<Int, Effect>()
     private val controllers = HashMap<Int, Motors?>()
+    private val deviceMotors = HashMap<Int, Motors?>()
+    private val joyConPairs = HashMap<Long, Motors>()
     private val fallbackSince = HashMap<Int, Long>()
     /** vendor:product of the last physical pad seen driving the pad, for finding it again under a new id. */
     private var lastVendor = 0
@@ -69,6 +72,9 @@ class RumbleComponent : SessionPart() {
     private var preferences: SharedPreferences? = null
     private var enabled = false
     private var phoneFallback = true
+    private var motorThread: HandlerThread? = null
+    private var handler: Handler? = null
+    internal var motorLooper: Looper? = null
     private var inputManager: InputManager? = null
     private val lastLog = HashMap<String, Long>()
     private val preferenceListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
@@ -107,6 +113,7 @@ class RumbleComponent : SessionPart() {
             else @Suppress("DEPRECATION") ctx.getSystemService(Vibrator::class.java)
         phone = vibrator?.takeIf { it.hasVibrator() }?.let { PhoneMotors(it) }
         preferences = ControllerPrefs.prefs(ctx).also { it.registerOnSharedPreferenceChangeListener(preferenceListener) }
+        handler = Handler(motorLooper ?: HandlerThread("rumble-motors").also { motorThread = it; it.start() }.looper)
         refreshEnabled()
         try {
             inputManager = ctx.getSystemService(InputManager::class.java)?.also {
@@ -186,8 +193,13 @@ class RumbleComponent : SessionPart() {
         enabled = false
         cancelAll()
         phone = null
+        handler = null
+        motorThread?.quitSafely()
+        motorThread = null
         controllerIds.clear()
         controllers.clear()
+        deviceMotors.clear()
+        joyConPairs.clear()
         fallbackSince.clear()
         RumbleProviders.release("session end")
         val s = server
@@ -203,16 +215,15 @@ class RumbleComponent : SessionPart() {
         if (!enabled) return
         val key = slot
         if ((strong == 0 && weak == 0) || ms == 0) {
-            // Stops are scoped to the player's slot.
             playing.remove(key)?.cancel()
-            sent.remove(key)
+            forget(key)
             return
         }
         val target = target(key)
         val previous = playing[key]
         if (target !== previous) {
             previous?.cancel()
-            sent.remove(key)
+            forget(key)
             if (target == null) playing.remove(key) else playing[key] = target
             target?.let { Log.i(TAG, "rumble: slot $key playing on ${it.name}") }
         }
@@ -220,20 +231,31 @@ class RumbleComponent : SessionPart() {
             logLimited("none:$key", "rumble: dropped (strong $strong, weak $weak, $ms ms): no controller motors and phone fallback is off")
             return
         }
-        // Games re-send their effect every frame; restarting the motor that often floods the haptics
-        // driver. ponytail: a change inside MIN_GAP_MS is dropped, the game's next packet brings it.
+        val dispatcher = handler ?: return
+        val effect = effects.getOrPut(key) { Effect(key) }
+        effect.want(strong, weak, ms)
         val now = SystemClock.uptimeMillis()
-        val last = sent[key]
-        if (last != null && (now - last.at < MIN_GAP_MS || (last.strong == strong && last.weak == weak && now < last.until))) return
-        val duration = ms.toLong().coerceIn(1L, 5000L)
+        if (effect.playing(now)) return
+        dispatcher.removeCallbacks(effect)
+        val wait = effect.at + MIN_GAP_MS - now
+        if (wait > 0) dispatcher.postDelayed(effect, wait) else play(effect)
+    }
+
+    @Synchronized private fun play(effect: Effect) {
+        val target = playing[effect.slot]
+        if (target == null || effects[effect.slot] !== effect) return
+        val duration = if (effect.hold) HOLD_EFFECT_MS else effect.ms.toLong().coerceIn(1L, 5000L)
         try {
-            target.play(strong, weak, duration)
-            sent[key] = Sent(strong, weak, now, now + duration)
+            target.play(effect.strong, effect.weak, duration)
+            effect.played(SystemClock.uptimeMillis(), duration)
+            if (effect.hold) handler?.postDelayed(effect, KEEPALIVE_MS)
         } catch (e: Exception) {
             Log.w(TAG, "rumble: ${target.name}: $e")
-            controllerIds.remove(key)
-            controllers.remove(key)
         }
+    }
+
+    private fun forget(slot: Int) {
+        effects.remove(slot)?.let { handler?.removeCallbacks(it) }
     }
 
     /** A Deck trackpad haptic: on the phone's vibrator only. [db] is the report's gain; 0 ms is a stop. */
@@ -257,6 +279,20 @@ class RumbleComponent : SessionPart() {
 
     /** Resolve each game slot independently. */
     private fun target(key: Int): Motors? {
+        JoyCon.vrRumbleDevice(key)?.let { hand ->
+            if (hand == PadBridge.NO_CONTROLLER) return null
+            return motors(hand) ?: if (phoneFallback) phone else null
+        }
+        val left = PadBridge.joyConForSlot(key, JoyCon.LEFT)
+        val right = PadBridge.joyConForSlot(key, JoyCon.RIGHT)
+        if (left != PadBridge.NO_CONTROLLER && right != PadBridge.NO_CONTROLLER) {
+            val pairKey = (left.toLong() shl 32) or (right.toLong() and 0xFFFFFFFFL)
+            joyConPairs[pairKey]?.let { return it }
+            val leftMotors = motors(left)
+            val rightMotors = motors(right)
+            if (leftMotors != null && rightMotors != null)
+                return JoyConPairMotors(leftMotors, rightMotors).also { joyConPairs[pairKey] = it }
+        }
         val id = PadBridge.controllerForSlot(key)
         val now = SystemClock.elapsedRealtime()
         val retryFallback = controllers[key] == null && now - (fallbackSince[key] ?: 0L) >= FALLBACK_RETRY_MS
@@ -274,7 +310,8 @@ class RumbleComponent : SessionPart() {
     private fun cancelAll() {
         playing.values.toSet().forEach { it.cancel() }
         playing.clear()
-        sent.clear()
+        effects.values.forEach { handler?.removeCallbacks(it) }
+        effects.clear()
     }
 
     private fun resolve(id: Int): Motors? {
@@ -309,6 +346,11 @@ class RumbleComponent : SessionPart() {
         }
         logLimited("resolve:$id", "rumble: lookup: active id $id and no other connected pad has motors -> " + fallbackName())
         return null
+    }
+
+    private fun motors(id: Int): Motors? {
+        if (!deviceMotors.containsKey(id)) deviceMotors[id] = try { controllerMotors(id) } catch (e: Exception) { null }
+        return deviceMotors[id]
     }
 
     private fun providerOrNull(): Motors? = try { providerMotors() } catch (e: Exception) { Log.w(TAG, "rumble: provider lookup failed: $e"); null }
@@ -387,6 +429,8 @@ class RumbleComponent : SessionPart() {
         val legacy = try { device.vibrator } catch (e: Exception) { null }
         val legacyHas = try { legacy?.hasVibrator() == true } catch (e: Exception) { false }
         val chosen: Motors? = when {
+            Build.VERSION.SDK_INT >= 31 && ids.isNotEmpty() && JoyCon.side(device) >= 0 ->
+                JoyConMotors(name, device.vibratorManager)
             Build.VERSION.SDK_INT >= 31 && ids.isNotEmpty() -> PadMotors(name, device.vibratorManager, ids)
             legacyHas && legacy != null -> LegacyPadMotors(name, legacy)
             else -> null
@@ -411,6 +455,8 @@ class RumbleComponent : SessionPart() {
             // Re-resolve on the next effect; the old target may be gone or a better one here.
             controllerIds.clear()
             controllers.clear()
+            deviceMotors.clear()
+            joyConPairs.clear()
             fallbackSince.clear()
         }
     }
@@ -433,9 +479,35 @@ class RumbleComponent : SessionPart() {
         Log.i(TAG, message)
     }
 
-    private data class Sent(val strong: Int, val weak: Int, val at: Long, val until: Long)
 
     /** One place an effect can play. Strengths are the evdev 0..65535 magnitudes. */
+    private inner class Effect(val slot: Int) : Runnable {
+        var strong = 0
+        var weak = 0
+        var ms = 0
+        var at = -MIN_GAP_MS
+        private var playedStrong = 0
+        private var playedWeak = 0
+        private var playedMs = 0
+        private var until = 0L
+        val hold get() = ms == HOLD_MS
+
+        fun want(strong: Int, weak: Int, ms: Int) { this.strong = strong; this.weak = weak; this.ms = ms }
+
+        fun playing(now: Long) = playedMs != 0 && playedStrong == strong && playedWeak == weak && playedMs == ms &&
+            (hold || now < until)
+
+        fun played(now: Long, duration: Long) {
+            playedStrong = strong
+            playedWeak = weak
+            playedMs = ms
+            at = now
+            until = now + duration
+        }
+
+        override fun run() = play(this)
+    }
+
     interface Motors {
         val name: String
         fun play(strong: Int, weak: Int, ms: Long)
@@ -462,13 +534,37 @@ class RumbleComponent : SessionPart() {
             if (ids.size >= 2) { add(ids[0], strong); add(ids[1], weak) } else add(ids[0], max(strong, weak))
             if (any) manager.vibrate(combined.combine()) else manager.cancel()
         }
+        override fun cancel() {
+            val supersede = CombinedVibration.startParallel()
+            ids.forEach { supersede.addVibrator(it, VibrationEffect.createOneShot(1L, 1)) }
+            manager.vibrate(supersede.combine())
+            manager.cancel()
+        }
+    }
+
+    @RequiresApi(31)
+    private class JoyConMotors(override val name: String, private val manager: VibratorManager) : Motors {
+        override fun play(strong: Int, weak: Int, ms: Long) =
+            manager.vibrate(CombinedVibration.createParallel(oneShot(manager.defaultVibrator, max(strong, weak), ms)))
         override fun cancel() = manager.cancel()
+    }
+
+    private class JoyConPairMotors(private val left: Motors, private val right: Motors) : Motors {
+        override val name = "${left.name} and ${right.name}"
+        override fun play(strong: Int, weak: Int, ms: Long) {
+            if (strong == 0) left.cancel() else left.play(strong, 0, ms)
+            if (weak == 0) right.cancel() else right.play(0, weak, ms)
+        }
+        override fun cancel() { left.cancel(); right.cancel() }
     }
 
     /** One vibrator for the whole pad (before Android 12, or a pad Android exposes only that way). */
     private class LegacyPadMotors(override val name: String, private val vibrator: Vibrator) : Motors {
         override fun play(strong: Int, weak: Int, ms: Long) = vibrator.vibrate(oneShot(vibrator, max(strong, weak), ms))
-        override fun cancel() = vibrator.cancel()
+        override fun cancel() {
+            vibrator.vibrate(VibrationEffect.createOneShot(1L, 1))
+            vibrator.cancel()
+        }
     }
 
     companion object {
@@ -479,6 +575,9 @@ class RumbleComponent : SessionPart() {
         const val HAPTIC = 0x8000
         /** The shortest time between two effects started on one slot's motors. */
         const val MIN_GAP_MS = 50L
+        const val HOLD_MS = 0xFFFF
+        const val HOLD_EFFECT_MS = 2000L
+        const val KEEPALIVE_MS = 1500L
         private const val UNRESOLVED = Int.MIN_VALUE
         private const val BIND_RETRIES = 20
         private const val BIND_RETRY_MS = 250L

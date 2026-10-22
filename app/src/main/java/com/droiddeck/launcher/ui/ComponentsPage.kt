@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -56,6 +57,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
@@ -72,6 +74,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -97,28 +101,21 @@ import kotlinx.coroutines.withContext
 import java.text.DateFormat
 import java.util.Date
 
-/** The Components page's layer for the GPU drivers, under every Proton's. */
 const val GPU_TAB = "gpu"
 
-/** The Components page's layer for the Proton itself, the one the indented layers belong to. */
 const val PROTON_TAB = "proton"
 
-/** The stack's layers, top to bottom: LB / RB and the d-pad walk them in this order. */
-internal val LAYERS = listOf(PROTON_TAB, "dxvk", "vkd3d", "fex", GPU_TAB)
+internal val LAYERS = listOf(GPU_TAB, PROTON_TAB, "dxvk", "vkd3d", "fex")
 
-/** The layer [by] steps from [current] (LB -1, RB +1), wrapping round the stack. */
 internal fun layerStep(current: String, by: Int): String {
     val i = LAYERS.indexOf(current).coerceAtLeast(0)
     return LAYERS[((i + by) % LAYERS.size + LAYERS.size) % LAYERS.size]
 }
 
-/** One installed row: a Proton's original bundle (one per Proton build) or a stored package. */
 private class InstalledItem(
     val name: String, val detail: String, val tag: String,
     val selected: Boolean, val removable: Boolean,
-    /** Stored package file, or null for an original. */
     val file: String?,
-    /** The Proton build an original belongs to. */
     val protonVersion: String?,
 )
 
@@ -134,14 +131,7 @@ private val QUEUED = Color(0xFFFFB86B)
 private val ROW_SHAPE = RoundedCornerShape(10.dp)
 private val LAYER_SHAPE = RoundedCornerShape(12.dp)
 
-/**
- * Everything a game runs on, as one stack: the Proton, its DXVK, VKD3D-Proton and FEX indented
- * under it because they belong to it, then the GPU drivers that every Proton shares. One selection
- * glides along the stack (LB / RB, or the d-pad in it); beside it a detail frame that never moves -
- * what is in use, what is installed and what is available, and what else can be done - only its
- * rows trade places. A swap is asked for by stepping out of its row, and the row flies home to its
- * layer. On a narrow page the stack is the page, and a layer's detail floods out of its card.
- */
+@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 fun ComponentsPage(
     snapshot: Snapshot?,
@@ -164,16 +154,14 @@ fun ComponentsPage(
     onImport: () -> Unit,
     onBack: () -> Unit,
     games: List<Library.SteamGame> = emptyList(),
+    initialGameKey: String? = null,
     generalFexPreset: String = "",
     onGeneralFexPreset: (String) -> Unit = {},
     requestInitialFocus: Boolean = true,
-    /** The GPU drivers layer ([GPU_TAB]): what it shows and does. */
     gpu: GpuDriversState = GpuDriversState(),
     gpuActions: GpuDriversActions = GpuDriversActions(),
-    /** The Proton layer ([PROTON_TAB]): the Protons DroidDeck can install, and installing them. */
     protons: ProtonsState = ProtonsState(),
     protonActions: ProtonsActions = ProtonsActions(),
-    /** The Proton layer's options for every Proton (sync, FEX preset, SSBS, environment). */
     protonOptions: @Composable () -> Unit = {},
 ) {
     val colors = MaterialTheme.colorScheme
@@ -185,7 +173,7 @@ fun ComponentsPage(
     val layer = if (comp in LAYERS) comp else GPU_TAB
     BackHandler(onBack = onBack)
     var scopeMenu by remember { mutableStateOf(false) }
-    var selectedGameKey by remember { mutableStateOf<String?>(null) }
+    var selectedGameKey by remember(initialGameKey) { mutableStateOf(initialGameKey) }
     var fexMenu by remember { mutableStateOf(false) }
     var gameProtonMenu by remember { mutableStateOf(false) }
     var gameProtonId by remember { mutableStateOf<String?>(null) }
@@ -391,37 +379,32 @@ fun ComponentsPage(
     val views = snapshot?.protons ?: emptyList()
     val view = views.firstOrNull { it.proton.id == protonId } ?: views.firstOrNull()
 
-    // Where things sit, root px: each layer card, each row (for a swap's dot), the page itself.
     val cardsAt = remember { mutableStateMapOf<String, Rect>() }
     val rowsAt = remember { HashMap<String, Rect>() }
     var stackAt by remember { mutableStateOf(Offset.Zero) }
     var pageAt by remember { mutableStateOf(Offset.Zero) }
-    // A layer card pops and rings as a swap's dot lands on it, and rings as a hop arrives on it.
     val landed = remember { mutableStateMapOf<String, Int>() }
+    val nightlyPicked = remember { mutableStateMapOf<String, Boolean>() }
     val rings = remember { mutableStateMapOf<String, Int>() }
     fun land(l: String) { landed[l] = (landed[l] ?: 0) + 1; rings[l] = (rings[l] ?: 0) + 1 }
     val arrivedSeen = remember { intArrayOf(Hops.arrived) }
     LaunchedEffect(Hops.arrived) {
         if (Hops.arrived == arrivedSeen[0]) return@LaunchedEffect
         arrivedSeen[0] = Hops.arrived
-        // Once the page has flooded in from the rail.
         delay(Motion.ms(700).toLong())
         rings[layer] = (rings[layer] ?: 0) + 1
     }
-    /** The row at [key] squashes into a dot and flies home to [to]'s card, which pops on landing. */
     fun flyHome(key: String, to: String) {
         val from = rowsAt[key] ?: return land(to)
         Flights.fly(Flight(from, to = { cardsAt[to]?.center }, onLand = { land(to) }))
     }
 
-    // A confirm stepping out of the row that asked: right of a left-column row, left of a right one.
     fun ask(key: String, right: Boolean, title: String, note: String, verb: String, danger: Boolean, face: String = "", then: () -> Unit) {
         val at = rowsAt[key] ?: return then()
         val cancel = ctx.getString(R.string.common_cancel)
         Steps.ask(StepAsk(
             anchor = at, side = if (right) StepSide.Left else StepSide.Right,
             accent = if (danger) colors.error else pal.signal, pillCorner = 10.dp, items = 3, maxWidth = 340.dp,
-            // The row's own name rides on top, as the pull's handle.
             handle = {
                 Box(Modifier.fillMaxSize().padding(start = 46.dp, end = 14.dp), contentAlignment = Alignment.CenterStart) {
                     Text(face, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = if (danger) colors.error else pal.signal, maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -437,20 +420,20 @@ fun ComponentsPage(
         })
     }
 
-    // The runtime and display drivers on their own pages, flooding out of the link that opens them.
     var driverPage by remember { mutableStateOf<String?>(null) }
     var driverShown by remember { mutableStateOf<String?>(null) }
     var driverLeaving by remember { mutableStateOf(false) }
     var driverFrom by remember { mutableStateOf<Origin?>(null) }
+    val slotFocus = remember { mapOf(SLOT_DISPLAY to FocusRequester(), SLOT_RUNTIME to FocusRequester()) }
     LaunchedEffect(driverPage) {
         val d = driverPage
         if (d != null) { driverLeaving = false; driverShown = d }
-        else if (driverShown != null) {
+        else driverShown?.let { closed ->
             if (driverFrom != null) { driverLeaving = true; delay(Motion.ms(PAGE_RETURN_MS).toLong()) }
             driverShown = null; driverLeaving = false; driverFrom = null
+            if (inputMode.inputMode == InputMode.Keyboard) focusSoon { slotFocus.getValue(closed) }
         }
     }
-    // Narrow: a layer's detail floods out of its card, and B draws it back in.
     var narrowOpen by rememberSaveable { mutableStateOf<String?>(null) }
     var narrowShown by remember { mutableStateOf<String?>(null) }
     var narrowLeaving by remember { mutableStateOf(false) }
@@ -466,21 +449,17 @@ fun ComponentsPage(
     BackHandler(enabled = driverPage != null || narrowOpen != null) {
         if (driverPage != null) driverPage = null else narrowOpen = null
     }
-    // Leaving the page: nothing stays stepped out of a row that is no longer on screen.
     androidx.compose.runtime.DisposableEffect(Unit) { onDispose { Steps.drop() } }
 
     val checked = if (catalogAt > 0) DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(catalogAt * 1000)) else stringResource(R.string.comp_never)
     val firstRow = remember { FocusRequester() }
     val layerFocus = remember { LAYERS.associateWith { FocusRequester() } }
-    // Arrived (from the rail, a hop, a game's card): a pad starts on the chosen layer.
     LaunchedEffect(requestInitialFocus) {
         if (!requestInitialFocus || selectedGame != null || inputMode.inputMode != InputMode.Keyboard) return@LaunchedEffect
         delay(Motion.ms(200).toLong())
         focusSoon { layerFocus.getValue(layer) }
     }
     var travel by remember { mutableIntStateOf(1) }
-    // LB / RB (taken by the activity before the page sees them): a pad anywhere on the page goes to
-    // the new layer's card, so one on a row - which leaves with its layer - is never left with nothing.
     var pageFocused by remember { mutableStateOf(false) }
     val seenLayer = remember { arrayOf(layer) }
     LaunchedEffect(layer) {
@@ -494,20 +473,9 @@ fun ComponentsPage(
         if (l != layer) { travel = if (LAYERS.indexOf(l) > LAYERS.indexOf(layer)) 1 else -1; onComp(l) }
     }
 
-    // ---- one layer's detail, a slot at a time ------------------------------------------------------
     val compState = { l: String -> view?.components?.get(l) }
     val bar: @Composable (String) -> Unit = { l ->
         when (l) {
-            GPU_TAB -> {
-                val active = gpu.activePair
-                InUseBar(
-                    queued = gpu.busy != null,
-                    sentence = (active?.let { "${it.name} ${it.version}" } ?: gpu.activeBundle ?: stringResource(R.string.gpu_builtin))
-                        .let { if (gpu.auto) stringResource(R.string.gpu_bar_auto, it) else it },
-                    note = if (gpu.busy != null) (if (gpu.percent >= 0) "${gpu.percent}%" else "…")
-                        else gpu.autoStatus.ifEmpty { if (active != null || gpu.activeBundle != null) "" else gpu.pairs.firstOrNull { it.recommended }?.let { stringResource(R.string.gpu_recommended_for, it.name) } ?: stringResource(R.string.gpu_refresh_hint) },
-                )
-            }
             PROTON_TAB -> InUseBar(
                 queued = false,
                 sentence = view?.let { stringResource(R.string.comp_proton_bar, it.proton.name) } ?: stringResource(R.string.comp_no_proton),
@@ -531,52 +499,20 @@ fun ComponentsPage(
         }
     }
 
-    // Installed and Available, as (title, rows) for a layer; [right] says which column it is in.
-    var showAllPairs by rememberSaveable { mutableStateOf(false) }
     val installedTitle: @Composable (String) -> String = { l ->
         when (l) {
-            GPU_TAB -> stringResource(R.string.comp_installed_count, 1 + gpu.pairs.count { it.installed && (it.suits || showAllPairs) })
             PROTON_TAB -> stringResource(R.string.comp_installed_count, views.size)
             else -> stringResource(R.string.comp_installed_count, installedFor(l, view, snapshot).size)
         }
     }
     val availableTitle: @Composable (String) -> String = { l ->
         when (l) {
-            GPU_TAB -> stringResource(R.string.comp_available_count, gpu.pairs.count { !it.installed && it.complete && (it.suits || showAllPairs) })
             PROTON_TAB -> stringResource(R.string.comp_available_count, protons.rows.count { it.installed == null || it.update != null })
-            else -> stringResource(R.string.comp_nightlies_count, availableFor(l, catalog, snapshot).size)
+            else -> stringResource(R.string.comp_nightlies_count, availableRows(l, catalog, snapshot).size)
         }
     }
     val installedRows: @Composable ColumnScope.(String, Boolean) -> Unit = { l, right ->
         when (l) {
-            GPU_TAB -> {
-                val autoKey = "gpu:auto"
-                ChoiceLine(
-                    stringResource(R.string.common_auto), stringResource(R.string.gpu_auto_keeps), gpu.auto, removable = false,
-                    modifier = Modifier.focusRequester(firstRow).trackRow(autoKey, rowsAt),
-                    onSelect = {
-                        if (gpu.auto) return@ChoiceLine
-                        ask(autoKey, right, ctx.getString(R.string.gpu_use_title, ctx.getString(R.string.common_auto)), ctx.getString(R.string.gpu_auto_hint), ctx.getString(R.string.common_use), false, ctx.getString(R.string.common_auto)) {
-                            gpuActions.onAuto(true); flyHome(autoKey, GPU_TAB)
-                        }
-                    },
-                )
-                for (p in gpu.pairs.filter { it.installed && (it.suits || showAllPairs) }) {
-                    val key = "gpu:${p.key}"
-                    ChoiceLine(
-                        p.name, "${p.version} · ${p.detail}", !gpu.auto && p.active, removable = false,
-                        badge = if (p.recommended) stringResource(R.string.gpu_recommended_caps) else null,
-                        progress = if (gpu.busy == p.key) gpu.percent else null,
-                        modifier = Modifier.trackRow(key, rowsAt),
-                        onSelect = {
-                            if (!gpu.auto && p.active || gpu.busy != null) return@ChoiceLine
-                            ask(key, right, ctx.getString(R.string.gpu_use_title, p.name), "${p.version} · ${p.detail}", ctx.getString(R.string.common_use), false, p.name) {
-                                gpuActions.onAuto(false); gpuActions.onPair(p.key); flyHome(key, GPU_TAB)
-                            }
-                        },
-                    )
-                }
-            }
             PROTON_TAB -> {
                 if (views.isEmpty()) EmptyLine(stringResource(if (snapshot == null) R.string.comp_reading else R.string.comp_no_proton))
                 views.forEachIndexed { i, v ->
@@ -631,20 +567,7 @@ fun ComponentsPage(
     }
     val availableRows: @Composable ColumnScope.(String) -> Unit = { l ->
         when (l) {
-            GPU_TAB -> {
-                val shown = gpu.pairs.filter { !it.installed && it.complete && (it.suits || showAllPairs) }
-                if (shown.isEmpty()) EmptyLine(stringResource(if (gpu.checking) R.string.gpu_checking else R.string.gpu_none_listed))
-                for (p in shown) GetLine(
-                    p.name, "${p.version} · ${p.detail}", progress = if (gpu.busy == p.key) gpu.percent else null, enabled = gpu.busy == null,
-                    badge = if (p.recommended) stringResource(R.string.gpu_recommended_caps) else null,
-                ) { gpuActions.onAuto(false); gpuActions.onPair(p.key) }
-                if (gpu.pairs.any { !it.suits }) Box(Modifier.padding(horizontal = 6.dp, vertical = 4.dp)) {
-                    FocusText(stringResource(if (showAllPairs) R.string.gpu_hide_other else R.string.gpu_show_other), pal.signal) { showAllPairs = !showAllPairs }
-                }
-            }
             PROTON_TAB -> {
-                // Not installed, and installed with a newer release out: an update goes in beside the
-                // build it replaces, which stays until it is removed (games are mapped to it by name).
                 val rows = protons.rows.filter { it.installed == null || it.update != null }
                 if (rows.isEmpty()) EmptyLine(stringResource(R.string.comp_nothing_new))
                 for (row in rows) GetLine(
@@ -662,40 +585,22 @@ fun ComponentsPage(
                 ) { protonActions.onInstall(row.id) }
             }
             else -> {
-                val available = availableFor(l, catalog, snapshot)
+                val available = availableRows(l, catalog, snapshot)
                 if (available.isEmpty()) EmptyLine(if (catalogAt == 0L) stringResource(R.string.comp_refresh_to_list) else stringResource(R.string.comp_nothing_new))
-                for (d in available) GetLine(
-                    d.file.removeSuffix(".wcp"), "${d.release} · " + stringResource(R.string.common_size_mb, d.size / 1048576.0),
-                    progress = downloads[d.file], enabled = busy == null,
-                ) { onDownload(d) }
+                for ((stable, nightly) in available) {
+                    val d = if (nightly != null && nightlyPicked[stable.file] == true) nightly else stable
+                    GetLine(
+                        d.file.removeSuffix(".wcp"), "${d.release} · " + stringResource(R.string.common_size_mb, d.size / 1048576.0),
+                        progress = downloads[d.file], enabled = busy == null,
+                        channel = if (nightly != null) ({ ChannelToggle(d === nightly, enabled = busy == null) { nightlyPicked[stable.file] = d !== nightly } }) else null,
+                    ) { onDownload(d) }
+                }
             }
         }
     }
     val actions: @Composable (String) -> Unit = { l ->
         Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
             when (l) {
-                GPU_TAB -> {
-                    SmallButton(stringResource(R.string.comp_import_zip), onClick = gpuActions.onImportZip)
-                    var at by remember { mutableStateOf<Rect?>(null) }
-                    Box(Modifier.onGloballyPositioned { at = it.boundsInRoot() }) {
-                        FocusText(stringResource(R.string.gpu_separately) + " ›", pal.signal) {
-                            val from = at
-                            val title = ctx.getString(R.string.gpu_separately)
-                            if (from == null) { driverPage = "rt"; return@FocusText }
-                            Steps.ask(StepAsk(anchor = from, side = StepSide.Right, accent = pal.signal, pillCorner = 10.dp, items = 3, handle = {}) {
-                                StepTitle(title)
-                                StepList {
-                                    StepChoice(ctx.getString(R.string.comp_runtime_driver), enabled = open, modifier = Modifier.fillMaxWidth().stepItem(1).focusRequester(first)) {
-                                        Steps.fold(); driverFrom = Origin(from.translate(-pageAt), 10f * density.density); driverPage = "rt"
-                                    }
-                                    StepChoice(ctx.getString(R.string.comp_display_driver), enabled = open, modifier = Modifier.fillMaxWidth().stepItem(2)) {
-                                        Steps.fold(); driverFrom = Origin(from.translate(-pageAt), 10f * density.density); driverPage = "panel"
-                                    }
-                                }
-                            })
-                        }
-                    }
-                }
                 PROTON_TAB -> {
                     val idle = protons.busyId == null && protons.runtimeReady && !protons.sessionRunning
                     for (row in protons.rows.filter { it.installedAll.size > 1 }) {
@@ -731,17 +636,16 @@ fun ComponentsPage(
         }
     }
 
-    // ---- the frame ------------------------------------------------------------------------------
     val detail: @Composable (String, Boolean) -> Unit = { l, narrowPage ->
         androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize()) {
-        // Two columns while each gets room for a row's name and its Get; one under the other below that.
         val single = narrowPage || maxWidth < 600.dp
-        Column(Modifier.fillMaxSize()) {
-            // The in-use bar keeps its place; only its words change.
+        if (l == GPU_TAB) GpuDriversBody(gpu, gpuActions, single, firstRow, slotFocus) { slot, at ->
+            driverFrom = Origin(at.translate(-pageAt), 10f * density.density); driverPage = slot
+        }
+        else Column(Modifier.fillMaxSize()) {
             AnimatedContent(l, transitionSpec = { fadeIn(Motion.tw(240)) togetherWith fadeOut(Motion.tw(160)) }, label = "inUse") { k -> bar(k) }
             val detailScroll = androidx.compose.runtime.key(l) { rememberScrollState() }
             Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(detailScroll).padding(top = 12.dp, bottom = 16.dp)) {
-                // Shared performance settings stay visible before the downloadable catalog.
                 if (l == PROTON_TAB) {
                     if (!protons.runtimeReady) EmptyLine(stringResource(R.string.content_needs_runtime))
                     if (protons.sessionRunning) EmptyLine(stringResource(R.string.proton_stop_first))
@@ -801,7 +705,6 @@ fun ComponentsPage(
                     onNext = { pick(layerStep(layer, 1)) },
                 ) else Modifier),
         ) {
-            // ---- header: the title, the device, when the lists were checked and the one refresh ----
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
                 Text(stringResource(R.string.comp_title), fontSize = if (narrow) 22.sp else 26.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, maxLines = 1)
                 if (!narrow) DeviceChip(gpu)
@@ -894,10 +797,10 @@ fun ComponentsPage(
                 )
             } else {
                 Row(Modifier.weight(1f).fillMaxWidth()) {
-                    // ---- the stack ----
                     Box(
                         (if (narrow) Modifier.fillMaxWidth() else Modifier.width(250.dp)).fillMaxHeight()
-                            .onGloballyPositioned { stackAt = it.positionInRoot() },
+                            .onGloballyPositioned { stackAt = it.positionInRoot() }
+                            .focusProperties { enter = { layerFocus.getValue(layer) } }.focusGroup(),
                     ) {
                         val tint = rememberUpdatedState(pal.signal)
                         val local = cardsAt[layer]?.translate(-stackAt)
@@ -911,7 +814,6 @@ fun ComponentsPage(
                                 else runCatching { firstRow.requestFocus() }
                             },
                         )
-                        // Over the cards: under them, their rest fill hid it as it crossed them.
                         ChipGlide(LAYERS.indexOf(layer), local, tint, GlideAxis.Vertical, corner = 12.dp)
                     }
                     if (!narrow) {
@@ -921,7 +823,6 @@ fun ComponentsPage(
                 }
             }
         }
-        // Narrow: the layer's detail over the stack, out of its card.
         narrowShown?.let { l ->
             val from = cardsAt[l]?.let { Origin(it.translate(-pageAt), 12f * density.density) }
             val body: @Composable () -> Unit = {
@@ -936,21 +837,20 @@ fun ComponentsPage(
             }
             if (from == null) body() else PageFlood(from, narrowLeaving) { body() }
         }
-        // The runtime or display driver on its own page.
         driverShown?.let { d ->
             val body: @Composable () -> Unit = {
                 Box(Modifier.fillMaxSize().background(colors.background).pointerInput(Unit) { detectTapGestures { } }) {
-                    if (d == "rt") DriverPage(
+                    if (d == SLOT_RUNTIME) DriverPage(
                         title = stringResource(R.string.comp_runtime_driver), hint = stringResource(R.string.comp_runtime_driver_hint),
                         rows = gpu.linuxRows, selected = gpu.linuxSelected, downloads = gpu.linuxDownloads,
-                        status = gpu.releaseStatus, checking = gpu.checking, importLabel = stringResource(R.string.comp_import_turnip), canRestore = false,
+                        status = gpu.releaseStatus, checking = gpu.checking, checkedAt = gpu.checkedAt, importLabel = stringResource(R.string.comp_import_turnip), canRestore = false,
                         onSelect = gpuActions.onSelectLinux, onDelete = gpuActions.onRemoveLinux, onRefresh = gpuActions.onRefresh,
                         onDownload = gpuActions.onDownloadDriver, onImport = gpuActions.onImportLinux, onRestore = {}, onBack = { driverPage = null },
                     )
                     else DriverPage(
                         title = stringResource(R.string.comp_display_driver), hint = stringResource(R.string.comp_display_driver_hint),
                         rows = gpu.androidRows, selected = gpu.androidSelected, downloads = gpu.androidDownloads,
-                        status = gpu.releaseStatus, checking = gpu.checking, importLabel = stringResource(R.string.comp_import_adrenotools),
+                        status = gpu.releaseStatus, checking = gpu.checking, checkedAt = gpu.checkedAt, importLabel = stringResource(R.string.comp_import_adrenotools),
                         canRestore = gpu.canRestoreBundled,
                         onSelect = gpuActions.onSelectAndroid, onDelete = gpuActions.onRemoveAndroid, onRefresh = gpuActions.onRefresh,
                         onDownload = gpuActions.onDownloadDriver, onImport = gpuActions.onImportAndroid, onRestore = gpuActions.onRestoreBundled,
@@ -967,7 +867,6 @@ fun ComponentsPage(
             onDismissRequest = { confirm = null },
             title = { Text(confirmTitle) },
             text = { Text(body, fontSize = 14.sp) },
-            // Opens on Cancel, so a stray A press on a controller never swaps or deletes anything.
             confirmButton = {
                 val del = confirmVerb == R.string.common_delete || confirmVerb == R.string.comp_game_reset
                 FocusText(stringResource(confirmVerb), if (del) colors.error else pal.signal) { confirm = null; action() }
@@ -1008,7 +907,6 @@ fun ComponentsPage(
     }
 }
 
-/** The Installed rows of one component layer for the Proton the page shows. */
 @Composable
 private fun installedFor(l: String, view: ComponentsManager.ProtonView?, snapshot: Snapshot?): List<InstalledItem> {
     view ?: return emptyList()
@@ -1027,10 +925,17 @@ private fun installedFor(l: String, view: ComponentsManager.ProtonView?, snapsho
     }
 }
 
-/** The Nightlies of one component layer that are not stored yet. */
 private fun availableFor(l: String, catalog: List<CatalogItem>, snapshot: Snapshot?): List<CatalogItem> {
     val stored = (snapshot?.packages ?: emptyList()).map { it.file }.toSet()
     return catalog.filter { it.comp == l && ComponentsManager.safeName(it.file) !in stored }
+}
+
+// The rows to show: each stable row carries its paired nightly (if any), and a paired nightly has no row of its own.
+private fun availableRows(l: String, catalog: List<CatalogItem>, snapshot: Snapshot?): List<Pair<CatalogItem, CatalogItem?>> {
+    val available = availableFor(l, catalog, snapshot)
+    val pairs = ComponentsManager.nightlyPairs(available)
+    val paired = pairs.values.toSet()
+    return available.filter { it !in paired }.map { it to pairs[it] }
 }
 
 @Composable
@@ -1040,14 +945,8 @@ private fun LayerTitle(l: String): String = when (l) {
     else -> ComponentsManager.LABEL[l] ?: l
 }
 
-/** Records where a row sits, for the confirm that steps out of it and the dot that flies from it. */
 private fun Modifier.trackRow(key: String, into: HashMap<String, Rect>): Modifier = onGloballyPositioned { into[key] = it.boundsInRoot() }
 
-/**
- * The stack: a heading over the Proton and the three layers that belong to it (indented, on a
- * line), then a heading over the GPU drivers that every Proton shares. Each card is a layer's name
- * and what it is set to; a dot marks a layer swapped away from its original.
- */
 @Composable
 private fun Stack(
     layer: String, view: ComponentsManager.ProtonView?, gpu: GpuDriversState,
@@ -1062,7 +961,7 @@ private fun Stack(
         LayerCard(
             title = LayerTitle(l),
             value = when (l) {
-                GPU_TAB -> if (gpu.auto) auto else gpu.activePair?.name ?: gpu.activeBundle ?: auto
+                GPU_TAB -> gpuCardValue(gpu, auto)
                 PROTON_TAB -> (view?.proton?.name ?: "") + " ▾"
                 else -> st?.let { if (it.activeFile == null) original else it.inUse } ?: ""
             },
@@ -1074,6 +973,9 @@ private fun Stack(
         )
     }
     Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        StackHeading(stringResource(R.string.comp_this_device))
+        card(GPU_TAB)
+        Spacer(Modifier.height(6.dp))
         StackHeading(stringResource(R.string.comp_this_proton))
         card(PROTON_TAB)
         Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
@@ -1082,9 +984,6 @@ private fun Stack(
                 card("dxvk"); card("vkd3d"); card("fex")
             }
         }
-        Spacer(Modifier.height(6.dp))
-        StackHeading(stringResource(R.string.comp_every_proton))
-        card(GPU_TAB)
     }
 }
 
@@ -1096,7 +995,6 @@ private fun StackHeading(text: String) {
     )
 }
 
-/** One layer: 40dp to see, 44 to touch; its name, what it is set to, and a dot when it is swapped. */
 @Composable
 private fun LayerCard(
     title: String, value: String, swapped: Boolean, selected: Boolean, landed: Int, ring: Int,
@@ -1106,7 +1004,6 @@ private fun LayerCard(
     val pal = LocalPalette.current
     val src = remember { MutableInteractionSource() }
     val hot = rememberHot(src)
-    // The stack's glide draws the picked card's look by touch only; with a pad, its rest look and the bar.
     val under = selected && androidx.compose.ui.platform.LocalInputModeManager.current.inputMode != androidx.compose.ui.input.InputMode.Keyboard
     Box(Modifier.fillMaxWidth().heightIn(min = 44.dp), contentAlignment = Alignment.Center) {
         Row(
@@ -1125,7 +1022,6 @@ private fun LayerCard(
             if (swapped) Box(Modifier.size(7.dp).clip(CircleShape).background(pal.signal))
             Text(title, fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = if (selected || hot) colors.onBackground else colors.onSurfaceVariant, maxLines = 1)
             Spacer(Modifier.weight(1f))
-            // The value ticks over as a swap lands.
             AnimatedContent(
                 value,
                 transitionSpec = { (slideInVertically(Motion.tw(260)) { it / 2 } + fadeIn(Motion.tw(260))) togetherWith (slideOutVertically(Motion.tw(160)) { -it / 2 } + fadeOut(Motion.tw(160))) },
@@ -1135,7 +1031,6 @@ private fun LayerCard(
     }
 }
 
-/** What is in use for the layer: a dot (green, or amber while a change waits), a sentence, and a note or Cancel. */
 @Composable
 private fun InUseBar(queued: Boolean, sentence: String, note: String, onCancel: (() -> Unit)? = null) {
     val colors = MaterialTheme.colorScheme
@@ -1152,7 +1047,6 @@ private fun InUseBar(queued: Boolean, sentence: String, note: String, onCancel: 
     }
 }
 
-/** A titled column of rows. */
 @Composable
 private fun RowGroup(title: String, content: @Composable ColumnScope.() -> Unit) {
     val colors = MaterialTheme.colorScheme
@@ -1429,7 +1323,7 @@ internal fun ToolIcon(icon: ImageVector, description: String, busy: Boolean = fa
         modifier = Modifier.size(44.dp).clip(RoundedCornerShape(12.dp))
             .background(if (hot) pal.signal.copy(alpha = 0.16f) else Color.Transparent)
             .glideBorder(hot, RoundedCornerShape(12.dp), pal.signal, pal.line2)
-            .hoverable(src).clickable(interactionSource = src, indication = null, enabled = enabled, onClick = onClick)
+            .hoverable(src).clickable(role = androidx.compose.ui.semantics.Role.Button, interactionSource = src, indication = null, enabled = enabled, onClick = onClick)
             .controllerConfirm(enabled = enabled, onClick = onClick),
     ) {
         if (busy) CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
@@ -1437,10 +1331,6 @@ internal fun ToolIcon(icon: ImageVector, description: String, busy: Boolean = fa
     }
 }
 
-/**
- * A small button. Resting: grey outline (blue text when [accent]). Focused or hovered: a solid blue
- * fill with an outline in the text colour - unmistakable in a column of identical buttons.
- */
 @Composable
 private fun SmallButton(text: String, enabled: Boolean = true, accent: Boolean = false, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
@@ -1452,7 +1342,7 @@ private fun SmallButton(text: String, enabled: Boolean = true, accent: Boolean =
         modifier = modifier.heightIn(min = 44.dp).clip(RoundedCornerShape(10.dp))
             .background(if (hot) pal.signal else colors.surfaceVariant)
             .glideBorder(hot, RoundedCornerShape(10.dp), colors.onBackground, pal.line2, restWidth = 2.dp)
-            .hoverable(src).clickable(interactionSource = src, indication = null, enabled = enabled, onClick = onClick)
+            .hoverable(src).clickable(role = androidx.compose.ui.semantics.Role.Button, interactionSource = src, indication = null, enabled = enabled, onClick = onClick)
             .controllerConfirm(enabled = enabled, onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 8.dp),
     ) {
@@ -1485,10 +1375,6 @@ private fun Tag(text: String) {
     )
 }
 
-/**
- * One installed choice: a radio for the one in use, its name and detail, and a trash at the right
- * of the ones that can go. [progress] shows a download for it in place of the tag.
- */
 @Composable
 private fun ChoiceLine(
     name: String, detail: String, selected: Boolean, removable: Boolean,
@@ -1525,10 +1411,8 @@ private fun ChoiceLine(
                 }
                 DetailLine(detail, badge)
             }
-            // The radio says which is in use; a download in flight shows where a tag would.
             if (progress != null) ProgressBit(progress)
         }
-        // The trash column is always there (empty when the row can't be deleted) so rows line up.
         if (!removable) Spacer(Modifier.padding(end = 6.dp).size(44.dp))
         else {
             val delSrc = remember { MutableInteractionSource() }
@@ -1538,7 +1422,7 @@ private fun ChoiceLine(
                 modifier = Modifier.padding(end = 6.dp).size(44.dp).clip(ROW_SHAPE)
                     .background(if (delHot) colors.error.copy(alpha = 0.14f) else Color.Transparent)
                     .glideBorder(delHot, ROW_SHAPE, colors.error)
-                    .hoverable(delSrc).clickable(interactionSource = delSrc, indication = null, onClick = onDelete)
+                    .hoverable(delSrc).clickable(role = androidx.compose.ui.semantics.Role.Button, interactionSource = delSrc, indication = null, onClick = onDelete)
                     .controllerConfirm(onClick = onDelete),
             ) { Icon(Icons.Outlined.Delete, contentDescription = stringResource(R.string.common_delete_named, name), tint = if (delHot) colors.error else colors.onSurfaceVariant, modifier = Modifier.size(19.dp)) }
         }
@@ -1546,11 +1430,11 @@ private fun ChoiceLine(
     Box(Modifier.fillMaxWidth().height(1.dp).background(pal.line))
 }
 
-/** One thing not installed yet: its name and detail, and Get - its download shown in the row once started. */
 @Composable
 private fun GetLine(
     name: String, detail: String, progress: Int?, enabled: Boolean,
-    badge: String? = null, stage: String? = null, onCancel: (() -> Unit)? = null, action: String? = null, onGet: () -> Unit,
+    badge: String? = null, stage: String? = null, onCancel: (() -> Unit)? = null, action: String? = null,
+    channel: (@Composable () -> Unit)? = null, onGet: () -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
@@ -1565,13 +1449,43 @@ private fun GetLine(
         if (progress != null) ProgressBit(progress)
         else {
             if (onCancel != null) FocusText(stringResource(R.string.proton_cancel_queued), pal.signal, onClick = onCancel)
+            channel?.invoke()
             SmallButton(action ?: stringResource(R.string.comp_get), enabled = enabled, accent = true, onClick = onGet)
         }
     }
     Box(Modifier.fillMaxWidth().height(1.dp).background(pal.line))
 }
 
-/** A row's second line, led by [badge] (Recommended) in green when there is one. */
+// Stable | Nightly in the same box as SmallButton: one focus stop, A (or a tap) flips it.
+@Composable
+private fun ChannelToggle(nightly: Boolean, enabled: Boolean, onFlip: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    val src = remember { MutableInteractionSource() }
+    val hot = rememberHot(src) && enabled
+    val state = stringResource(if (nightly) R.string.comp_channel_nightly else R.string.comp_channel_stable)
+    Row(
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp),
+        modifier = Modifier.heightIn(min = 44.dp).clip(RoundedCornerShape(10.dp))
+            .background(colors.surfaceVariant)
+            .glideBorder(hot, RoundedCornerShape(10.dp), colors.onBackground, pal.line2, restWidth = 2.dp)
+            .hoverable(src).toggleable(value = nightly, interactionSource = src, indication = null, enabled = enabled, role = Role.Switch, onValueChange = { onFlip() })
+            .controllerConfirm(enabled = enabled, onClick = onFlip)
+            .semantics { stateDescription = state }
+            .padding(4.dp),
+    ) {
+        for ((label, on) in listOf(R.string.comp_channel_stable to !nightly, R.string.comp_channel_nightly to nightly)) {
+            Text(
+                stringResource(label), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1,
+                color = if (!enabled) colors.onSurfaceVariant else if (on) (if (hot) pal.onSignal else pal.signal) else colors.onSurfaceVariant,
+                modifier = Modifier.clip(RoundedCornerShape(7.dp))
+                    .background(if (on && enabled) (if (hot) pal.signal else pal.signal.copy(alpha = 0.16f)) else Color.Transparent)
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
+            )
+        }
+    }
+}
+
 @Composable
 private fun DetailLine(detail: String, badge: String?) {
     val colors = MaterialTheme.colorScheme
@@ -1599,16 +1513,12 @@ private fun ProgressBit(progress: Int) {
     }
 }
 
-/**
- * The GPU and how far it is supported, as a chip: a green dot and "<GPU> · tested", amber when it
- * is not. A steps the device's full details out of it, with the copy for a bug report.
- */
 @Composable
 private fun DeviceChip(s: GpuDriversState) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
-    val tint = if (s.supported && !s.unsupported) pal.good else AttentionAmber
-    val label = stringResource(
+    val tint = if (s.supported && !s.unsupported && !s.display.pending) pal.good else AttentionAmber
+    val label = if (s.display.pending) stringResource(R.string.gpu_chip_restart, s.gpuName) else stringResource(
         when {
             s.unsupported -> R.string.comp_device_unsupported
             s.supported -> R.string.comp_device_tested
@@ -1643,7 +1553,6 @@ private fun DeviceChip(s: GpuDriversState) {
     ) { face() }
 }
 
-/** What the Proton layer installs: the Protons DroidDeck can download, and one being installed. */
 class ProtonsState(
     val rows: List<ProtonRow> = emptyList(),
     val busyId: String? = null,
@@ -1656,17 +1565,21 @@ class ProtonsState(
 class ProtonsActions(
     val onInstall: (String) -> Unit = {},
     val onCancel: (String) -> Unit = {},
-    /** The source's id and the installed folder to delete. */
     val onRemove: (String, String) -> Unit = { _, _ -> },
-    /** Deletes every build of the source but the newest. */
     val onRemoveOlder: (String) -> Unit = {},
 )
 
-/**
- * A Proton DroidDeck can install: the folder its newest build is installed as (null when it is
- * not), every installed build oldest first, and a newer release's tag when one is out.
- */
 class ProtonRow(
     val id: String, val name: String, val installed: String?, val queued: Boolean,
     val installedAll: List<String> = listOfNotNull(installed), val update: String? = null,
 )
+
+@Composable
+private fun gpuCardValue(gpu: GpuDriversState, auto: String): String {
+    val value = when (gpu.mode) {
+        GPU_MODE_AUTO -> gpu.activePair?.name?.let { stringResource(R.string.drivers_summary, auto, it) } ?: auto
+        else -> gpu.activePair?.name?.takeIf { gpu.mode == GPU_MODE_PAIR }
+            ?: if (gpu.display.name == gpu.runtime.name) gpu.display.name else stringResource(R.string.gpu_summary_mix, gpu.display.name, gpu.runtime.name)
+    }
+    return if (gpu.display.pending) stringResource(R.string.gpu_summary_restart, value) else value
+}

@@ -23,21 +23,10 @@ import com.droiddeck.launcher.stores.formatBytes
 import com.droiddeck.launcher.stores.formatSpeed
 import java.util.concurrent.ConcurrentHashMap
 
-/**
- * Keeps store downloads going with the screen off or the app in the background: a foreground
- * service (dataSync) with a notification showing the active download's progress, Pause / Resume
- * and a two-step Cancel; a Wi-Fi lock and a partial wake lock while anything is running, so the
- * radio and the CPU do not sleep under a multi-gigabyte install; and a notification when a game
- * has installed or failed.
- *
- * [start] is called when a download begins and [finish] when one ends; the service stops itself when
- * nothing is running.
- */
 class StoreDownloadService : Service() {
     private var wifi: WifiManager.WifiLock? = null
     private var wake: PowerManager.WakeLock? = null
     private var wakeAt = 0L
-    /** The download whose Cancel was tapped once: its actions read Delete / Keep until [confirmUntil]. */
     private var confirmKey: String? = null
     private var confirmUntil = 0L
     private val main = Handler(Looper.getMainLooper())
@@ -55,7 +44,6 @@ class StoreDownloadService : Service() {
         when (intent?.action) {
             ACTION_PAUSE -> key?.let {
                 DownloadQueue.pause(it)
-                // The progress notification goes with the last running download; this one stays to resume from.
                 pausedNote(this, it)
             }
             ACTION_RESUME -> key?.let {
@@ -126,11 +114,6 @@ class StoreDownloadService : Service() {
         runCatching { (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).notify(ID, build()) }
     }
 
-    /**
-     * While a download runs: a Wi-Fi lock (high-performance before Android 14, low-latency from it,
-     * where the old mode is deprecated) and a partial wake lock, taken with a timeout and renewed
-     * as progress comes in rather than held indefinitely. Released as soon as nothing runs.
-     */
     @SuppressLint("WakelockTimeout")
     private fun locks() {
         val running = StoresState.latestDownloads.any { it.state == DownloadState.RUNNING }
@@ -188,7 +171,6 @@ class StoreDownloadService : Service() {
         private const val ACTION_CANCEL = "droiddeck.stores.CANCEL"
         private const val ACTION_DELETE = "droiddeck.stores.DELETE"
         private const val ACTION_KEEP = "droiddeck.stores.KEEP"
-        /** MainActivity: which page to open ("stores:downloads", or a Games selection such as "app:<id>"). */
         const val EXTRA_NAV = "droiddeck.nav"
         private val active = ConcurrentHashMap.newKeySet<String>()
         @Volatile private var instance: StoreDownloadService? = null
@@ -212,7 +194,6 @@ class StoreDownloadService : Service() {
 
         private fun openDownloads(context: Context, code: Int) = openPage(context, "stores:downloads", code)
 
-        /** A download started: the service is up (idempotent). */
         fun start(context: Context) {
             StoresState.latestDownloads.filter { it.state == DownloadState.RUNNING }.forEach { active.add(it.key) }
             try {
@@ -224,17 +205,14 @@ class StoreDownloadService : Service() {
             }
         }
 
-        /** Progress moved: redraw the notification (StoresState calls it at most once a second). */
         fun tick() {
             instance?.refresh()
         }
 
-        /** The queue changed: redraw the notification. */
         fun sync(context: Context) {
             instance?.refresh()
         }
 
-        /** A download ended: drop it; the service stops with the last one. */
         fun finish(context: Context, key: String) {
             active.remove(key)
             val inst = instance ?: return
@@ -243,7 +221,6 @@ class StoreDownloadService : Service() {
 
         private fun pausedId(key: String) = ID + 0x20000 + (key.hashCode() and 0xFFFF)
 
-        /** "<game> paused" with Resume, once the progress notification has gone with the service. */
         private fun pausedNote(context: Context, key: String) {
             val entry = StoresState.latestDownloads.firstOrNull { it.key == key } ?: return
             val i = Intent(context, StoreDownloadService::class.java).setAction(ACTION_RESUME).putExtra(EXTRA_KEY, key)
@@ -258,23 +235,25 @@ class StoreDownloadService : Service() {
             runCatching { context.getSystemService(NotificationManager::class.java)?.notify(pausedId(key), n) }
         }
 
-        /** "<game> installed" (opens it in Games) or "<game> download failed" (opens Downloads); dismissible. */
         fun ended(context: Context, entry: DownloadEntry, installed: Boolean, gamesKey: String?) {
             val app = context.applicationContext
             channels(app)
             val code = entry.key.hashCode()
-            val n = Notification.Builder(app, DONE_CHANNEL)
+            val builder = Notification.Builder(app, DONE_CHANNEL)
                 .setSmallIcon(if (installed) android.R.drawable.stat_sys_download_done else android.R.drawable.stat_notify_error)
                 .setContentTitle(app.getString(if (installed) R.string.stores_notification_installed else R.string.stores_notification_failed, entry.name))
                 .setAutoCancel(true)
                 .setContentIntent(if (installed && gamesKey != null) openPage(app, gamesKey, code + 10) else openDownloads(app, code + 11))
-                .build()
+            if (!installed && !entry.error.isNullOrBlank()) {
+                builder.setContentText(entry.error)
+                builder.style = Notification.BigTextStyle().bigText(entry.error)
+            }
+            val n = builder.build()
             runCatching { app.getSystemService(NotificationManager::class.java)?.notify(ID + 1 + (code and 0xFFFF), n) }
         }
     }
 }
 
-/** The notification's one line for a download. Pure, for the test. */
 object DownloadNotificationText {
     fun line(d: DownloadEntry, stageName: String, paused: String, queued: String): String {
         val parts = ArrayList<String>()

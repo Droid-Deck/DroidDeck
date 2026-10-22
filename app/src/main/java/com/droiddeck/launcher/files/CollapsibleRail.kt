@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -49,38 +50,26 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-/** One tappable entry in a [CollapsibleRail] (a container tab, a file-manager location, …). */
 data class RailItem(
     val label: String,
     val icon: ImageVector,
     val selected: Boolean,
-    /** >0 shows a small accent count badge on the item's icon (expanded and collapsed). */
     val badge: Int = 0,
-    /** The under-icon label when the rail is collapsed, for names too long to fit; null derives one. */
     val shortLabel: String? = null,
-    // onClick stays LAST so existing call sites can pass it as a trailing lambda; badge is an
-    // optional named param before it (default 0).
     val onClick: () -> Unit,
 )
 
-/** A group of [RailItem]s under an optional small section header (STORAGE / QUICK / FAVORITES …). */
 data class RailSection(val header: String?, val items: List<RailItem>)
 
-/**
- * The tiny under-icon label for a COLLAPSED rail item. The rail width never changes, so labels must
- * fit the narrow (~58dp) column: multi-word names wrap to a second line; single words too long to
- * fit are abbreviated; short ones pass through. (Explicit abbreviations first, then a length guard.)
- */
 private fun collapsedLabel(label: String): String {
     when (label) {
-        "ENVIROMENT" -> return "ENVIRON"        // the app's existing (mis)spelling, kept uppercase
+        "ENVIROMENT" -> return "ENVIRON"
         "WIN COMPONENTS" -> return "WIN COMP"
     }
-    if (label.contains(' ')) return label       // multi-word → wraps to 2 lines
+    if (label.contains(' ')) return label
     return if (label.length > 9) label.take(8) + "…" else label
 }
 
-/** A rail item's 20dp icon, with a small accent count badge on its corner when [badge] > 0. */
 @Composable
 private fun RailItemIcon(item: RailItem, tint: androidx.compose.ui.graphics.Color) {
     if (item.badge > 0) {
@@ -99,21 +88,10 @@ private fun RailItemIcon(item: RailItem, tint: androidx.compose.ui.graphics.Colo
     }
 }
 
-/** A secondary link shown under the header (e.g. "What is all this?", "Reset to app defaults"). */
 data class RailLink(val label: String, val icon: ImageVector, val onClick: () -> Unit)
 
-/**
- * State for a [CollapsibleRail], with the app-wide unified rule:
- *  - PORTRAIT → always collapsed (icon-only), the toggle is HIDDEN and it can never expand.
- *  - LANDSCAPE → expanded by default; the user's collapse choice is remembered PER-SCREEN
- *    ([screenKey]) and is NOT overridden by rotation. portrait→landscape restores that choice.
- *
- * Backed by rememberSaveable (survives process death) and by the fact the app UI activity keeps
- * orientation in configChanges (no recreate) so the selected item / fields / scroll are preserved.
- */
 class RailState internal constructor(
     val collapsed: Boolean,
-    /** True in portrait: the rail is locked collapsed and must not show an expand toggle. */
     val portraitLocked: Boolean,
     val onToggle: () -> Unit,
 )
@@ -121,15 +99,12 @@ class RailState internal constructor(
 @Composable
 fun rememberRailState(screenKey: String): RailState {
     val context = LocalContext.current
-    // The same file the File Manager keeps its own browse settings in (no androidx.preference here).
     val prefs = remember { context.getSharedPreferences("file_manager", android.content.Context.MODE_PRIVATE) }
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
 
     val choseKey = "rail_${screenKey}_userChose"
     val collapsedKey = "rail_${screenKey}_collapsed"
 
-    // Keep the landscape choice in saveable state regardless of orientation so portrait→landscape
-    // restores it. In portrait we simply report collapsed+locked and ignore it.
     var userChose by rememberSaveable(screenKey) { mutableStateOf(prefs.getBoolean(choseKey, false)) }
     var landscapeCollapsed by rememberSaveable(screenKey) {
         mutableStateOf(if (prefs.getBoolean(choseKey, false)) prefs.getBoolean(collapsedKey, false) else false)
@@ -152,16 +127,6 @@ fun rememberRailState(screenKey: String): RailState {
     )
 }
 
-/**
- * The shared collapsible left rail (mockup "Option 3"): app glyph + title, optional links, and the
- * navigation items, replacing a top tab bar so content runs full height beside it. Width animates
- * 190dp ↔ 58dp. When collapsed it is icon-only (the caller surfaces the active item's name over the
- * content). Used by the container editors, File Manager and Save Manager.
- *
- * [footer] is an optional slot pinned to the bottom of the rail (a weighted spacer pushes it down),
- * for a persistent per-screen summary (e.g. the Save Manager's "N games need syncing" line). The
- * caller renders whatever it wants there and can key it off [RailState.collapsed] to go icon-only.
- */
 @Composable
 fun CollapsibleRail(
     state: RailState,
@@ -170,12 +135,7 @@ fun CollapsibleRail(
     modifier: Modifier = Modifier,
     links: List<RailLink> = emptyList(),
     footer: (@Composable ColumnScope.() -> Unit)? = null,
-    // Optional header glyph (a themed drawable). When null the rail shows its plain solid square.
-    // Used by the container editors to show the wine-glass container icon; other rails leave it null.
     @DrawableRes headerIcon: Int? = null,
-    // When true each item gets a rounded outlined-button look (the selected one takes the accent
-    // border + accent-dim fill), matching the File Manager's "New Folder" button. Off by default so
-    // the container/save rails keep their lighter flat rows (5 stacked outlined tabs read too heavy).
     outlinedItems: Boolean = false,
 ) {
     val collapsed = state.collapsed
@@ -187,7 +147,6 @@ fun CollapsibleRail(
             .fillMaxHeight()
             .background(MaterialTheme.colorScheme.surfaceContainerHigh)
     ) {
-        // ── Header: app glyph + title + collapse handle (handle hidden when portrait-locked) ──
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = if (collapsed) Arrangement.Center else Arrangement.Start,
@@ -228,14 +187,12 @@ fun CollapsibleRail(
                 }
             }
         }
-        // Collapsed (landscape only) → an expand handle; portrait is locked with no handle.
         if (collapsed && !state.portraitLocked) {
             IconButton(onClick = state.onToggle, modifier = Modifier.fillMaxWidth().height(24.dp)) {
                 Text("››", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 15.sp)
             }
         }
 
-        // ── Links ──
         if (links.isNotEmpty()) {
             if (collapsed) {
                 Row(horizontalArrangement = Arrangement.Center, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
@@ -258,8 +215,6 @@ fun CollapsibleRail(
 
         HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
 
-        // ── Sections + items (SCROLLABLE so a tall rail - e.g. many File Manager favourites - is
-        //    fully reachable in both orientations; the header above and footer below stay pinned) ──
         Column(
             modifier = Modifier
                 .weight(1f)
@@ -283,8 +238,6 @@ fun CollapsibleRail(
             }
             section.items.forEach { item ->
                 val active = item.selected
-                // Outlined variant: each item is a rounded outlined button; selected = accent border +
-                // accent-dim fill. Flat variant (default): a simple accent-tinted highlight for selected.
                 val shape = RoundedCornerShape(9.dp)
                 val base = Modifier.fillMaxWidth()
                 val styled = if (outlinedItems) {
@@ -297,20 +250,17 @@ fun CollapsibleRail(
                             if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
                             shape,
                         )
-                        .clickable(onClick = item.onClick)
+                        .clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = item.onClick)
                         .padding(horizontal = if (collapsed) 2.dp else 11.dp, vertical = if (collapsed) 6.dp else 9.dp)
                 } else {
                     base
-                        .clickable(onClick = item.onClick)
+                        .clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = item.onClick)
                         .background(if (active) MaterialTheme.colorScheme.primary.copy(alpha = 0.14f) else Color.Transparent)
                         .padding(horizontal = if (collapsed) 2.dp else 13.dp, vertical = if (collapsed) 7.dp else 11.dp)
                 }
                 val iconTint = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                 val labelColor = if (active) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
                 if (collapsed) {
-                    // Icon-only width is unchanged - a TINY label goes UNDER the icon (2 lines max,
-                    // centre-aligned, wrapping/abbreviated) so every button stays identifiable without
-                    // widening the rail.
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         modifier = styled,
@@ -350,9 +300,8 @@ fun CollapsibleRail(
             }
         }
 
-        } // end scrollable section list (its weight fills the gap so the footer stays pinned)
+        }
 
-        // ── Optional pinned footer (e.g. the sync summary) ──
         if (footer != null) {
             HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f))
             footer()
@@ -360,16 +309,6 @@ fun CollapsibleRail(
     }
 }
 
-/**
- * Portrait counterpart to [CollapsibleRail]: the same navigation [items] laid out as a horizontal
- * icon-over-label bar pinned across the top, with an accent underline under the selected one. Mirrors
- * the container editor's top tab bar so every editor reads the same - pin this in portrait wherever a
- * [CollapsibleRail] is used in landscape. Optional [links] (Help / Reset …) are appended after a
- * faint separator, exactly like the rail's links.
- *
- * (The container editor still carries its own private copy of this bar; new screens should prefer
- * this shared one, and the container editor can migrate to it later.)
- */
 @Composable
 fun RailTopTabs(
     items: List<RailItem>,
@@ -391,7 +330,6 @@ fun RailTopTabs(
                 )
             }
             if (links.isNotEmpty()) {
-                // Faint separator: everything past here is an action button, not a tab.
                 Box(
                     modifier = Modifier
                         .padding(horizontal = 2.dp)
@@ -400,7 +338,7 @@ fun RailTopTabs(
                         .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)),
                 )
                 links.forEach { link ->
-                    TopTabCell(link.icon, link.label, selected = false, onClick = link.onClick, modifier = Modifier.weight(1f))
+                    TopTabCell(link.icon, link.label, selected = false, onClick = link.onClick, isTab = false, modifier = Modifier.weight(1f))
                 }
             }
         }
@@ -408,8 +346,6 @@ fun RailTopTabs(
     }
 }
 
-/** One cell of [RailTopTabs] - icon over a small label, with an accent underline (zero-width when
- *  unselected, so every cell keeps the same height). Mirrors the container editor's TopCell. */
 @Composable
 private fun TopTabCell(
     icon: ImageVector,
@@ -417,6 +353,7 @@ private fun TopTabCell(
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    isTab: Boolean = true,
 ) {
     val tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
     Column(
@@ -424,7 +361,13 @@ private fun TopTabCell(
         modifier = modifier
             .clip(RoundedCornerShape(9.dp))
             .background(if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.14f) else Color.Transparent)
-            .clickable(onClick = onClick)
+            .then(
+                if (isTab) {
+                    Modifier.selectable(selected = selected, role = androidx.compose.ui.semantics.Role.Tab, onClick = onClick)
+                } else {
+                    Modifier.clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = onClick)
+                },
+            )
             .padding(vertical = 6.dp, horizontal = 1.dp),
     ) {
         Icon(icon, contentDescription = label, tint = tint, modifier = Modifier.size(20.dp))

@@ -15,6 +15,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -22,6 +26,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
@@ -65,17 +70,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
-// End session's confirm, for any control: a pull drops out of the control and a wider box steps
-// out under it for the choices, one edge flush with the control. Stop draws it from its pill on
-// the drawer; the stores draw it from Install, the Library tab and a download's cancel.
 
-/**
- * The stair-step outline: the pill [p] on top, a box under it from [left] to the pill's right edge
- * and down to [bottom], the pull between them [pullTop] (the box's top). Right edges are flush and
- * the inside corner where the pull meets the box is rounded the other way. While the box is still
- * no wider than the pill it is just the pill, stretched down. [pillCorner] is the control's own
- * corner: a pill's is half its height.
- */
 internal fun stepPath(
     path: Path, p: Rect, left: Float, bottom: Float, pullTop: Float, box: Float, fillet: Float,
     pillCorner: Float = minOf(p.height / 2f, p.width / 2f),
@@ -91,8 +86,9 @@ internal fun stepPath(
     val rbr = minOf(box, (pb - tt) / 2f)
     val rbl = minOf(lerpF(minOf(box, (pb - tt) / 2f), minOf(box, h / 2f), (sw / box).coerceIn(0f, 1f)), (r - l) / 2f)
     val rpl = minOf(box, sw / 2f, h / 2f)
-    val f = minOf(fillet, sw / 2f)
     val yl = minOf(pt + rpl, pb - rbl)
+    val sy = yl - rpl
+    val f = minOf(fillet, sw / 2f, (sy - tt - rt).coerceAtLeast(0f))
     fun corner(rect: Rect, start: Float, sweep: Float, endX: Float, endY: Float) {
         if (rect.width < 0.5f) path.lineTo(endX, endY) else path.arcTo(rect, start, sweep, false)
     }
@@ -104,21 +100,18 @@ internal fun stepPath(
     path.lineTo(l + rbl, pb)
     corner(Rect(l, pb - 2 * rbl, l + 2 * rbl, pb), 90f, 90f, l, pb - rbl)
     path.lineTo(l, yl)
-    corner(Rect(l, pt, l + 2 * rpl, pt + 2 * rpl), 180f, 90f, l + rpl, pt)
-    path.lineTo(tl - f, pt)
-    corner(Rect(tl - 2 * f, pt - 2 * f, tl, pt), 90f, -90f, tl, pt - f)
+    corner(Rect(l, sy, l + 2 * rpl, sy + 2 * rpl), 180f, 90f, l + rpl, sy)
+    path.lineTo(tl - f, sy)
+    corner(Rect(tl - 2 * f, sy - 2 * f, tl, sy), 90f, -90f, tl, sy - f)
     path.lineTo(tl, tt + rt)
     corner(Rect(tl, tt, tl + 2 * rt, tt + 2 * rt), 180f, 90f, tl + rt, tt)
     path.close()
 }
 
-/** [stepPath] for a box that steps out to the right of the pill, out to [right], left edges flush. */
 internal fun stepPathRight(
     path: Path, p: Rect, right: Float, bottom: Float, pullTop: Float, box: Float, fillet: Float,
     pillCorner: Float = minOf(p.height / 2f, p.width / 2f),
 ) {
-    // Drawn as the left-hand outline about the pill's centre, which maps the pill onto itself,
-    // then mirrored back: x -> (p.left + p.right) - x.
     val axis = p.left + p.right
     stepPath(path, p, axis - right, bottom, pullTop, box, fillet, pillCorner)
     path.transform(Matrix().apply { this[0, 0] = -1f; this[3, 0] = axis })
@@ -126,17 +119,12 @@ internal fun stepPathRight(
 
 private fun lerpF(a: Float, b: Float, t: Float) = a + (b - a) * t
 
-/** Which way the box steps out of its control. */
 internal enum class StepSide {
-    /** Out to the left, right edges flush (a control at the right: Stop, a row's cancel). */
     Left,
-    /** Out to the right, left edges flush (a control at the left: Install, a tab). */
     Right,
 }
 
-/** The choices' side of a [StepOut]: each piece fades in on its own beat, and [first] takes focus. */
 internal class StepOutScope(private val items: List<Animatable<Float, AnimationVector1D>>, val first: FocusRequester, val open: Boolean, val maxHeight: Dp) {
-    /** Piece [i] (0 first) of the box: it fades and rises in after the box has stepped out. */
     fun Modifier.stepItem(i: Int): Modifier = graphicsLayer {
         val v = items[i.coerceIn(0, items.lastIndex)].value
         alpha = v
@@ -144,17 +132,10 @@ internal class StepOutScope(private val items: List<Animatable<Float, AnimationV
     }
 }
 
-/** Room between the control and the box that steps out under it: the pull. */
 private val OutPull = 6.dp
 private val OutBoxCorner = 16.dp
 private val OutFillet = 10.dp
 
-/**
- * A confirm or a short list grown out of the control at [pill] (px, in this element's space, which
- * should fill the screen area it may cover): a pull the control's width drops out of it, then a
- * box steps out to [side] for [content]. [onDismiss] (B, a tap outside) asks to fold it; it folds
- * back width first once [open] is false, then [onClosed]. Exactly StopConfirm's springs.
- */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 internal fun StepOut(
@@ -181,13 +162,9 @@ internal fun StepOut(
     var grown by remember { mutableStateOf(false) }
     var measured by remember { mutableStateOf<IntSize?>(null) }
     val first = remember { FocusRequester() }
-    // The control focus was on as it opened: focus goes back to it as it folds, not to wherever
-    // the screen puts a pad with nothing focused (the rail).
     val glide = LocalFocusGlide.current
     val opener = remember { arrayOfNulls<GlideSource>(1) }
     val openNow = androidx.compose.runtime.rememberUpdatedState(open)
-    // While the box grows or folds the ring keeps out (it flew across the moving shape) and comes
-    // back on whatever has focus once it has settled: the first choice, or the control again.
     var moving by remember { mutableStateOf(false) }
     if (moving) VeilRing()
     val pull = with(density) { OutPull.toPx() }
@@ -199,13 +176,10 @@ internal fun StepOut(
         val availableHeight = with(density) {
             maxOf(hostHeight - pill.bottom - pull, pill.top - pull).coerceAtLeast(44.dp.toPx()).toDp()
         }
-        // No room under the control (a row near the foot of the screen): it steps out upward
-        // instead, the same outline mirrored about the control.
         val up = measured?.let { pill.bottom + pull + it.height > hostHeight && pill.top - pull - it.height >= 0f } ?: false
         val room = if (side == StepSide.Left) pill.right else hostWidth - pill.left
         val maxW = with(density) { maxWidth.toPx() }.coerceAtMost(room).coerceAtLeast(pill.width)
         LaunchedEffect(open, measured) {
-            // Asked to close before it ever measured: nothing to fold.
             if (!open && !grown) { onClosed(); return@LaunchedEffect }
             val c = measured ?: return@LaunchedEffect
             val rest = if (side == StepSide.Left) pill.left else pill.right
@@ -221,8 +195,6 @@ internal fun StepOut(
                 coroutineScope {
                     launch { dim.animateTo(1f, Motion.tw(260)) }
                     launch { tint.animateTo(1f, Motion.tw(200)) }
-                    // Down and out together, on one spring: down first drew the control as a stick
-                    // that then snapped out sideways.
                     moving = true
                     val down = launch { bottom.animateTo(boxBottom, Motion.sp(0.8f, 380f)) }
                     val across = launch { edge.animateTo(out, Motion.sp(0.8f, 380f)) }
@@ -242,8 +214,6 @@ internal fun StepOut(
                 coroutineScope {
                     pieces.forEach { launch { it.animateTo(0f, Motion.tw(90)) } }
                     launch { delay(Motion.ms(60).toLong()); dim.animateTo(0f, Motion.tw(300)) }
-                    // In and up together on a timed ease: width first left a tall tail under the
-                    // control, and a damped spring's tail kept a nub of it on screen.
                     moving = true
                     launch { delay(Motion.ms(60).toLong()); edge.animateTo(rest, Motion.tw(240)) }
                     launch { delay(Motion.ms(60).toLong()); bottom.animateTo(pill.bottom, Motion.tw(240)) }
@@ -255,11 +225,9 @@ internal fun StepOut(
             }
         }
 
-        // Opened by touch and then answered with a pad: the pad starts in the box, not behind it.
         LaunchedEffect(open, grown, inputMode.inputMode) {
             if (open && grown && inputMode.inputMode == InputMode.Keyboard) { withFrameNanos { }; runCatching { first.requestFocus() } }
         }
-        // The rest of the screen dims behind it, and a tap there folds it. Never a pad's stop.
         Box(
             Modifier.fillMaxSize().graphicsLayer { alpha = dim.value }.background(Color(0x59000000))
                 .focusProperties { canFocus = false }
@@ -276,11 +244,6 @@ internal fun StepOut(
             if (side == StepSide.Left) stepPath(path, pill, edge.value, bottom.value, pill.bottom + pull, boxCorner, fillet, corner)
             else stepPathRight(path, pill, edge.value, bottom.value, pill.bottom + pull, boxCorner, fillet, corner)
             if (up) path.transform(Matrix().apply { this[1, 1] = -1f; this[3, 1] = pill.top + pill.bottom })
-            // Barely out of the control, the pull and its fillet drew a hook off the control's foot:
-            // the outline comes in over the first part of the way out (and goes over the last part
-            // of the way back), by how far along it is. A share of the way, not a distance: a box
-            // no wider than its control (a confirm under a full-width row) never got 24dp out, and
-            // was never drawn at all.
             val a = measured?.let { c ->
                 val rest = if (side == StepSide.Left) pill.left else pill.right
                 val out = if (side == StepSide.Left) (pill.right - c.width).coerceAtLeast(0f) else (pill.left + c.width).coerceAtMost(hostWidth)
@@ -294,7 +257,6 @@ internal fun StepOut(
             drawPath(path, lerp(hotFill, restFill, tint.value), alpha = a)
             drawPath(path, accent.copy(alpha = lerpF(0.9f, 0.55f, tint.value) * a), style = Stroke(rim))
         }
-        // The control's label rides on top, as the pull's handle.
         if (grown) Box(
             contentAlignment = Alignment.Center,
             modifier = Modifier.offset { IntOffset(pill.left.roundToInt(), pill.top.roundToInt()) }
@@ -308,7 +270,6 @@ internal fun StepOut(
                 .heightIn(max = availableHeight)
                 .onSizeChanged { if (measured != it) measured = it }
                 .controllerBack(onDismiss)
-                // A pad stays in the box until it is answered or folded, as it did in Stop's dialog.
                 .focusProperties { exit = { if (openNow.value) FocusRequester.Cancel else FocusRequester.Default } }
                 .focusGroup()
                 .verticalScroll(rememberScrollState())
@@ -317,10 +278,6 @@ internal fun StepOut(
     }
 }
 
-/**
- * One choice in a [StepOut]: a capsule that fills when focused, like Stop's Cancel and Stop. [danger]
- * draws it in red; [icon] and [trailing] make it a row (a place to install to and its free space).
- */
 @Composable
 internal fun StepChoice(
     label: String,
@@ -357,7 +314,39 @@ internal fun StepChoice(
     }
 }
 
-/** A [StepOut]'s heading line, the first piece to fade in. */
+@Composable
+internal fun StepTile(
+    label: String,
+    icon: ImageVector,
+    modifier: Modifier = Modifier,
+    detail: String? = null,
+    warning: Boolean = false,
+    enabled: Boolean = true,
+    onClick: () -> Unit,
+) {
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    val src = remember { MutableInteractionSource() }
+    val hot = rememberHot(src)
+    val shape = RoundedCornerShape(18.dp)
+    Row(
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
+        modifier = modifier.width(184.dp).height(IntrinsicSize.Min).clip(shape)
+            .background(if (hot) pal.signal.copy(alpha = 0.14f) else colors.surface.copy(alpha = 0.5f))
+            .glideBorder(hot, shape, pal.signal, pal.line)
+            .hoverable(src)
+            .clickable(interactionSource = src, indication = LocalIndication.current, enabled = enabled, role = Role.Button, onClick = onClick)
+            .controllerConfirm(enabled = enabled, onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+    ) {
+        Icon(icon, null, tint = if (hot) pal.signal else colors.onBackground, modifier = Modifier.fillMaxHeight().aspectRatio(1f))
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(label, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (detail != null) Text(detail, fontSize = 12.sp, color = if (warning) colors.error else colors.onSurfaceVariant, maxLines = 2)
+        }
+    }
+}
+
 @Composable
 internal fun StepOutScope.StepTitle(text: String) {
     Text(
@@ -366,7 +355,6 @@ internal fun StepOutScope.StepTitle(text: String) {
     )
 }
 
-/** The choices of a [StepOut] stacked, each the box's width. */
 @Composable
 internal fun StepList(content: @Composable ColumnScope.() -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp), content = content)

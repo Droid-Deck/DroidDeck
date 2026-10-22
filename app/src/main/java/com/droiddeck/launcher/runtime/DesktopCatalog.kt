@@ -10,28 +10,15 @@ import com.droiddeck.launcher.core.FileUtils
 import org.json.JSONObject
 import java.io.File
 
-/**
- * The hosted packages that go into the runtime on request - the desktop, the emulators, and the
- * builds we mirror or make ourselves - described by desktop.json beside the runtime's own catalog.
- *
- * Two kinds. A `tar` extracts over the rootfs like the runtime itself (the same extractor, links
- * and modes preserved). An `appimage` is one file dropped in /opt/appimages with a .desktop entry
- * written for it; proot has no FUSE, so it runs extracted (APPIMAGE_EXTRACT_AND_RUN).
- */
 object DesktopCatalog {
     private const val TAG = "DesktopCatalog"
     const val CATALOG_URL = "https://raw.githubusercontent.com/Droid-Deck/DroidDeck-Components/main/desktop.json"
-    /**
-     * Valve's Proton Experimental (ARM64) with its appmanifest, laid out as the client keeps it.
-     * In a catalog of its own so it never shows among the packages a user picks from.
-     */
     const val STEAM_SEED_URL = "https://raw.githubusercontent.com/Droid-Deck/DroidDeck-Components/main/steam-seed.json"
     const val PROTON_SEED_ID = "proton-arm64"
 
     class Entry(
         val id: String, val name: String, val tier: Int, val version: String, val kind: String,
         val url: String, val sha256: String, val size: Long, val notes: String,
-        /** For an appimage: the icon name and menu category of its .desktop entry. */
         val icon: String, val category: String,
     )
 
@@ -40,8 +27,6 @@ object DesktopCatalog {
         return try {
             val json = JSONObject(body)
             val arr = json.getJSONArray("packages")
-            // A package built per memory page size (ARMSX2: 4K and 16K kernels) names the others
-            // under "pages"; the device's own size picks one, and the top-level file is the 4K one.
             val pageSize = try {
                 android.system.Os.sysconf(android.system.OsConstants._SC_PAGESIZE).toString()
             } catch (e: Exception) { "4096" }
@@ -62,42 +47,68 @@ object DesktopCatalog {
 
     private fun marker(context: Context, id: String) = File(LinuxRuntime.rootDir(context), ".droiddeck-pkg-$id")
 
-    /** The installed version of a package, or null. */
+    private const val JOURNAL_SUFFIX = ".installing"
+
+    private fun journal(root: File, id: String) = File(root, ".droiddeck-pkg-$id$JOURNAL_SUFFIX")
+
+    /** Packages whose extraction over the runtime started and never finished. */
+    fun interrupted(context: Context): List<Entry> = interrupted(LinuxRuntime.rootDir(context))
+
+    fun interrupted(root: File): List<Entry> =
+        root.listFiles { f -> f.name.startsWith(".droiddeck-pkg-") && f.name.endsWith(JOURNAL_SUFFIX) }.orEmpty()
+            .sortedBy { it.name }
+            .mapNotNull { f -> FileUtils.readString(f)?.let { runCatching { entryFrom(JSONObject(it)) }.getOrNull() } }
+
+    private val installLock = Any()
+
+    private fun downloadFile(context: Context, entry: Entry) = File(context.cacheDir, "pkg-${entry.id}-${entry.sha256.take(12)}.download")
+
+    /** Drops downloads kept for installs that no longer need finishing, such as after the runtime was reinstalled. */
+    fun pruneDownloads(context: Context) = synchronized(installLock) {
+        val keep = interrupted(context).map { downloadFile(context, it).name }.toSet()
+        context.cacheDir.listFiles { f -> f.name.startsWith("pkg-") && f.name.removeSuffix(".resume.properties").endsWith(".download") }
+            ?.filter { it.name.removeSuffix(".resume.properties") !in keep }?.forEach { it.delete() }
+    }
+
+    fun resumeInterrupted(context: Context, listener: LinuxRuntimeInstaller.ProgressListener?): String? = synchronized(installLock) {
+        for (entry in interrupted(context)) {
+            Log.w(TAG, "finishing the interrupted install of ${entry.id} ${entry.version}")
+            install(context, entry, listener)?.let { return it }
+        }
+        null
+    }
+
+    internal fun entryJson(e: Entry): JSONObject = JSONObject()
+        .put("id", e.id).put("name", e.name).put("tier", e.tier).put("version", e.version).put("kind", e.kind)
+        .put("url", e.url).put("sha256", e.sha256).put("size", e.size).put("notes", e.notes)
+        .put("icon", e.icon).put("category", e.category)
+
+    internal fun entryFrom(o: JSONObject) = Entry(
+        o.getString("id"), o.getString("name"), o.optInt("tier", 1), o.getString("version"), o.getString("kind"),
+        o.getString("url"), o.getString("sha256"), o.optLong("size", 0L), o.optString("notes", ""),
+        o.optString("icon", "applications-games"), o.optString("category", "Game"),
+    )
+
+    /** A finished download is kept until its extraction completes, so resuming does not fetch it again. */
+    private fun downloaded(file: File, entry: Entry): Boolean =
+        file.isFile && file.length() > 0 && !File(file.path + ".resume.properties").exists() &&
+            (entry.size <= 0 || file.length() == entry.size) && entry.sha256.equals(Hashes.sha256(file), ignoreCase = true)
+
     fun installed(context: Context, id: String): String? =
         FileUtils.readString(marker(context, id))?.trim()?.takeIf { it.isNotEmpty() }
 
-    /**
-     * True until the ARM64 Proton has been placed once. Its appmanifest counts too, so an install
-     * the client fetched itself is never overwritten; after the first placement the client owns it
-     * and updates it like any other app, and a user who removes it is not given it back.
-     */
     fun protonSeedNeeded(context: Context): Boolean =
         installed(context, PROTON_SEED_ID) == null &&
             !File(LinuxRuntime.rootDir(context), "root/.local/share/Steam/steamapps/appmanifest_4427310.acf").isFile
 
-    /**
-     * The desktop: KDE Plasma (tools/desktop-kde). It replaced an LXQt/labwc package of id
-     * "desktop", which a runtime may still carry; that one does not count, so the first desktop
-     * after the update installs this one over it.
-     */
     const val DESKTOP_ID = "desktop-kde"
 
-    /**
-     * The desktop package this apk installs: pinned in tools/desktop-kde/release.env and published
-     * in DroidDeck-Components, not read from the catalog, so the desktop scripts staged by this
-     * apk always get the package they were made for.
-     */
     fun desktopEntry(context: Context) = Entry(
         DESKTOP_ID, context.getString(R.string.content_linux_desktop), 1, BuildConfig.DESKTOP_KDE_TAG, "tar",
         BuildConfig.DESKTOP_KDE_URL, BuildConfig.DESKTOP_KDE_SHA256, BuildConfig.DESKTOP_KDE_SIZE, "",
         "", "",
     )
 
-    // The desktop package installed to the end: KWin is there and the marker install() writes once
-    // the whole package is extracted. An install cut short (the app killed, storage full) leaves
-    // KWin without the marker, and the next desktop installs it again. A newer pinned package also
-    // replaces the installed one, keeping the user's home and settings. The launcher is staged by
-    // the app at every session, so it cannot tell. SessionFiles uses the same test.
     fun desktopInstalled(context: Context): Boolean = desktopInstalled(LinuxRuntime.rootDir(context))
 
     fun desktopInstalled(root: File): Boolean =
@@ -107,41 +118,67 @@ object DesktopCatalog {
 
     fun desktopPresent(context: Context): Boolean {
         val root = LinuxRuntime.rootDir(context)
-        return File(root, DesktopRemoval.PENDING).exists() || marker(context, DESKTOP_ID).exists()
+        return File(root, DesktopRemoval.PENDING).exists() || marker(context, DESKTOP_ID).exists() ||
+            journal(root, DESKTOP_ID).exists()
     }
 
-    /** The installed desktop's size on disk; off the main thread. */
     fun desktopSize(context: Context): Long = DesktopRemoval.installedSize(context)
 
     fun cleanLegacy(context: Context, listener: LinuxRuntimeInstaller.ProgressListener? = null) =
         DesktopRemoval.cleanLegacy(context, listener)
 
-    fun removeDesktop(context: Context, listener: LinuxRuntimeInstaller.ProgressListener): String? =
+    fun removeDesktop(context: Context, listener: LinuxRuntimeInstaller.ProgressListener): String? = synchronized(installLock) {
         DesktopRemoval.remove(context, listener)
+    }
 
-    /** Downloads, verifies and installs one package. Returns null on success, else a message. */
-    fun install(context: Context, entry: Entry, listener: LinuxRuntimeInstaller.ProgressListener?): String? {
+    internal fun discardDesktopInstall(context: Context) {
+        val entry = interrupted(context).firstOrNull { it.id == DESKTOP_ID }
+        val journal = journal(LinuxRuntime.rootDir(context), DESKTOP_ID)
+        entry?.let {
+            val download = downloadFile(context, it)
+            for (file in listOf(download, File(download.path + ".resume.properties"))) {
+                check(!file.exists() || file.delete()) { "Could not remove desktop download ${file.name}" }
+            }
+        }
+        check(!journal.exists() || journal.delete()) { "Could not clear desktop installation" }
+    }
+
+    fun install(context: Context, entry: Entry, listener: LinuxRuntimeInstaller.ProgressListener?): String? = synchronized(installLock) {
+        installLocked(context, entry, listener)
+    }
+
+    private fun installLocked(context: Context, entry: Entry, listener: LinuxRuntimeInstaller.ProgressListener?): String? {
         val root = LinuxRuntime.rootDir(context)
         if (!root.isDirectory) return context.getString(R.string.deskpkg_runtime_missing)
-        // Every catalog row carries a sha256; one without is refused rather than trusted.
         if (entry.sha256.isEmpty()) return context.getString(R.string.deskpkg_no_checksum, entry.name)
-        val download = File(context.cacheDir, "pkg-${entry.id}.download")
-        try {
-            val downloading = context.getString(R.string.user_apps_downloading, entry.name)
-            listener?.onProgress(LinuxRuntimeInstaller.Step.DOWNLOADING, downloading, 0)
-            val ok = Downloader.downloadFile(entry.url, download, true) { f ->
-                listener?.onProgress(LinuxRuntimeInstaller.Step.DOWNLOADING, downloading, if (f < 0) -1 else Math.round(f * 100f))
+        val download = downloadFile(context, entry)
+        val journal = journal(root, entry.id)
+        var keepDownload = false
+        val release = RuntimeInstallService.holdForPackage(context, context.getString(R.string.deskpkg_installing, entry.name))
+        val report = object : LinuxRuntimeInstaller.ProgressListener {
+            override fun onProgress(stage: String, percent: Int) = onProgress(LinuxRuntimeInstaller.Step.OTHER, stage, percent)
+            override fun onProgress(step: LinuxRuntimeInstaller.Step, stage: String, percent: Int) {
+                RuntimeInstallService.packageProgress(stage, percent)
+                listener?.onProgress(step, stage, percent)
             }
-            if (!ok) return context.getString(R.string.user_apps_download_failed)
-            listener?.onProgress(LinuxRuntimeInstaller.Step.VERIFYING, context.getString(R.string.rtinst_verifying), -1)
-            val actual = Hashes.sha256(download)
-            if (!entry.sha256.equals(actual, ignoreCase = true)) return context.getString(R.string.deskpkg_checksum_mismatch)
-            listener?.onProgress(context.getString(R.string.deskpkg_installing, entry.name), -1)
+        }
+        try {
+            if (!downloaded(download, entry)) {
+                val downloading = context.getString(R.string.user_apps_downloading, entry.name)
+                report.onProgress(LinuxRuntimeInstaller.Step.DOWNLOADING, downloading, 0)
+                val ok = Downloader.downloadFile(entry.url, download, true, entry.sha256) { f ->
+                    report.onProgress(LinuxRuntimeInstaller.Step.DOWNLOADING, downloading, if (f < 0) -1 else Math.round(f * 100f))
+                }
+                if (!ok) return context.getString(R.string.user_apps_download_failed)
+                report.onProgress(LinuxRuntimeInstaller.Step.VERIFYING, context.getString(R.string.rtinst_verifying), -1)
+                val actual = Hashes.sha256(download)
+                if (!entry.sha256.equals(actual, ignoreCase = true)) return context.getString(R.string.deskpkg_checksum_mismatch)
+            }
+            report.onProgress(context.getString(R.string.deskpkg_installing, entry.name), -1)
             when (entry.kind) {
                 "appimage" -> {
                     val dir = File(root, "opt/appimages").apply { mkdirs() }
                     val target = File(dir, "${entry.id}.AppImage")
-                    // Some projects zip the AppImage (melonDS); the one file inside is what we want.
                     val placed = if (entry.url.endsWith(".zip", ignoreCase = true)) unzipAppImage(download, target)
                                  else download.renameTo(target)
                     if (!placed) return context.getString(R.string.deskpkg_place_failed)
@@ -152,25 +189,28 @@ object DesktopCatalog {
                         "Icon=${entry.icon}\nTerminal=false\nCategories=${entry.category};\n")
                 }
                 else -> {
-                    // Not complete until written again at the end: a reinstall cut short must not
-                    // leave the last install's marker saying it is.
+                    check(FileUtils.writeString(journal, entryJson(entry).toString())) { "Could not record the package installation" }
+                    keepDownload = true
                     marker(context, entry.id).delete()
-                    if (!LinuxRuntimeInstaller.extract(context, download, root, listener)) return context.getString(R.string.deskpkg_extract_failed)
+                    if (!LinuxRuntimeInstaller.extract(context, download, root, report)) return context.getString(R.string.deskpkg_extract_failed)
                 }
             }
             if (entry.id == DESKTOP_ID) {
-                cleanLegacy(context, listener)
+                cleanLegacy(context, report)
                 val pending = File(root, DesktopRemoval.PENDING)
                 check(!pending.exists() || pending.delete()) { "Could not finish desktop installation" }
             }
             FileUtils.writeString(marker(context, entry.id), entry.version)
             check(installed(context, entry.id) == entry.version) { "Could not finish package installation" }
+            check(!journal.exists() || journal.delete()) { "Could not finish package installation" }
+            keepDownload = false
             return null
         } catch (e: Exception) {
             Log.e(TAG, "install ${entry.id}", e)
             return e.message ?: context.getString(R.string.deskpkg_install_failed)
         } finally {
-            download.delete()
+            if (!keepDownload) download.delete()
+            release()
         }
     }
 
@@ -192,10 +232,6 @@ object DesktopCatalog {
         return false
     }
 
-    /**
-     * Removes an appimage package outright. A tar package is spread through the rootfs and is
-     * not tracked file by file; only its marker is dropped, which offers it again.
-     */
     fun remove(context: Context, entry: Entry) {
         val root = LinuxRuntime.rootDir(context)
         if (entry.kind == "appimage") {

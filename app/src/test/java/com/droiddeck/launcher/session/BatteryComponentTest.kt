@@ -41,6 +41,14 @@ class BatteryComponentTest {
         assertTelemetry(supplies, vpower)
     }
 
+    @Test fun vendorsReportingMilliampsGetTheSameEstimatesAsMicroamps() {
+        val supplies = tmp.newFolder("power_supply")
+        val vpower = tmp.newFolder("vpower")
+        start(supplies, vpower, -2_000L)
+        assertTelemetry(supplies, vpower)
+        assertEquals("-2000000", File(supplies, "BAT1/current_now").readText().trim())
+    }
+
     private fun start(supplies: File, vpower: File, currentUa: Long) {
         val context = RuntimeEnvironment.getApplication()
         context.sendStickyBroadcast(Intent(Intent.ACTION_BATTERY_CHANGED).apply {
@@ -61,7 +69,6 @@ class BatteryComponentTest {
         val discovered = supplies.listFiles()!!.filter { it.name.contains("BAT") }
         assertEquals(listOf("BAT1"), discovered.map { it.name })
         fun read(name: String) = File(discovered.single(), name).readText().trim().toLong()
-        // One 4 Ah battery at 4 V drawing 2 A: 8 W and two hours, regardless of vendor current sign.
         assertEquals(8_000_000L, read("power_now"))
         assertEquals(16_000_000L, read("energy_now"))
         assertEquals(7200L, read("time_to_empty_now"))
