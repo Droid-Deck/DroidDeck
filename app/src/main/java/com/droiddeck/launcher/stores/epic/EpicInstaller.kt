@@ -9,6 +9,7 @@ import com.droiddeck.launcher.stores.StoreExe
 import com.droiddeck.launcher.stores.StoreGameSidecar
 import com.droiddeck.launcher.stores.StoreInstallRoot
 import com.droiddeck.launcher.stores.StoreInstalls
+import com.droiddeck.launcher.stores.StoreLanguage
 import com.droiddeck.launcher.stores.download.DownloadQueue
 import com.droiddeck.launcher.stores.download.DownloadStage
 import com.droiddeck.launcher.stores.download.StoreDownloadTier
@@ -29,6 +30,8 @@ internal class EpicInstaller(
 
     private fun scratch(): File = StoreInstallRoot.scratchDir(app, Store.EPIC, item.id)
 
+    private fun installLocale() = StoreLanguage.localeFor(item.extra[StoreLanguage.EXTRA], app)
+
     override fun run(handle: DownloadQueue.JobHandle): String? {
         handle.stage(DownloadStage.MANIFEST, app.getString(R.string.stores_sync_sign_in))
         val token = EpicCredentialStore.getValidAccessToken(app) ?: throw IllegalStateException("Not signed in to Epic Games")
@@ -47,7 +50,7 @@ internal class EpicInstaller(
             .put("gameDir", folder.absolutePath)
             .put("scratchDir", if (StoreInstallRoot.isRemovable(app, folder)) scratch().absolutePath else "")
             .put("storageLabel", StoreInstallRoot.labelFor(app, folder))
-            .put("tags", JSONArray(EpicInstallTags.tagsForDevice()))
+            .put("tags", JSONArray(EpicInstallTags.tagsFor(installLocale())))
             .put("maxWorkers", tier.networkWindow.coerceIn(1, 128))
             .put("processWorkers", tier.processWorkers)
             .put("caBundle", "")
@@ -111,7 +114,7 @@ internal class EpicInstaller(
         val argsAnswer = EpicNative.call(
             "launch.args",
             JSONObject().put("displayName", creds?.displayName.orEmpty()).put("accountId", creds?.accountId.orEmpty())
-                .put("namespace", namespace).put("locale", EpicInstallTags.launchLocale()).put("appName", item.id)
+                .put("namespace", namespace).put("locale", EpicInstallTags.launchLocale(installLocale())).put("appName", item.id)
                 .put("deploymentId", deployment).put("additional", additional),
         )
         val argList = argsAnswer?.optJSONArray("args")
@@ -122,6 +125,7 @@ internal class EpicInstaller(
         extra["namespace"] = namespace
         extra["catalogItemId"] = catalogItemId
         if (deployment.isNotEmpty()) extra["deploymentId"] = deployment
+        extra[StoreLanguage.EXTRA] = item.extra[StoreLanguage.EXTRA] ?: StoreLanguage.preferredCode(app)
         extra[WinCompSources.EPIC_PREREQ_PATH] = result.optString("prereqPath")
         extra[WinCompSources.EPIC_PREREQ_NAME] = result.optString("prereqName")
         if (result.optBoolean("prereqRead", false)) extra[WinCompSources.LIST_READ] = "1"

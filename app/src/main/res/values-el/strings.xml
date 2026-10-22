@@ -176,6 +176,8 @@
     <string name="app_fex_x86">%1$s μέσω FEX</string>
     <string name="app_fex_not_ready">Αυτό το πρόγραμμα είναι χτισμένο για υπολογιστές %1$s και εκτελείται μέσω FEX, το οποίο δεν έχει ρυθμιστεί ακόμα. Ανοίξτε το Steam μία φορά ενώ είστε συνδεδεμένοι: το DroidDeck κάνει λήψη του FEX και του Steam Linux Runtime που χρειάζεται, και μετά αυτό ανοίγει.</string>
     <string name="session_end_program">Αυτό το πρόγραμμα</string>
+    <string name="session_end_steam_download">Δεν ήταν δυνατή η λήψη του πελάτη Steam. Το δίκτυο ή το VPN σας ίσως αποκλείει τους διακομιστές του Steam· ελέγξτε τη σύνδεση και δοκιμάστε ξανά.</string>
+    <string name="session_end_steam_setup">Δεν ήταν δυνατή η ρύθμιση του πελάτη Steam. Ελέγξτε τη σύνδεση και τον ελεύθερο χώρο αποθήκευσης και δοκιμάστε ξανά.</string>
     <string name="session_end_fex_missing">Το %1$s είναι χτισμένο για υπολογιστές x86 και εκτελείται μέσω FEX, το οποίο δεν έχει εγκατασταθεί ακόμα. Εκκινήστε το Steam μία φορά ενώ είστε συνδεδεμένοι και αφήστε το να κάνει λήψη του FEX και του Steam Linux Runtime, μετά εκκινήστε αυτό ξανά.</string>
     <string name="add_app_flatpak_hint">Ένα ID εφαρμογής Flathub ή η σελίδα της στο Flathub. Το Flatpak ρυθμίζεται πρώτα, αν δεν έχει ρυθμιστεί ακόμα.</string>
     <string name="add_app_file">Αρχείο</string>
@@ -502,7 +504,9 @@
     <string name="comp_delete_original_title">Διαγραφή αυτού του πρωτοτύπου;</string>
     <string name="comp_delete_original_body">Αυτό το πρωτότυπο %1$s είναι από προηγούμενο build του %2$s. Το πρωτότυπο του τρέχοντος build διατηρείται πάντα.</string>
     <string name="comp_nightlies_count">Στα Nightlies · %1$d</string>
-    <string name="comp_refresh_to_list">Ανανεώστε για να εμφανιστούν τα πακέτα στα Nightlies.</string>
+    <string name="comp_channel_stable">Σταθερή</string>
+    <string name="comp_channel_nightly">Νυχτερινή</string>
+    <string name="comp_refresh_to_list">Ανανεώστε για να εμφανιστούν τα πακέτα στα Nightlies και στο DroidDeck.</string>
     <string name="comp_nothing_new">Τίποτα νέο από τον τελευταίο έλεγχο.</string>
     <string name="comp_import_wcp">Εισαγωγή .wcp</string>
     <string name="comp_restore_original">Επαναφορά του πρωτοτύπου αυτού του Proton</string>
@@ -580,6 +584,16 @@
     <string name="drawer_prev_page">Προηγούμενη σελίδα</string>
     <string name="drawer_next_page">Επόμενη σελίδα</string>
     <string name="drawer_hud">HUD απόδοσης</string>
+    <string name="drawer_hud_fps">Ρυθμός καρέ</string>
+    <string name="drawer_hud_battery">Θερμοκρασία μπαταρίας</string>
+    <string name="drawer_hud_graph">Γράφημα απόδοσης</string>
+    <string name="drawer_hud_color">Χρώμα</string>
+    <string name="drawer_hud_color_mint">Μέντα</string>
+    <string name="drawer_hud_color_white">Λευκό</string>
+    <string name="drawer_hud_color_sky">Γαλάζιο</string>
+    <string name="drawer_hud_color_amber">Κεχριμπαρί</string>
+    <string name="drawer_hud_color_violet">Βιολετί</string>
+    <string name="drawer_hud_opacity">Διαφάνεια</string>
     <string name="drawer_scaling">Λειτουργία κλιμάκωσης</string>
     <string name="drawer_scaling_sharpness">Οξύτητα κλιμάκωσης</string>
     <string name="drawer_effects">Εφέ οθόνης</string>
@@ -1768,7 +1782,8 @@
     <string name="cmgr_original_kept">Το αρχικό της εγκατεστημένης έκδοσης διατηρείται: είναι ο δρόμος της επιστροφής.</string>
     <string name="cmgr_not_stored">Δεν είναι αποθηκευμένο</string>
     <string name="cmgr_deleted_original">Διαγράφηκε το αρχικό %1$s του %2$s.</string>
-    <string name="cmgr_nightlies_only">Οι λήψεις προέρχονται μόνο από τις κυκλοφορίες Nightlies</string>
+    <string name="cmgr_nightlies_only">Οι λήψεις προέρχονται μόνο από τις κυκλοφορίες Nightlies και DroidDeck</string>
+    <string name="cmgr_nightly_replaced">Η λήψη απέτυχε: αυτή η νυχτερινή έκδοση ίσως αντικαταστάθηκε από νεότερη. Ανανεώστε τη λίστα και δοκιμάστε ξανά.</string>
     <string name="cmgr_list_predates_checksums">Αυτή η λίστα πακέτων προηγείται των αθροισμάτων ελέγχου - ανανεώστε την και δοκιμάστε ξανά</string>
     <string name="cmgr_checksum_mismatch">Αναντιστοιχία αθροίσματος ελέγχου</string>
 
@@ -2024,6 +2039,9 @@
     <string name="cloud_last_sync">Τελευταίος συγχρονισμός %1$s</string>
     <string name="cloud_never">Δεν έχει συγχρονιστεί ακόμα</string>
     <string name="cloud_done">%1$d αρχεία</string>
+    <string name="cloud_up_to_date">Ήδη ενημερωμένο</string>
+    <string name="cloud_signed_out">Συνδεθείτε στο κατάστημα για συγχρονισμό αποθηκεύσεων</string>
+    <string name="cloud_not_synced">Οι αποθηκεύσεις δεν συγχρονίστηκαν</string>
     <string name="stores_eyebrow_installed">εγκατεστημένο</string>
     <string name="stores_eyebrow_library">στη βιβλιοθήκη σας</string>
     <string name="stores_eyebrow_store">κατάστημα</string>
@@ -2327,7 +2345,7 @@
     <string name="touch_done">Τέλος</string>
     <string name="touch_save_failed">Δεν ήταν δυνατή η αποθήκευση της διάταξης αφής</string>
     <string name="touch_saved">Η διάταξη αφής αποθηκεύτηκε στο Steam</string>
-    <string name="touch_app_id">Εφαρμογή %1$d</string>
+    <string name="touch_app_id">Εφαρμογή %1$s</string>
     <string name="touch_label_hint">Ετικέτα (προαιρετικό)</string>
     <string name="touch_icons_missing">Τα εικονίδια του Steam δεν βρέθηκαν</string>
     <plurals name="touch_icons_found">
@@ -2418,6 +2436,15 @@
     <string name="glasses_vr_fov">Οπτικό πεδίο SteamVR</string>
     <string name="glasses_vr_fov_hint">Χαμηλότερο: το SteamVR έρχεται πιο κοντά και γεμίζει τα γυαλιά· υψηλότερο: βλέπετε περισσότερα γύρω σας.</string>
     <string name="glasses_playing">Παίζετε στα %1$s</string>
+    <string name="glasses_phone_recenter">Επανακεντράρισμα</string>
+    <string name="glasses_phone_steamvr_menu">Μενού SteamVR</string>
+    <string name="glasses_phone_switch_sticks">Μοχλοί: χέρια ⇄ παιχνίδι</string>
+    <string name="glasses_phone_controllers">Χειριστήρια: %1$s</string>
+    <string name="glasses_phone_keyboard">Πληκτρολόγιο</string>
+    <string name="glasses_phone_session_menu">Μενού συνεδρίας</string>
+    <string name="glasses_phone_stop_steamvr">Διακοπή SteamVR</string>
+    <string name="glasses_phone_brightness">Φωτεινότητα %1$d / %2$d</string>
+    <string name="glasses_phone_battery">Μπαταρία %1$d%% · %2$d °C</string>
     <string name="glasses_calibration">Βαθμονόμηση παρακολούθησης</string>
     <string name="glasses_calibration_hint">Μειώνει την ολίσθηση και ευθυγραμμίζει την οριζόντια αναφορά.</string>
     <string name="glasses_calibration_saved_hint">Σε αυτά τα γυαλιά εφαρμόζεται αποθηκευμένη βαθμονόμηση.</string>
