@@ -2,6 +2,7 @@ name: Build validation
 
 on:
   pull_request_target:
+    branches: [main]
     types: [opened, synchronize, reopened, edited, ready_for_review]
   push:
     branches: [main]
