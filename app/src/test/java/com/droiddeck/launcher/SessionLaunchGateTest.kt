@@ -5,7 +5,12 @@ import com.droiddeck.launcher.session.SessionService
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [28], manifest = Config.NONE)
 class SessionLaunchGateTest {
     @Test fun newModeIntentChecksBusyStateDuringRunningSession() {
         val intent = Intent().putExtra(SessionService.EXTRA_MODE, SessionService.MODE_RUN)
