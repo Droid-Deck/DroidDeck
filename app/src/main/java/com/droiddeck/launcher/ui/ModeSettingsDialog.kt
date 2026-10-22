@@ -91,6 +91,7 @@ class ModeSettings(
     val deckControlsWhen: String = com.droiddeck.launcher.session.SessionDisplay.CONTROLS_UNFOLDED,
     val foldedAspect: String = com.droiddeck.launcher.session.SessionDisplay.FOLDED_16X9,
     val deckControlsScale: Int = 100,
+    val unfoldedControlsWithController: Boolean = false,
     val runSteamAtStartup: Boolean = false,
     val bootMovie: String? = null,
     val bootMovieSound: Boolean = true,
@@ -146,6 +147,7 @@ class ModeSettingsActions(
     val onDeckControlsWhen: (String) -> Unit = {},
     val onFoldedAspect: (String) -> Unit = {},
     val onDeckControlsScale: (Int) -> Unit = {},
+    val onUnfoldedControlsWithController: (Boolean) -> Unit = {},
     val onRunSteamAtStartup: (Boolean) -> Unit = {},
     val onBootMovie: (String) -> Unit = {},
     val onBootMovieSound: (Boolean) -> Unit = {},
@@ -316,6 +318,11 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
                 ChoiceRow(
                     host, "deck-controls-scale", stringResource(R.string.deck_controls_scale), null,
                     SessionPrefs.DECK_CONTROLS_SCALES.map { it to "$it %" }, s.deckControlsScale, onPick = a.onDeckControlsScale,
+                )
+                ToggleRow(
+                    host, "unfolded-controls-with-controller", stringResource(R.string.unfolded_controls_with_controller),
+                    stringResource(R.string.unfolded_controls_with_controller_hint),
+                    s.unfoldedControlsWithController, onChange = a.onUnfoldedControlsWithController,
                 )
             }
             if (steam) ChoiceRow(

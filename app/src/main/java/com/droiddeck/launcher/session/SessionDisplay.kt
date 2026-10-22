@@ -80,6 +80,19 @@ object SessionDisplay {
         return (gameWidth.toInt() and 1.inv()) to ((gameWidth / ratio).toInt() and 1.inv())
     }
 
+    fun unfoldedControlsWanted(
+        enabled: Boolean,
+        foldable: Boolean,
+        controllerConnected: Boolean,
+        keepWithController: Boolean,
+        steamDeckPad: Boolean,
+        pip: Boolean,
+        width: Int,
+        height: Int,
+        smallestWidthDp: Int,
+    ): Boolean = enabled && foldable && (keepWithController || !controllerConnected) && steamDeckPad &&
+        !pip && width > 0 && height > 0 && smallestWidthDp >= UNFOLDED_MIN_DP
+
 
     fun panelSize(context: Context): Pair<Int, Int> {
         val manager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager

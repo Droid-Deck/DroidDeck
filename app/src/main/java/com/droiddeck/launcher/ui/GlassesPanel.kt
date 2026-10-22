@@ -149,7 +149,8 @@ internal fun GlassesGroups(
         }
     }
     if (display) SettingsGroup(g.model) {
-        if (g.experimental) SettingsRow(stringResource(R.string.glasses_control), stringResource(R.string.glasses_xreal_experimental)) {}
+        if (g.experimental) SettingsRow(stringResource(R.string.glasses_control), stringResource(
+            if (g.supportsDisplayModeControl) R.string.glasses_xreal_experimental else R.string.glasses_pro2_experimental)) {}
         val status = if (g.hasDisplay) stringResource(R.string.glasses_status, g.width, g.height, kotlin.math.round(g.hz).toInt(),
             stringResource(if (g.sbs) R.string.glasses_mode_3d else R.string.glasses_mode_2d)) else null
         when {
@@ -168,7 +169,7 @@ internal fun GlassesGroups(
         ToggleRow(host, "glasses-game", stringResource(R.string.glasses_game_on), stringResource(R.string.glasses_game_on_hint),
             s.gameOnGlasses, chipModifier = track("glasses-game")) { Glasses.setGameOnGlasses(it) }
     }
-    if (display && g.canControl && (inSession || g.sbs || g.sbsSupport == GlassesState.SBS_FAILS)) {
+    if (display && g.canControl && g.supportsDisplayModeControl && (inSession || g.sbs || g.sbsSupport == GlassesState.SBS_FAILS)) {
         SettingsGroup(stringResource(R.string.glasses_display_mode)) {
             if (g.sbsSupport == GlassesState.SBS_FAILS && !g.sbs) {
                 ActionRow(stringResource(R.string.glasses_3d), stringResource(R.string.glasses_3d_failed),
@@ -177,7 +178,7 @@ internal fun GlassesGroups(
                 g.sbs, chipModifier = track("glasses-3d")) { Glasses.set3d(it) }
         }
     }
-    if (display && g.canControl) {
+    if (display && g.canControl && g.supportsDisplayModeControl) {
         val profiles = if (inSession) listOf(GlassesDisplayModes.profile(g.sbs, false))
             else listOf(GlassesDisplayProfile.TWO_D, GlassesDisplayProfile.THREE_D)
         for (profile in profiles) SettingsGroup(stringResource(if (profile == GlassesDisplayProfile.TWO_D)
@@ -214,9 +215,9 @@ internal fun GlassesGroups(
     }
     if (vr && (g.canControl || g.hasDisplay)) SettingsGroup(stringResource(R.string.cardboard_steamvr)) {
         steamVr()
-        ToggleRow(host, "glasses-auto3d", stringResource(R.string.glasses_auto3d), stringResource(R.string.glasses_auto3d_hint),
-            s.auto3d, chipModifier = track("glasses-auto3d")) { Glasses.setAuto3d(it) }
-        if (g.canControl) {
+        if (g.supportsDisplayModeControl) ToggleRow(host, "glasses-auto3d", stringResource(R.string.glasses_auto3d),
+            stringResource(R.string.glasses_auto3d_hint), s.auto3d, chipModifier = track("glasses-auto3d")) { Glasses.setAuto3d(it) }
+        if (g.canControl && g.supportsDisplayModeControl) {
             GlassesResolutionRow(host, g, s, GlassesDisplayProfile.VR, track)
             if (steamVrRunning && tab != null) GlassesRefreshRow(host, g, s, track)
         }

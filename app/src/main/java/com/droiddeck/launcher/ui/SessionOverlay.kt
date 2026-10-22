@@ -290,6 +290,8 @@ class DrawerActions(
     val onFoldedAspect: (String) -> Unit = {},
     val deckControlsScale: Int = 100,
     val onDeckControlsScale: (Int) -> Unit = {},
+    val unfoldedControlsWithController: Boolean = false,
+    val onUnfoldedControlsWithController: (Boolean) -> Unit = {},
     val onShareLogs: () -> Unit,
     val onStop: () -> Unit,
     val onStopFrom: ((androidx.compose.ui.geometry.Rect?) -> Unit)? = null,
@@ -325,7 +327,7 @@ class DrawerActions(
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, controllerActive: Boolean, onPageChange: (SessionDrawerPage) -> Unit, a: DrawerActions) {
-    val pages = sessionDrawerPages(a.steam && a.secondScreenDisplays.isNotEmpty(), a.glassesPresent)
+    val pages = sessionDrawerPages(a.secondScreenDisplays.isNotEmpty(), a.glassesPresent)
     val page = requestedPage.takeIf { it in pages } ?: SessionDrawerPage.CONTROLLER
     LaunchedEffect(requestedPage, pages) { if (page != requestedPage) onPageChange(page) }
     val colors = MaterialTheme.colorScheme
@@ -624,6 +626,11 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                     ChoiceRow(host, "deck-controls-scale", stringResource(R.string.deck_controls_scale), null,
                                         SessionPrefs.DECK_CONTROLS_SCALES.map { it to "$it %" }, a.deckControlsScale,
                                         chipModifier = focus.track(page, "deck-controls-scale"), onPick = a.onDeckControlsScale)
+                                    ToggleRow(host, "unfolded-controls-with-controller",
+                                        stringResource(R.string.unfolded_controls_with_controller),
+                                        stringResource(R.string.unfolded_controls_with_controller_hint), a.unfoldedControlsWithController,
+                                        chipModifier = focus.track(page, "unfolded-controls-with-controller"),
+                                        onChange = a.onUnfoldedControlsWithController)
                                 }
                             }
                             SettingsGroup(stringResource(R.string.drawer_latency)) {
@@ -804,7 +811,7 @@ private fun DrawerActionButton(text: String, icon: androidx.compose.ui.graphics.
         modifier = modifier.fillMaxWidth().heightIn(min = 52.dp).clip(shape)
             .background(if (hot) pal.signal.copy(alpha = 0.16f) else colors.surfaceVariant)
             .glideBorder(hot, shape, pal.signal)
-            .hoverable(source).clickable(interactionSource = source, indication = LocalIndication.current, onClick = onClick)
+            .hoverable(source).clickable(role = androidx.compose.ui.semantics.Role.Button, interactionSource = source, indication = LocalIndication.current, onClick = onClick)
             .controllerConfirm(onClick = onClick).padding(horizontal = 16.dp, vertical = 10.dp),
     ) {
         Icon(icon, contentDescription = null, tint = colors.onBackground, modifier = Modifier.size(22.dp))
@@ -841,7 +848,7 @@ private fun StopSessionButton(modifier: Modifier = Modifier, onClick: () -> Unit
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
         modifier = modifier.heightIn(min = 44.dp).semantics { contentDescription = stopDescription }.testTag("drawer-stop")
             .clip(shape).background(fill).glideBorder(hot, shape, colors.error.copy(alpha = 0.9f), colors.error.copy(alpha = 0.55f))
-            .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, onClick = onClick)
+            .hoverable(src).clickable(role = androidx.compose.ui.semantics.Role.Button, interactionSource = src, indication = LocalIndication.current, onClick = onClick)
             .controllerConfirm(onClick = onClick)
             .padding(start = 12.dp, end = 14.dp),
     ) {
@@ -867,7 +874,7 @@ private fun SteamActionPill(
             .clip(shape).background(if (hot) pal.signal.copy(alpha = 0.14f) else Color.Transparent)
             .glideBorder(hot, shape, pal.signal, pal.line)
             .hoverable(interactionSource)
-            .clickable(interactionSource = interactionSource, indication = LocalIndication.current, onClick = onClick)
+            .clickable(role = androidx.compose.ui.semantics.Role.Button, interactionSource = interactionSource, indication = LocalIndication.current, onClick = onClick)
             .controllerConfirm(onClick = onConfirm ?: onClick),
     ) {
         Icon(icon, contentDescription = null, tint = if (hot) pal.signal else colors.onBackground, modifier = Modifier.size(20.dp))
@@ -886,7 +893,7 @@ private fun DrawerBumper(label: String, description: String, modifier: Modifier 
         contentAlignment = Alignment.Center,
         modifier = modifier.size(44.dp).clip(ring)
             .glideBorder(hot, ring, pal.signal)
-            .hoverable(src).clickable(interactionSource = src, indication = null, onClick = onClick)
+            .hoverable(src).clickable(role = androidx.compose.ui.semantics.Role.Button, interactionSource = src, indication = null, onClick = onClick)
             .controllerConfirm(onClick = onClick)
             .semantics { contentDescription = description },
     ) {
@@ -907,7 +914,7 @@ private fun DrawerPageTabs(page: SessionDrawerPage, pages: List<SessionDrawerPag
     val motion = Motion.tw<Float>(340, easing = FastOutSlowInEasing)
     androidx.compose.foundation.layout.BoxWithConstraints(
         contentAlignment = Alignment.Center,
-        modifier = modifier.height(if (compact) 44.dp else 64.dp).clipToBounds(),
+        modifier = modifier.height(if (compact) 44.dp else 64.dp).clipToBounds().selectableGroup(),
     ) {
         val tab = if (compact) 36f else 44f
         val spacing = ((maxWidth.value - tab) / ((count - 1) * (1f + DRAWER_TAB_LEAN_DP / DRAWER_TAB_SPACING_DP))).coerceIn(24f, DRAWER_TAB_SPACING_DP)
@@ -940,7 +947,7 @@ private fun DrawerPageTabs(page: SessionDrawerPage, pages: List<SessionDrawerPag
                         .semantics { contentDescription = pageDescription }
                         .testTag("drawer-tab-${item.name.lowercase()}")
                         .hoverable(source)
-                        .clickable(interactionSource = source, indication = LocalIndication.current, onClick = select)
+                        .selectable(selected = selected, role = androidx.compose.ui.semantics.Role.Tab, interactionSource = source, indication = LocalIndication.current, onClick = select)
                         .controllerConfirm(onClick = select),
                 ) {
                     Icon(item.icon, contentDescription = null, tint = tint, modifier = Modifier.size(if (compact) 22.dp else 30.dp))
@@ -1754,7 +1761,7 @@ private fun ConfirmChoice(label: String, danger: Boolean, enabled: Boolean, modi
             .background(if (hot) accent.copy(alpha = if (danger) 0.18f else 0.14f) else Color.Transparent)
             .glideBorder(hot, shape, accent)
             .hoverable(src)
-            .clickable(interactionSource = src, indication = LocalIndication.current, enabled = enabled, onClick = onClick)
+            .clickable(role = androidx.compose.ui.semantics.Role.Button, interactionSource = src, indication = LocalIndication.current, enabled = enabled, onClick = onClick)
             .controllerConfirm(enabled = enabled, onClick = onClick)
             .padding(horizontal = 16.dp),
     ) {
