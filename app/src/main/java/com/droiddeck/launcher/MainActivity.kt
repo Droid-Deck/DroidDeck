@@ -577,6 +577,7 @@ class MainActivity : ComponentActivity() {
                     .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_RUN)
                     .putExtra(SessionService.EXTRA_PROGRAM, command.program)
                     .putExtra(SessionService.EXTRA_PROGRAM_ARGS, command.args.toTypedArray())
+                    .putExtra(SessionService.EXTRA_GAME_ID, com.droiddeck.launcher.session.NoSteamLaunch.scope(game))
                 when {
                     !SessionState.running -> startSessionOrWait(next)
                     SessionState.stopRequested -> android.widget.Toast.makeText(this, R.string.game_link_session_busy, android.widget.Toast.LENGTH_LONG).show()

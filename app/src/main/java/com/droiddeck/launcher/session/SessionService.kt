@@ -329,6 +329,7 @@ class SessionService : Service() {
         pipTask = false
         SessionState.program = intent?.getStringExtra(EXTRA_PROGRAM)
         SessionState.programArgs = intent?.getStringArrayExtra(EXTRA_PROGRAM_ARGS)?.toList().orEmpty()
+        SessionState.gameId = intent?.getStringExtra(EXTRA_GAME_ID)
         SessionState.steamUi = intent?.getStringExtra(EXTRA_STEAM_UI)
         SessionState.steamUrl = intent?.getStringExtra(EXTRA_STEAM_URL)
         synchronized(stopLock) {
@@ -1922,6 +1923,7 @@ class SessionService : Service() {
         fun start(
             context: Context, mode: String = MODE_STEAM, program: String? = null,
             steamUi: String? = null, steamUrl: String? = null, programArgs: Array<String>? = null,
+            gameId: String? = null,
             displayId: Int = Display.DEFAULT_DISPLAY,
         ) {
             SessionState.activityDisplayId = displayId
@@ -1932,6 +1934,7 @@ class SessionService : Service() {
             if (programArgs != null) intent.putExtra(EXTRA_PROGRAM_ARGS, programArgs)
             if (steamUi != null) intent.putExtra(EXTRA_STEAM_UI, steamUi)
             if (steamUrl != null) intent.putExtra(EXTRA_STEAM_URL, steamUrl)
+            if (gameId != null) intent.putExtra(EXTRA_GAME_ID, gameId)
             if (Build.VERSION.SDK_INT >= 26) context.startForegroundService(intent)
             else context.startService(intent)
         }

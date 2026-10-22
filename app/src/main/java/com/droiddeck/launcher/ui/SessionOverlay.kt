@@ -193,6 +193,7 @@ private class DrawerFocus {
 
 class DrawerActions(
     val steam: Boolean,
+    val direct: Boolean = false,
     val title: String? = null,
     val isHomeApp: Boolean,
     val androidApps: List<HomeApp.LaunchableApp>,
@@ -423,7 +424,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                 ) {
                     Text(a.title ?: if (a.steam) stringResource(R.string.drawer_steam) else stringResource(R.string.drawer_desktop), fontSize = if (short) 18.sp else 20.sp, fontWeight = FontWeight.Bold,
                         color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                    if (a.onSteamMenu != null && a.onQam != null) {
+                    if (a.steam && a.onSteamMenu != null && a.onQam != null) {
                         val qamInteraction = remember { MutableInteractionSource() }
                         var qamStartedOnPress by remember { mutableStateOf(false) }
                         LaunchedEffect(qamInteraction) {
@@ -613,11 +614,11 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                 steamVr = { SteamVrRow(a) })
                         }
                         SessionDrawerPage.GAMES -> {
-                            if (a.steam) SelectedGameProfileGroup(host, a) { key -> focus.track(page, key) }
+                            if (a.steam || a.direct) SelectedGameProfileGroup(host, a) { key -> focus.track(page, key) }
                             Text(stringResource(R.string.fex_next_launch), fontSize = 12.sp,
                                 color = colors.onSurfaceVariant, modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp))
                             TextureFilteringGroup(host, a) { key -> focus.track(page, key) }
-                            if (a.steam) SettingsGroup(stringResource(R.string.game_settings_title)) {
+                            if (a.steam || a.direct) SettingsGroup(stringResource(R.string.game_settings_title)) {
                                 DrawerFexPresetRow(host, a, focus.track(page, "fex"))
                                 DrawerNoSteamRow(host, a, focus.track(page, "no-steam"))
                                 GameEnvironmentRow(

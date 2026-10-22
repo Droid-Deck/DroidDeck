@@ -280,6 +280,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var drawerDefaultProton by mutableStateOf<String?>(null)
     private val drawerComponentMenu by lazy { ComponentsMenu(this, uiHandler) }
     private var drawerGameProfileId by mutableStateOf<Long?>(null)
+
+    private fun noSteamSession(): Boolean = SessionState.mode == SessionService.MODE_RUN &&
+        SessionState.program in setOf(com.droiddeck.launcher.session.NoSteamLaunch.PROTON_RUN, com.droiddeck.launcher.session.NoSteamLaunch.EPIC)
     private val drawerGameInventory = GameProfileInventoryCache<Library.SteamGame>()
     private var drawerGameInventoryRevision = 0L
     private var drawerGameFexPresetSaving by mutableStateOf(false)
@@ -785,6 +788,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 )
                 SessionDrawer(drawerOpen, drawerPage, drawerControllerActive, onPageChange = { drawerPage = it }, a = DrawerActions(
                     steam = SessionState.mode == SessionService.MODE_STEAM,
+                    direct = noSteamSession(),
                     title = if (SessionState.mode == SessionService.MODE_RUN)
                         com.droiddeck.launcher.frontend.Library.nameForProgram(SessionState.program) ?: getString(R.string.session_title_game) else null,
                     isHomeApp = isHomeApp,
@@ -1225,6 +1229,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 val activeAppId = AgentGuest.activeSteamAppId(this, installedAppIds)
                 val selectedSteamAppId = runCatching { AgentGuest.selectedSteamAppId(this) }
                 AgentGuest.selectedOrActiveInstalledSteamAppId(selectedSteamAppId, activeAppId, installedAppIds)
+                    ?: SessionState.gameId?.toLongOrNull()
                     ?: refresh.requestedAppId
             } else {
                 refresh.requestedAppId
@@ -1711,6 +1716,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 intent.getStringExtra(SessionService.EXTRA_STEAM_UI),
                 intent.getStringExtra(SessionService.EXTRA_STEAM_URL),
                 intent.getStringArrayExtra(SessionService.EXTRA_PROGRAM_ARGS),
+                intent.getStringExtra(SessionService.EXTRA_GAME_ID),
                 sessionActivityDisplayId,
             )
         }
