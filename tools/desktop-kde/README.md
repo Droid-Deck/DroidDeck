@@ -22,7 +22,8 @@ through `kwin_wayland_wrapper`. KWin composites in software (QPainter) - the Adr
 DRM device - so games and emulators from the menu go through `droiddeck-gpu`, and Steam goes back
 to the app as a Steam session.
 
-`build-kwin.sh` builds KWin 6.8.0's Wayland executable and library on a native ARM64 runner, using a disposable
+`kwin.env` pins the KWin version shared by the build and packaging jobs. `build-kwin.sh` builds that version's
+Wayland executable and library on a native ARM64 runner, using a disposable
 Arch Linux ARM chroot with every build package signature-checked. It matches the current KWin package
 in Arch Linux ARM even when that repository trails KDE's latest release. The source tarball is pinned
 by SHA-256 from KDE's official source inventory; `patches/0001-respect-nested-desktop-scale.patch`
