@@ -40,6 +40,18 @@ if [ -n "${KDE_KWIN_OVERRIDE:-}" ]; then
   install -m 755 "$KDE_KWIN_OVERRIDE/libkwin.so.6.7.5" "$work/root/usr/lib/libkwin.so.6.7.5"
 fi
 
+if [ -d "$work/root/usr/share/locale" ]; then
+  for dir in "$work/root"/usr/share/locale/*/; do
+    loc=${dir#$work/root/usr/share/locale/}; loc=${loc%/}
+    case $loc in en*) continue ;; esac
+    [ -d "$dir/LC_MESSAGES" ] || continue
+    file=$out/desktop-kde-i18n-$loc.tar.zst
+    tar -C "$work/root" --zstd -cf "$file" "./usr/share/locale/$loc"
+    printf '%s %s %s\n' "$loc" "$(sha256sum "$file" | cut -d' ' -f1)" "$(stat -c %s "$file")"
+  done > "$out/desktop-kde.i18n.txt"
+  echo "i18n: $(wc -l < "$out/desktop-kde.i18n.txt") language packs"
+fi
+
 rm -rf "$work/root/usr/share/doc" "$work/root/usr/share/man" "$work/root/usr/share/info" \
        "$work/root/usr/share/gtk-doc" "$work/root/usr/include" "$work/root/usr/lib/pkgconfig" \
        "$work/root/usr/lib/cmake" "$work/root/usr/share/help"

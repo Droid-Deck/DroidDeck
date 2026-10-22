@@ -95,7 +95,7 @@ scan (`Library.launchableGames`) compares the folder with what was last written 
 (`grid-<slot>` in the game's art folder): a file Steam changed becomes the choice (source Steam),
 a file removed in Steam drops it, and files the shortcuts writer placed itself
 (`.droiddeck-art.json`) are not mistaken for choices. A chosen image is stored as
-`chosen-<slot>-<time>.<ext>`, so a new choice has a new path and shows at once. Installed GOG, Epic and Amazon games get the same rows through `StoreGameArtEditor`.
+`chosen-<slot>-<time>.<ext>`, so a new choice has a new path and shows at once. Installed GOG, Epic, Amazon, Xbox and itch games get the same rows through `StoreGameArtEditor`.
 
 "Adjust logo" (last row of every art editor, `LogoPositionDialog`) shows the game's Background with
 its Logo on top and lets the logo be pinned to one of Steam's five places (top left / top center /

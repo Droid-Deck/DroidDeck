@@ -3,6 +3,7 @@ package com.droiddeck.launcher.frontend
 import android.content.Intent
 import android.net.Uri
 import android.app.Activity
+import com.droiddeck.launcher.LauncherIcon
 import com.droiddeck.launcher.MainActivity
 import com.droiddeck.launcher.frontend.Library
 import org.junit.Assert.assertEquals
@@ -68,10 +69,22 @@ class GameShortcutIntentTest {
         val launch = requireNotNull(shortcut.intent)
         assertEquals("game:8400", shortcut.id)
         assertEquals("Geometry Wars: Retro Evolved", shortcut.shortLabel.toString())
-        assertEquals(MainActivity::class.java.name, shortcut.activity?.className)
+        assertEquals("com.droiddeck.launcher.LauncherDark", shortcut.activity?.className)
+        assertEquals(MainActivity::class.java.name, launch.component?.className)
         assertEquals(Intent.ACTION_VIEW, launch.action)
         assertEquals(Uri.parse("droiddeck://game/8400"), launch.data)
         assertEquals(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP, launch.flags)
+    }
+
+    @Test fun pinnedShortcutFollowsTheLightLauncherIcon() {
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        LauncherIcon.set(activity, LauncherIcon.LIGHT)
+
+        GameShortcuts.pin(activity, Library.SteamGame(8400, "Geometry Wars: Retro Evolved", null, "steam", 8400L))
+
+        val shortcut = activity.getSystemService(android.content.pm.ShortcutManager::class.java).pinnedShortcuts.single()
+        assertEquals(LauncherIcon.LIGHT, LauncherIcon.current(activity))
+        assertEquals("com.droiddeck.launcher.LauncherLight", shortcut.activity?.className)
     }
 
     @Test fun actionCreateShortcutUsesAndroidsShortcutResultIntentApi() {

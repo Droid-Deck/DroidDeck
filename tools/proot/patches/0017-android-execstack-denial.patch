@@ -1,0 +1,82 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: DroidDeck <noreply@droiddeck.invalid>
+Date: Tue, 20 Oct 2026 12:00:00 -0400
+Subject: [PATCH] syscall: work around Android's denial of executable stacks
+
+SELinux denies apps the execstack permission, so the mprotect with
+which ld.so makes the main stack executable for an object whose
+PT_GNU_STACK asks for it fails with EACCES, and the program does not
+start ("cannot enable executable stack as shared object requires:
+Permission denied", libQt5Gui.so.5 in ONLYOFFICE's Flatpak). The
+filter traces mprotect only for that exact request, and a denied one
+answers success: the stack stays non-executable, as Android keeps it.
+---
+diff --git a/src/syscall/exit.c b/src/syscall/exit.c
+index e87b7e1..71b36f5 100644
+--- a/src/syscall/exit.c
++++ b/src/syscall/exit.c
+@@ -25,6 +25,7 @@
+ #include <linux/net.h>   /* SYS_*, */
+ #include <linux/ioctl.h> /* _IOW, */
+ #include <string.h>      /* strlen(3), */
++#include <sys/mman.h>    /* PROT_*, */
+ 
+ #include "cli/note.h"
+ #include "syscall/syscall.h"
+@@ -552,6 +553,13 @@ void translate_syscall_exit(Tracee *tracee)
+ 		if ((int) syscall_result == -EACCES)
+ 			poke_reg(tracee, SYSARG_RESULT, -EPERM);
+ 		goto end;
++
++	case PR_mprotect:
++		if ((int) syscall_result == -EACCES
++		    && (peek_reg(tracee, ORIGINAL, SYSARG_3) & (PROT_EXEC | PROT_GROWSDOWN))
++			== (PROT_EXEC | PROT_GROWSDOWN))
++			poke_reg(tracee, SYSARG_RESULT, 0);
++		goto end;
+ #endif
+ 
+ 	case PR_ioctl:
+diff --git a/src/syscall/seccomp.c b/src/syscall/seccomp.c
+index d9be7b4..fca220b 100644
+--- a/src/syscall/seccomp.c
++++ b/src/syscall/seccomp.c
+@@ -46,6 +46,7 @@
+ #include <asm/termbits.h>
+ #include <linux/fs.h>
+ #include <assert.h>        /* assert(3), */
++#include <sys/mman.h>      /* PROT_*, */
+ 
+ #include "syscall/seccomp.h"
+ #include "tracee/tracee.h"
+@@ -316,6 +317,10 @@ static size_t trace_length_raw(Sysnum sysnum)
+ 		return LENGTH_TRACE_PRLIMIT_STACK;
+ 	case PR_ioctl:
+ 		return LENGTH_TRACE_IOCTL;
++#ifdef __ANDROID__
++	case PR_mprotect:
++		return LENGTH_TRACE_SYSCALL_IF_ARG;
++#endif
+ 	default:
+ 		return LENGTH_TRACE_SYSCALL;
+ 	}
+@@ -335,6 +340,11 @@ static int add_trace(struct sock_fprog *program, Sysnum sysnum, word_t syscall,
+ 		return add_trace_prlimit_stack(program, syscall, flag);
+ 	case PR_ioctl:
+ 		return add_trace_ioctl_requests(program, syscall, flag);
++#ifdef __ANDROID__
++	case PR_mprotect:
++		return add_trace_syscall_if_arg(program, syscall, 2,
++			PROT_READ | PROT_WRITE | PROT_EXEC | PROT_GROWSDOWN, flag);
++#endif
+ 	default:
+ 		return add_trace_syscall(program, syscall, flag);
+ 	}
+@@ -599,6 +609,7 @@ static FilteredSysnum proot_sysnums[] = {
+ 	{ PR_lstat64,		0 },
+ #ifdef __ANDROID__
+ 	{ PR_memfd_create,	0 },
++	{ PR_mprotect,		FILTER_SYSEXIT },
+ #endif
+ 	{ PR_mkdir,		0 },
+ 	{ PR_mkdirat,		0 },

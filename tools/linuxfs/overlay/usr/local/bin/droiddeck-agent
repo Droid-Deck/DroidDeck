@@ -23,6 +23,7 @@ import json
 import math
 import re
 import os
+import select
 import selectors
 import signal
 import socket
@@ -532,6 +533,151 @@ def cdp_eval(agent_dir, expression, target=None, await_promise=True, timeout=15)
         ws.close()
 
 
+KEYBOARD_BINDING = "droiddeckSteamKeyboard"
+KEYBOARD_CHECK_SECONDS = 30
+KEYBOARD_JS = r"""
+(() => {
+  const self = window.__droiddeckKeyboard || (window.__droiddeckKeyboard = { watched: new WeakSet(), last: null });
+  self.check = () => {
+    let showing = false;
+    for (const win of Array.from(globalThis.SteamUIStore?.WindowStore?.SteamUIWindows || [])) {
+      const value = win?.VirtualKeyboardManager?.IsShowingVirtualKeyboard;
+      if (!value) continue;
+      if (!self.watched.has(value) && typeof value.Subscribe === "function") {
+        self.watched.add(value);
+        value.Subscribe(() => setTimeout(() => self.check()));
+      }
+      if (value.m_currentValue === true) showing = true;
+    }
+    if (showing !== self.last) {
+      self.last = showing;
+      if (typeof window.__BINDING__ === "function") window.__BINDING__(String(showing));
+    }
+    return showing;
+  };
+  self.timer = self.timer || setInterval(() => self.check(), 500);
+  return self.check();
+})()
+""".replace("__BINDING__", KEYBOARD_BINDING)
+
+
+class KeyboardWatcher(threading.Thread):
+    def __init__(self, agent_dir):
+        super().__init__(daemon=True, name="keyboard")
+        self.agent_dir = agent_dir
+        self.path = agent_dir / "keyboard.json"
+        self.showing = None
+        self.seq = 0
+        self.next_id = 0
+        self.attached = False
+
+    def report(self, showing):
+        if showing == self.showing:
+            return
+        self.showing = showing
+        self.seq += 1
+        write_json(self.path, {"steamKeyboard": showing, "seq": self.seq})
+
+    def run(self):
+        failures, last = 0, None
+        while True:
+            try:
+                self.watch()
+            except Exception as e:
+                if self.attached:
+                    log("Steam keyboard: lost the client (%s); reattaching" % e)
+                    failures = 0
+                elif str(e) != last:
+                    log("Steam keyboard: waiting for the client (%s)" % e)
+                self.attached = False
+                last = str(e)
+            self.report(False)
+            failures += 1
+            time.sleep(min(2 * failures, 10))
+
+    def watch(self):
+        targets = [t for t in cdp_targets(self.agent_dir)
+                   if t.get("title") == "SharedJSContext" and t.get("webSocketDebuggerUrl")]
+        if not targets:
+            raise AgentError("NO_TARGET", "No SharedJSContext yet")
+        ws = WebSocket(targets[0]["webSocketDebuggerUrl"], 5)
+        try:
+            self.call(ws, "Runtime.addBinding", {"name": KEYBOARD_BINDING})
+            self.report(self.install(ws))
+            self.attached = True
+            while True:
+                if not ws.buffer and not select.select([ws.s], [], [], KEYBOARD_CHECK_SECONDS)[0]:
+                    self.report(self.install(ws))
+                    continue
+                self.event(json.loads(ws.recv()))
+        finally:
+            ws.close()
+
+    def install(self, ws):
+        result = self.call(ws, "Runtime.evaluate", {"expression": KEYBOARD_JS, "returnByValue": True})
+        if result.get("exceptionDetails"):
+            raise AgentError("JS_EXCEPTION", json.dumps(result["exceptionDetails"])[:500])
+        return result.get("result", {}).get("value") is True
+
+    def call(self, ws, method, params):
+        self.next_id += 1
+        ws.send(json.dumps({"id": self.next_id, "method": method, "params": params}))
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
+            message = json.loads(ws.recv())
+            if message.get("id") == self.next_id:
+                if "error" in message:
+                    raise AgentError("CDP_ERROR", json.dumps(message["error"]))
+                return message.get("result", {})
+            self.event(message)
+        raise AgentError("TIMEOUT", "No answer to %s from DevTools" % method)
+
+    def event(self, message):
+        params = message.get("params") or {}
+        if message.get("method") == "Runtime.bindingCalled" and params.get("name") == KEYBOARD_BINDING:
+            self.report(params.get("payload") == "true")
+
+
+def steam_idle_inhibit(agent_dir, inhibit):
+    expression = """(async want => {
+        const toggle = () => new Promise(done => {
+            let handle = null;
+            let timer = null;
+            const finish = value => {
+                clearTimeout(timer);
+                handle?.unregister?.();
+                done(value);
+            };
+            timer = setTimeout(() => finish(null), 2500);
+            handle = SteamClient.Console.RegisterForSpewOutput(entry => {
+                const found = /Suspend inhibit: ([01])/.exec(entry?.spew || "");
+                if (found) finish(found[1] === "1");
+            });
+            SteamClient.Console.ExecCommand("toggle_idle_suspend_inhibit 1");
+        });
+        let state = await toggle();
+        if (state === !want) state = await toggle();
+        return state === want;
+    })(%s)""" % ("true" if inhibit else "false")
+    return cdp_eval(agent_dir, expression, timeout=12).get("value") is True
+
+
+def steam_idle_suspend_seconds(agent_dir, vpower=Path("/run/vpower/ac_status")):
+    expression = """(() => {
+        const settings = globalThis.settingsStore?.clientSettings;
+        return settings ? [settings.system_idle_suspend_ac_sec, settings.system_idle_suspend_battery_sec] : null;
+    })()"""
+    seconds = cdp_eval(agent_dir, expression, await_promise=False, timeout=5).get("value")
+    if not isinstance(seconds, list) or len(seconds) != 2:
+        return None
+    try:
+        on_ac = vpower.read_text().strip() != "Disconnected"
+    except OSError:
+        on_ac = True
+    value = seconds[0 if on_ac else 1]
+    return max(0, int(value)) if isinstance(value, (int, float)) else None
+
+
 def steam_selection(agent_dir, timeout=5):
     result = cdp_eval(
         agent_dir,
@@ -878,6 +1024,8 @@ def serve(agent_dir, focus=True, poll=0.1):
     can_focus = focus and bool(os.environ.get("DISPLAY"))
     if can_focus:
         FocusWatcher(agent_dir / "focus.json").start()
+    if focus:
+        KeyboardWatcher(agent_dir).start()
     write_json(agent_dir / "hello.json", {"pid": os.getpid(), "version": VERSION, "started": int(time.time() * 1000),
                                           "displays": displays(), "focus": can_focus})
     log("serving %s (focus %s)" % (agent_dir, "on" if can_focus else "off"))
@@ -912,6 +1060,24 @@ def main(argv):
             return 3
         print("droiddeck-agent: Steam overview is ready for shortcut app %d" % prepared["appId"])
         return 0
+    if argv and argv[0] == "--steam-supports-vr":
+        if len(argv) != 2 or not argv[1].isascii() or not argv[1].isdecimal():
+            print("usage: droiddeck-agent --steam-supports-vr <appid>", file=sys.stderr)
+            return 2
+        # Optional-VR games (Thumper, VRChat) carry vr_supported without vr_only.
+        expression = ("(o => o ? (o.vr_supported === true || o.vr_only === true) : null)"
+                      "(window.appStore?.GetAppOverviewByGameID?.(%s))" % json.dumps(argv[1]))
+        value = None
+        deadline = time.monotonic() + 12  # Steam's UI is busiest while a game starts.
+        while value is None and time.monotonic() < deadline:
+            try:
+                value = cdp_eval(Path(base) / "agent", expression, await_promise=False, timeout=8).get("value")
+            except (AgentError, OSError, ValueError):
+                pass
+            if value is None:
+                time.sleep(0.5)
+        print({True: "yes", False: "no"}.get(value, "unknown"))
+        return {True: 0, False: 5}.get(value, 1)
     if argv and argv[0] == "--steam-asleep":
         expression = """(() => {
             const store = globalThis.SuspendResumeStore;
@@ -923,6 +1089,26 @@ def main(argv):
             state = "unknown"
         print(state)
         return {"yes": 0, "no": 5}.get(state, 1)
+    if argv and argv[0] == "--steam-idle-inhibit":
+        if len(argv) != 2 or argv[1] not in ("on", "off"):
+            print("usage: droiddeck-agent --steam-idle-inhibit on|off", file=sys.stderr)
+            return 2
+        try:
+            done = steam_idle_inhibit(Path(base) / "agent", argv[1] == "on")
+        except (AgentError, OSError, ValueError) as error:
+            print("droiddeck-agent: could not reach the client's idle sleep: %s" % error, file=sys.stderr)
+            return 1
+        return 0 if done else 1
+    if argv and argv[0] == "--steam-idle-suspend-seconds":
+        try:
+            seconds = steam_idle_suspend_seconds(Path(base) / "agent")
+        except (AgentError, OSError, ValueError) as error:
+            print("droiddeck-agent: could not read the client's idle sleep: %s" % error, file=sys.stderr)
+            return 1
+        if seconds is None:
+            return 1
+        print(seconds)
+        return 0
     if argv and argv[0] == "--steam-shortcut-state":
         if len(argv) not in (2, 3):
             print("usage: droiddeck-agent --steam-shortcut-state <cgameid> [timeout-seconds]", file=sys.stderr)

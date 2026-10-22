@@ -13,8 +13,6 @@ import com.google.mediapipe.tasks.core.BaseOptions
 import com.google.mediapipe.tasks.core.Delegate
 import com.google.mediapipe.tasks.vision.core.RunningMode
 import com.google.mediapipe.tasks.vision.handlandmarker.HandLandmarker
-import java.nio.ByteBuffer
-import java.nio.ByteOrder
 import kotlin.math.hypot
 import kotlin.math.max
 
@@ -134,7 +132,6 @@ internal class HandModel private constructor(private val landmarkers: List<HandL
         hypot(fix.x - marks[WRISTS[side]].x * k.width, fix.y - marks[WRISTS[side]].y * k.height)
 
     companion object {
-        private const val MODEL = "handtracking/hand_landmarker.task"
         private val WRISTS = intArrayOf(BodyPose.LEFT_WRIST, BodyPose.RIGHT_WRIST)
         private val PINKIES = intArrayOf(BodyPose.LEFT_PINKY, BodyPose.RIGHT_PINKY)
         private val INDEXES = intArrayOf(BodyPose.LEFT_INDEX, BodyPose.RIGHT_INDEX)
@@ -153,10 +150,9 @@ internal class HandModel private constructor(private val landmarkers: List<HandL
         private const val MIN_CONFIDENCE = 0.4f
 
         fun open(context: Context): HandModel {
-            val bytes = context.assets.open(MODEL).use { it.readBytes() }
+            check(TrackingPack.loadNative(context)) { "hand tracking download is not installed" }
             fun landmarker(mode: RunningMode, hands: Int): HandLandmarker {
-                val model = ByteBuffer.allocateDirect(bytes.size).order(ByteOrder.nativeOrder()).put(bytes)
-                model.rewind()
+                val model = TrackingPack.model(context, TrackingPack.HAND)
                 return HandLandmarker.createFromOptions(context, HandLandmarker.HandLandmarkerOptions.builder()
                     .setBaseOptions(BaseOptions.builder().setModelAssetBuffer(model).setDelegate(Delegate.CPU).build())
                     .setRunningMode(mode)

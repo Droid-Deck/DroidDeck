@@ -10,6 +10,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.Animatable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material.icons.outlined.Folder
@@ -24,10 +25,12 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.layout.boundsInParent
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.positionInRoot
 import com.droiddeck.launcher.stores.StoreInstallRoot
+import com.droiddeck.launcher.stores.StoreLanguage
 import com.droiddeck.launcher.stores.epic.EpicClient
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -37,6 +40,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import android.view.KeyEvent
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.draw.drawWithContent
@@ -65,6 +69,8 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import kotlin.math.roundToInt
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -90,6 +96,7 @@ import androidx.compose.material.icons.automirrored.filled.Login
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material.icons.filled.ViewList
+import androidx.compose.material.icons.filled.ViewModule
 import com.droiddeck.launcher.stores.sortCatalogItems
 import com.droiddeck.launcher.stores.retainCatalogOrder
 import androidx.compose.foundation.layout.widthIn
@@ -115,6 +122,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -136,7 +144,9 @@ import com.droiddeck.launcher.frontend.Library
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.stores.CatalogItem
 import com.droiddeck.launcher.stores.Store
+import com.droiddeck.launcher.stores.StoreTab
 import com.droiddeck.launcher.stores.StoresState
+import com.droiddeck.launcher.stores.arrangeStoreTabs
 import com.droiddeck.launcher.stores.download.DownloadStage
 import com.droiddeck.launcher.stores.download.DownloadState
 import com.droiddeck.launcher.stores.formatBytes
@@ -148,32 +158,103 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 
 private const val DOWNLOADS = "downloads"
 
-private val TABS = listOf("store", "library", "installed")
+private val TABS = listOf("library", "store")
 
-internal fun tabsFor(store: Store?): List<String> = if (store == Store.AMAZON) TABS.drop(1) else TABS
+internal fun tabsFor(store: Store?): List<String> = if (store == Store.AMAZON) TABS.take(1) else TABS
 
 internal fun tabFor(store: Store?, tab: String): String = if (tab in tabsFor(store)) tab else "library"
 
-private data class PaneKey(val chip: String, val tab: String, val signedIn: Boolean)
+private data class PaneKey(val chip: String, val tab: String, val signedIn: Boolean, val accountsLoaded: Boolean)
 
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class, androidx.compose.animation.ExperimentalAnimationApi::class)
 @Composable
 internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier) {
     val ctx = LocalContext.current
+    com.droiddeck.launcher.stores.xbox.XboxContent.plan?.let { content ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { com.droiddeck.launcher.stores.xbox.XboxContent.dismiss() },
+            title = { Text("Xbox content") },
+            text = { Column {
+                if (content.error != null) Text(content.error)
+                else if (content.offers.isEmpty()) Text("No licensed PC content packages are available for this game.")
+                content.offers.forEach { offer ->
+                    androidx.compose.material3.TextButton(onClick = { com.droiddeck.launcher.stores.xbox.XboxContent.install(ctx, offer.item) }) {
+                        Text(offer.item.title + if (offer.installed) " · Update / verify" else " · Install")
+                    }
+                }
+            } },
+            confirmButton = { androidx.compose.material3.TextButton(onClick = { com.droiddeck.launcher.stores.xbox.XboxContent.dismiss() }) { Text(stringResource(android.R.string.ok)) } },
+        )
+    }
+    com.droiddeck.launcher.stores.xbox.XboxBackend.packageChoice?.let { pending ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { com.droiddeck.launcher.stores.xbox.XboxBackend.dismissPackages() },
+            title = { Text("Choose PC content") },
+            text = { Column { pending.choices.forEach { choice ->
+                androidx.compose.material3.TextButton(onClick = { com.droiddeck.launcher.stores.xbox.XboxBackend.selectPackage(ctx, choice) }) {
+                    Text(choice.getString("title") + " (" + choice.getString("kind") + ")")
+                }
+            } } },
+            confirmButton = {},
+            dismissButton = { androidx.compose.material3.TextButton(onClick = { com.droiddeck.launcher.stores.xbox.XboxBackend.dismissPackages() }) { Text(stringResource(android.R.string.cancel)) } },
+        )
+    }
     val colors = MaterialTheme.colorScheme
     val narrow = LocalNarrowPane.current
     val padH = if (narrow) 14.dp else 22.dp
-    var chip by rememberSaveable { mutableStateOf(Store.GOG.id) }
+    val tabs = remember {
+        androidx.compose.runtime.mutableStateListOf<StoreTab>().apply {
+            addAll(arrangeStoreTabs(SessionPrefs.storesTabOrder(ctx), SessionPrefs.storesTabHidden(ctx)))
+        }
+    }
+    var chip by rememberSaveable { mutableStateOf(tabs.firstOrNull { it.shown }?.store?.id ?: Store.GOG.id) }
+    var arranging by remember { mutableStateOf(false) }
+    val shownStores = tabs.filter { it.shown }.map { it.store }
+    fun commitTabs() {
+        SessionPrefs.setStoresTabOrder(ctx, tabs.map { it.store.id })
+        SessionPrefs.setStoresTabHidden(ctx, tabs.filterNot { it.shown }.map { it.store.id }.toSet())
+    }
+    fun shiftTab(store: Store, delta: Int) {
+        val from = tabs.indexOfFirst { it.store == store }
+        val to = from + delta
+        if (from < 0 || to !in tabs.indices) return
+        tabs.add(to, tabs.removeAt(from))
+        commitTabs()
+    }
+    fun moveTab(store: Store, to: Int) {
+        val from = tabs.indexOfFirst { it.store == store }
+        if (from < 0) return
+        val target = to.coerceIn(0, tabs.lastIndex)
+        if (target == from) return
+        tabs.add(target, tabs.removeAt(from))
+        commitTabs()
+    }
+    fun toggleTab(store: Store) {
+        val i = tabs.indexOfFirst { it.store == store }
+        if (i < 0) return
+        val show = !tabs[i].shown
+        if (!show && tabs.count { it.shown } <= 1) return
+        tabs[i] = tabs[i].copy(shown = show)
+        commitTabs()
+    }
+    LaunchedEffect(tabs.map { it.store to it.shown }, chip) {
+        val picked = Store.byId(chip) ?: return@LaunchedEffect
+        if (tabs.none { it.store == picked && it.shown }) chip = tabs.firstOrNull { it.shown }?.store?.id ?: chip
+    }
     var tab by rememberSaveable { mutableStateOf(if (SessionPrefs.storesOpenTab(ctx) == SessionPrefs.STORES_OPEN_STORE) "store" else "library") }
     var query by rememberSaveable { mutableStateOf("") }
     var openGame by rememberSaveable { mutableStateOf<String?>(null) }
     val liveState = androidx.compose.runtime.rememberUpdatedState(s)
     LaunchedEffect(StoresState.openDownloads) { if (StoresState.openDownloads) { chip = DOWNLOADS; StoresState.openDownloads = false } }
     val store = Store.byId(chip)
+    LaunchedEffect(tabs.toList()) {
+        if (chip != DOWNLOADS && Store.byId(chip) !in shownStores) chip = shownStores.firstOrNull()?.id ?: DOWNLOADS
+    }
     val shownTab = tabFor(store, tab)
     val pane = PaneKey(
         chip, if (store == null) "" else shownTab,
         store == null || (StoresState.isSignedIn(store) && StoresState.expired[store] != true),
+        store == null || StoresState.accountsLoaded,
     )
     val grids = remember { HashMap<PaneKey, LazyGridState>() }
     val grid = grids.getOrPut(pane) { LazyGridState() }
@@ -214,43 +295,26 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
         }
     }
     val pal = LocalPalette.current
-    fun openModes(st: Store, at: Rect?) {
-        if (chip != st.id) { pickChip(st.id); return }
-        if (at == null || !StoresState.isSignedIn(st) || StoresState.expired[st] == true) { move("first"); return }
-        val modes = tabsFor(st)
-        val current = if (chip == st.id) shownTab else null
-        var picked = false
-        StoresMotion.ask(StepAsk(
-            anchor = at, side = StepSide.Right, accent = storePalette(pal, st).signal, items = modes.size,
-            onDismiss = { move(if (picked) "first" else "item:storechip:${st.id}") },
-            handle = { ChipLabel(st, MaterialTheme.colorScheme.onBackground) },
-        ) {
-            StoreTheme(st) {
-                val library = StoresState.library[st].orEmpty()
-                val installedCount = remember(StoresState.installed, library) { com.droiddeck.launcher.stores.installedCards(st, StoresState.installed, library).size }
-                StepList {
-                    modes.forEachIndexed { i, m ->
-                        val label = when (m) {
-                            "store" -> stringResource(R.string.stores_tab_store)
-                            "installed" -> stringResource(R.string.stores_tab_count, stringResource(R.string.stores_tab_installed), installedCount)
-                            else -> stringResource(R.string.stores_tab_count, stringResource(R.string.stores_tab_library), library.size)
-                        }
-                        val focusHere = if (current != null) m == current else i == 0
-                        StepChoice(
-                            label, selected = m == current, enabled = open,
-                            modifier = Modifier.fillMaxWidth().stepItem(i).then(if (focusHere) Modifier.focusRequester(first) else Modifier),
-                        ) {
-                            picked = true
-                            if (chip != st.id) { chip = st.id; openGame = null; query = "" }
-                            tab = m
-                            StoresMotion.fold()
-                        }
-                    }
-                }
-            }
-        })
+    fun cycleStore(step: Int) {
+        val ids = tabs.filter { it.shown }.map { it.store.id }
+        if (ids.isEmpty()) return
+        val at = ids.indexOf(chip)
+        pickChip(ids[if (at < 0) (if (step > 0) 0 else ids.size - 1) else (at + step + ids.size) % ids.size])
+    }
+    fun openModes(st: Store) {
+        if (chip != st.id) pickChip(st.id) else move("first")
     }
     BackHandler(enabled = openGame != null) { closeGame() }
+    BackHandler(enabled = arranging) { arranging = false }
+    LaunchedEffect(arranging) {
+        val focus = ff ?: return@LaunchedEffect
+        if (!arranging || inputMode.inputMode != androidx.compose.ui.input.InputMode.Keyboard) return@LaunchedEffect
+        repeat(45) {
+            androidx.compose.runtime.withFrameNanos { }
+            val req = tabs.firstOrNull()?.let { focus.items["storechip:${it.store.id}"] } ?: return@repeat
+            if (runCatching { req.requestFocus() }.isSuccess) return@LaunchedEffect
+        }
+    }
     val scroll = rememberScrollState()
     val detailScroll = rememberScrollState()
     LaunchedEffect(chip, tab) { scroll.scrollTo(0); grid.scrollToItem(0) }
@@ -326,14 +390,32 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
     Column(
         modifier = Modifier.fillMaxSize().padding(horizontal = padH, vertical = if (narrow) 10.dp else 14.dp)
             .bumpers(
-                onPrevious = { if (openGame == null && chip != DOWNLOADS) { val t = tabsFor(store); switchTab(t[(t.indexOf(shownTab) + t.size - 1) % t.size]) } },
-                onNext = { if (openGame == null && chip != DOWNLOADS) { val t = tabsFor(store); switchTab(t[(t.indexOf(shownTab) + 1) % t.size]) } },
+                onPrevious = {
+                    val picked = Store.byId(focusedChip)
+                    if (arranging) { if (picked != null) shiftTab(picked, -1) }
+                    else if (openGame == null) cycleStore(-1)
+                },
+                onNext = {
+                    val picked = Store.byId(focusedChip)
+                    if (arranging) { if (picked != null) shiftTab(picked, 1) }
+                    else if (openGame == null) cycleStore(1)
+                },
             ),
     ) {
         Box(Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
             StoreTheme(Store.byId(focusedChip ?: chip)) {
-                Rise(0) { StoreChips(chip, focusedChip, s.storeDownloadsActive, onStore = { st, at -> openModes(st, at) }, onDownloads = { if (chip != DOWNLOADS) pickChip(DOWNLOADS) else move("first") },
-                    onFocusChip = { focusedChip = it }, onSettings = { at -> if (at != null) StoresMotion.ask(storesSettingsStep(at, liveState, a, pal.signal)) }) }
+                Rise(0) {
+                    StoreChips(
+                        chip, focusedChip, s.storeDownloadsActive, tabs, arranging,
+                        onStore = { st -> openModes(st) },
+                        onDownloads = { if (chip != DOWNLOADS) pickChip(DOWNLOADS) else move("first") },
+                        onFocusChip = { focusedChip = it },
+                        onArrangeDone = { arranging = false },
+                        onMoveTab = { st, to -> moveTab(st, to) },
+                        onToggleTab = { toggleTab(it) },
+                        onSettings = { at -> if (at != null) StoresMotion.ask(storesSettingsStep(at, liveState, a, pal.signal) { arranging = true }) },
+                    )
+                }
             }
         }
         val fade = with(androidx.compose.ui.platform.LocalDensity.current) { 14.dp.toPx() }
@@ -389,8 +471,11 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
                                 when {
                                     k.chip == DOWNLOADS -> Column(Modifier.fillMaxWidth().verticalScroll(scroll).padding(top = 4.dp, bottom = 16.dp)) { StoresDownloadsPane(s, a) }
                                     st == null -> {}
+                                    !k.accountsLoaded -> Box(Modifier.fillMaxWidth().padding(top = 16.dp)) {
+                                        androidx.compose.material3.LinearProgressIndicator(Modifier.fillMaxWidth().height(3.dp))
+                                    }
                                     !k.signedIn -> Box(Modifier.fillMaxWidth().verticalScroll(scroll).padding(top = 4.dp, bottom = 16.dp)) { SignInCard(st, viewportH - 20.dp) }
-                                    else -> Storefront(st, k.tab, query, s, a, grids.getOrPut(k) { LazyGridState() }, onQuery = { query = it }, onOpen = { open(it) })
+                                    else -> Storefront(st, k.tab, query, s, a, grids.getOrPut(k) { LazyGridState() }, onQuery = { query = it }, onOpen = { open(it) }, onTab = { switchTab(it) })
                                 }
                               }
                           }
@@ -459,7 +544,10 @@ private fun InstallWhere(item: CatalogItem) {
     val ctx = LocalContext.current
     val pal = LocalPalette.current
     val from = remember(item) { StoresMotion.recentInstall() }
-    if (from == null) { InstallWhereDialog(item) { StoresState.pendingInstall = null }; return }
+    if (from == null || StoreLanguage.selectable(item.store)) {
+        InstallWhereDialog(item) { StoresState.pendingInstall = null }
+        return
+    }
     val title = stringResource(R.string.stores_install_title, item.title)
     val internalLabel = stringResource(R.string.stores_target_internal)
     val label = StoresMotion.installLabel
@@ -541,53 +629,149 @@ private fun SignInFloodLayer(hostAt: Offset) {
 }
 
 
+private class ChipDrag {
+    var store by mutableStateOf<Store?>(null)
+    var from by mutableIntStateOf(-1)
+    var target by mutableIntStateOf(-1)
+    var x by mutableFloatStateOf(0f)
+}
+
+@Composable
+private fun StoreDot(store: Store, signedIn: Boolean) {
+    val c = sourceColours(store.id)
+    Box(
+        Modifier.size(12.dp)
+            .onGloballyPositioned { StoresMotion.dots[store] = it.boundsInRoot() }
+            .pulseRing(StoresMotion.pulses[store] ?: 0, c.dot)
+            .background(c.dot.copy(alpha = if (signedIn) 1f else 0.35f), CircleShape),
+    )
+}
+
+@Composable
+private fun RowScope.ArrangeStoreChip(
+    tab: StoreTab, index: Int, last: Int, gapPx: Float, drag: ChipDrag,
+    onFocusChip: (String?) -> Unit, onMoveTab: (Store, Int) -> Unit, onToggleTab: (Store) -> Unit,
+) {
+    val store = tab.store
+    val box = remember(store) { mutableFloatStateOf(0f) }
+    val pitch = box.floatValue + gapPx
+    val held = drag.store == store
+    val lift by animateFloatAsState(if (held) 1f else 0f, Motion.sp(0.7f, Spring.StiffnessMediumLow), label = "chipLift")
+    val shift by animateFloatAsState(
+        when {
+            drag.store == null || held -> 0f
+            drag.from < index && drag.target >= index -> -pitch
+            drag.from > index && drag.target <= index -> pitch
+            else -> 0f
+        },
+        Motion.sp(0.6f, Spring.StiffnessMediumLow), label = "chipShift",
+    )
+    val pill = remember { RoundedCornerShape(99.dp) }
+    val signedIn = StoresState.isSignedIn(store) && StoresState.expired[store] != true
+    fun reset() {
+        drag.store = null
+        drag.from = -1
+        drag.target = -1
+        drag.x = 0f
+    }
+    fun commit() {
+        val from = drag.from
+        val to = drag.target
+        reset()
+        if (from >= 0 && to >= 0 && to != from) onMoveTab(store, to)
+    }
+    StoreChip(
+        label = store.shortLabel, on = false, under = false, key = store.id, mark = sourceColours(store.id).dot, lift = lift,
+        modifier = Modifier.weight(1f)
+            .zIndex(if (held) 2f else 0f)
+            .onSizeChanged { box.floatValue = it.width.toFloat() }
+            .graphicsLayer {
+                translationX = if (held) drag.x else shift
+                shadowElevation = 14.dp.toPx() * lift
+                shape = pill
+                clip = false
+            }
+            .pointerInput(store, index) {
+                detectDragGestures(
+                    onDragStart = {
+                        drag.store = store
+                        drag.from = index
+                        drag.target = index
+                        drag.x = 0f
+                    },
+                    onDragEnd = { commit() },
+                    onDragCancel = { reset() },
+                ) { change, amount ->
+                    change.consume()
+                    val step = box.floatValue + gapPx
+                    if (step <= 0f) return@detectDragGestures
+                    drag.x = (drag.x + amount.x).coerceIn(-drag.from * step, (last - drag.from) * step)
+                    drag.target = (drag.from + (drag.x / step).roundToInt()).coerceIn(0, last)
+                }
+            }
+            .alpha(if (tab.shown) 1f else 0.32f),
+        lead = { StoreDot(store, signedIn) },
+        onFocused = onFocusChip,
+    ) { onToggleTab(store) }
+}
+
 @Composable
 private fun StoreChips(
-    selected: String, focused: String?, active: Int, onStore: (Store, Rect?) -> Unit, onDownloads: () -> Unit, onSettings: (Rect?) -> Unit,
-    onFocusChip: (String?) -> Unit,
+    selected: String, focused: String?, active: Int, tabs: List<StoreTab>, arranging: Boolean,
+    onStore: (Store) -> Unit, onDownloads: () -> Unit, onSettings: (Rect?) -> Unit, onFocusChip: (String?) -> Unit,
+    onArrangeDone: () -> Unit, onMoveTab: (Store, Int) -> Unit, onToggleTab: (Store) -> Unit,
 ) {
     val pal = LocalPalette.current
-    val keys = Store.entries.map { it.id } + DOWNLOADS
+    val keys = tabs.filter { it.shown }.map { it.store.id } + DOWNLOADS
     val bounds = remember { androidx.compose.runtime.mutableStateMapOf<String, Rect>() }
     val rootBounds = remember { HashMap<String, Rect>() }
     val highlighted = focused ?: selected
     val inputMode = androidx.compose.ui.platform.LocalInputModeManager.current.inputMode
-    val fillShown = inputMode != androidx.compose.ui.input.InputMode.Keyboard
+    val fillShown = inputMode != androidx.compose.ui.input.InputMode.Keyboard && !arranging
     val tint = androidx.compose.animation.animateColorAsState(
         Store.byId(highlighted)?.let { sourceColours(it.id).dot } ?: pal.signal, Motion.tw(160), label = "chipTint",
     )
+    val gap = 8.dp
+    val gapPx = with(androidx.compose.ui.platform.LocalDensity.current) { gap.toPx() }
+    val drag = remember { ChipDrag() }
     Box(Modifier.fillMaxWidth()) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-            for (store in Store.entries) {
-                val signedIn = StoresState.isSignedIn(store) && StoresState.expired[store] != true
-                StoreChip(
-                    label = store.shortLabel, on = selected == store.id, under = fillShown && highlighted == store.id, key = store.id, mark = sourceColours(store.id).dot,
-                    modifier = Modifier.weight(1f).onGloballyPositioned { bounds[store.id] = it.boundsInParent(); rootBounds[store.id] = it.boundsInRoot() },
-                    lead = {
-                        val c = sourceColours(store.id)
-                        Box(
-                            Modifier.size(12.dp)
-                                .onGloballyPositioned { StoresMotion.dots[store] = it.boundsInRoot() }
-                                .pulseRing(StoresMotion.pulses[store] ?: 0, c.dot),
-                        ) { Box(Modifier.matchParentSize().clip(CircleShape).background(c.dot).alpha(if (signedIn) 1f else 0.35f)) }
-                    },
-                    description = store.label + if (signedIn) "" else " " + stringResource(R.string.stores_chip_signed_out),
-                    onFocused = onFocusChip,
-                ) { onStore(store, rootBounds[store.id]) }
+        Row(horizontalArrangement = Arrangement.spacedBy(gap), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            for (tab in tabs) {
+                val store = tab.store
+                if (arranging) {
+                    val index = tabs.indexOfFirst { it.store == store }
+                    key(store) { ArrangeStoreChip(tab, index, tabs.lastIndex, gapPx, drag, onFocusChip, onMoveTab, onToggleTab) }
+                } else if (tab.shown) {
+                    val signedIn = StoresState.isSignedIn(store) && StoresState.expired[store] != true
+                    key(store) {
+                        StoreChip(
+                            label = store.shortLabel, on = selected == store.id, under = fillShown && highlighted == store.id, key = store.id, mark = sourceColours(store.id).dot,
+                            modifier = Modifier.weight(1f).onGloballyPositioned { bounds[store.id] = it.boundsInParent(); rootBounds[store.id] = it.boundsInRoot() },
+                            lead = { StoreDot(store, signedIn) },
+                            description = store.label + if (signedIn || !StoresState.accountsLoaded) "" else " " + stringResource(R.string.stores_chip_signed_out),
+                            onFocused = onFocusChip,
+                        ) { onStore(store) }
+                    }
+                }
             }
-            StoreChip(
-                label = stringResource(R.string.stores_tab_downloads), on = selected == DOWNLOADS, under = fillShown && highlighted == DOWNLOADS, key = DOWNLOADS, mark = pal.signal,
-                modifier = Modifier.weight(1f).onGloballyPositioned {
-                    bounds[DOWNLOADS] = it.boundsInParent()
-                    StoresMotion.downloadsChip = it.boundsInRoot()
-                },
-                lead = { Icon(Icons.Outlined.Download, null, modifier = Modifier.size(18.dp)) },
-                trail = if (active > 0) { { CountPill(active) } } else null,
-                onFocused = onFocusChip,
-            ) { onDownloads() }
-            var cogAt by remember { mutableStateOf<Rect?>(null) }
-            Box(Modifier.onGloballyPositioned { cogAt = it.boundsInRoot() }) {
-                IconChip(Icons.Filled.Settings, stringResource(R.string.stores_settings)) { onSettings(cogAt) }
+            if (arranging) {
+                IconChip(Icons.Filled.Check, stringResource(R.string.stores_tabs_arrange_done)) { onArrangeDone() }
+            } else {
+                StoreChip(
+                    label = null, on = selected == DOWNLOADS, under = fillShown && highlighted == DOWNLOADS, key = DOWNLOADS, mark = pal.signal,
+                    modifier = Modifier.onGloballyPositioned {
+                        bounds[DOWNLOADS] = it.boundsInParent()
+                        StoresMotion.downloadsChip = it.boundsInRoot()
+                    },
+                    lead = { Icon(Icons.Outlined.Download, null, modifier = Modifier.size(18.dp)) },
+                    trail = if (active > 0) { { CountPill(active) } } else null,
+                    description = stringResource(R.string.stores_tab_downloads),
+                    onFocused = onFocusChip,
+                ) { onDownloads() }
+                var cogAt by remember { mutableStateOf<Rect?>(null) }
+                Box(Modifier.onGloballyPositioned { cogAt = it.boundsInRoot() }) {
+                    IconChip(Icons.Filled.Settings, stringResource(R.string.stores_settings)) { onSettings(cogAt) }
+                }
             }
         }
         ChipGlide(keys.indexOf(highlighted), bounds[highlighted], tint, visible = fillShown)
@@ -596,8 +780,8 @@ private fun StoreChips(
 
 @Composable
 private fun StoreChip(
-    label: String, on: Boolean, under: Boolean, key: String, mark: Color, modifier: Modifier, lead: @Composable () -> Unit,
-    trail: (@Composable () -> Unit)? = null, description: String? = null,
+    label: String?, on: Boolean, under: Boolean, key: String, mark: Color, modifier: Modifier, lead: @Composable () -> Unit,
+    trail: (@Composable () -> Unit)? = null, description: String? = null, lift: Float = 0f,
     onFocused: (String?) -> Unit = {}, onClick: () -> Unit,
 ) {
     val inputMode = androidx.compose.ui.platform.LocalInputModeManager.current
@@ -622,10 +806,10 @@ private fun StoreChip(
                 if (f.isFocused && inputMode.inputMode == androidx.compose.ui.input.InputMode.Keyboard) onFocused(key)
                 else if (!f.isFocused) onFocused(null)
             }
-            .heightIn(min = 44.dp).graphicsLayer { scaleX = scale; scaleY = scale }.clip(shape)
-            .background(if (under) Color.Transparent else colors.surface)
+            .heightIn(min = 44.dp).graphicsLayer { scaleX = scale * (1f + 0.08f * lift); scaleY = scale * (1f + 0.08f * lift) }.clip(shape)
+            .background(if (under) Color.Transparent else lerp(colors.surface, pal.signal, 0.18f * lift))
             .shownBar(on, mark)
-            .glideBorder(hot, shape, pal.signal, if (under) Color.Transparent else pal.line)
+            .glideBorder(hot, shape, pal.signal, if (under) Color.Transparent else lerp(pal.line, pal.signal, lift))
             .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Tab, onClick = onClick)
             .controllerConfirm(onClick = onClick)
             .then(if (description != null) Modifier.semantics { contentDescription = description } else Modifier)
@@ -634,7 +818,7 @@ private fun StoreChip(
         androidx.compose.runtime.CompositionLocalProvider(androidx.compose.material3.LocalContentColor provides ink) {
             Box(Modifier.pulseRing(picked, mark), contentAlignment = Alignment.Center) { lead() }
         }
-        Text(label, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        if (label != null) Text(label, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
         trail?.invoke()
     }
 }
@@ -724,11 +908,16 @@ private fun SignInButton(store: Store, large: Boolean = false) {
     val ctx = LocalContext.current
     val colors = MaterialTheme.colorScheme
     val placed = remember { arrayOfNulls<androidx.compose.ui.layout.LayoutCoordinates>(1) }
+    var askKey by remember { mutableStateOf(false) }
+    if (askKey) ItchKeyDialog { askKey = false }
     Box(Modifier.onGloballyPositioned { placed[0] = it }) {
         PrimaryButton(stringResource(R.string.stores_signin), main = true, large = large, icon = if (large) Icons.AutoMirrored.Filled.Login else null) {
-            val at = placed[0]?.takeIf { it.isAttached }?.boundsInRoot()
-            if (at == null || Motion.scale == 0f || StoresMotion.signIn != null) StoresState.signIn(ctx, store)
-            else StoresMotion.signIn = SignInFlood(store, at, colors.primary, sourceColours(store.id).dot)
+            if (store == Store.ITCH) askKey = true
+            else {
+                val at = placed[0]?.takeIf { it.isAttached }?.boundsInRoot()
+                if (at == null || Motion.scale == 0f || StoresMotion.signIn != null) StoresState.signIn(ctx, store)
+                else StoresMotion.signIn = SignInFlood(store, at, colors.primary, sourceColours(store.id).dot)
+            }
         }
     }
 }
@@ -746,20 +935,22 @@ internal fun StoreLogo(store: Store, size: Dp) {
 private fun Storefront(
     store: Store, tab: String, query: String, s: FrontEndState, a: FrontEndActions,
     grid: LazyGridState,
-    onQuery: (String) -> Unit, onOpen: (String) -> Unit,
+    onQuery: (String) -> Unit, onOpen: (String) -> Unit, onTab: (String) -> Unit,
 ) {
     val ctx = LocalContext.current
     val colors = MaterialTheme.colorScheme
     val library = StoresState.library[store] ?: emptyList()
     val shelves = StoresState.shelves[store]
+    val found = StoresState.found[store] ?: emptyList()
     val installedItems = remember(StoresState.installed, library) { com.droiddeck.launcher.stores.installedCards(store, StoresState.installed, library) }
     val installedKeys = remember(installedItems) { installedItems.map { it.id }.toSet() + StoresState.installed.filter { it.sidecar.store == store }.map { it.sidecar.id } }
     val q = query.trim().lowercase()
-    fun matches(i: CatalogItem) = q.isEmpty() || i.title.lowercase().contains(q)
-    fun shown(i: CatalogItem) = s.storesShowMature || !i.mature || i.owned
+    val foundKeys = remember(found) { found.map { it.key }.toSet() }
+    fun matches(i: CatalogItem) = q.isEmpty() || i.title.lowercase().contains(q) || i.key in foundKeys
+    fun shown(i: CatalogItem) = s.storesShowMature || !i.mature || i.accessible
     fun shelf(l: List<CatalogItem>?) = l?.filter(::shown)
-    val everything = remember(library, shelves) { (library + (shelves?.all ?: emptyList())).distinctBy { it.id } }
-    val installedOnly = tab == "installed"
+    val everything = remember(library, shelves, found) { (found + library + (shelves?.all ?: emptyList())).distinctBy { it.id } }
+    LaunchedEffect(store, q) { StoresState.search(ctx, store, q) }
     val loaded = StoresState.library.containsKey(store)
     val showGrid = tab != "store" || q.isNotEmpty()
     val sort = s.storesSort
@@ -773,63 +964,45 @@ private fun Storefront(
         val lookup: (CatalogItem) -> Long = { i -> byKey[i.key] ?: 0L }
         lookup
     }
-    val isSizeSort = (tab == "library" || tab == "installed") && (sort == "sizeAsc" || sort == "sizeDesc")
-    val candidates = remember(library, installedItems, everything, tab, q, s.storesShowMature) {
-        when (tab) {
-            "library" -> library.filter(::matches)
-            "installed" -> installedItems.filter(::matches)
-            else -> everything.filter { matches(it) && shown(it) }
-        }
+    val isSizeSort = tab == "library" && (sort == "sizeAsc" || sort == "sizeDesc")
+    val candidates = remember(library, everything, tab, q, s.storesShowMature) {
+        if (tab == "library") library.filter(::matches) else everything.filter { matches(it) && shown(it) }
     }
     val candidateKeys = remember(candidates) { candidates.map { it.key } }
     var resolvedSizeSortKey by remember(store, tab) { mutableStateOf<List<String>?>(null) }
     val sizeSortPending = isSizeSort && resolvedSizeSortKey != candidateKeys
     var stableVisible by remember(store, tab) { mutableStateOf(emptyList<CatalogItem>()) }
-    val resolvedSizes = when {
-        !isSizeSort -> emptyMap<String, Long>()
-        installedOnly -> com.droiddeck.launcher.stores.StoreSizes.onDisk.toMap()
-        else -> com.droiddeck.launcher.stores.StoreSizes.known.toMap()
-    }
-    val sizeFor = remember(resolvedSizes, installedOnly) {
+    val resolvedSizes = if (isSizeSort) com.droiddeck.launcher.stores.StoreSizes.known.toMap() else emptyMap()
+    val sizeFor = remember(resolvedSizes) {
         val resolved = resolvedSizes
-        val lookup: (CatalogItem) -> Long = { item ->
-            resolved[item.key] ?: if (installedOnly) 0L else item.sizeBytes
-        }
+        val lookup: (CatalogItem) -> Long = { item -> resolved[item.key] ?: item.sizeBytes }
         lookup
     }
-    val sortedVisible = remember(candidates, tab, sort, lastPlayedFor, installedAtFor, sizeFor) {
-        if (tab == "library" || tab == "installed")
-            sortCatalogItems(candidates, sort, lastPlayed = lastPlayedFor, installedAt = installedAtFor, size = sizeFor)
+    val sortedVisible = remember(candidates, tab, sort, lastPlayedFor, installedAtFor, sizeFor, installedKeys) {
+        if (tab == "library") installedFirst(sortCatalogItems(candidates, sort, lastPlayed = lastPlayedFor, installedAt = installedAtFor, size = sizeFor), installedKeys)
         else candidates
     }
     val visible = remember(sizeSortPending, candidates, stableVisible, sortedVisible) {
         if (sizeSortPending) retainCatalogOrder(candidates, stableVisible) else sortedVisible
     }
+    val installedShown = if (tab == "library") visible.count { it.id in installedKeys } else 0
+    val split = installedShown.takeIf { it in 1 until visible.size } ?: 0
     SideEffect {
         if (!sizeSortPending && stableVisible != sortedVisible) stableVisible = sortedVisible
     }
     LaunchedEffect(store, tab, sort, candidates, candidateKeys) {
         if (!isSizeSort || resolvedSizeSortKey == candidateKeys) return@LaunchedEffect
         val requests = candidates.map { item ->
-            val future: CompletableFuture<Long?> = if (tab == "installed") {
-                StoresState.installedGame(store, item.id)?.let {
-                    com.droiddeck.launcher.stores.StoreSizes.resolveDisk(ctx, item.key, it)
-                } ?: CompletableFuture.completedFuture<Long?>(null)
-            } else {
-                com.droiddeck.launcher.stores.StoreSizes.resolve(ctx, item)
-            }
-            item to future
+            item to com.droiddeck.launcher.stores.StoreSizes.resolve(ctx, item)
         }
         CompletableFuture.allOf(*requests.map { it.second }.toTypedArray()).await()
         requests.forEach { (item, future) ->
             val bytes = future.getNow(null) ?: return@forEach
-            if (tab == "installed") com.droiddeck.launcher.stores.StoreSizes.onDisk[item.key] = bytes
-            else if (item.owned && item.sizeBytes <= 0) com.droiddeck.launcher.stores.StoreSizes.known[item.key] = bytes
+            if (item.accessible && item.sizeBytes <= 0) com.droiddeck.launcher.stores.StoreSizes.known[item.key] = bytes
         }
         resolvedSizeSortKey = candidateKeys
     }
     val empty = stringResource(when {
-        installedOnly -> R.string.stores_installed_empty
         tab == "library" && library.isEmpty() && StoresState.status[store] != null -> R.string.stores_library_loading
         else -> R.string.stores_nothing_matches
     })
@@ -838,9 +1011,14 @@ private fun Storefront(
     val density = androidx.compose.ui.platform.LocalDensity.current
     val focus = LocalFrontFocus.current
     val scope = rememberCoroutineScope()
-    val headerItems = 1 + (if (sizeSortPending) 1 else 0) +
-        (if (StoresState.status[store] != null) 1 else 0) + (if (StoresState.problems[store] != null) 1 else 0)
-    val listMode = s.storesView == "list" && (tab == "library" || tab == "installed")
+    // A bar only where the tab has nothing else on it: shelves, the shelf of owned games, or a grid still loading.
+    val gridEmpty = if (showGrid) visible.isEmpty() else (shelves == null || shelves.isEmpty) && library.isEmpty()
+    val barLine = StoresState.status[store]?.takeIf { gridEmpty && syncCount(it) != null }
+    val headerItems = 1 + (if (sizeSortPending) 1 else 0) + (if (barLine != null) 1 else 0) +
+        (if (StoresState.problems[store] != null) 1 else 0)
+    val listMode = s.storesView == "list" && tab == "library"
+    val capsules = s.storesView == "capsules" && tab == "library"
+    val tileWidth = if (capsules) CapsuleWidth else CardWidth
     val card: @Composable (CatalogItem) -> Unit = { item ->
         val first = if (showGrid) item.key == visible.firstOrNull()?.key else !firstPlaced
         firstPlaced = true
@@ -852,14 +1030,14 @@ private fun Storefront(
                 else -> 0
             }
             val index = visible.indexOfFirst { it.key == item.key }
-            val next = storeGridNeighbor(index, visible.size, if (listMode) 1 else columns, direction)
+            val next = storeGridNeighbor(index, visible.size, if (listMode) 1 else columns, direction, split)
             when {
                 direction == 0 || index < 0 -> false
                 next == null -> direction > 0
                 else -> {
                     if (key.action == KeyEvent.ACTION_DOWN) {
                         val target = "card:${visible[next].key}"
-                        val targetIndex = headerItems + next
+                        val targetIndex = headerItems + next + if (split == 0) 0 else if (next < split) 1 else 2
                         val visibleTarget = grid.layoutInfo.visibleItemsInfo.any { it.index == targetIndex }
                         if (!visibleTarget || (focus.attached[target] ?: 0) == 0 ||
                             runCatching { focus.items.getValue(target).requestFocus() }.isFailure) scope.launch {
@@ -872,12 +1050,12 @@ private fun Storefront(
             }
         }
         if (listMode) GameListRow(item, store, installedKeys, onOpen, first, navigation)
-        else GameCard(item, store, s, a, installedKeys, onOpen, first, navigation)
+        else GameCard(item, store, s, a, installedKeys, onOpen, first, navigation, capsule = capsules)
     }
     LazyVerticalGrid(
-        columns = if (listMode) GridCells.Fixed(1) else GridCells.Adaptive(CardWidth), state = grid, modifier = Modifier.fillMaxSize().focusGroup().onSizeChanged {
+        columns = if (listMode) GridCells.Fixed(1) else GridCells.Adaptive(tileWidth), state = grid, modifier = Modifier.fillMaxSize().focusGroup().onSizeChanged {
             val gap = with(density) { 10.dp.roundToPx() }
-            val minimum = with(density) { (if (listMode) CardWidth * 2 else CardWidth).roundToPx() }
+            val minimum = with(density) { (if (listMode) CardWidth * 2 else tileWidth).roundToPx() }
             columns = ((it.width + gap) / (minimum + gap)).toInt().coerceAtLeast(1)
         },
         horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -885,21 +1063,19 @@ private fun Storefront(
     ) {
         item(key = "header", span = { GridItemSpan(maxLineSpan) }) {
             Rise(1) {
+                val tabs = tabsFor(store)
+                val libraryLabel = if (loaded) stringResource(R.string.stores_tab_count, stringResource(R.string.stores_tab_library), library.size)
+                    else stringResource(R.string.stores_tab_library)
                 ModeHeader(
-                    when {
-                        tab == "store" -> stringResource(R.string.stores_tab_store)
-                        !loaded -> stringResource(if (installedOnly) R.string.stores_tab_installed else R.string.stores_tab_library)
-                        installedOnly -> stringResource(R.string.stores_tab_count, stringResource(R.string.stores_tab_installed), installedItems.size)
-                        else -> stringResource(R.string.stores_tab_count, stringResource(R.string.stores_tab_library), library.size)
-                    },
+                    libraryLabel,
                     query, onQuery,
-                    placeholder = when {
-                        tab == "store" -> stringResource(R.string.stores_search_catalog, store.label)
-                        installedOnly -> stringResource(R.string.stores_search_installed)
-                        else -> stringResource(R.string.stores_search_library)
-                    },
+                    placeholder = if (tab == "store") stringResource(R.string.stores_search_catalog, store.label) else stringResource(R.string.stores_search_library),
+                    lead = if (tabs.size < 2) null else { {
+                        val labels = tabs.map { if (it == "store") stringResource(R.string.stores_tab_store) else libraryLabel }
+                        HeaderTabs(labels, tabs.indexOf(tab).coerceAtLeast(0)) { onTab(tabs[it]) }
+                    } },
                 ) {
-                    if (tab == "library" || tab == "installed") {
+                    if (tab == "library") {
                         SortButton(s, a)
                         ViewButton(s, a)
                     }
@@ -922,11 +1098,17 @@ private fun Storefront(
                 Text(stringResource(R.string.store_section_loading), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-        StoresState.status[store]?.let { line -> item(key = "sync", span = { GridItemSpan(maxLineSpan) }) { Rise(3) { SyncBar(line) } } }
+        barLine?.let { line -> item(key = "sync", span = { GridItemSpan(maxLineSpan) }) { Rise(3) { SyncBar(line) } } }
         StoresState.problems[store]?.let { line -> item(key = "problem", span = { GridItemSpan(maxLineSpan) }) { Rise(3) { Box(Modifier.padding(bottom = 8.dp)) { Note(line) } } } }
         when (tab) {
-            "library", "installed" -> if (!loaded) Unit
-                else storeGrid(visible, empty, card)
+            "library" -> if (!loaded) Unit
+                else if (split == 0) storeGrid(visible, empty, card)
+                else {
+                    item(key = "installed-label", span = { GridItemSpan(maxLineSpan) }) { SectionLabel(stringResource(R.string.stores_section_installed)) }
+                    storeGrid(visible.take(split), empty, card)
+                    item(key = "not-installed-label", span = { GridItemSpan(maxLineSpan) }) { SectionLabel(stringResource(R.string.stores_section_not_installed)) }
+                    storeGrid(visible.drop(split), empty, card)
+                }
             else -> {
                 if (q.isNotEmpty()) storeGrid(visible, empty, card)
                 else {
@@ -956,14 +1138,49 @@ private suspend fun <T> CompletableFuture<T>.await(): T =
     }
 
 @Composable
-internal fun ModeHeader(title: String, query: String, onQuery: (String) -> Unit, placeholder: String, trailing: @Composable () -> Unit) {
+private fun SectionLabel(title: String) {
+    Text(
+        headingUppercase(title), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp,
+        color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.fillMaxWidth().padding(top = 6.dp, start = 2.dp),
+    )
+}
+
+@Composable
+private fun HeaderTabs(labels: List<String>, selected: Int, onSelect: (Int) -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    val shape = RoundedCornerShape(8.dp)
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        labels.forEachIndexed { i, label ->
+            val src = remember { MutableInteractionSource() }
+            val hot = rememberHot(src)
+            val pick = { onSelect(i) }
+            Text(
+                label, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1,
+                color = if (i == selected || hot) colors.onBackground else colors.onSurfaceVariant.copy(alpha = 0.7f),
+                modifier = Modifier.clip(shape).glideBorder(hot, shape, pal.signal)
+                    .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Tab, onClick = pick)
+                    .controllerConfirm(onClick = pick)
+                    .padding(horizontal = 4.dp, vertical = 6.dp),
+            )
+        }
+    }
+}
+
+@Composable
+internal fun ModeHeader(
+    title: String, query: String, onQuery: (String) -> Unit, placeholder: String,
+    lead: (@Composable () -> Unit)? = null, trailing: @Composable () -> Unit,
+) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     var searching by remember { mutableStateOf(query.isNotEmpty()) }
+    var focusOnOpen by remember { mutableStateOf(false) }
     val open by animateFloatAsState(if (searching) 1f else 0f, Motion.sp(0.75f, 420f), label = "searchOpen")
     Column(Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp).padding(vertical = 4.dp)) {
-            Text(
+            if (lead != null) lead()
+            else Text(
                 title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, maxLines = 1,
                 modifier = Modifier.padding(start = 4.dp, end = 4.dp),
             )
@@ -973,23 +1190,15 @@ internal fun ModeHeader(title: String, query: String, onQuery: (String) -> Unit,
                     Box(Modifier.width(w).graphicsLayer { alpha = (open * 1.6f).coerceAtMost(1f) }) {
                         AdbTextField(
                             value = query, onValueChange = onQuery, label = "", keyboardType = KeyboardType.Text, imeAction = ImeAction.Search,
-                            placeholder = placeholder, compact = true, focusOnShow = true,
-                            onFocusChange = { focused -> if (!focused && query.isEmpty()) searching = false },
+                            placeholder = placeholder, compact = true, focusOnShow = focusOnOpen,
+                            onFocusChange = { focused -> if (!focused && query.isEmpty()) { searching = false; focusOnOpen = false } },
                         )
                     }
-                } else SearchIcon(stringResource(R.string.stores_search_open)) { searching = true }
+                } else SearchIcon(stringResource(R.string.stores_search_open)) { searching = true; focusOnOpen = true }
             }
             trailing()
         }
         Box(Modifier.fillMaxWidth().height(1.dp).background(pal.line))
-    }
-}
-
-@Composable
-private fun ChipLabel(store: Store, ink: Color) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Box(Modifier.size(12.dp).clip(CircleShape).background(sourceColours(store.id).dot))
-        Text(store.shortLabel, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = ink, maxLines = 1)
     }
 }
 
@@ -998,6 +1207,8 @@ internal fun storePalette(base: Palette, store: Store?): Palette {
         Store.GOG -> Color(0xFFC25BC8) to Color(0xFF9A3FA1)
         Store.EPIC -> Color(0xFFE6E6E6) to Color(0xFFBDBDBD)
         Store.AMAZON -> Color(0xFFFF9900) to Color(0xFFE07800)
+        Store.XBOX -> Color(0xFF70C850) to Color(0xFF107C10)
+        Store.ITCH -> Color(0xFFFF5C5C) to Color(0xFFD93B3B)
         null -> return base
     }
     val on = if (accent.luminance() > 0.18f) Color(0xFF0B0B0D) else Color.White
@@ -1101,12 +1312,13 @@ private fun SortButton(s: FrontEndState, a: FrontEndActions) {
 
 @Composable
 private fun ViewButton(s: FrontEndState, a: FrontEndActions) {
-    val list = s.storesView == "list"
+    val views = SessionPrefs.STORES_VIEWS
+    val next = views[(views.indexOf(s.storesView) + 1) % views.size]
     HeaderIconButton(
-        if (list) stringResource(R.string.stores_view_cards) else stringResource(R.string.stores_view_list),
-        if (list) Icons.Filled.GridView else Icons.Filled.ViewList,
+        stringResource(when (next) { "capsules" -> R.string.stores_view_capsules; "list" -> R.string.stores_view_list; else -> R.string.stores_view_cards }),
+        when (next) { "capsules" -> Icons.Filled.ViewModule; "list" -> Icons.Filled.ViewList; else -> Icons.Filled.GridView },
         "view",
-    ) { a.onStoresView(if (list) "cards" else "list") }
+    ) { a.onStoresView(next) }
 }
 
 @Composable
@@ -1218,6 +1430,11 @@ private fun Shelf(title: String, items: List<CatalogItem>?, card: @Composable (C
     }
 }
 
+internal fun installedFirst(items: List<CatalogItem>, installed: Set<String>): List<CatalogItem> {
+    val (on, off) = items.partition { it.id in installed }
+    return on + off
+}
+
 private fun LazyGridScope.storeGrid(games: List<CatalogItem>, empty: String, card: @Composable (CatalogItem) -> Unit) {
     if (games.isEmpty()) item(key = "empty", span = { GridItemSpan(maxLineSpan) }) {
         Box(Modifier.padding(vertical = 32.dp).fillMaxWidth(), contentAlignment = Alignment.Center) {
@@ -1228,9 +1445,13 @@ private fun LazyGridScope.storeGrid(games: List<CatalogItem>, empty: String, car
 }
 
 private val CardWidth = 112.dp
+private val CapsuleWidth = 92.dp
 
 @Composable
-private fun GameCard(item: CatalogItem, store: Store, s: FrontEndState, a: FrontEndActions, installedKeys: Set<String>, onOpen: (String) -> Unit, first: Boolean = false, navigation: Modifier = Modifier) {
+private fun GameCard(
+    item: CatalogItem, store: Store, s: FrontEndState, a: FrontEndActions, installedKeys: Set<String>, onOpen: (String) -> Unit,
+    first: Boolean = false, navigation: Modifier = Modifier, capsule: Boolean = false,
+) {
     val ctx = LocalContext.current
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
@@ -1243,7 +1464,8 @@ private fun GameCard(item: CatalogItem, store: Store, s: FrontEndState, a: Front
     val placed = remember { arrayOfNulls<androidx.compose.ui.layout.LayoutCoordinates>(1) }
     val corner = with(androidx.compose.ui.platform.LocalDensity.current) { 10.dp.toPx() }
     val open = {
-        placed[0]?.takeIf { it.isAttached }?.let { StoresMotion.markCard(CardMark(item.key, it.boundsInRoot(), corner, item.imageUrl ?: item.tallImageUrl)) }
+        val art = if (capsule) item.tallImageUrl ?: item.imageUrl else item.imageUrl ?: item.tallImageUrl
+        placed[0]?.takeIf { it.isAttached }?.let { StoresMotion.markCard(CardMark(item.key, it.boundsInRoot(), corner, art)) }
         onOpen(item.key)
     }
     val screen = with(androidx.compose.ui.platform.LocalDensity.current) { androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp.toPx() }
@@ -1252,7 +1474,7 @@ private fun GameCard(item: CatalogItem, store: Store, s: FrontEndState, a: Front
         modifier = Modifier.fillMaxWidth()
             .onGloballyPositioned { c ->
                 placed[0] = c
-                if (item.owned && item.sizeBytes <= 0) {
+                if (item.accessible && item.sizeBytes <= 0) {
                     val b = c.boundsInWindow()
                     if (b.bottom > -ahead && b.top < screen + ahead && b.width > 0f) com.droiddeck.launcher.stores.StoreSizes.request(ctx, item)
                 }
@@ -1261,38 +1483,67 @@ private fun GameCard(item: CatalogItem, store: Store, s: FrontEndState, a: Front
             .clip(RoundedCornerShape(10.dp)).glideBorder(hot, RoundedCornerShape(10.dp), pal.signal, pal.line)
             .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, onClick = open).controllerConfirm(onClick = open),
     ) {
-        CardFace(item, download, hot) { CardMarker(item, installed, download) }
+        CardFace(item, download, hot, capsule) { CardMarker(item, installed, download, compact = capsule) }
     }
+}
+
+private fun syncCount(line: String): Pair<Int, Int>? {
+    val match = Regex("(\\d+)\\s*/\\s*(\\d+)").find(line) ?: return null
+    val done = match.groupValues[1].toIntOrNull() ?: return null
+    val total = match.groupValues[2].toIntOrNull()?.takeIf { it > 0 } ?: return null
+    return done to total
 }
 
 @Composable
 private fun SyncBar(line: String) {
-    val count = Regex("(\\d+)\\s*/\\s*(\\d+)").find(line)
-    val done = count?.groupValues?.get(1)?.toIntOrNull()
-    val total = count?.groupValues?.get(2)?.toIntOrNull()?.takeIf { it > 0 }
+    val count = syncCount(line) ?: return
+    val done = count.first
+    val total = count.second
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
-        Box(Modifier.weight(1f)) {
-            if (done != null && total != null) androidx.compose.material3.LinearProgressIndicator(progress = { (done.toFloat() / total).coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth().height(3.dp))
-            else androidx.compose.material3.LinearProgressIndicator(modifier = Modifier.fillMaxWidth().height(3.dp))
-        }
-        if (done != null && total != null) Text("$done/$total", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+        Box(Modifier.weight(1f)) { androidx.compose.material3.LinearProgressIndicator(progress = { (done.toFloat() / total).coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth().height(3.dp)) }
+        Text("$done/$total", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
     }
 }
 
 private val CardStrip = 26.dp
 
+@Composable
+internal fun cardArtRequest(url: String?, cover: String?): coil.request.ImageRequest? {
+    val ctx = LocalContext.current
+    val under = cover?.takeIf { it != url }
+    return remember(url, under) {
+        url?.let { coil.request.ImageRequest.Builder(ctx).data(it).apply { if (under != null) placeholderMemoryCacheKey(under) }.build() }
+    }
+}
+
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-private fun CardFace(item: CatalogItem, download: com.droiddeck.launcher.stores.download.DownloadEntry?, hot: Boolean, marker: @Composable () -> Unit) {
-    val url = item.imageUrl ?: item.tallImageUrl
+private fun CardFace(
+    item: CatalogItem, download: com.droiddeck.launcher.stores.download.DownloadEntry?, hot: Boolean, capsule: Boolean = false,
+    marker: @Composable () -> Unit,
+) {
+    val url = if (capsule) item.tallImageUrl ?: item.imageUrl else item.imageUrl ?: item.tallImageUrl
+    val art = cardArtRequest(url, item.tallImageUrl)
     val blurs = android.os.Build.VERSION.SDK_INT >= 31
+    var landscape by remember(url) { mutableStateOf(false) }
     BoxWithConstraints(Modifier.fillMaxWidth()) {
-        val total = maxWidth * 9f / 16f + CardStrip
+        val total = if (capsule) maxWidth * 7f / 5f + CardStrip else maxWidth * 9f / 16f + CardStrip
         Box(Modifier.fillMaxWidth().height(total).background(Color(0xFF101318)).then(if (url == null) Modifier.background(artBrush(hueOf(item.title))) else Modifier)) {
-            if (url != null) AsyncImage(model = url, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
+            if (art != null && capsule && landscape) {
+                // Stores without portrait covers (itch) would lose most of the art to a portrait crop.
+                AsyncImage(model = art, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize().blur(24.dp))
+                Spacer(Modifier.matchParentSize().background(Color.Black.copy(alpha = if (blurs) 0.35f else 0.7f)))
+                AsyncImage(model = art, contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.matchParentSize().padding(bottom = CardStrip))
+            } else if (art != null) AsyncImage(
+                model = art, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize(),
+                onSuccess = { r ->
+                    val drawn = r.result.drawable
+                    if (capsule && drawn.intrinsicWidth > 0 && drawn.intrinsicHeight > 0) landscape = drawn.intrinsicWidth > drawn.intrinsicHeight * 0.95f
+                },
+            )
             Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(CardStrip).clipToBounds()) {
-                if (url != null) AsyncImage(
-                    model = url, contentDescription = null, contentScale = ContentScale.Crop,
+                if (art != null) AsyncImage(
+                    model = art, contentDescription = null, contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxWidth().wrapContentHeight(Alignment.Bottom, unbounded = true).height(total).blur(24.dp),
                 )
                 Spacer(Modifier.matchParentSize().background(Color.Black.copy(alpha = if (blurs) 0.45f else 0.7f)))
@@ -1317,7 +1568,7 @@ private fun CardFace(item: CatalogItem, download: com.droiddeck.launcher.stores.
 }
 
 @Composable
-private fun CardMarker(item: CatalogItem, installed: Boolean, download: com.droiddeck.launcher.stores.download.DownloadEntry?) {
+private fun CardMarker(item: CatalogItem, installed: Boolean, download: com.droiddeck.launcher.stores.download.DownloadEntry?, compact: Boolean = false) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val small = 10.sp
@@ -1325,13 +1576,14 @@ private fun CardMarker(item: CatalogItem, installed: Boolean, download: com.droi
         installed -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
             val ctx = LocalContext.current
             val game = StoresState.installedGame(item.store, item.id)
-            if (game != null) androidx.compose.runtime.LaunchedEffect(item.key) { com.droiddeck.launcher.stores.StoreSizes.requestDisk(ctx, item.key, game) }
-            com.droiddeck.launcher.stores.StoreSizes.onDisk[item.key]?.let { Text(formatBytes(it), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1) }
+            if (game != null && !compact) androidx.compose.runtime.LaunchedEffect(item.key) { com.droiddeck.launcher.stores.StoreSizes.requestDisk(ctx, item.key, game) }
+            if (!compact) com.droiddeck.launcher.stores.StoreSizes.onDisk[item.key]?.let { Text(formatBytes(it), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1) }
             Icon(Icons.Filled.Check, stringResource(R.string.stores_installed_chip), tint = pal.good, modifier = Modifier.size(11.dp))
         }
         download != null -> Text("${download.percent}%", fontSize = small, fontWeight = FontWeight.Bold, color = pal.signal, maxLines = 1)
-        item.owned && StoresState.isUnfinished(item) -> Text(stringResource(R.string.stores_resume), fontSize = small, fontWeight = FontWeight.Bold, color = pal.signal, maxLines = 1)
-        item.owned -> com.droiddeck.launcher.stores.StoreSizes.size(item).takeIf { it > 0 }?.let { Text(formatBytes(it), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1) }
+        item.accessible && StoresState.isUnfinished(item) -> Text(stringResource(R.string.stores_resume), fontSize = small, fontWeight = FontWeight.Bold, color = pal.signal, maxLines = 1)
+        item.accessible && compact -> Unit
+        item.accessible -> com.droiddeck.launcher.stores.StoreSizes.size(item).takeIf { it > 0 }?.let { Text(formatBytes(it), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1) }
         item.isFree -> Text(stringResource(R.string.stores_free), fontSize = small, fontWeight = FontWeight.Bold, color = pal.good, maxLines = 1)
         item.isDiscounted -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             StateChip("-${item.discountPercent}%", ChipTone.DEAL, small = true)
@@ -1344,9 +1596,10 @@ private fun CardMarker(item: CatalogItem, installed: Boolean, download: com.droi
 @Composable
 internal fun CardArt(item: CatalogItem, modifier: Modifier) {
     val url = item.imageUrl ?: item.tallImageUrl
+    val art = cardArtRequest(url, item.tallImageUrl)
     val colors = MaterialTheme.colorScheme
     Box(modifier.background(colors.surfaceVariant).then(if (url == null) Modifier.background(artBrush(hueOf(item.title))) else Modifier)) {
-        if (url != null) AsyncImage(model = url, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
+        if (art != null) AsyncImage(model = art, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
         else Text(item.title, fontSize = 10.sp, fontWeight = FontWeight.Black, color = Color.White, maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.align(Alignment.BottomStart).padding(6.dp))
         Spacer(Modifier.matchParentSize().background(androidx.compose.ui.graphics.Brush.verticalGradient(0.6f to Color.Transparent, 1f to colors.surface.copy(alpha = 0.85f))))
     }
@@ -1407,9 +1660,16 @@ internal fun openUrl(ctx: android.content.Context, url: String) {
 
 internal fun launchStoreGame(ctx: android.content.Context, store: Store, id: String, s: FrontEndState, a: FrontEndActions) {
     val game = s.steamGames.firstOrNull { it.source == store.id && it.storeId == id }
-    if (game == null) {
-        android.widget.Toast.makeText(ctx, R.string.stores_launch_not_registered, android.widget.Toast.LENGTH_LONG).show()
+    if (game != null) {
+        com.droiddeck.launcher.stores.StoreLaunch.prepare(ctx, store, id) { a.onSteamGame(game) }
         return
     }
-    com.droiddeck.launcher.stores.StoreLaunch.prepare(ctx, store, id) { a.onSteamGame(game) }
+    val app = ctx.applicationContext
+    Thread({
+        val installed = runCatching { com.droiddeck.launcher.stores.StoreLaunch.installedGame(app, store, id) }.getOrNull()
+        StoresState.post {
+            if (installed == null) android.widget.Toast.makeText(ctx, R.string.stores_launch_not_registered, android.widget.Toast.LENGTH_LONG).show()
+            else com.droiddeck.launcher.stores.StoreLaunch.prepare(ctx, store, id) { a.onSteamGame(installed) }
+        }
+    }, "store-play").start()
 }

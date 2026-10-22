@@ -10,6 +10,7 @@ import android.graphics.BitmapFactory
 import android.graphics.drawable.Icon
 import android.net.Uri
 import android.widget.Toast
+import com.droiddeck.launcher.LauncherIcon
 import com.droiddeck.launcher.MainActivity
 import com.droiddeck.launcher.R
 import java.io.File
@@ -23,7 +24,7 @@ object GameShortcuts {
         val name = game.name.ifBlank { context.getString(R.string.app_name) }
         val icon = iconBitmap(game)?.let(Icon::createWithBitmap) ?: Icon.createWithResource(context, R.mipmap.ic_launcher)
         return ShortcutInfo.Builder(context, "game:${game.gameIdString}")
-            .setActivity(android.content.ComponentName(context, MainActivity::class.java))
+            .setActivity(LauncherIcon.activity(context))
             .setShortLabel(name.take(40)).setLongLabel(name).setIcon(icon)
             .setIntent(launchIntent(context, game.gameIdString)).build()
     }
