@@ -682,8 +682,7 @@ class DualSenseManager(private val context: Context) {
                                             r = 0,
                                             g = 180,
                                             b = 255,
-                                            playerLeds = 0x04,
-                                            micLed = 1
+                                            playerLeds = 0x04
                                         )
                                     )
                                 }
@@ -791,7 +790,8 @@ class DualSenseManager(private val context: Context) {
         )
 
         // 3. Call FakeInputWriter.setDeckIMU(0, accel, gyro) with proper axis transformation:
-        if (!state.isEdgeTuningActive) {
+        // Bytes 49..52 are a running counter on a standard DualSense; only the Edge reuses them for tuning.
+        if (!(isEdgeConnected && state.isEdgeTuningActive)) {
             val gyroZ = (-state.gyroZ.toInt()).coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
             val gyro = shortArrayOf(state.gyroX, gyroZ, state.gyroY)
             val accel = shortArrayOf(

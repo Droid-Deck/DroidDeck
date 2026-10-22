@@ -45,6 +45,7 @@ class DualSenseOutputBridge : SessionPart() {
     private var serverThread: Thread? = null
     private var fileWatchThread: Thread? = null
     @Volatile private var lastObservedFileSeq: Long = -1L
+    @Volatile private var lastRawFileReport: ByteArray? = null
 
     @Volatile var hostBridgeOutputStream: OutputStream? = null
     @Volatile var usbConnection: UsbDeviceConnection? = null
@@ -109,6 +110,7 @@ class DualSenseOutputBridge : SessionPart() {
             }
         }
         lastObservedFileSeq = -1L
+        lastRawFileReport = null
         startFileWatcher()
     }
 
@@ -186,13 +188,19 @@ class DualSenseOutputBridge : SessionPart() {
                                     if (read >= REPORT_SIZE && record[0] == REPORT_ID_OUTPUT) {
                                         val report = ByteArray(REPORT_SIZE)
                                         System.arraycopy(record, 0, report, 0, REPORT_SIZE)
-                                        dispatchOutputReport(report)
+                                        if (!report.contentEquals(lastRawFileReport)) {
+                                            lastRawFileReport = report
+                                            dispatchOutputReport(report)
+                                        }
                                     }
                                 }
                             }
                         } catch (_: Exception) {
                             // ignore concurrent read/write jitter
                         }
+                    } else {
+                        lastObservedFileSeq = -1L
+                        lastRawFileReport = null
                     }
                 }
                 try {
