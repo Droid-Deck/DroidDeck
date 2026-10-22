@@ -45,15 +45,20 @@ internal object ThemeColors {
 
     private const val MIN_LUMINANCE = 0.10f
 
-    /** The colour, made brighter when it is too dark to show on the dark background. */
+    /** The colour, made brighter (then paler, for a deep blue that brightness alone cannot lift) when it is too dark to show on the dark background. */
     fun readable(argb: Int): Int {
         if (Color(argb).luminance() >= MIN_LUMINANCE) return argb or 0xFF000000.toInt()
         val hsv = toHsv(argb)
         var v = hsv.v
+        var s = hsv.s
         var out = argb
         while (v < 1f && Color(out).luminance() < MIN_LUMINANCE) {
             v = min(1f, v + 0.04f)
-            out = fromHsv(hsv.h, hsv.s, v)
+            out = fromHsv(hsv.h, s, v)
+        }
+        while (s > 0f && Color(out).luminance() < MIN_LUMINANCE) {
+            s = max(0f, s - 0.04f)
+            out = fromHsv(hsv.h, s, v)
         }
         return out
     }
@@ -65,16 +70,29 @@ internal object ThemeColors {
         return Color(fromHsv(hsv.h, saturation * strength, brightness))
     }
 
+    private val DARK_INK = Color(0xFF03111F)
+
+    private fun contrast(a: Color, b: Color): Float {
+        val x = a.luminance()
+        val y = b.luminance()
+        return (max(x, y) + 0.05f) / (min(x, y) + 0.05f)
+    }
+
+    /** Dark or white text, whichever reads better on the worse of the two gradient colours. */
+    internal fun inkFor(first: Int, second: Int): Color {
+        fun worst(ink: Color) = min(contrast(ink, Color(first)), contrast(ink, Color(second)))
+        return if (worst(DARK_INK) >= worst(Color.White)) DARK_INK else Color.White
+    }
+
     fun palette(primary: Int, secondary: Int, label: Int, detail: Int): Palette {
         val first = readable(primary)
         val second = readable(secondary)
-        val ink = (Color(first).luminance() + Color(second).luminance()) / 2f
         return Palette(
             Themes.GRADIENT, label, detail,
             background = tint(first, 0.50f, 0.045f), surface = tint(first, 0.45f, 0.075f), surfaceVariant = tint(first, 0.42f, 0.115f),
             line = tint(first, 0.40f, 0.16f), line2 = tint(first, 0.36f, 0.22f),
             onBackground = tint(first, 0.05f, 0.97f), onSurfaceVariant = tint(first, 0.16f, 0.68f),
-            primary = Color(first), primary2 = Color(second), onPrimary = if (ink > 0.18f) Color(0xFF03111F) else Color.White, signal = Color(first),
+            primary = Color(first), primary2 = Color(second), onPrimary = inkFor(first, second), signal = Color(first),
             good = Color(0xFF4CD37F),
         )
     }

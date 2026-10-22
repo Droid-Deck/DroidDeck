@@ -48,6 +48,17 @@ class ThemeColorsTest {
         assertEquals(0xFF8B5CF6.toInt(), ThemeColors.readable(0xFF8B5CF6.toInt()))
     }
 
+    @Test fun aDeepBlueThatBrightnessAloneCannotLiftIsMadePaler() {
+        assertTrue(Color(ThemeColors.readable(0xFF0000FF.toInt())).luminance() >= 0.10f)
+        assertTrue(Color(ThemeColors.readable(0xFF000000.toInt())).luminance() >= 0.10f)
+    }
+
+    @Test fun theTextColourSuitsTheWorseOfTheTwoGradientColours() {
+        assertEquals(Color(0xFF03111F), ThemeColors.inkFor(0xFFFFEB3B.toInt(), 0xFF3B4FA8.toInt()))
+        assertEquals(Color.White, ThemeColors.inkFor(0xFF3B4FA8.toInt(), 0xFF5B2FA8.toInt()))
+        assertEquals(Color(0xFF03111F), ThemeColors.inkFor(0xFFFFFFFF.toInt(), 0xFFFFEB3B.toInt()))
+    }
+
     @Test fun thePaletteKeepsTheTwoColoursAndStaysDarkAndReadable() {
         val p = ThemeColors.palette(0xFF8B5CF6.toInt(), 0xFF22D3EE.toInt(), 0, 0)
         assertEquals(Color(0xFF8B5CF6), p.primary)
