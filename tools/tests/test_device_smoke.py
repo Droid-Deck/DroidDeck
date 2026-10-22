@@ -8,7 +8,7 @@ import unittest
 
 SCRIPT = Path(__file__).resolve().parents[1] / "device-smoke.sh"
 FAKE_ADB = r'''#!/usr/bin/env python3
-import json, os, sys
+import json, os, shlex, sys
 from pathlib import Path
 p = Path(os.environ["SMOKE_STATE"])
 s = json.loads(p.read_text())
@@ -16,7 +16,7 @@ a = sys.argv[1:]
 if a == ["get-state"]:
     print("device")
 elif a[:1] == ["shell"]:
-    a = a[1:]
+    a = shlex.split(a[1])
     if a[:1] == ["wm"]:
         kind = a[1]
         if len(a) == 2:
@@ -36,8 +36,18 @@ elif a[:1] == ["shell"]:
     elif a[:1] == ["pidof"]: print("123")
     elif a[:2] == ["dumpsys", "activity"]:
         print("topResumedActivity=ActivityRecord{abc u0 com.droiddeck.launcher/.MainActivity t1}")
-    elif a[:3] == ["pm", "list", "packages"]: print("package:com.droiddeck.launcher")
-    elif a[:1] == ["run-as"]: print("package not debuggable")
+    elif a[:3] == ["pm", "list", "packages"]:
+        if s.get("query_failed"): sys.exit(1)
+        print("package:" + s.get("package", "com.droiddeck.launcher"))
+    elif a[:2] == ["am", "start"] and s.get("launch_failed"):
+        print("Error: activity could not be started")
+        sys.exit(1 if s["launch_failed"] == "exit" else 0)
+    elif a[:1] == ["run-as"]:
+        if s.get("session"):
+            s.setdefault("log_commands", []).append(a)
+            p.write_text(json.dumps(s))
+            if "ls" in a: print(s["session"])
+        else: print("package not debuggable")
 '''
 
 
@@ -87,6 +97,26 @@ class DeviceSmokeTest(unittest.TestCase):
                 result, state = self.run_smoke(unreadable=kind)
                 self.assertEqual(0, result.returncode, result.stdout)
                 self.assertFalse(any(item[0] == kind for item in state["writes"]))
+
+    def test_package_filter_does_not_accept_another_variant_or_a_failed_query(self):
+        for scenario in ({"package": "com.droiddeck.launcher.debug"}, {"query_failed": True}):
+            with self.subTest(scenario=scenario):
+                result, state = self.run_smoke(**scenario)
+                self.assertEqual(2, result.returncode, result.stdout)
+                self.assertEqual([], state["writes"])
+
+    def test_failed_launch_is_not_masked_by_an_existing_process(self):
+        for failure in ("exit", "message"):
+            with self.subTest(failure=failure):
+                result, _ = self.run_smoke(launch_failed=failure)
+                self.assertEqual(1, result.returncode, result.stdout)
+                self.assertIn("could not launch", result.stdout)
+
+    def test_session_name_remains_one_remote_argument(self):
+        session = "x';id;#"
+        result, state = self.run_smoke(session=session)
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertIn(["run-as", "com.droiddeck.launcher", "cat", "files/logs/" + session + "/events.jsonl"], state["log_commands"])
 
 
 if __name__ == "__main__":

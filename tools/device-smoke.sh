@@ -53,7 +53,11 @@ A() {
   [ -z "$out" ] || printf '%s\n' "$out" | tr -d '\r'
   return $rc
 }
-sh_() { A shell "$@"; }
+sh_() {
+  local command= arg
+  for arg in "$@"; do command+="'${arg//\'/\'\\\'\'}' "; done
+  A shell "$command"
+}
 
 pass=0 fail=0 skip=0
 ok()   { echo "  PASS  $*"; pass=$((pass + 1)); }
@@ -144,8 +148,11 @@ if [ -n "$apk" ]; then
   r=$(A install -r -t "$apk" | tail -1)
   case $r in *Success*) ok "installed $(basename "$apk")" ;; *) bad "install: $r"; exit 1 ;; esac
 fi
-if [ -z "$(sh_ pm list packages "$pkg" | head -1)" ]; then echo "package $pkg is not installed" >&2; exit 2; fi
-sh_ am start -n "$pkg/.MainActivity" >/dev/null
+packages=$(sh_ pm list packages "$pkg") || { echo "could not query installed packages" >&2; exit 2; }
+if ! printf '%s\n' "$packages" | grep -Fxq "package:$pkg"; then echo "package $pkg is not installed" >&2; exit 2; fi
+if ! launch=$(sh_ am start -n "$pkg/.MainActivity") || printf '%s\n' "$launch" | grep -q '^Error'; then
+  bad "could not launch $pkg/.MainActivity"
+fi
 sleep 6
 pid=$(app_pid)
 [ -n "$pid" ] && ok "process running (pid $pid)" || bad "the app has no process after launch"
@@ -270,5 +277,7 @@ else
   sh_ run-as "$pkg" cat "files/logs/$dir/device.txt" 2>/dev/null | grep -E 'Memory page size|^Kernel' | sed 's/^/  report          /'
 fi
 
+restore || true
+trap - EXIT
 printf '\n%d passed, %d failed, %d skipped\n' "$pass" "$fail" "$skip"
 [ "$fail" = 0 ]
