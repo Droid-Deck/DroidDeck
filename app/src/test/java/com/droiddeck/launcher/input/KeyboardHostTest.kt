@@ -4,7 +4,11 @@ import android.app.Activity
 import android.content.Context
 import android.os.Looper
 import android.view.inputmethod.InputMethodManager
+import android.view.inputmethod.EditorInfo
+import android.text.InputType
 import android.widget.FrameLayout
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -49,6 +53,19 @@ class KeyboardHostTest {
         idle()
         assertFalse(shadowOf(imm).isSoftInputVisible)
         assertFalse(host.shown)
+    }
+
+    @Test fun inputConnectionUsesPlainTextWithoutSuggestionsOrSecureVariation() {
+        host.show()
+        val outAttrs = EditorInfo()
+
+        assertNotNull(host.onCreateInputConnection(outAttrs))
+        assertEquals(InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS, outAttrs.inputType)
+        assertEquals(
+            EditorInfo.IME_ACTION_NONE or EditorInfo.IME_FLAG_NO_FULLSCREEN or
+                EditorInfo.IME_FLAG_NO_EXTRACT_UI or EditorInfo.IME_FLAG_FORCE_ASCII,
+            outAttrs.imeOptions,
+        )
     }
 
     private fun idle() = shadowOf(Looper.getMainLooper()).idle()
