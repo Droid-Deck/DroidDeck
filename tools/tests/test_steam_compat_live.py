@@ -54,6 +54,7 @@ class FakeSocket {
       state.authed = dec.decode(h[40][0]) === "secret" && dec.decode(body[1][0]) === "secret";
       result = state.authed ? 1 : 5;
     } else if (!state.authed) result = 5;
+    else if (method === "CompatManager.GetCompatTools#1" && ["16", "128"].includes(String(body[1][0]))) result = Number(body[1][0]);
     else if (method === "CompatManager.GetCompatTools#1") {
       const app = String(body[1] ? body[1][0] : 0n);
       for (const name of state.known) { const t = []; lenField(1, enc.encode(name), t); lenField(2, enc.encode(name + " shown"), t); lenField(1, t, out); }
@@ -79,17 +80,19 @@ const install = require("fs").readFileSync(process.argv[4], "utf8");
   const before = await c.get(0);
   await c.set(0, "droiddeck-proton-11-arm64");
   await c.set(42, "");
-  const after = await c.many(["0", "42", "43"]);
+  const after = await c.many(["0", "42", "43", "128"]);
+  const timedOut = await c.many(["0", "16"]).then(() => null, (e) => e.eresult);
   await new Promise((r) => setTimeout(r, 10));
-  console.log(JSON.stringify({ before, after, log: state.log, notify: state.notify, url: state.socket.url }));
+  console.log(JSON.stringify({ before, after, timedOut, log: state.log, notify: state.notify, url: state.socket.url }));
 })().catch((e) => { console.error(e.stack || String(e)); process.exit(1); });
 """
 
 
 class FakePage:
-    def __init__(self, mapping, known):
+    def __init__(self, mapping, known, refused=()):
         self.mapping = dict(mapping)
         self.known = list(known)
+        self.refused = set(refused)
         self.sets = []
 
     def compat(self, call):
@@ -98,8 +101,10 @@ class FakePage:
         if name == "get":
             return {"selected": self.mapping.get(str(args[0]), ""), "fallback": "proton_experimental", "tools": self.known}
         if name == "many":
-            return {app: self.mapping.get(app, "") for app in args[0]}
+            return {app: self.mapping.get(app, "") for app in args[0] if app not in self.refused}
         if name == "set":
+            if str(args[0]) in self.refused:
+                raise RuntimeError("SpecifyCompatTool %s failed (128)" % args[0])
             self.mapping[str(args[0])] = args[1]
             self.sets.append((str(args[0]), args[1]))
             return True
@@ -202,6 +207,7 @@ assert.deepStrictEqual(calls, [['611670', 'custom args', -1, 100], ['2508200', '
             self.assertEqual(out["url"], "ws://127.0.0.1:4242/transportsocket/")
             self.assertEqual(out["before"], {"selected": TOOL, "fallback": "proton_experimental", "tools": [TOOL, TOOL_11, "proton_experimental"]})
             self.assertEqual(out["after"], {"0": TOOL_11, "42": "", "43": ""})
+            self.assertEqual(out["timedOut"], 16)
             self.assertEqual(out["log"], ["0=" + TOOL_11, "42="])
             self.assertEqual(out["notify"], ["1", "2"])
 
@@ -263,6 +269,21 @@ class ReconcileTest(unittest.TestCase):
         self.assertEqual(state["auto"], {"10": TOOL, "11": TOOL})
         self.assertTrue(state["live"])
         self.assertEqual(self.helper.installed, ["10", "11"])
+
+    def test_an_app_the_client_refuses_is_dropped_instead_of_failing_the_sync(self):
+        page = FakePage({"0": TOOL, "10": TOOL, "11": "proton_experimental"}, [TOOL, TOOL_11], refused={"1628350"})
+        (self.state / "state.json").write_text(json.dumps({"default": TOOL, "auto": {"10": TOOL, "1628350": TOOL}}))
+        (self.state / "games.json").write_text(json.dumps({"version": 1, "games": {"1628350": {"valve": True, "dir": "Proton 11.0 (ARM64)"}}}))
+        state = self.reconcile(page)
+        self.assertEqual(page.sets, [("11", TOOL)])
+        self.assertEqual(state["auto"], {"10": TOOL, "11": TOOL})
+
+    def test_a_refused_apps_native_choice_is_kept(self):
+        page = FakePage({"0": TOOL, "10": TOOL, "11": TOOL}, [TOOL, TOOL_11], refused={"20"})
+        (self.state / "state.json").write_text(json.dumps({"default": TOOL, "auto": {"10": TOOL, "11": TOOL}, "native_choices": ["20"]}))
+        state = self.reconcile(page)
+        self.assertEqual(page.sets, [])
+        self.assertEqual(state["native_choices"], ["20"])
 
     def test_app_request_moves_the_default_and_followers(self):
         page = FakePage({"0": TOOL, "10": TOOL, "11": "GE-Proton11-7"}, [TOOL, TOOL_11])
@@ -487,6 +508,70 @@ class ReconcileTest(unittest.TestCase):
         state = self.reconcile(page)
         self.assertEqual(page.sets, [])
         self.assertEqual(state["native_choices"], [app])
+
+    def test_clearing_a_tool_picked_in_steam_keeps_the_native_build(self):
+        app, page = self.dual_platform_game({"default": TOOL, "auto": {"10": TOOL, "11": TOOL}})
+        page.known.append(COMPAT["FEX_TOOL"])
+        page.mapping[app] = COMPAT["FEX_TOOL"]
+        config = self.steam / "config/config.vdf"
+        config.write_text(
+            '"InstallConfigStore" { "Software" { "Valve" { "Steam" { '
+            '"CompatToolMapping" { "0" { "name" "%s" } "%s" { "name" "%s" } } } } } }' % (TOOL, app, COMPAT["FEX_TOOL"]))
+        state = self.reconcile(page)
+        self.assertEqual(page.sets, [])
+        self.assertNotIn(app, state["auto"])
+
+        page.mapping[app] = ""
+        state = self.reconcile(page)
+        self.assertEqual(page.sets, [])
+        config.write_text(
+            '"InstallConfigStore" { "Software" { "Valve" { "Steam" { '
+            '"CompatToolMapping" { "0" { "name" "%s" } } } } } }' % TOOL)
+        state = self.reconcile(page)
+        self.assertEqual(page.sets, [])
+        self.assertEqual(state["native_choices"], [app])
+
+        restarted = LIVE["Helper"](str(self.steam), 1)
+        restarted.page = page
+        restarted.reconcile()
+        self.assertEqual(page.sets, [])
+
+    def test_a_new_tool_for_a_picked_game_is_kept_before_the_client_writes_its_config(self):
+        app, page = self.dual_platform_game({"default": TOOL, "auto": {"10": TOOL, "11": TOOL}, "picked": ["892970"]})
+        page.mapping[app] = TOOL_11
+        with mock.patch.dict(COMPAT, {"native_targets": lambda _root, apps: {app: COMPAT["FEX_TOOL"]} if app in apps else {}}):
+            state = self.reconcile(page)
+        self.assertEqual(page.sets, [])
+        self.assertEqual(page.mapping[app], TOOL_11)
+        self.assertIn(app, state["picked"])
+
+    def test_a_cleared_picked_game_showing_a_stale_inherited_tool_stays_native(self):
+        app, page = self.dual_platform_game({"default": TOOL, "auto": {"10": TOOL, "11": TOOL}, "picked": ["892970"]})
+        page.mapping[app] = "proton"
+        state = self.reconcile(page)
+        self.assertEqual(page.sets, [])
+        self.assertEqual(state["native_choices"], [app])
+
+    def test_a_clear_saved_after_the_helper_stopped_is_kept_at_the_next_start(self):
+        app, page = self.dual_platform_game({"default": TOOL, "auto": {"10": TOOL, "11": TOOL}})
+        page.known.append(COMPAT["FEX_TOOL"])
+        page.mapping[app] = COMPAT["FEX_TOOL"]
+        config = self.steam / "config/config.vdf"
+        config.write_text(
+            '"InstallConfigStore" { "Software" { "Valve" { "Steam" { '
+            '"CompatToolMapping" { "0" { "name" "%s" } "%s" { "name" "%s" } } } } } }' % (TOOL, app, COMPAT["FEX_TOOL"]))
+        state = self.reconcile(page)
+        self.assertIn(app, state["picked"])
+
+        config.write_text(
+            '"InstallConfigStore" { "Software" { "Valve" { "Steam" { '
+            '"CompatToolMapping" { "0" { "name" "%s" } } } } } }' % TOOL)
+        with mock.patch.dict(COMPAT["register_default"].__globals__, {"native_targets": COMPAT["native_targets"]}):
+            COMPAT["register_default"](str(config), ["10", "11", app], settle=True, directory=str(self.state))
+        self.assertNotIn(app, COMPAT["read_config_mapping"](str(config)))
+        state = json.loads((self.state / "state.json").read_text())
+        self.assertEqual(state["native_choices"], [app])
+        self.assertNotIn(app, state["picked"])
 
     def test_unmapped_dual_platform_game_gets_the_default_without_a_readable_config(self):
         app, page = self.dual_platform_game({"default": TOOL, "auto": {"10": TOOL}, "native_choices": ["11"]})

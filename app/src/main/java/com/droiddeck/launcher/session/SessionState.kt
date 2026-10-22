@@ -45,6 +45,8 @@ object SessionState {
     @Volatile
     var orcaActive = false
     @Volatile
+    var activityDisplayId = 0
+    @Volatile
     var runtimeDriver: String? = null
     var suspended by mutableStateOf(false)
     @Volatile var pipActive = false

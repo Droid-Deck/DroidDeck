@@ -218,6 +218,8 @@ struct surface {
     enum surface_role role;
     struct wl_resource *idle_buffer;
     struct wl_listener idle_buffer_destroy;
+    uint32_t *idle_px;
+    int idle_w, idle_h;
     struct wl_resource *xdg_surface, *xdg_toplevel;
     struct wl_resource *viewport;
 
@@ -899,8 +901,30 @@ static void cursor_publish_buffer(struct surface *s, struct wl_resource *buffer)
     g_cursor_shown = s;
 }
 
+static void surface_forget_idle_px(struct surface *s) {
+    free(s->idle_px);
+    s->idle_px = NULL;
+    s->idle_w = s->idle_h = 0;
+}
+
 static void on_idle_buffer_destroyed(struct wl_listener *l, void *data) {
     struct surface *s = wl_container_of(l, s, idle_buffer_destroy);
+    struct wl_shm_buffer *shm = wl_shm_buffer_get(s->idle_buffer);
+    if (shm) {
+        int32_t w = wl_shm_buffer_get_width(shm), h = wl_shm_buffer_get_height(shm);
+        int32_t stride = wl_shm_buffer_get_stride(shm);
+        uint32_t *px = w > 0 && h > 0 && (int64_t)w * h <= CURSOR_MAX_PX && (int64_t)stride >= (int64_t)w * 4
+            ? realloc(s->idle_px, (size_t)w * h * 4) : NULL;
+        if (px) {
+            wl_shm_buffer_begin_access(shm);
+            const uint8_t *src = wl_shm_buffer_get_data(shm);
+            for (int y = 0; y < h; y++) memcpy(&px[(size_t)y * w], src + (size_t)y * stride, (size_t)w * 4);
+            wl_shm_buffer_end_access(shm);
+            s->idle_px = px;
+            s->idle_w = w;
+            s->idle_h = h;
+        }
+    }
     wl_list_remove(&s->idle_buffer_destroy.link);
     wl_list_init(&s->idle_buffer_destroy.link);
     s->idle_buffer = NULL;
@@ -927,6 +951,7 @@ static struct wl_resource *surface_take_idle(struct surface *s) {
 }
 
 static void surface_drop_idle(struct surface *s) {
+    surface_forget_idle_px(s);
     struct wl_resource *buffer = surface_take_idle(s);
     if (buffer) wl_buffer_send_release(buffer);
 }
@@ -1055,6 +1080,7 @@ static void surface_resource_destroy(struct wl_resource *r) {
     if (g_cursor_surface == s) { g_cursor_surface = NULL; cursor_publish_hidden(); }
     if (g_cursor_shown == s) g_cursor_shown = NULL;
     surface_take_idle(s);
+    surface_forget_idle_px(s);
     if (g_grab == s) g_grab = NULL;
     if (g_key_target == s) g_key_target = NULL;
     if (g_ime_click == s) g_ime_click = NULL;
@@ -2042,6 +2068,9 @@ static void pointer_set_cursor(struct wl_client *c, struct wl_resource *r, uint3
         wl_buffer_send_release(buffer);
     } else if (g_cursor_shown == s) {
         cursor_publish_shown();
+    } else if (s->idle_px) {
+        cursor_publish_pixels((const uint8_t *)s->idle_px, s->idle_w, s->idle_h, (size_t)s->idle_w * 4, hx, hy);
+        g_cursor_shown = s;
     }
 }
 static void pointer_release(struct wl_client *c, struct wl_resource *r) { wl_resource_destroy(r); }
@@ -2593,7 +2622,11 @@ static void pointer_input(double x, double y, int relative, uint32_t button, int
     uint32_t t = now_ms();
 
     pointer_focus(target->resource, fx, fy);
-    if (!(k && k->is_lock))
+    // A button-only input must not replay a cached absolute position. A game
+    // may have warped its cursor since the last motion (before taking lock,
+    // or while releasing it), so that replay can become an unintended pan.
+    // Absolute touch events still carry their position, including on clicks.
+    if (!(k && k->is_lock) && (!relative || dx != 0 || dy != 0))
         for_each_pointer_of(client, sp) wl_pointer_send_motion(sp->ptr, t, fx, fy);
     send_relative_motion(client, dx, dy);
     for_each_pointer_of(client, sp) {

@@ -77,6 +77,7 @@ class SleepHandshakeTest(unittest.TestCase):
                          GLib.Variant("(ss)", (IFACE, "PreparingForSleep")))[0]
 
     def suspend(self):
+        (self.dir / "steam-sleep").unlink(missing_ok=True)
         self.call(IFACE, "Suspend", GLib.Variant("(b)", (True,)))
         self.wait_for(lambda: (self.dir / "steam-sleep").exists())
         self.wait_for(lambda: self.signals == [True])
@@ -239,6 +240,7 @@ class FakeAgentCase(unittest.TestCase):
     suspend = SleepHandshakeTest.suspend
     state = SleepHandshakeTest.state
     request_wake = SleepHandshakeTest.request_wake
+    request_native = SleepHandshakeTest.request_native
 
     def asked(self):
         path = self.dir / "agent-calls"
@@ -264,7 +266,7 @@ class AwakeSteamTest(FakeAgentCase):
         self.state(token, "paused")
         self.request_wake()
         self.wait_for(lambda: self.signals == [True, False])
-        self.assertEqual([], self.asked())
+        self.assertNotIn("--steam-asleep", self.asked())
 
 
 @unittest.skipUnless(Gio and os.environ.get("DBUS_SESSION_BUS_ADDRESS"), "requires dbus-run-session and PyGObject")
@@ -275,6 +277,53 @@ class AsleepSteamTest(FakeAgentCase):
         self.request_wake()
         self.wait_for(lambda: self.signals == [True, False])
         self.assertEqual(["--steam-asleep"], self.asked())
+
+    def test_steam_sleep_request_holds_idle_sleep_before_the_host_pauses(self):
+        token = self.suspend()
+        self.assertEqual(["--steam-idle-inhibit", "on"], self.asked())
+        self.state(token, "paused")
+        self.state(token, "awake")
+        self.wait_for(lambda: self.signals == [True, False])
+        self.wait_for(lambda: self.asked()[-1:] == ["off"])
+        self.assertEqual(["--steam-idle-inhibit", "on", "--steam-idle-suspend-seconds",
+                          "--steam-idle-inhibit", "off"], self.asked())
+
+    def test_idle_pause_holds_idle_sleep_without_a_sleep_wake_pair(self):
+        token = self.request_native("2" * 32 + " idle").split()[0]
+        self.wait_for(lambda: (self.dir / "steam-native-ready").exists())
+        self.assertEqual(token, (self.dir / "steam-native-ready").read_text().strip())
+        self.assertEqual(["--steam-idle-inhibit", "on"], self.asked())
+        self.state(token, "paused")
+        self.state(token, "awake")
+        self.wait_for(lambda: self.asked()[-1:] == ["off"])
+        self.assertEqual([], self.signals)
+        self.assertEqual(["--steam-idle-inhibit", "on", "--steam-idle-suspend-seconds",
+                          "--steam-idle-inhibit", "off"], self.asked())
+
+    def test_a_failed_release_is_tried_again(self):
+        failed = self.dir / "release-failed"
+        (self.dir / "bin/droiddeck-agent").write_text(
+            "#!/bin/sh\necho \"$@\" >> \"%s\"\n"
+            "if [ \"$2\" = off ] && [ ! -e \"%s\" ]; then : > \"%s\"; exit 1; fi\nexit 0\n"
+            % (self.dir / "agent-calls", failed, failed))
+        token = self.suspend()
+        self.state(token, "paused")
+        self.state(token, "awake")
+        self.wait_for(lambda: self.asked().count("off") == 2)
+        time.sleep(2.5)
+        self.assertEqual(["--steam-idle-inhibit", "on", "--steam-idle-suspend-seconds",
+                          "--steam-idle-inhibit", "off", "--steam-idle-inhibit", "off"], self.asked())
+
+    def test_a_hold_steam_did_not_confirm_is_still_released(self):
+        (self.dir / "bin/droiddeck-agent").write_text(
+            "#!/bin/sh\necho \"$@\" >> \"%s\"\n[ \"$2\" = on ] && exit 1\nexit 0\n" % (self.dir / "agent-calls"))
+        token = self.suspend()
+        self.state(token, "paused")
+        self.state(token, "awake")
+        self.wait_for(lambda: self.signals == [True, False])
+        self.wait_for(lambda: self.asked()[-1:] == ["off"])
+        self.assertEqual(["--steam-idle-inhibit", "on", "--steam-idle-suspend-seconds",
+                          "--steam-idle-inhibit", "off"], self.asked())
 
 
 class WithNetworkManagerTest(SleepHandshakeTest):
