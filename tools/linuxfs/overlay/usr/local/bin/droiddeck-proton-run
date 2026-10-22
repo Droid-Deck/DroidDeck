@@ -340,7 +340,8 @@ def steam_launch(appid, root):
 
 
 def shortcut_target(appid, program, start, root):
-    return Target(appid, os.path.join(root, "steamapps", "compatdata", str(appid)), os.path.dirname(program), root,
+    appid = int(appid) % 2 ** 32
+    return Target(str(appid), prefix_folder(root, appid), os.path.dirname(program), root,
                   "shortcut", start if start and os.path.isdir(start) else None)
 
 

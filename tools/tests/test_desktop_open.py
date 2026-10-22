@@ -554,6 +554,18 @@ class ProtonRunTest(Temp):
         self.game("70", "Linux Game", "run.sh")
         self.assertEqual(self.run_main(["--app", "70"])[0], 2)
 
+    def test_without_steam_a_shortcut_reuses_a_signed_prefix_folder(self):
+        bat = self.write("Games/Epic/Game/.droiddeck-launch.bat", b"@echo off")
+        start = self.tmp / "Games/Epic/Game/Binaries"
+        start.mkdir()
+        signed = self.root / "steamapps/compatdata/-1561598272"
+        signed.mkdir(parents=True)
+        code, calls, dirs = self.run_main(["--app", "2733369024", "--dir", str(start), "--", str(bat)])
+        self.assertIsNone(code)
+        env = calls[0][2]
+        self.assertEqual(env["STEAM_COMPAT_DATA_PATH"], str(signed))
+        self.assertFalse((self.root / "steamapps/compatdata/2733369024").exists())
+
     def test_without_steam_a_shortcut_keeps_its_prefix_folder_and_launch_options(self):
         bat = self.write("Games/Epic/Game/.droiddeck-launch.bat", b"@echo off")
         start = self.tmp / "Games/Epic/Game/Binaries"
