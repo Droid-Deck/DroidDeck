@@ -65,7 +65,7 @@ class ThemeColorsTest {
         val picks = listOf(0xFFFFEB3B, 0xFF1E3A8A, 0xFF0000FF, 0xFFFF0000, 0xFF00FF00, 0xFF808080, 0xFFFFFFFF, 0xFF000000, 0xFF8B5CF6, 0xFF22D3EE, 0xFFFF5722, 0xFF3F51B5)
         for (a in picks) for (b in picks) {
             val p = ThemeColors.palette(a.toInt(), b.toInt(), 0, 0)
-            assertTrue("${ThemeColors.hex(a.toInt())} ${ThemeColors.hex(b.toInt())}", contrast(p.onPrimary, p.primary) >= 2.99f && contrast(p.onPrimary, p.primary2) >= 2.99f)
+            assertTrue("${ThemeColors.hex(a.toInt())} ${ThemeColors.hex(b.toInt())}", contrast(p.onPrimary, p.primary) >= 4.5f && contrast(p.onPrimary, p.primary2) >= 4.5f)
         }
     }
 

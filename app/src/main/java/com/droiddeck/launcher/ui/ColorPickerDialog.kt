@@ -99,7 +99,9 @@ internal fun ColorPickerDialog(title: String, initial: Int, onDismiss: () -> Uni
         )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
             SecondaryButton(stringResource(R.string.common_cancel), modifier = Modifier.weight(1f), onClick = close)
-            PrimaryButton(stringResource(R.string.common_ok), enabled = ThemeColors.parseHex(hexText) != null, modifier = Modifier.weight(1f)) { onApply(current); close() }
+            PrimaryButton(stringResource(R.string.common_ok), enabled = ThemeColors.parseHex(hexText) != null, modifier = Modifier.weight(1f)) {
+                ThemeColors.parseHex(hexText)?.let { onApply(it); close() }
+            }
         }
     }
 }

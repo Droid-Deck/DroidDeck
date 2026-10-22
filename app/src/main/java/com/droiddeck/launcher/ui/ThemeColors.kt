@@ -84,7 +84,7 @@ internal object ThemeColors {
         return if (worst(DARK_INK) >= worst(Color.White)) DARK_INK else Color.White
     }
 
-    private const val MIN_CONTRAST = 3f
+    private const val MIN_CONTRAST = 4.5f
 
     /** The colour nudged just enough, lighter for dark text and darker for white text, to give [ink] a readable contrast on it. */
     private fun fitTo(ink: Color, argb: Int): Int {
