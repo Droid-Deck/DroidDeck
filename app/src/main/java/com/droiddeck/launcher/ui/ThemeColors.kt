@@ -5,6 +5,7 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.roundToInt
 
 /** Colour maths for the custom gradient theme: hue, saturation and brightness in, a readable palette out. */
 internal object ThemeColors {
@@ -103,12 +104,47 @@ internal object ThemeColors {
         return out
     }
 
+    private fun gradientColor(first: Int, second: Int, fraction: Float): Int {
+        fun channel(shift: Int): Int {
+            val a = first shr shift and 0xFF
+            val b = second shr shift and 0xFF
+            return (a + (b - a) * fraction).roundToInt().coerceIn(0, 255)
+        }
+        return (0xFF shl 24) or (channel(16) shl 16) or (channel(8) shl 8) or channel(0)
+    }
+
+    private fun gradientFits(ink: Color, first: Int, second: Int): Boolean =
+        (0..32).all { step ->
+            val color = gradientColor(first, second, step / 32f)
+            contrast(ink, Color(color)) >= MIN_CONTRAST + 0.02f
+        }
+
+    private fun moveTowardContrast(ink: Color, argb: Int): Int {
+        val hsv = toHsv(argb)
+        return if (ink == DARK_INK) {
+            when {
+                hsv.v < 1f -> fromHsv(hsv.h, hsv.s, min(1f, hsv.v + 0.04f))
+                hsv.s > 0f -> fromHsv(hsv.h, max(0f, hsv.s - 0.04f), hsv.v)
+                else -> argb
+            }
+        } else {
+            fromHsv(hsv.h, hsv.s, max(0f, hsv.v - 0.04f))
+        }
+    }
+
     fun palette(primary: Int, secondary: Int, label: Int, detail: Int): Palette {
         val seen = readable(primary)
         val seenSecond = readable(secondary)
         val ink = inkFor(seen, seenSecond)
-        val first = fitTo(ink, seen)
-        val second = fitTo(ink, seenSecond)
+        var first = fitTo(ink, seen)
+        var second = fitTo(ink, seenSecond)
+        while (!gradientFits(ink, first, second)) {
+            val nextFirst = moveTowardContrast(ink, first)
+            val nextSecond = moveTowardContrast(ink, second)
+            if (nextFirst == first && nextSecond == second) break
+            first = nextFirst
+            second = nextSecond
+        }
         return Palette(
             Themes.GRADIENT, label, detail,
             background = tint(first, 0.50f, 0.045f), surface = tint(first, 0.45f, 0.075f), surfaceVariant = tint(first, 0.42f, 0.115f),

@@ -3,6 +3,7 @@ package com.droiddeck.launcher.ui
 import android.content.Context
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.toArgb
 import com.droiddeck.launcher.session.SessionPrefs
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -65,8 +66,28 @@ class ThemeColorsTest {
         val picks = listOf(0xFFFFEB3B, 0xFF1E3A8A, 0xFF0000FF, 0xFFFF0000, 0xFF00FF00, 0xFF808080, 0xFFFFFFFF, 0xFF000000, 0xFF8B5CF6, 0xFF22D3EE, 0xFFFF5722, 0xFF3F51B5)
         for (a in picks) for (b in picks) {
             val p = ThemeColors.palette(a.toInt(), b.toInt(), 0, 0)
-            assertTrue("${ThemeColors.hex(a.toInt())} ${ThemeColors.hex(b.toInt())}", contrast(p.onPrimary, p.primary) >= 4.5f && contrast(p.onPrimary, p.primary2) >= 4.5f)
+            val first = p.primary.toArgb()
+            val second = p.primary2.toArgb()
+            for (step in 0..100) {
+                val fraction = step / 100f
+                val color = Color(
+                    0xFF000000.toInt() or
+                        (channel(first, 16, second, fraction) shl 16) or
+                        (channel(first, 8, second, fraction) shl 8) or
+                        channel(first, 0, second, fraction),
+                )
+                assertTrue(
+                    "${ThemeColors.hex(first)} ${ThemeColors.hex(second)} at $fraction",
+                    contrast(p.onPrimary, color) >= 4.5f,
+                )
+            }
         }
+    }
+
+    private fun channel(first: Int, shift: Int, second: Int, fraction: Float): Int {
+        val start = first shr shift and 0xFF
+        val end = second shr shift and 0xFF
+        return (start + (end - start) * fraction).toInt().coerceIn(0, 255)
     }
 
     @Test fun onlyTheStopThatFailsIsNudged() {
@@ -78,9 +99,10 @@ class ThemeColorsTest {
 
     @Test fun thePaletteKeepsTheTwoColoursAndStaysDarkAndReadable() {
         val p = ThemeColors.palette(0xFF8B5CF6.toInt(), 0xFF22D3EE.toInt(), 0, 0)
-        assertEquals(Color(0xFF8B5CF6), p.primary)
         assertEquals(p.primary, p.signal)
         assertEquals(Color(0xFF22D3EE), p.primary2)
+        assertTrue(contrast(p.onPrimary, p.primary) >= 4.5f)
+        assertTrue(contrast(p.onPrimary, p.primary2) >= 4.5f)
         assertTrue(p.background.luminance() < p.surface.luminance())
         assertTrue(p.surface.luminance() < p.surfaceVariant.luminance())
         assertTrue(p.background.luminance() < 0.02f)
@@ -97,9 +119,9 @@ class ThemeColorsTest {
     @Test fun theGradientThemeFollowsTheSavedColoursAndComesBackAfterARestart() {
         Themes.setGradient(app, 0xFFFF5722.toInt(), 0xFF3F51B5.toInt())
         val live = Themes.byId(Themes.GRADIENT)
-        assertEquals(Color(0xFFFF5722), live.primary)
-        assertEquals(Color(0xFF3F51B5), live.primary2)
         assertEquals(0xFFFF5722.toInt() to 0xFF3F51B5.toInt(), SessionPrefs.gradientColors(app))
+        assertTrue(contrast(live.onPrimary, live.primary) >= 4.5f)
+        assertTrue(contrast(live.onPrimary, live.primary2) >= 4.5f)
         SessionPrefs.setTheme(app, Themes.GRADIENT)
         Themes.setGradient(app, Themes.DEFAULT_PRIMARY, Themes.DEFAULT_SECONDARY)
         SessionPrefs.setGradientColors(app, 0xFF00FF00.toInt(), 0xFF0000FF.toInt())
