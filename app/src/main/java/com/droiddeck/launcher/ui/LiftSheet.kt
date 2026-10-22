@@ -18,6 +18,8 @@ import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -715,7 +717,7 @@ internal fun SheetChips(
                 horizontalArrangement = Arrangement.spacedBy(ChipGap),
                 modifier = (if (equal) Modifier.fillMaxWidth() else Modifier)
                     .focusProperties { enter = { chips.getOrNull(selected) ?: FocusRequester.Default } }
-                    .focusGroup(),
+                    .focusGroup().selectableGroup(),
             ) {
                 labels.forEachIndexed { i, label ->
                     val m = (if (equal) Modifier.weight(1f) else Modifier.widthIn(min = least))
@@ -743,7 +745,7 @@ private fun SheetChip(label: String, on: Boolean, modifier: Modifier, onClick: (
             .background(if (under) Color.Transparent else colors.surfaceVariant.copy(alpha = 0.5f))
             .shownBar(on, pal.signal)
             .glideBorder(hot, shape, pal.signal, if (under) Color.Transparent else pal.line)
-            .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Tab, onClick = onClick)
+            .hoverable(src).selectable(selected = on, interactionSource = src, indication = LocalIndication.current, role = Role.Tab, onClick = onClick)
             .controllerConfirm(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 8.dp),
     ) {

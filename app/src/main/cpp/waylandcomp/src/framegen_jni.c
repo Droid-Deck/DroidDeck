@@ -31,10 +31,10 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetFrameGenTuning(JN
 }
 
 JNIEXPORT void JNICALL
-Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetWinFgTuning(JNIEnv *env, jclass clazz,
+Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetDdFgTuning(JNIEnv *env, jclass clazz,
                                                                       jint model, jint perfPreset) {
     (void)env; (void)clazz;
-    vkp_framegen_set_winfg_tuning((int)model, (int)perfPreset);
+    vkp_framegen_set_ddfg_tuning((int)model, (int)perfPreset);
 }
 
 JNIEXPORT jint JNICALL

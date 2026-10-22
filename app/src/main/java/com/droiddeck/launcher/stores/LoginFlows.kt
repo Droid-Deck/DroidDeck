@@ -12,6 +12,7 @@ internal object LoginFlows {
         Store.GOG -> GogFlow(state)
         Store.EPIC -> epicFlow()
         Store.AMAZON -> amazonFlow()
+        Store.ITCH, Store.XBOX -> null
     }
 
     @Volatile var epicFlow: () -> StoreLoginActivity.Flow? = { null }
@@ -21,6 +22,14 @@ internal object LoginFlows {
         override val startUrl: String get() = GogAuth.authUrl(state)
         override val userAgent: String get() = GogAuth.GALAXY_UA
         override fun isRedirect(url: String): Boolean = url.startsWith(GogAuth.REDIRECT_PREFIX)
+
+        override fun forgetSignIn(done: () -> Unit) {
+            runCatching { WebCookies.expire(GogAuth.SIGN_IN_URLS, GogAuth.COOKIE_DOMAIN, listOf("/")) { done() } }
+                .onFailure {
+                    Log.w(TAG, "gog: could not clear the previous web sign-in: ${it.javaClass.simpleName}")
+                    done()
+                }
+        }
 
         override fun finish(activity: StoreLoginActivity, view: WebView, url: String): String? {
             val fragment = Uri.parse(url).fragment ?: return activity.getString(com.droiddeck.launcher.R.string.stores_login_error_verification)
