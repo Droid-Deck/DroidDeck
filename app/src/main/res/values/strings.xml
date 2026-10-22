@@ -1959,8 +1959,13 @@
     <string name="display_match_screen">Match screen (%1$d×%2$d)</string>
     <string name="display_follow_screen">Follow screen (resizes when folded or unfolded)</string>
     <string name="display_follow_divisor">Render size</string>
-    <string name="display_follow_divisor_game">%1$s for this game in this %2$s window. Each game keeps its own for each window size: screen, orientation or fold.</string>
-    <string name="display_follow_divisor_client">%1$s for the Steam client in this %2$s window. Each window size keeps its own: screen, orientation or fold.</string>
+    <string name="display_follow_divisor_game">Rendering at %1$s. Saved for this game on this %2$s screen.</string>
+    <string name="display_follow_divisor_client">Rendering at %1$s. Saved for the Steam client on this %2$s screen. Each game keeps its own.</string>
+    <string name="display_follow_full">Full</string>
+    <string name="display_follow_two_thirds">Two thirds</string>
+    <string name="display_follow_half">Half</string>
+    <string name="display_follow_third">One third</string>
+    <string name="display_follow_quarter">Quarter</string>
     <string name="mode_tab_steam">Steam</string>
     <string name="device_info_show">Show device details</string>
     <string name="device_info_hide">Hide device details</string>

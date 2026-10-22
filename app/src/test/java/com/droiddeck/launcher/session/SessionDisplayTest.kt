@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.session
 
+import com.droiddeck.launcher.R
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -47,8 +48,8 @@ class SessionDisplayTest {
         assertEquals(728 to 656, SessionDisplay.followSize(2184, 1968, 3f))
         assertEquals(546 to 492, SessionDisplay.followSize(2184, 1968, 4f))
         assertNull(SessionDisplay.followSize(640, 360, 2f))
-        assertEquals("÷1.5", SessionDisplay.divisorLabel(1.5f))
-        assertEquals("÷2", SessionDisplay.divisorLabel(2f))
+        assertEquals(R.string.display_follow_two_thirds, SessionDisplay.divisorLabel(1.5f))
+        assertEquals(R.string.display_follow_half, SessionDisplay.divisorLabel(2f))
     }
 
     @Test fun aHalfFoldedGameTakesTheLargestBoxOfItsShapeAboveTheFold() {

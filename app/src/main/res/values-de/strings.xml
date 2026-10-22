@@ -1897,8 +1897,13 @@
     <string name="display_match_screen">An Bildschirm anpassen (%1$d×%2$d)</string>
     <string name="display_follow_screen">Bildschirm folgen (passt sich beim Auf- und Zuklappen an)</string>
     <string name="display_follow_divisor">Renderauflösung</string>
-    <string name="display_follow_divisor_game">%1$s für dieses Spiel in diesem %2$s-Fenster. Jedes Spiel merkt sie sich für jede Fenstergröße: Bildschirm, Ausrichtung oder Faltung.</string>
-    <string name="display_follow_divisor_client">%1$s für den Steam-Client in diesem %2$s-Fenster. Jede Fenstergröße merkt sich ihre eigene: Bildschirm, Ausrichtung oder Faltung.</string>
+    <string name="display_follow_divisor_game">Rendert in %1$s. Gespeichert für dieses Spiel auf diesem %2$s-Bildschirm.</string>
+    <string name="display_follow_divisor_client">Rendert in %1$s. Gespeichert für den Steam-Client auf diesem %2$s-Bildschirm. Jedes Spiel behält seine eigene.</string>
+    <string name="display_follow_full">Voll</string>
+    <string name="display_follow_two_thirds">Zwei Drittel</string>
+    <string name="display_follow_half">Hälfte</string>
+    <string name="display_follow_third">Ein Drittel</string>
+    <string name="display_follow_quarter">Ein Viertel</string>
     <string name="mode_tab_steam">Steam</string>
     <string name="device_info_show">Gerätedetails anzeigen</string>
     <string name="device_info_hide">Gerätedetails ausblenden</string>

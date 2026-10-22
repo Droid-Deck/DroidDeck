@@ -1908,8 +1908,13 @@
     <string name="display_match_screen">Matcha skärmen (%1$d×%2$d)</string>
     <string name="display_follow_screen">Följ skärmen (ändrar storlek vid vikning)</string>
     <string name="display_follow_divisor">Renderingsstorlek</string>
-    <string name="display_follow_divisor_game">%1$s för det här spelet i det här %2$s-fönstret. Varje spel minns sin egen för varje fönsterstorlek: skärm, orientering eller vikning.</string>
-    <string name="display_follow_divisor_client">%1$s för Steam-klienten i det här %2$s-fönstret. Varje fönsterstorlek minns sin egen: skärm, orientering eller vikning.</string>
+    <string name="display_follow_divisor_game">Renderar i %1$s. Sparat för det här spelet på den här %2$s-skärmen.</string>
+    <string name="display_follow_divisor_client">Renderar i %1$s. Sparat för Steam-klienten på den här %2$s-skärmen. Varje spel har sin egen.</string>
+    <string name="display_follow_full">Full</string>
+    <string name="display_follow_two_thirds">Två tredjedelar</string>
+    <string name="display_follow_half">Hälften</string>
+    <string name="display_follow_third">En tredjedel</string>
+    <string name="display_follow_quarter">En fjärdedel</string>
     <string name="mode_tab_steam">Steam</string>
     <string name="device_info_show">Visa enhetsinformation</string>
     <string name="device_info_hide">Dölj enhetsinformation</string>

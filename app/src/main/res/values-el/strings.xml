@@ -1908,8 +1908,13 @@
     <string name="display_match_screen">Αντιστοίχιση οθόνης (%1$d×%2$d)</string>
     <string name="display_follow_screen">Ακολούθηση οθόνης (αλλάζει μέγεθος όταν διπλώνει ή ξεδιπλώνει)</string>
     <string name="display_follow_divisor">Μέγεθος απόδοσης</string>
-    <string name="display_follow_divisor_game">%1$s για αυτό το παιχνίδι σε αυτό το παράθυρο %2$s. Κάθε παιχνίδι κρατά το δικό του για κάθε μέγεθος παραθύρου: οθόνη, προσανατολισμό ή δίπλωμα.</string>
-    <string name="display_follow_divisor_client">%1$s για τον πελάτη Steam σε αυτό το παράθυρο %2$s. Κάθε μέγεθος παραθύρου κρατά το δικό του: οθόνη, προσανατολισμό ή δίπλωμα.</string>
+    <string name="display_follow_divisor_game">Απόδοση σε %1$s. Αποθηκεύτηκε για αυτό το παιχνίδι σε αυτή την οθόνη %2$s.</string>
+    <string name="display_follow_divisor_client">Απόδοση σε %1$s. Αποθηκεύτηκε για το πρόγραμμα Steam σε αυτή την οθόνη %2$s. Κάθε παιχνίδι κρατά τη δική του.</string>
+    <string name="display_follow_full">Πλήρες</string>
+    <string name="display_follow_two_thirds">Δύο τρίτα</string>
+    <string name="display_follow_half">Μισό</string>
+    <string name="display_follow_third">Ένα τρίτο</string>
+    <string name="display_follow_quarter">Ένα τέταρτο</string>
     <string name="mode_tab_steam">Steam</string>
     <string name="device_info_show">Εμφάνιση στοιχείων συσκευής</string>
     <string name="device_info_hide">Απόκρυψη στοιχείων συσκευής</string>

@@ -219,6 +219,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var gestureConfig = com.droiddeck.launcher.input.TouchGestureConfig()
     private var gestureGame: String? = null
     private var followGame by mutableStateOf<String?>(null)
+    private var followGameShown by mutableStateOf<Pair<String, android.graphics.Bitmap?>?>(null)
     private var followDivisor by mutableFloatStateOf(1f)
     private var followWindowSize by mutableStateOf<String?>(null)
     private var gestureSettingsOpen by mutableStateOf(false)
@@ -716,6 +717,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     if (nextGame != gestureGame) { gestureGame = nextGame; refreshGestureConfig() }
                     if (nextGame != followGame) { followGame = nextGame; applyGameFollowDivisor() }
                 }
+                LaunchedEffect(followGame) {
+                    val game = followGame
+                    followGameShown = null
+                    followGameShown = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { loadFollowGameShown(game) }
+                }
                 LaunchedEffect(drawerOpen, pcKeyboardOpen, achievementsOpen, gestureSettingsOpen, pipUi, SessionState.suspended) {
                     if (drawerOpen || pcKeyboardOpen || achievementsOpen || gestureSettingsOpen || pipUi || SessionState.suspended) {
                         cancelTouchGestures()
@@ -807,6 +813,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     onHud = { on -> SessionPrefs.setHudEnabled(this@SessionActivity, on); hudOn = on; hud.refresh() },
                     followWindowSize = if (SessionState.followScreen) followWindowSize else null,
                     followGameInFront = followGame != null,
+                    followGameName = followGameShown?.first,
+                    followGameIcon = followGameShown?.second,
                     followDivisor = followDivisor,
                     onFollowDivisor = ::chooseFollowDivisor,
                     onUpscaler = { m ->
@@ -1687,6 +1695,19 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             SessionState.followDivisor = divisor
         }
         if (width > 0) followWindow(width, height)
+    }
+
+    private fun loadFollowGameShown(game: String?): Pair<String, android.graphics.Bitmap?>? = when {
+        game == null -> null
+        game.startsWith("program:") -> Library.nameForProgram(SessionState.program)?.let { it to null }
+        else -> try {
+            drawerGameInventory.get(drawerGameInventoryRevision) { Library.launchableGames(this) }
+                .firstOrNull { it.profileKey == game }
+                ?.let { g -> g.name to g.icon?.let { android.graphics.BitmapFactory.decodeFile(it.path) } }
+        } catch (e: Exception) {
+            Log.w(TAG, "follow screen: no name for $game", e)
+            null
+        }
     }
 
     private fun chooseFollowDivisor(divisor: Float) {

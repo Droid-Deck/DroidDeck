@@ -1908,8 +1908,13 @@
     <string name="display_match_screen">Sovita näyttöön (%1$d×%2$d)</string>
     <string name="display_follow_screen">Seuraa näyttöä (koko muuttuu taitettuna tai avattuna)</string>
     <string name="display_follow_divisor">Renderöintikoko</string>
-    <string name="display_follow_divisor_game">%1$s tälle pelille tässä %2$s-ikkunassa. Jokainen peli muistaa omansa jokaiselle ikkunakoolle: näyttö, suunta tai taitto.</string>
-    <string name="display_follow_divisor_client">%1$s Steam-asiakkaalle tässä %2$s-ikkunassa. Jokainen ikkunakoko muistaa omansa: näyttö, suunta tai taitto.</string>
+    <string name="display_follow_divisor_game">Renderöidään kokoon %1$s. Tallennettu tälle pelille tällä %2$s-näytöllä.</string>
+    <string name="display_follow_divisor_client">Renderöidään kokoon %1$s. Tallennettu Steam-asiakasohjelmalle tällä %2$s-näytöllä. Jokainen peli pitää omansa.</string>
+    <string name="display_follow_full">Täysi</string>
+    <string name="display_follow_two_thirds">Kaksi kolmasosaa</string>
+    <string name="display_follow_half">Puolet</string>
+    <string name="display_follow_third">Kolmasosa</string>
+    <string name="display_follow_quarter">Neljäsosa</string>
     <string name="mode_tab_steam">Steam</string>
     <string name="device_info_show">Näytä laitteen tiedot</string>
     <string name="device_info_hide">Piilota laitteen tiedot</string>

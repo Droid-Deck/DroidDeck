@@ -1908,8 +1908,13 @@
     <string name="display_match_screen">स्क्रीन से मिलाएँ (%1$d×%2$d)</string>
     <string name="display_follow_screen">Follow screen (खुलने या बंद होने पर आकार बदलता है)</string>
     <string name="display_follow_divisor">रेंडर आकार</string>
-    <string name="display_follow_divisor_game">इस %2$s विंडो में इस गेम के लिए %1$s। हर गेम हर विंडो आकार के लिए अपना रखता है: स्क्रीन, ओरिएंटेशन या फ़ोल्ड।</string>
-    <string name="display_follow_divisor_client">इस %2$s विंडो में Steam क्लाइंट के लिए %1$s। हर विंडो आकार अपना रखता है: स्क्रीन, ओरिएंटेशन या फ़ोल्ड।</string>
+    <string name="display_follow_divisor_game">%1$s पर रेंडर हो रहा है। इस %2$s स्क्रीन पर इस गेम के लिए सहेजा गया।</string>
+    <string name="display_follow_divisor_client">%1$s पर रेंडर हो रहा है। इस %2$s स्क्रीन पर Steam क्लाइंट के लिए सहेजा गया। हर गेम अपना अलग रखता है।</string>
+    <string name="display_follow_full">पूरा</string>
+    <string name="display_follow_two_thirds">दो-तिहाई</string>
+    <string name="display_follow_half">आधा</string>
+    <string name="display_follow_third">एक-तिहाई</string>
+    <string name="display_follow_quarter">एक-चौथाई</string>
     <string name="mode_tab_steam">Steam</string>
     <string name="device_info_show">डिवाइस जानकारी दिखाएं</string>
     <string name="device_info_hide">डिवाइस जानकारी छिपाएं</string>

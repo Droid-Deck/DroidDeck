@@ -2,6 +2,7 @@ package com.droiddeck.launcher.session
 
 import android.content.Context
 import android.view.WindowManager
+import com.droiddeck.launcher.R
 
 object SessionDisplay {
     const val MATCH_SCREEN = "screen"
@@ -10,8 +11,13 @@ object SessionDisplay {
 
     val FOLLOW_DIVISORS = listOf(1f, 1.5f, 2f, 3f, 4f)
 
-    fun divisorLabel(divisor: Float): String =
-        "÷" + if (divisor % 1f == 0f) divisor.toInt().toString() else divisor.toString()
+    fun divisorLabel(divisor: Float): Int = when (divisor) {
+        1.5f -> R.string.display_follow_two_thirds
+        2f -> R.string.display_follow_half
+        3f -> R.string.display_follow_third
+        4f -> R.string.display_follow_quarter
+        else -> R.string.display_follow_full
+    }
 
     const val DEFAULT_RESOLUTION = "720p"
     private val PRESET_HEIGHTS = listOf(720, 900, 1080)

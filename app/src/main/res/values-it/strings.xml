@@ -1918,8 +1918,13 @@
     <string name="display_match_screen">Adatta allo schermo (%1$d×%2$d)</string>
     <string name="display_follow_screen">Segui lo schermo (si ridimensiona quando lo pieghi o lo apri)</string>
     <string name="display_follow_divisor">Dimensione di rendering</string>
-    <string name="display_follow_divisor_game">%1$s per questo gioco in questa finestra %2$s. Ogni gioco tiene la propria per ogni dimensione di finestra: schermo, orientamento o piegatura.</string>
-    <string name="display_follow_divisor_client">%1$s per il client Steam in questa finestra %2$s. Ogni dimensione di finestra tiene la propria: schermo, orientamento o piegatura.</string>
+    <string name="display_follow_divisor_game">Rendering a %1$s. Salvato per questo gioco su questo schermo %2$s.</string>
+    <string name="display_follow_divisor_client">Rendering a %1$s. Salvato per il client Steam su questo schermo %2$s. Ogni gioco mantiene il proprio.</string>
+    <string name="display_follow_full">Intera</string>
+    <string name="display_follow_two_thirds">Due terzi</string>
+    <string name="display_follow_half">Metà</string>
+    <string name="display_follow_third">Un terzo</string>
+    <string name="display_follow_quarter">Un quarto</string>
     <string name="mode_tab_steam">Steam</string>
     <string name="device_info_show">Mostra dettagli dispositivo</string>
     <string name="device_info_hide">Nascondi dettagli dispositivo</string>

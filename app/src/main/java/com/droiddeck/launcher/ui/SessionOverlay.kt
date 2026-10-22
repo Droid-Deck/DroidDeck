@@ -250,6 +250,8 @@ class DrawerActions(
     val onUpscaler: (Int) -> Unit = {},
     val followWindowSize: String? = null,
     val followGameInFront: Boolean = false,
+    val followGameName: String? = null,
+    val followGameIcon: android.graphics.Bitmap? = null,
     val followDivisor: Float = 1f,
     val onFollowDivisor: (Float) -> Unit = {},
     val onUpscaleSharpness: (Int) -> Unit = {},
@@ -485,11 +487,22 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                 if (a.followWindowSize != null) {
                                     val (fw, fh) = a.followWindowSize.split('x').map { it.toInt() }
                                     val now = com.droiddeck.launcher.session.SessionDisplay.followSize(fw, fh, a.followDivisor)
+                                    if (a.followGameInFront && a.followGameName != null) Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, top = 10.dp),
+                                    ) {
+                                        a.followGameIcon?.let { icon ->
+                                            Image(bitmap = icon.asImageBitmap(), contentDescription = null,
+                                                modifier = Modifier.padding(end = 8.dp).size(24.dp).clip(RoundedCornerShape(5.dp)))
+                                        }
+                                        Text(a.followGameName, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = colors.onSurfaceVariant,
+                                            maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    }
                                     ChoiceRow(host, "follow-divisor", stringResource(R.string.display_follow_divisor),
                                         stringResource(if (a.followGameInFront) R.string.display_follow_divisor_game else R.string.display_follow_divisor_client,
                                             now?.let { "${it.first}×${it.second}" } ?: "-", "$fw×$fh"),
                                         com.droiddeck.launcher.session.SessionDisplay.FOLLOW_DIVISORS.map {
-                                            it to com.droiddeck.launcher.session.SessionDisplay.divisorLabel(it)
+                                            it to stringResource(com.droiddeck.launcher.session.SessionDisplay.divisorLabel(it))
                                         }, a.followDivisor, chipModifier = focus.track(page, "follow-divisor"), onPick = a.onFollowDivisor)
                                 }
                                 ChoiceRow(host, "upscaler", stringResource(R.string.display_filter), null,

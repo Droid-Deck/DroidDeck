@@ -1887,8 +1887,13 @@
     <string name="display_match_screen">Sepadan skrin (%1$d×%2$d)</string>
     <string name="display_follow_screen">Ikut skrin (mengubah saiz apabila dilipat atau dibuka)</string>
     <string name="display_follow_divisor">Saiz paparan</string>
-    <string name="display_follow_divisor_game">%1$s untuk permainan ini dalam tetingkap %2$s ini. Setiap permainan menyimpan saiznya sendiri bagi setiap saiz tetingkap: skrin, orientasi atau lipatan.</string>
-    <string name="display_follow_divisor_client">%1$s untuk klien Steam dalam tetingkap %2$s ini. Setiap saiz tetingkap menyimpan saiznya sendiri: skrin, orientasi atau lipatan.</string>
+    <string name="display_follow_divisor_game">Memapar pada %1$s. Disimpan untuk permainan ini pada skrin %2$s ini.</string>
+    <string name="display_follow_divisor_client">Memapar pada %1$s. Disimpan untuk klien Steam pada skrin %2$s ini. Setiap permainan menyimpan tetapannya sendiri.</string>
+    <string name="display_follow_full">Penuh</string>
+    <string name="display_follow_two_thirds">Dua pertiga</string>
+    <string name="display_follow_half">Separuh</string>
+    <string name="display_follow_third">Satu pertiga</string>
+    <string name="display_follow_quarter">Suku</string>
     <string name="mode_tab_steam">Steam</string>
     <string name="device_info_show">Papar butiran peranti</string>
     <string name="device_info_hide">Sembunyikan butiran peranti</string>

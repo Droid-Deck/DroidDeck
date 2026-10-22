@@ -1908,8 +1908,13 @@
     <string name="display_match_screen">Match skærm (%1$d×%2$d)</string>
     <string name="display_follow_screen">Følg skærm (ændrer størrelse ved fold/udfold)</string>
     <string name="display_follow_divisor">Gengivelsesstørrelse</string>
-    <string name="display_follow_divisor_game">%1$s for dette spil i dette %2$s-vindue. Hvert spil husker sin egen for hver vinduesstørrelse: skærm, retning eller foldning.</string>
-    <string name="display_follow_divisor_client">%1$s for Steam-klienten i dette %2$s-vindue. Hver vinduesstørrelse husker sin egen: skærm, retning eller foldning.</string>
+    <string name="display_follow_divisor_game">Renderer i %1$s. Gemt for dette spil på denne %2$s-skærm.</string>
+    <string name="display_follow_divisor_client">Renderer i %1$s. Gemt for Steam-klienten på denne %2$s-skærm. Hvert spil har sin egen.</string>
+    <string name="display_follow_full">Fuld</string>
+    <string name="display_follow_two_thirds">To tredjedele</string>
+    <string name="display_follow_half">Halv</string>
+    <string name="display_follow_third">En tredjedel</string>
+    <string name="display_follow_quarter">En fjerdedel</string>
     <string name="mode_tab_steam">Steam</string>
     <string name="device_info_show">Vis enhedsoplysninger</string>
     <string name="device_info_hide">Skjul enhedsoplysninger</string>

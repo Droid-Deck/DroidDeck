@@ -1887,8 +1887,13 @@
     <string name="display_match_screen">配合螢幕（%1$d×%2$d）</string>
     <string name="display_follow_screen">跟隨螢幕（摺疊或展開時調整大小）</string>
     <string name="display_follow_divisor">渲染尺寸</string>
-    <string name="display_follow_divisor_game">此遊戲在此 %2$s 視窗中為 %1$s。每個遊戲為每種視窗尺寸（螢幕、方向或摺疊）分別保存。</string>
-    <string name="display_follow_divisor_client">Steam 用戶端在此 %2$s 視窗中為 %1$s。每種視窗尺寸（螢幕、方向或摺疊）分別保存。</string>
+    <string name="display_follow_divisor_game">目前渲染為 %1$s。已為此遊戲在此 %2$s 螢幕上儲存。</string>
+    <string name="display_follow_divisor_client">目前渲染為 %1$s。已為 Steam 用戶端在此 %2$s 螢幕上儲存。每個遊戲各自儲存。</string>
+    <string name="display_follow_full">完整</string>
+    <string name="display_follow_two_thirds">三分之二</string>
+    <string name="display_follow_half">一半</string>
+    <string name="display_follow_third">三分之一</string>
+    <string name="display_follow_quarter">四分之一</string>
     <string name="mode_tab_steam">Steam</string>
     <string name="device_info_show">顯示裝置詳情</string>
     <string name="device_info_hide">隱藏裝置詳情</string>

@@ -1897,8 +1897,13 @@
     <string name="display_match_screen">Ekrana Uydur (%1$d×%2$d)</string>
     <string name="display_follow_screen">Ekranı takip et (katlanıp açıldığında yeniden boyutlanır)</string>
     <string name="display_follow_divisor">İşleme boyutu</string>
-    <string name="display_follow_divisor_game">Bu %2$s pencerede bu oyun için %1$s. Her oyun her pencere boyutu için kendi ayarını tutar: ekran, yön veya katlama.</string>
-    <string name="display_follow_divisor_client">Bu %2$s pencerede Steam istemcisi için %1$s. Her pencere boyutu kendi ayarını tutar: ekran, yön veya katlama.</string>
+    <string name="display_follow_divisor_game">%1$s çözünürlükte işleniyor. Bu %2$s ekranda bu oyun için kaydedildi.</string>
+    <string name="display_follow_divisor_client">%1$s çözünürlükte işleniyor. Bu %2$s ekranda Steam istemcisi için kaydedildi. Her oyun kendi ayarını tutar.</string>
+    <string name="display_follow_full">Tam</string>
+    <string name="display_follow_two_thirds">Üçte iki</string>
+    <string name="display_follow_half">Yarım</string>
+    <string name="display_follow_third">Üçte bir</string>
+    <string name="display_follow_quarter">Çeyrek</string>
     <string name="mode_tab_steam">Steam</string>
     <string name="device_info_show">Cihaz ayrıntılarını göster</string>
     <string name="device_info_hide">Cihaz ayrıntılarını gizle</string>

@@ -1992,8 +1992,13 @@
     <string name="display_match_screen">مطابقة الشاشة (%1$d×%2$d)</string>
     <string name="display_follow_screen">اتباع الشاشة (يُغيَّر الحجم عند الطي أو الفتح)</string>
     <string name="display_follow_divisor">حجم العرض</string>
-    <string name="display_follow_divisor_game">%1$s لهذه اللعبة في هذه النافذة %2$s. تحتفظ كل لعبة بحجمها لكل حجم نافذة: الشاشة أو الاتجاه أو الطي.</string>
-    <string name="display_follow_divisor_client">%1$s لعميل Steam في هذه النافذة %2$s. يحتفظ كل حجم نافذة بحجمه: الشاشة أو الاتجاه أو الطي.</string>
+    <string name="display_follow_divisor_game">العرض بدقة %1$s. محفوظ لهذه اللعبة على هذه الشاشة %2$s.</string>
+    <string name="display_follow_divisor_client">العرض بدقة %1$s. محفوظ لعميل Steam على هذه الشاشة %2$s. تحتفظ كل لعبة بإعدادها.</string>
+    <string name="display_follow_full">كامل</string>
+    <string name="display_follow_two_thirds">الثلثان</string>
+    <string name="display_follow_half">النصف</string>
+    <string name="display_follow_third">الثلث</string>
+    <string name="display_follow_quarter">الربع</string>
     <string name="mode_tab_steam">Steam</string>
     <string name="device_info_show">إظهار تفاصيل الجهاز</string>
     <string name="device_info_hide">إخفاء تفاصيل الجهاز</string>
