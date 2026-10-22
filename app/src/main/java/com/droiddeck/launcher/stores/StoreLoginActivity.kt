@@ -5,6 +5,7 @@ import android.content.res.Configuration
 import android.graphics.Color
 import android.net.Uri
 import android.net.http.SslError
+import android.os.Build
 import android.os.Bundle
 import android.os.Message
 import android.util.Log
@@ -18,6 +19,7 @@ import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
+import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Button
@@ -38,8 +40,12 @@ class StoreLoginActivity : ComponentActivity() {
         const val EXTRA_STORE = "store"
         const val EXTRA_CLIENT_URL = "client_url"
         private const val KEY_STATE = "oauth_state"
+        private const val KEY_SIGN_IN_CLEARED = "sign_in_cleared"
         @Volatile internal var floodColor: Int? = null
-        internal const val CHROME_UA = "Mozilla/5.0 (Linux; Android 14; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.6533.103 Mobile Safari/537.36"
+        internal fun chromeUserAgent(webView: String?): String =
+            webView?.replace(Regex(" Build/[^;)]*"), "")?.replace("; wv)", ")")?.replace(" Version/4.0", "")
+                ?.takeIf { "Chrome/" in it }
+                ?: "Mozilla/5.0 (Linux; Android ${Build.VERSION.RELEASE}; ${Build.MODEL}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.6533.103 Mobile Safari/537.36"
 
         fun generateState(): String {
             val bytes = ByteArray(24)
@@ -54,6 +60,7 @@ class StoreLoginActivity : ComponentActivity() {
         fun isRedirect(url: String): Boolean
         fun finish(activity: StoreLoginActivity, view: WebView, url: String): String?
         val readsPage: Boolean get() = false
+        fun forgetSignIn(done: () -> Unit) = done()
     }
 
     private var store: Store? = null
@@ -74,6 +81,8 @@ class StoreLoginActivity : ComponentActivity() {
     private var oauthState: String? = null
     private val captured = AtomicBoolean(false)
     private var flooded = false
+    private val chromeUa by lazy { chromeUserAgent(runCatching { WebSettings.getDefaultUserAgent(this) }.getOrNull()) }
+    private var signInCleared = false
 
     private fun dp(value: Int): Int = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, value.toFloat(), resources.displayMetrics).toInt()
 
@@ -109,12 +118,18 @@ class StoreLoginActivity : ComponentActivity() {
                 }
             }
         })
-        webView.loadUrl(flow!!.startUrl)
+        val start = flow!!.startUrl
+        signInCleared = savedInstanceState?.getBoolean(KEY_SIGN_IN_CLEARED) == true
+        if (signInCleared) webView.loadUrl(start)
+        else flow!!.forgetSignIn {
+            signInCleared = true
+            if (!isDestroyed) webView.loadUrl(start)
+        }
     }
 
     private fun newFlow(state: String): Flow? {
         val url = clientUrl
-        if (url != null) return com.droiddeck.launcher.stores.epic.EpicClient.loginFlow(url)
+        if (url != null) return com.droiddeck.launcher.stores.epic.EpicClient.loginFlow(url, chromeUa)
         return store?.let { LoginFlows.forStore(it, state) }
     }
 
@@ -225,7 +240,7 @@ class StoreLoginActivity : ComponentActivity() {
         override fun onCreateWindow(view: WebView?, isDialog: Boolean, isUserGesture: Boolean, resultMsg: Message?): Boolean {
             if (resultMsg == null) return false
             dismissPopup()
-            val child = newWebView(CHROME_UA, isPopup = true)
+            val child = newWebView(chromeUa, isPopup = true)
             popupWebView = child
             popupHost.addView(child, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
             popupHost.visibility = View.VISIBLE
@@ -255,6 +270,8 @@ class StoreLoginActivity : ComponentActivity() {
     }
 
     private inner class Client(private val isPopup: Boolean) : WebViewClient() {
+        private var mainFrameUrl: String? = null
+
         override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
             Log.d(TAG, "page[popup=$isPopup]: ${StoreLog.redactUrl(url)}")
             if (url != null && view != null && flow?.isRedirect(url) == true && flow?.readsPage != true) complete(view, url)
@@ -277,10 +294,14 @@ class StoreLoginActivity : ComponentActivity() {
 
         override fun onReceivedSslError(view: WebView?, handler: SslErrorHandler?, error: SslError?) {
             handler?.cancel()
-            showError(getString(R.string.stores_login_error_ssl))
+            val url = error?.url
+            if (url == null || url == view?.url || url == mainFrameUrl) showError(getString(R.string.stores_login_error_ssl))
         }
 
-        override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean = route(view, request.url)
+        override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+            if (request.isForMainFrame) mainFrameUrl = request.url.toString()
+            return route(view, request.url)
+        }
 
         @Suppress("DEPRECATION")
         override fun shouldOverrideUrlLoading(view: WebView, url: String): Boolean = route(view, Uri.parse(url))
@@ -291,8 +312,8 @@ class StoreLoginActivity : ComponentActivity() {
             if (f.isRedirect(url) && !f.readsPage) { complete(view, url); return true }
             if (!isPopup && store == Store.GOG) {
                 if (GogAuth.isGogHost(uri.host) && view.settings.userAgentString != f.userAgent) { view.settings.userAgentString = f.userAgent; return false }
-                if (GogAuth.isIdentityProviderHost(uri.host) && view.settings.userAgentString != CHROME_UA) {
-                    view.settings.userAgentString = CHROME_UA
+                if (GogAuth.isIdentityProviderHost(uri.host) && view.settings.userAgentString != chromeUa) {
+                    view.settings.userAgentString = chromeUa
                     CookieManager.getInstance().setAcceptThirdPartyCookies(view, true)
                     view.loadUrl(url)
                     return true
@@ -330,6 +351,7 @@ class StoreLoginActivity : ComponentActivity() {
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         oauthState?.let { outState.putString(KEY_STATE, it) }
+        outState.putBoolean(KEY_SIGN_IN_CLEARED, signInCleared)
     }
 
     override fun onStart() {
