@@ -73,6 +73,13 @@ if [ -f "$HOME/.droiddeck-remote-run" ]; then
     done
   ) &
 fi
+if [ "$(cat /usr/share/droiddeck/kwin-compositor 2>/dev/null)" = opengl ]; then
+  unset LIBGL_ALWAYS_SOFTWARE QT_QUICK_BACKEND
+  export KWIN_COMPOSE=O2 MESA_LOADER_DRIVER_OVERRIDE=zink GALLIUM_DRIVER=zink LIBGL_KOPPER_DRI2=true
+  if [ -z "${KWIN_RENDER_NODES:-}" ] && [ -c /dev/dri/renderD0 ]; then
+    export KWIN_RENDER_NODES=/dev/dri/renderD0
+  fi
+fi
 echo "== droiddeck-desktop: Plasma on $WAYLAND_DISPLAY"
 dbus-run-session -- startplasma-wayland
 rc=$?
