@@ -228,6 +228,52 @@ class RumbleComponentTest {
         assertEquals(listOf(Triple(40000, 1000, 5000L)), pad.played)
     }
 
+    @Test fun deckHapticOnTheFallbackPhoneDoesNotSuppressOrCancelGameRumble() {
+        val phone = FakeMotors()
+        RumbleComponent::class.java.getDeclaredField("phone").apply { isAccessible = true }.set(rumble, phone)
+        activeController(PadBridge.NO_CONTROLLER)
+        effect(strong = 40000, weak = 0)
+        haptic(db = 7, ms = 2500)
+        assertEquals(2000L, phone.played.last().third)
+        val until = RumbleComponent::class.java.getDeclaredField("hapticUntil").apply { isAccessible = true }.getLong(rumble)
+        assertTrue(until - android.os.SystemClock.elapsedRealtime() <= 2000L)
+        haptic(db = 0, ms = 0)
+        assertTrue("a haptic stop cancelled game rumble on the shared phone vibrator", phone.vibrating)
+        effect(strong = 40000, weak = 0)
+        assertEquals("the haptic left game-effect deduplication stale", 3, phone.played.size)
+    }
+
+    @Test fun usbRumbleProviderStartsOnlyWhileGameRumbleIsEnabled() {
+        ControllerPrefs.setRumble(context, false)
+        rumble.stop()
+        var starts = 0
+        var releases = 0
+        val provider = object : RumbleProvider {
+            override val name = "test provider"
+            override fun sessionStart(context: Context) { starts++ }
+            override fun motors(context: Context): RumbleComponent.Motors? = null
+            override fun release(why: String) { releases++ }
+        }
+        RumbleProviders.register(provider)
+        try {
+            rumble = RumbleComponent().also {
+                it.providerMotors = { null }
+                it.motorLooper = Looper.getMainLooper()
+                it.attach(context)
+                it.start()
+            }
+            assertEquals(0, starts)
+            ControllerPrefs.setRumble(context, true)
+            shadowOf(Looper.getMainLooper()).idle()
+            assertEquals(1, starts)
+            ControllerPrefs.setRumble(context, false)
+            shadowOf(Looper.getMainLooper()).idle()
+            assertEquals(1, releases)
+        } finally {
+            RumbleProviders.unregister(provider)
+        }
+    }
+
     @Test fun deckHapticsIgnoreThePhoneFallbackSetting() {
         ControllerPrefs.setRumblePhoneFallback(context, false)
         shadowOf(Looper.getMainLooper()).idle()

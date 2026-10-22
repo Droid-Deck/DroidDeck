@@ -11,6 +11,10 @@ import com.droiddeck.launcher.session.SessionState;
 
 import java.io.File;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicIntegerArray;
 
 public final class PadBridge {
@@ -48,6 +52,7 @@ public final class PadBridge {
     private final PadState state = new PadState();
     private final int[] owners = new int[SLOTS];
     private final int[] partners = new int[SLOTS];
+    private final Map<Integer, Set<Integer>> padGripOwners = new HashMap<>();
     private volatile java.util.function.IntPredicate excluded = id -> false;
     private final FakeInputWriter[] playerWriters = new FakeInputWriter[SLOTS];
     private final PadState[] playerStates = new PadState[SLOTS];
@@ -219,7 +224,7 @@ public final class PadBridge {
         chordButtonPressed = false;
         qamTapPressed = false;
         qamChordGeneration++;
-        DeckControls.INSTANCE.releasePadGrips();
+        releaseAllPadGrips();
         if (open) {
             state.clear();
             writer.writePad(state);
@@ -358,7 +363,7 @@ public final class PadBridge {
         if (grip != 0) {
             if (pressed) logKeyOnce(event, "-> Deck " + gripName(grip));
             noteDevice(device, slot);
-            if (event.getRepeatCount() == 0 || !pressed) DeckControls.INSTANCE.setPadGrip(grip, pressed);
+            if (event.getRepeatCount() == 0 || !pressed) setPadGrip(device.getId(), grip, pressed);
             if (pressed) notePlayerInput();
             statButtons++;
             scheduleStats();
@@ -536,7 +541,7 @@ public final class PadBridge {
     public synchronized void releaseAll() {
         routedTouch.clear();
         releaseBackPaddles();
-        DeckControls.INSTANCE.releasePadGrips();
+        releaseAllPadGrips();
         state.clear();
         publish();
         for (int slot = 1; slot < SLOTS; slot++) {
@@ -547,9 +552,32 @@ public final class PadBridge {
     }
 
     public synchronized void onDeviceRemoved(int deviceId) {
+        releasePadGripsForDevice(deviceId);
         for (int slot = 0; slot < SLOTS; slot++) {
             if (owners[slot] == deviceId || partners[slot] == deviceId) leave(slot, deviceId);
         }
+    }
+
+    private void setPadGrip(int deviceId, int bit, boolean down) {
+        Set<Integer> devices = padGripOwners.computeIfAbsent(bit, ignored -> new HashSet<>());
+        if (down) devices.add(deviceId);
+        else devices.remove(deviceId);
+        if (devices.isEmpty()) padGripOwners.remove(bit);
+        DeckControls.INSTANCE.setPadGrip(bit, !devices.isEmpty());
+    }
+
+    private void releasePadGripsForDevice(int deviceId) {
+        for (int bit : new int[]{DeckControls.L4, DeckControls.R4}) {
+            Set<Integer> devices = padGripOwners.get(bit);
+            if (devices == null || !devices.remove(deviceId)) continue;
+            if (devices.isEmpty()) padGripOwners.remove(bit);
+            DeckControls.INSTANCE.setPadGrip(bit, !devices.isEmpty());
+        }
+    }
+
+    private void releaseAllPadGrips() {
+        padGripOwners.clear();
+        DeckControls.INSTANCE.releasePadGrips();
     }
 
     private static boolean nativeQam() {

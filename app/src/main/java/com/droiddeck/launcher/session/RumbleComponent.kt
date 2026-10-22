@@ -96,6 +96,7 @@ class RumbleComponent : SessionPart() {
     internal var providerMotors: () -> Motors? = { app()?.let { RumbleProviders.motors(it) } }
 
     private var providerGeneration = 0
+    private var providerSessionActive = false
 
     @Synchronized private fun refreshEnabled() {
         val ctx = app()
@@ -104,6 +105,13 @@ class RumbleComponent : SessionPart() {
         controllerIds.clear()
         controllers.clear()
         if (!enabled) cancelAll()
+        if (enabled && !providerSessionActive && ctx != null) {
+            RumbleProviders.sessionStart(ctx)
+            providerSessionActive = true
+        } else if (!enabled && providerSessionActive) {
+            RumbleProviders.release("rumble disabled")
+            providerSessionActive = false
+        }
     }
 
     override fun start() {
@@ -123,8 +131,6 @@ class RumbleComponent : SessionPart() {
             Log.w(TAG, "rumble: no input device listener ($e)")
         }
         logConnectedPads()
-        // Providers may ask for device access (a USB permission dialog) now rather than mid-game.
-        RumbleProviders.sessionStart(ctx)
         val s = bind(retries = 0)
         if (s != null) {
             listen(s)
@@ -202,6 +208,7 @@ class RumbleComponent : SessionPart() {
         joyConPairs.clear()
         fallbackSince.clear()
         RumbleProviders.release("session end")
+        providerSessionActive = false
         val s = server
         server = null
         synchronized(RumbleComponent::class.java) { if (activeListener === s) activeListener = null }
@@ -263,15 +270,17 @@ class RumbleComponent : SessionPart() {
         val target = phone ?: return
         val now = SystemClock.elapsedRealtime()
         if (ms == 0) {
-            if (now < hapticUntil) target.cancel()
+            if (now < hapticUntil && playing.values.none { it === target }) target.cancel()
             hapticUntil = 0L
             return
         }
         val amplitude = haptics.amplitude(side, db)
         if (amplitude == 0) return
         try {
-            target.play(amplitude * 257, 0, ms.toLong().coerceIn(1L, 2000L))
-            hapticUntil = now + ms
+            val length = ms.toLong().coerceIn(1L, 2000L)
+            target.play(amplitude * 257, 0, length)
+            hapticUntil = now + length
+            playing.forEach { (slot, motors) -> if (motors === target) effects[slot]?.invalidate() }
         } catch (e: Exception) {
             logLimited("haptic", "rumble: haptic on ${target.name}: $e")
         }
@@ -503,6 +512,11 @@ class RumbleComponent : SessionPart() {
             playedMs = ms
             at = now
             until = now + duration
+        }
+
+        fun invalidate() {
+            playedMs = 0
+            at = -MIN_GAP_MS
         }
 
         override fun run() = play(this)

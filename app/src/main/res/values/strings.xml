@@ -1002,7 +1002,7 @@
     <string name="ctrl_adaptive">Adaptive sticks</string>
     <string name="ctrl_rumble">Game vibration</string>
     <string name="ctrl_rumble_phone">Phone vibration fallback</string>
-    <string name="ctrl_rumble_phone_hint">Vibrate the phone when the controller has no motors Android can drive. Off: controller only</string>
+    <string name="ctrl_rumble_phone_hint">Use the phone as fallback for game rumble when controller motors are unavailable. Deck haptics can still vibrate the phone.</string>
     <string name="ctrl_rumble_test">Test controller rumble</string>
     <string name="ctrl_rumble_test_hint">Strong motor, weak motor, then three short ticks, all at full strength, on the controller (over USB for a Razer Kishi) or the phone</string>
     <string name="ctrl_rumble_test_button">Test</string>
