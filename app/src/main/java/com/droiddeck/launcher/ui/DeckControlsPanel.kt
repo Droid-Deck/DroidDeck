@@ -23,7 +23,9 @@ import android.widget.TextView
 import com.droiddeck.launcher.input.DeckControls
 import com.droiddeck.launcher.input.PadBridge
 import com.droiddeck.launcher.input.PadState
+import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionPrefs
+import com.droiddeck.launcher.session.SessionState
 import kotlin.math.atan2
 import kotlin.math.hypot
 import kotlin.math.min
@@ -85,9 +87,11 @@ class DeckControlsPanel(
             addView(tabs, FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, dp(44)))
         }
         addView(centre, LayoutParams(0, LayoutParams.MATCH_PARENT, 1f))
-        addView(roundButton("STEAM", context.getString(R.string.deck_open_steam_menu), onSteamMenu, wide = true))
-        addView(space(dp(8)))
-        addView(roundButton("•••", context.getString(R.string.drawer_open_qam), onQam, wide = true))
+        if (SessionState.mode == SessionService.MODE_STEAM) {
+            addView(roundButton("STEAM", context.getString(R.string.deck_open_steam_menu), onSteamMenu, wide = true))
+            addView(space(dp(8)))
+            addView(roundButton("•••", context.getString(R.string.drawer_open_qam), onQam, wide = true))
+        }
     }
 
     private fun select(tab: Tab) {
@@ -177,8 +181,10 @@ class DeckControlsPanel(
         place(pill("RB") { st, d -> st.press(PadState.RB, d) }, GamepadGeometry.Slot.RIGHT_INNER_SHOULDER)
         place(pill("RT") { st, d -> st.rightTrigger = if (d) 1f else 0f }, GamepadGeometry.Slot.RIGHT_OUTER_SHOULDER)
         place(pill("VIEW") { st, d -> st.press(PadState.SELECT, d) }, GamepadGeometry.Slot.VIEW)
-        place(centreTap("STEAM", context.getString(R.string.deck_open_steam_menu), onSteamMenu), GamepadGeometry.Slot.STEAM)
-        place(centreTap("\u2022\u2022\u2022", context.getString(R.string.drawer_open_qam), onQam), GamepadGeometry.Slot.QAM)
+        if (SessionState.mode == SessionService.MODE_STEAM) {
+            place(centreTap("STEAM", context.getString(R.string.deck_open_steam_menu), onSteamMenu), GamepadGeometry.Slot.STEAM)
+            place(centreTap("\u2022\u2022\u2022", context.getString(R.string.drawer_open_qam), onQam), GamepadGeometry.Slot.QAM)
+        }
         place(pill("MENU") { st, d -> st.press(PadState.START, d) }, GamepadGeometry.Slot.MENU)
         place(centreTap("\u25a6 " + context.getString(R.string.deck_panels), context.getString(R.string.deck_more_controls)) { select(Tab.BOTH) },
             GamepadGeometry.Slot.PANELS)
