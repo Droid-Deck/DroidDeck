@@ -37,6 +37,83 @@ class LogRedactorTest {
         assertEquals("login <redacted:email> ok", LogRedactor.redact("login someone@example.com ok"))
     }
 
+    @Test fun onlyLoaderDiagnosticsKeepHidlSharedLibraryNames() {
+        val library = "android.hardware.graphics.mapper@4.0.so"
+        val line = "dlopen failed: library \"$library\" not found"
+        val pathLine = "dlopen failed: library \"/vendor/lib64/hw/$library\" not found"
+
+        assertEquals(line, LogRedactor.redact(line))
+        assertEquals(line, LogRedactor.redactForShare(line))
+        assertEquals(pathLine, LogRedactor.redact(pathLine))
+        assertEquals(pathLine, LogRedactor.redactForShare(pathLine))
+    }
+
+    @Test fun privacyRulesOverrideTheHidlSharedLibraryException() {
+        val library = "android.hardware.graphics.mapper@4.0.so"
+        assertEquals("token=<redacted:token>", LogRedactor.redact("token=$library"))
+        assertEquals("username=<redacted:account>", LogRedactor.redact("username=$library"))
+        assertEquals("{\"password\":\"<redacted:token>\"}", LogRedactor.redact("{\"password\":\"$library\"}"))
+        assertEquals("{\"password\":\"<redacted:token>\"}", LogRedactor.redactForShare("{\"password\":\"$library\"}"))
+        assertEquals("{\"password\":\"<redacted:token>\"}", LogRedactor.redact("{\"password\":\"don't-use-$library\"}"))
+        assertEquals("{\"password\":\"<redacted:token>\"}", LogRedactor.redactForShare("{\"password\":\"don't-use-$library\"}"))
+
+        val mixed = "dlopen failed: library \"$library\" not found; token=abcdef123456; contact=alice!$library; {\"password\":\"library \\\"$library\\\" not found\"}"
+        val expected = "dlopen failed: library \"$library\" not found; token=<redacted:token>; contact=alice!<redacted:email>; {\"password\":\"<redacted:token>\"}"
+        assertEquals(expected, LogRedactor.redact(mixed))
+        assertEquals(expected, LogRedactor.redactForShare(mixed))
+
+        val root = java.nio.file.Files.createTempDirectory("hidl-redactor").toFile()
+        val users = java.io.File(root, "loginusers.vdf")
+        users.writeText("\"AccountName\" \"$library\"")
+        try {
+            LogRedactor.learnAccounts(users)
+            assertEquals("<redacted:account>", LogRedactor.redact(library))
+        } finally {
+            LogRedactor.learnAccounts()
+            root.deleteRecursively()
+        }
+    }
+
+    @Test fun hidlSharedLibraryNamesAreRedactedOutsideLoaderDiagnostics() {
+        val library = "android.hardware.graphics.mapper@4.0.so"
+
+        assertEquals("<redacted:email>", LogRedactor.redact(library))
+        assertEquals("<redacted:email>", LogRedactor.redactForShare(library))
+        assertEquals("/vendor/lib64/hw/<redacted:email>", LogRedactor.redact("/vendor/lib64/hw/$library"))
+        for (punctuation in listOf("!", "#", "~", "/", "=")) {
+            val expected = "contact=alice$punctuation<redacted:email>"
+            assertEquals(expected, LogRedactor.redact("contact=alice$punctuation$library"))
+            assertEquals(expected, LogRedactor.redactForShare("contact=alice$punctuation$library"))
+        }
+        assertEquals("<redacted:email>", LogRedactor.redact("$library.evil"))
+        assertEquals("<redacted:email>", LogRedactor.redact("someone@company.so"))
+        assertEquals("<redacted:email>", LogRedactor.redact("not$library"))
+        assertEquals("<redacted:email>_debug", LogRedactor.redact("${library}_debug"))
+        assertEquals("<redacted:email>.1", LogRedactor.redact("${library}.1"))
+        assertEquals("<redacted:email>@attacker", LogRedactor.redact("${library}@attacker"))
+        assertEquals("<redacted:email>", LogRedactor.redact("android.hardware.graphics.mapper@4.0.software"))
+        assertEquals("<redacted:email>", LogRedactor.redact("android.hardware.graphics.mapper@4.0.so.evil"))
+    }
+
+    @Test fun loaderContextRequiresExactWordsAndABoundedAndroidPath() {
+        val library = "android.hardware.graphics.mapper@4.0.so"
+        val valid = "library \"/system/lib64/$library\" not found: needed by app"
+        assertEquals(valid, LogRedactor.redact(valid))
+        assertEquals(valid, LogRedactor.redactForShare(valid))
+        for (line in listOf(
+            "not_library \"$library\" not found",
+            "library \"$library\" not found_suffix",
+            "library \"/home/user/$library\" not found",
+            "library \"relative/$library\" not found",
+            "library \"/vendor/invalid!/$library\" not found",
+            "library \"/vendor/" + "a/".repeat(2050) + "$library\" not found",
+        )) {
+            val expected = line.replace(library, "<redacted:email>")
+            assertEquals(expected, LogRedactor.redact(line))
+            assertEquals(expected, LogRedactor.redactForShare(line))
+        }
+    }
+
     @Test fun clockTimeIsNotAnAddress() {
         val line = "[2026-09-27 10:03:05] Startup"
         assertEquals(line, LogRedactor.redact(line))
