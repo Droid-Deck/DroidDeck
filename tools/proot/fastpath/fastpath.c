@@ -871,11 +871,15 @@ static void fill_statx(struct statx *out, const struct stat *st) {
 static long statx_call(int dirfd, const char *path, int flags, unsigned mask, struct statx *out) {
   struct stat st;
   long rs;
+  if ((flags & ~(AT_EMPTY_PATH | AT_SYMLINK_NOFOLLOW | AT_NO_AUTOMOUNT | AT_STATX_SYNC_TYPE)) ||
+      (flags & AT_STATX_SYNC_TYPE) == AT_STATX_SYNC_TYPE)
+    return -EINVAL;
   if (!statx_missing) {
     rs = sc(SYS_statx, dirfd, (long)path, flags, mask, (long)out);
     if (rs != -ENOSYS) return rs;
     statx_missing = 1;
   }
+  if (flags & AT_STATX_SYNC_TYPE) return -ENOSYS;
   rs = sc(SYS_newfstatat, dirfd, (long)path, (long)&st,
           flags & (AT_EMPTY_PATH | AT_SYMLINK_NOFOLLOW | AT_NO_AUTOMOUNT), 0);
   if (rs < 0) return rs;
@@ -887,6 +891,7 @@ int statx(int dirfd, const char *path, int flags, unsigned mask, struct statx *o
   REAL(statx, int (*)(int, const char *, int, unsigned, struct statx *));
   struct res r;
   long rs;
+  if (!path || !out) { errno = EFAULT; return -1; }
   if ((flags & AT_EMPTY_PATH) && !path[0] && fp_ready()) {
     hits++;
     return ret(statx_call(dirfd, "", flags, mask, out));
