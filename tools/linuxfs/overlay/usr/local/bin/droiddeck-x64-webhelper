@@ -1,0 +1,10 @@
+#!/bin/bash
+# Steam's compositor draws each browser window from its X pixmap: frames must reach X, not gamescope's WSI layer.
+# gamescope sets vk_xwayland_wait_ready=false for its children; kopper swapchains flashed black even with the wait.
+unset BL_X64_ARM_WEBHELPER
+# The shim already added the GPU flags (preload/webhelper.c) to these arguments.
+export BL_WEBHELPER_ARGS=stock DISABLE_GAMESCOPE_WSI=1 vk_xwayland_wait_ready=true LIBGL_KOPPER_DISABLE=true
+if [ -x ./steamwebhelper ]; then
+  exec ./steamwebhelper "$@"
+fi
+exec "$HOME/.local/share/Steam/steamrt64/steamwebhelper" "$@"

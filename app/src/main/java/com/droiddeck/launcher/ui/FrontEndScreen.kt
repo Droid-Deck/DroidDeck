@@ -77,6 +77,7 @@ import com.droiddeck.launcher.frontend.Library
 import com.droiddeck.launcher.gpu.FrameGen
 import com.droiddeck.launcher.gpu.Lossless
 import com.droiddeck.launcher.input.SecondScreenDisplay
+import com.droiddeck.launcher.core.DownloadSource
 import com.droiddeck.launcher.core.PhantomProcessLimit
 import com.droiddeck.launcher.core.PhantomProcessStatus
 import com.droiddeck.launcher.session.SessionPrefs
@@ -97,12 +98,14 @@ class FrontEndState(
     val frameGenLabel: String,
     val romsDir: String?,
     val logsEnabled: Boolean,
+    val vacDiagnostics: Boolean = false,
     val agentCommands: Boolean = false,
     val graphicsLogs: Boolean = false,
     val steamGpuDrawing: Boolean = false,
     val bridgeFellBack: Boolean = false,
     val bridgeFellBackMemory: Boolean = false,
     val steamGames: List<Library.SteamGame>,
+    val steamGamesX64: Boolean = false,
     val emulators: List<Library.Emulator>,
     val running: String?,
     val frameGen: FrameGen.Mode = FrameGen.Mode.OFF,
@@ -139,9 +142,14 @@ class FrontEndState(
     /** Setup's "Mali (Venus)" (SessionPrefs.venus). */
     val venus: Boolean = false,
     val venusHostVulkan: String? = null,
+    /** Setup's "Safe mode" for the Mali bridge (SessionPrefs.vkBridgeSafe), on by default. */
+    val vkBridgeSafe: Boolean = true,
     val showPhantomGate: Boolean = false,
     val orientation: Int = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE,
     val launcherFullscreen: Boolean = true,
+    val downloadSource: String = DownloadSource.MODE_AUTO,
+    val downloadMirror: String = "",
+    val downloadPrefix: String = "",
     val animationsEnabled: Boolean = true,
     val gameStoresEnabled: Boolean = true,
     val gameStoresSpeedTier: String = "fast",
@@ -158,6 +166,7 @@ class FrontEndState(
 
 class FrontEndActions(
     val onPlay: () -> Unit,
+    val onPlaySteamVr: () -> Unit = {},
     val onPlayDesktopUi: () -> Unit,
     val onSteamUrl: (String) -> Unit = {},
     val onSteamGame: (Library.SteamGame) -> Unit,
@@ -166,11 +175,14 @@ class FrontEndActions(
     val onSyncGameFiles: () -> Unit = {},
     val onAddGameExe: (path: String) -> Unit = {},
     val onAddedGamesChanged: (folders: List<String>) -> Unit = {},
+    val onSteamGameArtChanged: (appId: Int) -> Unit = {},
     val onAddedGameRemoved: (folder: String, appId: Long?, name: String) -> Unit = { _, _, _ -> },
     val onAddedGamesArt: (Boolean) -> Unit = {},
     val onSgdbKey: (String) -> Unit = {},
     val onStopGameFileSync: () -> Unit = {},
     val onCopyGameLink: (Library.SteamGame) -> Unit = {},
+    val onEpicLauncher: () -> Unit = {},
+    val onUninstallEpicLauncher: () -> Unit = {},
     val onDesktop: () -> Unit,
     val onEmulator: (Library.Emulator) -> Unit,
     val onFlatpakApp: (String, String) -> Unit = { _, _ -> },
@@ -186,6 +198,7 @@ class FrontEndActions(
     val onRuntime: () -> Unit,
     val onVkBridge: (Boolean) -> Unit = {},
     val onVenus: (Boolean) -> Unit = {},
+    val onVkBridgeSafe: (Boolean) -> Unit = {},
     val onFrameGenPick: (FrameGen.Mode) -> Unit,
     val onImportLossless: () -> Unit,
     val onProtons: () -> Unit,
@@ -198,6 +211,7 @@ class FrontEndActions(
     val onFiles: () -> Unit,
     val onBrowseFiles: (File) -> Unit = {},
     val onLogs: () -> Unit,
+    val onVacDiagnostics: () -> Unit = {},
     val onAgentCommands: () -> Unit = {},
     val onGraphicsLogs: () -> Unit = {},
     val onSteamGpuDrawing: () -> Unit = {},
@@ -212,6 +226,9 @@ class FrontEndActions(
     val onOrientation: (Int) -> Unit = {},
     val onLauncherFullscreen: (Boolean) -> Unit = {},
     val onAnimationsEnabled: (Boolean) -> Unit = {},
+    val onDownloadSource: (String) -> Unit = {},
+    val onDownloadMirror: (String) -> Unit = {},
+    val onDownloadPrefix: (String) -> Unit = {},
     val onGameStoresEnabled: (Boolean) -> Unit = {},
     val onGameStoresSpeedTier: (String) -> Unit = {},
     val onStoresOpenTab: (String) -> Unit = {},
@@ -384,7 +401,11 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
     LaunchedEffect(s.shortcutPicker) { if (s.shortcutPicker) selected = "games" }
     LaunchedEffect(s.navigate) {
         val target = s.navigate ?: return@LaunchedEffect
-        if (target == "stores:downloads") { com.droiddeck.launcher.stores.StoresState.openDownloads = true; selected = "stores" } else selected = target
+        when (target) {
+            "stores:downloads" -> { com.droiddeck.launcher.stores.StoresState.openDownloads = true; selected = "stores" }
+            "components" -> a.onComponents(true)
+            else -> selected = target
+        }
         a.onNavigated()
     }
     var showWirelessAdbFix by rememberSaveable { mutableStateOf(false) }

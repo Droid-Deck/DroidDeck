@@ -17,10 +17,15 @@ object Library {
         val source: String = SOURCE_STEAM,
         val storeId: String? = null,
     ) {
+        fun withArt(art: File?, hero: File?, icon: File?) =
+            SteamGame(appId, name, art, library, gameId, hero, lastPlayed, gameFiles, protonPrefix, icon, source, storeId)
+
         val gameIdString: String get() = java.lang.Long.toUnsignedString(gameId)
         val profileKey: String get() = if (library == ADDED) java.lang.Integer.toUnsignedString(appId) else appId.toString()
     }
     const val ADDED = "added"
+    const val EPIC_LAUNCHER = "epic-launcher"
+    const val EPIC_LAUNCHER_NAME = "Epic Games Launcher"
     const val SOURCE_STEAM = "steam"
 
     class Rom(val name: String, val hostPath: File, val guestPath: String, val emulatorId: String, val art: File? = null)
@@ -69,11 +74,14 @@ object Library {
     private val LAST_PLAYED = Regex("^\\s*\"LastPlayed\"\\s*\"(\\d+)\"", RegexOption.MULTILINE)
     private val INSTALL_DIR = Regex("^\\s*\"installdir\"\\s*\"([^\"]*)\"", RegexOption.MULTILINE)
 
-    internal fun steamLibraries(context: Context): List<Pair<File, String>> {
-        val root = File(LinuxRuntime.rootDir(context), "root/.local/share/Steam")
+    internal fun steamLibraries(context: Context, arch: String = SessionPrefs.activeSteamClientArch(context)): List<Pair<File, String>> {
+        val root = SessionPrefs.steamRoot(context, arch)
+        // The session gives the x86-64 client only its card folder; the games folders stay the arm64 client's.
+        val card = GameStorage.effective(context)
+        if (arch == "x86_64") return listOfNotNull(root to "internal", card?.let { File(it.path, GameStorage.X64_CARD_DIR) to it.label })
         return listOfNotNull(
             root to "internal",
-            GameStorage.effective(context)?.let { File(it.path) to it.label },
+            card?.let { File(it.path) to it.label },
         ) + GameStorage.gamesFolderLibraries(context).map { it.host to it.label }
     }
 
@@ -93,10 +101,10 @@ object Library {
             .firstOrNull { it.isDirectory }
     }
 
-    fun steamGames(context: Context, strictRead: Boolean = false): List<SteamGame> {
-        val root = File(LinuxRuntime.rootDir(context), "root/.local/share/Steam")
+    fun steamGames(context: Context, strictRead: Boolean = false, arch: String = SessionPrefs.activeSteamClientArch(context)): List<SteamGame> {
+        val root = SessionPrefs.steamRoot(context, arch)
         val cache = File(root, "appcache/librarycache")
-        val libraries = steamLibraries(context)
+        val libraries = steamLibraries(context, arch)
         val roots = libraries.map { it.first }
         val out = LinkedHashMap<Int, SteamGame>()
         for ((library, label) in libraries) {
@@ -116,29 +124,38 @@ object Library {
                     val installDir = INSTALL_DIR.find(text)?.groupValues?.get(1)?.trim()
                         ?.takeIf { it.isNotEmpty() && it != "." && it != ".." && '/' !in it && '\\' !in it }
                     val gameFiles = installDir?.let { File(steamapps, "common/$it").takeIf(File::isDirectory) }
-                    out[appId] = SteamGame(
+                    out[appId] = SteamGameArt.withOverrides(context, SteamGame(
                         appId, name, art, label, hero = hero, lastPlayed = lastPlayed,
                         gameFiles = gameFiles,
                         protonPrefix = protonPrefix(context, appId.toLong(), library, roots),
                         icon = steamCacheImage(cache, appId, listOf("icon.jpg", "icon.png"))
                             ?: File(cache, appId.toString()).listFiles()?.firstOrNull { it.isFile && STEAM_ICON.matches(it.name) },
-                    )
+                    ))
                 }
         }
         return out.values.toList()
     }
 
     fun steamLibraryArt(context: Context): List<Pair<Int, File>> {
-        val cache = File(LinuxRuntime.rootDir(context), "root/.local/share/Steam/appcache/librarycache")
+        val cache = File(SessionPrefs.activeSteamRoot(context), "appcache/librarycache")
         return cache.listFiles().orEmpty().mapNotNull { dir ->
             val appId = dir.name.toIntOrNull()?.takeIf { it !in NOT_GAMES } ?: return@mapNotNull null
             steamCacheImage(cache, appId, STEAM_CAPSULES)?.let { appId to it }
         }
     }
 
-    fun launchableGames(context: Context, strictRead: Boolean = false, added: List<AddedGames.Game>? = null): List<SteamGame> {
-        val roots = steamLibraries(context).map { it.first }
-        return (steamGames(context, strictRead) + (added ?: AddedGames.scan(context)).map { g -> addedGame(context, g, roots) }).distinctBy { it.gameId }
+    fun fromSteamClient(g: SteamGame): Boolean = g.library != ADDED && g.source == SOURCE_STEAM
+
+    fun launchableGames(
+        context: Context, strictRead: Boolean = false, added: List<AddedGames.Game>? = null,
+        arch: String = SessionPrefs.activeSteamClientArch(context),
+    ): List<SteamGame> {
+        val roots = steamLibraries(context, arch).map { it.first }
+        val list = added ?: AddedGames.scan(context)
+        var steam = steamGames(context, strictRead, arch)
+        val targets = steam.filter(::fromSteamClient).map { SteamGrid.target(it, context) } + list.map { SteamGrid.target(it, context) }
+        if (runCatching { SteamGrid.sync(context, targets) }.getOrDefault(false)) steam = steamGames(context, strictRead, arch)
+        return (steam + list.map { g -> addedGame(context, g, roots) }).distinctBy { it.gameId }
     }
 
     fun addedGame(context: Context, g: AddedGames.Game, roots: List<File> = steamLibraries(context).map { it.first }): SteamGame =
@@ -152,7 +169,7 @@ object Library {
             )
         }
 
-    private fun steamCacheImage(cache: File, appId: Int, names: List<String>): File? {
+    internal fun steamCacheImage(cache: File, appId: Int, names: List<String>): File? {
         val appDir = File(cache, appId.toString())
         val dirs = listOf(appDir) + appDir.listFiles()
             .orEmpty().filter { it.isDirectory }.sortedBy { it.name }
@@ -185,7 +202,8 @@ object Library {
         if (program == com.droiddeck.launcher.runtime.FlatpakManager.LAUNCHER || program == com.droiddeck.launcher.runtime.AppImageManager.LAUNCHER ||
             program == com.droiddeck.launcher.runtime.UserApps.SCRIPT_LAUNCHER) {
             com.droiddeck.launcher.session.SessionState.programArgs.firstOrNull()?.let { flatpakNames[it] ?: it.substringAfterLast('.') }
-        } else specs.firstOrNull { it.program == program }?.name
+        } else com.droiddeck.launcher.session.NoSteamLaunch.nameFor(program, com.droiddeck.launcher.session.SessionState.programArgs)
+            ?: specs.firstOrNull { it.program == program }?.name
 
     val flatpakNames = java.util.concurrent.ConcurrentHashMap<String, String>()
 

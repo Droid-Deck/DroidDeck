@@ -516,6 +516,65 @@ class ProtonRunTest(Temp):
         self.assertEqual(env["SteamAppId"], "413150")
         self.assertTrue((self.root / "steamapps/compatdata/413150").is_dir())
 
+    def run_main(self, argv):
+        calls, dirs = [], []
+        with mock.patch.dict(os.environ, {"STEAM_COMPAT_CLIENT_INSTALL_PATH": str(self.root)}), \
+                mock.patch.object(RUN["os"], "execve", lambda *a: calls.append(a)), \
+                mock.patch.object(RUN["os"], "chdir", dirs.append), mock.patch.dict(RUN, {"say": lambda message: None}):
+            code = RUN["main"](argv)
+        return code, calls, dirs
+
+    def test_without_steam_a_steam_game_starts_its_default_windows_launch(self):
+        info = {"common": {"type": "Game", "oslist": "windows,linux"}, "config": {"launch": {
+            "0": {"executable": "Bin\\Game.exe", "arguments": "-dx11 \"-name=Two Words\"", "workingdir": "bin",
+                  "type": "default", "config": {"oslist": "windows"}},
+            "1": {"executable": "game.sh", "type": "default", "config": {"oslist": "linux"}},
+            "2": {"executable": "Beta.exe", "type": "default", "config": {"oslist": "windows", "betakey": "beta"}},
+            "3": {"executable": "Tools\\Editor.exe", "type": "option1"},
+        }}}
+        self.write("Steam/appcache/appinfo.vdf", appinfo({413150: info}))
+        program = self.game("413150", "Some Game", "bin/game.exe")
+        self.game("413150", "Some Game", "Tools/Editor.exe")
+        code, calls, dirs = self.run_main(["--app", "413150", "--options", "-windowed"])
+        self.assertIsNone(code)
+        entry, argv, env = calls[0]
+        self.assertEqual(argv[1:], ["waitforexitandrun", str(program), "-dx11", "-name=Two Words", "-windowed"])
+        self.assertEqual((env["SteamAppId"], env["STEAM_COMPAT_DATA_PATH"]),
+                         ("413150", str(self.root / "steamapps/compatdata/413150")))
+        self.assertEqual(dirs, [str(program.parent)])
+
+    def test_without_steam_a_game_steam_cannot_start_is_refused(self):
+        self.write("Steam/appcache/appinfo.vdf", appinfo({413150: STARDEW}))
+        self.assertEqual(self.run_main(["--app", "413150"])[0], 2)
+        self.assertEqual(self.run_main(["--app", "3384071994"])[0], 2)
+        self.assertEqual(self.run_main(["--app", "0"])[0], 2)
+        self.assertEqual(self.run_main(["--app", "game"])[0], 2)
+        linux = {"common": {"type": "Game"}, "config": {"launch": {"0": {"executable": "run.sh", "config": {"oslist": "linux"}}}}}
+        self.write("Steam/appcache/appinfo.vdf", appinfo({70: linux}))
+        self.game("70", "Linux Game", "run.sh")
+        self.assertEqual(self.run_main(["--app", "70"])[0], 2)
+
+    def test_without_steam_a_shortcut_keeps_its_prefix_folder_and_launch_options(self):
+        bat = self.write("Games/Epic/Game/.droiddeck-launch.bat", b"@echo off")
+        start = self.tmp / "Games/Epic/Game/Binaries"
+        start.mkdir()
+        code, calls, dirs = self.run_main(["--app", "2733369024", "--dir", str(start), "--options",
+                                           "PROTON_LOG=1 %command% -epicportal", "--", str(bat)])
+        self.assertIsNone(code)
+        entry, argv, env = calls[0]
+        self.assertEqual(argv[1:], ["waitforexitandrun", str(bat), "-epicportal"])
+        self.assertEqual((env["STEAM_COMPAT_DATA_PATH"], env["SteamAppId"], env["SteamGameId"], env["PROTON_LOG"]),
+                         (str(self.root / "steamapps/compatdata/2733369024"), "0", str(2733369024 << 32 | 0x02000000), "1"))
+        self.assertTrue((self.root / "steamapps/compatdata/2733369024").is_dir())
+        self.assertEqual(dirs, [str(start)])
+
+    def test_launch_options_split_like_steam_does(self):
+        split = RUN["split_options"]
+        self.assertEqual(split(""), ({}, []))
+        self.assertEqual(split("-windowed -w 1280"), ({}, ["-windowed", "-w", "1280"]))
+        self.assertEqual(split("A=1 B=\"x y\" gamemoderun %command% -dx12"), ({"A": "1", "B": "x y"}, ["-dx12"]))
+        self.assertEqual(split("\"unterminated -x"), ({}, ["\"unterminated", "-x"]))
+
 
 if __name__ == "__main__":
     unittest.main()

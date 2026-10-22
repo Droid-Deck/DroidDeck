@@ -5,10 +5,12 @@
 #define _GNU_SOURCE
 #include <dlfcn.h>
 #include <limits.h>
+#include <linux/input.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/ioctl.h>
 #include <sys/sysmacros.h>
 #include <sys/types.h>
 
@@ -174,6 +176,24 @@ static int caller_is_winebus(void *caller) {
 
   if (dladdr(caller, &info) == 0 || info.dli_fname == NULL) return 0;
   return strstr(info.dli_fname, "winebus.so") != NULL;
+}
+
+/* Wine's HID haptics give every XInput rumble a 1000 ms cutoff and xinput only writes on a change,
+ * but XInput motors hold their speed until the next XInputSetState; evdev's length 0 holds until
+ * stopped. Only this library, preloaded first, sees winebus as the caller. The length is put back
+ * because winebus compares its copy with the next state to decide whether to upload again. */
+__attribute__((visibility("hidden"))) int bl_winebus_rumble_ioctl(int (*real)(int, unsigned long, void *), int fd,
+                                                                  unsigned long request, void *arg, void *caller,
+                                                                  int *rc) {
+  struct ff_effect *effect = arg;
+  __u16 length;
+
+  if (request != EVIOCSFF || effect == NULL || effect->type != FF_RUMBLE || !caller_is_winebus(caller)) return 0;
+  length = effect->replay.length;
+  effect->replay.length = 0;
+  *rc = real(fd, request, arg);
+  effect->replay.length = length;
+  return 1;
 }
 
 char *realpath(const char *path, char *resolved) {

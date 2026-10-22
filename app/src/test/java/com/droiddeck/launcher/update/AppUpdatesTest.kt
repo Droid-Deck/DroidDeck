@@ -130,6 +130,12 @@ class AppUpdatesTest {
     }
 
     @Test
+    fun theNonAdrenoTestBuildIsNeverReplacedByAnOfficialBuild() {
+        val testBuild = AppUpdates.Installed("eeeeeee", 0, "0.2.0", 9, updatable = true, nonAdrenoTest = true)
+        assertNotNull(AppUpdates.installBlock(stable, testBuild))
+    }
+
+    @Test
     fun aMissingVariantIsBlockedBeforeDownload() {
         val missing = release("ddddddd", withApk = false)
         assertNotNull(AppUpdates.installBlock(missing, me("eeeeeee")))

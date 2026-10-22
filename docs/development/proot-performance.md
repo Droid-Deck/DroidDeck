@@ -187,7 +187,7 @@ Checked against bionic `android16-release`:
 |---|---|---|
 | `rseq`, `set_robust_list` | **blocked** | glibc, at the start of every thread, while all signals are blocked |
 | `faccessat2` | **blocked** | glibc's `faccessat()`, which tries it on **every** call before falling back, so 2 round trips (`access()` calls the plain `faccessat` syscall directly) |
-| `fchmodat2`, `openat2` | **blocked** | newer glibc, Flatpak/libglnx, FEX's rootfs lookups (`libblsession.so` turns `openat2` into `openat`) |
+| `fchmodat2`, `openat2` | **blocked** | newer glibc, Flatpak/libglnx, FEX's rootfs lookups (`libblsession.so` turns `openat2` into `openat`, resolving `RESOLVE_IN_ROOT` paths component by component inside the root) |
 | `setuid`, `setgid` and the rest of the family | **blocked** | Xwayland (hence `-i`) |
 | `futex_waitv`, `io_uring_*`, `landlock_*` | **blocked** | Proton's fsync (droiddeck-fsync answers `futex_waitv` in `libblsession.so`), some engines |
 | `clone3` | blocked before Android 15 | glibc `pthread_create` |

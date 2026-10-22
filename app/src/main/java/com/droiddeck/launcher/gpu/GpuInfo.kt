@@ -57,7 +57,7 @@ data class GpuInfo(
             Support.UNTESTED -> when (family) {
                 Family.POWERVR -> if (name.contains("Xclipse", ignoreCase = true)) "Experimental: RADV or the system Xclipse driver"
                     else "System PowerVR driver: compatibility varies by device"
-                Family.MALI_OTHER -> "Experimental: Mali through the Vulkan bridge"
+                Family.MALI_OTHER -> "Experimental: Mali through the phone's own driver (Venus)"
                 Family.MALI_JM, Family.MALI_G610_G710, Family.MALI_G615, Family.MALI_G720, Family.MALI_LATEST -> "Experimental: open Mali driver (test builds)"
                 Family.A7XX_LOW -> "Experimental: its drivers are test builds"
                 else -> "Outside tested hardware (Adreno 650, 725 and newer): it may not run"
@@ -152,7 +152,7 @@ data class GpuInfo(
 
         /** Chips whose Mali is known for certain (MediaTek Dimensity / Helio / Kompanio, Google Tensor). */
         private val MALI_SOCS = mapOf(
-            "mt6991" to "Mali-G925", "mt6989" to "Mali-G720", "mt6899" to "Mali-G720", "mt6985" to "Mali-G715",
+            "mt6993" to "Mali-G1-Ultra", "mt6991" to "Mali-G925", "mt6989" to "Mali-G720", "mt6899" to "Mali-G720", "mt6985" to "Mali-G715",
             "mt6983" to "Mali-G710", "mt6897" to "Mali-G615", "mt6878" to "Mali-G615", "mt6895" to "Mali-G610",
             "mt6896" to "Mali-G610", "mt6886" to "Mali-G610", "mt6893" to "Mali-G77", "mt6891" to "Mali-G77",
             "mt6889" to "Mali-G77", "mt6885" to "Mali-G77", "mt6877" to "Mali-G68", "mt6853" to "Mali-G57",

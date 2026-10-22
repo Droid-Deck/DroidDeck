@@ -79,7 +79,7 @@ git clone -q --depth 1 -b v1.4.365 https://github.com/KhronosGroup/Vulkan-Header
 git clone -q --depth 1 -b virglrenderer-1.3.0 https://gitlab.freedesktop.org/virgl/virglrenderer.git
 git -C virglrenderer apply "$REPO/tools/venus/virglrenderer-android.patch"
 git -C virglrenderer apply "$REPO/tools/venus/virglrenderer-destroy-unknown-pipeline.patch"
-git -C virglrenderer apply "$REPO/tools/venus/virglrenderer-device-destroy-mutex.patch"
+git -C virglrenderer apply "$REPO/tools/venus/virglrenderer-destroy-mutex-after-objects.patch"
 cat > compat/log/log.h <<'EOC'
 #pragma once
 #include <android/log.h>

@@ -56,6 +56,7 @@ const char *vkp_gpu_name(void);
 
 int vkp_ready(void);
 int vkp_has_window(void);
+int vkp_wait_window_request(int timeout_ms);
 int vkp_device_lost(void);
 /* Compositor thread only. Submitted reads may still be pending: retain imported
  * buffer references and withhold DMA-BUF releases until the app process exits.

@@ -17,6 +17,8 @@ class SteamPresentationTest(unittest.TestCase):
         command = source.index('      PATH="$bl_steam_path"')
         command_end = source.index("\n      rc=$?", command)
         script = (source[begin:end] + '\n_bl_ui=(-gamepadui); _bl_cdp=(); _bl_lang=()\n'
+                  # 0.5.0 launches through steam_client (the arm64 client, or the x86-64 one under FEX).
+                  + 'steam_client=("$steam_root/steamrtarm64/steam")\n'
                   + source[command:command_end])
         env = dict(os.environ)
         for key in ("BL_STEAM_GL_PRESENT", "DISABLE_GAMESCOPE_WSI", "LIBGL_KOPPER_DISABLE"):

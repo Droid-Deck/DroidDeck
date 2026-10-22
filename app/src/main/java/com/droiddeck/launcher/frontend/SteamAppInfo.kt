@@ -3,7 +3,6 @@ package com.droiddeck.launcher.frontend
 import android.content.Context
 import android.util.AtomicFile
 import android.util.Log
-import com.droiddeck.launcher.runtime.LinuxRuntime
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.DataInputStream
@@ -20,7 +19,7 @@ object SteamAppInfo {
 
     class Info(val name: String, val sharedDepots: List<String>)
 
-    fun appinfoFile(context: Context) = File(LinuxRuntime.rootDir(context), "root/.local/share/Steam/appcache/appinfo.vdf")
+    fun appinfoFile(context: Context) = File(com.droiddeck.launcher.session.SessionPrefs.activeSteamRoot(context), "appcache/appinfo.vdf")
 
     @Synchronized
     fun info(context: Context, appId: Int, appinfo: File = appinfoFile(context)): Info? {

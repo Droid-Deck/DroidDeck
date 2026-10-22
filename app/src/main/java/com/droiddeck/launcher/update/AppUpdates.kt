@@ -3,8 +3,10 @@ package com.droiddeck.launcher.update
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
+import android.util.Log
 import com.droiddeck.launcher.BuildConfig
 import com.droiddeck.launcher.R
+import com.droiddeck.launcher.core.DownloadSource
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
@@ -13,6 +15,7 @@ import java.net.URL
 import java.security.MessageDigest
 
 object AppUpdates {
+    private const val TAG = "AppUpdates"
     private const val REPO = "Droid-Deck/DroidDeck"
     private const val CI_REPO = "Droid-Deck/DroidDeck-CI"
     private const val CATALOG_URL = "https://raw.githubusercontent.com/$CI_REPO/main/catalog.json"
@@ -71,6 +74,12 @@ object AppUpdates {
         val updatable: Boolean,
         val committedAt: Long = 0L,
         val ciBuild: Boolean = BuildConfig.CI_BUILD,
+        /**
+         * A build of the non-Adreno test branch (Mali / Xclipse / PowerVR routes). The official
+         * channels carry the Adreno-only app: installing one over it drops those routes, so none is
+         * offered. Its updates are published on The412Banner/droiddeck-nonadreno-drivers.
+         */
+        val nonAdrenoTest: Boolean = false,
     )
 
     enum class PreviewHistoryKind { CURRENT, BEHIND, RECENT }
@@ -122,6 +131,7 @@ object AppUpdates {
         BuildConfig.VERSION_CODE,
         releaseSigned,
         BuildConfig.COMMIT_TIME,
+        nonAdrenoTest = BuildConfig.BUILD_LABEL.contains("non-adreno"),
     )
 
     fun release(catalog: Catalog, follow: Follow): Release? = when (follow.channel) {
@@ -188,6 +198,7 @@ object AppUpdates {
     }
 
     fun installBlock(r: Release, me: Installed = installed()): InstallBlock? = when {
+        me.nonAdrenoTest -> InstallBlock(R.string.upd_block_non_adreno_test)
         r.apk == null -> InstallBlock(R.string.upd_block_no_apk)
         r.apk.versionCode < me.versionCode -> InstallBlock(R.string.upd_block_version_code, r.apk.versionCode, me.versionCode)
         else -> null
@@ -353,7 +364,24 @@ object AppUpdates {
     }
 
     private fun get(context: Context, url: String): String {
-        val c = URL(url).openConnection() as HttpURLConnection
+        val sources = DownloadSource.candidates(url)
+        var last: IOException? = null
+        for ((index, source) in sources.withIndex()) {
+            try {
+                val body = get(context, source, url)
+                DownloadSource.succeeded(source)
+                return body
+            } catch (e: IOException) {
+                last = e
+                if (index < sources.lastIndex) Log.i(TAG, "retrying $url via $source")
+            }
+        }
+        DownloadSource.failed()
+        throw last ?: IOException(context.getString(R.string.appupd_http, 0))
+    }
+
+    private fun get(context: Context, source: String, url: String): String {
+        val c = URL(source).openConnection() as HttpURLConnection
         c.connectTimeout = 15_000
         c.readTimeout = 20_000
         c.setRequestProperty("Accept", "application/json")

@@ -249,6 +249,13 @@ class DriverPairsTest {
     }
 
     @Test
+    fun theMaliG1SeriesHasNoPanVkPairAndIsKnownByItsChip() {
+        // Arch v14 (Dimensity 9500): no PanVK build is proven there, so Auto uses the phone's own driver.
+        assertEquals("Mali-G1-Ultra (by chip mt6993)", GpuInfo.maliOfSoc(listOf("MT6993")))
+        assertEquals(Family.MALI_OTHER, GpuInfo.familyOf(false, 0, mali = "Mali-G1-Ultra MC12"))
+    }
+
+    @Test
     fun autoTakesRadvOnAnXclipseAndLeavesPowerVrOnTheSystemDriver() {
         assertEquals(DriverPairs.NAD_RADV_XCLIPSE, DriverPairs.recommendedKey(GpuInfo("Samsung Xclipse 940", 0, Family.POWERVR, "", false), emptyList()))
         assertNull(DriverPairs.recommendedKey(GpuInfo("PowerVR", 0, Family.POWERVR, "", false), emptyList()))
