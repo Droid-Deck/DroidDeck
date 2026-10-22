@@ -31,7 +31,7 @@ class ForcedPackageTest {
 
     @Test fun unpackedCacheNameCannotEscapeStoreDirectory() {
         assertEquals("dxvk-2.7.1-linux", ComponentsManager.unpackedCacheKey(dxvk2))
-        for (filename in listOf("...wcp", "....wcp")) {
+        for (filename in listOf("..wcp", "...wcp")) {
             try {
                 ComponentsManager.unpackedCacheKey(filename)
                 fail("Expected cache traversal name to be rejected: $filename")
