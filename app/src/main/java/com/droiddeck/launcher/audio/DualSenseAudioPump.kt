@@ -1,0 +1,123 @@
+package com.droiddeck.launcher.audio
+
+import android.content.Context
+import android.media.AudioAttributes
+import android.media.AudioDeviceInfo
+import android.media.AudioFormat
+import android.media.AudioManager
+import android.media.AudioTrack
+import android.os.SystemClock
+import android.util.Log
+import com.droiddeck.launcher.core.SessionPart
+import java.io.File
+import java.io.FileInputStream
+import java.io.InputStream
+
+/**
+ * Drains the 4-channel "Wireless Controller" PulseAudio pipe sink and plays it on a USB-connected DualSense:
+ * channels 1-2 drive the speaker or headset jack, channels 3-4 the haptic actuators. Without a wired pad the
+ * audio is read and dropped so the sink never stalls.
+ */
+class DualSenseAudioPump(private val fifo: File) : SessionPart() {
+    @Volatile private var running = false
+    @Volatile private var input: InputStream? = null
+    private var thread: Thread? = null
+
+    override fun start() {
+        stop()
+        running = true
+        thread = Thread({ pump() }, "dualsense-audio").apply { isDaemon = true; start() }
+    }
+
+    override fun stop() {
+        running = false
+        runCatching { input?.close() }
+        input = null
+        thread?.interrupt()
+        thread = null
+    }
+
+    private fun pump() {
+        val audio = app()?.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+        val chunk = ByteArray(CHUNK_BYTES)
+        var track: AudioTrack? = null
+        var nextLookup = 0L
+        var loggedMissing = false
+        try {
+            while (running && !fifo.exists()) Thread.sleep(100)
+            val stream = FileInputStream(fifo)
+            input = stream
+            while (running) {
+                val n = stream.read(chunk)
+                if (n <= 0) break
+                val now = SystemClock.uptimeMillis()
+                if (track == null && audio != null && now >= nextLookup) {
+                    nextLookup = now + LOOKUP_INTERVAL_MS
+                    val device = findPad(audio)
+                    if (device != null) {
+                        track = openTrack(device)
+                        Log.i(TAG, "dualsense audio: playing on ${device.productName} (id ${device.id})" +
+                            if (track == null) " failed: no 4-channel track" else "")
+                        loggedMissing = false
+                    } else if (!loggedMissing) {
+                        Log.i(TAG, "dualsense audio: no wired DualSense audio device; dropping its audio")
+                        loggedMissing = true
+                    }
+                }
+                val t = track ?: continue
+                if (t.write(chunk, 0, n - n % FRAME_BYTES) < 0) {
+                    Log.w(TAG, "dualsense audio: the pad's audio track failed; looking for it again")
+                    t.release()
+                    track = null
+                }
+            }
+        } catch (_: InterruptedException) {
+        } catch (e: Exception) {
+            if (running) Log.w(TAG, "dualsense audio pump stopped", e)
+        } finally {
+            track?.let { runCatching { it.stop() }; it.release() }
+        }
+    }
+
+    private fun findPad(audio: AudioManager): AudioDeviceInfo? =
+        audio.getDevices(AudioManager.GET_DEVICES_OUTPUTS).firstOrNull {
+            isDualSenseOutput(it.type, it.productName?.toString())
+        }
+
+    private fun openTrack(device: AudioDeviceInfo): AudioTrack? = runCatching {
+        val format = AudioFormat.Builder()
+            .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+            .setSampleRate(SAMPLE_RATE)
+            .setChannelIndexMask(0xF)
+            .build()
+        val attributes = AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_GAME)
+            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+            .build()
+        val minBuffer = AudioTrack.getMinBufferSize(SAMPLE_RATE, AudioFormat.CHANNEL_OUT_QUAD, AudioFormat.ENCODING_PCM_16BIT)
+        AudioTrack.Builder()
+            .setAudioAttributes(attributes)
+            .setAudioFormat(format)
+            .setBufferSizeInBytes(maxOf(minBuffer, CHUNK_BYTES * 4))
+            .setTransferMode(AudioTrack.MODE_STREAM)
+            .build()
+            .also { it.setPreferredDevice(device); it.play() }
+    }.onFailure { Log.w(TAG, "dualsense audio: could not open a 4-channel track", it) }.getOrNull()
+
+    companion object {
+        private const val TAG = "DualSenseAudio"
+        const val SAMPLE_RATE = 48000
+        const val CHANNELS = 4
+        const val FRAME_BYTES = CHANNELS * 2
+        const val CHUNK_BYTES = SAMPLE_RATE / 100 * FRAME_BYTES
+        private const val LOOKUP_INTERVAL_MS = 2000L
+
+        private val USB_TYPES = setOf(AudioDeviceInfo.TYPE_USB_DEVICE, AudioDeviceInfo.TYPE_USB_HEADSET)
+
+        fun isDualSenseOutput(type: Int, productName: String?): Boolean {
+            if (type !in USB_TYPES) return false
+            val name = productName.orEmpty()
+            return name.contains("DualSense", ignoreCase = true) || name.contains("Wireless Controller", ignoreCase = true)
+        }
+    }
+}

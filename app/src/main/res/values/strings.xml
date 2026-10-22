@@ -1008,6 +1008,8 @@
     <string name="ctrl_select_steam_hint">Instead of View/Select.</string>
     <string name="ctrl_joycon_vr">Joy-Cons as VR controllers</string>
     <string name="ctrl_joycon_vr_hint">While SteamVR runs, each Joy-Con becomes a hand. Point it ahead and hold Home or Capture to recenter it.</string>
+    <string name="ctrl_dualsense_audio">DualSense haptics &amp; speaker (Beta)</string>
+    <string name="ctrl_dualsense_audio_hint">Games that support the DualSense speaker and haptics send their audio to a wired DualSense. Bluetooth is not supported yet. While this is on, game sound goes through PulseAudio instead of DirectAudio, which adds a little latency.</string>
     <string name="setup_animations">Animations</string>
     <string name="ctrl_adaptive_hint">Sticks appear where you touch and hide on release</string>
     <string name="ctrl_layout">Layout</string>

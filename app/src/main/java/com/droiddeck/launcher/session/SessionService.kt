@@ -714,8 +714,10 @@ class SessionService : Service() {
         SessionState.mode == MODE_RUN && SessionState.program in setOf(NoSteamLaunch.PROTON_RUN, NoSteamLaunch.EPIC)
 
     private fun startAudio(guest: MutableList<String>, sessionDir: File): PulseAudioComponent {
+        val wantsDualSenseAudio = com.droiddeck.launcher.input.ControllerPrefs.dualSenseAudio(this)
+        // Wine's DirectAudio driver only offers its own device, so games could not see the DualSense sink.
         val wantsDirectAudio = (SessionState.mode == MODE_STEAM || SessionState.mode == MODE_DESKTOP || noSteamGame()) &&
-            SessionPrefs.directAudio(this)
+            SessionPrefs.directAudio(this) && !wantsDualSenseAudio
         val wantsMic = SessionPrefs.micEnabled(this) &&
             checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
         guest.add("BL_MIC_ENABLED=" + if (wantsMic) "1" else "0")
@@ -723,13 +725,19 @@ class SessionService : Service() {
         val audioDir = File(filesDir, "directaudio").apply { mkdirs() }
         val relaySocket = File(audioDir, "relay.sock")
         val micFifo = if (wantsMic) File(audioDir, "mic.fifo") else null
+        val dualSenseFifo = if (wantsDualSenseAudio) File(audioDir, "dualsense.fifo") else null
 
         val audioLog = File(sessionDir, "audio.log")
-        val pulse = PulseAudioComponent(this, micFifo?.absolutePath)
+        val pulse = PulseAudioComponent(this, micFifo?.absolutePath, dualSenseFifo?.absolutePath)
         pulse.setLogFile(audioLog)
         pulse.attach(this)
         guest.add("PULSE_SERVER=unix:" + pulse.socket().absolutePath)
         components.add(pulse)
+        if (dualSenseFifo != null) {
+            val pump = com.droiddeck.launcher.audio.DualSenseAudioPump(dualSenseFifo)
+            pump.attach(this)
+            components.add(pump)
+        }
         if (wantsDirectAudio || wantsMic) {
             val relay = DirectAudioRelayComponent(relaySocket, micFifo)
             relay.setLogFile(audioLog)
@@ -742,6 +750,7 @@ class SessionService : Service() {
         }
         Log.i(TAG, "audio: client DirectAudio (in-process sink)" + (if (wantsDirectAudio) " + DirectAudio for games" else "")
             + (if (wantsMic) " + microphone" else "") +
+            (if (wantsDualSenseAudio) " + DualSense speaker/haptics sink (beta; DirectAudio off for games)" else "") +
             (if (SessionPrefs.micEnabled(this) && !wantsMic) " (microphone wanted but RECORD_AUDIO not granted)" else ""))
         return pulse
     }

@@ -1108,6 +1108,7 @@ class MainActivity : ComponentActivity() {
                             onKeyboardButton = { on -> ControllerPrefs.setKeyboardButton(this, on); refreshController() },
                             onSelectSteam = { on -> ControllerPrefs.setSelectSteam(this, on); refreshController() },
                             onJoyConVr = { on -> ControllerPrefs.setJoyConVr(this, on); refreshController() },
+                            onDualSenseAudio = { on -> ControllerPrefs.setDualSenseAudio(this, on); refreshController() },
                             onEditLayout = { startActivity(Intent(this, ControllerEditorActivity::class.java)) },
                             onResetLayout = { ControllerPrefs.resetAllLayouts(this); refreshController() },
                             onMapping = { showPerformance = false; showComponents = false; showMapping = true },
