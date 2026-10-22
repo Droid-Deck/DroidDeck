@@ -40,6 +40,33 @@ class SessionDisplayTest {
         assertEquals(864, SessionDisplay.unfoldedGameHeight(1920, 1080))
     }
 
+    private fun unfoldedWanted(
+        enabled: Boolean = true,
+        controller: Boolean = false,
+        keepWithController: Boolean = false,
+        foldable: Boolean = true,
+        steamDeckPad: Boolean = true,
+        pip: Boolean = false,
+        smallestWidthDp: Int = 700,
+    ) = SessionDisplay.unfoldedControlsWanted(enabled, foldable, controller, keepWithController, steamDeckPad, pip,
+        2448, 1848, smallestWidthDp)
+
+    @Test fun unfoldedControlsHideForAControllerUnlessKeptWithOne() {
+        assertTrue(unfoldedWanted())
+        assertFalse(unfoldedWanted(controller = true))
+        assertTrue(unfoldedWanted(controller = true, keepWithController = true))
+        assertTrue(unfoldedWanted(keepWithController = true))
+    }
+
+    @Test fun keepingUnfoldedControlsWithAControllerLeavesTheOtherConditions() {
+        assertFalse(unfoldedWanted(enabled = false, controller = true, keepWithController = true))
+        assertFalse(unfoldedWanted(foldable = false, keepWithController = true))
+        assertFalse(unfoldedWanted(steamDeckPad = false, keepWithController = true))
+        assertFalse(unfoldedWanted(pip = true, keepWithController = true))
+        assertFalse(unfoldedWanted(smallestWidthDp = 599, keepWithController = true))
+        assertFalse(SessionDisplay.unfoldedControlsWanted(true, true, true, true, true, false, 0, 1848, 700))
+    }
+
 
     @Test fun followScreenKeepsTheWindowShapeAndSkipsTinyWindows() {
         assertEquals(2520 to 1080, SessionDisplay.resolveChoice(1080 to 2520, SessionDisplay.FOLLOW_SCREEN))

@@ -2,6 +2,7 @@
 set -euo pipefail
 out=${1:?out dir}
 here=$(cd "$(dirname "$0")" && pwd)
+source "$here/kwin.env"
 mirror=${ALARM_MIRROR:-https://fl.us.mirror.archlinuxarm.org/aarch64}
 case $mirror in https://*) ;; *) echo "ALARM_MIRROR must be https" >&2; exit 1 ;; esac
 builder=68B3537F39A313B3E574D06777193F152BDBE6A6
@@ -36,8 +37,13 @@ done < "$work/pkglist.txt"
 cp -a "$here/overlay/." "$work/root/"
 
 if [ -n "${KDE_KWIN_OVERRIDE:-}" ]; then
+  kwin_package=$(awk '$1 ~ /^extra\/kwin-.*-aarch64\.pkg\.tar\./ {print $1}' "$work/pkglist.txt")
+  case $kwin_package in
+    "extra/kwin-$DESKTOP_KWIN_VERSION"-[0-9]*-aarch64.pkg.tar.*) ;;
+    *) echo "KWin package $kwin_package does not match the built KWin $DESKTOP_KWIN_VERSION" >&2; exit 1 ;;
+  esac
   install -m 755 "$KDE_KWIN_OVERRIDE/kwin_wayland" "$work/root/usr/bin/kwin_wayland"
-  install -m 755 "$KDE_KWIN_OVERRIDE/libkwin.so.6.7.5" "$work/root/usr/lib/libkwin.so.6.7.5"
+  install -m 755 "$KDE_KWIN_OVERRIDE/libkwin.so.$DESKTOP_KWIN_VERSION" "$work/root/usr/lib/libkwin.so.$DESKTOP_KWIN_VERSION"
 fi
 
 if [ -d "$work/root/usr/share/locale" ]; then
