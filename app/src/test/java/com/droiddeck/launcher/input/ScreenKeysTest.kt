@@ -79,6 +79,20 @@ class ScreenKeysTest {
         assertEquals(listOf(KeyEvent.KEYCODE_SHIFT_LEFT to true, KeyEvent.KEYCODE_SHIFT_LEFT to false), sent)
     }
 
+    @Test fun hidingTheViewReleasesLatchedKeys() {
+        val sent = mutableListOf<Pair<Int, Boolean>>()
+        val keys = ScreenKeys(context) { code, down -> sent += code to down }
+        keys.layout(0, 0, 1000, 600)
+        keys.add(listOf(KeyEvent.KEYCODE_SHIFT_LEFT))
+        keys.setToggle(listOf(KeyEvent.KEYCODE_SHIFT_LEFT), true)
+        send(keys, MotionEvent.ACTION_DOWN, listOf(0), listOf(300f), listOf(372f))
+        send(keys, MotionEvent.ACTION_UP, listOf(0), listOf(300f), listOf(372f))
+
+        keys.visibility = View.GONE
+
+        assertEquals(listOf(KeyEvent.KEYCODE_SHIFT_LEFT to true, KeyEvent.KEYCODE_SHIFT_LEFT to false), sent)
+    }
+
     private fun send(view: View, action: Int, ids: List<Int>, xs: List<Float>, ys: List<Float>) {
         val properties = Array(ids.size) { index ->
             MotionEvent.PointerProperties().apply {
