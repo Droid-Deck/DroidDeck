@@ -880,6 +880,8 @@ class AppInfoTest(unittest.TestCase):
             self.assertEqual(run.stdout,
                              "taskset -c 2-7 /usr/local/bin/droiddeck-fex steam waitforexitandrun /games/a/game\n")
             self.assertIn("game cores 2-7", run.stderr)
+            self.assertIn('exec /usr/local/bin/droiddeck-steamvr-game ${BL_TASKSET:-} '
+                          '/usr/local/bin/droiddeck-fex steam "$verb" "$@"', self.COMPAT["FEX_LAUNCHER_SH"])
 
 
 if __name__ == "__main__":
