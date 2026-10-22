@@ -150,7 +150,7 @@ class LauncherJobsTest {
     @Test fun aSaveBlockedLaunchIsReportedAsNotStarted() {
         val activity = screen()
         LauncherJobs.saveBusy = "saving"
-        val started = invoke(activity, "startSession", Intent(activity, SessionActivity::class.java), false)
+        val started = invoke(activity, "startSession", Intent(activity, SessionActivity::class.java), false, null)
         assertEquals(false, started)
         assertNull(shadowOf(activity).nextStartedActivity)
     }
