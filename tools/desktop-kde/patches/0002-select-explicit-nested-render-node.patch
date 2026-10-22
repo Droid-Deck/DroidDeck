@@ -1,0 +1,23 @@
+--- a/src/backends/wayland/wayland_backend.cpp
++++ b/src/backends/wayland/wayland_backend.cpp
+@@ -455,6 +455,20 @@
+ 
+     if (WaylandClient::LinuxDmabufV1 *dmabuf = m_display->linuxDmabuf()) {
+         m_renderDevice = GpuManager::self()->compatibleRenderDevice(dmabuf->mainDevice());
++        if (!m_renderDevice && qEnvironmentVariableIsSet("DROIDDECK_NESTED_SCALE")) {
++            const auto nodes = GpuManager::splitPathList(qEnvironmentVariable("KWIN_RENDER_NODES"));
++            const auto &devices = GpuManager::self()->renderDevices();
++            // Android's KGSL host cannot name a DRM device in its dmabuf feedback.
++            if (nodes.size() == 1) {
++                for (const auto &device : devices) {
++                    if (device->path() == nodes.constFirst()) {
++                        m_renderDevice = device.get();
++                        qCWarning(KWIN_WAYLAND_BACKEND) << "Using explicitly selected nested render node" << m_renderDevice->path();
++                        break;
++                    }
++                }
++            }
++        }
+     }
+ 
+     createOutputs();
