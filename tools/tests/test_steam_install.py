@@ -56,7 +56,7 @@ cp "$TEST_CDN/${url##*/}" "$out"
         self.env = dict(os.environ, HOME=str(self.home), XDG_DATA_HOME=str(self.data),
                         PATH=str(self.bin) + os.pathsep + os.environ['PATH'],
                         TEST_CDN=str(self.cdn), TEST_REQUESTS=str(self.requests))
-        for channel in ('steamdeck_publicbeta',):
+        for channel in ('steamdeck_publicbeta', 'steamdeck_stable'):
             archive = self.cdn / (channel + '.zip')
             with zipfile.ZipFile(archive, 'w') as package:
                 package.writestr('steamrtarm64/steam', channel)
@@ -68,12 +68,17 @@ cp "$TEST_CDN/${url##*/}" "$out"
                 f'\t\t"file" "{archive.name}"\n\t\t"sha2" "{digest}"\n'
                 '\t}\n}\n')
 
-    def install(self, fail_host=None):
+    def install(self, fail_host=None, *args, **extra):
         env = self.env if fail_host is None else dict(self.env, TEST_FAIL_HOST=fail_host)
-        return subprocess.run(['bash', str(SCRIPT)], env=env, text=True, capture_output=True)
+        return subprocess.run(['bash', str(SCRIPT), *args], env=dict(env, **extra), text=True, capture_output=True)
 
-    def assert_installed(self, channel='steamdeck_publicbeta', fail_host=None, expected=None):
-        result = self.install(fail_host)
+    def channel(self, **extra):
+        result = self.install(None, '--channel', **extra)
+        self.assertEqual(0, result.returncode, result.stderr)
+        return result.stdout.strip()
+
+    def assert_installed(self, channel='steamdeck_publicbeta', fail_host=None, expected=None, **extra):
+        result = self.install(fail_host, **extra)
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertEqual(channel + '\n', (self.steam / 'package/beta').read_text())
         self.assertEqual('123456\n', (self.steam / 'package/droiddeck-installed').read_text())
@@ -87,6 +92,7 @@ cp "$TEST_CDN/${url##*/}" "$out"
                 'https://client-update.steamstatic.com/' + channel + '.zip',
             ]
         self.assertEqual(expected, self.requests.read_text().splitlines())
+        return result
 
     def test_downloads_the_deck_beta_client(self):
         self.assert_installed()
@@ -155,8 +161,80 @@ cp "$TEST_CDN/${url##*/}" "$out"
         self.requests.unlink()
         with (package / 'droiddeck-unconfirmed').open('a') as marker:
             marker.write('start\nstart\nstart\n')
+        self.assertEqual(0, self.install(BL_STEAM_CHANNEL='beta').returncode)
+        self.assertFalse(self.requests.exists())
+
+    def test_the_default_channel_is_the_deck_beta(self):
+        self.assertEqual('steamdeck_publicbeta', self.channel())
+
+    def stable_requests(self, beta_manifest=True):
+        stable = [
+            'https://client-update.steamstatic.com/steam_client_steamdeck_stable_linuxarm64',
+            'https://client-update.steamstatic.com/steamdeck_stable.zip',
+        ]
+        if beta_manifest:
+            stable.insert(0, 'https://client-update.steamstatic.com/steam_client_steamdeck_publicbeta_linuxarm64')
+        return stable
+
+    def test_a_repaired_beta_client_that_still_shows_nothing_falls_back_to_stable(self):
+        package = self.break_client(2)
+        self.assertEqual(0, self.install().returncode)
+        self.requests.unlink()
+        with (package / 'droiddeck-unconfirmed').open('a') as marker:
+            marker.write('start\nstart\n')
+        result = self.assert_installed('steamdeck_stable', expected=self.stable_requests(False))
+        self.assertIn("falling back to Valve's steamdeck_stable Steam client", result.stdout)
+        self.assertEqual('steamdeck_stable\n', (package / 'droiddeck-channel').read_text())
+        self.assertEqual('repaired\n', (package / 'droiddeck-unconfirmed').read_text())
+        self.assertEqual('steamdeck_stable', self.channel())
+
+    def test_the_stable_fallback_is_not_repeated(self):
+        self.test_a_repaired_beta_client_that_still_shows_nothing_falls_back_to_stable()
+        self.requests.unlink()
+        with (self.steam / 'package/droiddeck-unconfirmed').open('a') as marker:
+            marker.write('start\nstart\nstart\n')
         self.assertEqual(0, self.install().returncode)
         self.assertFalse(self.requests.exists())
+        self.assertEqual('steamdeck_stable\n', (self.steam / 'package/beta').read_text())
+
+    def test_a_pinned_beta_channel_never_falls_back(self):
+        package = self.break_client(2)
+        self.assertEqual(0, self.install().returncode)
+        with (package / 'droiddeck-unconfirmed').open('a') as marker:
+            marker.write('start\nstart\n')
+        self.assertEqual('steamdeck_publicbeta', self.channel(BL_STEAM_CHANNEL='beta'))
+        self.assertEqual(0, self.install(BL_STEAM_CHANNEL='beta').returncode)
+        self.assertFalse((package / 'droiddeck-channel').exists())
+
+    def test_the_channel_setting_selects_stable(self):
+        setting = self.home / '.config/droiddeck/steam-channel'
+        setting.parent.mkdir(parents=True)
+        setting.write_text('stable\n')
+        self.assertEqual('steamdeck_stable', self.channel())
+        self.assert_installed('steamdeck_stable', expected=self.stable_requests(False))
+        self.assertFalse((self.steam / 'package/droiddeck-channel').exists())
+
+    def empty_beta_manifest(self):
+        (self.cdn / 'steam_client_steamdeck_publicbeta_linuxarm64').write_text(
+            '"linuxarm64"\n{\n\t"version" "123457"\n'
+            '\t"client_steamrtarm64_linuxarm64"\n\t{\n'
+            '\t\t"file" "client.zip"\n\t\t"sha2" "00"\n'
+            '\t}\n}\n')
+
+    def test_a_beta_manifest_without_an_arm64_client_falls_back_to_stable(self):
+        self.empty_beta_manifest()
+        result = self.assert_installed('steamdeck_stable', expected=self.stable_requests())
+        self.assertIn('no client components in steam_client_steamdeck_publicbeta_linuxarm64', result.stderr)
+        self.assertIn('client_steamrtarm64_linuxarm64', result.stderr)
+        self.assertEqual('steamdeck_stable\n', (self.steam / 'package/droiddeck-channel').read_text())
+        self.assertEqual('steamdeck_stable', self.channel())
+
+    def test_a_pinned_beta_manifest_without_an_arm64_client_fails_and_names_its_blocks(self):
+        self.empty_beta_manifest()
+        result = self.install(BL_STEAM_CHANNEL='beta')
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn('client_steamrtarm64_linuxarm64', result.stderr)
+        self.assertFalse((self.steam / 'package/droiddeck-installed').exists())
 
     def test_requested_repair_runs_once_and_is_retried_until_it_completes(self):
         package = self.break_client(0)
