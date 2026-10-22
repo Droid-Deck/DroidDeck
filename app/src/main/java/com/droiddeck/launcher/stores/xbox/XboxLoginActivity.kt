@@ -63,7 +63,8 @@ class XboxLoginActivity : ComponentActivity() {
                 Xodus.start(applicationContext, listOf("--external-webview-stdio", "login"), credentialGeneration = accountGeneration).use { process ->
                     child = process
                     if (closed) return@use
-                    Xodus.diagnostics(process)
+                    // StoresState.logLine writes no file in this process, so the reason would miss the shared log.
+                    Xodus.diagnostics(process) { logStep(it) }
                     progress("waiting for the Xbox helper", "Waiting for the Xbox helper…")
                     val timer = Thread({
                         runCatching { if (!process.process.waitFor(10, TimeUnit.MINUTES)) process.process.destroy() }
@@ -153,8 +154,7 @@ class XboxLoginActivity : ComponentActivity() {
     private fun logStep(line: String) {
         val text = StoreLog.redactLine("Xbox sign-in: $line")
         Log.i(TAG, text)
-        val time = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", java.util.Locale.US).format(java.util.Date())
-        StoreLogFiles.append(applicationContext, "$time  $text")
+        StoreLogFiles.stamped(applicationContext, text)
     }
 
     @SuppressLint("SetJavaScriptEnabled")

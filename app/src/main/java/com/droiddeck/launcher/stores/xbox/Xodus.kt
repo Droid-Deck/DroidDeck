@@ -133,11 +133,12 @@ internal object Xodus {
         }
     }
 
-    fun diagnostics(child: Child): Thread = Thread({
+    /** Passes the backend's known stderr diagnostics to [report]; other stderr text never leaves the process. */
+    fun diagnostics(child: Child, report: (String) -> Unit = { com.droiddeck.launcher.stores.StoresState.logLine("Xbox: $it") }): Thread = Thread({
         runCatching {
             child.process.errorStream.bufferedReader().useLines { lines -> lines.forEach { line ->
                 if (line.matches(Regex("NEXUS_CREDENTIAL_ERROR_V1 [a-z-]{1,48}|NEXUS_LIBRARY_DIAGNOSTIC_V1 [a-z-]{1,48} [0-9]{1,3} [0-9]{1,6}|NEXUS_SESSION_DIAGNOSTIC_V1 [a-z-]{1,64}|Account library unavailable \\([a-z-]{1,64}\\); credentials and installed games are unchanged\\.|Account library timed out; installed games are unchanged\\.|Xbox profile is temporarily unavailable \\([a-z-]{1,48}\\); stored account is unchanged\\.|Xbox profile request timed out; stored account is unchanged\\.")))
-                    com.droiddeck.launcher.stores.StoresState.logLine("Xbox: $line")
+                    report(line)
             } }
         }
     }, "xbox-diagnostics").apply { start() }
