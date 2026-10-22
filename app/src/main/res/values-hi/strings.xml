@@ -718,6 +718,9 @@
     <string name="setup_session">सेशन</string>
     <string name="setup_logs">सेशन लॉग</string>
     <string name="setup_logs_hint">हर सेशन के बाद सेव होता है</string>
+    <string name="setup_log_level">लॉग स्तर</string>
+    <string name="setup_log_level_standard">मानक</string>
+    <string name="setup_log_level_detailed">विस्तृत</string>
     <string name="setup_agent_commands">डिबगिंग टूल</string>
     <string name="setup_latest_logs">नवीनतम सेशन लॉग</string>
     <string name="setup_saved_logs">सेव किए सेशन लॉग</string>

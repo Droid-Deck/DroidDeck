@@ -718,6 +718,9 @@
     <string name="setup_session">Συνεδρία</string>
     <string name="setup_logs">Αρχεία καταγραφής συνεδρίας</string>
     <string name="setup_logs_hint">Αποθηκεύονται μετά από κάθε συνεδρία</string>
+    <string name="setup_log_level">Επίπεδο καταγραφής</string>
+    <string name="setup_log_level_standard">Τυπικό</string>
+    <string name="setup_log_level_detailed">Λεπτομερές</string>
     <string name="setup_agent_commands">Εργαλεία εντοπισμού σφαλμάτων</string>
     <string name="setup_latest_logs">Πιο πρόσφατα αρχεία καταγραφής συνεδρίας</string>
     <string name="setup_saved_logs">Αποθηκευμένα αρχεία καταγραφής συνεδρίας</string>

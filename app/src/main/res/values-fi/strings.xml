@@ -718,6 +718,9 @@
     <string name="setup_session">Istunto</string>
     <string name="setup_logs">Istunnon lokit</string>
     <string name="setup_logs_hint">Tallennetaan joka istunnon jälkeen</string>
+    <string name="setup_log_level">Lokin taso</string>
+    <string name="setup_log_level_standard">Vakio</string>
+    <string name="setup_log_level_detailed">Yksityiskohtainen</string>
     <string name="setup_agent_commands">Vianmääritystyökalut</string>
     <string name="setup_latest_logs">Viimeisimmät istunnon lokit</string>
     <string name="setup_saved_logs">Tallennetut istunnon lokit</string>

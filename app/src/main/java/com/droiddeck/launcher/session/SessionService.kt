@@ -23,6 +23,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
 import android.hardware.display.DisplayManager
+import android.os.SystemClock
 import android.view.Display
 import android.util.Log
 import com.droiddeck.launcher.R
@@ -390,6 +391,19 @@ class SessionService : Service() {
 
 
     private fun runSession(gen: Int) {
+        val detailed = SessionPrefs.logsEnabled(this) &&
+            SessionPrefs.sessionLogLevel(this) == SessionPrefs.LOG_LEVEL_DETAILED
+        var prepMark = SystemClock.elapsedRealtime()
+        var capturing = false
+        val pendingPrep = ArrayList<String>()
+        fun prep(step: String) {
+            if (!detailed) return
+            val now = SystemClock.elapsedRealtime()
+            val line = "prep: $step ${now - prepMark}ms"
+            prepMark = now
+            if (capturing) Log.i(TAG, line) else pendingPrep.add(line)
+        }
+
         SessionTerminal.clear()
         com.droiddeck.launcher.gpu.TpUbwcHint.forThisDevice()
         try {
@@ -399,27 +413,38 @@ class SessionService : Service() {
             stopSession(-1)
             return
         }
+        prep("terminal and accounts")
 
         val root = LinuxRuntime.rootDir(this)
         val sessionRoot = LinuxRuntime.sessionRoot(this).apply { mkdirs() }
         val runtimeDir = File(filesDir, ".wayland-rt").apply { mkdirs() }
         killStragglers()
+        prep("stray processes")
         for (pack in listOf(AddonPack.PROOT, AddonPack.DIRECTAUDIO))
             if (!pack.await(this, { gen == sessionGen && SessionState.running })) Log.w(TAG, "${pack.name} pack unavailable")
+        prep("add-on packs")
         SessionFiles.stage(this, root, startsSession = true)
+        prep("runtime files")
         // Earlier sessions' reports still read the Steam logs and VAC marker this session replaces.
         SessionArtifacts.awaitCollections()
         SessionArtifacts.finishAbandoned(this)
+        prep("earlier reports")
         VacDiagnostics.arm(this)
         com.droiddeck.launcher.agent.AgentGuest.reset(this)
         com.droiddeck.launcher.stores.gog.GogComet.begin()
         com.droiddeck.launcher.stores.StoreLaunchRequests.start(this)
+        prep("store hooks")
 
         val sessionDir = openSessionFolder()
         val sessionLog = File(sessionDir, "session.log")
+        capturing = true
+        pendingPrep.forEach { Log.i(TAG, it) }
+        pendingPrep.clear()
+        prep("report and log capture")
 
         Log.i(TAG, GpuClockPin.start(this))
         Log.i(TAG, GameThreadHints.start(this))
+        prep("clock and thread hints")
 
         val size = SessionState.outputSize
         val guest = ArrayList<String>()
@@ -432,13 +457,16 @@ class SessionService : Service() {
         addClientEnvironment(guest, steamHere)
         if (steamHere) guest.add("BL_EPIC_APP_ID=" + com.droiddeck.launcher.stores.epic.EpicClient.shortcutAppId)
         val fastPathAt = guest.size
+        prep("client environment")
 
         val pulse = startAudio(guest, sessionDir)
+        prep("audio")
         if (steamHere) {
             val encoder = VideoEncodeBridge(File(filesDir, "venc/venc.sock"))
             encoder.attach(this)
             components.add(encoder)
             guest.add("BL_VENC_SOCKET=" + encoder.socket.absolutePath)
+            prep("video encoder")
         }
 
         guest.add("BL_WIDTH=" + size.first)
@@ -452,6 +480,7 @@ class SessionService : Service() {
         guest.add("BL_FPS=" + SessionState.fpsLimit)
         guest.add("BL_REFRESH=" + Math.round(SessionState.refreshHz))
         guest.add("BL_LOG=" + sessionLog.path)
+        if (detailed) guest.add("BL_LOG_LEVEL=detailed")
         guest.add("BL_DEBUG_DIR=" + sessionDir.path)
 
         val fakeInputDir = File(sessionRoot, "dev/input").apply { mkdirs() }
@@ -463,6 +492,7 @@ class SessionService : Service() {
             addControllerEnvironment(guest, fakeInputDir, sessionDir)
             SessionState.padBridge?.syncConnectedControllers()
         }
+        prep("controllers")
         val noSteamGame = noSteamGame()
         if (noSteamGame) guest.add("BL_PIN_CORES=0")
         if ((steamHere || SessionState.program == NoSteamLaunch.EPIC) && com.droiddeck.launcher.stores.epic.EpicClient.read(this).installed) {
@@ -471,6 +501,7 @@ class SessionService : Service() {
             runCatching { com.droiddeck.launcher.stores.epic.EpicClient.prepareInstallDir(this) }
                 .onFailure { Log.w(TAG, "Epic install directory setup failed", it) }
         }
+        prep("epic library")
         if (steamHere || noSteamGame) {
             val added = com.droiddeck.launcher.frontend.AddedGames.scan(this)
             val listing = com.droiddeck.launcher.frontend.AddedGames.writeListing(this, added)
@@ -479,6 +510,7 @@ class SessionService : Service() {
             if (com.droiddeck.launcher.gpu.Lossless.owned(this)) guest.add("BL_LOSSLESS_OWNED=1")
             if (added.isNotEmpty()) Log.i(TAG, "added games: " + added.joinToString { "${it.name} (${it.exe.name})" })
         }
+        prep("added games")
         guest.add("BL_LAUNCH_DIR=" + sessionRoot.path)
         GameStorage.effective(this)?.let { guest.add("BL_LIBRARY_LABEL=" + it.label.replace('"', ' ')) }
         if (SessionState.mode == MODE_STEAM && SessionState.steamUi == "desktop") guest.add("BL_STEAM_UI=desktop")
@@ -511,6 +543,7 @@ class SessionService : Service() {
         FileUtils.clear(File(LinuxRuntime.liveDir(this), "shm"))
 
         val binds = sessionBinds(controllersOn, fakeInputDir, sessionDir, guest, sessionRoot, runtimeDir)
+        prep("binds")
         val fastPathKey = if (ProotFastPath.enabled(this)) {
             val prootBinds = LinuxRuntime.binds(
                 this, sessionRoot, runtimeDir, Environment.getExternalStorageDirectory(), binds,
@@ -566,6 +599,7 @@ class SessionService : Service() {
             return
         }
         components.forEach { it.start() }
+        prep("components")
 
         val line = command.joinToString(" ") {
             it.replace("\\", "\\\\").replace(" ", "\\ ")
@@ -583,6 +617,7 @@ class SessionService : Service() {
             stopSession(program ?: status ?: -1)
         }, null)
         Log.i(TAG, "session pid $pid, log ${sessionLog.path}")
+        prep("proot spawn")
         if (gen != sessionGen || !SessionState.running) {
             Log.i(TAG, "session stopped while its guest was starting; taking it down")
             if (gen == sessionGen) {

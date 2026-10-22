@@ -730,6 +730,9 @@
     <string name="setup_session">الجلسة</string>
     <string name="setup_logs">سجلات الجلسة</string>
     <string name="setup_logs_hint">تُحفَظ بعد كل جلسة</string>
+    <string name="setup_log_level">مستوى السجل</string>
+    <string name="setup_log_level_standard">قياسي</string>
+    <string name="setup_log_level_detailed">مفصّل</string>
     <string name="setup_agent_commands">أدوات تصحيح الأخطاء</string>
     <string name="setup_latest_logs">أحدث سجلات الجلسة</string>
     <string name="setup_saved_logs">سجلات الجلسة المحفوظة</string>

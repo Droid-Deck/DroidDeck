@@ -758,6 +758,9 @@
     <string name="setup_session">Session</string>
     <string name="setup_logs">Session logs</string>
     <string name="setup_logs_hint">Saved after each session</string>
+    <string name="setup_log_level">Log level</string>
+    <string name="setup_log_level_standard">Standard</string>
+    <string name="setup_log_level_detailed">Detailed</string>
     <string name="setup_agent_commands">Debugging tools</string>
     <string name="setup_latest_logs">Latest session logs</string>
     <string name="setup_saved_logs">Saved session logs</string>

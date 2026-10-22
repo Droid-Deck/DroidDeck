@@ -715,6 +715,9 @@
     <string name="setup_session">Sesi</string>
     <string name="setup_logs">Log sesi</string>
     <string name="setup_logs_hint">Disimpan setelah setiap sesi</string>
+    <string name="setup_log_level">Tingkat log</string>
+    <string name="setup_log_level_standard">Standar</string>
+    <string name="setup_log_level_detailed">Terperinci</string>
     <string name="setup_agent_commands">Alat debug</string>
     <string name="setup_latest_logs">Log sesi terbaru</string>
     <string name="setup_saved_logs">Log sesi tersimpan</string>

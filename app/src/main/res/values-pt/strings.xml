@@ -718,6 +718,9 @@
     <string name="setup_session">Sessão</string>
     <string name="setup_logs">Logs da sessão</string>
     <string name="setup_logs_hint">Salvos após cada sessão</string>
+    <string name="setup_log_level">Nível de log</string>
+    <string name="setup_log_level_standard">Padrão</string>
+    <string name="setup_log_level_detailed">Detalhado</string>
     <string name="setup_agent_commands">Ferramentas de depuração</string>
     <string name="setup_latest_logs">Logs da última sessão</string>
     <string name="setup_saved_logs">Logs de sessão salvos</string>

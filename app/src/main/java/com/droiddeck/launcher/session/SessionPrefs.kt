@@ -23,6 +23,9 @@ object SessionPrefs {
     private const val STEAM_DOWNLOADS_IN_BACKGROUND = "steamDownloadsInBackground"
     private const val DECKY_ZIP_WARNING_SEEN = "deckyZipWarningSeen"
 
+    const val LOG_LEVEL_STANDARD = 0
+    const val LOG_LEVEL_DETAILED = 1
+
     const val CONTROLLER_DECK = "deck"
     const val CONTROLLER_XBOX360 = "xbox360"
     const val CONTROLLER_STEAM = "steamcontroller"
@@ -516,6 +519,13 @@ object SessionPrefs {
 
     fun setLogsEnabled(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("logs", on).apply()
+    }
+
+    fun sessionLogLevel(context: Context): Int =
+        prefs(context).getInt("sessionLogLevel", LOG_LEVEL_STANDARD)
+
+    fun setSessionLogLevel(context: Context, level: Int) {
+        prefs(context).edit().putInt("sessionLogLevel", level).apply()
     }
 
     fun storageDiagnosticsEnabled(context: Context): Boolean =

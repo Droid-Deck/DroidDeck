@@ -715,6 +715,9 @@
     <string name="setup_session">Phiên</string>
     <string name="setup_logs">Log phiên</string>
     <string name="setup_logs_hint">Được lưu sau mỗi phiên</string>
+    <string name="setup_log_level">Mức log</string>
+    <string name="setup_log_level_standard">Tiêu chuẩn</string>
+    <string name="setup_log_level_detailed">Chi tiết</string>
     <string name="setup_agent_commands">Công cụ gỡ lỗi</string>
     <string name="setup_latest_logs">Log phiên gần nhất</string>
     <string name="setup_saved_logs">Log phiên đã lưu</string>
