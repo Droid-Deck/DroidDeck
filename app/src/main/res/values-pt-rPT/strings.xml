@@ -1407,6 +1407,14 @@
     <string name="theme_icon_blue_detail">Fundo preto, texto branco e o azul para tudo o que está selecionado, focado ou premido.</string>
     <string name="theme_electric">Azul-marinho elétrico</string>
     <string name="theme_electric_detail">O azul mais vivo, em superfícies que tendem para o azul-marinho em vez do cinzento.</string>
+    <string name="theme_gradient">Gradiente</string>
+    <string name="theme_gradient_detail">As suas próprias cores primária e secundária, combinadas nos botões e destaques.</string>
+    <string name="theme_gradient_primary">Primária</string>
+    <string name="theme_gradient_secondary">Secundária</string>
+    <string name="theme_color_hue">Matiz</string>
+    <string name="theme_color_saturation">Saturação</string>
+    <string name="theme_color_brightness">Brilho</string>
+    <string name="theme_color_hex">Cor hexadecimal</string>
     <string name="pckb_key_esc">Esc</string>
     <string name="pckb_key_ins">Ins</string>
     <string name="pckb_key_del">Del</string>
@@ -2510,6 +2518,7 @@
     <string name="glasses_xreal_network_missing">A aguardar a ligação Ethernet por USB dos óculos. Este telemóvel pode não a disponibilizar às apps.</string>
     <string name="glasses_xreal_connection_failed">A ligação aos óculos XREAL foi interrompida ou devolveu uma resposta não suportada. A tentar novamente…</string>
     <string name="glasses_xreal_experimental">Suporte experimental para os 1S. Utilize o modo Follow e desative a estabilização no menu dos óculos. As direções de seguimento e os modos de ecrã ainda têm de ser testados no dispositivo.</string>
+    <string name="glasses_pro2_experimental">Seguimento experimental dos movimentos da cabeça para Pro 2. O ajuste do brilho e do volume e a mudança do modo de ecrã ainda não são suportados.</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Modo Cardboard</string>
     <string name="cardboard_mode_hint">Imagens para o olho esquerdo e o direito, para uns óculos de RV para telemóvel.</string>

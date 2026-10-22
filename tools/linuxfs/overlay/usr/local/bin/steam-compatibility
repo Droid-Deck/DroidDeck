@@ -466,10 +466,12 @@ verb=$1; shift
 case $verb in
   getcompatpath | getnativepath) printf '%s\\n' "$1"; exit 0 ;;
 esac
+""" + BL_GAME_CPUS_SETUP + """
+bl_game_cpus
 if [ -x /usr/local/bin/droiddeck-steamvr-flat ] && /usr/local/bin/droiddeck-steamvr-flat "$verb"; then
-  exec /usr/local/bin/droiddeck-steamvr-game /usr/local/bin/droiddeck-fex steam "$verb" "$@"
+  exec /usr/local/bin/droiddeck-steamvr-game ${BL_TASKSET:-} /usr/local/bin/droiddeck-fex steam "$verb" "$@"
 fi
-exec /usr/local/bin/droiddeck-fex steam "$verb" "$@"
+exec ${BL_TASKSET:-} /usr/local/bin/droiddeck-fex steam "$verb" "$@"
 """
 
 

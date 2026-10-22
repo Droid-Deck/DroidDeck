@@ -13,6 +13,7 @@ import com.caverock.androidsvg.SVG
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.core.Downloader
 import com.droiddeck.launcher.core.FileUtils
+import com.droiddeck.launcher.core.Hashes
 import com.droiddeck.launcher.store.FlathubApi
 import org.json.JSONArray
 import org.json.JSONObject
@@ -44,7 +45,7 @@ object UserApps {
         val fex: String = LinuxFex.AUTO, val arch: String? = null,
     )
 
-    class Release(val tag: String, val published: String, val asset: String, val url: String)
+    class Release(val tag: String, val published: String, val asset: String, val url: String, val sha256: String? = null)
 
     sealed class UpdateCheck {
         class Current(val tag: String) : UpdateCheck()
@@ -318,9 +319,12 @@ object UserApps {
             val r = releases.getJSONObject(i)
             if (r.optBoolean("draft")) return@mapNotNull null
             val assets = r.optJSONArray("assets") ?: return@mapNotNull null
-            val byName = (0 until assets.length()).associate { j -> assets.getJSONObject(j).let { it.getString("name") to it.getString("browser_download_url") } }
+            val byName = (0 until assets.length()).associate { j -> assets.getJSONObject(j).let { it.getString("name") to it } }
             pickAsset(byName.keys.toList())?.let { asset ->
-                r.optBoolean("prerelease") to Release(r.optString("tag_name", asset), r.optString("published_at"), asset, byName.getValue(asset))
+                r.optBoolean("prerelease") to byName.getValue(asset).let { a ->
+                    Release(r.optString("tag_name", asset), r.optString("published_at"), asset, a.getString("browser_download_url"),
+                        Hashes.githubSha256(a.optString("digest")))
+                }
             }
         }
         val pick = (candidates.firstOrNull { !it.first } ?: candidates.firstOrNull())?.second
@@ -331,7 +335,7 @@ object UserApps {
         val download = File(context.cacheDir, "github-${release.asset}")
         try {
             val label = context.getString(R.string.user_apps_downloading, release.asset)
-            val ok = Downloader.downloadFile(release.url, download, false) { f -> onProgress(label, if (f < 0) -1 else Math.round(f * 100f)) }
+            val ok = Downloader.downloadFile(release.url, download, false, release.sha256) { f -> onProgress(label, if (f < 0) -1 else Math.round(f * 100f)) }
             return if (ok) use(download) else context.getString(R.string.user_apps_download_failed)
         } finally {
             download.delete()
