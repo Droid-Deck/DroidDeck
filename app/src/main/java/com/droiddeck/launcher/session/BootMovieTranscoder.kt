@@ -37,13 +37,75 @@ internal object BootMovieTranscoder {
         MediaCodecList(MediaCodecList.REGULAR_CODECS).findDecoderForFormat(format) != null
     }.getOrDefault(false)
 
-    fun transcode(source: File, target: File, keepAudio: Boolean = true, onProgress: (Int) -> Unit): Result? {
+    fun transcode(source: File, target: File, keepAudio: Boolean = true, limitUs: Long = Long.MAX_VALUE, gain: Float = 1f, onProgress: (Int) -> Unit): Result? {
         val hadAudio = keepAudio && trackFormat(source, "audio/") != null
-        val audio = if (hadAudio) runCatching { encodeAudio(source) }
+        val audio = if (hadAudio) runCatching { encodeAudio(source, gain, limitUs) }
             .onFailure { Log.w(TAG, "could not convert the audio of ${source.name}", it) }.getOrNull() else null
-        val muxedAudio = runCatching { encodeVideo(source, target, audio, onProgress) }
+        val muxedAudio = runCatching { encodeVideo(source, target, audio, limitUs, onProgress) }
             .onFailure { Log.w(TAG, "could not convert ${source.name}", it) }.getOrNull() ?: return null
         return Result(audioDropped = hadAudio && !muxedAudio)
+    }
+
+    /** Copies the video of [source] untouched and gives it its sound again at [gain] of its level, cut to [limitUs]. */
+    fun regain(source: File, target: File, gain: Float, limitUs: Long): Boolean {
+        val audio = runCatching { encodeAudio(source, gain, limitUs) }
+            .onFailure { Log.w(TAG, "could not change the volume of ${source.name}", it) }.getOrNull() ?: return false
+        val extractor = MediaExtractor()
+        var muxer: MediaMuxer? = null
+        val staged = File(target.parentFile, target.name + ".regain")
+        return try {
+            extractor.setDataSource(source.path)
+            var videoTrack = -1
+            var videoFormat: MediaFormat? = null
+            for (i in 0 until extractor.trackCount) {
+                val format = extractor.getTrackFormat(i)
+                val mime = format.getString(MediaFormat.KEY_MIME) ?: continue
+                if (videoTrack < 0 && (mime == MediaFormat.MIMETYPE_VIDEO_VP8 || mime == MediaFormat.MIMETYPE_VIDEO_VP9)) {
+                    videoTrack = i
+                    videoFormat = format
+                }
+            }
+            if (videoTrack < 0 || videoFormat == null) return false
+            extractor.selectTrack(videoTrack)
+            val mux = MediaMuxer(staged.path, MediaMuxer.OutputFormat.MUXER_OUTPUT_WEBM).also { muxer = it }
+            val outVideo = mux.addTrack(videoFormat)
+            val outAudio = mux.addTrack(audio.format)
+            mux.start()
+            val info = MediaCodec.BufferInfo()
+            var audioIndex = 0
+            fun writeAudioUpTo(timeUs: Long) {
+                while (audioIndex < audio.samples.size && audio.samples[audioIndex].timeUs <= timeUs) {
+                    val sample = audio.samples[audioIndex++]
+                    info.set(0, sample.data.size, sample.timeUs, 0)
+                    mux.writeSampleData(outAudio, ByteBuffer.wrap(sample.data), info)
+                }
+            }
+            var bufferSize = 8 shl 20
+            if (videoFormat.containsKey(MediaFormat.KEY_MAX_INPUT_SIZE)) bufferSize = maxOf(bufferSize, videoFormat.getInteger(MediaFormat.KEY_MAX_INPUT_SIZE))
+            val buffer = ByteBuffer.allocate(bufferSize)
+            while (true) {
+                val size = extractor.readSampleData(buffer, 0)
+                if (size < 0 || extractor.sampleTime > limitUs) break
+                val time = extractor.sampleTime
+                writeAudioUpTo(time)
+                val key = extractor.sampleFlags and MediaExtractor.SAMPLE_FLAG_SYNC != 0
+                info.set(0, size, time, if (key) MediaCodec.BUFFER_FLAG_KEY_FRAME else 0)
+                mux.writeSampleData(outVideo, buffer, info)
+                extractor.advance()
+            }
+            writeAudioUpTo(Long.MAX_VALUE)
+            mux.stop()
+            mux.release()
+            muxer = null
+            staged.renameTo(target)
+        } catch (e: Exception) {
+            Log.w(TAG, "could not change the volume of ${source.name}", e)
+            false
+        } finally {
+            runCatching { muxer?.release() }
+            extractor.release()
+            staged.delete()
+        }
     }
 
     private fun trackFormat(source: File, prefix: String): Pair<Int, MediaFormat>? {
@@ -75,6 +137,14 @@ internal object BootMovieTranscoder {
         return Layout(canvas, ch, (canvas - cw) / 2, 0, cw, ch)
     }
 
+    /** [pcm] made quieter by [gain] and cut to its first [limitUs] microseconds. */
+    internal fun scale(pcm: ShortArray, channels: Int, gain: Float, limitUs: Long): ShortArray {
+        val frames = pcm.size / channels
+        val kept = if (limitUs == Long.MAX_VALUE) frames else minOf(frames.toLong(), limitUs * OPUS_RATE / 1_000_000L).toInt()
+        if (gain == 1f && kept == frames) return pcm
+        return ShortArray(kept * channels) { (pcm[it] * gain).toInt().coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort() }
+    }
+
     internal fun resample(pcm: ShortArray, channels: Int, rate: Int): ShortArray {
         if (rate == OPUS_RATE) return pcm
         val frames = pcm.size / channels
@@ -94,7 +164,10 @@ internal object BootMovieTranscoder {
         return out
     }
 
-    private fun encodeAudio(source: File): Audio? {
+    /** Most decoded audio held in memory at once: about six minutes of 48 kHz stereo. */
+    private const val MAX_PCM_BYTES = 64 shl 20
+
+    private fun encodeAudio(source: File, gain: Float = 1f, limitUs: Long = Long.MAX_VALUE): Audio? {
         val (track, inFormat) = trackFormat(source, "audio/") ?: return null
         val extractor = MediaExtractor()
         var decoder: MediaCodec? = null
@@ -139,13 +212,16 @@ internal object BootMovieTranscoder {
                     }
                     dec.releaseOutputBuffer(index, false)
                     if (info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) break
+                    // Past the length that will be kept there is nothing more to decode; without a length, a track too big to hold is dropped.
+                    if (limitUs != Long.MAX_VALUE && info.presentationTimeUs > limitUs) break
+                    if (pcm.size() > MAX_PCM_BYTES) { if (limitUs == Long.MAX_VALUE) return null else break }
                 }
             }
             if (channels !in 1..2) return null
             val raw = pcm.toByteArray()
             val shorts = ShortArray(raw.size / 2)
             ByteBuffer.wrap(raw).order(ByteOrder.nativeOrder()).asShortBuffer().get(shorts)
-            val samples = resample(shorts, channels, rate)
+            val samples = scale(resample(shorts, channels, rate), channels, gain, limitUs)
 
             val format = MediaFormat.createAudioFormat(MediaFormat.MIMETYPE_AUDIO_OPUS, OPUS_RATE, channels)
             format.setInteger(MediaFormat.KEY_BIT_RATE, 128_000)
@@ -201,7 +277,7 @@ internal object BootMovieTranscoder {
     private fun MediaFormat.intOrNull(key: String): Int? = if (!containsKey(key)) null else
         runCatching { getInteger(key) }.getOrElse { runCatching { getFloat(key).toInt() }.getOrNull() }
 
-    private fun encodeVideo(source: File, target: File, audio: Audio?, onProgress: (Int) -> Unit): Boolean {
+    private fun encodeVideo(source: File, target: File, audio: Audio?, limitUs: Long, onProgress: (Int) -> Unit): Boolean {
         val (track, inFormat) = trackFormat(source, "video/") ?: throw IllegalStateException("no video track")
         val rotation = (inFormat.intOrNull(MediaFormat.KEY_ROTATION) ?: 0).mod(360)
         val layout = layout(inFormat.getInteger(MediaFormat.KEY_WIDTH), inFormat.getInteger(MediaFormat.KEY_HEIGHT), rotation)
@@ -278,7 +354,8 @@ internal object BootMovieTranscoder {
                     val index = dec.dequeueOutputBuffer(decInfo, TIMEOUT_US)
                     if (index >= 0) {
                         val timeUs = decInfo.presentationTimeUs
-                        val keep = decInfo.size > 0 && (lastKept == Long.MIN_VALUE || timeUs - lastKept >= minIntervalUs)
+                        val pastLimit = timeUs > limitUs
+                        val keep = decInfo.size > 0 && !pastLimit && (lastKept == Long.MIN_VALUE || timeUs - lastKept >= minIntervalUs)
                         dec.releaseOutputBuffer(index, keep)
                         if (keep) {
                             if (!frames.awaitFrame()) throw IllegalStateException("decoder frame timed out")
@@ -290,9 +367,10 @@ internal object BootMovieTranscoder {
                                 if (percent != lastProgress) { lastProgress = percent; onProgress(percent) }
                             }
                         }
-                        if (decInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) {
+                        if (pastLimit || decInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) {
                             enc.signalEndOfInputStream()
                             decoderDone = true
+                            inputDone = true
                         }
                     }
                 }

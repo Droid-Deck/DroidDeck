@@ -1,0 +1,83 @@
+name: Publish add-on packs
+
+# The add-on packs (tools/packs/build.sh) a Build APK run made, published to DroidDeck-Components under
+# content-addressed tags (pack-<name>-<first 16 hex of sha256>). The APK from that run pins each pack's
+# SHA-256 and downloads it from that tag. A tag is created once and never replaced.
+# Only main and release builds publish here; a PR test build attaches the packs main has not published
+# to its pr-N release on DroidDeck-CI (pr-release-publish.yml), which is deleted when the PR closes.
+
+on:
+  workflow_call:
+    inputs:
+      run_id:
+        description: The Build APK run whose packs to publish; empty for the calling run's own
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  publish:
+    name: publish add-on packs
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    concurrency:
+      group: publish-packs
+      cancel-in-progress: false
+    steps:
+      - name: The packs (this run's build)
+        if: inputs.run_id == ''
+        uses: actions/download-artifact@v4
+        with:
+          name: droiddeck-packs
+          path: packs
+
+      - name: The packs (another Build APK run)
+        if: inputs.run_id != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN: ${{ inputs.run_id }}
+        run: gh run download "$RUN" -R "$GITHUB_REPOSITORY" -n droiddeck-packs -D packs
+
+      - uses: actions/create-github-app-token@v2
+        id: components-token
+        with:
+          app-id: ${{ vars.DROIDDECK_CI_APP_ID }}
+          private-key: ${{ secrets.DROIDDECK_CI_APP_KEY }}
+          owner: Droid-Deck
+          repositories: DroidDeck-Components
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ steps.components-token.outputs.token }}
+          REPO: Droid-Deck/DroidDeck-Components
+          BUILD_RUN: ${{ inputs.run_id || github.run_id }}
+        run: |
+          set -euo pipefail
+          published_digest() {
+            { gh api "repos/$REPO/releases/tags/$1" 2>/dev/null || echo '{}'; } |
+              jq -r --arg n "$2" '.assets // [] | .[] | select(.name == $n) | .digest // empty'
+          }
+          commit=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$BUILD_RUN" --jq .head_sha 2>/dev/null || echo "$GITHUB_SHA")
+          for name in proot directaudio tracking xbox comet; do
+            file="packs/$name.tar.zst"
+            [ -f "$file" ] || { echo "::error::$name.tar.zst is missing from Build APK run $BUILD_RUN"; exit 1; }
+            sha=$(sha256sum "$file" | cut -d' ' -f1)
+            tag="pack-$name-${sha:0:16}"
+            digest=$(published_digest "$tag" "$name.tar.zst")
+            if [ -z "$digest" ]; then
+              notes="DroidDeck add-on pack \`$name\`, built by [Build APK run $BUILD_RUN]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$BUILD_RUN) from \`$commit\` with tools/packs/build.sh and published by [run $GITHUB_RUN_ID]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID).
+
+          Size: $(stat -c %s "$file") bytes. SHA-256: $sha. APKs built in the same run pin this digest."
+              gh release create "$tag" -R "$REPO" --title "$tag" --notes "$notes" --latest=false "$file" \
+                || echo "::warning::creating $tag failed; checking whether another run published it"
+              digest=$(published_digest "$tag" "$name.tar.zst")
+            fi
+            if [ "$digest" != "sha256:$sha" ]; then
+              echo "::error::$tag holds ${digest:-nothing} for $name.tar.zst, not sha256:$sha"
+              exit 1
+            fi
+            echo "- \`$name\`: [$tag]($GITHUB_SERVER_URL/$REPO/releases/tag/$tag) \`$sha\`" >> "$GITHUB_STEP_SUMMARY"
+          done

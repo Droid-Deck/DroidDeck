@@ -105,7 +105,7 @@ INSTALL_JS = r"""
     const body = [];
     uint(1, appid, body);
     const r = await send("CompatManager.GetCompatTools#1", body);
-    if (!r.ok) throw new Error("GetCompatTools " + appid + " failed (" + r.eresult + " " + r.error + ")");
+    if (!r.ok) throw Object.assign(new Error("GetCompatTools " + appid + " failed (" + r.eresult + " " + r.error + ")"), { eresult: r.eresult });
     return { selected: text(r.body, 3), fallback: text(r.body, 4), tools: (r.body[1] || []).map((t) => text(parse(t), 1)) };
   };
   self.set = async (appid, name) => {
@@ -119,7 +119,13 @@ INSTALL_JS = r"""
   };
   self.many = async (apps) => {
     const out = {};
-    for (const app of apps) out[app] = (await self.get(Number(app))).selected;
+    for (const app of apps) {
+      try {
+        out[app] = (await self.get(Number(app))).selected;
+      } catch (e) {
+        if (e.eresult !== 128) throw e;
+      }
+    }
     return out;
   };
   window.__droiddeckCompat = self;
@@ -555,11 +561,24 @@ class Helper:
             # "native" from earlier builds also lists dual-platform games nobody chose to run natively.
             prior_native = state.get("native_choices", ())
             native_choices = set(prior_native if isinstance(prior_native, (list, tuple, set)) else ())
+            picked = COMPAT["picked_apps"](state)
+            runnable = {t["name"].lower() for t in live}
             apps = sorted(set(installed) | set(picks) | set(prior_auto) | native_choices, key=COMPAT["app_order"])
             overrides = COMPAT["requested_games"](
                 COMPAT["game_requests"](), catalog, [t["name"] for t in live])
             apps = sorted(set(apps) | set(overrides), key=COMPAT["app_order"])
             current = dict(page.compat("many(%s)" % json.dumps(apps)) or {})
+            refused = set(apps) - set(current)
+            refused_native = native_choices & refused
+            if refused:
+                apps = [app for app in apps if app not in refused]
+                installed = [app for app in installed if app not in refused]
+                picks = [app for app in picks if app not in refused]
+                prior_auto = {app: tool for app, tool in prior_auto.items() if app not in refused}
+                if isinstance(state.get("auto"), dict):
+                    state["auto"] = prior_auto
+                native_choices -= refused
+                overrides = {app: tool for app, tool in overrides.items() if app not in refused}
             current["0"] = top["selected"]
             native = COMPAT["native_targets"](self.steam_root, apps)
             raw_mapping = COMPAT["read_config_mapping"](
@@ -568,7 +587,7 @@ class Helper:
                 for app in native_choices:
                     current[app] = ""
                 for app in set(native) - native_choices:
-                    if not current.get(app):
+                    if not current.get(app) and app not in picked:
                         current.pop(app, None)
             else:
                 for app in set(native) | native_choices:
@@ -576,7 +595,8 @@ class Helper:
                         # The client shows an explicit native choice as the tool it inherits, and writes config.vdf late.
                         if raw_mapping[app] == "" or current.get(app) not in self.known:
                             current[app] = raw_mapping[app]
-                    elif app in prior_auto or app in native_choices:
+                    elif app in prior_auto or app in native_choices or app in picked and (
+                            not current.get(app) or COMPAT["unrunnable"](current[app], runnable)):
                         current[app] = ""
                     elif not current.get(app):
                         current.pop(app, None)
@@ -590,8 +610,8 @@ class Helper:
                                    tool if tool is not None else "Steam native default"))
             state.update(
                 auto={app: tool for app, tool in auto.items() if tool is not COMPAT["NATIVE_CHOICE"]},
-                native_choices=sorted(app for app, tool in auto.items() if tool is COMPAT["NATIVE_CHOICE"]),
-                tools=catalog, live=True)
+                native_choices=sorted(refused_native | {app for app, tool in auto.items() if tool is COMPAT["NATIVE_CHOICE"]}),
+                picked=COMPAT["picked_after"](current, changes), tools=catalog, live=True)
             state.pop("native", None)
             if waiting:
                 state["pending"] = wanted

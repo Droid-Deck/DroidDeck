@@ -50,6 +50,7 @@ data class GlassesState(
     val noSignal: Boolean = false,
     val sbsSupport: Int = SBS_UNKNOWN,
     val sbs90: Boolean = false,
+    val rates2d: List<Int> = listOf(60, 90, 120),
     val experimental: Boolean = false,
     val supportsScreen3dof: Boolean = false,
     val supports30Hz: Boolean = false,
@@ -613,12 +614,13 @@ object Glasses {
                 switching3d = modeState.pendingStereo,
                 brightnessMax = m?.brightnessMax ?: 8, volumeMax = m?.volumeMax ?: 8,
                 sunblock = if (m === XrealModel) it.sunblock else _settings.value.sunblock ?: it.sunblock,
-                hardwareControls = device?.vendorId == VitureProtocol.VENDOR_ID || m === XrealModel,
+                hardwareControls = device?.vendorId == VitureProtocol.VENDOR_ID || m === XrealModel || m is RokidModel,
                 hasSunblock = m?.hasSunblock == true,
                 diagonalFovDeg = m?.diagonalFovDeg ?: 46f,
                 tracking = it.tracking && link != null,
                 noSignal = noSignal,
                 sbs90 = m?.sbs90 == true,
+                rates2d = m?.rates2d ?: listOf(60, 90, 120),
                 experimental = m === XrealModel,
                 supportsScreen3dof = link?.hasImu == true,
                 supports30Hz = display?.let(::supports30Hz) == true,
@@ -634,7 +636,8 @@ object Glasses {
         scheduleModeCheck()
     }
 
-    internal fun isGlassesVendor(vid: Int) = vid == VitureProtocol.VENDOR_ID || RayNeoModel.isVendor(vid) || vid == XrealModel.VENDOR_ID
+    internal fun isGlassesVendor(vid: Int) = vid == VitureProtocol.VENDOR_ID || RayNeoModel.isVendor(vid) ||
+        vid == XrealModel.VENDOR_ID || vid == RokidModel.VENDOR_ID
 
     internal fun supports30Hz(display: Display): Boolean {
         val current = display.mode
@@ -654,11 +657,13 @@ object Glasses {
                 ?: VitureProtocol.model(device.productId, name)
         }
         else if (XrealModel.matches(device.vendorId, device.productId)) XrealModel
-        else RayNeoModel.model(device.vendorId, device.productId, name)
+        else RokidModel.model(device.vendorId, device.productId, name)
+            ?: RayNeoModel.model(device.vendorId, device.productId, name)
     }
 
     internal fun isGlassesDisplayName(name: String) =
-        name.contains("VITURE", ignoreCase = true) || RayNeoModel.isDisplay(name) || XrealModel.isDisplay(name)
+        name.contains("VITURE", ignoreCase = true) || RayNeoModel.isDisplay(name) || XrealModel.isDisplay(name) ||
+            RokidModel.isDisplay(name)
 
     private fun findDisplay(usbPresent: Boolean): Display? {
         return selectGlassesDisplay(displays.getDisplays(DisplayManager.DISPLAY_CATEGORY_PRESENTATION).toList(), usbPresent)
@@ -723,6 +728,8 @@ object Glasses {
             } else VitureLink.open(usb, device, linkListener(generation))
         } else if (model === XrealModel) {
             XrealLink.open(app, xrealListener(generation))
+        } else if (model is RokidModel) {
+            RokidLink.open(usb, device, rokidListener(generation))
         } else {
             val baseKey = calibrationKey!!
             val gtUsb = RayNeoProtocol.isGt(device.vendorId, device.productId)
@@ -787,6 +794,33 @@ object Glasses {
             if (generation != linkGeneration) return@post
             publish { it.copy(connected = false, tracking = false,
                 controlError = app.getString(if (networkMissing) R.string.glasses_xreal_network_missing else R.string.glasses_xreal_connection_failed)) }
+        }
+    }
+
+    private fun rokidListener(generation: Long) = object : RokidLink.Listener {
+        override fun onReady() = post {
+            if (generation != linkGeneration) return@post
+            publish { it.copy(connected = true, controlError = null) }
+            updateImu()
+            applyMode(force = false)
+        }
+        override fun onValue(message: Int, value: Int) = post {
+            if (generation != linkGeneration) return@post
+            when (message) {
+                VitureProtocol.MSG_GET_DISPLAY -> glassesMode = value
+                VitureProtocol.MSG_BRIGHTNESS -> publish { it.copy(brightness = value) }
+            }
+        }
+        override fun onPose(raw: ByteArray, pose: FloatArray, timeNs: Long) {
+            if (generation != linkGeneration) return
+            imuPackets++
+            probe?.invoke(raw, pose)
+            if (simulating.get() == null) deliver(pose, timeNs)
+        }
+        override fun onLost() = post {
+            if (generation != linkGeneration) return@post
+            closeLink()
+            refresh()
         }
     }
 

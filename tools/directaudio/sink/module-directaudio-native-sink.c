@@ -126,6 +126,7 @@ struct userdata {
     unsigned int decay_backoff, cb_count, wd_last_cb;
     int reopen_running, reopen_redo;
     int consuming, primed, starved;
+    int suspended;
     volatile int dead;
 
     /* what the IO thread last logged, so engine changes made on the AAudio thread get a line */
@@ -302,6 +303,7 @@ static void out_error_cb(AAudioStream *aq, void *user, aaudio_result_t error) {
     struct userdata *u = user;
 
     if (aq != __atomic_load_n(&u->aq, __ATOMIC_SEQ_CST)) return;
+    if (__atomic_load_n(&u->suspended, __ATOMIC_SEQ_CST)) return;
     /* A disconnected stream (headphones plugged or unplugged, a Bluetooth route coming or going)
      * can never be restarted: it has to be closed and a new one opened on the current route. */
     if (error != AAUDIO_ERROR_DISCONNECTED &&
@@ -400,6 +402,8 @@ static void *reopen_thread(void *user) {
             pthread_mutex_lock(&u->lock);
             old = u->aq;
             __atomic_store_n(&u->aq, neu, __ATOMIC_SEQ_CST);
+            if (__atomic_load_n(&u->suspended, __ATOMIC_SEQ_CST))
+                AAudioStream_requestStop(neu);
             pthread_mutex_unlock(&u->lock);
         } else
             pa_log("directaudio-native-sink: reopen failed; keeping the old stream");
@@ -575,6 +579,34 @@ static int sink_process_msg(pa_msgobject *o, int code, void *data, int64_t offse
     return pa_sink_process_msg(o, code, data, offset, chunk);
 }
 
+/* A started AAudio stream keeps audioserver's AudioMix wake lock held, so the device never
+ * suspends while the session sleeps: stop it, and the IO thread's timer, until the sink reopens. */
+static int sink_set_state_in_io_thread_cb(pa_sink *s, pa_sink_state_t new_state, pa_suspend_cause_t new_suspend_cause) {
+    struct userdata *u = s->userdata;
+    aaudio_result_t res = AAUDIO_OK;
+
+    if (new_state == PA_SINK_SUSPENDED && !u->suspended) {
+        pthread_mutex_lock(&u->lock);
+        __atomic_store_n(&u->suspended, 1, __ATOMIC_SEQ_CST);
+        if (u->aq) AAudioStream_requestStop(u->aq);
+        pthread_mutex_unlock(&u->lock);
+        pa_rtpoll_set_timer_disabled(u->rtpoll);
+        pa_log("directaudio-native-sink: suspended; output stopped");
+    } else if (PA_SINK_IS_OPENED(new_state) && u->suspended) {
+        pthread_mutex_lock(&u->lock);
+        __atomic_store_n(&u->suspended, 0, __ATOMIC_SEQ_CST);
+        u->primed = 0;
+        __atomic_store_n(&u->last_cb_ns, now_ns(), __ATOMIC_SEQ_CST);
+        u->wd_last_tick_ns = 0;
+        if (u->aq) res = AAudioStream_requestStart(u->aq);
+        pthread_mutex_unlock(&u->lock);
+        if (res != AAUDIO_OK || !u->aq) request_reopen(u, "resume");
+        pa_rtpoll_set_timer_relative(u->rtpoll, 0);
+        pa_log("directaudio-native-sink: resumed");
+    }
+    return 0;
+}
+
 static void thread_func(void *userdata) {
     struct userdata *u = userdata;
 
@@ -592,8 +624,10 @@ static void thread_func(void *userdata) {
         /* Half a burst between visits, never blocking on the stream: clients' audio reaches this
          * thread as messages pa_rtpoll_run handles, and a thread stuck in a write or a wait lets
          * them run dry (the crackle #338 fixed). */
-        service_ring(u);
-        pa_rtpoll_set_timer_relative(u->rtpoll, PA_MAX(frames_to_usec(u, u->burst) / 2, PA_USEC_PER_MSEC));
+        if (!u->suspended) {
+            service_ring(u);
+            pa_rtpoll_set_timer_relative(u->rtpoll, PA_MAX(frames_to_usec(u, u->burst) / 2, PA_USEC_PER_MSEC));
+        }
 
         if ((ret = pa_rtpoll_run(u->rtpoll)) < 0)
             goto fail;
@@ -727,6 +761,7 @@ int pa__init(pa_module *m) {
         goto fail;
     }
     u->sink->parent.process_msg = sink_process_msg;
+    u->sink->set_state_in_io_thread = sink_set_state_in_io_thread_cb;
     u->sink->userdata = u;
     pa_sink_set_asyncmsgq(u->sink, u->thread_mq.inq);
     pa_sink_set_rtpoll(u->sink, u->rtpoll);

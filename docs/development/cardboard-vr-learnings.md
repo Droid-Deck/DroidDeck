@@ -133,7 +133,10 @@ OpenVR to SteamVR's ARM64 `vrclient.so`, so no x86 SteamVR is involved.
     waits for its blit before it presents.
 - **Flat games under SteamVR.** With SteamVR running, Steam lists a flat game after its own window in
   gamescope's base layer, so Big Picture keeps the focus and the game never shows, theatre setting or
-  not. SteamVR is therefore started only by Play SteamVR, never with the glasses alone.
+  not. SteamVR is therefore started only by Play SteamVR, never with the glasses alone. A flat game
+  launched while SteamVR runs now opens as a SteamVR panel instead (`droiddeck-steamvr-flat`). Games
+  launched from the SteamVR dashboard do not pass through a `SteamClient.Apps.RunGame` hook installed
+  later, so the launcher asks Steam at run time rather than marking the click.
 - **A new projection needs an event.** `SetDisplayProjectionRaw` changed what `vrserver` reports, but
   `vrcompositor` kept the frustum it started with, so the glasses' field of view did nothing until
   SteamVR restarted. The driver now follows it with `VREvent_LensDistortionChanged`.

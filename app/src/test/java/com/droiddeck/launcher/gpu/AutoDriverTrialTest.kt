@@ -62,4 +62,25 @@ class AutoDriverTrialTest {
         assertNull(AutoDriverTrial.rollbackDue(context))
         assertEquals("banner@r5", AutoDriverTrial.current(context)?.release)
     }
+
+    @Test fun displayDriverCrashesBeforeSessionStartStillCount() {
+        AutoDriverTrial.displayStarting(context, "new-display")
+        assertNull(AutoDriverTrial.rollbackDue(context))
+        AutoDriverTrial.displayStarting(context, "new-display")
+        assertEquals(2, AutoDriverTrial.rollbackDue(context)?.starts)
+    }
+
+    @Test fun aNormalStartIsCountedOnce() {
+        AutoDriverTrial.displayStarting(context, "new-display")
+        AutoDriverTrial.sessionStarting(context, "new-display", "new-linux")
+        assertEquals(1, AutoDriverTrial.current(context)?.starts)
+        AutoDriverTrial.displayStarting(context, "other-display")
+        assertEquals(1, AutoDriverTrial.current(context)?.starts)
+    }
+
+    @Test fun aTrialStartedBeforeDisplayCountingStillRollsBackOnTheNextCrash() {
+        AutoDriverTrial.sessionStarting(context, "new-display", "new-linux")
+        AutoDriverTrial.displayStarting(context, "new-display")
+        assertEquals(2, AutoDriverTrial.rollbackDue(context)?.starts)
+    }
 }

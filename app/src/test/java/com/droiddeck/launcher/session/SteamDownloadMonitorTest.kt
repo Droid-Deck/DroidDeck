@@ -57,6 +57,25 @@ class SteamDownloadMonitorTest {
         }
     }
 
+    @Test fun readsBoundCardLibrariesFromTheirHostPath() {
+        val root = Files.createTempDirectory("droiddeck-steam-download-").toFile()
+        try {
+            val card = File(root, "card").apply { mkdirs() }
+            File(root, "root/.local/share/Steam/steamapps").apply { mkdirs() }
+                .resolve("libraryfolders.vdf")
+                .writeText("\"libraryfolders\" { \"1\" { \"path\" \"/mnt/droiddeck-sd\" } }")
+            val manifest = manifest(card, "44", downloaded = 10, total = 100, flags = 6)
+            val monitor = SteamDownloadMonitor()
+            val mounts = mapOf("/mnt/droiddeck-sd" to card)
+
+            assertFalse(monitor.poll(root, now = 1_000L, mounts = mounts))
+            manifest.writeText(appManifest(downloaded = 20, total = 100, flags = 6))
+            assertTrue(monitor.poll(root, now = 3_000L, mounts = mounts))
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
     @Test fun followsSteamContentActivityWhenManifestProgressIsNotFlushed() {
         val root = Files.createTempDirectory("droiddeck-steam-download-").toFile()
         try {
