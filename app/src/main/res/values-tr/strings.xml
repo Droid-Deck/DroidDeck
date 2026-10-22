@@ -1159,6 +1159,8 @@
     <string name="pip_auto">Otomatik olarak PiP moduna geç</string>
     <string name="unfolded_controls">Açılmış ekrandaki kontroller</string>
     <string name="unfolded_controls_hint">Cihaz açıkken oyun, Steam Deck dokunmatik yüzeylerinin ve arka tutamaklarının üstünde durur. Katlıyken oyun tam ekran olur.</string>
+    <string name="unfolded_controls_with_controller">Kumanda bağlıyken de göster</string>
+    <string name="unfolded_controls_with_controller_hint">Telefonu tutan kumandalar için, kumanda bağlıyken de açılmış ekrandaki kontrolleri gösterir.</string>
     <string name="pip_suspended">Askıya alındı</string>
     <string name="pip_not_ready">Pencere içinde pencere, oturum hazır olduğunda kullanılabilir.</string>
     <string name="pip_permission">Android ayarlarında DroidDeck için pencere içinde pencereye izin verin.</string>
