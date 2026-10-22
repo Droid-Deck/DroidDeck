@@ -356,7 +356,8 @@ class SessionService : Service() {
 
 
     private fun runSession(gen: Int) {
-        val detailed = SessionPrefs.sessionLogLevel(this) == SessionPrefs.LOG_LEVEL_DETAILED
+        val detailed = SessionPrefs.logsEnabled(this) &&
+            SessionPrefs.sessionLogLevel(this) == SessionPrefs.LOG_LEVEL_DETAILED
         var prepMark = SystemClock.elapsedRealtime()
         var capturing = false
         val pendingPrep = ArrayList<String>()
