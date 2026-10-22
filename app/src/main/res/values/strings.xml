@@ -517,7 +517,9 @@
     <string name="comp_delete_original_title">Delete this original?</string>
     <string name="comp_delete_original_body">This %1$s original is from an earlier build of %2$s. The current build\'s original is always kept.</string>
     <string name="comp_nightlies_count">On the Nightlies · %1$d</string>
-    <string name="comp_refresh_to_list">Refresh to list packages on the Nightlies.</string>
+    <string name="comp_channel_stable">Stable</string>
+    <string name="comp_channel_nightly">Nightly</string>
+    <string name="comp_refresh_to_list">Refresh to list packages on the Nightlies and DroidDeck releases.</string>
     <string name="comp_nothing_new">Nothing new since the last check.</string>
     <string name="comp_import_wcp">Import .wcp</string>
     <string name="comp_restore_original">Restore this Proton\'s original</string>
@@ -1846,7 +1848,8 @@
     <string name="cmgr_original_kept">The installed build\'s original is kept: it is the way back.</string>
     <string name="cmgr_not_stored">Not stored</string>
     <string name="cmgr_deleted_original">Deleted the %1$s original of %2$s.</string>
-    <string name="cmgr_nightlies_only">Downloads come only from the Nightlies releases</string>
+    <string name="cmgr_nightlies_only">Downloads come only from the Nightlies and DroidDeck releases</string>
+    <string name="cmgr_nightly_replaced">Download failed: this nightly may have been replaced by a newer build. Refresh the list and try again.</string>
     <string name="cmgr_list_predates_checksums">This package list predates checksums - refresh it and try again</string>
     <string name="cmgr_checksum_mismatch">Checksum mismatch</string>
 

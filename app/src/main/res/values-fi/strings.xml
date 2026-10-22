@@ -504,7 +504,9 @@
     <string name="comp_delete_original_title">Poistetaanko tämä alkuperäinen?</string>
     <string name="comp_delete_original_body">Tämä %1$s:n alkuperäinen on aiemmasta %2$s-versiosta. Nykyisen version alkuperäinen säilytetään aina.</string>
     <string name="comp_nightlies_count">Nightliesissä · %1$d</string>
-    <string name="comp_refresh_to_list">Päivitä nähdäksesi Nightliesin paketit.</string>
+    <string name="comp_channel_stable">Vakaa</string>
+    <string name="comp_channel_nightly">Yöversio</string>
+    <string name="comp_refresh_to_list">Päivitä nähdäksesi Nightliesin ja DroidDeckin paketit.</string>
     <string name="comp_nothing_new">Ei mitään uutta viimeisimmän tarkistuksen jälkeen.</string>
     <string name="comp_import_wcp">Tuo .wcp</string>
     <string name="comp_restore_original">Palauta tämän Protonin alkuperäinen</string>
@@ -1780,7 +1782,8 @@
     <string name="cmgr_original_kept">Asennetun version alkuperäinen säilytetään: se on tie takaisin.</string>
     <string name="cmgr_not_stored">Ei tallennettu</string>
     <string name="cmgr_deleted_original">Poistettu %2$s:n %1$s-alkuperäinen.</string>
-    <string name="cmgr_nightlies_only">Lataukset tulevat vain Nightlies-julkaisuista</string>
+    <string name="cmgr_nightlies_only">Lataukset tulevat vain Nightlies- ja DroidDeck-julkaisuista</string>
+    <string name="cmgr_nightly_replaced">Lataus epäonnistui: tämä yöversio on ehkä korvattu uudemmalla. Päivitä luettelo ja yritä uudelleen.</string>
     <string name="cmgr_list_predates_checksums">Tämä pakettiluettelo on tarkistussummia vanhempi - päivitä se ja yritä uudelleen</string>
     <string name="cmgr_checksum_mismatch">Tarkistussumma ei täsmää</string>
 

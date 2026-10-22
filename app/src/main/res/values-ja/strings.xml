@@ -504,7 +504,9 @@
     <string name="comp_delete_original_title">この元のバージョンを削除しますか？</string>
     <string name="comp_delete_original_body">この%1$sの元のバージョンは、%2$sの以前のビルドのものです。現在のビルドの元のバージョンは常に保持されます。</string>
     <string name="comp_nightlies_count">Nightlies内 · %1$d</string>
-    <string name="comp_refresh_to_list">更新してNightliesのパッケージを一覧表示します。</string>
+    <string name="comp_channel_stable">安定版</string>
+    <string name="comp_channel_nightly">ナイトリー</string>
+    <string name="comp_refresh_to_list">更新してNightliesとDroidDeckのパッケージを一覧表示します。</string>
     <string name="comp_nothing_new">前回の確認以降、新しいものはありません。</string>
     <string name="comp_import_wcp">.wcpをインポート</string>
     <string name="comp_restore_original">このProtonの元のファイルを復元</string>
@@ -1761,7 +1763,8 @@
     <string name="cmgr_original_kept">インストール済みビルドの元のファイルは、元に戻すために保持されます。</string>
     <string name="cmgr_not_stored">保存されていません</string>
     <string name="cmgr_deleted_original">%2$sの%1$s版の元のファイルを削除しました。</string>
-    <string name="cmgr_nightlies_only">ダウンロードはNightliesのリリースからのみ行われます</string>
+    <string name="cmgr_nightlies_only">ダウンロードはNightliesとDroidDeckのリリースからのみ行われます</string>
+    <string name="cmgr_nightly_replaced">ダウンロードに失敗しました：このナイトリービルドは新しいビルドに置き換えられた可能性があります。一覧を更新してもう一度お試しください。</string>
     <string name="cmgr_list_predates_checksums">このパッケージ一覧はチェックサム導入前のものです。更新してからもう一度お試しください</string>
     <string name="cmgr_checksum_mismatch">チェックサムが一致しません</string>
 

@@ -504,7 +504,9 @@
     <string name="comp_delete_original_title">删除此原件？</string>
     <string name="comp_delete_original_body">此 %1$s 原件来自 %2$s 的较早构建。当前构建的原件始终保留。</string>
     <string name="comp_nightlies_count">在 Nightlies 上 · %1$d</string>
-    <string name="comp_refresh_to_list">刷新以列出 Nightlies 上的软件包。</string>
+    <string name="comp_channel_stable">稳定版</string>
+    <string name="comp_channel_nightly">每夜版</string>
+    <string name="comp_refresh_to_list">刷新以列出 Nightlies 和 DroidDeck 上的软件包。</string>
     <string name="comp_nothing_new">自上次检查以来没有新内容。</string>
     <string name="comp_import_wcp">导入 .wcp</string>
     <string name="comp_restore_original">还原此 Proton 的原件</string>
@@ -1837,7 +1839,8 @@
     <string name="cmgr_original_kept">已安装构建的原件会保留：它是还原的途径。</string>
     <string name="cmgr_not_stored">未存储</string>
     <string name="cmgr_deleted_original">已删除 %2$s 的 %1$s 原件。</string>
-    <string name="cmgr_nightlies_only">只能从 Nightlies 发布版本下载</string>
+    <string name="cmgr_nightlies_only">只能从 Nightlies 和 DroidDeck 发布版本下载</string>
+    <string name="cmgr_nightly_replaced">下载失败：此每夜版本可能已被更新的版本替换。请刷新列表后重试。</string>
     <string name="cmgr_list_predates_checksums">此软件包列表早于校验和功能 — 请刷新后重试</string>
     <string name="cmgr_checksum_mismatch">校验和不匹配</string>
 

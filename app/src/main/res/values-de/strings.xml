@@ -501,7 +501,9 @@
     <string name="comp_delete_original_title">Dieses Original löschen?</string>
     <string name="comp_delete_original_body">Dieses %1$s-Original stammt aus einem früheren Build von %2$s. Das Original des aktuellen Builds wird immer behalten.</string>
     <string name="comp_nightlies_count">In den Nightlies · %1$d</string>
-    <string name="comp_refresh_to_list">Aktualisiere, um die Pakete in den Nightlies aufzulisten.</string>
+    <string name="comp_channel_stable">Stabil</string>
+    <string name="comp_channel_nightly">Nightly</string>
+    <string name="comp_refresh_to_list">Aktualisiere, um die Pakete in den Nightlies und bei DroidDeck aufzulisten.</string>
     <string name="comp_nothing_new">Nichts Neues seit der letzten Prüfung.</string>
     <string name="comp_import_wcp">.wcp importieren</string>
     <string name="comp_restore_original">Original dieses Protons wiederherstellen</string>
@@ -1769,7 +1771,8 @@
     <string name="cmgr_original_kept">Das Original des installierten Builds bleibt erhalten: Es ist der Weg zurück.</string>
     <string name="cmgr_not_stored">Nicht gespeichert</string>
     <string name="cmgr_deleted_original">Das %1$s-Original von %2$s wurde gelöscht.</string>
-    <string name="cmgr_nightlies_only">Downloads kommen nur aus den Nightlies-Releases</string>
+    <string name="cmgr_nightlies_only">Downloads kommen nur aus den Nightlies- und DroidDeck-Releases</string>
+    <string name="cmgr_nightly_replaced">Download fehlgeschlagen: Dieser Nightly-Build wurde vielleicht durch einen neueren ersetzt. Aktualisiere die Liste und versuche es erneut.</string>
     <string name="cmgr_list_predates_checksums">Diese Paketliste stammt aus der Zeit vor Prüfsummen - aktualisiere sie und versuche es erneut</string>
     <string name="cmgr_checksum_mismatch">Prüfsumme stimmt nicht überein</string>
 

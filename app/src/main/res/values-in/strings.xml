@@ -502,7 +502,9 @@
     <string name="comp_delete_original_title">Hapus yang asli ini?</string>
     <string name="comp_delete_original_body">%1$s asli ini berasal dari build %2$s yang lebih lama. Asli build saat ini selalu dipertahankan.</string>
     <string name="comp_nightlies_count">Di Nightlies · %1$d</string>
-    <string name="comp_refresh_to_list">Segarkan untuk melihat daftar paket di Nightlies.</string>
+    <string name="comp_channel_stable">Stabil</string>
+    <string name="comp_channel_nightly">Nightly</string>
+    <string name="comp_refresh_to_list">Segarkan untuk melihat daftar paket di Nightlies dan DroidDeck.</string>
     <string name="comp_nothing_new">Tidak ada yang baru sejak pemeriksaan terakhir.</string>
     <string name="comp_import_wcp">Impor .wcp</string>
     <string name="comp_restore_original">Pulihkan yang asli dari Proton ini</string>
@@ -1759,7 +1761,8 @@
     <string name="cmgr_original_kept">Yang asli dari build terinstal disimpan: itulah cara untuk kembali.</string>
     <string name="cmgr_not_stored">Tidak tersimpan</string>
     <string name="cmgr_deleted_original">Menghapus yang asli %1$s dari %2$s.</string>
-    <string name="cmgr_nightlies_only">Unduhan hanya berasal dari rilis Nightlies</string>
+    <string name="cmgr_nightlies_only">Unduhan hanya berasal dari rilis Nightlies dan DroidDeck</string>
+    <string name="cmgr_nightly_replaced">Unduhan gagal: build nightly ini mungkin sudah diganti dengan yang lebih baru. Segarkan daftar lalu coba lagi.</string>
     <string name="cmgr_list_predates_checksums">Daftar paket ini dibuat sebelum adanya checksum - segarkan dan coba lagi</string>
     <string name="cmgr_checksum_mismatch">Checksum tidak cocok</string>
 

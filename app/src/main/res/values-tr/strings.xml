@@ -501,7 +501,9 @@
     <string name="comp_delete_original_title">Bu orijinal silinsin mi?</string>
     <string name="comp_delete_original_body">Bu %1$s orijinali, %2$s sürümünün önceki bir derlemesine ait. Geçerli derlemenin orijinali her zaman saklanır.</string>
     <string name="comp_nightlies_count">Nightlies içinde · %1$d</string>
-    <string name="comp_refresh_to_list">Nightlies paketlerini listelemek için yenileyin.</string>
+    <string name="comp_channel_stable">Kararlı</string>
+    <string name="comp_channel_nightly">Nightly</string>
+    <string name="comp_refresh_to_list">Nightlies ve DroidDeck paketlerini listelemek için yenileyin.</string>
     <string name="comp_nothing_new">Son kontrolden beri yeni bir şey yok.</string>
     <string name="comp_import_wcp">.wcp içe aktar</string>
     <string name="comp_restore_original">Bu Proton\'un orijinalini geri yükle</string>
@@ -1769,7 +1771,8 @@
     <string name="cmgr_original_kept">Yüklü derlemenin orijinali saklanır: geri dönüş yolu budur.</string>
     <string name="cmgr_not_stored">Saklanmıyor</string>
     <string name="cmgr_deleted_original">%2$s\'nin %1$s orijinali silindi.</string>
-    <string name="cmgr_nightlies_only">İndirmeler yalnızca Nightlies yayınlarından gelir</string>
+    <string name="cmgr_nightlies_only">İndirmeler yalnızca Nightlies ve DroidDeck yayınlarından gelir</string>
+    <string name="cmgr_nightly_replaced">İndirme başarısız: bu nightly derleme daha yenisiyle değiştirilmiş olabilir. Listeyi yenileyip tekrar deneyin.</string>
     <string name="cmgr_list_predates_checksums">Bu paket listesi sağlama toplamlarından önceki bir tarihe ait - yenileyip yeniden deneyin</string>
     <string name="cmgr_checksum_mismatch">Sağlama toplamı uyuşmuyor</string>
 

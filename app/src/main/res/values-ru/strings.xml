@@ -507,7 +507,9 @@
     <string name="comp_delete_original_title">Удалить оригинальную версию?</string>
     <string name="comp_delete_original_body">Эта оригинальная версия %1$s из более ранней сборки %2$s. Оригинальная версия текущей сборки всегда сохраняется.</string>
     <string name="comp_nightlies_count">В Nightlies · %1$d</string>
-    <string name="comp_refresh_to_list">Обновите, чтобы увидеть пакеты в Nightlies.</string>
+    <string name="comp_channel_stable">Стабильная</string>
+    <string name="comp_channel_nightly">Ночная</string>
+    <string name="comp_refresh_to_list">Обновите, чтобы увидеть пакеты в Nightlies и DroidDeck.</string>
     <string name="comp_nothing_new">С момента последней проверки нового нет.</string>
     <string name="comp_import_wcp">Импорт .wcp</string>
     <string name="comp_restore_original">Восстановить оригинальные файлы этого Proton</string>
@@ -1821,7 +1823,8 @@
     <string name="cmgr_original_kept">Оригинал установленной сборки сохраняется: через него можно вернуться.</string>
     <string name="cmgr_not_stored">Не сохранено</string>
     <string name="cmgr_deleted_original">Удален оригинал %2$s из сборки %1$s.</string>
-    <string name="cmgr_nightlies_only">Загрузки доступны только из выпусков Nightlies</string>
+    <string name="cmgr_nightlies_only">Загрузки доступны только из выпусков Nightlies и DroidDeck</string>
+    <string name="cmgr_nightly_replaced">Не удалось загрузить: возможно, эта ночная сборка заменена более новой. Обновите список и повторите попытку.</string>
     <string name="cmgr_list_predates_checksums">Этот список пакетов создан до появления контрольных сумм — обновите его и повторите попытку</string>
     <string name="cmgr_checksum_mismatch">Контрольная сумма не совпадает</string>
 

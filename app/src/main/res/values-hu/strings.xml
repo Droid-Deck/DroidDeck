@@ -504,7 +504,9 @@
     <string name="comp_delete_original_title">Törli ezt az eredetit?</string>
     <string name="comp_delete_original_body">Ez a %1$s eredeti a %2$s egy korábbi buildjéből származik. Az aktuális build eredetije mindig megmarad.</string>
     <string name="comp_nightlies_count">A Nightliesen · %1$d</string>
-    <string name="comp_refresh_to_list">Frissítsen a Nightliesen lévő csomagok listázásához.</string>
+    <string name="comp_channel_stable">Stabil</string>
+    <string name="comp_channel_nightly">Nightly</string>
+    <string name="comp_refresh_to_list">Frissítsen a Nightlies és a DroidDeck csomagjainak listázásához.</string>
     <string name="comp_nothing_new">Nincs semmi új az utolsó ellenőrzés óta.</string>
     <string name="comp_import_wcp">.wcp importálása</string>
     <string name="comp_restore_original">Ennek a Protonnak az eredetijének visszaállítása</string>
@@ -1780,7 +1782,8 @@
     <string name="cmgr_original_kept">A telepített build eredetije megmarad: ez a visszaút.</string>
     <string name="cmgr_not_stored">Nincs tárolva</string>
     <string name="cmgr_deleted_original">A %2$s %1$s eredetije törölve.</string>
-    <string name="cmgr_nightlies_only">A letöltések csak a Nightlies kiadásokból érkeznek</string>
+    <string name="cmgr_nightlies_only">A letöltések csak a Nightlies és a DroidDeck kiadásokból érkeznek</string>
+    <string name="cmgr_nightly_replaced">A letöltés sikertelen: lehet, hogy ezt a nightly buildet egy újabb váltotta. Frissítse a listát, és próbálja újra.</string>
     <string name="cmgr_list_predates_checksums">Ez a csomaglista régebbi, mint az ellenőrzőösszegek – frissítse, és próbálja újra</string>
     <string name="cmgr_checksum_mismatch">Az ellenőrzőösszeg nem egyezik</string>
 
