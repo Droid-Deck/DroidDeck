@@ -80,6 +80,7 @@ int main() {
     Context context;
     VRDriverContext() = &context;
     CardboardController controller(false);
+    controller.SetProfile(PadProfile::Vive);
     assert(controller.Activate(1) == VRInitError_None);
     const auto gripHandle=context.input.handles.at("/input/grip/click");
     const auto clickHandle=context.input.handles.at("/input/trigger/click");
@@ -260,4 +261,46 @@ int main() {
     joyCon.Update(nullptr, false, {1,0,0,0}, now, &spatial);
     assert(!joyCon.GetPose().deviceIsConnected && context.input.values.at(joyTrigger) == 0);
     puts("PASS: optical controller recovery and Luma Joy-Con camera, fallback, head loss and origin changes");
+
+    for (const PadProfile profile : {PadProfile::Index, PadProfile::Touch}) {
+        auto &padContext = context;
+        padContext.input.handles.clear();
+        CardboardController pad(true);
+        pad.SetProfile(profile);
+        assert(pad.Activate(2) == VRInitError_None);
+        const auto &h = padContext.input.handles;
+        const std::string stick = profile == PadProfile::Touch ? "/input/joystick" : "/input/thumbstick";
+        assert(!h.count("/input/trackpad/x") && h.count("/input/b/click") && h.count("/input/grip/value"));
+        assert(h.count("/input/application_menu/click") == (profile == PadProfile::Touch));
+        DriverPose_t head{};
+        head.qRotation.w = 1;
+        PadState state{};
+        state.buttons = PAD_A | PAD_RB;
+        state.axes[2] = 32767;
+        state.axes[4] = 255;
+        pad.Update(head, &state, false, 0);
+        const auto value = [&](const std::string &name) { return padContext.input.values.at(h.at(name)); };
+        assert(value("/input/a/click") == 1 && value("/input/b/click") == 0);
+        assert(value(stick + "/x") == 1 && value(stick + "/touch") == 1 && value(stick + "/click") == 0);
+        assert(value("/input/grip/value") == 1 && value("/input/trigger/value") == 1);
+        pad.Update(head, &state, true, 0);
+        assert(value(stick + "/x") == 0);
+        state = {};
+        state.buttons = PAD_R3;
+        pad.Update(head, &state, false, 0);
+        assert(value(stick + "/click") == 1);
+        state.buttons = PAD_L3 | PAD_R3;
+        pad.Update(head, &state, false, 0);
+        assert(value(stick + "/click") == 0);
+        dd_spatial_hand optical{};
+        state = {};
+        state.buttons = PAD_A;
+        pad.UpdateOptical(optical, false, &state, 1000000000, 1, 1);
+        assert(value("/input/a/click") == 1 && value(stick + "/click") == 0 && value(stick + "/touch") == 0);
+        state.buttons = PAD_B | PAD_R3;
+        pad.UpdateOptical(optical, false, &state, 1000000001, 1, 1);
+        assert(value("/input/b/click") == 1 && value("/input/a/click") == 0 && value(stick + "/click") == 1);
+        assert(!padContext.input.values.count(0));
+    }
+    puts("PASS: game pad hands as Index and Quest Touch thumbstick controllers");
 }

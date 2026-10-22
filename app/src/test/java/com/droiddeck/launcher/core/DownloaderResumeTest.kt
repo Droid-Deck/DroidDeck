@@ -167,4 +167,10 @@ class DownloaderResumeTest {
         assertEquals(listOf(catalog), DownloadSource.candidates(catalog))
     }
 
+
+    @Test fun withoutADigestOnlyTheOriginalUrlIsTried() {
+        val url = "https://github.com/owner/repo/releases/download/v1/app.AppImage"
+        assertEquals(listOf(url), Downloader.sources(url, null))
+        assertEquals(DownloadSource.candidates(url), Downloader.sources(url, "a".repeat(64)))
+    }
 }
