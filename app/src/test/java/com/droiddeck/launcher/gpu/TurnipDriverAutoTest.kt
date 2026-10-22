@@ -30,4 +30,17 @@ class TurnipDriverAutoTest {
     @Test fun otherDevicesRetainTheGenericFallback() {
         assertEquals("turnip25.1.0", TurnipDriver(RuntimeEnvironment.getApplication()).autoId())
     }
+
+    @Test fun normalizedGpuModelsSelectExistingGenerationDrivers() {
+        for (sdk in listOf(28, 36)) {
+            assertEquals("turnip26.3.0-a6xx", TurnipDriver.chooseByModel(650, sdk))
+            assertEquals("turnip25.1.0", TurnipDriver.chooseByModel(730, sdk))
+            assertEquals("turnip-sdk36", TurnipDriver.chooseByModel(850, sdk))
+        }
+    }
+
+    @Test fun unknownGpuModelsRetainTheSdkFallback() {
+        assertEquals("turnip25.1.0", TurnipDriver.chooseByModel(0, 28))
+        assertEquals("turnip-sdk36", TurnipDriver.chooseByModel(0, 36))
+    }
 }
