@@ -112,7 +112,14 @@ restore() {
   fi
   return "$failed"
 }
-trap 'status=$?; restore || status=1; exit "$status"' EXIT
+finish() {
+  local status=$?
+  restore || status=1
+  printf '\n%d passed, %d failed, %d skipped\n' "$pass" "$fail" "$skip"
+  [ "$fail" = 0 ] || status=1
+  exit "$status"
+}
+trap finish EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
@@ -277,7 +284,4 @@ else
   sh_ run-as "$pkg" cat "files/logs/$dir/device.txt" 2>/dev/null | grep -E 'Memory page size|^Kernel' | sed 's/^/  report          /'
 fi
 
-restore || true
-trap - EXIT
-printf '\n%d passed, %d failed, %d skipped\n' "$pass" "$fail" "$skip"
 [ "$fail" = 0 ]
