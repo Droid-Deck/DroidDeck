@@ -573,28 +573,54 @@ object SessionFiles {
   <dir>/usr/local/share/fonts/android</dir>
   <dir>/system/fonts</dir>
   <match target="pattern">
-    <test name="family"><string>sans-serif</string></test>
-    <edit name="family" mode="prepend" binding="strong">
-      <string>Noto Sans CJK SC</string>
-      <string>Noto Sans CJK TC</string>
-      <string>MiSans</string>
-      <string>Noto Sans CJK JP</string>
-    </edit>
+    <test name="lang" compare="contains"><string>ja</string></test>
+    <test name="family" qual="any"><string>sans-serif</string></test>
+    <edit name="family" mode="prepend" binding="strong"><string>Noto Sans CJK JP</string></edit>
   </match>
   <match target="pattern">
-    <test name="family"><string>serif</string></test>
-    <edit name="family" mode="prepend" binding="strong">
-      <string>Noto Serif CJK SC</string>
-      <string>Noto Serif CJK TC</string>
-      <string>Noto Serif CJK JP</string>
-    </edit>
+    <test name="lang" compare="contains"><string>ja</string></test>
+    <test name="family" qual="any"><string>serif</string></test>
+    <edit name="family" mode="prepend" binding="strong"><string>Noto Serif CJK JP</string></edit>
   </match>
   <match target="pattern">
-    <test name="family"><string>monospace</string></test>
-    <edit name="family" mode="prepend" binding="strong">
-      <string>Noto Sans Mono CJK SC</string>
-      <string>Noto Sans Mono CJK TC</string>
-    </edit>
+    <test name="lang" compare="contains"><string>zh-cn</string></test>
+    <test name="family" qual="any"><string>sans-serif</string></test>
+    <edit name="family" mode="prepend" binding="strong"><string>Noto Sans CJK SC</string></edit>
+  </match>
+  <match target="pattern">
+    <test name="lang" compare="contains"><string>zh-cn</string></test>
+    <test name="family" qual="any"><string>serif</string></test>
+    <edit name="family" mode="prepend" binding="strong"><string>Noto Serif CJK SC</string></edit>
+  </match>
+  <match target="pattern">
+    <test name="lang" compare="contains"><string>zh-tw</string></test>
+    <test name="family" qual="any"><string>sans-serif</string></test>
+    <edit name="family" mode="prepend" binding="strong"><string>Noto Sans CJK TC</string></edit>
+  </match>
+  <match target="pattern">
+    <test name="lang" compare="contains"><string>zh-tw</string></test>
+    <test name="family" qual="any"><string>serif</string></test>
+    <edit name="family" mode="prepend" binding="strong"><string>Noto Serif CJK TC</string></edit>
+  </match>
+  <match target="pattern">
+    <test name="lang" compare="contains"><string>zh-hk</string></test>
+    <test name="family" qual="any"><string>sans-serif</string></test>
+    <edit name="family" mode="prepend" binding="strong"><string>Noto Sans CJK TC</string></edit>
+  </match>
+  <match target="pattern">
+    <test name="lang" compare="contains"><string>zh-hk</string></test>
+    <test name="family" qual="any"><string>serif</string></test>
+    <edit name="family" mode="prepend" binding="strong"><string>Noto Serif CJK TC</string></edit>
+  </match>
+  <match target="pattern">
+    <test name="lang" compare="contains"><string>ko</string></test>
+    <test name="family" qual="any"><string>sans-serif</string></test>
+    <edit name="family" mode="prepend" binding="strong"><string>Noto Sans CJK KR</string></edit>
+  </match>
+  <match target="pattern">
+    <test name="lang" compare="contains"><string>ko</string></test>
+    <test name="family" qual="any"><string>serif</string></test>
+    <edit name="family" mode="prepend" binding="strong"><string>Noto Serif CJK KR</string></edit>
   </match>
 </fontconfig>
 """
