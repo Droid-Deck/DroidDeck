@@ -1887,8 +1887,8 @@
     <string name="display_match_screen">화면에 맞춤(%1$d×%2$d)</string>
     <string name="display_follow_screen">화면 따라가기(접거나 펼치면 크기 변경)</string>
     <string name="display_follow_divisor">렌더링 크기</string>
-    <string name="display_follow_divisor_game">%1$s(으)로 렌더링 중. 이 %2$s 화면에서 이 게임용으로 저장됩니다.</string>
-    <string name="display_follow_divisor_client">%1$s(으)로 렌더링 중. 이 %2$s 화면에서 Steam 클라이언트용으로 저장됩니다. 게임마다 따로 저장됩니다.</string>
+    <string name="display_follow_divisor_game">%1$s(으)로 렌더링 중. 이 설정은 이 게임과 이 %2$s 화면 해상도에 저장됩니다.</string>
+    <string name="display_follow_divisor_client">%1$s(으)로 렌더링 중. 이 설정은 Steam 클라이언트와 이 %2$s 화면 해상도에 저장됩니다.</string>
     <string name="display_follow_full">전체</string>
     <string name="display_follow_two_thirds">3분의 2</string>
     <string name="display_follow_half">절반</string>

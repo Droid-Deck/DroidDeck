@@ -1947,8 +1947,8 @@
     <string name="display_match_screen">По размеру экрана (%1$d×%2$d)</string>
     <string name="display_follow_screen">По экрану (меняется при складывании и раскладывании)</string>
     <string name="display_follow_divisor">Размер рендеринга</string>
-    <string name="display_follow_divisor_game">Рендеринг в %1$s. Сохранено для этой игры на этом экране %2$s.</string>
-    <string name="display_follow_divisor_client">Рендеринг в %1$s. Сохранено для клиента Steam на этом экране %2$s. У каждой игры своё значение.</string>
+    <string name="display_follow_divisor_game">Рендеринг в %1$s. Этот параметр сохраняется для этой игры и этого разрешения экрана %2$s.</string>
+    <string name="display_follow_divisor_client">Рендеринг в %1$s. Этот параметр сохраняется для клиента Steam и этого разрешения экрана %2$s.</string>
     <string name="display_follow_full">Полный</string>
     <string name="display_follow_two_thirds">Две трети</string>
     <string name="display_follow_half">Половина</string>

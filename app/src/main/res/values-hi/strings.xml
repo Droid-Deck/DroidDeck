@@ -1908,8 +1908,8 @@
     <string name="display_match_screen">स्क्रीन से मिलाएँ (%1$d×%2$d)</string>
     <string name="display_follow_screen">Follow screen (खुलने या बंद होने पर आकार बदलता है)</string>
     <string name="display_follow_divisor">रेंडर आकार</string>
-    <string name="display_follow_divisor_game">%1$s पर रेंडर हो रहा है। इस %2$s स्क्रीन पर इस गेम के लिए सहेजा गया।</string>
-    <string name="display_follow_divisor_client">%1$s पर रेंडर हो रहा है। इस %2$s स्क्रीन पर Steam क्लाइंट के लिए सहेजा गया। हर गेम अपना अलग रखता है।</string>
+    <string name="display_follow_divisor_game">%1$s पर रेंडर हो रहा है। यह सेटिंग इस गेम और इस %2$s स्क्रीन रिज़ॉल्यूशन के लिए सहेजी जाती है।</string>
+    <string name="display_follow_divisor_client">%1$s पर रेंडर हो रहा है। यह सेटिंग Steam क्लाइंट और इस %2$s स्क्रीन रिज़ॉल्यूशन के लिए सहेजी जाती है।</string>
     <string name="display_follow_full">पूरा</string>
     <string name="display_follow_two_thirds">दो-तिहाई</string>
     <string name="display_follow_half">आधा</string>

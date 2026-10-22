@@ -1918,8 +1918,8 @@
     <string name="display_match_screen">Adatta allo schermo (%1$d×%2$d)</string>
     <string name="display_follow_screen">Segui lo schermo (si ridimensiona quando lo pieghi o lo apri)</string>
     <string name="display_follow_divisor">Dimensione di rendering</string>
-    <string name="display_follow_divisor_game">Rendering a %1$s. Salvato per questo gioco su questo schermo %2$s.</string>
-    <string name="display_follow_divisor_client">Rendering a %1$s. Salvato per il client Steam su questo schermo %2$s. Ogni gioco mantiene il proprio.</string>
+    <string name="display_follow_divisor_game">Rendering a %1$s. Questa impostazione è salvata per questo gioco e questa risoluzione dello schermo di %2$s.</string>
+    <string name="display_follow_divisor_client">Rendering a %1$s. Questa impostazione è salvata per il client Steam e questa risoluzione dello schermo di %2$s.</string>
     <string name="display_follow_full">Intera</string>
     <string name="display_follow_two_thirds">Due terzi</string>
     <string name="display_follow_half">Metà</string>

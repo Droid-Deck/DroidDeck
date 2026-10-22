@@ -1908,8 +1908,8 @@
     <string name="display_match_screen">Képernyőhöz illesztés (%1$d×%2$d)</string>
     <string name="display_follow_screen">Képernyő követése (átméreteződik össze- vagy kinyitáskor)</string>
     <string name="display_follow_divisor">Renderelési méret</string>
-    <string name="display_follow_divisor_game">Renderelés: %1$s. Mentve ehhez a játékhoz ezen a %2$s képernyőn.</string>
-    <string name="display_follow_divisor_client">Renderelés: %1$s. Mentve a Steam klienshez ezen a %2$s képernyőn. Minden játék megtartja a sajátját.</string>
+    <string name="display_follow_divisor_game">Renderelés: %1$s. Ez a beállítás ehhez a játékhoz és ehhez a %2$s képernyőfelbontáshoz van mentve.</string>
+    <string name="display_follow_divisor_client">Renderelés: %1$s. Ez a beállítás a Steam klienshez és ehhez a %2$s képernyőfelbontáshoz van mentve.</string>
     <string name="display_follow_full">Teljes</string>
     <string name="display_follow_two_thirds">Kétharmad</string>
     <string name="display_follow_half">Fél</string>

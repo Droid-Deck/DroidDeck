@@ -1887,8 +1887,8 @@
     <string name="display_match_screen">พอดีหน้าจอ (%1$d×%2$d)</string>
     <string name="display_follow_screen">ตามหน้าจอ (ปรับขนาดเมื่อพับหรือกาง)</string>
     <string name="display_follow_divisor">ขนาดการเรนเดอร์</string>
-    <string name="display_follow_divisor_game">กำลังเรนเดอร์ที่ %1$s บันทึกไว้สำหรับเกมนี้บนหน้าจอ %2$s นี้</string>
-    <string name="display_follow_divisor_client">กำลังเรนเดอร์ที่ %1$s บันทึกไว้สำหรับไคลเอนต์ Steam บนหน้าจอ %2$s นี้ แต่ละเกมเก็บค่าของตัวเอง</string>
+    <string name="display_follow_divisor_game">กำลังเรนเดอร์ที่ %1$s การตั้งค่านี้บันทึกไว้สำหรับเกมนี้และความละเอียดหน้าจอ %2$s นี้</string>
+    <string name="display_follow_divisor_client">กำลังเรนเดอร์ที่ %1$s การตั้งค่านี้บันทึกไว้สำหรับไคลเอนต์ Steam และความละเอียดหน้าจอ %2$s นี้</string>
     <string name="display_follow_full">เต็ม</string>
     <string name="display_follow_two_thirds">สองในสาม</string>
     <string name="display_follow_half">ครึ่งหนึ่ง</string>

@@ -1908,8 +1908,8 @@
     <string name="display_match_screen">Matcha skärmen (%1$d×%2$d)</string>
     <string name="display_follow_screen">Följ skärmen (ändrar storlek vid vikning)</string>
     <string name="display_follow_divisor">Renderingsstorlek</string>
-    <string name="display_follow_divisor_game">Renderar i %1$s. Sparat för det här spelet på den här %2$s-skärmen.</string>
-    <string name="display_follow_divisor_client">Renderar i %1$s. Sparat för Steam-klienten på den här %2$s-skärmen. Varje spel har sin egen.</string>
+    <string name="display_follow_divisor_game">Renderar i %1$s. Den här inställningen sparas för det här spelet och den här skärmupplösningen på %2$s.</string>
+    <string name="display_follow_divisor_client">Renderar i %1$s. Den här inställningen sparas för Steam-klienten och den här skärmupplösningen på %2$s.</string>
     <string name="display_follow_full">Full</string>
     <string name="display_follow_two_thirds">Två tredjedelar</string>
     <string name="display_follow_half">Hälften</string>

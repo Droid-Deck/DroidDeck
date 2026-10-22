@@ -1908,8 +1908,8 @@
     <string name="display_match_screen">Match skærm (%1$d×%2$d)</string>
     <string name="display_follow_screen">Følg skærm (ændrer størrelse ved fold/udfold)</string>
     <string name="display_follow_divisor">Gengivelsesstørrelse</string>
-    <string name="display_follow_divisor_game">Renderer i %1$s. Gemt for dette spil på denne %2$s-skærm.</string>
-    <string name="display_follow_divisor_client">Renderer i %1$s. Gemt for Steam-klienten på denne %2$s-skærm. Hvert spil har sin egen.</string>
+    <string name="display_follow_divisor_game">Renderer i %1$s. Denne indstilling gemmes for dette spil og denne skærmopløsning på %2$s.</string>
+    <string name="display_follow_divisor_client">Renderer i %1$s. Denne indstilling gemmes for Steam-klienten og denne skærmopløsning på %2$s.</string>
     <string name="display_follow_full">Fuld</string>
     <string name="display_follow_two_thirds">To tredjedele</string>
     <string name="display_follow_half">Halv</string>

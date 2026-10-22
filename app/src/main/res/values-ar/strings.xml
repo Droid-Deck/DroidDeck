@@ -1992,8 +1992,8 @@
     <string name="display_match_screen">مطابقة الشاشة (%1$d×%2$d)</string>
     <string name="display_follow_screen">اتباع الشاشة (يُغيَّر الحجم عند الطي أو الفتح)</string>
     <string name="display_follow_divisor">حجم العرض</string>
-    <string name="display_follow_divisor_game">العرض بدقة %1$s. محفوظ لهذه اللعبة على هذه الشاشة %2$s.</string>
-    <string name="display_follow_divisor_client">العرض بدقة %1$s. محفوظ لعميل Steam على هذه الشاشة %2$s. تحتفظ كل لعبة بإعدادها.</string>
+    <string name="display_follow_divisor_game">العرض بدقة %1$s. هذا الإعداد محفوظ لهذه اللعبة ولدقة الشاشة هذه %2$s.</string>
+    <string name="display_follow_divisor_client">العرض بدقة %1$s. هذا الإعداد محفوظ لعميل Steam ولدقة الشاشة هذه %2$s.</string>
     <string name="display_follow_full">كامل</string>
     <string name="display_follow_two_thirds">الثلثان</string>
     <string name="display_follow_half">النصف</string>

@@ -1908,8 +1908,8 @@
     <string name="display_match_screen">Schermformaat (%1$d×%2$d)</string>
     <string name="display_follow_screen">Scherm volgen (past formaat aan bij vouwen of uitvouwen)</string>
     <string name="display_follow_divisor">Renderformaat</string>
-    <string name="display_follow_divisor_game">Rendert op %1$s. Opgeslagen voor deze game op dit %2$s-scherm.</string>
-    <string name="display_follow_divisor_client">Rendert op %1$s. Opgeslagen voor de Steam-client op dit %2$s-scherm. Elke game houdt zijn eigen.</string>
+    <string name="display_follow_divisor_game">Rendert op %1$s. Deze instelling wordt opgeslagen voor deze game en deze schermresolutie van %2$s.</string>
+    <string name="display_follow_divisor_client">Rendert op %1$s. Deze instelling wordt opgeslagen voor de Steam-client en deze schermresolutie van %2$s.</string>
     <string name="display_follow_full">Volledig</string>
     <string name="display_follow_two_thirds">Twee derde</string>
     <string name="display_follow_half">Half</string>

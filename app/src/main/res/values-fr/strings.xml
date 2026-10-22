@@ -1926,8 +1926,8 @@
     <string name="display_match_screen">Adapter à l\'écran (%1$d×%2$d)</string>
     <string name="display_follow_screen">Suivre l\'écran (s\'adapte au pliage et au dépliage)</string>
     <string name="display_follow_divisor">Taille de rendu</string>
-    <string name="display_follow_divisor_game">Rendu actuel en %1$s. Enregistré pour ce jeu sur cet écran de %2$s.</string>
-    <string name="display_follow_divisor_client">Rendu actuel en %1$s. Enregistré pour le client Steam sur cet écran de %2$s. Chaque jeu garde le sien.</string>
+    <string name="display_follow_divisor_game">Rendu actuel en %1$s. Ce paramètre est enregistré pour ce jeu et cette résolution d’écran de %2$s.</string>
+    <string name="display_follow_divisor_client">Rendu actuel en %1$s. Ce paramètre est enregistré pour le client Steam et cette résolution d’écran de %2$s.</string>
     <string name="display_follow_full">Complet</string>
     <string name="display_follow_two_thirds">Deux tiers</string>
     <string name="display_follow_half">Moitié</string>

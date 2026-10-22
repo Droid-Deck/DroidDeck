@@ -1959,8 +1959,8 @@
     <string name="display_match_screen">Match screen (%1$d×%2$d)</string>
     <string name="display_follow_screen">Follow screen (resizes when folded or unfolded)</string>
     <string name="display_follow_divisor">Render size</string>
-    <string name="display_follow_divisor_game">Rendering at %1$s. Saved for this game on this %2$s screen.</string>
-    <string name="display_follow_divisor_client">Rendering at %1$s. Saved for the Steam client on this %2$s screen. Each game keeps its own.</string>
+    <string name="display_follow_divisor_game">Rendering at %1$s. This setting is saved for this game and this %2$s screen resolution.</string>
+    <string name="display_follow_divisor_client">Rendering at %1$s. This setting is saved for the Steam client and this %2$s screen resolution.</string>
     <string name="display_follow_full">Full</string>
     <string name="display_follow_two_thirds">Two thirds</string>
     <string name="display_follow_half">Half</string>

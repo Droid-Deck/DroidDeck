@@ -1887,8 +1887,8 @@
     <string name="display_match_screen">画面に合わせる（%1$d×%2$d）</string>
     <string name="display_follow_screen">画面に追従（開閉時にサイズを変更）</string>
     <string name="display_follow_divisor">レンダリングサイズ</string>
-    <string name="display_follow_divisor_game">%1$s でレンダリング中。この %2$s の画面でこのゲーム用に保存されます。</string>
-    <string name="display_follow_divisor_client">%1$s でレンダリング中。この %2$s の画面で Steam クライアント用に保存されます。ゲームごとに個別に保存されます。</string>
+    <string name="display_follow_divisor_game">%1$s でレンダリング中。この設定はこのゲームとこの %2$s の画面解像度用に保存されます。</string>
+    <string name="display_follow_divisor_client">%1$s でレンダリング中。この設定は Steam クライアントとこの %2$s の画面解像度用に保存されます。</string>
     <string name="display_follow_full">フル</string>
     <string name="display_follow_two_thirds">3分の2</string>
     <string name="display_follow_half">半分</string>

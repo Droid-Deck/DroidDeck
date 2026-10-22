@@ -1918,8 +1918,8 @@
     <string name="display_match_screen">Igual ao ecrã (%1$d×%2$d)</string>
     <string name="display_follow_screen">Seguir o ecrã (redimensiona ao dobrar ou desdobrar)</string>
     <string name="display_follow_divisor">Tamanho de renderização</string>
-    <string name="display_follow_divisor_game">A renderizar em %1$s. Guardado para este jogo neste ecrã de %2$s.</string>
-    <string name="display_follow_divisor_client">A renderizar em %1$s. Guardado para o cliente Steam neste ecrã de %2$s. Cada jogo guarda o seu.</string>
+    <string name="display_follow_divisor_game">A renderizar em %1$s. Esta definição é guardada para este jogo e esta resolução de ecrã de %2$s.</string>
+    <string name="display_follow_divisor_client">A renderizar em %1$s. Esta definição é guardada para o cliente Steam e esta resolução de ecrã de %2$s.</string>
     <string name="display_follow_full">Completo</string>
     <string name="display_follow_two_thirds">Dois terços</string>
     <string name="display_follow_half">Metade</string>

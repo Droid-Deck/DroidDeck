@@ -1908,8 +1908,8 @@
     <string name="display_match_screen">Напасване на екрана (%1$d×%2$d)</string>
     <string name="display_follow_screen">Следване на екрана (преоразмерява при сгъване или разгъване)</string>
     <string name="display_follow_divisor">Размер на рендериране</string>
-    <string name="display_follow_divisor_game">Рендериране при %1$s. Запазено за тази игра на този екран %2$s.</string>
-    <string name="display_follow_divisor_client">Рендериране при %1$s. Запазено за клиента на Steam на този екран %2$s. Всяка игра пази своя.</string>
+    <string name="display_follow_divisor_game">Рендериране при %1$s. Тази настройка е запазена за тази игра и тази резолюция на екрана %2$s.</string>
+    <string name="display_follow_divisor_client">Рендериране при %1$s. Тази настройка е запазена за клиента на Steam и тази резолюция на екрана %2$s.</string>
     <string name="display_follow_full">Пълен</string>
     <string name="display_follow_two_thirds">Две трети</string>
     <string name="display_follow_half">Половина</string>
