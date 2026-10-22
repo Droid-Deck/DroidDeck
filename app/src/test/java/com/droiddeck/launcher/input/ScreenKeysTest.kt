@@ -63,6 +63,9 @@ class ScreenKeysTest {
         assertFalse(accepts(GestureTouchStreamGate.Source.SURFACE, MotionEvent.ACTION_DOWN))
         assertTrue(accepts(GestureTouchStreamGate.Source.SCREEN_KEYS, MotionEvent.ACTION_CANCEL))
         assertTrue(accepts(GestureTouchStreamGate.Source.SURFACE, MotionEvent.ACTION_DOWN))
+        assertFalse(accepts(GestureTouchStreamGate.Source.SCREEN_KEYS, MotionEvent.ACTION_DOWN))
+        gate.reset()
+        assertTrue(accepts(GestureTouchStreamGate.Source.SURFACE, MotionEvent.ACTION_DOWN))
     }
 
     @Test fun loadingLayoutReleasesLatchedKeysBeforeReplacingEntries() {

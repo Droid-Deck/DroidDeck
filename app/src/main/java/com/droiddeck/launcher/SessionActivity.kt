@@ -1562,7 +1562,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             if (nextTouchMode == SessionPrefs.TOUCH_OFF || !usingTouchpad()) cursorVisible = false
         }
         touchMode = nextTouchMode
-        routedTouchMode = effectiveTouchMode()
+        val nextRoutedTouchMode = effectiveTouchMode()
+        if (routedTouchMode != nextRoutedTouchMode) gestureTouchStreamGate.reset()
+        routedTouchMode = nextRoutedTouchMode
         frameGen = FrameGen.mode(this)
         fexPreset = SessionPrefs.fexPreset(this)
         suspendPolicy = SessionPrefs.suspendPolicy(this, SessionState.mode)
@@ -2668,6 +2670,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (::scrollTouch.isInitialized) scrollTouch.cancel()
         if (CompositorHost.isStarted) WaylandCompositor.nativeSendTouch(3, -1, 0, 0)
         if (next == SessionPrefs.TOUCH_OFF) cursorVisible = false
+        gestureTouchStreamGate.reset()
         routedTouchMode = next
     }
 
