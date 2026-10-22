@@ -509,6 +509,70 @@ class ReconcileTest(unittest.TestCase):
         self.assertEqual(page.sets, [])
         self.assertEqual(state["native_choices"], [app])
 
+    def test_clearing_a_tool_picked_in_steam_keeps_the_native_build(self):
+        app, page = self.dual_platform_game({"default": TOOL, "auto": {"10": TOOL, "11": TOOL}})
+        page.known.append(COMPAT["FEX_TOOL"])
+        page.mapping[app] = COMPAT["FEX_TOOL"]
+        config = self.steam / "config/config.vdf"
+        config.write_text(
+            '"InstallConfigStore" { "Software" { "Valve" { "Steam" { '
+            '"CompatToolMapping" { "0" { "name" "%s" } "%s" { "name" "%s" } } } } } }' % (TOOL, app, COMPAT["FEX_TOOL"]))
+        state = self.reconcile(page)
+        self.assertEqual(page.sets, [])
+        self.assertNotIn(app, state["auto"])
+
+        page.mapping[app] = ""
+        state = self.reconcile(page)
+        self.assertEqual(page.sets, [])
+        config.write_text(
+            '"InstallConfigStore" { "Software" { "Valve" { "Steam" { '
+            '"CompatToolMapping" { "0" { "name" "%s" } } } } } }' % TOOL)
+        state = self.reconcile(page)
+        self.assertEqual(page.sets, [])
+        self.assertEqual(state["native_choices"], [app])
+
+        restarted = LIVE["Helper"](str(self.steam), 1)
+        restarted.page = page
+        restarted.reconcile()
+        self.assertEqual(page.sets, [])
+
+    def test_a_new_tool_for_a_picked_game_is_kept_before_the_client_writes_its_config(self):
+        app, page = self.dual_platform_game({"default": TOOL, "auto": {"10": TOOL, "11": TOOL}, "picked": ["892970"]})
+        page.mapping[app] = TOOL_11
+        with mock.patch.dict(COMPAT, {"native_targets": lambda _root, apps: {app: COMPAT["FEX_TOOL"]} if app in apps else {}}):
+            state = self.reconcile(page)
+        self.assertEqual(page.sets, [])
+        self.assertEqual(page.mapping[app], TOOL_11)
+        self.assertIn(app, state["picked"])
+
+    def test_a_cleared_picked_game_showing_a_stale_inherited_tool_stays_native(self):
+        app, page = self.dual_platform_game({"default": TOOL, "auto": {"10": TOOL, "11": TOOL}, "picked": ["892970"]})
+        page.mapping[app] = "proton"
+        state = self.reconcile(page)
+        self.assertEqual(page.sets, [])
+        self.assertEqual(state["native_choices"], [app])
+
+    def test_a_clear_saved_after_the_helper_stopped_is_kept_at_the_next_start(self):
+        app, page = self.dual_platform_game({"default": TOOL, "auto": {"10": TOOL, "11": TOOL}})
+        page.known.append(COMPAT["FEX_TOOL"])
+        page.mapping[app] = COMPAT["FEX_TOOL"]
+        config = self.steam / "config/config.vdf"
+        config.write_text(
+            '"InstallConfigStore" { "Software" { "Valve" { "Steam" { '
+            '"CompatToolMapping" { "0" { "name" "%s" } "%s" { "name" "%s" } } } } } }' % (TOOL, app, COMPAT["FEX_TOOL"]))
+        state = self.reconcile(page)
+        self.assertIn(app, state["picked"])
+
+        config.write_text(
+            '"InstallConfigStore" { "Software" { "Valve" { "Steam" { '
+            '"CompatToolMapping" { "0" { "name" "%s" } } } } } }' % TOOL)
+        with mock.patch.dict(COMPAT["register_default"].__globals__, {"native_targets": COMPAT["native_targets"]}):
+            COMPAT["register_default"](str(config), ["10", "11", app], settle=True, directory=str(self.state))
+        self.assertNotIn(app, COMPAT["read_config_mapping"](str(config)))
+        state = json.loads((self.state / "state.json").read_text())
+        self.assertEqual(state["native_choices"], [app])
+        self.assertNotIn(app, state["picked"])
+
     def test_unmapped_dual_platform_game_gets_the_default_without_a_readable_config(self):
         app, page = self.dual_platform_game({"default": TOOL, "auto": {"10": TOOL}, "native_choices": ["11"]})
         (self.steam / "config/config.vdf").unlink()

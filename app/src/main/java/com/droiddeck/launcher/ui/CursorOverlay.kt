@@ -13,11 +13,12 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 
 @Composable
 fun CursorOverlay(
-    position: Offset, visible: Boolean, scale: Float,
+    positionOf: () -> Offset, visible: Boolean, scale: Float,
     image: ImageBitmap? = null, hotX: Int = 0, hotY: Int = 0, imageScale: Float = 1f,
 ) {
     if (!visible) return
     Canvas(modifier = Modifier.fillMaxSize()) {
+        val position = positionOf()
         if (image != null) {
             val w = (image.width * imageScale).toInt().coerceAtLeast(1)
             val h = (image.height * imageScale).toInt().coerceAtLeast(1)

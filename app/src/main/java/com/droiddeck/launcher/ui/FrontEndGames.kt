@@ -268,6 +268,21 @@ private fun ManageSaves(g: Library.SteamGame, prefix: java.io.File, a: FrontEndA
     }
 }
 
+/** A skipped sync is not a success: "0 files" used to show for a signed-out store or cloud saves turned off. */
+internal fun cloudMessage(context: android.content.Context, r: com.droiddeck.launcher.stores.CloudSaves.Result): String = when (r.result) {
+    "ok" -> when {
+        r.conflicts > 0 -> context.getString(R.string.cloud_conflict_files, r.conflicts)
+        r.files == 0 -> context.getString(R.string.cloud_up_to_date)
+        else -> context.getString(R.string.cloud_done, r.files)
+    }
+    "skipped" -> context.getString(when (r.reason) {
+        "not-signed-in" -> R.string.cloud_signed_out
+        "no-cloud-saves" -> R.string.cloud_none
+        else -> R.string.cloud_not_synced
+    })
+    else -> context.getString(R.string.cloud_not_synced)
+}
+
 @Composable
 private fun CloudRows(g: Library.SteamGame, open: Boolean, first: androidx.compose.ui.focus.FocusRequester) {
     val store = com.droiddeck.launcher.stores.Store.byId(g.source)?.takeIf { it != com.droiddeck.launcher.stores.Store.AMAZON } ?: return
@@ -290,7 +305,7 @@ private fun CloudRows(g: Library.SteamGame, open: Boolean, first: androidx.compo
         busy = if (up) "up" else "down"
         Thread({
             val r = if (up) com.droiddeck.launcher.stores.CloudSaves.upload(context, store, id, force) else com.droiddeck.launcher.stores.CloudSaves.download(context, store, id, force)
-            com.droiddeck.launcher.stores.StoresState.post { busy = null; tick++; android.widget.Toast.makeText(context, if (r.ok) context.getString(R.string.cloud_done, r.files) else r.reason, android.widget.Toast.LENGTH_SHORT).show() }
+            com.droiddeck.launcher.stores.StoresState.post { busy = null; tick++; android.widget.Toast.makeText(context, cloudMessage(context, r), android.widget.Toast.LENGTH_SHORT).show() }
         }, "cloud-manual").start()
     }
     MenuItem(stringResource(R.string.store_cloud_saves), checked = enabled && supported, enabled = supported, focusRequester = first,
@@ -302,7 +317,7 @@ private fun CloudRows(g: Library.SteamGame, open: Boolean, first: androidx.compo
             com.droiddeck.launcher.stores.StoresState.post { enabled = written?.cloud ?: enabled }
         }, "cloud-switch").start()
     }
-    val ready = st != null && supported && busy == null
+    val ready = st != null && supported && enabled && busy == null
     val pending = stringResource(R.string.cloud_pending)
     val summary = when {
         st == null || busy != null -> pending

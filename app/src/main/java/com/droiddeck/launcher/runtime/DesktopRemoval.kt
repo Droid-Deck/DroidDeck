@@ -44,9 +44,10 @@ internal object DesktopRemoval {
         val root = LinuxRuntime.rootDir(context)
         val pending = File(root, PENDING)
         val marker = File(root, ".droiddeck-pkg-${DesktopCatalog.DESKTOP_ID}")
-        val version = FileUtils.readString(pending)?.trim() ?: FileUtils.readString(marker)?.trim()
+        val installing = DesktopCatalog.interrupted(root).firstOrNull { it.id == DesktopCatalog.DESKTOP_ID }
+        val version = FileUtils.readString(pending)?.trim() ?: installing?.version ?: FileUtils.readString(marker)?.trim()
         val versions = context.assets.open("desktop-removal/versions.txt").bufferedReader().use { it.readLines() }
-        check(version in versions) { context.getString(R.string.desktop_removal_unknown) }
+        check(version in versions && (installing == null || installing.version in versions)) { context.getString(R.string.desktop_removal_unknown) }
         val entries = lines(context, "kde-remove.tsv.gzip").map(DesktopFileRemoval.Entry::parse)
         val keep = protected(context, root)
         cleanLegacy(context, listener)
@@ -63,6 +64,7 @@ internal object DesktopRemoval {
                 if (!target.delete()) error("Could not remove $path")
             }
         }
+        DesktopCatalog.discardDesktopInstall(context)
         if (!pending.delete()) error("Could not finish desktop removal")
         Log.i("DesktopRemoval", "KDE: $result")
         listener.onProgress(context.getString(R.string.desktop_removed), 100)

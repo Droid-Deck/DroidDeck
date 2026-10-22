@@ -176,6 +176,8 @@
     <string name="app_fex_x86">%1$s melalui FEX</string>
     <string name="app_fex_not_ready">Program ini dibina untuk PC %1$s dan berjalan melalui FEX, yang belum disediakan lagi. Buka Steam sekali semasa anda log masuk: DroidDeck akan memuat turun FEX dan Steam Linux Runtime yang diperlukan, kemudian ini akan dibuka.</string>
     <string name="session_end_program">Program ini</string>
+    <string name="session_end_steam_download">Tidak dapat memuat turun klien Steam. Rangkaian atau VPN anda mungkin menyekat pelayan Steam; semak sambungan dan cuba lagi.</string>
+    <string name="session_end_steam_setup">Tidak dapat menyediakan klien Steam. Semak sambungan dan ruang storan kosong, kemudian cuba lagi.</string>
     <string name="session_end_fex_missing">%1$s dibina untuk PC x86 dan berjalan melalui FEX, yang belum dipasang lagi. Mulakan Steam sekali semasa anda log masuk dan biarkan ia memuat turun FEX dan Steam Linux Runtime, kemudian mulakan ini semula.</string>
     <string name="add_app_flatpak_hint">ID apl Flathub atau halaman Flathubnya. Flatpak akan disediakan dahulu jika belum lagi.</string>
     <string name="add_app_file">Fail</string>
@@ -500,7 +502,9 @@
     <string name="comp_delete_original_title">Padam yang asal ini?</string>
     <string name="comp_delete_original_body">%1$s asal ini daripada binaan terdahulu %2$s. Yang asal bagi binaan semasa sentiasa dikekalkan.</string>
     <string name="comp_nightlies_count">Pada Nightlies · %1$d</string>
-    <string name="comp_refresh_to_list">Segarkan semula untuk menyenaraikan pakej pada Nightlies.</string>
+    <string name="comp_channel_stable">Stabil</string>
+    <string name="comp_channel_nightly">Nightly</string>
+    <string name="comp_refresh_to_list">Segarkan semula untuk menyenaraikan pakej pada Nightlies dan DroidDeck.</string>
     <string name="comp_nothing_new">Tiada apa-apa yang baharu sejak semakan terakhir.</string>
     <string name="comp_import_wcp">Import .wcp</string>
     <string name="comp_restore_original">Pulihkan yang asal bagi Proton ini</string>
@@ -578,6 +582,16 @@
     <string name="drawer_prev_page">Halaman sebelumnya</string>
     <string name="drawer_next_page">Halaman seterusnya</string>
     <string name="drawer_hud">HUD prestasi</string>
+    <string name="drawer_hud_fps">Kadar bingkai</string>
+    <string name="drawer_hud_battery">Suhu bateri</string>
+    <string name="drawer_hud_graph">Graf prestasi</string>
+    <string name="drawer_hud_color">Warna</string>
+    <string name="drawer_hud_color_mint">Pudina</string>
+    <string name="drawer_hud_color_white">Putih</string>
+    <string name="drawer_hud_color_sky">Langit</string>
+    <string name="drawer_hud_color_amber">Ambar</string>
+    <string name="drawer_hud_color_violet">Ungu</string>
+    <string name="drawer_hud_opacity">Kelegapan</string>
     <string name="drawer_scaling">Mod penskalaan</string>
     <string name="drawer_scaling_sharpness">Ketajaman penskalaan</string>
     <string name="drawer_effects">Kesan skrin</string>
@@ -1728,7 +1742,8 @@
     <string name="cmgr_original_kept">Asal binaan yang dipasang dikekalkan: itulah jalan kembali.</string>
     <string name="cmgr_not_stored">Tidak disimpan</string>
     <string name="cmgr_deleted_original">Asal %1$s bagi %2$s telah dipadam.</string>
-    <string name="cmgr_nightlies_only">Muat turun hanya datang daripada keluaran Nightlies</string>
+    <string name="cmgr_nightlies_only">Muat turun hanya datang daripada keluaran Nightlies dan DroidDeck</string>
+    <string name="cmgr_nightly_replaced">Muat turun gagal: binaan nightly ini mungkin telah diganti dengan yang lebih baharu. Segarkan semula senarai dan cuba lagi.</string>
     <string name="cmgr_list_predates_checksums">Senarai pakej ini mendahului checksum - segarkan dan cuba lagi</string>
     <string name="cmgr_checksum_mismatch">Checksum tidak sepadan</string>
 
@@ -1984,6 +1999,9 @@
     <string name="cloud_last_sync">Segerak terakhir %1$s</string>
     <string name="cloud_never">Belum disegerakkan</string>
     <string name="cloud_done">%1$d fail</string>
+    <string name="cloud_up_to_date">Sudah terkini</string>
+    <string name="cloud_signed_out">Log masuk ke kedai untuk menyegerakkan simpanan</string>
+    <string name="cloud_not_synced">Simpanan tidak disegerakkan</string>
     <string name="stores_eyebrow_installed">dipasang</string>
     <string name="stores_eyebrow_library">dalam pustaka anda</string>
     <string name="stores_eyebrow_store">kedai</string>
@@ -2285,7 +2303,7 @@
     <string name="touch_done">Selesai</string>
     <string name="touch_save_failed">Susun atur sentuh tidak dapat disimpan</string>
     <string name="touch_saved">Susun atur sentuh disimpan ke Steam</string>
-    <string name="touch_app_id">Apl %1$d</string>
+    <string name="touch_app_id">Apl %1$s</string>
     <string name="touch_label_hint">Label (pilihan)</string>
     <string name="touch_icons_missing">Ikon Steam tidak dijumpai</string>
     <plurals name="touch_icons_found">
@@ -2374,6 +2392,15 @@
     <string name="glasses_vr_fov">Medan pandangan SteamVR</string>
     <string name="glasses_vr_fov_hint">Lebih rendah mendekatkan SteamVR dan memenuhi cermin mata; lebih tinggi menunjukkan lebih banyak di sekeliling anda.</string>
     <string name="glasses_playing">Bermain pada %1$s</string>
+    <string name="glasses_phone_recenter">Pusatkan semula</string>
+    <string name="glasses_phone_steamvr_menu">Menu SteamVR</string>
+    <string name="glasses_phone_switch_sticks">Kayu bedik: tangan ⇄ permainan</string>
+    <string name="glasses_phone_controllers">Pengawal: %1$s</string>
+    <string name="glasses_phone_keyboard">Papan kekunci</string>
+    <string name="glasses_phone_session_menu">Menu sesi</string>
+    <string name="glasses_phone_stop_steamvr">Hentikan SteamVR</string>
+    <string name="glasses_phone_brightness">Kecerahan %1$d / %2$d</string>
+    <string name="glasses_phone_battery">Bateri %1$d%% · %2$d °C</string>
     <string name="glasses_calibration">Penentukuran penjejakan</string>
     <string name="glasses_calibration_hint">Mengurangkan hanyutan dan menjajarkan rujukan mendatar.</string>
     <string name="glasses_calibration_saved_hint">Penentukuran yang disimpan digunakan pada cermin mata ini.</string>

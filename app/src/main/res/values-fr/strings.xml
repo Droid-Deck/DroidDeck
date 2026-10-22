@@ -176,6 +176,8 @@
     <string name="app_fex_x86">%1$s via FEX</string>
     <string name="app_fex_not_ready">Ce programme est conçu pour les PC %1$s et s\'exécute via FEX, qui n\'est pas encore configuré. Ouvrez Steam une fois en étant connecté : DroidDeck lui fait télécharger FEX et le Steam Linux Runtime nécessaires, puis ce programme s\'ouvre.</string>
     <string name="session_end_program">Ce programme</string>
+    <string name="session_end_steam_download">Impossible de télécharger le client Steam. Votre réseau ou votre VPN bloque peut-être les serveurs de Steam ; vérifiez la connexion et réessayez.</string>
+    <string name="session_end_steam_setup">Impossible de configurer le client Steam. Vérifiez la connexion et l\'espace libre, puis réessayez.</string>
     <string name="session_end_fex_missing">%1$s est conçu pour les PC x86 et s\'exécute via FEX, qui n\'est pas encore installé. Lancez Steam une fois en étant connecté et laissez-le télécharger FEX et le Steam Linux Runtime, puis relancez ce programme.</string>
     <string name="add_app_flatpak_hint">ID d\'application Flathub ou sa page Flathub. Si Flatpak n\'est pas encore configuré, il le sera d\'abord.</string>
     <string name="add_app_file">Fichier</string>
@@ -305,6 +307,8 @@
     <string name="mode_client">Client</string>
     <string name="mode_mangoapp">Superposition de performance</string>
     <string name="mode_mangoapp_hint">Désactivez cette option si les jeux plantent ou affichent un écran noir en mode Deck. Prendra effet à la prochaine session.</string>
+    <string name="mode_return_after_game">Revenir à DroidDeck après un jeu</string>
+    <string name="mode_return_after_game_hint">Quand un jeu lancé depuis DroidDeck ou un autre lanceur se ferme, Steam se ferme proprement (après la synchronisation des sauvegardes cloud) et vous y revenez. Désactivé : vous restez dans Steam.</string>
     <string name="mode_steam_repair">Réparer le client Steam</string>
     <string name="mode_steam_repair_hint">Retélécharge le client Steam au prochain démarrage de Steam. Utile si Steam reste bloqué sur son écran de chargement. Les jeux, la connexion et les paramètres sont conservés.</string>
     <string name="mode_steam_repair_queued">Le client Steam sera retéléchargé au prochain démarrage de Steam.</string>
@@ -501,7 +505,9 @@
     <string name="comp_delete_original_title">Supprimer cette version originale ?</string>
     <string name="comp_delete_original_body">Cette version originale de %1$s provient d\'une version antérieure de %2$s. La version originale de la version actuelle sera toujours conservée.</string>
     <string name="comp_nightlies_count">Dans Nightlies · %1$d</string>
-    <string name="comp_refresh_to_list">Actualiser pour lister les paquets dans Nightlies.</string>
+    <string name="comp_channel_stable">Stable</string>
+    <string name="comp_channel_nightly">Nightly</string>
+    <string name="comp_refresh_to_list">Actualiser pour lister les paquets dans Nightlies et DroidDeck.</string>
     <string name="comp_nothing_new">Aucun nouvel élément depuis la dernière vérification.</string>
     <string name="comp_import_wcp">Importer .wcp</string>
     <string name="comp_restore_original">Restaurer les fichiers originaux de ce Proton</string>
@@ -579,6 +585,16 @@
     <string name="drawer_prev_page">Page précédente</string>
     <string name="drawer_next_page">Page suivante</string>
     <string name="drawer_hud">HUD de performance</string>
+    <string name="drawer_hud_fps">Fréquence d\'images</string>
+    <string name="drawer_hud_battery">Température de la batterie</string>
+    <string name="drawer_hud_graph">Graphique de performance</string>
+    <string name="drawer_hud_color">Couleur</string>
+    <string name="drawer_hud_color_mint">Menthe</string>
+    <string name="drawer_hud_color_white">Blanc</string>
+    <string name="drawer_hud_color_sky">Ciel</string>
+    <string name="drawer_hud_color_amber">Ambre</string>
+    <string name="drawer_hud_color_violet">Violet</string>
+    <string name="drawer_hud_opacity">Opacité</string>
     <string name="drawer_scaling">Mode de mise à l\'échelle</string>
     <string name="drawer_scaling_sharpness">Netteté de la mise à l\'échelle</string>
     <string name="drawer_effects">Effets d\'écran</string>
@@ -1767,7 +1783,8 @@
     <string name="cmgr_original_kept">L\'original de la version installée est conservé : c\'est le moyen d\'y revenir.</string>
     <string name="cmgr_not_stored">Non enregistré</string>
     <string name="cmgr_deleted_original">Original %1$s de %2$s supprimé.</string>
-    <string name="cmgr_nightlies_only">Les téléchargements proviennent uniquement des versions Nightlies</string>
+    <string name="cmgr_nightlies_only">Les téléchargements proviennent uniquement des versions Nightlies et DroidDeck</string>
+    <string name="cmgr_nightly_replaced">Échec du téléchargement : cette version nightly a peut-être été remplacée par une plus récente. Actualisez la liste et réessayez.</string>
     <string name="cmgr_list_predates_checksums">Cette liste de paquets est antérieure aux sommes de contrôle - actualisez-la et réessayez</string>
     <string name="cmgr_checksum_mismatch">Somme de contrôle incorrecte</string>
 
@@ -2023,6 +2040,9 @@
     <string name="cloud_last_sync">Dernière synchro : %1$s</string>
     <string name="cloud_never">Pas encore synchronisé</string>
     <string name="cloud_done">%1$d fichiers</string>
+    <string name="cloud_up_to_date">Déjà à jour</string>
+    <string name="cloud_signed_out">Connectez-vous à la boutique pour synchroniser les sauvegardes</string>
+    <string name="cloud_not_synced">Les sauvegardes n’ont pas été synchronisées</string>
     <string name="stores_eyebrow_installed">installé</string>
     <string name="stores_eyebrow_library">dans votre bibliothèque</string>
     <string name="stores_eyebrow_store">boutique</string>
@@ -2325,7 +2345,7 @@
     <string name="touch_done">Terminé</string>
     <string name="touch_save_failed">Impossible d\'enregistrer la disposition tactile</string>
     <string name="touch_saved">Disposition tactile enregistrée sur Steam</string>
-    <string name="touch_app_id">Appli %1$d</string>
+    <string name="touch_app_id">Appli %1$s</string>
     <string name="touch_label_hint">Libellé (facultatif)</string>
     <string name="touch_icons_missing">Les icônes de Steam n\'ont pas été trouvées</string>
     <plurals name="touch_icons_found">
@@ -2418,6 +2438,15 @@
     <string name="glasses_vr_fov">Champ de vision SteamVR</string>
     <string name="glasses_vr_fov_hint">Plus bas rapproche SteamVR et remplit les lunettes ; plus haut montre davantage autour de vous.</string>
     <string name="glasses_playing">En jeu sur %1$s</string>
+    <string name="glasses_phone_recenter">Recentrer</string>
+    <string name="glasses_phone_steamvr_menu">Menu SteamVR</string>
+    <string name="glasses_phone_switch_sticks">Sticks : mains ⇄ jeu</string>
+    <string name="glasses_phone_controllers">Manettes : %1$s</string>
+    <string name="glasses_phone_keyboard">Clavier</string>
+    <string name="glasses_phone_session_menu">Menu de session</string>
+    <string name="glasses_phone_stop_steamvr">Arrêter SteamVR</string>
+    <string name="glasses_phone_brightness">Luminosité %1$d / %2$d</string>
+    <string name="glasses_phone_battery">Batterie %1$d%% · %2$d °C</string>
     <string name="glasses_calibration">Calibrage du suivi</string>
     <string name="glasses_calibration_hint">Réduit la dérive et aligne la référence horizontale.</string>
     <string name="glasses_calibration_saved_hint">Le calibrage enregistré est appliqué à ces lunettes.</string>

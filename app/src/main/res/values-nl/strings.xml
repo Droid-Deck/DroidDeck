@@ -176,6 +176,8 @@
     <string name="app_fex_x86">%1$s via FEX</string>
     <string name="app_fex_not_ready">Dit programma is gemaakt voor %1$s-pc’s en draait via FEX, dat nog niet is ingesteld. Open Steam één keer terwijl je bent ingelogd: DroidDeck laat het dan FEX en de benodigde Steam Linux Runtime downloaden. Daarna opent dit.</string>
     <string name="session_end_program">Dit programma</string>
+    <string name="session_end_steam_download">De Steam-client kon niet worden gedownload. Je netwerk of VPN blokkeert mogelijk de servers van Steam; controleer de verbinding en probeer het opnieuw.</string>
+    <string name="session_end_steam_setup">De Steam-client kon niet worden ingesteld. Controleer de verbinding en de vrije opslag en probeer het opnieuw.</string>
     <string name="session_end_fex_missing">%1$s is gemaakt voor x86-pc’s en draait via FEX, dat nog niet is geïnstalleerd. Start Steam één keer terwijl je bent ingelogd en laat het FEX en de Steam Linux Runtime downloaden. Start dit daarna opnieuw.</string>
     <string name="add_app_flatpak_hint">Een Flathub-app-ID of de Flathub-pagina ervan. Flatpak wordt eerst ingesteld als dat nog niet is gebeurd.</string>
     <string name="add_app_file">Bestand</string>
@@ -502,7 +504,9 @@
     <string name="comp_delete_original_title">Dit origineel verwijderen?</string>
     <string name="comp_delete_original_body">Dit origineel van %1$s komt uit een eerdere build van %2$s. Het origineel van de huidige build wordt altijd bewaard.</string>
     <string name="comp_nightlies_count">In de Nightlies · %1$d</string>
-    <string name="comp_refresh_to_list">Vernieuw om de pakketten in de Nightlies te tonen.</string>
+    <string name="comp_channel_stable">Stabiel</string>
+    <string name="comp_channel_nightly">Nightly</string>
+    <string name="comp_refresh_to_list">Vernieuw om de pakketten in de Nightlies en bij DroidDeck te tonen.</string>
     <string name="comp_nothing_new">Niets nieuws sinds de laatste controle.</string>
     <string name="comp_import_wcp">.wcp importeren</string>
     <string name="comp_restore_original">Origineel van deze Proton herstellen</string>
@@ -580,6 +584,16 @@
     <string name="drawer_prev_page">Vorige pagina</string>
     <string name="drawer_next_page">Volgende pagina</string>
     <string name="drawer_hud">Prestatie-HUD</string>
+    <string name="drawer_hud_fps">Beeldsnelheid</string>
+    <string name="drawer_hud_battery">Accutemperatuur</string>
+    <string name="drawer_hud_graph">Prestatiegrafiek</string>
+    <string name="drawer_hud_color">Kleur</string>
+    <string name="drawer_hud_color_mint">Mint</string>
+    <string name="drawer_hud_color_white">Wit</string>
+    <string name="drawer_hud_color_sky">Hemelsblauw</string>
+    <string name="drawer_hud_color_amber">Amber</string>
+    <string name="drawer_hud_color_violet">Violet</string>
+    <string name="drawer_hud_opacity">Transparantie</string>
     <string name="drawer_scaling">Schaalmodus</string>
     <string name="drawer_scaling_sharpness">Schaalscherpte</string>
     <string name="drawer_effects">Schermeffecten</string>
@@ -1749,7 +1763,8 @@
     <string name="cmgr_original_kept">Het origineel van de geïnstalleerde build wordt bewaard: dat is de weg terug.</string>
     <string name="cmgr_not_stored">Niet opgeslagen</string>
     <string name="cmgr_deleted_original">Het %1$s-origineel van %2$s is verwijderd.</string>
-    <string name="cmgr_nightlies_only">Downloads komen alleen van de Nightlies-releases</string>
+    <string name="cmgr_nightlies_only">Downloads komen alleen van de Nightlies- en DroidDeck-releases</string>
+    <string name="cmgr_nightly_replaced">Download mislukt: deze nightly is mogelijk vervangen door een nieuwere build. Vernieuw de lijst en probeer het opnieuw.</string>
     <string name="cmgr_list_predates_checksums">Deze pakketlijst is ouder dan de checksums - vernieuw de lijst en probeer het opnieuw</string>
     <string name="cmgr_checksum_mismatch">Checksum komt niet overeen</string>
 
@@ -2005,6 +2020,9 @@
     <string name="cloud_last_sync">Laatste synchronisatie %1$s</string>
     <string name="cloud_never">Nog niet gesynchroniseerd</string>
     <string name="cloud_done">%1$d bestanden</string>
+    <string name="cloud_up_to_date">Al up-to-date</string>
+    <string name="cloud_signed_out">Log in bij de winkel om opslagbestanden te synchroniseren</string>
+    <string name="cloud_not_synced">Opslagbestanden zijn niet gesynchroniseerd</string>
     <string name="stores_eyebrow_installed">geïnstalleerd</string>
     <string name="stores_eyebrow_library">in je bibliotheek</string>
     <string name="stores_eyebrow_store">winkel</string>
@@ -2308,7 +2326,7 @@
     <string name="touch_done">Klaar</string>
     <string name="touch_save_failed">De aanraakindeling kon niet worden opgeslagen</string>
     <string name="touch_saved">Aanraakindeling opgeslagen in Steam</string>
-    <string name="touch_app_id">App %1$d</string>
+    <string name="touch_app_id">App %1$s</string>
     <string name="touch_label_hint">Label (optioneel)</string>
     <string name="touch_icons_missing">Steams pictogrammen zijn niet gevonden</string>
     <plurals name="touch_icons_found">
@@ -2399,6 +2417,15 @@
     <string name="glasses_vr_fov">SteamVR-gezichtsveld</string>
     <string name="glasses_vr_fov_hint">Lager brengt SteamVR dichterbij en vult de bril; hoger toont meer om je heen.</string>
     <string name="glasses_playing">Je speelt op %1$s</string>
+    <string name="glasses_phone_recenter">Opnieuw centreren</string>
+    <string name="glasses_phone_steamvr_menu">SteamVR-menu</string>
+    <string name="glasses_phone_switch_sticks">Sticks: handen ⇄ spel</string>
+    <string name="glasses_phone_controllers">Controllers: %1$s</string>
+    <string name="glasses_phone_keyboard">Toetsenbord</string>
+    <string name="glasses_phone_session_menu">Sessiemenu</string>
+    <string name="glasses_phone_stop_steamvr">SteamVR stoppen</string>
+    <string name="glasses_phone_brightness">Helderheid %1$d / %2$d</string>
+    <string name="glasses_phone_battery">Batterij %1$d%% · %2$d °C</string>
     <string name="glasses_calibration">Trackingkalibratie</string>
     <string name="glasses_calibration_hint">Vermindert drift en lijnt de horizontale referentie uit.</string>
     <string name="glasses_calibration_saved_hint">De opgeslagen kalibratie wordt op deze bril toegepast.</string>

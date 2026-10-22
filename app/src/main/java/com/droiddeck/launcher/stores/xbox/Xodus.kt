@@ -3,6 +3,7 @@ package com.droiddeck.launcher.stores.xbox
 import android.content.Context
 import android.os.Environment
 import com.droiddeck.launcher.core.AddonPack
+import com.droiddeck.launcher.runtime.LinuxNetworkLinkComponent
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.session.SessionPrefs
 import org.json.JSONObject
@@ -14,7 +15,8 @@ internal object Xodus {
     const val DIR = "/usr/local/lib/droiddeck-xbox"
     fun market(): String = java.util.Locale.getDefault().country.uppercase().takeIf { it.matches(Regex("[A-Z]{2}")) } ?: "US"
 
-    class Child(val process: Process, private val credentials: XboxCredentials, private val runtimeDirectory: File? = null, private val launchDirectory: File? = null) : Closeable {
+    class Child(val process: Process, private val credentials: XboxCredentials, private val runtimeDirectory: File? = null, private val launchDirectory: File? = null,
+                private val networkLink: LinuxNetworkLinkComponent) : Closeable {
         @Synchronized fun send(frame: JSONObject) {
             process.outputStream.write((frame.toString() + "\n").toByteArray())
             process.outputStream.flush()
@@ -34,6 +36,7 @@ internal object Xodus {
                     }
                 }
             } finally {
+                networkLink.stop()
                 runtimeDirectory?.let { directory ->
                     File(directory, "xodus.sock").delete()
                     directory.delete()
@@ -69,8 +72,12 @@ internal object Xodus {
         val pack = stage(app)
         val binary = "$DIR/${if (service) "xodus-service" else "xodus-cli"}"
         check(File(LinuxRuntime.rootDir(app), binary.removePrefix("/")).isFile) { "The Xbox backend is missing. Update the Linux runtime." }
+        val networkLink = LinuxNetworkLinkComponent(app, LinuxRuntime.rootDir(app))
         val credentials = XboxCredentials(app, credentialGeneration)
         try {
+            networkLink.attach(app)
+            networkLink.publish()
+            networkLink.start()
             val runtime = (runtimeDirectory ?: File(app.filesDir, "xbox-runtime")).apply { mkdirs() }
             val command = LinuxRuntime.command(app, null, null, Environment.getExternalStorageDirectory(), listOf(
                 "/usr/bin/env", "HOME=/root", "XODUS_LOG=off", "RUST_LOG=off",
@@ -92,8 +99,12 @@ internal object Xodus {
             }
             val process = builder.start()
             credentials.bind(process, File(LinuxRuntime.rootDir(app), binary.removePrefix("/")), digest.digest())
-            return Child(process, credentials, runtimeDirectory, launchDirectory)
-        } catch (e: Exception) { credentials.close(); throw e }
+            return Child(process, credentials, runtimeDirectory, launchDirectory, networkLink)
+        } catch (e: Exception) {
+            runCatching { networkLink.stop() }
+            credentials.close()
+            throw e
+        }
     }
 
     fun run(app: Context, args: List<String>, timeout: Long = 90, credentialGeneration: String? = null): JSONObject {
