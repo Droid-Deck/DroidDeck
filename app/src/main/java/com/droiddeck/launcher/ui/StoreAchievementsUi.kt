@@ -370,7 +370,7 @@ internal fun DrawerAchievementsRow(progress: Pair<Int, Int>?, modifier: Modifier
         modifier = modifier.fillMaxWidth().height(44.dp).clip(shape)
             .background(if (hot) pal.signal.copy(alpha = 0.14f) else colors.surface)
             .glideBorder(hot, shape, pal.signal, pal.line)
-            .clickable(interactionSource = interaction, indication = LocalIndication.current, onClick = onClick)
+            .clickable(role = androidx.compose.ui.semantics.Role.Button, interactionSource = interaction, indication = LocalIndication.current, onClick = onClick)
             .controllerConfirm(onClick = onClick)
             .padding(horizontal = 12.dp),
     ) {

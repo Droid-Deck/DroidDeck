@@ -1404,6 +1404,14 @@
     <string name="theme_icon_blue_detail">Svart bakgrund, vit text, den blå färgen för allt som är markerat, i fokus eller nedtryckt.</string>
     <string name="theme_electric">Elektrisk marinblå</string>
     <string name="theme_electric_detail">Den blå färgen klarare, på ytor som lutar åt marinblått i stället för grått.</string>
+    <string name="theme_gradient">Gradient</string>
+    <string name="theme_gradient_detail">Dina egna primära och sekundära färger, blandade på knappar och markeringar.</string>
+    <string name="theme_gradient_primary">Primär</string>
+    <string name="theme_gradient_secondary">Sekundär</string>
+    <string name="theme_color_hue">Nyans</string>
+    <string name="theme_color_saturation">Mättnad</string>
+    <string name="theme_color_brightness">Ljusstyrka</string>
+    <string name="theme_color_hex">Hex-färg</string>
     <string name="pckb_key_esc">Esc</string>
     <string name="pckb_key_ins">Ins</string>
     <string name="pckb_key_del">Del</string>
@@ -2499,6 +2507,7 @@
     <string name="glasses_xreal_network_missing">Väntar på glasögonens USB Ethernet-anslutning. Telefonen kanske inte gör den tillgänglig för appar.</string>
     <string name="glasses_xreal_connection_failed">XREAL-anslutningen avbröts eller gav ett svar som inte stöds. Försöker igen…</string>
     <string name="glasses_xreal_experimental">Experimentellt stöd för 1S. Använd Follow-läget och stäng av stabiliseringen i glasögonens meny. Spårningsriktningar och visningslägen behöver fortfarande testas på enheten.</string>
+    <string name="glasses_pro2_experimental">Experimentell huvudspårning för Pro 2. Justering av ljusstyrka och volym samt byte av visningsläge stöds inte ännu.</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Cardboard-läge</string>
     <string name="cardboard_mode_hint">Bilder för vänster och höger öga till ett VR-headset för mobilen.</string>
