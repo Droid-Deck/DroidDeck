@@ -1210,6 +1210,8 @@
     <string name="pip_auto">Automatically enter PiP</string>
     <string name="unfolded_controls">Controls on the unfolded screen</string>
     <string name="unfolded_controls_hint">Unfolded, the game sits above the Steam Deck trackpads and back grips. Folded, the game is full screen.</string>
+    <string name="unfolded_controls_with_controller">Keep them with a controller</string>
+    <string name="unfolded_controls_with_controller_hint">Also show the unfolded controls while a controller is connected, for controllers that hold the phone.</string>
     <string name="pip_suspended">Suspended</string>
     <string name="pip_not_ready">Picture in picture is available once the session is ready.</string>
     <string name="pip_permission">Allow picture in picture for DroidDeck in Android settings.</string>
@@ -1459,6 +1461,14 @@
     <string name="theme_icon_blue_detail">Black ground, white type, the blue for everything selected, focused or pressed.</string>
     <string name="theme_electric">Electric navy</string>
     <string name="theme_electric_detail">The blue brighter, on surfaces that lean navy instead of grey.</string>
+    <string name="theme_gradient">Gradient</string>
+    <string name="theme_gradient_detail">Your own primary and secondary colors, blended on buttons and highlights.</string>
+    <string name="theme_gradient_primary">Primary</string>
+    <string name="theme_gradient_secondary">Secondary</string>
+    <string name="theme_color_hue">Hue</string>
+    <string name="theme_color_saturation">Saturation</string>
+    <string name="theme_color_brightness">Brightness</string>
+    <string name="theme_color_hex">Hex color</string>
     <string name="pckb_key_esc">Esc</string>
     <string name="pckb_key_ins">Ins</string>
     <string name="pckb_key_del">Del</string>
@@ -1886,6 +1896,7 @@
     <string name="gpuinfo_not_adreno">Not an Adreno GPU</string>
     <string name="gpuinfo_supported">Supported</string>
     <string name="gpuinfo_experimental">Experimental: its drivers are test builds</string>
+    <string name="gpuinfo_a850_experimental">Experimental Adreno 850 support: requires compatible experimental display and game drivers; not verified on this device</string>
     <string name="gpuinfo_below_tested">Below tested hardware (Adreno 725 and newer): it may not run</string>
     <string name="gpuinfo_unsupported">Not supported: DroidDeck needs an Adreno (Snapdragon) GPU</string>
 
@@ -2630,6 +2641,7 @@
     <string name="glasses_xreal_network_missing">Waiting for the glasses’ USB Ethernet connection. This phone may not expose it to apps.</string>
     <string name="glasses_xreal_connection_failed">The XREAL connection was interrupted or returned an unsupported response. Retrying…</string>
     <string name="glasses_xreal_experimental">Experimental 1S support. Use Follow mode and disable stabilization in the glasses menu. Tracking directions and display modes still need device testing.</string>
+    <string name="glasses_pro2_experimental">Experimental Pro 2 head tracking. Brightness, volume, and display switching are not supported yet.</string>
     <string name="display_picture_position">Picture position</string>
     <string name="display_position_top">Top</string>
     <string name="display_position_bottom">Bottom</string>

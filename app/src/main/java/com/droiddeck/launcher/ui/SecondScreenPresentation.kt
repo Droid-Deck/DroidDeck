@@ -157,16 +157,18 @@ class SecondScreenPresentation(
             }
         }
         controls.addView(keyboardButton)
-        controls.addView(Button(context).apply {
-            text = "STEAM"
-            contentDescription = context.getString(R.string.deck_open_steam_menu)
-            setOnClickListener { onSteamMenu() }
-        })
-        controls.addView(Button(context).apply {
-            text = "…"
-            contentDescription = context.getString(R.string.drawer_open_qam)
-            setOnClickListener { onQam() }
-        })
+        if (SessionState.mode == SessionService.MODE_STEAM) {
+            controls.addView(Button(context).apply {
+                text = "STEAM"
+                contentDescription = context.getString(R.string.deck_open_steam_menu)
+                setOnClickListener { onSteamMenu() }
+            })
+            controls.addView(Button(context).apply {
+                text = "…"
+                contentDescription = context.getString(R.string.drawer_open_qam)
+                setOnClickListener { onQam() }
+            })
+        }
         panel.addView(controls, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
         root.addView(panel, weightParams())
         val host = KeyboardHost(context) { sessionActivity.dispatchKeyEvent(it) }

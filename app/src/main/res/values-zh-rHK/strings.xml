@@ -1392,6 +1392,14 @@
     <string name="theme_icon_blue_detail">黑色背景、白色文字，所有已選取、焦點所在或按下的項目都使用藍色。</string>
     <string name="theme_electric">電光海軍藍</string>
     <string name="theme_electric_detail">更明亮的藍色，搭配偏海軍藍而非灰色的介面。</string>
+    <string name="theme_gradient">漸層</string>
+    <string name="theme_gradient_detail">你自行選擇的主色與輔色，在按鈕與強調處以漸層呈現。</string>
+    <string name="theme_gradient_primary">主色</string>
+    <string name="theme_gradient_secondary">輔色</string>
+    <string name="theme_color_hue">色相</string>
+    <string name="theme_color_saturation">飽和度</string>
+    <string name="theme_color_brightness">亮度</string>
+    <string name="theme_color_hex">十六進位色彩</string>
     <string name="pckb_key_esc">Esc</string>
     <string name="pckb_key_ins">Ins</string>
     <string name="pckb_key_del">Del</string>
@@ -1801,6 +1809,7 @@
     <string name="gpuinfo_not_adreno">不是 Adreno GPU</string>
     <string name="gpuinfo_supported">受支援</string>
     <string name="gpuinfo_experimental">實驗性：其驅動程式為測試版本</string>
+    <string name="gpuinfo_a850_experimental">Adreno 850 實驗性支援：需要相容的實驗版顯示驅動程式及遊戲驅動程式；尚未在此裝置上驗證</string>
     <string name="gpuinfo_below_tested">低於已測試的硬件（Adreno 725 或更新）：可能無法執行</string>
     <string name="gpuinfo_unsupported">不受支援：DroidDeck 需要 Adreno (Snapdragon) GPU</string>
 
@@ -2476,6 +2485,7 @@
     <string name="glasses_xreal_network_missing">正在等候眼鏡的 USB Ethernet 連線。這部手機可能不會向應用程式開放此連線。</string>
     <string name="glasses_xreal_connection_failed">XREAL 連線中斷或傳回不支援的回應。正在重試…</string>
     <string name="glasses_xreal_experimental">實驗性 1S 支援。請在眼鏡選單中使用跟隨模式並關閉畫面穩定。追蹤方向和顯示模式仍需在裝置上測試。</string>
+    <string name="glasses_pro2_experimental">Pro 2 實驗性頭部追蹤。暫不支援亮度、音量調整及顯示模式切換。</string>
     <string name="stores_fact_developer">開發商</string>
     <string name="stores_fact_publisher">發行商</string>
     <string name="stores_fact_released">發行日期</string>
