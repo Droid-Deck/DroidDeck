@@ -84,6 +84,7 @@ import com.droiddeck.launcher.R
 import com.droiddeck.launcher.session.ComponentsManager
 import com.droiddeck.launcher.session.ComponentsManager.CatalogItem
 import com.droiddeck.launcher.session.ComponentsManager.Snapshot
+import com.droiddeck.launcher.session.ProtonExtras
 import kotlinx.coroutines.delay
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.rememberCoroutineScope
@@ -163,6 +164,7 @@ fun ComponentsPage(
     protons: ProtonsState = ProtonsState(),
     protonActions: ProtonsActions = ProtonsActions(),
     protonOptions: @Composable () -> Unit = {},
+    onSourcesChanged: (String) -> Unit = { onRefresh() },
 ) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
@@ -590,8 +592,8 @@ fun ComponentsPage(
                 for ((stable, nightly) in available) {
                     val d = if (nightly != null && nightlyPicked[stable.file] == true) nightly else stable
                     GetLine(
-                        d.file.removeSuffix(".wcp"), "${d.release} · " + stringResource(R.string.common_size_mb, d.size / 1048576.0),
-                        progress = downloads[d.file], enabled = busy == null,
+                        d.file.removeSuffix(".wcp"), "${d.repository} · ${d.release} · " + stringResource(R.string.common_size_mb, d.size / 1048576.0),
+                        progress = downloads[d.id], enabled = busy == null,
                         channel = if (nightly != null) ({ ChannelToggle(d === nightly, enabled = busy == null) { nightlyPicked[stable.file] = d !== nightly } }) else null,
                     ) { onDownload(d) }
                 }
@@ -715,6 +717,20 @@ fun ComponentsPage(
                     fontSize = 13.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
                 val refreshing = checking || gpu.checking
+                RepositorySourcesButton(
+                    scopeKey = when (layer) {
+                        GPU_TAB -> gpu.sourceKey
+                        PROTON_TAB -> ProtonExtras.SOURCE_SCOPE
+                        else -> ComponentsManager.sourceScope(layer)
+                    },
+                    builtIns = when (layer) {
+                        GPU_TAB -> gpu.sourceBuiltIns
+                        PROTON_TAB -> ProtonExtras.sourceBuiltIns()
+                        else -> ComponentsManager.sourceBuiltIns(layer)
+                    },
+                    enabled = busy == null && gpu.busy == null && (layer != PROTON_TAB || protons.busyId == null),
+                    onSaved = { if (layer == GPU_TAB) gpuActions.onSourcesChanged() else onSourcesChanged(layer) },
+                )
                 ToolIcon(Icons.Outlined.Refresh, stringResource(R.string.comp_check_all), busy = refreshing, enabled = !refreshing && gpu.busy == null) {
                     onRefresh(); gpuActions.onRefresh()
                 }
@@ -846,6 +862,7 @@ fun ComponentsPage(
                         status = gpu.releaseStatus, checking = gpu.checking, checkedAt = gpu.checkedAt, importLabel = stringResource(R.string.comp_import_turnip), canRestore = false,
                         onSelect = gpuActions.onSelectLinux, onDelete = gpuActions.onRemoveLinux, onRefresh = gpuActions.onRefresh,
                         onDownload = gpuActions.onDownloadDriver, onImport = gpuActions.onImportLinux, onRestore = {}, onBack = { driverPage = null },
+                        sourceKey = gpu.sourceKey, sourceBuiltIns = gpu.sourceBuiltIns, onSourcesChanged = gpuActions.onSourcesChanged,
                     )
                     else DriverPage(
                         title = stringResource(R.string.comp_display_driver), hint = stringResource(R.string.comp_display_driver_hint),
@@ -855,6 +872,7 @@ fun ComponentsPage(
                         onSelect = gpuActions.onSelectAndroid, onDelete = gpuActions.onRemoveAndroid, onRefresh = gpuActions.onRefresh,
                         onDownload = gpuActions.onDownloadDriver, onImport = gpuActions.onImportAndroid, onRestore = gpuActions.onRestoreBundled,
                         onBack = { driverPage = null },
+                        sourceKey = gpu.sourceKey, sourceBuiltIns = gpu.sourceBuiltIns, onSourcesChanged = gpuActions.onSourcesChanged,
                     )
                 }
             }
@@ -927,7 +945,7 @@ private fun installedFor(l: String, view: ComponentsManager.ProtonView?, snapsho
 
 private fun availableFor(l: String, catalog: List<CatalogItem>, snapshot: Snapshot?): List<CatalogItem> {
     val stored = (snapshot?.packages ?: emptyList()).map { it.file }.toSet()
-    return catalog.filter { it.comp == l && ComponentsManager.safeName(it.file) !in stored }
+    return catalog.filter { it.comp == l && it.localFile !in stored }
 }
 
 // The rows to show: each stable row carries its paired nightly (if any), and a paired nightly has no row of its own.

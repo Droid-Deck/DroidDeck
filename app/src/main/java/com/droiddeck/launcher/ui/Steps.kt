@@ -20,7 +20,7 @@ internal object Steps {
         open = true
     }
 
-    fun fold() { open = false }
+    fun fold() { if (step?.canDismiss() != false) open = false }
 
     fun drop() {
         step?.let { step = null; it.onDismiss() }

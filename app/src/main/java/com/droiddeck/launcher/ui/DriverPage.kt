@@ -75,6 +75,9 @@ fun DriverPage(
     onImport: () -> Unit,
     onRestore: () -> Unit,
     onBack: () -> Unit,
+    sourceKey: String = "",
+    sourceBuiltIns: List<String> = emptyList(),
+    onSourcesChanged: () -> Unit = {},
 ) {
     val host = rememberMenuHost()
     val colors = MaterialTheme.colorScheme
@@ -99,17 +102,25 @@ fun DriverPage(
         host, title = title, onBack = onBack, lede = "$hint\n$status",
         modifier = Modifier.onFocusChanged { pageFocused = it.hasFocus }.focusGroup(),
         action = {
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier.size(40.dp).clip(RoundedCornerShape(10.dp))
-                    .background(if (refreshHot) pal.signal.copy(alpha = 0.16f) else Color.Transparent)
-                    .glideBorder(refreshHot, RoundedCornerShape(10.dp), pal.signal, pal.line)
-                    .focusRequester(refreshFocus)
-                    .hoverable(refreshSrc)
-                    .clickable(role = androidx.compose.ui.semantics.Role.Button, interactionSource = refreshSrc, indication = null, enabled = !checking, onClick = onRefresh),
-            ) {
-                if (checking) CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
-                else Icon(Icons.Outlined.Refresh, contentDescription = stringResource(R.string.comp_check_drivers), tint = colors.onBackground, modifier = Modifier.size(20.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (sourceKey.isNotEmpty()) RepositorySourcesButton(
+                    scopeKey = sourceKey,
+                    builtIns = sourceBuiltIns,
+                    enabled = !checking,
+                    onSaved = onSourcesChanged,
+                )
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier.size(40.dp).clip(RoundedCornerShape(10.dp))
+                        .background(if (refreshHot) pal.signal.copy(alpha = 0.16f) else Color.Transparent)
+                        .glideBorder(refreshHot, RoundedCornerShape(10.dp), pal.signal, pal.line)
+                        .focusRequester(refreshFocus)
+                        .hoverable(refreshSrc)
+                        .clickable(role = androidx.compose.ui.semantics.Role.Button, interactionSource = refreshSrc, indication = null, enabled = !checking, onClick = onRefresh),
+                ) {
+                    if (checking) CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
+                    else Icon(Icons.Outlined.Refresh, contentDescription = stringResource(R.string.comp_check_drivers), tint = colors.onBackground, modifier = Modifier.size(20.dp))
+                }
             }
         },
     ) {

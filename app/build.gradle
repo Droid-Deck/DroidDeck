@@ -220,7 +220,6 @@ android {
         unitTests.returnDefaultValues = true
         unitTests.includeAndroidResources = true
         unitTests.all {
-            // Robolectric keeps a sandbox per SDK level the tests ask for; seven no longer fit in Gradle's default 512 MB.
             maxHeapSize = '2g'
             def logTarget = providers.systemProperty('robolectric.logging').orNull
             if (logTarget != null) systemProperty 'robolectric.logging', logTarget
@@ -313,6 +312,8 @@ if (!skipRust) android.sourceSets.main.jniLibs.srcDir(rustJniLibsDir)
 tasks.named('preBuild').configure { dependsOn(buildRustStores) }
 
 dependencies {
+    implementation 'com.android.tools.build:apksig:8.8.0'
+    implementation 'com.android.tools.build:apksig:8.8.0'
     implementation "org.opencv:opencv:${trackingPack.OPENCV_VERSION}"
     implementation 'org.khronos.openxr:openxr_loader_for_android:1.1.49'
     implementation 'com.github.luben:zstd-jni:1.5.7-4@aar'

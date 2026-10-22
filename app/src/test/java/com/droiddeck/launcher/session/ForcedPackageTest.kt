@@ -68,9 +68,18 @@ class ForcedPackageTest {
         val wanted = item(dxvk2, "Dxvk-Linux")
         val otherRelease = item(dxvk2, "Dxvk-gplasync-Linux")
         val otherFile = item("dxvk-3.1-linux.wcp", "Dxvk-Linux")
-        assertEquals(wanted, ComponentsManager.catalogMatch(listOf(otherFile, otherRelease, wanted), dxvk2, "Dxvk-Linux"))
+        val fork = wanted.copy(repository = "owner/nightlies")
+        assertEquals(wanted, ComponentsManager.catalogMatch(listOf(fork, otherFile, otherRelease, wanted), dxvk2, "Dxvk-Linux"))
+        assertNull(ComponentsManager.catalogMatch(listOf(fork), dxvk2, "Dxvk-Linux"))
         assertNull(ComponentsManager.catalogMatch(listOf(otherFile, otherRelease), dxvk2, "Dxvk-Linux"))
         assertNull(ComponentsManager.catalogMatch(emptyList(), dxvk2, "Dxvk-Linux"))
+    }
+
+    @Test fun componentArchivePathsStayInsideTheirStagingDirectory() {
+        assertEquals("files/lib/good.dll", ComponentsManager.safeArchivePath("./files/lib/good.dll"))
+        for (path in listOf("/files/escape", "../escape", "files/../escape", "files/./escape", "files//escape", "files\\escape")) {
+            assertThrows(IllegalArgumentException::class.java) { ComponentsManager.safeArchivePath(path) }
+        }
     }
 
     @Test fun thisMachineIsNotForced() {

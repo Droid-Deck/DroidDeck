@@ -6,9 +6,11 @@ import android.os.Handler
 import android.os.Looper
 import com.droiddeck.launcher.session.QuestExperimental
 import com.droiddeck.launcher.session.SessionPrefs
+import com.droiddeck.launcher.gpu.TurnipReleases
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -52,5 +54,27 @@ class DriverMenusAutoTest {
         DriverMenus(activity, Handler(Looper.getMainLooper())).ensureAuto(force = true)
         assertEquals("chosen-display", SessionPrefs.androidDriver(activity))
         assertEquals("chosen-linux", SessionPrefs.linuxDriver(activity))
+    }
+
+    @Test fun sameFilenameFromTwoSourcesResolvesBySourceQualifiedIdentity() {
+        val first = TurnipReleases.Asset(
+            "first", "v1", "driver.zip", "https://github.com/first/repo/releases/download/v1/driver.zip", 1, false, "first",
+            "a".repeat(64), sourceId = "source-a", assetId = 11,
+        )
+        val second = TurnipReleases.Asset(
+            "second", "v1", "driver.zip", "https://github.com/second/repo/releases/download/v1/driver.zip", 1, false, "second",
+            "b".repeat(64), sourceId = "source-b", assetId = 22,
+        )
+        assertEquals(second, releaseAssetById(listOf(first, second), second.id))
+    }
+
+    @Test fun sourceChangeAfterAdoptionRollsBackWithoutRecording() {
+        var rolledBack = false
+        var recorded = false
+        assertTrue(runCatching {
+            finishRemoteDriverInstall(false, { rolledBack = true }, { recorded = true })
+        }.isFailure)
+        assertTrue(rolledBack)
+        assertFalse(recorded)
     }
 }

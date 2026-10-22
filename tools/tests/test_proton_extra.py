@@ -100,6 +100,29 @@ class ProtonExtraTest(unittest.TestCase):
             self.assertIn("droiddeck-proton-extra: installed DroidDeck-Proton 11-7.5\n", said.getvalue())
             self.assertEqual(EXTRA["installed"](str(tools)), ["DroidDeck-Proton 11-7.5"])
 
+    def test_archive_rejects_a_link_escaping_the_staging_tree(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tarball = Path(tmp) / "unsafe.tar.gz"
+            with tarfile.open(tarball, "w:gz") as tar:
+                link = tarfile.TarInfo("Proton/link")
+                link.type = tarfile.SYMTYPE
+                link.linkname = "../../outside"
+                tar.addfile(link)
+            with self.assertRaisesRegex(SystemExit, "unsafe archive link"):
+                EXTRA["validate_archive"](str(tarball))
+
+    def test_source_identity_namespaces_the_internal_steam_tool(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tree = Path(tmp) / "GE-Proton"
+            tree.mkdir()
+            config = tree / "compatibilitytool.vdf"
+            config.write_text('"compatibilitytools" { "compat_tools" { "GE-Proton" { "install_path" "." } } }')
+            identity = "%s-%s" % ("a" * 64, "b" * 64)
+            EXTRA["namespace_tool"](str(tree), identity)
+            rewritten = config.read_text()
+            self.assertIn('"GE-Proton--dd-%s"' % identity, rewritten)
+            self.assertNotIn('"GE-Proton" {', rewritten)
+
 
 if __name__ == "__main__":
     unittest.main()
