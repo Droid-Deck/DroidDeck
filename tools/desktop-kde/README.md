@@ -18,9 +18,11 @@ is a new tag and a `release.env` update.
 
 At run time the desktop is started by `tools/linuxfs/desktop/droiddeck-desktop` (the app stages it
 at every session): Plasma's own `startplasma-wayland`, with KWin nested in the app's compositor
-through `kwin_wayland_wrapper`. KWin composites in software (QPainter) - the Adreno node is not a
-DRM device - so games and emulators from the menu go through `droiddeck-gpu`, and Steam goes back
-to the app as a Steam session.
+through `kwin_wayland_wrapper`. The package's `kwin-compositor` marker selects OpenGL through
+Zink for KWin 6.8, which removed QPainter. Older packages retain their software compositor.
+On Android the wrapper explicitly selects the KGSL render node; the nested backend can use it
+when the host's dmabuf feedback cannot name a DRM device. Games and emulators from the menu go
+through `droiddeck-gpu`, and Steam goes back to the app as a Steam session.
 
 `kwin.env` pins the KWin version shared by the build and packaging jobs. `build-kwin.sh` builds that version's
 Wayland executable and library on a native ARM64 runner, using a disposable
@@ -30,6 +32,9 @@ by SHA-256 from KDE's official source inventory; `patches/0001-respect-nested-de
 lets Display Settings control the inner desktop scale independently of the outer window size.
 It keeps layer sizes, pointer/touch coordinates and the cursor in the same physical pixels.
 The behavior is enabled only with `DROIDDECK_NESTED_SCALE`, which the desktop script supplies.
+`0002-select-explicit-nested-render-node.patch` lets that nested backend use one explicitly
+selected `KWIN_RENDER_NODES` device when host feedback cannot identify it. It does not guess
+between GPUs or change normal KWin device selection.
 
 The desktop workflow replaces the same-version `kwin_wayland` executable and `libkwin.so`; the rest
 comes from the signature-checked Arch packages. `desktop-kde.kwin.txt` records the source, patch,
