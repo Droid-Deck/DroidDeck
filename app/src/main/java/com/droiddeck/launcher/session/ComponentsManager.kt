@@ -864,7 +864,8 @@ object ComponentsManager {
             val rev = Regex(Regex.escape(base) + "(-\\d+)?-linux\\.wcp")
             stable.filter { it.comp == n.comp && rev.matches(it.file) }
                 .maxWithOrNull { a, b -> ProtonExtras.compareVersions(a.file, b.file) }?.let { it to n }
-        }.toMap()
+        }.groupBy({ it.first }, { it.second })
+            .mapValues { (_, ns) -> ns.maxWith { a, b -> ProtonExtras.compareVersions(a.file, b.file) } }
     }
 
     internal fun allowedDownload(url: String) = DOWNLOAD_REPOS.any { url.startsWith("https://github.com/$it/releases/download/") }

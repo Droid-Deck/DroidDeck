@@ -55,6 +55,10 @@ class ComponentsNightlyCatalogTest {
         val nVkEc = item("DD-vkd3d-proton-arm64ec-3.0.1+455-nightly.wcp", "vkd3d", n)
         val pairs = ComponentsManager.nightlyPairs(listOf(dxvk, ec, gpl, fex, vk) + others + listOf(nDxvk, nEc, nGpl, nFex, nVk, nVkEc))
         assertEquals(mapOf(dxvk to nDxvk, ec to nEc, gpl to nGpl, fex to nFex, vk to nVk), pairs)
+        // Two nightlies for one stable build: the newer one wins.
+        val nDxvkNewer = item("DD-dxvk-3.1.1+154-nightly.wcp", "dxvk", n)
+        assertEquals(mapOf(dxvk to nDxvkNewer), ComponentsManager.nightlyPairs(listOf(dxvk, nDxvkNewer, nDxvk)))
+        assertEquals(mapOf(dxvk to nDxvkNewer), ComponentsManager.nightlyPairs(listOf(dxvk, nDxvk, nDxvkNewer)))
         // A nightly of a version with no stable build pairs with nothing.
         assertEquals(emptyMap<Any, Any>(), ComponentsManager.nightlyPairs(listOf(item("dxvk-3.1-linux.wcp", "dxvk", "Dxvk-Linux"), nDxvk)))
     }
