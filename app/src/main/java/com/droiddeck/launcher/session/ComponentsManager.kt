@@ -791,13 +791,13 @@ object ComponentsManager {
 
     private fun storePackage(context: Context, part: File, dest: File) {
         try {
-            if (dest.isFile && Hashes.sha256(dest).equals(Hashes.sha256(part), true)) return
+            if (dest.isFile && runCatching { Hashes.sha256(dest) }.getOrNull()?.equals(Hashes.sha256(part), true) == true) return
             if (dest.exists()) checkPackageUnused(context, loadState(context), dest.name)
-            File(launchDir(context), "store/" + safeName(dest.name.removeSuffix(".wcp"))).deleteRecursively()
             if (!part.renameTo(dest)) {
                 dest.delete()
                 check(part.renameTo(dest)) { "Could not store ${dest.name}" }
             }
+            File(launchDir(context), "store/" + safeName(dest.name.removeSuffix(".wcp"))).deleteRecursively()
         } finally {
             part.delete()
         }
