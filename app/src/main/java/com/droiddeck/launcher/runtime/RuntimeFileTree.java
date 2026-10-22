@@ -147,7 +147,7 @@ public final class RuntimeFileTree {
      * Returns the moved paths.
      */
     static java.util.List<String> carryUserData(File from, File to, boolean onlyMissing) throws IOException {
-        return carryUserData(from, to, onlyMissing, userPaths(from, to));
+        return carryUserData(from, to, onlyMissing, new java.util.ArrayList<>(userPaths(from, to)));
     }
 
     static java.util.List<String> carryUserData(File from, File to, boolean onlyMissing, java.util.List<String> paths) throws IOException {
