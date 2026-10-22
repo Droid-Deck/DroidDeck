@@ -59,6 +59,23 @@ class ThemeColorsTest {
         assertEquals(Color(0xFF03111F), ThemeColors.inkFor(0xFFFFFFFF.toInt(), 0xFFFFEB3B.toInt()))
     }
 
+    private fun contrast(a: Color, b: Color) = (maxOf(a.luminance(), b.luminance()) + 0.05f) / (minOf(a.luminance(), b.luminance()) + 0.05f)
+
+    @Test fun buttonTextIsReadableOnBothGradientColoursForAnyPair() {
+        val picks = listOf(0xFFFFEB3B, 0xFF1E3A8A, 0xFF0000FF, 0xFFFF0000, 0xFF00FF00, 0xFF808080, 0xFFFFFFFF, 0xFF000000, 0xFF8B5CF6, 0xFF22D3EE, 0xFFFF5722, 0xFF3F51B5)
+        for (a in picks) for (b in picks) {
+            val p = ThemeColors.palette(a.toInt(), b.toInt(), 0, 0)
+            assertTrue("${ThemeColors.hex(a.toInt())} ${ThemeColors.hex(b.toInt())}", contrast(p.onPrimary, p.primary) >= 2.99f && contrast(p.onPrimary, p.primary2) >= 2.99f)
+        }
+    }
+
+    @Test fun onlyTheStopThatFailsIsNudged() {
+        val p = ThemeColors.palette(0xFFFFEB3B.toInt(), 0xFF1E3A8A.toInt(), 0, 0)
+        assertEquals(Color(0xFFFFEB3B), p.primary)
+        assertTrue(p.primary2 != Color(0xFF1E3A8A))
+        assertEquals(Color(0xFF03111F), p.onPrimary)
+    }
+
     @Test fun thePaletteKeepsTheTwoColoursAndStaysDarkAndReadable() {
         val p = ThemeColors.palette(0xFF8B5CF6.toInt(), 0xFF22D3EE.toInt(), 0, 0)
         assertEquals(Color(0xFF8B5CF6), p.primary)

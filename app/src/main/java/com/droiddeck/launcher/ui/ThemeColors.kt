@@ -84,15 +84,37 @@ internal object ThemeColors {
         return if (worst(DARK_INK) >= worst(Color.White)) DARK_INK else Color.White
     }
 
+    private const val MIN_CONTRAST = 3f
+
+    /** The colour nudged just enough, lighter for dark text and darker for white text, to give [ink] a readable contrast on it. */
+    private fun fitTo(ink: Color, argb: Int): Int {
+        fun short(color: Int) = contrast(ink, Color(color)) < MIN_CONTRAST
+        if (!short(argb)) return argb
+        val hsv = toHsv(argb)
+        var v = hsv.v
+        var s = hsv.s
+        var out = argb
+        if (ink == DARK_INK) {
+            while (v < 1f && short(out)) { v = min(1f, v + 0.04f); out = fromHsv(hsv.h, s, v) }
+            while (s > 0f && short(out)) { s = max(0f, s - 0.04f); out = fromHsv(hsv.h, s, v) }
+        } else {
+            while (v > 0f && short(out)) { v = max(0f, v - 0.04f); out = fromHsv(hsv.h, s, v) }
+        }
+        return out
+    }
+
     fun palette(primary: Int, secondary: Int, label: Int, detail: Int): Palette {
-        val first = readable(primary)
-        val second = readable(secondary)
+        val seen = readable(primary)
+        val seenSecond = readable(secondary)
+        val ink = inkFor(seen, seenSecond)
+        val first = fitTo(ink, seen)
+        val second = fitTo(ink, seenSecond)
         return Palette(
             Themes.GRADIENT, label, detail,
             background = tint(first, 0.50f, 0.045f), surface = tint(first, 0.45f, 0.075f), surfaceVariant = tint(first, 0.42f, 0.115f),
             line = tint(first, 0.40f, 0.16f), line2 = tint(first, 0.36f, 0.22f),
             onBackground = tint(first, 0.05f, 0.97f), onSurfaceVariant = tint(first, 0.16f, 0.68f),
-            primary = Color(first), primary2 = Color(second), onPrimary = inkFor(first, second), signal = Color(first),
+            primary = Color(first), primary2 = Color(second), onPrimary = ink, signal = Color(first),
             good = Color(0xFF4CD37F),
         )
     }
