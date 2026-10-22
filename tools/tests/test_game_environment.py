@@ -1015,6 +1015,8 @@ class GameLocaleTest(unittest.TestCase):
                 self.assertTrue(MODULE["ensure_locale"]("ja_JP.UTF-8"))
                 self.assertTrue(MODULE["ensure_locale"]("ja_JP.UTF-8"))
                 self.assertEqual(fake.calls, [["localedef", "-i", "ja_JP", "-f", "UTF-8", "ja_JP.UTF-8"]])
+                self.assertTrue(MODULE["ensure_locale"]("sr_RS.UTF-8@latin"))
+                self.assertEqual(fake.calls[-1], ["localedef", "-i", "sr_RS@latin", "-f", "UTF-8", "sr_RS.UTF-8@latin"])
                 failing = Fake(1)
                 g["subprocess"] = failing
                 self.assertFalse(MODULE["ensure_locale"]("ru_RU.UTF-8"))

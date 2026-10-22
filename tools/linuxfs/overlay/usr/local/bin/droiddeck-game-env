@@ -237,6 +237,9 @@ def ensure_locale(name):
     if stamp.exists():
         return True
     language, _, encoding = name.partition(".")
+    if "@" in encoding:
+        encoding, modifier = encoding.split("@", 1)
+        language += "@" + modifier
     try:
         built = subprocess.run(["localedef", "-i", language, "-f", encoding or "UTF-8", name],
                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=120)
