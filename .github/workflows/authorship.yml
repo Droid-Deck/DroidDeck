@@ -1,0 +1,43 @@
+name: Human authorship
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, edited, ready_for_review]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  authorship:
+    name: Human authorship
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Check the proposed or merged history
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = pull_request_target ]; then
+            gh auth setup-git
+            git fetch --no-tags origin "refs/pull/$PR_NUMBER/head"
+            base=$(git merge-base HEAD FETCH_HEAD)
+            python3 tools/release/check_authorship.py "$base..FETCH_HEAD" --event "$GITHUB_EVENT_PATH"
+          elif [ "$EVENT_NAME" = push ] && [ "$BEFORE" != 0000000000000000000000000000000000000000 ]; then
+            python3 tools/release/check_authorship.py "$BEFORE..$AFTER"
+          else
+            python3 tools/release/check_authorship.py HEAD
+          fi
