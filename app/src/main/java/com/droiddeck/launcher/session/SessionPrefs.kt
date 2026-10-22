@@ -1070,4 +1070,18 @@ object SessionPrefs {
     fun setGameStorage(context: Context, path: String, label: String) {
         prefs(context).edit().putString("gameStorage", path).putString("gameStorageLabel", label).apply()
     }
+
+    /** A USB drive mounted with root ([UsbRootMount]); off unless chosen. */
+    fun usbRootEnabled(context: Context): Boolean = prefs(context).getBoolean("usbRoot", false)
+
+    fun setUsbRootEnabled(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("usbRoot", on).apply()
+    }
+
+    /** The chosen drive's filesystem UUID. */
+    fun usbRootDrive(context: Context): String = prefs(context).getString("usbRootDrive", "") ?: ""
+
+    fun setUsbRootDrive(context: Context, uuid: String) {
+        prefs(context).edit().putString("usbRootDrive", uuid).apply()
+    }
 }

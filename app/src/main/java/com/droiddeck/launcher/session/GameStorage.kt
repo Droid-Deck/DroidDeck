@@ -23,6 +23,41 @@ object GameStorage {
         }
     }
 
+    /**
+     * USB drives vold mounted at /mnt/media_rw but hides from apps (not SD cards, which are visible).
+     * Usable without root once All files access gives the app the external_storage group.
+     */
+    private fun hiddenUsb(context: Context): List<File> {
+        val visible = visibleVolumes(context)
+        return try {
+            File("/proc/self/mountinfo").readLines().mapNotNull { it.split(' ').getOrNull(4) }
+                .filter { it.startsWith("/mnt/media_rw/") && it.count { c -> c == '/' } == 3 && it.substringAfterLast('/') !in visible }
+                .distinct().map(::File)
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    /** UUIDs of volumes the app already has a /storage/<uuid> path for (SD cards), offered through that. */
+    fun visibleVolumes(context: Context): Set<String> =
+        context.getExternalFilesDirs(null).orEmpty().filterNotNull()
+            .mapNotNull { it.path.removePrefix("/storage/").substringBefore('/').takeIf { u -> u != "emulated" } }.toSet()
+
+    /** A hidden USB drive is plugged in but the app may not use it yet. */
+    fun usbNeedsAccess(context: Context): Boolean =
+        android.os.Build.VERSION.SDK_INT >= 30 && hiddenUsb(context).any { !it.canWrite() }
+
+    /**
+     * The USB drive, by whichever route is on: the root mount, or vold's own with All files access.
+     * One drive at a time: the first.
+     */
+    fun usbDrive(context: Context): File? =
+        if (SessionPrefs.usbRootEnabled(context)) UsbRootMount.path(context).takeIf { UsbRootMount.mounted(context) }
+        else hiddenUsb(context).firstOrNull { it.canWrite() }
+
+    fun usbLabel(context: Context): String =
+        UsbRootMount.label?.takeIf { SessionPrefs.usbRootEnabled(context) } ?: context.getString(R.string.usb_root_volume)
+
     fun free(dir: File): String = try {
         FileUtils.sizeToString(StatFs(dir.path).availableBytes)
     } catch (e: Exception) {

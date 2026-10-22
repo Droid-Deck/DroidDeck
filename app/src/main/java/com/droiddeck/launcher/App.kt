@@ -43,6 +43,10 @@ class App : Application() {
         com.droiddeck.launcher.stores.StoresState.register(com.droiddeck.launcher.stores.amazon.AmazonBackend)
         com.droiddeck.launcher.stores.StoresState.register(com.droiddeck.launcher.stores.itch.ItchBackend)
         com.droiddeck.launcher.stores.StoresState.register(com.droiddeck.launcher.stores.xbox.XboxBackend)
+        if (com.droiddeck.launcher.session.SessionPrefs.usbRootEnabled(this)) {
+            com.droiddeck.launcher.session.UsbRootMount.watch(this)
+            Thread({ com.droiddeck.launcher.session.UsbRootMount.mount(this) }, "usb-root").start()
+        }
     }
 
     /** Fetches the packs an existing setup already relies on, so the first use after an update does not wait. */
