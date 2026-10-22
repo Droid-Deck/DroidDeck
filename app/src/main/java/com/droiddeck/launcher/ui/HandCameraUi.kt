@@ -1,9 +1,11 @@
 package com.droiddeck.launcher.ui
 
+import com.droiddeck.launcher.core.AddonPack
 import android.Manifest
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
+import android.text.format.Formatter
 import android.speech.tts.TextToSpeech
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -70,6 +72,7 @@ import com.droiddeck.launcher.handtracking.Advice
 import com.droiddeck.launcher.handtracking.BodyPose
 import com.droiddeck.launcher.handtracking.HandCamera
 import com.droiddeck.launcher.handtracking.HandTracking
+import com.droiddeck.launcher.handtracking.TrackingPack
 import com.droiddeck.launcher.handtracking.Landmark
 import com.droiddeck.launcher.handtracking.TrackingCameras
 import kotlinx.coroutines.delay
@@ -186,8 +189,24 @@ internal fun HandCameraRows(host: MenuHost, track: (String) -> Modifier, inSessi
             })
         !s.permitted -> ActionRow(stringResource(R.string.hand_camera_access), stringResource(R.string.hand_camera_access_hint),
             stringResource(R.string.hand_camera_allow_button), { ask.launch(Manifest.permission.CAMERA) })
+        !s.downloaded -> TrackingPackRow()
         !inSession -> ActionRow(stringResource(R.string.hand_camera_placement), stringResource(R.string.hand_camera_placement_hint),
             stringResource(R.string.hand_camera_check), { HandTracking.requestCheck() })
+    }
+}
+
+@Composable
+private fun TrackingPackRow() {
+    val context = LocalContext.current
+    val pack by TrackingPack.state.collectAsState()
+    val size = Formatter.formatShortFileSize(context, TrackingPack.size)
+    when (val now = pack) {
+        is AddonPack.State.Downloading -> ActionRow(stringResource(R.string.tracking_pack_title),
+            stringResource(R.string.tracking_pack_hint, size), stringResource(R.string.tracking_pack_download), {}, progress = now.progress)
+        AddonPack.State.Failed -> ActionRow(stringResource(R.string.tracking_pack_title),
+            stringResource(R.string.tracking_pack_failed), stringResource(R.string.tracking_pack_retry), { TrackingPack.ensure(context) })
+        else -> ActionRow(stringResource(R.string.tracking_pack_title),
+            stringResource(R.string.tracking_pack_hint, size), stringResource(R.string.tracking_pack_download), { TrackingPack.ensure(context) })
     }
 }
 

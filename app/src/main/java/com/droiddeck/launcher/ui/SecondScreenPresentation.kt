@@ -111,9 +111,11 @@ class SecondScreenPresentation(
         keyboardHost = null
         closeTerminal()
         root.removeAllViews()
-        if (currentMode == SecondScreenMode.NONE) return
+        val mode = if (currentMode == SecondScreenMode.DECK_CONTROLS && !SessionState.deckPad) SecondScreenMode.NONE
+        else currentMode
+        if (mode == SecondScreenMode.NONE) return
 
-        when (currentMode) {
+        when (mode) {
             SecondScreenMode.KEYBOARD_TRACKPAD -> renderKeyboardAndTrackpad()
             SecondScreenMode.TERMINAL -> renderTerminal()
             SecondScreenMode.DECK_CONTROLS -> root.addView(DeckControlsPanel(context, onClose, onSteamMenu, onQam, pad), weightParams())

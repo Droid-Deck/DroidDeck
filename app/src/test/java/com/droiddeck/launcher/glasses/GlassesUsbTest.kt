@@ -209,6 +209,14 @@ class GlassesUsbTest {
         assertEquals(null, Glasses.deviceModel(device(0x043e, 0x1234, "XREAL 1S")))
     }
 
+    @Test fun rokidMaxRoutesThroughItsOwnModelAndSharedVendorIdNeedsTheName() {
+        val max = Glasses.deviceModel(device(0x162f, 0x04d2, "Rokid Max"))
+        assertTrue(max is RokidModel)
+        assertEquals("Rokid Max", max?.name)
+        assertEquals(null, Glasses.deviceModel(device(0x162f, 0x04d2, "Generic HID")))
+        assertTrue(Glasses.isGlassesDisplayName("Rokid Max"))
+    }
+
     private fun device(pid: Int, vid: Int = VitureProtocol.VENDOR_ID, name: String = "VITURE device"): UsbDevice = ReflectionHelpers.callConstructor(
         UsbDevice::class.java,
         from(String::class.java, "/dev/bus/usb/$pid"),

@@ -30,7 +30,7 @@
     <string name="frame_gen_title">Geração de quadros</string>
     <string name="frame_gen_hint">Selecione o modo de geração de quadros</string>
     <string name="frame_gen_off">Desativada</string>
-    <string name="frame_gen_winfg">Win-FG %1$d×</string>
+    <string name="frame_gen_ddfg">DD-FG %1$d×</string>
     <string name="frame_gen_lsfg">LSFG %1$d×</string>
     <string name="frame_gen_lsfg_adaptive">LSFG Adaptativo %1$d</string>
     <string name="lsfg_needs_steam">Requer o Lossless Scaling na Steam</string>
@@ -176,6 +176,8 @@
     <string name="app_fex_x86">%1$s pelo FEX</string>
     <string name="app_fex_not_ready">Este programa é feito para PCs %1$s e roda pelo FEX, que ainda não está configurado. Abra a Steam uma vez com a sessão iniciada: o DroidDeck faz com que ela baixe o FEX e o Steam Linux Runtime necessários, e então isto abre.</string>
     <string name="session_end_program">Este programa</string>
+    <string name="session_end_steam_download">Não foi possível baixar o cliente Steam. Sua rede ou VPN pode estar bloqueando os servidores da Steam; verifique a conexão e tente novamente.</string>
+    <string name="session_end_steam_setup">Não foi possível configurar o cliente Steam. Verifique a conexão e o espaço livre e tente novamente.</string>
     <string name="session_end_fex_missing">%1$s é feito para PCs x86 e roda pelo FEX, que ainda não está instalado. Abra a Steam uma vez com a sessão iniciada e deixe-a baixar o FEX e o Steam Linux Runtime; depois, abra isto de novo.</string>
     <string name="add_app_flatpak_hint">Um ID de app do Flathub ou a página dele no Flathub. O Flatpak é configurado antes, se ainda não estiver.</string>
     <string name="add_app_file">Arquivo</string>
@@ -501,7 +503,9 @@
     <string name="comp_delete_original_title">Excluir este original?</string>
     <string name="comp_delete_original_body">Este %1$s original é de uma versão anterior de %2$s. O original da versão atual é sempre mantido.</string>
     <string name="comp_nightlies_count">Nas Nightlies · %1$d</string>
-    <string name="comp_refresh_to_list">Atualize para listar os pacotes nas Nightlies.</string>
+    <string name="comp_channel_stable">Estável</string>
+    <string name="comp_channel_nightly">Nightly</string>
+    <string name="comp_refresh_to_list">Atualize para listar os pacotes nas Nightlies e no DroidDeck.</string>
     <string name="comp_nothing_new">Nada novo desde a última verificação.</string>
     <string name="comp_import_wcp">Importar .wcp</string>
     <string name="comp_restore_original">Restaurar o original deste Proton</string>
@@ -537,7 +541,7 @@
     <string name="perf_gpuclock_hint">Só em Adreno. Menos engasgos, mais gasto de bateria e mais calor.</string>
     <string name="perf_fixes">Correções da sessão</string>
     <string name="perf_sysmem">Turnip: renderização sysmem</string>
-    <string name="perf_sysmem_hint">Mais rápido para a Steam e a maioria dos jogos. Obrigatório nas Adreno 710/720/722.</string>
+    <string name="perf_sysmem_hint">Mais rápido para o cliente da Steam; nos jogos, o driver escolhe a cada passagem entre renderização em blocos ou na memória do sistema. Obrigatório nas Adreno 710/720/722.</string>
     <string name="perf_xalia">Pular o assistente xalia da Steam</string>
     <string name="perf_fastsync">droiddeck-ntsync (experimental)</string>
     <string name="perf_fastsync_hint">Um substituto em espaço de usuário para o driver ntsync do Linux, para testes. Enquanto estiver ativado, o Proton o usa no lugar do droiddeck-esync e do droiddeck-fsync. Funciona com o Proton Experimental ARM64, o GE-Proton e o proton-cachyos. Vale a partir da próxima sessão.</string>
@@ -579,6 +583,16 @@
     <string name="drawer_prev_page">Página anterior</string>
     <string name="drawer_next_page">Próxima página</string>
     <string name="drawer_hud">HUD de desempenho</string>
+    <string name="drawer_hud_fps">Taxa de quadros</string>
+    <string name="drawer_hud_battery">Temperatura da bateria</string>
+    <string name="drawer_hud_graph">Gráfico de desempenho</string>
+    <string name="drawer_hud_color">Cor</string>
+    <string name="drawer_hud_color_mint">Menta</string>
+    <string name="drawer_hud_color_white">Branco</string>
+    <string name="drawer_hud_color_sky">Céu</string>
+    <string name="drawer_hud_color_amber">Âmbar</string>
+    <string name="drawer_hud_color_violet">Violeta</string>
+    <string name="drawer_hud_opacity">Opacidade</string>
     <string name="drawer_scaling">Modo de escala</string>
     <string name="drawer_scaling_sharpness">Nitidez da escala</string>
     <string name="drawer_effects">Efeitos de tela</string>
@@ -721,6 +735,9 @@
     <string name="setup_app_scale_default">%1$d%% (padrão)</string>
     <string name="setup_theme">Tema</string>
     <string name="setup_theme_hint">Aparência do inicializador</string>
+    <string name="setup_launcher_icon">Ícone do app</string>
+    <string name="setup_launcher_icon_dark">Escuro</string>
+    <string name="setup_launcher_icon_light">Claro</string>
     <string name="setup_home">Usar como tela inicial</string>
     <string name="setup_home_on">O DroidDeck pode ser o app de início</string>
     <string name="setup_home_off">O DroidDeck nunca é oferecido como app de início</string>
@@ -1030,6 +1047,9 @@
     <string name="games_added">Jogo adicionado</string>
     <string name="games_custom">Jogo personalizado</string>
     <string name="games_store_storage">Armazenamento de jogos</string>
+    <string name="games_uninstall_body">Apaga os arquivos e o remove da Steam.</string>
+    <string name="games_remove_title">Remover %1$s?</string>
+    <string name="games_remove_body">Apaga o atalho. Os arquivos do jogo ficam.</string>
     <string name="gpu_auto_hint">O melhor par para esta GPU, sempre atualizado</string>
     <string name="gpu_manual_hint">Escolha um par você mesmo</string>
     <string name="gpu_checking">Procurando drivers…</string>
@@ -1092,7 +1112,7 @@
     <string name="second_terminal_not_ready">A sessão Linux ainda não está pronta para um terminal.</string>
     <string name="rail_steam">Steam</string>
     <string name="rail_games">Jogos</string>
-    <string name="rail_desktop">Desktop</string>
+    <string name="rail_desktop">Área de trabalho</string>
     <string name="rail_store">Loja</string>
     <string name="rail_components">Componentes</string>
     <string name="rail_apps">Apps</string>
@@ -1772,7 +1792,8 @@
     <string name="cmgr_original_kept">O original da versão instalada é mantido: é o caminho de volta.</string>
     <string name="cmgr_not_stored">Não armazenado</string>
     <string name="cmgr_deleted_original">Original do %1$s de %2$s excluído.</string>
-    <string name="cmgr_nightlies_only">Os downloads vêm só das versões Nightlies</string>
+    <string name="cmgr_nightlies_only">Os downloads vêm só das versões Nightlies e DroidDeck</string>
+    <string name="cmgr_nightly_replaced">Falha no download: esta versão nightly pode ter sido substituída por uma mais nova. Atualize a lista e tente de novo.</string>
     <string name="cmgr_list_predates_checksums">Esta lista de pacotes é anterior às somas de verificação - atualize-a e tente de novo</string>
     <string name="cmgr_checksum_mismatch">A soma de verificação não confere</string>
 
@@ -1931,9 +1952,10 @@
     <string name="stores_title">Lojas</string>
     <string name="stores_settings">Configurações das lojas</string>
     <string name="stores_settings_eyebrow">Configurações</string>
+    <string name="stores_tabs_arrange">Organizar abas</string>
+    <string name="stores_tabs_arrange_done">Concluído</string>
     <string name="stores_chip_signed_out">(sem login)</string>
     <string name="stores_tab_store">Loja</string>
-    <string name="stores_tab_installed">Instalados</string>
     <string name="stores_tab_library">Biblioteca</string>
     <string name="stores_tab_all">Todos</string>
     <string name="stores_tab_downloads">Downloads</string>
@@ -1945,10 +1967,8 @@
     <string name="stores_signout_stay">Continuar conectado</string>
     <string name="stores_signout_go">Sair</string>
     <string name="stores_search_catalog">Pesquisar no catálogo de %1$s…</string>
-    <string name="stores_search_installed">Pesquisar jogos instalados…</string>
     <string name="stores_search_library">Pesquisar na sua biblioteca…</string>
     <string name="stores_search_open">Pesquisar</string>
-    <string name="stores_installed_empty">Nada instalado</string>
     <string name="stores_library_loading">Carregando</string>
     <string name="stores_nothing_matches">Nenhum jogo</string>
     <string name="stores_shelves_loading">Carregando a loja…</string>
@@ -1967,7 +1987,19 @@
     <string name="stores_view_on">Ver em %1$s</string>
     <string name="stores_buy_price">Comprar · %1$s</string>
     <string name="stores_installed_chip">Instalado</string>
+    <string name="stores_section_installed">Instalado</string>
+    <string name="stores_section_not_installed">Não instalado</string>
     <string name="stores_in_library">Na biblioteca</string>
+    <string name="stores_itch_key">Chave de API</string>
+    <string name="stores_itch_get_key">Obter uma chave</string>
+    <string name="stores_itch_key_rejected">Chave rejeitada</string>
+    <string name="stores_itch_not_owned">Não está na sua biblioteca do itch.io</string>
+    <string name="stores_itch_no_upload">Sem download para Windows deste jogo</string>
+    <string name="stores_itch_no_exe">Nenhum jogo para Windows encontrado no download</string>
+    <string name="stores_itch_extract_failed">Não foi possível extrair o download (código %1$d)</string>
+    <string name="stores_itch_no_catalog">O itch.io não respondeu</string>
+    <string name="stores_itch_archive">Arquivos %1$s não são suportados</string>
+    <string name="stores_itch_download_failed">O itch.io respondeu HTTP %1$d</string>
     <string name="stores_free">Grátis</string>
     <string name="stores_resume">Retomar</string>
     <string name="stores_refresh">Atualizar</string>
@@ -1981,6 +2013,7 @@
     <string name="stores_sort_release_date">Data de lançamento</string>
     <string name="stores_view_list">Vista de lista</string>
     <string name="stores_view_cards">Vista de cartões</string>
+    <string name="stores_view_capsules">Visualização de capas</string>
     <string name="stores_show_mature">Mostrar conteúdo adulto</string>
     <string name="epic_card_title">Epic</string>
     <string name="epic_card_eos">EOS</string>
@@ -2016,6 +2049,9 @@
     <string name="cloud_last_sync">Última sincronização: %1$s</string>
     <string name="cloud_never">Ainda não sincronizado</string>
     <string name="cloud_done">%1$d arquivos</string>
+    <string name="cloud_up_to_date">Já está atualizado</string>
+    <string name="cloud_signed_out">Entre na loja para sincronizar os saves</string>
+    <string name="cloud_not_synced">Os saves não foram sincronizados</string>
     <string name="stores_eyebrow_installed">instalado</string>
     <string name="stores_eyebrow_library">na sua biblioteca</string>
     <string name="stores_eyebrow_store">loja</string>
@@ -2144,7 +2180,7 @@
     <string name="logo_pos_size">Tamanho</string>
     <string name="logo_pos_save">Salvar</string>
     <string name="logo_pos_reset">Voltar ao padrão</string>
-    <string name="logo_pos_hint">É desenhado sobre o plano de fundo do jogo, como a Steam faz. A posição exata pode variar alguns pixels.</string>
+    <string name="logo_pos_hint">Esta posição exata pode variar alguns pixels.</string>
     <string name="logo_pos_no_logo">Este jogo ainda não tem logo. Escolha um em Logo para vê-lo aqui.</string>
     <string name="logo_pos_failed">Não foi possível salvar a posição do logo. Tente de novo.</string>
     <string name="art_background">Fundo</string>
@@ -2318,7 +2354,7 @@
     <string name="touch_done">Concluído</string>
     <string name="touch_save_failed">Não foi possível salvar o layout de toque</string>
     <string name="touch_saved">Layout de toque salvo na Steam</string>
-    <string name="touch_app_id">App %1$d</string>
+    <string name="touch_app_id">App %1$s</string>
     <string name="touch_label_hint">Rótulo (opcional)</string>
     <string name="touch_icons_missing">Os ícones da Steam não foram encontrados</string>
     <plurals name="touch_icons_found">
@@ -2411,6 +2447,15 @@
     <string name="glasses_vr_fov">Campo de visão do SteamVR</string>
     <string name="glasses_vr_fov_hint">Menor aproxima o SteamVR e preenche os óculos; maior mostra mais ao seu redor.</string>
     <string name="glasses_playing">Jogando em %1$s</string>
+    <string name="glasses_phone_recenter">Recentralizar</string>
+    <string name="glasses_phone_steamvr_menu">Menu do SteamVR</string>
+    <string name="glasses_phone_switch_sticks">Analógicos: mãos ⇄ jogo</string>
+    <string name="glasses_phone_controllers">Controles: %1$s</string>
+    <string name="glasses_phone_keyboard">Teclado</string>
+    <string name="glasses_phone_session_menu">Menu da sessão</string>
+    <string name="glasses_phone_stop_steamvr">Parar o SteamVR</string>
+    <string name="glasses_phone_brightness">Brilho %1$d / %2$d</string>
+    <string name="glasses_phone_battery">Bateria %1$d%% · %2$d °C</string>
     <string name="glasses_calibration">Calibração do rastreamento</string>
     <string name="glasses_calibration_hint">Reduz a deriva e alinha a referência de nível.</string>
     <string name="glasses_calibration_saved_hint">A calibração salva é aplicada a estes óculos.</string>
@@ -2613,32 +2658,39 @@
     <string name="storage_play_anyway">Jogar assim mesmo</string>
     <plurals name="storage_games_installed">
         <item quantity="one">%d instalado</item>
+        <item quantity="many">%d instalados</item>
         <item quantity="other">%d instalados</item>
     </plurals>
     <plurals name="storage_games_on_sd">
         <item quantity="one">%d no cartão SD</item>
+        <item quantity="many">%d no cartão SD</item>
         <item quantity="other">%d no cartão SD</item>
     </plurals>
     <plurals name="storage_tools_count">
         <item quantity="one">%d ferramenta</item>
+        <item quantity="many">%d ferramentas</item>
         <item quantity="other">%d ferramentas</item>
     </plurals>
     <plurals name="storage_item_leftovers_detail">
         <item quantity="one">Pastas de prefixo vazias e cache de shaders de %d jogo</item>
+        <item quantity="many">Pastas de prefixo vazias e cache de shaders de %d jogos</item>
         <item quantity="other">Pastas de prefixo vazias e cache de shaders de %d jogos</item>
     </plurals>
     <plurals name="storage_item_leftovers_unsure_detail">
         <item quantity="one">O prefixo de %d jogo ainda tem arquivos, que podem incluir saves locais. Se precisar deles, faça uma cópia antes.</item>
+        <item quantity="many">Os prefixos de %d jogos ainda têm arquivos, que podem incluir saves locais. Se precisar deles, faça uma cópia antes.</item>
         <item quantity="other">Os prefixos de %d jogos ainda têm arquivos, que podem incluir saves locais. Se precisar deles, faça uma cópia antes.</item>
     </plurals>
     <plurals name="storage_tag_games">
         <item quantity="one">%d jogo</item>
+        <item quantity="many">%d jogos</item>
         <item quantity="other">%d jogos</item>
     </plurals>
     <string name="storage_tool_default_proton">Proton padrão do DroidDeck</string>
     <string name="storage_tool_proton">Opção Proton 11 do DroidDeck</string>
     <plurals name="storage_tool_custom_games">
         <item quantity="one">Usado por %d jogo</item>
+        <item quantity="many">Usado por %d jogos</item>
         <item quantity="other">Usado por %d jogos</item>
     </plurals>
     <string name="storage_legend_components">Componentes</string>
@@ -2682,16 +2734,18 @@
     <string name="storage_flatpak_uninstall_body">Remove o app (%1$s) e os runtimes que mais ninguém usa. Os dados dele na pasta pessoal ficam.</string>
     <plurals name="storage_components_count">
         <item quantity="one">%d pacote</item>
+        <item quantity="many">%d pacotes</item>
         <item quantity="other">%d pacotes</item>
     </plurals>
     <plurals name="storage_desktop_apps">
         <item quantity="one">%d app</item>
+        <item quantity="many">%d apps</item>
         <item quantity="other">%d apps</item>
     </plurals>
     <string name="boot_movie">Vídeo de inicialização</string>
     <string name="boot_movie_video">Vídeo</string>
     <string name="boot_movie_droiddeck">DroidDeck · %1$d fps</string>
-    <string name="boot_movie_note">60 fps fica mais fluido, mas usa mais CPU enquanto o Steam inicia. Um vídeo de inicialização escolhido nas configurações do Steam tem prioridade.</string>
+    <string name="boot_movie_note">60 fps fica mais fluido, mas usa mais CPU enquanto o Steam inicia. Um vídeo escolhido nas configurações do Steam também aparece aqui.</string>
     <string name="boot_movie_sound">Som</string>
     <string name="boot_movie_custom">Seu próprio vídeo</string>
     <string name="boot_movie_custom_hint">MP4, MOV, MKV ou WebM. Outros formatos e arquivos acima de %1$d MB são convertidos para WebM 720p no aparelho, até %2$d segundos.</string>
@@ -2705,6 +2759,51 @@
     <string name="boot_movie_converting_started">Convertendo %1$s para o Steam. Mantenha o DroidDeck aberto.</string>
     <string name="boot_movie_unsupported">Este aparelho não consegue decodificar esse vídeo.</string>
     <string name="boot_movie_import_failed">Não foi possível importar esse vídeo</string>
+    <string name="boot_movie_remove_confirm">Remover %1$s?</string>
+    <string name="boot_movie_remove_confirm_body">Isso exclui o vídeo do DroidDeck e da pasta de vídeos do Steam.</string>
+    <string name="boot_movie_tab_installed">Instalados</string>
+    <string name="boot_movie_tab_import">Importar</string>
+    <string name="boot_movie_tab_repo">SteamDeckRepo</string>
+    <string name="boot_movie_tab_sound">Som</string>
+    <string name="boot_movie_installed">Vídeos instalados</string>
+    <string name="boot_movie_browse">Explorar</string>
+    <string name="boot_movie_source_droiddeck">DroidDeck</string>
+    <string name="boot_movie_source_import">Importado</string>
+    <string name="boot_movie_source_repo">SteamDeckRepo</string>
+    <string name="boot_movie_source_steam">Steam</string>
+    <string name="boot_movie_source_pointshop">Loja de Pontos</string>
+    <string name="boot_movie_report">Relatório dos filmes de inicialização</string>
+    <string name="boot_movie_report_hint">Salva em um arquivo de texto o que o DroidDeck e o Steam sabem sobre os filmes de inicialização, para anexar a um relatório de bug.</string>
+    <string name="boot_movie_report_save">Salvar</string>
+    <string name="boot_movie_report_saved">Salvo em %1$s</string>
+    <string name="boot_movie_report_failed">Não foi possível salvar o relatório.</string>
+    <string name="boot_movie_volume">Volume</string>
+    <string name="boot_movie_length">Duração</string>
+    <string name="boot_movie_seconds">%1$d s</string>
+    <string name="boot_movie_length_hint">Quantos segundos do vídeo são reproduzidos. Tudo o que for mais longo é cortado no final.</string>
+    <string name="boot_movie_repo_search">Pesquisar no SteamDeckRepo</string>
+    <string name="boot_movie_repo_all">Todos os dispositivos</string>
+    <string name="boot_movie_repo_deck">Steam Deck</string>
+    <string name="boot_movie_repo_machine">Steam Machine</string>
+    <string name="boot_movie_repo_trending">Em alta</string>
+    <string name="boot_movie_repo_downloads">Mais baixados</string>
+    <string name="boot_movie_repo_likes">Mais curtidos</string>
+    <string name="boot_movie_repo_newest">Mais recentes</string>
+    <string name="boot_movie_repo_failed">Não foi possível acessar o SteamDeckRepo</string>
+    <string name="boot_movie_repo_retry">Tentar novamente</string>
+    <string name="boot_movie_repo_empty">Nenhum vídeo encontrado</string>
+    <string name="boot_movie_repo_install">Instalar</string>
+    <string name="boot_movie_repo_use">Usar</string>
+    <string name="boot_movie_in_use">Em uso</string>
+    <string name="boot_movie_repo_installed">%1$s instalado</string>
+    <string name="boot_movie_repo_download_failed">Não foi possível baixar esse vídeo</string>
+    <string name="boot_movie_repo_previous">Anterior</string>
+    <string name="boot_movie_repo_next">Próxima</string>
+    <string name="boot_movie_repo_page">Página %1$d</string>
+    <string name="boot_movie_repo_clear">Limpar</string>
+    <string name="boot_movie_repo_go_to_page">Ir para a página</string>
+    <string name="boot_movie_repo_preview">Pré-visualizar</string>
+    <string name="boot_movie_repo_preview_failed">Não foi possível reproduzir a pré-visualização</string>
     <string name="glasses_experimental">Câmeras Luma Ultra — Experimental</string>
     <string name="glasses_joycons">Rastreamento de posição do Joy-Con</string>
     <string name="glasses_joycons_hint">Use as câmeras dos óculos inteligentes para posicionar seus controles Joy-Con emparelhados. A rotação e os comandos dos botões vêm dos controles Joy-Con. A posição é estimada quando seus pulsos estão escondidos. Substitui os controles operados com as mãos nuas e pausa o rastreamento da câmera do telefone. Aponte os controles Joy-Con para frente ao conectar ou redefinir o centro de rastreamento.</string>
@@ -2877,7 +2976,6 @@
     <string name="spatial_hands_wait_stable">Aguardando rastreamento de cabeça estável; redefina o centro de rastreamento se solicitado.</string>
     <string name="spatial_old_frame">A observação da câmera é muito antiga; esperando por um novo par</string>
     <string name="spatial_fit_ready">Ajustar %1$.2f px. Meça a distância selecionada da câmera esquerda até o centro do alvo de calibração e valide.</string>
-    <string name="spatial_opencv_error">OpenCV indisponível: %1$s</string>
     <string name="spatial_restored">%1$d visualizações salvas restauradas. Calcule a calibração para tentar novamente ou inicie um novo conjunto para capturar mais.</string>
     <string name="spatial_captured">Capturado %1$d/24 visualizações. Mantenha o alvo de calibração fixo; mova os óculos inteligentes para a próxima visualização.</string>
     <string name="spatial_capture_corners">Captura rejeitada: %1$d/12 cantos necessários visíveis em ambas as câmeras. Mostre mais do alvo de calibração, fique imóvel e tente novamente.</string>
