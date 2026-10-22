@@ -5,6 +5,8 @@ import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -44,6 +46,23 @@ class ScreenKeysTest {
             forwarded,
         )
         assertEquals(listOf(KeyEvent.KEYCODE_W to true, KeyEvent.KEYCODE_W to false), sent)
+    }
+
+    @Test fun gestureRecognizerKeepsOneSplitTargetOwnerUntilItsStreamEnds() {
+        val gate = GestureTouchStreamGate()
+        fun accepts(source: GestureTouchStreamGate.Source, action: Int): Boolean {
+            val event = MotionEvent.obtain(0L, 1L, action, 1f, 1f, 0)
+            return try { gate.accepts(source, event) } finally { event.recycle() }
+        }
+
+        assertTrue(accepts(GestureTouchStreamGate.Source.SURFACE, MotionEvent.ACTION_DOWN))
+        assertFalse(accepts(GestureTouchStreamGate.Source.SCREEN_KEYS, MotionEvent.ACTION_DOWN))
+        assertTrue(accepts(GestureTouchStreamGate.Source.SURFACE, MotionEvent.ACTION_MOVE))
+        assertTrue(accepts(GestureTouchStreamGate.Source.SURFACE, MotionEvent.ACTION_UP))
+        assertTrue(accepts(GestureTouchStreamGate.Source.SCREEN_KEYS, MotionEvent.ACTION_DOWN))
+        assertFalse(accepts(GestureTouchStreamGate.Source.SURFACE, MotionEvent.ACTION_DOWN))
+        assertTrue(accepts(GestureTouchStreamGate.Source.SCREEN_KEYS, MotionEvent.ACTION_CANCEL))
+        assertTrue(accepts(GestureTouchStreamGate.Source.SURFACE, MotionEvent.ACTION_DOWN))
     }
 
     @Test fun loadingLayoutReleasesLatchedKeysBeforeReplacingEntries() {
