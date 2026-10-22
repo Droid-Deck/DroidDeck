@@ -364,6 +364,9 @@ long syscall(long number, ...) {
     }
     return openat2_via_openat(args);
   }
+  if (number == SYS_openat) {
+    return path_open((int)args[0], (const char *)args[1], (int)args[2], args[3]);
+  }
   if (number == SYS_execveat && execveat_is_execve(args)) {
     return real_syscall(SYS_execve, args[1], args[2], args[3]);
   }

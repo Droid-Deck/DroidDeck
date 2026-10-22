@@ -124,6 +124,22 @@ __attribute__((destructor)) static void report(void) {
 }
 """
 
+RAW_OPEN = r"""
+#define _GNU_SOURCE
+#include <fcntl.h>
+#include <stdio.h>
+#include <sys/syscall.h>
+#include <unistd.h>
+
+int main(int argc, char **argv) {
+  char text[16] = "";
+  long fd = syscall(SYS_openat, AT_FDCWD, argv[1], O_RDONLY | O_CLOEXEC, 0);
+  if (fd < 0 || read((int)fd, text, sizeof(text) - 1) < 0) return 1;
+  printf("%s\n", text);
+  return syscall(SYS_openat, AT_FDCWD, argv[2], O_RDONLY | O_CLOEXEC, 0) == -1 ? 0 : 1;
+}
+"""
+
 O_PATH = getattr(os, "O_PATH", 0o10000000)
 
 # (dirfd: r = the tree, o = "/"), flags, path, expected: a path in the tree, an errno name, or "proc" for a file outside it.
@@ -245,6 +261,12 @@ class Openat2PreloadTest(unittest.TestCase):
             raise AssertionError(counted.stdout + counted.stderr)
         cls.counted = labels(counted.stdout.splitlines()[-len(every):], tree, cls.outside)
         cls.calls = [int(n) for n in counted.stderr.split("calls ")[-1].split()]
+        raw = cls.tmp / "raw_open.c"
+        raw.write_text(RAW_OPEN)
+        subprocess.run(["cc", "-O2", "-Wall", "-Werror", "-o", str(cls.tmp / "raw_open"), str(raw)], check=True)
+        cls.raw = subprocess.run([str(cls.tmp / "raw_open"), str(tree / "etc/hostname"), str(tree / "missing")],
+                                 capture_output=True, text=True, timeout=60,
+                                 env=dict(os.environ, LD_PRELOAD="%s:%s" % (cls.lib, cls.tmp / "fp/libblfastpath.so")))
 
     @classmethod
     def tearDownClass(cls):
@@ -262,6 +284,11 @@ class Openat2PreloadTest(unittest.TestCase):
     def test_the_walk_asks_the_fast_path_when_it_is_loaded(self):
         self.assertEqual(self.counted, self.preload)
         self.assertTrue(all(n > 0 for n in self.calls), self.calls)
+
+    def test_a_raw_openat_syscall_asks_the_fast_path_too(self):
+        self.assertEqual(self.raw.returncode, 0, self.raw.stderr)
+        self.assertEqual(self.raw.stdout, "inside\n")
+        self.assertEqual(self.raw.stderr.split("calls ")[-1].split(), ["2", "0", "0"])
 
     def test_the_kernel_agrees(self):
         if self.kernel is None:
