@@ -2,8 +2,8 @@
 """Live regression probe; run inside a running Gamescope session.
 
 Requires Python 3, WAYLAND_DISPLAY, XDG_RUNTIME_DIR and access to Gamescope's
-/proc/<pid>/fd. Creates only a temporary pointer cursor surface. The test never
-sets keyboard focus or changes game/save files. Affected Gamescope retains all
+/proc/<pid>/fd. Creates only a temporary surface with the cursor role; it does
+not take pointer focus or change game/save files. Affected Gamescope retains all
 20 SHM allocations; fixed Gamescope retains at most the current cursor buffer.
 """
 import os
@@ -106,6 +106,9 @@ def main():
     surface = alloc()
     send(comp, 0, U(surface))
     if not args.unassigned_control:
+        # wlroots 0.20.2 assigns the cursor role before forwarding this serial
+        # to Gamescope, so zero avoids needing pointer focus but still tests the
+        # role guard in xwayland_surface_commit.
         send(pointer, 0, U(0, surface, 0, 0))
     roundtrip()
     before = count()
