@@ -19,7 +19,7 @@ import com.droiddeck.launcher.core.AddonPack
 import com.droiddeck.launcher.stores.Store
 import com.droiddeck.launcher.stores.StoreAccounts
 import com.droiddeck.launcher.stores.StoreLogFiles
-import com.droiddeck.launcher.stores.StoreNet
+import com.droiddeck.launcher.stores.StoreLog
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
@@ -153,7 +153,7 @@ class XboxLoginActivity : ComponentActivity() {
 
     /** Written to the stores log, which the shared log zip carries; the main process's log helpers don't run in this process. */
     private fun logStep(line: String) {
-        val text = StoreNet.redactLine("Xbox sign-in: $line")
+        val text = StoreLog.redactLine("Xbox sign-in: $line")
         Log.i(TAG, text)
         val time = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", java.util.Locale.US).format(java.util.Date())
         StoreLogFiles.append(applicationContext, "$time  $text")
