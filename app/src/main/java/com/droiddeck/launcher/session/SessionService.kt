@@ -705,6 +705,12 @@ class SessionService : Service() {
         val agentEnvironment = runCatching { com.droiddeck.launcher.agent.AgentEnv.beginSession(this, agentSessionId) }
             .onFailure { Log.w(TAG, "agent environment skipped", it) }
             .getOrDefault(emptyList())
+        if (gen != sessionGen || !SessionState.running) {
+            // The stop may have run its cleanup before beginSession took the lock.
+            agentEnvSessionIds.remove(gen, agentSessionId)
+            runCatching { com.droiddeck.launcher.agent.AgentEnv.endSession(this, agentSessionId) }
+                .onFailure { Log.w(TAG, "clearing agent overrides for session $gen", it) }
+        }
         val extra = extraEnv() + agentEnvironment
         if (extra.none { it.startsWith("TU_DEBUG=") }) guest.add("$GAME_TU_DEBUG=" + (tuOverride ?: if (tuDriver) "sysmem" else ""))
         extra.forEach { guest.add(it) }
