@@ -23,6 +23,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -49,7 +51,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.droiddeck.launcher.R
-import com.droiddeck.launcher.stores.CatalogItem
 import com.droiddeck.launcher.stores.Store
 import com.droiddeck.launcher.stores.StoreAchievements
 import com.droiddeck.launcher.stores.StoresState
@@ -66,7 +67,7 @@ internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: Fro
     val narrow = LocalNarrowPane.current
     val stacked = narrow || LocalConfiguration.current.screenWidthDp < 700
     val id = key.substringAfter(':')
-    val item = (StoresState.library[store].orEmpty() + StoresState.shelves[store]?.all.orEmpty()).firstOrNull { it.id == id }
+    val item = StoresState.detailItem(store, id)
     val installed = StoresState.installedGame(store, id)
     val rawDownload = StoresState.download("${store.id}:$id")
     val download = rawDownload?.takeIf { it.isActive }
@@ -84,18 +85,24 @@ internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: Fro
                 .clip(Shape16).background(artBrush(hueOf(title))),
         ) {
             val art = item?.imageUrl ?: installed?.sidecar?.hero ?: installed?.sidecar?.cover
-            if (art != null) AsyncImage(model = art, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
+            // The card it came from keeps its own bitmap under the hero until the wide art is decoded.
+            val heroArt = cardArtRequest(art, item?.tallImageUrl)
+            if (heroArt != null) AsyncImage(model = heroArt, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
             Spacer(Modifier.matchParentSize().background(Brush.horizontalGradient(0f to colors.background.copy(alpha = 0.94f), 0.5f to colors.background.copy(alpha = 0.55f), 1f to Color.Transparent)))
             if (scores != null && !stacked) {
                 Spacer(Modifier.matchParentSize().background(Brush.horizontalGradient(0.45f to Color.Transparent, 1f to colors.background.copy(alpha = 0.75f))))
                 HeroScores(scores, Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = 18.dp))
             }
             Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.align(Alignment.BottomStart).padding(horizontal = 22.dp, vertical = 18.dp)) {
+                val passName = item?.includedWith.orEmpty()
                 val state = when {
                     installed != null -> stringResource(R.string.stores_eyebrow_installed) + " · " + com.droiddeck.launcher.stores.StoreInstallRoot.labelFor(ctx, installed.folder)
                     download != null && download.location.isNotBlank() -> stringResource(R.string.stores_eyebrow_library) + " · " + download.location
                     failedDownload != null && failedDownload.location.isNotBlank() -> stringResource(R.string.stores_eyebrow_library) + " · " + failedDownload.location
                     item?.owned == true -> stringResource(R.string.stores_eyebrow_library)
+                    item?.subscription == true -> passName.ifBlank { "PC Game Pass" }
+                    passName.isNotBlank() -> "Available with $passName"
+                    item?.accessible == true -> stringResource(R.string.stores_eyebrow_library)
                     else -> stringResource(R.string.stores_eyebrow_store)
                 }
                 val size = (item?.sizeBytes ?: 0L).takeIf { it > 0 }?.let { " · " + formatBytes(it) } ?: ""
@@ -115,10 +122,22 @@ internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: Fro
                 Actions {
                     when {
                         installed != null -> {
-                            ActionChip(stringResource(R.string.stores_in_steam), ok = true)
                             val gone = StoresState.uninstalling["${store.id}:$id"]
+                            PrimaryButton(stringResource(R.string.stores_play), enabled = !s.busy && gone == null && download == null && (store != Store.XBOX || !com.droiddeck.launcher.stores.xbox.XboxContent.busy(id)), main = true, icon = Icons.Filled.PlayArrow, modifier = leadOn) {
+                                launchStoreGame(ctx, store, id, s, a)
+                            }
+                            ActionChip(stringResource(R.string.stores_in_steam), ok = true)
+                            if (store == Store.XBOX) {
+                                SecondaryButton("Update / verify", enabled = download == null && !com.droiddeck.launcher.stores.xbox.XboxRuntime.isActive(id)) {
+                                    runCatching { com.droiddeck.launcher.stores.xbox.XboxBackend.update(ctx, installed) }
+                                        .onFailure { StoresState.problems[Store.XBOX] = it.message ?: "Close this Xbox game before updating it." }
+                                }
+                                SecondaryButton("Manage content", enabled = download == null) {
+                                    com.droiddeck.launcher.stores.xbox.XboxContent.manage(ctx, installed)
+                                }
+                            }
                             if (gone != null) SecondaryButton(stringResource(R.string.stores_uninstalling), enabled = false, progress = gone) {}
-                            else UninstallButton(title, installed, enabled = download == null, modifier = leadOn) {
+                            else UninstallButton(title, installed, enabled = download == null && (store != Store.XBOX || !com.droiddeck.launcher.stores.xbox.XboxContent.busy(id))) {
                                 StoresState.uninstall(ctx, installed) { StoresState.refresh(ctx); a.onLibraryChanged() }
                             }
                         }
@@ -138,14 +157,25 @@ internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: Fro
                                 com.droiddeck.launcher.stores.download.DownloadQueue.clear(ctx, failedDownload.key)
                             }
                         }
-                        item?.owned == true && StoresState.isUnfinished(item) -> {
+                        item?.installable == true && StoresState.isUnfinished(item) -> {
                             InstallButton(stringResource(R.string.stores_resume_install), leadOn) { StoresState.requestInstall(ctx, item) }
                             ConfirmButton(stringResource(R.string.stores_dl_clear), stringResource(R.string.stores_dl_cancel_confirm), compact = true) { StoresState.clearUnfinished(ctx, item) }
                         }
-                        item?.owned == true -> InstallButton(
-                            if (item.sizeBytes > 0) stringResource(R.string.stores_install_size, formatBytes(item.sizeBytes)) else stringResource(R.string.stores_install),
-                            leadOn,
-                        ) { StoresState.requestInstall(ctx, item) }
+                        item?.installable == true -> {
+                            InstallButton(
+                                if (item.sizeBytes > 0) stringResource(R.string.stores_install_size, formatBytes(item.sizeBytes)) else stringResource(R.string.stores_install),
+                                leadOn,
+                            ) { StoresState.requestInstall(ctx, item) }
+                            if (!item.accessible) {
+                                SecondaryButton(
+                                    when {
+                                        item.isFree -> stringResource(R.string.stores_get_free)
+                                        item.hasPrice && item.finalPrice.isNotBlank() -> stringResource(R.string.stores_buy_price, item.finalPrice)
+                                        else -> stringResource(R.string.stores_view_on, store.shortLabel)
+                                    },
+                                ) { openStoreUrl(ctx, item) }
+                            }
+                        }
                         item != null && item.isFree -> PrimaryButton(stringResource(R.string.stores_get_free), main = true, modifier = leadOn) { openStoreUrl(ctx, item) }
                         item != null -> PrimaryButton(if (item.hasPrice && item.finalPrice.isNotBlank()) stringResource(R.string.stores_buy_price, item.finalPrice) else stringResource(R.string.stores_view_on, store.shortLabel), main = true, modifier = leadOn) { openStoreUrl(ctx, item) }
                     }
@@ -156,7 +186,7 @@ internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: Fro
     }
     if (StoresMotion.heroLands) hero() else Rise(1) { hero() }
     if (scores != null) Rise(2) {
-        val listed = StoresState.shelves[store]?.all.orEmpty().firstOrNull { it.id == id }
+        val listed = (StoresState.found[store].orEmpty() + StoresState.shelves[store]?.all.orEmpty()).firstOrNull { it.id == id }
         val developer = item?.developer?.ifBlank { null } ?: listed?.developer.orEmpty()
         val publisher = item?.publisher?.ifBlank { null } ?: listed?.publisher.orEmpty()
         val releaseDate = item?.releaseDate?.ifBlank { null } ?: listed?.releaseDate.orEmpty()
@@ -164,10 +194,10 @@ internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: Fro
     }
     val description = item?.let { com.droiddeck.launcher.stores.cleanStoreText(it.description) }.orEmpty()
         .takeUnless { it.trim().equals(title.trim(), ignoreCase = true) }.orEmpty()
-    val achievements = remember(store, id, item?.owned, installed) {
+    val achievements = remember(store, id, item?.accessible, installed) {
         when {
             StoreAchievements.forSource(store.id) == null -> null
-            item?.owned == true -> StoreAchievements.Game.of(item)
+            item?.accessible == true -> StoreAchievements.Game.of(item)
             installed != null -> StoreAchievements.Game.of(installed.sidecar)
             else -> null
         }

@@ -20,6 +20,15 @@ class SysvPreloadTest(unittest.TestCase):
             result = subprocess.run([binary], capture_output=True, text=True, timeout=10, env=env)
             self.assertIn('PASS: sysv otime', result.stdout, result.stdout + result.stderr)
 
+    def test_message_queue_mapping_is_reused_and_removal_wakes_waiters(self):
+        with tempfile.TemporaryDirectory() as folder:
+            binary = str(Path(folder) / 'test-sysv-msg')
+            subprocess.run(['gcc', '-Wall', '-Wextra', '-O2', '-pthread', '-o', binary,
+                            str(Path(__file__).resolve().parent / 'sysv_msg_harness.c'), str(PRELOAD / 'sysv.c')], check=True)
+            env = dict(os.environ, BL_SYSV_DIR=folder)
+            result = subprocess.run([binary], capture_output=True, text=True, timeout=20, env=env)
+            self.assertIn('PASS: sysv msg', result.stdout, result.stdout + result.stderr)
+
 
 if __name__ == '__main__':
     unittest.main()

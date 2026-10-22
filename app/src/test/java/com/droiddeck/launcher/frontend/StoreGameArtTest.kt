@@ -36,7 +36,7 @@ class StoreGameArtTest {
     }
 
     @Test fun anArtChoiceOnAStoreGameIsKeptShownAndResetsWithoutTouchingItsTitle() {
-        for ((store, id, title) in listOf(Triple(Store.GOG, "1207658924", "Heroes III"), Triple(Store.EPIC, "abc", "Celeste"), Triple(Store.AMAZON, "amzn1.x", "Yakuza 0"))) {
+        for ((store, id, title) in listOf(Triple(Store.GOG, "1207658924", "Heroes III"), Triple(Store.EPIC, "abc", "Celeste"), Triple(Store.AMAZON, "amzn1.x", "Yakuza 0"), Triple(Store.XBOX, "9NBLGGH4X1", "Forza Horizon"), Triple(Store.ITCH, "12345", "Night in the Woods"))) {
             val folder = install(store, id, title)
             val image = File(tmp.root, "$id.png").apply { writeBytes(ByteArray(9) { 1 }) }
             val option = AddedGameArt.Option(AddedGameArt.FILE, image.path, image.path)

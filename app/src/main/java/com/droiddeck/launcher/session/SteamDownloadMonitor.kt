@@ -18,8 +18,9 @@ internal class SteamDownloadMonitor {
     private var lastReceivedBytes = -1L
     private var lastReceivedAt = 0L
 
-    fun poll(runtimeRoot: File, now: Long = System.currentTimeMillis(), receivedBytes: Long = -1L, client: String? = null): Boolean {
-        val current = manifests(runtimeRoot).associate { it.path to read(it) }
+    fun poll(runtimeRoot: File, now: Long = System.currentTimeMillis(), receivedBytes: Long = -1L, client: String? = null,
+             mounts: Map<String, File> = emptyMap()): Boolean {
+        val current = manifests(runtimeRoot, mounts).associate { it.path to read(it) }
         val progressed = current.any { (path, state) ->
             state.incomplete && state.bytesDownloaded > (previous[path]?.bytesDownloaded ?: state.bytesDownloaded)
         }
@@ -98,7 +99,7 @@ internal class SteamDownloadMonitor {
             now - lastContentActivityAt <= CONTENT_ACTIVITY_GRACE_MS
     }
 
-    private fun manifests(runtimeRoot: File): List<File> {
+    private fun manifests(runtimeRoot: File, mounts: Map<String, File>): List<File> {
         val steamRoots = linkedSetOf<File>()
         for (home in STEAM_HOMES) {
             val primary = File(runtimeRoot, home)
@@ -106,7 +107,7 @@ internal class SteamDownloadMonitor {
             val libraryFolders = File(primary, "steamapps/libraryfolders.vdf")
             runCatching {
                 PATH.findAll(libraryFolders.readText()).forEach { match ->
-                    steamRoots += File(runtimeRoot, match.groupValues[1].removePrefix("/"))
+                    steamRoots += hostPath(runtimeRoot, match.groupValues[1], mounts)
                 }
             }
         }
@@ -115,6 +116,15 @@ internal class SteamDownloadMonitor {
                 file.isFile && file.name.startsWith("appmanifest_") && file.name.endsWith(".acf")
             }.orEmpty().toList()
         }
+    }
+
+    private fun hostPath(runtimeRoot: File, guest: String, mounts: Map<String, File>): File {
+        val path = guest.trimEnd('/')
+        for ((mount, host) in mounts) {
+            if (path == mount) return host
+            if (path.startsWith("$mount/")) return File(host, path.removePrefix("$mount/"))
+        }
+        return File(runtimeRoot, path.removePrefix("/"))
     }
 
     private fun read(file: File): ManifestState {

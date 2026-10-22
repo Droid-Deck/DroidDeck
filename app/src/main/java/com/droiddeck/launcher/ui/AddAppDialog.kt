@@ -23,6 +23,8 @@ import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -305,6 +307,7 @@ internal fun AppDialog(
     modifier: Modifier = Modifier, maxWidth: Dp? = null,
     width: Dp? = null, fitContent: Boolean = false,
     back: (() -> Unit)? = null,
+    scrollable: Boolean = true,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val pal = LocalPalette.current
@@ -314,7 +317,7 @@ internal fun AppDialog(
         Box(
             contentAlignment = Alignment.Center,
             modifier = Modifier.fillMaxSize().imePadding()
-                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = close),
+                .tapOutside(close),
         ) {
             AnimatedVisibility(
                 visibleState = shown,
@@ -339,10 +342,10 @@ internal fun AppDialog(
                         .clip(Shape16)
                         .background(pal.surfaceVariant.copy(alpha = 0.97f))
                         .border(1.dp, pal.signal.copy(alpha = 0.22f), Shape16)
-                        .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {}
+                        .blockTouches()
                         .controllerBack(back ?: close)
                         .then(modifier)
-                        .verticalScroll(rememberScrollState())
+                        .then(if (scrollable) Modifier.verticalScroll(rememberScrollState()) else Modifier)
                         .padding(horizontal = 18.dp, vertical = 16.dp),
                     content = content,
                 )
@@ -492,7 +495,7 @@ private fun IconSuggestions(repo: String, selected: String?, onPick: (String) ->
     if (list != null && list.isEmpty()) return
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.height(44.dp)) {
         Small(stringResource(if (list == null) R.string.add_app_icon_searching else R.string.add_app_icon_suggestions))
-        if (list != null) Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
+        if (list != null) Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(rememberScrollState()).selectableGroup()) {
             list.forEachIndexed { i, url -> Rise(i) { SuggestedIcon(url, url == selected) { onPick(url) } } }
         }
     }
@@ -509,7 +512,7 @@ private fun SuggestedIcon(url: String, selected: Boolean, onClick: () -> Unit) {
         contentAlignment = Alignment.Center,
         modifier = Modifier.size(44.dp).graphicsLayer { scaleX = scale; scaleY = scale }.clip(Shape12).background(colors.surface)
             .glideBorder(hot, Shape12, pal.signal, pal.line2)
-            .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, onClick = onClick)
+            .hoverable(src).selectable(selected = selected, role = androidx.compose.ui.semantics.Role.RadioButton, interactionSource = src, indication = LocalIndication.current, onClick = onClick)
             .controllerConfirm(onClick = onClick),
     ) {
         AsyncImage(model = ImageRequest.Builder(LocalContext.current).data(url).crossfade(true).build(), contentDescription = stringResource(R.string.add_app_icon), contentScale = ContentScale.Fit, modifier = Modifier.size(34.dp))

@@ -31,7 +31,7 @@ object StoreSizes {
     private fun cache(context: Context, store: Store) = caches.getOrPut(store) { SizeCache.forStore(context.applicationContext.filesDir, store) }
 
     fun request(context: Context, item: CatalogItem) {
-        if (!item.owned || item.sizeBytes > 0 || item.store == Store.GOG || known.containsKey(item.key)) return
+        if (!item.accessible || item.sizeBytes > 0 || item.store == Store.GOG || known.containsKey(item.key)) return
         resolve(context, item).thenAccept { bytes ->
             if (bytes != null) StoresState.post { known[item.key] = bytes }
         }
@@ -39,7 +39,7 @@ object StoreSizes {
 
     fun resolve(context: Context, item: CatalogItem): CompletableFuture<Long?> {
         val available = known[item.key] ?: item.sizeBytes.takeIf { it > 0 }
-        if (!item.owned || item.store == Store.GOG || item.sizeBytes > 0) return CompletableFuture.completedFuture(available)
+        if (!item.accessible || item.store == Store.GOG || item.sizeBytes > 0) return CompletableFuture.completedFuture(available)
         if (available != null) return CompletableFuture.completedFuture(available)
         val app = context.applicationContext
         val version = item.extra["version"].orEmpty()
@@ -54,7 +54,8 @@ object StoreSizes {
                     when (item.store) {
                         Store.EPIC -> EpicPrefs.get(app).edit().putLong("size_${item.id}", it).apply()
                         Store.AMAZON -> AmazonPrefs.get(app).edit().putLong("size_${item.id}", it).apply()
-                        Store.GOG -> {}
+                        Store.ITCH -> {}
+                        Store.GOG, Store.XBOX -> {}
                     }
                 }
             }, pool).exceptionally { error ->
@@ -98,7 +99,10 @@ object StoreSizes {
             val json = EpicApiClient.getManifestApiJson(token, ns, catalogItemId, item.id) ?: return 0L
             val bytes = EpicDownloadManager.downloadManifest(json, EpicDownloadManager.parseCdnUrls(json)) ?: return 0L
             val manifest = EpicDownloadManager.parseManifest(bytes) ?: return 0L
-            EpicDownloadManager.resolveInstallFiles(manifest, EpicInstallTags.tagsForDevice()).sumOf { it.fileSize() }
+            EpicDownloadManager.resolveInstallFiles(
+                manifest,
+                EpicInstallTags.tagsFor(StoreLanguage.localeFor(null, context)),
+            ).sumOf { it.fileSize() }
         }
         Store.AMAZON -> {
             val token = AmazonCredentialStore.getValidAccessToken(context) ?: return 0L
@@ -107,6 +111,7 @@ object StoreSizes {
             val bytes = AmazonApiClient.getBytes(AmazonApiClient.appendPath(spec.downloadUrl, "manifest.proto"), token) ?: return 0L
             AmazonManifest.parse(bytes).totalInstallSize
         }
-        Store.GOG -> 0L
+        Store.GOG, Store.XBOX -> 0L
+        Store.ITCH -> com.droiddeck.launcher.stores.itch.ItchLibrary.size(context, item)
     } }
 }
