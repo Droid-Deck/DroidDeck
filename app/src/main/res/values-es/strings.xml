@@ -176,6 +176,8 @@
     <string name="app_fex_x86">%1$s con FEX</string>
     <string name="app_fex_not_ready">Este programa está hecho para PC %1$s y se ejecuta con FEX, que aún no está listo. Abre Steam una vez con tu sesión iniciada: DroidDeck hará que descargue FEX y el Steam Linux Runtime que necesita, y después se abrirá.</string>
     <string name="session_end_program">Este programa</string>
+    <string name="session_end_steam_download">No se ha podido descargar el cliente de Steam. Puede que tu red o VPN esté bloqueando los servidores de Steam; comprueba la conexión y vuelve a intentarlo.</string>
+    <string name="session_end_steam_setup">No se ha podido configurar el cliente de Steam. Comprueba la conexión y el espacio libre y vuelve a intentarlo.</string>
     <string name="session_end_fex_missing">%1$s está hecho para PC x86 y se ejecuta con FEX, que aún no está instalado. Abre Steam una vez con tu sesión iniciada y deja que descargue FEX y el Steam Linux Runtime; después vuelve a iniciarlo.</string>
     <string name="add_app_flatpak_hint">Un ID de app de Flathub o su página en Flathub. Flatpak se configura primero si aún no lo está.</string>
     <string name="add_app_file">Archivo</string>
@@ -305,6 +307,8 @@
     <string name="mode_client">Cliente</string>
     <string name="mode_mangoapp">Superposición de rendimiento</string>
     <string name="mode_mangoapp_hint">Desactívalo si los juegos fallan o se quedan en negro en modo Deck. Se aplica en la próxima sesión.</string>
+    <string name="mode_return_after_game">Volver a DroidDeck al cerrar un juego</string>
+    <string name="mode_return_after_game_hint">Cuando se cierra un juego que iniciaste desde DroidDeck u otro lanzador, Steam se cierra correctamente (primero termina de sincronizar las partidas en la nube) y vuelves allí. Desactivado: te quedas en Steam.</string>
     <string name="mode_steam_repair">Reparar el cliente de Steam</string>
     <string name="mode_steam_repair_hint">Vuelve a descargar el cliente de Steam la próxima vez que se inicie Steam. Úsalo si Steam se queda en la pantalla de carga. Se conservan los juegos, la sesión iniciada y los ajustes.</string>
     <string name="mode_steam_repair_queued">El cliente de Steam se volverá a descargar la próxima vez que se inicie Steam.</string>
@@ -501,7 +505,9 @@
     <string name="comp_delete_original_title">¿Eliminar este original?</string>
     <string name="comp_delete_original_body">Este original de %1$s es de una versión anterior de %2$s. El original de la versión actual siempre se conserva.</string>
     <string name="comp_nightlies_count">En las Nightlies · %1$d</string>
-    <string name="comp_refresh_to_list">Actualiza para listar los paquetes de las Nightlies.</string>
+    <string name="comp_channel_stable">Estable</string>
+    <string name="comp_channel_nightly">Nocturna</string>
+    <string name="comp_refresh_to_list">Actualiza para listar los paquetes de Nightlies y DroidDeck.</string>
     <string name="comp_nothing_new">Nada nuevo desde la última comprobación.</string>
     <string name="comp_import_wcp">Importar .wcp</string>
     <string name="comp_restore_original">Restaurar el original de este Proton</string>
@@ -579,6 +585,16 @@
     <string name="drawer_prev_page">Página anterior</string>
     <string name="drawer_next_page">Página siguiente</string>
     <string name="drawer_hud">HUD de rendimiento</string>
+    <string name="drawer_hud_fps">Tasa de fotogramas</string>
+    <string name="drawer_hud_battery">Temperatura de la batería</string>
+    <string name="drawer_hud_graph">Gráfico de rendimiento</string>
+    <string name="drawer_hud_color">Color</string>
+    <string name="drawer_hud_color_mint">Menta</string>
+    <string name="drawer_hud_color_white">Blanco</string>
+    <string name="drawer_hud_color_sky">Celeste</string>
+    <string name="drawer_hud_color_amber">Ámbar</string>
+    <string name="drawer_hud_color_violet">Violeta</string>
+    <string name="drawer_hud_opacity">Opacidad</string>
     <string name="drawer_scaling">Modo de escalado</string>
     <string name="drawer_scaling_sharpness">Nitidez del escalado</string>
     <string name="drawer_effects">Efectos de pantalla</string>
@@ -1041,6 +1057,9 @@
     <string name="games_added">Juego añadido</string>
     <string name="games_custom">Juego personalizado</string>
     <string name="games_store_storage">Almacenamiento de juegos</string>
+    <string name="games_uninstall_body">Elimina sus archivos y lo quita de Steam.</string>
+    <string name="games_remove_title">¿Quitar %1$s?</string>
+    <string name="games_remove_body">Elimina su acceso directo. Los archivos del juego se conservan.</string>
     <string name="gpu_auto_hint">El mejor par para esta GPU, siempre actualizado</string>
     <string name="gpu_manual_hint">Elige un par manualmente</string>
     <string name="gpu_checking">Buscando controladores…</string>
@@ -1783,7 +1802,8 @@
     <string name="cmgr_original_kept">El original de la versión instalada se conserva: es el camino de vuelta.</string>
     <string name="cmgr_not_stored">No guardado</string>
     <string name="cmgr_deleted_original">Se eliminó el original de %1$s de %2$s.</string>
-    <string name="cmgr_nightlies_only">Las descargas solo proceden de las versiones Nightlies</string>
+    <string name="cmgr_nightlies_only">Las descargas solo proceden de las versiones de Nightlies y DroidDeck</string>
+    <string name="cmgr_nightly_replaced">Error en la descarga: puede que esta compilación nocturna se haya sustituido por una más reciente. Actualiza la lista y vuelve a intentarlo.</string>
     <string name="cmgr_list_predates_checksums">Esta lista de paquetes es anterior a las sumas de verificación - actualízala e inténtalo de nuevo</string>
     <string name="cmgr_checksum_mismatch">La suma de verificación no coincide</string>
 
@@ -2039,6 +2059,9 @@
     <string name="cloud_last_sync">Última sincronización %1$s</string>
     <string name="cloud_never">Aún sin sincronizar</string>
     <string name="cloud_done">%1$d archivos</string>
+    <string name="cloud_up_to_date">Ya está al día</string>
+    <string name="cloud_signed_out">Inicia sesión en la tienda para sincronizar las partidas</string>
+    <string name="cloud_not_synced">No se sincronizaron las partidas</string>
     <string name="stores_eyebrow_installed">instalado</string>
     <string name="stores_eyebrow_library">en tu biblioteca</string>
     <string name="stores_eyebrow_store">tienda</string>
@@ -2341,7 +2364,7 @@
     <string name="touch_done">Hecho</string>
     <string name="touch_save_failed">No se pudo guardar la disposición táctil</string>
     <string name="touch_saved">Disposición táctil guardada en Steam</string>
-    <string name="touch_app_id">App %1$d</string>
+    <string name="touch_app_id">App %1$s</string>
     <string name="touch_label_hint">Etiqueta (opcional)</string>
     <string name="touch_icons_missing">No se encontraron los iconos de Steam</string>
     <plurals name="touch_icons_found">
@@ -2423,6 +2446,15 @@
     <string name="glasses_vr_fov">Campo de visión de SteamVR</string>
     <string name="glasses_vr_fov_hint">Más bajo acerca SteamVR y llena las gafas; más alto muestra más a tu alrededor.</string>
     <string name="glasses_playing">Jugando en %1$s</string>
+    <string name="glasses_phone_recenter">Recentrar</string>
+    <string name="glasses_phone_steamvr_menu">Menú de SteamVR</string>
+    <string name="glasses_phone_switch_sticks">Sticks: manos ⇄ juego</string>
+    <string name="glasses_phone_controllers">Mandos: %1$s</string>
+    <string name="glasses_phone_keyboard">Teclado</string>
+    <string name="glasses_phone_session_menu">Menú de sesión</string>
+    <string name="glasses_phone_stop_steamvr">Detener SteamVR</string>
+    <string name="glasses_phone_brightness">Brillo %1$d / %2$d</string>
+    <string name="glasses_phone_battery">Batería %1$d%% · %2$d °C</string>
     <string name="glasses_calibration">Calibración del seguimiento</string>
     <string name="glasses_calibration_hint">Reduce la deriva y alinea la referencia horizontal.</string>
     <string name="glasses_calibration_saved_hint">Estas gafas usan la calibración guardada.</string>

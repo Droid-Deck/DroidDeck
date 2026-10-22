@@ -176,6 +176,8 @@
     <string name="app_fex_x86">%1$s через FEX</string>
     <string name="app_fex_not_ready">Цю програму зібрано для ПК з архітектурою %1$s, і вона працює через FEX, який ще не налаштовано. Один раз відкрийте Steam, увійшовши в обліковий запис: DroidDeck завантажить FEX і потрібний йому Steam Linux Runtime, після чого програма відкриється.</string>
     <string name="session_end_program">Ця програма</string>
+    <string name="session_end_steam_download">Не вдалося завантажити клієнт Steam. Можливо, ваша мережа або VPN блокує сервери Steam; перевірте з’єднання та спробуйте ще раз.</string>
+    <string name="session_end_steam_setup">Не вдалося налаштувати клієнт Steam. Перевірте з’єднання та вільне місце, потім спробуйте ще раз.</string>
     <string name="session_end_fex_missing">%1$s зібрано для ПК x86; для запуску потрібен FEX, який ще не встановлено. Один раз запустіть Steam, увійшовши в обліковий запис, дайте йому завантажити FEX і Steam Linux Runtime, а потім запустіть це знову.</string>
     <string name="add_app_flatpak_hint">ID додатка Flathub або його сторінка на Flathub. Якщо Flatpak ще не налаштовано, його буде налаштовано спочатку.</string>
     <string name="add_app_file">Файл</string>
@@ -506,7 +508,9 @@
     <string name="comp_delete_original_title">Видалити цей оригінал?</string>
     <string name="comp_delete_original_body">Цей оригінал %1$s походить із попередньої збірки %2$s. Оригінал поточної збірки зберігається завжди.</string>
     <string name="comp_nightlies_count">У нічних збірках · %1$d</string>
-    <string name="comp_refresh_to_list">Оновіть, щоб побачити пакети з нічних збірок.</string>
+    <string name="comp_channel_stable">Стабільна</string>
+    <string name="comp_channel_nightly">Нічна</string>
+    <string name="comp_refresh_to_list">Оновіть, щоб побачити пакети з Nightlies і DroidDeck.</string>
     <string name="comp_nothing_new">Нічого нового з часу останньої перевірки.</string>
     <string name="comp_import_wcp">Імпортувати .wcp</string>
     <string name="comp_restore_original">Відновити оригінал цього Proton</string>
@@ -584,6 +588,16 @@
     <string name="drawer_prev_page">Попередня сторінка</string>
     <string name="drawer_next_page">Наступна сторінка</string>
     <string name="drawer_hud">HUD продуктивності</string>
+    <string name="drawer_hud_fps">Частота кадрів</string>
+    <string name="drawer_hud_battery">Температура батареї</string>
+    <string name="drawer_hud_graph">Графік продуктивності</string>
+    <string name="drawer_hud_color">Колір</string>
+    <string name="drawer_hud_color_mint">М\'ята</string>
+    <string name="drawer_hud_color_white">Білий</string>
+    <string name="drawer_hud_color_sky">Небесний</string>
+    <string name="drawer_hud_color_amber">Бурштиновий</string>
+    <string name="drawer_hud_color_violet">Фіолетовий</string>
+    <string name="drawer_hud_opacity">Непрозорість</string>
     <string name="drawer_scaling">Режим масштабування</string>
     <string name="drawer_scaling_sharpness">Чіткість масштабування</string>
     <string name="drawer_effects">Ефекти екрана</string>
@@ -1050,6 +1064,9 @@
     <string name="games_added">Додана гра</string>
     <string name="games_custom">Власна гра</string>
     <string name="games_store_storage">Сховище ігор</string>
+    <string name="games_uninstall_body">Видаляє її файли та прибирає її зі Steam.</string>
+    <string name="games_remove_title">Видалити %1$s?</string>
+    <string name="games_remove_body">Видаляє ярлик. Файли гри залишаються.</string>
     <string name="gpu_auto_hint">Найкраща пара для цього GPU, завжди в актуальному стані</string>
     <string name="gpu_manual_hint">Виберіть пару самостійно</string>
     <string name="gpu_checking">Перевірка драйверів…</string>
@@ -1807,7 +1824,8 @@
     <string name="cmgr_original_kept">Оригінал встановленої збірки збережено: це шлях назад.</string>
     <string name="cmgr_not_stored">Не збережено</string>
     <string name="cmgr_deleted_original">Видалено оригінал %2$s зі збірки %1$s.</string>
-    <string name="cmgr_nightlies_only">Завантаження надходять лише з випусків Nightlies</string>
+    <string name="cmgr_nightlies_only">Завантаження надходять лише з випусків Nightlies і DroidDeck</string>
+    <string name="cmgr_nightly_replaced">Не вдалося завантажити: можливо, цю нічну збірку замінено новішою. Оновіть список і спробуйте ще раз.</string>
     <string name="cmgr_list_predates_checksums">Цей список пакетів створено до появи контрольних сум - оновіть його і спробуйте ще раз</string>
     <string name="cmgr_checksum_mismatch">Контрольна сума не збіглася</string>
 
@@ -2063,6 +2081,9 @@
     <string name="cloud_last_sync">Остання синхронізація %1$s</string>
     <string name="cloud_never">Ще не синхронізовано</string>
     <string name="cloud_done">%1$d файлів</string>
+    <string name="cloud_up_to_date">Уже актуально</string>
+    <string name="cloud_signed_out">Увійдіть у магазин, щоб синхронізувати збереження</string>
+    <string name="cloud_not_synced">Збереження не синхронізовано</string>
     <string name="stores_eyebrow_installed">встановлено</string>
     <string name="stores_eyebrow_library">у вашій бібліотеці</string>
     <string name="stores_eyebrow_store">магазин</string>
@@ -2370,7 +2391,7 @@
     <string name="touch_done">Готово</string>
     <string name="touch_save_failed">Не вдалося зберегти сенсорну розкладку</string>
     <string name="touch_saved">Сенсорну розкладку збережено в Steam</string>
-    <string name="touch_app_id">Застосунок %1$d</string>
+    <string name="touch_app_id">Застосунок %1$s</string>
     <string name="touch_label_hint">Підпис (необов\'язково)</string>
     <string name="touch_icons_missing">Значки Steam не знайдено</string>
     <plurals name="touch_icons_found">
@@ -2465,6 +2486,15 @@
     <string name="glasses_vr_fov">Поле зору SteamVR</string>
     <string name="glasses_vr_fov_hint">Нижче значення наближає SteamVR і заповнює окуляри; вище — показує більше навколо вас.</string>
     <string name="glasses_playing">Гра на %1$s</string>
+    <string name="glasses_phone_recenter">Перецентрувати</string>
+    <string name="glasses_phone_steamvr_menu">Меню SteamVR</string>
+    <string name="glasses_phone_switch_sticks">Стіки: руки ⇄ гра</string>
+    <string name="glasses_phone_controllers">Контролери: %1$s</string>
+    <string name="glasses_phone_keyboard">Клавіатура</string>
+    <string name="glasses_phone_session_menu">Меню сеансу</string>
+    <string name="glasses_phone_stop_steamvr">Зупинити SteamVR</string>
+    <string name="glasses_phone_brightness">Яскравість %1$d / %2$d</string>
+    <string name="glasses_phone_battery">Акумулятор %1$d%% · %2$d °C</string>
     <string name="glasses_calibration">Калібрування відстеження</string>
     <string name="glasses_calibration_hint">Зменшує дрейф і вирівнює опорний горизонт.</string>
     <string name="glasses_calibration_saved_hint">До цих окулярів застосовано збережене калібрування.</string>

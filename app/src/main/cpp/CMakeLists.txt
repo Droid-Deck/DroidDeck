@@ -39,6 +39,10 @@ target_link_libraries(deviceinfo dl)
 
 add_library(termux SHARED termux/termux.c)
 
+add_library(ddvenc SHARED venc/venc_server.cpp)
+target_compile_features(ddvenc PRIVATE cxx_std_17)
+target_link_libraries(ddvenc mediandk log)
+
 # The optional proprietary SDK is supplied locally; its headers/libraries are not vendored.
 if(DROIDDECK_VITURE_SDK_DIR)
     add_library(droiddeck_viture SHARED viture/sdk_bridge.cpp)

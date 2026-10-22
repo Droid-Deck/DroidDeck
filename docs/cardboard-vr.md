@@ -465,20 +465,31 @@ results, app recovery behavior, and the unverified powered-adapter design.
 
 ### Not done yet
 
-- **Controllers**: the driver adds two Vive-profile hands driven by the session's game pad. It reads
+- **Controllers**: the driver adds two hands driven by the session's game pad. It reads
   the absolute-state snapshot the app already publishes in fake input ring 0
-  (`FAKE_EVDEV_MEMFD_PATHS`), so the app needs no new plumbing. They rest low in front of each side and
-  point where the head looks. Each stick moves its hand sideways (40 cm), up (50 cm) and down (30 cm)
-  and turns it as if from an elbow 45 cm behind, so pointers and aim follow it too; the hand eases
-  back when the stick is let go. The d-pad's up and down move both hands in and out; while a hand's
-  trigger or grip is held they move only that hand (a slingshot or bow pulled back), and it eases back
-  on release. Clicking the left stick hands the sticks to the game as trackpads (walking, turning,
-  teleport) and back. Mapping, right hand: A/R3 = trackpad click, RT = trigger, RB = grip, Start = menu, guide =
-  system. Left hand: X, LT, LB, Select. Both hands activate in SteamVR and their laser shows on the
-  dashboard; guide, Start and A presses show up in the ring the driver reads. They are drawn as Index
-  controllers and switch off while another driver's controller is connected. A Joy-Con hand replaces
-  the pad hand on its side, and bare camera hands replace both while no controller is connected
-  (above).
+  (`FAKE_EVDEV_MEMFD_PATHS`), so the app needs no new plumbing. **Play SteamVR → Settings → Controllers**
+  chooses what they are; the app writes the choice to `/run/droiddeck/droiddeck-vr-controllers`
+  (`emulate=index|touch|vive|off`, `sticks=game|hands`). The same choice is in the session menu's glasses page
+  and on the phone while the picture is on the glasses. The driver checks the file every second and switches
+  while SteamVR runs: SteamVR fixes a device's input profile when it activates, so each type gets its own pair
+  of devices, added the first time it is chosen, and the pair it replaces is disconnected:
+  - **Valve Index** (default) and **Meta Quest 3** (Touch Plus) are thumbstick controllers with the
+    stock input profiles, so games use their own Index or Touch bindings. Triggers are triggers, bumpers
+    grip, A/B and X/Y are each hand's face buttons, stick clicks are thumbstick clicks and Guide is system.
+    Quest's left menu button is Start or Select.
+  - **HTC Vive wands** keep the older layout: the sticks are trackpads, A/X or a stick click presses them,
+    Start and Select are menu.
+  - **Regular game pad** adds no hands, for games that play with a game pad.
+
+  The hands rest low in front of each side and point where the head looks. By default the sticks move you
+  in the game; pressing both sticks in together switches them to moving the hands and back. Each stick then
+  moves its hand sideways (40 cm), up (50 cm) and down (30 cm) and turns it as if from an elbow 45 cm
+  behind, so pointers and aim follow it too; the hand eases back when the stick is let go. The d-pad's up
+  and down move both hands in and out; while a hand's trigger or grip is held they move only that hand
+  (a slingshot or bow pulled back), and it eases back on release. Both hands activate in SteamVR and their
+  laser shows on the dashboard. They switch off while another driver's controller is connected. A Joy-Con
+  hand replaces the pad hand on its side, and bare camera hands replace both while no controller is
+  connected (above).
 - **Layers**: only the first layer of each frame is drawn. SteamVR's compositor composites the
   dashboard into it, so this has not mattered yet.
 - **Timing**: no reprojection. The presenter blits the frame submitted last once `vrcompositor`'s GPU

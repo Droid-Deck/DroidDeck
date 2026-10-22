@@ -41,10 +41,20 @@ object AddedGames {
         return SessionPrefs.gameFolderBinds(context).map { (host, guest) -> Root(File(host), guest) }
     }
 
-    private val SKIP = Regex(
-        "(?i)^(unins.*|setup.*|.*redist.*|vcredist.*|dxsetup.*|dxwebsetup.*|.*crash.*|.*report.*|dotnet.*|directx.*|.*prereq.*" +
-            "|.*installer.*|.*uninstall.*|.*updater?.*|.*config(ur.*)?|.*settings.*|.*editor.*|.*server.*|.*benchmark.*|.*helper.*|.*eac.*|.*easyanticheat.*|.*battleye.*)\\.exe$",
+    private val SKIP_PREFIX = Regex("(?i)^(unins|setup|vc_?redist|dxsetup|dxwebsetup|dotnet|directx|easyanticheat|battleye).*")
+    private val SKIP_PART = Regex("(?i)redist|prereq|installer|uninstall|crashreport|crashhandler|crashpad|crashsender|launchhelper")
+    private val SKIP_WORDS = setOf(
+        "eac", "report", "reporter", "editor", "server", "benchmark", "helper",
+        "update", "updater", "config", "configure", "configurator", "configuration", "settings",
     )
+    private val WORD = Regex("[A-Z]?[a-z]+|[A-Z]+(?![a-z])|[0-9]+")
+
+    internal fun skipExe(name: String): Boolean {
+        if (!name.endsWith(".exe", ignoreCase = true)) return false
+        val base = name.dropLast(4)
+        if (SKIP_PREFIX.matches(base) || SKIP_PART.containsMatchIn(base)) return true
+        return WORD.findAll(base).any { it.value.lowercase() in SKIP_WORDS }
+    }
 
     const val GUEST_DIR = "/root/Games"
 
@@ -75,7 +85,7 @@ object AddedGames {
         val key = "${folder.path}|${folder.lastModified()}"
         val now = System.currentTimeMillis()
         ranked[key]?.takeIf { now - it.first < RANK_FRESH_MS }?.let { return it.second }
-        val guessed = GameExePicker.rank(folder) { !SKIP.matches(it.name) }
+        val guessed = GameExePicker.rank(folder) { !skipExe(it.name) }
         val declared = declaredExes(folder)
         val preferred = declared.map { it.path }.toSet()
         val result = if (declared.isEmpty()) guessed else GameExePicker.Ranking(
@@ -128,7 +138,7 @@ object AddedGames {
         val root = runCatching { folder.canonicalPath + File.separator }.getOrNull() ?: return emptyList()
         return names.asSequence()
             .map { File(folder, it.trim().replace('\\', '/').trimStart('/')) }
-            .filter { it.name.endsWith(".exe", ignoreCase = true) && !SKIP.matches(it.name) && it.isFile }
+            .filter { it.name.endsWith(".exe", ignoreCase = true) && !skipExe(it.name) && it.isFile }
             .filter { runCatching { it.canonicalPath.startsWith(root) }.getOrDefault(false) }
             .distinctBy { it.path }
             .toList()

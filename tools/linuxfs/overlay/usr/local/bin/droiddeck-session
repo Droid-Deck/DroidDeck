@@ -4,6 +4,11 @@ export HOME=${HOME:-/root}
 mode=${1:-desktop}
 shift || true
 step() { echo "== STEP $(date -u +%H:%M:%S) $*"; }
+steam_setup_failed() {
+  echo "== steam: the Steam client could not be set up (status $1)"
+  [ -z "${BL_STEAM_EXIT_FILE:-}" ] || printf '%s\n' "$1" > "$BL_STEAM_EXIT_FILE"
+  exit "$1"
+}
 if [ -n "${BL_LOG:-}" ] && [ -z "${BL_INSIDE:-}" ]; then
   mkdir -p "$(dirname "$BL_LOG")" 2>/dev/null
   if [ "$(stat -c %s "$BL_LOG" 2>/dev/null || echo 0)" -gt 8388608 ]; then
@@ -129,6 +134,7 @@ export XDG_CONFIG_HOME=${XDG_CONFIG_HOME:-$HOME/.config}
 export XDG_CACHE_HOME=${XDG_CACHE_HOME:-$HOME/.cache}
 mkdir -p "$XDG_DATA_HOME" "$XDG_CONFIG_HOME" "$XDG_CACHE_HOME"
 rm -f "${XDG_RUNTIME_DIR:-/run/droiddeck}/droiddeck-steamvr/active"
+rm -f "${XDG_RUNTIME_DIR:-/run/droiddeck}/droiddeck-remote-play"
 /usr/local/bin/droiddeck-steamvr unregister >/dev/null 2>&1 || true
 if [ "$mode" = lxqt ] || [ "$mode" = desktop ]; then
   /usr/local/bin/droiddeck-desktop-bookmarks || true
@@ -246,8 +252,15 @@ if [ -z "${BL_INSIDE:-}" ]; then
   fi
   export BL_INSIDE=1
   if [ "$mode" = steam ]; then
+    if /usr/local/bin/droiddeck-pipewire start; then
+      eval "$(/usr/local/bin/droiddeck-pipewire env)"
+    else
+      echo "== pipewire: not running; Remote Play and game recording have no picture"
+    fi
     run_gamescope "${args[@]}" -- "$0" "$mode" "$@"
-    exit $?
+    _bl_status=$?
+    /usr/local/bin/droiddeck-pipewire stop
+    exit $_bl_status
   fi
   exec gamescope "${args[@]}" -- "$0" "$mode" "$@"
 fi
@@ -353,6 +366,12 @@ case $mode in
     esac
     ;;
   steam)
+    if [ -n "${GAMESCOPE_WAYLAND_DISPLAY:-}" ]; then
+      export WAYLAND_DISPLAY= XDG_SESSION_TYPE=x11
+    fi
+    export MOZ_DISABLE_CONTENT_SANDBOX=1 MOZ_DISABLE_GMP_SANDBOX=1 MOZ_DISABLE_RDD_SANDBOX=1
+    export MOZ_DISABLE_SOCKET_PROCESS_SANDBOX=1 MOZ_DISABLE_UTILITY_SANDBOX=1
+    export MOZ_SHM_NO_SEALS=1
     steam_x64=0
     [ "${BL_STEAM_CLIENT_ARCH:-}" = x86_64 ] && steam_x64=1
     steam_cef_gpu=1
@@ -361,10 +380,10 @@ case $mode in
       # droiddeck-steam-install removes the repair request: read it first so Repair Steam covers both clients.
       _bl_x64_repair=0
       [ -e "$HOME/.bl-steam-repair" ] && _bl_x64_repair=1
-      droiddeck-steam-install || exit $?
+      droiddeck-steam-install || steam_setup_failed $?
       droiddeck-steam-install --sync steamdeck_publicbeta || step "could not update the arm64 client's parts; the x86-64 client keeps its own web helper"
       step "checking the x86-64 Steam client (FEX, experimental; the first run downloads ~2 GB)"
-      BL_X64_REPAIR=$_bl_x64_repair droiddeck-steam-x64 --prepare || exit $?
+      BL_X64_REPAIR=$_bl_x64_repair droiddeck-steam-x64 --prepare || steam_setup_failed $?
       step "x86-64 Steam client ready"
       steam_root=${BL_X64_HOME:-$HOME/.droiddeck-x64}/.local/share/Steam
       steam_client=(droiddeck-steam-x64 --exec)
@@ -374,7 +393,7 @@ case $mode in
       fi
     else
       step "checking the Steam client (first run downloads it, ~1-2 min with nothing on screen)"
-      droiddeck-steam-install || exit $?
+      droiddeck-steam-install || steam_setup_failed $?
       step "Steam client ready"
       steam_root=$XDG_DATA_HOME/Steam
       if [ -f "${BL_X64_HOME:-$HOME/.droiddeck-x64}/.local/share/Steam/local.vdf" ]; then

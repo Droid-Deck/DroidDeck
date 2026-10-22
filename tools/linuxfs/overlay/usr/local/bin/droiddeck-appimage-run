@@ -17,7 +17,7 @@ if [ -s /etc/ld.so.preload ]; then
   export LD_PRELOAD="${preload%:}${LD_PRELOAD:+:$LD_PRELOAD}" SHARUN_ALLOW_LD_PRELOAD=1
 fi
 flags=()
-if [ -e "$APPDIR/chrome-sandbox" ] || compgen -G "$APPDIR/*/chrome-sandbox" >/dev/null; then
+if [ -n "$(find -H "$APPDIR" -maxdepth 4 \( -name chrome-sandbox -o -name chrome_100_percent.pak -o -name v8_context_snapshot.bin \) -print -quit 2>/dev/null)" ]; then
   flags+=(--no-sandbox)
   if [ -n "${DISPLAY:-}" ]; then
     export XDG_SESSION_TYPE=x11
