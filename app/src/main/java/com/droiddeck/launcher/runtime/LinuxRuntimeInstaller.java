@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.runtime;
 
+import com.droiddeck.launcher.core.AddonPack;
 import android.content.Context;
 import android.util.Log;
 
@@ -261,6 +262,8 @@ public final class LinuxRuntimeInstaller {
             emptyTrash(LinuxRuntime.rootDir(context).getParentFile());
             String downloading = context.getString(R.string.rtinst_downloading);
             if (listener != null) listener.onProgress(Step.DOWNLOADING, downloading, 0);
+            if (!AddonPack.PROOT.await(context)) throw new IOException("Cannot download proot");
+            if (!AddonPack.DIRECTAUDIO.await(context)) throw new IOException("Cannot download DirectAudio");
             boolean ok = Downloader.downloadFile(release.url, archive, true, release.sha256, (fraction) -> {
                 if (listener != null) {
                     listener.onProgress(Step.DOWNLOADING, downloading,
@@ -456,9 +459,12 @@ public final class LinuxRuntimeInstaller {
         }
     }
 
+    // Packages extract over the live runtime and their archives list a link before the file it
+    // names, so a kill mid-way must leave neither a truncated file nor a link to a missing one.
     public static boolean extract(Context context, File archive, File destination, ProgressListener listener) {
         long entries = 0;
         String extracting = context.getString(R.string.rtinst_extracting);
+        java.util.LinkedHashMap<File, String> links = new java.util.LinkedHashMap<>();
         try (InputStream in = new ZstdCompressorInputStream(
                 new BufferedInputStream(new FileInputStream(archive), 1 << 16));
              TarArchiveInputStream tar = new TarArchiveInputStream(in)) {
@@ -477,29 +483,35 @@ public final class LinuxRuntimeInstaller {
                 if (parent != null && !parent.isDirectory()) parent.mkdirs();
 
                 if (entry.isSymbolicLink()) {
-                    file.delete();
-                    FileUtils.symlink(entry.getLinkName(), file.getAbsolutePath());
+                    links.remove(file);
+                    links.put(file, entry.getLinkName());
                 } else if (entry.isLink()) {
                     File target = ArchivePaths.inside(destination, entry.getLinkName());
                     if (target == null) {
                         Log.w(TAG, "skipping hard link outside the rootfs: " + entry.getLinkName());
                         continue;
                     }
-                    file.delete();
+                    links.remove(file);
+                    File part = partFile(file);
+                    part.delete();
                     try {
-                        Files.createLink(file.toPath(), target.toPath());
+                        Files.createLink(part.toPath(), target.toPath());
                     } catch (IOException | UnsupportedOperationException e) {
                         if (target.isFile()) {
-                            Files.copy(target.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                            Files.copy(target.toPath(), part.toPath(), StandardCopyOption.REPLACE_EXISTING);
                         }
                     }
+                    if (part.exists()) place(part, file);
                 } else if (entry.isFile()) {
-                    try (OutputStream out = new FileOutputStream(file)) {
+                    links.remove(file);
+                    File part = partFile(file);
+                    try (OutputStream out = new FileOutputStream(part)) {
                         byte[] buffer = new byte[1 << 16];
                         int read;
                         while ((read = tar.read(buffer)) != -1) out.write(buffer, 0, read);
                     }
-                    if ((entry.getMode() & 0111) != 0) file.setExecutable(true, false);
+                    if ((entry.getMode() & 0111) != 0) part.setExecutable(true, false);
+                    place(part, file);
                 } else {
                     continue;
                 }
@@ -507,10 +519,32 @@ public final class LinuxRuntimeInstaller {
                     listener.onProgress(extracting, -1);
                 }
             }
+            for (java.util.Map.Entry<File, String> link : links.entrySet()) {
+                File file = link.getKey();
+                File part = partFile(file);
+                try {
+                    Files.deleteIfExists(part.toPath());
+                    Files.createSymbolicLink(part.toPath(), java.nio.file.Paths.get(link.getValue()));
+                    place(part, file);
+                } catch (IOException e) {
+                    Log.w(TAG, "symlink " + file + " -> " + link.getValue() + ": " + e);
+                    part.delete();
+                }
+            }
             return true;
         } catch (Exception e) {
             Log.e(TAG, "extract", e);
             return false;
         }
+    }
+
+    static File partFile(File file) {
+        return new File(file.getParentFile(), ".dd-part-" + Integer.toHexString(file.getName().hashCode()));
+    }
+
+    private static void place(File part, File file) throws IOException {
+        java.nio.file.Path path = file.toPath();
+        if (Files.isDirectory(path, java.nio.file.LinkOption.NOFOLLOW_LINKS)) Files.delete(path);
+        Files.move(part.toPath(), path, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
     }
 }

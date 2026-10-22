@@ -14,6 +14,7 @@
 int bl_status_without_tracer(const char *path, int flags, const void *caller) __attribute__((visibility("hidden")));
 int bl_writable_retry(int dirfd, const char *path, int flags) __attribute__((visibility("hidden")));
 int bl_ntsync_open(const char *path, int flags) __attribute__((visibility("hidden")));
+int bl_venc_open(const char *path, int flags) __attribute__((visibility("hidden")));
 int bl_dircache_create(int dirfd, const char *path, int flags, mode_t mode,
                        int (*real)(int, const char *, int, mode_t)) __attribute__((visibility("hidden")));
 
@@ -53,6 +54,7 @@ int open(const char *path, int flags, ...) {
   }
   if ((fd = bl_status_without_tracer(path, flags, __builtin_return_address(0))) >= 0) return fd;
   if ((fd = bl_ntsync_open(path, flags)) != -2) return fd;
+  if ((fd = bl_venc_open(path, flags)) != -2) return fd;
   if (real_open == NULL) real_open = dlsym(RTLD_NEXT, "open");
   if (real_open == NULL) {
     errno = ENOSYS;
@@ -78,6 +80,7 @@ int openat(int dirfd, const char *path, int flags, ...) {
   }
   if ((fd = bl_status_without_tracer(path, flags, __builtin_return_address(0))) >= 0) return fd;
   if ((fd = bl_ntsync_open(path, flags)) != -2) return fd;
+  if ((fd = bl_venc_open(path, flags)) != -2) return fd;
   if (real_openat == NULL) real_openat = dlsym(RTLD_NEXT, "openat");
   if (real_openat == NULL) {
     errno = ENOSYS;

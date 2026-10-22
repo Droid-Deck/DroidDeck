@@ -1,4 +1,5 @@
 #!/usr/bin/python3
+import hashlib
 import json
 import os
 import re
@@ -7,6 +8,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+GAME_TU_DEBUG = "DROIDDECK_GAME_TU_DEBUG"
 SYNC_KEYS = ("BL_SYNC", "BL_SYNC_FALLBACK", "BL_FSYNC_FIRST", "BL_SYNC_MIN_NOFILE", "PROTON_NO_ESYNC", "PROTON_NO_FSYNC", "PROTON_NO_NTSYNC", "WINEESYNC")
 SEED_REDISTS = "/usr/local/bin/droiddeck-seed-redists"
 PACK_KEYS = ("WINESERVER", "BL_SYNC_PACK", "WINEESYNC", "PROTON_NO_ESYNC", "PROTON_NO_FSYNC")
@@ -99,6 +101,12 @@ def godot_sentry(game):
 
 
 @fix
+def deep_rock_gdk_raytracing(game):
+    if game.stem == "fsd-wingdk-shipping" and not any(game.has_arg(arg) for arg in ("-raytracing", "-noraytracing")):
+        return {}, ["-noraytracing", "-ini:Engine:[/Script/Engine.RendererSettings]:r.RayTracing=False"], "Deep Rock Galactic GDK: ray tracing off (D3D12 pipeline creation fails on Thor)"
+
+
+@fix
 def arkham_city_x87(game):
     """Batman: Arkham City (BatmanAC.exe, also started through BmLauncher.exe beside it) leans on x87
     and stops with Unreal's "Fatal error!" right after start when FEX reduces its precision."""
@@ -117,6 +125,35 @@ def skip_red_launcher(command):
             print("droiddeck-game-env: REDlauncher skipped", file=sys.stderr)
             return command[:2] + [game] + command[3:]
     return command
+
+
+def offline_without_anticheat(command, env):
+    """Start the configured game executable when the player opts into launching without EAC."""
+    if (env.get("DROIDDECK_ANTICHEAT_OFFLINE") != "1" or len(command) <= 2
+            or command[1] != "waitforexitandrun"
+            or not re.fullmatch(r"start_protected_game(?:_?x64|_?64)?\.exe",
+                                os.path.basename(command[2]), re.IGNORECASE)):
+        return command
+    folder = os.path.dirname(command[2])
+    try:
+        with open(os.path.join(folder, "EasyAntiCheat", "settings.json"), encoding="utf-8-sig") as source:
+            executable = json.load(source).get("executable")
+    except (OSError, ValueError, AttributeError):
+        return command
+    if not isinstance(executable, str) or not executable:
+        return command
+    relative = os.path.normpath(executable.replace("\\", "/"))
+    game = os.path.join(folder, relative)
+    if os.path.isabs(relative) or relative.startswith("..") or not os.path.isfile(game):
+        return command
+    # Resolve symlinks before accepting an executable inside the game directory.
+    root = os.path.realpath(folder)
+    if os.path.commonpath((root, os.path.realpath(game))) != root:
+        return command
+    if os.path.normcase(os.path.abspath(game)) == os.path.normcase(os.path.abspath(command[2])):
+        return command
+    print("droiddeck-game-env: started without Easy Anti-Cheat (offline only)", file=sys.stderr)
+    return command[:2] + [game] + command[3:]
 
 
 def engine_fixes(exe, args):
@@ -145,6 +182,18 @@ def win_components(compat, app_id):
     except Exception as error:
         print("droiddeck-game-env: Windows components not applied (%s)" % error, file=sys.stderr)
         return ""
+
+
+def game_gpu(env):
+    if GAME_TU_DEBUG not in env:
+        return env
+    result = env.copy()
+    value = result.pop(GAME_TU_DEBUG)
+    if value:
+        result["TU_DEBUG"] = value
+    else:
+        result.pop("TU_DEBUG", None)
+    return result
 
 
 def apply_config(env, config, app_id, fixes=None):
@@ -260,26 +309,134 @@ def mark_install_scripts(command, env):
     starts - on first launch the shared ones may still be downloading, and on ARM64 Proton the VC++
     ones stop with an error."""
     if not any(arg.lower().replace("\\", "/").endswith("iscriptevaluator.exe") for arg in command):
-        return
+        return []
     root = env.get("BL_X64_STEAM_ROOT") or env.get("STEAM_COMPAT_CLIENT_INSTALL_PATH") or str(Path.home() / ".local/share/Steam")
     scripts = [str(Path(root) / arg.replace("\\", "/")) for arg in command if EVALUATOR_SCRIPT.search(arg)]
     scripts = [path for path in scripts if os.path.isfile(path)]
     if not scripts:
-        return
+        return []
     try:
         subprocess.run([SEED_REDISTS, root], env=dict(env, DROIDDECK_SEED_SCRIPTS="\n".join(scripts)),
                        stdout=sys.stderr, timeout=60, check=False)
     except (OSError, subprocess.SubprocessError) as error:
         print("droiddeck-game-env: install scripts not marked (%s)" % error, file=sys.stderr)
+    return scripts
+
+
+INSTALL_STAMP = ".droiddeck-install-scripts"
+VDF_TOKEN = re.compile(r'"((?:[^"\\]|\\.)*)"|([{}])')
+
+
+def read_vdf(text):
+    tokens = iter(VDF_TOKEN.findall(text))
+
+    def block():
+        items = []
+        for word, brace in tokens:
+            if brace == "}":
+                return items
+            if brace:
+                raise ValueError("a block without a name")
+            value, opens = next(tokens, ("", "}"))
+            if opens == "}":
+                raise ValueError("a name without a value")
+            items.append((re.sub(r"\\(.)", r"\1", word), block() if opens else re.sub(r"\\(.)", r"\1", value)))
+        return items
+
+    return block()
+
+
+def run_keys(items, appid=""):
+    appid = next((value for name, value in items if name.lower() == "appid" and isinstance(value, str)), appid)
+    found = set()
+    for name, value in items:
+        if not isinstance(value, list):
+            continue
+        if any(isinstance(v, str) and re.fullmatch(r"process [0-9]+", n.lower()) for n, v in value):
+            key = next((v for n, v in value if n.lower() == "hasrunkey" and isinstance(v, str)),
+                       "HKEY_LOCAL_MACHINE\\Software\\Valve\\Steam\\Apps\\" + appid)
+            found.add((key.lower(), name.lower()))
+        found |= run_keys(value, appid)
+    return found
+
+
+def registry_values(path):
+    found, section = set(), None
+    with open(path, encoding="utf-8", errors="replace") as reg:
+        for line in reg:
+            if line.startswith("["):
+                section = line[1:line.find("]")].replace("\\\\", "\\").lower() if "]" in line else None
+            elif section and line.startswith('"') and '"=' in line:
+                found.add((section, line[1:line.index('"=')].replace("\\\\", "\\").lower()))
+    return found
+
+
+def has_run(key, value, values):
+    path = key[len("hkey_local_machine\\"):] if key.startswith("hkey_local_machine\\") else None
+    if path is None:
+        return False
+    views = [path]
+    if path.startswith("software\\"):
+        views.append("software\\wow6432node\\" + path[len("software\\"):])
+    return any((view, value) in values for view in views)
+
+
+def scripts_digest(scripts):
+    digest = hashlib.sha256()
+    for path in sorted(scripts):
+        digest.update(os.path.basename(path).encode() + b"\0")
+        digest.update(Path(path).read_bytes())
+    return digest.hexdigest()
+
+
+def install_scripts_done(scripts, env):
+    prefix = Path(env.get("STEAM_COMPAT_DATA_PATH", "/nonexistent")) / "pfx"
+    try:
+        if (prefix / INSTALL_STAMP).read_text().strip() != scripts_digest(scripts):
+            return False
+        keys = set()
+        for path in scripts:
+            keys |= run_keys(read_vdf(Path(path).read_text(encoding="utf-8", errors="replace")))
+        values = registry_values(prefix / "system.reg")
+    except (OSError, ValueError):
+        return False
+    return bool(keys) and all(has_run(key, value, values) for key, value in keys)
+
+
+def record_install_scripts(digest, env):
+    prefix = Path(env.get("STEAM_COMPAT_DATA_PATH", "/nonexistent")) / "pfx"
+    try:
+        if prefix.is_dir():
+            staged = prefix / (INSTALL_STAMP + ".tmp")
+            staged.write_text(digest + "\n")
+            staged.replace(prefix / INSTALL_STAMP)
+    except OSError as error:
+        print("droiddeck-game-env: install scripts not recorded (%s)" % error, file=sys.stderr)
+
+
+def start(launch, launch_env, digest):
+    if digest:
+        code = subprocess.run(launch, env=launch_env, check=False).returncode
+        if code == 0:
+            record_install_scripts(digest, launch_env)
+        return code
+    return os.execvpe(launch[0], launch, launch_env)
 
 
 def main():
     command = sys.argv[1:]
     if not command:
         return 2
-    env = os.environ.copy()
+    env = game_gpu(os.environ.copy())
     mic_enabled = env.get("BL_MIC_ENABLED")
-    mark_install_scripts(command, env)
+    scripts = mark_install_scripts(command, env)
+    if scripts and install_scripts_done(scripts, env):
+        print("droiddeck-game-env: install scripts already run in this prefix; evaluator skipped", file=sys.stderr)
+        return 0
+    try:
+        digest = scripts_digest(scripts) if scripts else None
+    except OSError:
+        digest = None
     app_id = game_id(env)
     if app_id:
         waiting = len(command) > 1 and command[1] == "waitforexitandrun"
@@ -307,19 +464,33 @@ def main():
                 env = apply_config(env, {"version": 1}, app_id, fixes)
         except (OSError, ValueError, TypeError, AttributeError):
             print("droiddeck-game-env: invalid configuration; using inherited environment", file=sys.stderr)
+    if app_id and len(command) > 1 and command[1] == "waitforexitandrun":
+        command = offline_without_anticheat(command, env)
     if mic_enabled == "0":
         env["BANNER_AUDIO_DIRECT_MIC"] = "0"
     env = force_ssbs(command, env)
+    try:
+        xbox = runpy.run_path(str(Path(__file__).with_name("droiddeck-xbox")))
+    except Exception as error:
+        print("droiddeck-game-env: Xbox support unavailable (%s); stock launch" % error, file=sys.stderr)
+        xbox = {"launch": lambda command, env: None}
+    try:
+        xbox_result = xbox["launch"](command, env)
+    except (OSError, ValueError, KeyError, RuntimeError) as error:
+        print("droiddeck-game-env: Xbox launch could not start (%s)" % error, file=sys.stderr)
+        return 1
+    if xbox_result is not None:
+        return xbox_result
     sync = load_sync()
     launch, launch_env = select_sync(command, env, sync)
     if launch[0] != command[0]:
         try:
-            os.execvpe(launch[0], launch, launch_env)
+            return start(launch, launch_env, digest)
         except OSError as error:
             print("droiddeck-game-env: %s could not start (%s); stock launch" % (launch[0], error), file=sys.stderr)
             launch, launch_env = command, without_pack(launch_env, env)
             record_stock(sync, launch, launch_env)
-    os.execvpe(launch[0], launch, launch_env)
+    return start(launch, launch_env, digest)
 
 
 if __name__ == "__main__":

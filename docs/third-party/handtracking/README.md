@@ -2,13 +2,18 @@
 
 ## Included
 
+None of these files ship in the APK. The app downloads them on first use as one tracking pack
+(`tracking.tar.zst`), built in CI by `tools/packs/build.sh` from the pinned sources
+below, together with `libopencv_java4.so` and `libmediapipe_tasks_jni.so` taken unchanged from
+the OpenCV and MediaPipe Maven AARs.
+
 [MediaPipe](https://github.com/google-ai-edge/mediapipe) Tasks Vision 1.0.0
 (`com.google.mediapipe:tasks-vision`, shared with the Luma stereo tracking pipeline;
 copyright Google LLC and the MediaPipe authors, Apache License 2.0, `LICENSE_MEDIAPIPE` here) finds
 the player's body in each camera frame. It comes from Maven Central with its dependencies
 (Guava, Flogger, protobuf-javalite and Google's `datatransport`), all Apache-2.0.
 
-`app/src/main/assets/handtracking/pose_landmarker_lite.task` is MediaPipe's Pose Landmarker (Lite)
+`pose_landmarker_lite.task` in the tracking pack (below) is MediaPipe's Pose Landmarker (Lite)
 model, BlazePose GHUM 3D, unchanged from
 `https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task`
 (SHA-256 `59929e1d1ee95287735ddd833b19cf4ac46d29bc7afddbbf6753c459690d574a`). Its
@@ -16,7 +21,7 @@ model, BlazePose GHUM 3D, unchanged from
 licenses it under the Apache License 2.0 and lists its limits: one person, up to about 4 metres
 from the camera, the head in view, and depth that is approximate rather than metric.
 
-`app/src/main/assets/handtracking/hand_landmarker.task` is MediaPipe's Hand Landmarker (full) model
+`hand_landmarker.task` in the tracking pack is MediaPipe's Hand Landmarker (full) model
 bundle, a palm detector and a hand landmark model, unchanged from
 `https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task`
 (SHA-256 `fbc2a30080c3c557093b5ddfc334698132eb341044ccee322ccf8bcf3607cde1`). Its
@@ -24,14 +29,13 @@ bundle, a palm detector and a hand landmark model, unchanged from
 licenses it under the Apache License 2.0; it gives 21 landmarks per hand in the picture and in metres,
 based on the GHUM hand model, and is meant for prominently shown hands.
 
-The Luma stereo pipeline defaults to the Full bundle at
-`app/src/main/assets/models/hand_landmarker.task`, with the same checksum as the Full bundle
-above. The optional `app/src/main/assets/models/hand_landmarker_lite.task` is built from
+The Luma stereo pipeline defaults to the same Full bundle. The optional
+`hand_landmarker_lite.task` is built from
 the official `palm_detection_lite.tflite` and `hand_landmark_lite.tflite` assets at
 `https://storage.googleapis.com/mediapipe-assets/`. It uses the matching tensor metadata and
 associated labels from the Full task bundle. These models share the MediaPipe hand tracking
 model card and Apache License 2.0. Source checksums and the generated bundle checksum are in
-`app/src/main/assets/models/hand_landmarker_lite.provenance.json`; `tools/build_hand_lite.py`
+`tools/packs/tracking/hand_landmarker_lite.provenance.json`; `tools/build_hand_lite.py`
 reproduces the bundle with MediaPipe 0.10.21 metadata tooling.
 
 [CameraX](https://developer.android.com/jetpack/androidx/releases/camera) 1.4.2

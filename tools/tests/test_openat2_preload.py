@@ -7,6 +7,7 @@ import tempfile
 import unittest
 
 PRELOAD = Path(__file__).resolve().parents[1] / "linuxfs/preload"
+FASTPATH = Path(__file__).resolve().parents[1] / "proot/fastpath/fastpath.c"
 
 # Opens each "<dirfd>\t<flags>\t<path>" case with openat2(RESOLVE_IN_ROOT) as FEX does: first through the kernel's own
 # openat2 on argv[1] when it has one, then, with openat2 failing ENOSYS as under proot, through the preload on argv[2].
@@ -84,6 +85,62 @@ int main(int argc, char **argv) {
 }
 """
 
+COUNTER = r"""
+#define _GNU_SOURCE
+#include <dlfcn.h>
+#include <fcntl.h>
+#include <stdarg.h>
+#include <stdio.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
+static int opens, stats, links;
+
+int openat(int dirfd, const char *path, int flags, ...) {
+  va_list args;
+  va_start(args, flags);
+  mode_t mode = va_arg(args, int);
+  va_end(args);
+  opens++;
+  return ((int (*)(int, const char *, int, ...))dlsym(RTLD_NEXT, "openat"))(dirfd, path, flags, mode);
+}
+
+int fstatat(int dirfd, const char *path, struct stat *st, int flags) {
+  stats++;
+  return ((int (*)(int, const char *, struct stat *, int))dlsym(RTLD_NEXT, "fstatat"))(dirfd, path, st, flags);
+}
+
+int fstatat64(int dirfd, const char *path, struct stat64 *st, int flags) {
+  stats++;
+  return ((int (*)(int, const char *, struct stat64 *, int))dlsym(RTLD_NEXT, "fstatat64"))(dirfd, path, st, flags);
+}
+
+ssize_t readlinkat(int dirfd, const char *path, char *buf, size_t size) {
+  links++;
+  return ((ssize_t (*)(int, const char *, char *, size_t))dlsym(RTLD_NEXT, "readlinkat"))(dirfd, path, buf, size);
+}
+
+__attribute__((destructor)) static void report(void) {
+  fprintf(stderr, "calls %d %d %d\n", opens, stats, links);
+}
+"""
+
+RAW_OPEN = r"""
+#define _GNU_SOURCE
+#include <fcntl.h>
+#include <stdio.h>
+#include <sys/syscall.h>
+#include <unistd.h>
+
+int main(int argc, char **argv) {
+  char text[16] = "";
+  long fd = syscall(SYS_openat, AT_FDCWD, argv[1], O_RDONLY | O_CLOEXEC, 0);
+  if (fd < 0 || read((int)fd, text, sizeof(text) - 1) < 0) return 1;
+  printf("%s\n", text);
+  return syscall(SYS_openat, AT_FDCWD, argv[2], O_RDONLY | O_CLOEXEC, 0) == -1 ? 0 : 1;
+}
+"""
+
 O_PATH = getattr(os, "O_PATH", 0o10000000)
 
 # (dirfd: r = the tree, o = "/"), flags, path, expected: a path in the tree, an errno name, or "proc" for a file outside it.
@@ -117,8 +174,17 @@ CASES = [
     ("o", os.O_RDONLY, "proc/self/status", "proc"),
 ]
 
+# Only the preload: an absolute link to a path missing in the tree but present outside it, as droiddeck-fex's rootfs has.
+HOST_CASES = [
+    ("r", os.O_RDONLY, "lib/x86_64-linux-gnu/libbar.so.2", "host:libbar.so.2"),
+    ("r", os.O_RDONLY, "hostdir/sub/data", "host:sub/data"),
+    ("r", os.O_RDONLY | os.O_DIRECTORY, "hostdir/sub", "host:sub"),
+    ("r", os.O_RDONLY, "etc/alternatives/hn", "etc/hostname"),
+    ("r", os.O_RDONLY, "hostdir/missing", "ENOENT"),
+]
 
-def make_tree(root):
+
+def make_tree(root, outside):
     for folder in ("usr/lib/x86_64-linux-gnu", "etc/alternatives", "loop", "chain"):
         (root / folder).mkdir(parents=True)
     (root / "usr/lib/x86_64-linux-gnu/libfoo.so.1.2").write_text("x86")
@@ -129,16 +195,24 @@ def make_tree(root):
              "etc/alternatives/hn": "/etc/hostname", "etc/escape": "../../../../../../etc/hostname", "loop/a": "b",
              "loop/b": "a", "dirlink": "/usr", "rootlink": "/", "dangling": "/usr/newfile"}
     links.update({"chain/l%d" % i: ("l%d" % (i + 1) if i < 41 else "end") for i in range(1, 42)})
+    links.update({"usr/lib/x86_64-linux-gnu/libbar.so.2": str(outside / "libbar.so.2"), "hostdir": str(outside)})
     for link, target in links.items():
         os.symlink(target, root / link)
 
 
-def labels(lines, root):
+def make_outside(outside):
+    (outside / "sub").mkdir(parents=True)
+    (outside / "libbar.so.2").write_text("host")
+    (outside / "sub/data").write_text("host")
+
+
+def labels(lines, root, outside):
     inodes = {(os.lstat(root).st_dev, os.lstat(root).st_ino): "."}
-    for folder, dirs, files in os.walk(root):
-        for name in dirs + files:
-            st = os.lstat(os.path.join(folder, name))
-            inodes[(st.st_dev, st.st_ino)] = os.path.relpath(os.path.join(folder, name), root)
+    for base, prefix in ((root, ""), (outside, "host:")):
+        for folder, dirs, files in os.walk(base):
+            for name in dirs + files:
+                st = os.lstat(os.path.join(folder, name))
+                inodes[(st.st_dev, st.st_ino)] = prefix + os.path.relpath(os.path.join(folder, name), base)
     out = []
     for line in lines:
         kind, *values = line.split()
@@ -161,16 +235,50 @@ class Openat2PreloadTest(unittest.TestCase):
         source.write_text(PROGRAM)
         subprocess.run(["cc", "-O2", "-Wall", "-Werror", "-o", str(cls.tmp / "openat2"), str(source), "-ldl"], check=True)
         cls.trees = (cls.tmp / "kernel", cls.tmp / "preload")
+        cls.outside = cls.tmp / "outside"
+        make_outside(cls.outside)
         for tree in cls.trees:
-            make_tree(tree)
-        cases = "".join("%s\t%d\t%s\n" % case[:3] for case in CASES)
+            make_tree(tree, cls.outside)
+        every = CASES + HOST_CASES
+        cases = "".join("%s\t%d\t%s\n" % case[:3] for case in every)
         result = subprocess.run([str(cls.tmp / "openat2"), *map(str, cls.trees)], input=cases, capture_output=True, text=True,
                                 env=dict(os.environ, LD_PRELOAD=str(cls.lib)), timeout=60)
         if result.returncode != 0:
             raise AssertionError(result.stdout + result.stderr)
         lines = result.stdout.splitlines()
-        cls.kernel = labels(lines[1:1 + len(CASES)], cls.trees[0]) if lines[0] == "kernel" else None
-        cls.preload = labels(lines[-len(CASES):], cls.trees[1])
+        cls.kernel = labels(lines[1:1 + len(CASES)], cls.trees[0], cls.outside) if lines[0] == "kernel" else None
+        cls.preload = labels(lines[-len(every):], cls.trees[1], cls.outside)
+        counter = cls.tmp / "counter.c"
+        counter.write_text(COUNTER)
+        (cls.tmp / "fp").mkdir()
+        subprocess.run(["cc", "-O2", "-Wall", "-Werror", "-fPIC", "-shared", "-o", str(cls.tmp / "fp/libblfastpath.so"),
+                        str(counter), "-ldl"], check=True)
+        tree = cls.tmp / "counted"
+        make_tree(tree, cls.outside)
+        counted = subprocess.run([str(cls.tmp / "openat2"), str(tree), str(tree)], input=cases, capture_output=True,
+                                 text=True, env=dict(os.environ, LD_PRELOAD="%s:%s" % (cls.lib, cls.tmp / "fp/libblfastpath.so")),
+                                 timeout=60)
+        if counted.returncode != 0:
+            raise AssertionError(counted.stdout + counted.stderr)
+        cls.counted = labels(counted.stdout.splitlines()[-len(every):], tree, cls.outside)
+        cls.calls = [int(n) for n in counted.stderr.split("calls ")[-1].split()]
+        raw = cls.tmp / "raw_open.c"
+        raw.write_text(RAW_OPEN)
+        subprocess.run(["cc", "-O2", "-Wall", "-Werror", "-o", str(cls.tmp / "raw_open"), str(raw)], check=True)
+        cls.raw = subprocess.run([str(cls.tmp / "raw_open"), str(tree / "etc/hostname"), str(tree / "missing")],
+                                 capture_output=True, text=True, timeout=60,
+                                 env=dict(os.environ, LD_PRELOAD="%s:%s" % (cls.lib, cls.tmp / "fp/libblfastpath.so")))
+        (cls.tmp / "real").mkdir()
+        subprocess.run(["cc", "-O2", "-Wall", "-Werror", "-fPIC", "-shared", "-pthread", "-o",
+                        str(cls.tmp / "real/libblfastpath.so"), str(FASTPATH), "-ldl"], check=True)
+        shutil.copy(cls.tmp / "raw_open", cls.tmp / "FEX")
+        try:
+            cls.fex = subprocess.run([str(cls.tmp / "FEX"), str(tree / "etc/hostname"), str(tree / "missing")],
+                                     capture_output=True, text=True, timeout=20,
+                                     env=dict(os.environ, PROOT_FP_ROOT="/", PROOT_FP_KEY="test",
+                                              LD_PRELOAD="%s:%s" % (cls.lib, cls.tmp / "real/libblfastpath.so")))
+        except subprocess.TimeoutExpired:
+            cls.fex = None
 
     @classmethod
     def tearDownClass(cls):
@@ -180,6 +288,24 @@ class Openat2PreloadTest(unittest.TestCase):
         for case, got in zip(CASES, self.preload):
             self.assertEqual(got, case[3], case)
         self.assertTrue((self.trees[1] / "usr/newfile").exists())
+
+    def test_preload_finishes_a_link_to_a_path_only_outside_the_root_there(self):
+        for case, got in zip(HOST_CASES, self.preload[len(CASES):]):
+            self.assertEqual(got, case[3], case)
+
+    def test_the_walk_asks_the_fast_path_when_it_is_loaded(self):
+        self.assertEqual(self.counted, self.preload)
+        self.assertTrue(all(n > 0 for n in self.calls), self.calls)
+
+    def test_a_raw_openat_syscall_asks_the_fast_path_too(self):
+        self.assertEqual(self.raw.returncode, 0, self.raw.stderr)
+        self.assertEqual(self.raw.stdout, "inside\n")
+        self.assertEqual(self.raw.stderr.split("calls ")[-1].split(), ["2", "0", "0"])
+
+    def test_a_first_raw_openat_in_fex_does_not_wait_on_the_fast_path_starting(self):
+        self.assertIsNotNone(self.fex, "hung")
+        self.assertEqual(self.fex.returncode, 0, self.fex.stderr)
+        self.assertEqual(self.fex.stdout, "inside\n")
 
     def test_the_kernel_agrees(self):
         if self.kernel is None:

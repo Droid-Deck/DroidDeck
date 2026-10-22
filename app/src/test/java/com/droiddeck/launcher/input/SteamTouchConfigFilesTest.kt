@@ -57,4 +57,60 @@ class SteamTouchConfigFilesTest {
         assertTrue(device.contains("\"8400\""))
         assertEquals(saved, SteamTouchConfig.load(context, 204360).file)
     }
+
+    private val template get() = File(steam, "controller_base/templates/controller_mobile_touch_gamepad_joystick.vdf")
+
+    private fun shortcut(name: String): Int {
+        val shortcut = 2702387189L.toInt()
+        template.apply { parentFile!!.mkdirs(); writeText(touch("Gamepad with Joystick")) }
+        File(steam, "logs/console_log.txt").apply { parentFile!!.mkdirs() }.writeText(
+            "!! Controller 0 attributes:\n  Type: 43\n" +
+                "Loaded Config for Last Resort Path for App ID 2702387189, Controller 0: /root/.local/share/Steam//controller_base/templates/controller_mobile_touch_gamepad_joystick.vdf\n",
+        )
+        File(steam, "config/loginusers.vdf").apply { parentFile!!.mkdirs() }
+            .writeText("\"users\"\n{\n\t\"76561197960265851\"\n\t{\n\t\t\"MostRecent\"\t\t\"1\"\n\t}\n}\n")
+        val vdf = java.io.ByteArrayOutputStream().apply {
+            write("\u0000shortcuts\u0000\u00000\u0000\u0002appid\u0000".toByteArray())
+            write(java.nio.ByteBuffer.allocate(4).order(java.nio.ByteOrder.LITTLE_ENDIAN).putInt(shortcut).array())
+            write("\u0001AppName\u0000$name\u0000\u0008\u0008\u0008".toByteArray())
+        }
+        File(steam, "userdata/123/config/shortcuts.vdf").apply { parentFile!!.mkdirs() }.writeBytes(vdf.toByteArray())
+        return shortcut
+    }
+
+    @Test fun aShortcutFindsSteamsConfigAndSavesUnderItsName() {
+        val shortcut = shortcut("Epic Games Launcher")
+        val config = SteamTouchConfig.load(context, shortcut)
+        assertEquals(template, config.file)
+        assertEquals("Epic Games Launcher", SteamTouchConfig.gameName(context, shortcut))
+        val saved = SteamTouchConfig.saveLayouts(context, shortcut, config, mapOf(1 to emptyList()))
+        assertEquals(File(dir, "epic games launcher/controller_mobile_touch.vdf"), saved)
+        assertTrue(File(dir, "configset_controller_mobile_touch.vdf").readText().contains("\"epic games launcher\""))
+        assertEquals(saved, SteamTouchConfig.load(context, shortcut).file)
+    }
+
+    @Test fun aShortcutNameThatIsNoPlainFolderNameUsesTheAppId() {
+        for (name in listOf("../escape", "a/b", "..", "Tab\tName")) {
+            assertEquals(name, "2702387189", SteamTouchConfig.steamKey(context, shortcut(name)))
+        }
+    }
+
+    @Test fun aShortcutNameWithADollarSavesAgain() {
+        val shortcut = shortcut("Game $1")
+        val config = SteamTouchConfig.load(context, shortcut)
+        SteamTouchConfig.saveLayouts(context, shortcut, config, mapOf(1 to emptyList()))
+        val saved = SteamTouchConfig.saveLayouts(context, shortcut, SteamTouchConfig.load(context, shortcut), mapOf(1 to emptyList()))
+        assertEquals(File(dir, "game $1/controller_mobile_touch.vdf"), saved)
+        assertEquals(1, Regex("\"game \\$1\"").findAll(File(dir, "configset_controller_mobile_touch.vdf").readText()).count())
+    }
+
+    @Test fun aMixedCaseEntryOfTheShortcutIsReplacedNotDuplicated() {
+        val shortcut = shortcut("Epic Games Launcher")
+        configset("configset_controller_mobile_touch.vdf", "Epic Games Launcher" to "\"template\"\t\t\"controller_mobile_touch_gamepad_joystick.vdf\"")
+        configset("configset_MT-DROIDDECK0001.vdf", "Epic Games Launcher" to "\"workshop\"\t\t\"1\"")
+        SteamTouchConfig.saveLayouts(context, shortcut, SteamTouchConfig.load(context, shortcut), mapOf(1 to emptyList()))
+        val entries = Regex("\"epic games launcher\"", RegexOption.IGNORE_CASE)
+        assertEquals(1, entries.findAll(File(dir, "configset_controller_mobile_touch.vdf").readText()).count())
+        assertEquals(0, entries.findAll(File(dir, "configset_MT-DROIDDECK0001.vdf").readText()).count())
+    }
 }
