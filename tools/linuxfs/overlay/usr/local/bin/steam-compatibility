@@ -74,6 +74,9 @@ bl_store_launch() {
 }
 
 bl_run() {
+  if [ -x /usr/local/bin/droiddeck-steamvr-flat ] && /usr/local/bin/droiddeck-steamvr-flat "${verb:-}"; then
+    set -- /usr/local/bin/droiddeck-steamvr-game "$@"
+  fi
   if [ -n "${BL_STORE_EXIT:-}" ]; then
     "$@"
     rc=$?
@@ -260,6 +263,13 @@ bl_directaudio() {
   [ -d "$BL_DIRECTAUDIO" ] || return 0
   if bl_is_steam_installscript_target "${2:-}"; then
     echo "droiddeck-proton: DirectAudio skipped for Steam's install-script evaluator" >&2
+    return 0
+  fi
+  streamer=$(cat "${XDG_RUNTIME_DIR:-/tmp}/droiddeck-remote-play" 2>/dev/null)
+  if [ -n "$streamer" ] && kill -0 "$streamer" 2>/dev/null; then
+    WINE_AUDIO_DRIVER=pulse
+    export WINE_AUDIO_DRIVER
+    echo "droiddeck-proton: a Remote Play client is connected - game audio goes through PulseAudio so the stream carries it" >&2
     return 0
   fi
   version=$("$base/files/bin-arm64/wine" --version 2>/dev/null)
@@ -456,6 +466,9 @@ verb=$1; shift
 case $verb in
   getcompatpath | getnativepath) printf '%s\\n' "$1"; exit 0 ;;
 esac
+if [ -x /usr/local/bin/droiddeck-steamvr-flat ] && /usr/local/bin/droiddeck-steamvr-flat "$verb"; then
+  exec /usr/local/bin/droiddeck-steamvr-game /usr/local/bin/droiddeck-fex steam "$verb" "$@"
+fi
 exec /usr/local/bin/droiddeck-fex steam "$verb" "$@"
 """
 
@@ -1042,6 +1055,16 @@ def plan_mapping(current, installed, runnable, default, auto, native=None, picks
     return changes, kept
 
 
+def picked_apps(state):
+    picked = state.get("picked", ())
+    return {app for app in picked if isinstance(app, str)} if isinstance(picked, list) else set()
+
+
+def picked_after(current, changes):
+    return sorted(({app for app, tool in current.items() if tool} - set(changes) |
+                   {app for app, tool in changes.items() if tool}) - {"0"}, key=app_order)
+
+
 def followers(state, current):
     if "auto" in state:
         return state["auto"]
@@ -1287,6 +1310,8 @@ def register_default(config_path, apps=(), protect=(), default=None, catalog=Non
         native = native_targets(steam_root, set(apps) | set(picks) | set(managed) | set(native_choices))
         if linux_tool != FEX_TOOL:
             native = {app: linux_tool if tool == FEX_TOOL else tool for app, tool in native.items()}
+        for app in picked_apps(state) & set(native):
+            current.setdefault(app, "")
         changes, auto = plan_mapping(
             current, apps, names, default, followers(state, current), native, picks,
             overrides, managed, native_choices)
@@ -1297,6 +1322,7 @@ def register_default(config_path, apps=(), protect=(), default=None, catalog=Non
             write_changed(config_path, text)
         state["auto"] = {app: tool for app, tool in auto.items() if tool is not NATIVE_CHOICE}
         state["native_choices"] = sorted(app for app, tool in auto.items() if tool is NATIVE_CHOICE)
+        state["picked"] = picked_after(current, changes)
         state.pop("native", None)
         state["tools"] = catalog
         state.setdefault("default", default)

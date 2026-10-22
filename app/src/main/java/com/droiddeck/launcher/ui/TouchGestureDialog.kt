@@ -69,7 +69,7 @@ fun TouchGestureDialog(game: String?, onDismiss: () -> Unit, onSaved: () -> Unit
     val actions = mouse + ACTION_SHOW_KEYBOARD + GestureKeys.codes.keys.map { "key_$it" } + ACTION_KEY_TILDE
     val p = LocalPalette.current
 
-    GestureDialogFrame(stringResource(R.string.gesture_settings), stringResource(R.string.gesture_editor_subtitle), onDismiss,
+    GestureDialogFrame(onDismiss,
         footer = {
             Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
                 TextButton(onClick = onDismiss) { Text(stringResource(R.string.gesture_cancel)) }
@@ -83,15 +83,6 @@ fun TouchGestureDialog(game: String?, onDismiss: () -> Unit, onSaved: () -> Unit
                 }, modifier = Modifier.testTag("gesture-save")) { Text(stringResource(R.string.gesture_save_changes)) }
             }
         }) {
-        Column(Modifier.padding(horizontal = 20.dp)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                GestureFilterChip(!forGame, onClick = { forGame = false }, label = { Text(stringResource(R.string.gesture_defaults)) }, modifier = Modifier.testTag("gesture-scope-default"))
-                if (targetGame != null) GestureFilterChip(forGame, onClick = { forGame = true }, label = { Text(stringResource(R.string.gesture_game)) }, modifier = Modifier.testTag("gesture-scope-game"))
-                if (forGame && gameDraft != null) TextButton(onClick = { gameDraft = null }, modifier = Modifier.testTag("gesture-inherit")) { Text(stringResource(R.string.gesture_use_defaults)) }
-            }
-            Text(stringResource(if (!forGame) R.string.gesture_scope_default else if (gameDraft == null) R.string.gesture_inheriting else R.string.gesture_scope_game),
-                color = p.onSurfaceVariant, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(bottom = 12.dp))
-        }
         ScrollableTabRow(tab, edgePadding = 12.dp, containerColor = p.surface, divider = { HorizontalDivider(color = p.line) }) {
             tabs.forEachIndexed { index, title ->
                 Tab(tab == index, onClick = { tab = index }, text = { Text(stringResource(title)) }, selectedContentColor = p.onBackground,
@@ -100,9 +91,16 @@ fun TouchGestureDialog(game: String?, onDismiss: () -> Unit, onSaved: () -> Unit
         }
         key(tab) {
             Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        GestureFilterChip(!forGame, onClick = { forGame = false }, label = { Text(stringResource(R.string.gesture_defaults)) }, modifier = Modifier.testTag("gesture-scope-default"))
+                        if (targetGame != null) GestureFilterChip(forGame, onClick = { forGame = true }, label = { Text(stringResource(R.string.gesture_game)) }, modifier = Modifier.testTag("gesture-scope-game"))
+                    }
+                    if (forGame && gameDraft != null) TextButton(onClick = { gameDraft = null }, modifier = Modifier.testTag("gesture-inherit")) { Text(stringResource(R.string.gesture_use_defaults)) }
+                }
                 when (tab) {
                     0 -> {
-                        GestureSection(R.string.gesture_tab_one, R.string.gesture_one_hint)
+                        GestureSection(R.string.gesture_tab_one)
                         GestureCard(R.string.gesture_tap, config.tapEnabled, { change(config.copy(tapEnabled = it)) }) {
                             GestureActionField("tap", R.string.gesture_tap, config.tapAction, actions) { change(config.copy(tapAction = it)) }
                         }
@@ -118,7 +116,7 @@ fun TouchGestureDialog(game: String?, onDismiss: () -> Unit, onSaved: () -> Unit
                         }
                     }
                     1 -> {
-                        GestureSection(R.string.gesture_tab_two, R.string.gesture_two_hint)
+                        GestureSection(R.string.gesture_tab_two)
                         GestureCard(R.string.gesture_two_tap, config.twoFingerTapEnabled, { change(config.copy(twoFingerTapEnabled = it)) }) {
                             GestureActionField("two-tap", R.string.gesture_two_tap, config.twoFingerTapAction, actions) { change(config.copy(twoFingerTapAction = it)) }
                         }
@@ -134,7 +132,7 @@ fun TouchGestureDialog(game: String?, onDismiss: () -> Unit, onSaved: () -> Unit
                         }
                     }
                     2 -> {
-                        GestureSection(R.string.gesture_tab_three, R.string.gesture_three_hint)
+                        GestureSection(R.string.gesture_tab_three)
                         GestureCard(R.string.gesture_three_tap, config.threeFingerTapEnabled, { change(config.copy(threeFingerTapEnabled = it)) }) {
                             GestureActionField("three-tap", R.string.gesture_three_tap, config.threeFingerTapAction, actions) { change(config.copy(threeFingerTapAction = it)) }
                         }
@@ -147,16 +145,13 @@ fun TouchGestureDialog(game: String?, onDismiss: () -> Unit, onSaved: () -> Unit
                         }
                     }
                     3 -> {
-                        GestureSection(R.string.gesture_tab_options, R.string.gesture_options_hint)
+                        GestureSection(R.string.gesture_tab_options)
                         GestureSettingsCard(R.string.gesture_movement) {
-                            Text(stringResource(R.string.gesture_movement_hint), color = p.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
                             GestureChoiceChips(config.mouseDragMovementMode, listOf(MOUSE_DRAG_MOVEMENT_DIRECT to stringResource(R.string.gesture_direct), MOUSE_DRAG_MOVEMENT_RELATIVE to stringResource(R.string.gesture_relative))) { change(config.copy(mouseDragMovementMode = it)) }
-                            Text(stringResource(R.string.gesture_middle_relative_hint), color = p.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
                         }
                         GestureSettingsCard(R.string.gesture_recognition) {
                             Text(stringResource(R.string.gesture_threshold, config.gestureThreshold), style = MaterialTheme.typography.bodyMedium)
                             Slider(config.gestureThreshold.toFloat(), { change(config.copy(gestureThreshold = it.toInt())) }, valueRange = 10f..100f, steps = 17)
-                            Text(stringResource(R.string.gesture_threshold_hint), color = p.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
                         }
                         GestureSettingsCard(R.string.gesture_feedback) {
                             GestureToggle(R.string.gesture_debug, config.showGestureDebugOverlay) { change(config.copy(showGestureDebugOverlay = it)) }
@@ -170,7 +165,7 @@ fun TouchGestureDialog(game: String?, onDismiss: () -> Unit, onSaved: () -> Unit
 }
 
 @Composable
-private fun GestureDialogFrame(title: String, subtitle: String, onDismiss: () -> Unit,
+private fun GestureDialogFrame(onDismiss: () -> Unit,
                                footer: @Composable () -> Unit = {}, content: @Composable ColumnScope.() -> Unit) {
     val p = LocalPalette.current
     // The app window does not opt into RTL, so these dialogs follow their resource locale explicitly.
@@ -181,15 +176,8 @@ private fun GestureDialogFrame(title: String, subtitle: String, onDismiss: () ->
                 Surface(Modifier.widthIn(max = 1040.dp).fillMaxWidth().fillMaxHeight(), shape = RoundedCornerShape(22.dp), color = p.background,
                     contentColor = p.onBackground, border = BorderStroke(1.dp, p.line2)) {
                     Column {
-                        Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 14.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Surface(shape = RoundedCornerShape(12.dp), color = p.primary.copy(alpha = 0.14f)) {
-                                Icon(Icons.Default.TouchApp, null, tint = p.primary, modifier = Modifier.padding(10.dp).size(24.dp))
-                            }
-                            Column(Modifier.weight(1f).padding(horizontal = 14.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                                Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
-                                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = p.onSurfaceVariant)
-                            }
-                            IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, stringResource(R.string.gesture_close)) }
+                        Row(Modifier.fillMaxWidth().padding(end = 4.dp), horizontalArrangement = Arrangement.End) {
+                            IconButton(onClick = onDismiss, modifier = Modifier.size(40.dp)) { Icon(Icons.Default.Close, stringResource(R.string.gesture_close)) }
                         }
                         content()
                         HorizontalDivider(color = p.line)
@@ -202,11 +190,8 @@ private fun GestureDialogFrame(title: String, subtitle: String, onDismiss: () ->
 }
 
 @Composable
-private fun GestureSection(@StringRes title: Int, @StringRes hint: Int) {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(stringResource(title), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-        Text(stringResource(hint), style = MaterialTheme.typography.bodyMedium, color = LocalPalette.current.onSurfaceVariant)
-    }
+private fun GestureSection(@StringRes title: Int) {
+    Text(stringResource(title), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
 }
 
 @Composable
@@ -242,18 +227,18 @@ private fun GestureActionField(id: String, @StringRes gesture: Int, selected: St
             Icon(Icons.AutoMirrored.Filled.ArrowForward, null, modifier = Modifier.size(19.dp), tint = p.onSurfaceVariant)
         }
     }
-    if (open) GestureActionPicker(choices, selected, stringResource(gesture), onDismiss = { open = false }) { open = false; onChoose(it) }
+    if (open) GestureActionPicker(choices, selected, onDismiss = { open = false }) { open = false; onChoose(it) }
 }
 
 @Composable
-internal fun GestureActionPicker(choices: List<String>, selected: String, gesture: String, onDismiss: () -> Unit, onChoose: (String) -> Unit) {
+internal fun GestureActionPicker(choices: List<String>, selected: String, onDismiss: () -> Unit, onChoose: (String) -> Unit) {
     var query by rememberSaveable { mutableStateOf("") }
     var category by remember { mutableStateOf<GestureActionGroup?>(null) }
     val catalog = choices.distinct().map { GestureAction(it, gestureActionTitle(it), gestureActionGroup(it)) }
     val groups = GestureActionGroup.entries.filter { group -> catalog.any { it.group == group } }
     val shown = filterGestureActions(catalog, query, category)
     val p = LocalPalette.current
-    GestureDialogFrame(stringResource(R.string.gesture_action), stringResource(R.string.gesture_action_for, gesture), onDismiss) {
+    GestureDialogFrame(onDismiss) {
         OutlinedTextField(query, onValueChange = { query = it }, modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).testTag("gesture-action-search"),
             singleLine = true, shape = RoundedCornerShape(12.dp), placeholder = { Text(stringResource(R.string.gesture_search_actions)) },
             leadingIcon = { Icon(Icons.Default.Search, null) }, trailingIcon = {

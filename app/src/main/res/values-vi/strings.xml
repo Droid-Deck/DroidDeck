@@ -176,6 +176,8 @@
     <string name="app_fex_x86">%1$s qua FEX</string>
     <string name="app_fex_not_ready">Chương trình này được build cho PC %1$s và chạy qua FEX, hiện chưa được thiết lập. Mở Steam một lần khi đã đăng nhập: DroidDeck sẽ tải FEX và Steam Linux Runtime cần thiết, sau đó ứng dụng này sẽ mở.</string>
     <string name="session_end_program">Chương trình này</string>
+    <string name="session_end_steam_download">Không thể tải xuống client Steam. Mạng hoặc VPN của bạn có thể đang chặn máy chủ Steam; hãy kiểm tra kết nối rồi thử lại.</string>
+    <string name="session_end_steam_setup">Không thể thiết lập client Steam. Hãy kiểm tra kết nối và dung lượng trống rồi thử lại.</string>
     <string name="session_end_fex_missing">%1$s được build cho PC x86 và chạy qua FEX, hiện chưa được cài. Khởi động Steam một lần khi đã đăng nhập và để nó tải FEX cùng Steam Linux Runtime, sau đó khởi động lại ứng dụng này.</string>
     <string name="add_app_flatpak_hint">Một app ID Flathub hoặc trang Flathub của nó. Flatpak sẽ được thiết lập trước nếu chưa có.</string>
     <string name="add_app_file">Tệp</string>
@@ -500,7 +502,9 @@
     <string name="comp_delete_original_title">Xóa bản gốc này?</string>
     <string name="comp_delete_original_body">Bản gốc %1$s này là từ một build trước của %2$s. Bản gốc của build hiện tại luôn được giữ lại.</string>
     <string name="comp_nightlies_count">Trên Nightlies · %1$d</string>
-    <string name="comp_refresh_to_list">Làm mới để liệt kê các gói trên Nightlies.</string>
+    <string name="comp_channel_stable">Ổn định</string>
+    <string name="comp_channel_nightly">Nightly</string>
+    <string name="comp_refresh_to_list">Làm mới để liệt kê các gói trên Nightlies và DroidDeck.</string>
     <string name="comp_nothing_new">Không có gì mới từ lần kiểm tra trước.</string>
     <string name="comp_import_wcp">Nhập tệp .wcp</string>
     <string name="comp_restore_original">Khôi phục bản gốc của Proton này</string>
@@ -578,6 +582,16 @@
     <string name="drawer_prev_page">Trang trước</string>
     <string name="drawer_next_page">Trang sau</string>
     <string name="drawer_hud">HUD hiệu năng</string>
+    <string name="drawer_hud_fps">Tốc độ khung hình</string>
+    <string name="drawer_hud_battery">Nhiệt độ pin</string>
+    <string name="drawer_hud_graph">Biểu đồ hiệu năng</string>
+    <string name="drawer_hud_color">Màu</string>
+    <string name="drawer_hud_color_mint">Bạc hà</string>
+    <string name="drawer_hud_color_white">Trắng</string>
+    <string name="drawer_hud_color_sky">Xanh da trời</string>
+    <string name="drawer_hud_color_amber">Hổ phách</string>
+    <string name="drawer_hud_color_violet">Tím</string>
+    <string name="drawer_hud_opacity">Độ mờ</string>
     <string name="drawer_scaling">Chế độ chia tỷ lệ</string>
     <string name="drawer_scaling_sharpness">Độ sắc nét khi chia tỷ lệ</string>
     <string name="drawer_effects">Hiệu ứng màn hình</string>
@@ -1032,6 +1046,9 @@
     <string name="games_added">Game đã thêm</string>
     <string name="games_custom">Game tùy chỉnh</string>
     <string name="games_store_storage">Lưu trữ game</string>
+    <string name="games_uninstall_body">Xóa các tệp của nó và gỡ nó khỏi Steam.</string>
+    <string name="games_remove_title">Xóa %1$s?</string>
+    <string name="games_remove_body">Xóa shortcut của nó. Các tệp game vẫn còn.</string>
     <string name="gpu_auto_hint">Cặp tốt nhất cho GPU này, luôn được cập nhật</string>
     <string name="gpu_manual_hint">Tự chọn một cặp</string>
     <string name="gpu_checking">Đang kiểm tra driver…</string>
@@ -1744,7 +1761,8 @@
     <string name="cmgr_original_kept">Bản gốc của build đã cài được giữ lại: đó là đường quay về.</string>
     <string name="cmgr_not_stored">Chưa được lưu</string>
     <string name="cmgr_deleted_original">Đã xóa bản gốc %1$s của %2$s.</string>
-    <string name="cmgr_nightlies_only">Lượt tải chỉ đến từ các bản phát hành Nightlies</string>
+    <string name="cmgr_nightlies_only">Lượt tải chỉ đến từ các bản phát hành Nightlies và DroidDeck</string>
+    <string name="cmgr_nightly_replaced">Tải xuống thất bại: bản nightly này có thể đã được thay bằng bản mới hơn. Hãy làm mới danh sách và thử lại.</string>
     <string name="cmgr_list_predates_checksums">Danh sách gói này có trước checksum - hãy làm mới và thử lại</string>
     <string name="cmgr_checksum_mismatch">Checksum không khớp</string>
 
@@ -2000,6 +2018,9 @@
     <string name="cloud_last_sync">Đồng bộ lần cuối %1$s</string>
     <string name="cloud_never">Chưa đồng bộ</string>
     <string name="cloud_done">%1$d tệp</string>
+    <string name="cloud_up_to_date">Đã cập nhật</string>
+    <string name="cloud_signed_out">Đăng nhập cửa hàng để đồng bộ bản lưu</string>
+    <string name="cloud_not_synced">Bản lưu chưa được đồng bộ</string>
     <string name="stores_eyebrow_installed">đã cài</string>
     <string name="stores_eyebrow_library">trong thư viện của bạn</string>
     <string name="stores_eyebrow_store">cửa hàng</string>
@@ -2301,7 +2322,7 @@
     <string name="touch_done">Xong</string>
     <string name="touch_save_failed">Không thể lưu bố cục chạm</string>
     <string name="touch_saved">Đã lưu bố cục chạm vào Steam</string>
-    <string name="touch_app_id">Ứng dụng %1$d</string>
+    <string name="touch_app_id">Ứng dụng %1$s</string>
     <string name="touch_label_hint">Nhãn (không bắt buộc)</string>
     <string name="touch_icons_missing">Không tìm thấy biểu tượng của Steam</string>
     <plurals name="touch_icons_found">
@@ -2390,6 +2411,15 @@
     <string name="glasses_vr_fov">Trường nhìn của SteamVR</string>
     <string name="glasses_vr_fov_hint">Thấp hơn sẽ đưa SteamVR lại gần và lấp đầy kính; cao hơn cho thấy nhiều hơn xung quanh bạn.</string>
     <string name="glasses_playing">Đang chơi trên %1$s</string>
+    <string name="glasses_phone_recenter">Căn giữa lại</string>
+    <string name="glasses_phone_steamvr_menu">Menu SteamVR</string>
+    <string name="glasses_phone_switch_sticks">Cần: tay ⇄ trò chơi</string>
+    <string name="glasses_phone_controllers">Tay cầm: %1$s</string>
+    <string name="glasses_phone_keyboard">Bàn phím</string>
+    <string name="glasses_phone_session_menu">Menu phiên</string>
+    <string name="glasses_phone_stop_steamvr">Dừng SteamVR</string>
+    <string name="glasses_phone_brightness">Độ sáng %1$d / %2$d</string>
+    <string name="glasses_phone_battery">Pin %1$d%% · %2$d °C</string>
     <string name="glasses_calibration">Hiệu chỉnh theo dõi</string>
     <string name="glasses_calibration_hint">Giảm hiện tượng trôi và căn lại mốc thăng bằng.</string>
     <string name="glasses_calibration_saved_hint">Hiệu chỉnh đã lưu đang được áp dụng cho kính này.</string>

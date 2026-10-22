@@ -176,6 +176,8 @@
     <string name="app_fex_x86">%1$s przez FEX</string>
     <string name="app_fex_not_ready">Ten program jest zbudowany dla komputerów %1$s i działa przez FEX, który nie jest jeszcze skonfigurowany. Otwórz raz Steam po zalogowaniu: DroidDeck pobierze wtedy FEX i potrzebne Steam Linux Runtime, a potem program się otworzy.</string>
     <string name="session_end_program">Ten program</string>
+    <string name="session_end_steam_download">Nie udało się pobrać klienta Steam. Twoja sieć lub VPN może blokować serwery Steam; sprawdź połączenie i spróbuj ponownie.</string>
+    <string name="session_end_steam_setup">Nie udało się skonfigurować klienta Steam. Sprawdź połączenie i wolne miejsce, a potem spróbuj ponownie.</string>
     <string name="session_end_fex_missing">%1$s jest zbudowany dla komputerów x86 i działa przez FEX, który nie jest jeszcze zainstalowany. Uruchom raz Steam po zalogowaniu i pozwól mu pobrać FEX oraz Steam Linux Runtime, a potem uruchom program ponownie.</string>
     <string name="add_app_flatpak_hint">ID aplikacji z Flathub lub jej strona na Flathub. Jeśli Flatpak nie jest jeszcze skonfigurowany, zostanie skonfigurowany najpierw.</string>
     <string name="add_app_file">Plik</string>
@@ -506,7 +508,9 @@
     <string name="comp_delete_original_title">Usunąć ten oryginał?</string>
     <string name="comp_delete_original_body">Ten oryginał %1$s pochodzi z wcześniejszej wersji %2$s. Oryginał bieżącej wersji jest zawsze zachowywany.</string>
     <string name="comp_nightlies_count">W wersjach nightly · %1$d</string>
-    <string name="comp_refresh_to_list">Odśwież, aby wyświetlić pakiety w wersjach nightly.</string>
+    <string name="comp_channel_stable">Stabilna</string>
+    <string name="comp_channel_nightly">Nightly</string>
+    <string name="comp_refresh_to_list">Odśwież, aby wyświetlić pakiety w Nightlies i DroidDeck.</string>
     <string name="comp_nothing_new">Nic nowego od ostatniego sprawdzenia.</string>
     <string name="comp_import_wcp">Importuj .wcp</string>
     <string name="comp_restore_original">Przywróć oryginał tego Proton</string>
@@ -584,6 +588,16 @@
     <string name="drawer_prev_page">Poprzednia strona</string>
     <string name="drawer_next_page">Następna strona</string>
     <string name="drawer_hud">HUD wydajności</string>
+    <string name="drawer_hud_fps">Liczba klatek</string>
+    <string name="drawer_hud_battery">Temperatura baterii</string>
+    <string name="drawer_hud_graph">Wykres wydajności</string>
+    <string name="drawer_hud_color">Kolor</string>
+    <string name="drawer_hud_color_mint">Mięta</string>
+    <string name="drawer_hud_color_white">Biały</string>
+    <string name="drawer_hud_color_sky">Błękitny</string>
+    <string name="drawer_hud_color_amber">Bursztynowy</string>
+    <string name="drawer_hud_color_violet">Fioletowy</string>
+    <string name="drawer_hud_opacity">Przezroczystość</string>
     <string name="drawer_scaling">Tryb skalowania</string>
     <string name="drawer_scaling_sharpness">Ostrość skalowania</string>
     <string name="drawer_effects">Efekty ekranowe</string>
@@ -1050,6 +1064,9 @@
     <string name="games_added">Dodana gra</string>
     <string name="games_custom">Własna gra</string>
     <string name="games_store_storage">Miejsce na gry</string>
+    <string name="games_uninstall_body">Usuwa jej pliki i usuwa ją ze Steam.</string>
+    <string name="games_remove_title">Usunąć %1$s?</string>
+    <string name="games_remove_body">Usuwa skrót. Pliki gry pozostają.</string>
     <string name="gpu_auto_hint">Najlepsza para dla tego GPU, aktualizowana automatycznie</string>
     <string name="gpu_manual_hint">Wybierz parę samodzielnie</string>
     <string name="gpu_checking">Sprawdzanie sterowników…</string>
@@ -1807,7 +1824,8 @@
     <string name="cmgr_original_kept">Oryginał zainstalowanej wersji zostaje zachowany: to droga powrotu.</string>
     <string name="cmgr_not_stored">Nie przechowywano</string>
     <string name="cmgr_deleted_original">Usunięto oryginał %2$s z %1$s.</string>
-    <string name="cmgr_nightlies_only">Pobieranie odbywa się tylko z wydań Nightlies</string>
+    <string name="cmgr_nightlies_only">Pobieranie odbywa się tylko z wydań Nightlies i DroidDeck</string>
+    <string name="cmgr_nightly_replaced">Pobieranie nie powiodło się: ta wersja nightly mogła zostać zastąpiona nowszą. Odśwież listę i spróbuj ponownie.</string>
     <string name="cmgr_list_predates_checksums">Ta lista pakietów jest starsza niż sumy kontrolne – odśwież ją i spróbuj ponownie</string>
     <string name="cmgr_checksum_mismatch">Niezgodna suma kontrolna</string>
 
@@ -2063,6 +2081,9 @@
     <string name="cloud_last_sync">Ostatnia synchronizacja %1$s</string>
     <string name="cloud_never">Jeszcze nie zsynchronizowano</string>
     <string name="cloud_done">%1$d plików</string>
+    <string name="cloud_up_to_date">Już aktualne</string>
+    <string name="cloud_signed_out">Zaloguj się do sklepu, aby synchronizować zapisy</string>
+    <string name="cloud_not_synced">Zapisy nie zostały zsynchronizowane</string>
     <string name="stores_eyebrow_installed">zainstalowana</string>
     <string name="stores_eyebrow_library">w Twojej bibliotece</string>
     <string name="stores_eyebrow_store">sklep</string>
@@ -2141,6 +2162,9 @@
     <string name="stores_download_manager">Menedżer pobierania</string>
     <string name="stores_parallel">Pobierania naraz</string>
     <string name="stores_install_where">Instaluj w</string>
+    <string name="stores_install_language">Język gry</string>
+    <string name="stores_install_language_hint">GOG i Epic instalują w tym języku. System to język aplikacji.</string>
+    <string name="stores_install_language_system">Systemowy</string>
     <string name="stores_install_title">Zainstaluj %1$s:</string>
     <string name="stores_target_internal">Wewnętrzna</string>
     <string name="stores_target_free">%1$s wolnego miejsca</string>
@@ -2370,7 +2394,7 @@
     <string name="touch_done">Gotowe</string>
     <string name="touch_save_failed">Nie udało się zapisać układu dotykowego</string>
     <string name="touch_saved">Układ dotykowy zapisany w Steam</string>
-    <string name="touch_app_id">Aplikacja %1$d</string>
+    <string name="touch_app_id">Aplikacja %1$s</string>
     <string name="touch_label_hint">Etykieta (opcjonalnie)</string>
     <string name="touch_icons_missing">Nie znaleziono ikon Steam</string>
     <plurals name="touch_icons_found">
@@ -2465,6 +2489,15 @@
     <string name="glasses_vr_fov">Pole widzenia SteamVR</string>
     <string name="glasses_vr_fov_hint">Mniejsze przybliża SteamVR i wypełnia okulary; większe pokazuje więcej dookoła.</string>
     <string name="glasses_playing">Grasz na: %1$s</string>
+    <string name="glasses_phone_recenter">Wyśrodkuj ponownie</string>
+    <string name="glasses_phone_steamvr_menu">Menu SteamVR</string>
+    <string name="glasses_phone_switch_sticks">Gałki: dłonie ⇄ gra</string>
+    <string name="glasses_phone_controllers">Kontrolery: %1$s</string>
+    <string name="glasses_phone_keyboard">Klawiatura</string>
+    <string name="glasses_phone_session_menu">Menu sesji</string>
+    <string name="glasses_phone_stop_steamvr">Zatrzymaj SteamVR</string>
+    <string name="glasses_phone_brightness">Jasność %1$d / %2$d</string>
+    <string name="glasses_phone_battery">Bateria %1$d%% · %2$d °C</string>
     <string name="glasses_calibration">Kalibracja śledzenia</string>
     <string name="glasses_calibration_hint">Ogranicza dryf i wyrównuje poziom odniesienia.</string>
     <string name="glasses_calibration_saved_hint">Dla tych okularów używana jest zapisana kalibracja.</string>

@@ -70,7 +70,6 @@ class GestureLocalizationTest {
     fun arabicPickerSearchPreservesBindingsAndMirrorsFooter() {
         assertEquals(View.LAYOUT_DIRECTION_RTL, context.resources.configuration.layoutDirection)
         compose.setContent { DroidDeckTheme { TouchGestureDialog(null, {}, {}) } }
-        compose.onNodeWithText("إعدادات إيماءات اللمس").assertIsDisplayed()
         val save = compose.onNodeWithTag("gesture-save").fetchSemanticsNode().boundsInRoot
         val cancel = compose.onNodeWithText(context.getString(R.string.gesture_cancel)).fetchSemanticsNode().boundsInRoot
         assertTrue("Save $save and Cancel $cancel should follow the right-to-left layout", save.left < cancel.left)
