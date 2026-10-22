@@ -13,6 +13,7 @@ import androidx.core.content.FileProvider
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.core.LogRedactor
 import com.droiddeck.launcher.runtime.LinuxRuntime
+import com.droiddeck.launcher.stores.epic.EpicClient
 import java.io.File
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
@@ -49,7 +50,9 @@ object SessionLogShare {
         val logs = LinuxRuntime.logDir(context)
         val stores = recent(File(logs, STORES_DIR))
         val tools = recent(File(logs, SessionPaths.TOOLS_DIR))
-        val total = (files + live + stores + tools).sumOf { it.length() }.coerceAtLeast(1L)
+        val epic = recent(File(EpicClient.stateDir(context), EPIC_LOGS))
+            .filter { it.length() <= EPIC_LOG_MAX_BYTES }
+        val total = (files + live + stores + tools + epic).sumOf { it.length() }.coerceAtLeast(1L)
         var done = 0L
         var shown = -1
         fun advance(f: File) {
@@ -62,6 +65,7 @@ object SessionLogShare {
             live.forEach { f -> addEntry(z, folder.name + "/steam/" + f.name, f); advance(f) }
             stores.forEach { f -> addEntry(z, "$STORES_DIR/" + f.name, f); advance(f) }
             tools.forEach { f -> addEntry(z, SessionPaths.TOOLS_DIR + "/" + f.name, f); advance(f) }
+            epic.forEach { f -> addEntry(z, EPIC_DIR + "/" + f.name, f); advance(f) }
         }
         return zip
     }
@@ -84,6 +88,9 @@ object SessionLogShare {
     private const val STEAM_LOG_MAX_BYTES = 8L * 1024 * 1024
 
     const val STORES_DIR = "stores"
+    const val EPIC_DIR = "epic"
+    private const val EPIC_LOGS = "logs"
+    private const val EPIC_LOG_MAX_BYTES = 8L * 1024 * 1024
     private const val RECENT_DAYS = 7
 
     private fun shareDir(context: Context): File = File(context.cacheDir, "share")
