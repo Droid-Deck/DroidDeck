@@ -714,7 +714,9 @@ class SessionService : Service() {
     private fun addControllerEnvironment(guest: MutableList<String>, fakeInputDir: File, sessionDir: File) {
         FakeInputWriter.prepareRingSlots(fakeInputDir, 4)
         val builtinPad = SessionPrefs.builtinPad(this)
-        val hiddenPad = SessionState.mode == MODE_STEAM && !builtinPad
+        val hiddenPad = SessionState.mode == MODE_STEAM && !builtinPad &&
+            !com.droiddeck.launcher.input.PadBridge.anyControllerConnected()
+        com.droiddeck.launcher.input.PadBridge.setFirstSlot(if (hiddenPad) 1 else 0)
         fakeInputDir.listFiles()?.forEach { file ->
             val node = Regex("event(\\d+)").matchEntire(file.name)?.groupValues?.get(1)?.toIntOrNull()
             if (file.name.startsWith(".uinput-") || (node != null && node >= FIRST_VIRTUAL_PAD) ||

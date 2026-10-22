@@ -103,6 +103,7 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.border
 import androidx.compose.foundation.focusable
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
@@ -384,10 +385,15 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
             focus.request(first)
         }
     }
-    if (open || veil > 0.01f) Box(
-        modifier = Modifier.fillMaxSize()
-            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { host.open = null; a.onClose() },
-    )
+    if (open || veil > 0.01f) {
+        val closeLabel = stringResource(R.string.common_close)
+        Box(
+            modifier = Modifier.fillMaxSize()
+                .focusProperties { canFocus = false }
+                .semantics { contentDescription = closeLabel }
+                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClickLabel = closeLabel) { host.open = null; a.onClose() },
+        )
+    }
     androidx.compose.foundation.layout.BoxWithConstraints(modifier = Modifier.fillMaxSize().exposeTestTags(), contentAlignment = Alignment.CenterEnd) {
         val short = maxHeight < 440.dp
         val sheetWidth = minOf(360.dp, maxWidth * 0.92f)
@@ -401,7 +407,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                 modifier = Modifier
                     .fillMaxSize()
                     .background(pal.background.copy(alpha = 0.97f))
-                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {}
+                    .blockTouches()
                     .focusGroup()
                     .controllerBack {
                         if (host.open != null) host.open = null else a.onClose()
