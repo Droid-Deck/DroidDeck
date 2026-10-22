@@ -79,7 +79,7 @@ object StoresState {
         val app = context.applicationContext
         com.droiddeck.launcher.stores.download.SavedQueue.restore(app)
         background("stores-refresh") {
-            val found = Store.entries.mapNotNull { store -> StoreAccounts.signedInAs(app, store)?.let { store to it } }
+            val found = Store.entries.mapNotNull { store -> StoreAccounts.displayName(app, store)?.let { store to it } }
             val onDisk = StoreInstallRoot.gameFolders(app).mapNotNull { folder ->
                 StoreGameSidecar.read(folder)?.takeIf { it.isInstalled }?.let { InstalledStoreGame(it, folder) }
             }

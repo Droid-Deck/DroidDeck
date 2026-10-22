@@ -94,6 +94,20 @@ object StoreAccounts {
         return json.optString("display_name", "").ifEmpty { json.optString("username", "") }.ifEmpty { store.label }
     }
 
+    /** The name the Stores page shows. Xbox shows the gamertag, else the sign-in email with its name part masked. */
+    fun displayName(context: Context, store: Store): String? {
+        val signedIn = signedInAs(context, store) ?: return null
+        if (store != Store.XBOX) return signedIn
+        val json = read(context, store) ?: return signedIn
+        json.optString("gamertag").takeIf { it.isNotBlank() }?.let { return it }
+        return maskEmail(signedIn)
+    }
+
+    internal fun maskEmail(name: String): String {
+        val at = name.indexOf('@')
+        return if (at <= 0) name.take(1) + "•••" else name.take(1) + "•••" + name.substring(at)
+    }
+
     private fun seal(f: File, json: JSONObject, retry: Boolean = false): File? {
         if (keystoreFailed && !retry) return null
         val text = json.toString()
