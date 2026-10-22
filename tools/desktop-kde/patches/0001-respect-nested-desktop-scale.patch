@@ -138,8 +138,8 @@ index 1543058..a22d974 100644
 +QPointF WaylandOutput::mapToOutput(const QPointF &hostPosition) const
 +{
 +    const QPointF inPanel = hostPosition * presentationScale() / scale();
-+    const QSizeF panelSize = QSize(std::round(modeSize().width() / presentationScale()),
-+                                   std::round(modeSize().height() / presentationScale()));
++    const QSizeF panelSize = QSize(std::round(modeSize().width() / scale()),
++                                   std::round(modeSize().height() / scale()));
 +    return position() + transform().inverted().map(inPanel, panelSize);
 +}
 +
