@@ -182,6 +182,20 @@ SWITCH_JS = r"""
 })()
 """.replace("__BINDING__", SWITCH_BINDING)
 SESSION_SELECT = "/usr/bin/steamos-session-select"
+# Steam opens its Steam Controller welcome tour at every start while the client setting
+# controller_show_ibex_tour (CMsgClientSettings field 140014) is on, and only a finished tour turns it
+# off; closing it leaves it on. The app's pad is an emulated controller, so the tour never applies.
+# A pending firmware update still opens Steam's updater, which checks the update priority instead.
+TOUR_JS = r"""
+(() => {
+  let key = 140014 * 8;
+  const bytes = [];
+  while (key > 127) { bytes.push((key & 127) | 128); key = Math.floor(key / 128); }
+  bytes.push(key, 0);
+  SteamClient.Settings.SetSetting(btoa(String.fromCharCode(...bytes)));
+  return "off";
+})()
+"""
 VR_BINDING = "droiddeckLaunchSteamVr"
 VR_HELPER = "/usr/local/bin/droiddeck-steamvr"
 VR_JS = r"""
@@ -528,6 +542,11 @@ class Helper:
             page.call("Runtime.addBinding", {"name": BINDING})
             page.call("Runtime.addBinding", {"name": VR_BINDING})
             page.evaluate(VR_JS)
+            try:
+                page.evaluate(TOUR_JS)
+            except RuntimeError:
+                # The optional tour setting must not block the compat bridge.
+                pass
             if not self.steamos:
                 page.call("Runtime.addBinding", {"name": SWITCH_BINDING})
                 page.evaluate(SWITCH_JS)
