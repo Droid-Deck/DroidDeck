@@ -66,7 +66,7 @@ mkdir -p "$WORK/pkg" "$WORK/db" || fail "cannot create $WORK"
 { for m in https://ca.us.mirror.archlinuxarm.org https://fl.us.mirror.archlinuxarm.org \
            https://de3.mirror.archlinuxarm.org https://nl.mirror.archlinuxarm.org; do
     echo "Server = $m/\$arch/\$repo"; done
-  grep '^Server' /etc/pacman.d/mirrorlist 2>/dev/null; } > "$WORK/mirrorlist"
+  grep -E '^Server[[:space:]]*=[[:space:]]*https://' /etc/pacman.d/mirrorlist 2>/dev/null; } > "$WORK/mirrorlist"
 sed -e 's/^DownloadUser/#DownloadUser/' \
     -e 's/^\[options\]/[options]\nDisableSandbox/' \
     -e "s#^Include *= */etc/pacman.d/mirrorlist#Include = $WORK/mirrorlist#" \

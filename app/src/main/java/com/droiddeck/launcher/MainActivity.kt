@@ -919,6 +919,10 @@ class MainActivity : ComponentActivity() {
                         // like a store install; its milestones land on the page as they come.
                         onOrcaInstall = {
                             if (orcaBusy) return@FrontEndActions
+                            if (SessionState.running || LinuxRuntimeInstaller.isBusy()) {
+                                android.widget.Toast.makeText(this, R.string.accessibility_session_running, android.widget.Toast.LENGTH_LONG).show()
+                                return@FrontEndActions
+                            }
                             orcaBusy = true
                             orcaStage = null
                             orcaError = null
@@ -941,6 +945,10 @@ class MainActivity : ComponentActivity() {
                         // (BL_ORCA is forced on for that session, so the request is answered even
                         // when the reader is not enabled yet).
                         onOrcaSettings = {
+                            if (SessionState.running && !SessionState.orcaActive) {
+                                android.widget.Toast.makeText(this, R.string.accessibility_restart_for_settings, android.widget.Toast.LENGTH_LONG).show()
+                                return@FrontEndActions
+                            }
                             OrcaManager.requestSettings(this)
                             if (!SessionState.running) startSession(
                                 Intent(this, SessionActivity::class.java)

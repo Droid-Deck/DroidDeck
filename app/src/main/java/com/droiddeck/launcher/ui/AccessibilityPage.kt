@@ -29,7 +29,7 @@ internal fun AccessibilityPage(s: FrontEndState, a: FrontEndActions) {
             Actions {
                 PrimaryButton(
                     stringResource(R.string.accessibility_install),
-                    enabled = !s.orcaBusy && s.installed != null,
+                    enabled = !s.orcaBusy && !s.sessionRunning && s.installed != null,
                     main = true,
                     icon = Icons.Outlined.Download,
                     onClick = a.onOrcaInstall,

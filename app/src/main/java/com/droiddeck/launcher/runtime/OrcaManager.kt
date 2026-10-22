@@ -38,6 +38,8 @@ object OrcaManager {
      * script's "== STEP" milestones (percent unknown, -1). Null on success, else what went wrong.
      */
     fun install(context: Context, onProgress: (String, Int) -> Unit): String? {
+        if (com.droiddeck.launcher.session.SessionState.running ||
+            com.droiddeck.launcher.runtime.LinuxRuntimeInstaller.isBusy()) return context.getString(R.string.accessibility_session_running)
         if (!LinuxRuntime.isInstalled(context)) return context.getString(R.string.accessibility_requires_runtime)
         if (isInstalled(context)) {
             setEnabled(context, true)

@@ -254,6 +254,7 @@ class SessionService : Service() {
         orcaSettings = intent?.getBooleanExtra(EXTRA_ORCA_SETTINGS, false) ?: false
         synchronized(stopLock) {
             SessionState.steamClientArch = null
+            SessionState.orcaActive = false
             SessionState.running = true
         }
         if (SessionState.stopRequested) {
@@ -395,8 +396,9 @@ class SessionService : Service() {
         // runtime starts it (droiddeck-orca reads BL_ORCA in the session script and the desktop).
         // An Accessibility-settings session forces it on so the preferences dialog can be shown
         // even before the reader is enabled.
-        if (OrcaManager.isInstalled(this) &&
-            (OrcaManager.enabled(this) || orcaSettings)) {
+        SessionState.orcaActive = OrcaManager.isInstalled(this) &&
+            (OrcaManager.enabled(this) || orcaSettings)
+        if (SessionState.orcaActive) {
             guest.add("BL_ORCA=1")
             // Orca's preferences dialog and default voice follow the app's interface language.
             guest.add("BL_ORCA_LANG=" + OrcaManager.languageTag())
@@ -1425,6 +1427,7 @@ class SessionService : Service() {
         val (ended, endedArch) = synchronized(stopLock) {
             if (!SessionState.running) return
             SessionState.running = false
+            SessionState.orcaActive = false
             SessionPaths.take() to SessionState.steamClientArch
         }
         xrActivityVisible = false

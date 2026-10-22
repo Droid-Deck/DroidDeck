@@ -1123,6 +1123,8 @@
     <string name="accessibility_installing_stage">Installing Orca: %1$s</string>
     <string name="accessibility_installed_toast">Orca installed. It reads the screen in every session from now on.</string>
     <string name="accessibility_settings_requested">Opening Orca settings in the session.</string>
+    <string name="accessibility_session_running">Остановите сеанс перед установкой Orca или изменением среды выполнения.</string>
+    <string name="accessibility_restart_for_settings">Перезапустите сеанс с включённой Orca, чтобы открыть её настройки.</string>
     <string name="accessibility_requires_runtime">Install the Linux runtime first.</string>
     <string name="accessibility_install_failed">Orca install failed (%1$d).</string>
     <string name="accessibility_install_unfinished">Orca installed but did not finish setup.</string>
