@@ -129,8 +129,6 @@ class XboxLoginActivity : ComponentActivity() {
                     record.put("username", account.getString("username"))
                     StoreAccounts.write(this, Store.XBOX, record)
                 }
-                step = "reading the gamertag"
-                XboxGamertag.refresh(applicationContext, accountGeneration)
                 logStep("signed in")
                 runOnUiThread { finish() }
             } catch (e: Exception) {
