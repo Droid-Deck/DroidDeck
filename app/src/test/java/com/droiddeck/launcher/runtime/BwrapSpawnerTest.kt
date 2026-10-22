@@ -118,4 +118,31 @@ class BwrapSpawnerPlanTest {
         assertEquals("/app", plan.cwd)
         assertEquals("org.example.Game", plan.env["FLATPAK_ID"])
     }
+
+    @Test fun zypakLaunchesTheBrowserWithoutItsSandbox() {
+        val context = RuntimeEnvironment.getApplication()
+        val app = File(runtime, "app").apply { File(this, "bin").mkdirs() }
+        File(app, "bin/zypak-wrapper.sh").writeText("#!/usr/bin/bash\nexec zypak-helper host - \"\$@\"\n")
+        Files.createSymbolicLink(File(app, "bin/zypak-wrapper").toPath(), java.nio.file.Paths.get("/app/bin/zypak-wrapper.sh"))
+        val plan = BwrapSpawner.plan(context, request(
+            op("t" to "bind", "src" to "/runtime-files/app", "dest" to "/app", "ro" to true),
+        ), dir)
+
+        val shim = plan.binds.single { it.guest == "/app/bin/zypak-wrapper.sh" }
+        assertTrue(shim.host.startsWith(dir.path))
+        assertTrue(File(shim.host).readText().contains("exec \"\$program\" --no-sandbox \"\$@\""))
+        assertFalse(plan.binds.any { it.guest == "/app/bin/zypak-wrapper" })
+        assertTrue(File(app, "bin/zypak-wrapper.sh").readText().contains("zypak-helper"))
+    }
+
+    @Test fun appsWithoutZypakKeepTheirFiles() {
+        val context = RuntimeEnvironment.getApplication()
+        File(runtime, "app/bin").mkdirs()
+        val plan = BwrapSpawner.plan(context, request(
+            op("t" to "bind", "src" to "/runtime-files/app", "dest" to "/app", "ro" to true),
+        ), dir)
+
+        assertFalse(plan.binds.any { it.guest.startsWith("/app/bin/") })
+        assertFalse(File(dir, "zypak-wrapper").exists())
+    }
 }

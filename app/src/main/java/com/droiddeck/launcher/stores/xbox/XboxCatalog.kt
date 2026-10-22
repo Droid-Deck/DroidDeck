@@ -10,6 +10,14 @@ import java.time.Instant
 internal object XboxCatalog {
     private val productId = Regex("[A-Z0-9]{12}")
     private val plans = setOf("CFQ7TTC0KGQ8", "CFQ7TTC0KHS0", "CFQ7TTC0P85B", "CFQ7TTC0K5DJ", "CFQ7TTC0K6L8", "CFQ7TTC10QFD")
+    /** Plans that include PC games; the retired console-only plan must not offer a Windows install. */
+    private val pcPlans = mapOf(
+        "CFQ7TTC0KGQ8" to "PC Game Pass",
+        "CFQ7TTC0KHS0" to "Game Pass Ultimate",
+        "CFQ7TTC0P85B" to "Xbox Game Pass Premium",
+        "CFQ7TTC0K5DJ" to "Xbox Game Pass Essential",
+        "CFQ7TTC10QFD" to "Xbox Game Pass (Starter Edition)",
+    )
 
     fun access(json: JSONObject, account: String, market: String, now: Instant = Instant.now(), report: (String) -> Unit = {}): Map<String, String> {
         require(json.getInt("schema") == 1 && json.getString("account") == account && json.getString("market") == market)
@@ -53,7 +61,7 @@ internal object XboxCatalog {
             val parent = row.optString("satisfiedByProductId").takeUnless { it.isBlank() || it == "null" }
             if (parent == null) return if (id in plans) null else "owned"
             if (parent in blocked) return null
-            if (parent in plans) return if (activePlan(parent)) "gamepass" else null
+            if (parent in plans) return if (parent in pcPlans && activePlan(parent)) "gamepass" else null
             return kind(parent, visited + id)
         }
         val result = rows.keys.mapNotNull { id -> kind(id)?.let { id to it } }.toMap()
@@ -110,9 +118,12 @@ internal object XboxCatalog {
             }
         }
         val kind = access[id]
+        val includedWith = objects(localized.optJSONObject("EligibilityProperties")?.optJSONArray("Affirmations"))
+            .mapNotNull { pcPlans[it.optString("AffirmationProductId")] }
+            .firstOrNull().orEmpty()
         return CatalogItem(Store.XBOX, id, title, image("SuperHeroArt", "Hero", "BoxArt"),
             tallImageUrl = image("TitledPoster", "Poster", "BoxArt"),
-            owned = kind == "owned", subscription = kind == "gamepass",
+            owned = kind == "owned", subscription = kind == "gamepass", includedWith = includedWith,
             storeUrl = "https://www.xbox.com/games/store/$id",
             publisher = localized.optString("PublisherName"), developer = localized.optString("DeveloperName"),
             description = localized.optString("ProductDescription"),

@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -73,6 +74,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -381,6 +384,7 @@ fun ComponentsPage(
     var stackAt by remember { mutableStateOf(Offset.Zero) }
     var pageAt by remember { mutableStateOf(Offset.Zero) }
     val landed = remember { mutableStateMapOf<String, Int>() }
+    val nightlyPicked = remember { mutableStateMapOf<String, Boolean>() }
     val rings = remember { mutableStateMapOf<String, Int>() }
     fun land(l: String) { landed[l] = (landed[l] ?: 0) + 1; rings[l] = (rings[l] ?: 0) + 1 }
     val arrivedSeen = remember { intArrayOf(Hops.arrived) }
@@ -504,7 +508,7 @@ fun ComponentsPage(
     val availableTitle: @Composable (String) -> String = { l ->
         when (l) {
             PROTON_TAB -> stringResource(R.string.comp_available_count, protons.rows.count { it.installed == null || it.update != null })
-            else -> stringResource(R.string.comp_nightlies_count, availableFor(l, catalog, snapshot).size)
+            else -> stringResource(R.string.comp_nightlies_count, availableRows(l, catalog, snapshot).size)
         }
     }
     val installedRows: @Composable ColumnScope.(String, Boolean) -> Unit = { l, right ->
@@ -581,12 +585,16 @@ fun ComponentsPage(
                 ) { protonActions.onInstall(row.id) }
             }
             else -> {
-                val available = availableFor(l, catalog, snapshot)
+                val available = availableRows(l, catalog, snapshot)
                 if (available.isEmpty()) EmptyLine(if (catalogAt == 0L) stringResource(R.string.comp_refresh_to_list) else stringResource(R.string.comp_nothing_new))
-                for (d in available) GetLine(
-                    d.file.removeSuffix(".wcp"), "${d.release} · " + stringResource(R.string.common_size_mb, d.size / 1048576.0),
-                    progress = downloads[d.file], enabled = busy == null,
-                ) { onDownload(d) }
+                for ((stable, nightly) in available) {
+                    val d = if (nightly != null && nightlyPicked[stable.file] == true) nightly else stable
+                    GetLine(
+                        d.file.removeSuffix(".wcp"), "${d.release} · " + stringResource(R.string.common_size_mb, d.size / 1048576.0),
+                        progress = downloads[d.file], enabled = busy == null,
+                        channel = if (nightly != null) ({ ChannelToggle(d === nightly, enabled = busy == null) { nightlyPicked[stable.file] = d !== nightly } }) else null,
+                    ) { onDownload(d) }
+                }
             }
         }
     }
@@ -920,6 +928,14 @@ private fun installedFor(l: String, view: ComponentsManager.ProtonView?, snapsho
 private fun availableFor(l: String, catalog: List<CatalogItem>, snapshot: Snapshot?): List<CatalogItem> {
     val stored = (snapshot?.packages ?: emptyList()).map { it.file }.toSet()
     return catalog.filter { it.comp == l && ComponentsManager.safeName(it.file) !in stored }
+}
+
+// The rows to show: each stable row carries its paired nightly (if any), and a paired nightly has no row of its own.
+private fun availableRows(l: String, catalog: List<CatalogItem>, snapshot: Snapshot?): List<Pair<CatalogItem, CatalogItem?>> {
+    val available = availableFor(l, catalog, snapshot)
+    val pairs = ComponentsManager.nightlyPairs(available)
+    val paired = pairs.values.toSet()
+    return available.filter { it !in paired }.map { it to pairs[it] }
 }
 
 @Composable
@@ -1417,7 +1433,8 @@ private fun ChoiceLine(
 @Composable
 private fun GetLine(
     name: String, detail: String, progress: Int?, enabled: Boolean,
-    badge: String? = null, stage: String? = null, onCancel: (() -> Unit)? = null, action: String? = null, onGet: () -> Unit,
+    badge: String? = null, stage: String? = null, onCancel: (() -> Unit)? = null, action: String? = null,
+    channel: (@Composable () -> Unit)? = null, onGet: () -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
@@ -1432,10 +1449,41 @@ private fun GetLine(
         if (progress != null) ProgressBit(progress)
         else {
             if (onCancel != null) FocusText(stringResource(R.string.proton_cancel_queued), pal.signal, onClick = onCancel)
+            channel?.invoke()
             SmallButton(action ?: stringResource(R.string.comp_get), enabled = enabled, accent = true, onClick = onGet)
         }
     }
     Box(Modifier.fillMaxWidth().height(1.dp).background(pal.line))
+}
+
+// Stable | Nightly in the same box as SmallButton: one focus stop, A (or a tap) flips it.
+@Composable
+private fun ChannelToggle(nightly: Boolean, enabled: Boolean, onFlip: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    val src = remember { MutableInteractionSource() }
+    val hot = rememberHot(src) && enabled
+    val state = stringResource(if (nightly) R.string.comp_channel_nightly else R.string.comp_channel_stable)
+    Row(
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp),
+        modifier = Modifier.heightIn(min = 44.dp).clip(RoundedCornerShape(10.dp))
+            .background(colors.surfaceVariant)
+            .glideBorder(hot, RoundedCornerShape(10.dp), colors.onBackground, pal.line2, restWidth = 2.dp)
+            .hoverable(src).toggleable(value = nightly, interactionSource = src, indication = null, enabled = enabled, role = Role.Switch, onValueChange = { onFlip() })
+            .controllerConfirm(enabled = enabled, onClick = onFlip)
+            .semantics { stateDescription = state }
+            .padding(4.dp),
+    ) {
+        for ((label, on) in listOf(R.string.comp_channel_stable to !nightly, R.string.comp_channel_nightly to nightly)) {
+            Text(
+                stringResource(label), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1,
+                color = if (!enabled) colors.onSurfaceVariant else if (on) (if (hot) pal.onSignal else pal.signal) else colors.onSurfaceVariant,
+                modifier = Modifier.clip(RoundedCornerShape(7.dp))
+                    .background(if (on && enabled) (if (hot) pal.signal else pal.signal.copy(alpha = 0.16f)) else Color.Transparent)
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
+            )
+        }
+    }
 }
 
 @Composable

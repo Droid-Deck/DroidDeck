@@ -504,7 +504,9 @@
     <string name="comp_delete_original_title">Ta bort det här originalet?</string>
     <string name="comp_delete_original_body">Det här originalet av %1$s är från ett tidigare bygge av %2$s. Originalet från det aktuella bygget behålls alltid.</string>
     <string name="comp_nightlies_count">I nattbyggena · %1$d</string>
-    <string name="comp_refresh_to_list">Uppdatera för att lista paket i nattbyggena.</string>
+    <string name="comp_channel_stable">Stabil</string>
+    <string name="comp_channel_nightly">Nattbygge</string>
+    <string name="comp_refresh_to_list">Uppdatera för att lista paket i Nightlies och DroidDeck.</string>
     <string name="comp_nothing_new">Inget nytt sedan senaste kontrollen.</string>
     <string name="comp_import_wcp">Importera .wcp</string>
     <string name="comp_restore_original">Återställ den här Protonens original</string>
@@ -582,6 +584,16 @@
     <string name="drawer_prev_page">Föregående sida</string>
     <string name="drawer_next_page">Nästa sida</string>
     <string name="drawer_hud">Prestanda-HUD</string>
+    <string name="drawer_hud_fps">Bildfrekvens</string>
+    <string name="drawer_hud_battery">Batteritemperatur</string>
+    <string name="drawer_hud_graph">Prestandagraf</string>
+    <string name="drawer_hud_color">Färg</string>
+    <string name="drawer_hud_color_mint">Mint</string>
+    <string name="drawer_hud_color_white">Vit</string>
+    <string name="drawer_hud_color_sky">Himmelsblå</string>
+    <string name="drawer_hud_color_amber">Amber</string>
+    <string name="drawer_hud_color_violet">Lila</string>
+    <string name="drawer_hud_opacity">Opacitet</string>
     <string name="drawer_scaling">Skalningsläge</string>
     <string name="drawer_scaling_sharpness">Skalningsskärpa</string>
     <string name="drawer_effects">Skärmeffekter</string>
@@ -1770,7 +1782,8 @@
     <string name="cmgr_original_kept">Den installerade versionens original behålls: det är vägen tillbaka.</string>
     <string name="cmgr_not_stored">Inte sparad</string>
     <string name="cmgr_deleted_original">Tog bort %1$s-originalet av %2$s.</string>
-    <string name="cmgr_nightlies_only">Nedladdningar kommer bara från Nightlies-utgåvorna</string>
+    <string name="cmgr_nightlies_only">Nedladdningar kommer bara från Nightlies- och DroidDeck-utgåvorna</string>
+    <string name="cmgr_nightly_replaced">Nedladdningen misslyckades: det här nattbygget kan ha ersatts av ett nyare. Uppdatera listan och försök igen.</string>
     <string name="cmgr_list_predates_checksums">Den här paketlistan är från innan kontrollsummor fanns - uppdatera den och försök igen</string>
     <string name="cmgr_checksum_mismatch">Kontrollsumman stämmer inte</string>
 
@@ -2026,6 +2039,9 @@
     <string name="cloud_last_sync">Senast synkad %1$s</string>
     <string name="cloud_never">Inte synkad än</string>
     <string name="cloud_done">%1$d filer</string>
+    <string name="cloud_up_to_date">Redan uppdaterat</string>
+    <string name="cloud_signed_out">Logga in i butiken för att synkronisera sparfiler</string>
+    <string name="cloud_not_synced">Sparfilerna synkroniserades inte</string>
     <string name="stores_eyebrow_installed">installerat</string>
     <string name="stores_eyebrow_library">i ditt bibliotek</string>
     <string name="stores_eyebrow_store">butik</string>
@@ -2329,7 +2345,7 @@
     <string name="touch_done">Klar</string>
     <string name="touch_save_failed">Det gick inte att spara pekskärmslayouten</string>
     <string name="touch_saved">Pekskärmslayout sparad till Steam</string>
-    <string name="touch_app_id">App %1$d</string>
+    <string name="touch_app_id">App %1$s</string>
     <string name="touch_label_hint">Etikett (valfritt)</string>
     <string name="touch_icons_missing">Steams ikoner hittades inte</string>
     <plurals name="touch_icons_found">
@@ -2420,6 +2436,15 @@
     <string name="glasses_vr_fov">SteamVR-synfält</string>
     <string name="glasses_vr_fov_hint">Lägre för SteamVR närmare och fyller glasögonen; högre visar mer runt dig.</string>
     <string name="glasses_playing">Spelar på %1$s</string>
+    <string name="glasses_phone_recenter">Centrera om</string>
+    <string name="glasses_phone_steamvr_menu">SteamVR-meny</string>
+    <string name="glasses_phone_switch_sticks">Spakar: händer ⇄ spel</string>
+    <string name="glasses_phone_controllers">Handkontroller: %1$s</string>
+    <string name="glasses_phone_keyboard">Tangentbord</string>
+    <string name="glasses_phone_session_menu">Sessionsmeny</string>
+    <string name="glasses_phone_stop_steamvr">Stoppa SteamVR</string>
+    <string name="glasses_phone_brightness">Ljusstyrka %1$d / %2$d</string>
+    <string name="glasses_phone_battery">Batteri %1$d%% · %2$d °C</string>
     <string name="glasses_calibration">Spårningskalibrering</string>
     <string name="glasses_calibration_hint">Minskar drift och justerar horisontreferensen.</string>
     <string name="glasses_calibration_saved_hint">Sparad kalibrering används för de här glasögonen.</string>

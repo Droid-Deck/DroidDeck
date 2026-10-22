@@ -315,7 +315,7 @@ internal fun AppDialog(
         Box(
             contentAlignment = Alignment.Center,
             modifier = Modifier.fillMaxSize().imePadding()
-                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = close),
+                .tapOutside(close),
         ) {
             AnimatedVisibility(
                 visibleState = shown,
@@ -340,7 +340,7 @@ internal fun AppDialog(
                         .clip(Shape16)
                         .background(pal.surfaceVariant.copy(alpha = 0.97f))
                         .border(1.dp, pal.signal.copy(alpha = 0.22f), Shape16)
-                        .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {}
+                        .blockTouches()
                         .controllerBack(back ?: close)
                         .then(modifier)
                         .then(if (scrollable) Modifier.verticalScroll(rememberScrollState()) else Modifier)

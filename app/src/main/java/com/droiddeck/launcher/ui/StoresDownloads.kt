@@ -84,6 +84,7 @@ import androidx.compose.ui.unit.sp
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.stores.CatalogItem
+import com.droiddeck.launcher.stores.StoreLanguage
 import com.droiddeck.launcher.stores.StoresState
 import com.droiddeck.launcher.stores.download.DownloadEntry
 import com.droiddeck.launcher.stores.download.DownloadQueue
@@ -495,6 +496,7 @@ internal fun storesSettingsStep(at: Rect, s: androidx.compose.runtime.State<Fron
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             val st = s.value
+            val context = androidx.compose.ui.platform.LocalContext.current
             SettingsRow(stringResource(R.string.stores_tabs_arrange), null) {
                 RoundAction(Icons.Filled.SwapHoriz, stringResource(R.string.stores_tabs_arrange), size = 36.dp) {
                     StoresMotion.fold()
@@ -510,8 +512,33 @@ internal fun storesSettingsStep(at: Rect, s: androidx.compose.runtime.State<Fron
             SettingsRow(stringResource(R.string.stores_show_mature), null) {
                 ToggleSwitch(st.storesShowMature, label = stringResource(R.string.stores_show_mature)) { a.onStoresShowMature(it) }
             }
+            var langOpen by remember { mutableStateOf(false) }
+            val storedLanguage = SessionPrefs.storesInstallLanguage(context)
+            var language by remember(storedLanguage, StoreLanguage.preferredCode(context)) { mutableStateOf(storedLanguage) }
+            SettingsRow(stringResource(R.string.stores_install_language), stringResource(R.string.stores_install_language_hint), stacked = true) {
+                Box {
+                    ValueChip(
+                        if (language.isEmpty()) stringResource(R.string.stores_install_language_system)
+                        else StoreLanguage.displayName(language),
+                        langOpen,
+                    ) { langOpen = !langOpen }
+                    AnchoredMenu(langOpen, { langOpen = false }, title = stringResource(R.string.stores_install_language)) { first ->
+                        val options = listOf("") + StoreLanguage.KNOWN
+                        options.forEachIndexed { i, code ->
+                            MenuItem(
+                                if (code.isEmpty()) stringResource(R.string.stores_install_language_system) else StoreLanguage.displayName(code),
+                                checked = language == code,
+                                focusRequester = if (i == 0) first else null,
+                            ) {
+                                language = code
+                                SessionPrefs.setStoresInstallLanguage(context, code)
+                                langOpen = false
+                            }
+                        }
+                    }
+                }
+            }
             Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 11.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { DownloadControls(st, a) }
-            val context = androidx.compose.ui.platform.LocalContext.current
             var gogAchievements by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(com.droiddeck.launcher.stores.gog.GogComet.enabled(context)) }
             androidx.compose.runtime.LaunchedEffect(Unit) {
                 if (gogAchievements) com.droiddeck.launcher.core.AddonPack.COMET.ensure(context)

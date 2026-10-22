@@ -508,7 +508,9 @@
     <string name="comp_delete_original_title">Smazat tento originál?</string>
     <string name="comp_delete_original_body">Tento originál %1$s je z dřívějšího sestavení %2$s. Originál aktuálního sestavení je vždy zachován.</string>
     <string name="comp_nightlies_count">Na Nightlies · %1$d</string>
-    <string name="comp_refresh_to_list">Obnovte pro zobrazení balíčků na Nightlies.</string>
+    <string name="comp_channel_stable">Stabilní</string>
+    <string name="comp_channel_nightly">Noční</string>
+    <string name="comp_refresh_to_list">Obnovte pro zobrazení balíčků na Nightlies a DroidDeck.</string>
     <string name="comp_nothing_new">Od poslední kontroly nic nového.</string>
     <string name="comp_import_wcp">Importovat .wcp</string>
     <string name="comp_restore_original">Obnovit originál tohoto Protonu</string>
@@ -586,6 +588,16 @@
     <string name="drawer_prev_page">Předchozí stránka</string>
     <string name="drawer_next_page">Další stránka</string>
     <string name="drawer_hud">HUD výkonu</string>
+    <string name="drawer_hud_fps">Snímková frekvence</string>
+    <string name="drawer_hud_battery">Teplota baterie</string>
+    <string name="drawer_hud_graph">Graf výkonu</string>
+    <string name="drawer_hud_color">Barva</string>
+    <string name="drawer_hud_color_mint">Máta</string>
+    <string name="drawer_hud_color_white">Bílá</string>
+    <string name="drawer_hud_color_sky">Nebeská</string>
+    <string name="drawer_hud_color_amber">Ambrová</string>
+    <string name="drawer_hud_color_violet">Fialová</string>
+    <string name="drawer_hud_opacity">Průhlednost</string>
     <string name="drawer_scaling">Režim škálování</string>
     <string name="drawer_scaling_sharpness">Ostrost škálování</string>
     <string name="drawer_effects">Efekty obrazovky</string>
@@ -1812,7 +1824,8 @@
     <string name="cmgr_original_kept">Původní verze nainstalovaného sestavení je zachována: je to cesta zpět.</string>
     <string name="cmgr_not_stored">Není uloženo</string>
     <string name="cmgr_deleted_original">Odstraněna původní verze %2$s z %1$s.</string>
-    <string name="cmgr_nightlies_only">Stahování pochází jen z vydání Nightlies</string>
+    <string name="cmgr_nightlies_only">Stahování pochází jen z vydání Nightlies a DroidDeck</string>
+    <string name="cmgr_nightly_replaced">Stažení selhalo: tento noční build mohl být nahrazen novějším. Obnovte seznam a zkuste to znovu.</string>
     <string name="cmgr_list_predates_checksums">Tento seznam balíčků předchází kontrolním součtům - obnovte ho a zkuste to znovu</string>
     <string name="cmgr_checksum_mismatch">Neshoda kontrolního součtu</string>
 
@@ -2068,6 +2081,9 @@
     <string name="cloud_last_sync">Poslední synchronizace %1$s</string>
     <string name="cloud_never">Ještě nesynchronizováno</string>
     <string name="cloud_done">%1$d souborů</string>
+    <string name="cloud_up_to_date">Už je aktuální</string>
+    <string name="cloud_signed_out">Pro synchronizaci uložených pozic se přihlaste do obchodu</string>
+    <string name="cloud_not_synced">Uložené pozice nebyly synchronizovány</string>
     <string name="stores_eyebrow_installed">nainstalováno</string>
     <string name="stores_eyebrow_library">ve vaší knihovně</string>
     <string name="stores_eyebrow_store">obchod</string>
@@ -2375,7 +2391,7 @@
     <string name="touch_done">Hotovo</string>
     <string name="touch_save_failed">Dotykové rozložení se nepodařilo uložit</string>
     <string name="touch_saved">Dotykové rozložení uloženo ve Steamu</string>
-    <string name="touch_app_id">Aplikace %1$d</string>
+    <string name="touch_app_id">Aplikace %1$s</string>
     <string name="touch_label_hint">Popisek (nepovinné)</string>
     <string name="touch_icons_missing">Ikony Steamu nebyly nalezeny</string>
     <plurals name="touch_icons_found">
@@ -2470,6 +2486,15 @@
     <string name="glasses_vr_fov">Zorné pole SteamVR</string>
     <string name="glasses_vr_fov_hint">Nižší hodnota přiblíží SteamVR a vyplní brýle; vyšší ukáže víc z okolí.</string>
     <string name="glasses_playing">Hraje se na %1$s</string>
+    <string name="glasses_phone_recenter">Znovu vycentrovat</string>
+    <string name="glasses_phone_steamvr_menu">Nabídka SteamVR</string>
+    <string name="glasses_phone_switch_sticks">Páčky: ruce ⇄ hra</string>
+    <string name="glasses_phone_controllers">Ovladače: %1$s</string>
+    <string name="glasses_phone_keyboard">Klávesnice</string>
+    <string name="glasses_phone_session_menu">Nabídka relace</string>
+    <string name="glasses_phone_stop_steamvr">Zastavit SteamVR</string>
+    <string name="glasses_phone_brightness">Jas %1$d / %2$d</string>
+    <string name="glasses_phone_battery">Baterie %1$d%% · %2$d °C</string>
     <string name="glasses_calibration">Kalibrace sledování</string>
     <string name="glasses_calibration_hint">Sníží drift a vyrovná vodorovnou referenci.</string>
     <string name="glasses_calibration_saved_hint">Pro tyto brýle se používá uložená kalibrace.</string>
