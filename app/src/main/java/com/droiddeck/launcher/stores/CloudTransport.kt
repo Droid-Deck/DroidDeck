@@ -81,7 +81,8 @@ private fun ByteArrayOutputStream.writeIntLe(v: Int) {
 internal fun gogDecodeCloudBody(data: ByteArray, contentEncoding: String?): ByteArray {
     val encodings = contentEncoding.orEmpty().split(',').map { it.trim().lowercase() }
     if ("gzip" in encodings || "x-gzip" in encodings) {
-        return if (isGzip(data)) gunzip(data) ?: data else data
+        if (!isGzip(data)) return data
+        return gunzip(data) ?: throw java.io.IOException("Invalid GOG cloud gzip body")
     }
     if (!isGzip(data)) return data
     val inflated = gunzip(data) ?: return data
@@ -89,14 +90,10 @@ internal fun gogDecodeCloudBody(data: ByteArray, contentEncoding: String?): Byte
 }
 
 internal fun isoDate(s: String?): Long {
-    if (s == null || s.length < 19) return -1L
-    return try {
-        java.util.Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
-            clear()
-            set(s.substring(0, 4).toInt(), s.substring(5, 7).toInt() - 1, s.substring(8, 10).toInt(),
-                s.substring(11, 13).toInt(), s.substring(14, 16).toInt(), s.substring(17, 19).toInt())
-        }.timeInMillis
-    } catch (e: Exception) { -1L }
+    if (s == null) return -1L
+    return runCatching { java.time.OffsetDateTime.parse(s).toInstant().toEpochMilli() }
+        .recoverCatching { java.time.LocalDateTime.parse(s).toInstant(java.time.ZoneOffset.UTC).toEpochMilli() }
+        .getOrDefault(-1L)
 }
 
 class NoCloudSaves : Exception("no cloud saves")

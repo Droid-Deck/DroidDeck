@@ -33,6 +33,18 @@ class GogCloudKeysTest {
         assertArrayEquals(raw, gogDecodeCloudBody(raw, "gzip"))
     }
 
+    @Test fun corruptDeclaredGzipIsRejected() {
+        val corrupt = gzipGogPut("savegame0".toByteArray()).dropLast(2).toByteArray()
+        assertTrue(isGzip(corrupt))
+        assertTrue(runCatching { gogDecodeCloudBody(corrupt, "gzip") }.isFailure)
+    }
+
+    @Test fun isoDateHonorsOffsetAndFractionalSeconds() {
+        val expected = java.time.Instant.parse("2024-01-02T01:04:05.123Z").toEpochMilli()
+        assertEquals(expected, isoDate("2024-01-02T03:04:05.123+02:00"))
+        assertEquals(expected, isoDate("2024-01-02T01:04:05.123"))
+    }
+
     @Test fun gogPutWrappedBodyWithoutEncodingIsPeeled() {
         val raw = "savegame0".toByteArray()
         assertArrayEquals(raw, gogDecodeCloudBody(gzipGogPut(raw), null))
