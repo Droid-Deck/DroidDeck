@@ -213,6 +213,7 @@ object SessionFiles {
         if (!FileUtils.writeString(File(etc, "steam-compatibility-label"), context.getString(R.string.steam_compat_label))) {
             Log.e(TAG, "could not write steam-compatibility-label")
         }
+        writeCjkFontConfig(root, etc)
         val droiddeckEtc = File(etc, "droiddeck").apply { mkdirs() }
         val stagedSocket = File(droiddeckEtc, "bwrap-socket.staged")
         if (!FileUtils.writeString(stagedSocket, BwrapSpawner.socket(context) + "\n")
@@ -554,4 +555,60 @@ object SessionFiles {
     ).joinToString(newline)
 
     fun logDirectory(context: Context): File = LinuxRuntime.logDir(context).apply { mkdirs() }
+
+    /**
+     * Registers the Android system fonts (which include CJK faces such as Noto Sans CJK /
+     * MiSans) with the container's fontconfig, so the Steam Deck UI (CEF/webkit renderer)
+     * resolves Chinese/Japanese glyphs instead of showing tofu / mojibake.
+     * The fonts themselves are bind-mounted by LinuxRuntime.bindSystemFonts() into
+     * /usr/local/share/fonts/android; here we only need to point fontconfig at them.
+     */
+    private fun writeCjkFontConfig(root: File, etc: File) {
+        try {
+            val confDir = File(etc, "fonts/conf.d").apply { mkdirs() }
+            val conf = File(confDir, "99-droiddeck-cjk.conf")
+            val xml = """<?xml version="1.0"?>
+<!DOCTYPE fontconfig SYSTEM "fonts.dtd">
+<fontconfig>
+  <dir>/usr/local/share/fonts/android</dir>
+  <dir>/system/fonts</dir>
+  <match target="pattern">
+    <test name="family"><string>sans-serif</string></test>
+    <edit name="family" mode="prepend" binding="strong">
+      <string>Noto Sans CJK SC</string>
+      <string>Noto Sans CJK TC</string>
+      <string>MiSans</string>
+      <string>Noto Sans CJK JP</string>
+    </edit>
+  </match>
+  <match target="pattern">
+    <test name="family"><string>serif</string></test>
+    <edit name="family" mode="prepend" binding="strong">
+      <string>Noto Serif CJK SC</string>
+      <string>Noto Serif CJK TC</string>
+      <string>Noto Serif CJK JP</string>
+    </edit>
+  </match>
+  <match target="pattern">
+    <test name="family"><string>monospace</string></test>
+    <edit name="family" mode="prepend" binding="strong">
+      <string>Noto Sans Mono CJK SC</string>
+      <string>Noto Sans Mono CJK TC</string>
+    </edit>
+  </match>
+</fontconfig>
+"""
+            if (!conf.isFile || FileUtils.readString(conf) != xml) {
+                val staged = File(confDir, conf.name + ".staged")
+                if (FileUtils.writeString(staged, xml) && staged.renameTo(conf)) {
+                    Log.i(TAG, "Wrote CJK fontconfig 99-droiddeck-cjk.conf")
+                } else {
+                    staged.delete()
+                    Log.e(TAG, "Could not write CJK fontconfig")
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "CJK fontconfig setup failed", e)
+        }
+    }
 }
