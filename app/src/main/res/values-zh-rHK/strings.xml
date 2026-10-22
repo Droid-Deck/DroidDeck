@@ -287,9 +287,6 @@
     <string name="mode_suspend_steam_note">「自動」會暫停，並在重新顯示時繼續；「原生」會先讓 Steam 準備好休眠；「手動」會等你按「繼續」；「從不」會保持執行。</string>
     <string name="mode_background_downloads">保持下載進行</string>
     <string name="mode_background_downloads_hint">Steam 正在下載時，延遲在背景暫停。</string>
-    <string name="mode_zram">zRAM 壓縮</string>
-    <string name="mode_zram_hint">遊戲運行時，Steam 用戶端的記憶體會壓縮進裝置的 zram，為遊戲騰出更多記憶體。下次啟動 Steam 時生效。</string>
-    <string name="mode_zram_unsupported">無法使用：此裝置沒有 zram 或 swap，或核心版本低於 5.4。</string>
     <string name="mode_suspend_note">「自動」會在背景時暫停，並在重新顯示時繼續；「手動」會等你按「繼續」；「從不」會保持執行。</string>
     <string name="mode_startup">啟動</string>
     <string name="mode_steam_startup">隨 DroidDeck 啟動 Steam</string>
