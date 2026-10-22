@@ -22,8 +22,11 @@ data class CatalogItem(
     val extra: Map<String, String> = emptyMap(),
     val mature: Boolean = false,
     val subscription: Boolean = false,
+    val includedWith: String = "",
 ) {
     val accessible: Boolean get() = owned || subscription
+    /** Licensed now, or a supported package the account's subscription can install. */
+    val installable: Boolean get() = accessible || includedWith.isNotBlank()
     val isDiscounted: Boolean get() = discountPercent > 0 && originalPrice.isNotBlank()
     val key: String get() = "${store.id}:$id"
 }
@@ -86,11 +89,36 @@ internal fun retainCatalogOrder(items: List<CatalogItem>, previous: List<Catalog
     return previous.map { byKey.getValue(it.key) }
 }
 
+/** A detail page opens for search results too; the library wins when it already knows the product. */
+fun detailCatalogItem(
+    store: Store,
+    id: String,
+    library: List<CatalogItem>,
+    found: List<CatalogItem>,
+    shelves: StoreShelves?,
+): CatalogItem? =
+    library.firstOrNull { it.store == store && it.id == id }
+        ?: found.firstOrNull { it.store == store && it.id == id }
+        ?: shelves?.all?.firstOrNull { it.store == store && it.id == id }
+
 fun mergeItems(old: List<CatalogItem>?, new: List<CatalogItem>): List<CatalogItem> {
     if (old.isNullOrEmpty()) return new
     val before = old.associateBy { it.key }
     val merged = new.map { n -> before[n.key]?.takeIf { it == n } ?: n }
     return if (merged.size == old.size && merged.indices.all { merged[it] === old[it] }) old else merged
+}
+
+/**
+ * [patched] over [old] by key, the way a store that fills its cards in one at a time needs it: a card
+ * already on screen keeps its very object and its place, one the grid does not have yet is added where
+ * its title belongs. Unlike [mergeItems] the rest of [old] is never dropped.
+ */
+fun patchItems(old: List<CatalogItem>?, patched: List<CatalogItem>): List<CatalogItem> {
+    if (old.isNullOrEmpty()) return patched
+    val byKey = patched.associateBy { it.key }
+    val kept = old.map { byKey[it.key] ?: it }
+    val added = patched.filter { n -> old.none { it.key == n.key } }
+    return if (added.isEmpty()) kept else (kept + added).sortedBy { it.title.lowercase() }
 }
 
 class InstalledStoreGame(val sidecar: StoreGameSidecar, val folder: java.io.File) {

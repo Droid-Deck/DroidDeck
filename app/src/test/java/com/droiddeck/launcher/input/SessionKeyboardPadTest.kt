@@ -62,13 +62,15 @@ class SessionKeyboardPadTest {
         assertEquals(View.VISIBLE, controls.visibility)
     }
 
-    @Test fun keyboardsLeaveThePadAloneOutsideSteam() {
+    @Test fun steamsKeyboardLeavesThePadAloneOutsideSteam() {
         SessionState.mode = SessionService.MODE_DESKTOP
         SessionPrefs.setOscMode(activity, SessionPrefs.OSC_ALWAYS)
         steamKeyboard(true)
-        pcKeyboard(true)
         update()
         assertEquals(View.VISIBLE, controls.visibility)
+        pcKeyboard(true)
+        update()
+        assertEquals(View.GONE, controls.visibility)
     }
 
     @Test fun steamTouchControllerHidesAndHandsTouchBackWhileSteamsKeyboardIsUp() {

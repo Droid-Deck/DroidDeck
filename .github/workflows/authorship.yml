@@ -1,0 +1,58 @@
+name: Human authorship
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, edited, ready_for_review]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+  statuses: write
+
+jobs:
+  authorship:
+    name: Validate human authorship
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Check the proposed or merged history
+        id: validate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = pull_request_target ]; then
+            gh auth setup-git
+            git fetch --no-tags origin "refs/pull/$PR_NUMBER/head"
+            test "$(git rev-parse FETCH_HEAD)" = "$PR_HEAD"
+            base=$(git merge-base HEAD FETCH_HEAD)
+            python3 tools/release/check_authorship.py "$base..FETCH_HEAD" --event "$GITHUB_EVENT_PATH"
+          elif [ "$EVENT_NAME" = push ] && [ "$BEFORE" != 0000000000000000000000000000000000000000 ]; then
+            python3 tools/release/check_authorship.py "$BEFORE..$AFTER"
+          else
+            python3 tools/release/check_authorship.py HEAD
+          fi
+      - name: Publish the required result on the actual proposed commit
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          RESULT: ${{ steps.validate.outcome == 'success' && 'success' || 'failure' }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh api --method POST "repos/$GITHUB_REPOSITORY/statuses/$TARGET_SHA" \
+            -f context='Human authorship' -f state="$RESULT" -f target_url="$RUN_URL" \
+            -f description='Bot authors and bot co-author trailers are forbidden'

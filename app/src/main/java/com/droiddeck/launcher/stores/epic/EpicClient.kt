@@ -21,6 +21,7 @@ import com.droiddeck.launcher.stores.StoreInstallRoot
 import com.droiddeck.launcher.stores.StoreLog
 import com.droiddeck.launcher.stores.StoreLoginActivity
 import com.droiddeck.launcher.stores.StoresState
+import com.droiddeck.launcher.stores.WebCookies
 import com.droiddeck.launcher.stores.download.DownloadEntry
 import com.droiddeck.launcher.stores.download.DownloadQueue
 import com.droiddeck.launcher.stores.SteamLiveShortcuts
@@ -108,28 +109,15 @@ object EpicClient {
     fun forgetWebSignIn() {
         android.os.Handler(android.os.Looper.getMainLooper()).post {
             runCatching {
-                val cookies = android.webkit.CookieManager.getInstance()
-                var cleared = 0
-                for (url in COOKIE_URLS) {
-                    val lines = expiredCookies(cookies.getCookie(url), Uri.parse(url).host)
-                    for (line in lines) cookies.setCookie(url, line)
-                    cleared += lines.size
+                WebCookies.expire(COOKIE_URLS, COOKIE_DOMAIN, COOKIE_PATHS) { cleared ->
+                    Log.i(TAG, "cleared the Epic web sign-in ($cleared cookie lines)")
                 }
-                cookies.flush()
-                Log.i(TAG, "cleared the Epic web sign-in ($cleared cookie lines)")
             }.onFailure { Log.w(TAG, "could not clear the Epic web sign-in: ${it.javaClass.simpleName}") }
         }
     }
 
-    internal fun expiredCookies(header: String?, host: String? = null): List<String> {
-        val domains = listOfNotNull(COOKIE_DOMAIN, host?.takeIf { it.endsWith(COOKIE_DOMAIN) })
-        return header.orEmpty().split(';').map { it.substringBefore('=').trim() }.filter { it.isNotEmpty() }.distinct()
-            .flatMap { name ->
-                COOKIE_PATHS.flatMap { path ->
-                    listOf("$name=; Max-Age=0; Path=$path; Secure") + domains.map { "$name=; Max-Age=0; Path=$path; Secure; Domain=$it" }
-                }
-            }
-    }
+    internal fun expiredCookies(header: String?, host: String? = null): List<String> =
+        WebCookies.expired(header, COOKIE_DOMAIN, COOKIE_PATHS, host)
 
     fun read(context: Context): Status {
         val app = context.applicationContext
@@ -404,10 +392,10 @@ object EpicClient {
         }
     }
 
-    internal fun loginFlow(url: String): StoreLoginActivity.Flow? {
+    internal fun loginFlow(url: String, browserAgent: String): StoreLoginActivity.Flow? {
         val redirect = redirectOf(url) ?: return null
         val agent = runCatching { EpicNative.call("auth.config")?.optString("webViewUserAgent") }.getOrNull()?.ifEmpty { null }
-        return ClientLogin(url, redirect, agent ?: StoreLoginActivity.CHROME_UA)
+        return ClientLogin(url, redirect, agent ?: browserAgent)
     }
 
     private class ClientLogin(

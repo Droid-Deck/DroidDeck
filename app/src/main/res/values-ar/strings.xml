@@ -176,6 +176,8 @@
     <string name="app_fex_x86">%1$s عبر FEX</string>
     <string name="app_fex_not_ready">هذا البرنامج مبني لأجهزة كمبيوتر %1$s ويعمل عبر FEX، الذي لم يتم إعداده بعد. افتح Steam مرة واحدة أثناء تسجيل الدخول: سيجعله DroidDeck يُنزّل FEX وSteam Linux Runtime اللازمة، ثم يُفتح هذا البرنامج.</string>
     <string name="session_end_program">هذا البرنامج</string>
+    <string name="session_end_steam_download">تعذّر تنزيل عميل Steam. قد تكون شبكتك أو VPN تحظر خوادم Steam؛ تحقّق من الاتصال وحاول مرة أخرى.</string>
+    <string name="session_end_steam_setup">تعذّر إعداد عميل Steam. تحقّق من الاتصال والمساحة الفارغة، ثم حاول مرة أخرى.</string>
     <string name="session_end_fex_missing">%1$s مبني لأجهزة كمبيوتر x86 ويعمل عبر FEX، الذي لم يتم تثبيته بعد. شغّل Steam مرة واحدة أثناء تسجيل الدخول ودعه يُنزّل FEX وSteam Linux Runtime، ثم شغّل هذا البرنامج مجددًا.</string>
     <string name="add_app_flatpak_hint">معرّف تطبيق على Flathub أو صفحته على Flathub. يُعَدّ Flatpak أولًا إن لم يكن مُعدًّا بعد.</string>
     <string name="add_app_file">الملف</string>
@@ -510,7 +512,9 @@
     <string name="comp_delete_original_title">هل تريد حذف هذه النسخة الأصلية؟</string>
     <string name="comp_delete_original_body">هذه النسخة الأصلية من %1$s تعود إلى إصدار سابق من %2$s. يتم دائمًا الاحتفاظ بالنسخة الأصلية للإصدار الحالي.</string>
     <string name="comp_nightlies_count">في الإصدارات الليلية · %1$d</string>
-    <string name="comp_refresh_to_list">حدّث لعرض الحزم في الإصدارات الليلية.</string>
+    <string name="comp_channel_stable">مستقر</string>
+    <string name="comp_channel_nightly">ليلي</string>
+    <string name="comp_refresh_to_list">حدّث لعرض الحزم في إصدارات Nightlies وDroidDeck.</string>
     <string name="comp_nothing_new">لا جديد منذ آخر فحص.</string>
     <string name="comp_import_wcp">استيراد ملف ‎.wcp</string>
     <string name="comp_restore_original">استعادة النسخة الأصلية لـ Proton هذا</string>
@@ -588,6 +592,16 @@
     <string name="drawer_prev_page">الصفحة السابقة</string>
     <string name="drawer_next_page">الصفحة التالية</string>
     <string name="drawer_hud">واجهة الأداء</string>
+    <string name="drawer_hud_fps">معدل الإطارات</string>
+    <string name="drawer_hud_battery">درجة حرارة البطارية</string>
+    <string name="drawer_hud_graph">مخطط الأداء</string>
+    <string name="drawer_hud_color">اللون</string>
+    <string name="drawer_hud_color_mint">نعناعي</string>
+    <string name="drawer_hud_color_white">أبيض</string>
+    <string name="drawer_hud_color_sky">سماوي</string>
+    <string name="drawer_hud_color_amber">كهرماني</string>
+    <string name="drawer_hud_color_violet">بنفسجي</string>
+    <string name="drawer_hud_opacity">العتامة</string>
     <string name="drawer_scaling">وضع التحجيم</string>
     <string name="drawer_scaling_sharpness">حدة التحجيم</string>
     <string name="drawer_effects">مؤثرات الشاشة</string>
@@ -1062,6 +1076,9 @@
     <string name="games_added">لعبة مُضافة</string>
     <string name="games_custom">لعبة مخصّصة</string>
     <string name="games_store_storage">تخزين الألعاب</string>
+    <string name="games_uninstall_body">يحذف ملفاتها ويزيلها من Steam.</string>
+    <string name="games_remove_title">إزالة %1$s؟</string>
+    <string name="games_remove_body">يحذف الاختصار وتبقى ملفات اللعبة.</string>
     <string name="gpu_auto_hint">أفضل زوج لهذا GPU، يُحافَظ على تحديثه</string>
     <string name="gpu_manual_hint">اختر زوجًا بنفسك</string>
     <string name="gpu_checking">جارٍ البحث عن برامج التشغيل…</string>
@@ -1443,6 +1460,14 @@
     <string name="theme_icon_blue_detail">خلفية سوداء ونص أبيض، والأزرق لكل عنصر محدَّد أو مُركَّز عليه أو مضغوط.</string>
     <string name="theme_electric">كحلي كهربائي</string>
     <string name="theme_electric_detail">أزرق أكثر سطوعًا، على أسطح تميل إلى الكحلي بدلاً من الرمادي.</string>
+    <string name="theme_gradient">تدرج لوني</string>
+    <string name="theme_gradient_detail">لونك الأساسي والثانوي، ممزوجان على الأزرار وعناصر التمييز.</string>
+    <string name="theme_gradient_primary">الأساسي</string>
+    <string name="theme_gradient_secondary">الثانوي</string>
+    <string name="theme_color_hue">درجة اللون</string>
+    <string name="theme_color_saturation">التشبع</string>
+    <string name="theme_color_brightness">السطوع</string>
+    <string name="theme_color_hex">لون سداسي (Hex)</string>
     <string name="pckb_key_esc">Esc</string>
     <string name="pckb_key_ins">Ins</string>
     <string name="pckb_key_del">Del</string>
@@ -1849,7 +1874,8 @@
     <string name="cmgr_original_kept">تم الاحتفاظ بأصل النسخة المثبَّتة: فهو طريق العودة.</string>
     <string name="cmgr_not_stored">غير مخزَّن</string>
     <string name="cmgr_deleted_original">تم حذف أصل %2$s من %1$s.</string>
-    <string name="cmgr_nightlies_only">التنزيلات تأتي فقط من إصدارات Nightlies</string>
+    <string name="cmgr_nightlies_only">التنزيلات تأتي فقط من إصدارات Nightlies وDroidDeck</string>
+    <string name="cmgr_nightly_replaced">فشل التنزيل: ربما استُبدل هذا الإصدار الليلي بإصدار أحدث. حدّث القائمة وحاول مرة أخرى.</string>
     <string name="cmgr_list_predates_checksums">قائمة الحزم هذه أقدم من إضافة المجاميع الاختبارية - حدِّثها وحاوِل مرة أخرى</string>
     <string name="cmgr_checksum_mismatch">عدم تطابق المجموع الاختباري</string>
 
@@ -2105,6 +2131,9 @@
     <string name="cloud_last_sync">آخر مزامنة %1$s</string>
     <string name="cloud_never">لم تتم المزامنة بعد</string>
     <string name="cloud_done">%1$d ملفات</string>
+    <string name="cloud_up_to_date">محدَّث بالفعل</string>
+    <string name="cloud_signed_out">سجّل الدخول إلى المتجر لمزامنة الحفظ</string>
+    <string name="cloud_not_synced">لم تتم مزامنة الحفظ</string>
     <string name="stores_eyebrow_installed">مثبَّتة</string>
     <string name="stores_eyebrow_library">في مكتبتك</string>
     <string name="stores_eyebrow_store">متجر</string>
@@ -2416,7 +2445,7 @@
     <string name="touch_done">تم</string>
     <string name="touch_save_failed">تعذّر حفظ تخطيط اللمس</string>
     <string name="touch_saved">تم حفظ تخطيط اللمس في Steam</string>
-    <string name="touch_app_id">التطبيق %1$d</string>
+    <string name="touch_app_id">التطبيق %1$s</string>
     <string name="touch_label_hint">التسمية (اختياري)</string>
     <string name="touch_icons_missing">لم يتم العثور على أيقونات Steam</string>
     <plurals name="touch_icons_found">
@@ -2515,6 +2544,15 @@
     <string name="glasses_vr_fov">مجال رؤية SteamVR</string>
     <string name="glasses_vr_fov_hint">القيمة الأقل تقرّب SteamVR وتملأ النظارة؛ والأعلى تُظهر المزيد مما حولك.</string>
     <string name="glasses_playing">جارٍ اللعب على %1$s</string>
+    <string name="glasses_phone_recenter">إعادة التوسيط</string>
+    <string name="glasses_phone_steamvr_menu">قائمة SteamVR</string>
+    <string name="glasses_phone_switch_sticks">العصي: اليدان ⇄ اللعبة</string>
+    <string name="glasses_phone_controllers">وحدات التحكم: %1$s</string>
+    <string name="glasses_phone_keyboard">لوحة المفاتيح</string>
+    <string name="glasses_phone_session_menu">قائمة الجلسة</string>
+    <string name="glasses_phone_stop_steamvr">إيقاف SteamVR</string>
+    <string name="glasses_phone_brightness">السطوع %1$d / %2$d</string>
+    <string name="glasses_phone_battery">البطارية %1$d%% · %2$d °C</string>
     <string name="glasses_calibration">معايرة التتبّع</string>
     <string name="glasses_calibration_hint">يقلّل الانجراف ويضبط المرجع الأفقي.</string>
     <string name="glasses_calibration_saved_hint">تُطبَّق المعايرة المحفوظة على هذه النظارة.</string>
@@ -2569,6 +2607,7 @@
     <string name="glasses_xreal_network_missing">في انتظار اتصال USB Ethernet الخاص بالنظارة. قد لا يتيحه هذا الهاتف للتطبيقات.</string>
     <string name="glasses_xreal_connection_failed">انقطع اتصال XREAL أو أعاد استجابة غير مدعومة. جارٍ إعادة المحاولة…</string>
     <string name="glasses_xreal_experimental">دعم تجريبي لـ 1S. استخدم وضع Follow وعطّل تثبيت الصورة من قائمة النظارة. لا تزال اتجاهات التتبّع وأوضاع العرض بحاجة إلى اختبار على الجهاز.</string>
+    <string name="glasses_pro2_experimental">تتبّع تجريبي لحركة الرأس لنظارة Pro 2. لا يُدعم بعد ضبط السطوع ومستوى الصوت أو تبديل وضع العرض.</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">وضع Cardboard</string>
     <string name="cardboard_mode_hint">عرض للعين اليسرى وآخر لليمنى لنظارة واقع افتراضي للهاتف.</string>

@@ -56,6 +56,32 @@ library list, before anything is published.
   own limiter slips such a frame by one refresh. The fixed-refresh branch now paces each window by
   time, as the VRR branch already did: its next frame goes out on the first refresh a capped interval
   after its last one, with half a refresh of tolerance so an on-time window keeps every Nth refresh.
+- `0116-hold-overlay-repaint-for-next-frame.patch` - this app: on a fixed-refresh output every
+  mangoapp commit asked for a repaint of its own, and mangoapp draws once per game frame just after
+  that frame was shown, so a 60 fps game on a 120 Hz panel was composited twice per frame - 75 frames
+  a second reached the screen, one in two 8 ms after the last with no new picture (Valheim, Stardew
+  Valley, Among Us). The VRR path already leaves such repaints to the next game frame; on a fixed
+  refresh output they now wait for it too, for at most `external_overlay_hold_cycles` refreshes (4,
+  so 30 fps at 120 Hz still merges), and are painted on their own after that.
 
 Sixteen more of Armada's patches are DRM/lease/HDR-on-KMS work for a native display, which this
 app's Wayland-hosted gamescope never reaches, or need a newer gamescope than the runtime has.
+
+- `0116-release-cursor-shm-buffers.patch` - this app: pointer cursor surfaces have no
+  X11/xdg window association, so routing their commits through `g_PendingCommits`
+  retained every old SHM buffer until the surface was destroyed. Ignore cursor-role
+  commits before taking the buffer lock; X11 cursor images still follow the existing
+  MouseCursor path. Window commits awaiting association are unchanged.
+
+The live regression probe is `tools/tests/test_gamescope_cursor_shm.py`. Run it
+inside an active Gamescope session with access to that process's `/proc` fd
+directory. It submits 20 distinct SHM cursor buffers and requires at most the
+current buffer to remain open, then none after surface destruction. The
+`--unassigned-control` variant omits the cursor role and verifies that all 20
+commits awaiting a window association remain queued until surface destruction.
+
+Device validation (2026-10-20): the stock component retained 20/20 cursor buffers;
+the patched component retained 1/20, then 0 after destruction. The unassigned
+control retained 20/20 and then 0. In Backpack Battles, two batches of ten touch
+drags leaked 188 and 197 SHM descriptors before the fix; the same batches added
+zero after the fix (112 total descriptors before and after each batch).

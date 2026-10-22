@@ -1,4 +1,5 @@
 #!/usr/bin/python3
+import hashlib
 import json
 import os
 import re
@@ -308,17 +309,118 @@ def mark_install_scripts(command, env):
     starts - on first launch the shared ones may still be downloading, and on ARM64 Proton the VC++
     ones stop with an error."""
     if not any(arg.lower().replace("\\", "/").endswith("iscriptevaluator.exe") for arg in command):
-        return
+        return []
     root = env.get("BL_X64_STEAM_ROOT") or env.get("STEAM_COMPAT_CLIENT_INSTALL_PATH") or str(Path.home() / ".local/share/Steam")
     scripts = [str(Path(root) / arg.replace("\\", "/")) for arg in command if EVALUATOR_SCRIPT.search(arg)]
     scripts = [path for path in scripts if os.path.isfile(path)]
     if not scripts:
-        return
+        return []
     try:
         subprocess.run([SEED_REDISTS, root], env=dict(env, DROIDDECK_SEED_SCRIPTS="\n".join(scripts)),
                        stdout=sys.stderr, timeout=60, check=False)
     except (OSError, subprocess.SubprocessError) as error:
         print("droiddeck-game-env: install scripts not marked (%s)" % error, file=sys.stderr)
+    return scripts
+
+
+INSTALL_STAMP = ".droiddeck-install-scripts"
+VDF_TOKEN = re.compile(r'"((?:[^"\\]|\\.)*)"|([{}])')
+
+
+def read_vdf(text):
+    tokens = iter(VDF_TOKEN.findall(text))
+
+    def block():
+        items = []
+        for word, brace in tokens:
+            if brace == "}":
+                return items
+            if brace:
+                raise ValueError("a block without a name")
+            value, opens = next(tokens, ("", "}"))
+            if opens == "}":
+                raise ValueError("a name without a value")
+            items.append((re.sub(r"\\(.)", r"\1", word), block() if opens else re.sub(r"\\(.)", r"\1", value)))
+        return items
+
+    return block()
+
+
+def run_keys(items, appid=""):
+    appid = next((value for name, value in items if name.lower() == "appid" and isinstance(value, str)), appid)
+    found = set()
+    for name, value in items:
+        if not isinstance(value, list):
+            continue
+        if any(isinstance(v, str) and re.fullmatch(r"process [0-9]+", n.lower()) for n, v in value):
+            key = next((v for n, v in value if n.lower() == "hasrunkey" and isinstance(v, str)),
+                       "HKEY_LOCAL_MACHINE\\Software\\Valve\\Steam\\Apps\\" + appid)
+            found.add((key.lower(), name.lower()))
+        found |= run_keys(value, appid)
+    return found
+
+
+def registry_values(path):
+    found, section = set(), None
+    with open(path, encoding="utf-8", errors="replace") as reg:
+        for line in reg:
+            if line.startswith("["):
+                section = line[1:line.find("]")].replace("\\\\", "\\").lower() if "]" in line else None
+            elif section and line.startswith('"') and '"=' in line:
+                found.add((section, line[1:line.index('"=')].replace("\\\\", "\\").lower()))
+    return found
+
+
+def has_run(key, value, values):
+    path = key[len("hkey_local_machine\\"):] if key.startswith("hkey_local_machine\\") else None
+    if path is None:
+        return False
+    views = [path]
+    if path.startswith("software\\"):
+        views.append("software\\wow6432node\\" + path[len("software\\"):])
+    return any((view, value) in values for view in views)
+
+
+def scripts_digest(scripts):
+    digest = hashlib.sha256()
+    for path in sorted(scripts):
+        digest.update(os.path.basename(path).encode() + b"\0")
+        digest.update(Path(path).read_bytes())
+    return digest.hexdigest()
+
+
+def install_scripts_done(scripts, env):
+    prefix = Path(env.get("STEAM_COMPAT_DATA_PATH", "/nonexistent")) / "pfx"
+    try:
+        if (prefix / INSTALL_STAMP).read_text().strip() != scripts_digest(scripts):
+            return False
+        keys = set()
+        for path in scripts:
+            keys |= run_keys(read_vdf(Path(path).read_text(encoding="utf-8", errors="replace")))
+        values = registry_values(prefix / "system.reg")
+    except (OSError, ValueError):
+        return False
+    return bool(keys) and all(has_run(key, value, values) for key, value in keys)
+
+
+def record_install_scripts(digest, env):
+    prefix = Path(env.get("STEAM_COMPAT_DATA_PATH", "/nonexistent")) / "pfx"
+    try:
+        if prefix.is_dir():
+            staged = prefix / (INSTALL_STAMP + ".tmp")
+            staged.write_text(digest + "\n")
+            staged.replace(prefix / INSTALL_STAMP)
+    except OSError as error:
+        print("droiddeck-game-env: install scripts not recorded (%s)" % error, file=sys.stderr)
+
+
+def start(launch, launch_env, digest):
+    if digest:
+        code = subprocess.run(launch, env=launch_env, check=False).returncode
+        if code == 0:
+            record_install_scripts(digest, launch_env)
+        return code
+    return os.execvpe(launch[0], launch, launch_env)
 
 
 def main():
@@ -327,7 +429,14 @@ def main():
         return 2
     env = game_gpu(os.environ.copy())
     mic_enabled = env.get("BL_MIC_ENABLED")
-    mark_install_scripts(command, env)
+    scripts = mark_install_scripts(command, env)
+    if scripts and install_scripts_done(scripts, env):
+        print("droiddeck-game-env: install scripts already run in this prefix; evaluator skipped", file=sys.stderr)
+        return 0
+    try:
+        digest = scripts_digest(scripts) if scripts else None
+    except OSError:
+        digest = None
     app_id = game_id(env)
     if app_id:
         waiting = len(command) > 1 and command[1] == "waitforexitandrun"
@@ -376,12 +485,12 @@ def main():
     launch, launch_env = select_sync(command, env, sync)
     if launch[0] != command[0]:
         try:
-            os.execvpe(launch[0], launch, launch_env)
+            return start(launch, launch_env, digest)
         except OSError as error:
             print("droiddeck-game-env: %s could not start (%s); stock launch" % (launch[0], error), file=sys.stderr)
             launch, launch_env = command, without_pack(launch_env, env)
             record_stock(sync, launch, launch_env)
-    os.execvpe(launch[0], launch, launch_env)
+    return start(launch, launch_env, digest)
 
 
 if __name__ == "__main__":
