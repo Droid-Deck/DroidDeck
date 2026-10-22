@@ -774,6 +774,14 @@ class AttachPage:
         return {"selected": "", "fallback": "", "tools": []}
 
 
+class TourFailurePage(AttachPage):
+    def evaluate(self, expression, timeout=30):
+        self.scripts.append(expression)
+        if expression == LIVE["TOUR_JS"]:
+            raise RuntimeError("SteamClient.Settings.SetSetting is unavailable")
+        return True
+
+
 class SwitchToDesktopTest(unittest.TestCase):
     def setUp(self):
         self.globals = LIVE["Helper"].attach.__globals__
@@ -797,6 +805,14 @@ class SwitchToDesktopTest(unittest.TestCase):
             helper.attach()
             self.assertIn(("Runtime.addBinding", LIVE["VR_BINDING"]), helper.page.calls)
             self.assertIn(LIVE["VR_JS"], helper.page.scripts)
+
+    def test_missing_optional_tour_setting_does_not_block_attach(self):
+        with mock.patch.dict(self.globals, {"shared_context": lambda port: "/devtools/page/1", "Page": TourFailurePage}):
+            helper = LIVE["Helper"]("/steam", 1)
+            self.assertTrue(helper.attach())
+            self.assertIn(LIVE["VR_JS"], helper.page.scripts)
+            self.assertIn(LIVE["TOUR_JS"], helper.page.scripts)
+            self.assertIsNotNone(helper.page)
 
     def test_vr_bridge_accepts_only_steamvr_and_coalesces_requests(self):
         helper = LIVE["Helper"]("/steam", 1)
