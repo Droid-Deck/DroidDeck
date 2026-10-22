@@ -40,6 +40,19 @@ class SessionScalingPrefsTest {
         assertEquals("800x600", SessionPrefs.resolutionChoice(context, "lxqt", 1440 to 1080))
     }
 
+    @Test fun userAppsTakeTheDesktopResolutionOnceItIsChosen() {
+        val context = RuntimeEnvironment.getApplication()
+        val script = com.droiddeck.launcher.runtime.UserApps.SCRIPT_LAUNCHER
+        assertEquals("steam", SessionPrefs.displayMode(context, "run", script))
+        SessionPrefs.setResolutionChoice(context, "lxqt", SessionDisplay.MATCH_SCREEN)
+        assertEquals("lxqt", SessionPrefs.displayMode(context, "run", script))
+        assertEquals("lxqt", SessionPrefs.displayMode(context, "run", com.droiddeck.launcher.runtime.AppImageManager.LAUNCHER))
+        val choice = SessionPrefs.resolutionChoice(context, SessionPrefs.displayMode(context, "run", script), 1240 to 1080)
+        assertEquals(1240 to 1080, SessionDisplay.resolveChoice(1240 to 1080, choice))
+        assertEquals("steam", SessionPrefs.displayMode(context, "run", "/usr/bin/retroarch"))
+        assertEquals("steam", SessionPrefs.displayMode(context, "steam", script))
+    }
+
     @Test fun freshSettingsUseTheConcreteDefaultAndCustomSizesAreNormalized() {
         val context = RuntimeEnvironment.getApplication()
         assertEquals(SessionDisplay.DEFAULT_RESOLUTION, SessionPrefs.resolutionChoice(context, "steam", 2400 to 1080))

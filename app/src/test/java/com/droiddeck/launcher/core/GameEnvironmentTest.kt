@@ -7,6 +7,7 @@ class GameEnvironmentTest {
     @Test fun defaultsIncludeRequestedGraphicsLevelsAndKeepCaching() {
         val values = GameEnvironment.defaults("")
         assertEquals("false", values["MESA_SHADER_CACHE_DISABLE"])
+        assertEquals("1", values["DROIDDECK_ANTICHEAT_OFFLINE"])
         assertEquals("12_2", values["VKD3D_FEATURE_LEVEL"])
         assertEquals("6_9", values["VKD3D_SHADER_MODEL"])
     }

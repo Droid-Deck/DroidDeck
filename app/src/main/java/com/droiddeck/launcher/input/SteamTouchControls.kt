@@ -154,7 +154,7 @@ class SteamTouchControls(
             actionSet = state.actionSet
             layers = state.layers
             appId = app
-            rebuild()
+            rebuild(keepHeld = true)
         }
     }
 
@@ -175,7 +175,7 @@ class SteamTouchControls(
         refreshState()
     }
 
-    private fun rebuild() {
+    private fun rebuild(keepHeld: Boolean = false) {
         elements = SteamTouchConfig.elementsFor(config, actionSet, layers)
         val nextOptions = pendingOptions ?: config.layouts?.options ?: SteamTouchConfig.Options()
         if (nextOptions != options) { options = nextOptions; onOptions(options) }
@@ -183,7 +183,7 @@ class SteamTouchControls(
         rebuildVisuals()
         if (!editing) {
             Log.i(TAG, "steam touch: app $appId, action set $actionSet, layers $layers: ${elements.size} controls")
-            releaseAll()
+            if (keepHeld) keepHeldFingers() else releaseAll()
         }
         invalidate()
     }
@@ -301,9 +301,8 @@ class SteamTouchControls(
                 }
             }
             SteamTouchConfig.STEAM -> {
-                if (pressed) canvas.drawCircle(x, y, r, fill)
-                canvas.drawCircle(x, y, r, stroke)
-                drawMark(canvas, x, y, r * 0.5f, if (pressed) Color.argb(alpha, 23, 26, 33) else ink, alpha)
+                if (isSelected) canvas.drawCircle(x, y, r, stroke)
+                drawMark(canvas, x, y, r * 0.5f, if (pressed) accent else ink, alpha)
             }
             SteamTouchConfig.SELECT, SteamTouchConfig.START -> {
                 val binding = visuals[e.type]?.firstOrNull()?.binding
@@ -588,6 +587,13 @@ class SteamTouchControls(
         fingers.clear()
         device.setControls(0L, ShortArray(4), ShortArray(6))
         invalidate()
+    }
+
+    private fun keepHeldFingers() {
+        val moved = SteamTouchConfig.remapHeld(fingers.mapValues { it.value.element?.type }, live())
+        fingers.keys.retainAll(moved.keys)
+        fingers.replaceAll { id, f -> Finger(moved.getValue(id), f.x, f.y, f.toolbar) }
+        publish()
     }
 
 
@@ -958,7 +964,7 @@ class SteamTouchControls(
         BIG_PICTURE -> "Steam"
         else -> gameNames[appId] ?: run {
             val app = appId
-            gameNames[app] = context.getString(R.string.touch_app_id, app)
+            gameNames[app] = context.getString(R.string.touch_app_id, Integer.toUnsignedLong(app))
             loader.execute {
                 val name = SteamTouchConfig.gameName(context, app) ?: return@execute
                 handler.post { gameNames[app] = name; invalidate() }

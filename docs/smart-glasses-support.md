@@ -23,9 +23,10 @@ This describes the integrations implemented in DroidDeck as of 2026-10-17. A rec
 | Recognized RayNeo / TCL Air-series devices | Integrated RayNeo USB transport | Yes, with orientation calibration controls | No | No |
 | RayNeo GT-series devices matching the supported USB identity, including GT Max identification | Integrated GT USB/IMU path | Yes, with orientation calibration controls | No | No |
 | **XREAL 1S** | **Experimental**; exact USB identity plus the device's USB-Ethernet control/IMU connection | Yes, when that connection is ready | No | No |
+| Rokid Max; Rokid Air under the same USB identity | Integrated Rokid USB transport (vendor control requests and HID IMU reports) | Yes | No | No |
 | Other XREAL models; unrecognized glasses; display adapters and docks | Display-only where Android exposes a usable display; automatic glasses routing also requires display recognition | No supported app tracking connection | No | No |
 
-RayNeo's Air-series recognition uses its known USB identity or a RayNeo/TCL Air name under the accepted vendor IDs; it is not a per-model certification list. The GT vendor path requires the specific supported product ID. XREAL support currently targets **1S only**: One, One Pro, Air-family devices, and recovery-mode products are not enabled by the 1S transport. VITURE Pro 2 is identified through SDK validation rather than a guessed product ID. A dock does not supply the connected glasses' sensors by itself.
+RayNeo's Air-series recognition uses its known USB identity or a RayNeo/TCL Air name under the accepted vendor IDs; it is not a per-model certification list. The GT vendor path requires the specific supported product ID. Rokid recognition requires USB 04d2:162f plus a Rokid product name, since that vendor ID is shared with unrelated devices; it was verified on a Rokid Max, and the Air follows the same published protocol untested. XREAL support currently targets **1S only**: One, One Pro, Air-family devices, and recovery-mode products are not enabled by the 1S transport. VITURE Pro 2 is identified through SDK validation rather than a guessed product ID. A dock does not supply the connected glasses' sensors by itself.
 
 The final column refers specifically to Luma Ultra's stereo tracking cameras. DroidDeck's separate phone-camera and physical-controller features are independent of this matrix.
 
@@ -42,6 +43,8 @@ All display modes depend on the phone's video output, the cable/adapter, and And
 | VITURE Pro 2 | 1080p per eye; 2D and SBS | Brightness and volume; no electrochromic-film control |
 | RayNeo Air/GT | 2D/SBS switching; resolution and refresh follow available Android modes | Orientation calibration; no app brightness, volume, or dimming commands |
 | XREAL 1S | Supported 1S display-mode commands, including native 1200p/60 Hz and SBS | Brightness and dimming toggle; no app volume command |
+| Rokid Max | 1080p at 60 or 120 Hz in 2D; SBS at 1080p/60, 1200p/60, or 1200p/90 | Brightness; volume follows Android's USB audio volume; no dimming film |
+| Rokid Air | 1080p/60 in 2D and SBS | Brightness; volume follows Android's USB audio volume |
 
 DroidDeck saves separate **2D resolution**, **3D resolution**, and **VR resolution** preferences. Unsupported saved choices fall back to the connected model's automatic behavior. Native **30 Hz** is offered only when Android advertises a matching mode and glasses presentation output is enabled. Higher refresh selections are constrained by the active 2D/SBS layout and model; a firmware-rejected switch is not treated as successful until the physical display confirms it.
 
@@ -78,4 +81,4 @@ If only a flat picture is available, check video output first, then the control 
 - [Agent diagnostics and capture commands](agent-control.md)
 - [RayNeo attribution and protocol references](third-party/rayneo/README.md)
 
-The capability definitions are maintained in [VITURE models](../app/src/main/java/com/droiddeck/launcher/glasses/VitureProtocol.kt), [RayNeo models](../app/src/main/java/com/droiddeck/launcher/glasses/RayNeoModel.kt), [XREAL 1S](../app/src/main/java/com/droiddeck/launcher/glasses/XrealModel.kt), and [connection capability routing](../app/src/main/java/com/droiddeck/launcher/glasses/Glasses.kt). Update this matrix when those integrations change.
+The capability definitions are maintained in [VITURE models](../app/src/main/java/com/droiddeck/launcher/glasses/VitureProtocol.kt), [RayNeo models](../app/src/main/java/com/droiddeck/launcher/glasses/RayNeoModel.kt), [XREAL 1S](../app/src/main/java/com/droiddeck/launcher/glasses/XrealModel.kt), [Rokid](../app/src/main/java/com/droiddeck/launcher/glasses/RokidModel.kt), and [connection capability routing](../app/src/main/java/com/droiddeck/launcher/glasses/Glasses.kt). Update this matrix when those integrations change.

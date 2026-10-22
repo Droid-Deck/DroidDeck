@@ -112,6 +112,25 @@ class StoreAccountsCipherTest {
         assertEquals(creds.toString(), StoreAccounts.read(app, Store.EPIC).toString())
     }
 
+    @Test fun xboxNeverFallsBackToPlaintextWhenKeystoreFails() {
+        StoreAccounts.keys = broken
+        org.junit.Assert.assertThrows(IllegalStateException::class.java) {
+            StoreAccounts.write(app, Store.XBOX, JSONObject().put("username", "test@example.test").put("slots", JSONObject().put("user-tokens", "synthetic-secret")))
+        }
+        assertFalse(file(Store.XBOX).exists())
+        StoreAccounts.keys = fake
+        StoreAccounts.write(app, Store.XBOX, creds)
+        assertTrue(CredentialCipher.isEnvelope(JSONObject(file(Store.XBOX).readText())))
+    }
+
+    @Test fun xboxUsernameAndBackendSlotsAreEncryptedTogether() {
+        val xbox = JSONObject().put("username", "test@example.test").put("slots", JSONObject().put("user-tokens", "synthetic-secret"))
+        StoreAccounts.write(app, Store.XBOX, xbox)
+        assertFalse(file(Store.XBOX).readText().contains("synthetic-secret"))
+        assertFalse(file(Store.XBOX).readText().contains("test@example.test"))
+        assertEquals("test@example.test", StoreAccounts.signedInAs(app, Store.XBOX))
+    }
+
     @Test fun signOutRemovesTheFile() {
         StoreAccounts.write(app, Store.GOG, creds)
         StoreAccounts.clear(app, Store.GOG)
