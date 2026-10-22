@@ -72,8 +72,9 @@ class AgentEnvRecoveryTest {
         val retry = AgentEnv.beginSession(context)
         assertTrue("undelivered one-shot environment was lost", "NEXT=one-shot" in retry)
         assertTrue("STICKY=persistent" in retry)
-        assertTrue("the queued binary override was lost", File(agent, "bin/tool").isFile)
-        assertTrue(retry.any { it.startsWith("PATH=/opt/droiddeck-agent/bin:") })
+        val activeSession = AgentEnv.list(context).getString("activeOverrideSession")
+        assertTrue("the queued binary override was lost", File(agent, "sessions/$activeSession/bin/tool").isFile)
+        assertTrue(retry.any { it.startsWith("PATH=/opt/droiddeck-agent/sessions/") })
 
         AgentEnv.endSession(context)
         assertEquals(listOf("STICKY=persistent"), AgentEnv.beginSession(context))
@@ -92,5 +93,31 @@ class AgentEnvRecoveryTest {
         assertEquals(listOf("NEXT=one-shot"), AgentEnv.beginSession(context))
         AgentEnv.endSession(context)
         assertTrue(AgentEnv.beginSession(context).isEmpty())
+    }
+
+    @Test fun overridesAreIsolatedUntilEachSessionsTeardownCompletes() {
+        File(AgentEnv.inbox(context).apply { mkdirs() }, "old-tool").writeText("old binary")
+        AgentEnv.override(context, "old-tool")
+        val oldEnvironment = AgentEnv.beginSession(context, "old-session")
+        val oldBin = File(LinuxRuntime.rootDir(context), "opt/droiddeck-agent/sessions/old-session/bin")
+        assertTrue(oldEnvironment.any { it.startsWith("PATH=/opt/droiddeck-agent/sessions/old-session/bin:") })
+        assertTrue(File(oldBin, "old-tool").isFile)
+
+        File(AgentEnv.inbox(context), "new-tool").writeText("new binary")
+        AgentEnv.override(context, "new-tool")
+        val newEnvironment = AgentEnv.beginSession(context, "new-session")
+        val newBin = File(LinuxRuntime.rootDir(context), "opt/droiddeck-agent/sessions/new-session/bin")
+        assertTrue(newEnvironment.any { it.startsWith("PATH=/opt/droiddeck-agent/sessions/new-session/bin:") })
+        assertFalse(newEnvironment.any { it.contains("old-session") || it.contains("old-tool") })
+        assertTrue("the old binary remains available until its teardown", File(oldBin, "old-tool").isFile)
+        assertTrue(File(newBin, "new-tool").isFile)
+
+        AgentEnv.endSession(context, "old-session")
+        assertFalse(File(oldBin, "old-tool").exists())
+        assertTrue("old teardown must not clear new session state", File(newBin, "new-tool").isFile)
+        assertEquals("new-session", AgentEnv.list(context).getString("activeOverrideSession"))
+
+        AgentEnv.endSession(context, "new-session")
+        assertFalse(File(newBin, "new-tool").exists())
     }
 }
