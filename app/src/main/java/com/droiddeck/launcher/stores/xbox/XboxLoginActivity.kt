@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
+import android.util.Log
 import android.webkit.CookieManager
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
@@ -14,8 +15,11 @@ import android.widget.TextView
 import androidx.activity.ComponentActivity
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
+import com.droiddeck.launcher.core.AddonPack
 import com.droiddeck.launcher.stores.Store
 import com.droiddeck.launcher.stores.StoreAccounts
+import com.droiddeck.launcher.stores.StoreLogFiles
+import com.droiddeck.launcher.stores.StoreLog
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
@@ -26,6 +30,7 @@ class XboxLoginActivity : ComponentActivity() {
     @Volatile private var child: Xodus.Child? = null
     @Volatile private var session = 0L
     @Volatile private var closed = false
+    @Volatile private var step = "starting"
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -49,10 +54,17 @@ class XboxLoginActivity : ComponentActivity() {
             if (closed) return@Thread
             try {
                 val accountGeneration = XboxCredentials.lifecycle(applicationContext) { it }
+                progress("downloading the Xbox components", "Downloading Xbox components…")
+                check(AddonPack.XBOX.await(applicationContext, { !closed }) { state ->
+                    if (state is AddonPack.State.Downloading) show("Downloading Xbox components… ${(state.progress * 100).toInt()}%")
+                }) { "Couldn't download the Xbox components. Check your connection and try again." }
+                if (closed) return@Thread
+                progress("starting the Xbox helper", "Starting the Xbox helper…")
                 Xodus.start(applicationContext, listOf("--external-webview-stdio", "login"), credentialGeneration = accountGeneration).use { process ->
                     child = process
                     if (closed) return@use
                     Xodus.diagnostics(process)
+                    progress("waiting for the Xbox helper", "Waiting for the Xbox helper…")
                     val timer = Thread({
                         runCatching { if (!process.process.waitFor(10, TimeUnit.MINUTES)) process.process.destroy() }
                     }, "xbox-login-timeout").apply { start() }
@@ -68,16 +80,19 @@ class XboxLoginActivity : ComponentActivity() {
                                 check(!ready && frame.getInt("version") == 1)
                                 ready = true
                                 process.send(JSONObject().put("type", "hello").put("version", 1))
+                                progress("waiting for Microsoft's sign-in page", "Opening Microsoft sign-in…")
                             }
                             "open" -> {
                                 val next = frame.getLong("session")
                                 check(ready && next > latest && next <= 32 && trusted(frame.getString("url")))
                                 latest = next; session = next
+                                step = "loading Microsoft's sign-in page"
                                 runOnUiThread { if (!closed) open(frame) }
                             }
                             "close" -> {
                                 check(frame.getLong("session") == session)
                                 session = 0L
+                                step = "completing the sign-in"
                                 runOnUiThread { disposeView(); status.text = "Completing Microsoft sign-in…" }
                             }
                             "context" -> {
@@ -95,24 +110,51 @@ class XboxLoginActivity : ComponentActivity() {
                             else -> error("Unsupported Xbox sign-in response")
                         }
                     }
-                    check(process.process.waitFor(5, TimeUnit.SECONDS) && process.process.exitValue() == 0 && ready && latest > 0 && session == 0L)
+                    if (closed) return@use
+                    check(process.process.waitFor(5, TimeUnit.SECONDS)) { "the Xbox helper did not exit" }
+                    val exit = process.process.exitValue()
+                    check(exit == 0) { "the Xbox helper stopped with exit code $exit" }
+                    check(ready) { "the Xbox helper never became ready" }
+                    check(latest > 0) { "Microsoft's sign-in page was never requested" }
+                    check(session == 0L) { "the sign-in page was closed before Microsoft finished" }
                     timer.interrupt()
                 }
                 child = null
                 if (closed) return@Thread
+                step = "saving the account"
                 val account = Xodus.run(applicationContext, listOf("account", "--json"), credentialGeneration = accountGeneration)
-                check(account.optBoolean("stored"))
+                check(account.optBoolean("stored")) { "Xbox did not save the account" }
                 XboxCredentials.lifecycle(this, accountGeneration) {
                     val record = StoreAccounts.read(this, Store.XBOX) ?: error("Xbox credentials missing")
                     record.put("username", account.getString("username"))
                     StoreAccounts.write(this, Store.XBOX, record)
                 }
+                logStep("signed in")
                 runOnUiThread { finish() }
             } catch (e: Exception) {
                 child = null
-                if (!closed) runOnUiThread { disposeView(); status.text = "Microsoft sign-in did not complete. Close this window and try again." }
+                if (closed) return@Thread
+                val failed = step
+                val reason = failure(e)
+                logStep("failed while $failed: $reason")
+                runOnUiThread {
+                    disposeView()
+                    status.text = "Microsoft sign-in did not complete.\nFailed while $failed: $reason\nClose this window and try again."
+                }
             }
         }, "xbox-login").start()
+    }
+
+    private fun show(text: String) = runOnUiThread { if (!closed && view == null) status.text = text }
+
+    private fun progress(name: String, text: String) { step = name; show(text) }
+
+    /** Written to the stores log, which the shared log zip carries; the main process's log helpers don't run in this process. */
+    private fun logStep(line: String) {
+        val text = StoreLog.redactLine("Xbox sign-in: $line")
+        Log.i(TAG, text)
+        val time = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", java.util.Locale.US).format(java.util.Date())
+        StoreLogFiles.append(applicationContext, "$time  $text")
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -172,6 +214,15 @@ class XboxLoginActivity : ComponentActivity() {
     }
 
     companion object {
+        private const val TAG = "XboxLogin"
+
+        /** Our own check messages are safe to show; anything else is named by its type, never its text, which may hold sign-in data. */
+        internal fun failure(e: Exception): String {
+            val message = e.message.orEmpty()
+            return if (e is IllegalStateException && message.isNotBlank() && message != "Check failed." && message.length <= 160) message
+            else e.javaClass.simpleName.ifBlank { "error" }
+        }
+
         private val hosts = setOf("login.live.com", "account.live.com", "login.microsoftonline.com", "login.microsoft.com", "account.microsoft.com", "sisu.xboxlive.com")
         private val origins = hosts.map { "https://$it" }.toSet()
         private val allowedHeaders = setOf("cxh-capabilities", "cxh-correlationid", "cxh-msabinaryversion", "cxh-identityclientbinaryversion", "cxh-osversioninfo", "cxh-platform", "cxh-protocol", "cxh-source", "hostapp")

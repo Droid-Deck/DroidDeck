@@ -2029,7 +2029,7 @@ class MainActivity : ComponentActivity() {
                     steamGamesX64 = scannedX64
                     steamGames = all.map { g ->
                         val newer = current[g.appId]
-                        if (newer != null && g.library != Library.ADDED && steamArtRefreshes[g.appId] != artRefreshesAtStart[g.appId]) g.withArt(newer.art, newer.hero, newer.icon) else g
+                        if (newer != null && g.library != Library.ADDED && steamArtRefreshes[g.appId] != artRefreshesAtStart[g.appId]) g.withArt(newer.art, newer.hero, newer.icon, newer.logo) else g
                     }
                     shortcutLibraryScanning = false
                     handleGameLink(all)

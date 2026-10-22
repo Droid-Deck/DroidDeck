@@ -23,6 +23,7 @@ data class CatalogItem(
     val mature: Boolean = false,
     val subscription: Boolean = false,
     val includedWith: String = "",
+    val logoUrl: String? = null,
 ) {
     val accessible: Boolean get() = owned || subscription
     /** Licensed now, or a supported package the account's subscription can install. */
