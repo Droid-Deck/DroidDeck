@@ -225,7 +225,7 @@ object ProtonExtras {
                 .redirectErrorStream(true)
             val hostEnv = process.environment()
             hostEnv["PROOT_LOADER"] = LinuxRuntime.prootLoader(context).path
-            hostEnv["PROOT_TMP_DIR"] = context.cacheDir.path
+            hostEnv["PROOT_TMP_DIR"] = LinuxRuntime.prootTempDir(context).path
             LinuxRuntime.prootLibraryPath(context).takeIf { it.isNotEmpty() }?.let { hostEnv["LD_LIBRARY_PATH"] = it }
             val child = process.start()
             var placed: String? = null

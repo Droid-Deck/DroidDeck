@@ -11,8 +11,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.SdCard
 import androidx.compose.material.icons.outlined.Smartphone
 import androidx.compose.material3.Icon
@@ -20,7 +25,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -37,8 +45,12 @@ import com.droiddeck.launcher.R
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.stores.CatalogItem
 import com.droiddeck.launcher.stores.StoreInstallRoot
+import com.droiddeck.launcher.stores.StoreLanguage
 import com.droiddeck.launcher.stores.StoresState
 import com.droiddeck.launcher.stores.formatBytes
+import com.droiddeck.launcher.stores.gog.GogDownloadManager
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @Composable
 internal fun InstallWhereDialog(item: CatalogItem, onDismiss: () -> Unit) {
@@ -50,8 +62,20 @@ internal fun InstallWhereDialog(item: CatalogItem, onDismiss: () -> Unit) {
     val remembered = remember { SessionPrefs.storesInstallTarget(ctx) }
     val defaultIndex = targets.indexOfFirst { it.root.absolutePath == remembered }.coerceAtLeast(0)
     val focus = remember { List(targets.size) { FocusRequester() } }
+    val askLanguage = StoreLanguage.selectable(item.store)
+    val preferredLanguage = StoreLanguage.preferredCode(ctx)
+    var languages by remember { mutableStateOf(StoreLanguage.fallbackList(item.store)) }
+    var chosen by remember(preferredLanguage) { mutableStateOf(StoreLanguage.pick(languages, preferredLanguage)) }
+    var menuOpen by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { focusWithinFrames({ false }) { focus[defaultIndex] } }
-    AppDialog(shown, close, "installWhere", wide = false, maxWidth = 440.dp) {
+    LaunchedEffect(item.key) {
+        if (item.store != com.droiddeck.launcher.stores.Store.GOG) return@LaunchedEffect
+        val listed = withContext(Dispatchers.IO) { GogDownloadManager.listLanguages(ctx, item.id) }
+        if (listed.isEmpty()) return@LaunchedEffect
+        languages = listed
+        chosen = StoreLanguage.pick(listed, chosen)
+    }
+    AppDialog(shown, close, "installWhere", wide = false, maxWidth = if (targets.size > 2) 600.dp else 440.dp) {
         Rise(0) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                 Text(
@@ -60,12 +84,28 @@ internal fun InstallWhereDialog(item: CatalogItem, onDismiss: () -> Unit) {
                 )
                 Text(
                     stringResource(R.string.common_cancel), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = colors.onSurfaceVariant,
-                    modifier = Modifier.clip(Shape12).clickable(role = Role.Button, onClick = close).padding(horizontal = 10.dp, vertical = 6.dp),
+                    modifier = Modifier.clip(Shape12).clickable(role = Role.Button, onClick = close).controllerConfirm(onClick = close).padding(horizontal = 10.dp, vertical = 6.dp),
                 )
             }
         }
-        Rise(1) {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+        if (askLanguage) Rise(1) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                Text(stringResource(R.string.stores_install_language), fontSize = 13.sp, color = colors.onSurfaceVariant)
+                Box(Modifier.weight(1f)) {
+                    ValueChip(StoreLanguage.displayName(chosen).ifEmpty { chosen }, menuOpen, modifier = Modifier.fillMaxWidth()) { menuOpen = !menuOpen }
+                    AnchoredMenu(menuOpen, { menuOpen = false }, title = stringResource(R.string.stores_install_language), compact = true) { first ->
+                        languages.forEachIndexed { i, code ->
+                            MenuItem(StoreLanguage.displayName(code).ifEmpty { code }, checked = code == chosen, focusRequester = if (i == 0) first else null) {
+                                chosen = code
+                                menuOpen = false
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Rise(if (askLanguage) 2 else 1) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                 targets.forEachIndexed { i, t ->
                     val needed = com.droiddeck.launcher.stores.StoreInstallRoot.estimatedBytesNeeded(item)
                     val freeBytes = t.freeBytes
@@ -80,11 +120,11 @@ internal fun InstallWhereDialog(item: CatalogItem, onDismiss: () -> Unit) {
                     TargetRow(
                         label = if (t.removable) t.label else stringResource(R.string.stores_target_internal),
                         free = freeText,
-                        removable = t.removable, focus = focus[i],
-                        warning = isLow,
+                        removable = t.removable, folder = t.folder, focus = focus[i],
+                        warning = isLow, modifier = Modifier.weight(1f),
                     ) {
                         SessionPrefs.setStoresInstallTarget(ctx, t.root.absolutePath)
-                        StoresState.install(ctx, item, t.root)
+                        StoresState.install(ctx, item, t.root, if (askLanguage) chosen else null)
                         close()
                     }
                 }
@@ -94,22 +134,24 @@ internal fun InstallWhereDialog(item: CatalogItem, onDismiss: () -> Unit) {
 }
 
 @Composable
-private fun TargetRow(label: String, free: String, removable: Boolean, focus: FocusRequester, warning: Boolean = false, onPick: () -> Unit) {
+private fun TargetRow(label: String, free: String, removable: Boolean, folder: Boolean, focus: FocusRequester, modifier: Modifier, warning: Boolean = false, onPick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val src = remember { MutableInteractionSource() }
     val hot = rememberHot(src)
     Row(
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp),
-        modifier = Modifier.fillMaxWidth().focusRequester(focus).clip(Shape12)
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
+        modifier = modifier.height(IntrinsicSize.Min).focusRequester(focus).clip(Shape12)
             .background(if (hot) pal.signal.copy(alpha = 0.14f) else colors.surface.copy(alpha = 0.6f))
             .glideBorder(hot, Shape12, pal.signal, pal.line)
             .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Button, onClick = onPick)
             .controllerConfirm(onClick = onPick)
-            .padding(horizontal = 14.dp, vertical = 10.dp),
+            .padding(horizontal = 12.dp, vertical = 10.dp),
     ) {
-        Icon(if (removable) Icons.Outlined.SdCard else Icons.Outlined.Smartphone, null, tint = if (hot) pal.signal else colors.onBackground, modifier = Modifier.size(22.dp))
-        Text(label, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-        Text(free, fontSize = 12.sp, color = if (warning) colors.error else colors.onSurfaceVariant, maxLines = 1)
+        Icon(if (folder) Icons.Outlined.Folder else if (removable) Icons.Outlined.SdCard else Icons.Outlined.Smartphone, null, tint = if (hot) pal.signal else colors.onBackground, modifier = Modifier.fillMaxHeight().aspectRatio(1f))
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(label, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(free, fontSize = 12.sp, color = if (warning) colors.error else colors.onSurfaceVariant, maxLines = 2)
+        }
     }
 }

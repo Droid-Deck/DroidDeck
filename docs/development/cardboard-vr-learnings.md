@@ -44,12 +44,16 @@ OpenVR to SteamVR's ARM64 `vrclient.so`, so no x86 SteamVR is involved.
    - `helloxr` blocked in a wait-idle in `vrclient.so`;
    - DXVK's `dxvk-queue` thread blocked in Proton games.
 
-   The layer now gives a submit's wait on an imported shared value 3 ms, then drops it. It is kept
-   when the value is already reached, or when this process has queued the signal itself. Two details
-   mattered:
+   The layer now gives a submit's wait on an imported shared value 3 ms, then drops it, at once when
+   the shared counter has not moved for 100 ms. It is kept when the value is already reached, when
+   this process has queued the signal itself, or while a Quest session's frame socket exists (checked
+   at most once a second). Three details mattered:
    - the waits are judged before the submit's own signals count, because an acquire waits on one
      value and signals the next on the same semaphore;
-   - SteamVR's client interop device is Vulkan 1.0, so only the `KHR` entry points resolve there.
+   - SteamVR's client interop device is Vulkan 1.0, so only the `KHR` entry points resolve there;
+   - a Proton game waits on two values a frame that are never signalled (5,500 dropped, none reached
+     within 200 ms afterwards). With the grace on each, Angry Birds VR's submit thread lost 6 ms a
+     frame and the game ran at 60 fps; without it, 120.
 4. **UBWC layouts must agree.** An imported image has to be created with the same
    `VkImageFormatListCreateInfo` (sRGB + UNORM) as its creator, or Turnip lays out the compression
    differently and the reader sees garbage. The presenter's eye-texture import does this.
@@ -83,9 +87,76 @@ OpenVR to SteamVR's ARM64 `vrclient.so`, so no x86 SteamVR is involved.
 - **Memory.** Steam, SteamVR and one VR game fit in the Thor's 12 GB. A large game such as The Lab, or
   two games at once, push the device into critical pressure, and the low-memory killer takes
   DroidDeck itself (`ended-without-teardown.txt` in the session logs, `lowmemorykiller` in logcat).
+- **Adreno 840 forced sysmem.** On the Fold with VITURE Luma Ultra, launching SteamVR from the library
+  inherited `TU_DEBUG=sysmem` and produced `vkerror=-4`, triggering recovery. Adding `noubwc` still
+  failed; replacing the flags with `noubwc` or an empty value worked. The shared launch helper removes
+  only `sysmem` on `Adreno840*`, leaving other flags, the parent Steam session and other GPUs unchanged.
+  The user confirmed improved landing-area brightness and colors with this configuration and asked
+  to preserve them.
+- **Adreno 840 with DD-Turnip v0.2.0.** SteamVR reproduced `vkerror=-4` with `sysmem` removed,
+  including on the previous app build and with the presenter disabled. After a phone reboot,
+  the unchanged `fcf8c588` baseline rendered for 109 seconds without observed device loss.
+  `TU_DEBUG=flushall` initially appeared promising: a global run rendered for over a minute,
+  and a SteamVR-only run rendered for about 32 seconds before background suspension. The
+  packaged SteamVR-only change then reproduced device loss with `flushall` confirmed in
+  `vrcompositor`, so the automatic flag was removed. These bounded runs do not establish the
+  underlying cause or a reliable workaround.
+- **Live files are not cache.** Android's `installd` evicted `cache/shm/u10528-*` while SteamVR was
+  running, followed by Chromium shared-memory failures and lost IPC. Shared memory, emulated device
+  files, sandbox trees and PRoot temporary files now use `no_backup/guest-runtime`, retaining their
+  existing cleanup lifetimes. Session state must survive cache eviction.
+- **One host signal owner.** The submit-wait path must not mirror a shared timeline value itself:
+  the poller can signal it between the submit thread's counter read and signal, producing an invalid
+  duplicate signal. The poller now owns mirroring; a forced-interleaving test covers this race.
+- **Lost hand tracking is not a disconnect.** Publishing a disconnected pose and then a connected,
+  untracked pose on every optical update floods SteamVR with device-change notifications. With
+  uncalibrated hands this grew its web buffer to about 34 MB and triggered the Web thread watchdog.
+  Release inputs and publish only the connected, untracked pose; reserve disconnection for an
+  actual controller removal. The controller regression exercises repeated loss and reacquisition.
+- **Failed realtime scheduling can still install a CPU limit.** On the Fold, SteamVR's SDL RTKit
+  fallback set `RLIMIT_RTTIME` to 100/200 ms despite realtime priority being refused. The render
+  thread later received kernel `SIGXCPU` during `IOCTL_KGSL_GPU_COMMAND`, with policy `SCHED_OTHER`
+  and the soft limit advanced to 1100 ms, confirming the realtime watchdog fired. The VR scheduling
+  preload rejects lowering this limit only in `vrcompositor` when `RLIMIT_RTPRIO` is zero and
+  `CAP_SYS_NICE` is absent. It preserves inherited limits, other processes and other resources;
+  it does not intercept signals. SDL's scheduling hint cannot cover SteamVR's direct
+  `SDL_LinuxSetThreadPriorityAndPolicy` call. A native preload regression covers rejection and
+  forwarding. The exact Android kernel boost/accounting path was not established.
+- **Frames shown out of order.** Video from the glasses jumped back a few frames in bursts while the
+  head turned. Two causes, each found by stamping a frame counter into the presenter's output:
+  - the presenter copied SteamVR's eye texture a fixed 4 ms after `Present`, with no fence. Under
+    GPU load `vrcompositor` had not drawn it yet, so the copy got that texture's previous frame. The
+    layer now fences `vrcompositor`'s submits and the presenter waits for the frame's count;
+  - DroidDeck's compositor copies a Wayland client's dma-buf without waiting for its implicit fence,
+    and KGSL does not order the copy after the client's GPU work. The presenter's blit sat behind the
+    game's frame, so the compositor showed the swapchain image's older picture. The presenter now
+    waits for its blit before it presents.
+- **Flat games under SteamVR.** With SteamVR running, Steam lists a flat game after its own window in
+  gamescope's base layer, so Big Picture keeps the focus and the game never shows, theatre setting or
+  not. SteamVR is therefore started only by Play SteamVR, never with the glasses alone. A flat game
+  launched while SteamVR runs now opens as a SteamVR panel instead (`droiddeck-steamvr-flat`). Games
+  launched from the SteamVR dashboard do not pass through a `SteamClient.Apps.RunGame` hook installed
+  later, so the launcher asks Steam at run time rather than marking the click.
+- **A new projection needs an event.** `SetDisplayProjectionRaw` changed what `vrserver` reports, but
+  `vrcompositor` kept the frustum it started with, so the glasses' field of view did nothing until
+  SteamVR restarted. The driver now follows it with `VREvent_LensDistortionChanged`.
 - **Head-tracking axes.** With the display at `ROTATION_90`, screen x is minus device y and screen y is
   device x. Getting this wrong made a turn at the hips tilt the view. Recentring now keeps the world
   vertical and resets the heading only.
+
+## Library launch validation (2026-10-15)
+
+Two hands-off launches through the Steam library's Launch button completed 308 seconds and
+188 seconds, with an intentional stop between runs. Each retained its compositor process and
+session, sustained 60 fps, showed dashboard/world transitions, and kept USB control and valid
+6DoF head tracking. Neither run reported device loss, a watchdog abort, recovery, or a session
+restart. Hand controllers remained enabled but uncalibrated. Brightness stayed at 8; no shader
+color changes or temporary graphics overrides were used.
+
+These timed runs used APK SHA-256
+`4ce7a623ceb6b1a100c0ed1184530ece2ea8e13a1cb9ee6c0ab24666a8249004`. A newer calibration/recenter
+APK was subsequently installed and verified; see `luma-spatial-evidence.md`. The timed results
+do not establish sustained gameplay or calibrated-hand acceptance for that newer build.
 
 ## Debugging a live session
 
@@ -123,8 +194,9 @@ OpenVR to SteamVR's ARM64 `vrclient.so`, so no x86 SteamVR is involved.
 - **SteamVR Home** needs `IVROverlayView_002` in Proton's `vrclient`, or an ARM64 build of Home.
 - **The Lab and other large games** need memory headroom. Candidates: stop Steam's own web helpers
   while a VR game runs, or lower SteamVR's footprint.
-- **Wait drops are a heuristic.** A 3 ms grace keeps the common case in sync. A submit thread in the
-  layer, deferring submits until their waits are reachable, would be exact.
+- **Wait drops are a heuristic.** A 3 ms grace keeps the common case in sync, and an idle counter
+  skips it. A submit thread in the layer, deferring submits until their waits are reachable, would be
+  exact.
 - **Layers:** only the first layer of each frame is presented. No reprojection.
 - **Controllers** are a gaze pointer driven by the pad. Pad presses did not close the SteamVR menu in
   testing. Untested: whether that came from gamescope focus being on Steam, or from the system button

@@ -3,6 +3,7 @@ add_library(droiddeckwayland SHARED
         src/vk_present.c
         src/effects_chain.c
         src/cardboard.c
+        src/spatialpose.c
         src/vk_loader.c
         src/sc_layer.c
         src/ahb_swapchain.c
@@ -42,10 +43,10 @@ target_include_directories(droiddeckwayland PRIVATE
 )
 
 set(DROIDDECK_FRAMEGEN_LSFG_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../framegen/lsfg)
-set(DROIDDECK_FRAMEGEN_WINFG_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../framegen/winfg)
+set(DROIDDECK_FRAMEGEN_DDFG_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../framegen/ddfg)
 if (TARGET dxbc AND EXISTS ${DROIDDECK_FRAMEGEN_LSFG_DIR}/lsfg_engine.cpp
-        AND EXISTS ${DROIDDECK_FRAMEGEN_WINFG_DIR}/winfg_engine.cpp)
-    message(STATUS "droiddeckwayland: frame-generation engines built in (LSFG Native, Win-FG Native)")
+        AND EXISTS ${DROIDDECK_FRAMEGEN_DDFG_DIR}/ddfg_engine.cpp)
+    message(STATUS "droiddeckwayland: frame-generation engines built in (LSFG Native, DD-FG Native)")
     target_sources(droiddeckwayland PRIVATE
             src/framegen_engine.cpp
             ${DROIDDECK_FRAMEGEN_LSFG_DIR}/lsfg_probe.cpp
@@ -65,9 +66,9 @@ if (TARGET dxbc AND EXISTS ${DROIDDECK_FRAMEGEN_LSFG_DIR}/lsfg_engine.cpp
             ${DROIDDECK_FRAMEGEN_LSFG_DIR}/lsfg_engine.cpp
             ${DROIDDECK_FRAMEGEN_LSFG_DIR}/lsfg_governor.cpp
             ${DROIDDECK_FRAMEGEN_LSFG_DIR}/lsfg_jni.cpp
-            ${DROIDDECK_FRAMEGEN_WINFG_DIR}/framegen.cpp
-            ${DROIDDECK_FRAMEGEN_WINFG_DIR}/winfg_vkd.cpp
-            ${DROIDDECK_FRAMEGEN_WINFG_DIR}/winfg_engine.cpp
+            ${DROIDDECK_FRAMEGEN_DDFG_DIR}/framegen.cpp
+            ${DROIDDECK_FRAMEGEN_DDFG_DIR}/ddfg_vkd.cpp
+            ${DROIDDECK_FRAMEGEN_DDFG_DIR}/ddfg_engine.cpp
     )
     target_include_directories(droiddeckwayland PRIVATE
             ${CMAKE_CURRENT_SOURCE_DIR}/..
@@ -76,8 +77,8 @@ if (TARGET dxbc AND EXISTS ${DROIDDECK_FRAMEGEN_LSFG_DIR}/lsfg_engine.cpp
     target_compile_options(droiddeckwayland PRIVATE
             $<$<COMPILE_LANGUAGE:CXX>:-std=c++17 -fvisibility=hidden>)
     target_compile_definitions(droiddeckwayland PRIVATE
-            WINFG_UPSTREAM="${WINFG_UPSTREAM}"
-            WINFG_CHAIN_HASH="${WINFG_CHAIN_HASH}"
+            DDFG_UPSTREAM="${DDFG_UPSTREAM}"
+            DDFG_CHAIN_HASH="${DDFG_CHAIN_HASH}"
     )
     target_link_libraries(droiddeckwayland dxbc atomic)
 else()

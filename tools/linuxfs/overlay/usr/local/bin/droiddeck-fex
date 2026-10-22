@@ -28,16 +28,30 @@ URUNTIME = "/usr/local/lib/droiddeck/uruntime"
 HOST_PRELOAD = "/etc/ld.so.preload"
 FEX_APPID = "3127680"
 SNIPER_APPID = "1628350"
-INSTALL_DIRS = {FEX_APPID: "FEX-Emu", SNIPER_APPID: "SteamLinuxRuntime_sniper"}
+SLR4_APPID = "4183110"
+INSTALL_DIRS = {FEX_APPID: "FEX-Emu", SNIPER_APPID: "SteamLinuxRuntime_sniper", SLR4_APPID: "SteamLinuxRuntime_4"}
+RUNTIMES = {SNIPER_APPID: ("sniper_platform_", "Steam Linux Runtime 3.0 (sniper"),
+            SLR4_APPID: ("steamrt4_platform_", "Steam Linux Runtime 4.0 (steamrt4")}
 MARKER = ".droiddeck-fex"
 LAYOUT = 1
+ROOTFS_LAYOUT = 2
+ARCH_DIRS = ("x86_64-linux-gnu", "i386-linux-gnu")
+INTERPRETERS = ("ld-linux-x86-64.so.2", "ld-linux.so.2")
+PROVIDED = frozenset((
+    "ld-linux-x86-64.so.2", "ld-linux.so.2", "libc.so.6", "libm.so.6", "libmvec.so.1", "libpthread.so.0", "libdl.so.2",
+    "librt.so.1", "libutil.so.1", "libresolv.so.2", "libanl.so.1", "libBrokenLocale.so.1", "libnsl.so.1",
+    "libnss_compat.so.2", "libnss_dns.so.2", "libnss_files.so.2", "libnss_hesiod.so.2", "libthread_db.so.1",
+    "libmemusage.so", "libpcprofile.so", "libc_malloc_debug.so.0", "gconv", "libstdc++.so.6", "libgcc_s.so.1",
+    "libssl.so.3", "libcrypto.so.3",
+))
+GLIBC_BUILD = re.compile(r"^(?:ld|lib[A-Za-z_]+)-2\.[0-9]+\.so$|^libSegFault\.so$")
 GUEST_LIBDIRS = (("x86_64", "lib/x86_64-linux-gnu"), ("i386", "lib/i386-linux-gnu"))
 PRELOAD_NAMES = ("libblsession.so", "libfakeinput.so")
 FAULT_REPORT = "libfaultreport.so"
-THUNK_AUDIT = "libthunkaudit.so"
-THUNK_AUDIT_GUEST = "/usr/lib/x86_64-linux-gnu/droiddeck/" + THUNK_AUDIT
 VULKAN_PIN = "libvulkan-thunk.so"
+VULKAN_PIN_DIR = "lib/x86_64-linux-gnu/droiddeck/vulkan"
 VULKAN_THUNK = "libvulkan-guest.so"
+ASOUND_CONF = "pcm.!default {\n    type pulse\n}\nctl.!default {\n    type pulse\n}\n"
 RUNTIME_LIBRARIES = (("libc.so.6", b"GLIBC_"), ("libstdc++.so.6", b"GLIBCXX_"))
 VERSION_NAME = re.compile(rb"GLIBC(?:XX)?_[0-9][0-9.]*[0-9]")
 BUNDLE_DEPTH = 3
@@ -49,6 +63,8 @@ SCAN_LIMIT = 4000
 MODES = ("auto", "on", "off")
 STEAM_VERBS = ("run", "waitforexitandrun")
 ESCAPE = re.compile(rb"\\([0-7]{3})")
+DEVICE_FONTS = "/usr/local/share/fonts/android"
+FONT_RULES = "/etc/fonts/conf.d/66-droiddeck-device-fonts.conf"
 
 
 def say(message):
@@ -164,15 +180,15 @@ def platform_version(path):
     return tuple(int(part) for part in re.findall(r"\d+", os.path.basename(path)))
 
 
-def runtime_platform():
-    runtime = app_dir(SNIPER_APPID)
+def runtime_platform(app=SNIPER_APPID):
+    runtime = app_dir(app)
     if not runtime:
         return None
     try:
         entries = os.listdir(runtime)
     except OSError:
         return None
-    platforms = [os.path.join(runtime, entry) for entry in entries if entry.startswith("sniper_platform_")]
+    platforms = [os.path.join(runtime, entry) for entry in entries if entry.startswith(RUNTIMES[app][0])]
     platforms = [path for path in platforms if os.path.isdir(os.path.join(path, "files"))
                  and os.path.isfile(os.path.join(path, "usr-mtree.txt.gz"))]
     return max(platforms, key=platform_version, default=None)
@@ -234,6 +250,75 @@ def materialize(platform):
     return True
 
 
+def graphics_platform():
+    return runtime_platform(SLR4_APPID)
+
+
+def provides_newer(base, provider):
+    for name, prefix in RUNTIME_LIBRARIES:
+        ours = {v for v in version_names(os.path.join(base, "files/lib/x86_64-linux-gnu", name)) if v.startswith(prefix)}
+        theirs = {v for v in version_names(os.path.join(provider, "files/lib/x86_64-linux-gnu", name)) if v.startswith(prefix)}
+        if not ours or not theirs or not ours < theirs:
+            return False
+    return True
+
+
+def mirror(source, provider, name, target):
+    if provider and name in PROVIDED and os.path.lexists(os.path.join(provider, name)):
+        os.symlink(os.path.realpath(os.path.join(provider, name)), os.path.join(target, name))
+        return
+    path = os.path.join(source, name)
+    link = os.readlink(path) if os.path.islink(path) else None
+    if link and GLIBC_BUILD.match(os.path.basename(link)):
+        if name not in INTERPRETERS:
+            return
+        link = os.path.join(os.path.dirname(link), name)
+    if provider and GLIBC_BUILD.match(name):
+        return
+    if link and not link.startswith("/"):
+        os.symlink(link, os.path.join(target, name))
+    else:
+        os.symlink(os.path.realpath(path), os.path.join(target, name))
+
+
+def build_rootfs(base, provider):
+    """The runtime with glibc and libstdc++ taken from a newer one, which FEX's GL and Vulkan thunks are built against."""
+    base_files, provider_files = os.path.join(base, "files"), os.path.join(provider, "files")
+    rootfs = os.path.join(STATE, "rootfs")
+    stamp = "%d\n%s\n%s%s\n%s" % (ROOTFS_LAYOUT, os.path.realpath(base), read_text(os.path.join(base_files, MARKER)) or "",
+                                    os.path.realpath(provider), read_text(os.path.join(provider_files, MARKER)) or "")
+    if read_text(os.path.join(rootfs, MARKER)) == stamp:
+        return False
+    for entry in os.listdir(STATE):
+        if entry.startswith("rootfs."):
+            shutil.rmtree(os.path.join(STATE, entry), ignore_errors=True)
+    tmp = "%s.%d.tmp" % (rootfs, os.getpid())
+    os.makedirs(tmp)
+    for entry in os.listdir(base_files):
+        if entry not in ("lib", "lib64", "usr", MARKER):
+            os.symlink(os.path.realpath(os.path.join(base_files, entry)), os.path.join(tmp, entry))
+    os.symlink(".", os.path.join(tmp, "usr"))
+    for top in ("lib", "lib64"):
+        source = os.path.join(base_files, top)
+        os.makedirs(os.path.join(tmp, top))
+        for entry in os.listdir(source) if os.path.isdir(source) else ():
+            path = os.path.join(source, entry)
+            if entry in ARCH_DIRS and os.path.isdir(path) and not os.path.islink(path):
+                provided = os.path.join(provider_files, top, entry)
+                os.makedirs(os.path.join(tmp, top, entry))
+                for name in set(os.listdir(path)) | {name for name in PROVIDED if os.path.lexists(os.path.join(provided, name))}:
+                    mirror(path, provided, name, os.path.join(tmp, top, entry))
+            else:
+                mirror(source, None, entry, os.path.join(tmp, top))
+    write_if_changed(os.path.join(tmp, MARKER), stamp)
+    old = "%s.%d.old" % (rootfs, os.getpid())
+    if os.path.lexists(rootfs):
+        os.rename(rootfs, old)
+    os.rename(tmp, rootfs)
+    shutil.rmtree(old, ignore_errors=True)
+    return True
+
+
 def host_preloads():
     listed = read_text(HOST_PRELOAD) or ""
     return [name for name in PRELOAD_NAMES if name in listed]
@@ -247,14 +332,19 @@ def install_preloads(root):
             if os.path.isfile(source):
                 copy_if_changed(source, os.path.join(root, libdir, "droiddeck", name))
                 shipped.setdefault(name, set()).add(arch)
-    for name in (THUNK_AUDIT, VULKAN_PIN):
-        source = os.path.join(PRELOADS, "x86_64", name)
-        if os.path.isfile(source):
-            copy_if_changed(source, os.path.join(root, "lib/x86_64-linux-gnu/droiddeck", name))
+    pin = os.path.join(PRELOADS, "x86_64", VULKAN_PIN)
+    if os.path.isfile(pin):
+        copy_if_changed(pin, os.path.join(root, VULKAN_PIN_DIR, "libvulkan.so.1"))
+        alias = os.path.join(root, VULKAN_PIN_DIR, "libvulkan.so")
+        if not os.path.islink(alias) or os.readlink(alias) != "libvulkan.so.1":
+            if os.path.lexists(alias):
+                os.unlink(alias)
+            os.symlink("libvulkan.so.1", alias)
     wanted = [name for name in host_preloads() if name in shipped]
     if len(shipped.get(FAULT_REPORT, ())) == len(GUEST_LIBDIRS):
         wanted.append(FAULT_REPORT)
     write_if_changed(os.path.join(root, "etc", "ld.so.preload"), "".join("/usr/$LIB/droiddeck/%s\n" % name for name in wanted))
+    write_if_changed(os.path.join(root, "etc", "asound.conf"), ASOUND_CONF)
 
 
 def write_config(fex, root):
@@ -267,18 +357,48 @@ def write_config(fex, root):
     write_if_changed(os.path.join(CONFIG_DIR, "Config.json"), json.dumps(config, indent=2) + "\n")
 
 
+def install_fonts(root):
+    target = os.path.join(root, FONT_RULES.lstrip("/"))
+    rules = read_text(FONT_RULES) or ""
+    if not os.path.isdir(DEVICE_FONTS) or "<fontconfig>" not in rules:
+        with contextlib.suppress(FileNotFoundError):
+            os.unlink(target)
+        return
+    write_if_changed(target, rules.replace("<fontconfig>", "<fontconfig>\n<dir>%s</dir>" % DEVICE_FONTS, 1))
+
+
 def link_steam_sdk():
     for sdk, candidates in (("sdk64", ("linux64", "ubuntu12_64")), ("sdk32", ("linux32", "ubuntu12_32"))):
         link = os.path.join(HOME, ".steam", sdk)
-        if os.path.lexists(link):
-            continue
         want = "x86_64" if sdk == "sdk64" else "i386"
+        if elf_arch(os.path.join(link, "steamclient.so")) == want:
+            continue
         for candidate in candidates:
             directory = os.path.join(STEAM_ROOT, candidate)
             if elf_arch(os.path.join(directory, "steamclient.so")) == want:
                 os.makedirs(os.path.dirname(link), exist_ok=True)
-                os.symlink(directory, link)
+                tmp = "%s.%d.tmp" % (link, os.getpid())
+                os.symlink(directory, tmp)
+                os.replace(tmp, link)
                 break
+
+
+def link_guest_sdk(root):
+    # Proton's lsteamclient only looks in $HOME/.steam/sdk64; on ARM Steam that is the arm64 client, so
+    # the x86 runtime gets its own link, which FEX resolves before the host path.
+    for sdk, candidates in (("sdk64", ("linux64", "ubuntu12_64")), ("sdk32", ("linux32", "ubuntu12_32"))):
+        want = "x86_64" if sdk == "sdk64" else "i386"
+        directory = next((os.path.join(STEAM_ROOT, candidate) for candidate in candidates
+                          if elf_arch(os.path.join(STEAM_ROOT, candidate, "steamclient.so")) == want), None)
+        if not directory:
+            continue
+        link = os.path.join(root, HOME.lstrip("/"), ".steam", sdk)
+        if os.path.islink(link) and os.readlink(link) == directory:
+            continue
+        os.makedirs(os.path.dirname(link), exist_ok=True)
+        if os.path.lexists(link):
+            os.unlink(link)
+        os.symlink(directory, link)
 
 
 def steam_running():
@@ -295,20 +415,22 @@ def steam_running():
     return False
 
 
-def request_install():
+def request_install(app=SNIPER_APPID):
     os.makedirs(os.path.dirname(WANTED), exist_ok=True)
     write_if_changed(WANTED, "1\n")
     if not steam_running():
         return []
     try:
         compat = runpy.run_path(os.path.join(BIN_DIR, "steam-compatibility"))
+        if app != SNIPER_APPID and app_dir(app) is None:
+            return compat["request_app"](STEAM_ROOT, app)
         return compat["request_fex"](STEAM_ROOT, set())
     except Exception as error:
         say("could not ask the client to install FEX (%s)" % error)
         return []
 
 
-def describe(fex, platform):
+def describe(fex, platform, graphics=None):
     return {
         "fex": fex["bin"] if fex else None,
         "server": fex["server"] if fex else None,
@@ -317,13 +439,14 @@ def describe(fex, platform):
         "steamclient64": os.path.realpath(os.path.join(HOME, ".steam", "sdk64", "steamclient.so"))
         if elf_arch(os.path.join(HOME, ".steam", "sdk64", "steamclient.so")) == "x86_64" else None,
         "ready": bool(fex and fex["server"] and platform),
+        "graphics": graphics,
     }
 
 
-def prepare():
+def prepare(app=SNIPER_APPID):
     with locked():
         fex = fex_install()
-        platform = runtime_platform()
+        platform = runtime_platform(app)
         status = describe(fex, platform)
         if not status["ready"]:
             missing = []
@@ -336,8 +459,8 @@ def prepare():
             elif not fex["server"]:
                 missing.append("FEXServer beside %s" % fex["bin"])
             if not platform:
-                missing.append("Steam Linux Runtime 3.0 (sniper, Steam app %s)" % SNIPER_APPID)
-            requested = request_install()
+                missing.append("%s, Steam app %s)" % (RUNTIMES[app][1], app))
+            requested = request_install(app)
             say("x86 Linux programs need %s; %s" % (" and ".join(missing),
                 "the Steam client was asked to install it" if requested else "open Steam once and it is installed for you"))
             write_if_changed(STATUS_FILE, json.dumps(status, indent=2) + "\n")
@@ -346,13 +469,32 @@ def prepare():
         if materialize(platform):
             say("prepared %s as the x86 runtime" % os.path.basename(platform))
         install_preloads(root)
+        install_fonts(root)
+        provider = None
+        if app == SNIPER_APPID:
+            provider = graphics_platform()
+            if provider and materialize(provider):
+                say("prepared %s for the x86 runtime's C and C++ libraries" % os.path.basename(provider))
+            if not provider:
+                say("Steam Linux Runtime 4.0 (Steam app %s) is not installed yet; x86 games may not find their graphics drivers"
+                    % SLR4_APPID)
+            elif not provides_newer(platform, provider):
+                say("%s has no newer C and C++ libraries than %s" % (os.path.basename(provider), os.path.basename(platform)))
+                provider = None
+            else:
+                if build_rootfs(platform, provider):
+                    say("built the x86 runtime from %s with the C and C++ libraries of %s"
+                        % (os.path.basename(platform), os.path.basename(provider)))
+                root = os.path.join(STATE, "rootfs")
+        with contextlib.suppress(OSError):
+            link_guest_sdk(root)
         write_config(fex, root)
         fex["rootfs"] = root
         try:
             link_steam_sdk()
         except OSError:
             pass
-        status = describe(fex, platform)
+        status = describe(fex, platform, provider)
         write_if_changed(STATUS_FILE, json.dumps(status, indent=2) + "\n")
         with contextlib.suppress(OSError):
             os.unlink(WANTED)
@@ -422,8 +564,18 @@ def guest_environment(fex, env):
     result["FEX_APP_CONFIG_LOCATION"] = CONFIG_DIR + "/"
     result["FEX_APP_DATA_LOCATION"] = data + "/"
     result["FEX_APP_CACHE_LOCATION"] = CACHE_DIR + "/"
+    # Valve's FEX-Emu binds its server socket under $STEAM_COMPAT_DATA_PATH/fex-emu whatever FEX_APP_DATA_LOCATION or
+    # FEX_SERVERSOCKETPATH say, and sun_path is 108 bytes: compatdata under the app's data folder is too long.
+    if result.get("STEAM_COMPAT_DATA_PATH"):
+        short = data if data != DATA_DIR else "/tmp/fex"
+        os.makedirs(short, exist_ok=True)
+        result["STEAM_COMPAT_DATA_PATH"] = short
     result.setdefault("FEX_SILENTLOG", "0")
     result.setdefault("FEX_OUTPUTLOG", "stderr")
+    # The session's tunables are for the host libc; an x86 ld.so copying them under FEX fails in sbrk.
+    result.pop("GLIBC_TUNABLES", None)
+    # Mono's incremental Boehm collector corrupts its heap under FEX, so Unity games crash at their first collections.
+    result.setdefault("GC_DISABLE_INCREMENTAL", "1")
     if fex["portable"]:
         result["FEX_PORTABLE"] = "1"
     else:
@@ -439,7 +591,7 @@ def guest_environment(fex, env):
         result["FEX_THUNKCONFIG"] = os.path.join(CONFIG_DIR, "ThunksConfig.json")
     preload = [part for part in split_paths(result.get("LD_PRELOAD")) if os.path.exists(part) and not is_arm(part)]
     library_path = [part for part in (result.get("LD_LIBRARY_PATH") or "").split(":")
-                    if part and "steamrtarm64" not in part and "aarch64" not in part]
+                    if part and "arm64" not in part and "aarch64" not in part]
     for name, parts in (("LD_PRELOAD", preload), ("LD_LIBRARY_PATH", library_path)):
         if parts:
             result[name] = ":".join(parts)
@@ -477,12 +629,19 @@ def vulkan_thunk_loads(fex, folder):
     needed = version_names(os.path.join(fex["guest_thunks"], VULKAN_THUNK))
     if not needed:
         return False
+    needed |= version_names(os.path.join(PRELOADS, "x86_64", VULKAN_PIN))
     found = bundled_libraries(folder)
     for name, prefix in RUNTIME_LIBRARIES:
         library = found.get(name) or os.path.join(fex["rootfs"], "lib/x86_64-linux-gnu", name)
         if not {version for version in needed if version.startswith(prefix)} <= version_names(library):
             return False
     return True
+
+
+def required_runtime(program):
+    text = read_text(os.path.join(os.path.dirname(program), "toolmanifest.vdf")) or ""
+    match = re.search(r'"require_tool_appid"\s+"(\d+)"', text)
+    return match.group(1) if match and match.group(1) in RUNTIMES else SNIPER_APPID
 
 
 def resolve(program, env):
@@ -496,16 +655,17 @@ def launch(command, env, mode, decide=None):
     use = mode == "on" or (mode == "auto" and needs_fex(decide or program))
     if not use:
         return os.execvpe(command[0], command, env)
-    fex = prepare()
+    fex = prepare(required_runtime(program))
     if fex is None:
         return 126
     guest = guest_environment(fex, env)
     x86_64 = elf_arch(program) != "i386"
     thunks = "on" if "FEX_THUNKCONFIG" in guest else "off"
     folder = decide if decide and os.path.isdir(decide) else os.path.dirname(program)
-    if thunks == "on" and x86_64 and all(os.path.isfile(os.path.join(PRELOADS, "x86_64", name)) for name in (THUNK_AUDIT, VULKAN_PIN)) \
+    if thunks == "on" and x86_64 and os.path.isfile(os.path.join(PRELOADS, "x86_64", VULKAN_PIN)) \
             and vulkan_thunk_loads(fex, folder):
-        guest["LD_AUDIT"] = ":".join([THUNK_AUDIT_GUEST] + split_paths(guest.get("LD_AUDIT")))
+        # Any LD_AUDIT module makes Mono's garbage collector crash under FEX, so the Vulkan thunk is pinned by search path.
+        guest["LD_LIBRARY_PATH"] = ":".join(["/usr/" + VULKAN_PIN_DIR] + split_paths(guest.get("LD_LIBRARY_PATH")))
         thunks = "on, its own Vulkan loader too"
     say("running %s with %s (runtime %s, thunks %s)" % (program, fex["bin"], guest.get("FEX_ROOTFS", "none"), thunks))
     return os.execve(fex["bin"], [fex["bin"], program] + command[1:], guest)
@@ -514,6 +674,7 @@ def launch(command, env, mode, decide=None):
 def game_environment(env):
     try:
         game_env = runpy.run_path(os.path.join(BIN_DIR, "droiddeck-game-env"))
+        env = game_env["game_gpu"](env)
         app = game_env["game_id"](env) or env.get("SteamAppId") or env.get("SteamGameId")
         if not app:
             return env
@@ -557,10 +718,23 @@ def extracted():
 
 def want_fex():
     with locked():
-        status = describe(fex_install(), runtime_platform())
+        status = describe(fex_install(), runtime_platform(), graphics_platform())
         if not status["ready"]:
             request_install()
             write_if_changed(STATUS_FILE, json.dumps(status, indent=2) + "\n")
+
+
+XATTR_ONLY_NOISE = re.compile(r"^(proot (error|warning)|Failed to exec memfd|Further error messages of this type are suppressed)")
+
+
+def only_xattrs_failed(errors):
+    seen = False
+    for line in errors.splitlines():
+        if "write_xattr" in line:
+            seen = True
+        elif re.search(r"fail|could not|cannot|error", line, re.I) and not XATTR_ONLY_NOISE.match(line):
+            return False
+    return seen
 
 
 def extract(image):
@@ -568,8 +742,14 @@ def extract(image):
     clear_extracted()
     x86 = elf_arch(image) in X86.values()
     if os.access(URUNTIME, os.X_OK):
-        status = subprocess.call([URUNTIME, "--appimage-extract"], stdout=subprocess.DEVNULL,
-                                 env=dict(os.environ, TARGET_APPIMAGE=image))
+        run = subprocess.run([URUNTIME, "--appimage-extract"], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+                             env=dict(os.environ, TARGET_APPIMAGE=image))
+        errors = run.stderr.decode("utf-8", "replace")
+        sys.stderr.write(errors)
+        status = run.returncode
+        if status == 2 and only_xattrs_failed(errors) and extracted() and os.path.lexists("squashfs-root/AppRun"):
+            say("uruntime could not keep the image's extended attributes; the files are unpacked")
+            status = 0
         if status == 0 and extracted():
             if x86:
                 want_fex()
@@ -586,7 +766,7 @@ def extract(image):
     unsquashfs = shutil.which("unsquashfs")
     if unsquashfs:
         clear_extracted()
-        status = subprocess.call([unsquashfs, "-q", "-n", "-o", str(appimage_offset(image)), "-d", "squashfs-root", image],
+        status = subprocess.call([unsquashfs, "-q", "-n", "-no-xattrs", "-o", str(appimage_offset(image)), "-d", "squashfs-root", image],
                                  stdout=subprocess.DEVNULL)
         if status == 0:
             if x86:
@@ -654,7 +834,7 @@ def main(argv):
         return 0 if prepare() else 1
     if action == "status":
         with locked():
-            status = describe(fex_install(), runtime_platform())
+            status = describe(fex_install(), runtime_platform(), graphics_platform())
             write_if_changed(STATUS_FILE, json.dumps(status, indent=2) + "\n")
         print(json.dumps(status, indent=2))
         return 0 if status["ready"] else 1

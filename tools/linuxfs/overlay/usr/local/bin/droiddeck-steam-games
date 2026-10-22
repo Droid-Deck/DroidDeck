@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shlex
 import subprocess
 import sys
 import time
@@ -119,7 +120,7 @@ def method(obj, slot, result, *args):
 
 
 def probe(steam_root, ids):
-    library = C.CDLL(str(Path(steam_root) / "steamrtarm64/steamclient.so"))
+    library = C.CDLL(os.environ.get("BL_STEAMCLIENT") or str(Path(steam_root) / "steamrtarm64/steamclient.so"))
     library.CreateInterface.argtypes = [C.c_char_p, C.c_void_p]
     library.CreateInterface.restype = C.c_void_p
     client = library.CreateInterface(b"SteamClient020", None)
@@ -173,7 +174,8 @@ def request_restart(steam_root):
     """The client reads manifests and shortcuts only at start, so an import needs one restart;
     the session's loop runs the importer between the exit and the next start."""
     Path(os.environ.get("HOME", "/root"), ".bl-restart-once").touch()
-    subprocess.run([str(Path(steam_root) / "steamrtarm64/steam"), "-shutdown"],
+    command = shlex.split(os.environ.get("BL_STEAM_SHUTDOWN", "")) or [str(Path(steam_root) / "steamrtarm64/steam"), "-shutdown"]
+    subprocess.run(command,
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=30)
 
 
@@ -184,7 +186,7 @@ def unimported(steam_root, snapshot, candidates):
 
 
 def watch(steam_root, listing):
-    games = [game for game in read_json(listing, []) if not store_game(game)]
+    games = [game for game in read_json(listing, []) if not store_game(game) and not game.get("native")]
     if os.environ.get("BL_STEAM_OFFLINE") == "1" or not games:
         return
     candidates, sources = {}, {}
@@ -213,9 +215,10 @@ def watch(steam_root, listing):
         elif candidates and (key != probed or now >= next_probe):
             probed, next_probe = key, now + 300
             try:
+                probe_env = dict(os.environ, HOME=os.environ["BL_STEAM_IPC_HOME"]) if os.environ.get("BL_STEAM_IPC_HOME") else None
                 result = subprocess.run([sys.executable, __file__, "probe", steam_root,
                                          *map(str, sorted(set(candidates.values())))],
-                                        capture_output=True, text=True, timeout=15)
+                                        capture_output=True, text=True, timeout=15, env=probe_env)
                 if result.returncode != 0:
                     status = "ownership probe failed: " + (result.stderr.strip()[-300:] or str(result.returncode))
                     failures += 1
@@ -288,7 +291,7 @@ def libraries(steam_root):
     except OSError:
         text = ""
     paths = [path.replace("\\\\", "\\") for path in re.findall(r'"path"\s+"((?:[^"\\]|\\.)*)"', text)]
-    return list(dict.fromkeys([Path(steam_root), Path(LIBRARY)] + [Path(path) for path in paths]))
+    return list(dict.fromkeys([Path(steam_root)] + [Path(path) for path in paths]))
 
 
 def ours(manifest, appid):
@@ -306,6 +309,16 @@ def unpark(steamapps):
             manifest.unlink(missing_ok=True)
         elif (steamapps / "common" / f"DroidDeck-{appid}").is_dir():
             os.replace(manifest, live)
+
+
+def seeded(steamapps, game, appid):
+    target = steamapps / "common" / f"DroidDeck-{appid}"
+    manifest = steamapps / f"appmanifest_{appid}.acf"
+    try:
+        return (target.is_symlink() and target.is_dir() and manifest.is_file() and ours(manifest, appid)
+                and os.readlink(target) in (game.get("folder", ""), legacy_path(game.get("folder", ""))))
+    except OSError:
+        return False
 
 
 def park(steamapps):
@@ -408,6 +421,9 @@ def route(steam_root, acct, games):
                 print(f"droiddeck-steam-games: store import not undone ({error})")
             shortcuts.append(game)
             continue
+        if game.get("native"):
+            shortcuts.append(game)
+            continue
         folder = game.get("folder", "")
         appid = candidates.get(folder, candidates.get(legacy_path(folder)))
         stamp = source_stamp(game)
@@ -422,6 +438,9 @@ def route(steam_root, acct, games):
                     continue
             except OSError as error:
                 print(f"droiddeck-steam-games: import unavailable ({error})")
+        elif isinstance(appid, int) and 0 < appid < 0x80000000 and seeded(steamapps, game, appid):
+            routes[str(game["appid"])] = appid
+            continue
         shortcuts.append(game)
     try:
         park(steamapps)

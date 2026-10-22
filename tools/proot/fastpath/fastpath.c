@@ -141,6 +141,48 @@ static int traced_by_match(const char *key) {
   return found;
 }
 
+static long init_sys(long nr, long a, long b, long c) {
+  static long (*real_syscall)(long, ...);
+  if (!real_syscall) real_syscall = (long (*)(long, ...))dlsym(RTLD_NEXT, "syscall");
+  return real_syscall(nr, a, b, c);
+}
+
+static int program_32bit(const char *prog, int scripts) {
+  char head[256];
+  long fd = init_sys(SYS_openat, AT_FDCWD, (long)prog, O_RDONLY | O_CLOEXEC);
+  if (fd < 0) return 1;
+  long n = init_sys(SYS_read, fd, (long)head, sizeof head - 1);
+  init_sys(SYS_close, fd, 0, 0);
+  if (n < 0) return 1;
+  head[n] = 0;
+  if (n >= 2 && head[0] == '#' && head[1] == '!') {
+    if (scripts <= 0) return 1;
+    char *p = head + 2;
+    while (*p == ' ' || *p == '\t') p++;
+    char *e = p;
+    while (*e && *e != ' ' && *e != '\t' && *e != '\n' && *e != '\r') e++;
+    if (e == p || (!*e && n == (long)sizeof head - 1)) return 1;
+    *e = 0;
+    return program_32bit(p, scripts - 1);
+  }
+  return !(n >= 5 && memcmp(head, "\x7f" "ELF", 4) == 0 && head[4] == 2);
+}
+
+static int fex_runs_32bit(void) {
+  if (strcmp(program_invocation_short_name, "FEX") != 0 && strcmp(program_invocation_short_name, "FEXInterpreter") != 0)
+    return 0;
+  char args[PATH_MAX + 64];
+  long fd = init_sys(SYS_openat, AT_FDCWD, (long)"/proc/self/cmdline", O_RDONLY | O_CLOEXEC);
+  if (fd < 0) return 1;
+  long n = init_sys(SYS_read, fd, (long)args, sizeof args - 1);
+  init_sys(SYS_close, fd, 0, 0);
+  if (n <= 0) return 1;
+  args[n] = 0;
+  const char *prog = args + strlen(args) + 1;
+  if (prog >= args + n || !*prog) return 1;
+  return program_32bit(prog, 4);
+}
+
 static int in_tracer(struct bind *bd) {
   char h[PATH_MAX];
   if (snprintf(h, sizeof h, "/proc/%ld%s", tracer, bd->host + 10) >= (int)sizeof h) return 0;
@@ -157,6 +199,7 @@ static void fp_init(void) {
   const char *r = getenv("PROOT_FP_ROOT"), *b = getenv("PROOT_FP_BINDS"), *t = getenv("PROOT_FP_TTL_MS");
   const char *key = getenv("PROOT_FP_KEY");
   if (!r || !*r || !key || !*key || getenv("PROOT_FP_OFF")) return;
+  if (fex_runs_32bit()) return;
   void *p = mmap((void *)FP_STUB_ADDR, FP_STUB_SIZE, PROT_READ | PROT_WRITE,
                  MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED_NOREPLACE, -1, 0);
   if (p != (void *)FP_STUB_ADDR) {

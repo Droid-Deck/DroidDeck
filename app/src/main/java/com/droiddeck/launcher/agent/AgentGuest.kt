@@ -5,6 +5,7 @@ import android.os.Handler
 import android.os.Looper
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import android.os.FileObserver
 import android.util.Log
@@ -19,6 +20,8 @@ object AgentGuest {
     private val main by lazy { Handler(Looper.getMainLooper()) }
     var focusRevision by mutableIntStateOf(0)
         private set
+    var steamKeyboard by mutableStateOf(false)
+        private set
     private const val TAG = "AgentGuest"
     private const val POLL_MS = 50L
     private val lock = Any()
@@ -32,6 +35,7 @@ object AgentGuest {
             observer?.stopWatching()
             observer = null
             lastFocusKey = null
+            main.post { steamKeyboard = false }
             val dir = dir(context)
             dir.deleteRecursively()
             dir.mkdirs()
@@ -43,6 +47,7 @@ object AgentGuest {
                             SessionEvents.record("agent.ready", mapOf("pid" to it.optInt("pid"), "focus" to it.optBoolean("focus")))
                         }
                         "focus.json" -> readJson(File(dir, path))?.let(::recordFocus)
+                        "keyboard.json" -> readJson(File(dir, path))?.let { recordKeyboard(this, it) }
                     }
                 }
             }.also { it.startWatching() }
@@ -53,7 +58,17 @@ object AgentGuest {
         synchronized(lock) {
             observer?.stopWatching()
             observer = null
+            main.post { steamKeyboard = false }
         }
+    }
+
+    private fun recordKeyboard(source: FileObserver, snapshot: JSONObject) {
+        val showing = snapshot.optBoolean("steamKeyboard")
+        synchronized(lock) {
+            if (source !== observer) return
+            main.post { steamKeyboard = showing }
+        }
+        SessionEvents.record("keyboard.changed", mapOf("steamKeyboard" to showing, "seq" to snapshot.optInt("seq")))
     }
 
     private fun recordFocus(snapshot: JSONObject) {
@@ -136,8 +151,12 @@ object AgentGuest {
         return null
     }
 
-    fun call(context: Context, request: JSONObject, timeoutMs: Long): JSONObject {
-        if (request.optString("kind") in setOf("exec", "cdp")) AgentAccess.requireCommands(context)
+    fun steamEval(context: Context, expression: String, timeoutMs: Long): JSONObject =
+        call(context, JSONObject().put("kind", "cdp").put("expression", expression).put("timeout", timeoutMs / 1000.0),
+            timeoutMs + 2_000, trusted = true)
+
+    fun call(context: Context, request: JSONObject, timeoutMs: Long, trusted: Boolean = false): JSONObject {
+        if (!trusted && request.optString("kind") in setOf("exec", "cdp")) AgentAccess.requireCommands(context)
         if (!SessionState.running) throw AgentException("NO_ACTIVE_SESSION", "There is no running session")
         hello(context) ?: throw AgentException("AGENT_UNAVAILABLE", "The guest agent is not running in this session (yet)")
         val dir = dir(context)

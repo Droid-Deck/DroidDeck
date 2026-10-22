@@ -1,5 +1,7 @@
 package com.droiddeck.launcher.core
 
+import com.droiddeck.launcher.session.SessionPrefs
+
 object GameEnvironment {
     data class Config(
         val shared: Map<String, String?> = emptyMap(),
@@ -27,6 +29,7 @@ object GameEnvironment {
 
     fun defaults(preset: String, forceSsbs: Boolean = false): Map<String, String?> = linkedMapOf<String, String?>(
         "MESA_SHADER_CACHE_DISABLE" to "false",
+        "DROIDDECK_ANTICHEAT_OFFLINE" to "1",
         "VKD3D_FEATURE_LEVEL" to "12_2",
         "VKD3D_SHADER_MODEL" to "6_9",
         "DOTNET_GCRegionRange" to "800000000",
@@ -83,4 +86,34 @@ object GameEnvironment {
     }
 
     const val CUSTOM_FEX_PRESET = "__custom__"
+
+    val syncBackends = listOf(SessionPrefs.SYNC_NTSYNC, SessionPrefs.SYNC_FSYNC, SessionPrefs.SYNC_ESYNC, SessionPrefs.SYNC_WINESERVER)
+
+    val syncKeys = listOf("BL_SYNC", "BL_FSYNC_FIRST", "BL_SYNC_FALLBACK", "PROTON_NO_ESYNC", "PROTON_NO_FSYNC", "PROTON_NO_NTSYNC", "WINEESYNC")
+
+    fun syncEnvironment(backend: String): Map<String, String> {
+        require(backend in syncBackends) { "unknown sync $backend" }
+        return buildMap {
+            put("BL_SYNC", if (backend == SessionPrefs.SYNC_NTSYNC) "1" else "0")
+            put("BL_FSYNC_FIRST", if (backend == SessionPrefs.SYNC_FSYNC) "1" else "0")
+            put("BL_SYNC_FALLBACK", if (backend == SessionPrefs.SYNC_WINESERVER) "0" else "1")
+            if (backend == SessionPrefs.SYNC_FSYNC) put("PROTON_NO_ESYNC", "1")
+        }
+    }
+
+    fun gameSync(config: Config, scope: String): String? {
+        require(scope.isNotEmpty() && validScope(scope))
+        val entries = config.games[scope].orEmpty().filterKeys { it in syncKeys }
+        if (entries.isEmpty()) return null
+        return syncBackends.firstOrNull { entries == syncEnvironment(it) } ?: CUSTOM_SYNC
+    }
+
+    fun withGameSync(config: Config, scope: String, backend: String?): Config {
+        require(scope.isNotEmpty() && validScope(scope))
+        val entries = config.entries(scope).filterKeys { it !in syncKeys }.toMutableMap()
+        if (backend != null) entries += syncEnvironment(backend)
+        return config.withEntries(scope, entries)
+    }
+
+    const val CUSTOM_SYNC = "__custom__"
 }

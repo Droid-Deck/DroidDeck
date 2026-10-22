@@ -84,6 +84,17 @@ class ImportsTest(unittest.TestCase):
             imports.watch(str(self.steam), str(listing))
         identify.assert_not_called()
 
+    def test_native_programs_stay_shortcuts_and_are_never_looked_up(self):
+        self.snapshot()
+        game = dict(self.game, native=True)
+        self.assertEqual(([game], {}), imports.route(self.steam, self.acct, [game]))
+        self.assertFalse((self.steam / 'steamapps/appmanifest_42.acf').exists())
+        listing = self.root / 'games.json'
+        listing.write_text(json.dumps([game]))
+        with patch.object(imports, 'identify') as identify:
+            imports.watch(str(self.steam), str(listing))
+        identify.assert_not_called()
+
     def test_migrates_only_unchanged_legacy_import_manifests(self):
         self.snapshot()
         imports.route(self.steam, self.acct, [self.game])
@@ -299,6 +310,24 @@ class ImportsTest(unittest.TestCase):
         self.assertEqual(([], {str(self.game['appid']): 42}), imports.route(self.steam, self.acct, [self.game]))
         self.assertFalse((self.steam / 'steamapps/appmanifest_42.acf').exists())
         self.assertFalse(os.path.lexists(self.steam / 'steamapps/common/DroidDeck-42'))
+
+    def test_imported_game_stays_imported_when_ownership_is_unconfirmed(self):
+        self.snapshot()
+        imports.route(self.steam, self.acct, [self.game])
+        for owned, account in [(False, '123'), (True, '456')]:
+            self.snapshot(owned, account)
+            self.assertEqual(([], {str(self.game['appid']): 42}), imports.route(self.steam, self.acct, [self.game]))
+        self.assertTrue((self.steam / 'steamapps/appmanifest_42.acf').is_file())
+
+    def test_unlisted_card_library_is_not_another_clients_install(self):
+        card = self.root / 'card'
+        (card / 'steamapps').mkdir(parents=True)
+        (card / 'steamapps/appmanifest_42.acf').write_text('the other client installed it here')
+        self.snapshot()
+        with patch.object(imports, 'LIBRARY', str(card)):
+            self.assertEqual(([], {str(self.game['appid']): 42}), imports.route(self.steam, self.acct, [self.game]))
+        self.assertTrue((self.steam / 'steamapps/appmanifest_42.acf').is_file())
+        self.assertEqual(self.folder, (self.steam / 'steamapps/common/DroidDeck-42').resolve())
 
     def test_replaced_game_does_not_inherit_cached_ownership(self):
         self.snapshot()

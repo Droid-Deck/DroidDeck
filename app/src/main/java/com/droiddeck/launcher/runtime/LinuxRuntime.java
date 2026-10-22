@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.runtime;
 
+import com.droiddeck.launcher.core.AddonPack;
 import android.content.Context;
 import android.os.Process;
 import android.system.ErrnoException;
@@ -48,17 +49,28 @@ public final class LinuxRuntime {
         return new File(context.getFilesDir(), "session");
     }
 
+    public static File liveDir(Context context) {
+        // Android may evict cache files even while guest processes are using them.
+        File dir = new File(context.getNoBackupFilesDir(), "guest-runtime");
+        dir.mkdirs();
+        return dir;
+    }
+
+    public static File prootTempDir(Context context) {
+        File dir = new File(liveDir(context), "proot");
+        dir.mkdirs();
+        return dir;
+    }
+
     private static final String HOST_DIR = "opt/android-host";
 
     public static File prootBinary(Context context) {
-        File packaged = new File(context.getApplicationInfo().nativeLibraryDir, "libproot.so");
-        if (packaged.isFile()) return packaged;
+        if (AddonPack.PROOT.installed(context)) return AddonPack.PROOT.file(context, "libproot.so");
         return new File(rootDir(context), HOST_DIR + "/proot");
     }
 
     public static File prootLoader(Context context) {
-        File packaged = new File(context.getApplicationInfo().nativeLibraryDir, "libproot-loader.so");
-        if (packaged.isFile()) return packaged;
+        if (AddonPack.PROOT.installed(context)) return AddonPack.PROOT.file(context, "libproot-loader.so");
         return new File(rootDir(context), HOST_DIR + "/loader");
     }
 
@@ -151,6 +163,7 @@ public final class LinuxRuntime {
         bind(cmd, new File(root, "etc/droiddeck/empty").getPath() + ":/sys/fs/selinux");
         bind(cmd, context.getFilesDir().getPath());
         bind(cmd, context.getCacheDir().getPath());
+        bind(cmd, liveDir(context).getPath());
         if (runtimeDir != null) {
             bind(cmd, runtimeDir.getPath());
             bind(cmd, runtimeDir.getPath() + ":" + GUEST_RUNTIME_DIR);
@@ -159,7 +172,7 @@ public final class LinuxRuntime {
         if (externalStorage != null && externalStorage.isDirectory()) {
             bind(cmd, externalStorage.getPath());
         }
-        File shm = new File(context.getCacheDir(), "shm");
+        File shm = new File(liveDir(context), "shm");
         shm.mkdirs();
         bind(cmd, shm.getPath() + ":/dev/shm");
         bindSystemFonts(cmd, root);
@@ -173,10 +186,15 @@ public final class LinuxRuntime {
             } catch (java.io.IOException e) {
             }
         }
-        File fileMax = new File(fakeProc, "file-max");
-        if (!fileMax.isFile()) {
+        String[][] seeded = {
+                {"file-max", "9223372036854775807\n"},
+                {"overcommit_memory", "0\n"},
+        };
+        for (String[] entry : seeded) {
+            File fake = new File(fakeProc, entry[0]);
+            if (fake.isFile()) continue;
             try {
-                Files.write(fileMax.toPath(), "9223372036854775807\n".getBytes(StandardCharsets.US_ASCII));
+                Files.write(fake.toPath(), entry[1].getBytes(StandardCharsets.US_ASCII));
             } catch (IOException e) {
             }
         }
@@ -191,6 +209,7 @@ public final class LinuxRuntime {
                 {"overflowuid", "/proc/sys/kernel/overflowuid"},
                 {"overflowgid", "/proc/sys/kernel/overflowgid"},
                 {"file-max", "/proc/sys/fs/file-max"},
+                {"overcommit_memory", "/proc/sys/vm/overcommit_memory"},
         };
         for (String[] entry : procFiles) {
             File fake = new File(fakeProc, entry[0]);
@@ -199,6 +218,9 @@ public final class LinuxRuntime {
             if (!live && fake.isFile() && !new File(entry[1]).canRead()) {
                 bind(cmd, fake.getPath() + ":" + entry[1]);
             }
+        }
+        if (unreadablePciDevice()) {
+            bind(cmd, new File(root, "etc/droiddeck/empty").getPath() + ":/sys/bus/pci/devices");
         }
         bindGpuNode(context, cmd);
         bindAdrenoStats(cmd, extraBinds);
@@ -209,6 +231,15 @@ public final class LinuxRuntime {
         List<String> specs = new ArrayList<>();
         for (int i = 0; i + 1 < cmd.size(); i += 2) specs.add(cmd.get(i + 1));
         return specs;
+    }
+
+    private static boolean unreadablePciDevice() {
+        File[] devices = new File("/sys/bus/pci/devices").listFiles();
+        if (devices == null) return false;
+        for (File device : devices) {
+            if (!new File(device, "vendor").canRead()) return true;
+        }
+        return false;
     }
 
     private static void bindGpuNode(Context context, List<String> cmd) {
@@ -222,7 +253,7 @@ public final class LinuxRuntime {
         long major = ((dev >> 8) & 0xfff) | ((dev >> 32) & ~0xfffL);
         long minor = (dev & 0xff) | ((dev >> 12) & ~0xffL);
         String node = "renderD" + minor;
-        File base = new File(context.getCacheDir(), "drm");
+        File base = new File(liveDir(context), "drm");
         File dri = new File(base, "dri");
         File device = new File(base, "sys/" + major + ":" + minor + "/device");
         File drm = new File(device, "drm/" + node);

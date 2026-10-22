@@ -14,6 +14,14 @@ SOURCE = Path(__file__).resolve().parents[1] / 'linuxfs/overlay/usr/local/bin/dr
 
 
 class SteamVrHelperTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.compiler_output = tempfile.TemporaryDirectory()
+        cls.addClassCleanup(cls.compiler_output.cleanup)
+        cls.scheduling = Path(cls.compiler_output.name) / 'libdroiddeck_vr_scheduling.so'
+        source = Path(__file__).resolve().parents[1] / 'vr/src/scheduling.c'
+        subprocess.run(['cc', '-shared', '-fPIC', '-o', str(cls.scheduling), str(source), '-ldl'], check=True)
+
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
@@ -37,6 +45,9 @@ class SteamVrHelperTest(unittest.TestCase):
         self.executable(self.steamvr / 'bin/linuxarm64/vrstartup',
                         'echo "display=${DROIDDECK_VR_DISPLAY_MODE:-unset}"')
         (self.driver / 'driver_droiddeck.so').touch()
+        layer = self.root / 'driver/layer'
+        layer.mkdir()
+        shutil.copyfile(self.scheduling, layer / self.scheduling.name)
         self.environment = dict(os.environ)
         self.environment.pop('DROIDDECK_VR_DISPLAY_MODE', None)
         self.environment.pop('DROIDDECK_VR_PRESENT', None)
@@ -198,6 +209,44 @@ class SteamVrHelperTest(unittest.TestCase):
 
     def test_flat_presenter_does_not_enable_the_producer_lease(self):
         self.assertIn('present=unset lease=unset', self.lease_log())
+
+    def registration(self):
+        return (self.home / '.config/openvr/openvrpaths.vrpath',
+                self.home / '.config/openxr/1/active_runtime.json')
+
+    def helper_action(self, action):
+        subprocess.run(['sh', str(self.helper), action], env=self.environment, check=True,
+                       capture_output=True, timeout=5)
+
+    def test_runtime_is_registered_only_while_a_session_is_active(self):
+        vrpath, xr = self.registration()
+        self.start()
+        self.assertTrue(vrpath.is_file())
+        self.assertTrue(xr.is_symlink())
+        self.helper_action('status')
+        self.assertTrue(vrpath.is_file())
+        self.helper_action('stop')
+        self.assertFalse(vrpath.exists())
+        self.assertFalse(xr.is_symlink())
+
+    def test_idle_status_and_session_start_clear_a_leftover_registration(self):
+        vrpath, xr = self.registration()
+        for action in ('status', 'unregister'):
+            self.start()
+            (self.runtime / 'droiddeck-steamvr/active').unlink()
+            self.helper_action(action)
+            self.assertFalse(vrpath.exists(), action)
+            self.assertFalse(xr.is_symlink(), action)
+
+    def test_unregister_leaves_another_runtime_alone(self):
+        vrpath, xr = self.registration()
+        vrpath.parent.mkdir(parents=True)
+        xr.parent.mkdir(parents=True)
+        vrpath.write_text('{"runtime": ["/opt/other-runtime"]}')
+        xr.symlink_to('/opt/monado/openxr_monado.json')
+        self.helper_action('unregister')
+        self.assertTrue(vrpath.is_file())
+        self.assertTrue(xr.is_symlink())
 
 
 if __name__ == '__main__':

@@ -74,6 +74,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.droiddeck.launcher.R
+import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.storage.Bucket
 import com.droiddeck.launcher.storage.CleanItem
 import com.droiddeck.launcher.storage.ComponentUsage
@@ -469,7 +470,7 @@ private fun GamesView(report: StorageReport, sessionRunning: Boolean, a: FrontEn
                     if (g.art != null) AsyncImage(model = g.art, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.size(42.dp))
                 }
                 Column(Modifier.weight(1.3f)) {
-                    Text(g.name, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(gameName(g), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(
                         listOfNotNull(
                             g.library.takeIf { !g.internal },
@@ -499,9 +500,20 @@ private fun GamesView(report: StorageReport, sessionRunning: Boolean, a: FrontEn
     Spacer(Modifier.height(8.dp))
     Note(stringResource(R.string.storage_games_note))
     confirm?.let { g ->
-        AlertDialog(
+        // steam://uninstall reaches only the session's client, the selected one.
+        val otherClient = g.x64 != (SessionPrefs.steamClientArch(LocalContext.current) == "x86_64")
+        if (otherClient) AlertDialog(
             onDismissRequest = { confirm = null },
-            title = { Text(stringResource(R.string.storage_uninstall_title, g.name)) },
+            title = { Text(stringResource(R.string.storage_uninstall_title, gameName(g))) },
+            text = { Text(stringResource(if (g.x64) R.string.storage_uninstall_in_x64 else R.string.storage_uninstall_in_arm64), fontSize = 14.sp) },
+            confirmButton = {
+                val ok = remember { FocusRequester() }
+                LaunchedEffect(Unit) { runCatching { ok.requestFocus() } }
+                FocusText(stringResource(R.string.common_ok), pal.signal, modifier = Modifier.focusRequester(ok)) { confirm = null }
+            },
+        ) else AlertDialog(
+            onDismissRequest = { confirm = null },
+            title = { Text(stringResource(R.string.storage_uninstall_title, gameName(g))) },
             text = { Text(stringResource(R.string.storage_uninstall_body, gb(g.game)), fontSize = 14.sp) },
             confirmButton = { FocusText(stringResource(R.string.storage_open_steam), pal.signal) { confirm = null; a.onSteamUrl("steam://uninstall/${g.appId}") } },
             dismissButton = {
@@ -512,6 +524,9 @@ private fun GamesView(report: StorageReport, sessionRunning: Boolean, a: FrontEn
         )
     }
 }
+
+@Composable
+private fun gameName(g: GameUsage): String = if (g.x64) stringResource(R.string.storage_game_x64, g.name) else g.name
 
 @Composable
 private fun ToolsView(report: StorageReport, sessionRunning: Boolean, onBack: () -> Unit) {
@@ -583,6 +598,7 @@ private fun toolDetail(t: ToolUsage): String = when (t.reason) {
     ToolReason.OLD_RUNTIME -> stringResource(R.string.storage_tool_old_runtime)
     ToolReason.X86_PROTON -> stringResource(R.string.storage_tool_x86_proton)
     ToolReason.CUSTOM_UNKNOWN -> stringResource(R.string.storage_tool_custom_unknown)
+    ToolReason.X64_CLIENT -> stringResource(R.string.storage_tool_x64_client)
     ToolReason.CUSTOM -> when {
         t.isDefault -> stringResource(R.string.storage_tool_custom_default)
         t.games > 0 -> pluralStringResource(R.plurals.storage_tool_custom_games, t.games, t.games)
@@ -722,8 +738,8 @@ private fun GameDataView(report: StorageReport, sessionRunning: Boolean, onBack:
         if (games.isEmpty()) Text(stringResource(R.string.storage_no_games), fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(16.dp))
         games.forEachIndexed { i, g ->
             ItemRow(
-                g.name, stringResource(R.string.storage_data_parts, gb(g.prefix), gb(g.shaders), gb(g.workshop)), g.data, i == games.lastIndex,
-                action = { SecondaryButton(stringResource(R.string.storage_clear_shaders), compact = true, enabled = !busy && g.shaders >= ONE_MB) { StorageState.clearShaders(ctx, g.appId) } },
+                gameName(g), stringResource(R.string.storage_data_parts, gb(g.prefix), gb(g.shaders), gb(g.workshop)), g.data, i == games.lastIndex,
+                action = { SecondaryButton(stringResource(R.string.storage_clear_shaders), compact = true, enabled = !busy && g.shaders >= ONE_MB) { StorageState.clearShaders(ctx, g.appId, g.x64) } },
             )
         }
     }
@@ -759,23 +775,24 @@ private fun GameDataView(report: StorageReport, sessionRunning: Boolean, onBack:
         ConfirmDialog(
             stringResource(R.string.storage_remove_title, stringResource(R.string.storage_steam_app, l.appId)),
             stringResource(R.string.storage_leftover_confirm, gb(l.bytes)), stringResource(R.string.storage_remove),
-            onConfirm = { StorageState.removeLeftover(ctx, l.appId) }, onDismiss = { confirm = null },
+            onConfirm = { StorageState.removeLeftover(ctx, l) }, onDismiss = { confirm = null },
         )
     }
 }
 
 @Composable
-private fun ComponentsView(report: StorageReport, sessionRunning: Boolean, onBack: () -> Unit) {
+internal fun ComponentsView(report: StorageReport, sessionRunning: Boolean, onBack: () -> Unit) {
     val ctx = LocalContext.current
     val pal = LocalPalette.current
     val colors = MaterialTheme.colorScheme
     val busy = sessionRunning || StorageState.cleaning
     var confirm by remember { mutableStateOf<ComponentUsage?>(null) }
+    var confirmAll by remember { mutableStateOf(false) }
     val unused = report.unusedComponents
     SubHeader(stringResource(R.string.storage_components),
         stringResource(R.string.storage_tools_detail, gb(report.components.sumOf { it.bytes }), gb(unused.sumOf { it.bytes })), onBack) {
         if (unused.isNotEmpty()) PrimaryButton(stringResource(R.string.storage_remove_unused, gb(unused.sumOf { it.bytes })), compact = true, enabled = !busy) {
-            StorageState.clean(ctx, setOf(CleanItem.UNUSED_COMPONENTS)) { }
+            confirmAll = true
         }
     }
     ActionStatus()
@@ -807,6 +824,19 @@ private fun ComponentsView(report: StorageReport, sessionRunning: Boolean, onBac
         ConfirmDialog(stringResource(R.string.storage_remove_title, componentLabel(c)),
             stringResource(if (c.packageFile != null) R.string.storage_component_confirm else R.string.storage_original_confirm, gb(c.bytes)),
             stringResource(R.string.storage_remove), onConfirm = { StorageState.removeComponent(ctx, c) }, onDismiss = { confirm = null })
+    }
+    if (confirmAll) {
+        val total = gb(unused.sumOf { it.bytes })
+        val lines = unused.map { "• " + componentLabel(it) + "  " + gb(it.bytes) }.joinToString("\n")
+        val warning = stringResource(
+            if (unused.any { it.packageFile != null }) R.string.storage_component_confirm else R.string.storage_original_confirm, total)
+        ConfirmDialog(
+            stringResource(R.string.storage_remove_unused, total),
+            lines + "\n\n" + warning,
+            stringResource(R.string.storage_remove),
+            onConfirm = { StorageState.clean(ctx, setOf(CleanItem.UNUSED_COMPONENTS)) { } },
+            onDismiss = { confirmAll = false },
+        )
     }
 }
 

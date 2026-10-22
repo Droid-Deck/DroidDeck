@@ -25,6 +25,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.geometry.Size
@@ -83,12 +84,14 @@ import androidx.compose.ui.unit.sp
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.stores.CatalogItem
+import com.droiddeck.launcher.stores.StoreLanguage
 import com.droiddeck.launcher.stores.StoresState
 import com.droiddeck.launcher.stores.download.DownloadEntry
 import com.droiddeck.launcher.stores.download.DownloadQueue
 import com.droiddeck.launcher.stores.download.DownloadStage
 import com.droiddeck.launcher.stores.download.DownloadState
 import com.droiddeck.launcher.stores.download.StoreDownloadTier
+import com.droiddeck.launcher.stores.epic.EpicClient
 import com.droiddeck.launcher.stores.formatBytes
 import com.droiddeck.launcher.stores.formatSpeed
 
@@ -181,10 +184,7 @@ private fun DownloadList(s: FrontEndState, a: FrontEndActions) {
 private fun InterruptedRow(item: com.droiddeck.launcher.stores.CatalogItem) {
     val ctx = LocalContext.current
     ArtStrip(item.imageUrl ?: item.tallImageUrl, item.title) {
-        Text(item.title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-        SourceChip(item.store.id, small = true)
-        Text(stringResource(R.string.stores_dl_interrupted), fontSize = 12.sp, color = Color(0xFFFFC24D), maxLines = 1)
-        Spacer(Modifier.weight(1f))
+        StripLabel(item.title, item.store.id, stringResource(R.string.stores_dl_interrupted), Color(0xFFFFC24D))
         RoundAction(Icons.Filled.PlayArrow, stringResource(R.string.stores_dl_resume), primary = true) { StoresState.requestInstall(ctx, item) }
         CancelAction { StoresState.clearUnfinished(ctx, item) }
     }
@@ -207,15 +207,21 @@ private fun ArtStrip(cover: String?, name: String, content: @Composable androidx
 }
 
 @Composable
+private fun androidx.compose.foundation.layout.RowScope.StripLabel(title: String, store: String, status: String, statusColor: Color) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.weight(1f)) {
+        Text(title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+        SourceChip(store, small = true)
+        Text(status, fontSize = 12.sp, color = statusColor, maxLines = 1)
+    }
+}
+
+@Composable
 private fun FinishedRow(d: DownloadEntry, s: FrontEndState, a: FrontEndActions, bloom: Boolean = false) {
     val ctx = LocalContext.current
     ArtStrip(d.cover, d.name) {
-        Text(d.name, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-        SourceChip(d.store.id, small = true)
-        Text(stringResource(if (d.state == DownloadState.INSTALLED) R.string.stores_installed_chip else R.string.stores_dl_cancelled), fontSize = 12.sp, color = Color.White.copy(alpha = 0.72f), maxLines = 1)
-        Spacer(Modifier.weight(1f))
+        StripLabel(d.name, d.store.id, stringResource(if (d.state == DownloadState.INSTALLED) R.string.stores_installed_chip else R.string.stores_dl_cancelled), Color.White.copy(alpha = 0.72f))
         if (d.state == DownloadState.INSTALLED) Box(Modifier.bloomIn(bloom, GATHER_HOLD_MS + 150)) {
-            RoundAction(Icons.Filled.PlayArrow, stringResource(R.string.stores_play), primary = true) { launchStoreGame(ctx, d.store, d.id, s, a) }
+            RoundAction(Icons.Filled.PlayArrow, stringResource(R.string.stores_play), primary = true) { if (d.key == EpicClient.DOWNLOAD_KEY) a.onEpicLauncher() else launchStoreGame(ctx, d.store, d.id, s, a) }
         }
     }
 }
@@ -366,7 +372,7 @@ private fun DownloadCard(d: DownloadEntry, s: FrontEndState, a: FrontEndActions)
                         CancelAction { DownloadQueue.clear(ctx, d.key) }
                     }
                     DownloadState.INSTALLED -> Box(Modifier.bloomIn(true, 420)) {
-                        RoundAction(Icons.Filled.PlayArrow, stringResource(R.string.stores_play), primary = true) { launchStoreGame(ctx, d.store, d.id, s, a) }
+                        RoundAction(Icons.Filled.PlayArrow, stringResource(R.string.stores_play), primary = true) { if (d.key == EpicClient.DOWNLOAD_KEY) a.onEpicLauncher() else launchStoreGame(ctx, d.store, d.id, s, a) }
                     }
                     DownloadState.CANCELLED -> {}
                 }
@@ -479,7 +485,7 @@ internal fun DownloadControls(s: FrontEndState, a: FrontEndActions) {
     }
 }
 
-internal fun storesSettingsStep(at: Rect, s: androidx.compose.runtime.State<FrontEndState>, a: FrontEndActions, accent: androidx.compose.ui.graphics.Color): StepAsk =
+internal fun storesSettingsStep(at: Rect, s: androidx.compose.runtime.State<FrontEndState>, a: FrontEndActions, accent: androidx.compose.ui.graphics.Color, onArrange: () -> Unit): StepAsk =
     StepAsk(
         anchor = at, side = StepSide.Left, accent = accent, items = 2, maxWidth = 440.dp,
         handle = { androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Filled.Settings, null, tint = accent, modifier = Modifier.size(20.dp)) },
@@ -490,6 +496,13 @@ internal fun storesSettingsStep(at: Rect, s: androidx.compose.runtime.State<Fron
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             val st = s.value
+            val context = androidx.compose.ui.platform.LocalContext.current
+            SettingsRow(stringResource(R.string.stores_tabs_arrange), null) {
+                RoundAction(Icons.Filled.SwapHoriz, stringResource(R.string.stores_tabs_arrange), size = 36.dp) {
+                    StoresMotion.fold()
+                    onArrange()
+                }
+            }
             SettingsRow(stringResource(R.string.setup_stores_open_on), null, stacked = true) {
                 Box(Modifier.focusRequester(first).focusGroup()) { SegmentedTabs(
                     listOf(SessionPrefs.STORES_OPEN_LIBRARY to stringResource(R.string.stores_tab_library), SessionPrefs.STORES_OPEN_STORE to stringResource(R.string.stores_tab_store)),
@@ -499,9 +512,37 @@ internal fun storesSettingsStep(at: Rect, s: androidx.compose.runtime.State<Fron
             SettingsRow(stringResource(R.string.stores_show_mature), null) {
                 ToggleSwitch(st.storesShowMature, label = stringResource(R.string.stores_show_mature)) { a.onStoresShowMature(it) }
             }
+            var langOpen by remember { mutableStateOf(false) }
+            val storedLanguage = SessionPrefs.storesInstallLanguage(context)
+            var language by remember(storedLanguage, StoreLanguage.preferredCode(context)) { mutableStateOf(storedLanguage) }
+            SettingsRow(stringResource(R.string.stores_install_language), stringResource(R.string.stores_install_language_hint), stacked = true) {
+                Box {
+                    ValueChip(
+                        if (language.isEmpty()) stringResource(R.string.stores_install_language_system)
+                        else StoreLanguage.displayName(language),
+                        langOpen,
+                    ) { langOpen = !langOpen }
+                    AnchoredMenu(langOpen, { langOpen = false }, title = stringResource(R.string.stores_install_language)) { first ->
+                        val options = listOf("") + StoreLanguage.KNOWN
+                        options.forEachIndexed { i, code ->
+                            MenuItem(
+                                if (code.isEmpty()) stringResource(R.string.stores_install_language_system) else StoreLanguage.displayName(code),
+                                checked = language == code,
+                                focusRequester = if (i == 0) first else null,
+                            ) {
+                                language = code
+                                SessionPrefs.setStoresInstallLanguage(context, code)
+                                langOpen = false
+                            }
+                        }
+                    }
+                }
+            }
             Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 11.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { DownloadControls(st, a) }
-            val context = androidx.compose.ui.platform.LocalContext.current
             var gogAchievements by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(com.droiddeck.launcher.stores.gog.GogComet.enabled(context)) }
+            androidx.compose.runtime.LaunchedEffect(Unit) {
+                if (gogAchievements) com.droiddeck.launcher.core.AddonPack.COMET.ensure(context)
+            }
             SettingsRow(stringResource(R.string.gog_achievements), stringResource(R.string.gog_achievements_hint)) {
                 ToggleSwitch(gogAchievements, label = stringResource(R.string.gog_achievements)) {
                     gogAchievements = it

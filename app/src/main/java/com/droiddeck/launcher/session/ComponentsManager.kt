@@ -25,6 +25,8 @@ import java.io.FileOutputStream
 object ComponentsManager {
     private const val TAG = "Components"
     private const val NIGHTLIES = "The412Banner/Nightlies"
+    private const val DD_COMPONENTS = "Droid-Deck/DroidDeck-Components"
+    internal const val DD_NIGHTLY = "linux-nightly"
     private val RELEASES = linkedMapOf(
         "FexCore-Linux" to "fex",
         "Dxvk-Linux" to "dxvk",
@@ -32,6 +34,10 @@ object ComponentsManager {
         "Dxvk-gplasync-Linux" to "dxvk",
         "Vkd3d-proton-Linux" to "vkd3d",
     )
+    // DD_NIGHTLY holds every component in one release; the file name says which.
+    private val NIGHTLY_PREFIXES = linkedMapOf("DD-dxvk-" to "dxvk", "DD-vkd3d-proton-" to "vkd3d", "DD-FEXCore-" to "fex")
+    private val SOURCES = RELEASES.keys.map { NIGHTLIES to it } + (DD_COMPONENTS to DD_NIGHTLY)
+    private val DOWNLOAD_REPOS = listOf(NIGHTLIES, DD_COMPONENTS)
     private val TYPES = mapOf("FEXCore-Linux" to "fex", "DXVK-Linux" to "dxvk", "VKD3D-Linux" to "vkd3d")
     private val TYPE_OF = mapOf("fex" to "FEXCore-Linux", "dxvk" to "DXVK-Linux", "vkd3d" to "VKD3D-Linux")
     val COMPONENTS = listOf("fex", "dxvk", "vkd3d")
@@ -815,14 +821,15 @@ object ComponentsManager {
         if (!force && cache.isFile) runCatching { return parseCatalog(JSONObject(cache.readText())) }
         if (!force) return Catalog(emptyList(), 0)
         val items = JSONArray()
-        for ((tag, comp) in RELEASES) {
-            val body = Downloader.downloadString("https://api.github.com/repos/$NIGHTLIES/releases/tags/$tag") ?: continue
+        for ((repo, tag) in SOURCES) {
+            val body = Downloader.downloadString("https://api.github.com/repos/$repo/releases/tags/$tag") ?: continue
             val assets = runCatching { JSONObject(body).optJSONArray("assets") }.getOrNull() ?: continue
             for (i in 0 until assets.length()) {
                 val a = assets.getJSONObject(i)
                 val name = a.optString("name")
                 if (!name.endsWith(".wcp")) continue
                 if (!Hashes.isGithubSha256(a.optString("digest"))) continue
+                val comp = assetComp(tag, name) ?: continue
                 items.put(JSONObject().put("file", name).put("comp", comp).put("release", tag)
                     .put("url", a.optString("browser_download_url")).put("size", a.optLong("size")).put("digest", a.optString("digest")))
             }
@@ -837,9 +844,31 @@ object ComponentsManager {
         val arr = o.optJSONArray("items") ?: JSONArray()
         val items = (0 until arr.length()).map { arr.getJSONObject(it) }.map {
             CatalogItem(it.optString("file"), it.optString("comp"), it.optString("release"), it.optString("url"), it.optLong("size"), it.optString("digest"))
-        }.sortedWith(compareBy<CatalogItem> { it.comp }.then(newestFirst { it.file }))
+        }.sortedWith(CATALOG_ORDER)
         return Catalog(items, o.optLong("fetchedAt"))
     }
+
+    internal fun assetComp(release: String, name: String): String? =
+        RELEASES[release] ?: if (release == DD_NIGHTLY) NIGHTLY_PREFIXES.entries.firstOrNull { name.startsWith(it.key) }?.value else null
+
+    // Per component: the stable packages newest first, then the nightlies.
+    internal val CATALOG_ORDER: Comparator<CatalogItem> =
+        compareBy<CatalogItem> { it.comp }.thenBy { it.release == DD_NIGHTLY }.then(newestFirst { it.file })
+
+    // A nightly DD-<flavor>-<version>[+N]-nightly.wcp pairs with the newest stable <flavor>-<version>[-<rev>]-linux.wcp
+    // in the same list, so the stable row can offer it behind a Stable/Nightly switch. Unpaired nightlies keep their own row.
+    internal fun nightlyPairs(items: List<CatalogItem>): Map<CatalogItem, CatalogItem> {
+        val stable = items.filter { it.release != DD_NIGHTLY }
+        return items.filter { it.release == DD_NIGHTLY }.mapNotNull { n ->
+            val base = n.file.removePrefix("DD-").removeSuffix("-nightly.wcp").substringBefore('+')
+            val rev = Regex(Regex.escape(base) + "(-\\d+)?-linux\\.wcp")
+            stable.filter { it.comp == n.comp && rev.matches(it.file) }
+                .maxWithOrNull { a, b -> ProtonExtras.compareVersions(a.file, b.file) }?.let { it to n }
+        }.groupBy({ it.first }, { it.second })
+            .mapValues { (_, ns) -> ns.maxWith { a, b -> ProtonExtras.compareVersions(a.file, b.file) } }
+    }
+
+    internal fun allowedDownload(url: String) = DOWNLOAD_REPOS.any { url.startsWith("https://github.com/$it/releases/download/") }
 
     private fun <T> newestFirst(of: (T) -> String): Comparator<T> =
         Comparator { a, b -> ProtonExtras.compareVersions(of(b), of(a)) }
@@ -925,11 +954,13 @@ object ComponentsManager {
     ): CatalogItem? = catalogMatch(cached(), file, release) ?: catalogMatch(refresh(), file, release)
 
     fun download(context: Context, item: CatalogItem, progress: (Int) -> Unit): Package {
-        require(item.url.startsWith("https://github.com/$NIGHTLIES/releases/download/")) { context.getString(R.string.cmgr_nightlies_only) }
+        require(allowedDownload(item.url)) { context.getString(R.string.cmgr_nightlies_only) }
         require(Hashes.isGithubSha256(item.digest)) { context.getString(R.string.cmgr_list_predates_checksums) }
         val dest = File(packagesDir(context), safeName(item.file))
         val part = File(dest.parentFile, dest.name + ".part")
-        check(Downloader.downloadFile(item.url, part, true, item.digest.substringAfter(':')) { f -> progress(if (f < 0) -1 else (f * 100).toInt().coerceIn(0, 100)) }) { context.getString(R.string.user_apps_download_failed) }
+        check(Downloader.downloadFile(item.url, part, true, item.digest.substringAfter(':')) { f -> progress(if (f < 0) -1 else (f * 100).toInt().coerceIn(0, 100)) }) {
+            context.getString(if (item.release == DD_NIGHTLY) R.string.cmgr_nightly_replaced else R.string.user_apps_download_failed)
+        }
         if (!Hashes.sha256(part).equals(item.digest.substringAfter(':'), true)) { part.delete(); error(context.getString(R.string.cmgr_checksum_mismatch)) }
         val info = runCatching { packageInfo(context, part) }.getOrElse { part.delete(); throw it }
         synchronized(lock) { part.renameTo(dest) }

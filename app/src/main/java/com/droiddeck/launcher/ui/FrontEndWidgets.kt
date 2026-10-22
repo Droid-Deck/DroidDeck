@@ -22,6 +22,7 @@ import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
@@ -38,6 +39,7 @@ import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -57,13 +59,21 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import java.util.Locale
 
 
 internal val Shape14 = RoundedCornerShape(14.dp)
+
+@Composable
+internal fun headingUppercase(text: String): String =
+    text.uppercase(LocalConfiguration.current.locales[0] ?: Locale.ROOT)
 
 @Composable
 internal fun Eyebrow(t: String) {
@@ -72,7 +82,7 @@ internal fun Eyebrow(t: String) {
     LaunchedEffect(Unit) { rule.animateTo(1f, Motion.tw(600, 120)) }
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Box(modifier = Modifier.width(18.dp).height(1.5.dp).graphicsLayer { scaleX = rule.value; transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0.5f) }.background(pal.signal))
-        Text(t.uppercase(), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp, color = pal.signal)
+        Text(headingUppercase(t), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp, color = pal.signal)
     }
 }
 
@@ -84,7 +94,7 @@ internal fun Eyebrow(t: String) {
 internal fun SectionTitle(t: String, detail: String?) {
     val colors = MaterialTheme.colorScheme
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 8.dp)) {
-        Text(t.uppercase(), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp, color = colors.onSurfaceVariant)
+        Text(headingUppercase(t), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp, color = colors.onSurfaceVariant)
         if (detail != null) Text(detail, fontSize = 12.sp, color = colors.onBackground)
         Box(modifier = Modifier.weight(1f).height(1.dp).background(LocalPalette.current.line))
     }
@@ -148,6 +158,7 @@ internal fun PrimaryButton(
     modifier: Modifier = Modifier,
     large: Boolean = false,
     icon: ImageVector? = null,
+    fill: Boolean = false,
     onClick: () -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
@@ -165,7 +176,8 @@ internal fun PrimaryButton(
     val lift by animateFloatAsState(if (hot) 14f else 6f, Motion.tw(300), label = "btnLift")
     val placed = remember { arrayOfNulls<androidx.compose.ui.layout.LayoutCoordinates>(1) }
     Row(
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = if (fill) Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally) else Arrangement.spacedBy(8.dp),
         modifier = modifier.then(track)
             .onGloballyPositioned { placed[0] = it }
             .heightIn(min = if (compact) 44.dp else 48.dp)
@@ -173,26 +185,41 @@ internal fun PrimaryButton(
             .graphicsLayer { alpha = if (LaunchOrigin.flooding === placed) 0f else 1f; scaleX = scale; scaleY = scale; shadowElevation = if (enabled) lift.dp.toPx() else 0f; shape = Shape12; clip = false; ambientShadowColor = pal.signal; spotShadowColor = pal.signal }
             .clip(Shape12)
             .background(if (enabled) Brush.linearGradient(listOf(colors.primary, pal.primary2)) else Brush.linearGradient(listOf(colors.surfaceVariant, colors.surfaceVariant)))
-            .shine(hot, 0.45f)
             .then(if (enabled) Modifier else Modifier.border(1.dp, pal.line2, Shape12))
-            .glideBorder(hot, Shape12, pal.signal)
-            .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, enabled = enabled) {
+            .then(if (hot) Modifier.border(2.dp, pal.signal, Shape12) else Modifier)
+            .hoverable(src).clickable(interactionSource = src, indication = null, enabled = enabled) {
                 placed[0]?.takeIf { it.isAttached }?.let { LaunchOrigin.mark(it.boundsInRoot(), placed) }
                 onClick()
             }
             .padding(
-                start = if (large) 20.dp else if (compact) 10.dp else if (icon != null) 14.dp else 18.dp,
-                end = if (large) 26.dp else if (compact) 10.dp else 18.dp,
+                start = if (fill) 12.dp else if (large) 20.dp else if (compact) 10.dp else if (icon != null) 14.dp else 18.dp,
+                end = if (fill) 12.dp else if (large) 26.dp else if (compact) 10.dp else 18.dp,
                 top = if (large) 16.dp else if (compact) 7.dp else 11.dp,
                 bottom = if (large) 16.dp else if (compact) 7.dp else 11.dp,
             ),
     ) {
         val fg = if (enabled) colors.onPrimary else colors.onSurfaceVariant
         if (icon != null) Icon(icon, contentDescription = null, tint = fg, modifier = Modifier.size(if (large) 20.dp else 17.dp))
-        Text(
-            text, fontSize = if (large) 17.sp else if (compact) 12.sp else 15.sp,
-            fontWeight = if (large) FontWeight.Bold else FontWeight.SemiBold, letterSpacing = 0.5.sp, color = fg, maxLines = 1,
-        )
+        val style = LocalTextStyle.current.merge(TextStyle(
+            fontSize = if (large) 17.sp else if (compact) 12.sp else 15.sp,
+            fontWeight = if (large) FontWeight.Bold else FontWeight.SemiBold, letterSpacing = 0.5.sp, color = fg,
+        ))
+        if (fill) FittedLabel(text, style, Modifier.weight(1f, fill = false))
+        else Text(text, style = style, maxLines = 1)
+    }
+}
+
+@Composable
+private fun FittedLabel(text: String, style: TextStyle, modifier: Modifier = Modifier) {
+    BoxWithConstraints(modifier) {
+        val measurer = rememberTextMeasurer()
+        val max = constraints.maxWidth
+        val size = remember(text, style, max) {
+            var size = style.fontSize
+            while (size.value > 10f && measurer.measure(text, style.copy(fontSize = size), maxLines = 1, softWrap = false).size.width > max) size = (size.value - 0.5f).sp
+            size
+        }
+        Text(text, style = style.copy(fontSize = size), maxLines = 1, softWrap = false)
     }
 }
 

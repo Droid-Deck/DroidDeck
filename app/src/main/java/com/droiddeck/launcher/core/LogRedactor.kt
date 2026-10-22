@@ -2,14 +2,51 @@ package com.droiddeck.launcher.core
 
 object LogRedactor {
     private val EMAIL = Regex("[A-Za-z0-9._%+\\-]+@[A-Za-z0-9.\\-]+\\.[A-Za-z]{2,}")
+    private val HIDL_SHARED_LIBRARY = Regex(
+        "(?:android\\.(?:hardware|frameworks|hidl|system)|vendor\\.[A-Za-z0-9_]+\\.hardware)" +
+            "(?:\\.[A-Za-z0-9_]+)+@[0-9]+\\.[0-9]+(?:-[A-Za-z0-9_]+)*\\.so"
+    )
+    private val hidlMatcher = object : ThreadLocal<java.util.regex.Matcher>() {
+        override fun initialValue(): java.util.regex.Matcher = HIDL_SHARED_LIBRARY.toPattern().matcher("")
+    }
+
+    private fun isHidlLoaderDiagnostic(input: String, match: MatchResult): Boolean {
+        val matcher = hidlMatcher.get()!!
+        val isLibrary = try { matcher.reset(match.value).matches() } finally { matcher.reset("") }
+        if (!isLibrary) return false
+        val start = match.range.first
+        val end = match.range.last + 1
+        val prefix = "library \""
+        val suffix = "\" not found"
+        val earliestQuote = (start - 4096).coerceAtLeast(0)
+        var quote = start - 1
+        while (quote >= earliestQuote && input[quote] != '"') {
+            val char = input[quote]
+            if (!char.isLetterOrDigit() && char !in "/._-") return false
+            quote--
+        }
+        if (quote < earliestQuote) return false
+        val pathStart = quote + 1
+        if (pathStart < start && (input[start - 1] != '/' ||
+                !(input.regionMatches(pathStart, "/vendor/", 0, 8) ||
+                    input.regionMatches(pathStart, "/system/", 0, 8)))) return false
+        val prefixStart = quote - prefix.length + 1
+        val suffixEnd = end + suffix.length
+        return prefixStart >= 0 && suffixEnd <= input.length &&
+            input.regionMatches(prefixStart, prefix, 0, prefix.length, ignoreCase = true) &&
+            input.regionMatches(end, suffix, 0, suffix.length, ignoreCase = true) &&
+            (prefixStart == 0 || !(input[prefixStart - 1].isLetterOrDigit() || input[prefixStart - 1] == '_')) &&
+            (suffixEnd == input.length || !(input[suffixEnd].isLetterOrDigit() || input[suffixEnd] == '_'))
+    }
+
     private val JWT_LABELLED = Regex("(?i)(\\bJWT[\\s=:]+)(\\d{8,})")
     private val JWT_BASE64 = Regex("ey[A-Za-z0-9_\\-]{6,}\\.[A-Za-z0-9_\\-]{6,}\\.[A-Za-z0-9_\\-]{6,}")
     private val GUID = Regex("\\b[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}\\b")
     private val SECRET_KV = Regex(
-        "(?i)\\b(access[_-]?token|refresh[_-]?token|auth[_-]?token|authtoken|token|authcode|" +
+        "(?i)(\\b(?:access[_-]?token|refresh[_-]?token|auth[_-]?token|authtoken|token|authcode|" +
             "auth[_-]?ticket|ticket|sessionid|steamloginsecure|webapikey|api[_-]?key|" +
-            "machine[_-]?auth(?:[_-]?token)?|machineauth|password|passwd|pwd|secret)" +
-            "(\\s*[=:]\\s*|=)([^\\s\"'<>&;,]{4,})"
+            "machine[_-]?auth(?:[_-]?token)?|machineauth|password|passwd|pwd|secret)[\"']?\\s*[=:]\\s*)" +
+            "(?:([\"'])((?:\\\\.|(?!\\2)[^\\\\\\r\\n]){4,})\\2|([^\\s\"'<>&;,]{4,}))"
     )
     private val GUARD_CODE = Regex(
         "(?i)((?:steam\\s*)?guard\\s*code[\\s:=]*|two[\\s-]?factor[\\s:=]*|2fa[\\s:=]*)([A-Za-z0-9]{5})"
@@ -51,25 +88,29 @@ object LogRedactor {
     @Volatile
     private var accounts: List<Learned> = emptyList()
 
-    fun learnAccounts(loginUsers: java.io.File) {
-        val found = ArrayList<Learned>()
-        try {
-            if (loginUsers.isFile) {
-                val kv = Regex("\"(AccountName|PersonaName)\"\\s+\"([^\"]*)\"")
-                kv.findAll(loginUsers.readText()).map { it.groupValues[2].trim() }.filter { it.length >= 3 }.distinct().forEach { name ->
-                    val needs = name.lowercase().takeIf { name.all { it.code < 0x80 } }
-                    found += Learned(Regex("(?i)(?<![A-Za-z0-9_])" + Regex.escape(name) + "(?![A-Za-z0-9_])"), needs)
-                }
-            }
-        } catch (e: Exception) {
-            return
+    fun learnAccounts(vararg loginUsers: java.io.File) {
+        val names = LinkedHashSet<String>()
+        val kv = Regex("\"(AccountName|PersonaName)\"\\s+\"([^\"]*)\"")
+        var unread = false
+        for (file in loginUsers) {
+            if (!file.isFile) continue
+            val text = try { file.readText() } catch (e: Exception) { unread = true; continue }
+            kv.findAll(text).map { it.groupValues[2].trim() }.filter { it.length >= 3 }.forEach { names += it }
         }
-        accounts = found
+        val learned = names.map { name ->
+            val needs = name.lowercase().takeIf { name.all { it.code < 0x80 } }
+            Learned(Regex("(?i)(?<![A-Za-z0-9_])" + Regex.escape(name) + "(?![A-Za-z0-9_])"), needs)
+        }
+        // A file that could not be read keeps the names learned from it before.
+        accounts = if (unread) (accounts + learned).distinctBy { it.regex.pattern } else learned
     }
 
     fun learnFromRuntime(root: java.io.File) {
         learnOwnAddresses(java.io.File(root, "etc/droiddeck-net"))
-        learnAccounts(java.io.File(root, "root/.local/share/Steam/config/loginusers.vdf"))
+        learnAccounts(
+            java.io.File(root, "root/.local/share/Steam/config/loginusers.vdf"),
+            java.io.File(root, "root/.droiddeck-x64/.local/share/Steam/config/loginusers.vdf"),
+        )
     }
 
     @Volatile
@@ -142,15 +183,20 @@ object LogRedactor {
         return out
     }
 
-    fun isText(file: java.io.File): Boolean = try {
-        file.isFile && file.length() < 64L * 1024 * 1024 && file.inputStream().use { input ->
+    /** The at-rest rewrite reads a file into memory twice; larger logs are only scrubbed on the way out. */
+    const val IN_MEMORY_SCRUB_MAX = 64L * 1024 * 1024
+
+    fun isBinary(file: java.io.File): Boolean = try {
+        file.inputStream().use { input ->
             val buf = ByteArray(4096)
             val n = input.read(buf)
-            n <= 0 || (0 until n).none { buf[it].toInt() == 0 }
+            n > 0 && (0 until n).any { buf[it].toInt() == 0 }
         }
     } catch (e: Exception) {
-        false
+        true
     }
+
+    fun isText(file: java.io.File): Boolean = file.isFile && file.length() < IN_MEMORY_SCRUB_MAX && !isBinary(file)
 
     const val RULES_VERSION = 3
 
@@ -172,8 +218,62 @@ object LogRedactor {
         }
     }
 
+    private const val SHARE_LINE_MAX = 64 * 1024
+
     fun scrubForShare(src: java.io.File, out: java.io.Writer) {
-        src.forEachLine { line -> out.write(redactForShare(line)); out.write("\n") }
+        src.inputStream().buffered().use { input ->
+            input.mark(2)
+            val first = input.read()
+            val second = input.read()
+            input.reset()
+            if ((first == 0xff && second == 0xfe) || (first == 0xfe && second == 0xff)) {
+                out.write("<unsupported encoding; file withheld>\n")
+                return
+            }
+            val decoder = Charsets.UTF_8.newDecoder()
+                .onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
+                .onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT)
+            java.io.InputStreamReader(input, decoder).use { reader ->
+                val buffer = CharArray(8192)
+                val line = StringBuilder()
+                var withheld = false
+                var afterCr = false
+                fun emit() {
+                    out.write(if (withheld) "<unsupported or oversized line withheld>" else redactForShare(line.toString()))
+                    out.write("\n")
+                    line.setLength(0)
+                    withheld = false
+                }
+                try {
+                    while (true) {
+                        val size = reader.read(buffer)
+                        if (size < 0) break
+                        for (i in 0 until size) {
+                            val ch = buffer[i]
+                            if (afterCr) {
+                                afterCr = false
+                                if (ch == '\n') continue
+                            }
+                            if (ch == '\r' || ch == '\n') {
+                                emit()
+                                afterCr = ch == '\r'
+                            } else if (!withheld) {
+                                // Splitting a line can separate a credential from its label.
+                                if (ch == '\u0000' || line.length == SHARE_LINE_MAX) {
+                                    withheld = true
+                                    line.setLength(0)
+                                } else {
+                                    line.append(ch)
+                                }
+                            }
+                        }
+                    }
+                    if (withheld || line.isNotEmpty()) emit()
+                } catch (_: java.nio.charset.CharacterCodingException) {
+                    out.write("<unsupported encoding; file withheld>\n")
+                }
+            }
+        }
     }
 
     private fun quoted(value: String): String {
@@ -228,7 +328,7 @@ object LogRedactor {
             if (out.has("jwt")) out.set(JWT_LABELLED.replace(out.text) { "${it.groupValues[1]}<redacted:jwt>" })
             if ("ey" in out.text) out.set(JWT_BASE64.replace(out.text, "<redacted:jwt>"))
             if (out.has("token", "auth", "ticket", "sessionid", "steamloginsecure", "api", "machine", "pass", "pwd", "secret")) {
-                out.set(SECRET_KV.replace(out.text) { "${it.groupValues[1]}${it.groupValues[2]}<redacted:token>" })
+                out.set(SECRET_KV.replace(out.text) { "${it.groupValues[1]}${it.groupValues[2]}<redacted:token>${it.groupValues[2]}" })
             }
             if (out.has("guard", "factor", "2fa")) out.set(GUARD_CODE.replace(out.text) { "${it.groupValues[1]}<redacted:code>" })
             if (out.hasRun(32, ::isHex)) out.set(WEBAPI_KEY.replace(out.text, "<redacted:key>"))
@@ -246,7 +346,9 @@ object LogRedactor {
             }
             if (out.has("login")) out.set(LOGIN_KV.replace(out.text) { "${it.groupValues[1]}${it.groupValues[2]}${quoted(it.groupValues[3])}" })
             for (r in accounts) if (r.needs == null || out.has(r.needs)) out.set(r.regex.replace(out.text, "<redacted:account>"))
-            if ('@' in out.text) out.set(EMAIL.replace(out.text, "<redacted:email>"))
+            if ('@' in out.text) out.set(EMAIL.replace(out.text) { m ->
+                m.value.takeIf { isHidlLoaderDiagnostic(out.text, m) } ?: "<redacted:email>"
+            })
             if (out.has("jwt", "token", "ticket", "sessionid", "steamloginsecure", "machineauth")) {
                 out.set(RESIDUAL.replace(out.text) { "${it.groupValues[1]}=<redacted:token>" })
             }
