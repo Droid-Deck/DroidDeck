@@ -3046,4 +3046,53 @@
     <string name="spatial_saved_views_hint">Saved views can be recalculated. Start a new calibration to capture in the current tracking frame.</string>
     <string name="spatial_model_checksum_error">Hand model checksum mismatch</string>
     <string name="spatial_opencv_load_error">OpenCV could not load</string>
+
+    <string name="usbdrive_title">USB drive</string>
+    <string name="usbdrive_default_name">USB drive</string>
+    <string name="usbdrive_entry">%1$s (USB)</string>
+    <string name="usbdrive_not_in_build">This build of DroidDeck was made without NTFS support.</string>
+    <string name="usbdrive_not_storage">This USB device is not a drive DroidDeck can read.</string>
+    <string name="usbdrive_uas_only">This drive only speaks UAS, which DroidDeck cannot read yet.</string>
+    <string name="usbdrive_open_failed">Android would not open the drive.</string>
+    <string name="usbdrive_claim_failed">Android would not hand the drive over to DroidDeck.</string>
+    <string name="usbdrive_permission_waiting">Allow DroidDeck to use the drive in the dialog Android shows.</string>
+    <string name="usbdrive_permission_denied">DroidDeck needs your permission to read the drive.</string>
+    <string name="usbdrive_ask_again">Ask again</string>
+    <string name="usbdrive_opening">Opening the drive…</string>
+    <string name="usbdrive_in_use_title">Disconnect the drive from Android?</string>
+    <string name="usbdrive_in_use_body">Android has a USB drive open. Reading %1$s here disconnects the whole drive from Android until you close this screen, so finish anything using it first.</string>
+    <string name="usbdrive_in_use_confirm">Open here</string>
+    <string name="usbdrive_partition_name">Partition %1$d</string>
+    <string name="usbdrive_partition_ntfs">NTFS · %1$s</string>
+    <string name="usbdrive_partition_android">%1$s · %2$s · Android opens this itself</string>
+    <string name="usbdrive_partition_unknown">Unknown filesystem · %1$s</string>
+    <string name="usbdrive_no_ntfs">No NTFS partition was found on this drive.</string>
+    <string name="usbdrive_read_only">Read-only</string>
+    <string name="usbdrive_free_of">%1$s free of %2$s</string>
+    <string name="usbdrive_dirty">Windows did not shut this drive down cleanly. Reading it is safe, but files changed just before may be missing. Run chkdsk on a PC to repair it.</string>
+    <string name="usbdrive_show_hidden">Show hidden files</string>
+    <string name="usbdrive_empty">This folder is empty.</string>
+    <string name="usbdrive_copy_to">Copy to…</string>
+    <string name="usbdrive_copy_destination">Copy to this folder</string>
+    <string name="usbdrive_clear_selection">Clear selection</string>
+    <string name="usbdrive_copy_title">Copying from the USB drive</string>
+    <string name="usbdrive_copy_counting">Counting files…</string>
+    <string name="usbdrive_copy_progress">%1$s of %2$s</string>
+    <string name="usbdrive_copy_cancelled">Copy cancelled. Finished files were kept.</string>
+    <string name="usbdrive_copy_failed">Copy failed: %1$s</string>
+    <string name="usbdrive_no_space">Not enough space: %1$s needed, %2$s free.</string>
+    <string name="usbdrive_disconnected">The USB drive was disconnected.</string>
+    <string name="usbdrive_retry">Try again</string>
+    <plurals name="usbdrive_selected">
+        <item quantity="one">%1$d selected</item>
+        <item quantity="other">%1$d selected</item>
+    </plurals>
+    <plurals name="usbdrive_copy_done">
+        <item quantity="one">Copied %1$d file.</item>
+        <item quantity="other">Copied %1$d files.</item>
+    </plurals>
+    <plurals name="usbdrive_copy_skipped">
+        <item quantity="one">%1$d was already there.</item>
+        <item quantity="other">%1$d were already there.</item>
+    </plurals>
 </resources>

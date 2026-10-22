@@ -336,6 +336,14 @@ else
     (cd "${proot_out}" && shasum -a 256 libproot.so libproot-loader.so > .proot-outputs)
 fi
 
+ntfs3g_out="${repo_root}/build/ntfs3g"
+ntfs3g_key=$(inputs_hash "${ndk_version}" tools/ntfs3g)
+rm -rf "${ntfs3g_out}"
+if ! restore_step ntfs3g "${ntfs3g_key}" "${ntfs3g_out}"; then
+    "${repo_root}/tools/ntfs3g/build.sh" "${ntfs3g_out}"
+    save_step ntfs3g "${ntfs3g_key}" "${ntfs3g_out}"
+fi
+
 bundle_dir="${staging_dir}/pulseaudio-bundle"
 mkdir -p "${bundle_dir}"
 zstd -dc "${bundle_asset}" | tar -xf - -C "${bundle_dir}"
@@ -387,7 +395,7 @@ if ! restore_step comet "${comet_key}" "${comet_out}"; then
 fi
 bash tools/packs/build.sh app/build/packs
 python3 tools/release/runtime_inputs.py record
-./gradlew "${gradle_task}" --console=plain -PndkVersion="${ndk_version}" ${gradle_rust_arg}
+./gradlew "${gradle_task}" --console=plain -PndkVersion="${ndk_version}" -Pntfs3gDir="${ntfs3g_out}" ${gradle_rust_arg}
 python3 tools/release/check_session_assets.py "app/build/outputs/apk/${build_variant}/app-${build_variant}.apk"
 python3 tools/release/runtime_inputs.py apk "app/build/outputs/apk/${build_variant}/app-${build_variant}.apk"
 

@@ -16,6 +16,18 @@ EXPORTS = ['Java_com_droiddeck_launcher_stores_StoresNative_nativeVersion',
            'Java_com_droiddeck_launcher_stores_epic_EpicNative_nativeInstall',
            'Java_com_droiddeck_launcher_stores_amazon_AmazonNative_nativeCall',
            'Java_com_droiddeck_launcher_stores_amazon_AmazonNative_nativeInstall']
+USB_DRIVE_EXPORTS = ['Java_com_droiddeck_launcher_usbdrive_UsbDriveNative_openDevice',
+                     'Java_com_droiddeck_launcher_usbdrive_UsbDriveNative_describe',
+                     'Java_com_droiddeck_launcher_usbdrive_UsbDriveNative_mount',
+                     'Java_com_droiddeck_launcher_usbdrive_UsbDriveNative_list',
+                     'Java_com_droiddeck_launcher_usbdrive_UsbDriveNative_read',
+                     'Java_com_droiddeck_launcher_usbdrive_UsbDriveNative_reattachKernelDriver']
+
+
+def exported(readelf, library):
+    symbols = subprocess.check_output([readelf, '--dyn-syms', '--wide', str(library)], text=True)
+    return {line.split()[-1] for line in symbols.splitlines()
+            if ' GLOBAL ' in line and ' UND ' not in line and line.split()}
 
 
 def check(apk, readelf, stores=True):
@@ -37,12 +49,17 @@ def check(apk, readelf, stores=True):
             if library is None:
                 errors.append('APK missing libdroiddeckstores.so')
             else:
-                symbols = subprocess.check_output([readelf, '--dyn-syms', '--wide', str(library)], text=True)
-                exports = {line.split()[-1] for line in symbols.splitlines()
-                           if ' GLOBAL ' in line and ' UND ' not in line and line.split()}
+                exports = exported(readelf, library)
                 errors += ['Store library missing ' + symbol for symbol in EXPORTS if symbol not in exports]
         elif library is not None:
             errors.append('Rust was skipped but the APK contains a cached store library')
+        usb_drive = libraries.get('libdroiddeck_usbdrive.so')
+        if usb_drive is None:
+            errors.append('APK missing libdroiddeck_usbdrive.so; build libntfs-3g with tools/ntfs3g/build.sh '
+                          'and pass -Pntfs3gDir')
+        else:
+            exports = exported(readelf, usb_drive)
+            errors += ['USB drive library missing ' + symbol for symbol in USB_DRIVE_EXPORTS if symbol not in exports]
     return errors
 
 

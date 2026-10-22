@@ -43,6 +43,10 @@ import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Smartphone
 import androidx.compose.material.icons.filled.Terminal
+import androidx.compose.material.icons.filled.Usb
+import com.droiddeck.launcher.usbdrive.UsbDriveActivity
+import com.droiddeck.launcher.usbdrive.UsbDrives
+import com.droiddeck.launcher.usbdrive.rememberAttachedUsbDrives
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Image
@@ -382,6 +386,7 @@ fun FileManagerScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
     val drives = remember(storageTick) { StorageRoots.list(context) }
+    val usbDrives = rememberAttachedUsbDrives()
     val linuxRoot = remember(storageTick) {
         com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(context).takeIf { File(it, "usr").isDirectory }
     }
@@ -641,6 +646,19 @@ fun FileManagerScreen(
                                 Icon(Icons.Filled.Terminal, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
                             },
                             onClick = { showDriveMenu = false; openDrive(root) },
+                        )
+                    }
+                    usbDrives.forEach { device ->
+                        MenuItemDivider()
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.usbdrive_entry, UsbDrives.label(context, device))) },
+                            leadingIcon = {
+                                Icon(Icons.Filled.Usb, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                            },
+                            onClick = {
+                                showDriveMenu = false
+                                context.startActivity(UsbDriveActivity.intent(context, device))
+                            },
                         )
                     }
                 }
@@ -930,6 +948,11 @@ fun FileManagerScreen(
                 })
             }
             linuxRoot?.let { add(locItem(stringResource(R.string.fm_drive_linux), Icons.Filled.Terminal, it)) }
+            usbDrives.forEach { device ->
+                add(RailItem(stringResource(R.string.usbdrive_entry, UsbDrives.label(context, device)), Icons.Filled.Usb, false) {
+                    context.startActivity(UsbDriveActivity.intent(context, device))
+                })
+            }
         }
         val quickItems = buildList {
             File("/storage/emulated/0/Download").takeIf { it.isDirectory }?.let { add(locItem(stringResource(R.string.fm_rail_downloads), Icons.Filled.Download, it, stringResource(R.string.fm_rail_downloads_short))) }
