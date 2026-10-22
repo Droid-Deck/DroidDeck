@@ -344,6 +344,11 @@ class DroiddeckctlTest(FakeAdbTest):
         self.assertEqual(248, summary["offCadence"])
         self.assertEqual(13.8, summary["offCadencePercent"])
 
+    def test_pacing_reads_a_dump_with_windows_line_ends(self):
+        summary = ctl.pacing_summary(TIMESTATS_SPLIT.replace("\n", "\r\n"), "com.droiddeck.launcher")
+        self.assertEqual(ctl.pacing_summary(TIMESTATS_SPLIT, "com.droiddeck.launcher"), summary)
+        self.assertEqual(1800, summary["frames"])
+
     def test_pacing_falls_back_to_the_sessions_surfaceview(self):
         summary = ctl.pacing_summary(TIMESTATS_SURFACEVIEW, "com.droiddeck.launcher")
         self.assertEqual(1, len(summary["layers"]))

@@ -295,6 +295,7 @@ def record(adb: str, serial: str, path: str, seconds: float, display: int | None
 
 
 def pacing_summary(text: str, package: str = PACKAGE) -> dict:
+    text = text.replace("\r\n", "\n")
     records = {"game": [], "surface": []}
     for part in re.split(r"^displayRefreshRate = ", text, flags=re.M)[1:]:
         rate = re.match(r"(\d+)", part)
