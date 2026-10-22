@@ -2554,9 +2554,6 @@
     <string name="stores_hltb_completionist">Completista</string>
     <string name="stores_hltb_hours">%1$s h</string>
     <string name="stores_hltb_minutes">%1$d min</string>
-    <string name="mode_zram">Compressione zRAM</string>
-    <string name="mode_zram_hint">Mentre un gioco è in esecuzione, la memoria del client Steam viene compressa nella zram del dispositivo, lasciando più RAM al gioco. Si applica al prossimo avvio di Steam.</string>
-    <string name="mode_zram_unsupported">Non disponibile: questo dispositivo non ha zram o swap, oppure il suo kernel è precedente alla 5.4.</string>
     <string name="setup_reset_settings">Ripristina tutte le impostazioni</string>
     <string name="setup_reset_settings_title">Ripristinare tutte le impostazioni?</string>
     <string name="setup_reset_settings_body">Le impostazioni di schermo, prestazioni, controller, tema, lingua e launcher tornano ai valori predefiniti. Giochi, accesso a Steam, account degli store, driver scaricati e cartelle di archiviazione vengono mantenuti.</string>
