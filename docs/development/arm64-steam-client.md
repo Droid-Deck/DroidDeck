@@ -40,3 +40,20 @@ same treatment if Valve containerizes it too:
   For the arm64 client the session then starts it with `STEAM_RUNTIME_STEAMRT` and `PATH` pointing
   at `~/.droiddeck-steamrt-shim` and logs "Valve containerized the arm64 Steam client". Without those
   files the shim is not built and the start is unchanged.
+
+## What Valve's manifests carry (checked 2026-10-22)
+
+- `steam_client_steamdeck_publicbeta_linuxarm64` (1792626604) and `steam_client_steamdeck_stable_linuxarm64`
+  (1792618285) have the same blocks. Three platforms share them:
+  - `*_linuxarm64_linuxarm64`: the native client (`steamrtarm64/`, `linuxarm64/`). No pressure-vessel, no
+    `steam-runtime-check-requirements`. These are the only platform blocks the installer keeps.
+  - `*_steamrt_linuxarm64`: Valve's x86-64 SteamRT 3c client (`steamrt64/steam` is an x86-64 ELF) with
+    `steamrt64/pv-runtime/steam-runtime-steamrt` (pressure-vessel, `steam-runtime-check-requirements`,
+    `steam-runtime-launch-client`). This is the containerized client the 2026-10-15 beta made the default on
+    x86. Valve ships it to arm64 hosts as well, presumably to run under FEX. The installer skips it.
+  - `bins_androidarm64_linuxarm64`: `androidarm64/libsteamclient.so`, `steamservice.so` and friends.
+- `steam_client_steamdeck_publicbeta_ubuntu12` has stopped at 1792108788, while stable `ubuntu12` follows
+  stable (1792618285). On beta the 32-bit `ubuntu12` client no longer gets updates.
+- If a future manifest drops `*_linuxarm64_linuxarm64`, the installer logs the block list and moves to
+  stable. If stable drops it too, the remaining option is the x86-64 client under FEX
+  ([x86-64-steam-client.md](x86-64-steam-client.md)).
