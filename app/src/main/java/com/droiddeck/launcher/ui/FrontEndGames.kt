@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.key
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Row
@@ -30,6 +31,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.shape.CircleShape
@@ -110,7 +112,7 @@ internal fun GamesPage(s: FrontEndState, a: FrontEndActions, selected: String, o
             if (onAdd != null) Rise(0) { GamesHeader(gameCount, s.steamGamesX64, onAdd, Modifier.padding(bottom = 10.dp)) }
             Rise(0) {
                 Row(verticalAlignment = Alignment.Bottom) {
-                    GameHero(current, Modifier.weight(1f).heightIn(min = if (narrow) 190.dp else 250.dp)) {
+                    GameHero(current, Modifier.weight(1f).heightIn(min = if (narrow) 190.dp else 250.dp), corner = { GameRemoveButton(current, s, a) }) {
                         GameHeroCopy(current, if (narrow) 28.sp else 38.sp)
                         GameActions(current, s, a, onEdit, launch)
                     }
@@ -132,7 +134,7 @@ internal fun GamesPage(s: FrontEndState, a: FrontEndActions, selected: String, o
             modifier = Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState())
                 .padding(horizontal = if (narrow) 14.dp else 20.dp, vertical = 16.dp),
         ) {
-            GameHero(current, Modifier.fillMaxWidth().heightIn(min = if (narrow) 170.dp else 200.dp)) {
+            GameHero(current, Modifier.fillMaxWidth().heightIn(min = if (narrow) 170.dp else 200.dp), corner = { GameRemoveButton(current, s, a) }) {
                 GameHeroCopy(current, if (narrow) 24.sp else 32.sp)
                 GameActions(current, s, a, onEdit, launch)
             }
@@ -266,6 +268,21 @@ private fun ManageSaves(g: Library.SteamGame, prefix: java.io.File, a: FrontEndA
     }
 }
 
+/** A skipped sync is not a success: "0 files" used to show for a signed-out store or cloud saves turned off. */
+internal fun cloudMessage(context: android.content.Context, r: com.droiddeck.launcher.stores.CloudSaves.Result): String = when (r.result) {
+    "ok" -> when {
+        r.conflicts > 0 -> context.getString(R.string.cloud_conflict_files, r.conflicts)
+        r.files == 0 -> context.getString(R.string.cloud_up_to_date)
+        else -> context.getString(R.string.cloud_done, r.files)
+    }
+    "skipped" -> context.getString(when (r.reason) {
+        "not-signed-in" -> R.string.cloud_signed_out
+        "no-cloud-saves" -> R.string.cloud_none
+        else -> R.string.cloud_not_synced
+    })
+    else -> context.getString(R.string.cloud_not_synced)
+}
+
 @Composable
 private fun CloudRows(g: Library.SteamGame, open: Boolean, first: androidx.compose.ui.focus.FocusRequester) {
     val store = com.droiddeck.launcher.stores.Store.byId(g.source)?.takeIf { it != com.droiddeck.launcher.stores.Store.AMAZON } ?: return
@@ -288,7 +305,7 @@ private fun CloudRows(g: Library.SteamGame, open: Boolean, first: androidx.compo
         busy = if (up) "up" else "down"
         Thread({
             val r = if (up) com.droiddeck.launcher.stores.CloudSaves.upload(context, store, id, force) else com.droiddeck.launcher.stores.CloudSaves.download(context, store, id, force)
-            com.droiddeck.launcher.stores.StoresState.post { busy = null; tick++; android.widget.Toast.makeText(context, if (r.ok) context.getString(R.string.cloud_done, r.files) else r.reason, android.widget.Toast.LENGTH_SHORT).show() }
+            com.droiddeck.launcher.stores.StoresState.post { busy = null; tick++; android.widget.Toast.makeText(context, cloudMessage(context, r), android.widget.Toast.LENGTH_SHORT).show() }
         }, "cloud-manual").start()
     }
     MenuItem(stringResource(R.string.store_cloud_saves), checked = enabled && supported, enabled = supported, focusRequester = first,
@@ -300,7 +317,7 @@ private fun CloudRows(g: Library.SteamGame, open: Boolean, first: androidx.compo
             com.droiddeck.launcher.stores.StoresState.post { enabled = written?.cloud ?: enabled }
         }, "cloud-switch").start()
     }
-    val ready = st != null && supported && busy == null
+    val ready = st != null && supported && enabled && busy == null
     val pending = stringResource(R.string.cloud_pending)
     val summary = when {
         st == null || busy != null -> pending
@@ -440,6 +457,47 @@ private fun GamesDialogs(a: FrontEndActions, games: List<Library.SteamGame>) {
 }
 
 @Composable
+private fun GameRemoveButton(g: Library.SteamGame, s: FrontEndState, a: FrontEndActions) {
+    val kind = com.droiddeck.launcher.frontend.GameRemoval.kind(g)
+    if (s.shortcutPicker || kind == com.droiddeck.launcher.frontend.GameRemoval.Kind.LAUNCHER) return
+    if (g.gameFiles?.isDirectory != true) return
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    val src = remember { MutableInteractionSource() }
+    val hot = rememberHot(src)
+    var asking by remember(g.gameId) { androidx.compose.runtime.mutableStateOf(false) }
+    val shortcut = kind == com.droiddeck.launcher.frontend.GameRemoval.Kind.SHORTCUT
+    val label = stringResource(if (shortcut) R.string.edit_remove else R.string.common_uninstall)
+    val title = if (shortcut) stringResource(R.string.games_remove_title, g.name) else stringResource(R.string.stores_uninstall_title, g.name)
+    val body = when {
+        shortcut -> stringResource(R.string.games_remove_body)
+        g.library == Library.ADDED -> stringResource(R.string.stores_uninstall_body)
+        else -> stringResource(R.string.games_uninstall_body)
+    }
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier.paneItem("game:remove").downToFirstTile().size(44.dp).clip(Shape12)
+            .background(if (hot) colors.error.copy(alpha = 0.22f) else Color.Black.copy(alpha = 0.34f))
+            .glideBorder(hot, Shape12, colors.error, pal.line2)
+            .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = androidx.compose.ui.semantics.Role.Button) { asking = true }
+            .controllerConfirm { asking = true }
+            .semantics { contentDescription = label },
+    ) {
+        androidx.compose.material3.Icon(
+            Icons.Outlined.Delete, contentDescription = null,
+            tint = if (hot) colors.error else Color.White, modifier = Modifier.size(18.dp),
+        )
+    }
+    if (asking) ConfirmDialog(
+        title = title,
+        text = body,
+        confirm = label,
+        onConfirm = { a.onGameRemoved(g) },
+        onDismiss = { asking = false },
+    )
+}
+
+@Composable
 private fun EditGameButton(onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
@@ -570,7 +628,7 @@ private fun libraryLabel(g: Library.SteamGame): String = when {
 }
 
 @Composable
-private fun GameHero(g: Library.SteamGame, modifier: Modifier, content: @Composable ColumnScope.() -> Unit) {
+private fun GameHero(g: Library.SteamGame, modifier: Modifier, corner: @Composable BoxScope.() -> Unit = {}, content: @Composable ColumnScope.() -> Unit) {
     val colors = MaterialTheme.colorScheme
     Box(modifier = modifier.clip(Shape16).background(artBrush(hueOf(g.name)))) {
         val image = g.hero ?: g.art.takeIf { g.library != Library.EPIC_LAUNCHER }
@@ -593,5 +651,6 @@ private fun GameHero(g: Library.SteamGame, modifier: Modifier, content: @Composa
             modifier = Modifier.align(Alignment.BottomStart).padding(horizontal = 22.dp, vertical = 18.dp),
             content = content,
         )
+        Box(Modifier.align(Alignment.TopEnd).padding(12.dp), content = corner)
     }
 }

@@ -17,6 +17,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import android.widget.TextView
 import com.droiddeck.launcher.input.DeckControls
@@ -49,13 +50,6 @@ class DeckControlsPanel(
         select(if (pad != null) selectedWithPad else selected)
     }
 
-    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
-        super.onSizeChanged(w, h, oldw, oldh)
-        if (pad != null && selectedWithPad != Tab.GAMEPAD && !GamepadGeometry.tall(w.toFloat(), h.toFloat())) {
-            post { if (selectedWithPad != Tab.GAMEPAD) select(Tab.GAMEPAD) }
-        }
-    }
-
     override fun onDetachedFromWindow() {
         DeckControls.releaseAll()
         super.onDetachedFromWindow()
@@ -85,8 +79,10 @@ class DeckControlsPanel(
                 addView(view, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.MATCH_PARENT))
             }
         }
-        val centre = FrameLayout(context).apply {
-            addView(tabs, FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, dp(44), Gravity.CENTER))
+        val centre = HorizontalScrollView(context).apply {
+            isHorizontalScrollBarEnabled = false
+            overScrollMode = View.OVER_SCROLL_NEVER
+            addView(tabs, FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, dp(44)))
         }
         addView(centre, LayoutParams(0, LayoutParams.MATCH_PARENT, 1f))
         addView(roundButton("STEAM", context.getString(R.string.deck_open_steam_menu), onSteamMenu, wide = true))
@@ -101,6 +97,17 @@ class DeckControlsPanel(
             val on = each == tab
             view.background = if (on) filled(CORNER_PILL, ACCENT) else null
             view.setTextColor(if (on) ON_ACCENT else TEXT_DIM)
+        }
+        tabViews[tab]?.let { selectedView ->
+            (selectedView.parent?.parent as? HorizontalScrollView)?.post {
+                val left = selectedView.left
+                val right = selectedView.right
+                val scroll = selectedView.parent?.parent as? HorizontalScrollView ?: return@post
+                when {
+                    left < scroll.scrollX -> scroll.smoothScrollTo(left, 0)
+                    right > scroll.scrollX + scroll.width -> scroll.smoothScrollTo(right - scroll.width, 0)
+                }
+            }
         }
         content.removeAllViews()
         topBar.visibility = if (tab == Tab.GAMEPAD) View.GONE else View.VISIBLE
@@ -643,7 +650,7 @@ class DeckControlsPanel(
         private const val CLICK_MS = 300L
 
         private var selected = Tab.BOTH
-        private var selectedWithPad = Tab.GAMEPAD
+        private var selectedWithPad = Tab.BOTH
 
         private const val CORNER = 20f
         private const val CORNER_PILL = 22f

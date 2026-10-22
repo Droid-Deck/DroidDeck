@@ -41,6 +41,22 @@ configure_graphics() {
     esac
 }
 
+# Any OpenXR probe (Steam runs one through Proton at every client start) starts vrserver
+# while a runtime is registered, so SteamVR is registered only during a DroidDeck VR session.
+unregister() {
+    if grep -qF "\"$steamvr\"" "$HOME/.config/openvr/openvrpaths.vrpath" 2>/dev/null; then
+        rm -f "$HOME/.config/openvr/openvrpaths.vrpath"
+    fi
+    case "$(readlink "$HOME/.config/openxr/1/active_runtime.json" 2>/dev/null)" in
+    "$steamvr"/*) rm -f "$HOME/.config/openxr/1/active_runtime.json" ;;
+    esac
+}
+
+idle() {
+    [ ! -f "$state/active" ] && ! running && ! pgrep -x vrstartup >/dev/null 2>&1 &&
+        ( flock -n 9 ) 9>"$state/start.lock"
+}
+
 stop() {
     rm -f "$state/active"
     for n in vrcompositor vrserver vrmonitor vrdashboard vrstartup vrwebhelper; do
@@ -56,6 +72,7 @@ stop() {
         [ "$attempts" -lt 20 ] || { echo 'SteamVR did not stop; preferences remain backed up' >&2; return 1; }
         sleep 0.1
     done
+    unregister
     quest_settings restore
 }
 
@@ -74,6 +91,7 @@ status)
     i=0; installed && i=1
     r=0; running && r=1
     if [ "$r" = 0 ] && [ -n "$(find "$state/active" -mmin +2 2>/dev/null)" ]; then rm -f "$state/active"; fi
+    if idle; then unregister; fi
     n=0; [ -f "$state/installing" ] && n=1
     d=0; [ -f "$driver/bin/linuxarm64/driver_droiddeck.so" ] && [ -f "$layer/libVkLayer_droiddeck_vr.so" ] && d=1
     echo "installed=$i running=$r installing=$n driver=$d"
@@ -99,6 +117,9 @@ install)
     ;;
 stop)
     stop || exit 1
+    ;;
+unregister)
+    if idle; then unregister; fi
     ;;
 start)
     exec 9>"$state/start.lock"
@@ -234,7 +255,7 @@ JSON
     echo "SteamVR starting; logs in $logs and $state/vrstartup.log"
     ;;
 *)
-    echo "usage: droiddeck-steamvr status|install|start|stop|launch" >&2
+    echo "usage: droiddeck-steamvr status|install|start|stop|launch|unregister" >&2
     exit 2
     ;;
 esac

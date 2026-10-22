@@ -1,0 +1,4 @@
+55c9705ff5721f10ca18c42bd15c14b0af88cb5352f5400fda04c944a8b224f1  https://holo-packages.steamos.cloud/archlinux-deckard-hotfixes/release/0.4.x/libpipewire-1%3A1.6.8-1.2-aarch64.pkg.tar.zst
+8ea2d900326eaafdd2bbbfa47fa04f5d7515dbdcd9ede04213ba149f44f41da0  https://holo-packages.steamos.cloud/archlinux-deckard-hotfixes/release/0.4.x/pipewire-1%3A1.6.8-1.2-aarch64.pkg.tar.zst
+900a4c59f87806d85abe200bb014d755f73a16b2ba4fea63d6f32ff64fcf5e34  https://holo-packages.steamos.cloud/archlinux-deckard-hotfixes/release/0.4.x/libwireplumber-0.5.14-1.3-aarch64.pkg.tar.zst
+bf56f040cf09832e0a8135b56b0f6d2b9b29e2bddbd35be73d0bebe603eacafb  https://holo-packages.steamos.cloud/archlinux-deckard-hotfixes/release/0.4.x/wireplumber-0.5.14-1.3-aarch64.pkg.tar.zst

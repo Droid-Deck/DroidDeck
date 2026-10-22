@@ -14,6 +14,7 @@ import java.io.InputStream
 object GameFiles {
     const val EXTENSION = "steam"
     private const val MAX_BYTES = 128
+    private const val MAX_NAME_BYTES = 200
     private const val INVENTORY = ".droiddeck-sync.json"
     private const val FORMAT = "droiddeck-game-files-v1"
 
@@ -50,8 +51,15 @@ object GameFiles {
     fun filename(game: Library.SteamGame, disambiguate: Boolean = false): String {
         val sanitized = game.name.replace(Regex("[\\p{Cntrl}\\\\/:*?\"<>|]"), "_")
             .trim().trim('.').ifBlank { "Game" }
-        val points = sanitized.codePoints().limit(40).toArray()
-        val title = String(points, 0, points.size)
+        val points = sanitized.codePoints().toArray()
+        var end = 0
+        var bytes = 0
+        while (end < points.size) {
+            bytes += String(points, end, 1).toByteArray().size
+            if (bytes > MAX_NAME_BYTES) break
+            end++
+        }
+        val title = String(points, 0, end).trimEnd { it.isWhitespace() || it == '.' }.ifBlank { "Game" }
         val suffix = if (disambiguate) " (${game.gameIdString})" else ""
         return "$title$suffix.$EXTENSION"
     }
