@@ -41,11 +41,11 @@ def main():
         if not process.name.isdigit():
             continue
         try:
-            if (process / 'comm').read_text().strip() == 'gamescope-wl':
+            if (process / 'comm').read_text().strip() == 'gamescope':
                 pids.append(process)
         except (FileNotFoundError, PermissionError):
             pass
-    assert len(pids) == 1, 'expected one Gamescope process'
+    assert len(pids) == 1, f'expected one Gamescope process, found {[p.name for p in pids]}'
     fd_dir = pids[0] / 'fd'
 
     def alloc():
