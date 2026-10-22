@@ -151,7 +151,7 @@ object ProtonExtras {
     }
 
     private fun installNow(context: Context, tool: Tool, onProgress: (String, Int) -> Unit): String? {
-        if (SessionState.running) return context.getString(R.string.pextra_stop_session)
+        if (SessionState.running || SessionState.stopping) return context.getString(R.string.pextra_stop_session)
         if (!LinuxRuntime.isInstalled(context)) return context.getString(R.string.user_apps_runtime_required)
 
         val asset = findLatestAsset(tool) ?: return context.getString(R.string.pextra_no_release, tool.name)
@@ -206,7 +206,7 @@ object ProtonExtras {
             return context.getString(R.string.pextra_checksum_mismatch)
         }
 
-        if (SessionState.running) return context.getString(R.string.pextra_session_started)
+        if (SessionState.running || SessionState.stopping) return context.getString(R.string.pextra_session_started)
         val installing = context.getString(R.string.pextra_installing, tool.name)
         onProgress(installing, -1)
         return try {

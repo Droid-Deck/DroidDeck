@@ -206,6 +206,7 @@ class SessionService : Service() {
                 return START_NOT_STICKY
             }
         }
+        startForeground(NOTIFICATION_ID, buildNotification())
         if (SessionState.stopping) {
             Log.i(TAG, "start ignored while the previous session is stopping")
             return START_NOT_STICKY
@@ -214,7 +215,6 @@ class SessionService : Service() {
             stopSelf(startId)
             return START_NOT_STICKY
         }
-        startForeground(NOTIFICATION_ID, buildNotification())
         if (!SessionState.tryStart()) return START_NOT_STICKY
         if (SessionState.stopRequested) {
             stopSession(0)
