@@ -1390,6 +1390,14 @@
     <string name="theme_icon_blue_detail">Latar hitam, teks putih, biru untuk semua yang dipilih, difokus atau ditekan.</string>
     <string name="theme_electric">Navy elektrik</string>
     <string name="theme_electric_detail">Biru lebih cerah, pada permukaan yang lebih cenderung navy daripada kelabu.</string>
+    <string name="theme_gradient">Kecerunan</string>
+    <string name="theme_gradient_detail">Warna utama dan sekunder pilihan anda, diadun pada butang dan sorotan.</string>
+    <string name="theme_gradient_primary">Utama</string>
+    <string name="theme_gradient_secondary">Sekunder</string>
+    <string name="theme_color_hue">Rona</string>
+    <string name="theme_color_saturation">Ketepuan</string>
+    <string name="theme_color_brightness">Kecerahan</string>
+    <string name="theme_color_hex">Warna hex</string>
     <string name="pckb_key_esc">Esc</string>
     <string name="pckb_key_ins">Ins</string>
     <string name="pckb_key_del">Del</string>
@@ -2474,6 +2482,7 @@
     <string name="glasses_xreal_network_missing">Menunggu sambungan USB Ethernet cermin mata. Telefon ini mungkin tidak mendedahkannya kepada apl.</string>
     <string name="glasses_xreal_connection_failed">Sambungan XREAL terganggu atau memberikan respons yang tidak disokong. Mencuba semula…</string>
     <string name="glasses_xreal_experimental">Sokongan eksperimen untuk 1S. Gunakan mod Follow dan matikan penstabilan dalam menu cermin mata. Arah penjejakan dan mod paparan masih perlu diuji pada peranti.</string>
+    <string name="glasses_pro2_experimental">Penjejakan kepala Pro 2 secara eksperimen. Pelarasan kecerahan, kelantangan dan pertukaran mod paparan belum disokong.</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Mod Cardboard</string>
     <string name="cardboard_mode_hint">Paparan mata kiri dan kanan untuk kaca mata VR telefon.</string>

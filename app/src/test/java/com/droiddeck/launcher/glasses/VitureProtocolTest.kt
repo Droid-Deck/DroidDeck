@@ -130,6 +130,31 @@ class VitureProtocolTest {
         assertArrayEquals(floatArrayOf(0f, 0f, sin(half).toFloat(), cos(half).toFloat()), q, 1e-5f)
     }
 
+    @Test fun directPro2KeepsSdkOnlyFamiliesAndUnknownProductsIsolated() {
+        val direct = VitureProtocol.model(0x1301, "VITURE Luma Ultra")!!
+        assertEquals("VITURE Pro 2", direct.name)
+        assertEquals(VitureProtocol.Family.PRO2, direct.family)
+        assertFalse(direct.needsSdk)
+        assertFalse(direct.hardwareControls)
+        assertFalse(direct.supportsDisplayModeControl)
+        assertFalse(direct.hasSunblock)
+        assertEquals(0, direct.brightnessMax)
+        assertEquals(0, direct.volumeMax)
+
+        for (pid in listOf(0x1101, 0x1104, 0x1201, 0x1211)) {
+            val model = VitureProtocol.model(pid, null)!!
+            assertTrue(model.needsSdk)
+            assertTrue(model.hardwareControls)
+            assertTrue(model.supportsDisplayModeControl)
+        }
+        assertNull(VitureProtocol.model(0x1102, "VITURE Pro 2"))
+        assertNull(VitureProtocol.model(0x1302, "VITURE Pro 2"))
+        val sdk = VitureProtocol.sdkModel("Pro 2")!!
+        assertTrue(sdk.needsSdk)
+        assertTrue(sdk.hardwareControls)
+        assertTrue(sdk.supportsDisplayModeControl)
+    }
+
     @Test fun imuFallsBackToEuler() {
         val payload = ByteBuffer.allocate(12).putFloat(0f).putFloat(0f).putFloat(30f).array()
         val q = VitureProtocol.imuQuaternion(payload)!!
