@@ -52,7 +52,7 @@ object SessionDisplay {
     fun unfoldedGameHeight(width: Int, height: Int, foldTop: Int? = null): Int {
         val flat = minOf(width * 9 / 16, (height * UNFOLDED_MAX_GAME_SHARE).toInt())
         val fold = foldTop?.takeIf { it in 1 until height }
-        return (if (fold != null) minOf(width * 9 / 16, fold) else flat) and 1.inv()
+        return (if (fold != null) minOf(flat, fold) else flat) and 1.inv()
     }
 
     fun unfoldedControlsWanted(

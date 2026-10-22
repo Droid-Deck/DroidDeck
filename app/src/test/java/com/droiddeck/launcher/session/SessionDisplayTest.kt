@@ -75,6 +75,8 @@ class SessionDisplayTest {
         // a narrow window: 16:9 of the width is already above the fold
         assertEquals(1038, SessionDisplay.unfoldedGameHeight(1848, 2448, foldTop = 1224))
         assertEquals(1038, SessionDisplay.unfoldedGameHeight(1848, 2448, foldTop = 1300))
+        // a fold below the 80% cap keeps the flat height, so the controls never get thinner
+        assertEquals(864, SessionDisplay.unfoldedGameHeight(1920, 1080, foldTop = 1000))
         // the result is always even
         assertEquals(0, SessionDisplay.unfoldedGameHeight(2448, 1848, foldTop = 925) % 2)
     }
