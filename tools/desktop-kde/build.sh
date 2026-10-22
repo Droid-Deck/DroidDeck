@@ -3,6 +3,7 @@ set -euo pipefail
 out=${1:?out dir}
 here=$(cd "$(dirname "$0")" && pwd)
 source "$here/kwin.env"
+source "$here/mesa.env"
 mirror=${ALARM_MIRROR:-https://fl.us.mirror.archlinuxarm.org/aarch64}
 case $mirror in https://*) ;; *) echo "ALARM_MIRROR must be https" >&2; exit 1 ;; esac
 builder=68B3537F39A313B3E574D06777193F152BDBE6A6
@@ -21,8 +22,10 @@ echo "kde: $(wc -l < "$work/pkglist.txt") packages beyond the runtime's own"
 
 while read -r entry sum; do
   file=${entry#*/}
-  [ -s "$pkgs/$file" ] || fetch "$pkgs/$file" "$mirror/$entry"
-  fetch "$work/pkg.sig" "$mirror/$entry.sig"
+  url=$mirror/$entry
+  [ "$file" != "$DESKTOP_MESA_PACKAGE" ] || url=$DESKTOP_MESA_URL
+  [ -s "$pkgs/$file" ] || fetch "$pkgs/$file" "$url"
+  fetch "$work/pkg.sig" "$url.sig"
   if ! gpgv --status-fd 1 --keyring "$here/archlinuxarm-builder.gpg" "$work/pkg.sig" "$pkgs/$file" 2>/dev/null \
       | grep -Eq "^\[GNUPG:\] VALIDSIG .* $builder\$"; then
     echo "$file: no valid Arch Linux ARM Build System signature" >&2; rm -f "$pkgs/$file"; exit 1
