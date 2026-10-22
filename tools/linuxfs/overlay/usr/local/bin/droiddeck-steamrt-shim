@@ -15,6 +15,7 @@ if [ -z "$srt_real" ] || [ ! -d "$srt_real" ]; then
   exit 1
 fi
 rm -rf "$shim"
+trap 'rm -rf "$shim"' ERR
 mkdir -p "$shim/bin"
 for e in "$srt_real"/* "$srt_real"/.[!.]*; do
   [ -e "$e" ] || continue
@@ -40,6 +41,14 @@ while [ $# -gt 0 ]; do
     --directory=*) cd "${1#--directory=}" || exit 127 ;;
     --env=*) export "${1#--env=}" ;;
     --unset-env=*) unset "${1#--unset-env=}" ;;
+    --directory|--env|--unset-env)
+      [ $# -ge 2 ] || exit 127
+      case $1 in
+        --directory) cd "$2" || exit 127 ;;
+        --env) export "$2" ;;
+        --unset-env) unset "$2" ;;
+      esac
+      shift ;;
   esac
   shift
 done

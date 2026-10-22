@@ -46,6 +46,12 @@ class SteamrtShimTest(unittest.TestCase):
         launched = self.sh(self.shim / 'bin/steam-runtime-launch-client', '--env=BL_SHIM_TEST=yes',
                            f'--directory={self.root}', '--', 'sh', '-c', 'echo "$BL_SHIM_TEST $(basename "$PWD")"')
         self.assertEqual(f'yes {self.root.name}\n', launched.stdout)
+        launched = self.sh(self.shim / 'bin/steam-runtime-launch-client', '--env', 'BL_SHIM_TEST=split',
+                           '--directory', self.root, '--', 'sh', '-c', 'echo "$BL_SHIM_TEST $(basename "$PWD")"')
+        self.assertEqual(f'split {self.root.name}\n', launched.stdout)
+        missing = self.sh(self.shim / 'bin/steam-runtime-launch-client', '--directory', self.root / 'missing',
+                          '--', 'true')
+        self.assertEqual(127, missing.returncode)
 
     def test_a_client_without_a_container_gets_no_shim(self):
         self.shim.mkdir()
@@ -82,7 +88,7 @@ class SteamrtShimTest(unittest.TestCase):
         self.assertLess(guard, SESSION.index('"${steam_client[@]}" "${_bl_ui[@]}"'))
         self.assertIn('-u STEAM_STEAMRT_RECURSION_GUARD', SESSION[:guard])
         self.assertIn('export STEAM_STEAMRT_RECURSION_GUARD=1', X64)
-        self.assertIn('droiddeck-steamrt-shim "$STEAM_X64/steamrt64" "$X64_HOME/steamrt-shim"', X64)
+        self.assertIn('droiddeck-steamrt-shim "$STEAM_X64/steamrt64" "$X64_HOME/steamrt-shim" || rm -rf "$X64_HOME/steamrt-shim"', X64)
 
 
 class SessionChannelTest(unittest.TestCase):

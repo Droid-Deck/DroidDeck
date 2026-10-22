@@ -521,7 +521,7 @@ ln -sfn "$STEAM_X64/ubuntu12_64" "$X64_HOME/.steam/bin64"
 ln -sfn "$STEAM_X64/linux32" "$X64_HOME/.steam/sdk32"
 ln -sfn "$STEAM_X64/linux64" "$X64_HOME/.steam/sdk64"
 # Valve's Steam Runtime container needs user namespaces and a session-bus launcher; steamrt-shim stands in for both.
-droiddeck-steamrt-shim "$STEAM_X64/steamrt64" "$X64_HOME/steamrt-shim" || true
+droiddeck-steamrt-shim "$STEAM_X64/steamrt64" "$X64_HOME/steamrt-shim" || rm -rf "$X64_HOME/steamrt-shim"
 # Valve's platform libraries ship without soname links (pressure-vessel makes them); ldconfig adds them here.
 srt_libs=$X64_HOME/steamrt-libs
 rm -rf "$srt_libs"
