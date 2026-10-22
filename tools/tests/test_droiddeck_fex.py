@@ -6,6 +6,7 @@ import os
 import runpy
 import shutil
 import struct
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -865,6 +866,22 @@ class AppInfoTest(unittest.TestCase):
             vdf = (tool / "compatibilitytool.vdf").read_text()
             self.assertIn('"from_oslist" "linux"', vdf)
             self.assertIn('"to_oslist" "linux"', vdf)
+
+    def test_the_tool_runs_games_on_the_chosen_cores(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tool, bin_dir = Path(tmp) / "droiddeck-fex", Path(tmp) / "bin"
+            self.COMPAT["build_fex_tool"](str(tool))
+            bin_dir.mkdir()
+            (bin_dir / "taskset").write_text('#!/bin/sh\necho "taskset $*"\n')
+            (bin_dir / "taskset").chmod(0o755)
+            env = dict(os.environ, PATH="%s:%s" % (bin_dir, os.environ.get("PATH", "")), BL_GAME_CPUS="2-7")
+            run = subprocess.run([str(tool / "droiddeck-fex-tool"), "waitforexitandrun", "/games/a/game"],
+                                 env=env, capture_output=True, text=True, timeout=10)
+            self.assertEqual(run.stdout,
+                             "taskset -c 2-7 /usr/local/bin/droiddeck-fex steam waitforexitandrun /games/a/game\n")
+            self.assertIn("game cores 2-7", run.stderr)
+            self.assertIn('exec /usr/local/bin/droiddeck-steamvr-game ${BL_TASKSET:-} '
+                          '/usr/local/bin/droiddeck-fex steam "$verb" "$@"', self.COMPAT["FEX_LAUNCHER_SH"])
 
 
 if __name__ == "__main__":
