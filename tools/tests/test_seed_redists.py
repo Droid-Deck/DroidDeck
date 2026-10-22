@@ -142,6 +142,7 @@ class SeedRedistsTest(unittest.TestCase):
         self.assertNotIn("UserRedist", (self.reg.parent / ".droiddeck-redists").read_text())
         self.assertEqual(system, self.reg.read_bytes())
 
+    @unittest.skipIf(os.name == "posix" and os.geteuid() == 0, "root can write through read-only mode bits")
     def test_an_unwritable_user_registry_does_not_claim_a_missing_marker(self):
         self.game(script=GAME_SCRIPT + GAME_SCRIPT.replace("HKEY_LOCAL_MACHINE", "HKEY_CURRENT_USER").replace("VCRedist2022", "UserRedist"))
         ledger = self.reg.parent / ".droiddeck-redists"
