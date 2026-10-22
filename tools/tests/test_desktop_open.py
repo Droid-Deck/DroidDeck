@@ -566,6 +566,38 @@ class ProtonRunTest(Temp):
         self.assertEqual(env["STEAM_COMPAT_DATA_PATH"], str(signed))
         self.assertFalse((self.root / "steamapps/compatdata/2733369024").exists())
 
+    def test_prefix_folder_prefers_initialized_unsigned_over_empty_signed(self):
+        signed = self.root / "steamapps/compatdata/-1561598272"
+        signed.mkdir(parents=True)
+        initialized = self.root / "steamapps/compatdata/2733369024/pfx"
+        initialized.mkdir(parents=True)
+
+        self.assertEqual(RUN["prefix_folder"](str(self.root), 2733369024), str(initialized.parent))
+
+    def test_prefix_folder_prefers_initialized_signed_over_empty_unsigned(self):
+        unsigned = self.root / "steamapps/compatdata/2733369024"
+        unsigned.mkdir(parents=True)
+        initialized = self.root / "steamapps/compatdata/-1561598272/pfx"
+        initialized.mkdir(parents=True)
+
+        self.assertEqual(RUN["prefix_folder"](str(self.root), 2733369024), str(initialized.parent))
+
+    def test_prefix_folder_prefers_unsigned_when_initialization_ties(self):
+        unsigned = self.root / "steamapps/compatdata/2733369024/pfx"
+        unsigned.mkdir(parents=True)
+        signed = self.root / "steamapps/compatdata/-1561598272/pfx"
+        signed.mkdir(parents=True)
+
+        self.assertEqual(RUN["prefix_folder"](str(self.root), 2733369024), str(unsigned.parent))
+
+    def test_prefix_folder_skips_numeric_names_too_long_to_convert(self):
+        from unittest.mock import patch
+        folder = self.root / "steamapps/compatdata"
+        folder.mkdir(parents=True)
+        with patch.object(RUN["os"], "listdir", return_value=["9" * 5000]):
+            self.assertEqual(RUN["prefix_folder"](str(self.root), 2733369024),
+                             str(folder / "2733369024"))
+
     def test_without_steam_a_shortcut_keeps_its_prefix_folder_and_launch_options(self):
         bat = self.write("Games/Epic/Game/.droiddeck-launch.bat", b"@echo off")
         start = self.tmp / "Games/Epic/Game/Binaries"

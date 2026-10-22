@@ -237,12 +237,21 @@ def prefix_folder(root, appid):
         names = sorted(os.listdir(folder))
     except OSError:
         names = []
+    candidates = []
     for name in names:
-        if re.fullmatch(r"-?[0-9]+", name) and int(name) % 2 ** 32 == appid % 2 ** 32:
-            match = os.path.join(folder, name)
-            if os.path.isdir(match):
-                return match
-    return os.path.join(folder, str(appid))
+        if not re.fullmatch(r"-?[0-9]+", name):
+            continue
+        try:
+            matches = int(name) % 2 ** 32 == appid % 2 ** 32
+        except ValueError:
+            continue
+        match = os.path.join(folder, name)
+        if matches and os.path.isdir(match):
+            candidates.append((os.path.isdir(os.path.join(match, "pfx")),
+                               name == str(appid % 2 ** 32), name, match))
+    if candidates:
+        return min(candidates, key=lambda item: (not item[0], not item[1], item[2]))[3]
+    return os.path.join(folder, str(appid % 2 ** 32))
 
 
 def shortcut(program, root):
