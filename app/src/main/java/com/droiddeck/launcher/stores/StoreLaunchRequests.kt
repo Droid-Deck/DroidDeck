@@ -37,6 +37,7 @@ object StoreLaunchRequests {
     }
 
     fun stop() {
+        com.droiddeck.launcher.stores.xbox.XboxRuntime.stop()
         synchronized(lock) {
             observer?.stopWatching()
             observer = null
@@ -50,6 +51,13 @@ object StoreLaunchRequests {
             return
         }
         val reply = when (request.optString("op")) {
+            "xbox-released" -> {
+                com.droiddeck.launcher.stores.xbox.XboxRuntime.released(request.optString("lease"))
+                JSONObject().put("ok", true)
+            }
+            "xbox-renew" -> JSONObject().put("ok", com.droiddeck.launcher.stores.xbox.XboxRuntime.renew(app, request.optString("id"), request.optString("lease")))
+            "xbox-prepare" -> runCatching { com.droiddeck.launcher.stores.xbox.XboxRuntime.prepare(app, request.getString("id")) }
+                .getOrElse { JSONObject().put("ok", false).put("reason", "Xbox account service is unavailable. Sign in again and retry.") }
             "gog-achievements" -> runCatching { com.droiddeck.launcher.stores.gog.GogComet.prepare(app, request.optString("id")) }
                 .getOrElse { JSONObject().put("ok", false).put("ready", false).put("reason", "service-unavailable") }
             "epic-code" -> {

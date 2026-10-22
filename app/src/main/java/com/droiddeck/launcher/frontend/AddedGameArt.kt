@@ -323,8 +323,8 @@ object AddedGameArt {
             if (dst.isFile) continue
             val bytes = get("$CDN$id/$remote") ?: steamAssetUrl(id, remote)?.let { get(it) } ?: continue
             val tmp = File(cache, "$localName.tmp")
-            tmp.writeBytes(bytes)
-            if (tmp.renameTo(dst)) { got = true; File(cache, "$localName.src").writeText(STEAM) }
+            if (runCatching { tmp.writeBytes(bytes) }.isFailure) { tmp.delete(); continue }
+            if (tmp.renameTo(dst)) { got = true; runCatching { File(cache, "$localName.src").writeText(STEAM) } }
         }
         return got
     }

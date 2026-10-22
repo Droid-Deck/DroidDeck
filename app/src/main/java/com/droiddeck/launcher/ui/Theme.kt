@@ -56,7 +56,7 @@ object Themes {
             ELECTRIC, R.string.theme_electric, R.string.theme_electric_detail,
             background = Color(0xFF070A10), surface = Color(0xFF0F1522), surfaceVariant = Color(0xFF16203A), line = Color(0xFF1E2A47), line2 = Color(0xFF2A3A5E),
             onBackground = Color(0xFFEEF3FF), onSurfaceVariant = Color(0xFF8B9AB8),
-            primary = Color(0xFF2E86FF), primary2 = Color(0xFF136CE0), onPrimary = Color(0xFFFFFFFF), signal = Color(0xFF2E86FF),
+            primary = Color(0xFF2E86FF), primary2 = Color(0xFF2684FF), onPrimary = Color(0xFF03111F), signal = Color(0xFF2E86FF),
             good = Color(0xFF4CD37F),
         ),
     )

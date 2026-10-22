@@ -155,6 +155,26 @@ class SeedRedistsTest(unittest.TestCase):
         subprocess.run(["bash", str(SCRIPT), str(self.steam)], env=env, capture_output=True, text=True, check=True)
         self.assertIn('"x64 14.99.1.0"=dword:00000001', self.reg.read_text())
 
+    def test_an_unchanged_registry_is_not_read_again(self):
+        self.game()
+        self.run_seed()
+        self.run_seed()
+        shim = self.tmp / "bin"
+        shim.mkdir()
+        log = self.tmp / "awk.log"
+        (shim / "awk").write_text('#!/bin/sh\nprintf "%%s\\n" "$*" >> "%s"\nexec %s "$@"\n' % (log, shutil.which("awk")))
+        (shim / "awk").chmod(0o755)
+        env = dict(os.environ, DROIDDECK_LIBRARIES="", PATH="%s:%s" % (shim, os.environ["PATH"]))
+        once = self.reg.read_text()
+        subprocess.run(["bash", str(SCRIPT), str(self.steam)], env=env, capture_output=True, text=True, check=True)
+        self.assertEqual(once, self.reg.read_text())
+        self.assertNotIn(str(self.reg), log.read_text() if log.exists() else "")
+        replaced = self.reg.with_name("system.reg.new")
+        replaced.write_text("WINE REGISTRY Version 2\n")
+        os.replace(replaced, self.reg)
+        subprocess.run(["bash", str(SCRIPT), str(self.steam)], env=env, capture_output=True, text=True, check=True)
+        self.assertEqual(self.reg.read_text().count('"VCRedist2022"=dword:00000001'), 2)
+
     def test_the_prefix_date_is_kept(self):
         os.utime(self.reg, (1_000_000_000, 1_000_000_000))
         self.run_seed()

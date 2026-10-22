@@ -358,6 +358,58 @@ stay as they were (`afa479ee`).
 - **Open:** newer-runtime Linux games (sniper) untested; the arm64 client untested on this build; the
   Steam import watcher untested; an SD-card library for the x86 client deferred.
 
+## 2026-10-14 - `gog-library-listing`: the GOG library is drawn from the account listing, details follow
+
+- **The listing** (`GogLibrary`): the library came from `embed.gog.com/user/data/games`, which is the owned
+  ids and nothing else - no title, no art - so the tab stayed empty until every product had been asked about
+  one by one. It now comes from `account/getFilteredProducts` (`mediaType=1`, `hiddenFlag=0`, `sortBy=title`),
+  a hundred to a page, which carries the title, the category and the release date. Its `image` is a bare
+  hash the CDN serves only through Galaxy's own formatters, so a listing entry's card art is
+  `<hash>_glx_vertical_cover.webp` until the per-product fetch brings the wide background.
+- **The listing can fail** (`GogLibrary`): when it cannot be read the sync falls back to the older
+  owned-ids endpoint and keeps the old behaviour - there are no titles to draw, so nothing is painted
+  until the products come back.
+- **The tab paints first** (`GogLibrary.sync`): the whole library goes to `GogBackend` the moment the listing
+  is in, so the grid is on screen in seconds instead of after the last product.
+- **Each card fills itself in** (`GogLibrary.sync`, `GogBackend`): every product that comes back is handed
+  over on its own and only that entry is replaced, so a card swaps to its own art and title as soon as its
+  product has been asked about while the cards around it keep their objects - no list-wide repaint, no reset
+  of the scroll or the focus. A product this round finds uninstallable is dropped when the round ends, not in
+  the middle of it. The progress bar is gone once the grid has games, so a sync in progress no longer reads
+  as a list still loading.
+- **The art swap has no gap** (`GogLibrary.sync`, `StoresPage`): a card that swaps from the listing's cover to
+  the wide background keeps the cover while the new one decodes - the fetched record carries the cover the
+  card already shows, and the card's request names it as the memory-cache placeholder - so no card goes dark
+  in the middle of a sync.
+- **The per-product fetch stays** (`fetchGame`): `api.gog.com` is what has the description, the developer,
+  the publisher, the Galaxy portrait and the build generation, and the detail page reads all of those from
+  the library entry, so the listing alone cannot replace it.
+- **The cache keeps only what was fetched**: a listing entry that never got its details is asked about again
+  next sync rather than kept as a bare title, and a product the last sync found uninstallable stays out of
+  the list while it is re-checked. The cache's own entry stays on screen even while it is re-fetched, so a
+  forced refresh does not drop back to box art.
+- **A card patch adds what it brought** (`patchItems`, `GogBackend`): a product that comes back is patched into the
+grid where its title belongs, whether or not the grid already had that card. Replacing only the entries already
+there left a sync with nothing painted - the owned-ids fallback - showing an empty grid for the whole round. An
+empty listing is no longer posted either: that dropped the cards already on screen.
+- **A bar needs an empty tab** (`StoresPage`): the bar is drawn only for a sync line that carries a count ("25/55")
+  and only where the tab has nothing else on it - the storefront's shelves and the Installed tab's own cards are
+  content - so a library sync no longer creeps along above cards that are already there, and a line that only says
+  what it is doing leaves the empty state to say it.
+- **A page that fails keeps the pages that came** (`GogLibrary`): a listing page that cannot be read ends the
+listing instead of discarding it, so a page lost to a flaky request no longer costs the whole early paint. The
+cache is saved as the round goes, so a sync the user closes the app on still leaves a library to paint next launch.
+- **The hero waits under the card's art** (`StoresDetail`): the library's hero asked for the wide art with no
+  placeholder of its own, so a card that opened showed its own bitmap only for the length of the opening
+  animation and then fell back to the title's colour until 300-540KB had been decoded. It now builds the same
+  request a card does, naming the card's art as the memory-cache placeholder, so the cover stays under the hero
+  until the wide one lands.
+- **The listing says what it gave** (`GogLibrary`, `StoreNet`): one line per sync in the stores' log - how many
+  games the listing carried, or the page that could not be read - and every failed store GET, which used to
+  reach logcat only. A shared log can now show whether the account listing came back at all.
+- **Tests** (`GogListingTest`, `StoreCatalogPatchTest`): the filters - movies, other platforms, Galaxy's own entry, empty titles - the
+  fields a card needs, and a response that is not a listing.
+
 ## 2026-10-10 - `feat/wincomp-auto-sources`: Windows components picked by the game's source
 
 - **Per source** (`WinCompSources`): Steam - Steamworks Shared depots from the appmanifest or the

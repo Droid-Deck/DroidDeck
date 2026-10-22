@@ -20,7 +20,7 @@ class OrientationTest {
     }
 
     @Test fun landscapeChoicesPersistGloballyAndCanRestoreAutomaticRotation() {
-        assertEquals(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE, SessionPrefs.orientation(context))
+        assertEquals(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE, SessionPrefs.orientation(context))
         for (value in listOf(
             ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE,
             ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE,
@@ -34,7 +34,7 @@ class OrientationTest {
     @Test fun invalidStoredOrientationFallsBackAndInvalidChoicePreservesTheSavedValue() {
         val prefs = context.getSharedPreferences("session", Context.MODE_PRIVATE)
         prefs.edit().putInt("orientation", ActivityInfo.SCREEN_ORIENTATION_PORTRAIT).commit()
-        assertEquals(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE, SessionPrefs.orientation(context))
+        assertEquals(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE, SessionPrefs.orientation(context))
         SessionPrefs.setOrientation(context, ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE)
         assertThrows(IllegalArgumentException::class.java) {
             SessionPrefs.setOrientation(context, ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)

@@ -210,6 +210,44 @@ class SteamVrHelperTest(unittest.TestCase):
     def test_flat_presenter_does_not_enable_the_producer_lease(self):
         self.assertIn('present=unset lease=unset', self.lease_log())
 
+    def registration(self):
+        return (self.home / '.config/openvr/openvrpaths.vrpath',
+                self.home / '.config/openxr/1/active_runtime.json')
+
+    def helper_action(self, action):
+        subprocess.run(['sh', str(self.helper), action], env=self.environment, check=True,
+                       capture_output=True, timeout=5)
+
+    def test_runtime_is_registered_only_while_a_session_is_active(self):
+        vrpath, xr = self.registration()
+        self.start()
+        self.assertTrue(vrpath.is_file())
+        self.assertTrue(xr.is_symlink())
+        self.helper_action('status')
+        self.assertTrue(vrpath.is_file())
+        self.helper_action('stop')
+        self.assertFalse(vrpath.exists())
+        self.assertFalse(xr.is_symlink())
+
+    def test_idle_status_and_session_start_clear_a_leftover_registration(self):
+        vrpath, xr = self.registration()
+        for action in ('status', 'unregister'):
+            self.start()
+            (self.runtime / 'droiddeck-steamvr/active').unlink()
+            self.helper_action(action)
+            self.assertFalse(vrpath.exists(), action)
+            self.assertFalse(xr.is_symlink(), action)
+
+    def test_unregister_leaves_another_runtime_alone(self):
+        vrpath, xr = self.registration()
+        vrpath.parent.mkdir(parents=True)
+        xr.parent.mkdir(parents=True)
+        vrpath.write_text('{"runtime": ["/opt/other-runtime"]}')
+        xr.symlink_to('/opt/monado/openxr_monado.json')
+        self.helper_action('unregister')
+        self.assertTrue(vrpath.is_file())
+        self.assertTrue(xr.is_symlink())
+
 
 if __name__ == '__main__':
     unittest.main()

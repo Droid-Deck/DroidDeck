@@ -7,7 +7,21 @@ import socket
 import struct
 import sys
 
-SOCKET = "\0" + os.environ.get("DROIDDECK_BWRAP_SOCKET", "com.droiddeck.launcher.bwrap")
+SOCKET_FILE = "/etc/droiddeck/bwrap-socket"
+
+
+def socket_name():
+    name = os.environ.get("DROIDDECK_BWRAP_SOCKET", "")
+    if not name:
+        try:
+            with open(SOCKET_FILE, encoding="utf-8") as f:
+                name = f.read().strip()
+        except OSError:
+            pass
+    return "\0" + (name or "com.droiddeck.launcher.bwrap")
+
+
+SOCKET = socket_name()
 VERSION = "bubblewrap 0.11.0 (droiddeck)"
 
 NO_ARG = {

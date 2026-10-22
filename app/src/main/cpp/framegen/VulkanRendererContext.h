@@ -131,7 +131,7 @@ struct VkTable {
 #include <string>
 
 namespace lsfg { class Engine; }
-namespace winfg { class Engine; }
+namespace ddfg { class Engine; }
 
 static constexpr uint32_t MAX_FRAMES_IN_FLIGHT = 2;
 
@@ -280,7 +280,7 @@ public:
     static constexpr int32_t kFgCaptureGame = -1;
     void setFrameGenTuning(float flowScale, float refreshHz, int32_t captureHeight = 0);
     void setFrameGenEngine(int kind);
-    void setWinFgTuning(int model, int perfPreset);
+    void setDdFgTuning(int model, int perfPreset);
 
 private:
     struct WinTex {
@@ -468,12 +468,12 @@ private:
     uint64_t    fgSourceFrames_ = 0;
     std::string lsfgCachePath_;
     bool        lsfgEngineTried_ = false;
-    std::unique_ptr<winfg::Engine> winfgEngine_;
-    bool        winfgEngineTried_ = false;
+    std::unique_ptr<ddfg::Engine> ddfgEngine_;
+    bool        ddfgEngineTried_ = false;
     std::atomic<int> fgEngineKind_{0};
     std::atomic<int> fgModel_{4};
     std::atomic<int> fgPerfPreset_{1};
-    bool ensureWinFgEngine();
+    bool ensureDdFgEngine();
     bool fgCapsOk() const;
 
     uint32_t syncSlot(uint32_t k) const { return currentFrame * kMaxPresentsPerFrame + k; }
