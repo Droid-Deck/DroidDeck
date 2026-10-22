@@ -1909,6 +1909,7 @@
     <string name="gpu_auto_system_hint">Uses the built-in drivers for this GPU</string>
     <string name="drivers_powervr_builtin">The system PowerVR driver is selected for the runtime and display.</string>
     <string name="drivers_mali_bridge_auto">No open driver covers this Mali yet: the Mali bridge is on.</string>
+    <string name="drivers_mali_venus_auto">The Mali bridge showed no picture on this phone: Mali (Venus) is on instead.</string>
     <string name="upd_block_non_adreno_test">This is the non-Snapdragon test build: the official builds here only run on Adreno, so they are not installed over it. New test builds are on github.com/The412Banner/droiddeck-nonadreno-drivers.</string>
     <string name="session_killed_for_memory">The last session ended because Android closed DroidDeck to free memory, not a crash. Close other apps or lower the game\'s texture settings, then try again.</string>
     <string name="drivers_route_venus">Mali (Venus)</string>

@@ -551,6 +551,8 @@ def main():
     except OSError:
         digest = None
     app_id = game_id(env)
+    if app_id and env.get("BL_MALI_COMPAT_GAMES_ONLY") == "1":
+        env["DROIDDECK_MALI_COMPAT_DISABLE"] = "0"
     if app_id:
         waiting = len(command) > 1 and command[1] == "waitforexitandrun"
         fixes = {}

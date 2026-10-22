@@ -929,7 +929,12 @@ class MainActivity : ComponentActivity() {
                         onInstallPackage = { id -> installPackage(id) },
                         onRemovePackage = { id -> removePackage(id) },
                         onRuntime = { onRuntimeButton() },
-                        onVkBridge = { on -> SessionPrefs.setVkBridge(this, on); SessionPrefs.setMaliFallbackByAuto(this, ""); vkBridge = on },
+                        onVkBridge = { on ->
+                            SessionPrefs.setVkBridge(this, on)
+                            SessionPrefs.setMaliFallbackByAuto(this, "")
+                            if (on) SessionPrefs.setBridgeNoFrame(this, false)
+                            vkBridge = on
+                        },
                         onVenus = { on ->
                             SessionPrefs.setVenus(this, on)
                             SessionPrefs.setMaliFallbackByAuto(this, "")

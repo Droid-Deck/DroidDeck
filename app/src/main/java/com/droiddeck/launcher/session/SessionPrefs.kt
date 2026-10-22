@@ -524,6 +524,13 @@ object SessionPrefs {
         if (api != hostVulkanApi(context)) prefs(context).edit().putString("hostVulkanApi", api).apply()
     }
 
+    /** A Mali bridge session ran a minute without its first frame; Auto then draws through Venus. */
+    fun bridgeNoFrame(context: Context): Boolean = prefs(context).getBoolean("bridgeNoFrame", false)
+
+    fun setBridgeNoFrame(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("bridgeNoFrame", on).apply()
+    }
+
     /** The last session's Mali bridge self-test failed and it ran on the pair instead (Setup says so). */
     fun bridgeFellBack(context: Context): Boolean = prefs(context).getBoolean("bridgeFellBack", false)
 
@@ -539,18 +546,23 @@ object SessionPrefs {
      */
     fun steamGpuCompositing(context: Context): Boolean {
         if (!steamGpuCompositingAllowed()) {
-            // Never on a Mali: with PanVK it rebooted an Edge 60 (G615) twice as steamwebhelper
-            // started. A value saved by the build that offered it is cleared.
+            // Not on a Mali outside MALI_GPU_COMPOSITING: with PanVK it rebooted an Edge 60 (G615)
+            // twice as steamwebhelper started. A value saved by the build that offered it is cleared.
             if (prefs(context).getBoolean("steamGpuCompositing", false))
                 prefs(context).edit().putBoolean("steamGpuCompositing", false).apply()
             return false
         }
-        return prefs(context).getBoolean("steamGpuCompositing", false)
+        // On by default on the Malis listed there: software compositing pins one core and lags.
+        return prefs(context).getBoolean("steamGpuCompositing", com.droiddeck.launcher.core.DeviceSupport.mali())
     }
 
-    /** Setup offers "Steam interface: GPU drawing" on Xclipse (RADV) and other non-Mali, non-Adreno GPUs. */
+    /** Setup offers "Steam interface: GPU drawing" on Xclipse (RADV), other non-Adreno GPUs and the listed Malis. */
     fun steamGpuCompositingAllowed(): Boolean =
-        !com.droiddeck.launcher.core.DeviceSupport.adreno() && !com.droiddeck.launcher.core.DeviceSupport.mali()
+        !com.droiddeck.launcher.core.DeviceSupport.adreno() && (!com.droiddeck.launcher.core.DeviceSupport.mali() ||
+            com.droiddeck.launcher.gpu.GpuInfo.maliNumber(com.droiddeck.launcher.gpu.GpuInfo.detect().name) in MALI_GPU_COMPOSITING)
+
+    /** Malis whose PanVK ran Steam's GPU web compositing without trouble: the G715 (Pixel 10a). Not the G615. */
+    private val MALI_GPU_COMPOSITING = setOf(715)
 
     fun setSteamGpuCompositing(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("steamGpuCompositing", on && steamGpuCompositingAllowed()).apply()

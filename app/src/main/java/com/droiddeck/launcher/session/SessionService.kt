@@ -794,8 +794,11 @@ class SessionService : Service() {
             .takeIf { it.isNotEmpty() }?.let { guest.add("BL_GAME_CPUS=$it") }
     }
 
+    private var bridgeStartedAt = 0L
+
     private fun startVkBridge(guest: MutableList<String>, sessionDir: File) {
         if (!com.droiddeck.launcher.core.DeviceSupport.vkBridge(this)) return
+        bridgeStartedAt = android.os.SystemClock.elapsedRealtime()
         val socket = File(filesDir, "vkbridge/server.sock")
         val bridge = com.droiddeck.launcher.gpu.VkBridgeComponent(socket, File(sessionDir, "vkbridge-server.log"))
         bridge.attach(this)
@@ -1719,6 +1722,13 @@ class SessionService : Service() {
         val launcherEnded = SessionState.mode == MODE_STEAM || SessionState.mode == MODE_DESKTOP || SessionState.program == NoSteamLaunch.EPIC
         SessionState.stopRequested = false
         SessionEvents.record("guest.exited", mapOf("status" to status))
+        if (bridgeStartedAt > 0) {
+            if (!SessionState.firstFrameSeen && android.os.SystemClock.elapsedRealtime() - bridgeStartedAt > BRIDGE_NO_FRAME_MS) {
+                Log.w(TAG, "Mali bridge: no first frame in ${BRIDGE_NO_FRAME_MS / 1000} s; Auto will use Venus")
+                SessionPrefs.setBridgeNoFrame(this, true)
+            }
+            bridgeStartedAt = 0L
+        }
         GpuClockPin.stop(this)
         GameThreadHints.stop()
         SessionEvents.transition(SessionPhase.STOPPING, "session.stopping", mapOf("status" to status))
@@ -2009,6 +2019,7 @@ class SessionService : Service() {
         private val STRAGGLERS = listOf("droiddeck-session", "gamescope", "Xwayland", "steamrtarm64",
             "steamwebhelper", "linuxfs/opt/android-host/proot", "/libproot.so", "pulseaudio/libpulseaudio.so")
         private const val GRACE_MS = 1200L
+        private const val BRIDGE_NO_FRAME_MS = 60_000L
         private const val STEAM_PICKUP_MS = 1500L
         private const val STEAM_EXIT_MS = 10_000L
         private const val GAME_LAUNCH_RETRY_MS = 250L
