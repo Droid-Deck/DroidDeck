@@ -4,11 +4,13 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import java.io.File
 
@@ -22,6 +24,16 @@ class PickListingTest {
         for (d in listOf("Download", "Android", "DCIM", "Games", "Documents", "Winlator", ".thumbnails", "alarms")) File(root, d).mkdirs()
         for (f in listOf("Setup.exe", "game.EXE", "cover.jpg", "notes.txt", "logo.PNG", "icon.ico", "hero.webp", ".hidden.exe")) File(root, f).writeText("x")
         return root
+    }
+
+    @Test fun pickVolumesAlwaysOffersInternalStorage() {
+        val volumes = pickVolumes(RuntimeEnvironment.getApplication())
+        val internal = volumes.firstOrNull { !it.removable }
+        assertNotNull(internal)
+        assertEquals(
+            android.os.Environment.getExternalStorageDirectory().absolutePath,
+            internal!!.root.absolutePath,
+        )
     }
 
     @Test fun everyFolderIsListedAToZAndDotFoldersAreNot() {
