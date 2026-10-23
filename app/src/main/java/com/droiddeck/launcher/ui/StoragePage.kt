@@ -771,6 +771,14 @@ private fun MoveGameDialog(
         val root = if (game.x64) File(card.path, GameStorage.X64_CARD_DIR) else File(card.path)
         if (root.isDirectory && !samePath(game.libraryRoot, root)) options.add(MoveOption(card.label, root))
     }
+    // Every attached removable volume, e.g. a freshly plugged USB SSD, is a valid
+    // target even when it is not the configured card and its steam folder is not there yet.
+    for (volume in GameStorage.options(ctx)) {
+        val root = if (game.x64) File(volume.path, GameStorage.X64_CARD_DIR) else File(volume.path)
+        if (!samePath(game.libraryRoot, root) && options.none { samePath(it.root, root) }) {
+            options.add(MoveOption(volume.name, root, root.path))
+        }
+    }
     if (arch == "arm64") {
         for (library in GameStorage.gamesFolderLibraries(ctx)) {
             if (!samePath(game.libraryRoot, library.host) && options.none { samePath(it.root, library.host) }) {
