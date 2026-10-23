@@ -14,7 +14,7 @@ object TpUbwcHint {
         private set
 
     // On Adreno 740, TPL1_DBG_ECO_CNTL1.TP_UBWC_FLAG_HINT is shared by every driver on the GPU and must
-    // match the system driver: blob v6xx leaves it off, newer blobs set it. A mismatch corrupts Android UI.
+    // match the system driver. A mismatch corrupts Android UI.
     // Samsung's One UI firmware sets it whatever blob version it reports.
     internal fun features(model: Int, systemDriverVersion: String?, samsung: Boolean = false,
                           mode: String = SessionPrefs.TP_UBWC_AUTO): String? {
@@ -22,8 +22,11 @@ object TpUbwcHint {
         if (mode == SessionPrefs.TP_UBWC_ON) return "enable_tp_ubwc_flag_hint=1"
         if (mode == SessionPrefs.TP_UBWC_OFF) return "enable_tp_ubwc_flag_hint=0"
         if (samsung) return "enable_tp_ubwc_flag_hint=1"
-        val blob = systemDriverVersion?.split('.')?.getOrNull(1)?.toIntOrNull() ?: return null
-        return "enable_tp_ubwc_flag_hint=" + if (blob >= 700) "1" else "0"
+        val parts = systemDriverVersion?.split('.') ?: return null
+        val blob = parts.getOrNull(1)?.toIntOrNull() ?: return null
+        val patch = parts.getOrNull(2)?.toIntOrNull() ?: 0
+        val on = blob >= 700 || (blob == 676 && patch >= 76)
+        return "enable_tp_ubwc_flag_hint=" + if (on) "1" else "0"
     }
 
     @Synchronized

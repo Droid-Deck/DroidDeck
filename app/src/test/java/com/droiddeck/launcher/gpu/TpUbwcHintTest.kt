@@ -8,6 +8,14 @@ import com.droiddeck.launcher.session.SessionPrefs
 class TpUbwcHintTest {
     @Test fun a740OnABlobV6xxTurnsTheHintOff() {
         assertEquals("enable_tp_ubwc_flag_hint=0", TpUbwcHint.features(740, "512.676.53"))
+        assertEquals("enable_tp_ubwc_flag_hint=0", TpUbwcHint.features(740, "512.676.75"))
+        assertEquals("enable_tp_ubwc_flag_hint=0", TpUbwcHint.features(740, "512.676"))
+        assertEquals("enable_tp_ubwc_flag_hint=0", TpUbwcHint.features(740, "512.699.10"))
+    }
+
+    @Test fun a740OnThePocoBlobTurnsTheHintOn() {
+        assertEquals("enable_tp_ubwc_flag_hint=1", TpUbwcHint.features(740, "512.676.76"))
+        assertEquals("enable_tp_ubwc_flag_hint=1", TpUbwcHint.features(740, "512.676.80"))
     }
 
     @Test fun a740OnANewerBlobTurnsTheHintOn() {
