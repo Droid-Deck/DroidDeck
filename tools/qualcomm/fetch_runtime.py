@@ -32,11 +32,48 @@ def stage(output, cache, lock, ndk=None):
     output.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(archive, output / 'runtime.tzst')
     gamescope = lock['gamescope']
-    with zipfile.ZipFile(fetch(cache, gamescope)) as package:
-        binary = package.read(gamescope['member'])
+    built = gamescope.get('build')
+    if built:
+        root = Path(__file__).resolve().parents[2]
+        def build_input(name):
+            target = (root / built[name]).resolve()
+            if not target.is_relative_to(root / 'build'):
+                raise ValueError('Invalid Qualcomm Gamescope build path')
+            if not target.is_file():
+                raise FileNotFoundError('Build private Gamescope first with tools/qualcomm/build_gamescope.py: ' + str(target))
+            return target.read_bytes()
+        binary = build_input('binary')
+        source = build_input('source')
+        if len(source) != built['source_size'] or hashlib.sha256(source).hexdigest() != built['source_sha256']:
+            raise ValueError('Qualcomm Gamescope source failed SHA-256 verification')
+        licenses = output / 'licenses'
+        licenses.mkdir(exist_ok=True)
+        (licenses / 'gamescope-patched-source.tar.gz').unlink(missing_ok=True)
+        (licenses / 'gamescope-patched-source.tar.gzip').write_bytes(source)
+    else:
+        with zipfile.ZipFile(fetch(cache, gamescope)) as package:
+            binary = package.read(gamescope['member'])
     if hashlib.sha256(binary).hexdigest() != gamescope['member_sha256']:
         raise ValueError('Qualcomm Gamescope binary failed SHA-256 verification')
     (output / 'gamescope').write_bytes(binary)
+    if 'mesa' in lock:
+        root = Path(__file__).resolve().parents[2]
+        directory = (root / lock['mesa']['directory']).resolve()
+        if not directory.is_relative_to(root / 'build'):
+            raise ValueError('Invalid Qualcomm Mesa build path')
+        for entry in lock['mesa']['files']:
+            relative = Path(entry['path'])
+            if relative.is_absolute() or '..' in relative.parts:
+                raise ValueError('Invalid Qualcomm Mesa destination')
+            origin = directory / relative
+            if not origin.is_file():
+                raise FileNotFoundError('Build private Zink first with tools/qualcomm/build_zink.py: ' + str(origin))
+            data = origin.read_bytes()
+            if len(data) != entry['size'] or hashlib.sha256(data).hexdigest() != entry['sha256']:
+                raise ValueError('Qualcomm Mesa member failed SHA-256 verification: ' + entry['path'])
+            target = output / 'mesa' / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(data)
     if 'wsi' in lock:
         with zipfile.ZipFile(fetch(cache, lock['wsi'])) as package:
             for entry in lock['wsi']['files']:

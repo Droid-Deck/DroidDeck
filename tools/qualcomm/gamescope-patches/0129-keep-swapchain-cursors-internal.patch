@@ -1,0 +1,14 @@
+diff --git a/src/steamcompmgr.cpp b/src/steamcompmgr.cpp
+--- a/src/steamcompmgr.cpp
++++ b/src/steamcompmgr.cpp
+@@ -2350,6 +2350,9 @@ bool MouseCursor::getTexture()
+ 
+ 	CVulkanTexture::createFlags texCreateFlags;
+-	texCreateFlags.bFlippable = true;
++	// The Vulkan swapchain backend samples cursor pixels locally. It does not
++	// scan out or forward a cursor DMA-BUF, so keep this allocation internal.
++	// Hardware and forwarding backends retain their exportable cursor texture.
++	texCreateFlags.bFlippable = !GetBackend()->UsesVulkanSwapchain();
+ 	if ( GetBackend()->SupportsPlaneHardwareCursor() )
+ 	{
+ 		texCreateFlags.bLinear = true; // cursor buffer needs to be linear

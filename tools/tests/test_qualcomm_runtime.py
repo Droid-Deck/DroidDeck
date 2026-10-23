@@ -86,6 +86,34 @@ class QualcommRuntimeTest(unittest.TestCase):
                 runtime.stage(root / 'bad-path', cache, lock)
             self.assertFalse((root / 'outside.so').exists())
 
+    def test_local_builds_are_pinned_and_never_fall_back_to_a_download(self):
+        bridge, binary, source, mesa = b'bridge', b'built gamescope', b'corresponding source', b'private mesa'
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            built, cache = root / 'build/private', root / 'cache'
+            built.mkdir(parents=True)
+            cache.mkdir()
+            lock = self.lock(bridge)
+            (cache / (lock['sha256'] + '.tzst')).write_bytes(bridge)
+            for name, data in [('gamescope', binary), ('source.tar.gz', source), ('mesa.so', mesa)]:
+                (built / name).write_bytes(data)
+            lock['gamescope'] = dict(member_sha256=hashlib.sha256(binary).hexdigest(), build=dict(
+                binary='build/private/gamescope', source='build/private/source.tar.gz',
+                source_sha256=hashlib.sha256(source).hexdigest(), source_size=len(source)))
+            lock['mesa'] = dict(directory='build/private', files=[dict(
+                path='mesa.so', sha256=hashlib.sha256(mesa).hexdigest(), size=len(mesa))])
+            with patch.object(runtime, '__file__', str(root / 'tools/qualcomm/fetch_runtime.py')):
+                output = root / 'output'
+                runtime.stage(output, cache, lock)
+                self.assertEqual((output / 'gamescope').read_bytes(), binary)
+                self.assertEqual((output / 'licenses/gamescope-patched-source.tar.gzip').read_bytes(), source)
+                self.assertEqual((output / 'mesa/mesa.so').read_bytes(), mesa)
+                (built / 'mesa.so').write_bytes(b'wrong mesa')
+                with self.assertRaisesRegex(ValueError, 'Mesa member'):
+                    runtime.stage(output, cache, lock)
+                (built / 'gamescope').unlink()
+                with self.assertRaisesRegex(FileNotFoundError, 'Build private Gamescope'):
+                    runtime.stage(output, cache, lock)
 
 
 if __name__ == '__main__':

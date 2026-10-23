@@ -13,7 +13,10 @@ object QualcommSystemDriver {
     const val ID = "system-qualcomm"
     const val HAL = "/vendor/lib64/hw/vulkan.adreno.so"
     private val required = listOf("lib/libhybris-vulkan-icd.so.0", "lib/libhybris-common.so.1", "lib/libhybris/linker/q.so",
-        "bin/gamescope", "shaders/qualcomm-shaders.so", "wsi/libVkLayer_window_system_integration.so")
+        "bin/gamescope", "shaders/qualcomm-shaders.so", "wsi/libVkLayer_window_system_integration.so",
+        "mesa/libgallium-26.2.3.so", "mesa/dri/zink_dri.so", "mesa/libGLX_droiddeck_qualcomm.so.0",
+        "mesa/libEGL_droiddeck_qualcomm.so.0", "mesa/libgbm.so.1", "mesa/gbm/dri_gbm.so",
+        "mesa/egl-vendor.json", "mesa/qualcomm-gl.sh")
 
     @JvmStatic fun detected(): Boolean {
         if (Build.VERSION.SDK_INT < 29 || !File(HAL).canRead()) return false
@@ -36,7 +39,7 @@ object QualcommSystemDriver {
         val vk = VulkanInfo.query()
         val version = vk["driver_version_raw"]?.toULongOrNull()?.let { "${(it shr 22) and 0x7fu}.${(it shr 12) and 0x3ffu}.${it and 0xfffu}" }
             ?: vk["driver_version"] ?: "unknown version"
-        return "System Qualcomm Â· ${vk["device"] ?: "Adreno"} Â· $version (experimental)"
+        return "System Qualcomm · ${vk["device"] ?: "Adreno"} · $version (experimental)"
     }
 
     @JvmStatic @Synchronized fun prepare(context: Context): File {
@@ -55,6 +58,7 @@ object QualcommSystemDriver {
             copyAssets(context, "qualcomm/wsi", File(staging, "wsi"))
             copyAssets(context, "qualcomm/shaders", File(staging, "shaders"))
             copyAssets(context, "qualcomm/licenses", File(staging, "licenses"))
+            copyAssets(context, "qualcomm/mesa", File(staging, "mesa"))
             check(required.all { File(staging, it).isFile }) { "The Qualcomm Vulkan bridge is incomplete" }
             File(staging, ".complete").writeText(sha)
             FileUtils.delete(dir)

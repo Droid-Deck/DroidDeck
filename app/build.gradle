@@ -72,7 +72,7 @@ if (!(treeState in ['clean', 'dirty'])) {
     def status = gitValue(['status', '--porcelain'])
     treeState = status == null ? 'unknown' : (status.isEmpty() ? 'clean' : 'dirty')
 }
-buildLabel = "${buildOrigin} ${treeState} Â· ${buildLabel}"
+buildLabel = "${buildOrigin} ${treeState} · ${buildLabel}"
 def escapedBuildLabel = buildLabel.replace('\\', '\\\\').replace('"', '\\"')
 
 def sourceCommit = providers.environmentVariable('DROIDDECK_SOURCE_COMMIT').getOrNull()
@@ -288,6 +288,13 @@ android.sourceSets.main.assets.setSrcDirs([runtimeAssetsDir])
 def stageQualcommRuntime = tasks.register('stageQualcommRuntime', Exec) {
     workingDir rootProject.projectDir
     inputs.files(qualcommSources)
+    if (qualcommRuntime.gamescope.build) {
+        inputs.file(rootProject.file(qualcommRuntime.gamescope.build.binary))
+        inputs.file(rootProject.file(qualcommRuntime.gamescope.build.source))
+    }
+    if (qualcommRuntime.mesa) {
+        inputs.dir(rootProject.file(qualcommRuntime.mesa.directory))
+    }
     inputs.property('ndkVersion', android.ndkVersion)
     outputs.dir(layout.buildDirectory.dir('qualcommAssets'))
     commandLine pythonExecutable, 'tools/qualcomm/fetch_runtime.py',

@@ -9,12 +9,14 @@
     "upstream_source_commit": "bc8cb3586b79d208fd21b925fa0209b3e432e008"
   },
   "gamescope": {
-    "url": "https://github.com/wallentx/DroidDeck/releases/download/main-af320dd86c7de5738ff16cfeeefbcf42581c199e/DroidDeck-0.5.0-wallentx.4.apk",
-    "sha256": "f73b229bf5d29c53c4ac618815e77c6e5a3eddd5c99e7c93eab276c831fcef6e",
-    "size": 124331295,
-    "source_commit": "af320dd86c7de5738ff16cfeeefbcf42581c199e",
-    "member": "assets/linuxfs/usr/local/bin/gamescope",
-    "member_sha256": "2250f26cdf0b6c73af80324c2a99b60465bae46ae6719083b9f9f8d1cf680165"
+    "source_commit": "8f212644c46460549035971ab914421180f61a7c",
+    "member_sha256": "1efe37d2bee38b86a051f84279802054d770aed6d9eff7d9379b4648705d0881",
+    "build": {
+      "binary": "build/qualcomm-gamescope/gamescope",
+      "source": "build/qualcomm-gamescope/source.tar.gz",
+      "source_sha256": "11e9134ef9fe0616bc1c1ef8bdf61c52b48f473ce07e562108cf7476a017e531",
+      "source_size": 10104613
+    }
   },
   "wsi": {
     "files": [
@@ -113,5 +115,101 @@
       "73368f4579fe0d27": "cs_composite_blur",
       "80346d82c5a6d850": "cs_composite_blit"
     }
+  },
+  "mesa": {
+    "source_commit": "31e9a6b2e95e30d84bf3177d1f497d063e59b6b2",
+    "directory": "build/qualcomm-zink/runtime",
+    "files": [
+      {
+        "path": "dri/zink_dri.so",
+        "sha256": "a65a4b895ebf49ec2841023fa550f50344574e1b68d574468365ea7857f577fa",
+        "size": 133368
+      },
+      {
+        "path": "egl-vendor.json",
+        "sha256": "aafac15b0a72b9b782d88729f3481c217b27f6e8664ffc9d6493df566ebb466a",
+        "size": 93
+      },
+      {
+        "path": "gbm/dri_gbm.so",
+        "sha256": "57e5aa8c3903c13db6a38e28cdc9160f2bd09cec04c88c90d6603d15b761b524",
+        "size": 134024
+      },
+      {
+        "path": "libEGL_droiddeck_qualcomm.so.0",
+        "sha256": "234d2041db7e87717c507ee90697058f646d1d9b61adc94f4a8cc52576fe733d",
+        "size": 398632
+      },
+      {
+        "path": "libgallium-26.2.3.so",
+        "sha256": "bcda320860b051725ca49fd546937cc6512373bc21ce0d1e7f9c097341f3e9bc",
+        "size": 21578336
+      },
+      {
+        "path": "libgbm.so.1",
+        "sha256": "e9f131c50d423832eb947292b2a4f6405e51c272ce76906e3e31d5e5988334a9",
+        "size": 67840
+      },
+      {
+        "path": "libGLX_droiddeck_qualcomm.so.0",
+        "sha256": "0c508865568327c98230c7ae5c241716715e70cc5b9dfc942cdb7bb79fc346a5",
+        "size": 397704
+      },
+      {
+        "path": "licenses/Apache-2.0",
+        "sha256": "aeae52465380b8b7959c940355e869cbbc277d4559a7ababa49cbc4818c051f5",
+        "size": 10232
+      },
+      {
+        "path": "licenses/BSL-1.0",
+        "sha256": "cf7105f24feaf70f28b8de10074e4d37bef89b8f3ae0a5f1280237f027d77ec0",
+        "size": 1666
+      },
+      {
+        "path": "licenses/exceptions/Linux-Syscall-Note",
+        "sha256": "d3a16686cf8797fd8a7b35564b9de8586e6ed8e19c9447e16ab6dda0d411215d",
+        "size": 1281
+      },
+      {
+        "path": "licenses/GPL-1.0-or-later",
+        "sha256": "13ff2a162a56796d863de9373ea46860a0fc28da81c192e76da9704dc117c27b",
+        "size": 13307
+      },
+      {
+        "path": "licenses/GPL-2.0-only",
+        "sha256": "535fe49430f3098603b190f07040d5b0c65eb8ed5fe173108e26eb668e758c00",
+        "size": 18774
+      },
+      {
+        "path": "licenses/Mesa-license.rst",
+        "sha256": "e272a136f6ce1b855afeef2fbe44f94f17d3b4d91cef29f8364af5800c5838a8",
+        "size": 1866
+      },
+      {
+        "path": "licenses/MIT",
+        "sha256": "a1179eae4e8b0ef06cbad6b6a2e324bb1c1cd9281cf40b42c0b15b0e34df2683",
+        "size": 1402
+      },
+      {
+        "path": "licenses/SGI-B-2.0",
+        "sha256": "8299bbd83c4d77eb5ae767cf250e9b3b470218e863714cba2e5e7eaed51285f2",
+        "size": 1844
+      },
+      {
+        "path": "licenses/source.json",
+        "sha256": "6bb1d1549c264228466853656258f1e3c6822c2bf314260e4900cd0eed3a393c",
+        "size": 658
+      },
+      {
+        "path": "licenses/zink-optional-maintenance5.patch",
+        "sha256": "25f0733bc42199344f205a916f6674d578a9a78250fd6b4cecbfb1cbbc8f8cf5",
+        "size": 1682
+      },
+      {
+        "path": "qualcomm-gl.sh",
+        "sha256": "2ed84bb2a5fa20cde52f18733fe3e8d1fda22f3f0d0bdad47363ff71a04522f5",
+        "size": 353
+      }
+    ]
   }
 }
