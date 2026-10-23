@@ -6,6 +6,7 @@ import com.droiddeck.launcher.core.AddonPack
 import com.droiddeck.launcher.runtime.LinuxNetworkLinkComponent
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.session.SessionPrefs
+import com.droiddeck.launcher.stores.StoreInstallRoot
 import org.json.JSONObject
 import java.io.Closeable
 import java.io.File
@@ -79,7 +80,8 @@ internal object Xodus {
             networkLink.publish()
             networkLink.start()
             val runtime = (runtimeDirectory ?: File(app.filesDir, "xbox-runtime")).apply { mkdirs() }
-            val command = LinuxRuntime.command(app, null, null, Environment.getExternalStorageDirectory(), listOf(
+            val command = LinuxRuntime.command(app, null, null, Environment.getExternalStorageDirectory(),
+                StoreInstallRoot.externalBindSpecs(app), listOf(
                 "/usr/bin/env", "HOME=/root", "XODUS_LOG=off", "RUST_LOG=off",
                 "XDG_RUNTIME_DIR=${runtime.path}", "DROIDDECK_XBOX_CREDENTIAL_SOCKET=${credentials.name}", binary,
             ) + args)

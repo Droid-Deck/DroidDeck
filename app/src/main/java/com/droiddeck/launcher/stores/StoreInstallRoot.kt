@@ -104,6 +104,15 @@ object StoreInstallRoot {
             .map { it to guestFor(context, it) }
     }
 
+    fun externalBindSpecs(context: Context): List<String> = externalBindSpecs(externalRoots(context), LinuxRuntime.rootDir(context))
+
+    internal fun externalBindSpecs(roots: List<Pair<File, String>>, guestRoot: File): List<String> =
+        roots.mapNotNull { (host, guest) ->
+            if (!host.isDirectory || !host.canRead()) return@mapNotNull null
+            val target = File(guestRoot, guest.removePrefix("/"))
+            if (target.isDirectory || target.mkdirs()) "${host.path}:$guest" else null
+        }
+
     private fun guestFor(context: Context, root: File): String {
         val sm = context.getSystemService(StorageManager::class.java)
         val uuid = runCatching { sm?.getStorageVolume(root)?.uuid }.getOrNull()?.takeIf { it.isNotBlank() }?.replace(Regex("[^A-Za-z0-9-]"), "")
@@ -114,11 +123,18 @@ object StoreInstallRoot {
     fun isInternal(context: Context, root: File): Boolean = root.absolutePath == internalRoot(context).absolutePath
 
     fun externalGuestPath(context: Context, host: File): String? {
+        return externalGuestPath(host, externalRoots(context))
+    }
+
+    fun guestPath(context: Context, host: File): String = externalGuestPath(context, host) ?: host.path
+
+    internal fun externalGuestPath(host: File, roots: List<Pair<File, String>>): String? {
         val path = host.absolutePath
-        for ((root, guest) in externalRoots(context)) {
-            val dir = root.absolutePath
+        for ((root, guest) in roots.sortedByDescending { it.first.absolutePath.length }) {
+            val dir = root.absolutePath.trimEnd(File.separatorChar)
             if (path == dir) return guest
-            if (path.startsWith("$dir/")) return guest + "/" + path.removePrefix("$dir/")
+            val prefix = dir + File.separator
+            if (path.startsWith(prefix)) return guest + "/" + path.removePrefix(prefix).replace(File.separatorChar, '/')
         }
         return null
     }
