@@ -329,6 +329,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var glassesSettings by mutableStateOf(Glasses.settings.value)
     private var glassesScreen: GlassesScreen? = null
     private var glassesOutputActive by mutableStateOf(false)
+    private var pausedFrame by mutableStateOf<com.droiddeck.launcher.ui.PausedFrame?>(null)
     private var trackingRecovery by mutableStateOf<TrackingRecovery?>(null)
     private var glasses3dForVr = false
     private var ended = false
@@ -1013,9 +1014,14 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     SessionAchievements(inFront.game, inFront.title, onClose = ::closeAchievements)
                 }
                 com.droiddeck.launcher.ui.AchievementNotificationOverlay()
-                if (SessionState.suspended) SessionPausedOverlay(
+                SessionPausedOverlay(
+                    suspended = SessionState.suspended,
+                    engaged = SessionState.resumeRequested || SessionState.resuming,
+                    failures = SessionState.resumeFailures,
+                    frame = pausedFrame,
                     title = pausedTitle(),
                     onResume = { SessionService.resume(this@SessionActivity) },
+                    onHidden = { pausedFrame = null },
                 )
                 if (leaving) com.droiddeck.launcher.ui.FloodSpread(
                     com.droiddeck.launcher.ui.LocalPalette.current.signal,
@@ -2860,6 +2866,40 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (down || code !in gestureKeysDown) WaylandCompositor.nativeSendKey(code, if (down) 1 else 0)
     }
 
+    // The frozen game cannot draw again, so the paused overlay shows a copy taken while the surface still holds its frame.
+    private fun capturePausedFrame() {
+        if (!SessionState.running || pipUi || isInPictureInPictureMode || glassesOutputActive) return
+        if (suspendPolicy == SessionPrefs.SUSPEND_NEVER || !::surfaceView.isInitialized) return
+        if (surfaceView.holder.surface?.isValid != true) return
+        val width = surfaceView.width
+        val height = surfaceView.height
+        if (width <= 0 || height <= 0) return
+        val scale = minOf(1f, PAUSED_FRAME_MAX_EDGE / maxOf(width, height).toFloat())
+        val bitmap = try {
+            android.graphics.Bitmap.createBitmap(
+                maxOf(1, (width * scale).toInt()), maxOf(1, (height * scale).toInt()), android.graphics.Bitmap.Config.ARGB_8888,
+            )
+        } catch (_: OutOfMemoryError) {
+            return
+        }
+        val surfaceAt = IntArray(2).also { surfaceView.getLocationInWindow(it) }
+        val overlayAt = IntArray(2).also { sessionOverlay.getLocationInWindow(it) }
+        val left = surfaceAt[0] - overlayAt[0]
+        val top = surfaceAt[1] - overlayAt[1]
+        val bounds = android.graphics.Rect(left, top, left + width, top + height)
+        try {
+            android.view.PixelCopy.request(surfaceView, bitmap, { result ->
+                if (result == android.view.PixelCopy.SUCCESS && !isDestroyed) {
+                    pausedFrame = com.droiddeck.launcher.ui.PausedFrame(bitmap.asImageBitmap(), bounds)
+                } else {
+                    bitmap.recycle()
+                }
+            }, uiHandler)
+        } catch (_: IllegalArgumentException) {
+            bitmap.recycle()
+        }
+    }
+
     private fun pipBounds(): android.graphics.Rect {
         val rect = android.graphics.Rect()
         if (!::surfaceView.isInitialized || !surfaceView.getGlobalVisibleRect(rect)) return rect
@@ -2990,6 +3030,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
         applyFollowOrientation(resources.configuration)
         if (runtimeRemovalBlocked) return
+        if (!SessionState.suspended) pausedFrame = null
         com.droiddeck.launcher.ui.Motion.refresh(this)
         refreshHomeApp()
         if (intent?.action == SessionService.ACTION_RESUME) {
@@ -3015,6 +3056,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun onPause() {
         if (runtimeRemovalBlocked) { super.onPause(); return }
+        capturePausedFrame()
         sessionClipboard.stop()
         if (::touchscreenGestures.isInitialized) touchscreenGestures.cancel()
         if (::touchpad.isInitialized) touchpad.cancel()
@@ -3512,6 +3554,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         const val EXTRA_STEAMVR = "steamVr"
         const val EXTRA_REPAIR_RUNTIME = "repairRuntime"
         private const val LEAVE_TIMEOUT_MS = 1_500L
+        private const val PAUSED_FRAME_MAX_EDGE = 1920f
         private const val TAG = "SessionActivity"
         private var startedScreens = 0
         private const val FEX_MISSING = "droiddeck-fex: x86 Linux programs need"
