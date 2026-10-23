@@ -174,16 +174,22 @@ def ensure_steam_appid(folder, app_id):
         return False
     path = os.path.join(folder, "steam_appid.txt")
     marker = os.path.join(folder, ".droiddeck-steam-appid")
-    if not os.path.exists(path):
+    if not os.path.exists(path) or os.path.exists(marker):
+        temp = os.path.join(folder, ".steam_appid.txt.tmp.%d" % os.getpid())
         try:
-            with open(path, "w", encoding="utf-8") as f:
+            with open(temp, "w", encoding="utf-8") as f:
                 f.write("%s\n" % app_id)
+            os.replace(temp, path)
             with open(marker, "w", encoding="utf-8") as f:
                 f.write("%s\n" % app_id)
             print("droiddeck-game-env: steam_appid.txt generated for app %s" % app_id, file=sys.stderr)
             return True
         except OSError:
-            pass
+            try:
+                if os.path.exists(temp):
+                    os.unlink(temp)
+            except OSError:
+                pass
     return False
 
 
@@ -472,8 +478,11 @@ def main():
         except (OSError, ValueError, TypeError, AttributeError):
             print("droiddeck-game-env: invalid configuration; using inherited environment", file=sys.stderr)
 
-        game_cfg = config.get("games", {}).get(app_id, {}) if isinstance(config, dict) and isinstance(config.get("games"), dict) else {}
+        shared_cfg = config.get("shared", {}) if isinstance(config, dict) and isinstance(config.get("shared"), dict) else {}
+        raw_game_cfg = config.get("games", {}).get(app_id) if isinstance(config, dict) and isinstance(config.get("games"), dict) else {}
+        game_cfg = raw_game_cfg if isinstance(raw_game_cfg, dict) else {}
         no_steam = (env.get("DROIDDECK_NO_STEAM") in ("1", "on", "true", "yes") or
+                    shared_cfg.get("DROIDDECK_NO_STEAM") in ("1", "on", "true", "yes") or
                     game_cfg.get("DROIDDECK_NO_STEAM") in ("1", "on", "true", "yes"))
         if no_steam:
             env["DROIDDECK_NO_STEAM"] = "1"
@@ -482,9 +491,7 @@ def main():
             env.setdefault("SteamAppId", app_id)
             env.setdefault("SteamGameId", app_id)
             env.setdefault("STEAM_COMPAT_APP_ID", app_id)
-            if waiting and len(command) > 2:
-                ensure_steam_appid(os.path.dirname(command[2]), app_id)
-                ensure_steam_appid(os.getcwd(), app_id)
+            ensure_steam_appid(os.getcwd(), app_id)
 
         if waiting:
             command = skip_red_launcher(command)
@@ -497,11 +504,6 @@ def main():
             if components:
                 own = fixes.get("WINEDLLOVERRIDES")
                 fixes["WINEDLLOVERRIDES"] = components + ";" + own if own else components
-            if no_steam:
-                current_ov = fixes.get("WINEDLLOVERRIDES", "")
-                stubs = "steamclient=n,b;steamclient64=n,b"
-                if "steamclient=" not in current_ov:
-                    fixes["WINEDLLOVERRIDES"] = current_ov + ";" + stubs if current_ov else stubs
         if config is not None:
             try:
                 if waiting:
@@ -510,8 +512,18 @@ def main():
                     env = apply_config(env, sync_config(config, app_id), app_id)
             except (OSError, ValueError, TypeError, AttributeError):
                 print("droiddeck-game-env: invalid configuration; using inherited environment", file=sys.stderr)
+        if no_steam and waiting:
+            existing = [p.strip() for p in env.get("WINEDLLOVERRIDES", "").split(";") if p.strip()]
+            overrides = list(existing)
+            for req in ("steamclient=n,b", "steamclient64=n,b"):
+                dll = req.split("=")[0]
+                if not any(item == dll or item.startswith(dll + "=") for item in overrides):
+                    overrides.append(req)
+            env["WINEDLLOVERRIDES"] = ";".join(overrides)
     if app_id and len(command) > 1 and command[1] == "waitforexitandrun":
         command = offline_without_anticheat(command, env)
+        if no_steam and len(command) > 2:
+            ensure_steam_appid(os.path.dirname(command[2]), app_id)
     if mic_enabled == "0":
         env["BANNER_AUDIO_DIRECT_MIC"] = "0"
     env = force_ssbs(command, env)

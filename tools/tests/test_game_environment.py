@@ -1193,16 +1193,22 @@ class ForceSsbsTest(unittest.TestCase):
 
 
 class StartWithoutSteamTest(unittest.TestCase):
-    def test_ensure_steam_appid_creates_and_preserves(self):
+    def test_ensure_steam_appid_creates_rewrites_with_marker_and_preserves_without_marker(self):
         with tempfile.TemporaryDirectory() as tmp:
             folder = Path(tmp)
             self.assertTrue(MODULE["ensure_steam_appid"](str(folder), "632360"))
             self.assertEqual((folder / "steam_appid.txt").read_text(), "632360\n")
             self.assertEqual((folder / ".droiddeck-steam-appid").read_text(), "632360\n")
-            self.assertFalse(MODULE["ensure_steam_appid"](str(folder), "999999"))
-            self.assertEqual((folder / "steam_appid.txt").read_text(), "632360\n")
 
-    def test_proton_run_environment_and_appid(self):
+            self.assertTrue(MODULE["ensure_steam_appid"](str(folder), "777777"))
+            self.assertEqual((folder / "steam_appid.txt").read_text(), "777777\n")
+            self.assertEqual((folder / ".droiddeck-steam-appid").read_text(), "777777\n")
+
+            (folder / ".droiddeck-steam-appid").unlink()
+            self.assertFalse(MODULE["ensure_steam_appid"](str(folder), "888888"))
+            self.assertEqual((folder / "steam_appid.txt").read_text(), "777777\n")
+
+    def test_proton_run_environment_and_explicit_app_id(self):
         proton_run = runpy.run_path(str(BIN / "droiddeck-proton-run"))
         target = proton_run["Target"]("632360", "/compat", "/install", "/lib", "steam", "/install")
         env = proton_run["environment"]({}, target, "/tool", "/root", no_steam=True)
@@ -1212,33 +1218,82 @@ class StartWithoutSteamTest(unittest.TestCase):
         self.assertEqual(env["SteamAppId"], "632360")
         with tempfile.TemporaryDirectory() as tmp:
             folder = Path(tmp)
+            exe = folder / "game.exe"
+            exe.write_bytes(b"MZ")
             self.assertTrue(proton_run["ensure_steam_appid"](str(folder), "632360"))
             self.assertEqual((folder / "steam_appid.txt").read_text(), "632360\n")
+            calls = []
+            main_globals = proton_run["main"].__globals__
+            with mock.patch("os.execve", side_effect=lambda entry, args, e: calls.append((entry, args, e))), \
+                 mock.patch("os.chdir"), \
+                 mock.patch.dict(os.environ, {
+                     "HOME": str(folder),
+                     "STEAM_COMPAT_CLIENT_INSTALL_PATH": str(folder),
+                 }, clear=True), \
+                 mock.patch.dict(main_globals, {
+                     "tools": lambda root: {"default": (str(folder), "proton")},
+                     "choose_tool": lambda *a: ("default", "test"),
+                     "mapping": lambda root: {},
+                 }):
+                proton_run["main"](["--app", "632360", str(exe)])
+            self.assertEqual(calls[0][2]["SteamAppId"], "632360")
+            self.assertEqual(calls[0][2]["DROIDDECK_NO_STEAM"], "1")
 
-    def test_no_steam_injects_steam_offline_overrides_and_creates_appid(self):
+    def test_shared_no_steam_and_per_game_override_merging(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
+            home = root / "home"
+            home.mkdir()
+            config_dir = home / ".config/droiddeck"
+            config_dir.mkdir(parents=True)
+            config_file = config_dir / "game-environment.json"
+            config_file.write_text(json.dumps({
+                "version": 1,
+                "shared": {"DROIDDECK_NO_STEAM": "1"},
+                "games": {"632360": {"WINEDLLOVERRIDES": "dxgi=n"}}
+            }))
             game_dir = root / "game"
             game_dir.mkdir()
             exe = game_dir / "Risk of Rain 2.exe"
             exe.write_bytes(b"MZ")
             compat = root / "compatdata/632360"
             compat.mkdir(parents=True)
-            env = {
-                "STEAM_COMPAT_DATA_PATH": str(compat),
-                "DROIDDECK_NO_STEAM": "1",
-            }
             calls = []
-            with mock.patch.dict(os.environ, env, clear=True), \
+            with mock.patch.dict(os.environ, {"HOME": str(home), "STEAM_COMPAT_DATA_PATH": str(compat)}, clear=True), \
                  mock.patch('sys.argv', ['droiddeck-game-env', '/proton', 'waitforexitandrun', str(exe)]), \
                  mock.patch('os.execvpe', side_effect=lambda *args: calls.append(args)), \
                  mock.patch('os.getcwd', return_value=str(game_dir)), \
                  mock.patch.dict(MODULE['main'].__globals__, load_sync=lambda: None, select_sync=lambda c, e, s: (c, e)):
                 MODULE['main']()
             self.assertTrue((game_dir / "steam_appid.txt").exists())
-            self.assertEqual((game_dir / "steam_appid.txt").read_text(), "632360\n")
             launch_env = calls[0][2]
             self.assertEqual(launch_env["DROIDDECK_NO_STEAM"], "1")
-            self.assertEqual(launch_env["STEAM_OFFLINE"], "1")
-            self.assertIn("steamclient=n,b", launch_env.get("WINEDLLOVERRIDES", ""))
-            self.assertIn("steamclient64=n,b", launch_env.get("WINEDLLOVERRIDES", ""))
+            ov = launch_env.get("WINEDLLOVERRIDES", "")
+            self.assertIn("dxgi=n", ov)
+            self.assertIn("steamclient=n,b", ov)
+            self.assertIn("steamclient64=n,b", ov)
+
+    def test_null_game_config_does_not_raise(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            home = root / "home"
+            home.mkdir()
+            config_dir = home / ".config/droiddeck"
+            config_dir.mkdir(parents=True)
+            config_file = config_dir / "game-environment.json"
+            config_file.write_text(json.dumps({
+                "version": 1,
+                "games": {"632360": None}
+            }))
+            compat = root / "compatdata/632360"
+            compat.mkdir(parents=True)
+            exe = root / "game.exe"
+            exe.write_bytes(b"MZ")
+            calls = []
+            with mock.patch.dict(os.environ, {"HOME": str(home), "STEAM_COMPAT_DATA_PATH": str(compat)}, clear=True), \
+                 mock.patch('sys.argv', ['droiddeck-game-env', '/proton', 'waitforexitandrun', str(exe)]), \
+                 mock.patch('os.execvpe', side_effect=lambda *args: calls.append(args)), \
+                 mock.patch('os.getcwd', return_value=str(root)), \
+                 mock.patch.dict(MODULE['main'].__globals__, load_sync=lambda: None, select_sync=lambda c, e, s: (c, e)):
+                MODULE['main']()
+            self.assertEqual(len(calls), 1)

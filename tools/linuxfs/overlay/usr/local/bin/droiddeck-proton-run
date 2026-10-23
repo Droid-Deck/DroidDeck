@@ -342,15 +342,21 @@ def ensure_steam_appid(folder, appid):
         return False
     path = os.path.join(folder, "steam_appid.txt")
     marker = os.path.join(folder, ".droiddeck-steam-appid")
-    if not os.path.exists(path):
+    if not os.path.exists(path) or os.path.exists(marker):
+        temp = os.path.join(folder, ".steam_appid.txt.tmp.%d" % os.getpid())
         try:
-            with open(path, "w", encoding="utf-8") as f:
+            with open(temp, "w", encoding="utf-8") as f:
                 f.write("%s\n" % appid)
+            os.replace(temp, path)
             with open(marker, "w", encoding="utf-8") as f:
                 f.write("%s\n" % appid)
             return True
         except OSError:
-            pass
+            try:
+                if os.path.exists(temp):
+                    os.unlink(temp)
+            except OSError:
+                pass
     return False
 
 
@@ -435,6 +441,11 @@ def main(argv):
         args = args + argv[1:]
         if app is not None and int(app) >= STEAM_APP_LIMIT:
             target = shortcut_target(app, program, start, root)
+        elif app is not None:
+            library, install = steam_install(app, root)
+            compatdata = os.path.join(library or root, "steamapps", "compatdata", str(app))
+            target = Target(app, compatdata, install or os.path.dirname(program),
+                            library or root, "steam", start if start and os.path.isdir(start) else None)
         else:
             target = locate(program, root)
     no_steam = app is not None or os.environ.get("DROIDDECK_NO_STEAM") in ("1", "on", "true", "yes")
