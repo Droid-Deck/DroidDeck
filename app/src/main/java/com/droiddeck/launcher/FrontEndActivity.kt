@@ -315,7 +315,7 @@ class FrontEndActivity : ComponentActivity() {
         }, "lossless-import").start()
     }
 
-    private fun pickSave(picker: LauncherJobs.SavePicker, intent: Intent, then: (MainActivity, File) -> Unit) {
+    private fun pickSave(picker: LauncherJobs.SavePicker, intent: Intent, then: (FrontEndActivity, File) -> Unit) {
         if (!LauncherJobs.beginSavePick(savePickerOwner, picker, then)) return
         try {
             when (picker) {

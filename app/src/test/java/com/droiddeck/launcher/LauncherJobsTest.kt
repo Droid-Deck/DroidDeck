@@ -44,7 +44,7 @@ class LauncherJobsTest {
         LaunchOrigin.flooding = null
     }
 
-    private fun screen(saved: Bundle? = null): MainActivity = Robolectric.buildActivity(MainActivity::class.java).get().also {
+    private fun screen(saved: Bundle? = null): FrontEndActivity = Robolectric.buildActivity(FrontEndActivity::class.java).get().also {
         val savedState = ComponentActivity::class.java.declaredFields.single { field -> field.type == SavedStateRegistryController::class.java }
             .apply { isAccessible = true }.get(it) as SavedStateRegistryController
         savedState.performRestore(saved)
@@ -54,11 +54,11 @@ class LauncherJobsTest {
     }
 
     @Suppress("UNCHECKED_CAST")
-    private fun <T> state(activity: MainActivity, name: String): MutableState<T> =
-        MainActivity::class.java.getDeclaredField("${name}\$delegate").apply { isAccessible = true }.get(activity) as MutableState<T>
+    private fun <T> state(activity: FrontEndActivity, name: String): MutableState<T> =
+        FrontEndActivity::class.java.getDeclaredField("${name}\$delegate").apply { isAccessible = true }.get(activity) as MutableState<T>
 
-    private fun invoke(activity: MainActivity, name: String, vararg arguments: Any?): Any? =
-        MainActivity::class.java.declaredMethods.single { it.name == name }.apply { isAccessible = true }.invoke(activity, *arguments)
+    private fun invoke(activity: FrontEndActivity, name: String, vararg arguments: Any?): Any? =
+        FrontEndActivity::class.java.declaredMethods.single { it.name == name }.apply { isAccessible = true }.invoke(activity, *arguments)
 
     @Test fun anotherScreenCannotReplaceAnOutstandingSavePicker() {
         val first = screen()
@@ -83,7 +83,7 @@ class LauncherJobsTest {
         shadowOf(activity).nextStartedActivityForResult
         val callback = LauncherJobs.savePicked
         @Suppress("UNCHECKED_CAST")
-        val picker = MainActivity::class.java.getDeclaredField("pickSaveDir").apply { isAccessible = true }
+        val picker = FrontEndActivity::class.java.getDeclaredField("pickSaveDir").apply { isAccessible = true }
             .get(activity) as ActivityResultLauncher<Intent>
         picker.launch(Intent(activity, com.droiddeck.launcher.files.InAppFilePicker::class.java))
         val request = shadowOf(activity).nextStartedActivityForResult
@@ -116,7 +116,7 @@ class LauncherJobsTest {
         val callback = LauncherJobs.savePicked
         val other = screen()
         @Suppress("UNCHECKED_CAST")
-        val picker = MainActivity::class.java.getDeclaredField("pickSaveZip").apply { isAccessible = true }
+        val picker = FrontEndActivity::class.java.getDeclaredField("pickSaveZip").apply { isAccessible = true }
             .get(other) as ActivityResultLauncher<Intent>
         picker.launch(Intent(other, com.droiddeck.launcher.files.InAppFilePicker::class.java))
         val request = shadowOf(other).nextStartedActivityForResult
@@ -158,13 +158,13 @@ class LauncherJobsTest {
     @Test fun aSaveBlockedDeepLinkRemainsPending() {
         val activity = screen()
         activity.intent = Intent(GameLaunchIntent.ACTION).putExtra(GameLaunchIntent.EXTRA_APP_ID, "123")
-        MainActivity::class.java.getDeclaredField("pendingGameLink").apply { isAccessible = true }.set(activity, "123")
+        FrontEndActivity::class.java.getDeclaredField("pendingGameLink").apply { isAccessible = true }.set(activity, "123")
         LauncherJobs.saveBusy = "saving"
 
         invoke(activity, "handleGameLink", listOf(Library.SteamGame(123, "game", null, "steam")))
         assertEquals("123", activity.intent.getStringExtra(GameLaunchIntent.EXTRA_APP_ID))
         assertEquals(GameLaunchIntent.ACTION, activity.intent.action)
-        assertEquals("123", MainActivity::class.java.getDeclaredField("pendingGameLink").apply { isAccessible = true }.get(activity))
+        assertEquals("123", FrontEndActivity::class.java.getDeclaredField("pendingGameLink").apply { isAccessible = true }.get(activity))
         assertNull(shadowOf(activity).nextStartedActivity)
     }
 

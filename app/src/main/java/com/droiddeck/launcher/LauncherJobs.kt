@@ -7,7 +7,7 @@ import androidx.compose.runtime.setValue
 import java.io.File
 
 /**
- * Work the launcher screen started that outlives the screen: a recreated MainActivity must still see it as busy,
+ * Work the launcher screen started that outlives the screen: a recreated launcher activity must still see it as busy,
  * or it would offer to start a session or remove the runtime while the work is writing into it. Main thread only.
  */
 internal object LauncherJobs {
@@ -19,13 +19,13 @@ internal object LauncherJobs {
     var protonBusyId by mutableStateOf<String?>(null)
 
     /** Takes the Activity that receives the picker result, so a recreated screen still gets it. */
-    var savePicked: ((MainActivity, File) -> Unit)? = null
+    var savePicked: ((FrontEndActivity, File) -> Unit)? = null
         private set
     enum class SavePicker { ZIP, DIRECTORY }
     private var savePicker: SavePicker? = null
     private var savePickerOwner: String? = null
 
-    fun beginSavePick(owner: String, picker: SavePicker, then: (MainActivity, File) -> Unit): Boolean {
+    fun beginSavePick(owner: String, picker: SavePicker, then: (FrontEndActivity, File) -> Unit): Boolean {
         if (savePicked != null || saveBusy != null) return false
         savePickerOwner = owner
         savePicker = picker
@@ -33,7 +33,7 @@ internal object LauncherJobs {
         return true
     }
 
-    fun takeSavePick(owner: String, picker: SavePicker): ((MainActivity, File) -> Unit)? {
+    fun takeSavePick(owner: String, picker: SavePicker): ((FrontEndActivity, File) -> Unit)? {
         if (savePickerOwner != owner || savePicker != picker) return null
         savePicker = null
         savePickerOwner = null
