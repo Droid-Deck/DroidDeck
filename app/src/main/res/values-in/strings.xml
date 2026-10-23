@@ -1515,6 +1515,9 @@
     <string name="fm_accept">Terima</string>
     <string name="fm_decline">Tolak</string>
     <string name="fm_drive_not_readable">%1$s terpasang tetapi tidak dapat dibaca saat ini</string>
+    <string name="fm_all_files_title">Izinkan akses ke penyimpanan eksternal?</string>
+    <string name="fm_all_files_body">%1$s sudah tercolok, tetapi DroidDeck belum bisa membacanya. Berikan izin “Akses semua file” di pengaturan sistem agar DroidDeck bisa memakai USB drive dan kartu memori.</string>
+    <string name="fm_all_files_open">Buka pengaturan</string>
     <string name="fm_list_view">Tampilan daftar</string>
     <string name="fm_grid_view">Tampilan kisi</string>
     <string name="fm_search">Cari</string>
