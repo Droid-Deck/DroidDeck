@@ -3057,4 +3057,9 @@
     <string name="spatial_saved_views_hint">Saved views can be recalculated. Start a new calibration to capture in the current tracking frame.</string>
     <string name="spatial_model_checksum_error">Hand model checksum mismatch</string>
     <string name="spatial_opencv_load_error">OpenCV could not load</string>
+    <string name="xbox_content_title">Xbox content</string>
+    <string name="xbox_content_unavailable">No licensed PC content packages are available for this game.</string>
+    <string name="xbox_content_update">%1$s · Update / verify</string>
+    <string name="xbox_content_install">%1$s · Install</string>
+    <string name="xbox_choose_pc_content">Choose PC content</string>
 </resources>

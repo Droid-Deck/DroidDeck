@@ -175,13 +175,13 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
     com.droiddeck.launcher.stores.xbox.XboxContent.plan?.let { content ->
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { com.droiddeck.launcher.stores.xbox.XboxContent.dismiss() },
-            title = { Text("Xbox content") },
+            title = { Text(stringResource(R.string.xbox_content_title)) },
             text = { Column {
                 if (content.error != null) Text(content.error)
-                else if (content.offers.isEmpty()) Text("No licensed PC content packages are available for this game.")
+                else if (content.offers.isEmpty()) Text(stringResource(R.string.xbox_content_unavailable))
                 content.offers.forEach { offer ->
                     androidx.compose.material3.TextButton(onClick = { com.droiddeck.launcher.stores.xbox.XboxContent.install(ctx, offer.item) }) {
-                        Text(offer.item.title + if (offer.installed) " · Update / verify" else " · Install")
+                        Text(stringResource(if (offer.installed) R.string.xbox_content_update else R.string.xbox_content_install, offer.item.title))
                     }
                 }
             } },
@@ -191,7 +191,7 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
     com.droiddeck.launcher.stores.xbox.XboxBackend.packageChoice?.let { pending ->
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { com.droiddeck.launcher.stores.xbox.XboxBackend.dismissPackages() },
-            title = { Text("Choose PC content") },
+            title = { Text(stringResource(R.string.xbox_choose_pc_content)) },
             text = { Column { pending.choices.forEach { choice ->
                 androidx.compose.material3.TextButton(onClick = { com.droiddeck.launcher.stores.xbox.XboxBackend.selectPackage(ctx, choice) }) {
                     Text(choice.getString("title") + " (" + choice.getString("kind") + ")")

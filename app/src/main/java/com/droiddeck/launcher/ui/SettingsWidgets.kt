@@ -103,6 +103,7 @@ import androidx.compose.ui.text.style.TextAlign
 import kotlin.math.roundToInt
 import androidx.compose.ui.input.InputMode
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.text.font.FontWeight
@@ -240,7 +241,7 @@ fun rememberMenuHost(): MenuHost = remember { MenuHost() }
 
 private class BelowStartProvider(private val gap: Int) : PopupPositionProvider {
     override fun calculatePosition(anchorBounds: IntRect, windowSize: IntSize, layoutDirection: LayoutDirection, popupContentSize: IntSize): IntOffset {
-        var x = anchorBounds.left
+        var x = if (layoutDirection == LayoutDirection.Rtl) anchorBounds.right - popupContentSize.width else anchorBounds.left
         if (x + popupContentSize.width > windowSize.width - 8) x = windowSize.width - 8 - popupContentSize.width
         if (x < 8) x = 8
         var y = anchorBounds.bottom + gap
@@ -252,7 +253,8 @@ private class BelowStartProvider(private val gap: Int) : PopupPositionProvider {
 
 private class BelowEndProvider(private val gap: Int) : PopupPositionProvider {
     override fun calculatePosition(anchorBounds: IntRect, windowSize: IntSize, layoutDirection: LayoutDirection, popupContentSize: IntSize): IntOffset {
-        var x = anchorBounds.right - popupContentSize.width
+        var x = if (layoutDirection == LayoutDirection.Rtl) anchorBounds.left else anchorBounds.right - popupContentSize.width
+        if (x + popupContentSize.width > windowSize.width - 8) x = windowSize.width - 8 - popupContentSize.width
         if (x < 8) x = 8
         var y = anchorBounds.bottom + gap
         if (y + popupContentSize.height > windowSize.height - 8) y = anchorBounds.top - gap - popupContentSize.height
@@ -285,12 +287,14 @@ fun AnchoredMenu(
     val provider = remember(gap, compact) { if (compact) BelowStartProvider(gap) else BelowEndProvider(gap) }
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
+    val isRtl = LocalLayoutDirection.current == LayoutDirection.Rtl
+    val originX = if (compact) (if (isRtl) 1f else 0f) else (if (isRtl) 0f else 1f)
     Popup(popupPositionProvider = provider, onDismissRequest = onDismiss, properties = PopupProperties(focusable = true)) {
       CompositionLocalProvider(LocalDensity provides density, LocalConfiguration provides configuration) {
         AnimatedVisibility(
             visibleState = state,
-            enter = fadeIn(Motion.tw(180)) + scaleIn(Motion.sp(0.7f), initialScale = 0.94f, transformOrigin = TransformOrigin(if (compact) 0f else 1f, 0f)),
-            exit = fadeOut(Motion.tw(140)) + scaleOut(Motion.tw(140), targetScale = 0.96f, transformOrigin = TransformOrigin(if (compact) 0f else 1f, 0f)),
+            enter = fadeIn(Motion.tw(180)) + scaleIn(Motion.sp(0.7f), initialScale = 0.94f, transformOrigin = TransformOrigin(originX, 0f)),
+            exit = fadeOut(Motion.tw(140)) + scaleOut(Motion.tw(140), targetScale = 0.96f, transformOrigin = TransformOrigin(originX, 0f)),
             label = "menu",
         ) {
             val maxHeight = (androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp * 0.86f).dp
@@ -306,7 +310,7 @@ fun AnchoredMenu(
                     .padding(6.dp),
             ) {
                 if (title != null) Text(
-                    title.uppercase(), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp, color = colors.onSurfaceVariant,
+                    title.uppercase(), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = if (isRtl) 0.sp else 1.5.sp, color = colors.onSurfaceVariant,
                     modifier = Modifier.padding(start = 10.dp, top = 6.dp, bottom = 6.dp),
                 )
                 val scroll = rememberScrollState()
@@ -503,6 +507,9 @@ fun ToggleRow(host: MenuHost, key: String, label: String, hint: String?, checked
         ToggleSwitch(checked, enabled, label, chipModifier.testTag("setting-$key")) { host.open = null; onChange(it) }
     }
 
+internal fun toggleThumbTranslationPx(fraction: Float, direction: LayoutDirection, travelPx: Float): Float =
+    fraction.coerceIn(0f, 1f) * travelPx * if (direction == LayoutDirection.Rtl) -1f else 1f
+
 @Composable
 fun ToggleSwitch(checked: Boolean, enabled: Boolean = true, label: String? = null, modifier: Modifier = Modifier, onChange: (Boolean) -> Unit) {
     val colors = MaterialTheme.colorScheme
@@ -515,6 +522,7 @@ fun ToggleSwitch(checked: Boolean, enabled: Boolean = true, label: String? = nul
     val onLabel = stringResource(R.string.widgets_on)
     val offLabel = stringResource(R.string.widgets_off)
     val shape = RoundedCornerShape(99.dp)
+    val direction = LocalLayoutDirection.current
     Box(
         contentAlignment = Alignment.Center,
         modifier = modifier
@@ -531,7 +539,7 @@ fun ToggleSwitch(checked: Boolean, enabled: Boolean = true, label: String? = nul
         ) {
             Box(
                 Modifier.padding(4.dp).size(22.dp)
-                    .graphicsLayer { translationX = knob * 22.dp.toPx() }
+                    .graphicsLayer { translationX = toggleThumbTranslationPx(knob, direction, 22.dp.toPx()) }
                     .clip(CircleShape)
                     .background(if (checked) pal.onSignal else colors.onSurfaceVariant),
             )
