@@ -1429,6 +1429,10 @@
     <string name="theme_icon_blue_detail">Czarne tło, biały tekst i niebieski dla wszystkiego, co zaznaczone, aktywne lub naciśnięte.</string>
     <string name="theme_electric">Elektryczny granat</string>
     <string name="theme_electric_detail">Jaśniejszy niebieski na powierzchniach wpadających w granat zamiast w szarość.</string>
+    <string name="theme_inner_gamer">Inner Gamer</string>
+    <string name="theme_inner_gamer_detail">Kolory przechodzące przez całą tęczę. Szanuje ustawienia animacji Androida.</string>
+    <string name="theme_rgb_speed">Prędkość</string>
+    <string name="theme_rgb_speed_hint">Jak szybko zmieniają się kolory.</string>
     <string name="theme_gradient">Gradient</string>
     <string name="theme_gradient_detail">Własny kolor podstawowy i dodatkowy, płynnie przechodzące na przyciskach i wyróżnieniach.</string>
     <string name="theme_gradient_primary">Podstawowy</string>
@@ -1560,6 +1564,13 @@
     <string name="fm_conflict_skip">Pomiń</string>
     <string name="fm_select_this_folder">Wybierz ten folder</string>
     <string name="fm_back">Wstecz</string>
+    <string name="fm_exit">Wyjdź</string>
+    <string name="fm_return_to_start">Wróć do folderu początkowego</string>
+    <string name="fm_start_unavailable">Folder początkowy nie jest już dostępny</string>
+    <string name="fm_cancel_operation_title">Anulować operację?</string>
+    <string name="fm_cancel_operation_confirmation">Operacja zostanie anulowana. Czy na pewno?</string>
+    <string name="fm_accept">Akceptuj</string>
+    <string name="fm_decline">Odrzuć</string>
     <string name="fm_drive_not_readable">%1$s: zamontowano, ale obecnie nie można odczytać</string>
     <string name="fm_list_view">Widok listy</string>
     <string name="fm_grid_view">Widok siatki</string>

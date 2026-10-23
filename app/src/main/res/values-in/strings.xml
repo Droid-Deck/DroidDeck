@@ -1387,6 +1387,10 @@
     <string name="theme_icon_blue_detail">Dasar hitam, tipe putih, biru untuk semua yang dipilih, difokuskan, atau ditekan.</string>
     <string name="theme_electric">Navy elektrik</string>
     <string name="theme_electric_detail">Biru yang lebih cerah, pada permukaan yang condong ke navy, bukan abu-abu.</string>
+    <string name="theme_inner_gamer">Inner Gamer</string>
+    <string name="theme_inner_gamer_detail">Warna yang berganti menyusuri pelangi. Mengikuti pengaturan animasi Android.</string>
+    <string name="theme_rgb_speed">Kecepatan</string>
+    <string name="theme_rgb_speed_hint">Seberapa cepat warna berganti.</string>
     <string name="theme_gradient">Gradasi</string>
     <string name="theme_gradient_detail">Warna primer dan sekunder pilihan Anda, dipadukan pada tombol dan sorotan.</string>
     <string name="theme_gradient_primary">Primer</string>
@@ -1503,6 +1507,13 @@
     <string name="fm_conflict_skip">Lewati</string>
     <string name="fm_select_this_folder">Pilih folder ini</string>
     <string name="fm_back">Kembali</string>
+    <string name="fm_exit">Keluar</string>
+    <string name="fm_return_to_start">Kembali ke folder awal</string>
+    <string name="fm_start_unavailable">Folder awal tidak lagi tersedia</string>
+    <string name="fm_cancel_operation_title">Batalkan operasi?</string>
+    <string name="fm_cancel_operation_confirmation">Operasi akan dibatalkan. Anda yakin?</string>
+    <string name="fm_accept">Terima</string>
+    <string name="fm_decline">Tolak</string>
     <string name="fm_drive_not_readable">%1$s terpasang tetapi tidak dapat dibaca saat ini</string>
     <string name="fm_list_view">Tampilan daftar</string>
     <string name="fm_grid_view">Tampilan kisi</string>

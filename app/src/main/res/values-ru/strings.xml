@@ -1431,6 +1431,10 @@
     <string name="theme_icon_blue_detail">Черный фон, белый текст, синий — для всего выбранного, активного или нажатого.</string>
     <string name="theme_electric">Электрик</string>
     <string name="theme_electric_detail">Более яркий синий на поверхностях темно-синего, а не серого оттенка.</string>
+    <string name="theme_inner_gamer">Inner Gamer</string>
+    <string name="theme_inner_gamer_detail">Цвета, плавно переходящие по всей радуге. Учитывает настройки анимации Android.</string>
+    <string name="theme_rgb_speed">Скорость</string>
+    <string name="theme_rgb_speed_hint">Как быстро меняются цвета.</string>
     <string name="theme_gradient">Градиент</string>
     <string name="theme_gradient_detail">Ваши основной и дополнительный цвета, плавно переходящие на кнопках и выделениях.</string>
     <string name="theme_gradient_primary">Основной</string>
@@ -1562,6 +1566,13 @@
     <string name="fm_conflict_skip">Пропустить</string>
     <string name="fm_select_this_folder">Выбрать эту папку</string>
     <string name="fm_back">Назад</string>
+    <string name="fm_exit">Выход</string>
+    <string name="fm_return_to_start">Вернуться в начальную папку</string>
+    <string name="fm_start_unavailable">Начальная папка больше недоступна</string>
+    <string name="fm_cancel_operation_title">Отменить операцию?</string>
+    <string name="fm_cancel_operation_confirmation">Операция будет отменена. Вы уверены?</string>
+    <string name="fm_accept">Принять</string>
+    <string name="fm_decline">Отклонить</string>
     <string name="fm_drive_not_readable">%1$s: подключено, но сейчас недоступно для чтения</string>
     <string name="fm_list_view">Список</string>
     <string name="fm_grid_view">Сетка</string>

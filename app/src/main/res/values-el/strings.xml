@@ -1401,6 +1401,10 @@
     <string name="theme_icon_blue_detail">Μαύρο φόντο, λευκά γράμματα, το μπλε για ό,τι είναι επιλεγμένο, εστιασμένο ή πατημένο.</string>
     <string name="theme_electric">Ηλεκτρικό ναυτικό μπλε</string>
     <string name="theme_electric_detail">Το μπλε πιο έντονο, σε επιφάνειες που τείνουν προς το ναυτικό μπλε αντί για γκρι.</string>
+    <string name="theme_inner_gamer">Inner Gamer</string>
+    <string name="theme_inner_gamer_detail">Χρώματα που διατρέχουν το ουράνιο τόξο. Ακολουθεί τις ρυθμίσεις animation του Android.</string>
+    <string name="theme_rgb_speed">Ταχύτητα</string>
+    <string name="theme_rgb_speed_hint">Πόσο γρήγορα αλλάζουν τα χρώματα.</string>
     <string name="theme_gradient">Διαβάθμιση</string>
     <string name="theme_gradient_detail">Δικά σας πρωτεύον και δευτερεύον χρώμα, σε μίξη στα κουμπιά και τις επισημάνσεις.</string>
     <string name="theme_gradient_primary">Πρωτεύον</string>
@@ -1522,6 +1526,13 @@
     <string name="fm_conflict_skip">Παράλειψη</string>
     <string name="fm_select_this_folder">Επιλογή αυτού του φακέλου</string>
     <string name="fm_back">Πίσω</string>
+    <string name="fm_exit">Έξοδος</string>
+    <string name="fm_return_to_start">Επιστροφή στον αρχικό φάκελο</string>
+    <string name="fm_start_unavailable">Ο αρχικός φάκελος δεν είναι πλέον διαθέσιμος</string>
+    <string name="fm_cancel_operation_title">Ακύρωση ενέργειας;</string>
+    <string name="fm_cancel_operation_confirmation">Η ενέργεια θα ακυρωθεί. Είστε σίγουροι;</string>
+    <string name="fm_accept">Αποδοχή</string>
+    <string name="fm_decline">Απόρριψη</string>
     <string name="fm_drive_not_readable">Το %1$s είναι προσαρτημένο αλλά δεν είναι αναγνώσιμο αυτή τη στιγμή</string>
     <string name="fm_list_view">Προβολή λίστας</string>
     <string name="fm_grid_view">Προβολή πλέγματος</string>

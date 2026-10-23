@@ -1415,6 +1415,10 @@
     <string name="theme_icon_blue_detail">Fundal negru, text alb, albastrul pentru tot ce este selectat, focalizat sau apăsat.</string>
     <string name="theme_electric">Bleumarin electric</string>
     <string name="theme_electric_detail">Albastrul mai strălucitor, pe suprafețe care tind spre bleumarin în loc de gri.</string>
+    <string name="theme_inner_gamer">Inner Gamer</string>
+    <string name="theme_inner_gamer_detail">Culori care parcurg curcubeul. Respectă setările de animație din Android.</string>
+    <string name="theme_rgb_speed">Viteză</string>
+    <string name="theme_rgb_speed_hint">Cât de repede se schimbă culorile.</string>
     <string name="theme_gradient">Gradient</string>
     <string name="theme_gradient_detail">Culorile tale primară și secundară, combinate pe butoane și evidențieri.</string>
     <string name="theme_gradient_primary">Primară</string>
@@ -1541,6 +1545,13 @@
     <string name="fm_conflict_skip">Omite</string>
     <string name="fm_select_this_folder">Selectează acest folder</string>
     <string name="fm_back">Înapoi</string>
+    <string name="fm_exit">Ieșire</string>
+    <string name="fm_return_to_start">Înapoi la dosarul inițial</string>
+    <string name="fm_start_unavailable">Dosarul inițial nu mai este disponibil</string>
+    <string name="fm_cancel_operation_title">Anulați operația?</string>
+    <string name="fm_cancel_operation_confirmation">Operația va fi anulată. Sunteți sigur?</string>
+    <string name="fm_accept">Acceptă</string>
+    <string name="fm_decline">Refuză</string>
     <string name="fm_drive_not_readable">%1$s este montat, dar nu poate fi citit acum</string>
     <string name="fm_list_view">Vizualizare listă</string>
     <string name="fm_grid_view">Vizualizare grilă</string>

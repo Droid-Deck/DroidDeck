@@ -1417,6 +1417,10 @@
     <string name="theme_icon_blue_detail">Fond noir, texte blanc, et le bleu pour tout élément sélectionné, ciblé ou pressé.</string>
     <string name="theme_electric">Marine électrique</string>
     <string name="theme_electric_detail">Un bleu plus vif, sur des surfaces qui tirent vers le marine plutôt que vers le gris.</string>
+    <string name="theme_inner_gamer">Inner Gamer</string>
+    <string name="theme_inner_gamer_detail">Des couleurs qui parcourent l\'arc-en-ciel. Respecte les réglages d\'animation d\'Android.</string>
+    <string name="theme_rgb_speed">Vitesse</string>
+    <string name="theme_rgb_speed_hint">La vitesse de défilement des couleurs.</string>
     <string name="theme_gradient">Dégradé</string>
     <string name="theme_gradient_detail">Vos propres couleurs primaire et secondaire, fondues sur les boutons et les éléments en surbrillance.</string>
     <string name="theme_gradient_primary">Primaire</string>
@@ -1543,6 +1547,13 @@
     <string name="fm_conflict_skip">Ignorer</string>
     <string name="fm_select_this_folder">Sélectionner ce dossier</string>
     <string name="fm_back">Retour</string>
+    <string name="fm_exit">Quitter</string>
+    <string name="fm_return_to_start">Revenir au dossier de départ</string>
+    <string name="fm_start_unavailable">Le dossier de départ est indisponible</string>
+    <string name="fm_cancel_operation_title">Annuler l’opération ?</string>
+    <string name="fm_cancel_operation_confirmation">Cette opération sera annulée. Confirmez-vous ?</string>
+    <string name="fm_accept">Accepter</string>
+    <string name="fm_decline">Refuser</string>
     <string name="fm_drive_not_readable">%1$s est monté, mais illisible pour le moment</string>
     <string name="fm_list_view">Vue en liste</string>
     <string name="fm_grid_view">Vue en grille</string>

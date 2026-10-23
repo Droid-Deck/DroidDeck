@@ -1465,6 +1465,10 @@
     <string name="theme_icon_blue_detail">黑色背景、白色文字，选中、聚焦或按下的元素使用蓝色。</string>
     <string name="theme_electric">电光藏青</string>
     <string name="theme_electric_detail">更明亮的蓝色，配以偏藏青而非灰色的界面。</string>
+    <string name="theme_inner_gamer">Inner Gamer</string>
+    <string name="theme_inner_gamer_detail">在彩虹色之间循环变化的颜色。遵循 Android 的动画设置。</string>
+    <string name="theme_rgb_speed">速度</string>
+    <string name="theme_rgb_speed_hint">颜色循环的快慢。</string>
     <string name="theme_gradient">渐变</string>
     <string name="theme_gradient_detail">你自己选择的主色和辅色，在按钮和高亮处渐变呈现。</string>
     <string name="theme_gradient_primary">主色</string>
@@ -1581,6 +1585,13 @@
     <string name="fm_conflict_skip">跳过</string>
     <string name="fm_select_this_folder">选择此文件夹</string>
     <string name="fm_back">返回</string>
+    <string name="fm_exit">退出</string>
+    <string name="fm_return_to_start">返回初始文件夹</string>
+    <string name="fm_start_unavailable">初始文件夹已不可用</string>
+    <string name="fm_cancel_operation_title">取消操作？</string>
+    <string name="fm_cancel_operation_confirmation">操作将被取消。确定吗？</string>
+    <string name="fm_accept">接受</string>
+    <string name="fm_decline">拒绝</string>
     <string name="fm_drive_not_readable">%1$s 已挂载，但当前无法读取</string>
     <string name="fm_list_view">列表视图</string>
     <string name="fm_grid_view">网格视图</string>

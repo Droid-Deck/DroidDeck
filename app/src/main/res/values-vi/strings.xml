@@ -1387,6 +1387,10 @@
     <string name="theme_icon_blue_detail">Nền đen, chữ trắng, xanh cho mọi thứ được chọn, lấy nét hoặc nhấn.</string>
     <string name="theme_electric">Xanh điện navy</string>
     <string name="theme_electric_detail">Màu xanh sáng hơn, trên các bề mặt nghiêng về navy thay vì xám.</string>
+    <string name="theme_inner_gamer">Inner Gamer</string>
+    <string name="theme_inner_gamer_detail">Màu sắc chuyển dần qua cả dải cầu vồng. Tuân theo cài đặt hiệu ứng động của Android.</string>
+    <string name="theme_rgb_speed">Tốc độ</string>
+    <string name="theme_rgb_speed_hint">Màu đổi nhanh đến mức nào.</string>
     <string name="theme_gradient">Chuyển màu</string>
     <string name="theme_gradient_detail">Màu chính và màu phụ do bạn chọn, hòa trộn trên các nút và phần nổi bật.</string>
     <string name="theme_gradient_primary">Chính</string>
@@ -1503,6 +1507,13 @@
     <string name="fm_conflict_skip">Bỏ qua</string>
     <string name="fm_select_this_folder">Chọn thư mục này</string>
     <string name="fm_back">Quay lại</string>
+    <string name="fm_exit">Thoát</string>
+    <string name="fm_return_to_start">Quay lại thư mục ban đầu</string>
+    <string name="fm_start_unavailable">Thư mục ban đầu không còn khả dụng</string>
+    <string name="fm_cancel_operation_title">Hủy thao tác?</string>
+    <string name="fm_cancel_operation_confirmation">Thao tác sẽ bị hủy. Bạn có chắc không?</string>
+    <string name="fm_accept">Chấp nhận</string>
+    <string name="fm_decline">Từ chối</string>
     <string name="fm_drive_not_readable">%1$s đã được gắn nhưng hiện không đọc được</string>
     <string name="fm_list_view">Xem dạng danh sách</string>
     <string name="fm_grid_view">Xem dạng lưới</string>

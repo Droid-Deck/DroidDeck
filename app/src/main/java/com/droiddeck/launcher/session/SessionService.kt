@@ -615,9 +615,15 @@ class SessionService : Service() {
                 helperRoots = { components.mapNotNull { it.suspendPid().takeIf { pid -> pid > 1 } } },
                 suspendAudio = {
                     if (!pulse.setSinkSuspended(true)) Log.w(TAG, "could not suspend audio sink")
+                    if (!pulse.setMicSuspended(true)) Log.w(TAG, "could not suspend microphone source")
+                    val relay = components.firstNotNullOfOrNull { it as? DirectAudioRelayComponent }
+                    if (relay != null && !relay.awaitMicReleased(MIC_RELEASE_TIMEOUT_MS)) {
+                        Log.w(TAG, "microphone still open after ${MIC_RELEASE_TIMEOUT_MS} ms; suspending anyway")
+                    }
                 },
                 resumeAudio = {
                     if (!pulse.setSinkSuspended(false)) Log.w(TAG, "could not resume audio sink")
+                    if (!pulse.setMicSuspended(false)) Log.w(TAG, "could not resume microphone source")
                 },
                 zramControl = File(filesDir, "${LinuxRuntime.DIR}/tmp/.bl-zram"),
                 pagedOut = { processes, unacknowledged, residentKb, swapKb, swapBeforeKb, millis ->
@@ -1900,6 +1906,7 @@ class SessionService : Service() {
     companion object {
         private const val TAG = "SessionService"
         private const val TRACER_NICE = -6
+        private const val MIC_RELEASE_TIMEOUT_MS = 5_000L
         private const val TU_DEBUG_SWITCH = "Download/droiddeck-tu-debug"
         private const val GAME_TU_DEBUG = "DROIDDECK_GAME_TU_DEBUG"
         private const val LEGACY_ENV_SWITCH = "Download/droiddeck-env"

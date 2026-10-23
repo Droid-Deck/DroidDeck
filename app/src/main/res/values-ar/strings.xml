@@ -1457,6 +1457,10 @@
     <string name="theme_icon_blue_detail">خلفية سوداء ونص أبيض، والأزرق لكل عنصر محدَّد أو مُركَّز عليه أو مضغوط.</string>
     <string name="theme_electric">كحلي كهربائي</string>
     <string name="theme_electric_detail">أزرق أكثر سطوعًا، على أسطح تميل إلى الكحلي بدلاً من الرمادي.</string>
+    <string name="theme_inner_gamer">Inner Gamer</string>
+    <string name="theme_inner_gamer_detail">ألوان تتدرّج عبر ألوان قوس قزح. تتبع إعدادات الرسوم المتحركة في Android.</string>
+    <string name="theme_rgb_speed">السرعة</string>
+    <string name="theme_rgb_speed_hint">مدى سرعة تغيّر الألوان.</string>
     <string name="theme_gradient">تدرج لوني</string>
     <string name="theme_gradient_detail">لونك الأساسي والثانوي، ممزوجان على الأزرار وعناصر التمييز.</string>
     <string name="theme_gradient_primary">الأساسي</string>
@@ -1598,6 +1602,13 @@
     <string name="fm_conflict_skip">تخطّي</string>
     <string name="fm_select_this_folder">اختيار هذا المجلد</string>
     <string name="fm_back">رجوع</string>
+    <string name="fm_exit">خروج</string>
+    <string name="fm_return_to_start">العودة إلى المجلد الأول</string>
+    <string name="fm_start_unavailable">لم يعد المجلد الأول متاحًا</string>
+    <string name="fm_cancel_operation_title">إلغاء العملية؟</string>
+    <string name="fm_cancel_operation_confirmation">سيتم إلغاء العملية. هل أنت متأكد؟</string>
+    <string name="fm_accept">موافق</string>
+    <string name="fm_decline">رفض</string>
     <string name="fm_drive_not_readable">تم تركيب %1$s لكن تتعذّر قراءته حاليًا</string>
     <string name="fm_list_view">عرض القائمة</string>
     <string name="fm_grid_view">عرض الشبكة</string>

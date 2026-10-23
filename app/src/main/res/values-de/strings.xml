@@ -1393,6 +1393,10 @@
     <string name="theme_icon_blue_detail">Schwarzer Grund, weiße Schrift, das Blau für alles Ausgewählte, Fokussierte oder Gedrückte.</string>
     <string name="theme_electric">Elektrisches Marineblau</string>
     <string name="theme_electric_detail">Das Blau heller, auf Flächen, die eher zu Marineblau als zu Grau tendieren.</string>
+    <string name="theme_inner_gamer">Inner Gamer</string>
+    <string name="theme_inner_gamer_detail">Farben, die durch den Regenbogen wechseln. Folgt den Animationseinstellungen von Android.</string>
+    <string name="theme_rgb_speed">Geschwindigkeit</string>
+    <string name="theme_rgb_speed_hint">Wie schnell die Farben wechseln.</string>
     <string name="theme_gradient">Farbverlauf</string>
     <string name="theme_gradient_detail">Eigene Primär- und Sekundärfarbe, als Verlauf auf Schaltflächen und Hervorhebungen.</string>
     <string name="theme_gradient_primary">Primär</string>
@@ -1514,6 +1518,13 @@
     <string name="fm_conflict_skip">Überspringen</string>
     <string name="fm_select_this_folder">Diesen Ordner auswählen</string>
     <string name="fm_back">Zurück</string>
+    <string name="fm_exit">Beenden</string>
+    <string name="fm_return_to_start">Zurück zum Startordner</string>
+    <string name="fm_start_unavailable">Startordner ist nicht mehr verfügbar</string>
+    <string name="fm_cancel_operation_title">Vorgang abbrechen?</string>
+    <string name="fm_cancel_operation_confirmation">Der Vorgang wird abgebrochen. Bist du sicher?</string>
+    <string name="fm_accept">Akzeptieren</string>
+    <string name="fm_decline">Ablehnen</string>
     <string name="fm_drive_not_readable">%1$s ist eingebunden, aber derzeit nicht lesbar</string>
     <string name="fm_list_view">Listenansicht</string>
     <string name="fm_grid_view">Rasteransicht</string>

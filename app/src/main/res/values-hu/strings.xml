@@ -1401,6 +1401,10 @@
     <string name="theme_icon_blue_detail">Fekete alap, fehér betűk, a kék minden kijelölt, fókuszált vagy lenyomott elemhez.</string>
     <string name="theme_electric">Elektromos tengerészkék</string>
     <string name="theme_electric_detail">Fényesebb kék, szürke helyett tengerészkék felületeken.</string>
+    <string name="theme_inner_gamer">Inner Gamer</string>
+    <string name="theme_inner_gamer_detail">A szivárvány színein végigfutó színek. Követi az Android animációs beállításait.</string>
+    <string name="theme_rgb_speed">Sebesség</string>
+    <string name="theme_rgb_speed_hint">Milyen gyorsan váltanak a színek.</string>
     <string name="theme_gradient">Színátmenet</string>
     <string name="theme_gradient_detail">Saját elsődleges és másodlagos színed, átmenettel a gombokon és a kiemeléseken.</string>
     <string name="theme_gradient_primary">Elsődleges</string>
@@ -1522,6 +1526,13 @@
     <string name="fm_conflict_skip">Kihagyás</string>
     <string name="fm_select_this_folder">Ennek a mappának a kiválasztása</string>
     <string name="fm_back">Vissza</string>
+    <string name="fm_exit">Kilépés</string>
+    <string name="fm_return_to_start">Vissza a kezdőmappába</string>
+    <string name="fm_start_unavailable">A kezdőmappa már nem érhető el</string>
+    <string name="fm_cancel_operation_title">Művelet megszakítása?</string>
+    <string name="fm_cancel_operation_confirmation">A művelet megszakad. Biztos benne?</string>
+    <string name="fm_accept">Elfogadom</string>
+    <string name="fm_decline">Elutasítom</string>
     <string name="fm_drive_not_readable">A %1$s csatolva van, de jelenleg nem olvasható</string>
     <string name="fm_list_view">Listanézet</string>
     <string name="fm_grid_view">Rácsnézet</string>

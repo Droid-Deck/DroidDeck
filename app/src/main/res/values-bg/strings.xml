@@ -1401,6 +1401,10 @@
     <string name="theme_icon_blue_detail">Черен фон, бял текст, синьото за всичко избрано, на фокус или натиснато.</string>
     <string name="theme_electric">Яркосиньо</string>
     <string name="theme_electric_detail">По-яркото синьо, върху повърхности, по-близки до тъмносиньо, вместо сиво.</string>
+    <string name="theme_inner_gamer">Inner Gamer</string>
+    <string name="theme_inner_gamer_detail">Цветове, които преминават през дъгата. Следва настройките за анимации на Android.</string>
+    <string name="theme_rgb_speed">Скорост</string>
+    <string name="theme_rgb_speed_hint">Колко бързо се сменят цветовете.</string>
     <string name="theme_gradient">Градиент</string>
     <string name="theme_gradient_detail">Вашите основен и вторичен цвят, смесени в бутоните и акцентите.</string>
     <string name="theme_gradient_primary">Основен</string>
@@ -1522,6 +1526,13 @@
     <string name="fm_conflict_skip">Пропускане</string>
     <string name="fm_select_this_folder">Избор на тази папка</string>
     <string name="fm_back">Назад</string>
+    <string name="fm_exit">Изход</string>
+    <string name="fm_return_to_start">Връщане в началната папка</string>
+    <string name="fm_start_unavailable">Началната папка вече не е достъпна</string>
+    <string name="fm_cancel_operation_title">Отмяна на операцията?</string>
+    <string name="fm_cancel_operation_confirmation">Операцията ще бъде отменена. Сигурни ли сте?</string>
+    <string name="fm_accept">Приемам</string>
+    <string name="fm_decline">Отказвам</string>
     <string name="fm_drive_not_readable">%1$s е монтирано, но в момента не може да се прочете</string>
     <string name="fm_list_view">Изглед като списък</string>
     <string name="fm_grid_view">Изглед като мрежа</string>

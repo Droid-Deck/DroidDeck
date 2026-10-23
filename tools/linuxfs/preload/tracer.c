@@ -16,6 +16,8 @@
 #define STATUS_MAX 16384
 #define TRACER_FIELD "\nTracerPid:\t"
 
+int bl_from_ntdll(const void *caller) __attribute__((visibility("hidden")));
+
 static const char *skip_digits(const char *s) {
   const char *end = s;
   while (isdigit((unsigned char)*end)) end++;
@@ -77,7 +79,8 @@ __attribute__((visibility("hidden"))) int bl_status_without_tracer(const char *p
   int out = -1;
 
   long pid;
-  if ((flags & O_ACCMODE) != O_RDONLY || (pid = status_pid(path)) < 0 || is_web_helper(caller)) return -1;
+  if ((flags & O_ACCMODE) != O_RDONLY || (pid = status_pid(path)) < 0 || is_web_helper(caller) || bl_from_ntdll(caller))
+    return -1;
   int in = (int)syscall(SYS_openat, AT_FDCWD, path, O_RDONLY | O_CLOEXEC);
   if (in < 0) goto done;
   for (;;) {

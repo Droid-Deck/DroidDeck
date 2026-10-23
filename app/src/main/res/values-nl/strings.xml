@@ -1401,6 +1401,10 @@
     <string name="theme_icon_blue_detail">Zwarte achtergrond, witte tekst, het blauw voor alles wat geselecteerd, gefocust of ingedrukt is.</string>
     <string name="theme_electric">Elektrisch marineblauw</string>
     <string name="theme_electric_detail">Het blauw feller, op vlakken die naar marineblauw neigen in plaats van grijs.</string>
+    <string name="theme_inner_gamer">Inner Gamer</string>
+    <string name="theme_inner_gamer_detail">Kleuren die door de regenboog lopen. Volgt de animatie-instellingen van Android.</string>
+    <string name="theme_rgb_speed">Snelheid</string>
+    <string name="theme_rgb_speed_hint">Hoe snel de kleuren wisselen.</string>
     <string name="theme_gradient">Kleurverloop</string>
     <string name="theme_gradient_detail">Je eigen primaire en secundaire kleur, doorlopend op knoppen en accenten.</string>
     <string name="theme_gradient_primary">Primair</string>
@@ -1522,6 +1526,13 @@
     <string name="fm_conflict_skip">Overslaan</string>
     <string name="fm_select_this_folder">Deze map selecteren</string>
     <string name="fm_back">Terug</string>
+    <string name="fm_exit">Afsluiten</string>
+    <string name="fm_return_to_start">Terug naar beginmap</string>
+    <string name="fm_start_unavailable">De beginmap is niet meer beschikbaar</string>
+    <string name="fm_cancel_operation_title">Bewerking annuleren?</string>
+    <string name="fm_cancel_operation_confirmation">De bewerking wordt geannuleerd. Weet je het zeker?</string>
+    <string name="fm_accept">Accepteren</string>
+    <string name="fm_decline">Weigeren</string>
     <string name="fm_drive_not_readable">%1$s is gekoppeld, maar nu niet leesbaar</string>
     <string name="fm_list_view">Lijstweergave</string>
     <string name="fm_grid_view">Rasterweergave</string>

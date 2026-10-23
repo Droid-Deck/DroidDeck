@@ -1389,6 +1389,10 @@
     <string name="theme_icon_blue_detail">黒の背景に白の文字、選択・フォーカス・押下時には青を使用します。</string>
     <string name="theme_electric">エレクトリックネイビー</string>
     <string name="theme_electric_detail">より明るい青を、グレーではなくネイビー寄りの画面に使用します。</string>
+    <string name="theme_inner_gamer">Inner Gamer</string>
+    <string name="theme_inner_gamer_detail">虹色に変化し続けるカラー。Android のアニメーション設定に従います。</string>
+    <string name="theme_rgb_speed">速度</string>
+    <string name="theme_rgb_speed_hint">色が切り替わる速さ。</string>
     <string name="theme_gradient">グラデーション</string>
     <string name="theme_gradient_detail">自分で選んだプライマリとセカンダリの色を、ボタンやハイライトにグラデーションで使います。</string>
     <string name="theme_gradient_primary">プライマリ</string>
@@ -1505,6 +1509,13 @@
     <string name="fm_conflict_skip">スキップ</string>
     <string name="fm_select_this_folder">このフォルダを選択</string>
     <string name="fm_back">戻る</string>
+    <string name="fm_exit">終了</string>
+    <string name="fm_return_to_start">開始フォルダーに戻る</string>
+    <string name="fm_start_unavailable">開始フォルダーは利用できなくなりました</string>
+    <string name="fm_cancel_operation_title">操作をキャンセルしますか？</string>
+    <string name="fm_cancel_operation_confirmation">操作がキャンセルされます。よろしいですか？</string>
+    <string name="fm_accept">承諾</string>
+    <string name="fm_decline">拒否</string>
     <string name="fm_drive_not_readable">%1$sはマウントされていますが、現在読み取れません</string>
     <string name="fm_list_view">リスト表示</string>
     <string name="fm_grid_view">グリッド表示</string>

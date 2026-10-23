@@ -1429,6 +1429,10 @@
     <string name="theme_icon_blue_detail">Černé pozadí, bílé písmo, modrá pro vše vybrané, zaměřené nebo stisknuté.</string>
     <string name="theme_electric">Elektrická modř</string>
     <string name="theme_electric_detail">Jasnější modrá na povrchách, které jsou spíše tmavomodré než šedé.</string>
+    <string name="theme_inner_gamer">Inner Gamer</string>
+    <string name="theme_inner_gamer_detail">Barvy, které procházejí celou duhu. Respektuje nastavení animací v Androidu.</string>
+    <string name="theme_rgb_speed">Rychlost</string>
+    <string name="theme_rgb_speed_hint">Jak rychle se barvy střídají.</string>
     <string name="theme_gradient">Přechod</string>
     <string name="theme_gradient_detail">Vaše vlastní primární a sekundární barva, prolnuté na tlačítkách a zvýrazněních.</string>
     <string name="theme_gradient_primary">Primární</string>
@@ -1560,6 +1564,13 @@
     <string name="fm_conflict_skip">Přeskočit</string>
     <string name="fm_select_this_folder">Vybrat tuto složku</string>
     <string name="fm_back">Zpět</string>
+    <string name="fm_exit">Ukončit</string>
+    <string name="fm_return_to_start">Zpět do výchozí složky</string>
+    <string name="fm_start_unavailable">Výchozí složka již není dostupná</string>
+    <string name="fm_cancel_operation_title">Zrušit operaci?</string>
+    <string name="fm_cancel_operation_confirmation">Operace bude zrušena. Opravdu chcete pokračovat?</string>
+    <string name="fm_accept">Přijmout</string>
+    <string name="fm_decline">Odmítnout</string>
     <string name="fm_drive_not_readable">%1$s je připojeno, ale momentálně není čitelné</string>
     <string name="fm_list_view">Zobrazení seznamu</string>
     <string name="fm_grid_view">Zobrazení mřížky</string>

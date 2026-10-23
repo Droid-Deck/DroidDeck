@@ -1417,6 +1417,10 @@
     <string name="theme_icon_blue_detail">Fondo negro, texto blanco y el azul para todo lo seleccionado, enfocado o pulsado.</string>
     <string name="theme_electric">Azul marino eléctrico</string>
     <string name="theme_electric_detail">Un azul más vivo, sobre superficies que tiran a azul marino en vez de gris.</string>
+    <string name="theme_inner_gamer">Inner Gamer</string>
+    <string name="theme_inner_gamer_detail">Colores que recorren el arcoíris. Respeta los ajustes de animación de Android.</string>
+    <string name="theme_rgb_speed">Velocidad</string>
+    <string name="theme_rgb_speed_hint">Con qué rapidez cambian los colores.</string>
     <string name="theme_gradient">Degradado</string>
     <string name="theme_gradient_detail">Tus propios colores primario y secundario, combinados en botones y resaltados.</string>
     <string name="theme_gradient_primary">Primario</string>
@@ -1543,6 +1547,13 @@
     <string name="fm_conflict_skip">Omitir</string>
     <string name="fm_select_this_folder">Seleccionar esta carpeta</string>
     <string name="fm_back">Atrás</string>
+    <string name="fm_exit">Salir</string>
+    <string name="fm_return_to_start">Volver a la carpeta inicial</string>
+    <string name="fm_start_unavailable">La carpeta inicial ya no está disponible</string>
+    <string name="fm_cancel_operation_title">¿Cancelar la operación?</string>
+    <string name="fm_cancel_operation_confirmation">La operación se cancelará. ¿Estás seguro?</string>
+    <string name="fm_accept">Aceptar</string>
+    <string name="fm_decline">Rechazar</string>
     <string name="fm_drive_not_readable">%1$s está montado, pero ahora mismo no se puede leer</string>
     <string name="fm_list_view">Vista de lista</string>
     <string name="fm_grid_view">Vista de cuadrícula</string>

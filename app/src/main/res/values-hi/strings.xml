@@ -1401,6 +1401,10 @@
     <string name="theme_icon_blue_detail">काली ज़मीन, सफ़ेद टाइप, चुने, फ़ोकस या दबाए गए हर चीज़ के लिए ब्लू रंग।</string>
     <string name="theme_electric">इलेक्ट्रिक नेवी</string>
     <string name="theme_electric_detail">ब्लू रंग ज़्यादा चमकीला, उन सतहों पर जो ग्रे के बजाय नेवी की ओर झुकती हैं।</string>
+    <string name="theme_inner_gamer">Inner Gamer</string>
+    <string name="theme_inner_gamer_detail">इंद्रधनुष के रंगों में बदलते रंग। Android की एनिमेशन सेटिंग का पालन करती है।</string>
+    <string name="theme_rgb_speed">गति</string>
+    <string name="theme_rgb_speed_hint">रंग कितनी तेज़ी से बदलें।</string>
     <string name="theme_gradient">ग्रेडिएंट</string>
     <string name="theme_gradient_detail">आपके अपने प्राथमिक और द्वितीयक रंग, बटनों और हाइलाइट पर मिश्रित।</string>
     <string name="theme_gradient_primary">प्राथमिक</string>
@@ -1522,6 +1526,13 @@
     <string name="fm_conflict_skip">छोड़ें</string>
     <string name="fm_select_this_folder">यह फ़ोल्डर चुनें</string>
     <string name="fm_back">बैक</string>
+    <string name="fm_exit">बाहर निकलें</string>
+    <string name="fm_return_to_start">शुरुआती फ़ोल्डर पर लौटें</string>
+    <string name="fm_start_unavailable">शुरुआती फ़ोल्डर अब उपलब्ध नहीं है</string>
+    <string name="fm_cancel_operation_title">कार्रवाई रद्द करें?</string>
+    <string name="fm_cancel_operation_confirmation">कार्रवाई रद्द कर दी जाएगी। क्या आप सुनिश्चित हैं?</string>
+    <string name="fm_accept">स्वीकार करें</string>
+    <string name="fm_decline">अस्वीकार करें</string>
     <string name="fm_drive_not_readable">%1$s माउंट है लेकिन अभी पढ़ा नहीं जा सकता</string>
     <string name="fm_list_view">लिस्ट व्यू</string>
     <string name="fm_grid_view">ग्रिड व्यू</string>

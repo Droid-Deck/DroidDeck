@@ -1401,6 +1401,10 @@
     <string name="theme_icon_blue_detail">Svart bakgrunn, hvit skrift, det blå for alt som er valgt, fokusert eller trykket.</string>
     <string name="theme_electric">Elektrisk marineblå</string>
     <string name="theme_electric_detail">Det blå lysere, på flater som lener mer mot marineblått enn grått.</string>
+    <string name="theme_inner_gamer">Inner Gamer</string>
+    <string name="theme_inner_gamer_detail">Farger som går gjennom regnbuen. Følger Androids animasjonsinnstillinger.</string>
+    <string name="theme_rgb_speed">Hastighet</string>
+    <string name="theme_rgb_speed_hint">Hvor raskt fargene skifter.</string>
     <string name="theme_gradient">Gradient</string>
     <string name="theme_gradient_detail">Dine egne primær- og sekundærfarger, blandet på knapper og uthevinger.</string>
     <string name="theme_gradient_primary">Primær</string>
@@ -1522,6 +1526,13 @@
     <string name="fm_conflict_skip">Hopp over</string>
     <string name="fm_select_this_folder">Velg denne mappen</string>
     <string name="fm_back">Tilbake</string>
+    <string name="fm_exit">Avslutt</string>
+    <string name="fm_return_to_start">Tilbake til startmappen</string>
+    <string name="fm_start_unavailable">Startmappen er ikke lenger tilgjengelig</string>
+    <string name="fm_cancel_operation_title">Avbryt operasjonen?</string>
+    <string name="fm_cancel_operation_confirmation">Operasjonen blir avbrutt. Er du sikker?</string>
+    <string name="fm_accept">Godta</string>
+    <string name="fm_decline">Avslå</string>
     <string name="fm_drive_not_readable">%1$s er montert, men ikke lesbar akkurat nå</string>
     <string name="fm_list_view">Listevisning</string>
     <string name="fm_grid_view">Rutenettvisning</string>

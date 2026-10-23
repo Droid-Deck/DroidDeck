@@ -764,6 +764,14 @@ object SessionPrefs {
             it.getInt("gradientSecondary", com.droiddeck.launcher.ui.Themes.DEFAULT_SECONDARY)
     }
 
+    /** How fast the Inner Gamer theme cycles its colours, 1 to 10. */
+    fun rgbSpeed(context: Context): Int =
+        prefs(context).getInt("innerGamerSpeed", com.droiddeck.launcher.ui.Themes.DEFAULT_RGB_SPEED).coerceIn(1, com.droiddeck.launcher.ui.Themes.RGB_SPEEDS)
+
+    fun setRgbSpeed(context: Context, speed: Int) {
+        prefs(context).edit().putInt("innerGamerSpeed", speed.coerceIn(1, com.droiddeck.launcher.ui.Themes.RGB_SPEEDS)).apply()
+    }
+
     fun setGradientColors(context: Context, primary: Int, secondary: Int) {
         prefs(context).edit().putInt("gradientPrimary", primary).putInt("gradientSecondary", secondary).apply()
     }

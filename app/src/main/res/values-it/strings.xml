@@ -1407,6 +1407,10 @@
     <string name="theme_icon_blue_detail">Fondo nero, testo bianco, il blu per tutto ciò che è selezionato, attivo o premuto.</string>
     <string name="theme_electric">Blu elettrico</string>
     <string name="theme_electric_detail">Il blu più brillante, su superfici che tendono al blu navy invece che al grigio.</string>
+    <string name="theme_inner_gamer">Inner Gamer</string>
+    <string name="theme_inner_gamer_detail">Colori che scorrono lungo l\'arcobaleno. Rispetta le impostazioni di animazione di Android.</string>
+    <string name="theme_rgb_speed">Velocità</string>
+    <string name="theme_rgb_speed_hint">Quanto velocemente cambiano i colori.</string>
     <string name="theme_gradient">Gradiente</string>
     <string name="theme_gradient_detail">I tuoi colori primario e secondario, sfumati su pulsanti ed evidenziazioni.</string>
     <string name="theme_gradient_primary">Primario</string>
@@ -1533,6 +1537,13 @@
     <string name="fm_conflict_skip">Salta</string>
     <string name="fm_select_this_folder">Seleziona questa cartella</string>
     <string name="fm_back">Indietro</string>
+    <string name="fm_exit">Esci</string>
+    <string name="fm_return_to_start">Torna alla cartella iniziale</string>
+    <string name="fm_start_unavailable">La cartella iniziale non è più disponibile</string>
+    <string name="fm_cancel_operation_title">Annullare operazione?</string>
+    <string name="fm_cancel_operation_confirmation">Questa operazione verrà annullata. Confermi?</string>
+    <string name="fm_accept">Accetta</string>
+    <string name="fm_decline">Rifiuta</string>
     <string name="fm_drive_not_readable">%1$s: montata ma al momento non leggibile</string>
     <string name="fm_list_view">Visualizzazione elenco</string>
     <string name="fm_grid_view">Visualizzazione griglia</string>

@@ -1387,6 +1387,10 @@
     <string name="theme_icon_blue_detail">พื้นดำ ตัวอักษรขาว สีฟ้าสำหรับทุกสิ่งที่ถูกเลือก โฟกัส หรือกด</string>
     <string name="theme_electric">กรมท่าไฟฟ้า</string>
     <string name="theme_electric_detail">สีฟ้าสว่างขึ้น บนพื้นผิวที่เอียงไปทางกรมท่ามากกว่าเทา</string>
+    <string name="theme_inner_gamer">Inner Gamer</string>
+    <string name="theme_inner_gamer_detail">สีที่เปลี่ยนวนไปตามสายรุ้ง ทำงานตามการตั้งค่าแอนิเมชันของ Android</string>
+    <string name="theme_rgb_speed">ความเร็ว</string>
+    <string name="theme_rgb_speed_hint">สีเปลี่ยนเร็วแค่ไหน</string>
     <string name="theme_gradient">ไล่เฉดสี</string>
     <string name="theme_gradient_detail">สีหลักและสีรองที่คุณเลือกเอง ผสมกันบนปุ่มและส่วนที่เน้น</string>
     <string name="theme_gradient_primary">สีหลัก</string>
@@ -1503,6 +1507,13 @@
     <string name="fm_conflict_skip">ข้าม</string>
     <string name="fm_select_this_folder">เลือกโฟลเดอร์นี้</string>
     <string name="fm_back">กลับ</string>
+    <string name="fm_exit">ออก</string>
+    <string name="fm_return_to_start">กลับไปยังโฟลเดอร์เริ่มต้น</string>
+    <string name="fm_start_unavailable">โฟลเดอร์เริ่มต้นไม่พร้อมใช้งานแล้ว</string>
+    <string name="fm_cancel_operation_title">ยกเลิกการดำเนินการ?</string>
+    <string name="fm_cancel_operation_confirmation">การดำเนินการจะถูกยกเลิก คุณแน่ใจหรือไม่?</string>
+    <string name="fm_accept">ยอมรับ</string>
+    <string name="fm_decline">ปฏิเสธ</string>
     <string name="fm_drive_not_readable">%1$s ติดตั้งอยู่แต่อ่านไม่ได้ในขณะนี้</string>
     <string name="fm_list_view">มุมมองรายการ</string>
     <string name="fm_grid_view">มุมมองตาราง</string>

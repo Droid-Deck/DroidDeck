@@ -1389,6 +1389,10 @@
     <string name="theme_icon_blue_detail">검은색 배경에 흰색 글자, 선택·포커스·누름 상태에는 파란색을 사용합니다.</string>
     <string name="theme_electric">일렉트릭 네이비</string>
     <string name="theme_electric_detail">회색 대신 네이비 톤의 화면에 더 밝은 파란색을 사용합니다.</string>
+    <string name="theme_inner_gamer">Inner Gamer</string>
+    <string name="theme_inner_gamer_detail">무지개 색으로 계속 바뀌는 색상입니다. Android의 애니메이션 설정을 따릅니다.</string>
+    <string name="theme_rgb_speed">속도</string>
+    <string name="theme_rgb_speed_hint">색상이 바뀌는 속도입니다.</string>
     <string name="theme_gradient">그라데이션</string>
     <string name="theme_gradient_detail">직접 고른 기본색과 보조색이 버튼과 강조 표시에 섞여 적용됩니다.</string>
     <string name="theme_gradient_primary">기본색</string>
@@ -1505,6 +1509,13 @@
     <string name="fm_conflict_skip">건너뛰기</string>
     <string name="fm_select_this_folder">이 폴더 선택</string>
     <string name="fm_back">뒤로</string>
+    <string name="fm_exit">종료</string>
+    <string name="fm_return_to_start">시작 폴더로 돌아가기</string>
+    <string name="fm_start_unavailable">시작 폴더를 더 이상 사용할 수 없습니다</string>
+    <string name="fm_cancel_operation_title">작업을 취소할까요?</string>
+    <string name="fm_cancel_operation_confirmation">작업이 취소됩니다. 계속하시겠습니까?</string>
+    <string name="fm_accept">수락</string>
+    <string name="fm_decline">거절</string>
     <string name="fm_drive_not_readable">%1$s이(가) 마운트되었지만 지금은 읽을 수 없습니다</string>
     <string name="fm_list_view">목록 보기</string>
     <string name="fm_grid_view">격자 보기</string>
