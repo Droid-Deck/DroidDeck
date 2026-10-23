@@ -80,7 +80,9 @@ object SteamGameMove {
         if (inside(target, sourceLibrary)) return context.getString(R.string.storage_move_inside)
         val installDir = gameDir.name.takeIf { it.isNotEmpty() && '/' !in it && '\\' !in it }
             ?: return context.getString(R.string.storage_move_bad_source)
-        if (!target.isDirectory || !target.canWrite()) return context.getString(R.string.storage_move_missing)
+        // A freshly plugged drive has no steam folder yet; create the target root and let
+        // GameStorage.prepare probe real writability below instead of trusting canWrite on FUSE.
+        if (!target.isDirectory && !target.mkdirs()) return context.getString(R.string.storage_move_missing)
 
         val arch = if (game.x64) "x86_64" else "arm64"
         val plan = when (val resolved = resolve(context, game, target, arch)) {

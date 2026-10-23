@@ -315,4 +315,53 @@ class SteamGameMoveTest {
         assertTrue(File(gameDir, "game.exe").isFile)
         assertTrue(manifest.isFile)
     }
+
+    @Test fun aFreshDriveWithoutASteamFolderIsCreatedAndRegistered() {
+        SessionPrefs.setGameStorage(app, SessionPrefs.GAME_STORAGE_OFF, "")
+        val source = tmp.newFolder("source-fresh")
+        val gameDir = File(source, "steamapps/common/Example").apply { mkdirs() }
+        File(gameDir, "game.exe").writeText("game")
+        val manifest = File(source, "steamapps/appmanifest_220.acf").apply {
+            writeText("\"AppState\"\n{\n\t\"appid\"\t\t\"220\"\n\t\"StateFlags\"\t\t\"4\"\n\t\"installdir\"\t\t\"Example\"\n}\n")
+        }
+        val game = GameUsage(
+            220, "Example", null, "internal", true, 0,
+            0, 0, 0, 0, null, false,
+            source, source, gameDir, manifest,
+        )
+        // A freshly plugged SSD has no steam folder yet, like a new GameStorage volume.
+        val target = File(tmp.root, "fresh-ssd-${System.nanoTime()}/steam")
+        assertFalse(target.exists())
+
+        val error = SteamGameMove.move(app, game, target)
+
+        assertNull(error)
+        assertTrue(File(target, "steamapps/common/Example/game.exe").isFile)
+        assertTrue(File(target, "steamapps/appmanifest_220.acf").isFile)
+        assertFalse(gameDir.exists())
+        assertFalse(manifest.exists())
+        assertTrue(SteamLibraryRegistry.available(app, "arm64").any { it.host.canonicalPath == target.canonicalPath })
+    }
+
+    @Test fun aTargetThatExistsAsAFileIsStillRejected() {
+        SessionPrefs.setGameStorage(app, SessionPrefs.GAME_STORAGE_OFF, "")
+        val source = tmp.newFolder("source-file-target")
+        val gameDir = File(source, "steamapps/common/Example").apply { mkdirs() }
+        File(gameDir, "game.exe").writeText("game")
+        val manifest = File(source, "steamapps/appmanifest_220.acf").apply {
+            writeText("\"AppState\"\n{\n\t\"appid\"\t\t\"220\"\n\t\"StateFlags\"\t\t\"4\"\n\t\"installdir\"\t\t\"Example\"\n}\n")
+        }
+        val game = GameUsage(
+            220, "Example", null, "internal", true, 0,
+            0, 0, 0, 0, null, false,
+            source, source, gameDir, manifest,
+        )
+        val target = tmp.newFile("blocked")
+
+        val error = SteamGameMove.move(app, game, target)
+
+        assertEquals(app.getString(com.droiddeck.launcher.R.string.storage_move_missing), error)
+        assertTrue(File(gameDir, "game.exe").isFile)
+        assertTrue(manifest.isFile)
+    }
 }
