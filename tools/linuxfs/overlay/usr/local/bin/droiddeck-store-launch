@@ -51,6 +51,7 @@ CLIENT_TIMEOUT = 150.0
 PREREQ_MARK = ".droiddeck-prereq"
 PREREQ_TIMEOUT = 900.0
 UBISOFT_STATE = "uplay_install.state"
+UBISOFT_INSTALLER = "uplayinstaller.exe"
 UBISOFT_PRODUCT_FIELD = 28
 UBISOFT_INSTALLS_PATH = "HKEY_LOCAL_MACHINE\\SOFTWARE\\WOW6432Node\\Ubisoft\\Launcher\\Installs\\%d"
 UBISOFT_INSTALLS_SECTION = "[Software\\WOW6432Node\\Ubisoft\\Launcher\\Installs\\%d]"
@@ -380,11 +381,22 @@ def provision_galaxy(compat_data, proton, timeout=90):
         return "service-unavailable"
 
 
+def ubisoft_installer(folder):
+    try:
+        names = os.listdir(folder)
+    except OSError:
+        return ""
+    for name in names:
+        if name.lower() == UBISOFT_INSTALLER:
+            return name
+    return ""
+
+
 def install_prereq(folder, sidecar, compat_data, proton):
     extra = sidecar.get("extra")
-    if not isinstance(extra, dict):
-        return "skipped"
-    path = str(extra.get("prereqPath") or "").strip()
+    path = str(extra.get("prereqPath") or "").strip() if isinstance(extra, dict) else ""
+    if not path:
+        path = ubisoft_installer(folder)
     if not path or not proton or not compat_data:
         return "skipped"
     installer = folder / path
@@ -684,12 +696,14 @@ def main(argv):
         made = create_prefix(compat_data, os.environ.get("BL_STORE_PROTON", ""))
         if made != "present":
             log("cloud %s %s prefix=%s" % (store, game, made))
+    uplay = uplay_product(folder)
+    if uplay is not None:
+        log("ubisoft install: %s" % ubisoft_registry(folder, compat_data, uplay, os.environ.get("BL_STORE_PROTON", "")))
+        log("ubisoft prereq=%s" % install_prereq(folder, sidecar, compat_data, os.environ.get("BL_STORE_PROTON", "")))
     if store == "gog":
         prepare_gog(sidecar, compat_data, launch_dir)
         log("gog registry: " + apply_gog_registry(folder, compat_data, os.environ.get("BL_STORE_PROTON", "")))
     if store == "epic":
-        uplay = uplay_product(folder)
-        log("ubisoft install: %s" % ubisoft_registry(folder, compat_data, uplay, os.environ.get("BL_STORE_PROTON", "")))
         handled = os.environ.get(EPIC_HANDLED) == "1" and (folder / EPIC_ARGS).is_file()
         if not handled:
             drop_stale(folder)
@@ -728,7 +742,6 @@ def main(argv):
                 got = bool(answer.get("code"))
                 log("epic launch id=%s code=%s reason=%s" % (game, "yes" if got else "no", answer.get("reason", "")))
         log("epic prefix=%s %s" % (prefix_id or "?", provision_prefix(compat_data)))
-        log("epic prereq=%s" % install_prereq(folder, sidecar, compat_data, os.environ.get("BL_STORE_PROTON", "")))
     if not cloud_on(sidecar):
         if store in CLOUD_STORES:
             log("cloud %s %s down result=skipped reason=off" % (store, game))
