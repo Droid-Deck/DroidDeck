@@ -792,7 +792,7 @@ jobs:
         run: test "$(git rev-parse 'HEAD^{tree}')" = "$XBOX_SOURCE_TREE"
       - name: Install Python test dependencies
         timeout-minutes: 7
-        run: bash tools/ci/install-ubuntu-packages.sh python3-yaml gcc-aarch64-linux-gnu qemu-user libvulkan1 mesa-vulkan-drivers
+        run: bash tools/ci/install-ubuntu-packages.sh python3-yaml gcc-aarch64-linux-gnu libc6-dev-arm64-cross qemu-user libvulkan-dev mesa-vulkan-drivers
       - name: Steam import and game environment tests
         run: python3 -m unittest discover -s tools/tests -p 'test_*.py'
 
