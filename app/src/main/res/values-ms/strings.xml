@@ -539,8 +539,8 @@
     <string name="perf_sysmem">Turnip: rendering sysmem</string>
     <string name="perf_sysmem_hint">Lebih pantas untuk klien Steam; dalam permainan, pemacu memilih pemaparan jubin atau memori sistem bagi setiap laluan. Diperlukan pada Adreno 710/720/722.</string>
     <string name="perf_xalia">Langkau pembantu xalia Steam</string>
-    <string name="perf_fastsync">droiddeck-ntsync (eksperimen)</string>
-    <string name="perf_fastsync_hint">Pengganti ruang pengguna untuk pemacu ntsync Linux, untuk pengujian. Semasa ia hidup, Proton menggunakannya sebagai ganti droiddeck-esync dan droiddeck-fsync. Berfungsi dengan Proton Experimental ARM64, GE-Proton dan proton-cachyos. Berkuat kuasa pada sesi seterusnya.</string>
+    <string name="perf_fastsync">droiddeck-ntsync</string>
+    <string name="perf_fastsync_hint">Pengganti ruang pengguna untuk pemacu ntsync Linux. Semasa ia hidup, Proton menggunakannya sebagai ganti droiddeck-esync dan droiddeck-fsync. Berfungsi dengan Proton Experimental ARM64, GE-Proton dan proton-cachyos. Berkuat kuasa pada sesi seterusnya.</string>
     <string name="perf_esync">droiddeck-esync</string>
     <string name="perf_fsync">droiddeck-fsync dahulu</string>
     <string name="perf_fsync_hint">Menjalankan fsync Proton sendiri pada fail Proton standard, dengan futex_waitv dibekalkan dalam ruang pengguna, jadi ia tidak memerlukan pek dan terus berfungsi sebaik sahaja Steam mengemas kini Proton. Semasa ia hidup, permainan menggunakannya mendahului droiddeck-esync, kecuali beberapa Proton yang mematikan fsync. Berkuat kuasa pada sesi seterusnya.</string>

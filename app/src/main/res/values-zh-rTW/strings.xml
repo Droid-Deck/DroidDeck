@@ -541,8 +541,8 @@
     <string name="perf_sysmem">Turnip：sysmem 渲染</string>
     <string name="perf_sysmem_hint">Steam 用戶端會更快；遊戲中驅動程式會為每個算繪通道選擇分塊算繪或系統記憶體算繪。Adreno 710/720/722 必需。</string>
     <string name="perf_xalia">跳過 Steam 的 xalia 輔助程式</string>
-    <string name="perf_fastsync">droiddeck-ntsync（實驗性）</string>
-    <string name="perf_fastsync_hint">以使用者空間替代 Linux ntsync 驅動程式，供測試使用。開啟時，Proton 會使用它來取代 droiddeck-esync 和 droiddeck-fsync。適用於 Proton Experimental ARM64、GE-Proton 和 proton-cachyos。下次工作階段生效。</string>
+    <string name="perf_fastsync">droiddeck-ntsync</string>
+    <string name="perf_fastsync_hint">以使用者空間替代 Linux ntsync 驅動程式。開啟時，Proton 會使用它來取代 droiddeck-esync 和 droiddeck-fsync。適用於 Proton Experimental ARM64、GE-Proton 和 proton-cachyos。下次工作階段生效。</string>
     <string name="perf_esync">droiddeck-esync</string>
     <string name="perf_fsync">優先使用 droiddeck-fsync</string>
     <string name="perf_fsync_hint">在原版 Proton 檔案上執行 Proton 自己的 fsync，並在使用者空間提供 futex_waitv，因此不需要套件，Steam 更新 Proton 後也能立即繼續運作。開啟時，遊戲會優先使用它而非 droiddeck-esync，Proton 本身停用 fsync 的少數遊戲除外。下次工作階段生效。</string>

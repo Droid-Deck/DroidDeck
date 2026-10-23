@@ -541,8 +541,8 @@
     <string name="perf_sysmem">Turnip：sysmemレンダリング</string>
     <string name="perf_sysmem_hint">Steamクライアントが高速になります。ゲームではドライバーがパスごとにタイルレンダリングとシステムメモリレンダリングを選びます。Adreno 710/720/722では必須です。</string>
     <string name="perf_xalia">Steamのxalia補助をスキップ</string>
-    <string name="perf_fastsync">droiddeck-ntsync（実験的）</string>
-    <string name="perf_fastsync_hint">Linuxのntsyncドライバーをユーザー空間で代替するテスト用機能です。オンの間、Protonはdroiddeck-esyncとdroiddeck-fsyncの代わりにこれを使用します。Proton Experimental ARM64、GE-Proton、proton-cachyosで動作します。次回のセッションで有効になります。</string>
+    <string name="perf_fastsync">droiddeck-ntsync</string>
+    <string name="perf_fastsync_hint">Linuxのntsyncドライバーをユーザー空間で代替する機能です。オンの間、Protonはdroiddeck-esyncとdroiddeck-fsyncの代わりにこれを使用します。Proton Experimental ARM64、GE-Proton、proton-cachyosで動作します。次回のセッションで有効になります。</string>
     <string name="perf_esync">droiddeck-esync</string>
     <string name="perf_fsync">droiddeck-fsyncを優先</string>
     <string name="perf_fsync_hint">futex_waitvをユーザー空間で提供し、標準のProtonファイルのままProton自身のfsyncを実行します。パックが不要なため、SteamがProtonを更新してもすぐに動作し続けます。オンの間、Protonがfsyncを使わない一部のゲームを除き、ゲームはdroiddeck-esyncよりこちらを優先します。次回のセッションで有効になります。</string>

@@ -541,8 +541,8 @@
     <string name="perf_sysmem">Turnip: sysmem renderelés</string>
     <string name="perf_sysmem_hint">Gyorsabb a Steam kliensnek; játékokban a meghajtó menetenként választ a csempés és a rendszermemóriás renderelés között. Adreno 710/720/722-n szükséges.</string>
     <string name="perf_xalia">A Steam xalia segítőjének kihagyása</string>
-    <string name="perf_fastsync">droiddeck-ntsync (kísérleti)</string>
-    <string name="perf_fastsync_hint">A Linux ntsync illesztőprogram felhasználói szintű helyettesítője, teszteléshez. Amíg be van kapcsolva, a Proton ezt használja a droiddeck-esync és a droiddeck-fsync helyett. A Proton Experimental ARM64-gyel, a GE-Protonnal és a proton-cachyosszal működik. A következő munkamenettől érvényes.</string>
+    <string name="perf_fastsync">droiddeck-ntsync</string>
+    <string name="perf_fastsync_hint">A Linux ntsync illesztőprogram felhasználói szintű helyettesítője. Amíg be van kapcsolva, a Proton ezt használja a droiddeck-esync és a droiddeck-fsync helyett. A Proton Experimental ARM64-gyel, a GE-Protonnal és a proton-cachyosszal működik. A következő munkamenettől érvényes.</string>
     <string name="perf_esync">droiddeck-esync</string>
     <string name="perf_fsync">droiddeck-fsync előre</string>
     <string name="perf_fsync_hint">A Proton saját fsyncjét futtatja az eredeti Proton-fájlokon, felhasználói szinten biztosított futex_waitv-vel, így nincs szükség csomagra, és azonnal működik, amint a Steam frissíti a Protont. Amíg be van kapcsolva, a játékok ezt használják a droiddeck-esync előtt, kivéve azt a néhányat, amelyet a Proton kizár az fsyncből. A következő munkamenettől érvényes.</string>

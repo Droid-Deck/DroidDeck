@@ -549,8 +549,8 @@
     <string name="perf_sysmem">Turnip: التصيير عبر sysmem</string>
     <string name="perf_sysmem_hint">أسرع لعميل Steam؛ في الألعاب يختار برنامج التشغيل بين العرض المقسّم إلى مربعات والعرض في ذاكرة النظام لكل مرحلة. مطلوب على Adreno 710/720/722.</string>
     <string name="perf_xalia">تجاوز مساعد xalia في Steam</string>
-    <string name="perf_fastsync">droiddeck-ntsync (تجريبي)</string>
-    <string name="perf_fastsync_hint">بديل في مساحة المستخدم لبرنامج تشغيل ntsync في Linux، للاختبار. أثناء تفعيله، يستخدمه Proton بدلًا من droiddeck-esync وdroiddeck-fsync. يعمل مع Proton Experimental ARM64 وGE-Proton وproton-cachyos. يُطبَّق في الجلسة التالية.</string>
+    <string name="perf_fastsync">droiddeck-ntsync</string>
+    <string name="perf_fastsync_hint">بديل في مساحة المستخدم لبرنامج تشغيل ntsync في Linux. أثناء تفعيله، يستخدمه Proton بدلًا من droiddeck-esync وdroiddeck-fsync. يعمل مع Proton Experimental ARM64 وGE-Proton وproton-cachyos. يُطبَّق في الجلسة التالية.</string>
     <string name="perf_esync">droiddeck-esync</string>
     <string name="perf_fsync">droiddeck-fsync أولًا</string>
     <string name="perf_fsync_hint">يشغّل خاصية fsync المدمجة في Proton على ملفات Proton الأصلية، مع توفير futex_waitv في مساحة المستخدم، فلا يحتاج إلى حزمة ويستمر في العمل لحظة تحديث Steam لـ Proton. أثناء تفعيله، تستخدمه الألعاب قبل droiddeck-esync، باستثناء القليل الذي يبقيه Proton معطّلًا لـ fsync. يُطبَّق في الجلسة التالية.</string>

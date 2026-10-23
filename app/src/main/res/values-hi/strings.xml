@@ -541,8 +541,8 @@
     <string name="perf_sysmem">Turnip: sysmem रेंडरिंग</string>
     <string name="perf_sysmem_hint">Steam क्लाइंट के लिए तेज़; गेम में ड्राइवर हर पास के लिए टाइल या सिस्टम मेमोरी रेंडरिंग चुनता है। Adreno 710/720/722 पर ज़रूरी।</string>
     <string name="perf_xalia">Steam के xalia हेल्पर को छोड़ें</string>
-    <string name="perf_fastsync">droiddeck-ntsync (एक्सपेरिमेंटल)</string>
-    <string name="perf_fastsync_hint">जांच के लिए Linux ntsync ड्राइवर की यूज़रस्पेस जगह लेने वाली चीज़। चालू रहते हुए, Proton इसे droiddeck-esync और droiddeck-fsync के बदले इस्तेमाल करता है। यह Proton Experimental ARM64, GE-Proton और proton-cachyos के साथ काम करता है। अगले सेशन से लागू होता है।</string>
+    <string name="perf_fastsync">droiddeck-ntsync</string>
+    <string name="perf_fastsync_hint">Linux ntsync ड्राइवर की यूज़रस्पेस जगह लेने वाली चीज़। चालू रहते हुए, Proton इसे droiddeck-esync और droiddeck-fsync के बदले इस्तेमाल करता है। यह Proton Experimental ARM64, GE-Proton और proton-cachyos के साथ काम करता है। अगले सेशन से लागू होता है।</string>
     <string name="perf_esync">droiddeck-esync</string>
     <string name="perf_fsync">droiddeck-fsync पहले</string>
     <string name="perf_fsync_hint">स्टॉक Proton फ़ाइलों पर Proton का अपना fsync चलाता है, futex_waitv यूज़रस्पेस में दिया जाता है, इसलिए इसे किसी पैक की ज़रूरत नहीं और Steam के Proton अपडेट करते ही यह काम करता रहता है। चालू रहते हुए, गेम इसे droiddeck-esync से पहले इस्तेमाल करते हैं, सिवाय उन कुछ के जिन्हें Proton fsync से दूर रखता है। अगले सेशन से लागू होता है।</string>

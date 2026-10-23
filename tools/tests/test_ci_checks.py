@@ -12,6 +12,12 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 class CiChecksTest(unittest.TestCase):
+    def test_independent_jobs_wait_only_for_the_pinned_source(self):
+        jobs = yaml.safe_load((ROOT / '.github/workflows/build.yml').read_text())['jobs']
+        for name in ('xbox', 'components', 'python-tests'):
+            self.assertEqual(jobs[name]['needs'], 'source')
+        self.assertEqual(set(jobs['build']['needs']), {'source', 'components', 'xbox'})
+
     def test_dependency_update_errors_block_installation(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

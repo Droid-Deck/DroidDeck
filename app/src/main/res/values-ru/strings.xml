@@ -547,8 +547,8 @@
     <string name="perf_sysmem">Turnip: рендеринг sysmem</string>
     <string name="perf_sysmem_hint">Клиент Steam будет быстрее; в играх драйвер для каждого прохода выбирает тайловый рендеринг или рендеринг в системной памяти. Требуется для Adreno 710/720/722.</string>
     <string name="perf_xalia">Пропустить помощник xalia в Steam</string>
-    <string name="perf_fastsync">droiddeck-ntsync (экспериментально)</string>
-    <string name="perf_fastsync_hint">Замена драйвера ntsync Linux в пространстве пользователя, для тестирования. Пока включено, Proton использует ее вместо droiddeck-esync и droiddeck-fsync. Работает с Proton Experimental ARM64, GE-Proton и proton-cachyos. Вступит в силу в следующей сессии.</string>
+    <string name="perf_fastsync">droiddeck-ntsync</string>
+    <string name="perf_fastsync_hint">Замена драйвера ntsync Linux в пространстве пользователя. Пока включено, Proton использует ее вместо droiddeck-esync и droiddeck-fsync. Работает с Proton Experimental ARM64, GE-Proton и proton-cachyos. Вступит в силу в следующей сессии.</string>
     <string name="perf_esync">droiddeck-esync</string>
     <string name="perf_fsync">droiddeck-fsync в приоритете</string>
     <string name="perf_fsync_hint">Запускает собственный fsync Proton на стандартных файлах Proton, а futex_waitv предоставляется в пространстве пользователя: пакет не нужен, и все продолжает работать сразу после обновления Proton в Steam. Пока включено, игры используют его раньше droiddeck-esync, кроме тех немногих, для которых Proton отключает fsync. Вступит в силу в следующей сессии.</string>

@@ -541,8 +541,8 @@
     <string name="perf_sysmem">Turnip: sysmem-renderöinti</string>
     <string name="perf_sysmem_hint">Nopeampi Steam-asiakasohjelmalle; peleissä ajuri valitsee jokaiselle vaiheelle ruuduittaisen tai järjestelmämuistiin tehtävän renderöinnin. Pakollinen Adreno 710/720/722:lla.</string>
     <string name="perf_xalia">Ohita Steamin xalia-avustaja</string>
-    <string name="perf_fastsync">droiddeck-ntsync (kokeellinen)</string>
-    <string name="perf_fastsync_hint">Käyttäjätilainen korvike Linuxin ntsync-ajurille, testausta varten. Kun se on päällä, Proton käyttää sitä droiddeck-esyncin ja droiddeck-fsyncin sijaan. Toimii Proton Experimental ARM64:n, GE-Protonin ja proton-cachyosin kanssa. Tulee voimaan seuraavassa istunnossa.</string>
+    <string name="perf_fastsync">droiddeck-ntsync</string>
+    <string name="perf_fastsync_hint">Käyttäjätilainen korvike Linuxin ntsync-ajurille. Kun se on päällä, Proton käyttää sitä droiddeck-esyncin ja droiddeck-fsyncin sijaan. Toimii Proton Experimental ARM64:n, GE-Protonin ja proton-cachyosin kanssa. Tulee voimaan seuraavassa istunnossa.</string>
     <string name="perf_esync">droiddeck-esync</string>
     <string name="perf_fsync">droiddeck-fsync etusijalle</string>
     <string name="perf_fsync_hint">Käynnistää Protonin omaa fsynciä vakiotiedostoilla, futex_waitv tarjottuna käyttäjätilassa, niin se ei tarvitse pakettia ja toimii edelleen heti kun Steam päivittää Protonin. Kun se on päällä, pelit käyttävät sitä droiddeck-esyncin edellä, paitsi harvat, jotka Proton pitää pois fsyncistä. Tulee voimaan seuraavassa istunnossa.</string>

@@ -545,8 +545,8 @@
     <string name="perf_sysmem">Turnip: vykreslování sysmem</string>
     <string name="perf_sysmem_hint">Rychlejší pro klienta Steam; ve hrách ovladač pro každý průchod volí dlaždicové vykreslování, nebo vykreslování v systémové paměti. Vyžadováno na Adreno 710/720/722.</string>
     <string name="perf_xalia">Vynechat Steamova pomocníka xalia</string>
-    <string name="perf_fastsync">droiddeck-ntsync (experimentální)</string>
-    <string name="perf_fastsync_hint">Uživatelská náhrada linuxového ovladače ntsync, pro testování. Když je zapnuto, Proton ho používá místo droiddeck-esync a droiddeck-fsync. Funguje s Proton Experimental ARM64, GE-Proton a proton-cachyos. Použije se od příští relace.</string>
+    <string name="perf_fastsync">droiddeck-ntsync</string>
+    <string name="perf_fastsync_hint">Uživatelská náhrada linuxového ovladače ntsync. Když je zapnuto, Proton ho používá místo droiddeck-esync a droiddeck-fsync. Funguje s Proton Experimental ARM64, GE-Proton a proton-cachyos. Použije se od příští relace.</string>
     <string name="perf_esync">droiddeck-esync</string>
     <string name="perf_fsync">droiddeck-fsync jako první</string>
     <string name="perf_fsync_hint">Spouští vlastní fsync Protonu na původních souborech Protonu, s futex_waitv dodaným v uživatelském prostoru, takže nepotřebuje balíček a funguje i hned po aktualizaci Protonu Steamem. Když je zapnuto, hry ho používají před droiddeck-esync, kromě těch pár, které Proton u fsync nechává vypnuté. Použije se od příští relace.</string>

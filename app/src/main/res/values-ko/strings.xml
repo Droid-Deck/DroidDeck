@@ -541,8 +541,8 @@
     <string name="perf_sysmem">Turnip: sysmem 렌더링</string>
     <string name="perf_sysmem_hint">Steam 클라이언트가 빨라집니다. 게임에서는 드라이버가 패스마다 타일 렌더링과 시스템 메모리 렌더링 중 하나를 고릅니다. Adreno 710/720/722에 필수입니다.</string>
     <string name="perf_xalia">Steam의 xalia 도우미 건너뛰기</string>
-    <string name="perf_fastsync">droiddeck-ntsync(실험적)</string>
-    <string name="perf_fastsync_hint">테스트용으로 Linux ntsync 드라이버를 사용자 공간에서 대신하는 기능입니다. 켜져 있으면 Proton이 droiddeck-esync와 droiddeck-fsync 대신 이 기능을 사용합니다. Proton Experimental ARM64, GE-Proton 및 proton-cachyos에서 작동합니다. 다음 세션에 적용됩니다.</string>
+    <string name="perf_fastsync">droiddeck-ntsync</string>
+    <string name="perf_fastsync_hint">Linux ntsync 드라이버를 사용자 공간에서 대신하는 기능입니다. 켜져 있으면 Proton이 droiddeck-esync와 droiddeck-fsync 대신 이 기능을 사용합니다. Proton Experimental ARM64, GE-Proton 및 proton-cachyos에서 작동합니다. 다음 세션에 적용됩니다.</string>
     <string name="perf_esync">droiddeck-esync</string>
     <string name="perf_fsync">droiddeck-fsync 우선</string>
     <string name="perf_fsync_hint">futex_waitv를 사용자 공간에서 제공하여 기본 Proton 파일로 Proton 자체의 fsync를 실행하므로, 팩이 필요 없고 Steam이 Proton을 업데이트해도 바로 작동합니다. 켜져 있으면 게임이 droiddeck-esync보다 이 기능을 우선 사용합니다. 단, Proton이 fsync를 끄는 일부 게임은 예외입니다. 다음 세션에 적용됩니다.</string>
