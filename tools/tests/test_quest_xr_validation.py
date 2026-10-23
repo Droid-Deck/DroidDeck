@@ -14,6 +14,19 @@ class QuestXrValidationTest(unittest.TestCase):
                  'uploadedFrames': count, 'sourceFrameId': count + 1, 'steamvrState': 4}
                 for count in (0, 144)]
 
+    def test_early_progress_cannot_hide_a_later_frozen_health_file(self):
+        samples = self.samples()
+        samples[0]['_hostMonotonicSeconds'] = 0
+        samples[-1]['_hostMonotonicSeconds'] = 1
+        frozen = dict(samples[-1], _hostMonotonicSeconds=8)
+        self.assertIn('Stale XR telemetry', validate_samples(samples + [frozen]))
+        frozen['rendered'] += 144
+        self.assertIn('uploadedFrames', validate_samples(samples + [frozen]))
+        frozen['uploadedFrames'] += 144
+        self.assertIn('sourceFrameId', validate_samples(samples + [frozen]))
+        frozen['sourceFrameId'] += 144
+        self.assertIsNone(validate_samples(samples + [frozen]))
+
     def test_requires_owned_frame_projection(self):
         self.assertIsNone(validate_samples(self.samples()))
         self.assertEqual('Wrong projection source', validate_samples(self.samples('surface')))

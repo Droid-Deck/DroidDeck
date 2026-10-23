@@ -373,7 +373,7 @@ inline std::string HandMtl(const char *material, const char *texture) {
     return out;
 }
 
-inline std::string HandModelJson(bool right) {
+inline std::string HandModelJson(bool right, bool xr = false) {
     const auto part = [&](const char *name, const char *path, int button, bool shown) {
         char text[512];
         snprintf(text, sizeof(text),
@@ -401,7 +401,8 @@ inline std::string HandModelJson(bool right) {
     out += part("hand_fist", "/input/grip/touch", 2, true);
     out += part("thumb_index_open", "/input/trigger/click", 33, false);
     out += part("thumb_index_pinch", "/input/trigger/click", 33, true);
-    out += pose("tip", right ? "-0.006, -0.015, 0.02" : "0.006, -0.015, 0.02", right ? "-40.0, 5.0, 0.0" : "-40.0, -5.0, 0.0") + ",\n";
+    out += (xr ? pose("tip", "0, 0, 0", "0, 0, 0") :
+        pose("tip", right ? "-0.006, -0.015, 0.02" : "0.006, -0.015, 0.02", right ? "-40.0, 5.0, 0.0" : "-40.0, -5.0, 0.0")) + ",\n";
     out += pose("base", right ? "-0.004758, -0.037977, 0.200466" : "0.004758, -0.037977, 0.200466",
                 right ? "-155.4, -0.427, -7.081" : "-155.4, -0.427, 7.081") + ",\n";
     out += pose("handgrip", right ? "0.003851, 0.003715, 0.075948" : "-0.003851, 0.003715, 0.075948",

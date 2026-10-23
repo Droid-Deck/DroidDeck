@@ -4,10 +4,12 @@
 #include <GLES2/gl2ext.h>
 #include <android/hardware_buffer.h>
 #include "xr_gpu_channel.h"
+#include "GpuCompletion.h"
 
-class QuestGpuFrames {
+class XrGpuFrames {
 public:
     bool Start(const std::string &filename, EGLDisplay display) {
+        display_ = display;
         const char *extensions = reinterpret_cast<const char *>(glGetString(GL_EXTENSIONS));
         const char *eglExtensions = eglQueryString(display, EGL_EXTENSIONS);
         if (!extensions || !eglExtensions || !strstr(extensions, "GL_EXT_external_buffer")
@@ -16,6 +18,11 @@ public:
         client_ = reinterpret_cast<PFNEGLGETNATIVECLIENTBUFFERANDROIDPROC>(eglGetProcAddress("eglGetNativeClientBufferANDROID"));
         if (strstr(extensions, "GL_OES_texture_view")) view_ = reinterpret_cast<PFNGLTEXTUREVIEWOESPROC>(eglGetProcAddress("glTextureViewOES"));
         else if (strstr(extensions, "GL_EXT_texture_view")) view_ = reinterpret_cast<PFNGLTEXTUREVIEWOESPROC>(eglGetProcAddress("glTextureViewEXT"));
+        if (strstr(eglExtensions, "EGL_ANDROID_native_fence_sync") && strstr(eglExtensions, "EGL_KHR_fence_sync")) {
+            createSync_ = reinterpret_cast<PFNEGLCREATESYNCKHRPROC>(eglGetProcAddress("eglCreateSyncKHR"));
+            destroySync_ = reinterpret_cast<PFNEGLDESTROYSYNCKHRPROC>(eglGetProcAddress("eglDestroySyncKHR"));
+            duplicateFence_ = reinterpret_cast<PFNEGLDUPNATIVEFENCEFDANDROIDPROC>(eglGetProcAddress("eglDupNativeFenceFDANDROID"));
+        }
         if (!storage_ || !client_ || !view_ || filename.size() >= sizeof(sockaddr_un::sun_path)) return false;
         const char *source = "#version 310 es\nlayout(local_size_x=8,local_size_y=8)in;"
             "layout(std430,binding=0)readonly buffer Source{uint pixels[];};"
@@ -88,10 +95,23 @@ public:
         glBindImageTexture(0, raw_, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA8);
         glDispatchCompute((width_ + 7) / 8, (height_ + 7) / 8, 1);
         glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT | GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
-        // The producer may overwrite this slot only after the native GPU has finished reading it.
-        glFinish();
         if (glGetError() != GL_NO_ERROR) { rejected_++; Disconnect(); return false; }
-        if (!xr_gpu_send(peer_, &frame.header.frame_id, sizeof(frame.header.frame_id))) Disconnect();
+        int fence = -1;
+        if (createSync_ && destroySync_ && duplicateFence_) {
+            EGLSyncKHR sync = createSync_(display_, EGL_SYNC_NATIVE_FENCE_ANDROID, nullptr);
+            if (sync != EGL_NO_SYNC_KHR) {
+                glFlush();
+                fence = duplicateFence_(display_, sync);
+                destroySync_(display_, sync);
+            }
+        }
+        if (fence >= 0) {
+            if (!completion_.Submit(peer_, fence, frame.header.frame_id)) { rejected_++; Disconnect(); return false; }
+        } else {
+            glFinish();
+            if (glGetError() != GL_NO_ERROR) { rejected_++; Disconnect(); return false; }
+            if (!xr_gpu_send(peer_, &frame.header.frame_id, sizeof(frame.header.frame_id))) Disconnect();
+        }
         received_++;
         header = frame.header;
         texture = header.color_space == DROIDDECK_XR_COLOR_SRGB_RGBA8 ? srgb_ : raw_;
@@ -101,7 +121,10 @@ public:
     uint64_t Received() const { return received_; }
     uint64_t Rejected() const { return rejected_; }
     uint64_t Dropped() const { return dropped_; }
+    uint64_t CompletionFailures() const { return completion_.Failures(); }
+    bool AsyncCompletion() const { return createSync_ && destroySync_ && duplicateFence_; }
     void Stop() {
+        completion_.Stop();
         Disconnect(); DropPool();
         glDeleteTextures(1, &srgb_); glDeleteTextures(1, &raw_); srgb_ = raw_ = 0;
         if (program_) glDeleteProgram(program_); program_ = 0;
@@ -110,6 +133,11 @@ public:
         if (lock_ >= 0) close(lock_); lock_ = -1;
     }
 private:
+    EGLDisplay display_ = EGL_NO_DISPLAY;
+    XrGpuCompletion completion_;
+    PFNEGLCREATESYNCKHRPROC createSync_{};
+    PFNEGLDESTROYSYNCKHRPROC destroySync_{};
+    PFNEGLDUPNATIVEFENCEFDANDROIDPROC duplicateFence_{};
     int listener_ = -1, peer_ = -1, lock_ = -1;
     std::string filename_;
     bool configured_ = false;

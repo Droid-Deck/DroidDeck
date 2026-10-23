@@ -12,7 +12,7 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[2]
 IMAGE = 'droiddeck-local-cross:24.04-v3'
 MANIFEST = 'vr-build.json'
-SOURCE_TREES = ('tools/vr/src', 'tools/vr/tests', 'tools/vr/third_party',
+SOURCE_TREES = ('xr-core/src/main/cpp', 'tools/vr/src', 'tools/vr/tests', 'tools/vr/third_party',
                 'tools/vr/driver_droiddeck', 'tools/vr/layer')
 SOURCE_FILES = ('tools/vr/build.sh', 'tools/vr/build_windows.py', 'tools/vr/make_hand_models.cpp', 'tools/local-cross.Dockerfile',
                 'app/src/main/cpp/waylandcomp/src/headpose_shm.h',

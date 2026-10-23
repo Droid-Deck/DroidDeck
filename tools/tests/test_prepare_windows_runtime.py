@@ -56,6 +56,16 @@ class WindowsRuntimePreparationTest(unittest.TestCase):
             self.assertEqual(set(classifications), committed | local | new)
             self.assertTrue(all('never imported from donor' in value for value in classifications.values()))
 
+    def test_deleted_quest_forwarding_header_is_audited_as_a_removal(self):
+        removed = 'app/src/main/cpp/questxr/gpu_frames.h'
+        with tempfile.TemporaryDirectory() as folder, \
+                mock.patch.object(prepare, 'ROOT', Path(folder)), \
+                mock.patch.object(prepare, 'source_assets', return_value={}), \
+                mock.patch.object(prepare, 'changed', side_effect=[set(), {removed}, set()]), \
+                mock.patch.object(prepare, 'git', side_effect=[prepare.DONOR_TREE.encode(), b'']):
+            classifications = prepare.check_sources()
+            self.assertIn('source removed', classifications[removed])
+
     def test_preparation_excludes_all_donor_vr_files_and_records_replacement_origin(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)

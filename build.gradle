@@ -5,8 +5,12 @@ buildscript {
         gradlePluginPortal()
     }
     dependencies {
-        classpath 'com.android.tools.build:gradle:8.8.0'
         classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:2.1.0'
-        classpath 'org.jetbrains.kotlin:compose-compiler-gradle-plugin:2.1.0'
+        if (!providers.gradleProperty('xrCoreOnly').getOrElse('false').toBoolean()) {
+            classpath 'com.android.tools.build:gradle:8.8.0'
+            if (!providers.gradleProperty('xrSmokeOnly').getOrElse('false').toBoolean()) {
+                classpath 'org.jetbrains.kotlin:compose-compiler-gradle-plugin:2.1.0'
+            }
+        }
     }
 }

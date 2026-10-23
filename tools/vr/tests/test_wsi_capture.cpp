@@ -14,8 +14,10 @@ static VkResult VKAPI_CALL Present(VkQueue, const VkPresentInfoKHR *info) {
     return VK_SUCCESS;
 }
 
-int main() {
-    char path[] = "/tmp/droiddeck-wsi-XXXXXX"; int fd = mkstemp(path); assert(fd >= 0);
+int main(int argc, char **argv) {
+    char path[512];
+    std::snprintf(path, sizeof(path), "%s/droiddeck-wsi-XXXXXX", argc > 1 ? argv[1] : "/tmp");
+    int fd = mkstemp(path); assert(fd >= 0);
     DroidDeckXrTracking tracking{};
     tracking.magic = DROIDDECK_XR_MAGIC; tracking.version = DROIDDECK_XR_VERSION; tracking.active = 1;
     tracking.sampled_ns = xr_frame_now(); tracking.period_ns = 11111111;

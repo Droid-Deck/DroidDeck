@@ -58,6 +58,14 @@ class PadBridgeRoutingTest {
         }
     }
 
+    @Test fun headsetGenericAxisDoesNotReserveAPlayerSlot() {
+        val headset = device(InputDevice.SOURCE_JOYSTICK or InputDevice.SOURCE_KEYBOARD,
+            InputDevice.KEYBOARD_TYPE_NON_ALPHABETIC, rangeSource = InputDevice.SOURCE_JOYSTICK,
+            axis = MotionEvent.AXIS_GENERIC_1)
+        assertFalse(PadBridge.isFromController(headset))
+        assertFalse(PadBridge.anyControllerConnected())
+    }
+
     @Test fun physicalControllerButtonsDistinguishAHybridWithoutAxes() {
         val hybrid = device(COMPOSITE, InputDevice.KEYBOARD_TYPE_ALPHABETIC,
             keys = intArrayOf(KeyEvent.KEYCODE_A, KeyEvent.KEYCODE_BUTTON_A))

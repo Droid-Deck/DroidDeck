@@ -23,11 +23,11 @@ int main(int argc, char **argv) {
     const std::string root = argv[1];
     mkdir(root.c_str(), 0755);
     const std::vector<uint8_t> skin = GlovePng(64, {246, 246, 249}, {224, 227, 233}, glove::kDarkest);
-    for (int right = 0; right < 2; right++) {
-        const std::string name = right ? "droiddeck_hand_right" : "droiddeck_hand_left";
+    for (int xr = 0; xr < 2; ++xr) for (int right = 0; right < 2; right++) {
+        const std::string name = std::string(right ? "droiddeck_hand_right" : "droiddeck_hand_left") + (xr ? "_xr" : "");
         const std::string dir = root + "/" + name;
         mkdir(dir.c_str(), 0755);
-        bool ok = Write(dir + "/" + name + ".json", HandModelJson(right)) && Write(dir + "/hand.mtl", HandMtl("hand", "hand.png")) &&
+        bool ok = Write(dir + "/" + name + ".json", HandModelJson(right, xr)) && Write(dir + "/hand.mtl", HandMtl("hand", "hand.png")) &&
                   Write(dir + "/hand.png", skin.data(), skin.size()) &&
                   Write(dir + "/hand_open.obj", HandObj(BuildHandPart(right, HandPart::Hand, false), "hand")) &&
                   Write(dir + "/hand_fist.obj", HandObj(BuildHandPart(right, HandPart::Hand, true), "hand")) &&

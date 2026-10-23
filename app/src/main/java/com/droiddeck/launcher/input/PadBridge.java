@@ -188,7 +188,7 @@ public final class PadBridge {
         int sources = device.getSources();
         if ((sources & InputDevice.SOURCE_GAMEPAD) == InputDevice.SOURCE_GAMEPAD) return true;
         if ((sources & InputDevice.SOURCE_JOYSTICK) != InputDevice.SOURCE_JOYSTICK) return false;
-        if (device.getKeyboardType() != InputDevice.KEYBOARD_TYPE_ALPHABETIC) return true;
+        if (device.getKeyboardType() != InputDevice.KEYBOARD_TYPE_ALPHABETIC && device.getMotionRanges().isEmpty()) return true;
         for (int axis : JOYSTICK_AXES) {
             InputDevice.MotionRange range = device.getMotionRange(axis, InputDevice.SOURCE_JOYSTICK);
             if (range != null && range.getMax() > range.getMin()) return true;

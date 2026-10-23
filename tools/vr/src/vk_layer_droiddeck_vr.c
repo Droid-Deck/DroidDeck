@@ -375,14 +375,24 @@ static uint64_t g_vblank_base, g_vblank_at, g_vblank_frame;
 
 static uint64_t vblank_count(void) {
     uint64_t f = frame_ns();
-    pthread_mutex_lock(&g_vblank_lock);
+    int64_t last = 0;
     uint64_t t = now_ns();
-    if (f != g_vblank_frame) {
-        g_vblank_base = g_vblank_frame ? g_vblank_base + (t - g_vblank_at) / g_vblank_frame : t / f;
-        g_vblank_at = t;
-        g_vblank_frame = f;
+#ifdef DROIDDECK_WSI_CAPTURE
+    int64_t xr_period = 0;
+    if (droiddeck_wsi_display_timing((int64_t)t, &last, &xr_period)) f = (uint64_t)xr_period;
+#endif
+    if (!last) last = (int64_t)(t / f * f);
+    pthread_mutex_lock(&g_vblank_lock);
+    if (!g_vblank_frame) {
+        g_vblank_base = (uint64_t)last / f;
+        g_vblank_at = (uint64_t)last;
+    } else if ((uint64_t)last > g_vblank_at) {
+        uint64_t elapsed = (uint64_t)last - g_vblank_at;
+        uint64_t ticks = (elapsed + g_vblank_frame / 2) / g_vblank_frame;
+        if (ticks) { g_vblank_base += ticks; g_vblank_at = (uint64_t)last; }
     }
-    uint64_t n = g_vblank_base + (t - g_vblank_at) / f;
+    g_vblank_frame = f;
+    uint64_t n = g_vblank_base;
     pthread_mutex_unlock(&g_vblank_lock);
     return n;
 }
@@ -517,8 +527,22 @@ static VkResult VKAPI_CALL RegisterDisplayEventEXT(VkDevice d, VkDisplayKHR disp
     mode_init();
     uint64_t f = frame_ns(), t = now_ns();
     uint64_t next = (t / f + 1) * f;
+#ifdef DROIDDECK_WSI_CAPTURE
+    int64_t last = 0, xr_period = 0;
+    if (droiddeck_wsi_display_timing((int64_t)t, &last, &xr_period)) {
+        next = (uint64_t)(last + xr_period);
+        static _Atomic unsigned ticks;
+        unsigned tick = atomic_fetch_add(&ticks, 1);
+        if (tick < 3 || tick % 360 == 0)
+            fprintf(stderr, "[droiddeck-vr-layer] XR display clock: period=%.3f wait=%.3f phaseCorrection=%.3f ms\n",
+                    xr_period / 1e6, (next - t) / 1e6,
+                    ((double)last - (double)(t / f * f)) / 1e6);
+    }
+#endif
     struct timespec ts = {(time_t)(next / 1000000000ull), (long)(next % 1000000000ull)};
-    clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &ts, NULL);
+    int result;
+    do { result = clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &ts, NULL); } while (result == EINTR);
+    if (result) return VK_ERROR_INITIALIZATION_FAILED;
     return signalled_fence(d, a, fence);
 }
 static VkResult VKAPI_CALL GetSwapchainCounterEXT(VkDevice d, VkSwapchainKHR sc, VkSurfaceCounterFlagBitsEXT counter, uint64_t *value) {
