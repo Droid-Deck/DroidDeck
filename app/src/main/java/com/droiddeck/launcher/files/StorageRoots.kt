@@ -29,6 +29,31 @@ object StorageRoots {
         val seeds = LinkedHashSet<File>()
     }
 
+    private val EXTERNAL_MOUNT_TYPES = setOf(
+        "vfat", "exfat", "texfat", "ntfs", "ntfs3", "fuseblk", "fuse", "sdcardfs",
+    )
+
+    internal fun parseExternalMounts(mounts: String): List<File> {
+        val out = ArrayList<File>()
+        for (line in mounts.lineSequence()) {
+            val parts = line.split(' ')
+            if (parts.size < 3) continue
+            if (parts[2].lowercase() !in EXTERNAL_MOUNT_TYPES) continue
+            val target = parts[1].replace("\\040", " ")
+            val name = when {
+                target.startsWith("/storage/") -> target.removePrefix("/storage/")
+                target.startsWith("/mnt/media_rw/") -> target.removePrefix("/mnt/media_rw/")
+                else -> continue
+            }
+            if ('/' in name || name.isEmpty() || name == "emulated" || name == "self") continue
+            out.add(File(target))
+        }
+        return out.distinct()
+    }
+
+    fun externalMounts(): List<File> =
+        runCatching { parseExternalMounts(File("/proc/mounts").readText()) }.getOrDefault(emptyList())
+
     fun list(context: Context): List<StorageRoot> {
         val volumes = LinkedHashMap<String, Volume>()
 
@@ -44,19 +69,21 @@ object StorageRoots {
         val storageManager = context.getSystemService(StorageManager::class.java)
 
         storageManager?.storageVolumes.orEmpty()
-            .filter { isMounted(it.state) }
+            .filter { present(it.state) }
             .forEach { volume ->
                 val uuid = volume.uuid?.takeIf { it.isNotBlank() }
-                val entry = volumeOf(if (volume.isPrimary) PRIMARY_KEY else uuid ?: return@forEach)
+                val dirName = volume.directory?.name?.takeIf { it.isNotBlank() }
+                val entry = volumeOf(if (volume.isPrimary) PRIMARY_KEY else uuid ?: dirName ?: return@forEach)
                 entry.removable = !volume.isPrimary && volume.isRemovable
-                if (entry.label == null) entry.label = labelFor(context, volume, uuid)
+                if (entry.label == null) entry.label = labelFor(context, volume, uuid ?: dirName)
 
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                     volume.directory?.let { entry.candidates += it }
                 }
-                if (uuid != null) {
-                    entry.candidates += File("/storage/$uuid")
-                    entry.candidates += File("/mnt/media_rw/$uuid")
+                val name = uuid ?: dirName
+                if (name != null) {
+                    entry.candidates += File("/storage/$name")
+                    entry.candidates += File("/mnt/media_rw/$name")
                 }
                 appDirs.filter { belongsTo(storageManager!!, it, volume) }.forEach { entry.seeds += it }
             }
@@ -67,6 +94,13 @@ object StorageRoots {
         }
         File("/mnt/media_rw").listFiles().orEmpty().forEach { child ->
             if (child.isDirectory) volumeOf(child.name).candidates += child
+        }
+        // USB OTG drives do not always appear as storage volumes or under /storage for
+        // third-party apps, but their kernel mounts are still visible in /proc/mounts.
+        for (mount in externalMounts()) {
+            val entry = volumeOf(mount.name)
+            if (entry.label == null) entry.label = mount.name
+            entry.candidates += mount
         }
 
         appDirs.forEach { dir ->
@@ -141,14 +175,17 @@ object StorageRoots {
 
     private fun labelFor(context: Context, volume: StorageVolume, uuid: String?): String {
         if (volume.isPrimary) return context.getString(R.string.fm_drive_internal)
-        if (volume.isRemovable) return context.getString(R.string.fm_drive_sd)
         val description = volume.getDescription(context)?.trim()
-        return description?.takeIf { it.isNotBlank() && !it.equals("android", ignoreCase = true) }
-            ?: uuid
+        if (!description.isNullOrBlank() && !description.equals("android", ignoreCase = true)) return description
+        if (volume.isRemovable) return context.getString(R.string.fm_drive_sd)
+        return uuid
             ?: context.getString(R.string.fm_drive_storage)
     }
 
     private fun isEmulated(dir: File): Boolean = dir.absolutePath.startsWith(EMULATED_PREFIX)
+
+    private fun present(state: String?): Boolean =
+        isMounted(state) || state == Environment.MEDIA_UNMOUNTED || state == Environment.MEDIA_CHECKING
 
     private fun isMounted(state: String?): Boolean =
         state == Environment.MEDIA_MOUNTED || state == Environment.MEDIA_MOUNTED_READ_ONLY
