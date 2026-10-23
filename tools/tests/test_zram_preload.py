@@ -129,6 +129,8 @@ class ZramPreloadTest(unittest.TestCase):
 
     def setUp(self):
         self.ctl.write_text("0")
+        for ack in self.dir.glob("ctl.ack.*"):
+            ack.unlink()
 
     def run_program(self, program=None, mb=48, cycles=1, *extra):
         environment = dict(os.environ, LD_PRELOAD=str(self.lib))
@@ -140,9 +142,10 @@ class ZramPreloadTest(unittest.TestCase):
             out.setdefault(key, []).append(int(value))
         return out
 
-    def test_only_the_client_takes_the_signal(self):
+    def test_every_process_takes_the_signal(self):
         self.assertEqual([1], self.run_program()["handler"])
-        self.assertEqual([0], self.run_program(self.game)["handler"])
+        self.assertEqual([1], self.run_program(self.game)["handler"])
+        self.assertEqual(2, len(list(self.dir.glob("ctl.ack.*"))))
 
     def test_nothing_is_installed_without_the_control_file(self):
         self.ctl.unlink()
@@ -157,6 +160,7 @@ class ZramPreloadTest(unittest.TestCase):
         self.assertGreater(out["out"][0], 32 * 1024)
         self.assertLess(out["back"][0], out["out"][0] // 4)
         self.assertEqual([1], out["intact"])
+        self.assertEqual(["1"], [ack.read_text() for ack in self.dir.glob("ctl.ack.*")])
 
     @unittest.skipUnless(swap_total_kb() > 256 * 1024, "needs swap")
     def test_reads_back_what_the_kernel_swapped_elsewhere(self):

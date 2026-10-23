@@ -287,9 +287,6 @@
     <string name="mode_suspend_steam_note">자동: 일시 중지되고 다시 표시되면 재개됩니다. 네이티브: 먼저 Steam을 절전에 대비시킵니다. 수동: \"재개\"를 탭할 때까지 기다립니다. 안 함: 계속 실행됩니다.</string>
     <string name="mode_background_downloads">다운로드 계속 진행</string>
     <string name="mode_background_downloads_hint">Steam이 다운로드 중일 때는 백그라운드 일시 중지를 미룹니다.</string>
-    <string name="mode_zram">zRAM 압축</string>
-    <string name="mode_zram_hint">게임을 실행하는 동안 Steam 클라이언트의 메모리가 기기의 zram으로 압축되어 게임에 더 많은 메모리가 남습니다. 다음에 Steam을 시작할 때 적용됩니다.</string>
-    <string name="mode_zram_unsupported">사용할 수 없음: 이 기기에 zram 또는 swap이 없거나 커널이 5.4 미만입니다.</string>
     <string name="mode_suspend_note">자동: 백그라운드에서 일시 중지되고 다시 표시되면 재개됩니다. 수동: \"재개\"를 탭할 때까지 기다립니다. 안 함: 계속 실행됩니다.</string>
     <string name="mode_startup">시작</string>
     <string name="mode_steam_startup">DroidDeck을 열 때 Steam 시작</string>

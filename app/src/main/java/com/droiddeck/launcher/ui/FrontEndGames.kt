@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -341,11 +342,24 @@ private fun ColumnScope.GameHeroCopy(g: Library.SteamGame, titleSize: androidx.c
             maxLines = 1, overflow = TextOverflow.Ellipsis,
         )
     }
-    Text(
+    GameTitle(g, titleSize)
+    Spacer(Modifier.height(8.dp))
+}
+
+@Composable
+private fun GameTitle(g: Library.SteamGame, titleSize: androidx.compose.ui.unit.TextUnit) {
+    val logo = g.logo
+    var failed by remember(logo) { androidx.compose.runtime.mutableStateOf(false) }
+    if (logo != null && !failed) {
+        AsyncImage(
+            model = logo, contentDescription = g.name, contentScale = ContentScale.Fit, alignment = Alignment.CenterStart,
+            onError = { failed = true },
+            modifier = Modifier.padding(vertical = 4.dp).height((titleSize.value * 2.2f).dp).widthIn(max = (titleSize.value * 9f).dp).testTag("game-logo"),
+        )
+    } else Text(
         g.name, fontSize = titleSize, lineHeight = titleSize * 1.15f, fontWeight = FontWeight.Bold,
         color = MaterialTheme.colorScheme.onBackground, maxLines = 2, overflow = TextOverflow.Ellipsis,
     )
-    Spacer(Modifier.height(8.dp))
 }
 
 @Composable

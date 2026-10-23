@@ -53,7 +53,7 @@ object XboxBackend : StoreBackend {
                         else StoresState.status.remove(store)
                     }
                 }
-                if (cached != null && !cached.needsRefresh(force)) return@Thread
+                if (cached != null && !cached.needsRefresh(force)) { XboxGamertag.ensure(app); return@Thread }
                 val response = Xodus.run(app, listOf("library", "--json", "--market", market))
                 val licenses = XboxCatalog.access(response, account, market, report = { StoresState.logLine("Xbox: $it") })
                 val products = XboxCatalog.rawProducts(licenses.keys.toList(), market)
@@ -73,6 +73,7 @@ object XboxBackend : StoreBackend {
                         StoresState.problems.remove(store)
                     }
                 }
+                if (current == generation) XboxGamertag.ensure(app)
             } catch (e: Exception) {
                 StoresState.post {
                     if (current == generation) {

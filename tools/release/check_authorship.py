@@ -6,13 +6,32 @@ import re
 import subprocess
 import sys
 
-BOT = re.compile(
-    r"Claude|Anthropic|OpenAI|ChatGPT|GPT|Copilot|Cursor|Gemini|Codex|Devin|"
-    r"Windsurf|Codeium|Amazon Q|Tabnine|Cody|\[bot\]|github-actions|"
-    r"dependabot|renovate(?:\[bot\])?",
+PRODUCT = re.compile(
+    r"(?<![a-z0-9])(?:Anthropic|OpenAI|ChatGPT|GPT(?:-?\d[\w.]*)?|Copilot|Codex|Codeium|Windsurf|"
+    r"Amazon Q|Tabnine|github-actions|dependabot|renovate)(?![a-z0-9])|\[bot\]",
+    re.IGNORECASE,
+)
+# These are also people's names, so they only count alone or followed by a product word.
+ASSISTANT = r"(?:Claude|Cursor|Devin|Cody|Gemini)"
+ASSISTANT_ALONE = re.compile(ASSISTANT, re.IGNORECASE)
+ASSISTANT_PRODUCT = re.compile(
+    ASSISTANT + r"[\s_-]+(?:Code|Opus|Sonnet|Haiku|Fable|Instant|AI|Agent|Bot|Assistant|CLI|Pro|Flash|Ultra|\d)(?![a-z])",
+    re.IGNORECASE,
+)
+BOT_DOMAIN = re.compile(
+    r"@(?:[\w-]+\.)*(?:anthropic\.com|openai\.com|cursor\.(?:com|sh)|cognition\.ai|sourcegraph\.com|"
+    r"codeium\.com|tabnine\.com)$",
     re.IGNORECASE,
 )
 COAUTHOR = re.compile(r"^\s*Co-authored-by\s*:", re.IGNORECASE)
+
+
+def is_bot(identity):
+    name, _, rest = identity.partition("<")
+    email = rest.partition(">")[0].strip()
+    name = COAUTHOR.sub("", name).strip()
+    return bool(PRODUCT.search(name) or PRODUCT.search(email) or BOT_DOMAIN.search(email)
+                or ASSISTANT_ALONE.fullmatch(name) or ASSISTANT_PRODUCT.search(name))
 
 
 def commit_violations(commit, raw):
@@ -24,10 +43,10 @@ def commit_violations(commit, raw):
         return [f"{commit}: expected one author"]
     identity = authors[0].decode("utf-8", errors="replace")
     errors = []
-    if BOT.search(identity):
+    if is_bot(identity):
         errors.append(f"{commit}: bot author: {identity}")
     for line in message.decode("utf-8", errors="replace").splitlines():
-        if COAUTHOR.match(line) and BOT.search(line):
+        if COAUTHOR.match(line) and is_bot(line):
             errors.append(f"{commit}: bot co-author: {line.strip()}")
     return errors
 
@@ -36,11 +55,11 @@ def event_violations(event):
     pr = event.get("pull_request", {})
     user = pr.get("user", {})
     errors = []
-    if user.get("type") == "Bot" or BOT.search(user.get("login", "")):
+    if user.get("type") == "Bot" or is_bot(user.get("login", "")):
         errors.append("pull request: bot authorship is forbidden")
     for field in ("title", "body"):
         for line in (pr.get(field) or "").splitlines():
-            if COAUTHOR.match(line) and BOT.search(line):
+            if COAUTHOR.match(line) and is_bot(line):
                 errors.append(f"pull request {field}: bot co-author trailer")
     return errors
 
