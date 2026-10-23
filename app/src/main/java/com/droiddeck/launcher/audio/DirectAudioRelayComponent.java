@@ -17,6 +17,8 @@ public class DirectAudioRelayComponent extends SessionPart {
     private File logFile;
     private final File micFifoPath;
     private volatile int pid = -1;
+    private final Object micLock = new Object();
+    private boolean micHot;
 
     public DirectAudioRelayComponent(File socketPath, File micFifoPath) {
         this.socketPath = socketPath;
@@ -30,6 +32,9 @@ public class DirectAudioRelayComponent extends SessionPart {
     @Override
     public void start() {
         stop();
+        synchronized (micLock) {
+            micHot = false;
+        }
         File binary = new File(app().getApplicationInfo().nativeLibraryDir, BINARY);
         if (!binary.isFile()) {
             Log.w(TAG, "helper missing at " + binary + "; DirectAudio will report itself unavailable");
@@ -79,10 +84,38 @@ public class DirectAudioRelayComponent extends SessionPart {
                 app().getFilesDir(), null,
                 line -> {
                     Log.i(TAG, line);
+                    trackMic(line);
                     if (log != null) synchronized (log) { log.println(line); log.flush(); }
                 });
         Log.i(TAG, "started pid=" + pid + " socket=" + socketPath
                 + (micFifoPath != null ? " mic=" + micFifoPath : " (no microphone)"));
+    }
+
+    private void trackMic(String line) {
+        boolean start = line.startsWith("DA-Relay: mic start ");
+        if (!start && !line.startsWith("DA-Relay: mic stop ")) return;
+        synchronized (micLock) {
+            micHot = start;
+            micLock.notifyAll();
+        }
+    }
+
+    // Android keeps the input stream's wake lock while a frozen helper still has it started.
+    public boolean awaitMicReleased(long timeoutMs) {
+        long deadline = System.currentTimeMillis() + timeoutMs;
+        synchronized (micLock) {
+            while (micHot) {
+                long left = deadline - System.currentTimeMillis();
+                if (left <= 0) return false;
+                try {
+                    micLock.wait(left);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return false;
+                }
+            }
+            return true;
+        }
     }
 
     @Override

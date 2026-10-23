@@ -287,9 +287,6 @@
     <string name="mode_suspend_steam_note">«تلقائي» يوقف مؤقتًا ويستأنف عند الظهور. «أصلي» يجهّز Steam للسكون أولًا. «يدوي» ينتظر الضغط على «استئناف». «أبدًا» يُبقيه قيد التشغيل.</string>
     <string name="mode_background_downloads">مواصلة التنزيلات</string>
     <string name="mode_background_downloads_hint">تأخير التعليق في الخلفية أثناء قيام Steam بالتنزيل.</string>
-    <string name="mode_zram">ضغط zRAM</string>
-    <string name="mode_zram_hint">أثناء تشغيل اللعبة يتم ضغط ذاكرة عميل Steam إلى zram في الجهاز، فتحصل اللعبة على ذاكرة RAM أكبر. يسري عند تشغيل Steam في المرة القادمة.</string>
-    <string name="mode_zram_unsupported">غير متاح: لا يحتوي هذا الجهاز على zram أو swap، أو أن النواة أقدم من 5.4.</string>
     <string name="mode_suspend_note">«تلقائي» يوقف مؤقتًا في الخلفية ويستأنف عند الظهور. «يدوي» ينتظر الضغط على «استئناف». «أبدًا» يُبقيه قيد التشغيل.</string>
     <string name="mode_startup">بدء التشغيل</string>
     <string name="mode_steam_startup">تشغيل Steam مع DroidDeck</string>

@@ -287,9 +287,6 @@
     <string name="mode_suspend_steam_note">Automatisch pauzeert en hervat zodra de app weer zichtbaar is. Systeemeigen maakt Steam eerst klaar voor de slaapstand. Handmatig wacht op Hervatten. Nooit laat alles doorlopen.</string>
     <string name="mode_background_downloads">Downloads laten doorlopen</string>
     <string name="mode_background_downloads_hint">Stel onderbreken op de achtergrond uit zolang Steam actief downloadt.</string>
-    <string name="mode_zram">zRAM-compressie</string>
-    <string name="mode_zram_hint">Terwijl een game draait wordt het geheugen van de Steam-client gecomprimeerd naar de zram van het apparaat, zodat de game meer RAM heeft. Geldt de volgende keer dat Steam start.</string>
-    <string name="mode_zram_unsupported">Niet beschikbaar: dit apparaat heeft geen zram of swap, of de kernel is ouder dan 5.4.</string>
     <string name="mode_suspend_note">Automatisch pauzeert op de achtergrond en hervat zodra de app weer zichtbaar is. Handmatig wacht op Hervatten. Nooit laat alles doorlopen.</string>
     <string name="mode_startup">Opstarten</string>
     <string name="mode_steam_startup">Steam starten met DroidDeck</string>

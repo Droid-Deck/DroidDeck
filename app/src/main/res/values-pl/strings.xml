@@ -287,9 +287,6 @@
     <string name="mode_suspend_steam_note">„Auto” wstrzymuje i wznawia po powrocie. „Natywnie” najpierw przygotowuje Steam do uśpienia. „Ręcznie” czeka na „Wznów”. „Nigdy” nie przerywa działania.</string>
     <string name="mode_background_downloads">Nie przerywaj pobierania</string>
     <string name="mode_background_downloads_hint">Opóźnia wstrzymanie w tle, gdy Steam aktywnie pobiera.</string>
-    <string name="mode_zram">Kompresja zRAM</string>
-    <string name="mode_zram_hint">Gdy gra działa, pamięć klienta Steam jest kompresowana do zram urządzenia, więc gra ma więcej RAM-u. Zadziała przy następnym uruchomieniu Steam.</string>
-    <string name="mode_zram_unsupported">Niedostępne: to urządzenie nie ma zram ani swapu, albo jądro jest starsze niż 5.4.</string>
     <string name="mode_suspend_note">„Auto” wstrzymuje w tle i wznawia po powrocie. „Ręcznie” czeka na „Wznów”. „Nigdy” nie przerywa działania.</string>
     <string name="mode_startup">Uruchamianie</string>
     <string name="mode_steam_startup">Uruchamiaj Steam z DroidDeck</string>

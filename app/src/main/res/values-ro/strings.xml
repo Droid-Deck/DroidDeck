@@ -287,9 +287,6 @@
     <string name="mode_suspend_steam_note">Automat pune pe pauză și reia atunci când este afișată. Nativ pregătește Steam pentru repaus mai întâi. Manual așteaptă Reluare. Niciodată continuă să ruleze.</string>
     <string name="mode_background_downloads">Continuă descărcările</string>
     <string name="mode_background_downloads_hint">Întârzie suspendarea în fundal cât timp Steam descarcă activ.</string>
-    <string name="mode_zram">Compresie zRAM</string>
-    <string name="mode_zram_hint">În timpul jocului, memoria clientului Steam este comprimată în zram-ul dispozitivului, astfel încât jocul primește mai mult RAM. Se aplică la următoarea pornire a Steam.</string>
-    <string name="mode_zram_unsupported">Indisponibil: dispozitivul nu are zram sau swap, ori kernelul e mai vechi decât 5.4.</string>
     <string name="mode_suspend_note">Automat pune pe pauză în fundal și reia atunci când este afișată. Manual așteaptă Reluare. Niciodată continuă să ruleze.</string>
     <string name="mode_startup">Pornire</string>
     <string name="mode_steam_startup">Pornește Steam odată cu DroidDeck</string>

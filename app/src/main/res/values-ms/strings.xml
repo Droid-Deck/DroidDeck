@@ -287,9 +287,6 @@
     <string name="mode_suspend_steam_note">Auto menjeda dan menyambung semula apabila dipaparkan. Asli menyediakan Steam untuk tidur dahulu. Manual menunggu Sambung. Jangan sekali-kali terus berjalan.</string>
     <string name="mode_background_downloads">Teruskan muat turun</string>
     <string name="mode_background_downloads_hint">Lambatkan penjedaan latar belakang semasa Steam aktif memuat turun.</string>
-    <string name="mode_zram">Pemampatan zRAM</string>
-    <string name="mode_zram_hint">Semasa bermain, memori klien Steam dimampatkan ke zram peranti supaya permainan mendapat lebih RAM. Berkuat kuasa pada permulaan Steam seterusnya.</string>
-    <string name="mode_zram_unsupported">Tidak tersedia: peranti ini tiada zram atau swap, atau kernelnya lebih lama daripada 5.4.</string>
     <string name="mode_suspend_note">Auto menjeda di latar belakang dan menyambung semula apabila dipaparkan. Manual menunggu Sambung. Jangan sekali-kali terus berjalan.</string>
     <string name="mode_startup">Permulaan</string>
     <string name="mode_steam_startup">Mulakan Steam bersama DroidDeck</string>

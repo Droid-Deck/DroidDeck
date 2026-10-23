@@ -287,9 +287,6 @@
     <string name="mode_suspend_steam_note">Το Αυτόματο θέτει σε παύση και συνεχίζει όταν εμφανίζεται. Το Εγγενής προετοιμάζει πρώτα το Steam για αδρανοποίηση. Το Μη αυτόματο περιμένει το Συνέχιση. Το Ποτέ συνεχίζει να εκτελείται.</string>
     <string name="mode_background_downloads">Διατήρηση των λήψεων σε εξέλιξη</string>
     <string name="mode_background_downloads_hint">Καθυστερεί την αναστολή παρασκηνίου όσο το Steam κάνει ενεργά λήψη.</string>
-    <string name="mode_zram">Συμπίεση zRAM</string>
-    <string name="mode_zram_hint">Όσο τρέχει ένα παιχνίδι, η μνήμη του Steam συμπιέζεται στο zram της συσκευής, ώστε το παιχνίδι να έχει περισσότερη RAM. Ισχύει την επόμενη φορά που θα ξεκινήσει το Steam.</string>
-    <string name="mode_zram_unsupported">Μη διαθέσιμο: η συσκευή δεν έχει zram ή swap, ή ο πυρήνας είναι παλαιότερος από 5.4.</string>
     <string name="mode_suspend_note">Το Αυτόματο θέτει σε παύση στο παρασκήνιο και συνεχίζει όταν εμφανίζεται. Το Μη αυτόματο περιμένει το Συνέχιση. Το Ποτέ συνεχίζει να εκτελείται.</string>
     <string name="mode_startup">Εκκίνηση</string>
     <string name="mode_steam_startup">Εκκίνηση του Steam με το DroidDeck</string>

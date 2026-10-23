@@ -287,9 +287,6 @@
     <string name="mode_suspend_steam_note">«Авто» призупиняє сеанс і відновлює його, коли додаток знову на екрані. «Нативний» спершу готує Steam до сну. «Вручну» чекає на «Відновити». «Ніколи» — сеанс працює далі.</string>
     <string name="mode_background_downloads">Не переривати завантаження</string>
     <string name="mode_background_downloads_hint">Відкладає призупинення у фоні, поки Steam активно щось завантажує.</string>
-    <string name="mode_zram">Стиснення zRAM</string>
-    <string name="mode_zram_hint">Під час гри пам\'ять клієнта Steam стискається в zram пристрою, тож гра отримує більше RAM. Застосується під час наступного запуску Steam.</string>
-    <string name="mode_zram_unsupported">Недоступно: на пристрої немає zram або swap, чи ядро старіше за 5.4.</string>
     <string name="mode_suspend_note">«Авто» призупиняє сеанс у фоні й відновлює, коли додаток знову на екрані. «Вручну» чекає на «Відновити». «Ніколи» — сеанс працює далі.</string>
     <string name="mode_startup">Запуск</string>
     <string name="mode_steam_startup">Запускати Steam разом із DroidDeck</string>

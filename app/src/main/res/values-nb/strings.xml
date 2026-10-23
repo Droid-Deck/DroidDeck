@@ -287,9 +287,6 @@
     <string name="mode_suspend_steam_note">Auto setter på pause og gjenopptar når den vises. Nativ forbereder Steam på hvilemodus først. Manuell venter på Gjenoppta. Aldri lar den fortsette å kjøre.</string>
     <string name="mode_background_downloads">La nedlastinger fortsette</string>
     <string name="mode_background_downloads_hint">Utsetter bakgrunnspause mens Steam laster aktivt ned.</string>
-    <string name="mode_zram">zRAM-komprimering</string>
-    <string name="mode_zram_hint">Mens et spill kjører, komprimeres minnet til Steam-klienten til enhetens zram, slik at spillet får mer RAM. Gjelder neste gang Steam starter.</string>
-    <string name="mode_zram_unsupported">Ikke tilgjengelig: enheten har ingen zram eller swap, eller kjernen er eldre enn 5.4.</string>
     <string name="mode_suspend_note">Auto setter på pause i bakgrunnen og gjenopptar når den vises. Manuell venter på Gjenoppta. Aldri lar den fortsette å kjøre.</string>
     <string name="mode_startup">Oppstart</string>
     <string name="mode_steam_startup">Start Steam med DroidDeck</string>
