@@ -61,8 +61,6 @@ In **Automatic** picture mode, ordinary flat content is duplicated in full into 
 
 The phone remains the touch/control surface. DroidDeck mirrors its own visible UI into a tracked glasses presentation; it does not capture Android's entire desktop or other apps. Android 29+ can include app dialogs/popups, while Android 26–28 captures the activity's decor only. System keyboards and permission prompts, secure windows, and separately composed `SurfaceView` content stay on their existing surfaces. Menu recentering does not change the VR floor origin. See [tracked-menu behavior](development/glasses-menu-tracking.md).
 
-For XREAL One SteamVR use, select **Follow** mode and turn **Spatial Screen → Stabilizer** off in the glasses' own menu. Connection, stereo switching, and SteamVR head rotation were verified on Retroid Pocket 6 running Android 13; the wearer confirmed the VR image and head movement. This does not establish sustained frame rate or compatibility with every host and firmware version.
-
 ## Luma Ultra tracking qualifications
 
 Positional tracking, bare-hand controllers, and camera-assisted Joy-Cons are separate options and default off. Bare hands and camera-assisted Joy-Cons are mutually exclusive.
