@@ -49,6 +49,20 @@ class StoreInstallRootTest {
             File(cardRoot.parentFile, "Games-old/Stores/Xbox/Doom"), roots))
     }
 
+    @Test fun xodusMapsTheSelectedSteamLibraryOnAnExternalVolume() {
+        val library = File(app.filesDir, "card/steam").apply { mkdirs() }
+        val storeRoot = File(library, "Games").apply { mkdirs() }
+        SessionPrefs.setGameStorage(app, library.path, "Card")
+
+        val xodusRoot = StoreInstallRoot.externalRootsForXodus(app).single { it.first.absolutePath == storeRoot.absolutePath }
+        val gameFolder = File(storeRoot, "Xbox/Doom")
+        assertEquals("${xodusRoot.second}/Xbox/Doom", StoreInstallRoot.guestPathForXodus(app, gameFolder))
+
+        val bindSpecs = StoreInstallRoot.externalBindSpecsForXodus(app)
+        assertTrue(bindSpecs.contains("${storeRoot.path}:${xodusRoot.second}"))
+        assertTrue(File(LinuxRuntime.rootDir(app), xodusRoot.second.removePrefix("/")).isDirectory)
+    }
+
     @Test fun externalStoreBindsCreateGuestTargetsAndSkipUnavailableVolumes() {
         val host = File(app.filesDir, "card/Games").apply { mkdirs() }
         val guestRoot = "/mnt/droiddeck-stores/card"

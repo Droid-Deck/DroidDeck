@@ -104,7 +104,21 @@ object StoreInstallRoot {
             .map { it to guestFor(context, it) }
     }
 
+    /** Xodus has its own PRoot mount table and cannot see the selected Steam library's SD bind. */
+    fun externalRootsForXodus(context: Context): List<Pair<File, String>> {
+        val roots = externalRoots(context).toMutableList()
+        val selectedLibrary = GameStorage.effective(context)?.let { File(it.path, ON_VOLUME) }
+            ?.takeUnless { isInternal(context, it) }
+        if (selectedLibrary != null && roots.none { it.first.absolutePath == selectedLibrary.absolutePath }) {
+            roots += selectedLibrary to guestFor(context, selectedLibrary)
+        }
+        return roots
+    }
+
     fun externalBindSpecs(context: Context): List<String> = externalBindSpecs(externalRoots(context), LinuxRuntime.rootDir(context))
+
+    fun externalBindSpecsForXodus(context: Context): List<String> =
+        externalBindSpecs(externalRootsForXodus(context), LinuxRuntime.rootDir(context))
 
     internal fun externalBindSpecs(roots: List<Pair<File, String>>, guestRoot: File): List<String> =
         roots.mapNotNull { (host, guest) ->
@@ -127,6 +141,9 @@ object StoreInstallRoot {
     }
 
     fun guestPath(context: Context, host: File): String = externalGuestPath(context, host) ?: host.path
+
+    fun guestPathForXodus(context: Context, host: File): String =
+        externalGuestPath(host, externalRootsForXodus(context)) ?: host.path
 
     internal fun externalGuestPath(host: File, roots: List<Pair<File, String>>): String? {
         val path = host.absolutePath

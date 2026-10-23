@@ -39,7 +39,7 @@ internal class XboxInstaller(private val app: Context, private val item: Catalog
         var sequence = -1L
         try {
             val source = if (content) selected else item.id
-            val guestFolder = StoreInstallRoot.guestPath(app, folder)
+            val guestFolder = StoreInstallRoot.guestPathForXodus(app, folder)
             val selection = if (content) emptyList() else listOf("--selected-content-id", selected)
             Xodus.start(app, listOf("streaming", source, guestFolder, "--market", market,
                 "--progress-json", "--control-stdin") + selection).use { process ->

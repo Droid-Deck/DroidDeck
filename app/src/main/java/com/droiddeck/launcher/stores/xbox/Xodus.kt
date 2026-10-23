@@ -81,7 +81,7 @@ internal object Xodus {
             networkLink.start()
             val runtime = (runtimeDirectory ?: File(app.filesDir, "xbox-runtime")).apply { mkdirs() }
             val command = LinuxRuntime.command(app, null, null, Environment.getExternalStorageDirectory(),
-                StoreInstallRoot.externalBindSpecs(app), listOf(
+                StoreInstallRoot.externalBindSpecsForXodus(app), listOf(
                 "/usr/bin/env", "HOME=/root", "XODUS_LOG=off", "RUST_LOG=off",
                 "XDG_RUNTIME_DIR=${runtime.path}", "DROIDDECK_XBOX_CREDENTIAL_SOCKET=${credentials.name}", binary,
             ) + args)
