@@ -37,6 +37,9 @@ object SessionState {
     var installing: String? = null
 
     @Volatile
+    var installCancellation: com.droiddeck.launcher.core.Downloader.Cancellation? = null
+
+    @Volatile
     var stopRequested = false
 
     @Volatile
