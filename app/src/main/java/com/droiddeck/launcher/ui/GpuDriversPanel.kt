@@ -3,6 +3,8 @@ package com.droiddeck.launcher.ui
 import com.droiddeck.launcher.R
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.focusGroup
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.boundsInRoot
@@ -19,6 +21,7 @@ import androidx.compose.material.icons.outlined.SportsEsports
 import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
@@ -209,7 +212,7 @@ private fun DeviceInfoSection(section: DeviceInfo.Section) {
 
 private const val STALE_MS = 6 * 3_600_000L
 
-@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
+@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 internal fun GpuDriversBody(
     gpu: GpuDriversState,
@@ -224,6 +227,13 @@ internal fun GpuDriversBody(
     }
     val scroll = rememberScrollState()
     val scope = rememberCoroutineScope()
+    val driverControls = remember { BringIntoViewRequester() }
+    LaunchedEffect(gpu.mode) {
+        if (gpu.mode == GPU_MODE_MIX) {
+            withFrameNanos { }
+            driverControls.bringIntoView()
+        }
+    }
     val placed = remember { arrayOfNulls<LayoutCoordinates>(2) }
     // Focusing the top mode shows as much of the in-use card above it as fits, without hiding the mode itself.
     val revealCard = {
@@ -251,7 +261,10 @@ internal fun GpuDriversBody(
                 stringResource(title), stringResource(detail), gpu.mode == id,
                 modifier = mod.then(if (gpu.mode == id) Modifier.focusRequester(first) else Modifier)
                     .then(if (i == 0) Modifier.onGloballyPositioned { placed[1] = it }.onFocusChanged { if (it.isFocused) revealCard() } else Modifier),
-                onClick = { if (gpu.mode != id) actions.onMode(id) },
+                onClick = {
+                    if (gpu.mode != id) actions.onMode(id)
+                    else if (id == GPU_MODE_MIX) scope.launch { driverControls.bringIntoView() }
+                },
             )
         }
         if (single) Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { modes.indices.forEach { choice(it, Modifier) } }
@@ -261,7 +274,7 @@ internal fun GpuDriversBody(
         when (gpu.mode) {
             GPU_MODE_AUTO -> AutoBody(gpu)
             GPU_MODE_PAIR -> PairBody(gpu, actions)
-            else -> MixBody(single, actions, slotFocus, onOpenSlot)
+            else -> MixBody(single, actions, slotFocus, onOpenSlot, Modifier.bringIntoViewRequester(driverControls))
         }
         gpu.tpUbwcMode?.let { selected ->
             var advanced by rememberSaveable { mutableStateOf(false) }
@@ -395,7 +408,7 @@ private fun PairBody(gpu: GpuDriversState, actions: GpuDriversActions) {
 }
 
 @Composable
-private fun MixBody(single: Boolean, actions: GpuDriversActions, slotFocus: Map<String, FocusRequester>, onOpenSlot: (String, Rect) -> Unit) {
+private fun MixBody(single: Boolean, actions: GpuDriversActions, slotFocus: Map<String, FocusRequester>, onOpenSlot: (String, Rect) -> Unit, controlsModifier: Modifier) {
     val pal = LocalPalette.current
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         PanelTitle(stringResource(R.string.gpu_mix_title), stringResource(R.string.gpu_mix_hint))
@@ -410,8 +423,8 @@ private fun MixBody(single: Boolean, actions: GpuDriversActions, slotFocus: Map<
             slotButton(SLOT_DISPLAY, R.string.gpu_change_display, mod)
             slotButton(SLOT_RUNTIME, R.string.gpu_change_runtime, mod)
         }
-        if (single) Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { buttons(Modifier.fillMaxWidth()) }
-        else Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) { buttons(Modifier.weight(1f)) }
+        if (single) Column(controlsModifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) { buttons(Modifier.fillMaxWidth()) }
+        else Row(controlsModifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) { buttons(Modifier.weight(1f)) }
         FocusText(stringResource(R.string.comp_import_zip), pal.signal, onClick = actions.onImportZip)
     }
 }
