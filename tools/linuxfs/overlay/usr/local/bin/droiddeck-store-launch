@@ -56,6 +56,7 @@ UBISOFT_INSTALLS_PATH = "HKEY_LOCAL_MACHINE\\SOFTWARE\\WOW6432Node\\Ubisoft\\Lau
 UBISOFT_INSTALLS_SECTION = "[Software\\WOW6432Node\\Ubisoft\\Launcher\\Installs\\%d]"
 UBISOFT_TABLE = ".droiddeck-ubisoft.reg"
 UBISOFT_HOOK = ".droiddeck-registry.bat"
+UBISOFT_LOG = ".droiddeck-registry.log"
 TIMEOUT = 5.0
 STALE_SECONDS = 300
 SERVER_WAIT = 8.0
@@ -457,13 +458,25 @@ def uplay_product(folder):
     return None
 
 
-def ubisoft_registry(folder, compat_data):
+def ubisoft_last(folder):
+    """The tail of the previous import's own output: the hook runs inside the game's wine, so its
+    result is only visible on the next launch. Without it a failed import looks like every launch."""
+    try:
+        data = (Path(folder) / UBISOFT_LOG).read_bytes()
+    except OSError:
+        return ""
+    text = data.decode("utf-16-le", "replace") if b"\x00" in data[:64] else data.decode("utf-8", "replace")
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    return " / ".join(lines[-2:])
+
+
+def ubisoft_registry(folder, compat_data, product=None):
     """Connect reads HKLM's Installs\\<id>\\InstallDir to tell an installed game from one it still
     has to download, and answers the launch with an install error when it is missing. The import
     runs inside the game's own launcher .bat: reg run from here nests a second wine into the same
     prefix, and the two wait for each other. That .bat is rewritten by the app on every launch, so
     the import lives in a separate hook file the generated .bat calls."""
-    product = uplay_product(folder)
+    product = product if product is not None else uplay_product(folder)
     if product is None:
         return "none"
     if not compat_data:
@@ -476,6 +489,9 @@ def ubisoft_registry(folder, compat_data):
         existing = ""
     if section in existing or section in existing.replace("\\\\", "\\"):
         return "ready"
+    previous = ubisoft_last(folder)
+    if previous:
+        log("ubisoft last: " + previous)
     table = folder / UBISOFT_TABLE
     text = "Windows Registry Editor Version 5.00\r\n\r\n[%s]\r\n\"InstallDir\"=\"%s\"\r\n" % (
         key, windows_path(str(folder).rstrip("/")).replace("\\", "\\\\"))
@@ -484,7 +500,8 @@ def ubisoft_registry(folder, compat_data):
     except (OSError, UnicodeError):
         return "no-table"
     hook = folder / UBISOFT_HOOK
-    body = '@echo off\r\nreg import "%%~dp0%s" >nul 2>&1\r\n' % UBISOFT_TABLE
+    body = ('@echo off\r\nreg import "%%~dp0%s" > "%%~dp0%s" 2>&1\r\n'
+            'echo exit=%%ERRORLEVEL%%>> "%%~dp0%s"\r\n') % (UBISOFT_TABLE, UBISOFT_LOG, UBISOFT_LOG)
     try:
         hook.write_bytes(body.encode("utf-8"))
     except OSError:
@@ -648,7 +665,8 @@ def main(argv):
         prepare_gog(sidecar, compat_data, launch_dir)
         log("gog registry: " + apply_gog_registry(folder, compat_data, os.environ.get("BL_STORE_PROTON", "")))
     if store == "epic":
-        log("ubisoft install: %s" % ubisoft_registry(folder, compat_data))
+        uplay = uplay_product(folder)
+        log("ubisoft install: %s" % ubisoft_registry(folder, compat_data, uplay))
         handled = os.environ.get(EPIC_HANDLED) == "1" and (folder / EPIC_ARGS).is_file()
         if not handled:
             drop_stale(folder)
@@ -660,6 +678,8 @@ def main(argv):
         client = None
         if handled:
             client = "ok"
+        elif uplay is not None:
+            log("epic launch id=%s client=skipped ubisoft=%d" % (game, uplay))
         elif choice["eos"] and not choice["offline"] and client_wanted():
             client = through_client(folder, sidecar)
             log("epic launch id=%s client=%s" % (game, client))
