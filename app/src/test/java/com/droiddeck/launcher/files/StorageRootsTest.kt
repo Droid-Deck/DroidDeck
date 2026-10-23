@@ -18,9 +18,9 @@ class StorageRootsTest {
 
         val points = StorageRoots.parseExternalMounts(mounts).map { it.path }
 
-        assertTrue(points.contains(File("/storage/A1B2-C3D4")))
-        assertTrue(points.contains(File("/storage/9C33-1A2B")))
-        assertTrue(points.contains(File("/mnt/media_rw/A1B2-C3D4")))
+        assertTrue(points.contains("/storage/A1B2-C3D4"))
+        assertTrue(points.contains("/storage/9C33-1A2B"))
+        assertTrue(points.contains("/mnt/media_rw/A1B2-C3D4"))
     }
 
     @Test fun emulatedAndSystemMountsAreIgnored() {
@@ -41,7 +41,7 @@ class StorageRootsTest {
 
         val points = StorageRoots.parseExternalMounts(mounts).map { it.path }
 
-        assertTrue(points.contains(File("/mnt/media_rw/My USB")))
-        assertTrue(points.contains(File("/storage/My USB")))
+        assertTrue(points.contains("/mnt/media_rw/My USB"))
+        assertTrue(points.contains("/storage/My USB"))
     }
 }
