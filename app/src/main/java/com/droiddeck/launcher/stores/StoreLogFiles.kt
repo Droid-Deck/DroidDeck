@@ -24,6 +24,11 @@ object StoreLogFiles {
         Thread({ android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND); r.run() }, "store-log-flush").apply { isDaemon = true }
     }
 
+    private val CLOCK = SimpleDateFormat("HH:mm:ss.SSS", Locale.US)
+
+    /** Appends [text] with a time stamp. Works in any of the app's processes. */
+    fun stamped(context: Context, text: String) = append(context, "${synchronized(CLOCK) { CLOCK.format(Date()) }}  $text")
+
     fun append(context: Context, line: String) {
         val app = context.applicationContext
         pending.add(line)
