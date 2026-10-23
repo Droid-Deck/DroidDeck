@@ -2980,7 +2980,7 @@
     <string name="vr_controllers_tab">Controles</string>
     <string name="vr_controllers_group">Controles de SteamVR</string>
     <string name="vr_controllers_emulate">Control de juego en VR</string>
-    <string name="vr_controllers_emulate_hint">Las dos manos de VR que controla tu control. Los cambios se aplican al instante, incluso con SteamVR en marcha. Los Joy-Con y las manos rastreadas siguen tocontrol el control de su lado.</string>
+    <string name="vr_controllers_emulate_hint">Las dos manos de RV controladas por tu mando. Los cambios se aplican al instante, incluso con SteamVR en marcha. Los Joy-Con y las manos rastreadas siguen controlando su lado correspondiente.</string>
     <string name="vr_controllers_off">Control de juego normal</string>
     <string name="vr_controllers_sticks">Función inicial de los sticks</string>
     <string name="vr_controllers_sticks_hint">Pulsa ambos sticks a la vez en VR para cambiar.</string>
