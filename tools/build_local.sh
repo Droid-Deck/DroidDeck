@@ -353,6 +353,7 @@ mkdir -p "${repo_root}/app/build/prepared-assets"
 mv "${staging_dir}/pulseaudio.tzst" "${repo_root}/app/build/prepared-assets/pulseaudio.tzst"
 
 gradle_rust_arg=""
+export DROIDDECK_BUNDLE_ADDON_PACKS=true
 if [[ "${DROIDDECK_SKIP_RUST:-0}" == 1 ]]; then
     gradle_rust_arg="-PskipRust=true"
 else

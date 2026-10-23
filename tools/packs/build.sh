@@ -5,8 +5,8 @@
 #   tracking.tar.zst  hand-tracking models and the OpenCV/MediaPipe native libraries
 #   xbox.tar.zst      the Xbox backend (built by tools/xbox) for /usr/local/lib/droiddeck-xbox
 #   comet.tar.zst     the GOG Galaxy companion (built by tools/comet) for /usr/local/lib/droiddeck-comet
-# Only CI publishes these (.github/workflows/publish-packs.yml); the APK built from the same
-# directory pins each pack's SHA-256.
+# Main/release CI publishes these (.github/workflows/publish-packs.yml); local and unpublished
+# builds embed the exact archives. The APK pins each pack's SHA-256 in either case.
 # Usage: tools/packs/build.sh <out-dir>
 set -euo pipefail
 

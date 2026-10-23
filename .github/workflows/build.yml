@@ -229,6 +229,7 @@ jobs:
       - name: Set the APK build label
         id: build-label
         env:
+          EVENT_NAME: ${{ github.event_name }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           BUILD_REF: ${{ github.ref_name }}
@@ -244,6 +245,11 @@ jobs:
             label="pr${PR_NUMBER} at ${PR_HEAD_SHA:0:7}"
           else
             label="${BUILD_REF} at ${BUILD_SHA:0:7}"
+          fi
+          if [[ "$EVENT_NAME" == pull_request || "$BUILD_REF" != main ]]; then
+            echo "DROIDDECK_BUNDLE_ADDON_PACKS=true" >> "$GITHUB_ENV"
+          else
+            echo "DROIDDECK_BUNDLE_ADDON_PACKS=false" >> "$GITHUB_ENV"
           fi
           echo "label=$label" >> "$GITHUB_OUTPUT"
           echo "DROIDDECK_SOURCE_COMMIT=${PR_HEAD_SHA:-$BUILD_SHA}" >> "$GITHUB_ENV"

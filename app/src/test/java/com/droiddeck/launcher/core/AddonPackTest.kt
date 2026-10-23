@@ -2,7 +2,13 @@ package com.droiddeck.launcher.core
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import com.github.luben.zstd.ZstdOutputStream
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
 import java.io.File
+import java.security.MessageDigest
+import org.apache.commons.compress.archivers.tar.TarArchiveEntry
+import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -48,6 +54,29 @@ class AddonPackTest {
 
         assertFalse(pack.installed(context))
         assertEquals("a".repeat(64), pack.dir(context).name)
+    }
+
+    @Test fun localBuildInstallsItsBundledPack() {
+        val payload = "bundled pack".toByteArray()
+        val tar = ByteArrayOutputStream()
+        TarArchiveOutputStream(tar).use { output ->
+            val entry = TarArchiveEntry("tool")
+            entry.size = payload.size.toLong()
+            output.putArchiveEntry(entry)
+            output.write(payload)
+            output.closeArchiveEntry()
+        }
+        val compressed = ByteArrayOutputStream()
+        ZstdOutputStream(compressed).use { it.write(tar.toByteArray()) }
+        val archive = compressed.toByteArray()
+        val sha = MessageDigest.getInstance("SHA-256").digest(archive)
+            .joinToString("") { "%02x".format(it.toInt() and 0xff) }
+        val pack = AddonPack("sample", sha, archive.size.toLong(), listOf("tool"), reuseDeviceCopy = false) {
+            ByteArrayInputStream(archive)
+        }
+
+        assertTrue(pack.await(context))
+        assertEquals("bundled pack", pack.file(context, "tool").readText())
     }
 
     @Test fun ciBuildWithoutAPinNeverReuses() {
