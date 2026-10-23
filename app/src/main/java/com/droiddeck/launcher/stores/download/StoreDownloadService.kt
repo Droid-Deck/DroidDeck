@@ -15,7 +15,7 @@ import android.os.IBinder
 import android.os.Looper
 import android.os.PowerManager
 import android.util.Log
-import com.droiddeck.launcher.MainActivity
+import com.droiddeck.launcher.FrontEndActivity
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.core.DeviceSupport
 import com.droiddeck.launcher.stores.StoresState
@@ -189,7 +189,7 @@ class StoreDownloadService : Service() {
         }
 
         private fun openPage(context: Context, nav: String, code: Int): PendingIntent =
-            PendingIntent.getActivity(context, code, Intent(context, MainActivity::class.java).putExtra(EXTRA_NAV, nav)
+            PendingIntent.getActivity(context, code, Intent(context, FrontEndActivity::class.java).putExtra(EXTRA_NAV, nav)
                 .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
 
         private fun openDownloads(context: Context, code: Int) = openPage(context, "stores:downloads", code)

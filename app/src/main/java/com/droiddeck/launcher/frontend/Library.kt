@@ -16,9 +16,10 @@ object Library {
         val icon: File? = null,
         val source: String = SOURCE_STEAM,
         val storeId: String? = null,
+        val logo: File? = null,
     ) {
-        fun withArt(art: File?, hero: File?, icon: File?) =
-            SteamGame(appId, name, art, library, gameId, hero, lastPlayed, gameFiles, protonPrefix, icon, source, storeId)
+        fun withArt(art: File?, hero: File?, icon: File?, logo: File? = this.logo) =
+            SteamGame(appId, name, art, library, gameId, hero, lastPlayed, gameFiles, protonPrefix, icon, source, storeId, logo)
 
         val gameIdString: String get() = java.lang.Long.toUnsignedString(gameId)
         val profileKey: String get() = if (library == ADDED) java.lang.Integer.toUnsignedString(appId) else appId.toString()
@@ -68,6 +69,7 @@ object Library {
     )
     private val STEAM_CAPSULES = listOf("library_capsule.jpg", "library_600x900.jpg")
     private val STEAM_HEROES = listOf("library_hero.jpg")
+    internal val STEAM_LOGOS = listOf("logo.png")
     private val STEAM_ICON = Regex("[a-fA-F0-9]{40}\\.(jpg|png)")
     private val NAME = Regex("^\\s*\"name\"\\s*\"([^\"]*)\"", RegexOption.MULTILINE)
     private val STATE = Regex("^\\s*\"StateFlags\"\\s*\"(\\d+)\"", RegexOption.MULTILINE)
@@ -131,6 +133,7 @@ object Library {
                         protonPrefix = protonPrefix(context, appId.toLong(), library, roots),
                         icon = steamCacheImage(cache, appId, listOf("icon.jpg", "icon.png"))
                             ?: File(cache, appId.toString()).listFiles()?.firstOrNull { it.isFile && STEAM_ICON.matches(it.name) },
+                        logo = steamCacheImage(cache, appId, STEAM_LOGOS),
                     ))
                 }
         }
@@ -203,6 +206,7 @@ object Library {
                 protonPrefix = protonPrefix(context, g.steamAppId?.toLong() ?: g.appId, libraries = roots),
                 icon = art.icon?.takeIf { it.extension.lowercase() != "ico" },
                 source = g.source, storeId = g.storeId,
+                logo = art.logo,
             )
         }
 

@@ -8,7 +8,7 @@ object LauncherIcon {
     const val DARK = "dark"
     const val LIGHT = "light"
 
-    private val aliases = linkedMapOf(DARK to "com.droiddeck.launcher.LauncherDark", LIGHT to "com.droiddeck.launcher.LauncherLight")
+    private val aliases = linkedMapOf(DARK to "com.droiddeck.launcher.MainActivity", LIGHT to "com.droiddeck.launcher.LauncherLight")
 
     val options: List<Pair<String, Int>> = listOf(
         DARK to R.string.setup_launcher_icon_dark,
@@ -28,6 +28,12 @@ object LauncherIcon {
     fun current(context: Context): String = aliases.keys.firstOrNull { enabled(context, it) } ?: DARK
 
     fun activity(context: Context): ComponentName = component(context, current(context))
+
+    fun repair(context: Context, launchedFrom: ComponentName?) {
+        if (!enabled(context, DARK) || !enabled(context, LIGHT) || launchedFrom == component(context, DARK)) return
+        context.packageManager.setComponentEnabledSetting(component(context, DARK),
+            PackageManager.COMPONENT_ENABLED_STATE_DISABLED, PackageManager.DONT_KILL_APP)
+    }
 
     fun set(context: Context, style: String) {
         if (style !in aliases || style == current(context)) return

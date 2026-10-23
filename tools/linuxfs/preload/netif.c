@@ -409,6 +409,8 @@ int bl_drm_gem_close(int fd, unsigned long request, void *arg, int *rc) __attrib
 int bl_venc_ioctl(int fd, unsigned long request, void *arg, int *rc) __attribute__((visibility("hidden")));
 int bl_winebus_rumble_ioctl(int (*real)(int, unsigned long, void *), int fd, unsigned long request,
                             void *arg, void *caller, int *rc) __attribute__((visibility("hidden")));
+int bl_writewatch_ioctl(int (*real)(int, unsigned long, void *), int fd, unsigned long request, void *arg,
+                        int *rc) __attribute__((visibility("hidden")));
 
 int ioctl(int fd, unsigned long request, ...) {
     typedef int (*ioctl_fn)(int, unsigned long, void *);
@@ -424,6 +426,7 @@ int ioctl(int fd, unsigned long request, ...) {
     if (bl_drm_gem_close(fd, request, arg, &rc)) return rc;
     if (real == NULL) real = (ioctl_fn) dlsym(RTLD_NEXT, "ioctl");
     if (bl_winebus_rumble_ioctl(real, fd, request, arg, __builtin_return_address(0), &rc)) return rc;
+    if (bl_writewatch_ioctl(real, fd, request, arg, &rc)) return rc;
     if (!bl_kgsl_poll(real, fd, request, arg, &rc)) rc = quest_kgsl_ioctl(real, fd, request, arg);
     bl_kgsl_chip_id_fixup(request, arg, rc);
     if (arg == NULL || !is_link_query(request)) return rc;
