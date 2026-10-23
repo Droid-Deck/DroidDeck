@@ -258,6 +258,10 @@ class DrawerActions(
     val onLowLatencyTouch: (Boolean) -> Unit = {},
     val onTouch: (String) -> Unit,
     val onGestureSettings: () -> Unit = {},
+    val onScreenKeys: (() -> Unit)? = null,
+    val onScreenLayouts: (() -> Unit)? = null,
+    val screenKeysShown: Boolean = true,
+    val onScreenKeysShown: (Boolean) -> Unit = {},
     val onFexPreset: (String) -> Unit,
     val onUpscaler: (Int) -> Unit = {},
     val onUpscaleSharpness: (Int) -> Unit = {},
@@ -549,6 +553,23 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                 ActionRow(stringResource(R.string.gesture_settings), stringResource(R.string.gesture_settings_hint),
                                     stringResource(R.string.ctrl_edit), a.onGestureSettings,
                                     modifier = focus.track(page, "gesture-settings"))
+                                if (a.onScreenKeys != null) {
+                                    SettingsRow(stringResource(R.string.screen_keys), null) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                        ) {
+                                            SecondaryButton(stringResource(R.string.ctrl_edit),
+                                                modifier = focus.track(page, "screen-keys"), onClick = a.onScreenKeys)
+                                            a.onScreenLayouts?.let { open ->
+                                                SecondaryButton(stringResource(R.string.screen_key_layout),
+                                                    modifier = focus.track(page, "screen-key-layouts"), onClick = open)
+                                            }
+                                            ToggleSwitch(a.screenKeysShown, true,
+                                                modifier = focus.track(page, "screen-keys-shown"), onChange = a.onScreenKeysShown)
+                                        }
+                                    }
+                                }
                                 ChoiceRow(host, "osc", stringResource(R.string.mode_osc), null,
                                     if (a.steam) listOf(SessionPrefs.OSC_AUTO to stringResource(R.string.common_auto), SessionPrefs.OSC_ALWAYS to stringResource(R.string.common_always), SessionPrefs.OSC_STEAM_TOUCH to stringResource(R.string.osc_steam_touch), SessionPrefs.OSC_STEAM_QAM to stringResource(R.string.mode_osc_qam), SessionPrefs.OSC_NEVER to stringResource(R.string.common_never))
                                     else listOf(SessionPrefs.OSC_AUTO to stringResource(R.string.common_auto), SessionPrefs.OSC_ALWAYS to stringResource(R.string.common_always), SessionPrefs.OSC_NEVER to stringResource(R.string.common_never)),
