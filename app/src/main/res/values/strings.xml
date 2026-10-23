@@ -1598,6 +1598,9 @@
     <string name="fm_accept">Accept</string>
     <string name="fm_decline">Decline</string>
     <string name="fm_drive_not_readable">%1$s is mounted but not readable right now</string>
+    <string name="fm_all_files_title">Allow access to removable storage?</string>
+    <string name="fm_all_files_body">%1$s is plugged in, but DroidDeck cannot read it yet. Grant “All files access” in system settings so DroidDeck can use USB drives and memory cards.</string>
+    <string name="fm_all_files_open">Open settings</string>
     <string name="fm_list_view">List view</string>
     <string name="fm_grid_view">Grid view</string>
     <string name="fm_search">Search</string>
