@@ -304,19 +304,29 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("returnAfterGame", on).apply()
     }
 
+    private fun shaderPrecacheApplied(context: Context) =
+        java.io.File(com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(context), "root/.bl-shader-precache-applied")
+
     /**
-     * Shader pre-caching as the launcher last set it, until the next session writes it into the
+     * Shader pre-caching as the launcher last set it, until a session reports it written into the
      * client's config.vdf; after that the client's own toggle is the user's again.
      */
-    fun pendingShaderPrecache(context: Context): Boolean? =
-        prefs(context).takeIf { it.contains("shaderPrecache") }?.getBoolean("shaderPrecache", true)
-
-    fun setShaderPrecache(context: Context, on: Boolean) {
-        prefs(context).edit().putBoolean("shaderPrecache", on).apply()
+    fun pendingShaderPrecache(context: Context): Boolean? {
+        val prefs = prefs(context)
+        if (!prefs.contains("shaderPrecache")) return null
+        val on = prefs.getBoolean("shaderPrecache", true)
+        val applied = shaderPrecacheApplied(context)
+        val written = runCatching { applied.readText().trim() }.getOrNull() ?: return on
+        applied.delete()
+        if (written != if (on) "1" else "0") return on
+        prefs.edit().remove("shaderPrecache").apply()
+        return null
     }
 
-    fun takeShaderPrecache(context: Context): Boolean? =
-        pendingShaderPrecache(context)?.also { prefs(context).edit().remove("shaderPrecache").apply() }
+    fun setShaderPrecache(context: Context, on: Boolean) {
+        shaderPrecacheApplied(context).delete()
+        prefs(context).edit().putBoolean("shaderPrecache", on).apply()
+    }
 
     fun shaderPrecache(context: Context): Boolean = pendingShaderPrecache(context)
         ?: runCatching { com.droiddeck.launcher.storage.SteamStorage.shaderPrecache(

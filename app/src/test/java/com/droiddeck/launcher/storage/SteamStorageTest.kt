@@ -106,6 +106,14 @@ class SteamStorageTest {
         assertEquals(false, SteamStorage.shaderPrecache(vdf))
         assertEquals(true, SteamStorage.shaderPrecache(vdf.replace("\"DisableShaderCache\"\t\t\"1\"", "\"DisableShaderCache\"\t\t\"0\"")))
         assertEquals(true, SteamStorage.shaderPrecache("\"InstallConfigStore\" {}"))
+        assertEquals(true, SteamStorage.shaderPrecache("""
+            "InstallConfigStore"
+            {
+                // "DisableShaderCache" "1"
+                "Other" { "DisableShaderCache" "1" }
+                "Software" { "Valve" { "Steam" { "ShaderCacheManager" { "DisableShaderCache" "0" } } } }
+            }
+        """.trimIndent()))
     }
 
     @Test fun readsCustomToolName() {

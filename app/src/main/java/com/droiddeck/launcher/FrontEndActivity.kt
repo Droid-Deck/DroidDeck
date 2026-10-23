@@ -1722,7 +1722,12 @@ class FrontEndActivity : ComponentActivity() {
                     syncFallback = SessionPrefs.syncFallback(this)
                 },
                 onSteamRepair = { steamRepairQueued = SteamRepair.queue(this) },
-                onSteamClientArch = { id -> SessionPrefs.setSteamClientArch(this, id); steamClientArch = id; refresh() },
+                onSteamClientArch = { id ->
+                    SessionPrefs.setSteamClientArch(this, id)
+                    steamClientArch = id
+                    shaderPrecache = SessionPrefs.shaderPrecache(this)
+                    refresh()
+                },
                 onMangoapp = { on -> SessionPrefs.setMangoapp(this, on); mangoapp = on },
                 onReturnAfterGame = { on -> SessionPrefs.setReturnAfterGame(this, on); returnAfterGame = on },
                 onShaderPrecache = { on -> SessionPrefs.setShaderPrecache(this, on); shaderPrecache = on },
