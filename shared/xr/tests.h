@@ -99,6 +99,31 @@ inline int runTests(const std::string &directory) {
     expect(prediction({now + 10000000, Clock::OpenXR}, time) == 0, "XrTime is not monotonic");
     expect(prediction({now + 10000000, Clock::Monotonic}, time) == now + 10000000, "converted prediction accepted");
     expect(prediction({INT64_MAX, Clock::Monotonic}, time) == 0, "unbounded prediction rejected");
+    for (int side = 0; side < 2; ++side) for (int angle = 0; angle < 4; ++angle) {
+        for (float bad : {std::numeric_limits<float>::quiet_NaN(), std::numeric_limits<float>::infinity(),
+                          -std::numeric_limits<float>::infinity()}) {
+            Core c; c.begin(Provider::Fixture, 1, 1);
+            auto x = fixture(0, now); c.update(x, time); c.update(x, time);
+            x.hands[0].pinch = 1; x.hands[1].grasp = 1; c.update(x, time);
+            x.eyes[side].fov[angle] = bad;
+            auto rejected = c.update(x, time);
+            expect(!rejected.packet.active && rejected.hands[0].pinch.released && rejected.hands[1].grasp.released &&
+                   !rejected.packet.hands[0].active && !rejected.packet.hands[1].active &&
+                   std::isfinite(rejected.packet.eyes[side].fov[angle]), "nonfinite FOV rejects sample and releases inputs");
+        }
+    }
+    Core fovCore; fovCore.begin(Provider::Fixture, 1, 1);
+    auto finiteFov = fixture(0, now);
+    for (auto &eye : finiteFov.eyes) {
+        eye.fov[0] = -.8f; eye.fov[1] = .9f; eye.fov[2] = 1.f; eye.fov[3] = -.7f;
+    }
+    for (int64_t sampleAge : {0LL, 250000000LL, 250000001LL, -1LL}) {
+        finiteFov.sampled.ns = now - sampleAge;
+        auto accepted = fovCore.update(finiteFov, time);
+        expect(bool(accepted.packet.active) == (sampleAge >= 0 && sampleAge <= 250000000), "finite FOV preserves freshness boundary");
+        if (accepted.packet.active) expect(accepted.packet.eyes[1].fov[0] == -.8f && accepted.ageNs == sampleAge &&
+            accepted.packet.sampled_ns == finiteFov.sampled.ns, "finite FOV and acquisition age preserved");
+    }
     auto headOnly = fixture(0, now); headOnly.hands = {}; headOnly.capabilities = Head;
     Core headCore; headCore.begin(Provider::Fixture, 1, 1);
     out = headCore.update(headOnly, time);

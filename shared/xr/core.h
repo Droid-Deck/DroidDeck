@@ -112,6 +112,9 @@ public:
         bool valid = sampleAge && *sampleAge <= 250000000;
         if (sampleAge) out.ageNs = *sampleAge;
         out.reason = valid ? "ok" : "stale, future, or incompatible clock";
+        for (const auto &eye : sample.eyes) for (float fov : eye.fov) {
+            if (!std::isfinite(fov)) { valid = false; out.reason = "nonfinite FOV"; }
+        }
         if (sample.provider != provider_ || provider_ == Provider::None || sample.session != session_ || sample.origin != origin_) {
             valid = false; out.reason = "provider/session/origin mismatch";
         }
