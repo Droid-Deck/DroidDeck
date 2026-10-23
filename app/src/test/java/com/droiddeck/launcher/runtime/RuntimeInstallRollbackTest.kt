@@ -3,6 +3,8 @@ package com.droiddeck.launcher.runtime
 import android.app.Application
 import android.content.Context
 import android.content.ContextWrapper
+import com.droiddeck.launcher.BuildConfig
+import com.droiddeck.launcher.core.AddonPack
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.net.ServerSocket
@@ -45,6 +47,16 @@ class RuntimeInstallRollbackTest {
             override fun getFilesDir(): File = files
             override fun getCacheDir(): File = cache
             override fun getApplicationContext(): Context = this
+        }
+        for ((pack, pin, required) in listOf(
+            Triple(AddonPack.PROOT, BuildConfig.PACK_PROOT_SHA256, listOf("libproot.so", "libproot-loader.so")),
+            Triple(AddonPack.DIRECTAUDIO, BuildConfig.PACK_DIRECTAUDIO_SHA256,
+                listOf("linux-wine11/version.txt", "linux-wine11-systhread/version.txt")),
+        )) {
+            val version = pin.ifEmpty { "0".repeat(64) }
+            val directory = File(files, "addons/${pack.name}/$version")
+            required.forEach { put(directory, it, "test pack") }
+            put(directory, AddonPack.COMPLETE, version)
         }
         val root = LinuxRuntime.rootDir(context)
         val staging = File(files, LinuxRuntime.DIR + ".new")

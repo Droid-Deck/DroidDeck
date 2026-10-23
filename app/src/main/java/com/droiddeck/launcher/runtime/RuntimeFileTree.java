@@ -205,8 +205,7 @@ public final class RuntimeFileTree {
             File src = safePath(staging, rel);
             if (!exists(src.toPath())) continue;
             File dst = safePath(target, rel);
-            if (exists(dst.toPath())) delete(src, null);
-            else move(staging, target, rel);
+            if (!exists(dst.toPath())) move(staging, target, rel);
         }
     }
 

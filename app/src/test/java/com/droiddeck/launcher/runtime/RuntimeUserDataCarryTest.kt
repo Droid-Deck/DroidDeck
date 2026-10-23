@@ -169,7 +169,7 @@ class RuntimeUserDataCarryTest {
         assertEquals("only surviving user data", File(staging, "root/save.dat").readText())
     }
 
-    @Test fun markedButNotYetMovedShippedHomeDoesNotBlockTheNextInstall() {
+    @Test fun conflictingIntendedHomesAreRetainedWithoutProofOfTheirContents() {
         val root = File(tmp.root, "runtime")
         val old = tmp.newFolder("runtime.old")
         val staging = tmp.newFolder("runtime.new")
@@ -177,11 +177,21 @@ class RuntimeUserDataCarryTest {
         put(staging, LinuxRuntimeInstaller.CARRY_MARKER, "root")
         put(staging, "root/.bashrc", "shipped default")
 
-        LinuxRuntimeInstaller.recoverInterruptedSwap(root, staging, old)
+        assertThrows(IOException::class.java) { LinuxRuntimeInstaller.recoverInterruptedSwap(root, staging, old) }
 
         assertEquals("user data", File(root, "root/save.dat").readText())
-        assertFalse("the untouched shipped home should be discarded", File(staging, "root").exists())
-        assertFalse(File(staging, LinuxRuntimeInstaller.CARRY_MARKER).exists())
+        assertEquals("shipped default", File(staging, "root/.bashrc").readText())
+        assertTrue(File(staging, LinuxRuntimeInstaller.CARRY_MARKER).exists())
+    }
+
+    @Test fun anUnreadableCarryMarkerStopsRecovery() {
+        val root = tmp.newFolder("runtime")
+        val staging = tmp.newFolder("runtime.new")
+        val old = File(tmp.root, "runtime.old")
+        val marker = File(staging, LinuxRuntimeInstaller.CARRY_MARKER).apply { mkdirs() }
+
+        assertThrows(IOException::class.java) { LinuxRuntimeInstaller.recoverInterruptedSwap(root, staging, old) }
+        assertTrue(marker.isDirectory)
     }
 
     @Test fun recoveryMovesOnlyAnIntendedPathThatWasAlreadyCarried() {

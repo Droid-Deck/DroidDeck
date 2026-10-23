@@ -364,7 +364,8 @@ public final class LinuxRuntimeInstaller {
         if (!RuntimeFileTree.exists(marker.toPath())) return;
         File target = root.isDirectory() ? root : old;
         String markerContent = FileUtils.readString(marker);
-        if (markerContent != null && !markerContent.equals("1")) {
+        if (markerContent == null) throw new IOException("Cannot read runtime recovery marker: " + marker);
+        if (!markerContent.equals("1")) {
             java.util.List<String> intended = new java.util.ArrayList<>();
             for (String rel : markerContent.split("\\n"))
                 if (!rel.isEmpty()) intended.add(java.net.URLDecoder.decode(rel, "UTF-8"));
