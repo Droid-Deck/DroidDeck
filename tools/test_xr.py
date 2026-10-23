@@ -11,9 +11,7 @@ from adb_device import DeviceResolutionError, resolve_serial
 from test_quest_xr import collect_device_metrics, summarize_samples, validate_progress, validate_samples as validate_guest
 
 
-def validate_samples(samples, mode='smoke', require_hands=True):
-    if mode not in ('smoke', 'steamvr'):
-        return 'Unknown validation mode'
+def validate_samples(samples, require_hands=True):
     if len(samples) < 2:
         return 'No advancing OpenXR telemetry'
     stalled = validate_progress(samples)
@@ -35,13 +33,9 @@ def validate_samples(samples, mode='smoke', require_hands=True):
         return 'No nonzero stereo eye separation; two swapchains alone are insufficient'
     if final.get('rendered', 0) - samples[0].get('rendered', 0) < 72:
         return 'Fewer than 72 stereo submissions'
-    if mode == 'smoke':
-        if any(s.get('source') != 'synthetic' for s in samples):
-            return 'Smoke must render its local stereo scene'
-    else:
-        failure = validate_guest(samples)
-        if failure:
-            return failure
+    failure = validate_guest(samples)
+    if failure:
+        return failure
     if require_hands:
         if final.get('inputMode') != 'hands' or not any(final.get('handsActive', [])):
             return 'No active runtime hand at the final sample'
@@ -67,7 +61,6 @@ def main():
     parser.add_argument('--adb', default=os.environ.get('ADB', 'adb'))
     parser.add_argument('--serial')
     parser.add_argument('--platform', choices=('quest', 'androidxr'), required=True)
-    parser.add_argument('--mode', choices=('smoke', 'steamvr'), default='smoke')
     parser.add_argument('--input', choices=('hands', 'auto', 'controllers'), default='hands')
     parser.add_argument('--package')
     parser.add_argument('--activity', help='Fully qualified Activity class')
@@ -75,14 +68,14 @@ def main():
     parser.add_argument('--output', type=Path, default=Path('build/xr-validation'))
     parser.add_argument('--metrics', action='store_true')
     args = parser.parse_args()
-    if args.platform == 'androidxr' and args.mode == 'steamvr' and args.input != 'hands':
+    if args.platform == 'androidxr' and args.input != 'hands':
         parser.error('Android XR SteamVR entry requires --input hands')
     if not 5 <= args.seconds <= 600:
         parser.error('--seconds must be between 5 and 600')
     args.output.mkdir(parents=True, exist_ok=True)
-    package = args.package or ('com.droiddeck.xrsmoke' if args.mode == 'smoke' else 'com.droiddeck.launcher')
-    activity = args.activity or ('com.droiddeck.xrsmoke.RuntimeProbeActivity' if args.mode == 'smoke' else
-                                'com.droiddeck.launcher.' + ('QuestXrActivity' if args.platform == 'quest' else 'AndroidXrActivity'))
+    package = args.package or 'com.droiddeck.launcher'
+    activity = args.activity or 'com.droiddeck.launcher.' + (
+        'QuestXrActivity' if args.platform == 'quest' else 'AndroidXrActivity')
     samples, failure, metrics, serial = [], None, None, None
     try:
         serial = resolve_serial(args.adb, args.serial)
@@ -115,12 +108,12 @@ def main():
                 pass
         if metrics is not None:
             metrics['after'] = collect_device_metrics(adb, package)
-        failure = validate_samples(samples, args.mode, args.input == 'hands')
+        failure = validate_samples(samples, args.input == 'hands')
         (args.output / 'logcat.txt').write_text(adb('logcat', '-d', '-s', 'DroidDeckXR:I', 'OpenXR-Loader:W', 'AndroidRuntime:E'), encoding='utf-8')
     except (DeviceResolutionError, subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as error:
         failure = str(error)
     report = {'ok': failure is None, 'status': 'passed' if failure is None else 'failed' if samples else 'not_run',
-              'platform': args.platform, 'mode': args.mode, 'input': args.input,
+              'platform': args.platform, 'mode': 'steamvr', 'input': args.input,
               'package': package, 'activity': activity, 'error': failure, 'samples': samples,
               'evidence': 'shared-hand-action-bridge', 'opticalHandTrackingVerified': False,
               'steamVrInputDeliveryVerified': False,

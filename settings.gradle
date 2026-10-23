@@ -16,12 +16,5 @@ dependencyResolutionManagement {
 
 rootProject.name = "DroidDeck"
 def xrCoreOnly = providers.gradleProperty('xrCoreOnly').getOrElse('false').toBoolean()
-def xrSmokeOnly = providers.gradleProperty('xrSmokeOnly').getOrElse('false').toBoolean()
-if (xrCoreOnly && xrSmokeOnly) {
-    throw new GradleException('Choose either xrCoreOnly or xrSmokeOnly')
-}
 include ':xr-core'
-if (!xrCoreOnly) {
-    include ':xr-smoke'
-    if (!xrSmokeOnly) include ':app'
-}
+if (!xrCoreOnly) include ':app'

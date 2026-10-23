@@ -184,14 +184,14 @@ public:
             "\"headPosition\":[%.6f,%.6f,%.6f],\"controllersActive\":[%s,%s],\"handsActive\":[%s,%s],"
             "\"periodNs\":%lld,\"surfaceSwapchain\":%s,\"source\":\"%s\",\"guestFrames\":%lld,\"steamvrState\":%d,"
             "\"receivedFrames\":%llu,\"rejectedFrames\":%llu,\"uploadedFrames\":%llu,\"sourceFrameId\":%llu,"
-            "\"gpuReceivedFrames\":%llu,\"gpuDroppedFrames\":%llu,\"gpuAsyncCompletion\":%s,\"gpuCompletionFailures\":%llu,\"gpuVerifiedFrameId\":%llu,\"gpuChecksum\":%u,\"error\":%s,\"runtime\":%s,\"runtimeVersion\":%s,\"inputMode\":\"%s\",\"generation\":%llu,\"originEpoch\":%llu,\"profiles\":[%s,%s],\"handPinch\":[%g,%g],\"handSelect\":[%g,%g],\"handPinchPresses\":[%llu,%llu],\"handPinchReleases\":[%llu,%llu],\"floorKnown\":%s,\"handProviders\":[%s,%s],\"eyeSeparationMeters\":%g,\"skeletonActive\":[%u,%u],\"jointPermission\":%s,\"renderScale\":%g,\"transferMs\":%g,\"sourceAgeMs\":%g,\"gamepadKeyEvents\":%llu,\"gamepadMotionEvents\":%llu,\"gamepadMenuSequence\":%u}\n",
+            "\"gpuReceivedFrames\":%llu,\"gpuDroppedFrames\":%llu,\"gpuAsyncCompletion\":%s,\"gpuCompletionFailures\":%llu,\"gpuVerifiedFrameId\":%llu,\"gpuChecksum\":%u,\"error\":%s,\"runtime\":%s,\"runtimeVersion\":%s,\"inputMode\":\"%s\",\"generation\":%llu,\"originEpoch\":%llu,\"profiles\":[%s,%s],\"handPinch\":[%g,%g],\"handSelect\":[%g,%g],\"handPinchPresses\":[%llu,%llu],\"handPinchReleases\":[%llu,%llu],\"floorKnown\":%s,\"handProviders\":[%s,%s],\"eyeSeparationMeters\":%g,\"skeletonActive\":[%u,%u],\"jointPermission\":%s,\"transferMs\":%g,\"sourceAgeMs\":%g,\"gamepadKeyEvents\":%llu,\"gamepadMotionEvents\":%llu,\"gamepadMenuSequence\":%u}\n",
             (unsigned long long)frames_, (unsigned long long)rendered_, state_,
             (unsigned long long)head_.locationFlags,
             finite(head_.pose.position.x), finite(head_.pose.position.y), finite(head_.pose.position.z),
             (!handMode_ && handActive_[0]) ? "true" : "false", (!handMode_ && handActive_[1]) ? "true" : "false",
             (handMode_ && handActive_[0]) ? "true" : "false", (handMode_ && handActive_[1]) ? "true" : "false",
-            (long long)period_, "false", smoke_ ? "synthetic" : "frames",
-            smoke_ ? (long long)rendered_ : 0LL, steamvrState, (unsigned long long)(receiver_.Received() + gpuFrames_.Received()),
+            (long long)period_, "false", "frames",
+            0LL, steamvrState, (unsigned long long)(receiver_.Received() + gpuFrames_.Received()),
             (unsigned long long)(receiver_.Rejected() + gpuFrames_.Rejected()),
             (unsigned long long)uploadedFrames_, (unsigned long long)sourceHeader_.frame_id,
             (unsigned long long)gpuFrames_.Received(), (unsigned long long)gpuFrames_.Dropped(),
@@ -204,7 +204,7 @@ public:
             finite(handPacket_.hands[0].select), finite(handPacket_.hands[1].select),
             (unsigned long long)pinchPresses_[0], (unsigned long long)pinchPresses_[1],
             (unsigned long long)pinchReleases_[0], (unsigned long long)pinchReleases_[1], floorKnown_ ? "true" : "false", jsonString(handProviders_[0]).c_str(), jsonString(handProviders_[1]).c_str(),
-            finite(eyeSeparation_), skeleton_.active[0], skeleton_.active[1], jointPermission_ ? "true" : "false", finite(renderScale_), finite(transferMs_), finite(sourceAgeMs_),
+            finite(eyeSeparation_), skeleton_.active[0], skeleton_.active[1], jointPermission_ ? "true" : "false", finite(transferMs_), finite(sourceAgeMs_),
             (unsigned long long)gamepadKeys_, (unsigned long long)gamepadMotions_, handPacket_.gamepad_menu_sequence);
         std::fclose(file);
         std::rename(temp.c_str(), path.c_str());
@@ -220,9 +220,8 @@ private:
     uint64_t gamepadKeys_ = 0, gamepadMotions_ = 0;
     DroidDeckXrSkeleton skeleton_{};
     XrAtomicFile<DroidDeckXrSkeleton> skeletonFile_;
-    float renderScale_ = 1.0f;
     double transferMs_ = 0, sourceAgeMs_ = 0;
-    bool smoke_ = false, floorKnown_ = false, jointPermission_ = false;
+    bool floorKnown_ = false, jointPermission_ = false;
     bool handExtension_ = false, jointTrackingExtension_ = false, jointAimExtension_ = false, localFloorExtension_ = false;
     bool handMode_ = false, handDataSourceExtension_ = false;
     std::string inputPolicy_ = "auto";
@@ -247,9 +246,6 @@ private:
     XrReferenceSpaceType worldType_ = XR_REFERENCE_SPACE_TYPE_LOCAL;
     std::vector<XrTime> spaceChangeTimes_;
     unsigned neutralFrames_ = 0;
-    GLuint smokeProgram_ = 0;
-    bool smokeOriginKnown_ = false;
-    XrVector3f smokeOrigin_{};
     const char *dataPath() const {
         return app_->activity->externalDataPath ? app_->activity->externalDataPath : app_->activity->internalDataPath;
     }
@@ -367,8 +363,8 @@ private:
         const bool srgbControl = extensions && std::strstr(extensions, "GL_EXT_sRGB_write_control");
         std::fprintf(output, "],\"sourceImage\":%s,\"sourceColorSpace\":\"%s\",\"sourceEncoding\":%d,\"eyeEncoding\":%d,"
             "\"srgbWriteControl\":%s,\"srgbWriteEnabled\":%s}\n",
-            !smoke_ && sourceHeader_.frame_id ? "true" : "false",
-            smoke_ ? "none" : sourceHeader_.color_space == DROIDDECK_XR_COLOR_SRGB_RGBA8 ? "srgb" : "linear", sourceEncoding_, eyeEncoding_,
+            sourceHeader_.frame_id ? "true" : "false",
+            sourceHeader_.color_space == DROIDDECK_XR_COLOR_SRGB_RGBA8 ? "srgb" : "linear", sourceEncoding_, eyeEncoding_,
             srgbControl ? "true" : "false", srgbControl && glIsEnabled(0x8DB9) ? "true" : "false");
         if (std::fclose(output) == 0) std::rename(temporary.c_str(), file.c_str());
     }
@@ -405,16 +401,7 @@ private:
         jstring extra = env_->NewStringUTF("frame_verify");
         verifyPixels_ = env_->CallBooleanMethod(intent, getBoolean, extra, JNI_FALSE);
         env_->DeleteLocalRef(extra);
-        extra = env_->NewStringUTF("xr_smoke");
-        smoke_ = env_->CallBooleanMethod(intent, getBoolean, extra, JNI_FALSE);
-        if (!smoke_) callbacks_->initializeGamepad();
-        env_->DeleteLocalRef(extra);
-        jmethodID getFloat = env_->GetMethodID(intentClass, "getFloatExtra", "(Ljava/lang/String;F)F");
-        extra = env_->NewStringUTF("xr_render_scale");
-        renderScale_ = env_->CallFloatMethod(intent, getFloat, extra, 1.0f);
-        env_->DeleteLocalRef(extra);
-        if (!std::isfinite(renderScale_) || renderScale_ < 0.5f || renderScale_ > 1.0f)
-            throw std::runtime_error("Invalid XR render scale");
+        callbacks_->initializeGamepad();
         jmethodID getString = env_->GetMethodID(intentClass, "getStringExtra", "(Ljava/lang/String;)Ljava/lang/String;");
         extra = env_->NewStringUTF("xr_input");
         auto inputPolicy = static_cast<jstring>(env_->CallObjectMethod(intent, getString, extra));
@@ -556,21 +543,17 @@ private:
         initializeActions();
         initializeImages();
         initializeGraphics();
-        if (smoke_) initializeSmokeGraphics();
         handPacket_ = droiddeck_xr_input_v2_neutral(runtimeSession_.generation, runtimeSession_.originEpoch);
-        if (!smoke_) {
-
-            initializeTracking();
-            const std::string directory = std::string(app_->activity->internalDataPath) + "/.wayland-rt/";
-            if (!inputAdapter_.open(directory + DROIDDECK_XR_INPUT_V2_FILE,
-                                                   runtimeSession_.generation, runtimeSession_.originEpoch))
-                throw std::runtime_error("XR hand input channel unavailable or already owned");
-            if (!skeletonFile_.openWriter(directory + DROIDDECK_XR_SKELETON_FILE))
-                throw std::runtime_error("XR skeleton channel unavailable or already owned");
-            if (!receiver_.Start(directory + DROIDDECK_XR_FRAME_SOCKET)) throw std::runtime_error("XR frame receiver unavailable");
-            bool gpu = !verifyPixels_ && gpuFrames_.Start(directory + DROIDDECK_XR_GPU_SOCKET, display_);
-            __android_log_print(ANDROID_LOG_INFO, "DroidDeckXR", "GPU channel available=%d", gpu);
-        }
+        initializeTracking();
+        const std::string directory = std::string(app_->activity->internalDataPath) + "/.wayland-rt/";
+        if (!inputAdapter_.open(directory + DROIDDECK_XR_INPUT_V2_FILE,
+                                               runtimeSession_.generation, runtimeSession_.originEpoch))
+            throw std::runtime_error("XR hand input channel unavailable or already owned");
+        if (!skeletonFile_.openWriter(directory + DROIDDECK_XR_SKELETON_FILE))
+            throw std::runtime_error("XR skeleton channel unavailable or already owned");
+        if (!receiver_.Start(directory + DROIDDECK_XR_FRAME_SOCKET)) throw std::runtime_error("XR frame receiver unavailable");
+        bool gpu = !verifyPixels_ && gpuFrames_.Start(directory + DROIDDECK_XR_GPU_SOCKET, display_);
+        __android_log_print(ANDROID_LOG_INFO, "DroidDeckXR", "GPU channel available=%d", gpu);
 
         health();
     }
@@ -653,7 +636,7 @@ private:
         skeleton_.session_generation = runtimeSession_.generation;
         skeleton_.origin_epoch = runtimeSession_.originEpoch;
         skeleton_.sample_monotonic_ns = xr_monotonic_ns();
-        if (!smoke_) skeletonFile_.write(skeleton_);
+        skeletonFile_.write(skeleton_);
     }
 
     void sampleHands(XrTime predicted) {
@@ -731,8 +714,8 @@ private:
             handActive_[hand] = poseTracked(handPacket_.hands[hand].grip) &&
                 (handPacket_.hands[hand].status_bits & DROIDDECK_XR_GRIP_ACTIVE);
         updateInputTelemetry();
-        if (!smoke_ && !skeletonFile_.write(skeleton_)) throw std::runtime_error("Hand skeleton publication failed");
-        if (!smoke_ && !inputAdapter_.publishInput(handPacket_)) throw std::runtime_error("Hand input publication failed");
+        if (!skeletonFile_.write(skeleton_)) throw std::runtime_error("Hand skeleton publication failed");
+        if (!inputAdapter_.publishInput(handPacket_)) throw std::runtime_error("Hand input publication failed");
     }
 
     static DroidDeckXrPoseV2 inputPose(const XrPosef &pose, XrSpaceLocationFlags flags) {
@@ -883,8 +866,8 @@ private:
         if (!format) throw std::runtime_error("sRGB swapchain unavailable");
         for (int eye = 0; eye < 2; eye++) {
             Eye &target = eyes_[eye];
-            target.width = std::max(2, int(views[eye].recommendedImageRectWidth * renderScale_) & ~1);
-            target.height = std::max(2, int(views[eye].recommendedImageRectHeight * renderScale_) & ~1);
+            target.width = std::max(2, int(views[eye].recommendedImageRectWidth) & ~1);
+            target.height = std::max(2, int(views[eye].recommendedImageRectHeight) & ~1);
             XrSwapchainCreateInfo create{XR_TYPE_SWAPCHAIN_CREATE_INFO};
             create.usageFlags = XR_SWAPCHAIN_USAGE_COLOR_ATTACHMENT_BIT;
             create.format = format; create.sampleCount = 1;
@@ -1032,66 +1015,6 @@ private:
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     }
 
-    void initializeSmokeGraphics() {
-        const char *vertexSource =
-            "#version 300 es\nout vec2 uv;void main(){vec2 p=vec2(float((gl_VertexID<<1)&2),float(gl_VertexID&2));uv=p;gl_Position=vec4(p*2.-1.,0,1);}";
-        const char *fragmentSource = R"GLSL(#version 300 es
-precision highp float;
-in vec2 uv;
-out vec4 color;
-uniform vec3 eyePosition, boxCenter;
-uniform vec4 eyeOrientation, fov, leftHit, rightHit;
-uniform float floorHeight, eyeIndex;
-vec3 rotateQ(vec4 q,vec3 v){return v+2.*cross(q.xyz,cross(q.xyz,v)+q.w*v);}
-void main(){
-    vec3 ray=normalize(rotateQ(eyeOrientation,vec3(mix(fov.x,fov.y,uv.x),mix(fov.w,fov.z,uv.y),-1.)));
-    vec3 background=vec3(.025,.04,.07);
-    float floorT=(floorHeight-eyePosition.y)/ray.y;
-    if(ray.y<-.001&&floorT>0.){vec3 p=eyePosition+floorT*ray;float grid=step(.92,fract(p.x*2.))+step(.92,fract(p.z*2.));background=mix(vec3(.06,.08,.1),vec3(.23,.27,.3),min(grid,1.));}
-    vec3 inverseRay=1./ray;
-    vec3 a=(boxCenter-vec3(.3)-eyePosition)*inverseRay;
-    vec3 b=(boxCenter+vec3(.3)-eyePosition)*inverseRay;
-    vec3 low=min(a,b),high=max(a,b);
-    float nearT=max(max(low.x,low.y),low.z),farT=min(min(high.x,high.y),high.z);
-    if(nearT>0.&&nearT<farT){vec3 p=eyePosition+nearT*ray-boxCenter;background=.25+abs(p)*1.8;}
-    float markerT=(boxCenter.z+.31-eyePosition.z)/ray.z;
-    if(markerT>0.){vec2 p=(eyePosition+markerT*ray).xy;
-        if(leftHit.w>0.&&distance(p,leftHit.xy)<.035)background=vec3(.1,1.,.3);
-        if(rightHit.w>0.&&distance(p,rightHit.xy)<.035)background=vec3(1.,.3,.1);}
-    if(uv.x<.015)background=eyeIndex<.5?vec3(.1,.8,1.):vec3(1.,.3,.1);
-    color=vec4(background,1.);
-})GLSL";
-        GLuint vertex = shader(GL_VERTEX_SHADER, vertexSource), fragment = shader(GL_FRAGMENT_SHADER, fragmentSource);
-        smokeProgram_ = glCreateProgram(); glAttachShader(smokeProgram_, vertex); glAttachShader(smokeProgram_, fragment);
-        glLinkProgram(smokeProgram_); glDeleteShader(vertex); glDeleteShader(fragment);
-        GLint success = 0; glGetProgramiv(smokeProgram_, GL_LINK_STATUS, &success);
-        if (!success) throw std::runtime_error("Smoke renderer link failed");
-    }
-
-    void renderSmoke(const XrView &view, float eyeIndex) {
-        if (!smokeOriginKnown_ && (head_.locationFlags & 3u) == 3u) {
-            smokeOrigin_ = head_.pose.position; smokeOriginKnown_ = true;
-        }
-        const XrVector3f center{smokeOrigin_.x, smokeOrigin_.y, smokeOrigin_.z - 2.0f};
-        glUseProgram(smokeProgram_); glBindVertexArray(vertexArray_);
-        auto location = [&](const char *name) { return glGetUniformLocation(smokeProgram_, name); };
-        glUniform3f(location("eyePosition"), view.pose.position.x, view.pose.position.y, view.pose.position.z);
-        glUniform4f(location("eyeOrientation"), view.pose.orientation.x, view.pose.orientation.y, view.pose.orientation.z, view.pose.orientation.w);
-        glUniform4f(location("fov"), std::tan(view.fov.angleLeft), std::tan(view.fov.angleRight), std::tan(view.fov.angleUp), std::tan(view.fov.angleDown));
-        glUniform3f(location("boxCenter"), center.x, center.y, center.z);
-        glUniform1f(location("floorHeight"), floorKnown_ ? 0.0f : smokeOrigin_.y - 1.6f);
-        glUniform1f(location("eyeIndex"), eyeIndex);
-        for (int hand = 0; hand < 2; ++hand) {
-            const auto &aim = handPacket_.hands[hand].aim;
-            const float x = aim.orientation[0], y = aim.orientation[1], z = aim.orientation[2], w = aim.orientation[3];
-            const float dx = -2 * (x*z + w*y), dy = -2 * (y*z - w*x), dz = -(1 - 2*(x*x + y*y));
-            const float t = std::abs(dz) > 0.001f ? (center.z + 0.31f - aim.position[2]) / dz : -1.0f;
-            glUniform4f(location(hand ? "rightHit" : "leftHit"), aim.position[0] + dx*t, aim.position[1] + dy*t, 0,
-                        poseValid(aim) && t > 0 ? 1.0f : 0.0f);
-        }
-        glDrawArrays(GL_TRIANGLES, 0, 3);
-    }
-
     void receiveFrame() {
         if (gpuFrames_.Take(sourceHeader_, sourceTexture_)) {
             uploadedFrames_++;
@@ -1129,22 +1052,17 @@ void main(){
         if (verifyPixels_ || uploadedFrames_ % 72 == 1) health();
     }
 
-    void render(Eye &eye, uint32_t image, const XrView &view) {
+    void render(Eye &eye, uint32_t image) {
         glBindFramebuffer(GL_FRAMEBUFFER, framebuffer_);
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, eye.images[image].image, 0);
         if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
             throw std::runtime_error("Incomplete eye framebuffer");
-        {
-            glViewport(0, 0, eye.width, eye.height); glDisable(GL_DEPTH_TEST);
-            if (smoke_) { renderSmoke(view, &eye == &eyes_[1] ? 1.0f : 0.0f); }
-            else {
-            glUseProgram(sourceProgram_); glBindVertexArray(vertexArray_);
-            glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D, sourceTexture_);
-            glUniform1i(glGetUniformLocation(sourceProgram_, "source"), 0);
-            glUniform1f(glGetUniformLocation(sourceProgram_, "eye"), &eye == &eyes_[1] ? 1.f : 0.f);
-            glDrawArrays(GL_TRIANGLES, 0, 3);
-            }
-        }
+        glViewport(0, 0, eye.width, eye.height); glDisable(GL_DEPTH_TEST);
+        glUseProgram(sourceProgram_); glBindVertexArray(vertexArray_);
+        glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D, sourceTexture_);
+        glUniform1i(glGetUniformLocation(sourceProgram_, "source"), 0);
+        glUniform1f(glGetUniformLocation(sourceProgram_, "eye"), &eye == &eyes_[1] ? 1.f : 0.f);
+        glDrawArrays(GL_TRIANGLES, 0, 3);
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
         if (glGetError() != GL_NO_ERROR) throw std::runtime_error("OpenGL render error");
         glFlush();
@@ -1197,24 +1115,21 @@ void main(){
         XrFrameState frameState{XR_TYPE_FRAME_STATE};
         check(xrWaitFrame(session_, &wait, &frameState), "xrWaitFrame");
         period_ = frameState.predictedDisplayPeriod;
-        for (auto it = spaceChangeTimes_.begin(); it != spaceChangeTimes_.end();) {
-            if (frameState.predictedDisplayTime < *it) { ++it; continue; }
-            releaseHands();
-            ++runtimeSession_.originEpoch;
-            if (!smoke_ && !inputAdapter_.resetOrigin(runtimeSession_.originEpoch))
-                throw std::runtime_error("XR input origin reset failed");
-            releaseHands();
-            neutralFrames_ = 2;
-            smokeOriginKnown_ = false;
-            it = spaceChangeTimes_.erase(it);
-            __android_log_print(ANDROID_LOG_INFO, "DroidDeckXR", "reference origin epoch=%llu", (unsigned long long)runtimeSession_.originEpoch);
-        }
         XrFrameBeginInfo begin{XR_TYPE_FRAME_BEGIN_INFO}; check(xrBeginFrame(session_, &begin), "xrBeginFrame");
         ScopeExit frameGuard([&] {
             XrFrameEndInfo empty{XR_TYPE_FRAME_END_INFO}; empty.displayTime = frameState.predictedDisplayTime;
             empty.environmentBlendMode = blendMode_;
             xrEndFrame(session_, &empty);
         });
+        if (std::any_of(spaceChangeTimes_.begin(), spaceChangeTimes_.end(),
+                        [&](XrTime change) { return change <= frameState.predictedDisplayTime; })) {
+            releaseHands();
+            ++runtimeSession_.originEpoch;
+            if (!inputAdapter_.resetOrigin(runtimeSession_.originEpoch))
+                throw std::runtime_error("XR input origin reset failed");
+            releaseHands();
+            throw std::runtime_error("XR reference space changed; restart SteamVR to refresh frame poses");
+        }
         headVelocity_ = {XR_TYPE_SPACE_VELOCITY};
         head_.next = &headVelocity_;
         check(xrLocateSpace(view_, world_, frameState.predictedDisplayTime, &head_), "head pose");
@@ -1274,22 +1189,20 @@ void main(){
         bool valid = frameState.shouldRender && count == 2 &&
             (viewState.viewStateFlags & (XR_VIEW_STATE_ORIENTATION_VALID_BIT | XR_VIEW_STATE_POSITION_VALID_BIT))
             == (XR_VIEW_STATE_ORIENTATION_VALID_BIT | XR_VIEW_STATE_POSITION_VALID_BIT);
-        if (!smoke_) {
-            const auto transferBegin = xr_monotonic_ns();
-            receiveFrame();
-            transferMs_ = (xr_monotonic_ns() - transferBegin) / 1e6;
-            sourceAgeMs_ = sourceHeader_.frame_id ? (xr_frame_now() - sourceHeader_.captured_ns) / 1e6 : 0;
-            valid = valid && sourceHeader_.frame_id && xr_frame_now() - sourceHeader_.captured_ns < 500000000LL;
-            if (valid) for (int eye = 0; eye < 2; eye++) {
-                auto source = xr_frame_view(sourceHeader_, eye);
-                views[eye].pose.orientation = {source.orientation[0], source.orientation[1], source.orientation[2], source.orientation[3]};
-                views[eye].pose.position = {source.position[0], source.position[1], source.position[2]};
-                views[eye].fov = {source.fov[0], source.fov[1], source.fov[2], source.fov[3]};
-            }
+        const auto transferBegin = xr_monotonic_ns();
+        receiveFrame();
+        transferMs_ = (xr_monotonic_ns() - transferBegin) / 1e6;
+        sourceAgeMs_ = sourceHeader_.frame_id ? (xr_frame_now() - sourceHeader_.captured_ns) / 1e6 : 0;
+        valid = valid && sourceHeader_.frame_id && xr_frame_now() - sourceHeader_.captured_ns < 500000000LL;
+        if (valid) for (int eye = 0; eye < 2; eye++) {
+            auto source = xr_frame_view(sourceHeader_, eye);
+            views[eye].pose.orientation = {source.orientation[0], source.orientation[1], source.orientation[2], source.orientation[3]};
+            views[eye].pose.position = {source.position[0], source.position[1], source.position[2]};
+            views[eye].fov = {source.fov[0], source.fov[1], source.fov[2], source.fov[3]};
         }
         const std::string capture = captureRequest();
         bool captured = valid;
-        if (!capture.empty() && valid && !smoke_)
+        if (!capture.empty() && valid)
             captured = captureTexture(sourceTexture_, sourceHeader_.width, sourceHeader_.height, "source");
         if (valid) for (int eye = 0; eye < 2; eye++) {
             uint32_t image = 0;
@@ -1306,7 +1219,7 @@ void main(){
             XrResult ready = xrWaitSwapchainImage(eyes_[eye].swapchain, &imageWait);
             if (ready != XR_SUCCESS) throw std::runtime_error("Swapchain wait timed out or session was lost: " + std::to_string(ready));
             waited = true;
-            render(eyes_[eye], image, views[eye]);
+            render(eyes_[eye], image);
             if (!capture.empty()) captured = captureTexture(eyes_[eye].images[image].image, eyes_[eye].width, eyes_[eye].height, eye ? "right" : "left") && captured;
             XrSwapchainImageReleaseInfo release{XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO};
             XrResult released = xrReleaseSwapchainImage(eyes_[eye].swapchain, &release);
@@ -1348,7 +1261,7 @@ void main(){
         if (haptics_) munmap(haptics_, sizeof(DroidDeckXrHaptics));
         if (display_ != EGL_NO_DISPLAY && context_ != EGL_NO_CONTEXT) {
             glDeleteFramebuffers(1, &framebuffer_); glDeleteVertexArrays(1, &vertexArray_);
-            glDeleteTextures(1, &cpuTexture_); glDeleteProgram(sourceProgram_); glDeleteProgram(smokeProgram_);
+            glDeleteTextures(1, &cpuTexture_); glDeleteProgram(sourceProgram_);
         }
         for (auto &eye : eyes_) if (eye.swapchain) xrDestroySwapchain(eye.swapchain);
         for (auto space : handSpaces_) if (space) xrDestroySpace(space);

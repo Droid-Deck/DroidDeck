@@ -29,14 +29,6 @@ python3 -m unittest tools.tests.test_xr_validation \
 
 Tests cover protocol layouts, atomic snapshots, writer ownership, invalid/stale input release, coordinate conversions, skeleton reconstruction and head velocity. GPU completion tests require Linux or Android; macOS host tests do not establish Linux GPU synchronization.
 
-## Standalone smoke APK
-
-```sh
-./gradlew -PxrSmokeOnly=true :xr-smoke:assembleDebug :xr-smoke:lintDebug --no-daemon
-```
-
-This build does not need the full Linux guest. Install it on a compatible headset and use its runtime probe/local stereo scene. A 2D launcher or two created swapchains alone does not prove tracked stereo or hand input.
-
 ## Main application
 
 Use the existing full build workflow:
@@ -50,7 +42,7 @@ Docker prepares the existing Linux guest helpers, SteamVR driver and other asset
 For source integration checks without rebuilding store engines:
 
 ```sh
-./gradlew -PskipRust=true :app:compileDebugKotlin :app:testDebugUnitTest \
+./gradlew -PskipRust=true :app:compileDebugKotlin :app:externalNativeBuildDebug :app:testDebugUnitTest \
   --tests com.droiddeck.launcher.input.XrGamepadInputTest \
   --tests com.droiddeck.launcher.input.PadBridgeRoutingTest --no-daemon
 ```
@@ -83,4 +75,4 @@ The native route needs ARM64 cross compilers and Vulkan headers. Its build scrip
 
 ## CI
 
-The Shared OpenXR bridge workflow runs host contracts, Linux guest tests and smoke APK build/lint. Android SDK setup explicitly installs platform-tools, avoiding the obsolete tools package. Passing these checks does not replace hardware regression.
+The Shared OpenXR bridge workflow runs host contracts, Linux guest tests and main-app Java/native compilation with selected input tests. Android SDK setup explicitly installs platform-tools, avoiding the obsolete tools package. Passing these checks does not replace hardware regression.

@@ -23,7 +23,7 @@ open class GuestXrActivity : NativeActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         gamepad = XrGamepadInput(this) { SessionState.padBridge }
         sessionId = SessionState.sessionId
-        SessionService.setXrActivityVisible(this, true)
+        publishVisibility(true)
         super.onCreate(savedInstanceState)
     }
 
@@ -60,7 +60,7 @@ open class GuestXrActivity : NativeActivity() {
             WaylandCompositor.nativeVsync(System.nanoTime())
             check(WaylandCompositor.nativeWaitSurface(3000)) { "XR frame GPU handshake timed out" }
         }
-        SessionService.setXrActivityVisible(this, active)
+        publishVisibility(active)
         if (active) startSteamVr()
     }
 
@@ -110,6 +110,12 @@ open class GuestXrActivity : NativeActivity() {
         }
     }
 
+    private fun publishVisibility(visible: Boolean) {
+        xrVisibility.update(this, visible && !closing) { anyVisible ->
+            SessionService.setXrActivityVisible(this, anyVisible)
+        }
+    }
+
     private fun sessionAlive() = SessionState.running && !SessionState.stopRequested &&
         sessionId != null && SessionState.sessionId == sessionId
 
@@ -135,16 +141,17 @@ open class GuestXrActivity : NativeActivity() {
     override fun onDestroy() {
         closing = true
         gamepad.pause()
-        SessionService.setXrActivityVisible(this, false)
+        publishVisibility(false)
         super.onDestroy()
     }
 
     override fun onStop() {
-        SessionService.setXrActivityVisible(this, false)
+        publishVisibility(false)
         super.onStop()
     }
 
     companion object {
+        private val xrVisibility = com.droiddeck.xr.XrActivityVisibility()
         private val steamVrLock = Any()
         private var steamVrOwner: GuestXrActivity? = null
     }

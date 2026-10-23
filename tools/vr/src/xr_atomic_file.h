@@ -47,6 +47,8 @@ public:
         std::memcpy(words, &packet, sizeof(packet));
         uint32_t sequence = __atomic_load_n(words_ + 3, __ATOMIC_RELAXED) | 1u;
         __atomic_store_n(words_ + 3, sequence, __ATOMIC_SEQ_CST);
+        // Publish the in-progress marker before any payload word on weakly ordered CPUs.
+        __atomic_thread_fence(__ATOMIC_SEQ_CST);
         for (size_t i = 0; i < sizeof(Packet) / 4; ++i)
             if (i != 3) __atomic_store_n(words_ + i, words[i], __ATOMIC_RELAXED);
         __atomic_store_n(words_ + 3, sequence + 1u, __ATOMIC_RELEASE);

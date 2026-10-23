@@ -41,7 +41,7 @@ To reuse that build, pass `--rebuilt-vr build/windows-setup/vr`. Preparation ver
 
 Run the helper and preload regression suite with `bash tools/test_local.sh`. On macOS it runs in Linux through Docker, matching the helpers' runtime and CI instead of compiling Linux preloads against macOS headers.
 
-Experimental Android XR support shares the OpenXR runtime, hand input and SteamVR skeletal bridge with Quest. See the [implementation](docs/development/android-xr.md) and [build/test runbook](docs/development/android-xr-runbook.md). The independent `xr-smoke` app exercises the same native runtime without preparing a Linux guest. Hardware and gameplay acceptance remain incomplete; this does not establish general Android XR or VR game compatibility.
+Experimental Android XR support shares the OpenXR runtime, hand input and SteamVR skeletal bridge with Quest. See the [implementation](docs/development/android-xr.md) and [build/test runbook](docs/development/android-xr-runbook.md). Hardware and gameplay acceptance remain incomplete; this does not establish general Android XR or VR game compatibility.
 
 ## Limits
 

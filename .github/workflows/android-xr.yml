@@ -4,7 +4,6 @@ on:
   push:
     paths:
       - 'xr-core/**'
-      - 'xr-smoke/**'
       - 'tools/vr/**'
       - 'tools/linuxfs/overlay/usr/local/bin/droiddeck-steamvr'
       - 'tools/test_xr.py'
@@ -14,6 +13,11 @@ on:
       - 'tools/tests/test_xr_validation.py'
       - 'app/src/main/cpp/questxr/**'
       - 'app/src/main/java/com/droiddeck/launcher/GuestXrActivity.kt'
+      - 'app/src/main/java/com/droiddeck/launcher/QuestXrActivity.kt'
+      - 'app/src/main/java/com/droiddeck/launcher/input/XrGamepadInput.kt'
+      - 'app/src/main/java/com/droiddeck/launcher/input/PadBridge.java'
+      - 'app/src/test/java/com/droiddeck/launcher/input/**'
+      - 'app/src/debug/AndroidManifest.xml'
       - 'app/src/main/java/com/droiddeck/launcher/session/SessionFiles.kt'
       - 'app/src/main/java/com/droiddeck/launcher/xr/**'
       - 'app/src/main/java/com/droiddeck/launcher/AndroidXrActivity.kt'
@@ -27,7 +31,6 @@ on:
   pull_request:
     paths:
       - 'xr-core/**'
-      - 'xr-smoke/**'
       - 'tools/vr/**'
       - 'tools/linuxfs/overlay/usr/local/bin/droiddeck-steamvr'
       - 'tools/test_xr.py'
@@ -37,6 +40,11 @@ on:
       - 'tools/tests/test_xr_validation.py'
       - 'app/src/main/cpp/questxr/**'
       - 'app/src/main/java/com/droiddeck/launcher/GuestXrActivity.kt'
+      - 'app/src/main/java/com/droiddeck/launcher/QuestXrActivity.kt'
+      - 'app/src/main/java/com/droiddeck/launcher/input/XrGamepadInput.kt'
+      - 'app/src/main/java/com/droiddeck/launcher/input/PadBridge.java'
+      - 'app/src/test/java/com/droiddeck/launcher/input/**'
+      - 'app/src/debug/AndroidManifest.xml'
       - 'app/src/main/java/com/droiddeck/launcher/session/SessionFiles.kt'
       - 'app/src/main/java/com/droiddeck/launcher/xr/**'
       - 'app/src/main/java/com/droiddeck/launcher/AndroidXrActivity.kt'
@@ -74,7 +82,7 @@ jobs:
           name: xr-core-test-results
           path: xr-core/build/test-results/test/
 
-  smoke-apk:
+  android-integration:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -89,12 +97,15 @@ jobs:
           log-accepted-android-sdk-licenses: false
       - uses: gradle/actions/setup-gradle@v4
       - run: sdkmanager 'platforms;android-34' 'build-tools;35.0.0' 'ndk;27.3.13750724' 'cmake;3.22.1'
-      - run: ./gradlew -PxrSmokeOnly=true :xr-smoke:assembleDebug :xr-smoke:lintDebug --no-daemon
+      - run: >-
+          ./gradlew -PskipRust=true :app:compileDebugKotlin :app:externalNativeBuildDebug :app:testDebugUnitTest
+          --tests com.droiddeck.launcher.input.XrGamepadInputTest
+          --tests com.droiddeck.launcher.input.PadBridgeRoutingTest --no-daemon
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
-          name: xr-smoke-debug-apk
-          path: xr-smoke/build/outputs/apk/debug/*.apk
-          if-no-files-found: error
+          name: xr-android-test-results
+          path: app/build/test-results/testDebugUnitTest/
 
   linux-guest:
     runs-on: ubuntu-latest

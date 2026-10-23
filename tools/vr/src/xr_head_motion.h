@@ -41,6 +41,8 @@ public:
                 packet.head_velocity_flags |= DROIDDECK_XR_ANGULAR_VELOCITY_VALID;
             }
         }
+        Sanitize(packet.head_linear_velocity, packet.head_velocity_flags, DROIDDECK_XR_LINEAR_VELOCITY_VALID);
+        Sanitize(packet.head_angular_velocity, packet.head_velocity_flags, DROIDDECK_XR_ANGULAR_VELOCITY_VALID);
         previous_ = packet.head; previousTime_ = time; origin_ = origin;
     }
 private:

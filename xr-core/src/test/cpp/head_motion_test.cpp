@@ -72,5 +72,12 @@ int main() {
     near(packet.head_angular_velocity[0], 0);
     near(packet.head_angular_velocity[1], 2);
     near(packet.head_angular_velocity[2], 0);
+    XrHeadMotion overflow;
+    packet = sample(); packet.head.position[0] = -std::numeric_limits<float>::max();
+    overflow.Update(packet, 1000000000, 1);
+    packet = sample(); packet.head.position[0] = std::numeric_limits<float>::max();
+    overflow.Update(packet, 1001000000, 1);
+    assert(!(packet.head_velocity_flags & DROIDDECK_XR_LINEAR_VELOCITY_VALID));
+    assert(packet.head_linear_velocity[0] == 0);
     std::puts("Head motion passed: native priority, world-space velocity, shortest rotation, origin/time/tracking resets");
 }

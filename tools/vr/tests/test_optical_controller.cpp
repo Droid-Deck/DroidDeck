@@ -28,7 +28,15 @@ struct Host : IVRServerDriverHost {
 };
 struct Properties : IVRProperties {
     ETrackedPropertyError ReadPropertyBatch(PropertyContainerHandle_t, PropertyRead_t *, uint32_t) override { return TrackedProp_Success; }
-    ETrackedPropertyError WritePropertyBatch(PropertyContainerHandle_t, PropertyWrite_t *, uint32_t) override { return TrackedProp_Success; }
+    std::map<std::pair<PropertyContainerHandle_t, ETrackedDeviceProperty>, std::string> strings;
+    ETrackedPropertyError WritePropertyBatch(PropertyContainerHandle_t container, PropertyWrite_t *writes, uint32_t count) override {
+        for (uint32_t i = 0; i < count; ++i) {
+            if (writes[i].unTag == k_unStringPropertyTag && writes[i].pvBuffer)
+                strings[{container, writes[i].prop}] = static_cast<const char *>(writes[i].pvBuffer);
+            writes[i].eError = TrackedProp_Success;
+        }
+        return TrackedProp_Success;
+    }
     const char *GetPropErrorNameFromEnum(ETrackedPropertyError) override { return "success"; }
     PropertyContainerHandle_t TrackedDeviceToPropertyContainer(TrackedDeviceIndex_t id) override { return id+1; }
 };
@@ -36,6 +44,8 @@ struct Input : IVRDriverInput {
     std::map<VRInputComponentHandle_t, float> values;
     std::map<std::string, VRInputComponentHandle_t> handles;
     std::map<VRInputComponentHandle_t, EVRInputError> failures;
+    unsigned skeletonUpdates = 0;
+    std::map<VRInputComponentHandle_t, HmdMatrix34_t> poses;
     EVRInputError CreateBooleanComponent(PropertyContainerHandle_t, const char *name, VRInputComponentHandle_t *h) override {
         *h = values.size()+1; values[*h]=0; handles[name]=*h; return VRInputError_None;
     }
@@ -49,10 +59,20 @@ struct Input : IVRDriverInput {
         values[h]=v; return VRInputError_None;
     }
     EVRInputError CreateHapticComponent(PropertyContainerHandle_t c, const char *n, VRInputComponentHandle_t *h) override { return CreateBooleanComponent(c,n,h); }
-    EVRInputError CreateSkeletonComponent(PropertyContainerHandle_t, const char *, const char *, const char *, EVRSkeletalTrackingLevel, const VRBoneTransform_t *, uint32_t, VRInputComponentHandle_t *) override { return VRInputError_None; }
-    EVRInputError UpdateSkeletonComponent(VRInputComponentHandle_t, EVRSkeletalMotionRange, const VRBoneTransform_t *, uint32_t) override { return VRInputError_None; }
-    EVRInputError CreatePoseComponent(PropertyContainerHandle_t, const char *, VRInputComponentHandle_t *) override { return VRInputError_None; }
-    EVRInputError UpdatePoseComponent(VRInputComponentHandle_t, const HmdMatrix34_t *, double) override { return VRInputError_None; }
+    EVRInputError CreateSkeletonComponent(PropertyContainerHandle_t c, const char *name, const char *, const char *, EVRSkeletalTrackingLevel, const VRBoneTransform_t *, uint32_t, VRInputComponentHandle_t *h) override {
+        return CreateBooleanComponent(c, name, h);
+    }
+    EVRInputError UpdateSkeletonComponent(VRInputComponentHandle_t h, EVRSkeletalMotionRange, const VRBoneTransform_t *bones, uint32_t count) override {
+        assert(h && count == 31);
+        for (uint32_t i = 0; i < count; ++i) {
+            for (float p : bones[i].position.v) assert(std::isfinite(p));
+            assert(std::isfinite(bones[i].orientation.w));
+        }
+        ++skeletonUpdates;
+        return VRInputError_None;
+    }
+    EVRInputError CreatePoseComponent(PropertyContainerHandle_t c, const char *name, VRInputComponentHandle_t *h) override { return CreateBooleanComponent(c, name, h); }
+    EVRInputError UpdatePoseComponent(VRInputComponentHandle_t h, const HmdMatrix34_t *pose, double) override { poses[h] = *pose; return VRInputError_None; }
     EVRInputError CreateEyeTrackingComponent(PropertyContainerHandle_t, const char *, VRInputComponentHandle_t *) override { return VRInputError_None; }
     EVRInputError UpdateEyeTrackingComponent(VRInputComponentHandle_t, const VREyeTrackingData_t *, double) override { return VRInputError_None; }
 };
@@ -223,7 +243,7 @@ int main() {
     assert(controller.Activate(1) == VRInitError_None);
     const auto xrClick = context.input.handles.at("/input/trigger/click");
     const auto xrTrigger = context.input.handles.at("/input/trigger/value");
-    DroidDeckXrSkeleton xrSkeleton;
+    DroidDeckXrSkeleton xrSkeleton{};
     auto xrPacket = droiddeck_xr_input_v2_neutral(101, 1);
     xrPacket.sample_monotonic_ns = now;
     xrPacket.flags = DROIDDECK_XR_INPUT_FOCUSED | DROIDDECK_XR_INPUT_HAND_MODE;
@@ -363,4 +383,57 @@ int main() {
         assert(!padContext.input.values.count(0));
     }
     puts("PASS: game pad hands as Index and Quest Touch thumbstick controllers");
+    Context xrContext;
+    VR_CLEANUP_SERVER_DRIVER_CONTEXT();
+    VRDriverContext() = &xrContext;
+    CardboardController trackedHand(false), trackedController(false);
+    assert(trackedHand.ConfigureXr(true));
+    assert(trackedController.ConfigureXr(false));
+    assert(trackedHand.Activate(3) == VRInitError_None);
+    const auto handTrigger = xrContext.input.handles.at("/input/trigger/value");
+    const auto handProfile = xrContext.properties.strings.at({4, Prop_InputProfilePath_String});
+    assert(handProfile == "{indexcontroller}/input/index_controller_profile.json");
+    assert(xrContext.input.handles.count("/input/thumbstick/x"));
+    assert(!trackedHand.ConfigureXr(false) && trackedHand.XrHands());
+    assert(trackedController.Activate(4) == VRInitError_None);
+    const auto touchTrigger = xrContext.input.handles.at("/input/trigger/value");
+    assert(xrContext.properties.strings.at({5, Prop_InputProfilePath_String}) == "{oculus}/input/touch_profile.json");
+    assert(xrContext.input.handles.count("/input/joystick/x"));
+    assert(!trackedController.ConfigureXr(true) && !trackedController.XrHands());
+    auto handPacket = droiddeck_xr_input_v2_neutral(77, 1);
+    handPacket.sample_monotonic_ns = 2000000000;
+    handPacket.flags = DROIDDECK_XR_INPUT_FOCUSED | DROIDDECK_XR_INPUT_HAND_MODE;
+    auto &sample = handPacket.hands[0];
+    sample.source = DROIDDECK_XR_SOURCE_RUNTIME_ACTION;
+    sample.grip.flags = sample.aim.flags = 15;
+    sample.status_bits = DROIDDECK_XR_GRIP_ACTIVE | DROIDDECK_XR_AIM_ACTIVE | DROIDDECK_XR_PINCH_ACTIVE;
+    sample.capability_bits = sample.ready_bits = DROIDDECK_XR_PINCH;
+    DroidDeckXrSkeleton noSkeleton{};
+    trackedHand.UpdateXrHand(handPacket, noSkeleton, 2000000000, false);
+    trackedHand.UpdateXrHand(handPacket, noSkeleton, 2000000000, false);
+    sample.pinch = 1;
+    trackedHand.UpdateXrHand(handPacket, noSkeleton, 2000000000, false);
+    assert(xrContext.input.values.at(handTrigger) == 1);
+    noSkeleton.session_generation = 77;
+    noSkeleton.origin_epoch = 1;
+    noSkeleton.sample_monotonic_ns = 2000000000;
+    noSkeleton.active[0] = 1;
+    for (int joint = 0; joint < 26; ++joint) {
+        noSkeleton.joints[0][joint] = sample.grip;
+        noSkeleton.joints[0][joint].position[0] = 0.01f * joint;
+    }
+    trackedHand.UpdateXrHand(handPacket, noSkeleton, 2000000000, false);
+    assert(xrContext.input.skeletonUpdates == 2);
+    assert(!xrContext.input.poses.empty());
+    trackedHand.Disconnect();
+    assert(xrContext.input.values.at(handTrigger) == 0);
+    DroidDeckXrHand touch{};
+    touch.active = true; touch.pose.flags = 15; touch.trigger = 1;
+    trackedController.UpdateXr(touch, 0);
+    assert(xrContext.input.values.at(touchTrigger) == 1);
+    trackedController.Disconnect();
+    assert(xrContext.input.values.at(touchTrigger) == 0);
+    assert(xrContext.properties.strings.at({4, Prop_InputProfilePath_String}) == handProfile);
+    puts("PASS: separate XR hand/Touch profiles stay immutable and disconnect releases held input");
+
 }

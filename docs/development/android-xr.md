@@ -19,7 +19,7 @@ SteamVR driver
   └─ OpenXR joints converted to SteamVR skeletal input
 ```
 
-`xr-core` contains the shared native runtime and JVM entry checks. `xr-smoke` independently exercises that runtime with a local test scene. The existing native activity entry forwards into the shared runtime; it does not duplicate the render loop.
+`xr-core` contains the shared native runtime and JVM entry checks. The existing native activity entry forwards into the shared runtime; it does not duplicate the render loop.
 
 ## Entry and lifecycle
 
@@ -37,7 +37,7 @@ The runtime reads standard `XR_EXT_hand_interaction` actions when available. A c
 
 Aim and grip remain distinct poses. Runtime pinch or aim activation drives the existing trigger components; runtime grasp drives grip only when that capability exists. The bridge does not invent missing sticks, face buttons or grasp signals. Hand mode keeps input neutral while tracking is unavailable and requires a release before rearming after a discontinuity.
 
-`XR_EXT_hand_tracking` provides 26 joints per hand. The bridge converts their poses into SteamVR's 31-bone parent-space skeleton, including auxiliary bones. Hand render models are separate from ray aim. A visible Dashboard hand model is not proof that an application's skeletal input works.
+`XR_EXT_hand_tracking` provides 26 joints per hand. The bridge converts their poses into SteamVR's 31-bone parent-space skeleton, including auxiliary bones. Hand render models are separate from ray aim. SteamVR hands and Touch controllers use separately activated device pairs with immutable profiles; replacing a pair disconnects and releases the previous one. A visible Dashboard hand model is not proof that an application's skeletal input works.
 
 Android and Quest hand-tracking permissions are declared. Joint tracking is conditional on permission and actual tracker availability. Standard runtime actions can remain available when joint permission is denied. Loss of focus, expired input, invalid poses or a changed session/origin releases held inputs.
 
@@ -59,8 +59,8 @@ The guest display timing can follow fresh OpenXR display timing. Submission freq
 
 ## Scope and validation
 
-This change includes the shared runtime, Android entry, hand/skeleton and gamepad bridge, packaging inputs, host tests and smoke app. Device-specific GPU drivers, per-chip render scales, scheduling-priority experiments and local game fixes are excluded.
+This change includes the shared runtime, Android entry, hand/skeleton and gamepad bridge, packaging inputs, host tests and main-app integration checks. Device-specific GPU drivers, per-chip render scales, scheduling-priority experiments and local game fixes are excluded.
 
 Host contracts, JVM checks, main-app compilation and selected Android input tests have passed locally. Earlier hardware tests observed SteamVR stereo frames and gamepad operation, but the current upstream-based source has not completed a fresh end-to-end headset regression. Quest controller behavior, skeletal input in applications, hand orientation/drag/menu recall and sustained frame stability still need testing.
 
-The smoke app can validate runtime initialization and local stereo independently of the Linux guest. Emulator installation or a successful build does not establish immersive OpenXR or hand-tracking support. See the [runbook](android-xr-runbook.md) for reproducible checks.
+The main application is the only APK target in this change. Emulator installation or a successful build does not establish immersive OpenXR or hand-tracking support. See the [runbook](android-xr-runbook.md) for reproducible checks.

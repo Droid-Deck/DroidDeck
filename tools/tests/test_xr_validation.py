@@ -8,11 +8,12 @@ from test_xr import validate_samples
 class XrValidationTest(unittest.TestCase):
     def samples(self):
         return [dict(backend='openxr', generation=1, originEpoch=1, sessionState=5, headFlags=15,
-                     rendered=n, eyeSeparationMeters=0.064, source='synthetic', inputMode='hands', handsActive=[True, False],
+                     rendered=n, eyeSeparationMeters=0.064, source='frames', uploadedFrames=n, sourceFrameId=n+1, steamvrState=4,
+                     inputMode='hands', handsActive=[True, False],
                      handProviders=['fb-hand-aim', ''], handPinchPresses=[n//100, 0], handPinchReleases=[n//100, 0])
                 for n in (0, 144)]
 
-    def test_stale_smoke_health_cannot_pass_after_early_submissions(self):
+    def test_stale_health_cannot_pass_after_early_submissions(self):
         samples = self.samples()
         samples[0]['_hostMonotonicSeconds'] = 0
         samples[-1]['_hostMonotonicSeconds'] = 1
@@ -37,12 +38,14 @@ class XrValidationTest(unittest.TestCase):
             self.assertIn(expected, validate_samples(samples))
 
     def test_local_scene_cannot_pass_guest_validation(self):
-        self.assertIsNotNone(validate_samples(self.samples(), 'steamvr'))
+        samples = self.samples()
+        samples[-1]['source'] = 'synthetic'
+        self.assertIsNotNone(validate_samples(samples))
         samples = self.samples()
         for sample in samples:
             sample.update(source='frames', uploadedFrames=sample['rendered'], sourceFrameId=sample['rendered']+1,
                           steamvrState=4)
-        self.assertIsNone(validate_samples(samples, 'steamvr'))
+        self.assertIsNone(validate_samples(samples))
 
     def test_mock_auto_input_still_cannot_pass(self):
         samples = self.samples()

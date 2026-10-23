@@ -1032,21 +1032,26 @@ public:
     }
 
     void SetProfile(PadProfile profile) { profile_ = profile; }
+    bool ConfigureXr(bool hands) {
+        if (id_ != k_unTrackedDeviceIndexInvalid) return false;
+        xrMode_ = true;
+        xrHands_ = hands;
+        return true;
+    }
+    bool XrHands() const { return xrHands_; }
 
     EVRInitError Activate(uint32_t id) override {
         id_ = id;
         PropertyContainerHandle_t c = VRProperties()->TrackedDeviceToPropertyContainer(id_);
-        XrTrackingFile tracking;
-        DroidDeckXrTracking packet{};
-        xrMode_ = tracking.Read(&packet) && XrTrackingFile::Fresh(packet);
-        const PadProfile profile = xrMode_ ? PadProfile::Touch : profile_;
+        const PadProfile profile = xrMode_ ? (xrHands_ ? PadProfile::Index : PadProfile::Touch) : profile_;
         touch_ = profile == PadProfile::Touch;
         index_ = profile == PadProfile::Index;
         const char *model = touch_ ? "DroidDeck Quest Touch" : index_ ? "DroidDeck Index Hand" : "DroidDeck Pad Hand";
-        VRProperties()->SetStringProperty(c, Prop_ModelNumber_String, xrMode_ ? "DroidDeck XR Input" : model);
+        VRProperties()->SetStringProperty(c, Prop_ModelNumber_String, xrHands_ ? "DroidDeck Tracked Hand" : xrMode_ ? "DroidDeck XR Input" : model);
         VRProperties()->SetStringProperty(c, Prop_ManufacturerName_String, xrMode_ ? "DroidDeck" : touch_ ? "Meta" : index_ ? "Valve" : "DroidDeck");
         VRProperties()->SetStringProperty(c, Prop_TrackingSystemName_String, "droiddeck");
-        VRProperties()->SetStringProperty(c, Prop_RenderModelName_String, touch_ ?
+        VRProperties()->SetStringProperty(c, Prop_RenderModelName_String, xrHands_ ?
+            (right_ ? "{droiddeck}droiddeck_hand_right_xr" : "{droiddeck}droiddeck_hand_left_xr") : touch_ ?
             (right_ ? "oculus_quest_plus_controller_right" : "oculus_quest_plus_controller_left") :
             (right_ ? "{indexcontroller}valve_controller_knu_1_0_right" : "{indexcontroller}valve_controller_knu_1_0_left"));
         VRProperties()->SetStringProperty(c, Prop_ControllerType_String, touch_ ? "oculus_touch" : index_ ? "knuckles" : "vive_controller");
@@ -1064,7 +1069,7 @@ public:
         in->CreateBooleanComponent(c, stick ? "/input/grip/touch" : "/input/grip/click", &grip_);
         in->CreateBooleanComponent(c, "/input/trigger/click", &triggerClick_);
         in->CreateScalarComponent(c, "/input/trigger/value", &trigger_, VRScalarType_Absolute, VRScalarUnits_NormalizedOneSided);
-        if (xrMode_) {
+        if (xrHands_) {
             in->CreatePoseComponent(c, "/pose/raw", &rawPose_);
             in->CreatePoseComponent(c, "/pose/grip", &gripPose_);
             in->CreatePoseComponent(c, "/pose/tip", &aimPose_);
@@ -1088,13 +1093,8 @@ public:
             in->CreateBooleanComponent(c, letters ? "/input/y/touch" : "/input/b/touch", &secondaryTouch_);
             if (touch_) in->CreateBooleanComponent(c, "/input/thumbrest/touch", &thumbrestTouch_);
         }
-        in->CreateHapticComponent(c, "/output/haptic", &haptic_);
-        if (xrMode_) {
-            XrAtomicFile<DroidDeckXrInputV2> file; DroidDeckXrInputV2 input{};
-            if (file.read("/run/droiddeck/" DROIDDECK_XR_INPUT_V2_FILE, input))
-                SetXrHandMode((input.flags & DROIDDECK_XR_INPUT_HAND_MODE) != 0);
-        }
-        Log("%s hand activated (%s)", right_ ? "right" : "left", xrMode_ ? "OpenXR input" : "game pad");
+        if (!xrHands_) in->CreateHapticComponent(c, "/output/haptic", &haptic_);
+        Log("%s hand activated (%s)", right_ ? "right" : "left", xrMode_ ? (xrHands_ ? "tracked hand" : "Quest Touch") : model);
         return VRInitError_None;
     }
     void Deactivate() override { ClearInputs(); id_ = k_unTrackedDeviceIndexInvalid; }
@@ -1153,7 +1153,7 @@ public:
         driverInput->UpdateScalarComponent(padY_, input.stickY, 0);
         driverInput->UpdateBooleanComponent(padClick_, input.stickClick, 0);
         driverInput->UpdateBooleanComponent(padTouch_, input.stickTouch, 0);
-        driverInput->UpdateBooleanComponent(menu_, false, 0);
+        if (menu_) driverInput->UpdateBooleanComponent(menu_, false, 0);
         driverInput->UpdateBooleanComponent(system_, input.systemClick, 0);
         if (xrMode_) {
             driverInput->UpdateScalarComponent(gripValue_, input.grip, 0);
@@ -1162,29 +1162,13 @@ public:
             driverInput->UpdateBooleanComponent(secondaryClick_, input.secondaryClick, 0);
             driverInput->UpdateBooleanComponent(primaryTouch_, input.primaryTouch, 0);
             driverInput->UpdateBooleanComponent(secondaryTouch_, input.secondaryTouch, 0);
-            driverInput->UpdateBooleanComponent(thumbrestTouch_, input.thumbrestTouch, 0);
+            if (thumbrestTouch_) driverInput->UpdateBooleanComponent(thumbrestTouch_, input.thumbrestTouch, 0);
         }
         VRServerDriverHost()->TrackedDevicePoseUpdated(id_, pose, sizeof(pose));
     }
 
-    void SetXrHandMode(bool hands) {
-        if (xrHands_ == hands || id_ == k_unTrackedDeviceIndexInvalid) return;
-        xrHands_ = hands;
-        auto props = VRProperties();
-        const auto c = props->TrackedDeviceToPropertyContainer(id_);
-        props->SetStringProperty(c, Prop_ModelNumber_String, hands ? "DroidDeck Tracked Hand" : "DroidDeck XR Input");
-        props->SetStringProperty(c, Prop_RenderModelName_String, hands ?
-            (right_ ? "{droiddeck}droiddeck_hand_right_xr" : "{droiddeck}droiddeck_hand_left_xr") :
-            (right_ ? "oculus_quest_plus_controller_right" : "oculus_quest_plus_controller_left"));
-        props->SetStringProperty(c, Prop_ControllerType_String, hands ? "knuckles" : "oculus_touch");
-        props->SetStringProperty(c, Prop_InputProfilePath_String, hands ?
-            "{indexcontroller}/input/index_controller_profile.json" : "{oculus}/input/touch_profile.json");
-        Log("%s XR input mode: %s", right_ ? "right" : "left", hands ? "tracked hand" : "controller");
-    }
-
     void UpdateXrHand(const DroidDeckXrInputV2 &packet, const DroidDeckXrSkeleton &skeleton, int64_t now, bool dashboard, bool suppress = false) {
         using namespace droiddeck::xr;
-        SetXrHandMode(true);
         const int hand = right_ ? 1 : 0;
         const auto output = xrHandBridge_.update(packet, hand, now);
         DroidDeckXrHand state{};
@@ -1686,8 +1670,8 @@ private:
                 const bool haveInput = xrInput_.read("/run/droiddeck/" DROIDDECK_XR_INPUT_V2_FILE, input) &&
                     droiddeck::xr::inputHeaderValid(input);
                 if (haveInput) xrHandMode_ = (input.flags & DROIDDECK_XR_INPUT_HAND_MODE) != 0;
-                DroidDeckXrSkeleton skeleton;
-                xrSkeleton_.read("/run/droiddeck/" DROIDDECK_XR_SKELETON_FILE, skeleton);
+                DroidDeckXrSkeleton skeleton{};
+                if (!xrSkeleton_.read("/run/droiddeck/" DROIDDECK_XR_SKELETON_FILE, skeleton)) skeleton = {};
                 const bool handMenu = xrDashboard_.update(input, now);
                 const bool gamepadMenu = xrGamepadMenu_.update(input, now);
                 if (handMenu || gamepadMenu) {
@@ -1697,10 +1681,10 @@ private:
                 if (!droiddeck::xr::inputFresh(input, now) || !(input.flags & DROIDDECK_XR_INPUT_FOCUSED)) xrDashboardAt_ = 0;
                 const auto menu = droiddeck::xr::handMenuButtons(xrDashboardAt_, now, xrDashboard_.held());
                 for (int hand = 0; hand < 2; hand++) if (CardboardController *pad = ActiveHand(hand)) {
+                    if (pad->XrHands() != xrHandMode_) { pad->Disconnect(); continue; }
                     if (xrHandMode_) pad->UpdateXrHand(input, skeleton, now, menu.system, menu.suppress);
                     else {
                         DroidDeckXrHand state = fresh ? xr.hands[hand] : DroidDeckXrHand{};
-                        pad->SetXrHandMode(false);
                         auto buttons = xr_touch_input(state, hand == 1);
                         if (menu.suppress) { buttons.trigger = buttons.grip = 0; buttons.triggerClick = buttons.gripClick = false; }
                         if (droiddeck::xr::inputFresh(input, now) && (input.flags & DROIDDECK_XR_INPUT_FOCUSED)) state.active = true;
@@ -1937,6 +1921,9 @@ public:
         VR_INIT_SERVER_DRIVER_CONTEXT(ctx);
         focusEnabled_ = access("/run/droiddeck/droiddeck-xr-frames", F_OK) == 0;
         Log("DroidDeck Cardboard driver loaded");
+        XrTrackingFile tracking;
+        DroidDeckXrTracking packet{};
+        xrSession_ = tracking.Read(&packet) && XrTrackingFile::Fresh(packet);
         if (!VRServerDriverHost()->TrackedDeviceAdded("droiddeck-cardboard-hmd", TrackedDeviceClass_HMD, &hmd_))
             Log("TrackedDeviceAdded failed");
         padsEnabled_ = VRSettings()->GetBool(kSettingsSection, "gamepadControllers");
@@ -1955,6 +1942,8 @@ public:
         if (now - lastConfigCheck_ > std::chrono::seconds(1)) {
             lastConfigCheck_ = now;
             ApplyPadConfig(false);
+        } else if (xrSession_) {
+            ApplyPadConfig(false, false);
         }
         for (int side = 0; side < 2; side++) {
             if (handAdded_[side] || !hmd_.WantsHand(side)) continue;
@@ -2030,27 +2019,35 @@ private:
     }
     // SteamVR fixes a device's input profile when it activates, so each type gets its own pair,
     // added the first time it is chosen; devices cannot be removed, only disconnected.
-    void ApplyPadConfig(bool initial) {
-        // The file is a few bytes, so compare what it says; two quick writes can share an mtime.
-        const PadControllerConfig pads = read_pad_controller_config("/run/droiddeck/" DROIDDECK_VR_CONTROLLERS_FILE);
-        if (!initial && pads.profile == configProfile_ && pads.sticksMoveHands == configSticks_) return;
-        configProfile_ = pads.profile;
+    void ApplyPadConfig(bool initial, bool refreshConfig = true) {
+        if (refreshConfig) padConfig_ = read_pad_controller_config("/run/droiddeck/" DROIDDECK_VR_CONTROLLERS_FILE);
+        const auto &pads = padConfig_;
         if (initial || pads.sticksMoveHands != configSticks_) hmd_.SetSticksMoveHands(pads.sticksMoveHands);
         configSticks_ = pads.sticksMoveHands;
-        const PadProfile profile = padsEnabled_ ? pads.profile : PadProfile::Off;
-        if (!initial && profile == profile_) return;
-        profile_ = profile;
-        Log("game pad hands: %s, sticks start in %s", pad_profile_name(profile), pads.sticksMoveHands ? "the hands" : "the game");
+        if (xrSession_) {
+            DroidDeckXrInputV2 input{};
+            if (xrProfileInput_.read("/run/droiddeck/" DROIDDECK_XR_INPUT_V2_FILE, input) &&
+                droiddeck::xr::inputFresh(input, xr_monotonic_ns()))
+                xrHands_ = (input.flags & DROIDDECK_XR_INPUT_HAND_MODE) != 0;
+        }
+        const PadProfile profile = xrSession_ ? (xrHands_ ? PadProfile::Index : PadProfile::Touch) :
+            padsEnabled_ ? pads.profile : PadProfile::Off;
+        const int p = xrSession_ ? (xrHands_ ? 3 : 4) : int(profile) - 1;
+        if (!initial && p == activePad_) return;
+        activePad_ = p;
+        Log("input devices: %s%s", pad_profile_name(profile), xrSession_ ? (xrHands_ ? " XR hands" : " XR controllers") : "");
         if (profile == PadProfile::Off) { hmd_.SetHands(nullptr, nullptr); return; }
-        const int p = int(profile) - 1;
         if (!padAdded_[p]) {
             static const char *const kNames[kPadProfiles][2] = {
                 {"droiddeck-pad-left", "droiddeck-pad-right"},
                 {"droiddeck-pad-touch-left", "droiddeck-pad-touch-right"},
                 {"droiddeck-pad-vive-left", "droiddeck-pad-vive-right"},
+                {"droiddeck-xr-hand-left", "droiddeck-xr-hand-right"},
+                {"droiddeck-xr-touch-left", "droiddeck-xr-touch-right"},
             };
             for (int side = 0; side < 2; side++) {
                 pads_[p][side].SetProfile(profile);
+                if (xrSession_) pads_[p][side].ConfigureXr(xrHands_);
                 VRServerDriverHost()->TrackedDeviceAdded(kNames[p][side], TrackedDeviceClass_Controller, &pads_[p][side]);
             }
             padAdded_[p] = true;
@@ -2058,15 +2055,19 @@ private:
         hmd_.SetHands(&pads_[p][0], &pads_[p][1]);
     }
 
-    static constexpr int kPadProfiles = 3;
+    static constexpr int kPadProfiles = 5;
     CardboardHmd hmd_;
-    CardboardController pads_[kPadProfiles][2] = {{CardboardController(false), CardboardController(true)},
-                                                  {CardboardController(false), CardboardController(true)},
-                                                  {CardboardController(false), CardboardController(true)}};
-    bool padAdded_[kPadProfiles] = {false, false, false};
-    bool padsEnabled_ = true, configSticks_ = false;
-    PadProfile profile_ = PadProfile::Off;
-    PadProfile configProfile_ = PadProfile::Index;
+    CardboardController pads_[kPadProfiles][2] = {
+        {CardboardController(false), CardboardController(true)},
+        {CardboardController(false), CardboardController(true)},
+        {CardboardController(false), CardboardController(true)},
+        {CardboardController(false), CardboardController(true)},
+        {CardboardController(false), CardboardController(true)}};
+    bool padAdded_[kPadProfiles] = {};
+    bool padsEnabled_ = true, configSticks_ = false, xrSession_ = false, xrHands_ = false;
+    int activePad_ = -1;
+    PadControllerConfig padConfig_;
+    XrAtomicFile<DroidDeckXrInputV2> xrProfileInput_;
     std::chrono::steady_clock::time_point lastConfigCheck_{};
     HandController handLeft_{false}, handRight_{true};
     bool handAdded_[2] = {false, false};
