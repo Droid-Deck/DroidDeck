@@ -87,7 +87,6 @@ object QualcommSystemDriver {
             "HYBRIS_LD_LIBRARY_PATH=/system/lib64:/system_ext/lib64:/vendor/lib64/egl:/vendor/lib64/hw:/vendor/lib64",
             "DROIDDECK_SYSTEM_QUALCOMM=1", "BL_GAMESCOPE_BACKEND=sdl",
             "DROIDDECK_QUALCOMM_DRIVER=$id",
-            "BL_STEAM_CEF_SOFTWARE=1",
             "BL_GAMESCOPE_BINARY=${File(dir, "bin/gamescope").path}",
             "DROIDDECK_QUALCOMM_ROOT=${dir.path}",
             "DROIDDECK_QUALCOMM_SHADERS=${File(dir, "shaders").path}",
