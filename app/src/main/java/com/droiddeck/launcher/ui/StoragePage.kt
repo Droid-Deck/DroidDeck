@@ -1,5 +1,9 @@
 package com.droiddeck.launcher.ui
 
+import android.app.Activity
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.LocalIndication
@@ -51,6 +55,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -75,6 +80,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.droiddeck.launcher.R
+import com.droiddeck.launcher.files.InAppFilePicker
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.storage.Bucket
 import com.droiddeck.launcher.storage.CleanItem
@@ -86,6 +92,7 @@ import com.droiddeck.launcher.storage.ToolReason
 import com.droiddeck.launcher.storage.ToolState
 import com.droiddeck.launcher.storage.ToolUsage
 import com.droiddeck.launcher.stores.StoreInstallRoot
+import java.io.File
 import java.text.DateFormat
 import java.util.Date
 
@@ -149,13 +156,44 @@ internal fun StoragePanel(s: FrontEndState, a: FrontEndActions) {
 @Composable
 private fun DefaultStorageGroup() {
     val ctx = LocalContext.current
-    val external = StoreInstallRoot.externalTarget(ctx)
     var value by remember { mutableStateOf(SessionPrefs.defaultStorage(ctx)) }
     var open by remember { mutableStateOf(false) }
+    var revision by remember { mutableIntStateOf(0) }
+    val customPath = SessionPrefs.defaultStorageFolder(ctx)
+    val customTarget = remember(customPath, revision) { StoreInstallRoot.customTarget(ctx) }
+    val detected = remember(customPath, revision) { StoreInstallRoot.detectedExternalTarget(ctx) }
+    val customLabel = SessionPrefs.defaultStorageFolderLabel(ctx).ifBlank {
+        customPath.takeIf { it.isNotBlank() }?.let { File(it).name }.orEmpty()
+    }
+    val pickFolder = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode != Activity.RESULT_OK) return@rememberLauncherForActivityResult
+        val path = InAppFilePicker.pickedPath(result.data) ?: return@rememberLauncherForActivityResult
+        val problem = StoreInstallRoot.prepareDefaultFolder(ctx, File(path))
+        if (problem != null) {
+            Toast.makeText(ctx, ctx.getString(R.string.main_storage_not_usable, problem), Toast.LENGTH_LONG).show()
+            return@rememberLauncherForActivityResult
+        }
+        SessionPrefs.setDefaultStorageFolder(ctx, path, StoreInstallRoot.folderLabel(ctx, File(path)))
+        SessionPrefs.setDefaultStorage(ctx, SessionPrefs.DEFAULT_STORAGE_EXTERNAL)
+        value = SessionPrefs.DEFAULT_STORAGE_EXTERNAL
+        revision++
+        open = false
+    }
+    fun chooseFolder() {
+        open = false
+        val initial = customPath.takeIf { it.isNotBlank() && File(it).isDirectory }
+            ?: detected?.root?.parentFile?.takeIf { it.isDirectory }?.absolutePath
+        pickFolder.launch(InAppFilePicker.buildDirIntent(ctx, ctx.getString(R.string.storage_default_choose_folder), initial))
+    }
     val title = stringResource(R.string.storage_default_title)
     val chip = when (value) {
         SessionPrefs.DEFAULT_STORAGE_INTERNAL -> stringResource(R.string.storage_default_internal)
-        SessionPrefs.DEFAULT_STORAGE_EXTERNAL -> external?.label ?: stringResource(R.string.storage_default_external)
+        SessionPrefs.DEFAULT_STORAGE_EXTERNAL -> when {
+            customPath.isNotBlank() -> customTarget?.label
+                ?: "$customLabel · ${stringResource(R.string.storage_default_folder_missing)}"
+            detected != null -> detected.label
+            else -> stringResource(R.string.storage_default_external)
+        }
         else -> stringResource(R.string.storage_default_ask)
     }
     fun pick(next: String) {
@@ -179,15 +217,43 @@ private fun DefaultStorageGroup() {
                     MenuItem(
                         stringResource(R.string.storage_default_internal), value == SessionPrefs.DEFAULT_STORAGE_INTERNAL,
                     ) { pick(SessionPrefs.DEFAULT_STORAGE_INTERNAL) }
-                    MenuItem(
-                        stringResource(R.string.storage_default_external), value == SessionPrefs.DEFAULT_STORAGE_EXTERNAL,
-                        enabled = external != null,
-                        detail = external?.let { target ->
-                            val free = target.freeBytes
-                            if (free >= 0) stringResource(R.string.storage_default_external_detail, target.label, gb(free))
-                            else target.label
-                        } ?: stringResource(R.string.storage_default_external_missing),
-                    ) { if (external != null) pick(SessionPrefs.DEFAULT_STORAGE_EXTERNAL) }
+                    if (detected == null && customPath.isBlank()) {
+                        MenuItem(
+                            stringResource(R.string.storage_default_external), value == SessionPrefs.DEFAULT_STORAGE_EXTERNAL,
+                            detail = stringResource(R.string.storage_default_choose_folder_detail),
+                        ) { chooseFolder() }
+                    } else {
+                        if (detected != null) {
+                            MenuItem(
+                                stringResource(R.string.storage_default_external),
+                                value == SessionPrefs.DEFAULT_STORAGE_EXTERNAL && customPath.isBlank(),
+                                detail = detected.let { target ->
+                                    val free = target.freeBytes
+                                    if (free >= 0) stringResource(R.string.storage_default_external_detail, target.label, gb(free))
+                                    else target.label
+                                },
+                            ) {
+                                SessionPrefs.clearDefaultStorageFolder(ctx)
+                                pick(SessionPrefs.DEFAULT_STORAGE_EXTERNAL)
+                                revision++
+                            }
+                        }
+                        if (customPath.isNotBlank()) {
+                            MenuItem(
+                                stringResource(R.string.storage_default_folder, customLabel),
+                                value == SessionPrefs.DEFAULT_STORAGE_EXTERNAL,
+                                detail = customTarget?.let { target ->
+                                    val free = target.freeBytes
+                                    if (free >= 0) stringResource(R.string.storage_default_folder_free, gb(free))
+                                    else stringResource(R.string.storage_default_folder_missing)
+                                } ?: stringResource(R.string.storage_default_folder_missing),
+                            ) { if (customTarget != null) pick(SessionPrefs.DEFAULT_STORAGE_EXTERNAL) else chooseFolder() }
+                        }
+                        MenuItem(
+                            stringResource(R.string.storage_default_choose_folder), checked = false,
+                            detail = stringResource(R.string.storage_default_choose_folder_detail),
+                        ) { chooseFolder() }
+                    }
                 }
             }
         }
