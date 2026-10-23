@@ -128,6 +128,7 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -172,6 +173,7 @@ private data class PaneKey(val chip: String, val tab: String, val signedIn: Bool
 @Composable
 internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier) {
     val ctx = LocalContext.current
+    val focusManager = LocalFocusManager.current
     com.droiddeck.launcher.stores.xbox.XboxContent.plan?.let { content ->
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { com.droiddeck.launcher.stores.xbox.XboxContent.dismiss() },
@@ -279,7 +281,7 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
     val heroFocus = remember { androidx.compose.ui.focus.FocusRequester() }
     var detailFocused by remember { mutableStateOf(false) }
     fun move(kind: String) { focusMove = kind to (focusMove?.second ?: 0) + 1 }
-    fun open(key: String) { lastOpened = key; openGame = key; move("detail") }
+    fun open(key: String) { focusManager.clearFocus(force = true); lastOpened = key; openGame = key; move("detail") }
     fun closeGame() { openGame = null; move("card") }
     fun switchTab(to: String) { tab = to; move("first") }
     val pickChip: (String) -> Unit = { id ->
@@ -477,7 +479,11 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
                                         androidx.compose.material3.LinearProgressIndicator(Modifier.fillMaxWidth().height(3.dp))
                                     }
                                     !k.signedIn -> Box(Modifier.fillMaxWidth().verticalScroll(scroll).padding(top = 4.dp, bottom = 16.dp)) { SignInCard(st, viewportH - 20.dp) }
-                                    else -> Storefront(st, k.tab, query, s, a, grids.getOrPut(k) { LazyGridState() }, onQuery = { query = it }, onOpen = { open(it) }, onTab = { switchTab(it) })
+                                    else -> Storefront(
+                                        st, k.tab, query, s, a, grids.getOrPut(k) { LazyGridState() },
+                                        clearSearchFocus = openGame != null,
+                                        onQuery = { query = it }, onOpen = { open(it) }, onTab = { switchTab(it) },
+                                    )
                                 }
                               }
                           }
@@ -538,7 +544,7 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
         seenActive.clear(); seenActive.addAll(activeKeys)
         if (fresh.isNotEmpty()) StoresMotion.takeInstall()?.let { StoresMotion.fly(it) }
     }
-    StoresState.pendingInstall?.let { item -> InstallWhere(item) }
+    StoresState.pendingInstall?.let { item -> StoreTheme(item.store) { InstallWhere(item) } }
 }
 
 @Composable
@@ -937,6 +943,7 @@ internal fun StoreLogo(store: Store, size: Dp) {
 private fun Storefront(
     store: Store, tab: String, query: String, s: FrontEndState, a: FrontEndActions,
     grid: LazyGridState,
+    clearSearchFocus: Boolean,
     onQuery: (String) -> Unit, onOpen: (String) -> Unit, onTab: (String) -> Unit,
 ) {
     val ctx = LocalContext.current
@@ -1072,6 +1079,7 @@ private fun Storefront(
                     libraryLabel,
                     query, onQuery,
                     placeholder = if (tab == "store") stringResource(R.string.stores_search_catalog, store.label) else stringResource(R.string.stores_search_library),
+                    clearSearchFocus = clearSearchFocus,
                     lead = if (tabs.size < 2) null else { {
                         val labels = tabs.map { if (it == "store") stringResource(R.string.stores_tab_store) else libraryLabel }
                         HeaderTabs(labels, tabs.indexOf(tab).coerceAtLeast(0)) { onTab(tabs[it]) }
@@ -1172,6 +1180,7 @@ private fun HeaderTabs(labels: List<String>, selected: Int, onSelect: (Int) -> U
 @Composable
 internal fun ModeHeader(
     title: String, query: String, onQuery: (String) -> Unit, placeholder: String,
+    clearSearchFocus: Boolean = false,
     lead: (@Composable () -> Unit)? = null, trailing: @Composable () -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
@@ -1193,6 +1202,7 @@ internal fun ModeHeader(
                         AdbTextField(
                             value = query, onValueChange = onQuery, label = "", keyboardType = KeyboardType.Text, imeAction = ImeAction.Search,
                             placeholder = placeholder, compact = true, focusOnShow = focusOnOpen,
+                            clearFocus = clearSearchFocus,
                             onFocusChange = { focused -> if (!focused && query.isEmpty()) { searching = false; focusOnOpen = false } },
                         )
                     }
