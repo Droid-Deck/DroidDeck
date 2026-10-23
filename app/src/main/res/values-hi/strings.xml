@@ -1402,7 +1402,7 @@
     <string name="theme_electric">इलेक्ट्रिक नेवी</string>
     <string name="theme_electric_detail">ब्लू रंग ज़्यादा चमकीला, उन सतहों पर जो ग्रे के बजाय नेवी की ओर झुकती हैं।</string>
     <string name="theme_inner_gamer">Inner Gamer</string>
-    <string name="theme_inner_gamer_detail">इंद्रधनुष के रंगों में बदलते रंग। Android की एनिमेशन सेटिंग का पालन करता है।</string>
+    <string name="theme_inner_gamer_detail">इंद्रधनुष के रंगों में बदलते रंग। Android की एनिमेशन सेटिंग का पालन करती है।</string>
     <string name="theme_rgb_speed">गति</string>
     <string name="theme_rgb_speed_hint">रंग कितनी तेज़ी से बदलें।</string>
     <string name="theme_gradient">ग्रेडिएंट</string>

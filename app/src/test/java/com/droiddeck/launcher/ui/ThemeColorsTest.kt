@@ -157,7 +157,7 @@ class ThemeColorsTest {
     }
 
     @Test fun innerGamerFollowsTheHueAndTheSpeedIsSavedAndKeptInRange() {
-        Themes.setRgbHue(120f)
+        Themes.moveRgbHue(120f)
         assertEquals(Themes.innerGamer(120f).primary, Themes.byId(Themes.INNER_GAMER).primary)
         Themes.setRgbSpeed(app, 7)
         assertEquals(7, SessionPrefs.rgbSpeed(app))

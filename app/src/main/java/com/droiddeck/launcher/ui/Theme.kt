@@ -63,7 +63,7 @@ object Themes {
     var rgbHue by mutableStateOf(0f)
         private set
 
-    fun setRgbHue(hue: Float) {
+    fun moveRgbHue(hue: Float) {
         rgbHue = hue
     }
 
@@ -174,5 +174,5 @@ private fun InnerGamerHue(speed: Int) {
         0f, 360f, infiniteRepeatable(tween(Motion.ms(Themes.rgbCycleMillis(speed)).coerceAtLeast(1), easing = LinearEasing), RepeatMode.Restart), label = "hue",
     )
     val step = Themes.RGB_HUE_STEP
-    SideEffect { Themes.setRgbHue((hue / step).toInt() * step) }
+    SideEffect { Themes.moveRgbHue((hue / step).toInt() * step) }
 }
