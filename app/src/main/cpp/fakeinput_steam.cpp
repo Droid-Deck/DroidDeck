@@ -1138,6 +1138,7 @@ struct DeckHidraw {
   FakeInputRingHeader *ring = nullptr;
   size_t mapping_size = 0;
   uint8_t pending_feature = 0;
+  uint8_t sony_feature_buf[64] = {};
   bool touch = false;
   bool triton = false;
   bool emulated = false;
@@ -1163,7 +1164,8 @@ static constexpr int LOW_LATENCY_REPORT_INTERVAL_US = 1000;
 static constexpr uint32_t DECK_EXTRA_L4 = 1, DECK_EXTRA_R4 = 2, DECK_EXTRA_L5 = 4,
                           DECK_EXTRA_R5 = 8, DECK_EXTRA_LPAD_TOUCH = 16,
                           DECK_EXTRA_RPAD_TOUCH = 32, DECK_EXTRA_LPAD_CLICK = 64,
-                          DECK_EXTRA_RPAD_CLICK = 128;
+                          DECK_EXTRA_RPAD_CLICK = 128, DECK_EXTRA_MUTE = 256,
+                          DECK_EXTRA_FULL_TOUCHPAD = 512;
 
 struct DeckExtras {
   int16_t accel[3] = {};
@@ -1513,15 +1515,32 @@ struct SonyTouch {
   bool down[2] = {};
   uint8_t id[2] = {};
   uint8_t next_id = 0;
+  int px[2] = {};
+  int py[2] = {};
 };
 
 __attribute__((visibility("hidden"))) static void put_sony_touch(uint8_t *at, SonyTouch &touch, int side,
-                                                                    bool down, int16_t x, int16_t y, int height) {
+                                                                    bool down, int16_t x, int16_t y, int height,
+                                                                    bool full_width = false) {
   if (down && !touch.down[side]) touch.id[side] = touch.next_id++ & 0x7f;
   touch.down[side] = down;
-  int half = SONY_TOUCH_WIDTH / 2;
-  int px = side * half + (static_cast<int>(x) + 32768) * (half - 1) / 65535;
-  int py = (32767 - static_cast<int>(y)) * (height - 1) / 65535;
+  if (down) {
+    int px;
+    if (full_width) {
+      px = (static_cast<int>(x) + 32768) * (SONY_TOUCH_WIDTH - 1) / 65535;
+      px = std::max(0, std::min(SONY_TOUCH_WIDTH - 1, px));
+    } else {
+      int half = SONY_TOUCH_WIDTH / 2;
+      px = side * half + (static_cast<int>(x) + 32768) * (half - 1) / 65535;
+      px = std::max(0, std::min(SONY_TOUCH_WIDTH - 1, px));
+    }
+    int py = (32767 - static_cast<int>(y)) * (height - 1) / 65535;
+    py = std::max(0, std::min(height - 1, py));
+    touch.px[side] = px;
+    touch.py[side] = py;
+  }
+  int px = touch.px[side];
+  int py = touch.py[side];
   at[0] = static_cast<uint8_t>(touch.id[side] | (down ? 0 : 0x80));
   at[1] = static_cast<uint8_t>(px & 0xff);
   at[2] = static_cast<uint8_t>(((px >> 8) & 0x0f) | ((py & 0x0f) << 4));
@@ -1550,10 +1569,13 @@ build_sony_report(uint8_t *report, uint8_t model, uint32_t packet, uint64_t elap
   uint8_t system = (buttons & 1024 ? 0x01 : 0) | (click ? 0x02 : 0);
   uint8_t left_trigger = static_cast<uint8_t>(std::max(0, std::min(255, axes[5])));
   uint8_t right_trigger = static_cast<uint8_t>(std::max(0, std::min(255, axes[4])));
-  int16_t gyro[3] = {extras.gyro[0], extras.gyro[2], static_cast<int16_t>(-extras.gyro[1])};
+  int32_t neg_gyro_y = -static_cast<int32_t>(extras.gyro[1]);
+  int16_t clamped_neg_gyro_y = static_cast<int16_t>(std::clamp(neg_gyro_y, -32768, 32767));
+  int16_t gyro[3] = {extras.gyro[0], extras.gyro[2], clamped_neg_gyro_y};
   int16_t accel[3] = {static_cast<int16_t>(extras.accel[0] / 2), static_cast<int16_t>(extras.accel[2] / 2),
                       static_cast<int16_t>(-extras.accel[1] / 2)};
   bool left = extras.controls & DECK_EXTRA_LPAD_TOUCH, right = extras.controls & DECK_EXTRA_RPAD_TOUCH;
+  bool full_touchpad = (extras.controls & DECK_EXTRA_FULL_TOUCHPAD) != 0;
   if (model == 4) {
     p[4] = static_cast<uint8_t>(hat | face);
     p[5] = shoulders;
@@ -1568,25 +1590,31 @@ build_sony_report(uint8_t *report, uint8_t model, uint32_t packet, uint64_t elap
     p[29] = 0x1b;
     p[32] = 1;
     p[33] = static_cast<uint8_t>(packet);
-    put_sony_touch(p + 34, touch, 0, left, extras.pads[0], extras.pads[1], SONY_TOUCH_HEIGHT_DS4);
-    put_sony_touch(p + 38, touch, 1, right, extras.pads[2], extras.pads[3], SONY_TOUCH_HEIGHT_DS4);
+    put_sony_touch(p + 34, touch, 0, left, extras.pads[0], extras.pads[1], SONY_TOUCH_HEIGHT_DS4, full_touchpad);
+    put_sony_touch(p + 38, touch, 1, right, extras.pads[2], extras.pads[3], SONY_TOUCH_HEIGHT_DS4, full_touchpad);
   } else {
+    uint8_t ds_extra = ((extras.controls & DECK_EXTRA_MUTE) ? 0x04 : 0) |
+                       ((extras.controls & DECK_EXTRA_L5) ? 0x10 : 0) |
+                       ((extras.controls & DECK_EXTRA_R5) ? 0x20 : 0) |
+                       ((extras.controls & DECK_EXTRA_L4) ? 0x40 : 0) |
+                       ((extras.controls & DECK_EXTRA_R4) ? 0x80 : 0);
     p[4] = left_trigger;
     p[5] = right_trigger;
     p[6] = static_cast<uint8_t>(packet);
     p[7] = static_cast<uint8_t>(hat | face);
     p[8] = shoulders;
-    p[9] = system;
+    p[9] = static_cast<uint8_t>(system | ds_extra);
     put32(p + 11, packet);
     for (int i = 0; i < 3; i++) {
       put16(p + 15 + i * 2, gyro[i]);
       put16(p + 21 + i * 2, accel[i]);
     }
     put32(p + 27, static_cast<uint32_t>(elapsed_us * 3));
-    put_sony_touch(p + 32, touch, 0, left, extras.pads[0], extras.pads[1], SONY_TOUCH_HEIGHT_DUALSENSE);
-    put_sony_touch(p + 36, touch, 1, right, extras.pads[2], extras.pads[3], SONY_TOUCH_HEIGHT_DUALSENSE);
+    put_sony_touch(p + 32, touch, 0, left, extras.pads[0], extras.pads[1], SONY_TOUCH_HEIGHT_DUALSENSE, full_touchpad);
+    put_sony_touch(p + 36, touch, 1, right, extras.pads[2], extras.pads[3], SONY_TOUCH_HEIGHT_DUALSENSE, full_touchpad);
+    p[40] = static_cast<uint8_t>(packet);
     p[52] = 0x2a;
-    p[53] = 0x08;
+    p[53] = static_cast<uint8_t>(0x18 | ((extras.controls & DECK_EXTRA_MUTE) ? 0x04 : 0));
   }
 }
 
@@ -2439,20 +2467,46 @@ static const uint8_t kDs4ReportDescriptor[] = {
     0x85, 0xa3, 0x09, 0x26, 0x95, 0x30, 0xb1, 0x02, 0x85, 0x81, 0x09, 0x27, 0x95, 0x3f, 0xb1, 0x02,
     0xc0};
 static const uint8_t kDualSenseReportDescriptor[] = {
-    0x05, 0x01, 0x09, 0x05, 0xa1, 0x01, 0x06, 0x00, 0xff, 0x15, 0x00, 0x26, 0xff, 0x00, 0x75, 0x08,
-    0x85, 0x01, 0x09, 0x20, 0x95, 0x3f, 0x81, 0x02, 0x85, 0x02, 0x09, 0x21, 0x95, 0x2f, 0x91, 0x02,
-    0x85, 0x05, 0x09, 0x22, 0x95, 0x28, 0xb1, 0x02, 0x85, 0x09, 0x09, 0x23, 0x95, 0x13, 0xb1, 0x02,
-    0x85, 0x20, 0x09, 0x24, 0x95, 0x3f, 0xb1, 0x02, 0xc0};
+    0x05, 0x01, 0x09, 0x05, 0xA1, 0x01, 0x85, 0x01, 0x09, 0x30, 0x09, 0x31, 0x09, 0x32, 0x09, 0x35,
+    0x09, 0x33, 0x09, 0x34, 0x15, 0x00, 0x26, 0xFF, 0x00, 0x75, 0x08, 0x95, 0x06, 0x81, 0x02, 0x06,
+    0x00, 0xFF, 0x09, 0x20, 0x95, 0x01, 0x81, 0x02, 0x05, 0x01, 0x09, 0x39, 0x15, 0x00, 0x25, 0x07,
+    0x35, 0x00, 0x46, 0x3B, 0x01, 0x65, 0x14, 0x75, 0x04, 0x95, 0x01, 0x81, 0x42, 0x65, 0x00, 0x05,
+    0x09, 0x19, 0x01, 0x29, 0x0F, 0x15, 0x00, 0x25, 0x01, 0x75, 0x01, 0x95, 0x0F, 0x81, 0x02, 0x06,
+    0x00, 0xFF, 0x09, 0x21, 0x95, 0x0D, 0x81, 0x02, 0x06, 0x00, 0xFF, 0x09, 0x22, 0x15, 0x00, 0x26,
+    0xFF, 0x00, 0x75, 0x08, 0x95, 0x34, 0x81, 0x02, 0x85, 0x02, 0x09, 0x23, 0x95, 0x2F, 0x91, 0x02,
+    0x85, 0x05, 0x09, 0x33, 0x95, 0x28, 0xB1, 0x02, 0x85, 0x08, 0x09, 0x34, 0x95, 0x2F, 0xB1, 0x02,
+    0x85, 0x09, 0x09, 0x24, 0x95, 0x13, 0xB1, 0x02, 0x85, 0x0A, 0x09, 0x25, 0x95, 0x1A, 0xB1, 0x02,
+    0x85, 0x0B, 0x09, 0x41, 0x95, 0x29, 0xB1, 0x02, 0x85, 0x0C, 0x09, 0x42, 0x95, 0x29, 0xB1, 0x02,
+    0x85, 0x20, 0x09, 0x26, 0x95, 0x3F, 0xB1, 0x02, 0x85, 0x21, 0x09, 0x27, 0x95, 0x04, 0xB1, 0x02,
+    0x85, 0x22, 0x09, 0x40, 0x95, 0x3F, 0xB1, 0x02, 0x85, 0x80, 0x09, 0x28, 0x95, 0x3F, 0xB1, 0x02,
+    0x85, 0x81, 0x09, 0x29, 0x95, 0x3F, 0xB1, 0x02, 0x85, 0x82, 0x09, 0x2A, 0x95, 0x09, 0xB1, 0x02,
+    0x85, 0x83, 0x09, 0x2B, 0x95, 0x3F, 0xB1, 0x02, 0x85, 0x84, 0x09, 0x2C, 0x95, 0x3F, 0xB1, 0x02,
+    0x85, 0x85, 0x09, 0x2D, 0x95, 0x02, 0xB1, 0x02, 0x85, 0xA0, 0x09, 0x2E, 0x95, 0x01, 0xB1, 0x02,
+    0x85, 0xE0, 0x09, 0x2F, 0x95, 0x3F, 0xB1, 0x02, 0x85, 0xF0, 0x09, 0x30, 0x95, 0x3F, 0xB1, 0x02,
+    0x85, 0xF1, 0x09, 0x31, 0x95, 0x3F, 0xB1, 0x02, 0x85, 0xF2, 0x09, 0x32, 0x95, 0x0F, 0xB1, 0x02,
+    0x85, 0xF4, 0x09, 0x35, 0x95, 0x3F, 0xB1, 0x02, 0x85, 0xF5, 0x09, 0x36, 0x95, 0x03, 0xB1, 0x02,
+    0xC0
+};
 
-__attribute__((visibility("hidden"))) static void put_sony_calibration(uint8_t *reply) {
-  for (int axis = 0; axis < 3; axis++) {
-    put16(reply + 7 + axis * 4, 8640);
-    put16(reply + 9 + axis * 4, -8640);
-    put16(reply + 23 + axis * 4, 8192);
-    put16(reply + 25 + axis * 4, -8192);
+__attribute__((visibility("hidden"))) static void put_sony_calibration(uint8_t *reply, bool dualsense = false) {
+  if (dualsense) {
+    for (int axis = 0; axis < 3; axis++) {
+      put16(reply + 7 + axis * 4, 8640);
+      put16(reply + 9 + axis * 4, -8640);
+      put16(reply + 23 + axis * 4, 8192);
+      put16(reply + 25 + axis * 4, -8192);
+    }
+    put16(reply + 19, 540);
+    put16(reply + 21, 540);
+    reply[35] = 0x08;
+  } else {
+    for (int axis = 0; axis < 3; axis++) {
+      put16(reply + 7 + axis * 2, 8640);
+      put16(reply + 13 + axis * 2, -8640);
+      put16(reply + 19 + axis * 2, 8192);
+      put16(reply + 25 + axis * 2, -8192);
+    }
   }
-  put16(reply + 19, 540);
-  put16(reply + 21, 540);
 }
 
 __attribute__((visibility("hidden"))) static int sony_feature(const DeckHidraw &pad, uint8_t *buf, size_t size) {
@@ -2465,17 +2519,74 @@ __attribute__((visibility("hidden"))) static int sony_feature(const DeckHidraw &
   reply[0] = id;
   size_t length = size;
   if ((pad.sony == 4 && id == 0x02) || (pad.sony == 5 && id == 0x05)) {
-    put_sony_calibration(reply);
+    put_sony_calibration(reply, pad.sony == 5);
   } else if ((pad.sony == 4 && (id == 0x12 || id == 0x81)) || (pad.sony == 5 && id == 0x09)) {
     for (int i = 0; i < 6; i++) reply[1 + i] = SONY_MAC[5 - i];
+    if (pad.sony == 5) {
+      reply[7] = 0x08;
+      reply[8] = 0x25;
+    }
   } else if (pad.sony == 5 && id == 0x20) {
-    reply[44] = 0x30;
-    reply[45] = 0x04;
+    memcpy(reply + 1, "Jul  4 2025", 11);
+    memcpy(reply + 12, "10:10:32", 8);
+    put16(reply + 20, 0x0002);
+    put16(reply + 22, 0x0004);
+    put32(reply + 24, 0x00000621);
+    put32(reply + 28, 0x0110002A);
+    reply[33] = 0xB8;
+    put32(reply + 44, 0x00000630);
+    put32(reply + 48, 0x0001003C);
+    put32(reply + 52, 0x0002000A);
+    put32(reply + 56, 0x00000006);
+  } else if (pad.sony == 5 && id == 0x81) {
+    if (pad.sony_feature_buf[0] == 0x80) {
+      reply[1] = pad.sony_feature_buf[1];
+      reply[2] = pad.sony_feature_buf[2];
+      reply[3] = 0x02;
+    } else {
+      reply[1] = 0x02;
+    }
   }
   log_deck_feature("read", id);
   length = std::min(length, sizeof(reply));
   memcpy(buf, reply, length);
   return static_cast<int>(length);
+}
+
+__attribute__((visibility("hidden"))) static void
+send_dualsense_output(const uint8_t *data, size_t size) {
+  static std::atomic<uint32_t> seq{0};
+  uint8_t record[64] = {};
+  uint32_t current_seq = ++seq;
+  uint32_t copy_len = static_cast<uint32_t>(std::min(size, static_cast<size_t>(48)));
+  put32(record, current_seq);
+  put32(record + 4, copy_len);
+  memcpy(record + 8, data, copy_len);
+
+  const char *dir = fake_hook_dir();
+  if (dir && *dir) {
+    char path[PATH_MAX];
+    snprintf(path, sizeof(path), "%s/ds_output.bin", dir);
+    int fd = static_cast<int>(syscall(SYS_openat, AT_FDCWD, path, O_WRONLY | O_CREAT | O_CLOEXEC, 0644));
+    if (fd >= 0) {
+      ssize_t ignored = pwrite(fd, record, sizeof(record), 0);
+      (void)ignored;
+      syscall(SYS_close, fd);
+    }
+  }
+
+  int sock = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
+  if (sock >= 0) {
+    struct sockaddr_un addr = {};
+    addr.sun_family = AF_UNIX;
+    const char *name = "droiddeck-dualsense";
+    memcpy(addr.sun_path + 1, name, strlen(name));
+    socklen_t addrlen = offsetof(struct sockaddr_un, sun_path) + 1 + strlen(name);
+    if (connect(sock, reinterpret_cast<struct sockaddr *>(&addr), addrlen) == 0) {
+      send(sock, record + 8, 48, MSG_DONTWAIT | MSG_NOSIGNAL);
+    }
+    syscall(SYS_close, sock);
+  }
 }
 
 __attribute__((visibility("hidden"))) static void sony_output(const DeckHidraw &pad, const uint8_t *data, size_t size) {
@@ -2486,7 +2597,9 @@ __attribute__((visibility("hidden"))) static void sony_output(const DeckHidraw &
     weak = data[4];
     strong = data[5];
   } else if (pad.sony == 5 && data[0] == 0x02) {
-    if (!(data[1] & 0x03)) return;
+    send_dualsense_output(data, size);
+    bool has_rumble = (data[1] & 0x03) != 0 || (size > 39 && (data[39] & 0x04) != 0);
+    if (!has_rumble) return;
     weak = data[3];
     strong = data[4];
   } else {
@@ -2527,8 +2640,14 @@ __attribute__((visibility("hidden"))) static int ioctl_sony(DeckHidraw &pad, ioc
                                                      : "Sony Interactive Entertainment DualSense Wireless Controller");
   case 0x05: return copy_ioctl_string(op, argp, pad.sony == 4 ? "usb-droiddeck-4/input3" : "usb-droiddeck-5/input3");
   case 0x08: return copy_ioctl_string(op, argp, "5e:43:4b:44:44:02");
-  case 0x06:
+  case 0x06: {
+    const auto *in = static_cast<const uint8_t *>(argp);
+    size_t sz = std::min<size_t>(_IOC_SIZE(op), sizeof(pad.sony_feature_buf));
+    if (in && sz > 0) {
+      memcpy(pad.sony_feature_buf, in, sz);
+    }
     return static_cast<int>(_IOC_SIZE(op));
+  }
   case 0x07: return sony_feature(pad, static_cast<uint8_t *>(argp), _IOC_SIZE(op));
   default:
     errno = EINVAL;

@@ -417,6 +417,9 @@ class FrontEndActivity : ComponentActivity() {
     private var androidApps by mutableStateOf<List<HomeApp.LaunchableApp>>(emptyList())
     private var secondScreenDisplays by mutableStateOf<List<SecondScreenDisplay>>(emptyList())
     private lateinit var displayManager: DisplayManager
+    private var dualSenseManager: com.droiddeck.launcher.input.DualSenseManager? = null
+    private var dualSenseOutputBridge: com.droiddeck.launcher.session.DualSenseOutputBridge? = null
+    private var lastDsState: com.droiddeck.launcher.input.DualSense.State? = null
     private val secondScreenDisplayListener = object : DisplayManager.DisplayListener {
         override fun onDisplayAdded(displayId: Int) = refreshSecondScreenDisplays()
         override fun onDisplayRemoved(displayId: Int) = refreshSecondScreenDisplays()
@@ -765,6 +768,15 @@ class FrontEndActivity : ComponentActivity() {
         storesView = SessionPrefs.storesView(this)
         applyLauncherFullscreen()
         updates.start()
+        if (SessionState.fakeInputDir == null) {
+            SessionState.fakeInputDir = File(filesDir, "fakeinput").apply { mkdirs() }
+        }
+        val dsManager = com.droiddeck.launcher.input.DualSenseManager(this).apply {
+            onStateUpdated = { state -> handleLauncherDualSenseInput(state) }
+            onActivationChanged = { _ -> ui.post { refreshController() } }
+        }
+        dualSenseManager = dsManager
+        dualSenseOutputBridge = com.droiddeck.launcher.session.DualSenseOutputBridge()
         setContent {
             DroidDeckTheme(theme, appScale = appScale) {
             com.droiddeck.launcher.ui.FocusGlideHost(androidx.compose.ui.Modifier.fillMaxSize().exposeTestTags()) {
@@ -1264,6 +1276,7 @@ class FrontEndActivity : ComponentActivity() {
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (event.keyCode == KeyEvent.KEYCODE_BUTTON_A) com.droiddeck.launcher.ui.HeldKeys.confirm = event.action == KeyEvent.ACTION_DOWN
+        if (event.action == KeyEvent.ACTION_DOWN) com.droiddeck.launcher.ui.HeldKeys.focusWakeup++
         if (showComponents && (event.keyCode == KeyEvent.KEYCODE_BUTTON_L1 || event.keyCode == KeyEvent.KEYCODE_BUTTON_R1)) {
             if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
                 components.compComp = com.droiddeck.launcher.ui.layerStep(components.compComp, if (event.keyCode == KeyEvent.KEYCODE_BUTTON_R1) 1 else -1)
@@ -1274,7 +1287,8 @@ class FrontEndActivity : ComponentActivity() {
             super.dispatchKeyEvent(event)
         } catch (e: IllegalStateException) {
             if (e.message?.contains("active focus target") != true) throw e
-            android.util.Log.w("MainActivity", "key ${event.keyCode} dropped: ${e.message}")
+            com.droiddeck.launcher.ui.HeldKeys.focusWakeup++
+            android.util.Log.w("MainActivity", "key ${event.keyCode} dropped, waking focus: ${e.message}")
             true
         }
     }
@@ -1315,6 +1329,66 @@ class FrontEndActivity : ComponentActivity() {
         refreshAddedGames()
         if (catalog == null) loadDesktopCatalog()
         if (!busy) Thread({ checkCatalog() }, "catalog").start()
+        if (!SessionState.running) {
+            dualSenseManager?.start()
+            dualSenseOutputBridge?.start()
+        }
+    }
+
+    private fun handleLauncherDualSenseInput(state: com.droiddeck.launcher.input.DualSense.State) {
+        val prev = lastDsState
+        lastDsState = state
+
+        val upNow = state.dpadUp || state.leftY < -0.55f
+        val upPrev = prev?.let { it.dpadUp || it.leftY < -0.55f } ?: false
+        val downNow = state.dpadDown || state.leftY > 0.55f
+        val downPrev = prev?.let { it.dpadDown || it.leftY > 0.55f } ?: false
+        val leftNow = state.dpadLeft || state.leftX < -0.55f
+        val leftPrev = prev?.let { it.dpadLeft || it.leftX < -0.55f } ?: false
+        val rightNow = state.dpadRight || state.leftX > 0.55f
+        val rightPrev = prev?.let { it.dpadRight || it.leftX > 0.55f } ?: false
+
+        fun emitTransition(now: Boolean, was: Boolean, keyCode: Int) {
+            if (now != was) {
+                val action = if (now) KeyEvent.ACTION_DOWN else KeyEvent.ACTION_UP
+                val nowMs = android.os.SystemClock.uptimeMillis()
+                val ev = KeyEvent(
+                    nowMs,
+                    nowMs,
+                    action,
+                    keyCode,
+                    0,
+                    0,
+                    android.view.KeyCharacterMap.VIRTUAL_KEYBOARD,
+                    0,
+                    0,
+                    android.view.InputDevice.SOURCE_GAMEPAD or android.view.InputDevice.SOURCE_DPAD,
+                )
+                ui.post { dispatchKeyEvent(ev) }
+            }
+        }
+
+        emitTransition(upNow, upPrev, KeyEvent.KEYCODE_DPAD_UP)
+        emitTransition(downNow, downPrev, KeyEvent.KEYCODE_DPAD_DOWN)
+        emitTransition(leftNow, leftPrev, KeyEvent.KEYCODE_DPAD_LEFT)
+        emitTransition(rightNow, rightPrev, KeyEvent.KEYCODE_DPAD_RIGHT)
+        emitTransition(state.cross, prev?.cross ?: false, KeyEvent.KEYCODE_BUTTON_A)
+        emitTransition(state.circle, prev?.circle ?: false, KeyEvent.KEYCODE_BUTTON_B)
+        emitTransition(state.square, prev?.square ?: false, KeyEvent.KEYCODE_BUTTON_X)
+        emitTransition(state.triangle, prev?.triangle ?: false, KeyEvent.KEYCODE_BUTTON_Y)
+        emitTransition(state.l1, prev?.l1 ?: false, KeyEvent.KEYCODE_BUTTON_L1)
+        emitTransition(state.r1, prev?.r1 ?: false, KeyEvent.KEYCODE_BUTTON_R1)
+        emitTransition(state.options, prev?.options ?: false, KeyEvent.KEYCODE_BUTTON_START)
+        emitTransition(state.create, prev?.create ?: false, KeyEvent.KEYCODE_BUTTON_SELECT)
+    }
+
+    override fun onPause() {
+        if (!SessionState.running) {
+            dualSenseOutputBridge?.stop()
+        }
+        dualSenseManager?.stop()
+        lastDsState = null
+        super.onPause()
     }
 
     override fun onStart() {
@@ -1343,6 +1417,12 @@ class FrontEndActivity : ComponentActivity() {
         else @Suppress("DEPRECATION") state.getParcelable(key)
 
     override fun onDestroy() {
+        if (!SessionState.running) {
+            dualSenseOutputBridge?.stop()
+        }
+        dualSenseManager?.stop()
+        dualSenseOutputBridge = null
+        dualSenseManager = null
         updates.unregister()
         super.onDestroy()
     }
@@ -1426,6 +1506,7 @@ class FrontEndActivity : ComponentActivity() {
 
     private fun refreshController() {
         controllerSettings = ControllerPrefs.read(this)
+        steamController = com.droiddeck.launcher.input.DualSenseManager.effectiveSteamController(this)
     }
 
     @Composable
@@ -1892,7 +1973,7 @@ class FrontEndActivity : ComponentActivity() {
         steamRepairQueued = SteamRepair.queued(this)
         mangoapp = SessionPrefs.mangoapp(this)
         returnAfterGame = SessionPrefs.returnAfterGame(this)
-        steamController = SessionPrefs.steamController(this)
+        steamController = com.droiddeck.launcher.input.DualSenseManager.effectiveSteamController(this)
         runSteamAtStartup = SessionPrefs.runSteamAtStartup(this)
         loadBootMovie()
         hdrOn = SessionPrefs.hdr(this, mode)

@@ -282,6 +282,7 @@ public final class PadBridge {
     }
 
     public synchronized boolean onKeyEvent(KeyEvent event) {
+        if (DualSenseManager.shouldSuppress(event.getDevice())) return true;
         if (!isControllerKeyEvent(event) || excluded.test(event.getDeviceId())) return false;
         int slot = slotFor(event.getDevice());
         if (slot < 0) return false;
@@ -330,6 +331,7 @@ public final class PadBridge {
     }
 
     public synchronized boolean onMotionEvent(MotionEvent event) {
+        if (DualSenseManager.shouldSuppress(event.getDevice())) return true;
         if (!isControllerMotionEvent(event) || excluded.test(event.getDeviceId())) return false;
         if (event.getAction() != MotionEvent.ACTION_MOVE) return false;
         int slot = slotFor(event.getDevice());

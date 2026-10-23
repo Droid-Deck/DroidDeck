@@ -157,6 +157,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private lateinit var hud: PerfHud
     private var padBridge: PadBridge? = null
     private var joyConVr: com.droiddeck.launcher.input.JoyConVr? = null
+    private var dualSenseManager: com.droiddeck.launcher.input.DualSenseManager? = null
     private var handCamera: com.droiddeck.launcher.handtracking.HandCamera? = null
     private var padMotion: com.droiddeck.launcher.input.PadMotion? = null
     private var resumed = false
@@ -420,6 +421,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private val deviceListener = object : InputManager.InputDeviceListener {
         override fun onInputDeviceAdded(deviceId: Int) {
             logInputDevice("connected", deviceId)
+            dualSenseManager?.onInputDeviceAdded(deviceId)
             joyConVr?.refresh()
             padBridge?.syncConnectedControllers()
             refreshControls()
@@ -428,6 +430,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
         override fun onInputDeviceRemoved(deviceId: Int) {
             Log.i(TAG, "input device $deviceId disconnected")
+            dualSenseManager?.onInputDeviceRemoved(deviceId)
             joyConVr?.refresh()
             padBridge?.onDeviceRemoved(deviceId)
             if (::padMouse.isInitialized) padMouse.reset()
@@ -520,6 +523,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
         SteamControllerBle.listener = { uiHandler.post { updatePadMotion(); refreshControls() } }
         steamController = SteamControllerBle(this).also { it.start() }
+        dualSenseManager = com.droiddeck.launcher.input.DualSenseManager(this).also { it.start() }
         padMotion = com.droiddeck.launcher.input.PadMotion(this) {
             @Suppress("DEPRECATION")
             (if (Build.VERSION.SDK_INT >= 30) display else windowManager.defaultDisplay)?.rotation ?: android.view.Surface.ROTATION_0
@@ -2078,6 +2082,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if ((pcKeyboardOpen || achievementsOpen) && fromController) return super.dispatchKeyEvent(event)
         if (joyConVr?.onKeyEvent(event) == true) return true
         if (fromController && event.keyCode != KeyEvent.KEYCODE_BACK && padMouseMode() && padMouse.onKey(event)) return true
+        if (dualSenseManager?.onKeyEvent(event) == true) return true
         if (event.keyCode != KeyEvent.KEYCODE_BACK && padBridge?.onKeyEvent(event) == true) return true
         if (CompositorHost.isStarted && event.keyCode != KeyEvent.KEYCODE_BACK && !fromController) {
             val down = event.action == KeyEvent.ACTION_DOWN
@@ -2122,6 +2127,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (drawerDirectionKey != KeyEvent.KEYCODE_UNKNOWN) releaseDrawerDirection()
         if ((pcKeyboardOpen || achievementsOpen) && PadBridge.isControllerMotionEvent(event)) return super.dispatchGenericMotionEvent(event)
         if (joyConVr?.onMotionEvent(event) == true) return true
+        if (event.isFromSource(InputDevice.SOURCE_TOUCHPAD) && com.droiddeck.launcher.input.DualSense.isDualSense(event.device)) {
+            if (dualSenseManager?.onTouchpadEvent(event) == true) return true
+        }
         if (PadBridge.isControllerMotionEvent(event) && padMouseMode() && padMouse.onMotion(event)) return true
         if (padBridge?.onMotionEvent(event) == true) return true
         if (event.isFromSource(android.view.InputDevice.SOURCE_MOUSE) && !drawerOpen && onMouse(event)) return true
@@ -2133,6 +2141,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {
         if (pipUi) return true
+        if (event.isFromSource(InputDevice.SOURCE_TOUCHPAD) && com.droiddeck.launcher.input.DualSense.isDualSense(event.device)) {
+            if (dualSenseManager?.onTouchpadEvent(event) == true) return true
+        }
         if (event.actionMasked == MotionEvent.ACTION_DOWN && event.isFromSource(InputDevice.SOURCE_TOUCHSCREEN)) {
             drawerControllerActive = false
         }
@@ -3458,6 +3469,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         handCamera = null
         padBridge?.stop()
         steamController?.stop()
+        dualSenseManager?.stop()
+        dualSenseManager = null
         if (SessionState.padBridge === padBridge) SessionState.padBridge = null
         padMotion?.stop()
         if (SessionState.deckPadListener === deckPadListener) SessionState.deckPadListener = null
