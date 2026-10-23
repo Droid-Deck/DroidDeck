@@ -1706,7 +1706,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
         com.droiddeck.launcher.gpu.DriverSetupLog.write(this, "compositor.start driver=$driverId")
         CompositorHost.startOrAttach(
-            holder.surface, runtimeDir.path,
+            this, holder.surface, runtimeDir.path,
             driverId?.let { turnip.driverPath(it) }, driverId?.let { turnip.libraryName(it) },
             applicationInfo.nativeLibraryDir, size.first, size.second, refreshHz(), outputFpsLimit(),
         )

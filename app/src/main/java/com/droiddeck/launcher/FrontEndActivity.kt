@@ -1511,6 +1511,7 @@ class FrontEndActivity : ComponentActivity() {
                 onRestoreBundled = { TurnipDriver(this).restoreBundled(); drivers.refreshDrivers() },
                 onMode = { m -> drivers.chooseMode(m) },
                 onRestart = { drivers.restartApp() },
+                onTpUbwcMode = { drivers.chooseTpUbwcMode(it) },
             ),
             protons = com.droiddeck.launcher.ui.ProtonsState(
                 rows = protons.protonRows, busyId = protons.protonBusyId, stage = protons.protonStage, percent = protons.protonPercent,

@@ -1103,6 +1103,9 @@
     <string name="gpu_hide_other">Hide drivers for other GPUs</string>
     <string name="gpu_show_other">Show drivers for other GPUs</string>
     <string name="gpu_advanced">Advanced</string>
+    <string name="gpu_ubwc_title">UBWC compatibility</string>
+    <string name="gpu_ubwc_hint">Try On or Off if Steam or Android shows stripes or flickering. Applies to both drivers after restarting DroidDeck.</string>
+    <string name="gpu_ubwc_restart">Restart DroidDeck to apply.</string>
     <string name="gpu_set_with_display">Set together with the display driver: %1$s carries both.</string>
     <string name="gpu_set_with_runtime">Set together with the runtime driver: %1$s carries both.</string>
     <string name="gpu_runtime_hint">Used by games and the desktop.</string>

@@ -397,7 +397,7 @@ class SessionService : Service() {
 
     private fun runSession(gen: Int) {
         SessionTerminal.clear()
-        com.droiddeck.launcher.gpu.TpUbwcHint.forThisDevice()
+        com.droiddeck.launcher.gpu.TpUbwcHint.forThisDevice(this)
         try {
             LinuxRuntime.writeAccounts(this)
         } catch (e: Exception) {
@@ -696,7 +696,7 @@ class SessionService : Service() {
         val tuOverride = tuDebugOverride()
         val tuDriver = sysmemDriver(linuxDriverId)
         (tuOverride ?: "sysmem".takeIf { tuDriver || SessionPrefs.tuSysmem(this) })?.let { guest.add("TU_DEBUG=$it") }
-        com.droiddeck.launcher.gpu.TpUbwcHint.forThisDevice()?.let { guest.add("${com.droiddeck.launcher.gpu.TpUbwcHint.ENV}=$it") }
+        com.droiddeck.launcher.gpu.TpUbwcHint.forThisDevice(this)?.let { guest.add("${com.droiddeck.launcher.gpu.TpUbwcHint.ENV}=$it") }
         if (SessionPrefs.zinkLazy(this)) {
             guest.add("ZINK_DESCRIPTORS=lazy")
             guest.add("ZINK_DEBUG=compact")

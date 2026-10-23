@@ -53,4 +53,18 @@ class DriverMenusAutoTest {
         assertEquals("chosen-display", SessionPrefs.androidDriver(activity))
         assertEquals("chosen-linux", SessionPrefs.linuxDriver(activity))
     }
+
+    @Test fun driverMenusCanBeConstructedBeforeActivityContextIsAttached() {
+        val menus = DriverMenus(Activity(), Handler(Looper.getMainLooper()))
+        assertEquals(SessionPrefs.TP_UBWC_AUTO, menus.tpUbwcMode)
+    }
+
+    @Test fun refreshingDriversLoadsTheSavedUbwcModeAfterContextAttachment() {
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        SessionPrefs.setTpUbwcMode(activity, SessionPrefs.TP_UBWC_ON)
+        val menus = DriverMenus(activity, Handler(Looper.getMainLooper()))
+        menus.refreshDrivers()
+        assertEquals(SessionPrefs.TP_UBWC_ON, menus.tpUbwcMode)
+        assertFalse(menus.state().tpUbwcRestartRequired)
+    }
 }
