@@ -157,7 +157,8 @@ public final class LinuxRuntimeInstaller {
     }
 
     public static Maintenance beginMaintenance(Context context, String stage) {
-        if (com.droiddeck.launcher.session.SessionState.INSTANCE.getRunning()) return null;
+        if (com.droiddeck.launcher.session.SessionState.INSTANCE.getRunning() ||
+                com.droiddeck.launcher.session.SessionState.INSTANCE.getStopping()) return null;
         com.droiddeck.launcher.session.SessionPhase phase = com.droiddeck.launcher.session.SessionState.INSTANCE.getPhase();
         if (phase != com.droiddeck.launcher.session.SessionPhase.IDLE && phase != com.droiddeck.launcher.session.SessionPhase.FAILED) return null;
         synchronized (JOB_LOCK) {
@@ -377,7 +378,7 @@ public final class LinuxRuntimeInstaller {
     private static boolean sessionInUse() {
         com.droiddeck.launcher.session.SessionState session = com.droiddeck.launcher.session.SessionState.INSTANCE;
         com.droiddeck.launcher.session.SessionPhase phase = session.getPhase();
-        return session.getRunning() ||
+        return session.getRunning() || session.getStopping() ||
                 (phase != com.droiddeck.launcher.session.SessionPhase.IDLE && phase != com.droiddeck.launcher.session.SessionPhase.FAILED);
     }
 

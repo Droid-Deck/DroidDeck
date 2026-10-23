@@ -452,12 +452,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             finish()
             return
         }
-        if (!SessionState.running && SessionState.phase in setOf(SessionPhase.IDLE, SessionPhase.FAILED)) {
+        if (!SessionState.running && !SessionState.stopping && SessionState.phase in setOf(SessionPhase.IDLE, SessionPhase.FAILED)) {
             val mode = intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_STEAM
             SessionState.programArgs = intent.getStringArrayExtra(SessionService.EXTRA_PROGRAM_ARGS)?.toList().orEmpty()
             SessionEvents.begin(this, mode, SessionPaths.label(mode, intent.getStringExtra(SessionService.EXTRA_PROGRAM)))
         }
-        if (!SessionState.running && SessionState.phase in setOf(SessionPhase.IDLE, SessionPhase.FAILED)) {
+        if (!SessionState.running && !SessionState.stopping && SessionState.phase in setOf(SessionPhase.IDLE, SessionPhase.FAILED)) {
             SessionState.program = intent.getStringExtra(SessionService.EXTRA_PROGRAM)
             SessionState.programArgs = intent.getStringArrayExtra(SessionService.EXTRA_PROGRAM_ARGS)?.toList().orEmpty()
             SessionState.steamUi = intent.getStringExtra(SessionService.EXTRA_STEAM_UI)
@@ -472,13 +472,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
         com.droiddeck.launcher.gpu.SteamVrHealth.begin(this, SessionState.sessionId)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        if (!SessionState.running) {
+        if (!SessionState.running && !SessionState.stopping) {
             SessionState.fpsLimit = SessionPrefs.fpsLimit(
                 this, SessionPrefs.prefMode(intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_STEAM),
             )
         }
         applyOutputPacing()
-        if (!SessionState.running) SessionState.followScreen = followChoice()
+        if (!SessionState.running && !SessionState.stopping) SessionState.followScreen = followChoice()
         applyFollowOrientation(resources.configuration)
         goFullscreen()
         volumeControlStream = android.media.AudioManager.STREAM_MUSIC
@@ -563,7 +563,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         surfaceView.pointerIcon = noCursor
 
         loading = LoadingState(this, steam = loadingMode() == SessionService.MODE_STEAM)
-        if (!SessionState.running) {
+        if (!SessionState.running && !SessionState.stopping) {
             val repair = intent.getBooleanExtra(EXTRA_REPAIR_RUNTIME, false)
             intent.removeExtra(EXTRA_REPAIR_RUNTIME)
             val needRuntime = repair || com.droiddeck.launcher.runtime.LinuxRuntimeInstaller.installedVersion(this) == null
@@ -1623,7 +1623,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun surfaceCreated(holder: SurfaceHolder) {
         if (holder !== outputHolder()) return
-        if (installingRuntime || SessionState.stopRequested || ended) return
+        if (installingRuntime || SessionState.stopRequested || SessionState.stopping || ended) return
         if (!SessionState.running) {
             SessionEvents.transition(SessionPhase.STARTING_COMPOSITOR, "compositor.starting")
         }
@@ -1943,7 +1943,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
         repairOffered = hint?.repair == true
         loading.showEnded(
-            hint?.text ?: stopped,
+            SessionState.failureMessage.takeIf {
+                SessionState.failureCode == "SESSION_START_FAILED" || SessionState.failureCode == "SESSION_CLEANUP_FAILED"
+            } ?: hint?.text ?: stopped,
             getString(R.string.session_ended_detail, status, SessionState.logFile?.path ?: getString(R.string.session_ended_no_log)),
         )
         focusEndedScreen()
@@ -1974,6 +1976,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         startActivity(again)
     }
 
+    /**
+     * One line of advice for a failure the log identifies, or null. The one this recognises: the
+     * ENOSYS storm - dozens of `socket(): Function not implemented` / `shared memfd open() failed`
+     * lines - which is proot's seccomp acceleration failing an x86 helper (Steam's xalia under
+     * FEX) on some devices (a Fold 5, twice). The switch that answers it is in Performance, and a
+     * user who never opens the log would not know.
+     */
     private class EndHint(val text: String, val evenOnSuccess: Boolean = false, val repair: Boolean = false)
 
     private fun runtimeDamageHint(): EndHint? {
@@ -1988,6 +1997,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         return try {
             var enosys = 0
             var fexMissing = false
+            // The tail is where a dying session says why; 512 KB covers the storm without reading a 1 GB log.
             val size = log.length()
             val text = java.io.RandomAccessFile(log, "r").use { f ->
                 val start = maxOf(0L, size - 512L * 1024)
@@ -2961,7 +2971,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)
         if (intent.action == SessionService.ACTION_AGENT_START) {
-            if (SessionState.running || SessionState.phase !in setOf(SessionPhase.IDLE, SessionPhase.FAILED)) {
+            if (SessionState.running || SessionState.stopping || SessionState.phase !in setOf(SessionPhase.IDLE, SessionPhase.FAILED)) {
                 Log.w(TAG, "ignoring agent start while session phase is ${SessionState.phase}")
                 return
             }
@@ -3442,6 +3452,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         steamVrRecovery.close()
         uiHandler.removeCallbacks(steamTouchRetry)
         if (runtimeRemovalBlocked) { super.onDestroy(); return }
+        // Deliberately does NOT end the session: this activity can be destroyed while the user is
+        // in another app, and the whole point of the service is that Steam survives that.
         watching = false
         releaseDrawerDirection()
         pendingBackAction?.let(uiHandler::removeCallbacks)

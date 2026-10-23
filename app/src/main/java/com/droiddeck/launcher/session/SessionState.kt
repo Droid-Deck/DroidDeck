@@ -45,6 +45,44 @@ object SessionState {
     var activityDisplayId = 0
     @Volatile
     var runtimeDriver: String? = null
+    @Volatile
+    var stopping = false
+        private set
+
+    private var runtimeWork = false
+
+    @Synchronized
+    internal fun tryBeginRuntimeWork(): Boolean {
+        if (running || stopping || runtimeWork) return false
+        runtimeWork = true
+        return true
+    }
+
+    @Synchronized
+    internal fun finishRuntimeWork() {
+        runtimeWork = false
+    }
+
+    @Synchronized
+    fun tryStart(): Boolean {
+        if (running || stopping || runtimeWork) return false
+        running = true
+        return true
+    }
+
+    @Synchronized
+    fun beginStop(): Boolean {
+        if (!running || stopping) return false
+        stopping = true
+        running = false
+        return true
+    }
+
+    @Synchronized
+    fun finishStop() {
+        stopping = false
+    }
+
     var suspended by mutableStateOf(false)
     @Volatile var pipActive = false
     @Volatile
