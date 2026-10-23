@@ -10,7 +10,7 @@ import subprocess
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[2]
-IMAGE = 'droiddeck-local-cross:24.04-v3'
+IMAGE = 'droiddeck-local-cross:24.04-v4'
 MANIFEST = 'vr-build.json'
 SOURCE_TREES = ('tools/vr/src', 'tools/vr/tests', 'tools/vr/third_party',
                 'tools/vr/driver_droiddeck', 'tools/vr/layer')

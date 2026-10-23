@@ -12,16 +12,18 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.io.File
 import java.io.FileInputStream
+import java.io.FileNotFoundException
+import java.io.FileOutputStream
+import java.io.InputStream
 
 /**
- * A pack built by CI alongside this APK (tools/packs). Main and release builds publish it to
- * DroidDeck-Components under a content-addressed tag; a PR test build attaches packs that are not there
- * yet to its pr-N release on DroidDeck-CI. The APK pins the pack's SHA-256, so only the bytes this build
- * was made with install, whichever host serves them.
+ * A pack built alongside the APK (tools/packs). Builds without a guaranteed content-addressed release
+ * carry the exact archive as an APK asset.
  */
 internal class AddonPack(
     val name: String, private val sha256: String, val size: Long, private val required: List<String>,
     private val reuseDeviceCopy: Boolean = sha256.isEmpty() && !BuildConfig.CI_BUILD,
+    private val bundledAsset: ((Context) -> InputStream?)? = null,
 ) {
     sealed interface State {
         data object Missing : State
@@ -48,7 +50,7 @@ internal class AddonPack(
 
     fun installed(context: Context): Boolean = version(context).isNotEmpty() && File(dir(context), COMPLETE).isFile
 
-    // A build made outside CI pins no packs, so it runs the newest one a CI build already verified and installed.
+    // A local build without a generated pack can only reuse a verified copy already on-device.
     private fun version(context: Context): String = if (!reuseDeviceCopy) sha256 else deviceCopy(context).orEmpty()
 
     private fun deviceCopy(context: Context): String? = root(context).listFiles().orEmpty()
@@ -80,6 +82,34 @@ internal class AddonPack(
         }
     }
 
+    private fun copyBundledPack(context: Context, archive: File): Boolean {
+        val input = try {
+            bundledAsset?.invoke(context) ?: context.assets.open("addon-packs/$name.tar.zst")
+        } catch (_: FileNotFoundException) {
+            return false
+        } catch (e: Exception) {
+            Log.w(TAG, "$name: cannot open bundled pack", e)
+            return false
+        }
+        return try {
+            input.use { source -> FileOutputStream(archive).use { source.copyTo(it) } }
+            val correctSize = size <= 0L || archive.length() == size
+            val correctDigest = Hashes.sha256(archive).equals(sha256, ignoreCase = true)
+            if (!correctSize || !correctDigest) {
+                Log.w(TAG, "$name: bundled pack does not match its pinned size or SHA-256")
+                archive.delete()
+                false
+            } else {
+                File("${archive.path}.resume.properties").delete()
+                true
+            }
+        } catch (e: Exception) {
+            archive.delete()
+            Log.w(TAG, "$name: cannot copy bundled pack", e)
+            false
+        }
+    }
+
     /** Blocks a worker thread until the pack is installed, starting the download if needed. */
     @JvmOverloads
     fun await(context: Context, running: () -> Boolean = { true }, onState: (State) -> Unit = {}): Boolean {
@@ -104,7 +134,7 @@ internal class AddonPack(
         }
         val root = root(context).apply { mkdirs() }
         val archive = File(root, "$sha256.tar.zst")
-        val downloaded = urls.any { url ->
+        val downloaded = copyBundledPack(context, archive) || urls.any { url ->
             Downloader.downloadFile(url, archive, true, sha256) { p -> mutableState.value = State.Downloading(p.coerceIn(0f, 1f)) }
                 .also { if (!it) archive.delete() }
         }

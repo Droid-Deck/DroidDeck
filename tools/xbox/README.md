@@ -15,17 +15,20 @@ preserves the previous library. Empty membership results add no plan evidence;
 valid plans already present in the product response retain their existing checks.
 
 Build on AArch64 Ubuntu 24.04 with Rust from the lock, a C/C++ compiler, OpenSSL
-development headers, pkg-config, protoc, CMake, Git, Python 3 and xz:
+and DBus development headers, pkg-config, protoc, CMake, Git, Python 3 and xz:
 
 ```sh
 bash tools/xbox/build.sh
 ```
 
-On macOS, `bash tools/xbox/build-local.sh` uses an AArch64 Ubuntu container.
-`tools/build_local.sh` includes this step and caches it by recipe inputs. CI
-builds the same recipe on `ubuntu-24.04-arm` and transfers the result to the APK
-job. Cache hits still download that build's Xbox artifact before APK assembly.
-The build runs account-free CLI, credential and streaming tests. It retains the
+`tools/xbox/build-local.sh` runs the same recipe in the local Ubuntu 24.04
+cross-build image on `linux/amd64`, using `aarch64-linux-gnu-gcc` and the ARM64
+OpenSSL/DBus development libraries. It does not launch an ARM64 container or
+require QEMU on x86-64. `tools/build_local.sh` includes this step and caches it
+by recipe and toolchain-image inputs. CI builds the same recipe natively on
+`ubuntu-24.04-arm` and transfers the result to the APK job. Cache hits still
+download that build's Xbox artifact before APK assembly. The ARM64 CI build runs
+the account-free CLI, credential and streaming tests. It retains the
 patched backend source archive and the checksum-verified runtime source archive
 in the build cache and publishes both in CI's `xbox-corresponding-source`
 artifact; distribute corresponding sources with published binaries.
