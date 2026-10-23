@@ -2990,4 +2990,21 @@
     <string name="spatial_saved_views_hint">Lagrede visninger kan beregnes på nytt. Start en ny kalibrering for å fange opp i gjeldende sporingskoordinatsystem.</string>
     <string name="spatial_model_checksum_error">Uoverensstemmelse med håndmodellsjekksum</string>
     <string name="spatial_opencv_load_error">OpenCV kunne ikke laste</string>
+
+    <string name="vr_controllers_tab">Kontrollere</string>
+    <string name="vr_controllers_group">SteamVR-kontrollere</string>
+    <string name="vr_controllers_emulate">Spillkontroller i VR</string>
+    <string name="vr_controllers_emulate_hint">De to VR-hendene som spillkontrolleren styrer. Endringer gjelder med en gang, også mens SteamVR kjører. Joy-Con og sporede hender tar fortsatt over sin egen side.</string>
+    <string name="vr_controllers_off">Vanlig spillkontroller</string>
+    <string name="vr_controllers_sticks">Spakenes startfunksjon</string>
+    <string name="vr_controllers_sticks_hint">Trykk inn begge spakene samtidig i VR for å bytte.</string>
+    <string name="vr_controllers_sticks_game">Flytte deg i spillet</string>
+    <string name="vr_controllers_sticks_hands">Flytte hendene</string>
+    <string name="vr_controllers_buttons">Knapper</string>
+    <string name="vr_controllers_buttons_stick">Avtrekkere er avtrekkere, skulderknapper griper, A/B og X/Y er frontknappene til hver hånd, spakklikk trykker inn tommelspakene, og Guide åpner SteamVR-menyen. Opp og ned på styrekorset flytter hendene nærmere eller lenger unna.</string>
+    <string name="vr_controllers_buttons_vive">Spakene er styreflater; A/X eller et spakklikk trykker på dem. Avtrekkere er avtrekkere, skulderknapper griper, Start og Select er meny, og Guide åpner SteamVR-menyen.</string>
+    <string name="vr_controllers_buttons_off">Ingen VR-hender. Spill som støtter spillkontroller, og SteamVR-menyen, mottar kontrolleren som vanlig.</string>
+    <string name="vr_controllers_index">Valve Index-kontrollere</string>
+    <string name="vr_controllers_touch">Meta Quest 3-kontrollere</string>
+    <string name="vr_controllers_vive">HTC Vive-kontrollere</string>
 </resources>

@@ -2990,4 +2990,21 @@
     <string name="spatial_saved_views_hint">सहेजे गए दृश्यों की पुनर्गणना की जा सकती है। वर्तमान ट्रैकिंग समन्वय प्रणाली में कैप्चर करने के लिए एक नया अंशांकन प्रारंभ करें।</string>
     <string name="spatial_model_checksum_error">हैंड मॉडल चेकसम बेमेल</string>
     <string name="spatial_opencv_load_error">OpenCV लोड नहीं हो सका</string>
+
+    <string name="vr_controllers_tab">कंट्रोलर</string>
+    <string name="vr_controllers_group">SteamVR कंट्रोलर</string>
+    <string name="vr_controllers_emulate">VR में गेमपैड</string>
+    <string name="vr_controllers_emulate_hint">आपके गेमपैड से नियंत्रित दो VR हाथ। बदलाव तुरंत लागू होते हैं, SteamVR चलते समय भी। Joy-Con और ट्रैक किए गए हाथ अपने-अपने पक्ष का नियंत्रण लेते रहते हैं।</string>
+    <string name="vr_controllers_off">सामान्य गेमपैड</string>
+    <string name="vr_controllers_sticks">स्टिक का शुरुआती काम</string>
+    <string name="vr_controllers_sticks_hint">बदलने के लिए VR में दोनों स्टिक एक साथ दबाएँ।</string>
+    <string name="vr_controllers_sticks_game">गेम में आपको चलाना</string>
+    <string name="vr_controllers_sticks_hands">हाथों को चलाना</string>
+    <string name="vr_controllers_buttons">बटन</string>
+    <string name="vr_controllers_buttons_stick">ट्रिगर, ट्रिगर का काम करते हैं; बंपर पकड़ते हैं; A/B और X/Y हर हाथ के सामने वाले बटन हैं; स्टिक क्लिक थंबस्टिक दबाते हैं; Guide से SteamVR मेन्यू खुलता है। D-pad के ऊपर और नीचे से हाथ पास या दूर होते हैं।</string>
+    <string name="vr_controllers_buttons_vive">स्टिक ट्रैकपैड का काम करते हैं; A/X या स्टिक क्लिक उन्हें दबाता है। ट्रिगर, ट्रिगर का काम करते हैं; बंपर पकड़ते हैं; Start और Select मेन्यू हैं; Guide से SteamVR मेन्यू खुलता है।</string>
+    <string name="vr_controllers_buttons_off">कोई VR हाथ नहीं। गेमपैड समर्थित गेम और SteamVR मेन्यू को कंट्रोलर के इनपुट सामान्य रूप से मिलते हैं।</string>
+    <string name="vr_controllers_index">Valve Index कंट्रोलर</string>
+    <string name="vr_controllers_touch">Meta Quest 3 कंट्रोलर</string>
+    <string name="vr_controllers_vive">HTC Vive कंट्रोलर</string>
 </resources>

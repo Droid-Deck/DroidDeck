@@ -3026,4 +3026,21 @@
     <string name="spatial_saved_views_hint">Las vistas guardadas se pueden recalcular. Inicie una nueva calibración para capturar en el sistema de coordenadas de seguimiento actual.</string>
     <string name="spatial_model_checksum_error">La suma de comprobación del modelo de mano no coincide</string>
     <string name="spatial_opencv_load_error">OpenCV no se pudo cargar</string>
+
+    <string name="vr_controllers_tab">Mandos</string>
+    <string name="vr_controllers_group">Mandos de SteamVR</string>
+    <string name="vr_controllers_emulate">Mando de juego en VR</string>
+    <string name="vr_controllers_emulate_hint">Las dos manos de VR que controla tu mando. Los cambios se aplican al instante, incluso con SteamVR en marcha. Los Joy-Con y las manos rastreadas siguen tomando el control de su lado.</string>
+    <string name="vr_controllers_off">Mando de juego normal</string>
+    <string name="vr_controllers_sticks">Función inicial de los sticks</string>
+    <string name="vr_controllers_sticks_hint">Pulsa ambos sticks a la vez en VR para cambiar.</string>
+    <string name="vr_controllers_sticks_game">Moverte por el juego</string>
+    <string name="vr_controllers_sticks_hands">Mover las manos</string>
+    <string name="vr_controllers_buttons">Botones</string>
+    <string name="vr_controllers_buttons_stick">Los gatillos actúan como gatillos, los botones superiores agarran, A/B y X/Y son los botones frontales de cada mano, pulsar los sticks presiona las palancas y Guide abre el menú de SteamVR. Arriba y abajo en la cruceta acercan o alejan las manos.</string>
+    <string name="vr_controllers_buttons_vive">Los sticks actúan como paneles táctiles; A/X o pulsar un stick los presiona. Los gatillos actúan como gatillos, los botones superiores agarran, Start y Select abren el menú y Guide abre el menú de SteamVR.</string>
+    <string name="vr_controllers_buttons_off">Sin manos de VR. Los juegos compatibles con mandos y el menú de SteamVR reciben el mando como siempre.</string>
+    <string name="vr_controllers_index">Mandos Valve Index</string>
+    <string name="vr_controllers_touch">Mandos Meta Quest 3</string>
+    <string name="vr_controllers_vive">Mandos HTC Vive</string>
 </resources>

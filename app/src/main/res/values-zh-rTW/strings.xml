@@ -2968,4 +2968,21 @@
     <string name="glasses_6dof">6DoF 虛擬螢幕</string>
     <string name="tracking_recovery_look">在光線充足的房間內緩慢環顧四周。\n不要遮擋追蹤攝影機，並面向家具等有明顯細節的物體。</string>
     <string name="spatial_print_job">DroidDeck ChArUco 30 mm</string>
+
+    <string name="vr_controllers_tab">控制器</string>
+    <string name="vr_controllers_group">SteamVR 控制器</string>
+    <string name="vr_controllers_emulate">在 VR 中使用遊戲手把</string>
+    <string name="vr_controllers_emulate_hint">遊戲手把控制的兩隻 VR 手。變更會立即生效，SteamVR 執行中也不例外。Joy-Con 和追蹤到的手仍會接管各自對應的一側。</string>
+    <string name="vr_controllers_off">一般遊戲手把</string>
+    <string name="vr_controllers_sticks">搖桿的初始功能</string>
+    <string name="vr_controllers_sticks_hint">在 VR 中同時按下兩個搖桿即可切換。</string>
+    <string name="vr_controllers_sticks_game">在遊戲中移動角色</string>
+    <string name="vr_controllers_sticks_hands">移動雙手</string>
+    <string name="vr_controllers_buttons">按鈕</string>
+    <string name="vr_controllers_buttons_stick">扳機對應扳機，肩鍵用於抓握，A/B 和 X/Y 是每隻手的正面按鈕，按下搖桿對應拇指搖桿點擊，Guide 開啟 SteamVR 選單。方向鍵上、下可將雙手移近或移遠。</string>
+    <string name="vr_controllers_buttons_vive">搖桿作為觸控板使用；A/X 或按下搖桿可點擊觸控板。扳機對應扳機，肩鍵用於抓握，Start 和 Select 對應選單，Guide 開啟 SteamVR 選單。</string>
+    <string name="vr_controllers_buttons_off">不使用 VR 手。支援遊戲手把的遊戲和 SteamVR 選單照常接收手把輸入。</string>
+    <string name="vr_controllers_index">Valve Index 控制器</string>
+    <string name="vr_controllers_touch">Meta Quest 3 控制器</string>
+    <string name="vr_controllers_vive">HTC Vive 控制器</string>
 </resources>

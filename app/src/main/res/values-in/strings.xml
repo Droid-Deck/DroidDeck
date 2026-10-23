@@ -2965,4 +2965,21 @@
     <string name="spatial_saved_views_hint">Tampilan yang disimpan dapat dihitung ulang. Mulai kalibrasi baru untuk menangkap sistem koordinat pelacakan saat ini.</string>
     <string name="spatial_model_checksum_error">Ketidakcocokan checksum model tangan</string>
     <string name="spatial_opencv_load_error">OpenCV tidak dapat memuat</string>
+
+    <string name="vr_controllers_tab">Pengontrol</string>
+    <string name="vr_controllers_group">Pengontrol SteamVR</string>
+    <string name="vr_controllers_emulate">Gamepad di VR</string>
+    <string name="vr_controllers_emulate_hint">Dua tangan VR yang dikendalikan gamepad Anda. Perubahan langsung berlaku, termasuk saat SteamVR berjalan. Joy-Con dan tangan yang dilacak tetap mengambil alih sisinya masing-masing.</string>
+    <string name="vr_controllers_off">Gamepad biasa</string>
+    <string name="vr_controllers_sticks">Fungsi awal stik</string>
+    <string name="vr_controllers_sticks_hint">Tekan kedua stik bersamaan saat di VR untuk beralih.</string>
+    <string name="vr_controllers_sticks_game">Menggerakkan Anda dalam game</string>
+    <string name="vr_controllers_sticks_hands">Menggerakkan tangan</string>
+    <string name="vr_controllers_buttons">Tombol</string>
+    <string name="vr_controllers_buttons_stick">Trigger berfungsi sebagai pemicu, bumper untuk menggenggam, A/B dan X/Y sebagai tombol muka tiap tangan, klik stik menekan stik ibu jari, dan Guide membuka menu SteamVR. D-pad atas dan bawah mendekatkan atau menjauhkan tangan.</string>
+    <string name="vr_controllers_buttons_vive">Stik berfungsi sebagai trackpad; A/X atau klik stik menekannya. Trigger sebagai pemicu, bumper untuk menggenggam, Start dan Select sebagai menu, dan Guide membuka menu SteamVR.</string>
+    <string name="vr_controllers_buttons_off">Tanpa tangan VR. Game yang mendukung gamepad dan menu SteamVR menerima input pengontrol seperti biasa.</string>
+    <string name="vr_controllers_index">Pengontrol Valve Index</string>
+    <string name="vr_controllers_touch">Pengontrol Meta Quest 3</string>
+    <string name="vr_controllers_vive">Pengontrol HTC Vive</string>
 </resources>

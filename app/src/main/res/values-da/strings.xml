@@ -2990,4 +2990,21 @@
     <string name="spatial_saved_views_hint">Gemte visninger kan genberegnes. Start en ny kalibrering for at fange i det aktuelle sporingskoordinatsystem.</string>
     <string name="spatial_model_checksum_error">Håndmodel kontrolsum uoverensstemmelse</string>
     <string name="spatial_opencv_load_error">OpenCV kunne ikke indlæse</string>
+
+    <string name="vr_controllers_tab">Controllere</string>
+    <string name="vr_controllers_group">SteamVR-controllere</string>
+    <string name="vr_controllers_emulate">Gamepad i VR</string>
+    <string name="vr_controllers_emulate_hint">De to VR-hænder, som din controller styrer. Ændringer træder i kraft med det samme, også mens SteamVR kører. Joy-Cons og sporede hænder overtager stadig deres egen side.</string>
+    <string name="vr_controllers_off">Almindelig gamepad</string>
+    <string name="vr_controllers_sticks">Pindenes startfunktion</string>
+    <string name="vr_controllers_sticks_hint">Tryk begge pinde ind samtidigt i VR for at skifte.</string>
+    <string name="vr_controllers_sticks_game">Flytte dig i spillet</string>
+    <string name="vr_controllers_sticks_hands">Flytte hænderne</string>
+    <string name="vr_controllers_buttons">Knapper</string>
+    <string name="vr_controllers_buttons_stick">Aftrækkere er aftrækkere, skulderknapper griber, A/B og X/Y er hver hånds frontknapper, klik på pindene trykker tommelfingerpindene ind, og Guide åbner SteamVR-menuen. D-pad op og ned flytter hænderne tættere på eller længere væk.</string>
+    <string name="vr_controllers_buttons_vive">Pindene er pegefelter; A/X eller klik på en pind trykker på dem. Aftrækkere er aftrækkere, skulderknapper griber, Start og Select er menu, og Guide åbner SteamVR-menuen.</string>
+    <string name="vr_controllers_buttons_off">Ingen VR-hænder. Spil med gamepad-understøttelse og SteamVR-menuen modtager din controller som normalt.</string>
+    <string name="vr_controllers_index">Valve Index-controllere</string>
+    <string name="vr_controllers_touch">Meta Quest 3-controllere</string>
+    <string name="vr_controllers_vive">HTC Vive-controllere</string>
 </resources>

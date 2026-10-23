@@ -14,6 +14,7 @@
       "tools/msitools",
       "tools/pipewire",
       "tools/vr",
+      "shared/xr",
       "app/src/main/cpp/waylandcomp/generated",
       "app/src/main/cpp/waylandcomp/src/headpose_shm.h",
       "app/src/main/cpp/waylandcomp/src/spatialpose_shm.h",

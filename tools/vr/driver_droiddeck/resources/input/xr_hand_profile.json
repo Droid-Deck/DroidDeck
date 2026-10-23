@@ -1,0 +1,12 @@
+{
+  "jsonid": "input_profile",
+  "controller_type": "droiddeck_hand",
+  "device_class": "TrackedDeviceClass_Controller",
+  "resource_root": "droiddeck",
+  "input_bindingui_mode": "controller_handed",
+  "input_source": {
+    "/input/trigger": { "type": "trigger", "click": true, "value": true, "order": 1 },
+    "/input/grip": { "type": "trigger", "click": true, "value": true, "order": 2 }
+  },
+  "default_bindings": []
+}

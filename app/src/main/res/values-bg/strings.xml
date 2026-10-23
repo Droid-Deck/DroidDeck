@@ -2990,4 +2990,21 @@
     <string name="spatial_saved_views_hint">Запазените изгледи могат да бъдат преизчислени. Започнете ново калибриране за заснемане в текущата координатна система за проследяване.</string>
     <string name="spatial_model_checksum_error">Несъответствие на контролната сума на модела на ръката</string>
     <string name="spatial_opencv_load_error">OpenCV не можа да се зареди</string>
+
+    <string name="vr_controllers_tab">Контролери</string>
+    <string name="vr_controllers_group">Контролери за SteamVR</string>
+    <string name="vr_controllers_emulate">Геймпад във VR</string>
+    <string name="vr_controllers_emulate_hint">Двете VR ръце, управлявани от геймпада ви. Промените се прилагат веднага, дори когато SteamVR работи. Joy-Con и проследяваните ръце продължават да поемат своята страна.</string>
+    <string name="vr_controllers_off">Обикновен геймпад</string>
+    <string name="vr_controllers_sticks">Начална функция на стиковете</string>
+    <string name="vr_controllers_sticks_hint">Натиснете двата стика едновременно във VR, за да превключите.</string>
+    <string name="vr_controllers_sticks_game">Движение в играта</string>
+    <string name="vr_controllers_sticks_hands">Движение на ръцете</string>
+    <string name="vr_controllers_buttons">Бутони</string>
+    <string name="vr_controllers_buttons_stick">Спусъците остават спусъци, раменните бутони хващат, A/B и X/Y са лицевите бутони на всяка ръка, натискането на стиковете натиска стиковете за палци, а Guide отваря менюто на SteamVR. Нагоре и надолу на D-pad приближават или отдалечават ръцете.</string>
+    <string name="vr_controllers_buttons_vive">Стиковете са тъчпадове; A/X или натискане на стик ги натиска. Спусъците остават спусъци, раменните бутони хващат, Start и Select са меню, а Guide отваря менюто на SteamVR.</string>
+    <string name="vr_controllers_buttons_off">Без VR ръце. Игрите с поддръжка на геймпад и менюто на SteamVR получават входа от контролера както обикновено.</string>
+    <string name="vr_controllers_index">Контролери Valve Index</string>
+    <string name="vr_controllers_touch">Контролери Meta Quest 3</string>
+    <string name="vr_controllers_vive">Контролери HTC Vive</string>
 </resources>

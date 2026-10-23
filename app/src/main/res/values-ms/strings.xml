@@ -2965,4 +2965,21 @@
     <string name="spatial_opencv_load_error">OpenCV tidak dapat dimuatkan</string>
     <string name="spatial_print_title">DroidDeck - Penentukuran Luma Ultra</string>
     <string name="spatial_base_loaded">Penentukuran asas Luma Ultra dimuatkan</string>
+
+    <string name="vr_controllers_tab">Pengawal</string>
+    <string name="vr_controllers_group">Pengawal SteamVR</string>
+    <string name="vr_controllers_emulate">Pad permainan dalam VR</string>
+    <string name="vr_controllers_emulate_hint">Dua tangan VR yang dikawal oleh pad permainan anda. Perubahan berkuat kuasa serta-merta, termasuk semasa SteamVR berjalan. Joy-Con dan tangan yang dijejak masih mengambil alih sisi masing-masing.</string>
+    <string name="vr_controllers_off">Pad permainan biasa</string>
+    <string name="vr_controllers_sticks">Fungsi awal kayu bedik</string>
+    <string name="vr_controllers_sticks_hint">Tekan kedua-dua kayu bedik serentak dalam VR untuk bertukar.</string>
+    <string name="vr_controllers_sticks_game">Menggerakkan anda dalam permainan</string>
+    <string name="vr_controllers_sticks_hands">Menggerakkan tangan</string>
+    <string name="vr_controllers_buttons">Butang</string>
+    <string name="vr_controllers_buttons_stick">Picu bertindak sebagai picu, butang bahu untuk menggenggam, A/B dan X/Y sebagai butang muka setiap tangan, klik kayu bedik menekan kayu ibu jari, dan Guide membuka menu SteamVR. D-pad atas dan bawah mendekatkan atau menjauhkan tangan.</string>
+    <string name="vr_controllers_buttons_vive">Kayu bedik bertindak sebagai pad sentuh; A/X atau klik kayu bedik menekannya. Picu bertindak sebagai picu, butang bahu untuk menggenggam, Start dan Select sebagai menu, dan Guide membuka menu SteamVR.</string>
+    <string name="vr_controllers_buttons_off">Tiada tangan VR. Permainan yang menyokong pad permainan dan menu SteamVR menerima input pengawal seperti biasa.</string>
+    <string name="vr_controllers_index">Pengawal Valve Index</string>
+    <string name="vr_controllers_touch">Pengawal Meta Quest 3</string>
+    <string name="vr_controllers_vive">Pengawal HTC Vive</string>
 </resources>

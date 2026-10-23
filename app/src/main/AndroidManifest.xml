@@ -28,6 +28,8 @@
     <uses-feature android:name="android.hardware.camera.front" android:required="false" />
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
     <uses-feature android:name="android.hardware.vr.headtracking" android:version="1" android:required="false" />
+    <uses-feature android:name="android.software.xr.api.openxr" android:required="false" />
+    <uses-feature android:name="android.hardware.xr.input.controller" android:required="false" />
 
     <application
         android:name=".App"
@@ -44,6 +46,7 @@
         android:isGame="true">
 
         <meta-data android:name="android.game_mode_config" android:resource="@xml/game_mode_config" />
+        <uses-native-library android:name="libopenxr.google.so" android:required="false" />
         <service android:name=".glasses.LumaRgbCaptureService" android:exported="false"
             android:process=":rgb_diagnostic" />
         <meta-data android:name="com.oculus.supportedDevices" android:value="quest2|quest3|quest3s" />
@@ -53,6 +56,8 @@
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|keyboard|navigation|uiMode"
             android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen">
             <meta-data android:name="android.app.lib_name" android:value="droiddeckxr" />
+            <property android:name="android.window.PROPERTY_XR_ACTIVITY_START_MODE"
+                android:value="XR_ACTIVITY_START_MODE_FULL_SPACE_UNMANAGED" />
             <intent-filter>
                 <action android:name="com.droiddeck.launcher.XR" />
                 <category android:name="com.oculus.intent.category.VR" />

@@ -3060,4 +3060,21 @@
     <string name="spatial_gpu">Распознавание рук на GPU</string>
     <string name="spatial_gpu_hint">По умолчанию используется CPU. Режим GPU экспериментальный и может вызывать перезапуск SteamVR. Выбор сбрасывается при перезапуске отслеживания.</string>
     <string name="spatial_inference_error">Распознавание рук недоступно: %1$s. Измените режим CPU/GPU или выключите и снова включите управление руками, чтобы повторить попытку.</string>
+
+    <string name="vr_controllers_tab">Контроллеры</string>
+    <string name="vr_controllers_group">Контроллеры SteamVR</string>
+    <string name="vr_controllers_emulate">Геймпад в VR</string>
+    <string name="vr_controllers_emulate_hint">Две VR-руки, которыми управляет геймпад. Изменения применяются сразу, даже во время работы SteamVR. Joy-Con и отслеживаемые руки по-прежнему перехватывают управление своей стороной.</string>
+    <string name="vr_controllers_off">Обычный геймпад</string>
+    <string name="vr_controllers_sticks">Начальная функция стиков</string>
+    <string name="vr_controllers_sticks_hint">Нажмите оба стика одновременно в VR для переключения.</string>
+    <string name="vr_controllers_sticks_game">Перемещение в игре</string>
+    <string name="vr_controllers_sticks_hands">Перемещение рук</string>
+    <string name="vr_controllers_buttons">Кнопки</string>
+    <string name="vr_controllers_buttons_stick">Курки работают как курки, бамперы — как захват, A/B и X/Y — лицевые кнопки каждой руки, нажатия стиков нажимают стики, Guide открывает меню SteamVR. Вверх и вниз на крестовине приближают или отдаляют руки.</string>
+    <string name="vr_controllers_buttons_vive">Стики работают как трекпады; A/X или нажатие стика нажимает их. Курки работают как курки, бамперы — как захват, Start и Select — как меню, Guide открывает меню SteamVR.</string>
+    <string name="vr_controllers_buttons_off">Без VR-рук. Игры с поддержкой геймпада и меню SteamVR получают ввод с контроллера как обычно.</string>
+    <string name="vr_controllers_index">Контроллеры Valve Index</string>
+    <string name="vr_controllers_touch">Контроллеры Meta Quest 3</string>
+    <string name="vr_controllers_vive">Контроллеры HTC Vive</string>
 </resources>

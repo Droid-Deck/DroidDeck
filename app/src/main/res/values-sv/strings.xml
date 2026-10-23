@@ -2990,4 +2990,21 @@
     <string name="spatial_model_checksum_error">Kontrollsumman för handmodellen inte överensstämmer</string>
     <string name="spatial_opencv_load_error">OpenCV kunde inte laddas</string>
     <string name="glasses_6dof">Virtuell skärm med 6DoF</string>
+
+    <string name="vr_controllers_tab">Kontroller</string>
+    <string name="vr_controllers_group">SteamVR-kontroller</string>
+    <string name="vr_controllers_emulate">Handkontroll i VR</string>
+    <string name="vr_controllers_emulate_hint">De två VR-händer som handkontrollen styr. Ändringar gäller direkt, även när SteamVR körs. Joy-Cons och spårade händer tar fortfarande över sin egen sida.</string>
+    <string name="vr_controllers_off">Vanlig handkontroll</string>
+    <string name="vr_controllers_sticks">Spakarnas startfunktion</string>
+    <string name="vr_controllers_sticks_hint">Tryck in båda spakarna samtidigt i VR för att växla.</string>
+    <string name="vr_controllers_sticks_game">Flytta dig i spelet</string>
+    <string name="vr_controllers_sticks_hands">Flytta händerna</string>
+    <string name="vr_controllers_buttons">Knappar</string>
+    <string name="vr_controllers_buttons_stick">Avtryckare är avtryckare, axelknappar greppar, A/B och X/Y är varje hands frontknappar, spakklick trycker in tumspakarna och Guide öppnar SteamVR-menyn. Upp och ned på styrkorset flyttar händerna närmare eller längre bort.</string>
+    <string name="vr_controllers_buttons_vive">Spakarna är styrplattor; A/X eller ett spakklick trycker på dem. Avtryckare är avtryckare, axelknappar greppar, Start och Select är meny och Guide öppnar SteamVR-menyn.</string>
+    <string name="vr_controllers_buttons_off">Inga VR-händer. Spel med stöd för handkontroll och SteamVR-menyn tar emot kontrollen som vanligt.</string>
+    <string name="vr_controllers_index">Valve Index-kontroller</string>
+    <string name="vr_controllers_touch">Meta Quest 3-kontroller</string>
+    <string name="vr_controllers_vive">HTC Vive-kontroller</string>
 </resources>

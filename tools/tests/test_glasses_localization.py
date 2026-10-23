@@ -25,8 +25,8 @@ class GlassesLocalizationTest(unittest.TestCase):
         cls.english = strings(RES / "values/strings.xml")
         cls.required = {
             key: value for key, value in cls.english.items()
-            if key.startswith(("glasses_", "spatial_", "tracking_recovery_", "setup_glasses_", "phone_camera_tracking_"))
-            or key in ("setup_tab_glasses", "hand_camera_prompt_title", "hand_camera_prompt_body", "hand_camera_setting_hint")
+            if key.startswith(("glasses_", "spatial_", "tracking_recovery_", "setup_glasses_", "phone_camera_tracking_", "vr_controllers_"))
+            or key in ("setup_tab_glasses", "hand_camera_prompt_title", "hand_camera_prompt_body", "hand_camera_setting_hint", "games_play_steamvr")
         }
         language_source = (ROOT / "app/src/main/java/com/droiddeck/launcher/core/AppLanguage.kt").read_text(encoding="utf-8")
         tags = re.findall(r'"([a-zA-Z0-9-]+)"', re.search(r"val supported:.*?listOf\((.*?)\)", language_source, re.S).group(1))

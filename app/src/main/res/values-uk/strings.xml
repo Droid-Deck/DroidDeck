@@ -3058,4 +3058,21 @@
     <string name="spatial_model_checksum_error">Невідповідність контрольної суми моделі руки</string>
     <string name="spatial_opencv_load_error">Не вдалося завантажити OpenCV</string>
     <string name="spatial_gpu_hint">Типово використовується CPU. Режим GPU є експериментальним і може спричинити перезапуск SteamVR. Вибір скидається після перезапуску відстеження.</string>
+
+    <string name="vr_controllers_tab">Контролери</string>
+    <string name="vr_controllers_group">Контролери SteamVR</string>
+    <string name="vr_controllers_emulate">Геймпад у VR</string>
+    <string name="vr_controllers_emulate_hint">Дві VR-руки, якими керує геймпад. Зміни застосовуються одразу, навіть під час роботи SteamVR. Joy-Con і відстежувані руки й далі перебирають керування своїм боком.</string>
+    <string name="vr_controllers_off">Звичайний геймпад</string>
+    <string name="vr_controllers_sticks">Початкова функція стіків</string>
+    <string name="vr_controllers_sticks_hint">Натисніть обидва стіки одночасно у VR для перемикання.</string>
+    <string name="vr_controllers_sticks_game">Переміщення в грі</string>
+    <string name="vr_controllers_sticks_hands">Переміщення рук</string>
+    <string name="vr_controllers_buttons">Кнопки</string>
+    <string name="vr_controllers_buttons_stick">Курки працюють як курки, бампери — як захоплення, A/B і X/Y — лицьові кнопки кожної руки, натискання стіків натискають стіки, Guide відкриває меню SteamVR. Угору й униз на хрестовині наближають або віддаляють руки.</string>
+    <string name="vr_controllers_buttons_vive">Стіки працюють як трекпади; A/X або натискання стіка натискає їх. Курки працюють як курки, бампери — як захоплення, Start і Select — як меню, Guide відкриває меню SteamVR.</string>
+    <string name="vr_controllers_buttons_off">Без VR-рук. Ігри з підтримкою геймпада й меню SteamVR отримують введення з контролера як зазвичай.</string>
+    <string name="vr_controllers_index">Контролери Valve Index</string>
+    <string name="vr_controllers_touch">Контролери Meta Quest 3</string>
+    <string name="vr_controllers_vive">Контролери HTC Vive</string>
 </resources>

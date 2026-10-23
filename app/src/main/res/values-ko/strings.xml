@@ -2967,4 +2967,21 @@
     <string name="spatial_distance_result">카메라 측정 %1$s; 선택한 거리 %2$s. %3$s</string>
     <string name="spatial_wait_previews">보정을 시작하기 전에 두 카메라 미리보기를 모두 기다리세요.</string>
     <string name="spatial_saved_views_hint">저장된 뷰는 다시 계산될 수 있습니다. 현재 추적 좌표계에서 캡처하려면 새 보정을 시작하세요.</string>
+
+    <string name="vr_controllers_tab">컨트롤러</string>
+    <string name="vr_controllers_group">SteamVR 컨트롤러</string>
+    <string name="vr_controllers_emulate">VR에서 게임패드 사용</string>
+    <string name="vr_controllers_emulate_hint">게임패드로 조작하는 두 VR 손입니다. SteamVR 실행 중에도 변경 사항이 즉시 적용됩니다. Joy-Con과 추적된 손은 계속 각자의 쪽을 대신 조작합니다.</string>
+    <string name="vr_controllers_off">일반 게임패드</string>
+    <string name="vr_controllers_sticks">스틱의 초기 기능</string>
+    <string name="vr_controllers_sticks_hint">VR에서 두 스틱을 동시에 누르면 전환됩니다.</string>
+    <string name="vr_controllers_sticks_game">게임 내 이동</string>
+    <string name="vr_controllers_sticks_hands">손 이동</string>
+    <string name="vr_controllers_buttons">버튼</string>
+    <string name="vr_controllers_buttons_stick">트리거는 트리거로, 범퍼는 잡기로 동작합니다. A/B와 X/Y는 각 손의 전면 버튼이며, 스틱 클릭은 엄지 스틱을 누릅니다. Guide는 SteamVR 메뉴를 엽니다. 방향 패드 위아래로 손을 가까이 또는 멀리 이동합니다.</string>
+    <string name="vr_controllers_buttons_vive">스틱은 트랙패드로 동작하며 A/X 또는 스틱 클릭으로 누릅니다. 트리거는 트리거로, 범퍼는 잡기로, Start와 Select는 메뉴로 동작하며 Guide는 SteamVR 메뉴를 엽니다.</string>
+    <string name="vr_controllers_buttons_off">VR 손을 사용하지 않습니다. 게임패드 지원 게임과 SteamVR 메뉴는 평소처럼 컨트롤러 입력을 받습니다.</string>
+    <string name="vr_controllers_index">Valve Index 컨트롤러</string>
+    <string name="vr_controllers_touch">Meta Quest 3 컨트롤러</string>
+    <string name="vr_controllers_vive">HTC Vive 컨트롤러</string>
 </resources>

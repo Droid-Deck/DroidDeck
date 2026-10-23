@@ -2990,4 +2990,21 @@
     <string name="spatial_opencv_load_error">Az OpenCV betöltése nem sikerült</string>
     <string name="glasses_3dof">3DoF virtuális képernyő</string>
     <string name="glasses_6dof">6DoF virtuális képernyő</string>
+
+    <string name="vr_controllers_tab">Vezérlők</string>
+    <string name="vr_controllers_group">SteamVR-vezérlők</string>
+    <string name="vr_controllers_emulate">Gamepad VR-ben</string>
+    <string name="vr_controllers_emulate_hint">A gamepaddel vezérelt két VR-kéz. A változtatások azonnal érvényesülnek, futó SteamVR mellett is. A Joy-Conok és a követett kezek továbbra is átveszik a saját oldalukat.</string>
+    <string name="vr_controllers_off">Hagyományos gamepad</string>
+    <string name="vr_controllers_sticks">Karok kezdeti funkciója</string>
+    <string name="vr_controllers_sticks_hint">VR-ben nyomd be egyszerre mindkét kart a váltáshoz.</string>
+    <string name="vr_controllers_sticks_game">Mozgás a játékban</string>
+    <string name="vr_controllers_sticks_hands">Kezek mozgatása</string>
+    <string name="vr_controllers_buttons">Gombok</string>
+    <string name="vr_controllers_buttons_stick">A ravaszok ravaszként működnek, a vállgombok fognak, az A/B és X/Y az egyes kezek előlapi gombjai, a karok benyomása a hüvelykujjkarokat nyomja be, a Guide pedig a SteamVR menüt nyitja meg. Az iránygomb fel és le közelíti vagy távolítja a kezeket.</string>
+    <string name="vr_controllers_buttons_vive">A karok érintőpadokként működnek; az A/X vagy a kar benyomása megnyomja őket. A ravaszok ravaszként működnek, a vállgombok fognak, a Start és Select a menü, a Guide pedig a SteamVR menüt nyitja meg.</string>
+    <string name="vr_controllers_buttons_off">Nincsenek VR-kezek. A gamepadet támogató játékok és a SteamVR menü a szokásos módon kapják a vezérlő bemenetét.</string>
+    <string name="vr_controllers_index">Valve Index vezérlők</string>
+    <string name="vr_controllers_touch">Meta Quest 3 vezérlők</string>
+    <string name="vr_controllers_vive">HTC Vive vezérlők</string>
 </resources>

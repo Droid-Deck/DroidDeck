@@ -2965,4 +2965,21 @@
     <string name="spatial_model_checksum_error">ผลรวมตรวจสอบแบบจำลองมือไม่ตรงกัน</string>
     <string name="spatial_opencv_load_error">OpenCV ไม่สามารถโหลดได้</string>
     <string name="spatial_restored">กู้คืนมุมมองที่บันทึกไว้แล้ว %1$d รายการ คำนวณการสอบเทียบเพื่อลองอีกครั้ง หรือเริ่มชุดใหม่เพื่อบันทึกข้อมูลเพิ่มเติม</string>
+
+    <string name="vr_controllers_tab">คอนโทรลเลอร์</string>
+    <string name="vr_controllers_group">คอนโทรลเลอร์ SteamVR</string>
+    <string name="vr_controllers_emulate">เกมแพดใน VR</string>
+    <string name="vr_controllers_emulate_hint">มือ VR สองข้างที่เกมแพดของคุณควบคุม การเปลี่ยนแปลงมีผลทันทีแม้ขณะ SteamVR ทำงาน Joy-Con และมือที่ติดตามยังคงรับช่วงควบคุมข้างของตนเอง</string>
+    <string name="vr_controllers_off">เกมแพดปกติ</string>
+    <string name="vr_controllers_sticks">หน้าที่เริ่มต้นของก้าน</string>
+    <string name="vr_controllers_sticks_hint">กดก้านทั้งสองลงพร้อมกันขณะอยู่ใน VR เพื่อสลับ</string>
+    <string name="vr_controllers_sticks_game">เคลื่อนที่ในเกม</string>
+    <string name="vr_controllers_sticks_hands">ขยับมือ</string>
+    <string name="vr_controllers_buttons">ปุ่ม</string>
+    <string name="vr_controllers_buttons_stick">ไกปืนทำหน้าที่เป็นไกปืน ปุ่มไหล่ใช้จับ A/B และ X/Y เป็นปุ่มด้านหน้าของมือแต่ละข้าง การกดก้านคือการกดก้านนิ้วโป้ง และ Guide เปิดเมนู SteamVR ปุ่มขึ้นและลงบน D-pad เลื่อนมือเข้ามาหรือออกไป</string>
+    <string name="vr_controllers_buttons_vive">ก้านทำหน้าที่เป็นแทร็กแพด กด A/X หรือกดก้านเพื่อคลิก ไกปืนทำหน้าที่เป็นไกปืน ปุ่มไหล่ใช้จับ Start และ Select เป็นเมนู และ Guide เปิดเมนู SteamVR</string>
+    <string name="vr_controllers_buttons_off">ไม่มีมือ VR เกมที่รองรับเกมแพดและเมนู SteamVR รับอินพุตจากคอนโทรลเลอร์ตามปกติ</string>
+    <string name="vr_controllers_index">คอนโทรลเลอร์ Valve Index</string>
+    <string name="vr_controllers_touch">คอนโทรลเลอร์ Meta Quest 3</string>
+    <string name="vr_controllers_vive">คอนโทรลเลอร์ HTC Vive</string>
 </resources>
