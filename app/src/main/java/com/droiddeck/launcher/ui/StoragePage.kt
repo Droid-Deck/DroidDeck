@@ -65,6 +65,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -84,6 +85,7 @@ import com.droiddeck.launcher.storage.StorageState
 import com.droiddeck.launcher.storage.ToolReason
 import com.droiddeck.launcher.storage.ToolState
 import com.droiddeck.launcher.storage.ToolUsage
+import com.droiddeck.launcher.stores.StoreInstallRoot
 import java.text.DateFormat
 import java.util.Date
 
@@ -144,6 +146,54 @@ internal fun StoragePanel(s: FrontEndState, a: FrontEndActions) {
     }
 }
 
+@Composable
+private fun DefaultStorageGroup() {
+    val ctx = LocalContext.current
+    val external = StoreInstallRoot.externalTarget(ctx)
+    var value by remember { mutableStateOf(SessionPrefs.defaultStorage(ctx)) }
+    var open by remember { mutableStateOf(false) }
+    val title = stringResource(R.string.storage_default_title)
+    val chip = when (value) {
+        SessionPrefs.DEFAULT_STORAGE_INTERNAL -> stringResource(R.string.storage_default_internal)
+        SessionPrefs.DEFAULT_STORAGE_EXTERNAL -> external?.label ?: stringResource(R.string.storage_default_external)
+        else -> stringResource(R.string.storage_default_ask)
+    }
+    fun pick(next: String) {
+        SessionPrefs.setDefaultStorage(ctx, next)
+        value = next
+        open = false
+    }
+    SettingsGroup(stringResource(R.string.storage_default_group)) {
+        SettingsRow(label = title, hint = stringResource(R.string.storage_default_hint)) {
+            Box {
+                ValueChip(chip, open, modifier = Modifier.testTag("setting-default-storage")) { open = !open }
+                AnchoredMenu(
+                    open, onDismiss = { open = false }, title = title,
+                    note = stringResource(R.string.storage_default_note),
+                ) { firstItemFocus ->
+                    MenuItem(
+                        stringResource(R.string.storage_default_ask), value == SessionPrefs.DEFAULT_STORAGE_ASK,
+                        detail = stringResource(R.string.storage_default_ask_detail),
+                        focusRequester = firstItemFocus,
+                    ) { pick(SessionPrefs.DEFAULT_STORAGE_ASK) }
+                    MenuItem(
+                        stringResource(R.string.storage_default_internal), value == SessionPrefs.DEFAULT_STORAGE_INTERNAL,
+                    ) { pick(SessionPrefs.DEFAULT_STORAGE_INTERNAL) }
+                    MenuItem(
+                        stringResource(R.string.storage_default_external), value == SessionPrefs.DEFAULT_STORAGE_EXTERNAL,
+                        enabled = external != null,
+                        detail = external?.let { target ->
+                            val free = target.freeBytes
+                            if (free >= 0) stringResource(R.string.storage_default_external_detail, target.label, gb(free))
+                            else target.label
+                        } ?: stringResource(R.string.storage_default_external_missing),
+                    ) { if (external != null) pick(SessionPrefs.DEFAULT_STORAGE_EXTERNAL) }
+                }
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun Overview(report: StorageReport, sessionRunning: Boolean, onCleanUp: () -> Unit, onOpen: (String) -> Unit) {
@@ -189,6 +239,7 @@ private fun Overview(report: StorageReport, sessionRunning: Boolean, onCleanUp: 
         Spacer(Modifier.height(8.dp))
         Note(stringResource(R.string.storage_session_running))
     }
+    DefaultStorageGroup()
     SectionTitle(stringResource(R.string.storage_where), null)
     val unused = report.unusedTools.sumOf { it.bytes }
     val tiles = listOf<@Composable (Modifier) -> Unit>(

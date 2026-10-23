@@ -14,9 +14,11 @@ the rest of the app, and the on-disk contract that makes a store game an ordinar
 ```
 
 The default root is the app's internal storage - the runtime's tree, `/root/Games/Stores`, no bind
-needed - whatever the session's Game storage setting says. When a card the app may write is in the
-device (`GameStorage.options`), Install asks "Install to" (internal / the card, free space shown;
-the last pick is only the dialog's default). A card's root is `<card app folder>/Games`; when the
+needed - whatever the session's Game storage setting says. **Setup > Storage > Default storage**
+can send new installs straight to internal storage or the first external target; with **Ask every
+time**, Install asks "Install to" when more than one target exists (internal / the card, free space
+shown; the last pick is only the dialog's default). An existing install is always resumed in place,
+and changing the default does not move it. A card's root is `<card app folder>/Games`; when the
 card is the Steam library the library's bind (`/mnt/droiddeck-sd`) already covers it, otherwise
 `SessionService` binds the root at `/mnt/droiddeck-stores/<volume uuid>`, so a shortcut's guest
 path - and its appid - is the same from one session to the next. Every root is
