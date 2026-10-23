@@ -448,6 +448,7 @@
     <string name="game_no_steam_title">Khởi động không cần Steam</string>
     <string name="game_no_steam_detail">Mở trong Proton/FEX mà không có ứng dụng Steam; các tính năng Steam bị tắt.</string>
     <string name="game_no_steam_on">Bật</string>
+    <string name="game_locale_title">Ngôn ngữ khu vực</string>
     <string name="game_steam_with">Khởi động cùng Steam</string>
     <string name="game_steam_without">Khởi động không cần Steam</string>
     <string name="game_settings_card">Thiết lập</string>

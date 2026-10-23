@@ -679,7 +679,8 @@ def game_environment(env):
         if not app:
             return env
         with open(GAME_ENVIRONMENT, encoding="utf-8") as source:
-            return game_env["apply_config"](env, json.load(source), str(app))
+            env = game_env["apply_config"](env, json.load(source), str(app))
+        return game_env["game_locale"](env)
     except FileNotFoundError:
         return env
     except Exception as error:

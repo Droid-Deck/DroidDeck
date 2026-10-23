@@ -884,5 +884,29 @@ class AppInfoTest(unittest.TestCase):
                           '/usr/local/bin/droiddeck-fex steam "$verb" "$@"', self.COMPAT["FEX_LAUNCHER_SH"])
 
 
+class GameEnvironmentTest(FexTestCase):
+    def environment(self, config):
+        config.setdefault("version", 1)
+        path = self.tmp / "game-environment.json"
+        path.write_text(json.dumps(config), encoding="utf-8")
+        game_env = runpy.run_path(str(BIN / "droiddeck-game-env"))
+        built = []
+        game_env["game_locale"].__globals__["ensure_locale"] = lambda name: built.append(name) or True
+        env = {"STEAM_COMPAT_DATA_PATH": "/tmp/compatdata/42", "LANG": "C.UTF-8"}
+        with mock.patch.object(runpy, "run_path", lambda path: game_env), \
+                mock.patch.dict(G, GAME_ENVIRONMENT=str(path)):
+            return G["game_environment"](env), built
+
+    def test_the_chosen_locale_reaches_the_environment(self):
+        env, built = self.environment({"games": {"42": {"DROIDDECK_LOCALE": "ja_JP.UTF-8"}}})
+        self.assertEqual("ja_JP.UTF-8", env["LANG"])
+        self.assertEqual(["ja_JP.UTF-8"], built)
+
+    def test_a_game_without_a_locale_keeps_the_session_one(self):
+        env, built = self.environment({"games": {}})
+        self.assertEqual("C.UTF-8", env["LANG"])
+        self.assertEqual([], built)
+
+
 if __name__ == "__main__":
     unittest.main()

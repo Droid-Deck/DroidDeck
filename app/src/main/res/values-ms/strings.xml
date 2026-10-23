@@ -448,6 +448,7 @@
     <string name="game_no_steam_title">Mulakan tanpa Steam</string>
     <string name="game_no_steam_detail">Membukanya dalam Proton/FEX tanpa klien Steam; ciri Steam dimatikan.</string>
     <string name="game_no_steam_on">Hidup</string>
+    <string name="game_locale_title">Lokal</string>
     <string name="game_steam_with">Bermula dengan Steam</string>
     <string name="game_steam_without">Bermula tanpa Steam</string>
     <string name="game_settings_card">Tetapan</string>

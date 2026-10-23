@@ -284,6 +284,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var drawerGameInventoryRevision = 0L
     private var drawerGameFexPresetSaving by mutableStateOf(false)
     private var drawerGameNoSteamSaving by mutableStateOf(false)
+    private var drawerGameLocaleSaving by mutableStateOf(false)
     private val drawerGameProfileFollowState = GameProfileFollowState()
     private data class DrawerGameProfileRefresh(
         val followsSteam: Boolean,
@@ -998,6 +999,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     onGameFexPreset = ::setDrawerGameFexPreset,
                     gameNoSteamSaving = drawerGameNoSteamSaving,
                     onGameNoSteam = ::setDrawerGameNoSteam,
+                    gameLocaleSaving = drawerGameLocaleSaving,
+                    onGameLocale = ::setDrawerGameLocale,
                     onComponentSwap = { pid, comp, value -> swapDrawerComponent(pid, comp, value) },
                     onGameComponent = ::setDrawerGameComponent,
                     defaultProtonId = drawerDefaultProton,
@@ -1406,6 +1409,26 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 refreshDrawerGameProfile()
             }
         }, "drawer-game-no-steam").start()
+    }
+
+    private fun setDrawerGameLocale(appId: Long, locale: String?) {
+        if (drawerGameLocaleSaving) return
+        drawerGameLocaleSaving = true
+        val name = drawerGameProfileRefresh.data?.profiles?.firstOrNull { it.first == appId }?.second ?: appId.toString()
+        Thread({
+            val message = try {
+                GameEnvironmentStore.setGameLocale(this, appId.toString(), locale)
+                getString(R.string.comp_game_saved_next, name)
+            } catch (error: Exception) {
+                Log.w(TAG, "Could not save the locale for $appId", error)
+                getString(R.string.session_profile_save_failed, error.message ?: error.javaClass.simpleName)
+            }
+            uiHandler.post {
+                drawerGameLocaleSaving = false
+                Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+                refreshDrawerGameProfile()
+            }
+        }, "drawer-game-locale").start()
     }
 
     private fun loadingMode(): String =

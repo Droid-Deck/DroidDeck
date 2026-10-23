@@ -456,6 +456,7 @@
     <string name="game_no_steam_title">Запуск без Steam</string>
     <string name="game_no_steam_detail">Открывает в Proton/FEX без клиента Steam; функции Steam отключены.</string>
     <string name="game_no_steam_on">Включено</string>
+    <string name="game_locale_title">Локаль</string>
     <string name="game_steam_with">Запускается со Steam</string>
     <string name="game_steam_without">Запускается без Steam</string>
     <string name="game_settings_card">Настройки</string>

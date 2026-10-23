@@ -454,6 +454,7 @@
     <string name="game_no_steam_title">Démarrer sans Steam</string>
     <string name="game_no_steam_detail">L\'ouvre dans Proton/FEX sans le client Steam ; les fonctions Steam sont désactivées.</string>
     <string name="game_no_steam_on">Activé</string>
+    <string name="game_locale_title">Paramètres régionaux</string>
     <string name="game_steam_with">Démarre avec Steam</string>
     <string name="game_steam_without">Démarre sans Steam</string>
     <string name="game_settings_card">Paramètres</string>

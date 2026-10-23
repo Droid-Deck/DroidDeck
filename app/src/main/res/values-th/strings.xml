@@ -448,6 +448,7 @@
     <string name="game_no_steam_title">เริ่มโดยไม่ใช้ Steam</string>
     <string name="game_no_steam_detail">เปิดใน Proton/FEX โดยไม่ใช้ไคลเอนต์ Steam ฟีเจอร์ของ Steam จะปิดอยู่</string>
     <string name="game_no_steam_on">เปิด</string>
+    <string name="game_locale_title">โลแคล</string>
     <string name="game_steam_with">เริ่มพร้อม Steam</string>
     <string name="game_steam_without">เริ่มโดยไม่ใช้ Steam</string>
     <string name="game_settings_card">การตั้งค่า</string>

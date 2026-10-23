@@ -450,6 +450,7 @@
     <string name="game_no_steam_title">Steam 없이 시작</string>
     <string name="game_no_steam_detail">Steam 클라이언트 없이 Proton/FEX에서 엽니다. Steam 기능은 꺼집니다.</string>
     <string name="game_no_steam_on">켜짐</string>
+    <string name="game_locale_title">로케일</string>
     <string name="game_steam_with">Steam과 함께 시작</string>
     <string name="game_steam_without">Steam 없이 시작</string>
     <string name="game_settings_card">설정</string>

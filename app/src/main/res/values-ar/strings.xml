@@ -458,6 +458,7 @@
     <string name="game_no_steam_title">بدء اللعبة بدون Steam</string>
     <string name="game_no_steam_detail">يفتحها في Proton/FEX بدون عميل Steam؛ ميزات Steam معطّلة.</string>
     <string name="game_no_steam_on">تشغيل</string>
+    <string name="game_locale_title">الإعدادات الإقليمية</string>
     <string name="game_steam_with">يبدأ مع Steam</string>
     <string name="game_steam_without">يبدأ بدون Steam</string>
     <string name="game_settings_card">الإعدادات</string>

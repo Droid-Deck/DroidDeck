@@ -450,6 +450,7 @@
     <string name="game_no_steam_title">Steamなしで起動</string>
     <string name="game_no_steam_detail">Steam クライアントなしで Proton/FEX で開きます。Steam の機能はオフになります。</string>
     <string name="game_no_steam_on">オン</string>
+    <string name="game_locale_title">ロケール</string>
     <string name="game_steam_with">Steam と一緒に起動</string>
     <string name="game_steam_without">Steam なしで起動</string>
     <string name="game_settings_card">設定</string>

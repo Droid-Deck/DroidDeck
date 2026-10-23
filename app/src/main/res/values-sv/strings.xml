@@ -450,6 +450,7 @@
     <string name="game_no_steam_title">Starta utan Steam</string>
     <string name="game_no_steam_detail">Öppnar det i Proton/FEX utan Steam-klienten; Steam-funktioner är av.</string>
     <string name="game_no_steam_on">På</string>
+    <string name="game_locale_title">Språkområde</string>
     <string name="game_steam_with">Startar med Steam</string>
     <string name="game_steam_without">Startar utan Steam</string>
     <string name="game_settings_card">Inställningar</string>

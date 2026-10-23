@@ -276,6 +276,67 @@ def without_pack(chosen_env, env):
     return result
 
 
+LOCALE_STAMP = Path("/usr/lib/locale/.droiddeck-locale")
+
+
+def locale_present(name):
+    try:
+        available = subprocess.run(["locale", "-a"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                                   text=True, timeout=5)
+    except (OSError, subprocess.SubprocessError):
+        return False
+    normalize = lambda value: value.strip().lower().replace("utf8", "utf-8")
+    wanted = normalize(name)
+    return available.returncode == 0 and wanted in {normalize(line) for line in available.stdout.splitlines()}
+
+
+def ensure_locale(name):
+    """The locale's glibc data, built from the rootfs' own i18n sources the first time it is asked
+    for: the rootfs ships only C.utf8, and Proton's own shell and Python need the locale to exist."""
+    stamp = LOCALE_STAMP / name
+    if stamp.exists() and locale_present(name):
+        return True
+    language, _, encoding = name.partition(".")
+    if "@" in encoding:
+        encoding, modifier = encoding.split("@", 1)
+        language += "@" + modifier
+    try:
+        built = subprocess.run(["localedef", "-i", language, "-f", encoding or "UTF-8", name],
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=120)
+    except (OSError, subprocess.SubprocessError):
+        return False
+    if built.returncode != 0:
+        return False
+    if not locale_present(name):
+        return False
+    try:
+        stamp.parent.mkdir(parents=True, exist_ok=True)
+        stamp.touch()
+    except OSError:
+        pass
+    return True
+
+
+def game_locale(env):
+    """A LANG set for the game, or DROIDDECK_LOCALE (a game's Locale): Wine reads LANG itself and
+    takes the game's codepage and language from it, so one game can run in its own locale while the
+    session and every other game stay on C.UTF-8. The session is always on C.UTF-8, so any other
+    LANG was set for this game by hand and wins."""
+    default = ("", "C", "POSIX", "C.UTF-8")
+    name = env.get("LANG", "")
+    if name in default:
+        name = env.get("DROIDDECK_LOCALE") or ""
+    if name in default:
+        return env
+    if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_-]+)?(?:@[A-Za-z0-9_-]+)?", name):
+        print("droiddeck-game-env: locale %s ignored" % name, file=sys.stderr)
+        return env
+    if not ensure_locale(name):
+        print("droiddeck-game-env: locale data for %s could not be built; the Linux side falls back to C" % name, file=sys.stderr)
+    print("droiddeck-game-env: locale %s" % name, file=sys.stderr)
+    return dict(env, LANG=name)
+
+
 SSBS_LIB = "/usr/local/lib/libssbs.so"
 
 
@@ -468,6 +529,7 @@ def main():
         command = offline_without_anticheat(command, env)
     if mic_enabled == "0":
         env["BANNER_AUDIO_DIRECT_MIC"] = "0"
+    env = game_locale(env)
     env = force_ssbs(command, env)
     try:
         xbox = runpy.run_path(str(Path(__file__).with_name("droiddeck-xbox")))

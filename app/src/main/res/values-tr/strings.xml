@@ -450,6 +450,7 @@
     <string name="game_no_steam_title">Steam olmadan başlat</string>
     <string name="game_no_steam_detail">Steam istemcisi olmadan Proton/FEX\'te açar; Steam özellikleri kapalıdır.</string>
     <string name="game_no_steam_on">Açık</string>
+    <string name="game_locale_title">Yerel ayar</string>
     <string name="game_steam_with">Steam ile başlar</string>
     <string name="game_steam_without">Steam olmadan başlar</string>
     <string name="game_settings_card">Ayarlar</string>
