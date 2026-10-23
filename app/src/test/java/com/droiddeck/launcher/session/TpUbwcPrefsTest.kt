@@ -11,6 +11,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
+import org.robolectric.util.ReflectionHelpers
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28], manifest = Config.NONE)
@@ -18,6 +19,9 @@ class TpUbwcPrefsTest {
     private val context: Context get() = RuntimeEnvironment.getApplication()
 
     @Before fun reset() {
+        ReflectionHelpers.setStaticField(TpUbwcHint::class.java, "resolved", false)
+        ReflectionHelpers.setStaticField(TpUbwcHint::class.java, "cached", null)
+        ReflectionHelpers.setStaticField(TpUbwcHint::class.java, "activeMode", null)
         context.getSharedPreferences("session", Context.MODE_PRIVATE).edit().clear().commit()
     }
 

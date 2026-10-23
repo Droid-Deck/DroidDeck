@@ -55,7 +55,6 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
         private set
     private var runtimePending by mutableStateOf(false)
     private var sessionRunning by mutableStateOf(false)
-    private var initialTpUbwcMode: String? = null
     var tpUbwcMode: String by mutableStateOf(SessionPrefs.TP_UBWC_AUTO)
         private set
 
@@ -77,8 +76,7 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
         canRestart = !sessionRunning,
         checkedAt = TurnipReleases.cached(activity)?.checkedAt ?: 0L,
         tpUbwcMode = tpUbwcMode.takeIf { gpu.model == 740 },
-        tpUbwcRestartRequired = (initialTpUbwcMode != null && tpUbwcMode != initialTpUbwcMode) ||
-            com.droiddeck.launcher.gpu.TpUbwcHint.restartRequired(activity),
+        tpUbwcRestartRequired = com.droiddeck.launcher.gpu.TpUbwcHint.restartRequired(activity),
     )
 
     fun chooseTpUbwcMode(mode: String) {
@@ -137,7 +135,6 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
 
     fun refreshDrivers() {
         tpUbwcMode = SessionPrefs.tpUbwcMode(activity)
-        if (initialTpUbwcMode == null) initialTpUbwcMode = tpUbwcMode
         val lm = LinuxVulkanDriverManager(activity)
         fun origin(id: String) = if (TurnipReleases.isDownloaded(activity, id)) DriverRow.DOWNLOADED else DriverRow.IMPORTED
         val bundles = DriverBundle.all(activity)
