@@ -1417,6 +1417,10 @@
     <string name="theme_icon_blue_detail">Fondo negro, texto blanco y el azul para todo lo seleccionado, enfocado o pulsado.</string>
     <string name="theme_electric">Azul marino eléctrico</string>
     <string name="theme_electric_detail">Un azul más vivo, sobre superficies que tiran a azul marino en vez de gris.</string>
+    <string name="theme_inner_gamer">Inner Gamer</string>
+    <string name="theme_inner_gamer_detail">Colores que recorren el arcoíris. Respeta los ajustes de animación de Android.</string>
+    <string name="theme_rgb_speed">Velocidad</string>
+    <string name="theme_rgb_speed_hint">Con qué rapidez cambian los colores.</string>
     <string name="theme_gradient">Degradado</string>
     <string name="theme_gradient_detail">Tus propios colores primario y secundario, combinados en botones y resaltados.</string>
     <string name="theme_gradient_primary">Primario</string>

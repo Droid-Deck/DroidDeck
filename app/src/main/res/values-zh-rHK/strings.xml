@@ -1389,6 +1389,10 @@
     <string name="theme_icon_blue_detail">黑色背景、白色文字，所有已選取、焦點所在或按下的項目都使用藍色。</string>
     <string name="theme_electric">電光海軍藍</string>
     <string name="theme_electric_detail">更明亮的藍色，搭配偏海軍藍而非灰色的介面。</string>
+    <string name="theme_inner_gamer">Inner Gamer</string>
+    <string name="theme_inner_gamer_detail">在彩虹色之間循環變化的顏色。遵循 Android 的動畫設定。</string>
+    <string name="theme_rgb_speed">速度</string>
+    <string name="theme_rgb_speed_hint">顏色循環的快慢。</string>
     <string name="theme_gradient">漸層</string>
     <string name="theme_gradient_detail">你自行選擇的主色與輔色，在按鈕與強調處以漸層呈現。</string>
     <string name="theme_gradient_primary">主色</string>

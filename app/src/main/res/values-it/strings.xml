@@ -1407,6 +1407,10 @@
     <string name="theme_icon_blue_detail">Fondo nero, testo bianco, il blu per tutto ciò che è selezionato, attivo o premuto.</string>
     <string name="theme_electric">Blu elettrico</string>
     <string name="theme_electric_detail">Il blu più brillante, su superfici che tendono al blu navy invece che al grigio.</string>
+    <string name="theme_inner_gamer">Inner Gamer</string>
+    <string name="theme_inner_gamer_detail">Colori che scorrono lungo l\'arcobaleno. Rispetta le impostazioni di animazione di Android.</string>
+    <string name="theme_rgb_speed">Velocità</string>
+    <string name="theme_rgb_speed_hint">Quanto velocemente cambiano i colori.</string>
     <string name="theme_gradient">Gradiente</string>
     <string name="theme_gradient_detail">I tuoi colori primario e secondario, sfumati su pulsanti ed evidenziazioni.</string>
     <string name="theme_gradient_primary">Primario</string>

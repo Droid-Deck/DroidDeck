@@ -1395,6 +1395,10 @@
     <string name="theme_icon_blue_detail">Siyah zemin, beyaz yazı; seçilen, odaklanan veya basılan her şey için mavi.</string>
     <string name="theme_electric">Elektrik laciverti</string>
     <string name="theme_electric_detail">Daha parlak mavi; gri yerine laciverte çalan yüzeylerde.</string>
+    <string name="theme_inner_gamer">Inner Gamer</string>
+    <string name="theme_inner_gamer_detail">Gökkuşağında dolaşan renkler. Android\'in animasyon ayarlarına uyar.</string>
+    <string name="theme_rgb_speed">Hız</string>
+    <string name="theme_rgb_speed_hint">Renklerin ne kadar hızlı değiştiği.</string>
     <string name="theme_gradient">Geçiş</string>
     <string name="theme_gradient_detail">Kendi birincil ve ikincil renklerin, düğmelerde ve vurgularda harmanlanır.</string>
     <string name="theme_gradient_primary">Birincil</string>

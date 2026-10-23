@@ -1458,6 +1458,10 @@
     <string name="theme_icon_blue_detail">Black ground, white type, the blue for everything selected, focused or pressed.</string>
     <string name="theme_electric">Electric navy</string>
     <string name="theme_electric_detail">The blue brighter, on surfaces that lean navy instead of grey.</string>
+    <string name="theme_inner_gamer">Inner Gamer</string>
+    <string name="theme_inner_gamer_detail">Colors that cycle through the rainbow. Follows Android\'s animation settings.</string>
+    <string name="theme_rgb_speed">Speed</string>
+    <string name="theme_rgb_speed_hint">How fast the colors cycle.</string>
     <string name="theme_gradient">Gradient</string>
     <string name="theme_gradient_detail">Your own primary and secondary colors, blended on buttons and highlights.</string>
     <string name="theme_gradient_primary">Primary</string>

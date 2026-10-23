@@ -1429,6 +1429,10 @@
     <string name="theme_icon_blue_detail">Czarne tło, biały tekst i niebieski dla wszystkiego, co zaznaczone, aktywne lub naciśnięte.</string>
     <string name="theme_electric">Elektryczny granat</string>
     <string name="theme_electric_detail">Jaśniejszy niebieski na powierzchniach wpadających w granat zamiast w szarość.</string>
+    <string name="theme_inner_gamer">Inner Gamer</string>
+    <string name="theme_inner_gamer_detail">Kolory przechodzące przez całą tęczę. Szanuje ustawienia animacji Androida.</string>
+    <string name="theme_rgb_speed">Prędkość</string>
+    <string name="theme_rgb_speed_hint">Jak szybko zmieniają się kolory.</string>
     <string name="theme_gradient">Gradient</string>
     <string name="theme_gradient_detail">Własny kolor podstawowy i dodatkowy, płynnie przechodzące na przyciskach i wyróżnieniach.</string>
     <string name="theme_gradient_primary">Podstawowy</string>

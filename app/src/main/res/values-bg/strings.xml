@@ -1401,6 +1401,10 @@
     <string name="theme_icon_blue_detail">Черен фон, бял текст, синьото за всичко избрано, на фокус или натиснато.</string>
     <string name="theme_electric">Яркосиньо</string>
     <string name="theme_electric_detail">По-яркото синьо, върху повърхности, по-близки до тъмносиньо, вместо сиво.</string>
+    <string name="theme_inner_gamer">Inner Gamer</string>
+    <string name="theme_inner_gamer_detail">Цветове, които преминават през дъгата. Следва настройките за анимации на Android.</string>
+    <string name="theme_rgb_speed">Скорост</string>
+    <string name="theme_rgb_speed_hint">Колко бързо се сменят цветовете.</string>
     <string name="theme_gradient">Градиент</string>
     <string name="theme_gradient_detail">Вашите основен и вторичен цвят, смесени в бутоните и акцентите.</string>
     <string name="theme_gradient_primary">Основен</string>
