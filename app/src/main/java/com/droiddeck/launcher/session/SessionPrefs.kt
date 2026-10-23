@@ -1007,8 +1007,9 @@ object SessionPrefs {
     }
 
     const val FOLLOW_CLIENT = "client"
+    const val FOLLOW_DESKTOP = "desktop"
 
-    /** Keyed by game, or [FOLLOW_CLIENT], and window size ("2184x984"); 1 when never chosen. */
+    /** Keyed by game, or [FOLLOW_CLIENT] / [FOLLOW_DESKTOP], and window size ("2184x984"); 1 when never chosen. */
     fun followDivisor(context: Context, game: String, window: String): Float =
         prefs(context).getFloat("followDivisor.$game.$window", 1f).takeIf { it in SessionDisplay.FOLLOW_DIVISORS } ?: 1f
 

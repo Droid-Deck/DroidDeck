@@ -105,7 +105,7 @@ class SettingsResetTest {
 
     @Test fun perModeKeysAreSettings() {
         listOf("resolutionCap.steam", "displayResolution.desktop", "customRes.steam", "hdr.steam", "fpsLimit.desktop", "suspendPolicy.steam",
-            "followDivisor.client.2184x1968")
+            "followDivisor.client.2184x1968", "followDivisor.desktop.2184x1968")
             .forEach { assertTrue(it, SettingsReset.isSessionSetting(it)) }
         listOf("addedName:/x", "addedAppId:/x", "gpuAutoInstalled", "romsDir", "gameStorage", "micAsked", "gameTextureFiltering")
             .forEach { assertFalse(it, SettingsReset.isSessionSetting(it)) }

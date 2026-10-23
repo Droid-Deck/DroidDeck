@@ -1978,6 +1978,7 @@
     <string name="display_follow_divisor">Розмір рендерингу</string>
     <string name="display_follow_divisor_game">Рендеринг у %1$s. Цей параметр зберігається для цієї гри та цієї роздільної здатності екрана %2$s.</string>
     <string name="display_follow_divisor_client">Рендеринг у %1$s. Цей параметр зберігається для клієнта Steam та цієї роздільної здатності екрана %2$s.</string>
+    <string name="display_follow_divisor_desktop">Рендеринг у %1$s. Цей параметр зберігається для робочого столу та цієї роздільної здатності екрана %2$s.</string>
     <string name="display_follow_full">Повний</string>
     <string name="display_follow_two_thirds">Дві третини</string>
     <string name="display_follow_half">Половина</string>

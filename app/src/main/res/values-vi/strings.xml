@@ -1915,6 +1915,7 @@
     <string name="display_follow_divisor">Kích thước kết xuất</string>
     <string name="display_follow_divisor_game">Đang kết xuất ở %1$s. Thiết lập này được lưu cho trò chơi này và độ phân giải màn hình %2$s này.</string>
     <string name="display_follow_divisor_client">Đang kết xuất ở %1$s. Thiết lập này được lưu cho ứng dụng Steam và độ phân giải màn hình %2$s này.</string>
+    <string name="display_follow_divisor_desktop">Đang kết xuất ở %1$s. Thiết lập này được lưu cho màn hình nền và độ phân giải màn hình %2$s này.</string>
     <string name="display_follow_full">Toàn bộ</string>
     <string name="display_follow_two_thirds">Hai phần ba</string>
     <string name="display_follow_half">Một nửa</string>

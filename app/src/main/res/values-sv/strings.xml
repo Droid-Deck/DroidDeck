@@ -1936,6 +1936,7 @@
     <string name="display_follow_divisor">Renderingsstorlek</string>
     <string name="display_follow_divisor_game">Renderar i %1$s. Den här inställningen sparas för det här spelet och den här skärmupplösningen på %2$s.</string>
     <string name="display_follow_divisor_client">Renderar i %1$s. Den här inställningen sparas för Steam-klienten och den här skärmupplösningen på %2$s.</string>
+    <string name="display_follow_divisor_desktop">Renderar i %1$s. Den här inställningen sparas för skrivbordet och den här skärmupplösningen på %2$s.</string>
     <string name="display_follow_full">Full</string>
     <string name="display_follow_two_thirds">Två tredjedelar</string>
     <string name="display_follow_half">Hälften</string>

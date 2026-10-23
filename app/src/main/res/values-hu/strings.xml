@@ -1936,6 +1936,7 @@
     <string name="display_follow_divisor">Renderelési méret</string>
     <string name="display_follow_divisor_game">Renderelés: %1$s. Ez a beállítás ehhez a játékhoz és ehhez a %2$s képernyőfelbontáshoz van mentve.</string>
     <string name="display_follow_divisor_client">Renderelés: %1$s. Ez a beállítás a Steam klienshez és ehhez a %2$s képernyőfelbontáshoz van mentve.</string>
+    <string name="display_follow_divisor_desktop">Renderelés: %1$s. Ez a beállítás az asztalhoz és ehhez a %2$s képernyőfelbontáshoz van mentve.</string>
     <string name="display_follow_full">Teljes</string>
     <string name="display_follow_two_thirds">Kétharmad</string>
     <string name="display_follow_half">Fél</string>

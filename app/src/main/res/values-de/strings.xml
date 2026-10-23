@@ -1925,6 +1925,7 @@
     <string name="display_follow_divisor">Renderauflösung</string>
     <string name="display_follow_divisor_game">Rendert in %1$s. Diese Einstellung wird für dieses Spiel und diese Bildschirmauflösung von %2$s gespeichert.</string>
     <string name="display_follow_divisor_client">Rendert in %1$s. Diese Einstellung wird für den Steam-Client und diese Bildschirmauflösung von %2$s gespeichert.</string>
+    <string name="display_follow_divisor_desktop">Rendert in %1$s. Diese Einstellung wird für den Desktop und diese Bildschirmauflösung von %2$s gespeichert.</string>
     <string name="display_follow_full">Voll</string>
     <string name="display_follow_two_thirds">Zwei Drittel</string>
     <string name="display_follow_half">Hälfte</string>

@@ -1946,6 +1946,7 @@
     <string name="display_follow_divisor">Dimensione di rendering</string>
     <string name="display_follow_divisor_game">Rendering a %1$s. Questa impostazione è salvata per questo gioco e questa risoluzione dello schermo di %2$s.</string>
     <string name="display_follow_divisor_client">Rendering a %1$s. Questa impostazione è salvata per il client Steam e questa risoluzione dello schermo di %2$s.</string>
+    <string name="display_follow_divisor_desktop">Rendering a %1$s. Questa impostazione è salvata per il desktop e questa risoluzione dello schermo di %2$s.</string>
     <string name="display_follow_full">Intera</string>
     <string name="display_follow_two_thirds">Due terzi</string>
     <string name="display_follow_half">Metà</string>

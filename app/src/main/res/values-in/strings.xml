@@ -1915,6 +1915,7 @@
     <string name="display_follow_divisor">Ukuran render</string>
     <string name="display_follow_divisor_game">Merender pada %1$s. Pengaturan ini disimpan untuk game ini dan resolusi layar %2$s ini.</string>
     <string name="display_follow_divisor_client">Merender pada %1$s. Pengaturan ini disimpan untuk klien Steam dan resolusi layar %2$s ini.</string>
+    <string name="display_follow_divisor_desktop">Merender pada %1$s. Pengaturan ini disimpan untuk desktop dan resolusi layar %2$s ini.</string>
     <string name="display_follow_full">Penuh</string>
     <string name="display_follow_two_thirds">Dua pertiga</string>
     <string name="display_follow_half">Setengah</string>

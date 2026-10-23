@@ -1936,6 +1936,7 @@
     <string name="display_follow_divisor">Gjengivelsesstørrelse</string>
     <string name="display_follow_divisor_game">Gjengir i %1$s. Denne innstillingen lagres for dette spillet og denne skjermoppløsningen på %2$s.</string>
     <string name="display_follow_divisor_client">Gjengir i %1$s. Denne innstillingen lagres for Steam-klienten og denne skjermoppløsningen på %2$s.</string>
+    <string name="display_follow_divisor_desktop">Gjengir i %1$s. Denne innstillingen lagres for skrivebordet og denne skjermoppløsningen på %2$s.</string>
     <string name="display_follow_full">Full</string>
     <string name="display_follow_two_thirds">To tredjedeler</string>
     <string name="display_follow_half">Halv</string>

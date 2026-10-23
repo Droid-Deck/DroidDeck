@@ -1918,6 +1918,7 @@
     <string name="display_follow_divisor">算繪尺寸</string>
     <string name="display_follow_divisor_game">目前渲染為 %1$s。此設定已為此遊戲和此 %2$s 螢幕解析度儲存。</string>
     <string name="display_follow_divisor_client">目前渲染為 %1$s。此設定已為 Steam 用戶端和此 %2$s 螢幕解析度儲存。</string>
+    <string name="display_follow_divisor_desktop">目前渲染為 %1$s。此設定已為桌面和此 %2$s 螢幕解析度儲存。</string>
     <string name="display_follow_full">完整</string>
     <string name="display_follow_two_thirds">三分之二</string>
     <string name="display_follow_half">一半</string>

@@ -1978,6 +1978,7 @@
     <string name="display_follow_divisor">Rozmiar renderowania</string>
     <string name="display_follow_divisor_game">Renderowanie w %1$s. To ustawienie jest zapisane dla tej gry i tej rozdzielczości ekranu %2$s.</string>
     <string name="display_follow_divisor_client">Renderowanie w %1$s. To ustawienie jest zapisane dla klienta Steam i tej rozdzielczości ekranu %2$s.</string>
+    <string name="display_follow_divisor_desktop">Renderowanie w %1$s. To ustawienie jest zapisane dla pulpitu i tej rozdzielczości ekranu %2$s.</string>
     <string name="display_follow_full">Pełny</string>
     <string name="display_follow_two_thirds">Dwie trzecie</string>
     <string name="display_follow_half">Połowa</string>

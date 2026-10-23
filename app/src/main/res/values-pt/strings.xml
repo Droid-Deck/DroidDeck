@@ -1946,6 +1946,7 @@
     <string name="display_follow_divisor">Tamanho de renderização</string>
     <string name="display_follow_divisor_game">Renderizando em %1$s. Esta configuração é salva para este jogo e esta resolução de tela de %2$s.</string>
     <string name="display_follow_divisor_client">Renderizando em %1$s. Esta configuração é salva para o cliente Steam e esta resolução de tela de %2$s.</string>
+    <string name="display_follow_divisor_desktop">Renderizando em %1$s. Esta configuração é salva para a área de trabalho e esta resolução de tela de %2$s.</string>
     <string name="display_follow_full">Completo</string>
     <string name="display_follow_two_thirds">Dois terços</string>
     <string name="display_follow_half">Metade</string>

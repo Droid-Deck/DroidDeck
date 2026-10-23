@@ -1917,6 +1917,7 @@
     <string name="display_follow_divisor">レンダリングサイズ</string>
     <string name="display_follow_divisor_game">%1$s でレンダリング中。この設定はこのゲームとこの %2$s の画面解像度用に保存されます。</string>
     <string name="display_follow_divisor_client">%1$s でレンダリング中。この設定は Steam クライアントとこの %2$s の画面解像度用に保存されます。</string>
+    <string name="display_follow_divisor_desktop">%1$s でレンダリング中。この設定はデスクトップとこの %2$s の画面解像度用に保存されます。</string>
     <string name="display_follow_full">フル</string>
     <string name="display_follow_two_thirds">3分の2</string>
     <string name="display_follow_half">半分</string>

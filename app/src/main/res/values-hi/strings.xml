@@ -1936,6 +1936,7 @@
     <string name="display_follow_divisor">रेंडर आकार</string>
     <string name="display_follow_divisor_game">%1$s पर रेंडर हो रहा है। यह सेटिंग इस गेम और इस %2$s स्क्रीन रिज़ॉल्यूशन के लिए सहेजी जाती है।</string>
     <string name="display_follow_divisor_client">%1$s पर रेंडर हो रहा है। यह सेटिंग Steam क्लाइंट और इस %2$s स्क्रीन रिज़ॉल्यूशन के लिए सहेजी जाती है।</string>
+    <string name="display_follow_divisor_desktop">%1$s पर रेंडर हो रहा है। यह सेटिंग डेस्कटॉप और इस %2$s स्क्रीन रिज़ॉल्यूशन के लिए सहेजी जाती है।</string>
     <string name="display_follow_full">पूरा</string>
     <string name="display_follow_two_thirds">दो-तिहाई</string>
     <string name="display_follow_half">आधा</string>

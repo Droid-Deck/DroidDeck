@@ -2006,6 +2006,7 @@
     <string name="display_follow_divisor">Render size</string>
     <string name="display_follow_divisor_game">Rendering at %1$s. This setting is saved for this game and this %2$s screen resolution.</string>
     <string name="display_follow_divisor_client">Rendering at %1$s. This setting is saved for the Steam client and this %2$s screen resolution.</string>
+    <string name="display_follow_divisor_desktop">Rendering at %1$s. This setting is saved for the desktop and this %2$s screen resolution.</string>
     <string name="display_follow_full">Full</string>
     <string name="display_follow_two_thirds">Two thirds</string>
     <string name="display_follow_half">Half</string>

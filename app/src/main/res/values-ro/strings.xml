@@ -1957,6 +1957,7 @@
     <string name="display_follow_divisor">Dimensiune de randare</string>
     <string name="display_follow_divisor_game">Randare la %1$s. Această setare este salvată pentru acest joc și această rezoluție a ecranului de %2$s.</string>
     <string name="display_follow_divisor_client">Randare la %1$s. Această setare este salvată pentru clientul Steam și această rezoluție a ecranului de %2$s.</string>
+    <string name="display_follow_divisor_desktop">Randare la %1$s. Această setare este salvată pentru desktop și această rezoluție a ecranului de %2$s.</string>
     <string name="display_follow_full">Complet</string>
     <string name="display_follow_two_thirds">Două treimi</string>
     <string name="display_follow_half">Jumătate</string>

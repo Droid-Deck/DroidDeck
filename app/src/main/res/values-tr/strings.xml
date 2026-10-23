@@ -1927,6 +1927,7 @@
     <string name="display_follow_divisor">İşleme boyutu</string>
     <string name="display_follow_divisor_game">%1$s çözünürlükte işleniyor. Bu ayar bu oyun ve bu %2$s ekran çözünürlüğü için kaydedilir.</string>
     <string name="display_follow_divisor_client">%1$s çözünürlükte işleniyor. Bu ayar Steam istemcisi ve bu %2$s ekran çözünürlüğü için kaydedilir.</string>
+    <string name="display_follow_divisor_desktop">%1$s çözünürlükte işleniyor. Bu ayar masaüstü ve bu %2$s ekran çözünürlüğü için kaydedilir.</string>
     <string name="display_follow_full">Tam</string>
     <string name="display_follow_two_thirds">Üçte iki</string>
     <string name="display_follow_half">Yarım</string>

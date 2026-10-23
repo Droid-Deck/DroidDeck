@@ -1978,6 +1978,7 @@
     <string name="display_follow_divisor">Velikost vykreslování</string>
     <string name="display_follow_divisor_game">Vykreslování v %1$s. Toto nastavení je uloženo pro tuto hru a toto rozlišení obrazovky %2$s.</string>
     <string name="display_follow_divisor_client">Vykreslování v %1$s. Toto nastavení je uloženo pro klienta Steam a toto rozlišení obrazovky %2$s.</string>
+    <string name="display_follow_divisor_desktop">Vykreslování v %1$s. Toto nastavení je uloženo pro plochu a toto rozlišení obrazovky %2$s.</string>
     <string name="display_follow_full">Plná</string>
     <string name="display_follow_two_thirds">Dvě třetiny</string>
     <string name="display_follow_half">Polovina</string>

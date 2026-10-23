@@ -1936,6 +1936,7 @@
     <string name="display_follow_divisor">Renderöintikoko</string>
     <string name="display_follow_divisor_game">Renderöidään kokoon %1$s. Tämä asetus tallennetaan tälle pelille ja tälle näytön tarkkuudelle %2$s.</string>
     <string name="display_follow_divisor_client">Renderöidään kokoon %1$s. Tämä asetus tallennetaan Steam-asiakasohjelmalle ja tälle näytön tarkkuudelle %2$s.</string>
+    <string name="display_follow_divisor_desktop">Renderöidään kokoon %1$s. Tämä asetus tallennetaan työpöydälle ja tälle näytön tarkkuudelle %2$s.</string>
     <string name="display_follow_full">Täysi</string>
     <string name="display_follow_two_thirds">Kaksi kolmasosaa</string>
     <string name="display_follow_half">Puolet</string>

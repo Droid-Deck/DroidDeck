@@ -857,6 +857,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     onHud = { on -> SessionPrefs.setHudEnabled(this@SessionActivity, on); hudOn = on; hud.refresh() },
                     followWindowSize = if (SessionState.followScreen) followWindowSize else null,
                     followGameInFront = followGame != null,
+                    followDesktop = SessionState.mode == SessionService.MODE_DESKTOP,
                     followGameName = followGameShown?.first,
                     followGameIcon = followGameShown?.second,
                     followDivisor = followDivisor,
@@ -1798,11 +1799,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun applyGameFollowDivisor(width: Int = surfaceW, height: Int = surfaceH) {
         val window = if (width > 0) "${width}x$height" else null
         followWindowSize = window
-        val divisor = window?.let { SessionPrefs.followDivisor(this, followGame ?: SessionPrefs.FOLLOW_CLIENT, it) } ?: 1f
+        val divisor = window?.let { SessionPrefs.followDivisor(this, followKey(), it) } ?: 1f
         followDivisor = divisor
         if (!SessionState.followScreen) return
         if (divisor != SessionState.followDivisor) {
-            Log.i(TAG, "follow screen: divisor ${SessionState.followDivisor} -> $divisor for ${followGame ?: "the client"} at $window")
+            Log.i(TAG, "follow screen: divisor ${SessionState.followDivisor} -> $divisor for ${followKey()} at $window")
             SessionState.followDivisor = divisor
         }
         if (width > 0) followWindow(width, height)
@@ -1821,9 +1822,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
     }
 
+    private fun followKey(): String = followGame
+        ?: if (SessionState.mode == SessionService.MODE_DESKTOP) SessionPrefs.FOLLOW_DESKTOP else SessionPrefs.FOLLOW_CLIENT
+
     private fun chooseFollowDivisor(divisor: Float) {
         val window = followWindowSize ?: return
-        SessionPrefs.setFollowDivisor(this, followGame ?: SessionPrefs.FOLLOW_CLIENT, window, divisor)
+        SessionPrefs.setFollowDivisor(this, followKey(), window, divisor)
         applyGameFollowDivisor()
     }
 

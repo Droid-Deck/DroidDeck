@@ -1917,6 +1917,7 @@
     <string name="display_follow_divisor">렌더링 크기</string>
     <string name="display_follow_divisor_game">%1$s(으)로 렌더링 중. 이 설정은 이 게임과 이 %2$s 화면 해상도에 저장됩니다.</string>
     <string name="display_follow_divisor_client">%1$s(으)로 렌더링 중. 이 설정은 Steam 클라이언트와 이 %2$s 화면 해상도에 저장됩니다.</string>
+    <string name="display_follow_divisor_desktop">%1$s(으)로 렌더링 중. 이 설정은 데스크톱과 이 %2$s 화면 해상도에 저장됩니다.</string>
     <string name="display_follow_full">전체</string>
     <string name="display_follow_two_thirds">3분의 2</string>
     <string name="display_follow_half">절반</string>

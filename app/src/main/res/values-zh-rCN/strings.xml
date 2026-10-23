@@ -1994,6 +1994,7 @@
     <string name="display_follow_divisor">渲染尺寸</string>
     <string name="display_follow_divisor_game">当前渲染为 %1$s。此设置已为此游戏和此 %2$s 屏幕分辨率保存。</string>
     <string name="display_follow_divisor_client">当前渲染为 %1$s。此设置已为 Steam 客户端和此 %2$s 屏幕分辨率保存。</string>
+    <string name="display_follow_divisor_desktop">当前渲染为 %1$s。此设置已为桌面和此 %2$s 屏幕分辨率保存。</string>
     <string name="display_follow_full">完整</string>
     <string name="display_follow_two_thirds">三分之二</string>
     <string name="display_follow_half">一半</string>

@@ -262,6 +262,7 @@ class DrawerActions(
     val onUpscaler: (Int) -> Unit = {},
     val followWindowSize: String? = null,
     val followGameInFront: Boolean = false,
+    val followDesktop: Boolean = false,
     val followGameName: String? = null,
     val followGameIcon: android.graphics.Bitmap? = null,
     val followDivisor: Float = 1f,
@@ -542,7 +543,11 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                             maxLines = 1, overflow = TextOverflow.Ellipsis)
                                     }
                                     ChoiceRow(host, "follow-divisor", stringResource(R.string.display_follow_divisor),
-                                        stringResource(if (a.followGameInFront) R.string.display_follow_divisor_game else R.string.display_follow_divisor_client,
+                                        stringResource(when {
+                                            a.followGameInFront -> R.string.display_follow_divisor_game
+                                            a.followDesktop -> R.string.display_follow_divisor_desktop
+                                            else -> R.string.display_follow_divisor_client
+                                        },
                                             now?.let { "${it.first}×${it.second}" } ?: "-", "$fw×$fh"),
                                         com.droiddeck.launcher.session.SessionDisplay.FOLLOW_DIVISORS.map {
                                             it to stringResource(com.droiddeck.launcher.session.SessionDisplay.divisorLabel(it))

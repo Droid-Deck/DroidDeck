@@ -1956,6 +1956,7 @@
     <string name="display_follow_divisor">Taille de rendu</string>
     <string name="display_follow_divisor_game">Rendu actuel en %1$s. Ce paramètre est enregistré pour ce jeu et cette résolution d’écran de %2$s.</string>
     <string name="display_follow_divisor_client">Rendu actuel en %1$s. Ce paramètre est enregistré pour le client Steam et cette résolution d’écran de %2$s.</string>
+    <string name="display_follow_divisor_desktop">Rendu actuel en %1$s. Ce paramètre est enregistré pour le bureau et cette résolution d’écran de %2$s.</string>
     <string name="display_follow_full">Complet</string>
     <string name="display_follow_two_thirds">Deux tiers</string>
     <string name="display_follow_half">Moitié</string>

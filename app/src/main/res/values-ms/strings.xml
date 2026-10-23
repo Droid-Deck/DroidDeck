@@ -1915,6 +1915,7 @@
     <string name="display_follow_divisor">Saiz paparan</string>
     <string name="display_follow_divisor_game">Memapar pada %1$s. Tetapan ini disimpan untuk permainan ini dan resolusi skrin %2$s ini.</string>
     <string name="display_follow_divisor_client">Memapar pada %1$s. Tetapan ini disimpan untuk klien Steam dan resolusi skrin %2$s ini.</string>
+    <string name="display_follow_divisor_desktop">Memapar pada %1$s. Tetapan ini disimpan untuk desktop dan resolusi skrin %2$s ini.</string>
     <string name="display_follow_full">Penuh</string>
     <string name="display_follow_two_thirds">Dua pertiga</string>
     <string name="display_follow_half">Separuh</string>
