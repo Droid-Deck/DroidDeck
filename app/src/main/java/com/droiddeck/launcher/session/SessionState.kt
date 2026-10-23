@@ -49,9 +49,23 @@ object SessionState {
     var stopping = false
         private set
 
+    private var runtimeWork = false
+
+    @Synchronized
+    internal fun tryBeginRuntimeWork(): Boolean {
+        if (running || stopping || runtimeWork) return false
+        runtimeWork = true
+        return true
+    }
+
+    @Synchronized
+    internal fun finishRuntimeWork() {
+        runtimeWork = false
+    }
+
     @Synchronized
     fun tryStart(): Boolean {
-        if (running || stopping) return false
+        if (running || stopping || runtimeWork) return false
         running = true
         return true
     }

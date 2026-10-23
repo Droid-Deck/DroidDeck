@@ -373,7 +373,7 @@ class SessionService : Service() {
                     // The desktop too: its Steam launchers run the client right there (droiddeck-steam-launch).
                     if (SessionState.mode == MODE_STEAM || SessionState.mode == MODE_DESKTOP) RivalClients.stopBeforeSession(this)
                     runSession(gen)
-                } catch (e: Exception) {
+                } catch (e: Throwable) {
                     Log.e(TAG, "could not prepare the session", e)
                     mainHandler.post {
                         if (gen == sessionGen && SessionState.running) {
@@ -427,7 +427,6 @@ class SessionService : Service() {
         val root = LinuxRuntime.rootDir(this)
         val sessionRoot = LinuxRuntime.sessionRoot(this).apply { mkdirs() }
         val runtimeDir = File(filesDir, ".wayland-rt").apply { mkdirs() }
-        killStragglers()
         for (pack in listOf(AddonPack.PROOT, AddonPack.DIRECTAUDIO))
             if (!pack.await(this, { gen == sessionGen && SessionState.running })) Log.w(TAG, "${pack.name} pack unavailable")
         SessionFiles.stage(this, root, startsSession = true)

@@ -62,6 +62,23 @@ class SessionLifecycleTest {
         SessionState.phase = SessionPhase.STOPPING
     }
 
+    @Test fun runtimeWorkAndSessionStartupExcludeEachOther() {
+        assertTrue(SessionState.tryBeginRuntimeWork())
+        try {
+            assertFalse(SessionState.tryStart())
+            assertFalse(SessionState.tryBeginRuntimeWork())
+        } finally {
+            SessionState.finishRuntimeWork()
+        }
+        assertTrue(SessionState.tryStart())
+        assertFalse(SessionState.tryBeginRuntimeWork())
+        assertTrue(SessionState.beginStop())
+        assertFalse(SessionState.tryBeginRuntimeWork())
+        SessionState.finishStop()
+        assertTrue(SessionState.tryBeginRuntimeWork())
+        SessionState.finishRuntimeWork()
+    }
+
     @Test fun startsAreExcludedUntilTeardownFinishes() {
         assertTrue(SessionState.tryStart())
         assertFalse(SessionState.tryStart())

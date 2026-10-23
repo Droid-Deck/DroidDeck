@@ -206,10 +206,10 @@ object ProtonExtras {
             return context.getString(R.string.pextra_checksum_mismatch)
         }
 
-        if (SessionState.running || SessionState.stopping) return context.getString(R.string.pextra_session_started)
         val installing = context.getString(R.string.pextra_installing, tool.name)
-        onProgress(installing, -1)
+        if (!SessionState.tryBeginRuntimeWork()) return context.getString(R.string.pextra_session_started)
         return try {
+            onProgress(installing, -1)
             val root = LinuxRuntime.rootDir(context)
             LinuxRuntime.writeAccounts(context)
             com.droiddeck.launcher.session.SessionFiles.stage(context, root)
@@ -257,6 +257,8 @@ object ProtonExtras {
         } catch (e: Exception) {
             Log.e(TAG, "install ${tool.id}", e)
             e.message ?: context.getString(R.string.pextra_could_not_install, tool.name)
+        } finally {
+            SessionState.finishRuntimeWork()
         }
     }
 
