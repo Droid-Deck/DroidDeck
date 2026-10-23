@@ -682,7 +682,6 @@ def game_environment(env, command):
         game = game_env["Game"](resolve(command[0], env), command[1:])
         for check in game_env["FIXES"]:
             found = check(game)
-            # Environment fixes only: the launch arguments some fixes add were chosen for Windows builds.
             if found and found[0]:
                 fixes.update(found[0])
                 say(found[2])

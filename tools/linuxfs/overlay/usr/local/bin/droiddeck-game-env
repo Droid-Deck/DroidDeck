@@ -89,9 +89,6 @@ def dotnet_memory_ordering(game):
 
 @fix
 def unity_memory_ordering(game):
-    """A Unity player under FEX without TSO deadlocks or crashes: Megabonk (Linux, IL2CPP) froze with every
-    thread parked on a futex on about half of all launches, Crab Game (Windows under Proton, IL2CPP) died with
-    an access violation in UnityPlayer.dll. Presets that turn TSO off keep it on for Unity games."""
     if {"unityplayer.so", "gameassembly.so", "unityplayer.dll"} & game.files:
         return {"FEX_TSOENABLED": "1"}, [], "Unity: FEX with TSO"
 
