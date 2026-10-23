@@ -520,39 +520,8 @@ ln -sfn "$STEAM_X64/ubuntu12_32" "$X64_HOME/.steam/bin32"
 ln -sfn "$STEAM_X64/ubuntu12_64" "$X64_HOME/.steam/bin64"
 ln -sfn "$STEAM_X64/linux32" "$X64_HOME/.steam/sdk32"
 ln -sfn "$STEAM_X64/linux64" "$X64_HOME/.steam/sdk64"
-# The client's bwrap probe (steam-runtime-check-requirements) needs user namespaces, which no Android app has.
-srt_real=$STEAM_X64/steamrt64/pv-runtime/steam-runtime-steamrt
-srt_shim=$X64_HOME/steamrt-shim
-if [ -d "$srt_real" ]; then
-  rm -rf "$srt_shim"
-  mkdir -p "$srt_shim/bin"
-  for e in "$srt_real"/* "$srt_real"/.[!.]*; do
-    [ -e "$e" ] || continue
-    [ "$(basename "$e")" = bin ] || ln -s "$e" "$srt_shim/$(basename "$e")"
-  done
-  for e in "$srt_real"/bin/*; do ln -s "$e" "$srt_shim/bin/$(basename "$e")"; done
-  rm -f "$srt_shim/bin/steam-runtime-check-requirements"
-  printf '#!/bin/sh
-exit 0
-' > "$srt_shim/bin/steam-runtime-check-requirements"
-  chmod 755 "$srt_shim/bin/steam-runtime-check-requirements"
-  rm -f "$srt_shim/bin/steam-runtime-launch-client"
-  cat > "$srt_shim/bin/steam-runtime-launch-client" <<'LAUNCH'
-#!/bin/sh
-while [ $# -gt 0 ]; do
-  case $1 in
-    --) shift; break ;;
-    --directory=*) cd "${1#--directory=}" || exit 127 ;;
-    --env=*) export "${1#--env=}" ;;
-    --unset-env=*) unset "${1#--unset-env=}" ;;
-  esac
-  shift
-done
-[ $# -gt 0 ] || exit 0
-exec "$@"
-LAUNCH
-  chmod 755 "$srt_shim/bin/steam-runtime-launch-client"
-fi
+# Valve's Steam Runtime container needs user namespaces and a session-bus launcher; steamrt-shim stands in for both.
+droiddeck-steamrt-shim "$STEAM_X64/steamrt64" "$X64_HOME/steamrt-shim" || rm -rf "$X64_HOME/steamrt-shim"
 # Valve's platform libraries ship without soname links (pressure-vessel makes them); ldconfig adds them here.
 srt_libs=$X64_HOME/steamrt-libs
 rm -rf "$srt_libs"

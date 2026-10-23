@@ -403,6 +403,11 @@ case $mode in
         droiddeck-steam-x64 --sync-login || true
       fi
       steam_client=("$steam_root/steamrtarm64/steam")
+      _bl_srt_shim=$HOME/.droiddeck-steamrt-shim
+      if droiddeck-steamrt-shim "$steam_root/steamrtarm64" "$_bl_srt_shim"; then
+        echo "== steam: Valve containerized the arm64 Steam client (it carries a Steam Runtime container); starting it through $_bl_srt_shim"
+        steam_client=(env STEAM_RUNTIME_STEAMRT="$_bl_srt_shim" PATH="$_bl_srt_shim/bin:$PATH" "${steam_client[@]}")
+      fi
     fi
     _bl_proton_root=$steam_root
     if [ "$steam_x64" = 1 ]; then
@@ -746,10 +751,13 @@ BUSCONF
     fi
 
     # The UI bridge launches SteamVR, which needs the guest agent's library environment.
-    _bl_compat_env=(env -u LD_LIBRARY_PATH -u STEAM_RUNTIME)
+    _bl_compat_env=(env -u LD_LIBRARY_PATH -u STEAM_RUNTIME -u STEAM_STEAMRT_RECURSION_GUARD)
     [ "${LD_LIBRARY_PATH+x}" ] && _bl_compat_env+=("LD_LIBRARY_PATH=$LD_LIBRARY_PATH")
     [ "${STEAM_RUNTIME+x}" ] && _bl_compat_env+=("STEAM_RUNTIME=$STEAM_RUNTIME")
+    [ "${STEAM_STEAMRT_RECURSION_GUARD+x}" ] && _bl_compat_env+=("STEAM_STEAMRT_RECURSION_GUARD=$STEAM_STEAMRT_RECURSION_GUARD")
     export STEAM_RUNTIME=1
+    # A containerized client re-executes itself through pressure-vessel-wrap (bwrap) unless told it is already inside.
+    export STEAM_STEAMRT_RECURSION_GUARD=1
     export LD_LIBRARY_PATH=$steam_root/steamrtarm64:$steam_root/steamrtarm64/panorama${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
     export SDL_VIDEO_X11_DGAMOUSE=0
     decky_loader=$HOME/homebrew/services/PluginLoader
@@ -829,6 +837,9 @@ BUSCONF
       unset _stale _f
     fi
     steam_channel=steamdeck_publicbeta
+    if [ "$steam_x64" = 0 ]; then
+      steam_channel=$(droiddeck-steam-install --channel 2>/dev/null || echo steamdeck_publicbeta)
+    fi
     _bl_lang=()
     [ -n "${BL_STEAM_LANGUAGE:-}" ] && _bl_lang=(-language "$BL_STEAM_LANGUAGE")
     steam_beta=$steam_root/package/beta
