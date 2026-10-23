@@ -52,7 +52,9 @@ object SessionLogShare {
         val tools = recent(File(logs, SessionPaths.TOOLS_DIR))
         val epic = recent(File(EpicClient.stateDir(context), EPIC_LOGS))
             .filter { it.length() <= EPIC_LOG_MAX_BYTES }
-        val total = (files + live + stores + tools + epic).sumOf { it.length() }.coerceAtLeast(1L)
+        val ubisoft = ubisoftLogs(context)
+        val total = ((files + live + stores + tools + epic).sumOf { it.length() } +
+            ubisoft.sumOf { it.second.length() }).coerceAtLeast(1L)
         var done = 0L
         var shown = -1
         fun advance(f: File) {
@@ -66,6 +68,7 @@ object SessionLogShare {
             stores.forEach { f -> addEntry(z, "$STORES_DIR/" + f.name, f); advance(f) }
             tools.forEach { f -> addEntry(z, SessionPaths.TOOLS_DIR + "/" + f.name, f); advance(f) }
             epic.forEach { f -> addEntry(z, EPIC_DIR + "/" + f.name, f); advance(f) }
+            ubisoft.forEach { (name, f) -> addEntry(z, UBISOFT_DIR + "/" + name, f); advance(f) }
         }
         return zip
     }
@@ -85,10 +88,22 @@ object SessionLogShare {
         return logs.listFiles()?.filter { it.isFile && it.length() <= STEAM_LOG_MAX_BYTES }.orEmpty()
     }
 
+    private fun ubisoftLogs(context: Context): List<Pair<String, File>> {
+        val compat = File(SessionPrefs.activeSteamRoot(context), "steamapps/compatdata")
+        return compat.listFiles().orEmpty().flatMap { prefix ->
+            File(prefix, "pfx/drive_c/users").listFiles().orEmpty().flatMap { user ->
+                recent(File(user, UBISOFT_LOG_DIR)).map { f -> prefix.name + "/" + f.name to f }
+            }
+        }.filter { it.second.length() <= UBISOFT_LOG_MAX_BYTES }
+    }
+
     private const val STEAM_LOG_MAX_BYTES = 8L * 1024 * 1024
 
     const val STORES_DIR = "stores"
     const val EPIC_DIR = "epic"
+    const val UBISOFT_DIR = "ubisoft"
+    private const val UBISOFT_LOG_DIR = "AppData/Local/Ubisoft Game Launcher/logs"
+    private const val UBISOFT_LOG_MAX_BYTES = 8L * 1024 * 1024
     private const val EPIC_LOGS = "logs"
     private const val EPIC_LOG_MAX_BYTES = 8L * 1024 * 1024
     private const val RECENT_DAYS = 7
