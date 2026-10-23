@@ -1,3 +1,4 @@
+import ctypes
 import os
 from pathlib import Path
 import platform
@@ -221,11 +222,21 @@ int main(int argc, char **argv) {
 """
 
 
+def has_gcs_hwcap():
+    try:
+        getauxval = ctypes.CDLL(None).getauxval
+    except (AttributeError, OSError):
+        return False
+    getauxval.restype = ctypes.c_ulong
+    getauxval.argtypes = [ctypes.c_ulong]
+    return bool(getauxval(16) & (1 << 32))
+
+
 def runner():
-    if platform.machine() in ("aarch64", "arm64") and shutil.which("gcc"):
+    if platform.machine() in ("aarch64", "arm64") and shutil.which("gcc") and not has_gcs_hwcap():
         return "gcc", []
     if shutil.which("aarch64-linux-gnu-gcc") and shutil.which("qemu-aarch64") and Path("/usr/aarch64-linux-gnu").is_dir():
-        return "aarch64-linux-gnu-gcc", ["qemu-aarch64", "-cpu", "max,sve=off,sme=off", "-L", "/usr/aarch64-linux-gnu"]
+        return "aarch64-linux-gnu-gcc", ["qemu-aarch64", "-cpu", "neoverse-n1", "-L", "/usr/aarch64-linux-gnu"]
     return None, None
 
 
