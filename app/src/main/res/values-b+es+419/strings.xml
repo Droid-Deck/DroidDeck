@@ -287,9 +287,6 @@
     <string name="mode_suspend_steam_note">Auto pausa y reanuda al mostrarse. Nativo prepara Steam para la suspensión primero. Manual espera a Reanudar. Nunca sigue ejecutándose.</string>
     <string name="mode_background_downloads">Mantener las descargas activas</string>
     <string name="mode_background_downloads_hint">Retrasa la suspensión en segundo plano mientras Steam esté descargando.</string>
-    <string name="mode_zram">Compresión zRAM</string>
-    <string name="mode_zram_hint">Mientras se ejecuta un juego, la memoria del cliente de Steam se comprime en la zram del dispositivo, lo que deja más RAM para el juego. Se aplica la próxima vez que se inicie Steam.</string>
-    <string name="mode_zram_unsupported">No disponible: este dispositivo no tiene swap activo, o su kernel es anterior a la 5.4.</string>
     <string name="mode_suspend_note">Auto pausa en segundo plano y reanuda al mostrarse. Manual espera a Reanudar. Nunca sigue ejecutándose.</string>
     <string name="mode_startup">Inicio</string>
     <string name="mode_steam_startup">Iniciar Steam con DroidDeck</string>

@@ -287,9 +287,6 @@
     <string name="mode_suspend_steam_note">ऑटो दिखने पर रुकता है और फिर से शुरू होता है। नेटिव पहले Steam को स्लीप के लिए तैयार करता है। मैनुअल फिर से शुरू करें का इंतज़ार करता है। कभी नहीं वाला चलता रहता है।</string>
     <string name="mode_background_downloads">डाउनलोड चलते रहने दें</string>
     <string name="mode_background_downloads_hint">Steam के सक्रिय रूप से डाउनलोड करते समय बैकग्राउंड सस्पेंशन को टालें।</string>
-    <string name="mode_zram">zRAM कम्प्रेशन</string>
-    <string name="mode_zram_hint">गेम चलने के दौरान Steam क्लाइंट की मेमोरी डिवाइस के zram में कम्प्रेस होती है, जिससे गेम को ज़्यादा RAM मिलती है। अगली बार Steam शुरू होने पर लागू होगा।</string>
-    <string name="mode_zram_unsupported">उपलब्ध नहीं: इस डिवाइस में zram या swap नहीं है, या कर्नेल 5.4 से पुराना है।</string>
     <string name="mode_suspend_note">ऑटो बैकग्राउंड में रुकता है और दिखने पर फिर से शुरू होता है। मैनुअल फिर से शुरू करें का इंतज़ार करता है। कभी नहीं वाला चलता रहता है।</string>
     <string name="mode_startup">स्टार्टअप</string>
     <string name="mode_steam_startup">DroidDeck के साथ Steam शुरू करें</string>

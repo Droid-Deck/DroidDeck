@@ -287,9 +287,6 @@
     <string name="mode_suspend_steam_note">Az Automatikus szüneteltet, és megjelenéskor folytatja. A Natív előbb felkészíti a Steamet az altatásra. A Manuális megvárja a Folytatást. A Soha mindig futva tartja.</string>
     <string name="mode_background_downloads">Letöltések futtatásának fenntartása</string>
     <string name="mode_background_downloads_hint">Elhalasztja a háttérbeli felfüggesztést, amíg a Steam aktívan letölt.</string>
-    <string name="mode_zram">zRAM-tömörítés</string>
-    <string name="mode_zram_hint">Játék közben a Steam kliens memóriája a készülék zramjába tömörül, így a játéknak több RAM jut. A Steam következő indításakor lép életbe.</string>
-    <string name="mode_zram_unsupported">Nem elérhető: a készüléken nincs zram vagy swap, vagy a kernel régebbi az 5.4-nél.</string>
     <string name="mode_suspend_note">Az Automatikus szüneteltet a háttérben, és megjelenéskor folytatja. A Manuális megvárja a Folytatást. A Soha mindig futva tartja.</string>
     <string name="mode_startup">Indítás</string>
     <string name="mode_steam_startup">Steam indítása a DroidDeckkel</string>

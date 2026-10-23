@@ -287,9 +287,6 @@
     <string name="mode_suspend_steam_note">Автоматично поставя на пауза и продължава, когато се покаже отново. Системно подготвя Steam за заспиване първо. Ръчно изчаква „Продължи“. Никога продължава да работи.</string>
     <string name="mode_background_downloads">Продължаване на изтеглянията</string>
     <string name="mode_background_downloads_hint">Отлага фоновото спиране, докато Steam активно изтегля.</string>
-    <string name="mode_zram">zRAM компресия</string>
-    <string name="mode_zram_hint">Докато играта работи, паметта на Steam клиента се компресира в zram на устройството, така че играта получава повече RAM. Важи при следващото стартиране на Steam.</string>
-    <string name="mode_zram_unsupported">Недостъпно: устройството няма zram или swap, или ядрото е по-старо от 5.4.</string>
     <string name="mode_suspend_note">Автоматично поставя на пауза във фонов режим и продължава при показване. Ръчно изчаква „Продължи“. Никога продължава да работи.</string>
     <string name="mode_startup">Стартиране</string>
     <string name="mode_steam_startup">Стартиране на Steam заедно с DroidDeck</string>

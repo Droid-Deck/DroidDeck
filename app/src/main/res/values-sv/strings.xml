@@ -287,9 +287,6 @@
     <string name="mode_suspend_steam_note">Auto pausar och återupptar när den visas. Inbyggd förbereder Steam för vila först. Manuell väntar på Återuppta. Aldrig fortsätter köra.</string>
     <string name="mode_background_downloads">Håll nedladdningar igång</string>
     <string name="mode_background_downloads_hint">Skjut upp bakgrundspausning medan Steam aktivt laddar ned.</string>
-    <string name="mode_zram">zRAM-komprimering</string>
-    <string name="mode_zram_hint">Medan ett spel körs komprimeras Steam-klientens minne till enhetens zram så att spelet får mer RAM. Gäller nästa gång Steam startar.</string>
-    <string name="mode_zram_unsupported">Inte tillgängligt: enheten har ingen zram eller swap, eller så är kärnan äldre än 5.4.</string>
     <string name="mode_suspend_note">Auto pausar i bakgrunden och återupptar när den visas. Manuell väntar på Återuppta. Aldrig fortsätter köra.</string>
     <string name="mode_startup">Uppstart</string>
     <string name="mode_steam_startup">Starta Steam med DroidDeck</string>

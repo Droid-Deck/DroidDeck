@@ -287,9 +287,6 @@
     <string name="mode_suspend_steam_note">Otomatis menjeda dan melanjutkan saat ditampilkan. Native menyiapkan Steam untuk tidur terlebih dahulu. Manual menunggu Lanjutkan. Tidak pernah terus berjalan.</string>
     <string name="mode_background_downloads">Pertahankan unduhan tetap berjalan</string>
     <string name="mode_background_downloads_hint">Menunda penjedaan latar belakang saat Steam sedang aktif mengunduh.</string>
-    <string name="mode_zram">Kompresi zRAM</string>
-    <string name="mode_zram_hint">Saat bermain, memori klien Steam dipadatkan ke zram perangkat sehingga gim mendapat lebih banyak RAM. Berlaku saat Steam dijalankan berikutnya.</string>
-    <string name="mode_zram_unsupported">Tidak tersedia: perangkat ini tidak punya zram atau swap, atau kernelnya lebih lama dari 5.4.</string>
     <string name="mode_suspend_note">Otomatis menjeda di latar belakang dan melanjutkan saat ditampilkan. Manual menunggu Lanjutkan. Tidak pernah terus berjalan.</string>
     <string name="mode_startup">Mulai</string>
     <string name="mode_steam_startup">Mulai Steam bersama DroidDeck</string>

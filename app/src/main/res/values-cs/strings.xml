@@ -287,9 +287,6 @@
     <string name="mode_suspend_steam_note">Automaticky pozastaví relaci a obnoví ji při zobrazení. Nativně nejprve připraví Steam na spánek. Manuálně čeká na Obnovit. Nikdy běh nezastavuje.</string>
     <string name="mode_background_downloads">Nechat stahování běžet</string>
     <string name="mode_background_downloads_hint">Oddálí pozastavení na pozadí, pokud Steam aktivně stahuje.</string>
-    <string name="mode_zram">Komprese zRAM</string>
-    <string name="mode_zram_hint">Během hraní se paměť klienta Steam komprimuje do zram zařízení, takže hra má víc RAM. Platí při příštím spuštění Steamu.</string>
-    <string name="mode_zram_unsupported">Není k dispozici: zařízení nemá zram ani swap, nebo je jádro starší než 5.4.</string>
     <string name="mode_suspend_note">Automaticky pozastaví na pozadí a obnoví při zobrazení. Manuálně čeká na Obnovit. Nikdy běh nezastavuje.</string>
     <string name="mode_startup">Spouštění</string>
     <string name="mode_steam_startup">Spustit Steam s DroidDeck</string>

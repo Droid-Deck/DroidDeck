@@ -287,9 +287,6 @@
     <string name="mode_suspend_steam_note">อัตโนมัติจะหยุดชั่วคราวและดำเนินการต่อเมื่อแสดงผล ดั้งเดิมเตรียม Steam เข้าสู่โหมดพักก่อน กำหนดเองรอการกดดำเนินการต่อ ไม่มีวันทำงานต่อเนื่องตลอด</string>
     <string name="mode_background_downloads">ให้การดาวน์โหลดทำงานต่อไป</string>
     <string name="mode_background_downloads_hint">เลื่อนการหยุดพื้นหลังชั่วคราวออกไปขณะ Steam กำลังดาวน์โหลดอยู่</string>
-    <string name="mode_zram">การบีบอัด zRAM</string>
-    <string name="mode_zram_hint">ระหว่างเล่นเกม หน่วยความจำของไคลเอนต์ Steam จะถูกบีบอัดลง zram ของอุปกรณ์ ทำให้เกมได้ RAM มากขึ้น มีผลเมื่อเริ่ม Steam ครั้งถัดไป</string>
-    <string name="mode_zram_unsupported">ใช้ไม่ได้: อุปกรณ์นี้ไม่มี zram หรือ swap หรือเคอร์เนลเก่ากว่า 5.4</string>
     <string name="mode_suspend_note">อัตโนมัติจะหยุดชั่วคราวเมื่ออยู่ในพื้นหลังและดำเนินการต่อเมื่อแสดงผล กำหนดเองรอการกดดำเนินการต่อ ไม่มีวันทำงานต่อเนื่องตลอด</string>
     <string name="mode_startup">การเริ่มทำงาน</string>
     <string name="mode_steam_startup">เริ่ม Steam พร้อมกับ DroidDeck</string>
