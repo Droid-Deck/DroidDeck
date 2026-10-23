@@ -48,6 +48,8 @@ EPIC_CLIENT = "/usr/local/bin/droiddeck-epic"
 EPIC_CLIENT_CURRENT = ".local/share/droiddeck-epic/current.json"
 EPIC_HANDLED = "DROIDDECK_EPIC_HANDLED"
 CLIENT_TIMEOUT = 150.0
+PREREQ_MARK = ".droiddeck-prereq"
+PREREQ_TIMEOUT = 900.0
 TIMEOUT = 5.0
 STALE_SECONDS = 300
 SERVER_WAIT = 8.0
@@ -371,6 +373,39 @@ def provision_galaxy(compat_data, proton, timeout=90):
         return "service-unavailable"
 
 
+def install_prereq(folder, sidecar, compat_data, proton):
+    extra = sidecar.get("extra")
+    if not isinstance(extra, dict):
+        return "skipped"
+    path = str(extra.get("prereqPath") or "").strip()
+    if not path or not proton or not compat_data:
+        return "skipped"
+    installer = folder / path
+    if not installer.is_file():
+        return "missing"
+    mark = folder / PREREQ_MARK
+    try:
+        if mark.read_text(errors="replace").strip() == path:
+            return "present"
+    except OSError:
+        pass
+    try:
+        run = subprocess.run([proton, "run", "cmd.exe", "/d", "/c", windows_path(str(installer)), "/S"],
+                             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                             stderr=subprocess.DEVNULL, timeout=PREREQ_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        return "timeout"
+    except (OSError, ValueError):
+        return "failed"
+    if run.returncode != 0:
+        return "exit-%d" % run.returncode
+    try:
+        mark.write_text(path)
+    except OSError:
+        pass
+    return "installed"
+
+
 def prepare_gog(sidecar, compat_data, launch_dir):
     if not launch_dir:
         log("gog achievements unavailable: no-channel")
@@ -563,6 +598,7 @@ def main(argv):
                 got = bool(answer.get("code"))
                 log("epic launch id=%s code=%s reason=%s" % (game, "yes" if got else "no", answer.get("reason", "")))
         log("epic prefix=%s %s" % (prefix_id or "?", provision_prefix(compat_data)))
+        log("epic prereq=%s" % install_prereq(folder, sidecar, compat_data, os.environ.get("BL_STORE_PROTON", "")))
     if not cloud_on(sidecar):
         if store in CLOUD_STORES:
             log("cloud %s %s down result=skipped reason=off" % (store, game))
