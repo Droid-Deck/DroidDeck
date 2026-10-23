@@ -470,12 +470,26 @@ def ubisoft_last(folder):
     return " / ".join(lines[-2:])
 
 
-def ubisoft_registry(folder, compat_data, product=None):
+def run_reg_import(proton, table, timeout=60):
+    if not proton or not Path(proton).is_file():
+        return "no-proton"
+    try:
+        run = subprocess.run([proton, "run", "reg.exe", "import", windows_path(str(table))],
+                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=timeout, text=True)
+    except subprocess.TimeoutExpired:
+        return "timeout"
+    except OSError:
+        return "spawn-failed"
+    if run.returncode == 0:
+        return "ok"
+    return "failed=%d %s" % (run.returncode, " ".join((run.stdout or "").split())[-120:])
+
+
+def ubisoft_registry(folder, compat_data, product=None, proton=None):
     """Connect reads HKLM's Installs\\<id>\\InstallDir to tell an installed game from one it still
     has to download, and answers the launch with an install error when it is missing. The import
-    runs inside the game's own launcher .bat: reg run from here nests a second wine into the same
-    prefix, and the two wait for each other. That .bat is rewritten by the app on every launch, so
-    the import lives in a separate hook file the generated .bat calls."""
+    is attempted here first; when that cannot run, the game's own launcher .bat carries it, since
+    that .bat is rewritten by the app on every launch and cannot be edited in place."""
     product = product if product is not None else uplay_product(folder)
     if product is None:
         return "none"
@@ -499,14 +513,17 @@ def ubisoft_registry(folder, compat_data, product=None):
         table.write_bytes(b"\xff\xfe" + text.encode("utf-16-le"))
     except (OSError, UnicodeError):
         return "no-table"
+    imported = run_reg_import(proton, table)
+    if imported == "ok":
+        return "written=%d" % product
     hook = folder / UBISOFT_HOOK
     body = ('@echo off\r\nreg import "%%~dp0%s" > "%%~dp0%s" 2>&1\r\n'
             'echo exit=%%ERRORLEVEL%%>> "%%~dp0%s"\r\n') % (UBISOFT_TABLE, UBISOFT_LOG, UBISOFT_LOG)
     try:
         hook.write_bytes(body.encode("utf-8"))
     except OSError:
-        return "write-failed"
-    return "scheduled=%d" % product
+        return "import-" + imported
+    return "import-%s hook=scheduled" % imported
 
 
 def prepare_gog(sidecar, compat_data, launch_dir):
@@ -666,7 +683,7 @@ def main(argv):
         log("gog registry: " + apply_gog_registry(folder, compat_data, os.environ.get("BL_STORE_PROTON", "")))
     if store == "epic":
         uplay = uplay_product(folder)
-        log("ubisoft install: %s" % ubisoft_registry(folder, compat_data, uplay))
+        log("ubisoft install: %s" % ubisoft_registry(folder, compat_data, uplay, os.environ.get("BL_STORE_PROTON", "")))
         handled = os.environ.get(EPIC_HANDLED) == "1" and (folder / EPIC_ARGS).is_file()
         if not handled:
             drop_stale(folder)
