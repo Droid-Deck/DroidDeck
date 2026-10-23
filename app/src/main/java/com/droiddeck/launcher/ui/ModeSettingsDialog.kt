@@ -301,6 +301,7 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
                     true to stringResource(SessionPrefs.BACK_QAM_THEN_MENU),
                 ), s.backActionsInverted, onPick = a.onBackActionsInverted,
             )
+            PhysicalShortcutRows()
         }
     }
     if (tab == SheetTab.AUDIO && steam) {
