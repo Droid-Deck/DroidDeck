@@ -1,6 +1,8 @@
 import importlib.util
 import gzip
+import hashlib
 import io
+import json
 from pathlib import Path, PureWindowsPath
 import subprocess
 import tarfile
@@ -209,3 +211,15 @@ class RuntimeInputsTest(unittest.TestCase):
         path.write_bytes(b'not a gzip stream')
         with self.assertRaisesRegex(ValueError, 'Invalid desktop removal inventory'):
             runtime.record(self.root)
+
+    def test_stale_qualcomm_binary_is_rejected(self):
+        bridge, binary = b'bridge', b'new gamescope'
+        lock = self.root / 'tools/qualcomm/runtime.json'
+        lock.parent.mkdir(parents=True)
+        lock.write_text(json.dumps({'sha256': hashlib.sha256(bridge).hexdigest(),
+                                    'gamescope': {'member_sha256': hashlib.sha256(binary).hexdigest()}}))
+        apk = self.current_apk(self.root / 'qualcomm.apk', {
+            'assets/qualcomm/runtime.tzst': bridge,
+            'assets/qualcomm/gamescope': b'old gamescope'})
+        with self.assertRaisesRegex(ValueError, 'stale Qualcomm runtime input'):
+            runtime.check_apk(apk, self.root)

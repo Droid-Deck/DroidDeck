@@ -79,6 +79,7 @@ def sourceCommit = providers.environmentVariable('DROIDDECK_SOURCE_COMMIT').getO
     ?: providers.environmentVariable('GITHUB_SHA').getOrNull() ?: gitValue(['rev-parse', 'HEAD']) ?: ''
 def prNumber = (providers.environmentVariable('DROIDDECK_PR_NUMBER').getOrNull() ?: '0').with { it.isInteger() ? it : '0' }
 def ciBuild = providers.environmentVariable('GITHUB_ACTIONS').getOrNull() == 'true'
+if (project.hasProperty('reuseInstalledRuntime')) throw new GradleException('All APKs require prepared Linux runtime packages; runtime reuse is not allowed')
 def releaseSigner = rootProject.file('keystore/release-signer.sha256').text.trim()
 def commitTime = (gitValue(['show', '-s', '--format=%ct', '--end-of-options', sourceCommit]) ?: '0').with { it.isLong() ? it : '0' }
 def desktopKde = rootProject.file('tools/desktop-kde/release.env').readLines()
@@ -254,6 +255,16 @@ def stageSessionScripts = tasks.register('stageSessionScripts', Copy) {
     from(rootProject.file('tools/linuxfs/overlay')) {
         include 'usr/local/bin/droiddeck-*', 'usr/local/bin/steam-compatibility', 'usr/bin/**'
     }
+    from(rootProject.file('tools/linuxfs/desktop')) {
+        include 'droiddeck-gpu', 'droiddeck-desktop', 'droiddeck-desktop-gpu', 'kwin_wayland_wrapper'
+        into 'usr/local/bin'
+    }
+    from(rootProject.file('tools/linuxfs/desktop/firefox-droiddeck.js')) {
+        into 'usr/lib/firefox/defaults/pref'
+        rename { 'droiddeck.js' }
+    }
+    from(rootProject.file('tools/linuxfs/desktop/droiddeck-clipboard.desktop')) { into 'etc/xdg/autostart' }
+    from(rootProject.file('tools/mangoapp/mangoapp')) { into 'usr/local/bin' }
     into(layout.projectDirectory.dir('src/main/assets/linuxfs'))
 }
 tasks.named('preBuild').configure { dependsOn(stageSessionScripts) }
@@ -283,7 +294,19 @@ def verifyRuntimeInputs = tasks.register('verifyRuntimeInputs', Exec) {
     commandLine pythonExecutable, 'tools/release/runtime_inputs.py', 'verify'
 }
 tasks.configureEach { task ->
-    if (task.name in ['packageDebug', 'packageRelease']) task.dependsOn(verifyRuntimeInputs)
+    if (task.name == 'packageRelease') {
+        task.dependsOn(verifyRuntimeInputs)
+    }
+    if (task.name == 'packageDebug') task.dependsOn(verifyRuntimeInputs)
+}
+
+['Debug', 'Release'].each { variant ->
+    def verifyApk = tasks.register("verify${variant}PackagedRuntime", Exec) {
+        workingDir rootProject.projectDir
+        commandLine pythonExecutable, 'tools/release/runtime_inputs.py', 'apk',
+            layout.buildDirectory.file("outputs/apk/${variant.toLowerCase()}/app-${variant.toLowerCase()}.apk").get().asFile.absolutePath
+    }
+    tasks.matching { it.name == "assemble${variant}" }.configureEach { finalizedBy(verifyApk) }
 }
 
 def rustCrateDir = layout.projectDirectory.dir('src/main/rust/stores')
