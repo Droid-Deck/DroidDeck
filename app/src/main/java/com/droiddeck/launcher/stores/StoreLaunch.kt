@@ -11,6 +11,7 @@ object StoreLaunch {
     const val LAUNCHER = ".droiddeck-launch.bat"
     const val EPIC_CODE = ".droiddeck-epic-code"
     const val EPIC_ARGS = ".droiddeck-epic-args"
+    const val REGISTRY_HOOK = ".droiddeck-registry.bat"
 
     fun writeLauncher(folder: File, sidecar: StoreGameSidecar): StoreGameSidecar {
         val needs = sidecar.args.isNotEmpty() || sidecar.env.isNotEmpty() || sidecar.store == Store.EPIC
@@ -32,6 +33,7 @@ object StoreLaunch {
         val args = sidecar.args.joinToString(" ") { quoteArg(it) }
         val run = "\"%~dp0$exe\"" + (if (args.isNotEmpty()) " $args" else "")
         if (sidecar.store == Store.EPIC) {
+            lines += "if exist \"%~dp0$REGISTRY_HOOK\" call \"%~dp0$REGISTRY_HOOK\""
             lines += "if exist \"%~dp0$EPIC_ARGS\" goto client"
             lines += "set \"$CODE_VAR=\""
             lines += "if exist \"%~dp0$EPIC_CODE\" set /p $CODE_VAR=<\"%~dp0$EPIC_CODE\""
