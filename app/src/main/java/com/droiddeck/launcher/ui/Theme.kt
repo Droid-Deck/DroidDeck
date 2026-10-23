@@ -95,7 +95,7 @@ object Themes {
     /** The theme the person chose, with the custom colours read first; for code that is not in a composition. */
     fun current(context: Context): Palette {
         val id = SessionPrefs.theme(context)
-        if (id == GRADIENT) loadGradient(context)
+        if (id == GRADIENT || id == INNER_GAMER) loadGradient(context)
         return byId(id)
     }
 
