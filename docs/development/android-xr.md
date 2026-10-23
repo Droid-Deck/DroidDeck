@@ -59,7 +59,7 @@ The guest display timing can follow fresh OpenXR display timing. Submission freq
 
 ## Scope and validation
 
-This change includes the shared runtime, Android entry, hand/skeleton and gamepad bridge, packaging inputs, host tests and main-app integration checks. Device-specific GPU drivers, per-chip render scales, scheduling-priority experiments and local game fixes are excluded.
+This change includes the shared runtime, Android entry, hand/skeleton and gamepad bridge, packaging inputs, host tests and Linux guest checks. Device-specific GPU drivers, per-chip render scales, scheduling-priority experiments and local game fixes are excluded.
 
 Host contracts, JVM checks, main-app compilation and selected Android input tests have passed locally. Earlier hardware tests observed SteamVR stereo frames and gamepad operation, but the current upstream-based source has not completed a fresh end-to-end headset regression. Quest controller behavior, skeletal input in applications, hand orientation/drag/menu recall and sustained frame stability still need testing.
 

@@ -75,4 +75,4 @@ The native route needs ARM64 cross compilers and Vulkan headers. Its build scrip
 
 ## CI
 
-The Shared OpenXR bridge workflow runs host contracts, Linux guest tests and main-app Java/native compilation with selected input tests. Android SDK setup explicitly installs platform-tools, avoiding the obsolete tools package. Passing these checks does not replace hardware regression.
+The Shared OpenXR bridge workflow runs host contracts and Linux guest tests. The existing Build APK workflow compiles and tests the main application with its prepared runtime assets. Passing these checks does not replace hardware regression.
