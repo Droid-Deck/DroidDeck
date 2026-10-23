@@ -19,6 +19,7 @@ object WinComponentNames {
         "K-Lite" to "K-Lite Codec Pack", "VulkanRT" to "Vulkan Runtime", "ffdshow" to "ffdshow codecs",
         "lavfilters702" to "LAV Filters 0.70.2", "lavfilters741" to "LAV Filters 0.74.1", "quicktime72" to "QuickTime 7.2",
         "cjkfonts" to "CJK fonts", "jet40" to "Jet 4.0 database", "mdac28" to "MDAC 2.8", "wsh57" to "Windows Script Host 5.7",
+        "trebuchet" to "Trebuchet MS fonts", "verdana" to "Verdana fonts",
         "riched20" to "RichEdit 2.0", "msftedit" to "RichEdit 4.1 (msftedit)", "sqlite3" to "SQLite 3",
         "win7" to "Windows 7 mode", "winXP" to "Windows XP mode", "gmdls" to "General MIDI sounds (gm.dls)",
     )

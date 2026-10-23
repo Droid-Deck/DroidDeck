@@ -1,6 +1,21 @@
 name: Sign APKs
 
 on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: Successful APK build run on wallentx/powervr
+        required: true
+        type: string
+      expected_sha:
+        description: Full source commit of that build
+        required: true
+        type: string
+      variants:
+        description: JSON array of package variants to sign
+        required: false
+        type: string
+        default: '["standard"]'
   workflow_call:
     inputs:
       environment:
@@ -29,17 +44,44 @@ permissions:
 jobs:
   sign:
     name: sign ${{ matrix.variant }}
+    if: >-
+      inputs.environment != '' ||
+      (github.repository == 'wallentx/DroidDeck' &&
+       github.ref == 'refs/heads/wallentx/powervr' && github.event_name == 'workflow_dispatch' &&
+       inputs.expected_sha != '')
     runs-on: ubuntu-24.04
     timeout-minutes: 15
-    environment: ${{ inputs.environment }}
+    environment: ${{ inputs.environment || 'signing-main' }}
     strategy:
       fail-fast: false
       matrix:
-        variant: ${{ fromJSON(inputs.variants) }}
+        variant: ${{ fromJSON(inputs.variants || '["standard"]') }}
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+
+      - name: Verify the manual fork build
+        if: inputs.expected_sha != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN: ${{ inputs.run_id }}
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$RUN" =~ ^[0-9]+$ && "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN" |
+            jq -e --arg repo "$GITHUB_REPOSITORY" --arg sha "$EXPECTED_SHA" --arg branch "$GITHUB_REF_NAME" '
+              .conclusion == "success" and .status == "completed" and
+              .event == "workflow_dispatch" and .path == ".github/workflows/build.yml" and
+              .head_repository.full_name == $repo and .repository.full_name == $repo and
+              .head_sha == $sha and .head_branch == $branch' >/dev/null
+          gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/actions/runs/$RUN/jobs?per_page=100" |
+            jq -e '[.[].jobs[] | select(.name == "Build APK" and .conclusion == "success")] | length == 1' >/dev/null
+          for pair in "65e6a93567ea2c42a9c274cd8ba63822cc520777...$EXPECTED_SHA" "$EXPECTED_SHA...$GITHUB_SHA"; do
+            gh api "repos/$GITHUB_REPOSITORY/compare/$pair" |
+              jq -e '.status == "ahead" or .status == "identical"' >/dev/null
+          done
 
       - name: The apk (this run's build)
         if: inputs.run_id == ''
@@ -55,16 +97,31 @@ jobs:
           RUN: ${{ inputs.run_id }}
         run: gh run download "$RUN" -R "$GITHUB_REPOSITORY" -n droiddeck-apk -D in
 
+      - name: Verify the manual fork artifact version
+        if: inputs.expected_sha != ''
+        run: |
+          set -euo pipefail
+          apks=(in/*.apk)
+          [ ${#apks[@]} = 1 ] && [ -f "${apks[0]}" ]
+          tools=$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n1)
+          "$tools/aapt" dump badging "${apks[0]}" > "$RUNNER_TEMP/version-badging.txt"
+          grep -qF "package: name='com.droiddeck.launcher' versionCode='17' versionName='0.5.0-wallentx.4'" \
+            "$RUNNER_TEMP/version-badging.txt"
+
       - name: Sign
         env:
           RELEASE_KEYSTORE_B64: ${{ secrets.RELEASE_KEYSTORE_B64 }}
           RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
           RELEASE_KEY_ALIAS: droiddeck
-          ENVIRONMENT: ${{ inputs.environment }}
+          ENVIRONMENT: ${{ inputs.environment || 'signing-main' }}
           VARIANT: ${{ matrix.variant }}
-          LABEL: ${{ inputs.label }}
+          LABEL: ${{ inputs.expected_sha != '' && '0.5.0-wallentx.4' || inputs.label }}
+          MANUAL_FORK: ${{ inputs.expected_sha != '' }}
         run: |
           set -euo pipefail
+          if [ "$MANUAL_FORK" = true ]; then
+            export RELEASE_SIGNER_SHA256=80465aadce5c34a1d4f71ee4bd8cf7bcce64b5e7836e599f98d0b4f110e210c8
+          fi
           if [ -z "$RELEASE_KEYSTORE_B64" ]; then
             echo "::error::environment '$ENVIRONMENT' has no signing key: run tools/release/make-release-key.sh once"
             exit 1
@@ -90,6 +147,6 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: ${{ inputs.artifact }}-${{ matrix.variant }}
+          name: ${{ inputs.artifact || 'droiddeck-signed' }}-${{ matrix.variant }}
           path: out/*
           if-no-files-found: error

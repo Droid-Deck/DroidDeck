@@ -1,0 +1,56 @@
+diff --git a/hybris/vulkan/compat/spirv_clip.c b/hybris/vulkan/compat/spirv_clip.c
+--- a/hybris/vulkan/compat/spirv_clip.c
++++ b/hybris/vulkan/compat/spirv_clip.c
+@@ -256,8 +256,12 @@
+         !find_clip(code, words_n, ids, bound, &var, &member, &count, &array))
+         goto done;
+     if (whole_struct_use(code, words_n, var) && member != 0xffffffffu) goto done;
+-    ptr = alloc_id(&bound);
+-    new_var = alloc_id(&bound);
++    /* A direct ClipDistance array can become an ordinary output in place.
++     * Replacing it leaves an orphan interface when conservative cleanup skips
++     * extension-bearing modules, and misses whole-array stores. */
++    int direct = member == 0xffffffffu;
++    ptr = direct ? 0 : alloc_id(&bound);
++    new_var = direct ? var : alloc_id(&bound);
+     if (!grow(&out, words_n + 32, allocator)) { status = VK_ERROR_OUT_OF_HOST_MEMORY; goto done; }
+     memcpy(out.w, code, 20);
+     out.n = 5;
+@@ -272,13 +276,13 @@
+         if (!n || n > words_n - at) { status = VK_ERROR_UNKNOWN; goto done; }
+         if (op == 17 && n == 2 && (p[1] == 32 || p[1] == 7)) { at += n; continue; }
+         if (op == 71 && n == 4 && p[2] == 11 && (p[3] == 3 || p[3] == 4)) { at += n; continue; }
+-        if (!deco_done && op != 17 && op != 11 && op != 14 && op != 15 && op != 16 &&
++        if (!deco_done && op != 17 && op != 11 && op != 14 && op != 15 && op != 16 && op != 331 &&
+             op != 71 && op != 72 && op != 6 && op != 5 && op != 7 && op != 8 && op != 10 &&
+-            op != 3 && op != 4) {
++            op != 2 && op != 3 && op != 4 && op != 330) {
+             if (!emit_ins(&out, 71, 4, dec, allocator)) { status = VK_ERROR_OUT_OF_HOST_MEMORY; goto done; }
+             deco_done = 1;
+         }
+-        if (op == 15) {
++        if (op == 15 && !direct) {
+             if (n + 1 > 32) { status = VK_ERROR_UNKNOWN; goto done; }
+             memcpy(copy, p + 1, (n - 1) * sizeof(uint32_t));
+             copy[n - 1] = new_var;
+@@ -286,7 +290,7 @@
+             at += n;
+             continue;
+         }
+-        if (op == 54 && !globals_done) {
++        if (op == 54 && !globals_done && !direct) {
+             uint32_t ins[3] = {ptr, 3, array};
+             uint32_t var_ins[3] = {ptr, new_var, 3};
+             if (!emit_ins(&out, 32, 4, ins, allocator) ||
+@@ -483,9 +487,9 @@
+         const uint32_t *p = code + at;
+         uint32_t n = p[0] >> 16, op = p[0] & 65535;
+         if (!n || n > words_n - at) { status = VK_ERROR_UNKNOWN; goto done; }
+-        if (!deco_done && op != 17 && op != 11 && op != 14 && op != 15 && op != 16 &&
++        if (!deco_done && op != 17 && op != 11 && op != 14 && op != 15 && op != 16 && op != 331 &&
+             op != 71 && op != 72 && op != 6 && op != 5 && op != 7 && op != 8 && op != 10 &&
+-            op != 3 && op != 4) {
++            op != 2 && op != 3 && op != 4 && op != 330) {
+             if (!emit_ins(&out, 71, 4, dec, allocator)) { status = VK_ERROR_OUT_OF_HOST_MEMORY; goto done; }
+             deco_done = 1;
+         }

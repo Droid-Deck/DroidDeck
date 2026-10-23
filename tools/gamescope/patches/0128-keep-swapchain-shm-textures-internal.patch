@@ -1,0 +1,15 @@
+diff --git a/src/rendervulkan.cpp b/src/rendervulkan.cpp
+--- a/src/rendervulkan.cpp
++++ b/src/rendervulkan.cpp
+@@ -4966,7 +4966,10 @@
+ 	CVulkanTexture::createFlags texCreateFlags;
+ 	texCreateFlags.bSampled = true;
+ 	texCreateFlags.bTransferDst = true;
+-	texCreateFlags.bFlippable = true;
++	// Swapchain backends sample this synchronous SHM upload locally. They never
++	// scan it out or forward its DMA-BUF, so external allocation and ownership
++	// transfers are unnecessary. Keep exportable inputs for the other backends.
++	texCreateFlags.bFlippable = !GetBackend()->UsesVulkanSwapchain();
+ 	if ( pTex->BInit( width, height, 1u, drmFormat, texCreateFlags, nullptr, 0, 0, nullptr, pBackendFb ) == false )
+ 		return nullptr;
+ 

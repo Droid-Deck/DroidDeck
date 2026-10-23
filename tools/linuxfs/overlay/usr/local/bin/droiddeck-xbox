@@ -102,7 +102,7 @@ def bridge(upstream):
     return server.getsockname()[1], key.decode('ascii'), close
 
 
-def wine(argv, source_env=None):
+def wine(argv, source_env=None, game_runner=None):
     source_env = os.environ if source_env is None else source_env
     with open(source_env['DROIDDECK_XBOX_COMMAND_FILE'], encoding='utf-8') as file:
         command = json.load(file)
@@ -114,9 +114,11 @@ def wine(argv, source_env=None):
     prefix = Path(source_env['STEAM_COMPAT_DATA_PATH']) / 'pfx'
     prefix.parent.mkdir(parents=True, exist_ok=True)
     if not (prefix / 'system.reg').is_file():
-        result = subprocess.run([command[0], 'run', 'cmd', '/c', 'exit', '0'], stdout=sys.stderr, env=env)
-        if result.returncode:
-            return result.returncode
+        initialize = [command[0], 'run', 'cmd', '/c', 'exit', '0']
+        result = (game_runner(initialize, env) if game_runner is not None else
+                  subprocess.run(initialize, stdout=sys.stderr, env=env).returncode)
+        if result:
+            return result
     system = prefix / 'drive_c/windows/system32'
     system.mkdir(parents=True, exist_ok=True)
     for name in DLLS:
@@ -126,7 +128,8 @@ def wine(argv, source_env=None):
         shutil.copyfile(RUNTIME / 'windows' / name, target)
     overrides = ';'.join(name[:-4] + '=n' for name in DLLS if name != 'libnghttp2.dll')
     env['WINEDLLOVERRIDES'] = overrides + ';' + env.get('WINEDLLOVERRIDES', '')
-    return subprocess.call([*command[:2], argv[0], *command[3:]], env=env)
+    launch = [*command[:2], argv[0], *command[3:]]
+    return game_runner(launch, env) if game_runner is not None else subprocess.call(launch, env=env)
 
 
 def renew_lease(ask, channel, product, lease, stopped):
@@ -136,7 +139,7 @@ def renew_lease(ask, channel, product, lease, stopped):
             return
 
 
-def launch(command, env):
+def launch(command, env, game_runner=None):
     if len(command) < 3 or command[1] != 'waitforexitandrun' or env.get('DROIDDECK_XBOX_ACTIVE') == '1':
         return None
     try:
@@ -186,7 +189,9 @@ def launch(command, env):
                         pass
             if roots:
                 owned_env['XODUS_CONTENT_ROOTS'] = ';'.join(roots)
-            return wine([reply['exe']], owned_env)
+            if game_runner is None:
+                return wine([reply['exe']], owned_env)
+            return wine([reply['exe']], owned_env, game_runner)
     finally:
         stopped.set()
         close()

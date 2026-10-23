@@ -1,0 +1,400 @@
+diff --git a/src/d3d11/d3d11_context.cpp b/src/d3d11/d3d11_context.cpp
+index 487bcf5..064f2d7 100644
+--- a/src/d3d11/d3d11_context.cpp
++++ b/src/d3d11/d3d11_context.cpp
+@@ -2482,6 +2482,11 @@ namespace dxvk {
+         return;
+     }
+ 
++    if (NumViewports > 1u && !m_device->features().core.features.multiViewport) {
++      m_device->notifyUnsupportedOperation("RSSetViewports requires multiViewport");
++      return;
++    }
++
+     bool dirty = m_state.rs.numViewports != NumViewports;
+     m_state.rs.numViewports = NumViewports;
+ 
+diff --git a/src/d3d11/d3d11_device.cpp b/src/d3d11/d3d11_device.cpp
+index 97df7a0..77b6e5e 100644
+--- a/src/d3d11/d3d11_device.cpp
++++ b/src/d3d11/d3d11_device.cpp
+@@ -1096,6 +1096,12 @@ namespace dxvk {
+     
+     if (FAILED(D3D11RasterizerState::NormalizeDesc(&desc)))
+       return E_INVALIDARG;
++
++    if (desc.FillMode == D3D11_FILL_WIREFRAME
++     && !m_dxvkDevice->features().core.features.fillModeNonSolid) {
++      Logger::err("D3D11: Wireframe requires unavailable fillModeNonSolid");
++      return E_INVALIDARG;
++    }
+     
+     if (!ppRasterizerState)
+       return S_FALSE;
+@@ -1117,6 +1123,12 @@ namespace dxvk {
+     
+     if (FAILED(D3D11RasterizerState::NormalizeDesc(&desc)))
+       return E_INVALIDARG;
++
++    if (desc.FillMode == D3D11_FILL_WIREFRAME
++     && !m_dxvkDevice->features().core.features.fillModeNonSolid) {
++      Logger::err("D3D11: Wireframe requires unavailable fillModeNonSolid");
++      return E_INVALIDARG;
++    }
+     
+     if (!ppRasterizerState)
+       return S_FALSE;
+@@ -1139,6 +1151,12 @@ namespace dxvk {
+     if (FAILED(D3D11RasterizerState::NormalizeDesc(&desc)))
+       return E_INVALIDARG;
+ 
++    if (desc.FillMode == D3D11_FILL_WIREFRAME
++     && !m_dxvkDevice->features().core.features.fillModeNonSolid) {
++      Logger::err("D3D11: Wireframe requires unavailable fillModeNonSolid");
++      return E_INVALIDARG;
++    }
++
+     if (desc.ConservativeRaster != D3D11_CONSERVATIVE_RASTERIZATION_MODE_OFF
+      && !m_deviceFeatures.GetConservativeRasterizationTier())
+       return E_INVALIDARG;
+@@ -1820,6 +1838,9 @@ namespace dxvk {
+   
+   
+   HRESULT STDMETHODCALLTYPE D3D11Device::GetDeviceRemovedReason() {
++    if (m_dxvkDevice->hasUnsupportedOperation())
++      return DXGI_ERROR_DEVICE_REMOVED;
++
+     VkResult status = m_dxvkDevice->getDeviceStatus();
+ 
+     switch (status) {
+diff --git a/src/d3d11/d3d11_features.cpp b/src/d3d11/d3d11_features.cpp
+index 7fb0cfa..3de86ab 100644
+--- a/src/d3d11/d3d11_features.cpp
++++ b/src/d3d11/d3d11_features.cpp
+@@ -88,6 +88,7 @@ namespace dxvk {
+     // More D3D11.3 options
+     if (FeatureLevel >= D3D_FEATURE_LEVEL_11_0) {
+       m_d3d11Options3.VPAndRTArrayIndexFromAnyShaderFeedingRasterizer =
++        features.core.features.multiViewport &&
+         features.vk12.shaderOutputViewportIndex &&
+         features.vk12.shaderOutputLayer;
+     }
+diff --git a/src/d3d11/d3d11_shader.cpp b/src/d3d11/d3d11_shader.cpp
+index e50d360..96f4ab3 100644
+--- a/src/d3d11/d3d11_shader.cpp
++++ b/src/d3d11/d3d11_shader.cpp
+@@ -228,6 +228,13 @@ namespace dxvk {
+       GatherInterefaceInfo(pLinkage, pShaderBytecode, BytecodeLength);
+ 
+     CreateIrShader(pDevice, ShaderKey, ModuleInfo, pShaderBytecode, BytecodeLength, Icb);
++
++    // createCachedShader returns an IR shader, whether loaded or converted.
++    // Validate before registering any native pipeline compilation. The caller
++    // translates DxvkError into E_INVALIDARG for every Create*Shader entry point.
++    static_cast<DxvkIrShader*>(m_shader.ptr())->validateBuiltInFeatures(
++      pDevice->GetDXVKDevice()->features().core.features);
++
+     pDevice->GetDXVKDevice()->registerShader(m_shader);
+   }
+ 
+diff --git a/src/d3d11/d3d11_swapchain.cpp b/src/d3d11/d3d11_swapchain.cpp
+index d61d447..4b7bac5 100644
+--- a/src/d3d11/d3d11_swapchain.cpp
++++ b/src/d3d11/d3d11_swapchain.cpp
+@@ -259,7 +259,9 @@ namespace dxvk {
+     const DXGI_PRESENT_PARAMETERS*  pPresentParameters) {
+     HRESULT hr = S_OK;
+ 
+-    if (m_device->getDeviceStatus() != VK_SUCCESS)
++    if (m_device->hasUnsupportedOperation())
++      hr = DXGI_ERROR_DEVICE_REMOVED;
++    else if (m_device->getDeviceStatus() != VK_SUCCESS)
+       hr = DXGI_ERROR_DEVICE_RESET;
+ 
+     if (PresentFlags & DXGI_PRESENT_TEST) {
+diff --git a/src/d3d9/d3d9_device.cpp b/src/d3d9/d3d9_device.cpp
+index 9b72bb2..c50c12b 100644
+--- a/src/d3d9/d3d9_device.cpp
++++ b/src/d3d9/d3d9_device.cpp
+@@ -223,6 +223,9 @@ namespace dxvk {
+   HRESULT STDMETHODCALLTYPE D3D9DeviceEx::TestCooperativeLevel() {
+     D3D9DeviceLock lock = LockDevice();
+ 
++    if (m_dxvkDevice->hasUnsupportedOperation())
++      return D3DERR_DEVICELOST;
++
+     // Equivelant of D3D11/DXGI present tests. We can always present.
+     if (likely(m_deviceLostState == D3D9DeviceLostState::Ok)) {
+       return D3D_OK;
+@@ -448,6 +451,9 @@ namespace dxvk {
+   HRESULT STDMETHODCALLTYPE D3D9DeviceEx::Reset(D3DPRESENT_PARAMETERS* pPresentationParameters) {
+     D3D9DeviceLock lock = LockDevice();
+ 
++    if (m_dxvkDevice->hasUnsupportedOperation())
++      return D3DERR_DEVICELOST;
++
+     Logger::info("Device reset");
+     m_deviceLostState = D3D9DeviceLostState::Ok;
+ 
+@@ -4225,6 +4231,9 @@ namespace dxvk {
+ 
+ 
+   HRESULT STDMETHODCALLTYPE D3D9DeviceEx::CheckDeviceState(HWND hDestinationWindow) {
++    if (m_dxvkDevice->hasUnsupportedOperation())
++      return D3DERR_DEVICELOST;
++
+     static bool s_errorShown = false;
+ 
+     if (!std::exchange(s_errorShown, true))
+@@ -4487,6 +4496,9 @@ namespace dxvk {
+           D3DDISPLAYMODEEX*      pFullscreenDisplayMode) {
+     D3D9DeviceLock lock = LockDevice();
+ 
++    if (m_dxvkDevice->hasUnsupportedOperation())
++      return D3DERR_DEVICELOST;
++
+     HRESULT hr;
+     if (likely(m_deviceType != D3DDEVTYPE_NULLREF)) {
+       hr = m_parent->ValidatePresentationParametersEx(pPresentationParameters, pFullscreenDisplayMode);
+diff --git a/src/d3d9/d3d9_device.h b/src/d3d9/d3d9_device.h
+index 83d72c2..3ba2acd 100644
+--- a/src/d3d9/d3d9_device.h
++++ b/src/d3d9/d3d9_device.h
+@@ -1137,7 +1137,8 @@ namespace dxvk {
+ 
+     // Device Lost
+     bool IsDeviceLost() const {
+-      return m_deviceLostState != D3D9DeviceLostState::Ok;
++      return m_dxvkDevice->hasUnsupportedOperation()
++          || m_deviceLostState != D3D9DeviceLostState::Ok;
+     }
+ 
+     void NotifyFullscreen(HWND window, bool fullscreen);
+diff --git a/src/dxvk/dxvk_context.cpp b/src/dxvk/dxvk_context.cpp
+index 5774974..3d555e8 100644
+--- a/src/dxvk/dxvk_context.cpp
++++ b/src/dxvk/dxvk_context.cpp
+@@ -2791,6 +2791,11 @@ namespace dxvk {
+   void DxvkContext::setViewports(
+           uint32_t            viewportCount,
+     const DxvkViewport*       viewports) {
++    if (viewportCount > 1u && !m_device->features().core.features.multiViewport) {
++      m_device->notifyUnsupportedOperation("Multiple Vulkan viewports");
++      return;
++    }
++
+     for (uint32_t i = 0; i < viewportCount; i++) {
+       m_state.vp.viewports[i] = viewports[i].viewport;
+       m_state.vp.scissorRects[i] = viewports[i].scissor;
+@@ -2935,6 +2940,12 @@ namespace dxvk {
+ 
+ 
+   void DxvkContext::setRasterizerState(const DxvkRasterizerState& rs) {
++    if (rs.polygonMode() != VK_POLYGON_MODE_FILL
++     && !m_device->features().core.features.fillModeNonSolid) {
++      m_device->notifyUnsupportedOperation("Non-solid Vulkan polygon mode");
++      return;
++    }
++
+     VkCullModeFlags cullMode = rs.cullMode();
+     VkFrontFace frontFace = rs.frontFace();
+ 
+@@ -8243,6 +8254,9 @@ namespace dxvk {
+ 
+   template<bool Indirect, bool Resolve>
+   bool DxvkContext::commitComputeState() {
++    if (unlikely(m_device->hasUnsupportedOperation()))
++      return false;
++
+     this->endRenderPass(false);
+ 
+     if (!m_flags.test(DxvkContextFlag::CpComputePassActive))
+@@ -8284,6 +8298,9 @@ namespace dxvk {
+   
+   template<bool Indexed, bool Indirect, bool Resolve>
+   bool DxvkContext::commitGraphicsState() {
++    if (unlikely(m_device->hasUnsupportedOperation()))
++      return false;
++
+     if (m_flags.test(DxvkContextFlag::GpDirtyPipeline)) {
+       if (unlikely(!this->updateGraphicsPipeline()))
+         return false;
+diff --git a/src/dxvk/dxvk_device.h b/src/dxvk/dxvk_device.h
+index 7fb070d..c76f31f 100644
+--- a/src/dxvk/dxvk_device.h
++++ b/src/dxvk/dxvk_device.h
+@@ -264,6 +264,22 @@ namespace dxvk {
+       return m_submissionQueue.getLastError();
+     }
+ 
++    /**
++     * \brief Permanently rejects unsupported Direct3D operations
++     *
++     * This is separate from native device loss: already submitted commands
++     * must still finish before their resources are released. Front-ends
++     * report a removed device and contexts suppress subsequent draws.
++     */
++    void notifyUnsupportedOperation(const char* operation) {
++      if (!m_unsupportedOperation.exchange(true))
++        Logger::err(str::format("DXVK: Unsupported operation; Direct3D device removed: ", operation));
++    }
++
++    bool hasUnsupportedOperation() const {
++      return m_unsupportedOperation.load();
++    }
++
+     /**
+      * \brief Queries mapped image subresource layout
+      *
+@@ -774,6 +790,8 @@ namespace dxvk {
+ 
+     DxvkRecycler<DxvkCommandList, 16> m_recycledCommandLists;
+ 
++    std::atomic<bool>            m_unsupportedOperation = { false };
++
+     DxvkSubmissionQueue         m_submissionQueue;
+ 
+     Rc<DxvkShaderCache>         m_shaderCache;
+diff --git a/src/dxvk/dxvk_device_info.cpp b/src/dxvk/dxvk_device_info.cpp
+index 8e9a76e..7c3215e 100644
+--- a/src/dxvk/dxvk_device_info.cpp
++++ b/src/dxvk/dxvk_device_info.cpp
+@@ -1,5 +1,6 @@
+ #include <algorithm>
++#include <cstring>
+ #include <iomanip>
+ #include <set>
+ #include <sstream>
+ #include <type_traits>
+@@ -129,6 +130,29 @@ namespace dxvk {
+         m_hasBcFormats = false;
+     }
+ 
++    // Deliberately limited to the native driver measured on the Pixel Mali
++    // device. Never invent support or enable unsupported Vulkan features.
++    const auto& properties = m_properties.core.properties;
++
++    // Pinned Wine e60892c routes Vulkan IDs through a UINT16 PCI structure,
++    // truncating the native 0xb8a20000 device ID to zero. Keep that path
++    // restricted to the exact driver and device name measured here.
++    bool matchesDevice = properties.deviceID == 0xb8a20000
++      || (properties.deviceID == 0
++       && !std::strcmp(properties.deviceName, "Mali-G715"));
++
++    m_maliCompat = env::getEnvVar("DXVK_MALI_COMPAT") == "1"
++      && properties.vendorID == 0x13b5
++      && matchesDevice
++      && properties.driverVersion == 0x0d803000;
++
++    if (m_maliCompat) {
++      Logger::warn("DXVK: EXPERIMENTAL Mali compatibility profile enabled; incomplete Direct3D support");
++      if (!m_featuresSupported.extRobustness2.robustBufferAccess2)
++        Logger::warn("DXVK: Mali uses core robustBufferAccess only; full Direct3D out-of-bounds semantics are not guaranteed");
++      Logger::warn("DXVK: Unsupported wireframe, multiple viewports and shader built-ins are rejected; game compatibility is not guaranteed");
++    }
++
+     disableUnusedFeatures(instance, safeMode);
+ 
+     enableFeaturesAndExtensions();
+@@ -863,7 +887,7 @@ namespace dxvk {
+       ENABLE_FEATURE(core.features, depthClamp, true),
+       ENABLE_FEATURE(core.features, drawIndirectFirstInstance, false),
+       ENABLE_FEATURE(core.features, dualSrcBlend, true),
+-      ENABLE_FEATURE(core.features, fillModeNonSolid, true),
++      ENABLE_FEATURE(core.features, fillModeNonSolid, !m_maliCompat),
+       ENABLE_FEATURE(core.features, fragmentStoresAndAtomics, true),
+       ENABLE_FEATURE(core.features, fullDrawIndexUint32, true),
+       ENABLE_FEATURE(core.features, geometryShader, true),
+@@ -872,14 +896,14 @@ namespace dxvk {
+       ENABLE_FEATURE(core.features, largePoints, false),
+       ENABLE_FEATURE(core.features, logicOp, false),
+       ENABLE_FEATURE(core.features, multiDrawIndirect, true),
+-      ENABLE_FEATURE(core.features, multiViewport, true),
++      ENABLE_FEATURE(core.features, multiViewport, !m_maliCompat),
+       ENABLE_FEATURE(core.features, occlusionQueryPrecise, true),
+       ENABLE_FEATURE(core.features, pipelineStatisticsQuery, false),
+       ENABLE_FEATURE(core.features, robustBufferAccess, true),
+       ENABLE_FEATURE(core.features, sampleRateShading, true),
+       ENABLE_FEATURE(core.features, samplerAnisotropy, true),
+       ENABLE_FEATURE(core.features, shaderClipDistance, true),
+-      ENABLE_FEATURE(core.features, shaderCullDistance, true),
++      ENABLE_FEATURE(core.features, shaderCullDistance, !m_maliCompat),
+       ENABLE_FEATURE(core.features, shaderFloat64, false),
+       ENABLE_FEATURE(core.features, shaderImageGatherExtended, true),
+       ENABLE_FEATURE(core.features, shaderInt16, true),
+@@ -1025,7 +1049,7 @@ namespace dxvk {
+       ENABLE_EXT_FEATURE(extPresentTiming, presentAtRelativeTime, false),
+ 
+       /* Robustness, all features effectively required for correctness */
+-      ENABLE_EXT_FEATURE(extRobustness2, robustBufferAccess2, true),
++      ENABLE_EXT_FEATURE(extRobustness2, robustBufferAccess2, !m_maliCompat),
+       ENABLE_EXT_FEATURE(extRobustness2, robustImageAccess2, false),
+       ENABLE_EXT_FEATURE(extRobustness2, nullDescriptor, true),
+ 
+diff --git a/src/dxvk/dxvk_device_info.h b/src/dxvk/dxvk_device_info.h
+index 8bbc770..6a2d35b 100644
+--- a/src/dxvk/dxvk_device_info.h
++++ b/src/dxvk/dxvk_device_info.h
+@@ -394,6 +394,7 @@ namespace dxvk {
+ 
+     DxvkDeviceQueueMapping                m_queueMapping = { };
+ 
++    bool                                  m_maliCompat = false;
+     bool                                  m_hasBcFormats = false;
+     bool                                  m_hasMeshShader = false;
+     bool                                  m_hasFmask = false;
+diff --git a/src/dxvk/dxvk_shader_ir.cpp b/src/dxvk/dxvk_shader_ir.cpp
+index 4789cd0..95cef1a 100644
+--- a/src/dxvk/dxvk_shader_ir.cpp
++++ b/src/dxvk/dxvk_shader_ir.cpp
+@@ -2019,6 +2019,33 @@ namespace dxvk {
+   }
+ 
+ 
++  void DxvkIrShader::validateBuiltInFeatures(const VkPhysicalDeviceFeatures& features) {
++    if (features.shaderCullDistance && features.multiViewport)
++      return;
++
++    convertIr("validateBuiltInFeatures()");
++
++    dxbc_spv::ir::Builder builder;
++    deserializeIr(builder);
++
++    // Check optimized declarations, including non-rasterized geometry streams
++    // which are intentionally absent from the pipeline linkage I/O metadata.
++    for (auto iter = builder.getDeclarations().first;
++              iter != builder.getDeclarations().second; iter++) {
++      auto opCode = iter->getOpCode();
++      if (opCode != dxbc_spv::ir::OpCode::eDclInputBuiltIn
++       && opCode != dxbc_spv::ir::OpCode::eDclOutputBuiltIn)
++        continue;
++
++      auto builtIn = dxbc_spv::ir::BuiltIn(iter->getOperand(iter->getFirstLiteralOperandIndex()));
++      if (builtIn == dxbc_spv::ir::BuiltIn::eCullDistance && !features.shaderCullDistance)
++        throw DxvkError("D3D11: Shader requires unavailable shaderCullDistance");
++      if (builtIn == dxbc_spv::ir::BuiltIn::eViewportIndex && !features.multiViewport)
++        throw DxvkError("D3D11: Shader requires unavailable multiViewport");
++    }
++  }
++
++
+   SpirvCodeBuffer DxvkIrShader::getCode(
+     const DxvkShaderBindingMap*       bindings,
+     const DxvkShaderLinkage*          linkage) {
+diff --git a/src/dxvk/dxvk_shader_ir.h b/src/dxvk/dxvk_shader_ir.h
+index a97992f..1ad69e5 100644
+--- a/src/dxvk/dxvk_shader_ir.h
++++ b/src/dxvk/dxvk_shader_ir.h
+@@ -143,6 +143,12 @@ namespace dxvk {
+      */
+     void compile();
+ 
++    /**
++     * \brief Rejects unavailable built-ins before native compilation
++     * Includes all geometry streams and cached IR.
++     */
++    void validateBuiltInFeatures(const VkPhysicalDeviceFeatures& features);
++
+     /**
+      * \brief Patches code using given info
+      *

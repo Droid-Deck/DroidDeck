@@ -1,6 +1,9 @@
 package com.droiddeck.launcher.update
 
 import com.droiddeck.launcher.BuildConfig
+import com.droiddeck.launcher.artifact.RepositorySources
+import com.droiddeck.launcher.artifact.GitHubArtifacts
+import com.droiddeck.launcher.R
 import com.droiddeck.launcher.update.AppUpdates.Channel
 import com.droiddeck.launcher.update.AppUpdates.Follow
 import com.droiddeck.launcher.update.AppUpdates.Installed
@@ -8,6 +11,7 @@ import com.droiddeck.launcher.update.AppUpdates.Offer
 import com.droiddeck.launcher.update.AppUpdates.PreviewChange
 import com.droiddeck.launcher.update.AppUpdates.PreviewHistoryKind
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.json.JSONArray
@@ -17,18 +21,20 @@ import org.junit.Assert.fail
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
 import java.io.IOException
+import java.net.HttpURLConnection
 
 @RunWith(RobolectricTestRunner::class)
 class AppUpdatesTest {
-    private fun apk(versionCode: Int = 9) = AppUpdates.Apk(
+    private fun apk(versionCode: Int = 9, signer: String = BuildConfig.RELEASE_SIGNER) = AppUpdates.Apk(
         "DroidDeck.apk",
         "https://github.com/Droid-Deck/DroidDeck-CI/releases/download/t/DroidDeck.apk",
         10,
         "a".repeat(64),
         "com.droiddeck.launcher",
         versionCode,
-        BuildConfig.RELEASE_SIGNER,
+        signer,
     )
 
     private fun release(
@@ -37,6 +43,7 @@ class AppUpdatesTest {
         version: String? = null,
         versionCode: Int = 9,
         withApk: Boolean = true,
+        signer: String = BuildConfig.RELEASE_SIGNER,
     ) = AppUpdates.Release(
         "t",
         "title",
@@ -47,7 +54,7 @@ class AppUpdatesTest {
         versionCode,
         0L,
         "",
-        if (withApk) apk(versionCode) else null,
+        if (withApk) apk(versionCode, signer) else null,
     )
 
     private val stable = release(
@@ -67,7 +74,11 @@ class AppUpdatesTest {
         version: String = "0.2.0",
         versionCode: Int = 9,
         ciBuild: Boolean = true,
-    ) = Installed(commit, pr, version, versionCode, updatable = true, ciBuild = ciBuild)
+        updatable: Boolean = true,
+        signers: Set<String> = if (updatable) setOf(BuildConfig.RELEASE_SIGNER) else emptySet(),
+        lineage: Set<String> = emptySet(),
+    ) = Installed(commit, pr, version, versionCode, updatable, ciBuild = ciBuild,
+        signerDigests = signers, signerLineageDigests = lineage)
 
     private fun change(commit: String, title: String, publishedAt: Long) =
         PreviewChange(commit, title, "Summary for $title", publishedAt)
@@ -133,6 +144,53 @@ class AppUpdatesTest {
     fun aMissingVariantIsBlockedBeforeDownload() {
         val missing = release("ddddddd", withApk = false)
         assertNotNull(AppUpdates.installBlock(missing, me("eeeeeee")))
+    }
+
+    @Test
+    fun signerPreflightBlocksLocalBuildsButDefersTrustedRotationToApkVerification() {
+        val rotated = "0".repeat(64)
+        val candidate = release("ddddddd", signer = rotated)
+        val trusted = me("eeeeeee", signers = setOf(BuildConfig.RELEASE_SIGNER))
+        assertEquals(AppUpdates.SignerCompatibility.NEEDS_APK_LINEAGE,
+            AppUpdates.signerCompatibility(candidate.apk!!, trusted))
+        assertNull(AppUpdates.installBlock(candidate, trusted))
+
+        val local = me("eeeeeee", updatable = false, signers = setOf("f".repeat(64)))
+        assertEquals(AppUpdates.SignerCompatibility.INCOMPATIBLE,
+            AppUpdates.signerCompatibility(candidate.apk!!, local))
+        assertNotNull(AppUpdates.installBlock(candidate, local))
+        val localCandidate = release("ddddddd", signer = "f".repeat(64))
+        assertEquals(AppUpdates.SignerCompatibility.INCOMPATIBLE,
+            AppUpdates.signerCompatibility(localCandidate.apk!!, local))
+        assertNotNull(AppUpdates.installBlock(localCandidate, local))
+    }
+
+    @Test
+    fun installedTrustAcceptsTheEmbeddedSignerInLineageButRejectsASibling() {
+        val root = "1".repeat(64)
+        val embedded = "2".repeat(64)
+        val sibling = "3".repeat(64)
+        assertTrue(AppUpdates.trustedInstalledIdentity(
+            SelfInstaller.VerifiedIdentity(setOf(root), setOf(root, embedded)), embedded,
+        ))
+        assertFalse(AppUpdates.trustedInstalledIdentity(
+            SelfInstaller.VerifiedIdentity(setOf(sibling), setOf(root, sibling)), embedded,
+        ))
+    }
+
+    @Test
+    fun completedSignerVerificationPublishesANewInstalledSnapshot() {
+        val before = AppUpdates.signerRevision
+        val identity = SelfInstaller.VerifiedIdentity(setOf(BuildConfig.RELEASE_SIGNER), emptySet())
+        try {
+            AppUpdates.applyInstalledSignerIdentity(identity, true)
+            val installed = AppUpdates.installed()
+            assertEquals(before + 1, installed.signerRevision)
+            assertTrue(installed.updatable)
+            assertEquals(identity.current, installed.signerDigests)
+        } finally {
+            AppUpdates.applyInstalledSignerIdentity(SelfInstaller.VerifiedIdentity(emptySet(), emptySet()), false)
+        }
     }
 
     @Test
@@ -274,15 +332,149 @@ class AppUpdatesTest {
     }
 
     @Test
-    fun publishedCatalogRejectsAnotherSigner() {
+    fun publishedCatalogRejectsMalformedSigner() {
         try {
             AppUpdates.readPublishedCatalog(
-                publishedCatalog("0".repeat(64)),
+                publishedCatalog("not-a-sha256"),
                 "com.droiddeck.launcher",
                 123L,
             )
             fail("wrong signer should be rejected")
         } catch (_: IOException) {
+        }
+    }
+
+    @Test
+    fun officialCatalogCanDeclareARotatedSignerForApkLineageVerification() {
+        val rotated = "0".repeat(64)
+        val parsed = AppUpdates.readPublishedCatalog(
+            publishedCatalog(rotated),
+            "com.droiddeck.launcher",
+            123L,
+        )
+        val release = parsed.preview!!
+        assertEquals(rotated, release.apk!!.signerSha256)
+        val trusted = me("eeeeeee", signers = setOf(BuildConfig.RELEASE_SIGNER))
+        assertEquals(AppUpdates.SignerCompatibility.NEEDS_APK_LINEAGE,
+            AppUpdates.signerCompatibility(release.apk!!, trusted))
+        assertNull(AppUpdates.installBlock(release, trusted))
+    }
+
+    @Test
+    fun customCatalogIsBoundToTheSelectedRepositoryAndCarriesItsSource() {
+        val raw = publishedCatalog("0".repeat(64))
+            .put("sourceRepo", "wallentx/DroidDeck")
+            .put("ciRepo", "wallentx/DroidDeck-CI")
+        raw.getJSONObject("preview").getJSONObject("apks").getJSONObject("com.droiddeck.launcher")
+            .put("url", "https://github.com/wallentx/DroidDeck-CI/releases/download/main-deadbee/DroidDeck-main-deadbee.apk")
+        val parsed = AppUpdates.readPublishedCatalog(
+            raw, "com.droiddeck.launcher", 123L,
+            expectedSourceRepo = null,
+            expectedCiRepo = "wallentx/DroidDeck-CI",
+            sourceId = "source-1",
+        )
+        assertEquals("source-1", parsed.sourceId)
+        assertEquals("0".repeat(64), parsed.preview!!.apk!!.signerSha256)
+    }
+
+    @Test
+    fun legacyOfficialCacheCannotBecomeACustomSourcesCatalog() {
+        val context = RuntimeEnvironment.getApplication()
+        val official = AppUpdates.sources(context).single()
+        val custom = RepositorySources.source("wallentx/droiddeck-ci")
+        AppUpdates.saveSources(context, listOf(official.copy(hidden = true), custom))
+        context.getSharedPreferences("app_updates", 0).edit()
+            .putString("catalog", AppUpdates.writeCatalog(catalog).toString())
+            .commit()
+        assertNull(AppUpdates.cached(context, custom.id))
+        AppUpdates.saveSources(context, AppUpdates.sources(context).map {
+            if (it.id == official.id) it.copy(hidden = false) else it
+        })
+        assertNull(AppUpdates.cached(context, official.id))
+        assertFalse(context.getSharedPreferences("app_updates", 0).contains("catalog"))
+
+        val main = AppUpdates.saveSources(context, AppUpdates.sources(context).map {
+            if (it.id == official.id) it.copy(catalogBranch = "main") else it
+        }).single { it.id == official.id }
+        context.getSharedPreferences("app_updates", 0).edit()
+            .putString("catalog:${official.id}", AppUpdates.writeCatalog(catalog).toString())
+            .commit()
+        assertNotNull(AppUpdates.cached(context, official.id))
+        assertTrue(context.getSharedPreferences("app_updates", 0).contains(AppUpdates.catalogCacheKey(main)))
+        assertFalse(context.getSharedPreferences("app_updates", 0).contains("catalog:${official.id}"))
+    }
+
+    @Test
+    fun catalogCachesAreIsolatedByBranchAndReuseTheSameSelectionWhenReturning() {
+        val context = RuntimeEnvironment.getApplication()
+        val original = AppUpdates.sources(context).single()
+        val preferences = context.getSharedPreferences("app_updates", 0)
+        preferences.edit().putString(
+            AppUpdates.catalogCacheKey(original), AppUpdates.writeCatalog(catalog).toString(),
+        ).commit()
+        AppUpdates.setFollow(context, Follow(Channel.TEST, 93, original.id))
+
+        val dev = AppUpdates.saveSources(context, listOf(original.copy(catalogBranch = "dev"))).single()
+        assertNull(AppUpdates.cached(context, dev.id))
+        assertEquals(Follow(Channel.TEST, 93, original.id), AppUpdates.follow(context, null))
+        preferences.edit().putString(
+            AppUpdates.catalogCacheKey(dev), AppUpdates.writeCatalog(catalog).toString(),
+        ).commit()
+        assertNotNull(AppUpdates.cached(context, dev.id))
+
+        val restored = AppUpdates.saveSources(context, listOf(dev.copy(catalogBranch = null))).single()
+        assertNotNull(AppUpdates.cached(context, restored.id))
+        assertEquals(Follow(Channel.TEST, 93, original.id), AppUpdates.follow(context, null))
+    }
+
+    @Test
+    fun branchChangeAfterParsingRejectsTheStaleCatalogBeforeCacheCommit() {
+        val context = RuntimeEnvironment.getApplication()
+        val source = AppUpdates.sources(context).single()
+        val preferences = context.getSharedPreferences("app_updates", 0)
+        val previous = AppUpdates.writeCatalog(AppUpdates.Catalog(stable, null, emptyList(), 17L)).toString()
+        preferences.edit().putString(AppUpdates.catalogCacheKey(source), previous).commit()
+        val generation = RepositorySources.generation(context, AppUpdates.SOURCE_SCOPE, AppUpdates.sourceBuiltIns())
+        val dev = AppUpdates.saveSources(context, listOf(source.copy(catalogBranch = "dev"))).single()
+
+        assertTrue(runCatching { AppUpdates.cacheCatalog(context, source, generation, catalog) }.isFailure)
+        assertEquals(previous, preferences.getString(AppUpdates.catalogCacheKey(source), null))
+        assertFalse(preferences.contains(AppUpdates.catalogCacheKey(dev)))
+    }
+
+    @Test
+    fun missingCatalogAndRateLimitReportDifferentErrorsAndPreserveCachedUpdate() {
+        val context = RuntimeEnvironment.getApplication()
+        val source = AppUpdates.saveSources(
+            context, listOf(AppUpdates.sources(context).single().copy(catalogBranch = "dev")),
+        ).single()
+        val cachedJson = AppUpdates.writeCatalog(catalog).toString()
+        val prefs = context.getSharedPreferences("app_updates", 0)
+        prefs.edit().putString(AppUpdates.catalogCacheKey(source), cachedJson).commit()
+        val production = GitHubArtifacts.openConnection
+        try {
+            for (status in listOf(404, 429)) {
+                GitHubArtifacts.clearRateLimits()
+                GitHubArtifacts.openConnection = { url -> object : HttpURLConnection(url) {
+                    override fun connect() {}
+                    override fun disconnect() {}
+                    override fun usingProxy() = false
+                    override fun getResponseCode() = status
+                } }
+                val error = runCatching { AppUpdates.refresh(context, source.id) }.exceptionOrNull()!!
+                if (status == 404) assertEquals(context.getString(R.string.sources_update_catalog_missing), error.message)
+                else assertTrue(GitHubArtifacts.isRateLimited(error))
+                assertEquals(cachedJson, prefs.getString(AppUpdates.catalogCacheKey(source), null))
+                assertEquals(catalog.stable!!.tag, AppUpdates.cached(context, source.id)!!.stable!!.tag)
+            }
+            GitHubArtifacts.clearRateLimits()
+            GitHubArtifacts.openConnection = { throw IOException("offline") }
+            assertTrue(runCatching { AppUpdates.refresh(context, source.id) }.exceptionOrNull() is IOException)
+            assertEquals(cachedJson, prefs.getString(AppUpdates.catalogCacheKey(source), null))
+            assertEquals(catalog.stable!!.tag, AppUpdates.cached(context, source.id)!!.stable!!.tag)
+        } finally {
+            GitHubArtifacts.openConnection = production
+            GitHubArtifacts.clearRateLimits()
         }
     }
 }

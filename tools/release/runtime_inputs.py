@@ -96,7 +96,8 @@ def required():
                   for name in [f'droiddeck_hand_{side}.json', 'hand.mtl', 'hand.png', 'hand_open.obj', 'hand_fist.obj',
                                'thumb_index_open.obj', 'thumb_index_pinch.obj']]
     paths += ['assets/linuxfs/usr/local/lib/mangoapp/' + name for name in
-              ['mangoapp', 'libfmt.so.10', 'libspdlog.so.1.13', 'libglfw.so.3', 'libtraceevent.so.1', 'libtracefs.so.1']]
+              ['mangoapp', 'libfmt.so.10', 'libspdlog.so.1.13', 'libglfw.so.3', 'libtraceevent.so.1', 'libtracefs.so.1',
+               'libsysfs-listing-shim.so']]
     paths += ['assets/linuxfs/usr/local/lib/droiddeck-comet/' + name for name in
               ['comet', 'GalaxyCommunication.exe', 'update-permissions.exe', 'LICENSE', 'version']]
     paths += ['assets/linuxfs/usr/local/lib/droiddeck-xbox/' + name for name in

@@ -16,6 +16,25 @@ on:
       - 'LICENSE'
       - '.gitignore'
   workflow_dispatch:
+    inputs:
+      component:
+        description: 'Build an APK, libhybris component, or GPU-specific DXVK component for review'
+        type: choice
+        options: [apk, system-vulkan, hybris, dxvk-mali, dxvk-xclipse]
+        default: apk
+      system_vulkan_variant:
+        description: GPU component when packaging system-vulkan
+        type: choice
+        options: [powervr, xclipse, mali]
+        default: powervr
+      system_vulkan_version:
+        description: Optional System Vulkan release version (vMAJOR.MINOR.PATCH)
+        type: string
+        default: ''
+      wallentx_preview:
+        description: Build wallentx Preview 4 as an in-place fork update
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -27,11 +46,118 @@ concurrency:
 
 env:
   PRELOAD_CACHE_VERSION: v6
+  DROIDDECK_COMPONENT_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
 
 jobs:
+  system-vulkan:
+    name: Package System Vulkan components
+    if: github.event_name == 'workflow_dispatch' && inputs.component == 'system-vulkan'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install archive tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y zstd
+      - name: Validate and package pinned components
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMPONENT_VARIANT: ${{ inputs.system_vulkan_variant }}
+          COMPONENT_VERSION: ${{ inputs.system_vulkan_version }}
+        run: |
+          set -euo pipefail
+          python3 -m unittest tools.tests.test_powervr_runtime tools.tests.test_system_vulkan_components
+          repository_id=$(gh api "repos/${GITHUB_REPOSITORY}" --jq .id)
+          version="${COMPONENT_VERSION:-v0.0.0-ci.${GITHUB_RUN_ID}.${GITHUB_RUN_ATTEMPT}}"
+          python3 tools/powervr/package_components.py \
+            --output out/system-vulkan \
+            --repository "$GITHUB_REPOSITORY" \
+            --repository-id "$repository_id" \
+            --commit "$GITHUB_SHA" \
+            --build-url "https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+            --variant "$COMPONENT_VARIANT" \
+            --version "$version"
+          sha256sum out/system-vulkan/* > out/system-vulkan/SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: system-vulkan-${{ inputs.system_vulkan_variant }}-${{ github.sha }}
+          path: out/system-vulkan/
+          if-no-files-found: error
+
+  hybris:
+    name: Build runtime components
+    if: github.event_name == 'workflow_dispatch' && (inputs.component == 'hybris' || inputs.component == 'dxvk-mali' || inputs.component == 'dxvk-xclipse')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y podman patchelf zstd libvulkan-dev spirv-tools
+      - name: Test component validation
+        run: |
+          set -euo pipefail
+          python3 -m unittest \
+            tools.tests.test_hybris_component_record \
+            tools.tests.test_powervr_runtime \
+            tools.tests.test_proton_wrapper
+          if [ "${{ inputs.component }}" = dxvk-mali ]; then
+            python3 -m unittest tools.tests.test_game_environment
+          fi
+          if [ "${{ inputs.component }}" = dxvk-xclipse ]; then
+            python3 -m unittest \
+              tools.tests.test_dxvk_xclipse_bc_formats \
+              tools.tests.test_dxvk_xclipse_component
+          fi
+      - name: Build the patched runtime
+        if: inputs.component == 'hybris'
+        run: bash tools/hybris/build_runtime.sh out/hybris
+      - name: Record component provenance and candidate release pin
+        if: inputs.component == 'hybris'
+        env:
+          COMPONENT_URL: https://github.com/${{ github.repository }}/releases/download/hybris-${{ github.sha }}/runtime.tzst
+        run: python3 tools/hybris/component_record.py out/hybris/runtime.tzst --url "$COMPONENT_URL"
+      - name: Build baseline and experimental Mali DXVK payloads
+        if: inputs.component == 'dxvk-mali'
+        run: bash tools/dxvk/build_mali.sh out/dxvk-mali
+      - name: Build Xclipse DXVK payload from pinned source
+        if: inputs.component == 'dxvk-xclipse'
+        run: bash tools/dxvk/build_xclipse.sh out/dxvk-xclipse
+      - name: Record Xclipse DXVK provenance and candidate release pin
+        if: inputs.component == 'dxvk-xclipse'
+        env:
+          COMPONENT_URL: https://github.com/${{ github.repository }}/releases/download/dxvk-xclipse-${{ github.sha }}/dxvk-2.6.2.tar.gz
+        run: python3 tools/dxvk/xclipse_component_record.py out/dxvk-xclipse/dxvk-2.6.2.tar.gz --url "$COMPONENT_URL"
+      - uses: actions/upload-artifact@v4
+        if: inputs.component == 'hybris'
+        with:
+          name: hybris-runtime-${{ github.sha }}
+          path: out/hybris/
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: inputs.component == 'dxvk-mali'
+        with:
+          name: dxvk-mali-${{ github.sha }}
+          path: |
+            out/dxvk-mali/dxvk-mali-payloads.tar.zst
+            out/dxvk-mali/dxvk-mali-payloads.SHA256SUMS
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: inputs.component == 'dxvk-xclipse'
+        with:
+          name: dxvk-xclipse-${{ github.sha }}
+          path: out/dxvk-xclipse/
+          if-no-files-found: error
+
   xbox:
     name: Xbox ARM64 backend
-    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
+    if: ${{ (github.event_name != 'workflow_dispatch' || inputs.component == 'apk') && (github.event_name != 'pull_request' || !github.event.pull_request.draft) }}
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 30
     outputs:
@@ -88,7 +214,7 @@ jobs:
   build:
     needs: xbox
     name: Compile and test APK
-    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
+    if: ${{ (github.event_name != 'workflow_dispatch' || inputs.component == 'apk') && (github.event_name != 'pull_request' || !github.event.pull_request.draft) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     outputs:
@@ -226,6 +352,33 @@ jobs:
           VERSION=$(sed -n 's/^Pkg.Revision *= *//p' "$NDK/source.properties")
           echo "NDK_VERSION=$VERSION" >> "$GITHUB_ENV"
 
+      - name: Set the fork preview version
+        if: github.event_name == 'workflow_dispatch' && inputs.wallentx_preview
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_REPOSITORY" != wallentx/DroidDeck || "$GITHUB_REF" != refs/heads/wallentx/powervr ]]; then
+            echo "::error::the preview update is only supported on wallentx/DroidDeck's wallentx/powervr branch"
+            exit 1
+          fi
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path('app/build.gradle')
+          source = path.read_text()
+          for old, new in (
+              (r'(?m)^        versionCode 14$', '        versionCode 17'),
+              (r'(?m)^        versionName "0\.5\.0"$', '        versionName "0.5.0-wallentx.4"'),
+          ):
+              source, count = re.subn(old, new, source)
+              if count != 1:
+                  raise SystemExit('Unexpected base version; review the preview update version')
+          path.write_text(source)
+          Path('keystore/release-signer.sha256').write_text(
+              '80465aadce5c34a1d4f71ee4bd8cf7bcce64b5e7836e599f98d0b4f110e210c8\n'
+          )
+          PY
+
       - name: Set the APK build label
         id: build-label
         env:
@@ -263,7 +416,7 @@ jobs:
           set -euo pipefail
           sudo apt-get -o Dir::Etc::sourcelist=sources.list.d/ubuntu.sources \
             -o Dir::Etc::sourceparts=- -o Acquire::Retries=3 update -qq
-          sudo apt-get install -y -qq gcc-aarch64-linux-gnu g++-aarch64-linux-gnu libvulkan1 mesa-vulkan-drivers >/dev/null
+          sudo apt-get install -y -qq gcc-aarch64-linux-gnu g++-aarch64-linux-gnu libvulkan-dev libvulkan1 mesa-vulkan-drivers >/dev/null
           D=app/src/main/assets/linuxfs
           mkdir -p "$D"
           aarch64-linux-gnu-g++ -shared -fPIC -O2 -Wall -Wno-attributes -Wno-nonnull-compare \
@@ -323,6 +476,9 @@ jobs:
           aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -Wl,-soname,libtracefs.so.1 \
             -o "$M/libtracefs.so.1" tools/mangoapp/libtracefs-shim.c
           aarch64-linux-gnu-strip --strip-unneeded "$M/libtracefs.so.1"
+          aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -o "$M/libsysfs-listing-shim.so" \
+            tools/mangoapp/sysfs-listing-shim.c -ldl
+          aarch64-linux-gnu-strip --strip-unneeded "$M/libsysfs-listing-shim.so"
           install -Dm644 tools/mangoapp/mangoapp "$D/usr/local/bin/mangoapp"
           rm -rf mango-pkgs
           ls -l "$M"
@@ -373,7 +529,7 @@ jobs:
           set -euo pipefail
           . tools/linuxfs/debian-image.env
           image=public.ecr.aws/docker/library/debian:bullseye
-          if gh release download "$DEBIAN_IMAGE_TAG" -R "$GITHUB_REPOSITORY" -p "$DEBIAN_IMAGE_ASSET" -O /tmp/debian-image.tar.zst \
+          if gh release download "$DEBIAN_IMAGE_TAG" -R "${DEBIAN_IMAGE_REPO:-${GITHUB_REPOSITORY}}" -p "$DEBIAN_IMAGE_ASSET" -O /tmp/debian-image.tar.zst \
              && { [ -z "$DEBIAN_IMAGE_SHA256" ] || echo "$DEBIAN_IMAGE_SHA256  /tmp/debian-image.tar.zst" | sha256sum -c -; }; then
             zstd -dc /tmp/debian-image.tar.zst | docker load
             rm -f /tmp/debian-image.tar.zst
@@ -604,7 +760,10 @@ jobs:
           sudo apt-get install -y -qq python3-yaml gcc-aarch64-linux-gnu qemu-user
 
       - name: Steam import and game environment tests
-        run: python3 -m unittest discover -s tools/tests -p 'test_*.py'
+        run: |
+          # The Xclipse layer regression test compiles the layer against the distribution's headers.
+          sudo apt-get update -qq && sudo apt-get install -y -qq libvulkan-dev >/dev/null
+          python3 -m unittest discover -s tools/tests -p 'test_*.py'
 
       - name: Unit tests
         id: unit-tests

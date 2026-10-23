@@ -1,0 +1,151 @@
+diff --git a/hybris/vulkan/Makefile.am b/hybris/vulkan/Makefile.am
+--- a/hybris/vulkan/Makefile.am
++++ b/hybris/vulkan/Makefile.am
+@@ -22,7 +22,7 @@
+     compat/clip_distance.c compat/clip_distance.h compat/spirv_clip.c \
+     compat/shader_policy.c compat/shader_policy.h \
+     compat/shader_cleanup.c compat/shader_cleanup.h compat/spirv_builtins.c compat/spirv_builtins.h \
+-    compat/spirv_decorations.c compat/spirv_decorations.h compat/spirv_constants.c compat/spirv_constants.h compat/spirv_aggregate.c compat/spirv_aggregate.h compat/spirv_entry.c compat/spirv_entry.h compat/spirv_results.inc compat/spirv_literals.inc compat/scaled_dump.c compat/shader_dispatch.c compat/shader_dispatch.h compat/scaled_formats.c compat/scaled_formats.h compat/scaled_spirv.c compat/scaled_vertex.h
++    compat/spirv_decorations.c compat/spirv_decorations.h compat/spirv_constants.c compat/spirv_constants.h compat/spirv_aggregate.c compat/spirv_aggregate.h compat/spirv_entry.c compat/spirv_entry.h compat/spirv_results.inc compat/spirv_literals.inc compat/scaled_dump.c compat/shader_dispatch.c compat/shader_dispatch.h compat/scaled_formats.c compat/scaled_formats.h compat/scaled_spirv.c compat/scaled_vertex.h compat/inline_shader.c compat/inline_shader.h
+ libVkLayer_hybris_compat_la_CFLAGS = -fvisibility=hidden
+ # Keep process-wide policy initialization and lifetime generations across the
+ # loader unloading its last instance. All per-instance/device state is freed.
+diff --git a/hybris/vulkan/compat/shader_dispatch.c b/hybris/vulkan/compat/shader_dispatch.c
+--- a/hybris/vulkan/compat/shader_dispatch.c
++++ b/hybris/vulkan/compat/shader_dispatch.c
+@@ -2,6 +2,7 @@
+ #define _GNU_SOURCE
+ #define VK_NO_PROTOTYPES
+ #include "shader_dispatch.h"
++#include "inline_shader.h"
+ #include "scaled_vertex.h"
+ #include "scaled_formats.h"
+ #include "spirv_entry.h"
+@@ -188,6 +189,7 @@
+ }
+ 
+ struct pipeline_copy {
++    struct hybris_inline_stages inline_source;
+     VkPipelineVertexInputStateCreateInfo input;
+     VkVertexInputAttributeDescription *attributes;
+     VkPipelineShaderStageCreateInfo *stages;
+@@ -554,7 +556,13 @@
+     if (!changed || !copies) goto done;
+     memcpy(changed, infos, count * sizeof(*changed));
+     for (uint32_t i = 0; i < count; ++i) {
+-        result = convert_pipeline(device, &changed[i], &copies[i], allocator, &reason);
++        /* Modern DXVK supplies SPIR-V directly in each stage's pNext chain.
++         * Capture temporary source modules before feature emulation inspects
++         * the stages, just as with separately created shader modules. */
++        result = hybris_inline_prepare(handle, &changed[i], allocator, create_shader,
++            &copies[i].inline_source, &reason);
++        if (result == VK_SUCCESS)
++            result = convert_pipeline(device, &changed[i], &copies[i], allocator, &reason);
+         if (result != VK_SUCCESS) {
+             fprintf(stderr, "HYBRIS_SCALED_VERTEX pipeline=%u result=%d reason=%s\n", i, result, reason ? reason : "allocation or driver failure");
+             goto done;
+@@ -570,6 +578,7 @@
+         hybris_scaled_free(allocator, copies[i].attributes);
+         hybris_scaled_free(allocator, copies[i].attachments);
+         hybris_scaled_free(allocator, copies[i].dynamic_states);
++        hybris_inline_release(handle, allocator, destroy_shader, &copies[i].inline_source);
+     }
+     hybris_scaled_free(allocator, copies);
+     hybris_scaled_free(allocator, changed);
+diff --git a/hybris/vulkan/compat/inline_shader.c b/hybris/vulkan/compat/inline_shader.c
+new file mode 100644
+--- /dev/null
++++ b/hybris/vulkan/compat/inline_shader.c
+@@ -0,0 +1,70 @@
++/* SPDX-License-Identifier: Apache-2.0 */
++#define VK_NO_PROTOTYPES
++#include "inline_shader.h"
++#include "scaled_vertex.h"
++#include <string.h>
++
++VkResult hybris_inline_prepare(VkDevice device, VkGraphicsPipelineCreateInfo *info,
++    const VkAllocationCallbacks *allocator, PFN_vkCreateShaderModule create,
++    struct hybris_inline_stages *prepared, const char **reason)
++{
++    *prepared = (struct hybris_inline_stages){0};
++    unsigned inline_count = 0;
++    for (uint32_t i = 0; i < info->stageCount; ++i) {
++        const VkPipelineShaderStageCreateInfo *stage = &info->pStages[i];
++        const VkBaseInStructure *chain = stage->pNext;
++        if (stage->module) continue;
++        const VkBaseInStructure *module_node = chain;
++        while (module_node && module_node->sType != VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO)
++            module_node = module_node->pNext;
++        if (!module_node) continue;
++        const VkShaderModuleCreateInfo *module = (const void *)module_node;
++        /* DXVK supplies one inline module node. Other stage/module extensions
++         * require explicit copying and semantic support; never discard them. */
++        if (module_node != chain || module->pNext || module->flags || !module->pCode ||
++            module->codeSize < 20 || module->codeSize % sizeof(uint32_t)) {
++            *reason = "unsupported inline shader module chain, flags or code";
++            return VK_ERROR_UNKNOWN;
++        }
++        ++inline_count;
++    }
++    if (!inline_count) return VK_SUCCESS;
++    size_t stage_bytes = (size_t)info->stageCount * sizeof(*prepared->stages);
++    size_t module_bytes = (size_t)info->stageCount * sizeof(*prepared->modules);
++    if (stage_bytes / info->stageCount != sizeof(*prepared->stages) ||
++        module_bytes / info->stageCount != sizeof(*prepared->modules))
++        return VK_ERROR_OUT_OF_HOST_MEMORY;
++    prepared->stages = hybris_scaled_alloc(allocator, stage_bytes, VK_SYSTEM_ALLOCATION_SCOPE_COMMAND);
++    prepared->modules = hybris_scaled_alloc(allocator, module_bytes, VK_SYSTEM_ALLOCATION_SCOPE_COMMAND);
++    if (prepared->modules) memset(prepared->modules, 0, module_bytes);
++    if (!prepared->stages || !prepared->modules) return VK_ERROR_OUT_OF_HOST_MEMORY;
++    prepared->count = info->stageCount;
++    memcpy(prepared->stages, info->pStages, stage_bytes);
++    info->pStages = prepared->stages;
++    for (uint32_t i = 0; i < prepared->count; ++i) {
++        VkPipelineShaderStageCreateInfo *stage = &prepared->stages[i];
++        const VkBaseInStructure *chain = stage->pNext;
++        if (stage->module || !chain || chain->sType != VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO)
++            continue;
++        const VkShaderModuleCreateInfo *module = (const void *)chain;
++        VkResult result = create(device, module, allocator, &prepared->modules[i]);
++        if (result != VK_SUCCESS) {
++            /* A failed creation never transfers ownership of its output. */
++            prepared->modules[i] = VK_NULL_HANDLE;
++            return result;
++        }
++        stage->module = prepared->modules[i];
++        stage->pNext = NULL;
++    }
++    return VK_SUCCESS;
++}
++
++void hybris_inline_release(VkDevice device, const VkAllocationCallbacks *allocator,
++    PFN_vkDestroyShaderModule destroy, struct hybris_inline_stages *prepared)
++{
++    if (prepared->modules) for (uint32_t i = 0; i < prepared->count; ++i)
++        if (prepared->modules[i]) destroy(device, prepared->modules[i], allocator);
++    hybris_scaled_free(allocator, prepared->modules);
++    hybris_scaled_free(allocator, prepared->stages);
++    *prepared = (struct hybris_inline_stages){0};
++}
+diff --git a/hybris/vulkan/compat/inline_shader.h b/hybris/vulkan/compat/inline_shader.h
+new file mode 100644
+--- /dev/null
++++ b/hybris/vulkan/compat/inline_shader.h
+@@ -0,0 +1,17 @@
++/* SPDX-License-Identifier: Apache-2.0 */
++#pragma once
++#include <vulkan/vulkan.h>
++
++struct hybris_inline_stages {
++    VkPipelineShaderStageCreateInfo *stages;
++    VkShaderModule *modules;
++    uint32_t count;
++};
++
++/* info is a private pipeline copy. Always release prepared, including after
++ * failure; successfully created modules remain captured until pipeline use ends. */
++VkResult hybris_inline_prepare(VkDevice device, VkGraphicsPipelineCreateInfo *info,
++    const VkAllocationCallbacks *allocator, PFN_vkCreateShaderModule create,
++    struct hybris_inline_stages *prepared, const char **reason);
++void hybris_inline_release(VkDevice device, const VkAllocationCallbacks *allocator,
++    PFN_vkDestroyShaderModule destroy, struct hybris_inline_stages *prepared);

@@ -138,8 +138,17 @@ bl_components() {
   ' "$cm_list")
   local cm_rows=() cm_files=() row h p
   local -A cm_sums=()
+  local cm_dxvk=${DROIDDECK_SYSTEM_VULKAN_DXVK:-}
+  if [ -z "$cm_dxvk" ]; then
+    cm_dxvk=managed
+    [ "${DROIDDECK_SYSTEM_VULKAN_GPU:-}" = mali ] && cm_dxvk=user
+  fi
   while IFS=$'\\t' read -r scope t want comp rel sum src; do
     [ -n "$scope" ] || continue
+    # Managed profiles supply DXVK at launch; preserve saved choices for other sessions.
+    # User-managed profiles retain the selected Proton/DXVK instead of replacing it.
+    [ "$comp" = dxvk ] && [ "$cm_dxvk" = managed ] \
+      && [ -n "${DROIDDECK_SYSTEM_VULKAN_RUNTIME:-${DROIDDECK_POWERVR_RUNTIME:-}}" ] && continue
     cm_rows+=("$comp"$'\\t'"$rel"$'\\t'"$sum"$'\\t'"$src")
     [ "$src" != "-" ] && [ -f "$base/$rel" ] && cm_files+=("$base/$rel")
   done <<< "$cm_selected"

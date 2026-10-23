@@ -3,6 +3,10 @@ tools/mangoapp/** text=auto eol=lf
 tools/comet/LICENSE whitespace=-blank-at-eof
 tools/comet/droiddeck.patch whitespace=-blank-at-eol,-blank-at-eof
 
+# Keep generated registry data and sanitized captures folded in code review.
+tools/vulkan/registry_data.json linguist-generated=true
+tools/tests/fixtures/vulkan-capabilities/*.json linguist-generated=true
+
 # These helpers are packaged verbatim and executed inside the Linux runtime.
 tools/linuxfs/overlay/** text eol=lf
 tools/linuxfs/desktop/** text eol=lf

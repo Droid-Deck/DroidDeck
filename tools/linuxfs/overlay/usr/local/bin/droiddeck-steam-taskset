@@ -1,0 +1,33 @@
+#!/bin/bash
+# Staged as taskset in a PATH directory used only by the Steam client.
+# Valve's ARM64 helper uses `taskset 0x7c /path/to/steamwebhelper ...` and exits
+# before starting the browser when Android denies sched_setaffinity.
+set -u
+if [ "$#" -ge 2 ] && [[ "$1" =~ ^(0[xX])?[0-9a-fA-F]+$ ]] &&
+   [ -n "${BL_STEAM_WEBHELPER:-}" ] && [ "$2" -ef "$BL_STEAM_WEBHELPER" ]; then
+  mask=$1
+  shift
+  # Pin this wrapper before exec; never retry a helper that has already run.
+  if ! /usr/bin/taskset -p "$mask" "$$" >/dev/null 2>&1; then
+    echo "droiddeck: Steam helper CPU pinning unavailable; using the allowed CPUs" >&2
+  fi
+  system_runtime=${DROIDDECK_SYSTEM_VULKAN_RUNTIME:-${DROIDDECK_POWERVR_RUNTIME:-}}
+  system_presentation=${DROIDDECK_SYSTEM_VULKAN_PRESENTATION:-}
+  if [ -z "$system_presentation" ]; then
+    system_presentation=native
+    [ "${DROIDDECK_SYSTEM_VULKAN_GPU:-}" = mali ] && system_presentation=x11-shm
+  fi
+  if [ "$system_presentation" = x11-shm ] && [ -n "$system_runtime" ]; then
+    # SDL_GetWindowSurface stalls while creating its accelerated texture framebuffer
+    # on this X11 path. Use a software surface only for the identified Steam helper.
+    export SDL_FRAMEBUFFER_ACCELERATION=0
+  fi
+  # Valve's helper script disables Kopper, but the managed system-Vulkan Steam path needs Kopper
+  # so Zink presents through the explicit WSI layer instead of the scrambled DRI3 path.
+  if [ "${BL_STEAM_GL_WSI_ACTIVE:-}" = 1 ]; then
+    unset LIBGL_KOPPER_DISABLE
+  fi
+  exec -- "$@"
+fi
+# Queries, existing-process changes, and other programs retain taskset's behavior.
+exec /usr/bin/taskset "$@"

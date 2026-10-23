@@ -1,0 +1,197 @@
+diff --git a/hybris/common/Makefile.am b/hybris/common/Makefile.am
+--- a/hybris/common/Makefile.am
++++ b/hybris/common/Makefile.am
+@@ -27,6 +27,8 @@
+ 
+ libhybris_common_la_SOURCES = \
+ 	hooks.c \
++	mali_mapping.c \
++	mali_mapping.h \
+ 	vendor_compat.c \
+ 	vendor_compat.h \
+ 	mali_quirks.c \
+diff --git a/hybris/common/hooks.c b/hybris/common/hooks.c
+--- a/hybris/common/hooks.c
++++ b/hybris/common/hooks.c
+@@ -88,6 +88,7 @@
+ 
+ #include "dso_handle_counters.h"
+ #include "tls_patcher.h"
++#include "mali_mapping.h"
+ 
+ #ifdef WANT_ARM_TRACING
+ #include "wrappers.h"
+@@ -1216,7 +1217,7 @@
+     TRACE_HOOK("addr %p len %zu prot %i flags %i fd %i offset %ld",
+                addr, len, prot, flags, fd, offset);
+ 
+-    return mmap(addr, len, prot, flags, fd, offset);
++    return hybris_mali_mmap(addr, len, prot, flags, fd, offset);
+ }
+ 
+ static void* _hybris_hook_mmap64(void *addr, size_t len, int prot,
+@@ -1225,14 +1226,14 @@
+     TRACE_HOOK("addr %p len %zu prot %i flags %i fd %i offset %ld",
+                addr, len, prot, flags, fd, offset);
+ 
+-    return mmap64(addr, len, prot, flags, fd, offset);
++    return hybris_mali_mmap64(addr, len, prot, flags, fd, offset);
+ }
+ 
+ static int _hybris_hook_munmap(void *addr, size_t length)
+ {
+     TRACE_HOOK("addr %p length %zu", addr, length);
+ 
+-    return munmap(addr, length);
++    return hybris_mali_munmap(addr, length);
+ }
+ 
+ extern size_t strlcat(char *dst, const char *src, size_t siz);
+@@ -1807,13 +1808,10 @@
+     HOOK_DIRECT(localeconv),
+     HOOK_DIRECT(setlocale),
+     /* sys/mman.h */
+-#if defined(LP64)
+-    HOOK_DIRECT(mmap),
+-#else
++    /* The mapping lock must also cover non-debug Android calls. */
+     HOOK_INDIRECT(mmap),
+-#endif
+-    HOOK_DIRECT(mmap64),
+-    HOOK_DIRECT(munmap),
++    HOOK_INDIRECT(mmap64),
++    HOOK_INDIRECT(munmap),
+     /* wchar.h */
+     HOOK_DIRECT_NO_DEBUG(wmemchr),
+     HOOK_DIRECT_NO_DEBUG(wmemcmp),
+diff --git a/hybris/include/hybris/common/hooks.h b/hybris/include/hybris/common/hooks.h
+--- a/hybris/include/hybris/common/hooks.h
++++ b/hybris/include/hybris/common/hooks.h
+@@ -31,6 +31,12 @@
+  * callback; the caller must keep its code and context alive until quiescent. */
+ void hybris_set_hook_callback(hybris_hook_cb callback);
+ 
++/* Serialize a Mali placed-mapping transaction with Android mapping hooks.
++ * begin returns zero or a pthread error code. Every successful begin needs
++ * one end on the same thread. Do not call into the driver while held. */
++int hybris_mali_mapping_begin(void);
++void hybris_mali_mapping_end(void);
++
+ #ifdef __cplusplus
+ }
+ #endif
+diff --git a/hybris/common/mali_mapping.c b/hybris/common/mali_mapping.c
+new file mode 100644
+--- /dev/null
++++ b/hybris/common/mali_mapping.c
+@@ -0,0 +1,91 @@
++/* SPDX-License-Identifier: Apache-2.0 */
++#ifndef _GNU_SOURCE
++#define _GNU_SOURCE
++#endif
++#include "mali_mapping.h"
++#include <errno.h>
++#include <limits.h>
++#include <stdlib.h>
++#include <pthread.h>
++#include <sys/mman.h>
++
++/* The placed layer and Android driver workers share one lock. A normal
++ * mutex plus per-thread depth remains unlockable after fork changes the TID.
++ * Keep downstream Vulkan calls outside transactions: they can wait on workers. */
++static pthread_mutex_t mapping_lock = PTHREAD_MUTEX_INITIALIZER;
++static __thread unsigned mapping_depth;
++static pthread_once_t fork_once = PTHREAD_ONCE_INIT;
++static int fork_setup_error;
++
++static void mapping_before_fork(void)
++{
++    /* Registered only after initialization; a failed lock cannot protect fork. */
++    if (hybris_mali_mapping_begin()) abort();
++}
++
++static void mapping_after_fork(void)
++{
++    hybris_mali_mapping_end();
++}
++
++static void setup_mapping_fork(void)
++{
++    fork_setup_error = pthread_atfork(mapping_before_fork, mapping_after_fork,
++                                     mapping_after_fork);
++}
++
++__attribute__((visibility("default")))
++int hybris_mali_mapping_begin(void)
++{
++    int error = pthread_once(&fork_once, setup_mapping_fork);
++    if (error || fork_setup_error) return error ? error : fork_setup_error;
++    if (mapping_depth) {
++        if (mapping_depth == UINT_MAX) return EAGAIN;
++        ++mapping_depth;
++        return 0;
++    }
++    error = pthread_mutex_lock(&mapping_lock);
++    if (!error) mapping_depth = 1;
++    return error;
++}
++
++__attribute__((visibility("default")))
++void hybris_mali_mapping_end(void)
++{
++    if (mapping_depth && !--mapping_depth) pthread_mutex_unlock(&mapping_lock);
++}
++
++void *hybris_mali_mmap(void *addr, size_t length, int prot, int flags,
++                      int fd, off_t offset)
++{
++    int error = hybris_mali_mapping_begin();
++    if (error) { errno = error; return MAP_FAILED; }
++    void *result = mmap(addr, length, prot, flags, fd, offset);
++    int saved_errno = errno;
++    hybris_mali_mapping_end();
++    errno = saved_errno;
++    return result;
++}
++
++void *hybris_mali_mmap64(void *addr, size_t length, int prot, int flags,
++                        int fd, off64_t offset)
++{
++    int error = hybris_mali_mapping_begin();
++    if (error) { errno = error; return MAP_FAILED; }
++    void *result = mmap64(addr, length, prot, flags, fd, offset);
++    int saved_errno = errno;
++    hybris_mali_mapping_end();
++    errno = saved_errno;
++    return result;
++}
++
++int hybris_mali_munmap(void *addr, size_t length)
++{
++    int error = hybris_mali_mapping_begin();
++    if (error) { errno = error; return -1; }
++    int result = munmap(addr, length);
++    int saved_errno = errno;
++    hybris_mali_mapping_end();
++    errno = saved_errno;
++    return result;
++}
+diff --git a/hybris/common/mali_mapping.h b/hybris/common/mali_mapping.h
+new file mode 100644
+--- /dev/null
++++ b/hybris/common/mali_mapping.h
+@@ -0,0 +1,14 @@
++/* SPDX-License-Identifier: Apache-2.0 */
++#ifndef HYBRIS_MALI_MAPPING_H
++#define HYBRIS_MALI_MAPPING_H
++#include <stddef.h>
++#include <sys/types.h>
++
++/* Public transaction ABI; also declared in the installed hooks.h. */
++int hybris_mali_mapping_begin(void);
++void hybris_mali_mapping_end(void);
++
++void *hybris_mali_mmap(void *, size_t, int, int, int, off_t);
++void *hybris_mali_mmap64(void *, size_t, int, int, int, off64_t);
++int hybris_mali_munmap(void *, size_t);
++#endif

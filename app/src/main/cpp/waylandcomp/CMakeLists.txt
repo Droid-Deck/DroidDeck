@@ -10,6 +10,7 @@ add_library(droiddeckwayland SHARED
         src/waylandcomp_jni.c
         src/droiddeck_ext.c
         src/wl_dmabuf.c
+        src/wl_android_buffer.c
         src/wl_clipboard.c
         src/wl_text_input.c
         src/wl_toplevel_icon.c
@@ -20,6 +21,7 @@ add_library(droiddeckwayland SHARED
         generated/color-management-v1-protocol.c
         generated/xdg-shell-protocol.c
         generated/linux-dmabuf-v1-protocol.c
+        generated/wayland-android-protocol.c
         generated/viewporter-protocol.c
         generated/banner-desktop-v1-protocol.c
         generated/presentation-time-protocol.c

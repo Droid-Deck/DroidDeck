@@ -227,10 +227,16 @@ if [ -z "${BL_INSIDE:-}" ]; then
       echo "== gamescope: games at ${nested}x${height} stretched to the ${width}x${height} output"
     fi
   fi
+  backend=${BL_GAMESCOPE_BACKEND:-wayland}
+  case "$backend" in
+    wayland) ;;
+    sdl) export SDL_VIDEODRIVER=wayland ;;
+    *) echo "== unsupported gamescope backend: $backend"; exit 64 ;;
+  esac
   if [ "$mode" = steam ]; then
     export gamescope_cursor_composite=2
   fi
-  args=(--backend wayland --expose-wayland -f -W "$width" -H "$height" -w "$nested" -h "$height")
+  args=(--backend "$backend" --expose-wayland -f -W "$width" -H "$height" -w "$nested" -h "$height")
   [ "$nested" != "$width" ] && args+=(-S stretch) && export BL_STRETCHED=1
   if [ "${BL_FPS:-0}" -gt 0 ]; then
     args+=(-r "$BL_FPS")
@@ -281,6 +287,19 @@ bl_xprop_set_all() {
   [ "$ok" = 1 ]
 }
 export GDK_BACKEND=x11 QT_QPA_PLATFORM=xcb SDL_VIDEODRIVER=x11
+bl_system_runtime=${DROIDDECK_SYSTEM_VULKAN_RUNTIME:-${DROIDDECK_POWERVR_RUNTIME:-}}
+bl_system_presentation=${DROIDDECK_SYSTEM_VULKAN_PRESENTATION:-}
+if [ -z "$bl_system_presentation" ]; then
+  bl_system_presentation=native
+  [ "${DROIDDECK_SYSTEM_VULKAN_GPU:-}" = mali ] && bl_system_presentation=x11-shm
+fi
+if [ "$bl_system_presentation" = x11-shm ] && [ -n "$bl_system_runtime" ]; then
+  export VK_LAYER_PATH="$bl_system_runtime/wsi:$bl_system_runtime/lib${DROIDDECK_HYBRIS_LAYER_PATH:+:$DROIDDECK_HYBRIS_LAYER_PATH}"
+  export VK_INSTANCE_LAYERS="VK_LAYER_window_system_integration:${DROIDDECK_HYBRIS_SESSION_LAYERS:-VK_LAYER_HYBRIS_compat}"
+  export WSI_X11_FORCE_SHM=1 ENABLE_GAMESCOPE_WSI=0 VK_LOADER_LAYERS_DISABLE='*gamescope*'
+  unset DISABLE_WSI_LAYER
+fi
+# gamescope's reaper
 reap_orphans() {
   local round p stat pid left
   for round in 1 2 3 4 5; do
@@ -752,6 +771,35 @@ BUSCONF
     export STEAM_RUNTIME=1
     export LD_LIBRARY_PATH=$steam_root/steamrtarm64:$steam_root/steamrtarm64/panorama${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
     export SDL_VIDEO_X11_DGAMOUSE=0
+    bl_steam_path=$PATH
+    bl_steam_helper=$steam_root/steamrtarm64/steamwebhelper
+    if [ "${steam_x64:-0}" = 1 ]; then
+      bl_steam_helper=$XDG_DATA_HOME/Steam/steamrtarm64/steamwebhelper
+    fi
+    bl_steam_angle=vulkan
+    bl_steam_presentation=()
+    if [ "$bl_system_presentation" = x11-shm ] && [ -n "$bl_system_runtime" ]; then
+      bl_steam_path="/usr/local/libexec/droiddeck-steam:$PATH"
+      echo "== steam: system Vulkan uses X11 shared-memory presentation"
+    elif [ "${BL_STEAM_GL_PRESENT:-}" = 1 ]; then
+      bl_steam_path="/usr/local/libexec/droiddeck-steam:$PATH"
+      bl_steam_angle=gl
+      if [ -s "${BL_STEAM_WSI_LAYER_PATH:-}/libVkLayer_window_system_integration.so" ] &&
+         [ -s "${BL_STEAM_WSI_LAYER_PATH:-}/VkLayer_window_system_integration.json" ]; then
+        export VK_LAYER_PATH="$BL_STEAM_WSI_LAYER_PATH${VK_LAYER_PATH:+:$VK_LAYER_PATH}"
+        export VK_INSTANCE_LAYERS="VK_LAYER_window_system_integration:${DROIDDECK_HYBRIS_LAYERS:-VK_LAYER_HYBRIS_compat}"
+        export ENABLE_GAMESCOPE_WSI=0 VK_LOADER_LAYERS_DISABLE='*gamescope*' DISABLE_GAMESCOPE_WSI=1
+        export BL_STEAM_GL_WSI_ACTIVE=1
+        unset LIBGL_KOPPER_DISABLE
+        echo "== steam: system Vulkan managed WSI presentation configured"
+      else
+        export DISABLE_GAMESCOPE_WSI=1 LIBGL_KOPPER_DISABLE=true
+        unset BL_STEAM_GL_WSI_ACTIVE
+        bl_steam_presentation=(-cef-disable-gpu-compositing)
+        echo "== steam: system Vulkan WSI layer unavailable; using software CEF compositing"
+      fi
+    fi
+    # Decky
     decky_loader=$HOME/homebrew/services/PluginLoader
     if [ -f "$HOME/.droiddeck-decky-enabled" ] && [ -x "$decky_loader" ]; then
       decky_arch=$(cat "$HOME/homebrew/services/.droiddeck-decky-arch" 2>/dev/null || echo unknown)
@@ -808,6 +856,7 @@ BUSCONF
       _bl_cef=(-cef-disable-gpu)
       _bl_ui=(-nobigpicture)
     fi
+    # Deck mode
     if [ "${BL_STEAM_UI:-}" != desktop ]; then
       if [ "$steam_x64" = 0 ] || [ "${BL_X64_DECK:-1}" != 0 ]; then
         _bl_ui+=(-steamdeck -steamos3)
@@ -841,6 +890,13 @@ BUSCONF
           droiddeck-steam-games watch "$steam_root" "$BL_ADDED_GAMES" &
       fi
       games_watcher=$!
+    fi
+    if [ "${BL_STEAM_CEF_SOFTWARE:-}" = 1 ]; then
+      # CEF-only: global Mesa software overrides would also reach launched games.
+      _bl_cef=(-cef-disable-gpu)
+      echo "== steam: CEF software rendering selected (-cef-disable-gpu)"
+    elif [ "${BL_STEAM_GL_PRESENT:-}" = 1 ] && [ "${steam_cef_gpu:-1}" = 1 ]; then
+      _bl_cef=(-cef-force-gpu "${bl_steam_presentation[@]}" -cef-use-gl=angle "-cef-use-angle=$bl_steam_angle")
     fi
     echo "== steam args: ${_bl_ui[*]} ${_bl_cdp[*]} ${_bl_lang[*]} -clientbeta $steam_channel -no-cef-sandbox -cef-ozone-platform=x11 ${_bl_cef[*]} $*$([ "$steam_x64" = 1 ] && echo ' (x86-64 client under FEX)')"
     steam_updates=0
@@ -1155,6 +1211,9 @@ BUSCONF
         desktop_ui_pid=$!
       fi
       steam_started=$SECONDS
+      # Keep Valve's optional webhelper CPU pinning from aborting browser startup.
+      PATH="$bl_steam_path" \
+      BL_STEAM_WEBHELPER="$bl_steam_helper" \
       "${steam_client[@]}" "${_bl_ui[@]}" "${_bl_cdp[@]}" "${_bl_lang[@]}" -clientbeta "$steam_channel" \
         -no-cef-sandbox -cef-ozone-platform=x11 "${_bl_cef[@]}" "$@"
       rc=$?

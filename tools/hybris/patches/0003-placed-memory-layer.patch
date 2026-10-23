@@ -1,0 +1,2504 @@
+diff --git a/LICENSE.placed-memory b/LICENSE.placed-memory
+new file mode 100644
+index 0000000..b037374
+--- /dev/null
++++ b/LICENSE.placed-memory
+@@ -0,0 +1,21 @@
++MIT License
++
++Copyright (c) 2026 DroidDeck contributors
++
++Permission is hereby granted, free of charge, to any person obtaining a copy
++of this software and associated documentation files (the "Software"), to deal
++in the Software without restriction, including without limitation the rights
++to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
++copies of the Software, and to permit persons to whom the Software is
++furnished to do so, subject to the following conditions:
++
++The above copyright notice and this permission notice shall be included in all
++copies or substantial portions of the Software.
++
++THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
++AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
++LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
++OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
++SOFTWARE.
+diff --git a/hybris/vulkan/Makefile.am b/hybris/vulkan/Makefile.am
+index 6bf3a57..14444fc 100644
+--- a/hybris/vulkan/Makefile.am
++++ b/hybris/vulkan/Makefile.am
+@@ -3,7 +3,8 @@ if HAS_VULKAN_HEADERS
+ lib_LTLIBRARIES = \
+ 	libvulkan.la \
+ 	libhybris-vulkan-icd.la \
+-	libVkLayer_hybris_compat.la
++	libVkLayer_hybris_compat.la \
++	libVkLayer_DROIDDECK_placed_memory.la
+ 
+ # Explicit loader layer, independent of Android linker/HAL/WSI libraries.
+ # Its manifest is colocated with the DSO; opt in using VK_LAYER_PATH.
+@@ -29,7 +30,12 @@ libVkLayer_hybris_compat_la_CFLAGS = -fvisibility=hidden
+ # loader unloading its last instance. All per-instance/device state is freed.
+ libVkLayer_hybris_compat_la_LDFLAGS = -module -avoid-version -no-undefined -pthread -Wl,-z,nodelete
+ layerdir = $(libdir)
+-layer_DATA = layer/VkLayer_hybris_compat.json
++# Placed-memory layer runs below compat so translated BC backing buffers pass
++# through its resource/export policy. Activation remains explicitly gated.
++libVkLayer_DROIDDECK_placed_memory_la_SOURCES = placed/placed_layer.c placed/chain_sizes.h placed/vulkan_compat.h
++libVkLayer_DROIDDECK_placed_memory_la_CFLAGS = -std=gnu11 -fvisibility=hidden
++libVkLayer_DROIDDECK_placed_memory_la_LDFLAGS = -module -avoid-version -no-undefined -pthread -Wl,-Bsymbolic
++layer_DATA = layer/VkLayer_hybris_compat.json placed/VkLayer_DROIDDECK_placed_memory.json
+ 
+ libvulkan_la_SOURCES = \
+ 	vulkan.c \
+@@ -62,7 +68,7 @@ libvulkan_la_LDFLAGS = \
+ 
+ # Optional standard-loader backend; no default ICD JSON is installed.
+ libhybris_vulkan_icd_la_SOURCES = icd/icd.c icd/instance.c icd/instance.h icd/device.c icd/device.h icd/wsi.c icd/wsi.h icd/swapchain.c icd/swapchain.h icd/vk_android_native_buffer.h icd/hwvulkan.h icd/physical_commands.inc
+-EXTRA_DIST = compat/shaders/bc7.glsl compat/shaders/bc6h.glsl compat/shaders/LICENSE.bcdec icd/README.md compat/shaders/bc_decode.comp compat/shaders/generate-bc.py layer/VkLayer_hybris_compat.json
++EXTRA_DIST = placed/VkLayer_DROIDDECK_placed_memory.json compat/shaders/bc7.glsl compat/shaders/bc6h.glsl compat/shaders/LICENSE.bcdec icd/README.md compat/shaders/bc_decode.comp compat/shaders/generate-bc.py layer/VkLayer_hybris_compat.json
+ libhybris_vulkan_icd_la_CFLAGS = $(libvulkan_la_CFLAGS) -fvisibility=hidden
+ libhybris_vulkan_icd_la_CXXFLAGS = $(libvulkan_la_CXXFLAGS) -fvisibility=hidden
+ libhybris_vulkan_icd_la_LDFLAGS = \
+diff --git a/hybris/vulkan/placed/VkLayer_DROIDDECK_placed_memory.json b/hybris/vulkan/placed/VkLayer_DROIDDECK_placed_memory.json
+new file mode 100644
+index 0000000..ea7e4c1
+--- /dev/null
++++ b/hybris/vulkan/placed/VkLayer_DROIDDECK_placed_memory.json
+@@ -0,0 +1,14 @@
++{
++  "file_format_version": "1.2.0",
++  "layer": {
++    "name": "VK_LAYER_DROIDDECK_placed_memory",
++    "type": "GLOBAL",
++    "library_path": "./libVkLayer_DROIDDECK_placed_memory.so",
++    "api_version": "1.3.0",
++    "implementation_version": "1",
++    "description": "Experimental WOW64 placed-memory compatibility",
++    "functions": {
++      "vkNegotiateLoaderLayerInterfaceVersion": "vkNegotiateLoaderLayerInterfaceVersion"
++    }
++  }
++}
+diff --git a/hybris/vulkan/placed/chain_sizes.h b/hybris/vulkan/placed/chain_sizes.h
+new file mode 100644
+index 0000000..2185362
+--- /dev/null
++++ b/hybris/vulkan/placed/chain_sizes.h
+@@ -0,0 +1,576 @@
++/* SPDX-License-Identifier: Apache-2.0
++ * Device-chain sizes below are copied unchanged from the pinned upstream
++ * layer/device_create_sizes.inc; provider guards keep them header-compatible.
++ * The trailing explicit cases are the only resource/allocation prefixes this
++ * layer copies. Unknown nodes fail closed rather than guessing their size.
++ */
++/* SPDX-License-Identifier: Apache-2.0
++ * Generated by tools/generate-device-create-sizes.py.
++ * vk.xml SHA256: 1adbeb17c00be04771aac41bbb33850ff83c3503b42dcb2a25a96b4fd79c7e07
++ */
++#if (defined(VK_AMDX_shader_enqueue)) && defined(VK_ENABLE_BETA_EXTENSIONS)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_ENQUEUE_FEATURES_AMDX: return sizeof(VkPhysicalDeviceShaderEnqueueFeaturesAMDX);
++#endif
++#if (defined(VK_KHR_portability_subset)) && defined(VK_ENABLE_BETA_EXTENSIONS)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PORTABILITY_SUBSET_FEATURES_KHR: return sizeof(VkPhysicalDevicePortabilitySubsetFeaturesKHR);
++#endif
++#if (defined(VK_NV_displacement_micromap)) && defined(VK_ENABLE_BETA_EXTENSIONS)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DISPLACEMENT_MICROMAP_FEATURES_NV: return sizeof(VkPhysicalDeviceDisplacementMicromapFeaturesNV);
++#endif
++#if (defined(VK_NV_present_metering)) && defined(VK_ENABLE_BETA_EXTENSIONS)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_METERING_FEATURES_NV: return sizeof(VkPhysicalDevicePresentMeteringFeaturesNV);
++#endif
++#if defined(VK_AMD_anti_lag)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ANTI_LAG_FEATURES_AMD: return sizeof(VkPhysicalDeviceAntiLagFeaturesAMD);
++#endif
++#if defined(VK_AMD_device_coherent_memory)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_COHERENT_MEMORY_FEATURES_AMD: return sizeof(VkPhysicalDeviceCoherentMemoryFeaturesAMD);
++#endif
++#if defined(VK_AMD_memory_overallocation_behavior)
++case VK_STRUCTURE_TYPE_DEVICE_MEMORY_OVERALLOCATION_CREATE_INFO_AMD: return sizeof(VkDeviceMemoryOverallocationCreateInfoAMD);
++#endif
++#if defined(VK_AMD_shader_early_and_late_fragment_tests)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_EARLY_AND_LATE_FRAGMENT_TESTS_FEATURES_AMD: return sizeof(VkPhysicalDeviceShaderEarlyAndLateFragmentTestsFeaturesAMD);
++#endif
++#if defined(VK_ANDROID_external_format_resolve)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_FORMAT_RESOLVE_FEATURES_ANDROID: return sizeof(VkPhysicalDeviceExternalFormatResolveFeaturesANDROID);
++#endif
++#if defined(VK_ARM_pipeline_opacity_micromap)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PIPELINE_OPACITY_MICROMAP_FEATURES_ARM: return sizeof(VkPhysicalDevicePipelineOpacityMicromapFeaturesARM);
++#endif
++#if defined(VK_ARM_render_pass_striped)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RENDER_PASS_STRIPED_FEATURES_ARM: return sizeof(VkPhysicalDeviceRenderPassStripedFeaturesARM);
++#endif
++#if defined(VK_ARM_scheduling_controls)
++case VK_STRUCTURE_TYPE_DEVICE_QUEUE_SHADER_CORE_CONTROL_CREATE_INFO_ARM: return sizeof(VkDeviceQueueShaderCoreControlCreateInfoARM);
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SCHEDULING_CONTROLS_FEATURES_ARM: return sizeof(VkPhysicalDeviceSchedulingControlsFeaturesARM);
++#endif
++#if defined(VK_ARM_shader_core_builtins)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_CORE_BUILTINS_FEATURES_ARM: return sizeof(VkPhysicalDeviceShaderCoreBuiltinsFeaturesARM);
++#endif
++#if defined(VK_EXT_4444_formats)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_4444_FORMATS_FEATURES_EXT: return sizeof(VkPhysicalDevice4444FormatsFeaturesEXT);
++#endif
++#if defined(VK_EXT_astc_decode_mode)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ASTC_DECODE_FEATURES_EXT: return sizeof(VkPhysicalDeviceASTCDecodeFeaturesEXT);
++#endif
++#if defined(VK_EXT_attachment_feedback_loop_dynamic_state)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ATTACHMENT_FEEDBACK_LOOP_DYNAMIC_STATE_FEATURES_EXT: return sizeof(VkPhysicalDeviceAttachmentFeedbackLoopDynamicStateFeaturesEXT);
++#endif
++#if defined(VK_EXT_attachment_feedback_loop_layout)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ATTACHMENT_FEEDBACK_LOOP_LAYOUT_FEATURES_EXT: return sizeof(VkPhysicalDeviceAttachmentFeedbackLoopLayoutFeaturesEXT);
++#endif
++#if defined(VK_EXT_blend_operation_advanced)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BLEND_OPERATION_ADVANCED_FEATURES_EXT: return sizeof(VkPhysicalDeviceBlendOperationAdvancedFeaturesEXT);
++#endif
++#if defined(VK_EXT_border_color_swizzle)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BORDER_COLOR_SWIZZLE_FEATURES_EXT: return sizeof(VkPhysicalDeviceBorderColorSwizzleFeaturesEXT);
++#endif
++#if defined(VK_EXT_buffer_device_address)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES_EXT: return sizeof(VkPhysicalDeviceBufferDeviceAddressFeaturesEXT);
++#endif
++#if defined(VK_EXT_color_write_enable)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_COLOR_WRITE_ENABLE_FEATURES_EXT: return sizeof(VkPhysicalDeviceColorWriteEnableFeaturesEXT);
++#endif
++#if defined(VK_EXT_conditional_rendering)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_CONDITIONAL_RENDERING_FEATURES_EXT: return sizeof(VkPhysicalDeviceConditionalRenderingFeaturesEXT);
++#endif
++#if defined(VK_EXT_custom_border_color)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_CUSTOM_BORDER_COLOR_FEATURES_EXT: return sizeof(VkPhysicalDeviceCustomBorderColorFeaturesEXT);
++#endif
++#if defined(VK_EXT_depth_bias_control)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEPTH_BIAS_CONTROL_FEATURES_EXT: return sizeof(VkPhysicalDeviceDepthBiasControlFeaturesEXT);
++#endif
++#if defined(VK_EXT_depth_clamp_control)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEPTH_CLAMP_CONTROL_FEATURES_EXT: return sizeof(VkPhysicalDeviceDepthClampControlFeaturesEXT);
++#endif
++#if defined(VK_EXT_depth_clip_control)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEPTH_CLIP_CONTROL_FEATURES_EXT: return sizeof(VkPhysicalDeviceDepthClipControlFeaturesEXT);
++#endif
++#if defined(VK_EXT_depth_clip_enable)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEPTH_CLIP_ENABLE_FEATURES_EXT: return sizeof(VkPhysicalDeviceDepthClipEnableFeaturesEXT);
++#endif
++#if defined(VK_EXT_descriptor_buffer)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_BUFFER_FEATURES_EXT: return sizeof(VkPhysicalDeviceDescriptorBufferFeaturesEXT);
++#endif
++#if defined(VK_EXT_device_address_binding_report)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ADDRESS_BINDING_REPORT_FEATURES_EXT: return sizeof(VkPhysicalDeviceAddressBindingReportFeaturesEXT);
++#endif
++#if defined(VK_EXT_device_fault)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FAULT_FEATURES_EXT: return sizeof(VkPhysicalDeviceFaultFeaturesEXT);
++#endif
++#if defined(VK_EXT_device_generated_commands)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEVICE_GENERATED_COMMANDS_FEATURES_EXT: return sizeof(VkPhysicalDeviceDeviceGeneratedCommandsFeaturesEXT);
++#endif
++#if defined(VK_EXT_device_memory_report)
++case VK_STRUCTURE_TYPE_DEVICE_DEVICE_MEMORY_REPORT_CREATE_INFO_EXT: return sizeof(VkDeviceDeviceMemoryReportCreateInfoEXT);
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEVICE_MEMORY_REPORT_FEATURES_EXT: return sizeof(VkPhysicalDeviceDeviceMemoryReportFeaturesEXT);
++#endif
++#if defined(VK_EXT_dynamic_rendering_unused_attachments)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_UNUSED_ATTACHMENTS_FEATURES_EXT: return sizeof(VkPhysicalDeviceDynamicRenderingUnusedAttachmentsFeaturesEXT);
++#endif
++#if defined(VK_EXT_extended_dynamic_state)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTENDED_DYNAMIC_STATE_FEATURES_EXT: return sizeof(VkPhysicalDeviceExtendedDynamicStateFeaturesEXT);
++#endif
++#if defined(VK_EXT_extended_dynamic_state2)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTENDED_DYNAMIC_STATE_2_FEATURES_EXT: return sizeof(VkPhysicalDeviceExtendedDynamicState2FeaturesEXT);
++#endif
++#if defined(VK_EXT_extended_dynamic_state3)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTENDED_DYNAMIC_STATE_3_FEATURES_EXT: return sizeof(VkPhysicalDeviceExtendedDynamicState3FeaturesEXT);
++#endif
++#if defined(VK_EXT_fragment_density_map)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FRAGMENT_DENSITY_MAP_FEATURES_EXT: return sizeof(VkPhysicalDeviceFragmentDensityMapFeaturesEXT);
++#endif
++#if defined(VK_EXT_fragment_density_map2)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FRAGMENT_DENSITY_MAP_2_FEATURES_EXT: return sizeof(VkPhysicalDeviceFragmentDensityMap2FeaturesEXT);
++#endif
++#if defined(VK_EXT_fragment_shader_interlock)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FRAGMENT_SHADER_INTERLOCK_FEATURES_EXT: return sizeof(VkPhysicalDeviceFragmentShaderInterlockFeaturesEXT);
++#endif
++#if defined(VK_EXT_frame_boundary)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FRAME_BOUNDARY_FEATURES_EXT: return sizeof(VkPhysicalDeviceFrameBoundaryFeaturesEXT);
++#endif
++#if defined(VK_EXT_graphics_pipeline_library)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_GRAPHICS_PIPELINE_LIBRARY_FEATURES_EXT: return sizeof(VkPhysicalDeviceGraphicsPipelineLibraryFeaturesEXT);
++#endif
++#if defined(VK_EXT_image_2d_view_of_3d)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_2D_VIEW_OF_3D_FEATURES_EXT: return sizeof(VkPhysicalDeviceImage2DViewOf3DFeaturesEXT);
++#endif
++#if defined(VK_EXT_image_compression_control)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_COMPRESSION_CONTROL_FEATURES_EXT: return sizeof(VkPhysicalDeviceImageCompressionControlFeaturesEXT);
++#endif
++#if defined(VK_EXT_image_compression_control_swapchain)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_COMPRESSION_CONTROL_SWAPCHAIN_FEATURES_EXT: return sizeof(VkPhysicalDeviceImageCompressionControlSwapchainFeaturesEXT);
++#endif
++#if defined(VK_EXT_image_sliced_view_of_3d)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_SLICED_VIEW_OF_3D_FEATURES_EXT: return sizeof(VkPhysicalDeviceImageSlicedViewOf3DFeaturesEXT);
++#endif
++#if defined(VK_EXT_image_view_min_lod)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_VIEW_MIN_LOD_FEATURES_EXT: return sizeof(VkPhysicalDeviceImageViewMinLodFeaturesEXT);
++#endif
++#if defined(VK_EXT_legacy_dithering)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_LEGACY_DITHERING_FEATURES_EXT: return sizeof(VkPhysicalDeviceLegacyDitheringFeaturesEXT);
++#endif
++#if defined(VK_EXT_legacy_vertex_attributes)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_LEGACY_VERTEX_ATTRIBUTES_FEATURES_EXT: return sizeof(VkPhysicalDeviceLegacyVertexAttributesFeaturesEXT);
++#endif
++#if defined(VK_EXT_map_memory_placed)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAP_MEMORY_PLACED_FEATURES_EXT: return sizeof(VkPhysicalDeviceMapMemoryPlacedFeaturesEXT);
++#endif
++#if defined(VK_EXT_memory_priority)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PRIORITY_FEATURES_EXT: return sizeof(VkPhysicalDeviceMemoryPriorityFeaturesEXT);
++#endif
++#if defined(VK_EXT_mesh_shader)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_EXT: return sizeof(VkPhysicalDeviceMeshShaderFeaturesEXT);
++#endif
++#if defined(VK_EXT_multi_draw)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MULTI_DRAW_FEATURES_EXT: return sizeof(VkPhysicalDeviceMultiDrawFeaturesEXT);
++#endif
++#if defined(VK_EXT_multisampled_render_to_single_sampled)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MULTISAMPLED_RENDER_TO_SINGLE_SAMPLED_FEATURES_EXT: return sizeof(VkPhysicalDeviceMultisampledRenderToSingleSampledFeaturesEXT);
++#endif
++#if defined(VK_EXT_mutable_descriptor_type)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MUTABLE_DESCRIPTOR_TYPE_FEATURES_EXT: return sizeof(VkPhysicalDeviceMutableDescriptorTypeFeaturesEXT);
++#endif
++#if defined(VK_EXT_nested_command_buffer)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_NESTED_COMMAND_BUFFER_FEATURES_EXT: return sizeof(VkPhysicalDeviceNestedCommandBufferFeaturesEXT);
++#endif
++#if defined(VK_EXT_non_seamless_cube_map)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_NON_SEAMLESS_CUBE_MAP_FEATURES_EXT: return sizeof(VkPhysicalDeviceNonSeamlessCubeMapFeaturesEXT);
++#endif
++#if defined(VK_EXT_opacity_micromap)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_OPACITY_MICROMAP_FEATURES_EXT: return sizeof(VkPhysicalDeviceOpacityMicromapFeaturesEXT);
++#endif
++#if defined(VK_EXT_pageable_device_local_memory)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PAGEABLE_DEVICE_LOCAL_MEMORY_FEATURES_EXT: return sizeof(VkPhysicalDevicePageableDeviceLocalMemoryFeaturesEXT);
++#endif
++#if defined(VK_EXT_pipeline_library_group_handles)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PIPELINE_LIBRARY_GROUP_HANDLES_FEATURES_EXT: return sizeof(VkPhysicalDevicePipelineLibraryGroupHandlesFeaturesEXT);
++#endif
++#if defined(VK_EXT_pipeline_properties)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PIPELINE_PROPERTIES_FEATURES_EXT: return sizeof(VkPhysicalDevicePipelinePropertiesFeaturesEXT);
++#endif
++#if defined(VK_EXT_present_mode_fifo_latest_ready)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_MODE_FIFO_LATEST_READY_FEATURES_EXT: return sizeof(VkPhysicalDevicePresentModeFifoLatestReadyFeaturesEXT);
++#endif
++#if defined(VK_EXT_primitive_topology_list_restart)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRIMITIVE_TOPOLOGY_LIST_RESTART_FEATURES_EXT: return sizeof(VkPhysicalDevicePrimitiveTopologyListRestartFeaturesEXT);
++#endif
++#if defined(VK_EXT_primitives_generated_query)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRIMITIVES_GENERATED_QUERY_FEATURES_EXT: return sizeof(VkPhysicalDevicePrimitivesGeneratedQueryFeaturesEXT);
++#endif
++#if defined(VK_EXT_provoking_vertex)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROVOKING_VERTEX_FEATURES_EXT: return sizeof(VkPhysicalDeviceProvokingVertexFeaturesEXT);
++#endif
++#if defined(VK_EXT_rasterization_order_attachment_access)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RASTERIZATION_ORDER_ATTACHMENT_ACCESS_FEATURES_EXT: return sizeof(VkPhysicalDeviceRasterizationOrderAttachmentAccessFeaturesEXT);
++#endif
++#if defined(VK_EXT_rgba10x6_formats)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RGBA10X6_FORMATS_FEATURES_EXT: return sizeof(VkPhysicalDeviceRGBA10X6FormatsFeaturesEXT);
++#endif
++#if defined(VK_EXT_robustness2)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ROBUSTNESS_2_FEATURES_EXT: return sizeof(VkPhysicalDeviceRobustness2FeaturesEXT);
++#endif
++#if defined(VK_EXT_shader_atomic_float)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_ATOMIC_FLOAT_FEATURES_EXT: return sizeof(VkPhysicalDeviceShaderAtomicFloatFeaturesEXT);
++#endif
++#if defined(VK_EXT_shader_atomic_float2)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_ATOMIC_FLOAT_2_FEATURES_EXT: return sizeof(VkPhysicalDeviceShaderAtomicFloat2FeaturesEXT);
++#endif
++#if defined(VK_EXT_shader_image_atomic_int64)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_IMAGE_ATOMIC_INT64_FEATURES_EXT: return sizeof(VkPhysicalDeviceShaderImageAtomicInt64FeaturesEXT);
++#endif
++#if defined(VK_EXT_shader_module_identifier)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_MODULE_IDENTIFIER_FEATURES_EXT: return sizeof(VkPhysicalDeviceShaderModuleIdentifierFeaturesEXT);
++#endif
++#if defined(VK_EXT_shader_object)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_OBJECT_FEATURES_EXT: return sizeof(VkPhysicalDeviceShaderObjectFeaturesEXT);
++#endif
++#if defined(VK_EXT_shader_replicated_composites)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_REPLICATED_COMPOSITES_FEATURES_EXT: return sizeof(VkPhysicalDeviceShaderReplicatedCompositesFeaturesEXT);
++#endif
++#if defined(VK_EXT_shader_tile_image)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_TILE_IMAGE_FEATURES_EXT: return sizeof(VkPhysicalDeviceShaderTileImageFeaturesEXT);
++#endif
++#if defined(VK_EXT_subpass_merge_feedback)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SUBPASS_MERGE_FEEDBACK_FEATURES_EXT: return sizeof(VkPhysicalDeviceSubpassMergeFeedbackFeaturesEXT);
++#endif
++#if defined(VK_EXT_swapchain_maintenance1)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SWAPCHAIN_MAINTENANCE_1_FEATURES_EXT: return sizeof(VkPhysicalDeviceSwapchainMaintenance1FeaturesEXT);
++#endif
++#if defined(VK_EXT_texel_buffer_alignment)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TEXEL_BUFFER_ALIGNMENT_FEATURES_EXT: return sizeof(VkPhysicalDeviceTexelBufferAlignmentFeaturesEXT);
++#endif
++#if defined(VK_EXT_transform_feedback)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TRANSFORM_FEEDBACK_FEATURES_EXT: return sizeof(VkPhysicalDeviceTransformFeedbackFeaturesEXT);
++#endif
++#if defined(VK_EXT_vertex_attribute_robustness)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VERTEX_ATTRIBUTE_ROBUSTNESS_FEATURES_EXT: return sizeof(VkPhysicalDeviceVertexAttributeRobustnessFeaturesEXT);
++#endif
++#if defined(VK_EXT_vertex_input_dynamic_state)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VERTEX_INPUT_DYNAMIC_STATE_FEATURES_EXT: return sizeof(VkPhysicalDeviceVertexInputDynamicStateFeaturesEXT);
++#endif
++#if defined(VK_EXT_ycbcr_2plane_444_formats)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_YCBCR_2_PLANE_444_FORMATS_FEATURES_EXT: return sizeof(VkPhysicalDeviceYcbcr2Plane444FormatsFeaturesEXT);
++#endif
++#if defined(VK_EXT_ycbcr_image_arrays)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_YCBCR_IMAGE_ARRAYS_FEATURES_EXT: return sizeof(VkPhysicalDeviceYcbcrImageArraysFeaturesEXT);
++#endif
++#if defined(VK_HUAWEI_cluster_culling_shader)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_CLUSTER_CULLING_SHADER_FEATURES_HUAWEI: return sizeof(VkPhysicalDeviceClusterCullingShaderFeaturesHUAWEI);
++#endif
++#if defined(VK_HUAWEI_hdr_vivid)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_HDR_VIVID_FEATURES_HUAWEI: return sizeof(VkPhysicalDeviceHdrVividFeaturesHUAWEI);
++#endif
++#if defined(VK_HUAWEI_invocation_mask)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_INVOCATION_MASK_FEATURES_HUAWEI: return sizeof(VkPhysicalDeviceInvocationMaskFeaturesHUAWEI);
++#endif
++#if defined(VK_HUAWEI_subpass_shading)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SUBPASS_SHADING_FEATURES_HUAWEI: return sizeof(VkPhysicalDeviceSubpassShadingFeaturesHUAWEI);
++#endif
++#if defined(VK_IMG_relaxed_line_rasterization)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RELAXED_LINE_RASTERIZATION_FEATURES_IMG: return sizeof(VkPhysicalDeviceRelaxedLineRasterizationFeaturesIMG);
++#endif
++#if defined(VK_INTEL_shader_integer_functions2)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_INTEGER_FUNCTIONS_2_FEATURES_INTEL: return sizeof(VkPhysicalDeviceShaderIntegerFunctions2FeaturesINTEL);
++#endif
++#if defined(VK_KHR_acceleration_structure)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR: return sizeof(VkPhysicalDeviceAccelerationStructureFeaturesKHR);
++#endif
++#if defined(VK_KHR_compute_shader_derivatives)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_COMPUTE_SHADER_DERIVATIVES_FEATURES_KHR: return sizeof(VkPhysicalDeviceComputeShaderDerivativesFeaturesKHR);
++#endif
++#if defined(VK_KHR_cooperative_matrix)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_COOPERATIVE_MATRIX_FEATURES_KHR: return sizeof(VkPhysicalDeviceCooperativeMatrixFeaturesKHR);
++#endif
++#if defined(VK_KHR_depth_clamp_zero_one)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEPTH_CLAMP_ZERO_ONE_FEATURES_KHR: return sizeof(VkPhysicalDeviceDepthClampZeroOneFeaturesKHR);
++#endif
++#if defined(VK_KHR_fragment_shader_barycentric)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FRAGMENT_SHADER_BARYCENTRIC_FEATURES_KHR: return sizeof(VkPhysicalDeviceFragmentShaderBarycentricFeaturesKHR);
++#endif
++#if defined(VK_KHR_fragment_shading_rate)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FRAGMENT_SHADING_RATE_FEATURES_KHR: return sizeof(VkPhysicalDeviceFragmentShadingRateFeaturesKHR);
++#endif
++#if defined(VK_KHR_maintenance7)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_7_FEATURES_KHR: return sizeof(VkPhysicalDeviceMaintenance7FeaturesKHR);
++#endif
++#if defined(VK_KHR_maintenance8)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_8_FEATURES_KHR: return sizeof(VkPhysicalDeviceMaintenance8FeaturesKHR);
++#endif
++#if defined(VK_KHR_performance_query)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PERFORMANCE_QUERY_FEATURES_KHR: return sizeof(VkPhysicalDevicePerformanceQueryFeaturesKHR);
++#endif
++#if defined(VK_KHR_pipeline_binary)
++case VK_STRUCTURE_TYPE_DEVICE_PIPELINE_BINARY_INTERNAL_CACHE_CONTROL_KHR: return sizeof(VkDevicePipelineBinaryInternalCacheControlKHR);
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PIPELINE_BINARY_FEATURES_KHR: return sizeof(VkPhysicalDevicePipelineBinaryFeaturesKHR);
++#endif
++#if defined(VK_KHR_pipeline_executable_properties)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PIPELINE_EXECUTABLE_PROPERTIES_FEATURES_KHR: return sizeof(VkPhysicalDevicePipelineExecutablePropertiesFeaturesKHR);
++#endif
++#if defined(VK_KHR_present_id)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_ID_FEATURES_KHR: return sizeof(VkPhysicalDevicePresentIdFeaturesKHR);
++#endif
++#if defined(VK_KHR_present_wait)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_WAIT_FEATURES_KHR: return sizeof(VkPhysicalDevicePresentWaitFeaturesKHR);
++#endif
++#if defined(VK_KHR_ray_query)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR: return sizeof(VkPhysicalDeviceRayQueryFeaturesKHR);
++#endif
++#if defined(VK_KHR_ray_tracing_maintenance1)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_MAINTENANCE_1_FEATURES_KHR: return sizeof(VkPhysicalDeviceRayTracingMaintenance1FeaturesKHR);
++#endif
++#if defined(VK_KHR_ray_tracing_pipeline)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR: return sizeof(VkPhysicalDeviceRayTracingPipelineFeaturesKHR);
++#endif
++#if defined(VK_KHR_ray_tracing_position_fetch)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_POSITION_FETCH_FEATURES_KHR: return sizeof(VkPhysicalDeviceRayTracingPositionFetchFeaturesKHR);
++#endif
++#if defined(VK_KHR_shader_clock)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_CLOCK_FEATURES_KHR: return sizeof(VkPhysicalDeviceShaderClockFeaturesKHR);
++#endif
++#if defined(VK_KHR_shader_maximal_reconvergence)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_MAXIMAL_RECONVERGENCE_FEATURES_KHR: return sizeof(VkPhysicalDeviceShaderMaximalReconvergenceFeaturesKHR);
++#endif
++#if defined(VK_KHR_shader_quad_control)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_QUAD_CONTROL_FEATURES_KHR: return sizeof(VkPhysicalDeviceShaderQuadControlFeaturesKHR);
++#endif
++#if defined(VK_KHR_shader_relaxed_extended_instruction)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_RELAXED_EXTENDED_INSTRUCTION_FEATURES_KHR: return sizeof(VkPhysicalDeviceShaderRelaxedExtendedInstructionFeaturesKHR);
++#endif
++#if defined(VK_KHR_shader_subgroup_uniform_control_flow)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_SUBGROUP_UNIFORM_CONTROL_FLOW_FEATURES_KHR: return sizeof(VkPhysicalDeviceShaderSubgroupUniformControlFlowFeaturesKHR);
++#endif
++#if defined(VK_KHR_video_encode_av1)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VIDEO_ENCODE_AV1_FEATURES_KHR: return sizeof(VkPhysicalDeviceVideoEncodeAV1FeaturesKHR);
++#endif
++#if defined(VK_KHR_video_encode_quantization_map)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VIDEO_ENCODE_QUANTIZATION_MAP_FEATURES_KHR: return sizeof(VkPhysicalDeviceVideoEncodeQuantizationMapFeaturesKHR);
++#endif
++#if defined(VK_KHR_video_maintenance1)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VIDEO_MAINTENANCE_1_FEATURES_KHR: return sizeof(VkPhysicalDeviceVideoMaintenance1FeaturesKHR);
++#endif
++#if defined(VK_KHR_video_maintenance2)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VIDEO_MAINTENANCE_2_FEATURES_KHR: return sizeof(VkPhysicalDeviceVideoMaintenance2FeaturesKHR);
++#endif
++#if defined(VK_KHR_workgroup_memory_explicit_layout)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_WORKGROUP_MEMORY_EXPLICIT_LAYOUT_FEATURES_KHR: return sizeof(VkPhysicalDeviceWorkgroupMemoryExplicitLayoutFeaturesKHR);
++#endif
++#if defined(VK_MESA_image_alignment_control)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_ALIGNMENT_CONTROL_FEATURES_MESA: return sizeof(VkPhysicalDeviceImageAlignmentControlFeaturesMESA);
++#endif
++#if defined(VK_NV_cluster_acceleration_structure)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_CLUSTER_ACCELERATION_STRUCTURE_FEATURES_NV: return sizeof(VkPhysicalDeviceClusterAccelerationStructureFeaturesNV);
++#endif
++#if defined(VK_NV_command_buffer_inheritance)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_COMMAND_BUFFER_INHERITANCE_FEATURES_NV: return sizeof(VkPhysicalDeviceCommandBufferInheritanceFeaturesNV);
++#endif
++#if defined(VK_NV_cooperative_matrix)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_COOPERATIVE_MATRIX_FEATURES_NV: return sizeof(VkPhysicalDeviceCooperativeMatrixFeaturesNV);
++#endif
++#if defined(VK_NV_cooperative_matrix2)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_COOPERATIVE_MATRIX_2_FEATURES_NV: return sizeof(VkPhysicalDeviceCooperativeMatrix2FeaturesNV);
++#endif
++#if defined(VK_NV_cooperative_vector)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_COOPERATIVE_VECTOR_FEATURES_NV: return sizeof(VkPhysicalDeviceCooperativeVectorFeaturesNV);
++#endif
++#if defined(VK_NV_copy_memory_indirect)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_COPY_MEMORY_INDIRECT_FEATURES_NV: return sizeof(VkPhysicalDeviceCopyMemoryIndirectFeaturesNV);
++#endif
++#if defined(VK_NV_corner_sampled_image)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_CORNER_SAMPLED_IMAGE_FEATURES_NV: return sizeof(VkPhysicalDeviceCornerSampledImageFeaturesNV);
++#endif
++#if defined(VK_NV_coverage_reduction_mode)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_COVERAGE_REDUCTION_MODE_FEATURES_NV: return sizeof(VkPhysicalDeviceCoverageReductionModeFeaturesNV);
++#endif
++#if defined(VK_NV_cuda_kernel_launch)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_CUDA_KERNEL_LAUNCH_FEATURES_NV: return sizeof(VkPhysicalDeviceCudaKernelLaunchFeaturesNV);
++#endif
++#if defined(VK_NV_dedicated_allocation_image_aliasing)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEDICATED_ALLOCATION_IMAGE_ALIASING_FEATURES_NV: return sizeof(VkPhysicalDeviceDedicatedAllocationImageAliasingFeaturesNV);
++#endif
++#if defined(VK_NV_descriptor_pool_overallocation)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_POOL_OVERALLOCATION_FEATURES_NV: return sizeof(VkPhysicalDeviceDescriptorPoolOverallocationFeaturesNV);
++#endif
++#if defined(VK_NV_device_diagnostics_config)
++case VK_STRUCTURE_TYPE_DEVICE_DIAGNOSTICS_CONFIG_CREATE_INFO_NV: return sizeof(VkDeviceDiagnosticsConfigCreateInfoNV);
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DIAGNOSTICS_CONFIG_FEATURES_NV: return sizeof(VkPhysicalDeviceDiagnosticsConfigFeaturesNV);
++#endif
++#if defined(VK_NV_device_generated_commands)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEVICE_GENERATED_COMMANDS_FEATURES_NV: return sizeof(VkPhysicalDeviceDeviceGeneratedCommandsFeaturesNV);
++#endif
++#if defined(VK_NV_device_generated_commands_compute)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEVICE_GENERATED_COMMANDS_COMPUTE_FEATURES_NV: return sizeof(VkPhysicalDeviceDeviceGeneratedCommandsComputeFeaturesNV);
++#endif
++#if defined(VK_NV_extended_sparse_address_space)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTENDED_SPARSE_ADDRESS_SPACE_FEATURES_NV: return sizeof(VkPhysicalDeviceExtendedSparseAddressSpaceFeaturesNV);
++#endif
++#if defined(VK_NV_external_memory_rdma)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_MEMORY_RDMA_FEATURES_NV: return sizeof(VkPhysicalDeviceExternalMemoryRDMAFeaturesNV);
++#endif
++#if defined(VK_NV_fragment_shading_rate_enums)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FRAGMENT_SHADING_RATE_ENUMS_FEATURES_NV: return sizeof(VkPhysicalDeviceFragmentShadingRateEnumsFeaturesNV);
++#endif
++#if defined(VK_NV_inherited_viewport_scissor)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_INHERITED_VIEWPORT_SCISSOR_FEATURES_NV: return sizeof(VkPhysicalDeviceInheritedViewportScissorFeaturesNV);
++#endif
++#if defined(VK_NV_linear_color_attachment)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_LINEAR_COLOR_ATTACHMENT_FEATURES_NV: return sizeof(VkPhysicalDeviceLinearColorAttachmentFeaturesNV);
++#endif
++#if defined(VK_NV_memory_decompression)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_DECOMPRESSION_FEATURES_NV: return sizeof(VkPhysicalDeviceMemoryDecompressionFeaturesNV);
++#endif
++#if defined(VK_NV_mesh_shader)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_NV: return sizeof(VkPhysicalDeviceMeshShaderFeaturesNV);
++#endif
++#if defined(VK_NV_optical_flow)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_OPTICAL_FLOW_FEATURES_NV: return sizeof(VkPhysicalDeviceOpticalFlowFeaturesNV);
++#endif
++#if defined(VK_NV_partitioned_acceleration_structure)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PARTITIONED_ACCELERATION_STRUCTURE_FEATURES_NV: return sizeof(VkPhysicalDevicePartitionedAccelerationStructureFeaturesNV);
++#endif
++#if defined(VK_NV_per_stage_descriptor_set)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PER_STAGE_DESCRIPTOR_SET_FEATURES_NV: return sizeof(VkPhysicalDevicePerStageDescriptorSetFeaturesNV);
++#endif
++#if defined(VK_NV_present_barrier)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_BARRIER_FEATURES_NV: return sizeof(VkPhysicalDevicePresentBarrierFeaturesNV);
++#endif
++#if defined(VK_NV_raw_access_chains)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAW_ACCESS_CHAINS_FEATURES_NV: return sizeof(VkPhysicalDeviceRawAccessChainsFeaturesNV);
++#endif
++#if defined(VK_NV_ray_tracing_invocation_reorder)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_INVOCATION_REORDER_FEATURES_NV: return sizeof(VkPhysicalDeviceRayTracingInvocationReorderFeaturesNV);
++#endif
++#if defined(VK_NV_ray_tracing_linear_swept_spheres)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_LINEAR_SWEPT_SPHERES_FEATURES_NV: return sizeof(VkPhysicalDeviceRayTracingLinearSweptSpheresFeaturesNV);
++#endif
++#if defined(VK_NV_ray_tracing_motion_blur)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_MOTION_BLUR_FEATURES_NV: return sizeof(VkPhysicalDeviceRayTracingMotionBlurFeaturesNV);
++#endif
++#if defined(VK_NV_ray_tracing_validation)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_VALIDATION_FEATURES_NV: return sizeof(VkPhysicalDeviceRayTracingValidationFeaturesNV);
++#endif
++#if defined(VK_NV_representative_fragment_test)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_REPRESENTATIVE_FRAGMENT_TEST_FEATURES_NV: return sizeof(VkPhysicalDeviceRepresentativeFragmentTestFeaturesNV);
++#endif
++#if defined(VK_NV_scissor_exclusive)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXCLUSIVE_SCISSOR_FEATURES_NV: return sizeof(VkPhysicalDeviceExclusiveScissorFeaturesNV);
++#endif
++#if defined(VK_NV_shader_atomic_float16_vector)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_ATOMIC_FLOAT16_VECTOR_FEATURES_NV: return sizeof(VkPhysicalDeviceShaderAtomicFloat16VectorFeaturesNV);
++#endif
++#if defined(VK_NV_shader_image_footprint)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_IMAGE_FOOTPRINT_FEATURES_NV: return sizeof(VkPhysicalDeviceShaderImageFootprintFeaturesNV);
++#endif
++#if defined(VK_NV_shader_sm_builtins)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_SM_BUILTINS_FEATURES_NV: return sizeof(VkPhysicalDeviceShaderSMBuiltinsFeaturesNV);
++#endif
++#if defined(VK_NV_shading_rate_image)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADING_RATE_IMAGE_FEATURES_NV: return sizeof(VkPhysicalDeviceShadingRateImageFeaturesNV);
++#endif
++#if defined(VK_QCOM_filter_cubic_clamp)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_CUBIC_CLAMP_FEATURES_QCOM: return sizeof(VkPhysicalDeviceCubicClampFeaturesQCOM);
++#endif
++#if defined(VK_QCOM_filter_cubic_weights)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_CUBIC_WEIGHTS_FEATURES_QCOM: return sizeof(VkPhysicalDeviceCubicWeightsFeaturesQCOM);
++#endif
++#if defined(VK_QCOM_fragment_density_map_offset)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FRAGMENT_DENSITY_MAP_OFFSET_FEATURES_QCOM: return sizeof(VkPhysicalDeviceFragmentDensityMapOffsetFeaturesQCOM);
++#endif
++#if defined(VK_QCOM_image_processing)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_PROCESSING_FEATURES_QCOM: return sizeof(VkPhysicalDeviceImageProcessingFeaturesQCOM);
++#endif
++#if defined(VK_QCOM_image_processing2)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_PROCESSING_2_FEATURES_QCOM: return sizeof(VkPhysicalDeviceImageProcessing2FeaturesQCOM);
++#endif
++#if defined(VK_QCOM_multiview_per_view_render_areas)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MULTIVIEW_PER_VIEW_RENDER_AREAS_FEATURES_QCOM: return sizeof(VkPhysicalDeviceMultiviewPerViewRenderAreasFeaturesQCOM);
++#endif
++#if defined(VK_QCOM_multiview_per_view_viewports)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MULTIVIEW_PER_VIEW_VIEWPORTS_FEATURES_QCOM: return sizeof(VkPhysicalDeviceMultiviewPerViewViewportsFeaturesQCOM);
++#endif
++#if defined(VK_QCOM_tile_properties)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TILE_PROPERTIES_FEATURES_QCOM: return sizeof(VkPhysicalDeviceTilePropertiesFeaturesQCOM);
++#endif
++#if defined(VK_QCOM_ycbcr_degamma)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_YCBCR_DEGAMMA_FEATURES_QCOM: return sizeof(VkPhysicalDeviceYcbcrDegammaFeaturesQCOM);
++#endif
++#if defined(VK_QNX_external_memory_screen_buffer)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_MEMORY_SCREEN_BUFFER_FEATURES_QNX: return sizeof(VkPhysicalDeviceExternalMemoryScreenBufferFeaturesQNX);
++#endif
++#if defined(VK_SEC_amigo_profiling)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_AMIGO_PROFILING_FEATURES_SEC: return sizeof(VkPhysicalDeviceAmigoProfilingFeaturesSEC);
++#endif
++#if defined(VK_VALVE_descriptor_set_host_mapping)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_SET_HOST_MAPPING_FEATURES_VALVE: return sizeof(VkPhysicalDeviceDescriptorSetHostMappingFeaturesVALVE);
++#endif
++#if defined(VK_VERSION_1_1)
++case VK_STRUCTURE_TYPE_DEVICE_GROUP_DEVICE_CREATE_INFO: return sizeof(VkDeviceGroupDeviceCreateInfo);
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_16BIT_STORAGE_FEATURES: return sizeof(VkPhysicalDevice16BitStorageFeatures);
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2: return sizeof(VkPhysicalDeviceFeatures2);
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MULTIVIEW_FEATURES: return sizeof(VkPhysicalDeviceMultiviewFeatures);
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROTECTED_MEMORY_FEATURES: return sizeof(VkPhysicalDeviceProtectedMemoryFeatures);
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SAMPLER_YCBCR_CONVERSION_FEATURES: return sizeof(VkPhysicalDeviceSamplerYcbcrConversionFeatures);
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_DRAW_PARAMETERS_FEATURES: return sizeof(VkPhysicalDeviceShaderDrawParametersFeatures);
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VARIABLE_POINTERS_FEATURES: return sizeof(VkPhysicalDeviceVariablePointersFeatures);
++#endif
++#if defined(VK_VERSION_1_2)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_8BIT_STORAGE_FEATURES: return sizeof(VkPhysicalDevice8BitStorageFeatures);
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES: return sizeof(VkPhysicalDeviceBufferDeviceAddressFeatures);
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES: return sizeof(VkPhysicalDeviceDescriptorIndexingFeatures);
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_HOST_QUERY_RESET_FEATURES: return sizeof(VkPhysicalDeviceHostQueryResetFeatures);
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGELESS_FRAMEBUFFER_FEATURES: return sizeof(VkPhysicalDeviceImagelessFramebufferFeatures);
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SCALAR_BLOCK_LAYOUT_FEATURES: return sizeof(VkPhysicalDeviceScalarBlockLayoutFeatures);
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SEPARATE_DEPTH_STENCIL_LAYOUTS_FEATURES: return sizeof(VkPhysicalDeviceSeparateDepthStencilLayoutsFeatures);
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_ATOMIC_INT64_FEATURES: return sizeof(VkPhysicalDeviceShaderAtomicInt64Features);
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_FLOAT16_INT8_FEATURES: return sizeof(VkPhysicalDeviceShaderFloat16Int8Features);
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_SUBGROUP_EXTENDED_TYPES_FEATURES: return sizeof(VkPhysicalDeviceShaderSubgroupExtendedTypesFeatures);
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TIMELINE_SEMAPHORE_FEATURES: return sizeof(VkPhysicalDeviceTimelineSemaphoreFeatures);
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_UNIFORM_BUFFER_STANDARD_LAYOUT_FEATURES: return sizeof(VkPhysicalDeviceUniformBufferStandardLayoutFeatures);
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES: return sizeof(VkPhysicalDeviceVulkan11Features);
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES: return sizeof(VkPhysicalDeviceVulkan12Features);
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_MEMORY_MODEL_FEATURES: return sizeof(VkPhysicalDeviceVulkanMemoryModelFeatures);
++#endif
++#if defined(VK_VERSION_1_3)
++case VK_STRUCTURE_TYPE_DEVICE_PRIVATE_DATA_CREATE_INFO: return sizeof(VkDevicePrivateDataCreateInfo);
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES: return sizeof(VkPhysicalDeviceDynamicRenderingFeatures);
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_ROBUSTNESS_FEATURES: return sizeof(VkPhysicalDeviceImageRobustnessFeatures);
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_INLINE_UNIFORM_BLOCK_FEATURES: return sizeof(VkPhysicalDeviceInlineUniformBlockFeatures);
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_4_FEATURES: return sizeof(VkPhysicalDeviceMaintenance4Features);
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PIPELINE_CREATION_CACHE_CONTROL_FEATURES: return sizeof(VkPhysicalDevicePipelineCreationCacheControlFeatures);
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRIVATE_DATA_FEATURES: return sizeof(VkPhysicalDevicePrivateDataFeatures);
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_DEMOTE_TO_HELPER_INVOCATION_FEATURES: return sizeof(VkPhysicalDeviceShaderDemoteToHelperInvocationFeatures);
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_INTEGER_DOT_PRODUCT_FEATURES: return sizeof(VkPhysicalDeviceShaderIntegerDotProductFeatures);
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_TERMINATE_INVOCATION_FEATURES: return sizeof(VkPhysicalDeviceShaderTerminateInvocationFeatures);
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SUBGROUP_SIZE_CONTROL_FEATURES: return sizeof(VkPhysicalDeviceSubgroupSizeControlFeatures);
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES: return sizeof(VkPhysicalDeviceSynchronization2Features);
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TEXTURE_COMPRESSION_ASTC_HDR_FEATURES: return sizeof(VkPhysicalDeviceTextureCompressionASTCHDRFeatures);
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES: return sizeof(VkPhysicalDeviceVulkan13Features);
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ZERO_INITIALIZE_WORKGROUP_MEMORY_FEATURES: return sizeof(VkPhysicalDeviceZeroInitializeWorkgroupMemoryFeatures);
++#endif
++#if defined(VK_VERSION_1_4)
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_LOCAL_READ_FEATURES: return sizeof(VkPhysicalDeviceDynamicRenderingLocalReadFeatures);
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_GLOBAL_PRIORITY_QUERY_FEATURES: return sizeof(VkPhysicalDeviceGlobalPriorityQueryFeatures);
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_HOST_IMAGE_COPY_FEATURES: return sizeof(VkPhysicalDeviceHostImageCopyFeatures);
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_INDEX_TYPE_UINT8_FEATURES: return sizeof(VkPhysicalDeviceIndexTypeUint8Features);
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_LINE_RASTERIZATION_FEATURES: return sizeof(VkPhysicalDeviceLineRasterizationFeatures);
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_5_FEATURES: return sizeof(VkPhysicalDeviceMaintenance5Features);
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_6_FEATURES: return sizeof(VkPhysicalDeviceMaintenance6Features);
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PIPELINE_PROTECTED_ACCESS_FEATURES: return sizeof(VkPhysicalDevicePipelineProtectedAccessFeatures);
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PIPELINE_ROBUSTNESS_FEATURES: return sizeof(VkPhysicalDevicePipelineRobustnessFeatures);
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_EXPECT_ASSUME_FEATURES: return sizeof(VkPhysicalDeviceShaderExpectAssumeFeatures);
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_FLOAT_CONTROLS_2_FEATURES: return sizeof(VkPhysicalDeviceShaderFloatControls2Features);
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_SUBGROUP_ROTATE_FEATURES: return sizeof(VkPhysicalDeviceShaderSubgroupRotateFeatures);
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VERTEX_ATTRIBUTE_DIVISOR_FEATURES: return sizeof(VkPhysicalDeviceVertexAttributeDivisorFeatures);
++case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_4_FEATURES: return sizeof(VkPhysicalDeviceVulkan14Features);
++#endif
++
++/* Bounded resource/allocation-chain nodes used by placed_layer.c. */
++case VK_STRUCTURE_TYPE_BUFFER_USAGE_FLAGS_2_CREATE_INFO_KHR: return sizeof(VkBufferUsageFlags2CreateInfoKHR);
++case VK_STRUCTURE_TYPE_IMAGE_FORMAT_LIST_CREATE_INFO: return sizeof(VkImageFormatListCreateInfo);
++case VK_STRUCTURE_TYPE_IMAGE_STENCIL_USAGE_CREATE_INFO: return sizeof(VkImageStencilUsageCreateInfo);
++case VK_STRUCTURE_TYPE_IMAGE_COMPRESSION_CONTROL_EXT: return sizeof(VkImageCompressionControlEXT);
++case VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO: return sizeof(VkMemoryAllocateFlagsInfo);
++case VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO: return sizeof(VkMemoryDedicatedAllocateInfo);
++case VK_STRUCTURE_TYPE_MEMORY_PRIORITY_ALLOCATE_INFO_EXT: return sizeof(VkMemoryPriorityAllocateInfoEXT);
++case VK_STRUCTURE_TYPE_MEMORY_OPAQUE_CAPTURE_ADDRESS_ALLOCATE_INFO: return sizeof(VkMemoryOpaqueCaptureAddressAllocateInfo);
+diff --git a/hybris/vulkan/placed/placed_layer.c b/hybris/vulkan/placed/placed_layer.c
+new file mode 100644
+index 0000000..00a6b95
+--- /dev/null
++++ b/hybris/vulkan/placed/placed_layer.c
+@@ -0,0 +1,1787 @@
++/* SPDX-License-Identifier: MIT
++ * Copyright (c) 2026 DroidDeck contributors.
++ * Experimental OPAQUE_FD placed mappings. Explicit opt-in required.
++ * Loader dispatch conventions follow Khronos loader-layer interface v2.
++ */
++#define _GNU_SOURCE
++#define VK_NO_PROTOTYPES
++#include <dirent.h>
++#include <dlfcn.h>
++#include <errno.h>
++#include <fcntl.h>
++#include <inttypes.h>
++#include <limits.h>
++#include <pthread.h>
++#include <stdatomic.h>
++#include <stdint.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <sys/auxv.h>
++#include <sys/mman.h>
++#include <sys/stat.h>
++#include <sys/sysmacros.h>
++#include <unistd.h>
++#include <vulkan/vk_layer.h>
++#include <vulkan/vulkan.h>
++#include "vulkan_compat.h"
++
++#define LAYER_NAME "VK_LAYER_DROIDDECK_placed_memory"
++#define OPAQUE VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT
++#define PLACED VK_EXT_MAP_MEMORY_PLACED_EXTENSION_NAME
++#define MAP2 VK_KHR_MAP_MEMORY_2_EXTENSION_NAME
++#define FD_EXT VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME
++#define HOST VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT
++#define COHERENT VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
++#ifndef MAP_FIXED_NOREPLACE
++#define MAP_FIXED_NOREPLACE 0x100000
++#endif
++
++enum backend { BACKEND_UNSUPPORTED, BACKEND_OPAQUE, BACKEND_NATIVE_ALIAS };
++
++struct alloc {
++    VkAllocationCallbacks cb;
++    int custom;
++};
++static struct alloc allocator(const VkAllocationCallbacks *a) {
++    struct alloc r = {0};
++    if (a) {
++        r.cb = *a;
++        r.custom = 1;
++    }
++    return r;
++}
++static void *zalloc(struct alloc a, size_t n, VkSystemAllocationScope scope) {
++    void *p =
++        a.custom ? a.cb.pfnAllocation(a.cb.pUserData, n, _Alignof(max_align_t), scope) : malloc(n);
++    if (p)
++        memset(p, 0, n);
++    return p;
++}
++static void dealloc(struct alloc a, void *p) {
++    if (!p)
++        return;
++    if (a.custom)
++        a.cb.pfnFree(a.cb.pUserData, p);
++    else
++        free(p);
++}
++static void *key(const void *h) {
++    void *k = NULL;
++    if (h)
++        memcpy(&k, h, sizeof(k));
++    return k;
++}
++static const VkBaseInStructure *find_chain(const void *p, VkStructureType t) {
++    for (const VkBaseInStructure *n = p; n; n = n->pNext)
++        if (n->sType == t)
++            return n;
++    return NULL;
++}
++static size_t chain_size(VkStructureType t) {
++    /* Extension ABI values can postdate the build headers' enum members. */
++    switch ((uint32_t)t) {
++    case VK_STRUCTURE_TYPE_LOADER_INSTANCE_CREATE_INFO:
++        return sizeof(VkLayerInstanceCreateInfo);
++    case VK_STRUCTURE_TYPE_LOADER_DEVICE_CREATE_INFO:
++        return sizeof(VkLayerDeviceCreateInfo);
++#include "chain_sizes.h"
++    default:
++        return 0;
++    }
++}
++/* Copy only the prefix before the replaced/removed node. The remaining suffix
++ * stays borrowed and is never mutated. Unknown prefix structs fail closed. */
++struct chain_copy {
++    void *head;
++    void *nodes[128];
++    unsigned count;
++    struct alloc a;
++};
++static void chain_free(struct chain_copy *c) {
++    while (c->count)
++        dealloc(c->a, c->nodes[--c->count]);
++}
++static VkResult chain_edit(const void *head, VkStructureType target, void *replacement,
++                           struct alloc a, struct chain_copy *out) {
++    *out = (struct chain_copy){.a = a};
++    const VkBaseInStructure *match = find_chain(head, target);
++    if (!match) {
++        if (replacement) {
++            ((VkBaseOutStructure *)replacement)->pNext = (void *)head;
++            out->head = replacement;
++        } else
++            out->head = (void *)head;
++        return VK_SUCCESS;
++    }
++    VkBaseOutStructure **tail = (VkBaseOutStructure **)&out->head;
++    for (const VkBaseInStructure *n = head; n != match; n = n->pNext) {
++        size_t size = chain_size(n->sType);
++        if (!size || out->count == 128) {
++            chain_free(out);
++            return VK_ERROR_EXTENSION_NOT_PRESENT;
++        }
++        VkBaseOutStructure *copy = zalloc(a, size, VK_SYSTEM_ALLOCATION_SCOPE_COMMAND);
++        if (!copy) {
++            chain_free(out);
++            return VK_ERROR_OUT_OF_HOST_MEMORY;
++        }
++        memcpy(copy, n, size);
++        out->nodes[out->count++] = copy;
++        *tail = copy;
++        tail = &copy->pNext;
++    }
++    if (replacement) {
++        ((VkBaseOutStructure *)replacement)->pNext = (void *)match->pNext;
++        *tail = replacement;
++    } else
++        *tail = (void *)match->pNext;
++    return VK_SUCCESS;
++}
++struct instance {
++    VkInstance h;
++    void *key;
++    PFN_vkGetInstanceProcAddr gipa;
++    PFN_GetPhysicalDeviceProcAddr gpdpa;
++    int optin;
++    struct alloc a;
++    struct instance *next;
++};
++#define DEVICE_FUNCS(X)                                                                            \
++    X(DestroyDevice)                                                                               \
++    X(CreateBuffer) X(DestroyBuffer) X(CreateImage) X(DestroyImage) X(GetBufferMemoryRequirements) \
++        X(GetImageMemoryRequirements) X(GetBufferMemoryRequirements2)                              \
++            X(GetImageMemoryRequirements2) X(GetDeviceBufferMemoryRequirements)                    \
++                X(GetDeviceImageMemoryRequirements) X(AllocateMemory) X(FreeMemory) X(MapMemory)   \
++                    X(UnmapMemory) X(MapMemory2KHR) X(UnmapMemory2KHR) X(GetMemoryFdKHR)
++struct resource {
++    uint64_t h;
++    int image, exportable, dedicated;
++    struct alloc a;
++    struct resource *next;
++};
++struct memory {
++    VkDeviceMemory h;
++    VkDeviceSize size;
++    int exportable, fd;
++    void *native, *alias;
++    size_t alias_size;
++    struct alloc a;
++    struct memory *next;
++};
++struct device {
++    VkDevice h;
++    void *key;
++    VkPhysicalDevice physical;
++    struct instance *instance;
++    PFN_vkGetDeviceProcAddr gdpa;
++    int active;
++    int emulate_map2;
++    enum backend backend;
++    int placed;
++    int reserve;
++    VkPhysicalDeviceMemoryProperties props;
++    uint32_t host_bits;
++    struct alloc a;
++    struct resource *resources;
++    struct memory *memories;
++    struct device *next;
++#define FIELD(n) PFN_vk##n n;
++    DEVICE_FUNCS(FIELD)
++#undef FIELD
++};
++static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
++static pthread_mutex_t placement_lock = PTHREAD_MUTEX_INITIALIZER;
++typedef int (*mali_mapping_begin_fn)(void);
++typedef void (*mali_mapping_end_fn)(void);
++static pthread_once_t mali_mapping_api_once = PTHREAD_ONCE_INIT;
++static mali_mapping_begin_fn mali_mapping_begin;
++static mali_mapping_end_fn mali_mapping_end;
++static void *mali_mapping_api_handle;
++static struct instance *instances;
++static struct device *devices;
++static _Atomic unsigned map_logs, image_logs, failure_logs;
++static void load_mali_mapping_api(void) {
++    mali_mapping_begin =
++        (mali_mapping_begin_fn)dlsym(RTLD_DEFAULT, "hybris_mali_mapping_begin");
++    mali_mapping_end = (mali_mapping_end_fn)dlsym(RTLD_DEFAULT, "hybris_mali_mapping_end");
++    if (mali_mapping_begin && mali_mapping_end)
++        return;
++    mali_mapping_api_handle =
++        dlopen("libhybris-common.so.1", RTLD_NOLOAD | RTLD_NOW | RTLD_LOCAL);
++    if (!mali_mapping_api_handle) {
++        mali_mapping_begin = NULL;
++        mali_mapping_end = NULL;
++        return;
++    }
++    mali_mapping_begin =
++        (mali_mapping_begin_fn)dlsym(mali_mapping_api_handle, "hybris_mali_mapping_begin");
++    mali_mapping_end =
++        (mali_mapping_end_fn)dlsym(mali_mapping_api_handle, "hybris_mali_mapping_end");
++}
++static int acquire_mali_mapping_lock(void) {
++    int r = pthread_once(&mali_mapping_api_once, load_mali_mapping_api);
++    if (r)
++        return r;
++    return mali_mapping_begin && mali_mapping_end ? mali_mapping_begin() : ENOSYS;
++}
++static void release_mali_mapping_lock(void) { mali_mapping_end(); }
++static int have_mali_mapping_lock(void) {
++    return !pthread_once(&mali_mapping_api_once, load_mali_mapping_api) && mali_mapping_begin &&
++           mali_mapping_end;
++}
++static struct instance *get_instance(const void *h) {
++    void *k = key(h);
++    struct instance *r = NULL;
++    pthread_mutex_lock(&lock);
++    for (struct instance *i = instances; i; i = i->next)
++        if (i->key == k) {
++            r = i;
++            break;
++        }
++    pthread_mutex_unlock(&lock);
++    return r;
++}
++static struct device *get_device(VkDevice h) {
++    void *k = key(h);
++    struct device *r = NULL;
++    pthread_mutex_lock(&lock);
++    for (struct device *d = devices; d; d = d->next)
++        if (d->key == k) {
++            r = d;
++            break;
++        }
++    pthread_mutex_unlock(&lock);
++    return r;
++}
++static struct memory *get_memory(struct device *d, VkDeviceMemory h) {
++    struct memory *r = NULL;
++    pthread_mutex_lock(&lock);
++    for (struct memory *m = d->memories; m; m = m->next)
++        if (m->h == h) {
++            r = m;
++            break;
++        }
++    pthread_mutex_unlock(&lock);
++    return r;
++}
++static int resource_meta(struct device *d, uint64_t h, int image, int *exp, int *dedicated) {
++    int found = 0;
++    pthread_mutex_lock(&lock);
++    for (struct resource *r = d->resources; r; r = r->next)
++        if (r->h == h && r->image == image) {
++            *exp = r->exportable;
++            *dedicated = r->dedicated;
++            found = 1;
++            break;
++        }
++    pthread_mutex_unlock(&lock);
++    return found;
++}
++static PFN_vkVoidFunction iproc(struct instance *i, const char *n) { return i->gipa(i->h, n); }
++static int native_ext(struct instance *i, VkPhysicalDevice p, const char *name) {
++    PFN_vkEnumerateDeviceExtensionProperties f =
++        (void *)iproc(i, "vkEnumerateDeviceExtensionProperties");
++    uint32_t n = 0;
++    if (!f || f(p, NULL, &n, NULL) != VK_SUCCESS)
++        return 0;
++    VkExtensionProperties *e = calloc(n ? n : 1, sizeof(*e));
++    if (!e)
++        return 0;
++    int found = 0;
++    VkResult r = f(p, NULL, &n, e);
++    if (r == VK_SUCCESS)
++        for (uint32_t j = 0; j < n; j++)
++            if (!strcmp(e[j].extensionName, name)) {
++                found = 1;
++                break;
++            }
++    free(e);
++    return found;
++}
++static enum backend select_backend(struct instance *i, VkPhysicalDevice p);
++static int emulate(struct instance *i, VkPhysicalDevice p) {
++    return i && i->optin && native_ext(i, p, FD_EXT) && !native_ext(i, p, PLACED) &&
++           select_backend(i, p) != BACKEND_UNSUPPORTED;
++}
++static size_t page_size(void) {
++    long n = sysconf(_SC_PAGESIZE);
++    return n > 0 ? (size_t)n : 4096;
++}
++static VkResult VKAPI_CALL l_CreateInstance(const VkInstanceCreateInfo *ci,
++                                            const VkAllocationCallbacks *ac, VkInstance *out) {
++    VkLayerInstanceCreateInfo *link = (void *)ci->pNext;
++    while (link && (link->sType != VK_STRUCTURE_TYPE_LOADER_INSTANCE_CREATE_INFO ||
++                    link->function != VK_LAYER_LINK_INFO))
++        link = (void *)link->pNext;
++    if (!link || !link->u.pLayerInfo)
++        return VK_ERROR_INITIALIZATION_FAILED;
++    struct alloc a = allocator(ac);
++    struct instance *i = zalloc(a, sizeof(*i), VK_SYSTEM_ALLOCATION_SCOPE_INSTANCE);
++    if (!i)
++        return VK_ERROR_OUT_OF_HOST_MEMORY;
++    i->a = a;
++    i->gipa = link->u.pLayerInfo->pfnNextGetInstanceProcAddr;
++    i->gpdpa = link->u.pLayerInfo->pfnNextGetPhysicalDeviceProcAddr;
++    const char *v = getauxval(AT_SECURE) ? NULL : getenv("DROIDDECK_EXPERIMENTAL_PLACED_MEMORY");
++    i->optin = v && !strcmp(v, "1");
++    PFN_vkCreateInstance f = (void *)i->gipa(VK_NULL_HANDLE, "vkCreateInstance");
++    if (!f) {
++        dealloc(a, i);
++        return VK_ERROR_INITIALIZATION_FAILED;
++    }
++    link->u.pLayerInfo = link->u.pLayerInfo->pNext;
++    VkResult r = f(ci, ac, out);
++    if (r != VK_SUCCESS) {
++        dealloc(a, i);
++        return r;
++    }
++    i->h = *out;
++    i->key = key(*out);
++    pthread_mutex_lock(&lock);
++    i->next = instances;
++    instances = i;
++    pthread_mutex_unlock(&lock);
++    return r;
++}
++static void VKAPI_CALL l_DestroyInstance(VkInstance h, const VkAllocationCallbacks *a) {
++    struct instance *i = NULL;
++    pthread_mutex_lock(&lock);
++    for (struct instance **s = &instances; *s; s = &(*s)->next)
++        if ((*s)->h == h) {
++            i = *s;
++            *s = i->next;
++            break;
++        }
++    pthread_mutex_unlock(&lock);
++    if (!i)
++        return;
++    PFN_vkDestroyInstance f = (void *)iproc(i, "vkDestroyInstance");
++    f(h, a);
++    dealloc(i->a, i);
++}
++static VkResult VKAPI_CALL l_EnumerateDeviceExtensionProperties(VkPhysicalDevice p,
++                                                                const char *layer, uint32_t *count,
++                                                                VkExtensionProperties *out) {
++    struct instance *i = get_instance(p);
++    if (!i)
++        return VK_ERROR_INITIALIZATION_FAILED;
++    PFN_vkEnumerateDeviceExtensionProperties f =
++        (void *)iproc(i, "vkEnumerateDeviceExtensionProperties");
++    if (layer && strcmp(layer, LAYER_NAME))
++        return f(p, layer, count, out);
++    int emu = emulate(i, p);
++    if (!emu) {
++        if (!layer)
++            return f(p, NULL, count, out);
++        *count = 0;
++        return VK_SUCCESS;
++    }
++    uint32_t n = 0;
++    VkExtensionProperties *all = NULL;
++    VkResult r = VK_SUCCESS;
++    if (!layer) {
++        r = f(p, NULL, &n, NULL);
++        if (r != VK_SUCCESS)
++            return r;
++        all = calloc((size_t)n + 2, sizeof(*all));
++        if (!all)
++            return VK_ERROR_OUT_OF_HOST_MEMORY;
++        r = f(p, NULL, &n, all);
++        if (r != VK_SUCCESS) {
++            free(all);
++            return r;
++        }
++    } else {
++        all = calloc(2, sizeof(*all));
++        if (!all)
++            return VK_ERROR_OUT_OF_HOST_MEMORY;
++    }
++    const char *names[] = {PLACED, MAP2};
++    for (unsigned k = 0; k < 2; k++) {
++        int found = 0;
++        for (uint32_t j = 0; j < n; j++)
++            if (!strcmp(all[j].extensionName, names[k]))
++                found = 1;
++        if (!found) {
++            strncpy(all[n].extensionName, names[k], VK_MAX_EXTENSION_NAME_SIZE - 1);
++            all[n++].specVersion = 1;
++        }
++    }
++    if (!out)
++        *count = n;
++    else {
++        uint32_t written = *count < n ? *count : n;
++        memcpy(out, all, (size_t)written * sizeof(*out));
++        *count = written;
++        r = written < n ? VK_INCOMPLETE : VK_SUCCESS;
++    }
++    free(all);
++    return r;
++}
++static void features2(VkPhysicalDevice p, VkPhysicalDeviceFeatures2 *out, const char *name) {
++    struct instance *i = get_instance(p);
++    if (!i)
++        return;
++    PFN_vkGetPhysicalDeviceFeatures2 f = (void *)iproc(i, name);
++    if (!f)
++        f = (void *)iproc(i, "vkGetPhysicalDeviceFeatures2KHR");
++    if (f)
++        f(p, out);
++    if (emulate(i, p)) {
++        VkPhysicalDeviceMapMemoryPlacedFeaturesEXT *m = (void *)find_chain(
++            out->pNext, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAP_MEMORY_PLACED_FEATURES_EXT);
++        if (m) {
++            m->memoryMapPlaced = VK_TRUE;
++            m->memoryMapRangePlaced = VK_FALSE;
++            m->memoryUnmapReserve = VK_TRUE;
++        }
++    }
++}
++static void VKAPI_CALL l_GetPhysicalDeviceFeatures2(VkPhysicalDevice p,
++                                                    VkPhysicalDeviceFeatures2 *out) {
++    features2(p, out, "vkGetPhysicalDeviceFeatures2");
++}
++static void VKAPI_CALL l_GetPhysicalDeviceFeatures2KHR(VkPhysicalDevice p,
++                                                       VkPhysicalDeviceFeatures2 *out) {
++    features2(p, out, "vkGetPhysicalDeviceFeatures2KHR");
++}
++static void properties2(VkPhysicalDevice p, VkPhysicalDeviceProperties2 *out, const char *name) {
++    struct instance *i = get_instance(p);
++    if (!i)
++        return;
++    PFN_vkGetPhysicalDeviceProperties2 f = (void *)iproc(i, name);
++    if (!f)
++        f = (void *)iproc(i, "vkGetPhysicalDeviceProperties2KHR");
++    if (f)
++        f(p, out);
++    if (emulate(i, p)) {
++        VkPhysicalDeviceMapMemoryPlacedPropertiesEXT *m = (void *)find_chain(
++            out->pNext, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAP_MEMORY_PLACED_PROPERTIES_EXT);
++        if (m)
++            m->minPlacedMemoryMapAlignment = page_size();
++    }
++}
++static void VKAPI_CALL l_GetPhysicalDeviceProperties2(VkPhysicalDevice p,
++                                                      VkPhysicalDeviceProperties2 *out) {
++    properties2(p, out, "vkGetPhysicalDeviceProperties2");
++}
++static void VKAPI_CALL l_GetPhysicalDeviceProperties2KHR(VkPhysicalDevice p,
++                                                         VkPhysicalDeviceProperties2 *out) {
++    properties2(p, out, "vkGetPhysicalDeviceProperties2KHR");
++}
++static enum backend select_backend(struct instance *i, VkPhysicalDevice p) {
++    PFN_vkGetPhysicalDeviceProperties properties =
++        (void *)iproc(i, "vkGetPhysicalDeviceProperties");
++    VkPhysicalDeviceProperties props = {0};
++    if (!properties)
++        return BACKEND_OPAQUE;
++    properties(p, &props);
++    /* Preserve the original OPAQUE_FD path for non-Mali drivers. Some drivers
++     * reject a combined capability query while supporting each real resource. */
++    if (props.vendorID != 0x13b5)
++        return BACKEND_OPAQUE;
++    PFN_vkGetPhysicalDeviceExternalBufferProperties f =
++        (void *)iproc(i, "vkGetPhysicalDeviceExternalBufferProperties");
++    if (!f)
++        f = (void *)iproc(i, "vkGetPhysicalDeviceExternalBufferPropertiesKHR");
++    if (f) {
++        VkPhysicalDeviceExternalBufferInfo in = {
++            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_BUFFER_INFO,
++            .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT |
++                     VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
++                     VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
++            .handleType = OPAQUE};
++        VkExternalBufferProperties out = {.sType = VK_STRUCTURE_TYPE_EXTERNAL_BUFFER_PROPERTIES};
++        f(p, &in, &out);
++        if ((out.externalMemoryProperties.externalMemoryFeatures &
++             VK_EXTERNAL_MEMORY_FEATURE_EXPORTABLE_BIT) &&
++            (out.externalMemoryProperties.compatibleHandleTypes & OPAQUE))
++            return BACKEND_OPAQUE;
++    }
++    return have_mali_mapping_lock() ? BACKEND_NATIVE_ALIAS : BACKEND_UNSUPPORTED;
++}
++static VkResult VKAPI_CALL l_CreateDevice(VkPhysicalDevice p, const VkDeviceCreateInfo *ci,
++                                          const VkAllocationCallbacks *ac, VkDevice *out) {
++    struct instance *i = get_instance(p);
++    if (!i)
++        return VK_ERROR_INITIALIZATION_FAILED;
++    VkLayerDeviceCreateInfo *link = (void *)ci->pNext;
++    while (link && (link->sType != VK_STRUCTURE_TYPE_LOADER_DEVICE_CREATE_INFO ||
++                    link->function != VK_LAYER_LINK_INFO))
++        link = (void *)link->pNext;
++    if (!link || !link->u.pLayerInfo)
++        return VK_ERROR_INITIALIZATION_FAILED;
++    struct alloc a = allocator(ac);
++    struct device *d = zalloc(a, sizeof(*d), VK_SYSTEM_ALLOCATION_SCOPE_DEVICE);
++    if (!d)
++        return VK_ERROR_OUT_OF_HOST_MEMORY;
++    d->a = a;
++    d->instance = i;
++    d->physical = p;
++    d->gdpa = link->u.pLayerInfo->pfnNextGetDeviceProcAddr;
++    PFN_vkCreateDevice create =
++        (void *)link->u.pLayerInfo->pfnNextGetInstanceProcAddr(i->h, "vkCreateDevice");
++    int requested = 0, requested_map2 = 0;
++    for (uint32_t n = 0; n < ci->enabledExtensionCount; n++) {
++        if (!strcmp(ci->ppEnabledExtensionNames[n], PLACED))
++            requested = 1;
++        if (!strcmp(ci->ppEnabledExtensionNames[n], MAP2))
++            requested_map2 = 1;
++    }
++    int can_emulate = (requested || requested_map2) && emulate(i, p);
++    d->active = requested && can_emulate;
++    /* map_memory2 is independently enableable; only consume the extension
++     * when the layer implements it instead of the native driver. */
++    d->emulate_map2 = requested_map2 && can_emulate && !native_ext(i, p, MAP2);
++    d->backend = select_backend(i, p);
++    VkDeviceCreateInfo copy = *ci;
++    struct chain_copy chain = {0};
++    const char **exts = NULL;
++    VkResult result = VK_SUCCESS;
++    if (d->active) {
++        const VkPhysicalDeviceMapMemoryPlacedFeaturesEXT *feat = (void *)find_chain(
++            ci->pNext, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAP_MEMORY_PLACED_FEATURES_EXT);
++        if (feat && feat->memoryMapRangePlaced) {
++            result = VK_ERROR_FEATURE_NOT_PRESENT;
++            goto failed;
++        }
++        d->placed = feat && feat->memoryMapPlaced;
++        d->reserve = feat && feat->memoryUnmapReserve;
++    }
++    if (d->active || d->emulate_map2) {
++        exts = zalloc(a, ((size_t)ci->enabledExtensionCount + 1) * sizeof(*exts),
++                      VK_SYSTEM_ALLOCATION_SCOPE_COMMAND);
++        if (!exts) {
++            result = VK_ERROR_OUT_OF_HOST_MEMORY;
++            goto failed;
++        }
++        copy.enabledExtensionCount = 0;
++        int have_fd = 0;
++        for (uint32_t n = 0; n < ci->enabledExtensionCount; n++) {
++            const char *s = ci->ppEnabledExtensionNames[n];
++            if ((d->active && !strcmp(s, PLACED)) || (d->emulate_map2 && !strcmp(s, MAP2)))
++                continue;
++            exts[copy.enabledExtensionCount++] = s;
++            if (!strcmp(s, FD_EXT))
++                have_fd = 1;
++        }
++        if (d->active && !have_fd)
++            exts[copy.enabledExtensionCount++] = FD_EXT;
++        copy.ppEnabledExtensionNames = exts;
++    }
++    /* Advancing loader links is required by the layer ABI; do it before copying. */
++    link->u.pLayerInfo = link->u.pLayerInfo->pNext;
++    if (d->active) {
++        result =
++            chain_edit(ci->pNext, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAP_MEMORY_PLACED_FEATURES_EXT,
++                       NULL, a, &chain);
++        if (result != VK_SUCCESS)
++            goto failed;
++        copy.pNext = chain.head;
++    }
++    result = create(p, &copy, ac, out);
++    if (result != VK_SUCCESS)
++        goto failed;
++    d->h = *out;
++    d->key = key(*out);
++#define LOAD(n) d->n = (PFN_vk##n)d->gdpa(d->h, "vk" #n);
++    DEVICE_FUNCS(LOAD)
++#undef LOAD
++    if (!d->MapMemory2KHR)
++        d->MapMemory2KHR = (void *)d->gdpa(d->h, "vkMapMemory2");
++    if (!d->UnmapMemory2KHR)
++        d->UnmapMemory2KHR = (void *)d->gdpa(d->h, "vkUnmapMemory2");
++    if (!d->GetBufferMemoryRequirements2)
++        d->GetBufferMemoryRequirements2 =
++            (void *)d->gdpa(d->h, "vkGetBufferMemoryRequirements2KHR");
++    if (!d->GetImageMemoryRequirements2)
++        d->GetImageMemoryRequirements2 = (void *)d->gdpa(d->h, "vkGetImageMemoryRequirements2KHR");
++    if (!d->GetDeviceBufferMemoryRequirements)
++        d->GetDeviceBufferMemoryRequirements =
++            (void *)d->gdpa(d->h, "vkGetDeviceBufferMemoryRequirementsKHR");
++    if (!d->GetDeviceImageMemoryRequirements)
++        d->GetDeviceImageMemoryRequirements =
++            (void *)d->gdpa(d->h, "vkGetDeviceImageMemoryRequirementsKHR");
++    PFN_vkGetPhysicalDeviceMemoryProperties getprops =
++        (void *)iproc(i, "vkGetPhysicalDeviceMemoryProperties");
++    getprops(p, &d->props);
++    for (uint32_t n = 0; n < d->props.memoryTypeCount; n++)
++        if (d->props.memoryTypes[n].propertyFlags & HOST)
++            d->host_bits |= 1u << n;
++    if (d->active && d->backend == BACKEND_OPAQUE && !d->GetMemoryFdKHR) {
++        d->DestroyDevice(d->h, ac);
++        result = VK_ERROR_EXTENSION_NOT_PRESENT;
++        goto failed;
++    }
++    pthread_mutex_lock(&lock);
++    d->next = devices;
++    devices = d;
++    pthread_mutex_unlock(&lock);
++    if (d->active)
++        fprintf(stderr, "DD_PLACED device active backend=%s page=%zu host_bits=%08x\n",
++                d->backend == BACKEND_NATIVE_ALIAS ? "native-alias" : "opaque", page_size(),
++                d->host_bits);
++    chain_free(&chain);
++    dealloc(a, exts);
++    return VK_SUCCESS;
++failed:
++    chain_free(&chain);
++    dealloc(a, exts);
++    dealloc(a, d);
++    return result;
++}
++/* This diagnostic rejects explicit non-OPAQUE external resource contracts.
++ * Rewriting their flags or exporting unrelated backing memory would be invalid.
++ * The opt-out path stays native; no imported handle is ever rewritten. */
++static int unsupported_external(const void *chain, int image) {
++    VkExternalMemoryHandleTypeFlags handles = 0;
++    if (image) {
++        const VkExternalMemoryImageCreateInfo *e =
++            (void *)find_chain(chain, VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO);
++        if (e)
++            handles = e->handleTypes;
++    } else {
++        const VkExternalMemoryBufferCreateInfo *e =
++            (void *)find_chain(chain, VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_BUFFER_CREATE_INFO);
++        if (e)
++            handles = e->handleTypes;
++    }
++    if (handles & ~OPAQUE) {
++        fprintf(stderr, "DD_PLACED unsupported explicit %s external handles=0x%x\n",
++                image ? "image" : "buffer", handles);
++        return 1;
++    }
++    return 0;
++}
++static int external_ok(VkExternalMemoryProperties p, VkExternalMemoryHandleTypeFlags handles) {
++    return (p.externalMemoryFeatures & VK_EXTERNAL_MEMORY_FEATURE_EXPORTABLE_BIT) &&
++           ((p.compatibleHandleTypes & handles) == handles);
++}
++static int buffer_policy(struct device *d, const VkBufferCreateInfo *ci, int *dedicated) {
++    *dedicated = 0;
++    VkBufferUsageFlags2CreateInfoKHR usage2 = {.sType =
++                                                VK_STRUCTURE_TYPE_BUFFER_USAGE_FLAGS_2_CREATE_INFO_KHR};
++    int has_usage2 = 0;
++    for (const VkBaseInStructure *n = ci->pNext; n; n = n->pNext) {
++        if (n->sType == VK_STRUCTURE_TYPE_BUFFER_USAGE_FLAGS_2_CREATE_INFO_KHR) {
++            usage2 = *(const VkBufferUsageFlags2CreateInfoKHR *)n;
++            usage2.pNext = NULL;
++            has_usage2 = 1;
++        } else if (n->sType != VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_BUFFER_CREATE_INFO)
++            return 0;
++    }
++    const VkExternalMemoryBufferCreateInfo *e =
++        (void *)find_chain(ci->pNext, VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_BUFFER_CREATE_INFO);
++    if (e && (e->handleTypes & ~OPAQUE))
++        return 0;
++    PFN_vkGetPhysicalDeviceExternalBufferProperties f =
++        (void *)iproc(d->instance, "vkGetPhysicalDeviceExternalBufferProperties");
++    if (!f)
++        f = (void *)iproc(d->instance, "vkGetPhysicalDeviceExternalBufferPropertiesKHR");
++    if (!f)
++        return 0;
++    VkPhysicalDeviceExternalBufferInfo in = {
++        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_BUFFER_INFO,
++        .pNext = has_usage2 ? &usage2 : NULL,
++        .flags = ci->flags,
++        .usage = ci->usage,
++        .handleType = OPAQUE};
++    VkExternalBufferProperties out = {.sType = VK_STRUCTURE_TYPE_EXTERNAL_BUFFER_PROPERTIES};
++    f(d->physical, &in, &out);
++    if (!external_ok(out.externalMemoryProperties, OPAQUE))
++        return 0;
++    *dedicated = !!(out.externalMemoryProperties.externalMemoryFeatures &
++                    VK_EXTERNAL_MEMORY_FEATURE_DEDICATED_ONLY_BIT);
++    return 1;
++}
++static int image_limits(const VkImageCreateInfo *ci, const VkImageFormatProperties *p) {
++    return p->maxExtent.width >= ci->extent.width && p->maxExtent.height >= ci->extent.height &&
++           p->maxExtent.depth >= ci->extent.depth && p->maxMipLevels >= ci->mipLevels &&
++           p->maxArrayLayers >= ci->arrayLayers && (p->sampleCounts & ci->samples) &&
++           p->maxResourceSize;
++}
++static int image_policy(struct device *d, const VkImageCreateInfo *ci, int *dedicated) {
++    *dedicated = 0;
++    const VkExternalMemoryImageCreateInfo *e =
++        (void *)find_chain(ci->pNext, VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO);
++    if (e && (e->handleTypes & ~OPAQUE))
++        return 0;
++    PFN_vkGetPhysicalDeviceImageFormatProperties2 f =
++        (void *)iproc(d->instance, "vkGetPhysicalDeviceImageFormatProperties2");
++    if (!f)
++        f = (void *)iproc(d->instance, "vkGetPhysicalDeviceImageFormatProperties2KHR");
++    if (!f)
++        return 0;
++    /* Only create-chain nodes whose types are also legal format-query inputs
++     * are copied. Other semantic nodes use the native-image fallback. */
++    struct chain_copy q = {.a = d->a};
++    VkBaseOutStructure **tail = (void *)&q.head;
++    for (const VkBaseInStructure *n = ci->pNext; n; n = n->pNext) {
++        if (n->sType == VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO)
++            continue;
++        if (n->sType != VK_STRUCTURE_TYPE_IMAGE_FORMAT_LIST_CREATE_INFO &&
++            n->sType != VK_STRUCTURE_TYPE_IMAGE_STENCIL_USAGE_CREATE_INFO &&
++            n->sType != VK_STRUCTURE_TYPE_IMAGE_COMPRESSION_CONTROL_EXT) {
++            chain_free(&q);
++            return 0;
++        }
++        if (q.count == 128) {
++            chain_free(&q);
++            return 0;
++        }
++        size_t sz = chain_size(n->sType);
++        VkBaseOutStructure *c = zalloc(d->a, sz, VK_SYSTEM_ALLOCATION_SCOPE_COMMAND);
++        if (!c) {
++            chain_free(&q);
++            return 0;
++        }
++        memcpy(c, n, sz);
++        c->pNext = NULL;
++        q.nodes[q.count++] = c;
++        *tail = c;
++        tail = &c->pNext;
++    }
++    VkPhysicalDeviceImageFormatInfo2 in = {
++        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_FORMAT_INFO_2,
++        .pNext = q.head,
++        .format = ci->format,
++        .type = ci->imageType,
++        .tiling = ci->tiling,
++        .usage = ci->usage,
++        .flags = ci->flags};
++    VkImageFormatProperties2 out = {.sType = VK_STRUCTURE_TYPE_IMAGE_FORMAT_PROPERTIES_2};
++    VkResult r = f(d->physical, &in, &out);
++    if (r != VK_SUCCESS || !image_limits(ci, &out.imageFormatProperties)) {
++        chain_free(&q);
++        return 0;
++    }
++    VkPhysicalDeviceExternalImageFormatInfo ext = {
++        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_IMAGE_FORMAT_INFO,
++        .pNext = q.head,
++        .handleType = OPAQUE};
++    in.pNext = &ext;
++    VkExternalImageFormatProperties ep = {.sType =
++                                              VK_STRUCTURE_TYPE_EXTERNAL_IMAGE_FORMAT_PROPERTIES};
++    out = (VkImageFormatProperties2){.sType = VK_STRUCTURE_TYPE_IMAGE_FORMAT_PROPERTIES_2,
++                                     .pNext = &ep};
++    r = f(d->physical, &in, &out);
++    chain_free(&q);
++    if (r != VK_SUCCESS || !image_limits(ci, &out.imageFormatProperties) ||
++        !external_ok(ep.externalMemoryProperties, OPAQUE))
++        return 0;
++    *dedicated = !!(ep.externalMemoryProperties.externalMemoryFeatures &
++                    VK_EXTERNAL_MEMORY_FEATURE_DEDICATED_ONLY_BIT);
++    return 1;
++}
++static void adjust_req(struct device *d, VkMemoryRequirements *r, void *next, int exp,
++                       int dedicated) {
++    if (!exp)
++        r->memoryTypeBits &= ~d->host_bits;
++    if (dedicated) {
++        VkMemoryDedicatedRequirements *m =
++            (void *)find_chain(next, VK_STRUCTURE_TYPE_MEMORY_DEDICATED_REQUIREMENTS);
++        if (m) {
++            m->requiresDedicatedAllocation = VK_TRUE;
++            m->prefersDedicatedAllocation = VK_TRUE;
++        }
++    }
++}
++static VkResult VKAPI_CALL l_CreateBuffer(VkDevice h, const VkBufferCreateInfo *ci,
++                                          const VkAllocationCallbacks *ac, VkBuffer *out) {
++    struct device *d = get_device(h);
++    if (!d)
++        return VK_ERROR_INITIALIZATION_FAILED;
++    if (!d->active)
++        return d->CreateBuffer(h, ci, ac, out);
++    if (d->backend == BACKEND_NATIVE_ALIAS)
++        return d->CreateBuffer(h, ci, ac, out);
++    if (unsupported_external(ci->pNext, 0))
++        return VK_ERROR_INVALID_EXTERNAL_HANDLE;
++    struct alloc a = allocator(ac);
++    struct resource *r = zalloc(a, sizeof(*r), VK_SYSTEM_ALLOCATION_SCOPE_OBJECT);
++    if (!r)
++        return VK_ERROR_OUT_OF_HOST_MEMORY;
++    r->a = a;
++    r->exportable = buffer_policy(d, ci, &r->dedicated);
++    VkBufferCreateInfo copy = *ci;
++    struct chain_copy chain = {0};
++    VkExternalMemoryBufferCreateInfo ext = {
++        .sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_BUFFER_CREATE_INFO, .handleTypes = OPAQUE};
++    VkResult result = VK_SUCCESS;
++    if (r->exportable) {
++        result = chain_edit(ci->pNext, ext.sType, &ext, a, &chain);
++        if (result != VK_SUCCESS)
++            goto fail;
++        copy.pNext = chain.head;
++    }
++    result = d->CreateBuffer(h, &copy, ac, out);
++    if (result != VK_SUCCESS)
++        goto fail;
++    VkMemoryRequirements req;
++    d->GetBufferMemoryRequirements(h, *out, &req);
++    if (!r->exportable && !(req.memoryTypeBits & ~d->host_bits)) {
++        d->DestroyBuffer(h, *out, ac);
++        *out = VK_NULL_HANDLE;
++        result = VK_ERROR_FEATURE_NOT_PRESENT;
++        goto fail;
++    }
++    r->h = (uint64_t)(uintptr_t)*out;
++    pthread_mutex_lock(&lock);
++    r->next = d->resources;
++    d->resources = r;
++    pthread_mutex_unlock(&lock);
++    chain_free(&chain);
++    return VK_SUCCESS;
++fail:
++    chain_free(&chain);
++    dealloc(a, r);
++    return result;
++}
++static VkResult VKAPI_CALL l_CreateImage(VkDevice h, const VkImageCreateInfo *ci,
++                                         const VkAllocationCallbacks *ac, VkImage *out) {
++    struct device *d = get_device(h);
++    if (!d)
++        return VK_ERROR_INITIALIZATION_FAILED;
++    if (!d->active)
++        return d->CreateImage(h, ci, ac, out);
++    if (d->backend == BACKEND_NATIVE_ALIAS)
++        return d->CreateImage(h, ci, ac, out);
++    if (unsupported_external(ci->pNext, 1))
++        return VK_ERROR_INVALID_EXTERNAL_HANDLE;
++    struct alloc a = allocator(ac);
++    struct resource *r = zalloc(a, sizeof(*r), VK_SYSTEM_ALLOCATION_SCOPE_OBJECT);
++    if (!r)
++        return VK_ERROR_OUT_OF_HOST_MEMORY;
++    r->a = a;
++    r->image = 1;
++    r->exportable = image_policy(d, ci, &r->dedicated);
++    VkImageCreateInfo copy = *ci;
++    struct chain_copy chain = {0};
++    VkExternalMemoryImageCreateInfo ext = {
++        .sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO, .handleTypes = OPAQUE};
++    VkResult result = VK_SUCCESS;
++    if (r->exportable) {
++        result = chain_edit(ci->pNext, ext.sType, &ext, a, &chain);
++        if (result != VK_SUCCESS)
++            goto fail;
++        copy.pNext = chain.head;
++    }
++    result = d->CreateImage(h, &copy, ac, out);
++    if (result != VK_SUCCESS)
++        goto fail;
++    VkMemoryRequirements req;
++    d->GetImageMemoryRequirements(h, *out, &req);
++    if (!r->exportable && !(req.memoryTypeBits & ~d->host_bits)) {
++        d->DestroyImage(h, *out, ac);
++        *out = VK_NULL_HANDLE;
++        result = VK_ERROR_FORMAT_NOT_SUPPORTED;
++        goto fail;
++    }
++    if (atomic_fetch_add(&image_logs, 1) < 32)
++        fprintf(
++            stderr,
++            "DD_PLACED image format=%u flags=0x%x export=%d native_types=0x%x visible_types=0x%x\n",
++            (unsigned)ci->format, ci->flags, r->exportable, req.memoryTypeBits,
++            r->exportable ? req.memoryTypeBits : req.memoryTypeBits & ~d->host_bits);
++    r->h = (uint64_t)(uintptr_t)*out;
++    pthread_mutex_lock(&lock);
++    r->next = d->resources;
++    d->resources = r;
++    pthread_mutex_unlock(&lock);
++    chain_free(&chain);
++    return VK_SUCCESS;
++fail:
++    chain_free(&chain);
++    dealloc(a, r);
++    return result;
++}
++static void remove_resource(struct device *d, uint64_t h, int image) {
++    struct resource *r = NULL;
++    pthread_mutex_lock(&lock);
++    for (struct resource **s = &d->resources; *s; s = &(*s)->next)
++        if ((*s)->h == h && (*s)->image == image) {
++            r = *s;
++            *s = r->next;
++            break;
++        }
++    pthread_mutex_unlock(&lock);
++    if (r)
++        dealloc(r->a, r);
++}
++static void VKAPI_CALL l_DestroyBuffer(VkDevice h, VkBuffer b, const VkAllocationCallbacks *a) {
++    struct device *d = get_device(h);
++    if (!d)
++        return;
++    remove_resource(d, (uint64_t)(uintptr_t)b, 0);
++    d->DestroyBuffer(h, b, a);
++}
++static void VKAPI_CALL l_DestroyImage(VkDevice h, VkImage b, const VkAllocationCallbacks *a) {
++    struct device *d = get_device(h);
++    if (!d)
++        return;
++    remove_resource(d, (uint64_t)(uintptr_t)b, 1);
++    d->DestroyImage(h, b, a);
++}
++static void VKAPI_CALL l_GetBufferMemoryRequirements(VkDevice h, VkBuffer b,
++                                                     VkMemoryRequirements *out) {
++    struct device *d = get_device(h);
++    if (!d)
++        return;
++    d->GetBufferMemoryRequirements(h, b, out);
++    int exp = 0, ded = 0;
++    if (d->active && d->backend == BACKEND_OPAQUE &&
++        resource_meta(d, (uint64_t)(uintptr_t)b, 0, &exp, &ded))
++        adjust_req(d, out, NULL, exp, ded);
++}
++static void VKAPI_CALL l_GetImageMemoryRequirements(VkDevice h, VkImage b,
++                                                    VkMemoryRequirements *out) {
++    struct device *d = get_device(h);
++    if (!d)
++        return;
++    d->GetImageMemoryRequirements(h, b, out);
++    int exp = 0, ded = 0;
++    if (d->active && d->backend == BACKEND_OPAQUE &&
++        resource_meta(d, (uint64_t)(uintptr_t)b, 1, &exp, &ded))
++        adjust_req(d, out, NULL, exp, ded);
++}
++static void VKAPI_CALL l_GetBufferMemoryRequirements2(VkDevice h,
++                                                      const VkBufferMemoryRequirementsInfo2 *in,
++                                                      VkMemoryRequirements2 *out) {
++    struct device *d = get_device(h);
++    if (!d)
++        return;
++    d->GetBufferMemoryRequirements2(h, in, out);
++    int exp = 0, ded = 0;
++    if (d->active && d->backend == BACKEND_OPAQUE &&
++        resource_meta(d, (uint64_t)(uintptr_t)in->buffer, 0, &exp, &ded))
++        adjust_req(d, &out->memoryRequirements, out->pNext, exp, ded);
++}
++static void VKAPI_CALL l_GetImageMemoryRequirements2(VkDevice h,
++                                                     const VkImageMemoryRequirementsInfo2 *in,
++                                                     VkMemoryRequirements2 *out) {
++    struct device *d = get_device(h);
++    if (!d)
++        return;
++    d->GetImageMemoryRequirements2(h, in, out);
++    int exp = 0, ded = 0;
++    if (d->active && d->backend == BACKEND_OPAQUE &&
++        resource_meta(d, (uint64_t)(uintptr_t)in->image, 1, &exp, &ded))
++        adjust_req(d, &out->memoryRequirements, out->pNext, exp, ded);
++}
++static void VKAPI_CALL l_GetDeviceBufferMemoryRequirements(
++    VkDevice h, const VkDeviceBufferMemoryRequirements *in, VkMemoryRequirements2 *out) {
++    struct device *d = get_device(h);
++    if (!d)
++        return;
++    if (!d->active) {
++        d->GetDeviceBufferMemoryRequirements(h, in, out);
++        return;
++    }
++    if (d->backend == BACKEND_NATIVE_ALIAS) {
++        d->GetDeviceBufferMemoryRequirements(h, in, out);
++        return;
++    }
++    if (unsupported_external(in->pCreateInfo->pNext, 0)) {
++        out->memoryRequirements = (VkMemoryRequirements){0};
++        return;
++    }
++    int ded = 0, exp = buffer_policy(d, in->pCreateInfo, &ded);
++    struct chain_copy chain = {0};
++    VkBufferCreateInfo ci = *in->pCreateInfo;
++    VkDeviceBufferMemoryRequirements query = *in;
++    VkExternalMemoryBufferCreateInfo ext = {
++        .sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_BUFFER_CREATE_INFO, .handleTypes = OPAQUE};
++    if (exp && chain_edit(ci.pNext, ext.sType, &ext, d->a, &chain) != VK_SUCCESS)
++        exp = 0;
++    if (exp)
++        ci.pNext = chain.head;
++    query.pCreateInfo = &ci;
++    d->GetDeviceBufferMemoryRequirements(h, &query, out);
++    adjust_req(d, &out->memoryRequirements, out->pNext, exp, ded);
++    chain_free(&chain);
++}
++static void VKAPI_CALL l_GetDeviceImageMemoryRequirements(VkDevice h,
++                                                          const VkDeviceImageMemoryRequirements *in,
++                                                          VkMemoryRequirements2 *out) {
++    struct device *d = get_device(h);
++    if (!d)
++        return;
++    if (!d->active) {
++        d->GetDeviceImageMemoryRequirements(h, in, out);
++        return;
++    }
++    if (d->backend == BACKEND_NATIVE_ALIAS) {
++        d->GetDeviceImageMemoryRequirements(h, in, out);
++        return;
++    }
++    if (unsupported_external(in->pCreateInfo->pNext, 1)) {
++        out->memoryRequirements = (VkMemoryRequirements){0};
++        return;
++    }
++    int ded = 0, exp = image_policy(d, in->pCreateInfo, &ded);
++    struct chain_copy chain = {0};
++    VkImageCreateInfo ci = *in->pCreateInfo;
++    VkDeviceImageMemoryRequirements query = *in;
++    VkExternalMemoryImageCreateInfo ext = {
++        .sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO, .handleTypes = OPAQUE};
++    if (exp && chain_edit(ci.pNext, ext.sType, &ext, d->a, &chain) != VK_SUCCESS)
++        exp = 0;
++    if (exp)
++        ci.pNext = chain.head;
++    query.pCreateInfo = &ci;
++    d->GetDeviceImageMemoryRequirements(h, &query, out);
++    adjust_req(d, &out->memoryRequirements, out->pNext, exp, ded);
++    chain_free(&chain);
++}
++static int allocation_chain_supported(const void *p) {
++    for (const VkBaseInStructure *n = p; n; n = n->pNext)
++        switch (n->sType) {
++        case VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO:
++        case VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO:
++        case VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO:
++        case VK_STRUCTURE_TYPE_MEMORY_PRIORITY_ALLOCATE_INFO_EXT:
++        case VK_STRUCTURE_TYPE_MEMORY_OPAQUE_CAPTURE_ADDRESS_ALLOCATE_INFO:
++            break;
++        default:
++            fprintf(stderr, "DD_PLACED unsupported host allocation chain sType=%u\n",
++                    (unsigned)n->sType);
++            return 0;
++        }
++    return 1;
++}
++static int has_import(const void *p) { return !allocation_chain_supported(p); }
++static VkResult VKAPI_CALL l_AllocateMemory(VkDevice h, const VkMemoryAllocateInfo *ci,
++                                            const VkAllocationCallbacks *ac, VkDeviceMemory *out) {
++    struct device *d = get_device(h);
++    if (!d)
++        return VK_ERROR_INITIALIZATION_FAILED;
++    if (!d->active)
++        return d->AllocateMemory(h, ci, ac, out);
++    if (ci->memoryTypeIndex >= d->props.memoryTypeCount || !ci->allocationSize)
++        return VK_ERROR_OUT_OF_DEVICE_MEMORY;
++    struct alloc a = allocator(ac);
++    struct memory *m = zalloc(a, sizeof(*m), VK_SYSTEM_ALLOCATION_SCOPE_OBJECT);
++    if (!m)
++        return VK_ERROR_OUT_OF_HOST_MEMORY;
++    m->a = a;
++    m->size = ci->allocationSize;
++    m->fd = -1;
++    VkMemoryAllocateInfo copy = *ci;
++    if (d->backend == BACKEND_NATIVE_ALIAS) {
++        m->exportable = !!(d->host_bits & (1u << ci->memoryTypeIndex)) &&
++                        !has_import(ci->pNext) &&
++                        !find_chain(ci->pNext, VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO);
++        VkResult r = d->AllocateMemory(h, ci, ac, out);
++        if (r != VK_SUCCESS) {
++            dealloc(a, m);
++            return r;
++        }
++        m->h = *out;
++        pthread_mutex_lock(&lock);
++        m->next = d->memories;
++        d->memories = m;
++        pthread_mutex_unlock(&lock);
++        return VK_SUCCESS;
++    }
++    const VkExportMemoryAllocateInfo *existing =
++        (void *)find_chain(ci->pNext, VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO);
++    VkExportMemoryAllocateInfo ext = {.sType = VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO,
++                                      .handleTypes = OPAQUE};
++    if (existing)
++        ext.handleTypes |= existing->handleTypes;
++    int host = !!(d->host_bits & (1u << ci->memoryTypeIndex));
++    if (host && (has_import(ci->pNext) || (existing && (existing->handleTypes & ~OPAQUE)))) {
++        dealloc(a, m);
++        return VK_ERROR_INVALID_EXTERNAL_HANDLE;
++    }
++    int add = host && !has_import(ci->pNext) && (!existing || !(existing->handleTypes & ~OPAQUE));
++    const VkMemoryDedicatedAllocateInfo *ded =
++        (void *)find_chain(ci->pNext, VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO);
++    if (add && ded && (ded->buffer || ded->image)) {
++        int exp = 0, required = 0;
++        if (!resource_meta(
++                d, (uint64_t)(uintptr_t)(ded->image ? (void *)ded->image : (void *)ded->buffer),
++                !!ded->image, &exp, &required) ||
++            !exp) {
++            dealloc(a, m);
++            return VK_ERROR_FEATURE_NOT_PRESENT;
++        }
++    }
++    struct chain_copy chain = {0};
++    VkResult r = VK_SUCCESS;
++    if (add) {
++        r = chain_edit(ci->pNext, ext.sType, &ext, a, &chain);
++        if (r != VK_SUCCESS)
++            goto failed;
++        copy.pNext = chain.head;
++    }
++    m->exportable = host && (add || (existing && (existing->handleTypes & OPAQUE)));
++    r = d->AllocateMemory(h, &copy, ac, out);
++    if (r != VK_SUCCESS)
++        goto failed;
++    m->h = *out;
++    pthread_mutex_lock(&lock);
++    m->next = d->memories;
++    d->memories = m;
++    pthread_mutex_unlock(&lock);
++    chain_free(&chain);
++    return r;
++failed:
++    chain_free(&chain);
++    dealloc(a, m);
++    return r;
++}
++static VkResult release_map(struct device *d, struct memory *m, int reserve) {
++    if (m->alias) {
++        if (reserve) {
++            void *p = mmap(m->alias, m->alias_size, PROT_NONE,
++                           MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0);
++            if (p == MAP_FAILED)
++                return VK_ERROR_MEMORY_MAP_FAILED;
++        } else if (munmap(m->alias, m->alias_size))
++            return VK_ERROR_MEMORY_MAP_FAILED;
++        /* Reservation now belongs to the caller. It may be freed/reused before
++         * vkFreeMemory, so clearing ownership here is essential. */
++        m->alias = NULL;
++        m->alias_size = 0;
++    } else if (reserve)
++        return VK_ERROR_MEMORY_MAP_FAILED;
++    if (m->native) {
++        d->UnmapMemory(d->h, m->h);
++        m->native = NULL;
++    }
++    return VK_SUCCESS;
++}
++static void cleanup_memory(struct device *d, struct memory *m) {
++    if (m->alias)
++        munmap(m->alias, m->alias_size);
++    if (m->native)
++        d->UnmapMemory(d->h, m->h);
++    if (m->fd >= 0)
++        close(m->fd);
++    dealloc(m->a, m);
++}
++static void VKAPI_CALL l_FreeMemory(VkDevice h, VkDeviceMemory memory,
++                                    const VkAllocationCallbacks *ac) {
++    struct device *d = get_device(h);
++    if (!d)
++        return;
++    struct memory *m = NULL;
++    pthread_mutex_lock(&lock);
++    for (struct memory **s = &d->memories; *s; s = &(*s)->next)
++        if ((*s)->h == memory) {
++            m = *s;
++            *s = m->next;
++            break;
++        }
++    pthread_mutex_unlock(&lock);
++    if (m) {
++        pthread_mutex_lock(&placement_lock);
++        cleanup_memory(d, m);
++        pthread_mutex_unlock(&placement_lock);
++    }
++    d->FreeMemory(h, memory, ac);
++}
++static VkResult VKAPI_CALL l_MapMemory(VkDevice h, VkDeviceMemory memory, VkDeviceSize offset,
++                                       VkDeviceSize size, VkMemoryMapFlags flags, void **out) {
++    struct device *d = get_device(h);
++    if (!d)
++        return VK_ERROR_INITIALIZATION_FAILED;
++    struct memory *m = d->active ? get_memory(d, memory) : NULL;
++    if (m && m->native)
++        return VK_ERROR_MEMORY_MAP_FAILED;
++    pthread_mutex_lock(&placement_lock);
++    VkResult r = d->MapMemory(h, memory, offset, size, flags, out);
++    pthread_mutex_unlock(&placement_lock);
++    if (r == VK_SUCCESS && m)
++        m->native = *out;
++    return r;
++}
++static void VKAPI_CALL l_UnmapMemory(VkDevice h, VkDeviceMemory memory) {
++    struct device *d = get_device(h);
++    if (!d)
++        return;
++    struct memory *m = d->active ? get_memory(d, memory) : NULL;
++    if (m) {
++        pthread_mutex_lock(&placement_lock);
++        (void)release_map(d, m, 0);
++        pthread_mutex_unlock(&placement_lock);
++        return;
++    }
++    d->UnmapMemory(h, memory);
++}
++static int fd_fits(int fd, VkDeviceSize bytes) {
++    struct stat st;
++    if (fstat(fd, &st))
++        return 0;
++    if (st.st_size > 0)
++        return (uint64_t)st.st_size >= bytes;
++    off_t end = lseek(fd, 0, SEEK_END);
++    return end >= 0 && (uint64_t)end >= bytes;
++}
++struct guard_span {
++    uintptr_t start;
++    size_t length;
++    void *mapped;
++};
++static int target_is_reservation(uintptr_t target, size_t length, int *protection) {
++    if (target > UINTPTR_MAX - length)
++        return 0;
++    FILE *f = fopen("/proc/self/maps", "r");
++    if (!f)
++        return 0;
++    char *line = NULL;
++    size_t capacity = 0;
++    int found = 0;
++    while (getline(&line, &capacity, f) > 0) {
++        uintptr_t lo = 0, hi = 0;
++        unsigned long long offset = 0, inode = 0;
++        unsigned dev_major = 0, dev_minor = 0;
++        char perms[5] = {0};
++        if (sscanf(line, "%" SCNxPTR "-%" SCNxPTR " %4s %llx %x:%x %llu", &lo, &hi,
++                   perms, &offset, &dev_major, &dev_minor, &inode) == 7 &&
++            target >= lo && target + length <= hi) {
++            found = perms[3] == 'p' && !offset && !dev_major && !dev_minor && !inode;
++            if (found) {
++                *protection = (perms[0] == 'r' ? PROT_READ : 0) |
++                              (perms[1] == 'w' ? PROT_WRITE : 0) |
++                              (perms[2] == 'x' ? PROT_EXEC : 0);
++            }
++            break;
++        }
++    }
++    free(line);
++    fclose(f);
++    return found;
++}
++struct mali_backing {
++    off_t offset;
++    dev_t device;
++    ino_t inode;
++};
++static int mali_mapping(void *pointer, size_t length, struct mali_backing *backing) {
++    uintptr_t address = (uintptr_t)pointer;
++    if (address > UINTPTR_MAX - length)
++        return 0;
++    FILE *f = fopen("/proc/self/maps", "r");
++    if (!f)
++        return 0;
++    char *line = NULL;
++    size_t capacity = 0;
++    int found = 0;
++    while (getline(&line, &capacity, f) > 0) {
++        uintptr_t lo = 0, hi = 0;
++        unsigned long long file_offset = 0, inode = 0;
++        unsigned dev_major = 0, dev_minor = 0;
++        char perms[5] = {0};
++        if (sscanf(line, "%" SCNxPTR "-%" SCNxPTR " %4s %llx %x:%x %llu", &lo, &hi,
++                   perms, &file_offset, &dev_major, &dev_minor, &inode) == 7 &&
++            address >= lo && address + length <= hi && perms[0] == 'r' && perms[1] == 'w' &&
++            perms[3] == 's' && strstr(line, "/dev/mali")) {
++            uint64_t delta = address - lo;
++            if (delta <= (uint64_t)INT64_MAX &&
++                file_offset <= (uint64_t)INT64_MAX - delta &&
++                inode <= (unsigned long long)(ino_t)-1) {
++                backing->offset = (off_t)(file_offset + delta);
++                backing->device = makedev(dev_major, dev_minor);
++                backing->inode = (ino_t)inode;
++                found = 1;
++            }
++            break;
++        }
++    }
++    free(line);
++    fclose(f);
++    return found;
++}
++static int unique_mali_fd(const struct mali_backing *backing, size_t page) {
++    DIR *dir = opendir("/proc/self/fd");
++    if (!dir)
++        return -1;
++    int owned = -1;
++    struct dirent *entry;
++    while ((entry = readdir(dir))) {
++        if (entry->d_name[0] == '.')
++            continue;
++        char *end = NULL;
++        long value = strtol(entry->d_name, &end, 10);
++        if (!end || *end || value < 0 || value > INT_MAX || value == owned)
++            continue;
++        int fd = (int)value;
++        char link[64], target[256];
++        int written = snprintf(link, sizeof(link), "/proc/self/fd/%s", entry->d_name);
++        if (written <= 0 || (size_t)written >= sizeof(link))
++            continue;
++        ssize_t count = readlink(link, target, sizeof(target) - 1);
++        if (count <= 0)
++            continue;
++        target[count] = 0;
++        if (strncmp(target, "/dev/mali", 9))
++            continue;
++        struct stat st;
++        if (fstat(fd, &st) || st.st_dev != backing->device || st.st_ino != backing->inode)
++            continue;
++        int duplicate = fcntl(fd, F_DUPFD_CLOEXEC, 0);
++        if (duplicate < 0 || fstat(duplicate, &st) || st.st_dev != backing->device ||
++            st.st_ino != backing->inode) {
++            if (duplicate >= 0)
++                close(duplicate);
++            continue;
++        }
++        void *probe = mmap(NULL, page, PROT_READ | PROT_WRITE, MAP_SHARED, duplicate,
++                           backing->offset);
++        if (probe == MAP_FAILED) {
++            close(duplicate);
++            continue;
++        }
++        munmap(probe, page);
++        if (owned >= 0) {
++            close(duplicate);
++            close(owned);
++            owned = -1;
++            break;
++        }
++        owned = duplicate;
++    }
++    closedir(dir);
++    struct stat st;
++    if (owned < 0 || fstat(owned, &st) || st.st_dev != backing->device ||
++        st.st_ino != backing->inode)
++        goto failed;
++    void *probe = mmap(NULL, page, PROT_READ | PROT_WRITE, MAP_SHARED, owned, backing->offset);
++    if (probe == MAP_FAILED)
++        goto failed;
++    munmap(probe, page);
++    return owned;
++failed:
++    if (owned >= 0)
++        close(owned);
++    return -1;
++}
++static void release_guards(struct guard_span *spans, unsigned count) {
++    for (unsigned i = 0; i < count; i++)
++        if (spans[i].mapped != MAP_FAILED)
++            munmap(spans[i].mapped, spans[i].length);
++}
++static int plan_guards(uintptr_t lower, uintptr_t upper, struct guard_span *spans,
++                       unsigned capacity, unsigned *count) {
++    *count = 0;
++    if (lower >= upper)
++        return 0;
++    FILE *f = fopen("/proc/self/maps", "r");
++    if (!f)
++        return 0;
++    uintptr_t cursor = lower;
++    char *line = NULL;
++    size_t line_capacity = 0;
++    int okay = 1;
++    while (getline(&line, &line_capacity, f) > 0) {
++        uintptr_t lo = 0, hi = 0;
++        if (sscanf(line, "%" SCNxPTR "-%" SCNxPTR, &lo, &hi) != 2 || hi <= lower)
++            continue;
++        if (lo >= upper)
++            break;
++        if (lo > cursor) {
++            if (*count == capacity) {
++                okay = 0;
++                break;
++            }
++            spans[(*count)++] =
++                (struct guard_span){cursor, (size_t)(lo - cursor), MAP_FAILED};
++        }
++        if (hi > cursor)
++            cursor = hi;
++        if (cursor >= upper)
++            break;
++    }
++    if (okay && cursor < upper) {
++        if (*count == capacity)
++            okay = 0;
++        else
++            spans[(*count)++] =
++                (struct guard_span){cursor, (size_t)(upper - cursor), MAP_FAILED};
++    }
++    free(line);
++    fclose(f);
++    return okay;
++}
++static void native_map_failure(const char *stage, void *target, size_t length, int protection,
++                               int restored) {
++    if (atomic_fetch_add(&failure_logs, 1) < 64)
++        fprintf(stderr,
++                "DD_PLACED native map failed stage=%s target=%p size=%zu prot=%x restored=%d "
++                "errno=%d\n",
++                stage, target, length, protection, restored, errno);
++}
++static VkResult native_placed_map(struct device *d, struct memory *m, void *target) {
++    const size_t max_chunk = 1024 * 1024;
++    size_t page = page_size();
++    if (m->size > SIZE_MAX || !m->size || m->size % page) {
++        native_map_failure("allocation", target, (size_t)m->size, 0, -1);
++        return VK_ERROR_MEMORY_MAP_FAILED;
++    }
++    size_t length = (size_t)m->size;
++    uintptr_t address = (uintptr_t)target;
++    int original_prot = 0;
++    if (address < 2 * 1024 * 1024 || address % page || address > UINTPTR_MAX - length ||
++        !target_is_reservation(address, length, &original_prot)) {
++        native_map_failure("target", target, length, original_prot, -1);
++        return VK_ERROR_MEMORY_MAP_FAILED;
++    }
++    void *native = NULL;
++    VkResult r = d->MapMemory(d->h, m->h, 0, VK_WHOLE_SIZE, 0, &native);
++    if (r != VK_SUCCESS) {
++        native_map_failure("vkMapMemory", target, length, original_prot, -1);
++        return r;
++    }
++    int lock_result = acquire_mali_mapping_lock();
++    if (lock_result) {
++        errno = lock_result;
++        native_map_failure("mapping-lock", target, length, original_prot, -1);
++        d->UnmapMemory(d->h, m->h);
++        return VK_ERROR_MEMORY_MAP_FAILED;
++    }
++    struct mali_backing backing = {0};
++    int fd = -1;
++    void *probe = MAP_FAILED;
++    struct guard_span spans[2048];
++    unsigned span_count = 0;
++    int target_released = 0;
++    int restored_ok = -1;
++    const char *stage = "backing";
++    size_t remaining = length;
++    if (!mali_mapping(native, length, &backing) || backing.offset < 0 ||
++        (uint64_t)length > (uint64_t)INT64_MAX - (uint64_t)backing.offset ||
++        (fd = unique_mali_fd(&backing, page)) < 0)
++        goto failed;
++    stage = "guard-plan";
++    probe = mmap(NULL, page, PROT_READ | PROT_WRITE, MAP_SHARED, fd, backing.offset);
++    if (probe == MAP_FAILED || (uintptr_t)probe <= address + length)
++        goto failed;
++    stage = "target-recheck";
++    int locked_prot = 0;
++    if (!target_is_reservation(address, length, &locked_prot))
++        goto failed;
++    original_prot = locked_prot;
++    stage = "guard-plan";
++    if (!plan_guards(address + length, (uintptr_t)probe, spans, 2048, &span_count))
++        goto failed;
++    stage = "guard-map";
++    for (unsigned i = 0; i < span_count; i++) {
++        void *guard = mmap((void *)spans[i].start, spans[i].length, PROT_NONE,
++                           MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE | MAP_FIXED_NOREPLACE, -1,
++                           0);
++        if (guard != (void *)spans[i].start) {
++            if (guard != MAP_FAILED)
++                munmap(guard, spans[i].length);
++            goto failed;
++        }
++        spans[i].mapped = guard;
++    }
++    stage = "target-release";
++    if (munmap(target, length))
++        goto failed;
++    target_released = 1;
++    stage = "alias-map";
++    while (remaining) {
++        size_t chunk = remaining > max_chunk ? max_chunk : remaining;
++        size_t position = remaining - chunk;
++        void *alias = mmap(NULL, chunk, PROT_READ | PROT_WRITE, MAP_SHARED, fd,
++                           backing.offset + position);
++        if (alias != (void *)(address + position)) {
++            if (alias != MAP_FAILED)
++                munmap(alias, chunk);
++            goto failed;
++        }
++        remaining = position;
++    }
++    release_guards(spans, span_count);
++    munmap(probe, page);
++    close(fd);
++    m->native = native;
++    m->alias = target;
++    m->alias_size = length;
++    release_mali_mapping_lock();
++    if (atomic_fetch_add(&map_logs, 1) < 32)
++        fprintf(stderr, "DD_PLACED native map size=%zu chunks=%zu alias=%p native=%p\n", length,
++                (length + max_chunk - 1) / max_chunk, target, native);
++    return VK_SUCCESS;
++failed:
++    if (target_released) {
++        if (remaining < length)
++            munmap((void *)(address + remaining), length - remaining);
++        void *restored = mmap(target, length, original_prot,
++                              MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED_NOREPLACE, -1, 0);
++        restored_ok = restored == target;
++        if (restored != target && restored != MAP_FAILED)
++            munmap(restored, length);
++    }
++    release_guards(spans, span_count);
++    if (probe != MAP_FAILED)
++        munmap(probe, page);
++    if (fd >= 0)
++        close(fd);
++    release_mali_mapping_lock();
++    d->UnmapMemory(d->h, m->h);
++    native_map_failure(stage, target, length, original_prot, restored_ok);
++    return VK_ERROR_MEMORY_MAP_FAILED;
++}
++static VkResult VKAPI_CALL l_MapMemory2KHR(VkDevice h, const VkMemoryMapInfoKHR *ci, void **out) {
++    struct device *d = get_device(h);
++    if (!d)
++        return VK_ERROR_INITIALIZATION_FAILED;
++    if (!d->active) {
++        if (d->MapMemory2KHR)
++            return d->MapMemory2KHR(h, ci, out);
++        if (!d->emulate_map2)
++            return VK_ERROR_EXTENSION_NOT_PRESENT;
++        if (ci->pNext || ci->flags)
++            return VK_ERROR_MEMORY_MAP_FAILED;
++        return d->MapMemory(h, ci->memory, ci->offset, ci->size, 0, out);
++    }
++    if (!(ci->flags & VK_MEMORY_MAP_PLACED_BIT_EXT)) {
++        if (ci->pNext || ci->flags) {
++            if (d->MapMemory2KHR) {
++                struct memory *m = get_memory(d, ci->memory);
++                if (m && m->native)
++                    return VK_ERROR_MEMORY_MAP_FAILED;
++                pthread_mutex_lock(&placement_lock);
++                VkResult r = d->MapMemory2KHR(h, ci, out);
++                pthread_mutex_unlock(&placement_lock);
++                if (r == VK_SUCCESS && m)
++                    m->native = *out;
++                return r;
++            }
++            return VK_ERROR_MEMORY_MAP_FAILED;
++        }
++        return l_MapMemory(h, ci->memory, ci->offset, ci->size, 0, out);
++    }
++    struct memory *m = get_memory(d, ci->memory);
++    const VkMemoryMapPlacedInfoEXT *p =
++        (void *)find_chain(ci->pNext, VK_STRUCTURE_TYPE_MEMORY_MAP_PLACED_INFO_EXT);
++    if (!d->placed || !m || !m->exportable || m->native || !p || !p->pPlacedAddress || ci->offset ||
++        (ci->size != VK_WHOLE_SIZE && ci->size != m->size) ||
++        (ci->flags & ~VK_MEMORY_MAP_PLACED_BIT_EXT)) {
++        if (d->backend == BACKEND_NATIVE_ALIAS)
++            native_map_failure("request", p ? p->pPlacedAddress : NULL,
++                               m && m->size <= SIZE_MAX ? (size_t)m->size : 0, 0, -1);
++        return VK_ERROR_MEMORY_MAP_FAILED;
++    }
++    /* Extension advertises only whole-allocation placement. Other map chain
++     * nodes are rejected rather than silently losing their requirements. */
++    for (const VkBaseInStructure *n = ci->pNext; n; n = n->pNext)
++        if (n->sType != VK_STRUCTURE_TYPE_MEMORY_MAP_PLACED_INFO_EXT) {
++            if (d->backend == BACKEND_NATIVE_ALIAS)
++                native_map_failure("request-chain", p->pPlacedAddress, (size_t)m->size, 0, -1);
++            return VK_ERROR_MEMORY_MAP_FAILED;
++        }
++    size_t page = page_size();
++    uintptr_t addr = (uintptr_t)p->pPlacedAddress;
++    if (addr % page || m->size % page || m->size > SIZE_MAX - (page - 1))
++        return VK_ERROR_MEMORY_MAP_FAILED;
++    size_t length = ((size_t)m->size + page - 1) / page * page;
++    if (addr > UINTPTR_MAX - length)
++        return VK_ERROR_MEMORY_MAP_FAILED;
++    if (d->backend == BACKEND_NATIVE_ALIAS) {
++        pthread_mutex_lock(&placement_lock);
++        VkResult r = native_placed_map(d, m, p->pPlacedAddress);
++        pthread_mutex_unlock(&placement_lock);
++        if (r == VK_SUCCESS)
++            *out = p->pPlacedAddress;
++        return r;
++    }
++    if (m->fd < 0) {
++        VkMemoryGetFdInfoKHR fi = {.sType = VK_STRUCTURE_TYPE_MEMORY_GET_FD_INFO_KHR,
++                                   .memory = m->h,
++                                   .handleType = OPAQUE};
++        int fd = -1;
++        VkResult r = d->GetMemoryFdKHR(h, &fi, &fd);
++        if (r != VK_SUCCESS)
++            return r;
++        if (fd < 0)
++            return VK_ERROR_MEMORY_MAP_FAILED;
++        if (!fd_fits(fd, m->size)) {
++            close(fd);
++            return VK_ERROR_MEMORY_MAP_FAILED;
++        }
++        m->fd = fd;
++    }
++    void *native = NULL;
++    VkResult r = d->MapMemory(h, m->h, 0, VK_WHOLE_SIZE, 0, &native);
++    if (r != VK_SUCCESS)
++        return r;
++    /* The application owns/relinquishes its reservation under EXT_map_memory_placed.
++     * Never overwrite this allocation's native mapping, even for invalid callers. */
++    uintptr_t nh = (uintptr_t)native;
++    if (nh <= UINTPTR_MAX - length && addr < nh + length && nh < addr + length) {
++        d->UnmapMemory(h, m->h);
++        return VK_ERROR_MEMORY_MAP_FAILED;
++    }
++    void *alias =
++        mmap(p->pPlacedAddress, length, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_FIXED, m->fd, 0);
++    if (alias == MAP_FAILED) {
++        d->UnmapMemory(h, m->h);
++        return VK_ERROR_MEMORY_MAP_FAILED;
++    }
++    m->native = native;
++    m->alias = alias;
++    m->alias_size = length;
++    *out = alias;
++    if (atomic_fetch_add(&map_logs, 1) < 32)
++        fprintf(stderr, "DD_PLACED map size=%zu alias=%p native=%p\n", length, alias, native);
++    return VK_SUCCESS;
++}
++static VkResult VKAPI_CALL l_UnmapMemory2KHR(VkDevice h, const VkMemoryUnmapInfoKHR *ci) {
++    struct device *d = get_device(h);
++    if (!d)
++        return VK_ERROR_INITIALIZATION_FAILED;
++    if (!d->active) {
++        if (d->UnmapMemory2KHR)
++            return d->UnmapMemory2KHR(h, ci);
++        if (!d->emulate_map2)
++            return VK_ERROR_EXTENSION_NOT_PRESENT;
++        if (ci->pNext || ci->flags)
++            return VK_ERROR_MEMORY_MAP_FAILED;
++        d->UnmapMemory(h, ci->memory);
++        return VK_SUCCESS;
++    }
++    if (ci->pNext || (ci->flags & ~VK_MEMORY_UNMAP_RESERVE_BIT_EXT) || (ci->flags && !d->reserve))
++        return VK_ERROR_MEMORY_MAP_FAILED;
++    struct memory *m = get_memory(d, ci->memory);
++    if (!m || !m->native)
++        return VK_ERROR_MEMORY_MAP_FAILED;
++    pthread_mutex_lock(&placement_lock);
++    VkResult r = release_map(d, m, !!(ci->flags & VK_MEMORY_UNMAP_RESERVE_BIT_EXT));
++    pthread_mutex_unlock(&placement_lock);
++    return r;
++}
++static void VKAPI_CALL l_DestroyDevice(VkDevice h, const VkAllocationCallbacks *ac) {
++    struct device *d = NULL;
++    pthread_mutex_lock(&lock);
++    for (struct device **s = &devices; *s; s = &(*s)->next)
++        if ((*s)->h == h) {
++            d = *s;
++            *s = d->next;
++            break;
++        }
++    pthread_mutex_unlock(&lock);
++    if (!d)
++        return;
++    while (d->memories) {
++        struct memory *m = d->memories;
++        d->memories = m->next;
++        pthread_mutex_lock(&placement_lock);
++        cleanup_memory(d, m);
++        pthread_mutex_unlock(&placement_lock);
++    }
++    while (d->resources) {
++        struct resource *r = d->resources;
++        d->resources = r->next;
++        dealloc(r->a, r);
++    }
++    d->DestroyDevice(h, ac);
++    dealloc(d->a, d);
++}
++
++static PFN_vkVoidFunction VKAPI_CALL l_GetDeviceProcAddr(VkDevice, const char *);
++static PFN_vkVoidFunction VKAPI_CALL l_GetInstanceProcAddr(VkInstance, const char *);
++static PFN_vkVoidFunction instance_hook(const char *n) {
++#define HOOK(x)                                                                                    \
++    if (!strcmp(n, "vk" #x))                                                                       \
++        return (PFN_vkVoidFunction)l_##x;
++    HOOK(CreateInstance)
++    HOOK(DestroyInstance) HOOK(CreateDevice) HOOK(GetInstanceProcAddr) HOOK(GetDeviceProcAddr)
++        HOOK(EnumerateDeviceExtensionProperties) HOOK(GetPhysicalDeviceFeatures2)
++            HOOK(GetPhysicalDeviceFeatures2KHR) HOOK(GetPhysicalDeviceProperties2)
++                HOOK(GetPhysicalDeviceProperties2KHR)
++#undef HOOK
++                    return NULL;
++}
++static PFN_vkVoidFunction device_hook(const char *n) {
++#define HOOK(x)                                                                                    \
++    if (!strcmp(n, "vk" #x))                                                                       \
++        return (PFN_vkVoidFunction)l_##x;
++    HOOK(DestroyDevice)
++    HOOK(CreateBuffer) HOOK(DestroyBuffer) HOOK(CreateImage) HOOK(DestroyImage)
++        HOOK(GetBufferMemoryRequirements) HOOK(GetImageMemoryRequirements)
++            HOOK(GetBufferMemoryRequirements2) HOOK(GetImageMemoryRequirements2)
++                HOOK(GetDeviceBufferMemoryRequirements) HOOK(GetDeviceImageMemoryRequirements)
++                    HOOK(AllocateMemory) HOOK(FreeMemory) HOOK(MapMemory) HOOK(UnmapMemory) HOOK(
++                        MapMemory2KHR) HOOK(UnmapMemory2KHR)
++#undef HOOK
++                        if (!strcmp(n, "vkMapMemory2")) return (PFN_vkVoidFunction)l_MapMemory2KHR;
++    if (!strcmp(n, "vkUnmapMemory2"))
++        return (PFN_vkVoidFunction)l_UnmapMemory2KHR;
++    if (!strcmp(n, "vkGetBufferMemoryRequirements2KHR"))
++        return (PFN_vkVoidFunction)l_GetBufferMemoryRequirements2;
++    if (!strcmp(n, "vkGetImageMemoryRequirements2KHR"))
++        return (PFN_vkVoidFunction)l_GetImageMemoryRequirements2;
++    if (!strcmp(n, "vkGetDeviceBufferMemoryRequirementsKHR"))
++        return (PFN_vkVoidFunction)l_GetDeviceBufferMemoryRequirements;
++    if (!strcmp(n, "vkGetDeviceImageMemoryRequirementsKHR"))
++        return (PFN_vkVoidFunction)l_GetDeviceImageMemoryRequirements;
++    return NULL;
++}
++static int map2_name(const char *n) {
++    return !strcmp(n, "vkMapMemory2KHR") || !strcmp(n, "vkUnmapMemory2KHR") ||
++           !strcmp(n, "vkMapMemory2") || !strcmp(n, "vkUnmapMemory2");
++}
++static PFN_vkVoidFunction VKAPI_CALL l_GetDeviceProcAddr(VkDevice h, const char *n) {
++    if (!n)
++        return NULL;
++    if (!strcmp(n, "vkGetDeviceProcAddr"))
++        return (PFN_vkVoidFunction)l_GetDeviceProcAddr;
++    struct device *d = get_device(h);
++    if (!d)
++        return NULL;
++    PFN_vkVoidFunction next = d->gdpa(h, n);
++    PFN_vkVoidFunction hook = device_hook(n);
++    if (!strcmp(n, "vkDestroyDevice"))
++        return hook;
++    if (map2_name(n) && (d->active || d->emulate_map2))
++        return hook;
++    if (!d->active)
++        return next;
++    return next && hook ? hook : next;
++}
++static PFN_vkVoidFunction VKAPI_CALL l_GetInstanceProcAddr(VkInstance h, const char *n) {
++    if (!n)
++        return NULL;
++    PFN_vkVoidFunction hook = instance_hook(n);
++    if (!h)
++        return (!strcmp(n, "vkCreateInstance") || !strcmp(n, "vkGetInstanceProcAddr") ||
++                !strcmp(n, "vkGetDeviceProcAddr") || !strcmp(n, "vkCreateDevice"))
++                   ? hook
++                   : NULL;
++    struct instance *i = get_instance(h);
++    if (!i)
++        return NULL;
++    PFN_vkVoidFunction next = i->gipa(h, n);
++    if (hook)
++        return hook;
++    hook = device_hook(n);
++    if (hook && (next || (i->optin && map2_name(n))))
++        return hook;
++    return next;
++}
++static PFN_vkVoidFunction VKAPI_CALL l_GetPhysicalDeviceProcAddr(VkInstance h, const char *n) {
++    struct instance *i = get_instance(h);
++    if (!i || !n)
++        return NULL;
++    PFN_vkVoidFunction hook = instance_hook(n);
++    if (hook && strncmp(n, "vkGetPhysicalDevice", 19) &&
++        strcmp(n, "vkEnumerateDeviceExtensionProperties"))
++        hook = NULL;
++    return hook ? hook : (i->gpdpa ? i->gpdpa(h, n) : i->gipa(h, n));
++}
++__attribute__((visibility("default"))) VkResult VKAPI_CALL
++vkNegotiateLoaderLayerInterfaceVersion(VkNegotiateLayerInterface *v) {
++    if (!v || v->sType != LAYER_NEGOTIATE_INTERFACE_STRUCT || v->loaderLayerInterfaceVersion < 2)
++        return VK_ERROR_INITIALIZATION_FAILED;
++    v->loaderLayerInterfaceVersion = 2;
++    v->pfnGetInstanceProcAddr = l_GetInstanceProcAddr;
++    v->pfnGetDeviceProcAddr = l_GetDeviceProcAddr;
++    v->pfnGetPhysicalDeviceProcAddr = l_GetPhysicalDeviceProcAddr;
++    return VK_SUCCESS;
++}
+diff --git a/hybris/vulkan/placed/vulkan_compat.h b/hybris/vulkan/placed/vulkan_compat.h
+new file mode 100644
+index 0000000..4d8fc8c
+--- /dev/null
++++ b/hybris/vulkan/placed/vulkan_compat.h
+@@ -0,0 +1,39 @@
++/* SPDX-License-Identifier: Apache-2.0 OR MIT
++ * VK_EXT_map_memory_placed ABI declarations from Khronos Vulkan-Headers.
++ * Copyright 2015-2026 The Khronos Group Inc.
++ * Older host-test distributions predate this extension; no loader functions
++ * or driver capability are supplied here, only its fixed public ABI.
++ */
++#pragma once
++#include <vulkan/vulkan.h>
++
++#ifndef VK_EXT_map_memory_placed
++#define VK_EXT_map_memory_placed 1
++#define VK_EXT_MAP_MEMORY_PLACED_SPEC_VERSION 1
++#define VK_EXT_MAP_MEMORY_PLACED_EXTENSION_NAME "VK_EXT_map_memory_placed"
++#define VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAP_MEMORY_PLACED_FEATURES_EXT ((VkStructureType)1000272000)
++#define VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAP_MEMORY_PLACED_PROPERTIES_EXT ((VkStructureType)1000272001)
++#define VK_STRUCTURE_TYPE_MEMORY_MAP_PLACED_INFO_EXT ((VkStructureType)1000272002)
++#define VK_MEMORY_MAP_PLACED_BIT_EXT ((VkMemoryMapFlags)0x00000001)
++#define VK_MEMORY_UNMAP_RESERVE_BIT_EXT ((VkMemoryUnmapFlagsKHR)0x00000001)
++
++typedef struct VkPhysicalDeviceMapMemoryPlacedFeaturesEXT {
++    VkStructureType sType;
++    void *pNext;
++    VkBool32 memoryMapPlaced;
++    VkBool32 memoryMapRangePlaced;
++    VkBool32 memoryUnmapReserve;
++} VkPhysicalDeviceMapMemoryPlacedFeaturesEXT;
++
++typedef struct VkPhysicalDeviceMapMemoryPlacedPropertiesEXT {
++    VkStructureType sType;
++    void *pNext;
++    VkDeviceSize minPlacedMemoryMapAlignment;
++} VkPhysicalDeviceMapMemoryPlacedPropertiesEXT;
++
++typedef struct VkMemoryMapPlacedInfoEXT {
++    VkStructureType sType;
++    const void *pNext;
++    void *pPlacedAddress;
++} VkMemoryMapPlacedInfoEXT;
++#endif

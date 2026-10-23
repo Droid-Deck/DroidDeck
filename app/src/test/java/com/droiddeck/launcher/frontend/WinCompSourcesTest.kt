@@ -2,6 +2,7 @@ package com.droiddeck.launcher.frontend
 
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.session.WinComponents
+import com.droiddeck.launcher.session.WinFontComponents
 import com.droiddeck.launcher.stores.Store
 import com.droiddeck.launcher.stores.StoreGameSidecar
 import java.io.ByteArrayOutputStream
@@ -58,6 +59,17 @@ class WinCompSourcesTest {
 
     @Test fun steamworksSharedDepotsMapToComponents() {
         assertEquals(listOf("vcredist2015_dll" to "VC++ 2015", "d3dx9" to "DirectX (June 2010)"), WinCompSources.steamDepots(listOf("228986", "228990", "999")))
+    }
+
+    @Test fun portalFontRequirementsHaveTheirOwnProvenanceAndOtherGamesAreUnaffected() {
+        val findings = WinCompSources.steamList(app, null, 400, "Portal", auto = true)
+            .filter { it.origin == WinCompSources.Origin.KNOWN_GAME }
+        assertEquals(listOf("trebuchet", "verdana"), findings.map { it.component })
+        assertTrue(findings.all { it.auto && it.args == listOf("Portal", "400") })
+        assertTrue(WinCompSources.steamList(app, null, 620, "Portal 2", auto = true)
+            .none { it.origin == WinCompSources.Origin.KNOWN_GAME })
+        assertTrue(WinCompSources.steamList(app, null, 400, "Name-only match", auto = false)
+            .none { it.origin == WinCompSources.Origin.KNOWN_GAME })
     }
 
 
@@ -264,6 +276,45 @@ class WinCompSourcesTest {
         assertEquals(setOf("d3dx9", "vcredist2013_dll"), WinComponents.picks(app, "1262580").toSet())
         assertEquals("STEAM", sel.auto.getValue("vcredist2013_dll").kind)
         assertEquals(3, AutoComponents.cachedFindings(app, "1262580")!!.count { it.auto })
+    }
+
+    @Test fun portalFontsRefreshOldFindingsAndRespectTheUsersOffSwitch() = withFakeWorker {
+        AutoComponents.catalogOf = { _, _ -> WinFontComponents.components() }
+        val portal = game(tmp.newFolder("Portal"), Library.SOURCE_STEAM, 400, library = "steam", name = "Portal")
+        WinComponents.setUser(app, "400", "trebuchet", false)
+        val oldSignature = AutoComponents.signature(app, portal).removePrefix("font-requirements-v1|")
+        File(app.filesDir, "wincomp-findings.json").writeText(JSONObject().put("400", JSONObject()
+            .put("sig", oldSignature).put("findings", org.json.JSONArray())).toString())
+        AutoComponents.queueGame(app, portal, asked = false)
+        assertEquals(listOf("verdana"), downloaded)
+        assertEquals(listOf("verdana"), WinComponents.picks(app, "400"))
+        val selection = WinComponents.selection(app, "400")
+        assertEquals(false, selection.user["trebuchet"])
+        assertEquals(setOf("trebuchet", "verdana"), selection.auto.keys)
+        assertTrue(selection.auto.values.all { it.kind == "KNOWN_GAME" })
+        assertEquals(2, AutoComponents.cachedFindings(app, "400")!!.count { it.auto })
+    }
+
+    @Test fun anUnavailableCatalogPreservesExistingComponentSelections() = withFakeWorker {
+        val game = payback()
+        val key = "1262580"
+        val cache = File(tmp.root, "unavailable-catalog.json")
+        WinComponents.setAuto(app, key, mapOf(
+            "d3dx9" to WinComponents.AutoReason("STEAM", listOf("DirectX")),
+            "trebuchet" to WinComponents.AutoReason("KNOWN_GAME", listOf("Fonts")),
+        ))
+        WinComponents.setUser(app, key, "vcredist2019_dll", false)
+        val before = WinComponents.selection(app, key)
+        AutoComponents.catalogOf = { _, _ -> WinComponents.loadCatalog(null, cache) }
+        for (body in listOf(null, "invalid catalog")) {
+            body?.let { cache.writeText(it) }
+            AutoComponents.queueGame(app, game, asked = false)
+            val after = WinComponents.selection(app, key)
+            assertEquals(before.auto.mapValues { it.value.kind to it.value.args },
+                after.auto.mapValues { it.value.kind to it.value.args })
+            assertEquals(before.user, after.user)
+            assertTrue(downloaded.isEmpty())
+        }
     }
 
     @Test fun theQueueWaitsWhileASessionRunsAndResumesAfter() = withFakeWorker {

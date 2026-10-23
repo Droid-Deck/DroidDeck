@@ -1,0 +1,341 @@
+diff --git a/hybris/vulkan/compat/clip_distance.c b/hybris/vulkan/compat/clip_distance.c
+index a412833..07e294a 100644
+--- a/hybris/vulkan/compat/clip_distance.c
++++ b/hybris/vulkan/compat/clip_distance.c
+@@ -40,6 +40,19 @@ int hybris_clip_pipeline(const VkGraphicsPipelineCreateInfo *info)
+     return vertex == 1 && fragment == 1;
+ }
+ 
++int hybris_clip_extension_allowed(const char *name)
++{
++    /* These routes can submit shaders without the complete pipeline rewrite. */
++    return strcmp(name, VK_EXT_GRAPHICS_PIPELINE_LIBRARY_EXTENSION_NAME) &&
++        strcmp(name, VK_EXT_SHADER_OBJECT_EXTENSION_NAME);
++}
++
++int hybris_clip_command_allowed(const char *name)
++{
++    return strcmp(name, "vkCreateShadersEXT") && strcmp(name, "vkDestroyShaderEXT") &&
++        strcmp(name, "vkGetShaderBinaryDataEXT") && strcmp(name, "vkCmdBindShadersEXT");
++}
++
+ void hybris_clip_filter_features(VkPhysicalDevice physical, VkPhysicalDeviceFeatures *features)
+ {
+     if (features && hybris_clip_active(physical)) features->shaderClipDistance = VK_FALSE;
+diff --git a/hybris/vulkan/compat/clip_distance.h b/hybris/vulkan/compat/clip_distance.h
+index b82b3ea..7dbe41a 100644
+--- a/hybris/vulkan/compat/clip_distance.h
++++ b/hybris/vulkan/compat/clip_distance.h
+@@ -5,6 +5,8 @@
+ int hybris_clip_enabled(void);
+ int hybris_clip_active(VkPhysicalDevice physical);
+ int hybris_clip_pipeline(const VkGraphicsPipelineCreateInfo *info);
++int hybris_clip_extension_allowed(const char *name);
++int hybris_clip_command_allowed(const char *name);
+ void hybris_clip_filter_features(VkPhysicalDevice physical, VkPhysicalDeviceFeatures *features);
+ PFN_vkVoidFunction hybris_clip_policy_proc(const char *name);
+ /* count==0 means the vertex module does not write ClipDistance. */
+diff --git a/hybris/vulkan/compat/shader_dispatch.c b/hybris/vulkan/compat/shader_dispatch.c
+index 3154ce7..4825171 100644
+--- a/hybris/vulkan/compat/shader_dispatch.c
++++ b/hybris/vulkan/compat/shader_dispatch.c
+@@ -64,8 +64,9 @@ static struct shader_device *find_device(VkDevice handle)
+ }
+ int hybris_shader_device_proc_allowed(VkDevice handle, const char *name)
+ {
+-    if (hybris_shader_command_allowed(name)) return 1;
+     struct shader_device *device = find_device(handle);
++    if (device && device->clip && !hybris_clip_command_allowed(name)) return 0;
++    if (hybris_shader_command_allowed(name)) return 1;
+     return !device || (!device->mask && !device->vertex_stores);
+ }
+ VkResult hybris_shader_device_create(VkDevice handle, VkPhysicalDevice physical,
+@@ -277,6 +278,34 @@ static VkResult convert_pipeline(struct shader_device *device, VkGraphicsPipelin
+     int point = device->point_size && hybris_point_size_pipeline(info);
+     int inout = device->inout && hybris_inout_pipeline(info);
+     int clip = device->clip && hybris_clip_pipeline(info);
++    if (device->clip && !clip) for (uint32_t i = 0; i < info->stageCount; ++i) {
++        const VkPipelineShaderStageCreateInfo *stage = &info->pStages[i];
++        uint32_t model;
++        switch (stage->stage) {
++        case VK_SHADER_STAGE_VERTEX_BIT: model = 0; break;
++        case VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT: model = 1; break;
++        case VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT: model = 2; break;
++        case VK_SHADER_STAGE_GEOMETRY_BIT: model = 3; break;
++        case VK_SHADER_STAGE_FRAGMENT_BIT: model = 4; break;
++        default: continue;
++        }
++        pthread_mutex_lock(&guard);
++        struct shader *shader = device->shaders;
++        while (shader && shader->handle != stage->module) shader = shader->next;
++        pthread_mutex_unlock(&guard);
++        if (!shader) {
++            *reason = "clip-distance contract requires captured SPIR-V stages";
++            return VK_ERROR_UNKNOWN;
++        }
++        int uses_clip = 0;
++        VkResult result = hybris_spirv_entry_builtin(shader->code, shader->size, model,
++            stage->pName, 3, allocator, &uses_clip, reason);
++        if (result != VK_SUCCESS) return result;
++        if (uses_clip) {
++            *reason = "clip-distance emulation does not support this graphics pipeline layout";
++            return VK_ERROR_FEATURE_NOT_PRESENT;
++        }
++    }
+     uint32_t clip_location = 0, clip_count = 0;
+     int discard = 0;
+     VkShaderStageFlagBits last_stage = VK_SHADER_STAGE_VERTEX_BIT;
+diff --git a/hybris/vulkan/compat/shader_policy.c b/hybris/vulkan/compat/shader_policy.c
+index 21a4cc7..acab560 100644
+--- a/hybris/vulkan/compat/shader_policy.c
++++ b/hybris/vulkan/compat/shader_policy.c
+@@ -4,6 +4,7 @@
+ #include "vertex_stores.h"
+ #include "scaled_formats.h"
+ #include "bc_policy.h"
++#include "clip_distance.h"
+ #include "../layer/layer.h"
+ #include <string.h>
+ #include <stdlib.h>
+@@ -34,20 +35,26 @@ int hybris_shader_command_allowed(const char *name)
+ }
+ VkResult hybris_shader_prepare_device(VkPhysicalDevice physical, const VkDeviceCreateInfo *info)
+ {
+-    if (!hybris_shader_physical_mask(physical) && !hybris_vertex_stores_active(physical)) return VK_SUCCESS;
++    int full = hybris_shader_physical_mask(physical) || hybris_vertex_stores_active(physical);
++    int clip = hybris_clip_active(physical);
++    if (!full && !clip) return VK_SUCCESS;
+     for (uint32_t i = 0; i < info->enabledExtensionCount; ++i)
+-        if (!hybris_shader_extension_allowed(info->ppEnabledExtensionNames[i])) return VK_ERROR_EXTENSION_NOT_PRESENT;
++        if ((full && !hybris_shader_extension_allowed(info->ppEnabledExtensionNames[i])) ||
++            (clip && !hybris_clip_extension_allowed(info->ppEnabledExtensionNames[i])))
++            return VK_ERROR_EXTENSION_NOT_PRESENT;
+     for (const VkBaseInStructure *node = info->pNext; node; node = node->pNext) {
+         VkBool32 enabled = VK_FALSE;
+         switch (node->sType) {
+         case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VERTEX_INPUT_DYNAMIC_STATE_FEATURES_EXT:
+-            enabled = ((const VkPhysicalDeviceVertexInputDynamicStateFeaturesEXT *)node)->vertexInputDynamicState;
++            enabled = full && ((const VkPhysicalDeviceVertexInputDynamicStateFeaturesEXT *)node)->vertexInputDynamicState;
+             break;
+         case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_GRAPHICS_PIPELINE_LIBRARY_FEATURES_EXT:
+-            enabled = ((const VkPhysicalDeviceGraphicsPipelineLibraryFeaturesEXT *)node)->graphicsPipelineLibrary;
++            enabled = (full || clip) &&
++                ((const VkPhysicalDeviceGraphicsPipelineLibraryFeaturesEXT *)node)->graphicsPipelineLibrary;
+             break;
+         case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_OBJECT_FEATURES_EXT:
+-            enabled = ((const VkPhysicalDeviceShaderObjectFeaturesEXT *)node)->shaderObject;
++            enabled = (full || clip) &&
++                ((const VkPhysicalDeviceShaderObjectFeaturesEXT *)node)->shaderObject;
+             break;
+         default: break;
+         }
+@@ -64,17 +71,19 @@ static void features2(VkPhysicalDevice physical, VkPhysicalDeviceFeatures2 *out,
+     PFN_vkGetPhysicalDeviceFeatures2 query = (PFN_vkGetPhysicalDeviceFeatures2)hybris_bc_policy_proc(name);
+     if (!query) query = (PFN_vkGetPhysicalDeviceFeatures2)context.resolver(context.instance, name);
+     query(physical, out);
+-    if (!hybris_shader_physical_mask(physical) && !hybris_vertex_stores_active(physical)) return;
++    int full = hybris_shader_physical_mask(physical) || hybris_vertex_stores_active(physical);
++    int clip = hybris_clip_active(physical);
++    if (!full && !clip) return;
+     for (VkBaseOutStructure *node = out->pNext; node; node = node->pNext) {
+         switch (node->sType) {
+         case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VERTEX_INPUT_DYNAMIC_STATE_FEATURES_EXT:
+-            ((VkPhysicalDeviceVertexInputDynamicStateFeaturesEXT *)node)->vertexInputDynamicState = VK_FALSE;
++            if (full) ((VkPhysicalDeviceVertexInputDynamicStateFeaturesEXT *)node)->vertexInputDynamicState = VK_FALSE;
+             break;
+         case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_GRAPHICS_PIPELINE_LIBRARY_FEATURES_EXT:
+-            ((VkPhysicalDeviceGraphicsPipelineLibraryFeaturesEXT *)node)->graphicsPipelineLibrary = VK_FALSE;
++            if (full || clip) ((VkPhysicalDeviceGraphicsPipelineLibraryFeaturesEXT *)node)->graphicsPipelineLibrary = VK_FALSE;
+             break;
+         case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_OBJECT_FEATURES_EXT:
+-            ((VkPhysicalDeviceShaderObjectFeaturesEXT *)node)->shaderObject = VK_FALSE;
++            if (full || clip) ((VkPhysicalDeviceShaderObjectFeaturesEXT *)node)->shaderObject = VK_FALSE;
+             break;
+         default: break;
+         }
+diff --git a/hybris/vulkan/compat/spirv_entry.c b/hybris/vulkan/compat/spirv_entry.c
+index 8faf390..9d0298f 100644
+--- a/hybris/vulkan/compat/spirv_entry.c
++++ b/hybris/vulkan/compat/spirv_entry.c
+@@ -191,3 +191,142 @@ VkResult hybris_spirv_entry(const uint32_t *code, size_t size, uint32_t model,
+     hybris_scaled_free(allocator, decorated);
+     return result;
+ }
++
++struct builtin_use_id {
++    uint32_t op, at, type, object, value, member;
++    unsigned direct, has_member, used_member, live, blocked;
++};
++static uint32_t builtin_use_structure(const struct builtin_use_id *ids,
++    uint32_t bound, uint32_t var, uint32_t *member_word)
++{
++    if (var >= bound || ids[var].op != 59 || ids[var].type >= bound) return 0;
++    uint32_t pointer = ids[var].type;
++    if (ids[pointer].op != 32 || ids[pointer].object >= bound) return 0;
++    uint32_t object = ids[pointer].object;
++    if (member_word) *member_word = ids[object].op == 28 ? 5 : 4;
++    if (ids[object].op == 28) object = ids[object].object;
++    return object < bound && ids[object].op == 30 ? object : 0;
++}
++static int builtin_use_pointer_word(uint32_t op, uint32_t word)
++{
++    switch (op) {
++    case 57: return word >= 4;                       /* OpFunctionCall arguments */
++    case 61: return word == 3;                       /* OpLoad pointer */
++    case 62: return word == 1;                       /* OpStore pointer */
++    case 63: case 64: return word == 1 || word == 2; /* OpCopyMemory target/source */
++    case 65: case 66: case 67: case 70: return word == 3; /* access-chain base */
++    case 68: return word == 3;                       /* OpArrayLength structure */
++    case 83: case 117: case 124: return word == 3;  /* pointer copy/conversion */
++    case 169: return word == 4 || word == 5;         /* OpSelect objects */
++    case 245: return word >= 3 && (word & 1);        /* OpPhi variables */
++    case 254: return word == 1;                      /* OpReturnValue value */
++    case 401: case 402: case 403: return word == 3 || word == 4; /* pointer ops */
++    default: return 0;
++    }
++}
++
++/* Inspect actual uses retained for the selected entry point. This mirrors the
++ * access-chain analysis used by prune_interfaces: entry declarations alone do
++ * not make a direct BuiltIn or gl_PerVertex member active. */
++VkResult hybris_spirv_entry_builtin(const uint32_t *code, size_t size, uint32_t model,
++    const char *entry, uint32_t builtin, const VkAllocationCallbacks *allocator,
++    int *present, const char **reason)
++{
++    uint32_t *selected = NULL;
++    struct builtin_use_id *ids = NULL;
++    size_t selected_size = 0;
++    *present = 0;
++    VkResult result = hybris_spirv_entry(code, size, model, entry, allocator,
++        &selected, &selected_size, reason);
++    if (result != VK_SUCCESS) return result;
++    *reason = "unsupported or malformed SPIR-V builtin use analysis";
++    uint32_t bound = selected[3];
++    if (sizeof(*ids) > SIZE_MAX / bound) { result = VK_ERROR_OUT_OF_HOST_MEMORY; goto done; }
++    ids = hybris_scaled_alloc(allocator, bound * sizeof(*ids),
++        VK_SYSTEM_ALLOCATION_SCOPE_COMMAND);
++    if (!ids) { result = VK_ERROR_OUT_OF_HOST_MEMORY; goto done; }
++    memset(ids, 0, bound * sizeof(*ids));
++    size_t words = selected_size / 4;
++    for (size_t at = 5; at < words; at += selected[at] >> 16) {
++        const uint32_t *p = selected + at;
++        uint32_t count = p[0] >> 16, op = p[0] & 0xffff;
++        if (!count || count > words - at) { result = VK_ERROR_UNKNOWN; goto done; }
++        if (op == 21 || op == 28 || op == 30 || op == 32) {
++            if (count < 2 || !p[1] || p[1] >= bound) { result = VK_ERROR_UNKNOWN; goto done; }
++            ids[p[1]].op = op;
++            ids[p[1]].at = at;
++            if (op == 21) {
++                if (count != 4) { result = VK_ERROR_UNKNOWN; goto done; }
++                ids[p[1]].value = p[2];
++            }
++            if (op == 28) {
++                if (count != 4 || p[2] >= bound) { result = VK_ERROR_UNKNOWN; goto done; }
++                ids[p[1]].object = p[2];
++            }
++            if (op == 32) {
++                if (count != 4 || p[3] >= bound) { result = VK_ERROR_UNKNOWN; goto done; }
++                ids[p[1]].object = p[3];
++            }
++        } else if (op == 43 || op == 59) {
++            if (count < 4 || p[1] >= bound || !p[2] || p[2] >= bound) {
++                result = VK_ERROR_UNKNOWN; goto done;
++            }
++            ids[p[2]].op = op;
++            ids[p[2]].at = at;
++            ids[p[2]].type = p[1];
++            ids[p[2]].value = p[3];
++        }
++    }
++    for (size_t at = 5; at < words; at += selected[at] >> 16) {
++        const uint32_t *p = selected + at;
++        uint32_t count = p[0] >> 16, op = p[0] & 0xffff;
++        if (op == 71 && count == 4 && p[1] < bound && p[2] == 11 && p[3] == builtin)
++            ids[p[1]].direct = 1;
++        if (op == 72 && count == 5 && p[1] < bound && p[3] == 11 && p[4] == builtin) {
++            if (ids[p[1]].op != 30) { result = VK_ERROR_UNKNOWN; goto done; }
++            if (ids[p[1]].has_member && ids[p[1]].member != p[2]) ids[p[1]].blocked = 1;
++            ids[p[1]].has_member = 1;
++            ids[p[1]].member = p[2];
++        }
++    }
++    for (size_t at = 5; at < words; at += selected[at] >> 16) {
++        const uint32_t *p = selected + at;
++        uint32_t count = p[0] >> 16, op = p[0] & 0xffff, accessed = 0;
++        if ((op == 65 || op == 66) && count >= 5 && p[3] < bound) {
++            uint32_t member_word = 0;
++            uint32_t object = builtin_use_structure(ids, bound, p[3], &member_word);
++            if (object) {
++                accessed = p[3];
++                uint32_t index = count > member_word ? p[member_word] : bound;
++                if (index >= bound || ids[index].op != 43 || ids[index].type >= bound ||
++                    ids[ids[index].type].op != 21 || ids[ids[index].type].value != 32 ||
++                    (selected[ids[index].at] >> 16) != 4) {
++                    ids[object].blocked = 1;
++                } else if (ids[index].value == ids[object].member) {
++                    ids[object].used_member = 1;
++                }
++            }
++        }
++        if (op == 5 || op == 6 || op == 15 || op == 71 || op == 72 ||
++            op == 73 || op == 74 || op == 75 || op == 332 || op == 5632 || op == 5633)
++            continue;
++        for (uint32_t i = 1; i < count; ++i) {
++            uint32_t id = p[i];
++            if (id >= bound || !builtin_use_pointer_word(op, i) || ids[id].op != 59 ||
++                (op == 59 && i == 2) || (id == accessed && i == 3)) continue;
++            ids[id].live = 1;
++            uint32_t object = builtin_use_structure(ids, bound, id, NULL);
++            if (object) ids[object].blocked = 1;
++        }
++    }
++    for (uint32_t id = 1; id < bound; ++id) {
++        if (ids[id].op == 59 && ids[id].direct && ids[id].live) *present = 1;
++        if (ids[id].op == 30 && ids[id].has_member &&
++            (ids[id].used_member || ids[id].blocked)) *present = 1;
++    }
++done:
++    if (result == VK_SUCCESS) *reason = NULL;
++    hybris_scaled_free(allocator, ids);
++    hybris_scaled_free(allocator, selected);
++    return result;
++}
+diff --git a/hybris/vulkan/compat/spirv_entry.h b/hybris/vulkan/compat/spirv_entry.h
+index 4251705..67540e4 100644
+--- a/hybris/vulkan/compat/spirv_entry.h
++++ b/hybris/vulkan/compat/spirv_entry.h
+@@ -5,6 +5,9 @@
+ VkResult hybris_spirv_entry(const uint32_t *code, size_t size, uint32_t model,
+     const char *entry, const VkAllocationCallbacks *allocator, uint32_t **output,
+     size_t *output_size, const char **reason);
++VkResult hybris_spirv_entry_builtin(const uint32_t *code, size_t size, uint32_t model,
++    const char *entry, uint32_t builtin, const VkAllocationCallbacks *allocator,
++    int *present, const char **reason);
+ int hybris_spirv_literal_word(uint32_t opcode, uint32_t word);
+ int hybris_spirv_multiple(const uint32_t *code, size_t size);
+ #endif
+diff --git a/hybris/vulkan/layer/physical.c b/hybris/vulkan/layer/physical.c
+index 4c694ef..105c9c1 100644
+--- a/hybris/vulkan/layer/physical.c
++++ b/hybris/vulkan/layer/physical.c
+@@ -66,8 +66,9 @@ static VkResult VKAPI_CALL enumerate_device_extensions(VkPhysicalDevice physical
+         context.resolver(context.instance, "vkEnumerateDeviceExtensionProperties");
+     unsigned bc_mask = layer ? 0 : hybris_bc_physical_mask(physical);
+     unsigned shader_mask = layer ? 0 : hybris_shader_physical_mask(physical);
++    int clip = !layer && hybris_clip_active(physical);
+     int vertex_stores = !layer && hybris_vertex_stores_active(physical);
+-    if (layer || (!bc_mask && !shader_mask && !vertex_stores))
++    if (layer || (!bc_mask && !shader_mask && !clip && !vertex_stores))
+         return enumerate(physical, layer, count, properties);
+     uint32_t available = 0;
+     VkResult result = enumerate(physical, NULL, &available, NULL);
+@@ -79,7 +80,8 @@ static VkResult VKAPI_CALL enumerate_device_extensions(VkPhysicalDevice physical
+     uint32_t kept = 0, written = 0, capacity = properties ? *count : 0;
+     for (uint32_t i = 0; i < available; ++i) {
+         if ((bc_mask && !hybris_bc_extension_allowed(all[i].extensionName)) ||
+-            ((shader_mask || vertex_stores) && !hybris_shader_extension_allowed(all[i].extensionName))) continue;
++            ((shader_mask || vertex_stores) && !hybris_shader_extension_allowed(all[i].extensionName)) ||
++            (clip && !hybris_clip_extension_allowed(all[i].extensionName))) continue;
+         if (properties && written < capacity) properties[written++] = all[i];
+         ++kept;
+     }

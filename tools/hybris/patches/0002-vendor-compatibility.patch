@@ -1,0 +1,984 @@
+diff --git a/hybris/common/Makefile.am b/hybris/common/Makefile.am
+index 7fb8f5d..e32efa9 100644
+--- a/hybris/common/Makefile.am
++++ b/hybris/common/Makefile.am
+@@ -27,6 +27,8 @@ endif
+
+ libhybris_common_la_SOURCES = \
+ 	hooks.c \
++	vendor_compat.c \
++	vendor_compat.h \
+ 	mali_quirks.c \
+ 	mali_quirks.h \
+ 	bionic_stdio.c \
+diff --git a/hybris/common/vendor_compat.c b/hybris/common/vendor_compat.c
+new file mode 100644
+index 0000000..d259d0f
+--- /dev/null
++++ b/hybris/common/vendor_compat.c
+@@ -0,0 +1,56 @@
++/* SPDX-License-Identifier: Apache-2.0 */
++#define _GNU_SOURCE
++#include "vendor_compat.h"
++#include <hybris/common/dlfcn.h>
++#include <dlfcn.h>
++#include <pthread.h>
++#include <stdlib.h>
++#include <string.h>
++
++extern char **environ;
++
++static pthread_mutex_t environ_guard = PTHREAD_MUTEX_INITIALIZER;
++static int bionic_environ_ready;
++
++static int prepare_bionic_environ(void)
++{
++    int ready = 0;
++    pthread_mutex_lock(&environ_guard);
++    if (bionic_environ_ready) {
++        pthread_mutex_unlock(&environ_guard);
++        return 1;
++    }
++    void *libc = hybris_dlopen("libc.so", RTLD_NOW | RTLD_LOCAL);
++    char ***bionic_environ = libc ? (char ***)hybris_dlsym(libc, "environ") : NULL;
++    if (!bionic_environ) goto done;
++    if (*bionic_environ) {
++        bionic_environ_ready = ready = 1;
++        goto done;
++    }
++
++    size_t count = 0;
++    while (environ && environ[count]) ++count;
++    char **snapshot = calloc(count + 1, sizeof(*snapshot));
++    if (!snapshot) goto done;
++    for (size_t i = 0; i < count; ++i) {
++        snapshot[i] = strdup(environ[i]);
++        if (!snapshot[i]) {
++            while (i) free(snapshot[--i]);
++            free(snapshot);
++            goto done;
++        }
++    }
++    *bionic_environ = snapshot;
++    bionic_environ_ready = ready = 1;
++done:
++    pthread_mutex_unlock(&environ_guard);
++    return ready;
++}
++
++int hybris_vendor_compat_prepare_vulkan_hal(const char *path)
++{
++    /* A null path asks hw_get_module() to select the HAL. Explicit vendor HALs
++     * bypass Android's loader setup and all need the same Bionic environment. */
++    if (!path || !path[0]) return 1;
++    return prepare_bionic_environ();
++}
+diff --git a/hybris/common/vendor_compat.h b/hybris/common/vendor_compat.h
+new file mode 100644
+index 0000000..daa2f17
+--- /dev/null
++++ b/hybris/common/vendor_compat.h
+@@ -0,0 +1,6 @@
++/* SPDX-License-Identifier: Apache-2.0 */
++#pragma once
++
++/* Prepare Bionic process state before loading an explicitly selected Android
++ * Vulkan HAL, so its constructors and callbacks observe the same snapshot. */
++int hybris_vendor_compat_prepare_vulkan_hal(const char *path);
+diff --git a/hybris/vulkan/Makefile.am b/hybris/vulkan/Makefile.am
+index e033f7b..6bf3a57 100644
+--- a/hybris/vulkan/Makefile.am
++++ b/hybris/vulkan/Makefile.am
+@@ -13,6 +13,7 @@ libVkLayer_hybris_compat_la_SOURCES = layer/entry.c layer/device.c layer/physica
+     compat/bc_image.c compat/bc_image.h compat/bc_command_state.c compat/bc_command_state.h compat/bc_transfer.c compat/bc_transfer.h \
+     compat/bc_context.c compat/bc_context.h compat/bc_commands.c compat/bc_resources.c compat/bc_record.c compat/bc_barriers.c compat/bc_image_copy.c compat/bc_policy.c compat/bc_policy.h \
+     compat/application_policy.c compat/application_policy.h \
++    compat/vendor_compat.c compat/vendor_compat.h \
+     compat/memory_visibility.c compat/memory_visibility.h compat/rendering_segments.c compat/rendering_segments.h \
+     compat/readback_record.c compat/readback_submit.c compat/readback.h \
+     compat/vertex_stores.c compat/vertex_stores.h compat/spirv_discard.c \
+diff --git a/hybris/vulkan/compat/bc_policy.c b/hybris/vulkan/compat/bc_policy.c
+index 3124a25..37c414c 100644
+--- a/hybris/vulkan/compat/bc_policy.c
++++ b/hybris/vulkan/compat/bc_policy.c
+@@ -4,6 +4,7 @@
+ #include "bc_policy.h"
+ #include "bc_context.h"
+ #include "../layer/layer.h"
++#include "vendor_compat.h"
+ #include <stdlib.h>
+ #include <stddef.h>
+ #include <string.h>
+@@ -137,6 +138,7 @@ int hybris_bc_format_properties(VkPhysicalDevice physical, VkFormat format, VkFo
+     *properties = (VkFormatProperties){.optimalTilingFeatures = decoded.optimalTilingFeatures &
+         (VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT | VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT |
+          VK_FORMAT_FEATURE_TRANSFER_SRC_BIT | VK_FORMAT_FEATURE_TRANSFER_DST_BIT)};
++    hybris_vendor_adjust_bc_format(physical, format, properties);
+     return 1;
+ }
+ int hybris_bc_extension_allowed(const char *name)
+@@ -183,7 +185,9 @@ VkResult hybris_bc_prepare_device(VkPhysicalDevice physical, const VkDeviceCreat
+     if (!hybris_bc_physical_mask(physical)) return VK_SUCCESS;
+     for (uint32_t i = 0; i < info->enabledExtensionCount; ++i)
+         if (!hybris_bc_extension_allowed(info->ppEnabledExtensionNames[i])) return VK_ERROR_EXTENSION_NOT_PRESENT;
+-    if (info->pEnabledFeatures && (info->pEnabledFeatures->pipelineStatisticsQuery || info->pEnabledFeatures->textureCompressionBC)) return VK_ERROR_FEATURE_NOT_PRESENT;
++    int virtual_bc = hybris_vendor_full_bc_feature(physical);
++    if (info->pEnabledFeatures && (info->pEnabledFeatures->pipelineStatisticsQuery ||
++        (info->pEnabledFeatures->textureCompressionBC && !virtual_bc))) return VK_ERROR_FEATURE_NOT_PRESENT;
+     for (const VkBaseInStructure *node = info->pNext; node; node = node->pNext) {
+         unsigned count = unsupported_feature_count(node->sType);
+         for (unsigned i = 0; i < count; ++i) {
+@@ -195,7 +199,8 @@ VkResult hybris_bc_prepare_device(VkPhysicalDevice physical, const VkDeviceCreat
+             ((const VkDeviceGroupDeviceCreateInfo *)node)->physicalDeviceCount != 1) return VK_ERROR_FEATURE_NOT_PRESENT;
+         if (node->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2 &&
+             (((const VkPhysicalDeviceFeatures2 *)node)->features.pipelineStatisticsQuery ||
+-             ((const VkPhysicalDeviceFeatures2 *)node)->features.textureCompressionBC)) return VK_ERROR_FEATURE_NOT_PRESENT;
++             (((const VkPhysicalDeviceFeatures2 *)node)->features.textureCompressionBC && !virtual_bc)))
++            return VK_ERROR_FEATURE_NOT_PRESENT;
+         if (node->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES &&
+             ((const VkPhysicalDeviceVulkan11Features *)node)->protectedMemory) return VK_ERROR_FEATURE_NOT_PRESENT;
+         if (node->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROTECTED_MEMORY_FEATURES &&
+@@ -247,7 +252,10 @@ static void VKAPI_CALL features(VkPhysicalDevice physical, VkPhysicalDeviceFeatu
+     if (!hybris_layer_lookup_physical(physical, &context)) return;
+     PHYSICAL_PROC(GetPhysicalDeviceFeatures);
+     GetPhysicalDeviceFeatures(physical, out);
+-    if (hybris_bc_physical_mask(physical)) out->pipelineStatisticsQuery = out->textureCompressionBC = VK_FALSE;
++    if (hybris_bc_physical_mask(physical)) {
++        out->pipelineStatisticsQuery = VK_FALSE;
++        out->textureCompressionBC = hybris_vendor_full_bc_feature(physical) ? VK_TRUE : VK_FALSE;
++    }
+ }
+ static void features2(VkPhysicalDevice physical, VkPhysicalDeviceFeatures2 *out, const char *name)
+ {
+@@ -256,7 +264,8 @@ static void features2(VkPhysicalDevice physical, VkPhysicalDeviceFeatures2 *out,
+     PFN_vkGetPhysicalDeviceFeatures2 query = (PFN_vkGetPhysicalDeviceFeatures2)context.resolver(context.instance, name);
+     query(physical, out);
+     if (!hybris_bc_physical_mask(physical)) return;
+-    out->features.pipelineStatisticsQuery = out->features.textureCompressionBC = VK_FALSE;
++    out->features.pipelineStatisticsQuery = VK_FALSE;
++    out->features.textureCompressionBC = hybris_vendor_full_bc_feature(physical) ? VK_TRUE : VK_FALSE;
+     for (VkBaseOutStructure *node = out->pNext; node; node = node->pNext) {
+         unsigned count = unsupported_feature_count(node->sType);
+         if (count) memset((char *)node + sizeof(VkBaseOutStructure), 0, count * sizeof(VkBool32));
+diff --git a/hybris/vulkan/compat/vendor_compat.c b/hybris/vulkan/compat/vendor_compat.c
+new file mode 100644
+index 0000000..5cb672c
+--- /dev/null
++++ b/hybris/vulkan/compat/vendor_compat.c
+@@ -0,0 +1,557 @@
++/* SPDX-License-Identifier: Apache-2.0 */
++#define _GNU_SOURCE
++#define VK_NO_PROTOTYPES
++#include "vendor_compat.h"
++#include "bc_policy.h"
++#include "../layer/layer.h"
++#include "scaled_vertex.h"
++#include <pthread.h>
++#include <stdlib.h>
++#include <string.h>
++#include <sys/auxv.h>
++
++struct sampler_state {
++    VkSampler handle;
++    VkAllocationCallbacks allocator;
++    int custom_allocator;
++    struct sampler_state *next;
++};
++struct vendor_device {
++    VkDevice handle;
++    VkPhysicalDevice physical;
++    PFN_vkGetDeviceProcAddr resolver;
++    PFN_vkCreateSampler create_sampler;
++    PFN_vkDestroySampler destroy_sampler;
++    PFN_vkCreateDescriptorSetLayout create_layout;
++    PFN_vkGetCalibratedTimestampsEXT timestamps_ext;
++    VkSampler fallback;
++    int immutable_ycbcr;
++    int calibrated_alias;
++    int calibrated_khr_enabled;
++    int calibrated_ext_enabled;
++    VkAllocationCallbacks allocator;
++    int custom_allocator;
++    struct sampler_state *samplers;
++    struct vendor_device *next;
++};
++static pthread_mutex_t guard = PTHREAD_MUTEX_INITIALIZER;
++static struct vendor_device *devices;
++
++static void *array_alloc(const VkAllocationCallbacks *allocator, size_t count, size_t size)
++{
++    if (size && count > SIZE_MAX / size) return NULL;
++    return hybris_scaled_alloc(allocator, count * size, VK_SYSTEM_ALLOCATION_SCOPE_COMMAND);
++}
++
++struct vendor_policy {
++    uint32_t vendor_id;
++    uint32_t device_id;
++    uint32_t driver_version;
++    int xclipse;
++    int native_bc;
++    int sampler_ycbcr;
++    int calibrated_khr_advertised;
++    int calibrated_ext_advertised;
++    int calibrated_compatible;
++    int calibrated_domain_alias;
++    int calibrated_timestamps_alias;
++};
++
++static int xclipse_hal(void)
++{
++    const char *path = getauxval(AT_SECURE) ? NULL : getenv("HYBRIS_VULKAN_HAL");
++    if (!path) return 0;
++    const char *base = strrchr(path, '/');
++    base = base ? base + 1 : path;
++    return !strcmp(base, "vulkan.samsung.so");
++}
++
++static int xclipse_name(const char *name)
++{
++    return !strncmp(name, "Xclipse ", 8) || !strncmp(name, "Samsung Xclipse ", 16);
++}
++
++static int extension_advertised(VkPhysicalDevice physical,
++    const struct hybris_layer_physical *context, const char *name)
++{
++    PFN_vkEnumerateDeviceExtensionProperties enumerate =
++        (PFN_vkEnumerateDeviceExtensionProperties)context->resolver(context->instance,
++            "vkEnumerateDeviceExtensionProperties");
++    if (!enumerate) return 0;
++    uint32_t count = 0;
++    if (enumerate(physical, NULL, &count, NULL) != VK_SUCCESS) return 0;
++    VkExtensionProperties *extensions = count ? calloc(count, sizeof(*extensions)) : NULL;
++    if (count && !extensions) return 0;
++    VkResult result = enumerate(physical, NULL, &count, extensions);
++    int found = 0;
++    if (result == VK_SUCCESS || result == VK_INCOMPLETE)
++        for (uint32_t i = 0; i < count && !found; ++i)
++            found = !strcmp(extensions[i].extensionName, name);
++    free(extensions);
++    return found;
++}
++
++static int physical_policy(VkPhysicalDevice physical, struct vendor_policy *out)
++{
++    struct hybris_layer_physical context;
++    if (!hybris_layer_lookup_physical(physical, &context)) return 0;
++    PFN_vkGetPhysicalDeviceProperties properties_query =
++        (PFN_vkGetPhysicalDeviceProperties)context.resolver(context.instance,
++            "vkGetPhysicalDeviceProperties");
++    if (!properties_query) return 0;
++    VkPhysicalDeviceProperties properties;
++    memset(&properties, 0, sizeof(properties));
++    properties_query(physical, &properties);
++    properties.deviceName[VK_MAX_PHYSICAL_DEVICE_NAME_SIZE - 1] = '\0';
++
++    *out = (struct vendor_policy){.vendor_id = properties.vendorID,
++        .device_id = properties.deviceID, .driver_version = properties.driverVersion,
++        .xclipse = xclipse_hal() && xclipse_name(properties.deviceName)};
++    PFN_vkGetPhysicalDeviceFeatures features_query =
++        (PFN_vkGetPhysicalDeviceFeatures)context.resolver(context.instance,
++            "vkGetPhysicalDeviceFeatures");
++    if (features_query) {
++        VkPhysicalDeviceFeatures features;
++        memset(&features, 0, sizeof(features));
++        features_query(physical, &features);
++        out->native_bc = features.textureCompressionBC;
++    }
++    if (out->xclipse) {
++        int core_features2 = context.api_version >= VK_API_VERSION_1_1 &&
++            properties.apiVersion >= VK_API_VERSION_1_1;
++        PFN_vkGetPhysicalDeviceFeatures2 features2_query = core_features2 ?
++            (PFN_vkGetPhysicalDeviceFeatures2)context.resolver(context.instance,
++                "vkGetPhysicalDeviceFeatures2") : NULL;
++        if (!features2_query)
++            features2_query = (PFN_vkGetPhysicalDeviceFeatures2)
++                context.resolver(context.instance, "vkGetPhysicalDeviceFeatures2KHR");
++        if (features2_query) {
++            VkPhysicalDeviceSamplerYcbcrConversionFeatures ycbcr = {
++                .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SAMPLER_YCBCR_CONVERSION_FEATURES};
++            VkPhysicalDeviceFeatures2 features2 = {
++                .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2, .pNext = &ycbcr};
++            features2_query(physical, &features2);
++            out->sampler_ycbcr = ycbcr.samplerYcbcrConversion;
++        }
++    }
++    out->calibrated_khr_advertised = extension_advertised(physical, &context,
++        VK_KHR_CALIBRATED_TIMESTAMPS_EXTENSION_NAME);
++    out->calibrated_ext_advertised = extension_advertised(physical, &context,
++        VK_EXT_CALIBRATED_TIMESTAMPS_EXTENSION_NAME);
++    out->calibrated_compatible = out->calibrated_khr_advertised &&
++        out->calibrated_ext_advertised;
++    out->calibrated_domain_alias = out->calibrated_compatible &&
++        !context.resolver(context.instance, "vkGetPhysicalDeviceCalibrateableTimeDomainsKHR") &&
++        context.resolver(context.instance, "vkGetPhysicalDeviceCalibrateableTimeDomainsEXT");
++    out->calibrated_timestamps_alias = out->calibrated_compatible &&
++        !context.resolver(context.instance, "vkGetCalibratedTimestampsKHR") &&
++        context.resolver(context.instance, "vkGetCalibratedTimestampsEXT");
++    return 1;
++}
++
++int hybris_vendor_xclipse_physical(VkPhysicalDevice physical)
++{
++    struct vendor_policy policy;
++    return physical_policy(physical, &policy) && policy.xclipse;
++}
++
++int hybris_vendor_xclipse_bc(VkPhysicalDevice physical)
++{
++    struct vendor_policy policy;
++    return physical_policy(physical, &policy) && policy.xclipse && !policy.native_bc &&
++        hybris_bc_physical_mask(physical);
++}
++
++int hybris_vendor_full_bc_feature(VkPhysicalDevice physical)
++{
++    (void)physical;
++    /* The current per-format decoder omits BC1 RGB and does not provide every
++     * BLIT_SRC/FILTER_LINEAR guarantee required by textureCompressionBC. */
++    return 0;
++}
++
++const char *hybris_vendor_compat_reason(VkPhysicalDevice physical,
++    enum hybris_vendor_compat_workaround workaround)
++{
++    struct vendor_policy policy;
++    if (!physical_policy(physical, &policy)) return NULL;
++    if (workaround == HYBRIS_VENDOR_VIRTUAL_BC && policy.xclipse && !policy.native_bc &&
++        hybris_bc_physical_mask(physical))
++        return "xclipse-hal-and-device/native-bc-missing/per-format-decoder-present";
++    if (workaround == HYBRIS_VENDOR_IMMUTABLE_YCBCR && policy.xclipse && policy.sampler_ycbcr)
++        return "xclipse-hal-and-device/sampler-ycbcr-feature";
++    if (workaround == HYBRIS_VENDOR_CALIBRATED_TIMESTAMPS_ALIAS &&
++        (policy.calibrated_domain_alias || policy.calibrated_timestamps_alias))
++        return "khr-and-ext-advertised/per-command-native-first/ext-enabled-fallback";
++    return NULL;
++}
++
++void hybris_vendor_adjust_bc_format(VkPhysicalDevice physical, VkFormat format,
++    VkFormatProperties *properties)
++{
++    if (!hybris_vendor_xclipse_bc(physical) ||
++        format < VK_FORMAT_BC4_UNORM_BLOCK || format > VK_FORMAT_BC5_SNORM_BLOCK ||
++        !(properties->optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT)) return;
++    properties->optimalTilingFeatures |= VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT;
++}
++
++static int extension_enabled(const VkDeviceCreateInfo *info, const char *name)
++{
++    for (uint32_t i = 0; i < info->enabledExtensionCount; ++i)
++        if (!strcmp(info->ppEnabledExtensionNames[i], name)) return 1;
++    return 0;
++}
++
++VkResult hybris_vendor_prepare_device(VkPhysicalDevice physical,
++    const VkDeviceCreateInfo *info, const VkAllocationCallbacks *allocator,
++    struct hybris_vendor_device_create *out)
++{
++    *out = (struct hybris_vendor_device_create){.info = *info};
++    struct vendor_policy policy;
++    if (!physical_policy(physical, &policy) || !policy.calibrated_compatible ||
++        !extension_enabled(info, VK_KHR_CALIBRATED_TIMESTAMPS_EXTENSION_NAME) ||
++        extension_enabled(info, VK_EXT_CALIBRATED_TIMESTAMPS_EXTENSION_NAME)) return VK_SUCCESS;
++    if (info->enabledExtensionCount == UINT32_MAX) return VK_ERROR_OUT_OF_HOST_MEMORY;
++    size_t count = (size_t)info->enabledExtensionCount + 1;
++    out->extensions = array_alloc(allocator, count, sizeof(*out->extensions));
++    if (!out->extensions) return VK_ERROR_OUT_OF_HOST_MEMORY;
++    if (info->enabledExtensionCount)
++        memcpy(out->extensions, info->ppEnabledExtensionNames,
++            info->enabledExtensionCount * sizeof(*out->extensions));
++    out->extensions[info->enabledExtensionCount] =
++        VK_EXT_CALIBRATED_TIMESTAMPS_EXTENSION_NAME;
++    out->info.enabledExtensionCount = (uint32_t)count;
++    out->info.ppEnabledExtensionNames = out->extensions;
++    return VK_SUCCESS;
++}
++
++void hybris_vendor_release_device_create(struct hybris_vendor_device_create *prepared,
++    const VkAllocationCallbacks *allocator)
++{
++    hybris_scaled_free(allocator, prepared->extensions);
++    prepared->extensions = NULL;
++}
++
++static int snapshot(VkDevice handle, struct vendor_device *out)
++{
++    int found = 0;
++    pthread_mutex_lock(&guard);
++    for (const struct vendor_device *device = devices; device; device = device->next)
++        if (device->handle == handle) { *out = *device; found = 1; break; }
++    pthread_mutex_unlock(&guard);
++    return found;
++}
++
++VkResult hybris_vendor_attach_device(VkDevice handle, VkPhysicalDevice physical,
++    PFN_vkGetDeviceProcAddr resolver, const VkDeviceCreateInfo *info,
++    const VkAllocationCallbacks *allocator)
++{
++    struct vendor_policy policy;
++    if (!physical_policy(physical, &policy)) return VK_SUCCESS;
++    int calibrated_khr_enabled = extension_enabled(info,
++        VK_KHR_CALIBRATED_TIMESTAMPS_EXTENSION_NAME);
++    int calibrated_ext_enabled = extension_enabled(info,
++        VK_EXT_CALIBRATED_TIMESTAMPS_EXTENSION_NAME);
++    PFN_vkGetCalibratedTimestampsKHR timestamps_khr =
++        (PFN_vkGetCalibratedTimestampsKHR)resolver(handle, "vkGetCalibratedTimestampsKHR");
++    PFN_vkGetCalibratedTimestampsEXT timestamps_ext =
++        (PFN_vkGetCalibratedTimestampsEXT)resolver(handle, "vkGetCalibratedTimestampsEXT");
++    int calibrated_alias = policy.calibrated_compatible && calibrated_khr_enabled &&
++        calibrated_ext_enabled && !timestamps_khr && timestamps_ext;
++    int immutable_ycbcr = policy.xclipse && policy.sampler_ycbcr;
++    if (!immutable_ycbcr && !calibrated_alias) return VK_SUCCESS;
++    PFN_vkCreateSampler create = (PFN_vkCreateSampler)resolver(handle, "vkCreateSampler");
++    PFN_vkDestroySampler destroy = (PFN_vkDestroySampler)resolver(handle, "vkDestroySampler");
++    PFN_vkCreateDescriptorSetLayout layout = (PFN_vkCreateDescriptorSetLayout)
++        resolver(handle, "vkCreateDescriptorSetLayout");
++    struct vendor_device *device = hybris_scaled_alloc(allocator, sizeof(*device),
++        VK_SYSTEM_ALLOCATION_SCOPE_DEVICE);
++    if (!device) return VK_ERROR_OUT_OF_HOST_MEMORY;
++    *device = (struct vendor_device){.handle = handle, .physical = physical, .resolver = resolver,
++        .create_sampler = create, .destroy_sampler = destroy, .create_layout = layout,
++        .timestamps_ext = timestamps_ext, .immutable_ycbcr = immutable_ycbcr,
++        .calibrated_alias = calibrated_alias,
++        .calibrated_khr_enabled = calibrated_khr_enabled,
++        .calibrated_ext_enabled = calibrated_ext_enabled,
++        .custom_allocator = allocator != NULL};
++    if (allocator) device->allocator = *allocator;
++    if (immutable_ycbcr) {
++        if (!create || !destroy || !layout) {
++            hybris_scaled_free(allocator, device);
++            return VK_ERROR_FEATURE_NOT_PRESENT;
++        }
++        VkSamplerCreateInfo info = {.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
++            .magFilter = VK_FILTER_LINEAR, .minFilter = VK_FILTER_LINEAR,
++            .addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
++            .addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
++            .addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
++            .borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK};
++        VkResult result = create(handle, &info, allocator, &device->fallback);
++        if (result != VK_SUCCESS) {
++            hybris_scaled_free(allocator, device);
++            return result;
++        }
++    }
++    pthread_mutex_lock(&guard);
++    device->next = devices;
++    devices = device;
++    pthread_mutex_unlock(&guard);
++    return VK_SUCCESS;
++}
++
++void hybris_vendor_release_device(VkDevice handle)
++{
++    struct vendor_device *retired = NULL;
++    pthread_mutex_lock(&guard);
++    for (struct vendor_device **slot = &devices; *slot; slot = &(*slot)->next)
++        if ((*slot)->handle == handle) { retired = *slot; *slot = retired->next; break; }
++    pthread_mutex_unlock(&guard);
++    if (!retired) return;
++    struct sampler_state *sampler = retired->samplers;
++    while (sampler) {
++        struct sampler_state *next = sampler->next;
++        hybris_scaled_free(sampler->custom_allocator ? &sampler->allocator : NULL, sampler);
++        sampler = next;
++    }
++    if (retired->fallback && retired->destroy_sampler)
++        retired->destroy_sampler(handle, retired->fallback,
++            retired->custom_allocator ? &retired->allocator : NULL);
++    hybris_scaled_free(retired->custom_allocator ? &retired->allocator : NULL, retired);
++}
++
++/* Called with guard held; always walk the live list rather than a snapshot whose
++ * head can be retired by an unrelated sampler destruction. */
++static int ycbcr_sampler(VkDevice handle, VkSampler sampler_handle)
++{
++    for (const struct vendor_device *device = devices; device; device = device->next) {
++        if (device->handle != handle) continue;
++        for (const struct sampler_state *sampler = device->samplers; sampler; sampler = sampler->next)
++            if (sampler->handle == sampler_handle) return 1;
++        break;
++    }
++    return 0;
++}
++
++static VkResult VKAPI_CALL create_sampler(VkDevice handle, const VkSamplerCreateInfo *info,
++    const VkAllocationCallbacks *allocator, VkSampler *out)
++{
++    struct vendor_device device;
++    if (!snapshot(handle, &device)) {
++        struct hybris_layer_device layer;
++        if (!hybris_layer_lookup_device(handle, &layer)) return VK_ERROR_INITIALIZATION_FAILED;
++        return ((PFN_vkCreateSampler)layer.resolver(handle, "vkCreateSampler"))
++            (handle, info, allocator, out);
++    }
++    if (!device.create_sampler) return VK_ERROR_INITIALIZATION_FAILED;
++    VkResult result = device.create_sampler(handle, info, allocator, out);
++    if (result != VK_SUCCESS) return result;
++    if (!device.immutable_ycbcr) return VK_SUCCESS;
++    int ycbcr = 0;
++    for (const VkBaseInStructure *node = info->pNext; node && !ycbcr; node = node->pNext)
++        ycbcr = node->sType == VK_STRUCTURE_TYPE_SAMPLER_YCBCR_CONVERSION_INFO;
++    if (!ycbcr) return VK_SUCCESS;
++    struct sampler_state *sampler = hybris_scaled_alloc(allocator, sizeof(*sampler),
++        VK_SYSTEM_ALLOCATION_SCOPE_OBJECT);
++    if (!sampler) {
++        device.destroy_sampler(handle, *out, allocator);
++        *out = VK_NULL_HANDLE;
++        return VK_ERROR_OUT_OF_HOST_MEMORY;
++    }
++    *sampler = (struct sampler_state){.handle = *out, .custom_allocator = allocator != NULL};
++    if (allocator) sampler->allocator = *allocator;
++    pthread_mutex_lock(&guard);
++    for (struct vendor_device *live = devices; live; live = live->next)
++        if (live->handle == handle) { sampler->next = live->samplers; live->samplers = sampler; sampler = NULL; break; }
++    pthread_mutex_unlock(&guard);
++    if (sampler) {
++        hybris_scaled_free(allocator, sampler);
++        device.destroy_sampler(handle, *out, allocator);
++        *out = VK_NULL_HANDLE;
++        return VK_ERROR_INITIALIZATION_FAILED;
++    }
++    return VK_SUCCESS;
++}
++
++static void VKAPI_CALL destroy_sampler(VkDevice handle, VkSampler sampler,
++    const VkAllocationCallbacks *allocator)
++{
++    struct vendor_device device;
++    if (!snapshot(handle, &device)) {
++        struct hybris_layer_device layer;
++        if (hybris_layer_lookup_device(handle, &layer))
++            ((PFN_vkDestroySampler)layer.resolver(handle, "vkDestroySampler"))
++                (handle, sampler, allocator);
++        return;
++    }
++    if (!device.destroy_sampler) return;
++    struct sampler_state *retired = NULL;
++    pthread_mutex_lock(&guard);
++    for (struct vendor_device *live = devices; live && !retired; live = live->next) {
++        if (live->handle != handle) continue;
++        for (struct sampler_state **slot = &live->samplers; *slot; slot = &(*slot)->next)
++            if ((*slot)->handle == sampler) { retired = *slot; *slot = retired->next; break; }
++    }
++    pthread_mutex_unlock(&guard);
++    hybris_scaled_free(retired && retired->custom_allocator ? &retired->allocator : NULL, retired);
++    device.destroy_sampler(handle, sampler, allocator);
++}
++
++static VkResult VKAPI_CALL create_layout(VkDevice handle,
++    const VkDescriptorSetLayoutCreateInfo *info, const VkAllocationCallbacks *allocator,
++    VkDescriptorSetLayout *out)
++{
++    struct vendor_device device;
++    if (!snapshot(handle, &device)) {
++        struct hybris_layer_device layer;
++        if (!hybris_layer_lookup_device(handle, &layer)) return VK_ERROR_INITIALIZATION_FAILED;
++        return ((PFN_vkCreateDescriptorSetLayout)layer.resolver(handle,
++            "vkCreateDescriptorSetLayout"))(handle, info, allocator, out);
++    }
++    if (!device.fallback || !device.create_layout)
++        return device.create_layout ? device.create_layout(handle, info, allocator, out) :
++            VK_ERROR_INITIALIZATION_FAILED;
++    int replace = 0;
++    pthread_mutex_lock(&guard);
++    for (uint32_t b = 0; b < info->bindingCount && !replace; ++b) {
++        const VkDescriptorSetLayoutBinding *binding = &info->pBindings[b];
++        if (binding->descriptorType != VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER ||
++            !(binding->stageFlags & VK_SHADER_STAGE_COMPUTE_BIT) ||
++            !binding->pImmutableSamplers) continue;
++        for (uint32_t s = 0; s < binding->descriptorCount; ++s)
++            if (ycbcr_sampler(handle, binding->pImmutableSamplers[s])) { replace = 1; break; }
++    }
++    pthread_mutex_unlock(&guard);
++    if (!replace) return device.create_layout(handle, info, allocator, out);
++
++    VkResult result = VK_ERROR_OUT_OF_HOST_MEMORY;
++    VkDescriptorSetLayoutBinding *bindings = array_alloc(allocator,
++        info->bindingCount, sizeof(*bindings));
++    VkSampler **arrays = array_alloc(allocator, info->bindingCount, sizeof(*arrays));
++    if (arrays) memset(arrays, 0, info->bindingCount * sizeof(*arrays));
++    if (!bindings || !arrays) goto done;
++    for (uint32_t b = 0; b < info->bindingCount; ++b) {
++        bindings[b] = info->pBindings[b];
++        if (bindings[b].descriptorType != VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER ||
++            !(bindings[b].stageFlags & VK_SHADER_STAGE_COMPUTE_BIT) ||
++            !bindings[b].pImmutableSamplers) continue;
++        arrays[b] = array_alloc(allocator, bindings[b].descriptorCount, sizeof(VkSampler));
++        if (bindings[b].descriptorCount && !arrays[b]) goto done;
++        pthread_mutex_lock(&guard);
++        for (uint32_t s = 0; s < bindings[b].descriptorCount; ++s) {
++            VkSampler original = bindings[b].pImmutableSamplers[s];
++            arrays[b][s] = ycbcr_sampler(handle, original) ? device.fallback : original;
++        }
++        pthread_mutex_unlock(&guard);
++        bindings[b].pImmutableSamplers = arrays[b];
++    }
++    VkDescriptorSetLayoutCreateInfo patched = *info;
++    patched.pBindings = bindings;
++    result = device.create_layout(handle, &patched, allocator, out);
++done:
++    for (uint32_t b = 0; arrays && b < info->bindingCount; ++b)
++        hybris_scaled_free(allocator, arrays[b]);
++    hybris_scaled_free(allocator, arrays);
++    hybris_scaled_free(allocator, bindings);
++    return result;
++}
++
++static VkResult VKAPI_CALL time_domains_khr(VkPhysicalDevice physical, uint32_t *count,
++    VkTimeDomainKHR *domains)
++{
++    struct hybris_layer_physical context;
++    if (!hybris_layer_lookup_physical(physical, &context)) return VK_ERROR_INITIALIZATION_FAILED;
++    PFN_vkGetPhysicalDeviceCalibrateableTimeDomainsKHR native =
++        (PFN_vkGetPhysicalDeviceCalibrateableTimeDomainsKHR)
++            context.resolver(context.instance, "vkGetPhysicalDeviceCalibrateableTimeDomainsKHR");
++    if (native) return native(physical, count, domains);
++    struct vendor_policy policy;
++    PFN_vkGetPhysicalDeviceCalibrateableTimeDomainsEXT ext =
++        (PFN_vkGetPhysicalDeviceCalibrateableTimeDomainsEXT)
++            context.resolver(context.instance, "vkGetPhysicalDeviceCalibrateableTimeDomainsEXT");
++    if (!physical_policy(physical, &policy) || !policy.calibrated_domain_alias || !ext) {
++        *count = 0;
++        return VK_ERROR_FEATURE_NOT_PRESENT;
++    }
++    return ext(physical, count, (VkTimeDomainEXT *)domains);
++}
++
++static VkResult VKAPI_CALL timestamps_khr(VkDevice handle, uint32_t count,
++    const VkCalibratedTimestampInfoKHR *infos, uint64_t *timestamps, uint64_t *deviation)
++{
++    struct vendor_device vendor;
++    int found = snapshot(handle, &vendor);
++    if (found) {
++        PFN_vkGetCalibratedTimestampsKHR native = (PFN_vkGetCalibratedTimestampsKHR)
++            vendor.resolver(handle, "vkGetCalibratedTimestampsKHR");
++        if (native) return native(handle, count, infos, timestamps, deviation);
++    }
++    if (found && vendor.calibrated_alias &&
++        vendor.calibrated_khr_enabled && vendor.calibrated_ext_enabled && vendor.timestamps_ext)
++        return vendor.timestamps_ext(handle, count,
++            (const VkCalibratedTimestampInfoEXT *)infos, timestamps, deviation);
++    struct hybris_layer_device device;
++    if (!hybris_layer_lookup_device(handle, &device)) return VK_ERROR_INITIALIZATION_FAILED;
++    PFN_vkGetCalibratedTimestampsKHR query = (PFN_vkGetCalibratedTimestampsKHR)
++        device.resolver(handle, "vkGetCalibratedTimestampsKHR");
++    return query ? query(handle, count, infos, timestamps, deviation) : VK_ERROR_FEATURE_NOT_PRESENT;
++}
++
++PFN_vkVoidFunction hybris_vendor_physical_proc(const char *name)
++{
++    (void)name;
++    return NULL;
++}
++
++PFN_vkVoidFunction hybris_vendor_device_proc(const char *name)
++{
++    if (!strcmp(name, "vkCreateSampler")) return (PFN_vkVoidFunction)create_sampler;
++    if (!strcmp(name, "vkDestroySampler")) return (PFN_vkVoidFunction)destroy_sampler;
++    if (!strcmp(name, "vkCreateDescriptorSetLayout")) return (PFN_vkVoidFunction)create_layout;
++    return NULL;
++}
++
++static int instance_has_calibrated_alias(VkInstance instance,
++    PFN_vkGetInstanceProcAddr resolver, int domains)
++{
++    PFN_vkEnumeratePhysicalDevices enumerate = (PFN_vkEnumeratePhysicalDevices)
++        resolver(instance, "vkEnumeratePhysicalDevices");
++    if (!enumerate) return 0;
++    uint32_t count = 0;
++    if (enumerate(instance, &count, NULL) != VK_SUCCESS) return 0;
++    VkPhysicalDevice *physical = count ? calloc(count, sizeof(*physical)) : NULL;
++    if (count && !physical) return 0;
++    VkResult result = enumerate(instance, &count, physical);
++    int found = 0;
++    if (result == VK_SUCCESS || result == VK_INCOMPLETE)
++        for (uint32_t i = 0; i < count && !found; ++i) {
++            struct vendor_policy policy;
++            found = physical_policy(physical[i], &policy) &&
++                (domains ? policy.calibrated_domain_alias : policy.calibrated_timestamps_alias);
++        }
++    free(physical);
++    return found;
++}
++
++PFN_vkVoidFunction hybris_vendor_physical_alias_proc(VkInstance instance,
++    PFN_vkGetInstanceProcAddr resolver, const char *name)
++{
++    int domains = !strcmp(name, "vkGetPhysicalDeviceCalibrateableTimeDomainsKHR");
++    int timestamps = !strcmp(name, "vkGetCalibratedTimestampsKHR");
++    if ((!domains && !timestamps) || resolver(instance, name) ||
++        !instance_has_calibrated_alias(instance, resolver, domains)) return NULL;
++    if (domains && resolver(instance, "vkGetPhysicalDeviceCalibrateableTimeDomainsEXT"))
++        return (PFN_vkVoidFunction)time_domains_khr;
++    if (timestamps && resolver(instance, "vkGetCalibratedTimestampsEXT"))
++        return (PFN_vkVoidFunction)timestamps_khr;
++    return NULL;
++}
++
++PFN_vkVoidFunction hybris_vendor_device_alias_proc(VkDevice handle, const char *name)
++{
++    if (strcmp(name, "vkGetCalibratedTimestampsKHR")) return NULL;
++    struct vendor_device device;
++    return snapshot(handle, &device) && device.calibrated_alias &&
++        device.calibrated_khr_enabled && device.calibrated_ext_enabled && device.timestamps_ext &&
++        !device.resolver(handle, "vkGetCalibratedTimestampsKHR") ?
++        (PFN_vkVoidFunction)timestamps_khr : NULL;
++}
+diff --git a/hybris/vulkan/compat/vendor_compat.h b/hybris/vulkan/compat/vendor_compat.h
+new file mode 100644
+index 0000000..448a590
+--- /dev/null
++++ b/hybris/vulkan/compat/vendor_compat.h
+@@ -0,0 +1,34 @@
++/* SPDX-License-Identifier: Apache-2.0 */
++#pragma once
++#include <vulkan/vulkan.h>
++
++int hybris_vendor_xclipse_physical(VkPhysicalDevice physical);
++int hybris_vendor_xclipse_bc(VkPhysicalDevice physical);
++int hybris_vendor_full_bc_feature(VkPhysicalDevice physical);
++enum hybris_vendor_compat_workaround {
++    HYBRIS_VENDOR_VIRTUAL_BC,
++    HYBRIS_VENDOR_IMMUTABLE_YCBCR,
++    HYBRIS_VENDOR_CALIBRATED_TIMESTAMPS_ALIAS,
++};
++const char *hybris_vendor_compat_reason(VkPhysicalDevice physical,
++    enum hybris_vendor_compat_workaround workaround);
++struct hybris_vendor_device_create {
++    VkDeviceCreateInfo info;
++    const char **extensions;
++};
++VkResult hybris_vendor_prepare_device(VkPhysicalDevice physical,
++    const VkDeviceCreateInfo *info, const VkAllocationCallbacks *allocator,
++    struct hybris_vendor_device_create *out);
++void hybris_vendor_release_device_create(struct hybris_vendor_device_create *prepared,
++    const VkAllocationCallbacks *allocator);
++void hybris_vendor_adjust_bc_format(VkPhysicalDevice physical, VkFormat format,
++    VkFormatProperties *properties);
++VkResult hybris_vendor_attach_device(VkDevice device, VkPhysicalDevice physical,
++    PFN_vkGetDeviceProcAddr resolver, const VkDeviceCreateInfo *info,
++    const VkAllocationCallbacks *allocator);
++void hybris_vendor_release_device(VkDevice device);
++PFN_vkVoidFunction hybris_vendor_physical_proc(const char *name);
++PFN_vkVoidFunction hybris_vendor_device_proc(const char *name);
++PFN_vkVoidFunction hybris_vendor_physical_alias_proc(VkInstance instance,
++    PFN_vkGetInstanceProcAddr resolver, const char *name);
++PFN_vkVoidFunction hybris_vendor_device_alias_proc(VkDevice device, const char *name);
+diff --git a/hybris/vulkan/icd/icd.c b/hybris/vulkan/icd/icd.c
+index b45d0e5..7dac792 100644
+--- a/hybris/vulkan/icd/icd.c
++++ b/hybris/vulkan/icd/icd.c
+@@ -9,6 +9,7 @@
+ #define VK_NO_PROTOTYPES
+ #include <vulkan/vulkan.h>
+ #include <hybris/common/dlfcn.h>
++#include "../../common/vendor_compat.h"
+ /* Android API availability annotations do not apply to this glibc adapter. */
+ #ifndef __INTRODUCED_IN
+ #define __INTRODUCED_IN(api)
+@@ -37,6 +38,10 @@ static void initialize_hal(void)
+     const hw_module_t *module = NULL;
+     const char *path = getauxval(AT_SECURE) ? NULL : getenv("HYBRIS_VULKAN_HAL");
+     if (path && path[0]) {
++        if (!hybris_vendor_compat_prepare_vulkan_hal(path)) {
++            fprintf(stderr, "hybris ICD: vendor compatibility setup failed for %s\n", path);
++            return;
++        }
+         /* With Android's generated namespace config, a system executable's
+          * default namespace cannot open vendor HALs. Use the exported SP-HAL
+          * namespace just as Android's Vulkan loader does. Older/no-config
+diff --git a/hybris/vulkan/layer/device.c b/hybris/vulkan/layer/device.c
+index 00148ce..4b7154a 100644
+--- a/hybris/vulkan/layer/device.c
++++ b/hybris/vulkan/layer/device.c
+@@ -12,6 +12,7 @@
+ #include "../compat/bc_context.h"
+ #include "../compat/clip_distance.h"
+ #include "../compat/memory_visibility.h"
++#include "../compat/vendor_compat.h"
+ #include <vulkan/vk_layer.h>
+ #include <pthread.h>
+ #include <stdio.h>
+@@ -88,19 +89,31 @@ VkResult VKAPI_CALL hybris_layer_create_device(VkPhysicalDevice physical,
+     state->device.generation = ++next_generation;
+     pthread_mutex_unlock(&guard);
+     link->u.pLayerInfo = link->u.pLayerInfo->pNext;
+-    struct hybris_device_features filtered;
+-    result = hybris_device_features_prepare(physical, info, allocator, &filtered);
++    struct hybris_vendor_device_create vendor;
++    result = hybris_vendor_prepare_device(physical, info, allocator, &vendor);
++    struct hybris_device_features filtered = {0};
++    if (result == VK_SUCCESS)
++        result = hybris_device_features_prepare(physical, &vendor.info, allocator, &filtered);
+     if (result == VK_SUCCESS) result = create(physical, &filtered.info, allocator, out);
+     hybris_device_features_release(&filtered, allocator);
+-    if (result != VK_SUCCESS) { hybris_scaled_free(allocator, state); return result; }
++    if (result != VK_SUCCESS) {
++        hybris_vendor_release_device_create(&vendor, allocator);
++        hybris_scaled_free(allocator, state);
++        return result;
++    }
+     state->device.handle = *out;
+     state->key = hybris_layer_dispatch_key(*out);
+     PFN_vkGetPhysicalDeviceFormatProperties query = (PFN_vkGetPhysicalDeviceFormatProperties)
+         instance.resolver(instance.instance, "vkGetPhysicalDeviceFormatProperties");
+     result = hybris_shader_device_create(*out, physical, resolver, query, allocator);
+     if (result == VK_SUCCESS) result = hybris_bc_attach_device(*out, physical, resolver, allocator);
++    if (result == VK_SUCCESS)
++        result = hybris_vendor_attach_device(*out, physical, resolver, &vendor.info, allocator);
++    hybris_vendor_release_device_create(&vendor, allocator);
+     if (result != VK_SUCCESS) {
+         hybris_shader_device_destroy(*out);
++        hybris_vendor_release_device(*out);
++        hybris_bc_device_remove(*out);
+         ((PFN_vkDestroyDevice)resolver(*out, "vkDestroyDevice"))(*out, allocator);
+         *out = VK_NULL_HANDLE;
+         hybris_scaled_free(allocator, state);
+@@ -121,6 +134,7 @@ void VKAPI_CALL hybris_layer_destroy_device(VkDevice handle, const VkAllocationC
+     /* Cleanup uses the live registry; remove the entry only after its children.
+      * Device destruction is externally synchronized by Vulkan. */
+     hybris_memory_visibility_release_device(handle);
++    hybris_vendor_release_device(handle);
+     hybris_layer_commands_release_device(handle);
+     hybris_bc_device_remove(handle);
+     hybris_vertex_stores_release_device(handle);
+@@ -142,8 +156,9 @@ PFN_vkVoidFunction hybris_layer_device_inner_proc(VkDevice handle, const char *n
+     if (!name || !hybris_layer_lookup_device(handle, &device) ||
+         !hybris_shader_device_proc_allowed(handle, name)) return NULL;
+     PFN_vkVoidFunction next = device.resolver(handle, name);
+-    if (!next) return NULL;
+-    PFN_vkVoidFunction compat = hybris_bc_proc(name);
++    if (!next) return hybris_vendor_device_alias_proc(handle, name);
++    PFN_vkVoidFunction compat = hybris_vendor_device_proc(name);
++    if (!compat) compat = hybris_bc_proc(name);
+     if (!compat) compat = hybris_shader_cleanup_proc(name);
+     if (!compat) compat = hybris_shader_proc(name);
+     if (!compat) compat = hybris_vertex_stores_proc(name);
+@@ -156,6 +171,7 @@ PFN_vkVoidFunction hybris_layer_device_dispatch(const char *name, int track_comm
+         compat = hybris_memory_visibility_proc(name);
+         if (!compat) compat = hybris_layer_commands_proc(name);
+     }
++    if (!compat) compat = hybris_vendor_device_proc(name);
+     if (!compat) compat = hybris_bc_proc(name);
+     if (!compat) compat = hybris_shader_cleanup_proc(name);
+     if (!compat) compat = hybris_shader_proc(name);
+@@ -168,7 +184,7 @@ PFN_vkVoidFunction VKAPI_CALL hybris_layer_get_device_proc(VkDevice handle, cons
+     if (!name || !hybris_layer_lookup_device(handle, &device) ||
+         !hybris_shader_device_proc_allowed(handle, name)) return NULL;
+     PFN_vkVoidFunction next = device.resolver(handle, name);
+-    if (!next) return NULL;
++    if (!next) return hybris_vendor_device_alias_proc(handle, name);
+     if (!strcmp(name, "vkGetDeviceProcAddr")) return (PFN_vkVoidFunction)hybris_layer_get_device_proc;
+     if (!strcmp(name, "vkDestroyDevice")) return (PFN_vkVoidFunction)hybris_layer_destroy_device;
+     PFN_vkVoidFunction compat = hybris_layer_device_dispatch(name, device.track_commands);
+diff --git a/hybris/vulkan/layer/device_features.c b/hybris/vulkan/layer/device_features.c
+index b7cdfba..91a9bd9 100644
+--- a/hybris/vulkan/layer/device_features.c
++++ b/hybris/vulkan/layer/device_features.c
+@@ -4,6 +4,7 @@
+ #include "../compat/vertex_stores.h"
+ #include "../compat/clip_distance.h"
+ #include "../compat/scaled_vertex.h"
++#include "../compat/vendor_compat.h"
+ #include <vulkan/vk_layer.h>
+ #include <stdio.h>
+ #include <string.h>
+@@ -36,11 +37,13 @@ VkResult hybris_device_features_prepare(VkPhysicalDevice physical,
+     *out = (struct hybris_device_features){.info = *info};
+     int clip = hybris_clip_active(physical);
+     int stores = hybris_vertex_stores_active(physical);
+-    if (!clip && !stores) return VK_SUCCESS;
++    int bc = hybris_vendor_full_bc_feature(physical);
++    if (!clip && !stores && !bc) return VK_SUCCESS;
+     if (info->pEnabledFeatures) {
+         out->features = *info->pEnabledFeatures;
+         if (clip) out->features.shaderClipDistance = VK_FALSE;
+         if (stores) out->features.vertexPipelineStoresAndAtomics = VK_FALSE;
++        if (bc) out->features.textureCompressionBC = VK_FALSE;
+         out->info.pEnabledFeatures = &out->features;
+     }
+     const VkBaseInStructure *target = info->pNext;
+@@ -48,7 +51,9 @@ VkResult hybris_device_features_prepare(VkPhysicalDevice physical,
+         target = target->pNext;
+     if (!target) return VK_SUCCESS;
+     const VkPhysicalDeviceFeatures *requested = &((const VkPhysicalDeviceFeatures2 *)target)->features;
+-    if (!(clip && requested->shaderClipDistance) && !(stores && requested->vertexPipelineStoresAndAtomics))
++    if (!(clip && requested->shaderClipDistance) &&
++        !(stores && requested->vertexPipelineStoresAndAtomics) &&
++        !(bc && requested->textureCompressionBC))
+         return VK_SUCCESS;
+
+     /* Only copy the prefix needed to replace Features2. Preserve every other
+@@ -75,6 +80,7 @@ VkResult hybris_device_features_prepare(VkPhysicalDevice physical,
+         if (node == target) {
+             if (clip) ((VkPhysicalDeviceFeatures2 *)copy)->features.shaderClipDistance = VK_FALSE;
+             if (stores) ((VkPhysicalDeviceFeatures2 *)copy)->features.vertexPipelineStoresAndAtomics = VK_FALSE;
++            if (bc) ((VkPhysicalDeviceFeatures2 *)copy)->features.textureCompressionBC = VK_FALSE;
+             copy->pNext = (void *)out->suffix;
+             break;
+         }
+diff --git a/hybris/vulkan/layer/entry.c b/hybris/vulkan/layer/entry.c
+index 9317322..b204fae 100644
+--- a/hybris/vulkan/layer/entry.c
++++ b/hybris/vulkan/layer/entry.c
+@@ -3,6 +3,7 @@
+ #include "layer.h"
+ #include "../compat/application_policy.h"
+ #include "../compat/scaled_vertex.h"
++#include "../compat/vendor_compat.h"
+ #include <vulkan/vk_layer.h>
+ #include <pthread.h>
+ #include <stdio.h>
+@@ -153,23 +154,27 @@ static PFN_vkVoidFunction VKAPI_CALL get_instance_proc(VkInstance instance, cons
+     struct instance_state state;
+     if (!instance || !instance_snapshot(instance, &state)) return NULL;
+     PFN_vkVoidFunction next = state.resolver(instance, name);
+-    if (!next) return NULL;
++    PFN_vkVoidFunction vendor_alias = hybris_vendor_physical_alias_proc(
++        state.handle, state.resolver, name);
++    if (!next && !vendor_alias) return NULL;
+     if (!strcmp(name, "vkDestroyInstance")) return (PFN_vkVoidFunction)destroy_instance;
+     if (!strcmp(name, "vkDestroyDevice")) return (PFN_vkVoidFunction)hybris_layer_destroy_device;
+     /* GIPA is instance-scoped, so a device's policy cannot select the address.
+      * Every command wrapper checks the actual device again before changing it. */
+     PFN_vkVoidFunction intercepted = hybris_layer_physical_proc(name);
+     if (!intercepted) intercepted = hybris_layer_device_dispatch(name, state.policy != 0);
+-    return intercepted ? intercepted : next;
++    return intercepted ? intercepted : (next ? next : vendor_alias);
+ }
+ static PFN_vkVoidFunction VKAPI_CALL get_physical_proc(VkInstance instance, const char *name)
+ {
+     struct instance_state state;
+     if (!instance || !name || !instance_snapshot(instance, &state)) return NULL;
+     PFN_vkVoidFunction next = state.physical_resolver ? state.physical_resolver(instance, name) : NULL;
+-    if (!next) return NULL;
++    PFN_vkVoidFunction vendor_alias = hybris_vendor_physical_alias_proc(
++        state.handle, state.resolver, name);
++    if (!next && !vendor_alias) return NULL;
+     PFN_vkVoidFunction compat = hybris_layer_physical_proc(name);
+-    return compat ? compat : next;
++    return compat ? compat : (next ? next : vendor_alias);
+ }
+
+ __attribute__((visibility("default"))) VkResult VKAPI_CALL
+diff --git a/hybris/vulkan/layer/physical.c b/hybris/vulkan/layer/physical.c
+index 29a295e..4c694ef 100644
+--- a/hybris/vulkan/layer/physical.c
++++ b/hybris/vulkan/layer/physical.c
+@@ -6,6 +6,7 @@
+ #include "../compat/shader_policy.h"
+ #include "../compat/bc_policy.h"
+ #include "../compat/clip_distance.h"
++#include "../compat/vendor_compat.h"
+ #include <stdlib.h>
+ #include <string.h>
+
+@@ -89,7 +90,8 @@ static VkResult VKAPI_CALL enumerate_device_extensions(VkPhysicalDevice physical
+
+ PFN_vkVoidFunction hybris_layer_physical_proc(const char *name)
+ {
+-    PFN_vkVoidFunction function = hybris_clip_policy_proc(name);
++    PFN_vkVoidFunction function = hybris_vendor_physical_proc(name);
++    if (!function) function = hybris_clip_policy_proc(name);
+     if (!function) function = hybris_shader_policy_proc(name);
+     if (!function) function = hybris_bc_policy_proc(name);
+     if (function) return function;

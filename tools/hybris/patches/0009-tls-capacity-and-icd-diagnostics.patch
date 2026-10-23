@@ -1,0 +1,145 @@
+diff --git a/hybris/common/bionic_tls.c b/hybris/common/bionic_tls.c
+index 004e3d4..f841f40 100644
+--- a/hybris/common/bionic_tls.c
++++ b/hybris/common/bionic_tls.c
+@@ -72,12 +72,12 @@
+  * TLS the binary's DT_NEEDED libs already pulled in. firefox's link map
+  * is fatter than gtk3-demo-application's: 1536 bytes loads cleanly into
+  * gtk3 but blows firefox's surplus ("cannot allocate memory in static
+- * TLS block" on dlopen of libhybris-common). 1024 bytes (matching the
+- * original libhybris tls_area struct of `void* + void*[128]`) loads
+- * into every process we test on aarch64 + Arch ARM glibc 2.41, so we
+- * keep that as the ceiling here.
++ * TLS block" on dlopen of libhybris-common). Keep this allocation small:
++ * 1040 is the smallest 16-byte-aligned capacity for the observed XRing
++ * range (offset 984, memsz 41), only 16 bytes above the previous ceiling.
++ * Further increases need separate late-dlopen validation.
+  *
+- * Cost: the 952 bytes left after subtracting bionic_tcb (72B = 9 slots
++ * Cost: the 968 bytes left after subtracting bionic_tcb (72B = 9 slots
+  * * 8) is the total per-process budget for promoted bionic .so .tdata.
+  * apex libc + the Adreno/Mesa/Vulkan vendor TLS in our integration
+  * suite fits well inside that. The libhybris-tls-repro stress test
+@@ -91,7 +91,7 @@
+  * frees us from the IE-surplus cap entirely, at the cost of growing
+  * the thunk from 16 to 20 bytes and matching count_tls/THUNK_SIZE.
+  */
+-#define BIONIC_STATIC_TLS_SIZE   1024
++#define BIONIC_STATIC_TLS_SIZE   1040
+ #define BIONIC_TPIDR_OFFSET      8    /* matches StaticTlsLayout::offset_thread_pointer() with MIN_TLS_SLOT=-1 (bionic Q) */
+ #define BIONIC_TLS_PTR_OFFSET    0    /* slot -1 (TLS_SLOT_BIONIC_TLS) at TP-8 = 0 */
+ #define BIONIC_TLS_COMPAT_SIZE   16384
+diff --git a/hybris/vulkan/icd/icd.c b/hybris/vulkan/icd/icd.c
+index 938393b..34a2a0f 100644
+--- a/hybris/vulkan/icd/icd.c
++++ b/hybris/vulkan/icd/icd.c
+@@ -159,8 +159,11 @@ vk_icdNegotiateLoaderICDInterfaceVersion(uint32_t *version)
+ {
+     /* Version 5 lets the loader validate instance API versions. Legacy
+      * loaders are deliberately unsupported, rather than assuming 1.0. */
+-    if (!version || *version < 5)
++    if (!version || *version < 5) {
++        fprintf(stderr, "hybris ICD: unsupported loader interface version %u (minimum 5)\n",
++                version ? *version : 0);
+         return VK_ERROR_INCOMPATIBLE_DRIVER;
++    }
+     *version = 5;
+     return VK_SUCCESS;
+ }
+diff --git a/hybris/vulkan/icd/instance.c b/hybris/vulkan/icd/instance.c
+index 6ff495a..a3e3020 100644
+--- a/hybris/vulkan/icd/instance.c
++++ b/hybris/vulkan/icd/instance.c
+@@ -103,6 +103,7 @@ VkResult hybris_icd_create_instance(hwvulkan_device_t *hal,
+     VkResult result = create(&filtered, allocator, instance);
+     hybris_icd_wsi_finish_instance(wsi_names);
+     if (result != VK_SUCCESS) {
++        fprintf(stderr, "hybris ICD: Android vkCreateInstance failed (%d)\n", result);
+         free_state(state);
+         return result;
+     }
+diff --git a/tests/baseline/probe_icd_version.c b/tests/baseline/probe_icd_version.c
+index 18545ef..719e429 100644
+--- a/tests/baseline/probe_icd_version.c
++++ b/tests/baseline/probe_icd_version.c
+@@ -7,8 +7,16 @@ int icd_version_probe(void) {
+   if (!h) { printf("ICD dlopen: %s\n", dlerror()); return 2; }
+   VkResult (*negotiate)(uint32_t *) = sym(h, "vk_icdNegotiateLoaderICDInterfaceVersion");
+   PFN_vkGetInstanceProcAddr gip = sym(h, "vk_icdGetInstanceProcAddr");
+-  uint32_t interface = 5;
+-  if (negotiate(&interface) != VK_SUCCESS || interface != 5) return 2;
++  const uint32_t offered[] = {4, 5, 7};
++  for (unsigned i = 0; i < sizeof(offered)/sizeof(offered[0]); ++i) {
++    uint32_t interface = offered[i];
++    VkResult result = negotiate(&interface);
++    VkResult expected = offered[i] < 5 ? VK_ERROR_INCOMPATIBLE_DRIVER : VK_SUCCESS;
++    uint32_t selected = offered[i] < 5 ? offered[i] : 5;
++    if (result != expected || interface != selected) return 2;
++    printf("ICD_INTERFACE offered=%u selected=%u result=%d PASS\n",
++           offered[i], interface, result);
++  }
+   PFN_vkEnumerateInstanceVersion query = (PFN_vkEnumerateInstanceVersion)
+       gip(VK_NULL_HANDLE, "vkEnumerateInstanceVersion");
+   uint32_t version = 0;
+diff --git a/tests/baseline/probe_tls_bounds.c b/tests/baseline/probe_tls_bounds.c
+index 2ddab4f..13f2066 100644
+--- a/tests/baseline/probe_tls_bounds.c
++++ b/tests/baseline/probe_tls_bounds.c
+@@ -14,7 +14,7 @@ static void *promote_on_worker(void *opaque) {
+   unsigned char second = 29;
+   a->promote(901, &second, 1, 1);
+   unsigned char *base = (unsigned char *)a->get_tls() - 8;
+-  a->passed = base[900] == 17 && base[901] == 29;
++  a->passed = base[900] == 17 && base[901] == 29 && base[1039] == 53;
+   printf("TLS_REPLAY worker prior=%u own=%u %s\n", base[900], base[901],
+          a->passed ? "PASS" : "FAIL");
+   return NULL;
+@@ -30,9 +30,10 @@ int tls_bounds_probe(void) {
+   if (!promote) return 2;
+   const size_t inputs[][3] = {
+       {SIZE_MAX, 0, 2}, /* offset+memsz would wrap */
+-      {1023, 2, 1},    /* filesz exceeds reserved range */
+-      {1024, 0, 1},    /* memsz past end */
+-      {72, 1, 1},     /* NULL source with nonzero filesz */
++      {1039, 2, 1},    /* filesz exceeds reserved range */
++      {1040, 0, 1},    /* memsz past end */
++      {72, 1, 1},      /* NULL source with nonzero filesz */
++      {1041, 0, 0},    /* offset past end even without a segment */
+   };
+   for (unsigned i = 0; i < sizeof(inputs)/sizeof(inputs[0]); ++i) {
+     pid_t child = fork();
+@@ -52,7 +53,8 @@ int tls_bounds_probe(void) {
+     printf("TLS_BOUNDS rejection case=%u PASS\n", i);
+   }
+   /* The exact end with an empty segment is legal and must not be rejected. */
+-  promote(1024, NULL, 0, 0);
++  promote(1040, NULL, 0, 0);
++  promote(984, NULL, 0, 41);
+   struct replay_args replay = { .promote = promote,
+       .get_tls = dlsym(h, "_hybris_hook___get_tls_hooks") };
+   if (!replay.get_tls) return 2;
+@@ -60,12 +62,23 @@ int tls_bounds_probe(void) {
+   promote(900, &first, 1, 1);
+   /* Catch-up must preserve mutations to entries already applied locally. */
+   unsigned char *base = (unsigned char *)replay.get_tls() - 8;
++  if ((uintptr_t)base % 16 != 0) return 2;
++  for (size_t offset = 984; offset < 1025; ++offset) {
++    if (base[offset] != 0) return 2;
++  }
++  printf("TLS_BOUNDS offset=984 filesz=0 memsz=41 PASS\n");
++  unsigned char last = 53;
++  promote(1039, &last, 1, 1);
++  last = 99;
++  if (base[1039] != 53) return 2;
++  base[1039] = 59;
+   base[900] = 41;
+   pthread_t worker;
+   if (pthread_create(&worker, NULL, promote_on_worker, &replay)) return 2;
+   if (pthread_join(worker, NULL) || !replay.passed) return 2;
+   base = (unsigned char *)replay.get_tls() - 8;
+-  if (base[900] != 41 || base[901] != 29) return 2;
++  if (base[900] != 41 || base[901] != 29 || base[1039] != 59) return 2;
++  printf("TLS_BOUNDS last-byte=1039 thread-replay PASS\n");
+   printf("TLS_REPLAY main mutation=41 catchup=29 PASS\n");
+   printf("TLS_BOUNDS PASS\n");
+   return 0;

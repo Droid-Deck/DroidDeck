@@ -11,8 +11,9 @@ class DriverPairsTest {
     private fun gpu(model: Int, adreno: Boolean = true, oneUi: Boolean = false) =
         GpuInfo("Adreno $model", model, GpuInfo.familyOf(adreno, model), "", oneUi)
 
-    private fun asset(name: String, tag: String, linux: Boolean, pair: String) =
-        TurnipReleases.Asset("src", tag, name, "https://example/$name", 3_000_000, linux, "label", "0".repeat(64), pair)
+    private fun asset(name: String, tag: String, linux: Boolean, pair: String, pairKind: String = pair) =
+        TurnipReleases.Asset("src", tag, name, "https://example/$name", 3_000_000, linux, "label", "0".repeat(64), pair,
+            pairKind = pairKind)
 
     @Test
     fun familiesFollowTheAdrenoModel() {
@@ -40,6 +41,59 @@ class DriverPairsTest {
         assertEquals("Outside tested hardware (Adreno 650, 725 and newer): it may not run", gpu(660).supportText)
         assertEquals(GpuInfo.Support.UNTESTED, gpu(720).support)
         assertEquals(GpuInfo.Support.UNSUPPORTED, gpu(0, adreno = false).support)
+    }
+
+    @Test
+    fun powerVrUsesItsOwnFamilyWithoutClaimingAllModelsAreTested() {
+        assertEquals(Family.POWERVR, GpuInfo.familyOf(false, 0, systemProfile = SystemVulkanDriver.Profile.POWERVR))
+        assertEquals(Family.NOT_ADRENO, GpuInfo.familyOf(false, 0, systemProfile = null))
+        assertEquals(Family.A7XX, GpuInfo.familyOf(true, 740, systemProfile = SystemVulkanDriver.Profile.POWERVR))
+        val powerVr = GpuInfo("PowerVR", 0, Family.POWERVR, "", false)
+        assertEquals(GpuInfo.Support.UNTESTED, powerVr.support)
+        assertNull("PowerVR never downloads an Adreno driver pair", DriverPairs.recommendedKey(powerVr, emptyList()))
+        val pairs = DriverPairs.from(TurnipReleases.Check(
+            listOf(asset("Turnip-r4.zip", "r4", false, DriverPairs.BANNER),
+                asset("Turnip-r4-Linux.zip", "r4", true, DriverPairs.BANNER)),
+            emptyList(), emptyList(), 0L,
+        ))
+        assertFalse(pairs.single().suits(powerVr))
+        assertNull(DriverPairs.recommendedKey(powerVr, pairs))
+    }
+
+    @Test
+    fun maliRemainsExperimentalAndNeverRecommendsAdrenoPairs() {
+        assertEquals(Family.MALI, GpuInfo.familyOf(false, 0, systemProfile = SystemVulkanDriver.Profile.MALI))
+        assertEquals(Family.A7XX, GpuInfo.familyOf(true, 740, systemProfile = SystemVulkanDriver.Profile.MALI))
+        val mali = GpuInfo("Mali-G715", 0, Family.MALI, "", false)
+        assertEquals(GpuInfo.Support.UNTESTED, mali.support)
+        assertTrue(mali.supportText.contains("Experimental system Mali"))
+        assertNull(DriverPairs.recommendedKey(mali, emptyList()))
+        val pairs = DriverPairs.from(TurnipReleases.Check(
+            listOf(asset("Turnip-r4.zip", "r4", false, DriverPairs.BANNER),
+                asset("Turnip-r4-Linux.zip", "r4", true, DriverPairs.BANNER)),
+            emptyList(), emptyList(), 0L,
+        ))
+        assertFalse(pairs.single().suits(mali))
+        assertNull(DriverPairs.recommendedKey(mali, pairs))
+    }
+
+    @Test
+    fun xclipseHasItsOwnLabelsAndNeverRecommendsAdrenoPairs() {
+        val profile = SystemVulkanDriver.Profile.XCLIPSE
+        assertEquals(Family.XCLIPSE, GpuInfo.familyOf(false, 0, profile))
+        assertEquals(Family.A7XX, GpuInfo.familyOf(true, 740, profile))
+        val xclipse = GpuInfo("Xclipse 940", 0, Family.XCLIPSE, "", false)
+        assertEquals(GpuInfo.Support.UNTESTED, xclipse.support)
+        assertEquals("Xclipse", xclipse.family.label)
+        assertTrue(xclipse.supportText.contains("system Xclipse"))
+        assertFalse(xclipse.supportText.contains("PowerVR"))
+        val pairs = DriverPairs.from(TurnipReleases.Check(
+            listOf(asset("Turnip-r4.zip", "r4", false, DriverPairs.BANNER),
+                asset("Turnip-r4-Linux.zip", "r4", true, DriverPairs.BANNER)),
+            emptyList(), emptyList(), 0L,
+        ))
+        assertFalse(pairs.single().suits(xclipse))
+        assertNull(DriverPairs.recommendedKey(xclipse, pairs))
     }
 
     @Test
@@ -78,6 +132,62 @@ class DriverPairsTest {
     }
 
     @Test
+    fun sourceQualifiedPairsRetainTheirHardwareClassification() {
+        val key = "${DriverPairs.BANNER_A8XX}:github-owner-turnip"
+        val pairs = DriverPairs.from(TurnipReleases.Check(
+            listOf(
+                asset("Turnip-r4-A8xx.zip", "r4", false, key, DriverPairs.BANNER_A8XX),
+                asset("Turnip-r4-A8xx-Linux.zip", "r4", true, key, DriverPairs.BANNER_A8XX),
+                asset("Turnip-r4-A8xx.zip", "r4", false, DriverPairs.BANNER_A8XX),
+                asset("Turnip-r4-A8xx-Linux.zip", "r4", true, DriverPairs.BANNER_A8XX),
+            ), emptyList(), emptyList(), 0L,
+        )).associateBy { it.key }
+        val custom = pairs.getValue(key)
+        assertTrue(custom.complete)
+        assertTrue(custom.suits(gpu(830)))
+        assertFalse(custom.suits(gpu(650)))
+        assertFalse(custom.suits(gpu(740)))
+        assertEquals(pairs.getValue(DriverPairs.BANNER_A8XX).families, custom.families)
+        assertEquals("Banners-Turnip · Adreno 8xx", custom.name)
+    }
+
+    @Test
+    fun sourceQualifiedPairsNeverMixSourcesOrBannersReleases() {
+        val first = "${DriverPairs.BANNER_A8XX}:github-owner-one"
+        val second = "${DriverPairs.BANNER_A8XX}:github-owner-two"
+        val pairs = DriverPairs.from(TurnipReleases.Check(
+            listOf(
+                asset("Turnip-r4-A8xx.zip", "r4", false, first, DriverPairs.BANNER_A8XX),
+                asset("Turnip-r3-A8xx-Linux.zip", "r3", true, first, DriverPairs.BANNER_A8XX),
+                asset("Turnip-r4-A8xx-Linux.zip", "r4", true, second, DriverPairs.BANNER_A8XX),
+                asset("Turnip-r4-A8xx-Linux.zip", "r4", true, DriverPairs.BANNER_A8XX),
+            ), emptyList(), emptyList(), 0L,
+        )).associateBy { it.key }
+        assertEquals(3, pairs.size)
+        assertTrue(pairs.values.none { it.complete })
+        assertNull(pairs.getValue(first).linux)
+        assertNull(pairs.getValue(second).display)
+        assertNull(pairs.getValue(DriverPairs.BANNER_A8XX).display)
+    }
+
+    @Test
+    fun unknownAndConflictingClassificationsDoNotClaimCompatibility() {
+        val pairs = DriverPairs.from(TurnipReleases.Check(
+            listOf(
+                asset("Turnip-r4-unknown.zip", "r4", false, "banner-unknown:github-owner-one", "banner-unknown"),
+                asset("Turnip-r4-A8xx.zip", "r4", false, "conflict:github-owner-one", DriverPairs.BANNER_A8XX),
+                asset("Turnip-r4-Linux.zip", "r4", true, "conflict:github-owner-one", DriverPairs.BANNER),
+            ), emptyList(), emptyList(), 0L,
+        ))
+        for (pair in pairs) {
+            assertTrue(pair.families.isEmpty())
+            assertFalse(pair.suits(gpu(650)))
+            assertFalse(pair.suits(gpu(830)))
+            assertFalse(pair.suits(gpu(0)))
+        }
+    }
+
+    @Test
     fun everyBundleReleaseIsACompletePairOnItsOwnNewestFirst() {
         fun bundle(tag: String) = TurnipReleases.Asset("DroidDeck", tag, "$tag.zip", "https://example/$tag", 6_000_000,
             false, "Android + Linux", "0".repeat(64), DriverPairs.ddTurnip(tag), bundle = true)
@@ -112,5 +222,49 @@ class DriverPairsTest {
         assertEquals("other 8xx keep WinNative", DriverPairs.WN_BALANCED, DriverPairs.recommendedKey(gpu(830), pairs))
         assertEquals(DriverPairs.WN_BALANCED, DriverPairs.recommendedKey(gpu(825), pairs))
         assertEquals(DriverPairs.BANNER, DriverPairs.recommendedKey(gpu(740), pairs))
+    }
+
+    @Test
+    fun adreno840RanksSourceQualifiedDdTurnipByItsUnqualifiedVersion() {
+        fun bundle(tag: String, sourceId: String): TurnipReleases.Asset {
+            val kind = DriverPairs.ddTurnip(tag)
+            return TurnipReleases.Asset(
+                "Custom", tag, "$tag.zip", "https://example/$tag", 6_000_000, false,
+                "Android + Linux", "0".repeat(64), "$kind:$sourceId", bundle = true, pairKind = kind,
+            )
+        }
+        val pairs = DriverPairs.from(TurnipReleases.Check(
+            listOf(bundle("DD-Turnip-v1.2.3", "a".repeat(64)), bundle("DD-Turnip-v2.0.0", "b".repeat(64))),
+            emptyList(), emptyList(), 0L,
+        ))
+        assertEquals(
+            "${DriverPairs.ddTurnip("DD-Turnip-v2.0.0")}:${"b".repeat(64)}",
+            DriverPairs.recommendedKey(gpu(840), pairs),
+        )
+    }
+
+    @Test
+    fun adreno840IgnoresDdTurnipWithAnOversizedVersionComponent() {
+        fun bundle(tag: String) = TurnipReleases.Asset(
+            "DroidDeck", tag, "$tag.zip", "https://example/$tag", 6_000_000, false,
+            "Android + Linux", "0".repeat(64), DriverPairs.ddTurnip(tag), bundle = true,
+        )
+        val valid = bundle("DD-Turnip-v2.0.0")
+        val oversized = bundle("DD-Turnip-v9223372036854775808.0.0")
+        val pairs = DriverPairs.from(TurnipReleases.Check(listOf(oversized, valid), emptyList(), emptyList(), 0L))
+        assertNull(DriverPairs.ddTurnipVersion(oversized.pairKind))
+        assertEquals(valid.pair, DriverPairs.recommendedKey(gpu(840), pairs))
+    }
+
+    @Test
+    fun adreno840ComparesLargeDdTurnipVersionsWithoutPackingOverflow() {
+        fun bundle(tag: String) = TurnipReleases.Asset(
+            "DroidDeck", tag, "$tag.zip", "https://example/$tag", 6_000_000, false,
+            "Android + Linux", "0".repeat(64), DriverPairs.ddTurnip(tag), bundle = true,
+        )
+        val newer = bundle("DD-Turnip-v9223373.0.0")
+        val older = bundle("DD-Turnip-v1.999999.999999")
+        val pairs = DriverPairs.from(TurnipReleases.Check(listOf(older, newer), emptyList(), emptyList(), 0L))
+        assertEquals(newer.pair, DriverPairs.recommendedKey(gpu(840), pairs))
     }
 }

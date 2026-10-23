@@ -75,14 +75,20 @@ fun DriverPage(
     onImport: () -> Unit,
     onRestore: () -> Unit,
     onBack: () -> Unit,
+    sourceKey: String = "",
+    sourceBuiltIns: List<String> = emptyList(),
+    onSourcesChanged: () -> Unit = {},
+    showDownloads: Boolean = true,
+    showRefresh: Boolean = true,
+    allowImport: Boolean = true,
 ) {
     val host = rememberMenuHost()
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     var confirm by remember { mutableStateOf<DriverRow?>(null) }
     BackHandler(onBack = onBack)
-    LaunchedEffect(Unit) {
-        if (!checking && System.currentTimeMillis() - checkedAt > 6 * 3_600_000L) onRefresh()
+    LaunchedEffect(showRefresh) {
+        if (showRefresh && !checking && System.currentTimeMillis() - checkedAt > 6 * 3_600_000L) onRefresh()
     }
     val refreshFocus = remember { FocusRequester() }
     val selectedFocus = remember { FocusRequester() }
@@ -96,20 +102,28 @@ fun DriverPage(
     val refreshSrc = remember { MutableInteractionSource() }
     val refreshHot = refreshSrc.collectIsFocusedAsState().value || refreshSrc.collectIsHoveredAsState().value
     SettingsPage(
-        host, title = title, onBack = onBack, lede = "$hint\n$status",
+        host, title = title, onBack = onBack, lede = listOf(hint, status).filter { it.isNotEmpty() }.joinToString("\n"),
         modifier = Modifier.onFocusChanged { pageFocused = it.hasFocus }.focusGroup(),
         action = {
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier.size(40.dp).clip(RoundedCornerShape(10.dp))
-                    .background(if (refreshHot) pal.signal.copy(alpha = 0.16f) else Color.Transparent)
-                    .glideBorder(refreshHot, RoundedCornerShape(10.dp), pal.signal, pal.line)
-                    .focusRequester(refreshFocus)
-                    .hoverable(refreshSrc)
-                    .clickable(role = androidx.compose.ui.semantics.Role.Button, interactionSource = refreshSrc, indication = null, enabled = !checking, onClick = onRefresh),
-            ) {
-                if (checking) CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
-                else Icon(Icons.Outlined.Refresh, contentDescription = stringResource(R.string.comp_check_drivers), tint = colors.onBackground, modifier = Modifier.size(20.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (sourceKey.isNotEmpty()) RepositorySourcesButton(
+                    scopeKey = sourceKey,
+                    builtIns = sourceBuiltIns,
+                    enabled = !checking,
+                    onSaved = onSourcesChanged,
+                )
+                if (showRefresh) Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier.size(40.dp).clip(RoundedCornerShape(10.dp))
+                        .background(if (refreshHot) pal.signal.copy(alpha = 0.16f) else Color.Transparent)
+                        .glideBorder(refreshHot, RoundedCornerShape(10.dp), pal.signal, pal.line)
+                        .focusRequester(refreshFocus)
+                        .hoverable(refreshSrc)
+                        .clickable(role = androidx.compose.ui.semantics.Role.Button, interactionSource = refreshSrc, indication = null, enabled = !checking, onClick = onRefresh),
+                ) {
+                    if (checking) CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
+                    else Icon(Icons.Outlined.Refresh, contentDescription = stringResource(R.string.comp_check_drivers), tint = colors.onBackground, modifier = Modifier.size(20.dp))
+                }
             }
         },
     ) {
@@ -120,11 +134,11 @@ fun DriverPage(
                     row, row.id == selected, onSelect = { onSelect(row.id) }, onDelete = { confirm = row },
                     modifier = Modifier
                         .then(if (row === focusRow) Modifier.focusRequester(selectedFocus) else Modifier)
-                        .then(if (i == 0) Modifier.focusProperties { up = refreshFocus } else Modifier),
+                        .then(if (i == 0 && showRefresh) Modifier.focusProperties { up = refreshFocus } else Modifier),
                 )
             }
         }
-        SettingsGroup(stringResource(R.string.driver_available)) {
+        if (showDownloads) SettingsGroup(stringResource(R.string.driver_available)) {
             if (downloads.isEmpty()) Text(
                 stringResource(R.string.driver_nothing_new),
                 fontSize = 12.5.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp),
@@ -133,42 +147,31 @@ fun DriverPage(
                     val p = d.progress
                     if (p == null) SecondaryButton(stringResource(R.string.common_download)) { onDownload(d.key) }
                     else Column(horizontalAlignment = Alignment.End, modifier = Modifier.width(120.dp)) {
-                        Text("$p%", fontSize = 12.sp, color = colors.onSurfaceVariant)
+                        Text(
+                            if (p < 0) stringResource(R.string.gpu_system_downloading) else "$p%",
+                            fontSize = 12.sp,
+                            color = colors.onSurfaceVariant,
+                        )
                         Spacer(Modifier.height(4.dp))
-                        LinearProgressIndicator(progress = { p / 100f }, modifier = Modifier.fillMaxWidth())
+                        if (p < 0) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        else LinearProgressIndicator(progress = { p / 100f }, modifier = Modifier.fillMaxWidth())
                     }
                 }
             }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 14.dp)) {
-            SecondaryButton(importLabel, onClick = onImport)
+        if (allowImport || canRestore) Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 14.dp)) {
+            if (allowImport) SecondaryButton(importLabel, onClick = onImport)
             if (canRestore) FocusText(stringResource(R.string.driver_restore_builtin), pal.signal, onClick = onRestore)
         }
     }
-    confirm?.let { row ->
-        AlertDialog(
-            onDismissRequest = { confirm = null },
-            title = { Text(stringResource(R.string.common_delete_named, row.name) + "?") },
-            text = {
-                Text(
-                    if (row.tag == DriverRow.BUNDLED) stringResource(R.string.driver_delete_builtin)
-                    else if (row.tag == DriverRow.BUNDLE) stringResource(R.string.driver_delete_bundle)
-                    else if (row.id == selected) stringResource(R.string.driver_delete_in_use) else stringResource(R.string.driver_delete_plain),
-                    fontSize = 13.sp,
-                )
-            },
-            confirmButton = { FocusText(stringResource(R.string.common_delete), colors.error) { confirm = null; onDelete(row.id) } },
-            dismissButton = {
-                val cancelFocus = remember { FocusRequester() }
-                LaunchedEffect(Unit) { runCatching { cancelFocus.requestFocus() } }
-                FocusText(stringResource(R.string.common_cancel), colors.onBackground, modifier = Modifier.focusRequester(cancelFocus)) { confirm = null }
-            },
-        )
-    }
+    confirm?.let { row -> DriverDeleteDialog(row, selected, onDismiss = { confirm = null }) {
+        confirm = null
+        onDelete(row.id)
+    } }
 }
 
 @Composable
-private fun InstalledRow(row: DriverRow, selected: Boolean, onSelect: () -> Unit, onDelete: () -> Unit, modifier: Modifier = Modifier) {
+internal fun InstalledRow(row: DriverRow, selected: Boolean, onSelect: () -> Unit, onDelete: () -> Unit, modifier: Modifier = Modifier) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val src = remember { MutableInteractionSource() }
@@ -224,6 +227,34 @@ private fun InstalledRow(row: DriverRow, selected: Boolean, onSelect: () -> Unit
         }
     }
     Box(Modifier.fillMaxWidth().height(1.dp).background(pal.line))
+}
+
+@Composable
+internal fun DriverDeleteDialog(
+    row: DriverRow,
+    selected: String,
+    onDismiss: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    val colors = MaterialTheme.colorScheme
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.common_delete_named, row.name) + "?") },
+        text = {
+            Text(
+                if (row.tag == DriverRow.BUNDLED) stringResource(R.string.driver_delete_builtin)
+                else if (row.tag == DriverRow.BUNDLE) stringResource(R.string.driver_delete_bundle)
+                else if (row.id == selected) stringResource(R.string.driver_delete_in_use) else stringResource(R.string.driver_delete_plain),
+                fontSize = 13.sp,
+            )
+        },
+        confirmButton = { FocusText(stringResource(R.string.common_delete), colors.error, onClick = onDelete) },
+        dismissButton = {
+            val cancelFocus = remember { FocusRequester() }
+            LaunchedEffect(Unit) { runCatching { cancelFocus.requestFocus() } }
+            FocusText(stringResource(R.string.common_cancel), colors.onBackground, modifier = Modifier.focusRequester(cancelFocus), onClick = onDismiss)
+        },
+    )
 }
 
 @Composable

@@ -527,6 +527,7 @@ class Helper:
         self.known = set()
         self.installed = None
         self.fex_asked = set()
+        self.live_applied = {}
         self.tools_asked = {}
         self.tools_checked = None
         self.vr_launch = None
@@ -610,6 +611,29 @@ class Helper:
                         current.pop(app, None)
             else:
                 for app in set(native) | native_choices:
+                    if app in self.live_applied:
+                        applied = self.live_applied[app]
+                        live_selected = current.get(app, "")
+                        if live_selected == applied:
+                            current[app] = applied
+                            if raw_mapping.get(app) == applied:
+                                self.live_applied.pop(app, None)
+                            continue
+                        self.live_applied.pop(app, None)
+                        if app in raw_mapping:
+                            current[app] = raw_mapping[app]
+                            continue
+                        low = live_selected.lower()
+                        implicit = (native.get(app) is COMPAT["NATIVE_CHOICE"] and low in ("native", "proton")) or \
+                                   (native.get(app) == COMPAT["FEX_TOOL"] and
+                                    (low == "fex" or low.startswith("steamlinuxruntime")))
+                        if live_selected and not implicit:
+                            continue
+                        if app in prior_auto or app in native_choices:
+                            current[app] = ""
+                        else:
+                            current.pop(app, None)
+                        continue
                     if app in raw_mapping:
                         # The client shows an explicit native choice as the tool it inherits, and writes config.vdf late.
                         if raw_mapping[app] == "" or current.get(app) not in self.known:
@@ -617,14 +641,24 @@ class Helper:
                     elif app in prior_auto or app in native_choices or app in picked and (
                             not current.get(app) or COMPAT["unrunnable"](current[app], runnable)):
                         current[app] = ""
-                    elif not current.get(app):
-                        current.pop(app, None)
+                    else:
+                        live_selected = current.get(app, "")
+                        low = live_selected.lower()
+                        implicit = (native.get(app) is COMPAT["NATIVE_CHOICE"] and low in ("native", "proton")) or \
+                                   (native.get(app) == COMPAT["FEX_TOOL"] and
+                                    (low == "fex" or low.startswith("steamlinuxruntime")))
+                        if not live_selected or implicit:
+                            current.pop(app, None)
             changes, auto = COMPAT["plan_mapping"](
                 current, installed, [t["name"] for t in live], default,
                 COMPAT["followers"](state, current), native, picks, overrides,
                 prior_auto.keys(), native_choices)
             for app, tool in sorted(changes.items(), key=lambda item: COMPAT["app_order"](item[0])):
                 page.compat("set(%d, %s)" % (int(app), json.dumps(tool if tool is not None else "")))
+                if app in native and tool is not None:
+                    self.live_applied[app] = tool
+                else:
+                    self.live_applied.pop(app, None)
                 say("%s -> %s" % ("default" if app == "0" else "app %s" % app,
                                    tool if tool is not None else "Steam native default"))
             state.update(
