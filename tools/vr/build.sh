@@ -88,7 +88,7 @@ compile() {
         (cd "$repo" && "${cmd[@]}")
     else
         docker run --rm --platform linux/amd64 --user "$(id -u):$(id -g)" -v "$repo:/src" -w /src \
-            "${DROIDDECK_BUILD_IMAGE:-droiddeck-local-cross:24.04-v3}" "${cmd[@]}"
+            "${DROIDDECK_BUILD_IMAGE:-droiddeck-local-cross:24.04-v4}" "${cmd[@]}"
     fi
 }
 compile

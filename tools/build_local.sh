@@ -24,7 +24,7 @@ java_dir="${JAVA_HOME:-/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents
 [[ -x "$java_dir/bin/java" ]] || java_dir="${HOME}/.local/share/mise/installs/java/temurin-17"
 [[ "$java_dir" == */homebrew/* ]] && echo "using homebrew java path: $java_dir"
 [[ "$java_dir" == */mise/* ]] && echo "using mise java path: $java_dir"
-image_name=${DROIDDECK_BUILD_IMAGE:-droiddeck-local-cross:24.04-v3}
+image_name=${DROIDDECK_BUILD_IMAGE:-droiddeck-local-cross:24.04-v4}
 build_variant=${DROIDDECK_BUILD_VARIANT:-release}
 case "$build_variant" in
     debug) gradle_task=assembleDebug ;;
@@ -373,9 +373,9 @@ fi
 cd "${repo_root}"
 python3 tools/quest/build-driver.py "${NDK}"
 xbox_out="${linuxfs_dir}/usr/local/lib/droiddeck-xbox"
-xbox_key=$(inputs_hash "native-arm64-ubuntu24.04" tools/xbox)
+xbox_key=$(inputs_hash "${image_id} aarch64-linux-gnu-cross-ubuntu24.04" tools/xbox tools/local-cross.Dockerfile)
 if ! restore_step xbox "${xbox_key}" "${xbox_out}"; then
-    bash tools/xbox/build-local.sh
+    DROIDDECK_BUILD_IMAGE="${image_name}" bash tools/xbox/build-local.sh
     save_step xbox "${xbox_key}" "${xbox_out}"
 fi
 
