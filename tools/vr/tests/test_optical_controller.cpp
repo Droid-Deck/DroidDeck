@@ -423,6 +423,9 @@ int main() {
     handPacket.flags |= DROIDDECK_XR_INPUT_LOCAL_HAND_MESH;
     trackedHand.UpdateXrHand(handPacket, noSkeleton, 2000000000, false);
     assert(xrContext.properties.strings.at({4, Prop_RenderModelName_String}) == "{droiddeck}droiddeck_hand_left_xr");
+    handPacket.flags &= ~DROIDDECK_XR_INPUT_LOCAL_HAND_MESH;
+    trackedHand.UpdateXrHand(handPacket, noSkeleton, 2000000000, false);
+    assert(xrContext.properties.strings.at({4, Prop_RenderModelName_String}) == "{droiddeck}droiddeck_hand_left");
     assert(!xrContext.input.poses.empty());
     trackedHand.Disconnect();
     assert(xrContext.input.values.at(handTrigger) == 0);

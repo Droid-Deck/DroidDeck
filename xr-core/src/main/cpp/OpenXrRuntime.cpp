@@ -646,7 +646,7 @@ private:
         handPacket_ = droiddeck_xr_input_v2_neutral(runtimeSession_.generation, runtimeSession_.originEpoch);
         handPacket_.sample_monotonic_ns = xr_monotonic_ns();
         if (handMode_) handPacket_.flags |= DROIDDECK_XR_INPUT_HAND_MODE;
-        if (handMode_ && handVisuals_.ready()) handPacket_.flags |= DROIDDECK_XR_INPUT_LOCAL_HAND_MESH;
+        if (handMode_ && showHandVisuals_ && handVisuals_.ready()) handPacket_.flags |= DROIDDECK_XR_INPUT_LOCAL_HAND_MESH;
         updateInputTelemetry();
         inputAdapter_.publishInput(handPacket_);
         releaseSkeleton();
