@@ -2,6 +2,7 @@ package com.droiddeck.launcher.wayland
 
 import android.view.Choreographer
 import android.view.Surface
+import com.droiddeck.launcher.session.PerfMode
 import com.droiddeck.launcher.session.SessionState
 
 object CompositorHost {
@@ -53,7 +54,7 @@ object CompositorHost {
     }
 
     private fun pace(refreshHz: Float, fpsLimit: Int) {
-        WaylandCompositor.nativeSetFpsLimit(fpsLimit)
+        WaylandCompositor.nativeSetFpsLimit(PerfMode.compositorFpsLimit(SessionState.mode, fpsLimit))
         WaylandCompositor.nativeSetLayerFrameRate(if (fpsLimit > 0) fpsLimit.toFloat() else refreshHz)
         WaylandCompositor.nativeSetOutputRefreshRate(refreshHz)
         SessionState.refreshHz = refreshHz

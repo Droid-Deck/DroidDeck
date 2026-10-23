@@ -34,4 +34,10 @@ class PerfModeTest {
         val otherResolution = mode(3, 60f, 720)
         assertEquals(low, PerfMode.selectMode(arrayOf(low, high, otherResolution), high, 60, 60f))
     }
+
+    @Test fun onlyTheDesktopSessionPacesBufferReleasesAtTheFrameLimit() {
+        assertEquals(40, PerfMode.compositorFpsLimit(SessionService.MODE_DESKTOP, 40))
+        assertEquals(0, PerfMode.compositorFpsLimit(SessionService.MODE_STEAM, 40))
+        assertEquals(0, PerfMode.compositorFpsLimit(SessionService.MODE_RUN, 60))
+    }
 }

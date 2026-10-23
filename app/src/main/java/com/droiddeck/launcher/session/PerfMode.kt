@@ -64,6 +64,9 @@ object PerfMode {
             ?: sameSize.minByOrNull { it.refreshRate }
     }
 
+    fun compositorFpsLimit(mode: String, fpsLimit: Int): Int =
+        if (mode == SessionService.MODE_DESKTOP) fpsLimit else 0
+
     fun cadenceFits(hz: Float, fpsLimit: Int): Boolean {
         if (fpsLimit <= 0) return true
         val ratio = hz / fpsLimit
