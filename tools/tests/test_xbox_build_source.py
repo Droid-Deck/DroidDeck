@@ -31,7 +31,7 @@ class XboxBuildSourceTest(unittest.TestCase):
             git('switch', '-q', 'main')
             (root / 'backend').write_text('merged backend')
             git('commit', '-qam', 'backend changed after branch')
-            for name in ('xbox', 'apk'):
+            for name in ('xbox', 'apk', 'tests'):
                 git('clone', '-q', str(root), str(root / name))
                 git('checkout', '-q', head, cwd=root / name)
             output = root / 'output'
@@ -46,3 +46,7 @@ class XboxBuildSourceTest(unittest.TestCase):
             subprocess.run(['bash', '-c', step('build', 'Verify backend and APK source match')], cwd=root / 'apk', env=env, check=True, capture_output=True)
             self.assertEqual((root / 'apk/backend').read_text(), 'merged backend')
             self.assertEqual(git('rev-parse', 'HEAD^{tree}', cwd=root / 'apk'), tree)
+
+            subprocess.run(['bash', '-c', step('python-tests', 'Merge the pinned APK base')], cwd=root / 'tests', env=env, check=True, capture_output=True)
+            subprocess.run(['bash', '-c', step('python-tests', 'Verify backend and test source match')], cwd=root / 'tests', env=env, check=True, capture_output=True)
+            self.assertEqual(git('rev-parse', 'HEAD^{tree}', cwd=root / 'tests'), tree)

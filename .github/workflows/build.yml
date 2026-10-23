@@ -26,7 +26,7 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
-  PRELOAD_CACHE_VERSION: v6
+  PRELOAD_CACHE_VERSION: v7
 
 jobs:
   xbox:
@@ -68,8 +68,7 @@ jobs:
         if: steps.xbox-cache.outputs.cache-hit != 'true'
         run: |
           rustup toolchain install 1.99.0 --profile minimal
-          sudo apt-get update -qq
-          sudo apt-get install -y build-essential pkg-config libssl-dev protobuf-compiler cmake xz-utils
+          bash tools/ci/install-ubuntu-packages.sh build-essential pkg-config libssl-dev protobuf-compiler cmake xz-utils
           bash tools/xbox/build.sh
       - uses: actions/upload-artifact@v4
         with:
@@ -87,7 +86,7 @@ jobs:
 
   build:
     needs: xbox
-    name: Compile and test APK
+    name: Compile APK and Android tests
     if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
     runs-on: ubuntu-24.04
     timeout-minutes: 45
@@ -254,16 +253,17 @@ jobs:
         id: preloads
         uses: actions/cache@v4
         with:
-          path: app/src/main/assets/linuxfs
-          key: preloads-${{ env.PRELOAD_CACHE_VERSION }}-${{ hashFiles('app/src/main/cpp/fakeinput_steam.cpp', 'app/src/main/cpp/adrenotools/src/hook/kgsl.h', 'tools/quest/*', 'tools/linuxfs/preload/*.c', 'tools/linuxfs/build-x86-preloads.sh', 'tools/linuxfs/fex/*', 'tools/linuxfs/clipboard/*.c', 'tools/linuxfs/ssbs/*.c', 'tools/proot/fastpath/*.c', 'tools/linuxfs/overlay/usr/local/bin/*', 'tools/linuxfs/overlay/usr/bin/**', 'tools/linuxfs/desktop/*', 'tools/gamescope/release.env', 'tools/wlroots/release.env', 'tools/linuxfs/uruntime.env', 'tools/linuxfs/licenses/*', 'tools/mangoapp/*', 'tools/msitools/**', 'tools/comet/**', 'tools/xbox/**', 'tools/linuxfs/debian-image.env', 'tools/vr/**') }}
+          path: |
+            app/src/main/assets/linuxfs
+            !app/src/main/assets/linuxfs/usr/local/lib/droiddeck-comet
+            !app/src/main/assets/linuxfs/usr/local/lib/droiddeck-xbox
+          key: preloads-${{ env.PRELOAD_CACHE_VERSION }}-${{ hashFiles('app/src/main/cpp/fakeinput_steam.cpp', 'app/src/main/cpp/adrenotools/src/hook/kgsl.h', 'tools/quest/*', 'tools/linuxfs/preload/*.c', 'tools/linuxfs/build-x86-preloads.sh', 'tools/linuxfs/fex/*', 'tools/linuxfs/clipboard/*.c', 'tools/linuxfs/ssbs/*.c', 'tools/proot/fastpath/*.c', 'tools/linuxfs/overlay/usr/local/bin/*', 'tools/linuxfs/overlay/usr/bin/**', 'tools/linuxfs/desktop/*', 'tools/gamescope/release.env', 'tools/wlroots/release.env', 'tools/linuxfs/uruntime.env', 'tools/linuxfs/licenses/*', 'tools/mangoapp/*', 'tools/msitools/**', 'tools/linuxfs/debian-image.env', 'tools/pipewire/**', 'tools/ci/install-ubuntu-packages.sh', 'tools/vr/**') }}
 
       - name: Build libfakeinput.so and libblsession.so (glibc aarch64)
         if: steps.preloads.outputs.cache-hit != 'true'
         run: |
           set -euo pipefail
-          sudo apt-get -o Dir::Etc::sourcelist=sources.list.d/ubuntu.sources \
-            -o Dir::Etc::sourceparts=- -o Acquire::Retries=3 update -qq
-          sudo apt-get install -y -qq gcc-aarch64-linux-gnu g++-aarch64-linux-gnu libvulkan1 mesa-vulkan-drivers >/dev/null
+          bash tools/ci/install-ubuntu-packages.sh gcc-aarch64-linux-gnu g++-aarch64-linux-gnu libvulkan1 mesa-vulkan-drivers
           D=app/src/main/assets/linuxfs
           mkdir -p "$D"
           aarch64-linux-gnu-g++ -shared -fPIC -O2 -Wall -Wno-attributes -Wno-nonnull-compare \
@@ -525,9 +525,10 @@ jobs:
             ~/.cargo/git/db
             ~/.cargo/bin/cargo-ndk
             app/src/main/rust/stores/target
-          key: stores-${{ steps.rust.outputs.rustc }}-${{ hashFiles('app/src/main/rust/stores/Cargo.lock') }}
+          key: stores-v2-${{ runner.os }}-${{ runner.arch }}-${{ env.NDK_VERSION }}-${{ steps.rust.outputs.rustc }}-${{ hashFiles('app/src/main/rust/stores/Cargo.lock') }}-${{ hashFiles('app/src/main/rust/stores/src/**', 'app/src/main/rust/stores/Cargo.toml', 'app/src/main/rust/stores/build.rs', 'app/src/main/rust/stores/.cargo/**', 'app/build.gradle') }}
           restore-keys: |
-            stores-${{ steps.rust.outputs.rustc }}-
+            stores-v2-${{ runner.os }}-${{ runner.arch }}-${{ env.NDK_VERSION }}-${{ steps.rust.outputs.rustc }}-${{ hashFiles('app/src/main/rust/stores/Cargo.lock') }}-
+            stores-v2-${{ runner.os }}-${{ runner.arch }}-${{ env.NDK_VERSION }}-${{ steps.rust.outputs.rustc }}-
 
       - name: cargo-ndk
         run: |
@@ -550,9 +551,19 @@ jobs:
           name: xbox-arm64
           path: app/src/main/assets/linuxfs/usr/local/lib/droiddeck-xbox
 
+      - name: Cache GOG Galaxy companion
+        id: comet
+        uses: actions/cache@v4
+        with:
+          path: app/src/main/assets/linuxfs/usr/local/lib/droiddeck-comet
+          key: comet-${{ runner.os }}-${{ runner.arch }}-rust1.90.0-${{ hashFiles('tools/comet/**') }}
+
       - name: Build GOG Galaxy companion
-        if: steps.preloads.outputs.cache-hit != 'true'
+        if: steps.comet.outputs.cache-hit != 'true'
         run: |
+          if ! command -v aarch64-linux-gnu-gcc >/dev/null; then
+            bash tools/ci/install-ubuntu-packages.sh gcc-aarch64-linux-gnu
+          fi
           rustup toolchain install 1.90.0 --profile minimal
           rustup target add --toolchain 1.90.0 aarch64-unknown-linux-gnu
           RUSTUP_TOOLCHAIN=1.90.0 bash tools/comet/build.sh
@@ -597,14 +608,6 @@ jobs:
           name: stores-cargo-lock
           path: app/src/main/rust/stores/Cargo.lock
           if-no-files-found: ignore
-
-      - name: Install Python test dependencies
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq python3-yaml gcc-aarch64-linux-gnu qemu-user
-
-      - name: Steam import and game environment tests
-        run: python3 -m unittest discover -s tools/tests -p 'test_*.py'
 
       - name: Unit tests
         id: unit-tests
@@ -699,7 +702,7 @@ jobs:
                 echo "The \`droiddeck-apk\` artifact is [on this run]($RUN_URL), signed with the public test key."
                 echo
                 if [ "$SAME_REPO" = true ]; then
-                  echo "A release-signed tester build that installs over Stable or Preview is being published now and will appear in DroidDeck's **Test builds** list. Label the PR \`no-test-build\` to skip that."
+                  echo "After the parallel regression tests pass, a release-signed tester build that installs over Stable or Preview will be published and will appear in DroidDeck's **Test builds** list. Label the PR \`no-test-build\` to skip that."
                 else
                   echo "**Maintainer:** add the \`publish-test\` label to publish a release-signed tester build that installs over Stable or Preview and appears in DroidDeck's **Test builds** list. The label is removed automatically after publishing."
                 fi
@@ -761,8 +764,53 @@ jobs:
             gh api -X POST "repos/${GITHUB_REPOSITORY}/issues/${PR}/comments" -F body=@/tmp/pr-report.md >/dev/null
           fi
 
+  python-tests:
+    name: Python and native regression tests
+    needs: xbox
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Merge the pinned APK base
+        if: github.event_name == 'pull_request'
+        env:
+          BUILD_BASE_SHA: ${{ needs.xbox.outputs.base-sha }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin "$BUILD_BASE_SHA"
+          git config user.name "ci"
+          git config user.email "ci@users.noreply.github.com"
+          git merge --no-ff --no-edit FETCH_HEAD
+      - name: Verify backend and test source match
+        env:
+          XBOX_SOURCE_TREE: ${{ needs.xbox.outputs.tree-sha }}
+        run: test "$(git rev-parse 'HEAD^{tree}')" = "$XBOX_SOURCE_TREE"
+      - name: Install Python test dependencies
+        timeout-minutes: 5
+        run: bash tools/ci/install-ubuntu-packages.sh python3-yaml gcc-aarch64-linux-gnu qemu-user libvulkan1 mesa-vulkan-drivers
+      - name: Steam import and game environment tests
+        run: python3 -m unittest discover -s tools/tests -p 'test_*.py'
+
+  checks:
+    name: Compile and test APK
+    needs: [build, python-tests]
+    if: ${{ always() && (github.event_name != 'pull_request' || !github.event.pull_request.draft) }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Require compilation and every test job
+        env:
+          BUILD_RESULT: ${{ needs.build.result }}
+          PYTHON_RESULT: ${{ needs.python-tests.result }}
+        run: test "$BUILD_RESULT" = success && test "$PYTHON_RESULT" = success
+
   sign:
-    needs: build
+    needs: [build, checks]
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     permissions:
       contents: read
@@ -774,7 +822,7 @@ jobs:
     secrets: inherit
 
   packs:
-    needs: build
+    needs: [build, checks]
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     permissions:
       contents: read
