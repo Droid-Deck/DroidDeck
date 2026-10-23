@@ -75,11 +75,13 @@ Java_com_droiddeck_launcher_gpu_VulkanInfo_nativeQuery(JNIEnv *env, jclass clazz
             VkPhysicalDeviceDriverProperties driver = { .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRIVER_PROPERTIES };
             VkPhysicalDeviceProperties2 p2 = { .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2, .pNext = &driver };
             vkGetPhysicalDeviceProperties2(device, &p2);
+            LINE("driver_id=%u\n", driver.driverID);
             LINE("driver_name=%s\n", driver.driverName);
             LINE("driver_info=%s\n", driver.driverInfo);
             LINE("conformance=%u.%u.%u.%u\n", driver.conformanceVersion.major, driver.conformanceVersion.minor,
                  driver.conformanceVersion.subminor, driver.conformanceVersion.patch);
         }
+        LINE("driver_version_raw=%u\n", p.driverVersion);
         LINE("extension_count=%u\n", extCount);
         for (size_t e = 0; e < sizeof(EXTENSIONS) / sizeof(*EXTENSIONS); e++) {
             int has = 0;
