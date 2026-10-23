@@ -476,6 +476,18 @@ jobs:
           set -euo pipefail
           export NDK="${ANDROID_NDK_LATEST_HOME:-${ANDROID_NDK_HOME:-$ANDROID_NDK_ROOT}}"
           tools/proot/build.sh app/src/main/jniLibs/arm64-v8a
+      - name: Cache libntfs-3g
+        id: ntfs3g
+        uses: actions/cache@v4
+        with:
+          path: build/ntfs3g
+          key: ntfs3g-${{ env.NDK_VERSION }}-${{ hashFiles('tools/ntfs3g/**') }}
+      - name: Build libntfs-3g
+        if: steps.ntfs3g.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          export NDK="${ANDROID_NDK_LATEST_HOME:-${ANDROID_NDK_HOME:-$ANDROID_NDK_ROOT}}"
+          tools/ntfs3g/build.sh build/ntfs3g
 
       - name: Check the preloads
         run: |
@@ -569,7 +581,7 @@ jobs:
           set -o pipefail
           python3 tools/quest/build-driver.py "$ANDROID_HOME/ndk/$NDK_VERSION"
           python3 tools/release/runtime_inputs.py record
-          ./gradlew assembleRelease --console=plain -PndkVersion="$NDK_VERSION" 2>&1 | tee /tmp/build.log
+          ./gradlew assembleRelease --console=plain -PndkVersion="$NDK_VERSION" -Pntfs3gDir="$PWD/build/ntfs3g" 2>&1 | tee /tmp/build.log
           python3 tools/release/check_session_assets.py app/build/outputs/apk/release/app-release.apk
           python3 tools/release/runtime_inputs.py apk app/build/outputs/apk/release/app-release.apk
 
@@ -611,7 +623,7 @@ jobs:
         run: |
           set -o pipefail
           mkdir -p app/build
-          ./gradlew testReleaseUnitTest --console=plain --info --stacktrace -Drobolectric.logging=stderr -PndkVersion="$NDK_VERSION" 2>&1 | tee app/build/unit-tests.log
+          ./gradlew testReleaseUnitTest --console=plain --info --stacktrace -Drobolectric.logging=stderr -PndkVersion="$NDK_VERSION" -Pntfs3gDir="$PWD/build/ntfs3g" 2>&1 | tee app/build/unit-tests.log
 
       - name: Upload unit test diagnostics
         id: unit-test-diagnostics

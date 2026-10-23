@@ -20,6 +20,13 @@ if (uvcDir) {
         if (!new File(uvcDir, required).isFile()) throw new GradleException("Incomplete UVC build: missing ${required}")
     }
 }
+def ntfs3gDir = project.hasProperty('ntfs3gDir') ? project.property('ntfs3gDir') : localBuildOptions.getProperty('droiddeck.ntfs3gDir', '')
+if (ntfs3gDir) {
+    ['arm64-v8a/libntfs-3g.a', 'include/ntfs-3g/config.h', 'include/ntfs-3g/volume.h',
+     'licenses/ntfs-3g-COPYING'].each { required ->
+        if (!new File(ntfs3gDir, required).isFile()) throw new GradleException("Incomplete libntfs-3g build: missing ${required}")
+    }
+}
 if (vitureSdkDir) {
     ['android/arm64-v8a/libglasses.so', 'android/arm64-v8a/libcarina_vio.so',
      'android/arm64-v8a/libcloud_protocol.so', 'include/viture_glasses_provider.h',
@@ -149,6 +156,7 @@ android {
                 arguments '-DANDROID_STL=c++_shared'
                 arguments "-DDROIDDECK_VITURE_SDK_DIR=${vitureSdkDir.toString().replace('\\', '/')}"
                 arguments "-DDROIDDECK_UVC_DIR=${uvcDir.toString().replace('\\', '/')}"
+                arguments "-DDROIDDECK_NTFS3G_DIR=${ntfs3gDir.toString().replace('\\', '/')}"
             }
         }
     }
@@ -270,6 +278,14 @@ if (uvcDir) {
     }
     tasks.named('preBuild').configure { dependsOn(stageUvcNotices) }
     android.sourceSets.main.assets.srcDir(layout.buildDirectory.dir('uvcAssets'))
+}
+if (ntfs3gDir) {
+    def stageNtfs3gNotices = tasks.register('stageNtfs3gNotices', Copy) {
+        from(new File(ntfs3gDir, 'licenses'))
+        into(layout.buildDirectory.dir('ntfs3gAssets/licenses/ntfs-3g'))
+    }
+    tasks.named('preBuild').configure { dependsOn(stageNtfs3gNotices) }
+    android.sourceSets.main.assets.srcDir(layout.buildDirectory.dir('ntfs3gAssets'))
 }
 tasks.named('preBuild').configure { dependsOn(stageRuntimeAssets) }
 
