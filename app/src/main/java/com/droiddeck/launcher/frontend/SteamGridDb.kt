@@ -84,18 +84,23 @@ object SteamGridDb {
             .filter { it.second > 0 && it.first > 0 }
             .maxByOrNull { it.second }?.first
 
-    fun download(key: String, id: Int, cache: File): Boolean {
+    internal fun cacheName(slot: AddedGameArt.Slot): String =
+        when (slot) {
+            AddedGameArt.Slot.COVER -> "p.jpg"
+            AddedGameArt.Slot.WIDE -> "header.jpg"
+            AddedGameArt.Slot.BACKGROUND -> "hero.jpg"
+            AddedGameArt.Slot.LOGO -> "logo.png"
+            AddedGameArt.Slot.ICON -> "icon-sgdb.png"
+        }
+
+    fun download(key: String, id: Int, cache: File, slots: Set<AddedGameArt.Slot> = AddedGameArt.Slot.values().toSet()): Boolean {
         var got = false
-        for ((path, local) in listOf(
-            "grids/game/$id?dimensions=600x900&$QUERY" to "p.jpg",
-            "grids/game/$id?dimensions=460x215,920x430&$QUERY" to "header.jpg",
-            "heroes/game/$id?$QUERY" to "hero.jpg",
-            "logos/game/$id?$QUERY" to "logo.png",
-            "icons/game/$id?$QUERY" to "icon-sgdb.png",
-        )) {
+        for (slot in AddedGameArt.Slot.values()) {
+            if (slot !in slots) continue
+            val local = cacheName(slot)
             val dst = File(cache, local)
             if (dst.isFile) continue
-            val items = json(key, "$API/$path")?.optJSONArray("data") ?: continue
+            val items = json(key, "$API/${path(id, slot)}")?.optJSONArray("data") ?: continue
             val url = best(items, local.endsWith(".png")) ?: continue
             val bytes = AddedGameArt.get(url) ?: continue
             val tmp = File(cache, "$local.tmp")

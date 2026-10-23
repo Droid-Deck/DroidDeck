@@ -77,6 +77,7 @@ object SavedQueue {
     private fun itemJson(i: CatalogItem) = JSONObject().apply {
         put("store", i.store.id); put("id", i.id); put("title", i.title)
         put("image", i.imageUrl ?: ""); put("tall", i.tallImageUrl ?: "")
+        i.logoUrl?.let { put("logo", it) }
         put("tags", i.tags); put("developer", i.developer); put("description", i.description)
         put("size", i.sizeBytes); put("owned", i.owned); put("subscription", i.subscription)
         put("extra", JSONObject(i.extra))
@@ -91,6 +92,7 @@ object SavedQueue {
             tags = o.optString("tags"), developer = o.optString("developer"), description = o.optString("description"),
             owned = o.optBoolean("owned", true), subscription = o.optBoolean("subscription"), sizeBytes = o.optLong("size"),
             extra = extra?.keys()?.asSequence()?.associateWith { extra.getString(it) } ?: emptyMap(),
+            logoUrl = o.optString("logo").ifEmpty { null },
         )
     }
 }
