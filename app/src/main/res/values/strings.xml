@@ -1022,7 +1022,14 @@
     <string name="ctrl_configure">Configure</string>
     <string name="ctrl_reset_all">Reset controller</string>
     <string name="ctrl_reset_all_hint">Restores all controller settings and the layout</string>
-    <string name="ctrl_mapping_lede">What each on-screen button sends to the game. Hidden removes the button.</string>
+    <string name="ctrl_mapping_lede">Map physical controller buttons and choose what on-screen buttons send to the game.</string>
+    <string name="ctrl_hardware_buttons">Physical controller buttons</string>
+    <string name="ctrl_learn_button">Learn a button</string>
+    <string name="ctrl_learn_hint">Press a controller button, then choose its game action below.</string>
+    <string name="ctrl_press_button">Press the controller button now…</string>
+    <string name="ctrl_mouse_button">%1$s · mouse button %2$d</string>
+    <string name="ctrl_remove_button">Remove</string>
+    <string name="ctrl_button_not_detected">No key event detected. The controller or Android may handle this button internally.</string>
     <string name="ctrl_onscreen_buttons">On-screen buttons</string>
     <string name="ctrl_defaults">Defaults</string>
     <string name="ctrl_reset_mapping">Reset mapping</string>
@@ -1666,6 +1673,7 @@
     <string name="ctrl_target_l3" translatable="false">L3</string>
     <string name="ctrl_target_r3" translatable="false">R3</string>
     <string name="ctrl_target_steam" translatable="false">Steam</string>
+    <string name="ctrl_target_qam" translatable="false">QAM</string>
     <string name="ctrl_target_view">View</string>
     <string name="ctrl_target_menu">Menu</string>
     <string name="ctrl_target_up">D-pad up</string>
