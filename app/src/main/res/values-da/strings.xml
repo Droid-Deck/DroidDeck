@@ -287,9 +287,6 @@
     <string name="mode_suspend_steam_note">Auto sætter på pause og genoptager, når den vises. Native forbereder Steam til dvale først. Manuel venter på Genoptag. Aldrig fortsætter med at køre.</string>
     <string name="mode_background_downloads">Fortsæt downloads</string>
     <string name="mode_background_downloads_hint">Udskyder baggrundspause, mens Steam aktivt downloader.</string>
-    <string name="mode_zram">zRAM-komprimering</string>
-    <string name="mode_zram_hint">Mens et spil kører, komprimeres Steam-klientens hukommelse til enhedens zram, så spillet får mere RAM. Gælder næste gang Steam starter.</string>
-    <string name="mode_zram_unsupported">Ikke tilgængeligt: enheden har ingen zram eller swap, eller kernen er ældre end 5.4.</string>
     <string name="mode_suspend_note">Auto sætter på pause i baggrunden og genoptager, når den vises. Manuel venter på Genoptag. Aldrig fortsætter med at køre.</string>
     <string name="mode_startup">Opstart</string>
     <string name="mode_steam_startup">Start Steam med DroidDeck</string>
@@ -1402,6 +1399,10 @@
     <string name="input_key_esc">Esc</string>
     <string name="input_key_ctrl">Ctrl</string>
     <string name="input_key_alt">Alt</string>
+    <string name="theme_inner_gamer">Inner Gamer</string>
+    <string name="theme_inner_gamer_detail">Farver, der skifter gennem regnbuen. Følger Androids animationsindstillinger.</string>
+    <string name="theme_rgb_speed">Hastighed</string>
+    <string name="theme_rgb_speed_hint">Hvor hurtigt farverne skifter.</string>
     <string name="theme_gradient">Gradient</string>
     <string name="theme_gradient_detail">Dine egne primære og sekundære farver, blandet på knapper og fremhævninger.</string>
     <string name="theme_gradient_primary">Primær</string>
@@ -1523,6 +1524,13 @@
     <string name="fm_conflict_skip">Spring over</string>
     <string name="fm_select_this_folder">Vælg denne mappe</string>
     <string name="fm_back">Tilbage</string>
+    <string name="fm_exit">Afslut</string>
+    <string name="fm_return_to_start">Tilbage til startmappen</string>
+    <string name="fm_start_unavailable">Startmappen er ikke længere tilgængelig</string>
+    <string name="fm_cancel_operation_title">Annuller handlingen?</string>
+    <string name="fm_cancel_operation_confirmation">Handlingen bliver annulleret. Er du sikker?</string>
+    <string name="fm_accept">Accepter</string>
+    <string name="fm_decline">Afvis</string>
     <string name="fm_drive_not_readable">%1$s er monteret, men kan ikke læses lige nu</string>
     <string name="fm_list_view">Listevisning</string>
     <string name="fm_grid_view">Gittervisning</string>

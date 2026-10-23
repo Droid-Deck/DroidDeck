@@ -287,9 +287,6 @@
     <string name="mode_suspend_steam_note">Automat pune pe pauză și reia atunci când este afișată. Nativ pregătește Steam pentru repaus mai întâi. Manual așteaptă Reluare. Niciodată continuă să ruleze.</string>
     <string name="mode_background_downloads">Continuă descărcările</string>
     <string name="mode_background_downloads_hint">Întârzie suspendarea în fundal cât timp Steam descarcă activ.</string>
-    <string name="mode_zram">Compresie zRAM</string>
-    <string name="mode_zram_hint">În timpul jocului, memoria clientului Steam este comprimată în zram-ul dispozitivului, astfel încât jocul primește mai mult RAM. Se aplică la următoarea pornire a Steam.</string>
-    <string name="mode_zram_unsupported">Indisponibil: dispozitivul nu are zram sau swap, ori kernelul e mai vechi decât 5.4.</string>
     <string name="mode_suspend_note">Automat pune pe pauză în fundal și reia atunci când este afișată. Manual așteaptă Reluare. Niciodată continuă să ruleze.</string>
     <string name="mode_startup">Pornire</string>
     <string name="mode_steam_startup">Pornește Steam odată cu DroidDeck</string>
@@ -1416,6 +1413,10 @@
     <string name="input_key_esc">Esc</string>
     <string name="input_key_ctrl">Ctrl</string>
     <string name="input_key_alt">Alt</string>
+    <string name="theme_inner_gamer">Inner Gamer</string>
+    <string name="theme_inner_gamer_detail">Culori care parcurg curcubeul. Respectă setările de animație din Android.</string>
+    <string name="theme_rgb_speed">Viteză</string>
+    <string name="theme_rgb_speed_hint">Cât de repede se schimbă culorile.</string>
     <string name="theme_gradient">Gradient</string>
     <string name="theme_gradient_detail">Culorile tale primară și secundară, combinate pe butoane și evidențieri.</string>
     <string name="theme_gradient_primary">Primară</string>
@@ -1542,6 +1543,13 @@
     <string name="fm_conflict_skip">Omite</string>
     <string name="fm_select_this_folder">Selectează acest folder</string>
     <string name="fm_back">Înapoi</string>
+    <string name="fm_exit">Ieșire</string>
+    <string name="fm_return_to_start">Înapoi la dosarul inițial</string>
+    <string name="fm_start_unavailable">Dosarul inițial nu mai este disponibil</string>
+    <string name="fm_cancel_operation_title">Anulați operația?</string>
+    <string name="fm_cancel_operation_confirmation">Operația va fi anulată. Sunteți sigur?</string>
+    <string name="fm_accept">Acceptă</string>
+    <string name="fm_decline">Refuză</string>
     <string name="fm_drive_not_readable">%1$s este montat, dar nu poate fi citit acum</string>
     <string name="fm_list_view">Vizualizare listă</string>
     <string name="fm_grid_view">Vizualizare grilă</string>

@@ -287,9 +287,6 @@
     <string name="mode_suspend_steam_note">Automaattinen keskeyttää ja jatkaa, kun sovellus tulee näkyviin. Natiivi valmistelee Steamin lepotilaan ensin. Manuaalinen odottaa Jatka-painiketta. Ei koskaan pitää sovelluksen aina käynnissä.</string>
     <string name="mode_background_downloads">Pidä lataukset käynnissä</string>
     <string name="mode_background_downloads_hint">Viivästytä taustakeskeytystä, kun Steam lataa aktiivisesti.</string>
-    <string name="mode_zram">zRAM-pakkaus</string>
-    <string name="mode_zram_hint">Pelin pyöriessä Steam-asiakkaan muisti pakataan laitteen zramiin, jolloin pelille jää enemmän RAM-muistia. Astuu voimaan, kun Steam käynnistetään seuraavan kerran.</string>
-    <string name="mode_zram_unsupported">Ei käytettävissä: laitteessa ei ole zramia tai swappia, tai ydin on vanhempi kuin 5.4.</string>
     <string name="mode_suspend_note">Automaattinen keskeyttää taustalla ja jatkaa, kun sovellus tulee näkyviin. Manuaalinen odottaa Jatka-painiketta. Ei koskaan pitää sovelluksen aina käynnissä.</string>
     <string name="mode_startup">Käynnistys</string>
     <string name="mode_steam_startup">Käynnistä Steam DroidDeckin kanssa</string>
@@ -1402,6 +1399,10 @@
     <string name="input_key_esc">Esc</string>
     <string name="input_key_ctrl">Ctrl</string>
     <string name="input_key_alt">Alt</string>
+    <string name="theme_inner_gamer">Inner Gamer</string>
+    <string name="theme_inner_gamer_detail">Värit, jotka kiertävät sateenkaaren läpi. Noudattaa Androidin animaatioasetuksia.</string>
+    <string name="theme_rgb_speed">Nopeus</string>
+    <string name="theme_rgb_speed_hint">Kuinka nopeasti värit vaihtuvat.</string>
     <string name="theme_gradient">Liukuväri</string>
     <string name="theme_gradient_detail">Omat ensisijainen ja toissijainen värisi, sulautettuina painikkeisiin ja korostuksiin.</string>
     <string name="theme_gradient_primary">Ensisijainen</string>
@@ -1523,6 +1524,13 @@
     <string name="fm_conflict_skip">Ohita</string>
     <string name="fm_select_this_folder">Valitse tämä kansio</string>
     <string name="fm_back">Takaisin</string>
+    <string name="fm_exit">Poistu</string>
+    <string name="fm_return_to_start">Palaa aloituskansioon</string>
+    <string name="fm_start_unavailable">Aloituskansio ei ole enää käytettävissä</string>
+    <string name="fm_cancel_operation_title">Peruutetaanko toiminto?</string>
+    <string name="fm_cancel_operation_confirmation">Toiminto peruutetaan. Oletko varma?</string>
+    <string name="fm_accept">Hyväksy</string>
+    <string name="fm_decline">Hylkää</string>
     <string name="fm_drive_not_readable">%1$s on liitetty, mutta ei ole luettavissa juuri nyt</string>
     <string name="fm_list_view">Luettelonäkymä</string>
     <string name="fm_grid_view">Ruudukkonäkymä</string>

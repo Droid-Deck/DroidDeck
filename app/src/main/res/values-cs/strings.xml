@@ -287,9 +287,6 @@
     <string name="mode_suspend_steam_note">Automaticky pozastaví relaci a obnoví ji při zobrazení. Nativně nejprve připraví Steam na spánek. Manuálně čeká na Obnovit. Nikdy běh nezastavuje.</string>
     <string name="mode_background_downloads">Nechat stahování běžet</string>
     <string name="mode_background_downloads_hint">Oddálí pozastavení na pozadí, pokud Steam aktivně stahuje.</string>
-    <string name="mode_zram">Komprese zRAM</string>
-    <string name="mode_zram_hint">Během hraní se paměť klienta Steam komprimuje do zram zařízení, takže hra má víc RAM. Platí při příštím spuštění Steamu.</string>
-    <string name="mode_zram_unsupported">Není k dispozici: zařízení nemá zram ani swap, nebo je jádro starší než 5.4.</string>
     <string name="mode_suspend_note">Automaticky pozastaví na pozadí a obnoví při zobrazení. Manuálně čeká na Obnovit. Nikdy běh nezastavuje.</string>
     <string name="mode_startup">Spouštění</string>
     <string name="mode_steam_startup">Spustit Steam s DroidDeck</string>
@@ -1430,6 +1427,10 @@
     <string name="input_key_esc">Esc</string>
     <string name="input_key_ctrl">Ctrl</string>
     <string name="input_key_alt">Alt</string>
+    <string name="theme_inner_gamer">Inner Gamer</string>
+    <string name="theme_inner_gamer_detail">Barvy, které procházejí celou duhu. Respektuje nastavení animací v Androidu.</string>
+    <string name="theme_rgb_speed">Rychlost</string>
+    <string name="theme_rgb_speed_hint">Jak rychle se barvy střídají.</string>
     <string name="theme_gradient">Přechod</string>
     <string name="theme_gradient_detail">Vaše vlastní primární a sekundární barva, prolnuté na tlačítkách a zvýrazněních.</string>
     <string name="theme_gradient_primary">Primární</string>
@@ -1561,6 +1562,13 @@
     <string name="fm_conflict_skip">Přeskočit</string>
     <string name="fm_select_this_folder">Vybrat tuto složku</string>
     <string name="fm_back">Zpět</string>
+    <string name="fm_exit">Ukončit</string>
+    <string name="fm_return_to_start">Zpět do výchozí složky</string>
+    <string name="fm_start_unavailable">Výchozí složka již není dostupná</string>
+    <string name="fm_cancel_operation_title">Zrušit operaci?</string>
+    <string name="fm_cancel_operation_confirmation">Operace bude zrušena. Opravdu chcete pokračovat?</string>
+    <string name="fm_accept">Přijmout</string>
+    <string name="fm_decline">Odmítnout</string>
     <string name="fm_drive_not_readable">%1$s je připojeno, ale momentálně není čitelné</string>
     <string name="fm_list_view">Zobrazení seznamu</string>
     <string name="fm_grid_view">Zobrazení mřížky</string>

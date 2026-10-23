@@ -329,6 +329,8 @@ static int execveat_is_execve(const long *args) {
   return path[0] == '/' || (int)args[0] == AT_FDCWD;
 }
 
+int bl_writewatch_syscall(long number, const long *args, long (*real)(long, ...), long *rc) __attribute__((visibility("hidden")));
+
 long syscall(long number, ...) {
   va_list ap;
   long args[6];
@@ -353,6 +355,9 @@ long syscall(long number, ...) {
   }
   if (!real_syscall) {
     real_syscall = (long (*)(long, ...)) dlsym(RTLD_NEXT, "syscall");
+  }
+  if (bl_writewatch_syscall(number, args, real_syscall, &handled)) {
+    return handled;
   }
   if (number == SYS_openat2) {
     if (!__atomic_load_n(&openat2_missing, __ATOMIC_RELAXED)) {

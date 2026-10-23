@@ -287,9 +287,6 @@
     <string name="mode_suspend_steam_note">Το Αυτόματο θέτει σε παύση και συνεχίζει όταν εμφανίζεται. Το Εγγενής προετοιμάζει πρώτα το Steam για αδρανοποίηση. Το Μη αυτόματο περιμένει το Συνέχιση. Το Ποτέ συνεχίζει να εκτελείται.</string>
     <string name="mode_background_downloads">Διατήρηση των λήψεων σε εξέλιξη</string>
     <string name="mode_background_downloads_hint">Καθυστερεί την αναστολή παρασκηνίου όσο το Steam κάνει ενεργά λήψη.</string>
-    <string name="mode_zram">Συμπίεση zRAM</string>
-    <string name="mode_zram_hint">Όσο τρέχει ένα παιχνίδι, η μνήμη του Steam συμπιέζεται στο zram της συσκευής, ώστε το παιχνίδι να έχει περισσότερη RAM. Ισχύει την επόμενη φορά που θα ξεκινήσει το Steam.</string>
-    <string name="mode_zram_unsupported">Μη διαθέσιμο: η συσκευή δεν έχει zram ή swap, ή ο πυρήνας είναι παλαιότερος από 5.4.</string>
     <string name="mode_suspend_note">Το Αυτόματο θέτει σε παύση στο παρασκήνιο και συνεχίζει όταν εμφανίζεται. Το Μη αυτόματο περιμένει το Συνέχιση. Το Ποτέ συνεχίζει να εκτελείται.</string>
     <string name="mode_startup">Εκκίνηση</string>
     <string name="mode_steam_startup">Εκκίνηση του Steam με το DroidDeck</string>
@@ -1402,6 +1399,10 @@
     <string name="input_key_esc">Esc</string>
     <string name="input_key_ctrl">Ctrl</string>
     <string name="input_key_alt">Alt</string>
+    <string name="theme_inner_gamer">Inner Gamer</string>
+    <string name="theme_inner_gamer_detail">Χρώματα που διατρέχουν το ουράνιο τόξο. Ακολουθεί τις ρυθμίσεις animation του Android.</string>
+    <string name="theme_rgb_speed">Ταχύτητα</string>
+    <string name="theme_rgb_speed_hint">Πόσο γρήγορα αλλάζουν τα χρώματα.</string>
     <string name="theme_gradient">Διαβάθμιση</string>
     <string name="theme_gradient_detail">Δικά σας πρωτεύον και δευτερεύον χρώμα, σε μίξη στα κουμπιά και τις επισημάνσεις.</string>
     <string name="theme_gradient_primary">Πρωτεύον</string>
@@ -1523,6 +1524,13 @@
     <string name="fm_conflict_skip">Παράλειψη</string>
     <string name="fm_select_this_folder">Επιλογή αυτού του φακέλου</string>
     <string name="fm_back">Πίσω</string>
+    <string name="fm_exit">Έξοδος</string>
+    <string name="fm_return_to_start">Επιστροφή στον αρχικό φάκελο</string>
+    <string name="fm_start_unavailable">Ο αρχικός φάκελος δεν είναι πλέον διαθέσιμος</string>
+    <string name="fm_cancel_operation_title">Ακύρωση ενέργειας;</string>
+    <string name="fm_cancel_operation_confirmation">Η ενέργεια θα ακυρωθεί. Είστε σίγουροι;</string>
+    <string name="fm_accept">Αποδοχή</string>
+    <string name="fm_decline">Απόρριψη</string>
     <string name="fm_drive_not_readable">Το %1$s είναι προσαρτημένο αλλά δεν είναι αναγνώσιμο αυτή τη στιγμή</string>
     <string name="fm_list_view">Προβολή λίστας</string>
     <string name="fm_grid_view">Προβολή πλέγματος</string>

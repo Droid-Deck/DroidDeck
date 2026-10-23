@@ -292,9 +292,6 @@
     <string name="mode_suspend_steam_note">Auto pauses and resumes when shown. Native prepares Steam for sleep first. Manual waits for Resume. Never keeps running.</string>
     <string name="mode_background_downloads">Keep downloads running</string>
     <string name="mode_background_downloads_hint">Delay background suspension while Steam is actively downloading.</string>
-    <string name="mode_zram">zRAM compression</string>
-    <string name="mode_zram_hint">While a game runs, the Steam client\'s memory is compressed into the device\'s zram, leaving more RAM for the game. Applies the next time Steam starts.</string>
-    <string name="mode_zram_unsupported">Unavailable: this device has no zram or swap, or its kernel is older than 5.4.</string>
     <string name="mode_suspend_note">Auto pauses in the background and resumes when shown. Manual waits for Resume. Never keeps running.</string>
     <string name="mode_startup">Startup</string>
     <string name="mode_steam_startup">Start Steam with DroidDeck</string>
@@ -1460,6 +1457,10 @@
     <string name="input_key_esc">Esc</string>
     <string name="input_key_ctrl">Ctrl</string>
     <string name="input_key_alt">Alt</string>
+    <string name="theme_inner_gamer">Inner Gamer</string>
+    <string name="theme_inner_gamer_detail">Colors that cycle through the rainbow. Follows Android\'s animation settings.</string>
+    <string name="theme_rgb_speed">Speed</string>
+    <string name="theme_rgb_speed_hint">How fast the colors cycle.</string>
     <string name="theme_gradient">Gradient</string>
     <string name="theme_gradient_detail">Your own primary and secondary colors, blended on buttons and highlights.</string>
     <string name="theme_gradient_primary">Primary</string>
@@ -1581,6 +1582,13 @@
     <string name="fm_conflict_skip">Skip</string>
     <string name="fm_select_this_folder">Select this folder</string>
     <string name="fm_back">Back</string>
+    <string name="fm_exit">Exit</string>
+    <string name="fm_return_to_start">Return to start</string>
+    <string name="fm_start_unavailable">Starting folder is no longer available</string>
+    <string name="fm_cancel_operation_title">Cancel operation?</string>
+    <string name="fm_cancel_operation_confirmation">The operation will be cancelled. Are you sure?</string>
+    <string name="fm_accept">Accept</string>
+    <string name="fm_decline">Decline</string>
     <string name="fm_drive_not_readable">%1$s is mounted but not readable right now</string>
     <string name="fm_list_view">List view</string>
     <string name="fm_grid_view">Grid view</string>
