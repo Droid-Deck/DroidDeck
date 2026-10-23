@@ -31,6 +31,7 @@
 #include "xr_skeleton.h"
 #include "Json.h"
 #include "ScopeExit.h"
+#include "HandGloveRenderer.h"
 #include <algorithm>
 
 using namespace droiddeck::xr;
@@ -65,6 +66,8 @@ public:
         gamepadMotion_ = env_->GetMethodID(type, "onXrGamepadMotion", "(IIIJJ[F)Z");
         gamepadFocus_ = env_->GetMethodID(type, "onXrInputFocus", "(Z)V");
         gamepadMenu_ = env_->GetMethodID(type, "onXrGamepadMenu", "()I");
+        handModel_ = env_->GetMethodID(type, "onXrHandModel", "(I)[B");
+        showHands_ = env_->GetMethodID(type, "onXrShowHands", "()Z");
         env_->DeleteLocalRef(type);
         checked();
     }
@@ -77,6 +80,20 @@ public:
         const auto result = env_->CallIntMethod(app_->activity->clazz, gamepadMenu_); checked();
         return uint32_t(result);
     }
+    std::vector<uint8_t> handModel(int hand) {
+        auto bytes = static_cast<jbyteArray>(env_->CallObjectMethod(app_->activity->clazz, handModel_, jint(hand)));
+        checked();
+        if (!bytes) return {};
+        const jsize size = env_->GetArrayLength(bytes);
+        std::vector<uint8_t> data;
+        if (size > 0 && size <= 8*1024*1024) {
+            data.resize(size);
+            env_->GetByteArrayRegion(bytes, 0, size, reinterpret_cast<jbyte *>(data.data()));
+        }
+        env_->DeleteLocalRef(bytes); checked();
+        return data;
+    }
+    bool showHands() { const bool show = env_->CallBooleanMethod(app_->activity->clazz, showHands_); checked(); return show; }
     bool onInput(AInputEvent *event) {
         if (!gamepadKey_) return false;
         jboolean handled = false;
@@ -131,6 +148,7 @@ private:
     android_app *app_;
     JNIEnv *env_;
     jmethodID gamepadKey_ = nullptr, gamepadMotion_ = nullptr, gamepadFocus_ = nullptr, gamepadMenu_ = nullptr;
+    jmethodID handModel_ = nullptr, showHands_ = nullptr;
     jmethodID active_ = nullptr, frame_ = nullptr, status_ = nullptr, error_ = nullptr;
 };
 }
@@ -183,7 +201,7 @@ public:
             "\"headPosition\":[%.6f,%.6f,%.6f],\"controllersActive\":[%s,%s],\"handsActive\":[%s,%s],"
             "\"periodNs\":%lld,\"surfaceSwapchain\":%s,\"source\":\"%s\",\"guestFrames\":%lld,\"steamvrState\":%d,"
             "\"receivedFrames\":%llu,\"rejectedFrames\":%llu,\"uploadedFrames\":%llu,\"sourceFrameId\":%llu,"
-            "\"gpuReceivedFrames\":%llu,\"gpuDroppedFrames\":%llu,\"gpuAsyncCompletion\":%s,\"gpuCompletionFailures\":%llu,\"gpuVerifiedFrameId\":%llu,\"gpuChecksum\":%u,\"error\":%s,\"runtime\":%s,\"runtimeVersion\":%s,\"inputMode\":\"%s\",\"generation\":%llu,\"originEpoch\":%llu,\"profiles\":[%s,%s],\"handPinch\":[%g,%g],\"handSelect\":[%g,%g],\"handPinchPresses\":[%llu,%llu],\"handPinchReleases\":[%llu,%llu],\"floorKnown\":%s,\"handProviders\":[%s,%s],\"eyeSeparationMeters\":%g,\"skeletonActive\":[%u,%u],\"jointPermission\":%s,\"transferMs\":%g,\"sourceAgeMs\":%g,\"gamepadKeyEvents\":%llu,\"gamepadMotionEvents\":%llu,\"gamepadMenuSequence\":%u}\n",
+            "\"gpuReceivedFrames\":%llu,\"gpuDroppedFrames\":%llu,\"gpuAsyncCompletion\":%s,\"gpuCompletionFailures\":%llu,\"gpuVerifiedFrameId\":%llu,\"gpuChecksum\":%u,\"error\":%s,\"runtime\":%s,\"runtimeVersion\":%s,\"inputMode\":\"%s\",\"generation\":%llu,\"originEpoch\":%llu,\"profiles\":[%s,%s],\"handPinch\":[%g,%g],\"handSelect\":[%g,%g],\"handPinchPresses\":[%llu,%llu],\"handPinchReleases\":[%llu,%llu],\"floorKnown\":%s,\"handProviders\":[%s,%s],\"eyeSeparationMeters\":%g,\"skeletonActive\":[%u,%u],\"jointPermission\":%s,\"transferMs\":%g,\"sourceAgeMs\":%g,\"gamepadKeyEvents\":%llu,\"gamepadMotionEvents\":%llu,\"gamepadMenuSequence\":%u,\"handMeshReady\":%s,\"handMeshVisible\":%s,\"handMeshDraws\":%llu}\n",
             (unsigned long long)frames_, (unsigned long long)rendered_, state_,
             (unsigned long long)head_.locationFlags,
             finite(head_.pose.position.x), finite(head_.pose.position.y), finite(head_.pose.position.z),
@@ -204,7 +222,8 @@ public:
             (unsigned long long)pinchPresses_[0], (unsigned long long)pinchPresses_[1],
             (unsigned long long)pinchReleases_[0], (unsigned long long)pinchReleases_[1], floorKnown_ ? "true" : "false", jsonString(handProviders_[0]).c_str(), jsonString(handProviders_[1]).c_str(),
             finite(eyeSeparation_), skeleton_.active[0], skeleton_.active[1], jointPermission_ ? "true" : "false", finite(transferMs_), finite(sourceAgeMs_),
-            (unsigned long long)gamepadKeys_, (unsigned long long)gamepadMotions_, handPacket_.gamepad_menu_sequence);
+            (unsigned long long)gamepadKeys_, (unsigned long long)gamepadMotions_, handPacket_.gamepad_menu_sequence,
+            handVisuals_.ready() ? "true" : "false", showHandVisuals_ ? "true" : "false", (unsigned long long)handVisualDraws_);
         std::fclose(file);
         std::rename(temp.c_str(), path.c_str());
     }
@@ -223,6 +242,10 @@ private:
     bool floorKnown_ = false, jointPermission_ = false;
     bool handExtension_ = false, jointTrackingExtension_ = false, jointAimExtension_ = false, localFloorExtension_ = false;
     bool handMode_ = false, handDataSourceExtension_ = false;
+    HandGloveRenderer handVisuals_;
+    int64_t handModelAttempt_ = 0, handVisibilityAt_ = 0;
+    bool showHandVisuals_ = false;
+    uint64_t handVisualDraws_ = 0;
     std::string inputPolicy_ = "auto";
     XrAction handSelect_ = XR_NULL_HANDLE, selectReady_ = XR_NULL_HANDLE;
     XrAction handGrip_ = XR_NULL_HANDLE, handPinch_ = XR_NULL_HANDLE, handGrasp_ = XR_NULL_HANDLE;
@@ -623,6 +646,7 @@ private:
         handPacket_ = droiddeck_xr_input_v2_neutral(runtimeSession_.generation, runtimeSession_.originEpoch);
         handPacket_.sample_monotonic_ns = xr_monotonic_ns();
         if (handMode_) handPacket_.flags |= DROIDDECK_XR_INPUT_HAND_MODE;
+        if (handMode_ && handVisuals_.ready()) handPacket_.flags |= DROIDDECK_XR_INPUT_LOCAL_HAND_MESH;
         updateInputTelemetry();
         inputAdapter_.publishInput(handPacket_);
         releaseSkeleton();
@@ -1037,7 +1061,29 @@ private:
         if (verifyPixels_ || uploadedFrames_ % 72 == 1) health();
     }
 
-    void render(Eye &eye, uint32_t image) {
+    void updateHandVisuals() {
+        const auto now = xr_monotonic_ns();
+        if (!handVisuals_.ready() && now - handModelAttempt_ > 2000000000LL) {
+            handModelAttempt_ = now;
+            try {
+                for (int hand = 0; hand < 2; ++hand) if (!handVisuals_.loaded(hand)) {
+                    const auto data = callbacks_->handModel(hand);
+                    if (!data.empty() && !handVisuals_.load(hand, data))
+                        throw std::runtime_error("Invalid hand mesh data");
+                }
+                if (handVisuals_.ready()) __android_log_print(ANDROID_LOG_INFO, "DroidDeckXR", "Valve reference hand skinning ready");
+            } catch (const std::exception &error) {
+                __android_log_print(ANDROID_LOG_WARN, "DroidDeckXR", "Hand visuals: %s", error.what());
+                handVisuals_.clear();
+            }
+        }
+        if (now - handVisibilityAt_ > 100000000LL) {
+            handVisibilityAt_ = now;
+            showHandVisuals_ = callbacks_->showHands();
+        }
+    }
+
+    void render(Eye &eye, uint32_t image, int side) {
         glBindFramebuffer(GL_FRAMEBUFFER, framebuffer_);
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, eye.images[image].image, 0);
         if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
@@ -1048,6 +1094,18 @@ private:
         glUniform1i(glGetUniformLocation(sourceProgram_, "source"), 0);
         glUniform1f(glGetUniformLocation(sourceProgram_, "eye"), &eye == &eyes_[1] ? 1.f : 0.f);
         glDrawArrays(GL_TRIANGLES, 0, 3);
+        if (showHandVisuals_ && handMode_ && state_ == XR_SESSION_STATE_FOCUSED) {
+            const auto view = xr_frame_view(sourceHeader_, side);
+            DroidDeckXrPoseV2 pose{{view.position[0],view.position[1],view.position[2]},
+                {view.orientation[0],view.orientation[1],view.orientation[2],view.orientation[3]}, 3};
+            const auto inverse = handInverse(handTransform(pose));
+            SkinMatrix camera = skinIdentity(), projection{};
+            for (int row = 0; row < 4; ++row) for (int column = 0; column < 4; ++column) {
+                projection[column*4+row] = sourceHeader_.projection[side][row][column];
+                if (row < 3) camera[column*4+row] = inverse.m[row][column];
+            }
+            handVisualDraws_ += handVisuals_.draw(eye.width, eye.height, skinMultiply(projection, camera), skeleton_);
+        }
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
         if (glGetError() != GL_NO_ERROR) throw std::runtime_error("OpenGL render error");
         glFlush();
@@ -1119,6 +1177,7 @@ private:
             spaceChangeTimes_.erase(std::remove_if(spaceChangeTimes_.begin(), spaceChangeTimes_.end(),
                 [&](XrTime change) { return change <= frameState.predictedDisplayTime; }), spaceChangeTimes_.end());
         }
+        updateHandVisuals();
         check(xrLocateSpace(view_, world_, frameState.predictedDisplayTime, &head_), "head pose");
         handActive_[0] = handActive_[1] = false;
         if (state_ == XR_SESSION_STATE_FOCUSED) {
@@ -1206,7 +1265,7 @@ private:
             XrResult ready = xrWaitSwapchainImage(eyes_[eye].swapchain, &imageWait);
             if (ready != XR_SUCCESS) throw std::runtime_error("Swapchain wait timed out or session was lost: " + std::to_string(ready));
             waited = true;
-            render(eyes_[eye], image);
+            render(eyes_[eye], image, eye);
             if (!capture.empty()) captured = captureTexture(eyes_[eye].images[image].image, eyes_[eye].width, eyes_[eye].height, eye ? "right" : "left") && captured;
             XrSwapchainImageReleaseInfo release{XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO};
             XrResult released = xrReleaseSwapchainImage(eyes_[eye].swapchain, &release);
@@ -1247,6 +1306,7 @@ private:
         }
         if (haptics_) munmap(haptics_, sizeof(DroidDeckXrHaptics));
         if (display_ != EGL_NO_DISPLAY && context_ != EGL_NO_CONTEXT) {
+            handVisuals_.clear();
             glDeleteFramebuffers(1, &framebuffer_); glDeleteVertexArrays(1, &vertexArray_);
             glDeleteTextures(1, &cpuTexture_); glDeleteProgram(sourceProgram_);
         }

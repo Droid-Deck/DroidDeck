@@ -1079,6 +1079,12 @@ public:
             in->CreateSkeletonComponent(c, right_ ? "/input/skeleton/right" : "/input/skeleton/left",
                 right_ ? "/skeleton/hand/right" : "/skeleton/hand/left", "/pose/raw",
                 VRSkeletalTracking_Full, nullptr, 0, &skeleton_);
+            if (skeleton_) {
+                VRBoneTransform_t initial[31];
+                droiddeck::HandSkeleton(right_, {}, initial);
+                in->UpdateSkeletonComponent(skeleton_, VRSkeletalMotionRange_WithController, initial, 31);
+                in->UpdateSkeletonComponent(skeleton_, VRSkeletalMotionRange_WithoutController, initial, 31);
+            }
         }
         const char *axisBase = stick ? stickPath : "/input/trackpad";
         in->CreateScalarComponent(c, path(axisBase, "/x").c_str(), &padX_, VRScalarType_Absolute, VRScalarUnits_NormalizedTwoSided);
@@ -1174,6 +1180,15 @@ public:
     void UpdateXrHand(const DroidDeckXrInputV2 &packet, const DroidDeckXrSkeleton &skeleton, int64_t now, bool dashboard, bool suppress = false) {
         using namespace droiddeck::xr;
         const int hand = right_ ? 1 : 0;
+        if (androidXr_ && id_ != k_unTrackedDeviceIndexInvalid && inputFresh(packet, now)) {
+            const bool local = packet.flags & DROIDDECK_XR_INPUT_LOCAL_HAND_MESH;
+            if (local != localHandMesh_) {
+                localHandMesh_ = local;
+                VRProperties()->SetStringProperty(VRProperties()->TrackedDeviceToPropertyContainer(id_), Prop_RenderModelName_String,
+                    local ? (right_ ? "{droiddeck}droiddeck_hand_right_xr" : "{droiddeck}droiddeck_hand_left_xr") :
+                            (right_ ? "{droiddeck}droiddeck_hand_right" : "{droiddeck}droiddeck_hand_left"));
+            }
+        }
         const auto output = xrHandBridge_.update(packet, hand, now);
         DroidDeckXrHand state{};
         XrTouchInput input;
@@ -1400,6 +1415,7 @@ private:
     std::unique_ptr<droiddeck::HandModel> xrModel_;
     VRInputComponentHandle_t rawPose_ = 0, aimPose_ = 0, gripPose_ = 0, skeleton_ = 0;
     bool androidXr_ = false;
+    bool localHandMesh_ = true;
     EVRInputError lastSkeletonError_ = VRInputError_InvalidHandle;
     OpticalInputs opticalInputs_;
     OpticalPose opticalPose_;

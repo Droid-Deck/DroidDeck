@@ -389,6 +389,7 @@ int main() {
     CardboardController trackedHand(false);
     assert(trackedHand.ConfigureAndroidXr());
     assert(trackedHand.Activate(3) == VRInitError_None);
+    assert(xrContext.input.skeletonUpdates == 2);
     const auto handTrigger = xrContext.input.handles.at("/input/trigger/value");
     const auto handProfile = xrContext.properties.strings.at({4, Prop_InputProfilePath_String});
     assert(handProfile == "{indexcontroller}/input/index_controller_profile.json");
@@ -417,7 +418,11 @@ int main() {
         noSkeleton.joints[0][joint].position[0] = 0.01f * joint;
     }
     trackedHand.UpdateXrHand(handPacket, noSkeleton, 2000000000, false);
-    assert(xrContext.input.skeletonUpdates == 2);
+    assert(xrContext.input.skeletonUpdates == 4);
+    assert(xrContext.properties.strings.at({4, Prop_RenderModelName_String}) == "{droiddeck}droiddeck_hand_left");
+    handPacket.flags |= DROIDDECK_XR_INPUT_LOCAL_HAND_MESH;
+    trackedHand.UpdateXrHand(handPacket, noSkeleton, 2000000000, false);
+    assert(xrContext.properties.strings.at({4, Prop_RenderModelName_String}) == "{droiddeck}droiddeck_hand_left_xr");
     assert(!xrContext.input.poses.empty());
     trackedHand.Disconnect();
     assert(xrContext.input.values.at(handTrigger) == 0);

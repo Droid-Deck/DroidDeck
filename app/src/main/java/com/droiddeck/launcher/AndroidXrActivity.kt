@@ -12,6 +12,9 @@ import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionState
 import com.droiddeck.launcher.wayland.CompositorHost
 import com.droiddeck.launcher.wayland.WaylandCompositor
+import com.droiddeck.launcher.xr.SteamVrHandVisuals
+import com.droiddeck.launcher.session.SessionPrefs
+import java.io.File
 
 class AndroidXrActivity : NativeActivity() {
     private lateinit var gamepad: XrGamepadInput
@@ -138,6 +141,13 @@ class AndroidXrActivity : NativeActivity() {
     }
 
     fun onXrStatus(): Int = steamVrStatus.ordinal
+
+    fun onXrHandModel(hand: Int): ByteArray? = runCatching {
+        SteamVrHandVisuals.model(SessionPrefs.activeSteamRoot(this), hand != 0)
+    }.onFailure { Log.w("DroidDeckXR", "SteamVR reference hand model unavailable", it) }.getOrNull()
+
+    fun onXrShowHands(): Boolean = SteamVrHandVisuals.visible(
+        File(filesDir, ".wayland-rt/droiddeck-steamvr/scene-focus.json"))
 
     override fun onDestroy() {
         closing = true

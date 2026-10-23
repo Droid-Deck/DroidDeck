@@ -96,9 +96,7 @@ def required():
                   for name in [f'droiddeck_hand_{side}.json', 'hand.mtl', 'hand.png', 'hand_open.obj', 'hand_fist.obj',
                                'thumb_index_open.obj', 'thumb_index_pinch.obj']]
     for side in ['left', 'right']:
-        paths += [f'assets/linuxfs/usr/local/lib/droiddeck-vr/droiddeck/resources/rendermodels/droiddeck_hand_{side}_xr/{name}'
-                  for name in [f'droiddeck_hand_{side}_xr.json', 'hand.mtl', 'hand.png', 'hand_open.obj', 'hand_fist.obj',
-                               'thumb_index_open.obj', 'thumb_index_pinch.obj']]
+        paths += [f'assets/linuxfs/usr/local/lib/droiddeck-vr/droiddeck/resources/rendermodels/droiddeck_hand_{side}_xr/droiddeck_hand_{side}_xr.json']
     paths += ['assets/linuxfs/usr/local/lib/mangoapp/' + name for name in
               ['mangoapp', 'libfmt.so.10', 'libspdlog.so.1.13', 'libglfw.so.3', 'libtraceevent.so.1', 'libtracefs.so.1']]
     paths += ['assets/linuxfs/usr/local/lib/droiddeck-comet/' + name for name in

@@ -27,6 +27,10 @@ int main(int argc, char **argv) {
         const std::string name = std::string(right ? "droiddeck_hand_right" : "droiddeck_hand_left") + (xr ? "_xr" : "");
         const std::string dir = root + "/" + name;
         mkdir(dir.c_str(), 0755);
+        if (xr) {
+            if (!Write(dir + "/" + name + ".json", HandModelJson(right, true))) return 1;
+            continue;
+        }
         bool ok = Write(dir + "/" + name + ".json", HandModelJson(right, xr)) && Write(dir + "/hand.mtl", HandMtl("hand", "hand.png")) &&
                   Write(dir + "/hand.png", skin.data(), skin.size()) &&
                   Write(dir + "/hand_open.obj", HandObj(BuildHandPart(right, HandPart::Hand, false), "hand")) &&

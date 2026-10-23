@@ -29,12 +29,13 @@ CONFIGS = {
 }
 EXECUTABLES = {'droiddeck/bin/linuxarm64/xr-display-mode'}
 HAND_MODELS = {
-    f'droiddeck/resources/rendermodels/droiddeck_hand_{side}{suffix}/{name}'
+    f'droiddeck/resources/rendermodels/droiddeck_hand_{side}/{name}'
     for side in ('left', 'right')
-    for suffix in ('', '_xr')
-    for name in (f'droiddeck_hand_{side}{suffix}.json', 'hand.mtl', 'hand.png', 'hand_open.obj',
+    for name in (f'droiddeck_hand_{side}.json', 'hand.mtl', 'hand.png', 'hand_open.obj',
                  'hand_fist.obj', 'thumb_index_open.obj', 'thumb_index_pinch.obj')
 }
+HAND_MODELS |= {f'droiddeck/resources/rendermodels/droiddeck_hand_{side}_xr/droiddeck_hand_{side}_xr.json'
+                for side in ('left', 'right')}
 OUTPUTS = LIBRARIES | CONFIGS.keys() | EXECUTABLES | HAND_MODELS
 
 

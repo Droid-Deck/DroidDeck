@@ -29,10 +29,11 @@ inline void steamVrSkeleton(const DroidDeckXrPoseV2 joints[26], const DroidDeckX
     // OpenXR joints point along -Z; SteamVR finger bones point along handed X.
     constexpr double h = 0.7071067811865476;
     const Quat basis = right ? Quat{h, 0, -h, 0} : Quat{0, -h, 0, h};
+    const Quat wristBasis = right ? Quat{0, h, -h, 0} : Quat{0, h, h, 0};
     Quat rotations[31]; Vec3 positions[31];
     rotations[0] = rotation(raw); positions[0] = position(raw);
     for (int bone = 1; bone <= 25; ++bone) {
-        rotations[bone] = rotation(joints[bone]) * basis;
+        rotations[bone] = rotation(joints[bone]) * (bone == 1 ? wristBasis : basis);
         positions[bone] = position(joints[bone]);
     }
     constexpr int distal[5] = {4, 9, 14, 19, 24};

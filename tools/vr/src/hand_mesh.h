@@ -397,10 +397,12 @@ inline std::string HandModelJson(bool right, bool xr = false) {
         return std::string(text);
     };
     std::string out = "{\n    \"components\": {\n";
-    out += part("hand_open", "/input/grip/touch", 2, false);
-    out += part("hand_fist", "/input/grip/touch", 2, true);
-    out += part("thumb_index_open", "/input/trigger/click", 33, false);
-    out += part("thumb_index_pinch", "/input/trigger/click", 33, true);
+    if (!xr) {
+        out += part("hand_open", "/input/grip/touch", 2, false);
+        out += part("hand_fist", "/input/grip/touch", 2, true);
+        out += part("thumb_index_open", "/input/trigger/click", 33, false);
+        out += part("thumb_index_pinch", "/input/trigger/click", 33, true);
+    }
     out += (xr ? pose("tip", "0, 0, 0", "0, 0, 0") :
         pose("tip", right ? "-0.006, -0.015, 0.02" : "0.006, -0.015, 0.02", right ? "-40.0, 5.0, 0.0" : "-40.0, -5.0, 0.0")) + ",\n";
     out += pose("base", right ? "-0.004758, -0.037977, 0.200466" : "0.004758, -0.037977, 0.200466",
