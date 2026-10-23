@@ -228,6 +228,59 @@ def apply_config(env, config, app_id, fixes=None):
     return result
 
 
+GAME_DEBUG_CHANNELS = (
+    "timestamp", "pid", "tid", "seh", "unwind", "threadname", "debugstr", "loaddll", "mscoree",
+)
+WINE_DEBUG_SELECTOR = re.compile(r"(?:(trace|warn|err|fixme))?([+-])([A-Za-z_][A-Za-z0-9_]*)")
+
+
+def game_debug_channels(*values):
+    """Normalize Wine selectors, retaining custom channels before required diagnostics."""
+    selectors = {}
+    for value in values:
+        if not isinstance(value, str) or "\0" in value or len(value) > 8192:
+            continue
+        for part in value.split(","):
+            part = part.strip()
+            match = WINE_DEBUG_SELECTOR.fullmatch(part)
+            if match is None:
+                continue
+            key = (match[1] or "", match[3])
+            # Move the last value to the end: global +/-all and per-class selectors
+            # have ordered semantics, so replacing a value in its old position is wrong.
+            selectors.pop(key, None)
+            selectors[key] = part
+    for channel in GAME_DEBUG_CHANNELS:
+        key = ("", channel)
+        selectors.pop(key, None)
+        selectors[key] = "+" + channel
+    formatted = ",".join(selectors.values())
+    if len(formatted) > 8192:
+        formatted = ",".join("+" + channel for channel in GAME_DEBUG_CHANNELS)
+    return formatted
+
+
+def apply_game_debug_logs(env, config, debug_dir):
+    """Apply app-owned diagnostics to a real game, without editing its launch command."""
+    if not isinstance(config, dict) or config.get("version") != 1 or config.get("gameDebugLogs") is not True:
+        return env
+    if (not isinstance(debug_dir, str) or "\0" in debug_dir or len(debug_dir) > 8192
+            or not os.path.isabs(debug_dir) or not os.path.isdir(debug_dir)):
+        print("droiddeck-game-env: game debug logs skipped; session log directory unavailable", file=sys.stderr)
+        return env
+    result = dict(env)
+    result.update({
+        "PROTON_LOG": "1",
+        "PROTON_LOG_DIR": debug_dir,
+        "PROTON_CRASH_REPORT_DIR": debug_dir,
+        "DXVK_LOG_PATH": debug_dir,
+        "DXVK_LOG_LEVEL": "debug",
+        "VKD3D_DEBUG": "info",
+        "WINEDEBUG": game_debug_channels(env.get("WINEDEBUG"), env.get("PROTON_LOG")),
+    })
+    return result
+
+
 def sync_config(config, app_id):
     games = config.get("games", {})
     return {
@@ -429,6 +482,7 @@ def main():
         return 2
     env = game_gpu(os.environ.copy())
     mic_enabled = env.get("BL_MIC_ENABLED")
+    debug_dir = env.get("BL_DEBUG_DIR", "")
     scripts = mark_install_scripts(command, env)
     if scripts and install_scripts_done(scripts, env):
         print("droiddeck-game-env: install scripts already run in this prefix; evaluator skipped", file=sys.stderr)
@@ -452,6 +506,7 @@ def main():
                 own = fixes.get("WINEDLLOVERRIDES")
                 fixes["WINEDLLOVERRIDES"] = components + ";" + own if own else components
         path = Path.home() / ".config/droiddeck/game-environment.json"
+        config = {}
         try:
             with path.open(encoding="utf-8") as source:
                 config = json.load(source)
@@ -464,6 +519,11 @@ def main():
                 env = apply_config(env, {"version": 1}, app_id, fixes)
         except (OSError, ValueError, TypeError, AttributeError):
             print("droiddeck-game-env: invalid configuration; using inherited environment", file=sys.stderr)
+        if waiting:
+            before_debug = env
+            env = apply_game_debug_logs(env, config, debug_dir)
+            if env is not before_debug:
+                print("droiddeck-game-env: game debug logs enabled for this launch", file=sys.stderr)
     if app_id and len(command) > 1 and command[1] == "waitforexitandrun":
         command = offline_without_anticheat(command, env)
     if mic_enabled == "0":

@@ -755,6 +755,10 @@
     <string name="setup_session">Session</string>
     <string name="setup_logs">Session logs</string>
     <string name="setup_logs_hint">Saved after each session</string>
+    <string name="setup_game_debug_logs">Game debug logs</string>
+    <string name="setup_game_debug_logs_hint">Include Proton, Wine and graphics diagnostics on the next game launch. Can reduce performance and use more storage.</string>
+    <string name="setup_game_debug_logs_restart">Restart this session to save game debug logs</string>
+    <string name="setup_logging_update_failed">Couldn\'t update logging. Check the switch and try again.</string>
     <string name="setup_agent_commands">Debugging tools</string>
     <string name="setup_latest_logs">Latest session logs</string>
     <string name="setup_saved_logs">Saved session logs</string>

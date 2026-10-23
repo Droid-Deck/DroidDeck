@@ -27,6 +27,121 @@ def config_text(entries):
     return '"InstallConfigStore" { "Software" { "Valve" { "Steam" { "CompatToolMapping" { %s } } } } }' % mapping
 
 
+class GameDebugLoggingTest(unittest.TestCase):
+    def test_real_game_launch_without_config_file_keeps_the_base_environment(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            probe = home / "proton"
+            probe.write_text("#!" + sys.executable + "\nimport os\nprint(os.environ['PROTON_LOG'])\n")
+            probe.chmod(0o755)
+            result = subprocess.run(
+                [sys.executable, str(BIN / "droiddeck-game-env"), str(probe), "waitforexitandrun"],
+                env={**os.environ, "HOME": tmp, "STEAM_COMPAT_DATA_PATH": str(home / "compatdata/42"),
+                     "BL_DEBUG_DIR": tmp, "PROTON_LOG": "0"},
+                text=True, capture_output=True, check=True,
+            )
+            self.assertEqual(result.stdout.strip(), "0")
+
+    def test_game_debug_logs_override_only_diagnostic_values_and_keep_raw_settings(self):
+        with tempfile.TemporaryDirectory(prefix="game logs '") as debug_dir:
+            inherited = {"BL_DEBUG_DIR": debug_dir, "PROTON_LOG": "0", "WINEDEBUG": "-all,+relay",
+                         "PROTON_LOG_DIR": "/old", "PROTON_CRASH_REPORT_DIR": "/old-crashes",
+                         "DXVK_LOG_PATH": "/old-dxvk", "DXVK_LOG_LEVEL": "none", "VKD3D_DEBUG": "none",
+                         "CUSTOM": "$(touch never); 'quoted' = literal", "DXVK_CONFIG": "dxvk.tearFree = True"}
+            config = {"version": 1, "gameDebugLogs": True,
+                      "shared": {"PROTON_LOG": "0", "BL_DEBUG_DIR": "/profile-redirect"},
+                      "games": {"42": {"PROTON_LOG_DIR": None, "DXVK_LOG_PATH": "/game-redirect"}}}
+            normal = MODULE["apply_config"](inherited, config, "42")
+            debug = MODULE["apply_game_debug_logs"](normal, config, inherited["BL_DEBUG_DIR"])
+            self.assertEqual(debug["PROTON_LOG"], "1")
+            for key in ("PROTON_LOG_DIR", "PROTON_CRASH_REPORT_DIR", "DXVK_LOG_PATH"):
+                self.assertEqual(debug[key], debug_dir)
+            self.assertEqual(debug["DXVK_LOG_LEVEL"], "debug")
+            self.assertEqual(debug["VKD3D_DEBUG"], "info")
+            self.assertIn("+relay", debug["WINEDEBUG"].split(","))
+            self.assertTrue(debug["WINEDEBUG"].endswith("+loaddll,+mscoree"))
+            for key in ("CUSTOM", "DXVK_CONFIG", "BL_DEBUG_DIR"):
+                self.assertEqual(debug[key], normal[key])
+            self.assertEqual(normal["PROTON_LOG"], "0")
+            self.assertEqual(inherited["PROTON_LOG_DIR"], "/old")
+            self.assertIs(MODULE["apply_game_debug_logs"](normal, {**config, "gameDebugLogs": False}, debug_dir), normal)
+            self.assertEqual(MODULE["apply_game_debug_logs"](debug, config, debug_dir), debug)
+
+    def test_wine_debug_channels_are_formatted_deduplicated_and_diagnostics_win(self):
+        formatted = MODULE["game_debug_channels"](
+            " +relay, trace-vulkan, -all, -seh, +relay, trace+vulkan, garbage, $(touch never) ",
+            "+seh,warn-foo,warn+foo,+relay",
+        )
+        self.assertEqual(formatted, "-all,trace+vulkan,warn+foo,+relay," +
+                         "+timestamp,+pid,+tid,+seh,+unwind,+threadname,+debugstr,+loaddll,+mscoree")
+        self.assertEqual(MODULE["game_debug_channels"](formatted, "1"), formatted)
+        self.assertNotIn("-seh", formatted)
+        for value in ("x\0,+relay", "+" + "x" * 8192, 1, None):
+            self.assertEqual(MODULE["game_debug_channels"](value), MODULE["game_debug_channels"]())
+        oversized = ",".join("+channel_" + str(i) for i in range(550))
+        other = ",".join("+other_" + str(i) for i in range(550))
+        self.assertLessEqual(len(MODULE["game_debug_channels"](oversized, other)), 8192)
+        self.assertTrue(MODULE["game_debug_channels"](oversized, other).endswith("+loaddll,+mscoree"))
+
+    def test_game_debug_logs_require_opt_in_and_a_real_session_log_directory(self):
+        env = {"PROTON_LOG": "user", "CUSTOM": "keep"}
+        for config in ({}, {"version": 1}, {"version": 1, "gameDebugLogs": False},
+                       {"version": 1, "gameDebugLogs": "true"}, {"version": 2, "gameDebugLogs": True}):
+            self.assertIs(MODULE["apply_game_debug_logs"](env, config, "/"), env)
+        with tempfile.TemporaryDirectory() as tmp:
+            not_a_directory = Path(tmp) / "file"
+            not_a_directory.write_text("file")
+            for path in (None, "", "relative", "bad\0path", str(not_a_directory), str(Path(tmp) / "missing")):
+                with self.subTest(path=path):
+                    self.assertIs(MODULE["apply_game_debug_logs"](env, {"version": 1, "gameDebugLogs": True}, path), env)
+
+    def test_game_debug_toggle_is_live_preserves_command_and_excludes_probes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            config_path = home / ".config/droiddeck/game-environment.json"
+            config_path.parent.mkdir(parents=True)
+            debug_dir = home / "session logs '$literal; directory'"
+            debug_dir.mkdir()
+            probe = home / "fake proton"
+            probe.write_text("#!" + sys.executable + "\nimport json, os, sys\n"
+                             "print(json.dumps({'env': dict(os.environ), 'argv': sys.argv[1:]}))\n")
+            probe.chmod(0o755)
+            literal = "$(touch " + str(home / "never-created") + "); 'literal'=value"
+            config = {"version": 1, "gameDebugLogs": True,
+                      "shared": {"PROTON_LOG": "0", "WINEDEBUG": "-all,+relay", "CUSTOM": literal,
+                                 "BL_DEBUG_DIR": "/profile-must-not-redirect"}}
+            env = {**os.environ, "HOME": tmp, "STEAM_COMPAT_DATA_PATH": str(home / "compatdata/42"),
+                   "BL_DEBUG_DIR": str(debug_dir), "PROTON_LOG": "0", "WINEDEBUG": "-all"}
+            command = [str(probe), "waitforexitandrun", "game 'with quotes'.exe", "argument with spaces", "$(literal)", "%command%"]
+
+            def launch(arguments, environment):
+                result = subprocess.run([sys.executable, str(BIN / "droiddeck-game-env"), *arguments],
+                                        env=environment, text=True, capture_output=True, check=True)
+                return json.loads(result.stdout)
+
+            for enabled in (True, False, True):
+                config_path.write_text(json.dumps({**config, "gameDebugLogs": enabled}))
+                result = launch(command, env)
+                self.assertEqual(result["argv"], command[1:])
+                self.assertEqual(result["env"]["CUSTOM"], literal)
+                self.assertEqual(result["env"]["PROTON_LOG"], "1" if enabled else "0")
+                if enabled:
+                    self.assertEqual(result["env"]["PROTON_LOG_DIR"], str(debug_dir))
+                    self.assertIn("+relay", result["env"]["WINEDEBUG"].split(","))
+                    self.assertIn("+seh", result["env"]["WINEDEBUG"].split(","))
+                else:
+                    self.assertEqual(result["env"]["WINEDEBUG"], "-all,+relay")
+            for verb, prefix in (("run", "42"), ("waitforexitandrun", "0"), ("waitforexitandrun", "not-a-game")):
+                result = launch([str(probe), verb], {**env, "STEAM_COMPAT_DATA_PATH": str(home / "compatdata" / prefix)})
+                self.assertEqual(result["env"]["PROTON_LOG"], "0")
+                self.assertEqual(result["env"]["WINEDEBUG"], "-all")
+            # Non-Steam shortcuts use the same normalized unsigned compatdata identity.
+            result = launch(command, {**env, "STEAM_COMPAT_DATA_PATH": str(home / "compatdata/-1")})
+            self.assertEqual(result["env"]["PROTON_LOG"], "1")
+            self.assertFalse((home / "never-created").exists())
+            self.assertEqual(json.loads(config_path.read_text())["shared"], config["shared"])
+
+
 class ReadConfigMappingTest(unittest.TestCase):
     def test_missing_parent_or_unbalanced_vdf_is_not_treated_as_absent_choices(self):
         with tempfile.TemporaryDirectory() as tmp:
