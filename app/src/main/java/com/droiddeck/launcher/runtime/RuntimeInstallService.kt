@@ -9,7 +9,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.IBinder
-import com.droiddeck.launcher.MainActivity
+import com.droiddeck.launcher.FrontEndActivity
 import com.droiddeck.launcher.R
 
 class RuntimeInstallService : Service() {
@@ -75,7 +75,7 @@ class RuntimeInstallService : Service() {
             enableVibration(false)
         })
         val open = PendingIntent.getActivity(this, 0,
-            Intent(this, MainActivity::class.java).setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT),
+            Intent(this, FrontEndActivity::class.java).setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT),
             PendingIntent.FLAG_IMMUTABLE)
         return Notification.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_session)

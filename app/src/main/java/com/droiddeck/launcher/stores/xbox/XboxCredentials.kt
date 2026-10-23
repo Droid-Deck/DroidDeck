@@ -29,8 +29,14 @@ internal class XboxCredentials(private val app: Context, expectedGeneration: Str
     }
 
     private fun rejected(reason: String): Boolean {
-        android.util.Log.w("XboxCredentials", "Rejected credential peer: $reason")
+        note("Rejected credential peer: $reason")
         return false
+    }
+
+    /** Also written to the stores log: sign-in runs in its own process, where only that file reaches a shared log. */
+    private fun note(text: String) {
+        android.util.Log.w("XboxCredentials", text)
+        com.droiddeck.launcher.stores.StoreLogFiles.stamped(app, "Xbox credentials: $text")
     }
 
     private fun authorized(pid: Int): Boolean {
@@ -88,7 +94,7 @@ internal class XboxCredentials(private val app: Context, expectedGeneration: Str
                             answer(request)
                         }
                     }.getOrElse {
-                        android.util.Log.w("XboxCredentials", "Credential request rejected: ${it.javaClass.simpleName}")
+                        note("Credential request rejected: ${it.javaClass.simpleName}")
                         JSONObject().put("ok", false)
                     }
                     runCatching { it.outputStream.write((reply.toString() + "\n").toByteArray()) }
