@@ -1155,8 +1155,12 @@ BUSCONF
         desktop_ui_pid=$!
       fi
       steam_started=$SECONDS
+      package_source=()
+      if [ -s "$steam_root/package/droiddeck-cdn" ]; then
+        package_source=(-overridepackageurl "https://$(cat "$steam_root/package/droiddeck-cdn")")
+      fi
       "${steam_client[@]}" "${_bl_ui[@]}" "${_bl_cdp[@]}" "${_bl_lang[@]}" -clientbeta "$steam_channel" \
-        -no-cef-sandbox -cef-ozone-platform=x11 "${_bl_cef[@]}" "$@"
+        -no-cef-sandbox -cef-ozone-platform=x11 ${package_source[@]+"${package_source[@]}"} "${_bl_cef[@]}" "$@"
       rc=$?
       steam_ran=$((SECONDS - steam_started))
       if [ -n "$desktop_ui_pid" ]; then

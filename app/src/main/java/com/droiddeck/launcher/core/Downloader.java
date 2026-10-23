@@ -13,14 +13,25 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 public final class Downloader {
     private static final String TAG = "Downloader";
     private static final int CONNECT_TIMEOUT_MS = 10_000;
     private static final int STALL_TIMEOUT_MS = 15_000;
     private static final int HTTP_RANGE_NOT_SATISFIABLE = 416;
+    private static final long SLOW_BYTES_PER_SECOND = 256 * 1024;
+    private static final long SLOW_AFTER_MS = 10_000;
+    private static final int PROBE_BYTES = 2 * 1024 * 1024;
+    private static final int PROBE_TIMEOUT_MS = 3_000;
 
     private Downloader() {}
 
@@ -66,10 +77,18 @@ public final class Downloader {
     static boolean downloadCandidates(String original, List<String> sources, File destination, boolean resume,
                                       String expectedSha256, java.util.function.Consumer<Float> progress) {
         Identity identity = loadIdentity(destination, resume, expectedSha256);
+        boolean ranked = sources.size() < 2;
         for (int i = 0; i < sources.size(); i++) {
             String source = sources.get(i);
             if (i > 0) Log.i(TAG, "retrying " + original + " via " + source);
-            Outcome outcome = attempt(source, destination, resume, identity, expectedSha256, progress);
+            Outcome outcome = attempt(source, destination, resume, identity, expectedSha256, progress, sources.size() > 1 && !ranked);
+            if (outcome == Outcome.SLOW && !ranked) {
+                ranked = true;
+                Log.i(TAG, source + " is too slow; measuring the sources");
+                sources = ranked(sources);
+                i = -1;
+                continue;
+            }
             if (outcome == Outcome.DONE) {
                 if (expectedSha256 != null && !expectedSha256.equalsIgnoreCase(Hashes.sha256(destination))) {
                     Log.w(TAG, "checksum mismatch from " + source + "; trying another source");
@@ -87,7 +106,7 @@ public final class Downloader {
         return false;
     }
 
-    private enum Outcome { DONE, RETRY, FATAL }
+    private enum Outcome { DONE, RETRY, FATAL, SLOW }
 
     private static final class Identity {
         private String source;
@@ -155,7 +174,8 @@ public final class Downloader {
     }
 
     private static Outcome attempt(String url, File destination, boolean resume, Identity identity,
-                                   String expectedSha256, java.util.function.Consumer<Float> progress) {
+                                   String expectedSha256, java.util.function.Consumer<Float> progress,
+                                   boolean watchSpeed) {
         HttpURLConnection connection = null;
         long have = resume && destination.isFile() ? destination.length() : 0;
         try {
@@ -173,7 +193,7 @@ public final class Downloader {
             if (have > 0 && code == HTTP_RANGE_NOT_SATISFIABLE) {
                 connection.disconnect();
                 if (!discardPartial(destination, identity)) return Outcome.RETRY;
-                return attempt(url, destination, false, identity, expectedSha256, progress);
+                return attempt(url, destination, false, identity, expectedSha256, progress, watchSpeed);
             }
             if (code / 100 != 2) {
                 Log.w(TAG, url + " -> HTTP " + code);
@@ -184,13 +204,13 @@ public final class Downloader {
             if (appending && !rangeStartsAt(connection.getHeaderField("Content-Range"), have)) {
                 connection.disconnect();
                 if (!discardPartial(destination, identity)) return Outcome.RETRY;
-                return attempt(url, destination, false, identity, expectedSha256, progress);
+                return attempt(url, destination, false, identity, expectedSha256, progress, watchSpeed);
             }
             String etag = connection.getHeaderField("ETag");
             if (have > 0 && appending && (!strongETag(etag) || !etag.equals(identity.etag))) {
                 connection.disconnect();
                 if (!discardPartial(destination, identity)) return Outcome.RETRY;
-                return attempt(url, destination, false, identity, expectedSha256, progress);
+                return attempt(url, destination, false, identity, expectedSha256, progress, watchSpeed);
             }
             if (!appending && have > 0) {
                 // If-Range may legitimately return full 200 when representation changed.
@@ -207,6 +227,8 @@ public final class Downloader {
             identity.etag = strongETag(etag) ? etag : null;
             saveIdentity(destination, identity, expectedSha256);
             long written = have;
+            long startedAt = System.currentTimeMillis();
+            boolean watched = false;
             try (InputStream in = new BufferedInputStream(connection.getInputStream(), 1 << 16);
                  OutputStream out = new FileOutputStream(destination, appending)) {
                 byte[] buffer = new byte[1 << 16];
@@ -218,6 +240,11 @@ public final class Downloader {
                         lastReport = written;
                         progress.accept(total > 0 ? written / (float) total : -1f);
                     }
+                    if (watchSpeed && !watched && System.currentTimeMillis() - startedAt >= SLOW_AFTER_MS) {
+                        watched = true;
+                        long moved = written - have;
+                        if (moved < SLOW_BYTES_PER_SECOND * SLOW_AFTER_MS / 1000) return Outcome.SLOW;
+                    }
                 }
             }
             if (total > 0 && written < total) return Outcome.RETRY;
@@ -225,6 +252,54 @@ public final class Downloader {
         } catch (Exception e) {
             Log.w(TAG, "download " + url, e);
             return Outcome.RETRY;
+        } finally {
+            if (connection != null) connection.disconnect();
+        }
+    }
+
+    /** Orders the sources by what they actually move, so the fastest one wins over the first one. */
+    private static List<String> ranked(List<String> sources) {
+        Map<String, Long> rates = new ConcurrentHashMap<>();
+        ExecutorService pool = Executors.newFixedThreadPool(sources.size());
+        try {
+            List<Future<?>> pending = new ArrayList<>();
+            for (String source : sources) {
+                pending.add(pool.submit(() -> rates.put(source, measure(source))));
+            }
+            for (Future<?> probe : pending) {
+                try {
+                    probe.get(PROBE_TIMEOUT_MS + 2_000L, TimeUnit.MILLISECONDS);
+                } catch (Exception e) {
+                    Log.w(TAG, "a source did not finish measuring", e);
+                }
+            }
+        } finally {
+            pool.shutdownNow();
+        }
+        List<String> ordered = new ArrayList<>(sources);
+        ordered.sort((a, b) -> Long.compare(rates.getOrDefault(b, 0L), rates.getOrDefault(a, 0L)));
+        return ordered;
+    }
+
+    private static long measure(String url) {
+        HttpURLConnection connection = null;
+        long startedAt = System.currentTimeMillis();
+        try {
+            connection = open(url, PROBE_TIMEOUT_MS);
+            connection.setRequestProperty("Range", "bytes=0-" + (PROBE_BYTES - 1));
+            if (connection.getResponseCode() / 100 != 2) return 0;
+            long read = 0;
+            try (InputStream in = connection.getInputStream()) {
+                byte[] buffer = new byte[1 << 16];
+                for (int n = in.read(buffer); n > 0; n = in.read(buffer)) {
+                    read += n;
+                    if (read >= PROBE_BYTES || System.currentTimeMillis() - startedAt >= PROBE_TIMEOUT_MS) break;
+                }
+            }
+            return read * 1000 / Math.max(1, System.currentTimeMillis() - startedAt);
+        } catch (Exception e) {
+            Log.w(TAG, "probe " + url, e);
+            return 0;
         } finally {
             if (connection != null) connection.disconnect();
         }

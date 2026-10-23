@@ -17,6 +17,8 @@ SOURCES = {
 }
 USER_AGENT = "droiddeck-proton-extra"
 NEED_BYTES = 4 * 1024 * 1024 * 1024
+MIRRORS = ("https://gh-proxy.com/", "https://gh-proxy.org/",
+           "https://ghproxy.net/", "https://ghfast.top/")
 
 
 def log(*args):
@@ -57,16 +59,51 @@ def release_asset(source, tag):
     raise SystemExit("droiddeck-proton-extra: %s has no ARM64 asset" % tag)
 
 
+def sources(url):
+    """The tarball may come through a mirror; the release metadata it was picked from may not."""
+    if not url.startswith("https://github.com/"):
+        return [url]
+    return [url] + [mirror + url for mirror in MIRRORS]
+
+
+def measure(url, seconds=8):
+    """Bytes per second the source actually moves, from one ranged request."""
+    result = subprocess.run(
+        ["curl", "-fsL", "--connect-timeout", "8", "--max-time", str(seconds),
+         "-r", "0-1048575", "-o", os.devnull, "-w", "%{speed_download}", url],
+        stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    try:
+        return float(result.stdout.decode("utf-8", "replace").strip() or 0)
+    except ValueError:
+        return 0.0
+
+
+def ranked(url):
+    """A tarball this size is worth measuring for: the first source to answer is not the fastest."""
+    candidates = sources(url)
+    if len(candidates) == 1:
+        return candidates
+    rates = sorted(((measure(candidate), candidate) for candidate in candidates), reverse=True)
+    log("source %s (%d KB/s)" % (rates[0][1].split("/")[2], rates[0][0] / 1024))
+    return [candidate for _, candidate in rates]
+
+
 def download(url, path):
     """Resumable, because this is hundreds of megabytes over a phone's connection. curl is used
-    rather than urllib so a retry continues rather than starting again."""
+    rather than urllib so a retry continues rather than starting again, and a source that stops
+    moving hands its bytes to the next one."""
     log("downloading %s" % os.path.basename(path))
-    rc = subprocess.call([
-        "curl", "-fL", "--retry", "5", "--retry-delay", "3", "--retry-connrefused",
-        "-C", "-", "-A", USER_AGENT, "-o", path, url])
-    if rc != 0:
-        raise SystemExit("droiddeck-proton-extra: download failed (curl %d)" % rc)
-    log("downloaded %.0f MB" % (os.path.getsize(path) / 1048576.0))
+    for candidate in ranked(url):
+        if candidate != url:
+            log("source %s" % candidate.split("/")[2])
+        rc = subprocess.call([
+            "curl", "-fL", "--retry", "3", "--retry-delay", "3", "--retry-connrefused",
+            "--speed-limit", "65536", "--speed-time", "30",
+            "-C", "-", "-A", USER_AGENT, "-o", path, candidate])
+        if rc == 0:
+            log("downloaded %.0f MB" % (os.path.getsize(path) / 1048576.0))
+            return
+    raise SystemExit("droiddeck-proton-extra: download failed on every source")
 
 
 def verify(path, sums_url):

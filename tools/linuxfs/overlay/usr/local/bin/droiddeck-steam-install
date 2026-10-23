@@ -21,7 +21,9 @@ fi
 if [ -n "$repair" ]; then
   echo "== STEP $(date -u +%H:%M:%S) repairing the Steam client ($repair)"
   rm -f "$stamp" "$legacy_stamp" "$steam_root/.crash" "$steam_root/steam.pid" \
+    "$steam_root/package/droiddeck-cdn" \
     "$steam_root"/package/steam_client_*.manifest "$steam_root"/package/steam_client_*.installed
+  rm -rf "$steam_root/package/droiddeck-parts"
   for part in "$steam_root"/package/*.zip.*; do
     [ -f "$part" ] || continue
     sum=${part##*.}
@@ -38,7 +40,13 @@ if [ "${1:-}" = --sync ]; then
   case "${2:-}" in publicbeta|steamdeck_publicbeta) sync=$2 ;; *) sync=$steam_channel ;; esac
   manifest=steam_client_${sync}_linuxarm64
 fi
-[ -z "$sync" ] && [ -x "$steam_root/steamrtarm64/steam" ] && [ -f "$stamp" ] && exit 0
+if [ -z "$sync" ] && [ -x "$steam_root/steamrtarm64/steam" ] && [ -f "$stamp" ]; then
+  # The client writes .installed once it has unpacked the archives and never removes them.
+  if compgen -G "$steam_root/package/steam_client_*.installed" > /dev/null; then
+    rm -f "$steam_root"/package/*.zip.*
+  fi
+  exit 0
+fi
 
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
@@ -51,13 +59,10 @@ for candidate in $cdn_list; do
   fi
 done
 [ -n "$cdn" ] || { echo "droiddeck-steam-install: no Steam client CDN answered for $manifest" >&2; exit 1; }
-cdn_order=("$cdn")
-for candidate in $cdn_list; do
-  [ "$candidate" = "$cdn" ] || cdn_order+=("$candidate")
-done
 version=$(awk -F'"' '$2 == "version" { print $4; exit }' "$work/manifest")
 if [ -n "$sync" ]; then
   installed=$(awk -F'"' '$2 == "version" { print $4; exit }' "$steam_root/package/$manifest.manifest" 2>/dev/null || true)
+  [ -n "$installed" ] || installed=$(cat "$stamp" 2>/dev/null || true)
   if [ -x "$steam_root/steamrtarm64/steam" ] && [ "$installed" = "$version" ]; then
     chmod -R a+x "$steam_root/steamrtarm64" "$steam_root/linuxarm64" 2>/dev/null || true
     exit 0
@@ -68,28 +73,94 @@ awk -F'"' '
   /^\t"/ && NF >= 3 && $4 == "" { block = $2 }
   $2 == "file" { file[block] = $4 }
   $2 == "sha2" { sha[block] = $4 }
-  END { for (b in file) if (b ~ /_all$/ || b ~ /_linuxarm64_linuxarm64$/) print b, file[b], sha[b] }
+  $2 == "size" { size[block] = $4 }
+  $2 == "zipvz" { vz[block] = $4 }
+  $2 == "sha2vz" { vzsha[block] = $4 }
+  END { for (b in file) if (b ~ /_all$/ || b ~ /_linuxarm64_linuxarm64$/) print b, file[b], sha[b], size[b] }
 ' "$work/manifest" | sort > "$work/parts"
 [ -s "$work/parts" ] || { echo "droiddeck-steam-install: no client components in $manifest" >&2; exit 1; }
 total=$(grep -c . "$work/parts" 2>/dev/null || echo 0)
 
-mkdir -p "$steam_root/package"
-while read -r block file sum; do
+# The CDN that answers the manifest first is not the fastest one, so measure the
+# opening of the largest component and take the source that actually moves bytes.
+probe_file=$(sort -k4 -rn "$work/parts" | head -1 | awk '{ print $2 }')
+fastest=""
+fastest_speed=0
+for candidate in $cdn_list; do
+  speed=$(curl -fsSL --connect-timeout 8 --max-time 8 -r 0-2097151 -o /dev/null \
+    -w '%{speed_download}' "$candidate/$probe_file" 2>/dev/null) || true
+  speed=${speed%%.*}
+  case $speed in ''|*[!0-9]*) speed=0 ;; esac
+  if [ "$speed" -gt "$fastest_speed" ]; then
+    fastest_speed=$speed
+    fastest=$candidate
+  fi
+done
+[ -n "$fastest" ] || fastest=$cdn
+echo "steam client source: ${fastest#https://} ($((fastest_speed / 1024)) KB/s)"
+cdn_order=("$fastest")
+for candidate in $cdn_list; do
+  [ "$candidate" = "$fastest" ] || cdn_order+=("$candidate")
+done
+
+mkdir -p "$steam_root/package" "$steam_root/package/droiddeck-parts"
+parts=$steam_root/package/droiddeck-parts
+# The client fetches its own first-run update; it should use the source measured above.
+echo "${fastest#https://}/" > "$steam_root/package/droiddeck-cdn"
+fetch_part() {
+  local host=$1 file=$2 sum=$3 target=$parts/$2
+  echo "$sum  $target" | sha256sum -c --quiet 2>/dev/null && return 0
+  # The floor only has to notice a source that stopped moving; a higher one aborts
+  # transfers that are slow but still finishing.
+  curl -fsSL --connect-timeout 10 --speed-limit 102400 --speed-time 30 --max-time 1800 \
+    --retry 3 --retry-delay 3 --retry-all-errors -C - "$host/$file" -o "$target" || return 1
+  echo "$sum  $target" | sha256sum -c --quiet 2>/dev/null || { rm -f "$target"; return 1; }
+}
+while read -r block file sum size; do
   i=$((${i:-0} + 1))
   echo "== STEP $(date -u +%H:%M:%S) downloading Steam: $block ($i/$total)"
   fetched=""
   for host in "${cdn_order[@]}"; do
-    if curl -fsSL --connect-timeout 10 --speed-limit 1024 --speed-time 60 --max-time 1800 \
-        "$host/$file" -o "$work/$file" && echo "$sum  $work/$file" | sha256sum -c --quiet; then
-      fetched=$host
-      break
-    fi
-    rm -f "$work/$file"
+    fetch_part "$host" "$file" "$sum" && { fetched=$host; break; }
   done
   [ -n "$fetched" ] || { echo "droiddeck-steam-install: $file failed on every CDN" >&2; exit 1; }
-  unzip -qo "$work/$file" -d "$steam_root"
-  rm -f "$work/$file"
+  unzip -qo "$parts/$file" -d "$steam_root"
+  rm -f "$parts/$file"
 done < "$work/parts"
+# Steam verifies the archives in package/ by name and size before it unpacks them, so
+# leaving them there saves the client a first run that fetches the whole set again.
+awk -F'"' '
+  /^\t"/ && NF >= 3 && $4 == "" { block = $2 }
+  $2 == "file" { file[block] = $4 }
+  $2 == "sha2" { sha[block] = $4 }
+  $2 == "size" { size[block] = $4 }
+  $2 == "zipvz" { vz[block] = $4 }
+  $2 == "sha2vz" { vzsha[block] = $4 }
+  END {
+    for (b in file) {
+      if (vz[b] != "") {
+        n = split(vz[b], part, "_")
+        print b, vz[b], vzsha[b], part[n]
+      } else {
+        print b, file[b], sha[b], size[b]
+      }
+    }
+  }
+' "$work/manifest" | sort > "$work/packages"
+packages=$(grep -c . "$work/packages" 2>/dev/null || echo 0)
+while read -r block name sum bytes; do
+  j=$((${j:-0} + 1))
+  target=$steam_root/package/$name
+  if [ -f "$target" ] && [ "$(stat -c %s "$target")" = "$bytes" ]; then continue; fi
+  echo "== STEP $(date -u +%H:%M:%S) downloading Steam: $block ($j/$packages)"
+  fetched=""
+  for host in "${cdn_order[@]}"; do
+    fetch_part "$host" "$name" "$sum" && { fetched=$host; break; }
+  done
+  [ -n "$fetched" ] || { echo "droiddeck-steam-install: $name failed on every CDN" >&2; exit 1; }
+  mv -f "$parts/$name" "$target"
+done < "$work/packages"
+rm -rf "$parts"
 find "$steam_root" -depth -name '*\\*' | while read -r odd; do
   fixed=${odd//\\//}
   mkdir -p "$(dirname "$fixed")"
@@ -106,7 +177,8 @@ else
   echo "$steam_channel" > "$steam_root/package/beta"
 fi
 ln -sfn "$steam_root/steamrtarm64" "$steam_root/steamrtarm32"
-chmod +x "$steam_root/steamrtarm64/steam" 2>/dev/null || true
+# The packages carry no exec bits; the client's own updater used to set them.
+chmod -R +x "$steam_root" 2>/dev/null || true
 mkdir -p "$HOME/.steam"
 ln -sfn "$steam_root" "$HOME/.steam/root"
 ln -sfn "$steam_root" "$HOME/.steam/steam"
