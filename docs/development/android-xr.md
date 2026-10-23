@@ -24,7 +24,7 @@ System features select Android XR after the existing Quest detection. Capability
 
 The Activity requests hand input, associates ownership with the current Steam session, and starts the guest after the XR session becomes visible or focused. A retiring Activity cannot hide or stop its replacement. Initialization or guest failure returns to the panel. Closing immersive mode stops SteamVR and can interrupt an active game.
 
-Reference spaces prefer STAGE, LOCAL_FLOOR, then LOCAL. No fabricated floor is added to LOCAL. A reference-space change ends the Android XR session until a restarted guest can produce matching frame poses.
+Reference spaces prefer STAGE, LOCAL_FLOOR, then LOCAL. No fabricated floor is added to LOCAL. Initial localization changes before the first uploaded guest frame reset the input origin and allow startup to continue. A reference-space change after guest frames have been uploaded ends the Android XR session until a restarted guest can produce matching frame poses.
 
 ## Input
 
@@ -45,6 +45,14 @@ Holding both runtime pinch values requests a system-button pulse after releasing
 The existing 296-byte tracking protocol v1 is unchanged. Quest continues to publish `active=1`; Android XR uses an explicit active-session marker to select its additional input path. The driver reads input-v2 and skeleton sidecars only in that Android XR session. Sidecars carry session generation, origin epoch and timestamps, with atomic snapshots and single-writer ownership.
 
 Frames use the existing guest transport. The Android XR receiver can acknowledge GPU-buffer completion off its display thread; the Quest receiver remains unchanged. The existing Quest display clock, head-velocity behavior and Vulkan capture implementation are retained.
+
+## Hardware testing and experimental GPU dependency
+
+The physical test device is **XREAL AURA**, reporting an **Adreno 831** GPU (chip ID `0x44050100`). Testing used a separately built experimental Mesa/Turnip package, `DD-Turnip-AURA831-prototype3`, imported through DroidDeck's driver selection. Its exact-chip entry uses an A830-profile hypothesis; this is not established native or general Adreno 831 support. The GPU changes and binaries are outside this contribution.
+
+On an earlier, broader experimental fork build with that GPU package, the tester confirmed that **Aircar** displayed its city/cockpit, head turning worked and a connected gamepad controlled the application. Right-eye corruption was subsequently reported resolved, but noticeable jitter remains, especially when the SteamVR Dashboard is open. This is limited experimental evidence, not a stable-gameplay or general-compatibility claim.
+
+The reduced contribution has since been packaged, installed and started through Steam and SteamVR on the same device. Both installed SteamVR reference glove models and the skinning shaders loaded. The latest observation had no tracked hands in view: actual animated glove drawing, wrist orientation and pinch dragging still need physical acceptance. Aircar has not been revalidated end to end on this latest reduced source. No other Android XR headset is validated by these observations.
 
 ## Validation limits
 
