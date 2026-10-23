@@ -118,7 +118,8 @@ class PhysicalShortcutsDialogTest {
         send(KeyEvent.KEYCODE_F1, KeyEvent.ACTION_UP)
         compose.onNodeWithText(context.getString(R.string.shortcuts_conflict,
             context.getString(R.string.drawer_steam_menu))).assertExists()
-        compose.onNodeWithText("F1 · Retroid extra buttons").assertExists()
+        val button = requireNotNull(PhysicalShortcuts.button(event(KeyEvent.KEYCODE_F1, KeyEvent.ACTION_DOWN)))
+        compose.onAllNodesWithText("${button.label} · ${button.name}").assertCountEquals(2)
         assertEquals(PhysicalShortcuts.Action.STEAM, PhysicalShortcuts.read(context).single().action)
         compose.onNodeWithTag("shortcuts-save").performScrollTo().performClick()
         compose.runOnIdle { assertEquals(PhysicalShortcuts.Action.QAM, PhysicalShortcuts.read(context).single().action) }
@@ -153,7 +154,8 @@ class PhysicalShortcutsDialogTest {
         compose.onNodeWithTag("shortcuts-save").assertDoesNotExist()
         send(KeyEvent.KEYCODE_F2, KeyEvent.ACTION_UP)
         compose.onNodeWithTag("shortcuts-save").assertDoesNotExist()
-        compose.onNodeWithText("F1 · Retroid extra buttons").assertExists()
+        val button = requireNotNull(PhysicalShortcuts.button(event(KeyEvent.KEYCODE_F2, KeyEvent.ACTION_DOWN)))
+        compose.onNodeWithText("${button.label} · ${button.name}").assertExists()
         compose.runOnIdle { assertEquals(KeyEvent.KEYCODE_F2, PhysicalShortcuts.read(context).single().button.keyCode) }
     }
 
