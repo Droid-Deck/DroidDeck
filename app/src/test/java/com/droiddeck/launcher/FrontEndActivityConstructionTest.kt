@@ -10,9 +10,9 @@ import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28], application = Application::class)
-class MainActivityConstructionTest {
+class FrontEndActivityConstructionTest {
     @Test fun constructingTheLauncherDoesNotReadAnUnattachedActivityContext() {
-        val activity = Robolectric.buildActivity(MainActivity::class.java).get()
+        val activity = Robolectric.buildActivity(FrontEndActivity::class.java).get()
 
         assertNotNull(activity.baseContext)
     }
