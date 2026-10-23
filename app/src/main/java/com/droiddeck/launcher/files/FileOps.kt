@@ -49,24 +49,30 @@ object FileOps {
         return f.length()
     }
 
-    fun moveWithProgress(src: File, dst: File, progress: ProgressCallback?, isCancelled: () -> Boolean = { false }): Boolean {
+    fun moveWithProgress(src: File, dst: File, progress: ProgressCallback?, isCancelled: () -> Boolean = { false }): Boolean =
+        moveWithProgress(src, dst, maxOf(totalSize(src, isCancelled), 1L), progress, isCancelled)
+
+    fun moveWithProgress(src: File, dst: File, totalBytes: Long, progress: ProgressCallback?, isCancelled: () -> Boolean = { false }): Boolean {
         if (sameFile(src, dst)) return true
         if (isCancelled()) return false
         if (!dst.exists() && src.renameTo(dst)) {
             progress?.onProgress(1, 1)
             return true
         }
-        if (!copyWithProgress(src, dst, progress, isCancelled)) return false
+        if (!copyWithProgress(src, dst, maxOf(totalBytes, 1L), progress, isCancelled)) return false
         // Once the destination is committed, finish deleting the source.
         return delete(src)
     }
 
     fun copyWithProgress(src: File, dst: File, progress: ProgressCallback?, isCancelled: () -> Boolean = { false }): Boolean {
         val total = maxOf(totalSize(src, isCancelled), 1L)
-        return copyWithProgress(src, dst, longArrayOf(0), total, progress, isCancelled)
+        return copyTree(src, dst, longArrayOf(0), total, progress, isCancelled, parentReady = false)
     }
 
-    private fun copyWithProgress(src: File, dst: File, done: LongArray, total: Long, progress: ProgressCallback?, isCancelled: () -> Boolean): Boolean {
+    fun copyWithProgress(src: File, dst: File, totalBytes: Long, progress: ProgressCallback?, isCancelled: () -> Boolean = { false }): Boolean =
+        copyTree(src, dst, longArrayOf(0), maxOf(totalBytes, 1L), progress, isCancelled, parentReady = false)
+
+    private fun copyTree(src: File, dst: File, done: LongArray, total: Long, progress: ProgressCallback?, isCancelled: () -> Boolean, parentReady: Boolean): Boolean {
         if (isCancelled()) throw java.util.concurrent.CancellationException("Copy cancelled: $src")
         if (isSymlink(src)) return copyLink(src, dst)
         if (sameFile(src, dst)) return true
@@ -81,10 +87,15 @@ object FileOps {
             }
             try {
                 var allOk = true
-                src.list()?.forEach { name ->
-                    if (!copyWithProgress(File(src, name), File(dst, name), done, total, progress, isCancelled)) {
-                        Log.e(TAG, "Failed to copy: ${File(src, name)}")
-                        allOk = false
+                // listFiles() resolves children in one call instead of rebuilding a File per name.
+                val children = src.listFiles()
+                if (children != null) {
+                    for (child in children) {
+                        // The parent was just created above, so children skip the exists/mkdirs probe.
+                        if (!copyTree(child, File(dst, child.name), done, total, progress, isCancelled, parentReady = true)) {
+                            Log.e(TAG, "Failed to copy: $child")
+                            allOk = false
+                        }
                     }
                 }
                 return allOk
@@ -93,9 +104,13 @@ object FileOps {
                 throw e
             }
         }
-        val parent = dst.parentFile
-        if (!src.exists() || (parent != null && !parent.exists() && !parent.mkdirs())) return false
-        val chunk = 4L * 1024 * 1024
+        if (parentReady) {
+            if (!src.exists()) return false
+        } else {
+            val parent = dst.parentFile
+            if (!src.exists() || (parent != null && !parent.exists() && !parent.mkdirs())) return false
+        }
+        val chunk = 8L * 1024 * 1024
         var staging: File? = null
         var created = false
         var output: java.nio.channels.FileChannel? = null
