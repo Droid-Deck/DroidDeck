@@ -58,6 +58,14 @@ class PadMotion(private val context: Context, private val rotation: () -> Int) :
     }
 
     private fun follow(handler: Handler, gyroscope: Sensor?, accelerometer: Sensor?) {
+        if (DeckControls.externalImuActive) {
+            if (reading) {
+                reading = false
+                sensors?.unregisterListener(this)
+                Log.i(TAG, "pad motion: suppressed by active DualSense hardware IMU")
+            }
+            return
+        }
         val touch = SteamTouchDevice.current
         val wanted = FakeInputWriter.readImuMode(SLOT) != 0 ||
             touch != null && touch.plugged && touch.gyroRequested && touch.motionEnabled
@@ -83,7 +91,7 @@ class PadMotion(private val context: Context, private val rotation: () -> Int) :
     }
 
     override fun onSensorChanged(event: SensorEvent) {
-        if (!active) return
+        if (!active || DeckControls.externalImuActive) return
         val values = event.values
         if (event.timestamp - turnAt > ROTATION_REFRESH_NS) {
             turn = rotation()

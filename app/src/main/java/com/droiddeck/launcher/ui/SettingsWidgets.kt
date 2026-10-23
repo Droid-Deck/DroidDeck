@@ -123,6 +123,7 @@ private val GroupShape = RoundedCornerShape(14.dp)
 
 internal object HeldKeys {
     @Volatile var confirm = false
+    var focusWakeup by androidx.compose.runtime.mutableIntStateOf(0)
 }
 
 internal fun Modifier.controllerConfirm(enabled: Boolean = true, onClick: () -> Unit): Modifier = onPreviewKeyEvent { event ->

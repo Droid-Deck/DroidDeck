@@ -51,6 +51,7 @@ object ControllerPrefs {
         val snap: Boolean,
         val customLayout: Boolean,
         val mapping: Map<String, String>,
+        val dualSenseAudio: Boolean = false,
     )
 
     internal fun prefs(context: Context) = context.getSharedPreferences("controller", Context.MODE_PRIVATE)
@@ -72,6 +73,7 @@ object ControllerPrefs {
             snap = p.getBoolean("snap", true),
             customLayout = p.all.keys.any { it.startsWith("layout.") },
             mapping = mappable.associate { (id, _) -> id to target(context, id) },
+            dualSenseAudio = dualSenseAudio(context),
         )
     }
 
@@ -133,6 +135,12 @@ object ControllerPrefs {
 
     fun setJoyConVr(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("joyConVr", on).apply()
+    }
+
+    fun dualSenseAudio(context: Context): Boolean = prefs(context).getBoolean("dualSenseAudio", false)
+
+    fun setDualSenseAudio(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("dualSenseAudio", on).apply()
     }
 
     fun setSnap(context: Context, on: Boolean) {
