@@ -75,11 +75,21 @@ object StoreLaunch {
     fun refreshLauncher(folder: File, sidecar: StoreGameSidecar) {
         if (sidecar.launcher != LAUNCHER) return
         val file = File(folder, LAUNCHER)
-        val text = launcherText(sidecar)
+        val text = launcherText(sidecar.copy(exe = bodyExe(folder, sidecar.exe)))
         if (runCatching { file.readText() }.getOrNull() != text) {
             file.writeText(text)
             Log.i(TAG, "launcher rewritten for ${sidecar.id}")
         }
+    }
+
+    private const val UPLAY_STUB = "UplayLaunch"
+
+    private fun bodyExe(folder: File, exe: String): String {
+        val name = exe.substringAfterLast('/').substringAfterLast('\\')
+        if (!name.startsWith(UPLAY_STUB, ignoreCase = true)) return exe
+        val found = File(folder, "bin").listFiles { f -> f.isFile && f.extension.equals("exe", true) }
+            ?.maxByOrNull { it.length() } ?: return exe
+        return "bin/" + found.name
     }
 
     fun prepare(context: Context, store: Store, id: String, onReady: () -> Unit) {
