@@ -179,7 +179,7 @@ private fun InnerGamerHue(speed: Int) {
 private fun InnerGamerCycle(speed: Int) {
     val start = remember { Themes.rgbHue }
     val hue by rememberInfiniteTransition(label = "innerGamer").animateFloat(
-        start, start + 360f, infiniteRepeatable(tween(Motion.ms(Themes.rgbCycleMillis(speed)).coerceAtLeast(1), easing = LinearEasing), RepeatMode.Restart), label = "hue",
+        start, start + 360f, infiniteRepeatable(tween(Themes.rgbCycleMillis(speed).coerceAtLeast(1), easing = LinearEasing), RepeatMode.Restart), label = "hue",
     )
     val stepped = ((hue % 360f) / Themes.RGB_HUE_STEP).toInt() * Themes.RGB_HUE_STEP
     SideEffect { Themes.moveRgbHue(stepped) }
