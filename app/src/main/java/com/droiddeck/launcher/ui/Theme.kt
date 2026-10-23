@@ -10,6 +10,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
@@ -170,9 +171,16 @@ fun DroidDeckTheme(theme: String? = null, appScale: Int = AppUiPrefs.DEFAULT_SCA
 @Composable
 private fun InnerGamerHue(speed: Int) {
     if (Motion.scale == 0f) return
+    key(speed) { InnerGamerCycle(speed) }
+}
+
+/** One run of the cycle at one speed, picking up from the colour on screen so a new speed takes over at once without a jump. */
+@Composable
+private fun InnerGamerCycle(speed: Int) {
+    val start = remember { Themes.rgbHue }
     val hue by rememberInfiniteTransition(label = "innerGamer").animateFloat(
-        0f, 360f, infiniteRepeatable(tween(Motion.ms(Themes.rgbCycleMillis(speed)).coerceAtLeast(1), easing = LinearEasing), RepeatMode.Restart), label = "hue",
+        start, start + 360f, infiniteRepeatable(tween(Motion.ms(Themes.rgbCycleMillis(speed)).coerceAtLeast(1), easing = LinearEasing), RepeatMode.Restart), label = "hue",
     )
-    val stepped = (hue / Themes.RGB_HUE_STEP).toInt() * Themes.RGB_HUE_STEP
+    val stepped = ((hue % 360f) / Themes.RGB_HUE_STEP).toInt() * Themes.RGB_HUE_STEP
     SideEffect { Themes.moveRgbHue(stepped) }
 }
