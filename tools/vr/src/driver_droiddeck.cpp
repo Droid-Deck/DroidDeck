@@ -1060,6 +1060,7 @@ public:
         in->CreateBooleanComponent(c, "/input/system/click", &system_);
         if (!index_) in->CreateBooleanComponent(c, "/input/application_menu/click", &menu_);
         in->CreateBooleanComponent(c, stick ? "/input/grip/touch" : "/input/grip/click", &grip_);
+        if (xrMode_) in->CreateBooleanComponent(c, "/input/grip/click", &xrGripClick_);
         in->CreateBooleanComponent(c, "/input/trigger/click", &triggerClick_);
         in->CreateScalarComponent(c, "/input/trigger/value", &trigger_, VRScalarType_Absolute, VRScalarUnits_NormalizedOneSided);
         const char *axisBase = stick ? stickPath : "/input/trackpad";
@@ -1100,7 +1101,7 @@ public:
         if (id_ == k_unTrackedDeviceIndexInvalid) return;
         auto in = VRDriverInput();
         EVRInputError error = VRInputError_None;
-        for (VRInputComponentHandle_t h : {system_, menu_, grip_, triggerClick_, padClick_, padTouch_,
+        for (VRInputComponentHandle_t h : {system_, menu_, grip_, xrGripClick_, triggerClick_, padClick_, padTouch_,
                 triggerTouch_, primaryClick_, secondaryClick_, primaryTouch_, secondaryTouch_, thumbrestTouch_}) {
             if (!h) continue;
             const auto result = in->UpdateBooleanComponent(h, false, 0);
@@ -1147,6 +1148,7 @@ public:
         driverInput->UpdateBooleanComponent(menu_, false, 0);
         driverInput->UpdateBooleanComponent(system_, input.systemClick, 0);
         if (xrMode_) {
+            driverInput->UpdateBooleanComponent(xrGripClick_, xrHandProfile_ && input.gripClick, 0);
             driverInput->UpdateScalarComponent(gripValue_, input.grip, 0);
             driverInput->UpdateBooleanComponent(triggerTouch_, input.triggerTouch, 0);
             driverInput->UpdateBooleanComponent(primaryClick_, input.primaryClick, 0);
@@ -1364,7 +1366,7 @@ private:
     std::chrono::steady_clock::time_point lastUpdate_ = std::chrono::steady_clock::now();
     VRInputComponentHandle_t system_ = 0, menu_ = 0, grip_ = 0, triggerClick_ = 0, trigger_ = 0, padX_ = 0, padY_ = 0,
                              padClick_ = 0, padTouch_ = 0, haptic_ = 0;
-    VRInputComponentHandle_t gripValue_ = 0, gripForce_ = 0, triggerTouch_ = 0, primaryClick_ = 0, secondaryClick_ = 0,
+    VRInputComponentHandle_t xrGripClick_ = 0, gripValue_ = 0, gripForce_ = 0, triggerTouch_ = 0, primaryClick_ = 0, secondaryClick_ = 0,
                              primaryTouch_ = 0, secondaryTouch_ = 0, thumbrestTouch_ = 0;
 };
 

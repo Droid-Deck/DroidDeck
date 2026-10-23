@@ -6,7 +6,9 @@
   "input_bindingui_mode": "controller_handed",
   "input_source": {
     "/input/trigger": { "type": "trigger", "click": true, "value": true, "order": 1 },
-    "/input/grip": { "type": "trigger", "click": true, "value": true, "order": 2 }
+    "/input/grip": { "type": "trigger", "click": true, "value": true, "order": 2 },
+    "/pose/raw": { "type": "pose" },
+    "/pose/tip": { "type": "pose" }
   },
   "default_bindings": []
 }
