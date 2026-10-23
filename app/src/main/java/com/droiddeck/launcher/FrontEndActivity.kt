@@ -45,6 +45,7 @@ import com.droiddeck.launcher.ui.ComponentsPage
 import com.droiddeck.launcher.session.GameSaves
 import com.droiddeck.launcher.session.SessionLogShare
 import com.droiddeck.launcher.session.SessionPrefs
+import com.droiddeck.launcher.session.UsbRootMount
 import com.droiddeck.launcher.session.SteamRepair
 import com.droiddeck.launcher.core.CpuCores
 import com.droiddeck.launcher.core.DownloadSource
@@ -397,6 +398,8 @@ class FrontEndActivity : ComponentActivity() {
     private var gameStorage by mutableStateOf("")
     private var storageDiagnostics by mutableStateOf(false)
     private var storageOptions by mutableStateOf<List<GameStorage.Option>>(emptyList())
+    private var usbRoot by mutableStateOf<com.droiddeck.launcher.ui.UsbRootUi?>(null)
+    private var usbNeedsAccess by mutableStateOf(false)
     private val pickGameStorage = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         if (r.resultCode == RESULT_OK) InAppFilePicker.pickedPath(r.data)?.let { path -> setGameStorage(path, GameStorage.labelFor(this, path)) }
     }
@@ -740,6 +743,7 @@ class FrontEndActivity : ComponentActivity() {
         gameSyncFolder = GameFileSync.folder(this)
         displayManager = getSystemService(DISPLAY_SERVICE) as DisplayManager
         refreshPhantomStatus()
+        UsbRootMount.onChange = { refreshUsbRoot() }
         theme = SessionPrefs.theme(this)
         frameGenLabel = getString(R.string.frame_gen_off)
         appScale = com.droiddeck.launcher.core.AppUiPrefs.scale(this)
@@ -1344,6 +1348,7 @@ class FrontEndActivity : ComponentActivity() {
 
     override fun onDestroy() {
         updates.unregister()
+        UsbRootMount.onChange = null
         super.onDestroy()
     }
 
@@ -1654,6 +1659,8 @@ class FrontEndActivity : ComponentActivity() {
                 deckyChecking = decky.deckyChecking, deckyStage = decky.deckyStage, deckyPercent = decky.deckyPercent,
                 deckyDownloadingBinary = decky.deckyDownloadingBinary,
                 deckyEnabled = decky.deckySupervisor, deckySessionRunning = SessionState.running,
+                usbRoot = if (mode == SessionService.MODE_STEAM) usbRoot else null,
+                usbNeedsAccess = mode == SessionService.MODE_STEAM && usbNeedsAccess,
             ),
             ModeSettingsActions(
                 onWifiDiscovery = { on ->
@@ -1707,6 +1714,28 @@ class FrontEndActivity : ComponentActivity() {
                 onPickGameStorageFolder = {
                     pickGameStorage.launch(InAppFilePicker.buildDirIntent(this, getString(R.string.main_pick_game_storage), gameStorage.ifEmpty { null }))
                 },
+                onUsbAccess = {
+                    if (Build.VERSION.SDK_INT >= 30) startActivity(Intent(android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, Uri.parse("package:$packageName")))
+                },
+                onUsbRoot = { on ->
+                    SessionPrefs.setUsbRootEnabled(this, on)
+                    if (on) UsbRootMount.watch(this)
+                    usbRootAction {
+                        if (on) UsbRootMount.mount(this)
+                        else UsbRootMount.unwatch(this).let { if (SessionState.running) null else UsbRootMount.unmount(this) }
+                    }
+                },
+                onUsbDrive = { uuid ->
+                    usbRootAction {
+                        if (SessionState.running) return@usbRootAction getString(R.string.usb_root_eject_running)
+                        UsbRootMount.unmount(this) ?: run { SessionPrefs.setUsbRootDrive(this, uuid); UsbRootMount.mount(this) }
+                    }
+                },
+                onUsbMount = { usbRootAction { UsbRootMount.mount(this) } },
+                onUsbEject = {
+                    usbRootAction { if (SessionState.running) getString(R.string.usb_root_eject_running) else UsbRootMount.unmount(this) }
+                },
+                onUsbPrepare = { usbRootAction { UsbRootMount.prepare(this) } },
                 onStorageDiagnostics = { on ->
                     SessionPrefs.setStorageDiagnosticsEnabled(this, on)
                     storageDiagnostics = on
@@ -1915,11 +1944,14 @@ class FrontEndActivity : ComponentActivity() {
         settingsMode = mode
         Thread({
             drivers.refreshDrivers()
+            if (mode == SessionService.MODE_STEAM) refreshUsbRoot()
+            val needsAccess = mode == SessionService.MODE_STEAM && GameStorage.usbNeedsAccess(this)
             val storage = GameStorage.options(this)
             val deckyInstalled = if (mode == SessionService.MODE_STEAM) DeckyManager.installed(this) else null
             val deckySupervisor = mode == SessionService.MODE_STEAM && DeckyManager.supervisorEnabled(this)
             ui.post {
                 storageOptions = storage
+                usbNeedsAccess = needsAccess
                 if (mode == SessionService.MODE_STEAM) {
                     decky.deckyInstalled = deckyInstalled
                     decky.deckySupervisor = deckySupervisor
@@ -1930,6 +1962,26 @@ class FrontEndActivity : ComponentActivity() {
         }, "mode-settings").start()
     }
 
+    /** Runs a USB-root step off the main thread, then shows its error (if any) and the new state. */
+    private fun usbRootAction(step: () -> String?) {
+        Thread({ val error = step(); refreshUsbRoot(error) }, "usb-root").start()
+    }
+
+    /** Off the main thread: root is asked only once the setting is on. */
+    private fun refreshUsbRoot(status: String? = null) {
+        if (!UsbRootMount.available()) return
+        val on = SessionPrefs.usbRootEnabled(this)
+        var error = status
+        val drives = if (on) try { UsbRootMount.drives(this) } catch (e: Exception) { error = error ?: e.message; emptyList() } else emptyList()
+        val drive = SessionPrefs.usbRootDrive(this)
+        if (on && drive.isNotEmpty() && drives.none { it.uuid == drive }) error = error ?: getString(R.string.usb_root_not_plugged)
+        val state = com.droiddeck.launcher.ui.UsbRootUi(
+            on, drives, drive, UsbRootMount.mounted(this), error, SessionState.running,
+        )
+        ui.post { usbRoot = state }
+    }
+
+    /** A second Steam library, proven writable first; "" = internal only. */
     private fun setGameStorage(path: String, label: String) {
         if (path.isNotEmpty() && path != SessionPrefs.GAME_STORAGE_OFF) {
             val problem = GameStorage.prepare(this, path)

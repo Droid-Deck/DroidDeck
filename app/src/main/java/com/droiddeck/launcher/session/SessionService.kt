@@ -872,6 +872,10 @@ class SessionService : Service() {
         val home = File(LinuxRuntime.rootDir(this), "root")
         File(home, "Storage").mkdirs()
         binds.add(Environment.getExternalStorageDirectory().path + ":/root/Storage")
+        if (SessionPrefs.usbRootEnabled(this)) UsbRootMount.mount(this)?.let { Log.w(TAG, "USB drive: $it") }
+        // A second Steam library: the storage chosen in the Steam cog, at the path the runtime's
+        // droiddeck-steam-library registers with the client. Nothing bound = the script removes
+        // the entry, so the client never offers a place that is not there.
         val library = GameStorage.effective(this)
         steamLibraryMounts = emptyMap()
         var storageDiagnosticLibrary: File? = null
@@ -942,7 +946,15 @@ class SessionService : Service() {
         }
         val libraries = ArrayList<Pair<String, String>>()
         if (storageDiagnosticLibrary != null && library != null) libraries.add(SecondaryLibrary.CARD_GUESTS[0] to library.label)
-        val gamesLibraries = GameStorage.gamesFolderLibraries(this)
+        // The USB drive is a library of its own beside the card, bound like a Games folder.
+        val usb = GameStorage.usbDrive(this)?.takeIf { GameStorage.prepare(this, it.path) == null }
+            ?.let { GameStorage.Library(it, SecondaryLibrary.USB_GUEST, GameStorage.usbLabel(this)) }
+        if (usb != null) {
+            File(LinuxRuntime.rootDir(this), "mnt/droiddeck-usb").mkdirs()
+            binds.add(usb.host.path + ":" + usb.guest)
+            steamLibraryMounts = steamLibraryMounts + (usb.guest to usb.host)
+        }
+        val gamesLibraries = listOfNotNull(usb) + GameStorage.gamesFolderLibraries(this)
         if (gamesLibraries.isNotEmpty()) {
             var room = if (ProotFastPath.enabled(this)) {
                 ProotFastPath.MAX_BINDS - LinuxRuntime.binds(this, sessionRoot, runtimeDir, Environment.getExternalStorageDirectory(), binds).size
@@ -974,6 +986,9 @@ class SessionService : Service() {
         val x64Here = SessionPrefs.steamClientArch(this) == "x86_64" ||
             (SessionState.mode == MODE_DESKTOP &&
                 com.droiddeck.launcher.storage.SteamStorage.x64ClientPresent(SessionPrefs.steamRoot(this, "x86_64")))
+        if (usb != null && x64Here) {
+            x64Libraries.put(org.json.JSONObject().put("path", usb.guest).put("label", usb.label.replace('"', ' ').replace('\\', ' ')))
+        }
         if (storageDiagnosticLibrary != null && library != null && x64Here) {
             val x64 = File(library.path, GameStorage.X64_CARD_DIR)
             val problem = GameStorage.prepare(this, x64.path)
@@ -1585,6 +1600,11 @@ class SessionService : Service() {
             runCatching { com.droiddeck.launcher.agent.AgentEnv.endSession(this) }
                 .onFailure { Log.w(TAG, "clearing the agent's session environment", it) }
             releaseLocks()
+            // Mounted, not "enabled": the setting may have been turned off while the session ran. Under
+            // the mount lock, and not once a new session has started (its mount must stay).
+            if (UsbRootMount.mounted(this)) Thread({
+                synchronized(UsbRootMount) { if (!SessionState.running) UsbRootMount.unmount(applicationContext) }
+            }, "usb-root").start()
             if (status == 0) {
                 SessionEvents.transition(SessionPhase.IDLE, "session.stopped", mapOf("status" to status))
             } else {
