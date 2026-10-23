@@ -19,6 +19,7 @@ class TpUbwcHintTest {
     }
 
     @Test fun a740OnANewerBlobTurnsTheHintOn() {
+        assertEquals("enable_tp_ubwc_flag_hint=1", TpUbwcHint.features(740, "512.700.0"))
         assertEquals("enable_tp_ubwc_flag_hint=1", TpUbwcHint.features(740, "512.762.10"))
     }
 
