@@ -1,0 +1,117 @@
+{
+  "url": "https://github.com/wallentx/DroidDeck/releases/download/hybris-4ed93fb9ee6e2a0b24ff087196f2e93d247fd985/runtime.tzst",
+  "sha256": "a4e1ab9581c83ee6feff95e0e527930977a6c14c0e72bd2c4abf777e8472d987",
+  "size": 5799930,
+  "provenance": {
+    "component_ci_run": "https://github.com/wallentx/DroidDeck/actions/runs/39360327540",
+    "note": "Candidate pin: publish this exact archive and verify its URL before updating release.json.",
+    "producer_commit": "4ed93fb9ee6e2a0b24ff087196f2e93d247fd985",
+    "upstream_source_commit": "bc8cb3586b79d208fd21b925fa0209b3e432e008"
+  },
+  "gamescope": {
+    "url": "https://github.com/wallentx/DroidDeck/releases/download/main-af320dd86c7de5738ff16cfeeefbcf42581c199e/DroidDeck-0.5.0-wallentx.4.apk",
+    "sha256": "f73b229bf5d29c53c4ac618815e77c6e5a3eddd5c99e7c93eab276c831fcef6e",
+    "size": 124331295,
+    "source_commit": "af320dd86c7de5738ff16cfeeefbcf42581c199e",
+    "member": "assets/linuxfs/usr/local/bin/gamescope",
+    "member_sha256": "2250f26cdf0b6c73af80324c2a99b60465bae46ae6719083b9f9f8d1cf680165"
+  },
+  "wsi": {
+    "files": [
+      {
+        "mode": 420,
+        "name": "libVkLayer_window_system_integration.so",
+        "path": "wsi/libVkLayer_window_system_integration.so",
+        "sha256": "d07b961181b9547fd48ad9f05cc6d3b808b824676eb5a186fe3feb8caa013f19",
+        "size": 436888
+      },
+      {
+        "mode": 420,
+        "name": "VkLayer_window_system_integration.json",
+        "path": "wsi/VkLayer_window_system_integration.json",
+        "sha256": "a1df8b1cee7315015d8fe82534451e373ae4d9cb2adfc232c68346ecbf2818ee",
+        "size": 3683
+      },
+      {
+        "mode": 420,
+        "name": "LICENSE",
+        "path": "licenses/wsi-LICENSE",
+        "sha256": "5eb8d2da52230d2d66ce078a89ae0173aac63e2e73bed5f907a34736d114ea30",
+        "size": 1086
+      },
+      {
+        "mode": 420,
+        "name": "source-commit",
+        "path": "provenance/wsi-source-commit",
+        "sha256": "8367150b20502af36c472651850694a15a3e2a1fd6b6beb1f6e12a85a97824f5",
+        "size": 41
+      },
+      {
+        "mode": 420,
+        "name": "SHA256SUMS",
+        "path": "provenance/wsi-SHA256SUMS",
+        "sha256": "fda6f61028659648801de0e3a6fe1676efd99e1551881a5db8630970eae86158",
+        "size": 108
+      },
+      {
+        "mode": 420,
+        "name": "downstream.patch",
+        "path": "licenses/wsi-downstream.patch",
+        "sha256": "e2ed113d22f05563248ef606c774c22658b184fbc05912229007cd5281027e78",
+        "size": 769
+      },
+      {
+        "mode": 420,
+        "name": "source.tar.zst",
+        "path": "licenses/wsi-source.tar.zst",
+        "sha256": "22ae7c2d8aa3dfffdda601c3442d1966ab53ad225acdfadee69ba38974d0c4c5",
+        "size": 209468
+      },
+      {
+        "mode": 420,
+        "name": "vulkan-headers-commit",
+        "path": "provenance/wsi-vulkan-headers-commit",
+        "sha256": "16706d6cdbeb788426a90d66574dfd71068c4d993d39e76ec5c281b1f30dc7a6",
+        "size": 41
+      }
+    ],
+    "id": "wsi",
+    "ignored": [],
+    "provenance": {
+      "ci_run": "https://github.com/wallentx/DroidDeck/actions/runs/38047627963",
+      "repository_commit": "abe58618a5194f1f15499cbd5f9ec75503782556",
+      "vulkan_headers_licenses": {
+        "note": "Added from tracked assembly inputs; the original WSI archive and compiled library are unchanged.",
+        "revision": "8d6039a455a7ecc7d2a592ff97f62db4e59b70bf",
+        "source_urls": [
+          "https://raw.githubusercontent.com/KhronosGroup/Vulkan-Headers/8d6039a455a7ecc7d2a592ff97f62db4e59b70bf/LICENSE.md",
+          "https://raw.githubusercontent.com/KhronosGroup/Vulkan-Headers/8d6039a455a7ecc7d2a592ff97f62db4e59b70bf/LICENSES/MIT.txt"
+        ]
+      }
+    },
+    "recipe_inputs": {
+      "tools/vulkan-wsi/build.sh": "9e403151c58e6b2ee15241f525c4bacb2495f072191da6a63065e7fcc25b3b3c",
+      "tools/vulkan-wsi/licenses/Vulkan-Headers/LICENSE.md": "95ad366d23fadf701d355bc45fb8b82ae2d700239471d35d41286ac3b08ff903",
+      "tools/vulkan-wsi/licenses/Vulkan-Headers/MIT.txt": "1ca3502222d967f3be5751c55f6b7ee735b5383909c3b501495f54b216dbf227",
+      "tools/vulkan-wsi/patches/0001-link-x11-external-memory.patch": "e2ed113d22f05563248ef606c774c22658b184fbc05912229007cd5281027e78",
+      "tools/vulkan-wsi/source.env": "71a88087265a09b4ce06e7c9b98ef6799c6a7657cc6ef9084de663e96f5cfe63"
+    },
+    "sha256": "348f9ec42159c1ee6e2baba4312a5e845d26687238f29e3f4a1b0c3c97e13b3c",
+    "size": 362717,
+    "url": "https://github.com/wallentx/DroidDeck/releases/download/v0.3.2-progress.20261010.4/wsi-abe5861.zip"
+  },
+  "shaders": {
+    "url": "https://codeload.github.com/ValveSoftware/gamescope/tar.gz/8f212644c46460549035971ab914421180f61a7c",
+    "sha256": "40b75e449168caed811824b20716e2e7d236cf1bea6fb7dcfd742d50c8c6d6cc",
+    "size": 970867,
+    "source_commit": "8f212644c46460549035971ab914421180f61a7c",
+    "replacements": {
+      "05a8bfdf4ff5d71b": "cs_gaussian_blur_horizontal",
+      "ee0a3fcfa1cf1281": "cs_composite_rcas_1px",
+      "519ce32f2e53f5db": "cs_composite_rcas",
+      "ee86eeb49ae9951c": "cs_composite_blur_cond",
+      "73368f4579fe0d27": "cs_composite_blur",
+      "80346d82c5a6d850": "cs_composite_blit"
+    }
+  }
+}

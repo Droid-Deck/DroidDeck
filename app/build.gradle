@@ -72,7 +72,7 @@ if (!(treeState in ['clean', 'dirty'])) {
     def status = gitValue(['status', '--porcelain'])
     treeState = status == null ? 'unknown' : (status.isEmpty() ? 'clean' : 'dirty')
 }
-buildLabel = "${buildOrigin} ${treeState} · ${buildLabel}"
+buildLabel = "${buildOrigin} ${treeState} Â· ${buildLabel}"
 def escapedBuildLabel = buildLabel.replace('\\', '\\\\').replace('"', '\\"')
 
 def sourceCommit = providers.environmentVariable('DROIDDECK_SOURCE_COMMIT').getOrNull()
@@ -80,6 +80,11 @@ def sourceCommit = providers.environmentVariable('DROIDDECK_SOURCE_COMMIT').getO
 def prNumber = (providers.environmentVariable('DROIDDECK_PR_NUMBER').getOrNull() ?: '0').with { it.isInteger() ? it : '0' }
 def ciBuild = providers.environmentVariable('GITHUB_ACTIONS').getOrNull() == 'true'
 if (project.hasProperty('reuseInstalledRuntime')) throw new GradleException('All APKs require prepared Linux runtime packages; runtime reuse is not allowed')
+def qualcommRuntime = new groovy.json.JsonSlurper().parse(rootProject.file('tools/qualcomm/runtime.json'))
+def qualcommSources = fileTree(rootProject.file('tools/qualcomm')) { include '*.py', '*.c', '*.json', '*.sh', '**/*.patch' }
+def qualcommDigest = java.security.MessageDigest.getInstance('SHA-256')
+qualcommSources.files.sort { it.name }.each { qualcommDigest.update(it.bytes) }
+def qualcommRevision = qualcommDigest.digest().encodeHex().toString()
 def releaseSigner = rootProject.file('keystore/release-signer.sha256').text.trim()
 def commitTime = (gitValue(['show', '-s', '--format=%ct', '--end-of-options', sourceCommit]) ?: '0').with { it.isLong() ? it : '0' }
 def desktopKde = rootProject.file('tools/desktop-kde/release.env').readLines()
@@ -129,6 +134,9 @@ android {
         buildConfigField "String", "SOURCE_COMMIT", "\"${sourceCommit}\""
         buildConfigField "int", "PR_NUMBER", "${prNumber}"
         buildConfigField "boolean", "CI_BUILD", "${ciBuild}"
+        buildConfigField "String", "QUALCOMM_BRIDGE_SHA256", "\"${qualcommRuntime.sha256}\""
+        buildConfigField "String", "QUALCOMM_GAMESCOPE_SHA256", "\"${qualcommRuntime.gamescope.member_sha256}\""
+        buildConfigField "String", "QUALCOMM_FIXES_REVISION", "\"${qualcommRevision}\""
         buildConfigField "String", "RELEASE_SIGNER", "\"${releaseSigner}\""
         buildConfigField "long", "COMMIT_TIME", "${commitTime}L * 1000L"
         buildConfigField "String", "VARIANT_SUFFIXES", "\"${variantSuffixes}\""
@@ -277,6 +285,20 @@ def stageRuntimeAssets = tasks.register('stageRuntimeAssets', Sync) {
     into(runtimeAssetsDir)
 }
 android.sourceSets.main.assets.setSrcDirs([runtimeAssetsDir])
+def stageQualcommRuntime = tasks.register('stageQualcommRuntime', Exec) {
+    workingDir rootProject.projectDir
+    inputs.files(qualcommSources)
+    inputs.property('ndkVersion', android.ndkVersion)
+    outputs.dir(layout.buildDirectory.dir('qualcommAssets'))
+    commandLine pythonExecutable, 'tools/qualcomm/fetch_runtime.py',
+        '--output', layout.buildDirectory.dir('qualcommAssets/qualcomm').get().asFile.absolutePath,
+        '--cache', rootProject.file('build/qualcomm-cache').absolutePath,
+        '--ndk', android.ndkDirectory.absolutePath
+}
+android.sourceSets.main.assets.srcDir(layout.buildDirectory.dir('qualcommAssets'))
+tasks.configureEach { task ->
+    if (task.name ==~ /merge.*Assets/) task.dependsOn(stageQualcommRuntime)
+}
 if (vitureSdkDir) android.sourceSets.main.assets.srcDir(layout.buildDirectory.dir('vitureAssets'))
 if (uvcDir) {
     def stageUvcNotices = tasks.register('stageUvcNotices', Copy) {

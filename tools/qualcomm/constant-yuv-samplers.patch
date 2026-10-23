@@ -1,0 +1,150 @@
+diff --git a/src/shaders/cs_composite_blit.comp b/src/shaders/cs_composite_blit.comp
+index 4d974dc..1bf726d 100644
+--- a/src/shaders/cs_composite_blit.comp
++++ b/src/shaders/cs_composite_blit.comp
+@@ -15,7 +15,19 @@ layout(
+ 
+ vec4 sampleLayer(uint layerIdx, vec2 uv) {
+     if ((c_ycbcrMask & (1 << layerIdx)) != 0)
+-        return sampleLayer(s_ycbcr_samplers[layerIdx], layerIdx, uv, false);
++    {
++        switch (layerIdx) {
++        case 0u: return sampleLayer(s_ycbcr_samplers[0], layerIdx, uv, false);
++        case 1u: return sampleLayer(s_ycbcr_samplers[1], layerIdx, uv, false);
++        case 2u: return sampleLayer(s_ycbcr_samplers[2], layerIdx, uv, false);
++        case 3u: return sampleLayer(s_ycbcr_samplers[3], layerIdx, uv, false);
++        case 4u: return sampleLayer(s_ycbcr_samplers[4], layerIdx, uv, false);
++        case 5u: return sampleLayer(s_ycbcr_samplers[5], layerIdx, uv, false);
++        case 6u: return sampleLayer(s_ycbcr_samplers[6], layerIdx, uv, false);
++        case 7u: return sampleLayer(s_ycbcr_samplers[7], layerIdx, uv, false);
++        }
++        return vec4(0.0);
++    }
+     return sampleLayer(s_samplers[layerIdx], layerIdx, uv, true);
+ }
+ 
+diff --git a/src/shaders/cs_composite_blur.comp b/src/shaders/cs_composite_blur.comp
+index 318b0e9..d99193b 100644
+--- a/src/shaders/cs_composite_blur.comp
++++ b/src/shaders/cs_composite_blur.comp
+@@ -18,7 +18,19 @@ layout(
+ 
+ vec4 sampleLayer(uint layerIdx, vec2 uv) {
+     if ((c_ycbcrMask & (1 << layerIdx)) != 0)
+-        return sampleLayer(s_ycbcr_samplers[layerIdx], layerIdx, uv, false);
++    {
++        switch (layerIdx) {
++        case 0u: return sampleLayer(s_ycbcr_samplers[0], layerIdx, uv, false);
++        case 1u: return sampleLayer(s_ycbcr_samplers[1], layerIdx, uv, false);
++        case 2u: return sampleLayer(s_ycbcr_samplers[2], layerIdx, uv, false);
++        case 3u: return sampleLayer(s_ycbcr_samplers[3], layerIdx, uv, false);
++        case 4u: return sampleLayer(s_ycbcr_samplers[4], layerIdx, uv, false);
++        case 5u: return sampleLayer(s_ycbcr_samplers[5], layerIdx, uv, false);
++        case 6u: return sampleLayer(s_ycbcr_samplers[6], layerIdx, uv, false);
++        case 7u: return sampleLayer(s_ycbcr_samplers[7], layerIdx, uv, false);
++        }
++        return vec4(0.0);
++    }
+     return sampleLayer(s_samplers[layerIdx], layerIdx, uv, true);
+ }
+ 
+diff --git a/src/shaders/cs_composite_blur_cond.comp b/src/shaders/cs_composite_blur_cond.comp
+index 39b0405..28f4e1e 100644
+--- a/src/shaders/cs_composite_blur_cond.comp
++++ b/src/shaders/cs_composite_blur_cond.comp
+@@ -18,7 +18,19 @@ layout(
+ 
+ vec4 sampleLayer(uint layerIdx, vec2 uv) {
+     if ((c_ycbcrMask & (1 << layerIdx)) != 0)
+-        return sampleLayer(s_ycbcr_samplers[layerIdx], layerIdx, uv, false);
++    {
++        switch (layerIdx) {
++        case 0u: return sampleLayer(s_ycbcr_samplers[0], layerIdx, uv, false);
++        case 1u: return sampleLayer(s_ycbcr_samplers[1], layerIdx, uv, false);
++        case 2u: return sampleLayer(s_ycbcr_samplers[2], layerIdx, uv, false);
++        case 3u: return sampleLayer(s_ycbcr_samplers[3], layerIdx, uv, false);
++        case 4u: return sampleLayer(s_ycbcr_samplers[4], layerIdx, uv, false);
++        case 5u: return sampleLayer(s_ycbcr_samplers[5], layerIdx, uv, false);
++        case 6u: return sampleLayer(s_ycbcr_samplers[6], layerIdx, uv, false);
++        case 7u: return sampleLayer(s_ycbcr_samplers[7], layerIdx, uv, false);
++        }
++        return vec4(0.0);
++    }
+     return sampleLayer(s_samplers[layerIdx], layerIdx, uv, true);
+ }
+ 
+diff --git a/src/shaders/cs_composite_rcas.comp b/src/shaders/cs_composite_rcas.comp
+index 3caefb1..269d42c 100644
+--- a/src/shaders/cs_composite_rcas.comp
++++ b/src/shaders/cs_composite_rcas.comp
+@@ -46,7 +46,19 @@ void FsrRcasInputF(inout float r, inout float g, inout float b) {}
+ 
+ vec4 sampleLayer(uint layerIdx, vec2 uv) {
+     if ((c_ycbcrMask & (1 << layerIdx)) != 0)
+-        return sampleLayerEx(s_ycbcr_samplers[layerIdx], layerIdx - 1, layerIdx, uv, false);
++    {
++        switch (layerIdx) {
++        case 0u: return sampleLayerEx(s_ycbcr_samplers[0], layerIdx - 1, layerIdx, uv, false);
++        case 1u: return sampleLayerEx(s_ycbcr_samplers[1], layerIdx - 1, layerIdx, uv, false);
++        case 2u: return sampleLayerEx(s_ycbcr_samplers[2], layerIdx - 1, layerIdx, uv, false);
++        case 3u: return sampleLayerEx(s_ycbcr_samplers[3], layerIdx - 1, layerIdx, uv, false);
++        case 4u: return sampleLayerEx(s_ycbcr_samplers[4], layerIdx - 1, layerIdx, uv, false);
++        case 5u: return sampleLayerEx(s_ycbcr_samplers[5], layerIdx - 1, layerIdx, uv, false);
++        case 6u: return sampleLayerEx(s_ycbcr_samplers[6], layerIdx - 1, layerIdx, uv, false);
++        case 7u: return sampleLayerEx(s_ycbcr_samplers[7], layerIdx - 1, layerIdx, uv, false);
++        }
++        return vec4(0.0);
++    }
+     return sampleLayerEx(s_samplers[layerIdx], layerIdx - 1, layerIdx, uv, true);
+ }
+ 
+diff --git a/src/shaders/cs_composite_rcas_1px.comp b/src/shaders/cs_composite_rcas_1px.comp
+index 822aa82..8632ddf 100644
+--- a/src/shaders/cs_composite_rcas_1px.comp
++++ b/src/shaders/cs_composite_rcas_1px.comp
+@@ -46,7 +46,19 @@ void FsrRcasInputF(inout float r, inout float g, inout float b) {}
+ 
+ vec4 sampleLayer(uint layerIdx, vec2 uv) {
+     if ((c_ycbcrMask & (1 << layerIdx)) != 0)
+-        return sampleLayerEx(s_ycbcr_samplers[layerIdx], layerIdx - 1, layerIdx, uv, false);
++    {
++        switch (layerIdx) {
++        case 0u: return sampleLayerEx(s_ycbcr_samplers[0], layerIdx - 1, layerIdx, uv, false);
++        case 1u: return sampleLayerEx(s_ycbcr_samplers[1], layerIdx - 1, layerIdx, uv, false);
++        case 2u: return sampleLayerEx(s_ycbcr_samplers[2], layerIdx - 1, layerIdx, uv, false);
++        case 3u: return sampleLayerEx(s_ycbcr_samplers[3], layerIdx - 1, layerIdx, uv, false);
++        case 4u: return sampleLayerEx(s_ycbcr_samplers[4], layerIdx - 1, layerIdx, uv, false);
++        case 5u: return sampleLayerEx(s_ycbcr_samplers[5], layerIdx - 1, layerIdx, uv, false);
++        case 6u: return sampleLayerEx(s_ycbcr_samplers[6], layerIdx - 1, layerIdx, uv, false);
++        case 7u: return sampleLayerEx(s_ycbcr_samplers[7], layerIdx - 1, layerIdx, uv, false);
++        }
++        return vec4(0.0);
++    }
+     return sampleLayerEx(s_samplers[layerIdx], layerIdx - 1, layerIdx, uv, true);
+ }
+ 
+diff --git a/src/shaders/cs_gaussian_blur_horizontal.comp b/src/shaders/cs_gaussian_blur_horizontal.comp
+index 2037f1c..3c202bb 100644
+--- a/src/shaders/cs_gaussian_blur_horizontal.comp
++++ b/src/shaders/cs_gaussian_blur_horizontal.comp
+@@ -51,7 +51,19 @@ void main()
+         vec4 layerColor;
+         // YCBCR technically has incorrect blending here but... meh.
+         if ((c_ycbcrMask & (1 << i)) != 0)
+-            layerColor = gaussian_blur(s_ycbcr_samplers[i], i, pos, u_blur_radius, false, false);
++        {
++            switch (i) {
++            case 0: layerColor = gaussian_blur(s_ycbcr_samplers[0], i, pos, u_blur_radius, false, false); break;
++            case 1: layerColor = gaussian_blur(s_ycbcr_samplers[1], i, pos, u_blur_radius, false, false); break;
++            case 2: layerColor = gaussian_blur(s_ycbcr_samplers[2], i, pos, u_blur_radius, false, false); break;
++            case 3: layerColor = gaussian_blur(s_ycbcr_samplers[3], i, pos, u_blur_radius, false, false); break;
++            case 4: layerColor = gaussian_blur(s_ycbcr_samplers[4], i, pos, u_blur_radius, false, false); break;
++            case 5: layerColor = gaussian_blur(s_ycbcr_samplers[5], i, pos, u_blur_radius, false, false); break;
++            case 6: layerColor = gaussian_blur(s_ycbcr_samplers[6], i, pos, u_blur_radius, false, false); break;
++            case 7: layerColor = gaussian_blur(s_ycbcr_samplers[7], i, pos, u_blur_radius, false, false); break;
++            default: layerColor = vec4(0.0); break;
++            }
++        }
+         else
+             layerColor = gaussian_blur(s_samplers[i], i, pos, u_blur_radius, false, true);
+ 
