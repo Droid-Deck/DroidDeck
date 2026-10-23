@@ -4077,6 +4077,48 @@ EXPORT ssize_t read(int fd, void *buf, size_t count) {
   }
 }
 
+EXPORT ssize_t readv(int fd, const struct iovec *iov, int iovcnt) {
+  if (!is_fake_input_fd(fd)) return syscall(SYS_readv, fd, iov, iovcnt);
+  if (iovcnt < 0 || iovcnt > IOV_MAX) {
+    errno = EINVAL;
+    return -1;
+  }
+  if (iovcnt && !iov) {
+    errno = EFAULT;
+    return -1;
+  }
+  std::vector<struct iovec> copied_iov(static_cast<size_t>(iovcnt));
+  if (iovcnt) {
+    size_t bytes = copied_iov.size() * sizeof(struct iovec);
+    struct iovec local = {copied_iov.data(), bytes};
+    struct iovec remote = {const_cast<struct iovec *>(iov), bytes};
+    ssize_t copied = syscall(SYS_process_vm_readv, getpid(), &local, 1, &remote, 1, 0);
+    if (copied != static_cast<ssize_t>(bytes)) {
+      errno = EFAULT;
+      return -1;
+    }
+  }
+  iov = copied_iov.data();
+  size_t size = 0;
+  for (int i = 0; i < iovcnt; ++i) {
+    if (iov[i].iov_len > static_cast<size_t>(SSIZE_MAX) - size) {
+      errno = EINVAL;
+      return -1;
+    }
+    size += iov[i].iov_len;
+  }
+
+  ssize_t total = 0;
+  for (int i = 0; i < iovcnt; ++i) {
+    if (!iov[i].iov_len) continue;
+    ssize_t got = read(fd, iov[i].iov_base, iov[i].iov_len);
+    if (got < 0) return total ? total : -1;
+    total += got;
+    if (static_cast<size_t>(got) != iov[i].iov_len) break;
+  }
+  return total;
+}
+
 EXPORT ssize_t write(int fd, const void *buf, size_t count) {
   static auto my_write = reinterpret_cast<decltype(&::write)>(dlsym(RTLD_NEXT, "write"));
 
