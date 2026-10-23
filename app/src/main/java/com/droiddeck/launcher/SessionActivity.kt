@@ -1922,7 +1922,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             return
         }
         Thread({
-            val hint = runtimeDamageHint() ?: sessionEndHint(SessionState.logFile)
+            val hint = runtimeDamageHint() ?: sessionEndHint(SessionState.logFile) ?: prootFailureHint()
             runOnUiThread {
                 if (isFinishing || isDestroyed) return@runOnUiThread
                 showEnded(status, hint)
@@ -1981,6 +1981,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (broken.isEmpty()) return null
         Log.w(TAG, "runtime has ${broken.size} broken library link(s): ${broken.take(8).joinToString()}")
         return EndHint(resources.getQuantityString(R.plurals.session_end_runtime_damaged, broken.size, broken.size, broken.first()), repair = true)
+    }
+
+    private fun prootFailureHint(): EndHint? {
+        if (SessionState.failureCode != "PROOT_MISSING") return null
+        val message = SessionState.failureMessage ?: return null
+        return EndHint(message)
     }
 
     private fun sessionEndHint(log: File?): EndHint? {
