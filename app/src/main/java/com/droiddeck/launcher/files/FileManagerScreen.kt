@@ -461,6 +461,7 @@ fun FileManagerScreen(
     }
 
     var showDriveMenu by remember { mutableStateOf(false) }
+    var askAllFiles by remember { mutableStateOf<StorageRoot?>(null) }
     var storageTick by remember { mutableIntStateOf(0) }
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
@@ -475,6 +476,22 @@ fun FileManagerScreen(
         com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(context).takeIf { File(it, "usr").isDirectory }
     }
 
+
+    askAllFiles?.let { drive ->
+        OutlinedAlertDialog(
+            onDismissRequest = { askAllFiles = null },
+            title = { Text(stringResource(R.string.fm_all_files_title)) },
+            text = { Text(stringResource(R.string.fm_all_files_body, drive.label), fontSize = 14.sp) },
+            confirmButton = {
+                TextButton(onClick = { askAllFiles = null; openAllFilesAccess(context) }) {
+                    Text(stringResource(R.string.fm_all_files_open))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { askAllFiles = null }) { Text(stringResource(R.string.common_cancel)) }
+            },
+        )
+    }
 
     if (showNewFolderDialog) {
         var folderName by remember { mutableStateOf("") }
@@ -714,6 +731,8 @@ fun FileManagerScreen(
                                 showDriveMenu = false
                                 if (drive.readable) {
                                     openDrive(drive.dir)
+                                } else if (drive.removable && needsAllFilesAccess(context)) {
+                                    askAllFiles = drive
                                 } else {
                                     Toast.makeText(
                                         context,

@@ -73,3 +73,15 @@ fun describeLocation(file: File): FavLocation {
 
     return FavLocation(FavStorage.OTHER, R.string.fm_drive_storage, abs)
 }
+
+internal fun needsAllFilesAccess(context: android.content.Context): Boolean =
+    android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R &&
+        !android.os.Environment.isExternalStorageManager()
+
+internal fun openAllFilesAccess(context: android.content.Context) {
+    val intent = android.content.Intent(
+        android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+        android.net.Uri.parse("package:${context.packageName}"),
+    )
+    runCatching { context.startActivity(intent) }
+}

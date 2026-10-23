@@ -85,6 +85,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.files.InAppFilePicker
+import com.droiddeck.launcher.files.StorageRoots
 import com.droiddeck.launcher.session.GameStorage
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.SteamLibraryRegistry
@@ -591,6 +592,7 @@ private fun GamesView(report: StorageReport, sessionRunning: Boolean, a: FrontEn
         val current = game.libraryRoot
         val initial = current?.takeIf { it.path.startsWith("/storage/") }?.parentFile?.path
             ?: GameStorage.effective(ctx)?.path
+            ?: StorageRoots.list(ctx).firstOrNull { it.removable && it.readable }?.dir?.absolutePath
             ?: Environment.getExternalStorageDirectory()?.absolutePath
         pickFolder.launch(InAppFilePicker.buildDirIntent(ctx, ctx.getString(R.string.storage_move_choose_folder), initial))
     }
@@ -777,6 +779,15 @@ private fun MoveGameDialog(
         val root = if (game.x64) File(volume.path, GameStorage.X64_CARD_DIR) else File(volume.path)
         if (!samePath(game.libraryRoot, root) && options.none { samePath(it.root, root) }) {
             options.add(MoveOption(volume.name, root, root.path))
+        }
+    }
+    // Raw removable drives (USB OTG, SD readers) are listed even when Android does not
+    // expose an app-specific directory on them. They need All-files access to be readable.
+    val drives = remember { StorageRoots.list(ctx).filter { it.removable && it.readable } }
+    for (drive in drives) {
+        val root = if (game.x64) File(drive.dir, GameStorage.X64_CARD_DIR) else drive.dir
+        if (!samePath(game.libraryRoot, root) && options.none { samePath(it.root, root) }) {
+            options.add(MoveOption(drive.label, root, root.path))
         }
     }
     if (arch == "arm64") {
