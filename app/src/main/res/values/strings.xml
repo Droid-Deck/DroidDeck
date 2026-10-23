@@ -2683,6 +2683,16 @@
     <string name="storage_safe_hint">Unused runtimes, leftovers, old logs</string>
     <string name="storage_clean_up">Clean up…</string>
     <string name="storage_session_running">Stop the session to clean up or remove anything. Sizes are still shown.</string>
+    <string name="storage_default_group">Install location</string>
+    <string name="storage_default_title">Default storage</string>
+    <string name="storage_default_hint">New store installs go here. Existing games stay where they are. Steam libraries keep their own setting.</string>
+    <string name="storage_default_ask">Ask every time</string>
+    <string name="storage_default_ask_detail">Choose a target for each install</string>
+    <string name="storage_default_internal">Internal storage</string>
+    <string name="storage_default_external">External storage</string>
+    <string name="storage_default_external_detail">%1$s · %2$s free</string>
+    <string name="storage_default_external_missing">Not connected</string>
+    <string name="storage_default_note">Used by new store installs and the Epic launcher. Games already installed are not moved.</string>
     <string name="storage_where">Where it goes</string>
     <string name="storage_games">Steam games</string>
     <string name="storage_game_data">Game data</string>

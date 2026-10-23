@@ -5,6 +5,7 @@ import com.droiddeck.launcher.session.SessionPrefs
 import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -24,6 +25,30 @@ class StoreInstallRootTest {
         assertEquals(File(LinuxRuntime.rootDir(app), "root/Games/Stores").absolutePath, StoreInstallRoot.installRoot(app).absolutePath)
         assertTrue(StoreInstallRoot.roots(app).any { it.absolutePath == File(card, "Games").absolutePath })
         assertFalse(StoreInstallRoot.targets(app).first().removable)
+    }
+
+    @Test fun defaultStoragePicksTheInternalOrTheConfiguredExternalTarget() {
+        val library = File(app.filesDir, "default-card/steam").apply { mkdirs() }
+        SessionPrefs.setGameStorage(app, library.path, "Card")
+        val external = File(library, "Games")
+
+        SessionPrefs.setDefaultStorage(app, SessionPrefs.DEFAULT_STORAGE_INTERNAL)
+        assertEquals(StoreInstallRoot.internalRoot(app).absolutePath, StoreInstallRoot.defaultTarget(app)?.root?.absolutePath)
+
+        SessionPrefs.setDefaultStorage(app, SessionPrefs.DEFAULT_STORAGE_EXTERNAL)
+        assertEquals(external.absolutePath, StoreInstallRoot.defaultTarget(app)?.root?.absolutePath)
+
+        SessionPrefs.setDefaultStorage(app, SessionPrefs.DEFAULT_STORAGE_ASK)
+        assertNull(StoreInstallRoot.defaultTarget(app))
+
+        SessionPrefs.setDefaultStorage(app, "bogus")
+        assertEquals(SessionPrefs.DEFAULT_STORAGE_ASK, SessionPrefs.defaultStorage(app))
+    }
+
+    @Test fun defaultExternalStorageFallsBackToTheInstallDialogWhenNoCardIsPresent() {
+        SessionPrefs.setGameStorage(app, SessionPrefs.GAME_STORAGE_OFF, "")
+        SessionPrefs.setDefaultStorage(app, SessionPrefs.DEFAULT_STORAGE_EXTERNAL)
+        assertNull(StoreInstallRoot.defaultTarget(app))
     }
 
     @Test fun theSteamLibraryFolderIsOfferedAsAnInstallTarget() {

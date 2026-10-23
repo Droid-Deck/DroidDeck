@@ -152,6 +152,19 @@ object SessionPrefs {
         prefs(context).edit().putString("storesInstallLanguage", code).apply()
     }
 
+    const val DEFAULT_STORAGE_ASK = "ask"
+    const val DEFAULT_STORAGE_INTERNAL = "internal"
+    const val DEFAULT_STORAGE_EXTERNAL = "external"
+    private val DEFAULT_STORAGE_VALUES = setOf(DEFAULT_STORAGE_ASK, DEFAULT_STORAGE_INTERNAL, DEFAULT_STORAGE_EXTERNAL)
+
+    fun defaultStorage(context: Context): String =
+        prefs(context).getString("defaultStorage", DEFAULT_STORAGE_ASK)
+            ?.takeIf { it in DEFAULT_STORAGE_VALUES } ?: DEFAULT_STORAGE_ASK
+
+    fun setDefaultStorage(context: Context, value: String) {
+        prefs(context).edit().putString("defaultStorage", value.takeIf { it in DEFAULT_STORAGE_VALUES } ?: DEFAULT_STORAGE_ASK).apply()
+    }
+
     fun gameStoresParallel(context: Context): Int = prefs(context).getInt("gameStoresParallel", 1).coerceIn(1, 3)
 
     fun setGameStoresParallel(context: Context, count: Int) {
