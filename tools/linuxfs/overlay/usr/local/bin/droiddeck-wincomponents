@@ -31,6 +31,7 @@ import time
 from pathlib import Path
 
 STORE = Path("/opt/droiddeck/wincomponents")
+SYSTEM_STORE = Path("/usr/local/share/droiddeck/wincomponents")
 SELECTION = Path.home() / ".config/droiddeck/wincomponents.json"
 PENDING = Path.home() / ".config/droiddeck/wincomponents-pending.json"
 PENDING_WAIT = 10.0
@@ -64,11 +65,16 @@ def wanted(app_id, selection=SELECTION):
 def component(store, cid):
     """The component's overrides, its files as (relative path, source) and the ids it bundles, or None if not installed."""
     root = Path(store) / cid
+    if not root.is_dir() and SYSTEM_STORE.is_dir() and (SYSTEM_STORE / cid).is_dir():
+        root = SYSTEM_STORE / cid
     try:
         with open(root / "component.json", encoding="utf-8") as source:
             meta = json.load(source)
     except (FileNotFoundError, ValueError):
-        return None
+        if cid == "steam_offline":
+            meta = {"id": "steam_offline", "overrides": ["steamclient=n,b", "steamclient64=n,b"]}
+        else:
+            return None
     files = []
     for arch in ARCH_DIRS:
         folder = root / arch
@@ -542,12 +548,15 @@ def wait_for_pending(app_id, pending=PENDING, store=STORE, timeout=PENDING_WAIT,
     return "wincomp: %s waited %dms for %s" % (app_id, waited, ",".join(asked))
 
 
-def apply(compat_path, app_id, selection=SELECTION, store=STORE, pending=PENDING, wait=wait_for_pending):
+def apply(compat_path, app_id, selection=SELECTION, store=STORE, pending=PENDING, wait=wait_for_pending, *, extra_ids=()):
     """Brings the prefix in line with the game's picks. Returns (overrides, notes)."""
     compat = Path(compat_path)
     pfx = compat / "pfx"
     waited = wait(app_id, pending, store) if wait else None
-    ids = wanted(app_id, selection)
+    ids = list(wanted(app_id, selection))
+    for extra in extra_ids:
+        if valid_id(extra) and extra not in ids:
+            ids.append(extra)
     state = load_state(compat)
     if not ids and not state["files"] and not state.get("registry"):
         return [], []

@@ -9,6 +9,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 BIN = Path(__file__).resolve().parents[1] / "linuxfs/overlay/usr/local/bin"
 MODULE = runpy.run_path(str(BIN / "droiddeck-game-env"))
@@ -1189,3 +1190,55 @@ class ForceSsbsTest(unittest.TestCase):
                 self.assertEqual(MODULE["force_ssbs"]([str(x86 / "proton")], on), on)
             finally:
                 g["SSBS_LIB"] = old
+
+
+class StartWithoutSteamTest(unittest.TestCase):
+    def test_ensure_steam_appid_creates_and_preserves(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            self.assertTrue(MODULE["ensure_steam_appid"](str(folder), "632360"))
+            self.assertEqual((folder / "steam_appid.txt").read_text(), "632360\n")
+            self.assertEqual((folder / ".droiddeck-steam-appid").read_text(), "632360\n")
+            self.assertFalse(MODULE["ensure_steam_appid"](str(folder), "999999"))
+            self.assertEqual((folder / "steam_appid.txt").read_text(), "632360\n")
+
+    def test_proton_run_environment_and_appid(self):
+        proton_run = runpy.run_path(str(BIN / "droiddeck-proton-run"))
+        target = proton_run["Target"]("632360", "/compat", "/install", "/lib", "steam", "/install")
+        env = proton_run["environment"]({}, target, "/tool", "/root", no_steam=True)
+        self.assertEqual(env["DROIDDECK_NO_STEAM"], "1")
+        self.assertEqual(env["STEAM_OFFLINE"], "1")
+        self.assertEqual(env["SteamClientLaunch"], "1")
+        self.assertEqual(env["SteamAppId"], "632360")
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            self.assertTrue(proton_run["ensure_steam_appid"](str(folder), "632360"))
+            self.assertEqual((folder / "steam_appid.txt").read_text(), "632360\n")
+
+    def test_no_steam_injects_steam_offline_overrides_and_creates_appid(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            game_dir = root / "game"
+            game_dir.mkdir()
+            exe = game_dir / "Risk of Rain 2.exe"
+            exe.write_bytes(b"MZ")
+            compat = root / "compatdata/632360"
+            compat.mkdir(parents=True)
+            env = {
+                "STEAM_COMPAT_DATA_PATH": str(compat),
+                "DROIDDECK_NO_STEAM": "1",
+            }
+            calls = []
+            with mock.patch.dict(os.environ, env, clear=True), \
+                 mock.patch('sys.argv', ['droiddeck-game-env', '/proton', 'waitforexitandrun', str(exe)]), \
+                 mock.patch('os.execvpe', side_effect=lambda *args: calls.append(args)), \
+                 mock.patch('os.getcwd', return_value=str(game_dir)), \
+                 mock.patch.dict(MODULE['main'].__globals__, load_sync=lambda: None, select_sync=lambda c, e, s: (c, e)):
+                MODULE['main']()
+            self.assertTrue((game_dir / "steam_appid.txt").exists())
+            self.assertEqual((game_dir / "steam_appid.txt").read_text(), "632360\n")
+            launch_env = calls[0][2]
+            self.assertEqual(launch_env["DROIDDECK_NO_STEAM"], "1")
+            self.assertEqual(launch_env["STEAM_OFFLINE"], "1")
+            self.assertIn("steamclient=n,b", launch_env.get("WINEDLLOVERRIDES", ""))
+            self.assertIn("steamclient64=n,b", launch_env.get("WINEDLLOVERRIDES", ""))

@@ -337,7 +337,24 @@ def steam_launches(target, program, root):
     return os.path.relpath(program, target.install).replace(os.sep, "/").lower() in entry.get("launch", ())
 
 
-def environment(env, target, tool_folder, root, window=False):
+def ensure_steam_appid(folder, appid):
+    if not folder or not os.path.isdir(folder):
+        return False
+    path = os.path.join(folder, "steam_appid.txt")
+    marker = os.path.join(folder, ".droiddeck-steam-appid")
+    if not os.path.exists(path):
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                f.write("%s\n" % appid)
+            with open(marker, "w", encoding="utf-8") as f:
+                f.write("%s\n" % appid)
+            return True
+        except OSError:
+            pass
+    return False
+
+
+def environment(env, target, tool_folder, root, window=False, no_steam=False):
     env = dict(env)
     steamapps = [os.path.join(lib, "steamapps") for lib in libraries(root)]
     env.update({
@@ -355,6 +372,8 @@ def environment(env, target, tool_folder, root, window=False):
     else:
         game = str(number << 32 | 0x02000000)
         env.update(SteamAppId="0", STEAM_COMPAT_APP_ID="0", SteamGameId=game, SteamOverlayGameId=game)
+    if no_steam:
+        env.update(DROIDDECK_NO_STEAM="1", STEAM_OFFLINE="1", SteamClientLaunch="1")
     if window:
         env.setdefault("PROTON_USE_WINED3D", "1")
     return env
@@ -418,6 +437,7 @@ def main(argv):
             target = shortcut_target(app, program, start, root)
         else:
             target = locate(program, root)
+    no_steam = app is not None or os.environ.get("DROIDDECK_NO_STEAM") in ("1", "on", "true", "yes")
     available = tools(root)
     name, why = choose_tool(target.appid, mapping(root), available)
     if name is None:
@@ -425,10 +445,17 @@ def main(argv):
         return 69
     folder, command = available[name]
     os.makedirs(target.compatdata, exist_ok=True)
-    env = environment(os.environ, target, folder, root, window)
+    if no_steam and int(target.appid) < STEAM_APP_LIMIT:
+        ensure_steam_appid(target.start, target.appid)
+        prog_dir = os.path.dirname(program)
+        if prog_dir and prog_dir != target.start:
+            ensure_steam_appid(prog_dir, target.appid)
+        if target.install and os.path.isdir(target.install) and target.install not in (target.start, prog_dir):
+            ensure_steam_appid(target.install, target.appid)
+    env = environment(os.environ, target, folder, root, window, no_steam=no_steam)
     env.update(extra)
     say("%s with %s (%s), %s prefix %s%s" % (program, name, why, target.kind, target.compatdata,
-                                              ", without the Steam client" if app is not None else ""))
+                                              ", without the Steam client" if no_steam else ""))
     try:
         os.chdir(target.start)
     except OSError:

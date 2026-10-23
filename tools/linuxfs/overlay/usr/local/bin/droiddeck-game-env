@@ -169,13 +169,34 @@ def engine_fixes(exe, args):
     return env, extra, notes
 
 
-def win_components(compat, app_id):
+def ensure_steam_appid(folder, app_id):
+    if not folder or not os.path.isdir(folder):
+        return False
+    path = os.path.join(folder, "steam_appid.txt")
+    marker = os.path.join(folder, ".droiddeck-steam-appid")
+    if not os.path.exists(path):
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                f.write("%s\n" % app_id)
+            with open(marker, "w", encoding="utf-8") as f:
+                f.write("%s\n" % app_id)
+            print("droiddeck-game-env: steam_appid.txt generated for app %s" % app_id, file=sys.stderr)
+            return True
+        except OSError:
+            pass
+    return False
+
+
+def win_components(compat, app_id, extra_ids=()):
     """The game's Windows components put into its prefix; returns their WINEDLLOVERRIDES entries."""
     if not compat:
         return ""
     try:
         module = runpy.run_path(str(Path(__file__).resolve().parent / "droiddeck-wincomponents"))
-        names, notes = module["apply"](compat.rstrip("/"), app_id)
+        try:
+            names, notes = module["apply"](compat.rstrip("/"), app_id, extra_ids=extra_ids)
+        except TypeError:
+            names, notes = module["apply"](compat.rstrip("/"), app_id)
         for note in notes:
             print("droiddeck-game-env: " + note, file=sys.stderr)
         return module["overrides_value"](names)
@@ -441,29 +462,54 @@ def main():
     if app_id:
         waiting = len(command) > 1 and command[1] == "waitforexitandrun"
         fixes = {}
+        path = Path.home() / ".config/droiddeck/game-environment.json"
+        config = None
+        try:
+            with path.open(encoding="utf-8") as source:
+                config = json.load(source)
+        except FileNotFoundError:
+            config = {"version": 1}
+        except (OSError, ValueError, TypeError, AttributeError):
+            print("droiddeck-game-env: invalid configuration; using inherited environment", file=sys.stderr)
+
+        game_cfg = config.get("games", {}).get(app_id, {}) if isinstance(config, dict) and isinstance(config.get("games"), dict) else {}
+        no_steam = (env.get("DROIDDECK_NO_STEAM") in ("1", "on", "true", "yes") or
+                    game_cfg.get("DROIDDECK_NO_STEAM") in ("1", "on", "true", "yes"))
+        if no_steam:
+            env["DROIDDECK_NO_STEAM"] = "1"
+            env.setdefault("STEAM_OFFLINE", "1")
+            env.setdefault("SteamClientLaunch", "1")
+            env.setdefault("SteamAppId", app_id)
+            env.setdefault("SteamGameId", app_id)
+            env.setdefault("STEAM_COMPAT_APP_ID", app_id)
+            if waiting and len(command) > 2:
+                ensure_steam_appid(os.path.dirname(command[2]), app_id)
+                ensure_steam_appid(os.getcwd(), app_id)
+
         if waiting:
             command = skip_red_launcher(command)
             fixes, extra, notes = engine_fixes(command[2], command[3:]) if len(command) > 2 else ({}, [], [])
             for note in notes:
                 print("droiddeck-game-env: " + note, file=sys.stderr)
             command += extra
-            components = win_components(env.get("STEAM_COMPAT_DATA_PATH", ""), app_id)
+            extra_ids = ("steam_offline",) if no_steam else ()
+            components = win_components(env.get("STEAM_COMPAT_DATA_PATH", ""), app_id, extra_ids=extra_ids)
             if components:
                 own = fixes.get("WINEDLLOVERRIDES")
                 fixes["WINEDLLOVERRIDES"] = components + ";" + own if own else components
-        path = Path.home() / ".config/droiddeck/game-environment.json"
-        try:
-            with path.open(encoding="utf-8") as source:
-                config = json.load(source)
-            if waiting:
-                env = apply_config(env, config, app_id, fixes)
-            else:
-                env = apply_config(env, sync_config(config, app_id), app_id)
-        except FileNotFoundError:
-            if waiting:
-                env = apply_config(env, {"version": 1}, app_id, fixes)
-        except (OSError, ValueError, TypeError, AttributeError):
-            print("droiddeck-game-env: invalid configuration; using inherited environment", file=sys.stderr)
+            if no_steam:
+                current_ov = fixes.get("WINEDLLOVERRIDES", "")
+                stubs = "steamclient=n,b;steamclient64=n,b"
+                if "steamclient=" not in current_ov:
+                    fixes["WINEDLLOVERRIDES"] = current_ov + ";" + stubs if current_ov else stubs
+        if config is not None:
+            try:
+                if waiting:
+                    env = apply_config(env, config, app_id, fixes)
+                else:
+                    env = apply_config(env, sync_config(config, app_id), app_id)
+            except (OSError, ValueError, TypeError, AttributeError):
+                print("droiddeck-game-env: invalid configuration; using inherited environment", file=sys.stderr)
     if app_id and len(command) > 1 and command[1] == "waitforexitandrun":
         command = offline_without_anticheat(command, env)
     if mic_enabled == "0":

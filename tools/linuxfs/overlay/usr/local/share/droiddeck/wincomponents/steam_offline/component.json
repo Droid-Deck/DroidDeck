@@ -1,0 +1,8 @@
+{
+  "id": "steam_offline",
+  "name": "Offline Steamworks",
+  "overrides": [
+    "steamclient=n,b",
+    "steamclient64=n,b"
+  ]
+}

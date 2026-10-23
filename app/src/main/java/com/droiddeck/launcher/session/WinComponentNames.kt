@@ -21,6 +21,7 @@ object WinComponentNames {
         "cjkfonts" to "CJK fonts", "jet40" to "Jet 4.0 database", "mdac28" to "MDAC 2.8", "wsh57" to "Windows Script Host 5.7",
         "riched20" to "RichEdit 2.0", "msftedit" to "RichEdit 4.1 (msftedit)", "sqlite3" to "SQLite 3",
         "win7" to "Windows 7 mode", "winXP" to "Windows XP mode", "gmdls" to "General MIDI sounds (gm.dls)",
+        "steam_offline" to "Offline Steamworks",
     )
     private val VCREDIST = Regex("vcredist(\\d{4})")
     private val DOTNET = Regex("dotnet(\\d)(\\d)(\\d?)(sp\\d)?")

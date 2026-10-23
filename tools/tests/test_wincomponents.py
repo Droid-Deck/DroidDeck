@@ -54,6 +54,14 @@ class WinComponentsTest(unittest.TestCase):
         _, notes = self.apply()
         self.assertEqual(notes, [])
 
+    def test_steam_offline_component_fallback_and_extra_ids(self):
+        found = MODULE["component"](self.store, "steam_offline")
+        self.assertEqual(found[0], ["steamclient=n,b", "steamclient64=n,b"])
+        names, notes = MODULE["apply"](self.compat, "2571976725", self.selection, self.store, extra_ids=["steam_offline"])
+        self.assertIn("steamclient=n,b", names)
+        self.assertIn("steamclient64=n,b", names)
+        self.assertEqual(MODULE["overrides_value"](names), "steamclient=n,b;steamclient64=n,b")
+
     def test_replaces_a_proton_builtin_symlink_and_keeps_the_prefix_spelling(self):
         self.component("xaudio", ["xaudio2_7"], {"syswow64/xaudio2_7.dll": b"native"})
         builtin = Path(self.tmp.name) / "proton/lib/wine/i386-windows/xaudio2_7.dll"
