@@ -470,9 +470,15 @@ def ubisoft_last(folder):
     return " / ".join(lines[-2:])
 
 
+def wine_server_running():
+    return any(Path("/tmp/.wine-%d" % os.getuid()).glob("server-*/socket"))
+
+
 def run_reg_import(proton, table, timeout=60):
     if not proton or not Path(proton).is_file():
         return "no-proton"
+    if wine_server_running():
+        return "prefix-busy"
     try:
         run = subprocess.run([proton, "run", "reg.exe", "import", windows_path(str(table))],
                              stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=timeout, text=True)
