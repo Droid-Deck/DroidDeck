@@ -1113,7 +1113,11 @@ private:
             if (!inputAdapter_.resetOrigin(runtimeSession_.originEpoch))
                 throw std::runtime_error("XR input origin reset failed");
             releaseHands();
-            throw std::runtime_error("XR reference space changed; restart SteamVR to refresh frame poses");
+            if (uploadedFrames_ != 0)
+                throw std::runtime_error("XR reference space changed; restart SteamVR to refresh frame poses");
+            // Initial localization can change the origin before any guest frame is received.
+            spaceChangeTimes_.erase(std::remove_if(spaceChangeTimes_.begin(), spaceChangeTimes_.end(),
+                [&](XrTime change) { return change <= frameState.predictedDisplayTime; }), spaceChangeTimes_.end());
         }
         check(xrLocateSpace(view_, world_, frameState.predictedDisplayTime, &head_), "head pose");
         handActive_[0] = handActive_[1] = false;
