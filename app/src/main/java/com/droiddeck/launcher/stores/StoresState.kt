@@ -201,12 +201,13 @@ object StoresState {
         if (isUnfinished(item)) { install(context, item); return }
         val targets = StoreInstallRoot.targets(context)
         val preferred = StoreInstallRoot.defaultTarget(context)
+        val wantedExternal = SessionPrefs.defaultStorage(context) == SessionPrefs.DEFAULT_STORAGE_EXTERNAL
+        if (preferred != null) SessionPrefs.setStoresInstallTarget(context, preferred.root.absolutePath)
         when {
             preferred != null && !StoreLanguage.selectable(item.store) -> {
-                SessionPrefs.setStoresInstallTarget(context, preferred.root.absolutePath)
                 install(context, item, preferred.root)
             }
-            targets.size > 1 || StoreLanguage.selectable(item.store) -> pendingInstall = item
+            targets.size > 1 || wantedExternal || StoreLanguage.selectable(item.store) -> pendingInstall = item
             else -> install(context, item, targets.first().root)
         }
     }
