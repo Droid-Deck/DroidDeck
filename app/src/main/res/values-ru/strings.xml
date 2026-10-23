@@ -2589,9 +2589,6 @@
     <string name="drawer_component_downloads">Скачать компоненты</string>
     <string name="drawer_component_downloads_hint">Загрузки общие со страницей «Компоненты». Выберите выше скачанную версию, чтобы использовать её при следующем запуске игры.</string>
     <string name="drawer_component_choose_download">Выберите версию для скачивания</string>
-    <string name="mode_zram">Сжатие zRAM</string>
-    <string name="mode_zram_hint">Пока идёт игра, память клиента Steam сжимается в zram устройства, и игре остаётся больше ОЗУ. Применяется при следующем запуске Steam.</string>
-    <string name="mode_zram_unsupported">Недоступно: на устройстве нет zram или swap, либо его ядро старше 5.4.</string>
     <string name="stores_storage_insufficient">Недостаточно свободного места: нужно %1$s, свободно только %2$s</string>
     <string name="stores_storage_low">Недостаточно места (свободно %1$s, нужно %2$s)</string>
     <string name="stores_target_free_unknown">Свободное место неизвестно</string>

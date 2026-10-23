@@ -2531,9 +2531,6 @@
     <string name="stores_hltb_completionist">Tamamlayıcı</string>
     <string name="stores_hltb_hours">%1$s sa</string>
     <string name="stores_hltb_minutes">%1$d dk</string>
-    <string name="mode_zram">zRAM sıkıştırma</string>
-    <string name="mode_zram_hint">Bir oyun çalışırken Steam istemcisinin belleği cihazın zram\'ına sıkıştırılır ve oyuna daha fazla RAM kalır. Steam\'in bir sonraki başlatılışında uygulanır.</string>
-    <string name="mode_zram_unsupported">Kullanılamıyor: bu cihazda zram veya swap yok ya da çekirdeği 5.4\'ten eski.</string>
     <string name="setup_reset_settings">Tüm ayarları sıfırla</string>
     <string name="setup_reset_settings_title">Tüm ayarlar sıfırlansın mı?</string>
     <string name="setup_reset_settings_body">Ekran, performans, denetleyici, tema, dil ve başlatıcı ayarları varsayılanlarına döner. Oyunlarınız, Steam oturum bilgileriniz, mağaza hesaplarınız, indirilen sürücüler ve depolama klasörleriniz korunur.</string>

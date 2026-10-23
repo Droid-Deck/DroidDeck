@@ -2564,9 +2564,6 @@
     <string name="drawer_component_downloads">Télécharger des composants</string>
     <string name="drawer_component_downloads_hint">Les téléchargements sont partagés avec la page « Composants ». Choisissez une version téléchargée ci-dessus pour l\'utiliser au prochain lancement du jeu.</string>
     <string name="drawer_component_choose_download">Choisissez une version à télécharger</string>
-    <string name="mode_zram">Compression zRAM</string>
-    <string name="mode_zram_hint">Pendant qu\'un jeu tourne, la mémoire du client Steam est compressée dans la zram de l\'appareil, ce qui laisse plus de RAM au jeu. S\'applique au prochain démarrage de Steam.</string>
-    <string name="mode_zram_unsupported">Indisponible : cet appareil n\'a pas de swap actif, ou son noyau est antérieur à la version 5.4.</string>
     <string name="stores_storage_insufficient">Espace libre insuffisant : %1$s nécessaires, seulement %2$s libres</string>
     <string name="stores_storage_low">Espace insuffisant (%1$s libres, %2$s nécessaires)</string>
     <string name="stores_target_free_unknown">Espace libre inconnu</string>
