@@ -896,11 +896,14 @@ int statx(int dirfd, const char *path, int flags, unsigned mask, struct statx *o
   struct res r;
   long rs;
   if (mask & STATX__RESERVED) { errno = EINVAL; return -1; }
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wnonnull-compare"
   if (!out) { errno = EFAULT; return -1; }
   if (!path) {
     if (!(flags & AT_EMPTY_PATH)) { errno = EFAULT; return -1; }
     return real_statx ? real_statx(dirfd, path, flags, mask, out) : ret(sc(SYS_statx, dirfd, (long)path, flags, mask, (long)out));
   }
+#pragma GCC diagnostic pop
   if ((flags & AT_EMPTY_PATH) && !path[0] && fp_ready()) {
     hits++;
     return ret(statx_call(dirfd, "", flags, mask, out));
