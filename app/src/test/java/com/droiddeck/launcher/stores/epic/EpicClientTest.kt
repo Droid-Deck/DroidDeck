@@ -479,7 +479,7 @@ class EpicClientTest {
         com.droiddeck.launcher.session.SessionPrefs.setDefaultStorage(
             context, com.droiddeck.launcher.session.SessionPrefs.DEFAULT_STORAGE_EXTERNAL)
         com.droiddeck.launcher.session.SessionPrefs.setDefaultStorageFolder(
-            context, File(context.filesDir, "not-connected").path, "SSD")
+            context, File(context.filesDir, "missing-${System.nanoTime()}").path, "SSD")
         try {
             assertEquals(current, EpicClient.prepareInstallDir(context))
             assertEquals(current, org.json.JSONObject(settings.readText()).getString("defaultInstallDir"))
