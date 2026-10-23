@@ -11,13 +11,13 @@ import android.graphics.drawable.Icon
 import android.net.Uri
 import android.widget.Toast
 import com.droiddeck.launcher.LauncherIcon
-import com.droiddeck.launcher.MainActivity
+import com.droiddeck.launcher.FrontEndActivity
 import com.droiddeck.launcher.R
 import java.io.File
 
 object GameShortcuts {
     fun launchIntent(context: Context, gameId: String) = Intent(Intent.ACTION_VIEW,
-        Uri.parse(GameLaunchLink.uri(gameId)), context, MainActivity::class.java)
+        Uri.parse(GameLaunchLink.uri(gameId)), context, FrontEndActivity::class.java)
         .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
 
     private fun info(context: Context, game: Library.SteamGame): ShortcutInfo {

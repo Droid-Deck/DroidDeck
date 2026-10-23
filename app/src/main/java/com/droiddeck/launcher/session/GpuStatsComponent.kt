@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.session
 
+import android.os.SystemClock
 import android.util.Log
 import com.droiddeck.launcher.core.SessionPart
 import com.droiddeck.launcher.runtime.LinuxRuntime
@@ -23,11 +24,16 @@ class GpuStatsComponent(val dir: File) : SessionPart() {
     }
 
     fun prepare(): Boolean {
-        if (!File(KGSL).exists() || MANGOHUD_FILES.none { File(KGSL, it).let { f -> f.exists() && !f.canRead() } }) return false
+        if (!File(KGSL).exists()) return false
+        val unreadable = MANGOHUD_FILES.any { File(KGSL, it).let { f -> f.exists() && !f.canRead() } }
+        if (!unreadable && !File(GPUBUSY).canRead()) return false
         return try {
             dir.mkdirs()
             dir.listFiles()?.forEach { java.nio.file.Files.deleteIfExists(it.toPath()) }
             feeds.clear()
+            PASSTHROUGH_FILES.forEach { name ->
+                runCatching { File(dir, name).writeText(File(KGSL, name).readText()) }
+            }
             loadFeed()?.let { load ->
                 feeds.add(load)
                 feeds.add(Feed(File(dir, "perf_now"), load.source, load.read, "%-6s\n", percent = true))
@@ -37,7 +43,7 @@ class GpuStatsComponent(val dir: File) : SessionPart() {
                 feeds.add(Feed(File(dir, "cur_freq"), clock.source, { clock.read()?.times(1_000_000) }, "%-10d\n"))
             }
             pick("temp", tempSources(), "%6d\n") { milliCelsius(it) }?.let { feeds.add(it) }
-            feeds.forEach { feed -> feed.read()?.let { write(feed, it) } }
+            refresh()
             Log.i(TAG, "hud: kgsl stats from the session's own: " + MANGOHUD_FILES.joinToString { name ->
                 "$name " + (feeds.firstOrNull { it.file.name == name }?.source ?: "none")
             })
@@ -55,9 +61,18 @@ class GpuStatsComponent(val dir: File) : SessionPart() {
             while (running) {
                 try { Thread.sleep(PERIOD_MS) } catch (e: InterruptedException) { break }
                 if (!running) break
-                for (feed in feeds) feed.read()?.let { write(feed, it) }
+                refresh()
             }
         }, "gpu-stats").apply { isDaemon = true; start() }
+    }
+
+    // kgsl's gpubusy can read 0 0 straight after a read, so feeds that share a reader share one read.
+    private fun refresh() {
+        val values = HashMap<() -> Long?, Long?>()
+        for (feed in feeds) {
+            if (feed.read !in values) values[feed.read] = feed.read()
+            values[feed.read]?.let { write(feed, it) }
+        }
     }
 
     override fun stop() {
@@ -67,16 +82,30 @@ class GpuStatsComponent(val dir: File) : SessionPart() {
     }
 
     private fun loadFeed(): Feed? {
-        pick("gpu_busy_percentage", LOAD_SOURCES, "%3d %%\n") { it.coerceIn(0, 100) }?.let { return it }
-        val gpubusy = "$KGSL/gpubusy"
-        val read = {
-            runCatching {
-                val parts = File(gpubusy).readText().trim().split(Regex("\\s+"))
-                val total = parts[1].toLong()
-                if (total > 0) (parts[0].toLong() * 100 / total).coerceIn(0, 100) else 0L
+        latchedBusyFeed()?.let { return it }
+        return pick("gpu_busy_percentage", LOAD_SOURCES, "%3d %%\n") { it.coerceIn(0, 100) }
+    }
+
+    // kgsl publishes busy/total once per ~1 s of GPU-on time and zeroes it on any read while the GPU is
+    // power-collapsed, so direct pollers mostly see 0; latch each published window instead.
+    private fun latchedBusyFeed(): Feed? {
+        var load = 0L
+        var windowAt = 0L
+        val read = read@{
+            val parts = runCatching {
+                File(GPUBUSY).readText().trim().split(Regex("\\s+")).map { it.toLong() }
             }.getOrNull()
+            if (parts == null || parts.size < 2) return@read null
+            val now = SystemClock.elapsedRealtime()
+            if (parts[1] > 0) {
+                load = (parts[0] * 100 / parts[1]).coerceIn(0, 100)
+                windowAt = now
+            } else if (now - windowAt > LOAD_HOLD_MS) {
+                load = 0
+            }
+            load
         }
-        return if (read() != null) Feed(File(dir, "gpu_busy_percentage"), gpubusy, read, "%3d %%\n") else null
+        return if (read() != null) Feed(File(dir, "gpu_busy_percentage"), GPUBUSY, read, "%3d %%\n") else null
     }
 
     private fun pick(name: String, sources: List<String>, format: String, unit: (Long) -> Long?): Feed? {
@@ -100,8 +129,11 @@ class GpuStatsComponent(val dir: File) : SessionPart() {
         const val KGSL = "/sys/class/kgsl/kgsl-3d0"
         const val MSM_LOAD = "/sys/kernel/debug/dri/0/perf_now"
         const val MSM_CLOCK = "/sys/devices/platform/soc@0/3d00000.gpu/devfreq/3d00000.gpu/cur_freq"
+        private const val GPUBUSY = "$KGSL/gpubusy"
         private const val PERIOD_MS = 500L
+        private const val LOAD_HOLD_MS = 5_000L
         private val MANGOHUD_FILES = listOf("gpu_busy_percentage", "clock_mhz", "temp")
+        private val PASSTHROUGH_FILES = listOf("gpu_model", "gpu_chipid")
         private const val QCOM_GPU = "/sys/kernel/gpu"
         private val LOAD_SOURCES = listOf(
             "$KGSL/gpu_busy_percentage", "$KGSL/devfreq/gpu_load", "$KGSL/gpuload", "$QCOM_GPU/gpu_busy",
