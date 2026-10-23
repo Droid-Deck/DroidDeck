@@ -791,7 +791,7 @@ jobs:
           XBOX_SOURCE_TREE: ${{ needs.xbox.outputs.tree-sha }}
         run: test "$(git rev-parse 'HEAD^{tree}')" = "$XBOX_SOURCE_TREE"
       - name: Install Python test dependencies
-        timeout-minutes: 5
+        timeout-minutes: 7
         run: bash tools/ci/install-ubuntu-packages.sh python3-yaml gcc-aarch64-linux-gnu qemu-user libvulkan1 mesa-vulkan-drivers
       - name: Steam import and game environment tests
         run: python3 -m unittest discover -s tools/tests -p 'test_*.py'
