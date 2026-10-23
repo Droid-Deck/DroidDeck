@@ -61,7 +61,7 @@
         </activity>
 
         <activity
-            android:name=".MainActivity"
+            android:name=".FrontEndActivity"
             android:exported="true"
             android:screenOrientation="sensorLandscape"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|density|keyboard|keyboardHidden|navigation">
@@ -84,8 +84,8 @@
         </activity>
 
         <activity-alias
-            android:name=".LauncherDark"
-            android:targetActivity=".MainActivity"
+            android:name=".MainActivity"
+            android:targetActivity=".FrontEndActivity"
             android:icon="@mipmap/ic_launcher"
             android:exported="true">
             <intent-filter>
@@ -97,7 +97,7 @@
 
         <activity-alias
             android:name=".LauncherLight"
-            android:targetActivity=".MainActivity"
+            android:targetActivity=".FrontEndActivity"
             android:icon="@mipmap/ic_launcher_light"
             android:enabled="false"
             android:exported="true">
