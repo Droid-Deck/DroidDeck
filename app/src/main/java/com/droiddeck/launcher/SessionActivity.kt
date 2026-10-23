@@ -330,6 +330,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var glassesScreen: GlassesScreen? = null
     private var glassesOutputActive by mutableStateOf(false)
     private var pausedFrame by mutableStateOf<com.droiddeck.launcher.ui.PausedFrame?>(null)
+    private var pausedFrameWanted = false
     private var trackingRecovery by mutableStateOf<TrackingRecovery?>(null)
     private var glasses3dForVr = false
     private var ended = false
@@ -1014,14 +1015,20 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     SessionAchievements(inFront.game, inFront.title, onClose = ::closeAchievements)
                 }
                 com.droiddeck.launcher.ui.AchievementNotificationOverlay()
+                // Auto and Native resume on their own as the session comes back; only a failed resume needs the button.
+                val autoResume = suspendPolicy == SessionPrefs.SUSPEND_AUTO || suspendPolicy == SessionPrefs.SUSPEND_NATIVE
                 SessionPausedOverlay(
-                    suspended = SessionState.suspended,
+                    suspended = SessionState.suspended && (!autoResume || SessionState.resumeFailed),
                     engaged = SessionState.resumeRequested || SessionState.resuming,
                     failures = SessionState.resumeFailures,
                     frame = pausedFrame,
                     title = pausedTitle(),
                     onResume = { SessionService.resume(this@SessionActivity) },
-                    onHidden = { pausedFrame = null },
+                    onFrameNeeded = ::requestPausedFrame,
+                    onHidden = {
+                        pausedFrame = null
+                        pausedFrameWanted = false
+                    },
                 )
                 if (leaving) com.droiddeck.launcher.ui.FloodSpread(
                     com.droiddeck.launcher.ui.LocalPalette.current.signal,
@@ -2869,6 +2876,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     // The frozen game cannot draw again, so the paused overlay shows a copy taken while the surface still holds its frame.
     private fun capturePausedFrame() {
         if (!SessionState.running || pipUi || isInPictureInPictureMode || glassesOutputActive) return
+        if (SessionState.suspended && pausedFrame != null) return
         if (suspendPolicy == SessionPrefs.SUSPEND_NEVER || !::surfaceView.isInitialized) return
         if (surfaceView.holder.surface?.isValid != true) return
         val width = surfaceView.width
@@ -2891,6 +2899,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             android.view.PixelCopy.request(surfaceView, bitmap, { result ->
                 if (result == android.view.PixelCopy.SUCCESS && !isDestroyed) {
                     pausedFrame = com.droiddeck.launcher.ui.PausedFrame(bitmap.asImageBitmap(), bounds)
+                    pausedFrameWanted = false
                 } else {
                     bitmap.recycle()
                 }
@@ -2898,6 +2907,14 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         } catch (_: IllegalArgumentException) {
             bitmap.recycle()
         }
+    }
+
+    // Sessions that froze from picture-in-picture, or before onPause could copy a frame, have none; the
+    // compositor shows the frozen frame again once its output is back, so copy it from there.
+    private fun requestPausedFrame() {
+        if (pausedFrame != null) return
+        pausedFrameWanted = true
+        if (resumed && surfaceW > 0) capturePausedFrame()
     }
 
     private fun pipBounds(): android.graphics.Rect {
@@ -3295,6 +3312,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         surfaceView.visibility = if (glassesOutputActive) View.INVISIBLE else View.VISIBLE
         Log.i(TAG, "compositor output attached: " +
             if (glassesOutputActive) "glasses display ${glassesScreen?.display?.displayId}" else "phone")
+        if (pausedFrameWanted) uiHandler.postDelayed({
+            if (pausedFrameWanted && pausedFrame == null && resumed) capturePausedFrame()
+        }, PAUSED_FRAME_REDRAW_MS)
     }
 
     private fun restorePhoneOutput(screen: GlassesScreen) {
@@ -3555,6 +3575,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         const val EXTRA_REPAIR_RUNTIME = "repairRuntime"
         private const val LEAVE_TIMEOUT_MS = 1_500L
         private const val PAUSED_FRAME_MAX_EDGE = 1920f
+        private const val PAUSED_FRAME_REDRAW_MS = 150L
         private const val TAG = "SessionActivity"
         private var startedScreens = 0
         private const val FEX_MISSING = "droiddeck-fex: x86 Linux programs need"

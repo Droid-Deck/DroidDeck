@@ -330,6 +330,7 @@ class SessionService : Service() {
         SessionState.suspended = false
         SessionState.resumeRequested = false
         SessionState.resuming = false
+        SessionState.resumeFailed = false
         SessionState.pipActive = false
         pipTask = false
         SessionState.program = intent?.getStringExtra(EXTRA_PROGRAM)
@@ -1414,6 +1415,9 @@ class SessionService : Service() {
             suspendPolicy != SessionPrefs.SUSPEND_NEVER && hidden && downloadActive && !suspendDownloadNow
         if (suspendPolicy == SessionPrefs.SUSPEND_MANUAL && hidden && !downloadsBlockingSuspend) {
             manualPauseRequested = true
+        } else if (!hidden && !SessionState.suspended) {
+            // Coming back before the freeze finished keeps the game running instead of pausing it a moment later.
+            manualPauseRequested = false
         }
         val controller = suspendController ?: return
         if (downloadsBlockingSuspend) acquireLocks()
@@ -1463,6 +1467,7 @@ class SessionService : Service() {
                     freezePending = false
                     if (success) {
                         SessionState.suspended = true
+                        SessionState.resumeFailed = false
                         SessionEvents.transition(SessionPhase.SUSPENDED, "session.suspended")
                         releaseLocks()
                         refreshNotification()
@@ -1490,11 +1495,13 @@ class SessionService : Service() {
                     SessionState.resumeRequested = false
                     if (success) {
                         SessionState.suspended = false
+                        SessionState.resumeFailed = false
                         SessionEvents.transition(SessionEvents.resumePhase(), "session.resumed")
                         refreshNotification()
                     } else {
                         suspendAttemptFailed = true
                         SessionState.resumeFailures++
+                        SessionState.resumeFailed = true
                         Log.w(TAG, "could not confirm that the session resumed")
                     }
                     updateSuspendPolicy()
@@ -1586,6 +1593,7 @@ class SessionService : Service() {
             SessionState.suspended = false
             SessionState.resumeRequested = false
             SessionState.resuming = false
+            SessionState.resumeFailed = false
             SessionState.pipActive = false
             pipTask = false
             SessionState.guestPid = -1

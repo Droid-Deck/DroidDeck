@@ -34,6 +34,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
@@ -41,7 +43,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
@@ -65,13 +67,15 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.droiddeck.launcher.R
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 /** The last game frame, captured as the session left the screen, and where it sat in the overlay. */
 class PausedFrame(val image: ImageBitmap, val bounds: android.graphics.Rect)
 
 private const val CARD_SCALE = 0.82f
-private val PopEasing = CubicBezierEasing(0.3f, 1.5f, 0.4f, 1f)
+private const val FRAME_WAIT_MS = 600L
 
 private fun tone(saturation: Float, brightness: Float): ColorMatrix =
     ColorMatrix().apply {
@@ -87,8 +91,10 @@ fun SessionPausedOverlay(
     frame: PausedFrame?,
     title: String,
     onResume: () -> Unit,
+    onFrameNeeded: () -> Unit,
     onHidden: () -> Unit,
 ) {
+    val currentFrame by rememberUpdatedState(frame)
     var shown by remember { mutableStateOf(suspended) }
     val lift = remember { Animatable(if (suspended) 1f else 0f) }
     val orb = remember { Animatable(if (suspended) 1f else 0f) }
@@ -99,16 +105,26 @@ fun SessionPausedOverlay(
     LaunchedEffect(suspended, engaged) {
         when {
             suspended && !engaged -> {
-                shown = true
+                if (!shown) {
+                    if (currentFrame == null) {
+                        onFrameNeeded()
+                        withTimeoutOrNull(FRAME_WAIT_MS) { snapshotFlow { currentFrame }.first { it != null } }
+                    }
+                    // Pausing mostly happens while the screen is off or the app is away, so it appears already settled.
+                    press.snapTo(1f)
+                    ring.snapTo(0f)
+                    lift.snapTo(1f)
+                    orb.snapTo(1f)
+                    shown = true
+                    return@LaunchedEffect
+                }
                 launch { press.animateTo(1f, Motion.sp(0.5f, Spring.StiffnessMedium)) }
                 launch { ring.animateTo(0f, Motion.tw(200)) }
-                launch { lift.animateTo(1f, Motion.tw(520)) }
-                orb.animateTo(1f, Motion.tw(380, delay = if (orb.value < 0.5f) 260 else 0, easing = PopEasing))
+                orb.animateTo(1f, Motion.tw(200))
             }
             suspended -> {
-                shown = true
+                if (!shown) return@LaunchedEffect
                 launch { orb.animateTo(1f, Motion.tw(200)) }
-                launch { lift.animateTo(1f, Motion.tw(300)) }
                 launch { press.animateTo(0.92f, Motion.tw(140)) }
                 ring.animateTo(0.25f, Motion.tw(140))
                 ring.animateTo(0.8f, Motion.tw(650, easing = CubicBezierEasing(0.1f, 0.6f, 0.3f, 1f)))
@@ -223,7 +239,10 @@ private fun ResumeOrb(presence: Float, press: Float, ring: Float, shake: Float, 
                 alpha = presence.coerceIn(0f, 1f)
                 translationX = shake.dp.toPx()
             }
-            .shadow(16.dp, CircleShape, clip = false)
+            .drawBehind {
+                val halo = size.minDimension * 0.8f
+                drawCircle(Brush.radialGradient(0.6f to Color.Black.copy(alpha = 0.35f), 1f to Color.Transparent, radius = halo), radius = halo)
+            }
             .clip(CircleShape)
             .background(Color.White.copy(alpha = 0.08f))
             .drawWithContent {

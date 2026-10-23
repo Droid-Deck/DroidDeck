@@ -50,6 +50,7 @@ object SessionState {
     var resumeRequested by mutableStateOf(false)
     var resuming by mutableStateOf(false)
     var resumeFailures by mutableIntStateOf(0)
+    var resumeFailed by mutableStateOf(false)
     @Volatile var pipActive = false
     @Volatile
     var program: String? = null
