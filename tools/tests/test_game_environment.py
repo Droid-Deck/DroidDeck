@@ -1273,6 +1273,75 @@ class StartWithoutSteamTest(unittest.TestCase):
             self.assertIn("steamclient=n,b", ov)
             self.assertIn("steamclient64=n,b", ov)
 
+    def test_per_game_override_disables_shared_no_steam(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            home = root / "home"
+            home.mkdir()
+            config_dir = home / ".config/droiddeck"
+            config_dir.mkdir(parents=True)
+            config_file = config_dir / "game-environment.json"
+            config_file.write_text(json.dumps({
+                "version": 1,
+                "shared": {"DROIDDECK_NO_STEAM": "1"},
+                "games": {"632360": {"DROIDDECK_NO_STEAM": "0"}}
+            }))
+            game_dir = root / "game"
+            game_dir.mkdir()
+            exe = game_dir / "Risk of Rain 2.exe"
+            exe.write_bytes(b"MZ")
+            compat = root / "compatdata/632360"
+            compat.mkdir(parents=True)
+            calls = []
+            with mock.patch.dict(os.environ, {"HOME": str(home), "STEAM_COMPAT_DATA_PATH": str(compat), "DROIDDECK_NO_STEAM": "1"}, clear=True), \
+                 mock.patch('sys.argv', ['droiddeck-game-env', '/proton', 'waitforexitandrun', str(exe)]), \
+                 mock.patch('os.execvpe', side_effect=lambda *args: calls.append(args)), \
+                 mock.patch('os.getcwd', return_value=str(game_dir)), \
+                 mock.patch.dict(MODULE['main'].__globals__, load_sync=lambda: None, select_sync=lambda c, e, s: (c, e)):
+                MODULE['main']()
+            self.assertFalse((game_dir / "steam_appid.txt").exists())
+            launch_env = calls[0][2]
+            self.assertEqual(launch_env.get("DROIDDECK_NO_STEAM"), "0")
+            self.assertNotIn("STEAM_OFFLINE", launch_env)
+            ov = launch_env.get("WINEDLLOVERRIDES", "")
+            self.assertNotIn("steamclient=n,b", ov)
+            self.assertNotIn("steamclient64=n,b", ov)
+
+    def test_per_game_override_enables_no_steam(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            home = root / "home"
+            home.mkdir()
+            config_dir = home / ".config/droiddeck"
+            config_dir.mkdir(parents=True)
+            config_file = config_dir / "game-environment.json"
+            config_file.write_text(json.dumps({
+                "version": 1,
+                "shared": {"DROIDDECK_NO_STEAM": "0"},
+                "games": {"632360": {"DROIDDECK_NO_STEAM": "1"}}
+            }))
+            game_dir = root / "game"
+            game_dir.mkdir()
+            exe = game_dir / "Risk of Rain 2.exe"
+            exe.write_bytes(b"MZ")
+            compat = root / "compatdata/632360"
+            compat.mkdir(parents=True)
+            calls = []
+            with mock.patch.dict(os.environ, {"HOME": str(home), "STEAM_COMPAT_DATA_PATH": str(compat)}, clear=True), \
+                 mock.patch('sys.argv', ['droiddeck-game-env', '/proton', 'waitforexitandrun', str(exe)]), \
+                 mock.patch('os.execvpe', side_effect=lambda *args: calls.append(args)), \
+                 mock.patch('os.getcwd', return_value=str(game_dir)), \
+                 mock.patch.dict(MODULE['main'].__globals__, load_sync=lambda: None, select_sync=lambda c, e, s: (c, e)):
+                MODULE['main']()
+            self.assertTrue((game_dir / "steam_appid.txt").exists())
+            launch_env = calls[0][2]
+            self.assertEqual(launch_env.get("DROIDDECK_NO_STEAM"), "1")
+            self.assertEqual(launch_env.get("STEAM_OFFLINE"), "1")
+            ov = launch_env.get("WINEDLLOVERRIDES", "")
+            self.assertIn("steamclient=n,b", ov)
+            self.assertIn("steamclient64=n,b", ov)
+
+
     def test_null_game_config_does_not_raise(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

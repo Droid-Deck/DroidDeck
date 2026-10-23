@@ -481,9 +481,15 @@ def main():
         shared_cfg = config.get("shared", {}) if isinstance(config, dict) and isinstance(config.get("shared"), dict) else {}
         raw_game_cfg = config.get("games", {}).get(app_id) if isinstance(config, dict) and isinstance(config.get("games"), dict) else {}
         game_cfg = raw_game_cfg if isinstance(raw_game_cfg, dict) else {}
-        no_steam = (env.get("DROIDDECK_NO_STEAM") in ("1", "on", "true", "yes") or
-                    shared_cfg.get("DROIDDECK_NO_STEAM") in ("1", "on", "true", "yes") or
-                    game_cfg.get("DROIDDECK_NO_STEAM") in ("1", "on", "true", "yes"))
+
+        if "DROIDDECK_NO_STEAM" in game_cfg:
+            effective_no_steam = game_cfg["DROIDDECK_NO_STEAM"]
+        elif "DROIDDECK_NO_STEAM" in shared_cfg:
+            effective_no_steam = shared_cfg["DROIDDECK_NO_STEAM"]
+        else:
+            effective_no_steam = env.get("DROIDDECK_NO_STEAM")
+
+        no_steam = str(effective_no_steam).lower() in ("1", "on", "true", "yes") if effective_no_steam is not None else False
         if no_steam:
             env["DROIDDECK_NO_STEAM"] = "1"
             env.setdefault("STEAM_OFFLINE", "1")
