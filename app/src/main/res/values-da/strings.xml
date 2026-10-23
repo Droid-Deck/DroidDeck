@@ -1522,6 +1522,13 @@
     <string name="fm_conflict_skip">Spring over</string>
     <string name="fm_select_this_folder">Vælg denne mappe</string>
     <string name="fm_back">Tilbage</string>
+    <string name="fm_exit">Afslut</string>
+    <string name="fm_return_to_start">Tilbage til startmappen</string>
+    <string name="fm_start_unavailable">Startmappen er ikke længere tilgængelig</string>
+    <string name="fm_cancel_operation_title">Annuller handlingen?</string>
+    <string name="fm_cancel_operation_confirmation">Handlingen bliver annulleret. Er du sikker?</string>
+    <string name="fm_accept">Accepter</string>
+    <string name="fm_decline">Afvis</string>
     <string name="fm_drive_not_readable">%1$s er monteret, men kan ikke læses lige nu</string>
     <string name="fm_list_view">Listevisning</string>
     <string name="fm_grid_view">Gittervisning</string>

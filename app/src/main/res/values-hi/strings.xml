@@ -1522,6 +1522,13 @@
     <string name="fm_conflict_skip">छोड़ें</string>
     <string name="fm_select_this_folder">यह फ़ोल्डर चुनें</string>
     <string name="fm_back">बैक</string>
+    <string name="fm_exit">बाहर निकलें</string>
+    <string name="fm_return_to_start">शुरुआती फ़ोल्डर पर लौटें</string>
+    <string name="fm_start_unavailable">शुरुआती फ़ोल्डर अब उपलब्ध नहीं है</string>
+    <string name="fm_cancel_operation_title">कार्रवाई रद्द करें?</string>
+    <string name="fm_cancel_operation_confirmation">कार्रवाई रद्द कर दी जाएगी। क्या आप सुनिश्चित हैं?</string>
+    <string name="fm_accept">स्वीकार करें</string>
+    <string name="fm_decline">अस्वीकार करें</string>
     <string name="fm_drive_not_readable">%1$s माउंट है लेकिन अभी पढ़ा नहीं जा सकता</string>
     <string name="fm_list_view">लिस्ट व्यू</string>
     <string name="fm_grid_view">ग्रिड व्यू</string>

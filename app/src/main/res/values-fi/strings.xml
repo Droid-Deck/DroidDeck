@@ -1522,6 +1522,13 @@
     <string name="fm_conflict_skip">Ohita</string>
     <string name="fm_select_this_folder">Valitse tämä kansio</string>
     <string name="fm_back">Takaisin</string>
+    <string name="fm_exit">Poistu</string>
+    <string name="fm_return_to_start">Palaa aloituskansioon</string>
+    <string name="fm_start_unavailable">Aloituskansio ei ole enää käytettävissä</string>
+    <string name="fm_cancel_operation_title">Peruutetaanko toiminto?</string>
+    <string name="fm_cancel_operation_confirmation">Toiminto peruutetaan. Oletko varma?</string>
+    <string name="fm_accept">Hyväksy</string>
+    <string name="fm_decline">Hylkää</string>
     <string name="fm_drive_not_readable">%1$s on liitetty, mutta ei ole luettavissa juuri nyt</string>
     <string name="fm_list_view">Luettelonäkymä</string>
     <string name="fm_grid_view">Ruudukkonäkymä</string>

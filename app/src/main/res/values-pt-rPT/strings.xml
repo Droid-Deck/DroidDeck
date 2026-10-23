@@ -1533,6 +1533,13 @@
     <string name="fm_conflict_skip">Ignorar</string>
     <string name="fm_select_this_folder">Selecionar esta pasta</string>
     <string name="fm_back">Voltar</string>
+    <string name="fm_exit">Sair</string>
+    <string name="fm_return_to_start">Voltar à pasta inicial</string>
+    <string name="fm_start_unavailable">A pasta inicial já não está disponível</string>
+    <string name="fm_cancel_operation_title">Cancelar operação?</string>
+    <string name="fm_cancel_operation_confirmation">A operação será cancelada. Tem a certeza?</string>
+    <string name="fm_accept">Aceitar</string>
+    <string name="fm_decline">Recusar</string>
     <string name="fm_drive_not_readable">%1$s está montado, mas não é possível lê-lo de momento</string>
     <string name="fm_list_view">Vista de lista</string>
     <string name="fm_grid_view">Vista de grelha</string>

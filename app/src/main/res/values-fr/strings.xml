@@ -1543,6 +1543,13 @@
     <string name="fm_conflict_skip">Ignorer</string>
     <string name="fm_select_this_folder">Sélectionner ce dossier</string>
     <string name="fm_back">Retour</string>
+    <string name="fm_exit">Quitter</string>
+    <string name="fm_return_to_start">Revenir au dossier de départ</string>
+    <string name="fm_start_unavailable">Le dossier de départ est indisponible</string>
+    <string name="fm_cancel_operation_title">Annuler l’opération ?</string>
+    <string name="fm_cancel_operation_confirmation">Cette opération sera annulée. Confirmez-vous ?</string>
+    <string name="fm_accept">Accepter</string>
+    <string name="fm_decline">Refuser</string>
     <string name="fm_drive_not_readable">%1$s est monté, mais illisible pour le moment</string>
     <string name="fm_list_view">Vue en liste</string>
     <string name="fm_grid_view">Vue en grille</string>

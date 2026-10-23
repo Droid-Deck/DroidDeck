@@ -1516,6 +1516,13 @@
     <string name="fm_conflict_skip">Atla</string>
     <string name="fm_select_this_folder">Bu klasörü seç</string>
     <string name="fm_back">Geri</string>
+    <string name="fm_exit">Çıkış</string>
+    <string name="fm_return_to_start">Başlangıç klasörüne dön</string>
+    <string name="fm_start_unavailable">Başlangıç klasörü artık kullanılamıyor</string>
+    <string name="fm_cancel_operation_title">İşlem iptal edilsin mi?</string>
+    <string name="fm_cancel_operation_confirmation">İşlem iptal edilecek. Emin misiniz?</string>
+    <string name="fm_accept">Kabul et</string>
+    <string name="fm_decline">Reddet</string>
     <string name="fm_drive_not_readable">%1$s bağlı ancak şu anda okunamıyor</string>
     <string name="fm_list_view">Liste görünümü</string>
     <string name="fm_grid_view">Izgara görünümü</string>

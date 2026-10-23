@@ -1522,6 +1522,13 @@
     <string name="fm_conflict_skip">Пропускане</string>
     <string name="fm_select_this_folder">Избор на тази папка</string>
     <string name="fm_back">Назад</string>
+    <string name="fm_exit">Изход</string>
+    <string name="fm_return_to_start">Връщане в началната папка</string>
+    <string name="fm_start_unavailable">Началната папка вече не е достъпна</string>
+    <string name="fm_cancel_operation_title">Отмяна на операцията?</string>
+    <string name="fm_cancel_operation_confirmation">Операцията ще бъде отменена. Сигурни ли сте?</string>
+    <string name="fm_accept">Приемам</string>
+    <string name="fm_decline">Отказвам</string>
     <string name="fm_drive_not_readable">%1$s е монтирано, но в момента не може да се прочете</string>
     <string name="fm_list_view">Изглед като списък</string>
     <string name="fm_grid_view">Изглед като мрежа</string>

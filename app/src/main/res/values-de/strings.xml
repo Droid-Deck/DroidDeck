@@ -1514,6 +1514,13 @@
     <string name="fm_conflict_skip">Überspringen</string>
     <string name="fm_select_this_folder">Diesen Ordner auswählen</string>
     <string name="fm_back">Zurück</string>
+    <string name="fm_exit">Beenden</string>
+    <string name="fm_return_to_start">Zurück zum Startordner</string>
+    <string name="fm_start_unavailable">Startordner ist nicht mehr verfügbar</string>
+    <string name="fm_cancel_operation_title">Vorgang abbrechen?</string>
+    <string name="fm_cancel_operation_confirmation">Der Vorgang wird abgebrochen. Bist du sicher?</string>
+    <string name="fm_accept">Akzeptieren</string>
+    <string name="fm_decline">Ablehnen</string>
     <string name="fm_drive_not_readable">%1$s ist eingebunden, aber derzeit nicht lesbar</string>
     <string name="fm_list_view">Listenansicht</string>
     <string name="fm_grid_view">Rasteransicht</string>

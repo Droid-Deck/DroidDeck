@@ -1533,6 +1533,13 @@
     <string name="fm_conflict_skip">Salta</string>
     <string name="fm_select_this_folder">Seleziona questa cartella</string>
     <string name="fm_back">Indietro</string>
+    <string name="fm_exit">Esci</string>
+    <string name="fm_return_to_start">Torna alla cartella iniziale</string>
+    <string name="fm_start_unavailable">La cartella iniziale non è più disponibile</string>
+    <string name="fm_cancel_operation_title">Annullare operazione?</string>
+    <string name="fm_cancel_operation_confirmation">Questa operazione verrà annullata. Confermi?</string>
+    <string name="fm_accept">Accetta</string>
+    <string name="fm_decline">Rifiuta</string>
     <string name="fm_drive_not_readable">%1$s: montata ma al momento non leggibile</string>
     <string name="fm_list_view">Visualizzazione elenco</string>
     <string name="fm_grid_view">Visualizzazione griglia</string>

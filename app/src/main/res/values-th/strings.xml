@@ -1503,6 +1503,13 @@
     <string name="fm_conflict_skip">ข้าม</string>
     <string name="fm_select_this_folder">เลือกโฟลเดอร์นี้</string>
     <string name="fm_back">กลับ</string>
+    <string name="fm_exit">ออก</string>
+    <string name="fm_return_to_start">กลับไปยังโฟลเดอร์เริ่มต้น</string>
+    <string name="fm_start_unavailable">โฟลเดอร์เริ่มต้นไม่พร้อมใช้งานแล้ว</string>
+    <string name="fm_cancel_operation_title">ยกเลิกการดำเนินการ?</string>
+    <string name="fm_cancel_operation_confirmation">การดำเนินการจะถูกยกเลิก คุณแน่ใจหรือไม่?</string>
+    <string name="fm_accept">ยอมรับ</string>
+    <string name="fm_decline">ปฏิเสธ</string>
     <string name="fm_drive_not_readable">%1$s ติดตั้งอยู่แต่อ่านไม่ได้ในขณะนี้</string>
     <string name="fm_list_view">มุมมองรายการ</string>
     <string name="fm_grid_view">มุมมองตาราง</string>

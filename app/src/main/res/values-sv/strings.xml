@@ -1522,6 +1522,13 @@
     <string name="fm_conflict_skip">Hoppa över</string>
     <string name="fm_select_this_folder">Välj den här mappen</string>
     <string name="fm_back">Tillbaka</string>
+    <string name="fm_exit">Avsluta</string>
+    <string name="fm_return_to_start">Tillbaka till startmappen</string>
+    <string name="fm_start_unavailable">Startmappen är inte längre tillgänglig</string>
+    <string name="fm_cancel_operation_title">Avbryt åtgärden?</string>
+    <string name="fm_cancel_operation_confirmation">Åtgärden avbryts. Är du säker?</string>
+    <string name="fm_accept">Acceptera</string>
+    <string name="fm_decline">Avböj</string>
     <string name="fm_drive_not_readable">%1$s är monterad men inte läsbar just nu</string>
     <string name="fm_list_view">Listvy</string>
     <string name="fm_grid_view">Rutnätsvy</string>

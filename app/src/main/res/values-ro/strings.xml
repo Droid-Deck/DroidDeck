@@ -1541,6 +1541,13 @@
     <string name="fm_conflict_skip">Omite</string>
     <string name="fm_select_this_folder">Selectează acest folder</string>
     <string name="fm_back">Înapoi</string>
+    <string name="fm_exit">Ieșire</string>
+    <string name="fm_return_to_start">Înapoi la dosarul inițial</string>
+    <string name="fm_start_unavailable">Dosarul inițial nu mai este disponibil</string>
+    <string name="fm_cancel_operation_title">Anulați operația?</string>
+    <string name="fm_cancel_operation_confirmation">Operația va fi anulată. Sunteți sigur?</string>
+    <string name="fm_accept">Acceptă</string>
+    <string name="fm_decline">Refuză</string>
     <string name="fm_drive_not_readable">%1$s este montat, dar nu poate fi citit acum</string>
     <string name="fm_list_view">Vizualizare listă</string>
     <string name="fm_grid_view">Vizualizare grilă</string>
