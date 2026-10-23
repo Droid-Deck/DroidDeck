@@ -165,7 +165,8 @@ object SteamGameMove {
         for (item in active) {
             val size = sizes[item] ?: 0L
             val ok = runCatching {
-                FileOps.moveWithProgress(item.source, item.destination, { done, _ ->
+                // The size was already measured above; pass it so the copy skips its own walk.
+                FileOps.moveWithProgress(item.source, item.destination, maxOf(size, 1L), { done, _ ->
                     onProgress(copied + done.coerceAtMost(size), total)
                 })
             }.getOrDefault(false)
