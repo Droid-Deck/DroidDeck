@@ -60,6 +60,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.droiddeck.launcher.R
+import com.droiddeck.launcher.files.StorageRoots
 import com.droiddeck.launcher.session.GameStorage
 import com.droiddeck.launcher.stores.formatBytes
 import java.io.File
@@ -74,10 +75,15 @@ internal class PickVolume(val root: File, val label: String, val removable: Bool
 }
 
 internal fun pickVolumes(context: Context): List<PickVolume> =
-    listOf(PickVolume(Environment.getExternalStorageDirectory(), context.getString(R.string.games_internal), removable = false)) +
+    (listOf(PickVolume(Environment.getExternalStorageDirectory(), context.getString(R.string.games_internal), removable = false)) +
         GameStorage.options(context).mapNotNull { o ->
             File(o.path.substringBefore("/Android/")).takeIf { it.isDirectory }?.let { PickVolume(it, o.name, removable = true) }
-        }.distinctBy { it.root.absolutePath }
+        } +
+        // Raw removable drives (USB SSD, SD readers) are listed even when Android does not
+        // expose an app-specific directory on them. They need All-files access to be readable.
+        StorageRoots.list(context).filter { it.removable && it.readable }
+            .map { PickVolume(it.dir, it.label, removable = true) })
+        .distinctBy { it.root.absolutePath }
 
 internal class PickFolder(val dir: File, val readable: Boolean)
 
