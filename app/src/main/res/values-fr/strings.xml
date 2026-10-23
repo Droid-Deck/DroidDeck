@@ -1417,6 +1417,10 @@
     <string name="theme_icon_blue_detail">Fond noir, texte blanc, et le bleu pour tout élément sélectionné, ciblé ou pressé.</string>
     <string name="theme_electric">Marine électrique</string>
     <string name="theme_electric_detail">Un bleu plus vif, sur des surfaces qui tirent vers le marine plutôt que vers le gris.</string>
+    <string name="theme_inner_gamer">Inner Gamer</string>
+    <string name="theme_inner_gamer_detail">Des couleurs qui parcourent l\'arc-en-ciel. Respecte les réglages d\'animation d\'Android.</string>
+    <string name="theme_rgb_speed">Vitesse</string>
+    <string name="theme_rgb_speed_hint">La vitesse de défilement des couleurs.</string>
     <string name="theme_gradient">Dégradé</string>
     <string name="theme_gradient_detail">Vos propres couleurs primaire et secondaire, fondues sur les boutons et les éléments en surbrillance.</string>
     <string name="theme_gradient_primary">Primaire</string>

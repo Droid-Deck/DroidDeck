@@ -1401,6 +1401,10 @@
     <string name="theme_icon_blue_detail">Sort baggrund, hvid skrift, blå til alt, der er valgt, fokuseret eller trykket.</string>
     <string name="theme_electric">Elektrisk marineblå</string>
     <string name="theme_electric_detail">Den blå er klarere, på overflader der trækker mod marineblåt i stedet for gråt.</string>
+    <string name="theme_inner_gamer">Inner Gamer</string>
+    <string name="theme_inner_gamer_detail">Farver, der skifter gennem regnbuen. Følger Androids animationsindstillinger.</string>
+    <string name="theme_rgb_speed">Hastighed</string>
+    <string name="theme_rgb_speed_hint">Hvor hurtigt farverne skifter.</string>
     <string name="theme_gradient">Gradient</string>
     <string name="theme_gradient_detail">Dine egne primære og sekundære farver, blandet på knapper og fremhævninger.</string>
     <string name="theme_gradient_primary">Primær</string>

@@ -1387,6 +1387,10 @@
     <string name="theme_icon_blue_detail">พื้นดำ ตัวอักษรขาว สีฟ้าสำหรับทุกสิ่งที่ถูกเลือก โฟกัส หรือกด</string>
     <string name="theme_electric">กรมท่าไฟฟ้า</string>
     <string name="theme_electric_detail">สีฟ้าสว่างขึ้น บนพื้นผิวที่เอียงไปทางกรมท่ามากกว่าเทา</string>
+    <string name="theme_inner_gamer">Inner Gamer</string>
+    <string name="theme_inner_gamer_detail">สีที่เปลี่ยนวนไปตามสายรุ้ง ทำงานตามการตั้งค่าแอนิเมชันของ Android</string>
+    <string name="theme_rgb_speed">ความเร็ว</string>
+    <string name="theme_rgb_speed_hint">สีเปลี่ยนเร็วแค่ไหน</string>
     <string name="theme_gradient">ไล่เฉดสี</string>
     <string name="theme_gradient_detail">สีหลักและสีรองที่คุณเลือกเอง ผสมกันบนปุ่มและส่วนที่เน้น</string>
     <string name="theme_gradient_primary">สีหลัก</string>

@@ -1387,6 +1387,10 @@
     <string name="theme_icon_blue_detail">Latar hitam, teks putih, biru untuk semua yang dipilih, difokus atau ditekan.</string>
     <string name="theme_electric">Navy elektrik</string>
     <string name="theme_electric_detail">Biru lebih cerah, pada permukaan yang lebih cenderung navy daripada kelabu.</string>
+    <string name="theme_inner_gamer">Inner Gamer</string>
+    <string name="theme_inner_gamer_detail">Warna yang bertukar merentasi pelangi. Mengikut tetapan animasi Android.</string>
+    <string name="theme_rgb_speed">Kelajuan</string>
+    <string name="theme_rgb_speed_hint">Seberapa pantas warna bertukar.</string>
     <string name="theme_gradient">Kecerunan</string>
     <string name="theme_gradient_detail">Warna utama dan sekunder pilihan anda, diadun pada butang dan sorotan.</string>
     <string name="theme_gradient_primary">Utama</string>

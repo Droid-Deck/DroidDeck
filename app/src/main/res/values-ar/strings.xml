@@ -1457,6 +1457,10 @@
     <string name="theme_icon_blue_detail">خلفية سوداء ونص أبيض، والأزرق لكل عنصر محدَّد أو مُركَّز عليه أو مضغوط.</string>
     <string name="theme_electric">كحلي كهربائي</string>
     <string name="theme_electric_detail">أزرق أكثر سطوعًا، على أسطح تميل إلى الكحلي بدلاً من الرمادي.</string>
+    <string name="theme_inner_gamer">Inner Gamer</string>
+    <string name="theme_inner_gamer_detail">ألوان تتدرّج عبر ألوان قوس قزح. تتبع إعدادات الرسوم المتحركة في Android.</string>
+    <string name="theme_rgb_speed">السرعة</string>
+    <string name="theme_rgb_speed_hint">مدى سرعة تغيّر الألوان.</string>
     <string name="theme_gradient">تدرج لوني</string>
     <string name="theme_gradient_detail">لونك الأساسي والثانوي، ممزوجان على الأزرار وعناصر التمييز.</string>
     <string name="theme_gradient_primary">الأساسي</string>

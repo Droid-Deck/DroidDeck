@@ -359,6 +359,7 @@ internal fun SetupPanel(
                                         }
                                     }
                                 }
+                                if (s.theme == Themes.INNER_GAMER) RgbSpeedRow()
                                 if (s.theme == Themes.GRADIENT) GradientColorRows()
                                 ChoiceRow(
                                     host, "app-scale", stringResource(R.string.setup_app_scale), stringResource(R.string.setup_app_scale_hint),
@@ -790,6 +791,13 @@ private fun LanguageRow(host: MenuHost, chosen: String, onPick: (String) -> Unit
             }
         }
     }
+}
+
+/** How fast Inner Gamer cycles its colours. */
+@Composable
+private fun RgbSpeedRow() {
+    val ctx = androidx.compose.ui.platform.LocalContext.current.applicationContext
+    SliderRow(stringResource(R.string.theme_rgb_speed), stringResource(R.string.theme_rgb_speed_hint), Themes.rgbSpeed, 1..Themes.RGB_SPEEDS) { Themes.setRgbSpeed(ctx, it) }
 }
 
 /** The two colours of the Gradient theme, each a small square that opens the colour picker. */

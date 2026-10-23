@@ -1431,6 +1431,10 @@
     <string name="theme_icon_blue_detail">Черный фон, белый текст, синий — для всего выбранного, активного или нажатого.</string>
     <string name="theme_electric">Электрик</string>
     <string name="theme_electric_detail">Более яркий синий на поверхностях темно-синего, а не серого оттенка.</string>
+    <string name="theme_inner_gamer">Inner Gamer</string>
+    <string name="theme_inner_gamer_detail">Цвета, плавно переходящие по всей радуге. Учитывает настройки анимации Android.</string>
+    <string name="theme_rgb_speed">Скорость</string>
+    <string name="theme_rgb_speed_hint">Как быстро меняются цвета.</string>
     <string name="theme_gradient">Градиент</string>
     <string name="theme_gradient_detail">Ваши основной и дополнительный цвета, плавно переходящие на кнопках и выделениях.</string>
     <string name="theme_gradient_primary">Основной</string>
