@@ -50,7 +50,7 @@ class GpuDetectionTest {
     @Test fun supportTiers() {
         assertEquals(Support.TESTED, info(true, 650).support)
         assertEquals(Support.UNTESTED, info(true, 640).support)
-        assertEquals(Support.UNTESTED, info(true, 618).support)
+        assertEquals(Support.TESTED, info(true, 618).support)
         assertEquals(Support.UNTESTED, info(true, 660).support)
         assertEquals(Support.UNTESTED, info(true, 720).support)
         assertEquals(Support.UNTESTED, info(true, 722).support)
@@ -68,7 +68,7 @@ class GpuDetectionTest {
         assertEquals("Supported", info(true, 830).supportText)
         assertEquals("Experimental Adreno 850 support: requires compatible experimental display and game drivers; not verified on this device", info(true, 850).supportText)
         assertEquals("Experimental: its drivers are test builds", info(true, 720).supportText)
-        assertEquals("Outside tested hardware (Adreno 650, 725 and newer): it may not run", info(true, 618).supportText)
+        assertEquals("Supported", info(true, 618).supportText)
         assertEquals("Not supported: DroidDeck needs an Adreno (Snapdragon) GPU", info(false, 0).supportText)
         assertEquals("Not an Adreno GPU", Family.NOT_ADRENO.label)
         assertEquals("Adreno 8xx", Family.A8XX.label)
