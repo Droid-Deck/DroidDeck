@@ -323,6 +323,11 @@ class ScreenKeys(context: Context, private val sendKey: (Int, Boolean) -> Unit) 
         if (visibility != VISIBLE) releaseAll()
     }
 
+    override fun setVisibility(visibility: Int) {
+        super.setVisibility(visibility)
+        if (visibility != VISIBLE) releaseAll()
+    }
+
     fun releaseAll() {
         dpadDown.values.forEach { releaseKey(it) }
         dpadDown.clear()
