@@ -298,7 +298,11 @@ object EpicClient {
             AddedGames.guestPath(app, folder)?.let { t.root.absolutePath to (folder to it) }
         }.toMap()
         if (dirs.isEmpty()) return null
-        val chosen = dirs[SessionPrefs.storesInstallTarget(app)] ?: dirs[StoreInstallRoot.internalRoot(app).absolutePath] ?: dirs.values.first()
+        val preferred = StoreInstallRoot.defaultTarget(app)?.root?.absolutePath
+        val chosen = preferred?.let { dirs[it] }
+            ?: dirs[SessionPrefs.storesInstallTarget(app)]
+            ?: dirs[StoreInstallRoot.internalRoot(app).absolutePath]
+            ?: dirs.values.first()
         val file = File(dataDir(app), SETTINGS)
         val settings = runCatching { JSONObject(file.readText()) }.getOrNull() ?: JSONObject()
         val current = settings.optString("defaultInstallDir").trimEnd('/')

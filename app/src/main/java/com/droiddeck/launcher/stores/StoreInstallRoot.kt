@@ -5,6 +5,7 @@ import android.os.StatFs
 import android.os.storage.StorageManager
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.session.GameStorage
+import com.droiddeck.launcher.session.SessionPrefs
 import java.io.File
 import java.util.zip.CRC32
 
@@ -90,6 +91,18 @@ object StoreInstallRoot {
     }
 
     fun installRoot(context: Context): File = internalRoot(context)
+
+    fun externalTarget(context: Context): Target? = externalTarget(targets(context), internalRoot(context))
+
+    internal fun externalTarget(targets: List<Target>, internalRoot: File): Target? =
+        targets.firstOrNull { it.folder && it.root.absolutePath != internalRoot.absolutePath }
+            ?: targets.firstOrNull { it.removable && it.root.absolutePath != internalRoot.absolutePath }
+
+    fun defaultTarget(context: Context): Target? = when (SessionPrefs.defaultStorage(context)) {
+        SessionPrefs.DEFAULT_STORAGE_INTERNAL -> Target(internalRoot(context), context.getString(com.droiddeck.launcher.R.string.games_internal), removable = false)
+        SessionPrefs.DEFAULT_STORAGE_EXTERNAL -> externalTarget(context)
+        else -> null
+    }
 
     fun roots(context: Context): List<File> {
         val cards = GameStorage.options(context).map { File(it.path, ON_VOLUME) }
