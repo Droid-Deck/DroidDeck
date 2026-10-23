@@ -526,6 +526,10 @@ case $mode in
     fi
     droiddeck-seed-redists "$steam_root" || true
     fi
+    if [ -n "${BL_SHADER_PRECACHE:-}" ]; then
+      droiddeck-steam-shaders "$BL_SHADER_PRECACHE" "$XDG_DATA_HOME/Steam" \
+        "${BL_X64_HOME:-$HOME/.droiddeck-x64}/.local/share/Steam" || true
+    fi
     if [ "$steam_x64" = 0 ] && [ ! -f "$steam_root/steamapps/appmanifest_4427310.acf" ]; then
       step "asking the client to fetch the ARM64 Proton"
       set -- "$@" steam://install/4427310

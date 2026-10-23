@@ -320,6 +320,8 @@
     <string name="mode_mangoapp_hint">Turn off if games crash or go black in Deck mode. Applies next session.</string>
     <string name="mode_return_after_game">Return to DroidDeck after a game</string>
     <string name="mode_return_after_game_hint">When a game you started from DroidDeck or another launcher closes, Steam exits cleanly (cloud saves finish first) and you go back there. Off: stay in Steam.</string>
+    <string name="mode_shader_precache">Shader pre-caching</string>
+    <string name="mode_shader_precache_hint">Steam downloads shaders prebuilt for your games and processes them in the background, so games stutter less. Off saves data, storage and battery; games build shaders as they play instead. The same setting as Steam’s Downloads > Shader Pre-Caching. Applies next session.</string>
     <string name="mode_steam_repair">Repair Steam client</string>
     <string name="mode_steam_repair_hint">Downloads the Steam client again the next time Steam starts. Use it if Steam stays on its loading screen. Games, sign-in and settings are kept.</string>
     <string name="mode_steam_repair_queued">The Steam client will be downloaded again the next time Steam starts.</string>

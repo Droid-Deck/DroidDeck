@@ -28,6 +28,7 @@ object SteamStorage {
     private val LAST_PLAYED = Regex("^\\s*\"LastPlayed\"\\s*\"(\\d+)\"", RegexOption.MULTILINE)
     private val MAPPING = Regex("\"(\\d+)\"\\s*\\{\\s*\"name\"\\s*\"([^\"]*)\"")
     private val COMPAT_NAME = Regex("\"compat_tools\"\\s*\\{\\s*\"([^\"]+)\"")
+    private val SHADER_CACHE_OFF = Regex("\"DisableShaderCache\"\\s*\"1\"", RegexOption.IGNORE_CASE)
 
     data class Manifest(
         val file: File, val appId: Int, val name: String, val installDir: String?,
@@ -117,6 +118,8 @@ object SteamStorage {
         }
         return MAPPING.findAll(configVdf.substring(open, end)).associate { it.groupValues[1] to it.groupValues[2] }
     }
+
+    fun shaderPrecache(configVdf: String): Boolean = !SHADER_CACHE_OFF.containsMatchIn(configVdf)
 
     fun compatToolName(compatibilityToolVdf: String): String? = COMPAT_NAME.find(compatibilityToolVdf)?.groupValues?.get(1)
 

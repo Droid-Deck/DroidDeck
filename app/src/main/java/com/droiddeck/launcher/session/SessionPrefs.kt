@@ -304,6 +304,24 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("returnAfterGame", on).apply()
     }
 
+    /**
+     * Shader pre-caching as the launcher last set it, until the next session writes it into the
+     * client's config.vdf; after that the client's own toggle is the user's again.
+     */
+    fun pendingShaderPrecache(context: Context): Boolean? =
+        prefs(context).takeIf { it.contains("shaderPrecache") }?.getBoolean("shaderPrecache", true)
+
+    fun setShaderPrecache(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("shaderPrecache", on).apply()
+    }
+
+    fun takeShaderPrecache(context: Context): Boolean? =
+        pendingShaderPrecache(context)?.also { prefs(context).edit().remove("shaderPrecache").apply() }
+
+    fun shaderPrecache(context: Context): Boolean = pendingShaderPrecache(context)
+        ?: runCatching { com.droiddeck.launcher.storage.SteamStorage.shaderPrecache(
+            java.io.File(steamRoot(context, steamClientArch(context)), "config/config.vdf").readText()) }.getOrDefault(true)
+
     fun stretch16x9(context: Context): Boolean = prefs(context).getBoolean("stretch16x9", false)
 
     fun setStretch16x9(context: Context, on: Boolean) {
