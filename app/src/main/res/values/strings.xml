@@ -425,6 +425,7 @@
     <string name="common_size_mb">%1$.1f MB</string>
     <string name="comp_runtime_driver">Runtime driver</string>
     <string name="comp_runtime_driver_hint">Used by Steam, games and the desktop. Applies next session.</string>
+    <string name="drivers_qualcomm_runtime_display">Uses the system display driver</string>
     <string name="comp_import_turnip">Import Turnip zip…</string>
     <string name="comp_display_driver">Display driver</string>
     <string name="comp_display_driver_hint">Draws frames to the screen in both modes. Restart the app to apply.</string>

@@ -1,5 +1,10 @@
 #!/bin/sh
 export XDG_SESSION_TYPE=x11
+if [ "${DROIDDECK_SYSTEM_QUALCOMM:-0}" = 1 ]; then
+  export VK_LAYER_PATH="$DROIDDECK_QUALCOMM_ROOT/wsi:$DROIDDECK_QUALCOMM_ROOT/lib"
+  export VK_INSTANCE_LAYERS=VK_LAYER_window_system_integration:VK_LAYER_HYBRIS_compat
+  export WSI_X11_FORCE_SHM=1 DISABLE_GAMESCOPE_WSI=1
+fi
 starts=/tmp/droiddeck-mangoapp-starts
 now=$(date +%s)
 recent=$(awk -v now="$now" '$1 > now - 60' "$starts" 2>/dev/null)

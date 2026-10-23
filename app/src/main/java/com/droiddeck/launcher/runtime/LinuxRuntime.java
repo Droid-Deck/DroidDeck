@@ -160,6 +160,10 @@ public final class LinuxRuntime {
         bind(cmd, "/dev");
         bind(cmd, "/proc");
         bind(cmd, "/sys");
+        if (com.droiddeck.launcher.gpu.QualcommSystemDriver.selected(context)) {
+            for (String path : com.droiddeck.launcher.gpu.QualcommSystemDriver.mounts(context,
+                    SessionPrefs.INSTANCE.linuxDriver(context))) bind(cmd, path);
+        }
         bind(cmd, "/dev/urandom:/dev/random");
         bind(cmd, "/proc/self/fd:/dev/fd");
         bind(cmd, "/proc/self/fd/0:/dev/stdin");

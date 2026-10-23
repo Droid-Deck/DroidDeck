@@ -222,7 +222,10 @@ object DeviceReport {
         val lm = LinuxVulkanDriverManager(context)
         run {
             val id = SessionPrefs.linuxDriver(context)
-            val label = if (id.isEmpty()) "runtime default (the Turnip built into the runtime)"
+            val label = if (id == com.droiddeck.launcher.gpu.QualcommSystemDriver.ID) com.droiddeck.launcher.gpu.QualcommSystemDriver.label()
+            else if (com.droiddeck.launcher.gpu.QualcommDriverPackage.isRuntimeId(id))
+                "${com.droiddeck.launcher.gpu.QualcommDriverPackage.label(context, id)} ${com.droiddeck.launcher.gpu.QualcommDriverPackage.version(context, id)}"
+            else if (id.isEmpty()) "runtime default (the Turnip built into the runtime)"
             else "${lm.getDriverName(id)} ${lm.getDriverVersion(id)}".trim() +
                 lm.getMinGlibc(id).let { if (it.isEmpty()) "" else " (glibc $it+)" } +
                 if (lm.isInstalled(id)) "" else "  [MISSING - falls back to the runtime's own]"

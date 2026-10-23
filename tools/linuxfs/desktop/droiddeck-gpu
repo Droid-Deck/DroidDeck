@@ -6,7 +6,8 @@ if [ -n "${BL_DEBUG_DIR:-}" ]; then
 fi
 width=${BL_WIDTH:-1280}
 height=${BL_HEIGHT:-720}
-args=(--backend wayland --expose-wayland -f -W "$width" -H "$height" -w "$width" -h "$height")
+backend=${BL_GAMESCOPE_BACKEND:-wayland}
+args=(--backend "$backend" --expose-wayland -f -W "$width" -H "$height" -w "$width" -h "$height")
 if [ "${BL_FPS:-0}" -gt 0 ]; then
   args+=(-r "$BL_FPS")
 elif [ "${BL_REFRESH:-0}" -gt 0 ]; then
@@ -20,7 +21,15 @@ unset LIBGL_ALWAYS_SOFTWARE QT_QUICK_BACKEND KWIN_COMPOSE
 export MESA_LOADER_DRIVER_OVERRIDE=zink GALLIUM_DRIVER=zink LIBGL_KOPPER_DRI2=true
 [ -n "${DROIDDECK_GLTHREAD:-}" ] && export mesa_glthread=$DROIDDECK_GLTHREAD
 export APPIMAGE_EXTRACT_AND_RUN=1
-gamescope "${args[@]}" -- /usr/local/bin/droiddeck-gpu-window "$@"
+if [ "$backend" = sdl ]; then export SDL_VIDEODRIVER=wayland; fi
+child_env=(SDL_VIDEODRIVER=x11)
+if [ "${DROIDDECK_SYSTEM_QUALCOMM:-0}" = 1 ]; then
+  export VK_LAYER_PATH="$DROIDDECK_QUALCOMM_ROOT/shaders"
+  export VK_INSTANCE_LAYERS=VK_LAYER_DROIDDECK_qualcomm_shaders
+  child_env+=("VK_LAYER_PATH=$DROIDDECK_QUALCOMM_ROOT/wsi:$DROIDDECK_QUALCOMM_ROOT/lib"
+    VK_INSTANCE_LAYERS=VK_LAYER_window_system_integration:VK_LAYER_HYBRIS_compat WSI_X11_FORCE_SHM=1 DISABLE_GAMESCOPE_WSI=1)
+fi
+"${BL_GAMESCOPE_BINARY:-gamescope}" "${args[@]}" -- /usr/bin/env "${child_env[@]}" /usr/local/bin/droiddeck-gpu-window "$@"
 rc=$?
 echo "== droiddeck-gpu $(date -u +%H:%M:%S): exited $rc"
 exit $rc

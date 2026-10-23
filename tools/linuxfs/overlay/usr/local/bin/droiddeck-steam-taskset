@@ -1,0 +1,16 @@
+#!/bin/bash
+set -u
+if [ "$#" -ge 2 ] && [[ "$1" =~ ^(0[xX])?[0-9a-fA-F]+$ ]] &&
+   [ -n "${BL_STEAM_WEBHELPER:-}" ] && [ "$2" -ef "$BL_STEAM_WEBHELPER" ]; then
+  mask=$1
+  shift
+  /usr/bin/taskset -p "$mask" "$$" >/dev/null 2>&1 || true
+  if [ "${DROIDDECK_SYSTEM_QUALCOMM:-0}" = 1 ]; then
+    # SDL's accelerated window-surface setup stalls on this X11 SHM presentation path.
+    export SDL_FRAMEBUFFER_ACCELERATION=0
+    # Valve's helper disables Kopper; Zink needs it to reach the managed X11 WSI layer.
+    unset LIBGL_KOPPER_DISABLE
+  fi
+  exec -- "$@"
+fi
+exec /usr/bin/taskset "$@"
