@@ -287,9 +287,6 @@
     <string name="mode_suspend_steam_note">Automaattinen keskeyttää ja jatkaa, kun sovellus tulee näkyviin. Natiivi valmistelee Steamin lepotilaan ensin. Manuaalinen odottaa Jatka-painiketta. Ei koskaan pitää sovelluksen aina käynnissä.</string>
     <string name="mode_background_downloads">Pidä lataukset käynnissä</string>
     <string name="mode_background_downloads_hint">Viivästytä taustakeskeytystä, kun Steam lataa aktiivisesti.</string>
-    <string name="mode_zram">zRAM-pakkaus</string>
-    <string name="mode_zram_hint">Pelin pyöriessä Steam-asiakkaan muisti pakataan laitteen zramiin, jolloin pelille jää enemmän RAM-muistia. Astuu voimaan, kun Steam käynnistetään seuraavan kerran.</string>
-    <string name="mode_zram_unsupported">Ei käytettävissä: laitteessa ei ole zramia tai swappia, tai ydin on vanhempi kuin 5.4.</string>
     <string name="mode_suspend_note">Automaattinen keskeyttää taustalla ja jatkaa, kun sovellus tulee näkyviin. Manuaalinen odottaa Jatka-painiketta. Ei koskaan pitää sovelluksen aina käynnissä.</string>
     <string name="mode_startup">Käynnistys</string>
     <string name="mode_steam_startup">Käynnistä Steam DroidDeckin kanssa</string>

@@ -20,6 +20,7 @@ import java.util.concurrent.TimeUnit;
 public class PulseAudioComponent extends SessionPart {
     private static final String TAG = "PulseAudio";
     public static final String SOCKET_NAME = "PS0";
+    private static final String MIC_SOURCE = "DirectAudioMic";
     private static final String BUNDLE_STAMP = "2026-10-08-pa13-directaudio-native";
 
 
@@ -97,9 +98,9 @@ public class PulseAudioComponent extends SessionPart {
         config.add("set-default-sink DirectAudio");
         config.add(".fail");
         if (micFifoPath != null && !micFifoPath.isEmpty()) {
-            config.add("load-module module-pipe-source source_name=DirectAudioMic file=\""
+            config.add("load-module module-pipe-source source_name=" + MIC_SOURCE + " file=\""
                     + micFifoPath + "\" format=s16le rate=48000 channels=1");
-            config.add("set-default-source DirectAudioMic");
+            config.add("set-default-source " + MIC_SOURCE);
         }
         FileUtils.writeString(new File(workingDir, "default.pa"), String.join("\n", config));
 
@@ -202,16 +203,24 @@ public class PulseAudioComponent extends SessionPart {
     }
 
     public boolean setSinkSuspended(boolean suspended) {
+        return suspend("sink", "@DEFAULT_SINK@", suspended);
+    }
+
+    public boolean setMicSuspended(boolean suspended) {
+        return micFifoPath == null || micFifoPath.isEmpty() || suspend("source", MIC_SOURCE, suspended);
+    }
+
+    private boolean suspend(String kind, String name, boolean suspended) {
         File pactl = new File(workingDir, "pactl");
         if (!pactl.isFile() || pid <= 1) {
-            Log.w(TAG, "cannot change sink state: PulseAudio control client or server unavailable");
+            Log.w(TAG, "cannot change " + kind + " state: PulseAudio control client or server unavailable");
             return false;
         }
         java.lang.Process process = null;
         try {
             File modules = new File(workingDir, "modules/arm64");
             ProcessBuilder builder = new ProcessBuilder(
-                    pactl.getAbsolutePath(), "suspend-sink", "@DEFAULT_SINK@", Boolean.toString(suspended));
+                    pactl.getAbsolutePath(), "suspend-" + kind, name, Boolean.toString(suspended));
             builder.directory(workingDir);
             builder.redirectErrorStream(true);
             builder.redirectOutput(new File("/dev/null"));
@@ -222,18 +231,18 @@ public class PulseAudioComponent extends SessionPart {
             process = builder.start();
             if (!process.waitFor(5, TimeUnit.SECONDS)) {
                 process.destroyForcibly();
-                Log.w(TAG, "timed out changing sink state to suspended=" + suspended);
+                Log.w(TAG, "timed out changing " + kind + " state to suspended=" + suspended);
                 return false;
             }
             int status = process.exitValue();
-            if (status != 0) Log.w(TAG, "sink state change failed with exit " + status);
+            if (status != 0) Log.w(TAG, kind + " state change failed with exit " + status);
             return status == 0;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            Log.w(TAG, "interrupted changing sink state", e);
+            Log.w(TAG, "interrupted changing " + kind + " state", e);
             return false;
         } catch (Exception e) {
-            Log.w(TAG, "could not change sink state", e);
+            Log.w(TAG, "could not change " + kind + " state", e);
             return false;
         } finally {
             if (process != null && process.isAlive()) process.destroyForcibly();

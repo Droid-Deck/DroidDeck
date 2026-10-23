@@ -22,6 +22,7 @@ class StoreGameSidecar(
     val epic: EpicOptions = EpicOptions(),
     val cloud: Boolean = true,
     val achievements: Boolean = true,
+    val logo: String? = null,
 ) {
     val isInstalled: Boolean get() = state == STATE_INSTALLED
 
@@ -33,7 +34,8 @@ class StoreGameSidecar(
         env: Map<String, String> = this.env, installVersion: String = this.installVersion,
         installedAt: Long = this.installedAt, cover: String? = this.cover, hero: String? = this.hero,
         extra: Map<String, String> = this.extra, state: String = this.state, epic: EpicOptions = this.epic, cloud: Boolean = this.cloud, achievements: Boolean = this.achievements,
-    ) = StoreGameSidecar(store, id, title, exe, launcher, args, env, installVersion, installedAt, cover, hero, extra, state, epic, cloud, achievements)
+        logo: String? = this.logo,
+    ) = StoreGameSidecar(store, id, title, exe, launcher, args, env, installVersion, installedAt, cover, hero, extra, state, epic, cloud, achievements, logo)
 
     fun toJson(): JSONObject = JSONObject().apply {
         put("version", VERSION)
@@ -52,6 +54,7 @@ class StoreGameSidecar(
         if (installedAt > 0L) put("installedAt", installedAt)
         if (!cover.isNullOrEmpty()) put("cover", cover)
         if (!hero.isNullOrEmpty()) put("hero", hero)
+        if (!logo.isNullOrEmpty()) put("logo", logo)
         if (extra.isNotEmpty()) put("extra", JSONObject(extra as Map<*, *>))
     }
 
@@ -129,6 +132,7 @@ class StoreGameSidecar(
                 epic = o.optJSONObject("epic")?.let { e -> EpicOptions(eos = e.optBoolean("eos", true), offline = e.optBoolean("offline", false)) } ?: EpicOptions(),
                 cloud = o.optBoolean("cloud", true),
                 achievements = o.optBoolean("achievements", true),
+                logo = o.optString("logo", "").ifEmpty { null },
             )
         }
 

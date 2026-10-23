@@ -2562,9 +2562,6 @@
     <string name="setup_reset_settings_button">Repor</string>
     <string name="setup_reset_settings_profiles">Repor também os perfis de jogo (Proton, FEX, componentes e ambiente de cada jogo e o ambiente do perfil Padrão)</string>
     <string name="setup_reset_settings_session_running">Termine a sessão antes de repor as definições.</string>
-    <string name="mode_zram">Compressão zRAM</string>
-    <string name="mode_zram_unsupported">Indisponível: este dispositivo não tem swap ativo ou o kernel é anterior à versão 5.4.</string>
-    <string name="mode_zram_hint">Enquanto um jogo está a correr, a memória do cliente Steam é comprimida na zram do dispositivo, deixando mais RAM para o jogo. Aplica-se a partir da próxima vez que o Steam iniciar.</string>
     <string name="stores_storage_low">Espaço insuficiente (%1$s livres, são necessários %2$s)</string>
     <string name="stores_storage_insufficient">Espaço livre insuficiente: são necessários %1$s, só há %2$s livres</string>
     <string name="stores_target_free_unknown">Espaço livre desconhecido</string>
