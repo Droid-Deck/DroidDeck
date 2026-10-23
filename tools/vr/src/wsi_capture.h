@@ -10,7 +10,6 @@ void droiddeck_wsi_device(VkDevice device, VkPhysicalDevice physical, VkInstance
 void droiddeck_wsi_destroy(VkDevice device);
 void droiddeck_wsi_swapchain(VkDevice device, VkSwapchainKHR swapchain, const VkSwapchainCreateInfoKHR *create);
 void droiddeck_wsi_forget(VkDevice device, VkSwapchainKHR swapchain);
-int droiddeck_wsi_display_timing(int64_t now, int64_t *last, int64_t *period);
 VkResult droiddeck_wsi_present(VkDevice device, VkQueue queue, const VkPresentInfoKHR *present,
                                PFN_vkQueuePresentKHR next);
 #ifdef __cplusplus

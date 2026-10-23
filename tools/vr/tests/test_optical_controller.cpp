@@ -386,20 +386,14 @@ int main() {
     Context xrContext;
     VR_CLEANUP_SERVER_DRIVER_CONTEXT();
     VRDriverContext() = &xrContext;
-    CardboardController trackedHand(false), trackedController(false);
-    assert(trackedHand.ConfigureXr(true));
-    assert(trackedController.ConfigureXr(false));
+    CardboardController trackedHand(false);
+    assert(trackedHand.ConfigureAndroidXr());
     assert(trackedHand.Activate(3) == VRInitError_None);
     const auto handTrigger = xrContext.input.handles.at("/input/trigger/value");
     const auto handProfile = xrContext.properties.strings.at({4, Prop_InputProfilePath_String});
     assert(handProfile == "{indexcontroller}/input/index_controller_profile.json");
     assert(xrContext.input.handles.count("/input/thumbstick/x"));
-    assert(!trackedHand.ConfigureXr(false) && trackedHand.XrHands());
-    assert(trackedController.Activate(4) == VRInitError_None);
-    const auto touchTrigger = xrContext.input.handles.at("/input/trigger/value");
-    assert(xrContext.properties.strings.at({5, Prop_InputProfilePath_String}) == "{oculus}/input/touch_profile.json");
-    assert(xrContext.input.handles.count("/input/joystick/x"));
-    assert(!trackedController.ConfigureXr(true) && !trackedController.XrHands());
+    assert(!trackedHand.ConfigureAndroidXr());
     auto handPacket = droiddeck_xr_input_v2_neutral(77, 1);
     handPacket.sample_monotonic_ns = 2000000000;
     handPacket.flags = DROIDDECK_XR_INPUT_FOCUSED | DROIDDECK_XR_INPUT_HAND_MODE;
@@ -427,13 +421,7 @@ int main() {
     assert(!xrContext.input.poses.empty());
     trackedHand.Disconnect();
     assert(xrContext.input.values.at(handTrigger) == 0);
-    DroidDeckXrHand touch{};
-    touch.active = true; touch.pose.flags = 15; touch.trigger = 1;
-    trackedController.UpdateXr(touch, 0);
-    assert(xrContext.input.values.at(touchTrigger) == 1);
-    trackedController.Disconnect();
-    assert(xrContext.input.values.at(touchTrigger) == 0);
     assert(xrContext.properties.strings.at({4, Prop_InputProfilePath_String}) == handProfile);
-    puts("PASS: separate XR hand/Touch profiles stay immutable and disconnect releases held input");
+    puts("PASS: Android XR hand profile stays immutable and disconnect releases held input");
 
 }

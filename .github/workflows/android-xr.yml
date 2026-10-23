@@ -1,4 +1,4 @@
-name: Shared OpenXR bridge
+name: Android XR bridge
 
 on:
   push:
@@ -11,9 +11,7 @@ on:
       - 'tools/release/runtime_inputs.py'
       - 'app/build.gradle'
       - 'tools/tests/test_xr_validation.py'
-      - 'app/src/main/cpp/questxr/**'
-      - 'app/src/main/java/com/droiddeck/launcher/GuestXrActivity.kt'
-      - 'app/src/main/java/com/droiddeck/launcher/QuestXrActivity.kt'
+      - 'app/src/main/cpp/androidxr/**'
       - 'app/src/main/java/com/droiddeck/launcher/input/XrGamepadInput.kt'
       - 'app/src/main/java/com/droiddeck/launcher/input/PadBridge.java'
       - 'app/src/test/java/com/droiddeck/launcher/input/**'
@@ -38,9 +36,7 @@ on:
       - 'tools/release/runtime_inputs.py'
       - 'app/build.gradle'
       - 'tools/tests/test_xr_validation.py'
-      - 'app/src/main/cpp/questxr/**'
-      - 'app/src/main/java/com/droiddeck/launcher/GuestXrActivity.kt'
-      - 'app/src/main/java/com/droiddeck/launcher/QuestXrActivity.kt'
+      - 'app/src/main/cpp/androidxr/**'
       - 'app/src/main/java/com/droiddeck/launcher/input/XrGamepadInput.kt'
       - 'app/src/main/java/com/droiddeck/launcher/input/PadBridge.java'
       - 'app/src/test/java/com/droiddeck/launcher/input/**'
@@ -75,7 +71,7 @@ jobs:
       - run: cmake -S xr-core/src/main/cpp -B build/xr-contracts -DCMAKE_BUILD_TYPE=Debug
       - run: cmake --build build/xr-contracts
       - run: ctest --test-dir build/xr-contracts --output-on-failure
-      - run: python3 -m unittest tools.tests.test_quest_xr_validation tools.tests.test_xr_validation tools.tests.test_runtime_inputs tools.tests.test_windows_vr_build tools.tests.test_prepare_windows_runtime -v
+      - run: python3 -m unittest tools.tests.test_xr_validation tools.tests.test_runtime_inputs tools.tests.test_windows_vr_build tools.tests.test_prepare_windows_runtime -v
       - uses: actions/upload-artifact@v4
         if: always()
         with:

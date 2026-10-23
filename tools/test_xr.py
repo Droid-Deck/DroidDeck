@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate a real OpenXR runtime on Quest or Android XR; never treat mock as hardware."""
+"""Validate a real OpenXR runtime on Android XR; never treat mock as hardware."""
 import argparse
 import json
 import os
@@ -8,7 +8,30 @@ import subprocess
 import time
 
 from adb_device import DeviceResolutionError, resolve_serial
-from test_quest_xr import collect_device_metrics, summarize_samples, validate_progress, validate_samples as validate_guest
+from test_quest_xr import collect_device_metrics, summarize_samples, validate_samples as validate_guest
+
+
+def validate_progress(samples, counters=('rendered', 'uploadedFrames', 'sourceFrameId')):
+    if not any('_hostMonotonicSeconds' in sample for sample in samples):
+        return None
+    if any('_hostMonotonicSeconds' not in sample for sample in samples):
+        return 'Missing monotonic sample timestamps'
+    previous_time = samples[0]['_hostMonotonicSeconds']
+    last = {key: (samples[0][key], previous_time) for key in counters if key in samples[0]}
+    for sample in samples[1:]:
+        now = sample['_hostMonotonicSeconds']
+        if now < previous_time:
+            return 'Monotonic sample time regressed'
+        previous_time = now
+        for key, (value, advanced) in list(last.items()):
+            if key not in sample or sample[key] < value:
+                return 'XR telemetry counter regressed or disappeared: ' + key
+            if sample[key] > value:
+                last[key] = (sample[key], now)
+            elif now - advanced > 5:
+                return 'Stale XR telemetry: ' + key + ' did not advance for over 5 seconds'
+    return None
+
 
 
 def validate_samples(samples, require_hands=True):
@@ -60,7 +83,6 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--adb', default=os.environ.get('ADB', 'adb'))
     parser.add_argument('--serial')
-    parser.add_argument('--platform', choices=('quest', 'androidxr'), required=True)
     parser.add_argument('--input', choices=('hands', 'auto', 'controllers'), default='hands')
     parser.add_argument('--package')
     parser.add_argument('--activity', help='Fully qualified Activity class')
@@ -68,14 +90,13 @@ def main():
     parser.add_argument('--output', type=Path, default=Path('build/xr-validation'))
     parser.add_argument('--metrics', action='store_true')
     args = parser.parse_args()
-    if args.platform == 'androidxr' and args.input != 'hands':
+    if args.input != 'hands':
         parser.error('Android XR SteamVR entry requires --input hands')
     if not 5 <= args.seconds <= 600:
         parser.error('--seconds must be between 5 and 600')
     args.output.mkdir(parents=True, exist_ok=True)
     package = args.package or 'com.droiddeck.launcher'
-    activity = args.activity or 'com.droiddeck.launcher.' + (
-        'QuestXrActivity' if args.platform == 'quest' else 'AndroidXrActivity')
+    activity = args.activity or 'com.droiddeck.launcher.AndroidXrActivity'
     samples, failure, metrics, serial = [], None, None, None
     try:
         serial = resolve_serial(args.adb, args.serial)
@@ -113,7 +134,7 @@ def main():
     except (DeviceResolutionError, subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as error:
         failure = str(error)
     report = {'ok': failure is None, 'status': 'passed' if failure is None else 'failed' if samples else 'not_run',
-              'platform': args.platform, 'mode': 'steamvr', 'input': args.input,
+              'platform': 'androidxr', 'mode': 'steamvr', 'input': args.input,
               'package': package, 'activity': activity, 'error': failure, 'samples': samples,
               'evidence': 'shared-hand-action-bridge', 'opticalHandTrackingVerified': False,
               'steamVrInputDeliveryVerified': False,

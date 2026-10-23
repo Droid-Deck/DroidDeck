@@ -31,6 +31,7 @@ message(STATUS "dd-fg chain: win-fg ${DDFG_UPSTREAM} (src ${DDFG_CHAIN_HASH})")
 
 add_subdirectory(waylandcomp)
 add_subdirectory(questxr)
+add_subdirectory(androidxr)
 add_library(sdnative SHARED sdnative/sdnative.c)
 target_link_libraries(sdnative log)
 

@@ -52,7 +52,7 @@ internal class XrGamepadInput(context: Context, private val bridge: () -> PadBri
         if (resumed) return
         resumed = true
         manager.registerInputDeviceListener(this, handler)
-        bridge()?.syncConnectedControllers()
+        syncControllers()
         logDevices()
     }
 
@@ -76,7 +76,7 @@ internal class XrGamepadInput(context: Context, private val bridge: () -> PadBri
 
     @Synchronized fun key(event: KeyEvent): Boolean {
         val normalized = JoyCon.normalize(event)
-        if (!PadBridge.isControllerKeyEvent(normalized)) return false
+        if (!isController(normalized.device) || !PadBridge.isControllerKeyEvent(normalized)) return false
         if (!resumed || !focused) return true
         val pad = bridge() ?: return true
         val result = menu.key(normalized.deviceId, normalized.keyCode, normalized.action, normalized.repeatCount)
@@ -94,14 +94,14 @@ internal class XrGamepadInput(context: Context, private val bridge: () -> PadBri
     }
 
     @Synchronized fun motion(event: MotionEvent): Boolean {
-        if (!PadBridge.isControllerMotionEvent(event) || !PadBridge.isFromController(event.device)) return false
+        if (!PadBridge.isControllerMotionEvent(event) || !isController(event.device)) return false
         if (!resumed || !focused) return true
         return bridge()?.onMotionEvent(event) ?: true
     }
 
     @Synchronized override fun onInputDeviceAdded(deviceId: Int) {
         if (!resumed) return
-        bridge()?.syncConnectedControllers()
+        syncControllers()
         logDevices()
     }
     @Synchronized override fun onInputDeviceRemoved(deviceId: Int) {
@@ -113,13 +113,21 @@ internal class XrGamepadInput(context: Context, private val bridge: () -> PadBri
         if (!resumed) return
         menu.remove(deviceId)
         bridge()?.onDeviceRemoved(deviceId)
-        bridge()?.syncConnectedControllers()
+        syncControllers()
+    }
+
+    private fun syncControllers() {
+        val pad = bridge() ?: return
+        for (id in manager.inputDeviceIds) {
+            if (!isController(manager.getInputDevice(id))) pad.onDeviceRemoved(id)
+        }
+        pad.syncConnectedControllers(::isController)
     }
 
     private fun logDevices() {
         for (id in manager.inputDeviceIds) {
             val device = manager.getInputDevice(id) ?: continue
-            if (PadBridge.isFromController(device))
+            if (isController(device))
                 Log.i("DroidDeckXR", "gamepad available id=$id name=${device.name} sources=${device.sources}")
         }
     }
@@ -136,6 +144,14 @@ internal class XrGamepadInput(context: Context, private val bridge: () -> PadBri
     }
 
     companion object {
+        internal fun isController(device: InputDevice?): Boolean {
+            if (!PadBridge.isFromController(device) || device == null) return false
+            if (device.supportsSource(InputDevice.SOURCE_GAMEPAD) || device.motionRanges.isEmpty()) return true
+            return AXES.any { axis ->
+                device.getMotionRange(axis, InputDevice.SOURCE_JOYSTICK)?.let { it.max > it.min } == true
+            }
+        }
+
         private val AXES = intArrayOf(MotionEvent.AXIS_X, MotionEvent.AXIS_Y, MotionEvent.AXIS_Z, MotionEvent.AXIS_RZ,
             MotionEvent.AXIS_RX, MotionEvent.AXIS_RY, MotionEvent.AXIS_HAT_X, MotionEvent.AXIS_HAT_Y,
             MotionEvent.AXIS_LTRIGGER, MotionEvent.AXIS_RTRIGGER, MotionEvent.AXIS_BRAKE, MotionEvent.AXIS_GAS)

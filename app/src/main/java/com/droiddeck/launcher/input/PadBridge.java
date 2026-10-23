@@ -188,7 +188,7 @@ public final class PadBridge {
         int sources = device.getSources();
         if ((sources & InputDevice.SOURCE_GAMEPAD) == InputDevice.SOURCE_GAMEPAD) return true;
         if ((sources & InputDevice.SOURCE_JOYSTICK) != InputDevice.SOURCE_JOYSTICK) return false;
-        if (device.getKeyboardType() != InputDevice.KEYBOARD_TYPE_ALPHABETIC && device.getMotionRanges().isEmpty()) return true;
+        if (device.getKeyboardType() != InputDevice.KEYBOARD_TYPE_ALPHABETIC) return true;
         for (int axis : JOYSTICK_AXES) {
             InputDevice.MotionRange range = device.getMotionRange(axis, InputDevice.SOURCE_JOYSTICK);
             if (range != null && range.getMax() > range.getMin()) return true;
@@ -260,9 +260,13 @@ public final class PadBridge {
     }
 
     public synchronized void syncConnectedControllers() {
+        syncConnectedControllers(device -> true);
+    }
+
+    public synchronized void syncConnectedControllers(java.util.function.Predicate<InputDevice> accepts) {
         for (int deviceId : InputDevice.getDeviceIds()) {
             InputDevice device = InputDevice.getDevice(deviceId);
-            if (!isFromController(device) || excluded.test(deviceId)) continue;
+            if (!isFromController(device) || excluded.test(deviceId) || !accepts.test(device)) continue;
             int slot = slotFor(device);
             if (slot >= 0) publish(slot);
         }

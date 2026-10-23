@@ -96,6 +96,16 @@ class XrGamepadInputTest {
         assertEquals(0, input.menuSequence)
     }
 
+    @Test fun genericHeadsetAxesAreFilteredOnlyInAndroidXr() {
+        val headset = InputDeviceBuilder.newBuilder().setId(92).setName("Headset input")
+            .setSources(InputDevice.SOURCE_JOYSTICK or InputDevice.SOURCE_KEYBOARD)
+            .setKeyboardType(InputDevice.KEYBOARD_TYPE_NON_ALPHABETIC)
+            .addMotionRange(MotionEvent.AXIS_GENERIC_1, InputDevice.SOURCE_JOYSTICK, -1f, 1f, 0f, 0f, 0f).build()
+        assertTrue(PadBridge.isFromController(headset))
+        assertFalse(XrGamepadInput.isController(headset))
+        assertTrue(XrGamepadInput.isController(device))
+    }
+
     @Test fun differentControllersCannotCombineMenuKeys() {
         val chord = XrGamepadMenu()
         assertFalse(chord.key(1, KeyEvent.KEYCODE_BUTTON_SELECT, KeyEvent.ACTION_DOWN, 0).request)

@@ -20,7 +20,7 @@ class XrValidationTest(unittest.TestCase):
         samples.append(dict(samples[-1], _hostMonotonicSeconds=8))
         self.assertIn('Stale XR telemetry', validate_samples(samples))
 
-    def test_quest_and_android_share_runtime_hand_validation(self):
+    def test_supported_runtime_hand_providers(self):
         for provider in ('fb-hand-aim', 'ext-hand-interaction'):
             samples = self.samples()
             samples[-1]['handProviders'] = [provider, '']

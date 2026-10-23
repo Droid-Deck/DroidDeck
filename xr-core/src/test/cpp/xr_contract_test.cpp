@@ -1,4 +1,5 @@
 #include "xr_input_v2.h"
+#include "xr_hand_input.h"
 #include <cstdio>
 #include <cstring>
 
@@ -7,6 +8,15 @@
 } } while (0)
 
 int main() {
+    static_assert(sizeof(DroidDeckXrTracking) == 296, "preserve Quest tracking ABI");
+    static_assert(DROIDDECK_XR_VERSION == 1, "preserve Quest tracking version");
+    DroidDeckXrTracking legacy{};
+    legacy.active = 1;
+    CHECK(!droiddeck::xr::isAndroidXr(legacy));
+    legacy.active = 0;
+    CHECK(!droiddeck::xr::isAndroidXr(legacy));
+    legacy.active = DROIDDECK_ANDROID_XR_ACTIVE;
+    CHECK(droiddeck::xr::isAndroidXr(legacy));
     auto input = droiddeck_xr_input_v2_neutral(UINT64_C(0x0807060504030201), 9);
     unsigned char bytes[sizeof(input)];
     std::memcpy(bytes, &input, sizeof(input));

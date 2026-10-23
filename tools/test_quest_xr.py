@@ -8,34 +8,9 @@ from pathlib import Path
 from adb_device import resolve_serial
 
 
-def validate_progress(samples, counters=('rendered', 'uploadedFrames', 'sourceFrameId')):
-    if not any('_hostMonotonicSeconds' in sample for sample in samples):
-        return None
-    if any('_hostMonotonicSeconds' not in sample for sample in samples):
-        return 'Missing monotonic sample timestamps'
-    previous_time = samples[0]['_hostMonotonicSeconds']
-    last = {key: (samples[0][key], previous_time) for key in counters if key in samples[0]}
-    for sample in samples[1:]:
-        now = sample['_hostMonotonicSeconds']
-        if now < previous_time:
-            return 'Monotonic sample time regressed'
-        previous_time = now
-        for key, (value, advanced) in list(last.items()):
-            if key not in sample or sample[key] < value:
-                return 'XR telemetry counter regressed or disappeared: ' + key
-            if sample[key] > value:
-                last[key] = (sample[key], now)
-            elif now - advanced > 5:
-                return 'Stale XR telemetry: ' + key + ' did not advance for over 5 seconds'
-    return None
-
-
 def validate_samples(samples, require_controllers=False):
     if len(samples) < 2:
         return 'No advancing telemetry; check runtime initialization and headset wake/proximity'
-    stalled = validate_progress(samples)
-    if stalled:
-        return stalled
     if samples[-1]['rendered'] - samples[0]['rendered'] < 72:
         return 'Fewer than 72 additional stereo frames were submitted'
     if not any(sample['sessionState'] == 5 and sample['headFlags'] & 15 == 15 for sample in samples):

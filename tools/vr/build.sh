@@ -37,9 +37,6 @@ compile() {
         cc -std=c11 -O2 -Wall -Wextra -Wno-unused-parameter -pthread -Ibuild/vr/include \
             -o build/vr/test_compositor_submit tools/vr/tests/test_compositor_submit.c -ldl
         build/vr/test_compositor_submit
-        cc -std=c11 -O2 -Wall -Wextra -Wno-unused-parameter -pthread -Ibuild/vr/include \
-            -o build/vr/test_display_timing tools/vr/tests/test_display_timing.c -ldl
-        build/vr/test_display_timing
         c++ -std=c++17 -O2 -Wall -Wextra -Werror -Itools/vr/src \
             -o build/vr/test_render_target tools/vr/tests/test_render_target.cpp
         build/vr/test_render_target

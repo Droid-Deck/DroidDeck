@@ -5,7 +5,14 @@
 #include <cmath>
 #include <cstdint>
 
+// Quest publishes active=1. This marker selects only the Android XR input sidecars.
+inline constexpr uint32_t DROIDDECK_ANDROID_XR_ACTIVE = 3u;
+
 namespace droiddeck::xr {
+
+inline bool isAndroidXr(const DroidDeckXrTracking &tracking) {
+    return tracking.active == DROIDDECK_ANDROID_XR_ACTIVE;
+}
 
 inline bool inputHeaderValid(const DroidDeckXrInputV2 &packet) {
     return packet.magic == DROIDDECK_XR_INPUT_V2_MAGIC && packet.version == 2 && packet.header_bytes == 64
@@ -40,7 +47,7 @@ public:
     bool update(float value, bool ready) {
         if (!ready || !std::isfinite(value)) { reset(); return false; }
         if (value <= 0.25f) { armed_ = true; down_ = false; }
-        else if (armed_ && value > XR_TOUCH_CLICK_THRESHOLD) down_ = true;
+        else if (armed_ && value > 0.6f) down_ = true;
         return down_;
     }
     void reset() { armed_ = down_ = false; }

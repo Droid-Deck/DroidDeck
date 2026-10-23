@@ -1,4 +1,4 @@
-# Shared OpenXR bridge: build and validation
+# Android XR: build and validation
 
 Run commands from the repository root. Hardware results must identify the tested source revision and distinguish local runtime output from SteamVR guest output. Do not commit account data, device identifiers, screenshots or raw session logs.
 
@@ -27,7 +27,7 @@ python3 -m unittest tools.tests.test_xr_validation \
   tools.tests.test_windows_vr_build tools.tests.test_prepare_windows_runtime
 ```
 
-Tests cover protocol layouts, atomic snapshots, writer ownership, invalid/stale input release, coordinate conversions, skeleton reconstruction and head velocity. GPU completion tests require Linux or Android; macOS host tests do not establish Linux GPU synchronization.
+Tests cover protocol layouts, atomic snapshots, writer ownership, invalid/stale input release, coordinate conversions, skeleton reconstruction. GPU completion tests require Linux or Android; macOS host tests do not establish Linux GPU synchronization.
 
 ## Main application
 
@@ -37,7 +37,7 @@ Use the existing full build workflow:
 tools/build_local.sh
 ```
 
-Docker prepares the existing Linux guest helpers, SteamVR driver and other assets. The VR cache key includes shared native sources. Runtime-input checks require the matching rebuilt guest libraries and hand-model outputs. An old prebuilt guest is not sufficient after protocol changes.
+Docker prepares the existing Linux guest helpers, SteamVR driver and other assets. The VR cache key includes Android XR native sources. Runtime-input checks require the matching rebuilt guest libraries and hand-model outputs. Rebuild the guest driver to add the Android XR hand-input path; the Quest tracking ABI remains v1.
 
 For source integration checks without rebuilding store engines:
 
@@ -66,13 +66,12 @@ The native route needs ARM64 cross compilers and Vulkan headers. Its build scrip
 4. Grant hand-tracking permission where required. Verify both hands, orientation, ray aim, pinch press/release, sustained drag, tracking loss and recovery.
 5. Verify the system-button shortcut reopens the Dashboard without taking a screenshot.
 6. With a gamepad, verify axes, confirm/back, menu combination, release/repress, disconnect/reconnect and focus loss.
-7. Recheck Quest Touch controllers and hand/controller switching.
-8. Test an actual VR application. Report its scene rendering, input and sustained performance separately from SteamVR startup.
-9. Compare Dashboard open/closed while turning the head. Record remaining jitter rather than treating high submission counts as smoothness.
-10. Verify normal exit, guest stop, failed startup and reentry. Disable temporary debugging access and remove test overrides after diagnostics.
+7. Test an actual VR application. Report its scene rendering, input and sustained performance separately from SteamVR startup.
+8. Compare Dashboard open/closed while turning the head. Record remaining jitter rather than treating high submission counts as smoothness.
+9. Verify normal exit, guest stop, failed startup and reentry. Disable temporary debugging access and remove test overrides after diagnostics.
 
-`tools/test_xr.py --help` documents the shared validator. It rejects simulated input and requires live runtime evidence; Android-side action counters alone do not prove that SteamVR consumed the input. `tools/test_quest_xr.py` retains the existing Quest checks.
+`tools/test_xr.py --help` documents the Android XR validator. It rejects simulated input and requires live runtime evidence; Android-side action counters alone do not prove that SteamVR consumed the input. `tools/test_quest_xr.py` retains the existing Quest checks.
 
 ## CI
 
-The Shared OpenXR bridge workflow runs host contracts and Linux guest tests. The existing Build APK workflow compiles and tests the main application with its prepared runtime assets. Passing these checks does not replace hardware regression.
+The Android XR bridge workflow runs host contracts and Linux guest tests. The existing Build APK workflow compiles and tests the main application with its prepared runtime assets. Passing these checks does not replace hardware regression.

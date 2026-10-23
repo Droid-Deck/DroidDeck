@@ -1628,7 +1628,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun surfaceCreated(holder: SurfaceHolder) {
         if (holder !== outputHolder()) return
-        if (installingRuntime || SessionState.stopRequested || ended || SessionState.phase == SessionPhase.STOPPING) return
+        if (installingRuntime || SessionState.stopRequested || ended) return
         if (!SessionState.running) {
             SessionEvents.transition(SessionPhase.STARTING_COMPOSITOR, "compositor.starting")
         }
@@ -3044,27 +3044,22 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun steamVrAction(action: String) {
-        if (action == "start") {
-            when (com.droiddeck.launcher.xr.XrPlatform.current(this)) {
-                com.droiddeck.xr.XrPlatform.QUEST -> {
-                    startActivity(android.content.Intent(this, QuestXrActivity::class.java))
-                    return
-                }
-                com.droiddeck.xr.XrPlatform.ANDROID_XR -> {
-                    val readiness = com.droiddeck.launcher.xr.AndroidXrEntry.readiness(this)
-                    if (readiness.canProbe) {
-                        val permission = "android.permission.HAND_TRACKING"
-                        if (checkSelfPermission(permission) != android.content.pm.PackageManager.PERMISSION_GRANTED)
-                            xrHandPermission.launch(permission)
-                        else startActivity(android.content.Intent(this, AndroidXrActivity::class.java))
-                    } else {
-                        Log.i(TAG, "Android XR launch blocked: $readiness")
-                        Toast.makeText(this, R.string.android_xr_not_ready, Toast.LENGTH_LONG).show()
-                    }
-                    return
-                }
-                com.droiddeck.xr.XrPlatform.NONE -> Unit
+        if (action == "start" && com.droiddeck.launcher.session.QuestExperimental.isSupported()) {
+            startActivity(android.content.Intent(this, QuestXrActivity::class.java))
+            return
+        }
+        if (action == "start" && com.droiddeck.launcher.xr.XrPlatform.current(this) == com.droiddeck.xr.XrPlatform.ANDROID_XR) {
+            val readiness = com.droiddeck.launcher.xr.AndroidXrEntry.readiness(this)
+            if (readiness.canProbe) {
+                val permission = "android.permission.HAND_TRACKING"
+                if (checkSelfPermission(permission) != android.content.pm.PackageManager.PERMISSION_GRANTED)
+                    xrHandPermission.launch(permission)
+                else startActivity(android.content.Intent(this, AndroidXrActivity::class.java))
+            } else {
+                Log.i(TAG, "Android XR launch blocked: $readiness")
+                Toast.makeText(this, R.string.android_xr_not_ready, Toast.LENGTH_LONG).show()
             }
+            return
         }
         val request = ++steamVrRequestGeneration
         val session = SessionState.sessionId

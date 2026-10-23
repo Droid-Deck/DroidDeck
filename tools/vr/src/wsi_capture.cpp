@@ -3,7 +3,6 @@
 #include "xr_tracking_file.h"
 #include "xr_frame_channel.h"
 #include "xr_gpu_channel.h"
-#include "xr_display_timing.h"
 #include <algorithm>
 #include <cstdio>
 #include <memory>
@@ -105,7 +104,7 @@ struct CaptureSlot {
             if (d.MapMemory(d.handle, memory, 0, VK_WHOLE_SIZE, 0, &mapping)) return false;
             VkMemoryGetFdInfoKHR getFd{VK_STRUCTURE_TYPE_MEMORY_GET_FD_INFO_KHR};
             getFd.memory = memory; getFd.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT;
-            if (!d.GetMemoryFdKHR || d.GetMemoryFdKHR(d.handle, &getFd, &sharedFd)) return false;
+            if (d.GetMemoryFdKHR(d.handle, &getFd, &sharedFd)) return false;
         }
         if (imported < 0) {
             VkImageCreateInfo image{VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
@@ -341,23 +340,11 @@ std::unordered_map<VkDevice, std::unique_ptr<Device>> devices;
 std::unordered_map<VkSwapchainKHR, std::unique_ptr<Swapchain>> swapchains;
 }
 
-extern "C" int droiddeck_wsi_display_timing(int64_t now, int64_t *last, int64_t *period) {
-    const char *mode = getenv("DROIDDECK_VR_PRESENT");
-    if (!mode || strcmp(mode, "questwsi") || strcmp(program_invocation_short_name, "vrcompositor")) return 0;
-    static XrTrackingFile tracking;
-    DroidDeckXrTracking packet{};
-    if (!tracking.Read(&packet) || !XrTrackingFile::Fresh(packet)) return 0;
-    *last = xr_display_last_tick(now, packet.predicted_ns, packet.period_ns);
-    *period = packet.period_ns;
-    return *last > 0;
-}
-
 extern "C" void droiddeck_wsi_device(VkDevice device, VkPhysicalDevice physical, VkInstance instance,
                                      PFN_vkGetInstanceProcAddr gipa, PFN_vkGetDeviceProcAddr gdpa, const VkDeviceCreateInfo *create) {
     const char *mode = getenv("DROIDDECK_VR_PRESENT");
     if (!mode || strcmp(mode, "questwsi") || strcmp(program_invocation_short_name, "vrcompositor")) return;
     auto d = std::make_unique<Device>(); d->handle = device;
-    d->GetMemoryFdKHR = reinterpret_cast<PFN_vkGetMemoryFdKHR>(gdpa(device, "vkGetMemoryFdKHR"));
     d->GetMemoryFdPropertiesKHR = reinterpret_cast<PFN_vkGetMemoryFdPropertiesKHR>(gdpa(device, "vkGetMemoryFdPropertiesKHR"));
     for (uint32_t index = 0; index < create->enabledExtensionCount; index++)
         if (!strcmp(create->ppEnabledExtensionNames[index], "VK_EXT_queue_family_foreign")) d->foreign = true;

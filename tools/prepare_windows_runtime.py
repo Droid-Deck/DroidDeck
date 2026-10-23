@@ -41,9 +41,8 @@ LOCAL_BUILD_PLUMBING = {'app/build.gradle', 'tools/release/runtime_inputs.py',
 # These Android-only inputs are compiled by Gradle, never taken from the donor.
 # Keep this list explicit so unrelated native or Linux runtime edits still fail.
 LOCAL_ANDROID_SOURCES = {'app/src/main/cpp/CMakeLists.txt',
-                         'app/src/main/cpp/questxr/CMakeLists.txt',
-                         'app/src/main/cpp/questxr/quest_xr.cpp',
-                         'app/src/main/cpp/questxr/gpu_frames.h',  # Audits deletion of the obsolete forwarding header.
+                         'app/src/main/cpp/androidxr/CMakeLists.txt',
+                         'app/src/main/cpp/androidxr/android_xr.cpp',
                          'app/src/main/cpp/viture/sdk_bridge.cpp',
                          'app/src/main/cpp/viture/display_modes.h',
                          'app/src/main/cpp/viture/stereo_frame_gate.h',
@@ -107,8 +106,7 @@ def check_sources():
         if vr_build.is_source(path):
             action = 'VR component rebuilt from current source and verified; never imported from donor'
         elif path in LOCAL_ANDROID_SOURCES:
-            action = ('Android native source compiled by Gradle; not imported from donor' if (ROOT / path).exists() else
-                      'Android native source removed; Gradle rebuilds current inputs, not imported from donor')
+            action = 'Android native source compiled by Gradle; not imported from donor'
         elif path.startswith('app/src/main/rust/stores/'):
             action = 'store engines omitted; Gradle must use skipRust=true'
         elif path in helper_sources:

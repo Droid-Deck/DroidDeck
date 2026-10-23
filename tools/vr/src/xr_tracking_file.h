@@ -61,14 +61,6 @@ public:
         for (float value : pose.position) if (!std::isfinite(value)) return false;
         return std::abs(lengthSquared - 1.f) < 0.01f;
     }
-    static void HeadVelocity(const DroidDeckXrTracking &packet, double linear[3], double angular[3]) {
-        const auto copy = [](const float source[3], bool valid, double destination[3]) {
-            for (int axis = 0; axis < 3; axis++) valid = valid && std::isfinite(source[axis]);
-            for (int axis = 0; axis < 3; axis++) destination[axis] = valid ? source[axis] : 0;
-        };
-        copy(packet.head_linear_velocity, packet.head_velocity_flags & DROIDDECK_XR_LINEAR_VELOCITY_VALID, linear);
-        copy(packet.head_angular_velocity, packet.head_velocity_flags & DROIDDECK_XR_ANGULAR_VELOCITY_VALID, angular);
-    }
 private:
     DroidDeckXrTracking *mapping_ = nullptr;
     std::mutex mutex_;

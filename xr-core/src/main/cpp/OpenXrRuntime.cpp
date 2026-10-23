@@ -23,7 +23,6 @@
 #include <cstddef>
 #include <ctime>
 #include "xr_tracking.h"
-#include "xr_head_motion.h"
 #include "xr_frame_channel.h"
 #include "xr_frame_math.h"
 #include "GpuFrames.h"
@@ -269,8 +268,6 @@ private:
     XrPath hands_[2]{};
     XrSpace handSpaces_[2]{};
     XrSpaceLocation head_{XR_TYPE_SPACE_LOCATION};
-    XrSpaceVelocity headVelocity_{XR_TYPE_SPACE_VELOCITY};
-    XrHeadMotion headMotion_;
     XrSpaceLocation handLocations_[2]{{XR_TYPE_SPACE_LOCATION}, {XR_TYPE_SPACE_LOCATION}};
     bool handActive_[2]{};
     bool running_ = false, exit_ = false, quitRequested_ = false;
@@ -913,7 +910,8 @@ private:
         timespec now{}; clock_gettime(CLOCK_MONOTONIC, &now);
         DroidDeckXrTracking packet{};
         packet.magic = DROIDDECK_XR_MAGIC; packet.version = DROIDDECK_XR_VERSION;
-        packet.active = state_ == XR_SESSION_STATE_VISIBLE || state_ == XR_SESSION_STATE_FOCUSED;
+        packet.active = (state_ == XR_SESSION_STATE_VISIBLE || state_ == XR_SESSION_STATE_FOCUSED)
+            ? DROIDDECK_ANDROID_XR_ACTIVE : 0;
         packet.sampled_ns = (int64_t)now.tv_sec * 1000000000LL + now.tv_nsec;
         if (convertTime_) {
             timespec displayTime{};
@@ -922,19 +920,6 @@ private:
         }
         packet.period_ns = period_;
         packet.head = posePacket(head_.pose, head_.locationFlags);
-        if (headVelocity_.velocityFlags & XR_SPACE_VELOCITY_LINEAR_VALID_BIT) {
-            packet.head_velocity_flags |= DROIDDECK_XR_LINEAR_VELOCITY_VALID;
-            packet.head_linear_velocity[0] = headVelocity_.linearVelocity.x;
-            packet.head_linear_velocity[1] = headVelocity_.linearVelocity.y;
-            packet.head_linear_velocity[2] = headVelocity_.linearVelocity.z;
-        }
-        if (headVelocity_.velocityFlags & XR_SPACE_VELOCITY_ANGULAR_VALID_BIT) {
-            packet.head_velocity_flags |= DROIDDECK_XR_ANGULAR_VELOCITY_VALID;
-            packet.head_angular_velocity[0] = headVelocity_.angularVelocity.x;
-            packet.head_angular_velocity[1] = headVelocity_.angularVelocity.y;
-            packet.head_angular_velocity[2] = headVelocity_.angularVelocity.z;
-        }
-        headMotion_.Update(packet, predicted, runtimeSession_.originEpoch);
         for (int eye = 0; eye < 2; eye++) {
             packet.eyes[eye].pose = posePacket(views[eye].pose, viewFlags_);
             packet.eyes[eye].fov[0] = views[eye].fov.angleLeft;
@@ -1130,8 +1115,6 @@ private:
             releaseHands();
             throw std::runtime_error("XR reference space changed; restart SteamVR to refresh frame poses");
         }
-        headVelocity_ = {XR_TYPE_SPACE_VELOCITY};
-        head_.next = &headVelocity_;
         check(xrLocateSpace(view_, world_, frameState.predictedDisplayTime, &head_), "head pose");
         handActive_[0] = handActive_[1] = false;
         if (state_ == XR_SESSION_STATE_FOCUSED) {

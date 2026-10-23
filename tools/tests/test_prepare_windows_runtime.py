@@ -56,15 +56,15 @@ class WindowsRuntimePreparationTest(unittest.TestCase):
             self.assertEqual(set(classifications), committed | local | new)
             self.assertTrue(all('never imported from donor' in value for value in classifications.values()))
 
-    def test_deleted_quest_forwarding_header_is_audited_as_a_removal(self):
-        removed = 'app/src/main/cpp/questxr/gpu_frames.h'
+    def test_android_xr_entry_is_audited_as_an_android_source(self):
+        entry = 'app/src/main/cpp/androidxr/android_xr.cpp'
         with tempfile.TemporaryDirectory() as folder, \
                 mock.patch.object(prepare, 'ROOT', Path(folder)), \
                 mock.patch.object(prepare, 'source_assets', return_value={}), \
-                mock.patch.object(prepare, 'changed', side_effect=[set(), {removed}, set()]), \
+                mock.patch.object(prepare, 'changed', side_effect=[set(), {entry}, set()]), \
                 mock.patch.object(prepare, 'git', side_effect=[prepare.DONOR_TREE.encode(), b'']):
             classifications = prepare.check_sources()
-            self.assertIn('source removed', classifications[removed])
+            self.assertIn('compiled by Gradle', classifications[entry])
 
     def test_preparation_excludes_all_donor_vr_files_and_records_replacement_origin(self):
         with tempfile.TemporaryDirectory() as folder:

@@ -2,7 +2,7 @@
 #include <stdint.h>
 
 #define DROIDDECK_XR_MAGIC 0x52584444u
-#define DROIDDECK_XR_VERSION 2u
+#define DROIDDECK_XR_VERSION 1u
 #define DROIDDECK_XR_FILE "droiddeck-xr-tracking"
 #define DROIDDECK_XR_STICK_CLICK (1u << 0)
 #define DROIDDECK_XR_PRIMARY_CLICK (1u << 1)
@@ -13,8 +13,6 @@
 #define DROIDDECK_XR_PRIMARY_TOUCH (1u << 6)
 #define DROIDDECK_XR_SECONDARY_TOUCH (1u << 7)
 #define DROIDDECK_XR_THUMBREST_TOUCH (1u << 8)
-#define DROIDDECK_XR_LINEAR_VELOCITY_VALID (1u << 0)
-#define DROIDDECK_XR_ANGULAR_VELOCITY_VALID (1u << 1)
 
 struct DroidDeckXrPose {
     float orientation[4];
@@ -40,11 +38,9 @@ struct DroidDeckXrTracking {
     DroidDeckXrPose head;
     DroidDeckXrEye eyes[2];
     DroidDeckXrHand hands[2];
-    float head_linear_velocity[3], head_angular_velocity[3];
-    uint32_t head_velocity_flags, reserved;
 };
 
-static_assert(sizeof(DroidDeckXrTracking) == 328, "XR tracking IPC layout");
+static_assert(sizeof(DroidDeckXrTracking) == 296, "XR tracking IPC layout");
 
 #define DROIDDECK_XR_HAPTIC_MAGIC 0x48584444u
 #define DROIDDECK_XR_HAPTIC_FILE "droiddeck-xr-haptics"

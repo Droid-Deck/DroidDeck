@@ -3,8 +3,6 @@
 #include <algorithm>
 #include <cmath>
 
-inline constexpr float XR_TOUCH_CLICK_THRESHOLD = 0.6f;
-
 struct XrTouchInput {
     float trigger = 0, grip = 0, stickX = 0, stickY = 0;
     bool triggerClick = false, gripClick = false, stickClick = false;
@@ -20,8 +18,8 @@ inline XrTouchInput xr_touch_input(const DroidDeckXrHand &hand, bool right) {
     input.grip = scalar(hand.squeeze, 0);
     input.stickX = scalar(hand.stick[0], -1);
     input.stickY = scalar(hand.stick[1], -1);
-    input.triggerClick = input.trigger > XR_TOUCH_CLICK_THRESHOLD;
-    input.gripClick = input.grip > XR_TOUCH_CLICK_THRESHOLD;
+    input.triggerClick = input.trigger > 0.6f;
+    input.gripClick = input.grip > 0.6f;
     input.stickClick = hand.buttons & DROIDDECK_XR_STICK_CLICK;
     input.primaryClick = hand.buttons & DROIDDECK_XR_PRIMARY_CLICK;
     input.secondaryClick = hand.buttons & DROIDDECK_XR_SECONDARY_CLICK;
