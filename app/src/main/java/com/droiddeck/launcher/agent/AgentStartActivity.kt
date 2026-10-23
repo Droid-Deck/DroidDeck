@@ -51,6 +51,11 @@ class AgentStartActivity : Activity() {
     }
 
     private fun startSession(request: JSONObject) {
+        if (com.droiddeck.launcher.storage.SteamGameMove.running) {
+            android.widget.Toast.makeText(this, com.droiddeck.launcher.R.string.storage_move_wait, android.widget.Toast.LENGTH_SHORT).show()
+            finish()
+            return
+        }
         try {
             AgentAccess.requireStart(this, request)
         } catch (e: AgentException) {
