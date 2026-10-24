@@ -11,7 +11,7 @@ object SettingsReset {
     private const val TAG = "SettingsReset"
 
     internal val SESSION_KEYS = setOf(
-        "orientation", "launcherFullscreen", "animations", "theme", "runSteamAtStartup", "addedGamesArt",
+        "orientation", "launcherFullscreen", "animations", "theme", "runSteamAtStartup", "steamStartup", "addedGamesArt",
         "gameStoresEnabled", "gameStoresSpeedTier", "gameStoresParallel", "storesOpenTab", "storesShowMature",
         "storesInstallLanguage",
         "hud", "hudDeck", "hudFps", "hudBattery", "hudGraph", "hudColor", "hudOpacity", "backActionsInverted", "touch", "osc", "shape", "steamController",

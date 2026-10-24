@@ -290,7 +290,6 @@
     <string name="mode_suspend_note">Auto mette in pausa in background e riprende quando l\'app torna visibile. Manuale attende Riprendi. Mai lascia tutto in esecuzione.</string>
     <string name="mode_startup">Avvio</string>
     <string name="mode_steam_startup">Avvia Steam con DroidDeck</string>
-    <string name="mode_steam_startup_hint">Apre la sessione Steam all\'avvio di DroidDeck.</string>
     <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">Ricerca di release…</string>
     <string name="mode_decky_ready">Pronto per installare %1$s.</string>

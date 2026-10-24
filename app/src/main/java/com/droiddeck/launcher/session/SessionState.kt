@@ -7,6 +7,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 
 object SessionState {
+    @Volatile var launcherVisible = false
     @Volatile
     var phase = SessionPhase.IDLE
 

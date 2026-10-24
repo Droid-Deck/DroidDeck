@@ -25,6 +25,11 @@ import android.os.PowerManager
 import android.hardware.display.DisplayManager
 import android.view.Display
 import android.util.Log
+import com.droiddeck.launcher.core.PhantomProcessLimit
+import com.droiddeck.launcher.runtime.DesktopCatalog
+import com.droiddeck.launcher.runtime.LinuxRuntimeInstaller
+import com.droiddeck.launcher.storage.StorageState
+import com.droiddeck.launcher.wayland.CompositorHost
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.SessionActivity
 import com.droiddeck.launcher.audio.DirectAudioRelayComponent
@@ -52,6 +57,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.UUID
+import kotlinx.coroutines.Job
 
 class SessionService : Service() {
     override fun attachBaseContext(newBase: android.content.Context) =
@@ -77,6 +83,8 @@ class SessionService : Service() {
     private var suspendPolicy = SessionPrefs.SUSPEND_MANUAL
     private var steamDownloadsInBackground = false
     private var activityVisible = true
+    private var preparingSteam = false
+    private val sessionInUse get() = hasVisibleSurface || (preparingSteam && SessionState.launcherVisible && screenOn)
     private var activityDisplayId = Display.DEFAULT_DISPLAY
     private var xrActivityVisible = false
     private var signInHold = false
@@ -186,6 +194,13 @@ class SessionService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
+            ACTION_LAUNCHER_VISIBILITY -> {
+                if (!preparingSteam) return START_NOT_STICKY
+                if (SessionState.launcherVisible) resumeSteamSleepOnReturn()
+                suspendAttemptFailed = false
+                updateSuspendPolicy()
+                return START_NOT_STICKY
+            }
             ACTION_LAUNCH_GAME -> {
                 queueSteamGame(intent.getStringExtra(EXTRA_GAME_ID))
                 return START_NOT_STICKY
@@ -228,6 +243,7 @@ class SessionService : Service() {
                 return START_NOT_STICKY
             }
             ACTION_ACTIVITY_VISIBLE -> {
+                preparingSteam = false
                 if (!SessionState.pipActive) pipTask = false
                 activityVisible = true
                 activityDisplayId = intent.getIntExtra(EXTRA_ACTIVITY_DISPLAY_ID, activityDisplayId)
@@ -294,16 +310,23 @@ class SessionService : Service() {
                 return START_NOT_STICKY
             }
             ACTION_RESUME -> {
+                preparingSteam = false
                 resumeSession()
                 return START_NOT_STICKY
             }
         }
-        if (com.droiddeck.launcher.runtime.LinuxRuntimeInstaller.isMaintaining()) {
+        if (LinuxRuntimeInstaller.isMaintaining()) {
             stopSelf(startId)
+            return START_NOT_STICKY
+        }
+        val backgroundStart = intent?.action == ACTION_PREPARE_STEAM
+        if (backgroundStart && !canPrepareSteam(this)) {
+            if (!SessionState.running) stopSelf(startId)
             return START_NOT_STICKY
         }
         startForeground(NOTIFICATION_ID, buildNotification())
         if (SessionState.running) return START_NOT_STICKY
+        if (backgroundStart) SessionEvents.begin(this, MODE_STEAM)
         if (SessionState.stopRequested) {
             SessionState.running = true
             stopSession(0)
@@ -312,11 +335,13 @@ class SessionService : Service() {
         SessionState.mode = intent?.getStringExtra(EXTRA_MODE) ?: MODE_STEAM
         suspendPolicy = SessionPrefs.suspendPolicy(this, SessionState.mode)
         steamDownloadsInBackground = SessionPrefs.steamDownloadsInBackground(this)
-        activityVisible = true
+        preparingSteam = backgroundStart
+        activityVisible = !backgroundStart
         xrActivityVisible = false
         signInHold = false
         sessionDisplayId = intent?.getIntExtra(EXTRA_DISPLAY_ID, Display.DEFAULT_DISPLAY) ?: Display.DEFAULT_DISPLAY
         activityDisplayId = intent?.getIntExtra(EXTRA_ACTIVITY_DISPLAY_ID, sessionDisplayId) ?: sessionDisplayId
+        if (backgroundStart) prepareBackgroundOutput()
         screenOn = readScreenOn()
         manualPauseRequested = false
         suspendDownloadNow = false
@@ -351,18 +376,50 @@ class SessionService : Service() {
         SessionState.firstFrameSeen = false
         SessionState.guestPid = -1
         SessionEvents.transition(SessionPhase.STARTING_GUEST, "service.started", mapOf("mode" to SessionState.mode))
-        com.droiddeck.launcher.wayland.CompositorHost.newSession()
+        CompositorHost.newSession(this)
         val gen = ++sessionGen
         cancelQueuedSteamGame(clearMailbox = false)
         clearSteamGameMailbox()
         if (SessionState.mode == MODE_STEAM) SessionState.steamUrl
             ?.takeIf { it.startsWith(GAME_URL_PREFIX) }?.let { watchGameExit(it.removePrefix(GAME_URL_PREFIX), gen) }
         acquireLocks()
+        val preparation = if (backgroundStart) Job().also { compositorStart = it } else null
         Thread({
-            OrphanReaper.reap("session starting")
-            runSession(gen)
+            try {
+                if (gen != sessionGen || !SessionState.running || SessionState.stopRequested) return@Thread
+                OrphanReaper.reap("session starting")
+                if (gen != sessionGen || !SessionState.running || SessionState.stopRequested) return@Thread
+                if (backgroundStart) prepareCompositor()
+            } catch (error: Exception) {
+                Log.e(TAG, "session preparation failed", error)
+                if (gen == sessionGen && SessionState.running) stopSession(-1)
+                return@Thread
+            } finally {
+                preparation?.complete()
+            }
+            if (gen == sessionGen && SessionState.running && !SessionState.stopRequested) runSession(gen)
         }, "session-start").start()
         return START_NOT_STICKY
+    }
+
+    private fun prepareBackgroundOutput() {
+        val display = getSystemService(DisplayManager::class.java).getDisplay(sessionDisplayId)
+        val panel = display?.mode?.let { maxOf(it.physicalWidth, it.physicalHeight) to minOf(it.physicalWidth, it.physicalHeight) }
+            ?: SessionDisplay.panelSize(this)
+        val choice = SessionPrefs.resolutionChoice(this, MODE_STEAM, panel)
+        val size = SessionDisplay.resolveChoice(panel, choice)
+        SessionState.outputSize = size
+        SessionState.followScreen = choice == SessionDisplay.FOLLOW_SCREEN
+        SessionState.fpsLimit = SessionPrefs.fpsLimit(this, MODE_STEAM)
+    }
+
+    private fun prepareCompositor() {
+        val size = SessionState.outputSize
+        val display = getSystemService(DisplayManager::class.java).getDisplay(sessionDisplayId)
+        CompositorHost.startOrAttach(
+            this, null, size.first, size.second, 60f, SessionState.fpsLimit, display = display,
+        )
+        SessionEvents.record("compositor.prepared")
     }
 
     private fun collectSessionArtifacts(dir: File, steamArch: String?) {
@@ -399,6 +456,9 @@ class SessionService : Service() {
 
     private fun runSession(gen: Int) {
         SessionTerminal.clear()
+        com.droiddeck.launcher.input.VrControllers.publish(this)
+        runCatching { GameEnvironmentStore.publish(this) }
+            .onFailure { Log.e(TAG, "Could not update game environment", it) }
         com.droiddeck.launcher.gpu.TpUbwcHint.forThisDevice(this)
         try {
             LinuxRuntime.writeAccounts(this)
@@ -689,7 +749,7 @@ class SessionService : Service() {
         SessionState.runtimeDriver = linuxDriverId
         com.droiddeck.launcher.gpu.AutoDriverTrial.sessionStarting(
             this,
-            com.droiddeck.launcher.wayland.CompositorHost.displayChoice.takeIf { com.droiddeck.launcher.wayland.CompositorHost.isStarted }
+            CompositorHost.displayChoice.takeIf { CompositorHost.isStarted }
                 ?: SessionPrefs.androidDriver(this),
             linuxDriverId,
         )
@@ -1414,7 +1474,7 @@ class SessionService : Service() {
 
     private fun updateSuspendPolicy() {
         if (!SessionState.running) return
-        val hidden = !hasVisibleSurface
+        val hidden = !sessionInUse
         val downloadsBlockingSuspend = downloadsKeepAwake() && hidden && !suspendDownloadNow
         if (suspendPolicy == SessionPrefs.SUSPEND_MANUAL && hidden && !downloadsBlockingSuspend) {
             manualPauseRequested = true
@@ -1529,7 +1589,7 @@ class SessionService : Service() {
     }
 
     private fun resumeSteamSleepOnReturn() {
-        if (suspendPolicy in setOf(SessionPrefs.SUSPEND_AUTO, SessionPrefs.SUSPEND_NATIVE) && hasVisibleSurface) {
+        if (suspendPolicy in setOf(SessionPrefs.SUSPEND_AUTO, SessionPrefs.SUSPEND_NATIVE) && sessionInUse) {
             if (steamSleepToken == null && (nativeSleepToken == null || nativeSleepFallback || nativeSleepIdle)) requestSteamWake()
             completeNativeSleep()
             completeSteamSleep()
@@ -1924,6 +1984,9 @@ class SessionService : Service() {
     }
 
     companion object {
+        @Volatile private var compositorStart: Job? = null
+        val compositorPreparation: Job? get() = compositorStart?.takeUnless { it.isCompleted }
+
         private const val TAG = "SessionService"
         private const val TRACER_NICE = -6
         private const val MIC_RELEASE_TIMEOUT_MS = 5_000L
@@ -1938,6 +2001,8 @@ class SessionService : Service() {
             else null
         private const val CHANNEL_ID = "session"
         private const val NOTIFICATION_ID = 1001
+        private const val ACTION_PREPARE_STEAM = "com.droiddeck.launcher.PREPARE_STEAM"
+        private const val ACTION_LAUNCHER_VISIBILITY = "com.droiddeck.launcher.LAUNCHER_VISIBILITY"
         const val ACTION_STOP = "com.droiddeck.launcher.STOP_SESSION"
         const val ACTION_RESUME = "com.droiddeck.launcher.RESUME_SESSION"
         const val ACTION_SUSPEND_NOW = "com.droiddeck.launcher.SUSPEND_NOW"
@@ -1990,6 +2055,29 @@ class SessionService : Service() {
         const val EXTRA_STEAM_UI = "steamUi"
         const val EXTRA_STEAM_URL = "steamUrl"
         const val EXTRA_GAME_ID = "gameId"
+
+        private fun canPrepareSteam(context: Context): Boolean =
+            SessionPrefs.steamStartup(context) == SteamStartup.BACKGROUND && SessionState.launcherVisible &&
+                !SessionState.running && SessionState.phase in setOf(SessionPhase.IDLE, SessionPhase.FAILED) &&
+                LinuxRuntime.isInstalled(context) && !LinuxRuntimeInstaller.isBusy() &&
+                !ProtonExtras.installInProgress && DesktopCatalog.interrupted(context).isEmpty() &&
+                !DesktopCatalog.protonSeedNeeded(context) &&
+                !StorageState.cleaning && !StorageState.lowOnSpace(context) &&
+                !PhantomProcessLimit.blocksSteam(PhantomProcessLimit.read(context))
+
+        fun prepareSteam(context: Context) {
+            if (!canPrepareSteam(context)) return
+            val intent = Intent(context, SessionService::class.java).setAction(ACTION_PREPARE_STEAM)
+                .putExtra(EXTRA_DISPLAY_ID, contextDisplayId(context))
+            if (Build.VERSION.SDK_INT >= 26) context.startForegroundService(intent) else context.startService(intent)
+        }
+
+        fun setLauncherVisible(context: Context, visible: Boolean) {
+            SessionState.launcherVisible = visible
+            if (SessionState.running) context.startService(
+                Intent(context, SessionService::class.java).setAction(ACTION_LAUNCHER_VISIBILITY),
+            )
+        }
 
         fun start(
             context: Context, mode: String = MODE_STEAM, program: String? = null,

@@ -290,7 +290,6 @@
     <string name="mode_suspend_note">Auto setter på pause i bakgrunnen og gjenopptar når den vises. Manuell venter på Gjenoppta. Aldri lar den fortsette å kjøre.</string>
     <string name="mode_startup">Oppstart</string>
     <string name="mode_steam_startup">Start Steam med DroidDeck</string>
-    <string name="mode_steam_startup_hint">Åpner Steam-sesjonen når DroidDeck starter.</string>
     <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">Ser etter utgivelser…</string>
     <string name="mode_decky_ready">Klar til å installere %1$s.</string>
