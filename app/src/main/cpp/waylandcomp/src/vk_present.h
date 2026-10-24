@@ -50,6 +50,7 @@ struct vkp_draw {
 const char *vkp_gpu_name(void);
 
 int vkp_ready(void);
+void vkp_set_low_latency(int on);
 int vkp_has_window(void);
 int vkp_wait_window_request(int timeout_ms);
 int vkp_device_lost(void);
