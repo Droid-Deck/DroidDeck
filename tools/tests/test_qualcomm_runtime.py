@@ -3,6 +3,7 @@ import importlib.util
 import io
 import json
 from pathlib import Path
+import tarfile
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -114,6 +115,45 @@ class QualcommRuntimeTest(unittest.TestCase):
                 (built / 'gamescope').unlink()
                 with self.assertRaisesRegex(FileNotFoundError, 'Build private Gamescope'):
                     runtime.stage(output, cache, lock)
+
+    def builds_archive(self, files):
+        raw = io.BytesIO()
+        with tarfile.open(fileobj=raw, mode='w:xz') as package:
+            for name, data in files.items():
+                info = tarfile.TarInfo(name)
+                info.size = len(data)
+                package.addfile(info, io.BytesIO(data))
+        return raw.getvalue()
+
+    def test_missing_builds_come_from_the_pinned_archive_once(self):
+        binary, source = b'ci gamescope', b'ci source'
+        archive = self.builds_archive({'qualcomm-gamescope/gamescope': binary, 'qualcomm-gamescope/source.tar.gz': source})
+        with tempfile.TemporaryDirectory() as directory:
+            root, cache = Path(directory), Path(directory) / 'cache'
+            lock = dict(builds=self.lock(archive), gamescope=dict(member_sha256=hashlib.sha256(binary).hexdigest(), build=dict(
+                binary='build/qualcomm-gamescope/gamescope', source='build/qualcomm-gamescope/source.tar.gz',
+                source_sha256=hashlib.sha256(source).hexdigest(), source_size=len(source))))
+            with patch.object(runtime, '__file__', str(root / 'tools/qualcomm/fetch_runtime.py')):
+                with patch.object(runtime.urllib.request, 'urlopen', return_value=io.BytesIO(archive)) as download:
+                    runtime.unpack_builds(cache, lock)
+                    self.assertEqual((root / 'build/qualcomm-gamescope/gamescope').read_bytes(), binary)
+                    runtime.unpack_builds(cache, lock)
+                    self.assertEqual(download.call_count, 1)
+                (root / 'build/qualcomm-gamescope/gamescope').write_bytes(b'stale')
+                runtime.unpack_builds(cache, lock)
+                self.assertEqual((root / 'build/qualcomm-gamescope/gamescope').read_bytes(), binary)
+
+    def test_builds_archive_cannot_write_outside_build(self):
+        archive = self.builds_archive({'../escape': b'x'})
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            lock = dict(builds=self.lock(archive), gamescope=dict(member_sha256='0', build=dict(
+                binary='build/g', source='build/s', source_sha256='0', source_size=1)))
+            with patch.object(runtime, '__file__', str(root / 'tools/qualcomm/fetch_runtime.py')):
+                with patch.object(runtime.urllib.request, 'urlopen', return_value=io.BytesIO(archive)):
+                    with self.assertRaisesRegex(ValueError, 'Invalid Qualcomm build member'):
+                        runtime.unpack_builds(root / 'cache', lock)
+            self.assertFalse((root / 'escape').exists())
 
     def test_built_wsi_members_come_from_the_pinned_local_build(self):
         bridge, binary, license_text, layer = b'bridge', b'gamescope', b'MIT', b'Wayland WSI layer'

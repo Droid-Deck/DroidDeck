@@ -285,7 +285,13 @@ def stageRuntimeAssets = tasks.register('stageRuntimeAssets', Sync) {
     into(runtimeAssetsDir)
 }
 android.sourceSets.main.assets.setSrcDirs([runtimeAssetsDir])
+def fetchQualcommBuilds = tasks.register('fetchQualcommBuilds', Exec) {
+    workingDir rootProject.projectDir
+    commandLine pythonExecutable, 'tools/qualcomm/fetch_runtime.py', '--builds-only',
+        '--cache', rootProject.file('build/qualcomm-cache').absolutePath
+}
 def stageQualcommRuntime = tasks.register('stageQualcommRuntime', Exec) {
+    dependsOn fetchQualcommBuilds
     workingDir rootProject.projectDir
     inputs.files(qualcommSources)
     if (qualcommRuntime.gamescope.build) {

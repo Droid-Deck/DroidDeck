@@ -4,14 +4,15 @@ import hashlib
 import json
 from pathlib import Path
 import shutil
+import tarfile
 import urllib.request
 import zipfile
 
 
-def fetch(cache, lock):
+def fetch(cache, lock, suffix='.tzst'):
     expected = lock['sha256']
     cache.mkdir(parents=True, exist_ok=True)
-    archive = cache / (expected + '.tzst')
+    archive = cache / (expected + suffix)
     def valid(path):
         return path.is_file() and path.stat().st_size == lock['size'] and hashlib.sha256(path.read_bytes()).hexdigest() == expected
     if not valid(archive):
@@ -25,6 +26,42 @@ def fetch(cache, lock):
         finally:
             temporary.unlink(missing_ok=True)
     return archive
+
+
+def pinned_builds(root, lock):
+    pins = []
+    built = lock['gamescope'].get('build')
+    if built:
+        pins.append((built['binary'], lock['gamescope']['member_sha256'], None))
+        pins.append((built['source'], built['source_sha256'], built['source_size']))
+    if 'mesa' in lock:
+        pins += [(lock['mesa']['directory'] + '/' + entry['path'], entry['sha256'], entry['size']) for entry in lock['mesa']['files']]
+    if 'build' in lock.get('wsi', {}):
+        pins += [(lock['wsi']['build']['directory'] + '/' + entry['name'], entry['sha256'], entry['size'])
+                 for entry in lock['wsi']['files'] if entry.get('built')]
+    def matches(name, sha256, size):
+        path = root / name
+        return path.is_file() and (size is None or path.stat().st_size == size) and hashlib.sha256(path.read_bytes()).hexdigest() == sha256
+    return all(matches(*pin) for pin in pins)
+
+
+def unpack_builds(cache, lock):
+    builds = lock.get('builds')
+    root = Path(__file__).resolve().parents[2]
+    if not builds or pinned_builds(root, lock):
+        return
+    destination = root / 'build'
+    with tarfile.open(fetch(cache, builds, '.tar.xz'), 'r:xz') as package:
+        for member in package.getmembers():
+            relative = Path(member.name)
+            if relative.is_absolute() or '..' in relative.parts or not (member.isfile() or member.isdir()):
+                raise ValueError('Invalid Qualcomm build member: ' + member.name)
+            if member.isfile():
+                target = destination / relative
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(package.extractfile(member).read())
+    if not pinned_builds(root, lock):
+        raise ValueError('Qualcomm builds failed SHA-256 verification')
 
 
 def stage(output, cache, lock, ndk=None):
@@ -110,8 +147,15 @@ def stage(output, cache, lock, ndk=None):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--output', type=Path)
     parser.add_argument('--cache', type=Path, required=True)
-    parser.add_argument('--ndk', type=Path, required=True)
+    parser.add_argument('--ndk', type=Path)
+    parser.add_argument('--builds-only', action='store_true')
     args = parser.parse_args()
-    stage(args.output, args.cache, json.loads(Path(__file__).with_name('runtime.json').read_text()), args.ndk)
+    lock = json.loads(Path(__file__).with_name('runtime.json').read_text())
+    if args.builds_only:
+        unpack_builds(args.cache, lock)
+    elif args.output is None or args.ndk is None:
+        parser.error('--output and --ndk are required')
+    else:
+        stage(args.output, args.cache, lock, args.ndk)

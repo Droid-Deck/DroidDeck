@@ -10,13 +10,18 @@
   },
   "gamescope": {
     "source_commit": "8f212644c46460549035971ab914421180f61a7c",
-    "member_sha256": "a7cce9f11bbb39da0543a14a6dcf56765117d2c577b3d7fac6caadda5039563c",
+    "member_sha256": "795f11c31adb1a1aa3447d913255c872626114c2713c6d80f8a82df10cf94185",
     "build": {
       "binary": "build/qualcomm-gamescope/gamescope",
       "source": "build/qualcomm-gamescope/source.tar.gz",
-      "source_sha256": "b9bec99913cebcd6d1a443f9b3263ff90a6f04574f116c8612d6f8ef86ab5f38",
-      "source_size": 10104476
+      "source_sha256": "49e48fa2dc3b98c15633789d0a6c383630f34ed54e48649dcb46c55e446f0417",
+      "source_size": 10055262
     }
+  },
+  "builds": {
+    "url": "https://github.com/Droid-Deck/DroidDeck-Components/releases/download/qualcomm-runtime-r2/qualcomm-builds.tar.xz",
+    "sha256": "f9db946db80b4db477cecfeae69eccb9496b1d6081550732a811f5d34a1772b6",
+    "size": 15138484
   },
   "wsi": {
     "files": [
@@ -24,7 +29,7 @@
         "mode": 420,
         "name": "libVkLayer_window_system_integration.so",
         "path": "wsi/libVkLayer_window_system_integration.so",
-        "sha256": "5990b32d6e0ce8fe250214a6f07d71ebf6cfcc6f03c3a3c573495721510c5b3b",
+        "sha256": "4319d14947c6957ae4f58897a6adc8a4194e68728dee9ff386a87e6a93845706",
         "size": 397384,
         "built": true
       },
@@ -167,83 +172,83 @@
     "files": [
       {
         "path": "dri/zink_dri.so",
-        "sha256": "a65a4b895ebf49ec2841023fa550f50344574e1b68d574468365ea7857f577fa",
+        "sha256": "5f6c653df307d04451a70e3a2f086bee2f0c4a8cbeecd278e2b619b45ee0098f",
         "size": 133368
       },
       {
         "path": "egl-vendor.json",
-        "sha256": "aafac15b0a72b9b782d88729f3481c217b27f6e8664ffc9d6493df566ebb466a",
-        "size": 93
+        "sha256": "5bb351d2e10383f865f5b67d44bfff9a6a8964c6cc969efb1d94a058ef11f48d",
+        "size": 92
       },
       {
         "path": "gbm/dri_gbm.so",
-        "sha256": "57e5aa8c3903c13db6a38e28cdc9160f2bd09cec04c88c90d6603d15b761b524",
+        "sha256": "5d99296fa5c898e43d104610f9a8cc78ed8d4776100a00a5dfc5de2c29d1993b",
         "size": 134024
       },
       {
         "path": "libEGL_droiddeck_qualcomm.so.0",
-        "sha256": "234d2041db7e87717c507ee90697058f646d1d9b61adc94f4a8cc52576fe733d",
+        "sha256": "f99c99b8edd380891bc18e276decb687b76e2dd249e7fe3fbded9aaf1f938d90",
         "size": 398632
       },
       {
         "path": "libgallium-26.2.3.so",
-        "sha256": "c2367279e61cad9d2fa16ff1bc247b565ff86e38f5a6b6aff5e63c5f1607e869",
+        "sha256": "f05580834e111df6f8ddaa8c96620f80317e40fb8032ee4eebb668c14c4cf401",
         "size": 21578352
       },
       {
         "path": "libgbm.so.1",
-        "sha256": "e9f131c50d423832eb947292b2a4f6405e51c272ce76906e3e31d5e5988334a9",
+        "sha256": "3a4018b5afea4de258c8b116e8e0f94bb2488a57ad2f63b0d5021d4cc922d91e",
         "size": 67840
       },
       {
         "path": "libGLX_droiddeck_qualcomm.so.0",
-        "sha256": "0c508865568327c98230c7ae5c241716715e70cc5b9dfc942cdb7bb79fc346a5",
+        "sha256": "bae86c5d5847e245f790174ff68646d5ab1c68224cbb55faf0c53d15ef152b5f",
         "size": 397704
       },
       {
         "path": "licenses/Apache-2.0",
-        "sha256": "aeae52465380b8b7959c940355e869cbbc277d4559a7ababa49cbc4818c051f5",
-        "size": 10232
+        "sha256": "7e4d3fba250d15e9e0afa380d4b611828fa2560cc8fdebe95bcf2f01a487de12",
+        "size": 10045
       },
       {
         "path": "licenses/BSL-1.0",
-        "sha256": "cf7105f24feaf70f28b8de10074e4d37bef89b8f3ae0a5f1280237f027d77ec0",
-        "size": 1666
+        "sha256": "9b9fea7520a816107fcac2598b7c0155222f16bc430e989706b22f4367f1df7d",
+        "size": 1649
       },
       {
         "path": "licenses/exceptions/Linux-Syscall-Note",
-        "sha256": "d3a16686cf8797fd8a7b35564b9de8586e6ed8e19c9447e16ab6dda0d411215d",
-        "size": 1281
+        "sha256": "9b4084655174654608fd037e9ddb4feeadfada01cd042e9c17b05aa7105b2b9f",
+        "size": 1257
       },
       {
         "path": "licenses/GPL-1.0-or-later",
-        "sha256": "13ff2a162a56796d863de9373ea46860a0fc28da81c192e76da9704dc117c27b",
-        "size": 13307
+        "sha256": "8ff76f1528e6e4e9400c0f6b1f2d19d4979aaac3bcc44bb707a55389132825c4",
+        "size": 13047
       },
       {
         "path": "licenses/GPL-2.0-only",
-        "sha256": "535fe49430f3098603b190f07040d5b0c65eb8ed5fe173108e26eb668e758c00",
-        "size": 18774
+        "sha256": "6667ad4063569cd53b13500550d93fcd3dc11bcf82c5514296af013a0b720ba5",
+        "size": 18424
       },
       {
         "path": "licenses/Mesa-license.rst",
-        "sha256": "e272a136f6ce1b855afeef2fbe44f94f17d3b4d91cef29f8364af5800c5838a8",
-        "size": 1866
+        "sha256": "0d1a0472ecc81830e75c20d59b0ea02841e3db21255e0ebad97ab682c54d6615",
+        "size": 1816
       },
       {
         "path": "licenses/MIT",
-        "sha256": "a1179eae4e8b0ef06cbad6b6a2e324bb1c1cd9281cf40b42c0b15b0e34df2683",
-        "size": 1402
+        "sha256": "323c587d0ccf10e376f8bf9a7f31fb4ca6078105194b42e0b1e0ee2bc9bde71f",
+        "size": 1372
       },
       {
         "path": "licenses/SGI-B-2.0",
-        "sha256": "8299bbd83c4d77eb5ae767cf250e9b3b470218e863714cba2e5e7eaed51285f2",
-        "size": 1844
+        "sha256": "686bf035a1fd22076416fd3b90370ac67771e884bf57f55693d51f8ce7c710a7",
+        "size": 1822
       },
       {
         "path": "licenses/source.json",
-        "sha256": "699c0d6096f573cb768ae2e3f625a65a34fef8cebb618f6a611d0f8b6ced787a",
-        "size": 890
+        "sha256": "e1640432c0505d5464d14c593bda1ffc944eac5005da560bdea162efc23f1add",
+        "size": 860
       },
       {
         "path": "licenses/zink-optional-maintenance5.patch",
