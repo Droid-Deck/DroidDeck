@@ -2015,9 +2015,17 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 if (line.contains(FEX_MISSING)) fexMissing = true
             }
             val steamSetup = com.droiddeck.launcher.session.SteamClientSetupFailure.find(text.lineSequence())
+            val launchFailure = com.droiddeck.launcher.session.SessionLaunchFailure.find(text.lineSequence())
             if (steamSetup != null) {
                 val message = getString(if (steamSetup.download) R.string.session_end_steam_download else R.string.session_end_steam_setup)
                 EndHint(listOfNotNull(message, steamSetup.curlError).joinToString("\n"))
+            } else if (launchFailure == com.droiddeck.launcher.session.SessionLaunchFailure.STEAM_ILLEGAL_INSTRUCTION) {
+                val message = getString(R.string.session_end_steam_sigill)
+                val fallback = if (SessionState.steamClientArch == "arm64") getString(R.string.session_end_steam_try_x64) else null
+                EndHint(listOfNotNull(message, fallback).joinToString("\n"))
+            } else if (launchFailure == com.droiddeck.launcher.session.SessionLaunchFailure.VULKAN_DEVICE_MISSING) {
+                val adreno = com.droiddeck.launcher.gpu.GpuInfo.detect().family != com.droiddeck.launcher.gpu.GpuInfo.Family.NOT_ADRENO
+                EndHint(getString(if (adreno) R.string.session_end_vulkan_device else R.string.session_end_gpu_unsupported))
             } else if (fexMissing) {
                 val what = com.droiddeck.launcher.frontend.Library.nameForProgram(SessionState.program) ?: getString(R.string.session_end_program)
                 EndHint(getString(R.string.session_end_fex_missing, what), evenOnSuccess = true)

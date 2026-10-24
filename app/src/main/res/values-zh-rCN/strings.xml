@@ -2969,4 +2969,8 @@
     <string name="glasses_6dof">6DoF 虚拟屏幕</string>
     <string name="tracking_recovery_look">在光线充足的房间内缓慢环顾四周。\n不要遮挡追踪摄像头，并面向家具等有明显细节的物体。</string>
     <string name="spatial_print_job">DroidDeck ChArUco 30 mm</string>
+    <string name="session_end_steam_sigill">Steam 因非法指令（SIGILL）停止。这可能是 CPU 指令兼容问题，也可能是客户端崩溃。请分享日志并附上设备信息。</string>
+    <string name="session_end_steam_try_x64">可尝试“Steam 设置 → Steam 客户端 → x86-64（实验）”。此选项需要额外下载，运行速度也可能更慢。</string>
+    <string name="session_end_vulkan_device">Linux 图形驱动未找到可用的 Vulkan 设备。请确认所选 Linux GPU 驱动支持这颗 GPU。</string>
+    <string name="session_end_gpu_unsupported">当前配置缺少兼容这颗 GPU 的 Linux Vulkan 驱动，会话无法启动。Adreno Turnip 驱动不能为联发科／Mali GPU 增加支持。</string>
 </resources>

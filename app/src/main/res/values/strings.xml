@@ -3065,4 +3065,8 @@
     <string name="spatial_saved_views_hint">Saved views can be recalculated. Start a new calibration to capture in the current tracking frame.</string>
     <string name="spatial_model_checksum_error">Hand model checksum mismatch</string>
     <string name="spatial_opencv_load_error">OpenCV could not load</string>
+    <string name="session_end_steam_sigill">Steam stopped with an illegal instruction (SIGILL). This can be a CPU instruction compatibility problem or a client crash. Share the logs with your device details.</string>
+    <string name="session_end_steam_try_x64">You can try Steam settings → Steam client → x86-64 (experimental). It needs an additional download and may run more slowly.</string>
+    <string name="session_end_vulkan_device">The Linux graphics driver could not find a usable Vulkan device. Check that the selected Linux GPU driver supports this GPU.</string>
+    <string name="session_end_gpu_unsupported">This session cannot start because this GPU has no compatible Linux Vulkan driver in the current setup. Adreno Turnip drivers cannot enable support for MediaTek/Mali GPUs.</string>
 </resources>
