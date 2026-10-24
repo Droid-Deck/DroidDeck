@@ -119,7 +119,7 @@ Numbers in brackets refer to the spec's list of unknowns.
 20. **Pause keeps half-written files**: a stopped run keeps each unfinished stage file as a `.part`
     file named after the file's path, hash and size, with a `.part.list` of the parts already
     written. The next run writes only the other parts and hashes the whole file when it is complete;
-    that SHA-1 check still decides whether the file is kept.
+    that SHA-1 check still decides whether the file is kept, so files without one start over.
 
 **Kept at parity (known weak spots)**
 

@@ -626,7 +626,7 @@ fn hash_whole(handle: &File, file: &EngineFile) -> Result<Hash, String> {
 fn keep_partial(file: &EngineFile, written: &[bool], stage: &Path, dir: &Path) -> bool {
     let mut kept: Vec<u64> = file.resume.as_ref().map(|r| r.kept.clone()).unwrap_or_default();
     kept.extend(file.parts.iter().zip(written).filter(|(_, w)| **w).map(|(p, _)| p.file_offset));
-    if kept.is_empty() {
+    if kept.is_empty() || file.sha1.is_none() {
         return false;
     }
     kept.sort_unstable();
@@ -636,12 +636,16 @@ fn keep_partial(file: &EngineFile, written: &[bool], stage: &Path, dir: &Path) -
     if synced.is_err() || fs::rename(stage, &partial).is_err() {
         return false;
     }
+    let resumed = file.resume.as_ref().is_some_and(|r| r.stage == partial);
     let temp = dir.join(staging::unique_name());
     let listed = fs::write(&temp, list).and_then(|_| fs::rename(&temp, staging::list_path(&partial))).is_ok();
     if !listed {
         let _ = fs::remove_file(&temp);
+        if !resumed {
+            let _ = fs::remove_file(&partial);
+        }
     }
-    listed || file.resume.as_ref().is_some_and(|r| r.stage == partial)
+    listed || resumed
 }
 
 fn tidy_fetch_error(message: &str) -> String {
@@ -665,16 +669,27 @@ mod tests {
             path: "Game/a.pak".into(),
             dest: dir.join("a.pak"),
             size: 30,
-            sha1: None,
+            sha1: Some([1; 20]),
             replacing: false,
             parts: vec![part(0, 10), part(10, 10), part(20, 10)],
             resume: None,
         };
-        let kept = dir.join(staging::partial_name("Game/a.pak", 30, None));
+        let kept = dir.join(staging::partial_name("Game/a.pak", 30, Some([1; 20])));
         let stage = dir.join("x.stage");
 
         fs::write(&stage, [7u8; 30]).unwrap();
         assert!(!keep_partial(&file, &[false, false, false], &stage, &dir));
+        let unhashed = EngineFile {
+            path: file.path.clone(),
+            dest: file.dest.clone(),
+            size: 30,
+            sha1: None,
+            replacing: false,
+            parts: file.parts.clone(),
+            resume: None,
+        };
+        assert!(!keep_partial(&unhashed, &[true, true, true], &stage, &dir));
+        assert!(stage.exists());
         assert!(keep_partial(&file, &[false, true, true], &stage, &dir));
         assert_eq!(fs::read(&kept).unwrap(), [7u8; 30]);
         assert_eq!(fs::read_to_string(staging::list_path(&kept)).unwrap(), "10\n20\n");

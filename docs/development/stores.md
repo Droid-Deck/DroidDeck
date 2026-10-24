@@ -93,7 +93,7 @@ installed record (`StoreInstalls.complete`). Resume, update and repair are the s
   or a download error each unfinished stage file is kept in the staging folder as
   `<path id>-<sha1>-<size>.part`, with the written parts' offsets in `<same>.part.list`; the next run
   fetches only the other parts and hashes the whole file once it is complete (a partial that no
-  longer matches the manifest is deleted). Any other failure removes the unfinished stage files. Swapped files stay; unswapped destinations keep their old content; the chunk cache
+  longer matches the manifest, or whose file has no SHA-1 in it, is deleted). Any other failure removes the unfinished stage files. Swapped files stay; unswapped destinations keep their old content; the chunk cache
   stays for the next run. Success removes the cache and the staging folder (when only its marker is
   left).
 

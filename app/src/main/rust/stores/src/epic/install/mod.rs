@@ -254,7 +254,7 @@ pub fn run(req: &Request, cancel: &AtomicBool, ev: &dyn Events) -> Result<Finish
         let mut resume = None;
         let mut kept_size = 0u64;
         if let Some(stage) = partials.remove(&staging::partial_name(&f.path, f.size, f.sha1)) {
-            match resume_from(&stage, &parts, f.size) {
+            match resume_from(&stage, &parts, f.size).filter(|_| f.sha1.is_some()) {
                 Some(kept) => {
                     let bytes: u64 = parts.iter().filter(|p| kept.contains(&p.file_offset)).map(|p| p.size as u64).sum();
                     ev.log(&format!("resuming {} with {bytes} of {} bytes written", f.path, f.size));
