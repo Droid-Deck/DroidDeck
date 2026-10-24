@@ -1,6 +1,7 @@
 package com.droiddeck.launcher.stores
 
 import android.content.Context
+import android.content.SharedPreferences
 import android.util.Log
 import com.droiddeck.launcher.frontend.AddedGames
 import com.droiddeck.launcher.frontend.Library
@@ -47,11 +48,38 @@ object CloudSaves {
     private fun markSynced(context: Context, store: Store, id: String) = prefs(context, store).edit().putLong("cloud_sync_$id", System.currentTimeMillis()).apply()
 
 
+    private const val TEMPLATE_NONE = "none"
+    internal const val TEMPLATE_NONE_TTL_MS = 24 * 60 * 60 * 1000L
+
+    internal fun noneTemplateIsCurrent(storedAtMs: Long, nowMs: Long) =
+        storedAtMs > 0L && nowMs - storedAtMs < TEMPLATE_NONE_TTL_MS
+
+    private fun rememberNoCloud(p: SharedPreferences, id: String) {
+        p.edit().putString("cloud_template_$id", TEMPLATE_NONE)
+            .putLong("cloud_template_at_$id", System.currentTimeMillis()).apply()
+    }
+
     fun template(context: Context, store: Store, id: String, folder: File, sidecar: StoreGameSidecar): String? {
         val p = prefs(context, store)
-        if (p.contains("cloud_template_$id")) return p.getString("cloud_template_$id", "")
+        var retryNone = false
+        if (p.contains("cloud_template_$id")) {
+            val cached = p.getString("cloud_template_$id", "") ?: ""
+            if (cached == TEMPLATE_NONE) {
+                if (noneTemplateIsCurrent(p.getLong("cloud_template_at_$id", 0L), System.currentTimeMillis())) return ""
+                retryNone = true
+            } else if (cached.isNotEmpty()) return cached
+        }
+        var gogNamespace = CloudSavePaths.GOG_DEFAULT_NAMESPACE
         val fetched = when (store) {
-            Store.GOG -> gogTemplate(context, id, folder)
+            Store.GOG -> {
+                val loc = gogTemplate(context, id, folder)
+                if (loc == null) {
+                    if (retryNone) { rememberNoCloud(p, id); return "" }
+                    return null
+                }
+                gogNamespace = loc.namespace
+                loc.template
+            }
             Store.EPIC -> {
                 val token = EpicCredentialStore.getValidAccessToken(context) ?: return null
                 val ns = sidecar.extra["namespace"].orEmpty()
@@ -60,7 +88,14 @@ object CloudSaves {
             }
             Store.AMAZON, Store.ITCH, Store.XBOX -> ""
         } ?: return null
-        p.edit().putString("cloud_template_$id", fetched).apply()
+        p.edit()
+            .putString("cloud_template_$id", fetched.ifEmpty { TEMPLATE_NONE })
+            .apply {
+                if (fetched.isEmpty()) putLong("cloud_template_at_$id", System.currentTimeMillis())
+                else remove("cloud_template_at_$id")
+                if (store == Store.GOG && fetched.isNotEmpty()) putString("cloud_namespace_$id", gogNamespace)
+            }
+            .apply()
         Log.i(TAG, "cloud ${store.id} $id template ${if (fetched.isEmpty()) "none" else "found"}")
         return fetched
     }
@@ -69,8 +104,8 @@ object CloudSaves {
         GogPrefs.get(context).getString("client_id_$id", null)?.ifEmpty { null }
             ?: runCatching { JSONObject(File(folder, "goggame-$id.info").readText()).optString("clientId").ifEmpty { null } }.getOrNull()
 
-    private fun gogTemplate(context: Context, id: String, folder: File): String? {
-        val clientId = gogClientId(context, id, folder) ?: return ""
+    private fun gogTemplate(context: Context, id: String, folder: File): CloudSavePaths.GogCloudLocation? {
+        val clientId = gogClientId(context, id, folder) ?: return CloudSavePaths.GogCloudLocation("", "")
         return try {
             val c = URL("https://remote-config.gog.com/components/galaxy_client/clients/$clientId?component_version=2.0.45").openConnection() as HttpURLConnection
             c.connectTimeout = 15_000; c.readTimeout = 15_000
@@ -78,10 +113,14 @@ object CloudSaves {
             if (c.responseCode !in 200..299) { c.disconnect(); return null }
             val cloud = JSONObject(c.inputStream.bufferedReader().readText()).optJSONObject("content")?.optJSONObject("Windows")?.optJSONObject("cloudStorage")
             c.disconnect()
-            if (cloud?.optBoolean("enabled", false) != true) return ""
-            val locations = cloud.optJSONArray("locations") ?: return ""
-            val all = (0 until locations.length()).mapNotNull { locations.optJSONObject(it) }
-            (all.firstOrNull { it.optString("name").equals("saves", true) } ?: all.firstOrNull())?.optString("location").orEmpty()
+            CloudSavePaths.gogSaveFromRemote(
+                enabled = cloud?.optBoolean("enabled", false) == true,
+                locations = (0 until (cloud?.optJSONArray("locations")?.length() ?: 0)).mapNotNull { i ->
+                    val o = cloud!!.optJSONArray("locations")!!.optJSONObject(i) ?: return@mapNotNull null
+                    o.optString("name") to o.optString("location")
+                },
+                clientId = clientId,
+            ) ?: CloudSavePaths.GogCloudLocation("", "")
         } catch (e: Exception) {
             Log.w(TAG, "gog remote-config: ${e.javaClass.simpleName}")
             null
@@ -114,7 +153,15 @@ object CloudSaves {
             val galaxy = GogAuth.validToken(context)
             val clientId = gogClientId(context, id, folder)
             if (userId.isEmpty() || galaxy == null || clientId == null) null
-            else GogCloud(userId, clientId, gogScopedToken(context, id, clientId) ?: galaxy)
+            else GogCloud(
+                userId,
+                clientId,
+                gogScopedToken(context, id, clientId) ?: galaxy,
+                CloudSavePaths.gogNamespaceFromCache(
+                    GogPrefs.get(context).getString("cloud_namespace_$id", null),
+                    GogPrefs.get(context).getString("cloud_template_$id", null),
+                ),
+            )
         }
         Store.EPIC -> {
             val token = EpicCredentialStore.getValidAccessToken(context)
@@ -189,7 +236,7 @@ object CloudSaves {
                 }
             }
         } catch (e: NoCloudSaves) {
-            prefs(context, store).edit().putString("cloud_template_$id", "").apply()
+            rememberNoCloud(prefs(context, store), id)
             Result("skipped", 0, 0, "no-cloud-saves")
         } catch (e: Exception) {
             Result("failed", 0, 0, e.javaClass.simpleName)
