@@ -7,6 +7,12 @@ checksums. `runtime.lock.json` pins the Nexus Windows runtime release and each
 extracted PE DLL. `prepare.py` verifies both source revisions and all Nexus patch
 checksums before applying the local transport, launch and library patches.
 
+`droiddeck-cloud-token.patch` adds `xodus-cli cloud-token`: the stored account's
+Xbox Cloud Gaming sign-in (XSTS for `http://gssv.xboxlive.com/`, then the streaming
+service's `/v2/login/user`) and the login proof token a session's `/connect` step
+takes. It prints one JSON object and never opens a login or provisions a device.
+Ported from Bannerlator.
+
 `droiddeck-library-subscriptions.patch` queries fresh subscription membership
 alongside product entitlements using the same Store session, account and market.
 Android can validate a Game Pass child's parent plan when that plan is absent
