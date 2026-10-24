@@ -44,6 +44,7 @@ class DesktopSteamLaunchTest(unittest.TestCase):
 
     def test_desktop_games_present_without_dri3(self):
         (self.root / 'supervisor').write_text('#!/bin/bash\nprintf "%s\\n" "$MESA_VK_WSI_DEBUG"\n')
+        self.env.pop('MESA_VK_WSI_DEBUG', None)
         self.assertEqual(self.launch('desktop', '945360').stdout.splitlines(), ['sw'])
         self.env['MESA_VK_WSI_DEBUG'] = 'noshm'
         self.assertEqual(self.launch('desktop', '945360').stdout.splitlines(), ['noshm,sw'])
