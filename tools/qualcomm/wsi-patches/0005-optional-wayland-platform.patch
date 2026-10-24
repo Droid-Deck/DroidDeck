@@ -1,0 +1,118 @@
+diff --git a/layer/surface_api.cpp b/layer/surface_api.cpp
+index 119b9ce..de23905 100644
+--- a/layer/surface_api.cpp
++++ b/layer/surface_api.cpp
+@@ -228,6 +228,12 @@ wsi_layer_vkGetPhysicalDeviceSurfaceSupportKHR(VkPhysicalDevice physicalDevice,
+    }
+ 
+    *pSupported = queueFamilyIndex == instance.get_best_queue_family(physicalDevice);
++   wsi::surface_properties *props = wsi::get_surface_properties(instance, surface);
++   if (*pSupported && props != nullptr &&
++       !wsi::device_supports_surface_platform(physicalDevice, *props, instance.api_version))
++   {
++      *pSupported = VK_FALSE;
++   }
+    return VK_SUCCESS;
+ }
+ 
+diff --git a/layer/swapchain_api.cpp b/layer/swapchain_api.cpp
+index 0e53a1a..6abeecc 100644
+--- a/layer/swapchain_api.cpp
++++ b/layer/swapchain_api.cpp
+@@ -59,6 +59,14 @@ wsi_layer_vkCreateSwapchainKHR(VkDevice device, const VkSwapchainCreateInfoKHR *
+       return device_data.disp.CreateSwapchainKHR(device_data.device, pSwapchainCreateInfo, pAllocator, pSwapchain);
+    }
+ 
++   wsi::surface_properties *props = wsi::get_surface_properties(device_data.instance_data, surface);
++   if (props != nullptr && !wsi::device_supports_surface_platform(device_data.physical_device, *props,
++                                                                   device_data.instance_data.api_version))
++   {
++      WSI_LOG_ERROR("The device lacks the extensions that swapchains on this surface require.");
++      return VK_ERROR_INITIALIZATION_FAILED;
++   }
++
+    auto sc = wsi::allocate_surface_swapchain(surface, device_data, pAllocator);
+    if (sc == nullptr)
+    {
+diff --git a/wsi/wsi_factory.cpp b/wsi/wsi_factory.cpp
+index 53666be..8f9c856 100644
+--- a/wsi/wsi_factory.cpp
++++ b/wsi/wsi_factory.cpp
+@@ -166,6 +166,37 @@ VkResult get_available_device_extensions(VkPhysicalDevice physical_device, util:
+    return VK_SUCCESS;
+ }
+ 
++static void remove_optional_device_extensions(const util::extension_list &available,
++                                              util::extension_list &required)
++{
++   /* Without DRM format modifiers, Wayland swapchains export driver-allocated LINEAR images instead. */
++   if (!available.contains(VK_EXT_IMAGE_DRM_FORMAT_MODIFIER_EXTENSION_NAME))
++   {
++      required.remove(VK_EXT_IMAGE_DRM_FORMAT_MODIFIER_EXTENSION_NAME);
++   }
++   /* Only VK_EXT_present_timing uses calibrated timestamps, and it checks its own dependencies. */
++   if (!available.contains(VK_KHR_CALIBRATED_TIMESTAMPS_EXTENSION_NAME))
++   {
++      required.remove(VK_KHR_CALIBRATED_TIMESTAMPS_EXTENSION_NAME);
++   }
++}
++
++bool device_supports_surface_platform(VkPhysicalDevice phys_dev, surface_properties &props,
++                                      const uint32_t api_version)
++{
++   util::allocator allocator{ layer::instance_private_data::get(phys_dev).get_allocator(),
++                              VK_SYSTEM_ALLOCATION_SCOPE_COMMAND };
++   util::extension_list available{ allocator };
++   util::extension_list required{ allocator };
++   if (get_available_device_extensions(phys_dev, available) != VK_SUCCESS ||
++       props.get_required_device_extensions(required, api_version) != VK_SUCCESS)
++   {
++      return false;
++   }
++   remove_optional_device_extensions(available, required);
++   return available.contains(required);
++}
++
+ VkResult add_device_extensions_required_by_layer(VkPhysicalDevice phys_dev,
+                                                  const util::wsi_platform_set enabled_platforms,
+                                                  util::extension_list &extensions_to_enable, const uint32_t api_version)
+@@ -216,15 +247,18 @@ VkResult add_device_extensions_required_by_layer(VkPhysicalDevice phys_dev,
+       TRY_LOG(props->get_required_device_extensions(extensions_required_by_layer, api_version),
+               "Failed to acquire required device extensions");
+ 
+-      /* Without DRM format modifiers, Wayland swapchains export driver-allocated LINEAR images instead. */
+-      if (!available_device_extensions.contains(VK_EXT_IMAGE_DRM_FORMAT_MODIFIER_EXTENSION_NAME))
+-      {
+-         extensions_required_by_layer.remove(VK_EXT_IMAGE_DRM_FORMAT_MODIFIER_EXTENSION_NAME);
+-      }
++      remove_optional_device_extensions(available_device_extensions, extensions_required_by_layer);
+ 
+       bool supported = available_device_extensions.contains(extensions_required_by_layer);
+       if (!supported)
+       {
++         /* Drivers without DMA-BUF export cannot back Wayland swapchains. Keep the device usable for the other
++          * platforms; Wayland surfaces then report no support and refuse swapchain creation on it. */
++         if (wsi_ext.platform == VK_ICD_WSI_PLATFORM_WAYLAND)
++         {
++            WSI_LOG_WARNING("Wayland swapchains are unavailable on this device: required device extensions are missing.");
++            continue;
++         }
+          /* Can we accept failure? The layer unconditionally advertises support for this platform and the loader uses
+           * this information to enable its own support of the vkCreate*SurfaceKHR entrypoints. The rest of the Vulkan
+           * stack may not support this extension so we cannot blindly fall back to it.
+diff --git a/wsi/wsi_factory.hpp b/wsi/wsi_factory.hpp
+index e285765..70a3f64 100644
+--- a/wsi/wsi_factory.hpp
++++ b/wsi/wsi_factory.hpp
+@@ -88,6 +88,11 @@ util::wsi_platform_set find_enabled_layer_platforms(const VkInstanceCreateInfo *
+  */
+ VkResult get_available_device_extensions(VkPhysicalDevice physical_device, util::extension_list &available_extensions);
+ 
++/**
++ * @brief Whether @p phys_dev provides the device extensions that swapchains on @p props' platform require.
++ */
++bool device_supports_surface_platform(VkPhysicalDevice phys_dev, surface_properties &props, uint32_t api_version);
++
+ /**
+  * @brief Add extra extensions that the layer requires to support the specified list of enabled platforms.
+  *

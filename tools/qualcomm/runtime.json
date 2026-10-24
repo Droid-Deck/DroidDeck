@@ -24,7 +24,7 @@
         "mode": 420,
         "name": "libVkLayer_window_system_integration.so",
         "path": "wsi/libVkLayer_window_system_integration.so",
-        "sha256": "431bc41d8ccb4ae0f35b1aa76bb30770926159e3e3b045084910bf0da6bc6436",
+        "sha256": "5990b32d6e0ce8fe250214a6f07d71ebf6cfcc6f03c3a3c573495721510c5b3b",
         "size": 397384,
         "built": true
       },
@@ -109,6 +109,14 @@
         "path": "licenses/wsi-patches/0004-acquire-next-image2-on-vulkan-1-0.patch",
         "sha256": "30e968889e22f3ba4ea2e0c3b80e3752c4d61898e256230392a0242d125ec239",
         "size": 1541
+      },
+      {
+        "built": true,
+        "mode": 420,
+        "name": "0005-optional-wayland-platform.patch",
+        "path": "licenses/wsi-patches/0005-optional-wayland-platform.patch",
+        "sha256": "ab634299e5a6f1156f4d435314c50c893c60a43e8a6726498c9a39109f5676e0",
+        "size": 5882
       }
     ],
     "id": "wsi",

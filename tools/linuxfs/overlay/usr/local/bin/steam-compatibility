@@ -198,10 +198,12 @@ bl_libpath() {
 }
 """
 
-# Qualcomm sessions copy the Steam client's frames through X11 SHM; games hand Gamescope LINEAR DMA-BUFs instead.
+# Qualcomm sessions copy the Steam client's frames through X11 SHM. Games hand Gamescope LINEAR DMA-BUFs only when
+# the session's capability probe found DMA-BUF export, so drivers without it keep games on SHM too.
 BL_PRESENT_SETUP = """
 bl_present() {
-  [ "${DROIDDECK_SYSTEM_QUALCOMM:-0}" = 1 ] && [ "${BL_QUALCOMM_SHM:-0}" != 1 ] || return 0
+  [ "${DROIDDECK_SYSTEM_QUALCOMM:-0}" = 1 ] && [ "${DROIDDECK_QUALCOMM_ZERO_COPY:-0}" = 1 ] &&
+    [ "${BL_QUALCOMM_SHM:-0}" != 1 ] || return 0
   unset DISABLE_GAMESCOPE_WSI WSI_X11_FORCE_SHM
 }
 """

@@ -295,7 +295,25 @@ if [ "${DROIDDECK_SYSTEM_QUALCOMM:-0}" = 1 ]; then
   export VK_LOADER_DEBUG=error
   export WSI_X11_FORCE_SHM=1 DISABLE_GAMESCOPE_WSI=1
   . "$DROIDDECK_QUALCOMM_ROOT/mesa/qualcomm-gl.sh"
+  DROIDDECK_QUALCOMM_ZERO_COPY=0
+  bl_caps=$(timeout 20 /usr/local/bin/droiddeck-qualcomm-caps 2>/dev/null) && DROIDDECK_QUALCOMM_ZERO_COPY=1
+  echo "== qualcomm: ${bl_caps:-zero-copy off: the capability probe gave no answer}"
+  export DROIDDECK_QUALCOMM_ZERO_COPY
+  unset bl_caps
 fi
+# Chromium's GPU compositor corrupts the Steam UI on Qualcomm drivers where Zink stops below OpenGL 4.0.
+# An explicit BL_STEAM_CEF_SOFTWARE decides instead.
+bl_qualcomm_browser_gpu() {
+  [ "${DROIDDECK_SYSTEM_QUALCOMM:-0}" = 1 ] && [ -z "${BL_STEAM_CEF_SOFTWARE+x}" ] || return 0
+  local gl
+  gl=$(timeout 15 glxinfo -B 2>/dev/null | sed -n 's/^ *Max core profile version: *\([0-9][0-9]*\.[0-9][0-9]*\).*/\1/p' | head -1)
+  if [ "${gl%%.*}" -ge 4 ] 2>/dev/null; then
+    echo "== steam: browser GPU compositing on (Zink OpenGL $gl)"
+    return 0
+  fi
+  echo "== steam: browser software compositing (Zink offers OpenGL ${gl:-unknown}; GPU compositing needs 4.0)"
+  return 1
+}
 reap_orphans() {
   local round p stat pid left
   for round in 1 2 3 4 5; do
@@ -394,6 +412,7 @@ case $mode in
     [ "${BL_STEAM_CLIENT_ARCH:-}" = x86_64 ] && steam_x64=1
     steam_cef_gpu=1
     [ "${BL_STEAM_CEF_SOFTWARE:-0}" != 1 ] || steam_cef_gpu=0
+    bl_qualcomm_browser_gpu || steam_cef_gpu=0
     if [ "$steam_x64" = 1 ]; then
       step "checking the Steam client's arm64 parts (first run downloads them, ~1-2 min)"
       # droiddeck-steam-install removes the repair request: read it first so Repair Steam covers both clients.

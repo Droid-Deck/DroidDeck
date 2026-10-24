@@ -1,0 +1,242 @@
+#!/usr/bin/env python3
+"""Decide whether this Qualcomm session can present Proton games zero-copy through Gamescope's WSI layer.
+
+Prints one line and exits 0 only when every check passes; anything else keeps games on X11 SHM.
+"""
+import ctypes as c
+import os
+import subprocess
+import sys
+
+U = c.c_uint32
+H = c.c_void_p
+Q = c.c_uint64
+
+REQUIRED = ('VK_KHR_external_memory_fd', 'VK_EXT_external_memory_dma_buf', 'VK_KHR_image_format_list',
+            'VK_KHR_external_fence_fd')
+# The WSI layer implements these at vkCreateDevice without listing them, so only device creation can confirm them.
+PRESENT = ('VK_KHR_swapchain', 'VK_EXT_swapchain_maintenance1')
+SURFACES = ('VK_KHR_surface', 'VK_KHR_wayland_surface', 'VK_KHR_xcb_surface', 'VK_KHR_xlib_surface',
+            'VK_KHR_get_surface_capabilities2', 'VK_EXT_surface_maintenance1')
+DMA_BUF = 0x200
+EXPORTABLE, IMPORTABLE = 0x2, 0x4
+B8G8R8A8_UNORM, LINEAR, IMAGE_2D = 44, 1, 1
+TRANSFER_SRC, TRANSFER_DST, SAMPLED, COLOR_ATTACHMENT = 0x1, 0x2, 0x4, 0x10
+WIDTH = 256
+
+
+def structure(name, fields):
+    return type(name, (c.Structure,), {'_fields_': fields})
+
+
+Application = structure('Application', [('type', U), ('next', H), ('name', c.c_char_p), ('version', U),
+                                        ('engine', c.c_char_p), ('engineVersion', U), ('api', U)])
+Instance = structure('Instance', [('type', U), ('next', H), ('flags', U), ('application', c.POINTER(Application)),
+                                  ('layerCount', U), ('layers', H), ('extensionCount', U),
+                                  ('extensions', c.POINTER(c.c_char_p))])
+Extension = structure('Extension', [('name', c.c_char * 256), ('version', U)])
+Family = structure('Family', [('flags', U), ('count', U), ('timestampBits', U), ('granularity', U * 3)])
+QueueCreate = structure('QueueCreate', [('type', U), ('next', H), ('flags', U), ('family', U), ('count', U),
+                                        ('priorities', c.POINTER(c.c_float))])
+DeviceCreate = structure('DeviceCreate', [('type', U), ('next', H), ('flags', U), ('queueCount', U),
+                                          ('queues', c.POINTER(QueueCreate)), ('layerCount', U), ('layers', H),
+                                          ('extensionCount', U), ('extensions', c.POINTER(c.c_char_p)),
+                                          ('features', H)])
+Maintenance1 = structure('Maintenance1', [('type', U), ('next', H), ('enabled', U)])
+FormatInfo = structure('FormatInfo', [('type', U), ('next', H), ('format', U), ('imageType', U), ('tiling', U),
+                                      ('usage', U), ('flags', U)])
+ExternalInfo = structure('ExternalInfo', [('type', U), ('next', H), ('handle', U)])
+ExternalProperties = structure('ExternalProperties', [('type', U), ('next', H), ('features', U), ('exportFrom', U),
+                                                      ('compatible', U)])
+FormatProperties = structure('FormatProperties', [('type', U), ('next', H), ('extent', U * 3), ('mipLevels', U),
+                                                  ('arrayLayers', U), ('samples', U), ('maxSize', Q)])
+ImageCreate = structure('ImageCreate', [('type', U), ('next', H), ('flags', U), ('imageType', U), ('format', U),
+                                        ('extent', U * 3), ('mipLevels', U), ('arrayLayers', U), ('samples', U),
+                                        ('tiling', U), ('usage', U), ('sharing', U), ('familyCount', U),
+                                        ('families', H), ('layout', U)])
+ExternalImage = structure('ExternalImage', [('type', U), ('next', H), ('handles', U)])
+Requirements = structure('Requirements', [('size', Q), ('alignment', Q), ('types', U)])
+Allocate = structure('Allocate', [('type', U), ('next', H), ('size', Q), ('index', U)])
+ExportAllocate = structure('ExportAllocate', [('type', U), ('next', H), ('handles', U)])
+Dedicated = structure('Dedicated', [('type', U), ('next', H), ('image', Q), ('buffer', Q)])
+GetFd = structure('GetFd', [('type', U), ('next', H), ('memory', Q), ('handle', U)])
+Subresource = structure('Subresource', [('aspect', U), ('mip', U), ('layer', U)])
+Layout = structure('Layout', [('offset', Q), ('size', Q), ('rowPitch', Q), ('arrayPitch', Q), ('depthPitch', Q)])
+
+
+def decide(caps):
+    """Return (enabled, reasons) for the probed capabilities."""
+    if caps.get('error'):
+        return False, ['probe failed: ' + caps['error']]
+    reasons = ['missing ' + name for name in REQUIRED if name not in caps.get('extensions', ())]
+    if not reasons:
+        if not caps.get('linear_export'):
+            reasons.append('LINEAR DMA-BUF images are not exportable')
+        if not caps.get('linear_import'):
+            reasons.append('LINEAR DMA-BUF images are not importable')
+        if not caps.get('export_fd'):
+            reasons.append(caps.get('export_error') or 'DMA-BUF export failed')
+    if not caps.get('gamescope_dmabuf'):
+        reasons.append('Gamescope offers no linux-dmabuf')
+    return not reasons, reasons
+
+
+def gamescope_dmabuf():
+    if not os.environ.get('WAYLAND_DISPLAY'):
+        return False
+    try:
+        info = subprocess.run(['wayland-info'], capture_output=True, text=True, timeout=5)
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return 'zwp_linux_dmabuf_v1' in info.stdout
+
+
+def probe():
+    vk = c.CDLL('libvulkan.so.1')
+
+    def function(name, arguments, result=c.c_int):
+        f = getattr(vk, name)
+        f.argtypes, f.restype = arguments, result
+        return f
+
+    def check(result, operation):
+        if result != 0:
+            raise RuntimeError(f'{operation} returned {result}')
+
+    def names(values):
+        return (c.c_char_p * len(values))(*[value.encode() for value in values])
+
+    caps = {'gamescope_dmabuf': gamescope_dmabuf()}
+    count = U()
+    enumerate_instance = function('vkEnumerateInstanceExtensionProperties', [c.c_char_p, c.POINTER(U), H])
+    check(enumerate_instance(None, c.byref(count), None), 'vkEnumerateInstanceExtensionProperties')
+    available = (Extension * count.value)()
+    check(enumerate_instance(None, c.byref(count), available), 'vkEnumerateInstanceExtensionProperties')
+    surfaces = [name for name in SURFACES if name in {e.name.decode() for e in available}]
+    application = Application(0, None, b'droiddeck-qualcomm-caps', 1, b'droiddeck', 1, (1 << 22) | (1 << 12))
+    instance_names = names(surfaces)
+    instance_info = Instance(1, None, 0, c.pointer(application), 0, None, len(surfaces), instance_names)
+    instance = H()
+    check(function('vkCreateInstance', [c.POINTER(Instance), H, c.POINTER(H)])(
+        c.byref(instance_info), None, c.byref(instance)), 'vkCreateInstance')
+    try:
+        devices = (H * 1)()
+        count = U(1)
+        result = function('vkEnumeratePhysicalDevices', [H, c.POINTER(U), H])(instance, c.byref(count), devices)
+        if result not in (0, 5) or count.value == 0:
+            raise RuntimeError(f'vkEnumeratePhysicalDevices returned {result}')
+        physical = devices[0]
+        properties = (c.c_uint8 * 1024)()
+        function('vkGetPhysicalDeviceProperties', [H, H], None)(physical, properties)
+        driver = int.from_bytes(bytes(properties[4:8]), 'little')
+        caps['device'] = bytes(properties[20:276]).split(b'\0')[0].decode(errors='replace')
+        caps['driver'] = f'{(driver >> 22) & 0x7f}.{(driver >> 12) & 0x3ff}.{driver & 0xfff}'
+        enumerate_device = function('vkEnumerateDeviceExtensionProperties', [H, c.c_char_p, c.POINTER(U), H])
+        count = U()
+        check(enumerate_device(physical, None, c.byref(count), None), 'vkEnumerateDeviceExtensionProperties')
+        extensions = (Extension * count.value)()
+        check(enumerate_device(physical, None, c.byref(count), extensions), 'vkEnumerateDeviceExtensionProperties')
+        caps['extensions'] = {e.name.decode() for e in extensions}
+        if any(name not in caps['extensions'] for name in REQUIRED):
+            return caps
+
+        format_properties = function('vkGetPhysicalDeviceImageFormatProperties2',
+                                     [H, c.POINTER(FormatInfo), c.POINTER(FormatProperties)])
+
+        def external_features(usage):
+            external = ExternalInfo(1000071000, None, DMA_BUF)
+            info = FormatInfo(1000059004, c.cast(c.pointer(external), H), B8G8R8A8_UNORM, IMAGE_2D, LINEAR, usage, 0)
+            result = ExternalProperties(1000071001, None, 0, 0, 0)
+            output = FormatProperties(1000059003, c.cast(c.pointer(result), H))
+            return result.features if format_properties(physical, c.byref(info), c.byref(output)) == 0 else 0
+
+        caps['linear_export'] = bool(external_features(COLOR_ATTACHMENT | TRANSFER_SRC | TRANSFER_DST) & EXPORTABLE)
+        caps['linear_import'] = bool(external_features(SAMPLED | TRANSFER_SRC) & IMPORTABLE)
+
+        families = (Family * 16)()
+        count = U(16)
+        function('vkGetPhysicalDeviceQueueFamilyProperties', [H, c.POINTER(U), H], None)(
+            physical, c.byref(count), families)
+        family = next((i for i in range(count.value) if families[i].flags & 1), 0)
+        priority = c.c_float(1.0)
+        queue = QueueCreate(2, None, 0, family, 1, c.pointer(priority))
+        maintenance1 = Maintenance1(1000275000, None, 1)
+        device_names = names(REQUIRED + PRESENT)
+        device_info = DeviceCreate(3, c.cast(c.pointer(maintenance1), H), 0, 1, c.pointer(queue), 0, None,
+                                   len(REQUIRED + PRESENT), device_names, None)
+        device = H()
+        result = function('vkCreateDevice', [H, c.POINTER(DeviceCreate), H, c.POINTER(H)])(
+            physical, c.byref(device_info), None, c.byref(device))
+        if result != 0:
+            caps['export_error'] = f'device with the zero-copy extensions failed ({result})'
+            return caps
+        try:
+            caps['export_fd'], caps['export_error'] = export_linear_image(function, device)
+        finally:
+            function('vkDestroyDevice', [H, H], None)(device, None)
+    finally:
+        function('vkDestroyInstance', [H, H], None)(instance, None)
+    return caps
+
+
+def export_linear_image(function, device):
+    external = ExternalImage(1000072001, None, DMA_BUF)
+    info = ImageCreate(14, c.cast(c.pointer(external), H), 0, IMAGE_2D, B8G8R8A8_UNORM, (U * 3)(WIDTH, WIDTH, 1),
+                       1, 1, 1, LINEAR, COLOR_ATTACHMENT | TRANSFER_SRC | TRANSFER_DST, 0, 0, None, 0)
+    image = Q()
+    result = function('vkCreateImage', [H, c.POINTER(ImageCreate), H, c.POINTER(Q)])(
+        device, c.byref(info), None, c.byref(image))
+    if result != 0:
+        return False, f'LINEAR exportable image creation failed ({result})'
+    memory = Q()
+    try:
+        requirements = Requirements()
+        function('vkGetImageMemoryRequirements', [H, Q, c.POINTER(Requirements)], None)(
+            device, image, c.byref(requirements))
+        if not requirements.types:
+            return False, 'no memory type for the exportable image'
+        dedicated = Dedicated(1000127001, None, image.value, 0)
+        export = ExportAllocate(1000072002, c.cast(c.pointer(dedicated), H), DMA_BUF)
+        index = (requirements.types & -requirements.types).bit_length() - 1
+        allocate = Allocate(5, c.cast(c.pointer(export), H), requirements.size, index)
+        result = function('vkAllocateMemory', [H, c.POINTER(Allocate), H, c.POINTER(Q)])(
+            device, c.byref(allocate), None, c.byref(memory))
+        if result != 0:
+            return False, f'exportable dedicated allocation failed ({result})'
+        result = function('vkBindImageMemory', [H, Q, Q, Q])(device, image, memory, 0)
+        if result != 0:
+            return False, f'binding the exportable image failed ({result})'
+        layout = Layout()
+        function('vkGetImageSubresourceLayout', [H, Q, c.POINTER(Subresource), c.POINTER(Layout)], None)(
+            device, image, c.byref(Subresource(1, 0, 0)), c.byref(layout))
+        if layout.rowPitch < WIDTH * 4:
+            return False, f'LINEAR row pitch {layout.rowPitch} is too small'
+        address = function('vkGetDeviceProcAddr', [H, c.c_char_p], H)(device, b'vkGetMemoryFdKHR')
+        if not address:
+            return False, 'vkGetMemoryFdKHR is unavailable'
+        get_fd = c.CFUNCTYPE(c.c_int, H, c.POINTER(GetFd), c.POINTER(c.c_int))(address)
+        fd = c.c_int(-1)
+        result = get_fd(device, c.byref(GetFd(1000074002, None, memory.value, DMA_BUF)), c.byref(fd))
+        if result != 0 or fd.value < 0:
+            return False, f'vkGetMemoryFdKHR failed ({result})'
+        os.close(fd.value)
+        return True, None
+    finally:
+        if memory.value:
+            function('vkFreeMemory', [H, Q, H], None)(device, memory, None)
+        function('vkDestroyImage', [H, Q, H], None)(device, image, None)
+
+
+def main():
+    try:
+        caps = probe()
+    except Exception as error:
+        caps = {'error': str(error)}
+    enabled, reasons = decide(caps)
+    where = f" ({caps['device']}, driver {caps['driver']})" if caps.get('device') else ''
+    print(('zero-copy on' if enabled else 'zero-copy off: ' + '; '.join(reasons)) + where)
+    return 0 if enabled else 1
+
+
+if __name__ == '__main__':
+    sys.exit(main())

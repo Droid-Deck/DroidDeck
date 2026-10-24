@@ -22,6 +22,8 @@ Earlier RedMagic 11 Pro/v891.7 trials on 2026-10-24 failed to produce a stable h
 
 On Adreno 740/Qualcomm 0.676.1, session `2026-10-24-13-steam` enabled the regular browser GPU path with the private Mesa integration and retained the SDL workaround. Steam reached its visible library and the user confirmed faster interaction, then reported UI corruption. Captures show persistent black rectangles obscuring portions of the library. The browser command line lacked `--disable-gpu` and `--disable-gpu-compositing`; its process mapped the Qualcomm HAL, libhybris ICD, private Zink library and Steam's ANGLE libraries, held an open `/dev/kgsl-3d0` descriptor, and did not map SwiftShader. Disabling partial swap in session `2026-10-24-14-steam` did not remove the visible corruption; that flag is not packaged. Investigation was paused at the user's request to prepare an Adreno 840 test APK. This path is experimental and has not passed rendering acceptance. An explicit `BL_STEAM_CEF_SOFTWARE=1` session environment override remains available for diagnosis or fallback.
 
+The GPU path is gated on Zink's OpenGL level. Before Steam starts, `droiddeck-session` reads Zink's maximum core profile version with `glxinfo -B`; below 4.0, or when the version cannot be read, the browser starts with `-cef-disable-gpu` and the log says why, for example `== steam: browser software compositing (Zink offers OpenGL 3.2; GPU compositing needs 4.0)`. Setting `BL_STEAM_CEF_SOFTWARE` to `0` or `1` skips the gate. On the vivo V2243A (Adreno 740, system driver 0.676.1) Zink reaches OpenGL 3.2 and GPU compositing left the library without its background, tabs and parts of covers, with stale regions while moving between items. Software compositing rendered it correctly. Disabling the compat layer's shader rewrites, Zink's render-pass tracking, compact descriptors, threaded GL, Mesa's no-error mode or command reordering, or forcing synchronous Zink flushes, did not change the corruption, and the runtime from before the zero-copy work showed it too. The Adreno 840 with v891.7 reaches OpenGL 4.6 and keeps GPU compositing.
+
 Qualcomm sessions also leave the Steam client CPU affinity unrestricted by default, preserving explicitly saved overrides. The previous SM8550 default pinned Steam, its browser and Gamescope to one core. The affinity loop now applies client masks only to Steam and its browser. A startup recording after that fix showed the complete six-second DroidDeck animation followed by the library; a brief initial white window remained before playback.
 
 ### Pixmap binding without DRI3
@@ -79,14 +81,24 @@ The recipes pin upstream source revisions and retain local outputs under `build/
 
 ## Zero-copy game presentation
 
-Proton games in Qualcomm sessions present through Gamescope's WSI layer instead of X11 shared memory. The Steam client, its browser and other session programs keep `WSI_X11_FORCE_SHM=1` and `DISABLE_GAMESCOPE_WSI=1`; the Proton wrapper's `bl_present` drops both for the game. Set `BL_QUALCOMM_SHM=1` in the session environment to keep games on the shared-memory path.
+Proton games in Qualcomm sessions present through Gamescope's WSI layer instead of X11 shared memory when the driver can export LINEAR DMA-BUFs. The Steam client, its browser and other session programs keep `WSI_X11_FORCE_SHM=1` and `DISABLE_GAMESCOPE_WSI=1`; the Proton wrapper's `bl_present` drops both for the game only when `DROIDDECK_QUALCOMM_ZERO_COPY=1`. Set `BL_QUALCOMM_SHM=1` in the session environment to keep games on the shared-memory path regardless.
 
-The Qualcomm HAL has DMA-BUF export but no `VK_EXT_image_drm_format_modifier`, and Android has no DRM device. The WSI layer is therefore rebuilt with its Wayland backend and `wsi-patches`:
+`droiddeck-session` sets `DROIDDECK_QUALCOMM_ZERO_COPY` from `droiddeck-qualcomm-caps`, which runs once per session through the bridge ICD and the session's layers, so an imported AdrenoTools driver is judged rather than the system one. Zero-copy is enabled only when all of these hold:
+
+- The driver offers `VK_KHR_external_memory_fd`, `VK_EXT_external_memory_dma_buf`, `VK_KHR_image_format_list` and `VK_KHR_external_fence_fd`.
+- LINEAR `B8G8R8A8_UNORM` images are exportable as DMA-BUF colour attachments and importable as sampled images.
+- A device with those extensions, `VK_KHR_swapchain` and `VK_EXT_swapchain_maintenance1` with its feature (which Gamescope's WSI layer forces on) is created through the session's layers, and a LINEAR image's dedicated memory is exported with `vkGetMemoryFdKHR`. The WSI layer implements the swapchain extensions without listing them, so only device creation confirms them.
+- Gamescope's Wayland display offers `zwp_linux_dmabuf_v1`.
+
+Any failure, timeout or crash leaves games on SHM. The session log records the result, for example `== qualcomm: zero-copy off: missing VK_EXT_external_memory_dma_buf; Gamescope offers no linux-dmabuf (Adreno (TM) 740, driver 0.676.1)`.
+
+The Qualcomm HAL used for development has DMA-BUF export but no `VK_EXT_image_drm_format_modifier`, and Android has no DRM device. The WSI layer is therefore rebuilt with its Wayland backend and `wsi-patches`:
 
 - `0001` allocates swapchain images in the driver as LINEAR images with exportable dedicated memory, exports them with `vkGetMemoryFdKHR`, takes offset and stride from `vkGetImageSubresourceLayout`, and sends them as LINEAR `zwp_linux_dmabuf_v1` buffers. The modifier extension is no longer required at `vkCreateDevice`. X11 DRI3 keeps its previous behavior.
 - `0002` removes the `__STDC_VERSION__` workaround that GCC 16 rejects.
 - `0003` opens `/dev/dma_heap/system` read-only, the only access Android grants apps.
 - `0004` exposes `vkAcquireNextImage2KHR` on Vulkan 1.0 devices; Gamescope's WSI layer acquires every image through it.
+- `0005` keeps devices without the Wayland backend's extensions usable. Upstream fails `vkCreateDevice` for any instance that enables `VK_KHR_wayland_surface` (Zink always does) when an extension is missing. Calibrated timestamps are now optional because only present timing uses them. When the remaining requirements are missing, the device is created without them, Wayland surfaces report no presentation support, and swapchain creation on them fails. Other platforms keep the upstream behaviour.
 
 `gamescope-linear-dmabuf.patch` makes the private Gamescope create a version 3 `linux-dmabuf` global without a DRM device (wlroots otherwise creates none), advertise LINEAR beside the implicit layout, and import LINEAR buffers as LINEAR images. Without modifiers the stride cannot be imposed, so an import is refused when the buffer's offset or stride differs from the driver's own LINEAR layout.
 
