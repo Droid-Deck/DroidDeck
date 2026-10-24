@@ -31,6 +31,7 @@ object Syncthing {
     enum class AutoPause { WIFI, GAME }
 
     const val FAILURE_MISSING = "binary-missing"
+    private const val FAILURE_STILL_RUNNING = "The previous Syncthing process did not exit"
     private const val TAG = "Syncthing"
     private const val GRACE_MS = 60_000L
     private const val LOG_LIMIT = 4L shl 20
@@ -139,6 +140,7 @@ object Syncthing {
         if (on && phase == Phase.FAILED) phase = Phase.OFF
         evaluate()
         if (!on && forget) worker.execute {
+            if (process != null) return@execute
             home(context).deleteRecursively()
             SyncPrefs.clearIdentity(context)
             SyncPrefs.setPauseApplied(context, false)
@@ -165,6 +167,7 @@ object Syncthing {
     fun reset(context: Context) {
         stop()
         worker.execute {
+            if (process != null) return@execute
             home(context).deleteRecursively()
             SyncPrefs.clearIdentity(context)
             SyncPrefs.setPauseApplied(context, false)
@@ -242,8 +245,11 @@ object Syncthing {
         changed()
         worker.execute {
             shutdown()
+            val stopped = process == null
             main.post {
-                if (gen == generation) { phase = Phase.OFF; snapshot = null; ports = null; changed() }
+                if (gen != generation) return@post
+                if (stopped) { phase = Phase.OFF; snapshot = null; ports = null } else { phase = Phase.FAILED; failure = FAILURE_STILL_RUNNING }
+                changed()
             }
         }
     }
@@ -252,6 +258,7 @@ object Syncthing {
         val context = app
         try {
             if (!binary(context).isFile) throw SyncthingFailure(FAILURE_MISSING)
+            if (process != null) throw SyncthingFailure(FAILURE_STILL_RUNNING)
             home(context).mkdirs()
             folderRoot(context).mkdirs()
             if (!config(context).isFile) generate(context)
@@ -345,8 +352,10 @@ object Syncthing {
             val code = runCatching { child.waitFor() }.getOrDefault(-1)
             OrphanReaper.release(HostProcess.pidOf(child))
             main.post {
-                if (gen == generation && process === child && phase == Phase.RUNNING) {
-                    process = null; api = null
+                if (process !== child) return@post
+                process = null
+                if (gen == generation && phase == Phase.RUNNING) {
+                    api = null
                     phase = Phase.FAILED; failure = "Syncthing stopped ($code): $last"; snapshot = null; changed()
                 }
             }
@@ -359,7 +368,14 @@ object Syncthing {
         api = null
         if (!child.waitFor(10, TimeUnit.SECONDS)) {
             child.destroy()
-            child.waitFor(3, TimeUnit.SECONDS)
+            if (!child.waitFor(3, TimeUnit.SECONDS)) {
+                child.destroyForcibly()
+                child.waitFor(3, TimeUnit.SECONDS)
+            }
+        }
+        if (child.isAlive) {
+            Log.w(TAG, "Syncthing did not exit")
+            return
         }
         process = null
     }
@@ -435,6 +451,7 @@ object Syncthing {
                 val (last, saved) = client.waitForConfigSaved(since, 60)
                 since = last
                 if (saved && gen == generation) {
+                    applyPause(client)
                     val folders = client.folders()
                     for (i in 0 until folders.length()) {
                         val f = folders.getJSONObject(i)
@@ -452,11 +469,18 @@ object Syncthing {
         val auto = autoPauseReason()
         if (auto != autoPause) main.post { autoPause = auto; changed() }
         val want = SyncPrefs.userPaused(context) || auto != null
-        if (want == SyncPrefs.pauseApplied(context)) return
+        if (want == SyncPrefs.pauseApplied(context) && !(want && hasUnpausedPeer(client))) return
         runCatching { if (want) client.pauseAll() else client.resumeAll() }
             .onSuccess { SyncPrefs.setPauseApplied(context, want) }
             .onFailure { Log.w(TAG, "pause change failed", it) }
     }
+
+    private fun hasUnpausedPeer(client: SyncthingApi): Boolean = runCatching {
+        val myId = client.myId()
+        val devices = client.devices()
+        (0 until devices.length()).map { devices.getJSONObject(it) }
+            .any { it.getString("deviceID") != myId && !it.optBoolean("paused") }
+    }.getOrDefault(false)
 
     private fun autoPauseReason(): AutoPause? = when {
         SyncPrefs.wifiOnly(app) && !onWifi -> AutoPause.WIFI
