@@ -3,6 +3,7 @@ package com.droiddeck.launcher.audio;
 import android.os.Process;
 import android.util.Log;
 
+import com.droiddeck.launcher.core.FileUtils;
 import com.droiddeck.launcher.core.SessionPart;
 import com.droiddeck.launcher.core.HostProcess;
 
@@ -19,10 +20,13 @@ public class DirectAudioRelayComponent extends SessionPart {
     private volatile int pid = -1;
     private final Object micLock = new Object();
     private boolean micHot;
+    private final File micControl;
+    public java.util.function.Consumer<Boolean> onMicEnabled;
 
     public DirectAudioRelayComponent(File socketPath, File micFifoPath) {
         this.socketPath = socketPath;
         this.micFifoPath = micFifoPath;
+        this.micControl = micFifoPath == null ? null : new File(micFifoPath.getParentFile(), "mic-enabled");
     }
 
     public void setLogFile(File file) {
@@ -64,7 +68,9 @@ public class DirectAudioRelayComponent extends SessionPart {
         command.append(" --socket ").append(socketPath.getAbsolutePath());
         command.append(" --log");
         if (micFifoPath != null) {
+            if (!setMicEnabled(true)) return;
             command.append(" --mic-fifo ").append(micFifoPath.getAbsolutePath());
+            command.append(" --mic-control ").append(micControl.getAbsolutePath());
         }
         ArrayList<String> env = new ArrayList<>();
         env.add("HOME=" + app().getFilesDir());
@@ -91,7 +97,16 @@ public class DirectAudioRelayComponent extends SessionPart {
                 + (micFifoPath != null ? " mic=" + micFifoPath : " (no microphone)"));
     }
 
+    public synchronized boolean setMicEnabled(boolean enabled) {
+        if (micControl == null) return false;
+        File next = new File(micControl.getPath() + ".new");
+        return FileUtils.writeString(next, enabled ? "1" : "0") && next.renameTo(micControl);
+    }
+
     private void trackMic(String line) {
+        if (line.startsWith("DA-Relay: mic enabled=") && onMicEnabled != null) {
+            onMicEnabled.accept(line.equals("DA-Relay: mic enabled=1"));
+        }
         boolean start = line.startsWith("DA-Relay: mic start ");
         if (!start && !line.startsWith("DA-Relay: mic stop ")) return;
         synchronized (micLock) {

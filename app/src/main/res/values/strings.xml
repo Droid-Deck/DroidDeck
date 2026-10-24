@@ -389,6 +389,9 @@
     <string name="mode_directaudio_hint">Bypasses PulseAudio for lower latency.</string>
     <string name="mode_mic">Microphone</string>
     <string name="mode_mic_hint">For voice chat.</string>
+    <string name="drawer_mic_hint">Turn microphone capture on or off for this session.</string>
+    <string name="drawer_mic_unavailable">Enable Microphone in launch settings, allow microphone permission, then restart the session.</string>
+    <string name="drawer_mic_failed">Could not change the microphone. Please try again.</string>
     <string name="mode_network">Network</string>
     <string name="mode_wifi_discovery">Wi-Fi discovery</string>
     <string name="mode_wifi_discovery_hint">Show Wi-Fi names and nearby networks in Steam.</string>
