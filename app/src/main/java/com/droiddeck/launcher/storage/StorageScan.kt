@@ -34,6 +34,10 @@ class AddedGameUsage(
     val steamLibraryRoot: File? = null, val steamInstallDir: String? = null,
 )
 
+class MissingInstall(
+    val appId: Int, val name: String, val libraryRoot: File, val installDir: String, val libraryLabel: String,
+)
+
 enum class ToolState { IN_USE, REQUIRED, UNUSED }
 enum class ToolReason { DEFAULT_PROTON, PROTON, FEX_RUNTIME, ARM_RUNTIME, REDISTRIBUTABLES, FEX, STEAM_TOOL, OLD_RUNTIME, X86_PROTON, CUSTOM, CUSTOM_UNKNOWN, X64_CLIENT }
 
@@ -71,6 +75,7 @@ class StorageReport(
     val otherPrefixes: Long,
     val leftoversChecked: Boolean,
     val addedGames: List<AddedGameUsage> = emptyList(),
+    val missingInstalls: List<MissingInstall> = emptyList(),
 ) {
     val droiddeck: Long get() = buckets.values.sum()
     val installedShaders: Long get() = games.sumOf { it.shaders }
@@ -265,13 +270,20 @@ object StorageScan {
             lib.manifests.orEmpty().mapNotNull { m ->
                 val dir = m.installDir ?: return@mapNotNull null
                 val root = m.file.parentFile?.parentFile ?: return@mapNotNull null
-                Triple(m.appId, root, dir)
+                Triple(m, lib, root to dir)
             }
         }
         fun installMissing(root: File, dir: String): Boolean {
             val folder = File(File(root, "steamapps/common"), dir)
             return !folder.isDirectory || folder.list()?.isNotEmpty() != true
         }
+        // Added games run through the arm64 Proton build, so only arm64 libraries can adopt them.
+        val missingInstalls = manifestsByApp
+            .filter { (_, lib, rd) -> !lib.x64 && installMissing(rd.first, rd.second) }
+            .map { (m, lib, rd) ->
+                MissingInstall(m.appId, m.name.ifEmpty { rd.second }, rd.first, rd.second, lib.label)
+            }
+            .sortedBy { it.name.lowercase() }
         val addedGames = runCatching { AddedGames.scan(context) }.getOrDefault(emptyList())
             .distinctBy { canonical(it.folder) }
             .filter { game ->
@@ -281,18 +293,16 @@ object StorageScan {
             }
             .map { game ->
                 val steamId = runCatching { AddedGames.identifiedAppId(game.folder, game.exe) }.getOrDefault(null)
-                val byId = steamId?.let { id -> manifestsByApp.firstOrNull { (appId, root, dir) ->
-                    appId == id && installMissing(root, dir)
-                } }
-                // No ini/appid file: a folder named exactly like the manifest's install dir
-                // whose files are missing is almost certainly that install.
-                val byName = manifestsByApp.firstOrNull { (_, root, dir) ->
-                    dir.equals(game.folder.name, ignoreCase = true) && installMissing(root, dir)
+                val adoption = steamId?.let { id -> manifestsByApp.firstOrNull { (m, lib, rd) ->
+                    !lib.x64 && m.appId == id && installMissing(rd.first, rd.second)
+                } } ?: manifestsByApp.firstOrNull { (_, lib, rd) ->
+                    // No ini/appid file: a folder named exactly like the manifest's install dir
+                    // whose files are missing is almost certainly that install.
+                    !lib.x64 && rd.second.equals(game.folder.name, ignoreCase = true) && installMissing(rd.first, rd.second)
                 }
-                val adoption = byId ?: byName
                 AddedGameUsage(
                     game.folder, game.name, game.exe.takeIf { it.isFile }, walker.measure(game.folder),
-                    adoption?.second, adoption?.third,
+                    adoption?.let { it.third.first }, adoption?.let { it.third.second },
                 )
             }
             .sortedByDescending { it.bytes }
@@ -336,7 +346,7 @@ object StorageScan {
             ),
             prefixes, shaders, workshop, flatpak,
             games.sortedByDescending { it.total }, tools.values.toList(), leftovers, logs, logBytes,
-            components, flatpakApps, flatpakRuntimes, otherPrefixes, everyLibraryRead, addedGames,
+            components, flatpakApps, flatpakRuntimes, otherPrefixes, everyLibraryRead, addedGames, missingInstalls,
         )
     }
 }
