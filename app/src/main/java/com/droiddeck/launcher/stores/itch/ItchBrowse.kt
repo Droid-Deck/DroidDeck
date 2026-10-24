@@ -54,7 +54,7 @@ internal object ItchBrowse {
 
     fun path(query: BrowseQuery): String {
         val segments = listOfNotNull(sortSegment(query.sort), priceSegment(query.price)) +
-            query.platforms.sorted().map { "platform-$it" } +
+            platformNames.filter { it in query.platforms }.map { "platform-$it" } +
             query.tags.map { "tag-" + tagSlug(it) }
         return if (segments.isEmpty()) BASE else BASE + "/" + segments.joinToString("/")
     }

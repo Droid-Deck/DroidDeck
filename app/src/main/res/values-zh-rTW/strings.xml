@@ -1998,6 +1998,10 @@
     <string name="stores_itch_price_free">免費</string>
     <string name="stores_itch_price_sale">特價</string>
     <string name="stores_itch_load_more">載入更多</string>
+    <string name="stores_itch_platform_any">任何平台</string>
+    <string name="stores_itch_platform_mobile_web">行動網頁</string>
+    <string name="stores_itch_tag_add">新增標籤</string>
+    <string name="stores_itch_tag_title">依標籤篩選</string>
     <string name="stores_itch_browse_failed">無法從 itch.io 載入遊戲</string>
     <string name="stores_itch_archive">不支援 %1$s 壓縮檔</string>
     <string name="stores_itch_download_failed">itch.io 回應 HTTP %1$d</string>

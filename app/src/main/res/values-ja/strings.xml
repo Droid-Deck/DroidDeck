@@ -1997,6 +1997,10 @@
     <string name="stores_itch_price_free">無料</string>
     <string name="stores_itch_price_sale">セール中</string>
     <string name="stores_itch_load_more">さらに読み込む</string>
+    <string name="stores_itch_platform_any">すべてのプラットフォーム</string>
+    <string name="stores_itch_platform_mobile_web">モバイルWeb</string>
+    <string name="stores_itch_tag_add">タグを追加</string>
+    <string name="stores_itch_tag_title">タグで絞り込む</string>
     <string name="stores_itch_browse_failed">itch.io のゲームを読み込めませんでした</string>
     <string name="stores_itch_archive">%1$s 形式のアーカイブには対応していません</string>
     <string name="stores_itch_download_failed">itch.io が HTTP %1$d を返しました</string>

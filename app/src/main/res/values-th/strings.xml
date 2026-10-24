@@ -1995,6 +1995,10 @@
     <string name="stores_itch_price_free">ฟรี</string>
     <string name="stores_itch_price_sale">ลดราคา</string>
     <string name="stores_itch_load_more">โหลดเพิ่มเติม</string>
+    <string name="stores_itch_platform_any">ทุกแพลตฟอร์ม</string>
+    <string name="stores_itch_platform_mobile_web">เว็บมือถือ</string>
+    <string name="stores_itch_tag_add">เพิ่มแท็ก</string>
+    <string name="stores_itch_tag_title">กรองตามแท็ก</string>
     <string name="stores_itch_browse_failed">โหลดเกมจาก itch.io ไม่ได้</string>
     <string name="stores_itch_archive">ไม่รองรับไฟล์ %1$s</string>
     <string name="stores_itch_download_failed">itch.io ตอบกลับ HTTP %1$d</string>

@@ -2016,6 +2016,10 @@
     <string name="stores_itch_price_free">Безплатни</string>
     <string name="stores_itch_price_sale">С намаление</string>
     <string name="stores_itch_load_more">Зареди още</string>
+    <string name="stores_itch_platform_any">Всяка платформа</string>
+    <string name="stores_itch_platform_mobile_web">Мобилен уеб</string>
+    <string name="stores_itch_tag_add">Добавяне на таг</string>
+    <string name="stores_itch_tag_title">Филтриране по таг</string>
     <string name="stores_itch_browse_failed">Игрите от itch.io не можаха да се заредят</string>
     <string name="stores_itch_archive">Архивите %1$s не се поддържат</string>
     <string name="stores_itch_download_failed">itch.io отговори HTTP %1$d</string>

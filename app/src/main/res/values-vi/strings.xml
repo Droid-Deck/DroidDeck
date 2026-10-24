@@ -1995,6 +1995,10 @@
     <string name="stores_itch_price_free">Miễn phí</string>
     <string name="stores_itch_price_sale">Đang giảm giá</string>
     <string name="stores_itch_load_more">Tải thêm</string>
+    <string name="stores_itch_platform_any">Mọi nền tảng</string>
+    <string name="stores_itch_platform_mobile_web">Web di động</string>
+    <string name="stores_itch_tag_add">Thêm thẻ</string>
+    <string name="stores_itch_tag_title">Lọc theo thẻ</string>
     <string name="stores_itch_browse_failed">Không tải được game từ itch.io</string>
     <string name="stores_itch_archive">Không hỗ trợ tệp %1$s</string>
     <string name="stores_itch_download_failed">itch.io trả về HTTP %1$d</string>

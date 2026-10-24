@@ -20,7 +20,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -38,6 +41,7 @@ import com.droiddeck.launcher.stores.itch.ItchBrowseState
 internal fun ItchBrowseBar() {
     val ctx = LocalContext.current
     val query = ItchBrowseState.query
+    var picking by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         ChipRow {
             for (sort in ItchBrowse.sorts) BrowseChip(sortLabel(sort), query.sort == sort) { ItchBrowseState.choose(ctx, query.copy(sort = sort)) }
@@ -45,7 +49,23 @@ internal fun ItchBrowseBar() {
         ChipRow {
             for (price in ItchBrowse.prices) BrowseChip(priceLabel(price), query.price == price) { ItchBrowseState.choose(ctx, query.copy(price = price)) }
         }
+        ChipRow {
+            BrowseChip(stringResource(R.string.stores_itch_platform_any), query.platforms.isEmpty()) { ItchBrowseState.choose(ctx, query.copy(platforms = emptySet())) }
+            for (platform in ItchBrowse.platformNames) {
+                val on = platform in query.platforms
+                BrowseChip(platformLabel(platform), on) { ItchBrowseState.choose(ctx, query.copy(platforms = if (on) query.platforms - platform else query.platforms + platform)) }
+            }
+        }
+        ChipRow {
+            for (tag in query.tags) BrowseChip("$tag  ✕", true) { ItchBrowseState.choose(ctx, query.copy(tags = query.tags - tag)) }
+            BrowseChip(stringResource(R.string.stores_itch_tag_add), false) { picking = true }
+        }
     }
+    if (picking) TextEntryDialog(
+        stringResource(R.string.stores_itch_tag_title), "", number = false, confirm = stringResource(R.string.common_ok),
+        onSubmit = { value -> ItchBrowse.tagSlug(value).takeIf { it.isNotEmpty() }?.let { ItchBrowseState.choose(ctx, query.copy(tags = (query.tags + it).distinct())) } },
+        onDismiss = { picking = false }, id = "itch-tag",
+    )
 }
 
 @Composable
@@ -96,6 +116,19 @@ private fun sortLabel(sort: String): String = stringResource(
         ItchBrowse.SORT_TOP_RATED -> R.string.stores_itch_sort_top_rated
         ItchBrowse.SORT_NEWEST -> R.string.stores_itch_sort_new
         else -> R.string.stores_itch_sort_popular
+    },
+)
+
+@Composable
+private fun platformLabel(platform: String): String = stringResource(
+    when (platform) {
+        "windows" -> R.string.stores_itch_platform_windows
+        "osx" -> R.string.stores_itch_platform_macos
+        "linux" -> R.string.stores_itch_platform_linux
+        "android" -> R.string.stores_itch_platform_android
+        "ios" -> R.string.stores_itch_platform_ios
+        "web" -> R.string.stores_itch_platform_web
+        else -> R.string.stores_itch_platform_mobile_web
     },
 )
 

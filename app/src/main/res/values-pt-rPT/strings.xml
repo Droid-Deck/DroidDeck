@@ -2029,6 +2029,10 @@
     <string name="stores_itch_price_free">Grátis</string>
     <string name="stores_itch_price_sale">Em promoção</string>
     <string name="stores_itch_load_more">Carregar mais</string>
+    <string name="stores_itch_platform_any">Qualquer plataforma</string>
+    <string name="stores_itch_platform_mobile_web">Web móvel</string>
+    <string name="stores_itch_tag_add">Adicionar uma etiqueta</string>
+    <string name="stores_itch_tag_title">Filtrar por etiqueta</string>
     <string name="stores_itch_browse_failed">Não foi possível carregar os jogos do itch.io</string>
     <string name="stores_itch_archive">Ficheiros %1$s não são suportados</string>
     <string name="stores_itch_download_failed">O itch.io respondeu HTTP %1$d</string>

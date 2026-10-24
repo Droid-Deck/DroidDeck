@@ -2058,6 +2058,10 @@
     <string name="stores_itch_price_free">Безкоштовні</string>
     <string name="stores_itch_price_sale">Зі знижкою</string>
     <string name="stores_itch_load_more">Завантажити ще</string>
+    <string name="stores_itch_platform_any">Будь-яка платформа</string>
+    <string name="stores_itch_platform_mobile_web">Мобільний веб</string>
+    <string name="stores_itch_tag_add">Додати тег</string>
+    <string name="stores_itch_tag_title">Фільтр за тегом</string>
     <string name="stores_itch_browse_failed">Не вдалося завантажити ігри з itch.io</string>
     <string name="stores_itch_archive">Архіви %1$s не підтримуються</string>
     <string name="stores_itch_download_failed">itch.io відповів HTTP %1$d</string>

@@ -52,6 +52,25 @@ class ItchBrowseTest {
         assertEquals("pixel-art", ItchBrowse.tagSlug(" Pixel Art "))
     }
 
+    @Test fun aSortAPricePlatformAndTagCombineInThatOrder() {
+        assertEquals(
+            "https://itch.io/games/top-rated/free/platform-windows/tag-pixel-art.xml",
+            ItchBrowse.url(BrowseQuery(ItchBrowse.SORT_TOP_RATED, ItchBrowse.PRICE_FREE, setOf("windows"), listOf("pixel-art")), 1),
+        )
+    }
+
+    @Test fun severalPlatformsAndTagsAreAllInTheAddress() {
+        assertEquals(
+            "https://itch.io/games/platform-windows/platform-linux/tag-pixel-art/tag-2d",
+            path(platforms = setOf("linux", "windows"), tags = listOf("pixel-art", "2d")),
+        )
+    }
+
+    @Test fun aTypedTagBecomesItsSlug() {
+        assertEquals("visual-novel", ItchBrowse.tagSlug("Visual  Novel!"))
+        assertEquals("", ItchBrowse.tagSlug("  !! "))
+    }
+
     @Test fun theSamePlatformsInAnyOrderGiveTheSameAddress() {
         assertEquals(path(platforms = setOf("web", "linux")), path(platforms = setOf("linux", "web")))
     }

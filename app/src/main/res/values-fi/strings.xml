@@ -2016,6 +2016,10 @@
     <string name="stores_itch_price_free">Ilmaiset</string>
     <string name="stores_itch_price_sale">Alennuksessa</string>
     <string name="stores_itch_load_more">Lataa lisää</string>
+    <string name="stores_itch_platform_any">Mikä tahansa alusta</string>
+    <string name="stores_itch_platform_mobile_web">Mobiiliweb</string>
+    <string name="stores_itch_tag_add">Lisää tunniste</string>
+    <string name="stores_itch_tag_title">Suodata tunnisteella</string>
     <string name="stores_itch_browse_failed">Pelien lataaminen itch.io:sta epäonnistui</string>
     <string name="stores_itch_archive">%1$s-arkistot eivät ole tuettuja</string>
     <string name="stores_itch_download_failed">itch.io vastasi HTTP %1$d</string>

@@ -2100,6 +2100,10 @@
     <string name="stores_itch_price_free">مجاني</string>
     <string name="stores_itch_price_sale">مخفّض</string>
     <string name="stores_itch_load_more">تحميل المزيد</string>
+    <string name="stores_itch_platform_any">أي منصة</string>
+    <string name="stores_itch_platform_mobile_web">ويب الجوال</string>
+    <string name="stores_itch_tag_add">إضافة وسم</string>
+    <string name="stores_itch_tag_title">التصفية حسب الوسم</string>
     <string name="stores_itch_browse_failed">تعذّر تحميل الألعاب من itch.io</string>
     <string name="stores_itch_archive">أرشيفات %1$s غير مدعومة</string>
     <string name="stores_itch_download_failed">استجاب itch.io بـ HTTP %1$d</string>
