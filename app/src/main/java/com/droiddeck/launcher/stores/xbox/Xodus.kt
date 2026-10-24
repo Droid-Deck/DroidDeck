@@ -150,7 +150,7 @@ internal object Xodus {
         }
     }
 
-    const val SIGN_IN_REJECTED = "Microsoft content licensing rejected sign-in \\(HTTP [0-9]{3}\\)\\. Sign in again in Settings\\."
+    const val SIGN_IN_REJECTED = "Microsoft content licensing rejected sign-in \\(HTTP 401\\)\\. Sign in again in Settings\\."
 
     /** Passes the backend's known stderr diagnostics to [report]; other stderr text never leaves the process. */
     fun diagnostics(child: Child, report: (String) -> Unit = { com.droiddeck.launcher.stores.StoresState.logLine("Xbox: $it") }): Thread = Thread({
