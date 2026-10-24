@@ -39,15 +39,15 @@ internal fun SyncAdvancedPage(host: MenuHost, onBack: () -> Unit) {
     val ports = Syncthing.ports
     SettingsPage(host, stringResource(R.string.sync_advanced), onBack, eyebrow = stringResource(R.string.setup_tab_sync)) {
         PairedColumns(
-            { extra ->
-                SettingsGroup(stringResource(R.string.sync_ports), extra = extra) {
+            {
+                SettingsGroup(stringResource(R.string.sync_ports)) {
                     PortRow(stringResource(R.string.sync_port_sync), ports?.sync?.toString())
                     PortRow(stringResource(R.string.sync_port_discovery), ports?.discovery?.toString())
                     ActionRow(stringResource(R.string.sync_repick), stringResource(R.string.sync_repick_hint), stringResource(R.string.sync_repick_button), onClick = { Syncthing.restart() })
                 }
             },
-            { extra ->
-                SettingsGroup(stringResource(R.string.sync_running_group), extra = extra) {
+            {
+                SettingsGroup(stringResource(R.string.sync_running_group)) {
                     ChoiceRow(
                         host, "sync-run", stringResource(R.string.sync_run), null,
                         listOf(SyncPrefs.RUN_WHILE_OPEN to stringResource(R.string.sync_run_open), SyncPrefs.RUN_BACKGROUND to stringResource(R.string.sync_run_background)),
