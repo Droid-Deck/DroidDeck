@@ -529,12 +529,13 @@ object Syncthing {
         if (want && !held && pauseFailures.get() >= ENFORCE_ATTEMPTS) failClosed(generation, IllegalStateException(FAILURE_PAUSE), FAILURE_PAUSE)
     }
 
+    // An unreadable peer list counts as unpaused, so a required pause is reasserted rather than assumed.
     private fun hasUnpausedPeer(client: SyncthingApi): Boolean = runCatching {
         val myId = client.myId()
         val devices = client.devices()
         (0 until devices.length()).map { devices.getJSONObject(it) }
             .any { it.getString("deviceID") != myId && !it.optBoolean("paused") }
-    }.getOrDefault(false)
+    }.getOrDefault(true)
 
     private fun autoPauseReason(): AutoPause? = when {
         SyncPrefs.wifiOnly(app) && !onWifi -> AutoPause.WIFI
