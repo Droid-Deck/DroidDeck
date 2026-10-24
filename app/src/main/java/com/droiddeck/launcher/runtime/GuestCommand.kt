@@ -2,6 +2,7 @@ package com.droiddeck.launcher.runtime
 
 import android.content.Context
 import android.os.Environment
+import com.droiddeck.launcher.core.DownloadSource
 import com.droiddeck.launcher.core.HostProcess
 import com.droiddeck.launcher.session.OrphanReaper
 import com.droiddeck.launcher.session.SessionFiles
@@ -45,6 +46,15 @@ object GuestCommand {
             "DROIDDECK_BWRAP_SOCKET=${BwrapSpawner.socket(context)}",
             "XDG_DATA_DIRS=/root/.local/share/flatpak/exports/share:/usr/local/share:/usr/share",
         )
+        // The Steam client installer and the package tools inside the guest fetch over plain curl,
+        // so the app proxy has to reach them through the environment proot starts them with.
+        DownloadSource.proxyHostPort(context).takeIf { it.isNotEmpty() }?.let { hostPort ->
+            cmd += listOf(
+                "http_proxy=http://$hostPort", "https_proxy=http://$hostPort",
+                "HTTP_PROXY=http://$hostPort", "HTTPS_PROXY=http://$hostPort",
+                "no_proxy=localhost,127.0.0.1,::1", "NO_PROXY=localhost,127.0.0.1,::1",
+            )
+        }
         fastPathKey?.let { cmd += ProotFastPath.guestEnv(root, binds, it) }
         cmd += argv
         val builder = ProcessBuilder(cmd).directory(root).redirectErrorStream(true)
