@@ -1103,6 +1103,7 @@ private fun Storefront(
                         if (EpicClient.status.installed) a.onEpicLauncher()
                         else { EpicClient.install(ctx); StoresState.openDownloads = true }
                     }
+                    if (store == Store.ITCH) SmallTextButton("Test itch.io") { com.droiddeck.launcher.stores.itch.ItchProbe.run(ctx) }
                     SmallTextButton(stringResource(R.string.stores_refresh)) { StoresState.open(ctx, store, force = true) }
                     val name = StoresState.accounts[store] ?: ""
                     SignOutButton(store, name)
