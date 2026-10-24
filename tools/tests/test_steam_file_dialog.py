@@ -26,7 +26,11 @@ window.droiddeckOpenFileDialog = payload => asked.push(JSON.parse(payload));
 const script = require('fs').readFileSync(process.argv[2], 'utf8');
 (async () => {
   assert.strictEqual(eval(script), 'installed');
+  const orphan = SteamClient.System.OpenFileDialog({ strTitle: 'Before reconnect' });
   assert.strictEqual(eval(script), 'present');
+  await assert.rejects(orphan, e => e.result === 2);
+  assert.strictEqual(window.__droiddeckFiles.done(1, '/late'), false);
+  asked.length = 0;
   assert.notStrictEqual(SteamClient.System.OpenFileDialog, native);
   assert.strictEqual(popup.window.SteamClient.System.OpenFileDialog, SteamClient.System.OpenFileDialog);
   popupCallbacks.forEach(cb => cb(later));
@@ -34,11 +38,11 @@ const script = require('fs').readFileSync(process.argv[2], 'utf8');
   const options = { strTitle: 'Pick', bChooseDirectory: true };
   const chosen = SteamClient.System.OpenFileDialog(options);
   const cancelled = later.window.SteamClient.System.OpenFileDialog({ strTitle: 'Other' });
-  assert.deepStrictEqual(asked, [{ id: 1, options }, { id: 2, options: { strTitle: 'Other' } }]);
-  assert.strictEqual(window.__droiddeckFiles.done(1, '/root/Storage/Games'), true);
-  assert.strictEqual(window.__droiddeckFiles.done(1, '/again'), false);
+  assert.deepStrictEqual(asked, [{ id: 2, options }, { id: 3, options: { strTitle: 'Other' } }]);
+  assert.strictEqual(window.__droiddeckFiles.done(2, '/root/Storage/Games'), true);
+  assert.strictEqual(window.__droiddeckFiles.done(2, '/again'), false);
   assert.strictEqual(await chosen, '/root/Storage/Games');
-  window.__droiddeckFiles.done(2, null);
+  window.__droiddeckFiles.done(3, null);
   await assert.rejects(cancelled, e => e.result === 2);
   delete window.droiddeckOpenFileDialog;
   await assert.rejects(SteamClient.System.OpenFileDialog({}), e => e.result === 2);
@@ -97,8 +101,9 @@ class FileDialogBridgeTest(unittest.TestCase):
         self.assertEqual(self.helper.chooser, (1, first))
 
     def test_the_chosen_path_or_a_cancel_goes_back_to_the_page(self):
-        for code, out, expected in ((0, b"/root/Storage/My Game/game.sh\n", '"/root/Storage/My Game/game.sh"'),
-                                    (1, b"", "null"), (0, b"\n", "null")):
+        for code, out, expected in ((0, b'"/root/Storage/My Game/game.sh"\n', '"/root/Storage/My Game/game.sh"'),
+                                    (0, b'" spaced name "\n', '" spaced name "'),
+                                    (1, b"", "null"), (2, b"", "null"), (0, b"\n", "null"), (0, b"not json\n", "null")):
             proc = mock.Mock(stdout=io.BytesIO(out), returncode=code)
             self.helper.chooser = (7, proc)
             self.helper.chooser_done()
@@ -113,8 +118,11 @@ class FileDialogBridgeTest(unittest.TestCase):
         self.helper.page.evaluate.assert_not_called()
 
     def test_choose_file_mode_prints_the_path_and_fails_on_cancel(self):
-        for chosen, code, printed in (("/root/Storage/a.exe", 0, "/root/Storage/a.exe\n"), (None, 1, "")):
-            with mock.patch.dict(LIVE["chooser_main"].__globals__, {"choose_file": mock.Mock(return_value=chosen)}), \
+        for chooser, code, printed in ((mock.Mock(return_value="/root/Storage/a.exe "), 0, '"/root/Storage/a.exe "\n'),
+                                       (mock.Mock(return_value=None), 1, ""),
+                                       (mock.Mock(side_effect=ValueError("Namespace Gtk not available for version 3.0")), 2, ""),
+                                       (mock.Mock(side_effect=ImportError("No module named 'gi'")), 2, "")):
+            with mock.patch.dict(LIVE["chooser_main"].__globals__, {"choose_file": chooser}), \
                     mock.patch.object(sys, "stdin", io.StringIO('{"strTitle": "Pick"}')), \
                     mock.patch.object(sys, "stdout", io.StringIO()) as out:
                 self.assertEqual(LIVE["chooser_main"](), code)

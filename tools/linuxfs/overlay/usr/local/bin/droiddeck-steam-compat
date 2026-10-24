@@ -199,9 +199,12 @@ TOUR_JS = r"""
 FILE_BINDING = "droiddeckOpenFileDialog"
 FILE_JS = r"""
 (() => {
-  if (window.__droiddeckFiles) return "present";
-  const self = { next: 0, pending: new Map() };
   const cancelled = () => ({ result: 2, message: "" });
+  if (window.__droiddeckFiles) {
+    window.__droiddeckFiles.cancelAll();
+    return "present";
+  }
+  const self = { next: 0, pending: new Map() };
   const open = function (options) {
     return new Promise((resolve, reject) => {
       if (typeof window.__BINDING__ !== "function") { reject(cancelled()); return; }
@@ -217,6 +220,11 @@ FILE_JS = r"""
     self.pending.delete(id);
     if (typeof path === "string" && path) item.resolve(path); else item.reject(cancelled());
     return true;
+  };
+  self.cancelAll = () => {
+    const items = Array.from(self.pending.values());
+    self.pending.clear();
+    for (const item of items) item.reject(cancelled());
   };
   const patch = (w) => {
     const system = w?.SteamClient?.System;
@@ -657,10 +665,16 @@ class Helper:
     def chooser_done(self):
         ident, proc = self.chooser
         self.chooser = None
-        path = proc.stdout.read().decode("utf-8", "replace").strip()
+        out = proc.stdout.read().decode("utf-8", "replace")
         proc.stdout.close()
         proc.wait()
-        self.finish_chooser(ident, path if proc.returncode == 0 and path else None)
+        if proc.returncode == 2:
+            say("file dialog needs GTK 3 and PyGObject, which come with the desktop")
+        try:
+            path = json.loads(out) if proc.returncode == 0 else None
+        except ValueError:
+            path = None
+        self.finish_chooser(ident, path if isinstance(path, str) and path else None)
 
     def finish_chooser(self, ident, path):
         say("file dialog %s" % ("chose " + path if path else "cancelled"))
@@ -878,10 +892,13 @@ def chooser_main():
         options = json.load(sys.stdin)
     except ValueError:
         return 1
-    path = choose_file(options if isinstance(options, dict) else {})
+    try:
+        path = choose_file(options if isinstance(options, dict) else {})
+    except (ImportError, ValueError):
+        return 2
     if not path:
         return 1
-    print(path)
+    print(json.dumps(path))
     return 0
 
 
