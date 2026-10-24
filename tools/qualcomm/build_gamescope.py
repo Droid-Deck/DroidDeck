@@ -23,7 +23,7 @@ def patches():
     base = ROOT / 'tools/gamescope/patches'
     extra = HERE / 'gamescope-patches'
     return sorted([*base.glob('*.patch'), *extra.glob('*.patch')], key=lambda p: p.name) + [
-        HERE / 'constant-yuv-samplers.patch', HERE / 'gamescope-no-dmabuf.patch']
+        HERE / 'constant-yuv-samplers.patch', HERE / 'gamescope-no-dmabuf.patch', HERE / 'gamescope-linear-dmabuf.patch']
 
 def prepare(source):
     if source.exists():

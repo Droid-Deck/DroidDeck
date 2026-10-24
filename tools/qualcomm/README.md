@@ -72,9 +72,25 @@ Build the private components on ARM64 Linux with their normal development depend
 ```sh
 python3 tools/qualcomm/build_gamescope.py
 python3 tools/qualcomm/build_zink.py
+python3 tools/qualcomm/build_wsi.py
 ```
 
-The recipes pin upstream source revisions and retain local outputs under `build/qualcomm-gamescope` and `build/qualcomm-zink/runtime`. Update `runtime.json` from the produced `build.json` hashes after deliberately rebuilding a component. The APK check verifies the pinned Gamescope, its source archive, WSI files, and private Mesa files alongside the full Linux runtime and all add-on packs. Native build outputs are prerequisites, just like the other prepared runtime components.
+The recipes pin upstream source revisions and retain local outputs under `build/qualcomm-gamescope`, `build/qualcomm-zink/runtime` and `build/qualcomm-wsi`. `build_wsi.py` takes the WSI source from the pinned WSI archive in `build/qualcomm-cache`, so stage it once with `fetch_runtime.py` first. Update `runtime.json` from the produced `build.json` hashes after deliberately rebuilding a component. The APK check verifies the pinned Gamescope, its source archive, WSI files, and private Mesa files alongside the full Linux runtime and all add-on packs. Native build outputs are prerequisites, just like the other prepared runtime components.
+
+## Zero-copy game presentation
+
+Proton games in Qualcomm sessions present through Gamescope's WSI layer instead of X11 shared memory. The Steam client, its browser and other session programs keep `WSI_X11_FORCE_SHM=1` and `DISABLE_GAMESCOPE_WSI=1`; the Proton wrapper's `bl_present` drops both for the game. Set `BL_QUALCOMM_SHM=1` in the session environment to keep games on the shared-memory path.
+
+The Qualcomm HAL has DMA-BUF export but no `VK_EXT_image_drm_format_modifier`, and Android has no DRM device. The WSI layer is therefore rebuilt with its Wayland backend and `wsi-patches`:
+
+- `0001` allocates swapchain images in the driver as LINEAR images with exportable dedicated memory, exports them with `vkGetMemoryFdKHR`, takes offset and stride from `vkGetImageSubresourceLayout`, and sends them as LINEAR `zwp_linux_dmabuf_v1` buffers. The modifier extension is no longer required at `vkCreateDevice`. X11 DRI3 keeps its previous behavior.
+- `0002` removes the `__STDC_VERSION__` workaround that GCC 16 rejects.
+- `0003` opens `/dev/dma_heap/system` read-only, the only access Android grants apps.
+- `0004` exposes `vkAcquireNextImage2KHR` on Vulkan 1.0 devices; Gamescope's WSI layer acquires every image through it.
+
+`gamescope-linear-dmabuf.patch` makes the private Gamescope create a version 3 `linux-dmabuf` global without a DRM device (wlroots otherwise creates none), advertise LINEAR beside the implicit layout, and import LINEAR buffers as LINEAR images. Without modifiers the stride cannot be imposed, so an import is refused when the buffer's offset or stride differs from the driver's own LINEAR layout.
+
+Verification on 2026-10-24 used the RedMagic 11 Pro, Adreno 840 and the imported v891.7 driver at 1590x720. `vkcube` (600 frames, uncapped mailbox) went from 131.5 to 198.0 fps; its own CPU time fell from 1.15 s to 0.23 s, Xwayland from 1.64 s to 0.69 s and Gamescope from 6.88 s to 4.00 s. DRAGON BALL: Sparking! ZERO at 60 fps was launched from the same installed APK after a 60-second Steam settle, with only `BL_QUALCOMM_SHM` toggled, and sampled over the same 12-second startup window: Gamescope used 0.35 cores against 0.43 and 0.44 over two shared-memory runs, Xwayland 0.14 against 0.20, and the game 1.28 against 1.21 and 1.22. Average GPU load ranged from 5% to 13% across these runs and does not separate the paths at this phase. The startup logos rendered correctly and the performance overlay hooked DXVK directly. Gamescope's remaining extra cost comes from its SDL backend, the nested-swapchain copy and bridged Vulkan calls. `vkcube` in FIFO mode presented 169.5 fps against a 144 Hz output, so FIFO pacing through this path still needs checking. Native Linux games are not covered by the Proton wrapper.
 
 ## APK packaging
 

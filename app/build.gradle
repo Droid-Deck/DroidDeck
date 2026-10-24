@@ -295,6 +295,9 @@ def stageQualcommRuntime = tasks.register('stageQualcommRuntime', Exec) {
     if (qualcommRuntime.mesa) {
         inputs.dir(rootProject.file(qualcommRuntime.mesa.directory))
     }
+    if (qualcommRuntime.wsi?.build) {
+        inputs.dir(rootProject.file(qualcommRuntime.wsi.build.directory))
+    }
     inputs.property('ndkVersion', android.ndkVersion)
     outputs.dir(layout.buildDirectory.dir('qualcommAssets'))
     commandLine pythonExecutable, 'tools/qualcomm/fetch_runtime.py',

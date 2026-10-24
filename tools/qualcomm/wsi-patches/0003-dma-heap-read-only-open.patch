@@ -1,0 +1,13 @@
+diff --git a/util/wsialloc/wsialloc_dma_buf_heaps.c b/util/wsialloc/wsialloc_dma_buf_heaps.c
+index 5339166..fd97587 100644
+--- a/util/wsialloc/wsialloc_dma_buf_heaps.c
++++ b/util/wsialloc/wsialloc_dma_buf_heaps.c
+@@ -120,7 +120,7 @@ wsialloc_error wsialloc_new(wsialloc_allocator **allocator)
+       return WSIALLOC_ERROR_NO_RESOURCE;
+    }
+ 
+-   dma_buf_heaps->memory_fd = open("/dev/dma_heap/" STR(WSIALLOC_MEMORY_HEAP_NAME), O_RDWR);
++   dma_buf_heaps->memory_fd = open("/dev/dma_heap/" STR(WSIALLOC_MEMORY_HEAP_NAME), O_RDONLY | O_CLOEXEC);
+    dma_buf_heaps->protected_fd = -1;
+ 
+    if (dma_buf_heaps->memory_fd < 0)

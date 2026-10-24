@@ -75,12 +75,26 @@ def stage(output, cache, lock, ndk=None):
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(data)
     if 'wsi' in lock:
+        built = None
+        if 'build' in lock['wsi']:
+            root = Path(__file__).resolve().parents[2]
+            built = (root / lock['wsi']['build']['directory']).resolve()
+            if not built.is_relative_to(root / 'build'):
+                raise ValueError('Invalid Qualcomm WSI build path')
         with zipfile.ZipFile(fetch(cache, lock['wsi'])) as package:
             for entry in lock['wsi']['files']:
                 target = Path(entry['path'])
                 if target.is_absolute() or '..' in target.parts:
                     raise ValueError('Invalid WSI destination')
-                data = package.read(entry['name'])
+                if entry.get('built'):
+                    if built is None or Path(entry['name']).name != entry['name']:
+                        raise ValueError('Invalid Qualcomm WSI build member: ' + entry['name'])
+                    origin = built / entry['name']
+                    if not origin.is_file():
+                        raise FileNotFoundError('Build the Qualcomm WSI layer first with tools/qualcomm/build_wsi.py: ' + str(origin))
+                    data = origin.read_bytes()
+                else:
+                    data = package.read(entry['name'])
                 if len(data) != entry['size'] or hashlib.sha256(data).hexdigest() != entry['sha256']:
                     raise ValueError('Qualcomm WSI member failed SHA-256 verification')
                 destination = output / target

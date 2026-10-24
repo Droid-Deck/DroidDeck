@@ -198,6 +198,14 @@ bl_libpath() {
 }
 """
 
+# Qualcomm sessions copy the Steam client's frames through X11 SHM; games hand Gamescope LINEAR DMA-BUFs instead.
+BL_PRESENT_SETUP = """
+bl_present() {
+  [ "${DROIDDECK_SYSTEM_QUALCOMM:-0}" = 1 ] && [ "${BL_QUALCOMM_SHM:-0}" != 1 ] || return 0
+  unset DISABLE_GAMESCOPE_WSI WSI_X11_FORCE_SHM
+}
+"""
+
 BL_IDTECH3_SETUP = """
 bl_idtech3() {
   BL_EXTRA_ARGS=()
@@ -364,6 +372,7 @@ if [ -n "$depot" ]; then
   bl_idtech3 "$@"
   bl_vacdiag "$@"
   bl_libpath
+  bl_present
   BL_STORE_PROTON="$depot/proton"; export BL_STORE_PROTON
   bl_store_launch "$@"
   BL_STORE_ARGS=("$@")
@@ -378,7 +387,7 @@ LAUNCHER_TEMPLATE = LAUNCHER_SH
 def launcher_sh(sources=SOURCES):
     return (LAUNCHER_TEMPLATE % " ".join('"%s"' % n for n in sources)).replace(
         "verb=$1; shift", "verb=$1; shift\n" + BL_DIRECTAUDIO_SETUP + BL_GAME_CPUS_SETUP + BL_IDTECH3_SETUP
-        + BL_VACDIAG_SETUP + BL_COMPONENTS_SETUP + BL_LIBPATH_SETUP + BL_STORE_SETUP, 1)
+        + BL_VACDIAG_SETUP + BL_COMPONENTS_SETUP + BL_LIBPATH_SETUP + BL_PRESENT_SETUP + BL_STORE_SETUP, 1)
 
 
 LAUNCHER_SH = launcher_sh()
@@ -419,6 +428,7 @@ bl_game_cpus
 bl_idtech3 "$@"
 bl_vacdiag "$@"
 bl_libpath
+bl_present
 BL_STORE_PROTON="$here/%s"; export BL_STORE_PROTON
 bl_store_launch "$@"
 BL_STORE_ARGS=("$@")
@@ -650,7 +660,7 @@ def adopt_extras(tools):
             body = (EXTRA_WRAPPER_SH % entry_point).replace(
                     'here=$(dirname "$0")',
                     'here=$(dirname "$0")\n' + BL_DIRECTAUDIO_SETUP + BL_GAME_CPUS_SETUP + BL_IDTECH3_SETUP
-                    + BL_VACDIAG_SETUP + BL_COMPONENTS_SETUP + BL_LIBPATH_SETUP + BL_STORE_SETUP, 1)
+                    + BL_VACDIAG_SETUP + BL_COMPONENTS_SETUP + BL_LIBPATH_SETUP + BL_PRESENT_SETUP + BL_STORE_SETUP, 1)
             write_changed(wrapper, body, 0o755)
             write_changed(manifest, EXTRA_MANIFEST_VDF)
             write_changed(compat_vdf, EXTRA_COMPAT_TOOL_VDF % (name, display_name(entry)))

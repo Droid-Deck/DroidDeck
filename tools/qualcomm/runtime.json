@@ -10,12 +10,12 @@
   },
   "gamescope": {
     "source_commit": "8f212644c46460549035971ab914421180f61a7c",
-    "member_sha256": "1efe37d2bee38b86a051f84279802054d770aed6d9eff7d9379b4648705d0881",
+    "member_sha256": "a7cce9f11bbb39da0543a14a6dcf56765117d2c577b3d7fac6caadda5039563c",
     "build": {
       "binary": "build/qualcomm-gamescope/gamescope",
       "source": "build/qualcomm-gamescope/source.tar.gz",
-      "source_sha256": "11e9134ef9fe0616bc1c1ef8bdf61c52b48f473ce07e562108cf7476a017e531",
-      "source_size": 10104613
+      "source_sha256": "b9bec99913cebcd6d1a443f9b3263ff90a6f04574f116c8612d6f8ef86ab5f38",
+      "source_size": 10104476
     }
   },
   "wsi": {
@@ -24,15 +24,17 @@
         "mode": 420,
         "name": "libVkLayer_window_system_integration.so",
         "path": "wsi/libVkLayer_window_system_integration.so",
-        "sha256": "d07b961181b9547fd48ad9f05cc6d3b808b824676eb5a186fe3feb8caa013f19",
-        "size": 436888
+        "sha256": "431bc41d8ccb4ae0f35b1aa76bb30770926159e3e3b045084910bf0da6bc6436",
+        "size": 397384,
+        "built": true
       },
       {
         "mode": 420,
         "name": "VkLayer_window_system_integration.json",
         "path": "wsi/VkLayer_window_system_integration.json",
-        "sha256": "a1df8b1cee7315015d8fe82534451e373ae4d9cb2adfc232c68346ecbf2818ee",
-        "size": 3683
+        "sha256": "b80f1a621be6994e5cdb4760acee98bb013d0ff57fd63b1cc8de17cc764daaa2",
+        "size": 3754,
+        "built": true
       },
       {
         "mode": 420,
@@ -75,6 +77,38 @@
         "path": "provenance/wsi-vulkan-headers-commit",
         "sha256": "16706d6cdbeb788426a90d66574dfd71068c4d993d39e76ec5c281b1f30dc7a6",
         "size": 41
+      },
+      {
+        "built": true,
+        "mode": 420,
+        "name": "0001-wayland-icd-exported-linear-buffers.patch",
+        "path": "licenses/wsi-patches/0001-wayland-icd-exported-linear-buffers.patch",
+        "sha256": "fc1653c6d9ab718d296ece224f8a923f7c10cd0a3486f765af11306ca1c59f6c",
+        "size": 19862
+      },
+      {
+        "built": true,
+        "mode": 420,
+        "name": "0002-gcc16-stdc-version.patch",
+        "path": "licenses/wsi-patches/0002-gcc16-stdc-version.patch",
+        "sha256": "5a303b7f69c8ab819596bbf93ce9f68006e4473d2b383b6109941976da9d075a",
+        "size": 2202
+      },
+      {
+        "built": true,
+        "mode": 420,
+        "name": "0003-dma-heap-read-only-open.patch",
+        "path": "licenses/wsi-patches/0003-dma-heap-read-only-open.patch",
+        "sha256": "891f89c80310b2e5a7a3d8337632fddaaedad803b6337e69053048dd6c6ba3c0",
+        "size": 623
+      },
+      {
+        "built": true,
+        "mode": 420,
+        "name": "0004-acquire-next-image2-on-vulkan-1-0.patch",
+        "path": "licenses/wsi-patches/0004-acquire-next-image2-on-vulkan-1-0.patch",
+        "sha256": "30e968889e22f3ba4ea2e0c3b80e3752c4d61898e256230392a0242d125ec239",
+        "size": 1541
       }
     ],
     "id": "wsi",
@@ -100,7 +134,10 @@
     },
     "sha256": "348f9ec42159c1ee6e2baba4312a5e845d26687238f29e3f4a1b0c3c97e13b3c",
     "size": 362717,
-    "url": "https://github.com/wallentx/DroidDeck/releases/download/v0.3.2-progress.20261010.4/wsi-abe5861.zip"
+    "url": "https://github.com/wallentx/DroidDeck/releases/download/v0.3.2-progress.20261010.4/wsi-abe5861.zip",
+    "build": {
+      "directory": "build/qualcomm-wsi"
+    }
   },
   "shaders": {
     "url": "https://codeload.github.com/ValveSoftware/gamescope/tar.gz/8f212644c46460549035971ab914421180f61a7c",

@@ -115,6 +115,47 @@ class QualcommRuntimeTest(unittest.TestCase):
                 with self.assertRaisesRegex(FileNotFoundError, 'Build private Gamescope'):
                     runtime.stage(output, cache, lock)
 
+    def test_built_wsi_members_come_from_the_pinned_local_build(self):
+        bridge, binary, license_text, layer = b'bridge', b'gamescope', b'MIT', b'Wayland WSI layer'
+        def package(members):
+            output = io.BytesIO()
+            with zipfile.ZipFile(output, 'w') as archive:
+                for name, data in members:
+                    archive.writestr(name, data)
+            return output.getvalue()
+        gamescope_archive = package([('gamescope', binary)])
+        wsi_archive = package([('LICENSE', license_text), ('layer.so', b'X11-only layer')])
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            built, cache = root / 'build/qualcomm-wsi', root / 'cache'
+            built.mkdir(parents=True)
+            cache.mkdir()
+            (built / 'layer.so').write_bytes(layer)
+            lock = self.lock(bridge)
+            lock['gamescope'] = self.lock(gamescope_archive) | dict(member='gamescope', member_sha256=hashlib.sha256(binary).hexdigest())
+            lock['wsi'] = self.lock(wsi_archive) | dict(build=dict(directory='build/qualcomm-wsi'), files=[
+                dict(name='LICENSE', path='licenses/wsi-LICENSE', size=len(license_text), sha256=hashlib.sha256(license_text).hexdigest()),
+                dict(name='layer.so', path='wsi/layer.so', size=len(layer), sha256=hashlib.sha256(layer).hexdigest(), built=True)])
+            for data, entry in [(bridge, lock), (gamescope_archive, lock['gamescope']), (wsi_archive, lock['wsi'])]:
+                (cache / (entry['sha256'] + '.tzst')).write_bytes(data)
+            with patch.object(runtime, '__file__', str(root / 'tools/qualcomm/fetch_runtime.py')):
+                output = root / 'output'
+                runtime.stage(output, cache, lock)
+                self.assertEqual((output / 'wsi/layer.so').read_bytes(), layer)
+                self.assertEqual((output / 'licenses/wsi-LICENSE').read_bytes(), license_text)
+                (built / 'layer.so').write_bytes(b'tampered layer')
+                with self.assertRaisesRegex(ValueError, 'WSI member'):
+                    runtime.stage(root / 'tampered', cache, lock)
+                (built / 'layer.so').unlink()
+                with self.assertRaisesRegex(FileNotFoundError, 'build_wsi.py'):
+                    runtime.stage(root / 'missing', cache, lock)
+                lock['wsi']['files'][1]['name'] = 'nested/layer.so'
+                with self.assertRaisesRegex(ValueError, 'build member'):
+                    runtime.stage(root / 'nested', cache, lock)
+                lock['wsi']['build']['directory'] = '../outside'
+                with self.assertRaisesRegex(ValueError, 'build path'):
+                    runtime.stage(root / 'outside', cache, lock)
+
 
 if __name__ == '__main__':
     unittest.main()
