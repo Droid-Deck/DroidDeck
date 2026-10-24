@@ -45,7 +45,6 @@ SIDECAR = ".droiddeck-store.json"
 EPIC_CODE = ".droiddeck-epic-code"
 EPIC_ARGS = ".droiddeck-epic-args"
 EPIC_CLIENT = "/usr/local/bin/droiddeck-epic"
-GAME_ENV = "/usr/local/bin/droiddeck-game-env"
 EPIC_CLIENT_CURRENT = ".local/share/droiddeck-epic/current.json"
 EPIC_HANDLED = "DROIDDECK_EPIC_HANDLED"
 CLIENT_TIMEOUT = 150.0
@@ -486,13 +485,19 @@ def ubisoft_last(folder):
     return " / ".join(lines[-2:])
 
 
+def wine_server_running():
+    return any(Path("/tmp/.wine-%d" % os.getuid()).glob("server-*/socket"))
+
+
 def run_reg_import(proton, table, timeout=UBISOFT_IMPORT_TIMEOUT):
-    """Reg import through droiddeck-game-env: a plain proton client picks the wrong sync pack and
-    trips the server_init_process assertion when the prefix already has a wineserver."""
+    """A plain proton client picks the wrong sync pack and trips the server_init_process assertion
+    while any prefix has a wineserver, so a live session imports through the hook instead."""
     if not proton or not Path(proton).is_file():
         return "no-proton"
+    if wine_server_running():
+        return "prefix-busy"
     try:
-        run = subprocess.run([GAME_ENV, proton, "run", "reg.exe", "import", windows_path(str(table))],
+        run = subprocess.run([proton, "run", "reg.exe", "import", windows_path(str(table))],
                              stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=timeout, text=True)
     except subprocess.TimeoutExpired:
         return "timeout"
