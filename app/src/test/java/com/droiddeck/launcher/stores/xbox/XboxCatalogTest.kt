@@ -171,7 +171,7 @@ class XboxCatalogTest {
         .put("LocalizedProperties", JSONArray().put(JSONObject().put("ProductTitle", "A Game")))
         .put("DisplaySkuAvailabilities", JSONArray().put(JSONObject().put("Sku", JSONObject().put("Properties", JSONObject()
             .put("Packages", if (platform == null) JSONArray() else JSONArray().put(JSONObject().put("PackageFormat", "MSIXVC")
-                .put("PlatformDependencies", JSONArray().put(JSONObject().put("PlatformName", platform))))))))))
+                .put("PlatformDependencies", JSONArray().put(JSONObject().put("PlatformName", platform)))))))))
 
     @Test fun cloudListsKeepStreamOnlyGamesAndMarkStreamablePcGames() {
         val cloud = XboxCloudCatalog(gamePass = setOf(game), all = setOf(game, parent))
