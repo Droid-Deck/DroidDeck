@@ -74,10 +74,10 @@ internal fun SyncPanel(host: MenuHost, runtimeReady: Boolean, onAdvanced: () -> 
     }
     val phase = Syncthing.phase
     when {
-        !Syncthing.enabled -> SyncOff(host, runtimeReady) { Syncthing.setEnabled(ctx, true) }
         phase == Syncthing.Phase.FAILED -> SyncFailed(
             if (Syncthing.failure == Syncthing.FAILURE_MISSING) stringResource(R.string.sync_missing) else Syncthing.failure.orEmpty(),
             onRetry = { Syncthing.restart() }, onAdvanced = onAdvanced, onOff = { confirmOff = true })
+        !Syncthing.enabled -> SyncOff(host, runtimeReady) { Syncthing.setEnabled(ctx, true) }
         phase != Syncthing.Phase.RUNNING || snap == null -> SyncStarting()
         else -> SyncRunning(snap, onShowId = { showId = true }, onAdvanced = onAdvanced, onOff = { confirmOff = true })
     }

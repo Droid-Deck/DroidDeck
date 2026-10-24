@@ -41,6 +41,19 @@ data class SyncSnapshot(
 }
 
 internal object SyncthingParse {
+    /** Stands in for a folder whose status request failed, so it shows as an error rather than as up to date. */
+    fun unreadableStatus(): JSONObject = JSONObject().put("state", "error").put("errors", 1)
+
+    fun folder(config: JSONObject, status: JSONObject?, blocked: Boolean, names: Map<String, String>): SyncFolder {
+        val id = config.getString("id")
+        val shared = config.optJSONArray("devices")?.let { d -> (0 until d.length()).mapNotNull { names[d.getJSONObject(it).optString("deviceID")] } }.orEmpty()
+        return SyncFolder(
+            id, config.optString("label").ifEmpty { id }, config.optString("path"), blocked || config.optBoolean("paused"), blocked,
+            status?.optString("state").orEmpty(), status?.optLong("globalBytes") ?: 0, status?.optLong("needBytes") ?: 0,
+            (status?.optInt("errors") ?: 0) + (status?.optInt("pullErrors") ?: 0), shared,
+        )
+    }
+
     fun deviceNames(devices: JSONArray, myId: String): Map<String, String> = (0 until devices.length())
         .map { devices.getJSONObject(it) }
         .filter { it.getString("deviceID") != myId }

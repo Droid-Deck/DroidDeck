@@ -32,6 +32,18 @@ class SyncSnapshotTest {
     }
 
     @Test
+    fun unreadableFolderStatusShowsAsError() {
+        val config = JSONObject("""{"id":"saves","label":"Saves","path":"/p","paused":false,"devices":[{"deviceID":"DEV1"}]}""")
+        val f = SyncthingParse.folder(config, SyncthingParse.unreadableStatus(), blocked = false, names = mapOf("DEV1" to "Desktop PC"))
+        assertEquals("error", f.state)
+        assertTrue(f.errors > 0)
+        assertTrue(f.outOfSync)
+        assertFalse(f.syncing)
+        assertEquals(listOf("Desktop PC"), f.sharedWith)
+        assertTrue(snapshot(f).needsAttention)
+    }
+
+    @Test
     fun parsesPendingFoldersWithDeviceNames() {
         val json = JSONObject("""{"emu":{"offeredBy":{"DEV1":{"label":"Emulation saves","time":"2026-01-01T00:00:00Z"}}}}""")
         val pending = SyncthingParse.pendingFolders(json, mapOf("DEV1" to "Desktop PC"))
