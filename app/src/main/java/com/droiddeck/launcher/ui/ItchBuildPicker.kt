@@ -43,7 +43,8 @@ internal fun ItchBuildPicker(item: CatalogItem, onDismiss: () -> Unit) {
     var loaded by remember(item) { mutableStateOf<BuildList?>(null) }
     var failed by remember(item) { mutableStateOf(false) }
 
-    val install: (BuildList, ItchBuild) -> Unit = { list, build ->
+    val install: (BuildList, ItchBuild) -> Unit = install@{ list, build ->
+        if (!shown.targetState) return@install
         val tagged = item.copy(
             extra = item.extra + mapOf("gameId" to list.gameId, "uploadId" to build.uploadId),
             sizeBytes = build.size.takeIf { it > 0 } ?: item.sizeBytes,
