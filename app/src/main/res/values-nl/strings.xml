@@ -2990,4 +2990,21 @@
     <string name="spatial_opencv_load_error">OpenCV kon niet laden</string>
     <string name="glasses_6dof">Virtueel scherm met 6DoF</string>
     <string name="spatial_print_job">DroidDeck ChArUco 30 mm</string>
+
+    <string name="vr_controllers_tab">Controllers</string>
+    <string name="vr_controllers_group">SteamVR-controllers</string>
+    <string name="vr_controllers_emulate">Gamepad in VR</string>
+    <string name="vr_controllers_emulate_hint">De twee VR-handen die je gamepad bestuurt. Wijzigingen gelden meteen, ook terwijl SteamVR draait. Joy-Cons en gevolgde handen nemen hun eigen kant nog steeds over.</string>
+    <string name="vr_controllers_off">Gewone gamepad</string>
+    <string name="vr_controllers_sticks">Beginfunctie van sticks</string>
+    <string name="vr_controllers_sticks_hint">Druk in VR beide sticks tegelijk in om te wisselen.</string>
+    <string name="vr_controllers_sticks_game">Jezelf in het spel bewegen</string>
+    <string name="vr_controllers_sticks_hands">De handen bewegen</string>
+    <string name="vr_controllers_buttons">Knoppen</string>
+    <string name="vr_controllers_buttons_stick">Triggers blijven triggers, schouderknoppen grijpen, A/B en X/Y zijn de voorknoppen van elke hand, stickklikken drukken de duimsticks in en Guide opent het SteamVR-menu. Omhoog en omlaag op de D-pad brengen de handen dichterbij of verder weg.</string>
+    <string name="vr_controllers_buttons_vive">De sticks zijn trackpads; A/X of een stickklik drukt erop. Triggers blijven triggers, schouderknoppen grijpen, Start en Select zijn menu en Guide opent het SteamVR-menu.</string>
+    <string name="vr_controllers_buttons_off">Geen VR-handen. Games die een gamepad ondersteunen en het SteamVR-menu ontvangen de controllerinvoer zoals gewoonlijk.</string>
+    <string name="vr_controllers_index">Valve Index-controllers</string>
+    <string name="vr_controllers_touch">Meta Quest 3-controllers</string>
+    <string name="vr_controllers_vive">HTC Vive-controllers</string>
 </resources>

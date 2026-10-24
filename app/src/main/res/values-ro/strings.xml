@@ -3024,4 +3024,21 @@
     <string name="spatial_saved_views_hint">Vizualizările salvate pot fi recalculate. Începe o nouă calibrare pentru a captura în sistemul de coordonate de urmărire curent.</string>
     <string name="spatial_model_checksum_error">Nepotrivire a sumei de control a modelului de mâini</string>
     <string name="spatial_opencv_load_error">OpenCV nu s-a putut încărca</string>
+
+    <string name="vr_controllers_tab">Controlere</string>
+    <string name="vr_controllers_group">Controlere SteamVR</string>
+    <string name="vr_controllers_emulate">Gamepad în VR</string>
+    <string name="vr_controllers_emulate_hint">Cele două mâini VR controlate de gamepad. Modificările se aplică imediat, inclusiv când SteamVR rulează. Joy-Con-urile și mâinile urmărite preiau în continuare partea lor.</string>
+    <string name="vr_controllers_off">Gamepad obișnuit</string>
+    <string name="vr_controllers_sticks">Funcția inițială a manetelor</string>
+    <string name="vr_controllers_sticks_hint">Apasă ambele manete simultan în VR pentru a comuta.</string>
+    <string name="vr_controllers_sticks_game">Deplasarea în joc</string>
+    <string name="vr_controllers_sticks_hands">Mișcarea mâinilor</string>
+    <string name="vr_controllers_buttons">Butoane</string>
+    <string name="vr_controllers_buttons_stick">Trăgacele rămân trăgace, butoanele superioare apucă, A/B și X/Y sunt butoanele frontale ale fiecărei mâini, clicurile manetelor apasă manetele, iar Guide deschide meniul SteamVR. Sus și jos pe D-pad apropie sau îndepărtează mâinile.</string>
+    <string name="vr_controllers_buttons_vive">Manetele funcționează ca touchpaduri; A/X sau un clic de manetă le apasă. Trăgacele rămân trăgace, butoanele superioare apucă, Start și Select deschid meniul, iar Guide deschide meniul SteamVR.</string>
+    <string name="vr_controllers_buttons_off">Fără mâini VR. Jocurile care acceptă un gamepad și meniul SteamVR primesc comenzile ca de obicei.</string>
+    <string name="vr_controllers_index">Controlere Valve Index</string>
+    <string name="vr_controllers_touch">Controlere Meta Quest 3</string>
+    <string name="vr_controllers_vive">Controlere HTC Vive</string>
 </resources>

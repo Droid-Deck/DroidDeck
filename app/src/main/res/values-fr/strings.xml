@@ -3026,4 +3026,21 @@
     <string name="spatial_saved_views_hint">Les vues enregistrées peuvent être recalculées. Démarrez un nouvel étalonnage pour capturer dans le système de coordonnées de suivi actuel.</string>
     <string name="spatial_model_checksum_error">Incohérence de la somme de contrôle du modèle manuel</string>
     <string name="spatial_opencv_load_error">OpenCV n\'a pas pu charger</string>
+
+    <string name="vr_controllers_tab">Manettes</string>
+    <string name="vr_controllers_group">Manettes SteamVR</string>
+    <string name="vr_controllers_emulate">Manette de jeu en VR</string>
+    <string name="vr_controllers_emulate_hint">Les deux mains VR contrôlées par votre manette. Les changements prennent effet immédiatement, même lorsque SteamVR fonctionne. Les Joy-Con et les mains suivies reprennent toujours leur côté respectif.</string>
+    <string name="vr_controllers_off">Manette de jeu classique</string>
+    <string name="vr_controllers_sticks">Fonction initiale des sticks</string>
+    <string name="vr_controllers_sticks_hint">Appuyez simultanément sur les deux sticks en VR pour changer.</string>
+    <string name="vr_controllers_sticks_game">Vous déplacer dans le jeu</string>
+    <string name="vr_controllers_sticks_hands">Déplacer les mains</string>
+    <string name="vr_controllers_buttons">Boutons</string>
+    <string name="vr_controllers_buttons_stick">Les gâchettes restent des gâchettes, les boutons supérieurs servent à saisir, A/B et X/Y sont les boutons de façade de chaque main, les clics des sticks enfoncent les sticks et Guide ouvre le menu SteamVR. Haut et bas de la croix rapprochent ou éloignent les mains.</string>
+    <string name="vr_controllers_buttons_vive">Les sticks servent de pavés tactiles ; A/X ou un clic de stick appuie dessus. Les gâchettes restent des gâchettes, les boutons supérieurs servent à saisir, Start et Select ouvrent le menu et Guide ouvre le menu SteamVR.</string>
+    <string name="vr_controllers_buttons_off">Aucune main VR. Les jeux compatibles avec une manette et le menu SteamVR reçoivent ses commandes comme d’habitude.</string>
+    <string name="vr_controllers_index">Manettes Valve Index</string>
+    <string name="vr_controllers_touch">Manettes Meta Quest 3</string>
+    <string name="vr_controllers_vive">Manettes HTC Vive</string>
 </resources>

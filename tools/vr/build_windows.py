@@ -12,7 +12,7 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[2]
 IMAGE = 'droiddeck-local-cross:24.04-v3'
 MANIFEST = 'vr-build.json'
-SOURCE_TREES = ('tools/vr/src', 'tools/vr/tests', 'tools/vr/third_party',
+SOURCE_TREES = ('shared/xr', 'tools/vr/src', 'tools/vr/tests', 'tools/vr/third_party',
                 'tools/vr/driver_droiddeck', 'tools/vr/layer')
 SOURCE_FILES = ('tools/vr/build.sh', 'tools/vr/build_windows.py', 'tools/vr/make_hand_models.cpp', 'tools/local-cross.Dockerfile',
                 'app/src/main/cpp/waylandcomp/src/headpose_shm.h',
@@ -24,6 +24,7 @@ LIBRARIES = {'droiddeck/bin/linuxarm64/driver_droiddeck.so', 'layer/libVkLayer_d
 CONFIGS = {
     'droiddeck/driver.vrdrivermanifest': 'tools/vr/driver_droiddeck/driver.vrdrivermanifest',
     'droiddeck/resources/settings/default.vrsettings': 'tools/vr/driver_droiddeck/resources/settings/default.vrsettings',
+    'droiddeck/resources/input/xr_hand_profile.json': 'tools/vr/driver_droiddeck/resources/input/xr_hand_profile.json',
     'layer/VK_LAYER_DROIDDECK_vr.json': 'tools/vr/layer/VK_LAYER_DROIDDECK_vr.json',
     'layer/VK_LAYER_DROIDDECK_vr_implicit.json': 'tools/vr/layer/VK_LAYER_DROIDDECK_vr_implicit.json',
 }

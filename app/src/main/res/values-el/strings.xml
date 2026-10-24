@@ -2990,4 +2990,21 @@
     <string name="spatial_saved_views_hint">Οι αποθηκευμένες προβολές μπορούν να υπολογιστούν εκ νέου. Ξεκινήστε μια νέα βαθμονόμηση για αποτύπωση στο τρέχον σύστημα συντεταγμένων παρακολούθησης.</string>
     <string name="spatial_model_checksum_error">Αναντιστοιχία αθροίσματος ελέγχου μοντέλου χεριού</string>
     <string name="spatial_opencv_load_error">Δεν ήταν δυνατή η φόρτωση του OpenCV</string>
+
+    <string name="vr_controllers_tab">Χειριστήρια</string>
+    <string name="vr_controllers_group">Χειριστήρια SteamVR</string>
+    <string name="vr_controllers_emulate">Χειριστήριο παιχνιδιών σε VR</string>
+    <string name="vr_controllers_emulate_hint">Τα δύο χέρια VR που ελέγχει το χειριστήριό σας. Οι αλλαγές εφαρμόζονται αμέσως, ακόμη και όταν εκτελείται το SteamVR. Τα Joy-Con και τα παρακολουθούμενα χέρια εξακολουθούν να αναλαμβάνουν την πλευρά τους.</string>
+    <string name="vr_controllers_off">Κανονικό χειριστήριο παιχνιδιών</string>
+    <string name="vr_controllers_sticks">Αρχική λειτουργία μοχλών</string>
+    <string name="vr_controllers_sticks_hint">Πατήστε ταυτόχρονα και τους δύο μοχλούς σε VR για εναλλαγή.</string>
+    <string name="vr_controllers_sticks_game">Μετακίνηση στο παιχνίδι</string>
+    <string name="vr_controllers_sticks_hands">Μετακίνηση των χεριών</string>
+    <string name="vr_controllers_buttons">Κουμπιά</string>
+    <string name="vr_controllers_buttons_stick">Οι σκανδάλες παραμένουν σκανδάλες, τα επάνω κουμπιά πιάνουν, τα A/B και X/Y είναι τα μπροστινά κουμπιά κάθε χεριού, τα κλικ των μοχλών πατούν τους μοχλούς και το Guide ανοίγει το μενού SteamVR. Πάνω και κάτω στο D-pad φέρνουν τα χέρια πιο κοντά ή πιο μακριά.</string>
+    <string name="vr_controllers_buttons_vive">Οι μοχλοί λειτουργούν ως επιφάνειες αφής· τα A/X ή ένα κλικ μοχλού τις πατούν. Οι σκανδάλες παραμένουν σκανδάλες, τα επάνω κουμπιά πιάνουν, τα Start και Select είναι μενού και το Guide ανοίγει το μενού SteamVR.</string>
+    <string name="vr_controllers_buttons_off">Χωρίς χέρια VR. Τα παιχνίδια που υποστηρίζουν χειριστήριο και το μενού SteamVR λαμβάνουν τις εντολές του κανονικά.</string>
+    <string name="vr_controllers_index">Χειριστήρια Valve Index</string>
+    <string name="vr_controllers_touch">Χειριστήρια Meta Quest 3</string>
+    <string name="vr_controllers_vive">Χειριστήρια HTC Vive</string>
 </resources>

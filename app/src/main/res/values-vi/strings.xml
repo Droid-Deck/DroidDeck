@@ -2965,4 +2965,21 @@
     <string name="spatial_model_checksum_error">Tổng kiểm tra mô hình bàn tay không khớp</string>
     <string name="spatial_opencv_load_error">OpenCV không thể tải</string>
     <string name="tracking_recovery_look">Nhìn xung quanh chậm rãi trong phòng có đủ ánh sáng.\nGiữ cho camera theo dõi rõ ràng và hướng về phía đồ nội thất hoặc các chi tiết có thể nhìn thấy khác.</string>
+
+    <string name="vr_controllers_tab">Bộ điều khiển</string>
+    <string name="vr_controllers_group">Bộ điều khiển SteamVR</string>
+    <string name="vr_controllers_emulate">Tay cầm trong VR</string>
+    <string name="vr_controllers_emulate_hint">Hai bàn tay VR do tay cầm của bạn điều khiển. Thay đổi có hiệu lực ngay, kể cả khi SteamVR đang chạy. Joy-Con và bàn tay được theo dõi vẫn tiếp quản bên tương ứng.</string>
+    <string name="vr_controllers_off">Tay cầm thông thường</string>
+    <string name="vr_controllers_sticks">Chức năng ban đầu của cần</string>
+    <string name="vr_controllers_sticks_hint">Nhấn đồng thời cả hai cần trong VR để chuyển đổi.</string>
+    <string name="vr_controllers_sticks_game">Di chuyển bạn trong trò chơi</string>
+    <string name="vr_controllers_sticks_hands">Di chuyển hai bàn tay</string>
+    <string name="vr_controllers_buttons">Nút</string>
+    <string name="vr_controllers_buttons_stick">Cò vẫn là cò, nút vai dùng để nắm, A/B và X/Y là nút mặt trước của mỗi tay, nhấn cần tương ứng với nhấn cần ngón cái, Guide mở menu SteamVR. D-pad lên và xuống đưa tay lại gần hoặc ra xa.</string>
+    <string name="vr_controllers_buttons_vive">Cần hoạt động như bàn di chuột; A/X hoặc nhấn cần sẽ nhấn bàn di chuột. Cò vẫn là cò, nút vai dùng để nắm, Start và Select là menu, Guide mở menu SteamVR.</string>
+    <string name="vr_controllers_buttons_off">Không có bàn tay VR. Trò chơi hỗ trợ tay cầm và menu SteamVR nhận tín hiệu tay cầm như bình thường.</string>
+    <string name="vr_controllers_index">Bộ điều khiển Valve Index</string>
+    <string name="vr_controllers_touch">Bộ điều khiển Meta Quest 3</string>
+    <string name="vr_controllers_vive">Bộ điều khiển HTC Vive</string>
 </resources>

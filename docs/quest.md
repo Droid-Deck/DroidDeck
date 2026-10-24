@@ -212,3 +212,8 @@ An upstream GPU cube overlay has been observed on Quest 3. Flat-game stability,
 controller interaction and performance still require hardware validation. This
 uses Valve's public Gamescope backend; the exact Steam Frame OS launch setup
 has not been verified.
+# Android XR
+
+The native XR bridge also has an Android XR adaptation and independent pre-hardware
+diagnostics. See [Android XR setup and validation](android-xr.md). Its emulator,
+synthetic, and hardware validation claims are separate from the Quest results below.

@@ -13,6 +13,8 @@
 #define DROIDDECK_XR_PRIMARY_TOUCH (1u << 6)
 #define DROIDDECK_XR_SECONDARY_TOUCH (1u << 7)
 #define DROIDDECK_XR_THUMBREST_TOUCH (1u << 8)
+// Optional v1 provenance bit. Older readers ignore it; no wire offsets change.
+#define DROIDDECK_XR_HAND_SOURCE (1u << 31)
 
 struct DroidDeckXrPose {
     float orientation[4];

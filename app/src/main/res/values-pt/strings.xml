@@ -3024,4 +3024,21 @@
     <string name="spatial_model_checksum_error">Incompatibilidade de soma de verificação do modelo de mãos</string>
     <string name="spatial_opencv_load_error">OpenCV não pôde carregar</string>
     <string name="tracking_recovery_look">Olhe ao redor lentamente em um ambiente bem iluminado.\nMantenha as câmeras de rastreamento desobstruídas e voltadas para móveis ou outros detalhes visíveis.</string>
+
+    <string name="vr_controllers_tab">Controles</string>
+    <string name="vr_controllers_group">Controles do SteamVR</string>
+    <string name="vr_controllers_emulate">Controle de jogo em VR</string>
+    <string name="vr_controllers_emulate_hint">As duas mãos VR controladas pelo seu controle. As alterações são aplicadas imediatamente, mesmo com o SteamVR em execução. Joy-Cons e mãos rastreadas continuam assumindo seu respectivo lado.</string>
+    <string name="vr_controllers_off">Controle de jogo comum</string>
+    <string name="vr_controllers_sticks">Função inicial dos analógicos</string>
+    <string name="vr_controllers_sticks_hint">Pressione os dois analógicos ao mesmo tempo em VR para alternar.</string>
+    <string name="vr_controllers_sticks_game">Mover você no jogo</string>
+    <string name="vr_controllers_sticks_hands">Mover as mãos</string>
+    <string name="vr_controllers_buttons">Botões</string>
+    <string name="vr_controllers_buttons_stick">Gatilhos funcionam como gatilhos, botões superiores agarram, A/B e X/Y são os botões frontais de cada mão, cliques nos analógicos os pressionam e Guide abre o menu do SteamVR. Cima e baixo no direcional aproximam ou afastam as mãos.</string>
+    <string name="vr_controllers_buttons_vive">Os analógicos funcionam como touchpads; A/X ou um clique no analógico os pressiona. Gatilhos funcionam como gatilhos, botões superiores agarram, Start e Select abrem o menu e Guide abre o menu do SteamVR.</string>
+    <string name="vr_controllers_buttons_off">Sem mãos VR. Jogos com suporte a controle e o menu do SteamVR recebem os comandos normalmente.</string>
+    <string name="vr_controllers_index">Controles Valve Index</string>
+    <string name="vr_controllers_touch">Controles Meta Quest 3</string>
+    <string name="vr_controllers_vive">Controles HTC Vive</string>
 </resources>

@@ -70,7 +70,7 @@ class WindowsVrBuildTest(unittest.TestCase):
             self.validate()
 
     def test_modified_or_new_source_rejects_cached_build(self):
-        for name in ('tools/vr/src/input.h', 'tools/vr/src/new.h'):
+        for name in ('tools/vr/src/input.h', 'tools/vr/src/new.h', 'shared/xr/input.h'):
             with self.subTest(name=name):
                 path = self.root / name
                 previous = path.read_bytes() if path.exists() else None

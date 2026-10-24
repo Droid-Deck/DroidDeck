@@ -25,7 +25,7 @@ SOURCE_PATHS = ['app/build.gradle', 'app/src/main/cpp/fakeinput_steam.cpp', 'app
                 'tools/gamescope/release.env', 'tools/droiddeck-esync/release.env',
                 'tools/mangoapp', 'tools/msitools', 'tools/pipewire', 'tools/comet', 'tools/xbox', 'tools/components', 'tools/ci', 'tools/build_local.sh',
                 'tools/release/runtime_inputs.py', 'app/src/main/assets/desktop-removal',
-                'tools/quest', 'tools/vr/src', 'tools/vr/driver_droiddeck', 'tools/vr/layer', 'tools/vr/build.sh',
+                'tools/quest', 'shared/xr', 'tools/vr/src', 'tools/vr/driver_droiddeck', 'tools/vr/layer', 'tools/vr/build.sh',
                 'app/src/main/cpp/waylandcomp/src/headpose_shm.h',
                 'app/src/main/cpp/venc/venc_proto.h',
                 'app/src/main/cpp/waylandcomp/src/spatialpose_shm.h',

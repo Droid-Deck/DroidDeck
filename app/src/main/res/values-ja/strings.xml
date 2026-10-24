@@ -2967,4 +2967,21 @@
     <string name="spatial_opencv_load_error">OpenCVをロードできませんでした</string>
     <string name="tracking_recovery_look">明るい部屋でゆっくりと周囲を見回してください。\nトラッキングカメラを遮るものがないように、家具などの見えるものに顔を向けてください。</string>
     <string name="spatial_print_job">DroidDeck ChArUco 30 mm</string>
+
+    <string name="vr_controllers_tab">コントローラー</string>
+    <string name="vr_controllers_group">SteamVR コントローラー</string>
+    <string name="vr_controllers_emulate">VR でのゲームパッド</string>
+    <string name="vr_controllers_emulate_hint">ゲームパッドで操作する左右の VR ハンドです。変更は SteamVR の実行中もすぐに反映されます。Joy-Con や追跡された手は、引き続き対応する側の操作を引き継ぎます。</string>
+    <string name="vr_controllers_off">通常のゲームパッド</string>
+    <string name="vr_controllers_sticks">スティックの初期動作</string>
+    <string name="vr_controllers_sticks_hint">VR 中に両方のスティックを同時に押し込むと切り替わります。</string>
+    <string name="vr_controllers_sticks_game">ゲーム内を移動</string>
+    <string name="vr_controllers_sticks_hands">手を動かす</string>
+    <string name="vr_controllers_buttons">ボタン</string>
+    <string name="vr_controllers_buttons_stick">トリガーはトリガー、バンパーは握る操作、A/B と X/Y は各手の前面ボタンに対応します。スティックの押し込みはサムスティックのクリック、Guide は SteamVR メニューを開きます。方向パッドの上下で手を近づけたり遠ざけたりできます。</string>
+    <string name="vr_controllers_buttons_vive">スティックはトラックパッドとして動作し、A/X またはスティックの押し込みでクリックします。トリガーはトリガー、バンパーは握る操作、Start と Select はメニュー、Guide は SteamVR メニューを開きます。</string>
+    <string name="vr_controllers_buttons_off">VR ハンドを使いません。ゲームパッド対応ゲームと SteamVR メニューには、通常どおりコントローラー入力が送られます。</string>
+    <string name="vr_controllers_index">Valve Index コントローラー</string>
+    <string name="vr_controllers_touch">Meta Quest 3 コントローラー</string>
+    <string name="vr_controllers_vive">HTC Vive コントローラー</string>
 </resources>

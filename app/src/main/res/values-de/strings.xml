@@ -2990,4 +2990,21 @@
     <string name="spatial_saved_views_hint">Gespeicherte Ansichten können neu berechnet werden. Starten Sie eine neue Kalibrierung zur Erfassung im aktuellen Tracking-Koordinatensystem.</string>
     <string name="spatial_model_checksum_error">Die Prüfsumme des Handmodells stimmt nicht überein</string>
     <string name="spatial_opencv_load_error">OpenCV konnte nicht geladen werden</string>
+
+    <string name="vr_controllers_tab">Controller</string>
+    <string name="vr_controllers_group">SteamVR-Controller</string>
+    <string name="vr_controllers_emulate">Gamepad in VR</string>
+    <string name="vr_controllers_emulate_hint">Die beiden VR-Hände, die dein Gamepad steuert. Änderungen gelten sofort, auch während SteamVR läuft. Joy-Cons und erfasste Hände übernehmen weiterhin ihre jeweilige Seite.</string>
+    <string name="vr_controllers_off">Normales Gamepad</string>
+    <string name="vr_controllers_sticks">Anfängliche Stick-Funktion</string>
+    <string name="vr_controllers_sticks_hint">Drücke in VR beide Sticks gleichzeitig, um umzuschalten.</string>
+    <string name="vr_controllers_sticks_game">Dich im Spiel bewegen</string>
+    <string name="vr_controllers_sticks_hands">Die Hände bewegen</string>
+    <string name="vr_controllers_buttons">Tasten</string>
+    <string name="vr_controllers_buttons_stick">Trigger bleiben Trigger, Schultertasten greifen, A/B und X/Y sind die Fronttasten der jeweiligen Hand, Stick-Klicks drücken die Daumensticks und Guide öffnet das SteamVR-Menü. Steuerkreuz oben und unten bewegen die Hände näher heran oder weiter weg.</string>
+    <string name="vr_controllers_buttons_vive">Die Sticks sind Trackpads; A/X oder ein Stick-Klick drücken sie. Trigger bleiben Trigger, Schultertasten greifen, Start und Select sind Menütasten und Guide öffnet das SteamVR-Menü.</string>
+    <string name="vr_controllers_buttons_off">Keine VR-Hände. Spiele mit Gamepad-Unterstützung und das SteamVR-Menü erhalten die Controller-Eingaben wie gewohnt.</string>
+    <string name="vr_controllers_index">Valve Index-Controller</string>
+    <string name="vr_controllers_touch">Meta Quest 3-Controller</string>
+    <string name="vr_controllers_vive">HTC Vive-Controller</string>
 </resources>

@@ -2992,4 +2992,21 @@
     <string name="tracking_recovery_look">İyi aydınlatılmış bir odada yavaşça etrafa bakın.\nİzleme kameralarını temiz tutun ve mobilyalara veya diğer görünür ayrıntılara doğru bakın.</string>
     <string name="spatial_need_views">Sabit kalibrasyon hedefinin en az 24 farklı görünümünü yakalayın.</string>
     <string name="spatial_need_rotation">Akıllı gözlükleri sola ve sağa çevirin, yukarı ve aşağı eğin; dönme olmadan hareket, kamera hizalamasını kalibre edemez.</string>
+
+    <string name="vr_controllers_tab">Kontrolcüler</string>
+    <string name="vr_controllers_group">SteamVR kontrolcüleri</string>
+    <string name="vr_controllers_emulate">VR’de oyun kumandası</string>
+    <string name="vr_controllers_emulate_hint">Oyun kumandanızın yönettiği iki VR eli. Değişiklikler SteamVR çalışırken de hemen uygulanır. Joy-Con’lar ve izlenen eller kendi taraflarını devralmaya devam eder.</string>
+    <string name="vr_controllers_off">Normal oyun kumandası</string>
+    <string name="vr_controllers_sticks">Çubukların başlangıç işlevi</string>
+    <string name="vr_controllers_sticks_hint">Geçiş yapmak için VR’de iki çubuğa aynı anda basın.</string>
+    <string name="vr_controllers_sticks_game">Oyunda sizi hareket ettirme</string>
+    <string name="vr_controllers_sticks_hands">Elleri hareket ettirme</string>
+    <string name="vr_controllers_buttons">Düğmeler</string>
+    <string name="vr_controllers_buttons_stick">Tetikler tetik olarak, omuz düğmeleri kavrama için çalışır. A/B ve X/Y her elin ön düğmeleridir, çubuk tıklamaları başparmak çubuklarına basar, Guide SteamVR menüsünü açar. Yön tuşlarında yukarı ve aşağı elleri yaklaştırır veya uzaklaştırır.</string>
+    <string name="vr_controllers_buttons_vive">Çubuklar dokunmatik yüzeydir; A/X veya çubuğa basmak bunlara basar. Tetikler tetik, omuz düğmeleri kavrama, Start ve Select menü olarak çalışır. Guide SteamVR menüsünü açar.</string>
+    <string name="vr_controllers_buttons_off">VR eli yok. Oyun kumandası destekleyen oyunlar ve SteamVR menüsü kumanda girişini normal şekilde alır.</string>
+    <string name="vr_controllers_index">Valve Index kontrolcüleri</string>
+    <string name="vr_controllers_touch">Meta Quest 3 kontrolcüleri</string>
+    <string name="vr_controllers_vive">HTC Vive kontrolcüleri</string>
 </resources>

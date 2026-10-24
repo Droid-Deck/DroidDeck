@@ -12,6 +12,7 @@ import com.droiddeck.launcher.wayland.CompositorHost
 import com.droiddeck.launcher.wayland.WaylandCompositor
 
 class QuestXrActivity : NativeActivity() {
+    private val nativeProbe get() = BuildConfig.DEBUG && intent.getBooleanExtra("native_probe", false)
     private var steamVrStarted = false
     @Volatile private var closing = false
     @Volatile private var steamVrStatus = SteamVr.Status.UNAVAILABLE
@@ -23,6 +24,7 @@ class QuestXrActivity : NativeActivity() {
     }
 
     fun onXrActive(active: Boolean) {
+        if (nativeProbe) return
         if (active) {
             check(CompositorHost.isStarted) { "DroidDeck compositor is not running" }
             SessionService.resume(this)
@@ -95,6 +97,7 @@ class QuestXrActivity : NativeActivity() {
     }
 
     fun onXrFrame(frameTimeNanos: Long) {
+        if (nativeProbe) return
         WaylandCompositor.nativeVsync(frameTimeNanos)
     }
 

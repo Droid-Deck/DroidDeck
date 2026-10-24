@@ -2990,4 +2990,21 @@
     <string name="spatial_saved_views_hint">Tallennetut näkymät voidaan laskea uudelleen. Aloita uusi kalibrointi kaapataksesi nykyiseen seurantakoordinaattijärjestelmään.</string>
     <string name="spatial_model_checksum_error">Käsimallin tarkistussumman epäsuhta</string>
     <string name="spatial_opencv_load_error">OpenCV:tä ei voitu ladata</string>
+
+    <string name="vr_controllers_tab">Ohjaimet</string>
+    <string name="vr_controllers_group">SteamVR-ohjaimet</string>
+    <string name="vr_controllers_emulate">Peliohjain VR:ssä</string>
+    <string name="vr_controllers_emulate_hint">Peliohjaimen ohjaamat kaksi VR-kättä. Muutokset tulevat voimaan heti, myös SteamVR:n ollessa käynnissä. Joy-Conit ja seuratut kädet ottavat edelleen oman puolensa hallintaan.</string>
+    <string name="vr_controllers_off">Tavallinen peliohjain</string>
+    <string name="vr_controllers_sticks">Sauvojen aloitustoiminto</string>
+    <string name="vr_controllers_sticks_hint">Vaihda painamalla molempia sauvoja yhtä aikaa VR:ssä.</string>
+    <string name="vr_controllers_sticks_game">Liikkuminen pelissä</string>
+    <string name="vr_controllers_sticks_hands">Käsien liikuttaminen</string>
+    <string name="vr_controllers_buttons">Painikkeet</string>
+    <string name="vr_controllers_buttons_stick">Liipaisimet toimivat liipaisimina, olkapainikkeet tarttuvat, A/B ja X/Y ovat kummankin käden etupainikkeet, sauvojen napsautukset painavat peukalosauvoja ja Guide avaa SteamVR-valikon. Ristiohjaimen ylös ja alas tuovat käsiä lähemmäs tai vievät kauemmas.</string>
+    <string name="vr_controllers_buttons_vive">Sauvat toimivat kosketuslevyinä; A/X tai sauvan napsautus painaa niitä. Liipaisimet toimivat liipaisimina, olkapainikkeet tarttuvat, Start ja Select avaavat valikon ja Guide avaa SteamVR-valikon.</string>
+    <string name="vr_controllers_buttons_off">Ei VR-käsiä. Peliohjainta tukevat pelit ja SteamVR-valikko saavat ohjaimen syötteen tavalliseen tapaan.</string>
+    <string name="vr_controllers_index">Valve Index-ohjaimet</string>
+    <string name="vr_controllers_touch">Meta Quest 3-ohjaimet</string>
+    <string name="vr_controllers_vive">HTC Vive-ohjaimet</string>
 </resources>

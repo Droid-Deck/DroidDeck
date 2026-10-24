@@ -3061,4 +3061,21 @@
     <string name="spatial_print_job">DroidDeck ChArUco 30 mm</string>
     <string name="spatial_connect_hint">Podłącz Luma Ultra i włącz śledzenie pozycji.</string>
     <string name="spatial_inference_error">Wykrywanie dłoni jest niedostępne: %1$s. Zmień ustawienie CPU/GPU lub wyłącz i ponownie włącz sterowanie dłońmi, aby spróbować ponownie.</string>
+
+    <string name="vr_controllers_tab">Kontrolery</string>
+    <string name="vr_controllers_group">Kontrolery SteamVR</string>
+    <string name="vr_controllers_emulate">Pad w VR</string>
+    <string name="vr_controllers_emulate_hint">Dwie dłonie VR sterowane padem. Zmiany obowiązują natychmiast, także podczas działania SteamVR. Joy-Cony i śledzone dłonie nadal przejmują swoją stronę.</string>
+    <string name="vr_controllers_off">Zwykły pad</string>
+    <string name="vr_controllers_sticks">Początkowa funkcja drążków</string>
+    <string name="vr_controllers_sticks_hint">Wciśnij oba drążki jednocześnie w VR, aby przełączyć.</string>
+    <string name="vr_controllers_sticks_game">Poruszanie się w grze</string>
+    <string name="vr_controllers_sticks_hands">Poruszanie dłońmi</string>
+    <string name="vr_controllers_buttons">Przyciski</string>
+    <string name="vr_controllers_buttons_stick">Spusty działają jak spusty, przyciski naramienne chwytają, A/B i X/Y to przyciski przednie każdej dłoni, kliknięcia drążków wciskają drążki, a Guide otwiera menu SteamVR. Góra i dół na krzyżaku przybliżają lub oddalają dłonie.</string>
+    <string name="vr_controllers_buttons_vive">Drążki działają jak panele dotykowe; A/X lub kliknięcie drążka je naciska. Spusty działają jak spusty, przyciski naramienne chwytają, Start i Select otwierają menu, a Guide otwiera menu SteamVR.</string>
+    <string name="vr_controllers_buttons_off">Bez dłoni VR. Gry obsługujące pada i menu SteamVR otrzymują sygnały kontrolera jak zwykle.</string>
+    <string name="vr_controllers_index">Kontrolery Valve Index</string>
+    <string name="vr_controllers_touch">Kontrolery Meta Quest 3</string>
+    <string name="vr_controllers_vive">Kontrolery HTC Vive</string>
 </resources>

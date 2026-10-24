@@ -3024,4 +3024,21 @@
     <string name="spatial_opencv_load_error">Impossibile caricare OpenCV</string>
     <string name="setup_glasses_scope">Le impostazioni dello schermo e del tracciamento della testa sono condivise tra menu, giochi e sessioni desktop di DroidDeck.</string>
     <string name="spatial_print_job">DroidDeck ChArUco 30 mm</string>
+
+    <string name="vr_controllers_tab">Controller</string>
+    <string name="vr_controllers_group">Controller SteamVR</string>
+    <string name="vr_controllers_emulate">Gamepad in VR</string>
+    <string name="vr_controllers_emulate_hint">Le due mani VR controllate dal gamepad. Le modifiche si applicano subito, anche mentre SteamVR è in esecuzione. I Joy-Con e le mani tracciate continuano a prendere il controllo del proprio lato.</string>
+    <string name="vr_controllers_off">Gamepad normale</string>
+    <string name="vr_controllers_sticks">Funzione iniziale degli stick</string>
+    <string name="vr_controllers_sticks_hint">Premi entrambi gli stick contemporaneamente in VR per cambiare.</string>
+    <string name="vr_controllers_sticks_game">Muovere il giocatore</string>
+    <string name="vr_controllers_sticks_hands">Muovere le mani</string>
+    <string name="vr_controllers_buttons">Pulsanti</string>
+    <string name="vr_controllers_buttons_stick">I grilletti restano grilletti, i dorsali afferrano, A/B e X/Y sono i pulsanti frontali di ciascuna mano, i clic degli stick premono le levette e Guide apre il menu SteamVR. Su e giù sulla croce direzionale avvicinano o allontanano le mani.</string>
+    <string name="vr_controllers_buttons_vive">Gli stick fungono da trackpad; A/X o un clic dello stick li preme. I grilletti restano grilletti, i dorsali afferrano, Start e Select aprono il menu e Guide apre il menu SteamVR.</string>
+    <string name="vr_controllers_buttons_off">Nessuna mano VR. I giochi che supportano un gamepad e il menu SteamVR ricevono i comandi come di consueto.</string>
+    <string name="vr_controllers_index">Controller Valve Index</string>
+    <string name="vr_controllers_touch">Controller Meta Quest 3</string>
+    <string name="vr_controllers_vive">Controller HTC Vive</string>
 </resources>

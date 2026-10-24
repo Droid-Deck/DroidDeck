@@ -1,0 +1,18 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.HEAD_TRACKING" />
+    <uses-permission android:name="android.permission.HAND_TRACKING" />
+    <uses-feature android:name="android.software.xr.api.spatial" android:required="true" />
+    <uses-feature android:name="android.hardware.xr.input.hand_tracking" android:required="false" />
+    <application android:label="DroidDeck XR Diagnostics" android:allowBackup="false"
+        android:theme="@android:style/Theme.Material.NoActionBar">
+        <activity android:name=".MainActivity" android:exported="true"
+            android:configChanges="orientation|screenSize|screenLayout|density|keyboardHidden|uiMode">
+            <property android:name="android.window.PROPERTY_XR_ACTIVITY_START_MODE"
+                android:value="XR_ACTIVITY_START_MODE_FULL_SPACE_MANAGED" />
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

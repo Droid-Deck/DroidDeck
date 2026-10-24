@@ -1233,7 +1233,8 @@ class FrontEndActivity : ComponentActivity() {
 
     private fun playSteamVr() {
         val tracking = com.droiddeck.launcher.glasses.Glasses.settings.value
-        if (!com.droiddeck.launcher.glasses.Glasses.state.value.usesSpatialControllers(tracking) &&
+        if (!com.droiddeck.launcher.session.NativeXrSupport.isSupported(this) &&
+            !com.droiddeck.launcher.glasses.Glasses.state.value.usesSpatialControllers(tracking) &&
             com.droiddeck.launcher.handtracking.HandTracking.wanted(this)) placementCheck = true
         else startSteamSession(steamVr = true)
     }

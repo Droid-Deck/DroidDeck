@@ -3126,4 +3126,21 @@
     <string name="spatial_saved_views_hint">يمكن إعادة حساب المشاهدات المحفوظة. ابدأ معايرة جديدة لالتقاطها في نظام إحداثيات التتبع الحالي.</string>
     <string name="spatial_model_checksum_error">المجموع الاختباري لنموذج تتبع اليدين غير مطابق</string>
     <string name="spatial_opencv_load_error">تعذر تحميل OpenCV</string>
+
+    <string name="vr_controllers_tab">وحدات التحكم</string>
+    <string name="vr_controllers_group">وحدات تحكم SteamVR</string>
+    <string name="vr_controllers_emulate">ذراع الألعاب في VR</string>
+    <string name="vr_controllers_emulate_hint">يدا VR اللتان يتحكم بهما ذراع الألعاب. تسري التغييرات فورًا، حتى أثناء تشغيل SteamVR. تظل وحدات Joy-Con والأيدي المتتبعة تتولى التحكم في جانبها.</string>
+    <string name="vr_controllers_off">ذراع ألعاب عادي</string>
+    <string name="vr_controllers_sticks">الوظيفة الأولية للعصوين</string>
+    <string name="vr_controllers_sticks_hint">اضغط على العصوين معًا أثناء VR للتبديل.</string>
+    <string name="vr_controllers_sticks_game">تحريكك داخل اللعبة</string>
+    <string name="vr_controllers_sticks_hands">تحريك اليدين</string>
+    <string name="vr_controllers_buttons">الأزرار</string>
+    <string name="vr_controllers_buttons_stick">تعمل الزنادّات كزنادّات وأزرار الكتف للإمساك، وA/B وX/Y كأزرار أمامية لكل يد. نقر العصوين يضغط عصوي الإبهام، وGuide يفتح قائمة SteamVR. الأعلى والأسفل في لوحة الاتجاهات يقرّبان اليدين أو يبعدانهما.</string>
+    <string name="vr_controllers_buttons_vive">تعمل العصوان كلوحتي لمس؛ يضغط عليهما A/X أو نقر العصا. تعمل الزنادّات كزنادّات وأزرار الكتف للإمساك، وStart وSelect للقائمة، وGuide يفتح قائمة SteamVR.</string>
+    <string name="vr_controllers_buttons_off">بدون أيدي VR. تستقبل الألعاب الداعمة لذراع الألعاب وقائمة SteamVR إدخالاته كالمعتاد.</string>
+    <string name="vr_controllers_index">وحدات تحكم Valve Index</string>
+    <string name="vr_controllers_touch">وحدات تحكم Meta Quest 3</string>
+    <string name="vr_controllers_vive">وحدات تحكم HTC Vive</string>
 </resources>

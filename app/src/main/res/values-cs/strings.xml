@@ -3058,4 +3058,21 @@
     <string name="spatial_saved_views_hint">Uložená zobrazení lze přepočítat. Spusťte novou kalibraci pro zachycení v aktuálním sledovacím souřadnicovém systému.</string>
     <string name="spatial_model_checksum_error">Neshoda kontrolního součtu modelu ruky</string>
     <string name="spatial_opencv_load_error">OpenCV se nepodařilo načíst</string>
+
+    <string name="vr_controllers_tab">Ovladače</string>
+    <string name="vr_controllers_group">Ovladače SteamVR</string>
+    <string name="vr_controllers_emulate">Gamepad ve VR</string>
+    <string name="vr_controllers_emulate_hint">Dvě ruce ve VR, které váš gamepad ovládá. Změny platí okamžitě, i za běhu SteamVR. Joy-Cony a sledované ruce nadále přebírají svou stranu.</string>
+    <string name="vr_controllers_off">Běžný gamepad</string>
+    <string name="vr_controllers_sticks">Výchozí funkce páček</string>
+    <string name="vr_controllers_sticks_hint">Pro přepnutí ve VR stiskněte obě páčky současně.</string>
+    <string name="vr_controllers_sticks_game">Pohyb hráče ve hře</string>
+    <string name="vr_controllers_sticks_hands">Pohyb rukou</string>
+    <string name="vr_controllers_buttons">Tlačítka</string>
+    <string name="vr_controllers_buttons_stick">Spouště fungují jako spouště, ramenní tlačítka slouží k úchopu, A/B a X/Y jsou čelní tlačítka jednotlivých rukou, stisk páček stiskne palcové páčky a Guide otevře nabídku SteamVR. Šipky nahoru a dolů přibližují a oddalují ruce.</string>
+    <string name="vr_controllers_buttons_vive">Páčky fungují jako touchpady; A/X nebo stisk páčky je stiskne. Spouště fungují jako spouště, ramenní tlačítka slouží k úchopu, Start a Select otevírají nabídku a Guide otevře nabídku SteamVR.</string>
+    <string name="vr_controllers_buttons_off">Bez rukou ve VR. Hry podporující gamepad a nabídka SteamVR přijímají vstup z ovladače jako obvykle.</string>
+    <string name="vr_controllers_index">Ovladače Valve Index</string>
+    <string name="vr_controllers_touch">Ovladače Meta Quest 3</string>
+    <string name="vr_controllers_vive">Ovladače HTC Vive</string>
 </resources>
