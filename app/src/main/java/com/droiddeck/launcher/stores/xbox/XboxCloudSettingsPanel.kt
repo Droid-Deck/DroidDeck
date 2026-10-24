@@ -152,6 +152,7 @@ private fun PanelContent(
         Step("Controller rumble", if (settings.rumble == 0) "Off" else "${settings.rumble}%", { onChange(settings.copy(rumble = (settings.rumble - 25).coerceAtLeast(0))) },
             { onChange(settings.copy(rumble = (settings.rumble + 25).coerceAtMost(100))) })
     }
+}
 
 @Composable
 private fun Section(title: String, note: String?, content: @Composable ColumnScope.() -> Unit) {
