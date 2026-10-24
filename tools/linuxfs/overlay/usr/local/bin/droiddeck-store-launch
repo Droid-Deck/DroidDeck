@@ -45,9 +45,23 @@ SIDECAR = ".droiddeck-store.json"
 EPIC_CODE = ".droiddeck-epic-code"
 EPIC_ARGS = ".droiddeck-epic-args"
 EPIC_CLIENT = "/usr/local/bin/droiddeck-epic"
+GAME_ENV = "/usr/local/bin/droiddeck-game-env"
 EPIC_CLIENT_CURRENT = ".local/share/droiddeck-epic/current.json"
 EPIC_HANDLED = "DROIDDECK_EPIC_HANDLED"
 CLIENT_TIMEOUT = 150.0
+PREREQ_MARK = ".droiddeck-prereq"
+PREREQ_TIMEOUT = 900.0
+UBISOFT_STATE = "uplay_install.state"
+UBISOFT_INSTALLER = "uplayinstaller.exe"
+UBISOFT_PRODUCT_FIELD = 28
+UBISOFT_INSTALLS_PATH = "HKEY_LOCAL_MACHINE\\SOFTWARE\\WOW6432Node\\Ubisoft\\Launcher\\Installs\\%d"
+UBISOFT_INSTALLS_SECTION = "[Software\\WOW6432Node\\Ubisoft\\Launcher\\Installs\\%d]"
+UBISOFT_TABLE = ".droiddeck-ubisoft.reg"
+UBISOFT_GAME_PATH = "HKEY_LOCAL_MACHINE\\SOFTWARE\\WOW6432Node\\Ubisoft\\%s"
+UBISOFT_GAME_SECTION = "[Software\\WOW6432Node\\Ubisoft\\%s]"
+UBISOFT_HOOK = ".droiddeck-registry.bat"
+UBISOFT_IMPORT_TIMEOUT = 20.0
+UBISOFT_LOG = ".droiddeck-registry.log"
 TIMEOUT = 5.0
 STALE_SECONDS = 300
 SERVER_WAIT = 8.0
@@ -371,6 +385,185 @@ def provision_galaxy(compat_data, proton, timeout=90):
         return "service-unavailable"
 
 
+def ubisoft_installer(folder):
+    try:
+        names = os.listdir(folder)
+    except OSError:
+        return ""
+    for name in names:
+        if name.lower() == UBISOFT_INSTALLER:
+            return name
+    return ""
+
+
+def install_prereq(folder, sidecar, compat_data, proton):
+    extra = sidecar.get("extra")
+    path = str(extra.get("prereqPath") or "").strip() if isinstance(extra, dict) else ""
+    if not path:
+        path = ubisoft_installer(folder)
+    if not path or not proton or not compat_data:
+        return "skipped"
+    installer = folder / path
+    if not installer.is_file():
+        return "missing"
+    mark = folder / PREREQ_MARK
+    try:
+        if mark.read_text(errors="replace").strip() == path:
+            return "present"
+    except OSError:
+        pass
+    try:
+        run = subprocess.run([proton, "run", "cmd.exe", "/d", "/c", windows_path(str(installer)), "/S"],
+                             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                             stderr=subprocess.DEVNULL, timeout=PREREQ_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        return "timeout"
+    except (OSError, ValueError):
+        return "failed"
+    if run.returncode != 0:
+        return "exit-%d" % run.returncode
+    try:
+        mark.write_text(path)
+    except OSError:
+        pass
+    return "installed"
+
+
+def varint(data, at):
+    value = shift = 0
+    while at < len(data) and shift < 64:
+        byte = data[at]
+        at += 1
+        value |= (byte & 0x7F) << shift
+        if not byte & 0x80:
+            return value, at
+        shift += 7
+    return None, len(data)
+
+
+def uplay_product(folder):
+    """The uplay product id in [folder]'s uplay_install.state (Watch Dogs is 274); nothing else in
+    the install names it before the game has run once."""
+    try:
+        data = (Path(folder) / UBISOFT_STATE).read_bytes()
+    except OSError:
+        return None
+    at = 0
+    while at < len(data):
+        key, at = varint(data, at)
+        if key is None:
+            return None
+        field, wire = key >> 3, key & 7
+        if wire == 0:
+            value, at = varint(data, at)
+            if value is None:
+                return None
+            if field == UBISOFT_PRODUCT_FIELD and value > 0:
+                return value
+        elif wire == 1:
+            at += 8
+        elif wire == 2:
+            size, at = varint(data, at)
+            if size is None:
+                return None
+            at += size
+        elif wire == 5:
+            at += 4
+        else:
+            return None
+    return None
+
+
+def ubisoft_last(folder):
+    """The tail of the previous import's own output: the hook runs inside the game's wine, so its
+    result is only visible on the next launch. Without it a failed import looks like every launch."""
+    try:
+        data = (Path(folder) / UBISOFT_LOG).read_bytes()
+    except OSError:
+        return ""
+    text = data.decode("utf-16-le", "replace") if b"\x00" in data[:64] else data.decode("utf-8", "replace")
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    return " / ".join(lines[-2:])
+
+
+def run_reg_import(proton, table, timeout=UBISOFT_IMPORT_TIMEOUT):
+    """Reg import through droiddeck-game-env: a plain proton client picks the wrong sync pack and
+    trips the server_init_process assertion when the prefix already has a wineserver."""
+    if not proton or not Path(proton).is_file():
+        return "no-proton"
+    try:
+        run = subprocess.run([GAME_ENV, proton, "run", "reg.exe", "import", windows_path(str(table))],
+                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=timeout, text=True)
+    except subprocess.TimeoutExpired:
+        return "timeout"
+    except OSError:
+        return "spawn-failed"
+    if run.returncode == 0:
+        return "ok"
+    return "failed=%d %s" % (run.returncode, " ".join((run.stdout or "").split())[-120:])
+
+
+def ubisoft_game_exe(folder):
+    """Connect starts the binary named by HKLM's Software\\Ubisoft\\<game>\\Exe and answers
+    "Game executable is not found at ." with a folder relocation offer when that key is absent."""
+    try:
+        names = [name for name in os.listdir(Path(folder) / "bin") if name.lower().endswith(".exe")]
+    except OSError:
+        return "", ""
+    if not names:
+        return "", ""
+    game = max(names, key=lambda name: os.path.getsize(Path(folder) / "bin" / name))
+    exe = windows_path(str(Path(folder) / "bin" / game)).replace("\\", "\\\\")
+    return game[:-4], exe
+
+
+def ubisoft_registry(folder, compat_data, product=None, proton=None):
+    """Connect reads HKLM's Installs\\<id>\\InstallDir to tell an installed game from one it still
+    has to download, and answers the launch with an install error when it is missing. The import
+    is attempted here first; when that cannot run, the game's own launcher .bat carries it, since
+    that .bat is rewritten by the app on every launch and cannot be edited in place."""
+    product = product if product is not None else uplay_product(folder)
+    if product is None:
+        return "none"
+    if not compat_data:
+        return "no-prefix"
+    key = UBISOFT_INSTALLS_PATH % product
+    section = UBISOFT_INSTALLS_SECTION % product
+    game, exe = ubisoft_game_exe(folder)
+    game_section = UBISOFT_GAME_SECTION % game if game else ""
+    try:
+        existing = (Path(compat_data) / "pfx" / "system.reg").read_text(errors="replace")
+    except OSError:
+        existing = ""
+    existing = existing.replace("\\\\", "\\")
+    if section in existing and (not game_section or game_section in existing):
+        return "ready"
+    previous = ubisoft_last(folder)
+    if previous:
+        log("ubisoft last: " + previous)
+    table = folder / UBISOFT_TABLE
+    entries = ["[%s]\r\n\"InstallDir\"=\"%s\"\r\n" % (
+        key, windows_path(str(folder).rstrip("/")).replace("\\", "\\\\"))]
+    if game:
+        entries.append("[%s]\r\n\"Exe\"=\"%s\"\r\n" % (UBISOFT_GAME_PATH % game, exe))
+    text = "Windows Registry Editor Version 5.00\r\n\r\n" + "\r\n".join(entries)
+    try:
+        table.write_bytes(b"\xff\xfe" + text.encode("utf-16-le"))
+    except (OSError, UnicodeError):
+        return "no-table"
+    imported = run_reg_import(proton, table)
+    if imported == "ok":
+        return "written=%d game=%s" % (product, game or "-")
+    hook = folder / UBISOFT_HOOK
+    body = ('@echo off\r\n"%%SystemRoot%%\\system32\\reg.exe" import "%%~dp0%s" > "%%~dp0%s" 2>&1\r\n'
+            'echo exit=%%ERRORLEVEL%%>> "%%~dp0%s"\r\n') % (UBISOFT_TABLE, UBISOFT_LOG, UBISOFT_LOG)
+    try:
+        hook.write_bytes(body.encode("utf-8"))
+    except OSError:
+        return "import-" + imported
+    return "import-%s hook=scheduled" % imported
+
+
 def prepare_gog(sidecar, compat_data, launch_dir):
     if not launch_dir:
         log("gog achievements unavailable: no-channel")
@@ -523,6 +716,10 @@ def main(argv):
         made = create_prefix(compat_data, os.environ.get("BL_STORE_PROTON", ""))
         if made != "present":
             log("cloud %s %s prefix=%s" % (store, game, made))
+    uplay = uplay_product(folder)
+    if uplay is not None:
+        log("ubisoft install: %s" % ubisoft_registry(folder, compat_data, uplay, os.environ.get("BL_STORE_PROTON", "")))
+        log("ubisoft prereq=%s" % install_prereq(folder, sidecar, compat_data, os.environ.get("BL_STORE_PROTON", "")))
     if store == "gog":
         prepare_gog(sidecar, compat_data, launch_dir)
         log("gog registry: " + apply_gog_registry(folder, compat_data, os.environ.get("BL_STORE_PROTON", "")))
@@ -538,6 +735,8 @@ def main(argv):
         client = None
         if handled:
             client = "ok"
+        elif uplay is not None:
+            log("epic launch id=%s client=skipped ubisoft=%d" % (game, uplay))
         elif choice["eos"] and not choice["offline"] and client_wanted():
             client = through_client(folder, sidecar)
             log("epic launch id=%s client=%s" % (game, client))
