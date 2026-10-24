@@ -148,6 +148,51 @@ def skip_red_launcher(command):
     return command
 
 
+UBISOFT_LAUNCHER = "drive_c/Program Files (x86)/Ubisoft/Ubisoft Game Launcher"
+UBISOFT_SETTINGS = "drive_c/users/steamuser/AppData/Local/Ubisoft Game Launcher/settings.yaml"
+
+
+def overlay_off(text):
+    lines = text.splitlines()
+    try:
+        start = lines.index("overlay:")
+    except ValueError:
+        if lines and not lines[-1].strip():
+            lines.pop()
+        return "\n".join(lines + ["overlay:", "  enabled: false", "  warning_enabled: false"]) + "\n"
+    end = start + 1
+    while end < len(lines) and lines[end].startswith("  "):
+        end += 1
+    block = lines[start + 1:end]
+    for key in ("enabled", "warning_enabled"):
+        entry = "  %s: false" % key
+        found = [i for i, line in enumerate(block) if line.split(":", 1)[0] == "  " + key]
+        if found:
+            block[found[0]] = entry
+        else:
+            block.append(entry)
+    return "\n".join(lines[:start + 1] + block + lines[end:]) + "\n"
+
+
+def ubisoft_overlay_off(env):
+    prefix = Path(env.get("STEAM_COMPAT_DATA_PATH", "/nonexistent")) / "pfx"
+    if not (prefix / UBISOFT_LAUNCHER).is_dir():
+        return
+    settings = prefix / UBISOFT_SETTINGS
+    try:
+        text = settings.read_text(encoding="utf-8") if settings.exists() else ""
+        updated = overlay_off(text)
+        if updated == text:
+            return
+        settings.parent.mkdir(parents=True, exist_ok=True)
+        staged = settings.with_name(settings.name + ".tmp")
+        staged.write_text(updated, encoding="utf-8")
+        staged.replace(settings)
+        print("droiddeck-game-env: Ubisoft Connect overlay turned off", file=sys.stderr)
+    except (OSError, UnicodeDecodeError) as error:
+        print("droiddeck-game-env: Ubisoft Connect overlay left as is (%s)" % error, file=sys.stderr)
+
+
 def offline_without_anticheat(command, env):
     """Start the configured game executable when the player opts into launching without EAC."""
     if (env.get("DROIDDECK_ANTICHEAT_OFFLINE") != "1" or len(command) <= 2
@@ -464,6 +509,7 @@ def main():
         fixes = {}
         if waiting:
             command = skip_red_launcher(command)
+            ubisoft_overlay_off(env)
             fixes, extra, notes = engine_fixes(command[2], command[3:]) if len(command) > 2 else ({}, [], [])
             for note in notes:
                 print("droiddeck-game-env: " + note, file=sys.stderr)

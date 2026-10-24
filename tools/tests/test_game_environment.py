@@ -1216,6 +1216,39 @@ class DirectAudioPrefixTest(unittest.TestCase):
         self.assertIsNone(self.link("system32"))
 
 
+class UbisoftOverlayTest(unittest.TestCase):
+    SETTINGS = (
+        "language:\n  code: en-US\n"
+        "overlay:\n  enabled: true\n  forceunhookgame: false\n  fps_enabled: false\n  warning_enabled: true\n"
+        "patchTrigger:\n  source: USER_RESTART\n"
+    )
+
+    def test_the_overlay_and_its_prompt_are_turned_off_and_the_rest_is_kept(self):
+        got = MODULE["overlay_off"](self.SETTINGS)
+        self.assertEqual(got, self.SETTINGS.replace("enabled: true", "enabled: false"))
+        self.assertEqual(MODULE["overlay_off"](got), got)
+
+    def test_missing_keys_or_section_are_added(self):
+        self.assertEqual(MODULE["overlay_off"]("overlay:\n  fps_enabled: true\nmisc:\n  a: 1\n"),
+                         "overlay:\n  fps_enabled: true\n  enabled: false\n  warning_enabled: false\nmisc:\n  a: 1\n")
+        self.assertEqual(MODULE["overlay_off"](""), "overlay:\n  enabled: false\n  warning_enabled: false\n")
+
+    def test_only_prefixes_with_ubisoft_connect_are_touched(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            prefix = Path(tmp) / "447040/pfx"
+            env = {"STEAM_COMPAT_DATA_PATH": str(prefix.parent)}
+            settings = prefix / MODULE["UBISOFT_SETTINGS"]
+            prefix.mkdir(parents=True)
+            MODULE["ubisoft_overlay_off"](env)
+            self.assertFalse(settings.exists())
+            (prefix / MODULE["UBISOFT_LAUNCHER"]).mkdir(parents=True)
+            MODULE["ubisoft_overlay_off"](env)
+            self.assertEqual(settings.read_text(), "overlay:\n  enabled: false\n  warning_enabled: false\n")
+            settings.write_text(self.SETTINGS)
+            MODULE["ubisoft_overlay_off"](env)
+            self.assertEqual(settings.read_text(), self.SETTINGS.replace("enabled: true", "enabled: false"))
+
+
 if __name__ == "__main__":
     unittest.main()
 
