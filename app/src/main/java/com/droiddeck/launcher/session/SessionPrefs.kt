@@ -799,6 +799,29 @@ object SessionPrefs {
             ?: first.also { p.edit().putLong("addedAppId:$folderPath", it).apply() }
     }
 
+    /** Moves every per-folder record of an added game to its new location after the folder moves. */
+    fun migrateAddedGameFolder(context: Context, from: String, to: String) = synchronized(addedGameLock) {
+        val p = prefs(context)
+        val moved = movedAddedGame(p.all, from, to)
+        val edit = p.edit()
+        moved.keys.forEach { edit.remove(it) }
+        moved.values.forEach { (name, value) ->
+            when (value) {
+                is String -> edit.putString(name, value)
+                is Long -> edit.putLong(name, value)
+                is Int -> edit.putInt(name, value)
+                is Boolean -> edit.putBoolean(name, value)
+                is Float -> edit.putFloat(name, value)
+            }
+        }
+        edit.apply()
+        val binds = gameFolderBinds(context)
+        if (binds.any { it.first == from }) setGameFolderBinds(context, binds.map { (host, guest) -> if (host == from) to to guest else host to guest })
+        val removed = removedAddedGames(context)
+        if (from in removed) prefs(context).edit()
+            .putString("removedAddedGames", removed.map { if (it == from) to else it }.joinToString("\n")).apply()
+    }
+
     fun theme(context: Context): String = prefs(context).getString("theme", "graphite") ?: "graphite"
 
     fun setTheme(context: Context, id: String) {

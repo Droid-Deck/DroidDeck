@@ -74,11 +74,17 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.droiddeck.launcher.R
+import com.droiddeck.launcher.files.InAppFilePicker
+import com.droiddeck.launcher.files.StorageRoots
+import com.droiddeck.launcher.frontend.AddedGames
+import com.droiddeck.launcher.session.GameStorage
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.storage.Bucket
 import com.droiddeck.launcher.storage.CleanItem
 import com.droiddeck.launcher.storage.ComponentUsage
 import com.droiddeck.launcher.storage.GameUsage
+import com.droiddeck.launcher.storage.AddedGameMove
+import com.droiddeck.launcher.storage.AddedGameUsage
 import com.droiddeck.launcher.storage.StorageReport
 import com.droiddeck.launcher.storage.StorageState
 import com.droiddeck.launcher.storage.ToolReason
@@ -127,6 +133,7 @@ internal fun StoragePanel(s: FrontEndState, a: FrontEndActions) {
         return
     }
     if (cleanup) CleanUpDialog(report, s.sessionRunning) { cleanup = false }
+    AddedGameMoveDialog()
     val top = remember { androidx.compose.foundation.relocation.BringIntoViewRequester() }
     LaunchedEffect(view) {
         StorageState.lastFreed = null
@@ -448,6 +455,30 @@ private fun GamesView(report: StorageReport, sessionRunning: Boolean, a: FrontEn
     val pal = LocalPalette.current
     var sort by rememberSaveable { mutableStateOf(0) }
     var confirm by remember { mutableStateOf<GameUsage?>(null) }
+    val ctx = LocalContext.current
+    var moveAdded by remember { mutableStateOf<AddedGameUsage?>(null) }
+    var pickAddedTarget by remember { mutableStateOf<AddedGameUsage?>(null) }
+    val pickAddedFolder = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val game = pickAddedTarget
+        pickAddedTarget = null
+        if (result.resultCode != Activity.RESULT_OK || game == null) return@rememberLauncherForActivityResult
+        val path = InAppFilePicker.pickedPath(result.data)?.takeIf { it.isNotBlank() }
+            ?: return@rememberLauncherForActivityResult
+        moveAdded = null
+        AddedGameMove.start(ctx, game.folder, game.name, File(path)) { a.onLibraryChanged() }
+    }
+    fun chooseAddedFolder(game: AddedGameUsage) {
+        pickAddedTarget = game
+        val initial = game.folder.takeIf { it.path.startsWith("/storage/") }?.parentFile?.path
+            ?: GameStorage.effective(ctx)?.path
+            ?: StorageRoots.list(ctx).firstOrNull { it.removable && it.readable }?.dir?.absolutePath
+            ?: Environment.getExternalStorageDirectory()?.absolutePath
+        pickAddedFolder.launch(InAppFilePicker.buildDirIntent(ctx, ctx.getString(R.string.storage_move_choose_folder), initial))
+    }
+    fun beginAddedMove(game: AddedGameUsage, target: File) {
+        moveAdded = null
+        AddedGameMove.start(ctx, game.folder, game.name, target) { a.onLibraryChanged() }
+    }
     val games = when (sort) {
         1 -> report.games.sortedBy { if (it.lastPlayed == 0L) Long.MIN_VALUE else it.lastPlayed }
         2 -> report.games.filter { !it.internal }
@@ -499,6 +530,36 @@ private fun GamesView(report: StorageReport, sessionRunning: Boolean, a: FrontEn
     }
     Spacer(Modifier.height(8.dp))
     Note(stringResource(R.string.storage_games_note))
+    val added = report.addedGames
+    if (added.isNotEmpty()) {
+        Spacer(Modifier.height(8.dp))
+        Text(
+            stringResource(R.string.storage_added_games, gb(added.sumOf { it.bytes })),
+            fontSize = 20.sp, fontWeight = FontWeight.Bold, color = colors.onBackground,
+            modifier = Modifier.padding(top = 6.dp, bottom = 8.dp),
+        )
+        Column(Modifier.fillMaxWidth().clip(Shape14).background(colors.surface).border(1.dp, pal.line, Shape14)) {
+            added.forEachIndexed { i, g ->
+                Row(
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp),
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(g.name, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(g.folder.path, fontSize = 12.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    Text(gb(g.bytes), fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, modifier = Modifier.widthIn(min = 72.dp))
+                    SecondaryButton(
+                        stringResource(R.string.storage_move), compact = true,
+                        enabled = !sessionRunning && !StorageState.cleaning && !StorageState.scanning && AddedGameMove.status == null,
+                    ) { moveAdded = g }
+                }
+                if (i < added.lastIndex) Box(Modifier.fillMaxWidth().height(1.dp).background(pal.line))
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        Note(stringResource(R.string.storage_added_games_hint))
+    }
     confirm?.let { g ->
         // steam://uninstall reaches only the session's client, the selected one.
         val otherClient = g.x64 != (SessionPrefs.steamClientArch(LocalContext.current) == "x86_64")
@@ -523,10 +584,147 @@ private fun GamesView(report: StorageReport, sessionRunning: Boolean, a: FrontEn
             },
         )
     }
+    moveAdded?.let { g ->
+        AddedMoveGameDialog(
+            folder = g.folder,
+            name = g.name,
+            onDismiss = { moveAdded = null },
+            onMove = { target -> beginAddedMove(g, target) },
+            onChooseFolder = { chooseAddedFolder(g) },
+        )
+    }
 }
 
 @Composable
 private fun gameName(g: GameUsage): String = if (g.x64) stringResource(R.string.storage_game_x64, g.name) else g.name
+
+// Shared with the Steam move dialog once it lands; kept local so this part stands alone.
+private data class MoveOption(val label: String, val root: File, val detail: String? = null)
+
+@Composable
+private fun AddedMoveGameDialog(
+    folder: File,
+    name: String,
+    onDismiss: () -> Unit,
+    onMove: (File) -> Unit,
+    onChooseFolder: () -> Unit,
+) {
+    val ctx = LocalContext.current
+    val colors = MaterialTheme.colorScheme
+    fun samePath(a: File?, b: File?): Boolean = a != null && b != null && runCatching { a.canonicalPath == b.canonicalPath }
+        .getOrDefault(a.absolutePath == b.absolutePath)
+    val options = ArrayList<MoveOption>()
+    for (volume in GameStorage.options(ctx)) {
+        val root = File(volume.path.substringBefore("/Android/"))
+        if (root.isDirectory && !samePath(folder, root) && options.none { samePath(it.root, root) }) {
+            options.add(MoveOption(volume.name, root, root.path))
+        }
+    }
+    val drives = remember { StorageRoots.list(ctx).filter { it.removable && it.readable } }
+    for (drive in drives) {
+        if (!samePath(folder, drive.dir) && options.none { samePath(it.root, drive.dir) }) {
+            options.add(MoveOption(drive.label, drive.dir, drive.dir.path))
+        }
+    }
+    for (root in AddedGames.roots(ctx)) {
+        if (root.host.isDirectory && !samePath(folder, root.host) && options.none { samePath(it.root, root.host) }) {
+            options.add(MoveOption(GameStorage.labelFor(ctx, root.host.path), root.host, root.host.path))
+        }
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.storage_move_title, name)) },
+        text = {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(stringResource(R.string.storage_added_games_hint), fontSize = 13.sp, color = colors.onSurfaceVariant)
+                options.forEach { option ->
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        SecondaryButton(option.label, compact = true, modifier = Modifier.fillMaxWidth()) { onMove(option.root) }
+                        option.detail?.let {
+                            Text(
+                                it, fontSize = 11.sp, color = colors.onSurfaceVariant, maxLines = 1,
+                                overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 4.dp),
+                            )
+                        }
+                    }
+                }
+                SecondaryButton(
+                    stringResource(R.string.storage_move_choose_folder), compact = true,
+                    modifier = Modifier.fillMaxWidth(),
+                ) { onChooseFolder() }
+                Text(stringResource(R.string.storage_move_choose_hint), fontSize = 12.sp, color = colors.onSurfaceVariant)
+            }
+        },
+        confirmButton = {
+            val cancel = remember { FocusRequester() }
+            LaunchedEffect(Unit) { runCatching { cancel.requestFocus() } }
+            FocusText(
+                stringResource(R.string.common_cancel), colors.onBackground,
+                modifier = Modifier.focusRequester(cancel), onClick = onDismiss,
+            )
+        },
+    )
+}
+
+@Composable
+private fun AddedGameMoveDialog() {
+    val s = AddedGameMove.status ?: return
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    val view = LocalView.current
+    DisposableEffect(s.done, s.error) {
+        val keep = !s.done && s.error == null
+        val previous = view.keepScreenOn
+        if (keep) view.keepScreenOn = true
+        onDispose { if (keep) view.keepScreenOn = previous }
+    }
+    AlertDialog(
+        onDismissRequest = { AddedGameMove.dismiss() },
+        title = {
+            Text(
+                when {
+                    s.done -> stringResource(R.string.storage_move_done_title, s.name)
+                    s.error != null -> stringResource(R.string.storage_move_title, s.name)
+                    else -> stringResource(R.string.storage_move_progress_title, s.name)
+                },
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                when {
+                    s.error != null -> {
+                        Text(s.error, fontSize = 14.sp, color = colors.error)
+                        Text(s.target.path, fontSize = 12.sp, color = colors.onSurfaceVariant)
+                    }
+                    s.done -> {
+                        Text(stringResource(R.string.storage_move_done_body), fontSize = 14.sp, color = colors.onBackground)
+                        Text(s.target.path, fontSize = 12.sp, color = colors.onSurfaceVariant)
+                    }
+                    else -> {
+                        val fraction = if (s.total > 0) (s.copied.toFloat() / s.total).coerceIn(0f, 1f) else 0f
+                        LinearProgressIndicator(progress = { fraction }, modifier = Modifier.fillMaxWidth().height(6.dp))
+                        Text(
+                            stringResource(R.string.storage_move_progress_detail, gb(s.copied), gb(s.total)),
+                            fontSize = 13.sp, color = colors.onSurfaceVariant,
+                        )
+                        Text(stringResource(R.string.storage_move_progress_hint), fontSize = 13.sp, color = colors.onSurfaceVariant)
+                        Text(s.target.path, fontSize = 12.sp, color = colors.onSurfaceVariant)
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            if (s.done || s.error != null) {
+                FocusText(stringResource(R.string.common_ok), if (s.error != null) colors.error else pal.signal) {
+                    AddedGameMove.dismiss()
+                }
+            }
+        },
+    )
+}
 
 @Composable
 private fun ToolsView(report: StorageReport, sessionRunning: Boolean, onBack: () -> Unit) {
