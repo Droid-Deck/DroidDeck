@@ -178,6 +178,7 @@
     <string name="session_end_program">このプログラム</string>
     <string name="session_end_steam_download">Steamクライアントをダウンロードできませんでした。ネットワークまたはVPNがSteamのサーバーをブロックしている可能性があります。接続を確認して、もう一度お試しください。</string>
     <string name="session_end_steam_setup">Steamクライアントをセットアップできませんでした。接続と空き容量を確認して、もう一度お試しください。</string>
+    <string name="session_end_runtime_driver">選択したLinuxランタイムドライバーが見つからないか、この端末では使用できません。%1$s › %2$sで別のドライバーを選んでから、もう一度開始してください。</string>
     <string name="session_end_fex_missing">%1$sはx86 PC向けにビルドされており、FEX経由で実行されますが、FEXはまだインストールされていません。ログインした状態で一度Steamを起動し、FEXとSteam Linux Runtimeをダウンロードしてから、もう一度起動してください。</string>
     <string name="add_app_flatpak_hint">FlathubアプリIDまたはそのFlathubページ。Flatpakがまだセットアップされていない場合は、先にセットアップします。</string>
     <string name="add_app_file">ファイル</string>

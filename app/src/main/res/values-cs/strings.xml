@@ -178,6 +178,7 @@
     <string name="session_end_program">Tento program</string>
     <string name="session_end_steam_download">Klienta Steam se nepodařilo stáhnout. Vaše síť nebo VPN možná blokuje servery Steamu; zkontrolujte připojení a zkuste to znovu.</string>
     <string name="session_end_steam_setup">Klienta Steam se nepodařilo nastavit. Zkontrolujte připojení a volné místo a zkuste to znovu.</string>
+    <string name="session_end_runtime_driver">Vybraný ovladač runtime Linuxu chybí nebo jej v tomto telefonu nelze použít. Vyberte jiný v %1$s › %2$s a spusťte znovu.</string>
     <string name="session_end_fex_missing">%1$s je sestaven pro PC x86 a běží přes FEX, který ještě není nainstalován. Jednou spusťte přihlášený Steam a nechte ho stáhnout FEX a Steam Linux Runtime, pak to spusťte znovu.</string>
     <string name="add_app_flatpak_hint">ID aplikace Flathub nebo její stránka na Flathub. Flatpak se nejprve nastaví, pokud ještě není.</string>
     <string name="add_app_file">Soubor</string>

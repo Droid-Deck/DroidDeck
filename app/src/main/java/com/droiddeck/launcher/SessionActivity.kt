@@ -1935,8 +1935,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             }
             return
         }
+        val driverHint = runtimeDriverHint()
         Thread({
-            val hint = runtimeDamageHint() ?: sessionEndHint(SessionState.logFile)
+            val hint = driverHint ?: runtimeDamageHint() ?: sessionEndHint(SessionState.logFile)
             runOnUiThread {
                 if (isFinishing || isDestroyed) return@runOnUiThread
                 showEnded(status, hint)
@@ -1989,6 +1990,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private class EndHint(val text: String, val evenOnSuccess: Boolean = false, val repair: Boolean = false)
+
+    private fun runtimeDriverHint(): EndHint? {
+        if (SessionState.failureCode != SessionService.FAILURE_RUNTIME_DRIVER) return null
+        val message = getString(R.string.session_end_runtime_driver, getString(R.string.gpu_mode_mix), getString(R.string.gpu_change_runtime))
+        return EndHint(listOfNotNull(message, SessionState.failureMessage?.takeIf { it.isNotBlank() }).joinToString("\n"))
+    }
 
     private fun runtimeDamageHint(): EndHint? {
         val broken = runCatching { com.droiddeck.launcher.runtime.RuntimeHealth.brokenLibraryLinks(this) }.getOrDefault(emptyList())

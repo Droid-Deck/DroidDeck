@@ -360,7 +360,15 @@ class SessionService : Service() {
         acquireLocks()
         Thread({
             OrphanReaper.reap("session starting")
-            runSession(gen)
+            try {
+                runSession(gen)
+            } catch (e: com.droiddeck.launcher.gpu.QualcommSystemDriver.Unavailable) {
+                Log.e(TAG, "runtime driver unavailable", e)
+                if (gen == sessionGen) {
+                    SessionEvents.fail(FAILURE_RUNTIME_DRIVER, e.message.orEmpty())
+                    stopSession(-1)
+                }
+            }
         }, "session-start").start()
         return START_NOT_STICKY
     }
@@ -1988,6 +1996,7 @@ class SessionService : Service() {
         const val MODE_STEAM = "steam"
         const val MODE_DESKTOP = "lxqt"
         const val MODE_RUN = "run"
+        const val FAILURE_RUNTIME_DRIVER = "RUNTIME_DRIVER_UNAVAILABLE"
         const val EXTRA_PROGRAM = "program"
         private const val RUN_STATUS = "run-status"
         const val EXTRA_PROGRAM_ARGS = "programArgs"

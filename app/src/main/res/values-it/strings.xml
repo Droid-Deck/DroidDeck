@@ -178,6 +178,7 @@
     <string name="session_end_program">Questo programma</string>
     <string name="session_end_steam_download">Impossibile scaricare il client Steam. La rete o la VPN potrebbe bloccare i server di Steam; controlla la connessione e riprova.</string>
     <string name="session_end_steam_setup">Impossibile configurare il client Steam. Controlla la connessione e lo spazio libero, poi riprova.</string>
+    <string name="session_end_runtime_driver">Il driver del runtime Linux selezionato manca o non può essere usato su questo telefono. Scegline un altro in %1$s › %2$s, poi riavvia.</string>
     <string name="session_end_fex_missing">%1$s è compilato per PC x86 e viene eseguito tramite FEX, che non è ancora installato. Avvia Steam una volta dopo aver eseguito l\'accesso e lascia che scarichi FEX e lo Steam Linux Runtime, poi riavvia il programma.</string>
     <string name="add_app_flatpak_hint">Un ID app di Flathub o la sua pagina su Flathub. Se manca, Flatpak viene prima configurato.</string>
     <string name="add_app_file">File</string>

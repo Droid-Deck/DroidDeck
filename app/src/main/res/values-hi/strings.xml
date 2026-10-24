@@ -178,6 +178,7 @@
     <string name="session_end_program">यह प्रोग्राम</string>
     <string name="session_end_steam_download">Steam क्लाइंट डाउनलोड नहीं हो सका। हो सकता है आपका नेटवर्क या VPN Steam के सर्वर ब्लॉक कर रहा हो; कनेक्शन जांचें और फिर से कोशिश करें।</string>
     <string name="session_end_steam_setup">Steam क्लाइंट सेट अप नहीं हो सका। कनेक्शन और खाली स्टोरेज जांचें, फिर से कोशिश करें।</string>
+    <string name="session_end_runtime_driver">चुना गया Linux रनटाइम ड्राइवर मौजूद नहीं है या इस फ़ोन पर इस्तेमाल नहीं हो सकता। %1$s › %2$s में कोई दूसरा चुनें, फिर से शुरू करें।</string>
     <string name="session_end_fex_missing">%1$s x86 पीसी के लिए बना है और FEX के ज़रिए चलता है, जो अभी इंस्टॉल नहीं है। साइन इन रहते हुए Steam एक बार शुरू करें और इसे FEX और Steam Linux Runtime डाउनलोड करने दें, फिर इसे फिर से शुरू करें।</string>
     <string name="add_app_flatpak_hint">एक Flathub ऐप ID या उसका Flathub पेज। अगर Flatpak अभी सेट नहीं है, तो पहले वह सेट होगा।</string>
     <string name="add_app_file">फ़ाइल</string>

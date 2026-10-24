@@ -178,6 +178,7 @@
     <string name="session_end_program">Chương trình này</string>
     <string name="session_end_steam_download">Không thể tải xuống client Steam. Mạng hoặc VPN của bạn có thể đang chặn máy chủ Steam; hãy kiểm tra kết nối rồi thử lại.</string>
     <string name="session_end_steam_setup">Không thể thiết lập client Steam. Hãy kiểm tra kết nối và dung lượng trống rồi thử lại.</string>
+    <string name="session_end_runtime_driver">Driver runtime Linux đã chọn bị thiếu hoặc không dùng được trên điện thoại này. Hãy chọn driver khác trong %1$s › %2$s rồi khởi động lại.</string>
     <string name="session_end_fex_missing">%1$s được build cho PC x86 và chạy qua FEX, hiện chưa được cài. Khởi động Steam một lần khi đã đăng nhập và để nó tải FEX cùng Steam Linux Runtime, sau đó khởi động lại ứng dụng này.</string>
     <string name="add_app_flatpak_hint">Một app ID Flathub hoặc trang Flathub của nó. Flatpak sẽ được thiết lập trước nếu chưa có.</string>
     <string name="add_app_file">Tệp</string>

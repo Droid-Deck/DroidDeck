@@ -178,6 +178,7 @@
     <string name="session_end_program">Program ini</string>
     <string name="session_end_steam_download">Tidak dapat memuat turun klien Steam. Rangkaian atau VPN anda mungkin menyekat pelayan Steam; semak sambungan dan cuba lagi.</string>
     <string name="session_end_steam_setup">Tidak dapat menyediakan klien Steam. Semak sambungan dan ruang storan kosong, kemudian cuba lagi.</string>
+    <string name="session_end_runtime_driver">Pemacu masa jalan Linux yang dipilih tiada atau tidak boleh digunakan pada telefon ini. Pilih yang lain di %1$s › %2$s, kemudian mulakan semula.</string>
     <string name="session_end_fex_missing">%1$s dibina untuk PC x86 dan berjalan melalui FEX, yang belum dipasang lagi. Mulakan Steam sekali semasa anda log masuk dan biarkan ia memuat turun FEX dan Steam Linux Runtime, kemudian mulakan ini semula.</string>
     <string name="add_app_flatpak_hint">ID apl Flathub atau halaman Flathubnya. Flatpak akan disediakan dahulu jika belum lagi.</string>
     <string name="add_app_file">Fail</string>

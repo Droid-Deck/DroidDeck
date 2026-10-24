@@ -66,8 +66,19 @@ class QualcommDriverPackageTest {
         assertNull(QualcommDriverPackage.importedId("qualcomm-adrenotools:../escape"))
         assertNull(QualcommDriverPackage.importedId("qualcomm-adrenotools:/absolute"))
         assertNull(QualcommDriverPackage.importedId("qualcomm-adrenotools:a:b"))
-        assertThrows(IllegalStateException::class.java) { QualcommDriverPackage.mounts(context, runtimeId) }
-        assertThrows(IllegalStateException::class.java) { LinuxVulkanDriver.resolveIcdPath(context, runtimeId) }
+        assertThrows(QualcommSystemDriver.Unavailable::class.java) { QualcommDriverPackage.mounts(context, runtimeId) }
+        assertThrows(QualcommSystemDriver.Unavailable::class.java) { LinuxVulkanDriver.resolveIcdPath(context, runtimeId) }
+        val error = assertThrows(QualcommSystemDriver.Unavailable::class.java) {
+            QualcommSystemDriver.addEnvironment(context, ArrayList(), runtimeId)
+        }
+        assertEquals("The selected Qualcomm AdrenoTools package is missing or incompatible", error.message)
+    }
+
+    @Test fun aPhoneWithoutTheQualcommDriverReportsTheSystemDriverUnavailable() {
+        assertThrows(QualcommSystemDriver.Unavailable::class.java) { QualcommSystemDriver.prepare(context) }
+        assertThrows(QualcommSystemDriver.Unavailable::class.java) {
+            LinuxVulkanDriver.resolveIcdPath(context, QualcommSystemDriver.ID)
+        }
     }
 
     private fun install(vendor: String = "Qualcomm", minApi: Int = 28) {

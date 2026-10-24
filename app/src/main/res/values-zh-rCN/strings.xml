@@ -178,6 +178,7 @@
     <string name="session_end_program">此程序</string>
     <string name="session_end_steam_download">无法下载 Steam 客户端。你的网络或 VPN 可能屏蔽了 Steam 的服务器；请检查网络连接后重试。</string>
     <string name="session_end_steam_setup">无法设置 Steam 客户端。请检查网络连接和可用存储空间，然后重试。</string>
+    <string name="session_end_runtime_driver">所选的 Linux 运行时驱动缺失或无法在此手机上使用。请在 %1$s › %2$s 中选择其他驱动，然后重新启动。</string>
     <string name="session_end_fex_missing">%1$s 面向 x86 PC 构建，需经由 FEX 运行，而 FEX 尚未安装。请在登录状态下启动一次 Steam，让其下载 FEX 与 Steam Linux Runtime，然后重新启动。</string>
     <string name="add_app_flatpak_hint">一个 Flathub 应用 ID 或其 Flathub 页面。若尚未配置 Flatpak 会先进行配置。</string>
     <string name="add_app_file">文件</string>

@@ -43,7 +43,7 @@ public final class LinuxVulkanDriver {
         if (value == null || value.isEmpty()) return null;
         if (QualcommSystemDriver.handles(value)) {
             if (QualcommDriverPackage.isRuntimeId(value) && !QualcommDriverPackage.isInstalled(context, value))
-                throw new IllegalStateException("The selected Qualcomm AdrenoTools package is missing or incompatible");
+                throw new QualcommSystemDriver.Unavailable("The selected Qualcomm AdrenoTools package is missing or incompatible");
             return QualcommSystemDriver.prepare(context).getAbsolutePath();
         }
         LinuxVulkanDriverManager m = new LinuxVulkanDriverManager(context);

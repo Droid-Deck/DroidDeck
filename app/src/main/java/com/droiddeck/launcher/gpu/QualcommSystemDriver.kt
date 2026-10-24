@@ -9,7 +9,13 @@ import com.droiddeck.launcher.session.SessionPrefs
 import org.json.JSONObject
 import java.io.File
 
+internal inline fun ensureAvailable(condition: Boolean, message: () -> String) {
+    if (!condition) throw QualcommSystemDriver.Unavailable(message())
+}
+
 object QualcommSystemDriver {
+    class Unavailable(message: String) : IllegalStateException(message)
+
     const val ID = "system-qualcomm"
     const val HAL = "/vendor/lib64/hw/vulkan.adreno.so"
     private val required = listOf("lib/libhybris-vulkan-icd.so.0", "lib/libhybris-common.so.1", "lib/libhybris/linker/q.so",
@@ -43,26 +49,26 @@ object QualcommSystemDriver {
     }
 
     @JvmStatic @Synchronized fun prepare(context: Context): File {
-        check(detected()) { "The installed Vulkan driver is not a supported Qualcomm Android driver" }
+        ensureAvailable(detected()) { "The installed Vulkan driver is not a supported Qualcomm Android driver" }
         val sha = BuildConfig.QUALCOMM_BRIDGE_SHA256 + "-" + BuildConfig.QUALCOMM_FIXES_REVISION.take(16)
         val root = File(context.filesDir, "qualcomm-system")
         val dir = File(root, sha)
         if (!File(dir, ".complete").isFile || required.any { !File(dir, it).isFile }) {
             val staging = File(root, "$sha.partial")
             FileUtils.delete(staging)
-            check(TarZst.extractAsset(context, "qualcomm/runtime.tzst", staging)) { "Cannot extract the Qualcomm Vulkan bridge" }
+            ensureAvailable(TarZst.extractAsset(context, "qualcomm/runtime.tzst", staging)) { "Cannot extract the Qualcomm Vulkan bridge" }
             val gamescope = File(staging, "bin/gamescope")
             gamescope.parentFile!!.mkdirs()
-            check(FileUtils.copyAsset(context, "qualcomm/gamescope", gamescope)) { "Cannot prepare Qualcomm Gamescope" }
-            check(gamescope.setExecutable(true, false)) { "Cannot prepare Qualcomm Gamescope" }
+            ensureAvailable(FileUtils.copyAsset(context, "qualcomm/gamescope", gamescope)) { "Cannot prepare Qualcomm Gamescope" }
+            ensureAvailable(gamescope.setExecutable(true, false)) { "Cannot prepare Qualcomm Gamescope" }
             copyAssets(context, "qualcomm/wsi", File(staging, "wsi"))
             copyAssets(context, "qualcomm/shaders", File(staging, "shaders"))
             copyAssets(context, "qualcomm/licenses", File(staging, "licenses"))
             copyAssets(context, "qualcomm/mesa", File(staging, "mesa"))
-            check(required.all { File(staging, it).isFile }) { "The Qualcomm Vulkan bridge is incomplete" }
+            ensureAvailable(required.all { File(staging, it).isFile }) { "The Qualcomm Vulkan bridge is incomplete" }
             File(staging, ".complete").writeText(sha)
             FileUtils.delete(dir)
-            check(staging.renameTo(dir)) { "Cannot install the Qualcomm Vulkan bridge" }
+            ensureAvailable(staging.renameTo(dir)) { "Cannot install the Qualcomm Vulkan bridge" }
         }
         val manifest = JSONObject().put("file_format_version", "1.0.0").put("ICD", JSONObject()
             .put("library_path", File(dir, "lib/libhybris-vulkan-icd.so.0").path)
@@ -73,7 +79,7 @@ object QualcommSystemDriver {
     }
 
     @JvmStatic @JvmOverloads fun addEnvironment(context: Context, environment: MutableList<String>, id: String = SessionPrefs.linuxDriver(context)) {
-        if (QualcommDriverPackage.isRuntimeId(id)) check(QualcommDriverPackage.isInstalled(context, id)) {
+        if (QualcommDriverPackage.isRuntimeId(id)) ensureAvailable(QualcommDriverPackage.isInstalled(context, id)) {
             "The selected Qualcomm AdrenoTools package is missing or incompatible"
         }
         val icd = prepare(context)
@@ -99,9 +105,9 @@ object QualcommSystemDriver {
     private fun copyAssets(context: Context, path: String, destination: File) {
         val children = context.assets.list(path) ?: emptyArray()
         if (children.isEmpty()) {
-            check(FileUtils.copyAsset(context, path, destination)) { "Cannot prepare $path" }
+            ensureAvailable(FileUtils.copyAsset(context, path, destination)) { "Cannot prepare $path" }
         } else {
-            check(destination.isDirectory || destination.mkdirs()) { "Cannot prepare $path" }
+            ensureAvailable(destination.isDirectory || destination.mkdirs()) { "Cannot prepare $path" }
             for (child in children) copyAssets(context, "$path/$child", File(destination, child))
         }
     }

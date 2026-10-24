@@ -178,6 +178,7 @@
     <string name="session_end_program">Ця програма</string>
     <string name="session_end_steam_download">Не вдалося завантажити клієнт Steam. Можливо, ваша мережа або VPN блокує сервери Steam; перевірте з’єднання та спробуйте ще раз.</string>
     <string name="session_end_steam_setup">Не вдалося налаштувати клієнт Steam. Перевірте з’єднання та вільне місце, потім спробуйте ще раз.</string>
+    <string name="session_end_runtime_driver">Вибраний драйвер середовища виконання Linux відсутній або не може використовуватися на цьому телефоні. Виберіть інший у розділі %1$s › %2$s і запустіть знову.</string>
     <string name="session_end_fex_missing">%1$s зібрано для ПК x86; для запуску потрібен FEX, який ще не встановлено. Один раз запустіть Steam, увійшовши в обліковий запис, дайте йому завантажити FEX і Steam Linux Runtime, а потім запустіть це знову.</string>
     <string name="add_app_flatpak_hint">ID додатка Flathub або його сторінка на Flathub. Якщо Flatpak ще не налаштовано, його буде налаштовано спочатку.</string>
     <string name="add_app_file">Файл</string>

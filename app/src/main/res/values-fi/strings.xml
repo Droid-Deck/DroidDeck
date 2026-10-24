@@ -178,6 +178,7 @@
     <string name="session_end_program">Tämä ohjelma</string>
     <string name="session_end_steam_download">Steam-asiakasohjelmaa ei voitu ladata. Verkkosi tai VPN saattaa estää Steamin palvelimet; tarkista yhteys ja yritä uudelleen.</string>
     <string name="session_end_steam_setup">Steam-asiakasohjelmaa ei voitu ottaa käyttöön. Tarkista yhteys ja vapaa tallennustila ja yritä uudelleen.</string>
+    <string name="session_end_runtime_driver">Valittu Linux-ajoympäristön ajuri puuttuu tai sitä ei voi käyttää tässä puhelimessa. Valitse toinen kohdasta %1$s › %2$s ja käynnistä uudelleen.</string>
     <string name="session_end_fex_missing">%1$s on tehty x86-tietokoneille ja käynnistyy FEXin kautta, jota ei ole vielä asennettu. Käynnistä Steam kerran kirjautuneena ja anna sen ladata FEX ja Steam Linux Runtime, sitten käynnistä tämä uudelleen.</string>
     <string name="add_app_flatpak_hint">Flathub-sovellustunnus tai sen Flathub-sivu. Flatpak otetaan käyttöön ensin, jos sitä ei ole vielä otettu.</string>
     <string name="add_app_file">Tiedosto</string>

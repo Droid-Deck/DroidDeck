@@ -178,6 +178,7 @@
     <string name="session_end_program">Αυτό το πρόγραμμα</string>
     <string name="session_end_steam_download">Δεν ήταν δυνατή η λήψη του πελάτη Steam. Το δίκτυο ή το VPN σας ίσως αποκλείει τους διακομιστές του Steam· ελέγξτε τη σύνδεση και δοκιμάστε ξανά.</string>
     <string name="session_end_steam_setup">Δεν ήταν δυνατή η ρύθμιση του πελάτη Steam. Ελέγξτε τη σύνδεση και τον ελεύθερο χώρο αποθήκευσης και δοκιμάστε ξανά.</string>
+    <string name="session_end_runtime_driver">Το επιλεγμένο πρόγραμμα οδήγησης runtime Linux λείπει ή δεν μπορεί να χρησιμοποιηθεί σε αυτό το τηλέφωνο. Επιλέξτε άλλο από %1$s › %2$s και ξεκινήστε ξανά.</string>
     <string name="session_end_fex_missing">Το %1$s είναι χτισμένο για υπολογιστές x86 και εκτελείται μέσω FEX, το οποίο δεν έχει εγκατασταθεί ακόμα. Εκκινήστε το Steam μία φορά ενώ είστε συνδεδεμένοι και αφήστε το να κάνει λήψη του FEX και του Steam Linux Runtime, μετά εκκινήστε αυτό ξανά.</string>
     <string name="add_app_flatpak_hint">Ένα ID εφαρμογής Flathub ή η σελίδα της στο Flathub. Το Flatpak ρυθμίζεται πρώτα, αν δεν έχει ρυθμιστεί ακόμα.</string>
     <string name="add_app_file">Αρχείο</string>

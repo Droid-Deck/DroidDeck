@@ -53,7 +53,7 @@ object QualcommDriverPackage {
         ?.let { TurnipDriver(context).driverVersion(it) }.orEmpty()
 
     @JvmStatic fun mounts(context: Context, runtimeId: String): List<String> {
-        check(isInstalled(context, runtimeId)) { "The selected Qualcomm AdrenoTools package is missing or incompatible" }
+        ensureAvailable(isInstalled(context, runtimeId)) { "The selected Qualcomm AdrenoTools package is missing or incompatible" }
         val id = importedId(runtimeId)!!
         val driver = TurnipDriver(context)
         val directory = File(driver.driverPath(id))
