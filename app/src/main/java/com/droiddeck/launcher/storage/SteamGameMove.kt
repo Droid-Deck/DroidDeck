@@ -28,6 +28,7 @@ object SteamGameMove {
         val total: Long,
         val error: String? = null,
         val done: Boolean = false,
+        val cancelRequested: Boolean = false,
     )
 
     var status by mutableStateOf<Status?>(null)
@@ -44,12 +45,12 @@ object SteamGameMove {
         Thread({
             var last = 0L
             val error = runCatching {
-                move(app, game, target) { copied, total ->
+                move(app, game, target, { copied, total ->
                     val now = android.os.SystemClock.uptimeMillis()
                     if (now - last < 120 && copied < total) return@move
                     last = now
                     main.post { status = status?.copy(copied = copied, total = total) }
-                }
+                }, isCancelled = { status?.cancelRequested == true })
             }.getOrElse { e -> app.getString(R.string.storage_move_failed, e.message ?: e.javaClass.simpleName) }
             main.post {
                 val current = status
@@ -68,7 +69,11 @@ object SteamGameMove {
         if (status?.done == true || status?.error != null) status = null
     }
 
-    fun move(context: Context, game: GameUsage, target: File, onProgress: (Long, Long) -> Unit = { _, _ -> }): String? {
+    fun cancel() {
+        status?.let { if (!it.done && it.error == null) status = it.copy(cancelRequested = true) }
+    }
+
+    fun move(context: Context, game: GameUsage, target: File, onProgress: (Long, Long) -> Unit = { _, _ -> }, isCancelled: () -> Boolean = { false }): String? {
         if (SessionState.running) return context.getString(R.string.storage_move_session)
         val gameDir = game.gameDir?.takeIf { it.isDirectory } ?: return context.getString(R.string.storage_move_bad_source)
         val manifest = game.manifest?.takeIf { it.isFile } ?: return context.getString(R.string.storage_move_bad_source)
@@ -161,19 +166,34 @@ object SteamGameMove {
         val total = sizes.values.sum()
         var copied = 0L
         onProgress(0, total)
+        MoveJournal.write(context, MoveJournal.Entry(
+            kind = "steam",
+            name = game.name,
+            items = active.map { it.source.path to it.destination.path },
+            registration = MoveJournal.Registration(arch, plan.library.path, plan.label, marker.path.takeIf { !markerExisted }, markerExisted),
+            startedAt = System.currentTimeMillis(),
+        ))
         val completed = ArrayList<Item>()
         for (item in active) {
             val size = sizes[item] ?: 0L
-            val ok = runCatching {
+            val outcome = runCatching {
                 // The size was already measured above; pass it so the copy skips its own walk.
                 FileOps.moveWithProgress(item.source, item.destination, maxOf(size, 1L), { done, _ ->
                     onProgress(copied + done.coerceAtMost(size), total)
-                })
-            }.getOrDefault(false)
-            if (!ok) {
+                }, isCancelled)
+            }
+            if (outcome.isFailure && outcome.exceptionOrNull() is java.util.concurrent.CancellationException) {
                 FileOps.delete(item.destination)
                 val rolledBack = rollback(completed)
                 if (rolledBack) cleanupRegistration(context, arch, plan, marker, markerExisted, hadGames, wasRegistered)
+                MoveJournal.clear(context)
+                return context.getString(R.string.storage_move_cancelled)
+            }
+            if (!outcome.getOrDefault(false)) {
+                FileOps.delete(item.destination)
+                val rolledBack = rollback(completed)
+                if (rolledBack) cleanupRegistration(context, arch, plan, marker, markerExisted, hadGames, wasRegistered)
+                MoveJournal.clear(context)
                 val base = context.getString(R.string.storage_move_failed, item.source.path)
                 return if (rolledBack) base else base + " " + context.getString(R.string.storage_move_rollback)
             }
@@ -193,6 +213,7 @@ object SteamGameMove {
             }
         }
         onProgress(total, total)
+        MoveJournal.clear(context)
         return null
     }
 
