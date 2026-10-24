@@ -101,6 +101,28 @@ class SteamDownloadMonitorTest {
         }
     }
 
+    @Test fun aLongLogIsFollowedFromWhereTheLastPollStopped() {
+        val root = Files.createTempDirectory("droiddeck-steam-download-").toFile()
+        try {
+            val contentLog = File(root, "root/.local/share/Steam/logs/content_log.txt").apply {
+                check(parentFile?.mkdirs() != false)
+                writeText(buildString {
+                    repeat(5_000) { append("[2026-10-06 14:40:00] Detected write gap 64 MB in file \"data_$it.dat\"\r\n") }
+                    append("[2026-10-06 14:44:17] AppID 44 App update changed : Running Update,Downloading,\r\n")
+                })
+            }
+            val monitor = SteamDownloadMonitor()
+
+            assertTrue(monitor.poll(root, now = 1_000L))
+            contentLog.appendText("[2026-10-06 14:45:03] AppID 44 App update changed : None\r\n")
+            assertFalse(monitor.poll(root, now = 2_000L))
+            contentLog.appendText("[2026-10-06 14:46:00] AppID 45 App update changed : Running Update,Downloading,\r\n")
+            assertTrue(monitor.poll(root, now = 3_000L))
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
     @Test fun theOtherClientsLogIsReadFromItsStart() {
         val root = Files.createTempDirectory("droiddeck-steam-download-").toFile()
         try {

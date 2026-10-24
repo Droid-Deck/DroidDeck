@@ -390,10 +390,12 @@ object SessionFiles {
     private fun activeStartupMovie(text: String): VdfBlock? = customizationMovie(text) ?: olderMovie(text)
 
     /** The movie Steam's config selects, as a path like `/uioverrides/movies/x.webm`; null when none is named. */
-    internal fun startupMoviePath(config: File): String? {
+    internal fun startupMoviePath(config: File): String? = startupMovieLocalPath(config)?.takeIf { it.isNotEmpty() }
+
+    internal fun startupMovieLocalPath(config: File): String? {
         val text = runCatching { config.readText() }.getOrNull() ?: return null
         val movie = activeStartupMovie(text) ?: return null
-        return scalar(text.substring(movie.keyStart, movie.close + 1), "LocalPath")?.takeIf { it.isNotEmpty() }
+        return scalar(text.substring(movie.keyStart, movie.close + 1), "LocalPath")
     }
 
     /** Both `StartupMovie` sections of Steam's config as written there, for the report; null when there is none. */

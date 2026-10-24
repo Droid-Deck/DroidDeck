@@ -39,8 +39,9 @@ internal class XboxInstaller(private val app: Context, private val item: Catalog
         var sequence = -1L
         try {
             val source = if (content) selected else item.id
+            val guestFolder = StoreInstallRoot.guestPathForXodus(app, folder)
             val selection = if (content) emptyList() else listOf("--selected-content-id", selected)
-            Xodus.start(app, listOf("streaming", source, folder.path, "--market", market,
+            Xodus.start(app, listOf("streaming", source, guestFolder, "--market", market,
                 "--progress-json", "--control-stdin") + selection).use { process ->
                 child = process
                 val diagnostics = Xodus.diagnostics(process)

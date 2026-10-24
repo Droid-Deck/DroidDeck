@@ -38,6 +38,43 @@ class StoreInstallRootTest {
         assertEquals(1, StoreInstallRoot.targets(app).size)
     }
 
+    @Test fun externalStoreInstallPathsMapIntoTheirGuestMountWithoutPrefixCollisions() {
+        val cardRoot = File(app.filesDir, "card/Games").apply { mkdirs() }
+        val guestRoot = "/mnt/droiddeck-stores/card"
+        val roots = listOf(cardRoot to guestRoot)
+
+        assertEquals("$guestRoot/Stores/Xbox/Doom", StoreInstallRoot.externalGuestPath(
+            File(cardRoot, "Stores/Xbox/Doom"), roots))
+        assertEquals(null, StoreInstallRoot.externalGuestPath(
+            File(cardRoot.parentFile, "Games-old/Stores/Xbox/Doom"), roots))
+    }
+
+    @Test fun xodusMapsTheSelectedSteamLibraryOnAnExternalVolume() {
+        val library = File(app.filesDir, "card/steam").apply { mkdirs() }
+        val storeRoot = File(library, "Games").apply { mkdirs() }
+        SessionPrefs.setGameStorage(app, library.path, "Card")
+
+        val xodusRoot = StoreInstallRoot.externalRootsForXodus(app).single { it.first.absolutePath == storeRoot.absolutePath }
+        val gameFolder = File(storeRoot, "Xbox/Doom")
+        assertEquals("${xodusRoot.second}/Xbox/Doom", StoreInstallRoot.guestPathForXodus(app, gameFolder))
+
+        val bindSpecs = StoreInstallRoot.externalBindSpecsForXodus(app)
+        assertTrue(bindSpecs.contains("${storeRoot.path}:${xodusRoot.second}"))
+        assertTrue(File(LinuxRuntime.rootDir(app), xodusRoot.second.removePrefix("/")).isDirectory)
+    }
+
+    @Test fun externalStoreBindsCreateGuestTargetsAndSkipUnavailableVolumes() {
+        val host = File(app.filesDir, "card/Games").apply { mkdirs() }
+        val guestRoot = "/mnt/droiddeck-stores/card"
+        val guestFs = File(app.filesDir, "linuxfs").apply { mkdirs() }
+        val missing = File(app.filesDir, "missing/Games")
+
+        assertEquals(listOf("${host.path}:$guestRoot"), StoreInstallRoot.externalBindSpecs(
+            listOf(host to guestRoot, missing to "/mnt/droiddeck-stores/missing"), guestFs))
+        assertTrue(File(guestFs, "mnt/droiddeck-stores/card").isDirectory)
+        assertFalse(File(guestFs, "mnt/droiddeck-stores/missing").exists())
+    }
+
     @Test fun anExistingInstallWinsOverAFreshFolderUnderTheChosenRoot() {
         SessionPrefs.setGameStorage(app, SessionPrefs.GAME_STORAGE_OFF, "")
         val existing = File(StoreInstallRoot.storeDir(StoreInstallRoot.internalRoot(app), Store.GOG), "Old Name").apply { mkdirs() }

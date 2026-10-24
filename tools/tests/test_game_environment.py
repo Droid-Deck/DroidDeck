@@ -357,6 +357,38 @@ class GameEnvironmentTest(unittest.TestCase):
                 (asylum / name).touch()
             self.assertEqual(MODULE["engine_fixes"](str(asylum / "BmLauncher.exe"), []), ({}, [], []))
 
+    def test_caravan_sandwitch_and_cyberpunk_run_at_feature_level_12_1(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            caravan = Path(tmp) / "Caravan SandWitch"
+            shipping = caravan / "CaravanSandWitch/Binaries/Win64"
+            shipping.mkdir(parents=True)
+            for name in ("CaravanSandWitch.exe", ".droiddeck-launch.bat"):
+                (caravan / name).touch()
+            (shipping / "CaravanSandWitch-Win64-Shipping.exe").touch()
+            cyberpunk = Path(tmp) / "Cyberpunk 2077"
+            (cyberpunk / "bin/x64").mkdir(parents=True)
+            for name in ("REDprelauncher.exe", "bin/x64/Cyberpunk2077.exe"):
+                (cyberpunk / name).touch()
+            games = [caravan / "CaravanSandWitch.exe", caravan / ".droiddeck-launch.bat",
+                     shipping / "CaravanSandWitch-Win64-Shipping.exe",
+                     cyberpunk / "REDprelauncher.exe", cyberpunk / "bin/x64/Cyberpunk2077.exe"]
+            for exe in games:
+                env, extra, notes = MODULE["engine_fixes"](str(exe), [])
+                self.assertEqual((env, extra), ({"VKD3D_FEATURE_LEVEL": "12_1"}, []), exe)
+                self.assertTrue(notes)
+            config = {"version": 1, "shared": {"VKD3D_FEATURE_LEVEL": "12_2"}}
+            self.assertEqual(MODULE["apply_config"]({}, config, "1582650", env)["VKD3D_FEATURE_LEVEL"], "12_1")
+            config["games"] = {"1582650": {"VKD3D_FEATURE_LEVEL": "12_2"}}
+            self.assertEqual(MODULE["apply_config"]({}, config, "1582650", env)["VKD3D_FEATURE_LEVEL"], "12_2")
+            other = Path(tmp) / "Other/Binaries/Win64"
+            other.mkdir(parents=True)
+            (other / "Other-Win64-Shipping.exe").touch()
+            self.assertEqual(MODULE["engine_fixes"](str(other / "Other-Win64-Shipping.exe"), []), ({}, [], []))
+            witcher = Path(tmp) / "The Witcher 3"
+            witcher.mkdir()
+            (witcher / "REDprelauncher.exe").touch()
+            self.assertNotIn("VKD3D_FEATURE_LEVEL", MODULE["engine_fixes"](str(witcher / "REDprelauncher.exe"), [])[0])
+
     def test_unity_players_keep_tso_over_the_preset(self):
         with tempfile.TemporaryDirectory() as tmp:
             def game(*names):
@@ -1182,6 +1214,52 @@ class DirectAudioPrefixTest(unittest.TestCase):
         self.assertIn("WINEDLLPATH=\n", result.stdout)
         self.assertEqual(self.audio_values(), [])
         self.assertIsNone(self.link("system32"))
+
+
+class UbisoftOverlayTest(unittest.TestCase):
+    SETTINGS = (
+        "language:\n  code: en-US\n"
+        "overlay:\n  enabled: true\n  forceunhookgame: false\n  fps_enabled: false\n  warning_enabled: true\n"
+        "patchTrigger:\n  source: USER_RESTART\n"
+    )
+
+    def test_the_overlay_and_its_prompt_are_turned_off_and_the_rest_is_kept(self):
+        got = MODULE["overlay_off"](self.SETTINGS)
+        self.assertEqual(got, self.SETTINGS.replace("enabled: true", "enabled: false"))
+        self.assertEqual(MODULE["overlay_off"](got), got)
+
+    def test_missing_keys_or_section_are_added(self):
+        self.assertEqual(MODULE["overlay_off"]("overlay:\n  fps_enabled: true\nmisc:\n  a: 1\n"),
+                         "overlay:\n  fps_enabled: true\n  enabled: false\n  warning_enabled: false\nmisc:\n  a: 1\n")
+        self.assertEqual(MODULE["overlay_off"](""), "overlay:\n  enabled: false\n  warning_enabled: false\n")
+
+    def test_blank_lines_inside_the_overlay_section_do_not_end_it(self):
+        text = "overlay:\n  enabled: true\n\n  warning_enabled: true\n\nmisc:\n  a: 1\n"
+        self.assertEqual(MODULE["overlay_off"](text), text.replace("true", "false"))
+        self.assertEqual(MODULE["overlay_off"]("overlay:\n  fps_enabled: true\n\nmisc:\n  a: 1\n"),
+                         "overlay:\n  fps_enabled: true\n  enabled: false\n  warning_enabled: false\n\nmisc:\n  a: 1\n")
+
+    def test_an_annotated_overlay_header_is_the_same_section(self):
+        self.assertEqual(MODULE["overlay_off"]("overlay:  # in-game\n  enabled: true\n"),
+                         "overlay:  # in-game\n  enabled: false\n  warning_enabled: false\n")
+
+    def test_only_prefixes_with_ubisoft_connect_are_touched(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            prefix = Path(tmp) / "447040/pfx"
+            env = {"STEAM_COMPAT_DATA_PATH": str(prefix.parent)}
+            settings = prefix / MODULE["UBISOFT_SETTINGS"]
+            prefix.mkdir(parents=True)
+            MODULE["ubisoft_overlay_off"](env)
+            self.assertFalse(settings.exists())
+            (prefix / MODULE["UBISOFT_LAUNCHER"]).mkdir(parents=True)
+            MODULE["ubisoft_overlay_off"](env)
+            self.assertEqual(settings.read_text(), "overlay:\n  enabled: false\n  warning_enabled: false\n")
+            settings.write_text(self.SETTINGS)
+            settings.chmod(0o644)
+            MODULE["ubisoft_overlay_off"](env)
+            self.assertEqual(settings.read_text(), self.SETTINGS.replace("enabled: true", "enabled: false"))
+            self.assertEqual(settings.stat().st_mode & 0o777, 0o644)
+            self.assertEqual(sorted(p.name for p in settings.parent.iterdir()), ["settings.yaml"])
 
 
 if __name__ == "__main__":

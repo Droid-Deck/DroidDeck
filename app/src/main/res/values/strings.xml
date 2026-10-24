@@ -3064,24 +3064,16 @@
     <string name="stores_xbox_content_update">%1$s · Update / verify</string>
     <string name="stores_xbox_content_install">%1$s · Install</string>
     <string name="stores_xbox_choose_content">Choose PC content</string>
-    <string name="stores_xbox_choice">%1$s (%2$s)</string>
+    <string name="stores_xbox_choice" translatable="false">%1$s (%2$s)</string>
     <string name="stores_game_pass" translatable="false">PC Game Pass</string>
     <string name="stores_eyebrow_pass">available with %1$s</string>
     <string name="stores_owned_in_library">Owned games in Library</string>
-    <plurals name="stores_owned_count">
-        <item quantity="one">%1$d game owned</item>
-        <item quantity="other">%1$d games owned</item>
-    </plurals>
     <string name="epic_client_missing">Not installed</string>
     <string name="epic_client_open">Open</string>
     <string name="epic_client_install">Install</string>
-    <plurals name="library_games">
-        <item quantity="one">%1$d game</item>
-        <item quantity="other">%1$d games</item>
-    </plurals>
     <string name="library_filter_added">Added</string>
     <string name="game_tab_about">About</string>
-    <string name="game_tab_achievements_count">%1$s %2$d/%3$d</string>
+    <string name="game_tab_achievements_count" translatable="false">%1$s %2$d/%3$d</string>
     <string name="game_tab_launch">Launch</string>
     <string name="game_tab_saves_cloud">Saves &amp; cloud</string>
     <string name="game_tab_install">Install</string>

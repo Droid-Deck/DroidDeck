@@ -111,6 +111,7 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -144,6 +145,7 @@ private data class PaneKey(val chip: String, val signedIn: Boolean, val accounts
 @Composable
 internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier) {
     val ctx = LocalContext.current
+    val focusManager = LocalFocusManager.current
     com.droiddeck.launcher.stores.xbox.XboxContent.plan?.let { content ->
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { com.droiddeck.launcher.stores.xbox.XboxContent.dismiss() },
@@ -248,7 +250,7 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
     val heroFocus = remember { androidx.compose.ui.focus.FocusRequester() }
     var detailFocused by remember { mutableStateOf(false) }
     fun move(kind: String) { focusMove = kind to (focusMove?.second ?: 0) + 1 }
-    fun open(key: String) { lastOpened = key; openGame = key; move("detail") }
+    fun open(key: String) { focusManager.clearFocus(force = true); lastOpened = key; openGame = key; move("detail") }
     fun closeGame() { openGame = null; move("card") }
     val pickChip: (String) -> Unit = { id ->
         chip = id; openGame = null; query = ""
@@ -389,7 +391,7 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
                                     androidx.compose.material3.LinearProgressIndicator(Modifier.fillMaxWidth().height(3.dp))
                                 }
                                 !k.signedIn -> Box(Modifier.fillMaxWidth().verticalScroll(scroll).padding(top = 4.dp, bottom = 16.dp)) { SignInCard(st, viewportH - 20.dp) }
-                                else -> Storefront(st, query, s, a, grids.getOrPut(k) { LazyGridState() }, onQuery = { query = it }, onOpen = { open(it) })
+                                else -> Storefront(st, query, s, a, grids.getOrPut(k) { LazyGridState() }, clearSearchFocus = openGame != null, onQuery = { query = it }, onOpen = { open(it) })
                             }
                           }
                       }
@@ -816,6 +818,7 @@ internal fun StoreLogo(store: Store, size: Dp) {
 private fun Storefront(
     store: Store, query: String, s: FrontEndState, a: FrontEndActions,
     grid: LazyGridState,
+    clearSearchFocus: Boolean,
     onQuery: (String) -> Unit, onOpen: (String) -> Unit,
 ) {
     val ctx = LocalContext.current
@@ -887,7 +890,7 @@ private fun Storefront(
     ) {
         item(key = "profile", span = { GridItemSpan(maxLineSpan) }) { Rise(1) { ProfileStrip(store, library.size, StoresState.library.containsKey(store), s, a) } }
         item(key = "search", span = { GridItemSpan(maxLineSpan) }) {
-            Rise(2) { ModeHeader(store.label, query, onQuery, placeholder = stringResource(R.string.stores_search_catalog, store.label)) {} }
+            Rise(2) { ModeHeader(store.label, query, onQuery, placeholder = stringResource(R.string.stores_search_catalog, store.label), clearSearchFocus = clearSearchFocus) {} }
         }
         barLine?.let { line -> item(key = "sync", span = { GridItemSpan(maxLineSpan) }) { Rise(3) { SyncBar(line) } } }
         StoresState.problems[store]?.let { line -> item(key = "problem", span = { GridItemSpan(maxLineSpan) }) { Rise(3) { Box(Modifier.padding(bottom = 8.dp)) { Note(line) } } } }
@@ -926,7 +929,7 @@ private fun ProfileStrip(store: Store, owned: Int, loaded: Boolean, s: FrontEndS
             Column(Modifier.weight(1f)) {
                 Text(name.ifEmpty { store.label }, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(
-                    if (loaded) store.shortLabel + " · " + androidx.compose.ui.res.pluralStringResource(R.plurals.stores_owned_count, owned, owned) else store.label,
+                    if (loaded) store.shortLabel + " · " + androidx.compose.ui.res.pluralStringResource(R.plurals.mode_added_count, owned, owned) else store.label,
                     fontSize = 12.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
             }
@@ -952,6 +955,10 @@ private fun EpicLauncherRow(s: FrontEndState, a: FrontEndActions) {
     val title = stringResource(R.string.epic_client_title)
     Box(Modifier.fillMaxWidth().height(1.dp).background(pal.line))
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth().testTag("stores-epic-launcher")) {
+        val icon by androidx.compose.runtime.produceState<java.io.File?>(null, epic.version) {
+            value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { EpicClient.icon(ctx, epic.version) }
+        }
+        if (icon != null) AsyncImage(model = icon, contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.size(36.dp).clip(RoundedCornerShape(8.dp)))
         Column(Modifier.weight(1f)) {
             Text(title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
             val version = epic.version?.substringBefore('+')
@@ -996,6 +1003,7 @@ internal fun SectionLabel(title: String) {
 @Composable
 internal fun ModeHeader(
     title: String, query: String, onQuery: (String) -> Unit, placeholder: String,
+    clearSearchFocus: Boolean = false,
     lead: (@Composable () -> Unit)? = null, trailing: @Composable () -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
@@ -1017,6 +1025,7 @@ internal fun ModeHeader(
                         AdbTextField(
                             value = query, onValueChange = onQuery, label = "", keyboardType = KeyboardType.Text, imeAction = ImeAction.Search,
                             placeholder = placeholder, compact = true, focusOnShow = focusOnOpen,
+                            clearFocus = clearSearchFocus,
                             onFocusChange = { focused -> if (!focused && query.isEmpty()) { searching = false; focusOnOpen = false } },
                         )
                     }
@@ -1192,7 +1201,7 @@ private fun GameCard(
     }
 }
 
-private fun syncCount(line: String): Pair<Int, Int>? {
+internal fun syncCount(line: String): Pair<Int, Int>? {
     val match = Regex("(\\d+)\\s*/\\s*(\\d+)").find(line) ?: return null
     val done = match.groupValues[1].toIntOrNull() ?: return null
     val total = match.groupValues[2].toIntOrNull()?.takeIf { it > 0 } ?: return null
@@ -1200,7 +1209,7 @@ private fun syncCount(line: String): Pair<Int, Int>? {
 }
 
 @Composable
-private fun SyncBar(line: String) {
+internal fun SyncBar(line: String) {
     val count = syncCount(line) ?: return
     val done = count.first
     val total = count.second

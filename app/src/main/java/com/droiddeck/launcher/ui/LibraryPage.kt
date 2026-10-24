@@ -143,6 +143,7 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
     val ctx = LocalContext.current
     val narrow = LocalNarrowPane.current
     val ff = LocalFrontFocus.current
+    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
     val inputMode = androidx.compose.ui.platform.LocalInputModeManager.current
     LaunchedEffect(Unit) { StoresState.refresh(ctx) }
     val stores = s.gameStoresEnabled && !s.shortcutPicker
@@ -150,6 +151,7 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
     LaunchedEffect(stores, signedIn) { if (stores) signedIn.forEach { StoresState.loadLibrary(ctx, it) } }
     val owned = if (stores) Store.entries.associateWith { StoresState.library[it].orEmpty() } else emptyMap()
     val installedStore = StoresState.installed.map { it.key }.toSet()
+    val syncing = if (stores) signedIn.mapNotNull { st -> StoresState.status[st]?.let { st to it } } else emptyList()
     val all = remember(s.steamGames, owned, installedStore) { libraryEntries(s.steamGames, owned, installedStore) }
     val sources = LIBRARY_SOURCES.filter { src -> all.any { it.source == src } }
     val source = LibraryView.source.takeIf { it == LIBRARY_ALL || it in sources } ?: LIBRARY_ALL
@@ -255,14 +257,15 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
         wrap = { key, content -> StoreTheme(GameRef.parse(key).let { r -> r.store ?: r.game(s.steamGames)?.source?.let { Store.byId(it) } }) { content() } },
         grid = {
             LibraryGrid(
-                s, a, grid, visible, split, all.size, sources, source, sizesPending,
+                s, a, grid, visible, split, all.size, sources, source, sizesPending, syncing,
                 onSource = { LibraryView.source = it },
                 onCycle = { step ->
                     val ids = listOf(LIBRARY_ALL) + sources
                     LibraryView.source = ids[(ids.indexOf(source).coerceAtLeast(0) + step + ids.size) % ids.size]
                     cycled++
                 },
-                onOpen = { onSelect(it) },
+                onOpen = { focusManager.clearFocus(force = true); onSelect(it) },
+                searchCleared = open != null,
                 onFocus = { gridFocused = it },
             )
         },
@@ -292,8 +295,8 @@ private fun LibraryEmpty(s: FrontEndState, a: FrontEndActions, modifier: Modifie
 @Composable
 private fun LibraryGrid(
     s: FrontEndState, a: FrontEndActions, grid: LazyGridState, visible: List<LibraryEntry>, split: Int, total: Int,
-    sources: List<String>, source: String, sizesPending: Boolean,
-    onSource: (String) -> Unit, onCycle: (Int) -> Unit, onOpen: (String) -> Unit, onFocus: (Boolean) -> Unit,
+    sources: List<String>, source: String, sizesPending: Boolean, syncing: List<Pair<Store, String>>,
+    onSource: (String) -> Unit, onCycle: (Int) -> Unit, onOpen: (String) -> Unit, onFocus: (Boolean) -> Unit, searchCleared: Boolean,
 ) {
     val listMode = s.storesView == "list"
     val capsules = s.storesView == "capsules"
@@ -302,7 +305,7 @@ private fun LibraryGrid(
     val scope = rememberCoroutineScope()
     val density = androidx.compose.ui.platform.LocalDensity.current
     var columns by remember { mutableIntStateOf(1) }
-    val headerItems = 2 + (if (sizesPending) 1 else 0)
+    val headerItems = 2 + (if (sizesPending) 1 else 0) + syncing.size
     val tile: @Composable (LibraryEntry) -> Unit = { e ->
         val first = e.key == visible.firstOrNull()?.key
         val navigation = if (focus == null) Modifier else Modifier.onPreviewKeyEvent { event ->
@@ -346,9 +349,16 @@ private fun LibraryGrid(
         horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp),
         contentPadding = PaddingValues(top = 4.dp, bottom = 16.dp),
     ) {
-        item(key = "header", span = { GridItemSpan(maxLineSpan) }) { Rise(0) { LibraryHeader(s, a, total) } }
+        item(key = "header", span = { GridItemSpan(maxLineSpan) }) { Rise(0) { LibraryHeader(s, a, total, searchCleared) } }
         item(key = "filters", span = { GridItemSpan(maxLineSpan) }) {
             Rise(1) { LibraryFilters(sources, source, onSource) }
+        }
+        for ((store, line) in syncing) item(key = "sync-${store.id}", span = { GridItemSpan(maxLineSpan) }) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
+                Text(store.shortLabel + " · " + line, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (syncCount(line) != null) SyncBar(line)
+                else androidx.compose.material3.LinearProgressIndicator(Modifier.fillMaxWidth().padding(bottom = 8.dp).height(3.dp))
+            }
         }
         if (sizesPending) item(key = "size-sort-progress", span = { GridItemSpan(maxLineSpan) }) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)) {
@@ -377,16 +387,17 @@ private fun LazyGridScope.libraryGrid(entries: List<LibraryEntry>, empty: Int, t
 }
 
 @Composable
-private fun LibraryHeader(s: FrontEndState, a: FrontEndActions, total: Int) {
+private fun LibraryHeader(s: FrontEndState, a: FrontEndActions, total: Int, searchCleared: Boolean) {
     val colors = MaterialTheme.colorScheme
     val narrow = LocalNarrowPane.current
     ModeHeader(
         stringResource(R.string.rail_games), LibraryView.query, { LibraryView.query = it },
         placeholder = stringResource(R.string.stores_search_library),
+        clearSearchFocus = searchCleared,
         lead = {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(start = 2.dp, end = 4.dp)) {
                 Text(stringResource(R.string.rail_games), fontSize = if (narrow) 20.sp else 24.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, maxLines = 1)
-                Text(pluralStringResource(R.plurals.library_games, total, total), fontSize = 13.sp, color = colors.onSurfaceVariant, maxLines = 1)
+                Text(pluralStringResource(R.plurals.mode_added_count, total, total), fontSize = 13.sp, color = colors.onSurfaceVariant, maxLines = 1)
                 if (s.steamGamesX64 && !narrow) ClientTag()
             }
         },
@@ -459,6 +470,7 @@ private fun LibraryTile(e: LibraryEntry, capsule: Boolean, first: Boolean, navig
     val corner = with(androidx.compose.ui.platform.LocalDensity.current) { 10.dp.toPx() }
     val wide = entryArt(e, tall = false)
     val tall = entryArt(e, tall = true)
+    RequestSize(e)
     val open = {
         val art = if (capsule) tall else wide
         placed[0]?.takeIf { it.isAttached }?.let { StoresMotion.markCard(CardMark(e.key, it.boundsInRoot(), corner, (art as? java.io.File)?.path ?: art as? String)) }
@@ -476,6 +488,13 @@ private fun LibraryTile(e: LibraryEntry, capsule: Boolean, first: Boolean, navig
             LibraryMarker(e, download)
         }
     }
+}
+
+@Composable
+private fun RequestSize(e: LibraryEntry) {
+    val ctx = LocalContext.current
+    val item = e.item?.takeIf { !e.installed && it.accessible && it.sizeBytes <= 0 } ?: return
+    LaunchedEffect(item.key) { StoreSizes.request(ctx, item) }
 }
 
 @Composable
@@ -503,6 +522,7 @@ private fun LibraryRow(e: LibraryEntry, first: Boolean, navigation: Modifier, ch
         placed[0]?.takeIf { it.isAttached }?.let { StoresMotion.markCard(CardMark(e.key, it.boundsInRoot(), corner, (wide as? java.io.File)?.path ?: wide as? String)) }
         onOpen(e.key)
     }
+    RequestSize(e)
     val inst = e.storeKey?.let { k -> StoresState.installed.firstOrNull { it.key == k } }
     val folder = inst?.folder ?: e.game?.gameFiles
     val size = if (e.installed && folder != null) diskSize(inst, folder) else e.item?.let { StoreSizes.size(it) }?.takeIf { it > 0 }

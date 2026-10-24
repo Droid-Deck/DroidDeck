@@ -160,13 +160,15 @@ synchronous on the calling thread (network calls block: call them off the main t
 | `cloud.list` | `accessToken`, `accountId`, `appName` | `files[]` of `name`, `modified` (ms, -1 unknown), `hash`, `readLink` |
 | `cloud.writeLinks` | `accessToken`, `accountId`, `appName`, `names[]` | `links`: name → write link |
 | `launch.args` | `displayName`, `accountId`, `namespace`, `locale`, `appName`, `deploymentId`, `additional` | `args[]` |
+| `launch.split` | `command` | `args[]` |
 | `locale` | `language`, `region` | `key`, `tags[]`, `launchLocale` |
 
 `nativeFetch` ops: `manifest.download` (`info`, optional `cdns`) → the manifest bytes;
 `cloud.read` (`url`) → the file. `null` = failed. `nativeSend` op: `cloud.write` (`url`) with the
 body → `{"ok": true}` or an error. `nativeInspect` parses manifest bytes: `{"op":"summary"}` →
 `buildVersion`, `launchExe`, `prereqName`, `prereqPath`, `prereqRead`, `files[]` (`path`, `size`,
-`tags`); `{"op":"select","tags":[…]}` → `indices[]` of the files an install with those tags gets.
+`tags`); `{"op":"select","tags":[…]}` → `indices[]` of the files an install with those tags gets;
+`{"op":"launch"}` → the manifest's `buildVersion`, its `command` line and the `args[]` split from it.
 
 ### `nativeInstall`
 

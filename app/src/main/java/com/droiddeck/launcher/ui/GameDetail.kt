@@ -43,6 +43,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
@@ -422,19 +423,20 @@ private fun EditArtButton(g: Library.SteamGame) {
 }
 
 @Composable
-private fun IconAction(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, id: String, danger: Boolean = false, onClick: () -> Unit) {
+private fun IconAction(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, id: String, danger: Boolean = false, enabled: Boolean = true, onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val src = remember { MutableInteractionSource() }
-    val hot = rememberHot(src)
+    val hot = rememberHot(src) && enabled
     val accent = if (danger) colors.error else pal.signal
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier.paneItem(id).downToFirstTile().size(44.dp).clip(Shape12)
             .background(if (hot) accent.copy(alpha = if (danger) 0.22f else 0.14f) else if (danger) Color.Black.copy(alpha = 0.34f) else Color.White.copy(alpha = 0.03f))
             .glideBorder(hot, Shape12, accent, pal.line2)
-            .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = androidx.compose.ui.semantics.Role.Button, onClick = onClick)
-            .controllerConfirm(onClick = onClick)
+            .alpha(if (enabled) 1f else 0.45f)
+            .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = androidx.compose.ui.semantics.Role.Button, enabled = enabled, onClick = onClick)
+            .controllerConfirm(enabled = enabled, onClick = onClick)
             .semantics { contentDescription = label },
     ) {
         Icon(icon, contentDescription = null, tint = if (danger && hot) colors.error else if (danger) Color.White else colors.onBackground, modifier = Modifier.size(18.dp))
@@ -449,7 +451,8 @@ private fun RemoveButton(title: String, game: Library.SteamGame?, installed: Ins
         val key = installed.key
         val gone = StoresState.uninstalling[key]
         if (gone != null) {
-            Box(contentAlignment = Alignment.Center, modifier = Modifier.size(44.dp).clip(Shape12).background(Color.Black.copy(alpha = 0.34f))) {
+            val uninstalling = stringResource(R.string.stores_uninstalling)
+            Box(contentAlignment = Alignment.Center, modifier = Modifier.size(44.dp).clip(Shape12).background(Color.Black.copy(alpha = 0.34f)).semantics { contentDescription = uninstalling }) {
                 if (gone > 0f) CircularProgressIndicator(progress = { gone }, strokeWidth = 2.dp, color = colors.error, trackColor = colors.error.copy(alpha = 0.22f), modifier = Modifier.size(20.dp))
                 else CircularProgressIndicator(strokeWidth = 2.dp, color = colors.error, modifier = Modifier.size(20.dp))
             }
@@ -463,8 +466,7 @@ private fun RemoveButton(title: String, game: Library.SteamGame?, installed: Ins
         val busy = StoresState.download(key)?.isActive == true || (installed.sidecar.store == Store.XBOX && XboxContent.busy(installed.sidecar.id))
         val placed = remember { arrayOfNulls<androidx.compose.ui.layout.LayoutCoordinates>(1) }
         Box(Modifier.onGloballyPositioned { placed[0] = it }) {
-            IconAction(Icons.Outlined.Delete, remove, "game:remove", danger = true) {
-                if (busy) return@IconAction
+            IconAction(Icons.Outlined.Delete, remove, "game:remove", danger = true, enabled = !busy) {
                 val at = placed[0]?.takeIf { it.isAttached }?.boundsInRoot() ?: return@IconAction
                 var confirmed = false
                 Steps.ask(StepAsk(anchor = at, side = StepSide.Left, accent = colors.error, items = 3, pillCorner = 12.dp, maxWidth = 340.dp,

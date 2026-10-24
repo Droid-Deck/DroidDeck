@@ -549,7 +549,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
         }
         FlightsLayer(screenAt)
         GamesDialogs(a, s.steamGames)
-        com.droiddeck.launcher.stores.StoresState.pendingInstall?.let { InstallWhere(it) }
+        com.droiddeck.launcher.stores.StoresState.pendingInstall?.let { item -> StoreTheme(item.store) { InstallWhere(item) } }
         StepsLayer(screenAt)
 
         appToChooseDisplay?.let { app ->
