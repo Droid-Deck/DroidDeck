@@ -259,6 +259,39 @@ class OnScreenControlsTest {
         view.layout(0, 0, 1200, 800)
     }
 
+    @Test fun quickHideAndShowChoicesSurviveRecreatingTheControls() {
+        for (hidden in listOf(true, false)) {
+            touch(MotionEvent.ACTION_DOWN, 1 to (34f to 766f))
+            touch(MotionEvent.ACTION_UP, 1 to (34f to 766f))
+            assertEquals(hidden, ControllerPrefs.read(context).quickHidden)
+            view = OnScreenControls(context, null)
+            view.layout(0, 0, 1200, 800)
+            assertEquals(!hidden, touch(MotionEvent.ACTION_DOWN, 1 to (540f to 400f)))
+            touch(MotionEvent.ACTION_CANCEL, 1 to (540f to 400f))
+        }
+    }
+
+    @Test fun buttonsOnlyAndTheEditorDoNotForgetTheHiddenFullPad() {
+        view.setQuickHidden(true)
+        view.setButtonsOnly(true)
+        view.setQuickHidden(false)
+        assertTrue(ControllerPrefs.read(context).quickHidden)
+        view.setButtonsOnly(false)
+        assertFalse(touch(MotionEvent.ACTION_DOWN, 1 to (540f to 400f)))
+        editor()
+        assertNotEquals(0, pixel(value(control("ls"), "cx"), value(control("ls"), "cy")))
+        assertTrue(ControllerPrefs.read(context).quickHidden)
+    }
+
+    @Test fun resettingTheControllerSettingsRestoresTheExpandedPad() {
+        view.setQuickHidden(true)
+        ControllerPrefs.resetAll(context)
+        view.reload()
+        assertFalse(ControllerPrefs.read(context).quickHidden)
+        val left = control("ls")
+        assertTrue(touch(MotionEvent.ACTION_DOWN, 1 to (value(left, "cx") to value(left, "cy"))))
+    }
+
     @Test fun keyboardShortcutWorksWithHiddenPadAndButtonsOnly() {
         var opened = 0
         view = OnScreenControls(context, null, onKeyboard = { opened++ })

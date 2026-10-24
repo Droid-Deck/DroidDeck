@@ -93,7 +93,7 @@ class OnScreenControls(
 
     private var buttonsOnly = false
     val isButtonsOnly: Boolean get() = buttonsOnly
-    private var quickHidden = false
+    private val quickHidden: Boolean get() = !buttonsOnly && !editing && settings.quickHidden
     private var quickPressedBy = -1
     private var keyboardPressedBy = -1
     private var settings = ControllerPrefs.read(context)
@@ -180,15 +180,13 @@ class OnScreenControls(
         if (buttonsOnly == enabled) return
         releaseAll()
         buttonsOnly = enabled
-        quickHidden = false
         relayout()
     }
 
     fun setQuickHidden(hidden: Boolean) {
         if (buttonsOnly || editing || quickHidden == hidden) return
-        if (hidden) releaseAll()
-        quickHidden = hidden
-        invalidate()
+        ControllerPrefs.setQuickHidden(context, hidden)
+        reload()
     }
 
     fun setSnap(on: Boolean) {

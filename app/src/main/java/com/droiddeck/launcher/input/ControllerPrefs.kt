@@ -42,6 +42,7 @@ object ControllerPrefs {
         val size: Int,
         val stickClick: Boolean,
         val adaptiveSticks: Boolean,
+        val quickHidden: Boolean,
         val rumble: Boolean,
         val steamButton: Boolean,
         val qamButton: Boolean,
@@ -63,6 +64,7 @@ object ControllerPrefs {
             size = p.getInt("size", 100).takeIf { it in sizes } ?: 100,
             stickClick = p.getBoolean("stickClick", true),
             adaptiveSticks = p.getBoolean("adaptiveSticks", true),
+            quickHidden = p.getBoolean("quickHidden", false),
             rumble = rumbleEnabled(context),
             steamButton = p.getBoolean("steamButton", true),
             qamButton = p.getBoolean("qamButton", true),
@@ -105,6 +107,10 @@ object ControllerPrefs {
 
     fun setAdaptiveSticks(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("adaptiveSticks", on).apply()
+    }
+
+    fun setQuickHidden(context: Context, hidden: Boolean) {
+        prefs(context).edit().putBoolean("quickHidden", hidden).apply()
     }
 
     fun rumbleEnabled(context: Context): Boolean = prefs(context).getBoolean("rumble", true)
