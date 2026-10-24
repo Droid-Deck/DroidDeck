@@ -305,7 +305,8 @@ alone would then read as an installed client.
   downloaded its version again (Left 4 Dead 2, 8.6 GB; hard links do not help, switching platform makes
   Steam download depot 551 anyway). A shared game gets the tool its own client uses: `droiddeck-fex`
   there becomes `droiddeck-direct` here and the other way round, a Proton build keeps its Proton. Only
-  automatic choices are replaced; a tool the user picked stays.
+  an automatic choice that would switch the build is replaced; any other choice, including another
+  Proton, stays.
 - **Updates and uninstall.** The newer manifest wins: an update made through a view is written back to
   the client that owns the game. Uninstalling a shared game removes it from that client only; its files
   stay with the client that installed it (Steam does not delete through the link) and it stays hidden

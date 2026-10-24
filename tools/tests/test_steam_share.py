@@ -75,11 +75,17 @@ class SteamShareTest(unittest.TestCase):
         self.assertEqual(tools['413150'], 'droiddeck-direct')
         self.assertEqual(tools['13210'], 'droiddeck-proton-a64')
 
-    def test_an_automatic_x64_proton_is_replaced(self):
+    def test_a_proton_pick_stays_when_the_other_client_uses_another_proton(self):
         (self.x64 / 'config/config.vdf').write_text(CONFIG % mapping(_13210='droiddeck-proton-11-a64'))
-        (self.arm / 'config/config.vdf').write_text(CONFIG % mapping(_0='droiddeck-proton-arm64'))
         self.run_share('x86-64')
-        self.assertEqual(SHARE['entries']((self.x64 / 'config/config.vdf').read_text())['13210'], 'droiddeck-proton-a64')
+        self.assertEqual(SHARE['entries']((self.x64 / 'config/config.vdf').read_text())['13210'], 'droiddeck-proton-11-a64')
+
+    def test_an_automatic_proton_gives_way_to_the_installed_linux_build(self):
+        self.install(self.x64, '550', 'Left 4 Dead 2')
+        (self.x64 / 'config/config.vdf').write_text(CONFIG % mapping(_550='droiddeck-direct'))
+        (self.arm / 'config/config.vdf').write_text(CONFIG % mapping(_0='droiddeck-proton-arm64', _550='droiddeck-proton-arm64'))
+        self.run_share('arm64')
+        self.assertEqual(SHARE['entries']((self.arm / 'config/config.vdf').read_text())['550'], 'droiddeck-fex')
 
     def test_an_x64_proton_pick_reaches_the_arm64_client(self):
         self.install(self.x64, '550', 'Left 4 Dead 2')

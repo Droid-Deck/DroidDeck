@@ -11,6 +11,7 @@ NOT_GAMES = frozenset((
 ))
 TOOL_DIR = re.compile(r"(steam ?linux ?runtime.*|proton.*|steamworks shared|fex|steamvr)", re.I)
 AUTOMATIC = ("", "droiddeck-direct", "droiddeck-fex", "droiddeck-proton-arm64", "droiddeck-proton-11-arm64")
+LINUX_TOOLS = ("droiddeck-direct", "droiddeck-fex")
 STATE = ".droiddeck-shared.json"
 LABELS = {"arm64": "ARM64 client games", "x86-64": "x86-64 client games"}
 
@@ -204,6 +205,8 @@ def set_tools(config, wanted):
             name = re.search(r'"name"\s*"([^"]*)"', m.group(1))
             name = name.group(1) if name else ""
             if name == tool or not (canonical(name) in map(canonical, AUTOMATIC) or name.startswith("proton_")):
+                continue
+            if name and (name in LINUX_TOOLS) == (tool in LINUX_TOOLS):
                 continue
             inner = inner[:m.start()] + inner[m.end():]
         inner = ('\n\t\t\t\t\t"%s"\n\t\t\t\t\t{\n\t\t\t\t\t\t"name"\t\t"%s"\n\t\t\t\t\t\t"config"\t\t""\n'
