@@ -493,11 +493,18 @@ def wine_server_running():
 
 def run_reg_import(proton, table, timeout=UBISOFT_IMPORT_TIMEOUT):
     """A plain proton client picks the wrong sync pack and trips the server_init_process assertion
-    while any prefix has a wineserver, so a live session imports through the hook instead."""
+    while any prefix has a wineserver, so a live session imports through the sync pack wrapper
+    in the background and leaves the hook as the backstop."""
     if not proton or not Path(proton).is_file():
         return "no-proton"
     if wine_server_running():
-        return "prefix-busy"
+        try:
+            subprocess.Popen([GAME_ENV, proton, "run", "reg.exe", "import", windows_path(str(table))],
+                             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                             start_new_session=True)
+        except OSError:
+            return "prefix-busy"
+        return "prefix-busy deferred"
     try:
         run = subprocess.run([proton, "run", "reg.exe", "import", windows_path(str(table))],
                              stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=timeout, text=True)
