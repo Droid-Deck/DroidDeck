@@ -83,14 +83,20 @@ object QualcommSystemDriver {
             "The selected Qualcomm AdrenoTools package is missing or incompatible"
         }
         val icd = prepare(context)
-        val dir = icd.parentFile!!
         val source = if (id == ID) label() else QualcommDriverPackage.label(context, id)
         android.util.Log.i("QualcommSystemDriver", "$source; Android mounts: ${mounts(context, id).joinToString()}")
-        environment.addAll(listOf(
+        environment.addAll(sessionEnvironment(icd, id))
+    }
+
+    internal fun sessionEnvironment(icd: File, id: String): List<String> {
+        val dir = icd.parentFile!!
+        return listOf(
             "VK_DRIVER_FILES=${icd.path}", "VK_ICD_FILENAMES=${icd.path}",
             "HYBRIS_ANDROID_SDK_VERSION=${Build.VERSION.SDK_INT}", "HYBRIS_VULKAN_HAL=$HAL",
             "HYBRIS_LINKER_DIR=${File(dir, "lib/libhybris/linker").path}",
             "HYBRIS_LD_LIBRARY_PATH=/system/lib64:/system_ext/lib64:/vendor/lib64/egl:/vendor/lib64/hw:/vendor/lib64",
+            // The compat layer's Mali-only image-bounds pass rewrites unrelated OpSelects; DXVK comparisons become constants on Adreno.
+            "HYBRIS_VULKAN_COMPAT_IMAGE_BOUNDS=0",
             "DROIDDECK_SYSTEM_QUALCOMM=1", "BL_GAMESCOPE_BACKEND=sdl",
             "DROIDDECK_QUALCOMM_DRIVER=$id",
             "BL_GAMESCOPE_BINARY=${File(dir, "bin/gamescope").path}",
@@ -99,7 +105,7 @@ object QualcommSystemDriver {
             "VK_LAYER_PATH=${File(dir, "shaders").path}",
             "VK_INSTANCE_LAYERS=VK_LAYER_DROIDDECK_qualcomm_shaders",
             "PATH=${File(dir, "bin").path}:/usr/local/bin:/usr/bin:/bin",
-        ))
+        )
     }
 
     private fun copyAssets(context: Context, path: String, destination: File) {

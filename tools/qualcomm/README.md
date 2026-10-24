@@ -92,6 +92,12 @@ The Qualcomm HAL has DMA-BUF export but no `VK_EXT_image_drm_format_modifier`, a
 
 Verification on 2026-10-24 used the RedMagic 11 Pro, Adreno 840 and the imported v891.7 driver at 1590x720. `vkcube` (600 frames, uncapped mailbox) went from 131.5 to 198.0 fps; its own CPU time fell from 1.15 s to 0.23 s, Xwayland from 1.64 s to 0.69 s and Gamescope from 6.88 s to 4.00 s. DRAGON BALL: Sparking! ZERO at 60 fps was launched from the same installed APK after a 60-second Steam settle, with only `BL_QUALCOMM_SHM` toggled, and sampled over the same 12-second startup window: Gamescope used 0.35 cores against 0.43 and 0.44 over two shared-memory runs, Xwayland 0.14 against 0.20, and the game 1.28 against 1.21 and 1.22. Average GPU load ranged from 5% to 13% across these runs and does not separate the paths at this phase. The startup logos rendered correctly and the performance overlay hooked DXVK directly. Gamescope's remaining extra cost comes from its SDL backend, the nested-swapchain copy and bridged Vulkan calls. `vkcube` in FIFO mode presented 169.5 fps against a 144 Hz output, so FIFO pacing through this path still needs checking. Native Linux games are not covered by the Proton wrapper.
 
+## Compat-layer image-bounds rewrite
+
+Qualcomm sessions set `HYBRIS_VULKAN_COMPAT_IMAGE_BOUNDS=0`. The bridge's `VK_LAYER_HYBRIS_compat` enables this pass by default, although it ports a Mali+DXVK workaround (Vortek's `removeImageBoundCheck`). After any `OpSampledImage` or `OpImageFetch`, it replaces the zero false operand of the next `OpSelect` with its true operand without checking that the select uses the image result. DXVK writes HLSL comparisons and `step()` as `select(cond, 1.0, 0.0)`, so those collapse to the constant `1.0`.
+
+On RedMagic 11 Pro/Adreno 840 with v891.7, DRAGON BALL: Sparking! ZERO rendered its main-menu scene with a red cast. Replaying the pass over the 479 shaders DXVK compiled up to that menu rewrote 112 of them at 205 selects; 148 of those selects do not depend on any image read. The same scene rendered correctly with only this switch set to `0`, and with every compat shader rewrite disabled. Other compat passes keep their defaults. Evidence is under ignored `build/research/sparking-zero/red2-*`.
+
 ## APK packaging
 
 Prepare the normal Linux runtime inputs and all five published add-on packs before compiling. Every APK must support a fresh installation; installed-device runtime reuse is prohibited by `AGENTS.md` and rejected by Gradle.

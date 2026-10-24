@@ -74,6 +74,15 @@ class QualcommDriverPackageTest {
         assertEquals("The selected Qualcomm AdrenoTools package is missing or incompatible", error.message)
     }
 
+    @Test fun qualcommSessionsTurnOffTheCompatLayerImageBoundsRewrite() {
+        val icd = File(context.filesDir, "qualcomm-system/bridge/icd.json")
+        val environment = QualcommSystemDriver.sessionEnvironment(icd, runtimeId)
+        assertTrue("HYBRIS_VULKAN_COMPAT_IMAGE_BOUNDS=0" in environment)
+        assertEquals(1, environment.count { it.startsWith("HYBRIS_VULKAN_COMPAT_IMAGE_BOUNDS=") })
+        assertTrue("VK_DRIVER_FILES=${icd.path}" in environment)
+        assertTrue("DROIDDECK_QUALCOMM_DRIVER=$runtimeId" in environment)
+    }
+
     @Test fun aPhoneWithoutTheQualcommDriverReportsTheSystemDriverUnavailable() {
         assertThrows(QualcommSystemDriver.Unavailable::class.java) { QualcommSystemDriver.prepare(context) }
         assertThrows(QualcommSystemDriver.Unavailable::class.java) {
