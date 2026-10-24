@@ -287,9 +287,6 @@
     <string name="mode_suspend_steam_note">「自動」會暫停，並在重新顯示時繼續；「原生」會先讓 Steam 準備好休眠；「手動」會等你按「繼續」；「從不」會保持執行。</string>
     <string name="mode_background_downloads">保持下載進行</string>
     <string name="mode_background_downloads_hint">Steam 正在下載時，延遲在背景暫停。</string>
-    <string name="mode_zram">zRAM 壓縮</string>
-    <string name="mode_zram_hint">遊戲運行時，Steam 用戶端的記憶體會壓縮進裝置的 zram，為遊戲騰出更多記憶體。下次啟動 Steam 時生效。</string>
-    <string name="mode_zram_unsupported">無法使用：此裝置沒有 zram 或 swap，或核心版本低於 5.4。</string>
     <string name="mode_suspend_note">「自動」會在背景時暫停，並在重新顯示時繼續；「手動」會等你按「繼續」；「從不」會保持執行。</string>
     <string name="mode_startup">啟動</string>
     <string name="mode_steam_startup">隨 DroidDeck 啟動 Steam</string>
@@ -1392,6 +1389,10 @@
     <string name="theme_icon_blue_detail">黑色背景、白色文字，所有已選取、焦點所在或按下的項目都使用藍色。</string>
     <string name="theme_electric">電光海軍藍</string>
     <string name="theme_electric_detail">更明亮的藍色，搭配偏海軍藍而非灰色的介面。</string>
+    <string name="theme_inner_gamer">Inner Gamer</string>
+    <string name="theme_inner_gamer_detail">在彩虹色之間循環變化的顏色。遵循 Android 的動畫設定。</string>
+    <string name="theme_rgb_speed">速度</string>
+    <string name="theme_rgb_speed_hint">顏色循環的快慢。</string>
     <string name="theme_gradient">漸層</string>
     <string name="theme_gradient_detail">你自行選擇的主色與輔色，在按鈕與強調處以漸層呈現。</string>
     <string name="theme_gradient_primary">主色</string>
@@ -1508,6 +1509,13 @@
     <string name="fm_conflict_skip">略過</string>
     <string name="fm_select_this_folder">選擇此資料夾</string>
     <string name="fm_back">返回</string>
+    <string name="fm_exit">離開</string>
+    <string name="fm_return_to_start">返回初始資料夾</string>
+    <string name="fm_start_unavailable">初始資料夾已無法使用</string>
+    <string name="fm_cancel_operation_title">取消操作？</string>
+    <string name="fm_cancel_operation_confirmation">操作將會取消。確定嗎？</string>
+    <string name="fm_accept">接受</string>
+    <string name="fm_decline">拒絕</string>
     <string name="fm_drive_not_readable">%1$s 已掛載，但目前無法讀取</string>
     <string name="fm_list_view">清單檢視</string>
     <string name="fm_grid_view">格狀檢視</string>

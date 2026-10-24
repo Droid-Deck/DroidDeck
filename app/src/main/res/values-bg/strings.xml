@@ -287,9 +287,6 @@
     <string name="mode_suspend_steam_note">Автоматично поставя на пауза и продължава, когато се покаже отново. Системно подготвя Steam за заспиване първо. Ръчно изчаква „Продължи“. Никога продължава да работи.</string>
     <string name="mode_background_downloads">Продължаване на изтеглянията</string>
     <string name="mode_background_downloads_hint">Отлага фоновото спиране, докато Steam активно изтегля.</string>
-    <string name="mode_zram">zRAM компресия</string>
-    <string name="mode_zram_hint">Докато играта работи, паметта на Steam клиента се компресира в zram на устройството, така че играта получава повече RAM. Важи при следващото стартиране на Steam.</string>
-    <string name="mode_zram_unsupported">Недостъпно: устройството няма zram или swap, или ядрото е по-старо от 5.4.</string>
     <string name="mode_suspend_note">Автоматично поставя на пауза във фонов режим и продължава при показване. Ръчно изчаква „Продължи“. Никога продължава да работи.</string>
     <string name="mode_startup">Стартиране</string>
     <string name="mode_steam_startup">Стартиране на Steam заедно с DroidDeck</string>
@@ -1404,6 +1401,10 @@
     <string name="theme_icon_blue_detail">Черен фон, бял текст, синьото за всичко избрано, на фокус или натиснато.</string>
     <string name="theme_electric">Яркосиньо</string>
     <string name="theme_electric_detail">По-яркото синьо, върху повърхности, по-близки до тъмносиньо, вместо сиво.</string>
+    <string name="theme_inner_gamer">Inner Gamer</string>
+    <string name="theme_inner_gamer_detail">Цветове, които преминават през дъгата. Следва настройките за анимации на Android.</string>
+    <string name="theme_rgb_speed">Скорост</string>
+    <string name="theme_rgb_speed_hint">Колко бързо се сменят цветовете.</string>
     <string name="theme_gradient">Градиент</string>
     <string name="theme_gradient_detail">Вашите основен и вторичен цвят, смесени в бутоните и акцентите.</string>
     <string name="theme_gradient_primary">Основен</string>
@@ -1525,6 +1526,13 @@
     <string name="fm_conflict_skip">Пропускане</string>
     <string name="fm_select_this_folder">Избор на тази папка</string>
     <string name="fm_back">Назад</string>
+    <string name="fm_exit">Изход</string>
+    <string name="fm_return_to_start">Връщане в началната папка</string>
+    <string name="fm_start_unavailable">Началната папка вече не е достъпна</string>
+    <string name="fm_cancel_operation_title">Отмяна на операцията?</string>
+    <string name="fm_cancel_operation_confirmation">Операцията ще бъде отменена. Сигурни ли сте?</string>
+    <string name="fm_accept">Приемам</string>
+    <string name="fm_decline">Отказвам</string>
     <string name="fm_drive_not_readable">%1$s е монтирано, но в момента не може да се прочете</string>
     <string name="fm_list_view">Изглед като списък</string>
     <string name="fm_grid_view">Изглед като мрежа</string>

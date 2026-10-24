@@ -132,7 +132,7 @@ internal object ThemeColors {
         }
     }
 
-    fun palette(primary: Int, secondary: Int, label: Int, detail: Int): Palette {
+    fun palette(primary: Int, secondary: Int, label: Int, detail: Int, id: String = Themes.GRADIENT): Palette {
         val seen = readable(primary)
         val seenSecond = readable(secondary)
         val ink = inkFor(seen, seenSecond)
@@ -146,7 +146,7 @@ internal object ThemeColors {
             second = nextSecond
         }
         return Palette(
-            Themes.GRADIENT, label, detail,
+            id, label, detail,
             background = tint(first, 0.50f, 0.045f), surface = tint(first, 0.45f, 0.075f), surfaceVariant = tint(first, 0.42f, 0.115f),
             line = tint(first, 0.40f, 0.16f), line2 = tint(first, 0.36f, 0.22f),
             onBackground = tint(first, 0.05f, 0.97f), onSurfaceVariant = tint(first, 0.16f, 0.68f),

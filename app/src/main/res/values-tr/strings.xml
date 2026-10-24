@@ -1397,6 +1397,10 @@
     <string name="theme_icon_blue_detail">Siyah zemin, beyaz yazı; seçilen, odaklanan veya basılan her şey için mavi.</string>
     <string name="theme_electric">Elektrik laciverti</string>
     <string name="theme_electric_detail">Daha parlak mavi; gri yerine laciverte çalan yüzeylerde.</string>
+    <string name="theme_inner_gamer">Inner Gamer</string>
+    <string name="theme_inner_gamer_detail">Gökkuşağında dolaşan renkler. Android\'in animasyon ayarlarına uyar.</string>
+    <string name="theme_rgb_speed">Hız</string>
+    <string name="theme_rgb_speed_hint">Renklerin ne kadar hızlı değiştiği.</string>
     <string name="theme_gradient">Geçiş</string>
     <string name="theme_gradient_detail">Kendi birincil ve ikincil renklerin, düğmelerde ve vurgularda harmanlanır.</string>
     <string name="theme_gradient_primary">Birincil</string>
@@ -1518,6 +1522,13 @@
     <string name="fm_conflict_skip">Atla</string>
     <string name="fm_select_this_folder">Bu klasörü seç</string>
     <string name="fm_back">Geri</string>
+    <string name="fm_exit">Çıkış</string>
+    <string name="fm_return_to_start">Başlangıç klasörüne dön</string>
+    <string name="fm_start_unavailable">Başlangıç klasörü artık kullanılamıyor</string>
+    <string name="fm_cancel_operation_title">İşlem iptal edilsin mi?</string>
+    <string name="fm_cancel_operation_confirmation">İşlem iptal edilecek. Emin misiniz?</string>
+    <string name="fm_accept">Kabul et</string>
+    <string name="fm_decline">Reddet</string>
     <string name="fm_drive_not_readable">%1$s bağlı ancak şu anda okunamıyor</string>
     <string name="fm_list_view">Liste görünümü</string>
     <string name="fm_grid_view">Izgara görünümü</string>
@@ -2533,9 +2544,6 @@
     <string name="stores_hltb_completionist">Tamamlayıcı</string>
     <string name="stores_hltb_hours">%1$s sa</string>
     <string name="stores_hltb_minutes">%1$d dk</string>
-    <string name="mode_zram">zRAM sıkıştırma</string>
-    <string name="mode_zram_hint">Bir oyun çalışırken Steam istemcisinin belleği cihazın zram\'ına sıkıştırılır ve oyuna daha fazla RAM kalır. Steam\'in bir sonraki başlatılışında uygulanır.</string>
-    <string name="mode_zram_unsupported">Kullanılamıyor: bu cihazda zram veya swap yok ya da çekirdeği 5.4\'ten eski.</string>
     <string name="setup_reset_settings">Tüm ayarları sıfırla</string>
     <string name="setup_reset_settings_title">Tüm ayarlar sıfırlansın mı?</string>
     <string name="setup_reset_settings_body">Ekran, performans, denetleyici, tema, dil ve başlatıcı ayarları varsayılanlarına döner. Oyunlarınız, Steam oturum bilgileriniz, mağaza hesaplarınız, indirilen sürücüler ve depolama klasörleriniz korunur.</string>

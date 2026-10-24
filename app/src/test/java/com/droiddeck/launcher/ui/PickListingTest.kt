@@ -29,6 +29,17 @@ class PickListingTest {
         assertEquals(listOf("alarms", "Android", "DCIM", "Documents", "Download", "Games", "Winlator"), listing.folders.map { it.dir.name })
     }
 
+    @Test fun hiddenDirectoriesAndExecutablesCanBeShownOnRequest() {
+        val root = storage()
+        val hidden = File(root, ".Games").apply { mkdirs() }
+        File(hidden, "Game.exe").writeText("game")
+        assertFalse(pickListing(root, PickKind.EXE).folders.any { it.dir.name == ".Games" })
+        val listing = pickListing(root, PickKind.EXE, showHidden = true)
+        assertTrue(listing.folders.any { it.dir.name == ".Games" })
+        assertTrue(listing.files.any { it.name == ".hidden.exe" })
+        assertEquals(listOf("Game.exe"), pickListing(hidden, PickKind.EXE).files.map { it.name })
+    }
+
     @Test fun onlyExesForAGameOnlyImagesForArt() {
         val root = storage()
         assertEquals(listOf("game.EXE", "Setup.exe"), pickListing(root, PickKind.EXE).files.map { it.name })

@@ -65,8 +65,6 @@ class ModeSettings(
     val touchMode: String,
     val suspendPolicy: String,
     val steamDownloadsInBackground: Boolean = false,
-    val zramCompression: Boolean? = null,
-    val zramSupported: Boolean? = null,
     val pipSupported: Boolean = false,
     val pipAutoEnter: Boolean = false,
     val oscMode: String?,
@@ -121,7 +119,6 @@ class ModeSettingsActions(
     val onTouch: (String) -> Unit,
     val onSuspendPolicy: (String) -> Unit,
     val onSteamDownloadsInBackground: (Boolean) -> Unit = {},
-    val onZramCompression: (Boolean) -> Unit = {},
     val onPipAutoEnter: (Boolean) -> Unit = {},
     val onOsc: (String) -> Unit,
     val onBackActionsInverted: (Boolean) -> Unit = {},
@@ -332,12 +329,6 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
                 host, "background-downloads", stringResource(R.string.mode_background_downloads),
                 stringResource(R.string.mode_background_downloads_hint),
                 s.steamDownloadsInBackground, onChange = a.onSteamDownloadsInBackground,
-            )
-            if (s.zramCompression != null) ToggleRow(
-                host, "zram", stringResource(R.string.mode_zram),
-                stringResource(if (s.zramSupported == false) R.string.mode_zram_unsupported else R.string.mode_zram_hint),
-                s.zramCompression && s.zramSupported != false, enabled = s.zramSupported == true,
-                onChange = a.onZramCompression,
             )
             if (s.syncBackend != null) ChoiceRow(
                 host, "sync", stringResource(R.string.sync_backend_title), stringResource(R.string.sync_backend_hint),

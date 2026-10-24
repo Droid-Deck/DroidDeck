@@ -133,7 +133,7 @@ internal class EpicInstaller(
         val sidecar = StoreGameSidecar(
             Store.EPIC, item.id, item.title, exe = picked.ifEmpty { "game.exe" }, args = args,
             installVersion = result.optString("buildVersion"), installedAt = System.currentTimeMillis(),
-            cover = cover, hero = item.imageUrl, extra = extra,
+            cover = cover, hero = item.imageUrl, extra = extra, logo = item.logoUrl,
         )
         StoreInstalls.complete(app, folder, sidecar, onStep = { done, steps -> handle.stageProgress(done.toLong(), steps.toLong()) })
         val disk = result.optLong("diskBytes", 0L)
