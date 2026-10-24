@@ -672,9 +672,8 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                 }
                             }
                             SettingsGroup(stringResource(R.string.drawer_session_behavior)) {
-                                ToggleRow(host, "microphone", stringResource(R.string.mode_mic),
-                                    stringResource(if (a.micAvailable) R.string.drawer_mic_hint else R.string.drawer_mic_unavailable),
-                                    a.micEnabled, enabled = a.micAvailable,
+                                if (a.micAvailable) ToggleRow(host, "microphone", stringResource(R.string.mode_mic),
+                                    stringResource(R.string.drawer_mic_hint), a.micEnabled,
                                     chipModifier = focus.track(page, "microphone"), onChange = a.onMicEnabled)
                                 ChoiceRow(
                                     host, "suspend", stringResource(R.string.mode_suspend),

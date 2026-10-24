@@ -124,15 +124,14 @@ class SessionSecondScreenTest {
         assertEquals(listOf(true), changes)
     }
 
-    @Test fun sessionWithoutMicrophoneExplainsThatRestartIsRequired() {
+    @Test fun sessionWithoutMicrophoneOmitsCaptureControl() {
         compose.setContent {
             DroidDeckTheme {
                 SessionDrawer(true, SessionDrawerPage.SESSION, false, {}, actions(false, emptyList()))
             }
         }
-        compose.onNodeWithTag("setting-microphone").assertIsNotEnabled()
-            .assert(SemanticsMatcher.expectValue(StateDescription, context.getString(R.string.widgets_off)))
-        compose.onNodeWithText(context.getString(R.string.drawer_mic_unavailable)).assertExists()
+        compose.onNodeWithTag("setting-microphone").assertDoesNotExist()
+        compose.onNodeWithText(context.getString(R.string.mode_mic)).assertDoesNotExist()
     }
 
     private fun checkModes(steam: Boolean) {
