@@ -57,6 +57,7 @@ UBISOFT_INSTALLS_PATH = "HKEY_LOCAL_MACHINE\\SOFTWARE\\WOW6432Node\\Ubisoft\\Lau
 UBISOFT_INSTALLS_SECTION = "[Software\\WOW6432Node\\Ubisoft\\Launcher\\Installs\\%d]"
 UBISOFT_TABLE = ".droiddeck-ubisoft.reg"
 UBISOFT_HOOK = ".droiddeck-registry.bat"
+UBISOFT_IMPORT_TIMEOUT = 20.0
 UBISOFT_LOG = ".droiddeck-registry.log"
 TIMEOUT = 5.0
 STALE_SECONDS = 300
@@ -486,7 +487,7 @@ def wine_server_running():
     return any(Path("/tmp/.wine-%d" % os.getuid()).glob("server-*/socket"))
 
 
-def run_reg_import(proton, table, timeout=60):
+def run_reg_import(proton, table, timeout=UBISOFT_IMPORT_TIMEOUT):
     if not proton or not Path(proton).is_file():
         return "no-proton"
     if wine_server_running():
@@ -535,7 +536,7 @@ def ubisoft_registry(folder, compat_data, product=None, proton=None):
     if imported == "ok":
         return "written=%d" % product
     hook = folder / UBISOFT_HOOK
-    body = ('@echo off\r\nreg import "%%~dp0%s" > "%%~dp0%s" 2>&1\r\n'
+    body = ('@echo off\r\n"%%SystemRoot%%\\system32\\reg.exe" import "%%~dp0%s" > "%%~dp0%s" 2>&1\r\n'
             'echo exit=%%ERRORLEVEL%%>> "%%~dp0%s"\r\n') % (UBISOFT_TABLE, UBISOFT_LOG, UBISOFT_LOG)
     try:
         hook.write_bytes(body.encode("utf-8"))
