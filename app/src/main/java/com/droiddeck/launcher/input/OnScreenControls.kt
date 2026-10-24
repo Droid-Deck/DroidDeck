@@ -652,7 +652,7 @@ class OnScreenControls(
         if (x < safe.left || x >= width - safe.right || y < safe.top || y >= height - safe.bottom) return null
         if (controls.any { it.stick < 0 && isVisible(it) && it.contains(x, y, it.radius, 5f) }) return null
         return controls.filter {
-            val dx = x - it.cx
+            val dx = if (it.stick == 0) max(0f, x - it.cx) else x - it.cx
             val dy = y - it.cy
             val reach = it.radius * 1.4f * sqrt(1.5f)
             it.stick >= 0 && isVisible(it) && it.pressedBy == -1 && dx * dx + dy * dy <= reach * reach

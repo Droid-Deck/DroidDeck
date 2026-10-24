@@ -5,8 +5,11 @@ import kotlin.math.sqrt
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.Rect
+import android.view.DisplayCutout
 import android.view.MotionEvent
 import android.view.View
+import android.view.WindowInsets
 import android.widget.FrameLayout
 import org.junit.Assert.*
 import org.junit.Before
@@ -180,6 +183,7 @@ class OnScreenControlsTest {
         val x = value(left, "cx")
         val y = value(left, "cy")
         assertNotEquals(0, pixel(x, y))
+        assertFalse(touch(MotionEvent.ACTION_DOWN, 1 to (0f to y)))
         assertFalse(touch(MotionEvent.ACTION_DOWN, 1 to (600f to 200f)))
         touch(MotionEvent.ACTION_DOWN, 1 to (x + 10f to y))
         assertEquals(x, value(left, "ax"), 0f)
@@ -200,7 +204,7 @@ class OnScreenControlsTest {
         assertFalse(touch(MotionEvent.ACTION_DOWN, 1 to (600f to 200f)))
     }
 
-    @Test fun adaptiveActivationIsLimitedToExpandedSavedCircle() {
+    @Test fun adaptiveActivationKeepsItsVerticalAndInwardLimits() {
         val left = control("ls")
         val x = value(left, "cx")
         val y = value(left, "cy")
@@ -209,8 +213,51 @@ class OnScreenControlsTest {
         assertTrue(touch(MotionEvent.ACTION_DOWN, 1 to (x to y - reach + 1f)))
         assertEquals(y - reach + 1f, value(left, "ay"), 0.001f)
         touch(MotionEvent.ACTION_UP, 1 to (x to y - reach + 1f))
-        assertFalse(touch(MotionEvent.ACTION_DOWN, 1 to (x - reach to y - reach)))
+        assertFalse(touch(MotionEvent.ACTION_DOWN, 1 to (x + reach to y - reach)))
         assertFalse(touch(MotionEvent.ACTION_DOWN, 1 to (600f to 200f)))
+    }
+
+    @Test fun leftAdaptiveStickCanStartAtTheLeftEdgeAndReleaseNormally() {
+        val left = control("ls")
+        val y = value(left, "cy")
+        val reach = value(left, "radius") * 1.4f * sqrt(1.5f)
+        assertFalse(touch(MotionEvent.ACTION_DOWN, 1 to (0f to y - reach - 1f)))
+        assertTrue(touch(MotionEvent.ACTION_DOWN, 1 to (0f to y)))
+        assertEquals(1, field(left, "pressedBy"))
+        assertEquals(0f, value(left, "ax"), 0f)
+        assertEquals(0f, value(left, "kx"), 0f)
+        touch(MotionEvent.ACTION_MOVE, 1 to (30f to y))
+        assertEquals(30f, value(left, "kx"), 0f)
+        touch(MotionEvent.ACTION_CANCEL, 1 to (30f to y))
+        assertEquals(-1, field(left, "pressedBy"))
+        assertEquals(0f, value(left, "kx"), 0f)
+        assertEquals(-1, field(control("rs"), "pressedBy"))
+    }
+
+    @Test fun rightAdaptiveStickKeepsItsSavedActivationCircle() {
+        val right = control("rs")
+        val x = value(right, "cx")
+        val y = value(right, "cy")
+        val reach = value(right, "radius") * 1.4f * sqrt(1.5f)
+        assertFalse(touch(MotionEvent.ACTION_DOWN, 1 to (1199f to y)))
+        assertFalse(touch(MotionEvent.ACTION_DOWN, 1 to (x + reach + 1f to y)))
+        assertTrue(touch(MotionEvent.ACTION_DOWN, 1 to (x + reach - 1f to y)))
+        assertEquals(1, field(right, "pressedBy"))
+    }
+
+    @Test
+    @Config(sdk = [30])
+    @Suppress("DEPRECATION")
+    fun leftActivationStopsAtTheSafeCutoutEdge() {
+        val insets = WindowInsets.Builder()
+            .setDisplayCutout(DisplayCutout(Rect(24, 0, 0, 0), listOf(Rect(0, 380, 24, 420))))
+            .build()
+        view.dispatchApplyWindowInsets(insets)
+        val left = control("ls")
+        val y = value(left, "cy")
+        assertFalse(touch(MotionEvent.ACTION_DOWN, 1 to (23f to y)))
+        assertTrue(touch(MotionEvent.ACTION_DOWN, 1 to (24f to y)))
+        assertEquals(1, field(left, "pressedBy"))
     }
 
     @Test fun touchesOutsideActivationAreasStayWithTrackpad() {
@@ -251,6 +298,23 @@ class OnScreenControlsTest {
             assertEquals(1, field(left, "pressedBy"))
             touch(MotionEvent.ACTION_UP, 1 to (x to edge - 6f))
         }
+    }
+
+    @Test fun leftExtensionKeepsButtonPriorityAndClearance() {
+        val button = control("left")
+        val x = value(button, "cx")
+        val y = value(button, "cy")
+        val edge = y - value(button, "radius") * 1.25f
+        val left = control("ls")
+        left.javaClass.getDeclaredField("cx").apply { isAccessible = true }.setFloat(left, x + 200f)
+        left.javaClass.getDeclaredField("cy").apply { isAccessible = true }.setFloat(left, y)
+        assertTrue(touch(MotionEvent.ACTION_DOWN, 1 to (x to y)))
+        assertEquals(1, field(button, "pressedBy"))
+        assertEquals(-1, field(left, "pressedBy"))
+        touch(MotionEvent.ACTION_UP, 1 to (x to y))
+        assertFalse(touch(MotionEvent.ACTION_DOWN, 1 to (x to edge - 4f)))
+        assertTrue(touch(MotionEvent.ACTION_DOWN, 1 to (x to edge - 6f)))
+        assertEquals(1, field(left, "pressedBy"))
     }
 
     private fun control(id: String): Any = (field(view, "controls") as List<*>).first { field(it!!, "id") == id }!!
