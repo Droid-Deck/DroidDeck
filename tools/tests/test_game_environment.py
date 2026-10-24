@@ -384,6 +384,10 @@ class GameEnvironmentTest(unittest.TestCase):
             other.mkdir(parents=True)
             (other / "Other-Win64-Shipping.exe").touch()
             self.assertEqual(MODULE["engine_fixes"](str(other / "Other-Win64-Shipping.exe"), []), ({}, [], []))
+            witcher = Path(tmp) / "The Witcher 3"
+            witcher.mkdir()
+            (witcher / "REDprelauncher.exe").touch()
+            self.assertNotIn("VKD3D_FEATURE_LEVEL", MODULE["engine_fixes"](str(witcher / "REDprelauncher.exe"), [])[0])
 
     def test_unity_players_keep_tso_over_the_preset(self):
         with tempfile.TemporaryDirectory() as tmp:

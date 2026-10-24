@@ -300,6 +300,11 @@ class EpicClientTest {
         val reinstalled = first.copy(args = epicArgs)
         assertEquals(epicArgs + "-PCStore=EGS", EpicClientLibrary.withLaunchArgs(reinstalled, listOf("-PCStore=EGS")).args)
         assertTrue(EpicClientLibrary.withLaunchArgs(installed, emptyList()) === installed)
+        val own = installed.copy(args = epicArgs + "-PCStore=EGS")
+        assertTrue(EpicClientLibrary.withLaunchArgs(own, listOf("-PCStore=EGS")) === own)
+        val ownUpdated = EpicClientLibrary.withLaunchArgs(own, listOf("-PCStore=EGS", "-log=a b.txt"))
+        assertEquals(epicArgs + listOf("-PCStore=EGS", "-log=a b.txt"), ownUpdated.args)
+        assertEquals(epicArgs + "-PCStore=EGS", EpicClientLibrary.withLaunchArgs(ownUpdated, emptyList()).args)
     }
 
     @Test fun itemsDescribeTheInstallForTheLauncher() {

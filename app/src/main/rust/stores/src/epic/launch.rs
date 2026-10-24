@@ -44,24 +44,37 @@ pub fn split_command(command: &str) -> Vec<String> {
     let mut current = String::new();
     let mut quoted = false;
     let mut started = false;
+    let mut slashes = 0usize;
     for c in command.chars().map(|c| if c == '\t' { ' ' } else { c }).filter(|&c| c >= ' ' && c != '\u{7f}') {
-        match c {
-            '"' => {
+        if c == '\\' {
+            slashes += 1;
+            started = true;
+            continue;
+        }
+        if c == '"' {
+            current.extend(std::iter::repeat('\\').take(slashes / 2));
+            if slashes % 2 == 1 {
+                current.push('"');
+            } else {
                 quoted = !quoted;
-                started = true;
             }
-            ' ' if !quoted => {
-                if started {
-                    args.push(std::mem::take(&mut current));
-                    started = false;
-                }
+            slashes = 0;
+            started = true;
+            continue;
+        }
+        current.extend(std::iter::repeat('\\').take(slashes));
+        slashes = 0;
+        if c == ' ' && !quoted {
+            if started {
+                args.push(std::mem::take(&mut current));
+                started = false;
             }
-            _ => {
-                current.push(c);
-                started = true;
-            }
+        } else {
+            current.push(c);
+            started = true;
         }
     }
+    current.extend(std::iter::repeat('\\').take(slashes));
     if started {
         args.push(current);
     }
@@ -79,6 +92,10 @@ mod tests {
         assert_eq!(
             split_command("  -a\t-b=\"c d\" \"-e f\" \"\" -g\r\n"),
             vec!["-a", "-b=c d", "-e f", "-g"]
+        );
+        assert_eq!(
+            split_command(r#"-name="a\" b" -dir=C:\Games\ "-q=\\" -r"#),
+            vec![r#"-name=a" b"#, r"-dir=C:\Games\", r"-q=\", "-r"]
         );
         assert!(split_command("   ").is_empty());
     }

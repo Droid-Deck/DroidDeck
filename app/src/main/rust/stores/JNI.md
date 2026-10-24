@@ -167,7 +167,7 @@ synchronous on the calling thread (network calls block: call them off the main t
 body → `{"ok": true}` or an error. `nativeInspect` parses manifest bytes: `{"op":"summary"}` →
 `buildVersion`, `launchExe`, `prereqName`, `prereqPath`, `prereqRead`, `files[]` (`path`, `size`,
 `tags`); `{"op":"select","tags":[…]}` → `indices[]` of the files an install with those tags gets;
-`{"op":"launch"}` → the manifest's `command` line and its `args[]`.
+`{"op":"launch"}` → the manifest's `buildVersion`, its `command` line and the `args[]` split from it.
 
 ### `nativeInstall`
 

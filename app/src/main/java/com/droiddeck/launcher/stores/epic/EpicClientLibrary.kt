@@ -384,15 +384,19 @@ internal object EpicClientLibrary {
 
     private fun manifestArgs(install: Install, guid: String): List<String>? {
         val manifest = File(install.folder, ".egstore/$guid.manifest").takeIf { it.isFile } ?: return null
-        val args = EpicNative.inspect(manifest.readBytes(), JSONObject().put("op", "launch"))?.optJSONArray("args") ?: return null
+        val launch = EpicNative.inspect(manifest.readBytes(), JSONObject().put("op", "launch")) ?: return null
+        val build = launch.optString("buildVersion")
+        if (install.version.isNotEmpty() && build.isNotEmpty() && build != install.version) return null
+        val args = launch.optJSONArray("args") ?: return null
         return List(args.length()) { args.optString(it) }.filter { it.isNotEmpty() }
     }
 
     internal fun withLaunchArgs(sidecar: StoreGameSidecar, args: List<String>): StoreGameSidecar {
         val previous = sidecar.extra[LAUNCH_ARGS]?.split('\n')?.filter { it.isNotEmpty() }.orEmpty()
         val kept = sidecar.args.filterNot { it in previous }
-        val next = kept + args.filterNot { it in kept }
-        val extra = LinkedHashMap(sidecar.extra).apply { if (args.isEmpty()) remove(LAUNCH_ARGS) else put(LAUNCH_ARGS, args.joinToString("\n")) }
+        val added = args.filterNot { it in kept }
+        val next = kept + added
+        val extra = LinkedHashMap(sidecar.extra).apply { if (added.isEmpty()) remove(LAUNCH_ARGS) else put(LAUNCH_ARGS, added.joinToString("\n")) }
         if (next == sidecar.args && extra == sidecar.extra) return sidecar
         return sidecar.copy(args = next, extra = extra)
     }
