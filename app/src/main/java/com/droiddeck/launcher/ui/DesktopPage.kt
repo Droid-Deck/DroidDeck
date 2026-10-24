@@ -122,7 +122,7 @@ internal fun DesktopPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
         key = "desktop", tabs = tabs,
         onOpen = a.onDesktopSettings, onPrimary = a.onDesktop,
         modifier = modifier.clipToBounds(),
-        start = if (narrow) 20.dp else 44.dp, bottom = if (narrow) 20.dp else 44.dp,
+        start = if (narrow) 20.dp else 44.dp, bottom = 44.dp,
         background = {
             DesktopWall(installed.map { it.iconRes } + apps.mapNotNull { it.icon })
         },
@@ -134,7 +134,7 @@ internal fun DesktopPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
         },
         words = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
+                if (LocalConfiguration.current.screenHeightDp >= 400) Text(
                     stringResource(R.string.rail_desktop), fontSize = if (short) 30.sp else 42.sp, lineHeight = if (short) 34.sp else 46.sp,
                     fontWeight = FontWeight.Black, color = colors.onBackground,
                 )
@@ -145,7 +145,10 @@ internal fun DesktopPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
             PrimaryButton(open, enabled = !s.busy, main = true, large = true, icon = Icons.Outlined.DesktopWindows, onClick = click)
         },
         beside = {
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.horizontalScroll(rememberScrollState()),
+            ) {
                 HeroIconButton(Icons.Outlined.Storefront, stringResource(R.string.flathub_name), FlathubTeal, "desktop:flathub") { at -> openFrom(at, null, "store") }
                 HeroIconButton(Icons.Filled.Add, stringResource(R.string.user_apps_add), null, "desktop:add") { if (!s.busy) adding = true }
                 if (s.desktopPresent) UninstallDesktop(enabled = !s.runtimeActionsBlocked, onUninstall = a.onRemoveDesktop)
