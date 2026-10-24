@@ -128,7 +128,7 @@ class FrontEndState(
     val runtimeActionsBlocked: Boolean = false,
     val backActionsInverted: Boolean = false,
     val buildLabel: String = "local",
-    val oscMode: String = SessionPrefs.OSC_AUTO,
+    val oscMode: String = SessionPrefs.OSC_NEVER,
     val controller: com.droiddeck.launcher.input.ControllerPrefs.Settings? = null,
     val phantomProcessStatus: PhantomProcessStatus = PhantomProcessStatus.NOT_APPLICABLE,
     val showPhantomGate: Boolean = false,

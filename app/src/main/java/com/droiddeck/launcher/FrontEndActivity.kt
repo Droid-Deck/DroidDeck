@@ -394,7 +394,7 @@ class FrontEndActivity : ComponentActivity() {
     private var touchMode by mutableStateOf(SessionPrefs.TOUCH_AUTO)
     private var suspendPolicy by mutableStateOf(SessionPrefs.SUSPEND_MANUAL)
     private var steamDownloadsInBackground by mutableStateOf(false)
-    private var oscMode by mutableStateOf(SessionPrefs.OSC_AUTO)
+    private var oscMode by mutableStateOf(SessionPrefs.OSC_NEVER)
     private var backActionsInverted by mutableStateOf(false)
     private var gameStorage by mutableStateOf("")
     private var storageDiagnostics by mutableStateOf(false)

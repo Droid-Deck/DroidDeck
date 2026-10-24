@@ -154,6 +154,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private lateinit var surfaceView: SurfaceView
     private lateinit var sessionOverlay: ComposeView
     private lateinit var loading: LoadingState
+    private val steamStarting: Boolean
+        get() = SessionState.mode == SessionService.MODE_STEAM && ::loading.isInitialized && loading.visible
     private lateinit var hud: PerfHud
     private var padBridge: PadBridge? = null
     private var joyConVr: com.droiddeck.launcher.input.JoyConVr? = null
@@ -363,7 +365,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var fexPreset by mutableStateOf("")
     private var suspendPolicy by mutableStateOf(SessionPrefs.SUSPEND_MANUAL)
     private var steamDownloadsInBackground by mutableStateOf(false)
-    private var oscMode by mutableStateOf(SessionPrefs.OSC_AUTO)
+    private var oscMode by mutableStateOf(SessionPrefs.OSC_NEVER)
     private var onScreenButtonsVisible by mutableStateOf(false)
     private var secondScreenMode by mutableStateOf(SessionState.secondScreenMode)
     private var secondScreenDisplays by mutableStateOf<List<SecondScreenDisplay>>(emptyList())
@@ -662,6 +664,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 onDispose { com.droiddeck.launcher.glasses.GlassesMenuMirror.setSessionMenuVisible(this@SessionActivity, false) }
             }
             androidx.compose.runtime.LaunchedEffect(drawerOpen, pcKeyboardOpen, achievementsOpen, pipUi) { updatePointerCapture() }
+            androidx.compose.runtime.LaunchedEffect(loading.visible) { refreshControls() }
             androidx.compose.runtime.LaunchedEffect(AgentGuest.steamKeyboard) { updateOnScreenControls() }
             androidx.compose.runtime.LaunchedEffect(picturePosition, SessionState.running, pipUi, cardboard.enabled) { applyGameAlignment() }
             DroidDeckTheme {
@@ -2521,7 +2524,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val width = sessionRoot.width
         val height = sessionRoot.height
         val wanted = com.droiddeck.launcher.session.SessionDisplay.unfoldedControlsWanted(
-            enabled = unfoldedControls,
+            enabled = unfoldedControls && !steamStarting,
             foldable = com.droiddeck.launcher.session.SessionDisplay.foldable(this),
             controllerConnected = PadBridge.anyControllerConnected() || SteamControllerBle.connected,
             keepWithController = unfoldedControlsWithController,
@@ -2845,7 +2848,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 SessionState.mode != SessionService.MODE_DESKTOP
         }
         onScreenButtonsVisible = show
-        val drawn = show && !keyboardCoversPad()
+        val drawn = show && !keyboardCoversPad() && !steamStarting
         if (steam != null) {
             if (controls.visibility == View.VISIBLE) { controls.releaseAll(); controls.visibility = View.GONE }
             if (!drawn) steam.releaseAll()
