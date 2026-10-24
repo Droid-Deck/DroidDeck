@@ -308,6 +308,13 @@ fi
 
 [ "${BL_DESKTOP:-}" = 1 ] || start_agent
 
+# The screen reader, when the app has installed and enabled it (BL_ORCA=1): it follows every
+# session into the runtime - Steam, a program - and goes down with it. The desktop (lxqt) brings
+# its own copy up inside its session bus (droiddeck-desktop), so it is not started twice.
+if [ "$mode" != lxqt ] && [ "$mode" != desktop ]; then
+  /usr/local/bin/droiddeck-orca 2>&1 | sed 's/^/[orca] /' &
+fi
+
 case $mode in
   desktop)
     exec pcmanfm

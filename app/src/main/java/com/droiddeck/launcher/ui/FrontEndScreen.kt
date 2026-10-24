@@ -149,6 +149,13 @@ class FrontEndState(
     val storesSort: String = SessionPrefs.STORES_SORTS.first(),
     val storesView: String = SessionPrefs.STORES_VIEWS.first(),
     val storeDownloadsActive: Int = 0,
+    /** The Accessibility tab: Orca in the runtime, the switch for future sessions, an install. */
+    val orcaInstalled: Boolean = false,
+    val orcaEnabled: Boolean = false,
+    val orcaBusy: Boolean = false,
+    val orcaStage: String? = null,
+    val orcaError: String? = null,
+    /** The Updates page: DroidDeck's own builds and the channel followed. */
     val updates: UpdatesState = UpdatesState(),
 )
 
@@ -189,8 +196,13 @@ class FrontEndActions(
     val onImportLossless: () -> Unit,
     val onProtons: () -> Unit,
     val onComponents: (focusContent: Boolean) -> Unit,
+    /** The Accessibility tab: install Orca, open its settings, or switch it for future sessions. */
+    val onOrcaInstall: () -> Unit = {},
+    val onOrcaSettings: () -> Unit = {},
+    val onOrcaToggle: (Boolean) -> Unit = {},
     val onGameComponents: (Library.SteamGame) -> Unit = { onComponents(true) },
     val onComponentsTab: (String) -> Unit = {},
+    /** A game page's Manage saves: import a save zip into this game, or export its saves in a layout. */
     val onSaveImport: (Library.SteamGame) -> Unit = {},
     val onSaveExport: (Library.SteamGame, com.droiddeck.launcher.session.GameSaves.Layout) -> Unit = { _, _ -> },
     val onPerformance: () -> Unit,

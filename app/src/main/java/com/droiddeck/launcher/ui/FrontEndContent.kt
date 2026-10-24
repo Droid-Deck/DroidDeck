@@ -279,6 +279,9 @@ private fun Content(
                     })
                 }
             }
+            selected == "accessibility" -> {
+                AccessibilityPage(s, a)
+            }
             selected.startsWith("user:") -> {
                 val app = UserAppsState.items.firstOrNull { "user:${it.key}" == selected }
                 if (app == null) Note(stringResource(R.string.user_apps_gone)) else UserAppPage(app, s, a, onSelect)
