@@ -887,9 +887,9 @@
     <string name="gate_eyebrow">Steam</string>
     <string name="gate_lede">Android 會停止啟動大量背景程序的應用程式，而 Steam 會啟動數十個。在變更此設定前，遊戲會在沒有任何錯誤訊息的情況下關閉。</string>
     <string name="gate_fix_for_me">幫我修復</string>
-    <string name="gate_toggle_steps">開啟「停用對子處理過程的限制」，然後返回。請保持開發人員選項開啟，否則此開關會再次關閉。</string>
+    <string name="gate_toggle_steps">如果系統提供「停用對子處理過程的限制」，請將其開啟並保持開發人員選項開啟。若沒有此開關，或檢查仍未通過，請使用下方的無線偵錯。</string>
     <string name="gate_open_dev">開啟開發人員選項</string>
-    <string name="gate_no_toggle">此 Android 版本沒有此開關，因此 DroidDeck 會透過無線偵錯更改。約需一分鐘，無需電腦。</string>
+    <string name="gate_no_toggle">如果開發人員選項沒有子程序開關，DroidDeck 可透過無線偵錯調整並驗證限制，無需電腦。</string>
     <string name="gate_needs_wifi">無線偵錯需要 Wi-Fi。任何網絡都可以，無需連接互聯網。</string>
     <string name="gate_needs_notifications">配對碼需在通知中輸入。請允許 DroidDeck 發出通知，或使用「其他方式」。</string>
     <string name="gate_allow_notifications">允許通知</string>
@@ -899,7 +899,7 @@
     <string name="gate_waiting">正在等待配對彈出式視窗…</string>
     <string name="gate_code_needed">已找到彈出式視窗，請在通知中輸入其中的配對碼。</string>
     <string name="gate_status">狀態</string>
-    <string name="gate_polling">每 2 秒檢查一次。關閉此開關後，本頁面會自動關閉。</string>
+    <string name="gate_polling">每 2 秒檢查一次。確認限制已調整後，本頁面會自動關閉。</string>
     <string name="gate_other_ways">其他方式</string>
     <string name="gate_other_toggle">無線偵錯、手動輸入位址、電腦 ADB</string>
     <string name="gate_other_no_toggle">手動輸入位址、電腦 ADB、開發人員選項</string>
@@ -907,7 +907,7 @@
     <string name="gate_some_roms">部分 ROM 仍會提供此開關。請在開發人員選項中尋找「子進程」。</string>
     <string name="gate_manual_hint">如果通知無效，請自行輸入彈出式視窗中的位址和配對碼。</string>
     <string name="gate_enter_manually">手動輸入位址</string>
-    <string name="gate_from_computer">在已安裝 ADB 的電腦上：</string>
+    <string name="gate_from_computer">在已安裝 ADB 的電腦上執行。如果系統不允許應用程式讀取程序數量設定，執行後仍需使用無線偵錯驗證：</string>
     <string name="gate_copy_command">複製指令</string>
     <string name="gate_choose_display">選擇要在哪個螢幕開啟 Android 設定。</string>
     <string name="gate_main_screen">主螢幕</string>
@@ -1697,6 +1697,14 @@
     <string name="adbfix_not_confirmed">Android 未確認子進程限制已更改：%1$s</string>
     <string name="adbfix_no_pairing">沒有已儲存的無線偵錯配對</string>
     <string name="adbfix_enter_address">請輸入目前的無線偵錯 IP 位址和連接埠</string>
+    <string name="adbfix_local_only">請使用本機的無線偵錯位址。其他裝置無法驗證本機的子程序限制。</string>
+    <string name="adbfix_legacy_sync_title">還原舊版 DroidDeck 更改的設定？</string>
+    <string name="adbfix_legacy_sync_message">舊版 Android 12 修復可能關閉了整部裝置的系統設定更新（DeviceConfig）。繼續操作可能重新開啟這些更新，同時還原子程序限制。DroidDeck 無法判斷其他工具後來是否更改過此原則。僅在您也希望還原系統設定更新時繼續。操作後可能需要重新啟動裝置。</string>
+    <string name="adbfix_legacy_sync_restore">還原限制和系統設定更新</string>
+    <string name="adbfix_legacy_sync_retry">還原舊版設定</string>
+    <string name="adbfix_legacy_sync_cancelled">已取消還原。</string>
+    <string name="adbfix_legacy_sync_confirmation_required">請先確認還原舊版更改的系統設定同步設定。</string>
+    <string name="adbfix_legacy_sync_not_confirmed">子程序限制已還原，但無法確認舊版系統設定同步設定已還原，請重試。%1$s</string>
 
     <string name="adbpair_timed_out">等待配對彈出式視窗逾時，請在 DroidDeck 重試。</string>
     <string name="adbpair_discovery_failed_code">無法尋找配對彈出式視窗（%1$d）。請確認 Wi-Fi 已開啟。</string>
@@ -1860,8 +1868,8 @@
     <string name="phantom_instructions_fix">%1$s 如無法這樣做，請將此裝置連接到已安裝 ADB 的電腦，並執行以下指令，然後返回這裡再檢查一次。</string>
     <string name="phantom_instructions_off">可以啟動 Steam 會話。</string>
     <string name="phantom_instructions_not_applicable">此 Android 版本不使用此限制。</string>
-    <string name="phantom_fix_toggle">在開發人員選項中開啟「停用對子處理過程的限制」，之後請保持開發人員選項開啟。</string>
-    <string name="phantom_fix_no_toggle">此 Android 版本沒有此開關。請使用無線偵錯，直接在此裝置上更改。</string>
+    <string name="phantom_fix_toggle">如果系統提供「停用對子處理過程的限制」，請將其開啟；亦可使用無線偵錯調整並驗證限制。</string>
+    <string name="phantom_fix_no_toggle">如果開發人員選項沒有子程序開關，請使用無線偵錯調整並驗證限制。</string>
     <string name="upd_block_no_apk">此版本沒有適用於此 DroidDeck 版本的下載。</string>
     <string name="upd_block_version_code">Android 不會以此版本覆蓋安裝，因為其 versionCode %1$d 低於已安裝的 %2$d。</string>
     <string name="upd_fail_downgrade">Android 不會以舊版本覆蓋較新的版本。請繼續使用此版本，直至該頻道追上為止。</string>

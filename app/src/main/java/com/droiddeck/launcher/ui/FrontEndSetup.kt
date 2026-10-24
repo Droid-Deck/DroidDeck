@@ -76,6 +76,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import com.droiddeck.launcher.core.AppLanguage
 import com.droiddeck.launcher.core.DeviceSupport
 import com.droiddeck.launcher.core.DownloadSource
+import com.droiddeck.launcher.core.LegacyDeviceConfigSync
 import com.droiddeck.launcher.core.PhantomProcessLimit
 import com.droiddeck.launcher.core.PhantomProcessStatus
 import com.droiddeck.launcher.session.SessionPrefs
@@ -151,6 +152,8 @@ internal fun SetupPanel(
             processLimitBusy = false
             if (error == null) {
                 a.onRefreshPhantomStatus()
+            } else if (error == LegacySyncRecoveryDialog.CANCELLED) {
+                processLimitMessage = LegacySyncRecoveryDialog.displayError(ctx, error)
             } else {
                 processLimitMessage = ctx.getString(R.string.setup_limit_adb_failed)
                 onRequestWirelessAdb(enabled)
@@ -290,6 +293,10 @@ internal fun SetupPanel(
                                             SecondaryButton(stringResource(R.string.setup_check_again), compact = true, onClick = a.onRefreshPhantomStatus)
                                         } else if (s.phantomProcessStatus == PhantomProcessStatus.DISABLED) {
                                             SecondaryButton(stringResource(R.string.setup_limit_turn_on), compact = true, enabled = !processLimitBusy) { setProcessLimit(true) }
+                                        }
+                                        if (s.phantomProcessStatus != PhantomProcessStatus.DISABLED &&
+                                            s.phantomProcessStatus != PhantomProcessStatus.NOT_APPLICABLE && LegacyDeviceConfigSync.pending(ctx)) {
+                                            SecondaryButton(stringResource(R.string.adbfix_legacy_sync_retry), compact = true, enabled = !processLimitBusy) { setProcessLimit(true) }
                                         }
                                     }
                                     if (processLimitBusy) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp))

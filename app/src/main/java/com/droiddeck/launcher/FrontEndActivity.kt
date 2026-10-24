@@ -160,6 +160,8 @@ class FrontEndActivity : ComponentActivity() {
     private var phantomWarning by mutableStateOf<String?>(null)
     private var phantomProcessStatus by mutableStateOf(PhantomProcessStatus.NOT_APPLICABLE)
     private var showPhantomGate by mutableStateOf(false)
+    private var phantomStatusChecking = false
+    private var phantomStatusCheckedAt: Long? = null
     private var directAudio by mutableStateOf(false)
     private var picturePosition by mutableStateOf("center")
     private var stretch16x9 by mutableStateOf(false)
@@ -1057,24 +1059,36 @@ class FrontEndActivity : ComponentActivity() {
                             }, "wireless-adb-discovery").start()
                         },
                         onWirelessAdbApply = { host, port, enabled, complete ->
-                            Thread({
-                                val result = runCatching { WirelessAdbFix.setChildProcessLimit(this@FrontEndActivity, host, port, enabled) }
-                                val error = result.exceptionOrNull()?.let { it.localizedMessage ?: getString(R.string.main_wadb_command_failed) }
-                                ui.post {
-                                    if (error == null) refreshPhantomStatus()
-                                    complete(error)
-                                }
-                            }, "wireless-adb-fix").start()
+                            com.droiddeck.launcher.ui.LegacySyncRecoveryDialog.request(this, enabled,
+                                onCancelled = { complete(com.droiddeck.launcher.ui.LegacySyncRecoveryDialog.CANCELLED) },
+                            ) { recoverLegacySync ->
+                                Thread({
+                                    val result = runCatching {
+                                        WirelessAdbFix.setChildProcessLimit(this@FrontEndActivity, host, port, enabled, recoverLegacySync)
+                                    }
+                                    val error = result.exceptionOrNull()?.let { it.localizedMessage ?: getString(R.string.main_wadb_command_failed) }
+                                    ui.post {
+                                        if (error == null) refreshPhantomStatus()
+                                        complete(error)
+                                    }
+                                }, "wireless-adb-fix").start()
+                            }
                         },
                         onSetPhantomProcessLimit = { enabled, complete ->
-                            Thread({
-                                val result = runCatching { WirelessAdbFix.setUsingSavedPairing(this@FrontEndActivity, enabled) }
-                                val error = result.exceptionOrNull()?.let { it.localizedMessage ?: getString(R.string.main_wadb_unavailable) }
-                                ui.post {
-                                    if (error == null) refreshPhantomStatus()
-                                    complete(error)
-                                }
-                            }, "wireless-adb-setting").start()
+                            com.droiddeck.launcher.ui.LegacySyncRecoveryDialog.request(this, enabled,
+                                onCancelled = { complete(com.droiddeck.launcher.ui.LegacySyncRecoveryDialog.CANCELLED) },
+                            ) { recoverLegacySync ->
+                                Thread({
+                                    val result = runCatching {
+                                        WirelessAdbFix.setUsingSavedPairing(this@FrontEndActivity, enabled, recoverLegacySync)
+                                    }
+                                    val error = result.exceptionOrNull()?.let { it.localizedMessage ?: getString(R.string.main_wadb_unavailable) }
+                                    ui.post {
+                                        if (error == null) refreshPhantomStatus()
+                                        complete(error)
+                                    }
+                                }, "wireless-adb-setting").start()
+                            }
                         },
                         onCopyPhantomCommand = { enabled ->
                             (getSystemService(CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(
@@ -2112,7 +2126,7 @@ class FrontEndActivity : ComponentActivity() {
         return true
     }
 
-    private fun refreshPhantomStatus() {
+    private fun refreshPhantomStatus(verifyWithAdb: Boolean = true) {
         phantomProcessStatus = PhantomProcessLimit.read(this)
         phantomWarning = if (PhantomProcessLimit.blocksSteam(phantomProcessStatus)) {
             getString(
@@ -2120,6 +2134,20 @@ class FrontEndActivity : ComponentActivity() {
                 PhantomProcessLimit.instructions(this, phantomProcessStatus), PhantomProcessLimit.adbCommand(),
             )
         } else null
+        if (!verifyWithAdb || !PhantomProcessLimit.blocksSteam(phantomProcessStatus) || phantomStatusChecking) return
+        if (WirelessAdbFix.savedConnectionAddress(this) == null) return
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (phantomStatusCheckedAt?.let { now - it < 30_000L } == true) return
+        phantomStatusChecking = true
+        phantomStatusCheckedAt = now
+        val appContext = applicationContext
+        Thread({
+            runCatching { WirelessAdbFix.refreshUsingSavedPairing(appContext) }
+            ui.post {
+                phantomStatusChecking = false
+                if (!isDestroyed) refreshPhantomStatus(verifyWithAdb = false)
+            }
+        }, "phantom-process-check").start()
     }
 
     private fun openDeveloperOptions(displayId: Int?) {

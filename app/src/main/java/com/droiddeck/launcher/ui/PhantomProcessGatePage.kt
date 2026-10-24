@@ -129,15 +129,21 @@ private fun FixGroup(
             modifier = Modifier.fillMaxWidth().padding(if (compact) 10.dp else 14.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
+            (stage as? Stage.Failed)?.let { Body(it.error, error = true) }
             when {
                 pairing -> PairingProgress(stage, onCancel)
                 hasToggle -> {
                     Body(stringResource(R.string.gate_toggle_steps))
                     PrimaryButton(stringResource(R.string.gate_open_dev), compact = compact, onClick = onOpenDeveloperOptions)
+                    SecondaryButton(
+                        stringResource(R.string.gate_use_wireless_instead),
+                        compact = compact,
+                        enabled = environment.onWifi && environment.notifications,
+                        onClick = onFixWithWirelessDebugging,
+                    )
                 }
                 else -> {
                     Body(stringResource(R.string.gate_no_toggle))
-                    (stage as? Stage.Failed)?.let { Body(it.error, error = true) }
                     PrimaryButton(
                         if (stage is Stage.Failed) stringResource(R.string.store_try_again) else stringResource(R.string.gate_fix_for_me),
                         compact = compact,
@@ -146,7 +152,7 @@ private fun FixGroup(
                     )
                 }
             }
-            if (!hasToggle && !pairing) {
+            if (!pairing) {
                 if (!environment.onWifi) {
                     Body(stringResource(R.string.gate_needs_wifi), warn = true)
                 }
