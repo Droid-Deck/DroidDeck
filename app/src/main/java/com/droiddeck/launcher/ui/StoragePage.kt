@@ -629,7 +629,7 @@ private fun GamesView(report: StorageReport, sessionRunning: Boolean, a: FrontEn
                         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             SecondaryButton(c.name, compact = true, modifier = Modifier.fillMaxWidth()) {
                                 adoptAdded = null
-                                AddedGameMove.startAdopt(ctx, g.folder, g.name, c.libraryRoot, c.installDir) { a.onLibraryChanged() }
+                                AddedGameMove.startAdopt(ctx, g.folder, g.name, c) { a.onLibraryChanged() }
                             }
                             Text(
                                 "${c.installDir} · ${c.libraryLabel}", fontSize = 11.sp, color = colors.onSurfaceVariant,
