@@ -42,7 +42,7 @@ def build(output, archive, lock, ndk):
         shutil.copyfile(patch, licenses / patch.name)
     # Only Vulkan types and opaque libc pointers cross this glibc ABI boundary.
     subprocess.run([str(compiler), '--target=aarch64-linux-gnu', '--sysroot=' + str(toolchain / 'sysroot'),
-                    '-I' + str(toolchain / 'sysroot/usr/include/aarch64-linux-android'),
+                    '-I' + str(toolchain / 'sysroot/usr/include/aarch64-linux-android'), '-D__ANDROID_MIN_SDK_VERSION__=26',
                     '-fuse-ld=lld', '-nostdlib', '-shared', '-fPIC', '-O2', '-fno-stack-protector',
                     '-Wl,-z,max-page-size=16384', '-Wall', '-Wextra', '-Werror',
                     str(here / 'shader_layer.c'), '-o', str(output / 'qualcomm-shaders.so')], check=True)
