@@ -301,6 +301,16 @@ public class DualSenseBridge {
         return bestMatch ?? btMatch;
     }
 
+    private static bool ReadFully(System.IO.Stream stream, byte[] buf, int offset, int count) {
+        int end = offset + count;
+        while (offset < end) {
+            int n = stream.Read(buf, offset, end - offset);
+            if (n <= 0) return false;
+            offset += n;
+        }
+        return true;
+    }
+
     public static System.Threading.Thread StartUpstreamBridge(SafeFileHandle writeHandle, System.IO.Stream stream, bool isBluetooth) {
         System.Threading.Thread t = new System.Threading.Thread(() => {
             byte[] buf = new byte[48];
@@ -323,12 +333,26 @@ public class DualSenseBridge {
             };
             try {
                 while (true) {
-                    int offset = 0;
-                    while (offset < 48) {
-                        int n = stream.Read(buf, offset, 48 - offset);
-                        if (n <= 0) return;
-                        offset += n;
+                    if (!ReadFully(stream, buf, 0, 1)) return;
+                    if (buf[0] == 0xB2) {
+                        // Variable-length Bluetooth-only report (haptics 0x32): [0xB2, length LE16, report].
+                        byte[] len = new byte[2];
+                        if (!ReadFully(stream, len, 0, 2)) return;
+                        byte[] raw = new byte[len[0] | (len[1] << 8)];
+                        if (!ReadFully(stream, raw, 0, raw.Length)) return;
+                        if (!isBluetooth || raw.Length == 0 || raw.Length > outReportLen) continue;
+                        byte[] padded = new byte[outReportLen];
+                        Array.Copy(raw, padded, raw.Length);
+                        lock (writeLock) {
+                            if (writeHandle == null || writeHandle.IsInvalid || writeHandle.IsClosed) continue;
+                            int w = 0;
+                            if (!WriteFile(writeHandle, padded, outReportLen, out w, IntPtr.Zero)) {
+                                HidD_SetOutputReport(writeHandle, padded, outReportLen);
+                            }
+                        }
+                        continue;
                     }
+                    if (!ReadFully(stream, buf, 1, 47)) return;
                     if (writeHandle == null || writeHandle.IsInvalid || writeHandle.IsClosed) continue;
                     int written = 0;
                     if (isBluetooth) {

@@ -9,6 +9,8 @@ import android.media.AudioTrack
 import android.os.SystemClock
 import android.util.Log
 import com.droiddeck.launcher.core.SessionPart
+import com.droiddeck.launcher.input.DualSenseHaptics
+import com.droiddeck.launcher.input.DualSenseManager
 import java.io.File
 import java.io.FileInputStream
 import java.io.InputStream
@@ -16,12 +18,21 @@ import java.io.InputStream
 /**
  * Drains the 4-channel "Wireless Controller" PulseAudio pipe sink and plays it on a USB-connected DualSense:
  * channels 1-2 drive the speaker or headset jack, channels 3-4 the haptic actuators. Without a wired pad the
- * audio is read and dropped so the sink never stalls.
+ * haptic channels go to a Bluetooth pad as 0x32 reports and the speaker channels are dropped, so the sink
+ * never stalls.
  */
 class DualSenseAudioPump(private val fifo: File) : SessionPart() {
     @Volatile private var running = false
     @Volatile private var input: InputStream? = null
     private var thread: Thread? = null
+    private var loggedBluetooth = false
+    private val bluetooth = DualSenseHaptics.Encoder { report ->
+        val sent = DualSenseManager.activeManager?.sendBluetoothReport(report) == true
+        if (sent && !loggedBluetooth) {
+            loggedBluetooth = true
+            Log.i(TAG, "dualsense audio: no wired pad, sending haptics as Bluetooth reports (speaker stays silent)")
+        }
+    }
 
     override fun start() {
         stop()
@@ -60,11 +71,15 @@ class DualSenseAudioPump(private val fifo: File) : SessionPart() {
                             if (track == null) " failed: no 4-channel track" else "")
                         loggedMissing = false
                     } else if (!loggedMissing) {
-                        Log.i(TAG, "dualsense audio: no wired DualSense audio device; dropping its audio")
+                        Log.i(TAG, "dualsense audio: no wired DualSense audio device; haptics go to a Bluetooth pad if there is one")
                         loggedMissing = true
                     }
                 }
-                val t = track ?: continue
+                val t = track
+                if (t == null) {
+                    bluetooth.feed(chunk, n)
+                    continue
+                }
                 if (t.write(chunk, 0, n - n % FRAME_BYTES) < 0) {
                     Log.w(TAG, "dualsense audio: the pad's audio track failed; looking for it again")
                     t.release()

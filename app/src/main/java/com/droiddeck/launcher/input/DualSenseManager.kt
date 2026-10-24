@@ -391,6 +391,64 @@ class DualSenseManager(private val context: Context) {
         return false
     }
 
+    /**
+     * Sends a Bluetooth-only report (haptics 0x32) as is. The host bridge gets it framed as [0xB2, length LE16,
+     * report] so it can tell it from the fixed 48-byte 0x02 reports; on a phone it goes out on the HID interrupt
+     * channel through BluetoothHidHost.sendData. A wired pad plays haptics as audio instead, so USB is not tried.
+     */
+    fun sendBluetoothReport(report: ByteArray): Boolean {
+        val tcpOut = tcpOutputStream
+        if (tcpOut != null) {
+            return try {
+                synchronized(tcpOut) {
+                    tcpOut.write(byteArrayOf(BRIDGE_FRAME_MARKER, (report.size and 0xFF).toByte(), (report.size shr 8).toByte()))
+                    tcpOut.write(report)
+                    tcpOut.flush()
+                }
+                true
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to send a Bluetooth report to host TCP bridge: $e")
+                tcpOutputStream = null
+                false
+            }
+        }
+        if (bluetoothHidHostProxy != null) return sendDataViaBluetoothHidHost(report)
+        return false
+    }
+
+    private fun sendDataViaBluetoothHidHost(report: ByteArray): Boolean {
+        val proxy = bluetoothHidHostProxy ?: return false
+        return try {
+            val target = connectedBluetoothPad(proxy) ?: return false
+            val sendData = proxy.javaClass.getMethod("sendData", BluetoothDevice::class.java, String::class.java)
+            sendData.invoke(proxy, target, toHex(report)) as? Boolean == true
+        } catch (e: Exception) {
+            if (!loggedSendDataFailure) {
+                loggedSendDataFailure = true
+                Log.w(TAG, "BluetoothHidHost.sendData is not available; Bluetooth haptics stay off: $e")
+            }
+            false
+        }
+    }
+
+    @Volatile private var loggedSendDataFailure = false
+
+    private fun connectedBluetoothPad(proxy: BluetoothProfile): BluetoothDevice? =
+        proxy.connectedDevices?.firstOrNull { dev ->
+            val name = try { dev.name ?: "" } catch (_: Exception) { "" }
+            name.contains("DualSense", ignoreCase = true) || name.contains("Wireless Controller", ignoreCase = true)
+        }
+
+    private fun toHex(bytes: ByteArray): String {
+        val hex = StringBuilder(bytes.size * 2)
+        for (b in bytes) {
+            val v = b.toInt() and 0xFF
+            hex.append(HEX_CHARS[v ushr 4])
+            hex.append(HEX_CHARS[v and 0x0F])
+        }
+        return hex.toString()
+    }
+
     private fun initBluetoothHidHost() {
         try {
             val adapter = BluetoothAdapter.getDefaultAdapter() ?: return
@@ -988,6 +1046,8 @@ class DualSenseManager(private val context: Context) {
     companion object {
         private const val TAG = "DualSenseManager"
         const val TCP_PORT = 21337
+        /** First byte of a variable-length bridge frame; a plain output report always starts with 0x02. */
+        const val BRIDGE_FRAME_MARKER: Byte = 0xB2.toByte()
         private const val RECONNECT_DELAY_MS = 1000L
         private const val HID_HOST_PROFILE = 4
         private const val SENSOR_SAMPLING_US = 4000
