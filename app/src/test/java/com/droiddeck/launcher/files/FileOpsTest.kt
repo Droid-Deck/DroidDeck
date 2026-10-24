@@ -65,4 +65,17 @@ class FileOpsTest {
         assertFalse(src.exists())
         assertEquals("b".repeat(10 * 1024), File(dst, "sub/b.txt").readText())
     }
+
+    @Test fun anUnreadableDirectoryFailsInsteadOfSilentlySkipping() {
+        val root = tmp.newFolder("unreadable-root")
+        val bad = object : File(root, "bad") {
+            override fun isDirectory(): Boolean = true
+            override fun exists(): Boolean = true
+            override fun listFiles(): Array<File>? = null
+        }
+        val dst = File(tmp.root, "dst-${System.nanoTime()}")
+
+        assertFalse(FileOps.copyWithProgress(bad, dst, 1L, null))
+        assertTrue(dst.listFiles()?.isEmpty() != false)
+    }
 }
