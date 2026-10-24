@@ -39,6 +39,17 @@ class SessionSteamLogsTest {
         assertFalse(File(out, "untouched.txt").exists())
     }
 
+    @Test fun aLineCutByTheMarkIsLeftOut() {
+        val logs = tmp.newFolder("logs")
+        val session = tmp.newFolder("session")
+        val out = tmp.newFolder("out")
+        File(logs, "web.txt").writeText("old\nGET /x?sessionid=")
+        SessionArtifacts.markSteamLogs(session, logs)
+        File(logs, "web.txt").appendText("abcdef123456 200\nnext line\n")
+        SessionArtifacts.copySessionLogs(logs, session, out)
+        assertEquals("next line\n", File(out, "web.txt").readText())
+    }
+
     @Test fun withoutMarksEveryLogUnderTheCapIsCollectedAndRedacted() {
         val logs = tmp.newFolder("logs")
         val out = tmp.newFolder("out")

@@ -257,12 +257,18 @@ object SessionArtifacts {
             if (marks != null && from == size || size - from >= MAX_STEAM_LOG) return@forEach
             try {
                 val dst = File(out, src.name)
-                src.inputStream().use { input ->
-                    var left = from
+                src.inputStream().buffered().use { input ->
+                    var left = if (from > 0) from - 1 else 0L
                     while (left > 0) {
                         val skipped = input.skip(left)
                         if (skipped <= 0) break
                         left -= skipped
+                    }
+                    if (from > 0 && input.read() != '\n'.code) {
+                        while (true) {
+                            val c = input.read()
+                            if (c < 0 || c == '\n'.code) break
+                        }
                     }
                     dst.bufferedWriter().use { w ->
                         input.bufferedReader().forEachLine { line -> w.write(LogRedactor.redact(line)); w.newLine() }
