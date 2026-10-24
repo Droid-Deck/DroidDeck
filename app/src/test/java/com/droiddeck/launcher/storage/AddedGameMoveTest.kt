@@ -38,7 +38,7 @@ class AddedGameMoveTest {
         SessionPrefs.setAddedGameExe(app, folder.path, exe.path)
         val targetParent = tmp.newFolder("ssd")
 
-        val error = AddedGameMove.move(app, folder, targetParent) { _, _ -> }
+        val error = AddedGameMove.move(app, folder, targetParent, { _, _ -> })
 
         assertNull(error)
         val dest = File(targetParent, folder.name)
@@ -88,7 +88,7 @@ class AddedGameMoveTest {
         SessionPrefs.setGameStorage(app, library.path, "Card")
         val target = MissingInstall(220, "AdoptMe", library, "AdoptMe", "Card")
 
-        val error = AddedGameMove.adoptIntoSteam(app, folder, target) { _, _ -> }
+        val error = AddedGameMove.adoptIntoSteam(app, folder, target, { _, _ -> })
 
         assertNull(error)
         val dest = File(File(library, "steamapps/common"), "AdoptMe")
@@ -113,7 +113,7 @@ class AddedGameMoveTest {
         SessionPrefs.setGameStorage(app, library.path, "Card")
         val target = MissingInstall(220, "PrefixGame", library, "PrefixGame", "Card")
 
-        val error = AddedGameMove.adoptIntoSteam(app, folder, target) { _, _ -> }
+        val error = AddedGameMove.adoptIntoSteam(app, folder, target, { _, _ -> })
 
         assertNull(error)
         val targetData = com.droiddeck.launcher.session.SecondaryLibrary.privateRoot(app.filesDir, library)
