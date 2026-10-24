@@ -5,6 +5,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.rules.TemporaryFolder
+import org.robolectric.RuntimeEnvironment
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.robolectric.util.ReflectionHelpers
@@ -49,6 +50,35 @@ class DirectAudioMicrophoneTest {
         log(relay, "DA-Relay: mic stop (game)")
         assertEquals(listOf(false), changes)
         assertTrue(relay.awaitMicReleased(0))
+    }
+
+    @Test fun controlWriteFailureStillStartsPlaybackWithCaptureDisabled() {
+        val context = RuntimeEnvironment.getApplication()
+        val info = context.applicationInfo
+        val previous = info.nativeLibraryDir
+        val nativeDir = folder.newFolder("native")
+        val args = File(folder.root, "arguments")
+        File(nativeDir, DirectAudioRelayComponent.BINARY).apply {
+            writeText("#!/bin/sh\nprintf '%s\\n' \"\$@\" > '${args.path}.new'\nmv '${args.path}.new' '${args.path}'\n")
+            setExecutable(true)
+        }
+        val fifo = folder.newFile("mic.fifo")
+        File(folder.root, "mic-enabled.new").mkdir()
+        val relay = DirectAudioRelayComponent(File(folder.root, "relay.sock"), fifo)
+        relay.attach(context)
+        try {
+            info.nativeLibraryDir = nativeDir.path
+            relay.start()
+            val deadline = System.nanoTime() + 3_000_000_000L
+            while (!args.isFile && System.nanoTime() < deadline) Thread.sleep(10)
+            assertTrue("Playback helper did not start", args.isFile)
+            val command = args.readLines()
+            assertTrue(command.contains("--socket"))
+            assertFalse(command.contains("--mic-fifo"))
+            assertEquals(listOf("--mic-control", "/dev/null"), command.takeLast(2))
+        } finally {
+            info.nativeLibraryDir = previous
+        }
     }
 
     private fun log(relay: DirectAudioRelayComponent, line: String) =
