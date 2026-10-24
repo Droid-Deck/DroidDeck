@@ -447,6 +447,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (com.droiddeck.launcher.storage.SteamGameMove.running || com.droiddeck.launcher.storage.AddedGameMove.running) {
+            android.widget.Toast.makeText(this, R.string.storage_move_wait, android.widget.Toast.LENGTH_SHORT).show()
+            finish()
+            return
+        }
         if (com.droiddeck.launcher.runtime.LinuxRuntimeInstaller.isRemoving() ||
             com.droiddeck.launcher.runtime.LinuxRuntimeInstaller.isMaintaining()) {
             runtimeRemovalBlocked = true

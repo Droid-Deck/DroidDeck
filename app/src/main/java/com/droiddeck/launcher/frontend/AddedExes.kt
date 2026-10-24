@@ -28,6 +28,13 @@ object AddedExes {
     @Synchronized
     fun drop(context: Context, folder: String) = write(context, list(context).filter { it.folder != folder })
 
+    /** Rewrites the folder and exe of an entry in place, keeping its position in the list. */
+    @Synchronized
+    fun move(context: Context, from: String, toFolder: String, toExe: String) = write(
+        context,
+        list(context).map { if (it.folder == from) Entry(toFolder, toExe, it.picked) else it },
+    )
+
     private fun write(context: Context, entries: List<Entry>) {
         val array = JSONArray()
         entries.forEach { array.put(JSONObject().put("folder", it.folder).put("exe", it.exe).put("picked", it.picked)) }

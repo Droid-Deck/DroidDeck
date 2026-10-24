@@ -151,6 +151,34 @@ object SessionPrefs {
         prefs(context).edit().putString("storesInstallLanguage", code).apply()
     }
 
+    const val DEFAULT_STORAGE_ASK = "ask"
+    const val DEFAULT_STORAGE_INTERNAL = "internal"
+    const val DEFAULT_STORAGE_EXTERNAL = "external"
+    private val DEFAULT_STORAGE_VALUES = setOf(DEFAULT_STORAGE_ASK, DEFAULT_STORAGE_INTERNAL, DEFAULT_STORAGE_EXTERNAL)
+
+    fun defaultStorage(context: Context): String =
+        prefs(context).getString("defaultStorage", DEFAULT_STORAGE_ASK)
+            ?.takeIf { it in DEFAULT_STORAGE_VALUES } ?: DEFAULT_STORAGE_ASK
+
+    fun setDefaultStorage(context: Context, value: String) {
+        prefs(context).edit().putString("defaultStorage", value.takeIf { it in DEFAULT_STORAGE_VALUES } ?: DEFAULT_STORAGE_ASK).apply()
+    }
+
+    fun defaultStorageFolder(context: Context): String = prefs(context).getString("defaultStorageFolder", "") ?: ""
+
+    fun defaultStorageFolderLabel(context: Context): String = prefs(context).getString("defaultStorageFolderLabel", "") ?: ""
+
+    fun setDefaultStorageFolder(context: Context, path: String, label: String) {
+        prefs(context).edit()
+            .putString("defaultStorageFolder", path)
+            .putString("defaultStorageFolderLabel", label)
+            .apply()
+    }
+
+    fun clearDefaultStorageFolder(context: Context) {
+        prefs(context).edit().remove("defaultStorageFolder").remove("defaultStorageFolderLabel").apply()
+    }
+
     fun gameStoresParallel(context: Context): Int = prefs(context).getInt("gameStoresParallel", 1).coerceIn(1, 3)
 
     fun setGameStoresParallel(context: Context, count: Int) {
@@ -797,6 +825,33 @@ object SessionPrefs {
         val p = prefs(context)
         p.getLong("addedAppId:$folderPath", 0L).takeIf { it != 0L }
             ?: first.also { p.edit().putLong("addedAppId:$folderPath", it).apply() }
+    }
+
+    /** Moves every per-folder record of an added game to its new location after the folder moves. */
+    fun migrateAddedGameFolder(context: Context, from: String, to: String, dropBinds: Boolean = false) = synchronized(addedGameLock) {
+        val p = prefs(context)
+        val moved = movedAddedGame(p.all, from, to)
+        val edit = p.edit()
+        moved.keys.forEach { edit.remove(it) }
+        moved.values.forEach { (name, value) ->
+            when (value) {
+                is String -> edit.putString(name, value)
+                is Long -> edit.putLong(name, value)
+                is Int -> edit.putInt(name, value)
+                is Boolean -> edit.putBoolean(name, value)
+                is Float -> edit.putFloat(name, value)
+            }
+        }
+        edit.apply()
+        val binds = gameFolderBinds(context)
+        if (binds.any { it.first == from }) {
+            val updated = if (dropBinds) binds.filterNot { it.first == from }
+            else binds.map { (host, guest) -> if (host == from) to to guest else host to guest }
+            setGameFolderBinds(context, updated)
+        }
+        val removed = removedAddedGames(context)
+        if (from in removed) prefs(context).edit()
+            .putString("removedAddedGames", removed.map { if (it == from) to else it }.joinToString("\n")).apply()
     }
 
     fun theme(context: Context): String = prefs(context).getString("theme", "graphite") ?: "graphite"

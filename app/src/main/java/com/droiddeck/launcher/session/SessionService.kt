@@ -880,6 +880,7 @@ class SessionService : Service() {
         File(home, "Storage").mkdirs()
         binds.add(Environment.getExternalStorageDirectory().path + ":/root/Storage")
         val library = GameStorage.effective(this)
+        val libraryMounts = LinkedHashMap<String, File>()
         steamLibraryMounts = emptyMap()
         var storageDiagnosticLibrary: File? = null
         if (library != null) {
@@ -892,7 +893,7 @@ class SessionService : Service() {
                     val content = SecondaryLibrary.contentPath(configured)
                     binds.addAll(SecondaryLibrary.binds(filesDir, configured, content = content))
                     storageDiagnosticLibrary = content
-                    steamLibraryMounts = SecondaryLibrary.CARD_GUESTS.associateWith { content }
+                    for (guest in SecondaryLibrary.CARD_GUESTS) libraryMounts[guest] = content
                     val route = if (content === configured) "configured" else "verified-native"
                     Log.i(TAG, "game storage: ${content.path} ($route) -> /mnt/droiddeck-sd (\"${library.label}\"); prefixes and native tools private")
                 } catch (e: Exception) {
@@ -950,6 +951,7 @@ class SessionService : Service() {
         val libraries = ArrayList<Pair<String, String>>()
         if (storageDiagnosticLibrary != null && library != null) libraries.add(SecondaryLibrary.CARD_GUESTS[0] to library.label)
         val gamesLibraries = GameStorage.gamesFolderLibraries(this)
+        val privateMounted = ArrayList<File>()
         if (gamesLibraries.isNotEmpty()) {
             var room = if (ProotFastPath.enabled(this)) {
                 ProotFastPath.MAX_BINDS - LinuxRuntime.binds(this, sessionRoot, runtimeDir, Environment.getExternalStorageDirectory(), binds).size
@@ -969,6 +971,7 @@ class SessionService : Service() {
                     }
                     binds.addAll(extra)
                     room -= extra.size
+                    privateMounted.add(games.host)
                     libraries.add(games.guest to games.label)
                     Log.i(TAG, "steam library: ${games.host} -> ${games.guest} (\"${games.label}\")")
                 } catch (e: Exception) {
@@ -976,7 +979,78 @@ class SessionService : Service() {
                 }
             }
         }
+        val addedRoots = com.droiddeck.launcher.frontend.AddedGames.roots(this)
+        val mountedGuests = HashSet<String>()
+        val customArm = SteamLibraryRegistry.available(this, "arm64")
+        if (customArm.isNotEmpty()) {
+            var room = if (ProotFastPath.enabled(this)) {
+                ProotFastPath.MAX_BINDS - LinuxRuntime.binds(this, sessionRoot, runtimeDir, Environment.getExternalStorageDirectory(), binds).size
+            } else Int.MAX_VALUE
+            for (extra in customArm) {
+                if (!extra.host.isDirectory || !extra.host.canRead()) continue
+                if (libraries.any { it.first == extra.guest }) continue
+                val card = library?.let { File(it.path) }
+                val cardContent = storageDiagnosticLibrary
+                if (cardContent != null &&
+                    ((card != null && samePath(card, extra.host)) || samePath(cardContent, extra.host))
+                ) {
+                    Log.i(TAG, "moved steam library: ${extra.host} is the current card; keeping its card bind")
+                    continue
+                }
+                val problem = GameStorage.prepare(this, extra.host.path)
+                if (problem != null) {
+                    Log.w(TAG, "moved steam library: $problem")
+                    continue
+                }
+                val owned = addedRoots.firstOrNull {
+                    samePath(it.host, extra.host) && '"' !in it.guest && '\\' !in it.guest
+                }
+                if (owned != null) {
+                    if (privateMounted.none { samePath(it, extra.host) }) {
+                        try {
+                            val privateBinds = SecondaryLibrary.binds(filesDir, extra.host, listOf(owned.guest)).drop(1)
+                            if (privateBinds.size > room) {
+                                Log.w(TAG, "moved steam library: ${extra.host} needs ${privateBinds.size} private binds, $room left for the fast path; not a library this session")
+                                continue
+                            }
+                            binds.addAll(privateBinds)
+                            room -= privateBinds.size
+                            privateMounted.add(extra.host)
+                        } catch (e: Exception) {
+                            Log.w(TAG, "moved steam library: ${extra.host} private directories could not be prepared", e)
+                            continue
+                        }
+                    }
+                    if (libraries.none { it.first == owned.guest }) libraries.add(owned.guest to extra.label)
+                    mountedGuests.add(owned.guest)
+                    libraryMounts[owned.guest] = extra.host
+                    Log.i(TAG, "moved steam library: ${extra.host} uses its games-folder bind ${owned.guest}")
+                    continue
+                }
+                try {
+                    val guestDir = File(LinuxRuntime.rootDir(this), extra.guest.removePrefix("/"))
+                    if (!guestDir.isDirectory && !guestDir.mkdirs()) {
+                        Log.w(TAG, "moved steam library: cannot create ${guestDir.path}")
+                        continue
+                    }
+                    val extraBinds = SecondaryLibrary.binds(filesDir, extra.host, listOf(extra.guest))
+                    if (extraBinds.size > room) {
+                        Log.w(TAG, "moved steam library: ${extra.host} needs ${extraBinds.size} binds, $room left for the fast path; not a library this session")
+                        continue
+                    }
+                    binds.addAll(extraBinds)
+                    room -= extraBinds.size
+                    mountedGuests.add(extra.guest)
+                    libraries.add(extra.guest to extra.label)
+                    libraryMounts[extra.guest] = extra.host
+                    Log.i(TAG, "moved steam library: ${extra.host} -> ${extra.guest} (\"${extra.label}\")")
+                } catch (e: Exception) {
+                    Log.w(TAG, "moved steam library: ${extra.host} could not be mounted", e)
+                }
+            }
+        }
         val x64Libraries = org.json.JSONArray()
+        val x64Paths = HashSet<String>()
         // Desktop mode offers the x86-64 client either way; droiddeck-steam-x64 drops library folders it is not given.
         val x64Here = SessionPrefs.steamClientArch(this) == "x86_64" ||
             (SessionState.mode == MODE_DESKTOP &&
@@ -995,11 +1069,59 @@ class SessionService : Service() {
                     Log.w(TAG, "x86-64 steam library: $x64 needs ${extra.size} binds, $room left for the fast path; not a library this session")
                 } else {
                     binds.addAll(extra)
+                    x64Paths.add(GameStorage.X64_CARD_GUEST)
                     x64Libraries.put(org.json.JSONObject().put("path", GameStorage.X64_CARD_GUEST).put("label", library.label.replace('"', ' ').replace('\\', ' ')))
                     Log.i(TAG, "x86-64 steam library: $x64 -> ${GameStorage.X64_CARD_GUEST} (\"${library.label}\")")
                 }
             } catch (e: Exception) {
                 Log.w(TAG, "x86-64 steam library: $x64 private directories could not be prepared", e)
+            }
+        }
+        val customX64 = if (x64Here) SteamLibraryRegistry.available(this, "x86_64") else emptyList()
+        if (customX64.isNotEmpty()) {
+            var x64Room = if (ProotFastPath.enabled(this)) {
+                ProotFastPath.MAX_BINDS - LinuxRuntime.binds(this, sessionRoot, runtimeDir, Environment.getExternalStorageDirectory(), binds).size
+            } else Int.MAX_VALUE
+            for (extra in customX64) {
+                if (!extra.host.isDirectory || !extra.host.canRead()) continue
+                if (extra.guest in x64Paths) continue
+                val x64Card = library?.let { File(it.path, GameStorage.X64_CARD_DIR) }
+                val x64CardContent = storageDiagnosticLibrary?.let { File(it, GameStorage.X64_CARD_DIR) }
+                if (GameStorage.X64_CARD_GUEST in x64Paths &&
+                    ((x64Card != null && samePath(x64Card, extra.host)) || (x64CardContent != null && samePath(x64CardContent, extra.host)))
+                ) {
+                    Log.i(TAG, "x86-64 moved steam library: ${extra.host} is the current card; keeping its card bind")
+                    continue
+                }
+                val problem = GameStorage.prepare(this, extra.host.path)
+                if (problem != null) {
+                    Log.w(TAG, "x86-64 moved steam library: $problem")
+                    continue
+                }
+                if (extra.guest !in mountedGuests) {
+                    try {
+                        val guestDir = File(LinuxRuntime.rootDir(this), extra.guest.removePrefix("/"))
+                        if (!guestDir.isDirectory && !guestDir.mkdirs()) {
+                            Log.w(TAG, "x86-64 moved steam library: cannot create ${guestDir.path}")
+                            continue
+                        }
+                        val extraBinds = SecondaryLibrary.binds(filesDir, extra.host, listOf(extra.guest))
+                        if (extraBinds.size > x64Room) {
+                            Log.w(TAG, "x86-64 moved steam library: ${extra.host} needs ${extraBinds.size} binds, $x64Room left for the fast path; not a library this session")
+                            continue
+                        }
+                        binds.addAll(extraBinds)
+                        x64Room -= extraBinds.size
+                        mountedGuests.add(extra.guest)
+                    } catch (e: Exception) {
+                        Log.w(TAG, "x86-64 moved steam library: ${extra.host} could not be mounted", e)
+                        continue
+                    }
+                }
+                x64Paths.add(extra.guest)
+                x64Libraries.put(org.json.JSONObject().put("path", extra.guest).put("label", extra.label.replace('"', ' ').replace('\\', ' ')))
+                libraryMounts[extra.guest] = extra.host
+                Log.i(TAG, "x86-64 moved steam library: ${extra.host} -> ${extra.guest} (\"${extra.label}\")")
             }
         }
         try {
@@ -1020,8 +1142,13 @@ class SessionService : Service() {
         } catch (e: Exception) {
             Log.w(TAG, "steam library: the list could not be written; the card alone this session", e)
         }
+        steamLibraryMounts = libraryMounts
         return binds
     }
+
+    private fun samePath(a: File, b: File): Boolean = runCatching {
+        a.canonicalPath == b.canonicalPath
+    }.getOrDefault(a.absolutePath == b.absolutePath)
 
     private fun teardown(prootPid: Int, expectedStartTime: Long? = null) {
         fun stillSameProcess(): Boolean = expectedStartTime == null || readStat(prootPid)?.second == expectedStartTime

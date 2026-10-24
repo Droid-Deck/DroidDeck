@@ -6,6 +6,7 @@ import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.session.GameStorage
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.SecondaryLibrary
+import com.droiddeck.launcher.session.SteamLibraryRegistry
 import java.io.File
 
 object Library {
@@ -81,14 +82,16 @@ object Library {
 
     internal fun steamLibraries(context: Context, arch: String = SessionPrefs.activeSteamClientArch(context)): List<Pair<File, String>> {
         val root = SessionPrefs.steamRoot(context, arch)
-        // The session gives the x86-64 client only its card folder; the games folders stay the arm64 client's.
+        // The x86-64 client gets its card folder and its own moved libraries; the games folders stay the arm64 client's.
         val card = GameStorage.effective(context)
-        if (arch == "x86_64") return listOfNotNull(root to "internal", card?.let { File(it.path, GameStorage.X64_CARD_DIR) to it.label })
-        return listOfNotNull(
-            root to "internal",
-            card?.let { File(it.path) to it.label },
-        ) + GameStorage.gamesFolderLibraries(context).map { it.host to it.label }
+        val custom = SteamLibraryRegistry.available(context, arch).map { it.host to it.label }
+        val libraries = if (arch == "x86_64") listOfNotNull(root to "internal", card?.let { File(it.path, GameStorage.X64_CARD_DIR) to it.label }) + custom
+        else listOfNotNull(root to "internal", card?.let { File(it.path) to it.label }) +
+            GameStorage.gamesFolderLibraries(context).map { it.host to it.label } + custom
+        return libraries.distinctBy { canonical(it.first) }
     }
+
+    private fun canonical(file: File): String = runCatching { file.canonicalPath }.getOrDefault(file.absolutePath)
 
     fun protonPrefix(
         context: Context, appId: Long, preferredLibrary: File? = null,

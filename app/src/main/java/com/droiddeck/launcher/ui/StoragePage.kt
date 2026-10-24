@@ -1,5 +1,10 @@
 package com.droiddeck.launcher.ui
 
+import android.app.Activity
+import android.os.Environment
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.LocalIndication
@@ -46,11 +51,14 @@ import androidx.compose.material.icons.outlined.VideogameAsset
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -65,6 +73,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -74,16 +84,26 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.droiddeck.launcher.R
+import com.droiddeck.launcher.files.InAppFilePicker
+import com.droiddeck.launcher.files.StorageRoots
+import com.droiddeck.launcher.frontend.AddedGames
+import com.droiddeck.launcher.session.GameStorage
 import com.droiddeck.launcher.session.SessionPrefs
+import com.droiddeck.launcher.session.SteamLibraryRegistry
 import com.droiddeck.launcher.storage.Bucket
 import com.droiddeck.launcher.storage.CleanItem
 import com.droiddeck.launcher.storage.ComponentUsage
 import com.droiddeck.launcher.storage.GameUsage
+import com.droiddeck.launcher.storage.AddedGameMove
+import com.droiddeck.launcher.storage.AddedGameUsage
+import com.droiddeck.launcher.storage.SteamGameMove
 import com.droiddeck.launcher.storage.StorageReport
 import com.droiddeck.launcher.storage.StorageState
 import com.droiddeck.launcher.storage.ToolReason
 import com.droiddeck.launcher.storage.ToolState
 import com.droiddeck.launcher.storage.ToolUsage
+import com.droiddeck.launcher.stores.StoreInstallRoot
+import java.io.File
 import java.text.DateFormat
 import java.util.Date
 
@@ -99,6 +119,7 @@ private val BucketColors = mapOf(
 )
 private val OtherApps = Color(0xFF3A3F48)
 private val Shape22 = RoundedCornerShape(18.dp)
+private data class MoveOption(val label: String, val root: File, val detail: String? = null)
 
 private fun gb(bytes: Long) = StorageState.format(bytes)
 private const val ONE_MB = 1024L * 1024
@@ -127,6 +148,25 @@ internal fun StoragePanel(s: FrontEndState, a: FrontEndActions) {
         return
     }
     if (cleanup) CleanUpDialog(report, s.sessionRunning) { cleanup = false }
+    SteamGameMoveDialog()
+    AddedGameMoveDialog()
+    StorageState.interruptedMove?.let { name ->
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp).clip(Shape14)
+                .background(MaterialTheme.colorScheme.surface).border(1.dp, LocalPalette.current.line, Shape14)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(stringResource(R.string.storage_move_interrupted_title), fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onBackground)
+            Text(stringResource(R.string.storage_move_interrupted_body, name), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SecondaryButton(
+                    stringResource(R.string.storage_move_discard_partial), compact = true,
+                    enabled = !s.sessionRunning && !StorageState.cleaning,
+                ) { StorageState.discardInterrupted(ctx) { } }
+            }
+        }
+    }
     val top = remember { androidx.compose.foundation.relocation.BringIntoViewRequester() }
     LaunchedEffect(view) {
         StorageState.lastFreed = null
@@ -141,6 +181,113 @@ internal fun StoragePanel(s: FrontEndState, a: FrontEndActions) {
         "desktop" -> DesktopView(report, s.sessionRunning) { view = "overview" }
         "tools" -> ToolsView(report, s.sessionRunning) { view = "overview" }
         else -> Overview(report, s.sessionRunning, onCleanUp = { cleanup = true }, onOpen = { view = it })
+    }
+}
+
+@Composable
+private fun DefaultStorageGroup() {
+    val ctx = LocalContext.current
+    var value by remember { mutableStateOf(SessionPrefs.defaultStorage(ctx)) }
+    var open by remember { mutableStateOf(false) }
+    var revision by remember { mutableIntStateOf(0) }
+    val customPath = SessionPrefs.defaultStorageFolder(ctx)
+    val customTarget = remember(customPath, revision) { StoreInstallRoot.customTarget(ctx) }
+    val detected = remember(customPath, revision) { StoreInstallRoot.detectedExternalTarget(ctx) }
+    val customLabel = SessionPrefs.defaultStorageFolderLabel(ctx).ifBlank {
+        customPath.takeIf { it.isNotBlank() }?.let { File(it).name }.orEmpty()
+    }
+    val pickFolder = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode != Activity.RESULT_OK) return@rememberLauncherForActivityResult
+        val path = InAppFilePicker.pickedPath(result.data) ?: return@rememberLauncherForActivityResult
+        val problem = StoreInstallRoot.prepareDefaultFolder(ctx, File(path))
+        if (problem != null) {
+            Toast.makeText(ctx, ctx.getString(R.string.main_storage_not_usable, problem), Toast.LENGTH_LONG).show()
+            return@rememberLauncherForActivityResult
+        }
+        SessionPrefs.setDefaultStorageFolder(ctx, path, StoreInstallRoot.folderLabel(ctx, File(path)))
+        SessionPrefs.setDefaultStorage(ctx, SessionPrefs.DEFAULT_STORAGE_EXTERNAL)
+        value = SessionPrefs.DEFAULT_STORAGE_EXTERNAL
+        revision++
+        open = false
+    }
+    fun chooseFolder() {
+        open = false
+        val initial = customPath.takeIf { it.isNotBlank() && File(it).isDirectory }
+            ?: detected?.root?.parentFile?.takeIf { it.isDirectory }?.absolutePath
+        pickFolder.launch(InAppFilePicker.buildDirIntent(ctx, ctx.getString(R.string.storage_default_choose_folder), initial))
+    }
+    val title = stringResource(R.string.storage_default_title)
+    val chip = when (value) {
+        SessionPrefs.DEFAULT_STORAGE_INTERNAL -> stringResource(R.string.storage_default_internal)
+        SessionPrefs.DEFAULT_STORAGE_EXTERNAL -> when {
+            customPath.isNotBlank() -> customTarget?.label
+                ?: "$customLabel · ${stringResource(R.string.storage_default_folder_missing)}"
+            detected != null -> detected.label
+            else -> stringResource(R.string.storage_default_external)
+        }
+        else -> stringResource(R.string.storage_default_ask)
+    }
+    fun pick(next: String) {
+        SessionPrefs.setDefaultStorage(ctx, next)
+        value = next
+        open = false
+    }
+    SettingsGroup(stringResource(R.string.storage_default_group)) {
+        SettingsRow(label = title, hint = stringResource(R.string.storage_default_hint)) {
+            Box {
+                ValueChip(chip, open, modifier = Modifier.testTag("setting-default-storage")) { open = !open }
+                AnchoredMenu(
+                    open, onDismiss = { open = false }, title = title,
+                    note = stringResource(R.string.storage_default_note),
+                ) { firstItemFocus ->
+                    MenuItem(
+                        stringResource(R.string.storage_default_ask), value == SessionPrefs.DEFAULT_STORAGE_ASK,
+                        detail = stringResource(R.string.storage_default_ask_detail),
+                        focusRequester = firstItemFocus,
+                    ) { pick(SessionPrefs.DEFAULT_STORAGE_ASK) }
+                    MenuItem(
+                        stringResource(R.string.storage_default_internal), value == SessionPrefs.DEFAULT_STORAGE_INTERNAL,
+                    ) { pick(SessionPrefs.DEFAULT_STORAGE_INTERNAL) }
+                    if (detected == null && customPath.isBlank()) {
+                        MenuItem(
+                            stringResource(R.string.storage_default_external), value == SessionPrefs.DEFAULT_STORAGE_EXTERNAL,
+                            detail = stringResource(R.string.storage_default_choose_folder_detail),
+                        ) { chooseFolder() }
+                    } else {
+                        if (detected != null) {
+                            MenuItem(
+                                stringResource(R.string.storage_default_external),
+                                value == SessionPrefs.DEFAULT_STORAGE_EXTERNAL && customPath.isBlank(),
+                                detail = detected.let { target ->
+                                    val free = target.freeBytes
+                                    if (free >= 0) stringResource(R.string.storage_default_external_detail, target.label, gb(free))
+                                    else target.label
+                                },
+                            ) {
+                                SessionPrefs.clearDefaultStorageFolder(ctx)
+                                pick(SessionPrefs.DEFAULT_STORAGE_EXTERNAL)
+                                revision++
+                            }
+                        }
+                        if (customPath.isNotBlank()) {
+                            MenuItem(
+                                stringResource(R.string.storage_default_folder, customLabel),
+                                value == SessionPrefs.DEFAULT_STORAGE_EXTERNAL,
+                                detail = customTarget?.let { target ->
+                                    val free = target.freeBytes
+                                    if (free >= 0) stringResource(R.string.storage_default_folder_free, gb(free))
+                                    else stringResource(R.string.storage_default_folder_missing)
+                                } ?: stringResource(R.string.storage_default_folder_missing),
+                            ) { if (customTarget != null) pick(SessionPrefs.DEFAULT_STORAGE_EXTERNAL) else chooseFolder() }
+                        }
+                        MenuItem(
+                            stringResource(R.string.storage_default_choose_folder), checked = false,
+                            detail = stringResource(R.string.storage_default_choose_folder_detail),
+                        ) { chooseFolder() }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -189,6 +336,7 @@ private fun Overview(report: StorageReport, sessionRunning: Boolean, onCleanUp: 
         Spacer(Modifier.height(8.dp))
         Note(stringResource(R.string.storage_session_running))
     }
+    DefaultStorageGroup()
     SectionTitle(stringResource(R.string.storage_where), null)
     val unused = report.unusedTools.sumOf { it.bytes }
     val tiles = listOf<@Composable (Modifier) -> Unit>(
@@ -446,8 +594,57 @@ private fun SubHeader(title: String, detail: String, onBack: () -> Unit, trailin
 private fun GamesView(report: StorageReport, sessionRunning: Boolean, a: FrontEndActions, onBack: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
+    val ctx = LocalContext.current
     var sort by rememberSaveable { mutableStateOf(0) }
     var confirm by remember { mutableStateOf<GameUsage?>(null) }
+    var move by remember { mutableStateOf<GameUsage?>(null) }
+    var pickTarget by remember { mutableStateOf<GameUsage?>(null) }
+    var moveAdded by remember { mutableStateOf<AddedGameUsage?>(null) }
+    var adoptAdded by remember { mutableStateOf<AddedGameUsage?>(null) }
+    var pickAddedTarget by remember { mutableStateOf<AddedGameUsage?>(null) }
+    val pickFolder = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val game = pickTarget
+        pickTarget = null
+        if (result.resultCode != Activity.RESULT_OK || game == null) return@rememberLauncherForActivityResult
+        val path = InAppFilePicker.pickedPath(result.data)?.takeIf { it.isNotBlank() }
+            ?: return@rememberLauncherForActivityResult
+        move = null
+        SteamGameMove.start(ctx, game, File(path)) { a.onLibraryChanged() }
+    }
+    fun chooseFolder(game: GameUsage) {
+        pickTarget = game
+        val current = game.libraryRoot
+        val initial = current?.takeIf { it.path.startsWith("/storage/") }?.parentFile?.path
+            ?: GameStorage.effective(ctx)?.path
+            ?: StorageRoots.list(ctx).firstOrNull { it.removable && it.readable }?.dir?.absolutePath
+            ?: Environment.getExternalStorageDirectory()?.absolutePath
+        pickFolder.launch(InAppFilePicker.buildDirIntent(ctx, ctx.getString(R.string.storage_move_choose_folder), initial))
+    }
+    fun beginMove(game: GameUsage, target: File) {
+        move = null
+        SteamGameMove.start(ctx, game, target) { a.onLibraryChanged() }
+    }
+    val pickAddedFolder = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val game = pickAddedTarget
+        pickAddedTarget = null
+        if (result.resultCode != Activity.RESULT_OK || game == null) return@rememberLauncherForActivityResult
+        val path = InAppFilePicker.pickedPath(result.data)?.takeIf { it.isNotBlank() }
+            ?: return@rememberLauncherForActivityResult
+        moveAdded = null
+        AddedGameMove.start(ctx, game.folder, game.name, File(path)) { a.onLibraryChanged() }
+    }
+    fun chooseAddedFolder(game: AddedGameUsage) {
+        pickAddedTarget = game
+        val initial = game.folder.takeIf { it.path.startsWith("/storage/") }?.parentFile?.path
+            ?: GameStorage.effective(ctx)?.path
+            ?: StorageRoots.list(ctx).firstOrNull { it.removable && it.readable }?.dir?.absolutePath
+            ?: Environment.getExternalStorageDirectory()?.absolutePath
+        pickAddedFolder.launch(InAppFilePicker.buildDirIntent(ctx, ctx.getString(R.string.storage_move_choose_folder), initial))
+    }
+    fun beginAddedMove(game: AddedGameUsage, target: File) {
+        moveAdded = null
+        AddedGameMove.start(ctx, game.folder, game.name, target) { a.onLibraryChanged() }
+    }
     val games = when (sort) {
         1 -> report.games.sortedBy { if (it.lastPlayed == 0L) Long.MIN_VALUE else it.lastPlayed }
         2 -> report.games.filter { !it.internal }
@@ -492,13 +689,67 @@ private fun GamesView(report: StorageReport, sessionRunning: Boolean, a: FrontEn
                     )
                 }
                 Text(gb(g.total), fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, modifier = Modifier.widthIn(min = 72.dp))
-                SecondaryButton(stringResource(R.string.storage_uninstall), compact = true, enabled = !sessionRunning) { confirm = g }
+                Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    SecondaryButton(
+                        stringResource(R.string.storage_move), compact = true,
+                        enabled = !sessionRunning && !StorageState.cleaning && !StorageState.scanning && SteamGameMove.status == null && AddedGameMove.status == null && g.gameDir != null && g.manifest != null,
+                    ) { move = g }
+                    SecondaryButton(
+                        stringResource(R.string.storage_uninstall), compact = true,
+                        enabled = !sessionRunning && !StorageState.cleaning && !StorageState.scanning && SteamGameMove.status == null && AddedGameMove.status == null,
+                    ) { confirm = g }
+                }
             }
             if (i < games.lastIndex) Box(Modifier.fillMaxWidth().height(1.dp).background(pal.line))
         }
     }
     Spacer(Modifier.height(8.dp))
     Note(stringResource(R.string.storage_games_note))
+    val added = report.addedGames
+    if (added.isNotEmpty()) {
+        Spacer(Modifier.height(8.dp))
+        Text(
+            stringResource(R.string.storage_added_games, gb(added.sumOf { it.bytes })),
+            fontSize = 20.sp, fontWeight = FontWeight.Bold, color = colors.onBackground,
+            modifier = Modifier.padding(top = 6.dp, bottom = 8.dp),
+        )
+        Column(Modifier.fillMaxWidth().clip(Shape14).background(colors.surface).border(1.dp, pal.line, Shape14)) {
+            added.forEachIndexed { i, g ->
+                Row(
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp),
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(g.name, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(g.folder.path, fontSize = 12.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        val appId = g.steamAppId
+                        if (appId != null && report.missingInstalls.none { it.appId == appId }) {
+                            Text(
+                                stringResource(R.string.storage_added_adopt_owned_hint, appId),
+                                fontSize = 12.sp, color = colors.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
+                    Text(gb(g.bytes), fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, modifier = Modifier.widthIn(min = 72.dp))
+                    Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        SecondaryButton(
+                            stringResource(R.string.storage_move), compact = true,
+                            enabled = !sessionRunning && !StorageState.cleaning && !StorageState.scanning && SteamGameMove.status == null && AddedGameMove.status == null,
+                        ) { moveAdded = g }
+                        if (report.missingInstalls.isNotEmpty()) {
+                            SecondaryButton(
+                                stringResource(R.string.storage_added_move_steam), compact = true,
+                                enabled = !sessionRunning && !StorageState.cleaning && !StorageState.scanning && SteamGameMove.status == null && AddedGameMove.status == null,
+                            ) { adoptAdded = g }
+                        }
+                    }
+                }
+                if (i < added.lastIndex) Box(Modifier.fillMaxWidth().height(1.dp).background(pal.line))
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        Note(stringResource(R.string.storage_added_games_hint))
+    }
     confirm?.let { g ->
         // steam://uninstall reaches only the session's client, the selected one.
         val otherClient = g.x64 != (SessionPrefs.steamClientArch(LocalContext.current) == "x86_64")
@@ -523,10 +774,344 @@ private fun GamesView(report: StorageReport, sessionRunning: Boolean, a: FrontEn
             },
         )
     }
+    move?.let { g ->
+        MoveGameDialog(
+            game = g,
+            onDismiss = { move = null },
+            onMove = { target -> beginMove(g, target) },
+            onChooseFolder = { chooseFolder(g) },
+        )
+    }
+    moveAdded?.let { g ->
+        AddedMoveGameDialog(
+            folder = g.folder,
+            name = g.name,
+            onDismiss = { moveAdded = null },
+            onMove = { target -> beginAddedMove(g, target) },
+            onChooseFolder = { chooseAddedFolder(g) },
+        )
+    }
+    adoptAdded?.let { g ->
+        val auto = g.steamLibraryRoot?.let { root ->
+            g.steamInstallDir?.let { dir ->
+                report.missingInstalls.firstOrNull { it.libraryRoot == root && it.installDir == dir }
+            }
+        }
+        val candidates = (listOfNotNull(auto) + report.missingInstalls.filterNot { it == auto }).distinctBy { it.appId to it.libraryRoot }
+        AlertDialog(
+            onDismissRequest = { adoptAdded = null },
+            title = { Text(stringResource(R.string.storage_added_move_steam_title, g.name)) },
+            text = {
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(stringResource(R.string.storage_added_adopt_pick), fontSize = 13.sp, color = colors.onSurfaceVariant)
+                    candidates.forEach { c ->
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            SecondaryButton(c.name, compact = true, modifier = Modifier.fillMaxWidth()) {
+                                adoptAdded = null
+                                AddedGameMove.startAdopt(ctx, g.folder, g.name, c) { a.onLibraryChanged() }
+                            }
+                            Text(
+                                "${c.installDir} · ${c.libraryLabel}", fontSize = 11.sp, color = colors.onSurfaceVariant,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 4.dp),
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                val cancel = remember { FocusRequester() }
+                LaunchedEffect(Unit) { runCatching { cancel.requestFocus() } }
+                FocusText(stringResource(R.string.common_cancel), colors.onBackground, modifier = Modifier.focusRequester(cancel)) { adoptAdded = null }
+            },
+        )
+    }
+}
+
+@Composable
+private fun SteamGameMoveDialog() {
+    val s = SteamGameMove.status ?: return
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    val view = LocalView.current
+    DisposableEffect(s.done, s.error) {
+        val keep = !s.done && s.error == null
+        val previous = view.keepScreenOn
+        if (keep) view.keepScreenOn = true
+        onDispose { if (keep) view.keepScreenOn = previous }
+    }
+    AlertDialog(
+        onDismissRequest = { SteamGameMove.dismiss() },
+        title = {
+            Text(
+                when {
+                    s.done -> stringResource(R.string.storage_move_done_title, s.name)
+                    s.error != null -> stringResource(R.string.storage_move_title, s.name)
+                    else -> stringResource(R.string.storage_move_progress_title, s.name)
+                },
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                when {
+                    s.error != null -> {
+                        Text(s.error, fontSize = 14.sp, color = colors.error)
+                        Text(s.target.path, fontSize = 12.sp, color = colors.onSurfaceVariant)
+                    }
+                    s.done -> {
+                        Text(stringResource(R.string.storage_move_done_body), fontSize = 14.sp, color = colors.onBackground)
+                        Text(s.target.path, fontSize = 12.sp, color = colors.onSurfaceVariant)
+                    }
+                    else -> {
+                        val fraction = if (s.total > 0) (s.copied.toFloat() / s.total).coerceIn(0f, 1f) else 0f
+                        LinearProgressIndicator(progress = { fraction }, modifier = Modifier.fillMaxWidth().height(6.dp))
+                        Text(
+                            stringResource(R.string.storage_move_progress_detail, gb(s.copied), gb(s.total)),
+                            fontSize = 13.sp, color = colors.onSurfaceVariant,
+                        )
+                        Text(stringResource(R.string.storage_move_progress_hint), fontSize = 13.sp, color = colors.onSurfaceVariant)
+                        Text(s.target.path, fontSize = 12.sp, color = colors.onSurfaceVariant)
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            if (s.done || s.error != null) {
+                FocusText(stringResource(R.string.common_ok), if (s.error != null) colors.error else pal.signal) {
+                    SteamGameMove.dismiss()
+                }
+            } else {
+                SecondaryButton(stringResource(R.string.storage_move_cancel), compact = true) { SteamGameMove.cancel() }
+            }
+        },
+    )
+}
+
+@Composable
+private fun MoveGameDialog(
+    game: GameUsage,
+    onDismiss: () -> Unit,
+    onMove: (File) -> Unit,
+    onChooseFolder: () -> Unit,
+) {
+    val ctx = LocalContext.current
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    val arch = if (game.x64) "x86_64" else "arm64"
+    fun samePath(a: File?, b: File?): Boolean = a != null && b != null && runCatching { a.canonicalPath == b.canonicalPath }
+        .getOrDefault(a.absolutePath == b.absolutePath)
+    val options = ArrayList<MoveOption>()
+    val internal = SessionPrefs.steamRoot(ctx, arch)
+    if (internal.isDirectory && !samePath(game.libraryRoot, internal)) {
+        options.add(MoveOption(stringResource(R.string.storage_move_internal), internal))
+    }
+    GameStorage.effective(ctx)?.let { card ->
+        val root = if (game.x64) File(card.path, GameStorage.X64_CARD_DIR) else File(card.path)
+        if (root.isDirectory && !samePath(game.libraryRoot, root)) options.add(MoveOption(card.label, root))
+    }
+    // Every attached removable volume, e.g. a freshly plugged USB SSD, is a valid
+    // target even when it is not the configured card and its steam folder is not there yet.
+    for (volume in GameStorage.options(ctx)) {
+        val root = if (game.x64) File(volume.path, GameStorage.X64_CARD_DIR) else File(volume.path)
+        if (!samePath(game.libraryRoot, root) && options.none { samePath(it.root, root) }) {
+            options.add(MoveOption(volume.name, root, root.path))
+        }
+    }
+    // Raw removable drives (USB OTG, SD readers) are listed even when Android does not
+    // expose an app-specific directory on them. They need All-files access to be readable.
+    val drives = remember { StorageRoots.list(ctx).filter { it.removable && it.readable } }
+    for (drive in drives) {
+        val root = if (game.x64) File(drive.dir, GameStorage.X64_CARD_DIR) else drive.dir
+        if (!samePath(game.libraryRoot, root) && options.none { samePath(it.root, root) }) {
+            options.add(MoveOption(drive.label, root, root.path))
+        }
+    }
+    if (arch == "arm64") {
+        for (library in GameStorage.gamesFolderLibraries(ctx)) {
+            if (!samePath(game.libraryRoot, library.host) && options.none { samePath(it.root, library.host) }) {
+                options.add(MoveOption(library.label, library.host, library.host.path))
+            }
+        }
+    }
+    for (library in SteamLibraryRegistry.available(ctx, arch)) {
+        if (!samePath(game.libraryRoot, library.host) && options.none { samePath(it.root, library.host) }) {
+            options.add(MoveOption(library.label, library.host, library.host.path))
+        }
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.storage_move_title, gameName(game))) },
+        text = {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(stringResource(R.string.storage_move_body), fontSize = 13.sp, color = colors.onSurfaceVariant)
+                options.forEach { option ->
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        SecondaryButton(option.label, compact = true, modifier = Modifier.fillMaxWidth()) { onMove(option.root) }
+                        option.detail?.let {
+                            Text(
+                                it, fontSize = 11.sp, color = colors.onSurfaceVariant, maxLines = 1,
+                                overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 4.dp),
+                            )
+                        }
+                    }
+                }
+                SecondaryButton(
+                    stringResource(R.string.storage_move_choose_folder), compact = true,
+                    modifier = Modifier.fillMaxWidth(),
+                ) { onChooseFolder() }
+                Text(stringResource(R.string.storage_move_choose_hint), fontSize = 12.sp, color = colors.onSurfaceVariant)
+            }
+        },
+        confirmButton = {
+            val cancel = remember { FocusRequester() }
+            LaunchedEffect(Unit) { runCatching { cancel.requestFocus() } }
+            FocusText(
+                stringResource(R.string.common_cancel), colors.onBackground,
+                modifier = Modifier.focusRequester(cancel), onClick = onDismiss,
+            )
+        },
+    )
 }
 
 @Composable
 private fun gameName(g: GameUsage): String = if (g.x64) stringResource(R.string.storage_game_x64, g.name) else g.name
+
+@Composable
+private fun AddedMoveGameDialog(
+    folder: File,
+    name: String,
+    onDismiss: () -> Unit,
+    onMove: (File) -> Unit,
+    onChooseFolder: () -> Unit,
+) {
+    val ctx = LocalContext.current
+    val colors = MaterialTheme.colorScheme
+    fun samePath(a: File?, b: File?): Boolean = a != null && b != null && runCatching { a.canonicalPath == b.canonicalPath }
+        .getOrDefault(a.absolutePath == b.absolutePath)
+    val options = ArrayList<MoveOption>()
+    for (volume in GameStorage.options(ctx)) {
+        val root = File(volume.path.substringBefore("/Android/"))
+        if (root.isDirectory && !samePath(folder, root) && options.none { samePath(it.root, root) }) {
+            options.add(MoveOption(volume.name, root, root.path))
+        }
+    }
+    val drives = remember { StorageRoots.list(ctx).filter { it.removable && it.readable } }
+    for (drive in drives) {
+        if (!samePath(folder, drive.dir) && options.none { samePath(it.root, drive.dir) }) {
+            options.add(MoveOption(drive.label, drive.dir, drive.dir.path))
+        }
+    }
+    for (root in AddedGames.roots(ctx)) {
+        if (root.host.isDirectory && !samePath(folder, root.host) && options.none { samePath(it.root, root.host) }) {
+            options.add(MoveOption(GameStorage.labelFor(ctx, root.host.path), root.host, root.host.path))
+        }
+    }
+    for (library in SteamLibraryRegistry.all(ctx)) {
+        if (library.host.isDirectory && !samePath(folder, library.host) && options.none { samePath(it.root, library.host) }) {
+            options.add(MoveOption(library.label, library.host, library.host.path))
+        }
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.storage_move_title, name)) },
+        text = {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(stringResource(R.string.storage_added_games_hint), fontSize = 13.sp, color = colors.onSurfaceVariant)
+                options.forEach { option ->
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        SecondaryButton(option.label, compact = true, modifier = Modifier.fillMaxWidth()) { onMove(option.root) }
+                        option.detail?.let {
+                            Text(
+                                it, fontSize = 11.sp, color = colors.onSurfaceVariant, maxLines = 1,
+                                overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 4.dp),
+                            )
+                        }
+                    }
+                }
+                SecondaryButton(
+                    stringResource(R.string.storage_move_choose_folder), compact = true,
+                    modifier = Modifier.fillMaxWidth(),
+                ) { onChooseFolder() }
+                Text(stringResource(R.string.storage_move_choose_hint), fontSize = 12.sp, color = colors.onSurfaceVariant)
+            }
+        },
+        confirmButton = {
+            val cancel = remember { FocusRequester() }
+            LaunchedEffect(Unit) { runCatching { cancel.requestFocus() } }
+            FocusText(
+                stringResource(R.string.common_cancel), colors.onBackground,
+                modifier = Modifier.focusRequester(cancel), onClick = onDismiss,
+            )
+        },
+    )
+}
+
+@Composable
+private fun AddedGameMoveDialog() {
+    val s = AddedGameMove.status ?: return
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    val view = LocalView.current
+    DisposableEffect(s.done, s.error) {
+        val keep = !s.done && s.error == null
+        val previous = view.keepScreenOn
+        if (keep) view.keepScreenOn = true
+        onDispose { if (keep) view.keepScreenOn = previous }
+    }
+    AlertDialog(
+        onDismissRequest = { AddedGameMove.dismiss() },
+        title = {
+            Text(
+                when {
+                    s.done -> stringResource(R.string.storage_move_done_title, s.name)
+                    s.error != null -> stringResource(R.string.storage_move_title, s.name)
+                    else -> stringResource(R.string.storage_move_progress_title, s.name)
+                },
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                when {
+                    s.error != null -> {
+                        Text(s.error, fontSize = 14.sp, color = colors.error)
+                        Text(s.target.path, fontSize = 12.sp, color = colors.onSurfaceVariant)
+                    }
+                    s.done -> {
+                        Text(stringResource(R.string.storage_move_done_body), fontSize = 14.sp, color = colors.onBackground)
+                        Text(s.target.path, fontSize = 12.sp, color = colors.onSurfaceVariant)
+                    }
+                    else -> {
+                        val fraction = if (s.total > 0) (s.copied.toFloat() / s.total).coerceIn(0f, 1f) else 0f
+                        LinearProgressIndicator(progress = { fraction }, modifier = Modifier.fillMaxWidth().height(6.dp))
+                        Text(
+                            stringResource(R.string.storage_move_progress_detail, gb(s.copied), gb(s.total)),
+                            fontSize = 13.sp, color = colors.onSurfaceVariant,
+                        )
+                        Text(stringResource(R.string.storage_move_progress_hint), fontSize = 13.sp, color = colors.onSurfaceVariant)
+                        Text(s.target.path, fontSize = 12.sp, color = colors.onSurfaceVariant)
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            if (s.done || s.error != null) {
+                FocusText(stringResource(R.string.common_ok), if (s.error != null) colors.error else pal.signal) {
+                    AddedGameMove.dismiss()
+                }
+            } else {
+                SecondaryButton(stringResource(R.string.storage_move_cancel), compact = true) { AddedGameMove.cancel() }
+            }
+        },
+    )
+}
 
 @Composable
 private fun ToolsView(report: StorageReport, sessionRunning: Boolean, onBack: () -> Unit) {

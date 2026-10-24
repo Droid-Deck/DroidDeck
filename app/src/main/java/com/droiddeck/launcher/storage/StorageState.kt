@@ -46,6 +46,9 @@ object StorageState {
         openRequests++
     }
 
+    var interruptedMove by mutableStateOf<String?>(null)
+        private set
+
     fun refresh(context: Context, force: Boolean = false) {
         val current = report
         if (scanning || cleaning) return
@@ -55,11 +58,28 @@ object StorageState {
         Thread({
             val result = runCatching { StorageScan.scan(app) }
                 .onFailure { Log.w(TAG, "storage scan failed", it) }.getOrNull()
+            val interrupted = runCatching { MoveJournal.read(app)?.takeIf { it.items.isNotEmpty() }?.name }.getOrNull()
             main.post {
                 if (result != null) report = result
+                interruptedMove = interrupted
                 scanning = false
             }
         }, "storage-scan").start()
+    }
+
+    fun discardInterrupted(context: Context, onDone: (Boolean) -> Unit = {}) {
+        if (cleaning) { onDone(false); return }
+        val app = context.applicationContext
+        cleaning = true
+        Thread({
+            val ok = MoveJournal.discard(app)
+            main.post {
+                cleaning = false
+                if (ok) interruptedMove = null
+                refresh(app, force = true)
+                onDone(ok)
+            }
+        }, "storage-discard-interrupted").start()
     }
 
     fun freeBytes(context: Context): Long = runCatching { StatFs(context.filesDir.path).availableBytes }.getOrDefault(Long.MAX_VALUE)
@@ -81,7 +101,7 @@ object StorageState {
     fun safeBytes(report: StorageReport): Long = SAFE.sumOf { bytes(report, it) }
 
     fun clean(context: Context, items: Set<CleanItem>, onDone: (Long?) -> Unit) {
-        if (cleaning || SessionState.running) { onDone(null); return }
+        if (cleaning || SessionState.running || SteamGameMove.running || AddedGameMove.running) { onDone(null); return }
         val app = context.applicationContext
         appContext = app
         cleaning = true
@@ -98,7 +118,7 @@ object StorageState {
     }
 
     fun removeTool(context: Context, tool: ToolUsage, onDone: (Long?) -> Unit) {
-        if (tool.state != ToolState.UNUSED || cleaning || SessionState.running) { onDone(null); return }
+        if (tool.state != ToolState.UNUSED || cleaning || SessionState.running || SteamGameMove.running || AddedGameMove.running) { onDone(null); return }
         val app = context.applicationContext
         cleaning = true
         Thread({
@@ -117,7 +137,7 @@ object StorageState {
 
     // Every action works from a fresh scan so nothing is deleted on the strength of an older one.
     private fun act(context: Context, name: String, action: (Context, StorageReport) -> Boolean, onDone: (Long?) -> Unit = {}) {
-        if (cleaning || SessionState.running) { onDone(null); return }
+        if (cleaning || SessionState.running || SteamGameMove.running || AddedGameMove.running) { onDone(null); return }
         val app = context.applicationContext
         appContext = app
         cleaning = true

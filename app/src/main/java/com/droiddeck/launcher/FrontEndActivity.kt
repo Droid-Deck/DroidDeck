@@ -2101,6 +2101,10 @@ class FrontEndActivity : ComponentActivity() {
             android.widget.Toast.makeText(this, R.string.storage_cleanup_busy, android.widget.Toast.LENGTH_SHORT).show()
             return false
         }
+        if (com.droiddeck.launcher.storage.SteamGameMove.running || com.droiddeck.launcher.storage.AddedGameMove.running) {
+            android.widget.Toast.makeText(this, R.string.storage_move_wait, android.widget.Toast.LENGTH_SHORT).show()
+            return false
+        }
         refreshPhantomStatus()
         if (steamSession && PhantomProcessLimit.blocksSteam(phantomProcessStatus)) {
             showPhantomGate = true

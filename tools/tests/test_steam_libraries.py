@@ -99,6 +99,11 @@ class LibraryListTest(unittest.TestCase):
         text = self.run_main()
         self.assertEqual([self.steam, self.old, self.user, self.card], self.paths(text))
 
+    def test_missing_moved_library_is_forgotten(self) -> None:
+        self.vdf.write_text(self.vdf.read_text().replace("\n}\n", "\n" + entry(4, "/mnt/droiddeck-libraries/gone") + "}\n"))
+        self.listing.write_text(json.dumps([{"path": str(self.pc), "label": "PC"}]))
+        self.assertNotIn("/mnt/droiddeck-libraries/gone", self.run_main())
+
     def test_labels_cannot_break_the_vdf(self):
         self.listing.write_text(json.dumps([{"path": str(self.pc), "label": 'P"C\\'}]))
         text = self.run_main()
