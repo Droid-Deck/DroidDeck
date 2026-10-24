@@ -31,9 +31,11 @@ object Syncthing {
     enum class AutoPause { WIFI, GAME }
 
     const val FAILURE_MISSING = "binary-missing"
+    private const val FAILURE_POLICY = "Stopped because a folder outside DroidDeck's storage could not be paused"
     private const val FAILURE_STILL_RUNNING = "The previous Syncthing process did not exit"
     private const val TAG = "Syncthing"
     private const val GRACE_MS = 60_000L
+    private const val ENFORCE_ATTEMPTS = 3
     private const val LOG_LIMIT = 4L shl 20
     private const val FOLDER_ID_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789"
 
@@ -88,6 +90,11 @@ object Syncthing {
         app = application.applicationContext
         userPaused = SyncPrefs.userPaused(app)
         enabled = SyncPrefs.enabled(app)
+        val previous = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, error ->
+            runCatching { process?.destroyForcibly() }
+            previous?.uncaughtException(thread, error) ?: Runtime.getRuntime().halt(2)
+        }
         application.registerActivityLifecycleCallbacks(object : Application.ActivityLifecycleCallbacks {
             override fun onActivityStarted(activity: Activity) {
                 visible++
@@ -259,6 +266,8 @@ object Syncthing {
         try {
             if (!binary(context).isFile) throw SyncthingFailure(FAILURE_MISSING)
             if (process != null) throw SyncthingFailure(FAILURE_STILL_RUNNING)
+            val name = binary(context).name
+            OrphanReaper.reap("stale Syncthing") { it.substringAfterLast('/') == name }
             home(context).mkdirs()
             folderRoot(context).mkdirs()
             if (!config(context).isFile) generate(context)
@@ -399,6 +408,9 @@ object Syncthing {
                 previous = now to bytes
                 val snap = collect(client, guard, id, connections, rates)
                 main.post { if (gen == generation) { snapshot = snap; changed() } }
+            } catch (e: PolicyFailure) {
+                failClosed(gen, e)
+                return
             } catch (e: Exception) {
                 Log.d(TAG, "status poll failed: $e")
             }
@@ -413,8 +425,8 @@ object Syncthing {
             val id = f.getString("id")
             val path = f.optString("path")
             val blocked = !guard.allows(path)
-            var paused = f.optBoolean("paused")
-            if (blocked && !paused) { runCatching { client.pauseFolder(id) }; paused = true }
+            if (blocked && !f.optBoolean("paused")) pauseFolder(client, id)
+            val paused = blocked || f.optBoolean("paused")
             val status = if (paused) null else runCatching { client.folderStatus(id) }.getOrElse { JSONObject().put("state", "error") }
             val shared = f.optJSONArray("devices")?.let { d -> (0 until d.length()).mapNotNull { names[d.getJSONObject(it).optString("deviceID")] } }.orEmpty()
             SyncFolder(
@@ -442,25 +454,56 @@ object Syncthing {
         java.time.OffsetDateTime.parse(s).toInstant().toEpochMilli().takeIf { it > 86_400_000L }
     }.getOrNull()
 
-    /** Pauses any folder outside DroidDeck's storage as soon as Syncthing saves its config. */
+    /** Pauses any folder outside DroidDeck's storage as soon as Syncthing saves its config, and stops Syncthing if it can't. */
     private fun enforce(gen: Int, guard: SyncthingGuard) {
         var since = 0L
+        var pending = true
+        var failures = 0
         while (gen == generation) {
             val client = api ?: return
             try {
-                val (last, saved) = client.waitForConfigSaved(since, 60)
-                since = last
-                if (saved && gen == generation) {
+                if (!pending) {
+                    val (last, saved) = client.waitForConfigSaved(since, 60)
+                    since = last
+                    pending = saved
+                }
+                if (pending && gen == generation) {
                     applyPause(client)
                     val folders = client.folders()
                     for (i in 0 until folders.length()) {
                         val f = folders.getJSONObject(i)
-                        if (!f.optBoolean("paused") && !guard.allows(f.optString("path"))) client.pauseFolder(f.getString("id"))
+                        if (!f.optBoolean("paused") && !guard.allows(f.optString("path"))) pauseFolder(client, f.getString("id"))
                     }
+                    pending = false
                 }
+                failures = 0
+            } catch (e: PolicyFailure) {
+                failClosed(gen, e)
+                return
             } catch (e: Exception) {
+                if (pending && ++failures >= ENFORCE_ATTEMPTS) {
+                    failClosed(gen, PolicyFailure(e))
+                    return
+                }
                 Thread.sleep(2_000)
             }
+        }
+    }
+
+    private fun pauseFolder(client: SyncthingApi, id: String) {
+        try {
+            client.pauseFolder(id)
+        } catch (e: Exception) {
+            throw PolicyFailure(e)
+        }
+    }
+
+    private fun failClosed(gen: Int, cause: Exception) {
+        Log.w(TAG, FAILURE_POLICY, cause)
+        worker.execute {
+            if (gen != generation) return@execute
+            shutdown()
+            main.post { if (gen == generation) { phase = Phase.FAILED; failure = FAILURE_POLICY; snapshot = null; changed() } }
         }
     }
 
@@ -491,4 +534,5 @@ object Syncthing {
     private fun changed() { onChange?.invoke() }
 
     private class SyncthingFailure(message: String) : Exception(message)
+    private class PolicyFailure(cause: Exception) : Exception(cause)
 }
