@@ -48,6 +48,15 @@ inherit those routes. Managed shortcuts are replaced; user-created shortcuts and
 unreadable shortcut files are preserved. Both routes use the existing ARM64 Proton
 registration.
 
+## Launcher artwork
+
+The installed Steam game scan lists each game's `appcache/librarycache/<appid>`
+directory once for its cover, background, icon and logo. Filename preference is
+checked before directory preference: the app folder, then hash folders sorted by
+name. Hash-named fallback icons are still taken only from the app folder in its
+listing order. The directory snapshot is not kept between scans, so the next
+scan sees new artwork folders.
+
 ## Validation
 
 Run `python3 -m unittest discover -s tools/tests -p 'test_*.py'` and Android unit tests.

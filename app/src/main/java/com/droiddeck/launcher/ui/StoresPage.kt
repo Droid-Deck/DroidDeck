@@ -127,6 +127,7 @@ import coil.compose.AsyncImage
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.stores.CatalogItem
+import com.droiddeck.launcher.stores.itch.ItchBrowseState
 import com.droiddeck.launcher.stores.Store
 import com.droiddeck.launcher.stores.StoreTab
 import com.droiddeck.launcher.stores.StoresState
@@ -831,22 +832,32 @@ private fun Storefront(
     fun shown(i: CatalogItem) = s.storesShowMature || !i.mature || i.accessible
     fun shelf(l: List<CatalogItem>?) = l?.filter(::shown)
     LaunchedEffect(store, q) { StoresState.search(ctx, store, q) }
-    val visible = remember(found, library, shelves, q, s.storesShowMature) {
-        if (q.isEmpty()) emptyList()
+    val browsing = store == Store.ITCH && q.isEmpty() && ItchBrowseState.active
+    val browseItems = if (browsing) ItchBrowseState.items else emptyList()
+    val visible = remember(found, library, shelves, q, s.storesShowMature, browsing, browseItems) {
+        if (browsing) {
+            val owned = library.associateBy { it.id }
+            browseItems.map { owned[it.id] ?: it }.filter(::shown)
+        } else if (q.isEmpty()) emptyList()
         else (found + library + (shelves?.all ?: emptyList())).distinctBy { it.id }
             .filter { (it.title.lowercase().contains(q) || it.key in foundKeys) && shown(it) }
     }
-    val nothing = stringResource(R.string.stores_nothing_matches)
+    val nothing = stringResource(when {
+        browsing && ItchBrowseState.loading -> R.string.stores_shelves_loading
+        browsing && ItchBrowseState.failed -> R.string.stores_itch_browse_failed
+        else -> R.string.stores_nothing_matches
+    })
     var firstPlaced = false
     var columns by remember { mutableIntStateOf(1) }
     val density = androidx.compose.ui.platform.LocalDensity.current
     val focus = LocalFrontFocus.current
     val scope = rememberCoroutineScope()
-    val searching = q.isNotEmpty()
+    val searching = q.isNotEmpty() || browsing
     // A bar only while there is nothing else to look at: no shelves yet and no search results.
     val bareTab = if (searching) visible.isEmpty() else shelves == null || shelves.isEmpty
     val barLine = StoresState.status[store]?.takeIf { bareTab && syncCount(it) != null }
-    val headerItems = 2 + (if (barLine != null) 1 else 0) + (if (StoresState.problems[store] != null) 1 else 0)
+    val itchBar = store == Store.ITCH && q.isEmpty()
+    val headerItems = 2 + (if (barLine != null) 1 else 0) + (if (StoresState.problems[store] != null) 1 else 0) + (if (itchBar) 1 else 0)
     val card: @Composable (CatalogItem) -> Unit = { item ->
         val first = if (searching) item.key == visible.firstOrNull()?.key else !firstPlaced
         firstPlaced = true
@@ -894,8 +905,11 @@ private fun Storefront(
         }
         barLine?.let { line -> item(key = "sync", span = { GridItemSpan(maxLineSpan) }) { Rise(3) { SyncBar(line) } } }
         StoresState.problems[store]?.let { line -> item(key = "problem", span = { GridItemSpan(maxLineSpan) }) { Rise(3) { Box(Modifier.padding(bottom = 8.dp)) { Note(line) } } } }
-        if (searching) storeGrid(visible, nothing, card)
-        else item(key = "shelves", span = { GridItemSpan(maxLineSpan) }) {
+        if (itchBar) item(key = "itch-browse-bar", span = { GridItemSpan(maxLineSpan) }) { ItchBrowseBar() }
+        if (searching) {
+            storeGrid(visible, nothing, card)
+            if (browsing) item(key = "itch-more", span = { GridItemSpan(maxLineSpan) }) { ItchLoadMore() }
+        } else item(key = "shelves", span = { GridItemSpan(maxLineSpan) }) {
             Column {
                 Shelf(stringResource(R.string.stores_shelf_new), shelf(shelves?.whatsNew), card)
                 Shelf(stringResource(R.string.stores_shelf_deals), shelf(shelves?.deals), card)
