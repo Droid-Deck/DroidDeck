@@ -96,9 +96,9 @@ object AddedGameMove {
             ?: SessionPrefs.addedGameExe(context, source.path).takeIf { it.isNotEmpty() }?.let(::File)
         onProgress(0, total.coerceAtLeast(1L))
         val ok = runCatching {
-            FileOps.moveWithProgress(source, dest, total.coerceAtLeast(1L)) { done, _ ->
+            FileOps.moveWithProgress(source, dest, total.coerceAtLeast(1L), { done, _ ->
                 onProgress(done, total.coerceAtLeast(1L))
-            }
+            })
         }.getOrDefault(false)
         if (!ok) {
             runCatching { FileOps.delete(dest) }
