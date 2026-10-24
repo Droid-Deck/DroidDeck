@@ -14,3 +14,4 @@ patch -d "$source_dir" -p1 < "$repo_root/tools/directaudio/microphone-toggle.pat
 "$toolchain/aarch64-linux-android28-clang" -O2 -Wl,-z,max-page-size=16384 \
   "$source_dir/directaudio-relay.c" -o "$repo_root/app/src/main/jniLibs/arm64-v8a/libdirectaudiorelay.so" \
   -laaudio -llog -pthread
+"$toolchain/llvm-strip" --strip-unneeded "$repo_root/app/src/main/jniLibs/arm64-v8a/libdirectaudiorelay.so"
