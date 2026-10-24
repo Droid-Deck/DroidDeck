@@ -120,6 +120,18 @@ def arkham_city_x87(game):
         return {"FEX_X87REDUCEDPRECISION": "0"}, [], "Batman: Arkham City: FEX with full x87 precision"
 
 
+
+@fix
+def caravan_sandwitch_feature_level(game):
+    if "caravansandwitch.exe" in game.files or game.stem == "caravansandwitch-win64-shipping":
+        return {"VKD3D_FEATURE_LEVEL": "12_1"}, [], "Caravan SandWitch: D3D12 feature level 12_1 (12_2 hands it mesh shader pipelines vkd3d-proton cannot build)"
+
+
+@fix
+def cyberpunk_feature_level(game):
+    if game.stem in ("cyberpunk2077", "redprelauncher"):
+        return {"VKD3D_FEATURE_LEVEL": "12_1"}, [], "Cyberpunk 2077: D3D12 feature level 12_1"
+
 def skip_red_launcher(command):
     """Cyberpunk 2077's prelauncher opens REDlauncher, a Qt WebEngine window that hands over to the
     game half a minute later and then stays up beside it, well over a core busy for as long as the
