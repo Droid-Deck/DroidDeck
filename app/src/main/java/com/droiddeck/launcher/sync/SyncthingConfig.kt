@@ -21,11 +21,11 @@ object SyncthingConfig {
     internal fun apiKey(xml: String): String? =
         parse(xml).documentElement.child("gui")?.child("apikey")?.textContent?.trim()?.takeIf { it.isNotEmpty() }
 
-    fun apply(file: File, ports: SyncthingPorts, folderRoot: File, allows: (String) -> Boolean) {
-        file.writeText(apply(file.readText(), ports, folderRoot.path, allows))
+    fun apply(file: File, ports: SyncthingPorts, folderRoot: File, pauseDevices: Boolean, allows: (String) -> Boolean) {
+        file.writeText(apply(file.readText(), ports, folderRoot.path, pauseDevices, allows))
     }
 
-    internal fun apply(xml: String, ports: SyncthingPorts, folderRoot: String, allows: (String) -> Boolean): String {
+    internal fun apply(xml: String, ports: SyncthingPorts, folderRoot: String, pauseDevices: Boolean = false, allows: (String) -> Boolean): String {
         val doc = parse(xml)
         val root = doc.documentElement
         val gui = root.child("gui") ?: doc.createElement("gui").also { root.appendChild(it) }
@@ -42,6 +42,7 @@ object SyncthingConfig {
         val folder = defaults.child("folder") ?: doc.createElement("folder").also { defaults.appendChild(it) }
         folder.setAttribute("path", folderRoot)
         root.children("folder").filter { !allows(it.getAttribute("path")) }.forEach { it.set("paused", "true") }
+        if (pauseDevices) root.children("device").forEach { it.set("paused", "true") }
         return write(doc)
     }
 

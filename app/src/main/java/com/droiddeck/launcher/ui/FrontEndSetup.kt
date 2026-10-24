@@ -196,7 +196,10 @@ internal fun SetupPanel(
         }
     }
     LaunchedEffect(com.droiddeck.launcher.sync.Syncthing.openRequests) {
-        if (com.droiddeck.launcher.sync.Syncthing.openRequests > 0) tab = SYNC_TAB
+        if (com.droiddeck.launcher.sync.Syncthing.openPending) {
+            com.droiddeck.launcher.sync.Syncthing.openPending = false
+            tab = SYNC_TAB
+        }
     }
     var syncAdvanced by rememberSaveable { mutableStateOf(false) }
     if (syncAdvanced) {

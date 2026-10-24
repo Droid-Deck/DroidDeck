@@ -13,6 +13,10 @@ class SyncthingConfigTest {
             <folder id="def" label="Saves" path="/data/user/0/app/Sync/saves" type="sendreceive">
                 <paused>false</paused>
             </folder>
+            <device id="PEER" name="Desktop" compression="metadata">
+                <address>dynamic</address>
+                <paused>false</paused>
+            </device>
             <gui enabled="true" tls="true" debugging="false">
                 <address>127.0.0.1:8384</address>
                 <user>droiddeck</user>
@@ -39,6 +43,14 @@ class SyncthingConfigTest {
         val saves = out.substringAfter("id=\"def\"").substringBefore("</folder>")
         assertTrue(camera.contains("<paused>true</paused>"))
         assertTrue(saves.contains("<paused>false</paused>"))
+    }
+
+    @Test
+    fun pausesDevicesBeforeLaunchWhenPolicyRequires() {
+        val paused = SyncthingConfig.apply(generated, ports, "/ext/Sync", pauseDevices = true) { true }
+        assertTrue(paused.substringAfter("id=\"PEER\"").substringBefore("</device>").contains("<paused>true</paused>"))
+        val open = SyncthingConfig.apply(generated, ports, "/ext/Sync", pauseDevices = false) { true }
+        assertTrue(open.substringAfter("id=\"PEER\"").substringBefore("</device>").contains("<paused>false</paused>"))
     }
 
     @Test

@@ -46,6 +46,13 @@ object Syncthing {
     var autoPause by mutableStateOf<AutoPause?>(null); private set
     /** Bumped to ask the Setup page to show the Sync tab. */
     var openRequests by mutableStateOf(0)
+        private set
+    var openPending = false
+
+    fun requestOpen() {
+        openPending = true
+        openRequests++
+    }
 
     val needsAttention get() = phase == Phase.FAILED || snapshot?.needsAttention == true
 
@@ -250,7 +257,9 @@ object Syncthing {
             if (!config(context).isFile) generate(context)
             val picked = SyncthingPortPicker.pick()
             val guard = guard(context)
-            SyncthingConfig.apply(config(context), picked, folderRoot(context), guard::allows)
+            val paused = SyncPrefs.userPaused(context) || autoPauseReason() != null
+            SyncthingConfig.apply(config(context), picked, folderRoot(context), paused, guard::allows)
+            if (paused) SyncPrefs.setPauseApplied(context, true)
             val key = SyncthingConfig.apiKey(config(context)) ?: throw SyncthingFailure("config.xml has no API key")
             if (gen != generation) return
             rotateLog(context)
@@ -273,7 +282,7 @@ object Syncthing {
             main.post {
                 if (gen == generation) { ports = picked; apiKeyTail = key.takeLast(4); phase = Phase.RUNNING; changed() }
             }
-            Thread({ poll(gen, client, guard) }, "syncthing-status").start()
+            Thread({ poll(gen, guard) }, "syncthing-status").start()
             Thread({ enforce(gen, guard) }, "syncthing-guard").start()
         } catch (e: Exception) {
             Log.w(TAG, "start failed", e)
@@ -284,20 +293,23 @@ object Syncthing {
     }
 
     private fun generate(context: Context) {
+        val output = File(home(context), "generate.log")
         val child = ProcessBuilder(binary(context).path, "generate", "--gui-user", SyncthingConfig.GUI_USER, "--gui-password", "-")
             .redirectErrorStream(true)
+            .redirectOutput(output)
             .also { environment(context, it.environment()) }
             .start()
         val pid = HostProcess.pidOf(child)
         OrphanReaper.keep(pid)
         try {
             child.outputStream.bufferedWriter().use { it.write(SyncPrefs.guiPassword(context) + "\n") }
-            val output = child.inputStream.bufferedReader().use { it.readText() }
             if (!child.waitFor(60, TimeUnit.SECONDS) || child.exitValue() != 0 || !config(context).isFile) {
                 child.destroy()
-                throw SyncthingFailure("syncthing generate failed: ${output.lines().lastOrNull { it.isNotBlank() }.orEmpty()}")
+                val last = runCatching { output.readLines().lastOrNull { it.isNotBlank() } }.getOrNull().orEmpty()
+                throw SyncthingFailure("syncthing generate failed: $last")
             }
         } finally {
+            output.delete()
             OrphanReaper.release(pid)
         }
     }
@@ -352,10 +364,12 @@ object Syncthing {
         process = null
     }
 
-    private fun poll(gen: Int, client: SyncthingApi, guard: SyncthingGuard) {
+    private fun poll(gen: Int, guard: SyncthingGuard) {
         var previous: Pair<Long, Pair<Long, Long>>? = null
         var myId: String? = null
         while (gen == generation) {
+            val client = api ?: return
+            applyPause(client)
             try {
                 val id = myId ?: client.myId().also { myId = it }
                 val connections = client.connections()
@@ -368,7 +382,6 @@ object Syncthing {
                 } ?: (0L to 0L)
                 previous = now to bytes
                 val snap = collect(client, guard, id, connections, rates)
-                applyPause(client)
                 main.post { if (gen == generation) { snapshot = snap; changed() } }
             } catch (e: Exception) {
                 Log.d(TAG, "status poll failed: $e")
@@ -436,17 +449,19 @@ object Syncthing {
 
     private fun applyPause(client: SyncthingApi) {
         val context = app
-        val auto = when {
-            SyncPrefs.wifiOnly(context) && !onWifi -> AutoPause.WIFI
-            SyncPrefs.pauseInGames(context) && SessionState.running -> AutoPause.GAME
-            else -> null
-        }
+        val auto = autoPauseReason()
         if (auto != autoPause) main.post { autoPause = auto; changed() }
         val want = SyncPrefs.userPaused(context) || auto != null
         if (want == SyncPrefs.pauseApplied(context)) return
         runCatching { if (want) client.pauseAll() else client.resumeAll() }
             .onSuccess { SyncPrefs.setPauseApplied(context, want) }
             .onFailure { Log.w(TAG, "pause change failed", it) }
+    }
+
+    private fun autoPauseReason(): AutoPause? = when {
+        SyncPrefs.wifiOnly(app) && !onWifi -> AutoPause.WIFI
+        SyncPrefs.pauseInGames(app) && SessionState.running -> AutoPause.GAME
+        else -> null
     }
 
     private fun changed() { onChange?.invoke() }

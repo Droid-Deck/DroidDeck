@@ -337,9 +337,7 @@ else
 fi
 
 syncthing_src="${repo_root}/tools/syncthing/syncthing-android/syncthing/src/github.com/syncthing/syncthing"
-if [[ ! -f "${syncthing_src}/build.go" ]]; then
-    git -C "${repo_root}" submodule update --init --recursive tools/syncthing/syncthing-android
-fi
+git -C "${repo_root}" submodule update --init --recursive tools/syncthing/syncthing-android
 syncthing_inputs=$(printf '%s\n' "$(shasum -a 256 "${repo_root}/tools/syncthing/build.sh" \
     "${repo_root}/tools/syncthing/syncthing-android/gradle/libs.versions.toml")" \
     "$(git -C "${syncthing_src}" rev-parse HEAD)" "${ndk_version}" | shasum -a 256 | cut -d' ' -f1)

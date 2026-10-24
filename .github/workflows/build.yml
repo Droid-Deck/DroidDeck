@@ -497,7 +497,10 @@ jobs:
 
       - name: Pin the Syncthing source
         id: syncthing-src
-        run: echo "commit=$(git -C tools/syncthing/syncthing-android/syncthing/src/github.com/syncthing/syncthing rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+        run: |
+          set -euo pipefail
+          git submodule update --init --recursive tools/syncthing/syncthing-android
+          echo "commit=$(git -C tools/syncthing/syncthing-android/syncthing/src/github.com/syncthing/syncthing rev-parse HEAD)" >> "$GITHUB_OUTPUT"
       - name: Cache Syncthing
         id: syncthing
         uses: actions/cache@v4
