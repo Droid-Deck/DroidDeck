@@ -1017,8 +1017,6 @@
     <string name="games_empty">Game bạn cài trong Steam sẽ xuất hiện ở đây sau phiên.</string>
     <string name="games_play_steam">Chơi trên Steam</string>
     <string name="games_play_steamvr">Chơi trên SteamVR</string>
-    <string name="games_launch_settings">Thiết lập khởi chạy</string>
-    <string name="games_launch">Khởi chạy</string>
     <string name="games_files">Tệp game</string>
     <string name="games_prefix">Prefix Proton</string>
     <string name="games_saves_looking">Đang tìm các lần lưu…</string>
@@ -1026,7 +1024,6 @@
     <string name="games_saves_folders">%1$d thư mục lưu</string>
     <string name="games_saves_summary">%1$s · %2$d tệp · %3$s</string>
     <string name="games_kb">%1$d KB</string>
-    <string name="games_manage_saves">Quản lý tệp lưu</string>
     <string name="games_saves">Tệp lưu game</string>
     <string name="games_import_saves">Nhập tệp lưu…</string>
     <string name="games_export_gamehub">Xuất dưới dạng zip GameHub…</string>
@@ -1038,7 +1035,6 @@
     <string name="games_runtime_first_play">Runtime sẽ cài ở lần Play đầu tiên</string>
     <string name="games_runtime_update">Có cập nhật runtime</string>
     <string name="games_runtime_ready">● Runtime đã sẵn sàng</string>
-    <string name="games_last_played">Chơi lần cuối %1$s</string>
     <string name="games_internal">Bộ nhớ trong</string>
     <string name="games_added">Game đã thêm</string>
     <string name="games_custom">Game tùy chỉnh</string>
@@ -1107,7 +1103,7 @@
     <string name="second_terminal">Terminal Linux</string>
     <string name="second_terminal_not_ready">Phiên Linux chưa sẵn sàng cho terminal.</string>
     <string name="rail_steam">Steam</string>
-    <string name="rail_games">Games</string>
+    <string name="rail_games">Thư viện</string>
     <string name="rail_desktop">Desktop</string>
     <string name="rail_store">Cửa hàng</string>
     <string name="rail_components">Thành phần</string>
@@ -1926,7 +1922,6 @@
     <string name="source_steam">Steam</string>
     <string name="source_added">Tùy chỉnh</string>
     <string name="setup_stores">Cửa hàng</string>
-    <string name="setup_stores_open_on">Mở một store trên</string>
     <string name="setup_stores_speed">Mức tốc độ tải</string>
     <string name="setup_stores_engine">Engine stores</string>
     <string name="setup_stores_engine_chip_ready">● Engine sẵn sàng</string>
@@ -1940,11 +1935,9 @@
     <string name="stores_tabs_arrange">Sắp xếp thẻ</string>
     <string name="stores_tabs_arrange_done">Xong</string>
     <string name="stores_chip_signed_out">(chưa đăng nhập)</string>
-    <string name="stores_tab_store">Cửa hàng</string>
     <string name="stores_tab_library">Thư viện</string>
     <string name="stores_tab_all">Tất cả</string>
     <string name="stores_tab_downloads">Tải xuống</string>
-    <string name="stores_tab_count">%1$s (%2$d)</string>
     <string name="stores_signin">Đăng nhập</string>
     <string name="stores_signout_named">%1$s · đăng xuất</string>
     <string name="stores_signout_title">Đăng xuất khỏi %1$s?</string>
@@ -1962,7 +1955,6 @@
     <string name="stores_shelf_deals">Ưu đãi</string>
     <string name="stores_shelf_free">Game miễn phí</string>
     <string name="stores_shelf_trending">Xu hướng</string>
-    <string name="stores_shelf_library">Thư viện của bạn</string>
     <string name="stores_play">Chơi</string>
     <string name="stores_install">Cài</string>
     <string name="stores_resume_install">Tiếp tục cài</string>
@@ -2965,4 +2957,31 @@
     <string name="spatial_model_checksum_error">Tổng kiểm tra mô hình bàn tay không khớp</string>
     <string name="spatial_opencv_load_error">OpenCV không thể tải</string>
     <string name="tracking_recovery_look">Nhìn xung quanh chậm rãi trong phòng có đủ ánh sáng.\nGiữ cho camera theo dõi rõ ràng và hướng về phía đồ nội thất hoặc các chi tiết có thể nhìn thấy khác.</string>
+    <string name="epic_client_missing">Chưa cài</string>
+    <string name="epic_client_open">Mở</string>
+    <string name="epic_client_install">Cài đặt</string>
+    <string name="game_tab_about">Giới thiệu</string>
+    <string name="game_tab_install">Cài đặt</string>
+    <string name="game_install_location">Vị trí</string>
+    <string name="game_install_folder">Thư mục</string>
+    <string name="game_install_size">Dung lượng trên đĩa</string>
+    <string name="game_install_date">Đã cài</string>
+    <string name="stores_xbox_update">Cập nhật / xác minh</string>
+    <string name="stores_xbox_manage">Quản lý nội dung</string>
+    <string name="stores_xbox_close_first">Hãy đóng trò chơi Xbox này trước khi cập nhật.</string>
+    <string name="stores_xbox_content_title">Nội dung Xbox</string>
+    <string name="stores_xbox_content_none">Không có gói nội dung PC có giấy phép cho trò chơi này.</string>
+    <string name="stores_xbox_content_update">%1$s · Cập nhật / xác minh</string>
+    <string name="stores_xbox_content_install">%1$s · Cài đặt</string>
+    <string name="stores_xbox_choose_content">Chọn nội dung PC</string>
+    <string name="stores_eyebrow_pass">có trong %1$s</string>
+    <string name="stores_owned_in_library">Trò chơi đã sở hữu trong Thư viện</string>
+    <string name="library_filter_added">Đã thêm</string>
+    <string name="game_tab_launch">Khởi chạy</string>
+    <string name="game_tab_saves_cloud">Bản lưu và đám mây</string>
+    <string name="game_launch_shortcut">Lối tắt Steam</string>
+    <string name="game_install_version">Phiên bản</string>
+    <string name="game_install_played">Chơi lần cuối</string>
+    <string name="game_install_access">Quyền truy cập</string>
+    <string name="game_install_access_owned">Đã sở hữu</string>
 </resources>

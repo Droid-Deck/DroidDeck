@@ -1023,8 +1023,6 @@
     <string name="games_empty">Τα παιχνίδια που εγκαθιστάτε στο Steam εμφανίζονται εδώ μετά τη συνεδρία.</string>
     <string name="games_play_steam">Αναπαραγωγή Steam</string>
     <string name="games_play_steamvr">Αναπαραγωγή SteamVR</string>
-    <string name="games_launch_settings">Ρυθμίσεις εκκίνησης</string>
-    <string name="games_launch">Εκκίνηση</string>
     <string name="games_files">Αρχεία παιχνιδιού</string>
     <string name="games_prefix">Prefix Proton</string>
     <string name="games_saves_looking">Αναζήτηση αποθηκευμένων αρχείων…</string>
@@ -1032,7 +1030,6 @@
     <string name="games_saves_folders">%1$d φάκελοι αποθήκευσης</string>
     <string name="games_saves_summary">%1$s · %2$d αρχεία · %3$s</string>
     <string name="games_kb">%1$d KB</string>
-    <string name="games_manage_saves">Διαχείριση αποθηκευμένων</string>
     <string name="games_saves">Αποθηκευμένα παιχνιδιού</string>
     <string name="games_import_saves">Εισαγωγή αποθηκευμένων…</string>
     <string name="games_export_gamehub">Εξαγωγή ως zip GameHub…</string>
@@ -1044,7 +1041,6 @@
     <string name="games_runtime_first_play">Το runtime εγκαθίσταται στο πρώτο Play</string>
     <string name="games_runtime_update">Υπάρχει ενημέρωση runtime</string>
     <string name="games_runtime_ready">● Το runtime είναι έτοιμο</string>
-    <string name="games_last_played">Παίχτηκε τελευταία φορά %1$s</string>
     <string name="games_internal">Εσωτερική αποθήκευση</string>
     <string name="games_added">Προστέθηκε παιχνίδι</string>
     <string name="games_custom">Προσαρμοσμένο παιχνίδι</string>
@@ -1113,7 +1109,7 @@
     <string name="second_terminal">Τερματικό Linux</string>
     <string name="second_terminal_not_ready">Η συνεδρία Linux δεν είναι ακόμα έτοιμη για τερματικό.</string>
     <string name="rail_steam">Steam</string>
-    <string name="rail_games">Παιχνίδια</string>
+    <string name="rail_games">Βιβλιοθήκη</string>
     <string name="rail_desktop">Επιφάνεια</string>
     <string name="rail_store">Κατάστημα</string>
     <string name="rail_components">Στοιχεία</string>
@@ -1947,7 +1943,6 @@
     <string name="source_steam">Steam</string>
     <string name="source_added">Προσαρμοσμένο</string>
     <string name="setup_stores">Καταστήματα</string>
-    <string name="setup_stores_open_on">Άνοιγμα καταστήματος σε</string>
     <string name="setup_stores_speed">Επίπεδο ταχύτητας λήψης</string>
     <string name="setup_stores_engine">Μηχανή καταστημάτων</string>
     <string name="setup_stores_engine_chip_ready">● Η μηχανή είναι έτοιμη</string>
@@ -1961,11 +1956,9 @@
     <string name="stores_tabs_arrange">Τακτοποίηση καρτελών</string>
     <string name="stores_tabs_arrange_done">Έγινε</string>
     <string name="stores_chip_signed_out">(μη συνδεδεμένος)</string>
-    <string name="stores_tab_store">Κατάστημα</string>
     <string name="stores_tab_library">Βιβλιοθήκη</string>
     <string name="stores_tab_all">Όλα</string>
     <string name="stores_tab_downloads">Λήψεις</string>
-    <string name="stores_tab_count">%1$s (%2$d)</string>
     <string name="stores_signin">Σύνδεση</string>
     <string name="stores_signout_named">%1$s · αποσύνδεση</string>
     <string name="stores_signout_title">Αποσύνδεση από %1$s;</string>
@@ -1983,7 +1976,6 @@
     <string name="stores_shelf_deals">Προσφορές</string>
     <string name="stores_shelf_free">Δωρεάν παιχνίδια</string>
     <string name="stores_shelf_trending">Σε άνοδο</string>
-    <string name="stores_shelf_library">Η βιβλιοθήκη σας</string>
     <string name="stores_play">Αναπαραγωγή</string>
     <string name="stores_install">Εγκατάσταση</string>
     <string name="stores_resume_install">Συνέχιση εγκατάστασης</string>
@@ -2990,4 +2982,31 @@
     <string name="spatial_saved_views_hint">Οι αποθηκευμένες προβολές μπορούν να υπολογιστούν εκ νέου. Ξεκινήστε μια νέα βαθμονόμηση για αποτύπωση στο τρέχον σύστημα συντεταγμένων παρακολούθησης.</string>
     <string name="spatial_model_checksum_error">Αναντιστοιχία αθροίσματος ελέγχου μοντέλου χεριού</string>
     <string name="spatial_opencv_load_error">Δεν ήταν δυνατή η φόρτωση του OpenCV</string>
+    <string name="epic_client_missing">Δεν είναι εγκατεστημένο</string>
+    <string name="epic_client_open">Άνοιγμα</string>
+    <string name="epic_client_install">Εγκατάσταση</string>
+    <string name="game_tab_about">Σχετικά</string>
+    <string name="game_tab_install">Εγκατάσταση</string>
+    <string name="game_install_location">Τοποθεσία</string>
+    <string name="game_install_folder">Φάκελος</string>
+    <string name="game_install_size">Μέγεθος στον δίσκο</string>
+    <string name="game_install_date">Εγκατεστημένο</string>
+    <string name="stores_xbox_update">Ενημέρωση / επαλήθευση</string>
+    <string name="stores_xbox_manage">Διαχείριση περιεχομένου</string>
+    <string name="stores_xbox_close_first">Κλείστε αυτό το παιχνίδι Xbox πριν το ενημερώσετε.</string>
+    <string name="stores_xbox_content_title">Περιεχόμενο Xbox</string>
+    <string name="stores_xbox_content_none">Δεν υπάρχουν αδειοδοτημένα πακέτα περιεχομένου PC για αυτό το παιχνίδι.</string>
+    <string name="stores_xbox_content_update">%1$s · Ενημέρωση / επαλήθευση</string>
+    <string name="stores_xbox_content_install">%1$s · Εγκατάσταση</string>
+    <string name="stores_xbox_choose_content">Επιλογή περιεχομένου PC</string>
+    <string name="stores_eyebrow_pass">διαθέσιμο με %1$s</string>
+    <string name="stores_owned_in_library">Παιχνίδια σας στη Βιβλιοθήκη</string>
+    <string name="library_filter_added">Προστέθηκαν</string>
+    <string name="game_tab_launch">Εκκίνηση</string>
+    <string name="game_tab_saves_cloud">Αποθηκεύσεις και cloud</string>
+    <string name="game_launch_shortcut">Συντόμευση Steam</string>
+    <string name="game_install_version">Έκδοση</string>
+    <string name="game_install_played">Τελευταίο παιχνίδι</string>
+    <string name="game_install_access">Πρόσβαση</string>
+    <string name="game_install_access_owned">Δικό σας</string>
 </resources>

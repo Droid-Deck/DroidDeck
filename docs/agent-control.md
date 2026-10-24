@@ -338,8 +338,11 @@ Automator show them:
 
 | Tag | Where |
 |---|---|
-| `rail-steam`, `rail-games`, `rail-desktop`, `rail-store`, `rail-components`, `rail-android-apps`, `rail-setup`, `rail-updates` | the front end's rail |
-| `play-steam` | Play on the Steam and Games pages |
+| `rail-steam`, `rail-games` (the Library), `rail-desktop`, `rail-store`, `rail-components`, `rail-android-apps`, `rail-setup`, `rail-updates` | the front end's rail |
+| `play-steam` | Play on the Steam page, and on the Library when it has no games |
+| `library-source-<source>` | the Library's source filter chips (`all`, `steam`, `gog`, ...) |
+| `game-tab-<about\|achievements\|launch\|saves\|install>` | the open tab of a game page |
+| `stores-profile`, `stores-epic-launcher` | a store's profile strip, and the Epic Games Launcher row in Epic's |
 | `setting-<key>` | every toggle and choice row, by its key (`setting-logs`, `setting-agent-commands`, ...) |
 | `tab-<n>` | a page's tab strip (Setup's Overview, Controller, Session, Launcher...), by position |
 | `drawer-tab-controller`, `-second_screen`, `-display`, `-effects`, `-vr`, `-games`, `-session` | the session drawer's pages |

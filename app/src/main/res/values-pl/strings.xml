@@ -1035,8 +1035,6 @@
     <string name="games_empty">Gry, które instalujesz w Steam, pojawią się tutaj po sesji.</string>
     <string name="games_play_steam">Zagraj w Steam</string>
     <string name="games_play_steamvr">Zagraj w SteamVR</string>
-    <string name="games_launch_settings">Ustawienia uruchamiania</string>
-    <string name="games_launch">Uruchom</string>
     <string name="games_files">Pliki gry</string>
     <string name="games_prefix">Prefiks Proton</string>
     <string name="games_saves_looking">Wyszukiwanie zapisów…</string>
@@ -1044,7 +1042,6 @@
     <string name="games_saves_folders">%1$d folderów zapisów</string>
     <string name="games_saves_summary">%1$s · %2$d plików · %3$s</string>
     <string name="games_kb">%1$d KB</string>
-    <string name="games_manage_saves">Zarządzaj zapisami</string>
     <string name="games_saves">Zapisy gry</string>
     <string name="games_import_saves">Importuj zapisy…</string>
     <string name="games_export_gamehub">Eksportuj jako zip GameHub…</string>
@@ -1056,7 +1053,6 @@
     <string name="games_runtime_first_play">Środowisko instaluje się przy pierwszym uruchomieniu</string>
     <string name="games_runtime_update">Dostępna aktualizacja środowiska</string>
     <string name="games_runtime_ready">● Środowisko gotowe</string>
-    <string name="games_last_played">Ostatnio grano %1$s</string>
     <string name="games_internal">Pamięć wewnętrzna</string>
     <string name="games_added">Dodana gra</string>
     <string name="games_custom">Własna gra</string>
@@ -1125,7 +1121,7 @@
     <string name="second_terminal">Terminal Linux</string>
     <string name="second_terminal_not_ready">Sesja Linux nie jest jeszcze gotowa na terminal.</string>
     <string name="rail_steam">Steam</string>
-    <string name="rail_games">Gry</string>
+    <string name="rail_games">Biblioteka</string>
     <string name="rail_desktop">Pulpit</string>
     <string name="rail_store">Sklep</string>
     <string name="rail_components">Komponenty</string>
@@ -1989,7 +1985,6 @@
     <string name="source_steam">Steam</string>
     <string name="source_added">Własna</string>
     <string name="setup_stores">Sklepy</string>
-    <string name="setup_stores_open_on">Otwórz sklep w</string>
     <string name="setup_stores_speed">Poziom szybkości pobierania</string>
     <string name="setup_stores_engine">Mechanizm sklepów</string>
     <string name="setup_stores_engine_chip_ready">● Mechanizm gotowy</string>
@@ -2003,11 +1998,9 @@
     <string name="stores_tabs_arrange">Ułóż karty</string>
     <string name="stores_tabs_arrange_done">Gotowe</string>
     <string name="stores_chip_signed_out">(niezalogowano)</string>
-    <string name="stores_tab_store">Sklep</string>
     <string name="stores_tab_library">Biblioteka</string>
     <string name="stores_tab_all">Wszystkie</string>
     <string name="stores_tab_downloads">Pobierania</string>
-    <string name="stores_tab_count">%1$s (%2$d)</string>
     <string name="stores_signin">Zaloguj się</string>
     <string name="stores_signout_named">%1$s · wyloguj się</string>
     <string name="stores_signout_title">Wylogować się z %1$s?</string>
@@ -2025,7 +2018,6 @@
     <string name="stores_shelf_deals">Promocje</string>
     <string name="stores_shelf_free">Darmowe gry</string>
     <string name="stores_shelf_trending">Popularne</string>
-    <string name="stores_shelf_library">Twoja biblioteka</string>
     <string name="stores_play">Graj</string>
     <string name="stores_install">Zainstaluj</string>
     <string name="stores_resume_install">Wznów instalację</string>
@@ -3061,4 +3053,31 @@
     <string name="spatial_print_job">DroidDeck ChArUco 30 mm</string>
     <string name="spatial_connect_hint">Podłącz Luma Ultra i włącz śledzenie pozycji.</string>
     <string name="spatial_inference_error">Wykrywanie dłoni jest niedostępne: %1$s. Zmień ustawienie CPU/GPU lub wyłącz i ponownie włącz sterowanie dłońmi, aby spróbować ponownie.</string>
+    <string name="epic_client_missing">Nie zainstalowano</string>
+    <string name="epic_client_open">Otwórz</string>
+    <string name="epic_client_install">Zainstaluj</string>
+    <string name="game_tab_about">Informacje</string>
+    <string name="game_tab_install">Zainstaluj</string>
+    <string name="game_install_location">Lokalizacja</string>
+    <string name="game_install_folder">Folder</string>
+    <string name="game_install_size">Rozmiar na dysku</string>
+    <string name="game_install_date">Zainstalowane</string>
+    <string name="stores_xbox_update">Aktualizuj / zweryfikuj</string>
+    <string name="stores_xbox_manage">Zarządzaj zawartością</string>
+    <string name="stores_xbox_close_first">Zamknij tę grę Xbox przed aktualizacją.</string>
+    <string name="stores_xbox_content_title">Zawartość Xbox</string>
+    <string name="stores_xbox_content_none">Dla tej gry nie ma licencjonowanych pakietów zawartości na PC.</string>
+    <string name="stores_xbox_content_update">%1$s · Aktualizuj / zweryfikuj</string>
+    <string name="stores_xbox_content_install">%1$s · Zainstaluj</string>
+    <string name="stores_xbox_choose_content">Wybierz zawartość na PC</string>
+    <string name="stores_eyebrow_pass">dostępna w %1$s</string>
+    <string name="stores_owned_in_library">Posiadane gry w bibliotece</string>
+    <string name="library_filter_added">Dodane</string>
+    <string name="game_tab_launch">Uruchamianie</string>
+    <string name="game_tab_saves_cloud">Zapisy i chmura</string>
+    <string name="game_launch_shortcut">Skrót Steam</string>
+    <string name="game_install_version">Wersja</string>
+    <string name="game_install_played">Ostatnio grano</string>
+    <string name="game_install_access">Dostęp</string>
+    <string name="game_install_access_owned">Posiadana</string>
 </resources>
