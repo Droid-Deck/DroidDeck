@@ -33,6 +33,16 @@ SOURCE_PATHS = ['app/build.gradle', 'app/src/main/cpp/fakeinput_steam.cpp', 'app
                 'app/src/main/assets/graphics_driver/adrenotools-turnip25.1.0.tzst']
 
 
+def zstd():
+    executable = shutil.which('zstd')
+    if executable:
+        return executable
+    windows_tool = ROOT / 'build/windows-setup/tools/zstd/zstd.exe'
+    if windows_tool.is_file():
+        return str(windows_tool)
+    raise ValueError('zstd is required to verify Linux runtime packages')
+
+
 def digest(path):
     with path.open('rb') as source:
         result = hashlib.file_digest(source, 'sha256') if hasattr(hashlib, 'file_digest') else None
@@ -132,7 +142,7 @@ def record(root=ROOT):
                 gzip.decompress((root / path).read_bytes())
             except (OSError, EOFError) as error:
                 raise ValueError('Invalid desktop removal inventory: ' + name) from error
-    process = subprocess.Popen(['zstd', '-dc', str(root / paths['assets/pulseaudio.tzst'])], stdout=subprocess.PIPE)
+    process = subprocess.Popen([zstd(), '-dc', str(root / paths['assets/pulseaudio.tzst'])], stdout=subprocess.PIPE)
     try:
         with tarfile.open(fileobj=process.stdout, mode='r|') as archive:
             names = {member.name.removeprefix('./') for member in archive}
@@ -171,7 +181,7 @@ def pack_digests(root, name):
     path = root / PACKS / (name + '.tar.zst')
     if not path.is_file():
         raise ValueError('Missing add-on pack ' + name + '. Run tools/packs/build.sh app/build/packs.')
-    process = subprocess.Popen(['zstd', '-dc', str(path)], stdout=subprocess.PIPE)
+    process = subprocess.Popen([zstd(), '-dc', str(path)], stdout=subprocess.PIPE)
     digests = {}
     try:
         with tarfile.open(fileobj=process.stdout, mode='r|') as archive:
@@ -183,6 +193,23 @@ def pack_digests(root, name):
     if process.wait():
         raise ValueError('Invalid add-on pack ' + name)
     return digests
+
+
+def qualcomm_assets(root):
+    path = root / 'tools/qualcomm/runtime.json'
+    if not path.is_file():
+        return {}
+    lock = json.loads(path.read_text())
+    expected = {'assets/qualcomm/runtime.tzst': lock['sha256'],
+                'assets/qualcomm/gamescope': lock['gamescope']['member_sha256']}
+    built = lock['gamescope'].get('build')
+    if built:
+        expected['assets/qualcomm/licenses/gamescope-patched-source.tar.gzip'] = built['source_sha256']
+    expected.update({'assets/qualcomm/mesa/' + entry['path']: entry['sha256']
+                     for entry in lock.get('mesa', {}).get('files', [])})
+    expected.update({'assets/qualcomm/' + entry['path']: entry['sha256']
+                     for entry in lock.get('wsi', {}).get('files', [])})
+    return expected
 
 
 def check_apk(apk, root=ROOT):
@@ -216,6 +243,13 @@ def check_apk(apk, root=ROOT):
                 raise ValueError('APK missing ' + name)
             if hashlib.sha256(content).hexdigest() != output['sha256']:
                 raise ValueError('APK has stale runtime input: ' + name)
+        for name, checksum in qualcomm_assets(root).items():
+            try:
+                content = package.read(name)
+            except KeyError:
+                raise ValueError('APK missing ' + name)
+            if hashlib.sha256(content).hexdigest() != checksum:
+                raise ValueError('APK has stale Qualcomm runtime input: ' + name)
 
 
 if __name__ == '__main__':

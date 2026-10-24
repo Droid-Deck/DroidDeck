@@ -1,0 +1,33 @@
+diff --git a/layer/layer.cpp b/layer/layer.cpp
+index 6bda56c..4b6eaa7 100644
+--- a/layer/layer.cpp
++++ b/layer/layer.cpp
+@@ -1269,10 +1269,8 @@ wsi_layer_vkGetDeviceProcAddr(VkDevice device, const char *funcName) VWL_API_POS
+       GET_PROC_ADDR(vkGetSwapchainImagesKHR);
+       GET_PROC_ADDR(vkAcquireNextImageKHR);
+       GET_PROC_ADDR(vkQueuePresentKHR);
+-      if (device_data.is_device_extension_enabled(VK_KHR_DEVICE_GROUP_EXTENSION_NAME) || core_1_1)
+-      {
+-         GET_PROC_ADDR(vkAcquireNextImage2KHR);
+-      }
++      /* Gamescope's WSI layer acquires through vkAcquireNextImage2KHR even on Vulkan 1.0 devices. */
++      GET_PROC_ADDR(vkAcquireNextImage2KHR);
+       if (core_1_1)
+       {
+          GET_PROC_ADDR(vkGetDeviceGroupSurfacePresentModesKHR);
+diff --git a/layer/swapchain_api.cpp b/layer/swapchain_api.cpp
+index 0576d88..0e53a1a 100644
+--- a/layer/swapchain_api.cpp
++++ b/layer/swapchain_api.cpp
+@@ -375,6 +375,11 @@ wsi_layer_vkAcquireNextImage2KHR(VkDevice device, const VkAcquireNextImageInfoKH
+ 
+    if (!device_data.layer_owns_swapchain(pAcquireInfo->swapchain))
+    {
++      if (!device_data.disp.get_fn<PFN_vkAcquireNextImage2KHR>("vkAcquireNextImage2KHR").has_value())
++      {
++         return device_data.disp.AcquireNextImageKHR(device, pAcquireInfo->swapchain, pAcquireInfo->timeout,
++                                                     pAcquireInfo->semaphore, pAcquireInfo->fence, pImageIndex);
++      }
+       return device_data.disp.AcquireNextImage2KHR(device, pAcquireInfo, pImageIndex);
+    }
+ 

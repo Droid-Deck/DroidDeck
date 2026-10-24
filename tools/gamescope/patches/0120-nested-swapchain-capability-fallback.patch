@@ -1,0 +1,358 @@
+diff --git a/src/nested_swapchain.hpp b/src/nested_swapchain.hpp
+new file mode 100644
+index 0000000..06fc987
+--- /dev/null
++++ b/src/nested_swapchain.hpp
+@@ -0,0 +1,53 @@
++#pragma once
++
++#include <algorithm>
++#include <vulkan/vulkan_core.h>
++
++namespace gamescope
++{
++struct NestedSwapchainConfig
++{
++    bool copy = false;
++    uint32_t imageCount = 0;
++    VkImageUsageFlags usage = 0;
++    VkCompositeAlphaFlagBitsKHR alpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
++    VkExtent2D extent = {};
++};
++
++inline bool ChooseNestedSwapchainConfig( const VkSurfaceCapabilitiesKHR &caps,
++    bool mutableFormat, uint32_t width, uint32_t height, NestedSwapchainConfig &config )
++{
++    constexpr VkImageUsageFlags direct = VK_IMAGE_USAGE_SAMPLED_BIT |
++        VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
++    config.copy = !mutableFormat || ( caps.supportedUsageFlags & direct ) != direct;
++    config.usage = config.copy ? VkImageUsageFlags{VK_IMAGE_USAGE_TRANSFER_DST_BIT} : direct;
++    if ( ( caps.supportedUsageFlags & config.usage ) != config.usage )
++        return false;
++
++    bool foundAlpha = false;
++    for ( auto alpha : { VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR, VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR,
++                        VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR, VK_COMPOSITE_ALPHA_POST_MULTIPLIED_BIT_KHR } )
++    {
++        if ( caps.supportedCompositeAlpha & alpha )
++        {
++            config.alpha = alpha;
++            foundAlpha = true;
++            break;
++        }
++    }
++    if ( !foundAlpha || caps.maxImageExtent.width < caps.minImageExtent.width ||
++         caps.maxImageExtent.height < caps.minImageExtent.height )
++        return false;
++
++    config.imageCount = caps.minImageCount + ( caps.minImageCount != UINT32_MAX );
++    if ( caps.maxImageCount )
++        config.imageCount = std::min( config.imageCount, caps.maxImageCount );
++    if ( config.imageCount < caps.minImageCount )
++        return false;
++    config.extent = caps.currentExtent.width == UINT32_MAX
++        ? VkExtent2D{ std::clamp( width, caps.minImageExtent.width, caps.maxImageExtent.width ),
++                      std::clamp( height, caps.minImageExtent.height, caps.maxImageExtent.height ) }
++        : caps.currentExtent;
++    return config.extent.width && config.extent.height;
++}
++}
+diff --git a/src/rendervulkan.cpp b/src/rendervulkan.cpp
+index ffad695..ffc8e28 100644
+--- a/src/rendervulkan.cpp
++++ b/src/rendervulkan.cpp
+@@ -12,6 +12,7 @@
+ #include <deque>
+ #include <dlfcn.h>
+ #include "vulkan_include.h"
++#include "nested_swapchain.hpp"
+ #include "Utils/Algorithm.h"
+ 
+ #if defined(__linux__)
+@@ -450,6 +451,8 @@ bool CVulkanDevice::createDevice()
+ 	bool hasDrmProps = vulkan_has_drm_props();
+ 	bool supportsForeignQueue = false;
+ 	bool supportsHDRMetadata = false;
++	bool presentIdExtension = false;
++	bool presentWaitExtension = false;
+ 	for (const auto& ext : m_supportedExts) {
+ 		if ( strcmp(ext.extensionName, VK_EXT_IMAGE_DRM_FORMAT_MODIFIER_EXTENSION_NAME) == 0 )
+ 			m_bSupportsModifiers = true;
+@@ -457,6 +460,13 @@ bool CVulkanDevice::createDevice()
+ 		if ( strcmp(ext.extensionName, VK_EXT_QUEUE_FAMILY_FOREIGN_EXTENSION_NAME) == 0 )
+ 			supportsForeignQueue = true;
+ 
++		if ( strcmp(ext.extensionName, VK_KHR_SWAPCHAIN_MUTABLE_FORMAT_EXTENSION_NAME) == 0 )
++			m_bSupportsMutableSwapchain = true;
++		if ( strcmp(ext.extensionName, VK_KHR_PRESENT_ID_EXTENSION_NAME) == 0 )
++			presentIdExtension = true;
++		if ( strcmp(ext.extensionName, VK_KHR_PRESENT_WAIT_EXTENSION_NAME) == 0 )
++			presentWaitExtension = true;
++
+ 		if ( strcmp(ext.extensionName, VK_EXT_HDR_METADATA_EXTENSION_NAME) == 0 )
+ 			supportsHDRMetadata = true;
+ 	}
+@@ -576,10 +586,24 @@ bool CVulkanDevice::createDevice()
+ 	if ( GetBackend()->UsesVulkanSwapchain() )
+ 	{
+ 		enabledExtensions.push_back( VK_KHR_SWAPCHAIN_EXTENSION_NAME );
+-		enabledExtensions.push_back( VK_KHR_SWAPCHAIN_MUTABLE_FORMAT_EXTENSION_NAME );
++		if ( m_bSupportsMutableSwapchain )
++			enabledExtensions.push_back( VK_KHR_SWAPCHAIN_MUTABLE_FORMAT_EXTENSION_NAME );
+ 
+-		enabledExtensions.push_back( VK_KHR_PRESENT_ID_EXTENSION_NAME );
+-		enabledExtensions.push_back( VK_KHR_PRESENT_WAIT_EXTENSION_NAME );
++		if ( presentIdExtension && presentWaitExtension )
++		{
++			VkPhysicalDevicePresentWaitFeaturesKHR wait = { .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_WAIT_FEATURES_KHR };
++			VkPhysicalDevicePresentIdFeaturesKHR id = { .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_ID_FEATURES_KHR, .pNext = &wait };
++			VkPhysicalDeviceFeatures2 features = { .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2, .pNext = &id };
++			vk.GetPhysicalDeviceFeatures2( physDev(), &features );
++			m_bSupportsPresentWait = id.presentId && wait.presentWait;
++		}
++		if ( m_bSupportsPresentWait )
++		{
++			enabledExtensions.push_back( VK_KHR_PRESENT_ID_EXTENSION_NAME );
++			enabledExtensions.push_back( VK_KHR_PRESENT_WAIT_EXTENSION_NAME );
++		}
++		else
++			vk_log.infof( "Using FIFO acquire pacing; presentation timestamps unavailable" );
+ 
+ 		if ( supportsHDRMetadata )
+ 			enabledExtensions.push_back( VK_EXT_HDR_METADATA_EXTENSION_NAME );
+@@ -654,7 +678,7 @@ bool CVulkanDevice::createDevice()
+ 
+ 	VkPhysicalDeviceFeatures2 features2 = {
+ 		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
+-		.pNext = &presentIdFeatures,
++		.pNext = m_bSupportsPresentWait ? static_cast<void *>( &presentIdFeatures ) : static_cast<void *>( &features13 ),
+ 		.features = {
+ 			.shaderInt16 = m_bSupportsFp16,
+ 		},
+@@ -2660,7 +2684,7 @@ bool CVulkanTexture::BInit( uint32_t width, uint32_t height, uint32_t depth, uin
+ 	return true;
+ }
+ 
+-bool CVulkanTexture::BInitFromSwapchain( VkImage image, uint32_t width, uint32_t height, VkFormat format )
++bool CVulkanTexture::BInitFromSwapchain( VkImage image, uint32_t width, uint32_t height, VkFormat format, bool transferOnly )
+ {
+ 	m_drmFormat = VulkanFormatToDRM( format );
+ 	m_vkImage = image;
+@@ -2672,6 +2696,12 @@ bool CVulkanTexture::BInitFromSwapchain( VkImage image, uint32_t width, uint32_t
+ 	m_contentWidth = width;
+ 	m_contentHeight = height;
+ 	m_bOutputImage = true;
++	if ( transferOnly )
++	{
++		// A copy destination needs no views (and the swapchain need not be mutable).
++		m_bInitialized = true;
++		return true;
++	}
+ 
+ 	VkImageViewCreateInfo createInfo = {
+ 		.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+@@ -3094,7 +3124,7 @@ void vulkan_present_to_window( void )
+ 
+ 	VkPresentInfoKHR presentInfo = {
+ 		.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+-		.pNext = &presentIdInfo,
++		.pNext = g_device.supportsPresentWait() ? &presentIdInfo : nullptr,
+ 		.swapchainCount = 1,
+ 		.pSwapchains = &g_output.swapChain,
+ 		.pImageIndices = &g_output.nOutImage,
+@@ -3102,14 +3132,22 @@ void vulkan_present_to_window( void )
+ 
+ 	if ( g_device.vk.QueuePresentKHR( g_device.queue(), &presentInfo ) == VK_SUCCESS )
+ 	{
+-		g_currentPresentWaitId = presentId;
+-		g_currentPresentWaitId.notify_all();
++		if ( g_device.supportsPresentWait() )
++		{
++			g_currentPresentWaitId = presentId;
++			g_currentPresentWaitId.notify_all();
++		}
+ 	}
+ 	else
+ 		vulkan_remake_swapchain();
+ 
+ 	while ( !acquire_next_image() )
+ 		vulkan_remake_swapchain();
++	if ( !g_device.supportsPresentWait() )
++	{
++		// Estimated scheduling anchor after FIFO buffer acquisition, not presentation feedback.
++		GetVBlankTimer().MarkVBlank( get_time_in_nanos(), true );
++	}
+ }
+ 
+ gamescope::Rc<CVulkanTexture> vulkan_create_1d_lut(uint32_t size)
+@@ -3219,7 +3257,19 @@ extern bool g_bOutputHDREnabled;
+ 
+ bool vulkan_make_swapchain( VulkanOutput_t *pOutput )
+ {
+-	uint32_t imageCount = pOutput->surfaceCaps.minImageCount + 1;
++	// Re-query on resize as well as initial creation.
++	if ( g_device.vk.GetPhysicalDeviceSurfaceCapabilitiesKHR( g_device.physDev(), pOutput->surface, &pOutput->surfaceCaps ) != VK_SUCCESS )
++		return false;
++	gamescope::NestedSwapchainConfig config;
++	if ( !gamescope::ChooseNestedSwapchainConfig( pOutput->surfaceCaps, g_device.supportsMutableSwapchain(), g_nOutputWidth, g_nOutputHeight, config ) )
++	{
++		vk_log.errorf( "Surface supports neither direct composition nor transfer presentation" );
++		return false;
++	}
++	pOutput->copyToSwapchain = config.copy;
++	g_nOutputWidth = config.extent.width;
++	g_nOutputHeight = config.extent.height;
++	uint32_t imageCount = config.imageCount;
+ 	uint32_t formatCount = pOutput->surfaceFormats.size();
+ 	uint32_t surfaceFormat = formatCount;
+ 	VkColorSpaceKHR preferredColorSpace = g_bOutputHDREnabled ? VK_COLOR_SPACE_HDR10_ST2084_EXT : VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
+@@ -3254,6 +3304,13 @@ bool vulkan_make_swapchain( VulkanOutput_t *pOutput )
+ 		}
+ 	}
+ 	
++	if ( surfaceFormat == formatCount )
++	{
++		for ( surfaceFormat = 0; surfaceFormat < formatCount; ++surfaceFormat )
++			if ( pOutput->surfaceFormats[surfaceFormat].format == VK_FORMAT_R8G8B8A8_UNORM &&
++			     pOutput->surfaceFormats[surfaceFormat].colorSpace == preferredColorSpace )
++				break;
++	}
+ 	if ( surfaceFormat == formatCount )
+ 		return false;
+ 
+@@ -3276,8 +3333,8 @@ bool vulkan_make_swapchain( VulkanOutput_t *pOutput )
+ 
+ 	VkSwapchainCreateInfoKHR createInfo = {
+ 		.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
+-		.pNext = formats[0] != formats[1] ? &usageListInfo : nullptr,
+-		.flags = formats[0] != formats[1] ? VK_SWAPCHAIN_CREATE_MUTABLE_FORMAT_BIT_KHR : (VkSwapchainCreateFlagBitsKHR )0,
++		.pNext = !config.copy && formats[0] != formats[1] ? &usageListInfo : nullptr,
++		.flags = !config.copy && formats[0] != formats[1] ? VK_SWAPCHAIN_CREATE_MUTABLE_FORMAT_BIT_KHR : (VkSwapchainCreateFlagBitsKHR )0,
+ 		.surface = pOutput->surface,
+ 		.minImageCount = imageCount,
+ 		.imageFormat = eVkFormat,
+@@ -3287,10 +3344,10 @@ bool vulkan_make_swapchain( VulkanOutput_t *pOutput )
+ 			.height = g_nOutputHeight,
+ 		},
+ 		.imageArrayLayers = 1,
+-		.imageUsage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
++		.imageUsage = config.usage,
+ 		.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE,
+ 		.preTransform = pOutput->surfaceCaps.currentTransform,
+-		.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
++		.compositeAlpha = config.alpha,
+ 		.presentMode = VK_PRESENT_MODE_FIFO_KHR,
+ 		.clipped = VK_TRUE,
+ 	};
+@@ -3304,12 +3361,30 @@ bool vulkan_make_swapchain( VulkanOutput_t *pOutput )
+ 	g_device.vk.GetSwapchainImagesKHR( g_device.device(), pOutput->swapChain, &imageCount, swapchainImages.data() );
+ 
+ 	pOutput->outputImages.resize(imageCount);
++	pOutput->presentationImages.clear();
++	if ( config.copy )
++	{
++		vk_log.infof( "Nested swapchain: composing offscreen and copying to FIFO presentation images" );
++		pOutput->presentationImages.resize(imageCount);
++	}
+ 
+ 	for ( uint32_t i = 0; i < pOutput->outputImages.size(); i++ )
+ 	{
+ 		pOutput->outputImages[i] = new CVulkanTexture();
+ 
+-		if ( !pOutput->outputImages[i]->BInitFromSwapchain(swapchainImages[i], g_nOutputWidth, g_nOutputHeight, eVkFormat))
++		if ( config.copy )
++		{
++			CVulkanTexture::createFlags flags;
++			flags.bStorage = true;
++			flags.bSampled = true;
++			flags.bTransferSrc = true;
++			if ( !pOutput->outputImages[i]->BInit( g_nOutputWidth, g_nOutputHeight, 1, pOutput->uOutputFormat, flags ) )
++				return false;
++			pOutput->presentationImages[i] = new CVulkanTexture();
++			if ( !pOutput->presentationImages[i]->BInitFromSwapchain( swapchainImages[i], g_nOutputWidth, g_nOutputHeight, eVkFormat, true ) )
++				return false;
++		}
++		else if ( !pOutput->outputImages[i]->BInitFromSwapchain(swapchainImages[i], g_nOutputWidth, g_nOutputHeight, eVkFormat))
+ 			return false;
+ 	}
+ 
+@@ -3335,6 +3410,10 @@ bool vulkan_remake_swapchain( void )
+ 	g_device.vk.QueueWaitIdle( g_device.queue() );
+ 
+ 	pOutput->outputImages.clear();
++	pOutput->presentationImages.clear();
++	if ( pOutput->acquireFence )
++		g_device.vk.DestroyFence( g_device.device(), pOutput->acquireFence, nullptr );
++	pOutput->acquireFence = VK_NULL_HANDLE;
+ 
+ 	g_device.vk.DestroySwapchainKHR( g_device.device(), pOutput->swapChain, nullptr );
+ 
+@@ -3670,7 +3749,7 @@ bool vulkan_init( VkInstance instance, VkSurfaceKHR surface )
+ 	if (!init_nis_data())
+ 		return false;
+ 
+-	if ( GetBackend()->UsesVulkanSwapchain() )
++	if ( GetBackend()->UsesVulkanSwapchain() && g_device.supportsPresentWait() )
+ 	{
+ 		std::thread present_wait_thread( present_wait_thread_func );
+ 		present_wait_thread.detach();
+@@ -4579,6 +4658,9 @@ std::optional<uint64_t> vulkan_composite( struct FrameInfo_t *frameInfo, gamesco
+ 		CompositeTimingEnd( cmdBuffer.get(), *oTimingSlot, pszKey, pszKeyPre, pszKeyPost );
+ 	}
+ 
++	if ( !pOutputOverride && g_output.copyToSwapchain )
++		cmdBuffer->copyImage( compositeImage, g_output.presentationImages[g_output.nOutImage] );
++
+ 	uint64_t sequence = g_device.submit(std::move(cmdBuffer));
+ 	if ( oTimingSlot )
+ 		g_CompositeTiming.pending.back().ulSeqNo = sequence;
+diff --git a/src/rendervulkan.hpp b/src/rendervulkan.hpp
+index fa519db..674a3b4 100644
+--- a/src/rendervulkan.hpp
++++ b/src/rendervulkan.hpp
+@@ -162,7 +162,7 @@ public:
+ 	};
+ 
+ 	bool BInit( uint32_t width, uint32_t height, uint32_t depth, uint32_t drmFormat, createFlags flags, wlr_dmabuf_attributes *pDMA = nullptr, uint32_t contentWidth = 0, uint32_t contentHeight = 0, CVulkanTexture *pExistingImageToReuseMemory = nullptr, gamescope::OwningRc<gamescope::IBackendFb> pBackendFb = nullptr );
+-	bool BInitFromSwapchain( VkImage image, uint32_t width, uint32_t height, VkFormat format );
++	bool BInitFromSwapchain( VkImage image, uint32_t width, uint32_t height, VkFormat format, bool transferOnly = false );
+ 
+ 	uint32_t IncRef();
+ 	uint32_t DecRef();
+@@ -586,7 +586,9 @@ struct VulkanOutput_t
+ 
+ 	std::shared_ptr<gamescope::BackendBlob> swapchainHDRMetadata;
+ 	VkSwapchainKHR swapChain;
+-	VkFence acquireFence;
++	VkFence acquireFence = VK_NULL_HANDLE;
++	bool copyToSwapchain = false;
++	std::vector<gamescope::OwningRc<CVulkanTexture>> presentationImages;
+ 
+ 	uint32_t nOutImage; // swapchain index in nested mode, or ping/pong between two RTs
+ 	std::vector<gamescope::OwningRc<CVulkanTexture>> outputImages;
+@@ -756,6 +758,7 @@ static inline uint32_t div_roundup(uint32_t x, uint32_t y)
+ 	VK_FUNC(CreateDescriptorPool) \
+ 	VK_FUNC(CreateDescriptorSetLayout) \
+ 	VK_FUNC(CreateFence) \
++	VK_FUNC(DestroyFence) \
+ 	VK_FUNC(CreateGraphicsPipelines) \
+ 	VK_FUNC(CreateImage) \
+ 	VK_FUNC(CreateImageView) \
+@@ -862,6 +865,8 @@ public:
+ 	inline VkPipelineLayout pipelineLayout() {return m_pipelineLayout;}
+ 	inline int drmRenderFd() {return m_drmRendererFd;}
+ 	inline bool supportsModifiers() {return m_bSupportsModifiers;}
++	inline bool supportsMutableSwapchain() {return m_bSupportsMutableSwapchain;}
++	inline bool supportsPresentWait() {return m_bSupportsPresentWait;}
+ 	inline bool hasDrmPrimaryDevId() {return m_bHasDrmPrimaryDevId;}
+ 	inline dev_t primaryDevId() {return m_drmPrimaryDevId;}
+ 	inline bool supportsFp16() {return m_bSupportsFp16;}
+@@ -930,6 +935,8 @@ protected:
+ 	uint32_t m_uVendorID = 0;
+ 	bool m_bHasDrmPrimaryDevId = false;
+ 	bool m_bSupportsModifiers = false;
++	bool m_bSupportsMutableSwapchain = false;
++	bool m_bSupportsPresentWait = false;
+ 	bool m_bInitialized = false;
+ 
+ 

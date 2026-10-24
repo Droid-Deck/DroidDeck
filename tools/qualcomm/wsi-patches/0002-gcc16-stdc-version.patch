@@ -1,0 +1,84 @@
+diff --git a/wsi/wayland/surface.hpp b/wsi/wayland/surface.hpp
+index d49a48f..0e0139e 100644
+--- a/wsi/wayland/surface.hpp
++++ b/wsi/wayland/surface.hpp
+@@ -28,9 +28,6 @@
+ 
+ #pragma once
+ 
+-#ifndef __STDC_VERSION__
+-#define __STDC_VERSION__ 0
+-#endif
+ #include <sys/types.h>
+ #include <wayland-client.h>
+ 
+diff --git a/wsi/wayland/surface_properties.cpp b/wsi/wayland/surface_properties.cpp
+index 0783035..43ce2a7 100644
+--- a/wsi/wayland/surface_properties.cpp
++++ b/wsi/wayland/surface_properties.cpp
+@@ -24,9 +24,6 @@
+ 
+ #define VK_USE_PLATFORM_WAYLAND_KHR 1
+ 
+-#ifndef __STDC_VERSION__
+-#define __STDC_VERSION__ 0
+-#endif
+ 
+ #include <wayland-client.h>
+ #include <linux-dmabuf-unstable-v1-client-protocol.h>
+diff --git a/wsi/wayland/swapchain.hpp b/wsi/wayland/swapchain.hpp
+index e363bdc..4e8f6c3 100644
+--- a/wsi/wayland/swapchain.hpp
++++ b/wsi/wayland/swapchain.hpp
+@@ -31,9 +31,6 @@ extern "C" {
+ #include <vulkan/vk_icd.h>
+ }
+ 
+-#ifndef __STDC_VERSION__
+-#define __STDC_VERSION__ 0
+-#endif
+ #include <wayland-client.h>
+ #include <linux-dmabuf-unstable-v1-client-protocol.h>
+ #include "surface.hpp"
+diff --git a/wsi/wayland/wl_helpers.hpp b/wsi/wayland/wl_helpers.hpp
+index 5bf507a..4cd7826 100644
+--- a/wsi/wayland/wl_helpers.hpp
++++ b/wsi/wayland/wl_helpers.hpp
+@@ -26,9 +26,6 @@
+ 
+ #include <stdint.h>
+ 
+-#ifndef __STDC_VERSION__
+-#define __STDC_VERSION__ 0
+-#endif
+ #include <wayland-client.h>
+ 
+ #include "util/custom_allocator.hpp"
+diff --git a/wsi/wayland/wl_object_owner.hpp b/wsi/wayland/wl_object_owner.hpp
+index a3befef..3d23e13 100644
+--- a/wsi/wayland/wl_object_owner.hpp
++++ b/wsi/wayland/wl_object_owner.hpp
+@@ -24,9 +24,6 @@
+ 
+ #pragma once
+ 
+-#ifndef __STDC_VERSION__
+-#define __STDC_VERSION__ 0
+-#endif
+ #include <wayland-client.h>
+ #include <linux-dmabuf-unstable-v1-client-protocol.h>
+ #include <linux-explicit-synchronization-unstable-v1-protocol.h>
+diff --git a/wsi/x11/swapchain.hpp b/wsi/x11/swapchain.hpp
+index 3ddb38f..f1c4a8a 100644
+--- a/wsi/x11/swapchain.hpp
++++ b/wsi/x11/swapchain.hpp
+@@ -37,9 +37,6 @@ extern "C" {
+ #include <vulkan/vulkan.h>
+ }
+ 
+-#ifndef __STDC_VERSION__
+-#define __STDC_VERSION__ 0
+-#endif
+ 
+ #include <chrono>
+ #include <condition_variable>

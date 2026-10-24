@@ -1,0 +1,434 @@
+diff --git a/wsi/display/swapchain.cpp b/wsi/display/swapchain.cpp
+index 12bd8d0..d4cfac8 100644
+--- a/wsi/display/swapchain.cpp
++++ b/wsi/display/swapchain.cpp
+@@ -198,7 +198,7 @@ VkResult swapchain::init_image_factory(const VkSwapchainCreateInfoKHR &swapchain
+ 
+    wsialloc_create_info_args wsialloc_args = { external_image_create_info.selected_format,
+                                                external_image_create_info.flags, external_image_create_info.extent,
+-                                               external_image_create_info.explicit_compression };
++                                               external_image_create_info.explicit_compression, false };
+ 
+    auto backing_memory_creator =
+       m_allocator.make_unique<external_image_backing_memory_creator>(m_device_data, *m_wsi_allocator, wsialloc_args);
+diff --git a/wsi/extensions/external_memory_extension.cpp b/wsi/extensions/external_memory_extension.cpp
+index c5bd7e8..f52c760 100644
+--- a/wsi/extensions/external_memory_extension.cpp
++++ b/wsi/extensions/external_memory_extension.cpp
+@@ -35,10 +35,46 @@
+ 
+ #include "external_memory_extension.hpp"
+ #include "wsi/image_usage.hpp"
++#include "wsi/wsi_factory.hpp"
++
++#include <drm_fourcc.h>
+ 
+ namespace
+ {
+ 
++bool linear_dma_buf_exportable(VkPhysicalDevice physical_device, const VkImageCreateInfo &image_create_info)
++{
++   VkPhysicalDeviceExternalImageFormatInfoKHR external_info = {};
++   external_info.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_IMAGE_FORMAT_INFO_KHR;
++   external_info.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT;
++
++   VkPhysicalDeviceImageFormatInfo2KHR image_info = {};
++   image_info.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_FORMAT_INFO_2_KHR;
++   image_info.pNext = &external_info;
++   image_info.format = image_create_info.format;
++   image_info.type = image_create_info.imageType;
++   image_info.tiling = VK_IMAGE_TILING_LINEAR;
++   image_info.usage = image_create_info.usage;
++   image_info.flags = image_create_info.flags;
++
++   VkExternalImageFormatPropertiesKHR external_props = {};
++   external_props.sType = VK_STRUCTURE_TYPE_EXTERNAL_IMAGE_FORMAT_PROPERTIES_KHR;
++   VkImageFormatProperties2KHR format_props = {};
++   format_props.sType = VK_STRUCTURE_TYPE_IMAGE_FORMAT_PROPERTIES_2_KHR;
++   format_props.pNext = &external_props;
++
++   auto &instance_data = layer::instance_private_data::get(physical_device);
++   if (instance_data.disp.GetPhysicalDeviceImageFormatProperties2KHR(physical_device, &image_info, &format_props) !=
++       VK_SUCCESS)
++   {
++      return false;
++   }
++   const auto &limits = format_props.imageFormatProperties.maxExtent;
++   return (external_props.externalMemoryProperties.externalMemoryFeatures &
++           VK_EXTERNAL_MEMORY_FEATURE_EXPORTABLE_BIT) != 0 &&
++          limits.width >= image_create_info.extent.width && limits.height >= image_create_info.extent.height;
++}
++
+ VkImageCreateFlags2KHR get_image_create_flags(const VkImageCreateInfo &image_create_info) noexcept
+ {
+    const auto *flags2 = util::find_extension<VkImageCreateFlags2CreateInfoKHR>(
+@@ -284,6 +320,39 @@ std::variant<VkResult, util::unique_ptr<swapchain_image_create_external_memory>>
+    util::vector<VkDrmFormatModifierPropertiesEXT> drm_format_props(
+       util::allocator(allocator, VK_SYSTEM_ALLOCATION_SCOPE_COMMAND));
+ 
++   util::extension_list device_extensions{ util::allocator(allocator, VK_SYSTEM_ALLOCATION_SCOPE_COMMAND) };
++   TRY_LOG_CALL(get_available_device_extensions(physical_device, device_extensions));
++   if (!device_extensions.contains(VK_EXT_IMAGE_DRM_FORMAT_MODIFIER_EXTENSION_NAME))
++   {
++      const uint32_t fourcc = util::drm::vk_to_drm_format(image_create_info.format);
++      bool linear_offered = false;
++      for (const auto &format : surface_formats)
++      {
++         linear_offered = linear_offered || (format.fourcc == fourcc && format.modifier == DRM_FORMAT_MOD_LINEAR);
++      }
++      if (!linear_offered || !linear_dma_buf_exportable(physical_device, image_create_info))
++      {
++         WSI_LOG_ERROR("The driver has no DRM format modifiers and cannot export a LINEAR image the compositor accepts.");
++         return VK_ERROR_INITIALIZATION_FAILED;
++      }
++
++      wsialloc_allocate_result exported = {};
++      exported.format.fourcc = fourcc;
++      exported.format.modifier = DRM_FORMAT_MOD_LINEAR;
++      for (auto &fd : exported.buffer_fds)
++      {
++         fd = -1;
++      }
++      auto ext_memory = allocator.make_unique<swapchain_image_create_external_memory>(
++         image_create_info, compression, exported, util::vector<VkSubresourceLayout>(allocator), drm_format_props,
++         true);
++      if (ext_memory == nullptr)
++      {
++         return VK_ERROR_OUT_OF_HOST_MEMORY;
++      }
++      return ext_memory;
++   }
++
+    TRY_LOG_CALL(get_surface_compatible_formats(image_create_info, physical_device, compression, surface_formats,
+                                                importable_formats, exportable_modifiers, drm_format_props));
+ 
+@@ -316,7 +385,7 @@ std::variant<VkResult, util::unique_ptr<swapchain_image_create_external_memory>>
+ swapchain_image_create_external_memory::swapchain_image_create_external_memory(
+    const VkImageCreateInfo &image_create_info, std::optional<image_create_compression_control> &compression,
+    wsialloc_allocate_result wsialloc_selected_format, util::vector<VkSubresourceLayout> plane_layouts,
+-   const util::vector<VkDrmFormatModifierPropertiesEXT> &drm_format_props)
++   const util::vector<VkDrmFormatModifierPropertiesEXT> &drm_format_props, bool icd_export)
+    : m_wsialloc_selected_format(wsialloc_selected_format)
+    , m_create_flags()
+    , m_create_extent()
+@@ -325,6 +394,7 @@ swapchain_image_create_external_memory::swapchain_image_create_external_memory(
+    , m_plane_layouts(std::move(plane_layouts))
+    , m_drm_mod_info()
+    , m_external_info()
++   , m_icd_export(icd_export)
+ {
+    if (compression)
+    {
+@@ -354,6 +424,16 @@ VkResult swapchain_image_create_external_memory::extend_image_create_info(VkImag
+ {
+    assert(image_create_info != nullptr);
+ 
++   if (m_icd_export)
++   {
++      m_external_info.sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO_KHR;
++      m_external_info.pNext = image_create_info->pNext;
++      m_external_info.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT;
++      image_create_info->pNext = &m_external_info;
++      image_create_info->tiling = VK_IMAGE_TILING_LINEAR;
++      return VK_SUCCESS;
++   }
++
+    if (m_wsialloc_selected_format.is_disjoint)
+    {
+       auto *image_create_flags2 = util::find_extension<VkImageCreateFlags2CreateInfoKHR>(
+@@ -389,7 +469,7 @@ external_image_create_info swapchain_image_create_external_memory::get_external_
+    assert(m_wsialloc_selected_format.format.fourcc != 0);
+ 
+    external_image_create_info image_info = { m_wsialloc_selected_format.format, m_create_flags, m_create_extent,
+-                                             m_use_fixed_rate_compression };
++                                             m_use_fixed_rate_compression, m_icd_export };
+    return image_info;
+ }
+ 
+diff --git a/wsi/extensions/external_memory_extension.hpp b/wsi/extensions/external_memory_extension.hpp
+index 508de48..c4aad21 100644
+--- a/wsi/extensions/external_memory_extension.hpp
++++ b/wsi/extensions/external_memory_extension.hpp
+@@ -52,6 +52,7 @@ struct external_image_create_info
+    VkImageCreateFlags2KHR flags;
+    VkExtent3D extent;
+    bool explicit_compression;
++   bool icd_export;
+ };
+ 
+ /**
+@@ -68,12 +69,14 @@ public:
+     * @param wsialloc_selected_format Selected format for allocation by WSIAlloc.
+     * @param plane_layouts Plane layouts description for each plane.
+     * @param drm_format_props A list of all device supported VkDrmFormatModifierPropertiesEXT.
++    * @param icd_export Whether the driver allocates and exports a LINEAR image instead of importing one.
+     */
+    swapchain_image_create_external_memory(const VkImageCreateInfo &image_create_info,
+                                           std::optional<image_create_compression_control> &compression,
+                                           wsialloc_allocate_result wsialloc_selected_format,
+                                           util::vector<VkSubresourceLayout> plane_layouts,
+-                                          const util::vector<VkDrmFormatModifierPropertiesEXT> &drm_format_props);
++                                          const util::vector<VkDrmFormatModifierPropertiesEXT> &drm_format_props,
++                                          bool icd_export = false);
+ 
+    /**
+     * @brief Create swapchain_image_create_external_memory object.
+@@ -117,6 +120,7 @@ private:
+    util::vector<VkSubresourceLayout> m_plane_layouts;
+    VkImageDrmFormatModifierExplicitCreateInfoEXT m_drm_mod_info;
+    VkExternalMemoryImageCreateInfoKHR m_external_info;
++   bool m_icd_export;
+ };
+ 
+ } /* namespace wsi */
+diff --git a/wsi/external_memory.cpp b/wsi/external_memory.cpp
+index 4c454fd..8e23412 100644
+--- a/wsi/external_memory.cpp
++++ b/wsi/external_memory.cpp
+@@ -51,6 +51,18 @@ external_memory::~external_memory()
+    }
+ 
+    auto &device_data = layer::device_private_data::get(m_device);
++   if (m_memory_type == wsi_memory_type::ICD_EXPORTED_DMA_BUF)
++   {
++      if (m_memories[0] != VK_NULL_HANDLE)
++      {
++         device_data.disp.FreeMemory(m_device, m_memories[0], m_allocator.get_original_callbacks());
++      }
++      if (m_buffer_fds[0] >= 0)
++      {
++         close(m_buffer_fds[0]);
++      }
++      return;
++   }
+    for (uint32_t plane = 0; plane < get_num_planes(); plane++)
+    {
+       auto &memory = m_memories[plane];
+@@ -158,6 +170,10 @@ VkResult external_memory::import_plane_memory(int fd, VkDeviceMemory *memory)
+ VkResult external_memory::bind_swapchain_image_memory(const VkImage &image)
+ {
+    auto &device_data = layer::device_private_data::get(m_device);
++   if (m_memory_type == wsi_memory_type::ICD_EXPORTED_DMA_BUF)
++   {
++      return device_data.disp.BindImageMemory(m_device, image, m_memories[0], 0);
++   }
+    if (is_disjoint())
+    {
+       util::vector<VkBindImageMemoryInfo> bind_img_mem_infos(m_allocator);
+@@ -324,6 +340,57 @@ VkResult external_memory::allocate_host_visible_and_bind(const VkImage &image, c
+    return VK_SUCCESS;
+ }
+ 
++VkResult external_memory::export_memory_and_bind_swapchain_image(const VkImage &image)
++{
++   auto &device_data = layer::device_private_data::get(m_device);
++
++   VkMemoryRequirements mem_requirements;
++   device_data.disp.GetImageMemoryRequirements(m_device, image, &mem_requirements);
++
++   m_memory_type = wsi_memory_type::ICD_EXPORTED_DMA_BUF;
++   m_optimal_props = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
++   m_required_props = 0;
++   uint32_t memory_type_index = 0;
++   TRY_LOG_CALL(find_host_visible_memory_type(mem_requirements, &memory_type_index));
++
++   VkMemoryDedicatedAllocateInfo dedicated_info = {};
++   dedicated_info.sType = VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO;
++   dedicated_info.image = image;
++
++   VkExportMemoryAllocateInfo export_info = {};
++   export_info.sType = VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO;
++   export_info.pNext = &dedicated_info;
++   export_info.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT;
++
++   VkMemoryAllocateInfo alloc_info = {};
++   alloc_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
++   alloc_info.pNext = &export_info;
++   alloc_info.allocationSize = mem_requirements.size;
++   alloc_info.memoryTypeIndex = memory_type_index;
++
++   TRY_LOG(device_data.disp.AllocateMemory(m_device, &alloc_info, m_allocator.get_original_callbacks(), &m_memories[0]),
++           "Failed to allocate exportable swapchain memory");
++   TRY_LOG(device_data.disp.BindImageMemory(m_device, image, m_memories[0], 0),
++           "Failed to bind exportable swapchain memory");
++
++   VkMemoryGetFdInfoKHR fd_info = {};
++   fd_info.sType = VK_STRUCTURE_TYPE_MEMORY_GET_FD_INFO_KHR;
++   fd_info.memory = m_memories[0];
++   fd_info.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT;
++   TRY_LOG(device_data.disp.GetMemoryFdKHR(m_device, &fd_info, &m_buffer_fds[0]),
++           "Failed to export swapchain memory as a dma-buf");
++
++   VkImageSubresource subresource = {};
++   subresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
++   VkSubresourceLayout layout = {};
++   device_data.disp.GetImageSubresourceLayout(m_device, image, &subresource, &layout);
++   m_offsets[0] = static_cast<uint32_t>(layout.offset);
++   m_strides[0] = static_cast<int>(layout.rowPitch);
++   m_num_planes = 1;
++   m_num_memories = 1;
++   return VK_SUCCESS;
++}
++
+ VkResult external_memory::allocate_and_bind_image(const VkImage &image, const VkImageCreateInfo &image_info)
+ {
+    switch (m_memory_type)
+diff --git a/wsi/external_memory.hpp b/wsi/external_memory.hpp
+index 9b2e836..9837d50 100644
+--- a/wsi/external_memory.hpp
++++ b/wsi/external_memory.hpp
+@@ -50,6 +50,7 @@ enum class wsi_memory_type
+ {
+    EXTERNAL_DMA_BUF, /* External file descriptors (dma-buf import; the default). */
+    HOST_VISIBLE,     /* Host-accessible memory, allocated and mapped by the layer. */
++   ICD_EXPORTED_DMA_BUF, /* Driver-allocated memory exported as a dma-buf. */
+ };
+ 
+ class external_memory
+@@ -192,6 +193,13 @@ public:
+     */
+    VkResult import_memory_and_bind_swapchain_image(const VkImage &image);
+ 
++   /**
++    * @brief Allocates dedicated driver memory for a LINEAR swapchain image, binds it and exports it as a dma-buf.
++    *
++    * The plane offset and stride come from the driver's own layout of @p image.
++    */
++   VkResult export_memory_and_bind_swapchain_image(const VkImage &image);
++
+    /* --- RK3588 host-visible memory (X11 SHM backend) --- */
+ 
+    /** @brief Configure this object to allocate host-visible memory for the image. */
+diff --git a/wsi/image_backing_memory_external.cpp b/wsi/image_backing_memory_external.cpp
+index 636b706..836429e 100644
+--- a/wsi/image_backing_memory_external.cpp
++++ b/wsi/image_backing_memory_external.cpp
+@@ -37,6 +37,11 @@ namespace wsi
+ 
+ VkResult image_backing_memory_external::allocate()
+ {
++   if (m_create_info.icd_export)
++   {
++      return VK_SUCCESS;
++   }
++
+    allocation_params params = { (m_create_info.flags & VK_IMAGE_CREATE_PROTECTED_BIT) != 0,
+                                 m_create_info.extent,
+                                 &m_create_info.selected_format,
+@@ -72,6 +77,12 @@ VkResult image_backing_memory_external::allocate()
+    return VK_SUCCESS;
+ }
+ 
++VkResult image_backing_memory_external::export_and_bind(VkImage image)
++{
++   TRY_LOG(m_external_mem.export_memory_and_bind_swapchain_image(image), "Failed to export swapchain image memory");
++   return VK_SUCCESS;
++}
++
+ VkResult image_backing_memory_external::import_and_bind(VkImage image)
+ {
+    TRY_LOG(m_external_mem.import_memory_and_bind_swapchain_image(image),
+diff --git a/wsi/image_backing_memory_external.hpp b/wsi/image_backing_memory_external.hpp
+index 1182acc..e40285d 100644
+--- a/wsi/image_backing_memory_external.hpp
++++ b/wsi/image_backing_memory_external.hpp
+@@ -53,6 +53,7 @@ struct wsialloc_create_info_args
+    VkImageCreateFlags2KHR flags;
+    VkExtent3D extent;
+    bool explicit_compression;
++   bool icd_export;
+ };
+ 
+ class image_backing_memory_external : public image_backing_memory
+@@ -87,6 +88,15 @@ public:
+     */
+    VkResult import_and_bind(VkImage image);
+ 
++   /** @brief Whether the image is allocated by the driver and exported instead of imported. */
++   bool is_icd_exported() const
++   {
++      return m_create_info.icd_export;
++   }
++
++   /** @brief Allocate driver memory for @p image, bind it and export it as a dma-buf. */
++   VkResult export_and_bind(VkImage image);
++
+    /**
+     * @brief Bind Vulkan image
+     *
+diff --git a/wsi/wayland/swapchain.cpp b/wsi/wayland/swapchain.cpp
+index 9215b52..5fe16f7 100644
+--- a/wsi/wayland/swapchain.cpp
++++ b/wsi/wayland/swapchain.cpp
+@@ -304,7 +304,8 @@ VkResult swapchain::init_image_factory(const VkSwapchainCreateInfoKHR &swapchain
+ 
+    wsialloc_create_info_args wsialloc_args = { external_image_create_info.selected_format,
+                                                external_image_create_info.flags, external_image_create_info.extent,
+-                                               external_image_create_info.explicit_compression };
++                                               external_image_create_info.explicit_compression,
++                                               external_image_create_info.icd_export };
+ 
+    auto backing_memory_creator =
+       m_allocator.make_unique<external_image_backing_memory_creator>(m_device_data, *m_wsi_allocator, wsialloc_args);
+@@ -414,6 +415,10 @@ VkResult swapchain::allocate_and_bind_swapchain_image(swapchain_image &image)
+ 
+    auto &backing_memory = swapchain_image_factory::get_backing_memory_from_image<image_backing_memory_external>(image);
+    TRY_LOG_CALL(backing_memory.allocate());
++   if (backing_memory.is_icd_exported())
++   {
++      TRY_LOG_CALL(backing_memory.export_and_bind(image.get_image()));
++   }
+ 
+    wayland_owner<wl_buffer> buffer = nullptr;
+    buffer = create_wl_buffer(backing_memory);
+@@ -423,7 +428,10 @@ VkResult swapchain::allocate_and_bind_swapchain_image(swapchain_image &image)
+       return VK_ERROR_INITIALIZATION_FAILED;
+    }
+ 
+-   TRY_LOG_CALL(backing_memory.import_and_bind(image.get_image()));
++   if (!backing_memory.is_icd_exported())
++   {
++      TRY_LOG_CALL(backing_memory.import_and_bind(image.get_image()));
++   }
+ 
+    auto image_data = m_allocator.make_unique<wayland_image_data>(std::move(buffer));
+    if (image_data == nullptr)
+diff --git a/wsi/wsi_factory.cpp b/wsi/wsi_factory.cpp
+index 87795dc..53666be 100644
+--- a/wsi/wsi_factory.cpp
++++ b/wsi/wsi_factory.cpp
+@@ -216,6 +216,12 @@ VkResult add_device_extensions_required_by_layer(VkPhysicalDevice phys_dev,
+       TRY_LOG(props->get_required_device_extensions(extensions_required_by_layer, api_version),
+               "Failed to acquire required device extensions");
+ 
++      /* Without DRM format modifiers, Wayland swapchains export driver-allocated LINEAR images instead. */
++      if (!available_device_extensions.contains(VK_EXT_IMAGE_DRM_FORMAT_MODIFIER_EXTENSION_NAME))
++      {
++         extensions_required_by_layer.remove(VK_EXT_IMAGE_DRM_FORMAT_MODIFIER_EXTENSION_NAME);
++      }
++
+       bool supported = available_device_extensions.contains(extensions_required_by_layer);
+       if (!supported)
+       {
+diff --git a/wsi/x11/swapchain.cpp b/wsi/x11/swapchain.cpp
+index a857035..fbe13c9 100644
+--- a/wsi/x11/swapchain.cpp
++++ b/wsi/x11/swapchain.cpp
+@@ -442,11 +442,16 @@ VkResult swapchain::init_image_factory(const VkSwapchainCreateInfoKHR &swapchain
+          std::get<util::unique_ptr<swapchain_image_create_external_memory>>(std::move(sc_img_create_ext_mem_result));
+ 
+       auto external_image_create_info = sc_img_create_ext_mem->get_external_image_create_info();
++      if (external_image_create_info.icd_export)
++      {
++         WSI_LOG_ERROR("DRI3 presentation needs importable DRM format modifiers");
++         return VK_ERROR_INITIALIZATION_FAILED;
++      }
+       TRY_LOG_CALL(image_handle_creator->add_extension(std::move(sc_img_create_ext_mem)));
+ 
+       wsialloc_create_info_args wsialloc_args = { external_image_create_info.selected_format,
+                                                   external_image_create_info.flags, external_image_create_info.extent,
+-                                                  external_image_create_info.explicit_compression };
++                                                  external_image_create_info.explicit_compression, false };
+       auto backing_memory_creator =
+          m_allocator.make_unique<external_image_backing_memory_creator>(m_device_data, *m_wsi_allocator, wsialloc_args);
+       if (backing_memory_creator == nullptr)

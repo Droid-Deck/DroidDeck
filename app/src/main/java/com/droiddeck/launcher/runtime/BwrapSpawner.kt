@@ -179,6 +179,15 @@ object BwrapSpawner {
         val argv = request.getJSONArray("argv").let { a -> (0 until a.length()).map { a.getString(it) } }
         val env = LinkedHashMap<String, String>()
         request.optJSONObject("env")?.let { e -> e.keys().forEach { k -> env[k] = e.getString(k) } }
+        val runtimeDriver = com.droiddeck.launcher.session.SessionState.runtimeDriver
+        if (com.droiddeck.launcher.gpu.QualcommSystemDriver.handles(runtimeDriver)) {
+            val driver = com.droiddeck.launcher.gpu.QualcommSystemDriver
+            val variables = ArrayList<String>()
+            driver.addEnvironment(context, variables, runtimeDriver!!)
+            for (entry in variables) env.putIfAbsent(entry.substringBefore('='), entry.substringAfter('='))
+            for (path in driver.mounts(context, runtimeDriver) + File(context.filesDir, "qualcomm-system").path)
+                addBind(Bind.parse(path))
+        }
         if (binds.any { it.guest == "/dev" }) gpu(rootfs, root, env)?.forEach { addBind(it) }
         preload(session, rootfs, env).forEach { addBind(it) }
         zypakShims(binds, root, dir).forEach { addBind(it) }

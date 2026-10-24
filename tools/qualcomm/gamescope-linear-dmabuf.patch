@@ -1,0 +1,145 @@
+diff --git a/src/rendervulkan.cpp b/src/rendervulkan.cpp
+index 811d80c..5f181a9 100644
+--- a/src/rendervulkan.cpp
++++ b/src/rendervulkan.cpp
+@@ -2245,6 +2245,18 @@ bool CVulkanTexture::BInit( uint32_t width, uint32_t height, uint32_t depth, uin
+ 		assert( drmFormat == pDMA->format );
+ 	}
+ 
++	// Without DRM format modifiers the stride cannot be imposed, so it must match the driver's own LINEAR layout.
++	const bool bImplicitLinearImport = !g_device.supportsModifiers() && pDMA && pDMA->modifier == DRM_FORMAT_MOD_LINEAR;
++	if ( bImplicitLinearImport )
++	{
++		if ( pDMA->n_planes != 1 )
++		{
++			vk_log.errorf( "LINEAR DMA-BUF import without DRM format modifiers needs a single plane" );
++			return false;
++		}
++		imageInfo.tiling = tiling = VK_IMAGE_TILING_LINEAR;
++	}
++
+ 	if ( g_device.supportsModifiers() && pDMA && pDMA->modifier != DRM_FORMAT_MOD_INVALID )
+ 	{
+ 		VkExternalImageFormatProperties externalImageProperties = {
+@@ -2416,7 +2428,22 @@ bool CVulkanTexture::BInit( uint32_t width, uint32_t height, uint32_t depth, uin
+ 		vk_errorf( res, "vkCreateImage failed" );
+ 		return false;
+ 	}
+-	
++
++	if ( bImplicitLinearImport )
++	{
++		const VkImageSubresource subresource = { .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT };
++		VkSubresourceLayout layout = {};
++		g_device.vk.GetImageSubresourceLayout( g_device.device(), m_vkImage, &subresource, &layout );
++		if ( layout.offset != pDMA->offset[0] || layout.rowPitch != pDMA->stride[0] )
++		{
++			vk_log.errorf( "LINEAR DMA-BUF layout (offset %" PRIu32 ", stride %" PRIu32 ") differs from the driver's (offset %" PRIu64 ", stride %" PRIu64 ")",
++			    pDMA->offset[0], pDMA->stride[0], uint64_t( layout.offset ), uint64_t( layout.rowPitch ) );
++			g_device.vk.DestroyImage( g_device.device(), m_vkImage, nullptr );
++			m_vkImage = VK_NULL_HANDLE;
++			return false;
++		}
++	}
++
+ 	VkMemoryRequirements memRequirements;
+ 	g_device.vk.GetImageMemoryRequirements(g_device.device(), m_vkImage, &memRequirements);
+ 
+@@ -2963,6 +2990,27 @@ static bool is_image_format_modifier_supported(VkFormat format, uint32_t drmForm
+   return res == VK_SUCCESS;
+ }
+ 
++static bool is_linear_dmabuf_importable( VkPhysicalDeviceImageFormatInfo2 imageFormatInfo )
++{
++	VkPhysicalDeviceExternalImageFormatInfo externalInfo = {
++		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_IMAGE_FORMAT_INFO,
++		.pNext = imageFormatInfo.pNext,
++		.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT,
++	};
++	imageFormatInfo.pNext = &externalInfo;
++	imageFormatInfo.tiling = VK_IMAGE_TILING_LINEAR;
++
++	VkExternalImageFormatProperties externalProps = {
++		.sType = VK_STRUCTURE_TYPE_EXTERNAL_IMAGE_FORMAT_PROPERTIES,
++	};
++	VkImageFormatProperties2 props = {
++		.sType = VK_STRUCTURE_TYPE_IMAGE_FORMAT_PROPERTIES_2,
++		.pNext = &externalProps,
++	};
++	return g_device.vk.GetPhysicalDeviceImageFormatProperties2( g_device.physDev(), &imageFormatInfo, &props ) == VK_SUCCESS &&
++		( externalProps.externalMemoryProperties.externalMemoryFeatures & VK_EXTERNAL_MEMORY_FEATURE_IMPORTABLE_BIT ) != 0;
++}
++
+ bool vulkan_init_format(VkFormat format, uint32_t drmFormat)
+ {
+ 	// First, check whether the Vulkan format is supported
+@@ -3071,6 +3119,8 @@ bool vulkan_init_format(VkFormat format, uint32_t drmFormat)
+ 			return false;
+ 
+ 		wlr_drm_format_set_add( &sampledDRMFormats, drmFormat, DRM_FORMAT_MOD_INVALID );
++		if ( is_linear_dmabuf_importable( imageFormatInfo ) )
++			wlr_drm_format_set_add( &sampledDRMFormats, drmFormat, DRM_FORMAT_MOD_LINEAR );
+ 		return false;
+ 	}
+ }
+diff --git a/src/wlserver.cpp b/src/wlserver.cpp
+index 618794b..2f30851 100644
+--- a/src/wlserver.cpp
++++ b/src/wlserver.cpp
+@@ -40,6 +40,7 @@
+ #include <wlr/types/wlr_seat.h>
+ #include <wlr/types/wlr_touch.h>
+ #include <wlr/types/wlr_drm.h>
++#include <wlr/types/wlr_linux_dmabuf_v1.h>
+ #include <wlr/util/log.h>
+ #include <wlr/xwayland/server.h>
+ #include <wlr/types/wlr_xdg_shell.h>
+@@ -2216,6 +2217,25 @@ bool wlserver_init( void ) {
+ 
+ 	wlr_renderer_init_wl_display(wlserver.wlr.renderer, wlserver.display);
+ 
++	// wlroots only creates linux-dmabuf for renderers with a DRM device, and Android exposes none.
++	const wlr_drm_format_set *pDmabufFormats = wlr_renderer_get_texture_formats( wlserver.wlr.renderer, WLR_BUFFER_CAP_DMABUF );
++	if ( wlr_renderer_get_drm_fd( wlserver.wlr.renderer ) < 0 && pDmabufFormats != nullptr && pDmabufFormats->len > 0 )
++	{
++		wlr_linux_dmabuf_feedback_v1 feedback = {};
++		wl_array_init( &feedback.tranches );
++		wlr_linux_dmabuf_feedback_v1_tranche *pTranche = wlr_linux_dmabuf_feedback_add_tranche( &feedback );
++		bool bFormatsCopied = pTranche != nullptr;
++		for ( size_t i = 0; bFormatsCopied && i < pDmabufFormats->len; i++ )
++		{
++			const wlr_drm_format &format = pDmabufFormats->formats[ i ];
++			for ( size_t j = 0; bFormatsCopied && j < format.len; j++ )
++				bFormatsCopied = wlr_drm_format_set_add( &pTranche->formats, format.format, format.modifiers[ j ] );
++		}
++		if ( !bFormatsCopied || !wlr_linux_dmabuf_v1_create( wlserver.display, 3, &feedback ) )
++			wl_log.errorf( "Failed to create linux-dmabuf without a DRM device" );
++		wlr_linux_dmabuf_feedback_v1_finish( &feedback );
++	}
++
+ 	wlserver.wlr.compositor = wlr_compositor_create(wlserver.display, 5, wlserver.wlr.renderer);
+ 
+ 	wl_signal_add( &wlserver.wlr.compositor->events.new_surface, &new_surface_listener );
+diff --git a/subprojects/wlroots/types/wlr_linux_dmabuf_v1.c b/subprojects/wlroots/types/wlr_linux_dmabuf_v1.c
+index 0dc42f4..5bc9b74 100644
+--- a/subprojects/wlroots/types/wlr_linux_dmabuf_v1.c
++++ b/subprojects/wlroots/types/wlr_linux_dmabuf_v1.c
+@@ -892,13 +892,13 @@ static bool set_default_feedback(struct wlr_linux_dmabuf_v1 *linux_dmabuf,
+ 	}
+ 
+ 	drmDevice *device = NULL;
+-	if (drmGetDeviceFromDevId(feedback->main_device, 0, &device) != 0) {
++	int main_device_fd = -1;
++	if (feedback->main_device == 0) {
++		wlr_log(WLR_DEBUG, "No DRM device, skipping DMA-BUF import checks");
++	} else if (drmGetDeviceFromDevId(feedback->main_device, 0, &device) != 0) {
+ 		wlr_log_errno(WLR_ERROR, "drmGetDeviceFromDevId failed");
+ 		goto error_compiled;
+-	}
+-
+-	int main_device_fd = -1;
+-	if (device->available_nodes & (1 << DRM_NODE_RENDER)) {
++	} else if (device->available_nodes & (1 << DRM_NODE_RENDER)) {
+ 		const char *name = device->nodes[DRM_NODE_RENDER];
+ 		main_device_fd = open(name, O_RDWR | O_CLOEXEC);
+ 		drmFreeDevice(&device);

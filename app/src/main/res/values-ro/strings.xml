@@ -178,6 +178,7 @@
     <string name="session_end_program">Acest program</string>
     <string name="session_end_steam_download">Clientul Steam nu a putut fi descărcat. Rețeaua sau VPN-ul tău poate bloca serverele Steam; verifică conexiunea și încearcă din nou.</string>
     <string name="session_end_steam_setup">Clientul Steam nu a putut fi configurat. Verifică conexiunea și spațiul liber, apoi încearcă din nou.</string>
+    <string name="session_end_runtime_driver">Driverul selectat pentru mediul de execuție Linux lipsește sau nu poate fi folosit pe acest telefon. Alege altul din %1$s › %2$s, apoi pornește din nou.</string>
     <string name="session_end_fex_missing">%1$s este compilat pentru PC-uri x86 și rulează prin FEX, care nu este încă instalat. Pornește Steam o dată, fiind autentificat, și lasă-l să descarce FEX și Steam Linux Runtime, apoi pornește din nou acesta.</string>
     <string name="add_app_flatpak_hint">Un ID de aplicație Flathub sau pagina sa Flathub. Flatpak este configurat mai întâi, dacă nu este deja.</string>
     <string name="add_app_file">Fișier</string>

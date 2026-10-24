@@ -178,6 +178,7 @@
     <string name="session_end_program">Ez a program</string>
     <string name="session_end_steam_download">A Steam-klienst nem sikerült letölteni. Lehet, hogy a hálózat vagy a VPN blokkolja a Steam szervereit; ellenőrizd a kapcsolatot, és próbáld újra.</string>
     <string name="session_end_steam_setup">A Steam-klienst nem sikerült beállítani. Ellenőrizd a kapcsolatot és a szabad tárhelyet, majd próbáld újra.</string>
+    <string name="session_end_runtime_driver">A kiválasztott Linux futtatókörnyezet-illesztőprogram hiányzik, vagy nem használható ezen a telefonon. Válassz másikat itt: %1$s › %2$s, majd indítsd újra.</string>
     <string name="session_end_fex_missing">A %1$s x86 PC-khez készült, és a FEX-en keresztül fut, amely még nincs telepítve. Indítsa el egyszer a Steamet bejelentkezve, és hagyja letölteni a FEX-et és a Steam Linux Runtime-ot, majd indítsa el ezt újra.</string>
     <string name="add_app_flatpak_hint">Egy Flathub-alkalmazásazonosító vagy a Flathub-oldala. A Flatpak előbb beállításra kerül, ha még nincs beállítva.</string>
     <string name="add_app_file">Fájl</string>

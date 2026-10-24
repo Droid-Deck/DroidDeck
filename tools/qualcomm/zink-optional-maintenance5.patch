@@ -1,0 +1,34 @@
+--- a/src/gallium/drivers/zink/zink_device_info.py
++++ b/src/gallium/drivers/zink/zink_device_info.py
+@@ -68,8 +68,7 @@
+               features=True),
+     Extension("VK_KHR_maintenance5",
+               alias="maint5",
+-              features=True, properties=True,
+-              required=True),
++              features=True, properties=True),
+     Extension("VK_KHR_maintenance6",
+               alias="maint6",
+               features=True, properties=True),
+--- a/src/gallium/drivers/zink/zink_compiler.c
++++ b/src/gallium/drivers/zink/zink_compiler.c
+@@ -3056,7 +3056,7 @@
+       bool can_remove = false;
+       if (!nir_find_variable_with_location(consumer, nir_var_shader_in, VARYING_SLOT_PSIZ)) {
+          /* maintenance5 guarantees "A default size of 1.0 is used if PointSize is not written" */
+-         if (!var->data.explicit_xfb_buffer && delete_psiz_store(producer, true))
++         if (screen->info.have_KHR_maintenance5 && !var->data.explicit_xfb_buffer && delete_psiz_store(producer, true))
+             can_remove = !(producer->info.outputs_written & VARYING_BIT_PSIZ);
+          else if (consumer->info.stage != MESA_SHADER_FRAGMENT)
+             can_remove = !var->data.explicit_location;
+--- a/src/gallium/drivers/zink/zink_context.c
++++ b/src/gallium/drivers/zink/zink_context.c
+@@ -1007,7 +1007,7 @@
+          NULL,
+          VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT
+       };
+-      bvci.pNext = &usage;
++      bvci.pNext = screen->info.have_KHR_maintenance5 ? &usage : NULL;
+       if (zink_get_format_props(screen, format)->bufferFeatures & VK_FORMAT_FEATURE_STORAGE_TEXEL_BUFFER_BIT)
+          usage.usage |= VK_BUFFER_USAGE_STORAGE_TEXEL_BUFFER_BIT;
+ 

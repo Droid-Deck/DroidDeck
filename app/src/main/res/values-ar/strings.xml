@@ -178,6 +178,7 @@
     <string name="session_end_program">هذا البرنامج</string>
     <string name="session_end_steam_download">تعذّر تنزيل عميل Steam. قد تكون شبكتك أو VPN تحظر خوادم Steam؛ تحقّق من الاتصال وحاول مرة أخرى.</string>
     <string name="session_end_steam_setup">تعذّر إعداد عميل Steam. تحقّق من الاتصال والمساحة الفارغة، ثم حاول مرة أخرى.</string>
+    <string name="session_end_runtime_driver">برنامج تشغيل بيئة Linux المحدد غير موجود أو لا يمكن استخدامه على هذا الهاتف. اختر برنامجًا آخر من %1$s › %2$s، ثم ابدأ من جديد.</string>
     <string name="session_end_fex_missing">%1$s مبني لأجهزة كمبيوتر x86 ويعمل عبر FEX، الذي لم يتم تثبيته بعد. شغّل Steam مرة واحدة أثناء تسجيل الدخول ودعه يُنزّل FEX وSteam Linux Runtime، ثم شغّل هذا البرنامج مجددًا.</string>
     <string name="add_app_flatpak_hint">معرّف تطبيق على Flathub أو صفحته على Flathub. يُعَدّ Flatpak أولًا إن لم يكن مُعدًّا بعد.</string>
     <string name="add_app_file">الملف</string>

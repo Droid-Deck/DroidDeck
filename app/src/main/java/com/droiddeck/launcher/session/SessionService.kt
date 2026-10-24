@@ -360,7 +360,15 @@ class SessionService : Service() {
         acquireLocks()
         Thread({
             OrphanReaper.reap("session starting")
-            runSession(gen)
+            try {
+                runSession(gen)
+            } catch (e: com.droiddeck.launcher.gpu.QualcommSystemDriver.Unavailable) {
+                Log.e(TAG, "runtime driver unavailable", e)
+                if (gen == sessionGen) {
+                    SessionEvents.fail(FAILURE_RUNTIME_DRIVER, e.message.orEmpty())
+                    stopSession(-1)
+                }
+            }
         }, "session-start").start()
         return START_NOT_STICKY
     }
@@ -684,8 +692,10 @@ class SessionService : Service() {
         guest.add("MESA_LOADER_DRIVER_OVERRIDE=zink")
         guest.add("GALLIUM_DRIVER=zink")
         guest.add("LIBGL_KOPPER_DRI2=true")
-        LinuxRuntime.vulkanIcd(this)?.let { guest.add("VK_ICD_FILENAMES=" + it.path) }
         val linuxDriverId = SessionPrefs.linuxDriver(this)
+        val systemQualcomm = com.droiddeck.launcher.gpu.QualcommSystemDriver.handles(linuxDriverId)
+        if (systemQualcomm) com.droiddeck.launcher.gpu.QualcommSystemDriver.addEnvironment(this, guest)
+        else LinuxRuntime.vulkanIcd(this)?.let { guest.add("VK_ICD_FILENAMES=" + it.path) }
         SessionState.runtimeDriver = linuxDriverId
         com.droiddeck.launcher.gpu.AutoDriverTrial.sessionStarting(
             this,
@@ -695,9 +705,9 @@ class SessionService : Service() {
         )
         LinuxVulkanDriver.resolveIcdPath(this, linuxDriverId)
             ?.let { guest.add(LinuxVulkanDriver.ENV + "=" + it) }
-        val tuOverride = tuDebugOverride()
+        val tuOverride = if (systemQualcomm) null else tuDebugOverride()
         val tuDriver = sysmemDriver(linuxDriverId)
-        (tuOverride ?: "sysmem".takeIf { tuDriver || SessionPrefs.tuSysmem(this) })?.let { guest.add("TU_DEBUG=$it") }
+        if (!systemQualcomm) (tuOverride ?: "sysmem".takeIf { tuDriver || SessionPrefs.tuSysmem(this) })?.let { guest.add("TU_DEBUG=$it") }
         if (SessionPrefs.zinkLazy(this)) {
             guest.add("ZINK_DESCRIPTORS=lazy")
             guest.add("ZINK_DEBUG=compact")
@@ -705,7 +715,9 @@ class SessionService : Service() {
         if (SessionPrefs.glThread(this)) guest.add("mesa_glthread=true")
         if (SessionPrefs.noGlError(this)) guest.add("MESA_NO_ERROR=1")
         guest.add("MESA_DISK_CACHE_DATABASE=1")
-        guest.add("GLIBC_TUNABLES=glibc.pthread.rseq=0:glibc.malloc.top_pad=16777216")
+        // Steam loads libhybris after other TLS users; its Bionic TLS bridge requires static storage.
+        val staticTls = if (systemQualcomm) ":glibc.rtld.optional_static_tls=16384" else ""
+        guest.add("GLIBC_TUNABLES=glibc.pthread.rseq=0:glibc.malloc.top_pad=16777216$staticTls")
         if (SessionState.mode == MODE_STEAM) guest.add("BL_MANGOAPP=" + (if (SessionPrefs.mangoapp(this)) "1" else "0"))
         SessionState.steamClientArch = if (steamHere) SessionPrefs.steamClientArch(this) else null
         SessionState.steamClientArch?.let { arch ->
@@ -1987,6 +1999,7 @@ class SessionService : Service() {
         const val MODE_STEAM = "steam"
         const val MODE_DESKTOP = "lxqt"
         const val MODE_RUN = "run"
+        const val FAILURE_RUNTIME_DRIVER = "RUNTIME_DRIVER_UNAVAILABLE"
         const val EXTRA_PROGRAM = "program"
         private const val RUN_STATUS = "run-status"
         const val EXTRA_PROGRAM_ARGS = "programArgs"

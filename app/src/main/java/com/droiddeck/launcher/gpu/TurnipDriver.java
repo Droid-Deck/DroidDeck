@@ -37,6 +37,7 @@ public final class TurnipDriver {
     private static final String PREFS = "graphics_driver";
     private static final String KEY_HIDDEN = "hiddenBundled";
     public static final String AUTO = "";
+    public static final String SYSTEM = "system";
 
     public static final String HELP_TEXT =
             "The driver the app's compositor puts frames on the screen with - the last step of every "
@@ -139,6 +140,8 @@ public final class TurnipDriver {
         Log.d(TAG, "removing imported driver " + driverId);
         FileUtils.delete(new File(contentDir, driverId));
         if (driverId.equals(SessionPrefs.androidDriver(context))) SessionPrefs.setAndroidDriver(context, AUTO);
+        if (driverId.equals(QualcommDriverPackage.importedId(SessionPrefs.INSTANCE.linuxDriver(context))))
+            SessionPrefs.INSTANCE.setLinuxDriver(context, "");
     }
 
     public String installFromZip(Uri zipUri, String displayName) throws IOException {
@@ -257,6 +260,7 @@ public final class TurnipDriver {
 
     private String choose() {
         String chosen = SessionPrefs.androidDriver(context);
+        if (SYSTEM.equals(chosen)) return null;
         if (chosen != null && !chosen.isEmpty()) {
             if (BUNDLED.contains(chosen)) {
                 Log.i(TAG, "driver pinned by the user: " + chosen);

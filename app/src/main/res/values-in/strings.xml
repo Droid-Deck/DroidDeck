@@ -178,6 +178,7 @@
     <string name="session_end_program">Program ini</string>
     <string name="session_end_steam_download">Tidak dapat mengunduh klien Steam. Jaringan atau VPN Anda mungkin memblokir server Steam; periksa koneksi lalu coba lagi.</string>
     <string name="session_end_steam_setup">Tidak dapat menyiapkan klien Steam. Periksa koneksi dan ruang penyimpanan kosong, lalu coba lagi.</string>
+    <string name="session_end_runtime_driver">Driver runtime Linux yang dipilih tidak ada atau tidak dapat digunakan di ponsel ini. Pilih driver lain di %1$s › %2$s, lalu mulai lagi.</string>
     <string name="session_end_fex_missing">%1$s dibuat untuk PC x86 dan berjalan melalui FEX, yang belum terinstal. Mulai Steam sekali saat masuk dan biarkan FEX serta Steam Linux Runtime diunduh, lalu mulai lagi.</string>
     <string name="add_app_flatpak_hint">ID aplikasi Flathub atau halaman Flathub-nya. Flatpak disiapkan dahulu jika belum.</string>
     <string name="add_app_file">File</string>

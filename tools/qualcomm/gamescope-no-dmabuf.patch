@@ -1,0 +1,124 @@
+--- a/src/rendervulkan.hpp
++++ b/src/rendervulkan.hpp
+@@ -866,6 +866,7 @@
+ 	inline VkPipelineLayout pipelineLayout() {return m_pipelineLayout;}
+ 	inline int drmRenderFd() {return m_drmRendererFd;}
+ 	inline bool supportsModifiers() {return m_bSupportsModifiers;}
++	inline bool supportsDmaBuf() {return m_bSupportsDmaBuf;}
+ 	inline uint32_t vendorID() const {return m_uVendorID;}
+ 	inline const VkPhysicalDeviceMemoryProperties &memoryProperties() const {return m_memoryProperties;}
+ 	inline bool supportsMutableSwapchain() {return m_bSupportsMutableSwapchain;}
+@@ -938,6 +939,7 @@
+ 	uint32_t m_uVendorID = 0;
+ 	bool m_bHasDrmPrimaryDevId = false;
+ 	bool m_bSupportsModifiers = false;
++	bool m_bSupportsDmaBuf = false;
+ 	bool m_bSupportsMutableSwapchain = false;
+ 	bool m_bSupportsPresentWait = false;
+ 	bool m_bInitialized = false;
+--- a/src/rendervulkan.cpp
++++ b/src/rendervulkan.cpp
+@@ -452,10 +452,16 @@
+ 
+ 	bool hasDrmProps = vulkan_has_drm_props();
+ 	bool supportsForeignQueue = false;
++	bool supportsMemoryFd = false;
++	bool supportsDmaBuf = false;
+ 	bool supportsHDRMetadata = false;
+ 	bool presentIdExtension = false;
+ 	bool presentWaitExtension = false;
+ 	for (const auto& ext : m_supportedExts) {
++		if ( strcmp(ext.extensionName, VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME) == 0 )
++			supportsMemoryFd = true;
++		if ( strcmp(ext.extensionName, VK_EXT_EXTERNAL_MEMORY_DMA_BUF_EXTENSION_NAME) == 0 )
++			supportsDmaBuf = true;
+ 		if ( strcmp(ext.extensionName, VK_EXT_IMAGE_DRM_FORMAT_MODIFIER_EXTENSION_NAME) == 0 )
+ 			m_bSupportsModifiers = true;
+ 
+@@ -471,6 +477,18 @@
+ 
+ 		if ( strcmp(ext.extensionName, VK_EXT_HDR_METADATA_EXTENSION_NAME) == 0 )
+ 			supportsHDRMetadata = true;
++	}
++
++	m_bSupportsDmaBuf = supportsMemoryFd && supportsDmaBuf;
++	if ( !m_bSupportsDmaBuf )
++	{
++		if ( !GetBackend()->UsesVulkanSwapchain() )
++		{
++			vk_log.errorf( "This backend requires DMA-BUF import/export support" );
++			return false;
++		}
++		m_bSupportsModifiers = false;
++		vk_log.infof( "DMA-BUF unavailable; using SHM inputs with Vulkan swapchain rendering" );
+ 	}
+ 
+ 	vk_log.infof( "physical device %s DRM format modifiers", m_bSupportsModifiers ? "supports" : "does not support" );
+@@ -617,8 +635,11 @@
+ 		enabledExtensions.push_back( VK_EXT_QUEUE_FAMILY_FOREIGN_EXTENSION_NAME );
+ 	}
+ 
+-	enabledExtensions.push_back( VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME );
+-	enabledExtensions.push_back( VK_EXT_EXTERNAL_MEMORY_DMA_BUF_EXTENSION_NAME );
++	if ( m_bSupportsDmaBuf )
++	{
++		enabledExtensions.push_back( VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME );
++		enabledExtensions.push_back( VK_EXT_EXTERNAL_MEMORY_DMA_BUF_EXTENSION_NAME );
++	}
+ 
+ 	enabledExtensions.push_back( VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME );
+ 
+@@ -2144,6 +2165,11 @@
+ 	{
+ 		flags.bExportable = true;
+ 	}
++	if ( ( pDMA || flags.bExportable ) && !g_device.supportsDmaBuf() )
++	{
++		vk_log.errorf( "DMA-BUF texture requested without import/export support" );
++		return false;
++	}
+ 
+ 	if ( flags.bTransferSrc == true )
+ 	{
+@@ -2983,6 +3009,8 @@
+ 	}
+ 
+ 	wlr_drm_format_set_add( &sampledShmFormats, drmFormat, DRM_FORMAT_MOD_LINEAR );
++	if ( !g_device.supportsDmaBuf() )
++		return true;
+ 
+ 	if ( g_device.supportsModifiers() )
+ 	{
+@@ -4836,7 +4864,7 @@
+ {
+ 	if (buffer_caps & WLR_BUFFER_CAP_DMABUF)
+ 	{
+-		return &sampledDRMFormats;
++		return g_device.supportsDmaBuf() ? &sampledDRMFormats : nullptr;
+ 	}
+ 	else if (buffer_caps & WLR_BUFFER_CAP_DATA_PTR)
+ 	{
+@@ -4878,7 +4906,10 @@
+ struct wlr_renderer *vulkan_renderer_create( void )
+ {
+ 	VulkanRenderer_t *renderer = new VulkanRenderer_t();
+-	wlr_renderer_init(&renderer->base, &renderer_impl, WLR_BUFFER_CAP_DMABUF | WLR_BUFFER_CAP_DATA_PTR);
++	uint32_t caps = WLR_BUFFER_CAP_DATA_PTR;
++	if ( g_device.supportsDmaBuf() )
++		caps |= WLR_BUFFER_CAP_DMABUF;
++	wlr_renderer_init(&renderer->base, &renderer_impl, caps);
+ 	return &renderer->base;
+ }
+ 
+--- a/src/wlserver.cpp
++++ b/src/wlserver.cpp
+@@ -2243,7 +2243,8 @@
+ 
+ 	// Have to make this old ancient thing for compat with older XWayland.
+ 	// Someday, he will be purged.
+-	wlr_drm_create(wlserver.display, wlserver.wlr.renderer);
++	if ( wlr_renderer_get_texture_formats( wlserver.wlr.renderer, WLR_BUFFER_CAP_DMABUF ) != nullptr )
++		wlr_drm_create(wlserver.display, wlserver.wlr.renderer);
+ 
+ 	if ( GetBackend()->SupportsExplicitSync() )
+ 	{

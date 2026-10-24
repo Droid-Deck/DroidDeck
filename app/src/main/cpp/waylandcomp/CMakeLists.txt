@@ -10,6 +10,8 @@ add_library(droiddeckwayland SHARED
         src/waylandcomp_jni.c
         src/gpu_clock_pin.c
         src/droiddeck_ext.c
+        src/wl_android_buffer.c
+        generated/wayland-android-protocol.c
         src/wl_dmabuf.c
         src/wl_clipboard.c
         src/wl_text_input.c

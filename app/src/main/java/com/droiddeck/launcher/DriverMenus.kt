@@ -19,6 +19,8 @@ import com.droiddeck.launcher.gpu.GpuInfo
 import com.droiddeck.launcher.gpu.LinuxVulkanDriver
 import com.droiddeck.launcher.gpu.LinuxVulkanDriverManager
 import com.droiddeck.launcher.gpu.TurnipDriver
+import com.droiddeck.launcher.gpu.QualcommSystemDriver
+import com.droiddeck.launcher.gpu.QualcommDriverPackage
 import com.droiddeck.launcher.gpu.TurnipReleases
 import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionPrefs
@@ -143,6 +145,10 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
         }
         linuxRows = LinuxVulkanDriver.optionValues(activity).map { id ->
             if (id.isEmpty()) DriverRow("", activity.getString(R.string.gpu_runtime_default), activity.getString(R.string.drivers_runtime_builtin), false)
+            else if (id == QualcommSystemDriver.ID) DriverRow(id, "System Qualcomm driver", QualcommSystemDriver.label(), false)
+            else if (QualcommDriverPackage.isRuntimeId(id)) DriverRow(id,
+                QualcommDriverPackage.label(activity, id), listOf(QualcommDriverPackage.version(activity, id),
+                    activity.getString(R.string.drivers_qualcomm_runtime_display)).filter { it.isNotEmpty() }.joinToString(" · "), false, DriverRow.IMPORTED)
             else bundleRow(id, linux = true) ?: DriverRow(
                 id, lm.getDriverName(id),
                 listOfNotNull(
@@ -157,6 +163,8 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
         val td = TurnipDriver(activity)
         val auto = td.autoId()
         androidRows = buildList {
+            if (QualcommSystemDriver.detected()) add(DriverRow(TurnipDriver.SYSTEM,
+                "System Qualcomm driver", QualcommSystemDriver.label(), false))
             add(DriverRow(
                 TurnipDriver.AUTO, activity.getString(R.string.gpu_auto_by_gpu),
                 if (auto == "system") activity.getString(R.string.drivers_system_vulkan) else activity.getString(R.string.drivers_bundled, td.displayName(auto)),
@@ -431,7 +439,10 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
         val bundle = DriverBundle.containing(activity, id, linux)
         when {
             bundle != null -> useBundle(bundle)
-            linux -> SessionPrefs.setLinuxDriver(activity, id)
+            linux -> {
+                SessionPrefs.setLinuxDriver(activity, id)
+                if (QualcommSystemDriver.handles(id)) SessionPrefs.setAndroidDriver(activity, TurnipDriver.SYSTEM)
+            }
             else -> SessionPrefs.setAndroidDriver(activity, id)
         }
         pairModeOpen = false

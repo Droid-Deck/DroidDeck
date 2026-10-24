@@ -178,6 +178,7 @@
     <string name="session_end_program">Bu program</string>
     <string name="session_end_steam_download">Steam istemcisi indirilemedi. Ağınız veya VPN\'iniz Steam sunucularını engelliyor olabilir; bağlantıyı kontrol edip yeniden deneyin.</string>
     <string name="session_end_steam_setup">Steam istemcisi kurulamadı. Bağlantınızı ve boş depolama alanını kontrol edip yeniden deneyin.</string>
+    <string name="session_end_runtime_driver">Seçilen Linux çalışma ortamı sürücüsü eksik veya bu telefonda kullanılamıyor. %1$s › %2$s bölümünden başka bir sürücü seçip yeniden başlatın.</string>
     <string name="session_end_fex_missing">%1$s x86 PC\'ler için derlenmiş ve FEX ile çalışır, ancak FEX henüz yüklü değil. Oturum açmışken Steam\'i bir kez başlatıp FEX\'i ve Steam Linux Runtime\'ı indirmesini bekleyin, ardından bunu yeniden başlatın.</string>
     <string name="add_app_flatpak_hint">Bir Flathub uygulama kimliği veya Flathub sayfası. Flatpak henüz kurulu değilse önce o kurulur.</string>
     <string name="add_app_file">Dosya</string>

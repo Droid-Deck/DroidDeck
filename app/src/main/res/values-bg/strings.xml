@@ -178,6 +178,7 @@
     <string name="session_end_program">Тази програма</string>
     <string name="session_end_steam_download">Клиентът на Steam не можа да бъде изтеглен. Мрежата или VPN връзката ви може да блокира сървърите на Steam; проверете връзката и опитайте отново.</string>
     <string name="session_end_steam_setup">Клиентът на Steam не можа да бъде настроен. Проверете връзката и свободното място, след което опитайте отново.</string>
+    <string name="session_end_runtime_driver">Избраният драйвер за средата на Linux липсва или не може да се използва на този телефон. Изберете друг от %1$s › %2$s и стартирайте отново.</string>
     <string name="session_end_fex_missing">%1$s е компилирана за x86 компютри и се стартира през FEX, който още не е инсталиран. Стартирайте Steam веднъж, докато сте влезли, и го оставете да изтегли FEX и Steam Linux Runtime, след което стартирайте отново.</string>
     <string name="add_app_flatpak_hint">ID на приложение в Flathub или страницата му в Flathub. Flatpak се настройва първо, ако още не е.</string>
     <string name="add_app_file">Файл</string>

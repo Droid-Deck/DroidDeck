@@ -1,0 +1,270 @@
+{
+  "url": "https://github.com/wallentx/DroidDeck/releases/download/hybris-4ed93fb9ee6e2a0b24ff087196f2e93d247fd985/runtime.tzst",
+  "sha256": "a4e1ab9581c83ee6feff95e0e527930977a6c14c0e72bd2c4abf777e8472d987",
+  "size": 5799930,
+  "provenance": {
+    "component_ci_run": "https://github.com/wallentx/DroidDeck/actions/runs/39360327540",
+    "note": "Candidate pin: publish this exact archive and verify its URL before updating release.json.",
+    "producer_commit": "4ed93fb9ee6e2a0b24ff087196f2e93d247fd985",
+    "upstream_source_commit": "bc8cb3586b79d208fd21b925fa0209b3e432e008"
+  },
+  "gamescope": {
+    "source_commit": "8f212644c46460549035971ab914421180f61a7c",
+    "member_sha256": "795f11c31adb1a1aa3447d913255c872626114c2713c6d80f8a82df10cf94185",
+    "build": {
+      "binary": "build/qualcomm-gamescope/gamescope",
+      "source": "build/qualcomm-gamescope/source.tar.gz",
+      "source_sha256": "49e48fa2dc3b98c15633789d0a6c383630f34ed54e48649dcb46c55e446f0417",
+      "source_size": 10055262
+    }
+  },
+  "builds": {
+    "url": "https://github.com/Droid-Deck/DroidDeck-Components/releases/download/qualcomm-runtime-r2/qualcomm-builds.tar.xz",
+    "sha256": "f9db946db80b4db477cecfeae69eccb9496b1d6081550732a811f5d34a1772b6",
+    "size": 15138484
+  },
+  "wsi": {
+    "files": [
+      {
+        "mode": 420,
+        "name": "libVkLayer_window_system_integration.so",
+        "path": "wsi/libVkLayer_window_system_integration.so",
+        "sha256": "4319d14947c6957ae4f58897a6adc8a4194e68728dee9ff386a87e6a93845706",
+        "size": 397384,
+        "built": true
+      },
+      {
+        "mode": 420,
+        "name": "VkLayer_window_system_integration.json",
+        "path": "wsi/VkLayer_window_system_integration.json",
+        "sha256": "b80f1a621be6994e5cdb4760acee98bb013d0ff57fd63b1cc8de17cc764daaa2",
+        "size": 3754,
+        "built": true
+      },
+      {
+        "mode": 420,
+        "name": "LICENSE",
+        "path": "licenses/wsi-LICENSE",
+        "sha256": "5eb8d2da52230d2d66ce078a89ae0173aac63e2e73bed5f907a34736d114ea30",
+        "size": 1086
+      },
+      {
+        "mode": 420,
+        "name": "source-commit",
+        "path": "provenance/wsi-source-commit",
+        "sha256": "8367150b20502af36c472651850694a15a3e2a1fd6b6beb1f6e12a85a97824f5",
+        "size": 41
+      },
+      {
+        "mode": 420,
+        "name": "SHA256SUMS",
+        "path": "provenance/wsi-SHA256SUMS",
+        "sha256": "fda6f61028659648801de0e3a6fe1676efd99e1551881a5db8630970eae86158",
+        "size": 108
+      },
+      {
+        "mode": 420,
+        "name": "downstream.patch",
+        "path": "licenses/wsi-downstream.patch",
+        "sha256": "e2ed113d22f05563248ef606c774c22658b184fbc05912229007cd5281027e78",
+        "size": 769
+      },
+      {
+        "mode": 420,
+        "name": "source.tar.zst",
+        "path": "licenses/wsi-source.tar.zst",
+        "sha256": "22ae7c2d8aa3dfffdda601c3442d1966ab53ad225acdfadee69ba38974d0c4c5",
+        "size": 209468
+      },
+      {
+        "mode": 420,
+        "name": "vulkan-headers-commit",
+        "path": "provenance/wsi-vulkan-headers-commit",
+        "sha256": "16706d6cdbeb788426a90d66574dfd71068c4d993d39e76ec5c281b1f30dc7a6",
+        "size": 41
+      },
+      {
+        "built": true,
+        "mode": 420,
+        "name": "0001-wayland-icd-exported-linear-buffers.patch",
+        "path": "licenses/wsi-patches/0001-wayland-icd-exported-linear-buffers.patch",
+        "sha256": "fc1653c6d9ab718d296ece224f8a923f7c10cd0a3486f765af11306ca1c59f6c",
+        "size": 19862
+      },
+      {
+        "built": true,
+        "mode": 420,
+        "name": "0002-gcc16-stdc-version.patch",
+        "path": "licenses/wsi-patches/0002-gcc16-stdc-version.patch",
+        "sha256": "5a303b7f69c8ab819596bbf93ce9f68006e4473d2b383b6109941976da9d075a",
+        "size": 2202
+      },
+      {
+        "built": true,
+        "mode": 420,
+        "name": "0003-dma-heap-read-only-open.patch",
+        "path": "licenses/wsi-patches/0003-dma-heap-read-only-open.patch",
+        "sha256": "891f89c80310b2e5a7a3d8337632fddaaedad803b6337e69053048dd6c6ba3c0",
+        "size": 623
+      },
+      {
+        "built": true,
+        "mode": 420,
+        "name": "0004-acquire-next-image2-on-vulkan-1-0.patch",
+        "path": "licenses/wsi-patches/0004-acquire-next-image2-on-vulkan-1-0.patch",
+        "sha256": "30e968889e22f3ba4ea2e0c3b80e3752c4d61898e256230392a0242d125ec239",
+        "size": 1541
+      },
+      {
+        "built": true,
+        "mode": 420,
+        "name": "0005-optional-wayland-platform.patch",
+        "path": "licenses/wsi-patches/0005-optional-wayland-platform.patch",
+        "sha256": "ab634299e5a6f1156f4d435314c50c893c60a43e8a6726498c9a39109f5676e0",
+        "size": 5882
+      }
+    ],
+    "id": "wsi",
+    "ignored": [],
+    "provenance": {
+      "ci_run": "https://github.com/wallentx/DroidDeck/actions/runs/38047627963",
+      "repository_commit": "abe58618a5194f1f15499cbd5f9ec75503782556",
+      "vulkan_headers_licenses": {
+        "note": "Added from tracked assembly inputs; the original WSI archive and compiled library are unchanged.",
+        "revision": "8d6039a455a7ecc7d2a592ff97f62db4e59b70bf",
+        "source_urls": [
+          "https://raw.githubusercontent.com/KhronosGroup/Vulkan-Headers/8d6039a455a7ecc7d2a592ff97f62db4e59b70bf/LICENSE.md",
+          "https://raw.githubusercontent.com/KhronosGroup/Vulkan-Headers/8d6039a455a7ecc7d2a592ff97f62db4e59b70bf/LICENSES/MIT.txt"
+        ]
+      }
+    },
+    "recipe_inputs": {
+      "tools/vulkan-wsi/build.sh": "9e403151c58e6b2ee15241f525c4bacb2495f072191da6a63065e7fcc25b3b3c",
+      "tools/vulkan-wsi/licenses/Vulkan-Headers/LICENSE.md": "95ad366d23fadf701d355bc45fb8b82ae2d700239471d35d41286ac3b08ff903",
+      "tools/vulkan-wsi/licenses/Vulkan-Headers/MIT.txt": "1ca3502222d967f3be5751c55f6b7ee735b5383909c3b501495f54b216dbf227",
+      "tools/vulkan-wsi/patches/0001-link-x11-external-memory.patch": "e2ed113d22f05563248ef606c774c22658b184fbc05912229007cd5281027e78",
+      "tools/vulkan-wsi/source.env": "71a88087265a09b4ce06e7c9b98ef6799c6a7657cc6ef9084de663e96f5cfe63"
+    },
+    "sha256": "348f9ec42159c1ee6e2baba4312a5e845d26687238f29e3f4a1b0c3c97e13b3c",
+    "size": 362717,
+    "url": "https://github.com/wallentx/DroidDeck/releases/download/v0.3.2-progress.20261010.4/wsi-abe5861.zip",
+    "build": {
+      "directory": "build/qualcomm-wsi"
+    }
+  },
+  "shaders": {
+    "url": "https://codeload.github.com/ValveSoftware/gamescope/tar.gz/8f212644c46460549035971ab914421180f61a7c",
+    "sha256": "40b75e449168caed811824b20716e2e7d236cf1bea6fb7dcfd742d50c8c6d6cc",
+    "size": 970867,
+    "source_commit": "8f212644c46460549035971ab914421180f61a7c",
+    "replacements": {
+      "05a8bfdf4ff5d71b": "cs_gaussian_blur_horizontal",
+      "ee0a3fcfa1cf1281": "cs_composite_rcas_1px",
+      "519ce32f2e53f5db": "cs_composite_rcas",
+      "ee86eeb49ae9951c": "cs_composite_blur_cond",
+      "73368f4579fe0d27": "cs_composite_blur",
+      "80346d82c5a6d850": "cs_composite_blit"
+    }
+  },
+  "mesa": {
+    "source_commit": "31e9a6b2e95e30d84bf3177d1f497d063e59b6b2",
+    "directory": "build/qualcomm-zink/runtime",
+    "files": [
+      {
+        "path": "dri/zink_dri.so",
+        "sha256": "5f6c653df307d04451a70e3a2f086bee2f0c4a8cbeecd278e2b619b45ee0098f",
+        "size": 133368
+      },
+      {
+        "path": "egl-vendor.json",
+        "sha256": "5bb351d2e10383f865f5b67d44bfff9a6a8964c6cc969efb1d94a058ef11f48d",
+        "size": 92
+      },
+      {
+        "path": "gbm/dri_gbm.so",
+        "sha256": "5d99296fa5c898e43d104610f9a8cc78ed8d4776100a00a5dfc5de2c29d1993b",
+        "size": 134024
+      },
+      {
+        "path": "libEGL_droiddeck_qualcomm.so.0",
+        "sha256": "f99c99b8edd380891bc18e276decb687b76e2dd249e7fe3fbded9aaf1f938d90",
+        "size": 398632
+      },
+      {
+        "path": "libgallium-26.2.3.so",
+        "sha256": "f05580834e111df6f8ddaa8c96620f80317e40fb8032ee4eebb668c14c4cf401",
+        "size": 21578352
+      },
+      {
+        "path": "libgbm.so.1",
+        "sha256": "3a4018b5afea4de258c8b116e8e0f94bb2488a57ad2f63b0d5021d4cc922d91e",
+        "size": 67840
+      },
+      {
+        "path": "libGLX_droiddeck_qualcomm.so.0",
+        "sha256": "bae86c5d5847e245f790174ff68646d5ab1c68224cbb55faf0c53d15ef152b5f",
+        "size": 397704
+      },
+      {
+        "path": "licenses/Apache-2.0",
+        "sha256": "7e4d3fba250d15e9e0afa380d4b611828fa2560cc8fdebe95bcf2f01a487de12",
+        "size": 10045
+      },
+      {
+        "path": "licenses/BSL-1.0",
+        "sha256": "9b9fea7520a816107fcac2598b7c0155222f16bc430e989706b22f4367f1df7d",
+        "size": 1649
+      },
+      {
+        "path": "licenses/exceptions/Linux-Syscall-Note",
+        "sha256": "9b4084655174654608fd037e9ddb4feeadfada01cd042e9c17b05aa7105b2b9f",
+        "size": 1257
+      },
+      {
+        "path": "licenses/GPL-1.0-or-later",
+        "sha256": "8ff76f1528e6e4e9400c0f6b1f2d19d4979aaac3bcc44bb707a55389132825c4",
+        "size": 13047
+      },
+      {
+        "path": "licenses/GPL-2.0-only",
+        "sha256": "6667ad4063569cd53b13500550d93fcd3dc11bcf82c5514296af013a0b720ba5",
+        "size": 18424
+      },
+      {
+        "path": "licenses/Mesa-license.rst",
+        "sha256": "0d1a0472ecc81830e75c20d59b0ea02841e3db21255e0ebad97ab682c54d6615",
+        "size": 1816
+      },
+      {
+        "path": "licenses/MIT",
+        "sha256": "323c587d0ccf10e376f8bf9a7f31fb4ca6078105194b42e0b1e0ee2bc9bde71f",
+        "size": 1372
+      },
+      {
+        "path": "licenses/SGI-B-2.0",
+        "sha256": "686bf035a1fd22076416fd3b90370ac67771e884bf57f55693d51f8ce7c710a7",
+        "size": 1822
+      },
+      {
+        "path": "licenses/source.json",
+        "sha256": "e1640432c0505d5464d14c593bda1ffc944eac5005da560bdea162efc23f1add",
+        "size": 860
+      },
+      {
+        "path": "licenses/zink-optional-maintenance5.patch",
+        "sha256": "25f0733bc42199344f205a916f6674d578a9a78250fd6b4cecbfb1cbbc8f8cf5",
+        "size": 1682
+      },
+      {
+        "path": "licenses/zink-pixmap-without-dri3.patch",
+        "sha256": "8a0b0480be2823cc5df2bb5510c2f39a1402da9cb9199602d7bf691c5c486100",
+        "size": 1907
+      },
+      {
+        "path": "qualcomm-gl.sh",
+        "sha256": "2ed84bb2a5fa20cde52f18733fe3e8d1fda22f3f0d0bdad47363ff71a04522f5",
+        "size": 353
+      }
+    ]
+  }
+}

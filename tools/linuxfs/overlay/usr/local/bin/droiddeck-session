@@ -75,7 +75,7 @@ run_gamescope() (
   status_file=$(mktemp "${XDG_RUNTIME_DIR:-/tmp}/droiddeck-steam-exit.XXXXXX") || exit 73
   trap 'rm -f "$status_file"' EXIT
   # Gamescope can return success when its primary child crashed.
-  BL_STEAM_EXIT_FILE="$status_file" gamescope "$@"
+  BL_STEAM_EXIT_FILE="$status_file" "${BL_GAMESCOPE_BINARY:-gamescope}" "$@"
   compositor_status=$?
   if read -r child_status < "$status_file" && [[ $child_status =~ ^[0-9]{1,3}$ ]] \
      && [ "$child_status" -gt 0 ] && [ "$child_status" -le 255 ]; then
@@ -98,6 +98,9 @@ collect_steam_logs() {
   fi
 }
 trap 'collect_steam_logs 2>/dev/null || true' TERM INT HUP
+if [ "${DROIDDECK_SYSTEM_QUALCOMM:-0}" = 1 ]; then
+  echo "== Qualcomm driver source: ${DROIDDECK_QUALCOMM_DRIVER:-system-qualcomm}"
+fi
 if [ -n "${BL_VK_DRIVER:-}" ]; then
   bl_icd_lib=$(sed -n 's/.*"library_path"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$BL_VK_DRIVER" 2>/dev/null | head -1)
   bl_icd_lib=$(printf '%s' "$bl_icd_lib" | sed 's|\\/|/|g')
@@ -225,7 +228,10 @@ if [ -z "${BL_INSIDE:-}" ]; then
   if [ "$mode" = steam ] && [ "${BL_CURSOR_COMPOSITE:-0}" = 1 ]; then
     export gamescope_cursor_composite=2
   fi
-  args=(--backend wayland --expose-wayland -f -W "$width" -H "$height" -w "$nested" -h "$height")
+  backend=${BL_GAMESCOPE_BACKEND:-wayland}
+  case "$backend" in wayland|sdl) ;; *) echo "Invalid Gamescope backend: $backend"; exit 1 ;; esac
+  [ "$backend" != sdl ] || export SDL_VIDEODRIVER=wayland
+  args=(--backend "$backend" --expose-wayland -f -W "$width" -H "$height" -w "$nested" -h "$height")
   [ "$nested" != "$width" ] && args+=(-S stretch) && export BL_STRETCHED=1
   if [ "${BL_FPS:-0}" -gt 0 ]; then
     args+=(-r "$BL_FPS")
@@ -260,7 +266,7 @@ if [ -z "${BL_INSIDE:-}" ]; then
     /usr/local/bin/droiddeck-pipewire stop
     exit $_bl_status
   fi
-  exec gamescope "${args[@]}" -- "$0" "$mode" "$@"
+  exec "${BL_GAMESCOPE_BINARY:-gamescope}" "${args[@]}" -- "$0" "$mode" "$@"
 fi
 
 bl_displays() {
@@ -276,6 +282,31 @@ bl_xprop_set_all() {
   [ "$ok" = 1 ]
 }
 export GDK_BACKEND=x11 QT_QPA_PLATFORM=xcb SDL_VIDEODRIVER=x11
+if [ "${DROIDDECK_SYSTEM_QUALCOMM:-0}" = 1 ]; then
+  export VK_LAYER_PATH="$DROIDDECK_QUALCOMM_ROOT/wsi:$DROIDDECK_QUALCOMM_ROOT/lib"
+  export VK_INSTANCE_LAYERS=VK_LAYER_window_system_integration:VK_LAYER_HYBRIS_compat
+  export VK_LOADER_DEBUG=error
+  export WSI_X11_FORCE_SHM=1 DISABLE_GAMESCOPE_WSI=1
+  . "$DROIDDECK_QUALCOMM_ROOT/mesa/qualcomm-gl.sh"
+  DROIDDECK_QUALCOMM_ZERO_COPY=0
+  bl_caps=$(timeout 20 /usr/local/bin/droiddeck-qualcomm-caps 2>/dev/null) && DROIDDECK_QUALCOMM_ZERO_COPY=1
+  echo "== qualcomm: ${bl_caps:-zero-copy off: the capability probe gave no answer}"
+  export DROIDDECK_QUALCOMM_ZERO_COPY
+  unset bl_caps
+fi
+# Chromium's GPU compositor corrupts the Steam UI on Qualcomm drivers where Zink stops below OpenGL 4.0.
+# An explicit BL_STEAM_CEF_SOFTWARE decides instead.
+bl_qualcomm_browser_gpu() {
+  [ "${DROIDDECK_SYSTEM_QUALCOMM:-0}" = 1 ] && [ -z "${BL_STEAM_CEF_SOFTWARE+x}" ] || return 0
+  local gl
+  gl=$(timeout 15 glxinfo -B 2>/dev/null | sed -n 's/^ *Max core profile version: *\([0-9][0-9]*\.[0-9][0-9]*\).*/\1/p' | head -1)
+  if [ "${gl%%.*}" -ge 4 ] 2>/dev/null; then
+    echo "== steam: browser GPU compositing on (Zink OpenGL $gl)"
+    return 0
+  fi
+  echo "== steam: browser software compositing (Zink offers OpenGL ${gl:-unknown}; GPU compositing needs 4.0)"
+  return 1
+}
 reap_orphans() {
   local round p stat pid left
   for round in 1 2 3 4 5; do
@@ -373,6 +404,8 @@ case $mode in
     steam_x64=0
     [ "${BL_STEAM_CLIENT_ARCH:-}" = x86_64 ] && steam_x64=1
     steam_cef_gpu=1
+    [ "${BL_STEAM_CEF_SOFTWARE:-0}" != 1 ] || steam_cef_gpu=0
+    bl_qualcomm_browser_gpu || steam_cef_gpu=0
     if [ "$steam_x64" = 1 ]; then
       step "checking the Steam client's arm64 parts (first run downloads them, ~1-2 min)"
       # droiddeck-steam-install removes the repair request: read it first so Repair Steam covers both clients.
@@ -759,6 +792,11 @@ BUSCONF
     # A containerized client re-executes itself through pressure-vessel-wrap (bwrap) unless told it is already inside.
     export STEAM_STEAMRT_RECURSION_GUARD=1
     export LD_LIBRARY_PATH=$steam_root/steamrtarm64:$steam_root/steamrtarm64/panorama${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
+    bl_steam_path=$PATH
+    bl_steam_helper=$XDG_DATA_HOME/Steam/steamrtarm64/steamwebhelper
+    if [ "${DROIDDECK_SYSTEM_QUALCOMM:-0}" = 1 ]; then
+      bl_steam_path="/usr/local/libexec/droiddeck-steam:$PATH"
+    fi
     export SDL_VIDEO_X11_DGAMOUSE=0
     decky_loader=$HOME/homebrew/services/PluginLoader
     if [ -f "$HOME/.droiddeck-decky-enabled" ] && [ -x "$decky_loader" ]; then
@@ -1074,7 +1112,7 @@ BUSCONF
           for _d in /proc/[0-9]*; do
             { IFS= read -r -d '' _c && { IFS= read -r -d '' _c1 || _c1=; }; } < "$_d/cmdline" 2>/dev/null || continue
             case $_c in FEX|*/FEX|FEXInterpreter|*/FEXInterpreter) _c=$_c1 ;; esac
-            case $_c in *steamwebhelper*|*steamrtarm64/steam|*steamrt64/steam|*gamescope*) ;; *) continue ;; esac
+            case $_c in *steamwebhelper*|*steamrtarm64/steam|*steamrt64/steam) ;; *) continue ;; esac
             _t=("$_d"/task/*)
             _p=${_d#/proc/}
             [ "${_bl_pinned[$_p]:-}" = "${#_t[@]}" ] && client_single_core_matches "$BL_CLIENT_CPUS" "${_t[@]}" && continue
@@ -1166,6 +1204,7 @@ BUSCONF
         desktop_ui_pid=$!
       fi
       steam_started=$SECONDS
+      PATH="$bl_steam_path" BL_STEAM_WEBHELPER="$bl_steam_helper" \
       "${steam_client[@]}" "${_bl_ui[@]}" "${_bl_cdp[@]}" "${_bl_lang[@]}" -clientbeta "$steam_channel" \
         -no-cef-sandbox -cef-ozone-platform=x11 "${_bl_cef[@]}" "$@"
       rc=$?
