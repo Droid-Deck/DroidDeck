@@ -838,6 +838,7 @@
     <string name="setup_download_source_custom">自定义前缀</string>
     <string name="setup_download_mirror">镜像站点</string>
     <string name="setup_download_prefix">前缀</string>
+    <string name="setup_download_proxy">HTTP 代理</string>
     <string name="setup_tool_files">文件</string>
     <string name="setup_tool_files_hint">浏览和管理文件</string>
     <string name="setup_tool_protons">Proton 版本</string>
