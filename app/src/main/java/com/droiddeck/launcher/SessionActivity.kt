@@ -410,11 +410,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun followPanelRefresh(displayId: Int) {
-        if (!CompositorHost.isStarted) return
-        val output = glassesScreen?.display
-            ?: (if (Build.VERSION.SDK_INT >= 30) display else windowManager.defaultDisplay) ?: return
+        val output = activeOutputDisplay() ?: return
         if (output.displayId != displayId) return
-        applyOutputPacing()
+        if (output.refreshRate <= 1f) return
+        val hz = activeRefreshHz(output)
+        if (CompositorHost.isStarted) applyOutputPacingAt(hz) else SessionState.refreshHz = hz
     }
     private var isHomeApp by mutableStateOf(false)
     private var androidApps by mutableStateOf<List<HomeApp.LaunchableApp>>(emptyList())
@@ -1658,7 +1658,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         else null
         val size = live ?: if (SessionState.running) previous else glassesOutputSize() ?: outputSize()
         SessionState.outputSize = size
-        if (!SessionState.running) SessionState.refreshHz = refreshHz()
+        SessionState.refreshHz = activeOutputDisplay()?.let(::activeRefreshHz) ?: refreshHz()
         val panel = panelBounds()
         SessionState.upscaleRatio = maxOf(panel.width(), panel.height()).toFloat() / maxOf(size.first, size.second).coerceAtLeast(1)
         Thread({
@@ -1775,12 +1775,15 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
         super.onConfigurationChanged(newConfig)
+        applyOutputPacing()
+        if (started) SessionService.setActivityDisplay(this, shownOnDisplayId)
         if (refreshActivityDisplayId() && started) {
             SessionService.setActivityDisplay(this, sessionActivityDisplayId)
         }
         cancelTouchGestures()
         applyFollowOrientation(newConfig)
         applyUnfoldedControls()
+        refreshSecondScreenDisplays()
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
@@ -1837,24 +1840,40 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         return if (capped > 1f) capped else 60f
     }
 
+    private fun activeOutputDisplay(): Display? = glassesScreen?.display
+        ?: runCatching { if (Build.VERSION.SDK_INT >= 30) display else windowManager.defaultDisplay }.getOrNull()
+        ?: getSystemService(android.hardware.display.DisplayManager::class.java)
+            ?.getDisplay(Display.DEFAULT_DISPLAY)
+
+    private fun activeRefreshHz(output: Display): Float {
+        val mirrorCap = mirrorRefreshLimit().takeIf { it > 0 }?.toFloat() ?: Float.POSITIVE_INFINITY
+        val cap = if (glassesScreen?.display?.displayId == output.displayId) mirrorCap else minOf(PerfMode.peakRefreshCap(this), mirrorCap)
+        val capped = minOf(output.refreshRate, cap)
+        return if (capped > 1f) capped else 60f
+    }
+
+    private fun activeRefreshHz(): Float = activeOutputDisplay()?.let(::activeRefreshHz) ?: refreshHz()
+
     private fun mirrorRefreshLimit(): Int =
         GlassesRendering.mirrorRefreshLimit(glassesSettings, glasses, glassesScreen != null)
 
     private fun outputFpsLimit(): Int = GlassesRendering.fpsLimit(SessionState.fpsLimit, mirrorRefreshLimit())
 
-    private fun applyOutputPacing() {
+    private fun applyOutputPacing() = applyOutputPacingAt(null)
+
+    private fun applyOutputPacingAt(activeHz: Float?) {
         Log.i(TAG, "perf: " + PerfMode.apply(this, outputFpsLimit(), mirrorRefreshLimit()))
+        val hz = activeHz ?: activeOutputDisplay()?.let(::activeRefreshHz) ?: refreshHz()
+        val changed = kotlin.math.abs(SessionState.refreshHz - hz) > 0.1f
+        SessionState.refreshHz = hz
         if (CompositorHost.isStarted) {
-            val hz = refreshHz()
-            val changed = kotlin.math.abs(SessionState.refreshHz - hz) > 0.1f
             CompositorHost.updatePacing(hz, outputFpsLimit())
-            pushCardboard(activeCardboard)
-            if (changed && ::surfaceView.isInitialized) applyFrameGen()
+            pushCardboard(activeCardboard, hz)
+            if (changed && ::surfaceView.isInitialized) applyFrameGen(hz)
         }
     }
 
-    private fun applyFrameGen() {
-        val hz = refreshHz()
+    private fun applyFrameGen(hz: Float = activeRefreshHz()) {
         Thread({
             val problem = FrameGen.apply(this, hz)
             val state = Lossless.state(this)
@@ -3253,13 +3272,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         updateHeadTracker()
     }
 
-    private fun pushCardboard(c: Cardboard) {
+    private fun pushCardboard(c: Cardboard, hz: Float = activeRefreshHz()) {
         val fov = when {
             c.viewer != Cardboard.Viewer.VITURE.id -> 0f
             c.source == Cardboard.SOURCE_SBS -> glassesSettings.vrFovDeg.toFloat()
             else -> glasses.verticalFovDeg
         }
-        panelSizeMm().let { (w, h) -> c.push(w, h, fov, refreshHz()) }
+        panelSizeMm().let { (w, h) -> c.push(w, h, fov, hz) }
     }
 
     private fun effectiveCardboard(c: Cardboard): Cardboard = GlassesRendering.cardboard(
