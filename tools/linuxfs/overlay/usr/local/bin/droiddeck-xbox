@@ -15,7 +15,18 @@ import threading
 
 BIN = Path(__file__).resolve().parent
 RUNTIME = Path('/usr/local/lib/droiddeck-xbox')
-DLLS = ('xgameruntime.dll', 'winhttp.dll', 'windows.web.dll', 'twinapi.appcore.dll', 'libnghttp2.dll')
+DLLS = ('xgameruntime.dll', 'winhttp.dll', 'windows.web.dll', 'twinapi.appcore.dll', 'wintypes.dll', 'libnghttp2.dll')
+CLASSES = {
+    'twinapi.appcore.dll': ('Windows.ApplicationModel.DataTransfer.DataTransferManager',
+                            'Windows.Security.ExchangeActiveSyncProvisioning.EasClientDeviceInformation',
+                            'Windows.System.Profile.AnalyticsInfo', 'Windows.System.UserProfile.AdvertisingManager',
+                            'Windows.UI.ViewManagement.ApplicationView'),
+    'windows.web.dll': ('Windows.Data.Json.JsonArray', 'Windows.Data.Json.JsonObject', 'Windows.Data.Json.JsonValue'),
+    'wintypes.dll': ('Windows.Foundation.PropertyValue', 'Windows.Foundation.Collections.PropertySet',
+                     'Windows.Foundation.Metadata.ApiInformation', 'Windows.Storage.Streams.Buffer',
+                     'Windows.Storage.Streams.DataWriter'),
+}
+CLASS_KEY = 'Software\\Microsoft\\WindowsRuntime\\ActivatableClassId\\'
 
 
 def bridge(upstream):
@@ -102,6 +113,28 @@ def bridge(upstream):
     return server.getsockname()[1], key.decode('ascii'), close
 
 
+def register_classes(proton, prefix, env):
+    try:
+        registry = (prefix / 'system.reg').read_text(encoding='utf-8', errors='replace')
+    except OSError:
+        return
+    missing = [(name, dll) for dll, names in CLASSES.items() for name in names
+               if '[%s]' % (CLASS_KEY + name).replace('\\', '\\\\') not in registry]
+    if not missing:
+        return
+    text = 'Windows Registry Editor Version 5.00\r\n\r\n' + ''.join(
+        '[HKEY_LOCAL_MACHINE\\%s%s]\r\n"DllPath"="C:\\\\windows\\\\system32\\\\%s"\r\n\r\n' % (CLASS_KEY, name, dll)
+        for name, dll in missing)
+    with tempfile.TemporaryDirectory(prefix='droiddeck-xbox-') as temporary:
+        source = Path(temporary) / 'classes.reg'
+        source.write_bytes(b'\xff\xfe' + text.encode('utf-16-le'))
+        try:
+            subprocess.run([proton, 'run', 'reg.exe', 'import', 'Z:' + str(source).replace('/', '\\')],
+                           stdout=sys.stderr, env=env, timeout=90)
+        except subprocess.TimeoutExpired:
+            print('droiddeck-xbox: Windows Runtime class registration timed out', file=sys.stderr)
+
+
 def wine(argv, source_env=None):
     source_env = os.environ if source_env is None else source_env
     with open(source_env['DROIDDECK_XBOX_COMMAND_FILE'], encoding='utf-8') as file:
@@ -124,6 +157,7 @@ def wine(argv, source_env=None):
         if target.is_symlink():
             target.unlink()
         shutil.copyfile(RUNTIME / 'windows' / name, target)
+    register_classes(command[0], prefix, env)
     overrides = ';'.join(name[:-4] + '=n' for name in DLLS if name != 'libnghttp2.dll')
     env['WINEDLLOVERRIDES'] = overrides + ';' + env.get('WINEDLLOVERRIDES', '')
     return subprocess.call([*command[:2], argv[0], *command[3:]], env=env)
