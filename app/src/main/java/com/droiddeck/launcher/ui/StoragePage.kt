@@ -548,6 +548,13 @@ private fun GamesView(report: StorageReport, sessionRunning: Boolean, a: FrontEn
                     Column(Modifier.weight(1f)) {
                         Text(g.name, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text(g.folder.path, fontSize = 12.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        val appId = g.steamAppId
+                        if (appId != null && report.missingInstalls.none { it.appId == appId }) {
+                            Text(
+                                stringResource(R.string.storage_added_adopt_owned_hint, appId),
+                                fontSize = 12.sp, color = colors.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                            )
+                        }
                     }
                     Text(gb(g.bytes), fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, modifier = Modifier.widthIn(min = 72.dp))
                     Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {

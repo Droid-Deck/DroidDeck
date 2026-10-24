@@ -30,6 +30,7 @@ class GameUsage(
 class AddedGameUsage(
     val folder: File, val name: String, val exe: File?, val bytes: Long,
     val steamLibraryRoot: File? = null, val steamInstallDir: String? = null,
+    val steamAppId: Int? = null,
 )
 
 class MissingInstall(
@@ -298,7 +299,7 @@ object StorageScan {
                 }
                 AddedGameUsage(
                     game.folder, game.name, game.exe.takeIf { it.isFile }, walker.measure(game.folder),
-                    adoption?.let { it.third.first }, adoption?.let { it.third.second },
+                    adoption?.let { it.third.first }, adoption?.let { it.third.second }, steamId,
                 )
             }
             .sortedByDescending { it.bytes }
