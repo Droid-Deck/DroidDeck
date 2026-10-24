@@ -664,10 +664,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 onDispose { com.droiddeck.launcher.glasses.GlassesMenuMirror.setSessionMenuVisible(this@SessionActivity, false) }
             }
             androidx.compose.runtime.LaunchedEffect(drawerOpen, pcKeyboardOpen, achievementsOpen, pipUi) { updatePointerCapture() }
-            androidx.compose.runtime.LaunchedEffect(loading.visible) { refreshControls() }
             androidx.compose.runtime.LaunchedEffect(AgentGuest.steamKeyboard) { updateOnScreenControls() }
             androidx.compose.runtime.LaunchedEffect(picturePosition, SessionState.running, pipUi, cardboard.enabled) { applyGameAlignment() }
             DroidDeckTheme {
+            LaunchedEffect(loading.visible) { refreshControls() }
             if (pipUi) {
                 if (SessionState.suspended) androidx.compose.foundation.layout.Box(
                     Modifier.fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.Center,
