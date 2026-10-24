@@ -35,12 +35,12 @@ class SteamShareTest(unittest.TestCase):
         self.x64 = home / 'x64/Steam'
         self.card = home / 'card'
         self.shared = home / 'x64/shared'
-        for root in (self.arm, self.x64):
+        for root, tool in ((self.arm, 'droiddeck-proton-arm64'), (self.x64, 'droiddeck-proton-a64')):
             (root / 'steamapps/common').mkdir(parents=True)
             (root / 'config').mkdir()
             (root / 'compatibilitytools.d/proton').mkdir(parents=True)
             (root / 'compatibilitytools.d/proton/compatibilitytool.vdf').write_text(
-                '"compatibilitytools"\n{\n\t"compat_tools"\n\t{\n\t\t"droiddeck-proton-arm64"\n\t\t{\n\t\t}\n\t}\n}\n')
+                '"compatibilitytools"\n{\n\t"compat_tools"\n\t{\n\t\t"%s"\n\t\t{\n\t\t}\n\t}\n}\n' % tool)
         (self.arm / 'config/config.vdf').write_text(CONFIG % mapping(_0='droiddeck-proton-arm64', _413150='droiddeck-fex'))
         (self.x64 / 'config/config.vdf').write_text(CONFIG % '')
         self.install(self.arm, '413150', 'Stardew Valley')
@@ -73,7 +73,19 @@ class SteamShareTest(unittest.TestCase):
         self.run_share('x86-64')
         tools = SHARE['entries']((self.x64 / 'config/config.vdf').read_text())
         self.assertEqual(tools['413150'], 'droiddeck-direct')
-        self.assertEqual(tools['13210'], 'droiddeck-proton-arm64')
+        self.assertEqual(tools['13210'], 'droiddeck-proton-a64')
+
+    def test_an_automatic_x64_proton_is_replaced(self):
+        (self.x64 / 'config/config.vdf').write_text(CONFIG % mapping(_13210='droiddeck-proton-11-a64'))
+        (self.arm / 'config/config.vdf').write_text(CONFIG % mapping(_0='droiddeck-proton-arm64'))
+        self.run_share('x86-64')
+        self.assertEqual(SHARE['entries']((self.x64 / 'config/config.vdf').read_text())['13210'], 'droiddeck-proton-a64')
+
+    def test_an_x64_proton_pick_reaches_the_arm64_client(self):
+        self.install(self.x64, '550', 'Left 4 Dead 2')
+        (self.x64 / 'config/config.vdf').write_text(CONFIG % mapping(_550='droiddeck-proton-a64'))
+        self.run_share('arm64')
+        self.assertEqual(SHARE['entries']((self.arm / 'config/config.vdf').read_text())['550'], 'droiddeck-proton-arm64')
 
     def test_a_tool_the_user_chose_is_kept(self):
         (self.x64 / 'config/config.vdf').write_text(CONFIG % mapping(_13210='my-proton'))

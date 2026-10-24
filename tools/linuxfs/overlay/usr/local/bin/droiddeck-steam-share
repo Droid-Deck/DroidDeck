@@ -203,7 +203,7 @@ def set_tools(config, wanted):
         if m:
             name = re.search(r'"name"\s*"([^"]*)"', m.group(1))
             name = name.group(1) if name else ""
-            if name == tool or not (name in AUTOMATIC or name.startswith("proton_")):
+            if name == tool or not (canonical(name) in map(canonical, AUTOMATIC) or name.startswith("proton_")):
                 continue
             inner = inner[:m.start()] + inner[m.end():]
         inner = ('\n\t\t\t\t\t"%s"\n\t\t\t\t\t{\n\t\t\t\t\t\t"name"\t\t"%s"\n\t\t\t\t\t\t"config"\t\t""\n'
@@ -214,12 +214,16 @@ def set_tools(config, wanted):
     return changed
 
 
+def canonical(name):
+    return re.sub(r"arm64|aarch64", "a64", name)
+
+
 def translate(name, here, available):
     if name == "droiddeck-fex" and here == "x86-64":
         return "droiddeck-direct"
     if name == "droiddeck-direct" and here == "arm64":
         return "droiddeck-fex"
-    return name if name in available else None
+    return {canonical(a): a for a in available}.get(canonical(name))
 
 
 def library_helper():
