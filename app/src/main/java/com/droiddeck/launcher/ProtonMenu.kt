@@ -10,6 +10,7 @@ import androidx.compose.runtime.setValue
 import com.droiddeck.launcher.session.ProtonExtras
 import com.droiddeck.launcher.ui.ProtonRow
 import com.droiddeck.launcher.session.SessionState
+import com.droiddeck.launcher.session.SessionPhase
 import com.droiddeck.launcher.frontend.AutoComponents
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.runtime.LinuxRuntimeInstaller
@@ -91,6 +92,7 @@ internal class ProtonMenu(
     internal fun ensureAutoUpdates(now: Long = System.currentTimeMillis()) {
         if (activity.isFinishing || activity.isDestroyed || !idle() || protonBusyId != null ||
             ProtonExtras.installInProgress || SessionState.running || LinuxRuntimeInstaller.isBusy() ||
+            SessionState.phase !in setOf(SessionPhase.IDLE, SessionPhase.FAILED) ||
             !LinuxRuntime.isInstalled(activity) || !AutoComponents.online(activity) || AutoComponents.unfavourable(activity)) return
         val attempts = activity.getSharedPreferences("proton-auto-updates", android.content.Context.MODE_PRIVATE)
         val (tool, update) = ProtonExtras.tools.firstNotNullOfOrNull { tool ->

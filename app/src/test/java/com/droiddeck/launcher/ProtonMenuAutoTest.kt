@@ -9,6 +9,7 @@ import com.droiddeck.launcher.frontend.AutoComponents
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.session.ProtonExtras
 import com.droiddeck.launcher.session.SessionState
+import com.droiddeck.launcher.session.SessionPhase
 import com.droiddeck.launcher.ui.LaunchOrigin
 import com.droiddeck.launcher.ui.Motion
 import org.json.JSONObject
@@ -44,6 +45,7 @@ class ProtonMenuAutoTest {
         AutoComponents.online = { true }
         AutoComponents.unfavourable = { false }
         SessionState.running = false
+        SessionState.phase = SessionPhase.IDLE
         LaunchOrigin.take()
         LaunchOrigin.flooding = null
         val latest = JSONObject()
@@ -62,6 +64,7 @@ class ProtonMenuAutoTest {
         AutoComponents.online = online
         AutoComponents.unfavourable = constrained
         SessionState.running = false
+        SessionState.phase = SessionPhase.IDLE
         LaunchOrigin.take()
         LaunchOrigin.flooding = null
     }
@@ -162,6 +165,19 @@ class ProtonMenuAutoTest {
         next.ensureAutoUpdates()
         assertNull(next.protonBusyId)
         assertEquals(listOf("droiddeck"), attempts)
+    }
+
+    @Test fun automaticUpdatesWaitForEveryNonEndedSessionPhaseEvenWhenRunningIsFalse() {
+        install("DroidDeck-Proton-11-11.1")
+        for (phase in SessionPhase.entries.filter { it != SessionPhase.IDLE && it != SessionPhase.FAILED }) {
+            SessionState.phase = phase
+            menu.ensureAutoUpdates()
+            assertNull("Must wait during $phase", menu.protonBusyId)
+        }
+        SessionState.phase = SessionPhase.FAILED
+        menu.ensureAutoUpdates()
+        waitUntil { menu.protonBusyId == null }
+        assertEquals("DroidDeck-Proton-11-12", ProtonExtras.installed(activity, ProtonExtras.tools.first { it.id == "droiddeck" }))
     }
 
     @Test fun aPendingAnimatedLaunchPreventsAnAutomaticInstall() {
