@@ -77,6 +77,7 @@ object Syncthing {
     private var foreground = false
     private val watchers = AtomicInteger()
     private val pauseFailures = AtomicInteger()
+    private val pauseLock = Any()
     private val leaveForeground = Runnable { foreground = false; evaluate() }
 
     fun home(context: Context) = File(context.filesDir, "syncthing")
@@ -513,7 +514,8 @@ object Syncthing {
         }
     }
 
-    private fun applyPause(client: SyncthingApi) {
+    // Runs from the worker, poll and enforce threads; serialised so an older decision can't land after a newer one.
+    private fun applyPause(client: SyncthingApi) = synchronized(pauseLock) {
         val context = app
         val auto = autoPauseReason()
         val want = SyncPrefs.userPaused(context) || auto != null

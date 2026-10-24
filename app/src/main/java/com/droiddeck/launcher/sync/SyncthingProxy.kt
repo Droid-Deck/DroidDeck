@@ -11,6 +11,8 @@ import java.net.ServerSocket
 import java.net.Socket
 import java.net.SocketTimeoutException
 import java.security.MessageDigest
+import java.util.Collections
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Semaphore
 
 /**
@@ -24,12 +26,21 @@ class SyncthingProxy(private val socket: File, private val auth: String) : Close
     val url = "http://127.0.0.1:${server.localPort}/"
     val cookie = "$COOKIE=$token"
     private val workers = Semaphore(MAX_WORKERS)
+    private val open: MutableSet<Closeable> = Collections.newSetFromMap(ConcurrentHashMap())
 
     init {
         Thread(::accept, "syncthing-proxy").apply { isDaemon = true }.start()
     }
 
-    override fun close() { runCatching { server.close() } }
+    override fun close() {
+        runCatching { server.close() }
+        open.forEach { runCatching { it.close() } }
+    }
+
+    private fun track(c: Closeable) {
+        open += c
+        if (server.isClosed) runCatching { c.close() }
+    }
 
     private fun accept() {
         while (true) {
@@ -39,9 +50,10 @@ class SyncthingProxy(private val socket: File, private val auth: String) : Close
                 continue
             }
             val worker = runCatching {
-                Thread({ try { serve(client) } finally { workers.release() } }, "syncthing-proxy-request").apply { isDaemon = true }.start()
+                track(client)
+                Thread({ try { serve(client) } finally { open -= client; workers.release() } }, "syncthing-proxy-request").apply { isDaemon = true }.start()
             }
-            if (worker.isFailure) { workers.release(); runCatching { client.close() } }
+            if (worker.isFailure) { open -= client; workers.release(); runCatching { client.close() } }
         }
     }
 
@@ -57,19 +69,24 @@ class SyncthingProxy(private val socket: File, private val auth: String) : Close
             }
             deadline.lift()
             LocalSocket().use { upstream ->
-                upstream.connect(LocalSocketAddress(socket.path, LocalSocketAddress.Namespace.FILESYSTEM))
-                val head = StringBuilder(request).append("\r\n")
-                headers.filter { it.first.lowercase() !in DROPPED }.forEach { (name, value) ->
-                    val kept = if (name.equals("Cookie", ignoreCase = true)) withoutToken(value) else value
-                    if (kept.isNotEmpty()) head.append(name).append(": ").append(kept).append("\r\n")
-                }
-                // One request per connection keeps every request behind the cookie check above.
-                head.append("Authorization: ").append(auth).append("\r\nConnection: close\r\n\r\n")
-                upstream.outputStream.write(head.toString().toByteArray(Charsets.ISO_8859_1))
-                Thread({ runCatching { input.copyTo(upstream.outputStream) } }, "syncthing-proxy-body").apply { isDaemon = true }.start()
-                upstream.inputStream.copyTo(client.getOutputStream())
+                track(upstream)
+                try { relay(client, input, request, headers, upstream) } finally { open -= upstream }
             }
         }
+    }
+
+    private fun relay(client: Socket, input: InputStream, request: String, headers: List<Pair<String, String>>, upstream: LocalSocket) {
+        upstream.connect(LocalSocketAddress(socket.path, LocalSocketAddress.Namespace.FILESYSTEM))
+        val head = StringBuilder(request).append("\r\n")
+        headers.filter { it.first.lowercase() !in DROPPED }.forEach { (name, value) ->
+            val kept = if (name.equals("Cookie", ignoreCase = true)) withoutToken(value) else value
+            if (kept.isNotEmpty()) head.append(name).append(": ").append(kept).append("\r\n")
+        }
+        // One request per connection keeps every request behind serve's cookie check.
+        head.append("Authorization: ").append(auth).append("\r\nConnection: close\r\n\r\n")
+        upstream.outputStream.write(head.toString().toByteArray(Charsets.ISO_8859_1))
+        Thread({ runCatching { input.copyTo(upstream.outputStream) } }, "syncthing-proxy-body").apply { isDaemon = true }.start()
+        upstream.inputStream.copyTo(client.getOutputStream())
     }
 
     private fun cookies(header: String) = header.split(';').map { it.trim() }
