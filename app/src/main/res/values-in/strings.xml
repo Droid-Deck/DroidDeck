@@ -2633,6 +2633,9 @@
     <string name="storage_game_parts">Gim %1$s · data %2$s</string>
     <string name="storage_uninstall">Hapus instalasi</string>
     <string name="storage_games_note">Menghapus instalasi membuka jendela Steam agar Steam mencatatnya. Untuk memindahkan gim ke kartu SD, pakai Steam › Setelan › Penyimpanan.</string>
+    <string name="storage_added_games">Game tambahan · %1$s</string>
+    <string name="storage_added_games_hint">Game yang ditambahkan dari folder, dengan ukuran penuhnya. Pindahkan agar folder tetap utuh; shortcut, catatan prefix, dan entri library ditulis ulang ke lokasi baru. Hentikan sesi dulu.</string>
+    <string name="storage_added_move_missing">Folder game tidak ditemukan.</string>
     <string name="storage_uninstall_title">Hapus instalasi %1$s?</string>
     <string name="storage_uninstall_body">Steam akan terbuka dan meminta konfirmasi. Ini mengosongkan %1$s gim. Prefix tetap ada sampai sisa dibersihkan, dan save Steam Cloud tetap di akun Anda.</string>
     <string name="storage_open_steam">Buka Steam</string>

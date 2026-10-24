@@ -4,9 +4,11 @@ import android.content.Context
 import android.os.StatFs
 import android.system.Os
 import android.system.OsConstants
+import com.droiddeck.launcher.frontend.AddedGames
 import com.droiddeck.launcher.frontend.Library
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import android.util.Log
+import com.droiddeck.launcher.stores.StoreInstallRoot
 import com.droiddeck.launcher.runtime.FlatpakManager
 import com.droiddeck.launcher.session.ComponentsManager
 import com.droiddeck.launcher.session.SecondaryLibrary
@@ -26,6 +28,10 @@ class GameUsage(
     val data: Long get() = prefix + shaders + workshop
     val total: Long get() = game + data
 }
+
+class AddedGameUsage(
+    val folder: File, val name: String, val exe: File?, val bytes: Long,
+)
 
 enum class ToolState { IN_USE, REQUIRED, UNUSED }
 enum class ToolReason { DEFAULT_PROTON, PROTON, FEX_RUNTIME, ARM_RUNTIME, REDISTRIBUTABLES, FEX, STEAM_TOOL, OLD_RUNTIME, X86_PROTON, CUSTOM, CUSTOM_UNKNOWN, X64_CLIENT }
@@ -63,6 +69,7 @@ class StorageReport(
     val flatpakRuntimes: Long,
     val otherPrefixes: Long,
     val leftoversChecked: Boolean,
+    val addedGames: List<AddedGameUsage> = emptyList(),
 ) {
     val droiddeck: Long get() = buckets.values.sum()
     val installedShaders: Long get() = games.sumOf { it.shaders }
@@ -249,6 +256,22 @@ object StorageScan {
             File(lib.data, "steamapps/compatdata").listFiles().orEmpty().filter { it.isDirectory && SteamStorage.leftoverId(it.name) == null }
         }.sumOf { walker.measure(it) }
 
+        // Games added with Games > Add a game have no manifest; they are measured by folder
+        // so they can be moved too. Steam-managed and store-managed folders stay with their owners.
+        val steamManaged = libs.map { canonical(File(it.root, "steamapps")) }
+        val storeManaged = runCatching { StoreInstallRoot.roots(context) }.getOrDefault(emptyList()).map { it.absolutePath }
+        val addedGames = runCatching { AddedGames.scan(context) }.getOrDefault(emptyList())
+            .distinctBy { canonical(it.folder) }
+            .filter { game ->
+                val path = canonical(game.folder)
+                steamManaged.none { path == it || path.startsWith("$it/") } &&
+                    storeManaged.none { path == it || path.startsWith("$it/") }
+            }
+            .map { game ->
+                AddedGameUsage(game.folder, game.name, game.exe.takeIf { it.isFile }, walker.measure(game.folder))
+            }
+            .sortedByDescending { it.bytes }
+
         val clientRoots = listOfNotNull(steamRoot, x64Root)
         val apps = clientRoots.map { File(it, "steamapps") }
         val privateRoots = File(files, "steam-libraries").listFiles().orEmpty().filter { it.isDirectory }
@@ -288,7 +311,7 @@ object StorageScan {
             ),
             prefixes, shaders, workshop, flatpak,
             games.sortedByDescending { it.total }, tools.values.toList(), leftovers, logs, logBytes,
-            components, flatpakApps, flatpakRuntimes, otherPrefixes, everyLibraryRead,
+            components, flatpakApps, flatpakRuntimes, otherPrefixes, everyLibraryRead, addedGames,
         )
     }
 }

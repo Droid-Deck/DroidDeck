@@ -51,7 +51,7 @@ class AgentStartActivity : Activity() {
     }
 
     private fun startSession(request: JSONObject) {
-        if (com.droiddeck.launcher.storage.SteamGameMove.running) {
+        if (com.droiddeck.launcher.storage.SteamGameMove.running || com.droiddeck.launcher.storage.AddedGameMove.running) {
             android.widget.Toast.makeText(this, com.droiddeck.launcher.R.string.storage_move_wait, android.widget.Toast.LENGTH_SHORT).show()
             finish()
             return

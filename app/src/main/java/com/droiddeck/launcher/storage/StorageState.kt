@@ -81,7 +81,7 @@ object StorageState {
     fun safeBytes(report: StorageReport): Long = SAFE.sumOf { bytes(report, it) }
 
     fun clean(context: Context, items: Set<CleanItem>, onDone: (Long?) -> Unit) {
-        if (cleaning || SessionState.running || SteamGameMove.running) { onDone(null); return }
+        if (cleaning || SessionState.running || SteamGameMove.running || AddedGameMove.running) { onDone(null); return }
         val app = context.applicationContext
         appContext = app
         cleaning = true
@@ -98,7 +98,7 @@ object StorageState {
     }
 
     fun removeTool(context: Context, tool: ToolUsage, onDone: (Long?) -> Unit) {
-        if (tool.state != ToolState.UNUSED || cleaning || SessionState.running || SteamGameMove.running) { onDone(null); return }
+        if (tool.state != ToolState.UNUSED || cleaning || SessionState.running || SteamGameMove.running || AddedGameMove.running) { onDone(null); return }
         val app = context.applicationContext
         cleaning = true
         Thread({
@@ -117,7 +117,7 @@ object StorageState {
 
     // Every action works from a fresh scan so nothing is deleted on the strength of an older one.
     private fun act(context: Context, name: String, action: (Context, StorageReport) -> Boolean, onDone: (Long?) -> Unit = {}) {
-        if (cleaning || SessionState.running || SteamGameMove.running) { onDone(null); return }
+        if (cleaning || SessionState.running || SteamGameMove.running || AddedGameMove.running) { onDone(null); return }
         val app = context.applicationContext
         appContext = app
         cleaning = true
