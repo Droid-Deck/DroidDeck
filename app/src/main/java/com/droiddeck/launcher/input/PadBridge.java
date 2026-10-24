@@ -11,6 +11,10 @@ import com.droiddeck.launcher.session.SessionState;
 
 import java.io.File;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicIntegerArray;
 
 public final class PadBridge {
@@ -48,6 +52,7 @@ public final class PadBridge {
     private final PadState state = new PadState();
     private final int[] owners = new int[SLOTS];
     private final int[] partners = new int[SLOTS];
+    private final Map<Integer, Set<Integer>> padGripOwners = new HashMap<>();
     private volatile java.util.function.IntPredicate excluded = id -> false;
     private final FakeInputWriter[] playerWriters = new FakeInputWriter[SLOTS];
     private final PadState[] playerStates = new PadState[SLOTS];
@@ -73,6 +78,57 @@ public final class PadBridge {
     private String statDevice;
     private boolean statsScheduled;
     private final java.util.Set<Integer> seenDevices = new java.util.HashSet<>();
+    /** device id, key code and scan code of keys already logged as unmapped / as a grip. */
+    private final java.util.Set<String> loggedKeys = new java.util.HashSet<>();
+
+    /** Razer's USB vendor id: the Kishi line. */
+    static final int RAZER_VENDOR = 0x1532;
+
+    /** Linux scan codes of BTN_C and BTN_Z: the Kishi V3 Pro's L4 and R4 in its HID mode. */
+    static final int SCAN_BTN_C = 306, SCAN_BTN_Z = 309;
+
+    /**
+     * A Razer Kishi's back buttons as Android reports them. On a Kishi V3 Pro in its HID mode
+     * (1532:0724) the gamepad sends L4 as BTN_C (KEYCODE_BUTTON_C) and R4 as BTN_Z
+     * (KEYCODE_BUTTON_Z), seen with getevent. In a Steam session they hold the Deck's L4 and R4
+     * grips. (M1/M2 send nothing of their own: Razer Cortex can only make them copy another
+     * button, e.g. C/Z.) Returns the DeckControls bit, or 0.
+     */
+    static int kishiGrip(int vendorId, int keyCode) {
+        if (vendorId != RAZER_VENDOR) return 0;
+        switch (keyCode) {
+            case KeyEvent.KEYCODE_BUTTON_C: return DeckControls.L4;   // Kishi L4 (BTN_C)
+            case KeyEvent.KEYCODE_BUTTON_Z: return DeckControls.R4;   // Kishi R4 (BTN_Z)
+            default: return 0;
+        }
+    }
+
+    /**
+     * Android's fallback for an unhandled BUTTON_C / BUTTON_Z is DPAD_CENTER, carrying the same
+     * scan code; from a Razer pad that would act as A / select (and, not being a pad key, would
+     * be forwarded to the desktop as a keyboard key). Such an event is swallowed. Only from a
+     * controller device: a keyboard's Enter is KEYCODE_ENTER, and BTN_C / BTN_Z are gamepad
+     * scan codes no keyboard sends.
+     */
+    static boolean isKishiGripFallback(boolean fromController, int vendorId, int keyCode, int scanCode) {
+        return fromController && vendorId == RAZER_VENDOR && keyCode == KeyEvent.KEYCODE_DPAD_CENTER
+                && (scanCode == SCAN_BTN_C || scanCode == SCAN_BTN_Z);
+    }
+
+    private static String gripName(int bit) {
+        return bit == DeckControls.L4 ? "L4" : bit == DeckControls.R4 ? "R4" : bit == DeckControls.L5 ? "L5" : bit == DeckControls.R5 ? "R5" : "?";
+    }
+
+    /** Logs a key from a pad (or a Razer device) once per device, key code and scan code. */
+    private void logKeyOnce(KeyEvent event, String what) {
+        InputDevice d = event.getDevice();
+        String key = event.getDeviceId() + ":" + event.getKeyCode() + ":" + event.getScanCode() + ":" + what;
+        if (!loggedKeys.add(key)) return;
+        Log.i(TAG, String.format(java.util.Locale.ROOT, "key %s: %s (code %d, scan %d) from \"%s\" (%04x:%04x, id %d, sources 0x%x); deck pad %b",
+                what, KeyEvent.keyCodeToString(event.getKeyCode()), event.getKeyCode(), event.getScanCode(),
+                d != null ? d.getName() : "?", d != null ? d.getVendorId() : 0, d != null ? d.getProductId() : 0,
+                event.getDeviceId(), d != null ? d.getSources() : 0, SessionState.getDeckPad()));
+    }
     private int lastDeviceId = Integer.MIN_VALUE;
 
     public static final int NO_CONTROLLER = -1;
@@ -168,6 +224,7 @@ public final class PadBridge {
         chordButtonPressed = false;
         qamTapPressed = false;
         qamChordGeneration++;
+        releaseAllPadGrips();
         if (open) {
             state.clear();
             writer.writePad(state);
@@ -282,13 +339,36 @@ public final class PadBridge {
     }
 
     public synchronized boolean onKeyEvent(KeyEvent event) {
-        if (!isControllerKeyEvent(event) || excluded.test(event.getDeviceId())) return false;
-        int slot = slotFor(event.getDevice());
+        InputDevice device = event.getDevice();
+        boolean pressed = event.getAction() == KeyEvent.ACTION_DOWN;
+        if (device != null && isKishiGripFallback(isFromController(device), device.getVendorId(), event.getKeyCode(), event.getScanCode())) {
+            if (pressed) logKeyOnce(event, "swallowed (fallback of a Kishi L4/R4)");
+            return true;
+        }
+        if (device == null) return false;
+        if (!isControllerKeyEvent(event)) {
+            if (pressed && isFromController(device) && device.getVendorId() == RAZER_VENDOR)
+                logKeyOnce(event, "unmapped (Razer pad, not a pad key)");
+            return false;
+        }
+        if (excluded.test(event.getDeviceId())) return false;
+        int slot = slotFor(device);
         if (slot < 0) return false;
-        int side = JoyCon.side(event.getDevice());
+        int side = JoyCon.side(device);
         if (side >= 0 && partners[slot] != NO_CONTROLLER && JoyCon.isRail(side, event.getScanCode())) return true;
         PadState pad = stateFor(slot);
-        boolean pressed = event.getAction() == KeyEvent.ACTION_DOWN;
+        // A Kishi's L4/R4 (pad keys from the pad itself): only for a Deck controller, which has
+        // the grips to put them on.
+        int grip = device != null && SessionState.getDeckPad() && isControllerKey(event) ? kishiGrip(device.getVendorId(), event.getKeyCode()) : 0;
+        if (grip != 0) {
+            if (pressed) logKeyOnce(event, "-> Deck " + gripName(grip));
+            noteDevice(device, slot);
+            if (event.getRepeatCount() == 0 || !pressed) setPadGrip(device.getId(), grip, pressed);
+            if (pressed) notePlayerInput();
+            statButtons++;
+            scheduleStats();
+            return true;
+        }
         switch (event.getKeyCode()) {
             case KeyEvent.KEYCODE_BUTTON_A: pad.press(0, pressed); break;
             case KeyEvent.KEYCODE_BUTTON_B: pad.press(1, pressed); break;
@@ -319,9 +399,11 @@ public final class PadBridge {
             case KeyEvent.KEYCODE_DPAD_RIGHT: pad.right = pressed; break;
             case KeyEvent.KEYCODE_DPAD_DOWN: pad.down = pressed; break;
             case KeyEvent.KEYCODE_DPAD_LEFT: pad.left = pressed; break;
-            default: return false;
+            default:
+                if (pressed) logKeyOnce(event, "unmapped");
+                return false;
         }
-        noteDevice(event.getDevice(), slot);
+        noteDevice(device, slot);
         if (pressed) notePlayerInput();
         statButtons++;
         scheduleStats();
@@ -459,6 +541,7 @@ public final class PadBridge {
     public synchronized void releaseAll() {
         routedTouch.clear();
         releaseBackPaddles();
+        releaseAllPadGrips();
         state.clear();
         publish();
         for (int slot = 1; slot < SLOTS; slot++) {
@@ -469,9 +552,32 @@ public final class PadBridge {
     }
 
     public synchronized void onDeviceRemoved(int deviceId) {
+        releasePadGripsForDevice(deviceId);
         for (int slot = 0; slot < SLOTS; slot++) {
             if (owners[slot] == deviceId || partners[slot] == deviceId) leave(slot, deviceId);
         }
+    }
+
+    private void setPadGrip(int deviceId, int bit, boolean down) {
+        Set<Integer> devices = padGripOwners.computeIfAbsent(bit, ignored -> new HashSet<>());
+        if (down) devices.add(deviceId);
+        else devices.remove(deviceId);
+        if (devices.isEmpty()) padGripOwners.remove(bit);
+        DeckControls.INSTANCE.setPadGrip(bit, !devices.isEmpty());
+    }
+
+    private void releasePadGripsForDevice(int deviceId) {
+        for (int bit : new int[]{DeckControls.L4, DeckControls.R4}) {
+            Set<Integer> devices = padGripOwners.get(bit);
+            if (devices == null || !devices.remove(deviceId)) continue;
+            if (devices.isEmpty()) padGripOwners.remove(bit);
+            DeckControls.INSTANCE.setPadGrip(bit, !devices.isEmpty());
+        }
+    }
+
+    private void releaseAllPadGrips() {
+        padGripOwners.clear();
+        DeckControls.INSTANCE.releasePadGrips();
     }
 
     private static boolean nativeQam() {

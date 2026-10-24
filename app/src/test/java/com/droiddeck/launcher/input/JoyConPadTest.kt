@@ -5,6 +5,7 @@ import android.view.InputDevice
 import android.view.KeyCharacterMap
 import android.view.KeyEvent
 import android.view.MotionEvent
+import com.droiddeck.launcher.session.SessionState
 import java.io.File
 import java.nio.file.Files
 import org.junit.After
@@ -73,6 +74,24 @@ class JoyConPadTest {
         assertTrue("the left rail released the right shoulder", pad(0).isDown(PadState.RB))
         assertTrue(press(right, KeyEvent.KEYCODE_BUTTON_L1, BTN_TL))
         assertFalse(pad(0).isDown(PadState.LB))
+    }
+
+    @Test fun removingAKishiReleasesItsHeldBackGrip() {
+        SessionState.deckPad = true
+        val kishi = InputDeviceBuilder.newBuilder().setId(nextId++).setName("Kishi").setDescriptor("kishi")
+            .setExternal(true).setVendorId(0x1532).setProductId(0x0a00)
+            .setSources(InputDevice.SOURCE_GAMEPAD or InputDevice.SOURCE_JOYSTICK)
+            .setKeyboardType(InputDevice.KEYBOARD_TYPE_NON_ALPHABETIC)
+            .setKeyCharacterMap(KeyCharacterMap.load(KeyCharacterMap.VIRTUAL_KEYBOARD)).build()
+        register(kishi)
+        try {
+            assertTrue(bridge.onKeyEvent(key(kishi, KeyEvent.KEYCODE_BUTTON_C, BTN_C)))
+            assertEquals(DeckControls.L4, RecordingWriter.grips and DeckControls.L4)
+            bridge.onDeviceRemoved(kishi.id)
+            assertEquals("a disconnected Kishi left its Deck back grip held", 0, RecordingWriter.grips and DeckControls.L4)
+        } finally {
+            SessionState.deckPad = false
+        }
     }
 
     @Test fun captureOnTheFirstPlayerIsTheLeftGripUntilPairingReleasesIt() {
@@ -186,6 +205,7 @@ class JoyConPadTest {
         const val BTN_SOUTH = 0x130
         const val BTN_NORTH = 0x133
         const val BTN_Z = 0x135
+        const val BTN_C = 0x132
         const val BTN_TL = 0x136
         const val BTN_TR = 0x137
     }
