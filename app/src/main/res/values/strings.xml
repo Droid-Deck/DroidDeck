@@ -2096,6 +2096,18 @@
     <string name="stores_itch_browse_failed">Could not load games from itch.io</string>
     <string name="stores_itch_archive">%1$s archives are not supported</string>
     <string name="stores_itch_download_failed">itch.io answered HTTP %1$d</string>
+    <string name="stores_itch_pick_title">Choose a version</string>
+    <string name="stores_itch_pick_none">No downloads found for this game</string>
+    <string name="stores_itch_pick_failed">Could not load the downloads from itch.io</string>
+    <string name="stores_itch_build_demo">Demo</string>
+    <string name="stores_itch_build_open">Open on itch.io</string>
+    <string name="stores_itch_build_linux_soon">Not supported yet</string>
+    <string name="stores_itch_no_game">Could not find this game on itch.io</string>
+    <string name="stores_itch_build_windows" translatable="false">Windows</string>
+    <string name="stores_itch_build_macos" translatable="false">macOS</string>
+    <string name="stores_itch_build_linux" translatable="false">Linux</string>
+    <string name="stores_itch_build_android" translatable="false">Android</string>
+    <string name="stores_itch_build_web" translatable="false">Web</string>
     <string name="stores_free">Free</string>
     <string name="stores_resume">Resume</string>
     <string name="stores_refresh">Refresh</string>

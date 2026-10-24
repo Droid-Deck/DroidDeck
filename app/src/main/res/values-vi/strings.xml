@@ -1998,6 +1998,13 @@
     <string name="stores_itch_browse_failed">Không tải được game từ itch.io</string>
     <string name="stores_itch_archive">Không hỗ trợ tệp %1$s</string>
     <string name="stores_itch_download_failed">itch.io trả về HTTP %1$d</string>
+    <string name="stores_itch_pick_title">Chọn phiên bản</string>
+    <string name="stores_itch_pick_none">Không tìm thấy bản tải xuống cho trò chơi này</string>
+    <string name="stores_itch_pick_failed">Không thể tải danh sách tải xuống từ itch.io</string>
+    <string name="stores_itch_build_demo">Bản demo</string>
+    <string name="stores_itch_build_open">Mở trên itch.io</string>
+    <string name="stores_itch_build_linux_soon">Chưa được hỗ trợ</string>
+    <string name="stores_itch_no_game">Không tìm thấy trò chơi này trên itch.io</string>
     <string name="stores_free">Miễn phí</string>
     <string name="stores_resume">Tiếp tục</string>
     <string name="stores_refresh">Làm mới</string>

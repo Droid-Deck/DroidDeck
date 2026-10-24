@@ -2019,6 +2019,13 @@
     <string name="stores_itch_browse_failed">Pelien lataaminen itch.io:sta epäonnistui</string>
     <string name="stores_itch_archive">%1$s-arkistot eivät ole tuettuja</string>
     <string name="stores_itch_download_failed">itch.io vastasi HTTP %1$d</string>
+    <string name="stores_itch_pick_title">Valitse versio</string>
+    <string name="stores_itch_pick_none">Tälle pelille ei löytynyt latauksia</string>
+    <string name="stores_itch_pick_failed">Latausten haku itch.iosta epäonnistui</string>
+    <string name="stores_itch_build_demo">Demo</string>
+    <string name="stores_itch_build_open">Avaa itch.iossa</string>
+    <string name="stores_itch_build_linux_soon">Ei vielä tuettu</string>
+    <string name="stores_itch_no_game">Peliä ei löytynyt itch.iosta</string>
     <string name="stores_free">Ilmainen</string>
     <string name="stores_resume">Jatka</string>
     <string name="stores_refresh">Päivitä</string>

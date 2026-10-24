@@ -2787,6 +2787,13 @@
     <string name="stores_itch_browse_failed">No se pudieron cargar los juegos de itch.io</string>
     <string name="stores_itch_archive">Los archivos %1$s no son compatibles</string>
     <string name="stores_itch_download_failed">itch.io respondió HTTP %1$d</string>
+    <string name="stores_itch_pick_title">Elige una versión</string>
+    <string name="stores_itch_pick_none">No se encontraron descargas para este juego</string>
+    <string name="stores_itch_pick_failed">No se pudieron cargar las descargas de itch.io</string>
+    <string name="stores_itch_build_demo">Demo</string>
+    <string name="stores_itch_build_open">Abrir en itch.io</string>
+    <string name="stores_itch_build_linux_soon">Aún no es compatible</string>
+    <string name="stores_itch_no_game">No se encontró este juego en itch.io</string>
     <string name="glasses_experimental">Cámaras Luma Ultra — Experimental</string>
     <string name="glasses_joycons">Seguimiento de posición de los Joy-Con</string>
     <string name="glasses_joycons_hint">Usa las cámaras de las gafas inteligentes para posicionar tus mandos Joy-Con emparejados. La rotación y las pulsaciones de los botones provienen de los mandos Joy-Con. La posición se estima cuando tus muñecas están ocultas. Reemplaza los mandos operados con las manos desnudas y pausa el seguimiento de la cámara del teléfono. Apunta los mandos Joy-Con hacia adelante al conectar o restablecer el centro de seguimiento.</string>

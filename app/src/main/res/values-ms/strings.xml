@@ -1998,6 +1998,13 @@
     <string name="stores_itch_browse_failed">Tidak dapat memuatkan permainan daripada itch.io</string>
     <string name="stores_itch_archive">Arkib %1$s tidak disokong</string>
     <string name="stores_itch_download_failed">itch.io menjawab HTTP %1$d</string>
+    <string name="stores_itch_pick_title">Pilih versi</string>
+    <string name="stores_itch_pick_none">Tiada muat turun ditemui untuk permainan ini</string>
+    <string name="stores_itch_pick_failed">Tidak dapat memuatkan muat turun daripada itch.io</string>
+    <string name="stores_itch_build_demo">Demo</string>
+    <string name="stores_itch_build_open">Buka di itch.io</string>
+    <string name="stores_itch_build_linux_soon">Belum disokong</string>
+    <string name="stores_itch_no_game">Permainan ini tidak ditemui di itch.io</string>
     <string name="stores_free">Percuma</string>
     <string name="stores_resume">Sambung</string>
     <string name="stores_refresh">Segar semula</string>

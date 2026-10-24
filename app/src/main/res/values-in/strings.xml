@@ -1998,6 +1998,13 @@
     <string name="stores_itch_browse_failed">Tidak dapat memuat game dari itch.io</string>
     <string name="stores_itch_archive">Arsip %1$s tidak didukung</string>
     <string name="stores_itch_download_failed">itch.io menjawab HTTP %1$d</string>
+    <string name="stores_itch_pick_title">Pilih versi</string>
+    <string name="stores_itch_pick_none">Tidak ada unduhan untuk game ini</string>
+    <string name="stores_itch_pick_failed">Tidak dapat memuat unduhan dari itch.io</string>
+    <string name="stores_itch_build_demo">Demo</string>
+    <string name="stores_itch_build_open">Buka di itch.io</string>
+    <string name="stores_itch_build_linux_soon">Belum didukung</string>
+    <string name="stores_itch_no_game">Game ini tidak ditemukan di itch.io</string>
     <string name="stores_free">Gratis</string>
     <string name="stores_resume">Lanjutkan</string>
     <string name="stores_refresh">Segarkan</string>

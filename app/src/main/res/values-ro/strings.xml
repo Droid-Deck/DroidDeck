@@ -2040,6 +2040,13 @@
     <string name="stores_itch_browse_failed">Nu s-au putut încărca jocurile de pe itch.io</string>
     <string name="stores_itch_archive">Arhivele %1$s nu sunt acceptate</string>
     <string name="stores_itch_download_failed">itch.io a răspuns HTTP %1$d</string>
+    <string name="stores_itch_pick_title">Alege o versiune</string>
+    <string name="stores_itch_pick_none">Nu s-au găsit descărcări pentru acest joc</string>
+    <string name="stores_itch_pick_failed">Descărcările de pe itch.io nu au putut fi încărcate</string>
+    <string name="stores_itch_build_demo">Demo</string>
+    <string name="stores_itch_build_open">Deschide pe itch.io</string>
+    <string name="stores_itch_build_linux_soon">Încă nu este acceptat</string>
+    <string name="stores_itch_no_game">Jocul nu a fost găsit pe itch.io</string>
     <string name="stores_free">Gratuit</string>
     <string name="stores_resume">Reluare</string>
     <string name="stores_refresh">Reîmprospătează</string>

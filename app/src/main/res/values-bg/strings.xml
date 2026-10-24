@@ -2019,6 +2019,13 @@
     <string name="stores_itch_browse_failed">Игрите от itch.io не можаха да се заредят</string>
     <string name="stores_itch_archive">Архивите %1$s не се поддържат</string>
     <string name="stores_itch_download_failed">itch.io отговори HTTP %1$d</string>
+    <string name="stores_itch_pick_title">Изберете версия</string>
+    <string name="stores_itch_pick_none">Не са намерени изтегляния за тази игра</string>
+    <string name="stores_itch_pick_failed">Изтеглянията от itch.io не можаха да се заредят</string>
+    <string name="stores_itch_build_demo">Демо</string>
+    <string name="stores_itch_build_open">Отваряне в itch.io</string>
+    <string name="stores_itch_build_linux_soon">Все още не се поддържа</string>
+    <string name="stores_itch_no_game">Играта не беше намерена в itch.io</string>
     <string name="stores_free">Безплатна</string>
     <string name="stores_resume">Продължи</string>
     <string name="stores_refresh">Обнови</string>

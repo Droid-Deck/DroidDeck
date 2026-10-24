@@ -2061,6 +2061,13 @@
     <string name="stores_itch_browse_failed">Не вдалося завантажити ігри з itch.io</string>
     <string name="stores_itch_archive">Архіви %1$s не підтримуються</string>
     <string name="stores_itch_download_failed">itch.io відповів HTTP %1$d</string>
+    <string name="stores_itch_pick_title">Виберіть версію</string>
+    <string name="stores_itch_pick_none">Для цієї гри не знайдено завантажень</string>
+    <string name="stores_itch_pick_failed">Не вдалося завантажити список файлів з itch.io</string>
+    <string name="stores_itch_build_demo">Демо</string>
+    <string name="stores_itch_build_open">Відкрити на itch.io</string>
+    <string name="stores_itch_build_linux_soon">Ще не підтримується</string>
+    <string name="stores_itch_no_game">Не вдалося знайти цю гру на itch.io</string>
     <string name="stores_free">Безкоштовно</string>
     <string name="stores_resume">Продовжити</string>
     <string name="stores_refresh">Оновити</string>

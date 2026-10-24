@@ -546,6 +546,7 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
         if (fresh.isNotEmpty()) StoresMotion.takeInstall()?.let { StoresMotion.fly(it) }
     }
     StoresState.pendingInstall?.let { item -> StoreTheme(item.store) { InstallWhere(item) } }
+    StoresState.itchPicking?.let { item -> StoreTheme(item.store) { ItchBuildPicker(item) { StoresState.itchPicking = null } } }
 }
 
 @Composable
@@ -1103,8 +1104,6 @@ private fun Storefront(
                         if (EpicClient.status.installed) a.onEpicLauncher()
                         else { EpicClient.install(ctx); StoresState.openDownloads = true }
                     }
-                    val debugging = remember { com.droiddeck.launcher.agent.AgentAccess.commandsEnabled(ctx.applicationContext) }
-                    if (store == Store.ITCH && debugging) SmallTextButton("Test itch.io") { com.droiddeck.launcher.stores.itch.ItchProbe.run(ctx) }
                     SmallTextButton(stringResource(R.string.stores_refresh)) { StoresState.open(ctx, store, force = true) }
                     val name = StoresState.accounts[store] ?: ""
                     SignOutButton(store, name)

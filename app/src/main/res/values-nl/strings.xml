@@ -2019,6 +2019,13 @@
     <string name="stores_itch_browse_failed">Games van itch.io konden niet worden geladen</string>
     <string name="stores_itch_archive">%1$s-archieven worden niet ondersteund</string>
     <string name="stores_itch_download_failed">itch.io antwoordde HTTP %1$d</string>
+    <string name="stores_itch_pick_title">Kies een versie</string>
+    <string name="stores_itch_pick_none">Geen downloads gevonden voor deze game</string>
+    <string name="stores_itch_pick_failed">De downloads van itch.io konden niet worden geladen</string>
+    <string name="stores_itch_build_demo">Demo</string>
+    <string name="stores_itch_build_open">Openen op itch.io</string>
+    <string name="stores_itch_build_linux_soon">Nog niet ondersteund</string>
+    <string name="stores_itch_no_game">Deze game is niet gevonden op itch.io</string>
     <string name="stores_free">Gratis</string>
     <string name="stores_resume">Hervatten</string>
     <string name="stores_refresh">Vernieuwen</string>

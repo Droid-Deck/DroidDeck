@@ -2019,6 +2019,13 @@
     <string name="stores_itch_browse_failed">Det gick inte att läsa in spel från itch.io</string>
     <string name="stores_itch_archive">%1$s-arkiv stöds inte</string>
     <string name="stores_itch_download_failed">itch.io svarade HTTP %1$d</string>
+    <string name="stores_itch_pick_title">Välj en version</string>
+    <string name="stores_itch_pick_none">Inga nedladdningar hittades för det här spelet</string>
+    <string name="stores_itch_pick_failed">Det gick inte att läsa in nedladdningarna från itch.io</string>
+    <string name="stores_itch_build_demo">Demo</string>
+    <string name="stores_itch_build_open">Öppna på itch.io</string>
+    <string name="stores_itch_build_linux_soon">Stöds inte ännu</string>
+    <string name="stores_itch_no_game">Spelet hittades inte på itch.io</string>
     <string name="stores_free">Gratis</string>
     <string name="stores_resume">Återuppta</string>
     <string name="stores_refresh">Uppdatera</string>

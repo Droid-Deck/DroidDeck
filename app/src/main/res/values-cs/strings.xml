@@ -2061,6 +2061,13 @@
     <string name="stores_itch_browse_failed">Hry z itch.io se nepodařilo načíst</string>
     <string name="stores_itch_archive">Archivy %1$s nejsou podporovány</string>
     <string name="stores_itch_download_failed">itch.io odpovědělo HTTP %1$d</string>
+    <string name="stores_itch_pick_title">Vyberte verzi</string>
+    <string name="stores_itch_pick_none">Pro tuto hru nebyla nalezena žádná stažení</string>
+    <string name="stores_itch_pick_failed">Stahování z itch.io se nepodařilo načíst</string>
+    <string name="stores_itch_build_demo">Demo</string>
+    <string name="stores_itch_build_open">Otevřít na itch.io</string>
+    <string name="stores_itch_build_linux_soon">Zatím nepodporováno</string>
+    <string name="stores_itch_no_game">Tuto hru se na itch.io nepodařilo najít</string>
     <string name="stores_free">Zdarma</string>
     <string name="stores_resume">Pokračovat</string>
     <string name="stores_refresh">Obnovit</string>

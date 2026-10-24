@@ -2042,6 +2042,13 @@
     <string name="stores_itch_browse_failed">No se pudieron cargar los juegos de itch.io</string>
     <string name="stores_itch_archive">Los archivos %1$s no son compatibles</string>
     <string name="stores_itch_download_failed">itch.io respondió HTTP %1$d</string>
+    <string name="stores_itch_pick_title">Elige una versión</string>
+    <string name="stores_itch_pick_none">No se han encontrado descargas para este juego</string>
+    <string name="stores_itch_pick_failed">No se pudieron cargar las descargas de itch.io</string>
+    <string name="stores_itch_build_demo">Demo</string>
+    <string name="stores_itch_build_open">Abrir en itch.io</string>
+    <string name="stores_itch_build_linux_soon">Aún no es compatible</string>
+    <string name="stores_itch_no_game">No se ha encontrado este juego en itch.io</string>
     <string name="stores_free">Gratis</string>
     <string name="stores_resume">Reanudar</string>
     <string name="stores_refresh">Actualizar</string>

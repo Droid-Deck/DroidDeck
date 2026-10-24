@@ -176,6 +176,10 @@ internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: Fro
                                 ) { openStoreUrl(ctx, item) }
                             }
                         }
+                        item != null && store == Store.ITCH && item.isFree -> {
+                            InstallButton(stringResource(R.string.stores_install), leadOn) { StoresState.requestInstall(ctx, item) }
+                            SecondaryButton(stringResource(R.string.stores_view_on, store.shortLabel)) { openStoreUrl(ctx, item) }
+                        }
                         item != null && item.isFree -> PrimaryButton(stringResource(R.string.stores_get_free), main = true, modifier = leadOn) { openStoreUrl(ctx, item) }
                         item != null -> PrimaryButton(if (item.hasPrice && item.finalPrice.isNotBlank()) stringResource(R.string.stores_buy_price, item.finalPrice) else stringResource(R.string.stores_view_on, store.shortLabel), main = true, modifier = leadOn) { openStoreUrl(ctx, item) }
                     }
