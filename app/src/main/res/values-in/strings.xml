@@ -2621,6 +2621,7 @@
     <string name="storage_added_move_steam">Pasang ke Steam</string>
     <string name="storage_added_move_steam_title">Pasang %1$s ke Steam?</string>
     <string name="storage_added_adopt_pick">Pilih game Steam pemilik file-file ini. File pindah ke folder game itu, dan Steam mendeteksi instalasinya saat berikutnya dibuka.</string>
+    <string name="storage_added_adopt_owned_hint">App id Steam %1$d ditemukan, tetapi Steam tidak punya entri install untuknya. Jika kamu memiliki gamenya, jalankan sesi Steam sekali untuk mengimpornya — Install into Steam akan muncul di sini setelahnya.</string>
     <string name="storage_uninstall_title">Hapus instalasi %1$s?</string>
     <string name="storage_uninstall_body">Steam akan terbuka dan meminta konfirmasi. Ini mengosongkan %1$s gim. Prefix tetap ada sampai sisa dibersihkan, dan save Steam Cloud tetap di akun Anda.</string>
     <string name="storage_open_steam">Buka Steam</string>
