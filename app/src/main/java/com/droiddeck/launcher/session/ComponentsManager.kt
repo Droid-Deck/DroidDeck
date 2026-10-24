@@ -780,6 +780,17 @@ object ComponentsManager {
         true
     }
 
+    fun forgetProton(context: Context, dirName: String) {
+        synchronized(lock) {
+            val id = safeName(dirName)
+            if (protons(context).any { it.id == id }) return
+            val state = loadState(context)
+            val selected = listOf("active", "queued").map { state.sub(it).remove(id) != null }.any { it }
+            if (selected && runCatching { saveState(context, state) }.onFailure { Log.w(TAG, "forget $id", it) }.isFailure) return
+            File(originalsDir(context), id).deleteRecursively()
+        }
+    }
+
     fun deletePackage(context: Context, file: String): String = synchronized(lock) {
         val name = safeName(file)
         val state = loadState(context)
