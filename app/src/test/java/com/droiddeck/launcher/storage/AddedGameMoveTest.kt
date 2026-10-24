@@ -126,7 +126,7 @@ class AddedGameMoveTest {
         val library = tmp.newFolder("steamlib")
         val occupied = File(File(library, "steamapps/common"), "Clash").apply { mkdirs() }
         File(occupied, "other.exe").writeText("x")
-        val error = AddedGameMove.adoptIntoSteam(app, folder, library, MissingInstall(221, "Clash", library, "Clash", "Card"))
+        val error = AddedGameMove.adoptIntoSteam(app, folder, MissingInstall(221, "Clash", library, "Clash", "Card"))
         assertEquals(app.getString(com.droiddeck.launcher.R.string.storage_move_exists), error)
         assertTrue(File(folder, "game.exe").isFile)
     }
