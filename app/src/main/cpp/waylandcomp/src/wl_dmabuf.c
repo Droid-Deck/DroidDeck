@@ -34,6 +34,11 @@ static void params_add(struct wl_client *c, struct wl_resource *r, int32_t fd, u
 }
 static struct wl_resource *params_do_create(struct wl_client *c, struct wl_resource *r, uint32_t id,
                                             int32_t w, int32_t h, uint32_t format, uint32_t flags) {
+    if (vkp_completion_unknown()) {
+        wl_resource_post_error(r, ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_INVALID_WL_BUFFER,
+                               "GPU completion is unknown; restart DroidDeck");
+        return NULL;
+    }
     struct dmabuf_params *p = wl_resource_get_user_data(r);
     struct dmabuf_buffer *b = calloc(1, sizeof(*b));
     if (!b) return NULL;
