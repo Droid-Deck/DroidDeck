@@ -482,19 +482,30 @@ case $mode in
           bl_zram_scan
           step "zRAM: done ($(bl_zram_usage))"
         }
+        # The game process exists for the whole Proton launch. Compressing then stalls the
+        # launch, so the clock starts only once the game window has focus, and waits 20 s more.
+        bl_game_focused() {
+          [ -n "${BL_LAUNCH_DIR:-}" ] || return 1
+          local id
+          id=$(sed -n 's/.*"focusedApp"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p' \
+            "$BL_LAUNCH_DIR/agent/focus.json" 2>/dev/null | head -1)
+          [ -n "$id" ] && [ "$id" != 769 ]
+        }
         _bl_since=-1 _bl_packed=-1
         while kill -0 $$ 2>/dev/null; do
           bl_zram_scan
-          if [ "$_bl_game" = 1 ]; then
+          if [ "$_bl_game" = 1 ] && bl_game_focused; then
             [ "$_bl_since" -ge 0 ] || _bl_since=$SECONDS
             if [ $((SECONDS - _bl_since)) -ge 20 ] && [ "${#_bl_pids[@]}" -gt 0 ] &&
                { [ "$_bl_packed" -lt 0 ] || [ $((SECONDS - _bl_packed)) -ge 300 ]; }; then
               bl_zram_send 1 "compressing the client"
               _bl_packed=$SECONDS
             fi
-          elif [ "$_bl_since" -ge 0 ]; then
+          elif [ "$_bl_game" != 1 ]; then
             [ "$_bl_packed" -lt 0 ] || bl_zram_send 0 "game closed, reading the client back"
             _bl_since=-1 _bl_packed=-1
+          else
+            _bl_since=-1
           fi
           nap 5
         done
