@@ -2017,7 +2017,7 @@
     <string name="stores_itch_price_sale">På salg</string>
     <string name="stores_itch_load_more">Last inn flere</string>
     <string name="stores_itch_platform_any">Alle plattformer</string>
-    <string name="stores_itch_platform_mobile_web">Mobilnett</string>
+    <string name="stores_itch_platform_mobile_web">Web på mobil</string>
     <string name="stores_itch_tag_add">Legg til en tagg</string>
     <string name="stores_itch_tag_title">Filtrer etter tagg</string>
     <string name="stores_itch_browse_failed">Kunne ikke laste spill fra itch.io</string>
