@@ -10,6 +10,8 @@ if [ "$#" -ge 2 ] && [[ "$1" =~ ^(0[xX])?[0-9a-fA-F]+$ ]] &&
     export SDL_FRAMEBUFFER_ACCELERATION=0
     # Valve's helper disables Kopper; Zink needs it to reach the managed X11 WSI layer.
     unset LIBGL_KOPPER_DISABLE
+    # Forced lazy descriptors corrupt CEF render targets on Qualcomm v891.7.
+    export ZINK_DESCRIPTORS=auto
   fi
   exec -- "$@"
 fi
