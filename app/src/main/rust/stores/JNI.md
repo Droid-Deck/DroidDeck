@@ -198,7 +198,7 @@ completes.
 
 On-disk protocol: game files are staged in `<gameDir>/.droiddeck-epic-staging/*.stage` (owner
 marker `owner` = `DroidDeck Epic staging v1\n`) and renamed over their destination after size and
-SHA-1 checks; reusable chunks live, decompressed, as `<GUID>` (extra copies `<GUID>.<n>`, writes via
+SHA-1 checks; a paused run keeps each unfinished file there as `*.part` with its written parts in `*.part.list`; reusable chunks live, decompressed, as `<GUID>` (extra copies `<GUID>.<n>`, writes via
 `.part`) in `<gameDir>/.chunks` or the scratch directory.
 
 ## `com.droiddeck.launcher.stores.amazon.AmazonNative`
