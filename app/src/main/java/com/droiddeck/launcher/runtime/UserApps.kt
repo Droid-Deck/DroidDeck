@@ -14,6 +14,7 @@ import com.droiddeck.launcher.R
 import com.droiddeck.launcher.core.Downloader
 import com.droiddeck.launcher.core.FileUtils
 import com.droiddeck.launcher.core.Hashes
+import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.store.FlathubApi
 import org.json.JSONArray
 import org.json.JSONObject
@@ -173,9 +174,10 @@ object UserApps {
 
     fun binds(context: Context): List<String> {
         val internal = Environment.getExternalStorageDirectory().canonicalPath
+        val mounted = SessionPrefs.mountSharedStorage(context)
         return root(context).listFiles().orEmpty().mapNotNull { dir ->
             val target = runCatching { Os.readlink(File(dir, "files").path) }.getOrNull() ?: return@mapNotNull null
-            target.takeIf { !it.startsWith("$internal/") && File(it).isDirectory }
+            target.takeIf { !(mounted && it.startsWith("$internal/")) && File(it).isDirectory }
         }.distinct()
     }
 
@@ -410,7 +412,8 @@ object UserApps {
         if (!file.isFile) return context.getString(R.string.user_apps_file_gone)
         if (!FlatpakManager.ready(context)) FlatpakManager.setup(context, onProgress)?.let { return it }
         val shared = Environment.getExternalStorageDirectory().canonicalPath
-        val copy = File(LinuxRuntime.rootDir(context), "tmp/droiddeck-bundle.flatpak").takeIf { !file.canonicalPath.startsWith("$shared/") }
+        val copy = File(LinuxRuntime.rootDir(context), "tmp/droiddeck-bundle.flatpak")
+            .takeIf { !SessionPrefs.mountSharedStorage(context) || !file.canonicalPath.startsWith("$shared/") }
         try {
             if (copy != null) {
                 onProgress(context.getString(R.string.user_apps_copying, file.name), -1)

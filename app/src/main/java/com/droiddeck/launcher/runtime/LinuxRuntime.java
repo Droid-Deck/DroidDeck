@@ -121,7 +121,12 @@ public final class LinuxRuntime {
     public static List<String> lastBinds(Context context) {
         List<String> binds = lastBinds;
         if (binds != null) return binds;
-        return binds(context, null, null, android.os.Environment.getExternalStorageDirectory(), null);
+        return binds(context, null, null, sharedStorage(context), null);
+    }
+
+    /** The phone's shared storage, or null when it should stay out of the container. */
+    public static File sharedStorage(Context context) {
+        return SessionPrefs.mountSharedStorage(context) ? android.os.Environment.getExternalStorageDirectory() : null;
     }
 
     public static List<String> prootPrefix(Context context, File root, String cwd) {

@@ -379,6 +379,7 @@ class FrontEndActivity : ComponentActivity() {
     private var forceSsbs by mutableStateOf(false)
     private var steamClientArch by mutableStateOf("arm64")
     private var runSteamAtStartup by mutableStateOf(false)
+    private var mountSharedStorage by mutableStateOf(true)
     private var bootMovie by mutableStateOf(com.droiddeck.launcher.session.BootMovie.DROIDDECK_30)
     private var bootMovieSound by mutableStateOf(true)
     private var bootMovieCustomName by mutableStateOf<String?>(null)
@@ -1642,6 +1643,7 @@ class FrontEndActivity : ComponentActivity() {
                 mangoapp = mangoapp,
                 steamController = if (mode == SessionService.MODE_STEAM) steamController else null,
                 runSteamAtStartup = mode == SessionService.MODE_STEAM && runSteamAtStartup,
+                mountSharedStorage = mountSharedStorage,
                 bootMovie = if (mode == SessionService.MODE_STEAM) bootMovie else null,
                 bootMovieSound = bootMovieSound,
                 bootMovieCustomName = bootMovieCustomName,
@@ -1738,6 +1740,7 @@ class FrontEndActivity : ComponentActivity() {
                     SessionPrefs.setRunSteamAtStartup(this, on)
                     runSteamAtStartup = on
                 },
+                onMountSharedStorage = { on -> SessionPrefs.setMountSharedStorage(this, on); mountSharedStorage = on },
                 onBootMovie = { id -> com.droiddeck.launcher.session.BootMovie.select(this, id); loadBootMovie() },
                 onBootMovieSound = { on -> SessionPrefs.setBootMovieSound(this, on); bootMovieSound = on },
                 onImportBootMovie = {
@@ -1907,6 +1910,7 @@ class FrontEndActivity : ComponentActivity() {
         shaderPrecache = SessionPrefs.shaderPrecache(this)
         steamController = SessionPrefs.steamController(this)
         runSteamAtStartup = SessionPrefs.runSteamAtStartup(this)
+        mountSharedStorage = SessionPrefs.mountSharedStorage(this)
         loadBootMovie()
         hdrOn = SessionPrefs.hdr(this, mode)
         fpsLimit = SessionPrefs.fpsLimit(this, mode)

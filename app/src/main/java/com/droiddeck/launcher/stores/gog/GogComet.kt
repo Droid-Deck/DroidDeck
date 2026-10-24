@@ -1,7 +1,6 @@
 package com.droiddeck.launcher.stores.gog
 
 import android.content.Context
-import android.os.Environment
 import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -139,7 +138,7 @@ object GogComet {
             !File(LinuxRuntime.rootDir(context), BIN.removePrefix("/")).isFile) return reply(false, "not-installed")
         val data = File(context.filesDir, "gog-achievements").apply { mkdirs() }
         val ready = CountDownLatch(1)
-        val command = LinuxRuntime.command(context, null, null, Environment.getExternalStorageDirectory(),
+        val command = LinuxRuntime.command(context, null, null, LinuxRuntime.sharedStorage(context),
             listOf("/usr/bin/env", "HOME=/root", "XDG_DATA_HOME=${data.path}/data", "XDG_CONFIG_HOME=${data.path}/config", "COMET_LOG=off", "COMET_ALLOWED_CLIENTS=${policy.path}", BIN, "--credentials-stdin"))
         val pb = ProcessBuilder(command).redirectErrorStream(true)
         pb.environment().apply {
