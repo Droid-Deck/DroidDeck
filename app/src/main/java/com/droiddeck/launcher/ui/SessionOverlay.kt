@@ -339,6 +339,8 @@ class DrawerActions(
     val onUnfoldedControls: (Boolean) -> Unit = {},
     val unfoldedControlsWithController: Boolean = false,
     val onUnfoldedControlsWithController: (Boolean) -> Unit = {},
+    val externalOutput: Boolean? = null,
+    val onExternalOutput: (Boolean) -> Unit = {},
     val onShareLogs: () -> Unit,
     val onStop: () -> Unit,
     val onStopFrom: ((androidx.compose.ui.geometry.Rect?) -> Unit)? = null,
@@ -586,6 +588,9 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                         SessionDrawerPage.HUD -> DroidDeckHudSettings(host, a) { key -> focus.track(page, key) }
                         SessionDrawerPage.DISPLAY -> {
                             SettingsGroup(stringResource(R.string.drawer_page_display)) {
+                                if (a.externalOutput != null) ToggleRow(host, "external-output", stringResource(R.string.external_output),
+                                    stringResource(R.string.external_output_hint), a.externalOutput,
+                                    chipModifier = focus.track(page, "external-output"), onChange = a.onExternalOutput)
                                 val fgOpen = host.open == "fg"
                                 val offLabel = stringResource(R.string.frame_gen_off)
                                 val fgLabel = FrameGen.label(LocalContext.current, a.frameGen)
