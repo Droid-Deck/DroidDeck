@@ -27,6 +27,7 @@ object Library {
     const val ADDED = "added"
     const val EPIC_LAUNCHER = "epic-launcher"
     const val EPIC_LAUNCHER_NAME = "Epic Games Launcher"
+    const val XBOX_CLOUD = "xbox-cloud"
     const val SOURCE_STEAM = "steam"
 
     class Rom(val name: String, val hostPath: File, val guestPath: String, val emulatorId: String, val art: File? = null)

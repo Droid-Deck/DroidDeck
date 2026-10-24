@@ -8,7 +8,7 @@ import java.io.File
 import java.util.Locale
 
 object WinCompSources {
-    enum class Origin { STEAM, GOG, EPIC, AMAZON, STEAM_NAME, FOLDER }
+    enum class Origin { STEAM, GOG, EPIC, AMAZON, STEAM_NAME, FOLDER, XBOX }
 
     data class Finding(val component: String?, val original: String, val origin: Origin, val auto: Boolean, val args: List<String> = emptyList())
 
@@ -48,6 +48,16 @@ object WinCompSources {
     }
 
     fun installer(path: String): List<String> = if (UE_PREREQ.containsMatchIn(path)) listOf("vcredist2022", "d3dx9") else DependencyDetector.componentsFor(path)
+
+    private val XBOX_KNOWN = Regex("""<KnownDependency\s+Name="([A-Za-z0-9_.-]{1,40})"""")
+    private val XBOX_COMPONENTS = mapOf("VC14" to "vcredist2022")
+
+    /** Microsoft installs a PC Game Pass game's declared runtimes with it; VC14 is wanted by nearly all and is always added. */
+    fun xbox(folder: File?): List<Pair<String, String>> {
+        val config = folder?.listFiles().orEmpty().firstOrNull { it.isFile && it.name.equals("MicrosoftGame.config", ignoreCase = true) && it.length() < 1L shl 20 }
+        val declared = config?.let { file -> runCatching { XBOX_KNOWN.findAll(file.readText()).map { it.groupValues[1] }.toList() }.getOrNull() }.orEmpty()
+        return (listOf("VC14") + declared).mapNotNull { name -> XBOX_COMPONENTS[name]?.let { it to name } }.distinctBy { it.first }
+    }
 
     fun steamDepots(ids: List<String>): List<Pair<String, String>> = ids.mapNotNull { SteamRedists.DEPOTS[it] }.distinctBy { it.first }
 
@@ -94,6 +104,7 @@ object WinCompSources {
                     parts.forEach { out += Finding(it, original, Origin.EPIC, true) }
                 }
             }
+            store == Store.XBOX -> xbox(folder).forEach { (component, original) -> out += Finding(component, original, Origin.XBOX, true) }
             store == Store.AMAZON -> folder?.let { amazonPostInstall(it) }?.forEach { command ->
                 val parts = installer(command)
                 val original = command.replace('\\', '/').substringAfterLast('/')

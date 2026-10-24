@@ -152,6 +152,20 @@
             android:process=":xboxlogin" android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|density"
             android:theme="@style/AppTheme" />
 
+        <activity android:name=".stores.xbox.XboxCloudPlayerActivity" android:exported="false"
+            android:screenOrientation="sensorLandscape" android:hardwareAccelerated="true"
+            android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|smallestScreenSize|density|navigation|uiMode"
+            android:theme="@style/AppTheme" />
+
+        <activity android:name=".stores.xbox.XboxCloudActivity" android:exported="false"
+            android:process=":xboxcloud" android:launchMode="singleTop" android:screenOrientation="sensorLandscape"
+            android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|smallestScreenSize|density|navigation|uiMode"
+            android:theme="@style/AppTheme" />
+
+        <activity android:name=".stores.xbox.XboxCloudSettingsActivity" android:exported="false"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|density"
+            android:theme="@style/AppTheme" />
+
         <activity
             android:name=".stores.StoreLoginActivity"
             android:exported="false"

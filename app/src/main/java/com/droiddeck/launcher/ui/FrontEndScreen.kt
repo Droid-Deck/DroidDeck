@@ -395,6 +395,9 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
         }
         a.onNavigated()
     }
+    LaunchedEffect(com.droiddeck.launcher.stores.StoresState.openGameRequest) {
+        if (com.droiddeck.launcher.stores.StoresState.openGameRequest != null) selected = "stores"
+    }
     var showWirelessAdbFix by rememberSaveable { mutableStateOf(false) }
     var showDeveloperDisplayChoice by rememberSaveable { mutableStateOf(false) }
     var wirelessAdbDesiredEnabled by rememberSaveable { mutableStateOf(false) }

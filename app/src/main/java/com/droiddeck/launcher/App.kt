@@ -25,6 +25,10 @@ class App : Application() {
             if (android.os.Build.VERSION.SDK_INT >= 28) android.webkit.WebView.setDataDirectorySuffix("xbox")
             return
         }
+        if (process == "$packageName:xboxcloud") {
+            if (android.os.Build.VERSION.SDK_INT >= 28) android.webkit.WebView.setDataDirectorySuffix("xboxcloud")
+            return
+        }
         if (process == "$packageName:vr_recovery" || process == "$packageName:rgb_diagnostic") return
         CrashHandler.install(this)
         com.droiddeck.launcher.session.QuestExperimental.initialize(this)
