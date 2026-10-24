@@ -58,11 +58,13 @@ class WinCompSourcesTest {
 
     @Test fun xboxGamesAlwaysGetVisualCppAndTheirDeclaredRuntimes() {
         val folder = tmp.newFolder("xbox")
-        assertEquals(listOf("vcredist2022" to "VC14"), WinCompSources.xbox(folder))
+        val vc = listOf("vcredist2022" to "VC14", "vcredist2022_arm64" to "VC14")
+        assertEquals(vc, WinCompSources.xbox(folder))
         File(folder, "MicrosoftGame.Config").writeText("""<Game><DesktopRegistration><DependencyList><KnownDependency Name="VC14"/></DependencyList></DesktopRegistration></Game>""")
-        assertEquals(listOf("vcredist2022" to "VC14"), WinCompSources.xbox(folder))
+        assertEquals(vc, WinCompSources.xbox(folder))
         sidecar(folder, Store.XBOX, emptyMap())
-        assertEquals(listOf("vcredist2022" to WinCompSources.Origin.XBOX), auto(WinCompSources.forGame(app, game(folder, Store.XBOX.id))).distinct())
+        assertEquals(listOf("vcredist2022" to WinCompSources.Origin.XBOX, "vcredist2022_arm64" to WinCompSources.Origin.XBOX),
+            auto(WinCompSources.forGame(app, game(folder, Store.XBOX.id))).distinct())
     }
 
     @Test fun steamworksSharedDepotsMapToComponents() {
