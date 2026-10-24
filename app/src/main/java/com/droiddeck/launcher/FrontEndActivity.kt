@@ -91,7 +91,7 @@ class FrontEndActivity : ComponentActivity() {
     private val components = ComponentsMenu(this, ui)
     private val decky = DeckyMenu(this, ui)
     private val updates = UpdatesMenu(this, ui)
-    private val protons = ProtonMenu(this, ui) { !busy && pkgStage == null && components.compBusy == null }
+    private val protons = ProtonMenu(this, ui) { !busy && flood == null && pkgStage == null && components.compBusy == null }
 
     private var installed by mutableStateOf<String?>(null)
     private var flood by mutableStateOf<PendingFlood?>(null)
@@ -460,7 +460,13 @@ class FrontEndActivity : ComponentActivity() {
     }
 
     private fun launchFlooded(f: PendingFlood) {
-        if (busy || LinuxRuntimeInstaller.isBusy()) { flood = null; floodProgress = 0f; return }
+        if (busy || LinuxRuntimeInstaller.isBusy() || protons.protonBusyId != null ||
+            ProtonExtras.installInProgress || pkgStage != null) {
+            flood = null
+            floodProgress = 0f
+            com.droiddeck.launcher.ui.LaunchOrigin.flooding = null
+            return
+        }
         val signal = com.droiddeck.launcher.ui.Themes.byId(theme).signal
         super.startActivity(f.intent.putExtra(com.droiddeck.launcher.ui.EXTRA_FLOOD, signal.toArgb()))
         overridePendingTransition(0, 0)

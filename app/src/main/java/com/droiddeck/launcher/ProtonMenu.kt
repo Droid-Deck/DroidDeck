@@ -24,7 +24,6 @@ internal class ProtonMenu(
     var protonStage by mutableStateOf<String?>(null)
     var protonPercent by mutableIntStateOf(-1)
     private val checking = java.util.concurrent.atomic.AtomicBoolean(false)
-    private val autoAttempts = HashMap<String, Pair<String, Long>>()
     @VisibleForTesting internal var installer: (ProtonExtras.Tool, (String, Int) -> Unit) -> String? =
         { tool, progress -> ProtonExtras.install(activity, tool, progress) }
 
@@ -93,12 +92,13 @@ internal class ProtonMenu(
         if (activity.isFinishing || activity.isDestroyed || !idle() || protonBusyId != null ||
             ProtonExtras.installInProgress || SessionState.running || LinuxRuntimeInstaller.isBusy() ||
             !LinuxRuntime.isInstalled(activity) || !AutoComponents.online(activity) || AutoComponents.unfavourable(activity)) return
+        val attempts = activity.getSharedPreferences("proton-auto-updates", android.content.Context.MODE_PRIVATE)
         val (tool, update) = ProtonExtras.tools.firstNotNullOfOrNull { tool ->
             val update = ProtonExtras.update(activity, tool) ?: return@firstNotNullOfOrNull null
-            val previous = autoAttempts[tool.id]
-            if (previous == null || previous.first != update || now - previous.second !in 0 until 15L * 60 * 1000) tool to update else null
+            val previous = attempts.getLong("${tool.id}.at", 0L)
+            if (attempts.getString("${tool.id}.tag", null) != update || now - previous !in 0 until 15L * 60 * 1000) tool to update else null
         } ?: return
-        autoAttempts[tool.id] = update to now
+        attempts.edit().putString("${tool.id}.tag", update).putLong("${tool.id}.at", now).apply()
         installProton(tool.id, automatic = true)
     }
 }
