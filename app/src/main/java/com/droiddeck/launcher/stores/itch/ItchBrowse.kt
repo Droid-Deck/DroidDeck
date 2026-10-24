@@ -10,7 +10,6 @@ import org.json.JSONArray
 import java.io.File
 import java.security.MessageDigest
 
-/** What the Store tab is showing: an order, a price filter and, later, platforms and tags. The default is the front page. */
 internal data class BrowseQuery(
     val sort: String = ItchBrowse.SORT_POPULAR,
     val price: String = ItchBrowse.PRICE_ANY,
@@ -38,7 +37,6 @@ internal object ItchBrowse {
     const val PRICE_UNDER_15 = "15-dollars-or-less"
     val prices = listOf(PRICE_ANY, PRICE_FREE, PRICE_SALE, PRICE_PAID, PRICE_UNDER_5, PRICE_UNDER_15)
 
-    /** Platform names as itch spells them in `platform-<name>`. */
     val platformNames = listOf("windows", "osx", "linux", "android", "ios", "web", "mobile-web")
 
     private const val BASE = "https://itch.io/games"
@@ -50,25 +48,21 @@ internal object ItchBrowse {
     @Volatile private var lastRequestAt = 0L
     private val lock = Any()
 
-    /** The path piece itch uses for each choice; the default sort and price have none. */
     private fun sortSegment(sort: String): String? = sort.takeIf { it != SORT_POPULAR && it in sorts }
 
     private fun priceSegment(price: String): String? = price.takeIf { it != PRICE_ANY && it in prices }
 
-    /** The address of [query]'s page on itch: sort, price, platforms, then tags, as itch's own links spell them. */
     fun path(query: BrowseQuery): String {
         val segments = listOfNotNull(sortSegment(query.sort), priceSegment(query.price)) +
-            query.platforms.sorted().map { "platform-$it" } +
+            platformNames.filter { it in query.platforms }.map { "platform-$it" } +
             query.tags.map { "tag-" + tagSlug(it) }
         return if (segments.isEmpty()) BASE else BASE + "/" + segments.joinToString("/")
     }
 
-    /** The listing feed for [query]'s [page]. */
     fun url(query: BrowseQuery, page: Int): String = path(query) + ".xml" + if (page > 1) "?page=$page" else ""
 
     fun tagSlug(tag: String): String = tag.trim().lowercase().replace(Regex("[^a-z0-9]+"), "-").trim('-')
 
-    /** Page [page] of [query]: the disk copy when it is fresh, otherwise the feed, one request at a time and spaced out. */
     fun page(context: Context, query: BrowseQuery, page: Int, force: Boolean = false): BrowsePage {
         val app = context.applicationContext
         val url = url(query, page)
@@ -120,7 +114,6 @@ internal object ItchBrowse {
     }
 }
 
-/** The Store tab's result list: the query, the games loaded so far, and whether more can be asked for. */
 internal object ItchBrowseState {
     var query by mutableStateOf(BrowseQuery())
         private set
@@ -136,7 +129,6 @@ internal object ItchBrowseState {
     private var next = 1
     private var generation = 0
 
-    /** Whether the tab shows these results instead of the front page shelves. */
     val active: Boolean get() = !query.isDefault
 
     fun choose(context: Context, wanted: BrowseQuery) {
@@ -151,7 +143,6 @@ internal object ItchBrowseState {
         if (active) more(context)
     }
 
-    /** Asks for the next page. A page that failed is only asked for again when [retry] is set, so scrolling can't loop on it. */
     fun more(context: Context, retry: Boolean = false) {
         if (loading || ended || !active || (failed && !retry)) return
         loading = true
@@ -165,7 +156,6 @@ internal object ItchBrowseState {
             StoresState.post {
                 if (mine != generation) return@post
                 loading = false
-                // A thrown or non-2xx fetch leaves the list open so the same page can be asked for again.
                 if (answer == null || answer.code !in 200..299) {
                     failed = true
                     return@post

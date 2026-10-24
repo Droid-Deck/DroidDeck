@@ -42,7 +42,6 @@ import com.droiddeck.launcher.R
 import com.droiddeck.launcher.stores.itch.ItchBrowse
 import com.droiddeck.launcher.stores.itch.ItchBrowseState
 
-/** Sort, price, platform and tag chips above the itch Store tab; picking anything but the defaults swaps the shelves for results. */
 @Composable
 internal fun ItchBrowseBar() {
     val ctx = LocalContext.current
@@ -59,7 +58,7 @@ internal fun ItchBrowseBar() {
             BrowseChip(stringResource(R.string.stores_itch_platform_any), query.platforms.isEmpty()) { ItchBrowseState.choose(ctx, query.copy(platforms = emptySet())) }
             for (platform in ItchBrowse.platformNames) {
                 val on = platform in query.platforms
-                BrowseChip(platformLabel(platform), on) { ItchBrowseState.choose(ctx, query.copy(platforms = if (on) emptySet() else setOf(platform))) }
+                BrowseChip(platformLabel(platform), on) { ItchBrowseState.choose(ctx, query.copy(platforms = if (on) query.platforms - platform else query.platforms + platform)) }
             }
         }
         ChipRow {
@@ -69,7 +68,7 @@ internal fun ItchBrowseBar() {
     }
     if (picking) TextEntryDialog(
         stringResource(R.string.stores_itch_tag_title), "", number = false, confirm = stringResource(R.string.common_ok),
-        onSubmit = { value -> ItchBrowse.tagSlug(value).takeIf { it.isNotEmpty() }?.let { ItchBrowseState.choose(ctx, query.copy(tags = listOf(it))) } },
+        onSubmit = { value -> ItchBrowse.tagSlug(value).takeIf { it.isNotEmpty() }?.let { ItchBrowseState.choose(ctx, query.copy(tags = (query.tags + it).distinct())) } },
         onDismiss = { picking = false }, id = "itch-tag",
     )
 }
@@ -96,12 +95,10 @@ internal fun ItchSearchField(query: String, onQuery: (String) -> Unit, placehold
     )
 }
 
-/** The end of the result list: it asks for the next page as it scrolls into view. */
 @Composable
 internal fun ItchLoadMore() {
     val ctx = LocalContext.current
     val count = ItchBrowseState.items.size
-    // Keyed on nothing that changes with a page, so appending games never re-fires it while this end item stays composed; scrolling it back into view does.
     LaunchedEffect(Unit) { ItchBrowseState.more(ctx) }
     if (ItchBrowseState.loading) LinearProgressIndicator(Modifier.fillMaxWidth().padding(vertical = 12.dp))
     else if (ItchBrowseState.failed) Box(Modifier.fillMaxWidth().padding(vertical = 8.dp), contentAlignment = Alignment.Center) {
