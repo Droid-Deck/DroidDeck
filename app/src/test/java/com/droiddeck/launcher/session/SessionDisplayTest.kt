@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.session
 
+import com.droiddeck.launcher.R
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -34,10 +35,29 @@ class SessionDisplayTest {
         assertEquals(2560 to 1440, SessionDisplay.resolveChoice(2560 to 1440, SessionDisplay.MATCH_SCREEN))
     }
 
-    @Test fun unfoldedControlsKeepTheGameSixteenByNineAcrossTheWidth() {
-        assertEquals(1376, SessionDisplay.unfoldedGameHeight(2448, 1848))
-        assertEquals(1038, SessionDisplay.unfoldedGameHeight(1848, 2448))
-        assertEquals(864, SessionDisplay.unfoldedGameHeight(1920, 1080))
+    @Test fun unfoldedTheGameKeepsItsShapeAcrossTheWidthInAtMostEightyPercent() {
+        assertEquals(2448 to 1376, SessionDisplay.unfoldedGameSize(2448, 1848, SessionDisplay.FOLDED_16X9))
+        assertEquals(1848 to 1038, SessionDisplay.unfoldedGameSize(1848, 2448, SessionDisplay.FOLDED_16X9))
+        assertEquals(1536 to 864, SessionDisplay.unfoldedGameSize(1920, 1080, SessionDisplay.FOLDED_16X9))
+        assertEquals(2184 to 984, SessionDisplay.unfoldedGameSize(2184, 1968, SessionDisplay.FOLDED_FILL))
+    }
+
+    @Test fun followScreenCanRenderAtAFractionOfTheWindow() {
+        assertEquals(1092 to 984, SessionDisplay.followSize(2184, 1968, 2f))
+        assertEquals(1456 to 1312, SessionDisplay.followSize(2184, 1968, 1.5f))
+        assertEquals(728 to 656, SessionDisplay.followSize(2184, 1968, 3f))
+        assertEquals(546 to 492, SessionDisplay.followSize(2184, 1968, 4f))
+        assertNull(SessionDisplay.followSize(640, 360, 2f))
+        assertEquals(R.string.display_follow_two_thirds, SessionDisplay.divisorLabel(1.5f))
+        assertEquals(R.string.display_follow_half, SessionDisplay.divisorLabel(2f))
+    }
+
+    @Test fun aHalfFoldedGameTakesTheLargestBoxOfItsShapeAboveTheFold() {
+        assertEquals(2184 to 984, SessionDisplay.foldedGameSize(2184, 984, SessionDisplay.FOLDED_FILL))
+        assertEquals(1748 to 984, SessionDisplay.foldedGameSize(2184, 984, SessionDisplay.FOLDED_16X9))
+        assertEquals(1574 to 984, SessionDisplay.foldedGameSize(2184, 984, SessionDisplay.FOLDED_16X10))
+        assertEquals(2184 to 912, SessionDisplay.foldedGameSize(2184, 984, SessionDisplay.FOLDED_SCOPE))
+        assertEquals(1600 to 900, SessionDisplay.foldedGameSize(1600, 1200, SessionDisplay.FOLDED_16X9))
     }
 
     private fun unfoldedWanted(
