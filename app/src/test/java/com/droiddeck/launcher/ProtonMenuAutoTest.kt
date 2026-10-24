@@ -1,0 +1,144 @@
+package com.droiddeck.launcher
+
+import android.app.Activity
+import android.os.Handler
+import android.os.Looper
+import com.droiddeck.launcher.frontend.AutoComponents
+import com.droiddeck.launcher.runtime.LinuxRuntime
+import com.droiddeck.launcher.session.ProtonExtras
+import com.droiddeck.launcher.session.SessionState
+import org.json.JSONObject
+import org.junit.After
+import org.junit.Assert.*
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.Robolectric
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows.shadowOf
+import org.robolectric.annotation.Config
+import java.io.File
+
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [28], manifest = Config.NONE)
+class ProtonMenuAutoTest {
+    private val online = AutoComponents.online
+    private val constrained = AutoComponents.unfavourable
+    private lateinit var activity: Activity
+    private lateinit var menu: ProtonMenu
+    private lateinit var root: File
+    private val attempts = mutableListOf<String>()
+    private var idle = true
+
+    @Before fun setup() {
+        activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        root = LinuxRuntime.rootDir(activity)
+        for (path in listOf("usr/bin/gamescope", "usr/local/bin/droiddeck-session", "opt/android-host/proot", "opt/android-host/loader")) {
+            File(root, path).apply { parentFile!!.mkdirs(); writeText("") }
+        }
+        AutoComponents.online = { true }
+        AutoComponents.unfavourable = { false }
+        SessionState.running = false
+        val latest = JSONObject()
+        for (tool in ProtonExtras.tools) latest.put(tool.id, JSONObject()
+            .put("tag", "${tool.prefix}-11-12").put("at", System.currentTimeMillis()))
+        File(activity.filesDir, "proton-latest.json").writeText(latest.toString())
+        menu = ProtonMenu(activity, Handler(Looper.getMainLooper())) { idle }
+        menu.installer = { tool, progress ->
+            progress("Installing ${tool.name}", 50)
+            install("${tool.prefix}-11-12")
+            null
+        }
+    }
+
+    @After fun reset() {
+        AutoComponents.online = online
+        AutoComponents.unfavourable = constrained
+        SessionState.running = false
+    }
+
+    private fun install(name: String): File = File(root, "root/.local/share/Steam/compatibilitytools.d/$name").apply {
+        mkdirs()
+        File(this, "toolmanifest.vdf").writeText("manifest")
+    }
+
+    private fun waitUntil(done: () -> Boolean) {
+        val deadline = System.nanoTime() + 5_000_000_000L
+        while (System.nanoTime() < deadline) {
+            shadowOf(Looper.getMainLooper()).idle()
+            if (done()) return
+            Thread.sleep(10)
+        }
+        fail("Proton work did not finish")
+    }
+
+    @Test fun aCachedCheckUpdatesOnlyInstalledFamiliesAndKeepsOlderBuildsAndSelections() {
+        val older = install("DroidDeck-Proton-11-11.1")
+        val request = File(root, "root/.local/share/droiddeck-compat/request.json").apply {
+            parentFile!!.mkdirs()
+            writeText("{\"seq\":1,\"dir\":\"DroidDeck-Proton-11-11.1\",\"valve\":false}")
+        }
+        val before = request.readText()
+        assertFalse(ProtonExtras.checkLatest(activity))
+        menu.checkUpdates()
+        waitUntil { menu.protonRows.singleOrNull { it.id == "droiddeck" }?.installed == "DroidDeck-Proton-11-12" && menu.protonBusyId == null }
+        assertTrue(older.isDirectory)
+        assertEquals(before, request.readText())
+        assertTrue(ProtonExtras.installedAll(activity, ProtonExtras.tools.first { it.id == "ge" }).isEmpty())
+        assertTrue(ProtonExtras.installedAll(activity, ProtonExtras.tools.first { it.id == "cachyos" }).isEmpty())
+    }
+
+    @Test fun downloadsWaitForTheSessionNetworkPowerAndOtherInstallWork() {
+        install("DroidDeck-Proton-11-11.1")
+        menu.installer = { tool, _ -> attempts.add(tool.id); "failed" }
+        SessionState.running = true
+        menu.ensureAutoUpdates()
+        SessionState.running = false
+        AutoComponents.online = { false }
+        menu.ensureAutoUpdates()
+        AutoComponents.online = { true }
+        AutoComponents.unfavourable = { true }
+        menu.ensureAutoUpdates()
+        AutoComponents.unfavourable = { false }
+        idle = false
+        menu.ensureAutoUpdates()
+        assertNull(menu.protonBusyId)
+        assertTrue(attempts.isEmpty())
+        idle = true
+        menu.ensureAutoUpdates()
+        waitUntil { menu.protonBusyId == null }
+        assertEquals(listOf("droiddeck"), attempts)
+    }
+
+    @Test fun aFailedUpdateDoesNotLoopOrBlockOtherInstalledFamilies() {
+        val ge = install("GE-Proton11-11")
+        val dd = install("DroidDeck-Proton-11-11.1")
+        menu.installer = { tool, _ ->
+            attempts.add(tool.id)
+            if (tool.id == "ge") throw IllegalStateException("download failed")
+            install("${tool.prefix}-11-12")
+            null
+        }
+        menu.ensureAutoUpdates()
+        waitUntil { menu.protonBusyId == null }
+        menu.ensureAutoUpdates()
+        shadowOf(Looper.getMainLooper()).idle()
+        assertEquals(listOf("ge", "droiddeck"), attempts)
+        assertTrue(ge.isDirectory)
+        assertTrue(dd.isDirectory)
+        assertNull(menu.protonStage)
+        assertEquals(-1, menu.protonPercent)
+    }
+
+    @Test fun anUninstalledRuntimeOrCurrentProtonDoesNotStartADownload() {
+        install("DroidDeck-Proton-11-12")
+        menu.installer = { tool, _ -> attempts.add(tool.id); null }
+        menu.ensureAutoUpdates()
+        assertTrue(attempts.isEmpty())
+        install("GE-Proton11-11")
+        File(root, "usr/bin/gamescope").delete()
+        menu.ensureAutoUpdates()
+        assertTrue(attempts.isEmpty())
+        assertNull(menu.protonBusyId)
+    }
+}
