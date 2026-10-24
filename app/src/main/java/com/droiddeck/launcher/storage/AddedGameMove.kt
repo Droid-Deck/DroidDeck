@@ -56,7 +56,7 @@ object AddedGameMove {
         status = Status(name, target, 0, total)
         Thread({
             var last = 0L
-            val report: (Long, Long) -> Unit = { copied, _ ->
+            val report: (Long, Long) -> Unit = report@{ copied, _ ->
                 val now = android.os.SystemClock.uptimeMillis()
                 if (now - last < 120 && copied < total) return@report
                 last = now
