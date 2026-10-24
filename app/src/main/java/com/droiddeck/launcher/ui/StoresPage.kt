@@ -504,7 +504,7 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
                                     .onFocusChanged { detailFocused = it.hasFocus }
                                     .focusProperties { exit = { if (coveringNow.value) androidx.compose.ui.focus.FocusRequester.Cancel else androidx.compose.ui.focus.FocusRequester.Default } }
                                     .focusGroup(),
-                            ) { StoreGameDetail(detailStore, key, s, a, heroFocus, onBack = { closeGame() }) }
+                            ) { StoreGameDetail(detailStore, key, s, a, heroFocus, floor = { viewportAt.y + with(density) { (viewportH - 16.dp).toPx() } - detailScroll.value }, onBack = { closeGame() }) }
                         }
                     }
                     val from = detailFrom

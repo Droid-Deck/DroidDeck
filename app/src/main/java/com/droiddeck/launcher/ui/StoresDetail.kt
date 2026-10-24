@@ -3,6 +3,7 @@ package com.droiddeck.launcher.ui
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -59,7 +60,7 @@ import com.droiddeck.launcher.stores.formatBytes
 
 
 @Composable
-internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: FrontEndActions, lead: androidx.compose.ui.focus.FocusRequester, onBack: () -> Unit) {
+internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: FrontEndActions, lead: androidx.compose.ui.focus.FocusRequester, floor: () -> Float, onBack: () -> Unit) {
     val leadOn = Modifier.focusRequester(lead)
     val ctx = LocalContext.current
     val colors = MaterialTheme.colorScheme
@@ -203,15 +204,17 @@ internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: Fro
         }
     }
     if (description.isNotBlank() || achievements != null) Rise(3) {
+        val density = LocalDensity.current
+        var room by remember { mutableStateOf(AboutHeight) }
+        val fill = Modifier.onGloballyPositioned { c -> room = maxOf(AboutHeight, with(density) { (floor() - c.positionInRoot().y).toDp() }) }
         val about: @Composable (Modifier, Dp) -> Unit = { m, h -> if (description.isNotBlank()) StoreAbout(description, h, m) }
         val card: @Composable (Modifier) -> Unit = { m -> if (achievements != null) StoreAchievementsCard(achievements, title, m) }
         if (stacked) Column(verticalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.fillMaxWidth().padding(top = 14.dp)) {
-            about(Modifier.fillMaxWidth(), AboutHeight)
+            if (achievements == null) about(Modifier.fillMaxWidth().then(fill), room) else about(Modifier.fillMaxWidth(), AboutHeight)
             card(Modifier.fillMaxWidth())
         } else Row(horizontalArrangement = Arrangement.spacedBy(24.dp), modifier = Modifier.fillMaxWidth().padding(top = 14.dp)) {
-            val density = LocalDensity.current
             var cardHeight by remember { mutableStateOf<Dp?>(null) }
-            about(Modifier.weight(1f), cardHeight ?: AboutHeight)
+            about(Modifier.weight(1f).then(fill), maxOf(cardHeight ?: AboutHeight, room))
             card(Modifier.width(340.dp).onSizeChanged { cardHeight = with(density) { it.height.toDp() } })
         }
     }
