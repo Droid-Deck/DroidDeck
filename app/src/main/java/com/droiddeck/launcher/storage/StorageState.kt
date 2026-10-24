@@ -46,6 +46,9 @@ object StorageState {
         openRequests++
     }
 
+    var interruptedMove by mutableStateOf<String?>(null)
+        private set
+
     fun refresh(context: Context, force: Boolean = false) {
         val current = report
         if (scanning || cleaning) return
@@ -55,11 +58,28 @@ object StorageState {
         Thread({
             val result = runCatching { StorageScan.scan(app) }
                 .onFailure { Log.w(TAG, "storage scan failed", it) }.getOrNull()
+            val interrupted = runCatching { MoveJournal.read(app)?.takeIf { it.items.isNotEmpty() }?.name }.getOrNull()
             main.post {
                 if (result != null) report = result
+                interruptedMove = interrupted
                 scanning = false
             }
         }, "storage-scan").start()
+    }
+
+    fun discardInterrupted(context: Context, onDone: (Boolean) -> Unit = {}) {
+        if (cleaning) { onDone(false); return }
+        val app = context.applicationContext
+        cleaning = true
+        Thread({
+            val ok = MoveJournal.discard(app)
+            main.post {
+                cleaning = false
+                if (ok) interruptedMove = null
+                refresh(app, force = true)
+                onDone(ok)
+            }
+        }, "storage-discard-interrupted").start()
     }
 
     fun freeBytes(context: Context): Long = runCatching { StatFs(context.filesDir.path).availableBytes }.getOrDefault(Long.MAX_VALUE)

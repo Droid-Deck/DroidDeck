@@ -33,6 +33,7 @@ object AddedGameMove {
         val total: Long,
         val error: String? = null,
         val done: Boolean = false,
+        val cancelRequested: Boolean = false,
     )
 
     var status by mutableStateOf<Status?>(null)
@@ -64,8 +65,8 @@ object AddedGameMove {
                 main.post { status = status?.copy(copied = copied, total = total) }
             }
             val error = runCatching {
-                if (adopt != null) adoptIntoSteam(app, folder, adopt, report)
-                else move(app, folder, target, report)
+                if (adopt != null) adoptIntoSteam(app, folder, adopt, report, isCancelled = { status?.cancelRequested == true })
+                else move(app, folder, target, report, isCancelled = { status?.cancelRequested == true })
             }.getOrElse { e -> app.getString(R.string.storage_move_failed, e.message ?: e.javaClass.simpleName) }
             main.post {
                 val current = status
@@ -84,7 +85,11 @@ object AddedGameMove {
         if (status?.done == true || status?.error != null) status = null
     }
 
-    fun move(context: Context, folder: File, targetParent: File, onProgress: (Long, Long) -> Unit = { _, _ -> }): String? {
+    fun cancel() {
+        status?.let { if (!it.done && it.error == null) status = it.copy(cancelRequested = true) }
+    }
+
+    fun move(context: Context, folder: File, targetParent: File, onProgress: (Long, Long) -> Unit = { _, _ -> }, isCancelled: () -> Boolean = { false }): String? {
         if (SessionState.running) return context.getString(R.string.storage_move_session)
         val source = folder.takeIf { it.isDirectory } ?: return context.getString(R.string.storage_added_move_missing)
         if (samePath(targetParent, source)) return context.getString(R.string.storage_move_same)
@@ -107,17 +112,33 @@ object AddedGameMove {
 
         val oldExe = AddedExes.list(context).firstOrNull { it.folder == source.path }?.let { File(it.exe) }
             ?: SessionPrefs.addedGameExe(context, source.path).takeIf { it.isNotEmpty() }?.let(::File)
+        MoveJournal.write(context, MoveJournal.Entry(
+            kind = "added",
+            name = source.name,
+            items = listOf(source.path to dest.path),
+            registration = null,
+            startedAt = System.currentTimeMillis(),
+        ))
         onProgress(0, total.coerceAtLeast(1L))
-        val ok = runCatching {
+        val outcome = runCatching {
             FileOps.moveWithProgress(source, dest, total.coerceAtLeast(1L), { done, _ ->
                 onProgress(done, total.coerceAtLeast(1L))
-            })
-        }.getOrDefault(false)
-        if (!ok) {
+            }, isCancelled)
+        }
+        if (outcome.isFailure && outcome.exceptionOrNull() is java.util.concurrent.CancellationException) {
             runCatching { FileOps.delete(dest) }
+            MoveJournal.clear(context)
+            return context.getString(R.string.storage_move_cancelled)
+        }
+        if (!outcome.getOrDefault(false)) {
+            runCatching { FileOps.delete(dest) }
+            MoveJournal.clear(context)
             return context.getString(R.string.storage_move_failed, source.path)
         }
-        if (!dest.isDirectory) return context.getString(R.string.storage_move_failed, source.path)
+        if (!dest.isDirectory) {
+            MoveJournal.clear(context)
+            return context.getString(R.string.storage_move_failed, source.path)
+        }
 
         val hadEntry = AddedExes.list(context).any { it.folder == source.path }
         val movedExe = oldExe?.takeIf { inside(it, source) }?.let { File(dest, it.path.removePrefix(source.path + File.separator)) }
@@ -137,6 +158,7 @@ object AddedGameMove {
         // Republishing refreshes the listing and the launcher now; the session-start script
         // rewrites the shortcut's exe and start dir by app id.
         com.droiddeck.launcher.frontend.AddedGamesPublisher.later(context)
+        MoveJournal.clear(context)
         onProgress(total.coerceAtLeast(1L), total.coerceAtLeast(1L))
         return null
     }
@@ -147,7 +169,7 @@ object AddedGameMove {
      * records are dropped, and Steam detects the game on its next start. When the added
      * game ran before, its Proton prefix moves with it so saves and settings survive.
      */
-    fun adoptIntoSteam(context: Context, folder: File, target: MissingInstall, onProgress: (Long, Long) -> Unit = { _, _ -> }): String? {
+    fun adoptIntoSteam(context: Context, folder: File, target: MissingInstall, onProgress: (Long, Long) -> Unit = { _, _ -> }, isCancelled: () -> Boolean = { false }): String? {
         if (SessionState.running) return context.getString(R.string.storage_move_session)
         val source = folder.takeIf { it.isDirectory } ?: return context.getString(R.string.storage_added_move_missing)
         val cleanDir = target.installDir.takeIf { it.isNotEmpty() && '/' !in it && '\\' !in it }
@@ -171,17 +193,33 @@ object AddedGameMove {
             )
         }
         val oldId = SessionPrefs.addedGameStoredAppId(context, source.path)
+        MoveJournal.write(context, MoveJournal.Entry(
+            kind = "adopt",
+            name = source.name,
+            items = listOf(source.path to dest.path),
+            registration = null,
+            startedAt = System.currentTimeMillis(),
+        ))
         onProgress(0, total.coerceAtLeast(1L))
-        val ok = runCatching {
+        val outcome = runCatching {
             FileOps.moveWithProgress(source, dest, total.coerceAtLeast(1L), { done, _ ->
                 onProgress(done, total.coerceAtLeast(1L))
-            })
-        }.getOrDefault(false)
-        if (!ok) {
+            }, isCancelled)
+        }
+        if (outcome.isFailure && outcome.exceptionOrNull() is java.util.concurrent.CancellationException) {
             runCatching { FileOps.delete(dest) }
+            MoveJournal.clear(context)
+            return context.getString(R.string.storage_move_cancelled)
+        }
+        if (!outcome.getOrDefault(false)) {
+            runCatching { FileOps.delete(dest) }
+            MoveJournal.clear(context)
             return context.getString(R.string.storage_move_failed, source.path)
         }
-        if (!dest.isDirectory) return context.getString(R.string.storage_move_failed, source.path)
+        if (!dest.isDirectory) {
+            MoveJournal.clear(context)
+            return context.getString(R.string.storage_move_failed, source.path)
+        }
 
         migratePrefix(context, oldId, target)
         AddedExes.drop(context, source.path)
@@ -193,6 +231,7 @@ object AddedGameMove {
             )
         }
         com.droiddeck.launcher.frontend.AddedGamesPublisher.later(context)
+        MoveJournal.clear(context)
         onProgress(total.coerceAtLeast(1L), total.coerceAtLeast(1L))
         return null
     }

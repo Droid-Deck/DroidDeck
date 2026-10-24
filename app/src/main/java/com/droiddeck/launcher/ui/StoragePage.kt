@@ -150,6 +150,23 @@ internal fun StoragePanel(s: FrontEndState, a: FrontEndActions) {
     if (cleanup) CleanUpDialog(report, s.sessionRunning) { cleanup = false }
     SteamGameMoveDialog()
     AddedGameMoveDialog()
+    StorageState.interruptedMove?.let { name ->
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp).clip(Shape14)
+                .background(MaterialTheme.colorScheme.surface).border(1.dp, LocalPalette.current.line, Shape14)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(stringResource(R.string.storage_move_interrupted_title), fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onBackground)
+            Text(stringResource(R.string.storage_move_interrupted_body, name), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SecondaryButton(
+                    stringResource(R.string.storage_move_discard_partial), compact = true,
+                    enabled = !s.sessionRunning && !StorageState.cleaning,
+                ) { StorageState.discardInterrupted(ctx) { } }
+            }
+        }
+    }
     val top = remember { androidx.compose.foundation.relocation.BringIntoViewRequester() }
     LaunchedEffect(view) {
         StorageState.lastFreed = null
@@ -865,6 +882,8 @@ private fun SteamGameMoveDialog() {
                 FocusText(stringResource(R.string.common_ok), if (s.error != null) colors.error else pal.signal) {
                     SteamGameMove.dismiss()
                 }
+            } else {
+                SecondaryButton(stringResource(R.string.storage_move_cancel), compact = true) { SteamGameMove.cancel() }
             }
         },
     )
@@ -1087,6 +1106,8 @@ private fun AddedGameMoveDialog() {
                 FocusText(stringResource(R.string.common_ok), if (s.error != null) colors.error else pal.signal) {
                     AddedGameMove.dismiss()
                 }
+            } else {
+                SecondaryButton(stringResource(R.string.storage_move_cancel), compact = true) { AddedGameMove.cancel() }
             }
         },
     )
