@@ -264,6 +264,10 @@ object StorageScan {
                 Triple(m.appId, root, dir)
             }
         }
+        fun installMissing(root: File, dir: String): Boolean {
+            val folder = File(File(root, "steamapps/common"), dir)
+            return !folder.isDirectory || folder.list()?.isNotEmpty() != true
+        }
         val addedGames = runCatching { AddedGames.scan(context) }.getOrDefault(emptyList())
             .distinctBy { canonical(it.folder) }
             .filter { game ->
@@ -272,12 +276,16 @@ object StorageScan {
                     storeManaged.none { path == it || path.startsWith("$it/") }
             }
             .map { game ->
-                val steamId = runCatching { AddedGames.identifiedAppId(game.folder, game.exe) }.getOrNull()
-                val adoption = steamId?.let { id ->
-                    manifestsByApp.firstOrNull { (appId, root, dir) ->
-                        appId == id && !File(File(root, "steamapps/common"), dir).let { it.isDirectory && (it.list()?.isNotEmpty() == true) }
-                    }
+                val steamId = runCatching { AddedGames.identifiedAppId(game.folder, game.exe) }.getOrDefault(null)
+                val byId = steamId?.let { id -> manifestsByApp.firstOrNull { (appId, root, dir) ->
+                    appId == id && installMissing(root, dir)
+                } }
+                // No ini/appid file: a folder named exactly like the manifest's install dir
+                // whose files are missing is almost certainly that install.
+                val byName = manifestsByApp.firstOrNull { (_, root, dir) ->
+                    dir.equals(game.folder.name, ignoreCase = true) && installMissing(root, dir)
                 }
+                val adoption = byId ?: byName
                 AddedGameUsage(
                     game.folder, game.name, game.exe.takeIf { it.isFile }, walker.measure(game.folder),
                     adoption?.second, adoption?.third,
