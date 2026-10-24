@@ -15,3 +15,5 @@ A game that costs money and has no download key in the library is still refused.
 ## Pieces
 
 `ItchGame` finds the game number and turns the upload list into builds. `ItchUploads.platforms` reads the platform from the upload's flags or `p_*` traits, and treats an upload with none as Windows. `ItchBuildPicker` is the pop-up. The chosen upload is carried in the item's `extra` as `uploadId`, and `ItchInstaller` downloads that upload.
+
+If the upload the user chose is no longer in the game's list when the install starts, the install fails with "No Windows download for this game" and does not pick another build. Only an install with no chosen upload falls back to the newest Windows build. The saved queue keeps whether a game is free, so an interrupted free-game install resumes after a restart.

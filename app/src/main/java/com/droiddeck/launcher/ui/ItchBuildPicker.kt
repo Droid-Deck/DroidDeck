@@ -61,7 +61,7 @@ internal fun ItchBuildPicker(item: CatalogItem, onDismiss: () -> Unit) {
         }
         if (result == null) { failed = true; return@LaunchedEffect }
         loaded = result
-        result.builds.singleOrNull()?.takeIf { it.installable }?.let { install(result, it) }
+        if (shown.targetState) result.builds.singleOrNull()?.takeIf { it.installable }?.let { install(result, it) }
     }
 
     AppDialog(shown, close, "itchBuilds", wide = false, maxWidth = 460.dp) {
