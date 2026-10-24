@@ -633,7 +633,15 @@ fn keep_partial(file: &EngineFile, written: &[bool], stage: &Path, dir: &Path) -
     let partial = dir.join(staging::partial_name(&file.path, file.size, file.sha1));
     let list: String = kept.iter().map(|o| format!("{o}\n")).collect();
     let synced = OpenOptions::new().write(true).open(stage).and_then(|h| h.sync_all());
-    synced.is_ok() && fs::rename(stage, &partial).is_ok() && fs::write(staging::list_path(&partial), list).is_ok()
+    if synced.is_err() || fs::rename(stage, &partial).is_err() {
+        return false;
+    }
+    let temp = dir.join(staging::unique_name());
+    let listed = fs::write(&temp, list).and_then(|_| fs::rename(&temp, staging::list_path(&partial))).is_ok();
+    if !listed {
+        let _ = fs::remove_file(&temp);
+    }
+    listed || file.resume.as_ref().is_some_and(|r| r.stage == partial)
 }
 
 fn tidy_fetch_error(message: &str) -> String {

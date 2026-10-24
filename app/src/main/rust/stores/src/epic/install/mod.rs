@@ -235,6 +235,7 @@ pub fn run(req: &Request, cancel: &AtomicBool, ev: &dyn Events) -> Result<Finish
     let mut plan_files = Vec::with_capacity(pending.len());
     let mut engine_files = Vec::with_capacity(pending.len());
     let mut resumed_bytes = 0u64;
+    let mut kept_sizes = Vec::with_capacity(pending.len());
     for &(i, old_size) in &pending {
         let f = &manifest.files[i];
         let mut parts = Vec::with_capacity(f.parts.len());
@@ -251,18 +252,21 @@ pub fn run(req: &Request, cancel: &AtomicBool, ev: &dyn Events) -> Result<Finish
             offset += part.size as u64;
         }
         let mut resume = None;
+        let mut kept_size = 0u64;
         if let Some(stage) = partials.remove(&staging::partial_name(&f.path, f.size, f.sha1)) {
             match resume_from(&stage, &parts, f.size) {
                 Some(kept) => {
                     let bytes: u64 = parts.iter().filter(|p| kept.contains(&p.file_offset)).map(|p| p.size as u64).sum();
                     ev.log(&format!("resuming {} with {bytes} of {} bytes written", f.path, f.size));
                     resumed_bytes += bytes;
+                    kept_size = bytes;
                     parts.retain(|p| !kept.contains(&p.file_offset));
                     resume = Some(writer::Resume { stage, kept: kept.into_iter().collect() });
                 }
                 None => staging::remove_partial(&stage),
             }
         }
+        kept_sizes.push(kept_size);
         plan_files.push(PlanFile { size: f.size, parts: parts.clone() });
         engine_files.push(writer::EngineFile {
             path: f.path.clone(),
@@ -287,7 +291,8 @@ pub fn run(req: &Request, cancel: &AtomicBool, ev: &dyn Events) -> Result<Finish
         .filter(|s| !space::same_volume(s, &req.game_dir));
     let sizes: Vec<space::PendingSize> = pending
         .iter()
-        .map(|&(i, old)| space::PendingSize { new_size: manifest.files[i].size, old_size: old })
+        .zip(&kept_sizes)
+        .map(|(&(i, old), kept)| space::PendingSize { new_size: manifest.files[i].size - kept, old_size: old })
         .collect();
     let free_game = space::free_bytes(&req.game_dir);
     let scratch_space = scratch.as_ref().map(|s| space::Scratch { free: space::free_bytes(s) });
