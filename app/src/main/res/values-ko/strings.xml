@@ -2139,6 +2139,7 @@
     <string name="stores_login_close">닫기</string>
     <string name="stores_login_retry">다시 시도</string>
     <string name="stores_login_finishing">로그인 완료 중…</string>
+    <string name="stores_xbox_sign_in_again">Microsoft에서 Xbox 로그인을 거부했습니다. 스토어에서 Xbox 로그아웃 후 다시 로그인한 다음 재개하세요.</string>
     <string name="stores_login_error_network">로그인 페이지를 불러올 수 없습니다: %1$s</string>
     <string name="stores_login_error_idp_blocked">이 제공업체는 앱에 포함된 페이지에서 로그인을 허용하지 않습니다. 대신 스토어 비밀번호로 로그인하세요.</string>
     <string name="stores_login_error_http">로그인 페이지에서 오류를 반환했습니다(HTTP %1$d).</string>

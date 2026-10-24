@@ -2242,6 +2242,7 @@
     <string name="stores_login_close">إغلاق</string>
     <string name="stores_login_retry">حاوِل مرة أخرى</string>
     <string name="stores_login_finishing">جارٍ إنهاء تسجيل الدخول…</string>
+    <string name="stores_xbox_sign_in_again">رفضت Microsoft تسجيل الدخول إلى Xbox. سجّل الخروج من Xbox في المتاجر، ثم سجّل الدخول مجددًا، ثم استأنف.</string>
     <string name="stores_login_error_network">تعذّر تحميل صفحة تسجيل الدخول: %1$s</string>
     <string name="stores_login_error_idp_blocked">يرفض هذا المزوّد تسجيل الدخول من صفحة مضمَّنة. سجِّل الدخول باستخدام كلمة مرور المتجر بدلاً من ذلك.</string>
     <string name="stores_login_error_http">استجابت صفحة تسجيل الدخول بخطأ (HTTP %1$d).</string>

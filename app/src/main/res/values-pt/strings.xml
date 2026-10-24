@@ -2168,6 +2168,7 @@
     <string name="stores_login_close">Fechar</string>
     <string name="stores_login_retry">Tentar de novo</string>
     <string name="stores_login_finishing">Concluindo o login…</string>
+    <string name="stores_xbox_sign_in_again">A Microsoft recusou o login do Xbox. Saia do Xbox em Lojas, entre novamente e depois retome.</string>
     <string name="stores_login_error_network">Não foi possível carregar a página de login: %1$s</string>
     <string name="stores_login_error_idp_blocked">Este provedor não permite login a partir de uma página incorporada. Faça login com a senha da loja.</string>
     <string name="stores_login_error_http">A página de login respondeu com um erro (HTTP %1$d).</string>

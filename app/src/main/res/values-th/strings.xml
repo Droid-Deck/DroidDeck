@@ -2137,6 +2137,7 @@
     <string name="stores_login_close">ปิด</string>
     <string name="stores_login_retry">ลองใหม่</string>
     <string name="stores_login_finishing">กำลังเสร็จสิ้นการลงชื่อเข้าใช้…</string>
+    <string name="stores_xbox_sign_in_again">Microsoft ปฏิเสธการลงชื่อเข้าใช้ Xbox ลงชื่อออกจาก Xbox ในสโตร์ ลงชื่อเข้าใช้อีกครั้ง แล้วดำเนินการต่อ</string>
     <string name="stores_login_error_network">ไม่สามารถโหลดหน้าลงชื่อเข้าใช้ได้: %1$s</string>
     <string name="stores_login_error_idp_blocked">ผู้ให้บริการนี้ปฏิเสธการลงชื่อเข้าใช้จากหน้าที่ฝังอยู่ ให้ลงชื่อเข้าใช้ด้วยรหัสผ่านของสโตร์แทน</string>
     <string name="stores_login_error_http">หน้าลงชื่อเข้าใช้ตอบกลับด้วยข้อผิดพลาด (HTTP %1$d)</string>

@@ -2140,6 +2140,7 @@
     <string name="stores_login_close">關閉</string>
     <string name="stores_login_retry">再試一次</string>
     <string name="stores_login_finishing">正在完成登入…</string>
+    <string name="stores_xbox_sign_in_again">Microsoft 拒絕了 Xbox 登入。請在遊戲商店中登出 Xbox，重新登入，然後繼續。</string>
     <string name="stores_login_error_network">無法載入登入頁面：%1$s</string>
     <string name="stores_login_error_idp_blocked">此提供者拒絕從內嵌頁面登入。請改用商店密碼登入。</string>
     <string name="stores_login_error_http">登入頁面回應錯誤（HTTP %1$d）。</string>

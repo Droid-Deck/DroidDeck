@@ -2158,6 +2158,7 @@
     <string name="stores_login_close">Затвори</string>
     <string name="stores_login_retry">Опитай отново</string>
     <string name="stores_login_finishing">Завършване на входа…</string>
+    <string name="stores_xbox_sign_in_again">Microsoft отхвърли входа в Xbox. Излезте от Xbox в Магазини, влезте отново и след това продължете.</string>
     <string name="stores_login_error_network">Страницата за вход не можа да се зареди: %1$s</string>
     <string name="stores_login_error_idp_blocked">Този доставчик отказва вход от вградена страница. Впиши се с паролата си за магазина.</string>
     <string name="stores_login_error_http">Страницата за вход отговори с грешка (HTTP %1$d).</string>

@@ -2149,6 +2149,7 @@
     <string name="stores_login_close">Kapat</string>
     <string name="stores_login_retry">Yeniden dene</string>
     <string name="stores_login_finishing">Oturum açma tamamlanıyor…</string>
+    <string name="stores_xbox_sign_in_again">Microsoft, Xbox oturum açmayı reddetti. Mağazalar\'da Xbox oturumunu kapatın, yeniden oturum açın ve devam edin.</string>
     <string name="stores_login_error_network">Oturum açma sayfası yüklenemedi: %1$s</string>
     <string name="stores_login_error_idp_blocked">Bu sağlayıcı yerleşik bir sayfadan oturum açmayı reddediyor. Bunun yerine mağaza parolanızla oturum açın.</string>
     <string name="stores_login_error_http">Oturum açma sayfası bir hatayla yanıt verdi (HTTP %1$d).</string>

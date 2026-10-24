@@ -2158,6 +2158,7 @@
     <string name="stores_login_close">Luk</string>
     <string name="stores_login_retry">Forsøg igen</string>
     <string name="stores_login_finishing">Afslutter login…</string>
+    <string name="stores_xbox_sign_in_again">Microsoft afviste Xbox-login. Log ud af Xbox under Butikker, log ind igen, og genoptag derefter.</string>
     <string name="stores_login_error_network">Loginsiden kunne ikke indlæses: %1$s</string>
     <string name="stores_login_error_idp_blocked">Denne udbyder afviser login fra en indlejret side. Log i stedet ind med din butikskodeord.</string>
     <string name="stores_login_error_http">Loginsiden svarede med en fejl (HTTP %1$d).</string>

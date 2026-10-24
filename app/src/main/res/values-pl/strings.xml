@@ -2203,6 +2203,7 @@
     <string name="stores_login_close">Zamknij</string>
     <string name="stores_login_retry">Spróbuj ponownie</string>
     <string name="stores_login_finishing">Kończenie logowania…</string>
+    <string name="stores_xbox_sign_in_again">Microsoft odrzucił logowanie do Xbox. Wyloguj się z Xbox w Sklepach, zaloguj się ponownie, a potem wznów.</string>
     <string name="stores_login_error_network">Nie udało się wczytać strony logowania: %1$s</string>
     <string name="stores_login_error_idp_blocked">Ten dostawca odmawia logowania z osadzonej strony. Zaloguj się za pomocą hasła do sklepu.</string>
     <string name="stores_login_error_http">Strona logowania odpowiedziała błędem (HTTP %1$d).</string>

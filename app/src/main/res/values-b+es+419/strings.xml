@@ -2194,6 +2194,7 @@
     <string name="stores_login_close">Cerrar</string>
     <string name="stores_login_retry">Reintentar</string>
     <string name="stores_login_finishing">Terminando de iniciar sesión…</string>
+    <string name="stores_xbox_sign_in_again">Microsoft rechazó el inicio de sesión de Xbox. Cierra sesión de Xbox en Tiendas, vuelve a iniciar sesión y luego reanuda.</string>
     <string name="stores_login_error_network">No se pudo cargar la página de inicio de sesión: %1$s</string>
     <string name="stores_login_error_idp_blocked">Este proveedor no permite iniciar sesión desde una página integrada. Inicia sesión con la contraseña de la tienda.</string>
     <string name="stores_login_error_http">La página de inicio de sesión respondió con un error (HTTP %1$d).</string>

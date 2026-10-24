@@ -2158,6 +2158,7 @@
     <string name="stores_login_close">Lukk</string>
     <string name="stores_login_retry">Prøv igjen</string>
     <string name="stores_login_finishing">Fullfører innlogging…</string>
+    <string name="stores_xbox_sign_in_again">Microsoft avviste Xbox-påloggingen. Logg ut av Xbox under Butikker, logg på igjen, og fortsett deretter.</string>
     <string name="stores_login_error_network">Innloggingssiden kunne ikke lastes: %1$s</string>
     <string name="stores_login_error_idp_blocked">Denne leverandøren tillater ikke innlogging fra en innebygd side. Logg inn med butikkpassordet ditt i stedet.</string>
     <string name="stores_login_error_http">Innloggingssiden svarte med en feil (HTTP %1$d).</string>

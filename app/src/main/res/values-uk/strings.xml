@@ -2200,6 +2200,7 @@
     <string name="stores_login_close">Закрити</string>
     <string name="stores_login_retry">Спробувати ще раз</string>
     <string name="stores_login_finishing">Завершення входу…</string>
+    <string name="stores_xbox_sign_in_again">Microsoft відхилила вхід у Xbox. Вийдіть з Xbox у розділі «Магазини», увійдіть знову й продовжте.</string>
     <string name="stores_login_error_network">Не вдалося завантажити сторінку входу: %1$s</string>
     <string name="stores_login_error_idp_blocked">Цей провайдер не дозволяє вхід із вбудованої сторінки. Увійдіть за допомогою пароля магазину.</string>
     <string name="stores_login_error_http">Сторінка входу відповіла помилкою (HTTP %1$d).</string>

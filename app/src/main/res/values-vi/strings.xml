@@ -2137,6 +2137,7 @@
     <string name="stores_login_close">Đóng</string>
     <string name="stores_login_retry">Thử lại</string>
     <string name="stores_login_finishing">Đang hoàn tất đăng nhập…</string>
+    <string name="stores_xbox_sign_in_again">Microsoft đã từ chối đăng nhập Xbox. Hãy đăng xuất Xbox trong Cửa hàng game, đăng nhập lại rồi tiếp tục.</string>
     <string name="stores_login_error_network">Không thể tải trang đăng nhập: %1$s</string>
     <string name="stores_login_error_idp_blocked">Nhà cung cấp này từ chối đăng nhập từ một trang nhúng. Hãy đăng nhập bằng mật khẩu store của bạn thay vào đó.</string>
     <string name="stores_login_error_http">Trang đăng nhập trả về lỗi (HTTP %1$d).</string>

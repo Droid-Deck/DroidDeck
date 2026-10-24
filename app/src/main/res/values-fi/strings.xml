@@ -2158,6 +2158,7 @@
     <string name="stores_login_close">Sulje</string>
     <string name="stores_login_retry">Yritä uudelleen</string>
     <string name="stores_login_finishing">Viimeistellään kirjautumista…</string>
+    <string name="stores_xbox_sign_in_again">Microsoft hylkäsi Xbox-kirjautumisen. Kirjaudu ulos Xboxista Kaupoissa, kirjaudu uudelleen sisään ja jatka sitten.</string>
     <string name="stores_login_error_network">Kirjautumissivua ei voitu latata: %1$s</string>
     <string name="stores_login_error_idp_blocked">Tämä palveluntarjoaja ei salli kirjautumista upotetulta sivulta. Kirjaudu sisään kaupan salasanalla sen sijaan.</string>
     <string name="stores_login_error_http">Kirjautumissivu vastasi virheellä (HTTP %1$d).</string>

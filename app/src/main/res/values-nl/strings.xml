@@ -2158,6 +2158,7 @@
     <string name="stores_login_close">Sluiten</string>
     <string name="stores_login_retry">Probeer het opnieuw</string>
     <string name="stores_login_finishing">Aanmelden afronden…</string>
+    <string name="stores_xbox_sign_in_again">Microsoft heeft de Xbox-aanmelding geweigerd. Meld je af bij Xbox in Winkels, meld je opnieuw aan en hervat daarna.</string>
     <string name="stores_login_error_network">De aanmeldpagina kon niet worden geladen: %1$s</string>
     <string name="stores_login_error_idp_blocked">Deze provider staat geen aanmelding via een ingesloten pagina toe. Meld je in plaats daarvan aan met je winkelwachtwoord.</string>
     <string name="stores_login_error_http">De aanmeldpagina gaf een foutmelding (HTTP %1$d).</string>

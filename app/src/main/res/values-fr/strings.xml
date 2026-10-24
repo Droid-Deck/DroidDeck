@@ -2178,6 +2178,7 @@
     <string name="stores_login_close">Fermer</string>
     <string name="stores_login_retry">Réessayer</string>
     <string name="stores_login_finishing">Finalisation de la connexion…</string>
+    <string name="stores_xbox_sign_in_again">Microsoft a refusé la connexion Xbox. Déconnectez-vous de Xbox dans Boutiques, reconnectez-vous, puis reprenez.</string>
     <string name="stores_login_error_network">Impossible de charger la page de connexion : %1$s</string>
     <string name="stores_login_error_idp_blocked">Ce fournisseur refuse la connexion depuis une page intégrée. Connectez-vous plutôt avec le mot de passe de la boutique.</string>
     <string name="stores_login_error_http">La page de connexion a renvoyé une erreur (HTTP %1$d).</string>

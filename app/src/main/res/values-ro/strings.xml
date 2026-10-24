@@ -2179,6 +2179,7 @@
     <string name="stores_login_close">Închide</string>
     <string name="stores_login_retry">Încearcă din nou</string>
     <string name="stores_login_finishing">Se finalizează autentificarea…</string>
+    <string name="stores_xbox_sign_in_again">Microsoft a respins conectarea la Xbox. Deconectează-te de la Xbox în Magazine, conectează-te din nou, apoi reia.</string>
     <string name="stores_login_error_network">Pagina de autentificare nu a putut fi încărcată: %1$s</string>
     <string name="stores_login_error_idp_blocked">Acest furnizor refuză autentificarea dintr-o pagină încorporată. Autentifică-te cu parola magazinului în schimb.</string>
     <string name="stores_login_error_http">Pagina de autentificare a răspuns cu o eroare (HTTP %1$d).</string>

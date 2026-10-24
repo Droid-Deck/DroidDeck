@@ -2137,6 +2137,7 @@
     <string name="stores_login_close">Tutup</string>
     <string name="stores_login_retry">Cuba lagi</string>
     <string name="stores_login_finishing">Menyelesaikan log masuk…</string>
+    <string name="stores_xbox_sign_in_again">Microsoft menolak log masuk Xbox. Log keluar daripada Xbox di Kedai, log masuk semula, kemudian sambung.</string>
     <string name="stores_login_error_network">Halaman log masuk tidak dapat dimuatkan: %1$s</string>
     <string name="stores_login_error_idp_blocked">Penyedia ini menolak log masuk daripada halaman terbenam. Log masuk dengan kata laluan kedai anda sebaliknya.</string>
     <string name="stores_login_error_http">Halaman log masuk menjawab dengan ralat (HTTP %1$d).</string>

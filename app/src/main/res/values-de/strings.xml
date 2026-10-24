@@ -2147,6 +2147,7 @@
     <string name="stores_login_close">Schließen</string>
     <string name="stores_login_retry">Erneut versuchen</string>
     <string name="stores_login_finishing">Anmeldung wird abgeschlossen…</string>
+    <string name="stores_xbox_sign_in_again">Microsoft hat die Xbox-Anmeldung abgelehnt. Melde dich unter Stores von Xbox ab, melde dich erneut an und setze dann fort.</string>
     <string name="stores_login_error_network">Die Anmeldeseite konnte nicht geladen werden: %1$s</string>
     <string name="stores_login_error_idp_blocked">Dieser Anbieter lässt keine Anmeldung über eine eingebettete Seite zu. Melde dich stattdessen mit deinem Store-Passwort an.</string>
     <string name="stores_login_error_http">Die Anmeldeseite antwortete mit einem Fehler (HTTP %1$d).</string>

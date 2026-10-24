@@ -2200,6 +2200,7 @@
     <string name="stores_login_close">Zavřít</string>
     <string name="stores_login_retry">Zkusit znovu</string>
     <string name="stores_login_finishing">Dokončování přihlášení…</string>
+    <string name="stores_xbox_sign_in_again">Microsoft odmítl přihlášení k Xboxu. V Obchodech se z Xboxu odhlaste, znovu se přihlaste a pak pokračujte.</string>
     <string name="stores_login_error_network">Přihlašovací stránku se nepodařilo načíst: %1$s</string>
     <string name="stores_login_error_idp_blocked">Tento poskytovatel odmítá přihlášení ze vložené stránky. Přihlaste se místo toho heslem k obchodu.</string>
     <string name="stores_login_error_http">Přihlašovací stránka odpověděla chybou (HTTP %1$d).</string>

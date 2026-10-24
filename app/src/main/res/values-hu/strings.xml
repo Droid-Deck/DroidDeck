@@ -2158,6 +2158,7 @@
     <string name="stores_login_close">Bezárás</string>
     <string name="stores_login_retry">Próbálja újra</string>
     <string name="stores_login_finishing">A bejelentkezés befejezése…</string>
+    <string name="stores_xbox_sign_in_again">A Microsoft elutasította az Xbox-bejelentkezést. Az Áruházakban jelentkezz ki az Xboxból, jelentkezz be újra, majd folytasd.</string>
     <string name="stores_login_error_network">Nem sikerült betölteni a bejelentkezési oldalt: %1$s</string>
     <string name="stores_login_error_idp_blocked">Ez a szolgáltató nem engedi a bejelentkezést egy beágyazott oldalról. Jelentkezzen be helyette az áruház jelszavával.</string>
     <string name="stores_login_error_http">A bejelentkezési oldal hibával válaszolt (HTTP %1$d).</string>

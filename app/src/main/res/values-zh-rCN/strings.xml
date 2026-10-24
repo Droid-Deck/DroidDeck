@@ -2213,6 +2213,7 @@
     <string name="stores_login_close">关闭</string>
     <string name="stores_login_retry">重试</string>
     <string name="stores_login_finishing">正在完成登录…</string>
+    <string name="stores_xbox_sign_in_again">Microsoft 拒绝了 Xbox 登录。请在游戏商店中退出 Xbox，重新登录，然后继续。</string>
     <string name="stores_login_error_network">无法加载登录页面：%1$s</string>
     <string name="stores_login_error_idp_blocked">该第三方登录方式不允许在内嵌页面中登录。请改用商店密码登录。</string>
     <string name="stores_login_error_http">登录页面返回了错误（HTTP %1$d）。</string>

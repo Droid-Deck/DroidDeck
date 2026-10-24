@@ -2158,6 +2158,7 @@
     <string name="stores_login_close">बंद करें</string>
     <string name="stores_login_retry">फिर कोशिश करें</string>
     <string name="stores_login_finishing">साइन-इन पूरा हो रहा है…</string>
+    <string name="stores_xbox_sign_in_again">Microsoft ने Xbox साइन-इन अस्वीकार कर दिया। स्टोर्स में Xbox से साइन आउट करें, फिर से साइन इन करें, फिर जारी रखें।</string>
     <string name="stores_login_error_network">साइन-इन पेज लोड नहीं हो सका: %1$s</string>
     <string name="stores_login_error_idp_blocked">यह प्रोवाइडर एम्बेडेड पेज से साइन इन करने से मना करता है। इसके बदले अपने स्टोर पासवर्ड से साइन इन करें।</string>
     <string name="stores_login_error_http">साइन-इन पेज ने एक एरर के साथ जवाब दिया (HTTP %1$d)।</string>

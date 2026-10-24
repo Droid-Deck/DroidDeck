@@ -2158,6 +2158,7 @@
     <string name="stores_login_close">Stäng</string>
     <string name="stores_login_retry">Försök igen</string>
     <string name="stores_login_finishing">Slutför inloggningen…</string>
+    <string name="stores_xbox_sign_in_again">Microsoft avvisade Xbox-inloggningen. Logga ut från Xbox under Butiker, logga in igen och återuppta sedan.</string>
     <string name="stores_login_error_network">Inloggningssidan kunde inte läsas in: %1$s</string>
     <string name="stores_login_error_idp_blocked">Den här leverantören vägrar logga in från en inbäddad sida. Logga in med ditt butikslösenord istället.</string>
     <string name="stores_login_error_http">Inloggningssidan svarade med ett fel (HTTP %1$d).</string>

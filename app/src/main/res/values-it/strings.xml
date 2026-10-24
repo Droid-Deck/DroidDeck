@@ -2168,6 +2168,7 @@
     <string name="stores_login_close">Chiudi</string>
     <string name="stores_login_retry">Riprova</string>
     <string name="stores_login_finishing">Completamento dell\'accesso…</string>
+    <string name="stores_xbox_sign_in_again">Microsoft ha rifiutato l\'accesso a Xbox. Esci da Xbox in Negozi, accedi di nuovo, poi riprendi.</string>
     <string name="stores_login_error_network">Impossibile caricare la pagina di accesso: %1$s</string>
     <string name="stores_login_error_idp_blocked">Questo provider non consente l\'accesso da una pagina incorporata. Accedi invece con la password del negozio.</string>
     <string name="stores_login_error_http">La pagina di accesso ha risposto con un errore (HTTP %1$d).</string>

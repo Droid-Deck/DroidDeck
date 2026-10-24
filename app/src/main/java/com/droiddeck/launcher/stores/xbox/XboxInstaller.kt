@@ -44,7 +44,12 @@ internal class XboxInstaller(private val app: Context, private val item: Catalog
             Xodus.start(app, listOf("streaming", source, guestFolder, "--market", market,
                 "--progress-json", "--control-stdin") + selection).use { process ->
                 child = process
-                val diagnostics = Xodus.diagnostics(process)
+                val rejected = AtomicBoolean(false)
+                val rejectedLine = Regex(Xodus.SIGN_IN_REJECTED)
+                val diagnostics = Xodus.diagnostics(process) { line ->
+                    StoresState.logLine("Xbox: $line")
+                    if (line.matches(rejectedLine)) rejected.set(true)
+                }
                 if (cancelled.get()) process.process.destroy()
                 process.process.inputStream.bufferedReader().useLines { lines -> lines.forEach { line ->
                     if (line.startsWith("NEXUS_PROGRESS ")) {
@@ -63,6 +68,7 @@ internal class XboxInstaller(private val app: Context, private val item: Catalog
                 check(process.process.waitFor(15, TimeUnit.SECONDS)) { "Xbox installer did not exit." }
                 diagnostics.join(2000)
                 if (cancelled.get()) return null
+                check(!rejected.get()) { app.getString(com.droiddeck.launcher.R.string.stores_xbox_sign_in_again) }
                 check(process.process.exitValue() == 0 && complete) { "Xbox download did not complete. Resume to retry with fresh licenses." }
             }
             if (content) {

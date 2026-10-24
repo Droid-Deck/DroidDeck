@@ -2137,6 +2137,7 @@
     <string name="stores_login_close">Tutup</string>
     <string name="stores_login_retry">Coba lagi</string>
     <string name="stores_login_finishing">Menyelesaikan proses masuk…</string>
+    <string name="stores_xbox_sign_in_again">Microsoft menolak masuk Xbox. Keluar dari Xbox di Toko, masuk lagi, lalu lanjutkan.</string>
     <string name="stores_login_error_network">Halaman masuk tidak dapat dimuat: %1$s</string>
     <string name="stores_login_error_idp_blocked">Penyedia ini menolak proses masuk dari halaman tersemat. Masuk dengan kata sandi toko Anda sebagai gantinya.</string>
     <string name="stores_login_error_http">Halaman masuk merespons dengan kesalahan (HTTP %1$d).</string>

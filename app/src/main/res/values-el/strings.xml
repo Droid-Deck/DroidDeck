@@ -2158,6 +2158,7 @@
     <string name="stores_login_close">Κλείσιμο</string>
     <string name="stores_login_retry">Δοκιμάστε ξανά</string>
     <string name="stores_login_finishing">Ολοκλήρωση σύνδεσης…</string>
+    <string name="stores_xbox_sign_in_again">Η Microsoft απέρριψε τη σύνδεση στο Xbox. Αποσυνδεθείτε από το Xbox στα Καταστήματα, συνδεθείτε ξανά και μετά συνεχίστε.</string>
     <string name="stores_login_error_network">Δεν ήταν δυνατή η φόρτωση της σελίδας σύνδεσης: %1$s</string>
     <string name="stores_login_error_idp_blocked">Αυτός ο πάροχος αρνείται να συνδεθεί από μια ενσωματωμένη σελίδα. Συνδεθείτε με τον κωδικό πρόσβασης του καταστήματός σας αντ\' αυτού.</string>
     <string name="stores_login_error_http">Η σελίδα σύνδεσης απάντησε με σφάλμα (HTTP %1$d).</string>
