@@ -299,8 +299,8 @@ def sandboxed_apps(proc=Path("/proc")):
         flatpak, app = env.get(b"FLATPAK_ID"), steam_app_id(env)
         if flatpak and app:
             name = flatpak.decode(errors="replace").lower()
-            apps.setdefault(name, app)
-            apps.setdefault(name.rsplit(".", 1)[-1], app)
+            for key in {name, name.rsplit(".", 1)[-1]}:
+                apps[key] = app if apps.get(key, app) == app else None
     return apps
 
 
@@ -313,7 +313,8 @@ def window_steam_app(win, flatpaks, proc=Path("/proc")):
         if under_reaper(pid, proc):
             return None
         app = steam_app_id(process_env(pid, proc))
-        return str(app) if app else None
+        if app:
+            return str(app)
     app = flatpaks().get((win.get("class") or "").lower())
     return str(app) if app else None
 
