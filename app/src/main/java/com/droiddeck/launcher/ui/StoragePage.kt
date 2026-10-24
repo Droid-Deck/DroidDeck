@@ -797,7 +797,7 @@ private fun GamesView(report: StorageReport, sessionRunning: Boolean, a: FrontEn
                                 AddedGameMove.startAdopt(ctx, g.folder, g.name, c.libraryRoot, c.installDir) { a.onLibraryChanged() }
                             }
                             Text(
-                                "${c.installDir} · ${c.label}", fontSize = 11.sp, color = colors.onSurfaceVariant,
+                                "${c.installDir} · ${c.libraryLabel}", fontSize = 11.sp, color = colors.onSurfaceVariant,
                                 maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 4.dp),
                             )
                         }
