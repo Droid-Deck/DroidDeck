@@ -88,14 +88,24 @@ object FileOps {
             try {
                 var allOk = true
                 // listFiles() resolves children in one call instead of rebuilding a File per name.
-                val children = src.listFiles()
-                if (children != null) {
-                    for (child in children) {
-                        // The parent was just created above, so children skip the exists/mkdirs probe.
-                        if (!copyTree(child, File(dst, child.name), done, total, progress, isCancelled, parentReady = true)) {
-                            Log.e(TAG, "Failed to copy: $child")
-                            allOk = false
-                        }
+                // A null listing means the directory could not be read at all; skipping it would
+                // silently drop files and then delete the source. Retry once for transient FUSE
+                // hiccups, then fail loudly instead.
+                var children = src.listFiles()
+                if (children == null) {
+                    runCatching { Thread.sleep(500) }
+                    children = src.listFiles()
+                }
+                val listed = children
+                if (listed == null) {
+                    Log.e(TAG, "Failed to list directory: $src")
+                    return false
+                }
+                for (child in listed) {
+                    // The parent was just created above, so children skip the exists/mkdirs probe.
+                    if (!copyTree(child, File(dst, child.name), done, total, progress, isCancelled, parentReady = true)) {
+                        Log.e(TAG, "Failed to copy: $child")
+                        allOk = false
                     }
                 }
                 return allOk
