@@ -2394,6 +2394,7 @@
     <string name="setup_download_source_custom">Custom prefix</string>
     <string name="setup_download_mirror">Site</string>
     <string name="setup_download_prefix">Prefix</string>
+    <string name="setup_download_proxy">HTTP proxy</string>
     <string name="flathub_eyebrow">LINUX APPS</string>
     <string name="flathub_name">Flathub</string>
     <string name="flathub_line">Desktop apps for the Linux desktop, opened from Desktop.</string>
