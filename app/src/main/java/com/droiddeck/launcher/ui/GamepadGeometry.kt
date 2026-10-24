@@ -25,8 +25,9 @@ object GamepadGeometry {
 
     fun tall(w: Float, h: Float): Boolean = h >= w * 0.45f
 
-    fun layout(w: Float, h: Float, density: Float): Map<Slot, Box> {
+    fun layout(w: Float, h: Float, density: Float, scale: Float = 1f): Map<Slot, Box> {
         if (w <= 0f || h <= 0f) return emptyMap()
+        val s = scale.coerceIn(0.5f, 1f)
         val pad = 8 * density
         val buttonH = 40 * density
         val rowButton = 64 * density
@@ -47,7 +48,8 @@ object GamepadGeometry {
             }
         }
         if (!tall(w, h)) {
-            val reach = min(h - pad, w * 0.33f)
+            // Wide and tall enough, the pads would leave the middle buttons under a thumb's width.
+            val reach = minOf(h - pad, w * 0.33f, (w - 2 * gridButton - 4 * gutter) / 2.64f)
             val main = reach * 0.66f
             val second = reach * 0.54f
             val mainTop = h - reach * 0.40f - main / 2f
@@ -55,10 +57,10 @@ object GamepadGeometry {
             val shoulderH = (reach * 0.16f).coerceAtLeast(buttonH)
             val shoulderY = min(h - reach * 0.94f + shoulderH / 2f, mainTop - gutter - shoulderH / 2f)
                 .coerceAtLeast(pad + shoulderH / 2f)
-            pair(Slot.LEFT_MAIN, Slot.RIGHT_MAIN, reach * 0.40f, h - reach * 0.40f, main, main)
-            pair(Slot.LEFT_SECOND, Slot.RIGHT_SECOND, reach * 1.03f, h - reach * 0.30f, second, second)
-            pair(Slot.LEFT_OUTER_SHOULDER, Slot.RIGHT_OUTER_SHOULDER, reach * 0.22f, shoulderY, shoulderW, shoulderH)
-            pair(Slot.LEFT_INNER_SHOULDER, Slot.RIGHT_INNER_SHOULDER, reach * 0.62f, shoulderY, shoulderW, shoulderH)
+            pair(Slot.LEFT_MAIN, Slot.RIGHT_MAIN, reach * 0.40f, h - reach * 0.40f, main * s, main * s)
+            pair(Slot.LEFT_SECOND, Slot.RIGHT_SECOND, reach * 1.03f, h - reach * 0.30f, second * s, second * s)
+            pair(Slot.LEFT_OUTER_SHOULDER, Slot.RIGHT_OUTER_SHOULDER, reach * 0.22f, shoulderY, shoulderW * s, shoulderH)
+            pair(Slot.LEFT_INNER_SHOULDER, Slot.RIGHT_INNER_SHOULDER, reach * 0.62f, shoulderY, shoulderW * s, shoulderH)
             val gap = w - 2 * reach * 1.32f
             val columns = when {
                 gap >= middle.size * rowButton -> middle.size
@@ -74,10 +76,10 @@ object GamepadGeometry {
             val shoulderW = side * 0.34f
             val shoulderH = (side * 0.13f).coerceAtLeast(buttonH)
             val shoulderY = (secondCy - second / 2f - gutter - shoulderH / 2f).coerceAtLeast(pad + shoulderH / 2f)
-            pair(Slot.LEFT_MAIN, Slot.RIGHT_MAIN, side * 0.40f, h - side * 0.40f, main, main)
-            pair(Slot.LEFT_SECOND, Slot.RIGHT_SECOND, side * 0.74f, secondCy, second, second)
-            pair(Slot.LEFT_OUTER_SHOULDER, Slot.RIGHT_OUTER_SHOULDER, side * 0.20f, shoulderY, shoulderW, shoulderH)
-            pair(Slot.LEFT_INNER_SHOULDER, Slot.RIGHT_INNER_SHOULDER, side * 0.57f, shoulderY, shoulderW, shoulderH)
+            pair(Slot.LEFT_MAIN, Slot.RIGHT_MAIN, side * 0.40f, h - side * 0.40f, main * s, main * s)
+            pair(Slot.LEFT_SECOND, Slot.RIGHT_SECOND, side * 0.74f, secondCy, second * s, second * s)
+            pair(Slot.LEFT_OUTER_SHOULDER, Slot.RIGHT_OUTER_SHOULDER, side * 0.20f, shoulderY, shoulderW * s, shoulderH)
+            pair(Slot.LEFT_INNER_SHOULDER, Slot.RIGHT_INNER_SHOULDER, side * 0.57f, shoulderY, shoulderW * s, shoulderH)
             val gap = w - 2 * (side * 0.40f + main / 2f)
             val columns = if (gap >= 2 * gridButton) 2 else 1
             val rows = (middle.size + columns - 1) / columns

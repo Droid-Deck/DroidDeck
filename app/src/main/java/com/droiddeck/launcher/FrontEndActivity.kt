@@ -1628,6 +1628,9 @@ class FrontEndActivity : ComponentActivity() {
                 pipAutoEnter = pipAutoEnter,
                 unfoldedControls = if (mode == SessionService.MODE_STEAM &&
                     com.droiddeck.launcher.session.SessionDisplay.foldable(this)) unfoldedControls else null,
+                deckControlsWhen = deckControlsWhen,
+                foldedAspect = foldedAspect,
+                deckControlsScale = deckControlsScale,
                 unfoldedControlsWithController = unfoldedControlsWithController,
                 oscMode = if (mode == SessionService.MODE_STEAM) oscMode else null,
                 backActionsInverted = backActionsInverted,
@@ -1695,6 +1698,9 @@ class FrontEndActivity : ComponentActivity() {
                 },
                 onPipAutoEnter = { on -> SessionPrefs.setPipAutoEnter(this, on); pipAutoEnter = on },
                 onUnfoldedControls = { on -> SessionPrefs.setUnfoldedControls(this, on); unfoldedControls = on },
+                onDeckControlsWhen = { m -> SessionPrefs.setDeckControlsWhen(this, m); deckControlsWhen = m },
+                onFoldedAspect = { f -> SessionPrefs.setFoldedAspect(this, f); foldedAspect = f },
+                onDeckControlsScale = { p -> SessionPrefs.setDeckControlsScale(this, p); deckControlsScale = p },
                 onUnfoldedControlsWithController = { on ->
                     SessionPrefs.setUnfoldedControlsWithController(this, on); unfoldedControlsWithController = on
                 },
@@ -1894,6 +1900,9 @@ class FrontEndActivity : ComponentActivity() {
 
     private var pipAutoEnter by mutableStateOf(false)
     private var unfoldedControls by mutableStateOf(false)
+    private var deckControlsWhen by mutableStateOf(com.droiddeck.launcher.session.SessionDisplay.CONTROLS_UNFOLDED)
+    private var foldedAspect by mutableStateOf(com.droiddeck.launcher.session.SessionDisplay.FOLDED_16X9)
+    private var deckControlsScale by mutableStateOf(100)
     private var unfoldedControlsWithController by mutableStateOf(false)
     private var shaderPrecacheGeneration = 0
 
@@ -1912,6 +1921,9 @@ class FrontEndActivity : ComponentActivity() {
     private fun loadModeSettings(mode: String) {
         pipAutoEnter = SessionPrefs.pipAutoEnter(this)
         unfoldedControls = SessionPrefs.unfoldedControls(this)
+        deckControlsWhen = SessionPrefs.deckControlsWhen(this)
+        foldedAspect = SessionPrefs.foldedAspect(this)
+        deckControlsScale = SessionPrefs.deckControlsScale(this)
         unfoldedControlsWithController = SessionPrefs.unfoldedControlsWithController(this)
         resolution = SessionPrefs.resolutionChoice(this, mode, com.droiddeck.launcher.session.SessionDisplay.panelSize(this))
         fexPreset = SessionPrefs.fexPreset(this)

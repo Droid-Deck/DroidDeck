@@ -260,6 +260,13 @@ class DrawerActions(
     val onGestureSettings: () -> Unit = {},
     val onFexPreset: (String) -> Unit,
     val onUpscaler: (Int) -> Unit = {},
+    val followWindowSize: String? = null,
+    val followGameInFront: Boolean = false,
+    val followDesktop: Boolean = false,
+    val followGameName: String? = null,
+    val followGameIcon: android.graphics.Bitmap? = null,
+    val followDivisor: Float = 1f,
+    val onFollowDivisor: (Float) -> Unit = {},
     val onUpscaleSharpness: (Int) -> Unit = {},
     val onEffects: (ScreenEffects) -> Unit = {},
     val onCardboard: (Cardboard) -> Unit = {},
@@ -278,6 +285,12 @@ class DrawerActions(
     val onPipAutoEnter: (Boolean) -> Unit = {},
     val unfoldedControls: Boolean? = null,
     val onUnfoldedControls: (Boolean) -> Unit = {},
+    val deckControlsWhen: String = com.droiddeck.launcher.session.SessionDisplay.CONTROLS_UNFOLDED,
+    val onDeckControlsWhen: (String) -> Unit = {},
+    val foldedAspect: String = com.droiddeck.launcher.session.SessionDisplay.FOLDED_16X9,
+    val onFoldedAspect: (String) -> Unit = {},
+    val deckControlsScale: Int = 100,
+    val onDeckControlsScale: (Int) -> Unit = {},
     val unfoldedControlsWithController: Boolean = false,
     val onUnfoldedControlsWithController: (Boolean) -> Unit = {},
     val onShareLogs: () -> Unit,
@@ -515,6 +528,31 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                 }
                             }
                             SettingsGroup(stringResource(R.string.display_image_scaling)) {
+                                if (a.followWindowSize != null) {
+                                    val (fw, fh) = a.followWindowSize.split('x').map { it.toInt() }
+                                    val now = com.droiddeck.launcher.session.SessionDisplay.followSize(fw, fh, a.followDivisor)
+                                    if (a.followGameInFront && a.followGameName != null) Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, top = 10.dp),
+                                    ) {
+                                        a.followGameIcon?.let { icon ->
+                                            Image(bitmap = icon.asImageBitmap(), contentDescription = null,
+                                                modifier = Modifier.padding(end = 8.dp).size(24.dp).clip(RoundedCornerShape(5.dp)))
+                                        }
+                                        Text(a.followGameName, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = colors.onSurfaceVariant,
+                                            maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    }
+                                    ChoiceRow(host, "follow-divisor", stringResource(R.string.display_follow_divisor),
+                                        stringResource(when {
+                                            a.followGameInFront -> R.string.display_follow_divisor_game
+                                            a.followDesktop -> R.string.display_follow_divisor_desktop
+                                            else -> R.string.display_follow_divisor_client
+                                        },
+                                            now?.let { "${it.first}×${it.second}" } ?: "-", "$fw×$fh"),
+                                        com.droiddeck.launcher.session.SessionDisplay.FOLLOW_DIVISORS.map {
+                                            it to stringResource(com.droiddeck.launcher.session.SessionDisplay.divisorLabel(it))
+                                        }, a.followDivisor, chipModifier = focus.track(page, "follow-divisor"), onPick = a.onFollowDivisor)
+                                }
                                 ChoiceRow(host, "upscaler", stringResource(R.string.display_filter), null,
                                     SessionPrefs.upscalerChoices(LocalContext.current), a.upscaler,
                                     note = stringResource(R.string.display_filter_note),
@@ -577,11 +615,28 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                 if (a.steam && a.unfoldedControls != null) ToggleRow(host, "unfolded-controls", stringResource(R.string.unfolded_controls),
                                     stringResource(R.string.unfolded_controls_hint), a.unfoldedControls,
                                     chipModifier = focus.track(page, "unfolded-controls"), onChange = a.onUnfoldedControls)
-                                if (a.steam && a.unfoldedControls == true) ToggleRow(host, "unfolded-controls-with-controller",
-                                    stringResource(R.string.unfolded_controls_with_controller),
-                                    stringResource(R.string.unfolded_controls_with_controller_hint), a.unfoldedControlsWithController,
-                                    chipModifier = focus.track(page, "unfolded-controls-with-controller"),
-                                    onChange = a.onUnfoldedControlsWithController)
+                                if (a.steam && a.unfoldedControls == true) {
+                                    ChoiceRow(host, "deck-controls-when", stringResource(R.string.deck_controls_when), null,
+                                        listOf(
+                                            com.droiddeck.launcher.session.SessionDisplay.CONTROLS_UNFOLDED to stringResource(R.string.deck_controls_when_unfolded),
+                                            com.droiddeck.launcher.session.SessionDisplay.CONTROLS_HALF_FOLDED to stringResource(R.string.deck_controls_when_half_folded),
+                                        ), a.deckControlsWhen, chipModifier = focus.track(page, "deck-controls-when"), onPick = a.onDeckControlsWhen)
+                                    ChoiceRow(host, "folded-aspect", stringResource(R.string.folded_aspect), stringResource(R.string.folded_aspect_hint),
+                                        listOf(
+                                            com.droiddeck.launcher.session.SessionDisplay.FOLDED_FILL to stringResource(R.string.folded_aspect_fill),
+                                            com.droiddeck.launcher.session.SessionDisplay.FOLDED_16X9 to "16:9",
+                                            com.droiddeck.launcher.session.SessionDisplay.FOLDED_16X10 to "16:10",
+                                            com.droiddeck.launcher.session.SessionDisplay.FOLDED_SCOPE to stringResource(R.string.folded_aspect_scope),
+                                        ), a.foldedAspect, chipModifier = focus.track(page, "folded-aspect"), onPick = a.onFoldedAspect)
+                                    ChoiceRow(host, "deck-controls-scale", stringResource(R.string.deck_controls_scale), null,
+                                        SessionPrefs.DECK_CONTROLS_SCALES.map { it to "$it %" }, a.deckControlsScale,
+                                        chipModifier = focus.track(page, "deck-controls-scale"), onPick = a.onDeckControlsScale)
+                                    ToggleRow(host, "unfolded-controls-with-controller",
+                                        stringResource(R.string.unfolded_controls_with_controller),
+                                        stringResource(R.string.unfolded_controls_with_controller_hint), a.unfoldedControlsWithController,
+                                        chipModifier = focus.track(page, "unfolded-controls-with-controller"),
+                                        onChange = a.onUnfoldedControlsWithController)
+                                }
                             }
                             SettingsGroup(stringResource(R.string.drawer_latency)) {
                                 ToggleRow(host, "low-latency-controller", stringResource(R.string.drawer_low_latency_controller),

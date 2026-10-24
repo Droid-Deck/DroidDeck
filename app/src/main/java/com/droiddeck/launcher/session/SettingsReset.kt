@@ -16,7 +16,7 @@ object SettingsReset {
         "storesInstallLanguage",
         "hud", "hudDeck", "hudFps", "hudBattery", "hudGraph", "hudColor", "hudOpacity", "backActionsInverted", "touch", "osc", "shape", "steamController",
         "gamepadLeft", "gamepadRight", "pipAutoEnter", "unfoldedControls", "unfoldedControlsWithController",
-        "stretch16x9", "picturePosition",
+        "foldedAspect", "deckControlsWhen", "deckControlsScale", "stretch16x9", "picturePosition",
         "gpuDriverMode", "androidDriver", "linuxDriver", "linuxDriver.steam", "linuxDriver.desktop",
         "tuSysmem", "glThread", "noGlError", "zinkLazy", "mangoapp", "gpuClockPin", "gamescopeRealtime",
         "directAudio", "mic", "wifiDiscovery", "clientCpusOverride", "clientCpus", "gameCpus",
@@ -30,6 +30,7 @@ object SettingsReset {
 
     internal val SESSION_PREFIXES = listOf(
         "resolutionCap.", "displayResolution.", "customRes.", "hdr.", "fpsLimit.", "suspendPolicy.",
+        "followDivisor.",
     )
 
     private val STEAM_TOUCH_KEYS = listOf("feedback", "autoFade", "gyro", "shake")

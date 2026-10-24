@@ -38,6 +38,7 @@ class SettingsResetTest {
         SessionPrefs.setHudShowGraph(app, false)
         SessionPrefs.setHudColor(app, "amber")
         SessionPrefs.setHudOpacity(app, 40)
+        SessionPrefs.setFollowDivisor(app, "game-123", "2184x1968", 2f)
         ControllerPrefs.setOpacity(app, 40)
         AppUiPrefs.setScale(app, 150)
         FrameGen.set(app, FrameGen.Mode(FrameGen.ENGINE_DDFG, 3))
@@ -57,6 +58,7 @@ class SettingsResetTest {
         assertTrue(SessionPrefs.hudShowGraph(app))
         assertEquals(SessionPrefs.HUD_COLOR_MINT, SessionPrefs.hudColor(app))
         assertEquals(SessionPrefs.HUD_OPACITY_DEFAULT, SessionPrefs.hudOpacity(app))
+        assertEquals(1f, SessionPrefs.followDivisor(app, "game-123", "2184x1968"))
         assertEquals("32.4°C", PerfHud.batteryCelsius(324))
         assertNull(PerfHud.batteryCelsius(0))
         assertEquals(100, ControllerPrefs.read(app).opacity)
@@ -102,7 +104,8 @@ class SettingsResetTest {
     }
 
     @Test fun perModeKeysAreSettings() {
-        listOf("resolutionCap.steam", "displayResolution.desktop", "customRes.steam", "hdr.steam", "fpsLimit.desktop", "suspendPolicy.steam")
+        listOf("resolutionCap.steam", "displayResolution.desktop", "customRes.steam", "hdr.steam", "fpsLimit.desktop", "suspendPolicy.steam",
+            "followDivisor.client.2184x1968", "followDivisor.desktop.2184x1968")
             .forEach { assertTrue(it, SettingsReset.isSessionSetting(it)) }
         listOf("addedName:/x", "addedAppId:/x", "gpuAutoInstalled", "romsDir", "gameStorage", "micAsked", "gameTextureFiltering")
             .forEach { assertFalse(it, SettingsReset.isSessionSetting(it)) }

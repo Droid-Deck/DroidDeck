@@ -1043,6 +1043,44 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("unfoldedControls", enabled).apply()
     }
 
+    fun foldedAspect(context: Context): String =
+        prefs(context).getString("foldedAspect", null)?.takeIf { it in SessionDisplay.FOLDED_ASPECTS }
+            ?: SessionDisplay.FOLDED_16X9
+
+    fun deckControlsWhen(context: Context): String =
+        prefs(context).getString("deckControlsWhen", null)
+            ?.takeIf { it == SessionDisplay.CONTROLS_UNFOLDED || it == SessionDisplay.CONTROLS_HALF_FOLDED }
+            ?: SessionDisplay.CONTROLS_UNFOLDED
+
+    fun setDeckControlsWhen(context: Context, mode: String) {
+        prefs(context).edit().putString("deckControlsWhen", mode).apply()
+    }
+
+    fun setFoldedAspect(context: Context, aspect: String) {
+        prefs(context).edit().putString("foldedAspect", aspect).apply()
+    }
+
+    const val FOLLOW_CLIENT = "client"
+    const val FOLLOW_DESKTOP = "desktop"
+
+    /** Keyed by game, or [FOLLOW_CLIENT] / [FOLLOW_DESKTOP], and window size ("2184x984"); 1 when never chosen. */
+    fun followDivisor(context: Context, game: String, window: String): Float =
+        prefs(context).getFloat("followDivisor.$game.$window", 1f).takeIf { it in SessionDisplay.FOLLOW_DIVISORS } ?: 1f
+
+    fun setFollowDivisor(context: Context, game: String, window: String, divisor: Float) {
+        val key = "followDivisor.$game.$window"
+        prefs(context).edit().apply { if (divisor == 1f) remove(key) else putFloat(key, divisor) }.apply()
+    }
+
+    val DECK_CONTROLS_SCALES = listOf(70, 80, 90, 100)
+
+    fun deckControlsScale(context: Context): Int =
+        prefs(context).getInt("deckControlsScale", 100).takeIf { it in DECK_CONTROLS_SCALES } ?: 100
+
+    fun setDeckControlsScale(context: Context, percent: Int) {
+        prefs(context).edit().putInt("deckControlsScale", percent).apply()
+    }
+
     fun unfoldedControlsWithController(context: Context): Boolean =
         prefs(context).getBoolean("unfoldedControlsWithController", false)
 

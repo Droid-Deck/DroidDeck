@@ -2,11 +2,22 @@ package com.droiddeck.launcher.session
 
 import android.content.Context
 import android.view.WindowManager
+import com.droiddeck.launcher.R
 
 object SessionDisplay {
     const val MATCH_SCREEN = "screen"
     const val FOLLOW_SCREEN = "follow"
     const val FOLLOW_MIN_SIDE = 480
+
+    val FOLLOW_DIVISORS = listOf(1f, 1.5f, 2f, 3f, 4f)
+
+    fun divisorLabel(divisor: Float): Int = when (divisor) {
+        1.5f -> R.string.display_follow_two_thirds
+        2f -> R.string.display_follow_half
+        3f -> R.string.display_follow_third
+        4f -> R.string.display_follow_quarter
+        else -> R.string.display_follow_full
+    }
 
     const val DEFAULT_RESOLUTION = "720p"
     private val PRESET_HEIGHTS = listOf(720, 900, 1080)
@@ -31,18 +42,43 @@ object SessionDisplay {
             .filter { resolveChoice(panel, it) != screenSize(panel) } + MATCH_SCREEN + FOLLOW_SCREEN
     }
 
-    fun followSize(width: Int, height: Int): Pair<Int, Int>? =
-        if (minOf(width, height) < FOLLOW_MIN_SIDE) null else (width and 1.inv()) to (height and 1.inv())
-
-    const val UNFOLDED_MAX_GAME_SHARE = 0.8f
+    fun followSize(width: Int, height: Int, divisor: Float = 1f): Pair<Int, Int>? {
+        if (minOf(width, height) < FOLLOW_MIN_SIDE) return null
+        val d = divisor.coerceAtLeast(1f)
+        return ((width / d).toInt() and 1.inv()) to ((height / d).toInt() and 1.inv())
+    }
 
     fun foldable(context: Context): Boolean =
         context.packageManager.hasSystemFeature("android.hardware.sensor.hinge_angle")
 
-    const val UNFOLDED_MIN_DP = 600
+    const val FOLDED_FILL = "fill"
+    const val FOLDED_16X9 = "16:9"
+    const val FOLDED_16X10 = "16:10"
+    const val FOLDED_SCOPE = "2.39:1"
+    val FOLDED_ASPECTS = listOf(FOLDED_FILL, FOLDED_16X9, FOLDED_16X10, FOLDED_SCOPE)
 
-    fun unfoldedGameHeight(width: Int, height: Int): Int =
-        minOf(width * 9 / 16, (height * UNFOLDED_MAX_GAME_SHARE).toInt()) and 1.inv()
+    const val FOLDED_MIN_SIDE = 240
+
+    const val CONTROLS_UNFOLDED = "unfolded"
+    const val CONTROLS_HALF_FOLDED = "halfFolded"
+
+    const val UNFOLDED_MIN_DP = 600
+    const val UNFOLDED_MAX_GAME_SHARE = 0.8f
+
+    fun unfoldedGameSize(width: Int, height: Int, aspect: String): Pair<Int, Int> =
+        if (aspect == FOLDED_FILL) (width and 1.inv()) to (height / 2 and 1.inv())
+        else foldedGameSize(width, (height * UNFOLDED_MAX_GAME_SHARE).toInt(), aspect)
+
+    fun foldedGameSize(width: Int, aboveFold: Int, aspect: String): Pair<Int, Int> {
+        val ratio = when (aspect) {
+            FOLDED_16X9 -> 16f / 9f
+            FOLDED_16X10 -> 16f / 10f
+            FOLDED_SCOPE -> 2.39f
+            else -> return (width and 1.inv()) to (aboveFold and 1.inv())
+        }
+        val gameWidth = minOf(width.toFloat(), aboveFold * ratio)
+        return (gameWidth.toInt() and 1.inv()) to ((gameWidth / ratio).toInt() and 1.inv())
+    }
 
     fun unfoldedControlsWanted(
         enabled: Boolean,
