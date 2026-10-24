@@ -27,6 +27,8 @@ import com.droiddeck.launcher.input.PadBridge
 import com.droiddeck.launcher.input.PointerGestures
 import com.droiddeck.launcher.input.SecondScreenMode
 import com.droiddeck.launcher.input.TouchpadGestures
+import com.droiddeck.launcher.input.InputProfiles
+import com.droiddeck.launcher.input.InputSurfaceLayout
 import com.droiddeck.launcher.SessionActivity
 import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionState
@@ -47,6 +49,7 @@ class SecondScreenPresentation(
     private val onQam: () -> Unit,
     private val onClose: () -> Unit,
     private val pad: PadBridge? = null,
+    private val pointerPosition: () -> androidx.compose.ui.geometry.Offset? = { null },
 ) : Presentation(sessionActivity, display) {
     private val root = LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
@@ -92,10 +95,25 @@ class SecondScreenPresentation(
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        if (currentMode == SecondScreenMode.KEYBOARD_TRACKPAD) {
+        if (currentMode != SecondScreenMode.TERMINAL) {
             if (sessionActivity.dispatchKeyEvent(event)) return true
         }
         return super.dispatchKeyEvent(event)
+    }
+
+    override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {
+        if (currentMode != SecondScreenMode.TERMINAL && PadBridge.isControllerMotionEvent(event)) {
+            return sessionActivity.dispatchGenericMotionEvent(event)
+        }
+        return super.dispatchGenericMotionEvent(event)
+    }
+
+    fun refreshControls() { if (created) renderMode() }
+
+    fun showKeyboard(): Boolean {
+        val host = keyboardHost ?: return false
+        host.show()
+        return true
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -119,6 +137,12 @@ class SecondScreenPresentation(
             SecondScreenMode.KEYBOARD_TRACKPAD -> renderKeyboardAndTrackpad()
             SecondScreenMode.TERMINAL -> renderTerminal()
             SecondScreenMode.DECK_CONTROLS -> root.addView(DeckControlsPanel(context, onClose, onSteamMenu, onQam, pad), weightParams())
+            SecondScreenMode.CUSTOM_CONTROLS -> {
+                val profile = InputProfiles.active(context, SessionState.mode == SessionService.MODE_DESKTOP)
+                root.addView(DeckControlsPanel(context, onClose, onSteamMenu, onQam, pad,
+                    InputSurfaceLayout.read(context, profile.id)), weightParams())
+                keyboardHost = KeyboardHost(context) { sessionActivity.dispatchKeyEvent(it) }.also { root.addView(it, ViewGroup.LayoutParams(1, 1)) }
+            }
             SecondScreenMode.NONE -> Unit
         }
     }
@@ -333,7 +357,12 @@ class SecondScreenPresentation(
             canvas.drawColor(Color.BLACK)
         }
 
-        override fun onTouchEvent(event: MotionEvent): Boolean = gestures.onTouch(event)
+        override fun onTouchEvent(event: MotionEvent): Boolean {
+            if (event.actionMasked == MotionEvent.ACTION_DOWN) pointerPosition()?.let {
+                gestures.place(it.x * width, it.y * height)
+            }
+            return gestures.onTouch(event)
+        }
     }
 
     private inner class TerminalClient : TerminalSessionClient, TerminalViewClient {

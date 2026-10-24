@@ -10,6 +10,7 @@ enum class SecondScreenMode(val id: String, @StringRes val label: Int) {
     KEYBOARD_TRACKPAD("keyboard-trackpad", R.string.second_mode_keyboard_trackpad),
     TERMINAL("terminal", R.string.second_mode_terminal),
     DECK_CONTROLS("deck-controls", R.string.second_mode_deck_controls),
+    CUSTOM_CONTROLS("custom-controls", R.string.input_custom_controls),
 }
 
 data class SecondScreenDisplay(val id: Int, val label: String)

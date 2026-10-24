@@ -59,7 +59,6 @@ import com.droiddeck.launcher.ui.ModeSettings
 import com.droiddeck.launcher.ui.ModeSettingsActions
 import com.droiddeck.launcher.ui.ConfirmDialog
 import com.droiddeck.launcher.ui.ControllerActions
-import com.droiddeck.launcher.ui.ControllerMappingPage
 import com.droiddeck.launcher.input.ControllerPrefs
 import com.droiddeck.launcher.input.ControllerEditorActivity
 import com.droiddeck.launcher.ui.FrontEndScreen
@@ -1101,12 +1100,11 @@ class FrontEndActivity : ComponentActivity() {
                             onSteamButton = { on -> ControllerPrefs.setSteamButton(this, on); refreshController() },
                             onQamButton = { on -> ControllerPrefs.setQamButton(this, on); refreshController() },
                             onKeyboardButton = { on -> ControllerPrefs.setKeyboardButton(this, on); refreshController() },
-                            onSelectSteam = { on -> ControllerPrefs.setSelectSteam(this, on); refreshController() },
                             onJoyConVr = { on -> ControllerPrefs.setJoyConVr(this, on); refreshController() },
                             onEditLayout = { startActivity(Intent(this, ControllerEditorActivity::class.java)) },
                             onResetLayout = { ControllerPrefs.resetAllLayouts(this); refreshController() },
                             onMapping = { showPerformance = false; showComponents = false; showMapping = true },
-                            onResetAll = { ControllerPrefs.resetAll(this); refreshController() },
+                            onResetAll = { ControllerPrefs.resetAll(this); com.droiddeck.launcher.input.InputProfiles.resetAll(this); refreshController() },
                         ),
                     ),
                     page = page,
@@ -1438,13 +1436,7 @@ class FrontEndActivity : ComponentActivity() {
 
     @Composable
     private fun MappingHost() {
-        val settings = controllerSettings ?: return
-        ControllerMappingPage(
-            mapping = settings.mapping,
-            onPick = { id, target -> ControllerPrefs.setTarget(this, id, target); refreshController() },
-            onReset = { ControllerPrefs.resetMapping(this); refreshController() },
-            onBack = { showMapping = false },
-        )
+        com.droiddeck.launcher.ui.InputSettingsPage(onBack = { showMapping = false })
     }
 
     private fun openComponents(focusContent: Boolean = true, tab: String? = null, gameKey: String? = null) {

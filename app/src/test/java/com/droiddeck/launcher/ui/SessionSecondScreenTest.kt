@@ -5,11 +5,13 @@ import android.hardware.input.InputManager
 import android.view.Display
 import android.view.InputDevice
 import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
 import androidx.compose.ui.test.*
 import androidx.compose.runtime.MutableState
+import androidx.compose.ui.geometry.Offset
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.SessionActivity
 import com.droiddeck.launcher.gpu.FrameGen
@@ -74,6 +76,31 @@ class SessionSecondScreenTest {
     @Test fun desktopTrackpadOmitsSteamShortcuts() = checkShortcuts(steam = false)
 
     @Test fun steamTrackpadKeepsWorkingSteamShortcuts() = checkShortcuts(steam = true)
+
+    @Test fun trackpadTapUsesPositionLeftByAnotherPointerSource() {
+        val activity = Robolectric.buildActivity(SessionActivity::class.java).get()
+        val display = activity.getSystemService(DisplayManager::class.java).getDisplay(Display.DEFAULT_DISPLAY)
+        val positions = mutableListOf<Pair<Float, Float>>()
+        var position = Offset(0.2f, 0.7f)
+        val panel = SecondScreenPresentation(activity, display,
+            { x, y, w, h -> positions += x / w to y / h }, { _, _ -> }, {}, {}, {}, {},
+            pointerPosition = { position })
+        try {
+            panel.create()
+            panel.showMode(SecondScreenMode.KEYBOARD_TRACKPAD)
+            val trackpad = descendants(panel.window!!.decorView).first { it.javaClass.simpleName == "TrackpadView" }
+            trackpad.layout(0, 0, 1000, 600)
+            for (next in listOf(Offset(0.2f, 0.7f), Offset(0.8f, 0.1f))) {
+                position = next
+                for ((action, time) in listOf(MotionEvent.ACTION_DOWN to 1000L, MotionEvent.ACTION_UP to 1010L)) {
+                    val event = MotionEvent.obtain(1000, time, action, 300f, 300f, 0)
+                    try { trackpad.onTouchEvent(event) } finally { event.recycle() }
+                }
+                assertEquals(next.x, positions.last().first, 0.001f)
+                assertEquals(next.y, positions.last().second, 0.001f)
+            }
+        } finally { panel.closeControls() }
+    }
 
     @Test
     @Config(sdk = [34], shadows = [PadBridgeRoutingTest.RegisteredKeyEvent::class])

@@ -20,7 +20,8 @@ import java.util.ArrayDeque
 import java.util.UUID
 
 @SuppressLint("MissingPermission")
-class SteamControllerBle(private val context: Context) {
+class SteamControllerBle(private val context: Context, router: InputRouter? = null) {
+    private val routedInput = router?.let(::TritonInputRouter)
     private val thread = HandlerThread("steam-controller-ble").apply { start() }
     private val handler = Handler(thread.looper)
     private val outputReports = mutableMapOf<Int, UUID>()
@@ -47,6 +48,7 @@ class SteamControllerBle(private val context: Context) {
         running = false
         handler.removeCallbacksAndMessages(null)
         disconnect("session ended")
+        routedInput?.close()
         thread.quitSafely()
     }
 
@@ -217,10 +219,13 @@ class SteamControllerBle(private val context: Context) {
 
     private fun onState(data: ByteArray) {
         if (data.size < STATE_BYTES) return
-        FakeInputWriter.writeTritonState(SLOT, reportId, data)
+        val timing = InputTiming.begin()
+        FakeInputWriter.writeTritonState(SLOT, reportId, routedInput?.route(data) ?: data)
+        InputTiming.end(timing)
     }
 
     private fun release() {
+        routedInput?.release()
         FakeInputWriter.writeTritonState(SLOT, if (reportId == 0x47) 0x47 else 0x45, ByteArray(STATE_BYTES))
     }
 

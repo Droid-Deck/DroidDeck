@@ -2936,15 +2936,19 @@ EXPORT DIR *opendir(const char *name) {
   return dir;
 }
 
+static bool open_has_mode(int flags) {
+  return (flags & O_CREAT) != 0 || (flags & O_TMPFILE) == O_TMPFILE;
+}
+
 EXPORT int open(const char *pathname, int flags, ...) {
   va_list va;
-  mode_t mode;
+  mode_t mode = 0;
   int fd;
   bool hasMode;
 
   va_start(va, flags);
 
-  hasMode = flags & O_CREAT;
+  hasMode = open_has_mode(flags);
 
   if (hasMode) {
     mode = va_arg(va, mode_t);
@@ -3016,13 +3020,13 @@ EXPORT int open(const char *pathname, int flags, ...) {
 
 EXPORT int openat(int dirfd, const char *pathname, int flags, ...) {
   va_list va;
-  mode_t mode;
+  mode_t mode = 0;
   int fd;
   bool hasMode;
 
   va_start(va, flags);
 
-  hasMode = flags & O_CREAT;
+  hasMode = open_has_mode(flags);
 
   if (hasMode) {
     mode = va_arg(va, mode_t);
@@ -4143,7 +4147,7 @@ EXPORT int select(int nfds, fd_set *readfds, fd_set *writefds,
 
 #ifdef __GLIBC__
 static mode_t open_mode(int flags, va_list va) {
-  return (flags & (O_CREAT | O_TMPFILE)) ? va_arg(va, mode_t) : 0;
+  return open_has_mode(flags) ? va_arg(va, mode_t) : 0;
 }
 
 EXPORT int open64(const char *pathname, int flags, ...) {

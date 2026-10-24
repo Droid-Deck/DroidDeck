@@ -21,6 +21,9 @@ import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import android.widget.TextView
 import com.droiddeck.launcher.input.DeckControls
+import com.droiddeck.launcher.input.InputRole
+import com.droiddeck.launcher.input.InputControl
+import com.droiddeck.launcher.input.InputSurfaceElement
 import com.droiddeck.launcher.input.PadBridge
 import com.droiddeck.launcher.input.PadState
 import com.droiddeck.launcher.session.SessionService
@@ -37,9 +40,12 @@ class DeckControlsPanel(
     private val onSteamMenu: () -> Unit,
     private val onQam: () -> Unit,
     private val pad: PadBridge? = null,
+    private val customLayout: List<InputSurfaceElement>? = null,
+    private val inputRole: InputRole = InputRole.SECONDARY,
 ) : LinearLayout(context) {
     private enum class Tab(val label: Int) { GAMEPAD(R.string.deck_tab_gamepad), GRIPS(R.string.deck_tab_grips), LEFT(R.string.deck_tab_left), RIGHT(R.string.deck_tab_right), BOTH(R.string.deck_tab_both) }
 
+    private val deckSource = DeckControls.source(inputRole)
     private val content = FrameLayout(context)
     private val tabViews = HashMap<Tab, TextView>()
     private val topBar: View by lazy { topBar() }
@@ -49,11 +55,59 @@ class DeckControlsPanel(
         setBackgroundColor(Color.BLACK)
         addView(topBar, LayoutParams(LayoutParams.MATCH_PARENT, dp(64)))
         addView(content, LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f))
-        select(if (pad != null) selectedWithPad else selected)
+        if (customLayout != null && pad != null) renderCustom(pad, customLayout)
+        else select(if (pad != null) selectedWithPad else selected)
+    }
+
+    private fun renderCustom(pad: PadBridge, layout: List<InputSurfaceElement>) {
+        topBar.visibility = View.GONE
+        val canvas = object : ViewGroup(context) {
+            override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+                val w = MeasureSpec.getSize(widthMeasureSpec)
+                val h = MeasureSpec.getSize(heightMeasureSpec)
+                setMeasuredDimension(w, h)
+                for (i in layout.indices) getChildAt(i).measure(MeasureSpec.makeMeasureSpec((w * layout[i].width).toInt(), MeasureSpec.EXACTLY),
+                    MeasureSpec.makeMeasureSpec((h * layout[i].height).toInt(), MeasureSpec.EXACTLY))
+            }
+            override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
+                for (i in layout.indices) {
+                    val e = layout[i]
+                    val child = getChildAt(i)
+                    val x = (width * e.x).toInt(); val y = (height * e.y).toInt()
+                    child.layout(x, y, x + child.measuredWidth, y + child.measuredHeight)
+                }
+            }
+        }
+        for (element in layout) {
+            val c = element.control
+            canvas.addView(when (c) {
+                InputControl.LS, InputControl.RS -> StickView(context, pad, c == InputControl.RS)
+                InputControl.LEFT_PAD, InputControl.RIGHT_PAD -> TrackpadView(context, c == InputControl.RIGHT_PAD)
+                InputControl.LEFT_CLICK, InputControl.RIGHT_CLICK -> ClickBar(context, c == InputControl.RIGHT_CLICK)
+                InputControl.L4, InputControl.R4, InputControl.L5, InputControl.R5 -> GripButton(context, c.label, null, 1 shl (c.ordinal - InputControl.L4.ordinal))
+                else -> PadButton(context, pad, c.label) { state, down ->
+                    when (c) {
+                        InputControl.LT -> state.leftTrigger = if (down) 1f else 0f
+                        InputControl.RT -> state.rightTrigger = if (down) 1f else 0f
+                        InputControl.UP -> state.up = down
+                        InputControl.RIGHT -> state.right = down
+                        InputControl.DOWN -> state.down = down
+                        InputControl.LEFT -> state.left = down
+                        else -> state.press(when (c) {
+                            InputControl.GUIDE -> PadState.GUIDE; InputControl.QAM -> PadState.QAM
+                            else -> c.ordinal
+                        }, down)
+                    }
+                }
+            })
+        }
+        content.addView(canvas, FrameLayout.LayoutParams(-1, -1))
     }
 
     override fun onDetachedFromWindow() {
-        DeckControls.releaseAll()
+        deckSource.release()
+        pad?.releaseTouch(this)
+        deckSource.close()
         super.onDetachedFromWindow()
     }
 
@@ -96,7 +150,7 @@ class DeckControlsPanel(
 
     private fun select(tab: Tab) {
         if (pad != null) selectedWithPad = tab else selected = tab
-        DeckControls.releaseAll()
+        deckSource.release()
         for ((each, view) in tabViews) {
             val on = each == tab
             view.background = if (on) filled(CORNER_PILL, ACCENT) else null
@@ -114,6 +168,7 @@ class DeckControlsPanel(
             }
         }
         content.removeAllViews()
+        pad?.releaseTouch(this)
         topBar.visibility = if (tab == Tab.GAMEPAD) View.GONE else View.VISIBLE
         content.addView(
             when (tab) {
@@ -305,6 +360,8 @@ class DeckControlsPanel(
             drawSurface(canvas, down)
             val cx = width / 2f
             labelPaint.textSize = min(height * 0.3f, 30 * density)
+            val labelWidth = labelPaint.measureText(label)
+            if (labelWidth > width * 0.84f) labelPaint.textSize *= width * 0.84f / labelWidth
             labelPaint.color = if (down) ACCENT else TEXT
             val labelY = height / 2f + labelPaint.textSize * (if (caption == null) 0.35f else 0.1f)
             canvas.drawText(label, cx, labelY, labelPaint)
@@ -332,13 +389,13 @@ class DeckControlsPanel(
         }
     }
 
-    private class GripButton(context: Context, label: String, caption: String?, bit: Int) :
-        HoldButton(context, label, caption, { DeckControls.setGrip(bit, it) })
+    private inner class GripButton(context: Context, label: String, caption: String?, bit: Int) :
+        HoldButton(context, label, caption, { deckSource.setGrip(bit, it) })
 
-    private class ClickBar(context: Context, right: Boolean) :
-        HoldButton(context, context.getString(R.string.deck_click), if (right) context.getString(R.string.deck_right_trackpad) else context.getString(R.string.deck_left_trackpad), { DeckControls.setClick(right, it) })
+    private inner class ClickBar(context: Context, right: Boolean) :
+        HoldButton(context, context.getString(R.string.deck_click), if (right) context.getString(R.string.deck_right_trackpad) else context.getString(R.string.deck_left_trackpad), { deckSource.setClick(right, it) })
 
-    private class TrackpadView(context: Context, private val right: Boolean, private val captioned: Boolean = true) : Surface(context) {
+    private inner class TrackpadView(context: Context, private val right: Boolean, private val captioned: Boolean = true) : Surface(context) {
         private var touching = false
         private var clicked = false
         private var fingerX = 0f
@@ -384,7 +441,7 @@ class DeckControlsPanel(
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     click(false)
                     touching = false
-                    DeckControls.setPad(right, touching = false)
+                    deckSource.setPad(right, touching = false)
                     invalidate()
                 }
             }
@@ -395,7 +452,7 @@ class DeckControlsPanel(
             fingerX = x.coerceIn(0f, width.toFloat())
             fingerY = y.coerceIn(0f, height.toFloat())
             touching = true
-            DeckControls.setPad(right, true, (fingerX - width / 2f) / (width / 2f), -(fingerY - height / 2f) / (height / 2f))
+            deckSource.setPad(right, true, (fingerX - width / 2f) / (width / 2f), -(fingerY - height / 2f) / (height / 2f))
             invalidate()
         }
 
@@ -403,24 +460,24 @@ class DeckControlsPanel(
             if (clicked == down) return
             clicked = down
             if (down) performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-            DeckControls.setClick(right, down)
+            deckSource.setClick(right, down)
             invalidate()
         }
     }
 
-    private class PadButton(
+    private inner class PadButton(
         context: Context,
         private val pad: PadBridge,
         label: String,
         private val write: (PadState, Boolean) -> Unit,
-    ) : HoldButton(context, label, null, { down -> pad.applyTouch { write(it, down) } }) {
+    ) : HoldButton(context, label, null, { down -> pad.applyTouch(this@DeckControlsPanel, inputRole) { write(it, down) } }) {
         override fun onDetachedFromWindow() {
-            pad.applyTouch { write(it, false) }
+            pad.applyTouch(this@DeckControlsPanel, inputRole) { write(it, false) }
             super.onDetachedFromWindow()
         }
     }
 
-    private class StickView(context: Context, private val pad: PadBridge, private val right: Boolean) : Surface(context) {
+    private inner class StickView(context: Context, private val pad: PadBridge, private val right: Boolean) : Surface(context) {
         private var touching = false
         private var clicking = false
         private var lastUp = 0L
@@ -478,7 +535,7 @@ class DeckControlsPanel(
         private fun move(dx: Float, dy: Float, r: Float) {
             knobX = dx
             knobY = dy
-            pad.applyTouch { s ->
+            pad.applyTouch(this@DeckControlsPanel, inputRole) { s ->
                 if (right) { s.rightX = dx / r; s.rightY = dy / r } else { s.leftX = dx / r; s.leftY = dy / r }
             }
             invalidate()
@@ -488,7 +545,7 @@ class DeckControlsPanel(
             if (clicking == down) return
             clicking = down
             if (down) performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-            pad.applyTouch { s -> s.press(if (right) PadState.R3 else PadState.L3, down) }
+            pad.applyTouch(this@DeckControlsPanel, inputRole) { s -> s.press(if (right) PadState.R3 else PadState.L3, down) }
         }
 
         override fun onDetachedFromWindow() {
@@ -498,7 +555,7 @@ class DeckControlsPanel(
         }
     }
 
-    private class DirectionPad(context: Context, private val pad: PadBridge) : View(context) {
+    private inner class DirectionPad(context: Context, private val pad: PadBridge) : View(context) {
         private val density = resources.displayMetrics.density
         private var held = 0
         private val arm = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -544,7 +601,7 @@ class DeckControlsPanel(
             if (bits == held) return
             if (bits and held.inv() != 0) performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
             held = bits
-            pad.applyTouch { s ->
+            pad.applyTouch(this@DeckControlsPanel, inputRole) { s ->
                 s.up = bits and 1 != 0; s.right = bits and 2 != 0; s.down = bits and 4 != 0; s.left = bits and 8 != 0
             }
             invalidate()
@@ -556,7 +613,7 @@ class DeckControlsPanel(
         }
     }
 
-    private class FaceButtons(context: Context, private val pad: PadBridge) : View(context) {
+    private inner class FaceButtons(context: Context, private val pad: PadBridge) : View(context) {
         private val buttons = listOf(PadState.Y to "Y", PadState.B to "B", PadState.A to "A", PadState.X to "X")
         private var held = emptySet<Int>()
         private val fill = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -607,7 +664,7 @@ class DeckControlsPanel(
             if ((now - held).isNotEmpty()) performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
             val before = held
             held = now
-            pad.applyTouch { s -> for (b in before + now) s.press(b, b in now) }
+            pad.applyTouch(this@DeckControlsPanel, inputRole) { s -> for (b in before + now) s.press(b, b in now) }
             invalidate()
         }
 
