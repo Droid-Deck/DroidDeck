@@ -139,6 +139,8 @@ class FrontEndActivity : ComponentActivity() {
     private var pkgPercent by mutableIntStateOf(-1)
     private var desktopInstalled by mutableStateOf(false)
     private var desktopPresent by mutableStateOf(false)
+    private var battleNetInstalled by mutableStateOf(false)
+    private var battleNetRemoving by mutableStateOf(false)
     private var offlineAccount by mutableStateOf<String?>(null)
     private var offline by mutableStateOf(false)
     private var showPerformance by mutableStateOf(false)
@@ -412,6 +414,10 @@ class FrontEndActivity : ComponentActivity() {
     private var logsEnabled by mutableStateOf(true)
     private var vacDiagnostics by mutableStateOf(false)
     private var agentCommands by mutableStateOf(false)
+    private var clearCachedApps by mutableStateOf(false)
+    private var adbPaired by mutableStateOf(false)
+    private var memoryHud by mutableStateOf(SessionPrefs.MEMORY_HUD_OFF)
+    private var backgroundAppLimit by mutableStateOf(com.droiddeck.launcher.core.BackgroundAppLimit.OFF)
     private var showRoms by mutableStateOf(false)
     private var homeAppSelected by mutableStateOf(false)
     private var homeScreenEnabled by mutableStateOf(false)
@@ -683,7 +689,9 @@ class FrontEndActivity : ComponentActivity() {
     }
 
     private fun startSessionOrWait(next: Intent): Boolean {
-        val started = startSession(next, steamSession = next.hasExtra(SessionService.EXTRA_STEAM_URL))
+        // Proton's processes count against Android's child-process limit with or without Steam.
+        val started = startSession(next, steamSession = next.hasExtra(SessionService.EXTRA_STEAM_URL) ||
+            next.getStringExtra(SessionService.EXTRA_PROGRAM) == com.droiddeck.launcher.session.NoSteamLaunch.PROTON_RUN)
         if (!started && (busy || LinuxRuntimeInstaller.isBusy())) android.widget.Toast.makeText(this, R.string.main_wait_install_game, android.widget.Toast.LENGTH_SHORT).show()
         return started
     }
@@ -748,6 +756,8 @@ class FrontEndActivity : ComponentActivity() {
         gameSyncFolder = GameFileSync.folder(this)
         displayManager = getSystemService(DISPLAY_SERVICE) as DisplayManager
         refreshPhantomStatus()
+        // A session Android killed never restored its background-app limit.
+        if (!SessionState.running) com.droiddeck.launcher.core.BackgroundAppLimit.restoreAsync(this)
         theme = SessionPrefs.theme(this)
         frameGenLabel = getString(R.string.frame_gen_off)
         appScale = com.droiddeck.launcher.core.AppUiPrefs.scale(this)
@@ -797,6 +807,7 @@ class FrontEndActivity : ComponentActivity() {
                         offlineAccount = offlineAccount, offline = offline,
                         frameGenLabel = frameGenLabel, romsDir = romsDir, logsEnabled = logsEnabled,
                         vacDiagnostics = vacDiagnostics, agentCommands = agentCommands,
+                        clearCachedApps = clearCachedApps, adbPaired = adbPaired, memoryHud = memoryHud, backgroundAppLimit = backgroundAppLimit,
                         steamGames = steamGames, steamGamesX64 = steamGamesX64, emulators = emulatorList, running = runningLabel,
                         frameGen = FrameGen.mode(this),
                         lossless = lossless,
@@ -815,6 +826,8 @@ class FrontEndActivity : ComponentActivity() {
                         packageStage = pkgStage,
                         packagePercent = pkgPercent,
                         sessionRunning = SessionState.running,
+                        desktopRunning = SessionState.running && SessionState.mode == SessionService.MODE_DESKTOP,
+                        battleNetInstalled = battleNetInstalled, battleNetRemoving = battleNetRemoving,
                         backActionsInverted = backActionsInverted,
                         buildLabel = BuildConfig.BUILD_LABEL,
                         oscMode = oscMode,
@@ -903,6 +916,9 @@ class FrontEndActivity : ComponentActivity() {
                                 .putExtra(SessionService.EXTRA_PROGRAM, app.program)
                                 .putExtra(SessionService.EXTRA_PROGRAM_ARGS, app.args.toTypedArray()))
                         },
+                        onBattleNet = { openBattleNet() },
+                        onBattleNetInstall = { uid -> openBattleNet(listOf("install-game", uid)) },
+                        onRemoveBattleNet = { removeBattleNet() },
                         onFlatpakApp = { id, name ->
                             Library.flatpakNames[id] = name
                             startActivity(Intent(this, SessionActivity::class.java)
@@ -956,6 +972,12 @@ class FrontEndActivity : ComponentActivity() {
                         onAgentCommands = {
                             com.droiddeck.launcher.agent.AgentAccess.setCommandsEnabled(this, !com.droiddeck.launcher.agent.AgentAccess.commandsEnabled(this))
                             agentCommands = com.droiddeck.launcher.agent.AgentAccess.commandsEnabled(this)
+                        },
+                        onClearCachedApps = { on -> SessionPrefs.setClearCachedApps(this, on); clearCachedApps = on },
+                        onMemoryHud = { value -> SessionPrefs.setMemoryHud(this, value); memoryHud = value },
+                        onBackgroundAppLimit = { limit ->
+                            SessionPrefs.setBackgroundAppLimit(this, limit); backgroundAppLimit = limit
+                            if (limit == com.droiddeck.launcher.core.BackgroundAppLimit.OFF) com.droiddeck.launcher.core.BackgroundAppLimit.restoreAsync(this)
                         },
                         onShareLogs = {
                             SessionLogShare.prepare(this, { SessionLogShare.latest(this) }) { zip ->
@@ -1553,6 +1575,30 @@ class FrontEndActivity : ComponentActivity() {
         desktopPresent = DesktopCatalog.desktopPresent(this)
     }
 
+    private fun openBattleNet(args: List<String> = emptyList()) {
+        val program = com.droiddeck.launcher.runtime.BattleNet.PROGRAM
+        if (!SessionState.running) {
+            startSession(Intent(this, SessionActivity::class.java)
+                .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_DESKTOP)
+                .putExtra(SessionService.EXTRA_PROGRAM, program)
+                .putExtra(SessionService.EXTRA_PROGRAM_ARGS, args.toTypedArray()))
+        } else if (SessionState.mode == SessionService.MODE_DESKTOP) {
+            runCatching { com.droiddeck.launcher.runtime.DesktopRequests.open(LinuxRuntime.sessionRoot(this), program, args) }
+                .onFailure { Log.w(TAG, "Battle.net request", it) }
+            startActivity(Intent(this, SessionActivity::class.java))
+        }
+    }
+
+    private fun removeBattleNet() {
+        if (battleNetRemoving || SessionState.running) return
+        battleNetRemoving = true
+        Thread({
+            runCatching { com.droiddeck.launcher.runtime.BattleNet.remove(this) }
+                .onFailure { Log.w(TAG, "Battle.net removal", it) }
+            ui.post { battleNetRemoving = false; refresh() }
+        }, "battlenet-remove").start()
+    }
+
     private fun launchProgram(path: String) {
         startActivity(Intent(this, SessionActivity::class.java)
             .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_RUN)
@@ -1994,6 +2040,7 @@ class FrontEndActivity : ComponentActivity() {
         addedGamesArt = SessionPrefs.addedGamesArt(this)
         desktopInstalled = DesktopCatalog.desktopInstalled(this)
         desktopPresent = DesktopCatalog.desktopPresent(this)
+        battleNetInstalled = com.droiddeck.launcher.runtime.BattleNet.installed(this)
         offlineAccount = OfflineMode.account(this)
         offline = OfflineMode.enabled(this)
         installed = LinuxRuntimeInstaller.installedVersion(this)
@@ -2004,6 +2051,10 @@ class FrontEndActivity : ComponentActivity() {
         logsEnabled = SessionPrefs.logsEnabled(this)
         vacDiagnostics = SessionPrefs.vacDiagnostics(this)
         agentCommands = com.droiddeck.launcher.agent.AgentAccess.commandsEnabled(this)
+        clearCachedApps = SessionPrefs.clearCachedApps(this)
+        adbPaired = WirelessAdbFix.hasSavedPairing(this)
+        memoryHud = SessionPrefs.memoryHud(this)
+        backgroundAppLimit = SessionPrefs.backgroundAppLimit(this)
         runningLabel = if (SessionState.running) when (SessionState.mode) {
             SessionService.MODE_DESKTOP -> getString(R.string.rail_desktop)
             SessionService.MODE_RUN -> Library.nameForProgram(SessionState.program)
@@ -2101,6 +2152,7 @@ class FrontEndActivity : ComponentActivity() {
 
     private fun refreshPhantomStatus() {
         phantomProcessStatus = PhantomProcessLimit.read(this)
+        adbPaired = WirelessAdbFix.hasSavedPairing(this)
         phantomWarning = if (PhantomProcessLimit.blocksSteam(phantomProcessStatus)) {
             getString(
                 R.string.phantom_warning, PhantomProcessLimit.title(this, phantomProcessStatus),

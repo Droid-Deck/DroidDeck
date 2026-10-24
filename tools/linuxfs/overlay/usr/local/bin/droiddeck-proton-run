@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 """Runs a Windows program with the Proton the Steam client has chosen for it.
 
-    droiddeck-proton-run [--window] PROGRAM [ARGS...]
+    droiddeck-proton-run [--window] [--prefix ID] [--verb run] [--game-id ID] PROGRAM [ARGS...]
     droiddeck-proton-run --app ID [--dir FOLDER] [--options TEXT] [PROGRAM [ARGS...]]
 
 The program belongs to an installed Steam game when it sits in one's folder, to a prefix when it
@@ -10,7 +10,11 @@ its own, under the id the client gives a new shortcut. That title's CompatToolMa
 config.vdf picks the tool, else the client's default for all other titles ("0"). The tool is
 started as the client starts it - its toolmanifest's command line, the waitforexitandrun verb and
 the STEAM_COMPAT_* environment - so its wrapper applies the game's settings, components and audio.
---window keeps the program in the desktop's own window, drawn with WineD3D.
+--window keeps the program in the desktop's own window, drawn with WineD3D on the desktop's software
+GL (llvmpipe): KWin there composites in software, and the session's zink finds no device.
+--prefix ID puts the program in compatdata/ID whatever it is. --verb run starts it beside what already
+runs in the prefix, which waitforexitandrun would wait for; the wrapper's launch-time steps are skipped.
+--game-id ID keeps the id of the launch it runs for: gamescope shows the windows that carry the id Steam launched.
 --app starts one game without the Steam client (its Start without Steam): a Steam game's default
 Windows launch option from appinfo.vdf when no program is given, else the program in that
 shortcut's own prefix, started in --dir with the shortcut's launch options (--options).
@@ -30,7 +34,10 @@ BIN_DIR = os.path.dirname(os.path.abspath(__file__))
 STATE = os.path.join(HOME, ".local", "share", "droiddeck-compat", "state.json")
 EXTRA_LIBRARIES = ("/mnt/droiddeck", "/mnt/droiddeck-sd")
 SYSTEM_TOOLS = ("/usr/share/steam/compatibilitytools.d", "/usr/local/share/steam/compatibilitytools.d")
+DESKTOP_GL = {"LIBGL_ALWAYS_SOFTWARE": "1", "GALLIUM_DRIVER": "llvmpipe"}
+NOT_DESKTOP_GL = ("MESA_LOADER_DRIVER_OVERRIDE", "LIBGL_KOPPER_DRI2")
 VERB = "waitforexitandrun"
+VERBS = (VERB, "run")
 SHORTCUT_BIT = 0x80000000
 STEAM_APP_LIMIT = 2 ** 31
 
@@ -254,6 +261,16 @@ def locate(program, root):
                   os.path.dirname(program), root, "own")
 
 
+def fixed(program, root, appid):
+    return Target(appid, os.path.join(root, "steamapps", "compatdata", str(appid)),
+                  os.path.dirname(program), root, "fixed")
+
+
+def prefix_id(value):
+    """Never 0: compatdata/0 is the client's own prefix."""
+    return value if value.isdigit() and not value.startswith("0") and int(value) <= 0xFFFFFFFF else None
+
+
 def split_words(text):
     try:
         return shlex.split(text or "")
@@ -337,7 +354,7 @@ def steam_launches(target, program, root):
     return os.path.relpath(program, target.install).replace(os.sep, "/").lower() in entry.get("launch", ())
 
 
-def environment(env, target, tool_folder, root, window=False):
+def environment(env, target, tool_folder, root, window=False, game_id=None):
     env = dict(env)
     steamapps = [os.path.join(lib, "steamapps") for lib in libraries(root)]
     env.update({
@@ -355,8 +372,13 @@ def environment(env, target, tool_folder, root, window=False):
     else:
         game = str(number << 32 | 0x02000000)
         env.update(SteamAppId="0", STEAM_COMPAT_APP_ID="0", SteamGameId=game, SteamOverlayGameId=game)
+    if game_id:
+        env.update(SteamGameId=game_id, SteamOverlayGameId=game_id)
     if window:
         env.setdefault("PROTON_USE_WINED3D", "1")
+        env.update(DESKTOP_GL)
+        for name in NOT_DESKTOP_GL:
+            env.pop(name, None)
     return env
 
 
@@ -372,11 +394,20 @@ def arguments(program, args):
 
 def main(argv):
     window = False
+    prefix = None
+    verb = VERB
+    game_id = None
     app, start, options = None, None, ""
     while argv and argv[0].startswith("--"):
         option = argv.pop(0)
         if option == "--window":
             window = True
+        elif option == "--prefix" and argv and prefix_id(argv[0]):
+            prefix = argv.pop(0)
+        elif option == "--verb" and argv and argv[0] in VERBS:
+            verb = argv.pop(0)
+        elif option == "--game-id" and argv and argv[0].isdigit() and argv[0] != "0":
+            game_id = argv.pop(0)
         elif option in ("--app", "--dir", "--options") and argv:
             value = argv.pop(0)
             if option == "--app":
@@ -394,7 +425,7 @@ def main(argv):
         say("%s is not an app id" % app)
         return 2
     if not argv and app is None:
-        say("usage: droiddeck-proton-run [--window] PROGRAM [ARGS...]")
+        say("usage: droiddeck-proton-run [--window] [--prefix ID] [--verb run] [--game-id ID] PROGRAM [ARGS...]")
         return 2
     root = os.environ.get("STEAM_COMPAT_CLIENT_INSTALL_PATH") or STEAM_ROOT
     extra, args = split_options(options)
@@ -416,6 +447,8 @@ def main(argv):
         args = args + argv[1:]
         if app is not None and int(app) >= STEAM_APP_LIMIT:
             target = shortcut_target(app, program, start, root)
+        elif prefix:
+            target = fixed(program, root, prefix)
         else:
             target = locate(program, root)
     available = tools(root)
@@ -425,7 +458,7 @@ def main(argv):
         return 69
     folder, command = available[name]
     os.makedirs(target.compatdata, exist_ok=True)
-    env = environment(os.environ, target, folder, root, window)
+    env = environment(os.environ, target, folder, root, window, game_id)
     env.update(extra)
     say("%s with %s (%s), %s prefix %s%s" % (program, name, why, target.kind, target.compatdata,
                                               ", without the Steam client" if app is not None else ""))
@@ -434,7 +467,7 @@ def main(argv):
     except OSError:
         os.chdir(os.path.dirname(program))
     entry = os.path.join(folder, command)
-    os.execve(entry, [entry, VERB] + arguments(program, args), env)
+    os.execve(entry, [entry, verb] + arguments(program, args), env)
 
 
 if __name__ == "__main__":
