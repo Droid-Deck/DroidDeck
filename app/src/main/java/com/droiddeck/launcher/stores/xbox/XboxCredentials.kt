@@ -14,6 +14,11 @@ internal class XboxCredentials(private val app: Context, expectedGeneration: Str
     val name = "droiddeck-xbox-${UUID.randomUUID()}"
     private val generation = lifecycle(app, expectedGeneration) { it }
     private val server = LocalServerSocket(name)
+    // Some devices refuse the abstract socket from inside PRoot; the backend then falls back to this keyed loopback port.
+    private val loopback = java.net.ServerSocket(0, 8, java.net.InetAddress.getByAddress(byteArrayOf(127, 0, 0, 1)))
+    val port: Int get() = loopback.localPort
+    val key: String = ByteArray(32).also { java.security.SecureRandom().nextBytes(it) }.joinToString("") { "%02x".format(it) }
+    @Volatile private var loopbackUsed = false
     @Volatile private var closed = false
     private val bound = java.util.concurrent.CountDownLatch(1)
     private var backend: Process? = null
@@ -101,6 +106,46 @@ internal class XboxCredentials(private val app: Context, expectedGeneration: Str
                 }
             }
         }, "xbox-credentials").start()
+        Thread({
+            while (!closed) {
+                val socket = runCatching { loopback.accept() }.getOrNull() ?: break
+                socket.use {
+                    it.soTimeout = 10_000
+                    val reply = runCatching {
+                        val input = it.getInputStream().buffered()
+                        check(it.inetAddress.isLoopbackAddress)
+                        if (!java.security.MessageDigest.isEqual(readLine(input, 128).toByteArray(), key.toByteArray())) {
+                            rejected("loopback-key"); error("loopback key")
+                        }
+                        if (!loopbackOwner(it.port)) { rejected("loopback-owner"); error("loopback owner") }
+                        check(bound.await(5, java.util.concurrent.TimeUnit.SECONDS) && backend?.isAlive == true)
+                        if (!loopbackUsed) { loopbackUsed = true; note("Backend reached the app over the loopback fallback") }
+                        val request = JSONObject(readLine(input, 2_097_152))
+                        storage(app) {
+                            check(!closed && epoch(app) == generation)
+                            answer(request)
+                        }
+                    }.getOrElse { failure ->
+                        note("Credential request rejected: ${failure.javaClass.simpleName}")
+                        JSONObject().put("ok", false)
+                    }
+                    runCatching { it.getOutputStream().write((reply.toString() + "\n").toByteArray()) }
+                }
+            }
+        }, "xbox-credentials-loopback").start()
+    }
+
+    /** The connecting socket must belong to this app's user; an unreadable table (newer Android) leaves the key as the check. */
+    private fun loopbackOwner(peerPort: Int): Boolean {
+        val uid = android.os.Process.myUid()
+        val rows = listOf("/proc/net/tcp", "/proc/net/tcp6").mapNotNull { runCatching { java.io.File(it).readLines().drop(1) }.getOrNull() }.flatten()
+        val owners = rows.mapNotNull { row ->
+            val fields = row.trim().split(Regex("\\s+"))
+            val local = fields.getOrNull(1)?.substringAfterLast(':')?.toIntOrNull(16)
+            val remote = fields.getOrNull(2)?.substringAfterLast(':')?.toIntOrNull(16)
+            if (local == peerPort && remote == loopback.localPort) fields.getOrNull(7)?.toIntOrNull() else null
+        }
+        return owners.isEmpty() || owners.all { it == uid }
     }
 
     private fun answer(request: JSONObject): JSONObject {
@@ -126,7 +171,7 @@ internal class XboxCredentials(private val app: Context, expectedGeneration: Str
         return result
     }
 
-    override fun close() { closed = true; bound.countDown(); runCatching { server.close() } }
+    override fun close() { closed = true; bound.countDown(); runCatching { server.close() }; runCatching { loopback.close() } }
 
     companion object {
         val lock = Any()

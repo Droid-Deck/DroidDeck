@@ -31,6 +31,7 @@ class XboxLoginActivity : ComponentActivity() {
     @Volatile private var session = 0L
     @Volatile private var closed = false
     @Volatile private var step = "starting"
+    private val codes = java.util.concurrent.CopyOnWriteArrayList<String>()
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -64,7 +65,10 @@ class XboxLoginActivity : ComponentActivity() {
                     child = process
                     if (closed) return@use
                     // StoresState.logLine writes no file in this process, so the reason would miss the shared log.
-                    Xodus.diagnostics(process) { logStep(it) }
+                    Xodus.diagnostics(process) { line ->
+                        logStep(line)
+                        line.removePrefix("NEXUS_CREDENTIAL_ERROR_V1 ").takeIf { it != line && it !in codes && codes.size < 6 }?.let(codes::add)
+                    }
                     progress("waiting for the Xbox helper", "Waiting for the Xbox helper…")
                     val timer = Thread({
                         runCatching { if (!process.process.waitFor(10, TimeUnit.MINUTES)) process.process.destroy() }
@@ -140,7 +144,8 @@ class XboxLoginActivity : ComponentActivity() {
                 logStep("failed while $failed: $reason")
                 runOnUiThread {
                     disposeView()
-                    status.text = "Microsoft sign-in did not complete.\nFailed while $failed: $reason\nClose this window and try again."
+                    val details = if (codes.isEmpty()) "" else "\nDetails: ${codes.joinToString(", ")}"
+                    status.text = "Microsoft sign-in did not complete.\nFailed while $failed: $reason$details\nClose this window and try again."
                 }
             }
         }, "xbox-login").start()

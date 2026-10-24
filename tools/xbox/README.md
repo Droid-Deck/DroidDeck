@@ -30,6 +30,11 @@ patched backend source archive and the checksum-verified runtime source archive
 in the build cache and publishes both in CI's `xbox-corresponding-source`
 artifact; distribute corresponding sources with published binaries.
 
+`droiddeck-credential-fallback.patch` names the reason when the backend cannot reach the
+app's credential socket (`NEXUS_CREDENTIAL_ERROR_V1 socket-refused`, `-denied`, ...) and then
+uses a keyed loopback port the app also listens on; some devices refuse the abstract socket
+from inside PRoot. The key is passed in the backend's environment only.
+
 `droiddeck-credentials.patch` replaces Linux Secret Service with a bounded,
 Android abstract socket restricted to the backend process started by the host. The Android host encrypts every persistent
 write using its existing Keystore cipher, verifies backend read-backs, and
