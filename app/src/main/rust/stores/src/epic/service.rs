@@ -113,6 +113,7 @@ fn dispatch(op: &str, req: &Value) -> Value {
             };
             json!({ "args": launch::arguments(&data) })
         }
+        "launch.split" => json!({ "args": launch::split_command(str_of(req, "command")) }),
         "locale" => {
             let key = locale::language_key(str_of(req, "language"), str_of(req, "region"));
             json!({ "key": key, "tags": locale::tags_for_key(key), "launchLocale": locale::launch_locale(key) })
@@ -192,6 +193,8 @@ mod tests {
         assert!(v["error"].is_string());
         let v: Value = serde_json::from_str(&call("launch.args", r#"{"namespace":"ns","appName":"A"}"#)).unwrap();
         assert_eq!(v["args"][0], "-EpicPortal");
+        let v: Value = serde_json::from_str(&call("launch.split", r#"{"command":"-PCStore=EGS \"-log=a b.txt\""}"#)).unwrap();
+        assert_eq!(v["args"], json!(["-PCStore=EGS", "-log=a b.txt"]));
     }
 
     #[test]

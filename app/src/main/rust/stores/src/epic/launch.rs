@@ -45,7 +45,8 @@ pub fn split_command(command: &str) -> Vec<String> {
     let mut quoted = false;
     let mut started = false;
     let mut slashes = 0usize;
-    for c in command.chars().map(|c| if c == '\t' { ' ' } else { c }).filter(|&c| c >= ' ' && c != '\u{7f}') {
+    let mut chars = command.chars().map(|c| if c == '\t' { ' ' } else { c }).filter(|&c| c >= ' ' && c != '\u{7f}').peekable();
+    while let Some(c) = chars.next() {
         if c == '\\' {
             slashes += 1;
             started = true;
@@ -54,6 +55,9 @@ pub fn split_command(command: &str) -> Vec<String> {
         if c == '"' {
             current.extend(std::iter::repeat('\\').take(slashes / 2));
             if slashes % 2 == 1 {
+                current.push('"');
+            } else if quoted && chars.peek() == Some(&'"') {
+                chars.next();
                 current.push('"');
             } else {
                 quoted = !quoted;
@@ -97,6 +101,7 @@ mod tests {
             split_command(r#"-name="a\" b" -dir=C:\Games\ "-q=\\" -r"#),
             vec![r#"-name=a" b"#, r"-dir=C:\Games\", r"-q=\", "-r"]
         );
+        assert_eq!(split_command("-name=\"a\"\" b\" -s=\"\"\""), vec!["-name=a\" b", "-s=\""]);
         assert!(split_command("   ").is_empty());
     }
 

@@ -160,6 +160,7 @@ synchronous on the calling thread (network calls block: call them off the main t
 | `cloud.list` | `accessToken`, `accountId`, `appName` | `files[]` of `name`, `modified` (ms, -1 unknown), `hash`, `readLink` |
 | `cloud.writeLinks` | `accessToken`, `accountId`, `appName`, `names[]` | `links`: name → write link |
 | `launch.args` | `displayName`, `accountId`, `namespace`, `locale`, `appName`, `deploymentId`, `additional` | `args[]` |
+| `launch.split` | `command` | `args[]` |
 | `locale` | `language`, `region` | `key`, `tags[]`, `launchLocale` |
 
 `nativeFetch` ops: `manifest.download` (`info`, optional `cdns`) → the manifest bytes;
