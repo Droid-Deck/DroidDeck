@@ -35,8 +35,6 @@ looks browse results up through `StoresState.detailItem`.
 
 A fetch that throws or answers with a non-2xx status marks the list as failed but leaves it open. The end of the list then shows a Retry button that asks for the same page again. Scrolling does not retry on its own, so a failing page cannot loop. Only a successful page with no new games ends the list.
 
-## Platform, tag and search
+## Platform and tag
 
 The platform and tag rows take several choices, and the address lists them as itch does (`platform-windows/platform-linux/tag-pixel-art/tag-2d`, platforms in the order of the chip row). A typed tag becomes its slug (`Pixel Art` is `pixel-art`) and the address gets `tag-<slug>`.
-
-On the itch Store tab the search box is a row that opens a pop-up with the keyboard, like the SteamDeckRepo search. Done or the Search button applies it, and Clear next to the row empties it. Other stores keep their inline search box.

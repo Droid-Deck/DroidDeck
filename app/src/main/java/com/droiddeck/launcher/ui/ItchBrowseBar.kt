@@ -11,14 +11,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -35,7 +31,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.droiddeck.launcher.R
@@ -70,28 +65,6 @@ internal fun ItchBrowseBar() {
         stringResource(R.string.stores_itch_tag_title), "", number = false, confirm = stringResource(R.string.common_ok),
         onSubmit = { value -> ItchBrowse.tagSlug(value).takeIf { it.isNotEmpty() }?.let { ItchBrowseState.choose(ctx, query.copy(tags = (query.tags + it).distinct())) } },
         onDismiss = { picking = false }, id = "itch-tag",
-    )
-}
-
-@Composable
-internal fun ItchSearchField(query: String, onQuery: (String) -> Unit, placeholder: String) {
-    var open by remember { mutableStateOf(false) }
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        Box(Modifier.weight(1f)) {
-            ListRow(tall = true, onClick = { open = true }) {
-                Icon(Icons.Filled.Search, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
-                Text(
-                    query.ifEmpty { placeholder }, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    color = if (query.isEmpty()) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onBackground,
-                    modifier = Modifier.weight(1f),
-                )
-            }
-        }
-        if (query.isNotEmpty()) SecondaryButton(stringResource(R.string.stores_dl_clear), compact = true) { onQuery("") }
-    }
-    if (open) TextEntryDialog(
-        placeholder, query, number = false, confirm = stringResource(R.string.stores_search_open),
-        onSubmit = { value -> if (value != query) onQuery(value) }, onDismiss = { open = false }, id = "itch-search",
     )
 }
 
