@@ -22,22 +22,24 @@ object SyncthingConfig {
     internal fun apiKey(xml: String): String? =
         parse(xml).documentElement.child("gui")?.child("apikey")?.textContent?.trim()?.takeIf { it.isNotEmpty() }
 
-    fun apply(file: File, ports: SyncthingPorts, folderRoot: File, pauseDevices: Boolean, allows: (String) -> Boolean) {
+    fun apply(file: File, ports: SyncthingPorts, guiSocket: File, folderRoot: File, pauseDevices: Boolean, allows: (String) -> Boolean) {
         val staged = File(file.parentFile, "${file.name}.tmp")
         try {
-            staged.writeText(apply(file.readText(), ports, folderRoot.path, pauseDevices, allows))
+            staged.writeText(apply(file.readText(), ports, guiSocket.path, folderRoot.path, pauseDevices, allows))
             if (!staged.renameTo(file)) throw IOException("could not replace ${file.name}")
         } finally {
             staged.delete()
         }
     }
 
-    internal fun apply(xml: String, ports: SyncthingPorts, folderRoot: String, pauseDevices: Boolean = false, allows: (String) -> Boolean): String {
+    internal fun apply(xml: String, ports: SyncthingPorts, guiSocket: String, folderRoot: String, pauseDevices: Boolean = false, allows: (String) -> Boolean): String {
         val doc = parse(xml)
         val root = doc.documentElement
         val gui = root.child("gui") ?: doc.createElement("gui").also { root.appendChild(it) }
         gui.setAttribute("tls", "false")
-        gui.set("address", "127.0.0.1:${ports.gui}")
+        // An absolute path makes Syncthing listen on a Unix socket, which other apps can't reach in our private storage.
+        gui.set("address", guiSocket)
+        gui.set("unixSocketPermissions", "600")
         val options = root.child("options") ?: doc.createElement("options").also { root.appendChild(it) }
         options.setList("listenAddress", listOf("tcp://:${ports.sync}", "quic://:${ports.sync}", RELAYS))
         options.set("localAnnouncePort", ports.discovery.toString())

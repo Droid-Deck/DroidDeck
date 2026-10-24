@@ -39,11 +39,11 @@ class SyncthingConfigTest {
         </configuration>
     """.trimIndent()
 
-    private val ports = SyncthingPorts(18384, 22100, 21127)
+    private val ports = SyncthingPorts(22100, 21127)
 
     @Test
     fun pausesDisallowedFoldersBeforeLaunch() {
-        val out = SyncthingConfig.apply(generated, ports, "/ext/Sync") { !it.startsWith("/storage/emulated/0/DCIM") }
+        val out = SyncthingConfig.apply(generated, ports, "/data/st/gui.sock", "/ext/Sync") { !it.startsWith("/storage/emulated/0/DCIM") }
         val camera = out.substringAfter("id=\"abc\"").substringBefore("</folder>")
         val saves = out.substringAfter("id=\"def\"").substringBefore("</folder>")
         assertTrue(camera.contains("<paused>true</paused>"))
@@ -52,9 +52,9 @@ class SyncthingConfigTest {
 
     @Test
     fun pausesDevicesBeforeLaunchWhenPolicyRequires() {
-        val paused = SyncthingConfig.apply(generated, ports, "/ext/Sync", pauseDevices = true) { true }
+        val paused = SyncthingConfig.apply(generated, ports, "/data/st/gui.sock", "/ext/Sync", pauseDevices = true) { true }
         assertTrue(paused.substringAfter("id=\"PEER\"").substringBefore("</device>").contains("<paused>true</paused>"))
-        val open = SyncthingConfig.apply(generated, ports, "/ext/Sync", pauseDevices = false) { true }
+        val open = SyncthingConfig.apply(generated, ports, "/data/st/gui.sock", "/ext/Sync", pauseDevices = false) { true }
         assertTrue(open.substringAfter("id=\"PEER\"").substringBefore("</device>").contains("<paused>false</paused>"))
     }
 
@@ -62,14 +62,22 @@ class SyncthingConfigTest {
     fun replacesConfigFileWithoutLeavingStagedCopy() {
         val dir = tmp.newFolder()
         val file = File(dir, "config.xml").apply { writeText(generated) }
-        SyncthingConfig.apply(file, ports, File("/ext/Sync"), false) { true }
-        assertEquals(SyncthingConfig.apply(generated, ports, "/ext/Sync") { true }, file.readText())
+        SyncthingConfig.apply(file, ports, File("/data/st/gui.sock"), File("/ext/Sync"), false) { true }
+        assertEquals(SyncthingConfig.apply(generated, ports, "/data/st/gui.sock", "/ext/Sync") { true }, file.readText())
         assertEquals(listOf("config.xml"), dir.list()!!.toList())
     }
 
     @Test
     fun applyIsStable() {
-        val once = SyncthingConfig.apply(generated, ports, "/ext/Sync") { true }
-        assertEquals(once, SyncthingConfig.apply(once, ports, "/ext/Sync") { true })
+        val once = SyncthingConfig.apply(generated, ports, "/data/st/gui.sock", "/ext/Sync") { true }
+        assertEquals(once, SyncthingConfig.apply(once, ports, "/data/st/gui.sock", "/ext/Sync") { true })
+    }
+
+    @Test
+    fun guiListensOnlyOnPrivateSocket() {
+        val gui = SyncthingConfig.apply(generated, ports, "/data/st/gui.sock", "/ext/Sync") { true }.substringAfter("<gui").substringBefore("</gui>")
+        assertTrue(gui.contains("<address>/data/st/gui.sock</address>"))
+        assertTrue(gui.contains("<unixSocketPermissions>600</unixSocketPermissions>"))
+        assertTrue(gui.contains("tls=\"false\""))
     }
 }

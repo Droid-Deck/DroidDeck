@@ -3074,6 +3074,8 @@
     <string name="sync_status_up_to_date">Up to date</string>
     <string name="sync_status_syncing">Syncing</string>
     <string name="sync_status_paused">Paused</string>
+    <string name="sync_status_pausing">Pausing</string>
+    <string name="sync_status_resuming">Resuming</string>
     <string name="sync_status_attention">Needs attention</string>
     <string name="sync_status_failed">Syncthing stopped</string>
     <string name="sync_failed_retry">Try again</string>
@@ -3126,7 +3128,6 @@
     <string name="sync_off_forget_hint">Removes this device\'s ID, folders and devices. Turning it on again starts fresh.</string>
     <string name="sync_turn_off">Turn off</string>
     <string name="sync_ports">Ports</string>
-    <string name="sync_port_gui">Web UI</string>
     <string name="sync_port_sync">Sync</string>
     <string name="sync_port_discovery">Local discovery</string>
     <string name="sync_repick">Pick new ports</string>

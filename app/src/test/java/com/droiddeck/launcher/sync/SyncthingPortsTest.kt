@@ -6,13 +6,13 @@ import org.junit.Test
 class SyncthingPortsTest {
     @Test
     fun skipsBusyPorts() {
-        val busy = setOf(18384, 18385, 22100)
-        val picked = SyncthingPortPicker.pick({ it !in busy }, { it !in busy }, { it !in busy })
-        assertEquals(SyncthingPorts(18386, 22101, 21127), picked)
+        val busy = setOf(22100, 21127)
+        val picked = SyncthingPortPicker.pick({ it !in busy }, { it !in busy })
+        assertEquals(SyncthingPorts(22101, 21128), picked)
     }
 
     @Test(expected = IllegalStateException::class)
     fun failsWhenNoPortIsFree() {
-        SyncthingPortPicker.pick({ false }, { true }, { true })
+        SyncthingPortPicker.pick({ false }, { true })
     }
 }

@@ -5,6 +5,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.webkit.CookieManager
 import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.ComponentActivity
@@ -22,6 +23,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -57,7 +59,9 @@ class SyncthingWebActivity : ComponentActivity() {
     private fun Screen() {
         val colors = MaterialTheme.colorScheme
         val pal = LocalPalette.current
-        val target = Syncthing.webUi(this)
+        val running = Syncthing.phase == Syncthing.Phase.RUNNING
+        val target = remember(running) { if (running) Syncthing.webUiProxy(this) else null }
+        DisposableEffect(target) { onDispose { target?.close() } }
         LaunchedEffect(Syncthing.phase) { if (Syncthing.phase == Syncthing.Phase.OFF) finish() }
         BackHandler { web?.takeIf { it.canGoBack() }?.goBack() ?: finish() }
         Column(Modifier.fillMaxSize().background(colors.background)) {
@@ -68,7 +72,7 @@ class SyncthingWebActivity : ComponentActivity() {
                 BackLink(stringResource(R.string.mode_back), compact = true) { finish() }
                 Text(stringResource(R.string.sync_web_title), fontSize = 17.sp, fontWeight = FontWeight.Bold, color = colors.onBackground)
                 Box(Modifier.weight(1f))
-                target?.let { Text(Uri.parse(it.first).authority.orEmpty(), fontSize = 12.5.sp, fontFamily = FontFamily.Monospace, color = colors.onSurfaceVariant) }
+                target?.let { Text(Uri.parse(it.url).authority.orEmpty(), fontSize = 12.5.sp, fontFamily = FontFamily.Monospace, color = colors.onSurfaceVariant) }
                 SecondaryButton(stringResource(R.string.sync_web_reload), compact = true) { web?.reload() }
             }
             Box(Modifier.fillMaxWidth().height(1.dp).background(pal.line))
@@ -77,15 +81,14 @@ class SyncthingWebActivity : ComponentActivity() {
                     Text(stringResource(R.string.sync_not_running), fontSize = 14.sp, color = colors.onSurfaceVariant)
                 }
             } else {
-                val (url, auth) = target
-                val view = remember(url) { webView(url, auth) }
+                val view = remember(target) { webView(target.url, target.cookie) }
                 AndroidView({ view }, Modifier.fillMaxSize())
             }
         }
     }
 
     @SuppressLint("SetJavaScriptEnabled")
-    private fun webView(url: String, auth: String): WebView = WebView(this).apply {
+    private fun webView(url: String, cookie: String): WebView = WebView(this).apply {
         web?.destroy()
         web = this
         setBackgroundColor(0xFF0A0B0D.toInt())
@@ -93,9 +96,14 @@ class SyncthingWebActivity : ComponentActivity() {
         settings.domStorageEnabled = true
         settings.allowFileAccess = false
         settings.allowContentAccess = false
-        CookieManager.getInstance().setAcceptCookie(true)
+        val cookies = CookieManager.getInstance()
+        cookies.setAcceptCookie(true)
         val origin = Uri.parse(url).authority
         webViewClient = object : WebViewClient() {
+            // The proxy cookie isn't port-scoped, so nothing else on loopback may receive it.
+            override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? =
+                if (request.url.authority == origin) null else WebResourceResponse("text/plain", "utf-8", 403, "Forbidden", emptyMap(), null)
+
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean =
                 request.url.authority != origin
 
@@ -103,7 +111,7 @@ class SyncthingWebActivity : ComponentActivity() {
                 view.evaluateJavascript(lockFolderPath(getString(R.string.sync_web_path_locked)), null)
             }
         }
-        loadUrl(url, mapOf("Authorization" to auth))
+        cookies.setCookie(url, "$cookie; HttpOnly; SameSite=Strict") { loadUrl(url) }
     }
 }
 

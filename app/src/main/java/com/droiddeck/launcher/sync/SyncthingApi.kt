@@ -1,14 +1,13 @@
 package com.droiddeck.launcher.sync
 
+import android.net.LocalSocket
+import android.net.LocalSocketAddress
 import org.json.JSONArray
 import org.json.JSONObject
-import java.net.HttpURLConnection
-import java.net.URL
+import java.io.File
 import java.net.URLEncoder
 
-class SyncthingApi(val port: Int, private val apiKey: String) {
-    val base = "http://127.0.0.1:$port"
-
+class SyncthingApi(val socket: File, private val apiKey: String) {
     fun ping(): Boolean = runCatching { get("/rest/system/ping").optString("ping") == "pong" }.getOrDefault(false)
     fun myId(): String = get("/rest/system/status").getString("myID")
     fun folders(): JSONArray = getArray("/rest/config/folders")
@@ -28,7 +27,6 @@ class SyncthingApi(val port: Int, private val apiKey: String) {
     fun setApiKey(key: String) = merge("/rest/config/gui") { put("apiKey", key) }
     fun shutdown() { send("POST", "/rest/system/shutdown", null) }
 
-    // HttpURLConnection can't send PATCH, so read the whole object and PUT it back.
     private fun merge(path: String, change: JSONObject.() -> Unit) = send("PUT", path, get(path).apply(change))
 
     /** Long-polls for config saves; returns the last event id seen, or [since] on timeout. */
@@ -42,26 +40,14 @@ class SyncthingApi(val port: Int, private val apiKey: String) {
     private fun getArray(path: String) = JSONArray(request("GET", path, null, TIMEOUT_MS))
     private fun send(method: String, path: String, body: JSONObject?) { request(method, path, body, TIMEOUT_MS) }
 
-    private fun request(method: String, path: String, body: JSONObject?, timeoutMs: Int): String {
-        val c = URL(base + path).openConnection() as HttpURLConnection
-        try {
-            c.requestMethod = method
-            c.setRequestProperty("X-API-Key", apiKey)
-            c.connectTimeout = TIMEOUT_MS
-            c.readTimeout = timeoutMs
-            c.useCaches = false
-            if (body != null) {
-                c.doOutput = true
-                c.setRequestProperty("Content-Type", "application/json")
-                c.outputStream.use { it.write(body.toString().toByteArray()) }
-            }
-            val code = c.responseCode
-            val text = (if (code in 200..299) c.inputStream else c.errorStream)?.bufferedReader()?.use { it.readText() }.orEmpty()
-            if (code !in 200..299) throw SyncthingApiException(code, text)
-            return text
-        } finally {
-            c.disconnect()
-        }
+    private fun request(method: String, path: String, body: JSONObject?, timeoutMs: Int): String = LocalSocket().use { s ->
+        s.connect(LocalSocketAddress(socket.path, LocalSocketAddress.Namespace.FILESYSTEM))
+        s.soTimeout = timeoutMs
+        val headers = listOf("X-API-Key" to apiKey) + if (body != null) listOf("Content-Type" to "application/json") else emptyList()
+        SyncthingHttp.writeRequest(s.outputStream, method, path, headers, body?.toString()?.toByteArray())
+        val (code, text) = SyncthingHttp.readResponse(s.inputStream.buffered())
+        if (code !in 200..299) throw SyncthingApiException(code, text)
+        text
     }
 
     private fun enc(s: String) = URLEncoder.encode(s, "UTF-8")

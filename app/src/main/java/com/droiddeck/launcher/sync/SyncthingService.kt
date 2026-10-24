@@ -45,7 +45,9 @@ class SyncthingService : Service() {
         val title = getString(when {
             Syncthing.phase == Syncthing.Phase.FAILED -> R.string.sync_status_failed
             Syncthing.phase != Syncthing.Phase.RUNNING -> R.string.sync_status_starting
-            Syncthing.userPaused || Syncthing.autoPause != null -> R.string.sync_status_paused
+            Syncthing.pauseRequested && Syncthing.devicesPaused -> R.string.sync_status_paused
+            Syncthing.pauseRequested -> R.string.sync_status_pausing
+            Syncthing.devicesPaused -> R.string.sync_status_resuming
             snap?.needsAttention == true -> R.string.sync_status_attention
             snap?.syncing == true -> R.string.sync_status_syncing
             else -> R.string.sync_status_up_to_date

@@ -190,9 +190,11 @@ private fun StatusCard(snap: SyncSnapshot) {
     val ctx = LocalContext.current
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
-    val paused = Syncthing.userPaused || Syncthing.autoPause != null
+    val paused = Syncthing.pauseRequested || Syncthing.devicesPaused
     val (headline, tint) = when {
-        paused -> stringResource(R.string.sync_status_paused) to colors.onSurfaceVariant
+        Syncthing.pauseRequested && Syncthing.devicesPaused -> stringResource(R.string.sync_status_paused) to colors.onSurfaceVariant
+        Syncthing.pauseRequested -> stringResource(R.string.sync_status_pausing) to colors.onSurfaceVariant
+        Syncthing.devicesPaused -> stringResource(R.string.sync_status_resuming) to colors.onSurfaceVariant
         snap.needsAttention -> stringResource(R.string.sync_status_attention) to AttentionAmber
         snap.syncing -> stringResource(R.string.sync_status_syncing) to pal.signal
         else -> stringResource(R.string.sync_status_up_to_date) to pal.good

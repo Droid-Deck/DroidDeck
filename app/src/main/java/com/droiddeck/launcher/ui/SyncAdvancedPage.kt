@@ -41,7 +41,6 @@ internal fun SyncAdvancedPage(host: MenuHost, onBack: () -> Unit) {
         PairedColumns(
             { extra ->
                 SettingsGroup(stringResource(R.string.sync_ports), extra = extra) {
-                    PortRow(stringResource(R.string.sync_port_gui), ports?.let { "127.0.0.1:${it.gui}" })
                     PortRow(stringResource(R.string.sync_port_sync), ports?.sync?.toString())
                     PortRow(stringResource(R.string.sync_port_discovery), ports?.discovery?.toString())
                     ActionRow(stringResource(R.string.sync_repick), stringResource(R.string.sync_repick_hint), stringResource(R.string.sync_repick_button), onClick = { Syncthing.restart() })

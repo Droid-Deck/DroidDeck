@@ -32,6 +32,7 @@ object Syncthing {
 
     const val FAILURE_MISSING = "binary-missing"
     private const val FAILURE_POLICY = "Stopped because a folder outside DroidDeck's storage could not be paused"
+    private const val FAILURE_PAUSE = "Stopped because Syncthing could not be paused"
     private const val FAILURE_STILL_RUNNING = "The previous Syncthing process did not exit"
     private const val TAG = "Syncthing"
     private const val GRACE_MS = 60_000L
@@ -47,6 +48,9 @@ object Syncthing {
     var apiKeyTail by mutableStateOf<String?>(null); private set
     var userPaused by mutableStateOf(false); private set
     var autoPause by mutableStateOf<AutoPause?>(null); private set
+    /** Whether Syncthing has confirmed every device is paused, as opposed to a pause only being requested. */
+    var devicesPaused by mutableStateOf(false); private set
+    val pauseRequested get() = userPaused || autoPause != null
     /** Bumped to ask the Setup page to show the Sync tab. */
     var openRequests by mutableStateOf(0)
         private set
@@ -72,12 +76,14 @@ object Syncthing {
     private var visible = 0
     private var foreground = false
     private val watchers = AtomicInteger()
+    private val pauseFailures = AtomicInteger()
     private val leaveForeground = Runnable { foreground = false; evaluate() }
 
     fun home(context: Context) = File(context.filesDir, "syncthing")
     fun folderRoot(context: Context) = File(context.getExternalFilesDir(null) ?: context.filesDir, "Sync")
     fun logFile(context: Context) = File(home(context), "syncthing.log")
     private fun config(context: Context) = File(home(context), "config.xml")
+    private fun guiSocket(context: Context) = File(home(context), "gui.sock")
     private fun binary(context: Context) = File(context.applicationInfo.nativeLibraryDir, "libsyncthingnative.so")
 
     /** DroidDeck's own storage: its private data directory and its folder on each shared volume. */
@@ -187,7 +193,7 @@ object Syncthing {
             val current = api ?: return@execute
             val key = SyncPrefs.randomToken()
             runCatching { current.setApiKey(key) }.onSuccess {
-                api = SyncthingApi(current.port, key)
+                api = SyncthingApi(current.socket, key)
                 main.post { apiKeyTail = key.takeLast(4); changed() }
             }.onFailure { Log.w(TAG, "API key change failed", it) }
         }
@@ -221,12 +227,11 @@ object Syncthing {
         worker.execute { api?.let { a -> runCatching { a.removeFolder(id) }.onFailure { Log.w(TAG, "remove $id failed", it) } } }
     }
 
-    /** Address and Basic credentials the in-app web UI signs in with; Syncthing turns them into a session cookie. */
-    fun webUi(context: Context): Pair<String, String>? {
-        val port = ports?.gui ?: return null
+    /** Starts a loopback proxy for the in-app web UI, which can't reach Syncthing's private socket itself. */
+    fun webUiProxy(context: Context): SyncthingProxy? {
         if (phase != Phase.RUNNING) return null
         val token = Base64.encodeToString("${SyncthingConfig.GUI_USER}:${SyncPrefs.guiPassword(context)}".toByteArray(), Base64.NO_WRAP)
-        return "http://127.0.0.1:$port/" to "Basic $token"
+        return runCatching { SyncthingProxy(guiSocket(context), "Basic $token") }.onFailure { Log.w(TAG, "web UI proxy failed", it) }.getOrNull()
     }
 
     /** UI screens showing live status call this so the status refreshes faster while they're visible. */
@@ -274,7 +279,7 @@ object Syncthing {
             val picked = SyncthingPortPicker.pick()
             val guard = guard(context)
             val paused = SyncPrefs.userPaused(context) || autoPauseReason() != null
-            SyncthingConfig.apply(config(context), picked, folderRoot(context), paused, guard::allows)
+            SyncthingConfig.apply(config(context), picked, guiSocket(context), folderRoot(context), paused, guard::allows)
             if (paused) SyncPrefs.setPauseApplied(context, true)
             val key = SyncthingConfig.apiKey(config(context)) ?: throw SyncthingFailure("config.xml has no API key")
             if (gen != generation) return
@@ -286,17 +291,18 @@ object Syncthing {
             process = child
             OrphanReaper.keep(HostProcess.pidOf(child))
             pump(gen, child, logFile(context))
-            val client = SyncthingApi(picked.gui, key)
+            pauseFailures.set(0)
+            val client = SyncthingApi(guiSocket(context), key)
             val deadline = System.currentTimeMillis() + 60_000
             while (!client.ping()) {
                 if (gen != generation) return
                 if (!child.isAlive) throw SyncthingFailure("Syncthing exited during start (${child.exitValue()})")
-                if (System.currentTimeMillis() > deadline) throw SyncthingFailure("Syncthing did not answer on 127.0.0.1:${picked.gui}")
+                if (System.currentTimeMillis() > deadline) throw SyncthingFailure("Syncthing did not answer on ${guiSocket(context).name}")
                 Thread.sleep(250)
             }
             api = client
             main.post {
-                if (gen == generation) { ports = picked; apiKeyTail = key.takeLast(4); phase = Phase.RUNNING; changed() }
+                if (gen == generation) { ports = picked; apiKeyTail = key.takeLast(4); devicesPaused = paused; phase = Phase.RUNNING; changed() }
             }
             Thread({ poll(gen, guard) }, "syncthing-status").start()
             Thread({ enforce(gen, guard) }, "syncthing-guard").start()
@@ -498,24 +504,27 @@ object Syncthing {
         }
     }
 
-    private fun failClosed(gen: Int, cause: Exception) {
-        Log.w(TAG, FAILURE_POLICY, cause)
+    private fun failClosed(gen: Int, cause: Exception, reason: String = FAILURE_POLICY) {
+        Log.w(TAG, reason, cause)
         worker.execute {
             if (gen != generation) return@execute
             shutdown()
-            main.post { if (gen == generation) { phase = Phase.FAILED; failure = FAILURE_POLICY; snapshot = null; changed() } }
+            main.post { if (gen == generation) { phase = Phase.FAILED; failure = reason; snapshot = null; changed() } }
         }
     }
 
     private fun applyPause(client: SyncthingApi) {
         val context = app
         val auto = autoPauseReason()
-        if (auto != autoPause) main.post { autoPause = auto; changed() }
         val want = SyncPrefs.userPaused(context) || auto != null
-        if (want == SyncPrefs.pauseApplied(context) && !(want && hasUnpausedPeer(client))) return
-        runCatching { if (want) client.pauseAll() else client.resumeAll() }
-            .onSuccess { SyncPrefs.setPauseApplied(context, want) }
-            .onFailure { Log.w(TAG, "pause change failed", it) }
+        var held = SyncPrefs.pauseApplied(context) && !(want && hasUnpausedPeer(client))
+        if (want != held) {
+            runCatching { if (want) client.pauseAll() else client.resumeAll() }
+                .onSuccess { SyncPrefs.setPauseApplied(context, want); held = want; pauseFailures.set(0) }
+                .onFailure { Log.w(TAG, "pause change failed", it); if (want) pauseFailures.incrementAndGet() }
+        }
+        if (auto != autoPause || held != devicesPaused) main.post { autoPause = auto; devicesPaused = held; changed() }
+        if (want && !held && pauseFailures.get() >= ENFORCE_ATTEMPTS) failClosed(generation, IllegalStateException(FAILURE_PAUSE), FAILURE_PAUSE)
     }
 
     private fun hasUnpausedPeer(client: SyncthingApi): Boolean = runCatching {
