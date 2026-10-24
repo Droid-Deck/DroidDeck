@@ -6,6 +6,7 @@ import re
 import runpy
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 GAME_TU_DEBUG = "DROIDDECK_GAME_TU_DEBUG"
@@ -161,8 +162,11 @@ def overlay_off(text):
             lines.pop()
         return "\n".join(lines + ["overlay:", "  enabled: false", "  warning_enabled: false"]) + "\n"
     end = start + 1
-    while end < len(lines) and lines[end].startswith("  "):
-        end += 1
+    for index in range(start + 1, len(lines)):
+        if lines[index].strip() and not lines[index].startswith("  "):
+            break
+        if lines[index].strip():
+            end = index + 1
     block = lines[start + 1:end]
     for key in ("enabled", "warning_enabled"):
         entry = "  %s: false" % key
@@ -185,9 +189,14 @@ def ubisoft_overlay_off(env):
         if updated == text:
             return
         settings.parent.mkdir(parents=True, exist_ok=True)
-        staged = settings.with_name(settings.name + ".tmp")
-        staged.write_text(updated, encoding="utf-8")
-        staged.replace(settings)
+        handle, staged = tempfile.mkstemp(prefix=".settings-", dir=settings.parent)
+        try:
+            with os.fdopen(handle, "w", encoding="utf-8") as target:
+                target.write(updated)
+            os.replace(staged, settings)
+        except BaseException:
+            os.unlink(staged)
+            raise
         print("droiddeck-game-env: Ubisoft Connect overlay turned off", file=sys.stderr)
     except (OSError, UnicodeDecodeError) as error:
         print("droiddeck-game-env: Ubisoft Connect overlay left as is (%s)" % error, file=sys.stderr)

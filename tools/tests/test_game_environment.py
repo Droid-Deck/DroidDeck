@@ -1233,6 +1233,12 @@ class UbisoftOverlayTest(unittest.TestCase):
                          "overlay:\n  fps_enabled: true\n  enabled: false\n  warning_enabled: false\nmisc:\n  a: 1\n")
         self.assertEqual(MODULE["overlay_off"](""), "overlay:\n  enabled: false\n  warning_enabled: false\n")
 
+    def test_blank_lines_inside_the_overlay_section_do_not_end_it(self):
+        text = "overlay:\n  enabled: true\n\n  warning_enabled: true\n\nmisc:\n  a: 1\n"
+        self.assertEqual(MODULE["overlay_off"](text), text.replace("true", "false"))
+        self.assertEqual(MODULE["overlay_off"]("overlay:\n  fps_enabled: true\n\nmisc:\n  a: 1\n"),
+                         "overlay:\n  fps_enabled: true\n  enabled: false\n  warning_enabled: false\n\nmisc:\n  a: 1\n")
+
     def test_only_prefixes_with_ubisoft_connect_are_touched(self):
         with tempfile.TemporaryDirectory() as tmp:
             prefix = Path(tmp) / "447040/pfx"
