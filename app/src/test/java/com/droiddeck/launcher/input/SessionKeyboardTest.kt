@@ -7,6 +7,7 @@ import android.os.Looper
 import android.view.inputmethod.InputMethodManager
 import android.widget.FrameLayout
 import com.droiddeck.launcher.SessionActivity
+import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionState
 import java.io.File
@@ -70,6 +71,20 @@ class SessionKeyboardTest {
         keyboardAction("toggleAndroidKeyboard")
         assertTrue(shadowOf(imm).isSoftInputVisible)
         assertTrue(host.onCheckIsTextEditor())
+        assertEquals(0, PadShadow.requests)
+    }
+
+    @Test fun disablingTheBuiltInPadFallsBackToAndroid() {
+        SessionPrefs.setSteamController(activity, SessionPrefs.CONTROLLER_NONE)
+        keyboardAction("toggleKeyboard")
+        assertTrue(shadowOf(imm).isSoftInputVisible)
+        assertEquals(0, PadShadow.requests)
+    }
+
+    @Test fun unavailablePadBridgeFallsBackToAndroid() {
+        ReflectionHelpers.setField(activity, "padBridge", null)
+        keyboardAction("toggleKeyboard")
+        assertTrue(shadowOf(imm).isSoftInputVisible)
         assertEquals(0, PadShadow.requests)
     }
 
