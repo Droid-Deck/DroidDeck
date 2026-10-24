@@ -510,7 +510,8 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
                             if (detailStore != null) Column(
                                 Modifier.fillMaxWidth()
                                     .onFocusChanged { detailFocused = it.hasFocus }
-                                    .focusProperties { exit = { if (coveringNow.value) androidx.compose.ui.focus.FocusRequester.Cancel else androidx.compose.ui.focus.FocusRequester.Default } }
+                                    // A step opened from the page (install location, uninstall) sits outside it and has to receive the focus.
+                                    .focusProperties { exit = { if (coveringNow.value && !StoresMotion.stepOpen) androidx.compose.ui.focus.FocusRequester.Cancel else androidx.compose.ui.focus.FocusRequester.Default } }
                                     .focusGroup(),
                             ) { StoreGameDetail(detailStore, key, s, a, heroFocus, onBack = { closeGame() }) }
                         }

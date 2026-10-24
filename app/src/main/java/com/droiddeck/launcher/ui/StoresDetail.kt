@@ -314,8 +314,15 @@ private fun XboxStreamButton(item: com.droiddeck.launcher.stores.CatalogItem, ma
 private fun XboxAddToGamesButton(item: com.droiddeck.launcher.stores.CatalogItem) {
     val ctx = LocalContext.current
     androidx.compose.runtime.LaunchedEffect(Unit) { com.droiddeck.launcher.stores.xbox.XboxCloudGames.load(ctx) }
+    // Add and Remove replace each other; the controller focus moves to the new button instead of getting lost.
+    val slot = remember { androidx.compose.ui.focus.FocusRequester() }
+    val inputMode = androidx.compose.ui.platform.LocalInputModeManager.current
+    val scope = rememberCoroutineScope()
+    fun refocus() { if (inputMode.inputMode == androidx.compose.ui.input.InputMode.Keyboard) scope.launch { focusSoon { slot } } }
     if (com.droiddeck.launcher.stores.xbox.XboxCloudGames.isAdded(item.id)) {
         ActionChip("In Games", ok = true)
-        SecondaryButton("Remove from Games", compact = true) { com.droiddeck.launcher.stores.xbox.XboxCloudGames.remove(ctx, item.id) }
-    } else SecondaryButton("Add to Games") { com.droiddeck.launcher.stores.xbox.XboxCloudGames.add(ctx, item) }
+        SecondaryButton("Remove from Games", compact = true, modifier = Modifier.focusRequester(slot)) {
+            com.droiddeck.launcher.stores.xbox.XboxCloudGames.remove(ctx, item.id); refocus()
+        }
+    } else SecondaryButton("Add to Games", modifier = Modifier.focusRequester(slot)) { com.droiddeck.launcher.stores.xbox.XboxCloudGames.add(ctx, item); refocus() }
 }
