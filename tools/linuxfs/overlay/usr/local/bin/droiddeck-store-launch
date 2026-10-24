@@ -61,6 +61,8 @@ UBISOFT_GAME_SECTION = "[Software\\WOW6432Node\\Ubisoft\\%s]"
 UBISOFT_HOOK = ".droiddeck-registry.bat"
 UBISOFT_IMPORT_TIMEOUT = 20.0
 UBISOFT_LOG = ".droiddeck-registry.log"
+UBISOFT_SERVICE = "UplayService.exe"
+GAME_ENV = "/usr/local/bin/droiddeck-game-env"
 TIMEOUT = 5.0
 STALE_SECONDS = 300
 SERVER_WAIT = 8.0
@@ -522,6 +524,29 @@ def ubisoft_game_exe(folder):
     return game[:-4], exe
 
 
+def ubisoft_service(compat_data, proton):
+    """Connect's log in hangs on a spinning button when UplayService.exe was never
+    started, so bring it up before the launcher has a chance to ask."""
+    if not proton or not compat_data:
+        return "skipped"
+    try:
+        if subprocess.run(["pgrep", "-f", UBISOFT_SERVICE], stdout=subprocess.DEVNULL).returncode == 0:
+            return "running"
+    except OSError:
+        return "skipped"
+    service = (Path(compat_data) / "pfx" / "drive_c" / "Program Files (x86)" / "Ubisoft"
+               / "Ubisoft Game Launcher" / UBISOFT_SERVICE)
+    if not service.is_file():
+        return "missing"
+    try:
+        subprocess.Popen([GAME_ENV, proton, "run", UBISOFT_SERVICE], cwd=str(service.parent),
+                         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                         start_new_session=True)
+    except OSError:
+        return "failed"
+    return "started"
+
+
 def ubisoft_registry(folder, compat_data, product=None, proton=None):
     """Connect reads HKLM's Installs\\<id>\\InstallDir to tell an installed game from one it still
     has to download, and answers the launch with an install error when it is missing. The import
@@ -725,6 +750,7 @@ def main(argv):
     if uplay is not None:
         log("ubisoft install: %s" % ubisoft_registry(folder, compat_data, uplay, os.environ.get("BL_STORE_PROTON", "")))
         log("ubisoft prereq=%s" % install_prereq(folder, sidecar, compat_data, os.environ.get("BL_STORE_PROTON", "")))
+        log("ubisoft service=%s" % ubisoft_service(compat_data, os.environ.get("BL_STORE_PROTON", "")))
     if store == "gog":
         prepare_gog(sidecar, compat_data, launch_dir)
         log("gog registry: " + apply_gog_registry(folder, compat_data, os.environ.get("BL_STORE_PROTON", "")))
