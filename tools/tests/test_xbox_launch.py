@@ -1,8 +1,10 @@
+import io
 import json
 import os
 from pathlib import Path
 import runpy
 import socket
+import subprocess
 import tempfile
 import threading
 import unittest
@@ -140,6 +142,7 @@ class XboxLaunchTest(unittest.TestCase):
             imported = []
             def run(argv, **kwargs):
                 imported.append(Path(argv[4][2:].replace('\\', '/')).read_bytes()[2:].decode('utf-16-le'))
+                return subprocess.CompletedProcess(argv, 0)
             with patch('subprocess.run', side_effect=run) as child:
                 xbox['register_classes']('/selected/proton', prefix, {'A': '1'})
             self.assertEqual(child.call_args.args[0][:4], ['/selected/proton', 'run', 'reg.exe', 'import'])
@@ -154,3 +157,13 @@ class XboxLaunchTest(unittest.TestCase):
                 (prefix / 'system.reg').unlink()
                 xbox['register_classes']('/selected/proton', prefix, {})
             child.assert_not_called()
+
+    def test_failed_class_registration_is_reported_and_launch_continues(self):
+        with tempfile.TemporaryDirectory() as root:
+            prefix = Path(root)
+            (prefix / 'system.reg').write_text('')
+            for outcome in ({'return_value': subprocess.CompletedProcess([], 1)},
+                            {'side_effect': subprocess.TimeoutExpired('reg.exe', 90)}):
+                with patch('subprocess.run', **outcome), patch('sys.stderr', new_callable=io.StringIO) as err:
+                    self.assertIsNone(xbox['register_classes']('/selected/proton', prefix, {}))
+                self.assertIn('registration failed', err.getvalue())

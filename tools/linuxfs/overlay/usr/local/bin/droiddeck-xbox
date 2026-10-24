@@ -129,10 +129,12 @@ def register_classes(proton, prefix, env):
         source = Path(temporary) / 'classes.reg'
         source.write_bytes(b'\xff\xfe' + text.encode('utf-16-le'))
         try:
-            subprocess.run([proton, 'run', 'reg.exe', 'import', 'Z:' + str(source).replace('/', '\\')],
-                           stdout=sys.stderr, env=env, timeout=90)
+            failed = subprocess.run([proton, 'run', 'reg.exe', 'import', 'Z:' + str(source).replace('/', '\\')],
+                                    stdout=sys.stderr, env=env, timeout=90).returncode != 0
         except subprocess.TimeoutExpired:
-            print('droiddeck-xbox: Windows Runtime class registration timed out', file=sys.stderr)
+            failed = True
+    if failed:
+        print('droiddeck-xbox: Windows Runtime class registration failed; launching without it', file=sys.stderr)
 
 
 def wine(argv, source_env=None):
