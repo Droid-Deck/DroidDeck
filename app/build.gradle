@@ -313,6 +313,7 @@ def stageQualcommRuntime = tasks.register('stageQualcommRuntime', Exec) {
 }
 android.sourceSets.main.assets.srcDir(layout.buildDirectory.dir('qualcommAssets'))
 tasks.named('preBuild').configure { dependsOn(stageQualcommRuntime) }
+tasks.matching { it.name.toLowerCase(Locale.ROOT).contains('lint') }.configureEach { dependsOn(stageQualcommRuntime) }
 if (vitureSdkDir) android.sourceSets.main.assets.srcDir(layout.buildDirectory.dir('vitureAssets'))
 if (uvcDir) {
     def stageUvcNotices = tasks.register('stageUvcNotices', Copy) {
