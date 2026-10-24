@@ -50,6 +50,15 @@ class ExternalOutputModeTest {
         assertEquals(hd60.modeId, screen.window!!.attributes.preferredDisplayModeId)
     }
 
+    @Test fun screenReportsTheActiveRateApartFromTheRequestedOne() {
+        val hd30 = mode(1, 1920, 1080, 30f)
+        val hd60 = mode(2, 1920, 1080, 60f)
+        val screen = ExternalOutputScreen(RuntimeEnvironment.getApplication(), display(hd30, arrayOf(hd30, hd60)), callback)
+
+        assertEquals(30f, screen.hz)
+        assertEquals(60f, screen.requestedHz)
+    }
+
     private val callback = object : SurfaceHolder.Callback {
         override fun surfaceCreated(holder: SurfaceHolder) = Unit
         override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) = Unit

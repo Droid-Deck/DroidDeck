@@ -106,6 +106,17 @@ class ExternalOutputHandoffTest {
         assertSame(glasses.holder, outputHolder())
     }
 
+    @Test fun glassesThatFailToShowLeaveTheMonitorOutputAndThePhoneHidden() {
+        attach(screen.holder)
+        val glasses = GlassesScreen(activity, presentationDisplay(), 60, activity)
+        ReflectionHelpers.setField(activity, "glassesScreen", glasses)
+
+        ReflectionHelpers.callInstanceMethod<Void>(activity, "restorePhoneOutput", from(GlassesScreen::class.java, glasses))
+
+        assertEquals(View.INVISIBLE, phone.visibility)
+        assertSame(screen.holder, outputHolder())
+    }
+
     @Test fun losingTheMonitorSurfaceClearsTheActiveOutput() {
         attach(screen.holder)
         activity.surfaceDestroyed(screen.holder)
