@@ -2778,6 +2778,9 @@
     <string name="storage_move_done_title">%1$s moved</string>
     <string name="storage_move_done_body">Steam will find it in its new folder.</string>
     <string name="storage_games_note">Move keeps a game and its data together and registers the new folder as a Steam library. Uninstall opens Steam’s own dialog so Steam keeps track.</string>
+    <string name="storage_added_games">Added games · %1$s</string>
+    <string name="storage_added_games_hint">Games added from folders, with their full size. Move keeps the folder together and rewrites its shortcut, prefix record, and library entry to the new location. Stop the session first.</string>
+    <string name="storage_added_move_missing">The game’s folder is missing.</string>
     <string name="storage_uninstall_title">Uninstall %1$s?</string>
     <string name="storage_uninstall_body">Steam opens and asks you to confirm. This frees the game’s %1$s. Its prefix stays until you clean up leftovers, and Steam Cloud saves stay in your account.</string>
     <string name="storage_open_steam">Open Steam</string>
