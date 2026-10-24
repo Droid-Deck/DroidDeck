@@ -11,7 +11,7 @@ class DownloadSourceProxyTest {
         val proxy = DownloadSource.proxyOf("127.0.0.1:9910")
         assertEquals(Proxy.Type.HTTP, proxy?.type())
         val address = proxy?.address() as InetSocketAddress
-        assertEquals("127.0.0.1", address.hostName)
+        assertEquals("127.0.0.1", address.hostString)
         assertEquals(9910, address.port)
     }
 
