@@ -84,17 +84,61 @@ internal class XboxCredentials(private val app: Context, expectedGeneration: Str
         } }
     }
 
-    init {
+    /** Each connection gets its own thread; an accept error is logged and retried instead of silently ending the loop. */
+    private fun <S> listen(route: String, accept: () -> S, serve: (S) -> Unit) = Thread({
+        var failures = 0
+        while (!closed) {
+            val socket = try { accept() } catch (e: Exception) {
+                if (closed) break
+                failures++
+                note("Credential $route accept failed: ${e.javaClass.simpleName}")
+                if (failures >= 20) { note("Credential $route listener stopped after repeated accept failures"); break }
+                Thread.sleep(100)
+                continue
+            }
+            failures = 0
+            Thread({ serve(socket) }, "xbox-credentials-$route-request").start()
+        }
+    }, "xbox-credentials-$route").start()
+
+    /** Logs requests that take 2 s or more, and the stage a request is still in after 8 s (the backend waits 10 s). */
+    private fun tracked(route: String, block: (step: (String) -> Unit) -> JSONObject): JSONObject {
+        val started = android.os.SystemClock.elapsedRealtime()
+        val stage = java.util.concurrent.atomic.AtomicReference("auth")
+        val done = java.util.concurrent.CountDownLatch(1)
+        val stages = java.util.Collections.synchronizedList(mutableListOf<String>())
+        var mark = started
+        val step = { next: String ->
+            val now = android.os.SystemClock.elapsedRealtime()
+            stages += "${stage.getAndSet(next)} ${now - mark} ms"
+            mark = now
+        }
         Thread({
-            while (!closed) {
-                val socket = runCatching { server.accept() }.getOrNull() ?: break
-                socket.use {
-                    it.soTimeout = 10_000
-                    val reply = runCatching {
+            if (!done.await(8, java.util.concurrent.TimeUnit.SECONDS)) note("Credential $route request still in ${stage.get()} after 8 s")
+        }, "xbox-credentials-watch").apply { isDaemon = true; start() }
+        try {
+            return block(step)
+        } finally {
+            done.countDown()
+            step("done")
+            val total = android.os.SystemClock.elapsedRealtime() - started
+            if (total >= 2000) note("Credential $route request took $total ms (${stages.joinToString(", ")})")
+        }
+    }
+
+    init {
+        listen("socket", { server.accept() }) { socket ->
+            socket.use {
+                it.soTimeout = 10_000
+                val reply = tracked("socket") { step ->
+                    runCatching {
                         val peer = it.peerCredentials
                         check(peer.uid == android.os.Process.myUid() && authorized(peer.pid))
+                        step("read")
                         val request = JSONObject(readLine(it.inputStream.buffered(), 2_097_152))
+                        step("lock")
                         storage(app) {
+                            step("answer")
                             check(!closed && epoch(app) == generation && authorized(peer.pid))
                             answer(request)
                         }
@@ -102,16 +146,16 @@ internal class XboxCredentials(private val app: Context, expectedGeneration: Str
                         note("Credential request rejected: ${it.javaClass.simpleName}")
                         JSONObject().put("ok", false)
                     }
-                    runCatching { it.outputStream.write((reply.toString() + "\n").toByteArray()) }
                 }
+                runCatching { it.outputStream.write((reply.toString() + "\n").toByteArray()) }
+                    .onFailure { failure -> note("Credential reply not delivered: ${failure.javaClass.simpleName}") }
             }
-        }, "xbox-credentials").start()
-        Thread({
-            while (!closed) {
-                val socket = runCatching { loopback.accept() }.getOrNull() ?: break
-                socket.use {
-                    it.soTimeout = 10_000
-                    val reply = runCatching {
+        }
+        listen("loopback", { loopback.accept() }) { socket ->
+            socket.use {
+                it.soTimeout = 10_000
+                val reply = tracked("loopback") { step ->
+                    runCatching {
                         val input = it.getInputStream().buffered()
                         check(it.inetAddress.isLoopbackAddress)
                         if (!java.security.MessageDigest.isEqual(readLine(input, 128).toByteArray(), key.toByteArray())) {
@@ -120,8 +164,11 @@ internal class XboxCredentials(private val app: Context, expectedGeneration: Str
                         if (!loopbackOwner(it.port)) { rejected("loopback-owner"); error("loopback owner") }
                         check(bound.await(5, java.util.concurrent.TimeUnit.SECONDS) && backend?.isAlive == true)
                         if (!loopbackUsed) { loopbackUsed = true; note("Backend reached the app over the loopback fallback") }
+                        step("read")
                         val request = JSONObject(readLine(input, 2_097_152))
+                        step("lock")
                         storage(app) {
+                            step("answer")
                             check(!closed && epoch(app) == generation)
                             answer(request)
                         }
@@ -129,10 +176,11 @@ internal class XboxCredentials(private val app: Context, expectedGeneration: Str
                         note("Credential request rejected: ${failure.javaClass.simpleName}")
                         JSONObject().put("ok", false)
                     }
-                    runCatching { it.getOutputStream().write((reply.toString() + "\n").toByteArray()) }
                 }
+                runCatching { it.getOutputStream().write((reply.toString() + "\n").toByteArray()) }
+                    .onFailure { failure -> note("Credential reply not delivered: ${failure.javaClass.simpleName}") }
             }
-        }, "xbox-credentials-loopback").start()
+        }
     }
 
     /** The connecting socket must belong to this app's user; an unreadable table (newer Android) leaves the key as the check. */
