@@ -564,7 +564,7 @@ object Glasses {
         val m = selected?.second
         val controllable = m?.let(::canOpenModel) == true
         // XREAL uses Android's Ethernet sockets, without opening or claiming USB interfaces.
-        val permitted = controllable && device != null && (m === XrealModel || usb.hasPermission(device))
+        val permitted = controllable && device != null && (m is XrealModel || usb.hasPermission(device))
         val identity = device?.let {
             GlassesModeState.Device(it.productId, if (permitted) runCatching { it.serialNumber }.getOrNull() else null)
         }
@@ -615,9 +615,9 @@ object Glasses {
                 sbs = sbsByDisplay,
                 switching3d = modeState.pendingStereo,
                 brightnessMax = m?.brightnessMax ?: 8, volumeMax = m?.volumeMax ?: 8,
-                sunblock = if (m === XrealModel) it.sunblock else _settings.value.sunblock ?: it.sunblock,
+                sunblock = if (m is XrealModel) it.sunblock else _settings.value.sunblock ?: it.sunblock,
                 hardwareControls = m?.hardwareControls == true &&
-                    (device?.vendorId == VitureProtocol.VENDOR_ID || m === XrealModel || m is RokidModel),
+                    (device?.vendorId == VitureProtocol.VENDOR_ID || m is XrealModel || m is RokidModel),
                 supportsDisplayModeControl = m?.supportsDisplayModeControl == true,
                 hasSunblock = m?.hasSunblock == true,
                 diagonalFovDeg = m?.diagonalFovDeg ?: 46f,
@@ -625,7 +625,7 @@ object Glasses {
                 noSignal = noSignal,
                 sbs90 = m?.sbs90 == true,
                 rates2d = m?.rates2d ?: listOf(60, 90, 120),
-                experimental = m === XrealModel || (m is VitureProtocol.Model && m.family == VitureProtocol.Family.PRO2 && !m.needsSdk),
+                experimental = m is XrealModel || (m is VitureProtocol.Model && m.family == VitureProtocol.Family.PRO2 && !m.needsSdk),
                 supportsScreen3dof = link?.hasImu == true,
                 supports30Hz = display?.let(::supports30Hz) == true,
                 supportsSpatial = (link as? VitureSdkLink)?.isCarina == true,
@@ -661,7 +661,7 @@ object Glasses {
             else VitureSdk.marketName(device.productId)?.let(VitureProtocol::sdkModel)
                 ?: VitureProtocol.model(device.productId, name)
         }
-        else if (XrealModel.matches(device.vendorId, device.productId)) XrealModel
+        else if (device.vendorId == XrealModel.VENDOR_ID) XrealModel.model(device.vendorId, device.productId)
         else RokidModel.model(device.vendorId, device.productId, name)
             ?: RayNeoModel.model(device.vendorId, device.productId, name)
     }
@@ -733,8 +733,8 @@ object Glasses {
                 VitureSdkLink.open(usb, device, File(app.noBackupFilesDir, "viture"), sdkListener(generation),
                     (model as? VitureProtocol.Model)?.family, spatial)
             } else VitureLink.open(usb, device, linkListener(generation))
-        } else if (model === XrealModel) {
-            XrealLink.open(app, xrealListener(generation))
+        } else if (model is XrealModel) {
+            XrealLink.open(app, xrealListener(generation), model as XrealModel)
         } else if (model is RokidModel) {
             RokidLink.open(usb, device, rokidListener(generation))
         } else {

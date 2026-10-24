@@ -11,6 +11,7 @@ import java.util.concurrent.atomic.AtomicReference
 internal class XrealLink internal constructor(
     private val connector: XrealConnector,
     private val listener: Listener,
+    private val model: XrealModel = XrealModel.ONE_S,
 ) : GlassesLink {
     interface Listener {
         fun onReady()
@@ -30,7 +31,8 @@ internal class XrealLink internal constructor(
     private val worker = Thread(::run, "xreal-control").apply { isDaemon = true; start() }
 
     companion object {
-        fun open(context: Context, listener: Listener) = XrealLink(AndroidXrealConnector(context), listener)
+        fun open(context: Context, listener: Listener, model: XrealModel) =
+            XrealLink(AndroidXrealConnector(context), listener, model)
     }
 
     override fun send(msgId: Int, payload: ByteArray): Boolean {
@@ -44,9 +46,9 @@ internal class XrealLink internal constructor(
         if (msgId == VitureProtocol.MSG_GET_IMU) return true
         val valid = when (msgId) {
             VitureProtocol.MSG_GET_DISPLAY -> true
-            VitureProtocol.MSG_DISPLAY -> value in 2..5 || value == XrealModel.NATIVE_60HZ
-            VitureProtocol.MSG_BRIGHTNESS -> value in 0..9
-            VitureProtocol.MSG_FILM -> value in 0..1
+            VitureProtocol.MSG_DISPLAY -> model.supportsDisplayMode(value)
+            VitureProtocol.MSG_BRIGHTNESS -> model.brightnessMax > 0 && value in 0..model.brightnessMax
+            VitureProtocol.MSG_FILM -> model.hasSunblock && value in 0..1
             else -> false // No guessed volume, sensor-rate, or VITURE wire commands.
         }
         return valid && commands.offer(Command(msgId, value))
@@ -62,7 +64,7 @@ internal class XrealLink internal constructor(
                 channels = connector.connect()
                 connection.set(channels)
                 if (!running) break
-                val control = XrealControl(channels)
+                val control = XrealControl(channels, model = model)
                 listener.onValue(VitureProtocol.MSG_GET_DISPLAY, control.display())
                 val current = channels
                 reports = Thread({
@@ -150,8 +152,11 @@ internal class XrealLink internal constructor(
     }
 }
 
-/** Kept independent of Android so the real framing/acknowledgement path is testable. */
-internal class XrealControl(private val channels: XrealChannels, private val settleDelayMs: Long = 150) {
+internal class XrealControl(
+    private val channels: XrealChannels,
+    private val settleDelayMs: Long = 150,
+    private val model: XrealModel = XrealModel.ONE_S,
+) {
     private var transaction = 0
     private fun exchange(command: Int, value: Int? = null): ByteArray {
         transaction = if (transaction == Int.MAX_VALUE) 1 else transaction + 1
@@ -164,21 +169,26 @@ internal class XrealControl(private val channels: XrealChannels, private val set
         }
         throw IOException("XREAL control response was not received")
     }
-    fun display(): Int {
-        val reply = exchange(XrealProtocol.GET_DISPLAY)
-        return XrealProtocol.numeric(reply)?.takeIf { it in 2..5 || it == XrealModel.NATIVE_60HZ }
-            ?: throw IOException("Unsupported XREAL display response: ${reply.take(32).joinToString("") { "%02x".format(it) }}")
-    }
+    fun display(): Int = awaitDisplay { true }
     fun changeDisplay(mode: Int): Int {
+        require(model.supportsDisplayMode(mode)) { "Unsupported ${model.name} display mode: $mode" }
         val stereo = mode == 5
         set(XrealProtocol.SET_INPUT, if (stereo) 1 else 0)
-        // On 1S, SET_INPUT itself changes EDID. Sending SET_DISPLAY immediately
-        // receives error 5001 while that change is pending. GET_DISPLAY returns
-        // an empty property during the transition; wait for a real mode report.
-        val current = awaitDisplay { (it == 5) == stereo }
-        if (current == mode) return current
-        set(XrealProtocol.SET_DISPLAY, mode)
-        return awaitDisplay { it == mode }
+        // One firmware can restore mode 9 and reject the legacy 2/3/4 EDIDs.
+        // Let SET_INPUT restore its native mode; Android selects advertised refresh rates.
+        if (model === XrealModel.ONE && !stereo) return awaitDisplay { it != 5 }
+        var requested = false
+        return awaitDisplay { current ->
+            if (current == mode) true else {
+                // 1S switches EDID with SET_INPUT; One may require SET_DISPLAY.
+                if (!requested && (model === XrealModel.ONE || (current == 5) == stereo)) {
+                    val reply = exchange(XrealProtocol.SET_DISPLAY, mode)
+                    if (XrealProtocol.acknowledged(reply)) requested = true
+                    else if (!XrealProtocol.busy(reply)) commandFailed(XrealProtocol.SET_DISPLAY, reply)
+                }
+                false
+            }
+        }
     }
     private fun awaitDisplay(matches: (Int) -> Boolean): Int {
         val deadline = System.nanoTime() + 8_000_000_000L
@@ -187,7 +197,7 @@ internal class XrealControl(private val channels: XrealChannels, private val set
             val value = XrealProtocol.numeric(reply)
             if (value != null && matches(value)) return value
             if (value == null && !XrealProtocol.acknowledged(reply))
-                throw IOException("Invalid XREAL display transition response")
+                throw IOException("Invalid XREAL display response: ${hex(reply)}")
             if (System.nanoTime() > deadline) throw IOException("XREAL display transition timed out")
             Thread.sleep(settleDelayMs)
         }
@@ -195,7 +205,10 @@ internal class XrealControl(private val channels: XrealChannels, private val set
     }
     fun set(command: Int, value: Int) {
         val reply = exchange(command, value)
-        if (!XrealProtocol.acknowledged(reply)) throw IOException("XREAL command %04x was not acknowledged: %s".format(
-            command, reply.take(32).joinToString("") { "%02x".format(it) }))
+        if (!XrealProtocol.acknowledged(reply)) commandFailed(command, reply)
     }
+    private fun commandFailed(command: Int, reply: ByteArray): Nothing =
+        throw IOException("XREAL command %04x was not acknowledged: %s".format(command, hex(reply)))
+
+    private fun hex(reply: ByteArray) = reply.take(32).joinToString("") { "%02x".format(it) }
 }
