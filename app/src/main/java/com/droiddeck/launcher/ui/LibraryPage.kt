@@ -149,7 +149,7 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
     val stores = s.gameStoresEnabled && !s.shortcutPicker
     val signedIn = Store.entries.filter { StoresState.isSignedIn(it) }
     LaunchedEffect(stores, signedIn) { if (stores) signedIn.forEach { StoresState.loadLibrary(ctx, it) } }
-    val owned = if (stores) Store.entries.associateWith { StoresState.library[it].orEmpty() } else emptyMap()
+    val owned = if (stores) signedIn.associateWith { StoresState.library[it].orEmpty() } else emptyMap()
     val installedStore = StoresState.installed.map { it.key }.toSet()
     val syncing = if (stores) signedIn.mapNotNull { st -> StoresState.status[st]?.let { st to it } } else emptyList()
     val all = remember(s.steamGames, owned, installedStore) { libraryEntries(s.steamGames, owned, installedStore) }
