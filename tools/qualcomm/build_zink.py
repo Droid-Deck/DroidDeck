@@ -1,4 +1,4 @@
-"""Build private ARM64 Zink libraries with the pre-maintenance5 fallback."""
+"""Build private ARM64 Zink libraries with Qualcomm and X11 compatibility fixes."""
 import argparse
 import hashlib
 import json
@@ -9,6 +9,7 @@ import subprocess
 ROOT = Path(__file__).resolve().parents[2]
 HERE = Path(__file__).resolve().parent
 REVISION = '31e9a6b2e95e30d84bf3177d1f497d063e59b6b2'
+PATCHES = ('zink-optional-maintenance5.patch', 'zink-pixmap-without-dri3.patch')
 OPTIONS = ['-Dbuildtype=release', '-Dgallium-drivers=zink', '-Dvulkan-drivers=[]',
            '-Dllvm=disabled', '-Dplatforms=x11,wayland', '-Dglvnd=enabled',
            '-Dglvnd-vendor-name=droiddeck_qualcomm', '-Dgallium-va=disabled',
@@ -34,7 +35,8 @@ def prepare(source):
     run(['git', 'remote', 'add', 'origin', 'https://gitlab.freedesktop.org/mesa/mesa.git'], source)
     run(['git', 'fetch', '--depth', '1', 'origin', REVISION], source)
     run(['git', 'checkout', '--detach', 'FETCH_HEAD'], source)
-    run(['git', 'apply', HERE / 'zink-optional-maintenance5.patch'], source)
+    for patch in PATCHES:
+        run(['git', 'apply', HERE / patch], source)
 
 def package(source, output, strip_tool):
     output.mkdir(parents=True, exist_ok=True)
@@ -48,11 +50,13 @@ def package(source, output, strip_tool):
     shutil.copyfile(HERE / 'qualcomm-gl.sh', output / 'qualcomm-gl.sh')
     shutil.copytree(source / 'licenses', output / 'licenses', dirs_exist_ok=True)
     shutil.copyfile(source / 'docs/license.rst', output / 'licenses/Mesa-license.rst')
-    shutil.copyfile(HERE / 'zink-optional-maintenance5.patch', output / 'licenses/zink-optional-maintenance5.patch')
+    for patch in PATCHES:
+        shutil.copyfile(HERE / patch, output / 'licenses' / patch)
     (output / 'licenses/source.json').write_text(json.dumps({
         'url': 'https://gitlab.freedesktop.org/mesa/mesa/-/tree/' + REVISION,
         'source_commit': REVISION, 'options': OPTIONS,
-        'patch_sha256': hashlib.sha256((HERE / 'zink-optional-maintenance5.patch').read_bytes()).hexdigest()}, indent=2) + '\n')
+        'patches': [{'path': patch, 'sha256': hashlib.sha256((HERE / patch).read_bytes()).hexdigest()}
+                    for patch in PATCHES]}, indent=2) + '\n')
     files = [{'path': p.relative_to(output).as_posix(), 'sha256': hashlib.sha256(p.read_bytes()).hexdigest(),
               'size': p.stat().st_size} for p in sorted(output.rglob('*')) if p.is_file() and p.name != 'build.json']
     (output / 'build.json').write_text(json.dumps({'source_commit': REVISION, 'files': files}, indent=2) + '\n')

@@ -142,8 +142,8 @@
       },
       {
         "path": "libgallium-26.2.3.so",
-        "sha256": "bcda320860b051725ca49fd546937cc6512373bc21ce0d1e7f9c097341f3e9bc",
-        "size": 21578336
+        "sha256": "c2367279e61cad9d2fa16ff1bc247b565ff86e38f5a6b6aff5e63c5f1607e869",
+        "size": 21578352
       },
       {
         "path": "libgbm.so.1",
@@ -197,13 +197,18 @@
       },
       {
         "path": "licenses/source.json",
-        "sha256": "6bb1d1549c264228466853656258f1e3c6822c2bf314260e4900cd0eed3a393c",
-        "size": 658
+        "sha256": "699c0d6096f573cb768ae2e3f625a65a34fef8cebb618f6a611d0f8b6ced787a",
+        "size": 890
       },
       {
         "path": "licenses/zink-optional-maintenance5.patch",
         "sha256": "25f0733bc42199344f205a916f6674d578a9a78250fd6b4cecbfb1cbbc8f8cf5",
         "size": 1682
+      },
+      {
+        "path": "licenses/zink-pixmap-without-dri3.patch",
+        "sha256": "8a0b0480be2823cc5df2bb5510c2f39a1402da9cb9199602d7bf691c5c486100",
+        "size": 1907
       },
       {
         "path": "qualcomm-gl.sh",
