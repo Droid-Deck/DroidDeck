@@ -168,6 +168,7 @@ class SessionService : Service() {
         updateSuspendPolicy()
     }
     @Volatile private var sessionGen = 0
+    private val agentEnvSessionIds = java.util.concurrent.ConcurrentHashMap<Int, String>()
 
     override fun onCreate() {
         super.onCreate()
@@ -435,7 +436,7 @@ class SessionService : Service() {
                 .onSuccess { if (it != null) Log.i(TAG, it) }
                 .onFailure { Log.w(TAG, "forced components", it) }
         }
-        addClientEnvironment(guest, steamHere)
+        addClientEnvironment(guest, steamHere, gen)
         if (steamHere) guest.add("BL_EPIC_APP_ID=" + com.droiddeck.launcher.stores.epic.EpicClient.shortcutAppId)
         val fastPathAt = guest.size
 
@@ -659,7 +660,7 @@ class SessionService : Service() {
         return sessionDir
     }
 
-    private fun addClientEnvironment(guest: MutableList<String>, steamHere: Boolean) {
+    private fun addClientEnvironment(guest: MutableList<String>, steamHere: Boolean, gen: Int) {
         guest.add("/usr/bin/env")
         guest.add("-i")
         guest.add("DROIDDECK_BWRAP_SOCKET=" + com.droiddeck.launcher.runtime.BwrapSpawner.socket(this))
@@ -722,7 +723,18 @@ class SessionService : Service() {
         if (SessionPrefs.cursorComposite(this)) guest.add("BL_CURSOR_COMPOSITE=1")
         if (com.droiddeck.launcher.core.ZramSupport.supported()) guest.add("BL_ZRAM=1")
         guest.add("BANNER_AUDIO_DIRECT_DECAY=0")
-        val extra = extraEnv() + com.droiddeck.launcher.agent.AgentEnv.beginSession(this)
+        val agentSessionId = UUID.randomUUID().toString().replace("-", "")
+        agentEnvSessionIds[gen] = agentSessionId
+        val agentEnvironment = runCatching { com.droiddeck.launcher.agent.AgentEnv.beginSession(this, agentSessionId) }
+            .onFailure { Log.w(TAG, "agent environment skipped", it) }
+            .getOrDefault(emptyList())
+        if (gen != sessionGen || !SessionState.running) {
+            // The stop may have run its cleanup before beginSession took the lock.
+            agentEnvSessionIds.remove(gen, agentSessionId)
+            runCatching { com.droiddeck.launcher.agent.AgentEnv.endSession(this, agentSessionId) }
+                .onFailure { Log.w(TAG, "clearing agent overrides for session $gen", it) }
+        }
+        val extra = extraEnv() + agentEnvironment
         if (extra.none { it.startsWith("TU_DEBUG=") }) guest.add("$GAME_TU_DEBUG=" + (tuOverride ?: if (tuDriver) "sysmem" else ""))
         extra.forEach { guest.add(it) }
         com.droiddeck.launcher.gpu.TpUbwcHint.forThisDevice(this)?.let { guest.add("${com.droiddeck.launcher.gpu.TpUbwcHint.ENV}=$it") }
@@ -1588,6 +1600,9 @@ class SessionService : Service() {
 
     private fun finishSessionStop(status: Int, stoppedGen: Int) {
         mainHandler.post {
+            val agentSessionId = agentEnvSessionIds.remove(stoppedGen)
+            if (agentSessionId != null) runCatching { com.droiddeck.launcher.agent.AgentEnv.endSession(this, agentSessionId) }
+                .onFailure { Log.w(TAG, "clearing agent overrides for session $stoppedGen", it) }
             if (stoppedGen != sessionGen || SessionState.running) {
                 Log.i(TAG, "session $stoppedGen finished stopping after a new one started")
                 return@post
@@ -1602,8 +1617,6 @@ class SessionService : Service() {
             com.droiddeck.launcher.agent.AgentGuest.stop()
             com.droiddeck.launcher.stores.StoreLaunchRequests.stop()
             Thread({ com.droiddeck.launcher.stores.CloudSaves.uploadAllDirty(applicationContext, "session-end", running = false) }, "cloud-session-end").start()
-            runCatching { com.droiddeck.launcher.agent.AgentEnv.endSession(this) }
-                .onFailure { Log.w(TAG, "clearing the agent's session environment", it) }
             releaseLocks()
             if (status == 0) {
                 SessionEvents.transition(SessionPhase.IDLE, "session.stopped", mapOf("status" to status))

@@ -3,6 +3,7 @@ package com.droiddeck.launcher.agent
 import android.content.Context
 import android.util.Log
 import com.droiddeck.launcher.runtime.LinuxRuntime
+import com.droiddeck.launcher.core.FileUtils
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -14,6 +15,7 @@ object AgentEnv {
     private const val TAG = "AgentEnv"
     private const val FILE = "agent-env.json"
     private const val GUEST_BIN = "/opt/droiddeck-agent/bin"
+    private const val SESSION_BINS = "opt/droiddeck-agent/sessions"
     private const val BASE_PATH = "/usr/local/bin:/usr/bin:/bin"
     private val NAME = Regex("[A-Za-z0-9._-]{1,64}")
     private val KEY = Regex("[A-Za-z_][A-Za-z0-9_]*")
@@ -78,7 +80,8 @@ object AgentEnv {
         state.put("installed", "$GUEST_BIN/$name")
     }
 
-    fun beginSession(context: Context): List<String> = synchronized(lock) {
+    fun beginSession(context: Context, sessionId: String = java.util.UUID.randomUUID().toString()): List<String> = synchronized(lock) {
+        if (!sessionId.matches(Regex("[A-Za-z0-9_-]{1,64}"))) throw AgentException("INVALID_SESSION", "Invalid agent session id")
         if (!AgentAccess.commandsAllowed(context)) {
             revoke(context)
             return@synchronized emptyList()
@@ -86,40 +89,76 @@ object AgentEnv {
         val state = load(context)
         val active = strings(state.optJSONArray("pending"))
         val overrides = strings(state.optJSONArray("pendingOverrides"))
+        val pendingBin = bin(context)
+        pendingBin.mkdirs()
+        pendingBin.listFiles()?.filter { it.name !in overrides }?.forEach { it.delete() }
+        val sessionBin = sessionBin(context, sessionId)
+        if (sessionBin.exists()) throw AgentException("SESSION_EXISTS", "The agent session directory already exists")
+        try {
+            if (overrides.isNotEmpty()) {
+                if (!sessionBin.mkdirs()) throw AgentException("OVERRIDE_FAILED", "Could not create the session override directory")
+                for (name in overrides) {
+                    val source = File(pendingBin, name)
+                    if (Files.isSymbolicLink(source.toPath()) || !source.isFile)
+                        throw AgentException("OVERRIDE_FAILED", "The queued override $name is unavailable")
+                    val target = File(sessionBin, name)
+                    Files.newInputStream(source.toPath(), READ, NOFOLLOW_LINKS).use { input -> target.outputStream().use { input.copyTo(it) } }
+                    if (!target.setExecutable(true, false)) throw AgentException("OVERRIDE_FAILED", "Could not prepare $name for this session")
+                }
+            }
+        } catch (e: Exception) {
+            FileUtils.delete(sessionBin)
+            throw e
+        }
+        val lines = strings(state.optJSONArray("persistent")) + active
+        val guestBin = "/$SESSION_BINS/$sessionId/bin"
+        val withPath = if (overrides.isEmpty()) lines else lines + "PATH=$guestBin:${pathOf(lines)}"
         state.put("active", JSONArray(active)).put("pending", JSONArray())
         state.put("activeOverrides", JSONArray(overrides)).put("pendingOverrides", JSONArray())
-        save(context, state)
-        bin(context).listFiles()
-            ?.filter { it.name !in overrides }?.forEach { it.delete() }
-        val lines = strings(state.optJSONArray("persistent")) + active
-        val withPath = if (overrides.isEmpty()) lines else lines + "PATH=$GUEST_BIN:${pathOf(lines)}"
+        state.put("activeOverrideSession", sessionId)
+        try {
+            save(context, state)
+        } catch (e: Exception) {
+            FileUtils.delete(sessionBin)
+            throw e
+        }
+        overrides.forEach { File(pendingBin, it).delete() }
         if (withPath.isNotEmpty()) Log.i(TAG, "agent environment keys for this session: ${withPath.map { it.substringBefore('=') }}")
         withPath
     }
 
     fun revoke(context: Context) = synchronized(lock) {
         val state = load(context)
-        for (key in listOf("pending", "active", "persistent", "pendingOverrides", "activeOverrides")) state.put(key, JSONArray())
+        for (key in listOf("pending", "active", "persistent", "pendingOverrides")) state.put(key, JSONArray())
         save(context, state)
         bin(context).listFiles()?.forEach { it.delete() }
     }
 
-    fun endSession(context: Context) = synchronized(lock) {
+    fun endSession(context: Context, sessionId: String? = null) = synchronized(lock) {
         val state = load(context)
-        val overrides = strings(state.optJSONArray("activeOverrides"))
-        val pending = strings(state.optJSONArray("pendingOverrides"))
-        val bin = bin(context)
-        overrides.filter { it !in pending }.forEach { File(bin, it).delete() }
-        state.put("active", JSONArray()).put("activeOverrides", JSONArray())
-        save(context, state)
+        val endingId = sessionId ?: state.optString("activeOverrideSession").takeIf { it.isNotEmpty() }
+        if (endingId != null) FileUtils.delete(sessionBin(context, endingId))
+        if (endingId == null || state.optString("activeOverrideSession") == endingId) {
+            state.put("active", JSONArray()).put("activeOverrides", JSONArray()).put("activeOverrideSession", "")
+            save(context, state)
+        }
     }
 
     private fun pathOf(lines: List<String>) =
         lines.lastOrNull { it.startsWith("PATH=") }?.substringAfter('=')?.takeIf { it.isNotBlank() } ?: BASE_PATH
 
     private fun bin(context: Context): File {
+        return guestDirectory(context, GUEST_BIN.removePrefix("/"))
+    }
+
+    private fun sessionBin(context: Context, sessionId: String): File {
+        if (!sessionId.matches(Regex("[A-Za-z0-9_-]{1,64}"))) throw AgentException("INVALID_SESSION", "Invalid agent session id")
+        return guestDirectory(context, "$SESSION_BINS/$sessionId/bin")
+    }
+
+    private fun guestDirectory(context: Context, relative: String): File {
         val root = LinuxRuntime.rootDir(context).canonicalFile.toPath()
-        val directory = root.resolve(GUEST_BIN.removePrefix("/"))
+        val directory = root.resolve(relative)
         var path = directory
         while (path != root) {
             if (Files.isSymbolicLink(path)) throw AgentException("OVERRIDE_FAILED", "The override directory must not contain symbolic links")
@@ -142,6 +181,7 @@ object AgentEnv {
         for (key in listOf("pending", "active", "persistent", "pendingOverrides", "activeOverrides")) {
             if (!state.has(key)) state.put(key, JSONArray())
         }
+        if (!state.has("activeOverrideSession")) state.put("activeOverrideSession", "")
         return state
     }
 
