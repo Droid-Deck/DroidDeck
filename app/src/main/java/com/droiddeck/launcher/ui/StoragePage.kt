@@ -457,6 +457,7 @@ private fun GamesView(report: StorageReport, sessionRunning: Boolean, a: FrontEn
     var confirm by remember { mutableStateOf<GameUsage?>(null) }
     val ctx = LocalContext.current
     var moveAdded by remember { mutableStateOf<AddedGameUsage?>(null) }
+    var adoptAdded by remember { mutableStateOf<AddedGameUsage?>(null) }
     var pickAddedTarget by remember { mutableStateOf<AddedGameUsage?>(null) }
     val pickAddedFolder = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         val game = pickAddedTarget
@@ -549,10 +550,18 @@ private fun GamesView(report: StorageReport, sessionRunning: Boolean, a: FrontEn
                         Text(g.folder.path, fontSize = 12.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                     Text(gb(g.bytes), fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, modifier = Modifier.widthIn(min = 72.dp))
-                    SecondaryButton(
-                        stringResource(R.string.storage_move), compact = true,
-                        enabled = !sessionRunning && !StorageState.cleaning && !StorageState.scanning && AddedGameMove.status == null,
-                    ) { moveAdded = g }
+                    Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        SecondaryButton(
+                            stringResource(R.string.storage_move), compact = true,
+                            enabled = !sessionRunning && !StorageState.cleaning && !StorageState.scanning && AddedGameMove.status == null,
+                        ) { moveAdded = g }
+                        if (g.steamLibraryRoot != null && g.steamInstallDir != null) {
+                            SecondaryButton(
+                                stringResource(R.string.storage_added_move_steam), compact = true,
+                                enabled = !sessionRunning && !StorageState.cleaning && !StorageState.scanning && AddedGameMove.status == null,
+                            ) { adoptAdded = g }
+                        }
+                    }
                 }
                 if (i < added.lastIndex) Box(Modifier.fillMaxWidth().height(1.dp).background(pal.line))
             }
@@ -592,6 +601,30 @@ private fun GamesView(report: StorageReport, sessionRunning: Boolean, a: FrontEn
             onMove = { target -> beginAddedMove(g, target) },
             onChooseFolder = { chooseAddedFolder(g) },
         )
+    }
+    adoptAdded?.let { g ->
+        val root = g.steamLibraryRoot
+        val dir = g.steamInstallDir
+        if (root == null || dir == null) {
+            LaunchedEffect(Unit) { adoptAdded = null }
+        } else {
+            AlertDialog(
+                onDismissRequest = { adoptAdded = null },
+                title = { Text(stringResource(R.string.storage_added_move_steam_title, g.name)) },
+                text = { Text(stringResource(R.string.storage_added_move_steam_body, dir), fontSize = 14.sp) },
+                confirmButton = {
+                    FocusText(stringResource(R.string.storage_added_move_steam), pal.signal) {
+                        adoptAdded = null
+                        AddedGameMove.startAdopt(ctx, g.folder, g.name, root, dir) { a.onLibraryChanged() }
+                    }
+                },
+                dismissButton = {
+                    val cancel = remember { FocusRequester() }
+                    LaunchedEffect(Unit) { runCatching { cancel.requestFocus() } }
+                    FocusText(stringResource(R.string.common_cancel), colors.onBackground, modifier = Modifier.focusRequester(cancel)) { adoptAdded = null }
+                },
+            )
+        }
     }
 }
 

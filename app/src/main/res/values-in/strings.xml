@@ -2618,6 +2618,9 @@
     <string name="storage_added_games">Game tambahan · %1$s</string>
     <string name="storage_added_games_hint">Game yang ditambahkan dari folder, dengan ukuran penuhnya. Pindahkan agar folder tetap utuh; shortcut, catatan prefix, dan entri library ditulis ulang ke lokasi baru. Hentikan sesi dulu.</string>
     <string name="storage_added_move_missing">Folder game tidak ditemukan.</string>
+    <string name="storage_added_move_steam">Pasang ke Steam</string>
+    <string name="storage_added_move_steam_title">Pasang %1$s ke Steam?</string>
+    <string name="storage_added_move_steam_body">File-nya pindah ke library Steam sebagai %1$s. Steam akan mendeteksi game saat berikutnya dibuka dan tombolnya akan bertuliskan Play. Shortcut, prefix, dan entri library ikut ke sana.</string>
     <string name="storage_uninstall_title">Hapus instalasi %1$s?</string>
     <string name="storage_uninstall_body">Steam akan terbuka dan meminta konfirmasi. Ini mengosongkan %1$s gim. Prefix tetap ada sampai sisa dibersihkan, dan save Steam Cloud tetap di akun Anda.</string>
     <string name="storage_open_steam">Buka Steam</string>
