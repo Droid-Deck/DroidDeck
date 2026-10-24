@@ -389,7 +389,6 @@ object AddedGames {
 
     private class LoginUser(val id: String, val mostRecent: Boolean, val autoLogin: Boolean, val timestamp: Long)
 
-    /** The signed-in account's config, chosen as droiddeck-steam-shortcuts chooses it: MostRecent, else AutoLogin, else the latest timestamp. */
     internal fun accountConfig(root: File): File? {
         val users = runCatching { File(root, "config/loginusers.vdf").readText() }.getOrDefault("")
         val recent = Regex(""""(\d{5,})"\s*\{([^}]*)\}""").findAll(users).map {

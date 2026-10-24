@@ -16,8 +16,7 @@ TAG = "droiddeck-app"
 
 
 def account_dir(steam_root):
-    """The signed-in account's userdata folder, else the only one that is not 0. Clients that do not
-    write MostRecent still mark that account AutoLogin; the latest timestamp breaks the remaining ties."""
+    """The most recent account's userdata folder, else the only one that is not 0."""
     users = os.path.join(steam_root, "config", "loginusers.vdf")
     recent, best = None, None
     try:
