@@ -67,25 +67,53 @@ data class GpuInfo(
         private const val UNNAMED = "this GPU"
 
         fun detect(): GpuInfo {
-            val adreno = File("/sys/class/kgsl/kgsl-3d0").exists() || File("/vendor/lib64/hw/vulkan.adreno.so").exists()
+            val adreno = com.droiddeck.launcher.core.DeviceSupport.adreno()
             val raw = FileUtils.readString(File("/sys/class/kgsl/kgsl-3d0/gpu_model"))?.trim()
             val chipId = FileUtils.readString(File("/sys/class/kgsl/kgsl-3d0/gpu_chipid"))?.trim().orEmpty()
             val soc = if (adreno) SocNames.label() else ""
-            val platformGpuModel = if (adreno) platformModel() else 0
+            val platform = systemProperty("ro.board.platform").ifBlank { systemProperty("ro.vendor.qti.soc_name") }
+            val platformGpuModel = if (adreno) platformModel(platform = platform) else 0
+            val vulkan = VulkanInfo.cachedOrNull()?.get("device")
             val (model, source) = if (adreno) modelFromNames(
                 raw,
-                { VulkanInfo.cachedOrNull()?.get("device") },
+                { vulkan },
                 { platformGpuModel },
             ) else 0 to ""
             val family = familyOf(adreno, model)
             val samsung = Build.MANUFACTURER.equals("samsung", ignoreCase = true)
+            val isX1 = model == 741 || Regex("""(?i)X1[-_](?:85|45)""").containsMatchIn(raw.orEmpty())
+            val gpuDisplayName = when {
+                !adreno -> (Build.HARDWARE ?: "").ifBlank { UNNAMED }
+                isX1 -> x1Name(raw, vulkan, platform)
+                model > 0 -> "Adreno $model"
+                else -> "Adreno"
+            }
             return GpuInfo(
-                name = if (!adreno) Build.HARDWARE.ifBlank { UNNAMED } else if (model > 0) "Adreno $model" else "Adreno",
+                name = gpuDisplayName,
                 model = model, family = family, soc = soc,
                 oneUi8Gen2 = samsung && model == 740,
                 kgslName = raw.orEmpty(), modelSource = source, kgslChipId = chipId,
                 platformGpuModel = platformGpuModel,
             )
+        }
+
+        internal fun parseModel(text: String): Int {
+            if (Regex("""(?i)X1[-_]85|X1[-_]45|Adreno\s*741""").containsMatchIn(text)) return 741
+            return threeDigits(text)
+        }
+
+        internal fun x1Name(
+            raw: String? = null,
+            vulkan: String? = null,
+            platform: String = "",
+        ): String {
+            val names = listOfNotNull(raw, vulkan).joinToString(" ")
+            val p = platform.lowercase()
+            return when {
+                Regex("""(?i)X1[-_]45""").containsMatchIn(names) || p == "purwa" -> "Adreno X1-45"
+                Regex("""(?i)X1[-_]85""").containsMatchIn(names) || p in listOf("hamoa", "sc8380xp", "x1e80100") -> "Adreno X1-85"
+                else -> "Adreno X1"
+            }
         }
 
         internal fun threeDigits(text: String): Int = Regex("""(?i)\badreno\s*(?:\(TM\)\s*)?(\d{3})(?!\d)""").find(text)?.groupValues?.get(1)?.toIntOrNull() ?: 0
@@ -95,14 +123,15 @@ data class GpuInfo(
             vulkanName: () -> String?,
             fallback: () -> Int,
         ): Pair<Int, String> {
-            kernelName?.let { threeDigits(it) }?.takeIf { it > 0 }?.let { return it to "kernel" }
-            vulkanName()?.let { threeDigits(it) }?.takeIf { it > 0 }?.let { return it to "vulkan" }
+            kernelName?.let { parseModel(it) }?.takeIf { it > 0 }?.let { return it to "kernel" }
+            vulkanName()?.let { parseModel(it) }?.takeIf { it > 0 }?.let { return it to "vulkan" }
             return fallback().let { if (it > 0) it to "platform" else 0 to "" }
         }
 
         private val PLATFORMS = mapOf(
             "msmnile" to 640, "kona" to 650, "lahaina" to 660, "taro" to 730, "cape" to 730,
             "kalama" to 740, "pineapple" to 750, "sun" to 830,
+            "hamoa" to 741, "sc8380xp" to 741, "x1e80100" to 741, "purwa" to 741,
         )
 
         internal fun platformModel(
