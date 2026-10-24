@@ -1365,7 +1365,7 @@ internal fun openUrl(ctx: android.content.Context, url: String) {
 internal fun launchStoreGame(ctx: android.content.Context, store: Store, id: String, s: FrontEndState, a: FrontEndActions) {
     val game = s.steamGames.firstOrNull { it.source == store.id && it.storeId == id }
     if (game != null) {
-        com.droiddeck.launcher.stores.StoreLaunch.prepare(ctx, store, id) { a.onSteamGame(game) }
+        a.onSteamGame(game)
         return
     }
     val app = ctx.applicationContext
@@ -1373,7 +1373,7 @@ internal fun launchStoreGame(ctx: android.content.Context, store: Store, id: Str
         val installed = runCatching { com.droiddeck.launcher.stores.StoreLaunch.installedGame(app, store, id) }.getOrNull()
         StoresState.post {
             if (installed == null) android.widget.Toast.makeText(ctx, R.string.stores_launch_not_registered, android.widget.Toast.LENGTH_LONG).show()
-            else com.droiddeck.launcher.stores.StoreLaunch.prepare(ctx, store, id) { a.onSteamGame(installed) }
+            else a.onSteamGame(installed)
         }
     }, "store-play").start()
 }

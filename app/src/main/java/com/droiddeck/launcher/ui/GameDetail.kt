@@ -165,7 +165,7 @@ internal fun GameDetail(
         if (description.isNotBlank() || developer.isNotBlank() || publisher.isNotBlank() || releaseDate.isNotBlank() || (scored && stacked)) add(GameTab.ABOUT)
         if (achievementState != null) add(GameTab.ACHIEVEMENTS)
         if (game != null) add(GameTab.LAUNCH)
-        if (game != null && game.library == Library.ADDED && prefix != null && !s.shortcutPicker) add(GameTab.SAVES)
+        if (game != null && game.library == Library.ADDED && prefix != null) add(GameTab.SAVES)
         if (game != null || installed != null) add(GameTab.INSTALL)
     }
     var picked by remember(key) { mutableStateOf<GameTab?>(null) }
@@ -333,7 +333,7 @@ private fun GameActions(
                     stringResource(R.string.stores_play), enabled = !s.busy && gone == null && download == null && !xboxBusy,
                     main = true, icon = Icons.Filled.PlayArrow, modifier = leadOn,
                 ) {
-                    if (store != null && id != null) launchStoreGame(ctx, store, id, s, a) else if (game != null) a.onSteamGame(game)
+                    if (game != null) a.onSteamGame(game) else if (store != null && id != null) launchStoreGame(ctx, store, id, s, a)
                 }
                 if ((game?.source ?: store?.id) != Library.SOURCE_STEAM) ActionChip(stringResource(R.string.stores_in_steam), ok = true)
                 if (game != null) {
