@@ -2867,7 +2867,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         bottomGame?.takeIf { if (holder != null) holder === it.holder else bottomOutputActive }
             ?.hz?.takeIf { it > 1f }?.let { return minOf(it, PerfMode.peakRefreshCap(this)) }
         glassesScreen?.hz?.takeIf { it > 1f }?.let { return it }
-        externalScreen?.hz?.takeIf { it > 1f }?.let { return it }
+        externalScreen?.let { screen ->
+            // Android can apply the requested mode only after the session starts, and the session's rate is fixed then.
+            val hz = if (SessionState.running) screen.hz else maxOf(screen.hz, screen.requestedHz)
+            if (hz > 1f) return hz
+        }
         val display = if (Build.VERSION.SDK_INT >= 30) display else windowManager.defaultDisplay
         val wanted = window.attributes.preferredDisplayModeId
         val requested = display?.supportedModes?.firstOrNull { wanted != 0 && it.modeId == wanted }?.refreshRate
@@ -5866,8 +5870,18 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         surfaceW = 0
         surfaceH = 0
         CompositorHost.detach(screen.holder.surface)
-        surfaceView.visibility = View.VISIBLE
         applyOutputPacing()
+        val external = externalScreen
+        if (external != null) {
+            surfaceView.visibility = View.INVISIBLE
+            if (external.holder.surface?.isValid == true) {
+                surfaceW = external.holder.surfaceFrame.width()
+                surfaceH = external.holder.surfaceFrame.height()
+                surfaceCreated(external.holder)
+            }
+            return
+        }
+        surfaceView.visibility = View.VISIBLE
         if (surfaceView.holder.surface?.isValid == true) surfaceCreated(surfaceView.holder)
     }
 
