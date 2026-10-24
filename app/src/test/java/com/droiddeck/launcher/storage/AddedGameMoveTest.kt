@@ -84,6 +84,8 @@ class AddedGameMoveTest {
         SessionPrefs.setAddedGameExe(app, folder.path, exe.path)
         val library = tmp.newFolder("steamlibrary")
         File(library, "steamapps/common").mkdirs()
+        // The adopted dir lives on the card, so the session keeps seeing it after the move.
+        SessionPrefs.setGameStorage(app, library.path, "Card")
 
         val error = AddedGameMove.adoptIntoSteam(app, folder, library, "AdoptMe") { _, _ -> }
 
