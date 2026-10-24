@@ -450,7 +450,7 @@ jobs:
             ~/.cargo/git/db
             ~/.cargo/bin/cargo-ndk
             app/src/main/rust/stores/target
-          key: stores-v2-${{ runner.os }}-${{ runner.arch }}-${{ env.NDK_VERSION }}-${{ steps.rust.outputs.rustc }}-${{ hashFiles('app/src/main/rust/stores/Cargo.lock') }}-${{ hashFiles('app/src/main/rust/stores/src/**', 'app/src/main/rust/stores/Cargo.toml', 'app/src/main/rust/stores/build.rs', 'app/src/main/rust/stores/.cargo/**', 'app/build.gradle') }}
+          key: stores-v2-${{ runner.os }}-${{ runner.arch }}-${{ env.NDK_VERSION }}-${{ steps.rust.outputs.rustc }}-${{ hashFiles('app/src/main/rust/stores/Cargo.lock') }}-${{ hashFiles('app/src/main/rust/stores/amazon/**', 'tools/stores/**', 'app/src/main/rust/stores/src/**', 'app/src/main/rust/stores/Cargo.toml', 'app/src/main/rust/stores/build.rs', 'app/src/main/rust/stores/.cargo/**', 'app/build.gradle') }}
           restore-keys: |
             stores-v2-${{ runner.os }}-${{ runner.arch }}-${{ env.NDK_VERSION }}-${{ steps.rust.outputs.rustc }}-${{ hashFiles('app/src/main/rust/stores/Cargo.lock') }}-
             stores-v2-${{ runner.os }}-${{ runner.arch }}-${{ env.NDK_VERSION }}-${{ steps.rust.outputs.rustc }}-
@@ -522,6 +522,13 @@ jobs:
         run: |
           cd app/src/main/rust/stores
           cargo test --locked 2>&1 | tail -60
+
+      - name: Amazon engine host tests
+        timeout-minutes: 10
+        run: |
+          set -euo pipefail
+          export CARGO_TARGET_DIR="$PWD/app/src/main/rust/stores/target"
+          cargo test --manifest-path app/src/main/rust/stores/amazon/Cargo.toml --locked
 
       - name: Upload the regenerated Cargo.lock
         if: failure()

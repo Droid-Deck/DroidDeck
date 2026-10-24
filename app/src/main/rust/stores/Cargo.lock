@@ -183,6 +183,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "droiddeckamazon"
+version = "0.1.0"
+dependencies = [
+ "flate2",
+ "futures-util",
+ "jni",
+ "libc",
+ "lzma-rs",
+ "reqwest",
+ "serde_json",
+ "sha1",
+ "sha2",
+ "tokio",
+]
+
+[[package]]
 name = "droiddeckstores"
 version = "0.1.0"
 dependencies = [

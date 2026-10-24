@@ -1,8 +1,9 @@
 package com.droiddeck.launcher.stores.amazon
 
+import android.content.Context
 import android.util.Log
 import com.droiddeck.launcher.BuildConfig
-import com.droiddeck.launcher.stores.StoresNative
+import com.droiddeck.launcher.core.AddonPack
 import org.json.JSONObject
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -16,16 +17,32 @@ object AmazonNative {
 
     @Volatile private var configured = false
 
-    fun ready(): Boolean {
-        if (!StoresNative.ensureLoaded()) return false
-        if (!configured) synchronized(this) {
-            if (!configured) {
-                runCatching { nativeConfigure(BuildConfig.VERSION_NAME) }
-                    .onFailure { Log.w(TAG, "configure: ${it.javaClass.simpleName}") }
-                configured = true
+    @Volatile private var loaded = false
+
+    fun ready(): Boolean = loaded && configured
+
+    internal fun prepare(context: Context, running: () -> Boolean = { true },
+                onState: (AddonPack.State) -> Unit = {}): Boolean {
+        if (ready()) return true
+        if (!AddonPack.AMAZON.await(context, running, onState)) return false
+        return loadInstalled(context)
+    }
+
+    @Synchronized
+    internal fun loadInstalled(context: Context): Boolean {
+        if (ready()) return true
+        if (!AddonPack.AMAZON.installed(context)) return false
+        return runCatching {
+            check(AmazonEngine.verify(AddonPack.AMAZON.dir(context))) { "Amazon engine verification failed" }
+            if (!loaded) {
+                System.load(AddonPack.AMAZON.file(context, "libdroiddeckamazon.so").absolutePath)
+                check(nativeEngineAbi() == 1) { "Incompatible Amazon engine" }
+                loaded = true
             }
-        }
-        return true
+            nativeConfigure(BuildConfig.VERSION_NAME)
+            configured = true
+            true
+        }.onFailure { Log.w(TAG, "Amazon engine could not load", it) }.getOrDefault(false)
     }
 
     fun call(op: String, request: JSONObject = JSONObject()): JSONObject? {
@@ -109,6 +126,7 @@ object AmazonNative {
         return holder[0] ?: InstallOutcome(false, false, "The Amazon install ended without a result", null)
     }
 
+    @JvmStatic private external fun nativeEngineAbi(): Int
     @JvmStatic private external fun nativeConfigure(appVersion: String)
     @JvmStatic private external fun nativeCall(op: String, request: String): String?
     @JvmStatic private external fun nativeFetch(op: String, request: String): ByteArray?

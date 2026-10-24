@@ -75,6 +75,7 @@ object AmazonCredentialStore {
 
     private fun refreshLocked(context: Context, a: Account): String? {
         if (a.refreshToken.isEmpty()) return null
+        if (!AmazonNative.prepare(context)) return null
         val answer = AmazonNative.call("auth.refresh", JSONObject().put("refreshToken", a.refreshToken))
         val access = answer?.takeIf { !it.has("error") }?.optString(ACCESS_TOKEN, "").orEmpty()
         if (access.isEmpty()) {

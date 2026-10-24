@@ -83,3 +83,11 @@ pack tracking "$work/tracking" hand_landmarker.task hand_landmarker_lite.task po
     libopencv_java4.so libmediapipe_tasks_jni.so
 pack xbox "$linuxfs/droiddeck-xbox" version xodus-cli xodus-service
 pack comet "$linuxfs/droiddeck-comet" version comet
+if [[ "${DROIDDECK_SKIP_RUST:-0}" == 1 && "${CI:-false}" != true ]]; then
+    rm -f "$out/amazon.tar.zst"
+else
+    bash "$repo/tools/stores/build-amazon.sh"
+    mkdir "$work/amazon"
+    cp "$repo/app/build/amazon-engine/engine.json" "$repo/app/build/amazon-engine/libdroiddeckamazon.so" "$work/amazon/"
+    pack amazon "$work/amazon" engine.json libdroiddeckamazon.so
+fi

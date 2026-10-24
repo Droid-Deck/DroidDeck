@@ -87,7 +87,7 @@ def desktopKde = rootProject.file('tools/desktop-kde/release.env').readLines()
 def trackingPack = rootProject.file('tools/packs/tracking/release.env').readLines()
     .findAll { it.contains('=') && !it.startsWith('#') }
     .collectEntries { def kv = it.split('=', 2); [(kv[0].trim()): kv[1].trim()] }
-def addonPacks = ['proot', 'directaudio', 'tracking', 'xbox', 'comet'].collectEntries { name ->
+def addonPacks = ['proot', 'directaudio', 'tracking', 'xbox', 'comet', 'amazon'].collectEntries { name ->
     def pack = file("build/packs/${name}.tar.zst")
     if (!pack.isFile()) {
         if (ciBuild) throw new GradleException("Add-on pack ${pack} is missing: run tools/packs/build.sh app/build/packs")
@@ -296,6 +296,7 @@ def buildRustStores = tasks.register('buildRustStores', Exec) {
     inputs.dir(rustCrateDir.dir('src'))
     inputs.files(rustCrateDir.file('Cargo.toml'), rustCrateDir.file('Cargo.lock'))
     inputs.property('ndkVersion', android.ndkVersion)
+    inputs.property('storeFeatures', 'gog,epic')
     if (!skipRust) inputs.property('rustToolchain', providers.exec {
         environment 'PATH', "${System.getProperty('user.home')}/.cargo/bin${File.pathSeparator}${System.getenv('PATH')}"
         commandLine 'rustup', 'run', 'stable', 'rustc', '-Vv'
@@ -311,7 +312,7 @@ def buildRustStores = tasks.register('buildRustStores', Exec) {
     }.standardOutput.asText.get().trim()
     commandLine 'rustup', 'run', 'stable', 'cargo', 'ndk', '--target', 'arm64-v8a', '--platform', '26',
         '--output-dir', rustJniLibsDir.get().asFile.absolutePath,
-        'build', '--release', '--locked'
+        'build', '--release', '--locked', '--no-default-features', '--features', 'gog,epic'
 }
 if (!skipRust) android.sourceSets.main.jniLibs.srcDir(rustJniLibsDir)
 tasks.named('preBuild').configure { dependsOn(buildRustStores) }

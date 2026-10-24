@@ -24,6 +24,11 @@ internal class AmazonInstaller(
     private val cancelled = AtomicBoolean(false)
 
     override fun run(handle: DownloadQueue.JobHandle): String? {
+        handle.stage(DownloadStage.MANIFEST, app.getString(R.string.stores_engine_preparing, Store.AMAZON.label))
+        if (!AmazonNative.prepare(app, { !cancelled.get() })) {
+            if (cancelled.get()) return null
+            throw IllegalStateException(AmazonNative.ENGINE_MISSING)
+        }
         handle.stage(DownloadStage.MANIFEST, app.getString(R.string.stores_sync_sign_in))
         val token = AmazonCredentialStore.getValidAccessToken(app) ?: throw IllegalStateException("Not signed in to Amazon Games")
         val entitlementId = item.extra["entitlementId"].orEmpty()

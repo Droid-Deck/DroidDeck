@@ -163,7 +163,6 @@ object AmazonLibrary {
         }
         try {
             if (cache.isNotEmpty()) publish(app, cache)
-            if (!AmazonNative.ready()) return problem(AmazonNative.ENGINE_MISSING)
             val syncedAt = prefs.getLong(KEY_SYNCED_AT, 0L)
             if (!force && cache.isNotEmpty() && System.currentTimeMillis() - syncedAt in 0 until THROTTLE_MS) {
                 backfillPosters(app, cache)
@@ -173,6 +172,7 @@ object AmazonLibrary {
 
             status(R.string.stores_sync_sign_in)
             val account = AmazonCredentialStore.load(app) ?: return problem(StoresState.notSignedInLine(store))
+            if (!AmazonNative.prepare(app)) return problem(AmazonNative.ENGINE_MISSING)
             val token = AmazonCredentialStore.getValidAccessToken(app) ?: return problem(StoresState.notSignedInLine(store))
             status(R.string.stores_sync_game_list)
             var answer = entitlements(token, account.deviceSerial)

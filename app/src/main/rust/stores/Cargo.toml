@@ -9,6 +9,13 @@ publish = false
 name = "droiddeckstores"
 crate-type = ["cdylib"]
 
+[features]
+default = ["gog", "epic", "amazon"]
+gog = []
+epic = []
+amazon = []
+amazon-pack = ["amazon"]
+
 [dependencies]
 jni = "0.21"
 libc = "0.2"
@@ -25,3 +32,8 @@ sha2 = "0.10"
 codegen-units = 1
 lto = "thin"
 strip = "symbols"
+
+[workspace]
+members = ["amazon"]
+default-members = ["."]
+resolver = "2"

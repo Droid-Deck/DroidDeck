@@ -3064,4 +3064,7 @@
     <string name="spatial_saved_views_hint">Saved views can be recalculated. Start a new calibration to capture in the current tracking frame.</string>
     <string name="spatial_model_checksum_error">Hand model checksum mismatch</string>
     <string name="spatial_opencv_load_error">OpenCV could not load</string>
+    <string name="stores_engine_downloading">Downloading %1$s support… %2$d%%</string>
+    <string name="stores_engine_preparing">Preparing %1$s support…</string>
+    <string name="stores_engine_failed">%1$s support could not be downloaded or loaded. Try again.</string>
 </resources>

@@ -6,6 +6,7 @@ use jni::JNIEnv;
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[no_mangle]
+#[cfg(not(feature = "amazon-pack"))]
 pub extern "system" fn Java_com_droiddeck_launcher_stores_StoresNative_nativeVersion(
     env: JNIEnv,
     _class: JClass,

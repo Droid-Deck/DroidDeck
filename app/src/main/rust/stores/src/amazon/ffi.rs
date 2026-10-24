@@ -25,6 +25,14 @@ fn guarded<T>(fallback: T, f: impl FnOnce() -> T) -> T {
 }
 
 #[no_mangle]
+pub extern "system" fn Java_com_droiddeck_launcher_stores_amazon_AmazonNative_nativeEngineAbi(
+    _env: JNIEnv,
+    _class: JClass,
+) -> jni::sys::jint {
+    1
+}
+
+#[no_mangle]
 pub extern "system" fn Java_com_droiddeck_launcher_stores_amazon_AmazonNative_nativeConfigure(
     mut env: JNIEnv,
     _class: JClass,

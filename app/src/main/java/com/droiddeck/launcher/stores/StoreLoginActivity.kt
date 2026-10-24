@@ -130,6 +130,7 @@ class StoreLoginActivity : ComponentActivity() {
     private fun newFlow(state: String): Flow? {
         val url = clientUrl
         if (url != null) return com.droiddeck.launcher.stores.epic.EpicClient.loginFlow(url, chromeUa)
+        if (store == Store.AMAZON && !com.droiddeck.launcher.stores.amazon.AmazonNative.loadInstalled(applicationContext)) return null
         return store?.let { LoginFlows.forStore(it, state) }
     }
 

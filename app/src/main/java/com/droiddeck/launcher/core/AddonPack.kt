@@ -146,5 +146,7 @@ internal class AddonPack(
             listOf("version", "xodus-cli", "xodus-service"))
         val COMET = AddonPack("comet", BuildConfig.PACK_COMET_SHA256, BuildConfig.PACK_COMET_SIZE,
             listOf("version", "comet"))
+        val AMAZON = AddonPack("amazon", BuildConfig.PACK_AMAZON_SHA256, BuildConfig.PACK_AMAZON_SIZE,
+            listOf("engine.json", "libdroiddeckamazon.so"), reuseDeviceCopy = false)
     }
 }
