@@ -127,3 +127,14 @@ The build verifies prepared inputs before packaging, then verifies the APK and t
 `ahb_probe.c` is an Android NDK program. Pass the newly built `libdroiddeckwayland.so` as its argument, with that library's dependencies on `LD_LIBRARY_PATH`. It allocates and writes an Android hardware buffer, imports it through the compositor's system Qualcomm Vulkan path, and verifies all 4096 converted BGRA pixels by GPU readback.
 
 The two standalone probes do not establish presentation or game compatibility. Additional RedMagic 11 Pro tests confirmed Wayland vkcube presentation, a visible X11 cube through Gamescope, accelerated Zink OpenGL 4.6, Steam Big Picture startup and rendering in the installed Windows version of The Binding of Isaac through ARM64 Proton. Qualcomm 0.842.44, Adreno 840 and Vulkan 1.4.295 were identified under the development app's UID; the game's process maps also contain the Qualcomm HAL and the selected bridge ICD. Steam's browser uses software compositing and its SDL window-surface workaround is scoped to the webhelper. Broader game compatibility and performance remain untested. A Gamescope shutdown SIGSEGV after child exit is still under investigation. Device evidence is retained in `build/research/qualcomm/`, including `isaac-driver-maps.txt`, `isaac-qualcomm.png` and `isaac-menu-qualcomm.png`.
+
+## Credits
+
+- **wallentx** ([wallentx/DroidDeck](https://github.com/wallentx/DroidDeck)) did the libhybris groundwork this backend is built on:
+  - the libhybris runtime builder and its DroidDeck patches (`tools/hybris` at `4ed93fb9`), and the prebuilt bridge runtime release and component CI that `runtime.json` pins;
+  - the prebuilt ARM WSI layer release (`wsi-abe5861.zip`) that the rebuilt layer starts from;
+  - the system-driver staging approach of `SystemVulkanDriver` (component preparation, ICD manifest and per-process environment) on `wallentx/powervr` at `c931c4de`;
+  - the `android_wlegl` hardware-buffer receiver and external-image ownership handling;
+  - the Gamescope and session integration patches (revisions `c931c4de` and `af320dd8`).
+- **JeezDisReez** identified the fix for the red graphics in DRAGON BALL: Sparking! ZERO: turning off the compat layer's image-bounds rewrite on Adreno.
+- The bridge builds on [libhybris](https://github.com/libhybris/libhybris) and [taowen/libhybris](https://github.com/taowen/libhybris); imported drivers use the AdrenoTools package format from [bylaws/libadrenotools](https://github.com/bylaws/libadrenotools).
