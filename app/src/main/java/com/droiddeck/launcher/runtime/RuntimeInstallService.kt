@@ -13,10 +13,20 @@ import com.droiddeck.launcher.FrontEndActivity
 import com.droiddeck.launcher.R
 
 class RuntimeInstallService : Service() {
+    @Volatile private var activeWork: Thread? = null
+    @Volatile private var timedOut = false
     override fun attachBaseContext(newBase: android.content.Context) =
         super.attachBaseContext(com.droiddeck.launcher.core.AppLanguage.wrap(newBase))
 
     override fun onBind(intent: Intent?): IBinder? = null
+
+    override fun onTimeout(startId: Int, fgsType: Int) {
+        timedOut = true
+        LinuxRuntimeInstaller.cancelActiveOperation()
+        activeWork?.interrupt()
+        stopForeground(STOP_FOREGROUND_DETACH)
+        stopSelf()
+    }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_PACKAGE) return holdPackage(startId)
@@ -27,7 +37,7 @@ class RuntimeInstallService : Service() {
             stopSelf(startId)
             return START_NOT_STICKY
         }
-        Thread({
+        activeWork = Thread({
             val manager = getSystemService(NotificationManager::class.java)
             var shown = ""
             val progress = LinuxRuntimeInstaller.ProgressListener { stage, percent ->
@@ -38,10 +48,12 @@ class RuntimeInstallService : Service() {
             }
             if (removal) LinuxRuntimeInstaller.attach(progress)
             else LinuxRuntimeInstaller.install(applicationContext, release!!, progress)
-            @Suppress("DEPRECATION")
-            stopForeground(true)
-            stopSelf(startId)
-        }, "runtime-install").start()
+            if (!timedOut) {
+                @Suppress("DEPRECATION")
+                stopForeground(true)
+                stopSelf(startId)
+            }
+        }, "runtime-install").also { it.start() }
         return START_NOT_STICKY
     }
 

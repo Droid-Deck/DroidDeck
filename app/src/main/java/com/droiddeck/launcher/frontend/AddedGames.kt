@@ -448,9 +448,12 @@ object AddedGames {
         }
     }
 
+    fun listingFile(context: Context): File = File(context.filesDir, "session/added-games.json")
+
+    @Synchronized
     fun writeListing(context: Context, games: List<Game>,
         extra: List<JSONObject> = listOfNotNull(com.droiddeck.launcher.stores.epic.EpicClient.steamListing(context))): File {
-        val file = File(context.filesDir, "session/added-games.json").apply { parentFile?.mkdirs() }
+        val file = listingFile(context).apply { parentFile?.mkdirs() }
         val json = StringBuilder("[")
         games.forEachIndexed { i, g ->
             if (i > 0) json.append(',')
@@ -470,7 +473,13 @@ object AddedGames {
             if (games.isNotEmpty() || i > 0) json.append(',')
             json.append(entry.toString())
         }
-        file.writeText(json.append(']').toString())
+        val staged = File(file.path + ".tmp")
+        staged.writeText(json.append(']').toString())
+        java.nio.file.Files.move(
+            staged.toPath(), file.toPath(),
+            java.nio.file.StandardCopyOption.ATOMIC_MOVE,
+            java.nio.file.StandardCopyOption.REPLACE_EXISTING,
+        )
         return file
     }
 

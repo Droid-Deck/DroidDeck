@@ -5,6 +5,8 @@ import java.io.File
 import java.util.function.Consumer
 
 object HostProcess {
+    const val LINKER = "/system/bin/linker64"
+
     private const val TAG = "HostProcess"
 
     @JvmStatic

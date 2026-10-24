@@ -1809,6 +1809,14 @@
     <string name="adbpair_waiting_long">Turn on Wireless debugging, then tap “Pair device with pairing code”. Stay in Settings: the code goes in this notification.</string>
     <string name="adbpair_code_label">6-digit pairing code</string>
     <string name="adbpair_code_hint">Tap Enter code and type the 6 digits shown in Settings.</string>
+    <string name="setup_all_files">All files access</string>
+    <string name="setup_all_files_hint">Lets DroidDeck see games and programs on your storage and SD card</string>
+    <string name="setup_bluetooth">Bluetooth Steam Controller</string>
+    <string name="setup_bluetooth_hint">Lets DroidDeck find a paired Steam Controller (Nearby devices)</string>
+    <string name="all_files_title">Allow access to your game folders</string>
+    <string name="all_files_message">DroidDeck runs games and programs from your phone\'s storage and SD card. Android only lets it see those files with All files access, which you can turn on for DroidDeck on the next screen.</string>
+    <string name="all_files_allow">Open settings</string>
+    <string name="all_files_later">Not now</string>
     <string name="adbpair_title_code">Enter the Wi-Fi pairing code</string>
     <string name="adbpair_title_retry">Try the code again</string>
     <string name="adbpair_enter_code">Enter code</string>

@@ -67,9 +67,11 @@ public final class Downloader {
                                       String expectedSha256, java.util.function.Consumer<Float> progress) {
         Identity identity = loadIdentity(destination, resume, expectedSha256);
         for (int i = 0; i < sources.size(); i++) {
+            if (Thread.currentThread().isInterrupted()) return false;
             String source = sources.get(i);
             if (i > 0) Log.i(TAG, "retrying " + original + " via " + source);
             Outcome outcome = attempt(source, destination, resume, identity, expectedSha256, progress);
+            if (Thread.currentThread().isInterrupted()) return false;
             if (outcome == Outcome.DONE) {
                 if (expectedSha256 != null && !expectedSha256.equalsIgnoreCase(Hashes.sha256(destination))) {
                     Log.w(TAG, "checksum mismatch from " + source + "; trying another source");
@@ -212,6 +214,7 @@ public final class Downloader {
                 byte[] buffer = new byte[1 << 16];
                 long lastReport = 0;
                 for (int read = in.read(buffer); read > 0; read = in.read(buffer)) {
+                    if (Thread.currentThread().isInterrupted()) return Outcome.RETRY;
                     out.write(buffer, 0, read);
                     written += read;
                     if (progress != null && written - lastReport > (1 << 20)) {
