@@ -555,7 +555,7 @@ private fun GamesView(report: StorageReport, sessionRunning: Boolean, a: FrontEn
                             stringResource(R.string.storage_move), compact = true,
                             enabled = !sessionRunning && !StorageState.cleaning && !StorageState.scanning && AddedGameMove.status == null,
                         ) { moveAdded = g }
-                        if (g.steamLibraryRoot != null && g.steamInstallDir != null) {
+                        if (report.missingInstalls.isNotEmpty()) {
                             SecondaryButton(
                                 stringResource(R.string.storage_added_move_steam), compact = true,
                                 enabled = !sessionRunning && !StorageState.cleaning && !StorageState.scanning && AddedGameMove.status == null,
@@ -603,28 +603,41 @@ private fun GamesView(report: StorageReport, sessionRunning: Boolean, a: FrontEn
         )
     }
     adoptAdded?.let { g ->
-        val root = g.steamLibraryRoot
-        val dir = g.steamInstallDir
-        if (root == null || dir == null) {
-            LaunchedEffect(Unit) { adoptAdded = null }
-        } else {
-            AlertDialog(
-                onDismissRequest = { adoptAdded = null },
-                title = { Text(stringResource(R.string.storage_added_move_steam_title, g.name)) },
-                text = { Text(stringResource(R.string.storage_added_move_steam_body, dir), fontSize = 14.sp) },
-                confirmButton = {
-                    FocusText(stringResource(R.string.storage_added_move_steam), pal.signal) {
-                        adoptAdded = null
-                        AddedGameMove.startAdopt(ctx, g.folder, g.name, root, dir) { a.onLibraryChanged() }
-                    }
-                },
-                dismissButton = {
-                    val cancel = remember { FocusRequester() }
-                    LaunchedEffect(Unit) { runCatching { cancel.requestFocus() } }
-                    FocusText(stringResource(R.string.common_cancel), colors.onBackground, modifier = Modifier.focusRequester(cancel)) { adoptAdded = null }
-                },
-            )
+        val auto = g.steamLibraryRoot?.let { root ->
+            g.steamInstallDir?.let { dir ->
+                report.missingInstalls.firstOrNull { it.libraryRoot == root && it.installDir == dir }
+            }
         }
+        val candidates = (listOfNotNull(auto) + report.missingInstalls.filterNot { it == auto }).distinctBy { it.appId to it.libraryRoot }
+        AlertDialog(
+            onDismissRequest = { adoptAdded = null },
+            title = { Text(stringResource(R.string.storage_added_move_steam_title, g.name)) },
+            text = {
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(stringResource(R.string.storage_added_adopt_pick), fontSize = 13.sp, color = colors.onSurfaceVariant)
+                    candidates.forEach { c ->
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            SecondaryButton(c.name, compact = true, modifier = Modifier.fillMaxWidth()) {
+                                adoptAdded = null
+                                AddedGameMove.startAdopt(ctx, g.folder, g.name, c.libraryRoot, c.installDir) { a.onLibraryChanged() }
+                            }
+                            Text(
+                                "${c.installDir} · ${c.label}", fontSize = 11.sp, color = colors.onSurfaceVariant,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 4.dp),
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                val cancel = remember { FocusRequester() }
+                LaunchedEffect(Unit) { runCatching { cancel.requestFocus() } }
+                FocusText(stringResource(R.string.common_cancel), colors.onBackground, modifier = Modifier.focusRequester(cancel)) { adoptAdded = null }
+            },
+        )
     }
 }
 
