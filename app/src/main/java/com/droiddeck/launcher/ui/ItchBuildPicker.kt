@@ -85,7 +85,7 @@ private fun BuildRow(item: CatalogItem, build: ItchBuild, onInstall: () -> Unit)
     val colors = MaterialTheme.colorScheme
     val linux = "linux" in build.platforms && !build.installable
     val detail = listOfNotNull(
-        build.platforms.joinToString(", ") { platformName(it) },
+        build.platforms.map { platformName(it) }.joinToString(", "),
         build.size.takeIf { it > 0 }?.let { formatBytes(it) },
         build.updatedAt.take(10).takeIf { it.isNotBlank() },
         if (build.demo) stringResource(R.string.stores_itch_build_demo) else null,
