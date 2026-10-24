@@ -5837,6 +5837,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         if (bottomOutputActive) bottomRecoveries = 0
         if (CompositorHost.isStarted) WaylandCompositor.nativeSetCursorComposite(glassesOutputActive || bottomOutputActive || externalOutputActive)
         surfaceView.visibility = if (glassesOutputActive || bottomOutputActive || externalOutputActive) View.INVISIBLE else View.VISIBLE
+        if (CompositorHost.isStarted) WaylandCompositor.nativeSetLowLatencyPresent(externalOutputActive)
         val external = externalScreen?.display?.takeIf { externalOutputActive }
         val path = when {
             glassesOutputActive -> "glasses display ${glassesScreen?.display?.displayId}"
