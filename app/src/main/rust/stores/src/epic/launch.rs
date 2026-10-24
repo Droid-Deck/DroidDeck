@@ -39,9 +39,49 @@ pub fn arguments(d: &LaunchData) -> Vec<String> {
     args
 }
 
+pub fn split_command(command: &str) -> Vec<String> {
+    let mut args = Vec::new();
+    let mut current = String::new();
+    let mut quoted = false;
+    let mut started = false;
+    for c in command.chars().map(|c| if c == '\t' { ' ' } else { c }).filter(|&c| c >= ' ' && c != '\u{7f}') {
+        match c {
+            '"' => {
+                quoted = !quoted;
+                started = true;
+            }
+            ' ' if !quoted => {
+                if started {
+                    args.push(std::mem::take(&mut current));
+                    started = false;
+                }
+            }
+            _ => {
+                current.push(c);
+                started = true;
+            }
+        }
+    }
+    if started {
+        args.push(current);
+    }
+    args.retain(|a| !a.is_empty());
+    args
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn launch_command_splits_like_a_command_line() {
+        assert_eq!(split_command("-PCStore=EGS"), vec!["-PCStore=EGS"]);
+        assert_eq!(
+            split_command("  -a\t-b=\"c d\" \"-e f\" \"\" -g\r\n"),
+            vec!["-a", "-b=c d", "-e f", "-g"]
+        );
+        assert!(split_command("   ").is_empty());
+    }
 
     #[test]
     fn arguments_in_order() {

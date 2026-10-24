@@ -358,7 +358,11 @@ internal object EpicClientLibrary {
                 write(File(manifests, "$guid.item"), item(install, tags, ownership == true).toString(2))
                 runCatching { egstore(install, guid) { token } }.onFailure { Log.w(TAG, "${install.appName}: .egstore not written (${it.javaClass.simpleName})") }
                 after.put(install.appName, JSONObject().put("guid", guid).put("signature", install.signature).apply { if (ownership != null) put("ownership", ownership) })
-                StoreGameSidecar.read(install.folder)?.let { StoreLaunch.refreshLauncher(install.folder, it) }
+                StoreGameSidecar.read(install.folder)?.let { sidecar ->
+                    val next = runCatching { manifestArgs(install, guid) }.getOrNull()?.let { withLaunchArgs(sidecar, it) } ?: sidecar
+                    if (next !== sidecar) next.write(install.folder)
+                    StoreLaunch.refreshLauncher(install.folder, next)
+                }
             }
             for (name in before.keys().asSequence().toList()) {
                 if (after.has(name)) continue
@@ -374,6 +378,23 @@ internal object EpicClientLibrary {
             Log.w(TAG, "registration failed: ${e.javaClass.simpleName}: ${e.message}")
         }
         return changed
+    }
+
+    private const val LAUNCH_ARGS = "launchArgs"
+
+    private fun manifestArgs(install: Install, guid: String): List<String>? {
+        val manifest = File(install.folder, ".egstore/$guid.manifest").takeIf { it.isFile } ?: return null
+        val args = EpicNative.inspect(manifest.readBytes(), JSONObject().put("op", "launch"))?.optJSONArray("args") ?: return null
+        return List(args.length()) { args.optString(it) }.filter { it.isNotEmpty() }
+    }
+
+    internal fun withLaunchArgs(sidecar: StoreGameSidecar, args: List<String>): StoreGameSidecar {
+        val previous = sidecar.extra[LAUNCH_ARGS]?.split('\n')?.filter { it.isNotEmpty() }.orEmpty()
+        val kept = sidecar.args.filterNot { it in previous }
+        val next = kept + args.filterNot { it in kept }
+        val extra = LinkedHashMap(sidecar.extra).apply { if (args.isEmpty()) remove(LAUNCH_ARGS) else put(LAUNCH_ARGS, args.joinToString("\n")) }
+        if (next == sidecar.args && extra == sidecar.extra) return sidecar
+        return sidecar.copy(args = next, extra = extra)
     }
 
     private fun ownershipToken(token: String, install: Install): Boolean? =

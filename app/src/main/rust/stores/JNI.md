@@ -166,7 +166,8 @@ synchronous on the calling thread (network calls block: call them off the main t
 `cloud.read` (`url`) → the file. `null` = failed. `nativeSend` op: `cloud.write` (`url`) with the
 body → `{"ok": true}` or an error. `nativeInspect` parses manifest bytes: `{"op":"summary"}` →
 `buildVersion`, `launchExe`, `prereqName`, `prereqPath`, `prereqRead`, `files[]` (`path`, `size`,
-`tags`); `{"op":"select","tags":[…]}` → `indices[]` of the files an install with those tags gets.
+`tags`); `{"op":"select","tags":[…]}` → `indices[]` of the files an install with those tags gets;
+`{"op":"launch"}` → the manifest's `command` line and its `args[]`.
 
 ### `nativeInstall`
 

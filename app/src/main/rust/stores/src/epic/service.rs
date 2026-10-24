@@ -160,6 +160,7 @@ pub fn inspect(bytes: &[u8], request: &str) -> String {
                 .map(|a| a.iter().filter_map(|t| t.as_str()).map(str::to_string).collect());
             json!({ "indices": locale::select(&m.files, tags.as_deref()) })
         }
+        "launch" => json!({ "command": m.launch_command, "args": launch::split_command(&m.launch_command) }),
         _ => json!({
             "buildVersion": m.build_version,
             "launchExe": m.launch_exe,
@@ -210,6 +211,9 @@ mod tests {
         assert_eq!(v["files"].as_array().unwrap().len(), 2);
         let v: Value = serde_json::from_str(&inspect(&bytes, r#"{"op":"select","tags":["English"]}"#)).unwrap();
         assert_eq!(v["indices"], json!([0]));
+        let v: Value = serde_json::from_str(&inspect(&bytes, r#"{"op":"launch"}"#)).unwrap();
+        assert_eq!(v["command"], "-PCStore=EGS \"-log=a b.txt\"");
+        assert_eq!(v["args"], json!(["-PCStore=EGS", "-log=a b.txt"]));
         let v: Value = serde_json::from_str(&inspect(b"nonsense", "{}")).unwrap();
         assert!(v["error"].is_string());
     }
