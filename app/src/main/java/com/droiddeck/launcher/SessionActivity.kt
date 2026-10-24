@@ -3510,6 +3510,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         // Keep the phone's layout for touch/controller coordinates, but remove
         // its SurfaceView so it cannot retain the last game frame under the hint.
         surfaceView.visibility = if (glassesOutputActive || externalOutputActive) View.INVISIBLE else View.VISIBLE
+        if (CompositorHost.isStarted) WaylandCompositor.nativeSetLowLatencyPresent(externalOutputActive)
         val external = externalScreen?.display?.takeIf { externalOutputActive }
         val path = when {
             glassesOutputActive -> "glasses display ${glassesScreen?.display?.displayId}"
