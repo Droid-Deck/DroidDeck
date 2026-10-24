@@ -399,7 +399,7 @@ object Syncthing {
             val blocked = !guard.allows(path)
             var paused = f.optBoolean("paused")
             if (blocked && !paused) { runCatching { client.pauseFolder(id) }; paused = true }
-            val status = if (paused) null else runCatching { client.folderStatus(id) }.getOrNull()
+            val status = if (paused) null else runCatching { client.folderStatus(id) }.getOrElse { JSONObject().put("state", "error") }
             val shared = f.optJSONArray("devices")?.let { d -> (0 until d.length()).mapNotNull { names[d.getJSONObject(it).optString("deviceID")] } }.orEmpty()
             SyncFolder(
                 id, f.optString("label").ifEmpty { id }, path, paused, blocked,

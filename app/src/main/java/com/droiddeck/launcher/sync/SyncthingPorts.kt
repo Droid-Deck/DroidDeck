@@ -21,7 +21,7 @@ object SyncthingPortPicker {
         SyncthingPorts(first(GUI, guiFree), first(SYNC, syncFree), first(DISCOVERY, discoveryFree))
 
     private fun first(base: Int, free: (Int) -> Boolean): Int =
-        (base until base + SPAN).firstOrNull { it !in RESERVED && free(it) } ?: base
+        (base until base + SPAN).firstOrNull { it !in RESERVED && free(it) } ?: error("no free port in $base..${base + SPAN - 1}")
 
     private fun tcpFree(port: Int, address: InetAddress?): Boolean = runCatching {
         ServerSocket().use { it.reuseAddress = false; it.bind(InetSocketAddress(address, port)) }
