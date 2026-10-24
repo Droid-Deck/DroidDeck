@@ -96,7 +96,7 @@ internal fun SideRail(
     val compact = LocalConfiguration.current.screenHeightDp < 420
     val iconOnly = isNarrowScreen()
     val setupNeedsAttention = !s.ready || (s.available != null && s.available != s.installed) ||
-        PhantomProcessLimit.blocksSteam(s.phantomProcessStatus)
+        PhantomProcessLimit.blocksSteam(s.phantomProcessStatus) || com.droiddeck.launcher.sync.Syncthing.needsAttention
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = modifier.width(if (iconOnly) 64.dp else 92.dp).background(colors.surface).padding(vertical = if (compact) 8.dp else 12.dp),

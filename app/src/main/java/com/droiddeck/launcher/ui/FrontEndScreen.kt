@@ -391,6 +391,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
             "stores:downloads" -> { com.droiddeck.launcher.stores.StoresState.openDownloads = true; selected = "stores" }
             "components" -> a.onComponents(true)
             "setup:launcher" -> { SetupTabs.openLauncher = true; selected = "setup" }
+            com.droiddeck.launcher.sync.SyncthingService.NAV -> { com.droiddeck.launcher.sync.Syncthing.requestOpen(); selected = "setup" }
             else -> selected = target
         }
         a.onNavigated()
