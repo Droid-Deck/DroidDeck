@@ -11,7 +11,7 @@ import com.droiddeck.launcher.session.SessionState
 
 internal class ProtonMenu(private val activity: android.app.Activity, private val ui: android.os.Handler) {
     var protonRows by mutableStateOf<List<ProtonRow>>(emptyList())
-    var protonBusyId by mutableStateOf<String?>(null)
+    var protonBusyId by LauncherJobs::protonBusyId
     var protonStage by mutableStateOf<String?>(null)
     var protonPercent by mutableIntStateOf(-1)
     private val checking = java.util.concurrent.atomic.AtomicBoolean(false)
