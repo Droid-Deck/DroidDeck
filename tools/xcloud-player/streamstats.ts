@@ -1,4 +1,4 @@
-// Performance overlay in the top-right corner, from WebRTC getStats. Levels: 1 fps; 2 + ping, resolution;
+// Performance overlay in the top-right or top-left corner, from WebRTC getStats. Levels: 1 fps; 2 + ping, resolution;
 // 3 + bitrate, decode time, packet loss; 4 + codec, jitter, dropped frames, server. Horizontal or vertical.
 
 export class StreamStats {
@@ -6,6 +6,7 @@ export class StreamStats {
     private timer: ReturnType<typeof setInterval> | undefined
     private level = 0
     private vertical = false
+    private left = false
     private server = ''
     private last = { bytes: 0, time: 0, decode: 0, frames: 0, lost: 0, received: 0 }
 
@@ -19,8 +20,10 @@ export class StreamStats {
         document.body.appendChild(this.element)
     }
 
-    show(level: number, vertical: boolean, server: string) {
-        this.level = level; this.vertical = vertical; this.server = server
+    show(level: number, vertical: boolean, server: string, left = false) {
+        this.level = level; this.vertical = vertical; this.server = server; this.left = left
+        // Top left keeps clear of the clock Xbox draws top right while its guide is open.
+        Object.assign(this.element.style, left ? { left: '8px', right: '', textAlign: 'left' } : { left: '', right: '8px', textAlign: 'right' })
         this.element.style.display = level > 0 ? 'block' : 'none'
         if (level > 0 && this.timer === undefined) { this.timer = setInterval(() => this.update(), 1000); this.update() }
         if (level === 0 && this.timer !== undefined) { clearInterval(this.timer); this.timer = undefined }
@@ -61,5 +64,5 @@ export class StreamStats {
         this.element.textContent = items.join(this.vertical ? '\n' : '  ·  ')
     }
 
-    destroy() { this.show(0, this.vertical, this.server); this.element.remove() }
+    destroy() { this.show(0, this.vertical, this.server, this.left); this.element.remove() }
 }

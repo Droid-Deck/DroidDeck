@@ -12,6 +12,7 @@ data class XboxCloudSettings(
     val preventDrops: Boolean = false,
     val statsLevel: Int = 0,                // 0 off, 1 fps, 2 basic, 3 detailed, 4 full
     val statsLayout: String = "horizontal",
+    val statsCorner: String = "right",      // right | left
     val volume: Int = 100,                  // 100..300 %
     val rumble: Int = 100,                  // 0..100 %
     val maxFps: Int = 0,
@@ -32,7 +33,7 @@ data class XboxCloudSettings(
 
     fun toJson(): String = JSONObject()
         .put("resolution", resolution).put("region", region).put("language", language).put("codec", codec)
-        .put("bitrateMbps", bitrateMbps).put("preventDrops", preventDrops).put("statsLevel", statsLevel).put("statsLayout", statsLayout)
+        .put("bitrateMbps", bitrateMbps).put("preventDrops", preventDrops).put("statsLevel", statsLevel).put("statsLayout", statsLayout).put("statsCorner", statsCorner)
         .put("volume", volume).put("rumble", rumble).put("maxFps", maxFps).put("brightness", brightness).put("contrast", contrast)
         .put("gamma", gamma.toDouble()).put("saturation", saturation).put("sharpen", sharpen).put("sharpenMode", sharpenMode)
         .put("deband", deband).put("fxaa", fxaa).put("toon", toon).put("crt", crt).put("ntsc", ntsc)
@@ -59,6 +60,7 @@ data class XboxCloudSettings(
                 preventDrops = json.optBoolean("preventDrops", d.preventDrops),
                 statsLevel = json.optInt("statsLevel", d.statsLevel).coerceIn(0, 4),
                 statsLayout = json.optString("statsLayout", d.statsLayout).takeIf { it == "vertical" } ?: "horizontal",
+                statsCorner = json.optString("statsCorner", d.statsCorner).takeIf { it == "left" } ?: "right",
                 volume = json.optInt("volume", d.volume).coerceIn(100, 300), rumble = json.optInt("rumble", d.rumble).coerceIn(0, 100),
                 maxFps = json.optInt("maxFps", d.maxFps).coerceIn(0, 120),
                 brightness = json.optInt("brightness", d.brightness).coerceIn(-50, 50), contrast = json.optInt("contrast", d.contrast).coerceIn(-100, 100),

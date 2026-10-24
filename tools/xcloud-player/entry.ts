@@ -16,6 +16,7 @@ interface Settings extends Effects {
     preventDrops: boolean
     statsLevel: number       // 0 off, 1 fps, 2 basic, 3 detailed, 4 full
     statsLayout: string      // 'horizontal' | 'vertical'
+    statsCorner: string      // 'right' | 'left'
     server: string           // the region's host, for the full overlay
     volume: number           // 100..300 %
     rumble: number           // 0..100 %
@@ -147,24 +148,24 @@ async function run() {
     const applyEffects = () => {
         const video = player.getVideoElement() as HTMLVideoElement | undefined
         if (video === undefined) return
-        if (!needsRenderer(settings)) { renderer?.destroy(); renderer = undefined; return }
+        if (!needsRenderer(settings)) { renderer?.pause(); return }
         if (renderer === undefined) {
             try { renderer = new EffectRenderer(video, settings) }
             catch (error) { DDCloud.log(`effects unavailable: ${String(error).slice(0, 200)}`) }
-        } else renderer.update(settings)
+        } else renderer.resume(settings)
     }
     // Live changes from the in-player menu.
     ;(window as any).__ddApply = (json: string) => {
         settings = JSON.parse(json)
         ;(window as any).__ddRumble = settings.rumble / 100
-        stats.show(settings.statsLevel, settings.statsLayout === 'vertical', settings.server)
+        stats.show(settings.statsLevel, settings.statsLayout === 'vertical', settings.server, settings.statsCorner === 'left')
         applyVolume()
         applyEffects()
     }
     pc.addEventListener('connectionstatechange', () => {
         if (pc.connectionState === 'connected') {
             show(''); DDCloud.playing()
-            stats.show(settings.statsLevel, settings.statsLayout === 'vertical', settings.server)
+            stats.show(settings.statsLevel, settings.statsLayout === 'vertical', settings.server, settings.statsCorner === 'left')
             // The video element exists once its track arrived; give it a moment for its first frame.
             setTimeout(applyEffects, 500)
         }

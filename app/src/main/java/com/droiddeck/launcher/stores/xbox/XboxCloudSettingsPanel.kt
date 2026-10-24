@@ -47,6 +47,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
 /** Shared by the Xbox cloud settings page and the in-player menu; [live] changes reach the running stream. */
@@ -101,7 +102,7 @@ private fun PanelContent(
 
     if (section == null || section == "stream") Section("Stream", if (live) "Applies to the next stream." else "Applies when a stream starts.") {
         // The service picks the size from the reported device profile (the PC profile can send 1440p).
-        Choice("Resolution", listOf("720p" to "720p (phone profile)", "1080p" to "Best (PC profile)", "1080p_hq" to "1080p HQ (TV profile)"),
+        Choice("Resolution", listOf("720p" to "720p (phone)", "1080p" to "Best (PC)", "1080p_hq" to "1080p HQ (TV)"),
             settings.resolution, pending { it.resolution != settings.resolution }) { onChange(settings.copy(resolution = it)) }
         Choice("Server region", listOf("" to "Automatic") + regions.map { it to it }, settings.region,
             pending { it.region != settings.region }) { onChange(settings.copy(region = it)) }
@@ -145,7 +146,8 @@ private fun PanelContent(
             onChange(settings.copy(statsLevel = it))
         }
         Choice("Overlay layout", listOf("horizontal" to "Horizontal", "vertical" to "Vertical"), settings.statsLayout) { onChange(settings.copy(statsLayout = it)) }
-        Text("Top right. Basic: fps, ping, resolution. Detailed: + bitrate, decode time, packet loss. Full: + codec, jitter, " +
+        Choice("Overlay position", listOf("right" to "Top right", "left" to "Top left"), settings.statsCorner) { onChange(settings.copy(statsCorner = it)) }
+        Text("Basic: fps, ping, resolution. Detailed: + bitrate, decode time, packet loss. Full: + codec, jitter, " +
             "dropped frames, server.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Step("Volume", "${settings.volume}%", { onChange(settings.copy(volume = (settings.volume - 25).coerceAtLeast(100))) },
             { onChange(settings.copy(volume = (settings.volume + 25).coerceAtMost(300))) })
@@ -213,8 +215,8 @@ private fun Step(label: String, value: String, onMinus: () -> Unit, onPlus: () -
     SettingRow(onLeft = onMinus, onRight = onPlus, onSelect = onPlus) {
         Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
         OutlinedButton(onClick = onMinus, modifier = noFocus.size(40.dp), contentPadding = PaddingValues(0.dp)) { Text("−") }
-        Text(value, Modifier.width(112.dp).padding(horizontal = 4.dp), textAlign = TextAlign.Center,
-            style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface, maxLines = 1)
+        Text(value, Modifier.widthIn(min = 112.dp, max = 168.dp).padding(horizontal = 4.dp), textAlign = TextAlign.Center,
+            style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
         OutlinedButton(onClick = onPlus, modifier = noFocus.size(40.dp), contentPadding = PaddingValues(0.dp)) { Text("+") }
     }
 }

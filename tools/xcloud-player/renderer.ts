@@ -226,6 +226,8 @@ export class EffectRenderer {
     private frame = 0
     private lastDraw = 0
     private stopped = false
+    private idle = false
+    private pending = false
 
     constructor(private video: HTMLVideoElement, private effects: Effects) {
         this.canvas = document.createElement('canvas')
@@ -239,10 +241,27 @@ export class EffectRenderer {
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW)
         this.passes.set('base', this.compile(VERTEX_300, BASE, ['screenTexture', 'resolution', 'filterId', 'sharpenFactor', 'brightness', 'contrast', 'gamma', 'saturation', 'deband']))
         this.videoTexture = this.texture()
-        this.video.requestVideoFrameCallback(this.onFrame)
+        this.schedule()
     }
 
     update(effects: Effects) { this.effects = effects }
+
+    // Turning effects off hides the canvas but keeps the GL context: losing and recreating it can stall the stream.
+    pause() { if (this.idle || this.stopped) return; this.idle = true; this.canvas.style.display = 'none' }
+
+    resume(effects: Effects) {
+        this.effects = effects
+        if (!this.idle || this.stopped) return
+        this.idle = false
+        this.canvas.style.display = ''
+        this.schedule()
+    }
+
+    private schedule() {
+        if (this.pending) return
+        this.pending = true
+        this.video.requestVideoFrameCallback(this.onFrame)
+    }
 
     private compile(vertex: string, fragment: string, names: string[]): Pass {
         const gl = this.gl
@@ -300,8 +319,9 @@ export class EffectRenderer {
     }
 
     private onFrame = (now: number) => {
-        if (this.stopped) return
-        this.video.requestVideoFrameCallback(this.onFrame)
+        this.pending = false
+        if (this.stopped || this.idle) return
+        this.schedule()
         const max = this.effects.maxFps
         if (max > 0 && now - this.lastDraw < 1000 / max - 2) return
         this.lastDraw = now
