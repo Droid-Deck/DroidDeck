@@ -62,7 +62,7 @@ class SessionGestureRoutingTest {
         assertEquals(0, keyboards)
     }
 
-    @Test fun defaultThreeFingerActionOpensPcKeyboardOnce() {
+    @Test fun defaultThreeFingerActionRequestsKeyboardOnce() {
         prepare(SessionPrefs.TOUCH_GESTURES)
         tapThreeFingers(expectSteamGesture = false)
         assertEquals(1, keyboards)

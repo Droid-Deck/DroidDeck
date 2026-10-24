@@ -64,9 +64,9 @@ object AgentGuest {
 
     private fun recordKeyboard(source: FileObserver, snapshot: JSONObject) {
         val showing = snapshot.optBoolean("steamKeyboard")
-        synchronized(lock) {
-            if (source !== observer) return
-            main.post { steamKeyboard = showing }
+        synchronized(lock) { if (source !== observer) return }
+        main.post {
+            synchronized(lock) { if (source === observer) steamKeyboard = showing }
         }
         SessionEvents.record("keyboard.changed", mapOf("steamKeyboard" to showing, "seq" to snapshot.optInt("seq")))
     }

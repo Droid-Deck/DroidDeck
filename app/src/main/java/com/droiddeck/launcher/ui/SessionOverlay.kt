@@ -236,8 +236,8 @@ class DrawerActions(
     val onHudOpacity: (Int) -> Unit = {},
     val onFrameGenPick: (FrameGen.Mode) -> Unit,
     val onImportLossless: () -> Unit,
-    val onKeyboard: () -> Unit,
-    val onHardwareKeyboard: () -> Unit,
+    val onAndroidKeyboard: () -> Unit,
+    val onSteamKeyboard: (() -> Unit)?,
     val onSteamMenu: (() -> Unit)?,
     val onQam: (() -> Unit)?,
     val onAchievements: (() -> Unit)? = null,
@@ -593,11 +593,13 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                             }
                             SettingsGroup(stringResource(R.string.drawer_keyboard)) {
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(8.dp)) {
-                                    DrawerOutlineButton(stringResource(R.string.drawer_pc_keyboard), modifier = Modifier.weight(1f).height(48.dp).then(focus.track(page, "hardware"))) {
-                                        host.open = null; a.onHardwareKeyboard()
+                                    a.onSteamKeyboard?.let { open ->
+                                        DrawerOutlineButton(stringResource(R.string.drawer_steam_keyboard), modifier = Modifier.weight(1f).height(48.dp).then(focus.track(page, "steam-keyboard"))) {
+                                            host.open = null; open()
+                                        }
                                     }
                                     DrawerOutlineButton(stringResource(R.string.drawer_android_keyboard), modifier = Modifier.weight(1f).height(48.dp).then(focus.track(page, "android"))) {
-                                        host.open = null; a.onKeyboard()
+                                        host.open = null; a.onAndroidKeyboard()
                                     }
                                 }
                             }
