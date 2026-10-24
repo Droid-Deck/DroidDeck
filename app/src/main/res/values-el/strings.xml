@@ -2016,6 +2016,10 @@
     <string name="stores_itch_price_free">Δωρεάν</string>
     <string name="stores_itch_price_sale">Σε προσφορά</string>
     <string name="stores_itch_load_more">Φόρτωση περισσότερων</string>
+    <string name="stores_itch_platform_any">Οποιαδήποτε πλατφόρμα</string>
+    <string name="stores_itch_platform_mobile_web">Mobile web</string>
+    <string name="stores_itch_tag_add">Προσθήκη ετικέτας</string>
+    <string name="stores_itch_tag_title">Φιλτράρισμα ανά ετικέτα</string>
     <string name="stores_itch_browse_failed">Δεν ήταν δυνατή η φόρτωση παιχνιδιών από το itch.io</string>
     <string name="stores_itch_archive">Τα αρχεία %1$s δεν υποστηρίζονται</string>
     <string name="stores_itch_download_failed">Το itch.io απάντησε HTTP %1$d</string>

@@ -2074,6 +2074,10 @@
     <string name="stores_itch_price_free">免费</string>
     <string name="stores_itch_price_sale">特价</string>
     <string name="stores_itch_load_more">加载更多</string>
+    <string name="stores_itch_platform_any">任意平台</string>
+    <string name="stores_itch_platform_mobile_web">移动网页</string>
+    <string name="stores_itch_tag_add">添加标签</string>
+    <string name="stores_itch_tag_title">按标签筛选</string>
     <string name="stores_itch_browse_failed">无法从 itch.io 加载游戏</string>
     <string name="stores_itch_archive">不支持 %1$s 压缩包</string>
     <string name="stores_itch_download_failed">itch.io 返回 HTTP %1$d</string>

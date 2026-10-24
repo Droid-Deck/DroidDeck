@@ -11,16 +11,23 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -28,17 +35,19 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.stores.itch.ItchBrowse
 import com.droiddeck.launcher.stores.itch.ItchBrowseState
 
-/** Sort and price chips above the itch Store tab; picking anything but the defaults swaps the shelves for results. */
+/** Sort, price, platform and tag chips above the itch Store tab; picking anything but the defaults swaps the shelves for results. */
 @Composable
 internal fun ItchBrowseBar() {
     val ctx = LocalContext.current
     val query = ItchBrowseState.query
+    var picking by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         ChipRow {
             for (sort in ItchBrowse.sorts) BrowseChip(sortLabel(sort), query.sort == sort) { ItchBrowseState.choose(ctx, query.copy(sort = sort)) }
@@ -46,7 +55,45 @@ internal fun ItchBrowseBar() {
         ChipRow {
             for (price in ItchBrowse.prices) BrowseChip(priceLabel(price), query.price == price) { ItchBrowseState.choose(ctx, query.copy(price = price)) }
         }
+        ChipRow {
+            BrowseChip(stringResource(R.string.stores_itch_platform_any), query.platforms.isEmpty()) { ItchBrowseState.choose(ctx, query.copy(platforms = emptySet())) }
+            for (platform in ItchBrowse.platformNames) {
+                val on = platform in query.platforms
+                BrowseChip(platformLabel(platform), on) { ItchBrowseState.choose(ctx, query.copy(platforms = if (on) emptySet() else setOf(platform))) }
+            }
+        }
+        ChipRow {
+            for (tag in query.tags) BrowseChip("$tag  ✕", true) { ItchBrowseState.choose(ctx, query.copy(tags = query.tags - tag)) }
+            BrowseChip(stringResource(R.string.stores_itch_tag_add), false) { picking = true }
+        }
     }
+    if (picking) TextEntryDialog(
+        stringResource(R.string.stores_itch_tag_title), "", number = false, confirm = stringResource(R.string.common_ok),
+        onSubmit = { value -> ItchBrowse.tagSlug(value).takeIf { it.isNotEmpty() }?.let { ItchBrowseState.choose(ctx, query.copy(tags = listOf(it))) } },
+        onDismiss = { picking = false }, id = "itch-tag",
+    )
+}
+
+@Composable
+internal fun ItchSearchField(query: String, onQuery: (String) -> Unit, placeholder: String) {
+    var open by remember { mutableStateOf(false) }
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Box(Modifier.weight(1f)) {
+            ListRow(tall = true, onClick = { open = true }) {
+                Icon(Icons.Filled.Search, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
+                Text(
+                    query.ifEmpty { placeholder }, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    color = if (query.isEmpty()) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onBackground,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+        if (query.isNotEmpty()) SecondaryButton(stringResource(R.string.stores_dl_clear), compact = true) { onQuery("") }
+    }
+    if (open) TextEntryDialog(
+        placeholder, query, number = false, confirm = stringResource(R.string.stores_search_open),
+        onSubmit = { value -> if (value != query) onQuery(value) }, onDismiss = { open = false }, id = "itch-search",
+    )
 }
 
 /** The end of the result list: it asks for the next page as it scrolls into view. */
@@ -99,6 +146,19 @@ private fun sortLabel(sort: String): String = stringResource(
         ItchBrowse.SORT_TOP_RATED -> R.string.stores_itch_sort_top_rated
         ItchBrowse.SORT_NEWEST -> R.string.stores_itch_sort_new
         else -> R.string.stores_itch_sort_popular
+    },
+)
+
+@Composable
+private fun platformLabel(platform: String): String = stringResource(
+    when (platform) {
+        "windows" -> R.string.stores_itch_platform_windows
+        "osx" -> R.string.stores_itch_platform_macos
+        "linux" -> R.string.stores_itch_platform_linux
+        "android" -> R.string.stores_itch_platform_android
+        "ios" -> R.string.stores_itch_platform_ios
+        "web" -> R.string.stores_itch_platform_web
+        else -> R.string.stores_itch_platform_mobile_web
     },
 )
 

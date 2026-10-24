@@ -1090,6 +1090,7 @@ private fun Storefront(
                     query, onQuery,
                     placeholder = if (tab == "store") stringResource(R.string.stores_search_catalog, store.label) else stringResource(R.string.stores_search_library),
                     clearSearchFocus = clearSearchFocus,
+                    popupSearch = store == Store.ITCH && tab == "store",
                     lead = if (tabs.size < 2) null else { {
                         val labels = tabs.map { if (it == "store") stringResource(R.string.stores_tab_store) else libraryLabel }
                         HeaderTabs(labels, tabs.indexOf(tab).coerceAtLeast(0)) { onTab(tabs[it]) }
@@ -1193,7 +1194,7 @@ private fun HeaderTabs(labels: List<String>, selected: Int, onSelect: (Int) -> U
 @Composable
 internal fun ModeHeader(
     title: String, query: String, onQuery: (String) -> Unit, placeholder: String,
-    clearSearchFocus: Boolean = false,
+    clearSearchFocus: Boolean = false, popupSearch: Boolean = false,
     lead: (@Composable () -> Unit)? = null, trailing: @Composable () -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
@@ -1209,7 +1210,8 @@ internal fun ModeHeader(
                 modifier = Modifier.padding(start = 4.dp, end = 4.dp),
             )
             BoxWithConstraints(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
-                if (searching || open > 0.01f) {
+                if (popupSearch) ItchSearchField(query, onQuery, placeholder)
+                else if (searching || open > 0.01f) {
                     val w = androidx.compose.ui.unit.lerp(44.dp, maxWidth.coerceAtMost(520.dp), open)
                     Box(Modifier.width(w).graphicsLayer { alpha = (open * 1.6f).coerceAtMost(1f) }) {
                         AdbTextField(

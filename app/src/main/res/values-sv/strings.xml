@@ -2016,6 +2016,10 @@
     <string name="stores_itch_price_free">Gratis</string>
     <string name="stores_itch_price_sale">På rea</string>
     <string name="stores_itch_load_more">Ladda fler</string>
+    <string name="stores_itch_platform_any">Alla plattformar</string>
+    <string name="stores_itch_platform_mobile_web">Mobilwebb</string>
+    <string name="stores_itch_tag_add">Lägg till en tagg</string>
+    <string name="stores_itch_tag_title">Filtrera efter tagg</string>
     <string name="stores_itch_browse_failed">Det gick inte att läsa in spel från itch.io</string>
     <string name="stores_itch_archive">%1$s-arkiv stöds inte</string>
     <string name="stores_itch_download_failed">itch.io svarade HTTP %1$d</string>

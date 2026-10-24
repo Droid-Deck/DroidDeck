@@ -2060,6 +2060,10 @@
     <string name="stores_itch_price_free">Бесплатные</string>
     <string name="stores_itch_price_sale">Со скидкой</string>
     <string name="stores_itch_load_more">Загрузить ещё</string>
+    <string name="stores_itch_platform_any">Любая платформа</string>
+    <string name="stores_itch_platform_mobile_web">Мобильный веб</string>
+    <string name="stores_itch_tag_add">Добавить тег</string>
+    <string name="stores_itch_tag_title">Фильтр по тегу</string>
     <string name="stores_itch_browse_failed">Не удалось загрузить игры с itch.io</string>
     <string name="stores_itch_archive">Архивы %1$s не поддерживаются</string>
     <string name="stores_itch_download_failed">itch.io ответил HTTP %1$d</string>

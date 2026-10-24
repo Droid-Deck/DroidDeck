@@ -34,3 +34,9 @@ looks browse results up through `StoresState.detailItem`.
 ## When a page fails
 
 A fetch that throws or answers with a non-2xx status marks the list as failed but leaves it open. The end of the list then shows a Retry button that asks for the same page again. Scrolling does not retry on its own, so a failing page cannot loop. Only a successful page with no new games ends the list.
+
+## Platform, tag and search
+
+The platform row picks one platform at a time and the tag row one tag, because those are the combinations checked on itch.io. A typed tag becomes its slug (`Pixel Art` is `pixel-art`) and the address gets `tag-<slug>`.
+
+On the itch Store tab the search box is a row that opens a pop-up with the keyboard, like the SteamDeckRepo search. Done or the Search button applies it, and Clear next to the row empties it. Other stores keep their inline search box.

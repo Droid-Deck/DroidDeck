@@ -2016,6 +2016,10 @@
     <string name="stores_itch_price_free">मुफ़्त</string>
     <string name="stores_itch_price_sale">सेल में</string>
     <string name="stores_itch_load_more">और लोड करें</string>
+    <string name="stores_itch_platform_any">कोई भी प्लेटफ़ॉर्म</string>
+    <string name="stores_itch_platform_mobile_web">मोबाइल वेब</string>
+    <string name="stores_itch_tag_add">टैग जोड़ें</string>
+    <string name="stores_itch_tag_title">टैग के अनुसार फ़िल्टर करें</string>
     <string name="stores_itch_browse_failed">itch.io से गेम लोड नहीं हो सके</string>
     <string name="stores_itch_archive">%1$s आर्काइव समर्थित नहीं हैं</string>
     <string name="stores_itch_download_failed">itch.io ने HTTP %1$d लौटाया</string>

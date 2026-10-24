@@ -2093,6 +2093,16 @@
     <string name="stores_itch_price_free">Free</string>
     <string name="stores_itch_price_sale">On sale</string>
     <string name="stores_itch_load_more">Load more</string>
+    <string name="stores_itch_platform_any">Any platform</string>
+    <string name="stores_itch_platform_mobile_web">Mobile web</string>
+    <string name="stores_itch_tag_add">Add a tag</string>
+    <string name="stores_itch_tag_title">Filter by tag</string>
+    <string name="stores_itch_platform_windows" translatable="false">Windows</string>
+    <string name="stores_itch_platform_macos" translatable="false">macOS</string>
+    <string name="stores_itch_platform_linux" translatable="false">Linux</string>
+    <string name="stores_itch_platform_android" translatable="false">Android</string>
+    <string name="stores_itch_platform_ios" translatable="false">iOS</string>
+    <string name="stores_itch_platform_web" translatable="false">Web</string>
     <string name="stores_itch_browse_failed">Could not load games from itch.io</string>
     <string name="stores_itch_archive">%1$s archives are not supported</string>
     <string name="stores_itch_download_failed">itch.io answered HTTP %1$d</string>

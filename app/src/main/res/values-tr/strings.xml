@@ -2010,6 +2010,10 @@
     <string name="stores_itch_price_free">Ücretsiz</string>
     <string name="stores_itch_price_sale">İndirimde</string>
     <string name="stores_itch_load_more">Daha fazla yükle</string>
+    <string name="stores_itch_platform_any">Herhangi bir platform</string>
+    <string name="stores_itch_platform_mobile_web">Mobil web</string>
+    <string name="stores_itch_tag_add">Etiket ekle</string>
+    <string name="stores_itch_tag_title">Etikete göre filtrele</string>
     <string name="stores_itch_browse_failed">itch.io oyunları yüklenemedi</string>
     <string name="stores_itch_archive">%1$s arşivleri desteklenmiyor</string>
     <string name="stores_itch_download_failed">itch.io HTTP %1$d yanıtı verdi</string>

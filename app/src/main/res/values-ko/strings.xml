@@ -1997,6 +1997,10 @@
     <string name="stores_itch_price_free">무료</string>
     <string name="stores_itch_price_sale">할인 중</string>
     <string name="stores_itch_load_more">더 불러오기</string>
+    <string name="stores_itch_platform_any">모든 플랫폼</string>
+    <string name="stores_itch_platform_mobile_web">모바일 웹</string>
+    <string name="stores_itch_tag_add">태그 추가</string>
+    <string name="stores_itch_tag_title">태그로 필터링</string>
     <string name="stores_itch_browse_failed">itch.io에서 게임을 불러오지 못했습니다</string>
     <string name="stores_itch_archive">%1$s 압축 파일은 지원하지 않습니다</string>
     <string name="stores_itch_download_failed">itch.io가 HTTP %1$d을(를) 반환했습니다</string>

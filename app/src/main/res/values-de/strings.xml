@@ -2008,6 +2008,10 @@
     <string name="stores_itch_price_free">Kostenlos</string>
     <string name="stores_itch_price_sale">Im Angebot</string>
     <string name="stores_itch_load_more">Mehr laden</string>
+    <string name="stores_itch_platform_any">Beliebige Plattform</string>
+    <string name="stores_itch_platform_mobile_web">Mobiles Web</string>
+    <string name="stores_itch_tag_add">Tag hinzufügen</string>
+    <string name="stores_itch_tag_title">Nach Tag filtern</string>
     <string name="stores_itch_browse_failed">Spiele von itch.io konnten nicht geladen werden</string>
     <string name="stores_itch_archive">%1$s-Archive werden nicht unterstützt</string>
     <string name="stores_itch_download_failed">itch.io antwortete mit HTTP %1$d</string>
