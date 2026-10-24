@@ -10,6 +10,7 @@ import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.session.ProtonExtras
 import com.droiddeck.launcher.session.SessionState
 import com.droiddeck.launcher.session.SessionPhase
+import com.droiddeck.launcher.session.LoadingState
 import com.droiddeck.launcher.ui.LaunchOrigin
 import com.droiddeck.launcher.ui.Motion
 import org.json.JSONObject
@@ -24,6 +25,7 @@ import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.util.ReflectionHelpers
 import java.io.File
+import java.util.concurrent.TimeUnit
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28], manifest = Config.NONE)
@@ -46,6 +48,7 @@ class ProtonMenuAutoTest {
         AutoComponents.unfavourable = { false }
         SessionState.running = false
         SessionState.phase = SessionPhase.IDLE
+        SessionState.stopRequested = false
         LaunchOrigin.take()
         LaunchOrigin.flooding = null
         val latest = JSONObject()
@@ -65,6 +68,7 @@ class ProtonMenuAutoTest {
         AutoComponents.unfavourable = constrained
         SessionState.running = false
         SessionState.phase = SessionPhase.IDLE
+        SessionState.stopRequested = false
         LaunchOrigin.take()
         LaunchOrigin.flooding = null
     }
@@ -207,5 +211,34 @@ class ProtonMenuAutoTest {
         assertNull(shadowOf(launcher).nextStartedActivity)
         assertNull(ReflectionHelpers.callInstanceMethod<Any?>(launcher, "getFlood"))
         assertNull(LaunchOrigin.flooding)
+    }
+
+    @Test fun aCancellationDuringTeardownCannotPublishIdleEarly() {
+        val session = watchCancellation(SessionPhase.STOPPING)
+        assertEquals(SessionPhase.STOPPING, SessionState.phase)
+        assertTrue(SessionState.stopRequested)
+        assertFalse(session.isFinishing)
+    }
+
+    @Test fun cancellationBeforeSessionStartupStillFinishesTheActivity() {
+        val session = watchCancellation(SessionPhase.PREPARING)
+        assertEquals(SessionPhase.IDLE, SessionState.phase)
+        assertFalse(SessionState.stopRequested)
+        assertTrue(session.isFinishing)
+    }
+
+    private fun watchCancellation(phase: SessionPhase): SessionActivity {
+        val session = Robolectric.buildActivity(SessionActivity::class.java).get()
+        ReflectionHelpers.setField(session, "loading", LoadingState(session).apply { visible = false })
+        SessionState.phase = phase
+        SessionState.stopRequested = true
+        try {
+            ReflectionHelpers.callInstanceMethod<Void>(session, "watchSession")
+            shadowOf(Looper.getMainLooper()).idle()
+        } finally {
+            ReflectionHelpers.setField(session, "watching", false)
+            shadowOf(Looper.getMainLooper()).idleFor(500, TimeUnit.MILLISECONDS)
+        }
+        return session
     }
 }
