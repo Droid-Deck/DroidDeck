@@ -2,9 +2,14 @@ package com.droiddeck.launcher.sync
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
+import java.io.File
 
 class SyncthingConfigTest {
+    @get:Rule val tmp = TemporaryFolder()
+
     private val generated = """
         <configuration version="51">
             <folder id="abc" label="Camera" path="/storage/emulated/0/DCIM" type="sendreceive">
@@ -51,6 +56,15 @@ class SyncthingConfigTest {
         assertTrue(paused.substringAfter("id=\"PEER\"").substringBefore("</device>").contains("<paused>true</paused>"))
         val open = SyncthingConfig.apply(generated, ports, "/ext/Sync", pauseDevices = false) { true }
         assertTrue(open.substringAfter("id=\"PEER\"").substringBefore("</device>").contains("<paused>false</paused>"))
+    }
+
+    @Test
+    fun replacesConfigFileWithoutLeavingStagedCopy() {
+        val dir = tmp.newFolder()
+        val file = File(dir, "config.xml").apply { writeText(generated) }
+        SyncthingConfig.apply(file, ports, File("/ext/Sync"), false) { true }
+        assertEquals(SyncthingConfig.apply(generated, ports, "/ext/Sync") { true }, file.readText())
+        assertEquals(listOf("config.xml"), dir.list()!!.toList())
     }
 
     @Test

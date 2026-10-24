@@ -3,6 +3,7 @@ package com.droiddeck.launcher.sync
 import org.w3c.dom.Document
 import org.w3c.dom.Element
 import java.io.File
+import java.io.IOException
 import java.io.StringReader
 import java.io.StringWriter
 import javax.xml.parsers.DocumentBuilderFactory
@@ -22,7 +23,13 @@ object SyncthingConfig {
         parse(xml).documentElement.child("gui")?.child("apikey")?.textContent?.trim()?.takeIf { it.isNotEmpty() }
 
     fun apply(file: File, ports: SyncthingPorts, folderRoot: File, pauseDevices: Boolean, allows: (String) -> Boolean) {
-        file.writeText(apply(file.readText(), ports, folderRoot.path, pauseDevices, allows))
+        val staged = File(file.parentFile, "${file.name}.tmp")
+        try {
+            staged.writeText(apply(file.readText(), ports, folderRoot.path, pauseDevices, allows))
+            if (!staged.renameTo(file)) throw IOException("could not replace ${file.name}")
+        } finally {
+            staged.delete()
+        }
     }
 
     internal fun apply(xml: String, ports: SyncthingPorts, folderRoot: String, pauseDevices: Boolean = false, allows: (String) -> Boolean): String {
