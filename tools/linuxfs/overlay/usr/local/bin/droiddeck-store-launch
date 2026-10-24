@@ -57,6 +57,8 @@ UBISOFT_PRODUCT_FIELD = 28
 UBISOFT_INSTALLS_PATH = "HKEY_LOCAL_MACHINE\\SOFTWARE\\WOW6432Node\\Ubisoft\\Launcher\\Installs\\%d"
 UBISOFT_INSTALLS_SECTION = "[Software\\WOW6432Node\\Ubisoft\\Launcher\\Installs\\%d]"
 UBISOFT_TABLE = ".droiddeck-ubisoft.reg"
+UBISOFT_GAME_PATH = "HKEY_LOCAL_MACHINE\\SOFTWARE\\WOW6432Node\\Ubisoft\\%s"
+UBISOFT_GAME_SECTION = "[Software\\WOW6432Node\\Ubisoft\\%s]"
 UBISOFT_HOOK = ".droiddeck-registry.bat"
 UBISOFT_IMPORT_TIMEOUT = 20.0
 UBISOFT_LOG = ".droiddeck-registry.log"
@@ -501,6 +503,20 @@ def run_reg_import(proton, table, timeout=UBISOFT_IMPORT_TIMEOUT):
     return "failed=%d %s" % (run.returncode, " ".join((run.stdout or "").split())[-120:])
 
 
+def ubisoft_game_exe(folder):
+    """Connect starts the binary named by HKLM's Software\\Ubisoft\\<game>\\Exe and answers
+    "Game executable is not found at ." with a folder relocation offer when that key is absent."""
+    try:
+        names = [name for name in os.listdir(Path(folder) / "bin") if name.lower().endswith(".exe")]
+    except OSError:
+        return "", ""
+    if not names:
+        return "", ""
+    game = max(names, key=lambda name: os.path.getsize(Path(folder) / "bin" / name))
+    exe = windows_path(str(Path(folder) / "bin" / game)).replace("\\", "\\\\")
+    return game[:-4], exe
+
+
 def ubisoft_registry(folder, compat_data, product=None, proton=None):
     """Connect reads HKLM's Installs\\<id>\\InstallDir to tell an installed game from one it still
     has to download, and answers the launch with an install error when it is missing. The import
@@ -513,25 +529,31 @@ def ubisoft_registry(folder, compat_data, product=None, proton=None):
         return "no-prefix"
     key = UBISOFT_INSTALLS_PATH % product
     section = UBISOFT_INSTALLS_SECTION % product
+    game, exe = ubisoft_game_exe(folder)
+    game_section = UBISOFT_GAME_SECTION % game if game else ""
     try:
         existing = (Path(compat_data) / "pfx" / "system.reg").read_text(errors="replace")
     except OSError:
         existing = ""
-    if section in existing or section in existing.replace("\\\\", "\\"):
+    existing = existing.replace("\\\\", "\\")
+    if section in existing and (not game_section or game_section in existing):
         return "ready"
     previous = ubisoft_last(folder)
     if previous:
         log("ubisoft last: " + previous)
     table = folder / UBISOFT_TABLE
-    text = "Windows Registry Editor Version 5.00\r\n\r\n[%s]\r\n\"InstallDir\"=\"%s\"\r\n" % (
-        key, windows_path(str(folder).rstrip("/")).replace("\\", "\\\\"))
+    entries = ["[%s]\r\n\"InstallDir\"=\"%s\"\r\n" % (
+        key, windows_path(str(folder).rstrip("/")).replace("\\", "\\\\"))]
+    if game:
+        entries.append("[%s]\r\n\"Exe\"=\"%s\"\r\n" % (UBISOFT_GAME_PATH % game, exe))
+    text = "Windows Registry Editor Version 5.00\r\n\r\n" + "\r\n".join(entries)
     try:
         table.write_bytes(b"\xff\xfe" + text.encode("utf-16-le"))
     except (OSError, UnicodeError):
         return "no-table"
     imported = run_reg_import(proton, table)
     if imported == "ok":
-        return "written=%d" % product
+        return "written=%d game=%s" % (product, game or "-")
     hook = folder / UBISOFT_HOOK
     body = ('@echo off\r\n"%%SystemRoot%%\\system32\\reg.exe" import "%%~dp0%s" > "%%~dp0%s" 2>&1\r\n'
             'echo exit=%%ERRORLEVEL%%>> "%%~dp0%s"\r\n') % (UBISOFT_TABLE, UBISOFT_LOG, UBISOFT_LOG)
