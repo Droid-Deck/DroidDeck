@@ -2,7 +2,7 @@
 
 Installing an itch.io game opens a version picker first. It lists the game's uploads from `/games/{id}/uploads`, with the platform, size and date of each.
 
-- Windows builds install. A game with exactly one Windows build skips the picker and installs at once, even if it also lists builds for other platforms.
+- Windows builds install. A game with a single Windows build skips the picker and installs at once.
 - Other builds (macOS, Android, web) open the game's page on itch.io.
 - Linux builds are listed but cannot be installed yet.
 
