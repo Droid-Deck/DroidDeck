@@ -1635,6 +1635,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     override fun surfaceCreated(holder: SurfaceHolder) {
         if (holder !== outputHolder()) return
         if (installingRuntime || SessionState.stopRequested || ended) return
+        SessionService.compositorPreparation?.let { preparation ->
+            glassesScope.launch {
+                preparation.join()
+                if (!isDestroyed && !isFinishing && holder === outputHolder() && holder.surface.isValid) surfaceCreated(holder)
+            }
+            return
+        }
         if (!SessionState.running) {
             SessionEvents.transition(SessionPhase.STARTING_COMPOSITOR, "compositor.starting")
         }
@@ -1692,7 +1699,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (resized) {
             cancelTouchGestures()
             Log.i(TAG, "surface resized to ${width}x$height - rebinding the compositor")
-            CompositorHost.resize(holder.surface) { applyFrameGen() }
+            if (CompositorHost.isStarted) CompositorHost.resize(holder.surface) { applyFrameGen() }
             followWindow(width, height)
         }
     }
@@ -1741,7 +1748,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         surfaceW = 0
         surfaceH = 0
         glassesOutputActive = false
-        CompositorHost.detach(holder.surface)
+        if (CompositorHost.isStarted) CompositorHost.detach(holder.surface)
     }
 
     private fun cancelTouchGestures() {
@@ -3275,7 +3282,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         glassesOutputActive = false
         surfaceW = 0
         surfaceH = 0
-        CompositorHost.detach(screen.holder.surface)
+        if (CompositorHost.isStarted) CompositorHost.detach(screen.holder.surface)
         surfaceView.visibility = View.VISIBLE
         applyOutputPacing()
         if (surfaceView.holder.surface?.isValid == true) surfaceCreated(surfaceView.holder)

@@ -57,6 +57,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.UUID
+import kotlinx.coroutines.Job
 
 class SessionService : Service() {
     override fun attachBaseContext(newBase: android.content.Context) =
@@ -382,17 +383,19 @@ class SessionService : Service() {
         if (SessionState.mode == MODE_STEAM) SessionState.steamUrl
             ?.takeIf { it.startsWith(GAME_URL_PREFIX) }?.let { watchGameExit(it.removePrefix(GAME_URL_PREFIX), gen) }
         acquireLocks()
+        val preparation = if (backgroundStart) Job().also { compositorStart = it } else null
         Thread({
-            if (gen != sessionGen || !SessionState.running || SessionState.stopRequested) return@Thread
-            OrphanReaper.reap("session starting")
-            if (backgroundStart) {
-                try {
-                    prepareCompositor()
-                } catch (error: Exception) {
-                    Log.e(TAG, "background Steam preparation failed", error)
-                    if (gen == sessionGen && SessionState.running) stopSession(-1)
-                    return@Thread
-                }
+            try {
+                if (gen != sessionGen || !SessionState.running || SessionState.stopRequested) return@Thread
+                OrphanReaper.reap("session starting")
+                if (gen != sessionGen || !SessionState.running || SessionState.stopRequested) return@Thread
+                if (backgroundStart) prepareCompositor()
+            } catch (error: Exception) {
+                Log.e(TAG, "session preparation failed", error)
+                if (gen == sessionGen && SessionState.running) stopSession(-1)
+                return@Thread
+            } finally {
+                preparation?.complete()
             }
             if (gen == sessionGen && SessionState.running && !SessionState.stopRequested) runSession(gen)
         }, "session-start").start()
@@ -1981,6 +1984,9 @@ class SessionService : Service() {
     }
 
     companion object {
+        @Volatile private var compositorStart: Job? = null
+        val compositorPreparation: Job? get() = compositorStart?.takeUnless { it.isCompleted }
+
         private const val TAG = "SessionService"
         private const val TRACER_NICE = -6
         private const val MIC_RELEASE_TIMEOUT_MS = 5_000L

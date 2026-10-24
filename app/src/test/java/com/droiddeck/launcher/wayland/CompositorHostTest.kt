@@ -1,18 +1,31 @@
 package com.droiddeck.launcher.wayland
 
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
 import android.view.Surface
+import android.view.SurfaceView
+import com.droiddeck.launcher.SessionActivity
 import com.droiddeck.launcher.gpu.TpUbwcHint
 import com.droiddeck.launcher.gpu.TurnipDriver
 import com.droiddeck.launcher.session.SessionEvents
+import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionState
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.FutureTask
+import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.Robolectric
 import org.robolectric.RuntimeEnvironment
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.Implementation
 import org.robolectric.annotation.Implements
@@ -34,6 +47,7 @@ class CompositorHostTest {
         Native.surfaces.clear()
         Native.sizes.clear()
         Driver.installs = 0
+        Driver.beforeInstall = {}
         SessionState.running = true
         SessionState.firstFrameSeen = false
         SessionState.guestPid = -1
@@ -97,10 +111,59 @@ class CompositorHostTest {
         assertFalse(ReflectionHelpers.getStaticField(CompositorHost::class.java, "vsyncRunning"))
     }
 
+    @Test fun playAndSurfaceCallbacksStayResponsiveWhileTheBackgroundDriverIsPreparing() {
+        val preparation = Job()
+        ReflectionHelpers.setStaticField(SessionService::class.java, "compositorStart", preparation)
+        val entered = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        Driver.beforeInstall = {
+            entered.countDown()
+            check(release.await(5, TimeUnit.SECONDS))
+        }
+        val activity = Robolectric.buildActivity(SessionActivity::class.java).get()
+        val view = SurfaceView(activity)
+        ReflectionHelpers.setField(activity, "surfaceView", view)
+        val scope = ReflectionHelpers.getField<CoroutineScope>(activity, "glassesScope")
+        val startup = FutureTask {
+            try { CompositorHost.startOrAttach(app, null, 1280, 720, 60f, 0) }
+            finally { preparation.complete() }
+        }
+        Thread(startup, "test-compositor-prepare").apply { isDaemon = true; start() }
+        try {
+            assertTrue(entered.await(5, TimeUnit.SECONDS))
+            activity.surfaceCreated(view.holder)
+            activity.surfaceChanged(view.holder, 0, 800, 600)
+            activity.surfaceChanged(view.holder, 0, 1000, 600)
+            activity.surfaceDestroyed(view.holder)
+            val responsive = CountDownLatch(1)
+            Handler(Looper.getMainLooper()).post { responsive.countDown() }
+            shadowOf(Looper.getMainLooper()).idle()
+            assertEquals(0L, responsive.count)
+            assertFalse(preparation.isCompleted)
+            assertTrue(scope.coroutineContext[Job]!!.children.any { it.isActive })
+
+            ReflectionHelpers.setField(activity, "surfaceView", SurfaceView(activity))
+            release.countDown()
+            assertTrue(startup.get(5, TimeUnit.SECONDS))
+            shadowOf(Looper.getMainLooper()).idle()
+            assertTrue(scope.coroutineContext[Job]!!.children.none())
+            assertTrue(Native.surfaces.isEmpty())
+            assertFalse(SessionState.firstFrameSeen)
+        } finally {
+            release.countDown()
+            startup.get(5, TimeUnit.SECONDS)
+            scope.cancel()
+            ReflectionHelpers.setStaticField(SessionService::class.java, "compositorStart", null)
+        }
+    }
+
     @Implements(value = TurnipDriver::class, isInAndroidSdk = false)
     class Driver {
-        @Implementation fun install(): String? { installs++; return null }
-        companion object { var installs = 0 }
+        @Implementation fun install(): String? { installs++; beforeInstall(); return null }
+        companion object {
+            var installs = 0
+            var beforeInstall: () -> Unit = {}
+        }
     }
 
     @Implements(value = TpUbwcHint::class, isInAndroidSdk = false)
