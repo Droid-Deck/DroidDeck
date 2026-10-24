@@ -83,8 +83,10 @@ object AddedGameMove {
         if (!targetParent.isDirectory && !targetParent.mkdirs()) return context.getString(R.string.storage_move_missing)
 
         val total = runCatching { FileOps.totalSize(source) }.getOrDefault(0L)
+        // Zero or negative means the volume cannot report free space; only refuse when it
+        // measurably reports less than needed, mirroring SteamGameMove.
         val free = runCatching { StatFs(nearestExisting(dest).path).availableBytes }.getOrNull()
-        if (free != null && total > 0 && (free <= 0 || free < total + SPACE_MARGIN)) {
+        if (free != null && total > 0 && free > 0 && free < total + SPACE_MARGIN) {
             return context.getString(
                 R.string.storage_move_no_space,
                 FileOps.formatBytes(context, total + SPACE_MARGIN),
