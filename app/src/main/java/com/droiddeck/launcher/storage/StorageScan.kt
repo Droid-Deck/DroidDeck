@@ -31,6 +31,7 @@ class GameUsage(
 
 class AddedGameUsage(
     val folder: File, val name: String, val exe: File?, val bytes: Long,
+    val steamLibraryRoot: File? = null, val steamInstallDir: String? = null,
 )
 
 enum class ToolState { IN_USE, REQUIRED, UNUSED }
@@ -260,6 +261,13 @@ object StorageScan {
         // so they can be moved too. Steam-managed and store-managed folders stay with their owners.
         val steamManaged = libs.map { canonical(File(it.root, "steamapps")) }
         val storeManaged = runCatching { StoreInstallRoot.roots(context) }.getOrDefault(emptyList()).map { it.absolutePath }
+        val manifestsByApp = libs.flatMap { lib ->
+            lib.manifests.orEmpty().mapNotNull { m ->
+                val dir = m.installDir ?: return@mapNotNull null
+                val root = m.file.parentFile?.parentFile ?: return@mapNotNull null
+                Triple(m.appId, root, dir)
+            }
+        }
         val addedGames = runCatching { AddedGames.scan(context) }.getOrDefault(emptyList())
             .distinctBy { canonical(it.folder) }
             .filter { game ->
@@ -268,7 +276,16 @@ object StorageScan {
                     storeManaged.none { path == it || path.startsWith("$it/") }
             }
             .map { game ->
-                AddedGameUsage(game.folder, game.name, game.exe.takeIf { it.isFile }, walker.measure(game.folder))
+                val steamId = runCatching { AddedGames.identifiedAppId(game.folder, game.exe) }.getOrNull()
+                val adoption = steamId?.let { id ->
+                    manifestsByApp.firstOrNull { (appId, root, dir) ->
+                        appId == id && !File(File(root, "steamapps/common"), dir).let { it.isDirectory && (it.list()?.isNotEmpty() == true) }
+                    }
+                }
+                AddedGameUsage(
+                    game.folder, game.name, game.exe.takeIf { it.isFile }, walker.measure(game.folder),
+                    adoption?.second, adoption?.third,
+                )
             }
             .sortedByDescending { it.bytes }
 

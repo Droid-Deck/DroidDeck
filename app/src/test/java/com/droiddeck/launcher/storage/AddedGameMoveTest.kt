@@ -76,4 +76,35 @@ class AddedGameMoveTest {
         assertTrue(File(folder, "game.exe").isFile)
         assertFalse(File(folder, "sub").exists())
     }
+
+    @Test fun adoptIntoSteamInstallsTheFolderAsTheManifestDir() {
+        val folder = game("AdoptMe")
+        val exe = File(folder, "game.exe")
+        AddedExes.put(app, AddedExes.Entry(folder.path, exe.path))
+        SessionPrefs.setAddedGameExe(app, folder.path, exe.path)
+        val library = tmp.newFolder("steamlibrary")
+        File(library, "steamapps/common").mkdirs()
+
+        val error = AddedGameMove.adoptIntoSteam(app, folder, library, "AdoptMe") { _, _ -> }
+
+        assertNull(error)
+        val dest = File(File(library, "steamapps/common"), "AdoptMe")
+        assertTrue(File(dest, "game.exe").isFile)
+        assertTrue(File(dest, "data/blob.bin").isFile)
+        assertFalse(folder.exists())
+        assertTrue(AddedExes.list(app).none { it.folder == folder.path })
+        assertEquals(File(dest, "game.exe").path, SessionPrefs.addedGameExe(app, dest.path))
+        assertNotNull(AddedGames.guestPath(app, File(dest, "game.exe")))
+        assertNotNull(AddedGames.single(app, dest.path))
+    }
+
+    @Test fun adoptIntoSteamRefusesAnOccupiedInstallDir() {
+        val folder = game("Clash")
+        val library = tmp.newFolder("steamlib")
+        val occupied = File(File(library, "steamapps/common"), "Clash").apply { mkdirs() }
+        File(occupied, "other.exe").writeText("x")
+        val error = AddedGameMove.adoptIntoSteam(app, folder, library, "Clash")
+        assertEquals(app.getString(com.droiddeck.launcher.R.string.storage_move_exists), error)
+        assertTrue(File(folder, "game.exe").isFile)
+    }
 }
