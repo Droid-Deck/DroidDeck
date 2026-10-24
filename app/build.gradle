@@ -312,9 +312,7 @@ def stageQualcommRuntime = tasks.register('stageQualcommRuntime', Exec) {
         '--ndk', android.ndkDirectory.absolutePath
 }
 android.sourceSets.main.assets.srcDir(layout.buildDirectory.dir('qualcommAssets'))
-tasks.configureEach { task ->
-    if (task.name ==~ /merge.*Assets/) task.dependsOn(stageQualcommRuntime)
-}
+tasks.named('preBuild').configure { dependsOn(stageQualcommRuntime) }
 if (vitureSdkDir) android.sourceSets.main.assets.srcDir(layout.buildDirectory.dir('vitureAssets'))
 if (uvcDir) {
     def stageUvcNotices = tasks.register('stageUvcNotices', Copy) {
