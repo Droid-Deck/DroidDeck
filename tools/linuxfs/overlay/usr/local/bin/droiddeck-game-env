@@ -156,8 +156,8 @@ UBISOFT_SETTINGS = "drive_c/users/steamuser/AppData/Local/Ubisoft Game Launcher/
 def overlay_off(text):
     lines = text.splitlines()
     try:
-        start = lines.index("overlay:")
-    except ValueError:
+        start = next(i for i, line in enumerate(lines) if re.fullmatch(r"overlay:\s*(#.*)?", line))
+    except StopIteration:
         if lines and not lines[-1].strip():
             lines.pop()
         return "\n".join(lines + ["overlay:", "  enabled: false", "  warning_enabled: false"]) + "\n"
@@ -193,6 +193,8 @@ def ubisoft_overlay_off(env):
         try:
             with os.fdopen(handle, "w", encoding="utf-8") as target:
                 target.write(updated)
+            if settings.exists():
+                os.chmod(staged, settings.stat().st_mode & 0o7777)
             os.replace(staged, settings)
         except BaseException:
             os.unlink(staged)

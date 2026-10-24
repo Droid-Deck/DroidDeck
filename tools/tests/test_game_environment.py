@@ -1239,6 +1239,10 @@ class UbisoftOverlayTest(unittest.TestCase):
         self.assertEqual(MODULE["overlay_off"]("overlay:\n  fps_enabled: true\n\nmisc:\n  a: 1\n"),
                          "overlay:\n  fps_enabled: true\n  enabled: false\n  warning_enabled: false\n\nmisc:\n  a: 1\n")
 
+    def test_an_annotated_overlay_header_is_the_same_section(self):
+        self.assertEqual(MODULE["overlay_off"]("overlay:  # in-game\n  enabled: true\n"),
+                         "overlay:  # in-game\n  enabled: false\n  warning_enabled: false\n")
+
     def test_only_prefixes_with_ubisoft_connect_are_touched(self):
         with tempfile.TemporaryDirectory() as tmp:
             prefix = Path(tmp) / "447040/pfx"
@@ -1251,8 +1255,11 @@ class UbisoftOverlayTest(unittest.TestCase):
             MODULE["ubisoft_overlay_off"](env)
             self.assertEqual(settings.read_text(), "overlay:\n  enabled: false\n  warning_enabled: false\n")
             settings.write_text(self.SETTINGS)
+            settings.chmod(0o644)
             MODULE["ubisoft_overlay_off"](env)
             self.assertEqual(settings.read_text(), self.SETTINGS.replace("enabled: true", "enabled: false"))
+            self.assertEqual(settings.stat().st_mode & 0o777, 0o644)
+            self.assertEqual(sorted(p.name for p in settings.parent.iterdir()), ["settings.yaml"])
 
 
 if __name__ == "__main__":
