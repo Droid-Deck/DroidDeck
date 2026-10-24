@@ -1253,6 +1253,8 @@
     <string name="pip_auto">Automatically enter PiP</string>
     <string name="unfolded_controls">Controls below the game</string>
     <string name="unfolded_controls_hint">In portrait or on an unfolded screen, place a landscape game above the touch controls.</string>
+    <string name="external_output">Game on external display (experimental)</string>
+    <string name="external_output_hint">Show the game on the connected monitor instead of mirroring the phone. Connect the monitor before starting for its full resolution.</string>
     <string name="unfolded_controls_with_controller">Keep them with a controller</string>
     <string name="unfolded_controls_with_controller_hint">Also show these touch controls while a controller is connected.</string>
     <string name="pip_suspended">Suspended</string>

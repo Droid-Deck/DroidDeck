@@ -288,6 +288,8 @@ class DrawerActions(
     val onUnfoldedControls: (Boolean) -> Unit = {},
     val unfoldedControlsWithController: Boolean = false,
     val onUnfoldedControlsWithController: (Boolean) -> Unit = {},
+    val externalOutput: Boolean? = null,
+    val onExternalOutput: (Boolean) -> Unit = {},
     val onShareLogs: () -> Unit,
     val onStop: () -> Unit,
     val onStopFrom: ((androidx.compose.ui.geometry.Rect?) -> Unit)? = null,
@@ -495,6 +497,9 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                     when (page) {
                         SessionDrawerPage.DISPLAY -> {
                             SettingsGroup(stringResource(R.string.drawer_page_display)) {
+                                if (a.externalOutput != null) ToggleRow(host, "external-output", stringResource(R.string.external_output),
+                                    stringResource(R.string.external_output_hint), a.externalOutput,
+                                    chipModifier = focus.track(page, "external-output"), onChange = a.onExternalOutput)
                                 ToggleRow(host, "hud", stringResource(R.string.drawer_hud), null, a.hudOn,
                                     chipModifier = focus.track(page, "hud"), onChange = a.onHud)
                                 if (a.hudOn) {
