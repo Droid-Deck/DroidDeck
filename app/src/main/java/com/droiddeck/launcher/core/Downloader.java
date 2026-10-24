@@ -279,7 +279,7 @@ public final class Downloader {
 
     private static HttpURLConnection open(String url, int readTimeoutMs) throws java.io.IOException {
         // An explicit Proxy routes the connection through the app setting instead of the system-wide proxy.
-        Proxy proxy = DownloadSource.httpProxy();
+        Proxy proxy = DownloadSource.INSTANCE.httpProxy();
         HttpURLConnection connection = (HttpURLConnection) (proxy != null
                 ? new URL(url).openConnection(proxy) : new URL(url).openConnection());
         connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
