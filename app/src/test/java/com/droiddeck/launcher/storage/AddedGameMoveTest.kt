@@ -86,8 +86,9 @@ class AddedGameMoveTest {
         File(library, "steamapps/common").mkdirs()
         // The adopted dir lives on the card, so the session keeps seeing it after the move.
         SessionPrefs.setGameStorage(app, library.path, "Card")
+        val target = MissingInstall(220, "AdoptMe", library, "AdoptMe", "Card")
 
-        val error = AddedGameMove.adoptIntoSteam(app, folder, library, "AdoptMe") { _, _ -> }
+        val error = AddedGameMove.adoptIntoSteam(app, folder, target) { _, _ -> }
 
         assertNull(error)
         val dest = File(File(library, "steamapps/common"), "AdoptMe")
@@ -100,12 +101,32 @@ class AddedGameMoveTest {
         assertNotNull(AddedGames.single(app, dest.path))
     }
 
+    @Test fun adoptIntoSteamMovesThePrefixOntoTheSteamAppId() {
+        val folder = game("PrefixGame")
+        val crc = 12345678901L
+        SessionPrefs.addedGameAppId(app, folder.path, crc)
+        val internal = SessionPrefs.steamRoot(app, "arm64")
+        val oldPrefix = File(File(internal, "steamapps/compatdata"), crc.toString()).apply { mkdirs() }
+        File(oldPrefix, "save.dat").writeText("save")
+        val library = tmp.newFolder("prefixlib")
+        File(library, "steamapps/common").mkdirs()
+        SessionPrefs.setGameStorage(app, library.path, "Card")
+        val target = MissingInstall(220, "PrefixGame", library, "PrefixGame", "Card")
+
+        val error = AddedGameMove.adoptIntoSteam(app, folder, target) { _, _ -> }
+
+        assertNull(error)
+        val targetData = com.droiddeck.launcher.session.SecondaryLibrary.privateRoot(app.filesDir, library)
+        assertTrue(File(File(targetData, "steamapps/compatdata/220"), "save.dat").isFile)
+        assertFalse(oldPrefix.exists())
+    }
+
     @Test fun adoptIntoSteamRefusesAnOccupiedInstallDir() {
         val folder = game("Clash")
         val library = tmp.newFolder("steamlib")
         val occupied = File(File(library, "steamapps/common"), "Clash").apply { mkdirs() }
         File(occupied, "other.exe").writeText("x")
-        val error = AddedGameMove.adoptIntoSteam(app, folder, library, "Clash")
+        val error = AddedGameMove.adoptIntoSteam(app, folder, library, MissingInstall(221, "Clash", library, "Clash", "Card"))
         assertEquals(app.getString(com.droiddeck.launcher.R.string.storage_move_exists), error)
         assertTrue(File(folder, "game.exe").isFile)
     }
