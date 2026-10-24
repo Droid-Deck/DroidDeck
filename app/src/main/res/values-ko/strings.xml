@@ -290,7 +290,6 @@
     <string name="mode_suspend_note">자동: 백그라운드에서 일시 중지되고 다시 표시되면 재개됩니다. 수동: \"재개\"를 탭할 때까지 기다립니다. 안 함: 계속 실행됩니다.</string>
     <string name="mode_startup">시작</string>
     <string name="mode_steam_startup">DroidDeck을 열 때 Steam 시작</string>
-    <string name="mode_steam_startup_hint">DroidDeck이 시작될 때 Steam 세션을 엽니다.</string>
     <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">릴리스 확인 중…</string>
     <string name="mode_decky_ready">%1$s을(를) 설치할 준비가 되었습니다.</string>

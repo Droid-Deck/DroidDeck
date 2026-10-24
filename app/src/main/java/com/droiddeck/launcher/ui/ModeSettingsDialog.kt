@@ -1,5 +1,7 @@
 package com.droiddeck.launcher.ui
 
+import com.droiddeck.launcher.session.SteamStartup
+
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.foundation.clickable
@@ -89,7 +91,7 @@ class ModeSettings(
     val steamController: String? = null,
     val unfoldedControls: Boolean? = null,
     val unfoldedControlsWithController: Boolean = false,
-    val runSteamAtStartup: Boolean = false,
+    val steamStartup: SteamStartup = SteamStartup.OFF,
     val bootMovie: String? = null,
     val bootMovieSound: Boolean = true,
     val bootMovieCustomName: String? = null,
@@ -142,7 +144,7 @@ class ModeSettingsActions(
     val onSteamController: (String) -> Unit = {},
     val onUnfoldedControls: (Boolean) -> Unit = {},
     val onUnfoldedControlsWithController: (Boolean) -> Unit = {},
-    val onRunSteamAtStartup: (Boolean) -> Unit = {},
+    val onSteamStartup: (SteamStartup) -> Unit = {},
     val onBootMovie: (String) -> Unit = {},
     val onBootMovieSound: (Boolean) -> Unit = {},
     val onImportBootMovie: () -> Unit = {},
@@ -348,10 +350,11 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
                 s.pipAutoEnter, onChange = a.onPipAutoEnter)
         }
         if (steam) SettingsGroup(stringResource(R.string.mode_startup)) {
-            ToggleRow(
+            ChoiceRow(
                 host, "steam-startup", stringResource(R.string.mode_steam_startup),
-                stringResource(R.string.mode_steam_startup_hint),
-                s.runSteamAtStartup, onChange = a.onRunSteamAtStartup,
+                stringResource(R.string.steam_startup_hint),
+                SteamStartup.entries.map { it to stringResource(it.label) },
+                s.steamStartup, onPick = a.onSteamStartup,
             )
         }
         extras.performance()

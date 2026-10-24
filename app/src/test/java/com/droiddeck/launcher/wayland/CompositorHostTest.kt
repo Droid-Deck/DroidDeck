@@ -1,0 +1,133 @@
+package com.droiddeck.launcher.wayland
+
+import android.content.Context
+import android.view.Surface
+import com.droiddeck.launcher.gpu.TpUbwcHint
+import com.droiddeck.launcher.gpu.TurnipDriver
+import com.droiddeck.launcher.session.SessionEvents
+import com.droiddeck.launcher.session.SessionState
+import org.junit.After
+import org.junit.Assert.*
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
+import org.robolectric.annotation.Config
+import org.robolectric.annotation.Implementation
+import org.robolectric.annotation.Implements
+import org.robolectric.annotation.LooperMode
+import org.robolectric.util.ReflectionHelpers
+
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [28], manifest = Config.NONE, shadows = [CompositorHostTest.Native::class,
+    CompositorHostTest.Driver::class, CompositorHostTest.GpuHint::class])
+@LooperMode(LooperMode.Mode.PAUSED)
+class CompositorHostTest {
+    private val app get() = RuntimeEnvironment.getApplication()
+
+    @Before fun setUp() {
+        ReflectionHelpers.setStaticField(CompositorHost::class.java, "started", false)
+        ReflectionHelpers.setStaticField(CompositorHost::class.java, "attached", null)
+        ReflectionHelpers.setStaticField(CompositorHost::class.java, "vsyncRunning", false)
+        Native.starts.clear()
+        Native.surfaces.clear()
+        Native.sizes.clear()
+        Driver.installs = 0
+        SessionState.running = true
+        SessionState.firstFrameSeen = false
+        SessionState.guestPid = -1
+        WaylandCompositor.setFirstFrameListener { SessionEvents.firstFrame() }
+    }
+
+    @After fun tearDown() {
+        CompositorHost.detach(null)
+        WaylandCompositor.setFirstFrameListener(null)
+        SessionState.running = false
+        SessionState.firstFrameSeen = false
+    }
+
+    @Test fun backgroundPreparationStartsWithoutAWindowAndPlayAttachesToTheSameCompositor() {
+        assertTrue(CompositorHost.startOrAttach(app, null, 1280, 720, 60f, 0))
+        assertEquals(listOf<Surface?>(null), Native.starts)
+        assertFalse(ReflectionHelpers.getStaticField(CompositorHost::class.java, "vsyncRunning"))
+        assertFalse(SessionState.firstFrameSeen)
+
+        val surface = Surface(android.graphics.SurfaceTexture(0))
+        try {
+            assertFalse(CompositorHost.startOrAttach(app, surface, 1280, 720, 120f, 0))
+            assertEquals(1, Native.starts.size)
+            assertEquals(1, Driver.installs)
+            assertSame(surface, Native.surfaces.last())
+            assertTrue(ReflectionHelpers.getStaticField(CompositorHost::class.java, "vsyncRunning"))
+            assertEquals(120f, SessionState.refreshHz)
+            assertFalse(SessionState.firstFrameSeen)
+
+            ReflectionHelpers.callStaticMethod<Unit>(WaylandCompositor::class.java, "onFirstFramePresented")
+            assertTrue(SessionState.firstFrameSeen)
+        } finally {
+            CompositorHost.detach(surface)
+            surface.release()
+        }
+    }
+
+    @Test fun lateBackgroundPreparationCannotDetachOrReconfigureAVisibleSession() {
+        val surface = Surface(android.graphics.SurfaceTexture(0))
+        try {
+            CompositorHost.startOrAttach(app, surface, 1280, 720, 120f, 0)
+            assertFalse(CompositorHost.startOrAttach(app, null, 1920, 1080, 60f, 30))
+            assertEquals(listOf(1280 to 720), Native.sizes)
+            assertEquals(120f, SessionState.refreshHz)
+            assertTrue(Native.surfaces.isEmpty())
+            assertEquals(listOf(surface), Native.starts)
+        } finally {
+            CompositorHost.detach(surface)
+            surface.release()
+        }
+    }
+
+    @Test fun aRetainedCompositorCanPrepareAnotherSessionWithItsNewOutputSize() {
+        CompositorHost.startOrAttach(app, null, 1280, 720, 60f, 0)
+        CompositorHost.detach(null)
+        CompositorHost.newSession(app)
+        assertFalse(CompositorHost.startOrAttach(app, null, 1920, 1080, 60f, 30))
+        assertEquals(listOf(1280 to 720, 1920 to 1080), Native.sizes)
+        assertEquals(1, Native.starts.size)
+        assertEquals(1, Driver.installs)
+        assertFalse(ReflectionHelpers.getStaticField(CompositorHost::class.java, "vsyncRunning"))
+    }
+
+    @Implements(value = TurnipDriver::class, isInAndroidSdk = false)
+    class Driver {
+        @Implementation fun install(): String? { installs++; return null }
+        companion object { var installs = 0 }
+    }
+
+    @Implements(value = TpUbwcHint::class, isInAndroidSdk = false)
+    class GpuHint {
+        @Implementation fun applyToProcess(context: Context) = Unit
+    }
+
+    @Implements(value = WaylandCompositor::class, isInAndroidSdk = false)
+    class Native {
+        companion object {
+            val starts = mutableListOf<Surface?>()
+            val surfaces = mutableListOf<Surface?>()
+            val sizes = mutableListOf<Pair<Int, Int>>()
+            @JvmStatic @Implementation fun __staticInitializer__() = Unit
+            @JvmStatic @Implementation fun nativeStartWithSurface(surface: Surface?, runtime: String,
+                driver: String?, library: String?, nativeLibs: String?) { starts += surface }
+            @JvmStatic @Implementation fun nativeSetSurface(surface: Surface?) { surfaces += surface }
+            @JvmStatic @Implementation fun nativeSetOutputSize(width: Int, height: Int) { sizes += width to height }
+            @JvmStatic @Implementation fun nativeSetFpsLimit(limit: Int) = Unit
+            @JvmStatic @Implementation fun nativeSetLayerFrameRate(hz: Float) = Unit
+            @JvmStatic @Implementation fun nativeSetOutputRefreshRate(hz: Float) = Unit
+            @JvmStatic @Implementation fun nativeResetFirstFrame() = Unit
+            @JvmStatic @Implementation fun nativeVsync(time: Long) = Unit
+            @JvmStatic @Implementation fun nativeSetZeroCopy(on: Boolean) = Unit
+            @JvmStatic @Implementation fun nativeSetHdrRequest(mode: Int, source: String, dxvk: Boolean, zeroCopy: Boolean) = Unit
+            @JvmStatic @Implementation fun nativeSetHdrDisplay(id: Int, name: String, formats: String, hdr10: Boolean,
+                max: Float, average: Float, min: Float, ratioAvailable: Boolean, ratio: Float, sdk: Int) = Unit
+        }
+    }
+}

@@ -290,7 +290,6 @@
     <string name="mode_suspend_note">«Авто» призупиняє сеанс у фоні й відновлює, коли додаток знову на екрані. «Вручну» чекає на «Відновити». «Ніколи» — сеанс працює далі.</string>
     <string name="mode_startup">Запуск</string>
     <string name="mode_steam_startup">Запускати Steam разом із DroidDeck</string>
-    <string name="mode_steam_startup_hint">Відкриває сеанс Steam під час запуску DroidDeck.</string>
     <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">Пошук випусків…</string>
     <string name="mode_decky_ready">Можна встановити %1$s.</string>

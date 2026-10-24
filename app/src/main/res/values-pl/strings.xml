@@ -290,7 +290,6 @@
     <string name="mode_suspend_note">„Auto” wstrzymuje w tle i wznawia po powrocie. „Ręcznie” czeka na „Wznów”. „Nigdy” nie przerywa działania.</string>
     <string name="mode_startup">Uruchamianie</string>
     <string name="mode_steam_startup">Uruchamiaj Steam z DroidDeck</string>
-    <string name="mode_steam_startup_hint">Otwiera sesję Steam przy uruchomieniu DroidDeck.</string>
     <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">Sprawdzanie wydań…</string>
     <string name="mode_decky_ready">Gotowe do instalacji: %1$s.</string>

@@ -65,7 +65,6 @@ import com.droiddeck.launcher.gpu.SteamVr
 import com.droiddeck.launcher.gpu.ScreenEffectLooks
 import com.droiddeck.launcher.gpu.ScreenEffects
 import com.droiddeck.launcher.gpu.Lossless
-import com.droiddeck.launcher.gpu.TurnipDriver
 import com.droiddeck.launcher.input.EvdevKeys
 import com.droiddeck.launcher.input.InputSpace
 import com.droiddeck.launcher.input.KeyboardHost
@@ -99,7 +98,6 @@ import com.droiddeck.launcher.session.SessionArtifacts
 import com.droiddeck.launcher.session.SessionLogShare
 import com.droiddeck.launcher.session.SessionPhase
 import com.droiddeck.launcher.session.SessionPaths
-import com.droiddeck.launcher.wayland.HdrSupport
 import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionState
 import com.droiddeck.launcher.session.ProtonDefault
@@ -1640,31 +1638,15 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (!SessionState.running) {
             SessionEvents.transition(SessionPhase.STARTING_COMPOSITOR, "compositor.starting")
         }
-        val runtimeDir = File(filesDir, ".wayland-rt").apply { mkdirs() }
-        FileUtils.copyAsset(this, "wayland/keymap.xkb", File(runtimeDir, "keymap.xkb"))
-        com.droiddeck.launcher.input.VrControllers.publish(this)
-
-        val turnip = TurnipDriver(this)
-        com.droiddeck.launcher.gpu.DriverSetupLog.write(this, "surface.driver-setup")
-        if (!CompositorHost.isStarted) {
-            CompositorHost.displayChoice = SessionPrefs.androidDriver(this)
-            com.droiddeck.launcher.gpu.AutoDriverTrial.displayStarting(this, SessionPrefs.androidDriver(this))
-        }
-        val driverId = if (CompositorHost.isStarted) null else turnip.install()
-
         val previous = SessionState.outputSize
         val live = if (SessionState.followScreen && !isInPictureInPictureMode)
             com.droiddeck.launcher.session.SessionDisplay.followSize(holder.surfaceFrame.width(), holder.surfaceFrame.height())
         else null
-        val size = live ?: if (SessionState.running) previous else glassesOutputSize() ?: outputSize()
+        val size = live ?: if (SessionState.running && SessionState.firstFrameSeen) previous else glassesOutputSize() ?: outputSize()
         SessionState.outputSize = size
         if (!SessionState.running) SessionState.refreshHz = refreshHz()
         val panel = panelBounds()
         SessionState.upscaleRatio = maxOf(panel.width(), panel.height()).toFloat() / maxOf(size.first, size.second).coerceAtLeast(1)
-        Thread({
-            runCatching { GameEnvironmentStore.publish(this) }
-                .onFailure { Log.e(TAG, "Could not update game environment", it) }
-        }, "game-env-publish").start()
         WaylandCompositor.nativeSetScaleMode(SCALE_FIT, ALIGN_CENTER)
         WaylandCompositor.nativeSetUpscaler(SessionPrefs.upscaler(this))
         WaylandCompositor.nativeSetUpscaleSharpness(SessionPrefs.upscaleSharpness(this))
@@ -1673,42 +1655,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         pushCardboard(activeCardboard)
         WaylandCompositor.nativeSetCardboardPoseFile(File(filesDir, ".wayland-rt/droiddeck-headpose").path)
         com.droiddeck.launcher.glasses.SpatialTracking.attachPublisher(File(filesDir, ".wayland-rt/droiddeck-spatialpose").path)
-        if (!SessionState.running) {
-            val waylandLog = File(SessionPaths.beginOrCurrent(this), "wayland.log")
-            WaylandCompositor.setSessionLogFile(waylandLog)
-            try {
-                android.system.Os.setenv("BL_WAYLAND_LOG", waylandLog.path, true)
-            } catch (e: Exception) {
-                Log.w(TAG, "could not point the compositor's log at $waylandLog", e)
-            }
-        }
-        if (!CompositorHost.isStarted) {
-            val mode = SessionPrefs.prefMode(intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_STEAM)
-            val probe = HdrSupport.probe(this, glassesScreen?.display)
-            WaylandCompositor.nativeSetHdrDisplay(
-                probe.displayId, probe.name, probe.formats, probe.hdr10,
-                probe.maxLuminance, probe.maxAverageLuminance, probe.minLuminance,
-                probe.ratioAvailable, probe.ratio, Build.VERSION.SDK_INT,
-            )
-            val wanted = SessionPrefs.hdr(this, mode)
-            val on = wanted && probe.reason == null
-            SessionState.hdr = on
-            if (on) {
-                try { android.system.Os.setenv("DROIDDECK_WAYLAND_HDR", "1", true) } catch (e: Exception) { Log.w(TAG, "DROIDDECK_WAYLAND_HDR", e) }
-                WaylandCompositor.nativeSetZeroCopy(true)
-            }
-            WaylandCompositor.nativeSetHdrRequest(
-                if (on) WaylandCompositor.HDR_MODE_ON else WaylandCompositor.HDR_MODE_OFF,
-                "$mode session settings" + (if (wanted && !on) " (refused: ${probe.reason})" else ""),
-                on, on,
-            )
-            Log.i(TAG, "hdr: " + (if (on) "on" else if (wanted) "wanted but ${probe.reason}" else "off") + " · display ${probe.formats.ifEmpty { "SDR" }}")
-        }
-        com.droiddeck.launcher.gpu.DriverSetupLog.write(this, "compositor.start driver=$driverId")
         CompositorHost.startOrAttach(
-            this, holder.surface, runtimeDir.path,
-            driverId?.let { turnip.driverPath(it) }, driverId?.let { turnip.libraryName(it) },
-            applicationInfo.nativeLibraryDir, size.first, size.second, refreshHz(), outputFpsLimit(),
+            this, holder.surface, size.first, size.second, refreshHz(), outputFpsLimit(),
+            SessionPrefs.prefMode(intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_STEAM),
+            glassesScreen?.display,
         )
         onOutputAttached(holder)
         if (SessionState.running && size != previous) {

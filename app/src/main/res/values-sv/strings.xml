@@ -290,7 +290,6 @@
     <string name="mode_suspend_note">Auto pausar i bakgrunden och återupptar när den visas. Manuell väntar på Återuppta. Aldrig fortsätter köra.</string>
     <string name="mode_startup">Uppstart</string>
     <string name="mode_steam_startup">Starta Steam med DroidDeck</string>
-    <string name="mode_steam_startup_hint">Öppnar Steam-sessionen när DroidDeck startar.</string>
     <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">Söker efter utgåvor…</string>
     <string name="mode_decky_ready">Redo att installera %1$s.</string>
