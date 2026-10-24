@@ -304,7 +304,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var lowLatencyController by mutableStateOf(false)
     private var lowLatencyTouch by mutableStateOf(false)
     private var padType by mutableStateOf(SessionPrefs.CONTROLLER_DECK)
-    private var androidKeyboardVisible by mutableStateOf(false)
+    private val androidKeyboardVisible: Boolean
+        get() = keyboard?.imeVisible == true
     private val steamKeyboardVisible: Boolean
         get() = SessionState.mode == SessionService.MODE_STEAM && AgentGuest.steamKeyboard
     private var achievementsInFront by mutableStateOf<AchievementsInFront?>(null)
@@ -534,7 +535,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             cursorVisible = false
         }
         onScreenControls = OnScreenControls(this, bridge, onKeyboard = ::toggleKeyboard).also { root.addView(it) }
-        keyboard = KeyboardHost(this, onImeVisibilityChanged = { androidKeyboardVisible = it }).also { root.addView(it) }
+        keyboard = KeyboardHost(this).also { root.addView(it) }
         touchpad = TouchpadGestures(PointerGestures.slop(this), pointerListener)
         directTouchHold = DirectTouchHold(PointerGestures.slop(this), pointerListener) {
             WaylandCompositor.nativeSendTouch(3, -1, 0, 0)
@@ -2826,7 +2827,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             ?.let { FileUtils.readString(it)?.trim()?.lowercase() }
             ?: SessionPrefs.oscMode(this)
         val controls = onScreenControls ?: return
-        if (pipUi || unfoldedPanel != null || androidKeyboardVisible || steamKeyboardVisible ||
+        if (pipUi || unfoldedPanel != null || androidKeyboardVisible ||
             (SessionState.mode == SessionService.MODE_STEAM && !SessionPrefs.builtinPad(this))) {
             onScreenButtonsVisible = false
             controls.releaseAll()

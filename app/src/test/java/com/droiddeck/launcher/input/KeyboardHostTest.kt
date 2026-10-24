@@ -10,7 +10,6 @@ import android.view.inputmethod.InputMethodManager
 import android.widget.FrameLayout
 import androidx.core.graphics.Insets
 import androidx.core.view.WindowInsetsCompat
-import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -29,13 +28,12 @@ class KeyboardHostTest {
     private lateinit var host: KeyboardHost
     private lateinit var root: FrameLayout
     private lateinit var previousFocus: View
-    private val visibilityChanges = mutableListOf<Boolean>()
 
     @Before fun setUp() {
         val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
         imm = activity.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
         previousFocus = View(activity).apply { isFocusableInTouchMode = true }
-        host = KeyboardHost(activity, onImeVisibilityChanged = { visibilityChanges += it })
+        host = KeyboardHost(activity)
         root = FrameLayout(activity).apply { addView(previousFocus); addView(host) }
         activity.setContentView(root)
         previousFocus.requestFocus()
@@ -80,8 +78,9 @@ class KeyboardHostTest {
     @Test fun systemDismissalEndsEditingAndRestoresFocus() {
         host.show()
         applyImeVisibility(true)
+        assertTrue(host.imeVisible)
         applyImeVisibility(false)
-        assertEquals(listOf(true, false), visibilityChanges)
+        assertFalse(host.imeVisible)
         assertFalse(host.onCheckIsTextEditor())
         assertNull(host.onCreateInputConnection(EditorInfo()))
         assertTrue(previousFocus.hasFocus())
@@ -95,11 +94,12 @@ class KeyboardHostTest {
     @Test fun removingHostClosesItsKeyboardAndClearsVisibility() {
         host.show()
         applyImeVisibility(true)
+        assertTrue(host.imeVisible)
         root.removeView(host)
         idle()
         assertFalse(shadowOf(imm).isSoftInputVisible)
         assertFalse(host.onCheckIsTextEditor())
-        assertEquals(listOf(true, false), visibilityChanges)
+        assertFalse(host.imeVisible)
     }
 
     private fun applyImeVisibility(visible: Boolean) {

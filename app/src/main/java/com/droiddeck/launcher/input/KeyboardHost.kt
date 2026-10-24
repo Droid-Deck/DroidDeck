@@ -12,21 +12,20 @@ import android.view.inputmethod.BaseInputConnection
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
+import androidx.compose.runtime.mutableStateOf
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 
 class KeyboardHost(
     context: Context,
-    private val onImeVisibilityChanged: (Boolean) -> Unit = {},
     private val sendKeyEvent: (KeyEvent) -> Boolean,
 ) : View(context) {
-    constructor(activity: Activity, onImeVisibilityChanged: (Boolean) -> Unit = {}) :
-        this(activity, onImeVisibilityChanged, { activity.dispatchKeyEvent(it) })
+    constructor(activity: Activity) : this(activity, { activity.dispatchKeyEvent(it) })
 
     private val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
     private val map: KeyCharacterMap = KeyCharacterMap.load(KeyCharacterMap.VIRTUAL_KEYBOARD)
-    private var active = false
-    private var imeVisible = false
+    private val imeVisibility = mutableStateOf(false)
+    val imeVisible: Boolean get() = imeVisibility.value
     private var previousFocus: View? = null
     // Fullscreen content can consume IME insets before they reach this view.
     private val observeIme = ViewTreeObserver.OnGlobalLayoutListener {
@@ -40,10 +39,10 @@ class KeyboardHost(
         layoutParams = android.widget.FrameLayout.LayoutParams(1, 1)
     }
 
-    override fun onCheckIsTextEditor(): Boolean = active
+    override fun onCheckIsTextEditor(): Boolean = isFocusable
 
     override fun onCreateInputConnection(outAttrs: EditorInfo): InputConnection? {
-        if (!active) return null
+        if (!isFocusable) return null
         outAttrs.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS or
             InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
         outAttrs.imeOptions = EditorInfo.IME_ACTION_NONE or EditorInfo.IME_FLAG_NO_FULLSCREEN or
@@ -51,7 +50,7 @@ class KeyboardHost(
         return KeyConnection()
     }
 
-    fun toggle() = if (active && imeVisible) hide() else show()
+    fun toggle() = if (isFocusable && imeVisible) hide() else show()
 
     override fun onApplyWindowInsets(insets: WindowInsets): WindowInsets {
         applyInsets(WindowInsetsCompat.toWindowInsetsCompat(insets, this))
@@ -61,18 +60,11 @@ class KeyboardHost(
     private fun applyInsets(insets: WindowInsetsCompat) {
         val visible = insets.isVisible(WindowInsetsCompat.Type.ime())
         if (imeVisible && !visible) releaseFocus()
-        updateVisibility(visible)
-    }
-
-    private fun updateVisibility(visible: Boolean) {
-        if (imeVisible == visible) return
-        imeVisible = visible
-        onImeVisibilityChanged(visible)
+        imeVisibility.value = visible
     }
 
     fun show() {
-        if (!active) previousFocus = rootView.findFocus()?.takeUnless { it === this }
-        active = true
+        if (!isFocusable) previousFocus = rootView.findFocus()?.takeUnless { it === this }
         isFocusable = true
         isFocusableInTouchMode = true
         requestFocus()
@@ -86,7 +78,6 @@ class KeyboardHost(
     }
 
     private fun releaseFocus() {
-        active = false
         isFocusable = false
         isFocusableInTouchMode = false
         clearFocus()
@@ -101,8 +92,8 @@ class KeyboardHost(
 
     override fun onDetachedFromWindow() {
         viewTreeObserver.removeOnGlobalLayoutListener(observeIme)
-        if (active) hide()
-        updateVisibility(false)
+        if (isFocusable) hide()
+        imeVisibility.value = false
         super.onDetachedFromWindow()
     }
 

@@ -3,6 +3,8 @@ package com.droiddeck.launcher.input
 import android.os.Looper
 import android.view.View
 import androidx.compose.runtime.MutableState
+import androidx.core.graphics.Insets
+import androidx.core.view.WindowInsetsCompat
 import com.droiddeck.launcher.SessionActivity
 import com.droiddeck.launcher.agent.AgentGuest
 import com.droiddeck.launcher.session.SessionPrefs
@@ -35,6 +37,7 @@ class SessionKeyboardPadTest {
         SessionState.mode = SessionService.MODE_STEAM
         controls = OnScreenControls(activity, null).apply { visibility = View.GONE }
         ReflectionHelpers.setField(activity, "onScreenControls", controls)
+        ReflectionHelpers.setField(activity, "keyboard", KeyboardHost(activity))
     }
 
     @After fun tearDown() {
@@ -106,8 +109,13 @@ class SessionKeyboardPadTest {
 
     private fun routedTouchMode() = ReflectionHelpers.getField<String>(activity, "routedTouchMode")
 
+    @Suppress("DEPRECATION")
     private fun androidKeyboard(open: Boolean) {
-        ReflectionHelpers.getField<MutableState<Boolean>>(activity, "androidKeyboardVisible\$delegate").value = open
+        val host = ReflectionHelpers.getField<KeyboardHost>(activity, "keyboard")
+        val insets = WindowInsetsCompat.Builder()
+            .setSystemWindowInsets(Insets.of(0, 0, 0, if (open) 300 else 0))
+            .build()
+        host.dispatchApplyWindowInsets(insets.toWindowInsets()!!)
     }
 
     @Suppress("UNCHECKED_CAST")

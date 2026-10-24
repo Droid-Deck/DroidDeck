@@ -125,7 +125,7 @@ class SessionSecondScreenTest {
             panel.create()
             panel.showMode(SecondScreenMode.KEYBOARD_TRACKPAD)
             val buttons = descendants(panel.window!!.decorView).filterIsInstance<Button>().toList()
-            assertTrue(buttons.any { it.text == context.getString(R.string.second_show_keyboard) })
+            assertTrue(buttons.any { it.text == context.getString(R.string.drawer_android_keyboard) })
             val shortcuts = buttons.filter { it.text == "STEAM" || it.text == "…" }
             if (steam) {
                 assertEquals(2, shortcuts.size)
@@ -151,7 +151,8 @@ class SessionSecondScreenTest {
             onScreenButtonsVisible = false, suspendPolicy = "auto", backActionsInverted = false,
             touchMode = "auto", touchAuto = "trackpad", fexPreset = "default",
             secondScreenMode = SecondScreenMode.NONE, secondScreenDisplays = displays, selectedSecondScreenDisplay = 1,
-            onHud = {}, onFrameGenPick = {}, onImportLossless = {}, onKeyboard = {}, onHardwareKeyboard = {},
+            onHud = {}, onFrameGenPick = {}, onImportLossless = {}, onAndroidKeyboard = {},
+            onSteamKeyboard = if (steam) ({}) else null,
             onSteamMenu = null, onQam = null, onOsc = {}, onSuspendPolicy = {}, onBackActionsInverted = {},
             onTouch = {}, onFexPreset = {}, onSecondScreenMode = select, onSecondScreenDisplay = {},
             onLaunchAndroidApp = { _, _ -> }, onBackground = {}, onShareLogs = {}, onStop = {}, onClose = {})

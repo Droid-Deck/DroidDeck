@@ -20,10 +20,9 @@ import org.robolectric.util.ReflectionHelpers
 @Config(application = Application::class, manifest = Config.NONE, sdk = [33])
 @LooperMode(LooperMode.Mode.PAUSED)
 class AgentGuestKeyboardTest {
-    private lateinit var observer: FileObserver
+    private val observer = newObserver()
 
     @Before fun setUp() {
-        observer = newObserver()
         ReflectionHelpers.setField(AgentGuest, "observer", observer)
     }
 
