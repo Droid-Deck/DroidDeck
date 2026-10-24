@@ -339,6 +339,8 @@
     <string name="mode_mangoapp_hint">Turn off if games crash or go black in Deck mode. Applies next session.</string>
     <string name="mode_return_after_game">Return to DroidDeck after a game</string>
     <string name="mode_return_after_game_hint">When a game you started from DroidDeck or another launcher closes, Steam exits cleanly (cloud saves finish first) and you go back there. Off: stay in Steam.</string>
+    <string name="mode_shader_precache">Shader pre-caching</string>
+    <string name="mode_shader_precache_hint">Steam downloads shaders prebuilt for your games and processes them in the background, so games stutter less. Off saves data, storage and battery; games build shaders as they play instead. The same setting as Steam’s Downloads > Shader Pre-Caching. Applies next session.</string>
     <string name="mode_steam_repair">Repair Steam client</string>
     <string name="mode_steam_repair_hint">Downloads the Steam client again the next time Steam starts. Use it if Steam stays on its loading screen. Games, sign-in and settings are kept.</string>
     <string name="mode_steam_repair_queued">The Steam client will be downloaded again the next time Steam starts.</string>
@@ -573,8 +575,8 @@
     <string name="perf_sysmem">Turnip: sysmem rendering</string>
     <string name="perf_sysmem_hint">Faster for the Steam client; in games the driver picks tile or system-memory rendering per pass. Required on Adreno 710/720/722.</string>
     <string name="perf_xalia">Skip Steam\'s xalia helper</string>
-    <string name="perf_fastsync">droiddeck-ntsync (experimental)</string>
-    <string name="perf_fastsync_hint">A userspace stand-in for the Linux ntsync driver, for testing. While it is on, Proton uses it instead of droiddeck-esync and droiddeck-fsync. Works with Proton Experimental ARM64, GE-Proton and proton-cachyos. Applies next session.</string>
+    <string name="perf_fastsync">droiddeck-ntsync</string>
+    <string name="perf_fastsync_hint">A userspace stand-in for the Linux ntsync driver. While it is on, Proton uses it instead of droiddeck-esync and droiddeck-fsync. Works with Proton Experimental ARM64, GE-Proton and proton-cachyos. Applies next session.</string>
     <string name="perf_esync">droiddeck-esync</string>
     <string name="perf_fsync">droiddeck-fsync first</string>
     <string name="perf_fsync_hint">Runs Proton\'s own fsync on the stock Proton files, with futex_waitv supplied in userspace, so it needs no pack and keeps working the moment Steam updates Proton. While it is on, games use it ahead of droiddeck-esync, except the few Proton keeps off fsync. Applies next session.</string>
@@ -585,6 +587,8 @@
     <string name="perf_fastpath">proot fast path</string>
     <string name="perf_fastpath_needs_seccomp">Needs proot\'s seccomp filter.</string>
     <string name="perf_fastpath_hint">Faster file lookups and less stutter. Turn off if a program can\'t find its files.</string>
+    <string name="perf_cursor_composite">Draw the cursor inside gamescope</string>
+    <string name="perf_cursor_composite_hint">Gamescope paints the pointer itself instead of handing it to Android. Turn on for a controller-driven cursor. Off is faster on a phone. Applies next session.</string>
     <string name="perf_identity">Session identity</string>
     <string name="perf_hostname">Host name</string>
     <string name="perf_hostname_hint">The name Steam sees for this device. Blank restores %1$s.</string>
@@ -1118,6 +1122,9 @@
     <string name="gpu_hide_other">Hide drivers for other GPUs</string>
     <string name="gpu_show_other">Show drivers for other GPUs</string>
     <string name="gpu_advanced">Advanced</string>
+    <string name="gpu_ubwc_title">UBWC compatibility</string>
+    <string name="gpu_ubwc_hint">Try On or Off if Steam or Android shows stripes or flickering. Applies to both drivers after restarting DroidDeck.</string>
+    <string name="gpu_ubwc_restart">Restart DroidDeck to apply.</string>
     <string name="gpu_set_with_display">Set together with the display driver: %1$s carries both.</string>
     <string name="gpu_set_with_runtime">Set together with the runtime driver: %1$s carries both.</string>
     <string name="gpu_runtime_hint">Used by games and the desktop.</string>
@@ -1477,6 +1484,10 @@
     <string name="theme_icon_blue_detail">Black ground, white type, the blue for everything selected, focused or pressed.</string>
     <string name="theme_electric">Electric navy</string>
     <string name="theme_electric_detail">The blue brighter, on surfaces that lean navy instead of grey.</string>
+    <string name="theme_inner_gamer">Inner Gamer</string>
+    <string name="theme_inner_gamer_detail">Colors that cycle through the rainbow. Follows Android\'s animation settings.</string>
+    <string name="theme_rgb_speed">Speed</string>
+    <string name="theme_rgb_speed_hint">How fast the colors cycle.</string>
     <string name="theme_gradient">Gradient</string>
     <string name="theme_gradient_detail">Your own primary and secondary colors, blended on buttons and highlights.</string>
     <string name="theme_gradient_primary">Primary</string>
@@ -1598,6 +1609,13 @@
     <string name="fm_conflict_skip">Skip</string>
     <string name="fm_select_this_folder">Select this folder</string>
     <string name="fm_back">Back</string>
+    <string name="fm_exit">Exit</string>
+    <string name="fm_return_to_start">Return to start</string>
+    <string name="fm_start_unavailable">Starting folder is no longer available</string>
+    <string name="fm_cancel_operation_title">Cancel operation?</string>
+    <string name="fm_cancel_operation_confirmation">The operation will be cancelled. Are you sure?</string>
+    <string name="fm_accept">Accept</string>
+    <string name="fm_decline">Decline</string>
     <string name="fm_drive_not_readable">%1$s is mounted but not readable right now</string>
     <string name="fm_list_view">List view</string>
     <string name="fm_grid_view">Grid view</string>
@@ -2082,6 +2100,29 @@
     <string name="stores_itch_no_exe">No Windows game found in the download</string>
     <string name="stores_itch_extract_failed">Could not extract the download (exit %1$d)</string>
     <string name="stores_itch_no_catalog">itch.io did not answer</string>
+    <string name="stores_itch_sort_popular">Popular</string>
+    <string name="stores_itch_sort_new">Most recent</string>
+    <string name="stores_itch_sort_new_popular">New &amp; popular</string>
+    <string name="stores_itch_price_paid">Paid</string>
+    <string name="stores_itch_price_under_5">$5 or less</string>
+    <string name="stores_itch_price_under_15">$15 or less</string>
+    <string name="stores_itch_sort_top_rated">Top rated</string>
+    <string name="stores_itch_sort_top_sellers">Top sellers</string>
+    <string name="stores_itch_price_any">Any price</string>
+    <string name="stores_itch_price_free">Free</string>
+    <string name="stores_itch_price_sale">On sale</string>
+    <string name="stores_itch_load_more">Load more</string>
+    <string name="stores_itch_platform_any">Any platform</string>
+    <string name="stores_itch_platform_mobile_web">Mobile web</string>
+    <string name="stores_itch_tag_add">Add a tag</string>
+    <string name="stores_itch_tag_title">Filter by tag</string>
+    <string name="stores_itch_platform_windows" translatable="false">Windows</string>
+    <string name="stores_itch_platform_macos" translatable="false">macOS</string>
+    <string name="stores_itch_platform_linux" translatable="false">Linux</string>
+    <string name="stores_itch_platform_android" translatable="false">Android</string>
+    <string name="stores_itch_platform_ios" translatable="false">iOS</string>
+    <string name="stores_itch_platform_web" translatable="false">Web</string>
+    <string name="stores_itch_browse_failed">Could not load games from itch.io</string>
     <string name="stores_itch_archive">%1$s archives are not supported</string>
     <string name="stores_itch_download_failed">itch.io answered HTTP %1$d</string>
     <string name="stores_free">Free</string>
@@ -2250,6 +2291,7 @@
     <string name="stores_login_close">Close</string>
     <string name="stores_login_retry">Try again</string>
     <string name="stores_login_finishing">Finishing sign-in…</string>
+    <string name="stores_xbox_sign_in_again">Microsoft rejected the Xbox sign-in. Sign out of Xbox in Stores, sign in again, then resume.</string>
     <string name="stores_login_error_network">The sign-in page could not be loaded: %1$s</string>
     <string name="stores_login_error_idp_blocked">This provider refuses to sign in from an embedded page. Sign in with your store password instead.</string>
     <string name="stores_login_error_http">The sign-in page answered with an error (HTTP %1$d).</string>

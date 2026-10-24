@@ -28,6 +28,7 @@ class App : Application() {
         if (process == "$packageName:vr_recovery" || process == "$packageName:rgb_diagnostic") return
         CrashHandler.install(this)
         com.droiddeck.launcher.session.QuestExperimental.initialize(this)
+        com.droiddeck.launcher.session.SessionPrefs.applyNtsyncDefault(this)
         com.droiddeck.launcher.session.SessionPrefs.settleGpuDriverMode(this)
         com.droiddeck.launcher.update.AppUpdates.init(this)
         com.droiddeck.launcher.core.DownloadSource.init(this)

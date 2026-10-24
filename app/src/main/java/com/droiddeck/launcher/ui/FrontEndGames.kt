@@ -424,7 +424,7 @@ private fun GamesDialogs(a: FrontEndActions, games: List<Library.SteamGame>) {
     val st = GamesDialogState
     if (st.adding) ExePickerDialog(
         stringResource(R.string.games_add_title),
-        onAddAll = { dir ->
+        onAddAll = { dir, showHidden ->
             st.summary = emptyList<com.droiddeck.launcher.frontend.AddedGames.Game>() to 0
             st.checking = dir.name
             scope.launch {
@@ -433,6 +433,7 @@ private fun GamesDialogs(a: FrontEndActions, games: List<Library.SteamGame>) {
                         ctx.applicationContext, dir,
                         onGame = { g -> scope.launch { st.summary?.let { (list, n) -> st.summary = (list + g) to n } } },
                         onChecking = { name -> scope.launch { st.checking = name } },
+                        showHidden = showHidden,
                     )
                 }
                 st.checking = null

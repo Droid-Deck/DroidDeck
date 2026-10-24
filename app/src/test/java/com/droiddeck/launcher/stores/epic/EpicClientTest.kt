@@ -285,6 +285,28 @@ class EpicClientTest {
         assertTrue(EpicClient.loopback("http://localhost:5/launcher/authorized?code=1"))
     }
 
+    @Test fun theManifestLaunchCommandJoinsTheGameArguments() {
+        val store = com.droiddeck.launcher.stores.Store.EPIC
+        val epicArgs = listOf("-EpicPortal", "-epicapp=Fig", "-epicenv=Prod")
+        val installed = com.droiddeck.launcher.stores.StoreGameSidecar(store, "Fig", "Fig Game", exe = "Fig.exe", args = epicArgs)
+        val first = EpicClientLibrary.withLaunchArgs(installed, listOf("-PCStore=EGS"))
+        assertEquals(epicArgs + "-PCStore=EGS", first.args)
+        assertTrue(EpicClientLibrary.withLaunchArgs(first, listOf("-PCStore=EGS")) === first)
+        val updated = EpicClientLibrary.withLaunchArgs(first, listOf("-PCStore=EGS", "-log=a b.txt"))
+        assertEquals(epicArgs + listOf("-PCStore=EGS", "-log=a b.txt"), updated.args)
+        val dropped = EpicClientLibrary.withLaunchArgs(updated, emptyList())
+        assertEquals(epicArgs, dropped.args)
+        assertFalse(dropped.extra.containsKey("launchArgs"))
+        val reinstalled = first.copy(args = epicArgs)
+        assertEquals(epicArgs + "-PCStore=EGS", EpicClientLibrary.withLaunchArgs(reinstalled, listOf("-PCStore=EGS")).args)
+        assertTrue(EpicClientLibrary.withLaunchArgs(installed, emptyList()) === installed)
+        val own = installed.copy(args = epicArgs + "-PCStore=EGS")
+        assertTrue(EpicClientLibrary.withLaunchArgs(own, listOf("-PCStore=EGS")) === own)
+        val ownUpdated = EpicClientLibrary.withLaunchArgs(own, listOf("-PCStore=EGS", "-log=a b.txt"))
+        assertEquals(epicArgs + listOf("-PCStore=EGS", "-log=a b.txt"), ownUpdated.args)
+        assertEquals(epicArgs + "-PCStore=EGS", EpicClientLibrary.withLaunchArgs(ownUpdated, emptyList()).args)
+    }
+
     @Test fun itemsDescribeTheInstallForTheLauncher() {
         val install = EpicClientLibrary.Install(
             "Fig", "ns1", "item1", "Fig Game", "1.0.5", "Binaries/Win64/Fig.exe", "/root/Games/Stores/Epic/Fig Game",

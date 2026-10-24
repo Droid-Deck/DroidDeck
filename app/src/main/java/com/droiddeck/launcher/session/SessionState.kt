@@ -2,6 +2,7 @@ package com.droiddeck.launcher.session
 
 import java.io.File
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 
@@ -46,6 +47,10 @@ object SessionState {
     @Volatile
     var runtimeDriver: String? = null
     var suspended by mutableStateOf(false)
+    var resumeRequested by mutableStateOf(false)
+    var resuming by mutableStateOf(false)
+    var resumeFailures by mutableIntStateOf(0)
+    var resumeFailed by mutableStateOf(false)
     @Volatile var pipActive = false
     @Volatile
     var program: String? = null

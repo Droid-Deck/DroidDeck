@@ -53,7 +53,8 @@ arm64 client down first.
   ("Steam now requires user namespaces") when `steam-runtime-check-requirements`' bwrap probe cannot
   create a user namespace, which no Android app can. `STEAM_RUNTIME_STEAMRT` points at
   `steamrt-shim`: Valve's runtime linked file by file with only the probe replaced (`exit 0`). proot
-  is the container, as for the arm64 client.
+  is the container, as for the arm64 client. `droiddeck-steamrt-shim` builds it, and builds the same
+  shim for the arm64 client if that one is containerized too ([arm64-steam-client.md](arm64-steam-client.md)).
 - **Re-exec after an update.** The client re-executes itself inside the SteamRT container through
   `pressure-vessel-wrap` (bwrap). `STEAM_STEAMRT_RECURSION_GUARD=1` says it is already inside one; the
   FEX rootfs with the client's `steamrt64` libraries is that container.

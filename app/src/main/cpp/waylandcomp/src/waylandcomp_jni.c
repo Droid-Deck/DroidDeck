@@ -16,6 +16,7 @@
 #include "effects_chain.h"
 #include "cardboard.h"
 #include "droiddeck_color.h"
+#include "gpu_clock_pin.h"
 
 extern int droiddeck_wayland_run(void);
 extern void droiddeck_wayland_set_scale_mode(int mode, int alignment);
@@ -634,8 +635,14 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeTextInputDelete(JNIE
 extern void adrenotools_set_turbo(bool turbo);
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetGpuTurbo(JNIEnv *env, jclass clazz, jboolean on) {
-    (void)env; (void)clazz;
-    adrenotools_set_turbo(on == JNI_TRUE);
+    (void)clazz;
+    if (!gpu_clock_pin_set(on == JNI_TRUE)) {
+        int saved_errno = errno;
+        jclass error = (*env)->FindClass(env, "java/lang/IllegalStateException");
+        if (error) (*env)->ThrowNew(env, error, strerror(saved_errno));
+    }
+    // Clear a legacy global pin when recovering its marker after an app upgrade or crash.
+    if (on != JNI_TRUE) adrenotools_set_turbo(false);
 }
 
 JNIEXPORT jint JNICALL

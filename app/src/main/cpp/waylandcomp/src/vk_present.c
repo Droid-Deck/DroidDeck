@@ -1626,6 +1626,10 @@ static int render_impl(int scene_w, int scene_h, const struct vkp_draw *draws, i
         VkImageLayout result_layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
         if (fx) {
             int mapped_w = (int)(scene_w * g_map.kx + 0.5f), mapped_h = (int)(scene_h * g_map.ky + 0.5f);
+            /* Frame generation samples every output pixel. Upscaling first made it interpolate
+             * the whole panel (3200x1440 on a 1440p phone) and rebuild on Steam's first frame.
+             * Grade at the game's size instead; the screen blit still scales to the panel. */
+            if (fg) { mapped_w = scene_w; mapped_h = scene_h; }
             vkp_effects_set_formats(scene_fmt, scene_fmt);
             result = vkp_effects_run(cmd, scene_img, scene_w, scene_h, mapped_w, mapped_h, &rw, &rh);
             result_layout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;

@@ -277,7 +277,7 @@ object AddedGames {
 
     class FolderResult(val added: List<Game>, val already: Int)
 
-    fun addFolder(context: Context, dir: File, onGame: (Game) -> Unit = {}, onChecking: (String?) -> Unit = {}): FolderResult {
+    fun addFolder(context: Context, dir: File, onGame: (Game) -> Unit = {}, onChecking: (String?) -> Unit = {}, showHidden: Boolean = false): FolderResult {
         val app = context.applicationContext
         // Binds are mounted at session start, so a new one reaches the session from the next start.
         if (guestPath(app, dir) == null) bindFolder(app, dir)
@@ -286,7 +286,7 @@ object AddedGames {
         var already = 0
         val fresh = ArrayList<String>()
         val added = ArrayList<Game>()
-        for (sub in dir.listFiles { f -> f.isDirectory && !f.name.startsWith(".") }?.sortedBy { it.name.lowercase() }.orEmpty()) {
+        for (sub in dir.listFiles { f -> f.isDirectory && (showHidden || !f.name.startsWith(".")) }?.sortedBy { it.name.lowercase() }.orEmpty()) {
             val path = canonical(sub)
             if (listed.any { it == path || inside(path, it) || inside(it, path) }) { already++; continue }
             onChecking(sub.name)
@@ -390,11 +390,17 @@ object AddedGames {
         }
     }
 
+    private class LoginUser(val id: String, val mostRecent: Boolean, val autoLogin: Boolean, val timestamp: Long)
+
     internal fun accountConfig(root: File): File? {
         val users = runCatching { File(root, "config/loginusers.vdf").readText() }.getOrDefault("")
-        val recent = Regex(""""(\d{5,})"\s*\{([^}]*)\}""").findAll(users)
-            .lastOrNull { Regex(""""MostRecent"\s*"1"""").containsMatchIn(it.groupValues[2]) }
-        val account = recent?.groupValues?.get(1)?.toLongOrNull()?.let { (it - 76561197960265728L).toString() }
+        val recent = Regex(""""(\d{5,})"\s*\{([^}]*)\}""").findAll(users).map {
+            val body = it.groupValues[2]
+            LoginUser(it.groupValues[1], Regex(""""MostRecent"\s*"1"""").containsMatchIn(body), Regex(""""AutoLogin"\s*"1"""").containsMatchIn(body),
+                Regex(""""timestamp"\s*"(\d+)"""").find(body)?.groupValues?.get(1)?.toLongOrNull() ?: 0L)
+        }.filter { it.mostRecent || it.autoLogin || it.timestamp > 0 }.toList().asReversed()
+            .maxWithOrNull(compareBy<LoginUser>({ it.mostRecent }, { it.autoLogin }, { it.timestamp }))
+        val account = recent?.id?.toLongOrNull()?.let { (it - 76561197960265728L).toString() }
             ?: File(root, "userdata").list()?.filter { it.isNotEmpty() && it.all(Char::isDigit) && it != "0" }?.singleOrNull()
         return account?.let { File(root, "userdata/$it/config") }
     }

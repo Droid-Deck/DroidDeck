@@ -59,6 +59,7 @@ object SessionFiles {
             "usr/local/bin/droiddeck-steam-install" to "usr/local/bin/droiddeck-steam-install",
             "usr/local/bin/droiddeck-steam-ui-scale" to "usr/local/bin/droiddeck-steam-ui-scale",
             "usr/local/bin/droiddeck-steam-language" to "usr/local/bin/droiddeck-steam-language",
+            "usr/local/bin/droiddeck-steam-shaders" to "usr/local/bin/droiddeck-steam-shaders",
             "usr/local/bin/droiddeck-steam-desktop-ui" to "usr/local/bin/droiddeck-steam-desktop-ui",
             "usr/local/bin/droiddeck-steam-library" to "usr/local/bin/droiddeck-steam-library",
             "usr/local/bin/droiddeck-seed-redists" to "usr/local/bin/droiddeck-seed-redists",
@@ -80,6 +81,7 @@ object SessionFiles {
             "usr/local/bin/droiddeck-steam-games" to "usr/local/bin/droiddeck-steam-games",
             "usr/local/bin/droiddeck-pad-defaults" to "usr/local/bin/droiddeck-pad-defaults",
             "usr/local/bin/droiddeck-steam-x64" to "usr/local/bin/droiddeck-steam-x64",
+            "usr/local/bin/droiddeck-steamrt-shim" to "usr/local/bin/droiddeck-steamrt-shim",
             "usr/local/bin/droiddeck-x64-arm-proton" to "usr/local/bin/droiddeck-x64-arm-proton",
             "usr/local/bin/droiddeck-x64-arm-webhelper" to "usr/local/bin/droiddeck-x64-arm-webhelper",
             "usr/local/bin/droiddeck-x64-webhelper" to "usr/local/bin/droiddeck-x64-webhelper",
@@ -390,10 +392,12 @@ object SessionFiles {
     private fun activeStartupMovie(text: String): VdfBlock? = customizationMovie(text) ?: olderMovie(text)
 
     /** The movie Steam's config selects, as a path like `/uioverrides/movies/x.webm`; null when none is named. */
-    internal fun startupMoviePath(config: File): String? {
+    internal fun startupMoviePath(config: File): String? = startupMovieLocalPath(config)?.takeIf { it.isNotEmpty() }
+
+    internal fun startupMovieLocalPath(config: File): String? {
         val text = runCatching { config.readText() }.getOrNull() ?: return null
         val movie = activeStartupMovie(text) ?: return null
-        return scalar(text.substring(movie.keyStart, movie.close + 1), "LocalPath")?.takeIf { it.isNotEmpty() }
+        return scalar(text.substring(movie.keyStart, movie.close + 1), "LocalPath")
     }
 
     /** Both `StartupMovie` sections of Steam's config as written there, for the report; null when there is none. */

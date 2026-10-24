@@ -24,7 +24,6 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.material.icons.Icons
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.material.icons.filled.Pause
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.Icon
 import androidx.compose.foundation.Canvas
@@ -343,39 +342,5 @@ private fun CancelHint(onCancel: () -> Unit, modifier: Modifier = Modifier) {
             ))
         }
         Text(stringResource(R.string.common_cancel), fontSize = 13.sp, color = colors.onSurfaceVariant)
-    }
-}
-
-@Composable
-fun SessionPausedOverlay(title: String = stringResource(R.string.load_steam_paused), onResume: () -> Unit) {
-    val colors = MaterialTheme.colorScheme
-    val pal = LocalPalette.current
-    val resumeFocus = remember { FocusRequester() }
-    LaunchedEffect(Unit) {
-        androidx.compose.runtime.withFrameNanos { }
-        runCatching { resumeFocus.requestFocus() }
-    }
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(pal.background.copy(alpha = 0.94f))
-            .blockTouches(),
-        contentAlignment = Alignment.Center,
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-            modifier = Modifier.widthIn(max = 440.dp).padding(32.dp),
-        ) {
-            Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(bottom = 6.dp).size(64.dp).border(2.dp, pal.line2, CircleShape)) {
-                Icon(Icons.Filled.Pause, contentDescription = null, tint = colors.onBackground, modifier = Modifier.size(30.dp))
-            }
-            Text(title, fontSize = 28.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, textAlign = TextAlign.Center)
-            PrimaryButton(
-                stringResource(R.string.resume_session),
-                modifier = Modifier.padding(top = 14.dp).focusRequester(resumeFocus).controllerConfirm(onClick = onResume),
-                onClick = onResume,
-            )
-        }
     }
 }

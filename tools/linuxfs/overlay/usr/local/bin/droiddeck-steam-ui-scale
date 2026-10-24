@@ -26,15 +26,19 @@ TOKEN = re.compile(r'\s+|//[^\n]*|"(?:\\.|[^"\\])*"|[{}]')
 
 
 class Block:
-    def __init__(self, pairs, end):
+    def __init__(self, pairs, end, offsets=()):
         self.pairs = pairs
         self.end = end
+        self.offsets = offsets
 
     def get(self, name):
         matches = [value for key, value in self.pairs if key.lower() == name.lower()]
         if len(matches) > 1:
             raise ValueError("duplicate UI setting")
         return matches[0] if matches else None
+
+    def offset(self, name):
+        return next(at for (key, _), at in zip(self.pairs, self.offsets) if key.lower() == name.lower())
 
 
 def parse(text):
@@ -51,17 +55,17 @@ def parse(text):
         raise ValueError("invalid config.vdf")
 
     def block(index, nested=False):
-        pairs = []
+        pairs, offsets = [], []
         while index < len(tokens):
             token, offset = tokens[index]
             if token == '}':
                 if not nested:
                     raise ValueError("unexpected closing brace")
-                return Block(pairs, offset), index + 1
+                return Block(pairs, offset, offsets), index + 1
             if not token.startswith('"') or index + 1 == len(tokens):
                 raise ValueError("missing config value")
             key = token[1:-1]
-            value = tokens[index + 1][0]
+            value, at = tokens[index + 1]
             index += 2
             if value == '{':
                 value, index = block(index, True)
@@ -70,9 +74,10 @@ def parse(text):
             else:
                 raise ValueError("invalid config value")
             pairs.append((key, value))
+            offsets.append(at)
         if nested:
             raise ValueError("unclosed config block")
-        return Block(pairs, len(text)), index
+        return Block(pairs, len(text), offsets), index
 
     return block(0)[0]
 

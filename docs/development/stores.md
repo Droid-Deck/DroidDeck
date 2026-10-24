@@ -85,18 +85,22 @@ installed record (`StoreInstalls.complete`). Resume, update and repair are the s
   no cache (needs only the net peak); when even that does not fit the install is refused before any
   chunk request, naming the storage, the need, the free space and the shortfall.
 - **Progress**: the bar counts pending-file bytes written (not compressed chunk bytes), at most every
-  50 ms plus once per finished file. The run logs `epic: plan …` and `epic: summary mode=adaptive|narrow
+  50 ms plus once per finished file. A resumed run starts the bar at what earlier runs kept; on a
+  fresh install that includes the files already complete, so the bar carries on from the pause. The run logs `epic: plan …` and `epic: summary mode=adaptive|narrow
   files=… bytes_written=… avg_mbps=… fetches=… refetches=… peak_cache_mib=… hosts=…`.
 - **Cancel / pause / failure**: the cancel flag is forwarded within 250 ms; the run stops its
-  requests, joins its threads, removes every unfinished stage file and `.part` cache entry, and only
-  then returns. Swapped files stay; unswapped destinations keep their old content; the chunk cache
+  requests, joins its threads, removes every `.part` cache entry, and only then returns. On a cancel
+  or a download error each unfinished stage file is kept in the staging folder as
+  `<path id>-<sha1>-<size>.part`, with the written parts' offsets in `<same>.part.list`; the next run
+  fetches only the other parts and hashes the whole file once it is complete (a partial that no
+  longer matches the manifest, or whose file has no SHA-1 in it, is deleted). Any other failure removes the unfinished stage files. Swapped files stay; unswapped destinations keep their old content; the chunk cache
   stays for the next run. Success removes the cache and the staging folder (when only its marker is
   left).
 
 The staging folder is recognised by its `owner` marker (`DroidDeck Epic staging v1` + LF). Before
 the delta pass the run checks that the folder is a real directory at the expected canonical path,
-that the marker matches and that every other entry is a plain `.stage` file directly inside it; only
-then are those orphans deleted. Anything unexpected fails the run without deleting. A manifest path
+that the marker matches and that every other entry is a plain `.stage`, `.part` or `.part.list` file
+directly inside it; only then are the `.stage` orphans deleted. Anything unexpected fails the run without deleting. A manifest path
 naming the staging folder, an absolute path or a `..` segment is refused. `.stage` / `.part` files
 elsewhere in the game folder are never touched.
 

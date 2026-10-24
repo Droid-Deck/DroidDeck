@@ -808,10 +808,14 @@ static uint32_t nominal_refresh_ns(void) {
 }
 
 static int64_t presented_ns(int64_t render_ns) {
-    if (!g_tick_vsync_ns || render_ns - g_last_vsync_ns > (int64_t)nominal_refresh_ns() ||
-        render_ns < g_tick_vsync_ns)
+    int64_t tick = g_tick_vsync_ns;
+    int64_t refresh = (int64_t)nominal_refresh_ns();
+    if (!tick || render_ns - g_last_vsync_ns > refresh)
         return render_ns;
-    return g_tick_vsync_ns;
+    int64_t delta = render_ns - tick;
+    if (delta > refresh || -delta > refresh)
+        return render_ns;
+    return tick;
 }
 
 static void feedback_present_all(struct wl_list *list, int64_t t) {

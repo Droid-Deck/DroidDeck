@@ -128,6 +128,7 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -145,6 +146,7 @@ import com.droiddeck.launcher.R
 import com.droiddeck.launcher.frontend.Library
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.stores.CatalogItem
+import com.droiddeck.launcher.stores.itch.ItchBrowseState
 import com.droiddeck.launcher.stores.Store
 import com.droiddeck.launcher.stores.StoreTab
 import com.droiddeck.launcher.stores.StoresState
@@ -172,6 +174,7 @@ private data class PaneKey(val chip: String, val tab: String, val signedIn: Bool
 @Composable
 internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier) {
     val ctx = LocalContext.current
+    val focusManager = LocalFocusManager.current
     com.droiddeck.launcher.stores.xbox.XboxContent.plan?.let { content ->
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { com.droiddeck.launcher.stores.xbox.XboxContent.dismiss() },
@@ -279,7 +282,7 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
     val heroFocus = remember { androidx.compose.ui.focus.FocusRequester() }
     var detailFocused by remember { mutableStateOf(false) }
     fun move(kind: String) { focusMove = kind to (focusMove?.second ?: 0) + 1 }
-    fun open(key: String) { lastOpened = key; openGame = key; move("detail") }
+    fun open(key: String) { focusManager.clearFocus(force = true); lastOpened = key; openGame = key; move("detail") }
     fun closeGame() { openGame = null; move("card") }
     fun switchTab(to: String) { tab = to; move("first") }
     val pickChip: (String) -> Unit = { id ->
@@ -477,7 +480,11 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
                                         androidx.compose.material3.LinearProgressIndicator(Modifier.fillMaxWidth().height(3.dp))
                                     }
                                     !k.signedIn -> Box(Modifier.fillMaxWidth().verticalScroll(scroll).padding(top = 4.dp, bottom = 16.dp)) { SignInCard(st, viewportH - 20.dp) }
-                                    else -> Storefront(st, k.tab, query, s, a, grids.getOrPut(k) { LazyGridState() }, onQuery = { query = it }, onOpen = { open(it) }, onTab = { switchTab(it) })
+                                    else -> Storefront(
+                                        st, k.tab, query, s, a, grids.getOrPut(k) { LazyGridState() },
+                                        clearSearchFocus = openGame != null,
+                                        onQuery = { query = it }, onOpen = { open(it) }, onTab = { switchTab(it) },
+                                    )
                                 }
                               }
                           }
@@ -538,7 +545,7 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
         seenActive.clear(); seenActive.addAll(activeKeys)
         if (fresh.isNotEmpty()) StoresMotion.takeInstall()?.let { StoresMotion.fly(it) }
     }
-    StoresState.pendingInstall?.let { item -> InstallWhere(item) }
+    StoresState.pendingInstall?.let { item -> StoreTheme(item.store) { InstallWhere(item) } }
 }
 
 @Composable
@@ -937,6 +944,7 @@ internal fun StoreLogo(store: Store, size: Dp) {
 private fun Storefront(
     store: Store, tab: String, query: String, s: FrontEndState, a: FrontEndActions,
     grid: LazyGridState,
+    clearSearchFocus: Boolean,
     onQuery: (String) -> Unit, onOpen: (String) -> Unit, onTab: (String) -> Unit,
 ) {
     val ctx = LocalContext.current
@@ -954,7 +962,8 @@ private fun Storefront(
     val everything = remember(library, shelves, found) { (found + library + (shelves?.all ?: emptyList())).distinctBy { it.id } }
     LaunchedEffect(store, q) { StoresState.search(ctx, store, q) }
     val loaded = StoresState.library.containsKey(store)
-    val showGrid = tab != "store" || q.isNotEmpty()
+    val browsing = store == Store.ITCH && tab == "store" && q.isEmpty() && ItchBrowseState.active
+    val showGrid = tab != "store" || q.isNotEmpty() || browsing
     val sort = s.storesSort
     val lastPlayedFor = remember(s.steamGames) {
         val byKey = s.steamGames.associate { "${it.source}:${it.storeId}" to it.lastPlayed }
@@ -967,8 +976,13 @@ private fun Storefront(
         lookup
     }
     val isSizeSort = tab == "library" && (sort == "sizeAsc" || sort == "sizeDesc")
-    val candidates = remember(library, everything, tab, q, s.storesShowMature) {
-        if (tab == "library") library.filter(::matches) else everything.filter { matches(it) && shown(it) }
+    val browseItems = if (browsing) ItchBrowseState.items else emptyList()
+    val candidates = remember(library, everything, tab, q, s.storesShowMature, browsing, browseItems) {
+        if (tab == "library") library.filter(::matches)
+        else if (browsing) {
+            val owned = library.associateBy { it.id }
+            browseItems.map { owned[it.id] ?: it }.filter(::shown)
+        } else everything.filter { matches(it) && shown(it) }
     }
     val candidateKeys = remember(candidates) { candidates.map { it.key } }
     var resolvedSizeSortKey by remember(store, tab) { mutableStateOf<List<String>?>(null) }
@@ -1006,6 +1020,8 @@ private fun Storefront(
     }
     val empty = stringResource(when {
         tab == "library" && library.isEmpty() && StoresState.status[store] != null -> R.string.stores_library_loading
+        browsing && ItchBrowseState.loading -> R.string.stores_shelves_loading
+        browsing && ItchBrowseState.failed -> R.string.stores_itch_browse_failed
         else -> R.string.stores_nothing_matches
     })
     var firstPlaced = false
@@ -1016,8 +1032,9 @@ private fun Storefront(
     // A bar only where the tab has nothing else on it: shelves, the shelf of owned games, or a grid still loading.
     val gridEmpty = if (showGrid) visible.isEmpty() else (shelves == null || shelves.isEmpty) && library.isEmpty()
     val barLine = StoresState.status[store]?.takeIf { gridEmpty && syncCount(it) != null }
+    val itchBar = store == Store.ITCH && tab == "store" && q.isEmpty()
     val headerItems = 1 + (if (sizeSortPending) 1 else 0) + (if (barLine != null) 1 else 0) +
-        (if (StoresState.problems[store] != null) 1 else 0)
+        (if (StoresState.problems[store] != null) 1 else 0) + (if (itchBar) 1 else 0)
     val listMode = s.storesView == "list" && tab == "library"
     val capsules = s.storesView == "capsules" && tab == "library"
     val tileWidth = if (capsules) CapsuleWidth else CardWidth
@@ -1072,6 +1089,7 @@ private fun Storefront(
                     libraryLabel,
                     query, onQuery,
                     placeholder = if (tab == "store") stringResource(R.string.stores_search_catalog, store.label) else stringResource(R.string.stores_search_library),
+                    clearSearchFocus = clearSearchFocus,
                     lead = if (tabs.size < 2) null else { {
                         val labels = tabs.map { if (it == "store") stringResource(R.string.stores_tab_store) else libraryLabel }
                         HeaderTabs(labels, tabs.indexOf(tab).coerceAtLeast(0)) { onTab(tabs[it]) }
@@ -1102,6 +1120,7 @@ private fun Storefront(
         }
         barLine?.let { line -> item(key = "sync", span = { GridItemSpan(maxLineSpan) }) { Rise(3) { SyncBar(line) } } }
         StoresState.problems[store]?.let { line -> item(key = "problem", span = { GridItemSpan(maxLineSpan) }) { Rise(3) { Box(Modifier.padding(bottom = 8.dp)) { Note(line) } } } }
+        if (itchBar) item(key = "itch-browse-bar", span = { GridItemSpan(maxLineSpan) }) { ItchBrowseBar() }
         when (tab) {
             "library" -> if (!loaded) Unit
                 else if (split == 0) storeGrid(visible, empty, card)
@@ -1112,8 +1131,10 @@ private fun Storefront(
                     storeGrid(visible.drop(split), empty, card)
                 }
             else -> {
-                if (q.isNotEmpty()) storeGrid(visible, empty, card)
-                else {
+                if (q.isNotEmpty() || browsing) {
+                    storeGrid(visible, empty, card)
+                    if (browsing) item(key = "itch-more", span = { GridItemSpan(maxLineSpan) }) { ItchLoadMore() }
+                } else {
                     item(key = "shelves", span = { GridItemSpan(maxLineSpan) }) {
                         Column {
                             Shelf(stringResource(R.string.stores_shelf_new), shelf(shelves?.whatsNew), card)
@@ -1172,6 +1193,7 @@ private fun HeaderTabs(labels: List<String>, selected: Int, onSelect: (Int) -> U
 @Composable
 internal fun ModeHeader(
     title: String, query: String, onQuery: (String) -> Unit, placeholder: String,
+    clearSearchFocus: Boolean = false,
     lead: (@Composable () -> Unit)? = null, trailing: @Composable () -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
@@ -1193,6 +1215,7 @@ internal fun ModeHeader(
                         AdbTextField(
                             value = query, onValueChange = onQuery, label = "", keyboardType = KeyboardType.Text, imeAction = ImeAction.Search,
                             placeholder = placeholder, compact = true, focusOnShow = focusOnOpen,
+                            clearFocus = clearSearchFocus,
                             onFocusChange = { focused -> if (!focused && query.isEmpty()) { searching = false; focusOnOpen = false } },
                         )
                     }

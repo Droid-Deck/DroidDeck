@@ -29,7 +29,7 @@ class FileManagerActivity : ComponentActivity() {
         setContent {
             DroidDeckTheme(appScale = com.droiddeck.launcher.core.AppUiPrefs.scale(this)) {
                 Surface(modifier = Modifier.fillMaxSize().systemBarsPadding(), color = MaterialTheme.colorScheme.background) {
-                    FileManagerScreen(initialDir = initialDir)
+                    FileManagerScreen(initialDir = initialDir, onExit = { finish() })
                 }
             }
         }

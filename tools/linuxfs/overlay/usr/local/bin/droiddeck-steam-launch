@@ -12,6 +12,10 @@ case $target in
 esac
 
 if [ "$ui" = desktop ] && [ "${BL_DESKTOP:-}" = 1 ]; then
+  case ",${MESA_VK_WSI_DEBUG:-}," in
+    *,sw,*) ;;
+    *) export MESA_VK_WSI_DEBUG=${MESA_VK_WSI_DEBUG:+$MESA_VK_WSI_DEBUG,}sw ;;
+  esac
   if [ "${BL_STEAM_CLIENT_ARCH:-}" = x86_64 ]; then
     client_home=${BL_X64_HOME:-${HOME:-/root}/.droiddeck-x64}
     client=(/usr/local/bin/droiddeck-steam-x64 --exec)

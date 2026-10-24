@@ -82,6 +82,8 @@ class ModeSettings(
     val steamClientArch: String? = null,
     /** Steam only: a game launched from the front end returns there when it closes; null hides the row. */
     val returnAfterGame: Boolean? = null,
+    /** Steam only: the client's Shader Pre-Caching setting; null hides the row. */
+    val shaderPrecache: Boolean? = null,
     val steamRepairQueued: Boolean = false,
     val mangoapp: Boolean = true,
     val steamController: String? = null,
@@ -136,6 +138,7 @@ class ModeSettingsActions(
     val onSteamClientArch: (String) -> Unit = {},
     val onMangoapp: (Boolean) -> Unit = {},
     val onReturnAfterGame: (Boolean) -> Unit = {},
+    val onShaderPrecache: (Boolean) -> Unit = {},
     val onSteamController: (String) -> Unit = {},
     val onUnfoldedControls: (Boolean) -> Unit = {},
     val onUnfoldedControlsWithController: (Boolean) -> Unit = {},
@@ -477,6 +480,11 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
                 host, "returnaftergame", stringResource(R.string.mode_return_after_game),
                 stringResource(R.string.mode_return_after_game_hint),
                 s.returnAfterGame, onChange = a.onReturnAfterGame,
+            )
+            if (s.shaderPrecache != null) ToggleRow(
+                host, "shaderprecache", stringResource(R.string.mode_shader_precache),
+                stringResource(R.string.mode_shader_precache_hint),
+                s.shaderPrecache, onChange = a.onShaderPrecache,
             )
             SettingsRow(
                 stringResource(R.string.mode_steam_repair),
