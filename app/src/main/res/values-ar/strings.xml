@@ -1047,8 +1047,6 @@
     <string name="games_empty">الألعاب التي تثبّتها في Steam تظهر هنا بعد الجلسة.</string>
     <string name="games_play_steam">تشغيل Steam</string>
     <string name="games_play_steamvr">تشغيل SteamVR</string>
-    <string name="games_launch_settings">إعدادات التشغيل</string>
-    <string name="games_launch">تشغيل</string>
     <string name="games_files">ملفات اللعبة</string>
     <string name="games_prefix">بادئة Proton</string>
     <string name="games_saves_looking">جارٍ البحث عن الحفظ…</string>
@@ -1056,7 +1054,6 @@
     <string name="games_saves_folders">%1$d مجلدات حفظ</string>
     <string name="games_saves_summary">%1$s · %2$d ملفات · %3$s</string>
     <string name="games_kb">%1$d KB</string>
-    <string name="games_manage_saves">إدارة الحفظ</string>
     <string name="games_saves">حفظ اللعبة</string>
     <string name="games_import_saves">استيراد الحفظ…</string>
     <string name="games_export_gamehub">تصدير بصيغة GameHub المضغوطة…</string>
@@ -1068,7 +1065,6 @@
     <string name="games_runtime_first_play">تُثبَّت بيئة التشغيل عند أول تشغيل</string>
     <string name="games_runtime_update">يتوفر تحديث لبيئة التشغيل</string>
     <string name="games_runtime_ready">● بيئة التشغيل جاهزة</string>
-    <string name="games_last_played">آخر تشغيل %1$s</string>
     <string name="games_internal">التخزين الداخلي</string>
     <string name="games_added">لعبة مُضافة</string>
     <string name="games_custom">لعبة مخصّصة</string>
@@ -1137,7 +1133,7 @@
     <string name="second_terminal">الوحدة الطرفية لـ Linux</string>
     <string name="second_terminal_not_ready">جلسة Linux ليست جاهزة للوحدة الطرفية بعد.</string>
     <string name="rail_steam">Steam</string>
-    <string name="rail_games">الألعاب</string>
+    <string name="rail_games">المكتبة</string>
     <string name="rail_desktop">سطح المكتب</string>
     <string name="rail_store">المتجر</string>
     <string name="rail_components">المكوّنات</string>
@@ -2031,7 +2027,6 @@
     <string name="source_steam">Steam</string>
     <string name="source_added">مخصَّص</string>
     <string name="setup_stores">المتاجر</string>
-    <string name="setup_stores_open_on">فتح متجر على</string>
     <string name="setup_stores_speed">فئة سرعة التنزيل</string>
     <string name="setup_stores_engine">محرك المتاجر</string>
     <string name="setup_stores_engine_chip_ready">● المحرك جاهز</string>
@@ -2045,11 +2040,9 @@
     <string name="stores_tabs_arrange">ترتيب التبويبات</string>
     <string name="stores_tabs_arrange_done">تم</string>
     <string name="stores_chip_signed_out">(لم يتم تسجيل الدخول)</string>
-    <string name="stores_tab_store">المتجر</string>
     <string name="stores_tab_library">المكتبة</string>
     <string name="stores_tab_all">الكل</string>
     <string name="stores_tab_downloads">التنزيلات</string>
-    <string name="stores_tab_count">%1$s (%2$d)</string>
     <string name="stores_signin">تسجيل الدخول</string>
     <string name="stores_signout_named">%1$s · تسجيل الخروج</string>
     <string name="stores_signout_title">تسجيل الخروج من %1$s؟</string>
@@ -2067,7 +2060,6 @@
     <string name="stores_shelf_deals">العروض</string>
     <string name="stores_shelf_free">ألعاب مجانية</string>
     <string name="stores_shelf_trending">الرائج</string>
-    <string name="stores_shelf_library">مكتبتك</string>
     <string name="stores_play">تشغيل</string>
     <string name="stores_install">تثبيت</string>
     <string name="stores_resume_install">استئناف التثبيت</string>

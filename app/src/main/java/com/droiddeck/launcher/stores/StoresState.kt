@@ -137,6 +137,13 @@ object StoresState {
         if (force || !shelves.containsKey(store)) backend.loadShelves(app, force)
     }
 
+    private val libraryAsked = java.util.Collections.synchronizedSet(HashSet<Store>())
+
+    fun loadLibrary(context: Context, store: Store) {
+        if (!isSignedIn(store) || library.containsKey(store) || !libraryAsked.add(store)) return
+        backends[store]?.syncLibrary(context.applicationContext, false)
+    }
+
     fun preview(context: Context, store: Store) {
         if (!shelves.containsKey(store)) backends[store]?.loadShelves(context.applicationContext, false)
     }
@@ -175,7 +182,7 @@ object StoresState {
             else if (store != Store.XBOX || backend == null) StoreAccounts.clear(app, store)
             main.post {
                 if (store == Store.XBOX && StoreAccounts.signedInAs(app, store) != null) return@post
-                accounts.remove(store); library.remove(store); status.remove(store); problems.remove(store)
+                accounts.remove(store); library.remove(store); status.remove(store); problems.remove(store); libraryAsked.remove(store)
                 logLine("${store.label}: signed out")
             }
         }

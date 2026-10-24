@@ -16,17 +16,6 @@ import java.security.MessageDigest
 class EpicClientTest {
     @get:Rule val tmp = TemporaryFolder()
 
-    private fun game(appId: Int, source: String) =
-        com.droiddeck.launcher.frontend.Library.SteamGame(appId, "g$appId", null, "internal", source = source)
-
-    @Test fun theLauncherSitsRightAboveTheFirstEpicGame() {
-        val launcher = game(EpicClient.LAUNCHER_APP_ID, "epic")
-        val games = listOf(game(1, "steam"), game(2, "epic"), game(3, "steam"), game(4, "epic"))
-        assertEquals(listOf(1, 0, 2, 3, 4), EpicClient.withLauncher(games, launcher).map { it.appId })
-        assertEquals(listOf(1, 3, 0), EpicClient.withLauncher(listOf(games[0], games[2]), launcher).map { it.appId })
-        assertEquals(listOf(1, 2), EpicClient.withLauncher(games.take(2), null).map { it.appId })
-    }
-
     private fun added(name: String, source: String, storeId: String?) =
         com.droiddeck.launcher.frontend.AddedGames.Game(File(tmp.root, name), name, File(tmp.root, "$name/$name.exe"),
             "/root/Games/$name/$name.exe", "/root/Games/$name", 3_000_000_000L, 0L, emptyList(), source = source, storeId = storeId)

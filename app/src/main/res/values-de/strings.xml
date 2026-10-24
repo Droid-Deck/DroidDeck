@@ -1015,8 +1015,6 @@
     <string name="games_empty">Spiele, die du in Steam installierst, erscheinen hier nach der Sitzung.</string>
     <string name="games_play_steam">Mit Steam spielen</string>
     <string name="games_play_steamvr">Mit SteamVR spielen</string>
-    <string name="games_launch_settings">Starteinstellungen</string>
-    <string name="games_launch">Starten</string>
     <string name="games_files">Spieldateien</string>
     <string name="games_prefix">Proton-Präfix</string>
     <string name="games_saves_looking">Suche nach Spielständen…</string>
@@ -1024,7 +1022,6 @@
     <string name="games_saves_folders">%1$d Spielstandordner</string>
     <string name="games_saves_summary">%1$s · %2$d Dateien · %3$s</string>
     <string name="games_kb">%1$d KB</string>
-    <string name="games_manage_saves">Spielstände verwalten</string>
     <string name="games_saves">Spielstände</string>
     <string name="games_import_saves">Spielstände importieren…</string>
     <string name="games_export_gamehub">Als GameHub-ZIP exportieren…</string>
@@ -1036,7 +1033,6 @@
     <string name="games_runtime_first_play">Laufzeit wird beim ersten „Spielen“ installiert</string>
     <string name="games_runtime_update">Laufzeit-Update verfügbar</string>
     <string name="games_runtime_ready">● Laufzeit bereit</string>
-    <string name="games_last_played">Zuletzt gespielt: %1$s</string>
     <string name="games_internal">Interner Speicher</string>
     <string name="games_added">Hinzugefügtes Spiel</string>
     <string name="games_custom">Eigenes Spiel</string>
@@ -1105,7 +1101,7 @@
     <string name="second_terminal">Linux-Terminal</string>
     <string name="second_terminal_not_ready">Die Linux-Sitzung ist noch nicht bereit für ein Terminal.</string>
     <string name="rail_steam">Steam</string>
-    <string name="rail_games">Spiele</string>
+    <string name="rail_games">Bibliothek</string>
     <string name="rail_desktop">Desktop</string>
     <string name="rail_store">Store</string>
     <string name="rail_components">Komponenten</string>
@@ -1939,7 +1935,6 @@
     <string name="source_steam">Steam</string>
     <string name="source_added">Eigene</string>
     <string name="setup_stores">Stores</string>
-    <string name="setup_stores_open_on">Store öffnen auf</string>
     <string name="setup_stores_speed">Download-Tempo</string>
     <string name="setup_stores_engine">Store-Engine</string>
     <string name="setup_stores_engine_chip_ready">● Engine bereit</string>
@@ -1953,11 +1948,9 @@
     <string name="stores_tabs_arrange">Tabs anordnen</string>
     <string name="stores_tabs_arrange_done">Fertig</string>
     <string name="stores_chip_signed_out">(nicht angemeldet)</string>
-    <string name="stores_tab_store">Store</string>
     <string name="stores_tab_library">Bibliothek</string>
     <string name="stores_tab_all">Alle</string>
     <string name="stores_tab_downloads">Downloads</string>
-    <string name="stores_tab_count">%1$s (%2$d)</string>
     <string name="stores_signin">Anmelden</string>
     <string name="stores_signout_named">%1$s · abmelden</string>
     <string name="stores_signout_title">Von %1$s abmelden?</string>
@@ -1975,7 +1968,6 @@
     <string name="stores_shelf_deals">Angebote</string>
     <string name="stores_shelf_free">Kostenlose Spiele</string>
     <string name="stores_shelf_trending">Im Trend</string>
-    <string name="stores_shelf_library">Deine Bibliothek</string>
     <string name="stores_play">Spielen</string>
     <string name="stores_install">Installieren</string>
     <string name="stores_resume_install">Installation fortsetzen</string>

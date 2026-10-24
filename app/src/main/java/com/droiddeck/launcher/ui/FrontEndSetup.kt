@@ -508,7 +508,7 @@ private fun FrameGenMenu(s: FrontEndState, a: FrontEndActions, host: MenuHost) {
 }
 
 @Composable
-internal fun LaunchSettings(s: FrontEndState, a: FrontEndActions, host: MenuHost, game: com.droiddeck.launcher.frontend.Library.SteamGame? = null) {
+internal fun LaunchSettings(s: FrontEndState, a: FrontEndActions, host: MenuHost, game: com.droiddeck.launcher.frontend.Library.SteamGame? = null, hopRail: String = "games") {
     val columns = if (LocalNarrowPane.current) 2 else 3
     val controller = a.controller
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -527,7 +527,7 @@ internal fun LaunchSettings(s: FrontEndState, a: FrontEndActions, host: MenuHost
                 val at = Hops.sources["card:components"]
                 val open = { if (game == null) a.onComponents(true) else a.onGameComponents(game) }
                 if (at == null) open()
-                else Hops.go(HopOrigin("games", HOP_SURFACE_GAMES, null, "card:components", at, back, dest = "components", page = "components"), open)
+                else Hops.go(HopOrigin(hopRail, HOP_SURFACE_GAMES, null, "card:components", at, back, dest = "components", page = "components"), open)
             }
         }
         add { m ->
@@ -570,18 +570,11 @@ internal fun LaunchSettings(s: FrontEndState, a: FrontEndActions, host: MenuHost
     }
 }
 
-@Composable
-private fun GameSettingsCard(host: MenuHost, game: com.droiddeck.launcher.frontend.Library.SteamGame, scope: String) {
-    val appContext = androidx.compose.ui.platform.LocalContext.current.applicationContext
-    val colors = MaterialTheme.colorScheme
-    var config by remember(scope) { mutableStateOf(runCatching { com.droiddeck.launcher.session.GameEnvironmentStore.read(appContext) }.getOrNull()) }
-    var saving by remember(scope) { mutableStateOf(false) }
-    val current = config
-    val noSteam = current != null && com.droiddeck.launcher.core.GameEnvironment.gameNoSteam(current, scope)
-    val fex = current?.let { runCatching { com.droiddeck.launcher.core.GameEnvironment.gameFexPreset(it, scope) }.getOrNull() }
-    val sync = current?.let { runCatching { com.droiddeck.launcher.core.GameEnvironment.gameSync(it, scope) }.getOrNull() }
-    val ready = current != null && !saving
-    val launcher = game.library == com.droiddeck.launcher.frontend.Library.EPIC_LAUNCHER
+internal class GameSettingsState(private val appContext: android.content.Context, val scope: String) {
+    var config by mutableStateOf(runCatching { com.droiddeck.launcher.session.GameEnvironmentStore.read(appContext) }.getOrNull())
+    var saving by mutableStateOf(false)
+    val noSteam: Boolean get() = config?.let { com.droiddeck.launcher.core.GameEnvironment.gameNoSteam(it, scope) } == true
+
     fun save(change: (android.content.Context) -> com.droiddeck.launcher.core.GameEnvironment.Config?) {
         if (saving) return
         saving = true
@@ -595,7 +588,37 @@ private fun GameSettingsCard(host: MenuHost, game: com.droiddeck.launcher.fronte
             }
         }, "game-settings").start()
     }
-    val key = "game-settings"
+}
+
+@Composable
+internal fun rememberGameSettings(scope: String): GameSettingsState {
+    val appContext = androidx.compose.ui.platform.LocalContext.current.applicationContext
+    return remember(scope) { GameSettingsState(appContext, scope) }
+}
+
+@Composable
+private fun GameSettingsCard(host: MenuHost, game: com.droiddeck.launcher.frontend.Library.SteamGame, scope: String) {
+    val state = rememberGameSettings(scope)
+    SettingCard(stringResource(R.string.game_settings_card), stringResource(if (state.noSteam) R.string.game_steam_without else R.string.game_steam_with), "card:$GAME_SETTINGS_MENU", Modifier.fillMaxSize()) {
+        host.open = if (host.open == GAME_SETTINGS_MENU) null else GAME_SETTINGS_MENU
+    }
+    GameSettingsMenus(host, game, state)
+}
+
+/** The per-game settings menus, opened by setting [MenuHost.open] to [GAME_SETTINGS_MENU]. */
+@Composable
+internal fun GameSettingsMenus(host: MenuHost, game: com.droiddeck.launcher.frontend.Library.SteamGame, state: GameSettingsState) {
+    val appContext = androidx.compose.ui.platform.LocalContext.current.applicationContext
+    val colors = MaterialTheme.colorScheme
+    val scope = state.scope
+    val current = state.config
+    val noSteam = state.noSteam
+    val fex = current?.let { runCatching { com.droiddeck.launcher.core.GameEnvironment.gameFexPreset(it, scope) }.getOrNull() }
+    val sync = current?.let { runCatching { com.droiddeck.launcher.core.GameEnvironment.gameSync(it, scope) }.getOrNull() }
+    val ready = current != null && !state.saving
+    val launcher = game.library == com.droiddeck.launcher.frontend.Library.EPIC_LAUNCHER
+    fun save(change: (android.content.Context) -> com.droiddeck.launcher.core.GameEnvironment.Config?) = state.save(change)
+    val key = GAME_SETTINGS_MENU
     val fexKey = "game-settings-fex"
     val syncKey = "game-settings-sync"
     val syncLabels = mapOf(
@@ -609,9 +632,6 @@ private fun GameSettingsCard(host: MenuHost, game: com.droiddeck.launcher.fronte
     val custom = stringResource(R.string.comp_game_fex_custom)
     val customSync = stringResource(R.string.game_sync_custom)
     val resetDone = stringResource(R.string.comp_game_reset_done, game.name)
-    SettingCard(stringResource(R.string.game_settings_card), stringResource(if (noSteam) R.string.game_steam_without else R.string.game_steam_with), "card:$key", Modifier.fillMaxSize()) {
-        host.open = if (host.open == key) null else key
-    }
     AnchoredMenu(host.open == key, onDismiss = { if (host.open == key) host.open = null }, title = stringResource(R.string.game_settings_menu_title, game.name)) { first ->
         MenuItem(stringResource(R.string.game_no_steam_title), checked = noSteam, enabled = ready,
             detail = stringResource(R.string.game_no_steam_detail), focusRequester = first) {
@@ -685,6 +705,8 @@ private fun GameSettingsCard(host: MenuHost, game: com.droiddeck.launcher.fronte
         }
     }
 }
+
+internal const val GAME_SETTINGS_MENU = "game-settings"
 
 private const val EPIC_RESOLVE_URL = "https://www.epicgames.com/id/login?redirectUrl=https%3A%2F%2Fwww.epicgames.com%2Faccount%2Fpersonal"
 
