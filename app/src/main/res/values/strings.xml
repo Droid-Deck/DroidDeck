@@ -2805,6 +2805,9 @@
     <string name="storage_added_games">Added games · %1$s</string>
     <string name="storage_added_games_hint">Games added from folders, with their full size. Move keeps the folder together and rewrites its shortcut, prefix record, and library entry to the new location. Stop the session first.</string>
     <string name="storage_added_move_missing">The game’s folder is missing.</string>
+    <string name="storage_added_move_steam">Install into Steam</string>
+    <string name="storage_added_move_steam_title">Install %1$s into Steam?</string>
+    <string name="storage_added_move_steam_body">Its files move into the Steam library as %1$s. Steam will detect the game on its next start and the button will say Play. Its shortcut, prefix, and library entries follow it there.</string>
     <string name="storage_uninstall_title">Uninstall %1$s?</string>
     <string name="storage_uninstall_body">Steam opens and asks you to confirm. This frees the game’s %1$s. Its prefix stays until you clean up leftovers, and Steam Cloud saves stay in your account.</string>
     <string name="storage_open_steam">Open Steam</string>

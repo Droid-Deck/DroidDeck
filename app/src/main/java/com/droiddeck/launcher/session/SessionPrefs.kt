@@ -828,7 +828,7 @@ object SessionPrefs {
     }
 
     /** Moves every per-folder record of an added game to its new location after the folder moves. */
-    fun migrateAddedGameFolder(context: Context, from: String, to: String) = synchronized(addedGameLock) {
+    fun migrateAddedGameFolder(context: Context, from: String, to: String, dropBinds: Boolean = false) = synchronized(addedGameLock) {
         val p = prefs(context)
         val moved = movedAddedGame(p.all, from, to)
         val edit = p.edit()
@@ -844,7 +844,11 @@ object SessionPrefs {
         }
         edit.apply()
         val binds = gameFolderBinds(context)
-        if (binds.any { it.first == from }) setGameFolderBinds(context, binds.map { (host, guest) -> if (host == from) to to guest else host to guest })
+        if (binds.any { it.first == from }) {
+            val updated = if (dropBinds) binds.filterNot { it.first == from }
+            else binds.map { (host, guest) -> if (host == from) to to guest else host to guest }
+            setGameFolderBinds(context, updated)
+        }
         val removed = removedAddedGames(context)
         if (from in removed) prefs(context).edit()
             .putString("removedAddedGames", removed.map { if (it == from) to else it }.joinToString("\n")).apply()

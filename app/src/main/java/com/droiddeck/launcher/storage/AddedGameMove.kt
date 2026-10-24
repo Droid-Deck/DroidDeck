@@ -42,19 +42,29 @@ object AddedGameMove {
     private val main = Handler(Looper.getMainLooper())
 
     fun start(context: Context, folder: File, name: String, targetParent: File, onFinished: () -> Unit = {}) {
+        startInternal(context, folder, name, targetParent, adoptInstallDir = null, onFinished)
+    }
+
+    fun startAdopt(context: Context, folder: File, name: String, libraryRoot: File, installDir: String, onFinished: () -> Unit = {}) {
+        startInternal(context, folder, name, libraryRoot, adoptInstallDir = installDir, onFinished)
+    }
+
+    private fun startInternal(context: Context, folder: File, name: String, target: File, adoptInstallDir: String?, onFinished: () -> Unit) {
         if (status != null) return
         val app = context.applicationContext
         val total = runCatching { FileOps.totalSize(folder) }.getOrDefault(0L).coerceAtLeast(1L)
-        status = Status(name, targetParent, 0, total)
+        status = Status(name, target, 0, total)
         Thread({
             var last = 0L
+            val report: (Long, Long) -> Unit = { copied, _ ->
+                val now = android.os.SystemClock.uptimeMillis()
+                if (now - last < 120 && copied < total) return@report
+                last = now
+                main.post { status = status?.copy(copied = copied, total = total) }
+            }
             val error = runCatching {
-                move(app, folder, targetParent) { copied, _ ->
-                    val now = android.os.SystemClock.uptimeMillis()
-                    if (now - last < 120 && copied < total) return@move
-                    last = now
-                    main.post { status = status?.copy(copied = copied, total = total) }
-                }
+                if (adoptInstallDir != null) adoptIntoSteam(app, folder, target, adoptInstallDir, report)
+                else move(app, folder, target, report)
             }.getOrElse { e -> app.getString(R.string.storage_move_failed, e.message ?: e.javaClass.simpleName) }
             main.post {
                 val current = status
@@ -108,9 +118,10 @@ object AddedGameMove {
         }
         if (!dest.isDirectory) return context.getString(R.string.storage_move_failed, source.path)
 
+        val hadEntry = AddedExes.list(context).any { it.folder == source.path }
         val movedExe = oldExe?.takeIf { inside(it, source) }?.let { File(dest, it.path.removePrefix(source.path + File.separator)) }
         SessionPrefs.migrateAddedGameFolder(context, source.path, dest.path)
-        if (movedExe != null) AddedExes.move(context, source.path, dest.path, movedExe.path)
+        if (hadEntry && movedExe != null) AddedExes.move(context, source.path, dest.path, movedExe.path)
         val newExe = movedExe?.takeIf { it.isFile }
             ?: SessionPrefs.addedGameExe(context, dest.path).takeIf { it.isNotEmpty() }?.let(::File)?.takeIf { it.isFile }
         if (AddedGames.guestPath(context, newExe ?: dest) == null) AddedGames.bindFolder(context, dest)
@@ -121,11 +132,63 @@ object AddedGameMove {
                 LibraryCache.load(context).filterNot { it.library == Library.ADDED && it.gameFiles?.path == source.path },
             )
         }
-        runCatching {
-            AddedGames.single(context, dest.path)?.let { game ->
-                com.droiddeck.launcher.stores.SteamLiveShortcuts.sync(context, listOf(game)) { true }
-            }
+        // The running client is always stopped for a move, so live shortcut edits are impossible.
+        // Republishing refreshes the listing and the launcher now; the session-start script
+        // rewrites the shortcut's exe and start dir by app id.
+        com.droiddeck.launcher.frontend.AddedGamesPublisher.later(context)
+        onProgress(total.coerceAtLeast(1L), total.coerceAtLeast(1L))
+        return null
+    }
+
+    /**
+     * Installs an added folder as a Steam game's files: the folder moves into
+     * steamapps/common/<installDir> of the library whose manifest names it, the added-game
+     * records are dropped, and Steam detects the game on its next start.
+     */
+    fun adoptIntoSteam(context: Context, folder: File, libraryRoot: File, installDir: String, onProgress: (Long, Long) -> Unit = { _, _ -> }): String? {
+        if (SessionState.running) return context.getString(R.string.storage_move_session)
+        val source = folder.takeIf { it.isDirectory } ?: return context.getString(R.string.storage_added_move_missing)
+        val cleanDir = installDir.takeIf { it.isNotEmpty() && '/' !in it && '\\' !in it }
+            ?: return context.getString(R.string.storage_move_bad_source)
+        val common = File(libraryRoot, "steamapps/common")
+        if (!common.isDirectory && !common.mkdirs()) return context.getString(R.string.storage_move_missing)
+        if (samePath(common, source) || inside(common, source)) return context.getString(R.string.storage_move_inside)
+        val dest = File(common, cleanDir)
+        if (dest.exists() && (dest.isFile || !(dest.listFiles()?.isEmpty() == true))) {
+            return context.getString(R.string.storage_move_exists)
         }
+        if (dest.isDirectory) runCatching { dest.delete() }
+
+        val total = runCatching { FileOps.totalSize(source) }.getOrDefault(0L)
+        val free = runCatching { StatFs(nearestExisting(dest).path).availableBytes }.getOrNull()
+        if (free != null && total > 0 && free > 0 && free < total + SPACE_MARGIN) {
+            return context.getString(
+                R.string.storage_move_no_space,
+                FileOps.formatBytes(context, total + SPACE_MARGIN),
+                FileOps.formatBytes(context, free),
+            )
+        }
+        onProgress(0, total.coerceAtLeast(1L))
+        val ok = runCatching {
+            FileOps.moveWithProgress(source, dest, total.coerceAtLeast(1L), { done, _ ->
+                onProgress(done, total.coerceAtLeast(1L))
+            })
+        }.getOrDefault(false)
+        if (!ok) {
+            runCatching { FileOps.delete(dest) }
+            return context.getString(R.string.storage_move_failed, source.path)
+        }
+        if (!dest.isDirectory) return context.getString(R.string.storage_move_failed, source.path)
+
+        AddedExes.drop(context, source.path)
+        SessionPrefs.migrateAddedGameFolder(context, source.path, dest.path, dropBinds = true)
+        runCatching {
+            LibraryCache.save(
+                context,
+                LibraryCache.load(context).filterNot { it.library == Library.ADDED && it.gameFiles?.path == source.path },
+            )
+        }
+        com.droiddeck.launcher.frontend.AddedGamesPublisher.later(context)
         onProgress(total.coerceAtLeast(1L), total.coerceAtLeast(1L))
         return null
     }
