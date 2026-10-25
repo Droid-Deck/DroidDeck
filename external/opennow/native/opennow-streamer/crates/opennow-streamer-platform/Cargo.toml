@@ -11,22 +11,29 @@ cc = "1"
 [features]
 default = []
 test-runtime = []
-linux-vaapi = ["opennow-streamer-platform-linux/vaapi"]
-linux-ffmpeg = ["opennow-streamer-platform-linux/ffmpeg"]
-linux-ffmpeg-bundled = ["opennow-streamer-platform-linux/ffmpeg-bundled"]
 
 [dependencies]
+opennow-streamer-protocol = { path = "../opennow-streamer-protocol" }
+opus.workspace = true
+serde_json.workspace = true
+
+# DroidDeck: desktop-only dependencies (the Android backend does not use SDL, openh264,
+# the recording muxers or the Windows crate).
+[target.'cfg(not(target_os = "android"))'.dependencies]
 base64.workspace = true
 image.workspace = true
 openh264.workspace = true
-opennow-streamer-protocol = { path = "../opennow-streamer-protocol" }
 opennow-streamer-platform-windows = { path = "../opennow-streamer-platform-windows" }
 oxideav-core.workspace = true
 oxideav-mkv.workspace = true
-opus.workspace = true
 sdl2.workspace = true
 scuffle-av1.workspace = true
-serde_json.workspace = true
+
+[target.'cfg(target_os = "android")'.dependencies]
+ndk = { version = "0.9", default-features = false, features = ["media", "audio", "nativewindow", "api-level-29"] }
+ndk-sys = "0.6"
+jni = "0.21"
+log = "0.4"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 raw-window-handle = "0.6"
@@ -45,17 +52,3 @@ windows-sys = { version = "0.61", features = [
     "Win32_UI_Input_KeyboardAndMouse",
     "Win32_UI_WindowsAndMessaging",
 ] }
-
-[target.'cfg(target_os = "linux")'.dependencies]
-libc = "0.2"
-opennow-streamer-platform-linux = { path = "../opennow-streamer-platform-linux" }
-raw-window-handle = "0.6"
-x11-dl = "2.21"
-
-[target.'cfg(target_os = "macos")'.dependencies]
-libc = "0.2"
-objc2 = "0.6"
-objc2-app-kit = { version = "0.3", default-features = false, features = ["NSGraphics", "NSResponder", "NSRunningApplication", "NSView", "NSWindow", "NSWorkspace"] }
-objc2-foundation = { version = "0.3", default-features = false, features = ["NSGeometry"] }
-opennow-streamer-platform-macos = { path = "../opennow-streamer-platform-macos" }
-raw-window-handle = "0.6"

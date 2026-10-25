@@ -3,7 +3,7 @@
 use std::collections::VecDeque;
 use std::sync::{Condvar, Mutex};
 
-use crate::media::EncodedFrame;
+use crate::media_types::EncodedFrame;
 
 pub(crate) struct VideoPacket {
     pub frame: EncodedFrame,
