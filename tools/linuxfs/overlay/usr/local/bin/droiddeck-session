@@ -531,17 +531,35 @@ case $mode in
         bl_cap_due() {
           [ "$_bl_ram_cap" -gt 0 ] && { [ "$_bl_measured" -lt 0 ] || [ $((SECONDS - _bl_measured)) -ge 30 ]; }
         }
-        _bl_since=-1 _bl_packed=-1 _bl_measured=-1 _bl_unpack=0
+        _bl_since=-1 _bl_packed=-1 _bl_measured=-1 _bl_unpack=0 _bl_capped=-1 _bl_backoff=30
         while kill -0 $$ 2>/dev/null; do
           bl_zram_scan
           if bl_cap_due; then
             if bl_over_cap; then
-              bl_zram_send 1 "over the ${BL_RAM_CAP_MB} MB RAM cap, compressing the client" client
-              bl_over_cap && bl_zram_send 1 "still over the RAM cap, compressing the session" all
-              if [ "$_bl_game" = 1 ]; then _bl_packed=$SECONDS; else _bl_unpack=1; fi
-            elif [ "$_bl_unpack" = 1 ] && [ "$_bl_game" = 0 ]; then
-              bl_zram_send 0 "back under the RAM cap, reading the client back" client
-              _bl_unpack=0
+              # A cap below the game's working set cannot be met; paging out again every 30 s only churns.
+              if [ "$_bl_capped" -lt 0 ] || [ $((SECONDS - _bl_capped)) -ge "$_bl_backoff" ]; then
+                bl_zram_usage "${_bl_pids[@]}" > /dev/null
+                if [ "$_bl_rss" -ge $((512 * 1024)) ]; then
+                  bl_zram_send 1 "over the ${BL_RAM_CAP_MB} MB RAM cap, compressing the client" client
+                else
+                  step "RAM cap: over, client already small ($((_bl_rss / 1024)) MB resident), skipping it"
+                fi
+                bl_over_cap && bl_zram_send 1 "still over the RAM cap, compressing the session" all
+                if [ "$_bl_game" = 1 ]; then _bl_packed=$SECONDS; else _bl_unpack=1; fi
+                if bl_over_cap; then
+                  _bl_backoff=$((_bl_backoff * 2 > 600 ? 600 : _bl_backoff * 2))
+                  step "RAM cap: still over after paging out, next try in ${_bl_backoff} s"
+                else
+                  _bl_backoff=30
+                fi
+                _bl_capped=$SECONDS
+              fi
+            else
+              _bl_backoff=30
+              if [ "$_bl_unpack" = 1 ] && [ "$_bl_game" = 0 ]; then
+                bl_zram_send 0 "back under the RAM cap, reading the client back" client
+                _bl_unpack=0
+              fi
             fi
           fi
           if [ "$_bl_game" = 1 ]; then
