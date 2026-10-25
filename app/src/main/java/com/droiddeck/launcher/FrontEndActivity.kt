@@ -2014,7 +2014,8 @@ class FrontEndActivity : ComponentActivity() {
 
     /** Runs a USB step off the main thread, then shows its error (if any) and the new state. */
     private fun usbAction(step: () -> String?) {
-        usbThread.execute { val error = step(); refreshUsb(error) }
+        // runCatching: the watcher or session stop may call in after onDestroy shut the thread down.
+        runCatching { usbThread.execute { val error = step(); refreshUsb(error) } }
     }
 
     /** Off the main thread: root is asked only once its setting is on. */
@@ -2022,10 +2023,12 @@ class FrontEndActivity : ComponentActivity() {
         val on = SessionPrefs.usbRootEnabled(this)
         val root = if (!UsbRootMount.available()) null else {
             var error = status
-            val drives = if (!on) emptyList() else runCatching { UsbRootMount.drives(this) }.getOrElse { error = error ?: it.message; emptyList() }
+            val mounted = UsbRootMount.mounted(this)
+            // Listed while still mounted after turning off too, so its Eject row shows.
+            val drives = if (!on && !mounted) emptyList() else runCatching { UsbRootMount.drives(this) }.getOrElse { error = error ?: it.message; emptyList() }
             val drive = SessionPrefs.usbRootDrive(this)
             if (on && drive.isNotEmpty() && drives.none { it.uuid == drive }) error = error ?: getString(R.string.usb_root_not_plugged)
-            UsbRootUi(on, drives, drive, UsbRootMount.mounted(this), error)
+            UsbRootUi(on, drives, drive, mounted, error)
         }
         // The root rows show the root mount; these are for the drive Android mounted.
         val free = if (on) null else GameStorage.usbDrive(this)?.let(GameStorage::free)

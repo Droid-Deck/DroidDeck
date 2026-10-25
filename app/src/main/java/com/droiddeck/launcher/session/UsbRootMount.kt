@@ -6,10 +6,7 @@ import android.util.Log
 import com.droiddeck.launcher.R
 import java.io.File
 
-/**
- * A hidden USB drive with root, mounted in the app's Android/data folder: below FUSE, so full speed and no SELinux change.
- * vold lets go of an exFAT/FAT drive and gets it back on unmount; ext4 needs [prepare] once.
- */
+/** A hidden USB drive mounted with root in the app's Android/data folder, below FUSE; ext4 needs [prepare] once. */
 object UsbRootMount {
     private const val TAG = "UsbRootMount"
 
@@ -145,6 +142,7 @@ object UsbRootMount {
     /** Syncs, unmounts, hands exFAT/FAT back to vold. Refuses while files are open. */
     @Synchronized
     fun unmount(context: Context): String? = attempt("unmount") {
+        if (!mounted(context)) return@attempt
         if (SessionState.running) throw IllegalStateException(context.getString(R.string.usb_root_eject_running))
         // A queued or paused store install would later write to the bare folder under the mount.
         if (com.droiddeck.launcher.stores.download.SavedQueue.installsTo(path(context)))
@@ -178,10 +176,7 @@ object UsbRootMount {
     /** Called (off the main thread) after a plug-in or pull-out was handled, so the UI can refresh. */
     @Volatile var onChange: (() -> Unit)? = null
 
-    /**
-     * Mounts on plug-in and detaches on pull-out. Android sends no media broadcasts for a USB drive
-     * it hides from apps, so vold's block nodes are watched instead, from a root shell of their own.
-     */
+    /** Mounts on plug-in, detaches on pull-out: no broadcasts for hidden drives, so vold's nodes are watched as root. */
     @Synchronized
     private fun watch(context: Context) {
         if (watcher?.isAlive == true) return
@@ -192,6 +187,8 @@ object UsbRootMount {
             if (lines == null || lines.readLine() != ROOT) return@Thread
             try {
                 watcherPid = lines.readLine()?.toIntOrNull() ?: 0
+                // Turned off while su was starting, before [unwatch] had a pid to kill.
+                if (!SessionPrefs.usbRootEnabled(app)) { attempt("unwatch") { run(app, "kill $watcherPid") }; return@Thread }
                 // inotifyd: "n<TAB>/dev/block/vold<TAB>public:8,97" on create, "d..." on delete.
                 lines.forEachLine { line ->
                     val fields = line.split('\t')

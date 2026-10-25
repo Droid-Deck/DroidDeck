@@ -678,8 +678,8 @@ fun FileManagerScreen(
                 Icon(Icons.Filled.ArrowBack, stringResource(R.string.fm_back), tint = MaterialTheme.colorScheme.primary)
             }
 
-            // The drive holding this folder, deepest root first: the root-mounted USB drive sits inside internal storage.
-            val currentDriveLabel = drives.filter { currentDir.startsWith(it.dir) }.maxByOrNull { it.dir.path.length }?.label
+            // The root-mounted USB drive sits inside internal storage, so its path alone says "Internal".
+            val currentDriveLabel = drives.firstOrNull { it.usb && currentDir.startsWith(it.dir) }?.label
                 ?: stringResource(describeLocation(currentDir).driveLabel)
             val driveChipAlpha = if (showFavorites) 0.45f else 1f
             Box {

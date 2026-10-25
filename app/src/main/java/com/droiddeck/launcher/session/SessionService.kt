@@ -976,8 +976,7 @@ class SessionService : Service() {
         val libraries = ArrayList<Pair<String, String>>()
         if (storageDiagnosticLibrary != null && library != null) libraries.add(SecondaryLibrary.CARD_GUESTS[0] to library.label)
         // The USB drive is a library of its own beside the card, bound like a Games folder.
-        val usb = GameStorage.usbDrive(this)?.takeIf { GameStorage.prepare(this, it.path) == null }
-            ?.let { GameStorage.Library(it, SecondaryLibrary.USB_GUEST, GameStorage.usbLabel(this)) }
+        val usb = GameStorage.usbDrive(this)?.let { GameStorage.Library(it, SecondaryLibrary.USB_GUEST, GameStorage.usbLabel(this)) }
         if (usb != null) {
             File(LinuxRuntime.rootDir(this), usb.guest.removePrefix("/")).mkdirs()
             binds.add(usb.host.path + ":" + usb.guest)
