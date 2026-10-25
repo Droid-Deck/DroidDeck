@@ -171,4 +171,31 @@ class ProtonExtrasTest {
         assertEquals(listOf("DroidDeck-Proton 11-7.10"), ProtonExtras.installedAll(context, tool("droiddeck")))
         assertEquals("DroidDeck-Proton 11-7.10", ProtonExtras.installed(context, tool("droiddeck")))
     }
+
+    @Test
+    fun removingABuildDropsItsStoredOriginalsAndSelections() {
+        val context = RuntimeEnvironment.getApplication()
+        val tools = File(LinuxRuntime.rootDir(context), "root/.local/share/Steam/compatibilitytools.d")
+        File(LinuxRuntime.rootDir(context), "root/.local/share/droiddeck-components").mkdirs()
+        installTool(tools, "GE-Proton11-7")
+        val kept = installTool(tools, "GE-Proton11-8").apply {
+            File(this, "files/lib/wine").mkdirs()
+            File(this, "proton").writeText("")
+        }
+        val originals = File(context.filesDir, "components/originals")
+        for (id in listOf("GE-Proton11-7", "GE-Proton11-8")) File(originals, "$id/$id/dxvk.wcp").apply { parentFile?.mkdirs(); writeText("x") }
+        val pick = JSONObject().put("dxvk", JSONObject().put("file", "dxvk.wcp").put("protonVersion", "GE-Proton11-7"))
+        File(context.filesDir, "components/state.json").writeText(JSONObject()
+            .put("active", JSONObject().put("GE-Proton11-7", pick).put("GE-Proton11-8", pick))
+            .put("queued", JSONObject().put("GE-Proton11-7", pick)).toString())
+        ProtonExtras.remove(context, tool("ge"), "GE-Proton11-7")
+        assertFalse(File(originals, "GE-Proton11-7").exists())
+        assertTrue(File(originals, "GE-Proton11-8/GE-Proton11-8/dxvk.wcp").isFile)
+        val state = JSONObject(File(context.filesDir, "components/state.json").readText())
+        assertFalse(state.getJSONObject("active").has("GE-Proton11-7"))
+        assertFalse(state.getJSONObject("queued").has("GE-Proton11-7"))
+        assertTrue(state.getJSONObject("active").has("GE-Proton11-8"))
+        ComponentsManager.forgetProton(context, kept.name)
+        assertTrue(File(originals, "GE-Proton11-8/GE-Proton11-8/dxvk.wcp").isFile)
+    }
 }

@@ -26,6 +26,7 @@ object GpuClockPin {
             pinned = true
             "gpu clock: held at its top"
         } catch (t: Throwable) {
+            File(context.filesDir, MARKER).delete()
             Log.w(TAG, "pin", t)
             "gpu clock: pin failed"
         }

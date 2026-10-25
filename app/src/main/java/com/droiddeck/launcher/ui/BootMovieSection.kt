@@ -676,14 +676,15 @@ private fun MoviePreview(url: String, modifier: Modifier = Modifier) {
 
 /** A dialog with one text box, for a search term or a page number; the Android keyboard comes up with it. */
 @Composable
-private fun TextEntryDialog(
+internal fun TextEntryDialog(
     title: String, initial: String, number: Boolean, confirm: String, onSubmit: (String) -> Unit, onDismiss: () -> Unit,
+    id: String = "boot-movie-entry",
 ) {
     val shown = rememberShown(onDismiss)
     val close = { shown.targetState = false }
     var text by remember { mutableStateOf(initial) }
     val submit = { onSubmit(text.trim()); close() }
-    AppDialog(shown, close, "boot-movie-entry", wide = false, maxWidth = 460.dp) {
+    AppDialog(shown, close, id, wide = false, maxWidth = 460.dp) {
         DialogTitleRow(title, close)
         AdbTextField(
             value = text, onValueChange = { text = it }, label = "", keyboardType = if (number) KeyboardType.Number else KeyboardType.Text,

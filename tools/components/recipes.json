@@ -1,0 +1,226 @@
+{
+  "runtime": {
+    "script": "tools/components/recipes/runtime.sh",
+    "inputs": [
+      "tools/components/recipes/runtime.sh",
+      "tools/quest",
+      "tools/linuxfs/overlay",
+      "tools/linuxfs/desktop",
+      "tools/linuxfs/licenses",
+      "tools/linuxfs/uruntime.env",
+      "tools/gamescope/release.env",
+      "tools/wlroots/release.env",
+      "tools/mangoapp",
+      "tools/msitools",
+      "tools/pipewire",
+      "tools/vr",
+      "app/src/main/cpp/waylandcomp/generated",
+      "app/src/main/cpp/waylandcomp/src/headpose_shm.h",
+      "app/src/main/cpp/waylandcomp/src/spatialpose_shm.h",
+      "app/src/main/cpp/venc/venc_proto.h"
+    ],
+    "outputs": [
+      "app/src/main/assets/linuxfs/usr/local/bin/gamescope",
+      "app/src/main/assets/linuxfs/usr/local/lib/droiddeck-vr/droiddeck/bin/linuxarm64/driver_droiddeck.so"
+    ],
+    "ndk": true,
+    "packages": [
+      "gcc-aarch64-linux-gnu",
+      "g++-aarch64-linux-gnu",
+      "libvulkan1",
+      "mesa-vulkan-drivers"
+    ]
+  },
+  "esync": {
+    "script": "tools/components/recipes/esync.sh",
+    "inputs": [
+      "tools/components/recipes/esync.sh",
+      "tools/droiddeck-esync/release.env"
+    ],
+    "outputs": [
+      "app/src/main/assets/droiddeck-esync/index.json",
+      "app/src/main/assets/droiddeck-esync/index.json.sig"
+    ]
+  },
+  "debian-image": {
+    "script": "tools/components/recipes/debian-image.sh",
+    "inputs": [
+      "tools/components/recipes/debian-image.sh"
+    ],
+    "outputs": []
+  },
+  "x86-preloads": {
+    "script": "tools/components/recipes/x86-preloads.sh",
+    "inputs": [
+      "tools/components/recipes/x86-preloads.sh",
+      "tools/linuxfs/build-x86-preloads.sh",
+      "tools/linuxfs/preload",
+      "tools/linuxfs/fex"
+    ],
+    "outputs": [
+      "app/src/main/assets/linuxfs/x86_64/libfakeinput.so",
+      "app/src/main/assets/linuxfs/x86_64/libblsession.so",
+      "app/src/main/assets/linuxfs/x86_64/libfaultreport.so",
+      "app/src/main/assets/linuxfs/i386/libfakeinput.so",
+      "app/src/main/assets/linuxfs/i386/libblsession.so",
+      "app/src/main/assets/linuxfs/i386/libfaultreport.so",
+      "app/src/main/assets/linuxfs/x86_64/libwebkitinput.so",
+      "app/src/main/assets/linuxfs/x86_64/libvulkan-thunk.so"
+    ],
+    "source_inputs": [
+      "app/src/main/cpp/fakeinput_steam.cpp",
+      "app/src/main/cpp/adrenotools/src/hook/kgsl.h",
+      "app/src/main/cpp/venc/venc_proto.h",
+      "tools/linuxfs/preload",
+      "tools/quest/kgsl_compat.c",
+      "tools/quest/kgsl_compat.h",
+      "tools/linuxfs/fex",
+      "tools/linuxfs/build-x86-preloads.sh",
+      "tools/linuxfs/debian-image.env"
+    ],
+    "snapshot_outputs": [
+      "x86_64/libfakeinput.so",
+      "x86_64/libblsession.so",
+      "x86_64/libfaultreport.so",
+      "i386/libfakeinput.so",
+      "i386/libblsession.so",
+      "i386/libfaultreport.so",
+      "x86_64/libwebkitinput.so",
+      "x86_64/libvulkan-thunk.so"
+    ]
+  },
+  "pulseaudio-source": {
+    "script": "tools/components/recipes/pulseaudio-source.sh",
+    "inputs": [
+      "tools/components/recipes/pulseaudio-source.sh"
+    ],
+    "outputs": [
+      "pa13/src/pulsecore/module.h"
+    ],
+    "source": {
+      "url": "https://github.com/pulseaudio/pulseaudio/archive/refs/tags/v13.0.tar.gz",
+      "sha256": "bd7980bc9bd44bd3b3363545dabd19476ebf4d6bb6d2527e7d179256394a6758"
+    }
+  },
+  "directaudio": {
+    "script": "tools/components/recipes/directaudio.sh",
+    "inputs": [
+      "tools/components/recipes/directaudio.sh",
+      "tools/directaudio"
+    ],
+    "outputs": [
+      "app/src/main/jniLibs/arm64-v8a/libdirectaudiorelay.so"
+    ],
+    "ndk": true
+  },
+  "audio": {
+    "script": "tools/components/recipes/audio.sh",
+    "inputs": [
+      "tools/aaudio-sink",
+      "tools/directaudio",
+      "tools/components/recipes/audio.sh",
+      "app/src/main/assets/pulseaudio.tzst"
+    ],
+    "outputs": [
+      "app/build/prepared-assets/pulseaudio.tzst"
+    ],
+    "ndk": true
+  },
+  "proot": {
+    "script": "tools/components/recipes/proot.sh",
+    "inputs": [
+      "tools/proot",
+      "tools/components/recipes/proot.sh"
+    ],
+    "outputs": [
+      "app/src/main/jniLibs/arm64-v8a/libproot.so",
+      "app/src/main/jniLibs/arm64-v8a/libproot-loader.so"
+    ],
+    "ndk": true
+  },
+  "comet": {
+    "script": "tools/components/recipes/comet.sh",
+    "inputs": [
+      "tools/comet",
+      "tools/components/recipes/comet.sh"
+    ],
+    "outputs": [
+      "app/src/main/assets/linuxfs/usr/local/lib/droiddeck-comet/comet",
+      "app/src/main/assets/linuxfs/usr/local/lib/droiddeck-comet/version"
+    ],
+    "packages": [
+      "gcc-aarch64-linux-gnu"
+    ]
+  },
+  "arm64-preloads": {
+    "script": "tools/components/recipes/arm64-preloads.sh",
+    "inputs": [
+      "tools/components/build-arm64-preloads.sh",
+      "tools/linuxfs/preload",
+      "app/src/main/cpp/fakeinput_steam.cpp",
+      "tools/components/recipes/arm64-preloads.sh"
+    ],
+    "outputs": [
+      "app/src/main/assets/linuxfs/libfakeinput.so",
+      "app/src/main/assets/linuxfs/libblsession.so",
+      "app/src/main/assets/linuxfs/libblfastpath.so",
+      "app/src/main/assets/linuxfs/libblaudit.so",
+      "app/src/main/assets/linuxfs/libssbs.so",
+      "app/src/main/assets/linuxfs/usr/local/bin/droiddeck-clipboard"
+    ],
+    "packages": [
+      "gcc-aarch64-linux-gnu",
+      "g++-aarch64-linux-gnu"
+    ],
+    "source_inputs": [
+      "app/src/main/cpp/fakeinput_steam.cpp",
+      "app/src/main/cpp/adrenotools/src/hook/kgsl.h",
+      "app/src/main/cpp/venc/venc_proto.h",
+      "tools/linuxfs/preload",
+      "tools/quest/kgsl_compat.c",
+      "tools/quest/kgsl_compat.h",
+      "tools/proot/fastpath",
+      "tools/linuxfs/ssbs",
+      "tools/linuxfs/clipboard"
+    ],
+    "snapshot_outputs": [
+      "libfakeinput.so",
+      "libblsession.so",
+      "libblfastpath.so",
+      "libblaudit.so",
+      "libssbs.so",
+      "usr/local/bin/droiddeck-clipboard"
+    ]
+  },
+  "preload-snapshot": {
+    "command": [
+      "python3",
+      "tools/components/preloads.py",
+      "restore"
+    ],
+    "inputs": [
+      "tools/components/preloads.py",
+      "tools/components/preloads.lock.json"
+    ],
+    "outputs": []
+  },
+  "xbox": {
+    "script": "tools/components/recipes/xbox.sh",
+    "inputs": [
+      "tools/xbox",
+      "tools/components/recipes/xbox.sh"
+    ],
+    "outputs": [
+      "app/src/main/assets/linuxfs/usr/local/lib/droiddeck-xbox/xodus-cli",
+      "app/src/main/assets/linuxfs/usr/local/lib/droiddeck-xbox/xodus-service"
+    ],
+    "packages": [
+      "build-essential",
+      "pkg-config",
+      "libssl-dev",
+      "protobuf-compiler",
+      "cmake",
+      "xz-utils"
+    ]
+  }
+}
