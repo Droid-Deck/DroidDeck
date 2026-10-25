@@ -426,6 +426,9 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                 ) {
                     Text(a.title ?: if (a.steam) stringResource(R.string.drawer_steam) else stringResource(R.string.drawer_desktop), fontSize = if (short) 18.sp else 20.sp, fontWeight = FontWeight.Bold,
                         color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                    if (a.pipSupported) SteamActionPill(
+                        stringResource(R.string.pip_title), Icons.Outlined.PictureInPictureAlt, focus.track(page, "pip"),
+                    ) { host.open = null; a.onPip() }
                     if (a.onSteamMenu != null && a.onQam != null) {
                         val qamInteraction = remember { MutableInteractionSource() }
                         var qamStartedOnPress by remember { mutableStateOf(false) }
@@ -438,13 +441,13 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                 }
                             }
                         }
-                        SteamActionPill(stringResource(R.string.drawer_steam_menu), Icons.Outlined.Home, focus.track(page, "steam")) {
+                        SteamActionPill(stringResource(R.string.drawer_steam_menu), Icons.Outlined.Home, focus.track(page, "steam"), shortcut = "⧉") {
                             host.open = null
                             a.onSteamMenu.invoke()
                         }
                         SteamActionPill(
                             stringResource(R.string.drawer_open_qam), Icons.Outlined.MoreHoriz, focus.track(page, "qam"),
-                            interactionSource = qamInteraction,
+                            interactionSource = qamInteraction, shortcut = "☰",
                             onConfirm = { host.open = null; a.onQam.invoke() },
                         ) {
                             host.open = null
@@ -711,8 +714,6 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                     a.pipAutoEnter, onChange = a.onPipAutoEnter)
                             }
                             Column(Modifier.fillMaxWidth().padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                if (a.pipSupported) DrawerActionButton(stringResource(R.string.pip_title), Icons.Outlined.PictureInPictureAlt,
-                                    modifier = focus.track(page, "pip")) { host.open = null; a.onPip() }
                                 if (!a.isHomeApp) DrawerActionButton(stringResource(R.string.drawer_background), Icons.AutoMirrored.Outlined.ExitToApp,
                                     modifier = focus.track(page, "background")) { host.open = null; a.onBackground() }
                             }
@@ -818,6 +819,7 @@ private fun SteamActionPill(
     description: String, icon: androidx.compose.ui.graphics.vector.ImageVector, modifier: Modifier,
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
     onConfirm: (() -> Unit)? = null,
+    shortcut: String? = null,
     onClick: () -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
@@ -826,7 +828,7 @@ private fun SteamActionPill(
     val shape = RoundedCornerShape(22.dp)
     Box(
         contentAlignment = Alignment.Center,
-        modifier = modifier.size(width = 52.dp, height = 44.dp).semantics { contentDescription = description }
+        modifier = modifier.size(44.dp).semantics { contentDescription = description }
             .clip(shape).background(if (hot) pal.signal.copy(alpha = 0.14f) else Color.Transparent)
             .glideBorder(hot, shape, pal.signal, pal.line)
             .hoverable(interactionSource)
@@ -834,6 +836,10 @@ private fun SteamActionPill(
             .controllerConfirm(onClick = onConfirm ?: onClick),
     ) {
         Icon(icon, contentDescription = null, tint = if (hot) pal.signal else colors.onBackground, modifier = Modifier.size(20.dp))
+        if (shortcut != null) Text(
+            shortcut, fontSize = 8.sp, lineHeight = 9.sp, color = colors.onSurfaceVariant,
+            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 8.dp, bottom = 6.dp),
+        )
     }
 }
 
