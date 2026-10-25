@@ -72,6 +72,7 @@ internal object XrealProtocol {
     }
 
     fun acknowledged(payload: ByteArray) = payload.contentEquals(byteArrayOf(0x22, 0))
+    fun busy(payload: ByteArray) = payload.contentEquals(byteArrayOf(0x22, 3, 8, 0x89.toByte(), 0x27))
     fun numeric(payload: ByteArray): Int? = if (payload.size == 4 &&
         payload[0] == 0x22.toByte() && payload[1] == 2.toByte() && payload[2] == 0x10.toByte() &&
         payload[3].toInt() in 0..127) payload[3].toInt() else null

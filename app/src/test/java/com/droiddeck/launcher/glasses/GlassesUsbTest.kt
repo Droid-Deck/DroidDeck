@@ -252,13 +252,49 @@ class GlassesUsbTest {
             .apply { isAccessible = true }.invoke(Glasses, ask)
     }
 
-    @Test fun xreal1SUsesExactIdentityAndExcludesAirOneProAndRecoveryProducts() {
-        assertEquals(XrealModel, Glasses.deviceModel(device(0x043e, 0x3318, "XREAL 1S")))
+    @Test fun xrealUsesExactModelIdentitiesAndExcludesAirOneProAndRecoveryProducts() {
+        assertEquals(XrealModel.ONE_S, Glasses.deviceModel(device(0x043e, 0x3318, "XREAL 1S")))
         assertTrue(Glasses.isGlassesDisplayName("XREAL 1S"))
-        for (pid in listOf(0x043d, 0x0435, 0x0436, 0x0424, 0xffff)) {
+        assertEquals(XrealModel.ONE, Glasses.deviceModel(device(0x0438, 0x3318, "XREAL One")))
+        assertTrue(Glasses.isGlassesDisplayName("XREAL One"))
+        for (pid in listOf(0x043d, 0x0435, 0x0436, 0x0437, 0x0424, 0xffff)) {
             assertEquals(null, Glasses.deviceModel(device(pid, 0x3318, "XREAL 1S")))
         }
         assertEquals(null, Glasses.deviceModel(device(0x043e, 0x1234, "XREAL 1S")))
+        assertEquals(null, Glasses.deviceModel(device(0x0438, 0x1234, "XREAL One")))
+    }
+
+    @Test fun xrealFamilyUsesNetworkWithoutRequestingUsbAccess() {
+        val previousLink = field("link").get(null)
+        val previousDevice = field("linkDevice").get(null)
+        field("linkDevice").set(null, null)
+        field("link").set(null, object : GlassesLink {
+            override val hasImu = true
+            override fun send(msgId: Int, payload: ByteArray) = true
+            override fun close() {}
+        })
+        try {
+            for (model in listOf(XrealModel.ONE, XrealModel.ONE_S)) {
+                val device = device(model.productId, XrealModel.VENDOR_ID, model.name)
+                manager.devices.clear()
+                manager.devices[device.deviceName] = device
+                refresh(ask = true)
+                assertTrue(manager.requests.isEmpty())
+                assertEquals(Glasses.Permission.GRANTED, state.value.permission)
+                assertEquals(model.name, state.value.model)
+                assertEquals(model.diagonalFovDeg, state.value.diagonalFovDeg, 0f)
+                assertEquals(model.brightnessMax, state.value.brightnessMax)
+                assertEquals(model.hasSunblock, state.value.hasSunblock)
+                assertEquals(model === XrealModel.ONE_S, state.value.hardwareControls)
+                assertTrue(state.value.experimental)
+                assertTrue(state.value.supportsScreen3dof)
+                assertFalse(state.value.supportsSpatial)
+            }
+        } finally {
+            (field("handler").get(null) as Handler).removeCallbacksAndMessages(null)
+            field("link").set(null, previousLink)
+            field("linkDevice").set(null, previousDevice)
+        }
     }
 
     @Test fun rokidMaxRoutesThroughItsOwnModelAndSharedVendorIdNeedsTheName() {

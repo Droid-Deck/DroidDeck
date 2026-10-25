@@ -30,7 +30,8 @@ class Glasses3dRoutingTest {
                 RayNeoModel.model(0x1bbb, 0xaf50, "RayNeo Air 4 Pro")!!,
                 RayNeoModel.model(0x3941, 0xaf50, "RayNeo GT")!!,
                 RayNeoModel.model(0x3941, 0xaf50, "RayNeo GT MAX")!!,
-                XrealModel,
+                XrealModel.ONE_S,
+                XrealModel.ONE,
             )
     private fun field(name: String) = Glasses::class.java.getDeclaredField(name).apply { isAccessible = true }
 
