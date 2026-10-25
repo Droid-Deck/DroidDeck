@@ -186,8 +186,8 @@ class BattleNetTest {
         assertEquals("Fen", BattleNet.title("Fenris")?.code)
         assertEquals("WTCG", BattleNet.title("hs_beta")?.code)
         assertEquals("Diablo II: Resurrected", BattleNet.title("osi_dede")?.name)
-        assertNull(BattleNet.title("wow_classic"))
-        assertNull(BattleNet.title("wow_classic_enus"))
+        assertEquals("WoWC", BattleNet.title("wow_classic")?.code)
+        assertEquals("WoWC", BattleNet.title("wow_classic_era_enus")?.code)
         assertNull(BattleNet.title("agent"))
         assertNull(BattleNet.title("osi_beta"))
     }
@@ -207,8 +207,11 @@ class BattleNetTest {
             varintField(7, 300),
             field(1, message(field(1, "hs_beta"), field(2, "wtcg"), varintField(9, 1), field(3, message(field(1, "C:/Program Files (x86)/Hearthstone"), field(2, "US"))))),
             field(1, message(field(1, "s2"))),
+            field(1, message(field(1, "s1"), field(3, message(field(1, "Z:/mnt/droiddeck-sd/Games/Battle.net/StarCraft"))), field(4, message(field(1, message(varintField(1, 0), varintField(2, 0))))))),
+            field(1, message(field(1, "wow_classic_anniversary"), field(3, message(field(1, "Z:/root/Games/World of Warcraft"))), field(4, message(field(1, message(varintField(1, 1), varintField(2, 1))))))),
         )
-        assertEquals(listOf("agent" to "C:/ProgramData/Battle.net/Agent", "hs_beta" to "C:/Program Files (x86)/Hearthstone"), BattleNet.productDbEntries(db))
+        assertEquals(listOf("agent" to "C:/ProgramData/Battle.net/Agent", "hs_beta" to "C:/Program Files (x86)/Hearthstone", "wow_classic_anniversary" to "Z:/root/Games/World of Warcraft"),
+            BattleNet.productDbEntries(db))
         assertEquals(emptyList<Pair<String, String>>(), BattleNet.productDbEntries(db.copyOf(db.size - 3)))
         assertEquals(emptyList<Pair<String, String>>(), BattleNet.productDbEntries(byteArrayOf(0x0a, 0x7f, 0x01)))
     }
@@ -226,8 +229,8 @@ class BattleNetTest {
             File(pfx, "drive_c/$folder").mkdirs()
         }
         val games = BattleNet.games(context)
-        assertEquals(listOf("Fen", "OSI", "WTCG"), games.map { it.code })
-        assertEquals(listOf("Diablo IV", "Diablo II: Resurrected", "Hearthstone"), games.map { it.name })
+        assertEquals(listOf("Fen", "OSI", "WTCG", "WoWC"), games.map { it.code })
+        assertEquals(listOf("Diablo IV", "Diablo II: Resurrected", "Hearthstone", "World of Warcraft Classic"), games.map { it.name })
         assertEquals(File(pfx, "drive_c/Games/Diablo II Resurrected"), games[1].folder)
         assertNull(BattleNet.hostFolder(context, "D:\\Games\\X"))
         assertNull(BattleNet.hostFolder(context, "C:\\..\\..\\etc"))

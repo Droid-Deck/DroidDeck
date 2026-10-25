@@ -21,6 +21,9 @@ object BattleNet {
 
     internal val TITLES = listOf(
         Title("wow", "World of Warcraft", "WoW", shop = "world-of-warcraft-midnight"),
+        Title("wow_classic", "World of Warcraft Classic", "WoWC"),
+        Title("wow_classic_era", "World of Warcraft Classic", "WoWC"),
+        Title("wow_classic_anniversary", "World of Warcraft Classic", "WoWC"),
         Title("diablo3", "Diablo III", "D3", shop = "diablo-iii"),
         Title("d3cn", "Diablo III", "D3CN", shop = "diablo-iii"),
         Title("s2", "StarCraft II", "S2", shop = "starcraft-ii"),
@@ -55,7 +58,7 @@ object BattleNet {
         Title("aqua", "Avowed", "AQUA", 2457220, shop = "avowed"),
     )
 
-    val STORE: List<Title> get() = TITLES.distinctBy { it.code }.filter { it.uid != "d3cn" }
+    val STORE: List<Title> get() = TITLES.distinctBy { it.code }.filter { it.uid != "d3cn" && it.code != "WoWC" }
 
     fun notInstalled(title: Title, installedIds: Collection<String?>) =
         installedIds.mapNotNull { id -> id?.let(::title)?.code }.none { it == title.code }
@@ -250,15 +253,22 @@ object BattleNet {
                 val uid = install.firstOrNull { it.first == 1 }?.let { String(bytes, it.second, it.third - it.second) }
                 val path = install.firstOrNull { it.first == 3 }?.let { s -> fields(bytes, s.second, s.third).firstOrNull { it.first == 1 } }
                     ?.let { String(bytes, it.second, it.third - it.second) }
-                if (uid.isNullOrEmpty() || path.isNullOrEmpty()) null else uid to path
+                val installed = install.firstOrNull { it.first == 4 }?.let { s -> fields(bytes, s.second, s.third).firstOrNull { it.first == 1 } }
+                    ?.let { s -> varints(bytes, s.second, s.third)[1] }
+                if (uid.isNullOrEmpty() || path.isNullOrEmpty() || installed == 0L) null else uid to path
             }.getOrNull()
         }
     }
 
-    private fun fields(bytes: ByteArray, from: Int, to: Int): List<Triple<Int, Int, Int>> {
+    private fun fields(bytes: ByteArray, from: Int, to: Int): List<Triple<Int, Int, Int>> = walk(bytes, from, to) { _, _ -> }
+
+    private fun varints(bytes: ByteArray, from: Int, to: Int): Map<Int, Long> =
+        HashMap<Int, Long>().also { found -> walk(bytes, from, to) { field, value -> found.putIfAbsent(field, value) } }
+
+    private fun walk(bytes: ByteArray, from: Int, to: Int, varint: (Int, Long) -> Unit): List<Triple<Int, Int, Int>> {
         val out = ArrayList<Triple<Int, Int, Int>>()
         var i = from
-        fun varint(): Long {
+        fun next(): Long {
             var value = 0L
             var shift = 0
             while (true) {
@@ -270,12 +280,12 @@ object BattleNet {
             }
         }
         while (i < to) {
-            val key = varint()
+            val key = next()
             when ((key and 7).toInt()) {
-                0 -> varint()
+                0 -> varint((key ushr 3).toInt(), next())
                 1 -> { require(to - i >= 8) { "truncated" }; i += 8 }
                 2 -> {
-                    val n = varint()
+                    val n = next()
                     require(n in 0..(to - i).toLong()) { "truncated" }
                     out.add(Triple((key ushr 3).toInt(), i, i + n.toInt()))
                     i += n.toInt()
