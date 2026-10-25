@@ -93,6 +93,7 @@
     <string name="game_env_anticheat_offline">On by default. Starts an Easy Anti-Cheat game without its anti-cheat when the game supports offline play. Turn off to launch through Easy Anti-Cheat as usual. Online modes that require Easy Anti-Cheat remain unavailable.</string>
     <string name="game_env_hud">DXVK overlay for D3D9–11. fps displays frame rate; unset hides it.</string>
     <string name="game_env_dxvk_config">DXVK settings separated by semicolons. Recent builds use dxvk.maxFrameRate for frame limiting; prefer the session frame limiter for ordinary play.</string>
+    <string name="game_env_cores">CPU cores for this game, such as 0-4 or 0,2,4, in place of the session\'s game cores. Fewer cores run cooler.</string>
     <string name="game_env_vkd3d_limit">D3D12 frame-rate limit. 0 disables the limit.</string>
     <string name="game_env_glthread">Mesa OpenGL threading. true can help CPU-limited OpenGL games; test per game.</string>
     <string name="sync_backend_title">Wine sync</string>
