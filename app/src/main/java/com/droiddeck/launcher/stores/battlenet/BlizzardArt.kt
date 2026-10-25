@@ -20,7 +20,7 @@ internal object BlizzardArt {
 
     internal fun imageUrl(page: String): String? {
         val og = OG.find(page)?.groupValues?.get(1)?.takeUnless { "youtube" in it || "maxresdefault" in it }
-        val url = og ?: THUMB.find(page)?.groupValues?.get(1)?.let { "https:$it" } ?: return null
+        val url = og ?: THUMB.findAll(page).map { it.groupValues[1] }.firstOrNull { "_bundle" !in it }?.let { "https:$it" } ?: return null
         val host = runCatching { URL(url).host }.getOrNull() ?: return null
         return url.takeIf { HOSTS.any { h -> host == h.trimStart('.') || host.endsWith(h) } }
     }

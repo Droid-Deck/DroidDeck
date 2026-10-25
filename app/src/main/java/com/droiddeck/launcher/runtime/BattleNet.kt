@@ -65,11 +65,12 @@ object BattleNet {
 
     private const val COVER_RETRY_MS = 24 * 3600_000L
 
-    private fun coverDir(context: Context, title: Title) = File(context.filesDir, "battlenet-art/${title.uid}")
+    private fun coverDir(context: Context, title: Title) =
+        File(context.filesDir, "battlenet-art/${(TITLES.firstOrNull { it.code == title.code } ?: title).uid}")
 
     fun cover(context: Context, title: Title): File? = art(context, title).cover
 
-    fun fetchCovers(context: Context, titles: List<Title> = STORE): Boolean {
+    fun fetchCovers(context: Context, titles: List<Title> = TITLES.distinctBy { it.code }.filter { it.uid != "d3cn" }): Boolean {
         val art = com.droiddeck.launcher.frontend.AddedGameArt
         val key = com.droiddeck.launcher.frontend.SteamGridDb.key(context)
         var got = false

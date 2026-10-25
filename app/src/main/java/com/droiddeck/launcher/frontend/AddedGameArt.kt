@@ -330,6 +330,10 @@ object AddedGameArt {
     }
 
     internal fun steamMatch(context: Context, game: AddedGames.Game, search: (String) -> Int?): SteamMatch.Match {
+        if (game.source == Store.BATTLENET.id) {
+            val id = game.storeId?.let(BattleNet::title)?.steam
+            return SteamMatch.Match(id, if (id == null) SteamMatch.Certainty.NONE else SteamMatch.Certainty.FILES, Store.BATTLENET.id, System.currentTimeMillis())
+        }
         val match = SteamMatch.resolve(context, game.folder.path, game.exe, game.name, legacy = File(cacheDir(context, game), "steam-appid"), search = search)
         match.appId?.let { Log.i(TAG, "${game.name}: Steam app $it (${match.certainty.name.lowercase()})") }
         return match

@@ -259,6 +259,13 @@ class BattleNetTest {
         assertEquals(exe, entry.getString("exe"))
     }
 
+    @Test fun titlesSharingALaunchCodeShareTheirArt() {
+        val cover = File(context.filesDir, "battlenet-art/fenris/p.jpg").apply { parentFile!!.mkdirs(); writeBytes(byteArrayOf(1)) }
+        assertEquals(cover, BattleNet.art(context, BattleNet.title("fen")!!).cover)
+        val wide = File(context.filesDir, "battlenet-art/wow_classic/blizzard.jpg").apply { parentFile!!.mkdirs(); writeBytes(byteArrayOf(1)) }
+        assertEquals(wide, BattleNet.art(context, BattleNet.title("wow_classic_anniversary")!!).header)
+    }
+
     @Test fun theStoreOffersEachTitleOnceAndHidesWhatIsInstalled() {
         val codes = BattleNet.STORE.map { it.code }
         assertEquals(codes.distinct(), codes)
