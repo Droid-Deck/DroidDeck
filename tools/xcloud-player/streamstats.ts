@@ -49,7 +49,7 @@ export class StreamStats {
         this.last = { bytes: video.bytesReceived, time: video.timestamp, decode: video.totalDecodeTime ?? 0,
             frames: video.framesDecoded ?? 0, lost: video.packetsLost ?? 0, received: video.packetsReceived ?? 0 }
 
-        const items: string[] = [`${Math.round(video.framesPerSecond ?? 0)} fps`]
+        const items: string[] = ['web', `${Math.round(video.framesPerSecond ?? 0)} fps`]
         if (this.level >= 2) {
             if (pair?.currentRoundTripTime !== undefined) items.push(`ping ${Math.round(pair.currentRoundTripTime * 1000)} ms`)
             items.push(`${video.frameWidth ?? '?'}x${video.frameHeight ?? '?'}`)

@@ -1888,7 +1888,13 @@ static void stream_take(void) {
         AHardwareBuffer_release(ahb); /* the slot keeps its own reference */
     } else {
         struct vkp_image *img = vkp_image_from_ahb(ahb);
-        if (!img) { AHardwareBuffer_release(ahb); return; }
+        if (!img) {
+            static int said;
+            if (!said) { said = 1; droiddeck_log("stream", "a decoded frame could not be imported: nothing to show"); }
+            AHardwareBuffer_release(ahb);
+            return;
+        }
+        droiddeck_log("stream", "decoded frame buffer imported (%dx%d)", vkp_image_width(img), vkp_image_height(img));
         slot = oldest;
         if (g_stream_slots[slot].img) {
             vkp_wait_idle(); /* the GPU may still read the picture being replaced */
@@ -1918,7 +1924,15 @@ static void render_stream(void) {
     struct vkp_draw d = {.img = img, .sx = 0, .sy = 0, .sw = (float)w, .sh = (float)h, .dx = 0, .dy = 0, .dw = w, .dh = h, .blend = 0};
     vkp_apply_window_request();
     sc_layer_hide();
-    if (vkp_render(w, h, &d, 1) == 0) g_stat_frames++;
+    int r = vkp_render(w, h, &d, 1);
+    if (r == 0) {
+        g_stat_frames++;
+        static int first;
+        if (!first) { first = 1; droiddeck_log("stream", "first stream frame presented"); }
+    } else {
+        static int failed;
+        if (failed++ % 600 == 0) droiddeck_log("stream", "presenting a stream frame failed (%d, %d times)", r, failed);
+    }
 }
 
 void droiddeck_stream_set(int on) {

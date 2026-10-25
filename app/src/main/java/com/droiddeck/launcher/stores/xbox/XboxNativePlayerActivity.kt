@@ -555,6 +555,7 @@ class XboxNativePlayerActivity : ComponentActivity() {
             val total = (if (rttMs >= 0) rttMs / 2 else 0.0) + bufferMs + decodeMs + fgWaitMs + fgGpuMs + refreshMs
             val shownFps = if (zeroCopy) (zeroCopyFrames - lastZeroCopyFrames).toInt().also { lastZeroCopyFrames = zeroCopyFrames } else fps
             val items = buildList {
+                add("native · " + if (settings.frameGen == XboxNativeVideo.FG_OFF) "no frame gen" else XboxNativeVideo.modeName(settings.frameGen))
                 add("$shownFps fps" + if (zeroCopy) " zero-copy" else "")
                 if (fgOn) add("${settings.frameGen} ${fg!![2].toInt()} → ${fg[3].toInt()}")
                 if (level >= 2) { add(size); add(if (rttMs >= 0) "ping ${rttMs.toInt()} ms" else "ping –") }
@@ -649,9 +650,9 @@ class XboxNativePlayerActivity : ComponentActivity() {
                                 modifier = androidx.compose.ui.Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
                             XboxCloudSettingsPanel(current, regionNames, live = true, section = "latency", restoreRow = null,
                                 startedWith = startedWith) { changed ->
-                                val routeChanged = changed.zeroCopy != current.zeroCopy
-                                current = changed; settings = changed; XboxCloudSettings.save(this@XboxNativePlayerActivity, changed)
-                                if (routeChanged) applyRoute()
+                                val before = current
+                                current = changed
+                                applyLive(before, changed)
                             }
                             XboxMenuEntry("Restart the stream with these settings",
                                 "Ends this cloud session and starts a new one; the game restarts, unsaved progress is lost.") { restartStream() }
@@ -663,12 +664,9 @@ class XboxNativePlayerActivity : ComponentActivity() {
                             val page = menuPage
                             XboxCloudSettingsPanel(current, regions, live = true, section = page, restoreRow = lastRow[page] ?: 0,
                                 onRowFocused = { lastRow[page] = it }, startedWith = startedWith) { changed ->
-                                val rateChanged = changed.fpsTarget != current.fpsTarget
+                                val before = current
                                 current = changed
-                                settings = changed
-                                XboxCloudSettings.save(this@XboxNativePlayerActivity, changed)
-                                if (rateChanged) { applyDisplayRate(changed.fpsTarget); video?.setFpsTarget(changed.fpsTarget) }
-                                applyOverlay()
+                                applyLive(before, changed)
                             }
                         }
                     }
@@ -679,6 +677,20 @@ class XboxNativePlayerActivity : ComponentActivity() {
         menu = view
         root.addView(view, FrameLayout.LayoutParams(-1, -1))
         view.requestFocus()
+    }
+
+    /**
+     * Applies a settings change from any menu page at once: frame generation, the frame-rate target, zero-copy, instant
+     * input and the overlay. Resolution, region, language, codec, bitrate, the network buffer, the decoder mode and the
+     * engine belong to the cloud session and need a restart (the page says so).
+     */
+    private fun applyLive(before: XboxCloudSettings, changed: XboxCloudSettings) {
+        settings = changed
+        XboxCloudSettings.save(this, changed)
+        if (changed.frameGen != before.frameGen) setFrameGen(changed.frameGen)
+        else if (changed.zeroCopy != before.zeroCopy) applyRoute()
+        if (changed.fpsTarget != before.fpsTarget) { applyDisplayRate(changed.fpsTarget); video?.setFpsTarget(changed.fpsTarget) }
+        applyOverlay()
     }
 
     private fun applyOverlay() {
