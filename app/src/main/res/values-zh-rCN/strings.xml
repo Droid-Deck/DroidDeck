@@ -1056,7 +1056,14 @@
     <string name="ctrl_configure">配置</string>
     <string name="ctrl_reset_all">重置手柄</string>
     <string name="ctrl_reset_all_hint">恢复所有手柄设置和布局</string>
-    <string name="ctrl_mapping_lede">每个屏幕按钮发送给游戏的内容。“隐藏”会移除该按钮。</string>
+    <string name="ctrl_mapping_lede">映射实体手柄按键，并设置屏幕按钮发送给游戏的输入。</string>
+    <string name="ctrl_hardware_buttons">实体手柄按键</string>
+    <string name="ctrl_learn_button">识别按键</string>
+    <string name="ctrl_learn_hint">按下手柄按键，再为它选择游戏中的功能。</string>
+    <string name="ctrl_press_button">现在按下手柄按键…</string>
+    <string name="ctrl_mouse_button">%1$s · 鼠标键 %2$d</string>
+    <string name="ctrl_remove_button">移除</string>
+    <string name="ctrl_button_not_detected">未检测到按键事件。该按键可能由手柄固件或安卓系统直接处理。</string>
     <string name="ctrl_onscreen_buttons">屏幕按钮</string>
     <string name="ctrl_defaults">默认值</string>
     <string name="ctrl_reset_mapping">重置映射</string>
@@ -1645,6 +1652,7 @@
     <string name="ctrl_button_rt">右扳机</string>
     <string name="ctrl_button_view">视图键</string>
     <string name="ctrl_button_menu">菜单键</string>
+    <string name="ctrl_target_qam">QAM</string>
     <string name="ctrl_target_view">视图</string>
     <string name="ctrl_target_menu">菜单</string>
     <string name="ctrl_target_up">方向键上</string>

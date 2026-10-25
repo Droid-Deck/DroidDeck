@@ -60,6 +60,7 @@ public final class PadBridge {
     private final PadState routedTouch = new PadState();
     private boolean systemGuidePressed;
     private boolean systemQamPressed;
+    private boolean mappedQamPressed;
     private boolean qamChordActive;
     private int chordButton = -1;
     private boolean chordButtonPressed;
@@ -456,9 +457,18 @@ public final class PadBridge {
         else publish();
     }
 
+    public synchronized void setMappedQamPressed(boolean pressed) {
+        if (!builtinPad || mappedQamPressed == pressed) return;
+        boolean qamStarted = pressed && !systemQamPressed;
+        mappedQamPressed = pressed;
+        if (qamStarted && !nativeQam()) startChord(PadState.A);
+        else publish();
+    }
+
     public synchronized void releaseAll() {
         routedTouch.clear();
         releaseBackPaddles();
+        mappedQamPressed = false;
         state.clear();
         publish();
         for (int slot = 1; slot < SLOTS; slot++) {
@@ -677,7 +687,7 @@ public final class PadBridge {
             return;
         }
         boolean guide = systemGuidePressed || qamChordActive;
-        boolean qam = nativeQam() && (systemQamPressed || qamTapPressed);
+        boolean qam = nativeQam() && (systemQamPressed || mappedQamPressed || qamTapPressed);
         if (!guide && !qam) {
             writer.writePad(state);
             return;

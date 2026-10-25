@@ -17,6 +17,7 @@ import android.os.Looper
 import android.util.Log
 import android.view.Display
 import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
@@ -61,6 +62,7 @@ import com.droiddeck.launcher.ui.ConfirmDialog
 import com.droiddeck.launcher.ui.ControllerActions
 import com.droiddeck.launcher.ui.ControllerMappingPage
 import com.droiddeck.launcher.input.ControllerPrefs
+import com.droiddeck.launcher.input.HardwareButtonMapping
 import com.droiddeck.launcher.input.ControllerEditorActivity
 import com.droiddeck.launcher.ui.FrontEndScreen
 import com.droiddeck.launcher.ui.FrontEndState
@@ -128,6 +130,11 @@ class FrontEndActivity : ComponentActivity() {
     private var focusComponentsContent by mutableStateOf(true)
     private var componentsGameKey by mutableStateOf<String?>(null)
     private var showMapping by mutableStateOf(false)
+    private var recordingHardwareButton by mutableStateOf(false)
+    private var hardwareRecordingGeneration = 0
+    private var capturedHardwareKey: Pair<Int, Int>? = null
+    private var capturedHardwareMouse: Pair<Int, Int>? = null
+    private var hardwareBindings by mutableStateOf<List<HardwareButtonMapping.Binding>>(emptyList())
     private var saveBusy: String? = null
     private var onSavePicked: ((File) -> Unit)? = null
     private var controllerSettings by mutableStateOf<ControllerPrefs.Settings?>(null)
@@ -984,7 +991,13 @@ class FrontEndActivity : ComponentActivity() {
                             OfflineMode.setEnabled(this, !OfflineMode.enabled(this))
                             offline = OfflineMode.enabled(this)
                         },
-                        onPageBack = { showPerformance = false; showComponents = false; showMapping = false },
+                        onPageBack = {
+                            showPerformance = false
+                            showComponents = false
+                            showMapping = false
+                            recordingHardwareButton = false
+                            hardwareRecordingGeneration++
+                        },
                         onGameStoresEnabled = { on -> SessionPrefs.setGameStoresEnabled(this, on); gameStoresEnabled = on },
                         onTheme = { id -> SessionPrefs.setTheme(this, id); theme = id },
                         onLauncherIcon = { style -> switchLauncherIcon(style) },
@@ -1107,7 +1120,13 @@ class FrontEndActivity : ComponentActivity() {
                             onJoyConVr = { on -> ControllerPrefs.setJoyConVr(this, on); refreshController() },
                             onEditLayout = { startActivity(Intent(this, ControllerEditorActivity::class.java)) },
                             onResetLayout = { ControllerPrefs.resetAllLayouts(this); refreshController() },
-                            onMapping = { showPerformance = false; showComponents = false; showMapping = true },
+                            onMapping = {
+                                showPerformance = false
+                                showComponents = false
+                                recordingHardwareButton = false
+                                hardwareRecordingGeneration++
+                                showMapping = true
+                            },
                             onResetAll = { ControllerPrefs.resetAll(this); refreshController() },
                         ),
                     ),
@@ -1273,6 +1292,25 @@ class FrontEndActivity : ComponentActivity() {
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        val hardwareKey = event.deviceId to event.scanCode
+        if (event.action == KeyEvent.ACTION_UP && capturedHardwareKey == hardwareKey) {
+            capturedHardwareKey = null
+            if (event.keyCode == KeyEvent.KEYCODE_BUTTON_A) com.droiddeck.launcher.ui.HeldKeys.confirm = false
+            return true
+        }
+        if (showMapping && recordingHardwareButton && HardwareButtonMapping.canCapture(event)) {
+            if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+                HardwareButtonMapping.capture(this, event)
+                hardwareBindings = HardwareButtonMapping.read(this)
+                recordingHardwareButton = false
+                hardwareRecordingGeneration++
+                capturedHardwareKey = hardwareKey
+            }
+            if (event.action == KeyEvent.ACTION_UP && event.keyCode == KeyEvent.KEYCODE_BUTTON_A) {
+                com.droiddeck.launcher.ui.HeldKeys.confirm = false
+            }
+            return true
+        }
         if (event.keyCode == KeyEvent.KEYCODE_BUTTON_A) com.droiddeck.launcher.ui.HeldKeys.confirm = event.action == KeyEvent.ACTION_DOWN
         if (showComponents && (event.keyCode == KeyEvent.KEYCODE_BUTTON_L1 || event.keyCode == KeyEvent.KEYCODE_BUTTON_R1)) {
             if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
@@ -1287,6 +1325,35 @@ class FrontEndActivity : ComponentActivity() {
             android.util.Log.w("MainActivity", "key ${event.keyCode} dropped: ${e.message}")
             true
         }
+    }
+
+    override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean =
+        interceptHardwareMouse(event) || super.dispatchGenericMotionEvent(event)
+
+    override fun dispatchTouchEvent(event: MotionEvent): Boolean =
+        interceptHardwareMouse(event) || super.dispatchTouchEvent(event)
+
+    private fun interceptHardwareMouse(event: MotionEvent): Boolean {
+        if (!event.isFromSource(android.view.InputDevice.SOURCE_MOUSE) &&
+            !event.isFromSource(android.view.InputDevice.SOURCE_TOUCHPAD)) return false
+        val button = HardwareButtonMapping.mouseButton(event)
+        if (button <= 0) return false
+        val identity = event.deviceId to button
+        if (event.actionMasked in setOf(MotionEvent.ACTION_UP, MotionEvent.ACTION_BUTTON_RELEASE) &&
+            capturedHardwareMouse == identity) {
+            capturedHardwareMouse = null
+            return true
+        }
+        if (showMapping && recordingHardwareButton && HardwareButtonMapping.canCapture(this, event) &&
+            event.actionMasked in setOf(MotionEvent.ACTION_DOWN, MotionEvent.ACTION_BUTTON_PRESS)) {
+            HardwareButtonMapping.capture(this, event)
+            hardwareBindings = HardwareButtonMapping.read(this)
+            recordingHardwareButton = false
+            hardwareRecordingGeneration++
+            capturedHardwareMouse = identity
+            return true
+        }
+        return HardwareButtonMapping.hasMouseBinding(this, event)
     }
 
     override fun onResume() {
@@ -1436,6 +1503,7 @@ class FrontEndActivity : ComponentActivity() {
 
     private fun refreshController() {
         controllerSettings = ControllerPrefs.read(this)
+        hardwareBindings = HardwareButtonMapping.read(this)
     }
 
     @Composable
@@ -1443,9 +1511,23 @@ class FrontEndActivity : ComponentActivity() {
         val settings = controllerSettings ?: return
         ControllerMappingPage(
             mapping = settings.mapping,
+            hardwareBindings = hardwareBindings,
+            recording = recordingHardwareButton,
+            onRecord = {
+                recordingHardwareButton = !recordingHardwareButton
+                val generation = ++hardwareRecordingGeneration
+                if (recordingHardwareButton) ui.postDelayed({
+                    if (recordingHardwareButton && hardwareRecordingGeneration == generation) {
+                        recordingHardwareButton = false
+                        android.widget.Toast.makeText(this, R.string.ctrl_button_not_detected, android.widget.Toast.LENGTH_LONG).show()
+                    }
+                }, 10_000)
+            },
+            onHardwarePick = { binding, target -> HardwareButtonMapping.setTarget(this, binding, target); refreshController() },
+            onHardwareRemove = { binding -> HardwareButtonMapping.remove(this, binding); refreshController() },
             onPick = { id, target -> ControllerPrefs.setTarget(this, id, target); refreshController() },
             onReset = { ControllerPrefs.resetMapping(this); refreshController() },
-            onBack = { showMapping = false },
+            onBack = { recordingHardwareButton = false; hardwareRecordingGeneration++; showMapping = false },
         )
     }
 

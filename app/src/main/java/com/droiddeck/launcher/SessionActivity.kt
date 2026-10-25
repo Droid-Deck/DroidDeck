@@ -70,6 +70,7 @@ import com.droiddeck.launcher.input.EvdevKeys
 import com.droiddeck.launcher.input.InputSpace
 import com.droiddeck.launcher.input.KeyboardHost
 import com.droiddeck.launcher.input.ControllerPrefs
+import com.droiddeck.launcher.input.HardwareButtonMapping
 import com.droiddeck.launcher.input.SessionClipboard
 import com.droiddeck.launcher.input.OnScreenControls
 import com.droiddeck.launcher.input.PadBridge
@@ -221,6 +222,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var cursorSerial = 0
     private var clientHidesCursor = false
     private var pointerLocked = false
+    private var absoluteTouchpadCapture = false
+    private data class MappedPointerPress(val target: String, val keyDown: KeyEvent?)
+    private val mappedPointerPresses = mutableMapOf<Pair<Int, Int>, MappedPointerPress>()
     private val pointerLockListener = WaylandCompositor.PointerLockListener { locked, _, _ ->
         uiHandler.post {
             if (pointerLocked == locked) return@post
@@ -440,6 +444,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         override fun onInputDeviceChanged(deviceId: Int) {
             joyConVr?.refresh()
             refreshControls()
+            updatePointerCapture()
         }
     }
 
@@ -495,6 +500,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             override fun dispatchPointerCaptureChanged(hasCapture: Boolean) {
                 super.dispatchPointerCaptureChanged(hasCapture)
                 Log.i(TAG, "pointer capture " + if (hasCapture) "on" else "off")
+                if (!hasCapture) releaseMappedPointerPresses()
             }
         }
         sessionRoot = root
@@ -2036,13 +2042,21 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (HardwareButtonMapping.targetFor(this, event) == "qam" &&
+            (event.action == KeyEvent.ACTION_DOWN || event.action == KeyEvent.ACTION_UP)) {
+            padBridge?.setMappedQamPressed(event.action == KeyEvent.ACTION_DOWN)
+            return true
+        }
+        val mapped = HardwareButtonMapping.remap(this, event)
+        return dispatchSessionKeyEvent(if (mapped === event) com.droiddeck.launcher.input.JoyCon.normalize(event) else mapped)
+    }
+
+    private fun dispatchSessionKeyEvent(event: KeyEvent): Boolean {
         when (event.keyCode) {
             KeyEvent.KEYCODE_VOLUME_UP, KeyEvent.KEYCODE_VOLUME_DOWN, KeyEvent.KEYCODE_VOLUME_MUTE ->
                 return super.dispatchKeyEvent(event)
         }
         if (pipUi) return true
-        val pad = com.droiddeck.launcher.input.JoyCon.normalize(event)
-        if (pad !== event) return dispatchKeyEvent(pad)
         val fromController = PadBridge.isControllerKeyEvent(event)
         if (fromController && event.action == KeyEvent.ACTION_DOWN) {
             if (drawerOpen && !drawerControllerActive) sessionOverlay.requestFocus()
@@ -2126,6 +2140,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {
+        if (dispatchMappedPointer(event)) return true
         if (pipUi) return true
         if (drawerOpen && PadBridge.isControllerMotionEvent(event)) {
             if (!drawerControllerActive) sessionOverlay.requestFocus()
@@ -2150,11 +2165,56 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         onCapturedPointer(event) || super.dispatchTrackballEvent(event)
 
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+        if (dispatchMappedPointer(event)) return true
         if (pipUi) return true
         if (event.actionMasked == MotionEvent.ACTION_DOWN && event.isFromSource(InputDevice.SOURCE_TOUCHSCREEN)) {
             drawerControllerActive = false
         }
         return super.dispatchTouchEvent(event)
+    }
+
+    private fun dispatchMappedPointer(event: MotionEvent): Boolean {
+        val button = HardwareButtonMapping.mouseButton(event)
+        if (button <= 0) return false
+        val identity = event.deviceId to button
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN, MotionEvent.ACTION_BUTTON_PRESS -> {
+                if (identity in mappedPointerPresses) return true
+                val target = HardwareButtonMapping.targetFor(this, event) ?: return false
+                val keyDown = if (target == "qam") null else HardwareButtonMapping.remap(this, event) ?: return false
+                mappedPointerPresses[identity] = MappedPointerPress(target, keyDown)
+                if (target == "qam") padBridge?.setMappedQamPressed(true)
+                else dispatchSessionKeyEvent(keyDown!!)
+                return true
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_BUTTON_RELEASE -> {
+                val press = mappedPointerPresses.remove(identity)
+                    ?: return HardwareButtonMapping.targetFor(this, event) != null
+                if (press.target == "qam") {
+                    padBridge?.setMappedQamPressed(mappedPointerPresses.values.any { it.target == "qam" })
+                } else press.keyDown?.let { down ->
+                    dispatchSessionKeyEvent(KeyEvent(down.downTime, event.eventTime,
+                        KeyEvent.ACTION_UP, down.keyCode, 0, 0, down.deviceId, 0, 0,
+                        InputDevice.SOURCE_GAMEPAD))
+                }
+                return true
+            }
+        }
+        return false
+    }
+
+    private fun releaseMappedPointerPresses() {
+        if (mappedPointerPresses.isEmpty()) return
+        val presses = mappedPointerPresses.values.toList()
+        mappedPointerPresses.clear()
+        padBridge?.setMappedQamPressed(false)
+        presses.forEach { press ->
+            press.keyDown?.let { down ->
+                dispatchSessionKeyEvent(KeyEvent(down.downTime, SystemClock.uptimeMillis(),
+                    KeyEvent.ACTION_UP, down.keyCode, 0, 0, down.deviceId, 0, 0,
+                    InputDevice.SOURCE_GAMEPAD))
+            }
+        }
     }
 
     private fun dispatchDrawerDirection(event: MotionEvent) {
@@ -2727,12 +2787,34 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun updatePointerCapture() {
         if (!::surfaceView.isInitialized) return
         val view = window.decorView
-        val want = pointerLocked && resumed && hasWindowFocus() && !drawerOpen && !pcKeyboardOpen && !achievementsOpen && !pipUi && mouseAttached()
-        if (want == view.hasPointerCapture()) return
-        if (want) view.requestPointerCapture() else view.releasePointerCapture()
+        val mappedTouchpad = Build.VERSION.SDK_INT >= 37 &&
+            HardwareButtonMapping.hasConnectedTouchpadBinding(this)
+        val want = (pointerLocked && mouseAttached() || mappedTouchpad) && resumed &&
+            hasWindowFocus() && !drawerOpen && !pcKeyboardOpen && !achievementsOpen && !pipUi
+        val absolute = want && mappedTouchpad && !pointerLocked
+        if (want == view.hasPointerCapture() && (!want || absolute == absoluteTouchpadCapture)) return
+        if (!want) {
+            releaseMappedPointerPresses()
+            view.releasePointerCapture()
+            absoluteTouchpadCapture = false
+        } else if (absolute) {
+            // API 37 adds absolute touchpad capture; this project compiles against API 34.
+            val captured = runCatching {
+                View::class.java.getMethod("requestPointerCapture", Int::class.javaPrimitiveType)
+                    .invoke(view, 1)
+            }.isSuccess
+            if (!captured) view.requestPointerCapture()
+            absoluteTouchpadCapture = captured
+        } else {
+            view.requestPointerCapture()
+            absoluteTouchpadCapture = false
+        }
     }
 
     private fun onCapturedPointer(event: MotionEvent): Boolean {
+        if (dispatchMappedPointer(event)) return true
+        if (event.isFromSource(InputDevice.SOURCE_TOUCHPAD) &&
+            mappedPointerPresses.keys.any { it.first == event.deviceId }) return true
         if (!pointerLocked || !event.isFromSource(InputDevice.SOURCE_MOUSE_RELATIVE)) return false
         when (event.actionMasked) {
             MotionEvent.ACTION_MOVE -> {
@@ -3095,6 +3177,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (::scrollTouch.isInitialized) scrollTouch.cancel()
         if (::padMouse.isInitialized) padMouse.reset()
         resumed = false
+        releaseMappedPointerPresses()
         updatePointerCapture()
         updatePadMotion()
         keyboard?.takeIf { it.shown }?.hide()
