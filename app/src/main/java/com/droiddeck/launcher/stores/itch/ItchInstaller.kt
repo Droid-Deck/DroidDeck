@@ -149,8 +149,17 @@ internal class ItchInstaller(
         }
     }
 
+    private fun clearPartialInstall() {
+        if (StoreGameSidecar.read(folder)?.state != StoreGameSidecar.STATE_INSTALLING) return
+        folder.listFiles()?.forEach {
+            if (it.name == StoreGameSidecar.FILE_NAME) return@forEach
+            if (it.isDirectory) StoreInstalls.deleteTree(it) else it.delete()
+        }
+    }
+
     private fun install(archive: File, filename: String, handle: DownloadQueue.JobHandle): String? {
         folder.mkdirs()
+        clearPartialInstall()
         when (val kind = sniff(archive, filename)) {
             "zip" -> unzip(archive, handle)
             "7z" -> sevenZip(archive, handle)
