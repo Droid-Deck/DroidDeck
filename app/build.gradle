@@ -317,6 +317,55 @@ def buildRustStores = tasks.register('buildRustStores', Exec) {
 if (!skipRust) android.sourceSets.main.jniLibs.srcDir(rustJniLibsDir)
 tasks.named('preBuild').configure { dependsOn(buildRustStores) }
 
+// GeForce NOW: DroidDeck's streamer host (libdroiddeckgfn.so, src/main/rust/gfn) and OpenNOW's
+// core service (external/opennow, MIT, by Zortos). The core is a program the app runs as a child
+// process, so it ships as libopennowcore.so in the native library directory (the one place the
+// app may exec from), like the Mali bridge server.
+def gfnCrateDir = layout.projectDirectory.dir('src/main/rust/gfn')
+def openNowCoreDir = rootProject.layout.projectDirectory.dir('external/opennow/native/opennow-core')
+def gfnJniLibsDir = layout.buildDirectory.dir('gfnJniLibs')
+def gfnCargoEnvironment = { Exec task ->
+    def cargoBin = "${System.getProperty('user.home')}/.cargo/bin"
+    task.environment 'PATH', "${cargoBin}${File.pathSeparator}${System.getenv('PATH')}"
+    task.environment 'ANDROID_NDK_HOME', android.ndkDirectory.absolutePath
+    task.environment 'CARGO_TERM_COLOR', 'never'
+}
+def buildGfnHost = tasks.register('buildGfnHost', Exec) {
+    description = 'Cross-compiles the GeForce NOW streamer host (libdroiddeckgfn.so) with cargo-ndk.'
+    onlyIf { !skipRust }
+    inputs.dir(gfnCrateDir.dir('src'))
+    inputs.files(gfnCrateDir.file('Cargo.toml'), gfnCrateDir.file('Cargo.lock'))
+    inputs.dir(rootProject.file('external/opennow/native/opennow-streamer/crates'))
+    inputs.property('ndkVersion', android.ndkVersion)
+    outputs.dir(gfnJniLibsDir)
+    workingDir gfnCrateDir
+    gfnCargoEnvironment(it)
+    commandLine 'rustup', 'run', 'stable', 'cargo', 'ndk', '--target', 'arm64-v8a', '--platform', '29',
+        '--output-dir', gfnJniLibsDir.get().asFile.absolutePath,
+        'build', '--release', '--locked'
+}
+def buildOpenNowCore = tasks.register('buildOpenNowCore', Exec) {
+    description = "Cross-compiles OpenNOW's core service and stages it as libopennowcore.so."
+    onlyIf { !skipRust }
+    inputs.dir(openNowCoreDir.dir('src'))
+    inputs.files(openNowCoreDir.file('Cargo.toml'), openNowCoreDir.file('Cargo.lock'))
+    inputs.property('ndkVersion', android.ndkVersion)
+    outputs.file(gfnJniLibsDir.map { it.file('arm64-v8a/libopennowcore.so') })
+    workingDir openNowCoreDir
+    gfnCargoEnvironment(it)
+    commandLine 'rustup', 'run', 'stable', 'cargo', 'ndk', '--target', 'arm64-v8a', '--platform', '29',
+        'build', '--release', '--locked', '--bin', 'opennow-core'
+    doLast {
+        def built = openNowCoreDir.file('target/aarch64-linux-android/release/opennow-core').asFile
+        def staged = gfnJniLibsDir.get().file('arm64-v8a/libopennowcore.so').asFile
+        staged.parentFile.mkdirs()
+        java.nio.file.Files.copy(built.toPath(), staged.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+    }
+}
+buildOpenNowCore.configure { mustRunAfter(buildGfnHost) }
+if (!skipRust) android.sourceSets.main.jniLibs.srcDir(gfnJniLibsDir)
+tasks.named('preBuild').configure { dependsOn(buildGfnHost, buildOpenNowCore) }
+
 dependencies {
     implementation "org.opencv:opencv:${trackingPack.OPENCV_VERSION}"
     implementation 'org.khronos.openxr:openxr_loader_for_android:1.1.49'
