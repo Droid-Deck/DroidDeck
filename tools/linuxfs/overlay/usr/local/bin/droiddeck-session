@@ -486,10 +486,11 @@ case $mode in
           done
         }
         bl_zram_pick() {
-          _pids=("${_bl_pids[@]}")
-          if [ "$1" = all ]; then
+          if [ "$1" = session ]; then
             bl_session_others
-            _pids+=("${_bl_session[@]}")
+            _pids=("${_bl_session[@]}")
+          else
+            _pids=("${_bl_pids[@]}")
           fi
         }
         # Same protocol as SessionSuspendController: an empty ack when the page-out starts, a byte when it is done.
@@ -544,8 +545,8 @@ case $mode in
                 else
                   step "RAM cap: over, client already small ($((_bl_rss / 1024)) MB resident), skipping it"
                 fi
-                bl_over_cap && bl_zram_send 1 "still over the RAM cap, compressing the session" all
-                if [ "$_bl_game" = 1 ]; then _bl_packed=$SECONDS; else _bl_unpack=1; fi
+                bl_over_cap && bl_zram_send 1 "still over the RAM cap, compressing the rest of the session" session
+                [ "$_bl_game" = 1 ] && _bl_packed=$SECONDS
                 if bl_over_cap; then
                   _bl_backoff=$((_bl_backoff * 2 > 600 ? 600 : _bl_backoff * 2))
                   step "RAM cap: still over after paging out, next try in ${_bl_backoff} s"
