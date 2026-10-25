@@ -30,6 +30,16 @@ patched backend source archive and the checksum-verified runtime source archive
 in the build cache and publishes both in CI's `xbox-corresponding-source`
 artifact; distribute corresponding sources with published binaries.
 
+`droiddeck-credential-fallback.patch` names the reason when the backend cannot reach the
+app's credential socket (`NEXUS_CREDENTIAL_ERROR_V1 socket-refused`, `-denied`, ...) and then
+uses a keyed loopback port the app also listens on; some devices refuse the abstract socket
+from inside PRoot. The key is passed in the backend's environment only.
+
+`droiddeck-credential-diagnostics.patch` names the step behind a `credential-io` failure: the
+session lock (`lock-dir-owner`, `lock-file-mode`, `lock-flock-<reason>`, ...), a socket or loopback
+exchange that broke after connecting (`socket-exchange-<reason>`), a malformed host reply, or a
+missing socket name, port or key. Errno values without a name are spelled with letters, a = 0 ... j = 9.
+
 `droiddeck-credentials.patch` replaces Linux Secret Service with a bounded,
 Android abstract socket restricted to the backend process started by the host. The Android host encrypts every persistent
 write using its existing Keystore cipher, verifies backend read-backs, and
