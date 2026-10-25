@@ -31,8 +31,11 @@ NOTICES = ('COPYING', 'LICENSE', 'COPYRIGHT', 'README', 'NOTICE')
 
 
 def digest(path):
+    result = hashlib.sha256()
     with path.open('rb') as stream:
-        return hashlib.file_digest(stream, 'sha256').hexdigest()
+        for block in iter(lambda: stream.read(1024 * 1024), b''):
+            result.update(block)
+    return result.hexdigest()
 
 
 def specifications():
@@ -43,7 +46,7 @@ def fetch(directory, spec):
     directory.mkdir(parents=True, exist_ok=True)
     path = directory / spec['filename']
     pending = path.with_name(path.name + '.pending')
-    with urllib.request.urlopen(spec['url']) as response, pending.open('wb') as stream:
+    with urllib.request.urlopen(spec['url'], timeout=60) as response, pending.open('wb') as stream:
         shutil.copyfileobj(response, stream)
     if digest(pending) != spec['sha256']:
         pending.unlink()
