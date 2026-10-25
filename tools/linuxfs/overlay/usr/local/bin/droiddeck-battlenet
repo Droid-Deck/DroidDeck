@@ -51,7 +51,7 @@ READY_SETTLE = 5
 CLIENT_WAIT = 300
 GAME_GRACE = 15
 CLIENT_PATH = re.compile(r"[a-z]:\\(program files \(x86\)|programdata)\\battle\.net\\")
-IDLE = {"agent.exe", "conhost.exe", "explorer.exe", "plugplay.exe", "rpcss.exe", "services.exe",
+IDLE = {"agent.exe", "conhost.exe", "explorer.exe", "lsass.exe", "plugplay.exe", "rpcss.exe", "services.exe",
         "start.exe", "steam.exe", "svchost.exe", "tabtip.exe", "winedevice.exe", "wineserver"}
 NOT_GAME = IDLE | {"rundll32.exe", "wineboot.exe", "winemenubuilder.exe"}
 MIN_INSTALLER = 1 << 20

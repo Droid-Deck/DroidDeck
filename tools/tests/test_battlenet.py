@@ -751,7 +751,7 @@ class LaunchTest(Harness):
         self.assertTrue(BNET["is_game"](["c:/Program Files (x86)/Overwatch/_retail_/Overwatch.exe", "-uid", "prometheus"]))
         self.assertTrue(BNET["is_game"](["C:\\Program Files (x86)\\Diablo IV\\BlizzardError\\BlizzardError.exe"]))
         for argv in (self.CLIENT, self.AGENT, ["C:\\Program Files (x86)\\Battle.net\\Battle.net Launcher.exe"],
-                     ["C:\\windows\\system32\\services.exe"], ["C:\\windows\\system32\\rundll32.exe", "setupapi"],
+                     ["C:\\windows\\system32\\services.exe"], ["C:\\windows\\system32\\lsass.exe"], ["C:\\windows\\system32\\rundll32.exe", "setupapi"],
                      ["c:\\windows\\system32\\steam.exe", "x"], ["/x/files/bin/wineserver"], ["/usr/bin/python3", "proton"], []):
             with self.subTest(argv):
                 self.assertFalse(BNET["is_game"](argv))
