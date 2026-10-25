@@ -211,13 +211,19 @@ if [ -z "${BL_INSIDE:-}" ]; then
   width=${BL_WIDTH:-1280}
   height=${BL_HEIGHT:-720}
   nested=$width
+  nested_h=$height
   if [ "${BL_FOLLOW_OUTPUT:-0}" = 1 ]; then
     echo "== gamescope: the output follows the screen (${width}x${height} to start)"
   elif [ "$mode" = steam ] && [ "${BL_GAMESCOPE_STRETCH_16X9:-0}" = 1 ]; then
     wide=$(( (height * 16 + 4) / 9 / 2 * 2 ))
+    tall=$(( (width * 9 + 8) / 16 / 2 * 2 ))
     if [ "$wide" -gt "$width" ]; then
       nested=$wide
-      echo "== gamescope: games at ${nested}x${height} stretched to the ${width}x${height} output"
+    elif [ "$tall" -gt "$height" ]; then
+      nested_h=$tall
+    fi
+    if [ "$nested" != "$width" ] || [ "$nested_h" != "$height" ]; then
+      echo "== gamescope: games at ${nested}x${nested_h} stretched to the ${width}x${height} output"
     fi
   fi
   # Off unless Performance asks for it. Compositing the cursor here adds a second
@@ -225,8 +231,11 @@ if [ -z "${BL_INSIDE:-}" ]; then
   if [ "$mode" = steam ] && [ "${BL_CURSOR_COMPOSITE:-0}" = 1 ]; then
     export gamescope_cursor_composite=2
   fi
-  args=(--backend wayland --expose-wayland -f -W "$width" -H "$height" -w "$nested" -h "$height")
-  [ "$nested" != "$width" ] && args+=(-S stretch) && export BL_STRETCHED=1
+  args=(--backend wayland --expose-wayland -f -W "$width" -H "$height" -w "$nested" -h "$nested_h")
+  if [ "$nested" != "$width" ] || [ "$nested_h" != "$height" ]; then
+    args+=(-S stretch)
+    export BL_STRETCHED=1
+  fi
   if [ "${BL_FPS:-0}" -gt 0 ]; then
     args+=(-r "$BL_FPS")
   elif [ "${BL_REFRESH:-0}" -gt 0 ]; then

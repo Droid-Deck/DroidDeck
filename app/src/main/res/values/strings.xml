@@ -1995,7 +1995,7 @@
     <string name="display_resolution">Resolution</string>
     <string name="display_game_fit">16:9 game fit</string>
     <string name="display_game_fit_hint">How 16:9 games fit this display. Next session.</string>
-    <string name="display_game_fit_unavailable">Choose Match screen or a custom size narrower than 16:9.</string>
+    <string name="display_game_fit_unavailable">Choose Match screen or a custom size that isn\'t 16:9.</string>
     <string name="display_preserve">Keep proportions</string>
     <string name="display_stretch">Stretch to display</string>
     <string name="display_image_scaling">Image scaling</string>
