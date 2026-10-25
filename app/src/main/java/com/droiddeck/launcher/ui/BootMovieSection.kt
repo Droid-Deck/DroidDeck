@@ -181,7 +181,11 @@ private fun InstalledTab(a: ModeSettingsActions) {
     var saving by remember { mutableStateOf(false) }
     // The report is for bug reports, so it shows only while Debugging tools is on (read each time this tab opens).
     val debugging = remember { com.droiddeck.launcher.agent.AgentAccess.commandsEnabled(app) }
+    var probing by remember { mutableStateOf(false) }
     if (debugging) {
+        SettingsRow("Linux launch probe", "Adds a Steam shortcut for a Linux program and maps it to droiddeck-fex") {
+            SecondaryButton("Run probe", onClick = { probing = true })
+        }
         SettingsRow(stringResource(R.string.boot_movie_report), stringResource(R.string.boot_movie_report_hint)) {
             SecondaryButton(stringResource(R.string.boot_movie_report_save), enabled = !saving, onClick = {
                 saving = true
@@ -198,6 +202,11 @@ private fun InstalledTab(a: ModeSettingsActions) {
         }
     }
     if (browsing) InstalledMoviesDialog(a) { browsing = false }
+    if (probing) TextEntryDialog(
+        "Path of the Linux program", "", number = false, confirm = "Run",
+        onSubmit = { value -> if (value.isNotEmpty()) com.droiddeck.launcher.stores.LinuxLaunchProbe.run(app, value) }, onDismiss = { probing = false },
+        id = "linux-probe-entry",
+    )
 }
 
 @Composable
