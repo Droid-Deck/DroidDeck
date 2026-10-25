@@ -4,10 +4,8 @@ import android.content.Context
 import android.content.pm.ActivityInfo
 import androidx.annotation.StringRes
 import com.droiddeck.launcher.R
-import com.droiddeck.launcher.core.CpuAllocationDefaults
 import com.droiddeck.launcher.core.GameEnvironment
 import com.droiddeck.launcher.core.TextureFiltering
-import com.droiddeck.launcher.core.ZramSupport
 import com.droiddeck.launcher.gpu.Cardboard
 import com.droiddeck.launcher.gpu.ScreenEffects
 import org.json.JSONObject
@@ -51,9 +49,9 @@ object SessionPrefs {
     )
 
     fun orientation(context: Context): Int =
-        prefs(context).getInt("orientation", ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE)
+        prefs(context).getInt("orientation", ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE)
             .takeIf { value -> orientationOptions.any { it.first == value } }
-            ?: ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+            ?: ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
 
     fun setOrientation(context: Context, orientation: Int) {
         require(orientationOptions.any { it.first == orientation })
@@ -93,13 +91,6 @@ object SessionPrefs {
      */
     fun storesEpicMode(context: Context): String = prefs(context).getString("storesEpicMode", "adaptive") ?: "adaptive"
 
-    fun storesOpenTab(context: Context): String =
-        prefs(context).getString("storesOpenTab", STORES_OPEN_LIBRARY)?.takeIf { it == STORES_OPEN_STORE } ?: STORES_OPEN_LIBRARY
-
-    fun setStoresOpenTab(context: Context, tab: String) {
-        prefs(context).edit().putString("storesOpenTab", if (tab == STORES_OPEN_STORE) STORES_OPEN_STORE else STORES_OPEN_LIBRARY).apply()
-    }
-
     fun storesShowMature(context: Context): Boolean = prefs(context).getBoolean("storesShowMature", false)
 
     fun setStoresShowMature(context: Context, show: Boolean) {
@@ -136,9 +127,6 @@ object SessionPrefs {
 
     val STORES_SORTS = listOf("lastPlayed", "recentlyInstalled", "titleAsc", "titleDesc", "sizeDesc", "sizeAsc", "releaseDateDesc")
     val STORES_VIEWS = listOf("cards", "capsules", "list")
-
-    const val STORES_OPEN_LIBRARY = "library"
-    const val STORES_OPEN_STORE = "store"
 
     fun storesInstallTarget(context: Context): String = prefs(context).getString("storesInstallTarget", "") ?: ""
 
@@ -264,6 +252,19 @@ object SessionPrefs {
     const val GPU_DRIVERS_MANUAL = "manual"
     const val GPU_DRIVERS_MIX = "mix"
 
+    const val TP_UBWC_AUTO = "auto"
+    const val TP_UBWC_ON = "on"
+    const val TP_UBWC_OFF = "off"
+
+    fun tpUbwcMode(context: Context): String =
+        prefs(context).getString("tpUbwcMode", TP_UBWC_AUTO)
+            ?.takeIf { it in setOf(TP_UBWC_AUTO, TP_UBWC_ON, TP_UBWC_OFF) } ?: TP_UBWC_AUTO
+
+    fun setTpUbwcMode(context: Context, mode: String) {
+        require(mode in setOf(TP_UBWC_AUTO, TP_UBWC_ON, TP_UBWC_OFF))
+        prefs(context).edit().putString("tpUbwcMode", mode).commit()
+    }
+
     fun gpuDriverMode(context: Context): String =
         prefs(context).getString("gpuDriverMode", GPU_DRIVERS_AUTO) ?: GPU_DRIVERS_AUTO
 
@@ -305,6 +306,34 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("returnAfterGame", on).apply()
     }
 
+    private fun shaderPrecacheApplied(context: Context) =
+        java.io.File(com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(context), "root/.bl-shader-precache-applied")
+
+    /**
+     * Shader pre-caching as the launcher last set it, until a session reports it written into the
+     * client's config.vdf; after that the client's own toggle is the user's again.
+     */
+    fun pendingShaderPrecache(context: Context): Boolean? {
+        val prefs = prefs(context)
+        if (!prefs.contains("shaderPrecache")) return null
+        val on = prefs.getBoolean("shaderPrecache", true)
+        val applied = shaderPrecacheApplied(context)
+        val written = runCatching { applied.readText().trim() }.getOrNull() ?: return on
+        applied.delete()
+        if (written != if (on) "1" else "0") return on
+        prefs.edit().remove("shaderPrecache").apply()
+        return null
+    }
+
+    fun setShaderPrecache(context: Context, on: Boolean) {
+        shaderPrecacheApplied(context).delete()
+        prefs(context).edit().putBoolean("shaderPrecache", on).apply()
+    }
+
+    fun shaderPrecache(context: Context): Boolean = pendingShaderPrecache(context)
+        ?: runCatching { com.droiddeck.launcher.storage.SteamStorage.shaderPrecache(
+            java.io.File(steamRoot(context, steamClientArch(context)), "config/config.vdf").readText()) }.getOrDefault(true)
+
     fun stretch16x9(context: Context): Boolean = prefs(context).getBoolean("stretch16x9", false)
 
     fun setStretch16x9(context: Context, on: Boolean) {
@@ -342,30 +371,19 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("wifiDiscoveryAsked", true).apply()
     }
 
-    internal data class CoreAllocation(val clientOverride: Boolean, val clientCpus: String, val gameCpus: String)
-
-    internal fun coreAllocation(context: Context, defaults: CpuAllocationDefaults.Allocation? = CpuAllocationDefaults.device): CoreAllocation {
-        val saved = prefs(context)
-        return CoreAllocation(
-            saved.getBoolean("clientCpusOverride", defaults != null && !saved.contains("clientCpus")),
-            saved.getString("clientCpus", defaults?.client.orEmpty()).orEmpty(),
-            saved.getString("gameCpus", defaults?.game.orEmpty()).orEmpty(),
-        )
-    }
-
-    fun clientCpusOverride(context: Context): Boolean = coreAllocation(context).clientOverride
+    fun clientCpusOverride(context: Context): Boolean = prefs(context).getBoolean("clientCpusOverride", false)
 
     fun setClientCpusOverride(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("clientCpusOverride", on).apply()
     }
 
-    fun clientCpus(context: Context): String = coreAllocation(context).clientCpus
+    fun clientCpus(context: Context): String = prefs(context).getString("clientCpus", "").orEmpty()
 
     fun setClientCpus(context: Context, list: String) {
         prefs(context).edit().putString("clientCpus", list).apply()
     }
 
-    fun gameCpus(context: Context): String = coreAllocation(context).gameCpus
+    fun gameCpus(context: Context): String = prefs(context).getString("gameCpus", "").orEmpty()
 
     fun setGameCpus(context: Context, list: String) {
         prefs(context).edit().putString("gameCpus", list).apply()
@@ -377,7 +395,7 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("noXalia", on).apply()
     }
 
-    fun fastSync(context: Context): Boolean = prefs(context).getBoolean("fastSync", false)
+    fun fastSync(context: Context): Boolean = prefs(context).getBoolean("fastSync", true)
 
     fun setFastSync(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("fastSync", on).apply()
@@ -412,6 +430,17 @@ object SessionPrefs {
             .apply()
     }
 
+    fun applyNtsyncDefault(context: Context) {
+        val prefs = prefs(context)
+        if (prefs.getBoolean("ntsyncDefaultV1", false)) return
+        prefs.edit()
+            .putBoolean("fastSync", true)
+            .putBoolean("fsyncFirst", false)
+            .putBoolean("syncFallback", true)
+            .putBoolean("ntsyncDefaultV1", true)
+            .apply()
+    }
+
     fun syncFallback(context: Context): Boolean = prefs(context).getBoolean("syncFallback", true)
 
     fun setSyncFallback(context: Context, on: Boolean) {
@@ -443,6 +472,13 @@ object SessionPrefs {
 
     fun setProotFastPath(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("prootFastPath", on).apply()
+    }
+
+    /** gamescope draws the cursor itself. Off by default: on a phone that plane costs frames. */
+    fun cursorComposite(context: Context): Boolean = prefs(context).getBoolean("cursorComposite", false)
+
+    fun setCursorComposite(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("cursorComposite", on).apply()
     }
 
     const val DEFAULT_GUEST_HOSTNAME = "DroidDeck"
@@ -765,6 +801,14 @@ object SessionPrefs {
             it.getInt("gradientSecondary", com.droiddeck.launcher.ui.Themes.DEFAULT_SECONDARY)
     }
 
+    /** How fast the Inner Gamer theme cycles its colours, 1 to 10. */
+    fun rgbSpeed(context: Context): Int =
+        prefs(context).getInt("innerGamerSpeed", com.droiddeck.launcher.ui.Themes.DEFAULT_RGB_SPEED).coerceIn(1, com.droiddeck.launcher.ui.Themes.RGB_SPEEDS)
+
+    fun setRgbSpeed(context: Context, speed: Int) {
+        prefs(context).edit().putInt("innerGamerSpeed", speed.coerceIn(1, com.droiddeck.launcher.ui.Themes.RGB_SPEEDS)).apply()
+    }
+
     fun setGradientColors(context: Context, primary: Int, secondary: Int) {
         prefs(context).edit().putInt("gradientPrimary", primary).putInt("gradientSecondary", secondary).apply()
     }
@@ -1049,15 +1093,6 @@ object SessionPrefs {
                 putString(policyKey, SUSPEND_AUTO)
             }
         }.apply()
-    }
-
-    fun zramCompression(context: Context): Boolean {
-        val prefs = prefs(context)
-        return if (prefs.contains("zramCompression")) prefs.getBoolean("zramCompression", false) else ZramSupport.recommended(context)
-    }
-
-    fun setZramCompression(context: Context, on: Boolean) {
-        prefs(context).edit().putBoolean("zramCompression", on).apply()
     }
 
 

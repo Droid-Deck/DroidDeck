@@ -1,25 +1,57 @@
 #!/bin/bash
 set -eu
 cdn_list="https://client-update.steamstatic.com https://client-update.akamai.steamstatic.com https://client-update.fastly.steamstatic.com"
-steam_channel=steamdeck_publicbeta
-manifest=steam_client_${steam_channel}_linuxarm64
+beta_channel=steamdeck_publicbeta
+stable_channel=steamdeck_stable
 steam_root=${XDG_DATA_HOME:-$HOME/.local/share}/Steam
+channel_state=$steam_root/package/droiddeck-channel
+pinned=1
+wanted=${BL_STEAM_CHANNEL:-$(cat "$HOME/.config/droiddeck/steam-channel" 2>/dev/null || true)}
+case $wanted in
+  stable|"$stable_channel") steam_channel=$stable_channel ;;
+  beta|"$beta_channel") steam_channel=$beta_channel ;;
+  *)
+    pinned=
+    steam_channel=$beta_channel
+    [ "$(cat "$channel_state" 2>/dev/null)" = "$stable_channel" ] && steam_channel=$stable_channel
+    ;;
+esac
+if [ "${1:-}" = --channel ]; then
+  echo "$steam_channel"
+  exit 0
+fi
+manifest=steam_client_${steam_channel}_linuxarm64
 stamp=$steam_root/package/droiddeck-installed
 legacy_stamp=$steam_root/package/bannerlator-installed
 unconfirmed=$steam_root/package/droiddeck-unconfirmed
 repair_request=$HOME/.bl-steam-repair
+parts=$steam_root/package/droiddeck-download
 if [ -f "$legacy_stamp" ] && [ ! -f "$stamp" ]; then
   mv -f "$legacy_stamp" "$stamp" || true
 fi
 repair=""
+fallback=""
+starts=0
+[ -f "$unconfirmed" ] && starts=$(grep -cx start "$unconfirmed" || true)
 if [ -e "$repair_request" ]; then
   repair="requested"
-elif [ -f "$unconfirmed" ] && ! grep -qx repaired "$unconfirmed" \
-    && [ "$(grep -cx start "$unconfirmed")" -ge 2 ]; then
-  repair="the client was started $(grep -cx start "$unconfirmed") times without showing anything"
+elif [ "$starts" -ge 2 ] && ! grep -qx repaired "$unconfirmed"; then
+  repair="the client was started $starts times without showing anything"
+elif [ "$starts" -ge 2 ] && [ -z "$pinned" ] && [ "$steam_channel" = "$beta_channel" ] && [ "${1:-}" != --sync ]; then
+  repair="the repaired $beta_channel client was started $starts more times without showing anything"
+  fallback=1
+fi
+if [ -n "$fallback" ]; then
+  echo "== STEP $(date -u +%H:%M:%S) falling back to Valve's $stable_channel Steam client: $repair"
+  steam_channel=$stable_channel
+  manifest=steam_client_${steam_channel}_linuxarm64
 fi
 if [ -n "$repair" ]; then
   echo "== STEP $(date -u +%H:%M:%S) repairing the Steam client ($repair)"
+  if [ ! -f "$parts/.repair" ]; then
+    rm -rf "$parts"
+    mkdir -p "$parts" && : > "$parts/.repair"
+  fi
   rm -f "$stamp" "$legacy_stamp" "$steam_root/.crash" "$steam_root/steam.pid" \
     "$steam_root"/package/steam_client_*.manifest "$steam_root"/package/steam_client_*.installed
   for part in "$steam_root"/package/*.zip.*; do
@@ -42,20 +74,99 @@ fi
 
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
-cdn=""
-for candidate in $cdn_list; do
-  if curl -fsSL --connect-timeout 10 --max-time 30 --retry 2 --retry-connrefused --retry-delay 3 \
-      "$candidate/$manifest" -o "$work/manifest"; then
-    cdn=$candidate
-    break
+
+nap() {
+  [ -n "${nap_fd:-}" ] || exec {nap_fd}<> <(:)
+  read -r -t "$1" -u "$nap_fd" _ 2>/dev/null || :
+}
+size_of() {
+  local n=0
+  [ -f "$1" ] && n=$(wc -c < "$1")
+  echo $((n))
+}
+limits=(--connect-timeout 30 --speed-limit 4096 --speed-time 60)
+read -r -a delays <<< "${BL_STEAM_RETRY_DELAYS:-5 10 20 30 30}"
+
+step() { echo "== STEP $(date -u +%H:%M:%S) $*"; }
+progress() {
+  local mb=$(( (done_bytes + $(size_of "$1")) / 1000000 ))
+  [ -z "${3:-}" ] && [ "$mb" = "${shown_mb:-}" ] && [ "$2" = "${shown_part:-}" ] && return 0
+  shown_mb=$mb shown_part=$2
+  step "downloading Steam: $2 ($i/$total), $mb of $((total_bytes / 1000000)) MB${3:+ - $3}"
+}
+
+fetch() {
+  local url=$1 dest=$2 size=$3 sum=$4 part=$5 failures=0 bad=0 finished=0 before rc fd wait
+  while :; do
+    if [ -f "$dest" ] && { [ "$finished" = 1 ] || { [ "$size" -gt 0 ] && [ "$(size_of "$dest")" -ge "$size" ]; }; }; then
+      echo "$sum  $dest" | sha256sum -c --quiet 2>/dev/null && return 0
+      rm -f "$dest"
+      finished=0 bad=$((bad + 1))
+      [ "$bad" -lt 3 ] || { echo "droiddeck-steam-install: $part does not match its checksum" >&2; return 1; }
+    fi
+    before=$(size_of "$dest")
+    exec {fd}< <(code=$(curl -fsSL "${limits[@]}" -w '%{http_code}' -C - -o "$dest" "$url") && echo "0 $code" || echo "$? $code")
+    until read -r -t 5 -u "$fd" rc http; do
+      if [ $? -le 128 ]; then rc=1; break; fi
+      progress "$dest" "$part"
+    done
+    exec {fd}<&-
+    if [ "$rc" = 0 ]; then finished=1; continue; fi
+    case "$rc:${http:-}" in
+      22:416 | 33:*) rm -f "$dest" ;;
+      22:4??)
+        echo "droiddeck-steam-install: $part: HTTP $http from ${url%/*}" >&2
+        return 1
+        ;;
+    esac
+    if [ "$(size_of "$dest")" -gt "$before" ]; then failures=0; else failures=$((failures + 1)); fi
+    if [ "$failures" -gt "${#delays[@]}" ]; then
+      echo "droiddeck-steam-install: could not download $part (curl exit $rc); what arrived is kept for the next try" >&2
+      return 1
+    fi
+    wait=${delays[$((failures > 0 ? failures - 1 : 0))]}
+    progress "$dest" "$part" "interrupted (curl exit $rc), trying again in ${wait} s"
+    nap "$wait"
+  done
+}
+
+fetch_manifest() {
+  cdn=""
+  for candidate in $cdn_list; do
+    if curl -fsSL --connect-timeout 10 --max-time 30 --retry 2 --retry-connrefused --retry-delay 3 \
+        "$candidate/$manifest" -o "$work/manifest"; then
+      cdn=$candidate
+      break
+    fi
+  done
+  [ -n "$cdn" ] || { echo "droiddeck-steam-install: no Steam client CDN answered for $manifest" >&2; exit 1; }
+  cdn_order=("$cdn")
+  for candidate in $cdn_list; do
+    [ "$candidate" = "$cdn" ] || cdn_order+=("$candidate")
+  done
+  version=$(awk -F'"' '$2 == "version" { print $4; exit }' "$work/manifest")
+  awk -F'"' '
+    /^\t"/ && NF >= 3 && $4 == "" { block = $2 }
+    $2 == "file" { file[block] = $4 }
+    $2 == "sha2" { sha[block] = $4 }
+    $2 == "size" { size[block] = $4 }
+    END { for (b in file) if (b ~ /_all$/ || b ~ /_linuxarm64_linuxarm64$/) print b, file[b], sha[b], size[b] + 0 }
+  ' "$work/manifest" | sort > "$work/parts"
+  [ -s "$work/parts" ] && return 0
+  echo "droiddeck-steam-install: no client components in $manifest; its blocks are:" \
+    "$(awk -F'"' '/^\t"/ && NF >= 3 && $4 == "" { printf "%s ", $2 }' "$work/manifest")" >&2
+  return 1
+}
+if ! fetch_manifest; then
+  if [ -n "$sync" ] || [ -n "$pinned" ] || [ "$steam_channel" = "$stable_channel" ]; then
+    exit 1
   fi
-done
-[ -n "$cdn" ] || { echo "droiddeck-steam-install: no Steam client CDN answered for $manifest" >&2; exit 1; }
-cdn_order=("$cdn")
-for candidate in $cdn_list; do
-  [ "$candidate" = "$cdn" ] || cdn_order+=("$candidate")
-done
-version=$(awk -F'"' '$2 == "version" { print $4; exit }' "$work/manifest")
+  echo "== STEP $(date -u +%H:%M:%S) falling back to Valve's $stable_channel Steam client: $manifest has no arm64 client"
+  steam_channel=$stable_channel
+  manifest=steam_client_${steam_channel}_linuxarm64
+  fallback=1
+  fetch_manifest || exit 1
+fi
 if [ -n "$sync" ]; then
   installed=$(awk -F'"' '$2 == "version" { print $4; exit }' "$steam_root/package/$manifest.manifest" 2>/dev/null || true)
   if [ -x "$steam_root/steamrtarm64/steam" ] && [ "$installed" = "$version" ]; then
@@ -64,31 +175,36 @@ if [ -n "$sync" ]; then
   fi
   echo "== STEP $(date -u +%H:%M:%S) updating the arm64 Steam client to $version (was ${installed:-none}) for the x86-64 client"
 fi
-awk -F'"' '
-  /^\t"/ && NF >= 3 && $4 == "" { block = $2 }
-  $2 == "file" { file[block] = $4 }
-  $2 == "sha2" { sha[block] = $4 }
-  END { for (b in file) if (b ~ /_all$/ || b ~ /_linuxarm64_linuxarm64$/) print b, file[b], sha[b] }
-' "$work/manifest" | sort > "$work/parts"
-[ -s "$work/parts" ] || { echo "droiddeck-steam-install: no client components in $manifest" >&2; exit 1; }
 total=$(grep -c . "$work/parts" 2>/dev/null || echo 0)
+total_bytes=$(awk '{ n += $4 } END { print n + 0 }' "$work/parts")
 
-mkdir -p "$steam_root/package"
-while read -r block file sum; do
+mkdir -p "$parts"
+for left in "$parts"/*; do
+  [ -e "$left" ] || continue
+  name=${left##*/}
+  name=${name%.unpacked}
+  grep -qF " $name " "$work/parts" || rm -rf "$left"
+done
+done_bytes=0
+while read -r block file sum size; do
   i=$((${i:-0} + 1))
-  echo "== STEP $(date -u +%H:%M:%S) downloading Steam: $block ($i/$total)"
+  if [ -f "$parts/$file.unpacked" ]; then
+    done_bytes=$((done_bytes + size))
+    continue
+  fi
+  progress "$parts/$file" "$block"
   fetched=""
   for host in "${cdn_order[@]}"; do
-    if curl -fsSL --connect-timeout 10 --speed-limit 1024 --speed-time 60 --max-time 1800 \
-        "$host/$file" -o "$work/$file" && echo "$sum  $work/$file" | sha256sum -c --quiet; then
+    if fetch "$host/$file" "$parts/$file" "$size" "$sum" "$block"; then
       fetched=$host
       break
     fi
-    rm -f "$work/$file"
   done
   [ -n "$fetched" ] || { echo "droiddeck-steam-install: $file failed on every CDN" >&2; exit 1; }
-  unzip -qo "$work/$file" -d "$steam_root"
-  rm -f "$work/$file"
+  unzip -qo "$parts/$file" -d "$steam_root"
+  : > "$parts/$file.unpacked"
+  rm -f "$parts/$file"
+  done_bytes=$((done_bytes + size))
 done < "$work/parts"
 find "$steam_root" -depth -name '*\\*' | while read -r odd; do
   fixed=${odd//\\//}
@@ -117,6 +233,11 @@ ln -sfn "$steam_root/linuxarm64" "$HOME/.steam/sdkarm64"
 ln -sfn "$steam_root/steamrtarm64" "$HOME/.steam/binarm64"
 ln -sfn "$steam_root/linux32" "$HOME/.steam/sdk32"
 echo "$version" > "$stamp"
+rm -rf "$parts"
+if [ -n "$fallback" ]; then
+  echo "$stable_channel" > "$channel_state"
+  echo "== STEP $(date -u +%H:%M:%S) the Steam client now follows $stable_channel (beta in ~/.config/droiddeck/steam-channel returns to $beta_channel)"
+fi
 if [ -n "$repair" ]; then
   echo repaired > "$unconfirmed"
   rm -f "$repair_request"

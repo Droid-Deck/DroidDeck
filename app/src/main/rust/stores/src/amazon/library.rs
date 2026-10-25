@@ -21,6 +21,7 @@ pub struct Game {
     pub parent_product_id: String,
     pub art: String,
     pub hero: String,
+    pub logo: String,
     pub developer: String,
     pub publisher: String,
 }
@@ -39,6 +40,7 @@ impl Game {
             "sku": self.sku,
             "art": self.art,
             "hero": self.hero,
+            "logo": self.logo,
             "developer": self.developer,
             "publisher": self.publisher,
             "dlc": self.is_dlc(),
@@ -83,6 +85,7 @@ pub fn read_entitlement(e: &Value) -> Option<Game> {
             ],
         )
         .to_string(),
+        logo: str_at(product, &["productDetail", "details", "logoUrl"]).to_string(),
         developer: str_at(product, &["productDetail", "details", "developer"]).to_string(),
         publisher: str_at(product, &["productDetail", "details", "publisher"]).to_string(),
     })
@@ -178,17 +181,20 @@ mod tests {
     fn entitlement_fields_and_fallbacks() {
         let e = json!({"id":"ent-1","product":{"id":"amzn1.adg.product.x","title":"Game","sku":"SKU1",
             "productDetail":{"iconUrl":"","details":{"pgCrownImageUrl":"crown","backgroundUrl1":"bg1",
-            "developer":"Dev","publisher":"Pub","productType":"GAME"}}}});
+            "logoUrl":"logo","developer":"Dev","publisher":"Pub","productType":"GAME"}}}});
         let g = read_entitlement(&e).unwrap();
         assert_eq!(g.entitlement_id, "ent-1");
         assert_eq!(g.art, "crown");
         assert_eq!(g.hero, "bg1");
+        assert_eq!(g.logo, "logo");
+        assert_eq!(g.to_json()["logo"], "logo");
         assert_eq!(g.product_type, "GAME");
         assert!(!g.is_dlc());
         let untitled = read_entitlement(&json!({"product":{"id":"p","type":"DLC","baseProductId":"q"}})).unwrap();
         assert_eq!(untitled.title, "Unknown");
         assert_eq!(untitled.entitlement_id, "");
         assert_eq!(untitled.parent_product_id, "q");
+        assert_eq!(untitled.logo, "");
         assert!(untitled.is_dlc());
         assert!(read_entitlement(&json!({"id":"x"})).is_none());
         assert!(read_entitlement(&json!({"id":"x","product":{"id":""}})).is_none());

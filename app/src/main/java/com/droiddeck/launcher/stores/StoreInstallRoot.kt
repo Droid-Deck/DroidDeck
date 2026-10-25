@@ -104,6 +104,29 @@ object StoreInstallRoot {
             .map { it to guestFor(context, it) }
     }
 
+    /** Xodus has its own PRoot mount table and cannot see the selected Steam library's SD bind. */
+    fun externalRootsForXodus(context: Context): List<Pair<File, String>> {
+        val roots = externalRoots(context).toMutableList()
+        val selectedLibrary = GameStorage.effective(context)?.let { File(it.path, ON_VOLUME) }
+            ?.takeUnless { isInternal(context, it) }
+        if (selectedLibrary != null && roots.none { it.first.absolutePath == selectedLibrary.absolutePath }) {
+            roots += selectedLibrary to guestFor(context, selectedLibrary)
+        }
+        return roots
+    }
+
+    fun externalBindSpecs(context: Context): List<String> = externalBindSpecs(externalRoots(context), LinuxRuntime.rootDir(context))
+
+    fun externalBindSpecsForXodus(context: Context): List<String> =
+        externalBindSpecs(externalRootsForXodus(context), LinuxRuntime.rootDir(context))
+
+    internal fun externalBindSpecs(roots: List<Pair<File, String>>, guestRoot: File): List<String> =
+        roots.mapNotNull { (host, guest) ->
+            if (!host.isDirectory || !host.canRead()) return@mapNotNull null
+            val target = File(guestRoot, guest.removePrefix("/"))
+            if (target.isDirectory || target.mkdirs()) "${host.path}:$guest" else null
+        }
+
     private fun guestFor(context: Context, root: File): String {
         val sm = context.getSystemService(StorageManager::class.java)
         val uuid = runCatching { sm?.getStorageVolume(root)?.uuid }.getOrNull()?.takeIf { it.isNotBlank() }?.replace(Regex("[^A-Za-z0-9-]"), "")
@@ -114,11 +137,21 @@ object StoreInstallRoot {
     fun isInternal(context: Context, root: File): Boolean = root.absolutePath == internalRoot(context).absolutePath
 
     fun externalGuestPath(context: Context, host: File): String? {
+        return externalGuestPath(host, externalRoots(context))
+    }
+
+    fun guestPath(context: Context, host: File): String = externalGuestPath(context, host) ?: host.path
+
+    fun guestPathForXodus(context: Context, host: File): String =
+        externalGuestPath(host, externalRootsForXodus(context)) ?: host.path
+
+    internal fun externalGuestPath(host: File, roots: List<Pair<File, String>>): String? {
         val path = host.absolutePath
-        for ((root, guest) in externalRoots(context)) {
-            val dir = root.absolutePath
+        for ((root, guest) in roots.sortedByDescending { it.first.absolutePath.length }) {
+            val dir = root.absolutePath.trimEnd(File.separatorChar)
             if (path == dir) return guest
-            if (path.startsWith("$dir/")) return guest + "/" + path.removePrefix("$dir/")
+            val prefix = dir + File.separator
+            if (path.startsWith(prefix)) return guest + "/" + path.removePrefix(prefix).replace(File.separatorChar, '/')
         }
         return null
     }

@@ -84,19 +84,16 @@ class ComponentImportTest {
         assertFalse(unpacked.exists())
     }
 
-    @Test fun deletePackageRefusesReferencedAndDeletesUnreferenced() {
+    @Test fun deletingAPackageAGameProfileUsesClearsThatProfileEntry() {
         val wcpA = createWcp("src-a.wcp", "A")
         ComponentsManager.importPackage(context, wcpA, "dxvk.wcp")
         writeGameProfile("10", "dxvk", "dxvk.wcp")
 
-        assertThrows(IllegalStateException::class.java) {
-            ComponentsManager.deletePackage(context, "dxvk.wcp")
-        }
-        assertTrue(File(context.filesDir, "components/packages/dxvk.wcp").isFile)
-
-        File(context.filesDir, "components/state.json").delete()
         ComponentsManager.deletePackage(context, "dxvk.wcp")
+
         assertFalse(File(context.filesDir, "components/packages/dxvk.wcp").exists())
+        val state = JSONObject(File(context.filesDir, "components/state.json").readText())
+        assertFalse(state.optJSONObject("profiles")?.optJSONObject("10")?.has("dxvk") == true)
     }
 
     private fun writeGameProfile(scope: String, comp: String, file: String) {

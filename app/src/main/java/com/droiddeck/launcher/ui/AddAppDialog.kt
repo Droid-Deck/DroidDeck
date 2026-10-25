@@ -308,6 +308,7 @@ internal fun AppDialog(
     width: Dp? = null, fitContent: Boolean = false,
     back: (() -> Unit)? = null,
     scrollable: Boolean = true,
+    scrollState: androidx.compose.foundation.ScrollState = rememberScrollState(),
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val pal = LocalPalette.current
@@ -345,7 +346,7 @@ internal fun AppDialog(
                         .blockTouches()
                         .controllerBack(back ?: close)
                         .then(modifier)
-                        .then(if (scrollable) Modifier.verticalScroll(rememberScrollState()) else Modifier)
+                        .then(if (scrollable) Modifier.verticalScroll(scrollState) else Modifier)
                         .padding(horizontal = 18.dp, vertical = 16.dp),
                     content = content,
                 )
