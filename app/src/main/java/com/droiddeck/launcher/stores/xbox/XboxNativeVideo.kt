@@ -61,7 +61,7 @@ internal class XboxNativeVideo(private val context: Context, eglBase: EglBase, p
     @Volatile private var refreshHz = 60f
     /** The frame-rate target (0 = the screen's rate): the frame-gen pacer's cap, or a limit on stream frames without it. */
     @Volatile private var fpsTarget = 0
-    private var lastSubmitNs = 0L
+    private var nextDueNs = 0L
     @Volatile var frames = 0L
         private set
 
@@ -137,10 +137,16 @@ internal class XboxNativeVideo(private val context: Context, eglBase: EglBase, p
         synchronized(lock) {
             if (r !== reader) { image.close(); return }
             val buffer = image.hardwareBuffer
-            // Without frame generation a target below the stream's rate drops stream frames evenly.
+            // Without frame generation a target below the stream's rate drops stream frames evenly: each frame has a
+            // due time one interval after the last one's, so 30 of 60 frames (or 45: three of four) reach the screen.
             val now = System.nanoTime()
-            val skip = frameGen == FG_OFF && fpsTarget in 1 until 60 && now - lastSubmitNs < 1_000_000_000L / fpsTarget - 2_000_000L
-            if (attached && buffer != null && !skip) { WaylandCompositor.nativeStreamFrame(buffer); frames++; lastSubmitNs = now }
+            val target = fpsTarget
+            val skip = frameGen == FG_OFF && target in 1 until 60 && run {
+                val interval = 1_000_000_000L / target
+                if (nextDueNs == 0L || now - nextDueNs > interval) nextDueNs = now
+                if (now + 4_000_000L < nextDueNs) true else { nextDueNs += interval; false }
+            }
+            if (attached && buffer != null && !skip) { WaylandCompositor.nativeStreamFrame(buffer); frames++ }
             buffer?.close()
             held.addLast(image)
             while (held.size > 2) held.removeFirst().close()

@@ -105,6 +105,7 @@ class XboxNativePlayerActivity : ComponentActivity() {
     @Volatile private var zeroCopyFrames = 0L
     @Volatile private var decoders: org.webrtc.DroidDeckLowLatencyDecoderFactory? = null
     private var lastZeroCopyFrames = 0L
+    private var lastSubmitted = 0L
     /** The release of the Guide press that opened the menu must not close it again. */
     private var swallowGuideUp = false
 
@@ -553,7 +554,15 @@ class XboxNativePlayerActivity : ComponentActivity() {
             val fgGpuMs = if (fgOn && fg!![5] > 0f) fg[5].toDouble() else 0.0
             @Suppress("DEPRECATION") val refreshMs = 1000.0 / windowManager.defaultDisplay.refreshRate
             val total = (if (rttMs >= 0) rttMs / 2 else 0.0) + bufferMs + decodeMs + fgWaitMs + fgGpuMs + refreshMs
-            val shownFps = if (zeroCopy) (zeroCopyFrames - lastZeroCopyFrames).toInt().also { lastZeroCopyFrames = zeroCopyFrames } else fps
+            // What reaches the screen: the decoder's own count in zero-copy, the presented rate with frame generation,
+            // else the frames handed to the compositor (a frame-rate target drops some of WebRTC's decoded frames).
+            val submitted = video?.frames ?: 0L
+            val handed = (submitted - lastSubmitted).toInt().also { lastSubmitted = submitted }
+            val shownFps = when {
+                zeroCopy -> (zeroCopyFrames - lastZeroCopyFrames).toInt().also { lastZeroCopyFrames = zeroCopyFrames }
+                fgOn -> fg!![3].toInt()
+                else -> handed
+            }
             val items = buildList {
                 add("native · " + if (settings.frameGen == XboxNativeVideo.FG_OFF) "no frame gen" else XboxNativeVideo.modeName(settings.frameGen))
                 add("$shownFps fps" + if (zeroCopy) " zero-copy" else "")
