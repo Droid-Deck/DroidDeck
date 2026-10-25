@@ -271,6 +271,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
     }
     private val resumeKeysDown = mutableSetOf<Pair<Int, Int>>()
+    private val drawerShortcutKeysDown = mutableSetOf<Pair<Int, Int>>()
 
     private var drawerOpen by mutableStateOf(false)
     private var quitFrom by mutableStateOf<androidx.compose.ui.geometry.Rect?>(null)
@@ -2070,6 +2071,20 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 return true
             }
             return super.dispatchKeyEvent(event)
+        }
+        val drawerShortcutKey = event.deviceId to event.keyCode
+        if (fromController && (event.keyCode == KeyEvent.KEYCODE_BUTTON_SELECT || event.keyCode == KeyEvent.KEYCODE_BUTTON_START) &&
+            ((drawerOpen && SessionState.mode == SessionService.MODE_STEAM) || drawerShortcutKey in drawerShortcutKeysDown)) {
+            if (event.action == KeyEvent.ACTION_DOWN) {
+                drawerShortcutKeysDown.add(drawerShortcutKey)
+                if (event.repeatCount == 0) {
+                    releaseDrawerDirection()
+                    if (event.keyCode == KeyEvent.KEYCODE_BUTTON_SELECT) sendSteamGuide() else triggerSteamQam()
+                }
+            } else if (event.action == KeyEvent.ACTION_UP) {
+                drawerShortcutKeysDown.remove(drawerShortcutKey)
+            }
+            return true
         }
         if (drawerOpen) {
             if (fromController && (event.keyCode == KeyEvent.KEYCODE_BUTTON_L1 || event.keyCode == KeyEvent.KEYCODE_BUTTON_R1)) {
