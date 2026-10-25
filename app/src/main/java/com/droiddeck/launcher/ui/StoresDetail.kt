@@ -51,6 +51,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.droiddeck.launcher.R
+import com.droiddeck.launcher.stores.xbox.xboxCloud
+import com.droiddeck.launcher.stores.xbox.xboxPc
 import com.droiddeck.launcher.stores.Store
 import com.droiddeck.launcher.stores.StoreAchievements
 import com.droiddeck.launcher.stores.StoresState
@@ -127,6 +129,7 @@ internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: Fro
                                 launchStoreGame(ctx, store, id, s, a)
                             }
                             ActionChip(stringResource(R.string.stores_in_steam), ok = true)
+                            if (store == Store.XBOX && item?.xboxCloud == true) XboxStreamButton(item)
                             if (store == Store.XBOX) {
                                 SecondaryButton("Update / verify", enabled = download == null && !com.droiddeck.launcher.stores.xbox.XboxRuntime.isActive(id)) {
                                     runCatching { com.droiddeck.launcher.stores.xbox.XboxBackend.update(ctx, installed) }
@@ -157,6 +160,10 @@ internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: Fro
                                 com.droiddeck.launcher.stores.download.DownloadQueue.clear(ctx, failedDownload.key)
                             }
                         }
+                        store == Store.XBOX && item != null && !item.xboxPc && item.xboxCloud -> {
+                            XboxStreamButton(item, main = true, modifier = leadOn)
+                            XboxAddToGamesButton(item)
+                        }
                         item?.installable == true && StoresState.isUnfinished(item) -> {
                             InstallButton(stringResource(R.string.stores_resume_install), leadOn) { StoresState.requestInstall(ctx, item) }
                             ConfirmButton(stringResource(R.string.stores_dl_clear), stringResource(R.string.stores_dl_cancel_confirm), compact = true) { StoresState.clearUnfinished(ctx, item) }
@@ -166,6 +173,10 @@ internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: Fro
                                 if (item.sizeBytes > 0) stringResource(R.string.stores_install_size, formatBytes(item.sizeBytes)) else stringResource(R.string.stores_install),
                                 leadOn,
                             ) { StoresState.requestInstall(ctx, item) }
+                            if (store == Store.XBOX && item.xboxCloud) {
+                                XboxStreamButton(item)
+                                XboxAddToGamesButton(item)
+                            }
                             if (!item.accessible) {
                                 SecondaryButton(
                                     when {
@@ -289,4 +300,30 @@ private fun InstallButton(label: String, modifier: Modifier = Modifier, onInstal
             onInstall()
         }
     }
+}
+
+@Composable
+private fun XboxStreamButton(item: com.droiddeck.launcher.stores.CatalogItem, main: Boolean = false, modifier: Modifier = Modifier) {
+    val ctx = LocalContext.current
+    androidx.compose.runtime.LaunchedEffect(Unit) { com.droiddeck.launcher.stores.xbox.XboxCloudGames.prefetch(ctx) }
+    val stream = { com.droiddeck.launcher.stores.xbox.XboxCloudGames.stream(ctx, item.id, item.title) }
+    if (main) PrimaryButton("Stream", main = true, icon = Icons.Filled.PlayArrow, modifier = modifier) { stream() }
+    else SecondaryButton("Stream", modifier = modifier) { stream() }
+}
+
+@Composable
+private fun XboxAddToGamesButton(item: com.droiddeck.launcher.stores.CatalogItem) {
+    val ctx = LocalContext.current
+    androidx.compose.runtime.LaunchedEffect(Unit) { com.droiddeck.launcher.stores.xbox.XboxCloudGames.load(ctx) }
+    // Add and Remove replace each other; the controller focus moves to the new button instead of getting lost.
+    val slot = remember { androidx.compose.ui.focus.FocusRequester() }
+    val inputMode = androidx.compose.ui.platform.LocalInputModeManager.current
+    val scope = rememberCoroutineScope()
+    fun refocus() { if (inputMode.inputMode == androidx.compose.ui.input.InputMode.Keyboard) scope.launch { focusSoon { slot } } }
+    if (com.droiddeck.launcher.stores.xbox.XboxCloudGames.isAdded(item.id)) {
+        ActionChip("In Games", ok = true)
+        SecondaryButton("Remove from Games", compact = true, modifier = Modifier.focusRequester(slot)) {
+            com.droiddeck.launcher.stores.xbox.XboxCloudGames.remove(ctx, item.id); refocus()
+        }
+    } else SecondaryButton("Add to Games", modifier = Modifier.focusRequester(slot)) { com.droiddeck.launcher.stores.xbox.XboxCloudGames.add(ctx, item); refocus() }
 }
