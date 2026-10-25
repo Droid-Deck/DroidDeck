@@ -85,20 +85,27 @@ class JoyConPadTest {
 
     @Test fun novaControllerUsesCForTheLeftPaddleAndZForTheRight() {
         ShadowBuild.setModel("Retroid Pocket Nova")
-        assertPaddles(controller(0x2022, 0x3001), KeyEvent.KEYCODE_BUTTON_C, KeyEvent.KEYCODE_BUTTON_Z)
+        for (product in listOf(0x3001, 0x3002)) {
+            val pad = controller(0x2022, product)
+            assertPaddles(pad, KeyEvent.KEYCODE_BUTTON_C, KeyEvent.KEYCODE_BUTTON_Z)
+            bridge.onDeviceRemoved(pad.id)
+        }
     }
 
     @Test fun theSameControllerIdsKeepTheDefaultPaddlesOnOtherHandhelds() {
-        val pad = controller(0x2022, 0x3001)
-        for (model in listOf("Retroid Pocket 6", "Retroid Pocket 5", "AYN Thor")) {
-            ShadowBuild.setModel(model)
-            assertPaddles(pad, KeyEvent.KEYCODE_BUTTON_Z, KeyEvent.KEYCODE_BUTTON_C)
+        for (product in listOf(0x3001, 0x3002)) {
+            val pad = controller(0x2022, product)
+            for (model in listOf("Retroid Pocket 6", "Retroid Pocket 5", "AYN Thor")) {
+                ShadowBuild.setModel(model)
+                assertPaddles(pad, KeyEvent.KEYCODE_BUTTON_Z, KeyEvent.KEYCODE_BUTTON_C)
+            }
+            bridge.onDeviceRemoved(pad.id)
         }
     }
 
     @Test fun otherControllerIdsKeepTheDefaultPaddlesOnANova() {
         ShadowBuild.setModel("Retroid Pocket Nova")
-        for (pad in listOf(controller(0x045e, 0x0b13), controller(0x2022, 0x3002), controller(0x2020, 0x3001))) {
+        for (pad in listOf(controller(0x045e, 0x0b13), controller(0x2022, 0x3003), controller(0x2020, 0x3001))) {
             assertPaddles(pad, KeyEvent.KEYCODE_BUTTON_Z, KeyEvent.KEYCODE_BUTTON_C)
             bridge.onDeviceRemoved(pad.id)
         }

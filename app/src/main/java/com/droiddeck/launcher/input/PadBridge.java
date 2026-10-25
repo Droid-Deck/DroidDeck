@@ -576,7 +576,8 @@ public final class PadBridge {
 
     private static boolean isNovaController(InputDevice device) {
         return "Retroid Pocket Nova".equalsIgnoreCase(Build.MODEL)
-                && device.getVendorId() == 0x2022 && device.getProductId() == 0x3001;
+                && device.getVendorId() == 0x2022
+                && (device.getProductId() == 0x3001 || device.getProductId() == 0x3002);
     }
 
     private boolean isPrimary(KeyEvent event) {
