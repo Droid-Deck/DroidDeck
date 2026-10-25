@@ -1,0 +1,30 @@
+[package]
+name = "droiddeckgfn"
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-or-later"
+publish = false
+
+# DroidDeck's GeForce NOW streamer host: drives OpenNOW's native streamer
+# (external/opennow, MIT, by Zortos) for the app over JNI.
+
+[lib]
+name = "droiddeckgfn"
+crate-type = ["cdylib"]
+
+[dependencies]
+jni = "0.21"
+ndk = { version = "0.9", default-features = false, features = ["nativewindow"] }
+serde_json = "1"
+opennow-streamer-core = { path = "../../../../../external/opennow/native/opennow-streamer/crates/opennow-streamer-core" }
+opennow-streamer-platform = { path = "../../../../../external/opennow/native/opennow-streamer/crates/opennow-streamer-platform" }
+opennow-streamer-protocol = { path = "../../../../../external/opennow/native/opennow-streamer/crates/opennow-streamer-protocol" }
+
+[patch.crates-io]
+str0m = { path = "../../../../../external/opennow/native/opennow-streamer/vendor/str0m" }
+audiopus_sys = { path = "../../../../../external/opennow/native/opennow-streamer/vendor/audiopus-sys" }
+
+[profile.release]
+codegen-units = 1
+lto = "thin"
+strip = "symbols"
