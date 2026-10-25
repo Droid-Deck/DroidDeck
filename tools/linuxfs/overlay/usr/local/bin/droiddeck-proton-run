@@ -260,7 +260,7 @@ def steam_options(app, root):
                 depth += 1 if tokens[i] == "{" else -1
             elif depth == 0 and tokens[i].lower() == '"launchoptions"' and i + 1 < end:
                 return vdf_string(tokens[i + 1])
-    except (OSError, ValueError, IndexError, KeyError, TypeError, struct.error):
+    except (OSError, ValueError, IndexError, KeyError, TypeError, AttributeError, struct.error):
         pass
     return ""
 
