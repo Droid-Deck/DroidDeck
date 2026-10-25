@@ -458,6 +458,11 @@ class SessionService : Service() {
             Log.i(TAG, "hdr: gamescope --hdr-enabled, DXVK_HDR=1")
         }
         guest.add("BL_FPS=" + SessionState.fpsLimit)
+        if (SessionState.fpsLimit == SessionPrefs.FPS_UNCAPPED) {
+            // gamescope turns buffers around slower than an uncapped game draws; more images keep it drawing.
+            guest.add("GAMESCOPE_WSI_MIN_IMAGE_COUNT=8")
+            guest.add("GAMESCOPE_WSI_ENSURE_MIN_IMAGE_COUNT=1")
+        }
         guest.add("BL_REFRESH=" + Math.round(SessionState.refreshHz))
         guest.add("BL_LOG=" + sessionLog.path)
         guest.add("BL_DEBUG_DIR=" + sessionDir.path)
