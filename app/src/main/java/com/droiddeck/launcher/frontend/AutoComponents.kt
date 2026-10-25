@@ -267,6 +267,8 @@ object AutoComponents {
             folder?.let { SteamRedists.manifest(it, game.appId)?.lastModified() },
             folder?.let { StoreGameSidecar.file(it).lastModified() },
             folder?.let { File(it, "fuel.json").lastModified() },
+            folder?.listFiles { f -> f.name.lowercase().let { it.startsWith("installscript") && it.endsWith(".vdf") } }
+                ?.maxOfOrNull { it.lastModified() },
             SteamAppInfo.appinfoFile(context).lastModified(),
             folder?.let { SteamMatch.get(context, it.path) }?.let { "${it.appId}/${it.certainty}" },
             steamAppOf(context, game)?.let { SteamAppInfo.state(context, it) },
