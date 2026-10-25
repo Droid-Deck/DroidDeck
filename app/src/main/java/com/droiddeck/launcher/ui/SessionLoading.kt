@@ -222,7 +222,7 @@ fun LoadingOverlay(
             .background(colors.background)
             .blockTouches(),
     ) {
-        CapsuleWall(games, driftMs = 65_000, modifier = Modifier.alpha(0.3f))
+        CapsuleWall(games, driftMs = 65_000, modifier = Modifier.alpha(0.3f), pauseWhenIdle = false)
         Box(
             Modifier.fillMaxSize().drawBehind {
                 drawRect(

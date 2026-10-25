@@ -1272,6 +1272,16 @@ class FrontEndActivity : ComponentActivity() {
         }
     }
 
+    override fun onUserInteraction() {
+        super.onUserInteraction()
+        com.droiddeck.launcher.ui.Ambient.poke()
+    }
+
+    override fun dispatchGenericMotionEvent(event: android.view.MotionEvent): Boolean {
+        com.droiddeck.launcher.ui.Ambient.poke()
+        return super.dispatchGenericMotionEvent(event)
+    }
+
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (event.keyCode == KeyEvent.KEYCODE_BUTTON_A) com.droiddeck.launcher.ui.HeldKeys.confirm = event.action == KeyEvent.ACTION_DOWN
         if (showComponents && (event.keyCode == KeyEvent.KEYCODE_BUTTON_L1 || event.keyCode == KeyEvent.KEYCODE_BUTTON_R1)) {
@@ -1297,6 +1307,7 @@ class FrontEndActivity : ComponentActivity() {
         com.droiddeck.launcher.stores.StoresState.refresh(this)
         com.droiddeck.launcher.stores.StoresState.libraryListener = { refreshAddedGames(); refresh() }
         com.droiddeck.launcher.ui.Motion.refresh(this)
+        com.droiddeck.launcher.ui.Ambient.poke()
         com.droiddeck.launcher.ui.QuitFlood.take()?.let { c ->
             returning = ReturningFlood(c, com.droiddeck.launcher.ui.LaunchOrigin.takeReturn())
         }
