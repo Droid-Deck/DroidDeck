@@ -313,14 +313,22 @@ def parse_cores(text):
     return cores or None
 
 
+def online_cores():
+    try:
+        with open("/sys/devices/system/cpu/online") as f:
+            cores = parse_cores(f.read().strip())
+    except OSError:
+        cores = None
+    return cores or os.sched_getaffinity(0) | set(range(os.cpu_count() or 0))
+
+
 def game_cores(env):
     """Pins the game to the cores its profile names, in place of the session's game cores."""
     text = env.get("DROIDDECK_GAME_CORES", "").strip()
     if not text:
         return
     cores = parse_cores(text)
-    online = os.sched_getaffinity(0) | set(range(os.cpu_count() or 0))
-    chosen = cores & online if cores else None
+    chosen = cores & online_cores() if cores else None
     if not chosen:
         print("droiddeck-game-env: ignoring game cores %r" % text, file=sys.stderr)
         return

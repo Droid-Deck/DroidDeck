@@ -383,14 +383,14 @@ class GameEnvironmentTest(unittest.TestCase):
     def test_a_profiles_game_cores_pin_the_game_within_the_online_cores(self):
         calls = []
         os_mod = MODULE["os"]
-        with mock.patch.object(os_mod, "sched_getaffinity", return_value={0, 1, 2, 3}, create=True), \
-                mock.patch.object(os_mod, "cpu_count", return_value=8), \
+        with mock.patch.dict(MODULE["game_cores"].__globals__, {"online_cores": lambda: {0, 1, 2, 3, 4, 5, 6, 7}}), \
                 mock.patch.object(os_mod, "sched_setaffinity", side_effect=lambda pid, cores: calls.append(set(cores)), create=True):
             MODULE["game_cores"]({"DROIDDECK_GAME_CORES": "0-2,9"})
             MODULE["game_cores"]({"DROIDDECK_GAME_CORES": "junk"})
             MODULE["game_cores"]({"DROIDDECK_GAME_CORES": "12-13"})
             MODULE["game_cores"]({})
         self.assertEqual(calls, [{0, 1, 2}])
+        self.assertEqual(MODULE["parse_cores"]("0,2-7"), {0, 2, 3, 4, 5, 6, 7})
 
     def test_caravan_sandwitch_robocop_and_cyberpunk_run_at_feature_level_12_1(self):
         with tempfile.TemporaryDirectory() as tmp:
