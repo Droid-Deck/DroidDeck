@@ -493,12 +493,19 @@ class SessionService : Service() {
                 .onFailure { Log.w(TAG, "Epic install directory setup failed", it) }
         }
         if (steamHere || noSteamGame) {
-            val added = com.droiddeck.launcher.frontend.AddedGames.scan(this)
-            val listing = com.droiddeck.launcher.frontend.AddedGames.writeListing(this, added)
+            val cached = com.droiddeck.launcher.frontend.AddedGames.listingFile(this)
+            val listing = if (steamHere && cached.isFile) {
+                com.droiddeck.launcher.frontend.AddedGamesPublisher.refreshDuringSession(this)
+                Log.i(TAG, "added games: the last listing, refreshed in the background")
+                cached
+            } else {
+                val added = com.droiddeck.launcher.frontend.AddedGames.scan(this)
+                if (added.isNotEmpty()) Log.i(TAG, "added games: " + added.joinToString { "${it.name} (${it.exe.name})" })
+                com.droiddeck.launcher.frontend.AddedGames.writeListing(this, added)
+            }
             guest.add("BL_ADDED_GAMES=" + listing.path)
             if (OfflineMode.enabled(this)) guest.add("BL_STEAM_OFFLINE=1")
             if (com.droiddeck.launcher.gpu.Lossless.owned(this)) guest.add("BL_LOSSLESS_OWNED=1")
-            if (added.isNotEmpty()) Log.i(TAG, "added games: " + added.joinToString { "${it.name} (${it.exe.name})" })
         }
         guest.add("BL_LAUNCH_DIR=" + sessionRoot.path)
         GameStorage.effective(this)?.let { guest.add("BL_LIBRARY_LABEL=" + it.label.replace('"', ' ')) }

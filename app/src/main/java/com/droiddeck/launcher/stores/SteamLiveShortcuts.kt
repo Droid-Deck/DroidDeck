@@ -19,9 +19,10 @@ object SteamLiveShortcuts {
     private const val EVAL_TIMEOUT_MS = 20_000L
     private const val THAW_WAIT_MS = 15_000L
 
-    fun sync(context: Context, games: List<AddedGames.Game>, include: (AddedGames.Game) -> Boolean = { it.source != Library.ADDED }) {
+    fun sync(context: Context, games: List<AddedGames.Game>, include: (AddedGames.Game) -> Boolean = { it.source != Library.ADDED }): Boolean {
         val wanted = games.filter(include)
-        if (wanted.isEmpty() || !clientRunning()) return
+        if (wanted.isEmpty()) return true
+        if (!clientRunning()) return false
         val list = JSONArray()
         for (g in wanted) list.put(JSONObject().put("name", g.name).put("exe", g.guestExe).put("dir", g.guestDir).put("appid", g.appId and 0xFFFFFFFFL))
         val js = """
@@ -35,9 +36,10 @@ object SteamLiveShortcuts {
               return added;
             })()
         """.trimIndent()
-        val result = evaluate(context, js) ?: return
+        val result = evaluate(context, js) ?: return false
         Log.i(TAG, "live shortcuts: $result added")
         if (result != "0") StoresState.logLine("Steam: $result shortcut(s) added to the running client")
+        return true
     }
 
     fun ensure(context: Context, name: String, exe: String, dir: String, compat: Boolean, appId: Long? = null): Long? {
