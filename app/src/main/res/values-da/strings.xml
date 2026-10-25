@@ -395,9 +395,11 @@
     <string name="usb_access_title">USB-drev fundet</string>
     <string name="usb_access_hint">Android skjuler dette drev for apps. Tillad “Adgang til alle filer”, og genstart derefter DroidDeck for at bruge det som spillager (exFAT eller FAT).</string>
     <string name="usb_access_allow">Tillad</string>
+    <string name="usb_access_restart_hint">Adgang til alle filer er slået til. Genstart DroidDeck, så det kan bruge drevet.</string>
     <string name="usb_root_title">Brug USB-drev via root (eksperimentel)</string>
     <string name="usb_root_hint">Monterer et USB-drev, som Android skjuler for apps, og tilbyder det derefter som spillager. Kræver root.</string>
     <string name="usb_root_no_drive">Intet fundet</string>
+    <string name="usb_root_choose">Vælg et drev</string>
     <string name="usb_root_volume">USB-drev</string>
     <string name="usb_root_unnamed">%1$s-drev</string>
     <string name="usb_root_mounted">Monteret</string>

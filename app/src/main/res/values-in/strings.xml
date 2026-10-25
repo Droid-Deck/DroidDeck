@@ -394,9 +394,11 @@
     <string name="usb_access_title">Drive USB ditemukan</string>
     <string name="usb_access_hint">Android menyembunyikan drive ini dari aplikasi. Izinkan “Akses semua file”, lalu mulai ulang DroidDeck untuk menggunakannya sebagai penyimpanan gim (exFAT atau FAT).</string>
     <string name="usb_access_allow">Izinkan</string>
+    <string name="usb_access_restart_hint">Akses semua file sudah aktif. Mulai ulang DroidDeck agar dapat memakai drive.</string>
     <string name="usb_root_title">Gunakan drive USB melalui root (eksperimental)</string>
     <string name="usb_root_hint">Memasang drive USB yang disembunyikan Android dari aplikasi, lalu menawarkannya sebagai penyimpanan gim. Memerlukan root.</string>
     <string name="usb_root_no_drive">Tidak ditemukan</string>
+    <string name="usb_root_choose">Pilih drive</string>
     <string name="usb_root_volume">Drive USB</string>
     <string name="usb_root_unnamed">Drive %1$s</string>
     <string name="usb_root_mounted">Terpasang</string>

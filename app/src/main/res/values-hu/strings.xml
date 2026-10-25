@@ -395,9 +395,11 @@
     <string name="usb_access_title">USB-meghajtó észlelve</string>
     <string name="usb_access_hint">Az Android elrejti ezt a meghajtót az alkalmazások elől. Engedélyezze a „Hozzáférés minden fájlhoz” lehetőséget, majd indítsa újra a DroidDeck alkalmazást, hogy játéktárhelyként használhassa (exFAT vagy FAT).</string>
     <string name="usb_access_allow">Engedélyezés</string>
+    <string name="usb_access_restart_hint">Az összes fájlhoz való hozzáférés be van kapcsolva. Indítsa újra a DroidDecket, hogy használhassa a meghajtót.</string>
     <string name="usb_root_title">USB-meghajtó használata root jogosultsággal (kísérleti)</string>
     <string name="usb_root_hint">Csatol egy USB-meghajtót, amelyet az Android elrejt az alkalmazások elől, majd felkínálja játéktárhelyként. Root szükséges hozzá.</string>
     <string name="usb_root_no_drive">Nem található</string>
+    <string name="usb_root_choose">Válasszon meghajtót</string>
     <string name="usb_root_volume">USB-meghajtó</string>
     <string name="usb_root_unnamed">%1$s meghajtó</string>
     <string name="usb_root_mounted">Csatolva</string>

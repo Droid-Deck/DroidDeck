@@ -397,9 +397,11 @@
     <string name="usb_access_title">Знайдено USB-накопичувач</string>
     <string name="usb_access_hint">Android приховує цей накопичувач від додатків. Дозвольте «Доступ до всіх файлів», потім перезапустіть DroidDeck, щоб використовувати його як сховище ігор (exFAT або FAT).</string>
     <string name="usb_access_allow">Дозволити</string>
+    <string name="usb_access_restart_hint">Доступ до всіх файлів увімкнено. Перезапустіть DroidDeck, щоб він міг використовувати накопичувач.</string>
     <string name="usb_root_title">Використовувати USB-накопичувач через root (експериментально)</string>
     <string name="usb_root_hint">Підключає USB-накопичувач, який Android приховує від додатків, і пропонує його як сховище ігор. Потрібен root.</string>
     <string name="usb_root_no_drive">Не знайдено</string>
+    <string name="usb_root_choose">Виберіть накопичувач</string>
     <string name="usb_root_volume">USB-накопичувач</string>
     <string name="usb_root_unnamed">Накопичувач %1$s</string>
     <string name="usb_root_mounted">Підключено</string>

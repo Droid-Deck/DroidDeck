@@ -395,9 +395,11 @@
     <string name="usb_access_title">Βρέθηκε μονάδα USB</string>
     <string name="usb_access_hint">Το Android αποκρύπτει αυτή τη μονάδα από τις εφαρμογές. Επιτρέψτε την «Πρόσβαση σε όλα τα αρχεία» και έπειτα επανεκκινήστε το DroidDeck για να τη χρησιμοποιήσετε ως αποθηκευτικό χώρο παιχνιδιών (exFAT ή FAT).</string>
     <string name="usb_access_allow">Να επιτρέπεται</string>
+    <string name="usb_access_restart_hint">Η πρόσβαση σε όλα τα αρχεία είναι ενεργή. Επανεκκινήστε το DroidDeck για να μπορεί να χρησιμοποιήσει τη μονάδα.</string>
     <string name="usb_root_title">Χρήση μονάδας USB μέσω root (πειραματικό)</string>
     <string name="usb_root_hint">Προσαρτά μια μονάδα USB που το Android αποκρύπτει από τις εφαρμογές και την προσφέρει ως αποθηκευτικό χώρο παιχνιδιών. Απαιτεί root.</string>
     <string name="usb_root_no_drive">Δεν βρέθηκε καμία</string>
+    <string name="usb_root_choose">Επιλέξτε μονάδα</string>
     <string name="usb_root_volume">Μονάδα USB</string>
     <string name="usb_root_unnamed">Μονάδα %1$s</string>
     <string name="usb_root_mounted">Προσαρτημένη</string>

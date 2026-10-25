@@ -395,9 +395,11 @@
     <string name="usb_access_title">USB-stasjon funnet</string>
     <string name="usb_access_hint">Android skjuler denne stasjonen for apper. Tillat «Tilgang til alle filer», og start deretter DroidDeck på nytt for å bruke den som spillagring (exFAT eller FAT).</string>
     <string name="usb_access_allow">Tillat</string>
+    <string name="usb_access_restart_hint">Tilgang til alle filer er på. Start DroidDeck på nytt slik at den kan bruke stasjonen.</string>
     <string name="usb_root_title">Bruk USB-stasjon via root (eksperimentelt)</string>
     <string name="usb_root_hint">Monterer en USB-stasjon som Android skjuler for apper, og tilbyr den deretter som spillagring. Krever root.</string>
     <string name="usb_root_no_drive">Ingen funnet</string>
+    <string name="usb_root_choose">Velg en stasjon</string>
     <string name="usb_root_volume">USB-stasjon</string>
     <string name="usb_root_unnamed">%1$s-stasjon</string>
     <string name="usb_root_mounted">Montert</string>

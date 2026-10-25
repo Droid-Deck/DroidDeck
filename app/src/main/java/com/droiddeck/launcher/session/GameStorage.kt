@@ -46,9 +46,17 @@ object GameStorage {
         context.getExternalFilesDirs(null).orEmpty().filterNotNull()
             .mapNotNull { it.path.removePrefix("/storage/").substringBefore('/').takeIf { u -> u != "emulated" } }.toSet()
 
-    /** A hidden USB drive is plugged in but the app may not use it yet. */
-    fun usbNeedsAccess(context: Context): Boolean =
-        android.os.Build.VERSION.SDK_INT >= 30 && hiddenUsb(context).any { !it.canWrite() }
+    enum class UsbAccess { PERMISSION, RESTART }
+
+    /**
+     * What a plugged-in hidden USB drive still needs: All files access, then a new process, which
+     * is when Android gives the app the external_storage group. Null = nothing (or no such drive).
+     */
+    fun usbAccess(context: Context): UsbAccess? = when {
+        android.os.Build.VERSION.SDK_INT < 30 || hiddenUsb(context).all { it.canWrite() } -> null
+        android.os.Environment.isExternalStorageManager() -> UsbAccess.RESTART
+        else -> UsbAccess.PERMISSION
+    }
 
     /**
      * The USB drive, by whichever route is on: the root mount, or vold's own with All files access.

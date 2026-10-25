@@ -394,9 +394,11 @@
     <string name="usb_access_title">Pemacu USB ditemui</string>
     <string name="usb_access_hint">Android menyembunyikan pemacu ini daripada apl. Benarkan “Akses semua fail”, kemudian mulakan semula DroidDeck untuk menggunakannya sebagai storan permainan (exFAT atau FAT).</string>
     <string name="usb_access_allow">Benarkan</string>
+    <string name="usb_access_restart_hint">Akses semua fail dihidupkan. Mulakan semula DroidDeck supaya ia boleh menggunakan pemacu.</string>
     <string name="usb_root_title">Gunakan pemacu USB melalui root (percubaan)</string>
     <string name="usb_root_hint">Melekapkan pemacu USB yang disembunyikan Android daripada apl, kemudian menawarkannya sebagai storan permainan. Memerlukan root.</string>
     <string name="usb_root_no_drive">Tiada ditemui</string>
+    <string name="usb_root_choose">Pilih pemacu</string>
     <string name="usb_root_volume">Pemacu USB</string>
     <string name="usb_root_unnamed">Pemacu %1$s</string>
     <string name="usb_root_mounted">Dilekapkan</string>

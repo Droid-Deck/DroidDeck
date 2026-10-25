@@ -396,9 +396,11 @@
     <string name="usb_access_title">USB 드라이브 발견</string>
     <string name="usb_access_hint">Android가 이 드라이브를 앱에서 숨기고 있습니다. 모든 파일 액세스를 허용한 뒤 DroidDeck을 다시 시작하면 게임 저장소로 사용할 수 있습니다(exFAT 또는 FAT).</string>
     <string name="usb_access_allow">허용</string>
+    <string name="usb_access_restart_hint">모든 파일 액세스가 켜졌습니다. 드라이브를 사용하려면 DroidDeck을 다시 시작하세요.</string>
     <string name="usb_root_title">루트로 USB 드라이브 사용(실험적)</string>
     <string name="usb_root_hint">Android가 앱에서 숨기는 USB 드라이브를 마운트한 뒤 게임 저장소로 제공합니다. 루트가 필요합니다.</string>
     <string name="usb_root_no_drive">찾을 수 없음</string>
+    <string name="usb_root_choose">드라이브 선택</string>
     <string name="usb_root_volume">USB 드라이브</string>
     <string name="usb_root_unnamed">%1$s 드라이브</string>
     <string name="usb_root_mounted">마운트됨</string>

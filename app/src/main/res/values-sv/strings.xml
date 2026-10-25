@@ -395,9 +395,11 @@
     <string name="usb_access_title">USB-enhet hittad</string>
     <string name="usb_access_hint">Android döljer den här enheten för appar. Tillåt ”Åtkomst till alla filer” och starta sedan om DroidDeck för att använda den som spellagring (exFAT eller FAT).</string>
     <string name="usb_access_allow">Tillåt</string>
+    <string name="usb_access_restart_hint">Åtkomst till alla filer är på. Starta om DroidDeck så att den kan använda enheten.</string>
     <string name="usb_root_title">Använd USB-enhet via root (experimentell)</string>
     <string name="usb_root_hint">Monterar en USB-enhet som Android döljer för appar och erbjuder den sedan som spellagring. Kräver root.</string>
     <string name="usb_root_no_drive">Ingen hittad</string>
+    <string name="usb_root_choose">Välj en enhet</string>
     <string name="usb_root_volume">USB-enhet</string>
     <string name="usb_root_unnamed">%1$s-enhet</string>
     <string name="usb_root_mounted">Monterad</string>

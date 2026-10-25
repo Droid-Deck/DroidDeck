@@ -395,9 +395,11 @@
     <string name="usb_access_title">Открито е USB устройство</string>
     <string name="usb_access_hint">Android скрива това устройство от приложенията. Разрешете „Достъп до всички файлове“, след което рестартирайте DroidDeck, за да го използвате като хранилище за игри (exFAT или FAT).</string>
     <string name="usb_access_allow">Разрешаване</string>
+    <string name="usb_access_restart_hint">Достъпът до всички файлове е включен. Рестартирайте DroidDeck, за да може да използва устройството.</string>
     <string name="usb_root_title">Използване на USB устройство чрез root (експериментално)</string>
     <string name="usb_root_hint">Монтира USB устройство, което Android скрива от приложенията, и го предлага като хранилище за игри. Изисква root.</string>
     <string name="usb_root_no_drive">Няма намерени</string>
+    <string name="usb_root_choose">Изберете устройство</string>
     <string name="usb_root_volume">USB устройство</string>
     <string name="usb_root_unnamed">Устройство %1$s</string>
     <string name="usb_root_mounted">Монтирано</string>

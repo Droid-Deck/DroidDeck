@@ -395,9 +395,11 @@
     <string name="usb_access_title">USB-Laufwerk gefunden</string>
     <string name="usb_access_hint">Android verbirgt dieses Laufwerk vor Apps. Erlaube „Zugriff auf alle Dateien“ und starte DroidDeck dann neu, um es als Spielspeicher zu nutzen (exFAT oder FAT).</string>
     <string name="usb_access_allow">Erlauben</string>
+    <string name="usb_access_restart_hint">Der Zugriff auf alle Dateien ist an. Starte DroidDeck neu, damit es das Laufwerk nutzen kann.</string>
     <string name="usb_root_title">USB-Laufwerk über root nutzen (experimentell)</string>
     <string name="usb_root_hint">Bindet ein USB-Laufwerk ein, das Android vor Apps verbirgt, und bietet es dann als Spielspeicher an. Erfordert root.</string>
     <string name="usb_root_no_drive">Keins gefunden</string>
+    <string name="usb_root_choose">Laufwerk wählen</string>
     <string name="usb_root_volume">USB-Laufwerk</string>
     <string name="usb_root_unnamed">%1$s-Laufwerk</string>
     <string name="usb_root_mounted">Eingebunden</string>

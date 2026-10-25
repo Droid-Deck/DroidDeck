@@ -396,9 +396,11 @@
     <string name="usb_access_title">Unità USB trovata</string>
     <string name="usb_access_hint">Android nasconde questa unità alle app. Consenti “Accesso a tutti i file”, poi riavvia DroidDeck per usarla come archiviazione giochi (exFAT o FAT).</string>
     <string name="usb_access_allow">Consenti</string>
+    <string name="usb_access_restart_hint">L\'accesso a tutti i file è attivo. Riavvia DroidDeck per poter usare l\'unità.</string>
     <string name="usb_root_title">Usa unità USB tramite root (sperimentale)</string>
     <string name="usb_root_hint">Monta un\'unità USB che Android nasconde alle app e la offre come archiviazione giochi. Richiede root.</string>
     <string name="usb_root_no_drive">Nessuna trovata</string>
+    <string name="usb_root_choose">Scegli un\'unità</string>
     <string name="usb_root_volume">Unità USB</string>
     <string name="usb_root_unnamed">Unità da %1$s</string>
     <string name="usb_root_mounted">Montata</string>

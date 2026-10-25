@@ -395,9 +395,11 @@
     <string name="usb_access_title">USB sürücü bulundu</string>
     <string name="usb_access_hint">Android bu sürücüyü uygulamalardan gizler. Oyun depolama alanı olarak kullanmak için “Tüm dosyalara erişim” iznini verin, ardından DroidDeck\'i yeniden başlatın (exFAT veya FAT).</string>
     <string name="usb_access_allow">İzin ver</string>
+    <string name="usb_access_restart_hint">Tüm dosyalara erişim açık. Sürücüyü kullanabilmesi için DroidDeck\'i yeniden başlatın.</string>
     <string name="usb_root_title">USB sürücüyü root ile kullan (deneysel)</string>
     <string name="usb_root_hint">Android\'in uygulamalardan gizlediği bir USB sürücüyü bağlar, ardından oyun depolama alanı olarak sunar. Root gerektirir.</string>
     <string name="usb_root_no_drive">Bulunamadı</string>
+    <string name="usb_root_choose">Bir sürücü seçin</string>
     <string name="usb_root_volume">USB sürücü</string>
     <string name="usb_root_unnamed">%1$s sürücü</string>
     <string name="usb_root_mounted">Bağlı</string>

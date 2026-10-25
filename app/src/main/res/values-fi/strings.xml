@@ -395,9 +395,11 @@
     <string name="usb_access_title">USB-asema löytyi</string>
     <string name="usb_access_hint">Android piilottaa tämän aseman sovelluksilta. Salli ”Pääsy kaikkiin tiedostoihin” ja käynnistä DroidDeck sitten uudelleen, niin voit käyttää asemaa pelien tallennustilana (exFAT tai FAT).</string>
     <string name="usb_access_allow">Salli</string>
+    <string name="usb_access_restart_hint">Pääsy kaikkiin tiedostoihin on päällä. Käynnistä DroidDeck uudelleen, jotta se voi käyttää asemaa.</string>
     <string name="usb_root_title">Käytä USB-asemaa root-oikeuksilla (kokeellinen)</string>
     <string name="usb_root_hint">Liittää USB-aseman, jonka Android piilottaa sovelluksilta, ja tarjoaa sen pelien tallennustilaksi. Vaatii root-oikeudet.</string>
     <string name="usb_root_no_drive">Ei löytynyt</string>
+    <string name="usb_root_choose">Valitse asema</string>
     <string name="usb_root_volume">USB-asema</string>
     <string name="usb_root_unnamed">%1$s asema</string>
     <string name="usb_root_mounted">Liitetty</string>

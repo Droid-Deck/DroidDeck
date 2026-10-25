@@ -396,9 +396,11 @@
     <string name="usb_access_title">发现 USB 驱动器</string>
     <string name="usb_access_hint">Android 对应用隐藏了此驱动器。允许“所有文件访问权限”后重启 DroidDeck,即可将其用作游戏存储(exFAT 或 FAT)。</string>
     <string name="usb_access_allow">允许</string>
+    <string name="usb_access_restart_hint">已开启所有文件访问权限。请重启 DroidDeck 以使用此驱动器。</string>
     <string name="usb_root_title">通过 root 使用 USB 驱动器(实验性)</string>
     <string name="usb_root_hint">挂载 Android 对应用隐藏的 USB 驱动器,并将其提供为游戏存储。需要 root。</string>
     <string name="usb_root_no_drive">未找到</string>
+    <string name="usb_root_choose">选择驱动器</string>
     <string name="usb_root_volume">USB 驱动器</string>
     <string name="usb_root_unnamed">%1$s 驱动器</string>
     <string name="usb_root_mounted">已挂载</string>

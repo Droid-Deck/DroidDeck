@@ -396,9 +396,11 @@
     <string name="usb_access_title">發現 USB 磁碟機</string>
     <string name="usb_access_hint">Android 對應用程式隱藏了此磁碟機。允許「所有檔案存取權」後重新啟動 DroidDeck,即可用作遊戲儲存空間(exFAT 或 FAT)。</string>
     <string name="usb_access_allow">允許</string>
+    <string name="usb_access_restart_hint">已開啟所有檔案存取權。請重新啟動 DroidDeck 以使用此磁碟。</string>
     <string name="usb_root_title">透過 root 使用 USB 磁碟機(實驗性)</string>
     <string name="usb_root_hint">掛載 Android 對應用程式隱藏的 USB 磁碟機,並作為遊戲儲存空間提供。需要 root。</string>
     <string name="usb_root_no_drive">找不到</string>
+    <string name="usb_root_choose">選擇磁碟</string>
     <string name="usb_root_volume">USB 磁碟機</string>
     <string name="usb_root_unnamed">%1$s 磁碟機</string>
     <string name="usb_root_mounted">已掛載</string>

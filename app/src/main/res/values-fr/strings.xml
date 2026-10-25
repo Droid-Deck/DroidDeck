@@ -398,9 +398,11 @@
     <string name="usb_access_title">Lecteur USB détecté</string>
     <string name="usb_access_hint">Android masque ce lecteur aux applis. Autorisez l\'accès à tous les fichiers, puis redémarrez DroidDeck pour l\'utiliser comme stockage de jeux (exFAT ou FAT).</string>
     <string name="usb_access_allow">Autoriser</string>
+    <string name="usb_access_restart_hint">L\'accès à tous les fichiers est activé. Redémarrez DroidDeck pour qu\'il puisse utiliser le lecteur.</string>
     <string name="usb_root_title">Utiliser un lecteur USB via root (expérimental)</string>
     <string name="usb_root_hint">Monte un lecteur USB qu\'Android masque aux applis, puis le propose comme stockage de jeux. Nécessite root.</string>
     <string name="usb_root_no_drive">Aucun trouvé</string>
+    <string name="usb_root_choose">Choisissez un lecteur</string>
     <string name="usb_root_volume">Lecteur USB</string>
     <string name="usb_root_unnamed">Lecteur de %1$s</string>
     <string name="usb_root_mounted">Monté</string>

@@ -395,9 +395,11 @@
     <string name="usb_access_title">USB-schijf gevonden</string>
     <string name="usb_access_hint">Android verbergt deze schijf voor apps. Sta “Toegang tot alle bestanden” toe en start DroidDeck daarna opnieuw om hem als gameopslag te gebruiken (exFAT of FAT).</string>
     <string name="usb_access_allow">Toestaan</string>
+    <string name="usb_access_restart_hint">Toegang tot alle bestanden staat aan. Start DroidDeck opnieuw zodat het de schijf kan gebruiken.</string>
     <string name="usb_root_title">USB-schijf via root gebruiken (experimenteel)</string>
     <string name="usb_root_hint">Koppelt een USB-schijf die Android voor apps verbergt en biedt hem daarna aan als gameopslag. Vereist root.</string>
     <string name="usb_root_no_drive">Niets gevonden</string>
+    <string name="usb_root_choose">Kies een schijf</string>
     <string name="usb_root_volume">USB-schijf</string>
     <string name="usb_root_unnamed">Schijf van %1$s</string>
     <string name="usb_root_mounted">Gekoppeld</string>

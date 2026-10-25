@@ -446,7 +446,10 @@ internal fun SetupPanel(
                             Column(Modifier.weight(1f)) { device(); art(); download() }
                         } else { look(); device(); art(); download() }
                     }
-                    STORAGE_TAB -> StoragePanel(s, a)
+                    STORAGE_TAB -> {
+                        StoragePanel(s, a)
+                        UsbSection(host, s.usb, a.usb, s.sessionRunning)
+                    }
                     4 -> {
                         SettingsGroup(stringResource(R.string.setup_tab_diagnostics)) {
                             ToggleRow(host, "logs", stringResource(R.string.setup_logs), stringResource(R.string.setup_logs_hint), s.logsEnabled) { a.onLogs() }

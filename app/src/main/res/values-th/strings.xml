@@ -394,9 +394,11 @@
     <string name="usb_access_title">พบไดรฟ์ USB</string>
     <string name="usb_access_hint">Android ซ่อนไดรฟ์นี้จากแอป อนุญาต “การเข้าถึงไฟล์ทั้งหมด” แล้วรีสตาร์ท DroidDeck เพื่อใช้เป็นพื้นที่จัดเก็บเกม (exFAT หรือ FAT)</string>
     <string name="usb_access_allow">อนุญาต</string>
+    <string name="usb_access_restart_hint">เปิดสิทธิ์เข้าถึงไฟล์ทั้งหมดแล้ว รีสตาร์ท DroidDeck เพื่อให้ใช้ไดรฟ์ได้</string>
     <string name="usb_root_title">ใช้ไดรฟ์ USB ผ่าน root (ทดลอง)</string>
     <string name="usb_root_hint">เมานต์ไดรฟ์ USB ที่ Android ซ่อนจากแอป แล้วเสนอให้ใช้เป็นพื้นที่จัดเก็บเกม ต้องใช้ root</string>
     <string name="usb_root_no_drive">ไม่พบ</string>
+    <string name="usb_root_choose">เลือกไดรฟ์</string>
     <string name="usb_root_volume">ไดรฟ์ USB</string>
     <string name="usb_root_unnamed">ไดรฟ์ %1$s</string>
     <string name="usb_root_mounted">เมานต์แล้ว</string>

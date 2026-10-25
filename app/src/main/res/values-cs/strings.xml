@@ -397,9 +397,11 @@
     <string name="usb_access_title">Nalezen disk USB</string>
     <string name="usb_access_hint">Android tento disk před aplikacemi skrývá. Povolte „Přístup ke všem souborům“ a pak restartujte DroidDeck, abyste ho mohli používat jako úložiště her (exFAT nebo FAT).</string>
     <string name="usb_access_allow">Povolit</string>
+    <string name="usb_access_restart_hint">Přístup ke všem souborům je zapnutý. Restartujte DroidDeck, aby mohl jednotku používat.</string>
     <string name="usb_root_title">Použít disk USB přes root (experimentální)</string>
     <string name="usb_root_hint">Připojí disk USB, který Android před aplikacemi skrývá, a nabídne ho jako úložiště her. Vyžaduje root.</string>
     <string name="usb_root_no_drive">Nic nenalezeno</string>
+    <string name="usb_root_choose">Vyberte jednotku</string>
     <string name="usb_root_volume">Disk USB</string>
     <string name="usb_root_unnamed">Disk %1$s</string>
     <string name="usb_root_mounted">Připojeno</string>

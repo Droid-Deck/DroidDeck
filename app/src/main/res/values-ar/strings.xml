@@ -399,9 +399,11 @@
     <string name="usb_access_title">تم العثور على محرك أقراص USB</string>
     <string name="usb_access_hint">يُخفي Android محرك الأقراص هذا عن التطبيقات. اسمح بـ«الوصول إلى كل الملفات»، ثم أعد تشغيل DroidDeck لاستخدامه كتخزين للألعاب (exFAT أو FAT).</string>
     <string name="usb_access_allow">سماح</string>
+    <string name="usb_access_restart_hint">تم تشغيل الوصول إلى كل الملفات. أعد تشغيل DroidDeck ليتمكن من استخدام محرك الأقراص.</string>
     <string name="usb_root_title">استخدام محرك أقراص USB عبر root (تجريبي)</string>
     <string name="usb_root_hint">يركّب محرك أقراص USB يُخفيه Android عن التطبيقات، ثم يعرضه كتخزين للألعاب. يتطلب root.</string>
     <string name="usb_root_no_drive">لم يُعثر على أي محرك</string>
+    <string name="usb_root_choose">اختر محرك أقراص</string>
     <string name="usb_root_volume">محرك أقراص USB</string>
     <string name="usb_root_unnamed">محرك أقراص %1$s</string>
     <string name="usb_root_mounted">مُركّب</string>

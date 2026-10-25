@@ -394,9 +394,11 @@
     <string name="usb_access_title">Đã tìm thấy ổ USB</string>
     <string name="usb_access_hint">Android ẩn ổ này khỏi các ứng dụng. Hãy cho phép “Quyền truy cập vào mọi tệp”, rồi khởi động lại DroidDeck để dùng ổ làm lưu trữ game (exFAT hoặc FAT).</string>
     <string name="usb_access_allow">Cho phép</string>
+    <string name="usb_access_restart_hint">Quyền truy cập mọi tệp đã bật. Khởi động lại DroidDeck để ứng dụng dùng được ổ đĩa.</string>
     <string name="usb_root_title">Dùng ổ USB qua root (thử nghiệm)</string>
     <string name="usb_root_hint">Gắn ổ USB mà Android ẩn khỏi các ứng dụng, rồi cung cấp ổ đó làm lưu trữ game. Cần root.</string>
     <string name="usb_root_no_drive">Không tìm thấy</string>
+    <string name="usb_root_choose">Chọn ổ đĩa</string>
     <string name="usb_root_volume">Ổ USB</string>
     <string name="usb_root_unnamed">Ổ %1$s</string>
     <string name="usb_root_mounted">Đã gắn</string>

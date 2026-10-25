@@ -399,9 +399,11 @@
     <string name="usb_access_title">Найден USB-накопитель</string>
     <string name="usb_access_hint">Android скрывает этот накопитель от приложений. Разрешите доступ ко всем файлам и перезапустите DroidDeck, чтобы хранить на нём игры (exFAT или FAT).</string>
     <string name="usb_access_allow">Разрешить</string>
+    <string name="usb_access_restart_hint">Доступ ко всем файлам включён. Перезапустите DroidDeck, чтобы он мог использовать накопитель.</string>
     <string name="usb_root_title">USB-накопитель через root (экспериментально)</string>
     <string name="usb_root_hint">Монтирует USB-накопитель, скрытый Android от приложений, и предлагает его как хранилище игр. Нужен root.</string>
     <string name="usb_root_no_drive">Не найдено</string>
+    <string name="usb_root_choose">Выберите накопитель</string>
     <string name="usb_root_volume">USB-накопитель</string>
     <string name="usb_root_unnamed">Накопитель %1$s</string>
     <string name="usb_root_mounted">Смонтирован</string>

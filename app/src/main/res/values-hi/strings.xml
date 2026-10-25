@@ -395,9 +395,11 @@
     <string name="usb_access_title">USB ड्राइव मिली</string>
     <string name="usb_access_hint">Android इस ड्राइव को ऐप से छिपाता है। इसे गेम स्टोरेज के तौर पर इस्तेमाल करने के लिए “सभी फ़ाइलों का ऐक्सेस” दें, फिर DroidDeck रीस्टार्ट करें (exFAT या FAT)।</string>
     <string name="usb_access_allow">अनुमति दें</string>
+    <string name="usb_access_restart_hint">सभी फ़ाइलों का ऐक्सेस चालू है। ड्राइव इस्तेमाल करने के लिए DroidDeck को रीस्टार्ट करें।</string>
     <string name="usb_root_title">root के ज़रिए USB ड्राइव इस्तेमाल करें (प्रयोगात्मक)</string>
     <string name="usb_root_hint">Android जिस USB ड्राइव को ऐप से छिपाता है, उसे माउंट करता है और फिर गेम स्टोरेज के तौर पर पेश करता है। root ज़रूरी है।</string>
     <string name="usb_root_no_drive">कोई नहीं मिली</string>
+    <string name="usb_root_choose">ड्राइव चुनें</string>
     <string name="usb_root_volume">USB ड्राइव</string>
     <string name="usb_root_unnamed">%1$s ड्राइव</string>
     <string name="usb_root_mounted">माउंट है</string>

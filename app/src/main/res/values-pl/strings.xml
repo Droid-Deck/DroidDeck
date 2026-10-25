@@ -397,9 +397,11 @@
     <string name="usb_access_title">Znaleziono dysk USB</string>
     <string name="usb_access_hint">Android ukrywa ten dysk przed aplikacjami. Zezwól na „Dostęp do wszystkich plików”, a następnie uruchom ponownie DroidDeck, aby używać go jako pamięci na gry (exFAT lub FAT).</string>
     <string name="usb_access_allow">Zezwól</string>
+    <string name="usb_access_restart_hint">Dostęp do wszystkich plików jest włączony. Uruchom ponownie DroidDeck, aby mógł używać dysku.</string>
     <string name="usb_root_title">Używaj dysku USB przez root (eksperymentalne)</string>
     <string name="usb_root_hint">Montuje dysk USB, który Android ukrywa przed aplikacjami, a następnie oferuje go jako pamięć na gry. Wymaga root.</string>
     <string name="usb_root_no_drive">Nie znaleziono</string>
+    <string name="usb_root_choose">Wybierz dysk</string>
     <string name="usb_root_volume">Dysk USB</string>
     <string name="usb_root_unnamed">Dysk %1$s</string>
     <string name="usb_root_mounted">Zamontowany</string>

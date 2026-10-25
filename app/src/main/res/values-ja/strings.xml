@@ -396,9 +396,11 @@
     <string name="usb_access_title">USBドライブが見つかりました</string>
     <string name="usb_access_hint">Androidはこのドライブをアプリから隠しています。「すべてのファイルへのアクセス」を許可してDroidDeckを再起動すると、ゲームの保存先として使えます(exFATまたはFAT)。</string>
     <string name="usb_access_allow">許可</string>
+    <string name="usb_access_restart_hint">すべてのファイルへのアクセスがオンになりました。ドライブを使うには DroidDeck を再起動してください。</string>
     <string name="usb_root_title">root経由でUSBドライブを使用(試験的)</string>
     <string name="usb_root_hint">Androidがアプリから隠しているUSBドライブをマウントし、ゲームの保存先として提供します。rootが必要です。</string>
     <string name="usb_root_no_drive">見つかりません</string>
+    <string name="usb_root_choose">ドライブを選択</string>
     <string name="usb_root_volume">USBドライブ</string>
     <string name="usb_root_unnamed">%1$sのドライブ</string>
     <string name="usb_root_mounted">マウント済み</string>

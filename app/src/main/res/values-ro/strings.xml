@@ -396,9 +396,11 @@
     <string name="usb_access_title">Unitate USB găsită</string>
     <string name="usb_access_hint">Android ascunde această unitate de aplicații. Permite „Acces la toate fișierele”, apoi repornește DroidDeck pentru a o folosi ca stocare pentru jocuri (exFAT sau FAT).</string>
     <string name="usb_access_allow">Permite</string>
+    <string name="usb_access_restart_hint">Accesul la toate fișierele este activat. Repornește DroidDeck ca să poată folosi unitatea.</string>
     <string name="usb_root_title">Folosește unitatea USB prin root (experimental)</string>
     <string name="usb_root_hint">Montează o unitate USB pe care Android o ascunde de aplicații, apoi o oferă ca stocare pentru jocuri. Necesită root.</string>
     <string name="usb_root_no_drive">Nu s-a găsit niciuna</string>
+    <string name="usb_root_choose">Alege o unitate</string>
     <string name="usb_root_volume">Unitate USB</string>
     <string name="usb_root_unnamed">Unitate de %1$s</string>
     <string name="usb_root_mounted">Montată</string>
