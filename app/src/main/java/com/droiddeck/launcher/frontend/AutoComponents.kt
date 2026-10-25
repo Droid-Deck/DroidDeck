@@ -257,7 +257,7 @@ object AutoComponents {
 
 
     private const val FINDINGS = "wincomp-findings.json"
-    private const val DETECTORS = "d2"
+    private const val DETECTORS = "d3"
 
     internal fun signature(context: Context, game: Library.SteamGame): String {
         val folder = game.gameFiles

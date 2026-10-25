@@ -54,6 +54,39 @@ class WinComponentDetectorsTest {
         assertEquals(emptyList<String?>(), WinCompSources.steamList(context, game, 409710, "Other", auto = true).map { it.component })
     }
 
+    @Test fun theGamesInstallScriptRedistsAreInstalledAsSteamWould() {
+        val steamapps = tmp.newFolder("steamapps")
+        val game = File(steamapps, "common/DiRT 3 Complete Edition").apply { mkdirs() }
+        File(steamapps, "appmanifest_321040.acf").writeText("\"AppState\"\n{\n\t\"SharedDepots\"\n\t{\n\t\t\"228983\"\t\t\"228980\"\n\t}\n}\n")
+        File(game, "installscript.vdf").writeText(
+            """
+            "InstallScript"
+            {
+            	"Registry" { "HKEY_LOCAL_MACHINE\\Software\\Codemasters" { "string" { "Path" "%INSTALLDIR%" } } }
+            	"Run Process"
+            	{
+            		"OpenAL"
+            		{
+            			"HasRunKey"		"HKEY_LOCAL_MACHINE\\Software\\Valve\\Steam\\Apps\\321040"
+            			"process 1"		"%INSTALLDIR%\\_CommonRedist\\OpenAL\\2.0.7.0\\oalinst.exe"
+            			"command 1"		"/s"
+            		}
+            		"VC2010"
+            		{
+            			"process 1"		"%INSTALLDIR%\\_CommonRedist\\vcredist\\2010\\vcredist_x86.exe"
+            		}
+            	}
+            }
+            """.trimIndent(),
+        )
+        assertEquals(listOf("oalinst", "vcredist2010"), SteamRedists.installScript(game).map { it.first })
+        val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
+        val found = WinCompSources.steamList(context, game, 321040, "DiRT 3 Complete Edition", auto = true)
+        assertEquals(listOf("vcredist2010_dll", "oalinst"), found.map { it.component })
+        assertTrue(found.all { it.auto && it.origin == WinCompSources.Origin.STEAM })
+        assertEquals(emptyList<Pair<String, String>>(), SteamRedists.installScript(File(steamapps, "missing")))
+    }
+
     @Test fun thePrefixCountsOnlyWhatDroidDeckDidNotPutThere() {
         val compat = tmp.newFolder("compatdata", "409710")
         val pfx = File(compat, "pfx")

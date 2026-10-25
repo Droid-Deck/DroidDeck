@@ -28,6 +28,17 @@ object SteamRedists {
         return File(steamapps, "appmanifest_$appId.acf").takeIf { it.isFile }
     }
 
+    /** Redists the game's own install script has Steam run on Windows, from its "Run Process" entries. */
+    fun installScript(gameDir: File?): List<Pair<String, String>> =
+        gameDir?.listFiles { f ->
+            f.isFile && f.length() < 1L shl 20 && f.name.lowercase().let { it.startsWith("installscript") && it.endsWith(".vdf") }
+        }.orEmpty().sortedBy { it.name }.flatMap { file ->
+            val root = runCatching { com.droiddeck.launcher.input.KeyValues.parse(file.readText()) }.getOrNull() ?: return@flatMap emptyList()
+            (root.child("InstallScript") ?: root).children("Run Process")
+                .flatMap { run -> run.entries.mapNotNull { (it.second as? com.droiddeck.launcher.input.KeyValues.Node)?.string("process 1") } }
+                .flatMap { path -> DependencyDetector.componentsFor(path).map { it to DependencyDetector.label(it) } }
+        }.distinctBy { it.first }
+
     fun detect(gameDir: File?, appId: Int): List<DependencyDetector.Recommendation> {
         val text = try {
             manifest(gameDir, appId)?.takeIf { it.length() < 1L shl 20 }?.readText() ?: return emptyList()
