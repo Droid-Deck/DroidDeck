@@ -962,7 +962,7 @@ class DualSenseManager(private val context: Context) {
             }
             if (!isDualSenseActive) return false
         }
-        if (isRawHidDelivering()) return true
+        if (isRawHidDelivering()) return shouldSuppressInputDevice(device)
 
         val action = event.actionMasked
         val pointerCount = event.pointerCount
@@ -1020,7 +1020,7 @@ class DualSenseManager(private val context: Context) {
     fun onKeyEvent(event: KeyEvent): Boolean {
         val device = getInputDevice(event.deviceId) ?: event.device
         if (!DualSense.isDualSense(device)) return false
-        if (isRawHidDelivering()) return true
+        if (isRawHidDelivering()) return shouldSuppressInputDevice(device)
         val action = event.action
         if (action != KeyEvent.ACTION_DOWN && action != KeyEvent.ACTION_UP) return false
         val down = action == KeyEvent.ACTION_DOWN

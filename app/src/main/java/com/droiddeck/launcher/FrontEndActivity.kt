@@ -421,7 +421,6 @@ class FrontEndActivity : ComponentActivity() {
     private var dualSenseManager: com.droiddeck.launcher.input.DualSenseManager? = null
     private var dualSenseOutputBridge: com.droiddeck.launcher.session.DualSenseOutputBridge? = null
     private var lastDsState: com.droiddeck.launcher.input.DualSense.State? = null
-    private var dsKeyGeneration = 0
     private val secondScreenDisplayListener = object : DisplayManager.DisplayListener {
         override fun onDisplayAdded(displayId: Int) = refreshSecondScreenDisplays()
         override fun onDisplayRemoved(displayId: Int) = refreshSecondScreenDisplays()
@@ -1347,13 +1346,17 @@ class FrontEndActivity : ComponentActivity() {
         }
     }
 
+    // Reports arrive on the USB reader thread; the key state is only read and changed on the main thread, and a
+    // report that lands after onPause is dropped, so no key is pressed again once the launcher has released it.
     private fun handleLauncherDualSenseInput(state: com.droiddeck.launcher.input.DualSense.State) {
-        val before = launcherDualSenseKeys(lastDsState)
-        lastDsState = state
-        val now = launcherDualSenseKeys(state)
-        val generation = dsKeyGeneration
-        for (keyCode in now - before) ui.post { if (generation == dsKeyGeneration) dispatchKeyEvent(syntheticPadKey(KeyEvent.ACTION_DOWN, keyCode)) }
-        for (keyCode in before - now) ui.post { if (generation == dsKeyGeneration) dispatchKeyEvent(syntheticPadKey(KeyEvent.ACTION_UP, keyCode)) }
+        ui.post {
+            if (!lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) return@post
+            val before = launcherDualSenseKeys(lastDsState)
+            lastDsState = state
+            val now = launcherDualSenseKeys(state)
+            for (keyCode in now - before) dispatchKeyEvent(syntheticPadKey(KeyEvent.ACTION_DOWN, keyCode))
+            for (keyCode in before - now) dispatchKeyEvent(syntheticPadKey(KeyEvent.ACTION_UP, keyCode))
+        }
     }
 
     private fun launcherDualSenseKeys(state: com.droiddeck.launcher.input.DualSense.State?) =
@@ -1367,9 +1370,8 @@ class FrontEndActivity : ComponentActivity() {
         )
     }
 
-    /** Releases every key the DualSense holds in the launcher and drops key events still queued for it. */
+    /** Releases every key the DualSense holds in the launcher. */
     private fun releaseLauncherDualSenseKeys() {
-        dsKeyGeneration++
         for (keyCode in launcherDualSenseKeys(lastDsState)) dispatchKeyEvent(syntheticPadKey(KeyEvent.ACTION_UP, keyCode))
         lastDsState = null
     }
