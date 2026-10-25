@@ -26,6 +26,8 @@ object ProtonExtras {
     internal data class Asset(val tag: String, val name: String, val url: String, val sha512: String?, val size: Long,
                              val sha256: String? = null)
 
+    const val OWN = "droiddeck"
+
     val tools = listOf(
         Tool("ge", "GE-Proton", "GE-Proton", "GloriousEggroll/proton-ge-custom", Regex("aarch64\\.tar\\.(gz|xz)$")),
         Tool("cachyos", "proton-cachyos", "proton-cachyos", "CachyOS/proton-cachyos", Regex("arm64\\.tar\\.(gz|xz)$")),
@@ -77,6 +79,17 @@ object ProtonExtras {
     }
 
     fun update(context: Context, tool: Tool): String? = updateFor(installedTags(context, tool), cachedLatest(context, tool))
+
+    fun missing(context: Context, tool: Tool): String? =
+        if (tool.id == OWN && !declined(context) && installedAll(context, tool).isEmpty()) cachedLatest(context, tool) else null
+
+    private fun choices(context: Context) = context.getSharedPreferences("proton-auto-updates", Context.MODE_PRIVATE)
+
+    fun declined(context: Context): Boolean = choices(context).getBoolean("$OWN.declined", false)
+
+    fun setDeclined(context: Context, declined: Boolean) {
+        choices(context).edit().putBoolean("$OWN.declined", declined).apply()
+    }
 
     fun cachedLatest(context: Context, tool: Tool): String? =
         readJson(latestFile(context)).optJSONObject(tool.id)?.optString("tag")?.ifEmpty { null }
@@ -142,6 +155,19 @@ object ProtonExtras {
     fun removeOlder(context: Context, tool: Tool) {
         installedAll(context, tool).dropLast(1).forEach {
             if (File(toolsDir(context), it).deleteRecursively()) ComponentsManager.forgetProton(context, it)
+        }
+    }
+
+    private fun replaceOlder(context: Context, tool: Tool) {
+        val all = installedAll(context, tool)
+        val newest = all.lastOrNull() ?: return
+        val older = all.dropLast(1)
+        if (older.isEmpty()) return
+        runCatching { ProtonDefault.moveGames(context, older.toSet(), newest) }.onFailure { Log.w(TAG, "per-game picks", it) }
+        older.forEach { old ->
+            runCatching { ComponentsManager.carryOver(context, old, newest) }.onFailure { Log.w(TAG, "components of $old", it) }
+            if (File(toolsDir(context), old).deleteRecursively()) ComponentsManager.forgetProton(context, old)
+            else Log.w(TAG, "could not remove $old")
         }
     }
 
@@ -246,6 +272,7 @@ object ProtonExtras {
                 archive.delete()
                 unqueue(context, tool)
                 record(context, tool, placed, asset.tag)
+                if (tool.id == OWN) replaceOlder(context, tool)
                 if (EsyncPacks.enabled(context)) {
                     onProgress(context.getString(R.string.esync_fetching), -1)
                     try {

@@ -184,6 +184,26 @@ class ProtonMenuAutoTest {
         assertEquals("DroidDeck-Proton-11-12", ProtonExtras.installed(activity, ProtonExtras.tools.first { it.id == "droiddeck" }))
     }
 
+    @Test fun droidDeckProtonIsInstalledWhenMissingUnlessTheUserRemovedIt() {
+        menu.installer = { tool, _ -> attempts.add(tool.id); install("${tool.prefix}-11-12"); null }
+        ProtonExtras.setDeclined(activity, true)
+        menu.ensureAutoUpdates()
+        assertNull(menu.protonBusyId)
+        assertTrue(attempts.isEmpty())
+        ProtonExtras.setDeclined(activity, false)
+        menu.ensureAutoUpdates()
+        waitUntil { menu.protonBusyId == null }
+        assertEquals(listOf("droiddeck"), attempts)
+        assertEquals("DroidDeck-Proton-11-12", ProtonExtras.installed(activity, ProtonExtras.tools.first { it.id == "droiddeck" }))
+        assertTrue(ProtonExtras.installedAll(activity, ProtonExtras.tools.first { it.id == "ge" }).isEmpty())
+        menu.removeProton("droiddeck")
+        waitUntil { menu.protonBusyId == null }
+        assertTrue(ProtonExtras.declined(activity))
+        menu.installProton("droiddeck")
+        waitUntil { menu.protonBusyId == null }
+        assertFalse(ProtonExtras.declined(activity))
+    }
+
     @Test fun aPendingAnimatedLaunchPreventsAnAutomaticInstall() {
         install("DroidDeck-Proton-11-11.1")
         val launcher = Robolectric.buildActivity(FrontEndActivity::class.java).get()

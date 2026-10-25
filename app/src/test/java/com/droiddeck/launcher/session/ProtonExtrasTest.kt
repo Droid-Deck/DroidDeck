@@ -198,4 +198,22 @@ class ProtonExtrasTest {
         ComponentsManager.forgetProton(context, kept.name)
         assertTrue(File(originals, "GE-Proton11-8/GE-Proton11-8/dxvk.wcp").isFile)
     }
+
+    @Test
+    fun droidDeckProtonIsFetchedWhenMissingUnlessTheUserRemovedIt() {
+        val context = RuntimeEnvironment.getApplication()
+        val tools = File(LinuxRuntime.rootDir(context), "root/.local/share/Steam/compatibilitytools.d")
+        tools.deleteRecursively()
+        File(context.filesDir, "proton-latest.json").writeText(
+            """{"droiddeck":{"tag":"DroidDeck-Proton-11-11.4","at":1},"ge":{"tag":"GE-Proton11-7","at":1}}""")
+        ProtonExtras.setDeclined(context, false)
+        assertEquals("DroidDeck-Proton-11-11.4", ProtonExtras.missing(context, tool("droiddeck")))
+        assertNull(ProtonExtras.missing(context, tool("ge")))
+        ProtonExtras.setDeclined(context, true)
+        assertNull(ProtonExtras.missing(context, tool("droiddeck")))
+        ProtonExtras.setDeclined(context, false)
+        installTool(tools, "DroidDeck-Proton 11-11.2")
+        assertNull(ProtonExtras.missing(context, tool("droiddeck")))
+        assertEquals("DroidDeck-Proton-11-11.4", ProtonExtras.update(context, tool("droiddeck")))
+    }
 }
