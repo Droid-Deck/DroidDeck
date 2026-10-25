@@ -22,3 +22,8 @@ Windows, macOS and Linux.
     backends; recording, replay and the microphone report "not available".
   - `Cargo.toml`: SDL2, openh264, the recording muxers and the Windows crate are
     desktop-only; Android adds `ndk`, `ndk-sys`, `jni`, `log`.
+- `opennow-streamer/vendor/mtu` (new, DroidDeck): mozilla's `mtu` 0.3.0 (MIT/Apache-2.0)
+  with one change in `build.rs`: on Android, bindgen gets a versioned target
+  (`--target=<triple>29`), since the NDK headers reject an unversioned triple and
+  cargo-ndk's bindgen arguments do not carry the API level. Patched in from
+  `opennow-streamer/Cargo.toml` and DroidDeck's `app/src/main/rust/gfn/Cargo.toml`.

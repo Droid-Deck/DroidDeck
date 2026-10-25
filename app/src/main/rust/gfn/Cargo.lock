@@ -983,8 +983,6 @@ dependencies = [
 [[package]]
 name = "mtu"
 version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f6915088ba81d679b0a07ecc674f31d66af5e7edaeb0c34782669be38cdf67b5"
 dependencies = [
  "bindgen",
  "cfg_aliases",
