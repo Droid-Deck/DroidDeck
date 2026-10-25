@@ -144,7 +144,8 @@ def wine(argv, source_env=None):
     if len(command) < 3 or command[1] != 'waitforexitandrun' or len(argv) != 1:
         raise ValueError('Invalid Xbox Proton invocation')
     env = dict(source_env)
-    env.pop('DROIDDECK_XBOX_CREDENTIAL_SOCKET', None)
+    for name in ('DROIDDECK_XBOX_CREDENTIAL_SOCKET', 'DROIDDECK_XBOX_CREDENTIAL_PORT', 'DROIDDECK_XBOX_CREDENTIAL_KEY'):
+        env.pop(name, None)
     env.pop('DROIDDECK_XBOX_COMMAND_FILE', None)
     prefix = Path(source_env['STEAM_COMPAT_DATA_PATH']) / 'pfx'
     prefix.parent.mkdir(parents=True, exist_ok=True)
@@ -207,7 +208,8 @@ def launch(command, env):
             owned_env = dict(env, DROIDDECK_XBOX_ACTIVE='1', DROIDDECK_XBOX_COMMAND_FILE=str(context),
                              XODUS_SOCKET=reply['socket'], XODUS_BRIDGE_PORT=str(port), XODUS_BRIDGE_KEY=key,
                              XODUS_LOG='off', RUST_LOG='off', XODUS_SAVE_SYNC='auto' if sidecar.get('cloud', True) else 'off')
-            owned_env.pop('DROIDDECK_XBOX_CREDENTIAL_SOCKET', None)
+            for name in ('DROIDDECK_XBOX_CREDENTIAL_SOCKET', 'DROIDDECK_XBOX_CREDENTIAL_PORT', 'DROIDDECK_XBOX_CREDENTIAL_KEY'):
+                owned_env.pop(name, None)
             if reply.get('playfab'):
                 owned_env['XODUS_XSTS_PLAYFAB'] = reply['playfab']
             content = folder / '.xbox-content'

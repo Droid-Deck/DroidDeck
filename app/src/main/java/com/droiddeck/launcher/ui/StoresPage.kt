@@ -97,6 +97,8 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.automirrored.filled.Login
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Sort
+import androidx.compose.material.icons.filled.FilterList
+import com.droiddeck.launcher.stores.xbox.XboxLibraryFilter
 import androidx.compose.material.icons.filled.ViewList
 import androidx.compose.material.icons.filled.ViewModule
 import com.droiddeck.launcher.stores.sortCatalogItems
@@ -295,6 +297,11 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
         chip = id; openGame = null; query = ""
         if (id != DOWNLOADS) tab = tabFor(Store.byId(id), if (s.storesOpenTab == SessionPrefs.STORES_OPEN_STORE) "store" else "library")
         move("first")
+    }
+    LaunchedEffect(StoresState.openGameRequest) {
+        val key = StoresState.openGameRequest ?: return@LaunchedEffect
+        StoresState.openGameRequest = null
+        Store.byId(key.substringBefore(':'))?.let { store -> chip = store.id; tab = tabFor(store, "library"); query = ""; open(key) }
     }
     var focusedChip by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(focusedChip) {
@@ -509,7 +516,8 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
                             if (detailStore != null) Column(
                                 Modifier.fillMaxWidth()
                                     .onFocusChanged { detailFocused = it.hasFocus }
-                                    .focusProperties { exit = { if (coveringNow.value) androidx.compose.ui.focus.FocusRequester.Cancel else androidx.compose.ui.focus.FocusRequester.Default } }
+                                    // A step opened from the page (install location, uninstall) sits outside it and has to receive the focus.
+                                    .focusProperties { exit = { if (coveringNow.value && !StoresMotion.stepOpen) androidx.compose.ui.focus.FocusRequester.Cancel else androidx.compose.ui.focus.FocusRequester.Default } }
                                     .focusGroup(),
                             ) { StoreGameDetail(detailStore, key, s, a, heroFocus, onBack = { closeGame() }) }
                         }
@@ -983,8 +991,10 @@ private fun Storefront(
     }
     val isSizeSort = tab == "library" && (sort == "sizeAsc" || sort == "sizeDesc")
     val browseItems = if (browsing) ItchBrowseState.items else emptyList()
-    val candidates = remember(library, everything, tab, q, s.storesShowMature, browsing, browseItems) {
-        if (tab == "library") library.filter(::matches)
+    LaunchedEffect(Unit) { XboxLibraryFilter.load(ctx) }
+    val xboxFilter = if (store == Store.XBOX) XboxLibraryFilter.current else XboxLibraryFilter.ALL
+    val candidates = remember(library, everything, tab, q, s.storesShowMature, browsing, browseItems, xboxFilter) {
+        if (tab == "library") library.filter { matches(it) && XboxLibraryFilter.keeps(xboxFilter, it) }
         else if (browsing) {
             val owned = library.associateBy { it.id }
             browseItems.map { owned[it.id] ?: it }.filter(::shown)
@@ -1089,8 +1099,10 @@ private fun Storefront(
         item(key = "header", span = { GridItemSpan(maxLineSpan) }) {
             Rise(1) {
                 val tabs = tabsFor(store)
-                val libraryLabel = if (loaded) stringResource(R.string.stores_tab_count, stringResource(R.string.stores_tab_library), library.size)
-                    else stringResource(R.string.stores_tab_library)
+                val libraryName = if (xboxFilter == XboxLibraryFilter.ALL) stringResource(R.string.stores_tab_library)
+                    else stringResource(R.string.stores_tab_library) + " · " + XboxLibraryFilter.label(xboxFilter)
+                val libraryLabel = if (loaded) stringResource(R.string.stores_tab_count, libraryName, library.count { XboxLibraryFilter.keeps(xboxFilter, it) })
+                    else libraryName
                 ModeHeader(
                     libraryLabel,
                     query, onQuery,
@@ -1102,6 +1114,7 @@ private fun Storefront(
                     } },
                 ) {
                     if (tab == "library") {
+                        if (store == Store.XBOX) XboxFilterButton()
                         SortButton(s, a)
                         ViewButton(s, a)
                     }
@@ -1111,6 +1124,9 @@ private fun Storefront(
                     }
                     if (store == Store.BATTLENET) SmallTextButton(stringResource(R.string.bnet_name)) { a.onBattleNet() }
                     SmallTextButton(stringResource(R.string.stores_refresh)) { StoresState.open(ctx, store, force = true) }
+                    if (store == Store.XBOX) SmallTextButton("Cloud settings") {
+                        ctx.startActivity(android.content.Intent(ctx, com.droiddeck.launcher.stores.xbox.XboxCloudSettingsActivity::class.java))
+                    }
                     val name = StoresState.accounts[store] ?: ""
                     SignOutButton(store, name)
                 }
@@ -1334,6 +1350,38 @@ private fun SortButton(s: FrontEndState, a: FrontEndActions) {
                                 .then(if (sort == s.storesSort) Modifier.focusRequester(first) else Modifier),
                         ) {
                             a.onStoresSort(sort)
+                            StoresMotion.fold()
+                        }
+                    }
+                }
+            })
+        }
+    }
+}
+
+@Composable
+private fun XboxFilterButton() {
+    val pal = LocalPalette.current
+    val ctx = LocalContext.current
+    val title = "Show"
+    var at by remember { mutableStateOf<Rect?>(null) }
+    Box(Modifier.onGloballyPositioned { at = it.boundsInRoot() }) {
+        HeaderIconButton(title, Icons.Filled.FilterList, "xbox-filter") {
+            val from = at ?: return@HeaderIconButton
+            StoresMotion.ask(StepAsk(
+                anchor = from, side = StepSide.Left, accent = pal.signal, pillCorner = 8.dp, items = XboxLibraryFilter.ALL_FILTERS.size,
+                onDismiss = {},
+                handle = { Text(title, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = pal.signal, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+            ) {
+                StepTitle(title)
+                StepList {
+                    XboxLibraryFilter.ALL_FILTERS.forEachIndexed { i, filter ->
+                        StepChoice(
+                            XboxLibraryFilter.label(filter), selected = filter == XboxLibraryFilter.current, enabled = open,
+                            modifier = Modifier.fillMaxWidth().stepItem(i)
+                                .then(if (filter == XboxLibraryFilter.current) Modifier.focusRequester(first) else Modifier),
+                        ) {
+                            XboxLibraryFilter.set(ctx, filter)
                             StoresMotion.fold()
                         }
                     }

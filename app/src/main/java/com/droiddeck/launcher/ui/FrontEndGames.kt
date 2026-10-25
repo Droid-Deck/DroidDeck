@@ -79,13 +79,17 @@ internal fun GamesPage(s: FrontEndState, a: FrontEndActions, selected: String, o
         value = if (!s.battleNetInstalled) null
         else kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.droiddeck.launcher.runtime.BattleNet.icon(pageContext) }
     }
-    val games = remember(s.steamGames, s.shortcutPicker, epic, launcherName, launcherArt, s.battleNetInstalled, battleNetArt) {
+    LaunchedEffect(Unit) { com.droiddeck.launcher.stores.xbox.XboxCloudGames.load(pageContext) }
+    val cloudGames = com.droiddeck.launcher.stores.xbox.XboxCloudGames.entries.toList()
+    val games = remember(s.steamGames, s.shortcutPicker, epic, launcherName, launcherArt, s.battleNetInstalled, battleNetArt, cloudGames) {
         val sorted = s.steamGames.sortedByDescending { it.lastPlayed }
-        if (s.shortcutPicker) sorted
-        else com.droiddeck.launcher.runtime.BattleNet.withLauncher(
-            EpicClient.withLauncher(sorted, EpicClient.launcherEntry(pageContext, launcherName, epic, launcherArt)),
-            com.droiddeck.launcher.runtime.BattleNet.launcherEntry(s.battleNetInstalled, battleNetArt),
-        )
+        if (s.shortcutPicker) sorted else {
+            val installedXbox = s.steamGames.filter { it.source == com.droiddeck.launcher.stores.Store.XBOX.id }.mapNotNull { it.storeId }.toSet()
+            com.droiddeck.launcher.runtime.BattleNet.withLauncher(
+                EpicClient.withLauncher(sorted, EpicClient.launcherEntry(pageContext, launcherName, epic, launcherArt)),
+                com.droiddeck.launcher.runtime.BattleNet.launcherEntry(s.battleNetInstalled, battleNetArt),
+            ) + com.droiddeck.launcher.stores.xbox.XboxCloudGames.rows(pageContext, installedXbox)
+        }
     }
     val gameCount = games.count { it.library != Library.EPIC_LAUNCHER && it.library != Library.BATTLENET_LAUNCHER }
     val narrow = LocalNarrowPane.current
@@ -96,6 +100,7 @@ internal fun GamesPage(s: FrontEndState, a: FrontEndActions, selected: String, o
         when (g.library) {
             Library.EPIC_LAUNCHER -> a.onEpicLauncher()
             Library.BATTLENET_LAUNCHER -> a.onBattleNet()
+            Library.XBOX_CLOUD -> com.droiddeck.launcher.stores.xbox.XboxCloudGames.stream(pageContext, g.storeId.orEmpty(), g.name)
             else -> a.onSteamGame(g)
         }
     }
@@ -135,8 +140,10 @@ internal fun GamesPage(s: FrontEndState, a: FrontEndActions, selected: String, o
                     if (!narrow) Poster(current.art, current.name, Modifier.width(168.dp))
                 }
             }
-            Rise(1) { SectionTitle(stringResource(R.string.games_launch_settings), null) }
-            Rise(2) { LaunchSettings(s, a, host, current) }
+            if (current.library != Library.XBOX_CLOUD) {
+                Rise(1) { SectionTitle(stringResource(R.string.games_launch_settings), null) }
+                Rise(2) { LaunchSettings(s, a, host, current) }
+            }
             Rise(3) { GameFileFolderActions(s, a) }
         }
         return
@@ -154,8 +161,10 @@ internal fun GamesPage(s: FrontEndState, a: FrontEndActions, selected: String, o
                 GameHeroCopy(current, if (narrow) 24.sp else 32.sp)
                 GameActions(current, s, a, onEdit, launch)
             }
-            SectionTitle(stringResource(R.string.games_launch_settings), null)
-            LaunchSettings(s, a, host, current)
+            if (current.library != Library.XBOX_CLOUD) {
+                SectionTitle(stringResource(R.string.games_launch_settings), null)
+                LaunchSettings(s, a, host, current)
+            }
             GameFileFolderActions(s, a)
         }
     }
@@ -181,8 +190,25 @@ private fun GameFileFolderActions(s: FrontEndState, a: FrontEndActions) {
 
 @Composable
 private fun GameActions(g: Library.SteamGame, s: FrontEndState, a: FrontEndActions, onEdit: (Library.SteamGame) -> Unit, launch: (Library.SteamGame) -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    if (g.library == Library.XBOX_CLOUD) {
+        androidx.compose.runtime.LaunchedEffect(g.gameId) { com.droiddeck.launcher.stores.xbox.XboxCloudGames.prefetch(context) }
+        Actions {
+            PrimaryButton("Stream", enabled = !s.busy, main = true, icon = Icons.Filled.PlayArrow) { launch(g) }
+            SecondaryButton("Download") { com.droiddeck.launcher.stores.StoresState.openGameRequest = "${com.droiddeck.launcher.stores.Store.XBOX.id}:${g.storeId}" }
+            SecondaryButton("Remove from Games", compact = true) { com.droiddeck.launcher.stores.xbox.XboxCloudGames.remove(context, g.storeId.orEmpty()) }
+            BusyChip(s)
+        }
+        return
+    }
+    val xboxStream by androidx.compose.runtime.produceState(false, g.gameId) {
+        value = g.source == com.droiddeck.launcher.stores.Store.XBOX.id && !g.storeId.isNullOrEmpty() && !s.shortcutPicker &&
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.droiddeck.launcher.stores.xbox.XboxCloudGames.streams(context, g.storeId!!) }
+    }
+    androidx.compose.runtime.LaunchedEffect(xboxStream) { if (xboxStream) com.droiddeck.launcher.stores.xbox.XboxCloudGames.prefetch(context) }
     Actions {
         PrimaryButton(stringResource(if (s.shortcutPicker) R.string.game_shortcut_choose else R.string.games_launch), enabled = !s.busy, main = true, icon = Icons.Filled.PlayArrow) { launch(g) }
+        if (xboxStream) SecondaryButton("Stream") { com.droiddeck.launcher.stores.xbox.XboxCloudGames.stream(context, g.storeId.orEmpty(), g.name) }
         if (g.library == Library.EPIC_LAUNCHER) {
             if (!s.shortcutPicker) UninstallEpicLauncher(s, a)
             BusyChip(s)
@@ -657,6 +683,7 @@ private fun playedSpan(lastPlayed: Long): String? {
 private fun libraryLabel(g: Library.SteamGame): String = when {
     g.library == Library.EPIC_LAUNCHER -> EpicClient.status.version?.substringBefore('+')?.let { stringResource(R.string.epic_client_version, it) } ?: ""
     g.library == Library.BATTLENET_LAUNCHER -> ""
+    g.library == Library.XBOX_CLOUD -> "Xbox Cloud Gaming"
     g.library != Library.ADDED -> if (g.library == "internal") stringResource(R.string.games_internal) else g.library
     g.source != Library.ADDED -> stringResource(R.string.games_store_storage)
     else -> ""
