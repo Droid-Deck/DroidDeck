@@ -34,6 +34,7 @@ extern unsigned droiddeck_stream_frames(void);
 extern void droiddeck_wayland_output_resized(void);
 extern void droiddeck_wayland_set_output_refresh_rate(int mhz);
 extern volatile int g_fps_limit;
+extern volatile int g_release_unpaced;
 extern volatile int g_hide_shell;
 extern volatile int g_zero_copy;
 extern volatile unsigned g_zero_copy_last;
@@ -574,6 +575,7 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetLookName(JNIEnv *
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetFpsLimit(JNIEnv *env, jclass clazz, jint fps) {
     g_fps_limit = fps > 0 ? fps : 0;
+    g_release_unpaced = fps < 0;
     __android_log_print(ANDROID_LOG_INFO, TAG, "fps limit %d", fps);
 }
 

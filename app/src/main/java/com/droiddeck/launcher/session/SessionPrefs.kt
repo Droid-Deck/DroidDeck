@@ -844,13 +844,20 @@ object SessionPrefs {
     fun fpsLimit(context: Context, mode: String): Int = prefs(context).getInt("fpsLimit.$mode", 0)
 
     fun setFpsLimit(context: Context, mode: String, fps: Int) {
-        prefs(context).edit().putInt("fpsLimit.$mode", fps.coerceAtLeast(0)).apply()
+        prefs(context).edit().putInt("fpsLimit.$mode", fps.coerceAtLeast(FPS_UNCAPPED)).apply()
     }
 
-    val fpsLimitChoices = listOf(0 to "Off", 30 to "30", 40 to "40", 45 to "45", 60 to "60", 90 to "90", 120 to "120")
+    /** No limit and no release pacing: buffers go back to the game as soon as they are replaced. */
+    const val FPS_UNCAPPED = -1
+
+    val fpsLimitChoices = listOf(0 to "Off", FPS_UNCAPPED to "Uncapped", 30 to "30", 40 to "40", 45 to "45", 60 to "60", 90 to "90", 120 to "120")
 
     fun fpsLimitChoices(context: Context): List<Pair<Int, String>> =
-        fpsLimitChoices.map { (fps, label) -> fps to if (fps == 0) context.getString(R.string.frame_gen_off) else label }
+        fpsLimitChoices.map { (fps, label) -> fps to when (fps) {
+            0 -> context.getString(R.string.frame_gen_off)
+            FPS_UNCAPPED -> context.getString(R.string.fps_limit_uncapped)
+            else -> label
+        } }
 
     val upscalerChoices = listOf(
         0 to "Linear", 2 to "Nearest", 4 to "AMD FSR 1", 3 to "Snapdragon GSR",
