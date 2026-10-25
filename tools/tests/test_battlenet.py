@@ -583,7 +583,7 @@ class OpenTest(Temp):
                             % BNET["APP_ID"], b"MZ")
         self.alive.extend([(50, [str(client)]), (51, ["C:\\ProgramData\\Battle.net\\Agent\\Agent.9824\\Agent.exe"])])
         started = []
-        with mock.patch.object(BNET["subprocess"], "Popen", lambda cmd, **kw: started.append((cmd, kw))), \
+        with mock.patch.object(BNET["subprocess"], "Popen", lambda cmd, **kw: started.append((cmd, kw)) or mock.Mock()), \
                 mock.patch.dict(os.environ, {"BL_DESKTOP": "1"}), \
                 mock.patch.dict(BNET, {"CACHE": str(self.tmp / "cache"), "acquire": lambda: self.fail("took the lock")}):
             self.assertIsNone(BNET["show"](self.root, wait=60, poll=0))

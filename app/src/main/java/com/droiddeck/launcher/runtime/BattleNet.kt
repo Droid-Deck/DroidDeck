@@ -21,7 +21,7 @@ object BattleNet {
 
     internal val TITLES = listOf(
         Title("wow", "World of Warcraft", "WoW", shop = "world-of-warcraft-midnight"),
-        Title("wow_classic", "World of Warcraft Classic", "WoWC"),
+        Title("wow_classic", "World of Warcraft Classic", "WoWC", shop = "world-of-warcraft-burning-crusade-classic-anniversary-edition-upgrades"),
         Title("wow_classic_era", "World of Warcraft Classic", "WoWC"),
         Title("wow_classic_anniversary", "World of Warcraft Classic", "WoWC"),
         Title("diablo3", "Diablo III", "D3", shop = "diablo-iii"),
@@ -31,7 +31,7 @@ object BattleNet {
         Title("hs_beta", "Hearthstone", "WTCG", shop = "hearthstone"),
         Title("heroes", "Heroes of the Storm", "Hero", shop = "heroes-of-the-storm"),
         Title("prometheus", "Overwatch 2", "Pro", 2357570, shop = "overwatch"),
-        Title("w3", "Warcraft III: Reforged", "W3"),
+        Title("w3", "Warcraft III: Reforged", "W3", shop = "warcraft-3-reforged"),
         Title("viper", "Call of Duty: Black Ops 4", "VIPR", shop = "call-of-duty-black-ops-4"),
         Title("odin", "Call of Duty: Modern Warfare", "ODIN", 2000950, shop = "call-of-duty-modern-warfare"),
         Title("lazarus", "Call of Duty: Modern Warfare 2 Campaign Remastered", "LAZR", shop = "call-of-duty-modern-warfare-2-campaign-remastered"),
@@ -47,9 +47,9 @@ object BattleNet {
         Title("fen", "Diablo IV", "Fen", 2344520, shop = "diablo-iv"),
         Title("d1", "Diablo", "D1", shop = "diablo"),
         Title("w1", "Warcraft: Orcs & Humans", "W1", shop = "warcraft-orcs-and-humans"),
-        Title("w2", "Warcraft II: Battle.net Edition", "W2"),
-        Title("w1r", "Warcraft: Remastered", "W1R"),
-        Title("w2r", "Warcraft II: Remastered", "W2R"),
+        Title("w2", "Warcraft II: Battle.net Edition", "W2", shop = "warcraft-2-battle-net-edition"),
+        Title("w1r", "Warcraft: Remastered", "W1R", shop = "warcraft-1-remastered"),
+        Title("w2r", "Warcraft II: Remastered", "W2R", shop = "warcraft-2-remastered"),
         Title("gryphon", "Warcraft Rumble", "GRY", shop = "warcraft-rumble"),
         Title("aris", "Doom: The Dark Ages", "ARIS", 3017860, shop = "doom-the-dark-ages"),
         Title("scorpio", "Sea of Thieves", "SCOR", 1172620, shop = "sea-of-thieves"),
@@ -70,7 +70,9 @@ object BattleNet {
 
     fun cover(context: Context, title: Title): File? = art(context, title).cover
 
-    fun fetchCovers(context: Context, titles: List<Title> = TITLES.distinctBy { it.code }.filter { it.uid != "d3cn" }): Boolean {
+    private val coverLock = Any()
+
+    fun fetchCovers(context: Context, titles: List<Title> = TITLES.distinctBy { it.code }.filter { it.uid != "d3cn" }): Boolean = synchronized(coverLock) {
         val art = com.droiddeck.launcher.frontend.AddedGameArt
         val key = com.droiddeck.launcher.frontend.SteamGridDb.key(context)
         var got = false
@@ -93,7 +95,7 @@ object BattleNet {
             }
             runCatching { tried.writeText("") ; tried.setLastModified(System.currentTimeMillis()) }
         }
-        return got
+        got
     }
 
     private val LOCALES = setOf(

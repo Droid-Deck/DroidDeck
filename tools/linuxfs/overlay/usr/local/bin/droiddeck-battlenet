@@ -599,7 +599,8 @@ def spawn(program, verb, args=()):
     try:
         os.makedirs(CACHE, exist_ok=True)
         with open(os.path.join(CACHE, "spawned.log"), "ab") as log:
-            subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=log, stderr=log, start_new_session=True)
+            child = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=log, stderr=log, start_new_session=True)
+        threading.Thread(target=child.wait, daemon=True).start()
     except OSError as error:
         say("%s: %s" % (PROTON_RUN, error))
         return 127
