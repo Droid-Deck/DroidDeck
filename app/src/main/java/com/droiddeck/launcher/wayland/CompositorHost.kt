@@ -23,6 +23,7 @@ object CompositorHost {
 
     @Synchronized
     fun startOrAttach(
+        context: android.content.Context,
         surface: Surface,
         xdgRuntimeDir: String,
         driverPath: String?,
@@ -41,7 +42,7 @@ object CompositorHost {
             resumeVsync()
             return false
         }
-        com.droiddeck.launcher.gpu.TpUbwcHint.applyToProcess()
+        com.droiddeck.launcher.gpu.TpUbwcHint.applyToProcess(context)
         WaylandCompositor.nativeStartWithSurface(
             surface, xdgRuntimeDir, driverPath, libraryName, nativeLibDir,
         )

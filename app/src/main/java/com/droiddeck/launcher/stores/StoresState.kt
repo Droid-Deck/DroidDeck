@@ -10,13 +10,11 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.droiddeck.launcher.stores.download.DownloadEntry
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 object StoresState {
     private const val TAG = "Stores"
     private const val SEARCH_DELAY_MS = 400L
+    private const val LIBRARY_RETRY_MS = 60_000L
     private val main = Handler(Looper.getMainLooper())
 
     val accounts = mutableStateMapOf<Store, String>()
@@ -79,16 +77,17 @@ object StoresState {
         val app = context.applicationContext
         com.droiddeck.launcher.stores.download.SavedQueue.restore(app)
         background("stores-refresh") {
-            val found = Store.entries.mapNotNull { store -> StoreAccounts.signedInAs(app, store)?.let { store to it } }
+            runCatching { com.droiddeck.launcher.stores.battlenet.BattleNetClient.syncAccount(app) }
+            val found = Store.entries.mapNotNull { store -> StoreAccounts.displayName(app, store)?.let { store to it } }
             val onDisk = StoreInstallRoot.gameFolders(app).mapNotNull { folder ->
                 StoreGameSidecar.read(folder)?.takeIf { it.isInstalled }?.let { InstalledStoreGame(it, folder) }
-            }
+            } + runCatching { com.droiddeck.launcher.stores.battlenet.BattleNetBackend.installedGames(app) }.getOrDefault(emptyList())
             val partial = StoreInstallRoot.unfinished(app)
             val version = if (StoresNative.available) StoresNative.version ?: "" else ""
             main.post {
                 androidx.compose.runtime.snapshots.Snapshot.withMutableSnapshot {
                     val restored = found.toMap()
-                    accounts.keys.toList().filter { it !in restored }.forEach { accounts.remove(it) }
+                    accounts.keys.toList().filter { it !in restored }.forEach { accounts.remove(it); libraryAsked.remove(it) }
                     accounts.putAll(restored)
                     installed = onDisk
                     unfinished = partial
@@ -129,7 +128,9 @@ object StoresState {
     fun installedGame(store: Store, id: String): InstalledStoreGame? = installed.firstOrNull { it.sidecar.store == store && it.sidecar.id == id }
 
     fun detailItem(store: Store, id: String): CatalogItem? = detailCatalogItem(
-        store, id, library[store].orEmpty(), found[store].orEmpty(), shelves[store],
+        store, id, library[store].orEmpty(),
+        found[store].orEmpty() + if (store == Store.ITCH) com.droiddeck.launcher.stores.itch.ItchBrowseState.items else emptyList(),
+        shelves[store],
     )
 
     fun open(context: Context, store: Store, force: Boolean = false) {
@@ -138,6 +139,18 @@ object StoresState {
         if (!isSignedIn(store)) return
         if (force || !library.containsKey(store)) backend.syncLibrary(app, force)
         if (force || !shelves.containsKey(store)) backend.loadShelves(app, force)
+    }
+
+    private val libraryAsked = java.util.concurrent.ConcurrentHashMap<Store, Long>()
+
+    /** Once per store, again after a minute when the last sync never produced a library (offline, expired sign-in). */
+    fun loadLibrary(context: Context, store: Store) {
+        if (!isSignedIn(store) || library.containsKey(store)) return
+        val now = android.os.SystemClock.elapsedRealtime()
+        val asked = libraryAsked[store]
+        if (asked != null && now - asked < LIBRARY_RETRY_MS) return
+        libraryAsked[store] = now
+        backends[store]?.syncLibrary(context.applicationContext, false)
     }
 
     fun preview(context: Context, store: Store) {
@@ -166,6 +179,7 @@ object StoresState {
 
     fun signIn(context: Context, store: Store) {
         expired.remove(store)
+        libraryAsked.remove(store)
         backends[store]?.signIn(context) ?: logLine("${store.label}: this build has no sign-in for it yet")
     }
 
@@ -178,13 +192,15 @@ object StoresState {
             else if (store != Store.XBOX || backend == null) StoreAccounts.clear(app, store)
             main.post {
                 if (store == Store.XBOX && StoreAccounts.signedInAs(app, store) != null) return@post
-                accounts.remove(store); library.remove(store); status.remove(store); problems.remove(store)
+                accounts.remove(store); library.remove(store); status.remove(store); problems.remove(store); libraryAsked.remove(store)
                 logLine("${store.label}: signed out")
             }
         }
     }
 
     var openDownloads by mutableStateOf(false)
+    /** A "store:id" key another page asks the Stores page to open. */
+    var openGameRequest by mutableStateOf<String?>(null)
 
     private fun askForNotifications(context: Context) {
         val activity = context as? android.app.Activity ?: return
@@ -197,9 +213,11 @@ object StoresState {
     }
 
     var pendingInstall by mutableStateOf<CatalogItem?>(null)
+    var itchPicking by mutableStateOf<CatalogItem?>(null)
 
     fun requestInstall(context: Context, item: CatalogItem) {
         askForNotifications(context)
+        if (item.store == Store.ITCH && item.extra["uploadId"].isNullOrEmpty()) { itchPicking = item; return }
         if (isUnfinished(item)) { install(context, item); return }
         val targets = StoreInstallRoot.targets(context)
         if (targets.size > 1 || StoreLanguage.selectable(item.store)) pendingInstall = item
@@ -208,6 +226,10 @@ object StoresState {
 
     fun install(context: Context, item: CatalogItem, root: java.io.File? = null, language: String? = null) {
         val app = context.applicationContext
+        if (item.store == Store.BATTLENET) {
+            backends[item.store]?.install(app, item, root ?: StoreInstallRoot.installRoot(app))
+            return
+        }
         val folder = StoreInstallRoot.folderFor(app, item.store, item.id, item.title, root ?: StoreInstallRoot.installRoot(app))
         val target = folder.parentFile!!.parentFile!!
         val code = language?.takeIf { it.isNotBlank() } ?: StoreLanguage.preferredCode(app)
@@ -241,6 +263,10 @@ object StoresState {
         uninstalling[key] = 0f
         background("stores-uninstall", onFailure = { main.post { uninstalling.remove(key); onDone() } }) {
             runCatching { backends[game.sidecar.store]?.uninstall(app, game) }
+            if (game.sidecar.store == Store.BATTLENET) {
+                main.post { uninstalling.remove(key); onDone() }
+                return@background
+            }
             StoreInstalls.uninstall(app, game, progress = { f -> main.post { if (key in uninstalling) uninstalling[key] = f } }, removed = {
                 main.post {
                     installed = installed.filterNot { it.folder.absolutePath == game.folder.absolutePath }
@@ -262,7 +288,7 @@ object StoresState {
         val text = StoreLog.redactLine(raw)
         Log.i(TAG, text)
         val app = appContext ?: return
-        StoreLogFiles.append(app, "${synchronized(CLOCK) { CLOCK.format(Date()) }}  $text")
+        StoreLogFiles.stamped(app, text)
     }
 
     private var appContext: Context? = null
@@ -295,8 +321,6 @@ object StoresState {
             }
         }, name).start()
     }
-
-    private val CLOCK = SimpleDateFormat("HH:mm:ss.SSS", Locale.US)
 }
 
 interface StoreBackend {

@@ -10,13 +10,11 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class GogCloudKeysTest {
-    @Test fun defaultNamespaceIsPrefixedAndStripped() {
-        assertEquals("__default/savegame0.sav", gogCloudKey("savegame0.sav", "__default"))
-        assertEquals("savegame0.sav", gogLocalKey("__default/savegame0.sav", "__default"))
-        assertNull(gogLocalKey("saves/slot0.sav", "__default"))
-        assertEquals("slot0.sav", gogCloudKey("slot0.sav", ""))
-        assertEquals("slot0.sav", gogLocalKey("slot0.sav", ""))
-        assertEquals("__default/savegame0.sav", gogLocalKey("__default/savegame0.sav", ""))
+    @Test fun defaultLocationIsStrippedLikeAnyNamedLocation() {
+        val files = listOf(CloudFile("__default/savegame0.sav", 1L), CloudFile("saves/slot0.sav", 2L))
+        val (chosen, relative) = gogRelativeNames(files, "__default")
+        assertEquals("__default", chosen)
+        assertEquals(listOf("savegame0.sav"), relative.map { it.name })
     }
 
     @Test fun gzipGogPutMatchesPythonGzipCompressLevel6Mtime0() {

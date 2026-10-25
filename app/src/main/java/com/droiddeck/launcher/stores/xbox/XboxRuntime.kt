@@ -46,7 +46,7 @@ internal object XboxRuntime {
             val market = game.second.extra["market"]?.takeIf { it.matches(Regex("[A-Z]{2}")) } ?: Xodus.market()
             val directory = views.create(app.filesDir)
             val process = try {
-                Xodus.start(app, listOf("run", game.first.path, "droiddeck:prepare", "--exe", game.second.exe,
+                Xodus.start(app, listOf("run", StoreInstallRoot.guestPathForXodus(app, game.first), "droiddeck:prepare", "--exe", game.second.exe,
                     "--materialize-chain", "--market", market), launchDirectory = directory, credentialGeneration = credentials)
             } catch (e: Exception) { XboxLaunchViews.remove(directory); throw e }
             if (!launches.attach(token, process)) { process.close(); error("Xbox launch was cancelled") }

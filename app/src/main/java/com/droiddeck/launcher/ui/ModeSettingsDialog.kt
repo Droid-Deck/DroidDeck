@@ -65,8 +65,6 @@ class ModeSettings(
     val touchMode: String,
     val suspendPolicy: String,
     val steamDownloadsInBackground: Boolean = false,
-    val zramCompression: Boolean? = null,
-    val zramSupported: Boolean? = null,
     val pipSupported: Boolean = false,
     val pipAutoEnter: Boolean = false,
     val oscMode: String?,
@@ -84,6 +82,8 @@ class ModeSettings(
     val steamClientArch: String? = null,
     /** Steam only: a game launched from the front end returns there when it closes; null hides the row. */
     val returnAfterGame: Boolean? = null,
+    /** Steam only: the client's Shader Pre-Caching setting; null hides the row. */
+    val shaderPrecache: Boolean? = null,
     val steamRepairQueued: Boolean = false,
     val mangoapp: Boolean = true,
     val steamController: String? = null,
@@ -121,7 +121,6 @@ class ModeSettingsActions(
     val onTouch: (String) -> Unit,
     val onSuspendPolicy: (String) -> Unit,
     val onSteamDownloadsInBackground: (Boolean) -> Unit = {},
-    val onZramCompression: (Boolean) -> Unit = {},
     val onPipAutoEnter: (Boolean) -> Unit = {},
     val onOsc: (String) -> Unit,
     val onBackActionsInverted: (Boolean) -> Unit = {},
@@ -139,6 +138,7 @@ class ModeSettingsActions(
     val onSteamClientArch: (String) -> Unit = {},
     val onMangoapp: (Boolean) -> Unit = {},
     val onReturnAfterGame: (Boolean) -> Unit = {},
+    val onShaderPrecache: (Boolean) -> Unit = {},
     val onSteamController: (String) -> Unit = {},
     val onUnfoldedControls: (Boolean) -> Unit = {},
     val onUnfoldedControlsWithController: (Boolean) -> Unit = {},
@@ -221,7 +221,8 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
             }
             if (s.stretch16x9 != null && (com.droiddeck.launcher.session.SessionDisplay.canStretch16x9(s.panelSize) ||
                     com.droiddeck.launcher.session.SessionDisplay.canStretch16x9(displaySize))) {
-                val canStretch = com.droiddeck.launcher.session.SessionDisplay.canStretch16x9(displaySize)
+                val canStretch = s.resolution != com.droiddeck.launcher.session.SessionDisplay.FOLLOW_SCREEN &&
+                    com.droiddeck.launcher.session.SessionDisplay.canStretch16x9(displaySize)
                 ChoiceRow(host, "game-fit", stringResource(R.string.display_game_fit),
                     stringResource(if (canStretch) R.string.display_game_fit_hint else R.string.display_game_fit_unavailable),
                     listOf(false to stringResource(R.string.display_preserve), true to stringResource(R.string.display_stretch)),
@@ -332,12 +333,6 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
                 host, "background-downloads", stringResource(R.string.mode_background_downloads),
                 stringResource(R.string.mode_background_downloads_hint),
                 s.steamDownloadsInBackground, onChange = a.onSteamDownloadsInBackground,
-            )
-            if (s.zramCompression != null) ToggleRow(
-                host, "zram", stringResource(R.string.mode_zram),
-                stringResource(if (s.zramSupported == false) R.string.mode_zram_unsupported else R.string.mode_zram_hint),
-                s.zramCompression && s.zramSupported != false, enabled = s.zramSupported == true,
-                onChange = a.onZramCompression,
             )
             if (s.syncBackend != null) ChoiceRow(
                 host, "sync", stringResource(R.string.sync_backend_title), stringResource(R.string.sync_backend_hint),
@@ -486,6 +481,11 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
                 host, "returnaftergame", stringResource(R.string.mode_return_after_game),
                 stringResource(R.string.mode_return_after_game_hint),
                 s.returnAfterGame, onChange = a.onReturnAfterGame,
+            )
+            if (s.shaderPrecache != null) ToggleRow(
+                host, "shaderprecache", stringResource(R.string.mode_shader_precache),
+                stringResource(R.string.mode_shader_precache_hint),
+                s.shaderPrecache, onChange = a.onShaderPrecache,
             )
             SettingsRow(
                 stringResource(R.string.mode_steam_repair),

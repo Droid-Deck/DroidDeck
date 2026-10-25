@@ -48,13 +48,13 @@ class CloudSavePathsTest {
         assertEquals(File(profile, "AppData/Local/My-Game").path, CloudSavePaths.epic("{AppData}/MyGame", prefix, install, "acc", "app")!!.path)
     }
 
-    @Test fun gogGalaxySdkEmptyLocationsUseDefaultStorage() {
+    @Test fun gogGalaxySdkEmptyLocationsUseDefaultLocation() {
         val loc = CloudSavePaths.gogSaveFromRemote(true, emptyList(), "1")!!
         assertEquals(
             "%LocalAppData%/GOG.com/Galaxy/Applications/1/Storage/Shared/Files",
             loc.template,
         )
-        assertEquals(CloudSavePaths.GOG_DEFAULT_NAMESPACE, loc.namespace)
+        assertEquals(CloudSavePaths.GOG_DEFAULT_NAMESPACE, loc.name)
         val dir = CloudSavePaths.gog(loc.template, prefix, install)
         assertEquals(
             File(profile, "AppData/Local/GOG.com/Galaxy/Applications/1/Storage/Shared/Files").path,
@@ -68,42 +68,13 @@ class CloudSavePathsTest {
         assertNull(CloudSavePaths.gogSaveFromRemote(true, listOf("saves" to ""), ""))
     }
 
-    @Test fun gogAutoCloudKeepsTheNamedPathWithoutANamespacePrefix() {
+    @Test fun gogNamedLocationKeepsItsNameAndPreferSaves() {
         val loc = CloudSavePaths.gogSaveFromRemote(
             true,
-            listOf("saves" to "<?APPLICATION_DATA_LOCAL_LOW?>/Hyperstrange/ELDERBORN"),
+            listOf("other" to "<?SAVED_GAMES?>/A", "Saves" to "<?APPLICATION_DATA_LOCAL_LOW?>/Hyperstrange/ELDERBORN"),
             "1",
         )!!
         assertEquals("<?APPLICATION_DATA_LOCAL_LOW?>/Hyperstrange/ELDERBORN", loc.template)
-        assertEquals("", loc.namespace)
-    }
-
-    @Test fun gogNamedDefaultLocationKeepsTheDefaultNamespace() {
-        val loc = CloudSavePaths.gogSaveFromRemote(
-            true,
-            listOf("__default" to "%LocalAppData%/GOG.com/Galaxy/Applications/1/Storage/Shared/Files"),
-            "1",
-        )!!
-        assertEquals(CloudSavePaths.GOG_DEFAULT_NAMESPACE, loc.namespace)
-    }
-
-    @Test fun gogNamespaceFromCachePrefersTheStoredValueThenTheGalaxyPath() {
-        assertEquals("__default", CloudSavePaths.gogNamespaceFromCache("__default", "<?SAVED_GAMES?>/X"))
-        assertEquals("", CloudSavePaths.gogNamespaceFromCache("", "<?SAVED_GAMES?>/X"))
-        assertEquals(
-            "",
-            CloudSavePaths.gogNamespaceFromCache(
-                "",
-                "%LocalAppData%/GOG.com/Galaxy/Applications/1/Storage/Shared/Files",
-            ),
-        )
-        assertEquals(
-            "__default",
-            CloudSavePaths.gogNamespaceFromCache(
-                null,
-                "%LocalAppData%/GOG.com/Galaxy/Applications/1/Storage/Shared/Files",
-            ),
-        )
-        assertEquals("", CloudSavePaths.gogNamespaceFromCache(null, "<?SAVED_GAMES?>/X"))
+        assertEquals("Saves", loc.name)
     }
 }

@@ -14,12 +14,44 @@ object StoreArt {
 
     fun fetchInto(folder: File, sidecar: StoreGameSidecar) {
         sidecar.cover?.let { place(it, File(folder, "cover.jpg")) }
-        val wide = sidecar.hero ?: return
-        if (place(wide, File(folder, "hero.jpg"))) {
-            val header = File(folder, "header.jpg")
-            if (!header.isFile) runCatching { File(folder, "hero.jpg").copyTo(header, overwrite = true) }
+        sidecar.hero?.let { wide ->
+            if (place(wide, File(folder, "hero.jpg"))) {
+                val header = File(folder, "header.jpg")
+                if (!header.isFile) runCatching { File(folder, "hero.jpg").copyTo(header, overwrite = true) }
+            }
+        }
+        sidecar.logo?.let { fetchLogo(folder, it) }
+    }
+
+    fun fetchLogo(folder: File, url: String): Boolean {
+        val dst = File(folder, LOGO)
+        if (dst.isFile && dst.length() > 0) return true
+        return writeLogo(get(url) ?: return false, dst)
+    }
+
+    /** A logo is drawn over the hero, so it stays a PNG with its transparency instead of going through [place]. */
+    internal fun writeLogo(bytes: ByteArray, dst: File): Boolean {
+        if (dst.isFile && dst.length() > 0) return true
+        val bitmap = runCatching { BitmapFactory.decodeByteArray(bytes, 0, bytes.size) }.getOrNull() ?: return false
+        val tmp = File(dst.path + ".tmp")
+        return try {
+            if (bitmap.width <= 0 || bitmap.height <= 0) return false
+            if (isPng(bytes)) tmp.writeBytes(bytes) else tmp.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+            tmp.renameTo(dst)
+        } catch (e: Exception) {
+            Log.w(TAG, "${dst.name}: ${e.javaClass.simpleName}")
+            false
+        } finally {
+            tmp.delete()
+            bitmap.recycle()
         }
     }
+
+    private val PNG_MAGIC = byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A)
+
+    private fun isPng(bytes: ByteArray): Boolean = bytes.size > PNG_MAGIC.size && PNG_MAGIC.indices.all { bytes[it] == PNG_MAGIC[it] }
+
+    const val LOGO = "logo.png"
 
     private fun place(url: String, dst: File): Boolean {
         if (dst.isFile && dst.length() > 0) return true

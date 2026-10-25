@@ -10,28 +10,19 @@ object CloudSavePaths {
     fun gogGalaxySdkTemplate(clientId: String) =
         "%LocalAppData%/GOG.com/Galaxy/Applications/$clientId/Storage/Shared/Files"
 
-    data class GogCloudLocation(val template: String, val namespace: String = "")
+    class GogCloudLocation(val name: String, val template: String)
 
     /**
-     * cloudStorage.enabled with an empty locations list is Galaxy SDK IStorage under
-     * `__default`, not "no cloud". Auto Cloud keeps using the named path with no
-     * object-name prefix, which is how this launcher listed those files before.
+     * cloudStorage.enabled with an empty locations list is Galaxy SDK IStorage, whose objects the
+     * API names under a location called `__default`.
      */
     fun gogSaveFromRemote(enabled: Boolean, locations: List<Pair<String, String>>, clientId: String): GogCloudLocation? {
         if (!enabled) return null
         val named = locations.filter { it.second.isNotEmpty() }
         val pick = named.firstOrNull { it.first.equals("saves", true) } ?: named.firstOrNull()
-        if (pick != null) {
-            val ns = if (pick.first == GOG_DEFAULT_NAMESPACE) GOG_DEFAULT_NAMESPACE else ""
-            return GogCloudLocation(pick.second, ns)
-        }
+        if (pick != null) return GogCloudLocation(pick.first, pick.second)
         if (clientId.isEmpty()) return null
-        return GogCloudLocation(gogGalaxySdkTemplate(clientId), GOG_DEFAULT_NAMESPACE)
-    }
-
-    fun gogNamespaceFromCache(stored: String?, template: String?): String {
-        if (stored != null) return stored
-        return if (template?.contains("GOG.com/Galaxy/Applications/") == true) GOG_DEFAULT_NAMESPACE else ""
+        return GogCloudLocation(GOG_DEFAULT_NAMESPACE, gogGalaxySdkTemplate(clientId))
     }
 
     fun gog(template: String, prefix: File, install: File): File? {
