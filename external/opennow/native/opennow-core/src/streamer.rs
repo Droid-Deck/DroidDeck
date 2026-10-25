@@ -1,0 +1,4313 @@
+#[cfg(all(test, unix))]
+use rand::RngCore as _;
+use serde_json::{Value, json};
+use std::fs;
+use std::io::{BufRead, BufReader, ErrorKind, Write};
+use std::ops::{Deref, DerefMut};
+use std::path::{Path, PathBuf};
+use std::process::{Child, ChildStdin, Command, Stdio};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::mpsc::{self, Receiver, Sender};
+use std::sync::{Arc, Mutex};
+use std::thread::{self, JoinHandle};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+
+const STREAMER_PROTOCOL_VERSION: u64 = 7;
+const CHILD_MESSAGE_LIMIT: usize = 1024 * 1024;
+const CHILD_START_TIMEOUT: Duration = Duration::from_secs(90);
+const CAPABILITY_PROBE_TIMEOUT: Duration = Duration::from_secs(10);
+
+#[derive(Clone, Debug)]
+pub struct StreamerError {
+    pub code: &'static str,
+    pub message: String,
+}
+
+#[derive(Clone)]
+struct Snapshot {
+    status: String,
+    message: String,
+    session_id: Option<String>,
+    process_id: Option<u64>,
+    transport: Option<String>,
+    capabilities: Value,
+    executable: Option<PathBuf>,
+    error_code: Option<String>,
+    overlay_request_generation: u64,
+    screenshot_request_generation: u64,
+    recording_toggle_request_generation: u64,
+    shortcut_action_generation: u64,
+    shortcut_action: Option<String>,
+    microphone_state: String,
+    microphone_enabled: bool,
+    microphone_message: Option<String>,
+    started_at: Option<Instant>,
+    session_started_at_ms: Option<u128>,
+    first_frame_latency_ms: Option<u64>,
+    media_backend: Option<String>,
+    frames_per_second: Option<f64>,
+    bitrate_mbps: Option<f64>,
+    peak_bitrate_mbps: Option<f64>,
+    backend_fallback_count: u64,
+    decoder_error_count: u64,
+    output_error_count: u64,
+    device_loss_count: u64,
+    device_recovery_count: u64,
+    queue_drop_count: u64,
+    input_ready: bool,
+    input_unavailable_reason: Option<String>,
+    input_pause_count: u64,
+    input_resume_count: u64,
+    surface_update_count: u64,
+    fullscreen_toggle_count: u64,
+    stats_toggle_count: u64,
+    recording_start_count: u64,
+    recording_stop_count: u64,
+}
+
+impl Default for Snapshot {
+    fn default() -> Self {
+        Self {
+            status: "stopped".to_owned(),
+            message: "Native NVST streamer is not running".to_owned(),
+            session_id: None,
+            process_id: None,
+            transport: None,
+            capabilities: Value::Null,
+            executable: None,
+            error_code: None,
+            overlay_request_generation: 0,
+            screenshot_request_generation: 0,
+            recording_toggle_request_generation: 0,
+            shortcut_action_generation: 0,
+            shortcut_action: None,
+            microphone_state: "disabled".to_owned(),
+            microphone_enabled: false,
+            microphone_message: None,
+            started_at: None,
+            session_started_at_ms: None,
+            first_frame_latency_ms: None,
+            media_backend: None,
+            frames_per_second: None,
+            bitrate_mbps: None,
+            peak_bitrate_mbps: None,
+            backend_fallback_count: 0,
+            decoder_error_count: 0,
+            output_error_count: 0,
+            device_loss_count: 0,
+            device_recovery_count: 0,
+            queue_drop_count: 0,
+            input_ready: false,
+            input_unavailable_reason: None,
+            input_pause_count: 0,
+            input_resume_count: 0,
+            surface_update_count: 0,
+            fullscreen_toggle_count: 0,
+            stats_toggle_count: 0,
+            recording_start_count: 0,
+            recording_stop_count: 0,
+        }
+    }
+}
+
+impl Snapshot {
+    fn value(&self) -> Value {
+        json!({"streamer":{
+            "status":self.status,
+            "message":self.message,
+            "sessionId":self.session_id,
+            "processId":self.process_id,
+            "transport":self.transport,
+            "capabilities":self.capabilities,
+            "executable":self.executable.as_ref().map(|path| path.to_string_lossy().into_owned()),
+            "errorCode":self.error_code,
+            "overlayRequestGeneration":self.overlay_request_generation,
+            "screenshotRequestGeneration":self.screenshot_request_generation,
+            "recordingToggleRequestGeneration":self.recording_toggle_request_generation,
+            "shortcutActionGeneration":self.shortcut_action_generation,
+            "shortcutAction":self.shortcut_action,
+            "microphoneState":self.microphone_state,
+            "microphoneEnabled":self.microphone_enabled,
+            "microphoneMessage":self.microphone_message,
+            "sessionUptimeMs":self.started_at.map(|started| elapsed_millis(started.elapsed())),
+            "sessionStartedAtMs":self.session_started_at_ms.map(|value| value.to_string()),
+            "firstFrameLatencyMs":self.first_frame_latency_ms,
+            "mediaBackend":self.media_backend,
+            "framesPerSecond":self.frames_per_second,
+            "bitrateMbps":self.bitrate_mbps,
+            "peakBitrateMbps":self.peak_bitrate_mbps,
+            "backendFallbackCount":self.backend_fallback_count,
+            "decoderErrorCount":self.decoder_error_count,
+            "outputErrorCount":self.output_error_count,
+            "deviceLossCount":self.device_loss_count,
+            "deviceRecoveryCount":self.device_recovery_count,
+            "queueDropCount":self.queue_drop_count,
+            "inputReady":self.input_ready,
+            "inputUnavailableReason":self.input_unavailable_reason,
+            "inputPauseCount":self.input_pause_count,
+            "inputResumeCount":self.input_resume_count,
+            "surfaceUpdateCount":self.surface_update_count,
+            "fullscreenToggleCount":self.fullscreen_toggle_count,
+            "statsToggleCount":self.stats_toggle_count,
+            "recordingStartCount":self.recording_start_count,
+            "recordingStopCount":self.recording_stop_count
+        }})
+    }
+
+    fn acceptance_value(&self) -> Value {
+        let available_video_backends = self.capabilities["videoBackends"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter(|backend| backend["available"].as_bool().unwrap_or(false))
+            .filter_map(|backend| backend["backend"].as_str())
+            .collect::<Vec<_>>();
+        json!({
+            "schemaVersion": 1,
+            "kind": "opennow.stream.acceptance",
+            "status": self.status,
+            "transport": self.transport,
+            "errorCode": self.error_code,
+            "sessionUptimeMs": self.started_at.map(|started| elapsed_millis(started.elapsed())),
+            "sessionStartedAtMs": self.session_started_at_ms.map(|value| value.to_string()),
+            "firstFrameLatencyMs": self.first_frame_latency_ms,
+            "mediaBackend": self.media_backend,
+            "framesPerSecond": self.frames_per_second,
+            "bitrateMbps": self.bitrate_mbps,
+            "peakBitrateMbps": self.peak_bitrate_mbps,
+            "backendFallbackCount": self.backend_fallback_count,
+            "decoderErrorCount": self.decoder_error_count,
+            "outputErrorCount": self.output_error_count,
+            "deviceLossCount": self.device_loss_count,
+            "deviceRecoveryCount": self.device_recovery_count,
+            "queueDropCount": self.queue_drop_count,
+            "inputReady": self.input_ready,
+            "inputUnavailableReason": self.input_unavailable_reason,
+            "microphoneState": self.microphone_state,
+            "microphoneEnabled": self.microphone_enabled,
+            "inputPauseCount": self.input_pause_count,
+            "inputResumeCount": self.input_resume_count,
+            "surfaceUpdateCount": self.surface_update_count,
+            "fullscreenToggleCount": self.fullscreen_toggle_count,
+            "statsToggleCount": self.stats_toggle_count,
+            "recordingStartCount": self.recording_start_count,
+            "recordingStopCount": self.recording_stop_count,
+            "availableVideoBackends": available_video_backends,
+            "availableCodecs": available_codecs(&self.capabilities)
+        })
+    }
+}
+
+struct Worker {
+    control: Sender<WorkerCommand>,
+    join: JoinHandle<()>,
+}
+
+struct KillOnDrop(Child);
+
+impl Deref for KillOnDrop {
+    type Target = Child;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for KillOnDrop {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl Drop for KillOnDrop {
+    fn drop(&mut self) {
+        if self.0.try_wait().ok().flatten().is_none() {
+            let _ = self.0.kill();
+            let _ = self.0.wait();
+        }
+    }
+}
+
+enum WorkerCommand {
+    Stop(String),
+    InputPaused(bool),
+    Control(String),
+    Surface(Value),
+    Recording {
+        enabled: bool,
+        output_path: Option<PathBuf>,
+        reply: mpsc::SyncSender<Result<Value, StreamerError>>,
+    },
+}
+
+pub struct StreamerService {
+    state: Arc<Mutex<Snapshot>>,
+    worker: Mutex<Option<Worker>>,
+}
+
+impl StreamerService {
+    pub fn new() -> Self {
+        Self {
+            state: Arc::new(Mutex::new(Snapshot::default())),
+            worker: Mutex::new(None),
+        }
+    }
+
+    pub fn detect(&self, settings: &Value) -> Result<Value, StreamerError> {
+        let executable = resolve_executable(settings)?;
+        let metadata = fs::metadata(&executable).map_err(|error| StreamerError {
+            code: "streamer_not_found",
+            message: format!(
+                "Native streamer was not found at {}: {error}",
+                executable.display()
+            ),
+        })?;
+        if !metadata.is_file() {
+            return Err(StreamerError {
+                code: "streamer_not_found",
+                message: format!(
+                    "Native streamer path is not a file: {}",
+                    executable.display()
+                ),
+            });
+        }
+        let capabilities = probe_capabilities(&executable, settings)?;
+        let available_codecs = available_codecs(&capabilities);
+        Ok(json!({
+            "available":true,
+            "protocolVersion":STREAMER_PROTOCOL_VERSION,
+            "path":executable.to_string_lossy(),
+            "sizeBytes":metadata.len(),
+            "capabilities":capabilities,
+            "availableCodecs":available_codecs
+        }))
+    }
+
+    pub fn validate_codec(&self, settings: &Value) -> Result<(), StreamerError> {
+        if settings["enableHdr"].as_bool() == Some(true) {
+            return Err(invalid(
+                "HDR requires current embedded window output capabilities",
+            ));
+        }
+        let requested = settings["codec"]
+            .as_str()
+            .unwrap_or("auto")
+            .trim()
+            .to_ascii_lowercase();
+        // Auto resolves to local decode candidates at session time. Probe the
+        // portable H.264 baseline too: an explicit hardware-only decoder policy
+        // can make even that baseline unavailable.
+        let codec = match requested.as_str() {
+            "" | "auto" => "h264",
+            _ => normalize_codec_name(&requested).ok_or_else(|| invalid("Unknown video codec"))?,
+        };
+        let detection = self.detect(settings)?;
+        ensure_codec_available(&detection["capabilities"], codec)
+    }
+
+    pub fn color_quality_choices(settings: &Value, capabilities: &Value) -> Value {
+        json!(
+            ["8bit_420", "8bit_444", "10bit_420", "10bit_444"]
+                .into_iter()
+                .map(|quality| {
+                    let mut candidate = settings.clone();
+                    candidate["colorQuality"] = json!(quality);
+                    let reason = match Self::embedded_session_settings(&candidate, capabilities) {
+                        Err(error) => Some(error.message),
+                        Ok(resolved) => {
+                            let delivered =
+                                resolved["colorQuality"].as_str().unwrap_or("8bit_420");
+                            (!color_satisfies(delivered, quality)).then(|| {
+                                format!(
+                                    "This device cannot decode {quality} with the selected codec and backend; the stream falls back to {delivered}."
+                                )
+                            })
+                        }
+                    };
+                    json!({"value":quality, "disabled":reason.is_some(), "reason":reason})
+                })
+                .collect::<Vec<_>>()
+        )
+    }
+
+    pub fn codec_choices(settings: &Value, capabilities: &Value) -> Value {
+        json!(
+            ["auto", "av1", "h264", "h265"]
+                .into_iter()
+                .map(|codec| {
+                    let mut candidate = settings.clone();
+                    candidate["codec"] = json!(codec);
+                    candidate["colorQuality"] = json!("8bit_420");
+                    candidate["enableHdr"] = json!(false);
+                    let result = Self::embedded_session_settings(&candidate, capabilities);
+                    json!({"value":codec, "disabled":result.is_err(),
+                    "reason":result.err().map(|error| error.message)})
+                })
+                .collect::<Vec<_>>()
+        )
+    }
+
+    pub fn embedded_session_settings(
+        settings: &Value,
+        capabilities: &Value,
+    ) -> Result<Value, StreamerError> {
+        Self::resolve_embedded_session(settings, capabilities).map(|(resolved, _)| resolved)
+    }
+
+    /// The in-process Qt streamer, not a separately installed executable, owns the usable
+    /// decode/presentation capabilities. Resolve Auto before asking CloudMatch for a seat.
+    /// Returns the effective session settings and every capability fallback applied to reach
+    /// them; unsupported 4:4:4, HDR, and 10-bit requests degrade instead of failing, while an
+    /// explicitly selected codec that cannot be decoded at all remains an error.
+    pub fn resolve_embedded_session(
+        settings: &Value,
+        capabilities: &Value,
+    ) -> Result<(Value, Vec<String>), StreamerError> {
+        if capabilities["protocolVersion"].as_u64() != Some(STREAMER_PROTOCOL_VERSION) {
+            return Err(invalid(
+                "Embedded streamer capabilities are missing or incompatible",
+            ));
+        }
+        let mut fallbacks = Vec::new();
+        let mut hdr = settings["enableHdr"].as_bool() == Some(true);
+        if hdr && capabilities["nativeHdrSupported"].as_bool() != Some(true) {
+            hdr = false;
+            fallbacks.push(
+                "HDR was requested, but the stream window's display has no active HDR output. Streaming SDR."
+                    .to_owned(),
+            );
+        }
+        let requested_backend = requested_embedded_backend(settings);
+        let software_requested = matches!(requested_backend.as_str(), "software" | "ffmpeg");
+        let mut color = settings["colorQuality"]
+            .as_str()
+            .filter(|color| matches!(*color, "8bit_420" | "8bit_444" | "10bit_420" | "10bit_444"))
+            .unwrap_or("8bit_420");
+        if software_requested && (hdr || color != "8bit_420") {
+            fallbacks.push(format!(
+                "{}{color} was requested, but software decoding presents 8-bit 4:2:0 SDR only. Falling back to 8-bit 4:2:0 SDR.",
+                if hdr { "HDR " } else { "" }
+            ));
+            hdr = false;
+            color = "8bit_420";
+        }
+        let software_available = capabilities["videoBackends"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .any(|backend| {
+                matches!(backend["backend"].as_str(), Some("software" | "ffmpeg"))
+                    && backend["available"].as_bool() == Some(true)
+            });
+        let mut selected = capabilities.clone();
+        let backends = selected["videoBackends"]
+            .as_array_mut()
+            .ok_or_else(|| invalid("Embedded streamer did not report video backends"))?;
+        for backend in backends.iter_mut() {
+            let name = backend["backend"].as_str().unwrap_or("");
+            let matches = if software_requested {
+                matches!(name, "software" | "ffmpeg")
+            } else {
+                !matches!(name, "software" | "ffmpeg")
+                    && (requested_backend == "auto"
+                        || requested_backend == name
+                        || (requested_backend == "nvdec" && name == "cuda"))
+            };
+            if !matches {
+                backend["available"] = json!(false);
+            }
+        }
+        if !backends
+            .iter()
+            .any(|backend| backend["available"].as_bool() == Some(true))
+        {
+            let message = if software_requested {
+                format!(
+                    "The FFmpeg software decoder is unavailable for the requested {color} profile. Select Auto in Stream settings, or export diagnostics for backend probe failures."
+                )
+            } else if requested_backend != "auto" {
+                let mut message = format!(
+                    "The {} backend is unavailable for embedded streaming on this device. Select Auto in Stream settings.",
+                    crate::diagnostics::runtime_failure_reason(&requested_backend)
+                );
+                let evidence = crate::diagnostics::native_runtime_evidence(capabilities);
+                if let Some(reason) = evidence["videoBackends"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .find(|backend| {
+                        backend["backend"] == requested_backend
+                            || (requested_backend == "nvdec" && backend["backend"] == "cuda")
+                    })
+                    .and_then(|backend| backend["reason"].as_str())
+                    .filter(|reason| !reason.is_empty())
+                {
+                    message.push_str(&format!(" {reason}"));
+                }
+                if let Some(hint) = hybrid_gpu_hint(capabilities) {
+                    message.push(' ');
+                    message.push_str(&hint);
+                }
+                message.chars().take(480).collect()
+            } else if let Some(message) = hybrid_gpu_message(capabilities) {
+                message
+            } else if software_available {
+                "No hardware video backend is available for embedded streaming on this device. Select Software (CPU) to decode on the CPU, or export diagnostics for probe failures.".to_owned()
+            } else {
+                "No hardware video backend is available for embedded streaming on this device. Check the hardware drivers and export diagnostics for backend probe failures.".to_owned()
+            };
+            return Err(StreamerError {
+                code: "streamer_backend_unavailable",
+                message,
+            });
+        }
+        let requested = settings["codec"]
+            .as_str()
+            .unwrap_or("auto")
+            .to_ascii_lowercase();
+        let mut fixed_codec = if requested == "auto" {
+            None
+        } else {
+            Some(normalize_codec_name(&requested).ok_or_else(|| invalid("Unknown video codec"))?)
+        };
+        if color.ends_with("_444") {
+            if (hdr && codec_decodes(&selected, "h265", "10bit_444", true))
+                || codec_decodes(&selected, "h265", color, false)
+            {
+                if let Some(codec) = fixed_codec.filter(|codec| *codec != "h265") {
+                    fallbacks.push(format!(
+                        "{color} was requested with {}; 4:4:4 is carried only by H.265. Using H.265.",
+                        codec_label(codec).unwrap_or(codec)
+                    ));
+                }
+                fixed_codec = Some("h265");
+            } else {
+                let reduced = if color == "10bit_444" {
+                    "10bit_420"
+                } else {
+                    "8bit_420"
+                };
+                fallbacks.push(format!(
+                    "{color} was requested, but this system cannot decode H.265 {color}. Falling back to {reduced}."
+                ));
+                color = reduced;
+            }
+        }
+        let hdr_color = if color.ends_with("_444") {
+            "10bit_444"
+        } else {
+            "10bit_420"
+        };
+        let ten_bit_fallback = |color: &str, codec: &str| {
+            format!(
+                "{color} SDR video was requested, but this system cannot decode it with {codec}. Falling back to 8-bit 4:2:0 BT.709."
+            )
+        };
+        let codec = if let Some(codec) = fixed_codec {
+            ensure_codec_available(&selected, codec)?;
+            let label = codec_label(codec).unwrap_or(codec);
+            if hdr && !codec_decodes(&selected, codec, hdr_color, true) {
+                hdr = false;
+                fallbacks.push(if codec == "h264" {
+                    "HDR was requested with H.264, which is SDR-only. Ignoring the HDR request."
+                        .to_owned()
+                } else {
+                    format!(
+                        "HDR was requested, but this system cannot decode {label} HDR10 {hdr_color}. Ignoring the HDR request."
+                    )
+                });
+            }
+            if !hdr && !codec_decodes(&selected, codec, color, false) {
+                if color != "8bit_420" {
+                    fallbacks.push(ten_bit_fallback(color, label));
+                    color = "8bit_420";
+                }
+                if !codec_decodes(&selected, codec, color, false) {
+                    return Err(StreamerError {
+                        code: "streamer_codec_unavailable",
+                        message: format!(
+                            "{label} cannot decode 8-bit 4:2:0 on the selected video backend. Select Auto in Stream settings."
+                        ),
+                    });
+                }
+            }
+            codec
+        } else {
+            let mut chosen = None;
+            if hdr {
+                let av1_eligible = auto_av1_eligible(settings, &selected, true);
+                chosen = ["av1", "h265"].into_iter().find(|codec| {
+                    (*codec != "av1" || av1_eligible)
+                        && codec_decodes(&selected, codec, hdr_color, true)
+                });
+                if chosen.is_none() {
+                    hdr = false;
+                    fallbacks.push(format!(
+                        "HDR was requested, but no available codec can decode HDR10 {hdr_color}. Ignoring the HDR request."
+                    ));
+                }
+            }
+            if chosen.is_none() {
+                let av1_eligible = auto_av1_eligible(settings, &selected, false);
+                let pick = |color: &str| {
+                    ["av1", "h265", "h264"].into_iter().find(|codec| {
+                        (*codec != "av1" || av1_eligible)
+                            && codec_decodes(&selected, codec, color, false)
+                    })
+                };
+                chosen = pick(color);
+                if chosen.is_none() && color != "8bit_420" {
+                    fallbacks.push(ten_bit_fallback(color, "any available codec"));
+                    color = "8bit_420";
+                    chosen = pick(color);
+                }
+            }
+            chosen.ok_or_else(|| StreamerError {
+                code: "streamer_codec_unavailable",
+                message: "No available codec can decode the stream on the selected video backend. Export diagnostics for decoder probe failures.".to_owned(),
+            })?
+        };
+        let mut resolved = settings.clone();
+        resolved["codec"] = json!(codec);
+        resolved["enableHdr"] = json!(hdr);
+        resolved["colorQuality"] = json!(if hdr { hdr_color } else { color });
+        normalize_embedded_mode(&mut resolved, &selected, codec, &mut fallbacks)?;
+        resolved["nativeHdrSupported"] = json!(
+            capabilities["nativeHdrSupported"]
+                .as_bool()
+                .unwrap_or(false)
+        );
+        if let Some(object) = resolved.as_object_mut() {
+            object.remove("nativeHdrDisplay");
+        }
+        if let Some(display) = validated_native_hdr_display(&capabilities["nativeHdrDisplay"]) {
+            let mut snapshot = json!({"minimumNits":display.minimum_nits,
+                "maximumNits":display.maximum_nits});
+            if let Some(metadata) = display.metadata {
+                snapshot["maximumFullFrameNits"] = json!(metadata.maximum_full_frame_nits);
+                for (key, coordinate) in HDR_CHROMATICITY_KEYS.iter().zip(metadata.coordinates) {
+                    snapshot[*key] = json!(coordinate);
+                }
+            }
+            resolved["nativeHdrDisplay"] = snapshot;
+        }
+        Ok((resolved, fallbacks))
+    }
+
+    pub fn prepare_embedded(
+        &self,
+        params: &Value,
+        settings: &Value,
+    ) -> Result<Value, StreamerError> {
+        let session = params["session"]
+            .as_object()
+            .map(|_| params["session"].clone())
+            .ok_or_else(|| invalid("streamer.prepare requires a ready session"))?;
+        let status = session["status"].as_i64().unwrap_or_default();
+        if !matches!(status, 2 | 3) {
+            return Err(invalid(
+                "CloudMatch session is not ready for NVST media attachment",
+            ));
+        }
+        let profile = &session["negotiatedStreamProfile"];
+        if session["transportMode"] == "webrtc" {
+            if session["reportedNativeTransport"] == true {
+                return Err(invalid(
+                    "CloudMatch returned a native allocation for this WebRTC session",
+                ));
+            }
+            if !crate::cloudmatch::has_webrtc_endpoint(&session) {
+                return Err(invalid(
+                    "The WebRTC session has no valid signaling endpoint",
+                ));
+            }
+            if profile["codec"]
+                .as_str()
+                .is_some_and(|codec| !matches!(codec, "H264" | "H265"))
+                || (profile["codecSource"] == "server" && profile["codec"].as_str().is_none())
+                || profile["enableHdr"] == true
+                || profile["colorQuality"].as_str().is_some_and(|color| {
+                    color != "8bit_420" && !(profile["codec"] == "H265" && color == "10bit_420")
+                })
+            {
+                return Err(invalid(
+                    "WebRTC compatibility requires H.264 8-bit or H.265 8/10-bit SDR 4:2:0",
+                ));
+            }
+        }
+        if profile["enableHdrSource"] == "server" && profile["enableHdr"].as_bool().is_none() {
+            return Err(invalid("CloudMatch returned an unsupported HDR mode"));
+        }
+        if ["bitDepthSource", "chromaFormatSource"].iter().any(|key| {
+            matches!(
+                profile[*key].as_str(),
+                Some("request" | "finalized" | "server")
+            )
+        }) && profile["colorQuality"].as_str().is_none()
+        {
+            return Err(invalid(
+                "CloudMatch returned an incomplete or unsupported color profile",
+            ));
+        }
+        let mut context = streamer_context(session, settings);
+        if !params["runtimeCapabilities"].is_null() {
+            let mut negotiated_settings = context["settings"].clone();
+            if context["settings"]["transportMode"] != "webrtc"
+                && context["session"]["negotiatedStreamProfile"]["codec"]
+                    .as_str()
+                    .is_none()
+            {
+                negotiated_settings["codec"] = json!(settings["codec"].as_str().unwrap_or("auto"));
+            }
+            let resolved = Self::embedded_session_settings(
+                &negotiated_settings,
+                &params["runtimeCapabilities"],
+            )?;
+            let codec = resolved["codec"].as_str().unwrap_or("h264");
+            let profile = &context["session"]["negotiatedStreamProfile"];
+            if resolved["resolution"] != context["settings"]["resolution"]
+                || resolved["fps"] != context["settings"]["fps"]
+            {
+                return Err(StreamerError {
+                    code: "streamer_mode_unavailable",
+                    message: "This device cannot decode the accepted resolution and frame rate. Start a new session.".to_owned(),
+                });
+            }
+            let accepted_color = profile["colorQuality"].as_str();
+            if accepted_color.is_some_and(|color| resolved["colorQuality"] != color)
+                || resolved["enableHdr"] != context["settings"]["enableHdr"]
+                || profile["codec"]
+                    .as_str()
+                    .is_some_and(|accepted| normalize_codec_name(accepted) != Some(codec))
+            {
+                let accepted = [
+                    profile["codec"].as_str(),
+                    accepted_color,
+                    (context["settings"]["enableHdr"] == true).then_some("HDR"),
+                ]
+                .into_iter()
+                .flatten()
+                .collect::<Vec<_>>()
+                .join(" ");
+                return Err(StreamerError {
+                    code: "streamer_color_unavailable",
+                    message: format!(
+                        "This device cannot decode the accepted {accepted} stream profile. Start a new session."
+                    ),
+                });
+            }
+            context["settings"]["codec"] = json!(codec.to_ascii_uppercase());
+            context["settings"]["colorQuality"] = resolved["colorQuality"].clone();
+            context["settings"]["nativeHdrSupported"] = resolved["nativeHdrSupported"].clone();
+        }
+        // The codec is client-selected (CloudMatch no longer carries it, matching
+        // the official client), so validate HDR against the normalized settings
+        // codec (negotiated-or-settings) rather than the raw profile, which is
+        // only populated when the server explicitly reports one.
+        if context["settings"]["enableHdr"].as_bool() == Some(true)
+            && !matches!(
+                (
+                    context["settings"]["codec"].as_str(),
+                    context["session"]["negotiatedStreamProfile"]["colorQuality"].as_str(),
+                ),
+                (Some("H265" | "HEVC"), Some("10bit_420" | "10bit_444"))
+                    | (Some("AV1"), Some("10bit_420"))
+            )
+        {
+            return Err(invalid(
+                "The accepted HDR session requires 10-bit HEVC 4:2:0/4:4:4 or AV1 4:2:0",
+            ));
+        }
+        if context["settings"]["enableHdr"].as_bool() == Some(true)
+            && params["runtimeCapabilities"].is_null()
+        {
+            return Err(invalid(
+                "Resuming HDR requires current embedded window output capabilities",
+            ));
+        }
+        context["surface"] = Value::Null;
+        Ok(json!({
+            "protocolVersion": STREAMER_PROTOCOL_VERSION,
+            "context": context
+        }))
+    }
+
+    pub fn start(&self, params: &Value, settings: &Value) -> Result<Value, StreamerError> {
+        if params["session"]["transportMode"] == "webrtc" {
+            return Err(invalid(
+                "WebRTC compatibility requires owned embedded stream preparation",
+            ));
+        }
+        self.reap_finished();
+        let mut worker = self.worker.lock().expect("streamer worker poisoned");
+        if worker.is_some() {
+            return Err(StreamerError {
+                code: "streamer_busy",
+                message: "A native streamer session is already running".to_owned(),
+            });
+        }
+        let executable = resolve_executable(settings)?;
+        if !executable.is_file() {
+            return Err(StreamerError {
+                code: "streamer_not_found",
+                message: format!(
+                    "Native streamer is not installed at {}",
+                    executable.display()
+                ),
+            });
+        }
+        let session = params["session"]
+            .as_object()
+            .map(|_| params["session"].clone())
+            .ok_or_else(|| invalid("streamer.start requires a ready session"))?;
+        let status = session["status"].as_i64().unwrap_or_default();
+        if !matches!(status, 2 | 3) {
+            return Err(invalid(
+                "CloudMatch session is not ready for NVST media attachment",
+            ));
+        }
+        let session_id = required_string(&session, "sessionId")?.to_owned();
+        let microphone_mode = settings["microphoneMode"].as_str().unwrap_or("disabled");
+        let mut context = streamer_context(session, settings);
+        let surface = normalize_surface(params.get("surface"), context_resolution(&context))?;
+        context["surface"] = surface;
+        let (control_tx, control_rx) = mpsc::channel();
+        let state = Arc::clone(&self.state);
+        {
+            let mut snapshot = state.lock().expect("streamer state poisoned");
+            snapshot.status = "starting".to_owned();
+            snapshot.message = "Launching the native NVST media runtime…".to_owned();
+            snapshot.session_id = Some(session_id.clone());
+            snapshot.process_id = None;
+            snapshot.transport = Some("nvst".to_owned());
+            snapshot.executable = Some(executable.clone());
+            snapshot.error_code = None;
+            snapshot.started_at = Some(Instant::now());
+            snapshot.session_started_at_ms = Some(unix_time_millis());
+            snapshot.first_frame_latency_ms = None;
+            snapshot.media_backend = None;
+            snapshot.frames_per_second = None;
+            snapshot.bitrate_mbps = None;
+            snapshot.peak_bitrate_mbps = None;
+            snapshot.backend_fallback_count = 0;
+            snapshot.decoder_error_count = 0;
+            snapshot.output_error_count = 0;
+            snapshot.device_loss_count = 0;
+            snapshot.device_recovery_count = 0;
+            snapshot.queue_drop_count = 0;
+            snapshot.input_ready = false;
+            snapshot.input_unavailable_reason = None;
+            snapshot.input_pause_count = 0;
+            snapshot.input_resume_count = 0;
+            snapshot.surface_update_count = 0;
+            snapshot.fullscreen_toggle_count = 0;
+            snapshot.stats_toggle_count = 0;
+            snapshot.recording_start_count = 0;
+            snapshot.recording_stop_count = 0;
+            match microphone_mode {
+                "voice-activity" => {
+                    snapshot.microphone_state = "muted".to_owned();
+                    snapshot.microphone_enabled = false;
+                    snapshot.microphone_message = None;
+                }
+                "push-to-talk" => {
+                    snapshot.microphone_state = "unavailable".to_owned();
+                    snapshot.microphone_enabled = false;
+                    snapshot.microphone_message =
+                        Some("Push-to-talk is not supported by the native NVST runtime".to_owned());
+                }
+                _ => {
+                    snapshot.microphone_state = "disabled".to_owned();
+                    snapshot.microphone_enabled = false;
+                    snapshot.microphone_message = None;
+                }
+            }
+        }
+        let join = thread::Builder::new()
+            .name("opennow-streamer-coordinator".to_owned())
+            .spawn(move || {
+                if let Err(error) = run_worker(&executable, context, control_rx, Arc::clone(&state))
+                {
+                    eprintln!(
+                        "native-streamer worker failed [{}]: {}",
+                        error.code, error.message
+                    );
+                    set_error(&state, error.code, error.message);
+                }
+            })
+            .map_err(|error| StreamerError {
+                code: "streamer_spawn_failed",
+                message: error.to_string(),
+            })?;
+        *worker = Some(Worker {
+            control: control_tx,
+            join,
+        });
+        drop(worker);
+        Ok(self.status())
+    }
+
+    pub fn status(&self) -> Value {
+        self.reap_finished();
+        self.state.lock().expect("streamer state poisoned").value()
+    }
+
+    pub fn acceptance_snapshot(&self) -> Value {
+        self.reap_finished();
+        self.state
+            .lock()
+            .expect("streamer state poisoned")
+            .acceptance_value()
+    }
+
+    pub fn stop(&self, reason: &str) -> Result<Value, StreamerError> {
+        let item = self.worker.lock().expect("streamer worker poisoned").take();
+        if let Some(worker) = item {
+            let _ = worker.control.send(WorkerCommand::Stop(reason.to_owned()));
+            worker.join.join().map_err(|_| StreamerError {
+                code: "streamer_stop_failed",
+                message: "Native streamer coordinator panicked during shutdown".to_owned(),
+            })?;
+        }
+        let mut snapshot = self.state.lock().expect("streamer state poisoned");
+        snapshot.status = "stopped".to_owned();
+        snapshot.message = reason.to_owned();
+        snapshot.session_id = None;
+        snapshot.process_id = None;
+        snapshot.transport = None;
+        snapshot.error_code = None;
+        snapshot.microphone_state = "disabled".to_owned();
+        snapshot.microphone_enabled = false;
+        snapshot.microphone_message = None;
+        snapshot.started_at = None;
+        Ok(snapshot.value())
+    }
+
+    pub fn set_input_paused(&self, paused: bool) -> Result<Value, StreamerError> {
+        self.reap_finished();
+        let worker = self.worker.lock().expect("streamer worker poisoned");
+        let Some(worker) = worker.as_ref() else {
+            return Ok(json!({"paused":paused,"streamerRunning":false}));
+        };
+        worker
+            .control
+            .send(WorkerCommand::InputPaused(paused))
+            .map_err(|_| StreamerError {
+                code: "streamer_control_failed",
+                message: "Native streamer control channel is closed".to_owned(),
+            })?;
+        let mut snapshot = self.state.lock().expect("streamer state poisoned");
+        if paused {
+            snapshot.input_pause_count = snapshot.input_pause_count.saturating_add(1);
+        } else {
+            snapshot.input_resume_count = snapshot.input_resume_count.saturating_add(1);
+        }
+        Ok(json!({"paused":paused,"streamerRunning":true}))
+    }
+
+    pub fn control(&self, action: &str) -> Result<Value, StreamerError> {
+        let child_command = match action {
+            "toggle-fullscreen" => "fullscreen-toggle",
+            "toggle-microphone" => "microphone-toggle",
+            "anti-afk-pulse" => "anti-afk-pulse",
+            _ => return Err(invalid("Unknown native streamer control action")),
+        };
+        self.reap_finished();
+        let worker = self.worker.lock().expect("streamer worker poisoned");
+        let Some(worker) = worker.as_ref() else {
+            return Err(StreamerError {
+                code: "streamer_not_running",
+                message: "Native streamer is not running".to_owned(),
+            });
+        };
+        worker
+            .control
+            .send(WorkerCommand::Control(child_command.to_owned()))
+            .map_err(|_| StreamerError {
+                code: "streamer_control_failed",
+                message: "Native streamer control channel is closed".to_owned(),
+            })?;
+        Ok(json!({"action":action,"streamerRunning":true}))
+    }
+
+    pub fn update_surface(&self, params: &Value) -> Result<Value, StreamerError> {
+        let surface = normalize_surface(params.get("surface"), (1280, 720))?;
+        self.reap_finished();
+        let worker = self.worker.lock().expect("streamer worker poisoned");
+        let Some(worker) = worker.as_ref() else {
+            return Ok(json!({"applied":false,"streamerRunning":false}));
+        };
+        worker
+            .control
+            .send(WorkerCommand::Surface(surface))
+            .map_err(|_| StreamerError {
+                code: "streamer_control_failed",
+                message: "Native streamer control channel is closed".to_owned(),
+            })?;
+        let mut snapshot = self.state.lock().expect("streamer state poisoned");
+        snapshot.surface_update_count = snapshot.surface_update_count.saturating_add(1);
+        Ok(json!({"applied":true,"streamerRunning":true}))
+    }
+
+    pub fn recording(&self, params: &Value, enabled: bool) -> Result<Value, StreamerError> {
+        self.reap_finished();
+        let output_path = if enabled {
+            let path = PathBuf::from(
+                params["outputPath"]
+                    .as_str()
+                    .filter(|value| !value.is_empty())
+                    .ok_or_else(|| invalid("Native recording requires an outputPath"))?,
+            );
+            if !path.is_absolute()
+                || path.extension().and_then(|value| value.to_str()) != Some("mkv")
+            {
+                return Err(invalid(
+                    "Native recording requires an absolute .mkv outputPath",
+                ));
+            }
+            Some(path)
+        } else {
+            None
+        };
+        let (reply, response) = mpsc::sync_channel(1);
+        {
+            let worker = self.worker.lock().expect("streamer worker poisoned");
+            let Some(worker) = worker.as_ref() else {
+                return Err(StreamerError {
+                    code: "streamer_not_running",
+                    message: "Native streamer is not running".to_owned(),
+                });
+            };
+            worker
+                .control
+                .send(WorkerCommand::Recording {
+                    enabled,
+                    output_path,
+                    reply,
+                })
+                .map_err(|_| StreamerError {
+                    code: "streamer_control_failed",
+                    message: "Native streamer control channel is closed".to_owned(),
+                })?;
+        }
+        let result = response
+            .recv_timeout(Duration::from_secs(15))
+            .map_err(|_| StreamerError {
+                code: "streamer_timeout",
+                message: "Native streamer timed out finalizing the recording".to_owned(),
+            })??;
+        let mut snapshot = self.state.lock().expect("streamer state poisoned");
+        if enabled {
+            snapshot.recording_start_count = snapshot.recording_start_count.saturating_add(1);
+        } else {
+            snapshot.recording_stop_count = snapshot.recording_stop_count.saturating_add(1);
+        }
+        Ok(result)
+    }
+
+    fn reap_finished(&self) {
+        let finished = self
+            .worker
+            .lock()
+            .expect("streamer worker poisoned")
+            .as_ref()
+            .is_some_and(|worker| worker.join.is_finished());
+        if finished
+            && let Some(worker) = self.worker.lock().expect("streamer worker poisoned").take()
+        {
+            let _ = worker.join.join();
+        }
+    }
+}
+
+impl Drop for StreamerService {
+    fn drop(&mut self) {
+        if let Some(worker) = self
+            .worker
+            .get_mut()
+            .expect("streamer worker poisoned")
+            .take()
+        {
+            let _ = worker
+                .control
+                .send(WorkerCommand::Stop("OpenNOW core shutdown".to_owned()));
+            let _ = worker.join.join();
+        }
+    }
+}
+
+fn streamer_command(executable: &Path, settings: &Value) -> Command {
+    let requested_backend = settings["nativeVideoBackend"]
+        .as_str()
+        .unwrap_or("auto")
+        .trim()
+        .to_ascii_lowercase();
+    let decoder_preference = settings["decoderPreference"]
+        .as_str()
+        .unwrap_or("auto")
+        .trim()
+        .to_ascii_lowercase();
+    let decoder_backend = match requested_backend.as_str() {
+        "auto" | "" => match decoder_preference.as_str() {
+            "hardware" => "hardware",
+            "software" => "software",
+            _ => "auto",
+        },
+        explicit => explicit,
+    };
+    let cursor_overlay = if settings["nativeCursorOverlay"].as_bool().unwrap_or(true) {
+        "1"
+    } else {
+        "0"
+    };
+    let mouse_sensitivity = settings["mouseSensitivity"]
+        .as_f64()
+        .unwrap_or(1.0)
+        .clamp(0.1, 3.0)
+        .to_string();
+    let mouse_acceleration = settings["mouseAcceleration"]
+        .as_f64()
+        .unwrap_or(1.0)
+        .clamp(1.0, 150.0)
+        .to_string();
+    let mut command = Command::new(executable);
+    command
+        .env("OPENNOW_NATIVE_EXTERNAL_RENDERER", "1")
+        // The separate SDL stream window owns foreground keyboard/mouse events.
+        // Keep this paired with EXTERNAL_RENDERER, matching native-streamer-v2;
+        // otherwise the streamer deliberately disables capture to avoid duplicate
+        // events from an embedded UI owner.
+        .env("OPENNOW_NATIVE_INPUT_OWNER", "native")
+        .env("OPENNOW_NATIVE_VIDEO_BACKEND", decoder_backend)
+        .env("OPENNOW_NATIVE_CURSOR_OVERLAY", cursor_overlay)
+        .env("OPENNOW_MOUSE_SENSITIVITY", mouse_sensitivity)
+        .env("OPENNOW_MOUSE_ACCELERATION", mouse_acceleration)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    command
+}
+
+fn probe_capabilities(executable: &Path, settings: &Value) -> Result<Value, StreamerError> {
+    let mut child = KillOnDrop(streamer_command(executable, settings).spawn().map_err(
+        |error| StreamerError {
+            code: "streamer_spawn_failed",
+            message: format!("Could not probe {}: {error}", executable.display()),
+        },
+    )?);
+    let mut stdin = child
+        .stdin
+        .take()
+        .ok_or_else(|| internal("Streamer probe stdin is unavailable"))?;
+    let stdout = child
+        .stdout
+        .take()
+        .ok_or_else(|| internal("Streamer probe stdout is unavailable"))?;
+    let stderr = child
+        .stderr
+        .take()
+        .ok_or_else(|| internal("Streamer probe stderr is unavailable"))?;
+    let (child_tx, child_rx) = mpsc::channel::<Value>();
+    let reader = spawn_stdout_reader(stdout, child_tx)?;
+    let stderr_reader = thread::Builder::new()
+        .name("opennow-streamer-probe-stderr".to_owned())
+        .spawn(move || {
+            for line in BufReader::new(stderr).lines().map_while(Result::ok) {
+                eprintln!("native-streamer probe: {line}");
+            }
+        })
+        .map_err(|error| StreamerError {
+            code: "streamer_spawn_failed",
+            message: error.to_string(),
+        })?;
+    let state = Arc::new(Mutex::new(Snapshot::default()));
+    write_child(
+        &mut stdin,
+        &json!({"id":"hello","type":"hello","protocolVersion":STREAMER_PROTOCOL_VERSION}),
+    )?;
+    let hello = wait_for_child(&child_rx, "hello", CAPABILITY_PROBE_TIMEOUT, &state)?;
+    if hello["type"] != "ready" {
+        return Err(child_error(
+            &hello,
+            "Native streamer capability probe failed",
+        ));
+    }
+    let capabilities = hello["capabilities"].clone();
+    if !capabilities.is_object()
+        || capabilities["protocolVersion"].as_u64() != Some(STREAMER_PROTOCOL_VERSION)
+    {
+        return Err(StreamerError {
+            code: "streamer_protocol_mismatch",
+            message: format!(
+                "Native streamer did not report protocol {STREAMER_PROTOCOL_VERSION} capabilities"
+            ),
+        });
+    }
+    let _ = write_child(
+        &mut stdin,
+        &json!({"id":"shutdown","type":"shutdown","reason":"capability probe complete"}),
+    );
+    wait_or_kill(&mut child);
+    drop(stdin);
+    let _ = reader.join();
+    let _ = stderr_reader.join();
+    Ok(capabilities)
+}
+
+pub(crate) fn requested_embedded_backend(settings: &Value) -> String {
+    let requested = settings["nativeVideoBackend"]
+        .as_str()
+        .unwrap_or("auto")
+        .trim()
+        .to_ascii_lowercase();
+    if !requested.is_empty() && requested != "auto" {
+        return requested;
+    }
+    match settings["decoderPreference"]
+        .as_str()
+        .unwrap_or("auto")
+        .trim()
+        .to_ascii_lowercase()
+        .as_str()
+    {
+        "software" => "software".to_owned(),
+        _ => "auto".to_owned(),
+    }
+}
+
+fn gpu_label(value: &str) -> String {
+    let mut cleaned = String::new();
+    for character in value.chars().take(80) {
+        if character.is_alphanumeric()
+            || matches!(
+                character,
+                ' ' | '(' | ')' | '[' | ']' | '+' | '-' | '.' | '/' | ',' | '&'
+            )
+        {
+            cleaned.push(character);
+        } else if character.is_whitespace() {
+            cleaned.push(' ');
+        }
+    }
+    let cleaned = cleaned.split_whitespace().collect::<Vec<_>>().join(" ");
+    if cleaned.is_empty() {
+        return String::new();
+    }
+    let redacted = crate::diagnostics::runtime_failure_reason(&cleaned);
+    if redacted.is_empty() || redacted == "[redacted]" {
+        String::new()
+    } else {
+        redacted
+    }
+}
+
+fn codec_label(codec: &str) -> Option<&'static str> {
+    match codec {
+        "h264" => Some("H.264"),
+        "h265" => Some("H.265"),
+        "av1" => Some("AV1"),
+        _ => None,
+    }
+}
+
+fn alternate_decoding_gpus(capabilities: &Value) -> Vec<String> {
+    let Some(adapters) = capabilities
+        .get("graphicsAdapters")
+        .and_then(Value::as_array)
+    else {
+        return Vec::new();
+    };
+    if adapters.len() < 2 {
+        return Vec::new();
+    }
+    let mut capable = Vec::new();
+    for adapter in adapters.iter().take(8) {
+        if adapter["active"].as_bool() == Some(true) {
+            continue;
+        }
+        let labels = adapter["codecs"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|codec| codec.as_str().and_then(codec_label))
+            .collect::<Vec<_>>();
+        if labels.is_empty() {
+            continue;
+        }
+        let name = gpu_label(adapter["name"].as_str().unwrap_or(""));
+        let name = if name.is_empty() {
+            "another GPU".to_owned()
+        } else {
+            name
+        };
+        capable.push(format!("{name} ({})", labels.join(", ")));
+        if capable.len() == 3 {
+            break;
+        }
+    }
+    capable
+}
+
+fn hybrid_gpu_hint(capabilities: &Value) -> Option<String> {
+    let capable = alternate_decoding_gpus(capabilities);
+    if capable.is_empty() {
+        return None;
+    }
+    let target = if capable.len() == 1 {
+        "that GPU"
+    } else {
+        "one of those GPUs"
+    };
+    Some(format!(
+        "{} can decode. Select {target} in Settings → Stream → Graphics processor, then restart OpenNOW.",
+        capable.join("; ")
+    ))
+}
+
+pub(crate) fn active_gpu_label(capabilities: &Value) -> Option<String> {
+    let adapters = capabilities.get("graphicsAdapters")?.as_array()?;
+    let adapter = adapters
+        .iter()
+        .find(|adapter| adapter["active"].as_bool() == Some(true))?;
+    let name = gpu_label(adapter["name"].as_str().unwrap_or(""));
+    if name.is_empty() { None } else { Some(name) }
+}
+
+fn hybrid_gpu_message(capabilities: &Value) -> Option<String> {
+    let hint = hybrid_gpu_hint(capabilities)?;
+    let selected = active_gpu_label(capabilities).unwrap_or_else(|| "the selected GPU".to_owned());
+    let message = format!("No hardware video backend is available on {selected}. {hint}");
+    Some(message.chars().take(480).collect())
+}
+
+fn normalize_codec_name(value: &str) -> Option<&'static str> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "h264" | "avc" | "auto" | "" => Some("h264"),
+        "h265" | "hevc" => Some("h265"),
+        "av1" => Some("av1"),
+        _ => None,
+    }
+}
+
+/// GFN codec/color support matrix, matching the official client's settings gating:
+/// H.264 is 8-bit 4:2:0 only, AV1 is 4:2:0 only (8- or 10-bit), HEVC supports all
+/// four color modes, and Auto always resolves to a supported codec. Unknown names
+/// fail closed; settings normalization clamps stored values before consulting this.
+pub(crate) fn codec_supports_color_quality(codec: &str, color: &str) -> bool {
+    match codec.trim().to_ascii_lowercase().as_str() {
+        "" | "auto" => true,
+        "h264" | "avc" => color.trim().eq_ignore_ascii_case("8bit_420"),
+        "av1" => matches!(
+            color.trim().to_ascii_lowercase().as_str(),
+            "8bit_420" | "10bit_420"
+        ),
+        "h265" | "hevc" => true,
+        _ => false,
+    }
+}
+
+fn available_codecs(capabilities: &Value) -> Vec<&'static str> {
+    ["h264", "h265", "av1"]
+        .into_iter()
+        .filter(|codec| codec_available(capabilities, codec))
+        .collect()
+}
+
+fn requested_resolution_pixels(settings: &Value) -> Option<u64> {
+    let (width, height) = settings["resolution"].as_str()?.split_once('x')?;
+    let width = width.parse::<u64>().ok().filter(|width| *width > 0)?;
+    let height = height.parse::<u64>().ok().filter(|height| *height > 0)?;
+    width.checked_mul(height)
+}
+
+fn auto_av1_eligible(settings: &Value, capabilities: &Value, hdr: bool) -> bool {
+    if crate::frame_rate::snap_frame_rate(settings["fps"].as_i64().unwrap_or(60)) > 120 {
+        return false;
+    };
+    if settings.get("resolution").is_some()
+        && requested_resolution_pixels(settings).is_none_or(|pixels| pixels > 5120 * 2880)
+    {
+        return false;
+    }
+    capabilities["videoBackends"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter(|backend| backend["available"].as_bool() == Some(true))
+        .flat_map(|backend| backend["codecs"].as_array().into_iter().flatten())
+        .any(|codec| {
+            codec["codec"]
+                .as_str()
+                .is_some_and(|name| name.eq_ignore_ascii_case("av1"))
+                && codec["available"].as_bool() == Some(true)
+                && (!hdr || codec["hdrSupported"].as_bool() == Some(true))
+        })
+}
+
+const EMBEDDED_RESOLUTIONS: [(u64, u64); 21] = [
+    (1280, 720),
+    (1600, 900),
+    (1920, 1080),
+    (2560, 1440),
+    (3200, 1800),
+    (3840, 2160),
+    (5120, 2880),
+    (7680, 4320),
+    (1280, 800),
+    (1440, 900),
+    (1680, 1050),
+    (1920, 1200),
+    (2560, 1600),
+    (3840, 2400),
+    (2560, 1080),
+    (3440, 1440),
+    (3840, 1600),
+    (3840, 1800),
+    (5120, 2160),
+    (3840, 1080),
+    (5120, 1440),
+];
+
+fn normalize_embedded_mode(
+    settings: &mut Value,
+    capabilities: &Value,
+    codec: &str,
+    fallbacks: &mut Vec<String>,
+) -> Result<(), StreamerError> {
+    if let Some(requested) = settings["fps"].as_i64() {
+        let capped = if matches!(codec, "h264" | "av1") {
+            requested.min(120)
+        } else {
+            requested
+        };
+        let fps = crate::frame_rate::snap_frame_rate(capped);
+        if fps != requested {
+            let action = if fps < requested {
+                "Capping"
+            } else {
+                "Normalizing"
+            };
+            fallbacks.push(format!(
+                "{} requested at {requested} FPS. {action} the frame rate at {fps} FPS to a supported codec mode.",
+                codec_label(codec).unwrap_or(codec)
+            ));
+            settings["fps"] = json!(fps);
+        }
+    }
+    let mut max_width = u64::MAX;
+    let mut max_height = u64::MAX;
+    for backend in capabilities["videoBackends"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter(|backend| backend["available"] == true)
+    {
+        for entry in backend["codecs"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter(|entry| {
+                codec_entry_decodes(
+                    backend,
+                    entry,
+                    codec,
+                    settings["colorQuality"].as_str().unwrap_or("8bit_420"),
+                    settings["enableHdr"] == true,
+                )
+            })
+        {
+            let Some(limit) = entry.get("maxDecodeDimensions") else {
+                continue;
+            };
+            let width = limit["width"]
+                .as_u64()
+                .filter(|value| (1..=u32::MAX as u64).contains(value));
+            let height = limit["height"]
+                .as_u64()
+                .filter(|value| (1..=u32::MAX as u64).contains(value));
+            let (Some(width), Some(height)) = (width, height) else {
+                return Err(invalid(
+                    "Embedded streamer reported invalid maximum decode dimensions",
+                ));
+            };
+            max_width = max_width.min(width);
+            max_height = max_height.min(height);
+        }
+    }
+    let Some(resolution) = settings["resolution"].as_str() else {
+        return Ok(());
+    };
+    let Some((width, height)) = resolution.split_once('x').and_then(|(width, height)| {
+        Some((width.parse::<u64>().ok()?, height.parse::<u64>().ok()?))
+    }) else {
+        return Ok(());
+    };
+    if width.checked_mul(height).is_none() {
+        return Ok(());
+    }
+    let max_pixels = if codec == "h264" { 4_953_599 } else { u64::MAX };
+    let fits = |width: u64, height: u64| {
+        width <= max_width
+            && height <= max_height
+            && width
+                .checked_mul(height)
+                .is_some_and(|pixels| pixels <= max_pixels)
+    };
+    if fits(width, height) {
+        return Ok(());
+    }
+    let aspect = width as f64 / height as f64;
+    let (selected_width, selected_height) = EMBEDDED_RESOLUTIONS.into_iter()
+        .filter(|(w, h)| *w <= width && *h <= height && fits(*w, *h))
+        .min_by(|(aw, ah), (bw, bh)| {
+            (aspect - *aw as f64 / *ah as f64).abs()
+                .total_cmp(&(aspect - *bw as f64 / *bh as f64).abs())
+                .then_with(|| (bw * bh).cmp(&(aw * ah)))
+        })
+        .ok_or_else(|| StreamerError {
+            code: "streamer_mode_unavailable",
+            message: "No supported resolution fits the selected decoder's limits. Select another video backend.".to_owned(),
+        })?;
+    fallbacks.push(format!(
+        "{} requested at {resolution}. Using the closest supported aspect mode {selected_width}x{selected_height} within the decoder's limits.",
+        codec_label(codec).unwrap_or(codec)
+    ));
+    settings["resolution"] = json!(format!("{selected_width}x{selected_height}"));
+    Ok(())
+}
+
+fn codec_available(capabilities: &Value, codec: &str) -> bool {
+    capabilities["videoBackends"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter(|backend| backend["available"].as_bool().unwrap_or(false))
+        .flat_map(|backend| backend["codecs"].as_array().into_iter().flatten())
+        .any(|entry| {
+            entry["codec"]
+                .as_str()
+                .is_some_and(|value| value.eq_ignore_ascii_case(codec))
+                && entry["available"].as_bool().unwrap_or(false)
+        })
+}
+
+fn codec_decodes(capabilities: &Value, codec: &str, color: &str, hdr: bool) -> bool {
+    codec_supports_color_quality(codec, color)
+        && capabilities["videoBackends"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter(|backend| backend["available"].as_bool() == Some(true))
+            .any(|backend| {
+                backend["codecs"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .any(|entry| codec_entry_decodes(backend, entry, codec, color, hdr))
+            })
+}
+
+fn codec_entry_decodes(
+    backend: &Value,
+    entry: &Value,
+    codec: &str,
+    color: &str,
+    hdr: bool,
+) -> bool {
+    let listed = |qualities: &Value| {
+        qualities.as_array().is_some_and(|qualities| {
+            qualities
+                .iter()
+                .any(|quality| quality.as_str() == Some(color))
+        })
+    };
+    let requires_profiles = hdr
+        || backend["backend"] == "vulkan"
+        || backend["platform"] == "linux"
+        || backend["backend"] == "videotoolbox";
+    let hdr_supported = entry
+        .get("hdrSupported")
+        .map(|value| value.as_bool().unwrap_or(false));
+    entry["available"].as_bool() == Some(true)
+        && entry["codec"]
+            .as_str()
+            .is_some_and(|name| name.eq_ignore_ascii_case(codec))
+        && (!hdr
+            || (hdr_supported != Some(false)
+                && entry
+                    .get("hdrColorQualities")
+                    .map_or(color == "10bit_420", listed)))
+        && entry.get("colorQualities").map_or(
+            (hdr && color == "10bit_420" && hdr_supported == Some(true))
+                || !requires_profiles
+                || color == "8bit_420",
+            listed,
+        )
+}
+
+fn color_satisfies(delivered: &str, requested: &str) -> bool {
+    delivered == requested
+        || requested
+            .strip_prefix("8bit")
+            .is_some_and(|chroma| delivered.strip_prefix("10bit") == Some(chroma))
+}
+
+fn ensure_codec_available(capabilities: &Value, codec: &str) -> Result<(), StreamerError> {
+    if codec_available(capabilities, codec) {
+        return Ok(());
+    }
+    let reasons = capabilities["videoBackends"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .flat_map(|backend| backend["codecs"].as_array().into_iter().flatten())
+        .filter(|entry| {
+            entry["codec"]
+                .as_str()
+                .is_some_and(|value| value.eq_ignore_ascii_case(codec))
+        })
+        .filter_map(|entry| entry["reason"].as_str())
+        .collect::<Vec<_>>();
+    let detail = reasons
+        .first()
+        .copied()
+        .unwrap_or("no selected native backend advertises this codec");
+    Err(StreamerError {
+        code: "streamer_codec_unavailable",
+        message: format!("{} is unavailable: {detail}", codec.to_ascii_uppercase()),
+    })
+}
+
+fn run_worker(
+    executable: &Path,
+    context: Value,
+    control: Receiver<WorkerCommand>,
+    state: Arc<Mutex<Snapshot>>,
+) -> Result<(), StreamerError> {
+    let mut child = KillOnDrop(
+        streamer_command(executable, &context["settings"])
+            .spawn()
+            .map_err(|error| StreamerError {
+                code: "streamer_spawn_failed",
+                message: format!("Could not launch {}: {error}", executable.display()),
+            })?,
+    );
+    let process_id = u64::from(child.id());
+    let mut stdin = child
+        .stdin
+        .take()
+        .ok_or_else(|| internal("Streamer stdin is unavailable"))?;
+    let stdout = child
+        .stdout
+        .take()
+        .ok_or_else(|| internal("Streamer stdout is unavailable"))?;
+    let stderr = child
+        .stderr
+        .take()
+        .ok_or_else(|| internal("Streamer stderr is unavailable"))?;
+    let (child_tx, child_rx) = mpsc::channel::<Value>();
+    let reader = spawn_stdout_reader(stdout, child_tx)?;
+    let stderr_reader = thread::Builder::new()
+        .name("opennow-streamer-stderr".to_owned())
+        .spawn(move || {
+            for line in BufReader::new(stderr).lines().map_while(Result::ok) {
+                eprintln!("native-streamer: {line}");
+            }
+        })
+        .map_err(|error| StreamerError {
+            code: "streamer_spawn_failed",
+            message: error.to_string(),
+        })?;
+
+    write_child(
+        &mut stdin,
+        &json!({"id":"hello","type":"hello","protocolVersion":STREAMER_PROTOCOL_VERSION}),
+    )?;
+    let hello = wait_for_child(&child_rx, "hello", CHILD_START_TIMEOUT, &state)?;
+    if hello["type"] != "ready" {
+        return Err(child_error(&hello, "Native streamer handshake failed"));
+    }
+    let negotiated_codec = context["settings"]["codec"]
+        .as_str()
+        .and_then(normalize_codec_name)
+        .unwrap_or("h264");
+    ensure_codec_available(&hello["capabilities"], negotiated_codec)?;
+    {
+        let mut snapshot = state.lock().expect("streamer state poisoned");
+        snapshot.process_id = hello["processId"].as_u64().or(Some(process_id));
+        snapshot.capabilities = hello["capabilities"].clone();
+        snapshot.status = "starting".to_owned();
+        snapshot.message = "Preparing native video and audio output…".to_owned();
+    }
+    if hello["capabilities"]["supportsOwnedNvstNegotiation"].as_bool() != Some(true) {
+        return Err(StreamerError {
+            code: "streamer_protocol_mismatch",
+            message: "Native streamer cannot start NVST: owned NVST negotiation and protocol 7 are required"
+                .to_owned(),
+        });
+    }
+    let result = run_owned_nvst_child(
+        &context, &mut stdin, &mut child, &child_rx, &control, &state,
+    );
+    let _ = write_child(
+        &mut stdin,
+        &json!({"id":"shutdown","type":"shutdown","reason":"OpenNOW session ended"}),
+    );
+    wait_or_kill(&mut child);
+    drop(stdin);
+    let _ = reader.join();
+    let _ = stderr_reader.join();
+    result
+}
+
+fn run_owned_nvst_child(
+    context: &Value,
+    stdin: &mut ChildStdin,
+    child: &mut Child,
+    child_rx: &Receiver<Value>,
+    control: &Receiver<WorkerCommand>,
+    state: &Arc<Mutex<Snapshot>>,
+) -> Result<(), StreamerError> {
+    {
+        let mut snapshot = state.lock().expect("streamer state poisoned");
+        snapshot.status = "negotiating".to_owned();
+        snapshot.message =
+            "Native streamer is negotiating the GeForce NOW NVST session…".to_owned();
+    }
+    start_child(stdin, child_rx, context, state)?;
+    ensure_child_running(child)?;
+    write_surface(stdin, &context["surface"])?;
+    {
+        let mut snapshot = state.lock().expect("streamer state poisoned");
+        snapshot.transport = Some("nvst".to_owned());
+        snapshot.status = "streaming".to_owned();
+        snapshot.message = "Native-owned NVST media transport is active".to_owned();
+    }
+
+    loop {
+        if let Ok(command) = control.try_recv() {
+            match command {
+                WorkerCommand::Stop(reason) => {
+                    let _ = write_child(stdin, &json!({"id":"stop","type":"stop","reason":reason}));
+                    return Ok(());
+                }
+                WorkerCommand::InputPaused(paused) => {
+                    write_child(
+                        stdin,
+                        &json!({"id":"input-paused","type":"input-paused","paused":paused}),
+                    )?;
+                }
+                WorkerCommand::Control(command_type) => {
+                    write_child(stdin, &json!({"id":"runtime-control","type":command_type}))?;
+                }
+                WorkerCommand::Surface(surface) => write_surface(stdin, &surface)?,
+                WorkerCommand::Recording {
+                    enabled,
+                    output_path,
+                    reply,
+                } => {
+                    let result =
+                        execute_recording(stdin, child_rx, state, enabled, output_path.as_deref());
+                    let _ = reply.send(result);
+                }
+            }
+        }
+        if let Some(status) = child
+            .try_wait()
+            .map_err(|error| internal(error.to_string()))?
+        {
+            return Err(StreamerError {
+                code: "streamer_exited",
+                message: format!("Native streamer exited unexpectedly ({status})"),
+            });
+        }
+        while let Ok(message) = child_rx.try_recv() {
+            handle_nvst_child_event(&message, state)?;
+        }
+        thread::sleep(Duration::from_millis(20));
+    }
+}
+
+fn start_child(
+    stdin: &mut ChildStdin,
+    child_rx: &Receiver<Value>,
+    context: &Value,
+    state: &Arc<Mutex<Snapshot>>,
+) -> Result<(), StreamerError> {
+    write_child(
+        stdin,
+        &json!({"id":"start","type":"start","context":context}),
+    )?;
+    let started = wait_for_child(child_rx, "start", CHILD_START_TIMEOUT, state)?;
+    if started["type"] != "ok" {
+        return Err(child_error(&started, "Native NVST media startup failed"));
+    }
+    state.lock().expect("streamer state poisoned").transport =
+        started["transport"].as_str().map(ToOwned::to_owned);
+    Ok(())
+}
+
+fn handle_nvst_child_event(
+    message: &Value,
+    state: &Arc<Mutex<Snapshot>>,
+) -> Result<(), StreamerError> {
+    apply_child_telemetry(message, state);
+    match message["type"].as_str().unwrap_or_default() {
+        "status" => {
+            let mut snapshot = state.lock().expect("streamer state poisoned");
+            if let Some(value) = message["status"].as_str() {
+                snapshot.status = value.to_owned()
+            }
+            if let Some(value) = message["message"].as_str() {
+                snapshot.message = value.to_owned()
+            }
+            Ok(())
+        }
+        "error" => Err(StreamerError {
+            code: "native_stream_error",
+            message: message["message"]
+                .as_str()
+                .unwrap_or("Native NVST media error")
+                .to_owned(),
+        }),
+        "overlay-request" => {
+            let mut snapshot = state.lock().expect("streamer state poisoned");
+            snapshot.overlay_request_generation =
+                snapshot.overlay_request_generation.wrapping_add(1);
+            Ok(())
+        }
+        "screenshot-request" => {
+            let mut snapshot = state.lock().expect("streamer state poisoned");
+            snapshot.screenshot_request_generation =
+                snapshot.screenshot_request_generation.wrapping_add(1);
+            Ok(())
+        }
+        "recording-toggle-request" => {
+            let mut snapshot = state.lock().expect("streamer state poisoned");
+            snapshot.recording_toggle_request_generation =
+                snapshot.recording_toggle_request_generation.wrapping_add(1);
+            Ok(())
+        }
+        "shortcut-action" => {
+            let action = message["action"]
+                .as_str()
+                .filter(|action| {
+                    matches!(
+                        *action,
+                        "toggle-stats"
+                            | "toggle-fullscreen"
+                            | "stop-stream"
+                            | "toggle-anti-afk"
+                            | "toggle-microphone"
+                            | "screenshot"
+                            | "toggle-recording"
+                    )
+                })
+                .ok_or_else(|| StreamerError {
+                    code: "streamer_protocol_error",
+                    message: "Native streamer emitted an invalid shortcut action".to_owned(),
+                })?;
+            let mut snapshot = state.lock().expect("streamer state poisoned");
+            snapshot.shortcut_action_generation =
+                snapshot.shortcut_action_generation.wrapping_add(1);
+            if action == "toggle-stats" {
+                snapshot.stats_toggle_count = snapshot.stats_toggle_count.saturating_add(1);
+            } else if action == "toggle-fullscreen" {
+                snapshot.fullscreen_toggle_count =
+                    snapshot.fullscreen_toggle_count.saturating_add(1);
+            }
+            snapshot.shortcut_action = Some(action.to_owned());
+            Ok(())
+        }
+        "microphone-state" => {
+            apply_microphone_state(message, state);
+            Ok(())
+        }
+        _ => Ok(()),
+    }
+}
+
+fn apply_microphone_state(message: &Value, state: &Arc<Mutex<Snapshot>>) {
+    let mut snapshot = state.lock().expect("streamer state poisoned");
+    snapshot.microphone_state = message["state"]
+        .as_str()
+        .unwrap_or("unavailable")
+        .to_owned();
+    snapshot.microphone_enabled = message["enabled"].as_bool().unwrap_or(false);
+    snapshot.microphone_message = message["message"].as_str().map(ToOwned::to_owned);
+}
+
+fn apply_child_telemetry(message: &Value, state: &Arc<Mutex<Snapshot>>) {
+    let mut snapshot = state.lock().expect("streamer state poisoned");
+    match message["type"].as_str().unwrap_or_default() {
+        "input-ready" => {
+            snapshot.input_ready = true;
+            snapshot.input_unavailable_reason = None;
+        }
+        "input-unavailable" => {
+            snapshot.input_ready = false;
+            snapshot.input_unavailable_reason = message["reason"].as_str().map(ToOwned::to_owned);
+        }
+        "telemetry" => {
+            let metric = |key: &str, maximum: f64| {
+                message[key]
+                    .as_f64()
+                    .filter(|value| value.is_finite() && (0.0..=maximum).contains(value))
+            };
+            if let Some(value) = metric("framesPerSecond", 1_000.0) {
+                snapshot.frames_per_second = Some(value);
+            }
+            if let Some(value) = metric("bitrateMbps", 10_000.0) {
+                snapshot.bitrate_mbps = Some(value);
+            }
+            if let Some(value) = metric("peakBitrateMbps", 10_000.0) {
+                snapshot.peak_bitrate_mbps = Some(value);
+            }
+        }
+        _ => {}
+    }
+
+    match message["event"].as_str().unwrap_or_default() {
+        "first-frame" => {
+            if snapshot.first_frame_latency_ms.is_none() {
+                snapshot.first_frame_latency_ms = snapshot
+                    .started_at
+                    .map(|started| elapsed_millis(started.elapsed()));
+            }
+            snapshot.media_backend = message["backend"].as_str().map(ToOwned::to_owned);
+        }
+        "backend-fallback" => {
+            snapshot.backend_fallback_count = snapshot.backend_fallback_count.saturating_add(1);
+        }
+        "decoder-error" => {
+            snapshot.decoder_error_count = snapshot.decoder_error_count.saturating_add(1);
+        }
+        "output-error" => {
+            snapshot.output_error_count = snapshot.output_error_count.saturating_add(1);
+        }
+        "device-state" => {
+            if message["recovered"].as_bool().unwrap_or(false) {
+                snapshot.device_recovery_count = snapshot.device_recovery_count.saturating_add(1);
+            } else {
+                snapshot.device_loss_count = snapshot.device_loss_count.saturating_add(1);
+            }
+        }
+        "queue-dropped" => {
+            snapshot.queue_drop_count = snapshot
+                .queue_drop_count
+                .saturating_add(message["count"].as_u64().unwrap_or_default());
+        }
+        _ => {}
+    }
+}
+
+const HDR_CHROMATICITY_KEYS: [&str; 8] = [
+    "redX", "redY", "greenX", "greenY", "blueX", "blueY", "whiteX", "whiteY",
+];
+
+pub(crate) struct NativeHdrDisplay {
+    pub minimum_nits: f64,
+    pub maximum_nits: f64,
+    pub metadata: Option<NativeHdrMetadata>,
+}
+
+pub(crate) struct NativeHdrMetadata {
+    pub maximum_full_frame_nits: f64,
+    pub coordinates: [f64; 8],
+}
+
+pub(crate) fn validated_native_hdr_display(display: &Value) -> Option<NativeHdrDisplay> {
+    let display = display.as_object()?;
+    let minimum = display.get("minimumNits")?.as_f64()?;
+    let maximum = display.get("maximumNits")?.as_f64()?;
+    if !minimum.is_finite()
+        || !maximum.is_finite()
+        || minimum < 0.0
+        || maximum > 10_000.0
+        || maximum <= minimum
+    {
+        return None;
+    }
+    let metadata = (|| {
+        let full_frame = display.get("maximumFullFrameNits")?.as_f64()?;
+        if !full_frame.is_finite() || full_frame <= minimum || full_frame > maximum {
+            return None;
+        }
+        let mut coordinates = [0.0; 8];
+        for (coordinate, key) in coordinates.iter_mut().zip(HDR_CHROMATICITY_KEYS) {
+            *coordinate = display.get(key)?.as_f64()?;
+        }
+        if coordinates.chunks_exact(2).any(|xy| {
+            !xy[0].is_finite()
+                || !xy[1].is_finite()
+                || !(0.0..=1.0).contains(&xy[0])
+                || !(0.0..=1.0).contains(&xy[1])
+                || xy[0] + xy[1] > 1.0
+                || xy[1] == 0.0
+        }) {
+            return None;
+        }
+        let [rx, ry, gx, gy, bx, by, ..] = coordinates;
+        if ((gx - rx) * (by - ry) - (gy - ry) * (bx - rx)).abs() <= 1e-6 {
+            return None;
+        }
+        Some(NativeHdrMetadata {
+            maximum_full_frame_nits: full_frame,
+            coordinates,
+        })
+    })();
+    Some(NativeHdrDisplay {
+        minimum_nits: minimum,
+        maximum_nits: maximum,
+        metadata,
+    })
+}
+
+fn streamer_context(mut session: Value, settings: &Value) -> Value {
+    let mut normalized = settings.clone();
+    let negotiated_codec = session["negotiatedStreamProfile"]["codec"].as_str();
+    let requested_codec = if session["transportMode"] == "webrtc" {
+        "H264".to_owned()
+    } else {
+        normalized["codec"].as_str().unwrap_or("auto").to_owned()
+    };
+    let codec = negotiated_codec.map(ToOwned::to_owned).unwrap_or_else(|| {
+        if requested_codec.eq_ignore_ascii_case("auto") {
+            "H264".to_owned()
+        } else {
+            requested_codec
+        }
+    });
+    normalized["codec"] = Value::String(codec.to_ascii_uppercase());
+    normalized["enableHdr"] = json!(
+        session["negotiatedStreamProfile"]["enableHdr"]
+            .as_bool()
+            .unwrap_or(false)
+    );
+    normalized["nativeHdrSupported"] = json!(false);
+    if let Some(color) = session["negotiatedStreamProfile"]["colorQuality"].as_str() {
+        normalized["colorQuality"] = json!(color);
+    }
+    normalized["transportMode"] = json!(if session["transportMode"] == "webrtc" {
+        "webrtc"
+    } else {
+        "nvst"
+    });
+    if session["transportMode"] == "webrtc" {
+        normalized["colorQuality"] = json!(
+            session["negotiatedStreamProfile"]["colorQuality"]
+                .as_str()
+                .unwrap_or("8bit_420")
+        );
+        normalized["enableHdr"] = json!(false);
+        normalized["microphoneMode"] = json!("disabled");
+        normalized["enableCloudGsync"] = json!(false);
+        normalized["nativeCloudGsyncMode"] = json!("disabled");
+        normalized["resolution"] = json!("1920x1080");
+        normalized["fps"] = json!(60);
+    }
+    for key in ["resolution", "fps"] {
+        if !session["negotiatedStreamProfile"][key].is_null() {
+            normalized[key] = session["negotiatedStreamProfile"][key].clone();
+        }
+    }
+    if session["negotiatedStreamProfile"].is_null() {
+        session["negotiatedStreamProfile"] = json!({"codec":codec.to_ascii_uppercase()});
+    }
+    json!({
+        "session":session,
+        "settings":normalized,
+        "shortcuts":{
+            "toggleStats":settings["shortcutToggleStats"],
+            "togglePointerLock":settings["shortcutTogglePointerLock"],
+            "toggleFullscreen":settings["shortcutToggleFullscreen"],
+            "stopStream":settings["shortcutStopStream"],
+            "toggleAntiAfk":settings["shortcutToggleAntiAfk"],
+            "toggleMicrophone":settings["shortcutToggleMicrophone"],
+            "screenshot":settings["shortcutScreenshot"],
+            "toggleRecording":settings["shortcutToggleRecording"],
+            "saveClip":settings["shortcutSaveClip"]
+        }
+    })
+}
+
+fn context_resolution(context: &Value) -> (u64, u64) {
+    context["settings"]["resolution"]
+        .as_str()
+        .and_then(|value| value.split_once('x'))
+        .and_then(|(width, height)| Some((width.parse().ok()?, height.parse().ok()?)))
+        .filter(|(width, height)| *width > 0 && *height > 0)
+        .unwrap_or((1280, 720))
+}
+
+fn normalize_surface(
+    raw: Option<&Value>,
+    fallback_size: (u64, u64),
+) -> Result<Value, StreamerError> {
+    let fallback = json!({
+        "rect":{"x":0,"y":0,"width":fallback_size.0,"height":fallback_size.1},
+        "screenRect":{"x":0,"y":0,"width":fallback_size.0,"height":fallback_size.1},
+        "visible":true,
+        "deviceScaleFactor":1.0
+    });
+    let value = raw.unwrap_or(&fallback);
+    let object = value
+        .as_object()
+        .ok_or_else(|| invalid("streamer surface must be an object"))?;
+    let visible = object
+        .get("visible")
+        .and_then(Value::as_bool)
+        .unwrap_or(true);
+    let screen = object
+        .get("screenRect")
+        .and_then(Value::as_object)
+        .or_else(|| object.get("rect").and_then(Value::as_object))
+        .ok_or_else(|| invalid("streamer surface requires screenRect"))?;
+    let parse_rect = |value: &serde_json::Map<String, Value>, label: &str| {
+        let width = value
+            .get("width")
+            .and_then(Value::as_u64)
+            .filter(|value| (64..=16_384).contains(value))
+            .ok_or_else(|| invalid(format!("streamer {label} width is out of range")))?;
+        let height = value
+            .get("height")
+            .and_then(Value::as_u64)
+            .filter(|value| (64..=16_384).contains(value))
+            .ok_or_else(|| invalid(format!("streamer {label} height is out of range")))?;
+        let x = value.get("x").and_then(Value::as_i64).unwrap_or(0);
+        let y = value.get("y").and_then(Value::as_i64).unwrap_or(0);
+        if !(-100_000..=100_000).contains(&x) || !(-100_000..=100_000).contains(&y) {
+            return Err(invalid(format!(
+                "streamer {label} position is out of range"
+            )));
+        }
+        Ok((x, y, width, height))
+    };
+    let (screen_x, screen_y, screen_width, screen_height) = parse_rect(screen, "screenRect")?;
+    let (local_x, local_y, local_width, local_height) = object
+        .get("rect")
+        .and_then(Value::as_object)
+        .map(|rect| parse_rect(rect, "rect"))
+        .transpose()?
+        .unwrap_or((0, 0, screen_width, screen_height));
+    let scale = object
+        .get("deviceScaleFactor")
+        .and_then(Value::as_f64)
+        .unwrap_or(1.0);
+    if !scale.is_finite() || !(0.5..=8.0).contains(&scale) {
+        return Err(invalid("streamer surface scale is out of range"));
+    }
+    let window_handle = object
+        .get("windowHandle")
+        .and_then(Value::as_str)
+        .filter(|value| !value.is_empty() && value.len() <= 512);
+    let mut normalized = json!({
+        "rect":{"x":local_x,"y":local_y,"width":local_width,"height":local_height},
+        "screenRect":{"x":screen_x,"y":screen_y,"width":screen_width,"height":screen_height},
+        "visible":visible,
+        "deviceScaleFactor":scale
+    });
+    if let Some(window_handle) = window_handle {
+        normalized["windowHandle"] = Value::String(window_handle.to_owned());
+    }
+    Ok(normalized)
+}
+
+fn write_surface(stdin: &mut ChildStdin, surface: &Value) -> Result<(), StreamerError> {
+    write_child(
+        stdin,
+        &json!({"id":"surface","type":"surface","surface":surface}),
+    )
+}
+
+fn execute_recording(
+    stdin: &mut ChildStdin,
+    child_rx: &Receiver<Value>,
+    state: &Arc<Mutex<Snapshot>>,
+    enabled: bool,
+    output_path: Option<&Path>,
+) -> Result<Value, StreamerError> {
+    static RECORDING_COMMAND_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+    let id = format!(
+        "recording-control-{}",
+        RECORDING_COMMAND_SEQUENCE.fetch_add(1, Ordering::Relaxed)
+    );
+    write_child(
+        stdin,
+        &json!({
+            "id":id,
+            "type":if enabled { "recording-start" } else { "recording-stop" },
+            "outputPath":output_path.map(|path| path.to_string_lossy().into_owned()),
+        }),
+    )?;
+    let response = wait_for_child(child_rx, &id, Duration::from_secs(12), state)?;
+    if response["type"] == "error" {
+        return Err(StreamerError {
+            code: "recording_failed",
+            message: response["message"]
+                .as_str()
+                .unwrap_or("Native recording failed")
+                .to_owned(),
+        });
+    }
+    Ok(json!({
+        "enabled":enabled,
+        "path":response["path"],
+        "videoPackets":response["videoPackets"],
+        "audioPackets":response["audioPackets"],
+        "requestId":if enabled { Value::String(id) } else { response["requestId"].clone() },
+        "completion":response["completion"],
+        "streamerRunning":true,
+    }))
+}
+
+fn spawn_stdout_reader(
+    stdout: impl std::io::Read + Send + 'static,
+    messages: Sender<Value>,
+) -> Result<JoinHandle<()>, StreamerError> {
+    thread::Builder::new()
+        .name("opennow-streamer-stdout".to_owned())
+        .spawn(move || {
+            for line in BufReader::new(stdout).lines().map_while(Result::ok) {
+                if line.len() > CHILD_MESSAGE_LIMIT {
+                    break;
+                }
+                if let Ok(message) = serde_json::from_str(&line) {
+                    let _ = messages.send(message);
+                }
+            }
+        })
+        .map_err(|error| StreamerError {
+            code: "streamer_spawn_failed",
+            message: error.to_string(),
+        })
+}
+
+fn wait_for_child(
+    receiver: &Receiver<Value>,
+    id: &str,
+    timeout: Duration,
+    state: &Arc<Mutex<Snapshot>>,
+) -> Result<Value, StreamerError> {
+    let deadline = Instant::now() + timeout;
+    loop {
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        if remaining.is_zero() {
+            return Err(StreamerError {
+                code: "streamer_timeout",
+                message: format!("Native streamer timed out waiting for {id}"),
+            });
+        }
+        let message = match receiver.recv_timeout(remaining) {
+            Ok(message) => message,
+            Err(mpsc::RecvTimeoutError::Timeout) => {
+                return Err(StreamerError {
+                    code: "streamer_timeout",
+                    message: format!("Native streamer timed out waiting for {id}"),
+                });
+            }
+            Err(mpsc::RecvTimeoutError::Disconnected) => {
+                return Err(StreamerError {
+                    code: "streamer_exited",
+                    message: format!(
+                        "Native streamer closed its protocol output while waiting for {id}"
+                    ),
+                });
+            }
+        };
+        if message["id"].as_str() == Some(id) {
+            return Ok(message);
+        }
+        if message["type"].as_str() == Some("status") {
+            let mut snapshot = state.lock().expect("streamer state poisoned");
+            snapshot.status = message["status"].as_str().unwrap_or("starting").to_owned();
+            snapshot.message = message["message"].as_str().unwrap_or("").to_owned();
+        }
+    }
+}
+
+fn write_child(stdin: &mut ChildStdin, message: &Value) -> Result<(), StreamerError> {
+    serde_json::to_writer(&mut *stdin, message).map_err(|error| {
+        error
+            .io_error_kind()
+            .map(|kind| child_io_error(kind, error.to_string()))
+            .unwrap_or_else(|| internal(error.to_string()))
+    })?;
+    stdin
+        .write_all(b"\n")
+        .map_err(|error| child_io_error(error.kind(), error.to_string()))?;
+    stdin
+        .flush()
+        .map_err(|error| child_io_error(error.kind(), error.to_string()))
+}
+
+fn child_io_error(kind: ErrorKind, message: String) -> StreamerError {
+    let code = if matches!(
+        kind,
+        ErrorKind::BrokenPipe
+            | ErrorKind::ConnectionAborted
+            | ErrorKind::ConnectionReset
+            | ErrorKind::UnexpectedEof
+    ) {
+        "streamer_exited"
+    } else {
+        "streamer_io_failed"
+    };
+    StreamerError { code, message }
+}
+
+fn wait_or_kill(child: &mut Child) {
+    let deadline = Instant::now() + Duration::from_secs(2);
+    while Instant::now() < deadline {
+        if child.try_wait().ok().flatten().is_some() {
+            return;
+        }
+        thread::sleep(Duration::from_millis(20));
+    }
+    let _ = child.kill();
+    let _ = child.wait();
+}
+
+fn ensure_child_running(child: &mut Child) -> Result<(), StreamerError> {
+    match child.try_wait() {
+        Ok(None) => Ok(()),
+        Ok(Some(status)) => Err(StreamerError {
+            code: "streamer_exited",
+            message: format!("Native streamer exited unexpectedly ({status})"),
+        }),
+        Err(error) => Err(internal(format!(
+            "Could not inspect native streamer state: {error}"
+        ))),
+    }
+}
+
+fn resolve_executable(settings: &Value) -> Result<PathBuf, StreamerError> {
+    if let Some(configured) = settings["nativeStreamerExecutablePath"]
+        .as_str()
+        .filter(|value| !value.trim().is_empty())
+    {
+        return Ok(PathBuf::from(configured));
+    }
+    let current = std::env::current_exe().map_err(|error| StreamerError {
+        code: "streamer_not_found",
+        message: error.to_string(),
+    })?;
+    Ok(current
+        .parent()
+        .unwrap_or_else(|| Path::new("."))
+        .join(if cfg!(target_os = "windows") {
+            "opennow-streamer.exe"
+        } else {
+            "opennow-streamer"
+        }))
+}
+
+fn required_string<'a>(value: &'a Value, key: &str) -> Result<&'a str, StreamerError> {
+    value[key]
+        .as_str()
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| invalid(format!("Missing session {key}")))
+}
+
+fn child_error(value: &Value, fallback: &str) -> StreamerError {
+    StreamerError {
+        code: "native_stream_error",
+        message: value["message"].as_str().unwrap_or(fallback).to_owned(),
+    }
+}
+
+fn set_error(state: &Arc<Mutex<Snapshot>>, code: &str, message: String) {
+    let mut snapshot = state.lock().expect("streamer state poisoned");
+    snapshot.status = "error".to_owned();
+    snapshot.message = message;
+    snapshot.error_code = Some(code.to_owned());
+    snapshot.process_id = None;
+    snapshot.microphone_enabled = false;
+    if snapshot.microphone_state != "disabled" {
+        snapshot.microphone_state = "unavailable".to_owned();
+    }
+}
+
+fn elapsed_millis(duration: Duration) -> u64 {
+    u64::try_from(duration.as_millis()).unwrap_or(u64::MAX)
+}
+
+fn unix_time_millis() -> u128 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis()
+}
+
+#[cfg(all(test, unix))]
+fn random_u64() -> u64 {
+    let mut bytes = [0_u8; 8];
+    rand::rng().fill_bytes(&mut bytes);
+    u64::from_le_bytes(bytes)
+}
+
+fn invalid(message: impl Into<String>) -> StreamerError {
+    StreamerError {
+        code: "invalid_params",
+        message: message.into(),
+    }
+}
+
+fn internal(message: impl Into<String>) -> StreamerError {
+    StreamerError {
+        code: "streamer_internal_error",
+        message: message.into(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[cfg(unix)]
+    #[test]
+    fn recording_bridge_preserves_completion_and_unique_start_identity() {
+        let mut child = Command::new("cat")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()
+            .unwrap();
+        let mut stdin = child.stdin.take().unwrap();
+        let stdout = child.stdout.take().unwrap();
+        let (sender, receiver) = mpsc::channel();
+        let responder = thread::spawn(move || {
+            let mut lines = BufReader::new(stdout).lines();
+            let mut starts = Vec::new();
+            for index in 0..4 {
+                let request: Value = serde_json::from_str(&lines.next().unwrap().unwrap()).unwrap();
+                let response = if index < 2 {
+                    starts.push(request["id"].clone());
+                    json!({"id":request["id"],"type":"recording-started","path":"/capture.mkv"})
+                } else if index == 2 {
+                    json!({"id":request["id"],"type":"recording-stopped","requestId":starts[1],
+                        "path":"/capture.mkv","videoPackets":5,"audioPackets":3,
+                        "completion":{"kind":"cut","reason":"queue-overflow"}})
+                } else {
+                    json!({"id":request["id"],"type":"error","message":"trailer failed"})
+                };
+                sender.send(response).unwrap();
+            }
+            starts
+        });
+        let state = Arc::new(Mutex::new(Snapshot::default()));
+        let first = execute_recording(
+            &mut stdin,
+            &receiver,
+            &state,
+            true,
+            Some(Path::new("/first.mkv")),
+        )
+        .unwrap();
+        let second = execute_recording(
+            &mut stdin,
+            &receiver,
+            &state,
+            true,
+            Some(Path::new("/second.mkv")),
+        )
+        .unwrap();
+        let stopped = execute_recording(&mut stdin, &receiver, &state, false, None).unwrap();
+        let failed = execute_recording(&mut stdin, &receiver, &state, false, None).unwrap_err();
+        drop(stdin);
+        assert!(child.wait().unwrap().success());
+        let starts = responder.join().unwrap();
+        assert_ne!(starts[0], starts[1]);
+        assert_eq!(first["requestId"], starts[0]);
+        assert_eq!(second["requestId"], starts[1]);
+        assert_eq!(stopped["requestId"], starts[1]);
+        assert_eq!(
+            stopped["completion"],
+            json!({"kind":"cut","reason":"queue-overflow"})
+        );
+        assert_eq!(stopped["videoPackets"], 5);
+        assert_eq!(stopped["audioPackets"], 3);
+        assert_eq!(failed.code, "recording_failed");
+        assert_eq!(failed.message, "trailer failed");
+    }
+
+    #[test]
+    fn external_stream_window_is_the_native_input_owner() {
+        let command = streamer_command(
+            Path::new("opennow-streamer"),
+            &json!({
+                "nativeVideoBackend":"auto",
+                "decoderPreference":"auto",
+                "nativeCursorOverlay":true,
+                "mouseSensitivity":1.0,
+                "mouseAcceleration":1.0
+            }),
+        );
+        let environment = command
+            .get_envs()
+            .filter_map(|(name, value)| Some((name.to_str()?, value?.to_str()?)))
+            .collect::<std::collections::HashMap<_, _>>();
+        assert_eq!(
+            environment.get("OPENNOW_NATIVE_EXTERNAL_RENDERER"),
+            Some(&"1")
+        );
+        assert_eq!(
+            environment.get("OPENNOW_NATIVE_INPUT_OWNER"),
+            Some(&"native")
+        );
+    }
+
+    #[test]
+    fn crashed_child_is_reported_as_a_typed_streamer_failure() {
+        #[cfg(target_os = "windows")]
+        let mut child = Command::new("cmd")
+            .args(["/C", "exit", "23"])
+            .spawn()
+            .expect("crash fixture");
+        #[cfg(not(target_os = "windows"))]
+        let mut child = Command::new("sh")
+            .args(["-c", "exit 23"])
+            .spawn()
+            .expect("crash fixture");
+        child.wait().expect("crash fixture exit");
+
+        let failure = ensure_child_running(&mut child).expect_err("exited child must fail");
+        assert_eq!(failure.code, "streamer_exited");
+        assert!(failure.message.contains("23"));
+    }
+
+    #[test]
+    fn webrtc_hevc_preparation_preserves_owned_output() {
+        for color in ["8bit_420", "10bit_420"] {
+            let session = json!({"sessionId":"hevc-seat","status":3,"transportMode":"webrtc",
+                "signalingUrl":"wss://seat.partner.example/nvst/",
+                "connectionInfo":[{"usage":14,"appLevelProtocol":4,"ip":"seat.partner.example","port":443,"resourcePath":"/nvst/"}],
+                "negotiatedStreamProfile":{"codec":"H265","codecSource":"request",
+                    "colorQuality":color,"enableHdr":false,"resolution":"1920x1200","fps":60}});
+            let settings = json!({"codec":"h264","colorQuality":"8bit_420",
+                "resolution":"1280x720","fps":30,"enableHdr":true});
+            let prepared = StreamerService::new()
+                .prepare_embedded(&json!({"session":session}), &settings)
+                .unwrap();
+            let output = &prepared["context"]["settings"];
+            assert_eq!(output["codec"], "H265");
+            assert_eq!(output["colorQuality"], color);
+            assert_eq!(output["resolution"], "1920x1200");
+            assert_eq!(output["fps"], 60);
+            assert_eq!(output["enableHdr"], false);
+            assert_eq!(prepared["context"]["session"], session);
+            for available in [false, true] {
+                let capabilities = json!({"protocolVersion":7,"videoBackends":[{
+                    "backend":"videotoolbox","platform":"macos","available":true,
+                    "codecs":[{"codec":"h265","available":available,
+                        "colorQualities":["8bit_420","10bit_420"]}]}]});
+                assert_eq!(
+                    StreamerService::new()
+                        .prepare_embedded(
+                            &json!({"session":session,"runtimeCapabilities":capabilities}),
+                            &settings,
+                        )
+                        .is_ok(),
+                    available
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn alliance_webrtc_preparation_uses_owned_profile_not_current_preferences() {
+        let service = StreamerService::new();
+        let session = json!({"sessionId":"seat","status":3,"transportMode":"webrtc",
+            "signalingUrl":"wss://seat.partner.example:8443/nvst/",
+            "connectionInfo":[{"usage":14,"appLevelProtocol":4,"ip":"seat.partner.example","port":8443,"resourcePath":"/nvst/"}],
+            "negotiatedStreamProfile":{"codec":"H264","codecSource":"request","colorQuality":"8bit_420",
+                "enableHdr":false,"resolution":"1280x720","fps":30}});
+        let settings = json!({"transportMode":"nvst","allianceWebrtcCompatibility":false,
+            "codec":"av1","colorQuality":"10bit_444","enableHdr":true,
+            "microphoneMode":"open","resolution":"3840x2160","fps":240});
+        assert!(
+            service
+                .start(&json!({"session":session}), &settings)
+                .is_err()
+        );
+        let prepared = service
+            .prepare_embedded(&json!({"session":session}), &settings)
+            .unwrap();
+        let output = &prepared["context"]["settings"];
+        assert_eq!(output["transportMode"], "webrtc");
+        assert_eq!(output["codec"], "H264");
+        assert_eq!(output["colorQuality"], "8bit_420");
+        assert_eq!(output["enableHdr"], false);
+        assert_eq!(output["microphoneMode"], "disabled");
+        assert_eq!(output["resolution"], "1280x720");
+        assert_eq!(output["fps"], 30);
+        assert_eq!(prepared["context"]["session"], session);
+        for (key, value) in [
+            ("codec", json!("AV1")),
+            ("enableHdr", json!(true)),
+            ("colorQuality", json!("10bit_420")),
+        ] {
+            let mut incompatible = session.clone();
+            incompatible["negotiatedStreamProfile"][key] = value;
+            assert!(
+                service
+                    .prepare_embedded(&json!({"session":incompatible}), &settings)
+                    .is_err()
+            );
+        }
+        let mut native_endpoint = session.clone();
+        native_endpoint["reportedNativeTransport"] = json!(true);
+        assert!(
+            service
+                .prepare_embedded(&json!({"session":native_endpoint}), &settings)
+                .is_err()
+        );
+        native_endpoint["reportedNativeTransport"] = json!(false);
+        native_endpoint["connectionInfo"][0]["appLevelProtocol"] = json!(6);
+        assert!(
+            service
+                .prepare_embedded(&json!({"session":native_endpoint}), &settings)
+                .is_err()
+        );
+        native_endpoint["signalingUrl"] = json!("wss://seat.partner.example/nvst/");
+        assert!(
+            service
+                .prepare_embedded(&json!({"session":native_endpoint}), &settings)
+                .is_ok()
+        );
+    }
+
+    #[test]
+    fn closed_child_protocol_is_not_misreported_as_a_timeout() {
+        let (sender, receiver) = mpsc::channel();
+        drop(sender);
+        let state = Arc::new(Mutex::new(Snapshot::default()));
+        let failure = wait_for_child(&receiver, "hello", Duration::from_secs(1), &state)
+            .expect_err("closed protocol must fail");
+        assert_eq!(failure.code, "streamer_exited");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn streamer_service_contains_a_crashing_child_and_publishes_error_state() {
+        use std::os::unix::fs::PermissionsExt as _;
+
+        let fixture = std::env::temp_dir().join(format!(
+            "opennow-crashing-streamer-{}-{}",
+            std::process::id(),
+            random_u64()
+        ));
+        fs::write(
+            &fixture,
+            "#!/bin/sh\nread -r _line\nprintf '%s\\n' '{\"id\":\"hello\",\"type\":\"ready\",\"processId\":1,\"capabilities\":{\"protocolVersion\":7,\"supportsOwnedNvstNegotiation\":true,\"videoBackends\":[{\"available\":true,\"codecs\":[{\"codec\":\"h264\",\"available\":true}]}]}}'\nexit 23\n",
+        )
+        .expect("write crash fixture");
+        fs::set_permissions(&fixture, fs::Permissions::from_mode(0o700))
+            .expect("make crash fixture executable");
+
+        let service = StreamerService::new();
+        service
+            .start(
+                &json!({
+                    "session":{
+                        "status":2,
+                        "sessionId":"crash-fixture",
+                        "rtspsEndpoints":["rtsps://seat.nvidiagrid.net:322/session"]
+                    }
+                }),
+                &json!({
+                    "nativeStreamerExecutablePath":fixture,
+                    "transportMode":"nvst",
+                    "codec":"H264",
+                    "resolution":"1920x1080"
+                }),
+            )
+            .expect("coordinator starts asynchronously");
+
+        let deadline = Instant::now() + Duration::from_secs(2);
+        let state = loop {
+            let state = service.status();
+            if state["streamer"]["status"] == "error" || Instant::now() >= deadline {
+                break state;
+            }
+            thread::sleep(Duration::from_millis(10));
+        };
+        assert_eq!(state["streamer"]["status"], "error");
+        assert_eq!(state["streamer"]["errorCode"], "streamer_exited");
+        assert_eq!(state["streamer"]["processId"], Value::Null);
+
+        fs::remove_file(fixture).expect("remove crash fixture");
+    }
+
+    #[test]
+    fn color_descriptors_match_final_profile_validation_without_mutation() {
+        for backend in ["d3d11", "vulkan", "videotoolbox", "missing"] {
+            for codec in ["auto", "h264", "h265", "av1"] {
+                for hdr in [false, true] {
+                    for known in [false, true] {
+                        let caps = if known {
+                            json!({"protocolVersion":7,"nativeHdrSupported":true,
+                            "videoBackends":[{"backend":backend,"platform":"macos","available":true,
+                                "codecs":[{"codec":"h264","available":true,"colorQualities":["8bit_420"]},
+                                    {"codec":"h265","available":true,"hdrSupported":true,
+                                        "colorQualities":["8bit_420","8bit_444","10bit_420","10bit_444"],
+                                        "hdrColorQualities":["10bit_420","10bit_444"]},
+                                    {"codec":"av1","available":true,"hdrSupported":true,
+                                        "colorQualities":["8bit_420","10bit_420"]}]}]})
+                        } else {
+                            json!({})
+                        };
+                        let settings = json!({"codec":codec,"enableHdr":hdr,"nativeVideoBackend":backend,
+                            "colorQuality":"8bit_444"});
+                        let original = settings.clone();
+                        let choices = StreamerService::color_quality_choices(&settings, &caps);
+                        assert_eq!(choices.as_array().unwrap().len(), 4);
+                        for choice in choices.as_array().unwrap() {
+                            let mut candidate = settings.clone();
+                            candidate["colorQuality"] = choice["value"].clone();
+                            match StreamerService::embedded_session_settings(&candidate, &caps) {
+                                Err(error) => {
+                                    assert_eq!(choice["disabled"], true);
+                                    assert_eq!(choice["reason"], error.message);
+                                }
+                                Ok(resolved) => {
+                                    let delivered = resolved["colorQuality"].as_str().unwrap();
+                                    let satisfied = color_satisfies(
+                                        delivered,
+                                        choice["value"].as_str().unwrap(),
+                                    );
+                                    assert_eq!(choice["disabled"], !satisfied, "{candidate}");
+                                    assert_eq!(choice["reason"].is_null(), satisfied);
+                                }
+                            }
+                            if !known {
+                                assert_eq!(choice["disabled"], true);
+                            }
+                        }
+                        assert_eq!(settings, original);
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn codec_descriptors_disable_only_codecs_that_cannot_decode() {
+        let caps = json!({"protocolVersion":7,"nativeHdrSupported":true,
+        "videoBackends":[{"backend":"d3d11","available":true,
+            "codecs":[{"codec":"h264","available":true,"colorQualities":["8bit_420"]},
+                {"codec":"h265","available":true,"hdrSupported":true,
+                    "colorQualities":["8bit_420","8bit_444","10bit_420","10bit_444"],
+                    "hdrColorQualities":["10bit_420","10bit_444"]},
+                {"codec":"av1","available":true,"hdrSupported":true,
+                    "colorQualities":["8bit_420","10bit_420"]}]}]});
+        let mut without_av1 = caps.clone();
+        without_av1["videoBackends"][0]["codecs"][2]["available"] = json!(false);
+        for (caps, color, disabled) in [
+            (&caps, "8bit_420", vec![]),
+            (&caps, "8bit_444", vec![]),
+            (&caps, "10bit_420", vec![]),
+            (&caps, "10bit_444", vec![]),
+            (&without_av1, "8bit_420", vec!["av1"]),
+            (&without_av1, "10bit_444", vec!["av1"]),
+        ] {
+            let settings = json!({"codec":"auto","colorQuality":color,"enableHdr":true});
+            let choices = StreamerService::codec_choices(&settings, caps);
+            let choices = choices.as_array().unwrap();
+            assert_eq!(choices.len(), 4);
+            for choice in choices {
+                let mut candidate = settings.clone();
+                candidate["codec"] = choice["value"].clone();
+                candidate["colorQuality"] = json!("8bit_420");
+                candidate["enableHdr"] = json!(false);
+                let result = StreamerService::embedded_session_settings(&candidate, caps);
+                assert_eq!(choice["disabled"], result.is_err(), "{color}");
+                let value = choice["value"].as_str().unwrap();
+                assert_eq!(
+                    choice["disabled"],
+                    json!(disabled.contains(&value)),
+                    "{color}/{value}"
+                );
+            }
+            assert_eq!(settings["codec"], "auto");
+        }
+    }
+
+    #[test]
+    fn embedded_auto_selects_only_supported_codecs_and_preserves_manual_choices() {
+        let mut caps = json!({"protocolVersion":7,"videoBackends":[{
+            "backend":"d3d11","platform":"windows","available":true,"codecs":[
+                {"codec":"h264","available":true}, {"codec":"h265","available":true},
+                {"codec":"av1","available":false}]}]});
+        let settings = json!({"codec":"auto","nativeVideoBackend":"auto","colorQuality":"8bit_420",
+                "resolution":"1920x1080","fps":60});
+        let resolve = |settings: &Value, caps: &Value| {
+            StreamerService::embedded_session_settings(settings, caps)
+        };
+        assert_eq!(resolve(&settings, &caps).unwrap()["codec"], "h265");
+        assert_eq!(settings["codec"], "auto"); // never rewrite the user's persisted Auto preference
+        caps["videoBackends"][0]["codecs"][1]["available"] = json!(false);
+        assert_eq!(resolve(&settings, &caps).unwrap()["codec"], "h264");
+        assert!(resolve(&json!({"codec":"av1"}), &caps).is_err());
+        let ten_bit = resolve(&json!({"codec":"auto","colorQuality":"10bit_420"}), &caps).unwrap();
+        assert_eq!(ten_bit["codec"], "h264");
+        assert_eq!(ten_bit["colorQuality"], "8bit_420");
+        for backend in ["d3d12", "vulkan", "software"] {
+            let error = resolve(&json!({"nativeVideoBackend":backend}), &caps).unwrap_err();
+            assert_eq!(error.code, "streamer_backend_unavailable");
+        }
+        assert_eq!(
+            resolve(&json!({"codec":"h264","nativeVideoBackend":"d3d11"}), &caps).unwrap()["codec"],
+            "h264"
+        );
+        caps["videoBackends"][0]["codecs"][2]["available"] = json!(true);
+        assert_eq!(resolve(&settings, &caps).unwrap()["codec"], "av1");
+        caps["videoBackends"][0]["available"] = json!(false);
+        assert!(resolve(&settings, &caps).is_err());
+        caps["videoBackends"][0]["available"] = json!(true);
+        caps["videoBackends"][0]["backend"] = json!("ffmpeg");
+        assert!(resolve(&settings, &caps).is_err());
+        assert!(resolve(&settings, &json!({})).is_err());
+    }
+
+    #[test]
+    fn embedded_mediacodec_preflight_preserves_the_hardware_only_profile() {
+        let mut caps = json!({"protocolVersion":7,"videoBackends":[{
+            "backend":"mediacodec","platform":"linux","available":true,"codecs":[
+                {"codec":"h264","available":true,"colorQualities":["8bit_420"],"hdrSupported":false},
+                {"codec":"h265","available":false,"colorQualities":[],"hdrSupported":false},
+                {"codec":"av1","available":false,"colorQualities":[],"hdrSupported":false}
+            ]
+        }]});
+        let settings =
+            json!({"codec":"auto","colorQuality":"8bit_420","fps":60,"resolution":"1280x720"});
+        assert_eq!(
+            StreamerService::embedded_session_settings(&settings, &caps).unwrap()["codec"],
+            "h264"
+        );
+        for unsupported in [
+            json!({"codec":"h265"}),
+            json!({"codec":"av1"}),
+            json!({"codec":"h264","nativeVideoBackend":"software"}),
+        ] {
+            assert!(StreamerService::embedded_session_settings(&unsupported, &caps).is_err());
+        }
+        for degraded in [
+            json!({"codec":"h264","colorQuality":"10bit_420"}),
+            json!({"codec":"h264","colorQuality":"8bit_444"}),
+            json!({"codec":"h264","enableHdr":true}),
+        ] {
+            let resolved = StreamerService::embedded_session_settings(&degraded, &caps).unwrap();
+            assert_eq!(resolved["codec"], "h264", "{degraded}");
+            assert_eq!(resolved["colorQuality"], "8bit_420", "{degraded}");
+            assert_eq!(resolved["enableHdr"], false, "{degraded}");
+        }
+        caps["videoBackends"][0]["available"] = json!(false);
+        assert_eq!(
+            StreamerService::embedded_session_settings(&settings, &caps)
+                .unwrap_err()
+                .code,
+            "streamer_backend_unavailable"
+        );
+    }
+
+    #[test]
+    fn explicit_444_request_forces_hevc_when_hevc_444_is_decodable() {
+        for profiles in [
+            None,
+            Some(json!(["8bit_420", "10bit_420", "8bit_444", "10bit_444"])),
+        ] {
+            let mut caps = json!({"protocolVersion":7,"videoBackends":[{
+                "backend":"d3d11","platform":"windows","available":true,"codecs":[
+                    {"codec":"h264","available":true},
+                    {"codec":"h265","available":true},
+                    {"codec":"av1","available":true}
+                ]
+            }]});
+            if let Some(profiles) = profiles {
+                for codec in caps["videoBackends"][0]["codecs"].as_array_mut().unwrap() {
+                    codec["colorQualities"] = profiles.clone();
+                }
+            }
+            for codec in ["auto", "h264", "h265", "av1"] {
+                for color in ["8bit_444", "10bit_444"] {
+                    let settings = json!({"codec":codec,"colorQuality":color});
+                    let (resolved, fallbacks) =
+                        StreamerService::resolve_embedded_session(&settings, &caps).unwrap();
+                    assert_eq!(resolved["codec"], "h265", "{settings}");
+                    assert_eq!(resolved["colorQuality"], color, "{settings}");
+                    assert_eq!(settings["codec"], codec);
+                    assert_eq!(
+                        fallbacks.len(),
+                        usize::from(matches!(codec, "h264" | "av1"))
+                    );
+                }
+            }
+            let resolved = StreamerService::embedded_session_settings(
+                &json!({"codec":"h264","colorQuality":"10bit_420"}),
+                &caps,
+            )
+            .unwrap();
+            assert_eq!(resolved["codec"], "h264");
+            assert_eq!(resolved["colorQuality"], "8bit_420");
+        }
+    }
+
+    #[test]
+    fn hdr_preserves_requested_chroma_only_when_hevc_hdr_444_is_decodable() {
+        let capabilities = json!({"protocolVersion":7,"nativeHdrSupported":true,"videoBackends":[{
+            "backend":"d3d11","platform":"windows","available":true,"codecs":[
+                {"codec":"h265","available":true,"hdrSupported":true,
+                    "colorQualities":["8bit_420","10bit_420","8bit_444","10bit_444"],
+                    "hdrColorQualities":["10bit_420","10bit_444"]},
+                {"codec":"av1","available":true,"hdrSupported":true,
+                    "colorQualities":["8bit_420","10bit_420"]}
+            ]
+        }]});
+        let assert_profile = |settings: &Value, caps: &Value, color: &str, hdr: bool| {
+            let resolved = StreamerService::embedded_session_settings(settings, caps).unwrap();
+            assert_eq!(
+                resolved["codec"],
+                if settings["codec"] == "auto" && color == "10bit_420" && hdr {
+                    "av1"
+                } else {
+                    "h265"
+                },
+                "{settings} {caps}"
+            );
+            assert_eq!(resolved["colorQuality"], color, "{settings} {caps}");
+            assert_eq!(resolved["enableHdr"], hdr, "{settings} {caps}");
+        };
+        for codec in ["auto", "h265", "hevc", "av1"] {
+            for color in ["8bit_444", "10bit_444"] {
+                let settings = json!({"codec":codec,"colorQuality":color,"enableHdr":true});
+                assert_profile(&settings, &capabilities, "10bit_444", true);
+                assert_eq!(settings["colorQuality"], color);
+                for qualities in [
+                    Value::Null,
+                    json!([]),
+                    json!(["10bit_420"]),
+                    json!("10bit_444"),
+                ] {
+                    let mut sdr_only = capabilities.clone();
+                    sdr_only["videoBackends"][0]["codecs"][0]["hdrColorQualities"] = qualities;
+                    assert_profile(&settings, &sdr_only, color, false);
+                }
+                let mut sdr_only = capabilities.clone();
+                sdr_only["videoBackends"][0]["codecs"][0]
+                    .as_object_mut()
+                    .unwrap()
+                    .remove("hdrColorQualities");
+                assert_profile(&settings, &sdr_only, color, false);
+                sdr_only = capabilities.clone();
+                sdr_only["videoBackends"][0]["codecs"][0]["hdrSupported"] = json!(false);
+                assert_profile(&settings, &sdr_only, color, false);
+                let mut no_444 = capabilities.clone();
+                no_444["videoBackends"][0]["codecs"][0]["colorQualities"] =
+                    json!(["8bit_420", "10bit_420"]);
+                if codec != "av1" {
+                    assert_profile(&settings, &no_444, "10bit_420", true);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn invalid_accepted_color_never_falls_back_to_local_preferences() {
+        let service = StreamerService::new();
+        for source in ["request", "finalized", "server"] {
+            let params = json!({"session":{"sessionId":"seat","status":2,
+                "negotiatedStreamProfile":{"codec":"H265", "colorQuality":null,
+                    "bitDepthSource":source, "chromaFormat":1}}});
+            let error = service
+                .prepare_embedded(
+                    &params,
+                    &json!({"codec":"h265", "colorQuality":"10bit_444"}),
+                )
+                .unwrap_err();
+            assert!(error.message.contains("color profile"));
+        }
+    }
+
+    #[test]
+    fn hdr_444_attachment_preserves_accepted_profile_and_rechecks_capabilities() {
+        let capabilities = json!({"protocolVersion":7,"nativeHdrSupported":true,"videoBackends":[{
+            "backend":"d3d11","platform":"windows","available":true,"codecs":[
+                {"codec":"h265","available":true,"hdrSupported":true,
+                    "colorQualities":["10bit_420","10bit_444"],"hdrColorQualities":["10bit_420","10bit_444"]}
+            ]
+        }]});
+        let settings = json!({"codec":"h264","colorQuality":"8bit_420","enableHdr":false});
+        let service = StreamerService::new();
+        for status in [2, 3] {
+            let params = json!({"session":{"sessionId":"hdr-444","status":status,
+                "negotiatedStreamProfile":{"codec":"H265","colorQuality":"10bit_444","enableHdr":true}},
+                "runtimeCapabilities":capabilities});
+            let prepared = service.prepare_embedded(&params, &settings).unwrap();
+            assert_eq!(prepared["context"]["settings"]["codec"], "H265");
+            assert_eq!(prepared["context"]["settings"]["colorQuality"], "10bit_444");
+            assert_eq!(prepared["context"]["settings"]["enableHdr"], true);
+            assert_eq!(prepared["context"]["settings"]["nativeHdrSupported"], true);
+            for color in ["8bit_420", "8bit_444", "10bit_422"] {
+                let mut unsupported = params.clone();
+                unsupported["session"]["negotiatedStreamProfile"]["colorQuality"] = json!(color);
+                assert!(service.prepare_embedded(&unsupported, &settings).is_err());
+            }
+            let mut unavailable = params.clone();
+            unavailable["runtimeCapabilities"]["videoBackends"][0]["codecs"][0]["colorQualities"] =
+                json!(["10bit_420"]);
+            assert!(service.prepare_embedded(&unavailable, &settings).is_err());
+            unavailable = params.clone();
+            unavailable["runtimeCapabilities"]["videoBackends"][0]["codecs"][0]["hdrColorQualities"] =
+                json!(["10bit_420"]);
+            assert!(service.prepare_embedded(&unavailable, &settings).is_err());
+            unavailable = params.clone();
+            unavailable["runtimeCapabilities"]["nativeHdrSupported"] = json!(false);
+            assert!(service.prepare_embedded(&unavailable, &settings).is_err());
+            unavailable["runtimeCapabilities"] = Value::Null;
+            assert!(service.prepare_embedded(&unavailable, &settings).is_err());
+        }
+    }
+
+    #[test]
+    fn explicit_hdr_profiles_gate_hdr_without_affecting_sdr() {
+        let mut capabilities = json!({"protocolVersion":7,"nativeHdrSupported":true,"videoBackends":[{
+            "backend":"d3d11","available":true,"codecs":[
+                {"codec":"h265","available":true,"hdrSupported":true,
+                    "colorQualities":["8bit_420","10bit_420"],"hdrColorQualities":["10bit_420"]}
+            ]
+        }]});
+        let hdr = json!({"codec":"h265","enableHdr":true});
+        assert!(StreamerService::embedded_session_settings(&hdr, &capabilities).is_ok());
+        for profiles in [
+            Value::Null,
+            json!([]),
+            json!(["10bit_444"]),
+            json!("10bit_420"),
+        ] {
+            capabilities["videoBackends"][0]["codecs"][0]["hdrColorQualities"] = profiles;
+            let resolved = StreamerService::embedded_session_settings(&hdr, &capabilities).unwrap();
+            assert_eq!(resolved["codec"], "h265");
+            assert_eq!(resolved["enableHdr"], false);
+            assert_eq!(resolved["colorQuality"], "8bit_420");
+            let sdr = json!({"codec":"h265","enableHdr":false,"colorQuality":"10bit_420"});
+            assert!(StreamerService::embedded_session_settings(&sdr, &capabilities).is_ok());
+        }
+    }
+
+    #[test]
+    fn hdr_requires_explicit_output_and_ten_bit_hardware_support() {
+        let capabilities = json!({"protocolVersion":7,"nativeHdrSupported":true,"videoBackends":[{
+            "backend":"d3d11","platform":"windows","available":true,"codecs":[
+                {"codec":"h264","available":true,"colorQualities":["8bit_420"]},
+                {"codec":"h265","available":true,"colorQualities":["8bit_420","10bit_420"]},
+                {"codec":"av1","available":true,"colorQualities":["8bit_420","10bit_420"]}
+            ]
+        }]});
+        let settings = json!({"codec":"auto","colorQuality":"8bit_420","enableHdr":true,
+            "resolution":"1920x1080","fps":60});
+        let resolved =
+            StreamerService::embedded_session_settings(&settings, &capabilities).unwrap();
+        assert_eq!(resolved["codec"], "h265");
+        assert_eq!(resolved["colorQuality"], "10bit_420");
+        assert_eq!(resolved["nativeHdrSupported"], true);
+        assert_eq!(settings["colorQuality"], "8bit_420");
+        let assert_sdr = |settings: &Value, caps: &Value, codec: &str| {
+            let (resolved, fallbacks) =
+                StreamerService::resolve_embedded_session(settings, caps).unwrap();
+            assert_eq!(resolved["codec"], codec, "{settings}");
+            assert_eq!(resolved["colorQuality"], "8bit_420", "{settings}");
+            assert_eq!(resolved["enableHdr"], false, "{settings}");
+            assert_eq!(resolved["fps"], 60, "{settings}");
+            assert_eq!(fallbacks.len(), 1, "{fallbacks:?}");
+        };
+        for capability in [Value::Null, json!(false), json!("true")] {
+            let mut unavailable = capabilities.clone();
+            unavailable["nativeHdrSupported"] = capability;
+            assert_sdr(&settings, &unavailable, "av1");
+        }
+        let mut eight_bit = capabilities.clone();
+        for codec in eight_bit["videoBackends"][0]["codecs"]
+            .as_array_mut()
+            .unwrap()
+        {
+            codec["colorQualities"] = json!(["8bit_420"]);
+        }
+        assert_sdr(&settings, &eight_bit, "av1");
+        for profile in [Value::Null, json!([])] {
+            let mut unavailable = capabilities.clone();
+            for codec in unavailable["videoBackends"][0]["codecs"]
+                .as_array_mut()
+                .unwrap()
+            {
+                codec["colorQualities"] = profile.clone();
+            }
+            assert_eq!(
+                StreamerService::embedded_session_settings(&settings, &unavailable)
+                    .unwrap_err()
+                    .code,
+                "streamer_codec_unavailable"
+            );
+        }
+        let mut h264 = settings.clone();
+        h264["codec"] = json!("h264");
+        assert_sdr(&h264, &capabilities, "h264");
+        for (key, value) in [
+            ("nativeVideoBackend", "software"),
+            ("decoderPreference", "software"),
+        ] {
+            let mut unsupported = settings.clone();
+            unsupported[key] = json!(value);
+            assert_eq!(
+                StreamerService::embedded_session_settings(&unsupported, &capabilities)
+                    .unwrap_err()
+                    .code,
+                "streamer_backend_unavailable"
+            );
+        }
+        let mut sdr = settings.clone();
+        sdr["enableHdr"] = json!(false);
+        let resolved = StreamerService::embedded_session_settings(&sdr, &capabilities).unwrap();
+        assert_eq!(resolved["codec"], "av1");
+        assert_eq!(resolved["colorQuality"], "8bit_420");
+    }
+
+    #[test]
+    fn windows_hdr_capability_gates_hdr_without_changing_unknown_sdr_profiles() {
+        let mut capabilities = json!({"protocolVersion":7,"nativeHdrSupported":true,"videoBackends":[{
+            "backend":"d3d11","platform":"windows","available":true,"codecs":[
+                {"codec":"h265","available":true,"hdrSupported":true}
+            ]
+        }]});
+        let hdr = json!({"codec":"auto","enableHdr":true});
+        let resolved = StreamerService::embedded_session_settings(&hdr, &capabilities).unwrap();
+        assert_eq!(resolved["codec"], "h265");
+        assert_eq!(resolved["colorQuality"], "10bit_420");
+        for supported in [json!(false), Value::Null, json!("true")] {
+            capabilities["videoBackends"][0]["codecs"][0]["hdrSupported"] = supported;
+            let resolved = StreamerService::embedded_session_settings(&hdr, &capabilities).unwrap();
+            assert_eq!(resolved["codec"], "h265");
+            assert_eq!(resolved["enableHdr"], false);
+            assert_eq!(resolved["colorQuality"], "8bit_420");
+            let sdr = json!({"codec":"h265","colorQuality":"10bit_444","enableHdr":false});
+            let resolved = StreamerService::embedded_session_settings(&sdr, &capabilities).unwrap();
+            assert_eq!(resolved["colorQuality"], "10bit_444");
+        }
+        capabilities["videoBackends"][0]["codecs"][0]["hdrSupported"] = json!(false);
+        capabilities["videoBackends"][0]["codecs"][0]["colorQualities"] = json!(["10bit_420"]);
+        assert_eq!(
+            StreamerService::embedded_session_settings(&hdr, &capabilities)
+                .unwrap_err()
+                .code,
+            "streamer_codec_unavailable"
+        );
+        capabilities["videoBackends"][0]["codecs"][0]["hdrSupported"] = json!(true);
+        capabilities["videoBackends"][0]["codecs"][0]["colorQualities"] = json!([]);
+        assert_eq!(
+            StreamerService::embedded_session_settings(&hdr, &capabilities)
+                .unwrap_err()
+                .code,
+            "streamer_codec_unavailable"
+        );
+    }
+
+    #[test]
+    fn hdr_resume_uses_accepted_profile_and_rechecks_current_output() {
+        let capabilities = json!({"protocolVersion":7,"nativeHdrSupported":true,"videoBackends":[{
+            "backend":"d3d11","available":true,"codecs":[
+                {"codec":"h265","available":true,"colorQualities":["8bit_420","10bit_420"]}
+            ]
+        }]});
+        let mut params = json!({"session":{"sessionId":"hdr-resume","status":2,
+            "negotiatedStreamProfile":{"codec":"H265","colorQuality":"10bit_420","enableHdr":true}},
+            "runtimeCapabilities":capabilities});
+        let service = StreamerService::new();
+        let settings = json!({"codec":"h264","colorQuality":"8bit_420","enableHdr":false});
+        let prepared = service.prepare_embedded(&params, &settings).unwrap();
+        assert_eq!(prepared["context"]["settings"]["enableHdr"], true);
+        assert_eq!(prepared["context"]["settings"]["colorQuality"], "10bit_420");
+        assert_eq!(prepared["context"]["settings"]["nativeHdrSupported"], true);
+        params["runtimeCapabilities"]["nativeHdrSupported"] = json!(false);
+        assert!(service.prepare_embedded(&params, &settings).is_err());
+        params["runtimeCapabilities"] = Value::Null;
+        assert!(service.prepare_embedded(&params, &settings).is_err());
+        params["session"]["negotiatedStreamProfile"]["enableHdr"] = json!(false);
+        let stale_hdr = json!({"enableHdr":true,"nativeHdrSupported":true});
+        let prepared = service.prepare_embedded(&params, &stale_hdr).unwrap();
+        assert_eq!(prepared["context"]["settings"]["enableHdr"], false);
+        assert_eq!(prepared["context"]["settings"]["nativeHdrSupported"], false);
+    }
+
+    #[test]
+    fn embedded_macos_auto_prefers_av1_then_hevc_independently_of_bitrate() {
+        let caps = json!({"protocolVersion":STREAMER_PROTOCOL_VERSION,"videoBackends":[{
+            "backend":"videotoolbox","platform":"macos","available":true,"codecs":[
+                {"codec":"h264","available":true,"colorQualities":["8bit_420"]}, {"codec":"h265","available":true,"colorQualities":["8bit_420","10bit_420"]},
+                {"codec":"av1","available":true,"colorQualities":["8bit_420","10bit_420"]}]}]});
+        for (resolution, fps, bitrate, color, expected) in [
+            ("1920x1080", 60, 75, "8bit_420", "av1"),
+            ("1920x1080", 60, 50, "8bit_420", "av1"),
+            ("2560x1440", 60, 80, "8bit_420", "av1"),
+            ("1920x1080", 60, 30, "8bit_420", "av1"),
+            ("1920x1080", 60, 31, "8bit_420", "av1"),
+            ("3840x2160", 120, 80, "8bit_420", "av1"),
+            ("3840x2160", 144, 20, "8bit_420", "h265"),
+            ("1920x1080", 240, 75, "8bit_420", "h265"),
+            ("1920x1080", 60, 20, "10bit_420", "av1"),
+            ("1920x1080", 144, 75, "10bit_420", "h265"),
+        ] {
+            let settings = json!({"codec":"auto", "resolution":resolution,
+                "fps":fps, "maxBitrateMbps":bitrate, "colorQuality":color,
+                "transportMode":"nvst"});
+            let resolved = StreamerService::embedded_session_settings(&settings, &caps).unwrap();
+            assert_eq!(resolved["codec"], expected, "{settings}");
+            assert_eq!(resolved["colorQuality"], color);
+            assert_eq!(resolved["transportMode"], "nvst");
+            assert_eq!(settings["codec"], "auto");
+        }
+        assert_eq!(
+            StreamerService::embedded_session_settings(&json!({"codec":"auto"}), &caps).unwrap()["codec"],
+            "av1"
+        );
+    }
+
+    #[test]
+    fn embedded_auto_av1_requires_supported_fps_and_resolution() {
+        for (platform, resolution, fps, expected) in [
+            ("windows", "1920x1080", Some(60), "av1"),
+            ("windows", "5120x2880", Some(120), "av1"),
+            ("windows", "5120x2880", Some(121), "av1"),
+            ("windows", "5120x2881", Some(120), "h265"),
+            ("windows", "7680x4320", Some(60), "h265"),
+            ("windows", "1920x1080", None, "av1"),
+            ("windows", "1920x1080", Some(0), "av1"),
+            ("windows", "invalid", Some(60), "h265"),
+            ("windows", "0x1080", Some(60), "h265"),
+            ("windows", "18446744073709551615x2", Some(60), "h265"),
+            ("macos", "1920x1080", Some(60), "av1"),
+            ("linux", "1920x1080", Some(60), "av1"),
+            ("steamos", "1920x1080", Some(60), "av1"),
+            ("", "1920x1080", Some(60), "av1"),
+            ("unknown", "1920x1080", Some(60), "av1"),
+        ] {
+            let backend = match platform {
+                "macos" => "videotoolbox",
+                "linux" | "steamos" => "vulkan",
+                _ => "d3d11",
+            };
+            let caps = json!({"protocolVersion":STREAMER_PROTOCOL_VERSION,
+                "videoBackends":[{"backend":backend,"platform":platform,"available":true,
+                    "codecs":[{"codec":"h264","available":true},
+                        {"codec":"h265","available":true},
+                        {"codec":"av1","available":true}]}]});
+            let settings = json!({"codec":"auto","colorQuality":"8bit_420",
+                "resolution":resolution,"fps":fps,"maxBitrateMbps":20});
+            assert_eq!(
+                StreamerService::embedded_session_settings(&settings, &caps).unwrap()["codec"],
+                expected,
+                "{platform} {settings}"
+            );
+            let mut without_resolution = settings.clone();
+            without_resolution
+                .as_object_mut()
+                .unwrap()
+                .remove("resolution");
+            assert_eq!(
+                StreamerService::embedded_session_settings(&without_resolution, &caps).unwrap()["codec"],
+                "av1",
+                "{platform} missing resolution"
+            );
+        }
+    }
+
+    #[test]
+    fn embedded_auto_av1_hdr_needs_probed_support_without_restricting_explicit_choice() {
+        let mut caps = json!({"protocolVersion":STREAMER_PROTOCOL_VERSION,
+            "nativeHdrSupported":true,"videoBackends":[{
+                "backend":"d3d11","platform":"windows","available":true,"codecs":[
+                    {"codec":"h265","available":false,"hdrSupported":true,
+                        "colorQualities":["10bit_420"],"hdrColorQualities":["10bit_420"]},
+                    {"codec":"av1","available":true,"hdrSupported":true,
+                        "colorQualities":["10bit_420"],"hdrColorQualities":["10bit_420"]}]}]});
+        let settings = json!({"codec":"auto","enableHdr":true,"resolution":"3840x2160","fps":120});
+        assert_eq!(
+            StreamerService::embedded_session_settings(&settings, &caps).unwrap()["codec"],
+            "av1"
+        );
+        for (platform, fps, hdr_supported) in [("windows", 144, Some(true)), ("windows", 120, None)]
+        {
+            caps["videoBackends"][0]["platform"] = json!(platform);
+            caps["videoBackends"][0]["codecs"][1]["hdrSupported"] = json!(hdr_supported);
+            let mut candidate = settings.clone();
+            candidate["fps"] = json!(fps);
+            assert_eq!(
+                StreamerService::embedded_session_settings(&candidate, &caps)
+                    .unwrap_err()
+                    .code,
+                "streamer_codec_unavailable",
+                "{platform} {candidate}"
+            );
+        }
+        caps["videoBackends"][0]["platform"] = json!("linux");
+        caps["videoBackends"][0]["codecs"][1]["hdrSupported"] = json!(true);
+        let explicit = json!({"codec":"av1","enableHdr":true,"resolution":"3840x2160","fps":144});
+        assert_eq!(
+            StreamerService::embedded_session_settings(&explicit, &caps).unwrap()["codec"],
+            "av1"
+        );
+    }
+
+    #[test]
+    fn unavailable_embedded_backends_distinguish_auto_from_explicit_selection() {
+        let capabilities = json!({"protocolVersion":STREAMER_PROTOCOL_VERSION,"videoBackends":[
+            {"backend":"v4l2", "available":false, "reason":"HEVC topology probe failed: errno 13 (Permission denied) token=private-value"},
+            {"backend":"cuda", "available":false, "reason":"CUDA unavailable"},
+            {"backend":"software", "available":true, "reason":"unused software reason"}
+        ]});
+        for selection in ["auto", "v4l2", "nvdec"] {
+            let error = StreamerService::embedded_session_settings(
+                &json!({"nativeVideoBackend":selection}),
+                &capabilities,
+            )
+            .unwrap_err();
+            assert_eq!(error.code, "streamer_backend_unavailable");
+            assert_eq!(error.message.contains("Select Auto"), selection != "auto");
+            assert_eq!(
+                error
+                    .message
+                    .contains("HEVC topology probe failed: errno 13 (Permission denied)"),
+                selection == "v4l2"
+            );
+            assert_eq!(
+                error.message.contains("CUDA unavailable"),
+                selection == "nvdec"
+            );
+            assert!(!error.message.contains("private-value"));
+            assert!(!error.message.contains("unused software reason"));
+        }
+        let error =
+            StreamerService::embedded_session_settings(&json!({}), &capabilities).unwrap_err();
+        assert!(error.message.starts_with("No hardware video backend"));
+        let mut oversized = capabilities.clone();
+        oversized["videoBackends"][0]["reason"] = json!("failure ".repeat(10000));
+        let concise =
+            StreamerService::embedded_session_settings(&json!({}), &oversized).unwrap_err();
+        assert_eq!(concise.message, error.message);
+        assert!(concise.message.len() < 200);
+        let error = StreamerService::embedded_session_settings(
+            &json!({}),
+            &json!({"protocolVersion":STREAMER_PROTOCOL_VERSION,"videoBackends":[]}),
+        )
+        .unwrap_err();
+        assert!(!error.message.contains("Select Auto"));
+    }
+
+    #[test]
+    fn hybrid_gpu_failure_names_the_adapter_that_can_decode() {
+        let capabilities = json!({"protocolVersion":STREAMER_PROTOCOL_VERSION,"videoBackends":[
+            {"backend":"d3d11","available":false,"reason":"Direct3D hardware decode or presentation is unavailable"}
+        ], "graphicsAdapters":[
+            {"name":"NVIDIA GeForce MX110","active":true,"codecs":[],"h265Main10":false,
+                "reason":"no supported hardware decoder profile"},
+            {"name":"Intel(R) HD Graphics 620","active":false,"codecs":["h264","h265","private-codec"],
+                "h265Main10":true},
+            {"name":"Bearer secret-token","active":false,"codecs":["h264"]}
+        ]});
+        let error = StreamerService::embedded_session_settings(
+            &json!({"nativeVideoBackend":"auto"}),
+            &capabilities,
+        )
+        .unwrap_err();
+        assert_eq!(error.code, "streamer_backend_unavailable");
+        assert!(
+            error
+                .message
+                .starts_with("No hardware video backend is available on NVIDIA GeForce MX110.")
+        );
+        assert!(
+            error
+                .message
+                .contains("Intel(R) HD Graphics 620 (H.264, H.265)")
+        );
+        assert!(error.message.contains("Graphics processor"));
+        assert!(!error.message.contains("private-codec"));
+        assert!(!error.message.contains("secret-token"));
+        assert!(!error.message.contains("Select Software"));
+        assert!(error.message.len() <= 480);
+
+        let explicit = StreamerService::embedded_session_settings(
+            &json!({"nativeVideoBackend":"d3d11"}),
+            &capabilities,
+        )
+        .unwrap_err();
+        assert!(explicit.message.contains("Select Auto"));
+        assert!(
+            explicit
+                .message
+                .contains("Intel(R) HD Graphics 620 (H.264, H.265)")
+        );
+        assert!(!explicit.message.contains("secret-token"));
+
+        let only_failed = json!({"protocolVersion":STREAMER_PROTOCOL_VERSION,"videoBackends":[
+            {"backend":"d3d11","available":false}
+        ], "graphicsAdapters":[
+            {"name":"NVIDIA GeForce MX110","active":true,"codecs":[]}
+        ]});
+        let unchanged =
+            StreamerService::embedded_session_settings(&json!({}), &only_failed).unwrap_err();
+        assert!(unchanged.message.contains("Check the hardware drivers"));
+        assert!(!unchanged.message.contains("Graphics processor"));
+    }
+
+    #[test]
+    fn embedded_software_resolution_honors_the_explicit_cpu_policy() {
+        let software_caps = json!({"protocolVersion":STREAMER_PROTOCOL_VERSION,"videoBackends":[
+            {"backend":"vulkan", "platform":"linux", "available":true, "codecs":[
+                {"codec":"h264", "available":true, "colorQualities":["8bit_420"]},
+                {"codec":"h265", "available":true, "colorQualities":["8bit_420"]}]},
+            {"backend":"ffmpeg", "platform":"linux", "available":true, "codecs":[
+                {"codec":"h264", "available":true, "colorQualities":["8bit_420"]}]}
+        ]});
+        for settings in [
+            json!({"nativeVideoBackend":"software", "codec":"h264"}),
+            json!({"nativeVideoBackend":"ffmpeg", "codec":"h264"}),
+            json!({"decoderPreference":"software", "codec":"h264"}),
+        ] {
+            let resolved =
+                StreamerService::embedded_session_settings(&settings, &software_caps).unwrap();
+            assert_eq!(resolved["codec"], "h264", "{settings}");
+        }
+        let error = StreamerService::embedded_session_settings(
+            &json!({"nativeVideoBackend":"software", "codec":"h265"}),
+            &software_caps,
+        )
+        .unwrap_err();
+        assert_eq!(error.code, "streamer_codec_unavailable");
+        assert!(
+            !error.message.contains("hardware"),
+            "software requests must not borrow hardware codecs: {}",
+            error.message
+        );
+        let mut hdr_capable = software_caps.clone();
+        hdr_capable["nativeHdrSupported"] = json!(true);
+        for color in ["10bit_420", "8bit_444", "10bit_444"] {
+            for hdr in [false, true] {
+                let settings = json!({"nativeVideoBackend":"software", "colorQuality":color,
+                    "enableHdr":hdr});
+                let (resolved, fallbacks) =
+                    StreamerService::resolve_embedded_session(&settings, &hdr_capable).unwrap();
+                assert_eq!(resolved["codec"], "h264", "{settings}");
+                assert_eq!(resolved["colorQuality"], "8bit_420", "{settings}");
+                assert_eq!(resolved["enableHdr"], false, "{settings}");
+                assert_eq!(fallbacks.len(), 1, "{fallbacks:?}");
+                assert!(fallbacks[0].contains("software decoding presents 8-bit 4:2:0 SDR only"));
+            }
+        }
+        let hardware_only = json!({"protocolVersion":STREAMER_PROTOCOL_VERSION,"videoBackends":[
+            {"backend":"vulkan", "platform":"linux", "available":true, "codecs":[
+                {"codec":"h264", "available":true, "colorQualities":["8bit_420"]}]}
+        ]});
+        let error = StreamerService::embedded_session_settings(
+            &json!({"nativeVideoBackend":"software"}),
+            &hardware_only,
+        )
+        .unwrap_err();
+        assert!(
+            error
+                .message
+                .contains("FFmpeg software decoder is unavailable"),
+            "{}",
+            error.message
+        );
+        let resolved = StreamerService::embedded_session_settings(
+            &json!({"nativeVideoBackend":"auto", "codec":"auto"}),
+            &software_caps,
+        )
+        .unwrap();
+        assert_eq!(resolved["codec"], "h265");
+    }
+
+    #[test]
+    fn embedded_software_av1_unavailable_falls_back_only_for_auto() {
+        let mut capabilities = json!({"protocolVersion":STREAMER_PROTOCOL_VERSION,"videoBackends":[
+            {"backend":"ffmpeg", "platform":"linux", "available":true, "codecs":[
+                {"codec":"h264", "available":true, "colorQualities":["8bit_420"]},
+                {"codec":"h265", "available":true, "colorQualities":["8bit_420"]},
+                {"codec":"av1", "available":false, "colorQualities":["8bit_420"]}]}
+        ]});
+        let settings = json!({"nativeVideoBackend":"software", "codec":"auto"});
+        let resolved =
+            StreamerService::embedded_session_settings(&settings, &capabilities).unwrap();
+        assert_eq!(resolved["codec"], "h265");
+        assert_eq!(settings["codec"], "auto");
+        capabilities["videoBackends"][0]["codecs"][1]["available"] = json!(false);
+        let resolved =
+            StreamerService::embedded_session_settings(&settings, &capabilities).unwrap();
+        assert_eq!(resolved["codec"], "h264");
+        let error = StreamerService::embedded_session_settings(
+            &json!({"nativeVideoBackend":"software", "codec":"av1"}),
+            &capabilities,
+        )
+        .unwrap_err();
+        assert_eq!(error.code, "streamer_codec_unavailable");
+    }
+
+    #[test]
+    fn embedded_macos_codec_policy_never_falls_back_to_unsupported_hardware() {
+        let mut caps = json!({"protocolVersion":STREAMER_PROTOCOL_VERSION,"videoBackends":[{
+            "backend":"videotoolbox","platform":"macos","available":true,"codecs":[
+                {"codec":"h264","available":true,"colorQualities":["8bit_420"]}, {"codec":"h265","available":true,"colorQualities":["8bit_420","10bit_420"]},
+                {"codec":"av1","available":false}]},
+            {"backend":"software","available":true,"codecs":[
+                {"codec":"av1","available":true,"colorQualities":["8bit_420","10bit_420"]}]}]});
+        let settings = json!({"codec":"auto", "maxBitrateMbps":20});
+        assert_eq!(
+            StreamerService::embedded_session_settings(&settings, &caps).unwrap()["codec"],
+            "h265"
+        );
+        assert_eq!(
+            StreamerService::embedded_session_settings(
+                &json!({"codec":"auto", "maxBitrateMbps":20, "resolution":"3840x2160", "fps":60}),
+                &caps
+            )
+            .unwrap()["codec"],
+            "h265"
+        );
+        assert_eq!(
+            StreamerService::embedded_session_settings(&json!({"codec":"av1"}), &caps)
+                .unwrap_err()
+                .code,
+            "streamer_codec_unavailable"
+        );
+        assert_eq!(
+            StreamerService::embedded_session_settings(&json!({"codec":"h264"}), &caps).unwrap()["codec"],
+            "h264"
+        );
+        caps["videoBackends"][0]["codecs"][1]["available"] = json!(false);
+        assert_eq!(
+            StreamerService::embedded_session_settings(&settings, &caps).unwrap()["codec"],
+            "h264"
+        );
+        for color in ["10bit_420", "8bit_444", "10bit_444"] {
+            for codec in ["auto", "h264"] {
+                let resolved = StreamerService::embedded_session_settings(
+                    &json!({"codec":codec,"colorQuality":color}),
+                    &caps,
+                )
+                .unwrap();
+                assert_eq!(resolved["codec"], "h264");
+                assert_eq!(resolved["colorQuality"], "8bit_420");
+            }
+            let error = StreamerService::embedded_session_settings(
+                &json!({"codec":"h265","colorQuality":color}),
+                &caps,
+            )
+            .unwrap_err();
+            assert_eq!(error.code, "streamer_codec_unavailable");
+            assert!(error.message.contains("H265 is unavailable"));
+        }
+        caps["videoBackends"][0]["available"] = json!(false);
+        assert_eq!(
+            StreamerService::embedded_session_settings(&settings, &caps)
+                .unwrap_err()
+                .code,
+            "streamer_backend_unavailable"
+        );
+    }
+
+    #[test]
+    fn embedded_macos_444_without_probed_hevc_444_falls_back_to_420_keeping_depth() {
+        let mut caps = json!({"protocolVersion":7,"videoBackends":[{
+            "backend":"videotoolbox","platform":"macos","available":true,
+            "codecs":[{"codec":"h265","available":true,"colorQualities":["8bit_420","10bit_420","10bit_444"]}]
+        }]});
+        for codec in ["auto", "h265"] {
+            let settings = json!({"codec":codec,"colorQuality":"10bit_444"});
+            let resolved = StreamerService::embedded_session_settings(&settings, &caps).unwrap();
+            assert_eq!(resolved["codec"], "h265");
+            assert_eq!(resolved["colorQuality"], "10bit_444");
+        }
+        let assert_fallback = |settings: Value, caps: &Value, color: &str| {
+            let (resolved, fallbacks) =
+                StreamerService::resolve_embedded_session(&settings, caps).unwrap();
+            assert_eq!(resolved["codec"], "h265", "{settings}");
+            assert_eq!(resolved["colorQuality"], color, "{settings}");
+            assert_eq!(fallbacks.len(), 1, "{fallbacks:?}");
+            assert!(
+                fallbacks[0].contains("cannot decode H.265"),
+                "{fallbacks:?}"
+            );
+        };
+        assert_fallback(
+            json!({"codec":"auto","colorQuality":"8bit_444"}),
+            &caps,
+            "8bit_420",
+        );
+        caps["videoBackends"][0]["codecs"][0]["colorQualities"] = json!(["8bit_420", "10bit_420"]);
+        for codec in ["auto", "h265"] {
+            assert_fallback(
+                json!({"codec":codec,"colorQuality":"10bit_444"}),
+                &caps,
+                "10bit_420",
+            );
+        }
+    }
+
+    #[test]
+    fn auto_hdr_without_hdr_decode_streams_sdr_and_caps_h264_at_120_fps() {
+        let mut caps = json!({"protocolVersion":7,"nativeHdrSupported":true,"videoBackends":[{
+            "backend":"d3d11","platform":"windows","available":true,"codecs":[
+                {"codec":"h264","available":true,"colorQualities":["8bit_420"]},
+                {"codec":"h265","available":true,"hdrSupported":false,
+                    "colorQualities":["8bit_420","10bit_420"]},
+                {"codec":"av1","available":false}
+            ]
+        }]});
+        let settings = json!({"codec":"auto","enableHdr":true,"colorQuality":"10bit_420",
+            "resolution":"1920x1080","fps":240});
+        let (resolved, fallbacks) =
+            StreamerService::resolve_embedded_session(&settings, &caps).unwrap();
+        assert_eq!(resolved["codec"], "h265");
+        assert_eq!(resolved["enableHdr"], false);
+        assert_eq!(resolved["colorQuality"], "10bit_420");
+        assert_eq!(resolved["fps"], 240);
+        assert_eq!(fallbacks.len(), 1, "{fallbacks:?}");
+        assert!(fallbacks[0].contains("Ignoring the HDR request"));
+
+        caps["videoBackends"][0]["codecs"][1]["available"] = json!(false);
+        let (resolved, fallbacks) =
+            StreamerService::resolve_embedded_session(&settings, &caps).unwrap();
+        assert_eq!(resolved["codec"], "h264");
+        assert_eq!(resolved["enableHdr"], false);
+        assert_eq!(resolved["colorQuality"], "8bit_420");
+        assert_eq!(resolved["fps"], 120);
+        assert_eq!(settings["fps"], 240);
+        assert_eq!(fallbacks.len(), 3, "{fallbacks:?}");
+        assert!(fallbacks[2].contains("Capping the frame rate at 120 FPS"));
+
+        let explicit = json!({"codec":"h264","enableHdr":true,"fps":240});
+        let (resolved, fallbacks) =
+            StreamerService::resolve_embedded_session(&explicit, &caps).unwrap();
+        assert_eq!(resolved["codec"], "h264");
+        assert_eq!(resolved["enableHdr"], false);
+        assert_eq!(resolved["colorQuality"], "8bit_420");
+        assert_eq!(resolved["fps"], 120);
+        assert_eq!(fallbacks.len(), 2);
+        assert!(fallbacks[0].contains("Ignoring the HDR request"));
+        assert!(fallbacks[1].contains("Capping the frame rate at 120 FPS"));
+
+        let sdr = json!({"codec":"auto","enableHdr":false,"fps":240});
+        assert_eq!(
+            StreamerService::embedded_session_settings(&sdr, &caps).unwrap()["fps"],
+            120
+        );
+    }
+
+    #[test]
+    fn embedded_resolution_fallbacks_match_the_qt_supported_mode_catalog() {
+        let qml = include_str!("../../../opennow-qt/qml/state/settings/SettingsState.qml");
+        let modes = qml
+            .split_once("function resolutionItems()")
+            .unwrap()
+            .1
+            .split_once("const items = []")
+            .unwrap()
+            .0;
+        let expression = regex::Regex::new(r#""([0-9]+)x([0-9]+)""#).unwrap();
+        let choices = expression
+            .captures_iter(modes)
+            .map(|capture| {
+                (
+                    capture[1].parse::<u64>().unwrap(),
+                    capture[2].parse::<u64>().unwrap(),
+                )
+            })
+            .collect::<std::collections::BTreeSet<_>>();
+        assert_eq!(
+            EMBEDDED_RESOLUTIONS
+                .into_iter()
+                .collect::<std::collections::BTreeSet<_>>(),
+            choices
+        );
+    }
+
+    #[test]
+    fn embedded_codec_caps_and_decode_dimensions_are_session_local() {
+        let mut caps = json!({"protocolVersion":7,"videoBackends":[{
+            "backend":"d3d11","platform":"windows","available":true,"codecs":[
+                {"codec":"h264","available":true,"colorQualities":["8bit_420"]},
+                {"codec":"av1","available":true,"colorQualities":["8bit_420"]},
+                {"codec":"h265","available":true,"colorQualities":["8bit_420"],
+                    "maxDecodeDimensions":{"width":4096,"height":2304}}
+            ]
+        }]});
+        for (codec, resolution, fps, expected_resolution, expected_fps) in [
+            ("h264", "3440x1440", 120, "2560x1080", 120),
+            ("h264", "1920x1080", 240, "1920x1080", 120),
+            ("h264", "3840x2160", 360, "2560x1440", 120),
+            ("h264", "5120x1440", 165, "3840x1080", 120),
+            ("h264", "2560x1600", 90, "2560x1600", 90),
+            ("av1", "1920x1080", 240, "1920x1080", 120),
+            ("av1", "1920x1080", 360, "1920x1080", 120),
+            ("h265", "5120x2880", 165, "3840x2160", 165),
+            ("h265", "5120x2160", 165, "2560x1080", 165),
+            ("h265", "5120x1440", 165, "3840x1080", 165),
+            ("h265", "3840x2400", 165, "2560x1600", 165),
+            ("h265", "4096x2304", 165, "4096x2304", 165),
+        ] {
+            let settings = json!({"codec":codec,"resolution":resolution,"fps":fps});
+            let saved = settings.clone();
+            let (resolved, fallbacks) =
+                StreamerService::resolve_embedded_session(&settings, &caps).unwrap();
+            assert_eq!(resolved["resolution"], expected_resolution, "{settings}");
+            assert_eq!(resolved["fps"], expected_fps, "{settings}");
+            assert_eq!(settings, saved);
+            assert_eq!(
+                fallbacks.is_empty(),
+                resolution == expected_resolution && fps == expected_fps
+            );
+        }
+        caps["videoBackends"][0]["codecs"][1]["available"] = json!(false);
+        caps["videoBackends"][0]["codecs"][2]["available"] = json!(false);
+        let (resolved, fallbacks) = StreamerService::resolve_embedded_session(
+            &json!({"codec":"auto","resolution":"3440x1440","fps":240}),
+            &caps,
+        )
+        .unwrap();
+        assert_eq!(resolved["codec"], "h264");
+        assert_eq!(resolved["resolution"], "2560x1080");
+        assert_eq!(resolved["fps"], 120);
+        assert_eq!(fallbacks.len(), 2);
+    }
+
+    #[test]
+    fn embedded_dimension_preflight_rejects_invalid_limits_and_oversized_resumes() {
+        let mut caps = json!({"protocolVersion":7,"videoBackends":[{
+            "backend":"d3d11","available":true,"codecs":[{"codec":"h265","available":true,
+                "maxDecodeDimensions":{"width":4096,"height":2304}}]
+        }]});
+        let error = StreamerService::new().prepare_embedded(
+            &json!({"runtimeCapabilities":caps,"session":{"status":2,"sessionId":"resize",
+                "negotiatedStreamProfile":{"codec":"H265","resolution":"5120x2880","fps":60,"colorQuality":"8bit_420","enableHdr":false}}}),
+            &json!({"codec":"h265","resolution":"1920x1080","fps":60})
+        ).unwrap_err();
+        assert_eq!(error.code, "streamer_mode_unavailable");
+        for limit in [
+            json!({"width":0,"height":2304}),
+            json!({"width":4096}),
+            json!(null),
+        ] {
+            caps["videoBackends"][0]["codecs"][0]["maxDecodeDimensions"] = limit;
+            assert!(
+                StreamerService::embedded_session_settings(&json!({"codec":"h265"}), &caps)
+                    .is_err()
+            );
+        }
+        caps["videoBackends"][0]["codecs"][0]["maxDecodeDimensions"] =
+            json!({"width":640,"height":480});
+        assert_eq!(
+            StreamerService::embedded_session_settings(
+                &json!({"codec":"h265","resolution":"5120x2880"}),
+                &caps
+            )
+            .unwrap_err()
+            .code,
+            "streamer_mode_unavailable"
+        );
+    }
+
+    #[test]
+    fn embedded_auto_uses_the_same_priority_for_sdr_and_hdr() {
+        for platform in ["windows", "macos", "linux"] {
+            let mut caps = json!({"protocolVersion":7,"nativeHdrSupported":true,"videoBackends":[{
+                "backend":"hardware","platform":platform,"available":true,"codecs":[
+                    {"codec":"h264","available":true,"colorQualities":["8bit_420"]},
+                    {"codec":"h265","available":true,"hdrSupported":true,"colorQualities":["8bit_420","10bit_420"],"hdrColorQualities":["10bit_420"]},
+                    {"codec":"av1","available":true,"hdrSupported":true,"colorQualities":["8bit_420","10bit_420"],"hdrColorQualities":["10bit_420"]}
+                ]
+            }]});
+            for hdr in [false, true] {
+                let settings =
+                    json!({"codec":"auto","enableHdr":hdr,"fps":120,"resolution":"1920x1080"});
+                assert_eq!(
+                    StreamerService::embedded_session_settings(&settings, &caps).unwrap()["codec"],
+                    "av1"
+                );
+            }
+            caps["videoBackends"][0]["codecs"][2]["available"] = json!(false);
+            assert_eq!(
+                StreamerService::embedded_session_settings(
+                    &json!({"codec":"auto","enableHdr":true,"fps":120}),
+                    &caps
+                )
+                .unwrap()["codec"],
+                "h265"
+            );
+        }
+    }
+
+    #[test]
+    fn explicit_undecodable_codec_errors_unless_444_forces_hevc() {
+        let caps = json!({"protocolVersion":7,"videoBackends":[{
+            "backend":"d3d11","platform":"windows","available":true,"codecs":[
+                {"codec":"h264","available":true,"colorQualities":["8bit_420"]},
+                {"codec":"h265","available":true,"colorQualities":["8bit_420","10bit_420","10bit_444"]},
+                {"codec":"av1","available":false,"reason":"AV1 decode is unavailable"}
+            ]
+        }]});
+        for (color, hdr) in [
+            ("8bit_420", false),
+            ("10bit_420", false),
+            ("8bit_444", false),
+            ("8bit_420", true),
+        ] {
+            let error = StreamerService::embedded_session_settings(
+                &json!({"codec":"av1","colorQuality":color,"enableHdr":hdr}),
+                &caps,
+            )
+            .unwrap_err();
+            assert_eq!(error.code, "streamer_codec_unavailable", "{color}");
+            assert!(
+                error
+                    .message
+                    .contains("AV1 is unavailable: AV1 decode is unavailable")
+            );
+        }
+        let resolved = StreamerService::embedded_session_settings(
+            &json!({"codec":"av1","colorQuality":"10bit_444"}),
+            &caps,
+        )
+        .unwrap();
+        assert_eq!(resolved["codec"], "h265");
+        assert_eq!(resolved["colorQuality"], "10bit_444");
+        let choices = StreamerService::codec_choices(&json!({"colorQuality":"10bit_444"}), &caps);
+        let disabled = choices
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|choice| choice["disabled"] == true)
+            .map(|choice| choice["value"].as_str().unwrap())
+            .collect::<Vec<_>>();
+        assert_eq!(disabled, ["av1"]);
+    }
+
+    #[test]
+    fn color_choices_disable_profiles_that_fall_back_and_name_the_delivered_profile() {
+        let caps = json!({"protocolVersion":7,"videoBackends":[{
+            "backend":"videotoolbox","platform":"macos","available":true,"codecs":[
+                {"codec":"h264","available":true,"colorQualities":["8bit_420"]},
+                {"codec":"h265","available":true,"colorQualities":["8bit_420","10bit_420"]}
+            ]
+        }]});
+        for (codec, enabled) in [
+            ("auto", vec!["8bit_420", "10bit_420"]),
+            ("h264", vec!["8bit_420"]),
+        ] {
+            let choices = StreamerService::color_quality_choices(&json!({"codec":codec}), &caps);
+            for choice in choices.as_array().unwrap() {
+                let value = choice["value"].as_str().unwrap();
+                assert_eq!(
+                    choice["disabled"],
+                    !enabled.contains(&value),
+                    "{codec}/{value}"
+                );
+                if choice["disabled"] == true {
+                    assert!(choice["reason"].as_str().unwrap().contains("falls back to"));
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn prepare_adopts_the_resolved_color_when_the_session_omits_one() {
+        let service = StreamerService::new();
+        let params = json!({"session":{"sessionId":"seat","status":2,
+        "negotiatedStreamProfile":{"codec":null,"codecSource":"unreported"}},
+        "runtimeCapabilities":{"protocolVersion":7,"videoBackends":[{
+            "backend":"videotoolbox","platform":"macos","available":true,"codecs":[
+                {"codec":"h264","available":true,"colorQualities":["8bit_420"]},
+                {"codec":"h265","available":true,"colorQualities":["8bit_420","10bit_420"]}
+            ]}]}});
+        let prepared = service
+            .prepare_embedded(&params, &json!({"codec":"auto","colorQuality":"10bit_444"}))
+            .unwrap();
+        assert_eq!(prepared["context"]["settings"]["codec"], "H265");
+        assert_eq!(prepared["context"]["settings"]["colorQuality"], "10bit_420");
+    }
+
+    #[test]
+    fn embedded_macos_prepare_checks_negotiated_color_before_attachment() {
+        let service = StreamerService::new();
+        for color in ["8bit_444", "10bit_444"] {
+            let result = service.prepare_embedded(
+                &json!({"session": {
+                    "sessionId":"resume", "status":2,
+                    "negotiatedStreamProfile":{"codec":"H265", "colorQuality":color}
+                }, "runtimeCapabilities":{"protocolVersion":STREAMER_PROTOCOL_VERSION,"videoBackends":[{
+                    "backend":"videotoolbox","platform":"macos","available":true,
+                    "codecs":[{"codec":"h265","available":true,"colorQualities":["8bit_420","10bit_420"]}]}]}}),
+                &json!({"codec":"auto", "colorQuality":"8bit_420"}),
+            );
+            assert_eq!(result.unwrap_err().code, "streamer_color_unavailable");
+        }
+        let prepared = service.prepare_embedded(
+            &json!({"session": {
+                "sessionId":"resume-ten-bit", "status":2,
+                "negotiatedStreamProfile":{"codec":"H265", "colorQuality":"10bit_420"}
+            }, "runtimeCapabilities":{"protocolVersion":STREAMER_PROTOCOL_VERSION,"videoBackends":[{
+                "backend":"videotoolbox","platform":"macos","available":true,
+                "codecs":[{"codec":"h265","available":true,"colorQualities":["8bit_420","10bit_420"]}]}]}}),
+            &json!({"codec":"auto", "colorQuality":"8bit_420"}),
+        ).unwrap();
+        assert_eq!(prepared["context"]["settings"]["colorQuality"], "10bit_420");
+    }
+
+    #[test]
+    fn embedded_prepare_resolves_auto_for_an_unreported_codec() {
+        let service = StreamerService::new();
+        let capabilities = json!({"protocolVersion":7,"nativeHdrSupported":true,"videoBackends":[{
+            "backend":"d3d11","available":true,"codecs":[
+                {"codec":"h264","available":true,"colorQualities":["8bit_420"]},
+                {"codec":"h265","available":true,"hdrSupported":true,
+                    "colorQualities":["8bit_420","10bit_420","10bit_444"],
+                    "hdrColorQualities":["10bit_420","10bit_444"]},
+                {"codec":"av1","available":false}
+            ]
+        }]});
+        for color in ["10bit_420", "10bit_444", "8bit_420"] {
+            for hdr in [false, true] {
+                if hdr && color == "8bit_420" {
+                    continue;
+                }
+                for codec in [json!("auto"), Value::Null] {
+                    let params = json!({"session":{"sessionId":"auto-attach","status":2,
+                        "negotiatedStreamProfile":{"codec":null,"codecSource":"unreported",
+                            "colorQuality":color,"enableHdr":hdr}},
+                        "runtimeCapabilities":capabilities});
+                    let settings =
+                        json!({"codec":codec,"colorQuality":"8bit_420","enableHdr":false});
+                    let prepared = service.prepare_embedded(&params, &settings).unwrap();
+                    assert_eq!(prepared["context"]["settings"]["codec"], "H265");
+                    assert_eq!(prepared["context"]["settings"]["colorQuality"], color);
+                    assert_eq!(prepared["context"]["settings"]["enableHdr"], hdr);
+                    assert_eq!(prepared["context"]["settings"]["nativeHdrSupported"], true);
+                    assert_eq!(prepared["context"]["session"], params["session"]);
+                    assert_eq!(settings["codec"], codec);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn embedded_prepare_does_not_replace_an_explicit_codec() {
+        let service = StreamerService::new();
+        let params = json!({"session":{"sessionId":"explicit-attach","status":2,
+        "negotiatedStreamProfile":{"codec":null,"codecSource":"unreported",
+            "colorQuality":"10bit_420","enableHdr":false}},
+        "runtimeCapabilities":{"protocolVersion":7,"videoBackends":[{
+            "backend":"d3d11","available":true,"codecs":[
+                {"codec":"h264","available":true,"colorQualities":["8bit_420"]},
+                {"codec":"h265","available":true,"colorQualities":["10bit_420"]}
+            ]
+        }]}});
+        let error = service
+            .prepare_embedded(&params, &json!({"codec":"h264"}))
+            .unwrap_err();
+        assert_eq!(error.code, "streamer_color_unavailable");
+        assert!(error.message.contains("accepted 10bit_420 stream profile"));
+    }
+
+    #[test]
+    fn embedded_prepare_rejects_an_incompatible_resumed_session() {
+        let service = StreamerService::new();
+        let result = service.prepare_embedded(
+            &json!({"session": {
+            "sessionId":"resume", "status":2, "negotiatedStreamProfile":{"codec":"AV1"}
+        }, "runtimeCapabilities":{"protocolVersion":7,"videoBackends":[{
+            "backend":"d3d11","available":true,"codecs":[{"codec":"h264","available":true}]}]}}),
+            &json!({"codec":"auto"}),
+        );
+        assert_eq!(result.unwrap_err().code, "streamer_codec_unavailable");
+    }
+
+    #[test]
+    fn embedded_color_profiles_gate_auto_and_manual_before_allocation() {
+        let mut capabilities = json!({"protocolVersion":7,"videoBackends":[{
+            "backend":"vulkan", "platform":"linux", "available":true, "codecs":[
+                {"codec":"h264","available":true,"colorQualities":["8bit_420"]},
+                {"codec":"h265","available":true,"colorQualities":["8bit_420"]},
+                {"codec":"av1","available":true,"colorQualities":["8bit_420"]}
+            ]
+        }]});
+        for (codec, expected) in [("auto", "av1"), ("h265", "h265"), ("av1", "av1")] {
+            let settings =
+                json!({"codec":codec,"nativeVideoBackend":"auto","colorQuality":"10bit_420"});
+            let (resolved, fallbacks) =
+                StreamerService::resolve_embedded_session(&settings, &capabilities).unwrap();
+            assert_eq!(resolved["codec"], expected);
+            assert_eq!(resolved["colorQuality"], "8bit_420");
+            assert_eq!(resolved["enableHdr"], false);
+            assert_eq!(fallbacks.len(), 1);
+            assert!(fallbacks[0].contains("Falling back to 8-bit 4:2:0 BT.709"));
+        }
+        capabilities["videoBackends"][0]["codecs"][1]["colorQualities"] =
+            json!(["8bit_420", "10bit_420"]);
+        let settings =
+            json!({"codec":"auto","nativeVideoBackend":"auto","colorQuality":"10bit_420"});
+        let resolved =
+            StreamerService::embedded_session_settings(&settings, &capabilities).unwrap();
+        assert_eq!(resolved["codec"], "h265");
+        assert_eq!(resolved["colorQuality"], "10bit_420");
+        assert_eq!(settings["codec"], "auto");
+        for (color, expected) in [("8bit_444", "8bit_420"), ("10bit_444", "10bit_420")] {
+            for codec in ["auto", "h265"] {
+                let settings = json!({"codec":codec,"colorQuality":color});
+                let resolved =
+                    StreamerService::embedded_session_settings(&settings, &capabilities).unwrap();
+                assert_eq!(
+                    resolved["codec"],
+                    if codec == "auto" && color == "8bit_444" {
+                        "av1"
+                    } else {
+                        "h265"
+                    }
+                );
+                assert_eq!(resolved["colorQuality"], expected);
+            }
+        }
+        let settings =
+            json!({"codec":"h265","nativeVideoBackend":"vulkan","colorQuality":"10bit_420"});
+        assert!(StreamerService::embedded_session_settings(&settings, &capabilities).is_ok());
+        capabilities["videoBackends"][0]["codecs"][1]["available"] = json!(false);
+        assert!(StreamerService::embedded_session_settings(&settings, &capabilities).is_err());
+    }
+
+    #[test]
+    fn embedded_linux_advanced_color_requires_explicit_well_formed_profiles() {
+        for backend in ["vulkan", "cuda"] {
+            for profiles in [
+                None,
+                Some(Value::Null),
+                Some(json!([])),
+                Some(json!("10bit_420")),
+            ] {
+                let mut capabilities = json!({"protocolVersion":7,"videoBackends":[{
+                    "backend":backend,"platform":"linux","available":true,
+                    "codecs":[{"codec":"h265","available":true}]
+                }]});
+                let reported = profiles.is_some();
+                if let Some(profiles) = profiles {
+                    capabilities["videoBackends"][0]["codecs"][0]["colorQualities"] = profiles;
+                }
+                for color in ["10bit_420", "8bit_444", "10bit_444"] {
+                    let settings = json!({"codec":"h265","colorQuality":color});
+                    let result =
+                        StreamerService::embedded_session_settings(&settings, &capabilities);
+                    if !reported {
+                        assert_eq!(result.unwrap()["colorQuality"], "8bit_420");
+                    } else {
+                        assert_eq!(result.unwrap_err().code, "streamer_codec_unavailable");
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn embedded_color_profiles_cannot_be_borrowed_from_another_backend() {
+        let capabilities = json!({"protocolVersion":7,"videoBackends":[
+            {"backend":"vulkan","platform":"linux","available":true,
+                "codecs":[{"codec":"h265","available":true,"colorQualities":["8bit_420"]}]},
+            {"backend":"other","available":true,
+                "codecs":[{"codec":"h265","available":true,"colorQualities":["10bit_420"]}]}
+        ]});
+        let settings =
+            json!({"codec":"h265","nativeVideoBackend":"vulkan","colorQuality":"10bit_420"});
+        let resolved =
+            StreamerService::embedded_session_settings(&settings, &capabilities).unwrap();
+        assert_eq!(resolved["codec"], "h265");
+        assert_eq!(resolved["colorQuality"], "8bit_420");
+    }
+
+    #[test]
+    fn codec_capabilities_require_an_available_backend_and_codec() {
+        let capabilities = json!({
+            "protocolVersion":7,
+            "videoBackends":[
+                {"backend":"hardware","available":true,"codecs":[
+                    {"codec":"h264","available":true},
+                    {"codec":"h265","available":false,"reason":"not installed"}
+                ]},
+                {"backend":"software","available":false,"codecs":[
+                    {"codec":"av1","available":true}
+                ]}
+            ]
+        });
+        assert_eq!(available_codecs(&capabilities), vec!["h264"]);
+        assert!(ensure_codec_available(&capabilities, "h264").is_ok());
+        let hevc = ensure_codec_available(&capabilities, "h265").expect_err("HEVC must fail");
+        assert_eq!(hevc.code, "streamer_codec_unavailable");
+        assert!(hevc.message.contains("not installed"));
+        assert!(ensure_codec_available(&capabilities, "av1").is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn detect_performs_a_protocol_handshake_and_reports_real_codecs() {
+        use std::os::unix::fs::PermissionsExt as _;
+
+        let fixture = std::env::temp_dir().join(format!(
+            "opennow-capability-streamer-{}-{}",
+            std::process::id(),
+            random_u64()
+        ));
+        fs::write(
+            &fixture,
+            "#!/bin/sh\nread -r _hello\nprintf '%s\\n' '{\"id\":\"hello\",\"type\":\"ready\",\"processId\":1,\"capabilities\":{\"protocolVersion\":7,\"supportsOwnedNvstNegotiation\":true,\"videoBackends\":[{\"backend\":\"software\",\"available\":true,\"codecs\":[{\"codec\":\"h264\",\"available\":true},{\"codec\":\"av1\",\"available\":false,\"reason\":\"not built\"}]}]}}'\nread -r _shutdown\nprintf '%s\\n' '{\"id\":\"shutdown\",\"type\":\"ok\"}'\n",
+        )
+        .expect("write capability fixture");
+        fs::set_permissions(&fixture, fs::Permissions::from_mode(0o700))
+            .expect("make capability fixture executable");
+
+        let service = StreamerService::new();
+        let detected = service
+            .detect(&json!({"nativeStreamerExecutablePath":fixture}))
+            .expect("capability probe");
+        assert_eq!(detected["protocolVersion"], 7);
+        assert_eq!(detected["availableCodecs"], json!(["h264"]));
+        assert_eq!(
+            detected["capabilities"]["videoBackends"][0]["backend"],
+            "software"
+        );
+
+        fs::remove_file(fixture).expect("remove capability fixture");
+    }
+
+    #[test]
+    fn context_resolves_auto_to_concrete_h264() {
+        let context = streamer_context(
+            json!({"sessionId":"one","status":2,"signalingUrl":"wss://server.nvidiagrid.net/nvst/"}),
+            &json!({"codec":"auto","transportMode":"webrtc","resolution":"1920x1080"}),
+        );
+        assert_eq!(context["settings"]["codec"], "H264");
+        assert_eq!(context["settings"]["transportMode"], "nvst");
+        assert_eq!(context_resolution(&context), (1920, 1080));
+    }
+
+    #[test]
+    fn embedded_prepare_returns_nvst_context_without_a_native_surface() {
+        let service = StreamerService::new();
+        let prepared = service
+            .prepare_embedded(
+                &json!({
+                    "session": {
+                        "sessionId": "session-one",
+                        "status": 2,
+                        "signalingUrl": "wss://server.nvidiagrid.net/nvst/",
+                        "negotiatedStreamProfile": {
+                            "codec": "H264",
+                            "dynamicStreamingMode": 1
+                        }
+                    }
+                }),
+                &json!({
+                    "codec":"auto",
+                    "transportMode":"webrtc",
+                    "resolution":"1920x1080",
+                    "maxBitrateMbps":200
+                }),
+            )
+            .expect("embedded context");
+
+        assert_eq!(prepared["protocolVersion"], STREAMER_PROTOCOL_VERSION);
+        assert_eq!(prepared["context"]["session"]["sessionId"], "session-one");
+        assert_eq!(prepared["context"]["settings"]["codec"], "H264");
+        assert_eq!(prepared["context"]["settings"]["transportMode"], "nvst");
+        assert_eq!(prepared["context"]["settings"]["maxBitrateMbps"], 200);
+        assert_eq!(
+            prepared["context"]["session"]["negotiatedStreamProfile"]["dynamicStreamingMode"],
+            1
+        );
+        assert_eq!(prepared["context"]["surface"], Value::Null);
+        assert!(service.worker.lock().expect("streamer worker").is_none());
+    }
+
+    #[test]
+    fn embedded_prepare_preserves_replay_opt_in_and_capture_bindings() {
+        for enabled in [false, true] {
+            for (recording, clip) in [("F12", "Alt+F9"), ("", "")] {
+                let service = StreamerService::new();
+                let prepared = service
+                    .prepare_embedded(
+                        &json!({"session": {"sessionId": "replay-test", "status": 2}}),
+                        &json!({"codec": "h264", "replayBufferEnabled": enabled,
+                        "replayBufferSeconds": 60, "replayBufferMemoryMiB": 128,
+                        "shortcutToggleRecording": recording, "shortcutSaveClip": clip}),
+                    )
+                    .unwrap();
+                assert_eq!(
+                    prepared["context"]["settings"]["replayBufferEnabled"],
+                    enabled
+                );
+                assert_eq!(prepared["context"]["settings"]["replayBufferSeconds"], 60);
+                assert_eq!(
+                    prepared["context"]["settings"]["replayBufferMemoryMiB"],
+                    128
+                );
+                assert_eq!(
+                    prepared["context"]["shortcuts"]["toggleRecording"],
+                    recording
+                );
+                assert_eq!(prepared["context"]["shortcuts"]["saveClip"], clip);
+            }
+        }
+    }
+
+    #[test]
+    fn embedded_prepare_preserves_selected_audio_output() {
+        for device in [
+            "",
+            "pipewire:alsa_output.usb-headphones",
+            "coreaudio:BuiltInSpeakerDevice",
+            "USB Headphones",
+        ] {
+            let service = StreamerService::new();
+            let prepared = service
+                .prepare_embedded(
+                    &json!({"session": {"sessionId": "audio-test", "status": 2}}),
+                    &json!({"codec": "h264", "audioOutputDevice": device}),
+                )
+                .unwrap();
+            assert_eq!(prepared["context"]["settings"]["audioOutputDevice"], device);
+        }
+    }
+
+    #[test]
+    fn microphone_child_state_is_exposed_without_losing_the_message() {
+        let state = Arc::new(Mutex::new(Snapshot::default()));
+        apply_microphone_state(
+            &json!({
+                "type":"microphone-state",
+                "state":"ready",
+                "enabled":true,
+                "message":"Microphone is streaming"
+            }),
+            &state,
+        );
+
+        let value = state.lock().expect("snapshot").value();
+        assert_eq!(value["streamer"]["microphoneState"], "ready");
+        assert_eq!(value["streamer"]["microphoneEnabled"], true);
+        assert_eq!(
+            value["streamer"]["microphoneMessage"],
+            "Microphone is streaming"
+        );
+    }
+
+    #[test]
+    fn native_shell_shortcuts_are_forwarded_to_qt_and_counted_once() {
+        let state = Arc::new(Mutex::new(Snapshot::default()));
+        handle_nvst_child_event(
+            &json!({"type":"shortcut-action","action":"toggle-stats"}),
+            &state,
+        )
+        .expect("supported shortcut action");
+        let value = state.lock().expect("snapshot").value();
+        assert_eq!(value["streamer"]["shortcutAction"], "toggle-stats");
+        assert_eq!(value["streamer"]["shortcutActionGeneration"], 1);
+        assert_eq!(value["streamer"]["statsToggleCount"], 1);
+
+        handle_nvst_child_event(
+            &json!({"type":"shortcut-action","action":"toggle-fullscreen"}),
+            &state,
+        )
+        .expect("supported fullscreen shortcut action");
+        let value = state.lock().expect("snapshot").value();
+        assert_eq!(value["streamer"]["shortcutAction"], "toggle-fullscreen");
+        assert_eq!(value["streamer"]["shortcutActionGeneration"], 2);
+        assert_eq!(value["streamer"]["fullscreenToggleCount"], 1);
+
+        let failure = handle_nvst_child_event(
+            &json!({"type":"shortcut-action","action":"launch-command"}),
+            &state,
+        )
+        .expect_err("unsupported shortcut action must fail closed");
+        assert_eq!(failure.code, "streamer_protocol_error");
+        assert_eq!(
+            state.lock().expect("snapshot").shortcut_action_generation,
+            2
+        );
+    }
+
+    #[test]
+    fn structured_child_events_accumulate_redacted_acceptance_evidence() {
+        let state = Arc::new(Mutex::new(Snapshot {
+            started_at: Instant::now().checked_sub(Duration::from_millis(25)),
+            ..Snapshot::default()
+        }));
+        for event in [
+            json!({"type":"input-ready","protocolVersion":1}),
+            json!({"type":"log","event":"backend-fallback","fromBackend":"hardware","toBackend":"software"}),
+            json!({"type":"log","event":"queue-dropped","media":"video","count":3}),
+            json!({"type":"log","event":"device-state","subsystem":"video","recovered":false}),
+            json!({"type":"log","event":"device-state","subsystem":"video","recovered":true}),
+            json!({"type":"status","event":"first-frame","backend":"ffmpeg","status":"streaming"}),
+            json!({"type":"telemetry","framesPerSecond":59.8,"bitrateMbps":42.5,"peakBitrateMbps":51.0}),
+        ] {
+            apply_child_telemetry(&event, &state);
+        }
+
+        let value = state.lock().expect("snapshot").acceptance_value();
+        assert_eq!(value["kind"], "opennow.stream.acceptance");
+        assert_eq!(value["mediaBackend"], "ffmpeg");
+        assert!(value["firstFrameLatencyMs"].as_u64().unwrap_or_default() >= 25);
+        assert_eq!(value["backendFallbackCount"], 1);
+        assert_eq!(value["queueDropCount"], 3);
+        assert_eq!(value["deviceLossCount"], 1);
+        assert_eq!(value["deviceRecoveryCount"], 1);
+        assert_eq!(value["inputReady"], true);
+        assert_eq!(value["framesPerSecond"], 59.8);
+        assert_eq!(value["bitrateMbps"], 42.5);
+        assert_eq!(value["peakBitrateMbps"], 51.0);
+        assert!(value.get("sessionId").is_none());
+        assert!(value.get("executable").is_none());
+        assert!(value.get("processId").is_none());
+    }
+
+    #[test]
+    fn dynamic_surface_preserves_embedding_handle_and_normalizes_geometry() {
+        let surface = normalize_surface(
+            Some(&json!({
+                "rect":{"x":32,"y":64,"width":1600,"height":900},
+                "screenRect":{"x":-120,"y":48,"width":1600,"height":900},
+                "visible":true,
+                "deviceScaleFactor":1.5,
+                "windowHandle":"0x1234"
+            })),
+            (1280, 720),
+        )
+        .unwrap();
+        assert_eq!(
+            surface["rect"],
+            json!({"x":32,"y":64,"width":1600,"height":900})
+        );
+        assert_eq!(surface["screenRect"]["x"], -120);
+        assert_eq!(surface["deviceScaleFactor"], 1.5);
+        assert_eq!(surface["windowHandle"], "0x1234");
+        assert!(
+            normalize_surface(
+                Some(&json!({"screenRect":{"width":32,"height":900}})),
+                (1280, 720)
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn nvst_context_preserves_explicit_transport() {
+        let context = streamer_context(
+            json!({"sessionId":"one","status":2,"rtspsEndpoints":["rtsps://203.0.113.20:322/session"]}),
+            &json!({"codec":"H264","transportMode":"nvst","resolution":"1920x1080"}),
+        );
+        assert_eq!(context["settings"]["transportMode"], "nvst");
+    }
+}

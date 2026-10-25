@@ -1,0 +1,69 @@
+# Qt native streamer lifecycle events
+
+ABI version 13 delivers these events through the generic JSON event callback
+without a new C ABI layout.
+The native streamer owns wire parsing and termination classification. Qt does not
+infer resumability from a wire code or reason.
+
+## Session timers
+
+```json
+{"type":"session-timer","startId":"start-42","timerType":4,"secondsLeft":60,"active":true}
+```
+
+`timerType` is 4 or 5, `secondsLeft` is an unsigned 32-bit integer, and `active`
+is a boolean. `NativeStreamRuntime` validates these fields and emits
+`sessionTimerReceived(quint8, quint32, bool)` on the Qt thread. Malformed timer
+events do not reach QML. `startId` must match the current start-command generation.
+Timer events from a replaced or stopped session, or a previous runtime instance,
+are discarded.
+
+`ShellStore.acceptSessionTimer` owns warning state for the current stream. Type 4
+with `active:true` starts a display-only countdown from the server-provided seconds.
+The countdown clamps at zero and never clears the warning or ends the session.
+Type 4 with `active:false` clears the warning after the transport confirms successful input. Type 5 clears
+the warning. Qt neither clears on local input submission nor ends a session when
+a timer arrives. Session end, replacement, native restart, and terminal native
+status also clear the warning.
+
+Both desktop and console compose `StreamIdleWarning` above the same
+`StreamVideoItem`. It has no input handlers, focus requests, or overlay route, so
+it does not pause gameplay input or recreate the session. A refreshed server timer
+resets the display-only countdown.
+
+## Server termination
+
+Terminal error and status events can include this object:
+
+```json
+{"source":"nvst-server","code":"server-terminated","startId":"start-42","wireCode":2147680291,"reason":56,"extendedCode":2147680263,"resumable":false}
+```
+
+`reason` and `extendedCode` can be null. `resumable` can be true, false, or null.
+The native streamer retains the numeric values through the existing JSON callback.
+Qt rejects server termination events whose `startId` does not match the current
+start-command generation, before invalidating input or presentation. The matching
+error and stopped pair can both arrive after presentation has been invalidated.
+Qt treats `nvst-server` with `code:"server-terminated"` and `resumable:false` as an
+authoritative session end, cancels pending recovery, and never auto-resumes that
+session. It retains the server message in `lastError` and the accessibility
+announcement, and the full termination object in the streamer snapshot.
+True or unknown classification follows the existing bounded
+CloudMatch reconciliation path. Existing authoritative CloudMatch status 7 and
+HTTP 404 handling remains unchanged.
+
+The evidence baseline is `reports/opennow-gfn-parity/audio-input-lifecycle.md`,
+rows L3 through L5, and Windows `transport-feedback.md`, section 8. Offline Qt
+callback, orchestration, and smoke tests cover delivery and passive composition;
+they do not connect to GFN or execute GFN binaries.
+
+## Text retry feedback
+
+`text-input-error` carries the current `startId` and a fixed `reason`, with no
+paste contents. C++ rejects stale generations before forwarding it through the
+existing `eventReceived` signal. ShellStore announces localized retry feedback,
+without changing streamer state, input ownership, error telemetry, or incidents.
+Desktop and console display it for five seconds in the existing passive input
+notice, including when the Guide is closed. The normal stream video item and
+gameplay focus remain unchanged. Temporary SCTP deferral queues one bounded paste
+behind older input; only rejected local paste admission needs this notice.
