@@ -56,6 +56,9 @@ object GameStorage {
         }
     }
 
+    private fun onUsb(context: Context, dir: File): Boolean =
+        dir.startsWith(UsbRootMount.path(context)) || hiddenUsb(context).any { dir.startsWith(it) }
+
     /** The USB drive by whichever route is on; the first one only. */
     fun usbDrive(context: Context): File? =
         if (SessionPrefs.usbRootEnabled(context)) UsbRootMount.path(context).takeIf { UsbRootMount.mounted(context) }
@@ -87,6 +90,8 @@ object GameStorage {
         return when {
             pref == SessionPrefs.GAME_STORAGE_OFF -> null
             pref.isEmpty() -> options(context).firstOrNull()?.let { Option(it.name, it.path) }
+            // The USB drive is a library of its own: a folder on it would be listed twice, or written to the bare mount point.
+            onUsb(context, File(pref)) -> null
             else -> Option(SessionPrefs.gameStorageLabel(context), pref)
         }
     }

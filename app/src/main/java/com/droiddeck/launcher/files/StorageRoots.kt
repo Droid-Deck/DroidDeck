@@ -14,7 +14,7 @@ data class StorageRoot(
     val dir: File,
     val removable: Boolean,
     val readable: Boolean,
-    val usb: Boolean = false,
+    val usb: Boolean,
 )
 
 object StorageRoots {

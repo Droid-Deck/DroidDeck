@@ -405,7 +405,8 @@ class FrontEndActivity : ComponentActivity() {
     private var storageDiagnostics by mutableStateOf(false)
     private var storageOptions by mutableStateOf<List<GameStorage.Option>>(emptyList())
     private var usb by mutableStateOf(UsbUi())
-    private val usbRootListener: () -> Unit = { usbAction { null } }
+    // A plug-in, pull-out or start-up mount also changes the library and store targets.
+    private val usbRootListener: () -> Unit = { usbAction { null }; ui.post { if (!isDestroyed) refresh() } }
     private val pickGameStorage = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         if (r.resultCode == RESULT_OK) InAppFilePicker.pickedPath(r.data)?.let { path -> setGameStorage(path, GameStorage.labelFor(this, path)) }
     }
@@ -2006,7 +2007,7 @@ class FrontEndActivity : ComponentActivity() {
     }
 
     private val usbActions = UsbActions(
-        onRefresh = usbRootListener,
+        onRefresh = { usbAction { null } },
         onAccess = {
             if (Build.VERSION.SDK_INT >= 30) startActivity(Intent(android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, Uri.parse("package:$packageName")))
         },
@@ -2044,7 +2045,7 @@ class FrontEndActivity : ComponentActivity() {
         runCatching { usbThread.execute { val error = step(); refreshUsb(error) } }
     }
 
-    /** Off the main thread: root is asked only once its setting is on. */
+    /** Off the main thread: it may ask root. */
     private fun refreshUsb(status: String?) {
         val on = SessionPrefs.usbRootEnabled(this)
         // Shown while on even if su went away, so the setting can still be turned off.
