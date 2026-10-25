@@ -245,6 +245,10 @@ object StoresState {
         uninstalling[key] = 0f
         background("stores-uninstall", onFailure = { main.post { uninstalling.remove(key); onDone() } }) {
             runCatching { backends[game.sidecar.store]?.uninstall(app, game) }
+            if (game.sidecar.store == Store.BATTLENET) {
+                main.post { uninstalling.remove(key); onDone() }
+                return@background
+            }
             StoreInstalls.uninstall(app, game, progress = { f -> main.post { if (key in uninstalling) uninstalling[key] = f } }, removed = {
                 main.post {
                     installed = installed.filterNot { it.folder.absolutePath == game.folder.absolutePath }
