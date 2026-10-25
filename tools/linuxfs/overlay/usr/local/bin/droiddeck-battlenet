@@ -24,6 +24,7 @@ CLIENT = "Battle.net.exe"
 CONFIG = ("users", "steamuser", "AppData", "Roaming", "Battle.net", "Battle.net.config")
 DEFAULT_CONFIG = {"Client": {"HardwareAcceleration": "false", "Streaming": {"StreamingEnabled": "false"}}}
 LAUNCH_BEHAVIOR = ("GameLaunchWindowBehavior", "2")
+CLIENT_32_BIT = ("s1",)
 CACHE = os.path.join(HOME, ".cache", "droiddeck", "battlenet")
 MENU = "/usr/local/share/applications/droiddeck-battlenet.desktop"
 WALLPAPER_DIR = ("users", "steamuser", "AppData", "Local", "DroidDeck")
@@ -145,6 +146,12 @@ def write_config(root, library=None):
             and str(client["Install"].get("DefaultInstallPath", "")).rstrip("/\\") != install_path(library):
         client["Install"]["DefaultInstallPath"] = install_path(library)
         changes.append("library")
+    games = config.setdefault("Games", {})
+    for uid in CLIENT_32_BIT if isinstance(games, dict) else ():
+        game = games.setdefault(uid, {})
+        if isinstance(game, dict) and game.get("Run64BitSet") != "true":
+            game.update(Run64Bit="false", Run64BitSet="true")
+            changes.append("32-bit")
     if not changes:
         return None
     os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -361,7 +368,8 @@ def configure(root, library=None):
         say("Battle.net's desktop wallpaper not set: %s" % error)
     enable_gamepad(root)
     if change == "first":
-        say("wrote Battle.net's first config: hardware acceleration off, streaming off, closing itself as it launches a game")
+        say("wrote Battle.net's first config: hardware acceleration off, streaming off, closing itself as it launches a game, "
+            "StarCraft on its 32-bit client")
     elif change:
         if "launch" in change:
             say("Battle.net's config: closing itself as it launches a game")
@@ -369,6 +377,8 @@ def configure(root, library=None):
             say("Battle.net's config: games install to %s" % library)
         if "acceleration" in change:
             say("Battle.net's config: browser hardware acceleration off")
+        if "32-bit" in change:
+            say("Battle.net's config: StarCraft starts its 32-bit client")
 
 
 def write_menu(path=MENU):

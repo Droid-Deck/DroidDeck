@@ -139,12 +139,28 @@ class ConfigAndMenuTest(Temp):
         self.assertEqual(config["Client"]["GameLaunchWindowBehavior"], "2")
         self.assertIsNone(BNET["write_config"](root))
         path.write_text('{"Client": {"HardwareAcceleration": "false", "GameLaunchWindowBehavior": "0"}, "Games": {"osi": {}}}')
-        self.assertEqual(BNET["write_config"](root), "launch")
+        self.assertEqual(BNET["write_config"](root), "launch 32-bit")
         config = json.loads(path.read_text())
-        self.assertEqual(config, {"Client": {"HardwareAcceleration": "false", "GameLaunchWindowBehavior": "2"}, "Games": {"osi": {}}})
+        self.assertEqual(config, {"Client": {"HardwareAcceleration": "false", "GameLaunchWindowBehavior": "2"},
+                                  "Games": {"osi": {}, "s1": {"Run64Bit": "false", "Run64BitSet": "true"}}})
         path.write_text('{"Client": {"HardwareAcceleration": "true", "GameLaunchWindowBehavior": "2"}}')
-        self.assertEqual(BNET["write_config"](root), "acceleration")
+        self.assertEqual(BNET["write_config"](root), "acceleration 32-bit")
         self.assertEqual(json.loads(path.read_text())["Client"]["HardwareAcceleration"], "false")
+
+    def test_starcraft_starts_its_32_bit_client_until_a_player_picks_one(self):
+        root = str(self.tmp)
+        BNET["write_config"](root)
+        self.assertEqual(json.loads(self.config_path().read_text())["Games"], {"s1": {"Run64Bit": "false", "Run64BitSet": "true"}})
+        self.config_path().write_text('{"Client": {"HardwareAcceleration": "false", "GameLaunchWindowBehavior": "2"}, '
+                                      '"Games": {"s1": {"ServerUid": "s1", "Run64Bit": "true"}}}')
+        self.assertEqual(BNET["write_config"](root), "32-bit")
+        self.assertEqual(json.loads(self.config_path().read_text())["Games"]["s1"],
+                         {"ServerUid": "s1", "Run64Bit": "false", "Run64BitSet": "true"})
+        self.config_path().write_text('{"Client": {"HardwareAcceleration": "false", "GameLaunchWindowBehavior": "2"}, '
+                                      '"Games": {"s1": {"Run64Bit": "true", "Run64BitSet": "true"}}}')
+        self.assertIsNone(BNET["write_config"](root))
+        self.config_path().write_text('{"Client": {"HardwareAcceleration": "false", "GameLaunchWindowBehavior": "2"}, "Games": []}')
+        self.assertIsNone(BNET["write_config"](root))
 
     def test_games_install_to_the_chosen_library(self):
         root = str(self.tmp)
