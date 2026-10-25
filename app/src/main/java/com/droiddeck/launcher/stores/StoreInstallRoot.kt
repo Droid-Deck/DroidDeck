@@ -158,10 +158,9 @@ object StoreInstallRoot {
         if (!folder.isDirectory) return context.getString(com.droiddeck.launcher.R.string.gstore_cannot_create, folder.path)
         val root = File(folder, ON_VOLUME)
         if (!root.isDirectory && !root.mkdirs()) return context.getString(com.droiddeck.launcher.R.string.gstore_cannot_create, folder.path)
-        val probe = File(root, ".droiddeck-write-probe")
         return try {
-            if (!probe.createNewFile() && !probe.isFile) context.getString(com.droiddeck.launcher.R.string.gstore_cannot_write, root.path)
-            else { probe.delete(); null }
+            File.createTempFile(".droiddeck-write-probe", null, root).delete()
+            null
         } catch (e: Exception) {
             context.getString(com.droiddeck.launcher.R.string.gstore_cannot_write_detail, root.path, e.message)
         }

@@ -306,6 +306,10 @@ object EpicClient {
             Log.w(TAG, "the configured external storage is disconnected; keeping $current")
             return current
         }
+        if (externalMissing && current.isEmpty()) {
+            Log.w(TAG, "the configured external storage is disconnected; not choosing an install folder")
+            return null
+        }
         if (current.isNotEmpty() && current != STOCK_INSTALL_DIR && dirs.values.none { it.second == current } && !(current.endsWith("/${Store.EPIC.shortLabel}") && (current.startsWith("/mnt/droiddeck-") || current.startsWith("/root/Storage/")))) return current
         if (!chosen.first.isDirectory && !chosen.first.mkdirs()) return null
         if (current == chosen.second) return current
