@@ -77,6 +77,35 @@ class GameEnvironmentTest(unittest.TestCase):
                                             env=env, text=True, capture_output=True, check=True)
                     self.assertEqual(result.stdout.strip(), expected)
 
+    def test_desktop_games_restart_on_the_gpu_with_steams_preloads_handed_back(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            gpu = home / "gpu"
+            gpu.write_text("#!/bin/bash\necho \"gpu LD_PRELOAD=${LD_PRELOAD-unset}\"\nexport BL_DESKTOP_GPU_CHILD=1\nexec \"$@\"\n")
+            gpu.chmod(0o755)
+            launcher = home / "launcher"
+            setup = COMPAT["BL_DESKTOP_GPU_SETUP"].replace("/usr/local/bin/droiddeck-gpu", str(gpu))
+            launcher.write_text("#!/bin/bash\nverb=$1; shift\n" + setup + "echo \"game $verb $* LD_PRELOAD=${LD_PRELOAD-unset} saved=${BL_GPU_SAVED_LD_PRELOAD-unset}\"\n")
+            launcher.chmod(0o755)
+            base = {key: value for key, value in os.environ.items() if not key.startswith("BL_")}
+            base["LD_PRELOAD"] = "overlay.so"
+            for extra, args, expected in (
+                ({"BL_DESKTOP": "1"}, ["waitforexitandrun", "game.exe"],
+                 ["gpu LD_PRELOAD=unset", "game waitforexitandrun game.exe LD_PRELOAD=overlay.so saved=unset"]),
+                ({"BL_DESKTOP": "1", "BL_DESKTOP_GPU": "Off"}, ["waitforexitandrun", "game.exe"],
+                 ["game waitforexitandrun game.exe LD_PRELOAD=overlay.so saved=unset"]),
+                ({"BL_DESKTOP": "1"}, ["run", "setup.exe"],
+                 ["game run setup.exe LD_PRELOAD=overlay.so saved=unset"]),
+                ({"BL_DESKTOP": "1"}, ["waitforexitandrun", "iscriptevaluator.exe"],
+                 ["game waitforexitandrun iscriptevaluator.exe LD_PRELOAD=overlay.so saved=unset"]),
+                ({}, ["waitforexitandrun", "game.exe"],
+                 ["game waitforexitandrun game.exe LD_PRELOAD=overlay.so saved=unset"]),
+            ):
+                with self.subTest(extra=extra, args=args):
+                    result = subprocess.run([str(launcher)] + args, env=dict(base, **extra),
+                                            text=True, capture_output=True, check=True)
+                    self.assertEqual(result.stdout.splitlines(), expected)
+
     def test_the_install_script_evaluator_gets_its_scripts_marked_first(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
