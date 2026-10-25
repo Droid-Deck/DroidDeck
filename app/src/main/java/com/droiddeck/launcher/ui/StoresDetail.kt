@@ -136,7 +136,8 @@ internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: Fro
                                     com.droiddeck.launcher.stores.xbox.XboxContent.manage(ctx, installed)
                                 }
                             }
-                            if (gone != null) SecondaryButton(stringResource(R.string.stores_uninstalling), enabled = false, progress = gone) {}
+                            if (store == Store.BATTLENET) SecondaryButton(stringResource(R.string.bnet_open)) { a.onBattleNet() }
+                            else if (gone != null) SecondaryButton(stringResource(R.string.stores_uninstalling), enabled = false, progress = gone) {}
                             else UninstallButton(title, installed, enabled = download == null && (store != Store.XBOX || !com.droiddeck.launcher.stores.xbox.XboxContent.busy(id))) {
                                 StoresState.uninstall(ctx, installed) { StoresState.refresh(ctx); a.onLibraryChanged() }
                             }
@@ -157,6 +158,7 @@ internal fun StoreGameDetail(store: Store, key: String, s: FrontEndState, a: Fro
                                 com.droiddeck.launcher.stores.download.DownloadQueue.clear(ctx, failedDownload.key)
                             }
                         }
+                        store == Store.BATTLENET && item != null -> InstallButton(stringResource(R.string.stores_install), leadOn) { StoresState.requestInstall(ctx, item) }
                         item?.installable == true && StoresState.isUnfinished(item) -> {
                             InstallButton(stringResource(R.string.stores_resume_install), leadOn) { StoresState.requestInstall(ctx, item) }
                             ConfirmButton(stringResource(R.string.stores_dl_clear), stringResource(R.string.stores_dl_cancel_confirm), compact = true) { StoresState.clearUnfinished(ctx, item) }

@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 """Runs a Windows program with the Proton the Steam client has chosen for it.
 
-    droiddeck-proton-run [--window] [--prefix ID] [--verb run] [--game-id ID] PROGRAM [ARGS...]
+    droiddeck-proton-run [--window] [--prefix ID] [--verb run] [--game-id ID] [--desktop WxH] PROGRAM [ARGS...]
     droiddeck-proton-run --app ID [--dir FOLDER] [--options TEXT] [PROGRAM [ARGS...]]
 
 The program belongs to an installed Steam game when it sits in one's folder, to a prefix when it
@@ -267,7 +267,6 @@ def fixed(program, root, appid):
 
 
 def prefix_id(value):
-    """Never 0: compatdata/0 is the client's own prefix."""
     return value if value.isdigit() and not value.startswith("0") and int(value) <= 0xFFFFFFFF else None
 
 
@@ -382,13 +381,20 @@ def environment(env, target, tool_folder, root, window=False, game_id=None):
     return env
 
 
-def windows_path(path):
+def windows_path(path, compatdata=None):
+    if compatdata:
+        drive = os.path.join(compatdata, "pfx", "drive_c")
+        inside = os.path.relpath(path, drive)
+        if inside != "." and not inside.startswith(".."):
+            return "C:\\" + inside.replace("/", "\\")
     return "Z:" + path.replace("/", "\\")
 
 
-def arguments(program, args):
+def arguments(program, args, desktop=None, compatdata=None):
     if program.lower().endswith(".msi"):
         return ["msiexec", "/i", windows_path(program)] + args
+    if desktop:
+        return ["explorer.exe", "/desktop=droiddeck,%s" % desktop, windows_path(program, compatdata)] + args
     return [program] + args
 
 
@@ -397,6 +403,7 @@ def main(argv):
     prefix = None
     verb = VERB
     game_id = None
+    desktop = None
     app, start, options = None, None, ""
     while argv and argv[0].startswith("--"):
         option = argv.pop(0)
@@ -408,6 +415,8 @@ def main(argv):
             verb = argv.pop(0)
         elif option == "--game-id" and argv and argv[0].isdigit() and argv[0] != "0":
             game_id = argv.pop(0)
+        elif option == "--desktop" and argv and re.fullmatch(r"[1-9][0-9]{2,4}x[1-9][0-9]{2,4}", argv[0]):
+            desktop = argv.pop(0)
         elif option in ("--app", "--dir", "--options") and argv:
             value = argv.pop(0)
             if option == "--app":
@@ -425,7 +434,7 @@ def main(argv):
         say("%s is not an app id" % app)
         return 2
     if not argv and app is None:
-        say("usage: droiddeck-proton-run [--window] [--prefix ID] [--verb run] [--game-id ID] PROGRAM [ARGS...]")
+        say("usage: droiddeck-proton-run [--window] [--prefix ID] [--verb run] [--game-id ID] [--desktop WxH] PROGRAM [ARGS...]")
         return 2
     root = os.environ.get("STEAM_COMPAT_CLIENT_INSTALL_PATH") or STEAM_ROOT
     extra, args = split_options(options)
@@ -467,7 +476,7 @@ def main(argv):
     except OSError:
         os.chdir(os.path.dirname(program))
     entry = os.path.join(folder, command)
-    os.execve(entry, [entry, verb] + arguments(program, args), env)
+    os.execve(entry, [entry, verb] + arguments(program, args, desktop, target.compatdata), env)
 
 
 if __name__ == "__main__":

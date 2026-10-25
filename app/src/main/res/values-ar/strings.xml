@@ -2070,6 +2070,8 @@
     <string name="stores_shelf_library">مكتبتك</string>
     <string name="stores_play">تشغيل</string>
     <string name="stores_install">تثبيت</string>
+    <string name="bnet_open">فتح Battle.net</string>
+    <string name="bnet_store">ألعاب Blizzard</string>
     <string name="stores_resume_install">استئناف التثبيت</string>
     <string name="stores_dl_interrupted">منقطع</string>
     <string name="stores_install_size">تثبيت · %1$s</string>
@@ -3144,4 +3146,23 @@
     <string name="spatial_saved_views_hint">يمكن إعادة حساب المشاهدات المحفوظة. ابدأ معايرة جديدة لالتقاطها في نظام إحداثيات التتبع الحالي.</string>
     <string name="spatial_model_checksum_error">المجموع الاختباري لنموذج تتبع اليدين غير مطابق</string>
     <string name="spatial_opencv_load_error">تعذر تحميل OpenCV</string>
+    <string name="setup_group_memory">الذاكرة</string>
+    <string name="setup_clear_cached">إغلاق التطبيقات المخزّنة مؤقتًا قبل الجلسة</string>
+    <string name="setup_clear_cached_hint">عند بدء الجلسة، يُغلق DroidDeck التطبيقات التي يُبقيها Android في الخلفية، لتحصل اللعبة على ذاكرة أكبر. يجب تفعيل تصحيح الأخطاء اللاسلكي.</string>
+    <string name="setup_clear_cached_unpaired">يتطلّب إقران DroidDeck بتصحيح الأخطاء اللاسلكي (إقران، أدناه).</string>
+    <string name="setup_memory_hud">مؤشر الذاكرة</string>
+    <string name="setup_memory_hud_hint">الذاكرة وswap المستخدمة، على شاشة الجلسة. يقسّمها الوضع المتقدّم بين اللعبة وDroidDeck وAndroid وGPU.</string>
+    <string name="setup_memory_hud_simple">بسيط</string>
+    <string name="setup_memory_hud_advanced">متقدّم</string>
+    <string name="memory_hud_simple">RAM %1$s/%2$s GB · swap %3$s/%4$s GB</string>
+    <string name="memory_hud_split">اللعبة %1$s · DroidDeck %2$s · Android %3$s GB</string>
+    <string name="memory_hud_gpu">GPU %1$s GB</string>
+    <string name="setup_bg_limit">التطبيقات في الخلفية أثناء الجلسة</string>
+    <string name="setup_bg_limit_hint">أثناء تشغيل الجلسة، يُبقي Android هذا العدد من التطبيقات كحد أقصى في الذاكرة المؤقتة ويُغلق الباقي، لتحصل اللعبة على ذاكرتها. يُعيد DroidDeck الحد إلى ما كان عليه عند انتهاء الجلسة. يجب تفعيل تصحيح الأخطاء اللاسلكي.</string>
+    <string name="setup_bg_limit_4">4 كحد أقصى</string>
+    <string name="setup_bg_limit_1">1 كحد أقصى</string>
+    <string name="setup_bg_limit_0">لا شيء</string>
+    <string name="setup_adb_pair">تصحيح الأخطاء اللاسلكي</string>
+    <string name="setup_adb_pair_hint">يُقرن DroidDeck بتصحيح الأخطاء اللاسلكي في Android للخيارات أعلاه. يبقى حد العمليات الفرعية متوقفًا.</string>
+    <string name="setup_adb_pair_button">إقران</string>
 </resources>

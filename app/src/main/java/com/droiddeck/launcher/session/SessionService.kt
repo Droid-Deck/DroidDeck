@@ -353,13 +353,6 @@ class SessionService : Service() {
         SessionEvents.transition(SessionPhase.STARTING_GUEST, "service.started", mapOf("mode" to SessionState.mode))
         com.droiddeck.launcher.wayland.CompositorHost.newSession()
         val gen = ++sessionGen
-        // On the main thread, so a request the launcher leaves once this desktop runs comes after the reset.
-        runCatching {
-            com.droiddeck.launcher.runtime.DesktopRequests.reset(
-                LinuxRuntime.sessionRoot(this), SessionState.program.takeIf { SessionState.mode == MODE_DESKTOP },
-                SessionState.programArgs,
-            )
-        }.onFailure { Log.w(TAG, "desktop request", it) }
         SessionPrefs.backgroundAppLimit(this).takeIf { it != com.droiddeck.launcher.core.BackgroundAppLimit.OFF }
             ?.let { com.droiddeck.launcher.core.BackgroundAppLimit.applyAsync(this, it) }
         if (SessionPrefs.clearCachedApps(this)) clearCachedApps()
@@ -751,7 +744,7 @@ class SessionService : Service() {
     }
 
     private fun noSteamGame(): Boolean =
-        SessionState.mode == MODE_RUN && SessionState.program in setOf(NoSteamLaunch.PROTON_RUN, NoSteamLaunch.EPIC)
+        SessionState.mode == MODE_RUN && SessionState.program in setOf(NoSteamLaunch.PROTON_RUN, NoSteamLaunch.EPIC, NoSteamLaunch.BATTLENET)
 
     private fun startAudio(guest: MutableList<String>, sessionDir: File): PulseAudioComponent {
         val wantsDirectAudio = (SessionState.mode == MODE_STEAM || SessionState.mode == MODE_DESKTOP || noSteamGame()) &&
@@ -1070,8 +1063,6 @@ class SessionService : Service() {
         }, "clear-cached-apps").start()
     }
 
-    // Proton's Wine dropped the periodic registry save: a wineserver writes its prefix's registry only
-    // when it exits or gets SIGTERM, so the sweep after proot would lose every change since the start.
     private fun saveWineRegistries(tree: List<Pair<Int, Long>>) {
         val servers = tree.filter { (pid, started) ->
             readStat(pid)?.second == started && WineProcesses.isWineserver(
@@ -1704,7 +1695,8 @@ class SessionService : Service() {
         updateDownloadMonitoring()
         val stoppedGen = sessionGen
         val stoppedSession = SessionState.sessionId
-        val launcherEnded = SessionState.mode == MODE_STEAM || SessionState.mode == MODE_DESKTOP || SessionState.program == NoSteamLaunch.EPIC
+        val launcherEnded = SessionState.mode == MODE_STEAM || SessionState.mode == MODE_DESKTOP || SessionState.program == NoSteamLaunch.EPIC ||
+            SessionState.program == NoSteamLaunch.BATTLENET
         SessionState.stopRequested = false
         SessionEvents.record("guest.exited", mapOf("status" to status))
         GpuClockPin.stop(this)
@@ -1766,6 +1758,9 @@ class SessionService : Service() {
     private fun importLauncherGames() {
         runCatching { com.droiddeck.launcher.stores.epic.EpicClientLibrary.importClientGames(this) }
             .onFailure { Log.w(TAG, "client library scan failed: ${it.javaClass.simpleName}") }
+        runCatching { com.droiddeck.launcher.stores.battlenet.BattleNetClient.syncAccount(this) }
+            .onFailure { Log.w(TAG, "Battle.net sign-in check failed: ${it.javaClass.simpleName}") }
+        com.droiddeck.launcher.stores.StoresState.notifyLibraryChanged(this)
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
@@ -2012,7 +2007,6 @@ class SessionService : Service() {
         private val STRAGGLERS = listOf("droiddeck-session", "gamescope", "Xwayland", "steamrtarm64",
             "steamwebhelper", "linuxfs/opt/android-host/proot", "/libproot.so", "pulseaudio/libpulseaudio.so")
         private const val GRACE_MS = 1200L
-        // system.reg runs to a few MB.
         private const val WINE_SAVE_MS = 3000L
         private const val STEAM_PICKUP_MS = 1500L
         private const val STEAM_EXIT_MS = 10_000L

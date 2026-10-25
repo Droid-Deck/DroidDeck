@@ -485,7 +485,6 @@ internal fun SetupPanel(
                                 ),
                                 s.memoryHud, onPick = a.onMemoryHud,
                             )
-                            // The repair page pairs, then sets the child-process limit off, as DroidDeck wants it anyway.
                             if (!s.adbPaired) ActionRow(
                                 stringResource(R.string.setup_adb_pair), stringResource(R.string.setup_adb_pair_hint),
                                 stringResource(R.string.setup_adb_pair_button), { onRequestWirelessAdb(false) },

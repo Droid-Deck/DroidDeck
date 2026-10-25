@@ -1965,6 +1965,8 @@
     <string name="stores_shelf_library">Pustaka Anda</string>
     <string name="stores_play">Mainkan</string>
     <string name="stores_install">Instal</string>
+    <string name="bnet_open">Buka Battle.net</string>
+    <string name="bnet_store">Game Blizzard</string>
     <string name="stores_resume_install">Lanjutkan instalasi</string>
     <string name="stores_dl_interrupted">Terhenti</string>
     <string name="stores_install_size">Instal · %1$s</string>
@@ -2983,4 +2985,23 @@
     <string name="spatial_saved_views_hint">Tampilan yang disimpan dapat dihitung ulang. Mulai kalibrasi baru untuk menangkap sistem koordinat pelacakan saat ini.</string>
     <string name="spatial_model_checksum_error">Ketidakcocokan checksum model tangan</string>
     <string name="spatial_opencv_load_error">OpenCV tidak dapat memuat</string>
+    <string name="setup_group_memory">Memori</string>
+    <string name="setup_clear_cached">Tutup aplikasi dalam cache sebelum sesi</string>
+    <string name="setup_clear_cached_hint">Saat sesi dimulai, DroidDeck menutup aplikasi yang disimpan Android di latar belakang agar gim mendapat lebih banyak memori. Debugging nirkabel harus aktif.</string>
+    <string name="setup_clear_cached_unpaired">DroidDeck harus disandingkan dengan Debugging nirkabel (Pasangkan, di bawah).</string>
+    <string name="setup_memory_hud">Tampilan memori</string>
+    <string name="setup_memory_hud_hint">Memori dan swap yang digunakan, di layar sesi. Lanjutan merincinya menjadi gim, DroidDeck, Android, dan GPU.</string>
+    <string name="setup_memory_hud_simple">Sederhana</string>
+    <string name="setup_memory_hud_advanced">Lanjutan</string>
+    <string name="memory_hud_simple">RAM %1$s/%2$s GB · swap %3$s/%4$s GB</string>
+    <string name="memory_hud_split">gim %1$s · DroidDeck %2$s · Android %3$s GB</string>
+    <string name="memory_hud_gpu">GPU %1$s GB</string>
+    <string name="setup_bg_limit">Aplikasi latar belakang selama sesi</string>
+    <string name="setup_bg_limit_hint">Selama sesi berjalan, Android menyimpan paling banyak sejumlah ini aplikasi di cache dan menutup sisanya agar gim mendapat memorinya. DroidDeck mengembalikan batas seperti semula saat sesi berakhir. Debugging nirkabel harus aktif.</string>
+    <string name="setup_bg_limit_4">Paling banyak 4</string>
+    <string name="setup_bg_limit_1">Paling banyak 1</string>
+    <string name="setup_bg_limit_0">Tidak ada</string>
+    <string name="setup_adb_pair">Debugging nirkabel</string>
+    <string name="setup_adb_pair_hint">Menyandingkan DroidDeck dengan Debugging nirkabel Android untuk opsi di atas. Batas proses turunan tetap nonaktif.</string>
+    <string name="setup_adb_pair_button">Pasangkan</string>
 </resources>

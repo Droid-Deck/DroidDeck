@@ -144,24 +144,6 @@
     <string name="user_apps_remove_confirm">Press again to remove</string>
     <string name="user_apps_stop_session">Stop the session to remove</string>
     <string name="bnet_name" translatable="false">Battle.net</string>
-    <string name="bnet_card">Blizzard\'s games</string>
-    <string name="bnet_subtitle">Blizzard\'s games, in a desktop window</string>
-    <string name="bnet_subtitle_missing">Not installed · opens in a desktop window</string>
-    <string name="bnet_fex">FEX: %1$s</string>
-    <string name="bnet_fex_pending">the newest d2rfix build, set when it opens</string>
-    <string name="bnet_open">Open Battle.net</string>
-    <string name="bnet_install">Install Battle.net</string>
-    <string name="bnet_stop_session">Stop the session to open it</string>
-    <string name="bnet_removing">Removing Battle.net…</string>
-    <string name="bnet_remove_title">Remove Battle.net?</string>
-    <string name="bnet_remove_text">This deletes its Windows prefix: the client, its settings and every game installed in it.</string>
-    <string name="bnet_about">Battle.net opens in a window on the desktop: sign in and install games there. The games it installs show here and, from the next Steam start, in Steam\'s library. Play them from Games or Steam: Battle.net opens in game mode and launches them. A start takes a minute or two while FEX translates Battle.net\'s x86 code.</string>
-    <string name="bnet_install_note">Install starts the desktop and runs Blizzard\'s installer in a window there. Follow its steps; Battle.net opens when it is done. The client takes about 1 GB.</string>
-    <string name="bnet_no_games">No games yet. Install one in Battle.net, then come back here or press Refresh.</string>
-    <string name="bnet_refresh">Refresh</string>
-    <string name="bnet_store">Available in Battle.net</string>
-    <string name="bnet_store_note">Pick a game to open Battle.net on the desktop at that game\'s install. You sign in, choose the folder and confirm there. Once it is installed, the game shows up above and in Steam.</string>
-    <string name="bnet_get">Install</string>
     <string name="user_apps_script_linked">Runs %1$s from its folder, linked into the session where it lies. Removing the app leaves that folder alone.</string>
     <string name="user_apps_script_copied">Runs %1$s from a copy of its folder inside DroidDeck. Removing the app deletes the copy, not the original.</string>
     <string name="user_apps_runtime_required">Install the Linux runtime first</string>
@@ -2082,6 +2064,8 @@
     <string name="stores_shelf_library">Your library</string>
     <string name="stores_play">Play</string>
     <string name="stores_install">Install</string>
+    <string name="bnet_open">Open Battle.net</string>
+    <string name="bnet_store">Blizzard games</string>
     <string name="stores_resume_install">Resume install</string>
     <string name="stores_dl_interrupted">Interrupted</string>
     <string name="stores_install_size">Install · %1$s</string>

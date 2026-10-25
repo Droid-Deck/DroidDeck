@@ -75,16 +75,30 @@ internal fun GamesPage(s: FrontEndState, a: FrontEndActions, selected: String, o
     val launcherArt by androidx.compose.runtime.produceState<java.io.File?>(null, epic.version) {
         value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { EpicClient.icon(pageContext, epic.version) }
     }
-    val games = remember(s.steamGames, s.shortcutPicker, epic, launcherName, launcherArt) {
-        val sorted = s.steamGames.sortedByDescending { it.lastPlayed }
-        if (s.shortcutPicker) sorted else EpicClient.withLauncher(sorted, EpicClient.launcherEntry(pageContext, launcherName, epic, launcherArt))
+    val battleNetArt by androidx.compose.runtime.produceState<java.io.File?>(null, s.battleNetInstalled) {
+        value = if (!s.battleNetInstalled) null
+        else kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.droiddeck.launcher.runtime.BattleNet.icon(pageContext) }
     }
-    val gameCount = games.count { it.library != Library.EPIC_LAUNCHER }
+    val games = remember(s.steamGames, s.shortcutPicker, epic, launcherName, launcherArt, s.battleNetInstalled, battleNetArt) {
+        val sorted = s.steamGames.sortedByDescending { it.lastPlayed }
+        if (s.shortcutPicker) sorted
+        else com.droiddeck.launcher.runtime.BattleNet.withLauncher(
+            EpicClient.withLauncher(sorted, EpicClient.launcherEntry(pageContext, launcherName, epic, launcherArt)),
+            com.droiddeck.launcher.runtime.BattleNet.launcherEntry(s.battleNetInstalled, battleNetArt),
+        )
+    }
+    val gameCount = games.count { it.library != Library.EPIC_LAUNCHER && it.library != Library.BATTLENET_LAUNCHER }
     val narrow = LocalNarrowPane.current
     val current = games.firstOrNull { "app:${it.appId}" == selected } ?: games.firstOrNull()
     GamesDialogs(a, s.steamGames)
     val onAdd: (() -> Unit)? = if (s.shortcutPicker) null else ({ GamesDialogState.adding = true })
-    val launch: (Library.SteamGame) -> Unit = { g -> if (g.library == Library.EPIC_LAUNCHER) a.onEpicLauncher() else a.onSteamGame(g) }
+    val launch: (Library.SteamGame) -> Unit = { g ->
+        when (g.library) {
+            Library.EPIC_LAUNCHER -> a.onEpicLauncher()
+            Library.BATTLENET_LAUNCHER -> a.onBattleNet()
+            else -> a.onSteamGame(g)
+        }
+    }
     val onEdit: (Library.SteamGame) -> Unit = { g ->
         g.gameFiles?.let { GamesDialogState.editing = EditRequest(it.path, openTarget = false, fromSummary = false, preview = EditPreview.of(pageContext, g, it.path)) }
     }
@@ -101,6 +115,7 @@ internal fun GamesPage(s: FrontEndState, a: FrontEndActions, selected: String, o
                 Actions {
                     PrimaryButton(stringResource(R.string.games_play_steam), enabled = !s.busy, main = true, icon = Icons.Filled.PlayArrow, modifier = Modifier.padding(top = 12.dp).testTag("play-steam"), onClick = a.onPlay)
                     games.firstOrNull { it.library == Library.EPIC_LAUNCHER }?.let { SecondaryButton(it.name, enabled = !s.busy, modifier = Modifier.padding(top = 12.dp)) { a.onEpicLauncher() } }
+                    games.firstOrNull { it.library == Library.BATTLENET_LAUNCHER }?.let { SecondaryButton(it.name, enabled = !s.busy, modifier = Modifier.padding(top = 12.dp)) { a.onBattleNet() } }
                 }
             }
             GameFileFolderActions(s, a)
@@ -170,6 +185,10 @@ private fun GameActions(g: Library.SteamGame, s: FrontEndState, a: FrontEndActio
         PrimaryButton(stringResource(if (s.shortcutPicker) R.string.game_shortcut_choose else R.string.games_launch), enabled = !s.busy, main = true, icon = Icons.Filled.PlayArrow) { launch(g) }
         if (g.library == Library.EPIC_LAUNCHER) {
             if (!s.shortcutPicker) UninstallEpicLauncher(s, a)
+            BusyChip(s)
+            return@Actions
+        }
+        if (g.library == Library.BATTLENET_LAUNCHER) {
             BusyChip(s)
             return@Actions
         }
@@ -586,7 +605,7 @@ private fun GameRow(g: Library.SteamGame, selected: Boolean, onSelect: () -> Uni
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 SourceChip(g.source, small = true)
                 Text(
-                    if (g.library == Library.EPIC_LAUNCHER) libraryLabel(g)
+                    if (g.library == Library.EPIC_LAUNCHER || g.library == Library.BATTLENET_LAUNCHER) libraryLabel(g)
                     else playedSpan(g.lastPlayed)?.replaceFirstChar { it.uppercase() } ?: stringResource(R.string.games_never_played),
                     fontSize = 12.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
@@ -637,6 +656,7 @@ private fun playedSpan(lastPlayed: Long): String? {
 @Composable
 private fun libraryLabel(g: Library.SteamGame): String = when {
     g.library == Library.EPIC_LAUNCHER -> EpicClient.status.version?.substringBefore('+')?.let { stringResource(R.string.epic_client_version, it) } ?: ""
+    g.library == Library.BATTLENET_LAUNCHER -> ""
     g.library != Library.ADDED -> if (g.library == "internal") stringResource(R.string.games_internal) else g.library
     g.source != Library.ADDED -> stringResource(R.string.games_store_storage)
     else -> ""
@@ -646,7 +666,7 @@ private fun libraryLabel(g: Library.SteamGame): String = when {
 private fun GameHero(g: Library.SteamGame, modifier: Modifier, corner: @Composable BoxScope.() -> Unit = {}, content: @Composable ColumnScope.() -> Unit) {
     val colors = MaterialTheme.colorScheme
     Box(modifier = modifier.clip(Shape16).background(artBrush(hueOf(g.name)))) {
-        val image = g.hero ?: g.art.takeIf { g.library != Library.EPIC_LAUNCHER }
+        val image = g.hero ?: g.art.takeIf { g.library != Library.EPIC_LAUNCHER && g.library != Library.BATTLENET_LAUNCHER }
         if (image != null) AsyncImage(
             model = image, contentDescription = null, contentScale = ContentScale.Crop,
             modifier = Modifier.matchParentSize()

@@ -25,7 +25,6 @@ internal object MemoryReadout {
         return Device(total, available, field("SwapTotal") ?: 0, field("SwapFree") ?: 0)
     }
 
-    // status's RssAnon and RssShmem are counters the kernel keeps, so a sample walks no page tables.
     fun residentKb(status: String): Long {
         fun field(name: String) = Regex("""(?m)^$name:\s+(\d+) kB""").find(status)?.groupValues?.get(1)?.toLongOrNull() ?: 0
         return field("RssAnon") + field("RssShmem")
@@ -84,7 +83,6 @@ internal object MemoryReadout {
         return stat.substring(close + 2).split(' ').getOrNull(1)?.toIntOrNull()
     }
 
-    // KGSL's page_alloc counts every GPU page on the device, not only the session's.
     private fun gpuKb(): Long? = runCatching {
         File("/sys/class/kgsl/kgsl/page_alloc").readText().trim().split(Regex("\\s+"))[0].toLong() / 1024
     }.getOrNull()

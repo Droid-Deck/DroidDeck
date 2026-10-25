@@ -22,16 +22,13 @@ import urllib.request
 HOME = os.environ.get("HOME") or "/root"
 BIN = "/usr/local/bin"
 PROTON_RUN = os.path.join(BIN, "droiddeck-proton-run")
-# crc32('"droiddeck-battlenet"Battle.net') | 0x80000000; the app's BattleNet.APP_ID.
 APP_ID = "2596113170"
 INSTALLER_URL = "https://downloader.battle.net/download/getInstallerForGame?os=win&gameProgram=BATTLENET_APP&version=Live"
 CLIENT_DIR = ("Program Files (x86)", "Battle.net")
 LAUNCHER = "Battle.net Launcher.exe"
 CLIENT = "Battle.net.exe"
 CONFIG = ("users", "steamuser", "AppData", "Roaming", "Battle.net", "Battle.net.config")
-# With hardware acceleration off, Battle.net's Chromium pages lose whatever is not repainted.
 DEFAULT_CONFIG = {"Client": {"HardwareAcceleration": "true", "Streaming": {"StreamingEnabled": "false"}}}
-# Battle.net exits cleanly as it launches a game; killed beside a -sso game (Diablo IV), it loses the sign-in token.
 LAUNCH_BEHAVIOR = ("GameLaunchWindowBehavior", "2")
 CACHE = os.path.join(HOME, ".cache", "droiddeck", "battlenet")
 MENU = "/usr/local/share/applications/droiddeck-battlenet.desktop"
@@ -41,30 +38,26 @@ FEX_WAIT = 120
 START_GRACE = 90
 POLL = 2
 STOP_WAIT = 5
-# Battle.net restarts itself to update.
 CLOSE_GRACE = 15
 HANDOFF_WAIT = 120
-# D2R ran on with Battle.net and its Agent killed at 20 s; by 50 s it had used up the phone's memory.
 GAME_SETTLE = 20
-# The Agent quits about 10 s after Battle.net tells it to; restarting to update, it is back within seconds.
 AGENT_GONE = 30
 AGENT = "agent.exe"
 CODE = re.compile(r"[A-Za-z0-9_]{1,16}")
 GAME_UID = re.compile(r"[a-z0-9_]{1,32}")
 HANDOVER_WAIT = 1800
-# Battle.net is up with this many of its processes (its window and pages), as Playnite counts them.
 CLIENT_READY = 5
 READY_SETTLE = 5
 CLIENT_WAIT = 300
-# Not an exit: a launcher handing over to its game, a game restarting to update, Battle.net closing to launch one.
 GAME_GRACE = 15
-CLIENT_PATH = "\\battle.net\\"
-# The Agent lingers for minutes after a Battle.net that was killed.
+CLIENT_PATH = re.compile(r"[a-z]:\\(program files \(x86\)|programdata)\\battle\.net\\")
 IDLE = {"agent.exe", "conhost.exe", "explorer.exe", "plugplay.exe", "rpcss.exe", "services.exe",
         "start.exe", "steam.exe", "svchost.exe", "tabtip.exe", "winedevice.exe", "wineserver"}
 NOT_GAME = IDLE | {"rundll32.exe", "wineboot.exe", "winemenubuilder.exe"}
 MIN_INSTALLER = 1 << 20
-# Plasma keeps nothing of a menu start's output.
+SETUP = "Battle.net-Setup.exe"
+REQUEST = "battlenet-request"
+LIBRARY = None
 LOG = os.path.join(CACHE, "battlenet.log")
 LOG_LIMIT = 512 << 10
 
@@ -116,7 +109,11 @@ def installed(root):
     return os.path.isfile(launcher(root))
 
 
-def write_config(root):
+def install_path(library):
+    return "Z:" + library.rstrip("/")
+
+
+def write_config(root, library=None):
     path = os.path.join(drive_c(root), *CONFIG)
     key, value = LAUNCH_BEHAVIOR
     try:
@@ -126,36 +123,50 @@ def write_config(root):
         config = None
     except (OSError, ValueError):
         return None
-    if config is None:
-        config, change = json.loads(json.dumps(DEFAULT_CONFIG)), "first"
-    elif isinstance(config, dict) and isinstance(config.setdefault("Client", {}), dict):
-        if config["Client"].get(key) == value:
-            return None
-        change = "launch"
-    else:
+    first = config is None
+    if first:
+        config = json.loads(json.dumps(DEFAULT_CONFIG))
+    elif not (isinstance(config, dict) and isinstance(config.setdefault("Client", {}), dict)):
         return None
-    config["Client"][key] = value
+    client = config["Client"]
+    changes = []
+    if client.get(key) != value:
+        client[key] = value
+        changes.append("launch")
+    if library and isinstance(client.setdefault("Install", {}), dict) \
+            and str(client["Install"].get("DefaultInstallPath", "")).rstrip("/\\") != install_path(library):
+        client["Install"]["DefaultInstallPath"] = install_path(library)
+        changes.append("library")
+    if not changes:
+        return None
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path + ".tmp", "w", encoding="utf-8") as f:
         json.dump(config, f, indent=4)
     os.replace(path + ".tmp", path)
-    return change
+    return "first" if first else " ".join(changes)
 
 
-def configure(root):
+def configure(root, library=None):
+    if library:
+        try:
+            os.makedirs(library, exist_ok=True)
+        except OSError as error:
+            say("%s not made: %s" % (library, error))
     try:
-        change = write_config(root)
+        change = write_config(root, library)
     except OSError as error:
         say("Battle.net's config not written: %s" % error)
         return
     if change == "first":
         say("wrote Battle.net's first config: hardware acceleration on, streaming off, closing itself as it launches a game")
-    elif change == "launch":
-        say("Battle.net's config: closing itself as it launches a game")
+    elif change:
+        if "launch" in change:
+            say("Battle.net's config: closing itself as it launches a game")
+        if "library" in change:
+            say("Battle.net's config: games install to %s" % library)
 
 
 def write_menu(path=MENU):
-    """Not Categories=Game: droiddeck-desktop-gpu would move it to gamescope."""
     body = ("[Desktop Entry]\nType=Application\nName=Battle.net\nComment=Blizzard's games and launcher\n"
             "Exec=%s\nIcon=applications-games\nTerminal=false\nCategories=Network;\n"
             % os.path.join(BIN, "droiddeck-battlenet"))
@@ -241,7 +252,7 @@ def running(pfx):
 
 
 def is_battlenet(argv):
-    return bool(argv) and CLIENT_PATH in argv[0].replace("/", "\\").lower()
+    return bool(argv) and bool(CLIENT_PATH.match(argv[0].replace("/", "\\").lower()))
 
 
 def is_game(argv):
@@ -251,7 +262,6 @@ def is_game(argv):
 
 
 def launched(argv):
-    """Battle.net starts its games with -uid (D2R.exe -uid osi); installers and redistributables have none."""
     return is_game(argv) and "-uid" in (arg.lower() for arg in argv[1:])
 
 
@@ -264,8 +274,6 @@ def agent_up(processes):
 
 
 class Tidy:
-    """Battle.net takes about 3 GB under FEX, and Android kills the whole session when a loading game runs out of
-    memory. A Battle.net that lost its Agent can neither download nor launch, and does not reconnect."""
 
     def __init__(self, settle=None, gone=None):
         self.settle = GAME_SETTLE if settle is None else settle
@@ -307,11 +315,12 @@ class Tidy:
 
 
 def proton_options():
-    """Under gamescope, Battle.net's windows carry the launch's game id, which is what gamescope shows."""
     if os.environ.get("BL_DESKTOP") == "1":
         return ["--window"]
+    width, height = os.environ.get("BL_WIDTH", ""), os.environ.get("BL_HEIGHT", "")
+    options = ["--desktop", "%sx%s" % (width, height)] if width.isdigit() and height.isdigit() else []
     game = os.environ.get("SteamGameId", "")
-    return ["--game-id", game] if game.isdigit() and game != "0" else []
+    return options + (["--game-id", game] if game.isdigit() and game != "0" else [])
 
 
 def stop(processes, wait=STOP_WAIT):
@@ -330,10 +339,36 @@ def stop(processes, wait=STOP_WAIT):
             time.sleep(0.2)
 
 
+def serve_requests(pfx, processes=None, launch_dir=None):
+    launch_dir = launch_dir or os.environ.get("BL_LAUNCH_DIR")
+    path = os.path.join(launch_dir, REQUEST) if launch_dir else None
+    if not path or not os.path.exists(path):
+        return False
+    if not agent_up(wine_processes(pfx) if processes is None else processes):
+        return False
+    try:
+        with open(path, encoding="utf-8") as f:
+            args = [line for line in f.read().splitlines() if line]
+        os.unlink(path)
+    except OSError:
+        return False
+    client = os.path.join(pfx, "drive_c", *CLIENT_DIR, CLIENT)
+    if len(args) == 2 and args[0] == "install-game" and GAME_UID.fullmatch(args[1]):
+        spawn(client, "run", ["--install", "--game=%s" % args[1]])
+    elif len(args) == 2 and args[0] == "launch" and CODE.fullmatch(args[1]):
+        spawn(client, "run", ["--exec=launch %s" % args[1]])
+    else:
+        say("not a request: %s" % " ".join(args))
+        return False
+    say("the app asked for %s" % " ".join(args))
+    return True
+
+
 def wait_while_open(pfx, grace, poll=None):
     deadline = time.monotonic() + grace
     seen = False
     while True:
+        serve_requests(pfx)
         if running(pfx):
             seen = True
         elif seen or time.monotonic() >= deadline:
@@ -342,7 +377,6 @@ def wait_while_open(pfx, grace, poll=None):
 
 
 def proton(exe, args=(), verb=None, watch=None, poll=None, close_grace=None, tidy=None):
-    """Proton returns only once nothing runs in the prefix, so what a closed Battle.net leaves is stopped here."""
     cmd = [PROTON_RUN] + proton_options() + ["--prefix", APP_ID] + (["--verb", verb] if verb else []) + [exe] + list(args)
     say(" ".join(cmd))
     try:
@@ -363,6 +397,7 @@ def proton(exe, args=(), verb=None, watch=None, poll=None, close_grace=None, tid
         if watch is None:
             continue
         processes = wine_processes(watch)
+        serve_requests(watch, processes)
         now = time.monotonic()
         if tidy(processes, now):
             seen = True
@@ -379,9 +414,19 @@ def proton(exe, args=(), verb=None, watch=None, poll=None, close_grace=None, tid
             closed_at = None
 
 
+def setup_ready(path):
+    try:
+        with open(path, "rb") as f:
+            return f.read(2) == b"MZ" and os.path.getsize(path) >= MIN_INSTALLER
+    except OSError:
+        return False
+
+
 def download(url=INSTALLER_URL, folder=CACHE):
     os.makedirs(folder, exist_ok=True)
-    dest = os.path.join(folder, "Battle.net-Setup.exe")
+    dest = os.path.join(folder, SETUP)
+    if setup_ready(dest):
+        return dest
     part = dest + ".part"
     try:
         try:
@@ -389,15 +434,13 @@ def download(url=INSTALLER_URL, folder=CACHE):
             with urllib.request.urlopen(request, timeout=60) as response, open(part, "wb") as f:
                 shutil.copyfileobj(response, f)
         except OSError as error:
-            # curl has its own certificate store and proxy handling; Python's may lack either here.
             if not shutil.which("curl"):
                 raise
             say("download through Python failed (%s); trying curl" % error)
             if subprocess.call(["curl", "-fsSL", "--max-time", "300", "-o", part, url]) != 0:
                 raise OSError("curl could not download it")
-        with open(part, "rb") as f:
-            if f.read(2) != b"MZ" or os.path.getsize(part) < MIN_INSTALLER:
-                raise OSError("not a Windows program")
+        if not setup_ready(part):
+            raise OSError("not a Windows program")
         os.replace(part, dest)
     except OSError as error:
         say("installer download failed: %s" % error)
@@ -413,7 +456,7 @@ def install(root, pfx, verb=None):
     if setup is None:
         notify("Battle.net could not be downloaded", "Check the connection and try again.", "dialog-error")
         return False, False
-    configure(root)
+    configure(root, LIBRARY)
     notify("Installing Battle.net", "Blizzard's installer opens in a window. It can take a few minutes.")
     _, seen = proton(setup, verb=verb, watch=pfx)
     return installed(root), seen
@@ -437,12 +480,10 @@ def status(root):
 
 
 def spawn(program, verb, args=()):
-    """Doesn't wait: Proton's steam.exe stays for as long as anything runs in the prefix."""
     cmd = [PROTON_RUN] + proton_options() + ["--prefix", APP_ID, "--verb", verb, program] + list(args)
     say(" ".join(cmd))
     try:
         os.makedirs(CACHE, exist_ok=True)
-        # Not the caller's stdout: a reader of it would wait for this process too.
         with open(os.path.join(CACHE, "spawned.log"), "ab") as log:
             subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=log, stderr=log, start_new_session=True)
     except OSError as error:
@@ -452,8 +493,6 @@ def spawn(program, verb, args=()):
 
 
 def show(root, wait=None, poll=None, args=()):
-    """Battle.net.exe run beside an open Battle.net hands it [args] and exits. One without its Agent is handed
-    nothing: it is starting, or the start holding the lock will close it."""
     pfx = os.path.join(prefix(root), "pfx")
     client = os.path.join(client_dir(root), CLIENT)
     deadline = time.monotonic() + (HANDOFF_WAIT if wait is None else wait)
@@ -488,7 +527,6 @@ def stop_leftovers(pfx):
 
 def open_client(root, reinstall=False):
     pfx = os.path.join(prefix(root), "pfx")
-    # Before the install: the installer's Proton returns only once the Battle.net it starts has closed.
     write_menu()
     answer = ask_fex(os.environ.get("BL_LAUNCH_DIR"))
     say("FEX: %s" % (answer or "no answer from the app; Components' choice stays"))
@@ -502,14 +540,12 @@ def open_client(root, reinstall=False):
         if not done:
             notify("Battle.net did not install", "The session's desktop.log says why.", "dialog-error")
             return 1
-        # The installer starts Battle.net when it is done.
         if wait_while_open(pfx, grace=0 if seen else START_GRACE) or seen:
             return 0
         verb = None if stop_leftovers(pfx) else "run"
-    configure(root)
+    configure(root, LIBRARY)
     status_code, seen = proton(launcher(root), verb=verb, watch=pfx)
     say("Proton returned %d; Battle.net %s" % (status_code, "ran" if seen else "has not been seen yet"))
-    # Battle.net Launcher.exe starts Battle.net.exe and exits.
     if not (wait_while_open(pfx, grace=0 if seen else START_GRACE) or seen):
         say("Battle.net did not start (the launcher exited with %d)" % status_code)
         notify("Battle.net did not start", "The session's desktop.log says why.", "dialog-error")
@@ -541,12 +577,12 @@ def wait_ready(pfx, wait=None, poll=None, settle=None):
 
 
 def follow(pfx, poll=None, grace=None, tidy=None):
-    """No time limit before a game starts: Battle.net may update it first, or wait for a sign-in."""
     seen, gone_at = False, None
     grace = GAME_GRACE if grace is None else grace
     tidy = Tidy() if tidy is None else tidy
     while True:
         processes = wine_processes(pfx)
+        serve_requests(pfx, processes)
         now = time.monotonic()
         if tidy(processes, now):
             processes = wine_processes(pfx)
@@ -579,7 +615,7 @@ def launch(root, code):
             answer = ask_fex(os.environ.get("BL_LAUNCH_DIR"))
             say("FEX: %s" % (answer or "no answer from the app; Components' choice stays"))
             verb = None if stop_leftovers(pfx) else "run"
-            configure(root)
+            configure(root, LIBRARY)
             own = start(launcher(root), verb)
             if own is None:
                 return 127
@@ -630,17 +666,24 @@ def install_game(root, uid):
 
 
 def main(argv):
+    global LIBRARY
+    argv = list(argv)
+    if len(argv) >= 2 and argv[0] == "--library":
+        if not argv[1].startswith("/") or "\n" in argv[1]:
+            say("%s is not a folder" % argv[1])
+            return 2
+        LIBRARY = os.path.normpath(argv[1])
+        argv = argv[2:]
     action = argv[0] if argv else "open"
     launching = action == "launch" and len(argv) == 2 and CODE.fullmatch(argv[1])
     getting = action == "install-game" and len(argv) == 2 and GAME_UID.fullmatch(argv[1])
     if not (launching or getting) and (action not in ("open", "install", "status") or len(argv) > 1):
-        say("usage: droiddeck-battlenet [open | install | status | launch CODE | install-game ID]")
+        say("usage: droiddeck-battlenet [--library DIR] [open | install | status | launch CODE | install-game ID]")
         return 2
     root = steam_root()
     if action == "status":
         print(json.dumps(status(root)))
         return 0
-    # Tells droiddeck-store-launch not to hand this script's own Battle.net.exe starts back to it.
     os.environ["BL_BATTLENET"] = "1"
     if launching:
         say("launch %s" % argv[1])

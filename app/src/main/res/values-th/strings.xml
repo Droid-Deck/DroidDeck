@@ -1965,6 +1965,8 @@
     <string name="stores_shelf_library">ไลบรารีของคุณ</string>
     <string name="stores_play">เล่น</string>
     <string name="stores_install">ติดตั้ง</string>
+    <string name="bnet_open">เปิด Battle.net</string>
+    <string name="bnet_store">เกมของ Blizzard</string>
     <string name="stores_resume_install">ดำเนินการติดตั้งต่อ</string>
     <string name="stores_dl_interrupted">ถูกขัดจังหวะ</string>
     <string name="stores_install_size">ติดตั้ง · %1$s</string>
@@ -2982,5 +2984,24 @@
     <string name="spatial_saved_views_hint">มุมมองที่บันทึกไว้สามารถคำนวณใหม่ได้ เริ่มการสอบเทียบใหม่เพื่อบันทึกในระบบพิกัดการติดตามปัจจุบัน</string>
     <string name="spatial_model_checksum_error">ผลรวมตรวจสอบแบบจำลองมือไม่ตรงกัน</string>
     <string name="spatial_opencv_load_error">OpenCV ไม่สามารถโหลดได้</string>
+    <string name="setup_group_memory">หน่วยความจำ</string>
+    <string name="setup_clear_cached">ปิดแอปที่แคชไว้ก่อนเริ่มเซสชัน</string>
+    <string name="setup_clear_cached_hint">เมื่อเซสชันเริ่ม DroidDeck จะปิดแอปที่ Android พักไว้ในพื้นหลัง เพื่อให้เกมมีหน่วยความจำมากขึ้น ต้องเปิด Wireless debugging ไว้</string>
+    <string name="setup_clear_cached_unpaired">ต้องจับคู่ DroidDeck กับ Wireless debugging ก่อน (จับคู่ ด้านล่าง)</string>
+    <string name="setup_memory_hud">การแสดงหน่วยความจำ</string>
+    <string name="setup_memory_hud_hint">หน่วยความจำและ swap ที่ใช้อยู่ บนหน้าจอเซสชัน โหมดขั้นสูงจะแยกเป็นเกม, DroidDeck, Android และ GPU</string>
+    <string name="setup_memory_hud_simple">แบบง่าย</string>
+    <string name="setup_memory_hud_advanced">ขั้นสูง</string>
+    <string name="memory_hud_simple">RAM %1$s/%2$s GB · swap %3$s/%4$s GB</string>
+    <string name="memory_hud_split">เกม %1$s · DroidDeck %2$s · Android %3$s GB</string>
+    <string name="memory_hud_gpu">GPU %1$s GB</string>
+    <string name="setup_bg_limit">แอปพื้นหลังระหว่างเซสชัน</string>
+    <string name="setup_bg_limit_hint">ระหว่างที่เซสชันทำงาน Android จะเก็บแอปไว้ในแคชไม่เกินจำนวนนี้และปิดแอปที่เหลือ เพื่อให้เกมได้หน่วยความจำของแอปเหล่านั้น DroidDeck จะคืนค่าขีดจำกัดเดิมเมื่อเซสชันสิ้นสุด ต้องเปิด Wireless debugging ไว้</string>
+    <string name="setup_bg_limit_4">ไม่เกิน 4</string>
+    <string name="setup_bg_limit_1">ไม่เกิน 1</string>
+    <string name="setup_bg_limit_0">ไม่มี</string>
+    <string name="setup_adb_pair">Wireless debugging</string>
+    <string name="setup_adb_pair_hint">จับคู่ DroidDeck กับ Wireless debugging ของ Android สำหรับตัวเลือกด้านบน ขีดจำกัดโพรเซสลูกยังคงปิดอยู่</string>
+    <string name="setup_adb_pair_button">จับคู่</string>
     <string name="spatial_restored">กู้คืนมุมมองที่บันทึกไว้แล้ว %1$d รายการ คำนวณการสอบเทียบเพื่อลองอีกครั้ง หรือเริ่มชุดใหม่เพื่อบันทึกข้อมูลเพิ่มเติม</string>
 </resources>

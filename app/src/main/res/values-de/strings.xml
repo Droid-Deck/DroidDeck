@@ -1978,6 +1978,8 @@
     <string name="stores_shelf_library">Deine Bibliothek</string>
     <string name="stores_play">Spielen</string>
     <string name="stores_install">Installieren</string>
+    <string name="bnet_open">Battle.net öffnen</string>
+    <string name="bnet_store">Blizzard-Spiele</string>
     <string name="stores_resume_install">Installation fortsetzen</string>
     <string name="stores_dl_interrupted">Unterbrochen</string>
     <string name="stores_install_size">Installieren · %1$s</string>
@@ -3008,4 +3010,23 @@
     <string name="spatial_saved_views_hint">Gespeicherte Ansichten können neu berechnet werden. Starten Sie eine neue Kalibrierung zur Erfassung im aktuellen Tracking-Koordinatensystem.</string>
     <string name="spatial_model_checksum_error">Die Prüfsumme des Handmodells stimmt nicht überein</string>
     <string name="spatial_opencv_load_error">OpenCV konnte nicht geladen werden</string>
+    <string name="setup_group_memory">Arbeitsspeicher</string>
+    <string name="setup_clear_cached">Apps im Cache vor einer Sitzung schließen</string>
+    <string name="setup_clear_cached_hint">Beim Start einer Sitzung schließt DroidDeck die Apps, die Android im Hintergrund vorhält, damit das Spiel mehr Arbeitsspeicher hat. „Debugging über WLAN“ muss aktiviert sein.</string>
+    <string name="setup_clear_cached_unpaired">DroidDeck muss über „Debugging über WLAN“ gekoppelt sein (Koppeln, unten).</string>
+    <string name="setup_memory_hud">Speicheranzeige</string>
+    <string name="setup_memory_hud_hint">Belegter Arbeitsspeicher und Swap auf dem Sitzungsbildschirm. „Erweitert“ schlüsselt ihn nach Spiel, DroidDeck, Android und GPU auf.</string>
+    <string name="setup_memory_hud_simple">Einfach</string>
+    <string name="setup_memory_hud_advanced">Erweitert</string>
+    <string name="memory_hud_simple">RAM %1$s/%2$s GB · Swap %3$s/%4$s GB</string>
+    <string name="memory_hud_split">Spiel %1$s · DroidDeck %2$s · Android %3$s GB</string>
+    <string name="memory_hud_gpu">GPU %1$s GB</string>
+    <string name="setup_bg_limit">Hintergrund-Apps während einer Sitzung</string>
+    <string name="setup_bg_limit_hint">Während eine Sitzung läuft, hält Android höchstens so viele Apps im Cache und schließt die übrigen, damit das Spiel deren Speicher bekommt. DroidDeck stellt das vorherige Limit wieder her, wenn die Sitzung endet. „Debugging über WLAN“ muss aktiviert sein.</string>
+    <string name="setup_bg_limit_4">Höchstens 4</string>
+    <string name="setup_bg_limit_1">Höchstens 1</string>
+    <string name="setup_bg_limit_0">Keine</string>
+    <string name="setup_adb_pair">Debugging über WLAN</string>
+    <string name="setup_adb_pair_hint">Koppelt DroidDeck mit „Debugging über WLAN“ von Android für die Optionen oben. Das Limit für untergeordnete Prozesse bleibt aus.</string>
+    <string name="setup_adb_pair_button">Koppeln</string>
 </resources>

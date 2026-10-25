@@ -266,6 +266,12 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
     LaunchedEffect(Unit) { StoresState.refresh(ctx) }
     val lifecycle = androidx.compose.ui.platform.LocalLifecycleOwner.current.lifecycle
     LaunchedEffect(chip) {
+        if (chip == Store.BATTLENET.id) {
+            while (true) {
+                if (lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) com.droiddeck.launcher.stores.battlenet.BattleNetClient.refresh(ctx)
+                delay(5_000)
+            }
+        }
         if (chip == Store.EPIC.id) {
             EpicClient.ensure(ctx)
             while (true) {
@@ -1103,6 +1109,7 @@ private fun Storefront(
                         if (EpicClient.status.installed) a.onEpicLauncher()
                         else { EpicClient.install(ctx); StoresState.openDownloads = true }
                     }
+                    if (store == Store.BATTLENET) SmallTextButton(stringResource(R.string.bnet_name)) { a.onBattleNet() }
                     SmallTextButton(stringResource(R.string.stores_refresh)) { StoresState.open(ctx, store, force = true) }
                     val name = StoresState.accounts[store] ?: ""
                     SignOutButton(store, name)
@@ -1140,7 +1147,7 @@ private fun Storefront(
                             Shelf(stringResource(R.string.stores_shelf_new), shelf(shelves?.whatsNew), card)
                             Shelf(stringResource(R.string.stores_shelf_deals), shelf(shelves?.deals), card)
                             Shelf(stringResource(R.string.stores_shelf_free), shelf(shelves?.free), card)
-                            Shelf(stringResource(R.string.stores_shelf_trending), shelf(shelves?.trending), card)
+                            Shelf(stringResource(if (store == Store.BATTLENET) R.string.bnet_store else R.string.stores_shelf_trending), shelf(shelves?.trending), card)
                             Shelf(stringResource(R.string.stores_shelf_library), library, card)
                             if (shelves == null && library.isEmpty()) Rise(4) { Note(if (StoresState.status[store] != null) stringResource(R.string.stores_library_loading) else stringResource(R.string.stores_shelves_loading)) }
                             else if (shelves != null && shelves.isEmpty && store == Store.AMAZON) Rise(4) { Note(stringResource(R.string.stores_amazon_no_catalog)) }
@@ -1234,6 +1241,7 @@ internal fun storePalette(base: Palette, store: Store?): Palette {
         Store.AMAZON -> Color(0xFFFF9900) to Color(0xFFE07800)
         Store.XBOX -> Color(0xFF70C850) to Color(0xFF107C10)
         Store.ITCH -> Color(0xFFFF5C5C) to Color(0xFFD93B3B)
+        Store.BATTLENET -> Color(0xFF148EFF) to Color(0xFF0B6BD3)
         null -> return base
     }
     val on = if (accent.luminance() > 0.18f) Color(0xFF0B0B0D) else Color.White

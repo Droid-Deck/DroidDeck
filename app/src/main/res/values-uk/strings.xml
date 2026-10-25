@@ -2028,6 +2028,8 @@
     <string name="stores_shelf_library">Ваша бібліотека</string>
     <string name="stores_play">Грати</string>
     <string name="stores_install">Встановити</string>
+    <string name="bnet_open">Відкрити Battle.net</string>
+    <string name="bnet_store">Ігри Blizzard</string>
     <string name="stores_resume_install">Продовжити встановлення</string>
     <string name="stores_dl_interrupted">Перервано</string>
     <string name="stores_install_size">Встановити · %1$s</string>
@@ -3075,5 +3077,24 @@
     <string name="spatial_saved_views_hint">Збережені перегляди можна перерахувати. Розпочніть нове калібрування для запису в поточній системі координат відстеження.</string>
     <string name="spatial_model_checksum_error">Невідповідність контрольної суми моделі руки</string>
     <string name="spatial_opencv_load_error">Не вдалося завантажити OpenCV</string>
+    <string name="setup_group_memory">Пам\'ять</string>
+    <string name="setup_clear_cached">Закривати кешовані додатки перед сеансом</string>
+    <string name="setup_clear_cached_hint">Коли починається сеанс, DroidDeck закриває додатки, які Android тримає у фоні, щоб грі дісталося більше пам\'яті. Бездротове налагодження має бути ввімкнене.</string>
+    <string name="setup_clear_cached_unpaired">Потрібно поєднати DroidDeck через бездротове налагодження («Поєднати», нижче).</string>
+    <string name="setup_memory_hud">Показник пам\'яті</string>
+    <string name="setup_memory_hud_hint">Використана пам\'ять і swap на екрані сеансу. «Розширений» розподіляє її між грою, DroidDeck, Android і GPU.</string>
+    <string name="setup_memory_hud_simple">Простий</string>
+    <string name="setup_memory_hud_advanced">Розширений</string>
+    <string name="memory_hud_simple">RAM %1$s/%2$s GB · swap %3$s/%4$s GB</string>
+    <string name="memory_hud_split">гра %1$s · DroidDeck %2$s · Android %3$s GB</string>
+    <string name="memory_hud_gpu">GPU %1$s GB</string>
+    <string name="setup_bg_limit">Фонові додатки під час сеансу</string>
+    <string name="setup_bg_limit_hint">Під час сеансу Android тримає в кеші не більше ніж стільки додатків і закриває решту, щоб гра отримала їхню пам\'ять. Коли сеанс завершується, DroidDeck повертає попереднє обмеження. Бездротове налагодження має бути ввімкнене.</string>
+    <string name="setup_bg_limit_4">Не більше 4</string>
+    <string name="setup_bg_limit_1">Не більше 1</string>
+    <string name="setup_bg_limit_0">Жодного</string>
+    <string name="setup_adb_pair">Бездротове налагодження</string>
+    <string name="setup_adb_pair_hint">Поєднує DroidDeck з бездротовим налагодженням Android для параметрів вище. Обмеження дочірніх процесів залишається вимкненим.</string>
+    <string name="setup_adb_pair_button">Поєднати</string>
     <string name="spatial_gpu_hint">Типово використовується CPU. Режим GPU є експериментальним і може спричинити перезапуск SteamVR. Вибір скидається після перезапуску відстеження.</string>
 </resources>

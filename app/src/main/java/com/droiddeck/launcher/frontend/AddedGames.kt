@@ -79,6 +79,18 @@ object AddedGames {
         return null
     }
 
+    fun hostPath(context: Context, guest: String): File? {
+        if (!guest.startsWith("/") || guest.split('/').any { it == ".." }) return null
+        val mapped = roots(context).map { it.host to it.guest } + StoreInstallRoot.externalRoots(context) +
+            listOfNotNull(GameStorage.effective(context)?.let { File(it.path) to LIBRARY }) +
+            (android.os.Environment.getExternalStorageDirectory() to "/root/Storage")
+        for ((host, root) in mapped.sortedByDescending { it.second.length }) {
+            if (guest == root) return host
+            if (guest.startsWith("$root/")) return File(host, guest.removePrefix("$root/"))
+        }
+        return File(LinuxRuntime.rootDir(context), guest.removePrefix("/"))
+    }
+
     fun candidates(folder: File): List<File> = rank(folder).exes
 
     fun rank(folder: File): GameExePicker.Ranking {

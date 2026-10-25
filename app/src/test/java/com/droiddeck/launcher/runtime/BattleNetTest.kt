@@ -158,7 +158,6 @@ class BattleNetTest {
         val root = LinuxRuntime.rootDir(context)
         fun put(relative: String) = File(root, relative).apply { parentFile!!.mkdirs(); writeText("x") }
         launcher().apply { parentFile!!.mkdirs(); writeText("MZ") }
-        // Wine's drive letters: z: is the whole filesystem.
         val outside = File(context.cacheDir, "bnet-outside").apply { mkdirs() }
         val kept = File(outside, "kept").apply { writeText("x") }
         val drives = File(BattleNet.prefix(context), "pfx/dosdevices").apply { mkdirs() }
@@ -232,6 +231,9 @@ class BattleNetTest {
         assertEquals(File(pfx, "drive_c/Games/Diablo II Resurrected"), games[1].folder)
         assertNull(BattleNet.hostFolder(context, "D:\\Games\\X"))
         assertNull(BattleNet.hostFolder(context, "C:\\..\\..\\etc"))
+        assertNull(BattleNet.hostFolder(context, "Z:\\root\\..\\..\\etc"))
+        assertEquals(File(LinuxRuntime.rootDir(context), "root/Games/Stores/Battle.net/Hearthstone"),
+            BattleNet.hostFolder(context, "Z:/root/Games/Stores/Battle.net/Hearthstone/"))
     }
 
     @Test fun aGamesShortcutHasBattleNetLaunchItInItsPrefix() {
@@ -245,11 +247,11 @@ class BattleNetTest {
         val crc = CRC32().apply { update("\"$exe\"Diablo IV".toByteArray()) }.value
         assertEquals(crc or 0x80000000L, shortcut.appId)
         assertEquals((shortcut.appId shl 32) or 0x02000000L, shortcut.gameId)
-        assertEquals(BattleNet.SOURCE, shortcut.source)
+        assertEquals(com.droiddeck.launcher.stores.Store.BATTLENET.id, shortcut.source)
         assertEquals("Diablo IV Launcher.exe", shortcut.exe.name)
         val listing = com.droiddeck.launcher.frontend.AddedGames.writeListing(context, listOf(shortcut)).readText()
         val entry = JSONArray(listing).getJSONObject(0)
-        assertEquals(BattleNet.SOURCE, entry.getString("store"))
+        assertEquals(com.droiddeck.launcher.stores.Store.BATTLENET.id, entry.getString("store"))
         assertEquals(shortcut.launchOptions, entry.getString("launch"))
         assertEquals(exe, entry.getString("exe"))
     }
@@ -274,16 +276,15 @@ class BattleNetTest {
         val shortcut = BattleNet.shortcut(context, BattleNet.Game("fenris", "Diablo IV", "Fen", folder))!!
         val game = com.droiddeck.launcher.frontend.Library.SteamGame(
             shortcut.appId.toInt(), shortcut.name, null, com.droiddeck.launcher.frontend.Library.ADDED, shortcut.gameId,
-            source = BattleNet.SOURCE, storeId = shortcut.storeId)
+            source = com.droiddeck.launcher.stores.Store.BATTLENET.id, storeId = shortcut.storeId)
         val noSteam = com.droiddeck.launcher.session.NoSteamLaunch
         assertEquals(BattleNet.APP_ID.toString(), noSteam.scope(game))
         assertFalse(noSteam.enabled(context, game))
         assertTrue(BattleNet.ensureNoSteam(context))
         assertTrue(noSteam.enabled(context, game))
         val command = noSteam.command(game, shortcut)!!
-        assertEquals(noSteam.PROTON_RUN, command.program)
-        assertEquals(listOf("--app", shortcut.appId.toString(), "--dir", shortcut.guestDir, "--options", shortcut.launchOptions, "--", shortcut.guestExe),
-            command.args)
+        assertEquals(noSteam.BATTLENET, command.program)
+        assertEquals(listOf("launch", "Fen"), command.args)
         GameEnvironmentStore.setGameNoSteam(context, BattleNet.APP_ID.toString(), false)
         assertFalse(BattleNet.ensureNoSteam(context))
         assertFalse(noSteam.enabled(context, game))

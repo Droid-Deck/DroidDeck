@@ -140,7 +140,6 @@ class FrontEndActivity : ComponentActivity() {
     private var desktopInstalled by mutableStateOf(false)
     private var desktopPresent by mutableStateOf(false)
     private var battleNetInstalled by mutableStateOf(false)
-    private var battleNetRemoving by mutableStateOf(false)
     private var offlineAccount by mutableStateOf<String?>(null)
     private var offline by mutableStateOf(false)
     private var showPerformance by mutableStateOf(false)
@@ -592,6 +591,7 @@ class FrontEndActivity : ComponentActivity() {
                 when {
                     !SessionState.running -> startSessionOrWait(next)
                     SessionState.stopRequested -> android.widget.Toast.makeText(this, R.string.game_link_session_busy, android.widget.Toast.LENGTH_LONG).show()
+                    command.program == com.droiddeck.launcher.session.NoSteamLaunch.BATTLENET && handToBattleNet(command.args, returnHome) -> {}
                     SessionState.mode == SessionService.MODE_RUN && SessionState.program == command.program && SessionState.programArgs == command.args ->
                         startActivity(Intent(this, SessionActivity::class.java).setAction(SessionService.ACTION_RESUME)
                             .returnTo(returnHome)
@@ -689,9 +689,8 @@ class FrontEndActivity : ComponentActivity() {
     }
 
     private fun startSessionOrWait(next: Intent): Boolean {
-        // Proton's processes count against Android's child-process limit with or without Steam.
         val started = startSession(next, steamSession = next.hasExtra(SessionService.EXTRA_STEAM_URL) ||
-            next.getStringExtra(SessionService.EXTRA_PROGRAM) == com.droiddeck.launcher.session.NoSteamLaunch.PROTON_RUN)
+            next.getStringExtra(SessionService.EXTRA_PROGRAM) in setOf(com.droiddeck.launcher.session.NoSteamLaunch.PROTON_RUN, com.droiddeck.launcher.session.NoSteamLaunch.BATTLENET))
         if (!started && (busy || LinuxRuntimeInstaller.isBusy())) android.widget.Toast.makeText(this, R.string.main_wait_install_game, android.widget.Toast.LENGTH_SHORT).show()
         return started
     }
@@ -756,7 +755,6 @@ class FrontEndActivity : ComponentActivity() {
         gameSyncFolder = GameFileSync.folder(this)
         displayManager = getSystemService(DISPLAY_SERVICE) as DisplayManager
         refreshPhantomStatus()
-        // A session Android killed never restored its background-app limit.
         if (!SessionState.running) com.droiddeck.launcher.core.BackgroundAppLimit.restoreAsync(this)
         theme = SessionPrefs.theme(this)
         frameGenLabel = getString(R.string.frame_gen_off)
@@ -826,8 +824,7 @@ class FrontEndActivity : ComponentActivity() {
                         packageStage = pkgStage,
                         packagePercent = pkgPercent,
                         sessionRunning = SessionState.running,
-                        desktopRunning = SessionState.running && SessionState.mode == SessionService.MODE_DESKTOP,
-                        battleNetInstalled = battleNetInstalled, battleNetRemoving = battleNetRemoving,
+                        battleNetInstalled = battleNetInstalled,
                         backActionsInverted = backActionsInverted,
                         buildLabel = BuildConfig.BUILD_LABEL,
                         oscMode = oscMode,
@@ -917,8 +914,6 @@ class FrontEndActivity : ComponentActivity() {
                                 .putExtra(SessionService.EXTRA_PROGRAM_ARGS, app.args.toTypedArray()))
                         },
                         onBattleNet = { openBattleNet() },
-                        onBattleNetInstall = { uid -> openBattleNet(listOf("install-game", uid)) },
-                        onRemoveBattleNet = { removeBattleNet() },
                         onFlatpakApp = { id, name ->
                             Library.flatpakNames[id] = name
                             startActivity(Intent(this, SessionActivity::class.java)
@@ -1316,6 +1311,7 @@ class FrontEndActivity : ComponentActivity() {
         refreshWifiDiscovery()
         com.droiddeck.launcher.stores.StoresState.refresh(this)
         com.droiddeck.launcher.stores.StoresState.libraryListener = { refreshAddedGames(); refresh() }
+        com.droiddeck.launcher.stores.battlenet.BattleNetClient.opener = { args -> openBattleNet(args) }
         com.droiddeck.launcher.ui.Motion.refresh(this)
         com.droiddeck.launcher.ui.QuitFlood.take()?.let { c ->
             returning = ReturningFlood(c, com.droiddeck.launcher.ui.LaunchOrigin.takeReturn())
@@ -1382,6 +1378,7 @@ class FrontEndActivity : ComponentActivity() {
         unregisterReceiver(mediaReceiver)
         ui.removeCallbacks(mediaRefresh)
         com.droiddeck.launcher.stores.StoresState.libraryListener = null
+        com.droiddeck.launcher.stores.battlenet.BattleNetClient.opener = null
         displayManager.unregisterDisplayListener(secondScreenDisplayListener)
         flood = null
         returning = null
@@ -1576,27 +1573,37 @@ class FrontEndActivity : ComponentActivity() {
     }
 
     private fun openBattleNet(args: List<String> = emptyList()) {
-        val program = com.droiddeck.launcher.runtime.BattleNet.PROGRAM
-        if (!SessionState.running) {
-            startSession(Intent(this, SessionActivity::class.java)
-                .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_DESKTOP)
-                .putExtra(SessionService.EXTRA_PROGRAM, program)
-                .putExtra(SessionService.EXTRA_PROGRAM_ARGS, args.toTypedArray()))
-        } else if (SessionState.mode == SessionService.MODE_DESKTOP) {
-            runCatching { com.droiddeck.launcher.runtime.DesktopRequests.open(LinuxRuntime.sessionRoot(this), program, args) }
-                .onFailure { Log.w(TAG, "Battle.net request", it) }
-            startActivity(Intent(this, SessionActivity::class.java))
+        if (protons.protonBusyId != null || ProtonExtras.installInProgress || pkgStage != null) {
+            android.widget.Toast.makeText(this, R.string.main_wait_install_game, android.widget.Toast.LENGTH_SHORT).show()
+            return
         }
+        val app = applicationContext
+        Thread({
+            val full = if (args.firstOrNull() == "--library") args else com.droiddeck.launcher.stores.battlenet.BattleNetClient.library(app) + args
+            ui.post {
+                if (isDestroyed) return@post
+                val next = Intent(this, SessionActivity::class.java)
+                    .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_RUN)
+                    .putExtra(SessionService.EXTRA_PROGRAM, com.droiddeck.launcher.session.NoSteamLaunch.BATTLENET)
+                    .putExtra(SessionService.EXTRA_PROGRAM_ARGS, full.toTypedArray())
+                when {
+                    !SessionState.running -> startSessionOrWait(next)
+                    SessionState.stopRequested -> android.widget.Toast.makeText(this, R.string.game_link_session_busy, android.widget.Toast.LENGTH_LONG).show()
+                    handToBattleNet(full) -> {}
+                    else -> pendingSwitch = next
+                }
+            }
+        }, "battlenet-open").start()
     }
 
-    private fun removeBattleNet() {
-        if (battleNetRemoving || SessionState.running) return
-        battleNetRemoving = true
-        Thread({
-            runCatching { com.droiddeck.launcher.runtime.BattleNet.remove(this) }
-                .onFailure { Log.w(TAG, "Battle.net removal", it) }
-            ui.post { battleNetRemoving = false; refresh() }
-        }, "battlenet-remove").start()
+    private fun handToBattleNet(args: List<String>, returnHome: Boolean = false): Boolean {
+        if (SessionState.mode != SessionService.MODE_RUN || SessionState.program != com.droiddeck.launcher.session.NoSteamLaunch.BATTLENET) return false
+        val request = if (args.firstOrNull() == "--library") args.drop(2) else args
+        if (request.isNotEmpty() && !com.droiddeck.launcher.stores.battlenet.BattleNetClient.request(LinuxRuntime.sessionRoot(this), request)) return false
+        startActivity(Intent(this, SessionActivity::class.java).setAction(SessionService.ACTION_RESUME)
+            .returnTo(returnHome)
+            .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP))
+        return true
     }
 
     private fun launchProgram(path: String) {

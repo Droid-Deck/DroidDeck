@@ -187,7 +187,6 @@ object WirelessAdbFix {
 
     fun hasSavedPairing(context: Context): Boolean = savedConnection(context.applicationContext) != null
 
-    // am kill-all leaves anything visible, perceptible or a service alone.
     fun clearCachedApps(context: Context) {
         shell(context, "am kill-all")
     }
@@ -206,7 +205,6 @@ object WirelessAdbFix {
         return output
     }
 
-    // Wireless debugging's port changes each time it is turned on.
     private fun withSavedPairing(context: Context, action: (Context, String, Int) -> Unit) {
         val appContext = context.applicationContext
         val saved = savedConnection(appContext)

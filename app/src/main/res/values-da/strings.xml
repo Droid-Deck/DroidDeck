@@ -1986,6 +1986,8 @@
     <string name="stores_shelf_library">Dit bibliotek</string>
     <string name="stores_play">Spil</string>
     <string name="stores_install">Installer</string>
+    <string name="bnet_open">Åbn Battle.net</string>
+    <string name="bnet_store">Blizzard-spil</string>
     <string name="stores_resume_install">Genoptag installation</string>
     <string name="stores_dl_interrupted">Afbrudt</string>
     <string name="stores_install_size">Installation · %1$s</string>
@@ -3008,4 +3010,23 @@
     <string name="spatial_saved_views_hint">Gemte visninger kan genberegnes. Start en ny kalibrering for at fange i det aktuelle sporingskoordinatsystem.</string>
     <string name="spatial_model_checksum_error">Håndmodel kontrolsum uoverensstemmelse</string>
     <string name="spatial_opencv_load_error">OpenCV kunne ikke indlæse</string>
+    <string name="setup_group_memory">Hukommelse</string>
+    <string name="setup_clear_cached">Luk cachelagrede apps før en session</string>
+    <string name="setup_clear_cached_hint">Når en session starter, lukker DroidDeck de apps, Android holder parkeret i baggrunden, så spillet får mere hukommelse. Trådløs fejlretning skal være slået til.</string>
+    <string name="setup_clear_cached_unpaired">Kræver, at DroidDeck er parret med Trådløs fejlretning (Par, nedenfor).</string>
+    <string name="setup_memory_hud">Hukommelsesvisning</string>
+    <string name="setup_memory_hud_hint">Hukommelse og swap i brug på sessionsskærmen. Avanceret fordeler det på spillet, DroidDeck, Android og GPU\'en.</string>
+    <string name="setup_memory_hud_simple">Enkel</string>
+    <string name="setup_memory_hud_advanced">Avanceret</string>
+    <string name="memory_hud_simple">RAM %1$s/%2$s GB · swap %3$s/%4$s GB</string>
+    <string name="memory_hud_split">spil %1$s · DroidDeck %2$s · Android %3$s GB</string>
+    <string name="memory_hud_gpu">GPU %1$s GB</string>
+    <string name="setup_bg_limit">Baggrundsapps under en session</string>
+    <string name="setup_bg_limit_hint">Mens en session kører, holder Android højst så mange apps i cache og lukker resten, så spillet får deres hukommelse. DroidDeck sætter grænsen tilbage, som den var, når sessionen slutter. Trådløs fejlretning skal være slået til.</string>
+    <string name="setup_bg_limit_4">Højst 4</string>
+    <string name="setup_bg_limit_1">Højst 1</string>
+    <string name="setup_bg_limit_0">Ingen</string>
+    <string name="setup_adb_pair">Trådløs fejlretning</string>
+    <string name="setup_adb_pair_hint">Parrer DroidDeck med Androids Trådløs fejlretning til indstillingerne ovenfor. Grænsen for underprocesser forbliver slået fra.</string>
+    <string name="setup_adb_pair_button">Par</string>
 </resources>

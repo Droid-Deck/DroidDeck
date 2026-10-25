@@ -4,10 +4,6 @@ import android.content.Context
 import android.util.Log
 import java.util.concurrent.Executors
 
-/**
- * A device_config value outlives a reboot, so the previous max_cached_processes is recorded and restored
- * when the session ends, or, after a session Android killed, when the app next starts without one.
- */
 object BackgroundAppLimit {
     private const val TAG = "BackgroundAppLimit"
     const val OFF = -1
@@ -17,7 +13,6 @@ object BackgroundAppLimit {
     private const val APPLIED = "applied"
     private const val PREVIOUS = "previous"
 
-    // One thread, so a session's restore runs before the next session's limit is set.
     private val worker = Executors.newSingleThreadExecutor { Thread(it, "background-app-limit").apply { isDaemon = true } }
 
     internal fun readCommand() = "device_config get activity_manager $KEY"

@@ -1999,6 +1999,8 @@
     <string name="stores_shelf_library">A sua biblioteca</string>
     <string name="stores_play">Jogar</string>
     <string name="stores_install">Instalar</string>
+    <string name="bnet_open">Abrir o Battle.net</string>
+    <string name="bnet_store">Jogos da Blizzard</string>
     <string name="stores_resume_install">Retomar instalação</string>
     <string name="stores_dl_interrupted">Interrompida</string>
     <string name="stores_install_size">Instalar · %1$s</string>
@@ -3041,5 +3043,24 @@
     <string name="spatial_saved_views_hint">As visualizações guardadas podem ser recalculadas. Inicie uma nova calibração para captar no sistema de coordenadas de seguimento atual.</string>
     <string name="spatial_model_checksum_error">Incompatibilidade de checksum do modelo de mãos</string>
     <string name="spatial_opencv_load_error">O OpenCV não conseguiu carregar</string>
+    <string name="setup_group_memory">Memória</string>
+    <string name="setup_clear_cached">Fechar apps em cache antes de uma sessão</string>
+    <string name="setup_clear_cached_hint">Quando uma sessão começa, o DroidDeck fecha as apps que o Android mantém em segundo plano, para que o jogo tenha mais memória. A Depuração sem fios tem de estar ativada.</string>
+    <string name="setup_clear_cached_unpaired">É necessário sincronizar o DroidDeck com a Depuração sem fios (Sincronizar, abaixo).</string>
+    <string name="setup_memory_hud">Indicador de memória</string>
+    <string name="setup_memory_hud_hint">Memória e swap em uso, no ecrã da sessão. O modo Avançado divide-a entre o jogo, o DroidDeck, o Android e a GPU.</string>
+    <string name="setup_memory_hud_simple">Simples</string>
+    <string name="setup_memory_hud_advanced">Avançado</string>
+    <string name="memory_hud_simple">RAM %1$s/%2$s GB · swap %3$s/%4$s GB</string>
+    <string name="memory_hud_split">jogo %1$s · DroidDeck %2$s · Android %3$s GB</string>
+    <string name="memory_hud_gpu">GPU %1$s GB</string>
+    <string name="setup_bg_limit">Apps em segundo plano durante uma sessão</string>
+    <string name="setup_bg_limit_hint">Enquanto uma sessão decorre, o Android mantém em cache no máximo este número de apps e fecha as restantes, para que o jogo fique com a memória delas. O DroidDeck repõe o limite anterior quando a sessão termina. A Depuração sem fios tem de estar ativada.</string>
+    <string name="setup_bg_limit_4">No máximo 4</string>
+    <string name="setup_bg_limit_1">No máximo 1</string>
+    <string name="setup_bg_limit_0">Nenhuma</string>
+    <string name="setup_adb_pair">Depuração sem fios</string>
+    <string name="setup_adb_pair_hint">Sincroniza o DroidDeck com a Depuração sem fios do Android para as opções acima. O limite de processos secundários continua desativado.</string>
+    <string name="setup_adb_pair_button">Sincronizar</string>
     <string name="tracking_recovery_look">Olhe em redor lentamente num ambiente bem iluminado.\nMantenha as câmaras de seguimento desobstruídas e viradas para móveis ou outros detalhes visíveis.</string>
 </resources>

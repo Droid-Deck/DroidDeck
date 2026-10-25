@@ -7,14 +7,9 @@ import com.droiddeck.launcher.session.ComponentsManager
 import com.droiddeck.launcher.session.GameEnvironmentStore
 import java.io.File
 
-/**
- * Battle.net's installer, client and games share one Proton prefix, compatdata/[APP_ID], and therefore
- * one environment profile and one FEX choice.
- */
 object BattleNet {
     private const val TAG = "BattleNet"
 
-    // Must match droiddeck-battlenet: crc32("\"droiddeck-battlenet\"Battle.net") | 0x80000000.
     const val APP_ID = 2596113170L
 
     const val FEX_REQUEST = "battlenet-fex.request"
@@ -22,46 +17,42 @@ object BattleNet {
 
     const val PROGRAM = "/usr/local/bin/droiddeck-battlenet"
 
-    const val SOURCE = "battlenet"
+    class Title(val uid: String, val name: String, val code: String, val steam: Int? = null, val shop: String? = null)
 
-    class Title(val uid: String, val name: String, val code: String)
-
-    // From Playnite's BattleNetLibrary and GOG Galaxy's Blizzard plugin. An installed id not here has no
-    // known launch code and is not listed (World of Warcraft Classic starts through its own launcher).
     internal val TITLES = listOf(
-        Title("wow", "World of Warcraft", "WoW"),
-        Title("diablo3", "Diablo III", "D3"),
-        Title("d3cn", "Diablo III", "D3CN"),
-        Title("s2", "StarCraft II", "S2"),
-        Title("s1", "StarCraft", "S1"),
-        Title("hs_beta", "Hearthstone", "WTCG"),
-        Title("heroes", "Heroes of the Storm", "Hero"),
-        Title("prometheus", "Overwatch 2", "Pro"),
+        Title("wow", "World of Warcraft", "WoW", shop = "world-of-warcraft-midnight"),
+        Title("diablo3", "Diablo III", "D3", shop = "diablo-iii"),
+        Title("d3cn", "Diablo III", "D3CN", shop = "diablo-iii"),
+        Title("s2", "StarCraft II", "S2", shop = "starcraft-ii"),
+        Title("s1", "StarCraft", "S1", shop = "starcraft-remastered"),
+        Title("hs_beta", "Hearthstone", "WTCG", shop = "hearthstone"),
+        Title("heroes", "Heroes of the Storm", "Hero", shop = "heroes-of-the-storm"),
+        Title("prometheus", "Overwatch 2", "Pro", 2357570, shop = "overwatch"),
         Title("w3", "Warcraft III: Reforged", "W3"),
-        Title("viper", "Call of Duty: Black Ops 4", "VIPR"),
-        Title("odin", "Call of Duty: Modern Warfare", "ODIN"),
-        Title("lazarus", "Call of Duty: Modern Warfare 2 Campaign Remastered", "LAZR"),
-        Title("zeus", "Call of Duty: Black Ops Cold War", "ZEUS"),
-        Title("fore", "Call of Duty: Vanguard", "FORE"),
-        Title("auks", "Call of Duty: Modern Warfare II", "AUKS"),
-        Title("pinta", "Call of Duty: Modern Warfare III", "PNTA"),
-        Title("wlby", "Crash Bandicoot 4: It's About Time", "WLBY"),
+        Title("viper", "Call of Duty: Black Ops 4", "VIPR", shop = "call-of-duty-black-ops-4"),
+        Title("odin", "Call of Duty: Modern Warfare", "ODIN", 2000950, shop = "call-of-duty-modern-warfare"),
+        Title("lazarus", "Call of Duty: Modern Warfare 2 Campaign Remastered", "LAZR", shop = "call-of-duty-modern-warfare-2-campaign-remastered"),
+        Title("zeus", "Call of Duty: Black Ops Cold War", "ZEUS", shop = "call-of-duty-black-ops-cold-war"),
+        Title("fore", "Call of Duty: Vanguard", "FORE", shop = "call-of-duty-vanguard"),
+        Title("auks", "Call of Duty: Modern Warfare II", "AUKS", shop = "call-of-duty-modern-warfare-ii"),
+        Title("pinta", "Call of Duty: Modern Warfare III", "PNTA", 2519060, shop = "call-of-duty-modern-warfare-iii"),
+        Title("wlby", "Crash Bandicoot 4: It's About Time", "WLBY", 1378990, shop = "crash-bandicoot-4"),
         Title("osi", "Diablo II: Resurrected", "OSI"),
-        Title("rtro", "Blizzard Arcade Collection", "RTRO"),
-        Title("anbs", "Diablo Immortal", "ANBS"),
-        Title("fenris", "Diablo IV", "Fen"),
-        Title("fen", "Diablo IV", "Fen"),
-        Title("d1", "Diablo", "D1"),
-        Title("w1", "Warcraft: Orcs & Humans", "W1"),
+        Title("rtro", "Blizzard Arcade Collection", "RTRO", shop = "blizzard-arcade-collection"),
+        Title("anbs", "Diablo Immortal", "ANBS", shop = "diablo-immortal"),
+        Title("fenris", "Diablo IV", "Fen", 2344520, shop = "diablo-iv"),
+        Title("fen", "Diablo IV", "Fen", 2344520, shop = "diablo-iv"),
+        Title("d1", "Diablo", "D1", shop = "diablo"),
+        Title("w1", "Warcraft: Orcs & Humans", "W1", shop = "warcraft-orcs-and-humans"),
         Title("w2", "Warcraft II: Battle.net Edition", "W2"),
         Title("w1r", "Warcraft: Remastered", "W1R"),
         Title("w2r", "Warcraft II: Remastered", "W2R"),
-        Title("gryphon", "Warcraft Rumble", "GRY"),
-        Title("aris", "Doom: The Dark Ages", "ARIS"),
-        Title("scorpio", "Sea of Thieves", "SCOR"),
-        Title("arkansas", "The Outer Worlds 2", "ARK"),
-        Title("libra", "Tony Hawk's Pro Skater 3 + 4", "LBRA"),
-        Title("aqua", "Avowed", "AQUA"),
+        Title("gryphon", "Warcraft Rumble", "GRY", shop = "warcraft-rumble"),
+        Title("aris", "Doom: The Dark Ages", "ARIS", 3017860, shop = "doom-the-dark-ages"),
+        Title("scorpio", "Sea of Thieves", "SCOR", 1172620, shop = "sea-of-thieves"),
+        Title("arkansas", "The Outer Worlds 2", "ARK", 1449110, shop = "the-outer-worlds-2"),
+        Title("libra", "Tony Hawk's Pro Skater 3 + 4", "LBRA", 2545710),
+        Title("aqua", "Avowed", "AQUA", 2457220, shop = "avowed"),
     )
 
     val STORE: List<Title> get() = TITLES.distinctBy { it.code }.filter { it.uid != "d3cn" }
@@ -73,22 +64,27 @@ object BattleNet {
 
     private fun coverDir(context: Context, title: Title) = File(context.filesDir, "battlenet-art/${title.uid}")
 
-    fun cover(context: Context, title: Title): File? = File(coverDir(context, title), "p.jpg").takeIf { it.isFile }
+    fun cover(context: Context, title: Title): File? = art(context, title).cover
 
     fun fetchCovers(context: Context, titles: List<Title> = STORE): Boolean {
-        if (!com.droiddeck.launcher.session.SessionPrefs.addedGamesArt(context)) return false
         val art = com.droiddeck.launcher.frontend.AddedGameArt
         val key = com.droiddeck.launcher.frontend.SteamGridDb.key(context)
         var got = false
         for (title in titles) {
             val dir = coverDir(context, title)
             val tried = File(dir, ".tried")
-            if (File(dir, "p.jpg").isFile || System.currentTimeMillis() - tried.lastModified() < COVER_RETRY_MS) continue
+            val wide = File(dir, BLIZZARD)
+            val done = File(dir, "p.jpg").isFile && (title.shop == null || wide.isFile)
+            if (done || System.currentTimeMillis() - tried.lastModified() < COVER_RETRY_MS) continue
             dir.mkdirs()
-            val steam = runCatching { art.search(title.name) }.getOrNull()
-            if (steam != null && runCatching { art.download(steam, dir) }.getOrDefault(false)) got = true
-            if (!File(dir, "p.jpg").isFile && key.isNotEmpty()) {
-                val id = runCatching { com.droiddeck.launcher.frontend.SteamGridDb.gameId(key, steam?.toIntOrNull(), title.name) }.getOrNull()
+            if (title.steam != null && runCatching { art.download(title.steam.toString(), dir) }.getOrDefault(false)) got = true
+            if (title.shop != null && !wide.isFile) {
+                val cover = File(dir, BLIZZARD_COVER).takeUnless { File(dir, "p.jpg").isFile }
+                if (runCatching { com.droiddeck.launcher.stores.battlenet.BlizzardArt.fetch(title.shop, wide, cover) }
+                        .onFailure { Log.w(TAG, "Blizzard art for ${title.uid}: ${it.javaClass.simpleName}") }.getOrDefault(false)) got = true
+            }
+            if (!File(dir, "p.jpg").isFile && !File(dir, BLIZZARD_COVER).isFile && key.isNotEmpty()) {
+                val id = runCatching { com.droiddeck.launcher.frontend.SteamGridDb.gameId(key, title.steam, title.name) }.getOrNull()
                 if (id != null && runCatching { com.droiddeck.launcher.frontend.SteamGridDb.download(key, id, dir) }.getOrDefault(false)) got = true
             }
             runCatching { tried.writeText("") ; tried.setLastModified(System.currentTimeMillis()) }
@@ -102,7 +98,20 @@ object BattleNet {
 
     private val NOT_GAMES = setOf("agent", "bna", "battle.net")
 
-    class Game(val uid: String, val name: String, val code: String, val folder: File)
+    class Game(val uid: String, val name: String, val code: String, val folder: File) {
+        val title: Title get() = title(uid) ?: Title(uid, name, code)
+    }
+
+    class Art(val cover: File?, val header: File?)
+
+    private const val BLIZZARD = "blizzard.jpg"
+    private const val BLIZZARD_COVER = "p-blizzard.jpg"
+
+    fun art(context: Context, title: Title): Art {
+        val dir = coverDir(context, title)
+        fun first(vararg names: String) = names.map { File(dir, it) }.firstOrNull { it.isFile }
+        return Art(first("p.jpg", BLIZZARD_COVER), first(BLIZZARD, "header.jpg"))
+    }
 
     fun prefix(context: Context) = File(LinuxRuntime.rootDir(context), "root/.local/share/Steam/steamapps/compatdata/$APP_ID")
 
@@ -113,6 +122,34 @@ object BattleNet {
     fun profile(context: Context): Pair<String, String>? =
         (APP_ID.toString() to context.getString(com.droiddeck.launcher.R.string.bnet_name)).takeIf { installed(context) }
 
+    fun icon(context: Context): File? {
+        val out = File(context.filesDir, "battlenet-art/launcher/icon.png")
+        if (out.isFile) return out
+        val exe = client(context).takeIf { it.isFile } ?: return null
+        val bitmap = runCatching { com.droiddeck.launcher.files.PeIconExtractor.extract(exe) }.getOrNull() ?: return null
+        return runCatching {
+            out.parentFile?.mkdirs()
+            val tmp = File(out.path + ".tmp")
+            tmp.outputStream().use { check(bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)) }
+            check(tmp.renameTo(out))
+            out
+        }.getOrNull()
+    }
+
+    fun launcherEntry(installed: Boolean, art: File? = null): com.droiddeck.launcher.frontend.Library.SteamGame? =
+        if (!installed) null
+        else com.droiddeck.launcher.frontend.Library.SteamGame(
+            appId = APP_ID.toInt(), name = com.droiddeck.launcher.stores.Store.BATTLENET.label, art = art,
+            library = com.droiddeck.launcher.frontend.Library.BATTLENET_LAUNCHER, gameId = APP_ID,
+            source = com.droiddeck.launcher.stores.Store.BATTLENET.id,
+        )
+
+    fun withLauncher(games: List<com.droiddeck.launcher.frontend.Library.SteamGame>, launcher: com.droiddeck.launcher.frontend.Library.SteamGame?): List<com.droiddeck.launcher.frontend.Library.SteamGame> {
+        if (launcher == null) return games
+        val at = games.indexOfFirst { it.source == launcher.source }.takeIf { it >= 0 } ?: games.size
+        return games.subList(0, at) + launcher + games.subList(at, games.size)
+    }
+
     fun fexInUse(context: Context): String? = ComponentsManager.gameComponents(context, APP_ID.toString())["fex"]
 
     internal fun title(uid: String): Title? {
@@ -122,7 +159,6 @@ object BattleNet {
         return if (base.isNotEmpty() && id.substringAfterLast('_') in LOCALES) TITLES.firstOrNull { it.uid == base } else null
     }
 
-    // A game without an uninstall entry is listed only in the Agent's product.db.
     fun games(context: Context): List<Game> {
         val pfx = File(prefix(context), "pfx")
         val entries = runCatching { File(pfx, "system.reg").useLines { uninstallEntries(it) } }.getOrDefault(emptyList()) +
@@ -136,15 +172,17 @@ object BattleNet {
             }
             if (title.code in found) continue
             val folder = hostFolder(context, path)?.takeIf { it.isDirectory } ?: continue
-            found[title.code] = Game(uid, title.name, title.code, folder)
+            found[title.code] = Game(title.uid, title.name, title.code, folder)
         }
         return found.values.toList()
     }
 
     internal fun hostFolder(context: Context, path: String): File? {
-        val relative = Regex("""^[Cc]:[\\/](.*)$""").matchEntire(path.trim())?.groupValues?.get(1)?.replace('\\', '/')?.trim('/') ?: return null
+        val drive = Regex("""^([CcZz]):[\\/](.*)$""").matchEntire(path.trim()) ?: return null
+        val relative = drive.groupValues[2].replace('\\', '/').trim('/')
         if (relative.isEmpty() || relative.split('/').any { it == ".." }) return null
-        return File(prefix(context), "pfx/drive_c/$relative")
+        return if (drive.groupValues[1].equals("c", ignoreCase = true)) File(prefix(context), "pfx/drive_c/$relative")
+        else com.droiddeck.launcher.frontend.AddedGames.hostPath(context, "/$relative")
     }
 
     private val KEY = Regex("""^\[(.+)\](?:\s+\d+)?\s*$""")
@@ -204,8 +242,6 @@ object BattleNet {
         return out.toString()
     }
 
-    // product.db is protobuf: field 1 holds the installs, each with the id in field 1 and its settings
-    // in field 3, whose field 1 is the install folder.
     internal fun productDbEntries(bytes: ByteArray): List<Pair<String, String>> {
         val installs = runCatching { fields(bytes, 0, bytes.size) }.getOrDefault(emptyList()).filter { it.first == 1 }
         return installs.mapNotNull { (_, start, end) ->
@@ -262,12 +298,11 @@ object BattleNet {
         val exe = added.candidates(game.folder).firstOrNull() ?: client
         return com.droiddeck.launcher.frontend.AddedGames.Game(
             game.folder, game.name, exe, guestExe, guestDir, appId, (appId shl 32) or 0x02000000L, listOf(exe),
-            source = SOURCE, storeId = game.uid,
+            source = com.droiddeck.launcher.stores.Store.BATTLENET.id, storeId = game.uid,
             launchOptions = "STEAM_COMPAT_DATA_PATH=$guestPrefix %command% --exec=\"launch ${game.code}\"",
         )
     }
 
-    // Only with no session running: one could have the prefix open.
     fun remove(context: Context) {
         val root = LinuxRuntime.rootDir(context)
         com.droiddeck.launcher.core.FileUtils.delete(prefix(context))
@@ -323,16 +358,11 @@ object BattleNet {
         return if (newestD2rFix(fetched) != null) fetched else cached.items
     }
 
-    // Never exactly 4 GB: a game counting video memory in 32 bits reads that as none.
     internal fun videoMemory(totalMb: Long): Int = (totalMb / 5 / 512 * 512).coerceIn(1536, 3584).toInt()
 
-    // Turnip's single heap is reported as both dedicated and shared memory.
     internal fun videoMemoryOptions(megabytes: Int): String =
         "dxgi.maxDeviceMemory = $megabytes; dxgi.maxSharedMemory = $megabytes; d3d9.maxAvailableMemory = $megabytes"
 
-    // Turnip reports three quarters of the phone's memory as video memory, and Blizzard's games size their
-    // caches from it (Diablo IV kept 5.5 GB of textures on an 11 GB phone). vkd3d-proton's device memory
-    // comes from DXVK's DXGI, so DXVK_CONFIG caps D3D12 games too.
     fun ensureVideoMemory(context: Context): Boolean {
         val memory = ActivityManager.MemoryInfo()
         context.getSystemService(ActivityManager::class.java)?.getMemoryInfo(memory) ?: return false
@@ -345,7 +375,6 @@ object BattleNet {
 
     private const val DXVK_CONFIG = "DXVK_CONFIG"
 
-    // Once only: switching Start without Steam off removes the profile's entry rather than storing off.
     fun ensureNoSteam(context: Context): Boolean {
         if (com.droiddeck.launcher.session.SessionPrefs.battleNetNoSteamSet(context)) return false
         GameEnvironmentStore.setGameNoSteam(context, APP_ID.toString(), true)

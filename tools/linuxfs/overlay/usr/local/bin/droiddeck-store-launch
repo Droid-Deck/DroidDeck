@@ -293,17 +293,14 @@ def create_prefix(compat_data, proton, timeout=120):
 CLOUD_TIMEOUT = 15.0
 CLOUD_STORES = ("gog", "epic")
 STORE_GAME = 10
-# droiddeck-battlenet ran the whole launch: steam-compatibility exits without starting Proton.
 RAN = 11
 RAN_FAILED = 12
 BATTLENET = "/usr/local/bin/droiddeck-battlenet"
-# 2596113170 is droiddeck-battlenet's APP_ID.
 BATTLENET_EXE = re.compile(r"(?i)/compatdata/2596113170/pfx/drive_c/Program Files \(x86\)/Battle\.net/Battle\.net\.exe$")
 BATTLENET_LAUNCH = re.compile(r'(?i)^--exec=\s*"?launch\s+([A-Za-z0-9_]{1,16})"?$')
 
 
 def battlenet(argv, env=os.environ):
-    """BL_BATTLENET marks droiddeck-battlenet's own starts, which would otherwise come straight back here."""
     if env.get("BL_BATTLENET"):
         return None
     exe, code = False, None

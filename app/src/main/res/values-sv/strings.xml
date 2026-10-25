@@ -1986,6 +1986,8 @@
     <string name="stores_shelf_library">Ditt bibliotek</string>
     <string name="stores_play">Spela</string>
     <string name="stores_install">Installera</string>
+    <string name="bnet_open">Öppna Battle.net</string>
+    <string name="bnet_store">Blizzard-spel</string>
     <string name="stores_resume_install">Återuppta installation</string>
     <string name="stores_dl_interrupted">Avbruten</string>
     <string name="stores_install_size">Installation · %1$s</string>
@@ -3007,5 +3009,24 @@
     <string name="spatial_saved_views_hint">Sparade vyer kan räknas om. Starta en ny kalibrering för att fånga i det aktuella spårningskoordinatsystemet.</string>
     <string name="spatial_model_checksum_error">Kontrollsumman för handmodellen inte överensstämmer</string>
     <string name="spatial_opencv_load_error">OpenCV kunde inte laddas</string>
+    <string name="setup_group_memory">Minne</string>
+    <string name="setup_clear_cached">Stäng cachade appar före en session</string>
+    <string name="setup_clear_cached_hint">När en session startar stänger DroidDeck apparna som Android håller parkerade i bakgrunden, så att spelet får mer minne. Trådlös felsökning måste vara på.</string>
+    <string name="setup_clear_cached_unpaired">Kräver att DroidDeck är ihopparat via Trådlös felsökning (Para ihop, nedan).</string>
+    <string name="setup_memory_hud">Minnesvisning</string>
+    <string name="setup_memory_hud_hint">Minne och swap som används, på sessionsskärmen. Avancerat delar upp det på spelet, DroidDeck, Android och GPU:n.</string>
+    <string name="setup_memory_hud_simple">Enkel</string>
+    <string name="setup_memory_hud_advanced">Avancerat</string>
+    <string name="memory_hud_simple">RAM %1$s/%2$s GB · swap %3$s/%4$s GB</string>
+    <string name="memory_hud_split">spel %1$s · DroidDeck %2$s · Android %3$s GB</string>
+    <string name="memory_hud_gpu">GPU %1$s GB</string>
+    <string name="setup_bg_limit">Bakgrundsappar under en session</string>
+    <string name="setup_bg_limit_hint">Medan en session pågår håller Android högst så här många appar cachade och stänger resten, så att spelet får deras minne. DroidDeck återställer gränsen som den var när sessionen slutar. Trådlös felsökning måste vara på.</string>
+    <string name="setup_bg_limit_4">Högst 4</string>
+    <string name="setup_bg_limit_1">Högst 1</string>
+    <string name="setup_bg_limit_0">Ingen</string>
+    <string name="setup_adb_pair">Trådlös felsökning</string>
+    <string name="setup_adb_pair_hint">Parar ihop DroidDeck med Androids Trådlös felsökning för alternativen ovan. Gränsen för underprocesser förblir av.</string>
+    <string name="setup_adb_pair_button">Para ihop</string>
     <string name="glasses_6dof">Virtuell skärm med 6DoF</string>
 </resources>

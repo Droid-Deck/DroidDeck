@@ -474,6 +474,13 @@ class ProtonRunTest(Temp):
         self.assertEqual(RUN["arguments"]("/root/x/setup.msi", ["/qn"]), ["msiexec", "/i", "Z:\\root\\x\\setup.msi", "/qn"])
         self.assertEqual(RUN["arguments"]("/root/x/a.exe", ["-w"]), ["/root/x/a.exe", "-w"])
 
+    def test_a_virtual_desktop_runs_the_program_by_its_windows_path(self):
+        pfx = "/root/Steam/steamapps/compatdata/2596113170"
+        self.assertEqual(RUN["arguments"](pfx + "/pfx/drive_c/Program Files (x86)/Battle.net/Battle.net Launcher.exe", [], "1280x720", pfx),
+                         ["explorer.exe", "/desktop=droiddeck,1280x720", "C:\\Program Files (x86)\\Battle.net\\Battle.net Launcher.exe"])
+        self.assertEqual(RUN["arguments"]("/root/.cache/setup.exe", ["--lang=enUS"], "1920x1080", pfx),
+                         ["explorer.exe", "/desktop=droiddeck,1920x1080", "Z:\\root\\.cache\\setup.exe", "--lang=enUS"])
+
     def test_a_games_own_program_is_left_to_steam(self):
         self.write("Steam/appcache/appinfo.vdf", appinfo({413150: STARDEW}))
         self.assertEqual(RUN["compat"]()["launch_programs"](STARDEW["config"]),

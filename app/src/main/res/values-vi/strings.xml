@@ -1965,6 +1965,8 @@
     <string name="stores_shelf_library">Thư viện của bạn</string>
     <string name="stores_play">Chơi</string>
     <string name="stores_install">Cài</string>
+    <string name="bnet_open">Mở Battle.net</string>
+    <string name="bnet_store">Trò chơi Blizzard</string>
     <string name="stores_resume_install">Tiếp tục cài</string>
     <string name="stores_dl_interrupted">Bị gián đoạn</string>
     <string name="stores_install_size">Cài · %1$s</string>
@@ -2982,5 +2984,24 @@
     <string name="spatial_saved_views_hint">Các lượt xem đã lưu có thể được tính toán lại. Bắt đầu hiệu chuẩn mới để chụp trong hệ tọa độ theo dõi hiện tại.</string>
     <string name="spatial_model_checksum_error">Tổng kiểm tra mô hình bàn tay không khớp</string>
     <string name="spatial_opencv_load_error">OpenCV không thể tải</string>
+    <string name="setup_group_memory">Bộ nhớ</string>
+    <string name="setup_clear_cached">Đóng ứng dụng đã lưu đệm trước phiên</string>
+    <string name="setup_clear_cached_hint">Khi phiên bắt đầu, DroidDeck đóng các ứng dụng mà Android giữ ở nền để game có thêm bộ nhớ. Phải bật Gỡ lỗi qua mạng không dây.</string>
+    <string name="setup_clear_cached_unpaired">Cần ghép nối DroidDeck với Gỡ lỗi qua mạng không dây (Ghép nối, bên dưới).</string>
+    <string name="setup_memory_hud">Chỉ báo bộ nhớ</string>
+    <string name="setup_memory_hud_hint">Bộ nhớ và swap đang dùng, trên màn hình phiên. Nâng cao chia theo game, DroidDeck, Android và GPU.</string>
+    <string name="setup_memory_hud_simple">Đơn giản</string>
+    <string name="setup_memory_hud_advanced">Nâng cao</string>
+    <string name="memory_hud_simple">RAM %1$s/%2$s GB · swap %3$s/%4$s GB</string>
+    <string name="memory_hud_split">game %1$s · DroidDeck %2$s · Android %3$s GB</string>
+    <string name="memory_hud_gpu">GPU %1$s GB</string>
+    <string name="setup_bg_limit">Ứng dụng nền trong phiên</string>
+    <string name="setup_bg_limit_hint">Trong khi phiên chạy, Android chỉ giữ tối đa chừng này ứng dụng trong bộ nhớ đệm và đóng phần còn lại để game có bộ nhớ của chúng. DroidDeck đặt lại giới hạn như cũ khi phiên kết thúc. Phải bật Gỡ lỗi qua mạng không dây.</string>
+    <string name="setup_bg_limit_4">Tối đa 4</string>
+    <string name="setup_bg_limit_1">Tối đa 1</string>
+    <string name="setup_bg_limit_0">Không có</string>
+    <string name="setup_adb_pair">Gỡ lỗi qua mạng không dây</string>
+    <string name="setup_adb_pair_hint">Ghép nối DroidDeck với Gỡ lỗi qua mạng không dây của Android cho các tùy chọn ở trên. Giới hạn tiến trình con vẫn tắt.</string>
+    <string name="setup_adb_pair_button">Ghép nối</string>
     <string name="tracking_recovery_look">Nhìn xung quanh chậm rãi trong phòng có đủ ánh sáng.\nGiữ cho camera theo dõi rõ ràng và hướng về phía đồ nội thất hoặc các chi tiết có thể nhìn thấy khác.</string>
 </resources>

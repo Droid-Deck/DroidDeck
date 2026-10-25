@@ -1986,6 +1986,8 @@
     <string name="stores_shelf_library">A könyvtára</string>
     <string name="stores_play">Játék</string>
     <string name="stores_install">Telepítés</string>
+    <string name="bnet_open">Battle.net megnyitása</string>
+    <string name="bnet_store">Blizzard-játékok</string>
     <string name="stores_resume_install">Telepítés folytatása</string>
     <string name="stores_dl_interrupted">Megszakítva</string>
     <string name="stores_install_size">Telepítés · %1$s</string>
@@ -3006,6 +3008,25 @@
     <string name="spatial_saved_views_hint">Az elmentett nézetek újraszámíthatók. Indítson el egy új kalibrálást, hogy rögzítse az aktuális követési koordináta-rendszerben.</string>
     <string name="spatial_model_checksum_error">A kézi modell ellenőrzőösszegének eltérése</string>
     <string name="spatial_opencv_load_error">Az OpenCV betöltése nem sikerült</string>
+    <string name="setup_group_memory">Memória</string>
+    <string name="setup_clear_cached">Gyorsítótárazott alkalmazások bezárása munkamenet előtt</string>
+    <string name="setup_clear_cached_hint">Munkamenet indításakor a DroidDeck bezárja azokat az alkalmazásokat, amelyeket az Android a háttérben tart, így a játéknak több memória jut. A vezeték nélküli hibakeresésnek bekapcsolva kell lennie.</string>
+    <string name="setup_clear_cached_unpaired">A DroidDecket párosítani kell a vezeték nélküli hibakereséssel (Párosítás, lent).</string>
+    <string name="setup_memory_hud">Memóriakijelzés</string>
+    <string name="setup_memory_hud_hint">A használt memória és swap a munkamenet képernyőjén. A Speciális nézet szétbontja a játék, a DroidDeck, az Android és a GPU között.</string>
+    <string name="setup_memory_hud_simple">Egyszerű</string>
+    <string name="setup_memory_hud_advanced">Speciális</string>
+    <string name="memory_hud_simple">RAM %1$s/%2$s GB · swap %3$s/%4$s GB</string>
+    <string name="memory_hud_split">játék %1$s · DroidDeck %2$s · Android %3$s GB</string>
+    <string name="memory_hud_gpu">GPU %1$s GB</string>
+    <string name="setup_bg_limit">Háttéralkalmazások munkamenet közben</string>
+    <string name="setup_bg_limit_hint">Munkamenet közben az Android legfeljebb ennyi alkalmazást tart a gyorsítótárban, a többit bezárja, így azok memóriája a játéké lesz. A munkamenet végén a DroidDeck visszaállítja a korábbi korlátot. A vezeték nélküli hibakeresésnek bekapcsolva kell lennie.</string>
+    <string name="setup_bg_limit_4">Legfeljebb 4</string>
+    <string name="setup_bg_limit_1">Legfeljebb 1</string>
+    <string name="setup_bg_limit_0">Nincs</string>
+    <string name="setup_adb_pair">Vezeték nélküli hibakeresés</string>
+    <string name="setup_adb_pair_hint">Párosítja a DroidDecket az Android vezeték nélküli hibakeresésével a fenti beállításokhoz. A gyermekfolyamat-korlát kikapcsolva marad.</string>
+    <string name="setup_adb_pair_button">Párosítás</string>
     <string name="glasses_3dof">3DoF virtuális képernyő</string>
     <string name="glasses_6dof">6DoF virtuális képernyő</string>
 </resources>

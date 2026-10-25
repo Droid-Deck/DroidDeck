@@ -143,6 +143,18 @@ class ConfigAndMenuTest(Temp):
         config = json.loads(path.read_text())
         self.assertEqual(config, {"Client": {"HardwareAcceleration": "false", "GameLaunchWindowBehavior": "2"}, "Games": {"osi": {}}})
 
+    def test_games_install_to_the_chosen_library(self):
+        root = str(self.tmp)
+        BNET["write_config"](root)
+        self.assertEqual(BNET["write_config"](root, "/root/Games/Stores/Battle.net"), "library")
+        config = json.loads(self.config_path().read_text())
+        self.assertEqual(config["Client"]["Install"]["DefaultInstallPath"], "Z:/root/Games/Stores/Battle.net")
+        self.assertIsNone(BNET["write_config"](root, "/root/Games/Stores/Battle.net/"))
+        config["Client"]["Install"]["DefaultInstallPath"] = "Z:/root/Games/Stores/Battle.net/"
+        self.config_path().write_text(json.dumps(config))
+        self.assertIsNone(BNET["write_config"](root, "/root/Games/Stores/Battle.net"))
+        self.assertEqual(BNET["write_config"](root, "/mnt/droiddeck-sd/Games/Battle.net"), "library")
+
     def test_a_config_that_is_not_json_is_left_alone(self):
         path = self.config_path()
         path.parent.mkdir(parents=True)
@@ -159,7 +171,6 @@ class ConfigAndMenuTest(Temp):
         self.assertIn("Exec=/usr/local/bin/droiddeck-battlenet\n", text)
         self.assertIn("Name=Battle.net\n", text)
         self.assertNotIn("Game", re.search(r"^Categories=(.*)$", text, re.M).group(1))
-        # Proton names every window steam_app_0, so a StartupWMClass would match the wrong windows.
         self.assertNotIn("StartupWMClass", text)
         mtime = path.stat().st_mtime_ns
         time.sleep(0.01)
@@ -200,6 +211,7 @@ class ProcessTest(Temp):
             with self.subTest(argv):
                 self.assertTrue(BNET["is_battlenet"](argv))
         for argv in (["Z:\\root\\.cache\\droiddeck\\battlenet\\Battle.net-Setup.exe"],
+                     ["Z:\\root\\Games\\Stores\\Battle.net\\Hearthstone\\Hearthstone.exe"],
                      ["C:\\Program Files (x86)\\Diablo IV\\Diablo IV.exe"], ["C:\\windows\\system32\\services.exe"], []):
             with self.subTest(argv):
                 self.assertFalse(BNET["is_battlenet"](argv))
@@ -318,6 +330,26 @@ class ProtonWaitTest(Temp):
                                       (2, ["/x/files/bin/wineserver"]), (3, ["c:\\windows\\system32\\steam.exe", "a"])]))
         self.assertFalse(BNET["idle"]([(1, ["Battle.net.exe"])]))
         self.assertFalse(BNET["idle"]([(1, ["Z:\\root\\.cache\\droiddeck\\battlenet\\Battle.net-Setup.exe"])]))
+
+
+class RequestTest(Temp):
+    UP = [(1, ["C:\\Program Files (x86)\\Battle.net\\Battle.net.exe"]),
+          (2, ["C:\\ProgramData\\Battle.net\\Agent\\Agent.9437\\Agent.exe"])]
+
+    def test_the_apps_request_waits_for_battle_net_then_goes_to_it(self):
+        (self.tmp / "battlenet-request").write_text("install-game\nhs_beta\n")
+        calls = []
+        with mock.patch.dict(BNET, {"spawn": lambda exe, verb, args=(): calls.append((exe, verb, list(args))) or 0}):
+            self.assertFalse(BNET["serve_requests"]("/p/pfx", self.UP[:1], str(self.tmp)))
+            self.assertTrue((self.tmp / "battlenet-request").exists())
+            self.assertTrue(BNET["serve_requests"]("/p/pfx", self.UP, str(self.tmp)))
+            (self.tmp / "battlenet-request").write_text("launch\nWTCG\n")
+            self.assertTrue(BNET["serve_requests"]("/p/pfx", self.UP, str(self.tmp)))
+            (self.tmp / "battlenet-request").write_text("launch\nWTCG;reboot\n")
+            self.assertFalse(BNET["serve_requests"]("/p/pfx", self.UP, str(self.tmp)))
+        client = "/p/pfx/drive_c/Program Files (x86)/Battle.net/Battle.net.exe"
+        self.assertEqual(calls, [(client, "run", ["--install", "--game=hs_beta"]), (client, "run", ["--exec=launch WTCG"])])
+        self.assertFalse((self.tmp / "battlenet-request").exists())
 
 
 class TidyTest(unittest.TestCase):
@@ -732,6 +764,21 @@ class LaunchTest(Harness):
             self.assertEqual(BNET["proton_options"](), ["--game-id", "11151176786366644224"])
             os.environ["SteamGameId"] = "0"
             self.assertEqual(BNET["proton_options"](), [])
+
+    def test_under_gamescope_battle_net_gets_a_desktop_of_the_screens_size(self):
+        with mock.patch.dict(os.environ, {"BL_WIDTH": "1280", "BL_HEIGHT": "720", "SteamGameId": "0"}):
+            os.environ.pop("BL_DESKTOP", None)
+            self.assertEqual(BNET["proton_options"](), ["--desktop", "1280x720"])
+            os.environ["BL_DESKTOP"] = "1"
+            self.assertEqual(BNET["proton_options"](), ["--window"])
+
+    def test_the_library_comes_before_the_action(self):
+        seen = []
+        self.addCleanup(BNET.__setitem__, "LIBRARY", None)
+        with mock.patch.dict(BNET, {"launch": lambda root, code: seen.append((BNET["LIBRARY"], code)) or 0}):
+            self.assertEqual(BNET["main"](["--library", "/root/Games/Stores/Battle.net", "launch", "WTCG"]), 0)
+            self.assertEqual(BNET["main"](["--library", "Games", "launch", "WTCG"]), 2)
+        self.assertEqual(seen, [("/root/Games/Stores/Battle.net", "WTCG")])
 
     def test_only_a_code_is_launched(self):
         with mock.patch.dict(BNET, {"launch": lambda root, code: self.calls.append(("launch", code)) or 0}):
