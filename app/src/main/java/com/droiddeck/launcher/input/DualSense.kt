@@ -14,6 +14,28 @@ object DualSense {
     const val REPORT_ID_BT_OUTPUT: Byte = 0x31
     const val REPORT_SIZE_INPUT = 64
     const val REPORT_SIZE_OUTPUT = 48
+    const val STATUS1_HEADPHONE_DETECT = 0x01
+
+    /**
+     * Routes the pad's own audio the way Linux hid-playstation does on a jack change: headphones get the stereo
+     * pair and the speaker is muted; without headphones the right channel goes to the speaker at volume 0x64
+     * (the accepted range seems to be 0x3D..0x64) with the +6 dB preamp. No other output fields are marked valid.
+     */
+    fun buildAudioRoutingReport(headphonesPlugged: Boolean): ByteArray {
+        val report = ByteArray(REPORT_SIZE_OUTPUT)
+        report[0] = REPORT_ID_OUTPUT
+        if (headphonesPlugged) {
+            report[1] = 0x80.toByte()
+            report[8] = 0
+        } else {
+            report[1] = (0x80 or 0x20).toByte()
+            report[6] = 0x64
+            report[8] = 0x30
+            report[2] = 0x80.toByte()
+            report[38] = 0x02
+        }
+        return report
+    }
     const val REPORT_SIZE_BT_INPUT = 78
     const val REPORT_SIZE_BT_OUTPUT = 78
     const val REPORT_SIZE_BT_BASIC_INPUT = 10
@@ -89,7 +111,8 @@ object DualSense {
         val touch1Y: Int,
         val isEdgeTuningActive: Boolean = false,
         val batteryPercent: Int = 100,
-        val isCharging: Boolean = false
+        val isCharging: Boolean = false,
+        val headphonesPlugged: Boolean = false
     )
 
     fun touchXToPad(rawX: Int): Short {
@@ -225,6 +248,7 @@ object DualSense {
         val powerState = (b53 ushr 4) and 0x0F
         val batteryPercent = if (b53 == 0) 100 else minOf(batteryRaw * 10 + 5, 100)
         val isCharging = powerState == 0x01 || powerState == 0x02
+        val headphonesPlugged = (data[offset + 54 + off].toInt() and STATUS1_HEADPHONE_DETECT) != 0
 
         return State(
             leftX = leftX, leftY = leftY,
@@ -242,7 +266,8 @@ object DualSense {
             touch1Down = touch1Down, touch1Id = touch1Id, touch1X = touch1X, touch1Y = touch1Y,
             isEdgeTuningActive = isEdgeTuningActive,
             batteryPercent = batteryPercent,
-            isCharging = isCharging
+            isCharging = isCharging,
+            headphonesPlugged = headphonesPlugged
         )
     }
 

@@ -73,6 +73,9 @@ class DualSenseManager(private val context: Context) {
 
     // Phase 2: Wireless (Bluetooth / InputDevice) state
     @Volatile var isEdgeConnected: Boolean = false
+    @Volatile private var routesPadAudio = false
+    /** Null until the first report after start, so the routing is sent once even if the jack never changes. */
+    @Volatile private var routedHeadphones: Boolean? = null
     @Volatile var btConnectTimestampMs: Long = 0L
     private var btOutputSeq: Int = 0
     @Volatile var bluetoothReportSender: ((ByteArray) -> Boolean)? = null
@@ -133,6 +136,8 @@ class DualSenseManager(private val context: Context) {
         running = true
         stopped = false
         hasDetached = false
+        routesPadAudio = ControllerPrefs.dualSenseAudio(context)
+        routedHeadphones = null
         startGeneration++
         activeManager = this
 
@@ -793,6 +798,12 @@ class DualSenseManager(private val context: Context) {
 
         lastRawHidTimestamp = SystemClock.uptimeMillis()
         isRawHidActive = true
+        if (routesPadAudio && routedHeadphones != state.headphonesPlugged) {
+            if (sendOutputReport(DualSense.buildAudioRoutingReport(state.headphonesPlugged))) {
+                routedHeadphones = state.headphonesPlugged
+                Log.i(TAG, "DualSense audio routed to " + if (state.headphonesPlugged) "the headphone jack" else "the speaker")
+            }
+        }
 
         // 1. Update PadBridge buttons, sticks, triggers
         // Digital trigger click fallback for DualSense Edge trigger stops
