@@ -98,6 +98,10 @@ object StoreInstalls {
     }
 
     fun deleteTree(dir: File) {
+        if (Files.isSymbolicLink(dir.toPath())) {
+            dir.delete()
+            return
+        }
         dir.listFiles()?.forEach { if (it.isDirectory) deleteTree(it) else it.delete() }
         dir.delete()
     }
