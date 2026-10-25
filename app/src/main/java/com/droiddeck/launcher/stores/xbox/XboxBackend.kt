@@ -51,7 +51,7 @@ object XboxBackend : StoreBackend {
                     if (current == generation) {
                         if (cached != null) StoresState.library[store] = mergeItems(StoresState.library[store], cached.games)
                         StoresState.problems.remove(store)
-                        if (cached == null || force) StoresState.status[store] = "Syncing Xbox library…"
+                        if (cached == null || force) StoresState.status[store] = app.getString(com.droiddeck.launcher.R.string.stores_sync_library)
                         else StoresState.status.remove(store)
                     }
                 }

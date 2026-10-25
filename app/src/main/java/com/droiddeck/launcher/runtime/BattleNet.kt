@@ -150,12 +150,6 @@ object BattleNet {
             source = com.droiddeck.launcher.stores.Store.BATTLENET.id,
         )
 
-    fun withLauncher(games: List<com.droiddeck.launcher.frontend.Library.SteamGame>, launcher: com.droiddeck.launcher.frontend.Library.SteamGame?): List<com.droiddeck.launcher.frontend.Library.SteamGame> {
-        if (launcher == null) return games
-        val at = games.indexOfFirst { it.source == launcher.source }.takeIf { it >= 0 } ?: games.size
-        return games.subList(0, at) + launcher + games.subList(at, games.size)
-    }
-
     fun fexInUse(context: Context): String? = ComponentsManager.gameComponents(context, APP_ID.toString())["fex"]
 
     internal fun title(uid: String): Title? {

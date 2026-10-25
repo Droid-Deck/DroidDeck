@@ -9,6 +9,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
 import androidx.compose.ui.test.*
+import androidx.compose.ui.semantics.SemanticsProperties.StateDescription
 import androidx.compose.runtime.MutableState
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.SessionActivity
@@ -97,6 +98,42 @@ class SessionSecondScreenTest {
         }
     }
 
+    @Test fun sessionMicrophoneCanBeTurnedOff() {
+        val changes = mutableListOf<Boolean>()
+        compose.setContent {
+            DroidDeckTheme {
+                SessionDrawer(true, SessionDrawerPage.SESSION, false, {},
+                    actions(true, emptyList(), micAvailable = true, micEnabled = true, onMic = changes::add))
+            }
+        }
+        compose.onNodeWithTag("setting-microphone").assertIsEnabled()
+            .assert(SemanticsMatcher.expectValue(StateDescription, context.getString(R.string.widgets_on))).performClick()
+        assertEquals(listOf(false), changes)
+    }
+
+    @Test fun sessionMicrophoneCanBeTurnedBackOn() {
+        val changes = mutableListOf<Boolean>()
+        compose.setContent {
+            DroidDeckTheme {
+                SessionDrawer(true, SessionDrawerPage.SESSION, false, {},
+                    actions(true, emptyList(), micAvailable = true, onMic = changes::add))
+            }
+        }
+        compose.onNodeWithTag("setting-microphone").assertIsEnabled()
+            .assert(SemanticsMatcher.expectValue(StateDescription, context.getString(R.string.widgets_off))).performClick()
+        assertEquals(listOf(true), changes)
+    }
+
+    @Test fun sessionWithoutMicrophoneOmitsCaptureControl() {
+        compose.setContent {
+            DroidDeckTheme {
+                SessionDrawer(true, SessionDrawerPage.SESSION, false, {}, actions(false, emptyList()))
+            }
+        }
+        compose.onNodeWithTag("setting-microphone").assertDoesNotExist()
+        compose.onNodeWithText(context.getString(R.string.mode_mic)).assertDoesNotExist()
+    }
+
     private fun checkModes(steam: Boolean) {
         SessionState.mode = if (steam) SessionService.MODE_STEAM else SessionService.MODE_DESKTOP
         val selected = mutableListOf<SecondScreenMode>()
@@ -145,8 +182,11 @@ class SessionSecondScreenTest {
         if (view is ViewGroup) for (index in 0 until view.childCount) yieldAll(descendants(view.getChildAt(index)))
     }
 
-    private fun actions(steam: Boolean, displays: List<SecondScreenDisplay>, select: (SecondScreenMode) -> Unit = {}) =
+    private fun actions(steam: Boolean, displays: List<SecondScreenDisplay>,
+        micAvailable: Boolean = false, micEnabled: Boolean = false, onMic: (Boolean) -> Unit = {},
+        select: (SecondScreenMode) -> Unit = {}) =
         DrawerActions(steam = steam, isHomeApp = false, androidApps = emptyList(), hudOn = false,
+            micAvailable = micAvailable, micEnabled = micEnabled, onMicEnabled = onMic,
             frameGen = FrameGen.Mode.OFF, lossless = Lossless.State.NONE, oscMode = "never",
             onScreenButtonsVisible = false, suspendPolicy = "auto", backActionsInverted = false,
             touchMode = "auto", touchAuto = "trackpad", fexPreset = "default",
