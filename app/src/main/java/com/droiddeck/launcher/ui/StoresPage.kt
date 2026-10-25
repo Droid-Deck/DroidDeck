@@ -834,6 +834,7 @@ private fun Storefront(
     clearSearchFocus: Boolean,
     onQuery: (String) -> Unit, onOpen: (String) -> Unit,
 ) {
+    BackHandler(enabled = query.isNotEmpty() && !clearSearchFocus) { onQuery("") }
     val ctx = LocalContext.current
     val library = StoresState.library[store] ?: emptyList()
     val shelves = StoresState.shelves[store]
@@ -1088,7 +1089,8 @@ internal fun ModeHeader(
             )
             BoxWithConstraints(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
                 if (searching || open > 0.01f) {
-                    val w = androidx.compose.ui.unit.lerp(44.dp, (maxWidth - 36.dp).coerceIn(44.dp, 520.dp), open)
+                    val closable = maxWidth >= 80.dp
+                    val w = androidx.compose.ui.unit.lerp(44.dp, (maxWidth - if (closable) 36.dp else 0.dp).coerceIn(44.dp, 520.dp), open)
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         Box(Modifier.width(w).graphicsLayer { alpha = (open * 1.6f).coerceAtMost(1f) }) {
                             AdbTextField(
@@ -1098,7 +1100,7 @@ internal fun ModeHeader(
                                 onFocusChange = { focused -> if (!focused && query.isEmpty()) { searching = false; focusOnOpen = false } },
                             )
                         }
-                        if (searching) SmallIconButton(Icons.Filled.Close, stringResource(R.string.common_close), tint = colors.onSurfaceVariant, onClick = close)
+                        if (searching && closable) SmallIconButton(Icons.Filled.Close, stringResource(R.string.common_close), tint = colors.onSurfaceVariant, onClick = close)
                     }
                 } else SearchIcon(stringResource(R.string.stores_search_open)) { searching = true; focusOnOpen = true }
             }

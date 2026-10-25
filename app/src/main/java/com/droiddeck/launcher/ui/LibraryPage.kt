@@ -206,6 +206,7 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
 
     val open = selected.takeIf { it.startsWith("app:") }
     val back = { onSelect("games") }
+    BackHandler(enabled = open == null && LibraryView.query.isNotEmpty()) { LibraryView.query = "" }
     BackHandler(enabled = open != null) { back() }
     val lead = remember { FocusRequester() }
     var detailFocused by remember { mutableStateOf(false) }
