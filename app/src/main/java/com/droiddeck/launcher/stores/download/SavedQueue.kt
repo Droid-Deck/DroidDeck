@@ -29,6 +29,10 @@ object SavedQueue {
         wanted[key(item)] = Wanted(item, root)
     }
 
+    /** A queued, running or paused install targets [dir]. */
+    @Synchronized
+    fun installsTo(dir: File): Boolean = StoresState.latestDownloads.any { it.isActive && wanted[it.key]?.root?.startsWith(dir) == true }
+
     fun save(entries: List<DownloadEntry>) {
         val context = app ?: return
         val rows = synchronized(this) {

@@ -52,6 +52,7 @@ object SecondaryLibrary {
     }
 
     val CARD_GUESTS = listOf("/mnt/droiddeck-sd", "/mnt/bannerlator-sd")
+    const val USB_GUEST = "/mnt/droiddeck-usb"
 
     fun binds(files: File, library: File, guests: List<String> = CARD_GUESTS, content: File = library): List<String> {
         val private = privateRoot(files, library)

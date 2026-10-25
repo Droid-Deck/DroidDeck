@@ -20,6 +20,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.SdCard
 import androidx.compose.material.icons.outlined.Smartphone
+import androidx.compose.material.icons.outlined.Usb
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -120,7 +122,7 @@ internal fun InstallWhereDialog(item: CatalogItem, onDismiss: () -> Unit) {
                     TargetRow(
                         label = if (t.removable) t.label else stringResource(R.string.stores_target_internal),
                         free = freeText,
-                        removable = t.removable, folder = t.folder, focus = focus[i],
+                        icon = t.icon, focus = focus[i],
                         warning = isLow, modifier = Modifier.weight(1f),
                     ) {
                         SessionPrefs.setStoresInstallTarget(ctx, t.root.absolutePath)
@@ -133,8 +135,11 @@ internal fun InstallWhereDialog(item: CatalogItem, onDismiss: () -> Unit) {
     }
 }
 
+internal val StoreInstallRoot.Target.icon: ImageVector
+    get() = if (folder) Icons.Outlined.Folder else if (usb) Icons.Outlined.Usb else if (removable) Icons.Outlined.SdCard else Icons.Outlined.Smartphone
+
 @Composable
-private fun TargetRow(label: String, free: String, removable: Boolean, folder: Boolean, focus: FocusRequester, modifier: Modifier, warning: Boolean = false, onPick: () -> Unit) {
+private fun TargetRow(label: String, free: String, icon: ImageVector, focus: FocusRequester, modifier: Modifier, warning: Boolean = false, onPick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val src = remember { MutableInteractionSource() }
@@ -148,7 +153,7 @@ private fun TargetRow(label: String, free: String, removable: Boolean, folder: B
             .controllerConfirm(onClick = onPick)
             .padding(horizontal = 12.dp, vertical = 10.dp),
     ) {
-        Icon(if (folder) Icons.Outlined.Folder else if (removable) Icons.Outlined.SdCard else Icons.Outlined.Smartphone, null, tint = if (hot) pal.signal else colors.onBackground, modifier = Modifier.fillMaxHeight().aspectRatio(1f))
+        Icon(icon, null, tint = if (hot) pal.signal else colors.onBackground, modifier = Modifier.fillMaxHeight().aspectRatio(1f))
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(label, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(free, fontSize = 12.sp, color = if (warning) colors.error else colors.onSurfaceVariant, maxLines = 2)

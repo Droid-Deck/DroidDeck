@@ -37,6 +37,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.SdStorage
+import androidx.compose.material.icons.filled.Usb
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material.icons.filled.Star
@@ -677,7 +678,9 @@ fun FileManagerScreen(
                 Icon(Icons.Filled.ArrowBack, stringResource(R.string.fm_back), tint = MaterialTheme.colorScheme.primary)
             }
 
-            val currentDriveLabel = stringResource(describeLocation(currentDir).driveLabel)
+            // The root-mounted USB drive sits inside internal storage, so its path alone says "Internal".
+            val currentDriveLabel = drives.firstOrNull { it.usb && currentDir.startsWith(it.dir) }?.label
+                ?: stringResource(describeLocation(currentDir).driveLabel)
             val driveChipAlpha = if (showFavorites) 0.45f else 1f
             Box {
                 val driveChipShape = RoundedCornerShape(8.dp)
@@ -704,7 +707,7 @@ fun FileManagerScreen(
                             text = { Text(drive.label) },
                             leadingIcon = {
                                 Icon(
-                                    if (drive.removable) Icons.Filled.SdStorage else Icons.Filled.Storage,
+                                    if (drive.usb) Icons.Filled.Usb else if (drive.removable) Icons.Filled.SdStorage else Icons.Filled.Storage,
                                     null,
                                     tint = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.size(18.dp),
@@ -1028,7 +1031,7 @@ fun FileManagerScreen(
         val storageItems = buildList {
             add(locItem(stringResource(R.string.fm_drive_internal), Icons.Filled.Smartphone, File("/storage/emulated/0")))
             drives.filter { it.removable }.forEach { d ->
-                add(RailItem(d.label, Icons.Filled.SdStorage, !showFavorites && currentRoot.absolutePath == d.dir.absolutePath) {
+                add(RailItem(d.label, if (d.usb) Icons.Filled.Usb else Icons.Filled.SdStorage, !showFavorites && currentRoot.absolutePath == d.dir.absolutePath) {
                     showFavorites = false; if (d.readable) openDrive(d.dir)
                 })
             }

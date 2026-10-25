@@ -465,7 +465,7 @@ internal fun InstallWhere(item: CatalogItem) {
                     }
                     StepTile(
                         label = if (t.removable) t.label else internalLabel,
-                        icon = if (t.folder) androidx.compose.material.icons.Icons.Outlined.Folder else if (t.removable) androidx.compose.material.icons.Icons.Outlined.SdCard else androidx.compose.material.icons.Icons.Outlined.Smartphone,
+                        icon = t.icon,
                         detail = trailingText,
                         warning = isLow,
                         enabled = open,

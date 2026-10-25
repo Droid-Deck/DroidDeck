@@ -84,10 +84,16 @@ object Library {
         val root = SessionPrefs.steamRoot(context, arch)
         // The session gives the x86-64 client only its card folder; the games folders stay the arm64 client's.
         val card = GameStorage.effective(context)
-        if (arch == "x86_64") return listOfNotNull(root to "internal", card?.let { File(it.path, GameStorage.X64_CARD_DIR) to it.label })
+        val usb = GameStorage.usbDrive(context)?.let { it to GameStorage.usbLabel(context) }
+        if (arch == "x86_64") return listOfNotNull(
+            root to "internal",
+            card?.let { File(it.path, GameStorage.X64_CARD_DIR) to it.label },
+            usb?.let { (dir, label) -> File(dir, GameStorage.X64_CARD_DIR) to label },
+        )
         return listOfNotNull(
             root to "internal",
             card?.let { File(it.path) to it.label },
+            usb,
         ) + GameStorage.gamesFolderLibraries(context).map { it.host to it.label }
     }
 

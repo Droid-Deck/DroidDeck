@@ -37,6 +37,9 @@ import com.droiddeck.launcher.runtime.LinuxRuntimeInstaller
 import com.droiddeck.launcher.runtime.DeckyManager
 import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.ui.PackageRow
+import com.droiddeck.launcher.ui.UsbActions
+import com.droiddeck.launcher.ui.UsbRootUi
+import com.droiddeck.launcher.ui.UsbUi
 import com.droiddeck.launcher.ui.exposeTestTags
 import com.droiddeck.launcher.session.OfflineMode
 import com.droiddeck.launcher.session.ProtonExtras
@@ -45,6 +48,7 @@ import com.droiddeck.launcher.ui.ComponentsPage
 import com.droiddeck.launcher.session.GameSaves
 import com.droiddeck.launcher.session.SessionLogShare
 import com.droiddeck.launcher.session.SessionPrefs
+import com.droiddeck.launcher.session.UsbRootMount
 import com.droiddeck.launcher.session.SteamRepair
 import com.droiddeck.launcher.core.CpuCores
 import com.droiddeck.launcher.core.DownloadSource
@@ -401,6 +405,9 @@ class FrontEndActivity : ComponentActivity() {
     private var gameStorage by mutableStateOf("")
     private var storageDiagnostics by mutableStateOf(false)
     private var storageOptions by mutableStateOf<List<GameStorage.Option>>(emptyList())
+    private var usb by mutableStateOf(UsbUi())
+    // A plug-in, pull-out or start-up mount also changes the library and store targets.
+    private val usbRootListener: () -> Unit = { usbAction { null }; ui.post { if (!isDestroyed) refresh() } }
     private val pickGameStorage = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         if (r.resultCode == RESULT_OK) InAppFilePicker.pickedPath(r.data)?.let { path -> setGameStorage(path, GameStorage.labelFor(this, path)) }
     }
@@ -847,6 +854,7 @@ class FrontEndActivity : ComponentActivity() {
                         storesSort = storesSort,
                         storesView = storesView,
                         storeDownloadsActive = com.droiddeck.launcher.stores.StoresState.activeDownloads,
+                        usb = usb,
                     ),
                     FrontEndActions(
                         onPlay = { playSteam() },
@@ -1101,6 +1109,7 @@ class FrontEndActivity : ComponentActivity() {
                                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
                         },
                         updates = updates.actions(),
+                        usb = usbActions,
                         controller = ControllerActions(
                             onOsc = { o -> SessionPrefs.setOscMode(this, o); oscMode = o },
                             onTint = { t -> ControllerPrefs.setTint(this, t); refreshController() },
@@ -1317,6 +1326,10 @@ class FrontEndActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        // The visible instance owns the one listener slot, taking it back from a closed shortcut picker.
+        UsbRootMount.onChange = usbRootListener
+        // Back from the All files access screen: show the restart step.
+        if (usb.access != null) usbAction { null }
         orientation = SessionPrefs.orientation(this)
         requestedOrientation = orientation
         refreshWifiDiscovery()
@@ -1381,6 +1394,9 @@ class FrontEndActivity : ComponentActivity() {
 
     override fun onDestroy() {
         updates.unregister()
+        // Another instance (a shortcut picker) may have set its own since.
+        if (UsbRootMount.onChange === usbRootListener) UsbRootMount.onChange = null
+        usbThread.shutdown()
         super.onDestroy()
     }
 
@@ -1995,6 +2011,64 @@ class FrontEndActivity : ComponentActivity() {
                 fetchAddedGameArt()
             }
         }, "mode-settings").start()
+    }
+
+    private val usbActions = UsbActions(
+        onRefresh = { usbAction { null } },
+        onAccess = {
+            if (Build.VERSION.SDK_INT >= 30) startActivity(Intent(android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, Uri.parse("package:$packageName")))
+        },
+        onRestart = { drivers.restartApp("setup:storage") },
+        onRoot = { on ->
+            SessionPrefs.setUsbRootEnabled(this, on)
+            usbAction {
+                if (on) return@usbAction UsbRootMount.enable(this)
+                UsbRootMount.unwatch(this)
+                // A running session keeps the drive until it stops.
+                if (SessionState.running) null else UsbRootMount.unmount(this)
+            }
+        },
+        onDrive = { uuid ->
+            usbAction {
+                // One lock for the whole switch, so the watcher cannot mount between unmount and save.
+                synchronized(UsbRootMount) {
+                    UsbRootMount.unmount(this)?.let { return@usbAction it }
+                    SessionPrefs.setUsbRootDrive(this, uuid)
+                    if (SessionPrefs.usbRootEnabled(this)) UsbRootMount.mount(this) else null
+                }
+            }
+        },
+        onMount = { usbAction { UsbRootMount.mount(this) } },
+        onEject = { usbAction { UsbRootMount.unmount(this) } },
+        onPrepare = { usbAction { UsbRootMount.prepare(this) } },
+    )
+
+    // One at a time, so a refresh cannot post its state over a later mount or eject.
+    private val usbThread = java.util.concurrent.Executors.newSingleThreadExecutor { Thread(it, "usb") }
+
+    /** Runs a USB step off the main thread, then shows its error (if any) and the new state. */
+    private fun usbAction(step: () -> String?) {
+        // runCatching: the watcher or session stop may call in after onDestroy shut the thread down.
+        runCatching { usbThread.execute { val error = step(); refreshUsb(error) } }
+    }
+
+    /** Off the main thread: it may ask root. */
+    private fun refreshUsb(status: String?) {
+        val on = SessionPrefs.usbRootEnabled(this)
+        // Shown while on even if su went away, so the setting can still be turned off.
+        val root = if (!UsbRootMount.available() && !on) null else {
+            var error = status
+            val mounted = UsbRootMount.mounted(this)
+            // Listed while still mounted after turning off too, so its Eject row shows.
+            val drives = if (!on && !mounted) emptyList() else runCatching { UsbRootMount.drives(this) }.getOrElse { error = error ?: it.message; emptyList() }
+            val drive = SessionPrefs.usbRootDrive(this)
+            if (on && drive.isNotEmpty() && drives.none { it.uuid == drive }) error = error ?: getString(R.string.usb_root_not_plugged)
+            UsbRootUi(on, drives, drive, mounted, error)
+        }
+        // The root rows show the root mount; these are for the drive Android mounted.
+        val free = if (on) null else GameStorage.usbDrive(this)?.let(GameStorage::free)
+        val state = UsbUi(if (on) null else GameStorage.usbAccess(this), free, root)
+        ui.post { usb = state }
     }
 
     private fun setGameStorage(path: String, label: String) {

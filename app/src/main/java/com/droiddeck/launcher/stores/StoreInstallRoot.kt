@@ -14,7 +14,7 @@ object StoreInstallRoot {
     private const val ON_VOLUME = "Games"
     const val GUEST_EXTERNAL = "/mnt/droiddeck-stores"
 
-    class Target(val root: File, val label: String, val removable: Boolean, val folder: Boolean = false) {
+    class Target(val root: File, val label: String, val removable: Boolean, val folder: Boolean = false, val usb: Boolean = false) {
         val freeBytes: Long get() = availableBytes(root)
     }
 
@@ -86,7 +86,8 @@ object StoreInstallRoot {
             val label = if (where.isNullOrBlank()) name else context.getString(com.droiddeck.launcher.R.string.gstore_folder_on_volume, name, where)
             Target(root, label, removable = true, folder = true)
         }
-        return listOf(internal) + cards + listOfNotNull(library)
+        val usb = GameStorage.usbDrive(context)?.let { Target(File(it, ON_VOLUME), GameStorage.usbLabel(context), removable = true, usb = true) }
+        return listOf(internal) + cards + listOfNotNull(library, usb)
     }
 
     fun installRoot(context: Context): File = internalRoot(context)
@@ -94,7 +95,8 @@ object StoreInstallRoot {
     fun roots(context: Context): List<File> {
         val cards = GameStorage.options(context).map { File(it.path, ON_VOLUME) }
         val library = GameStorage.effective(context)?.let { File(it.path, ON_VOLUME) }
-        return (listOf(internalRoot(context)) + cards + listOfNotNull(library)).distinctBy { it.absolutePath }
+        val usb = GameStorage.usbDrive(context)?.let { File(it, ON_VOLUME) }
+        return (listOf(internalRoot(context)) + cards + listOfNotNull(library, usb)).distinctBy { it.absolutePath }
     }
 
     fun externalRoots(context: Context): List<Pair<File, String>> {

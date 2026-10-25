@@ -1,7 +1,7 @@
 #!/bin/bash
 set -u
 steam_root=${1:?steam root}
-LIBRARIES=${DROIDDECK_LIBRARIES-/mnt/droiddeck /mnt/droiddeck-sd}
+LIBRARIES=${DROIDDECK_LIBRARIES-/mnt/droiddeck /mnt/droiddeck-sd /mnt/droiddeck-usb}
 
 redist="$steam_root/steamapps/common/Steamworks Shared/_CommonRedist"
 
@@ -192,10 +192,12 @@ present() { awk -F'\t' -v hive="$hive" '
 regs=()
 for reg in "$steam_root"/steamapps/common/Proton*/files/share/default_pfx*/system.reg \
            /mnt/droiddeck-sd/steamapps/common/Proton*/files/share/default_pfx*/system.reg \
+           /mnt/droiddeck-usb/steamapps/common/Proton*/files/share/default_pfx*/system.reg \
            /root/Games/*/steamapps/common/Proton*/files/share/default_pfx*/system.reg \
            "$steam_root"/compatibilitytools.d/*/files/share/default_pfx*/system.reg \
            "$steam_root"/steamapps/compatdata/*/pfx/system.reg \
            /mnt/droiddeck-sd/steamapps/compatdata/*/pfx/system.reg \
+           /mnt/droiddeck-usb/steamapps/compatdata/*/pfx/system.reg \
            /root/Games/*/steamapps/compatdata/*/pfx/system.reg; do
   [ -f "$reg" ] && regs+=("$reg")
 done

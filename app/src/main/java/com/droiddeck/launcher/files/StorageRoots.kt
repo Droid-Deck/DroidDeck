@@ -6,6 +6,7 @@ import android.os.Environment
 import android.os.storage.StorageManager
 import android.os.storage.StorageVolume
 import com.droiddeck.launcher.R
+import com.droiddeck.launcher.session.GameStorage
 import java.io.File
 
 data class StorageRoot(
@@ -13,6 +14,7 @@ data class StorageRoot(
     val dir: File,
     val removable: Boolean,
     val readable: Boolean,
+    val usb: Boolean,
 )
 
 object StorageRoots {
@@ -25,6 +27,7 @@ object StorageRoots {
     private class Volume(val key: String) {
         var label: String? = null
         var removable: Boolean = key != PRIMARY_KEY
+        var usb = false
         val candidates = LinkedHashSet<File>()
         val seeds = LinkedHashSet<File>()
     }
@@ -68,6 +71,14 @@ object StorageRoots {
         File("/mnt/media_rw").listFiles().orEmpty().forEach { child ->
             if (child.isDirectory) volumeOf(child.name).candidates += child
         }
+        // A USB drive Android hides from apps, mounted with root or reachable with All files access.
+        GameStorage.usbDrive(context)?.let { usb ->
+            volumeOf(usb.name).apply {
+                label = GameStorage.usbLabel(context)
+                this.usb = true
+                candidates += usb
+            }
+        }
 
         appDirs.forEach { dir ->
             val root = volumeRootOf(dir) ?: return@forEach
@@ -94,6 +105,7 @@ object StorageRoots {
             dir = dir,
             removable = removable,
             readable = canBrowse(dir),
+            usb = usb,
         )
     }
 

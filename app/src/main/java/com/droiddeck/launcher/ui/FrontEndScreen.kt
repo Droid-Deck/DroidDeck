@@ -150,6 +150,7 @@ class FrontEndState(
     val storesView: String = SessionPrefs.STORES_VIEWS.first(),
     val storeDownloadsActive: Int = 0,
     val updates: UpdatesState = UpdatesState(),
+    val usb: UsbUi = UsbUi(),
 )
 
 class FrontEndActions(
@@ -239,6 +240,7 @@ class FrontEndActions(
     val onOpenNotificationSettings: () -> Unit = {},
     val controller: ControllerActions? = null,
     val updates: UpdatesActions = UpdatesActions(),
+    val usb: UsbActions = UsbActions(),
 )
 
 internal object Motion {
@@ -397,6 +399,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
             "stores:downloads" -> { com.droiddeck.launcher.stores.StoresState.openDownloads = true; selected = "stores" }
             "components" -> a.onComponents(true)
             "setup:launcher" -> { SetupTabs.openLauncher = true; selected = "setup" }
+            "setup:storage" -> com.droiddeck.launcher.storage.StorageState.requestOpen()
             else -> selected = target
         }
         a.onNavigated()
