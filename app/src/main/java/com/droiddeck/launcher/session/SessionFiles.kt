@@ -204,7 +204,11 @@ object SessionFiles {
         if (!File(Environment.getExternalStorageDirectory(), NO_PAD_SWITCH).exists()) {
             preload.append("/usr/local/lib/libfakeinput.so\n")
         }
-        if (ProotFastPath.enabled(context)) preload.append(ProotFastPath.LIBRARY + "\n")
+        if (ProotFastPath.enabled(context)) {
+            val library = com.droiddeck.launcher.agent.AgentEnv.fastPathLibrary(context)
+            preload.append(library + "\n")
+            if (startsSession && library != ProotFastPath.LIBRARY) Log.i(TAG, "fast path preload: $library (debugging override)")
+        }
         val etc = File(root, "etc").apply { mkdirs() }
         val staged = File(etc, "ld.so.preload.staged")
         if (!FileUtils.writeString(staged, preload.toString())
