@@ -199,6 +199,11 @@ class ProtonMenuAutoTest {
         menu.removeProton("droiddeck")
         waitUntil { menu.protonBusyId == null }
         assertTrue(ProtonExtras.declined(activity))
+        menu.installer = { _, _ -> "failed" }
+        menu.installProton("droiddeck")
+        waitUntil { menu.protonBusyId == null }
+        assertTrue(ProtonExtras.declined(activity))
+        menu.installer = { tool, _ -> install("${tool.prefix}-11-12"); null }
         menu.installProton("droiddeck")
         waitUntil { menu.protonBusyId == null }
         assertFalse(ProtonExtras.declined(activity))

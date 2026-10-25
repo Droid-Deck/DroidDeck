@@ -32,7 +32,6 @@ internal class ProtonMenu(
         val tool = ProtonExtras.tools.firstOrNull { it.id == id } ?: return
         if (protonBusyId != null || ProtonExtras.installInProgress || SessionState.running) return
         ProtonExtras.unqueue(activity, tool)
-        if (!automatic && tool.id == ProtonExtras.OWN) ProtonExtras.setDeclined(activity, false)
         protonBusyId = id
         protonStage = activity.getString(R.string.store_starting)
         protonPercent = -1
@@ -42,6 +41,7 @@ internal class ProtonMenu(
                     ui.post { protonStage = label; protonPercent = value }
                 }
             }.getOrElse { it.message ?: it.javaClass.simpleName }
+            if (problem == null && !automatic && tool.id == ProtonExtras.OWN) ProtonExtras.setDeclined(activity, false)
             ui.post {
                 protonBusyId = null
                 protonStage = null
@@ -100,9 +100,11 @@ internal class ProtonMenu(
             protonBusyId = ProtonExtras.OWN
             Thread({
                 ProtonExtras.tidy(activity)
+                val tidied = ProtonExtras.installedAll(activity, ProtonExtras.tools.first { it.id == ProtonExtras.OWN }).size <= 1
                 ui.post {
                     protonBusyId = null
                     refreshProtons()
+                    if (tidied) ensureAutoUpdates()
                 }
             }, "proton-tidy").start()
             return
