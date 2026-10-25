@@ -455,6 +455,7 @@ case $mode in
     fi
     if [ "${BL_ZRAM:-0}" = 1 ]; then
       step "zRAM compression: on"
+      [ "${BL_ZRAM_CLIENT:-1}" = 1 ] || step "zRAM: Steam is not compressed while games run (turned off in Performance)"
       _bl_ram_cap=0
       case ${BL_RAM_CAP_MB:-} in
         ''|0) ;;
@@ -574,7 +575,7 @@ case $mode in
           fi
           if [ "$_bl_game" = 1 ]; then
             [ "$_bl_since" -ge 0 ] || _bl_since=$SECONDS
-            if [ $((SECONDS - _bl_since)) -ge 20 ] && [ "${#_bl_pids[@]}" -gt 0 ] &&
+            if [ "${BL_ZRAM_CLIENT:-1}" = 1 ] && [ $((SECONDS - _bl_since)) -ge 20 ] && [ "${#_bl_pids[@]}" -gt 0 ] &&
                { [ "$_bl_packed" -lt 0 ] || [ $((SECONDS - _bl_packed)) -ge 300 ]; }; then
               bl_zram_send 1 "compressing the client" client
               _bl_packed=$SECONDS
