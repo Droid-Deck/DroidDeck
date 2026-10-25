@@ -227,12 +227,6 @@ object EpicClient {
         )
     }
 
-    fun withLauncher(games: List<Library.SteamGame>, launcher: Library.SteamGame?): List<Library.SteamGame> {
-        if (launcher == null) return games
-        val at = games.indexOfFirst { it.source == Store.EPIC.id }.takeIf { it >= 0 } ?: games.size
-        return games.subList(0, at) + launcher + games.subList(at, games.size)
-    }
-
     private fun steamSession(): Boolean =
         SessionState.running && !SessionState.stopRequested && SessionState.mode == SessionService.MODE_STEAM
 

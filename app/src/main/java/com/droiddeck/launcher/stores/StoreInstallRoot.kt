@@ -120,6 +120,8 @@ object StoreInstallRoot {
         else -> null
     }
 
+    fun libraryRoot(context: Context): File? = GameStorage.effective(context)?.let { File(it.path, ON_VOLUME) }
+
     fun roots(context: Context): List<File> {
         val cards = GameStorage.options(context).map { File(it.path, ON_VOLUME) }
         val custom = defaultStorageFolder(context)?.takeIf { it.isDirectory }?.let { File(it, ON_VOLUME) }
@@ -248,7 +250,7 @@ object StoreInstallRoot {
     fun isFinished(folder: File): Boolean = StoreGameSidecar.read(folder)?.isInstalled == true
 
     fun unfinished(context: Context): List<Unfinished> = roots(context).flatMap { root ->
-        Store.entries.flatMap { store ->
+        Store.entries.filter { it != Store.BATTLENET }.flatMap { store ->
             storeDir(root, store).listFiles { f -> f.isDirectory }.orEmpty().mapNotNull { folder ->
                 val sidecar = StoreGameSidecar.read(folder)
                 when {
