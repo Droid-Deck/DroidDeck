@@ -21,6 +21,8 @@ opennow-streamer-platform = { path = "../../../../../external/opennow/native/ope
 opennow-streamer-protocol = { path = "../../../../../external/opennow/native/opennow-streamer/crates/opennow-streamer-protocol" }
 
 [patch.crates-io]
+# DroidDeck: mtu 0.3.0 with a versioned Android target for bindgen (vendor/mtu/build.rs).
+mtu = { path = "../../../../../external/opennow/native/opennow-streamer/vendor/mtu" }
 str0m = { path = "../../../../../external/opennow/native/opennow-streamer/vendor/str0m" }
 audiopus_sys = { path = "../../../../../external/opennow/native/opennow-streamer/vendor/audiopus-sys" }
 

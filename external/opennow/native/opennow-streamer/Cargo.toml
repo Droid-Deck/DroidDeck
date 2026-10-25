@@ -59,6 +59,8 @@ codegen-units = 1
 strip = true
 
 [patch.crates-io]
+# DroidDeck: mtu 0.3.0 with a versioned Android target for bindgen (vendor/mtu/build.rs).
+mtu = { path = "vendor/mtu" }
 str0m = { path = "vendor/str0m" }
 # Always compile the vendored Opus sources for the distributable streamer.
 audiopus_sys = { path = "vendor/audiopus-sys" }
