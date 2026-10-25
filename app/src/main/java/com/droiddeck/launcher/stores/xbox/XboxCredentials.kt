@@ -140,7 +140,7 @@ internal class XboxCredentials(private val app: Context, expectedGeneration: Str
                         storage(app) {
                             step("answer")
                             check(!closed && epoch(app) == generation && authorized(peer.pid))
-                            answer(request)
+                            answer(request, step)
                         }
                     }.getOrElse {
                         note("Credential request rejected: ${it.javaClass.simpleName}")
@@ -170,7 +170,7 @@ internal class XboxCredentials(private val app: Context, expectedGeneration: Str
                         storage(app) {
                             step("answer")
                             check(!closed && epoch(app) == generation)
-                            answer(request)
+                            answer(request, step)
                         }
                     }.getOrElse { failure ->
                         note("Credential request rejected: ${failure.javaClass.simpleName}")
@@ -196,9 +196,10 @@ internal class XboxCredentials(private val app: Context, expectedGeneration: Str
         return owners.isEmpty() || owners.all { it == uid }
     }
 
-    private fun answer(request: JSONObject): JSONObject {
+    private fun answer(request: JSONObject, step: (String) -> Unit = {}): JSONObject {
         val key = request.getString("key")
         require(key.isNotEmpty() && key.length <= 512)
+        step("record-read")
         val record = StoreAccounts.read(app, Store.XBOX)
         check(!StoreAccounts.isUnavailable(Store.XBOX))
         val json = record ?: JSONObject()
@@ -211,9 +212,10 @@ internal class XboxCredentials(private val app: Context, expectedGeneration: Str
                 require(bytes.length() <= 262_144)
                 for (i in 0 until bytes.length()) require(bytes.getInt(i) in 0..255)
                 slots.put(key, bytes)
+                step("record-save")
                 StoreAccounts.write(app, Store.XBOX, json)
             }
-            "remove" -> { slots.remove(key); StoreAccounts.write(app, Store.XBOX, json) }
+            "remove" -> { slots.remove(key); step("record-save"); StoreAccounts.write(app, Store.XBOX, json) }
             else -> error("Invalid credential operation")
         }
         return result
