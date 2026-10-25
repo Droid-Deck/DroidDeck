@@ -58,6 +58,7 @@ NOT_GAME = IDLE | {"rundll32.exe", "wineboot.exe", "winemenubuilder.exe"}
 MIN_INSTALLER = 1 << 20
 SETUP = "Battle.net-Setup.exe"
 REQUEST = "battlenet-request"
+REQUEST_FILE = re.compile(re.escape(REQUEST) + r"\.\d+")
 LIBRARY = None
 WOW_UID = re.compile(r"--uid=wow[a-z0-9_]*", re.I)
 GAMEPAD_SETTING = re.compile(r"(?im)^\s*SET\s+GamePadEnable\s")
@@ -543,29 +544,39 @@ def stop(processes, wait=STOP_WAIT):
             time.sleep(0.2)
 
 
+def queued_requests(launch_dir):
+    try:
+        names = os.listdir(launch_dir)
+    except OSError:
+        return []
+    return sorted(name for name in names if REQUEST_FILE.fullmatch(name))
+
+
 def serve_requests(pfx, processes=None, launch_dir=None):
     launch_dir = launch_dir or os.environ.get("BL_LAUNCH_DIR")
-    path = os.path.join(launch_dir, REQUEST) if launch_dir else None
-    if not path or not os.path.exists(path):
-        return False
-    if not agent_up(wine_processes(pfx) if processes is None else processes):
-        return False
-    try:
-        with open(path, encoding="utf-8") as f:
-            args = [line for line in f.read().splitlines() if line]
-        os.unlink(path)
-    except OSError:
+    names = queued_requests(launch_dir) if launch_dir else []
+    if not names or not agent_up(wine_processes(pfx) if processes is None else processes):
         return False
     client = os.path.join(pfx, "drive_c", *CLIENT_DIR, CLIENT)
-    if len(args) == 2 and args[0] == "install-game" and GAME_UID.fullmatch(args[1]):
-        spawn(client, "run", ["--install", "--game=%s" % args[1]])
-    elif len(args) == 2 and args[0] == "launch" and CODE.fullmatch(args[1]):
-        spawn(client, "run", ["--exec=launch %s" % args[1]])
-    else:
-        say("not a request: %s" % " ".join(args))
-        return False
-    say("the app asked for %s" % " ".join(args))
-    return True
+    served = False
+    for name in names:
+        path = os.path.join(launch_dir, name)
+        try:
+            with open(path, encoding="utf-8") as f:
+                args = [line for line in f.read().splitlines() if line]
+            os.unlink(path)
+        except OSError:
+            continue
+        if len(args) == 2 and args[0] == "install-game" and GAME_UID.fullmatch(args[1]):
+            spawn(client, "run", ["--install", "--game=%s" % args[1]])
+        elif len(args) == 2 and args[0] == "launch" and CODE.fullmatch(args[1]):
+            spawn(client, "run", ["--exec=launch %s" % args[1]])
+        else:
+            say("not a request: %s" % " ".join(args))
+            continue
+        say("the app asked for %s" % " ".join(args))
+        served = True
+    return served
 
 
 def wait_while_open(pfx, grace, poll=None):

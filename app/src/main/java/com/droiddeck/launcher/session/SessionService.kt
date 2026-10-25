@@ -351,7 +351,7 @@ class SessionService : Service() {
         SessionState.programArgs = intent?.getStringArrayExtra(EXTRA_PROGRAM_ARGS)?.toList().orEmpty()
         SessionState.steamUi = intent?.getStringExtra(EXTRA_STEAM_UI)
         SessionState.steamUrl = intent?.getStringExtra(EXTRA_STEAM_URL)
-        File(LinuxRuntime.sessionRoot(this), com.droiddeck.launcher.stores.battlenet.BattleNetClient.REQUEST).delete()
+        com.droiddeck.launcher.stores.battlenet.BattleNetClient.clearRequests(LinuxRuntime.sessionRoot(this))
         synchronized(stopLock) {
             SessionState.steamClientArch = null
             SessionState.running = true

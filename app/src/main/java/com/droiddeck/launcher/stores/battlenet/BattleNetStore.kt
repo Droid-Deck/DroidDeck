@@ -27,6 +27,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 
 object BattleNetClient {
     private const val TAG = "BattleNetClient"
@@ -38,6 +39,8 @@ object BattleNetClient {
     private const val CONFIG = "pfx/drive_c/users/steamuser/AppData/Roaming/Battle.net/Battle.net.config"
     internal const val MIN_SETUP = 1L shl 20
     private val work = Executors.newSingleThreadExecutor { r -> Thread(r, "battlenet-client") }
+
+    private val sequence = AtomicLong()
 
     @Volatile var opener: ((List<String>) -> Unit)? = null
 
@@ -111,11 +114,17 @@ object BattleNetClient {
 
     fun request(sessionRoot: File, args: List<String>): Boolean = runCatching {
         require(args.none { '\n' in it })
-        val staged = File(sessionRoot, "$REQUEST.tmp")
+        val now = System.nanoTime()
+        val name = "$REQUEST.%020d".format(java.util.Locale.ROOT, sequence.updateAndGet { maxOf(it + 1, now) })
+        val staged = File(sessionRoot, "$name.tmp")
         staged.writeText(args.joinToString("\n") + "\n")
-        check(staged.renameTo(File(sessionRoot, REQUEST)))
+        check(staged.renameTo(File(sessionRoot, name)))
         Log.i(TAG, "handed ${args.firstOrNull()} to the open Battle.net")
     }.onFailure { Log.w(TAG, "Battle.net request not left: ${it.javaClass.simpleName}") }.isSuccess
+
+    fun clearRequests(sessionRoot: File) {
+        sessionRoot.listFiles { file -> file.name == REQUEST || file.name.startsWith("$REQUEST.") }?.forEach { it.delete() }
+    }
 
     fun open(args: List<String>) {
         StoresState.post { opener?.invoke(args) }

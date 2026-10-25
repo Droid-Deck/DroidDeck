@@ -394,19 +394,29 @@ class RequestTest(Temp):
           (2, ["C:\\ProgramData\\Battle.net\\Agent\\Agent.9437\\Agent.exe"])]
 
     def test_the_apps_request_waits_for_battle_net_then_goes_to_it(self):
-        (self.tmp / "battlenet-request").write_text("install-game\nhs_beta\n")
+        (self.tmp / "battlenet-request.00000000000000000001").write_text("install-game\nhs_beta\n")
         calls = []
         with mock.patch.dict(BNET, {"spawn": lambda exe, verb, args=(): calls.append((exe, verb, list(args))) or 0}):
             self.assertFalse(BNET["serve_requests"]("/p/pfx", self.UP[:1], str(self.tmp)))
-            self.assertTrue((self.tmp / "battlenet-request").exists())
+            self.assertTrue((self.tmp / "battlenet-request.00000000000000000001").exists())
             self.assertTrue(BNET["serve_requests"]("/p/pfx", self.UP, str(self.tmp)))
-            (self.tmp / "battlenet-request").write_text("launch\nWTCG\n")
+            (self.tmp / "battlenet-request.00000000000000000002").write_text("launch\nWTCG\n")
             self.assertTrue(BNET["serve_requests"]("/p/pfx", self.UP, str(self.tmp)))
-            (self.tmp / "battlenet-request").write_text("launch\nWTCG;reboot\n")
+            (self.tmp / "battlenet-request.00000000000000000003").write_text("launch\nWTCG;reboot\n")
             self.assertFalse(BNET["serve_requests"]("/p/pfx", self.UP, str(self.tmp)))
         client = "/p/pfx/drive_c/Program Files (x86)/Battle.net/Battle.net.exe"
         self.assertEqual(calls, [(client, "run", ["--install", "--game=hs_beta"]), (client, "run", ["--exec=launch WTCG"])])
-        self.assertFalse((self.tmp / "battlenet-request").exists())
+        self.assertEqual(list(self.tmp.iterdir()), [])
+
+    def test_requests_left_before_the_poll_are_all_served_in_order(self):
+        (self.tmp / "battlenet-request.00000000000000000020").write_text("launch\nOSI\n")
+        (self.tmp / "battlenet-request.00000000000000000010").write_text("install-game\nwow\n")
+        (self.tmp / "battlenet-request.00000000000000000030.tmp").write_text("install-game\nfenris\n")
+        calls = []
+        with mock.patch.dict(BNET, {"spawn": lambda exe, verb, args=(): calls.append(list(args)) or 0}):
+            self.assertTrue(BNET["serve_requests"]("/p/pfx", self.UP, str(self.tmp)))
+        self.assertEqual(calls, [["--install", "--game=wow"], ["--exec=launch OSI"]])
+        self.assertEqual([p.name for p in self.tmp.iterdir()], ["battlenet-request.00000000000000000030.tmp"])
 
 
 class TidyTest(unittest.TestCase):
