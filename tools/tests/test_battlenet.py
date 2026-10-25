@@ -713,6 +713,52 @@ class LaunchTest(Harness):
         with mock.patch.object(BNET["time"], "monotonic", lambda: next(times)):
             self.assertTrue(BNET["follow"]("/pfx", poll=0, grace=15))
 
+    def test_battle_net_that_only_selected_the_game_is_asked_again(self):
+        up = self.clients()
+        game = (40, self.GAME + ["-uid", "s1"])
+        self.states = [up, up, up, up + [game], [game], [], []]
+        asks = []
+        times = iter([0, 16, 32, 33, 34, 50, 70])
+        with mock.patch.object(BNET["time"], "monotonic", lambda: next(times)):
+            self.assertTrue(BNET["follow"]("/pfx", poll=0, grace=15, ask=lambda: asks.append(1)))
+        self.assertEqual(len(asks), 2)
+
+    def test_battle_net_is_asked_at_most_three_times(self):
+        up = self.clients()
+        self.states = [up] * 6 + [[], []]
+        asks = []
+        times = iter([0, 20, 40, 60, 80, 100, 101, 130])
+        with mock.patch.object(BNET["time"], "monotonic", lambda: next(times)):
+            self.assertFalse(BNET["follow"]("/pfx", poll=0, grace=15, ask=lambda: asks.append(1)))
+        self.assertEqual(len(asks), 2)
+
+    def test_the_wallpaper_is_droiddecks_logo_on_its_dark_gradient(self):
+        bmp = BNET["wallpaper_bmp"](192, 108)
+        self.assertEqual(bmp[:2], b"BM")
+        self.assertEqual(int.from_bytes(bmp[2:6], "little"), len(bmp))
+        self.assertEqual((int.from_bytes(bmp[18:22], "little"), int.from_bytes(bmp[22:26], "little")), (192, 108))
+
+        def pixel(x, y):
+            at = 54 + (107 - y) * 192 * 3 + x * 3
+            return tuple(bmp[at + 2 - i] for i in range(3))
+        self.assertEqual(pixel(95, 54), (26, 159, 255))
+        self.assertTrue(all(c < 16 for c in pixel(0, 0)))
+
+    def test_battle_nets_desktop_shows_the_wallpaper(self):
+        self.install()
+        pfx = Path(self.root) / ("steamapps/compatdata/%s/pfx" % BNET["APP_ID"])
+        (pfx / "user.reg").write_text("WINE REGISTRY Version 2\n")
+        with mock.patch.dict(os.environ, {"BL_WIDTH": "160", "BL_HEIGHT": "90"}), \
+                mock.patch.dict(BNET, {"wallpaper_bmp": lambda w, h: b"BM%dx%d" % (w, h)}):
+            self.assertTrue(BNET["wallpaper"](self.root))
+            self.assertTrue(BNET["wallpaper"](self.root))
+        image = pfx / "drive_c/users/steamuser/AppData/Local/DroidDeck/wallpaper-160x90.bmp"
+        self.assertEqual(image.read_bytes(), b"BM160x90")
+        reg = (pfx / "user.reg").read_text()
+        self.assertEqual(reg.count('"Wallpaper"="C:\\\\users\\\\steamuser\\\\AppData\\\\Local\\\\DroidDeck\\\\wallpaper-160x90.bmp"'), 1)
+        self.assertIn('[Control Panel\\\\Desktop]', reg)
+        self.assertIn('"Background"="4 6 11"', reg)
+
     def test_an_open_battle_net_is_handed_the_game(self):
         self.install()
         up = self.clients()

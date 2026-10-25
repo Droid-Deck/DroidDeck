@@ -9,6 +9,7 @@
 """
 import fcntl
 import json
+import math
 import os
 import re
 import shutil
@@ -32,6 +33,10 @@ DEFAULT_CONFIG = {"Client": {"HardwareAcceleration": "true", "Streaming": {"Stre
 LAUNCH_BEHAVIOR = ("GameLaunchWindowBehavior", "2")
 CACHE = os.path.join(HOME, ".cache", "droiddeck", "battlenet")
 MENU = "/usr/local/share/applications/droiddeck-battlenet.desktop"
+WALLPAPER_DIR = ("users", "steamuser", "AppData", "Local", "DroidDeck")
+DESKTOP_KEY = "[Control Panel\\\\Desktop]"
+COLORS_KEY = "[Control Panel\\\\Colors]"
+WALLPAPER_EDGE = (4, 6, 11)
 FEX_REQUEST = "battlenet-fex.request"
 FEX_RESULT = "battlenet-fex.result"
 FEX_WAIT = 120
@@ -50,6 +55,8 @@ CLIENT_READY = 5
 READY_SETTLE = 5
 CLIENT_WAIT = 300
 GAME_GRACE = 15
+LAUNCH_WAIT = 15
+LAUNCH_ASKS = 3
 CLIENT_PATH = re.compile(r"[a-z]:\\(program files \(x86\)|programdata)\\battle\.net\\")
 IDLE = {"agent.exe", "conhost.exe", "explorer.exe", "lsass.exe", "plugplay.exe", "rpcss.exe", "services.exe",
         "start.exe", "steam.exe", "svchost.exe", "tabtip.exe", "winedevice.exe", "wineserver"}
@@ -146,6 +153,107 @@ def write_config(root, library=None):
     return "first" if first else " ".join(changes)
 
 
+def wallpaper_bmp(width, height):
+    scale = min(width / 1920.0, height / 1080.0)
+    ox, oy = (width - 1920 * scale) / 2, (height - 1080 * scale) / 2
+    stops = ((0.0, (20, 33, 58)), (0.5, (10, 17, 32)), (1.0, WALLPAPER_EDGE))
+    glow = (26, 159, 255)
+    logo_px = scale * 1.6
+
+    def background(u, v):
+        t = min(math.hypot(u - 960, v - 540) / 1150, 1.0)
+        (t0, c0), (t1, c1) = (stops[0], stops[1]) if t <= 0.5 else (stops[1], stops[2])
+        f = (t - t0) / (t1 - t0)
+        color = [c0[i] + (c1[i] - c0[i]) * f for i in range(3)]
+        d = math.hypot(u - 947.21, v - 540) / 420
+        if d < 1:
+            a = 0.22 * (1 - d)
+            color = [color[i] * (1 - a) + glow[i] * a for i in range(3)]
+        return color
+
+    def box(x, y, x0, y0, x1, y1):
+        dx, dy = max(x0 - x, x - x1), max(y0 - y, y - y1)
+        return math.hypot(max(dx, 0), max(dy, 0)) + min(max(dx, dy), 0)
+
+    def white(x, y):
+        half = max(math.hypot(x - 63.97, y - 111.86) - 111.86, 63.97 - x)
+        shape = min(box(x, y, -31.98, 0, 63.97, 223.72), half)
+        hole = min(math.hypot(x - 63.98, y - 111.86) - 71.81,
+                   box(x, y, 56.055, -1, 71.885, 45), box(x, y, 56.055, 178.72, 71.885, 225))
+        return max(shape, -hole)
+
+    rows = []
+    pad = b"\0" * ((4 - width * 3 % 4) % 4)
+    for y in range(height - 1, -1, -1):
+        v = (y + 0.5 - oy) / scale
+        ly = (v - 361.02) / 1.6
+        row = bytearray()
+        for x in range(width):
+            u = (x + 0.5 - ox) / scale
+            color = background(u, v)
+            lx = (u - 844.84) / 1.6
+            if -40 < lx < 185 and -8 < ly < 232:
+                for sd, ink in ((white(lx, ly), (255, 255, 255)), (math.hypot(lx - 63.98, ly - 111.86) - 55.98, glow)):
+                    cover = min(max(0.5 - sd * logo_px, 0.0), 1.0)
+                    if cover:
+                        color = [color[i] * (1 - cover) + ink[i] * cover for i in range(3)]
+            row += bytes((int(color[2] + 0.5), int(color[1] + 0.5), int(color[0] + 0.5)))
+        rows.append(bytes(row) + pad)
+    pixels = b"".join(rows)
+    header = b"BM" + (54 + len(pixels)).to_bytes(4, "little") + b"\0\0\0\0" + (54).to_bytes(4, "little")
+    info = (40).to_bytes(4, "little") + width.to_bytes(4, "little") + height.to_bytes(4, "little") + \
+        (1).to_bytes(2, "little") + (24).to_bytes(2, "little") + b"\0" * 4 + len(pixels).to_bytes(4, "little") + \
+        (2835).to_bytes(4, "little") * 2 + b"\0" * 8
+    return header + info + pixels
+
+
+def reg_value(reg, key, name, value):
+    line = '"%s"="%s"' % (name, value.replace("\\", "\\\\").replace('"', '\\"'))
+    try:
+        rows = open(reg, encoding="utf-8", errors="replace").read().splitlines()
+    except OSError:
+        return False
+    inside, last = False, None
+    for row in rows:
+        if row.startswith("["):
+            inside = row.startswith(key + " ") or row == key
+        elif inside and row.startswith('"%s"=' % name):
+            last = row
+    if last != line:
+        with open(reg, "a", encoding="utf-8") as out:
+            out.write("\n%s %d\n%s\n" % (key, int(time.time()), line))
+    return True
+
+
+def desktop_size():
+    width, height = os.environ.get("BL_WIDTH", ""), os.environ.get("BL_HEIGHT", "")
+    if width.isdigit() and height.isdigit() and 0 < int(width) <= 7680 and 0 < int(height) <= 4320:
+        return int(width), int(height)
+    return 1280, 720
+
+
+def wallpaper(root):
+    width, height = desktop_size()
+    name = "wallpaper-%dx%d.bmp" % (width, height)
+    folder = os.path.join(drive_c(root), *WALLPAPER_DIR)
+    path = os.path.join(folder, name)
+    reg = os.path.join(prefix(root), "pfx", "user.reg")
+    if not os.path.isfile(reg):
+        return False
+    if not os.path.isfile(path):
+        os.makedirs(folder, exist_ok=True)
+        with open(path + ".tmp", "wb") as f:
+            f.write(wallpaper_bmp(width, height))
+        os.replace(path + ".tmp", path)
+        say("drew DroidDeck's wallpaper for Battle.net's %dx%d desktop" % (width, height))
+    windows = "C:\\" + "\\".join(WALLPAPER_DIR + (name,))
+    reg_value(reg, DESKTOP_KEY, "Wallpaper", windows)
+    reg_value(reg, DESKTOP_KEY, "TileWallpaper", "0")
+    reg_value(reg, DESKTOP_KEY, "WallpaperStyle", "0")
+    reg_value(reg, COLORS_KEY, "Background", "%d %d %d" % WALLPAPER_EDGE)
+    return True
+
+
 def configure(root, library=None):
     if library:
         try:
@@ -157,6 +265,10 @@ def configure(root, library=None):
     except OSError as error:
         say("Battle.net's config not written: %s" % error)
         return
+    try:
+        wallpaper(root)
+    except OSError as error:
+        say("Battle.net's desktop wallpaper not set: %s" % error)
     if change == "first":
         say("wrote Battle.net's first config: hardware acceleration on, streaming off, closing itself as it launches a game")
     elif change:
@@ -576,8 +688,9 @@ def wait_ready(pfx, wait=None, poll=None, settle=None):
         time.sleep(POLL if poll is None else poll)
 
 
-def follow(pfx, poll=None, grace=None, tidy=None):
+def follow(pfx, poll=None, grace=None, tidy=None, ask=None):
     seen, gone_at = False, None
+    asked, asks = None, 1
     grace = GAME_GRACE if grace is None else grace
     tidy = Tidy() if tidy is None else tidy
     while True:
@@ -598,6 +711,11 @@ def follow(pfx, poll=None, grace=None, tidy=None):
                 return seen
         else:
             gone_at = None
+            asked = now if asked is None else asked
+            if ask is not None and asks < LAUNCH_ASKS and now - asked >= LAUNCH_WAIT:
+                say("Battle.net has not started the game yet; asking again")
+                ask()
+                asked, asks = now, asks + 1
         time.sleep(POLL if poll is None else poll)
 
 
@@ -625,7 +743,7 @@ def launch(root, code):
             return 1
         say("launching %s" % code)
         spawn(client, "run", ["--exec=launch %s" % code])
-        played = follow(pfx)
+        played = follow(pfx, ask=lambda: spawn(client, "run", ["--exec=launch %s" % code]))
         if own is not None:
             leftovers = wine_processes(pfx)
             say("stopping what the Battle.net opened for %s left: %d process(es)" % (code, len(leftovers)))
