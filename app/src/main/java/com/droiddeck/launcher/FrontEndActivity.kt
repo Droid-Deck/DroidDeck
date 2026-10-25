@@ -1368,6 +1368,7 @@ class FrontEndActivity : ComponentActivity() {
         updates.unregister()
         // Another instance (a shortcut picker) may have set its own since.
         if (UsbRootMount.onChange === usbRootListener) UsbRootMount.onChange = null
+        usbThread.shutdown()
         super.onDestroy()
     }
 
@@ -1979,7 +1980,7 @@ class FrontEndActivity : ComponentActivity() {
     }
 
     private val usbActions = UsbActions(
-        onRefresh = { usbAction { null } },
+        onRefresh = usbRootListener,
         onAccess = {
             if (Build.VERSION.SDK_INT >= 30) startActivity(Intent(android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, Uri.parse("package:$packageName")))
         },
@@ -1995,7 +1996,7 @@ class FrontEndActivity : ComponentActivity() {
         },
         onDrive = { uuid ->
             usbAction {
-                // One lock for the whole switch, so two quick picks cannot save one drive and mount the other.
+                // One lock for the whole switch, so the watcher cannot mount between unmount and save.
                 synchronized(UsbRootMount) {
                     UsbRootMount.unmount(this)?.let { return@usbAction it }
                     SessionPrefs.setUsbRootDrive(this, uuid)
@@ -2017,7 +2018,7 @@ class FrontEndActivity : ComponentActivity() {
     }
 
     /** Off the main thread: root is asked only once its setting is on. */
-    private fun refreshUsb(status: String? = null) {
+    private fun refreshUsb(status: String?) {
         val on = SessionPrefs.usbRootEnabled(this)
         val root = if (!UsbRootMount.available()) null else {
             var error = status

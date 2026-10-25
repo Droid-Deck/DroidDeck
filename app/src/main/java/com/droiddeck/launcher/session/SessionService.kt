@@ -979,7 +979,7 @@ class SessionService : Service() {
         val usb = GameStorage.usbDrive(this)?.takeIf { GameStorage.prepare(this, it.path) == null }
             ?.let { GameStorage.Library(it, SecondaryLibrary.USB_GUEST, GameStorage.usbLabel(this)) }
         if (usb != null) {
-            File(LinuxRuntime.rootDir(this), "mnt/droiddeck-usb").mkdirs()
+            File(LinuxRuntime.rootDir(this), usb.guest.removePrefix("/")).mkdirs()
             binds.add(usb.host.path + ":" + usb.guest)
             steamLibraryMounts = steamLibraryMounts + (usb.guest to usb.host)
         }

@@ -13,7 +13,7 @@ import java.io.File
 object UsbRootMount {
     private const val TAG = "UsbRootMount"
 
-    class Drive(val device: String, val uuid: String, val type: String, val label: String, val size: Long = 0) {
+    class Drive(val device: String, val uuid: String, val type: String, val label: String, val size: Long) {
         /** vold's volume id, e.g. public:8,97. */
         val volume: String get() = device.substringAfterLast('/')
         val fat: Boolean get() = type != "ext4"
@@ -129,7 +129,7 @@ object UsbRootMount {
     @Synchronized
     fun prepare(context: Context): String? = attempt("prepare") {
         val drive = chosen(context)
-        check(drive.type == "ext4") { "not an ext4 drive" }
+        check(!drive.fat) { "not an ext4 drive" }
         val m = lower(context)
         val u = Process.myUid()
         val result = run(context, """
@@ -183,7 +183,7 @@ object UsbRootMount {
      * it hides from apps, so vold's block nodes are watched instead, from a root shell of their own.
      */
     @Synchronized
-    fun watch(context: Context) {
+    private fun watch(context: Context) {
         if (watcher?.isAlive == true) return
         val app = context.applicationContext
         watcher = Thread({
@@ -220,7 +220,7 @@ object UsbRootMount {
         val pid = watcherPid.takeIf { it > 0 } ?: return
         attempt("unwatch") { run(context, "kill $pid") }
         // Gone before returning, so a quick [watch] after this starts a new one.
-        watcher?.join()
+        watcher?.join(5000)
     }
 
     @Synchronized

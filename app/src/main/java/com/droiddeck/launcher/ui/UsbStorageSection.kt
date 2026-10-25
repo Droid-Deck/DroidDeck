@@ -89,7 +89,7 @@ private fun RootRows(host: MenuHost, usb: UsbRootUi, a: UsbActions, sessionRunni
         }
     }
     if (chosen == null) return
-    val ext4 = chosen.type == "ext4"
+    val ext4 = !chosen.fat
     val hint = when {
         usb.mounted && sessionRunning -> stringResource(R.string.usb_root_eject_running)
         !usb.mounted && ext4 -> stringResource(R.string.usb_root_prepare_hint)
