@@ -287,6 +287,18 @@ def game_gpu(env):
     return result
 
 
+def vram_cap(env):
+    """Puts the session's VRAM cap ahead of the game's own DXVK settings, so a game profile can still raise it."""
+    value = env.get("BL_VRAM_MB", "")
+    if not re.fullmatch(r"[1-9][0-9]{0,6}", value):
+        return env
+    result = env.copy()
+    cap = "dxgi.maxDeviceMemory = %d" % int(value)
+    own = result.get("DXVK_CONFIG", "").strip().strip(";").strip()
+    result["DXVK_CONFIG"] = cap + "; " + own if own else cap
+    return result
+
+
 def apply_config(env, config, app_id, fixes=None):
     if config.get("version") != 1:
         raise ValueError("unsupported environment configuration")
@@ -560,6 +572,7 @@ def main():
         command = offline_without_anticheat(command, env)
     if mic_enabled == "0":
         env["BANNER_AUDIO_DIRECT_MIC"] = "0"
+    env = vram_cap(env)
     env = force_ssbs(command, env)
     try:
         xbox = runpy.run_path(str(Path(__file__).with_name("droiddeck-xbox")))
