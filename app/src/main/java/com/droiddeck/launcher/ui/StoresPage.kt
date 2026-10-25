@@ -86,6 +86,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.automirrored.filled.Login
 import androidx.compose.foundation.basicMarquee
@@ -1072,6 +1073,12 @@ internal fun ModeHeader(
     var searching by remember { mutableStateOf(query.isNotEmpty()) }
     var focusOnOpen by remember { mutableStateOf(false) }
     val open by animateFloatAsState(if (searching) 1f else 0f, Motion.sp(0.75f, 420f), label = "searchOpen")
+    val close = {
+        searching = false
+        focusOnOpen = false
+        if (query.isNotEmpty()) onQuery("")
+    }
+    BackHandler(enabled = searching && !clearSearchFocus) { close() }
     Column(Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp).padding(vertical = 4.dp)) {
             if (lead != null) lead()
@@ -1081,14 +1088,17 @@ internal fun ModeHeader(
             )
             BoxWithConstraints(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
                 if (searching || open > 0.01f) {
-                    val w = androidx.compose.ui.unit.lerp(44.dp, maxWidth.coerceAtMost(520.dp), open)
-                    Box(Modifier.width(w).graphicsLayer { alpha = (open * 1.6f).coerceAtMost(1f) }) {
-                        AdbTextField(
-                            value = query, onValueChange = onQuery, label = "", keyboardType = KeyboardType.Text, imeAction = ImeAction.Search,
-                            placeholder = placeholder, compact = true, focusOnShow = focusOnOpen,
-                            clearFocus = clearSearchFocus,
-                            onFocusChange = { focused -> if (!focused && query.isEmpty()) { searching = false; focusOnOpen = false } },
-                        )
+                    val w = androidx.compose.ui.unit.lerp(44.dp, (maxWidth - 36.dp).coerceIn(44.dp, 520.dp), open)
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Box(Modifier.width(w).graphicsLayer { alpha = (open * 1.6f).coerceAtMost(1f) }) {
+                            AdbTextField(
+                                value = query, onValueChange = onQuery, label = "", keyboardType = KeyboardType.Text, imeAction = ImeAction.Search,
+                                placeholder = placeholder, compact = true, focusOnShow = focusOnOpen,
+                                clearFocus = clearSearchFocus || !searching,
+                                onFocusChange = { focused -> if (!focused && query.isEmpty()) { searching = false; focusOnOpen = false } },
+                            )
+                        }
+                        if (searching) SmallIconButton(Icons.Filled.Close, stringResource(R.string.common_close), tint = colors.onSurfaceVariant, onClick = close)
                     }
                 } else SearchIcon(stringResource(R.string.stores_search_open)) { searching = true; focusOnOpen = true }
             }
