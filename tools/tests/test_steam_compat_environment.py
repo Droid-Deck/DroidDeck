@@ -45,6 +45,30 @@ class SteamCompatEnvironmentTest(unittest.TestCase):
                         client_path += ':' + inherited['LD_LIBRARY_PATH']
                     self.assertEqual(result.stdout.splitlines(), ['1', client_path])
 
+    def test_session_exit_stops_the_library_helper(self):
+        source = (BIN / 'droiddeck-session').read_text()
+        launch = next(line for line in source.splitlines()
+                      if 'droiddeck-steam-compat "$steam_root"' in line)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            pid = root / 'pid'
+            helper = root / 'droiddeck-steam-compat'
+            helper.write_text('#!/bin/sh\necho $$ > "$PID_FILE"\nexec sleep 30\n')
+            helper.chmod(0o755)
+            env = dict(os.environ, PATH=str(root) + os.pathsep + os.environ['PATH'],
+                       PID_FILE=str(pid), steam_root='/steam', steam_x64='0')
+            subprocess.run(['bash', '-c', '_bl_compat_env=(env)\n' + launch + '\n'
+                            'until [ -s "$PID_FILE" ]; do sleep 0.05; done\n'
+                            'kill $(jobs -p)\nwait'],
+                           env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10)
+            helper_pid = int(pid.read_text())
+            try:
+                os.kill(helper_pid, 0)
+            except ProcessLookupError:
+                return
+            os.kill(helper_pid, 9)
+            self.fail('droiddeck-steam-compat outlived the session')
+
 
 if __name__ == '__main__':
     unittest.main()
