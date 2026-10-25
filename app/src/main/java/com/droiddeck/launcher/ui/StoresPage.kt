@@ -93,6 +93,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.automirrored.filled.Login
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.outlined.Cloud
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -650,6 +651,12 @@ private fun StoreChips(
                     ) { onDownloads() }
                     ChipGlide(keys.indexOf(DOWNLOADS), bounds[DOWNLOADS], tint, visible = fillShown && highlighted == DOWNLOADS)
                 }
+                val gfnContext = LocalContext.current
+                StoreChip(
+                    label = "GeForce NOW", on = false, under = false, key = "geforce-now", mark = pal.signal, modifier = Modifier,
+                    lead = { Icon(Icons.Outlined.Cloud, null, modifier = Modifier.size(18.dp)) },
+                    description = "GeForce NOW", onFocused = onFocusChip,
+                ) { gfnContext.startActivity(android.content.Intent(gfnContext, com.droiddeck.launcher.stores.gfn.GfnActivity::class.java)) }
                 var cogAt by remember { mutableStateOf<Rect?>(null) }
                 Box(Modifier.onGloballyPositioned { cogAt = it.boundsInRoot() }) {
                     IconChip(Icons.Filled.Settings, stringResource(R.string.stores_settings)) { onSettings(cogAt) }
