@@ -53,6 +53,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusGroup
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.selection.selectable
@@ -611,6 +613,7 @@ private fun RowScope.ArrangeStoreChip(
     ) { onToggleTab(store) }
 }
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun StoreChips(
     selected: String, focused: String?, active: Int, tabs: List<StoreTab>, arranging: Boolean,
@@ -620,7 +623,6 @@ private fun StoreChips(
     val pal = LocalPalette.current
     val keys = tabs.filter { it.shown }.map { it.store.id } + DOWNLOADS
     val bounds = remember { androidx.compose.runtime.mutableStateMapOf<String, Rect>() }
-    val rootBounds = remember { HashMap<String, Rect>() }
     val highlighted = focused ?: selected
     val inputMode = androidx.compose.ui.platform.LocalInputModeManager.current.inputMode
     val fillShown = inputMode != androidx.compose.ui.input.InputMode.Keyboard && !arranging
@@ -632,45 +634,56 @@ private fun StoreChips(
     val drag = remember { ChipDrag() }
     Box(Modifier.fillMaxWidth()) {
         Row(horizontalArrangement = Arrangement.spacedBy(gap), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-            for (tab in tabs) {
-                val store = tab.store
-                if (arranging) {
-                    val index = tabs.indexOfFirst { it.store == store }
-                    key(store) { ArrangeStoreChip(tab, index, tabs.lastIndex, gapPx, drag, onFocusChip, onMoveTab, onToggleTab) }
-                } else if (tab.shown) {
-                    val signedIn = StoresState.isSignedIn(store) && StoresState.expired[store] != true
-                    key(store) {
-                        StoreChip(
-                            label = store.shortLabel, on = selected == store.id, under = fillShown && highlighted == store.id, key = store.id, mark = sourceColours(store.id).dot,
-                            modifier = Modifier.weight(1f).onGloballyPositioned { bounds[store.id] = it.boundsInParent(); rootBounds[store.id] = it.boundsInRoot() },
-                            lead = { StoreDot(store, signedIn) },
-                            description = store.label + if (signedIn || !StoresState.accountsLoaded) "" else " " + stringResource(R.string.stores_chip_signed_out),
-                            onFocused = onFocusChip,
-                        ) { onStore(store) }
+            Box(Modifier.weight(1f).then(if (arranging) Modifier else Modifier.horizontalScroll(rememberScrollState()))) {
+                Row(horizontalArrangement = Arrangement.spacedBy(gap), verticalAlignment = Alignment.CenterVertically,
+                    modifier = if (arranging) Modifier.fillMaxWidth() else Modifier,
+                ) {
+                    for (tab in tabs) {
+                        val store = tab.store
+                        if (arranging) {
+                            val index = tabs.indexOfFirst { it.store == store }
+                            key(store) { ArrangeStoreChip(tab, index, tabs.lastIndex, gapPx, drag, onFocusChip, onMoveTab, onToggleTab) }
+                        } else if (tab.shown) {
+                            val signedIn = StoresState.isSignedIn(store) && StoresState.expired[store] != true
+                            key(store) {
+                                val reveal = remember { BringIntoViewRequester() }
+                                LaunchedEffect(selected) { if (selected == store.id) reveal.bringIntoView() }
+                                StoreChip(
+                                    label = store.shortLabel, on = selected == store.id, under = fillShown && highlighted == store.id, key = store.id, mark = sourceColours(store.id).dot,
+                                    modifier = Modifier.bringIntoViewRequester(reveal).onGloballyPositioned { bounds[store.id] = it.boundsInParent() },
+                                    lead = { StoreDot(store, signedIn) },
+                                    description = store.label + if (signedIn || !StoresState.accountsLoaded) "" else " " + stringResource(R.string.stores_chip_signed_out),
+                                    onFocused = onFocusChip,
+                                ) { onStore(store) }
+                            }
+                        }
                     }
                 }
+                ChipGlide(keys.indexOf(highlighted), bounds[highlighted], tint, visible = fillShown && highlighted != DOWNLOADS)
             }
             if (arranging) {
                 IconChip(Icons.Filled.Check, stringResource(R.string.stores_tabs_arrange_done)) { onArrangeDone() }
             } else {
-                StoreChip(
-                    label = null, on = selected == DOWNLOADS, under = fillShown && highlighted == DOWNLOADS, key = DOWNLOADS, mark = pal.signal,
-                    modifier = Modifier.onGloballyPositioned {
-                        bounds[DOWNLOADS] = it.boundsInParent()
-                        StoresMotion.downloadsChip = it.boundsInRoot()
-                    },
-                    lead = { Icon(Icons.Outlined.Download, null, modifier = Modifier.size(18.dp)) },
-                    trail = if (active > 0) { { CountPill(active) } } else null,
-                    description = stringResource(R.string.stores_tab_downloads),
-                    onFocused = onFocusChip,
-                ) { onDownloads() }
+                Box {
+                    StoreChip(
+                        label = null, on = selected == DOWNLOADS, under = fillShown && highlighted == DOWNLOADS, key = DOWNLOADS, mark = pal.signal,
+                        modifier = Modifier.onGloballyPositioned {
+                            bounds[DOWNLOADS] = it.boundsInParent()
+                            StoresMotion.downloadsChip = it.boundsInRoot()
+                        },
+                        lead = { Icon(Icons.Outlined.Download, null, modifier = Modifier.size(18.dp)) },
+                        trail = if (active > 0) { { CountPill(active) } } else null,
+                        description = stringResource(R.string.stores_tab_downloads),
+                        onFocused = onFocusChip,
+                    ) { onDownloads() }
+                    ChipGlide(keys.indexOf(DOWNLOADS), bounds[DOWNLOADS], tint, visible = fillShown && highlighted == DOWNLOADS)
+                }
                 var cogAt by remember { mutableStateOf<Rect?>(null) }
                 Box(Modifier.onGloballyPositioned { cogAt = it.boundsInRoot() }) {
                     IconChip(Icons.Filled.Settings, stringResource(R.string.stores_settings)) { onSettings(cogAt) }
                 }
             }
         }
-        ChipGlide(keys.indexOf(highlighted), bounds[highlighted], tint, visible = fillShown)
     }
 }
 
