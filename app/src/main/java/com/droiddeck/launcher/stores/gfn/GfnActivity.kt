@@ -59,7 +59,7 @@ class GfnActivity : ComponentActivity() {
         data object Loading : Screen
         data class SignedOut(val error: String? = null) : Screen
         data class Code(val userCode: String, val url: String, val attemptId: String, val intervalMs: Long) : Screen
-        data class Games(val user: String, val games: List<Game>) : Screen
+        data class Games(val user: String, val games: List<Game>, val total: Int, val owned: Set<String>) : Screen
         data class Failed(val message: String) : Screen
     }
 
@@ -124,7 +124,7 @@ class GfnActivity : ComponentActivity() {
                         screen = withContext(Dispatchers.IO) { waitForSignIn(current) }
                     }
                 }
-                is Screen.Games -> GameGrid(current.games) { game -> play(game) }
+                is Screen.Games -> GameGrid(current) { game -> play(game) }
             }
         }
     }
@@ -151,16 +151,27 @@ class GfnActivity : ComponentActivity() {
     }
 
     @Composable
-    private fun GameGrid(games: List<Game>, onPlay: (Game) -> Unit) {
+    private fun GameGrid(catalog: Screen.Games, onPlay: (Game) -> Unit) {
         var query by remember { mutableStateOf("") }
-        val shown = remember(games, query) {
-            val words = query.trim().lowercase().split(' ').filter { it.isNotEmpty() }
-            games.filter { game -> words.all { game.search.contains(it) } }
+        var found by remember { mutableStateOf<List<Game>?>(null) }
+        LaunchedEffect(query) {
+            val text = query.trim()
+            if (text.isEmpty()) { found = null; return@LaunchedEffect }
+            delay(350)
+            // The core searches NVIDIA's whole catalog, not only the games shown.
+            found = withContext(Dispatchers.IO) {
+                runCatching { publicGames(JSONObject().put("limit", 1000).put("searchQuery", text), catalog.owned) }.getOrDefault(emptyList())
+            }
         }
+        val shown = found ?: catalog.games
         Column {
             OutlinedTextField(value = query, onValueChange = { query = it }, singleLine = true,
-                label = { Text("Search ${games.size} games") },
+                label = { Text("Search ${catalog.total} games") },
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp))
+            if (found == null && catalog.total > catalog.games.size) {
+                Text("Showing ${catalog.games.size} of ${catalog.total}; search to find the rest.", fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f), modifier = Modifier.padding(horizontal = 16.dp))
+            }
             LazyVerticalGrid(columns = GridCells.Adaptive(220.dp), modifier = Modifier.fillMaxSize(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp),
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp)) {
@@ -191,16 +202,36 @@ class GfnActivity : ComponentActivity() {
         val auth = GfnCore.request(this, "auth.session.get")
         val user = auth.optJSONObject("session")?.optJSONObject("user") ?: auth.optJSONObject("user")
         if (user == null || user.optString("userId").isEmpty()) return Screen.SignedOut()
-        Screen.Games(user.optString("displayName").ifEmpty { "Signed in" }, loadGames())
+        val owned = runCatching { libraryIds() }.getOrDefault(emptySet())
+        val first = GfnCore.request(this, "catalog.public.list", JSONObject().put("limit", 1000), timeoutMs = 60_000)
+        val games = mark(gamesOf(first), owned).sortedBy { it.title.lowercase() }
+        Screen.Games(user.optString("displayName").ifEmpty { "Signed in" }, games,
+            first.optInt("totalCount", games.size), owned)
     }.getOrElse { Screen.Failed(it.message ?: "GeForce NOW could not start.") }
 
-    /** NVIDIA's full list (public catalog), marking the games in the account's library. */
-    private fun loadGames(): List<Game> {
-        val owned = runCatching { gamesOf(GfnCore.request(this, "catalog.library.list", JSONObject().put("limit", 100))) }
-            .getOrDefault(emptyList()).map { it.id }.toSet()
-        return gamesOf(GfnCore.request(this, "catalog.public.list", timeoutMs = 60_000))
-            .map { if (it.id in owned) it.copy(inLibrary = true) else it }
-            .sortedBy { it.title.lowercase() }
+    private fun publicGames(params: JSONObject, owned: Set<String>): List<Game> =
+        mark(gamesOf(GfnCore.request(this, "catalog.public.list", params, timeoutMs = 60_000)), owned)
+
+    private fun mark(games: List<Game>, owned: Set<String>) = games.map { if (it.id in owned) it.copy(inLibrary = true) else it }
+
+    /** Every game in the account's GeForce NOW library, page by page. */
+    private fun libraryIds(): Set<String> {
+        val ids = HashSet<String>()
+        val traversal = System.currentTimeMillis().toString()
+        var cursor = ""
+        var revision: Any? = null
+        var context = ""
+        repeat(50) {
+            val params = JSONObject().put("limit", 100).put("cursor", cursor).put("traversalId", traversal)
+                .put("catalogRevision", revision ?: JSONObject.NULL).put("catalogContext", context)
+            val page = GfnCore.request(this, "catalog.library.list", params, timeoutMs = 60_000)
+            gamesOf(page).forEach { ids += it.id }
+            revision = page.opt("catalogRevision")
+            context = page.optString("catalogContext")
+            cursor = page.optString("nextCursor")
+            if (!page.optBoolean("hasNextPage") || cursor.isEmpty()) return ids
+        }
+        return ids
     }
 
     private fun gamesOf(result: JSONObject): List<Game> {
