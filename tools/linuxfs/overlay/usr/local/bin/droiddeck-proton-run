@@ -13,7 +13,8 @@ the STEAM_COMPAT_* environment - so its wrapper applies the game's settings, com
 --window keeps the program in the desktop's own window, drawn with WineD3D.
 --app starts one game without the Steam client (its Start without Steam): a Steam game's default
 Windows launch option from appinfo.vdf when no program is given, else the program in that
-shortcut's own prefix, started in --dir with the shortcut's launch options (--options).
+shortcut's own prefix, started in --dir with the shortcut's launch options (--options). Without
+--options it takes the launch options set in the client's Properties for that game or shortcut.
 """
 import json
 import os
@@ -230,6 +231,40 @@ def shortcut_entries(root):
     return entries
 
 
+def vdf_string(token):
+    return re.sub(r'\\(.)', r'\1', token[1:-1]) if token.startswith('"') else ""
+
+
+def steam_options(app, root):
+    """The launch options the client keeps for a game (localconfig.vdf) or a shortcut (shortcuts.vdf)."""
+    try:
+        tool = runpy.run_path(os.path.join(BIN_DIR, "droiddeck-steam-shortcuts"))
+        account = tool["account_dir"](root)
+        if not account:
+            return ""
+        if int(app) >= STEAM_APP_LIMIT:
+            with open(os.path.join(account, "config", "shortcuts.vdf"), "rb") as f:
+                shortcuts = tool["parse"](f.read()).get("shortcuts", {})
+            for value in shortcuts.values():
+                if isinstance(value, dict) and (value.get("appid", value.get("AppId")) or 0) & 0xFFFFFFFF == int(app):
+                    options = value.get("LaunchOptions", value.get("launchoptions", ""))
+                    return options if isinstance(options, str) else ""
+            return ""
+        tokens = compat()["tokenize"](read_text(os.path.join(account, "config", "localconfig.vdf")) or "")
+        start = compat()["find_block"](tokens, ["UserLocalConfigStore", "Software", "Valve", "Steam", "apps", app])
+        if start is None:
+            return ""
+        end, depth = compat()["block_end"](tokens, start), 0
+        for i in range(start + 1, end):
+            if tokens[i] in ("{", "}"):
+                depth += 1 if tokens[i] == "{" else -1
+            elif depth == 0 and tokens[i].lower() == '"launchoptions"' and i + 1 < end:
+                return vdf_string(tokens[i + 1])
+    except (OSError, ValueError, IndexError, KeyError, TypeError, struct.error):
+        pass
+    return ""
+
+
 def shortcut(program, root):
     for appid, exe, start in shortcut_entries(root):
         if same_file(program, exe):
@@ -372,7 +407,7 @@ def arguments(program, args):
 
 def main(argv):
     window = False
-    app, start, options = None, None, ""
+    app, start, options = None, None, None
     while argv and argv[0].startswith("--"):
         option = argv.pop(0)
         if option == "--window":
@@ -397,6 +432,8 @@ def main(argv):
         say("usage: droiddeck-proton-run [--window] PROGRAM [ARGS...]")
         return 2
     root = os.environ.get("STEAM_COMPAT_CLIENT_INSTALL_PATH") or STEAM_ROOT
+    if options is None:
+        options = steam_options(app, root) if app is not None else ""
     extra, args = split_options(options)
     if not argv:
         if int(app) >= STEAM_APP_LIMIT:
