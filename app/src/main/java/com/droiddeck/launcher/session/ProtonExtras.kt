@@ -20,6 +20,8 @@ object ProtonExtras {
     @Volatile
     var installInProgress = false
         private set
+    @Volatile
+    private var replacing = false
 
     class Tool(val id: String, val name: String, val prefix: String, val repo: String, val assetPattern: Regex)
 
@@ -164,10 +166,28 @@ object ProtonExtras {
         val older = all.dropLast(1)
         if (older.isEmpty()) return
         if (runCatching { ProtonDefault.moveGames(context, older.toSet(), newest) }.onFailure { Log.w(TAG, "per-game picks", it) }.isFailure) return
-        older.asReversed().forEach { old ->
-            if (runCatching { ComponentsManager.carryOver(context, old, newest) }.onFailure { Log.w(TAG, "components of $old", it) }.isFailure) return@forEach
-            if (File(toolsDir(context), old).deleteRecursively()) ComponentsManager.forgetProton(context, old)
-            else Log.w(TAG, "could not remove $old")
+        replacing = true
+        try {
+            for (old in older.asReversed()) {
+                if (SessionState.running) break
+                if (runCatching { ComponentsManager.carryOver(context, old, newest) }.onFailure { Log.w(TAG, "components of $old", it) }.isFailure) continue
+                if (File(toolsDir(context), old).deleteRecursively()) ComponentsManager.forgetProton(context, old)
+                else Log.w(TAG, "could not remove $old")
+            }
+        } finally {
+            replacing = false
+        }
+    }
+
+    fun tidy(context: Context) {
+        val tool = tools.firstOrNull { it.id == OWN } ?: return
+        if (installedAll(context, tool).size > 1) replaceOlder(context, tool)
+    }
+
+    fun awaitReplacement(timeoutMs: Long) {
+        val until = System.currentTimeMillis() + timeoutMs
+        while (replacing && System.currentTimeMillis() < until) {
+            try { Thread.sleep(50) } catch (_: InterruptedException) { Thread.currentThread().interrupt(); return }
         }
     }
 

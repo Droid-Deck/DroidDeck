@@ -96,6 +96,17 @@ internal class ProtonMenu(
             ProtonExtras.installInProgress || SessionState.running || LinuxRuntimeInstaller.isBusy() ||
             SessionState.phase !in setOf(SessionPhase.IDLE, SessionPhase.FAILED) ||
             !LinuxRuntime.isInstalled(activity) || !AutoComponents.online(activity) || AutoComponents.unfavourable(activity)) return
+        if (ProtonExtras.installedAll(activity, ProtonExtras.tools.first { it.id == ProtonExtras.OWN }).size > 1) {
+            protonBusyId = ProtonExtras.OWN
+            Thread({
+                ProtonExtras.tidy(activity)
+                ui.post {
+                    protonBusyId = null
+                    refreshProtons()
+                }
+            }, "proton-tidy").start()
+            return
+        }
         val attempts = activity.getSharedPreferences("proton-auto-updates", android.content.Context.MODE_PRIVATE)
         val (tool, update) = ProtonExtras.tools.firstNotNullOfOrNull { tool ->
             val update = ProtonExtras.update(activity, tool) ?: ProtonExtras.missing(activity, tool) ?: return@firstNotNullOfOrNull null
