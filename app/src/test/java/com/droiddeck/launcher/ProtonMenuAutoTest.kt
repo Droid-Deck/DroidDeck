@@ -88,7 +88,7 @@ class ProtonMenuAutoTest {
         fail("Proton work did not finish")
     }
 
-    @Test fun aCachedCheckUpdatesOnlyInstalledFamiliesAndKeepsOlderBuildsAndSelections() {
+    @Test fun aCachedCheckUpdatesOnlyInstalledFamiliesAndReplacesOlderDroidDeckProton() {
         val older = install("DroidDeck-Proton-11-11.1")
         val request = File(root, "root/.local/share/droiddeck-compat/request.json").apply {
             parentFile!!.mkdirs()
@@ -97,8 +97,8 @@ class ProtonMenuAutoTest {
         val before = request.readText()
         assertFalse(ProtonExtras.checkLatest(activity))
         menu.checkUpdates()
-        waitUntil { menu.protonRows.singleOrNull { it.id == "droiddeck" }?.installed == "DroidDeck-Proton-11-12" && menu.protonBusyId == null }
-        assertTrue(older.isDirectory)
+        waitUntil { menu.protonRows.singleOrNull { it.id == "droiddeck" }?.installed == "DroidDeck-Proton-11-12" && menu.protonBusyId == null && !older.exists() }
+        assertEquals(listOf("DroidDeck-Proton-11-12"), ProtonExtras.installedAll(activity, ProtonExtras.tools.first { it.id == "droiddeck" }))
         assertEquals(before, request.readText())
         assertTrue(ProtonExtras.installedAll(activity, ProtonExtras.tools.first { it.id == "ge" }).isEmpty())
         assertTrue(ProtonExtras.installedAll(activity, ProtonExtras.tools.first { it.id == "cachyos" }).isEmpty())
@@ -128,7 +128,7 @@ class ProtonMenuAutoTest {
 
     @Test fun aFailedUpdateDoesNotLoopOrBlockOtherInstalledFamilies() {
         val ge = install("GE-Proton11-11")
-        val dd = install("DroidDeck-Proton-11-11.1")
+        install("DroidDeck-Proton-11-11.1")
         menu.installer = { tool, _ ->
             attempts.add(tool.id)
             if (tool.id == "ge") throw IllegalStateException("download failed")
@@ -138,10 +138,10 @@ class ProtonMenuAutoTest {
         menu.ensureAutoUpdates()
         waitUntil { menu.protonBusyId == null }
         menu.ensureAutoUpdates()
-        shadowOf(Looper.getMainLooper()).idle()
+        waitUntil { menu.protonBusyId == null }
         assertEquals(listOf("ge", "droiddeck"), attempts)
         assertTrue(ge.isDirectory)
-        assertTrue(dd.isDirectory)
+        assertEquals(listOf("DroidDeck-Proton-11-12"), ProtonExtras.installedAll(activity, ProtonExtras.tools.first { it.id == "droiddeck" }))
         assertNull(menu.protonStage)
         assertEquals(-1, menu.protonPercent)
     }
@@ -182,6 +182,31 @@ class ProtonMenuAutoTest {
         menu.ensureAutoUpdates()
         waitUntil { menu.protonBusyId == null }
         assertEquals("DroidDeck-Proton-11-12", ProtonExtras.installed(activity, ProtonExtras.tools.first { it.id == "droiddeck" }))
+    }
+
+    @Test fun droidDeckProtonIsInstalledWhenMissingUnlessTheUserRemovedIt() {
+        menu.installer = { tool, _ -> attempts.add(tool.id); install("${tool.prefix}-11-12"); null }
+        ProtonExtras.setDeclined(activity, true)
+        menu.ensureAutoUpdates()
+        assertNull(menu.protonBusyId)
+        assertTrue(attempts.isEmpty())
+        ProtonExtras.setDeclined(activity, false)
+        menu.ensureAutoUpdates()
+        waitUntil { menu.protonBusyId == null }
+        assertEquals(listOf("droiddeck"), attempts)
+        assertEquals("DroidDeck-Proton-11-12", ProtonExtras.installed(activity, ProtonExtras.tools.first { it.id == "droiddeck" }))
+        assertTrue(ProtonExtras.installedAll(activity, ProtonExtras.tools.first { it.id == "ge" }).isEmpty())
+        menu.removeProton("droiddeck")
+        waitUntil { menu.protonBusyId == null }
+        assertTrue(ProtonExtras.declined(activity))
+        menu.installer = { _, _ -> "failed" }
+        menu.installProton("droiddeck")
+        waitUntil { menu.protonBusyId == null }
+        assertTrue(ProtonExtras.declined(activity))
+        menu.installer = { tool, _ -> install("${tool.prefix}-11-12"); null }
+        menu.installProton("droiddeck")
+        waitUntil { menu.protonBusyId == null }
+        assertFalse(ProtonExtras.declined(activity))
     }
 
     @Test fun aPendingAnimatedLaunchPreventsAnAutomaticInstall() {

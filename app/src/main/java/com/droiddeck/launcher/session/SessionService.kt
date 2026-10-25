@@ -375,6 +375,7 @@ class SessionService : Service() {
         acquireLocks()
         Thread({
             OrphanReaper.reap("session starting")
+            ProtonExtras.awaitReplacement(120_000)
             runSession(gen)
         }, "session-start").start()
         return START_NOT_STICKY
