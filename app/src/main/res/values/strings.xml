@@ -556,7 +556,7 @@
     <string name="perf_cap_off">Off</string>
     <string name="perf_cap_auto">Driver default</string>
     <string name="perf_zram_client">Compress Steam while a game runs</string>
-    <string name="perf_zram_client_hint">20 s after a game starts, the Steam client is compressed into zRAM to leave the game more memory, and read back when the game closes. Turn this off if the session closes shortly after games start.</string>
+    <string name="perf_zram_client_hint">20 s after a game starts, the Steam client is compressed into zRAM to leave the game more memory, and read back when the game closes. Turn this off if the session closes shortly after games start. A RAM cap above still compresses Steam when the session goes over it.</string>
     <string name="perf_ram_cap">RAM cap</string>
     <string name="perf_ram_cap_hint">Applies while the Steam client runs, in Steam mode or from the desktop. When the session uses more than this, Steam and then the session\'s other supported processes are compressed into zRAM. A soft cap: nothing is closed, but games may stutter while pages come back.</string>
     <string name="perf_ram_cap_unavailable">Needs zRAM swap, which this device does not have.</string>
