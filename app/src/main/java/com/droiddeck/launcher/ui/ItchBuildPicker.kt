@@ -84,21 +84,19 @@ internal fun ItchBuildPicker(item: CatalogItem, onDismiss: () -> Unit) {
 private fun BuildRow(item: CatalogItem, build: ItchBuild, onInstall: () -> Unit) {
     val ctx = LocalContext.current
     val colors = MaterialTheme.colorScheme
-    val linux = "linux" in build.platforms && !build.installable
     val detail = listOfNotNull(
         build.platforms.map { platformName(it) }.joinToString(", "),
         build.size.takeIf { it > 0 }?.let { formatBytes(it) },
         build.updatedAt.take(10).takeIf { it.isNotBlank() },
         if (build.demo) stringResource(R.string.stores_itch_build_demo) else null,
     ).joinToString(" · ")
-    ListRow(enabled = !linux, onClick = { if (build.installable) onInstall() else openStoreUrl(ctx, item) }) {
+    ListRow(onClick = { if (build.installable) onInstall() else openStoreUrl(ctx, item) }) {
         Column(Modifier.weight(1f)) {
             Text(build.filename.ifBlank { item.title }, fontSize = 13.sp, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(detail, fontSize = 11.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         val label = when {
             build.installable -> stringResource(R.string.stores_install)
-            linux -> stringResource(R.string.stores_itch_build_linux_soon)
             else -> stringResource(R.string.stores_itch_build_open)
         }
         Text(label, fontSize = 12.sp, color = colors.onSurfaceVariant, maxLines = 1)

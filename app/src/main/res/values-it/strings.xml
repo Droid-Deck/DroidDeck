@@ -2053,7 +2053,6 @@
     <string name="stores_itch_pick_failed">Impossibile caricare i download da itch.io</string>
     <string name="stores_itch_build_demo">Demo</string>
     <string name="stores_itch_build_open">Apri su itch.io</string>
-    <string name="stores_itch_build_linux_soon">Non ancora supportato</string>
     <string name="stores_itch_no_game">Gioco non trovato su itch.io</string>
     <string name="stores_free">Gratis</string>
     <string name="stores_resume">Riprendi</string>

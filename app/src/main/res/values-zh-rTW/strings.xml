@@ -2022,7 +2022,6 @@
     <string name="stores_itch_pick_failed">無法從 itch.io 載入下載內容</string>
     <string name="stores_itch_build_demo">試玩版</string>
     <string name="stores_itch_build_open">在 itch.io 開啟</string>
-    <string name="stores_itch_build_linux_soon">尚未支援</string>
     <string name="stores_itch_no_game">在 itch.io 找不到這款遊戲</string>
     <string name="stores_free">免費</string>
     <string name="stores_resume">繼續</string>

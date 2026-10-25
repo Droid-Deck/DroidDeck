@@ -2019,7 +2019,6 @@
     <string name="stores_itch_pick_failed">โหลดรายการดาวน์โหลดจาก itch.io ไม่ได้</string>
     <string name="stores_itch_build_demo">เดโม</string>
     <string name="stores_itch_build_open">เปิดบน itch.io</string>
-    <string name="stores_itch_build_linux_soon">ยังไม่รองรับ</string>
     <string name="stores_itch_no_game">ไม่พบเกมนี้บน itch.io</string>
     <string name="stores_free">ฟรี</string>
     <string name="stores_resume">ดำเนินการต่อ</string>

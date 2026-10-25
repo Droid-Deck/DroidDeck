@@ -806,6 +806,38 @@ class AppInfoTest(unittest.TestCase):
             self.assertEqual(self.COMPAT["read_config_mapping"](str(config)),
                              {"0": tool, "10": tool, "20": tool, "30": fex, "40": fex})
 
+    def linux_shortcut_mapping(self, **options):
+        with tempfile.TemporaryDirectory() as tmp:
+            steam = Path(tmp) / "Steam"
+            (steam / "appcache").mkdir(parents=True)
+            (steam / "appcache/appinfo.vdf").write_bytes(self.appinfo({}))
+            self.COMPAT["APPINFO_CACHE"].clear()
+            tool = self.COMPAT["TOOL"]
+            state = Path(tmp) / "state"
+            state.mkdir()
+            catalog = [{"name": tool, "display": "Proton Experimental ARM64", "dir": "Proton Experimental (ARM64)", "valve": True}]
+            config = steam / "config/config.vdf"
+            config.parent.mkdir()
+            config.write_text('"InstallConfigStore" { "Software" { "Valve" { "Steam" { "CompatToolMapping" { '
+                              '"0" { "name" "%s" "config" "" "priority" "75" } } } } } }' % tool)
+            self.COMPAT["register_default"](str(config), ["3141378902", "2147483650", "2147483651"], catalog=catalog, directory=str(state), **options)
+            return self.COMPAT["read_config_mapping"](str(config)), tool
+
+    def test_a_linux_shortcut_goes_to_fex_and_the_other_shortcuts_keep_the_default(self):
+        mapping, tool = self.linux_shortcut_mapping(linux=["3141378902"])
+        self.assertEqual(mapping.get("3141378902"), "droiddeck-fex")
+        self.assertEqual(mapping.get("2147483650", tool), tool)
+        self.assertEqual(mapping.get("2147483651", tool), tool)
+
+    def test_a_linux_shortcut_goes_to_the_given_linux_tool_in_the_x64_client(self):
+        mapping, tool = self.linux_shortcut_mapping(linux=["3141378902"], linux_tool="droiddeck-direct")
+        self.assertEqual(mapping.get("3141378902"), "droiddeck-direct")
+        self.assertEqual(mapping.get("2147483650", tool), tool)
+
+    def test_without_the_linux_list_nothing_changes(self):
+        mapping, tool = self.linux_shortcut_mapping()
+        self.assertEqual(mapping.get("3141378902", tool), tool)
+
     def test_tools_are_fetched_until_fully_installed_and_up_to_date(self):
         with tempfile.TemporaryDirectory() as tmp:
             steam = Path(tmp)

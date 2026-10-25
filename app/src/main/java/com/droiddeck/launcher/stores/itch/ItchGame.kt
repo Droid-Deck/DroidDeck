@@ -12,7 +12,9 @@ internal class ItchBuild(
     val platforms: Set<String>,
     val demo: Boolean,
 ) {
-    val installable: Boolean get() = "windows" in platforms
+    val linux: Boolean get() = ItchUploads.linuxOnly(platforms)
+    val installable: Boolean get() = "windows" in platforms || linux
+    val rank: Int get() = if ("windows" in platforms) 0 else if (linux) 1 else 2
 }
 
 internal object ItchGame {
@@ -39,6 +41,6 @@ internal object ItchGame {
                     it.optString("updated_at", it.optString("updatedAt")), ItchUploads.platforms(it), it.optBoolean("demo"),
                 )
             }
-            .sortedWith(compareByDescending<ItchBuild> { it.installable }.thenByDescending { it.updatedAt })
+            .sortedWith(compareBy<ItchBuild> { it.rank }.thenByDescending { it.updatedAt })
     }
 }

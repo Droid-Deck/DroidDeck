@@ -2061,7 +2061,6 @@
     <string name="stores_itch_pick_failed">Descărcările de pe itch.io nu au putut fi încărcate</string>
     <string name="stores_itch_build_demo">Demo</string>
     <string name="stores_itch_build_open">Deschide pe itch.io</string>
-    <string name="stores_itch_build_linux_soon">Încă nu este acceptat</string>
     <string name="stores_itch_no_game">Jocul nu a fost găsit pe itch.io</string>
     <string name="stores_free">Gratuit</string>
     <string name="stores_resume">Reluare</string>

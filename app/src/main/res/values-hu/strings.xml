@@ -2040,7 +2040,6 @@
     <string name="stores_itch_pick_failed">A letöltések betöltése az itch.io-ról nem sikerült</string>
     <string name="stores_itch_build_demo">Demó</string>
     <string name="stores_itch_build_open">Megnyitás az itch.io-n</string>
-    <string name="stores_itch_build_linux_soon">Még nem támogatott</string>
     <string name="stores_itch_no_game">A játék nem található az itch.io-n</string>
     <string name="stores_free">Ingyenes</string>
     <string name="stores_resume">Folytatás</string>

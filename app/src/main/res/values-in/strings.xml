@@ -2019,7 +2019,6 @@
     <string name="stores_itch_pick_failed">Tidak dapat memuat unduhan dari itch.io</string>
     <string name="stores_itch_build_demo">Demo</string>
     <string name="stores_itch_build_open">Buka di itch.io</string>
-    <string name="stores_itch_build_linux_soon">Belum didukung</string>
     <string name="stores_itch_no_game">Game ini tidak ditemukan di itch.io</string>
     <string name="stores_free">Gratis</string>
     <string name="stores_resume">Lanjutkan</string>

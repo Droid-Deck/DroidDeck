@@ -48,6 +48,7 @@ internal class ItchInstaller(
         val upload = (if (chosen.isBlank()) ItchUploads.windows(uploads) else ItchUploads.byId(uploads, chosen))
             ?: throw IllegalStateException(app.getString(R.string.stores_itch_no_upload))
         val uploadId = upload.optString("id")
+        val linux = ItchUploads.linuxOnly(ItchUploads.platforms(upload))
         val filename = ItchUploads.filename(upload)
         val size = ItchUploads.size(upload)
         val scratch = StoreInstallRoot.scratchDir(app, Store.ITCH, item.id)
@@ -58,7 +59,7 @@ internal class ItchInstaller(
             download(key, downloadKeyId, uploadId, upload.optString("updated_at", upload.optString("updatedAt")), archive, size, handle)
             if (cancelled.get()) return null
             handle.stage(DownloadStage.INSTALL)
-            install(archive, filename, handle, resuming)
+            install(archive, filename, handle, resuming, linux)
         } catch (t: Throwable) {
             if (!cancelled.get()) StoreInstalls.discard(app, folder, listOf(scratch))
             throw t
@@ -79,7 +80,7 @@ internal class ItchInstaller(
             installedAt = System.currentTimeMillis(),
             cover = item.imageUrl,
             hero = item.imageUrl,
-            extra = mapOf("gameId" to gameId, "downloadKeyId" to downloadKeyId, "uploadId" to uploadId),
+            extra = mapOf("gameId" to gameId, "downloadKeyId" to downloadKeyId, "uploadId" to uploadId) + if (linux) mapOf("platform" to "linux") else emptyMap<String, String>(),
             cloud = false,
         )
         StoreInstalls.complete(app, folder, sidecar) { done, steps -> handle.stageProgress(done.toLong(), steps.toLong()) }
@@ -157,7 +158,7 @@ internal class ItchInstaller(
         }
     }
 
-    private fun install(archive: File, filename: String, handle: DownloadQueue.JobHandle, resuming: Boolean): String? {
+    private fun install(archive: File, filename: String, handle: DownloadQueue.JobHandle, resuming: Boolean, linux: Boolean): String? {
         folder.mkdirs()
         if (resuming) clearPartialInstall()
         when (val kind = sniff(archive, filename)) {
@@ -170,9 +171,9 @@ internal class ItchInstaller(
             else -> copy(archive, File(folder, filename.ifBlank { "game" }))
         }
         val hint = filename.substringBeforeLast('.')
-        val exe = StoreExe.pick(folder, hint.ifBlank { null }, item.title)
+        val exe = if (linux) StoreExe.pickLinux(folder, hint.ifBlank { null }, item.title) else StoreExe.pick(folder, hint.ifBlank { null }, item.title)
         if (exe.isBlank()) {
-            handle.log("itch.io: no exe found in ${folder.name}")
+            handle.log("itch.io: no ${if (linux) "Linux program" else "exe"} found in ${folder.name}")
             return null
         }
         return exe

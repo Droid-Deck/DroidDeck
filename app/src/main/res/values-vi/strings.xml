@@ -2019,7 +2019,6 @@
     <string name="stores_itch_pick_failed">Không thể tải danh sách tải xuống từ itch.io</string>
     <string name="stores_itch_build_demo">Bản demo</string>
     <string name="stores_itch_build_open">Mở trên itch.io</string>
-    <string name="stores_itch_build_linux_soon">Chưa được hỗ trợ</string>
     <string name="stores_itch_no_game">Không tìm thấy trò chơi này trên itch.io</string>
     <string name="stores_free">Miễn phí</string>
     <string name="stores_resume">Tiếp tục</string>

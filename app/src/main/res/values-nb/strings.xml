@@ -2040,7 +2040,6 @@
     <string name="stores_itch_pick_failed">Kunne ikke laste inn nedlastingene fra itch.io</string>
     <string name="stores_itch_build_demo">Demo</string>
     <string name="stores_itch_build_open">Åpne på itch.io</string>
-    <string name="stores_itch_build_linux_soon">Støttes ikke ennå</string>
     <string name="stores_itch_no_game">Fant ikke dette spillet på itch.io</string>
     <string name="stores_free">Gratis</string>
     <string name="stores_resume">Gjenoppta</string>
