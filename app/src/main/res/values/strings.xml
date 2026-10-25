@@ -87,6 +87,7 @@
     <string name="game_env_proton_log">Set to 1 for a Proton diagnostic log. Logging can reduce performance and use storage.</string>
     <string name="game_env_wined3d">Set to 1 to use OpenGL-based WineD3D instead of DXVK for D3D9–11 compatibility testing.</string>
     <string name="game_env_wined3d_renderer">Renderer for DirectDraw, Direct3D 1-7 and games run with WineD3D. Vulkan skips the OpenGL-on-Zink path; on an Adreno 750 it ran AIO Graphics Test's Direct3D 7 test at 1083 fps instead of 74.</string>
+    <string name="game_env_dxvk_d3d8">Set to 1 to run Direct3D 8 through DXVK instead of WineD3D. AIO Graphics Test's Direct3D 8 test on an Adreno 750: 2408 fps with WineD3D, 3097 with DXVK.</string>
     <string name="game_env_no_ntsync">Set to 1 to keep this game off ntsync (droiddeck-ntsync or a kernel driver); it uses droiddeck-esync where a pack exists, otherwise droiddeck-fsync.</string>
     <string name="game_env_no_esync">Set to 1 to turn droiddeck-esync off for this game; it uses droiddeck-fsync instead, or droiddeck-ntsync where fsync is off too.</string>
     <string name="game_env_no_fsync">Set to 1 to keep this game off droiddeck-fsync; it uses droiddeck-esync where a pack exists, otherwise droiddeck-ntsync.</string>
