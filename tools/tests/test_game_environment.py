@@ -357,6 +357,13 @@ class GameEnvironmentTest(unittest.TestCase):
                 (asylum / name).touch()
             self.assertEqual(MODULE["engine_fixes"](str(asylum / "BmLauncher.exe"), []), ({}, [], []))
 
+    def test_black_ops_iii_and_dark_souls_remastered_skip_protonfixes(self):
+        for exe in ("/game/Call of Duty Black Ops III/BlackOps3.exe", "/game/DARK SOULS REMASTERED/DarkSoulsRemastered.exe"):
+            env, extra, notes = MODULE["engine_fixes"](exe, [])
+            self.assertEqual((env, extra), ({"PROTONFIXES_DISABLE": "1"}, []))
+            self.assertTrue(notes)
+        self.assertEqual(MODULE["engine_fixes"]("/game/Game/DarkSoulsII.exe", []), ({}, [], []))
+
     def test_caravan_sandwitch_and_cyberpunk_run_at_feature_level_12_1(self):
         with tempfile.TemporaryDirectory() as tmp:
             caravan = Path(tmp) / "Caravan SandWitch"
