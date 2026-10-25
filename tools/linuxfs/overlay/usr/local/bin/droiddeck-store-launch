@@ -518,8 +518,8 @@ def run_reg_import(proton, table, timeout=UBISOFT_IMPORT_TIMEOUT):
 
 
 def ubisoft_game_exe(folder):
-    """Connect starts the binary named by HKLM's Software\\Ubisoft\\<game>\\Exe and answers
-    "Game executable is not found at ." with a folder relocation offer when that key is absent."""
+    """Connect appends this value to the game's bin folder, so it must be the file name alone;
+    a full path leaves it looking for `<install>/bin/<install>/bin/<game>.exe`."""
     try:
         names = [name for name in os.listdir(Path(folder) / "bin") if name.lower().endswith(".exe")]
     except OSError:
@@ -527,8 +527,7 @@ def ubisoft_game_exe(folder):
     if not names:
         return "", ""
     game = max(names, key=lambda name: os.path.getsize(Path(folder) / "bin" / name))
-    exe = windows_path(str(Path(folder) / "bin" / game)).replace("\\", "\\\\")
-    return game[:-4], exe
+    return game[:-4], game
 
 
 def ubisoft_service(compat_data, proton):
@@ -573,7 +572,8 @@ def ubisoft_registry(folder, compat_data, product=None, proton=None):
     except OSError:
         existing = ""
     existing = existing.replace("\\\\", "\\")
-    if section in existing and (not game_section or game_section in existing):
+    if section in existing and (not game_section or game_section in existing) and (
+            not exe or ("\"Exe\"=\"%s\"" % exe) in existing):
         return "ready"
     previous = ubisoft_last(folder)
     if previous:
