@@ -163,9 +163,9 @@ object ProtonExtras {
         val newest = all.lastOrNull() ?: return
         val older = all.dropLast(1)
         if (older.isEmpty()) return
-        runCatching { ProtonDefault.moveGames(context, older.toSet(), newest) }.onFailure { Log.w(TAG, "per-game picks", it) }
-        older.forEach { old ->
-            runCatching { ComponentsManager.carryOver(context, old, newest) }.onFailure { Log.w(TAG, "components of $old", it) }
+        if (runCatching { ProtonDefault.moveGames(context, older.toSet(), newest) }.onFailure { Log.w(TAG, "per-game picks", it) }.isFailure) return
+        older.asReversed().forEach { old ->
+            if (runCatching { ComponentsManager.carryOver(context, old, newest) }.onFailure { Log.w(TAG, "components of $old", it) }.isFailure) return@forEach
             if (File(toolsDir(context), old).deleteRecursively()) ComponentsManager.forgetProton(context, old)
             else Log.w(TAG, "could not remove $old")
         }

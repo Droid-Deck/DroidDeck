@@ -19,7 +19,7 @@ def config_text(entries):
 
 
 class DroidDeckProtonDefaultTest(unittest.TestCase):
-    def run_default(self, state, mapping, catalog, apps=(), request=None):
+    def run_default(self, state, mapping, catalog, apps=(), request=None, settle=True):
         with tempfile.TemporaryDirectory() as tmp:
             directory = Path(tmp)
             (directory / "state.json").write_text(json.dumps(state))
@@ -27,8 +27,23 @@ class DroidDeckProtonDefaultTest(unittest.TestCase):
                 (directory / "request.json").write_text(json.dumps(request))
             config = directory / "config.vdf"
             config.write_text(config_text(mapping))
-            default = COMPAT["register_default"](str(config), list(apps), catalog=catalog, directory=str(directory), settle=True)
+            default = COMPAT["register_default"](str(config), list(apps), catalog=catalog, directory=str(directory), settle=settle)
             return default, COMPAT["read_config_mapping"](str(config)), json.loads((directory / "state.json").read_text())
+
+    def test_a_replacement_seen_while_steam_runs_still_moves_the_default_later(self):
+        _, mapping, state = self.run_default(
+            {"default": OLD["name"], "own_proton": True, "tools": [VALVE, OLD]}, [("0", OLD["name"])], [VALVE, NEW], settle=False)
+        self.assertEqual(state["tools"], [VALVE, NEW])
+        self.assertIn(OLD["name"], state["own_builds"])
+        default, mapping, state = self.run_default(state, [("0", OLD["name"])], [VALVE, NEW])
+        self.assertEqual(default, NEW["name"])
+        self.assertEqual(mapping, {"0": NEW["name"]})
+
+    def test_a_valve_default_picked_in_steam_after_a_replacement_is_kept(self):
+        default, mapping, _ = self.run_default(
+            {"default": OLD["name"], "own_proton": True, "tools": [VALVE, OLD]}, [("0", TOOL)], [VALVE, NEW])
+        self.assertEqual(default, TOOL)
+        self.assertEqual(mapping, {"0": TOOL})
 
     def test_the_first_start_with_droiddeck_proton_makes_it_the_default_for_following_titles(self):
         default, mapping, state = self.run_default(
