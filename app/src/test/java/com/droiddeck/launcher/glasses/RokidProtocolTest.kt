@@ -13,6 +13,10 @@ class RokidProtocolTest {
     @Test fun identityRequiresRokidProductString() {
         assertEquals("Rokid Max", RokidModel.model(0x04d2, 0x162f, "Rokid Max")?.name)
         assertEquals("Rokid Air", RokidModel.model(0x04d2, 0x162f, "Rokid Air")?.name)
+        assertEquals("Rokid Max2", RokidModel.model(0x04d2, 0x2002, "Rokid Max2")?.name)
+        assertNull(RokidModel.model(0x04d2, 0x2002, "USB Keyboard"))
+        assertNull(RokidModel.model(0x04d2, 0x2002, null))
+        assertNull(RokidModel.model(0x1234, 0x2002, "Rokid Max2"))
         assertNull(RokidModel.model(0x04d2, 0x162f, "USB Keyboard"))
         assertNull(RokidModel.model(0x04d2, 0x162f, null))
         assertNull(RokidModel.model(0x04d2, 0x1234, "Rokid Max"))
@@ -38,6 +42,21 @@ class RokidProtocolTest {
         assertEquals(RokidModel.MODE_SBS_1080_60, air.mode(90, true, null))
         assertFalse(air.sbs90)
         assertEquals(listOf(60), air.rates2d)
+    }
+
+    @Test fun max2UsesMaxModesAndParsesItsCapturedCombinedReport() {
+        val max2 = RokidModel.model(0x04d2, 0x2002, "Rokid Max2")!!
+        assertEquals(RokidModel.MODE_2D_120, max2.mode(120, false, null))
+        assertEquals(RokidModel.MODE_SBS_1080_60, max2.mode(60, true, GlassesResolution(1920, 1080)))
+        assertEquals(RokidModel.MODE_SBS_1200_90, max2.mode(90, true, null))
+        val packet = hex("119ceac6a47b000000542389bf2f430f41de9f6fc000967a38666144bbd0d4413b66661bc2cdcc2c4066e6e142000000ea70a2a47b0000000000006464000000")
+        val sample = RokidProtocol.Parser().parse(packet)!!
+        assertEquals(0x7ba4c6ea9cL, sample.timeNs)
+        assertEquals(8.954f, sample.accel.y, 0.001f)
+        assertEquals(100, sample.brightness)
+        val pose = ImuFusion().update(sample.timeNs, sample.accel, sample.gyro)
+        assertNotNull(pose)
+        assertTrue(pose!!.all { it.isFinite() })
     }
 
     @Test fun brightnessStepsRoundTripTheDevicePercent() {
