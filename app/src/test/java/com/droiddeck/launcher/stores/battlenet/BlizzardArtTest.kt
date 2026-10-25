@@ -17,6 +17,12 @@ class BlizzardArtTest {
         assertEquals("https://catalog.blzstatic.com//feb/b-prod-thumb.jpg", BlizzardArt.imageUrl(page))
     }
 
+    @Test fun anOpenGraphImageFromAnotherHostFallsBackToTheThumbnail() {
+        val page = """<meta property="og:image" content="https://example.com/art.png">""" +
+            """\"imageUrl\":\"//catalog.blzstatic.com//feb/b-prod-thumb.jpg\""""
+        assertEquals("https://catalog.blzstatic.com//feb/b-prod-thumb.jpg", BlizzardArt.imageUrl(page))
+    }
+
     @Test fun artFromOtherHostsIsRefused() {
         assertNull(BlizzardArt.imageUrl("""<meta property="og:image" content="https://example.com/art.png">"""))
         assertNull(BlizzardArt.imageUrl("""\"imageUrl\":\"//catalog.blzstatic.com//ff9/a-prod-thumb_bundle.jpg\""""))

@@ -20,9 +20,13 @@ internal object BlizzardArt {
 
     internal fun imageUrl(page: String): String? {
         val og = OG.find(page)?.groupValues?.get(1)?.takeUnless { "youtube" in it || "maxresdefault" in it }
-        val url = og ?: THUMB.findAll(page).map { it.groupValues[1] }.firstOrNull { "_bundle" !in it }?.let { "https:$it" } ?: return null
-        val host = runCatching { URL(url).host }.getOrNull() ?: return null
-        return url.takeIf { HOSTS.any { h -> host == h.trimStart('.') || host.endsWith(h) } }
+        val thumbs = THUMB.findAll(page).map { it.groupValues[1] }.filter { "_bundle" !in it }.map { "https:$it" }
+        return (sequenceOf(og) + thumbs).filterNotNull().firstOrNull(::allowed)
+    }
+
+    private fun allowed(url: String): Boolean {
+        val host = runCatching { URL(url).host }.getOrNull() ?: return false
+        return HOSTS.any { h -> host == h.trimStart('.') || host.endsWith(h) }
     }
 
     fun fetch(slug: String, wide: File, cover: File?): Boolean {
