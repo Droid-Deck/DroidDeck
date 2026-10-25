@@ -1969,7 +1969,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         repairOffered = hint?.repair == true
         loading.showEnded(
             hint?.text ?: stopped,
-            getString(R.string.session_ended_detail, status, SessionState.logFile?.path ?: getString(R.string.session_ended_no_log)),
+            getString(R.string.session_ended_detail, status,
+                SessionState.logFile?.path?.let { android.text.BidiFormatter.getInstance().unicodeWrap(it, android.text.TextDirectionHeuristics.LTR) }
+                    ?: getString(R.string.session_ended_no_log)),
         )
         focusEndedScreen()
     }
