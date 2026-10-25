@@ -70,7 +70,7 @@ object StoreInstalls {
     fun uninstall(context: Context, game: InstalledStoreGame, progress: (Float) -> Unit = {}, removed: () -> Unit = {}) {
         val app = context.applicationContext
         val appId = SessionPrefs.addedGameStoredAppId(app, game.folder.path)
-        val files = game.folder.walkBottomUp().toList()
+        val files = game.folder.walkBottomUp().onEnter { !Files.isSymbolicLink(it.toPath()) }.toList()
         val step = (files.size / 100).coerceAtLeast(1)
         files.forEachIndexed { i, f ->
             f.delete()

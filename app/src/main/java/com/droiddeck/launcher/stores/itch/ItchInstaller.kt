@@ -40,6 +40,7 @@ internal class ItchInstaller(
         val downloadKeyId = item.extra["downloadKeyId"].orEmpty()
         if (downloadKeyId.isBlank() && !item.isFree) throw IllegalStateException(app.getString(R.string.stores_itch_not_owned))
         val gameId = ItchGame.resolveId(item) ?: throw IllegalStateException(app.getString(R.string.stores_itch_no_game))
+        val resuming = StoreGameSidecar.read(folder)?.let { it.state == StoreGameSidecar.STATE_INSTALLING && it.id == item.id } == true
         StoreInstalls.begin(folder, Store.ITCH, item.id, item.title, item.imageUrl, item.imageUrl)
         handle.stage(DownloadStage.MANIFEST)
         val uploads = ItchApi.uploads(key, gameId, downloadKeyId)
@@ -57,7 +58,7 @@ internal class ItchInstaller(
             download(key, downloadKeyId, uploadId, upload.optString("updated_at", upload.optString("updatedAt")), archive, size, handle)
             if (cancelled.get()) return null
             handle.stage(DownloadStage.INSTALL)
-            install(archive, filename, handle)
+            install(archive, filename, handle, resuming)
         } catch (t: Throwable) {
             if (!cancelled.get()) StoreInstalls.discard(app, folder, listOf(scratch))
             throw t
@@ -150,16 +151,15 @@ internal class ItchInstaller(
     }
 
     private fun clearPartialInstall() {
-        if (StoreGameSidecar.read(folder)?.state != StoreGameSidecar.STATE_INSTALLING) return
         folder.listFiles()?.forEach {
             if (it.name == StoreGameSidecar.FILE_NAME) return@forEach
             if (it.isDirectory) StoreInstalls.deleteTree(it) else it.delete()
         }
     }
 
-    private fun install(archive: File, filename: String, handle: DownloadQueue.JobHandle): String? {
+    private fun install(archive: File, filename: String, handle: DownloadQueue.JobHandle, resuming: Boolean): String? {
         folder.mkdirs()
-        clearPartialInstall()
+        if (resuming) clearPartialInstall()
         when (val kind = sniff(archive, filename)) {
             "zip" -> unzip(archive, handle)
             "7z" -> sevenZip(archive, handle)

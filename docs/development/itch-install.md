@@ -18,4 +18,4 @@ A game that costs money and has no download key in the library is still refused.
 
 If the upload the user chose is no longer in the game's list when the install starts, the install fails with "No Windows download for this game" and does not pick another build. Only an install with no chosen upload falls back to the newest Windows build. The saved queue keeps whether a game is free, so an interrupted free-game install resumes after a restart.
 
-Before an install extracts, a leftover partial install of the same game (a folder whose marker still says "installing") is emptied, so a different build chosen after an interruption never mixes with files from the first. A finished or updating install is never emptied.
+Before an install extracts, a leftover partial install of the same game (a folder whose marker said "installing" with this game's ID when the install started) is emptied, so a different build chosen after an interruption never mixes with files from the first. A finished or updating install, or another game's unfinished folder that happens to share the folder name, is never emptied.
