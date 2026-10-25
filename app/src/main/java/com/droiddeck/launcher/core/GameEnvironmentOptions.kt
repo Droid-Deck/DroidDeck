@@ -14,6 +14,7 @@ object GameEnvironmentOptions {
         Option("MESA_SHADER_CACHE_MAX_SIZE", "1G", R.string.game_env_cache_size, Type.CHOICE, listOf("512M", "1G", "2G", "4G")),
         Option("PROTON_LOG", "1", R.string.game_env_proton_log, Type.TOGGLE, listOf("0", "1")),
         Option("PROTON_USE_WINED3D", "1", R.string.game_env_wined3d, Type.TOGGLE, listOf("0", "1")),
+        Option("WINE_D3D_CONFIG", "renderer=vulkan", R.string.game_env_wined3d_renderer, Type.CHOICE, listOf("renderer=vulkan", "renderer=gl")),
         Option("PROTON_USE_XALIA", "0", R.string.game_env_xalia, Type.TOGGLE, listOf("0", "1")),
         Option("PROTON_NO_NTSYNC", "1", R.string.game_env_no_ntsync, Type.TOGGLE, listOf("0", "1")),
         Option("PROTON_NO_ESYNC", "1", R.string.game_env_no_esync, Type.TOGGLE, listOf("0", "1")),
