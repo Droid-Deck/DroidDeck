@@ -728,7 +728,11 @@ fun ComponentsPage(
                         PROTON_TAB -> ProtonExtras.sourceBuiltIns()
                         else -> ComponentsManager.sourceBuiltIns(layer)
                     },
-                    enabled = busy == null && gpu.busy == null && (layer != PROTON_TAB || protons.busyId == null),
+                    enabled = downloads.isEmpty() &&
+                        gpu.linuxDownloads.none { it.progress != null } &&
+                        gpu.androidDownloads.none { it.progress != null } &&
+                        busy == null && gpu.busy == null &&
+                        (layer != PROTON_TAB || protons.busyId == null),
                     onSaved = { if (layer == GPU_TAB) gpuActions.onSourcesChanged() else onSourcesChanged(layer) },
                 )
                 ToolIcon(Icons.Outlined.Refresh, stringResource(R.string.comp_check_all), busy = refreshing, enabled = !refreshing && gpu.busy == null) {

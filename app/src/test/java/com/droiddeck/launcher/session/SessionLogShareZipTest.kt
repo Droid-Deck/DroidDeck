@@ -50,6 +50,34 @@ class SessionLogShareZipTest {
         assertFalse(zip.exists())
     }
 
+    @Test fun battleNetAndBlizzardLogsComeAlongScrubbedAndNewestFirst() {
+        val session = File(LinuxRuntime.logDir(app), "2026-10-25-05-battle-net").apply { mkdirs() }
+        File(session, "session.log").writeText("droiddeck-battlenet: open (from the menu)\n")
+        val root = LinuxRuntime.rootDir(app)
+        File(root, "root/.cache/droiddeck/battlenet").apply { mkdirs() }.apply {
+            resolve("battlenet.log").writeText("launching WoW\n")
+            resolve("other.log").writeText("other\n")
+        }
+        val drive = File(com.droiddeck.launcher.runtime.BattleNet.prefix(app), "pfx/drive_c")
+        val client = File(drive, "users/steamuser/AppData/Local/Battle.net/Logs").apply { mkdirs() }
+        val now = System.currentTimeMillis()
+        for (i in 1..8) client.resolve("battle.net-$i.log").apply { writeText("client $i accountId=1:0:5ca1ab1e\n"); setLastModified(now - i * 60_000L) }
+        client.resolve("battle.net-old.log").apply { writeText("old\n"); setLastModified(now - 30L * 86_400_000L) }
+        File(drive, "ProgramData/Battle.net/Agent/Agent.9824/Logs").apply { mkdirs() }.resolve("Agent-1.log").writeText("agent someone@example.com\n")
+        File(drive, "ProgramData/Battle.net/Agent/Agent.9900/Logs").apply { mkdirs() }.resolve("Agent-1.log").writeText("agent 9900\n")
+        File(drive, "ProgramData/Battle.net/Setup/bna_2/Logs").apply { mkdirs() }.resolve("battle.net-setup-1.log").writeText("setup\n")
+
+        val zip = SessionLogShare.zipFolder(app, session)!!
+        val text = ZipFile(zip).use { z -> z.entries().toList().associate { e -> e.name to z.getInputStream(e).bufferedReader().readText() } }
+        assertTrue(text.keys.containsAll(listOf("battlenet/droiddeck/battlenet.log", "battlenet/agent/Agent.9824/Agent-1.log", "battlenet/agent/Agent.9900/Agent-1.log", "battlenet/setup/bna_2/battle.net-setup-1.log")))
+        assertFalse(text.containsKey("battlenet/droiddeck/other.log"))
+        assertEquals((1..6).map { "battlenet/client/battle.net-$it.log" }.toSet(), text.keys.filter { it.startsWith("battlenet/client/") }.toSet())
+        val all = text.values.joinToString("\n")
+        assertFalse(all.contains("5ca1ab1e"))
+        assertFalse(all.contains("someone@example.com"))
+        SessionLogShare.clear(app)
+    }
+
     @Test fun theSharePassChangesNothingInACleanLine() {
         val line = "dxvk: Device 0x5 (Adreno 750) https://github.com/doitsujin/dxvk/releases code 403"
         assertEquals(line, com.droiddeck.launcher.core.LogRedactor.redactForShare(line))

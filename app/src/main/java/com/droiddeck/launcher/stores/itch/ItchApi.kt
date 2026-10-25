@@ -20,7 +20,7 @@ internal object ItchApi {
     fun ownedKeys(key: String, page: Int): JSONObject? = get("/profile/owned-keys?page=$page&per_page=500", key)
 
     fun uploads(key: String, gameId: String, downloadKeyId: String): JSONArray? =
-        get("/games/$gameId/uploads?download_key_id=$downloadKeyId", key)?.optJSONArray("uploads")
+        get("/games/$gameId/uploads" + keyQuery(downloadKeyId), key)?.optJSONArray("uploads")
 
     fun search(key: String, query: String, page: Int): JSONArray? {
         val q = java.net.URLEncoder.encode(query, "UTF-8")
@@ -28,7 +28,9 @@ internal object ItchApi {
     }
 
     fun downloadUrl(uploadId: String, downloadKeyId: String): String =
-        "$BASE/uploads/$uploadId/download?download_key_id=$downloadKeyId"
+        "$BASE/uploads/$uploadId/download" + keyQuery(downloadKeyId)
+
+    private fun keyQuery(downloadKeyId: String): String = if (downloadKeyId.isBlank()) "" else "?download_key_id=$downloadKeyId"
 
     fun pageUrl(slug: String): String = "$WEB/$slug"
 }

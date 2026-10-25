@@ -195,6 +195,7 @@ class LogRedactorTest {
             "auth: login=maskeduser42&remember=1",
             "accountName: maskeduser42",
             "{\"username\": \"masked user 42\"}",
+            "[Clubs] {Main} Club membership subscription created: |accountId=maskeduser42",
         )
         for (line in lines) {
             val out = LogRedactor.redactForShare(line)

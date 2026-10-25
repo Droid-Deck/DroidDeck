@@ -55,6 +55,7 @@ class RepositorySourcesEditorTest {
         scope: String,
         dispatcher: CoroutineDispatcher = Dispatchers.Unconfined,
         visible: () -> Boolean = { true },
+        enabled: () -> Boolean = { true },
         showCatalogBranch: Boolean = false,
         onSaved: () -> Unit = {},
     ) {
@@ -64,7 +65,7 @@ class RepositorySourcesEditorTest {
                 Box(Modifier.fillMaxSize()) {
                     if (visible()) Box(Modifier.align(Alignment.TopEnd).padding(16.dp)) {
                         RepositorySourcesButton(
-                            scope, builtIns, showCatalogBranch = showCatalogBranch,
+                            scope, builtIns, enabled = enabled(), showCatalogBranch = showCatalogBranch,
                             ioDispatcher = dispatcher, onSaved = onSaved,
                         )
                     }
@@ -74,7 +75,11 @@ class RepositorySourcesEditorTest {
         }
     }
 
-    private fun showDriverPage(scope: String, onSaved: () -> Unit = {}) {
+    private fun showDriverPage(
+        scope: String,
+        downloads: List<DownloadRow> = emptyList(),
+        onSaved: () -> Unit = {},
+    ) {
         Snapshot.sendApplyNotifications()
         compose.setContent {
             DroidDeckTheme {
@@ -84,7 +89,7 @@ class RepositorySourcesEditorTest {
                         hint = "Runtime hint",
                         rows = emptyList(),
                         selected = "",
-                        downloads = emptyList(),
+                        downloads = downloads,
                         status = "",
                         checking = false,
                         importLabel = "Import",
@@ -149,6 +154,22 @@ class RepositorySourcesEditorTest {
         assertFalse(RepositorySources.list(context, "driver-page/display", builtIns).single().hidden)
     }
 
+    @Test fun driverPageSourcesDisableOnlyForAnActiveDownload() {
+        val scope = "driver-page/downloading"
+        showDriverPage(scope, listOf(DownloadRow("driver", "Driver", "Candidate", progress = 42)))
+
+        compose.onNodeWithContentDescription(context.getString(R.string.sources_component_title))
+            .assertIsNotEnabled()
+    }
+
+    @Test fun driverPageSourcesStayEnabledForAnAvailableCandidate() {
+        val scope = "driver-page/candidate"
+        showDriverPage(scope, listOf(DownloadRow("driver", "Driver", "Candidate")))
+
+        compose.onNodeWithContentDescription(context.getString(R.string.sources_component_title))
+            .assertIsEnabled()
+    }
+
     @Test fun leavingThePageRemovesItsSourceMenu() {
         var visible by mutableStateOf(true)
         show("editor/leave", visible = { visible })
@@ -192,6 +213,31 @@ class RepositorySourcesEditorTest {
         compose.onNodeWithContentDescription(context.getString(R.string.sources_hide, repository)).assertExists()
         compose.onNodeWithText(context.getString(R.string.sources_add)).assertIsEnabled()
         compose.onNodeWithText(context.getString(R.string.sources_save)).assertIsEnabled()
+    }
+
+    @Test fun anOpenEditorStopsEditingAndDoesNotSaveAfterItBecomesDisabled() {
+        val scope = "editor/disabled"
+        val dispatcher = QueuedDispatcher()
+        var enabled by mutableStateOf(true)
+        var saves = 0
+        val generation = RepositorySources.generation(context, scope, builtIns)
+        show(scope, dispatcher, enabled = { enabled }, onSaved = { saves++ })
+        compose.onNodeWithContentDescription(context.getString(R.string.sources_component_title)).performClick()
+        compose.runOnIdle { dispatcher.runPending() }
+        compose.onNodeWithText(context.getString(R.string.sources_save)).performClick()
+        compose.runOnIdle {
+            enabled = false
+            Snapshot.sendApplyNotifications()
+        }
+        compose.waitForIdle()
+        compose.runOnIdle { dispatcher.runPending() }
+        compose.waitForIdle()
+
+        compose.onNodeWithContentDescription(context.getString(R.string.sources_hide, repository)).assertIsNotEnabled()
+        compose.onNodeWithText(context.getString(R.string.sources_add)).assertIsNotEnabled()
+        compose.onNodeWithText(context.getString(R.string.sources_save)).assertIsNotEnabled()
+        assertEquals(0, saves)
+        assertEquals(generation, RepositorySources.generation(context, scope, builtIns))
     }
 
     @Test fun hidingIsDraftUntilSaveAndBuiltInCannotBeRemoved() {

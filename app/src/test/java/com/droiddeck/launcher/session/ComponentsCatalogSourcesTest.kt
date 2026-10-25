@@ -112,7 +112,7 @@ class ComponentsCatalogSourcesTest {
                 it.copy(hidden = true)
             })
         }
-        val source = nightliesSource(comp)
+        val source = testSource(comp)
         val sha = "a".repeat(64)
         val bodies = linkedMapOf(
             "unrelated" to JSONObject().put("schema", 1).put("component", "fex").toString(),
@@ -206,7 +206,7 @@ class ComponentsCatalogSourcesTest {
     }
 
     private fun bindBuiltIns(): Map<String, RepositorySources.Source> = ComponentsManager.COMPONENTS.associateWith { comp ->
-        val source = nightliesSource(comp)
+        val source = testSource(comp)
         RepositorySources.bind(
             context, ComponentsManager.sourceScope(comp), ComponentsManager.sourceBuiltIns(comp), source,
             100L + ComponentsManager.COMPONENTS.indexOf(comp),
@@ -214,8 +214,15 @@ class ComponentsCatalogSourcesTest {
         )
     }
 
-    private fun nightliesSource(comp: String) = ComponentsManager.sources(context, comp)
-        .single { it.repository == RepositorySources.canonicalRepository("The412Banner/Nightlies") }
+    private fun testSource(comp: String): RepositorySources.Source {
+        val rows = ComponentsManager.sources(context, comp)
+        val selected = rows.single {
+            it.repository == RepositorySources.canonicalRepository("The412Banner/Nightlies")
+        }
+        return ComponentsManager.saveSources(
+            context, comp, rows.map { it.copy(hidden = it.id != selected.id) },
+        ).filterNot { it.hidden }.single()
+    }
 
     private fun item(comp: String, source: RepositorySources.Source, name: String): ComponentsManager.CatalogItem {
         val digest = (comp.first().code % 16).toString(16).repeat(64)

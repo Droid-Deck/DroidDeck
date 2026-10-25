@@ -31,6 +31,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -75,6 +76,7 @@ internal fun RepositorySourcesButton(
     ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     onSaved: () -> Unit,
 ) {
+    val enabledState = rememberUpdatedState(enabled)
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val colors = MaterialTheme.colorScheme
@@ -127,7 +129,7 @@ internal fun RepositorySourcesButton(
         Column(Modifier.fillMaxWidth().stepItem(1), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             rows.forEachIndexed { index, row ->
                 key(row.key) {
-                    val editable = open && loaded && !loading && !saving
+                    val editable = enabledState.value && open && loaded && !loading && !saving
                     val remove = { rows = rows.filterNot { it.key == row.key } }
                     val toggle = { rows = rows.map { if (it.key == row.key) it.copy(hidden = !it.hidden) else it } }
                     Column(Modifier.fillMaxWidth()) {
@@ -205,7 +207,7 @@ internal fun RepositorySourcesButton(
                     }
                 }
             }
-            val canAdd = open && loaded && !loading && !saving && rows.size < 100
+            val canAdd = enabledState.value && open && loaded && !loading && !saving && rows.size < 100
             val add = { rows = rows + SourceDraft(UUID.randomUUID().toString(), "", false, "") }
             TextButton(
                 onClick = add,
@@ -220,7 +222,7 @@ internal fun RepositorySourcesButton(
             Row(Modifier.fillMaxWidth().padding(6.dp), horizontalArrangement = Arrangement.End) {
                 PrimaryButton(
                     stringResource(if (saving) R.string.sources_saving else R.string.sources_save),
-                    enabled = open && loaded && !loading && !saving,
+                    enabled = enabledState.value && open && loaded && !loading && !saving,
                 ) {
                     val branches = try {
                         rows.map { RepositorySources.normalizeCatalogBranch(it.catalogBranch) }
@@ -241,7 +243,14 @@ internal fun RepositorySourcesButton(
                     error = null
                     coroutineScope.launch {
                         try {
-                            withContext(ioDispatcher) { RepositorySources.save(context, scopeKey, builtIns, sources) }
+                            val saved = withContext(ioDispatcher) {
+                                if (!enabledState.value) false
+                                else {
+                                    RepositorySources.save(context, scopeKey, builtIns, sources)
+                                    true
+                                }
+                            }
+                            if (!saved) return@launch
                             saving = false
                             if (Steps.step === menu) Steps.fold()
                             onSaved()

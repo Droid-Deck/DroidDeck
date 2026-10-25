@@ -106,7 +106,7 @@ fun DriverPage(
                 if (sourceKey.isNotEmpty()) RepositorySourcesButton(
                     scopeKey = sourceKey,
                     builtIns = sourceBuiltIns,
-                    enabled = !checking,
+                    enabled = !checking && downloads.none { it.progress != null },
                     onSaved = onSourcesChanged,
                 )
                 Box(

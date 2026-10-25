@@ -29,6 +29,18 @@ class ForcedPackageTest {
         LinuxRuntime.rootDir(context).deleteRecursively()
     }
 
+    @Test fun unpackedCacheNameCannotEscapeStoreDirectory() {
+        assertEquals("dxvk-2.7.1-linux", ComponentsManager.unpackedCacheKey(dxvk2))
+        for (filename in listOf("..wcp", "...wcp")) {
+            try {
+                ComponentsManager.unpackedCacheKey(filename)
+                fail("Expected cache traversal name to be rejected: $filename")
+            } catch (_: IllegalArgumentException) {
+                // Expected: the derived path would be a dot segment.
+            }
+        }
+    }
+
     @Test fun adreno6xxForcesDxvk2AndNothingElseDoes() {
         val rule = ComponentsManager.FORCED_PACKAGES.single { GpuInfo.Family.A6XX in it.families }
         assertEquals("dxvk", rule.comp)

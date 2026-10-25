@@ -126,6 +126,25 @@ static void zr_walk(int compress) {
   zr_sys(SYS_close, maps);
 }
 
+// Before it stops a session for suspend, the app waits for <ZR_CTL>.ack.<pid> to appear (the handler
+// runs here, not one a program installed over it) and then to hold a byte (the page-out finished).
+static void zr_ack(int done) {
+  static const char suffix[] = ".ack.";
+  char path[sizeof(ZR_CTL) + sizeof(suffix) + 20];
+  char digits[20];
+  size_t n = 0, d = 0;
+  for (const char *p = ZR_CTL; *p; p++) path[n++] = *p;
+  for (const char *p = suffix; *p; p++) path[n++] = *p;
+  long pid = zr_sys(SYS_getpid);
+  do digits[d++] = (char)('0' + pid % 10); while ((pid /= 10) > 0);
+  while (d > 0) path[n++] = digits[--d];
+  path[n] = 0;
+  int fd = (int)zr_sys(SYS_openat, AT_FDCWD, path, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0600);
+  if (fd < 0) return;
+  if (done) zr_sys(SYS_write, fd, "1", 1UL);
+  zr_sys(SYS_close, fd);
+}
+
 static void zr_handler(int sig, siginfo_t *info, void *context) {
   (void)sig;
   (void)context;
@@ -136,7 +155,9 @@ static void zr_handler(int sig, siginfo_t *info, void *context) {
          && !__atomic_exchange_n(&zr_busy, 1, __ATOMIC_SEQ_CST)) {
     __atomic_store_n(&zr_pending, 0, __ATOMIC_SEQ_CST);
     int mode = zr_mode();
+    if (mode == 1) zr_ack(0);
     if (mode >= 0) zr_walk(mode);
+    if (mode == 1) zr_ack(1);
     __atomic_store_n(&zr_busy, 0, __ATOMIC_SEQ_CST);
   }
   errno = saved;
@@ -148,8 +169,6 @@ static void zr_child(void) {
 }
 
 __attribute__((constructor)) static void zr_init(void) {
-  const char *name = program_invocation_short_name;
-  if (strcmp(name, "steam") != 0 && strcmp(name, "steamwebhelper") != 0) return;
   void *libc = dlopen("libc.so.6", RTLD_LAZY | RTLD_NOLOAD);
   if (libc == NULL) return;
   zr_sys = (long (*)(long, ...))dlsym(libc, "syscall");

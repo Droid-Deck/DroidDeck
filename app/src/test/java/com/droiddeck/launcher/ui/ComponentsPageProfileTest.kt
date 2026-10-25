@@ -1,6 +1,9 @@
 package com.droiddeck.launcher.ui
 
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.droiddeck.launcher.R
@@ -68,7 +71,50 @@ class ComponentsPageProfileTest {
         compose.onNodeWithText(context.getString(R.string.comp_this_proton).uppercase()).assertExists()
     }
 
-    private fun show(initialGameKey: () -> String? = { null }) {
+    @Test fun componentSourcesStayDisabledWhileADownloadIsActive() {
+        val context = RuntimeEnvironment.getApplication()
+        show(downloads = mapOf("dxvk.wcp" to 42))
+
+        compose.onNodeWithContentDescription(context.getString(R.string.sources_component_title))
+            .assertIsNotEnabled()
+    }
+
+    @Test fun gpuSourcesStayDisabledWhileADriverDownloadIsActive() {
+        val context = RuntimeEnvironment.getApplication()
+        show(
+            comp = GPU_TAB,
+            gpu = GpuDriversState(
+                sourceKey = "gpu/downloads",
+                sourceBuiltIns = listOf("Droid-Deck/DroidDeck"),
+                linuxDownloads = listOf(DownloadRow("driver", "Driver", "Downloading", progress = 42)),
+            ),
+        )
+
+        compose.onNodeWithContentDescription(context.getString(R.string.sources_component_title))
+            .assertIsNotEnabled()
+    }
+
+    @Test fun gpuSourcesStayEnabledForAnAvailableDriverCandidate() {
+        val context = RuntimeEnvironment.getApplication()
+        show(
+            comp = GPU_TAB,
+            gpu = GpuDriversState(
+                sourceKey = "gpu/candidates",
+                sourceBuiltIns = listOf("Droid-Deck/DroidDeck"),
+                androidDownloads = listOf(DownloadRow("driver", "Driver", "Candidate")),
+            ),
+        )
+
+        compose.onNodeWithContentDescription(context.getString(R.string.sources_component_title))
+            .assertIsEnabled()
+    }
+
+    private fun show(
+        downloads: Map<String, Int> = emptyMap(),
+        comp: String = PROTON_TAB,
+        gpu: GpuDriversState = GpuDriversState(),
+        initialGameKey: () -> String? = { null },
+    ) {
         compose.setContent {
             DroidDeckTheme {
                 ComponentsPage(
@@ -76,10 +122,10 @@ class ComponentsPageProfileTest {
                     catalog = emptyList(),
                     catalogAt = 0,
                     protonId = null,
-                    comp = PROTON_TAB,
+                    comp = comp,
                     checking = false,
                     busy = null,
-                    downloads = emptyMap(),
+                    downloads = downloads,
                     onProton = {},
                     onComp = {},
                     onSwap = {},
@@ -94,6 +140,7 @@ class ComponentsPageProfileTest {
                     games = listOf(gameA, gameB),
                     initialGameKey = initialGameKey(),
                     requestInitialFocus = false,
+                    gpu = gpu,
                 )
             }
         }

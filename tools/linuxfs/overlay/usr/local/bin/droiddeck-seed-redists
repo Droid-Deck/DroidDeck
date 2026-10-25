@@ -24,7 +24,7 @@ read_scripts() { xargs -0 -r awk -v want="${1:-redists}" '
       proc[depth] = 1
       program = tolower(part[4])
       sub(/.*[\\\/]/, "", program)
-      if (program ~ /vulkan/) vulkan[depth] = 1
+      if (program ~ /vulkan|uplay|ubisoft/) vulkan[depth] = 1
       next
     }
     if (n == 3) pending = part[2]
@@ -243,7 +243,7 @@ for system in "${regs[@]}"; do
       had=()
       for line in "${kept[@]}"; do had[$line]=1; done
       printf '%s\n' "${other[@]}" "${kept[@]}" >"$seeded"
-      echo "== took Vulkan runtime markers out of $reg"
+      echo "== took Vulkan runtime and Ubisoft Connect markers out of $reg"
     fi
     if [ ${#had[@]} -gt 0 ] && { [ -z "$id" ] || [ "$id" != "$prev" ]; }; then
       declare -A held=()
