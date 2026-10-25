@@ -135,6 +135,14 @@ def caravan_sandwitch_feature_level(game):
 
 
 @fix
+def robocop_rogue_city_feature_level(game):
+    """vkd3d-proton turns mesh shaders off on Adreno, but 12_2 still advertises them, and UE5 then builds mesh
+    pipelines with no pipeline layout that crash Turnip on launch."""
+    if "robocop.exe" in game.files or game.stem == "robocop-win64-shipping":
+        return {"VKD3D_FEATURE_LEVEL": "12_1"}, [], "RoboCop: Rogue City: D3D12 feature level 12_1"
+
+
+@fix
 def cyberpunk_feature_level(game):
     if game.stem == "cyberpunk2077" or (
         game.stem == "redprelauncher"
@@ -276,6 +284,18 @@ def game_gpu(env):
         result["TU_DEBUG"] = value
     else:
         result.pop("TU_DEBUG", None)
+    return result
+
+
+def vram_cap(env):
+    """Puts the session's VRAM cap ahead of the game's own DXVK settings, so a game profile can still raise it."""
+    value = env.get("BL_VRAM_MB", "")
+    if not re.fullmatch(r"[1-9][0-9]{0,6}", value):
+        return env
+    result = env.copy()
+    cap = "dxgi.maxDeviceMemory = %d" % int(value)
+    own = result.get("DXVK_CONFIG", "").strip().strip(";").strip()
+    result["DXVK_CONFIG"] = cap + "; " + own if own else cap
     return result
 
 
@@ -552,6 +572,7 @@ def main():
         command = offline_without_anticheat(command, env)
     if mic_enabled == "0":
         env["BANNER_AUDIO_DIRECT_MIC"] = "0"
+    env = vram_cap(env)
     env = force_ssbs(command, env)
     try:
         xbox = runpy.run_path(str(Path(__file__).with_name("droiddeck-xbox")))

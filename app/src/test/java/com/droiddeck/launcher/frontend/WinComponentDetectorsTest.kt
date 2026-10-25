@@ -42,6 +42,18 @@ class WinComponentDetectorsTest {
         assertEquals(emptyList<DependencyDetector.Recommendation>(), SteamRedists.detect(game, 1))
     }
 
+    @Test fun skyrimGetsTheXactAudioItsInstallScriptRunsOnWindows() {
+        val steamapps = tmp.newFolder("steamapps")
+        val game = File(steamapps, "common/Skyrim Special Edition").apply { mkdirs() }
+        File(steamapps, "appmanifest_489830.acf").writeText("\"AppState\"\n{\n\t\"SharedDepots\"\n\t{\n\t\t\"228990\"\t\t\"228980\"\n\t}\n}\n")
+        val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
+        val found = WinCompSources.steamList(context, game, 489830, "Skyrim Special Edition", auto = true)
+        assertEquals(listOf("d3dx9", "xact_x64"), found.map { it.component })
+        assertTrue(found.all { it.auto && it.origin == WinCompSources.Origin.STEAM })
+        assertEquals(listOf("DirectX XACT audio (64-bit)", "Skyrim Special Edition", "489830"), found.last().args)
+        assertEquals(emptyList<String?>(), WinCompSources.steamList(context, game, 409710, "Other", auto = true).map { it.component })
+    }
+
     @Test fun thePrefixCountsOnlyWhatDroidDeckDidNotPutThere() {
         val compat = tmp.newFolder("compatdata", "409710")
         val pfx = File(compat, "pfx")

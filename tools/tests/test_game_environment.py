@@ -180,6 +180,14 @@ class GameEnvironmentTest(unittest.TestCase):
         self.assertEqual(MODULE["apply_config"](env, config, "42")["TU_DEBUG"], "sysmem")
         self.assertNotIn("TU_DEBUG", MODULE["apply_config"](env, config, "43"))
 
+    def test_the_vram_cap_comes_before_the_games_own_dxvk_settings(self):
+        cap = MODULE["vram_cap"]
+        self.assertEqual(cap({"BL_VRAM_MB": "4096"})["DXVK_CONFIG"], "dxgi.maxDeviceMemory = 4096")
+        self.assertEqual(cap({"BL_VRAM_MB": "2048", "DXVK_CONFIG": "dxvk.maxFrameRate = 60;"})["DXVK_CONFIG"],
+                         "dxgi.maxDeviceMemory = 2048; dxvk.maxFrameRate = 60")
+        for off in ({}, {"BL_VRAM_MB": "0"}, {"BL_VRAM_MB": "lots"}, {"BL_VRAM_MB": "²"}, {"BL_VRAM_MB": "-1"}):
+            self.assertNotIn("DXVK_CONFIG", cap(off))
+
     def test_a_games_wine_sync_choice_also_reaches_its_setup_runs(self):
         env = {"BL_SYNC": "1", "BL_SYNC_FALLBACK": "1", "BL_FSYNC_FIRST": "0", "OTHER": "kept"}
         config = {"version": 1, "games": {"42": {"BL_SYNC": "0", "BL_FSYNC_FIRST": "1", "PROTON_NO_ESYNC": "1", "FEX_TSOENABLED": "1"}}}
@@ -364,7 +372,7 @@ class GameEnvironmentTest(unittest.TestCase):
             self.assertTrue(notes)
         self.assertEqual(MODULE["engine_fixes"]("/game/Game/DarkSoulsII.exe", []), ({}, [], []))
 
-    def test_caravan_sandwitch_and_cyberpunk_run_at_feature_level_12_1(self):
+    def test_caravan_sandwitch_robocop_and_cyberpunk_run_at_feature_level_12_1(self):
         with tempfile.TemporaryDirectory() as tmp:
             caravan = Path(tmp) / "Caravan SandWitch"
             shipping = caravan / "CaravanSandWitch/Binaries/Win64"
@@ -376,8 +384,13 @@ class GameEnvironmentTest(unittest.TestCase):
             (cyberpunk / "bin/x64").mkdir(parents=True)
             for name in ("REDprelauncher.exe", "bin/x64/Cyberpunk2077.exe"):
                 (cyberpunk / name).touch()
+            robocop = Path(tmp) / "RoboCop Rogue City"
+            (robocop / "RoboCop/Binaries/Win64").mkdir(parents=True)
+            for name in ("RoboCop.exe", "RoboCop/Binaries/Win64/RoboCop-Win64-Shipping.exe"):
+                (robocop / name).touch()
             games = [caravan / "CaravanSandWitch.exe", caravan / ".droiddeck-launch.bat",
                      shipping / "CaravanSandWitch-Win64-Shipping.exe",
+                     robocop / "RoboCop.exe", robocop / "RoboCop/Binaries/Win64/RoboCop-Win64-Shipping.exe",
                      cyberpunk / "REDprelauncher.exe", cyberpunk / "bin/x64/Cyberpunk2077.exe"]
             for exe in games:
                 env, extra, notes = MODULE["engine_fixes"](str(exe), [])

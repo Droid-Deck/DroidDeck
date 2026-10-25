@@ -575,6 +575,14 @@
     <string name="perf_gsrealtime">gamescope: realtime GPU queue</string>
     <string name="perf_gsrealtime_hint">Prioritizes the compositor\'s GPU work. Can smooth frame pacing at some cost to games.</string>
     <string name="perf_gpu">GPU</string>
+    <string name="perf_memory">Memory</string>
+    <string name="perf_cap_off">Off</string>
+    <string name="perf_cap_auto">Driver default</string>
+    <string name="perf_ram_cap">RAM cap</string>
+    <string name="perf_ram_cap_hint">Applies while the Steam client runs, in Steam mode or from the desktop. When the session uses more than this, Steam and then the session\'s other supported processes are compressed into zRAM. A soft cap: nothing is closed, but games may stutter while pages come back.</string>
+    <string name="perf_ram_cap_unavailable">Needs zRAM swap, which this device does not have.</string>
+    <string name="perf_vram_cap">VRAM cap</string>
+    <string name="perf_vram_cap_hint">The video memory DXVK reports to Direct3D games, so they budget textures for less. A game\'s own DXVK settings still win. Takes effect at the next session.</string>
     <string name="perf_gpuclock">Hold the GPU at its top clock</string>
     <string name="perf_gpuclock_hint">Adreno only. Fewer hitches, more battery use and heat.</string>
     <string name="perf_fixes">Session fixes</string>
