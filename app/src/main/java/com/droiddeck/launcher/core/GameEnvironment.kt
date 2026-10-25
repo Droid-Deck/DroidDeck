@@ -51,6 +51,12 @@ object GameEnvironment {
         return withScopeValue(config, scope, NO_STEAM, if (on) "1" else null)
     }
 
+    const val RELATIVE_MOUSE = "DROIDDECK_RELATIVE_MOUSE"
+
+    fun relativeMouseGames(config: Config): List<String> =
+        config.games.filter { (scope, entries) -> validScope(scope) && entries[RELATIVE_MOUSE]?.lowercase() in setOf("1", "on", "true", "yes") }
+            .keys.sortedBy { it.toLong() }
+
     fun effective(config: Config, preset: String, scope: String, forceSsbs: Boolean = false): Map<String, String?> =
         defaults(preset, forceSsbs) + config.shared + if (scope.isEmpty()) emptyMap() else config.games[scope].orEmpty()
 

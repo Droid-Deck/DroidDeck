@@ -725,6 +725,10 @@ class SessionService : Service() {
         guest.add("BL_FSYNC_FIRST=" + (if (SessionPrefs.fsyncFirst(this)) "1" else "0"))
         guest.add("BL_GAMESCOPE_REALTIME=" + (if (SessionPrefs.gamescopeRealtime(this)) "1" else "0"))
         if (SessionPrefs.cursorComposite(this)) guest.add("BL_CURSOR_COMPOSITE=1")
+        runCatching { com.droiddeck.launcher.core.GameEnvironment.relativeMouseGames(GameEnvironmentStore.read(this)) }
+            .onFailure { Log.w(TAG, "relative mouse games not read: $it") }.getOrNull()
+            // gamescope evaluates gamescope_<convar>=<value> as Lua, so a string value carries its own quotes.
+            ?.takeIf { it.isNotEmpty() }?.let { guest.add("gamescope_mouse_relative_force_appids=\"" + it.joinToString(",") + "\"") }
         if (com.droiddeck.launcher.core.ZramSupport.supported()) guest.add("BL_ZRAM=1")
         guest.add("BANNER_AUDIO_DIRECT_DECAY=0")
         val extra = extraEnv() + com.droiddeck.launcher.agent.AgentEnv.beginSession(this)
