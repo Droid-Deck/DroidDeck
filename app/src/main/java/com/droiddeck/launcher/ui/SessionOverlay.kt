@@ -838,7 +838,7 @@ private fun SteamActionPill(
         Icon(icon, contentDescription = null, tint = if (hot) pal.signal else colors.onBackground, modifier = Modifier.size(20.dp))
         if (shortcut != null) Text(
             shortcut, fontSize = 8.sp, lineHeight = 9.sp, color = colors.onSurfaceVariant,
-            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 6.dp, bottom = 3.dp),
+            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 8.dp, bottom = 6.dp),
         )
     }
 }
