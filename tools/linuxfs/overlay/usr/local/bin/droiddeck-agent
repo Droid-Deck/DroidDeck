@@ -259,24 +259,91 @@ def focus_snapshot():
 STEAM_APP_CLASS = re.compile(r"steam_app_(\d+)$")
 
 
-def tag_game_windows(snap):
-    if os.environ.get("BL_STEAM_CLIENT_ARCH") != "x86_64":
-        return False
+def process_env(pid, proc=Path("/proc")):
+    try:
+        return dict(entry.split(b"=", 1) for entry in (proc / str(pid) / "environ").read_bytes().split(b"\0") if b"=" in entry)
+    except OSError:
+        return {}
+
+
+def steam_app_id(env):
+    try:
+        app = int(env.get(b"SteamAppId", b"0"))
+    except ValueError:
+        return None
+    return app if 0 < app < 2**32 else None
+
+
+def under_reaper(pid, proc=Path("/proc")):
+    for _ in range(64):
+        try:
+            if (proc / str(pid) / "comm").read_text().strip() == "reaper":
+                return True
+            stat = (proc / str(pid) / "stat").read_text()
+            pid = int(stat[stat.rindex(")") + 2:].split()[1])
+        except (OSError, ValueError, IndexError):
+            return False
+        if pid <= 1:
+            return False
+    return False
+
+
+def sandboxed_apps(proc=Path("/proc")):
+    apps = {}
+    try:
+        pids = [entry for entry in os.listdir(proc) if entry.isdigit()]
+    except OSError:
+        return apps
+    for pid in pids:
+        env = process_env(pid, proc)
+        flatpak, app = env.get(b"FLATPAK_ID"), steam_app_id(env)
+        if flatpak and app:
+            name = flatpak.decode(errors="replace").lower()
+            for key in {name, name.rsplit(".", 1)[-1]}:
+                apps[key] = app if apps.get(key, app) == app else None
+    return apps
+
+
+def window_steam_app(win, flatpaks, proc=Path("/proc")):
+    match = STEAM_APP_CLASS.match(win.get("class") or "")
+    if match:
+        return match.group(1) if os.environ.get("BL_STEAM_CLIENT_ARCH") == "x86_64" else None
+    pid = win.get("pid")
+    if pid:
+        if under_reaper(pid, proc):
+            return None
+        app = steam_app_id(process_env(pid, proc))
+        if app:
+            return str(app)
+    app = flatpaks().get((win.get("class") or "").lower())
+    return str(app) if app else None
+
+
+def tag_game_windows(snap, proc=Path("/proc")):
     tagged = False
+    found = []
+
+    def flatpaks():
+        if not found:
+            found.append(sandboxed_apps(proc))
+        return found[0]
+
     for display, wins in snap.get("displays", {}).items():
         if display == os.environ.get("DISPLAY"):
             continue
         for win in wins:
-            match = STEAM_APP_CLASS.match(win.get("class") or "")
-            if not match or win.get("appId") or win.get("map") != "viewable" or win.get("overrideRedirect"):
+            if win.get("appId") or win.get("map") != "viewable" or win.get("overrideRedirect") or win.get("inputOnly"):
+                continue
+            app = window_steam_app(win, flatpaks, proc)
+            if not app:
                 continue
             try:
                 done = subprocess.run(["xprop", "-display", display, "-id", str(win["window"]), "-f", "STEAM_GAME", "32c",
-                                       "-set", "STEAM_GAME", match.group(1)],
+                                       "-set", "STEAM_GAME", app],
                                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5).returncode == 0
             except (OSError, subprocess.TimeoutExpired):
                 done = False
-            log("game window %s on %s tagged STEAM_GAME=%s: %s" % (win["window"], display, match.group(1), "ok" if done else "failed"))
+            log("game window %s on %s tagged STEAM_GAME=%s: %s" % (win["window"], display, app, "ok" if done else "failed"))
             tagged = tagged or done
     return tagged
 

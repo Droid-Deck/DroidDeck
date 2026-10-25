@@ -31,6 +31,7 @@ class XboxLoginActivity : ComponentActivity() {
     @Volatile private var session = 0L
     @Volatile private var closed = false
     @Volatile private var step = "starting"
+    private val codes = java.util.concurrent.CopyOnWriteArrayList<String>()
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -53,6 +54,14 @@ class XboxLoginActivity : ComponentActivity() {
         Thread({
             if (closed) return@Thread
             try {
+                // A record without a username is left from a sign-in that never finished; starting clean
+                // also avoids reading it back with an older, slow Keystore key.
+                progress("preparing the sign-in", "Preparing Microsoft sign-in…")
+                val leftover = StoreAccounts.read(applicationContext, Store.XBOX)
+                if (leftover != null && leftover.optString("username").isBlank()) {
+                    XboxCredentials.invalidate(applicationContext)
+                    logStep("discarded credentials from an unfinished sign-in")
+                }
                 val accountGeneration = XboxCredentials.lifecycle(applicationContext) { it }
                 progress("downloading the Xbox components", "Downloading Xbox components…")
                 check(AddonPack.XBOX.await(applicationContext, { !closed }) { state ->
@@ -64,7 +73,10 @@ class XboxLoginActivity : ComponentActivity() {
                     child = process
                     if (closed) return@use
                     // StoresState.logLine writes no file in this process, so the reason would miss the shared log.
-                    Xodus.diagnostics(process) { logStep(it) }
+                    Xodus.diagnostics(process) { line ->
+                        logStep(line)
+                        line.removePrefix("NEXUS_CREDENTIAL_ERROR_V1 ").takeIf { it != line && it !in codes && codes.size < 6 }?.let(codes::add)
+                    }
                     progress("waiting for the Xbox helper", "Waiting for the Xbox helper…")
                     val timer = Thread({
                         runCatching { if (!process.process.waitFor(10, TimeUnit.MINUTES)) process.process.destroy() }
@@ -140,7 +152,8 @@ class XboxLoginActivity : ComponentActivity() {
                 logStep("failed while $failed: $reason")
                 runOnUiThread {
                     disposeView()
-                    status.text = "Microsoft sign-in did not complete.\nFailed while $failed: $reason\nClose this window and try again."
+                    val details = if (codes.isEmpty()) "" else "\nDetails: ${codes.joinToString(", ")}"
+                    status.text = "Microsoft sign-in did not complete.\nFailed while $failed: $reason$details\nClose this window and try again."
                 }
             }
         }, "xbox-login").start()

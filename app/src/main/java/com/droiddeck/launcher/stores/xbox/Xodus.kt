@@ -101,6 +101,8 @@ internal object Xodus {
             val command = LinuxRuntime.commandWithBinds(app, root, binds, guestCommand)
             val builder = ProcessBuilder(command).directory(LinuxRuntime.rootDir(app))
             if (launchDirectory != null) builder.environment()["TMPDIR"] = launchDirectory.path
+            builder.environment()["DROIDDECK_XBOX_CREDENTIAL_PORT"] = credentials.port.toString()
+            builder.environment()["DROIDDECK_XBOX_CREDENTIAL_KEY"] = credentials.key
             builder.environment().apply {
                 remove("LD_PRELOAD"); remove("LD_AUDIT"); remove("LD_LIBRARY_PATH")
                 put("PROOT_LOADER", LinuxRuntime.prootLoader(app).path)

@@ -27,6 +27,7 @@ object Library {
     const val ADDED = "added"
     const val EPIC_LAUNCHER = "epic-launcher"
     const val EPIC_LAUNCHER_NAME = "Epic Games Launcher"
+    const val XBOX_CLOUD = "xbox-cloud"
     const val SOURCE_STEAM = "steam"
 
     class Rom(val name: String, val hostPath: File, val guestPath: String, val emulatorId: String, val art: File? = null)
@@ -106,7 +107,10 @@ object Library {
             .firstOrNull { it.isDirectory }
     }
 
-    fun steamGames(context: Context, strictRead: Boolean = false, arch: String = SessionPrefs.activeSteamClientArch(context)): List<SteamGame> {
+    fun steamGames(
+        context: Context, strictRead: Boolean = false, arch: String = SessionPrefs.activeSteamClientArch(context),
+        withShared: Boolean = true,
+    ): List<SteamGame> {
         val root = SessionPrefs.steamRoot(context, arch)
         val cache = File(root, "appcache/librarycache")
         val libraries = steamLibraries(context, arch)
@@ -123,8 +127,9 @@ object Library {
                     val name = NAME.find(text)?.groupValues?.get(1)?.trim().orEmpty()
                     val flags = STATE.find(text)?.groupValues?.get(1)?.toIntOrNull() ?: 0
                     if (name.isEmpty() || flags and 4 == 0) return@forEach
-                    val art = steamCacheImage(cache, appId, STEAM_CAPSULES)
-                    val hero = steamCacheImage(cache, appId, STEAM_HEROES)
+                    val images = SteamCacheImages(File(cache, appId.toString()))
+                    val art = images.find(STEAM_CAPSULES)
+                    val hero = images.find(STEAM_HEROES)
                     val lastPlayed = LAST_PLAYED.find(text)?.groupValues?.get(1)?.toLongOrNull() ?: 0L
                     val installDir = INSTALL_DIR.find(text)?.groupValues?.get(1)?.trim()
                         ?.takeIf { it.isNotEmpty() && it != "." && it != ".." && '/' !in it && '\\' !in it }
@@ -133,13 +138,23 @@ object Library {
                         appId, name, art, label, hero = hero, lastPlayed = lastPlayed,
                         gameFiles = gameFiles,
                         protonPrefix = protonPrefix(context, appId.toLong(), library, roots),
-                        icon = steamCacheImage(cache, appId, listOf("icon.jpg", "icon.png"))
-                            ?: File(cache, appId.toString()).listFiles()?.firstOrNull { it.isFile && STEAM_ICON.matches(it.name) },
-                        logo = steamCacheImage(cache, appId, STEAM_LOGOS),
+                        icon = images.icon(),
+                        logo = images.find(STEAM_LOGOS),
                     ))
                 }
         }
+        if (withShared) {
+            val other = if (arch == "x86_64") "arm64" else "x86_64"
+            val shared = sharedApps(context, arch) - out.keys
+            if (shared.isNotEmpty()) runCatching { steamGames(context, arch = other, withShared = false) }.getOrDefault(emptyList())
+                .filter { it.appId in shared }.forEach { out[it.appId] = it }
+        }
         return out.values.toList()
+    }
+
+    internal fun sharedApps(context: Context, arch: String): Set<Int> {
+        val view = File(LinuxRuntime.rootDir(context), "root/.droiddeck-x64/shared/${if (arch == "x86_64") "arm64" else "x86-64"}/steamapps")
+        return view.list().orEmpty().mapNotNull { Regex("appmanifest_(\\d+)\\.acf").matchEntire(it)?.groupValues?.get(1)?.toIntOrNull() }.toSet()
     }
 
     fun steamLibraryArt(context: Context): List<Pair<Int, File>> {
@@ -212,13 +227,19 @@ object Library {
             )
         }
 
-    internal fun steamCacheImage(cache: File, appId: Int, names: List<String>): File? {
-        val appDir = File(cache, appId.toString())
-        val dirs = listOf(appDir) + appDir.listFiles()
-            .orEmpty().filter { it.isDirectory }.sortedBy { it.name }
-        return names.asSequence()
+    internal fun steamCacheImage(cache: File, appId: Int, names: List<String>): File? =
+        SteamCacheImages(File(cache, appId.toString())).find(names)
+
+    internal class SteamCacheImages(appDir: File) {
+        private val entries = appDir.listFiles().orEmpty()
+        private val dirs = listOf(appDir) + entries.filter { it.isDirectory }.sortedBy { it.name }
+
+        fun find(names: List<String>): File? = names.asSequence()
             .flatMap { name -> dirs.asSequence().map { File(it, name) } }
             .firstOrNull { it.isFile && it.length() > 0L }
+
+        fun icon(): File? = find(listOf("icon.jpg", "icon.png"))
+            ?: entries.firstOrNull { it.isFile && STEAM_ICON.matches(it.name) }
     }
 
     private class Spec(val id: String, val name: String, val system: String, val program: String, val folders: List<String>, val exts: Set<String>, val atPanel: Boolean = false)
