@@ -101,7 +101,7 @@ internal class XboxCredentials(private val app: Context, expectedGeneration: Str
         }
     }, "xbox-credentials-$route").start()
 
-    /** Logs requests that take 2 s or more, and the stage a request is still in after 8 s (the backend waits 10 s). */
+    /** Logs requests that take 2 s or more, and the stage a request is still in after 8 s (the backend waits 30 s). */
     private fun tracked(route: String, block: (step: (String) -> Unit) -> JSONObject): JSONObject {
         val started = android.os.SystemClock.elapsedRealtime()
         val stage = java.util.concurrent.atomic.AtomicReference("auth")

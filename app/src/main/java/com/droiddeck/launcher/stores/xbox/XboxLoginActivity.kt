@@ -54,6 +54,14 @@ class XboxLoginActivity : ComponentActivity() {
         Thread({
             if (closed) return@Thread
             try {
+                // A record without a username is left from a sign-in that never finished; starting clean
+                // also avoids reading it back with an older, slow Keystore key.
+                progress("preparing the sign-in", "Preparing Microsoft sign-in…")
+                val leftover = StoreAccounts.read(applicationContext, Store.XBOX)
+                if (leftover != null && leftover.optString("username").isBlank()) {
+                    XboxCredentials.invalidate(applicationContext)
+                    logStep("discarded credentials from an unfinished sign-in")
+                }
                 val accountGeneration = XboxCredentials.lifecycle(applicationContext) { it }
                 progress("downloading the Xbox components", "Downloading Xbox components…")
                 check(AddonPack.XBOX.await(applicationContext, { !closed }) { state ->
