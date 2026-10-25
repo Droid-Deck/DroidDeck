@@ -57,13 +57,13 @@ object UsbRootMount {
     private fun su(script: String): java.lang.Process =
         ProcessBuilder("su", "--mount-master", "-c", "[ \"\$(id -u)\" = 0 ] && echo $ROOT || exit 1\n$script").redirectErrorStream(true).start()
 
-    // A root prompt nobody answers or a stuck mount must not hold the lock forever; well above the 10 s eject wait.
-    private const val TIMEOUT_S = 60L
     private val deadlines = java.util.concurrent.Executors.newSingleThreadScheduledExecutor { Thread(it, "usb-root-deadline").apply { isDaemon = true } }
 
-    private fun run(context: Context, script: String): Result {
+    // A root prompt nobody answers or a stuck mount must not hold the lock forever; 60 s is well above the 10 s eject wait.
+    private fun run(context: Context, script: String, timeoutS: Long = 60): Result {
         val process = try { su(script) } catch (e: java.io.IOException) { throw IllegalStateException(context.getString(R.string.usb_root_denied)) }
-        val deadline = deadlines.schedule(process::destroy, TIMEOUT_S, java.util.concurrent.TimeUnit.SECONDS)
+        // Closing the pipe too: the root shell under su can keep it open after su dies.
+        val deadline = deadlines.schedule({ process.destroy(); process.inputStream.close() }, timeoutS, java.util.concurrent.TimeUnit.SECONDS)
         val out = try { process.inputStream.bufferedReader().readLines() } finally { deadline.cancel(false) }
         val code = process.waitFor()
         if (out.firstOrNull() != ROOT) throw IllegalStateException(context.getString(R.string.usb_root_denied))
@@ -141,7 +141,7 @@ object UsbRootMount {
             grep -q ' $m ' /proc/self/mountinfo || mount -t ext4 -o nosuid,nodev,noatime ${drive.device} $m || exit 13
             chown -hR $u:$u $m || exit 21
             chcon -hR ${'$'}(ls -Zd ${files(context)} | cut -d' ' -f1) $m || exit 23
-        """.trimIndent())
+        """.trimIndent(), timeoutS = 30 * 60) // relabels every file on the drive
         if (result.code != 0) fail(context, result)
         Log.i(TAG, "prepared ext4 ${drive.uuid}, mounted at $m")
     }
@@ -192,7 +192,8 @@ object UsbRootMount {
         watching = true
         val app = context.applicationContext
         Thread({
-            val lines = try { su("echo \$\$; exec inotifyd - /dev/block/vold:nd").inputStream.bufferedReader() } catch (e: java.io.IOException) { null }
+            // An earlier app process's watcher outlives it as an orphan of init; stop those first.
+            val lines = try { su("pkill -P 1 -f 'inotifyd - /dev/block/vold'; echo \$\$; exec inotifyd - /dev/block/vold:nd").inputStream.bufferedReader() } catch (e: java.io.IOException) { null }
             if (lines == null || lines.readLine() != ROOT) { watching = false; return@Thread }
             try {
                 watcherPid = lines.readLine()?.toIntOrNull() ?: 0

@@ -758,7 +758,6 @@ class FrontEndActivity : ComponentActivity() {
         gameSyncFolder = GameFileSync.folder(this)
         displayManager = getSystemService(DISPLAY_SERVICE) as DisplayManager
         refreshPhantomStatus()
-        UsbRootMount.onChange = usbRootListener
         theme = SessionPrefs.theme(this)
         frameGenLabel = getString(R.string.frame_gen_off)
         appScale = com.droiddeck.launcher.core.AppUiPrefs.scale(this)
@@ -1297,6 +1296,8 @@ class FrontEndActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        // The visible instance owns the one listener slot, taking it back from a closed shortcut picker.
+        UsbRootMount.onChange = usbRootListener
         orientation = SessionPrefs.orientation(this)
         requestedOrientation = orientation
         refreshWifiDiscovery()

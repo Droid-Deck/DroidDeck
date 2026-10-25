@@ -1648,7 +1648,10 @@ class SessionService : Service() {
             releaseLocks()
             // Mounted, not "enabled": the setting may have been turned off while the session ran.
             // unmount refuses once a new session has started (its mount must stay).
-            if (UsbRootMount.mounted(this)) Thread({ UsbRootMount.unmount(applicationContext) }, "usb-root").start()
+            if (UsbRootMount.mounted(this)) Thread({
+                UsbRootMount.unmount(applicationContext)?.let { Log.w(TAG, "USB drive left mounted: $it") }
+                UsbRootMount.onChange?.invoke()
+            }, "usb-root").start()
             if (status == 0) {
                 SessionEvents.transition(SessionPhase.IDLE, "session.stopped", mapOf("status" to status))
             } else {
