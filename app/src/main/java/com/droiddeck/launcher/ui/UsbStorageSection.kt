@@ -17,7 +17,7 @@ class UsbUi(
     val access: GameStorage.UsbAccess? = null,
     /** Free space on the drive in use without root; null = none. */
     val free: String? = null,
-    /** Only when su exists. */
+    /** When su exists or the setting is on. */
     val root: UsbRootUi? = null,
 )
 

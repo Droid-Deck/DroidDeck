@@ -904,7 +904,8 @@ class SessionService : Service() {
         val home = File(LinuxRuntime.rootDir(this), "root")
         File(home, "Storage").mkdirs()
         binds.add(Environment.getExternalStorageDirectory().path + ":/root/Storage")
-        if (SessionPrefs.usbRootEnabled(this)) UsbRootMount.mount(this)?.let { Log.w(TAG, "USB drive: $it") }
+        // Skips the mount lock when already mounted, so a running Prepare does not hold up the session.
+        if (SessionPrefs.usbRootEnabled(this) && !UsbRootMount.mounted(this)) UsbRootMount.mount(this)?.let { Log.w(TAG, "USB drive: $it") }
         val library = GameStorage.effective(this)
         steamLibraryMounts = emptyMap()
         var storageDiagnosticLibrary: File? = null

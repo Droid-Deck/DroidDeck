@@ -397,7 +397,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
             "stores:downloads" -> { com.droiddeck.launcher.stores.StoresState.openDownloads = true; selected = "stores" }
             "components" -> a.onComponents(true)
             "setup:launcher" -> { SetupTabs.openLauncher = true; selected = "setup" }
-            "setup:storage" -> { com.droiddeck.launcher.storage.StorageState.requestOpen(); selected = "setup" }
+            "setup:storage" -> com.droiddeck.launcher.storage.StorageState.requestOpen()
             else -> selected = target
         }
         a.onNavigated()
