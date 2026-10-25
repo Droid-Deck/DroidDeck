@@ -1,0 +1,123 @@
+--- a/directaudio-relay.c
++++ b/directaudio-relay.c
+@@ -70,6 +70,9 @@
+  * session log captures it too. Event-level lines are always on: they fire a
+  * handful of times per session and are what makes a field report actionable. */
+ static int g_verbose;
++static const char *g_mic_control;
++static int g_mic_enabled = 1;
++static pthread_mutex_t g_mic_operations = PTHREAD_MUTEX_INITIALIZER;
+ 
+ static void rlog(const char *fmt, ...)
+ {
+@@ -735,6 +738,9 @@
+     (void)user;
+     if (aq != __atomic_load_n(&g_mic.cq, __ATOMIC_SEQ_CST) && __atomic_load_n(&g_mic.cq, __ATOMIC_SEQ_CST))
+         return AAUDIO_CALLBACK_RESULT_CONTINUE;
++    if (!__atomic_load_n(&g_mic_enabled, __ATOMIC_ACQUIRE))
++        memset(audioData, 0, numFrames * g_mic.in_channels *
++               (g_mic.in_format == AAUDIO_FORMAT_PCM_I16 ? sizeof(int16_t) : sizeof(float)));
+     __atomic_add_fetch(&g_mic.cb_count, 1, __ATOMIC_RELAXED);
+ 
+     pthread_mutex_lock(&g_clients_lock);
+@@ -832,13 +838,14 @@
+     AAudioStream *aq = NULL;
+     int start = 0, stop = 0;
+ 
++    pthread_mutex_lock(&g_mic_operations);
+     pthread_mutex_lock(&g_mic.lock);
+     g_mic.want += delta;
+     if (g_mic.want < 0) g_mic.want = 0;
+     if (g_mic.cq)
+     {
+-        if (g_mic.want > 0 && !g_mic.started) { g_mic.started = 1; start = 1; aq = g_mic.cq; }
+-        if (g_mic.want == 0 && g_mic.started) { g_mic.started = 0; stop = 1; aq = g_mic.cq; }
++        if (g_mic.want > 0 && __atomic_load_n(&g_mic_enabled, __ATOMIC_ACQUIRE) && !g_mic.started) { g_mic.started = 1; start = 1; aq = g_mic.cq; }
++        if ((g_mic.want == 0 || !__atomic_load_n(&g_mic_enabled, __ATOMIC_ACQUIRE)) && g_mic.started) { g_mic.started = 0; stop = 1; aq = g_mic.cq; }
+     }
+     pthread_mutex_unlock(&g_mic.lock);
+ 
+@@ -856,8 +863,23 @@
+     else if (stop)
+     {
+         AAudioStream_requestStop(aq);
+-        REVENT("mic stop (%s was the last consumer)", who);
+-    }
++        REVENT("mic stop (%s)", who);
++    }
++    pthread_mutex_unlock(&g_mic_operations);
++}
++
++static void mic_control_update(void)
++{
++    FILE *f;
++    int enabled;
++    if (!g_mic_control) return;
++    f = fopen(g_mic_control, "r");
++    enabled = f && fgetc(f) == '1';
++    if (f) fclose(f);
++    if (enabled == __atomic_load_n(&g_mic_enabled, __ATOMIC_ACQUIRE)) return;
++    __atomic_store_n(&g_mic_enabled, enabled, __ATOMIC_RELEASE);
++    mic_want(0, "session toggle");
++    REVENT("mic enabled=%d", enabled);
+ }
+ 
+ static void *mic_reopen_thread(void *unused)
+@@ -870,8 +892,9 @@
+ 
+         __atomic_store_n(&g_mic.reopen_redo, 0, __ATOMIC_SEQ_CST);
+ 
++        pthread_mutex_lock(&g_mic_operations);
+         pthread_mutex_lock(&g_mic.lock);
+-        want_start = g_mic.want > 0;
++        want_start = g_mic.want > 0 && __atomic_load_n(&g_mic_enabled, __ATOMIC_ACQUIRE);
+         pthread_mutex_unlock(&g_mic.lock);
+ 
+         if (open_input(&neu) == AAUDIO_OK)
+@@ -902,6 +925,7 @@
+             AAudioStream_close(old);
+         }
+ 
++        pthread_mutex_unlock(&g_mic_operations);
+         if (__atomic_load_n(&g_mic.reopen_redo, __ATOMIC_SEQ_CST)) { usleep(20000); continue; }
+         __atomic_store_n(&g_mic.reopen_running, 0, __ATOMIC_SEQ_CST);
+         if (!__atomic_load_n(&g_mic.reopen_redo, __ATOMIC_SEQ_CST)) break;
+@@ -1348,7 +1372,8 @@
+ /* ---- housekeeping: watchdog tick + mailbox watch, once a second ------------- */
+ static void *housekeeping_thread(void *unused)
+ {
+-    struct timespec iv = { 1, 0 };
++    struct timespec iv = { 0, 100000000 };
++    unsigned tick = 0;
+ 
+     (void)unused;
+     for (;;)
+@@ -1357,6 +1382,8 @@
+         int reload = 0;
+ 
+         nanosleep(&iv, NULL);
++        mic_control_update();
++        if (++tick % 10) continue;
+ 
+         if (g_rt_path[0])
+         {
+@@ -1402,8 +1429,9 @@
+     {
+         if (!strcmp(argv[i], "--socket") && i + 1 < argc) path = argv[++i];
+         else if (!strcmp(argv[i], "--mic-fifo") && i + 1 < argc) fifo_path = argv[++i];
++        else if (!strcmp(argv[i], "--mic-control") && i + 1 < argc) g_mic_control = argv[++i];
+         else if (!strcmp(argv[i], "--log")) g_verbose = 1;
+-        else { fprintf(stderr, "usage: directaudio-relay --socket <path> [--mic-fifo <path>] [--log]\n"); return 2; }
++        else { fprintf(stderr, "usage: directaudio-relay --socket <path> [--mic-fifo <path>] [--mic-control <path>] [--log]\n"); return 2; }
+     }
+     if (!path)
+     {
+@@ -1429,6 +1457,8 @@
+     chmod(path, 0666);
+     if (listen(srv, 8) != 0) { REVENT("listen: %d", errno); return 1; }
+ 
++    mic_control_update();
++    REVENT("mic enabled=%d", __atomic_load_n(&g_mic_enabled, __ATOMIC_ACQUIRE));
+     if (pthread_create(&th, NULL, housekeeping_thread, NULL) == 0) pthread_detach(th);
+     if (fifo_path && fifo_setup(fifo_path) != 0)
+         REVENT("mic-fifo: disabled");

@@ -25,14 +25,7 @@ trap 'rm -rf "$work"' EXIT
 sha256() { if command -v sha256sum >/dev/null; then sha256sum "$1" | cut -d' ' -f1; else shasum -a 256 "$1" | cut -d' ' -f1; fi; }
 
 fetch() {
-    local url=$1 expected=$2 dest=$3
-    curl -fsSL --retry 4 -o "$dest" "$url"
-    local actual
-    actual=$(sha256 "$dest")
-    if [ "$actual" != "$expected" ]; then
-        echo "checksum mismatch for $url: $actual" >&2
-        exit 1
-    fi
+    bash "$here/fetch-verified.sh" "$@"
 }
 
 pack() {

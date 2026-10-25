@@ -43,7 +43,7 @@ class NoexecPreloadTest(unittest.TestCase):
         cls.tmp = Path(tempfile.mkdtemp())
         cls.lib = cls.tmp / "libnoexec.so"
         subprocess.run(["cc", "-O2", "-Wall", "-Werror", "-fPIC", "-shared", "-pthread", "-DNOEXEC_TEST", "-o", str(cls.lib),
-                        str(PRELOAD / "noexec.c"), str(PRELOAD / "fsync.c"), str(PRELOAD / "robust.c"), "-ldl"], check=True)
+                        str(PRELOAD / "noexec.c"), str(PRELOAD / "fsync.c"), str(PRELOAD / "robust.c"), str(PRELOAD / "writewatch.c"), "-ldl"], check=True)
         source = cls.tmp / "program.c"
         source.write_text(PROGRAM)
         for name in ("FEX", "game"):

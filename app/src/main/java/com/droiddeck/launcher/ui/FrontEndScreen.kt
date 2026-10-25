@@ -100,6 +100,10 @@ class FrontEndState(
     val logsEnabled: Boolean,
     val vacDiagnostics: Boolean = false,
     val agentCommands: Boolean = false,
+    val clearCachedApps: Boolean = false,
+    val adbPaired: Boolean = false,
+    val backgroundAppLimit: Int = -1,
+    val memoryHud: String = "off",
     val steamGames: List<Library.SteamGame>,
     val steamGamesX64: Boolean = false,
     val emulators: List<Library.Emulator>,
@@ -124,6 +128,7 @@ class FrontEndState(
     val packageStage: String? = null,
     val packagePercent: Int = -1,
     val sessionRunning: Boolean = false,
+    val battleNetInstalled: Boolean = false,
     val removalPending: Boolean = false,
     val runtimeActionsBlocked: Boolean = false,
     val backActionsInverted: Boolean = false,
@@ -132,16 +137,16 @@ class FrontEndState(
     val controller: com.droiddeck.launcher.input.ControllerPrefs.Settings? = null,
     val phantomProcessStatus: PhantomProcessStatus = PhantomProcessStatus.NOT_APPLICABLE,
     val showPhantomGate: Boolean = false,
-    val orientation: Int = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE,
+    val orientation: Int = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE,
     val launcherFullscreen: Boolean = true,
     val downloadSource: String = DownloadSource.MODE_AUTO,
     val downloadMirror: String = "",
     val downloadPrefix: String = "",
+    val downloadProxy: String = "",
     val animationsEnabled: Boolean = true,
     val launcherIcon: String = com.droiddeck.launcher.LauncherIcon.DARK,
     val gameStoresEnabled: Boolean = true,
     val gameStoresSpeedTier: String = "fast",
-    val storesOpenTab: String = SessionPrefs.STORES_OPEN_LIBRARY,
     val navigate: String? = null,
     val addedGamesArt: Boolean = true,
     val sgdbUserKey: Boolean = false,
@@ -176,6 +181,7 @@ class FrontEndActions(
     val onEmulator: (Library.Emulator) -> Unit,
     val onFlatpakApp: (String, String) -> Unit = { _, _ -> },
     val onUserApp: (com.droiddeck.launcher.runtime.UserApps.App) -> Unit = {},
+    val onBattleNet: () -> Unit = {},
     val onRom: (Library.Rom) -> Unit,
     val onResume: () -> Unit,
     val onSteamSettings: () -> Unit,
@@ -200,6 +206,9 @@ class FrontEndActions(
     val onLogs: () -> Unit,
     val onVacDiagnostics: () -> Unit = {},
     val onAgentCommands: () -> Unit = {},
+    val onClearCachedApps: (Boolean) -> Unit = {},
+    val onMemoryHud: (String) -> Unit = {},
+    val onBackgroundAppLimit: (Int) -> Unit = {},
     val onShareLogs: () -> Unit = {},
     val onClearLogs: () -> Unit = {},
     val onResetSettings: () -> Unit = {},
@@ -215,9 +224,9 @@ class FrontEndActions(
     val onDownloadSource: (String) -> Unit = {},
     val onDownloadMirror: (String) -> Unit = {},
     val onDownloadPrefix: (String) -> Unit = {},
+    val onDownloadProxy: (String) -> Unit = {},
     val onGameStoresEnabled: (Boolean) -> Unit = {},
     val onGameStoresSpeedTier: (String) -> Unit = {},
-    val onStoresOpenTab: (String) -> Unit = {},
     val onNavigated: () -> Unit = {},
     val onStoresShowMature: (Boolean) -> Unit = {},
     val onStoresSort: (String) -> Unit = {},
@@ -254,6 +263,12 @@ internal object Motion {
     fun <T> tw(base: Int, delay: Int = 0, easing: Easing = Ease): FiniteAnimationSpec<T> = if (scale == 0f) snap() else tween(base, delay, easing)
     fun <T> sp(damping: Float = 0.7f, stiffness: Float = Spring.StiffnessMediumLow): FiniteAnimationSpec<T> =
         if (scale == 0f) snap() else spring(damping, stiffness)
+}
+
+internal object Ambient {
+    var poked by mutableStateOf(0L)
+        private set
+    fun poke() { poked = android.os.SystemClock.uptimeMillis() }
 }
 
 private val Shape10 = RoundedCornerShape(10.dp)
@@ -395,6 +410,9 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
         }
         a.onNavigated()
     }
+    LaunchedEffect(com.droiddeck.launcher.stores.StoresState.openGameRequest) {
+        if (com.droiddeck.launcher.stores.StoresState.openGameRequest != null) selected = "stores"
+    }
     var showWirelessAdbFix by rememberSaveable { mutableStateOf(false) }
     var showDeveloperDisplayChoice by rememberSaveable { mutableStateOf(false) }
     var wirelessAdbDesiredEnabled by rememberSaveable { mutableStateOf(false) }
@@ -437,7 +455,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
     }
     LaunchedEffect(s.isHomeApp) { if (!s.isHomeApp && selected == "android-apps") selected = "steam" }
     LaunchedEffect(s.steamGames.isEmpty()) {
-        if (s.steamGames.isEmpty() && selected.startsWith("app:")) selected = "games"
+        if (s.steamGames.isEmpty() && selected.startsWith("app:") && GameRef.parse(selected).appId != null) selected = "games"
     }
     remember { Motion.refresh(ctx); true }
 
@@ -550,6 +568,9 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
 
         }
         FlightsLayer(screenAt)
+        GamesDialogs(a, s.steamGames)
+        com.droiddeck.launcher.stores.StoresState.pendingInstall?.let { item -> StoreTheme(item.store) { InstallWhere(item) } }
+        com.droiddeck.launcher.stores.StoresState.itchPicking?.let { item -> StoreTheme(item.store) { ItchBuildPicker(item) { com.droiddeck.launcher.stores.StoresState.itchPicking = null } } }
         StepsLayer(screenAt)
 
         appToChooseDisplay?.let { app ->

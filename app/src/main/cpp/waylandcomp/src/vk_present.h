@@ -34,6 +34,9 @@ struct vkp_image *vkp_image_import_dmabuf(int fd, uint32_t drm_format, uint64_t 
 int vkp_image_is_dmabuf(const struct vkp_image *img);
 
 struct vkp_image *vkp_image_create_shm(int w, int h);
+struct AHardwareBuffer;
+struct vkp_image *vkp_image_from_ahb(struct AHardwareBuffer *ahb);
+void vkp_wait_idle(void);
 void vkp_image_upload_shm(struct vkp_image *img, const void *data, int stride);
 
 int vkp_image_width(const struct vkp_image *img);

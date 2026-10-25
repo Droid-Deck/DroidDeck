@@ -337,34 +337,73 @@ static int to_guest(const char *h, char *g, size_t size) {
   return 0;
 }
 
-static int guest_text(const char *h, char *g) {
-  int in = h[0] == '/' && under(h, root, rootlen);
-  for (int i = 0; h[0] == '/' && !in && i < nbinds; i++) {
-    int live = held(&binds[i]);
-    if (live < 0) return -1;
-    in = live && under(h, binds[i].host, binds[i].hlen);
+static int host_order[MAX_BINDS + 1], norder, ordered;
+
+static int contains(const char *a, const char *b) {
+  size_t la = strlen(a);
+  return strlen(b) > la && under(b, a, la);
+}
+
+static const char *side_of(int i, int host) {
+  return host ? (i < 0 ? root : binds[i].host) : (i < 0 ? "/" : binds[i].guest);
+}
+
+static int insort(int *list, int m, int i, int host) {
+  const char *p = side_of(i, host);
+  int prev = -1;
+  for (int j = 0; j < m; j++) {
+    const char *q = side_of(list[j], host);
+    if (!strcmp(p, q) && !host) {
+      list[j] = i;
+      return m;
+    }
+    if (!strcmp(p, q) || contains(p, q)) prev = j;
   }
-  if (in) return to_guest(h, g, PATH_MAX);
-  memcpy(g, h, strlen(h) + 1);
+  memmove(list + prev + 2, list + prev + 1, (m - prev - 1) * sizeof *list);
+  list[prev + 1] = i;
+  return m + 1;
+}
+
+static int order_binds(void) {
+  if (__atomic_load_n(&ordered, __ATOMIC_ACQUIRE)) return 0;
+  for (int i = 0; i < nbinds; i++)
+    if (held(&binds[i]) < 0) return -1;
+  if (pthread_mutex_trylock(&bind_lock) != 0) return -1;
+  if (!ordered) {
+    int pending[MAX_BINDS + 1], m = 1;
+    pending[0] = -1;
+    for (int i = 0; i < nbinds; i++)
+      if (!binds[i].dropped) m = insort(pending, m, i, 0);
+    norder = 0;
+    for (int j = m - 1; j >= 0; j--) norder = insort(host_order, norder, pending[j], 1);
+    __atomic_store_n(&ordered, 1, __ATOMIC_RELEASE);
+  }
+  pthread_mutex_unlock(&bind_lock);
   return 0;
 }
 
 static int host_bind(const char *h) {
-  int found = -1;
-  for (int i = 0; i < nbinds; i++) {
-    int live = held(&binds[i]);
-    if (live < 0) return -2;
-    if (!live || !under(h, binds[i].host, binds[i].hlen)) continue;
-    if (found < 0 || binds[i].hlen > binds[found].hlen) found = i;
-    else if (binds[i].hlen == binds[found].hlen && strcmp(binds[i].guest, binds[found].guest) != 0) found = -3;
-  }
-  return found == -3 ? -2 : found;
+  if (order_binds() < 0) return -2;
+  for (int j = 0; j < norder; j++)
+    if (host_order[j] >= 0 && under(h, binds[host_order[j]].host, binds[host_order[j]].hlen)) return host_order[j];
+  return -1;
+}
+
+static int guest_text(const char *h, char *g) {
+  if (h[0] == '/' && under(h, root, rootlen)) return to_guest(h, g, PATH_MAX);
+  int i = h[0] == '/' ? host_bind(h) : -1;
+  if (i == -2) return -1;
+  if (i >= 0)
+    return snprintf(g, PATH_MAX, "%s%s", binds[i].guest, h + binds[i].hlen) >= PATH_MAX || reserved(g) ? -1 : 0;
+  memcpy(g, h, strlen(h) + 1);
+  return 0;
 }
 
 static long detranslated(char *text, const char *at) {
   if (text[0] != '/') return 0;
   if (!under(at, root, rootlen) && !under(text, root, rootlen)) {
     int own = host_bind(at), to = host_bind(text);
+    if (to == -1) return 0;
     if (own == -2 || to == -2) return FP_SLOW;
     if (own >= 0 && to >= 0 && strcmp(binds[own].host, binds[to].host) == 0) {
       const struct bind *bd = &binds[to];
@@ -635,8 +674,9 @@ static long resolve_in(const char *base, const char *path, int follow, struct re
   char norm[PATH_MAX];
   size_t o = 0;
   int dotdot = 0;
-  size_t plen = strlen(path);
-  int trailing = plen > 1 && path[plen - 1] == '/';
+  size_t plen = strlen(path), end = plen;
+  while (end > 1 && path[end - 1] == '/') end--;
+  int trailing = (plen > 1 && path[plen - 1] == '/') || (end > 0 && path[end - 1] == '.' && (end == 1 || path[end - 2] == '/'));
   for (int part = base ? 0 : 1; part < 2; part++) {
     for (const char *c = part ? path : base; *c;) {
       while (*c == '/') c++;
@@ -835,19 +875,84 @@ int __fxstat(int ver, int fd, struct stat *st) {
 }
 int __fxstat64(int ver, int fd, struct stat64 *st) { return __fxstat(ver, fd, (struct stat *)st); }
 
+#ifndef STATX__RESERVED
+#define STATX__RESERVED 0x80000000U
+#endif
+
+static int statx_missing;
+
+static unsigned int dev_major(unsigned long long dev) {
+  return ((dev >> 8) & 0xfff) | ((unsigned int)(dev >> 32) & ~0xfffU);
+}
+static unsigned int dev_minor(unsigned long long dev) {
+  return (dev & 0xff) | ((unsigned int)(dev >> 12) & ~0xffU);
+}
+
+static void fill_statx(struct statx *out, const struct stat *st) {
+  memset(out, 0, sizeof *out);
+  out->stx_mask = STATX_BASIC_STATS;
+  out->stx_blksize = st->st_blksize;
+  out->stx_nlink = st->st_nlink;
+  out->stx_uid = st->st_uid;
+  out->stx_gid = st->st_gid;
+  out->stx_mode = st->st_mode;
+  out->stx_ino = st->st_ino;
+  out->stx_size = st->st_size;
+  out->stx_blocks = st->st_blocks;
+  out->stx_atime.tv_sec = st->st_atim.tv_sec;
+  out->stx_atime.tv_nsec = st->st_atim.tv_nsec;
+  out->stx_ctime.tv_sec = st->st_ctim.tv_sec;
+  out->stx_ctime.tv_nsec = st->st_ctim.tv_nsec;
+  out->stx_mtime.tv_sec = st->st_mtim.tv_sec;
+  out->stx_mtime.tv_nsec = st->st_mtim.tv_nsec;
+  out->stx_rdev_major = dev_major(st->st_rdev);
+  out->stx_rdev_minor = dev_minor(st->st_rdev);
+  out->stx_dev_major = dev_major(st->st_dev);
+  out->stx_dev_minor = dev_minor(st->st_dev);
+}
+
+/* Emulate statx on older kernels < 4.11 */
+static long statx_call(int dirfd, const char *path, int flags, unsigned mask, struct statx *out) {
+  struct stat st;
+  long rs;
+  if ((flags & ~(AT_EMPTY_PATH | AT_SYMLINK_NOFOLLOW | AT_NO_AUTOMOUNT | AT_STATX_SYNC_TYPE)) ||
+      (flags & AT_STATX_SYNC_TYPE) == AT_STATX_SYNC_TYPE)
+    return -EINVAL;
+  if (!statx_missing) {
+    rs = sc(SYS_statx, dirfd, (long)path, flags, mask, (long)out);
+    if (rs != -ENOSYS) return rs;
+    statx_missing = 1;
+  }
+  if (flags & AT_STATX_SYNC_TYPE) return -ENOSYS;
+  rs = sc(SYS_newfstatat, dirfd, (long)path, (long)&st,
+          flags & (AT_EMPTY_PATH | AT_SYMLINK_NOFOLLOW | AT_NO_AUTOMOUNT), 0);
+  if (rs < 0) return rs;
+  fill_statx(out, &st);
+  return 0;
+}
+
 int statx(int dirfd, const char *path, int flags, unsigned mask, struct statx *out) {
   REAL(statx, int (*)(int, const char *, int, unsigned, struct statx *));
   struct res r;
   long rs;
+  if (mask & STATX__RESERVED) { errno = EINVAL; return -1; }
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wnonnull-compare"
+  if (!out) { errno = EFAULT; return -1; }
+  if (!path) {
+    if (!(flags & AT_EMPTY_PATH)) { errno = EFAULT; return -1; }
+    return real_statx ? real_statx(dirfd, path, flags, mask, out) : ret(sc(SYS_statx, dirfd, (long)path, flags, mask, (long)out));
+  }
+#pragma GCC diagnostic pop
   if ((flags & AT_EMPTY_PATH) && !path[0] && fp_ready()) {
     hits++;
-    return ret(sc(SYS_statx, dirfd, (long)"", flags, mask, (long)out));
+    return ret(statx_call(dirfd, "", flags, mask, out));
   }
   rs = (flags & ~(AT_SYMLINK_NOFOLLOW | AT_NO_AUTOMOUNT | AT_STATX_SYNC_TYPE)) ? FP_SLOW
        : resolve(dirfd, path, (flags & AT_SYMLINK_NOFOLLOW ? 0 : 1) | MAY_BE_UNSEEN, &r);
   if (rs == 1) rs = -ENOENT;
   if (rs == 0 || rs == UNSEEN)
-    rs = sc(SYS_statx, AT_FDCWD, (long)r.host, flags | (rs == 0 && !r.magic ? AT_SYMLINK_NOFOLLOW : 0), mask, (long)out);
+    rs = statx_call(AT_FDCWD, r.host, flags | (rs == 0 && !r.magic ? AT_SYMLINK_NOFOLLOW : 0), mask, out);
   ANSWER(rs, dirfd, path, real_statx(dirfd, path, flags, mask, out));
 }
 

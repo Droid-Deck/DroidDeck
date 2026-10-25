@@ -69,6 +69,7 @@ class RuntimeRemovalTest {
         val old = File(dir, "linuxfs.old").apply { File(this, "root").mkdirs() }
         val staging = File(dir, "linuxfs.new").apply { File(this, "root").mkdirs() }
         File(staging, "root/save").writeText("user data")
+        File(staging, LinuxRuntimeInstaller.CARRY_MARKER).writeText("1")
         for (tree in listOf(old, staging))
             Files.setPosixFilePermissions(tree.toPath(), PosixFilePermissions.fromString("r-xr-xr-x"))
         LinuxRuntimeInstaller.recoverInterruptedSwap(root, staging, old)
