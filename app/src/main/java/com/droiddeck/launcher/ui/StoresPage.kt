@@ -632,11 +632,12 @@ private fun StoreChips(
     val gap = 8.dp
     val gapPx = with(androidx.compose.ui.platform.LocalDensity.current) { gap.toPx() }
     val drag = remember { ChipDrag() }
+    val tabScroll = rememberScrollState()
     Box(Modifier.fillMaxWidth()) {
         Row(horizontalArrangement = Arrangement.spacedBy(gap), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-            Box(Modifier.weight(1f).then(if (arranging) Modifier else Modifier.horizontalScroll(rememberScrollState()))) {
+            Box(Modifier.weight(1f).then(if (arranging) Modifier else Modifier.edgeFade(tabScroll).horizontalScroll(tabScroll))) {
                 Row(horizontalArrangement = Arrangement.spacedBy(gap), verticalAlignment = Alignment.CenterVertically,
-                    modifier = if (arranging) Modifier.fillMaxWidth() else Modifier,
+                    modifier = (if (arranging) Modifier.fillMaxWidth() else Modifier).focusGroup(),
                 ) {
                     for (tab in tabs) {
                         val store = tab.store
