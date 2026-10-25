@@ -63,7 +63,7 @@ object UsbRootMount {
     }
 
     private fun fail(context: Context, result: Result): Nothing = throw IllegalStateException(
-        context.getString(R.string.usb_root_mount_failed, result.code, result.out.joinToString(" ").trim().ifEmpty { "exit ${result.code}" }))
+        context.getString(R.string.usb_root_mount_failed, result.code, result.out.joinToString(" ").trim()))
 
     /** USB partitions vold has nodes for, mounted by it or not; not volumes apps already see (SD cards). */
     fun drives(context: Context): List<Drive> {
@@ -205,6 +205,8 @@ object UsbRootMount {
 
     /** [watch] and [mount], off the main thread: the setting is on. */
     fun enable(context: Context): String? {
+        // Pulled while no app process was watching: the old mount is still there.
+        dropIfGone(context)
         watch(context)
         return mount(context)
     }
