@@ -463,6 +463,18 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("gamescopeRealtime", on).apply()
     }
 
+    fun ramCapMb(context: Context): Int = prefs(context).getInt("ramCapMb", 0).coerceAtLeast(0)
+
+    fun setRamCapMb(context: Context, mb: Int) {
+        prefs(context).edit().putInt("ramCapMb", mb.coerceAtLeast(0)).apply()
+    }
+
+    fun vramCapMb(context: Context): Int = prefs(context).getInt("vramCapMb", 0).coerceAtLeast(0)
+
+    fun setVramCapMb(context: Context, mb: Int) {
+        prefs(context).edit().putInt("vramCapMb", mb.coerceAtLeast(0)).apply()
+    }
+
     fun gpuClockPin(context: Context): Boolean = prefs(context).getBoolean("gpuClockPin", false)
 
     fun setGpuClockPin(context: Context, on: Boolean) {
