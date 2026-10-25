@@ -98,6 +98,7 @@ object ProtonExtras {
 
     private val checkLock = Any()
     private const val RETRY_MS = 15L * 60 * 1000
+    private const val USER_SETTINGS = "user_settings.py"
     private var lastAttempt = 0L
 
     fun checkLatest(context: Context, force: Boolean = false, now: Long = System.currentTimeMillis()): Boolean {
@@ -171,12 +172,19 @@ object ProtonExtras {
             for (old in older.asReversed()) {
                 if (SessionState.running) break
                 if (runCatching { ComponentsManager.carryOver(context, old, newest) }.onFailure { Log.w(TAG, "components of $old", it) }.isFailure) continue
+                if (runCatching { keepUserSettings(context, old, newest) }.onFailure { Log.w(TAG, "user settings of $old", it) }.isFailure) continue
                 if (File(toolsDir(context), old).deleteRecursively()) ComponentsManager.forgetProton(context, old)
                 else Log.w(TAG, "could not remove $old")
             }
         } finally {
             replacing = false
         }
+    }
+
+    private fun keepUserSettings(context: Context, old: String, newest: String) {
+        val from = File(File(toolsDir(context), old), USER_SETTINGS)
+        val to = File(File(toolsDir(context), newest), USER_SETTINGS)
+        if (from.isFile && !to.exists()) from.copyTo(to)
     }
 
     fun tidy(context: Context) {

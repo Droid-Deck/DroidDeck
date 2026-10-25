@@ -200,6 +200,19 @@ class ProtonExtrasTest {
     }
 
     @Test
+    fun anUpdateKeepsTheUsersProtonSettingsFile() {
+        val context = RuntimeEnvironment.getApplication()
+        val tools = File(LinuxRuntime.rootDir(context), "root/.local/share/Steam/compatibilitytools.d")
+        tools.deleteRecursively()
+        File(installTool(tools, "DroidDeck-Proton 11-11.1"), "user_settings.py").writeText("old")
+        File(installTool(tools, "DroidDeck-Proton 11-11.4"), "user_settings.py").writeText("mine")
+        installTool(tools, "DroidDeck-Proton 11-11.5")
+        ProtonExtras.tidy(context)
+        assertEquals(listOf("DroidDeck-Proton 11-11.5"), ProtonExtras.installedAll(context, tool("droiddeck")))
+        assertEquals("mine", File(tools, "DroidDeck-Proton 11-11.5/user_settings.py").readText())
+    }
+
+    @Test
     fun droidDeckProtonIsFetchedWhenMissingUnlessTheUserRemovedIt() {
         val context = RuntimeEnvironment.getApplication()
         val tools = File(LinuxRuntime.rootDir(context), "root/.local/share/Steam/compatibilitytools.d")
