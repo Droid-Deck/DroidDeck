@@ -9,6 +9,7 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.stores.download.DownloadEntry
 
 object StoresState {
@@ -77,10 +78,11 @@ object StoresState {
         val app = context.applicationContext
         com.droiddeck.launcher.stores.download.SavedQueue.restore(app)
         background("stores-refresh") {
+            runCatching { com.droiddeck.launcher.stores.battlenet.BattleNetClient.syncAccount(app) }
             val found = Store.entries.mapNotNull { store -> StoreAccounts.displayName(app, store)?.let { store to it } }
             val onDisk = StoreInstallRoot.gameFolders(app).mapNotNull { folder ->
                 StoreGameSidecar.read(folder)?.takeIf { it.isInstalled }?.let { InstalledStoreGame(it, folder) }
-            }
+            } + runCatching { com.droiddeck.launcher.stores.battlenet.BattleNetBackend.installedGames(app) }.getOrDefault(emptyList())
             val partial = StoreInstallRoot.unfinished(app)
             val version = if (StoresNative.available) StoresNative.version ?: "" else ""
             main.post {
@@ -212,18 +214,33 @@ object StoresState {
     }
 
     var pendingInstall by mutableStateOf<CatalogItem?>(null)
+    var itchPicking by mutableStateOf<CatalogItem?>(null)
 
     fun requestInstall(context: Context, item: CatalogItem) {
         askForNotifications(context)
+        if (item.store == Store.ITCH && item.extra["uploadId"].isNullOrEmpty()) { itchPicking = item; return }
         if (isUnfinished(item)) { install(context, item); return }
         val targets = StoreInstallRoot.targets(context)
-        if (targets.size > 1 || StoreLanguage.selectable(item.store)) pendingInstall = item
-        else install(context, item, targets.first().root)
+        val preferred = StoreInstallRoot.defaultTarget(context)
+        val wantedExternal = SessionPrefs.defaultStorage(context) == SessionPrefs.DEFAULT_STORAGE_EXTERNAL
+        if (preferred != null) SessionPrefs.setStoresInstallTarget(context, preferred.root.absolutePath)
+        when {
+            preferred != null && !StoreLanguage.selectable(item.store) -> {
+                install(context, item, preferred.root)
+            }
+            targets.size > 1 || wantedExternal || StoreLanguage.selectable(item.store) -> pendingInstall = item
+            else -> install(context, item, targets.first().root)
+        }
     }
 
     fun install(context: Context, item: CatalogItem, root: java.io.File? = null, language: String? = null) {
         val app = context.applicationContext
-        val folder = StoreInstallRoot.folderFor(app, item.store, item.id, item.title, root ?: StoreInstallRoot.installRoot(app))
+        val targetRoot = root ?: StoreInstallRoot.defaultTarget(app)?.root ?: StoreInstallRoot.installRoot(app)
+        if (item.store == Store.BATTLENET) {
+            backends[item.store]?.install(app, item, targetRoot)
+            return
+        }
+        val folder = StoreInstallRoot.folderFor(app, item.store, item.id, item.title, targetRoot)
         val target = folder.parentFile!!.parentFile!!
         val code = language?.takeIf { it.isNotBlank() } ?: StoreLanguage.preferredCode(app)
         val tagged = if (StoreLanguage.selectable(item.store)) item.copy(extra = item.extra + (StoreLanguage.EXTRA to code)) else item
@@ -256,6 +273,10 @@ object StoresState {
         uninstalling[key] = 0f
         background("stores-uninstall", onFailure = { main.post { uninstalling.remove(key); onDone() } }) {
             runCatching { backends[game.sidecar.store]?.uninstall(app, game) }
+            if (game.sidecar.store == Store.BATTLENET) {
+                main.post { uninstalling.remove(key); onDone() }
+                return@background
+            }
             StoreInstalls.uninstall(app, game, progress = { f -> main.post { if (key in uninstalling) uninstalling[key] = f } }, removed = {
                 main.post {
                     installed = installed.filterNot { it.folder.absolutePath == game.folder.absolutePath }

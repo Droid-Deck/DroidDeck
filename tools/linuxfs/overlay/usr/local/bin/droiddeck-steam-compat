@@ -620,10 +620,11 @@ class Watcher:
 
 
 class Helper:
-    def __init__(self, steam_root, port, steamos=False):
+    def __init__(self, steam_root, port, steamos=False, files_only=False):
         self.steam_root = steam_root
         self.port = port
         self.steamos = steamos
+        self.files_only = files_only
         self.page = None
         self.known = set()
         self.installed = None
@@ -647,9 +648,14 @@ class Helper:
             self.finish_chooser(ident, None)
             return
         command = [sys.executable, os.path.realpath(__file__), "--choose-file"]
-        reaper = os.path.join(self.steam_root, "steamrtarm64", "reaper")
-        if os.access(reaper, os.X_OK):
-            command = [reaper, "SteamLaunch", "AppId=769", "--"] + command
+        # Gamescope shows the dialog over the client by the AppId on a reaper above it; the x86-64 client has no
+        # native reaper, so the arm64 client's is borrowed when it is installed.
+        data = os.environ.get("XDG_DATA_HOME") or os.path.join(os.path.expanduser("~"), ".local", "share")
+        for root in (self.steam_root, os.path.join(data, "Steam")):
+            reaper = os.path.join(root, "steamrtarm64", "reaper")
+            if os.access(reaper, os.X_OK):
+                command = [reaper, "SteamLaunch", "AppId=769", "--"] + command
+                break
         try:
             proc = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                     stderr=subprocess.DEVNULL, start_new_session=True)
@@ -699,6 +705,11 @@ class Helper:
         try:
             if page.evaluate("typeof SteamClient === 'object' && typeof SteamClient.WebUITransport === 'object'") is not True:
                 raise LookupError("SteamClient is not ready")
+            if self.files_only:
+                page.call("Runtime.addBinding", {"name": FILE_BINDING})
+                page.evaluate(FILE_JS)
+                self.page = page
+                return True
             page.call("Runtime.addBinding", {"name": BINDING})
             page.call("Runtime.addBinding", {"name": VR_BINDING})
             page.evaluate(VR_JS)
@@ -847,7 +858,22 @@ class Helper:
                 self.open_chooser(e["params"]["payload"])
         return events
 
+    def serve_files(self):
+        say("attached to the client on port %d for its file dialogs" % self.port)
+        while True:
+            sources = [self.page.ws] + ([self.chooser[1].stdout] if self.chooser is not None else [])
+            queued = self.page.ws.pending() or bool(self.page.events)
+            ready = [self.page.ws] if queued else select.select(sources, [], [], 30)[0]
+            if self.chooser is not None and self.chooser[1].stdout in ready:
+                self.chooser_done()
+            if self.page.ws in ready or self.page.events:
+                for e in self.page.drain():
+                    if called(e, FILE_BINDING) and isinstance(e.get("params", {}).get("payload"), str):
+                        self.open_chooser(e["params"]["payload"])
+
     def serve(self, watcher):
+        if self.files_only:
+            return self.serve_files()
         with open(COMPAT["state_path"]("live.pid"), "w") as f:
             f.write("%d\n" % os.getpid())
         say("attached to the client on port %d" % self.port)
@@ -903,12 +929,29 @@ def chooser_main():
 
 
 def main():
-    steam_root = sys.argv[1]
+    files_only = sys.argv[1:2] == ["--files-only"]
+    steam_root = sys.argv[2 if files_only else 1]
     try:
         port = int(os.environ.get("BL_CDP_PORT", ""))
     except ValueError:
         say("no devtools port for this session; the client's mapping is kept through config.vdf")
         return 0
+    if files_only:
+        helper = Helper(steam_root, port, files_only=True)
+        failures = 0
+        while True:
+            try:
+                helper.attach()
+                failures = 0
+                helper.serve(None)
+            except Exception as e:
+                helper.close_chooser()
+                if helper.page is not None:
+                    say("lost the client (%s); reattaching" % e)
+                    helper.page.ws.close()
+                    helper.page = None
+                failures += 1
+            time.sleep(min(2 * max(failures, 1), 10))
     os.makedirs(COMPAT["COMPAT_DIR"], exist_ok=True)
     watcher = Watcher([COMPAT["state_path"]("request.json"), COMPAT["state_path"]("games.json")] +
                       [os.path.join(lib, "steamapps", "libraryfolders.vdf") for lib in (steam_root, COMPAT["LIBRARY"] + "-sd")])
@@ -943,4 +986,5 @@ if __name__ == "__main__":
     try:
         sys.exit(main())
     finally:
-        detach()
+        if sys.argv[1:2] != ["--files-only"]:
+            detach()

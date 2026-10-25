@@ -56,6 +56,8 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -364,6 +366,7 @@ private fun GameActions(
                     }
                     SecondaryButton(stringResource(R.string.stores_xbox_manage), enabled = download == null) { XboxContent.manage(ctx, installed) }
                 }
+                if (store == Store.BATTLENET) SecondaryButton(stringResource(R.string.bnet_open)) { a.onBattleNet() }
             }
             download != null -> {
                 ActionChip(downloadLabel(download), ok = false)
@@ -378,6 +381,7 @@ private fun GameActions(
                 }
                 ConfirmButton(stringResource(R.string.stores_dl_clear), stringResource(R.string.stores_dl_cancel_confirm), compact = true) { DownloadQueue.clear(ctx, failed.key) }
             }
+            store == Store.BATTLENET && item != null -> InstallButton(stringResource(R.string.stores_install), leadOn) { StoresState.requestInstall(ctx, item) }
             store == Store.XBOX && item != null && !item.xboxPc && item.xboxCloud -> {
                 XboxStreamButton(item.id, item.title, main = true, modifier = leadOn)
                 XboxLibraryButton(item.id, item)
@@ -396,6 +400,10 @@ private fun GameActions(
                     XboxLibraryButton(item.id, item)
                 }
                 if (!item.accessible) SecondaryButton(buyLabel(item)) { openStoreUrl(ctx, item) }
+            }
+            item != null && item.store == Store.ITCH && item.isFree -> {
+                InstallButton(stringResource(R.string.stores_install), leadOn) { StoresState.requestInstall(ctx, item) }
+                SecondaryButton(stringResource(R.string.stores_view_on, item.store.shortLabel)) { openStoreUrl(ctx, item) }
             }
             item != null && item.isFree -> PrimaryButton(stringResource(R.string.stores_get_free), main = true, modifier = leadOn) { openStoreUrl(ctx, item) }
             item != null -> PrimaryButton(buyLabel(item), main = true, modifier = leadOn) { openStoreUrl(ctx, item) }
@@ -517,6 +525,7 @@ private fun IconAction(icon: androidx.compose.ui.graphics.vector.ImageVector, la
 private fun RemoveButton(title: String, game: Library.SteamGame?, installed: InstalledStoreGame?, a: FrontEndActions) {
     val ctx = LocalContext.current
     val colors = MaterialTheme.colorScheme
+    if ((installed?.sidecar?.store?.id ?: game?.source) == Store.BATTLENET.id) return
     if (installed != null) {
         val key = installed.key
         val gone = StoresState.uninstalling[key]
@@ -592,7 +601,13 @@ private fun AboutTab(developer: String, publisher: String, releaseDate: String, 
             val parts = listOf(developer, publisher, com.droiddeck.launcher.stores.GameFacts.releaseLabel(releaseDate).orEmpty()).filter { it.isNotBlank() }.distinct()
             Text(parts.joinToString(" · "), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.readable())
         }
-        if (description.isNotBlank()) StoreAbout(description, AboutHeight, Modifier.fillMaxWidth())
+        if (description.isNotBlank()) {
+            val floor = LocalDetailFloor.current
+            val density = LocalDensity.current
+            var room by remember { mutableStateOf(AboutHeight) }
+            val fill = Modifier.onGloballyPositioned { c -> room = maxOf(AboutHeight, with(density) { (floor() - c.positionInRoot().y).toDp() - 14.dp }) }
+            StoreAbout(description, room, Modifier.fillMaxWidth().then(fill))
+        }
     }
 }
 

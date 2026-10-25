@@ -74,6 +74,7 @@ object SessionFiles {
             "usr/local/bin/droiddeck-steam-shortcuts" to "usr/local/bin/droiddeck-steam-shortcuts",
             "usr/local/bin/droiddeck-xbox" to "usr/local/bin/droiddeck-xbox",
             "usr/local/bin/droiddeck-store-launch" to "usr/local/bin/droiddeck-store-launch",
+            "usr/local/bin/droiddeck-battlenet" to "usr/local/bin/droiddeck-battlenet",
             "usr/local/bin/droiddeck-epic" to "usr/local/bin/droiddeck-epic",
             "usr/local/bin/droiddeck-epic-steam" to "usr/local/bin/droiddeck-epic-steam",
             "usr/local/bin/droiddeck-open-url" to "usr/local/bin/droiddeck-open-url",
@@ -141,6 +142,8 @@ object SessionFiles {
         } + listOf("libvulkan-thunk.so", "libwebkitinput.so").map { "x86_64/$it" to "usr/local/lib/droiddeck-fex/x86_64/$it" }
         val optional = (arrayOf(
             "usr/local/bin/gamescope" to "usr/local/bin/gamescope",
+            // The gamescope pack carries its own WSI layer (patch 0117); it replaces the runtime's stock copy.
+            "usr/lib/libVkLayer_FROG_gamescope_wsi_aarch64.so" to "usr/lib/libVkLayer_FROG_gamescope_wsi_aarch64.so",
             "usr/local/lib/droiddeck/uruntime" to "usr/local/lib/droiddeck/uruntime",
             "usr/local/lib/droiddeck-pipewire.tzst" to "usr/local/lib/droiddeck-pipewire.tzst",
             "usr/local/share/licenses/uruntime/LICENSE" to "usr/local/share/licenses/uruntime/LICENSE",
@@ -205,7 +208,11 @@ object SessionFiles {
         if (!File(Environment.getExternalStorageDirectory(), NO_PAD_SWITCH).exists()) {
             preload.append("/usr/local/lib/libfakeinput.so\n")
         }
-        if (ProotFastPath.enabled(context)) preload.append(ProotFastPath.LIBRARY + "\n")
+        if (ProotFastPath.enabled(context)) {
+            val library = com.droiddeck.launcher.agent.AgentEnv.fastPathLibrary(context)
+            preload.append(library + "\n")
+            if (startsSession && library != ProotFastPath.LIBRARY) Log.i(TAG, "fast path preload: $library (debugging override)")
+        }
         val etc = File(root, "etc").apply { mkdirs() }
         val staged = File(etc, "ld.so.preload.staged")
         if (!FileUtils.writeString(staged, preload.toString())

@@ -53,6 +53,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusGroup
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.selection.selectable
@@ -86,6 +88,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.automirrored.filled.Login
 import androidx.compose.foundation.basicMarquee
@@ -235,6 +238,12 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
     LaunchedEffect(Unit) { StoresState.refresh(ctx) }
     val lifecycle = androidx.compose.ui.platform.LocalLifecycleOwner.current.lifecycle
     LaunchedEffect(chip) {
+        if (chip == Store.BATTLENET.id) {
+            while (true) {
+                if (lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) com.droiddeck.launcher.stores.battlenet.BattleNetClient.refresh(ctx)
+                delay(5_000)
+            }
+        }
         if (chip == Store.EPIC.id) {
             EpicClient.ensure(ctx)
             while (true) {
@@ -604,6 +613,7 @@ private fun RowScope.ArrangeStoreChip(
     ) { onToggleTab(store) }
 }
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun StoreChips(
     selected: String, focused: String?, active: Int, tabs: List<StoreTab>, arranging: Boolean,
@@ -613,7 +623,6 @@ private fun StoreChips(
     val pal = LocalPalette.current
     val keys = tabs.filter { it.shown }.map { it.store.id } + DOWNLOADS
     val bounds = remember { androidx.compose.runtime.mutableStateMapOf<String, Rect>() }
-    val rootBounds = remember { HashMap<String, Rect>() }
     val highlighted = focused ?: selected
     val inputMode = androidx.compose.ui.platform.LocalInputModeManager.current.inputMode
     val fillShown = inputMode != androidx.compose.ui.input.InputMode.Keyboard && !arranging
@@ -623,47 +632,59 @@ private fun StoreChips(
     val gap = 8.dp
     val gapPx = with(androidx.compose.ui.platform.LocalDensity.current) { gap.toPx() }
     val drag = remember { ChipDrag() }
+    val tabScroll = rememberScrollState()
     Box(Modifier.fillMaxWidth()) {
         Row(horizontalArrangement = Arrangement.spacedBy(gap), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-            for (tab in tabs) {
-                val store = tab.store
-                if (arranging) {
-                    val index = tabs.indexOfFirst { it.store == store }
-                    key(store) { ArrangeStoreChip(tab, index, tabs.lastIndex, gapPx, drag, onFocusChip, onMoveTab, onToggleTab) }
-                } else if (tab.shown) {
-                    val signedIn = StoresState.isSignedIn(store) && StoresState.expired[store] != true
-                    key(store) {
-                        StoreChip(
-                            label = store.shortLabel, on = selected == store.id, under = fillShown && highlighted == store.id, key = store.id, mark = sourceColours(store.id).dot,
-                            modifier = Modifier.weight(1f).onGloballyPositioned { bounds[store.id] = it.boundsInParent(); rootBounds[store.id] = it.boundsInRoot() },
-                            lead = { StoreDot(store, signedIn) },
-                            description = store.label + if (signedIn || !StoresState.accountsLoaded) "" else " " + stringResource(R.string.stores_chip_signed_out),
-                            onFocused = onFocusChip,
-                        ) { onStore(store) }
+            Box(Modifier.weight(1f).then(if (arranging) Modifier else Modifier.edgeFade(tabScroll).horizontalScroll(tabScroll))) {
+                Row(horizontalArrangement = Arrangement.spacedBy(gap), verticalAlignment = Alignment.CenterVertically,
+                    modifier = (if (arranging) Modifier.fillMaxWidth() else Modifier).focusGroup(),
+                ) {
+                    for (tab in tabs) {
+                        val store = tab.store
+                        if (arranging) {
+                            val index = tabs.indexOfFirst { it.store == store }
+                            key(store) { ArrangeStoreChip(tab, index, tabs.lastIndex, gapPx, drag, onFocusChip, onMoveTab, onToggleTab) }
+                        } else if (tab.shown) {
+                            val signedIn = StoresState.isSignedIn(store) && StoresState.expired[store] != true
+                            key(store) {
+                                val reveal = remember { BringIntoViewRequester() }
+                                LaunchedEffect(selected) { if (selected == store.id) reveal.bringIntoView() }
+                                StoreChip(
+                                    label = store.shortLabel, on = selected == store.id, under = fillShown && highlighted == store.id, key = store.id, mark = sourceColours(store.id).dot,
+                                    modifier = Modifier.bringIntoViewRequester(reveal).onGloballyPositioned { bounds[store.id] = it.boundsInParent() },
+                                    lead = { StoreDot(store, signedIn) },
+                                    description = store.label + if (signedIn || !StoresState.accountsLoaded) "" else " " + stringResource(R.string.stores_chip_signed_out),
+                                    onFocused = onFocusChip,
+                                ) { onStore(store) }
+                            }
+                        }
                     }
                 }
+                ChipGlide(keys.indexOf(highlighted), bounds[highlighted], tint, visible = fillShown && highlighted != DOWNLOADS)
             }
             if (arranging) {
                 IconChip(Icons.Filled.Check, stringResource(R.string.stores_tabs_arrange_done)) { onArrangeDone() }
             } else {
-                StoreChip(
-                    label = null, on = selected == DOWNLOADS, under = fillShown && highlighted == DOWNLOADS, key = DOWNLOADS, mark = pal.signal,
-                    modifier = Modifier.onGloballyPositioned {
-                        bounds[DOWNLOADS] = it.boundsInParent()
-                        StoresMotion.downloadsChip = it.boundsInRoot()
-                    },
-                    lead = { Icon(Icons.Outlined.Download, null, modifier = Modifier.size(18.dp)) },
-                    trail = if (active > 0) { { CountPill(active) } } else null,
-                    description = stringResource(R.string.stores_tab_downloads),
-                    onFocused = onFocusChip,
-                ) { onDownloads() }
+                Box {
+                    StoreChip(
+                        label = null, on = selected == DOWNLOADS, under = fillShown && highlighted == DOWNLOADS, key = DOWNLOADS, mark = pal.signal,
+                        modifier = Modifier.onGloballyPositioned {
+                            bounds[DOWNLOADS] = it.boundsInParent()
+                            StoresMotion.downloadsChip = it.boundsInRoot()
+                        },
+                        lead = { Icon(Icons.Outlined.Download, null, modifier = Modifier.size(18.dp)) },
+                        trail = if (active > 0) { { CountPill(active) } } else null,
+                        description = stringResource(R.string.stores_tab_downloads),
+                        onFocused = onFocusChip,
+                    ) { onDownloads() }
+                    ChipGlide(keys.indexOf(DOWNLOADS), bounds[DOWNLOADS], tint, visible = fillShown && highlighted == DOWNLOADS)
+                }
                 var cogAt by remember { mutableStateOf<Rect?>(null) }
                 Box(Modifier.onGloballyPositioned { cogAt = it.boundsInRoot() }) {
                     IconChip(Icons.Filled.Settings, stringResource(R.string.stores_settings)) { onSettings(cogAt) }
                 }
             }
         }
-        ChipGlide(keys.indexOf(highlighted), bounds[highlighted], tint, visible = fillShown)
     }
 }
 
@@ -827,6 +848,7 @@ private fun Storefront(
     clearSearchFocus: Boolean,
     onQuery: (String) -> Unit, onOpen: (String) -> Unit,
 ) {
+    BackHandler(enabled = query.isNotEmpty() && !clearSearchFocus) { onQuery("") }
     val ctx = LocalContext.current
     val library = StoresState.library[store] ?: emptyList()
     val shelves = StoresState.shelves[store]
@@ -919,7 +941,7 @@ private fun Storefront(
                 Shelf(stringResource(R.string.stores_shelf_new), shelf(shelves?.whatsNew), card)
                 Shelf(stringResource(R.string.stores_shelf_deals), shelf(shelves?.deals), card)
                 Shelf(stringResource(R.string.stores_shelf_free), shelf(shelves?.free), card)
-                Shelf(stringResource(R.string.stores_shelf_trending), shelf(shelves?.trending), card)
+                Shelf(stringResource(if (store == Store.BATTLENET) R.string.bnet_store else R.string.stores_shelf_trending), shelf(shelves?.trending), card)
                 if (shelves == null) Rise(4) { Box(Modifier.padding(top = 8.dp)) { Note(stringResource(R.string.stores_shelves_loading)) } }
                 else if (shelves.isEmpty && store == Store.AMAZON) Rise(4) { Box(Modifier.padding(top = 8.dp)) { Note(stringResource(R.string.stores_amazon_no_catalog)) } }
             }
@@ -965,6 +987,39 @@ private fun ProfileStrip(store: Store, owned: Int, loaded: Boolean, s: FrontEndS
             }
         }
         if (store == Store.EPIC) EpicLauncherRow(s, a)
+        if (store == Store.BATTLENET) BattleNetLauncherRow(s, a)
+    }
+}
+
+@Composable
+private fun BattleNetLauncherRow(s: FrontEndState, a: FrontEndActions) {
+    val ctx = LocalContext.current
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    val title = stringResource(R.string.bnet_name)
+    Box(Modifier.fillMaxWidth().height(1.dp).background(pal.line))
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth().testTag("stores-battlenet-launcher")) {
+        val icon by androidx.compose.runtime.produceState<java.io.File?>(null, s.battleNetInstalled) {
+            value = if (!s.battleNetInstalled) null
+            else kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.droiddeck.launcher.runtime.BattleNet.icon(ctx) }
+        }
+        if (icon != null) AsyncImage(model = icon, contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.size(36.dp).clip(RoundedCornerShape(8.dp)))
+        Text(title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        Actions {
+            SecondaryButton(stringResource(R.string.bnet_open), enabled = !s.busy, compact = true) { a.onBattleNet() }
+            val entry = remember(s.battleNetInstalled) { com.droiddeck.launcher.runtime.BattleNet.launcherEntry(s.battleNetInstalled) }
+            val scope = entry?.let { com.droiddeck.launcher.session.NoSteamLaunch.scope(it) }
+            if (entry != null && scope != null) {
+                val host = rememberMenuHost()
+                val settings = rememberGameSettings(scope)
+                Box {
+                    SecondaryButton(stringResource(R.string.game_settings_card), compact = true) {
+                        host.open = if (host.open == GAME_SETTINGS_MENU) null else GAME_SETTINGS_MENU
+                    }
+                    GameSettingsMenus(host, entry, settings)
+                }
+            }
+        }
     }
 }
 
@@ -1033,6 +1088,12 @@ internal fun ModeHeader(
     var searching by remember { mutableStateOf(query.isNotEmpty()) }
     var focusOnOpen by remember { mutableStateOf(false) }
     val open by animateFloatAsState(if (searching) 1f else 0f, Motion.sp(0.75f, 420f), label = "searchOpen")
+    val close = {
+        searching = false
+        focusOnOpen = false
+        if (query.isNotEmpty()) onQuery("")
+    }
+    BackHandler(enabled = searching && !clearSearchFocus) { close() }
     Column(Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp).padding(vertical = 4.dp)) {
             if (lead != null) lead()
@@ -1042,14 +1103,18 @@ internal fun ModeHeader(
             )
             BoxWithConstraints(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
                 if (searching || open > 0.01f) {
-                    val w = androidx.compose.ui.unit.lerp(44.dp, maxWidth.coerceAtMost(520.dp), open)
-                    Box(Modifier.width(w).graphicsLayer { alpha = (open * 1.6f).coerceAtMost(1f) }) {
-                        AdbTextField(
-                            value = query, onValueChange = onQuery, label = "", keyboardType = KeyboardType.Text, imeAction = ImeAction.Search,
-                            placeholder = placeholder, compact = true, focusOnShow = focusOnOpen,
-                            clearFocus = clearSearchFocus,
-                            onFocusChange = { focused -> if (!focused && query.isEmpty()) { searching = false; focusOnOpen = false } },
-                        )
+                    val closable = maxWidth >= 80.dp
+                    val w = androidx.compose.ui.unit.lerp(44.dp, (maxWidth - if (closable) 36.dp else 0.dp).coerceIn(44.dp, 520.dp), open)
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Box(Modifier.width(w).graphicsLayer { alpha = (open * 1.6f).coerceAtMost(1f) }) {
+                            AdbTextField(
+                                value = query, onValueChange = onQuery, label = "", keyboardType = KeyboardType.Text, imeAction = ImeAction.Search,
+                                placeholder = placeholder, compact = true, focusOnShow = focusOnOpen,
+                                clearFocus = clearSearchFocus || !searching,
+                                onFocusChange = { focused -> if (!focused && query.isEmpty()) { searching = false; focusOnOpen = false } },
+                            )
+                        }
+                        if (searching && closable) SmallIconButton(Icons.Filled.Close, stringResource(R.string.common_close), tint = colors.onSurfaceVariant, onClick = close)
                     }
                 } else SearchIcon(stringResource(R.string.stores_search_open)) { searching = true; focusOnOpen = true }
             }
@@ -1066,6 +1131,7 @@ internal fun storePalette(base: Palette, store: Store?): Palette {
         Store.AMAZON -> Color(0xFFFF9900) to Color(0xFFE07800)
         Store.XBOX -> Color(0xFF70C850) to Color(0xFF107C10)
         Store.ITCH -> Color(0xFFFF5C5C) to Color(0xFFD93B3B)
+        Store.BATTLENET -> Color(0xFF148EFF) to Color(0xFF0B6BD3)
         null -> return base
     }
     val on = if (accent.luminance() > 0.18f) Color(0xFF0B0B0D) else Color.White
@@ -1271,7 +1337,8 @@ internal fun CardFace(
                 Spacer(Modifier.matchParentSize().background(Color.Black.copy(alpha = if (blurs) 0.35f else 0.7f)))
                 AsyncImage(model = art, contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.matchParentSize().padding(bottom = CardStrip))
             } else if (art != null) AsyncImage(
-                model = art, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize(),
+                model = art, contentDescription = null, contentScale = if (capsule) ContentScale.Fit else ContentScale.Crop,
+                modifier = Modifier.matchParentSize().padding(bottom = if (capsule) CardStrip else 0.dp),
                 onSuccess = { r ->
                     val drawn = r.result.drawable
                     if (capsule && drawn.intrinsicWidth > 0 && drawn.intrinsicHeight > 0) landscape = drawn.intrinsicWidth > drawn.intrinsicHeight * 0.95f

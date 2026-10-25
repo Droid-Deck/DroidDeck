@@ -211,13 +211,19 @@ if [ -z "${BL_INSIDE:-}" ]; then
   width=${BL_WIDTH:-1280}
   height=${BL_HEIGHT:-720}
   nested=$width
+  nested_h=$height
   if [ "${BL_FOLLOW_OUTPUT:-0}" = 1 ]; then
     echo "== gamescope: the output follows the screen (${width}x${height} to start)"
   elif [ "$mode" = steam ] && [ "${BL_GAMESCOPE_STRETCH_16X9:-0}" = 1 ]; then
     wide=$(( (height * 16 + 4) / 9 / 2 * 2 ))
+    tall=$(( (width * 9 + 8) / 16 / 2 * 2 ))
     if [ "$wide" -gt "$width" ]; then
       nested=$wide
-      echo "== gamescope: games at ${nested}x${height} stretched to the ${width}x${height} output"
+    elif [ "$tall" -gt "$height" ]; then
+      nested_h=$tall
+    fi
+    if [ "$nested" != "$width" ] || [ "$nested_h" != "$height" ]; then
+      echo "== gamescope: games at ${nested}x${nested_h} stretched to the ${width}x${height} output"
     fi
   fi
   # Off unless Performance asks for it. Compositing the cursor here adds a second
@@ -225,8 +231,11 @@ if [ -z "${BL_INSIDE:-}" ]; then
   if [ "$mode" = steam ] && [ "${BL_CURSOR_COMPOSITE:-0}" = 1 ]; then
     export gamescope_cursor_composite=2
   fi
-  args=(--backend wayland --expose-wayland -f -W "$width" -H "$height" -w "$nested" -h "$height")
-  [ "$nested" != "$width" ] && args+=(-S stretch) && export BL_STRETCHED=1
+  args=(--backend wayland --expose-wayland -f -W "$width" -H "$height" -w "$nested" -h "$nested_h")
+  if [ "$nested" != "$width" ] || [ "$nested_h" != "$height" ]; then
+    args+=(-S stretch)
+    export BL_STRETCHED=1
+  fi
   if [ "${BL_FPS:-0}" -gt 0 ]; then
     args+=(-r "$BL_FPS")
   elif [ "${BL_REFRESH:-0}" -gt 0 ]; then
@@ -446,48 +455,135 @@ case $mode in
     fi
     if [ "${BL_ZRAM:-0}" = 1 ]; then
       step "zRAM compression: on"
+      [ "${BL_ZRAM_CLIENT:-1}" = 1 ] || step "zRAM: Steam is not compressed while games run (turned off in Performance)"
+      _bl_ram_cap=0
+      case ${BL_RAM_CAP_MB:-} in
+        ''|0) ;;
+        *[!0-9]*|0*|???????*) step "RAM cap: ignored invalid value '$BL_RAM_CAP_MB'" ;;
+        *) _bl_ram_cap=$((BL_RAM_CAP_MB * 1024)); step "RAM cap: ${BL_RAM_CAP_MB} MB" ;;
+      esac
       (
         bl_zram_scan() {
-          _bl_game=0 _bl_pids=()
+          _bl_game=0 _bl_pids=() _bl_others=()
           for _d in /proc/[0-9]*; do
+            [ "${_d#/proc/}" != "$BASHPID" ] || continue
             # Under FEX the program is FEX's first argument.
             { IFS= read -r -d '' _c && case ${_c##*/} in FEX|FEXInterpreter) IFS= read -r -d '' _c ;; esac; } \
               2>/dev/null < "$_d/cmdline" || continue
             case ${_c##*/} in
               reaper) _bl_game=1 ;;
               steam|steamwebhelper) _bl_pids+=("${_d#/proc/}") ;;
+              *) _bl_others+=("${_d#/proc/}") ;;
             esac
           done
         }
         bl_zram_usage() {
           local _p _k _v _u _rss=0 _swap=0
-          for _p in "${_bl_pids[@]}"; do
+          for _p in "$@"; do
             while read -r _k _v _u; do
               case $_k in VmRSS:) _rss=$((_rss + _v)) ;; VmSwap:) _swap=$((_swap + _v)) ;; esac
             done 2>/dev/null < "/proc/$_p/status"
           done
-          echo "${#_bl_pids[@]} processes, resident $((_rss / 1024)) MB, in zram $((_swap / 1024)) MB"
+          _bl_rss=$_rss
+          echo "$# processes, resident $((_rss / 1024)) MB, in zram $((_swap / 1024)) MB"
+        }
+        # Only processes that loaded libblsession are the session's own and answer SIGURG.
+        bl_session_others() {
+          local _p
+          _bl_session=()
+          for _p in "${_bl_others[@]}"; do
+            grep -q -m1 '/libblsession\.so$' "/proc/$_p/maps" 2>/dev/null && _bl_session+=("$_p")
+          done
+        }
+        bl_zram_pick() {
+          if [ "$1" = session ]; then
+            bl_session_others
+            _pids=("${_bl_session[@]}")
+          else
+            _pids=("${_bl_pids[@]}")
+          fi
+        }
+        # Same protocol as SessionSuspendController: an empty ack when the page-out starts, a byte when it is done.
+        # A process whose SIGURG handler was replaced never acks, so it is not waited for after the first 2 s.
+        bl_zram_wait() {
+          local _p _left _start=$SECONDS
+          while [ $((SECONDS - _start)) -lt 12 ]; do
+            _left=0
+            for _p in "$@"; do
+              [ -s "/tmp/.bl-zram.ack.$_p" ] && continue
+              [ -d "/proc/$_p" ] || continue
+              [ $((SECONDS - _start)) -ge 2 ] && [ ! -e "/tmp/.bl-zram.ack.$_p" ] && continue
+              _left=1
+            done
+            [ "$_left" = 1 ] || break
+            nap 0.2
+          done
+          for _p in "$@"; do rm -f "/tmp/.bl-zram.ack.$_p"; done
         }
         bl_zram_send() {
-          step "zRAM: $2 ($(bl_zram_usage))"
-          printf '%s' "$1" > /tmp/.bl-zram
-          [ "${#_bl_pids[@]}" = 0 ] || kill -URG "${_bl_pids[@]}" 2>/dev/null
-          nap 5
+          local _mode=$1 _what=$2 _which=$3 _pids _p
+          bl_zram_pick "$_which"
+          step "zRAM: $_what ($(bl_zram_usage "${_pids[@]}"))"
+          for _p in "${_pids[@]}"; do rm -f "/tmp/.bl-zram.ack.$_p"; done
+          printf '%s' "$_mode" > /tmp/.bl-zram
+          [ "${#_pids[@]}" = 0 ] || kill -URG "${_pids[@]}" 2>/dev/null
+          if [ "$_mode" = 1 ]; then bl_zram_wait "${_pids[@]}"; else nap 5; fi
           bl_zram_scan
-          step "zRAM: done ($(bl_zram_usage))"
+          bl_zram_pick "$_which"
+          step "zRAM: done ($(bl_zram_usage "${_pids[@]}"))"
         }
-        _bl_since=-1 _bl_packed=-1
+        bl_over_cap() {
+          [ "$_bl_ram_cap" -gt 0 ] || return 1
+          _bl_measured=$SECONDS
+          bl_session_others
+          bl_zram_usage "${_bl_pids[@]}" "${_bl_session[@]}" > /dev/null
+          [ "$_bl_rss" -gt "$_bl_ram_cap" ]
+        }
+        bl_cap_due() {
+          [ "$_bl_ram_cap" -gt 0 ] && { [ "$_bl_measured" -lt 0 ] || [ $((SECONDS - _bl_measured)) -ge 30 ]; }
+        }
+        _bl_since=-1 _bl_packed=-1 _bl_measured=-1 _bl_unpack=0 _bl_capped=-1 _bl_backoff=30
         while kill -0 $$ 2>/dev/null; do
           bl_zram_scan
+          if bl_cap_due; then
+            if bl_over_cap; then
+              # A cap below the game's working set cannot be met; paging out again every 30 s only churns.
+              if [ "$_bl_capped" -lt 0 ] || [ $((SECONDS - _bl_capped)) -ge "$_bl_backoff" ]; then
+                bl_zram_usage "${_bl_pids[@]}" > /dev/null
+                if [ "$_bl_rss" -ge $((512 * 1024)) ]; then
+                  bl_zram_send 1 "over the ${BL_RAM_CAP_MB} MB RAM cap, compressing the client" client
+                  [ "$_bl_game" = 1 ] && _bl_packed=$SECONDS
+                else
+                  step "RAM cap: over, client already small ($((_bl_rss / 1024)) MB resident), skipping it"
+                fi
+                bl_over_cap && bl_zram_send 1 "still over the RAM cap, compressing the rest of the session" session
+                if bl_over_cap; then
+                  _bl_backoff=$((_bl_backoff * 2 > 600 ? 600 : _bl_backoff * 2))
+                  step "RAM cap: still over after paging out, next try in ${_bl_backoff} s"
+                else
+                  _bl_backoff=30
+                fi
+                _bl_capped=$SECONDS
+              fi
+            else
+              _bl_backoff=30
+              if [ "$_bl_unpack" = 1 ] && [ "$_bl_game" = 0 ]; then
+                bl_zram_send 0 "back under the RAM cap, reading the client back" client
+                _bl_unpack=0
+              fi
+            fi
+          fi
           if [ "$_bl_game" = 1 ]; then
             [ "$_bl_since" -ge 0 ] || _bl_since=$SECONDS
-            if [ $((SECONDS - _bl_since)) -ge 20 ] && [ "${#_bl_pids[@]}" -gt 0 ] &&
+            if [ "${BL_ZRAM_CLIENT:-1}" = 1 ] && [ $((SECONDS - _bl_since)) -ge 20 ] && [ "${#_bl_pids[@]}" -gt 0 ] &&
                { [ "$_bl_packed" -lt 0 ] || [ $((SECONDS - _bl_packed)) -ge 300 ]; }; then
-              bl_zram_send 1 "compressing the client"
+              bl_zram_send 1 "compressing the client" client
               _bl_packed=$SECONDS
             fi
           elif [ "$_bl_since" -ge 0 ]; then
-            [ "$_bl_packed" -lt 0 ] || bl_zram_send 0 "game closed, reading the client back"
+            if [ "$_bl_packed" -ge 0 ]; then
+              if bl_over_cap; then _bl_unpack=1; else bl_zram_send 0 "game closed, reading the client back" client; _bl_unpack=0; fi
+            fi
             _bl_since=-1 _bl_packed=-1
           fi
           nap 5
@@ -808,7 +904,11 @@ BUSCONF
       echo "== steam: devtools port $BL_CDP_PORT, guest processes only"
     fi
     [ -n "${BL_LAUNCH_DIR:-}" ] && mkdir -p "$BL_LAUNCH_DIR/agent" && echo "$BL_CDP_PORT" > "$BL_LAUNCH_DIR/agent/cdp-port"
-    [ "$steam_x64" = 1 ] || { "${_bl_compat_env[@]}" droiddeck-steam-compat "$steam_root" 2>&1 & }
+    if [ "$steam_x64" = 1 ]; then
+      { droiddeck-steam-compat --files-only "$steam_root" 2>&1 & }
+    else
+      { "${_bl_compat_env[@]}" droiddeck-steam-compat "$steam_root" 2>&1 & }
+    fi
     _bl_ui=(-gamepadui)
     [ "${BL_STEAM_UI:-}" = desktop ] && _bl_ui=()
     _bl_cef=(-cef-force-gpu -cef-use-gl=angle -cef-use-angle=vulkan)

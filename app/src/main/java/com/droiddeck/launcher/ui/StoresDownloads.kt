@@ -221,7 +221,7 @@ private fun FinishedRow(d: DownloadEntry, s: FrontEndState, a: FrontEndActions, 
     ArtStrip(d.cover, d.name) {
         StripLabel(d.name, d.store.id, stringResource(if (d.state == DownloadState.INSTALLED) R.string.stores_installed_chip else R.string.stores_dl_cancelled), Color.White.copy(alpha = 0.72f))
         if (d.state == DownloadState.INSTALLED) Box(Modifier.bloomIn(bloom, GATHER_HOLD_MS + 150)) {
-            RoundAction(Icons.Filled.PlayArrow, stringResource(R.string.stores_play), primary = true) { if (d.key == EpicClient.DOWNLOAD_KEY) a.onEpicLauncher() else launchStoreGame(ctx, d.store, d.id, s, a) }
+            RoundAction(Icons.Filled.PlayArrow, stringResource(R.string.stores_play), primary = true) { if (d.key == EpicClient.DOWNLOAD_KEY) a.onEpicLauncher() else if (d.key == com.droiddeck.launcher.stores.battlenet.BattleNetClient.DOWNLOAD_KEY) a.onBattleNet() else launchStoreGame(ctx, d.store, d.id, s, a) }
         }
     }
 }
@@ -372,7 +372,7 @@ private fun DownloadCard(d: DownloadEntry, s: FrontEndState, a: FrontEndActions)
                         CancelAction { DownloadQueue.clear(ctx, d.key) }
                     }
                     DownloadState.INSTALLED -> Box(Modifier.bloomIn(true, 420)) {
-                        RoundAction(Icons.Filled.PlayArrow, stringResource(R.string.stores_play), primary = true) { if (d.key == EpicClient.DOWNLOAD_KEY) a.onEpicLauncher() else launchStoreGame(ctx, d.store, d.id, s, a) }
+                        RoundAction(Icons.Filled.PlayArrow, stringResource(R.string.stores_play), primary = true) { if (d.key == EpicClient.DOWNLOAD_KEY) a.onEpicLauncher() else if (d.key == com.droiddeck.launcher.stores.battlenet.BattleNetClient.DOWNLOAD_KEY) a.onBattleNet() else launchStoreGame(ctx, d.store, d.id, s, a) }
                     }
                     DownloadState.CANCELLED -> {}
                 }

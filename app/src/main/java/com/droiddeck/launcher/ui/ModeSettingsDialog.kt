@@ -60,6 +60,7 @@ class ModeSettings(
     val hdrReason: String?,
     val gpuDrivers: String? = null,
     val fpsLimit: Int = 0,
+    val performanceMode: Boolean = false,
     val upscaler: Int = 0,
     val upscaleSharpness: Int = 75,
     val touchMode: String,
@@ -116,6 +117,7 @@ class ModeSettingsActions(
     val onHdr: (Boolean) -> Unit,
     val onGpuDrivers: () -> Unit = {},
     val onFpsLimit: (Int) -> Unit = {},
+    val onPerformanceMode: (Boolean) -> Unit = {},
     val onUpscaler: (Int) -> Unit = {},
     val onUpscaleSharpness: (Int) -> Unit = {},
     val onTouch: (String) -> Unit,
@@ -221,7 +223,8 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
             }
             if (s.stretch16x9 != null && (com.droiddeck.launcher.session.SessionDisplay.canStretch16x9(s.panelSize) ||
                     com.droiddeck.launcher.session.SessionDisplay.canStretch16x9(displaySize))) {
-                val canStretch = com.droiddeck.launcher.session.SessionDisplay.canStretch16x9(displaySize)
+                val canStretch = s.resolution != com.droiddeck.launcher.session.SessionDisplay.FOLLOW_SCREEN &&
+                    com.droiddeck.launcher.session.SessionDisplay.canStretch16x9(displaySize)
                 ChoiceRow(host, "game-fit", stringResource(R.string.display_game_fit),
                     stringResource(if (canStretch) R.string.display_game_fit_hint else R.string.display_game_fit_unavailable),
                     listOf(false to stringResource(R.string.display_preserve), true to stringResource(R.string.display_stretch)),
@@ -240,6 +243,8 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
             )
         }
         SettingsGroup(stringResource(R.string.display_frame_rate)) {
+            ToggleRow(host, "performance", stringResource(R.string.mode_performance), stringResource(R.string.mode_performance_hint),
+                s.performanceMode, onChange = a.onPerformanceMode)
             ChoiceRow(host, "fps", stringResource(R.string.mode_fps), stringResource(R.string.common_applies_next_session),
                 SessionPrefs.fpsLimitChoices(LocalContext.current), s.fpsLimit, note = stringResource(R.string.mode_fps_note), onPick = a.onFpsLimit)
         }
