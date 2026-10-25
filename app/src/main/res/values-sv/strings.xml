@@ -307,6 +307,8 @@
     <string name="mode_client">Klient</string>
     <string name="mode_mangoapp">Prestandaöverlägg</string>
     <string name="mode_mangoapp_hint">Stäng av om spel kraschar eller blir svarta i Deck-läge. Gäller från nästa session.</string>
+    <string name="mode_steam_ui_software">Programvarubaserat Steam-gränssnitt</string>
+    <string name="mode_steam_ui_software_hint">Ritar Steams menyer med processorn i stället för grafikprocessorn. Långsammare; slå på om Steams gränssnitt fryser eller visar trasiga rutor. Gäller från nästa session.</string>
     <string name="mode_steam_repair">Reparera Steam-klienten</string>
     <string name="mode_steam_repair_hint">Laddar ned Steam-klienten igen nästa gång Steam startar. Använd det om Steam fastnar på sin inläsningsskärm. Spel, inloggning och inställningar behålls.</string>
     <string name="mode_steam_repair_queued">Steam-klienten laddas ned igen nästa gång Steam startar.</string>

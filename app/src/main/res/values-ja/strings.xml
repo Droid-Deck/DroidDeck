@@ -307,6 +307,8 @@
     <string name="mode_client">クライアント</string>
     <string name="mode_mangoapp">パフォーマンスオーバーレイ</string>
     <string name="mode_mangoapp_hint">Deckモードでゲームがクラッシュしたり画面が真っ暗になる場合は、これをオフにしてください。次回のセッションで有効になります。</string>
+    <string name="mode_steam_ui_software">Steam UI をソフトウェア描画</string>
+    <string name="mode_steam_ui_software_hint">Steam のメニューを GPU ではなく CPU で描画します。遅くなります。Steam UI が固まる、またはタイルが崩れる場合にオンにしてください。次のセッションから適用されます。</string>
     <string name="mode_return_after_game">ゲーム終了後にDroidDeckへ戻る</string>
     <string name="mode_return_after_game_hint">DroidDeckや他のランチャーから起動したゲームを閉じると、Steamが正しく終了し（クラウドセーブの同期を先に完了）、起動元に戻ります。オフ：Steamに留まります。</string>
     <string name="mode_steam_repair">Steamクライアントを修復</string>

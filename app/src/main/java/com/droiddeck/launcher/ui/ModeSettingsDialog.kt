@@ -86,6 +86,7 @@ class ModeSettings(
     val returnAfterGame: Boolean? = null,
     val steamRepairQueued: Boolean = false,
     val mangoapp: Boolean = true,
+    val steamUiSoftware: Boolean = false,
     val steamController: String? = null,
     val unfoldedControls: Boolean? = null,
     val unfoldedControlsWithController: Boolean = false,
@@ -137,6 +138,7 @@ class ModeSettingsActions(
     val onSteamRepair: () -> Unit = {},
     val onSteamClientArch: (String) -> Unit = {},
     val onMangoapp: (Boolean) -> Unit = {},
+    val onSteamUiSoftware: (Boolean) -> Unit = {},
     val onReturnAfterGame: (Boolean) -> Unit = {},
     val onSteamController: (String) -> Unit = {},
     val onUnfoldedControls: (Boolean) -> Unit = {},
@@ -474,6 +476,11 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
                 host, "mangoapp", stringResource(R.string.mode_mangoapp),
                 stringResource(R.string.mode_mangoapp_hint),
                 s.mangoapp, onChange = a.onMangoapp,
+            )
+            ToggleRow(
+                host, "steamuisoftware", stringResource(R.string.mode_steam_ui_software),
+                stringResource(R.string.mode_steam_ui_software_hint),
+                s.steamUiSoftware, onChange = a.onSteamUiSoftware,
             )
             if (s.returnAfterGame != null) ToggleRow(
                 host, "returnaftergame", stringResource(R.string.mode_return_after_game),

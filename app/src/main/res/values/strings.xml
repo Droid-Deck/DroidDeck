@@ -318,6 +318,8 @@
     <string name="mode_client">Client</string>
     <string name="mode_mangoapp">Performance overlay</string>
     <string name="mode_mangoapp_hint">Turn off if games crash or go black in Deck mode. Applies next session.</string>
+    <string name="mode_steam_ui_software">Software Steam UI</string>
+    <string name="mode_steam_ui_software_hint">Draws Steam\'s menus on the CPU instead of the GPU. Slower; turn on if the Steam UI freezes or shows broken tiles. Applies next session.</string>
     <string name="mode_return_after_game">Return to DroidDeck after a game</string>
     <string name="mode_return_after_game_hint">When a game you started from DroidDeck or another launcher closes, Steam exits cleanly (cloud saves finish first) and you go back there. Off: stay in Steam.</string>
     <string name="mode_steam_repair">Repair Steam client</string>

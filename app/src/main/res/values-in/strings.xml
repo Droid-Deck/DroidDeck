@@ -307,6 +307,8 @@
     <string name="mode_client">Klien</string>
     <string name="mode_mangoapp">Overlay performa</string>
     <string name="mode_mangoapp_hint">Nonaktifkan jika gim crash atau layar menjadi hitam di mode Deck. Berlaku pada sesi berikutnya.</string>
+    <string name="mode_steam_ui_software">UI Steam perangkat lunak</string>
+    <string name="mode_steam_ui_software_hint">Menggambar menu Steam dengan CPU, bukan GPU. Lebih lambat; aktifkan jika UI Steam macet atau menampilkan ubin rusak. Berlaku di sesi berikutnya.</string>
     <string name="mode_steam_repair">Perbaiki klien Steam</string>
     <string name="mode_steam_repair_hint">Mengunduh ulang klien Steam saat Steam dimulai lagi. Gunakan ini jika Steam tetap berada di layar pemuatannya. Gim, status masuk, dan setelan tetap disimpan.</string>
     <string name="mode_steam_repair_queued">Klien Steam akan diunduh ulang saat Steam dimulai lagi.</string>

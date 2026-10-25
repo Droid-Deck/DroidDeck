@@ -307,6 +307,8 @@
     <string name="mode_client">Client</string>
     <string name="mode_mangoapp">Suprapunere de performanță</string>
     <string name="mode_mangoapp_hint">Dezactivează dacă jocurile se blochează sau ecranul devine negru în modul Deck. Se aplică la sesiunea următoare.</string>
+    <string name="mode_steam_ui_software">Interfață Steam software</string>
+    <string name="mode_steam_ui_software_hint">Desenează meniurile Steam cu procesorul în loc de GPU. Mai lent; activează dacă interfața Steam îngheață sau afișează plăci stricate. Se aplică din sesiunea următoare.</string>
     <string name="mode_steam_repair">Repară clientul Steam</string>
     <string name="mode_steam_repair_hint">Descarcă din nou clientul Steam la următoarea pornire a Steam. Folosește-l dacă Steam rămâne blocat pe ecranul de încărcare. Jocurile, autentificarea și setările sunt păstrate.</string>
     <string name="mode_steam_repair_queued">Clientul Steam va fi descărcat din nou la următoarea pornire a Steam.</string>

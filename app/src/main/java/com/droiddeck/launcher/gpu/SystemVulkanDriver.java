@@ -22,13 +22,13 @@ public final class SystemVulkanDriver {
     /** Vendor policy is independent from the shared libhybris HAL loader and Vulkan layer. */
     public enum Profile {
         POWERVR("powervr", "PowerVR", "/vendor/lib64/hw/vulkan.powervr.so", true,
-                "dxvk", "native", true, "VK_LAYER_HYBRIS_compat", "VK_LAYER_HYBRIS_compat", null, null,
+                "dxvk", "native", "VK_LAYER_HYBRIS_compat", "VK_LAYER_HYBRIS_compat", null, null,
                 new String[] {"pvrsrvkm", "pvr", "powervr"}),
         XCLIPSE("xclipse", "Xclipse", "/vendor/lib64/hw/vulkan.samsung.so", true,
-                "dxvk-2.6.2", "native", false, "VK_LAYER_HYBRIS_compat", "VK_LAYER_HYBRIS_compat", null, "0",
+                "dxvk-2.6.2", "native", "VK_LAYER_HYBRIS_compat", "VK_LAYER_HYBRIS_compat", null, "0",
                 new String[] {"sgpu"}),
         MALI("mali", "Mali", "/vendor/lib64/hw/vulkan.mali.so", false,
-                "dxvk-mali", "x11-shm", false, "VK_LAYER_HYBRIS_compat", "VK_LAYER_HYBRIS_compat", null, null,
+                "dxvk-mali", "x11-shm", "VK_LAYER_HYBRIS_compat", "VK_LAYER_HYBRIS_compat", null, null,
                 new String[] {});
 
         public final String id;
@@ -37,7 +37,6 @@ public final class SystemVulkanDriver {
         public final boolean requiresRenderNode;
         public final String dxvkPayload;
         public final String presentation;
-        public final boolean softwareSteamCef;
         final String sessionLayers;
         final String gameLayers;
         final String extraLayerPath;
@@ -45,7 +44,7 @@ public final class SystemVulkanDriver {
         private final String[] drmDrivers;
 
         Profile(String id, String gpuName, String halPath, boolean requiresRenderNode,
-                String dxvkPayload, String presentation, boolean softwareSteamCef, String sessionLayers,
+                String dxvkPayload, String presentation, String sessionLayers,
                 String gameLayers, String extraLayerPath, String sessionBcTextures, String[] drmDrivers) {
             this.id = id;
             this.gpuName = gpuName;
@@ -53,7 +52,6 @@ public final class SystemVulkanDriver {
             this.requiresRenderNode = requiresRenderNode;
             this.dxvkPayload = dxvkPayload;
             this.presentation = presentation;
-            this.softwareSteamCef = softwareSteamCef;
             this.sessionLayers = sessionLayers;
             this.gameLayers = gameLayers;
             this.extraLayerPath = extraLayerPath;
@@ -348,10 +346,6 @@ public final class SystemVulkanDriver {
             environment.add("DROIDDECK_HYBRIS_DXVK=" + selected.dxvkPayload);
         if (selected == Profile.MALI)
             environment.add("DXVK_MALI_COMPAT=1");
-        // Rapid Steam Library scrolling has locked up the PowerVR CEF GPU client.
-        // This changes the Steam UI only; game presentation and DXVK stay independent.
-        if (selected.softwareSteamCef)
-            environment.add("BL_STEAM_CEF_SOFTWARE=1");
         // The outer compositor always uses Android-buffer Wayland presentation.
         environment.add("BL_GAMESCOPE_BACKEND=sdl");
         if (selected.requiresRenderNode) {

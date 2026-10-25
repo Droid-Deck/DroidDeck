@@ -499,6 +499,9 @@ object SessionPrefs {
     fun mangoapp(context: Context): Boolean = prefs(context).getBoolean("mangoapp", true)
     fun setMangoapp(context: Context, on: Boolean) { prefs(context).edit().putBoolean("mangoapp", on).apply() }
 
+    fun steamUiSoftware(context: Context): Boolean = prefs(context).getBoolean("steamUiSoftware", false)
+    fun setSteamUiSoftware(context: Context, on: Boolean) { prefs(context).edit().putBoolean("steamUiSoftware", on).apply() }
+
     fun zinkLazy(context: Context): Boolean = prefs(context).getBoolean("zinkLazy", true)
 
     fun setZinkLazy(context: Context, on: Boolean) {

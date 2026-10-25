@@ -307,6 +307,8 @@
     <string name="mode_client">Kliens</string>
     <string name="mode_mangoapp">Teljesítmény-overlay</string>
     <string name="mode_mangoapp_hint">Kapcsolja ki, ha a játékok összeomlanak vagy elfeketednek Deck módban. A következő munkamenettől érvényes.</string>
+    <string name="mode_steam_ui_software">Szoftveres Steam-felület</string>
+    <string name="mode_steam_ui_software_hint">A Steam menüit a processzor rajzolja a GPU helyett. Lassabb; kapcsolja be, ha a Steam felülete lefagy vagy hibás csempéket mutat. A következő munkamenettől érvényes.</string>
     <string name="mode_steam_repair">Steam-kliens javítása</string>
     <string name="mode_steam_repair_hint">A Steam kliens újbóli letöltése a Steam következő indításakor. Használja, ha a Steam a betöltő képernyőn ragad. A játékok, a bejelentkezés és a beállítások megmaradnak.</string>
     <string name="mode_steam_repair_queued">A Steam kliens újra letöltődik a Steam következő indításakor.</string>

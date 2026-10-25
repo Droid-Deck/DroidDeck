@@ -307,6 +307,8 @@
     <string name="mode_client">클라이언트</string>
     <string name="mode_mangoapp">성능 오버레이</string>
     <string name="mode_mangoapp_hint">Deck 모드에서 게임이 충돌하거나 화면이 검게 변하면 이 옵션을 끄세요. 다음 세션에 적용됩니다.</string>
+    <string name="mode_steam_ui_software">소프트웨어 Steam UI</string>
+    <string name="mode_steam_ui_software_hint">Steam 메뉴를 GPU 대신 CPU로 그립니다. 더 느립니다. Steam UI가 멈추거나 타일이 깨져 보이면 켜세요. 다음 세션부터 적용됩니다.</string>
     <string name="mode_return_after_game">게임 종료 후 DroidDeck으로 돌아가기</string>
     <string name="mode_return_after_game_hint">DroidDeck 또는 다른 런처에서 실행한 게임을 닫으면 Steam이 정상적으로 종료되고(클라우드 저장 동기화를 먼저 완료) 실행한 곳으로 돌아갑니다. 끄면 Steam에 머무릅니다.</string>
     <string name="mode_steam_repair">Steam 클라이언트 복구</string>
