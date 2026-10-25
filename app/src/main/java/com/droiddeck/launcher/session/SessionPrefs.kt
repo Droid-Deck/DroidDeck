@@ -899,6 +899,9 @@ object SessionPrefs {
 
     fun hdr(context: Context, mode: String): Boolean = prefs(context).getBoolean("hdr.$mode", false)
 
+    /** Test build only: zero-copy layer presentation for SDR sessions; no UI, set in session.xml. */
+    fun zeroCopyTest(context: Context, mode: String): Boolean = prefs(context).getBoolean("zeroCopy.$mode", false)
+
     fun setHdr(context: Context, mode: String, on: Boolean) {
         prefs(context).edit().putBoolean("hdr.$mode", on).apply()
     }

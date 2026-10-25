@@ -1708,6 +1708,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 try { android.system.Os.setenv("DROIDDECK_WAYLAND_HDR", "1", true) } catch (e: Exception) { Log.w(TAG, "DROIDDECK_WAYLAND_HDR", e) }
                 WaylandCompositor.nativeSetZeroCopy(true)
             }
+            // Test build: zero-copy layer presentation for SDR sessions too (hidden pref, off by default).
+            if (!on && SessionPrefs.zeroCopyTest(this, mode)) {
+                WaylandCompositor.nativeSetZeroCopy(true)
+                Log.i(TAG, "zero-copy: on for this session (test pref zeroCopy.$mode)")
+            }
             WaylandCompositor.nativeSetHdrRequest(
                 if (on) WaylandCompositor.HDR_MODE_ON else WaylandCompositor.HDR_MODE_OFF,
                 "$mode session settings" + (if (wanted && !on) " (refused: ${probe.reason})" else ""),
