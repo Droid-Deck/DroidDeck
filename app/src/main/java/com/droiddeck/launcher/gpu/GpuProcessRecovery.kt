@@ -15,11 +15,13 @@ internal object GpuProcessRecovery {
 
     fun restartIfNeeded(activity: Activity, request: Intent, lost: Boolean = WaylandCompositor.hasDeviceLost()): Boolean {
         if (!lost) return false
-        if (SessionPrefs.gpuDriverMode(activity) == SessionPrefs.GPU_DRIVERS_AUTO) {
-            AutoDriverTrial.rollbackDue(activity)?.let { AutoDriverTrial.rollBack(activity, it) }
-        }
+        val trialStateSaved = if (SessionPrefs.gpuDriverMode(activity) == SessionPrefs.GPU_DRIVERS_AUTO) {
+            val trial = AutoDriverTrial.rollbackDue(activity)
+            // A failed commit may already clear the in-memory trial; retries must still flush that file.
+            (trial == null || AutoDriverTrial.rollBack(activity, trial)) && AutoDriverTrial.flushPendingWrites(activity)
+        } else true
         // The recovery process will kill us; finish pending driver selection writes first.
-        if (!SessionPrefs.sessionPrefs(activity).edit().commit()) {
+        if (!trialStateSaved || !SessionPrefs.sessionPrefs(activity).edit().commit()) {
             Toast.makeText(activity, R.string.steamvr_recovery_failed, Toast.LENGTH_LONG).show()
             return true
         }

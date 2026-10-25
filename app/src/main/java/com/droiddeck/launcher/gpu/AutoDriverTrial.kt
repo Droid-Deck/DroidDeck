@@ -80,14 +80,24 @@ object AutoDriverTrial {
 
     fun rollbackDue(context: Context): Trial? = current(context)?.takeIf { it.starts >= UNREADY_STARTS_BEFORE_ROLLBACK }
 
-    fun rollBack(context: Context, trial: Trial) {
+    fun rollBack(context: Context, trial: Trial): Boolean {
         Log.w(TAG, "${trial.release} never reached a ready session in ${trial.starts} starts; restoring the previous drivers")
         if (SessionPrefs.androidDriver(context) == trial.display) SessionPrefs.setAndroidDriver(context, trial.previousDisplay)
         if (SessionPrefs.linuxDriver(context) == trial.linux) SessionPrefs.setLinuxDriver(context, trial.previousLinux)
+        if (!SessionPrefs.sessionPrefs(context).edit().commit()) {
+            Log.w(TAG, "Could not persist the previous driver selection")
+            return false
+        }
         val bad = bad(context) + trial.release
-        prefs(context).edit().clear().putStringSet("bad", bad).commit()
+        if (!prefs(context).edit().clear().putStringSet("bad", bad).commit()) {
+            Log.w(TAG, "Could not persist the rejected driver trial")
+            return false
+        }
         prune(context, setOf(trial.previousDisplay, trial.previousLinux, SessionPrefs.androidDriver(context), SessionPrefs.linuxDriver(context)))
+        return true
     }
+
+    internal fun flushPendingWrites(context: Context): Boolean = prefs(context).edit().commit()
 
     fun prune(context: Context, keep: Set<String>) {
         val lm = LinuxVulkanDriverManager(context)
