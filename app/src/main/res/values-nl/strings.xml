@@ -307,6 +307,8 @@
     <string name="mode_client">Client</string>
     <string name="mode_mangoapp">Prestatie-overlay</string>
     <string name="mode_mangoapp_hint">Zet dit uit als games crashen of zwart worden in de Deck-modus. Geldt vanaf de volgende sessie.</string>
+    <string name="mode_steam_ui_software">Steam-interface in software</string>
+    <string name="mode_steam_ui_software_hint">Tekent de menu\'s van Steam met de CPU in plaats van de GPU. Trager; zet aan als de Steam-interface vastloopt of kapotte tegels toont. Geldt vanaf de volgende sessie.</string>
     <string name="mode_steam_repair">Steam-client repareren</string>
     <string name="mode_steam_repair_hint">Downloadt de Steam-client opnieuw bij de volgende start van Steam. Gebruik dit als Steam op het laadscherm blijft hangen. Games, login en instellingen blijven behouden.</string>
     <string name="mode_steam_repair_queued">De Steam-client wordt opnieuw gedownload bij de volgende start van Steam.</string>

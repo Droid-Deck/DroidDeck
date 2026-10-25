@@ -307,6 +307,8 @@
     <string name="mode_client">Klien</string>
     <string name="mode_mangoapp">Overlay prestasi</string>
     <string name="mode_mangoapp_hint">Matikan jika permainan ranap atau skrin hitam dalam mod Deck. Berkuat kuasa pada sesi seterusnya.</string>
+    <string name="mode_steam_ui_software">UI Steam perisian</string>
+    <string name="mode_steam_ui_software_hint">Melukis menu Steam dengan CPU, bukan GPU. Lebih perlahan; hidupkan jika UI Steam membeku atau menunjukkan jubin rosak. Berkuat kuasa pada sesi seterusnya.</string>
     <string name="mode_steam_repair">Baik pulih klien Steam</string>
     <string name="mode_steam_repair_hint">Memuat turun semula klien Steam pada permulaan Steam seterusnya. Gunakan jika Steam tersekat pada skrin pemuatannya. Permainan, log masuk dan tetapan dikekalkan.</string>
     <string name="mode_steam_repair_queued">Klien Steam akan dimuat turun semula pada permulaan Steam seterusnya.</string>

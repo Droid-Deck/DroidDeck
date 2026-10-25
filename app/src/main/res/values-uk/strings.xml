@@ -307,6 +307,8 @@
     <string name="mode_client">Клієнт</string>
     <string name="mode_mangoapp">Оверлей продуктивності</string>
     <string name="mode_mangoapp_hint">Вимкніть, якщо в режимі Deck ігри вилітають або показують чорний екран. Застосовується в наступному сеансі.</string>
+    <string name="mode_steam_ui_software">Програмний інтерфейс Steam</string>
+    <string name="mode_steam_ui_software_hint">Малює меню Steam процесором замість GPU. Повільніше; увімкніть, якщо інтерфейс Steam зависає або показує биті плитки. Застосовується з наступного сеансу.</string>
     <string name="mode_steam_repair">Відновити клієнт Steam</string>
     <string name="mode_steam_repair_hint">Повторно завантажує клієнт Steam під час наступного запуску Steam. Скористайтеся цим, якщо Steam не виходить з екрана завантаження. Ігри, вхід і налаштування зберігаються.</string>
     <string name="mode_steam_repair_queued">Клієнт Steam буде повторно завантажено під час наступного запуску Steam.</string>

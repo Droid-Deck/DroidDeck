@@ -307,6 +307,8 @@
     <string name="mode_client">Клиент</string>
     <string name="mode_mangoapp">Насложен слой за производителност</string>
     <string name="mode_mangoapp_hint">Изключете, ако игрите забиват или екранът става черен в режим Deck. Прилага се от следващата сесия.</string>
+    <string name="mode_steam_ui_software">Софтуерен интерфейс на Steam</string>
+    <string name="mode_steam_ui_software_hint">Рисува менютата на Steam с процесора вместо с GPU. По-бавно; включете, ако интерфейсът на Steam замръзва или показва счупени плочки. Прилага се от следващата сесия.</string>
     <string name="mode_steam_repair">Поправка на клиента на Steam</string>
     <string name="mode_steam_repair_hint">Изтегля отново клиента на Steam при следващото стартиране на Steam. Използвайте, ако Steam остава на екрана за зареждане. Игрите, влизането в профила и настройките се запазват.</string>
     <string name="mode_steam_repair_queued">Клиентът на Steam ще бъде изтеглен отново при следващото стартиране на Steam.</string>

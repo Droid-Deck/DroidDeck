@@ -307,6 +307,8 @@
     <string name="mode_client">用戶端</string>
     <string name="mode_mangoapp">效能重疊層</string>
     <string name="mode_mangoapp_hint">如果 Deck 模式下遊戲崩潰或黑畫面，請關閉此項。下次工作階段生效。</string>
+    <string name="mode_steam_ui_software">軟體算繪 Steam 介面</string>
+    <string name="mode_steam_ui_software_hint">用 CPU 而非 GPU 繪製 Steam 選單。速度較慢；若 Steam 介面凍結或出現破損圖塊，請開啟。下次工作階段生效。</string>
     <string name="mode_return_after_game">遊戲結束後返回 DroidDeck</string>
     <string name="mode_return_after_game_hint">從 DroidDeck 或其他啟動器啟動的遊戲關閉後，Steam 會正常退出（先完成雲端存檔同步），並返回啟動位置。關閉：留在 Steam 中。</string>
     <string name="mode_steam_repair">修復 Steam 用戶端</string>

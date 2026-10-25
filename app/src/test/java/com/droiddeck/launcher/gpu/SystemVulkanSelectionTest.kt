@@ -58,13 +58,13 @@ class SystemVulkanSelectionTest {
         assertFalse(env.any { it.startsWith("WSI_X11_FORCE_SHM=") })
     }
 
-    @Test fun powerVrUsesSoftwareSteamUiAndKeepsHardwareGamePolicy() {
+    @Test fun powerVrUsesGpuSteamUiAndKeepsHardwareGamePolicy() {
         val env = mutableListOf<String>()
         SystemVulkanDriver.addEnvironment(File("/runtime"), "/vendor/lib64/hw/vulkan.powervr.so", "/dev/dri/renderD130", 37, env)
         assertTrue(env.contains("BL_POWERVR_RENDER_NODE=/dev/dri/renderD130"))
         assertTrue(env.contains("BL_POWERVR_DRM_HANDLES=1"))
         assertTrue(env.contains("BL_STEAM_GL_PRESENT=1"))
-        assertTrue(env.contains("BL_STEAM_CEF_SOFTWARE=1"))
+        assertFalse(env.any { it.startsWith("BL_STEAM_CEF_SOFTWARE=") })
         assertTrue(env.contains("DROIDDECK_SYSTEM_VULKAN_PRESENTATION=native"))
         assertTrue(env.contains("DROIDDECK_HYBRIS_DXVK=dxvk"))
         assertTrue(env.contains("DROIDDECK_SYSTEM_VULKAN_GPU=powervr"))

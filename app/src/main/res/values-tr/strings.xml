@@ -307,6 +307,8 @@
     <string name="mode_client">İstemci</string>
     <string name="mode_mangoapp">Performans katmanı</string>
     <string name="mode_mangoapp_hint">Oyunlar Deck modunda çökerse veya ekran kararırsa kapatın. Sonraki oturumda uygulanır.</string>
+    <string name="mode_steam_ui_software">Yazılımsal Steam arayüzü</string>
+    <string name="mode_steam_ui_software_hint">Steam menülerini GPU yerine işlemciyle çizer. Daha yavaştır; Steam arayüzü donarsa veya bozuk karolar gösterirse açın. Sonraki oturumda uygulanır.</string>
     <string name="mode_steam_repair">Steam istemcisini onar</string>
     <string name="mode_steam_repair_hint">Steam bir sonraki başlatıldığında Steam istemcisini yeniden indirir. Steam yükleme ekranında takılı kalırsa kullanın. Oyunlar, oturum bilgileri ve ayarlar korunur.</string>
     <string name="mode_steam_repair_queued">Steam istemcisi, Steam bir sonraki başlatıldığında yeniden indirilecek.</string>

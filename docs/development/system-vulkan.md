@@ -10,7 +10,7 @@ DroidDeck's `android_wlegl` / Android hardware buffer receiver.
 | HAL under `/vendor/lib64/hw/` | `vulkan.powervr.so` | `vulkan.samsung.so` | `vulkan.mali.so` |
 | DRM | Accessible, identifiable PowerVR render node | Accessible, identifiable `sgpu` render node | No DRM-node requirement or handle emulation |
 | Inner X11 presentation | Existing DRI3/Steam GL profile | Existing DRI3/Steam GL profile | Bundled X11 WSI with `WSI_X11_FORCE_SHM=1` |
-| Steam UI rendering | Software CEF; game graphics remain hardware accelerated | Existing GPU CEF path | Existing GPU CEF path |
+| Steam UI rendering | GPU CEF; "Software Steam UI" setting selects software CEF | Existing GPU CEF path | Existing GPU CEF path |
 | Proton DXVK | Managed patched `dxvk` | Managed patched `dxvk-2.6.2` for 128-byte push constants | Managed experimental `dxvk-mali`, guarded to Mali-G715 and Mali-G710 driver 54.3.0 |
 | Session / game compatibility layers | compat / WSI + compat (+ placed for i386) | compat / WSI + compat | compat / WSI + compat (+ placed for managed experimental i386) |
 | Session / managed-game BC emulation | Existing policy / `dxvk` | `0` / `dxvk` | Existing policy / `dxvk` |
@@ -33,7 +33,7 @@ with a managed DXVK payload, or native presentation with a user-selected payload
 | `DROIDDECK_SYSTEM_VULKAN_DXVK` | `managed` uses the runtime wrapper/payload; `user` preserves Proton/DXVK/WineD3D choices |
 | `DROIDDECK_HYBRIS_SESSION_LAYERS` | Outer/session layer list, restored before launching a nested Gamescope |
 | `DROIDDECK_HYBRIS_SESSION_BC_TEXTURES` | Optional outer/session BC policy, restored before nested compositors; Xclipse sets `0` |
-| `BL_STEAM_CEF_SOFTWARE` | `1` selects `-cef-disable-gpu` for Steam's UI; selected by the PowerVR profile only |
+| `BL_STEAM_CEF_SOFTWARE` | `1` selects `-cef-disable-gpu` for Steam's UI; set by the "Software Steam UI" session setting, off by default |
 | `DROIDDECK_EXPERIMENTAL_PLACED_MEMORY` | `1` enables the bundled low-address memory layer for confirmed 32-bit Windows games; `0` disables the PowerVR or managed experimental Mali default |
 
 `DROIDDECK_HYBRIS_LAYERS` separately specifies game compatibility layers;
@@ -192,20 +192,25 @@ or mixed Proton installations.
 
 ### PowerVR Steam UI containment
 
-The PowerVR profile selects software CEF rendering for Steam. A Pixel 11 Pro XL
-capture of rapid **All Games** scrolling identified `steamwebhelper` as the
-PowerVR `GEOM GUILTY_LOCKUP` client before a fatal GNOC reset. The precise failing
-graphics operation and the reset's initiating transaction remain unresolved.
-This policy removes Steam's forced GPU/ANGLE flags and selects `-cef-disable-gpu`.
-The launch log records `CEF software rendering selected (-cef-disable-gpu)`.
+Steam's UI uses the GPU CEF path on PowerVR, as on the other profiles. The
+**Software Steam UI** session setting (off by default) sets
+`BL_STEAM_CEF_SOFTWARE=1`, which removes Steam's forced GPU/ANGLE flags and
+selects `-cef-disable-gpu`. The launch log then records
+`CEF software rendering selected (-cef-disable-gpu)`.
 
-The parent presentation environment is retained for native games, and Proton
-launches keep their managed WSI/DXVK path. No global Mesa software-rendering
-variable is set; Gamescope and the Android compositor still use the GPU. Mali
-and Xclipse keep their current Steam UI behavior. Software CEF may reduce UI
-performance; build/test success is not proof that the reboot is fixed. Device
-validation must repeat **All Games -> hold Down -> rapid scrolling**, including
-newly encountered artwork rather than only a small, already loaded page.
+Software CEF was the PowerVR default before. A Pixel 11 Pro XL capture of rapid
+**All Games** scrolling identified `steamwebhelper` as the PowerVR
+`GEOM GUILTY_LOCKUP` client before a fatal GNOC reset; the failing graphics
+operation remains unresolved. On a Pixel 10 Pro Fold (PowerVR D-Series DXT-48-1536),
+software CEF draws the animating UI at about 12 fps against 52-58 fps on the GPU,
+and rapid Library scrolling on the GPU path did not lock up. Devices that still
+reset can turn the setting on.
+
+The setting changes Steam's UI only. The parent presentation environment is
+retained for native games, Proton launches keep their managed WSI/DXVK path, and
+no global Mesa software-rendering variable is set. Device validation repeats
+**All Games -> hold Down -> rapid scrolling**, including newly encountered artwork
+rather than only a small, already loaded page.
 
 ```text
 Android compositor

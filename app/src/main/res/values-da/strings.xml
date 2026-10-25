@@ -307,6 +307,8 @@
     <string name="mode_client">Klient</string>
     <string name="mode_mangoapp">Ydelsesoverlay</string>
     <string name="mode_mangoapp_hint">Slå fra, hvis spil går ned eller bliver sorte i Deck-tilstand. Gælder fra næste session.</string>
+    <string name="mode_steam_ui_software">Software-Steam-brugerflade</string>
+    <string name="mode_steam_ui_software_hint">Tegner Steams menuer med CPU\'en i stedet for GPU\'en. Langsommere; slå til, hvis Steams brugerflade fryser eller viser ødelagte felter. Gælder fra næste session.</string>
     <string name="mode_steam_repair">Reparer Steam-klienten</string>
     <string name="mode_steam_repair_hint">Downloader Steam-klienten igen, næste gang Steam starter. Brug det, hvis Steam bliver hængende på sin indlæsningsskærm. Spil, login og indstillinger bevares.</string>
     <string name="mode_steam_repair_queued">Steam-klienten downloades igen, næste gang Steam starter.</string>

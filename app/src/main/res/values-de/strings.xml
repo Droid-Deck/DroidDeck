@@ -307,6 +307,8 @@
     <string name="mode_client">Client</string>
     <string name="mode_mangoapp">Leistungs-Overlay</string>
     <string name="mode_mangoapp_hint">Deaktivieren, wenn Spiele im Deck-Modus abstürzen oder schwarz werden. Gilt ab der nächsten Sitzung.</string>
+    <string name="mode_steam_ui_software">Steam-Oberfläche in Software</string>
+    <string name="mode_steam_ui_software_hint">Zeichnet die Steam-Menüs mit der CPU statt der GPU. Langsamer; einschalten, wenn die Steam-Oberfläche einfriert oder kaputte Kacheln zeigt. Gilt ab der nächsten Sitzung.</string>
     <string name="mode_steam_repair">Steam-Client reparieren</string>
     <string name="mode_steam_repair_hint">Lädt den Steam-Client beim nächsten Start von Steam erneut herunter. Nutze dies, wenn Steam im Ladebildschirm hängen bleibt. Spiele, Anmeldung und Einstellungen bleiben erhalten.</string>
     <string name="mode_steam_repair_queued">Der Steam-Client wird beim nächsten Start von Steam erneut heruntergeladen.</string>
