@@ -3027,4 +3027,11 @@
     <string name="game_install_played">Utoljára játszva</string>
     <string name="game_install_access">Hozzáférés</string>
     <string name="game_install_access_owned">Saját</string>
+    <string name="game_stream">Streamelés</string>
+    <string name="library_add">Hozzáadás a könyvtárhoz</string>
+    <string name="library_remove">Eltávolítás a könyvtárból</string>
+    <string name="library_in">A könyvtárban</string>
+    <string name="xbox_filter_show">Megjelenítés</string>
+    <string name="xbox_filter_cloud">Felhő</string>
+    <string name="stores_xbox_cloud_settings">Felhőbeállítások</string>
 </resources>

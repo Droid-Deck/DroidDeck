@@ -16,6 +16,7 @@
 #include <sys/syscall.h>
 #include <sys/sysmacros.h>
 #include <android/log.h>
+#include <android/hardware_buffer.h>
 #include <wayland-server.h>
 
 #include "xdg-shell-server-protocol.h"
@@ -1845,7 +1846,121 @@ static void hdr_count_copied(const struct draw_list *dl, const char *reason) {
     }
 }
 
+/*
+ * Stream mode (the Xbox Cloud Gaming native player, in its own process): no Wayland clients, the scene is one
+ * picture handed over as AHardwareBuffers (ImageReader images of the decoded video). Each buffer is imported once
+ * and kept while the reader cycles through its few buffers; the newest frame is the scene, so the screen effects
+ * and frame generation apply to it as to a game.
+ */
+#define STREAM_SLOTS 6
+static pthread_mutex_t g_stream_lock = PTHREAD_MUTEX_INITIALIZER;
+static atomic_int g_stream_on;
+static AHardwareBuffer *g_stream_pending;
+static struct { AHardwareBuffer *ahb; struct vkp_image *img; uint64_t used; } g_stream_slots[STREAM_SLOTS];
+static struct vkp_image *g_stream_img;
+static uint64_t g_stream_seq;
+static atomic_uint g_stream_frames;
+
+static void stream_forget_all(void) {
+    vkp_wait_idle();
+    for (int i = 0; i < STREAM_SLOTS; i++) {
+        if (g_stream_slots[i].img) vkp_image_destroy(g_stream_slots[i].img);
+        if (g_stream_slots[i].ahb) AHardwareBuffer_release(g_stream_slots[i].ahb);
+        g_stream_slots[i].img = NULL; g_stream_slots[i].ahb = NULL; g_stream_slots[i].used = 0;
+    }
+    g_stream_img = NULL;
+}
+
+/* Compositor thread: the newest handed-over buffer becomes the scene picture. */
+static void stream_take(void) {
+    pthread_mutex_lock(&g_stream_lock);
+    AHardwareBuffer *ahb = g_stream_pending;
+    g_stream_pending = NULL;
+    pthread_mutex_unlock(&g_stream_lock);
+    if (!ahb) return;
+    if (!atomic_load(&g_stream_on)) { AHardwareBuffer_release(ahb); return; }
+    int slot = -1, oldest = 0;
+    for (int i = 0; i < STREAM_SLOTS; i++) {
+        if (g_stream_slots[i].ahb == ahb) { slot = i; break; }
+        if (g_stream_slots[i].used < g_stream_slots[oldest].used) oldest = i;
+    }
+    if (slot >= 0) {
+        AHardwareBuffer_release(ahb); /* the slot keeps its own reference */
+    } else {
+        struct vkp_image *img = vkp_image_from_ahb(ahb);
+        if (!img) {
+            static int said;
+            if (!said) { said = 1; droiddeck_log("stream", "a decoded frame could not be imported: nothing to show"); }
+            AHardwareBuffer_release(ahb);
+            return;
+        }
+        droiddeck_log("stream", "decoded frame buffer imported (%dx%d)", vkp_image_width(img), vkp_image_height(img));
+        slot = oldest;
+        if (g_stream_slots[slot].img) {
+            vkp_wait_idle(); /* the GPU may still read the picture being replaced */
+            if (g_stream_img == g_stream_slots[slot].img) g_stream_img = NULL;
+            vkp_image_destroy(g_stream_slots[slot].img);
+        }
+        if (g_stream_slots[slot].ahb) AHardwareBuffer_release(g_stream_slots[slot].ahb);
+        g_stream_slots[slot].ahb = ahb;
+        g_stream_slots[slot].img = img;
+    }
+    g_stream_slots[slot].used = ++g_stream_seq;
+    g_stream_img = g_stream_slots[slot].img;
+    atomic_fetch_add(&g_stream_frames, 1);
+    schedule_render();
+}
+
+static void render_stream(void) {
+    g_dirty = 0;
+    struct vkp_image *img = g_stream_img;
+    if (!img) return;
+    int w = vkp_image_width(img), h = vkp_image_height(img);
+    if (w != g_scene_w || h != g_scene_h) {
+        droiddeck_log("stream", "picture %dx%d", w, h);
+        g_scene_w = w;
+        g_scene_h = h;
+    }
+    struct vkp_draw d = {.img = img, .sx = 0, .sy = 0, .sw = (float)w, .sh = (float)h, .dx = 0, .dy = 0, .dw = w, .dh = h, .blend = 0};
+    vkp_apply_window_request();
+    sc_layer_hide();
+    int r = vkp_render(w, h, &d, 1);
+    if (r == 0) {
+        g_stat_frames++;
+        static int first;
+        if (!first) { first = 1; droiddeck_log("stream", "first stream frame presented"); }
+    } else {
+        static int failed;
+        if (failed++ % 600 == 0) droiddeck_log("stream", "presenting a stream frame failed (%d, %d times)", r, failed);
+    }
+}
+
+void droiddeck_stream_set(int on) {
+    atomic_store(&g_stream_on, on ? 1 : 0);
+    if (g_input_pipe[1] < 0) return;
+    struct input_msg m = { 21, on ? 1 : 0, 0, 0, 0 };
+    ssize_t n = write(g_input_pipe[1], &m, sizeof(m));
+    (void)n;
+}
+
+/* Any thread: hands over one decoded frame (acquires its own reference). */
+void droiddeck_stream_frame(AHardwareBuffer *ahb) {
+    if (!ahb || !atomic_load(&g_stream_on) || g_input_pipe[1] < 0) return;
+    AHardwareBuffer_acquire(ahb);
+    pthread_mutex_lock(&g_stream_lock);
+    AHardwareBuffer *dropped = g_stream_pending;
+    g_stream_pending = ahb;
+    pthread_mutex_unlock(&g_stream_lock);
+    if (dropped) { AHardwareBuffer_release(dropped); return; } /* a wake-up is already queued */
+    struct input_msg m = { 20, 0, 0, 0, 0 };
+    ssize_t n = write(g_input_pipe[1], &m, sizeof(m));
+    (void)n;
+}
+
+unsigned droiddeck_stream_frames(void) { return atomic_load(&g_stream_frames); }
+
 static void render_scene(void) {
+    if (atomic_load(&g_stream_on)) { render_stream(); return; }
     struct draw_list dl = {0};
     struct surface *s;
     int w, h;
@@ -3005,6 +3120,8 @@ static int on_input_readable(int fd, uint32_t mask, void *data) {
             break;
         case 10: break;
         case 11: axis_event(m.p1, m.p2); break;
+        case 20: stream_take(); break;
+        case 21: if (!m.p1) stream_forget_all(); schedule_render(); break;
         default: deliver_pointer(&m); break;
         }
     }

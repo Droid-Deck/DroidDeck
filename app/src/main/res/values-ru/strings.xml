@@ -3097,4 +3097,11 @@
     <string name="game_install_played">Последний запуск</string>
     <string name="game_install_access">Доступ</string>
     <string name="game_install_access_owned">Куплена</string>
+    <string name="game_stream">Стриминг</string>
+    <string name="library_add">Добавить в библиотеку</string>
+    <string name="library_remove">Убрать из библиотеки</string>
+    <string name="library_in">В библиотеке</string>
+    <string name="xbox_filter_show">Показать</string>
+    <string name="xbox_filter_cloud">Облако</string>
+    <string name="stores_xbox_cloud_settings">Настройки облака</string>
 </resources>

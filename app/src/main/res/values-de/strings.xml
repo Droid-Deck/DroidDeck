@@ -3027,4 +3027,11 @@
     <string name="game_install_played">Zuletzt gespielt</string>
     <string name="game_install_access">Zugang</string>
     <string name="game_install_access_owned">Gekauft</string>
+    <string name="game_stream">Streamen</string>
+    <string name="library_add">Zur Bibliothek hinzufügen</string>
+    <string name="library_remove">Aus der Bibliothek entfernen</string>
+    <string name="library_in">In der Bibliothek</string>
+    <string name="xbox_filter_show">Anzeigen</string>
+    <string name="xbox_filter_cloud">Cloud</string>
+    <string name="stores_xbox_cloud_settings">Cloud-Einstellungen</string>
 </resources>

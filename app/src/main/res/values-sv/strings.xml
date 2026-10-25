@@ -3027,4 +3027,11 @@
     <string name="game_install_played">Senast spelat</string>
     <string name="game_install_access">Åtkomst</string>
     <string name="game_install_access_owned">Ägt</string>
+    <string name="game_stream">Strömma</string>
+    <string name="library_add">Lägg till i Bibliotek</string>
+    <string name="library_remove">Ta bort från Bibliotek</string>
+    <string name="library_in">I Bibliotek</string>
+    <string name="xbox_filter_show">Visa</string>
+    <string name="xbox_filter_cloud">Moln</string>
+    <string name="stores_xbox_cloud_settings">Molninställningar</string>
 </resources>

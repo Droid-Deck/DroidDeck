@@ -198,6 +198,8 @@ object StoresState {
     }
 
     var openDownloads by mutableStateOf(false)
+    /** A "store:id" key another page asks the Stores page to open. */
+    var openGameRequest by mutableStateOf<String?>(null)
 
     private fun askForNotifications(context: Context) {
         val activity = context as? android.app.Activity ?: return

@@ -3005,4 +3005,11 @@
     <string name="game_install_played">上次遊玩</string>
     <string name="game_install_access">存取權</string>
     <string name="game_install_access_owned">已擁有</string>
+    <string name="game_stream">串流</string>
+    <string name="library_add">加入收藏庫</string>
+    <string name="library_remove">從收藏庫移除</string>
+    <string name="library_in">已在收藏庫</string>
+    <string name="xbox_filter_show">顯示</string>
+    <string name="xbox_filter_cloud">雲端</string>
+    <string name="stores_xbox_cloud_settings">雲端設定</string>
 </resources>

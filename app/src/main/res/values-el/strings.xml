@@ -3027,4 +3027,11 @@
     <string name="game_install_played">Τελευταίο παιχνίδι</string>
     <string name="game_install_access">Πρόσβαση</string>
     <string name="game_install_access_owned">Δικό σας</string>
+    <string name="game_stream">Ροή</string>
+    <string name="library_add">Προσθήκη στη Βιβλιοθήκη</string>
+    <string name="library_remove">Αφαίρεση από τη Βιβλιοθήκη</string>
+    <string name="library_in">Στη Βιβλιοθήκη</string>
+    <string name="xbox_filter_show">Εμφάνιση</string>
+    <string name="xbox_filter_cloud">Cloud</string>
+    <string name="stores_xbox_cloud_settings">Ρυθμίσεις cloud</string>
 </resources>

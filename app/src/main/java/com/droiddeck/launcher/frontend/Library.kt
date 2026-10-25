@@ -27,6 +27,7 @@ object Library {
     const val ADDED = "added"
     const val EPIC_LAUNCHER = "epic-launcher"
     const val EPIC_LAUNCHER_NAME = "Epic Games Launcher"
+    const val XBOX_CLOUD = "xbox-cloud"
     const val SOURCE_STEAM = "steam"
 
     class Rom(val name: String, val hostPath: File, val guestPath: String, val emulatorId: String, val art: File? = null)
@@ -106,7 +107,10 @@ object Library {
             .firstOrNull { it.isDirectory }
     }
 
-    fun steamGames(context: Context, strictRead: Boolean = false, arch: String = SessionPrefs.activeSteamClientArch(context)): List<SteamGame> {
+    fun steamGames(
+        context: Context, strictRead: Boolean = false, arch: String = SessionPrefs.activeSteamClientArch(context),
+        withShared: Boolean = true,
+    ): List<SteamGame> {
         val root = SessionPrefs.steamRoot(context, arch)
         val cache = File(root, "appcache/librarycache")
         val libraries = steamLibraries(context, arch)
@@ -139,7 +143,18 @@ object Library {
                     ))
                 }
         }
+        if (withShared) {
+            val other = if (arch == "x86_64") "arm64" else "x86_64"
+            val shared = sharedApps(context, arch) - out.keys
+            if (shared.isNotEmpty()) runCatching { steamGames(context, arch = other, withShared = false) }.getOrDefault(emptyList())
+                .filter { it.appId in shared }.forEach { out[it.appId] = it }
+        }
         return out.values.toList()
+    }
+
+    internal fun sharedApps(context: Context, arch: String): Set<Int> {
+        val view = File(LinuxRuntime.rootDir(context), "root/.droiddeck-x64/shared/${if (arch == "x86_64") "arm64" else "x86-64"}/steamapps")
+        return view.list().orEmpty().mapNotNull { Regex("appmanifest_(\\d+)\\.acf").matchEntire(it)?.groupValues?.get(1)?.toIntOrNull() }.toSet()
     }
 
     fun steamLibraryArt(context: Context): List<Pair<Int, File>> {

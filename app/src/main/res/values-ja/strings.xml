@@ -3004,4 +3004,11 @@
     <string name="game_install_played">最終プレイ</string>
     <string name="game_install_access">アクセス</string>
     <string name="game_install_access_owned">所有</string>
+    <string name="game_stream">ストリーミング</string>
+    <string name="library_add">ライブラリに追加</string>
+    <string name="library_remove">ライブラリから削除</string>
+    <string name="library_in">ライブラリにあります</string>
+    <string name="xbox_filter_show">表示</string>
+    <string name="xbox_filter_cloud">クラウド</string>
+    <string name="stores_xbox_cloud_settings">クラウド設定</string>
 </resources>

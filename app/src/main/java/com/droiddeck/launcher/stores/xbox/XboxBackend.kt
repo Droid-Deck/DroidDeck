@@ -26,6 +26,8 @@ object XboxBackend : StoreBackend {
                 access = emptyMap()
             }
             XboxLibraryCache.clear(context)
+            XboxCloudSession.clear()
+            XboxCloudActivity.clearWebSignIn(context)
             XboxRuntime.stop()
         }
         StoresState.post { packageChoice = null; StoresState.shelves.remove(store); StoresState.found.remove(store) }
@@ -57,9 +59,13 @@ object XboxBackend : StoreBackend {
                 val response = Xodus.run(app, listOf("library", "--json", "--market", market))
                 val licenses = XboxCatalog.access(response, account, market, report = { StoresState.logLine("Xbox: $it") })
                 val products = XboxCatalog.rawProducts(licenses.keys.toList(), market)
-                val games = products.mapNotNull { XboxCatalog.product(it, licenses) }.sortedBy { it.title.lowercase() }
+                val cloud = runCatching { XboxCatalog.cloudCatalog(market) }
+                    .onFailure { StoresState.logLine("Xbox: cloud lists unavailable (${it.javaClass.simpleName})") }.getOrNull()
+                val games = mergeEditions(products.mapNotNull { XboxCatalog.product(it, licenses, cloud) }).sortedBy { it.title.lowercase() }
                 StoresState.logLine("Xbox: library catalog requested=${licenses.size} returned=${products.size} supported=${games.size} " +
-                    "filtered=${products.size - games.size} backend-skipped=${response.optInt("skippedEntitlements")}")
+                    "filtered=${products.size - games.size} backend-skipped=${response.optInt("skippedEntitlements")} " +
+                    "pc=${games.count { it.xboxPc }} cloud=${games.count { it.xboxCloud }} cloud-only=${games.count { !it.xboxPc }} " +
+                    "cloud-lists=${cloud?.gamePass?.size ?: -1}/${cloud?.all?.size ?: -1}")
                 synchronized(this) {
                     if (current != generation || StoreAccounts.signedInAs(app, store) != account) return@Thread
                     access = licenses

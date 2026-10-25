@@ -3002,4 +3002,11 @@
     <string name="game_install_played">Chơi lần cuối</string>
     <string name="game_install_access">Quyền truy cập</string>
     <string name="game_install_access_owned">Đã sở hữu</string>
+    <string name="game_stream">Phát trực tuyến</string>
+    <string name="library_add">Thêm vào Thư viện</string>
+    <string name="library_remove">Xóa khỏi Thư viện</string>
+    <string name="library_in">Trong Thư viện</string>
+    <string name="xbox_filter_show">Hiển thị</string>
+    <string name="xbox_filter_cloud">Đám mây</string>
+    <string name="stores_xbox_cloud_settings">Cài đặt đám mây</string>
 </resources>

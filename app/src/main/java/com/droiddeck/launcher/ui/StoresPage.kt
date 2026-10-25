@@ -257,6 +257,11 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
         chip = id; openGame = null; query = ""
         move("first")
     }
+    LaunchedEffect(StoresState.openGameRequest) {
+        val key = StoresState.openGameRequest ?: return@LaunchedEffect
+        StoresState.openGameRequest = null
+        Store.byId(key.substringBefore(':'))?.let { store -> chip = store.id; query = ""; open(key) }
+    }
     var focusedChip by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(focusedChip) {
         val id = focusedChip ?: return@LaunchedEffect
@@ -953,6 +958,9 @@ private fun ProfileStrip(store: Store, owned: Int, loaded: Boolean, s: FrontEndS
                     show("games")
                 }
                 SmallTextButton(stringResource(R.string.stores_refresh)) { StoresState.open(ctx, store, force = true) }
+                if (store == Store.XBOX) SmallTextButton(stringResource(R.string.stores_xbox_cloud_settings), key = "xbox-cloud-settings") {
+                    ctx.startActivity(android.content.Intent(ctx, com.droiddeck.launcher.stores.xbox.XboxCloudSettingsActivity::class.java))
+                }
                 SignOutButton(store, name)
             }
         }

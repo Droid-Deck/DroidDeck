@@ -3098,4 +3098,11 @@
     <string name="game_install_played">Ostatnio grano</string>
     <string name="game_install_access">Dostęp</string>
     <string name="game_install_access_owned">Posiadana</string>
+    <string name="game_stream">Streamuj</string>
+    <string name="library_add">Dodaj do biblioteki</string>
+    <string name="library_remove">Usuń z biblioteki</string>
+    <string name="library_in">W bibliotece</string>
+    <string name="xbox_filter_show">Pokaż</string>
+    <string name="xbox_filter_cloud">Chmura</string>
+    <string name="stores_xbox_cloud_settings">Ustawienia chmury</string>
 </resources>

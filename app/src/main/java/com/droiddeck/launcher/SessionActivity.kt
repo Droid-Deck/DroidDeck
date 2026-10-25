@@ -1893,7 +1893,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             override fun run() {
                 if (!watching) return
                 if (::pip.isInitialized) pip.refresh()
-                if (SessionState.stopRequested && !SessionState.running && !installingRuntime) {
+                if (SessionState.stopRequested && !SessionState.running && !installingRuntime &&
+                    SessionState.phase != SessionPhase.STOPPING) {
                     SessionState.stopRequested = false
                     SessionEvents.transition(SessionPhase.IDLE, "session.cancelled")
                     collectStartArtifacts("session start cancelled")

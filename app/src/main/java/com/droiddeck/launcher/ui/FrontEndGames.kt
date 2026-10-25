@@ -216,6 +216,7 @@ internal fun playedSpan(lastPlayed: Long): String? {
 
 @Composable
 internal fun libraryLabel(g: Library.SteamGame): String = when {
+    g.library == Library.XBOX_CLOUD -> stringResource(R.string.xbox_cloud_gaming)
     g.library != Library.ADDED -> if (g.library == "internal") stringResource(R.string.games_internal) else g.library
     g.source != Library.ADDED -> stringResource(R.string.games_store_storage)
     else -> ""

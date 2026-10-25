@@ -88,7 +88,10 @@ import com.droiddeck.launcher.stores.download.DownloadQueue
 import com.droiddeck.launcher.stores.download.DownloadState
 import com.droiddeck.launcher.stores.formatBytes
 import com.droiddeck.launcher.stores.xbox.XboxBackend
+import com.droiddeck.launcher.stores.xbox.XboxCloudGames
 import com.droiddeck.launcher.stores.xbox.XboxContent
+import com.droiddeck.launcher.stores.xbox.xboxCloud
+import com.droiddeck.launcher.stores.xbox.xboxPc
 import com.droiddeck.launcher.stores.xbox.XboxRuntime
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -127,7 +130,8 @@ internal fun GameDetail(
     val narrow = LocalNarrowPane.current
     val stacked = narrow || LocalConfiguration.current.screenWidthDp < 700
     val ref = remember(key) { GameRef.parse(key) }
-    val found = ref.game(s.steamGames)
+    val games = s.steamGames + rememberXboxCloudRows(s)
+    val found = ref.game(games)
     val known = remember(key) { arrayOfNulls<Pair<Store, String>>(1) }
     val store = ref.store ?: Store.byId(found?.source) ?: known[0]?.first
     val id = ref.storeId ?: found?.storeId ?: known[0]?.second
@@ -164,9 +168,10 @@ internal fun GameDetail(
     val tabs = buildList {
         if (description.isNotBlank() || developer.isNotBlank() || publisher.isNotBlank() || releaseDate.isNotBlank() || (scored && stacked)) add(GameTab.ABOUT)
         if (achievementState != null) add(GameTab.ACHIEVEMENTS)
-        if (game != null) add(GameTab.LAUNCH)
+        val cloud = game?.library == Library.XBOX_CLOUD
+        if (game != null && !cloud) add(GameTab.LAUNCH)
         if (game != null && game.library == Library.ADDED && prefix != null) add(GameTab.SAVES)
-        if (game != null || installed != null) add(GameTab.INSTALL)
+        if ((game != null && !cloud) || installed != null) add(GameTab.INSTALL)
     }
     var picked by remember(key) { mutableStateOf<GameTab?>(null) }
     val tab = picked?.takeIf { it in tabs } ?: tabs.firstOrNull()
@@ -281,6 +286,7 @@ private fun HeroEyebrow(source: String, game: Library.SteamGame?, item: CatalogI
     val passName = item?.includedWith.orEmpty()
     val state = when {
         installed != null -> listOf(stringResource(R.string.stores_eyebrow_installed), StoreInstallRoot.labelFor(ctx, installed.folder))
+        game?.library == Library.XBOX_CLOUD -> listOf(libraryLabel(game))
         game != null -> listOf(stringResource(R.string.stores_eyebrow_installed), libraryLabel(game))
         !downloadAt.isNullOrBlank() -> listOf(stringResource(R.string.stores_eyebrow_library), downloadAt)
         item?.owned == true -> listOf(stringResource(R.string.stores_eyebrow_library))
@@ -326,6 +332,15 @@ private fun GameActions(
                 PrimaryButton(stringResource(R.string.game_shortcut_choose), enabled = !s.busy, main = true, icon = Icons.Filled.PlayArrow, modifier = leadOn) { a.onSteamGame(game) }
                 FileButtons(game, a)
             }
+            game?.library == Library.XBOX_CLOUD -> {
+                val cloudId = game.storeId.orEmpty()
+                XboxStreamButton(cloudId, game.name, main = true, modifier = leadOn)
+                if (download != null) ActionChip(downloadLabel(download), ok = false)
+                else if (item?.installable == true) SecondaryButton(
+                    if (item.sizeBytes > 0) stringResource(R.string.stores_install_size, formatBytes(item.sizeBytes)) else stringResource(R.string.stores_install),
+                ) { StoresState.requestInstall(ctx, item) }
+                XboxLibraryButton(cloudId, item)
+            }
             game != null || installed != null -> {
                 val gone = storeKey?.let { StoresState.uninstalling[it] }
                 val xboxBusy = store == Store.XBOX && id != null && XboxContent.busy(id)
@@ -341,6 +356,7 @@ private fun GameActions(
                     GameShortcutMenu(game, a)
                     EditArtButton(game)
                 }
+                if (store == Store.XBOX && id != null) XboxInstalledStream(id, game?.name ?: item?.title.orEmpty(), item)
                 if (store == Store.XBOX && installed != null && id != null) {
                     SecondaryButton(stringResource(R.string.stores_xbox_update), enabled = download == null && !XboxRuntime.isActive(id)) {
                         runCatching { XboxBackend.update(ctx, installed) }
@@ -362,6 +378,10 @@ private fun GameActions(
                 }
                 ConfirmButton(stringResource(R.string.stores_dl_clear), stringResource(R.string.stores_dl_cancel_confirm), compact = true) { DownloadQueue.clear(ctx, failed.key) }
             }
+            store == Store.XBOX && item != null && !item.xboxPc && item.xboxCloud -> {
+                XboxStreamButton(item.id, item.title, main = true, modifier = leadOn)
+                XboxLibraryButton(item.id, item)
+            }
             item?.installable == true && StoresState.isUnfinished(item) -> {
                 InstallButton(stringResource(R.string.stores_resume_install), leadOn) { StoresState.requestInstall(ctx, item) }
                 ConfirmButton(stringResource(R.string.stores_dl_clear), stringResource(R.string.stores_dl_cancel_confirm), compact = true) { StoresState.clearUnfinished(ctx, item) }
@@ -371,6 +391,10 @@ private fun GameActions(
                     if (item.sizeBytes > 0) stringResource(R.string.stores_install_size, formatBytes(item.sizeBytes)) else stringResource(R.string.stores_install),
                     leadOn,
                 ) { StoresState.requestInstall(ctx, item) }
+                if (store == Store.XBOX && item.xboxCloud) {
+                    XboxStreamButton(item.id, item.title)
+                    XboxLibraryButton(item.id, item)
+                }
                 if (!item.accessible) SecondaryButton(buyLabel(item)) { openStoreUrl(ctx, item) }
             }
             item != null && item.isFree -> PrimaryButton(stringResource(R.string.stores_get_free), main = true, modifier = leadOn) { openStoreUrl(ctx, item) }
@@ -378,6 +402,52 @@ private fun GameActions(
         }
         BusyChip(s)
     }
+}
+
+/** Xbox Cloud Gaming rows the user added to the Library, for games not installed here. */
+@Composable
+internal fun rememberXboxCloudRows(s: FrontEndState): List<Library.SteamGame> {
+    val ctx = LocalContext.current
+    LaunchedEffect(Unit) { XboxCloudGames.load(ctx) }
+    if (s.shortcutPicker) return emptyList()
+    val added = XboxCloudGames.entries.toList()
+    return remember(added, s.steamGames) {
+        val installedXbox = s.steamGames.filter { it.source == Store.XBOX.id }.mapNotNull { it.storeId }.toSet()
+        XboxCloudGames.rows(ctx, installedXbox)
+    }
+}
+
+@Composable
+private fun XboxStreamButton(id: String, title: String, main: Boolean = false, modifier: Modifier = Modifier) {
+    val ctx = LocalContext.current
+    LaunchedEffect(Unit) { XboxCloudGames.prefetch(ctx) }
+    val label = stringResource(R.string.game_stream)
+    if (main) PrimaryButton(label, main = true, icon = Icons.Filled.PlayArrow, modifier = modifier) { XboxCloudGames.stream(ctx, id, title) }
+    else SecondaryButton(label, modifier = modifier) { XboxCloudGames.stream(ctx, id, title) }
+}
+
+@Composable
+private fun XboxInstalledStream(id: String, title: String, item: CatalogItem?) {
+    val ctx = LocalContext.current
+    val streams by produceState(item?.xboxCloud == true, id) {
+        if (!value) value = withContext(Dispatchers.IO) { XboxCloudGames.streams(ctx, id) }
+    }
+    if (streams) XboxStreamButton(id, title)
+}
+
+@Composable
+private fun XboxLibraryButton(id: String, item: CatalogItem?) {
+    val ctx = LocalContext.current
+    LaunchedEffect(Unit) { XboxCloudGames.load(ctx) }
+    // Add and Remove replace each other; the controller focus moves to the new button instead of getting lost.
+    val slot = remember { FocusRequester() }
+    val inputMode = androidx.compose.ui.platform.LocalInputModeManager.current
+    val scope = rememberCoroutineScope()
+    fun refocus() { if (inputMode.inputMode == androidx.compose.ui.input.InputMode.Keyboard) scope.launch { focusSoon { slot } } }
+    if (XboxCloudGames.isAdded(id)) {
+        ActionChip(stringResource(R.string.library_in), ok = true)
+        SecondaryButton(stringResource(R.string.library_remove), compact = true, modifier = Modifier.focusRequester(slot)) { XboxCloudGames.remove(ctx, id); refocus() }
+    } else if (item != null) SecondaryButton(stringResource(R.string.library_add), modifier = Modifier.focusRequester(slot)) { XboxCloudGames.add(ctx, item); refocus() }
 }
 
 @Composable

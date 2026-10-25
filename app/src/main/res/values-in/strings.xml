@@ -3002,4 +3002,11 @@
     <string name="game_install_played">Terakhir dimainkan</string>
     <string name="game_install_access">Akses</string>
     <string name="game_install_access_owned">Dimiliki</string>
+    <string name="game_stream">Streaming</string>
+    <string name="library_add">Tambahkan ke Pustaka</string>
+    <string name="library_remove">Hapus dari Pustaka</string>
+    <string name="library_in">Di Pustaka</string>
+    <string name="xbox_filter_show">Tampilkan</string>
+    <string name="xbox_filter_cloud">Cloud</string>
+    <string name="stores_xbox_cloud_settings">Pengaturan cloud</string>
 </resources>

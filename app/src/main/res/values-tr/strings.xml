@@ -3029,4 +3029,11 @@
     <string name="game_install_played">Son oynanma</string>
     <string name="game_install_access">Erişim</string>
     <string name="game_install_access_owned">Sahip olunan</string>
+    <string name="game_stream">Akış</string>
+    <string name="library_add">Kütüphane içine ekle</string>
+    <string name="library_remove">Kütüphane içinden kaldır</string>
+    <string name="library_in">Kütüphane içinde</string>
+    <string name="xbox_filter_show">Göster</string>
+    <string name="xbox_filter_cloud">Bulut</string>
+    <string name="stores_xbox_cloud_settings">Bulut ayarları</string>
 </resources>

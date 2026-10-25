@@ -3027,4 +3027,11 @@
     <string name="game_install_played">आखिरी बार खेला</string>
     <string name="game_install_access">एक्सेस</string>
     <string name="game_install_access_owned">आपका</string>
+    <string name="game_stream">स्ट्रीम करें</string>
+    <string name="library_add">लाइब्रेरी में जोड़ें</string>
+    <string name="library_remove">लाइब्रेरी से हटाएँ</string>
+    <string name="library_in">लाइब्रेरी में</string>
+    <string name="xbox_filter_show">दिखाएँ</string>
+    <string name="xbox_filter_cloud">क्लाउड</string>
+    <string name="stores_xbox_cloud_settings">क्लाउड सेटिंग्स</string>
 </resources>

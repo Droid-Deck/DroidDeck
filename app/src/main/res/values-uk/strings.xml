@@ -3095,4 +3095,11 @@
     <string name="game_install_played">Остання гра</string>
     <string name="game_install_access">Доступ</string>
     <string name="game_install_access_owned">Придбана</string>
+    <string name="game_stream">Стримінг</string>
+    <string name="library_add">Додати до бібліотеки</string>
+    <string name="library_remove">Прибрати з бібліотеки</string>
+    <string name="library_in">У бібліотеці</string>
+    <string name="xbox_filter_show">Показати</string>
+    <string name="xbox_filter_cloud">Хмара</string>
+    <string name="stores_xbox_cloud_settings">Налаштування хмари</string>
 </resources>

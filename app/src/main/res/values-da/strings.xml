@@ -3027,4 +3027,11 @@
     <string name="game_install_played">Sidst spillet</string>
     <string name="game_install_access">Adgang</string>
     <string name="game_install_access_owned">Ejet</string>
+    <string name="game_stream">Stream</string>
+    <string name="library_add">Føj til Bibliotek</string>
+    <string name="library_remove">Fjern fra Bibliotek</string>
+    <string name="library_in">I Bibliotek</string>
+    <string name="xbox_filter_show">Vis</string>
+    <string name="xbox_filter_cloud">Sky</string>
+    <string name="stores_xbox_cloud_settings">Skyindstillinger</string>
 </resources>

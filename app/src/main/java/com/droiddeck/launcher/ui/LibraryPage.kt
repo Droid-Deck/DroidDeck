@@ -35,6 +35,7 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Sort
@@ -88,6 +89,7 @@ import com.droiddeck.launcher.stores.StoresState
 import com.droiddeck.launcher.stores.download.DownloadEntry
 import com.droiddeck.launcher.stores.formatBytes
 import com.droiddeck.launcher.stores.retainOrder
+import com.droiddeck.launcher.stores.xbox.XboxLibraryFilter
 import com.droiddeck.launcher.stores.sortGames
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.setValue
@@ -152,11 +154,16 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
     val owned = if (stores) signedIn.associateWith { StoresState.library[it].orEmpty() } else emptyMap()
     val installedStore = StoresState.installed.map { it.key }.toSet()
     val syncing = if (stores) signedIn.mapNotNull { st -> StoresState.status[st]?.let { st to it } } else emptyList()
-    val all = remember(s.steamGames, owned, installedStore) { libraryEntries(s.steamGames, owned, installedStore) }
+    val cloudRows = rememberXboxCloudRows(s)
+    val all = remember(s.steamGames, cloudRows, owned, installedStore) { libraryEntries(s.steamGames + cloudRows, owned, installedStore) }
+    LaunchedEffect(Unit) { XboxLibraryFilter.load(ctx) }
     val sources = LIBRARY_SOURCES.filter { src -> all.any { it.source == src } }
     val source = LibraryView.source.takeIf { it == LIBRARY_ALL || it in sources } ?: LIBRARY_ALL
     val q = LibraryView.query.trim().lowercase()
-    val candidates = all.filter { (source == LIBRARY_ALL || it.source == source) && (q.isEmpty() || it.title.lowercase().contains(q)) }
+    val xboxFilter = if (source == Store.XBOX.id) XboxLibraryFilter.current else XboxLibraryFilter.ALL
+    val candidates = all.filter {
+        (source == LIBRARY_ALL || it.source == source) && (q.isEmpty() || it.title.lowercase().contains(q)) && keepsXbox(xboxFilter, it)
+    }
     val sort = s.storesSort
     val sizeSort = sort == "sizeAsc" || sort == "sizeDesc"
     val installedAt = StoresState.installed.associate { it.key to it.sidecar.installedAt }
@@ -349,7 +356,7 @@ private fun LibraryGrid(
         horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp),
         contentPadding = PaddingValues(top = 4.dp, bottom = 16.dp),
     ) {
-        item(key = "header", span = { GridItemSpan(maxLineSpan) }) { Rise(0) { LibraryHeader(s, a, total, searchCleared) } }
+        item(key = "header", span = { GridItemSpan(maxLineSpan) }) { Rise(0) { LibraryHeader(s, a, total, searchCleared, xbox = source == Store.XBOX.id) } }
         item(key = "filters", span = { GridItemSpan(maxLineSpan) }) {
             Rise(1) { LibraryFilters(sources, source, onSource) }
         }
@@ -387,7 +394,7 @@ private fun LazyGridScope.libraryGrid(entries: List<LibraryEntry>, empty: Int, t
 }
 
 @Composable
-private fun LibraryHeader(s: FrontEndState, a: FrontEndActions, total: Int, searchCleared: Boolean) {
+private fun LibraryHeader(s: FrontEndState, a: FrontEndActions, total: Int, searchCleared: Boolean, xbox: Boolean) {
     val colors = MaterialTheme.colorScheme
     val narrow = LocalNarrowPane.current
     ModeHeader(
@@ -402,6 +409,7 @@ private fun LibraryHeader(s: FrontEndState, a: FrontEndActions, total: Int, sear
             }
         },
     ) {
+        if (xbox) XboxFilterButton()
         SortButton(s, a)
         ViewButton(s, a)
         GameFileFolderActions(s, a)
@@ -571,6 +579,50 @@ private fun HeaderIconButton(description: String, icon: androidx.compose.ui.grap
             .controllerConfirm(onClick = onClick)
             .semantics { contentDescription = description },
     ) { Icon(icon, null, tint = if (hot) pal.signal else colors.onSurfaceVariant, modifier = Modifier.size(18.dp)) }
+}
+
+internal fun keepsXbox(filter: String, e: LibraryEntry): Boolean = when {
+    filter == XboxLibraryFilter.ALL || e.source != Store.XBOX.id -> true
+    e.game?.library == Library.XBOX_CLOUD -> filter == XboxLibraryFilter.CLOUD
+    else -> e.item?.let { XboxLibraryFilter.keeps(filter, it) } == true
+}
+
+@Composable
+private fun xboxFilterLabel(filter: String): String = when (filter) {
+    XboxLibraryFilter.OWNED -> stringResource(R.string.game_install_access_owned)
+    XboxLibraryFilter.GAME_PASS -> stringResource(R.string.xbox_filter_game_pass)
+    XboxLibraryFilter.CLOUD -> stringResource(R.string.xbox_filter_cloud)
+    else -> stringResource(R.string.stores_tab_all)
+}
+
+@Composable
+private fun XboxFilterButton() {
+    val pal = LocalPalette.current
+    val ctx = LocalContext.current
+    val title = stringResource(R.string.xbox_filter_show)
+    var at by remember { mutableStateOf<Rect?>(null) }
+    Box(Modifier.onGloballyPositioned { at = it.boundsInRoot() }) {
+        HeaderIconButton(title + " · " + xboxFilterLabel(XboxLibraryFilter.current), Icons.Filled.FilterList, "xbox-filter") {
+            val from = at ?: return@HeaderIconButton
+            Steps.ask(StepAsk(
+                anchor = from, side = StepSide.Left, accent = pal.signal, pillCorner = 8.dp, items = XboxLibraryFilter.ALL_FILTERS.size,
+                handle = { Text(title, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = pal.signal, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+            ) {
+                StepTitle(title)
+                StepList {
+                    XboxLibraryFilter.ALL_FILTERS.forEachIndexed { i, filter ->
+                        StepChoice(
+                            xboxFilterLabel(filter), selected = filter == XboxLibraryFilter.current, enabled = open,
+                            modifier = Modifier.fillMaxWidth().stepItem(i).then(if (filter == XboxLibraryFilter.current) Modifier.focusRequester(first) else Modifier),
+                        ) {
+                            XboxLibraryFilter.set(ctx, filter)
+                            Steps.fold()
+                        }
+                    }
+                }
+            })
+        }
+    }
 }
 
 @Composable

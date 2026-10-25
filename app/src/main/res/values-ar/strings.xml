@@ -3163,4 +3163,11 @@
     <string name="game_install_played">آخر لعب</string>
     <string name="game_install_access">الوصول</string>
     <string name="game_install_access_owned">مملوكة</string>
+    <string name="game_stream">بث</string>
+    <string name="library_add">إضافة إلى المكتبة</string>
+    <string name="library_remove">إزالة من المكتبة</string>
+    <string name="library_in">في المكتبة</string>
+    <string name="xbox_filter_show">عرض</string>
+    <string name="xbox_filter_cloud">سحابية</string>
+    <string name="stores_xbox_cloud_settings">إعدادات السحابة</string>
 </resources>

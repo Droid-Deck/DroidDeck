@@ -3061,4 +3061,11 @@
     <string name="game_install_played">Jucat ultima dată</string>
     <string name="game_install_access">Acces</string>
     <string name="game_install_access_owned">Deținut</string>
+    <string name="game_stream">Redă în flux</string>
+    <string name="library_add">Adaugă în Bibliotecă</string>
+    <string name="library_remove">Elimină din Bibliotecă</string>
+    <string name="library_in">În Bibliotecă</string>
+    <string name="xbox_filter_show">Afișează</string>
+    <string name="xbox_filter_cloud">Cloud</string>
+    <string name="stores_xbox_cloud_settings">Setări cloud</string>
 </resources>
