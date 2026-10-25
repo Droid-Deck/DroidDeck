@@ -1,0 +1,72 @@
+#!/bin/bash
+# Starts the Orca screen reader in the current session, when the app has installed it and enabled
+# it (BL_ORCA=1, from the app's Accessibility tab). Called by droiddeck-session for the Steam and
+# program modes and by droiddeck-desktop for the Plasma desktop, so every session that enters the
+# Linux runtime - whichever way the user lands in it - reads the screen.
+#
+# Orca is a session-long background program: this script waits for the display the session is
+# drawing on, then runs orca under it for the life of the session. It also watches for the app's
+# "Open Orca settings" request (root/.config/droiddeck/orca-settings) and answers it on the
+# session's own display.
+set -u
+[ "${BL_ORCA:-0}" = 1 ] || exit 0
+command -v orca >/dev/null 2>&1 || exit 0
+settings_file=$HOME/.config/droiddeck/orca-settings
+
+# The app passes its interface language (BL_ORCA_LANG); point Orca's preferences dialog and
+# speech-dispatcher at the matching locale so both the setup page and the default voice follow the
+# user's language. droiddeck-orca-setup generated these locales during install.
+case "${BL_ORCA_LANG:-}" in
+  zh*|cmn*) locale=zh_CN.UTF-8 ;;
+  es*) locale=es_ES.UTF-8 ;;
+  fr*) locale=fr_FR.UTF-8 ;;
+  ja*) locale=ja_JP.UTF-8 ;;
+  ko*) locale=ko_KR.UTF-8 ;;
+  ru*) locale=ru_RU.UTF-8 ;;
+  *) locale=en_US.UTF-8 ;;
+esac
+if locale -a 2>/dev/null | grep -qx "$locale"; then
+  export LANG="$locale" LC_ALL="$locale"
+fi
+
+# Orca keeps its preferences in dconf, which talks over a session bus. Steam sessions have no
+# session bus of their own (the Plasma desktop brings one through dbus-run-session); start one
+# and keep its address for everything this script starts.
+if [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ] && command -v dbus-daemon >/dev/null 2>&1; then
+  export DBUS_SESSION_BUS_ADDRESS=$(dbus-daemon --session --fork --print-address 2>/dev/null) || true
+fi
+
+# speech-dispatcher and the D-Bus daemon put their sockets under XDG_RUNTIME_DIR; a bare Steam
+# session may not have created it yet, so make sure it exists and is private before anything
+# (Orca, dconf, the speech server) tries to write there.
+if [ -z "${XDG_RUNTIME_DIR:-}" ]; then export XDG_RUNTIME_DIR=/tmp; fi
+mkdir -p "$XDG_RUNTIME_DIR" 2>/dev/null && chmod 700 "$XDG_RUNTIME_DIR" 2>/dev/null || true
+
+# Wait for the display: Steam's gamescope brings Xwayland up as the client starts, and the Plasma
+# desktop's KWin comes up after this script is called from its session. Orca starting before any
+# display exists exits at once, so wait rather than race it. A first Steam download can take a
+# couple of minutes, so give the display a generous window before giving up on the session.
+display_ready() {
+  { [ -n "${WAYLAND_DISPLAY:-}" ] && [ -S "$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY" ]; } ||
+  { [ -n "${DISPLAY:-}" ] && [ -S "/tmp/.X11-unix/X${DISPLAY#:}" ]; }
+}
+for _ in $(seq 1 600); do
+  display_ready && break
+  sleep 0.5
+done
+display_ready || { echo "== no display after five minutes, Orca not started" >&2; exit 0; }
+
+orca --replace >/dev/null 2>&1 &
+
+# The app's "Open Orca settings" button writes the request file into the runtime; bring the
+# preferences dialog up on this session's display and take the request down whether or not the
+# dialog can be shown.
+(
+  while :; do
+    if [ -f "$settings_file" ]; then
+      rm -f "$settings_file"
+      orca --setup >/dev/null 2>&1 &
+    fi
+    sleep 1
+  done
+) &

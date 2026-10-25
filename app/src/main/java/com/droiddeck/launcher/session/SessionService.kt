@@ -44,6 +44,7 @@ import com.droiddeck.launcher.input.SteamControllerBle
 import com.droiddeck.launcher.runtime.BwrapSpawner
 import com.droiddeck.launcher.runtime.LinuxNetworkLinkComponent
 import com.droiddeck.launcher.runtime.LinuxRuntime
+import com.droiddeck.launcher.runtime.OrcaManager
 import com.droiddeck.launcher.runtime.ProotFastPath
 import com.droiddeck.launcher.runtime.UserApps
 import com.droiddeck.launcher.wayland.WaylandCompositor
@@ -76,6 +77,9 @@ class SessionService : Service() {
     private var suspendDownloadNow = false
     private var suspendPolicy = SessionPrefs.SUSPEND_MANUAL
     private var steamDownloadsInBackground = false
+    // An Accessibility-settings session: started to show Orca's preferences, so BL_ORCA is forced
+    // on even when the reader itself is not enabled yet.
+    private var orcaSettings = false
     private var activityVisible = true
     private var activityDisplayId = Display.DEFAULT_DISPLAY
     private var xrActivityVisible = false
@@ -351,8 +355,10 @@ class SessionService : Service() {
         SessionState.programArgs = intent?.getStringArrayExtra(EXTRA_PROGRAM_ARGS)?.toList().orEmpty()
         SessionState.steamUi = intent?.getStringExtra(EXTRA_STEAM_UI)
         SessionState.steamUrl = intent?.getStringExtra(EXTRA_STEAM_URL)
+        orcaSettings = intent?.getBooleanExtra(EXTRA_ORCA_SETTINGS, false) ?: false
         synchronized(stopLock) {
             SessionState.steamClientArch = null
+            SessionState.orcaActive = false
             SessionState.running = true
         }
         if (SessionState.stopRequested) {
@@ -501,6 +507,18 @@ class SessionService : Service() {
             if (added.isNotEmpty()) Log.i(TAG, "added games: " + added.joinToString { "${it.name} (${it.exe.name})" })
         }
         guest.add("BL_LAUNCH_DIR=" + sessionRoot.path)
+        // The screen reader: with Orca installed and enabled, every session that enters the
+        // runtime starts it (droiddeck-orca reads BL_ORCA in the session script and the desktop).
+        // An Accessibility-settings session forces it on so the preferences dialog can be shown
+        // even before the reader is enabled.
+        SessionState.orcaActive = OrcaManager.isInstalled(this) &&
+            (OrcaManager.enabled(this) || orcaSettings)
+        if (SessionState.orcaActive) {
+            guest.add("BL_ORCA=1")
+            // Orca's preferences dialog and default voice follow the app's interface language.
+            guest.add("BL_ORCA_LANG=" + OrcaManager.languageTag())
+        }
+        // The second library's name, for droiddeck-steam-library; the bind itself is made below.
         GameStorage.effective(this)?.let { guest.add("BL_LIBRARY_LABEL=" + it.label.replace('"', ' ')) }
         if (SessionState.mode == MODE_STEAM && SessionState.steamUi == "desktop") guest.add("BL_STEAM_UI=desktop")
         val shellGuest = ArrayList(guest).apply {
@@ -1680,6 +1698,7 @@ class SessionService : Service() {
             SessionEvents.record("guest.exited", mapOf("status" to status))
             SessionEvents.transition(SessionPhase.STOPPING, "session.stopping", mapOf("status" to status))
             SessionState.running = false
+            SessionState.orcaActive = false
             SessionPaths.take() to SessionState.steamClientArch
         }
         SessionState.micAvailable = false
@@ -2022,6 +2041,7 @@ class SessionService : Service() {
         const val EXTRA_STEAM_UI = "steamUi"
         const val EXTRA_STEAM_URL = "steamUrl"
         const val EXTRA_GAME_ID = "gameId"
+        const val EXTRA_ORCA_SETTINGS = "orcaSettings"
 
         fun start(
             context: Context, mode: String = MODE_STEAM, program: String? = null,
