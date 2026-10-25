@@ -660,6 +660,9 @@ class Harness(Temp):
 
     def setUp(self):
         super().setUp()
+        env = mock.patch.dict(os.environ)
+        env.start()
+        self.addCleanup(env.stop)
         self.root = str(self.tmp / "Steam")
         self.calls = []
         self.lock = self.Lock()
@@ -787,6 +790,18 @@ class LaunchTest(Harness):
         self.assertEqual(reg.count('"Wallpaper"="C:\\\\users\\\\steamuser\\\\AppData\\\\Local\\\\DroidDeck\\\\wallpaper-160x90.bmp"'), 1)
         self.assertIn('[Control Panel\\\\Desktop]', reg)
         self.assertIn('"Background"="4 6 11"', reg)
+        self.assertIn('"WallpaperStyle"="0"', reg)
+
+    def test_a_large_desktop_gets_a_stretched_smaller_wallpaper(self):
+        self.install()
+        pfx = Path(self.root) / ("steamapps/compatdata/%s/pfx" % BNET["APP_ID"])
+        (pfx / "user.reg").write_text("WINE REGISTRY Version 2\n")
+        with mock.patch.dict(os.environ, {"BL_WIDTH": "2560", "BL_HEIGHT": "1600"}), \
+                mock.patch.dict(BNET, {"wallpaper_bmp": lambda w, h: b"BM%dx%d" % (w, h)}):
+            self.assertTrue(BNET["wallpaper"](self.root))
+        image = pfx / "drive_c/users/steamuser/AppData/Local/DroidDeck/wallpaper-1152x720.bmp"
+        self.assertEqual(image.read_bytes(), b"BM1152x720")
+        self.assertIn('"WallpaperStyle"="2"', (pfx / "user.reg").read_text())
 
     def test_an_open_battle_net_is_handed_the_game(self):
         self.install()

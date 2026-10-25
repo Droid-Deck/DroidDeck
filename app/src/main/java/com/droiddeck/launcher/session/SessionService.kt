@@ -351,6 +351,7 @@ class SessionService : Service() {
         SessionState.programArgs = intent?.getStringArrayExtra(EXTRA_PROGRAM_ARGS)?.toList().orEmpty()
         SessionState.steamUi = intent?.getStringExtra(EXTRA_STEAM_UI)
         SessionState.steamUrl = intent?.getStringExtra(EXTRA_STEAM_URL)
+        File(LinuxRuntime.sessionRoot(this), com.droiddeck.launcher.stores.battlenet.BattleNetClient.REQUEST).delete()
         synchronized(stopLock) {
             SessionState.steamClientArch = null
             SessionState.running = true
@@ -426,7 +427,6 @@ class SessionService : Service() {
 
         val root = LinuxRuntime.rootDir(this)
         val sessionRoot = LinuxRuntime.sessionRoot(this).apply { mkdirs() }
-        File(sessionRoot, com.droiddeck.launcher.stores.battlenet.BattleNetClient.REQUEST).delete()
         val runtimeDir = File(filesDir, ".wayland-rt").apply { mkdirs() }
         killStragglers()
         for (pack in listOf(AddonPack.PROOT, AddonPack.DIRECTAUDIO))

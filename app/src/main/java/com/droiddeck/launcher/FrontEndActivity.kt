@@ -1600,7 +1600,10 @@ class FrontEndActivity : ComponentActivity() {
 
     private fun handToBattleNet(args: List<String>, returnHome: Boolean = false, otherwise: () -> Unit): Boolean {
         if (SessionState.mode != SessionService.MODE_RUN || SessionState.program != com.droiddeck.launcher.session.NoSteamLaunch.BATTLENET) return false
-        val request = if (args.firstOrNull() == "--library") args.drop(2) else args
+        val library = args.takeIf { it.firstOrNull() == "--library" }?.getOrNull(1)
+        val sessionLibrary = SessionState.programArgs.takeIf { it.firstOrNull() == "--library" }?.getOrNull(1)
+        if (library != null && sessionLibrary != null && library != sessionLibrary) return false
+        val request = if (library != null) args.drop(2) else args
         val app = applicationContext
         Thread({
             val handed = request.isEmpty() || com.droiddeck.launcher.stores.battlenet.BattleNetClient.request(LinuxRuntime.sessionRoot(app), request)

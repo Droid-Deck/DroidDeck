@@ -3509,6 +3509,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         SessionEvents.firstFrame()
         if (SessionState.mode == SessionService.MODE_STEAM) SteamRepair.clientShown(this)
         runOnUiThread {
+            if (isFinishing || isDestroyed) return@runOnUiThread
             loading.visible = false
             hud.start()
             memoryHud.start()

@@ -30,6 +30,7 @@ WALLPAPER_DIR = ("users", "steamuser", "AppData", "Local", "DroidDeck")
 DESKTOP_KEY = "[Control Panel\\\\Desktop]"
 COLORS_KEY = "[Control Panel\\\\Colors]"
 WALLPAPER_EDGE = (4, 6, 11)
+WALLPAPER_MAX = (1280, 720)
 FEX_REQUEST = "battlenet-fex.request"
 FEX_RESULT = "battlenet-fex.result"
 FEX_WAIT = 120
@@ -231,6 +232,8 @@ def desktop_size():
 
 def wallpaper(root):
     width, height = desktop_size()
+    shrink = min(1.0, WALLPAPER_MAX[0] / width, WALLPAPER_MAX[1] / height)
+    width, height = max(1, round(width * shrink)), max(1, round(height * shrink))
     name = "wallpaper-%dx%d.bmp" % (width, height)
     folder = os.path.join(drive_c(root), *WALLPAPER_DIR)
     path = os.path.join(folder, name)
@@ -246,7 +249,7 @@ def wallpaper(root):
     windows = "C:\\" + "\\".join(WALLPAPER_DIR + (name,))
     reg_value(reg, DESKTOP_KEY, "Wallpaper", windows)
     reg_value(reg, DESKTOP_KEY, "TileWallpaper", "0")
-    reg_value(reg, DESKTOP_KEY, "WallpaperStyle", "0")
+    reg_value(reg, DESKTOP_KEY, "WallpaperStyle", "2" if shrink < 1 else "0")
     reg_value(reg, COLORS_KEY, "Background", "%d %d %d" % WALLPAPER_EDGE)
     return True
 
