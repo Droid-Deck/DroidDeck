@@ -85,6 +85,8 @@
     <string name="game_env_vkd3d_config">VKD3D options for D3D12. nodxr disables ray tracing; use only for a game that needs it.</string>
     <string name="game_env_proton_log">Set to 1 for a Proton diagnostic log. Logging can reduce performance and use storage.</string>
     <string name="game_env_wined3d">Set to 1 to use OpenGL-based WineD3D instead of DXVK for D3D9–11 compatibility testing.</string>
+    <string name="game_env_wined3d_renderer">Renderer for DirectDraw, Direct3D 1-7 and games run with WineD3D. Vulkan skips the OpenGL-on-Zink path and is much faster for old DirectDraw and Direct3D 7 games on Adreno.</string>
+    <string name="game_env_dxvk_d3d8">Set to 1 to run Direct3D 8 through DXVK instead of WineD3D. Faster in AIO Graphics Test\'s Direct3D 8 test on Adreno.</string>
     <string name="game_env_no_ntsync">Set to 1 to keep this game off ntsync (droiddeck-ntsync or a kernel driver); it uses droiddeck-esync where a pack exists, otherwise droiddeck-fsync.</string>
     <string name="game_env_no_esync">Set to 1 to turn droiddeck-esync off for this game; it uses droiddeck-fsync instead, or droiddeck-ntsync where fsync is off too.</string>
     <string name="game_env_no_fsync">Set to 1 to keep this game off droiddeck-fsync; it uses droiddeck-esync where a pack exists, otherwise droiddeck-ntsync.</string>
@@ -93,6 +95,7 @@
     <string name="game_env_anticheat_offline">On by default. Starts an Easy Anti-Cheat game without its anti-cheat when the game supports offline play. Turn off to launch through Easy Anti-Cheat as usual. Online modes that require Easy Anti-Cheat remain unavailable.</string>
     <string name="game_env_hud">DXVK overlay for D3D9–11. fps displays frame rate; unset hides it.</string>
     <string name="game_env_dxvk_config">DXVK settings separated by semicolons. Recent builds use dxvk.maxFrameRate for frame limiting; prefer the session frame limiter for ordinary play.</string>
+    <string name="game_env_cores">CPU cores for this game, such as 0-4 or 0,2,4, in place of the session\'s game cores. Fewer cores run cooler.</string>
     <string name="game_env_vkd3d_limit">D3D12 frame-rate limit. 0 disables the limit.</string>
     <string name="game_env_glthread">Mesa OpenGL threading. true can help CPU-limited OpenGL games; test per game.</string>
     <string name="sync_backend_title">Wine sync</string>
@@ -143,6 +146,7 @@
     <string name="user_apps_remove">Remove</string>
     <string name="user_apps_remove_confirm">Press again to remove</string>
     <string name="user_apps_stop_session">Stop the session to remove</string>
+    <string name="bnet_name" translatable="false">Battle.net</string>
     <string name="user_apps_script_linked">Runs %1$s from its folder, linked into the session where it lies. Removing the app leaves that folder alone.</string>
     <string name="user_apps_script_copied">Runs %1$s from a copy of its folder inside DroidDeck. Removing the app deletes the copy, not the original.</string>
     <string name="user_apps_runtime_required">Install the Linux runtime first</string>
@@ -253,6 +257,8 @@
     <string name="mode_ratio_custom">Set by the custom resolution.</string>
     <string name="mode_ratio_auto">Auto uses at least 16:9.</string>
     <string name="mode_fps">Frame limit</string>
+    <string name="mode_performance">Performance mode</string>
+    <string name="mode_performance_hint">With no frame limit, games run as fast as they can: frames go back to the game without waiting for the screen. With a frame limit, frames stay paced to it. Either way, gamescope and Wine skip repeated window checks. Uses more power and runs warmer without a limit. Applies next session.</string>
     <string name="mode_fps_note">Caps the whole session. The display switches to a refresh rate the cap divides evenly.</string>
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">HDR10 output</string>
@@ -292,9 +298,6 @@
     <string name="mode_suspend_steam_note">Auto pauses and resumes when shown. Native prepares Steam for sleep first. Manual waits for Resume. Never keeps running.</string>
     <string name="mode_background_downloads">Keep downloads running</string>
     <string name="mode_background_downloads_hint">Delay background suspension while Steam is actively downloading.</string>
-    <string name="mode_zram">zRAM compression</string>
-    <string name="mode_zram_hint">While a game runs, the Steam client\'s memory is compressed into the device\'s zram, leaving more RAM for the game. Applies the next time Steam starts.</string>
-    <string name="mode_zram_unsupported">Unavailable: this device has no zram or swap, or its kernel is older than 5.4.</string>
     <string name="mode_suspend_note">Auto pauses in the background and resumes when shown. Manual waits for Resume. Never keeps running.</string>
     <string name="mode_startup">Startup</string>
     <string name="mode_steam_startup">Start Steam with DroidDeck</string>
@@ -323,6 +326,8 @@
     <string name="mode_mangoapp_hint">Turn off if games crash or go black in Deck mode. Applies next session.</string>
     <string name="mode_return_after_game">Return to DroidDeck after a game</string>
     <string name="mode_return_after_game_hint">When a game you started from DroidDeck or another launcher closes, Steam exits cleanly (cloud saves finish first) and you go back there. Off: stay in Steam.</string>
+    <string name="mode_shader_precache">Shader pre-caching</string>
+    <string name="mode_shader_precache_hint">Steam downloads shaders prebuilt for your games and processes them in the background, so games stutter less. Off saves data, storage and battery; games build shaders as they play instead. The same setting as Steam’s Downloads > Shader Pre-Caching. Applies next session.</string>
     <string name="mode_steam_repair">Repair Steam client</string>
     <string name="mode_steam_repair_hint">Downloads the Steam client again the next time Steam starts. Use it if Steam stays on its loading screen. Games, sign-in and settings are kept.</string>
     <string name="mode_steam_repair_queued">The Steam client will be downloaded again the next time Steam starts.</string>
@@ -390,6 +395,8 @@
     <string name="mode_directaudio_hint">Bypasses PulseAudio for lower latency.</string>
     <string name="mode_mic">Microphone</string>
     <string name="mode_mic_hint">For voice chat.</string>
+    <string name="drawer_mic_hint">Turn microphone capture on or off for this session.</string>
+    <string name="drawer_mic_failed">Could not change the microphone. Please try again.</string>
     <string name="mode_network">Network</string>
     <string name="mode_wifi_discovery">Wi-Fi discovery</string>
     <string name="mode_wifi_discovery_hint">Show Wi-Fi names and nearby networks in Steam.</string>
@@ -551,14 +558,24 @@
     <string name="perf_gsrealtime">gamescope: realtime GPU queue</string>
     <string name="perf_gsrealtime_hint">Prioritizes the compositor\'s GPU work. Can smooth frame pacing at some cost to games.</string>
     <string name="perf_gpu">GPU</string>
+    <string name="perf_memory">Memory</string>
+    <string name="perf_cap_off">Off</string>
+    <string name="perf_cap_auto">Driver default</string>
+    <string name="perf_zram_client">Compress Steam while a game runs</string>
+    <string name="perf_zram_client_hint">20 s after a game starts, the Steam client is compressed into zRAM to leave the game more memory, and read back when the game closes. Turn this off if the session closes shortly after games start. A RAM cap above still compresses Steam when the session goes over it.</string>
+    <string name="perf_ram_cap">RAM cap</string>
+    <string name="perf_ram_cap_hint">Applies while the Steam client runs, in Steam mode or from the desktop. When the session uses more than this, Steam and then the session\'s other supported processes are compressed into zRAM. A soft cap: nothing is closed, but games may stutter while pages come back.</string>
+    <string name="perf_ram_cap_unavailable">Needs zRAM swap, which this device does not have.</string>
+    <string name="perf_vram_cap">VRAM cap</string>
+    <string name="perf_vram_cap_hint">The video memory DXVK reports to Direct3D games, so they budget textures for less. A game\'s own DXVK settings still win. Takes effect at the next session.</string>
     <string name="perf_gpuclock">Hold the GPU at its top clock</string>
     <string name="perf_gpuclock_hint">Adreno only. Fewer hitches, more battery use and heat.</string>
     <string name="perf_fixes">Session fixes</string>
     <string name="perf_sysmem">Turnip: sysmem rendering</string>
     <string name="perf_sysmem_hint">Faster for the Steam client; in games the driver picks tile or system-memory rendering per pass. Required on Adreno 710/720/722.</string>
     <string name="perf_xalia">Skip Steam\'s xalia helper</string>
-    <string name="perf_fastsync">droiddeck-ntsync (experimental)</string>
-    <string name="perf_fastsync_hint">A userspace stand-in for the Linux ntsync driver, for testing. While it is on, Proton uses it instead of droiddeck-esync and droiddeck-fsync. Works with Proton Experimental ARM64, GE-Proton and proton-cachyos. Applies next session.</string>
+    <string name="perf_fastsync">droiddeck-ntsync</string>
+    <string name="perf_fastsync_hint">A userspace stand-in for the Linux ntsync driver. While it is on, Proton uses it instead of droiddeck-esync and droiddeck-fsync. Works with Proton Experimental ARM64, GE-Proton and proton-cachyos. Applies next session.</string>
     <string name="perf_esync">droiddeck-esync</string>
     <string name="perf_fsync">droiddeck-fsync first</string>
     <string name="perf_fsync_hint">Runs Proton\'s own fsync on the stock Proton files, with futex_waitv supplied in userspace, so it needs no pack and keeps working the moment Steam updates Proton. While it is on, games use it ahead of droiddeck-esync, except the few Proton keeps off fsync. Applies next session.</string>
@@ -569,6 +586,8 @@
     <string name="perf_fastpath">proot fast path</string>
     <string name="perf_fastpath_needs_seccomp">Needs proot\'s seccomp filter.</string>
     <string name="perf_fastpath_hint">Faster file lookups and less stutter. Turn off if a program can\'t find its files.</string>
+    <string name="perf_cursor_composite">Draw the cursor inside gamescope</string>
+    <string name="perf_cursor_composite_hint">Gamescope paints the pointer itself instead of handing it to Android. Turn on for a controller-driven cursor. Off is faster on a phone. Applies next session.</string>
     <string name="perf_identity">Session identity</string>
     <string name="perf_hostname">Host name</string>
     <string name="perf_hostname_hint">The name Steam sees for this device. Blank restores %1$s.</string>
@@ -1066,8 +1085,6 @@
     <string name="games_empty">Games you install in Steam show up here after the session.</string>
     <string name="games_play_steam">Play Steam</string>
     <string name="games_play_steamvr">Play SteamVR</string>
-    <string name="games_launch_settings">Launch settings</string>
-    <string name="games_launch">Launch</string>
     <string name="games_files">Game files</string>
     <string name="games_prefix">Proton prefix</string>
     <string name="games_saves_looking">Looking for saves…</string>
@@ -1075,7 +1092,6 @@
     <string name="games_saves_folders">%1$d save folders</string>
     <string name="games_saves_summary">%1$s · %2$d files · %3$s</string>
     <string name="games_kb">%1$d KB</string>
-    <string name="games_manage_saves">Manage saves</string>
     <string name="games_saves">Game saves</string>
     <string name="games_import_saves">Import saves…</string>
     <string name="games_export_gamehub">Export as GameHub zip…</string>
@@ -1087,7 +1103,6 @@
     <string name="games_runtime_first_play">Runtime installs on first Play</string>
     <string name="games_runtime_update">Runtime update available</string>
     <string name="games_runtime_ready">● Runtime ready</string>
-    <string name="games_last_played">Last played %1$s</string>
     <string name="games_internal">Internal storage</string>
     <string name="games_added">Added game</string>
     <string name="games_custom">Custom game</string>
@@ -1102,6 +1117,9 @@
     <string name="gpu_hide_other">Hide drivers for other GPUs</string>
     <string name="gpu_show_other">Show drivers for other GPUs</string>
     <string name="gpu_advanced">Advanced</string>
+    <string name="gpu_ubwc_title">UBWC compatibility</string>
+    <string name="gpu_ubwc_hint">Try On or Off if Steam or Android shows stripes or flickering. Applies to both drivers after restarting DroidDeck.</string>
+    <string name="gpu_ubwc_restart">Restart DroidDeck to apply.</string>
     <string name="gpu_set_with_display">Set together with the display driver: %1$s carries both.</string>
     <string name="gpu_set_with_runtime">Set together with the runtime driver: %1$s carries both.</string>
     <string name="gpu_runtime_hint">Used by games and the desktop.</string>
@@ -1156,7 +1174,7 @@
     <string name="second_terminal">Linux terminal</string>
     <string name="second_terminal_not_ready">The Linux session isn\'t ready for a terminal yet.</string>
     <string name="rail_steam">Steam</string>
-    <string name="rail_games">Games</string>
+    <string name="rail_games">Library</string>
     <string name="rail_desktop">Desktop</string>
     <string name="rail_store">Store</string>
     <string name="rail_components">Components</string>
@@ -1461,6 +1479,10 @@
     <string name="theme_icon_blue_detail">Black ground, white type, the blue for everything selected, focused or pressed.</string>
     <string name="theme_electric">Electric navy</string>
     <string name="theme_electric_detail">The blue brighter, on surfaces that lean navy instead of grey.</string>
+    <string name="theme_inner_gamer">Inner Gamer</string>
+    <string name="theme_inner_gamer_detail">Colors that cycle through the rainbow. Follows Android\'s animation settings.</string>
+    <string name="theme_rgb_speed">Speed</string>
+    <string name="theme_rgb_speed_hint">How fast the colors cycle.</string>
     <string name="theme_gradient">Gradient</string>
     <string name="theme_gradient_detail">Your own primary and secondary colors, blended on buttons and highlights.</string>
     <string name="theme_gradient_primary">Primary</string>
@@ -1582,6 +1604,13 @@
     <string name="fm_conflict_skip">Skip</string>
     <string name="fm_select_this_folder">Select this folder</string>
     <string name="fm_back">Back</string>
+    <string name="fm_exit">Exit</string>
+    <string name="fm_return_to_start">Return to start</string>
+    <string name="fm_start_unavailable">Starting folder is no longer available</string>
+    <string name="fm_cancel_operation_title">Cancel operation?</string>
+    <string name="fm_cancel_operation_confirmation">The operation will be cancelled. Are you sure?</string>
+    <string name="fm_accept">Accept</string>
+    <string name="fm_decline">Decline</string>
     <string name="fm_drive_not_readable">%1$s is mounted but not readable right now</string>
     <string name="fm_list_view">List view</string>
     <string name="fm_grid_view">Grid view</string>
@@ -1982,7 +2011,7 @@
     <string name="display_resolution">Resolution</string>
     <string name="display_game_fit">16:9 game fit</string>
     <string name="display_game_fit_hint">How 16:9 games fit this display. Next session.</string>
-    <string name="display_game_fit_unavailable">Choose Match screen or a custom size narrower than 16:9.</string>
+    <string name="display_game_fit_unavailable">Choose Match screen or a custom size that isn\'t 16:9.</string>
     <string name="display_preserve">Keep proportions</string>
     <string name="display_stretch">Stretch to display</string>
     <string name="display_image_scaling">Image scaling</string>
@@ -2009,7 +2038,6 @@
     <string name="source_steam">Steam</string>
     <string name="source_added">Custom</string>
     <string name="setup_stores">Stores</string>
-    <string name="setup_stores_open_on">Open a store on</string>
     <string name="setup_stores_speed">Download speed tier</string>
     <string name="setup_stores_engine">Stores engine</string>
     <string name="setup_stores_engine_chip_ready">● Engine ready</string>
@@ -2023,11 +2051,9 @@
     <string name="stores_tabs_arrange">Arrange tabs</string>
     <string name="stores_tabs_arrange_done">Done</string>
     <string name="stores_chip_signed_out">(not signed in)</string>
-    <string name="stores_tab_store">Store</string>
     <string name="stores_tab_library">Library</string>
     <string name="stores_tab_all">All</string>
     <string name="stores_tab_downloads">Downloads</string>
-    <string name="stores_tab_count">%1$s (%2$d)</string>
     <string name="stores_signin">Sign in</string>
     <string name="stores_signout_named">%1$s · sign out</string>
     <string name="stores_signout_title">Sign out of %1$s?</string>
@@ -2045,9 +2071,10 @@
     <string name="stores_shelf_deals">Deals</string>
     <string name="stores_shelf_free">Free games</string>
     <string name="stores_shelf_trending">Trending</string>
-    <string name="stores_shelf_library">Your library</string>
     <string name="stores_play">Play</string>
     <string name="stores_install">Install</string>
+    <string name="bnet_open">Open Battle.net</string>
+    <string name="bnet_store">Blizzard games</string>
     <string name="stores_resume_install">Resume install</string>
     <string name="stores_dl_interrupted">Interrupted</string>
     <string name="stores_install_size">Install · %1$s</string>
@@ -2066,8 +2093,43 @@
     <string name="stores_itch_no_exe">No Windows game found in the download</string>
     <string name="stores_itch_extract_failed">Could not extract the download (exit %1$d)</string>
     <string name="stores_itch_no_catalog">itch.io did not answer</string>
+    <string name="stores_itch_sort_popular">Popular</string>
+    <string name="stores_itch_sort_new">Most recent</string>
+    <string name="stores_itch_sort_new_popular">New &amp; popular</string>
+    <string name="stores_itch_price_paid">Paid</string>
+    <string name="stores_itch_price_under_5">$5 or less</string>
+    <string name="stores_itch_price_under_15">$15 or less</string>
+    <string name="stores_itch_sort_top_rated">Top rated</string>
+    <string name="stores_itch_sort_top_sellers">Top sellers</string>
+    <string name="stores_itch_price_any">Any price</string>
+    <string name="stores_itch_price_free">Free</string>
+    <string name="stores_itch_price_sale">On sale</string>
+    <string name="stores_itch_load_more">Load more</string>
+    <string name="stores_itch_platform_any">Any platform</string>
+    <string name="stores_itch_platform_mobile_web">Mobile web</string>
+    <string name="stores_itch_tag_add">Add a tag</string>
+    <string name="stores_itch_tag_title">Filter by tag</string>
+    <string name="stores_itch_platform_windows" translatable="false">Windows</string>
+    <string name="stores_itch_platform_macos" translatable="false">macOS</string>
+    <string name="stores_itch_platform_linux" translatable="false">Linux</string>
+    <string name="stores_itch_platform_android" translatable="false">Android</string>
+    <string name="stores_itch_platform_ios" translatable="false">iOS</string>
+    <string name="stores_itch_platform_web" translatable="false">Web</string>
+    <string name="stores_itch_browse_failed">Could not load games from itch.io</string>
     <string name="stores_itch_archive">%1$s archives are not supported</string>
     <string name="stores_itch_download_failed">itch.io answered HTTP %1$d</string>
+    <string name="stores_itch_pick_title">Choose a version</string>
+    <string name="stores_itch_pick_none">No downloads found for this game</string>
+    <string name="stores_itch_pick_failed">Could not load the downloads from itch.io</string>
+    <string name="stores_itch_build_demo">Demo</string>
+    <string name="stores_itch_build_open">Open on itch.io</string>
+    <string name="stores_itch_build_linux_soon">Not supported yet</string>
+    <string name="stores_itch_no_game">Could not find this game on itch.io</string>
+    <string name="stores_itch_build_windows" translatable="false">Windows</string>
+    <string name="stores_itch_build_macos" translatable="false">macOS</string>
+    <string name="stores_itch_build_linux" translatable="false">Linux</string>
+    <string name="stores_itch_build_android" translatable="false">Android</string>
+    <string name="stores_itch_build_web" translatable="false">Web</string>
     <string name="stores_free">Free</string>
     <string name="stores_resume">Resume</string>
     <string name="stores_refresh">Refresh</string>
@@ -2234,6 +2296,7 @@
     <string name="stores_login_close">Close</string>
     <string name="stores_login_retry">Try again</string>
     <string name="stores_login_finishing">Finishing sign-in…</string>
+    <string name="stores_xbox_sign_in_again">Microsoft rejected the Xbox sign-in. Sign out of Xbox in Stores, sign in again, then resume.</string>
     <string name="stores_login_error_network">The sign-in page could not be loaded: %1$s</string>
     <string name="stores_login_error_idp_blocked">This provider refuses to sign in from an embedded page. Sign in with your store password instead.</string>
     <string name="stores_login_error_http">The sign-in page answered with an error (HTTP %1$d).</string>
@@ -2379,6 +2442,7 @@
     <string name="setup_download_source_custom">Custom prefix</string>
     <string name="setup_download_mirror">Site</string>
     <string name="setup_download_prefix">Prefix</string>
+    <string name="setup_download_proxy">HTTP proxy</string>
     <string name="flathub_eyebrow">LINUX APPS</string>
     <string name="flathub_name">Flathub</string>
     <string name="flathub_line">Desktop apps for the Linux desktop, opened from Desktop.</string>
@@ -2668,6 +2732,21 @@
     <string name="storage_safe_hint">Unused runtimes, leftovers, old logs</string>
     <string name="storage_clean_up">Clean up…</string>
     <string name="storage_session_running">Stop the session to clean up or remove anything. Sizes are still shown.</string>
+    <string name="storage_default_group">Install location</string>
+    <string name="storage_default_title">Default storage</string>
+    <string name="storage_default_hint">New store installs go to the selected location. Existing games stay where they are. Steam libraries keep their own setting.</string>
+    <string name="storage_default_ask">Ask every time</string>
+    <string name="storage_default_ask_detail">Choose a target for each install</string>
+    <string name="storage_default_internal">Internal storage</string>
+    <string name="storage_default_external">External storage</string>
+    <string name="storage_default_external_detail">%1$s · %2$s free</string>
+    <string name="storage_default_external_missing">Not connected</string>
+    <string name="storage_default_folder">Folder · %1$s</string>
+    <string name="storage_default_folder_free">%1$s free</string>
+    <string name="storage_default_folder_missing">Not connected</string>
+    <string name="storage_default_choose_folder">Choose folder…</string>
+    <string name="storage_default_choose_folder_detail">Use any folder on an SD card or USB drive</string>
+    <string name="storage_default_note">Games go into a Games folder inside the selected location. Existing games are not moved.</string>
     <string name="storage_where">Where it goes</string>
     <string name="storage_games">Steam games</string>
     <string name="storage_game_data">Game data</string>
@@ -3049,4 +3128,62 @@
     <string name="spatial_saved_views_hint">Saved views can be recalculated. Start a new calibration to capture in the current tracking frame.</string>
     <string name="spatial_model_checksum_error">Hand model checksum mismatch</string>
     <string name="spatial_opencv_load_error">OpenCV could not load</string>
+    <string name="setup_group_memory">Memory</string>
+    <string name="setup_clear_cached">Clear cached apps before a session</string>
+    <string name="setup_clear_cached_hint">When a session starts, DroidDeck closes the apps Android keeps parked in the background, so the game has more memory. Wireless debugging must be on.</string>
+    <string name="setup_clear_cached_unpaired">Needs DroidDeck paired with Wireless debugging (Pair, below).</string>
+    <string name="setup_memory_hud">Memory readout</string>
+    <string name="setup_memory_hud_hint">Memory and swap in use, on the session screen. Advanced splits it into the game, DroidDeck, Android and the GPU.</string>
+    <string name="setup_memory_hud_simple">Simple</string>
+    <string name="setup_memory_hud_advanced">Advanced</string>
+    <string name="memory_hud_simple">RAM %1$s/%2$s GB · swap %3$s/%4$s GB</string>
+    <string name="memory_hud_split">game %1$s · DroidDeck %2$s · Android %3$s GB</string>
+    <string name="memory_hud_gpu">GPU %1$s GB</string>
+    <string name="setup_bg_limit">Background apps during a session</string>
+    <string name="setup_bg_limit_hint">While a session runs, Android keeps at most this many apps cached and closes the rest, so the game has their memory. DroidDeck puts the limit back as it was when the session ends. Wireless debugging must be on.</string>
+    <string name="setup_bg_limit_4">At most 4</string>
+    <string name="setup_bg_limit_1">At most 1</string>
+    <string name="setup_bg_limit_0">None</string>
+    <string name="setup_adb_pair">Wireless debugging</string>
+    <string name="setup_adb_pair_hint">Pairs DroidDeck with Android\'s Wireless debugging for the options above. The child-process limit stays off.</string>
+    <string name="setup_adb_pair_button">Pair</string>
+    <string name="stores_xbox_update">Update / verify</string>
+    <string name="stores_xbox_manage">Manage content</string>
+    <string name="stores_xbox_close_first">Close this Xbox game before updating it.</string>
+    <string name="stores_xbox_content_title">Xbox content</string>
+    <string name="stores_xbox_content_none">No licensed PC content packages are available for this game.</string>
+    <string name="stores_xbox_content_update">%1$s · Update / verify</string>
+    <string name="stores_xbox_content_install">%1$s · Install</string>
+    <string name="stores_xbox_choose_content">Choose PC content</string>
+    <string name="stores_xbox_choice" translatable="false">%1$s (%2$s)</string>
+    <string name="stores_game_pass" translatable="false">PC Game Pass</string>
+    <string name="stores_eyebrow_pass">available with %1$s</string>
+    <string name="stores_owned_in_library">Owned games in Library</string>
+    <string name="epic_client_missing">Not installed</string>
+    <string name="epic_client_open">Open</string>
+    <string name="epic_client_install">Install</string>
+    <string name="library_filter_added">Added</string>
+    <string name="game_tab_about">About</string>
+    <string name="game_tab_achievements_count" translatable="false">%1$s %2$d/%3$d</string>
+    <string name="game_tab_launch">Launch</string>
+    <string name="game_tab_saves_cloud">Saves &amp; cloud</string>
+    <string name="game_tab_install">Install</string>
+    <string name="game_launch_shortcut">Steam shortcut</string>
+    <string name="game_install_location">Location</string>
+    <string name="game_install_folder">Folder</string>
+    <string name="game_install_size">Size on disk</string>
+    <string name="game_install_version">Version</string>
+    <string name="game_install_date">Installed</string>
+    <string name="game_install_played">Last played</string>
+    <string name="game_install_access">Access</string>
+    <string name="game_install_access_owned">Owned</string>
+    <string name="game_stream">Stream</string>
+    <string name="library_add">Add to Library</string>
+    <string name="library_remove">Remove from Library</string>
+    <string name="library_in">In Library</string>
+    <string name="xbox_filter_show">Show</string>
+    <string name="xbox_filter_cloud">Cloud</string>
+    <string name="stores_xbox_cloud_settings">Cloud settings</string>
+    <string name="xbox_cloud_gaming" translatable="false">Xbox Cloud Gaming</string>
+    <string name="xbox_filter_game_pass" translatable="false">Game Pass</string>
 </resources>

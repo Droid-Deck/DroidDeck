@@ -79,6 +79,18 @@ object AddedGames {
         return null
     }
 
+    fun hostPath(context: Context, guest: String): File? {
+        if (!guest.startsWith("/") || guest.split('/').any { it == ".." }) return null
+        val mapped = roots(context).map { it.host to it.guest } + StoreInstallRoot.externalRoots(context) +
+            listOfNotNull(GameStorage.effective(context)?.let { File(it.path) to LIBRARY }) +
+            (android.os.Environment.getExternalStorageDirectory() to "/root/Storage")
+        for ((host, root) in mapped.sortedByDescending { it.second.length }) {
+            if (guest == root) return host
+            if (guest.startsWith("$root/")) return File(host, guest.removePrefix("$root/"))
+        }
+        return File(LinuxRuntime.rootDir(context), guest.removePrefix("/"))
+    }
+
     fun candidates(folder: File): List<File> = rank(folder).exes
 
     fun rank(folder: File): GameExePicker.Ranking {
@@ -177,6 +189,9 @@ object AddedGames {
             scanGame(context, folder, out, single = entry)
         }
         for (folder in StoreInstallRoot.gameFolders(context)) if (StoreInstallRoot.isFinished(folder)) scanGame(context, folder, out)
+        for (game in com.droiddeck.launcher.runtime.BattleNet.games(context)) {
+            if (game.folder.path !in removed) com.droiddeck.launcher.runtime.BattleNet.shortcut(context, game)?.let(out::add)
+        }
         return out.distinctBy { it.folder.canonicalPath }
     }
 
@@ -274,7 +289,7 @@ object AddedGames {
 
     class FolderResult(val added: List<Game>, val already: Int)
 
-    fun addFolder(context: Context, dir: File, onGame: (Game) -> Unit = {}, onChecking: (String?) -> Unit = {}): FolderResult {
+    fun addFolder(context: Context, dir: File, onGame: (Game) -> Unit = {}, onChecking: (String?) -> Unit = {}, showHidden: Boolean = false): FolderResult {
         val app = context.applicationContext
         // Binds are mounted at session start, so a new one reaches the session from the next start.
         if (guestPath(app, dir) == null) bindFolder(app, dir)
@@ -283,7 +298,7 @@ object AddedGames {
         var already = 0
         val fresh = ArrayList<String>()
         val added = ArrayList<Game>()
-        for (sub in dir.listFiles { f -> f.isDirectory && !f.name.startsWith(".") }?.sortedBy { it.name.lowercase() }.orEmpty()) {
+        for (sub in dir.listFiles { f -> f.isDirectory && (showHidden || !f.name.startsWith(".")) }?.sortedBy { it.name.lowercase() }.orEmpty()) {
             val path = canonical(sub)
             if (listed.any { it == path || inside(path, it) || inside(it, path) }) { already++; continue }
             onChecking(sub.name)
@@ -387,11 +402,17 @@ object AddedGames {
         }
     }
 
+    private class LoginUser(val id: String, val mostRecent: Boolean, val autoLogin: Boolean, val timestamp: Long)
+
     internal fun accountConfig(root: File): File? {
         val users = runCatching { File(root, "config/loginusers.vdf").readText() }.getOrDefault("")
-        val recent = Regex(""""(\d{5,})"\s*\{([^}]*)\}""").findAll(users)
-            .lastOrNull { Regex(""""MostRecent"\s*"1"""").containsMatchIn(it.groupValues[2]) }
-        val account = recent?.groupValues?.get(1)?.toLongOrNull()?.let { (it - 76561197960265728L).toString() }
+        val recent = Regex(""""(\d{5,})"\s*\{([^}]*)\}""").findAll(users).map {
+            val body = it.groupValues[2]
+            LoginUser(it.groupValues[1], Regex(""""MostRecent"\s*"1"""").containsMatchIn(body), Regex(""""AutoLogin"\s*"1"""").containsMatchIn(body),
+                Regex(""""timestamp"\s*"(\d+)"""").find(body)?.groupValues?.get(1)?.toLongOrNull() ?: 0L)
+        }.filter { it.mostRecent || it.autoLogin || it.timestamp > 0 }.toList().asReversed()
+            .maxWithOrNull(compareBy<LoginUser>({ it.mostRecent }, { it.autoLogin }, { it.timestamp }))
+        val account = recent?.id?.toLongOrNull()?.let { (it - 76561197960265728L).toString() }
             ?: File(root, "userdata").list()?.filter { it.isNotEmpty() && it.all(Char::isDigit) && it != "0" }?.singleOrNull()
         return account?.let { File(root, "userdata/$it/config") }
     }

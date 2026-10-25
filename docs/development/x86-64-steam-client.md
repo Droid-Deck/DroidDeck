@@ -3,7 +3,7 @@
 Valve's x86-64 Linux Steam client, run unchanged under FEX beside the default arm64 client. It is
 opt-in: Steam settings, **Steam client: x86-64** (`steamClientArch`, passed to the
 session as `BL_STEAM_CLIENT_ARCH=x86_64`, applies from the next session), or the desktop menu entry
-**Steam x86-64 (FEX, experimental)**. The Games tab lists the active client's games and tags its
+**Steam x86-64 (FEX, experimental)**. The Library lists the active client's games and tags its
 header "x86-64" while that client's list is shown. This page records why each workaround exists and what was seen
 on devices. The timeline is in `docs/progress-log.md`.
 
@@ -53,7 +53,8 @@ arm64 client down first.
   ("Steam now requires user namespaces") when `steam-runtime-check-requirements`' bwrap probe cannot
   create a user namespace, which no Android app can. `STEAM_RUNTIME_STEAMRT` points at
   `steamrt-shim`: Valve's runtime linked file by file with only the probe replaced (`exit 0`). proot
-  is the container, as for the arm64 client.
+  is the container, as for the arm64 client. `droiddeck-steamrt-shim` builds it, and builds the same
+  shim for the arm64 client if that one is containerized too ([arm64-steam-client.md](arm64-steam-client.md)).
 - **Re-exec after an update.** The client re-executes itself inside the SteamRT container through
   `pressure-vessel-wrap` (bwrap). `STEAM_STEAMRT_RECURSION_GUARD=1` says it is already inside one; the
   FEX rootfs with the client's `steamrt64` libraries is that container.
@@ -290,13 +291,29 @@ alone would then read as an installed client.
 
 ## Libraries, SD card and sharing between clients
 
-- **Separate libraries.** With folders shared, each client could update, verify or switch the
-  other's games. A title with a Linux build runs as that in the x86 client and as the Windows build in
-  the arm64 one, so opening it in the other client switched the files and the first client downloaded
-  its version again (Left 4 Dead 2, 8.6 GB). Hard links do not help: switching platform makes Steam
-  download depot 551 anyway. A game wanted in both clients is installed in both. Folders an earlier
-  version shared are taken out of the x86 client's lists (written only while no x86 client runs); the
-  games stay in the arm64 library.
+- **Shared games.** Before either client starts, `droiddeck-steam-share` gives it a view of the games
+  the other client installed: `~/.droiddeck-x64/shared/arm64` for the x86 client ("ARM64 client
+  games") and `shared/x86-64` for the arm64 one ("x86-64 client games"). A view holds a copy of each
+  finished game's manifest and links to its `common` folder and `compatdata`, so the game shows as
+  installed in both clients, runs from the same files and keeps one prefix and one set of saves.
+  Runtimes, Proton and FEX are not shared. Device: the x86 client listed the 14 arm64 games as
+  installed (13 ready to launch, Valheim fetching its shader cache) and started Stardew Valley from the
+  arm64 files with no game data downloaded; the arm64 client listed Spacewar installed only in the x86
+  client.
+- **Same build in both.** A title with a Linux build ran as that in the x86 client and as the Windows
+  build in the arm64 one, so opening it in the other client switched the files and the first client
+  downloaded its version again (Left 4 Dead 2, 8.6 GB; hard links do not help, switching platform makes
+  Steam download depot 551 anyway). A shared game gets the tool its own client uses: `droiddeck-fex`
+  there becomes `droiddeck-direct` here and the other way round, a Proton build keeps its Proton. Only
+  an automatic choice that would switch the build is replaced; any other choice, including another
+  Proton, stays.
+- **Updates and uninstall.** The newer manifest wins: an update made through a view is written back to
+  the client that owns the game. Uninstalling a shared game removes it from that client only; its files
+  stay with the client that installed it (Steam does not delete through the link) and it stays hidden
+  there until that client updates or reinstalls it. A game installed in both clients is each client's
+  own and is not shared. A view with nothing in it is not offered as an install location. Views are
+  written only while no client runs. Shader pre-caching stays each client's own: the x86 client may
+  fetch a shared game's shader cache into its own folder (Valheim, 1.8 GB).
 - **SD card.** The x86 client's card library is a folder inside the arm64 one (`/mnt/droiddeck-sd/x86-64`,
   `GameStorage.X64_CARD_DIR`, passed as `BL_X64_STEAM_LIBRARIES`), so the install dialog offers Internal
   Storage and SD card. compatdata, shadercache and runtime tools stay private, as in the arm64 card
@@ -333,9 +350,11 @@ alone would then read as an installed client.
   redactor learns account names from both clients. The startup movie is staged into the x86 client's
   config only once its first start has created it; `--prepare` links the arm64 `config/uioverrides`
   and copies the `StartupMovie` choice.
-- **Storage page.** It lists both clients' games, the x86 ones labelled; a game can be installed in
-  both and an id left over in several libraries. `steam://uninstall` reaches only the session's client,
-  so the other client's copy is uninstalled after switching clients. Tools in the x86 client's
+- **Storage page.** It lists both clients' games, the x86 ones labelled, each where its files are, so a
+  shared game is counted once; a game can be installed in both and an id left over in several
+  libraries. The Games page of each client lists the games shared with it. `steam://uninstall`
+  reaches only the session's client, so the other client's own copy is uninstalled after switching
+  clients. Tools in the x86 client's
   libraries are shown as required (it runs its Linux games with Valve's runtimes). Proton tool files
   live only in the arm64 root; the x86 client has wrappers. An x86 client without `config.vdf` has
   never mapped a game.

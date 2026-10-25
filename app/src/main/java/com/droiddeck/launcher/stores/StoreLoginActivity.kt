@@ -130,7 +130,7 @@ class StoreLoginActivity : ComponentActivity() {
     private fun newFlow(state: String): Flow? {
         val url = clientUrl
         if (url != null) return com.droiddeck.launcher.stores.epic.EpicClient.loginFlow(url, chromeUa)
-        return store?.let { LoginFlows.forStore(it, state) }
+        return store?.let { LoginFlows.forStore(it, state, chromeUa) }
     }
 
     override fun finish() {
