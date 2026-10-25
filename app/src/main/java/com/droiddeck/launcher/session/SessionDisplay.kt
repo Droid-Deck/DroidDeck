@@ -79,5 +79,5 @@ object SessionDisplay {
     }
 
     fun canStretch16x9(size: Pair<Int, Int>): Boolean =
-        (size.second * 16 + 4) / 9 / 2 * 2 > size.first
+        (size.second * 16 + 4) / 9 / 2 * 2 > size.first || (size.first * 9 + 8) / 16 / 2 * 2 > size.second
 }

@@ -1,0 +1,273 @@
+#!/usr/bin/python3
+import json
+import os
+import re
+import runpy
+import sys
+
+NOT_GAMES = frozenset((
+    "228980", "1070560", "1391110", "1628350", "1493710", "3127680",
+    "4183110", "4185400", "4427310", "4628740",
+))
+TOOL_DIR = re.compile(r"(steam ?linux ?runtime.*|proton.*|steamworks shared|fex|steamvr)", re.I)
+AUTOMATIC = ("", "droiddeck-direct", "droiddeck-fex", "droiddeck-proton-arm64", "droiddeck-proton-11-arm64")
+LINUX_TOOLS = ("droiddeck-direct", "droiddeck-fex")
+STATE = ".droiddeck-shared.json"
+LABELS = {"arm64": "ARM64 client games", "x86-64": "x86-64 client games"}
+
+
+def say(message):
+    print("droiddeck-steam-share: " + message)
+
+
+def read(path):
+    try:
+        with open(path, encoding="utf-8", errors="surrogateescape") as f:
+            return f.read()
+    except OSError:
+        return None
+
+
+def write(path, text):
+    staged = path + ".droiddeck-new"
+    with open(staged, "w", encoding="utf-8", errors="surrogateescape") as f:
+        f.write(text)
+    os.replace(staged, path)
+
+
+def field(text, key):
+    m = re.search(r'"%s"\s+"([^"]*)"' % re.escape(key), text or "", re.I)
+    return m.group(1) if m else None
+
+
+def number(text, key):
+    value = field(text, key)
+    return int(value) if value and value.isdigit() else 0
+
+
+def same(a, b):
+    return os.path.realpath(a) == os.path.realpath(b)
+
+
+def libraries(root, skip):
+    found = [root] + [p.replace("\\\\", "\\") for p in
+                      re.findall(r'"path"\s+"((?:[^"\\]|\\.)*)"', read(os.path.join(root, "steamapps", "libraryfolders.vdf")) or "")]
+    return [p for p in dict.fromkeys(found) if not any(same(p, s) for s in skip)]
+
+
+def installs(libs):
+    games = {}
+    for library in libs:
+        steamapps = os.path.join(library, "steamapps")
+        try:
+            names = sorted(os.listdir(steamapps))
+        except OSError:
+            continue
+        for name in names:
+            m = re.fullmatch(r"appmanifest_(\d+)\.acf", name)
+            if not m or m.group(1) in NOT_GAMES or m.group(1) in games:
+                continue
+            text = read(os.path.join(steamapps, name))
+            folder = field(text, "installdir")
+            if (not folder or folder in (".", "..") or "/" in folder or TOOL_DIR.fullmatch(folder)
+                    or not number(text, "StateFlags") & 4
+                    or not os.path.isdir(os.path.join(steamapps, "common", folder))):
+                continue
+            games[m.group(1)] = (steamapps, text, folder)
+    return games
+
+
+def link(path, target):
+    if os.path.islink(path):
+        if os.readlink(path) == target:
+            return True
+        os.unlink(path)
+    elif os.path.lexists(path):
+        return False
+    os.symlink(target, path)
+    return True
+
+
+def unlink(path):
+    if os.path.islink(path):
+        os.unlink(path)
+
+
+def emptied(src, folder):
+    path = os.path.join(src, "common", folder)
+    return not os.path.isdir(path) or not os.listdir(path)
+
+
+def sync(view, source, own):
+    steamapps = os.path.join(view, "steamapps")
+    for sub in ("common", "compatdata"):
+        os.makedirs(os.path.join(steamapps, sub), exist_ok=True)
+    state = {}
+    try:
+        state = json.loads(read(os.path.join(view, STATE)) or "{}")
+    except ValueError:
+        pass
+    managed = {app: tuple(v) for app, v in state.get("shared", {}).items() if isinstance(v, list) and len(v) == 2}
+    hidden = state.get("hidden", {})
+    shared, back = {}, []
+    for app, (src, folder) in managed.items():
+        if app in source and app not in own:
+            continue
+        manifest = os.path.join(steamapps, "appmanifest_%s.acf" % app)
+        if app not in own and not os.path.isfile(manifest) and emptied(src, folder) and os.path.isfile(os.path.join(src, "appmanifest_%s.acf" % app)):
+            os.unlink(os.path.join(src, "appmanifest_%s.acf" % app))
+        unlink(os.path.join(steamapps, "common", folder))
+        unlink(os.path.join(steamapps, "compatdata", app))
+        if os.path.isfile(manifest):
+            os.unlink(manifest)
+    for app, (src, text, folder) in sorted(source.items(), key=lambda item: int(item[0])):
+        if app in own:
+            continue
+        stamp = number(text, "LastUpdated")
+        if hidden.get(app) == stamp:
+            continue
+        hidden.pop(app, None)
+        manifest = os.path.join(steamapps, "appmanifest_%s.acf" % app)
+        mine = read(manifest)
+        if app in managed and mine is None:
+            unlink(os.path.join(steamapps, "common", folder))
+            unlink(os.path.join(steamapps, "compatdata", app))
+            if emptied(src, folder):
+                os.unlink(os.path.join(src, "appmanifest_%s.acf" % app))
+            else:
+                hidden[app] = stamp
+            continue
+        if not link(os.path.join(steamapps, "common", folder), os.path.join(src, "common", folder)):
+            continue
+        if os.path.isdir(os.path.join(src, "compatdata", app)):
+            link(os.path.join(steamapps, "compatdata", app), os.path.join(src, "compatdata", app))
+        if mine is not None and number(mine, "LastUpdated") > stamp:
+            write(os.path.join(src, "appmanifest_%s.acf" % app), mine)
+            back.append(app)
+        elif mine != text:
+            write(manifest, text)
+        shared[app] = [src, folder]
+    state = {"shared": shared, "hidden": hidden}
+    write(os.path.join(view, STATE), json.dumps(state, indent=1, sort_keys=True) + "\n")
+    return shared, back
+
+
+def tools(root):
+    names = set()
+    folder = os.path.join(root, "compatibilitytools.d")
+    try:
+        entries = os.listdir(folder)
+    except OSError:
+        return names
+    for entry in entries:
+        text = read(os.path.join(folder, entry, "compatibilitytool.vdf")) or ""
+        m = re.search(r'"compat_tools"\s*\{\s*"([^"]+)"', text)
+        if m:
+            names.add(m.group(1))
+    return names
+
+
+def mapping_block(text):
+    m = re.search(r'"CompatToolMapping"\s*\{', text)
+    if not m:
+        return None
+    depth, k = 1, m.end()
+    while depth and k < len(text):
+        depth += {"{": 1, "}": -1}.get(text[k], 0)
+        k += 1
+    return m.end(), k - 1
+
+
+def entries(text):
+    span = mapping_block(text)
+    found = {}
+    if not span:
+        return found
+    inner = text[span[0]:span[1]]
+    for m in re.finditer(r'"(\d+)"\s*\{([^{}]*)\}', inner):
+        name = re.search(r'"name"\s*"([^"]*)"', m.group(2))
+        found.setdefault(m.group(1), name.group(1) if name else "")
+    return found
+
+
+def set_tools(config, wanted):
+    text = read(config)
+    if text is None or not wanted:
+        return []
+    span = mapping_block(text)
+    if not span:
+        return []
+    inner = text[span[0]:span[1]]
+    changed = []
+    for app, tool in sorted(wanted.items(), key=lambda item: int(item[0])):
+        m = re.search(r'"%s"\s*\{([^{}]*)\}' % app, inner)
+        if m:
+            name = re.search(r'"name"\s*"([^"]*)"', m.group(1))
+            name = name.group(1) if name else ""
+            if name == tool or not (canonical(name) in map(canonical, AUTOMATIC) or name.startswith("proton_")):
+                continue
+            if name and (name in LINUX_TOOLS) == (tool in LINUX_TOOLS):
+                continue
+            inner = inner[:m.start()] + inner[m.end():]
+        inner = ('\n\t\t\t\t\t"%s"\n\t\t\t\t\t{\n\t\t\t\t\t\t"name"\t\t"%s"\n\t\t\t\t\t\t"config"\t\t""\n'
+                 '\t\t\t\t\t\t"priority"\t\t"250"\n\t\t\t\t\t}' % (app, tool)) + inner
+        changed.append(app)
+    if changed:
+        write(config, text[:span[0]] + inner + text[span[1]:])
+    return changed
+
+
+def canonical(name):
+    return re.sub(r"arm64|aarch64", "a64", name)
+
+
+def translate(name, here, available):
+    if name == "droiddeck-fex" and here == "x86-64":
+        return "droiddeck-direct"
+    if name == "droiddeck-direct" and here == "arm64":
+        return "droiddeck-fex"
+    return {canonical(a): a for a in available}.get(canonical(name))
+
+
+def library_helper():
+    sibling = os.path.join(os.path.dirname(os.path.realpath(__file__)), "droiddeck-steam-library")
+    return runpy.run_path(sibling if os.path.isfile(sibling) else "/usr/local/bin/droiddeck-steam-library")
+
+
+def main(argv):
+    if len(argv) != 5 or argv[0] not in LABELS:
+        say("usage: droiddeck-steam-share arm64|x86-64 ARM_STEAM X64_STEAM X64_CARD SHARED_DIR")
+        return 2
+    here, arm, x64, x64_card, shared_dir = argv
+    views = {name: os.path.join(shared_dir, name) for name in LABELS}
+    roots = {"arm64": arm, "x86-64": x64}
+    other = "x86-64" if here == "arm64" else "arm64"
+    skip = list(views.values()) + [x64, x64_card]
+    arm_libs = libraries(arm, skip)
+    x64_libs = [x64] + [p for p in libraries(x64, list(views.values()) + [arm]) if not same(p, x64)]
+    games = {"arm64": installs(arm_libs), "x86-64": installs(x64_libs)}
+    view = views[other]
+    shared, back = sync(view, games[other], games[here])
+    helper = library_helper()
+    if not any(re.fullmatch(r"appmanifest_\d+\.acf", n) for n in os.listdir(os.path.join(view, "steamapps"))):
+        helper["forget"](roots[here], view)
+        return 0
+    helper["register"](roots[here], view, LABELS[other])
+    helper["relabel"](roots[here], view, LABELS[other])
+    picks = entries(read(os.path.join(roots[other], "config", "config.vdf")) or "")
+    available = tools(roots[here]) | {"droiddeck-direct" if here == "x86-64" else "droiddeck-fex"}
+    wanted = {}
+    for app in shared:
+        tool = translate(picks.get(app) or picks.get("0", ""), here, available)
+        if tool:
+            wanted[app] = tool
+    changed = set_tools(os.path.join(roots[here], "config", "config.vdf"), wanted)
+    say("%d game(s) from the %s client%s%s" % (
+        len(shared), other,
+        "; tools set for %s" % " ".join(changed) if changed else "",
+        "; manifests sent back for %s" % " ".join(back) if back else ""))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

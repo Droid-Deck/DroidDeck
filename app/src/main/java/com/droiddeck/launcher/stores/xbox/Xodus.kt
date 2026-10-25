@@ -5,7 +5,9 @@ import android.os.Environment
 import com.droiddeck.launcher.core.AddonPack
 import com.droiddeck.launcher.runtime.LinuxNetworkLinkComponent
 import com.droiddeck.launcher.runtime.LinuxRuntime
+import com.droiddeck.launcher.runtime.ProotFastPath
 import com.droiddeck.launcher.session.SessionPrefs
+import com.droiddeck.launcher.stores.StoreInstallRoot
 import org.json.JSONObject
 import java.io.Closeable
 import java.io.File
@@ -79,17 +81,34 @@ internal object Xodus {
             networkLink.publish()
             networkLink.start()
             val runtime = (runtimeDirectory ?: File(app.filesDir, "xbox-runtime")).apply { mkdirs() }
-            val command = LinuxRuntime.command(app, null, null, Environment.getExternalStorageDirectory(), listOf(
+            val root = LinuxRuntime.rootDir(app)
+            val external = Environment.getExternalStorageDirectory()
+            val extraBinds = StoreInstallRoot.externalBindSpecsForXodus(app)
+            val binds = LinuxRuntime.binds(app, null, null, external, extraBinds)
+            val fastPathPreloaded = runCatching {
+                File(root, "etc/ld.so.preload").useLines { lines -> lines.any { it.trim() == ProotFastPath.LIBRARY } }
+            }.getOrDefault(false)
+            val fastPathKey = if (ProotFastPath.enabled(app) && fastPathPreloaded &&
+                File(root, ProotFastPath.LIBRARY.removePrefix("/")).isFile) ProotFastPath.key(root, binds) else null
+            val guestCommand = mutableListOf(
                 "/usr/bin/env", "HOME=/root", "XODUS_LOG=off", "RUST_LOG=off",
                 "XDG_RUNTIME_DIR=${runtime.path}", "DROIDDECK_XBOX_CREDENTIAL_SOCKET=${credentials.name}", binary,
-            ) + args)
+            )
+            fastPathKey?.let { key ->
+                guestCommand.addAll(guestCommand.lastIndex, ProotFastPath.guestEnv(root, binds, key))
+            }
+            guestCommand.addAll(args)
+            val command = LinuxRuntime.commandWithBinds(app, root, binds, guestCommand)
             val builder = ProcessBuilder(command).directory(LinuxRuntime.rootDir(app))
             if (launchDirectory != null) builder.environment()["TMPDIR"] = launchDirectory.path
+            builder.environment()["DROIDDECK_XBOX_CREDENTIAL_PORT"] = credentials.port.toString()
+            builder.environment()["DROIDDECK_XBOX_CREDENTIAL_KEY"] = credentials.key
             builder.environment().apply {
                 remove("LD_PRELOAD"); remove("LD_AUDIT"); remove("LD_LIBRARY_PATH")
                 put("PROOT_LOADER", LinuxRuntime.prootLoader(app).path)
                 put("PROOT_TMP_DIR", LinuxRuntime.prootTempDir(app).path)
                 if (SessionPrefs.prootNoSeccomp(app)) put("PROOT_NO_SECCOMP", "1")
+                fastPathKey?.let { ProotFastPath.hostEnv(it).let { (key, value) -> put(key, value) } }
                 LinuxRuntime.prootLibraryPath(app).takeIf { it.isNotEmpty() }?.let { put("LD_LIBRARY_PATH", it) }
             }
             val digest = java.security.MessageDigest.getInstance("SHA-256")
@@ -133,11 +152,13 @@ internal object Xodus {
         }
     }
 
+    const val SIGN_IN_REJECTED = "Microsoft content licensing rejected sign-in \\(HTTP 401\\)\\. Sign in again in Settings\\."
+
     /** Passes the backend's known stderr diagnostics to [report]; other stderr text never leaves the process. */
     fun diagnostics(child: Child, report: (String) -> Unit = { com.droiddeck.launcher.stores.StoresState.logLine("Xbox: $it") }): Thread = Thread({
         runCatching {
             child.process.errorStream.bufferedReader().useLines { lines -> lines.forEach { line ->
-                if (line.matches(Regex("NEXUS_CREDENTIAL_ERROR_V1 [a-z-]{1,48}|NEXUS_LIBRARY_DIAGNOSTIC_V1 [a-z-]{1,48} [0-9]{1,3} [0-9]{1,6}|NEXUS_SESSION_DIAGNOSTIC_V1 [a-z-]{1,64}|Account library unavailable \\([a-z-]{1,64}\\); credentials and installed games are unchanged\\.|Account library timed out; installed games are unchanged\\.|Xbox profile is temporarily unavailable \\([a-z-]{1,48}\\); stored account is unchanged\\.|Xbox profile request timed out; stored account is unchanged\\.")))
+                if (line.matches(Regex("NEXUS_CREDENTIAL_ERROR_V1 [a-z-]{1,48}|NEXUS_LIBRARY_DIAGNOSTIC_V1 [a-z-]{1,48} [0-9]{1,3} [0-9]{1,6}|NEXUS_SESSION_DIAGNOSTIC_V1 [a-z-]{1,64}|Account library unavailable \\([a-z-]{1,64}\\); credentials and installed games are unchanged\\.|Account library timed out; installed games are unchanged\\.|Xbox profile is temporarily unavailable \\([a-z-]{1,48}\\); stored account is unchanged\\.|Xbox profile request timed out; stored account is unchanged\\.|NEXUS_CONTENT_LICENSE_DIAGNOSTIC_V1 [a-z-]{1,48} [0-9]{3}|$SIGN_IN_REJECTED")))
                     report(line)
             } }
         }

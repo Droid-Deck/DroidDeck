@@ -307,6 +307,13 @@ public final class WaylandCompositor {
 
     public static native float[] nativeFrameGenStats();
 
+    /** Stream mode: the scene is the Xbox Cloud Gaming native player's picture, handed over frame by frame. */
+    public static native void nativeStreamMode(boolean on);
+
+    public static native void nativeStreamFrame(android.hardware.HardwareBuffer buffer);
+
+    public static native int nativeStreamFrames();
+
     public static void sendPointerDelta(int dx, int dy) {
         if (dx == 0 && dy == 0) return;
         nativeSendSceneInput(6, dx * 256, dy * 256);

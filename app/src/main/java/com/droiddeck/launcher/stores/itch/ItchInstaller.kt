@@ -38,11 +38,14 @@ internal class ItchInstaller(
         val key = ItchAuth.key(app)
         if (key.isBlank()) throw IllegalStateException(app.getString(R.string.stores_sync_sign_in))
         val downloadKeyId = item.extra["downloadKeyId"].orEmpty()
-        if (downloadKeyId.isBlank()) throw IllegalStateException(app.getString(R.string.stores_itch_not_owned))
-        val gameId = item.extra["gameId"].orEmpty().ifBlank { item.id.substringAfterLast('/') }
+        if (downloadKeyId.isBlank() && !item.isFree) throw IllegalStateException(app.getString(R.string.stores_itch_not_owned))
+        val gameId = ItchGame.resolveId(item) ?: throw IllegalStateException(app.getString(R.string.stores_itch_no_game))
+        val resuming = StoreGameSidecar.read(folder)?.let { it.state == StoreGameSidecar.STATE_INSTALLING && it.id == item.id } == true
         StoreInstalls.begin(folder, Store.ITCH, item.id, item.title, item.imageUrl, item.imageUrl)
         handle.stage(DownloadStage.MANIFEST)
-        val upload = ItchUploads.windows(ItchApi.uploads(key, gameId, downloadKeyId))
+        val uploads = ItchApi.uploads(key, gameId, downloadKeyId)
+        val chosen = item.extra["uploadId"].orEmpty()
+        val upload = (if (chosen.isBlank()) ItchUploads.windows(uploads) else ItchUploads.byId(uploads, chosen))
             ?: throw IllegalStateException(app.getString(R.string.stores_itch_no_upload))
         val uploadId = upload.optString("id")
         val filename = ItchUploads.filename(upload)
@@ -55,7 +58,7 @@ internal class ItchInstaller(
             download(key, downloadKeyId, uploadId, upload.optString("updated_at", upload.optString("updatedAt")), archive, size, handle)
             if (cancelled.get()) return null
             handle.stage(DownloadStage.INSTALL)
-            install(archive, filename, handle)
+            install(archive, filename, handle, resuming)
         } catch (t: Throwable) {
             if (!cancelled.get()) StoreInstalls.discard(app, folder, listOf(scratch))
             throw t
@@ -147,8 +150,16 @@ internal class ItchInstaller(
         }
     }
 
-    private fun install(archive: File, filename: String, handle: DownloadQueue.JobHandle): String? {
+    private fun clearPartialInstall() {
+        folder.listFiles()?.forEach {
+            if (it.name == StoreGameSidecar.FILE_NAME) return@forEach
+            if (it.isDirectory) StoreInstalls.deleteTree(it) else it.delete()
+        }
+    }
+
+    private fun install(archive: File, filename: String, handle: DownloadQueue.JobHandle, resuming: Boolean): String? {
         folder.mkdirs()
+        if (resuming) clearPartialInstall()
         when (val kind = sniff(archive, filename)) {
             "zip" -> unzip(archive, handle)
             "7z" -> sevenZip(archive, handle)

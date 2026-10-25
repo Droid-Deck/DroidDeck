@@ -116,6 +116,10 @@ Numbers in brackets refer to the spec's list of unknowns.
     several native threads.
 19. **Network window** is the speed tier's value clamped to 1–128; the per-host cap is
     `max(6, ceil(window / hosts))`.
+20. **Pause keeps half-written files**: a stopped run keeps each unfinished stage file as a `.part`
+    file named after the file's path, hash and size, with a `.part.list` of the parts already
+    written. The next run writes only the other parts and hashes the whole file when it is complete;
+    that SHA-1 check still decides whether the file is kept, so files without one start over.
 
 **Kept at parity (known weak spots)**
 
@@ -131,7 +135,7 @@ Numbers in brackets refer to the spec's list of unknowns.
 - `AdditionalCommandLine` is one argument, frozen at install [11].
 - Shop search, an unused "wants an exchange code" helper and per-game uninstall work are not
   ported; DLC stay hidden and are never installed separately; optional (non-language) install tags
-  are never selected; resume restarts a partially written file from zero [15–18].
+  are never selected [15–18].
 - Library details are fetched one game at a time, as before.
 
 ## What needs device testing

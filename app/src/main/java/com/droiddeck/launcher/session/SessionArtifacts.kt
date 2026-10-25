@@ -287,6 +287,47 @@ object SessionArtifacts {
     internal fun recordedClient(dir: File): String? =
         runCatching { File(dir, CLIENT_FILE).readText().trim() }.getOrNull()?.takeIf { it == "arm64" || it == "x86_64" }
 
+    private const val LOG_MARKS = "steam-log-marks.txt"
+    private const val MAX_STEAM_LOG = 8L * 1024 * 1024
+    private const val HEAD = 4096L
+
+    private class Mark(val size: Long, val head: String)
+    private class CopyResult(val files: List<File>, val failed: Boolean, val deferred: Boolean)
+
+    fun markSteamLogs(dir: File, logs: File) {
+        val lines = logs.listFiles { f -> f.isFile }?.mapNotNull { f ->
+            val size = f.length()
+            head(f, size)?.let { "$size\t$it\t${f.name}" }
+        } ?: return
+        runCatching { File(dir, LOG_MARKS).writeText(lines.joinToString("") { "$it\n" }) }
+    }
+
+    private fun head(f: File, length: Long): String? = runCatching {
+        val buf = ByteArray(minOf(length, HEAD).toInt())
+        f.inputStream().use { input ->
+            var off = 0
+            while (off < buf.size) {
+                val n = input.read(buf, off, buf.size - off)
+                if (n < 0) return@runCatching null
+                off += n
+            }
+        }
+        java.security.MessageDigest.getInstance("SHA-1").digest(buf).joinToString("") { "%02x".format(it) }
+    }.getOrNull()
+
+    private fun steamLogMarks(dir: File): List<Mark>? = runCatching {
+        File(dir, LOG_MARKS).readLines().mapNotNull { line ->
+            val parts = line.split('\t', limit = 3)
+            parts.getOrNull(0)?.toLongOrNull()?.let { size -> parts.getOrNull(1)?.let { Mark(size, it) } }
+        }
+    }.getOrNull()
+
+    private fun startOf(src: File, size: Long, marks: List<Mark>): Long {
+        val heads = HashMap<Long, String?>()
+        return marks.filter { it.size <= size }.sortedByDescending { it.size }
+            .firstOrNull { m -> heads.getOrPut(minOf(m.size, HEAD)) { head(src, m.size) } == m.head }?.size ?: 0L
+    }
+
     private fun copySteamLogs(
         context: Context,
         dir: File,
@@ -297,35 +338,123 @@ object SessionArtifacts {
         val logs = File(steamArch?.let { SessionPrefs.steamRoot(context, it) } ?: SessionPrefs.activeSteamRoot(context), "logs")
         if (!logs.isDirectory) return
         val out = File(dir, "steam").apply { mkdirs() }
-        val sources = logs.listFiles { f -> f.isFile && f.length() < 8L * 1024 * 1024 }
-        if (sources == null) {
-            record.failed = true
-            return
-        }
+        val result = copySessionLogsResult(logs, dir, out) { stopWhenSessionStarts && SessionState.running }
+        result.files.forEach { dst -> record.files[dst] = Scrubbed(dst.length(), dst.lastModified()) }
+        record.failed = record.failed || result.failed
+        record.deferred = record.deferred || result.deferred
+        Log.i(TAG, "collected ${out.listFiles()?.size ?: 0} Steam log(s), scrubbed, into $out")
+    }
+
+    internal fun copySessionLogs(logs: File, dir: File, out: File): List<File> =
+        copySessionLogsResult(logs, dir, out) { false }.files
+
+    private fun copySessionLogsResult(
+        logs: File,
+        dir: File,
+        out: File,
+        shouldStop: () -> Boolean,
+    ): CopyResult {
+        val marks = steamLogMarks(dir)
+        val copied = ArrayList<File>()
+        var failed = false
+        var deferred = false
+        val sources = logs.listFiles { f -> f.isFile } ?: return CopyResult(copied, true, false)
         for (src in sources) {
-            if (stopWhenSessionStarts && SessionState.running) {
-                record.failed = true
-                record.deferred = true
+            if (shouldStop()) {
+                failed = true
+                deferred = true
                 break
             }
+            val size = src.length()
+            val from = marks?.let { startOf(src, size, it) } ?: 0L
+            if (marks != null && from == size || size - from >= MAX_STEAM_LOG) continue
             try {
                 val dst = File(out, src.name)
-                val copied = dst.bufferedWriter().use { w ->
-                    LogRedactor.scrubTo(src, w) { stopWhenSessionStarts && SessionState.running }
+                src.inputStream().buffered().use { input ->
+                    var left = if (from > 0) from - 1 else 0L
+                    while (left > 0) {
+                        val skipped = input.skip(left)
+                        if (skipped <= 0) break
+                        left -= skipped
+                    }
+                    if (from > 0 && input.read() != '\n'.code) {
+                        while (true) {
+                            val c = input.read()
+                            if (c < 0 || c == '\n'.code) break
+                        }
+                    }
+                    val complete = dst.bufferedWriter().use { w -> scrubSteamLog(input, w, shouldStop) }
+                    if (!complete) {
+                        dst.delete()
+                        failed = true
+                        deferred = true
+                    }
                 }
-                if (!copied) {
-                    dst.delete()
-                    record.failed = true
-                    record.deferred = true
-                    break
-                }
-                record.files[dst] = Scrubbed(dst.length(), dst.lastModified())
+                if (deferred) break
+                copied += dst
             } catch (e: Exception) {
                 Log.w(TAG, "could not scrub ${src.name}", e)
-                record.failed = true
+                failed = true
             }
         }
-        Log.i(TAG, "collected ${out.listFiles()?.size ?: 0} Steam log(s), scrubbed, into $out")
+        return CopyResult(copied, failed, deferred)
+    }
+
+    private fun scrubSteamLog(
+        input: java.io.InputStream,
+        out: java.io.Writer,
+        shouldStop: () -> Boolean,
+    ): Boolean {
+        input.reader().use { reader ->
+            val chunk = CharArray(8192)
+            val line = StringBuilder(4096)
+            var oversized = false
+            var pendingContent = false
+            var pendingCarriageReturn = false
+
+            fun emit() {
+                out.write(if (oversized) LogRedactor.OVERSIZED_LINE else LogRedactor.redact(line.toString()))
+                out.write("\n")
+                line.setLength(0)
+                oversized = false
+                pendingContent = false
+            }
+
+            while (true) {
+                if (shouldStop()) return false
+                val count = reader.read(chunk)
+                if (count < 0) break
+                if (shouldStop()) return false
+                for (i in 0 until count) {
+                    if (shouldStop()) return false
+                    val char = chunk[i]
+                    if (pendingCarriageReturn) {
+                        emit()
+                        pendingCarriageReturn = false
+                        if (char == '\n') continue
+                    }
+                    when (char) {
+                        '\r' -> pendingCarriageReturn = true
+                        '\n' -> emit()
+                        else -> {
+                            pendingContent = true
+                            if (!oversized) {
+                                if (line.length < LogRedactor.MAX_LINE_LENGTH) line.append(char)
+                                else {
+                                    line.setLength(0)
+                                    oversized = true
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if (pendingCarriageReturn || pendingContent) {
+                if (shouldStop()) return false
+                emit()
+            }
+        }
+        return true
     }
 
     @Synchronized

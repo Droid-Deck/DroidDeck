@@ -1,0 +1,58 @@
+#!/bin/bash
+# droiddeck-steamrt-shim <client runtime dir> <shim dir>
+# Builds <shim dir> from the Steam Runtime container the client carries and exits 0, or removes it and exits 1
+# when the client carries none.
+set -eu
+client=$1
+shim=$2
+srt_real=$client/pv-runtime/steam-runtime-steamrt
+if [ ! -d "$srt_real" ]; then
+  probe=$(find "$client" -maxdepth 4 -name steam-runtime-check-requirements -path '*/bin/*' -print -quit 2>/dev/null || true)
+  srt_real=${probe:+${probe%/bin/*}}
+fi
+if [ -z "$srt_real" ] || [ ! -d "$srt_real" ]; then
+  rm -rf "$shim"
+  exit 1
+fi
+rm -rf "$shim"
+trap 'rm -rf "$shim"' ERR
+mkdir -p "$shim/bin"
+for e in "$srt_real"/* "$srt_real"/.[!.]*; do
+  [ -e "$e" ] || continue
+  [ "$(basename "$e")" = bin ] || ln -s "$e" "$shim/$(basename "$e")"
+done
+for e in "$srt_real"/bin/*; do
+  [ -e "$e" ] || continue
+  ln -s "$e" "$shim/bin/$(basename "$e")"
+done
+# The client's bwrap probe (steam-runtime-check-requirements) needs user namespaces, which no Android app has.
+rm -f "$shim/bin/steam-runtime-check-requirements"
+printf '#!/bin/sh
+exit 0
+' > "$shim/bin/steam-runtime-check-requirements"
+chmod 755 "$shim/bin/steam-runtime-check-requirements"
+# Valve's launcher asks a service on the session bus; proot is already the container, so the command runs here.
+rm -f "$shim/bin/steam-runtime-launch-client"
+cat > "$shim/bin/steam-runtime-launch-client" <<'LAUNCH'
+#!/bin/sh
+while [ $# -gt 0 ]; do
+  case $1 in
+    --) shift; break ;;
+    --directory=*) cd "${1#--directory=}" || exit 127 ;;
+    --env=*) export "${1#--env=}" ;;
+    --unset-env=*) unset "${1#--unset-env=}" ;;
+    --directory|--env|--unset-env)
+      [ $# -ge 2 ] || exit 127
+      case $1 in
+        --directory) cd "$2" || exit 127 ;;
+        --env) export "$2" ;;
+        --unset-env) unset "$2" ;;
+      esac
+      shift ;;
+  esac
+  shift
+done
+[ $# -gt 0 ] || exit 0
+exec "$@"
+LAUNCH
+chmod 755 "$shim/bin/steam-runtime-launch-client"

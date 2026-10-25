@@ -7,14 +7,14 @@ Apply these patches after `tools/dxvk/patches/*.patch` to the revision in
 | Property | Required value |
 | --- | --- |
 | vendorID | `0x13b5` |
-| deviceID | Native `0xb8a20000`, or Wine-visible `0x00000000` with exact device name `Mali-G715` |
+| deviceID | Native G715 `0xb8a20000` or G710 `0xa8620000`, or Wine-visible `0x00000000` with exact device name `Mali-G715` or `Mali-G710` |
 | driverVersion | `0x0d803000` |
 
 The Wine-visible zero is specific to pinned Wine commit
 `e60892cc2398b0a83c332a2078c7b85e47bdb42b`: `dlls/win32u/vulkan.c`
 passes Vulkan IDs through `struct pci_id`, whose `vendor` and `device` fields
 are `UINT16` in `include/wine/gdi_driver.h`. The Mali device ID's low 16 bits
-are zero. The zero-ID path therefore also requires the exact `Mali-G715` name;
+are zero. The zero-ID path therefore also requires the exact `Mali-G715` or `Mali-G710` name;
 the opt-in, vendor, and driver-version checks remain mandatory.
 
 Only `fillModeNonSolid`, `multiViewport`, `shaderCullDistance`, and
@@ -47,6 +47,12 @@ pretending the native queue was lost could free resources still used by the GPU.
 The latch is permanent for that device and is not cleared by D3D9 Reset.
 
 ## Validation
+
+The G710 identity follows CalcProgrammer1's original Pixel Fold report and
+[component build](https://github.com/CalcProgrammer1/DroidDeck/releases/tag/system-vulkan-mali-v0.1.0-rc.2),
+which reached Portal gameplay after adding this identity. This is a reported
+G710 result, separate from the local G715 validation; it does not extend the
+profile to other Mali models or driver versions.
 
 Static checks performed: patch applies cleanly to the existing patch baseline,
 reverse application matches the edited source, and `git diff --check` passes.

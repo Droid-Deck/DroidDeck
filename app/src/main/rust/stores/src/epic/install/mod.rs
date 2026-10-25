@@ -5,7 +5,7 @@ pub mod space;
 pub mod staging;
 pub mod writer;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -140,6 +140,17 @@ pub fn fetch_manifest(info: &BuildInfo, log: &dyn Fn(&str)) -> Result<Manifest, 
     })
 }
 
+fn resume_from(stage: &Path, parts: &[PlanPart], size: u64) -> Option<HashSet<u64>> {
+    let meta = fs::symlink_metadata(stage).ok()?;
+    if !meta.is_file() || meta.len() > size {
+        return None;
+    }
+    let list = fs::read_to_string(staging::list_path(stage)).ok()?;
+    let kept: HashSet<u64> = list.lines().map(|l| l.parse().ok()).collect::<Option<_>>()?;
+    let fits = |o: &u64| parts.iter().any(|p| p.file_offset == *o && p.file_offset + p.size as u64 <= meta.len());
+    (!kept.is_empty() && kept.iter().all(fits)).then_some(kept)
+}
+
 pub fn run(req: &Request, cancel: &AtomicBool, ev: &dyn Events) -> Result<Finished, Stop> {
     let failed = |m: String| Stop::Failed(m);
     ev.status("Downloading the manifest…");
@@ -191,6 +202,7 @@ pub fn run(req: &Request, cancel: &AtomicBool, ev: &dyn Events) -> Result<Finish
     }
     let pending_bytes: u64 = pending.iter().map(|&(i, _)| manifest.files[i].size).sum();
     ev.sizes(pending_bytes, disk_bytes);
+    let mut partials = staging::partials(&stage_dir);
 
     let mut finished = Finished {
         build_version: manifest.build_version.clone(),
@@ -211,6 +223,9 @@ pub fn run(req: &Request, cancel: &AtomicBool, ev: &dyn Events) -> Result<Finish
         staging::remove_if_idle(&stage_dir);
     };
     if pending.is_empty() {
+        for stale in partials.values() {
+            staging::remove_partial(stale);
+        }
         ev.log("every selected file is already up to date");
         clean_caches();
         ev.installing(disk_bytes, disk_bytes, total_selected, total_selected);
@@ -219,6 +234,8 @@ pub fn run(req: &Request, cancel: &AtomicBool, ev: &dyn Events) -> Result<Finish
 
     let mut plan_files = Vec::with_capacity(pending.len());
     let mut engine_files = Vec::with_capacity(pending.len());
+    let mut resumed_bytes = 0u64;
+    let mut kept_sizes = Vec::with_capacity(pending.len());
     for &(i, old_size) in &pending {
         let f = &manifest.files[i];
         let mut parts = Vec::with_capacity(f.parts.len());
@@ -234,6 +251,22 @@ pub fn run(req: &Request, cancel: &AtomicBool, ev: &dyn Events) -> Result<Finish
             parts.push(PlanPart { chunk: c as u32, chunk_offset: part.offset, size: part.size, file_offset: offset });
             offset += part.size as u64;
         }
+        let mut resume = None;
+        let mut kept_size = 0u64;
+        if let Some(stage) = partials.remove(&staging::partial_name(&f.path, f.size, f.sha1)) {
+            match resume_from(&stage, &parts, f.size).filter(|_| f.sha1.is_some()) {
+                Some(kept) => {
+                    let bytes: u64 = parts.iter().filter(|p| kept.contains(&p.file_offset)).map(|p| p.size as u64).sum();
+                    ev.log(&format!("resuming {} with {bytes} of {} bytes written", f.path, f.size));
+                    resumed_bytes += bytes;
+                    kept_size = bytes;
+                    parts.retain(|p| !kept.contains(&p.file_offset));
+                    resume = Some(writer::Resume { stage, kept: kept.into_iter().collect() });
+                }
+                None => staging::remove_partial(&stage),
+            }
+        }
+        kept_sizes.push(kept_size);
         plan_files.push(PlanFile { size: f.size, parts: parts.clone() });
         engine_files.push(writer::EngineFile {
             path: f.path.clone(),
@@ -242,8 +275,14 @@ pub fn run(req: &Request, cancel: &AtomicBool, ev: &dyn Events) -> Result<Finish
             sha1: f.sha1,
             replacing: old_size > 0,
             parts,
+            resume,
         });
     }
+    for stale in partials.values() {
+        staging::remove_partial(stale);
+    }
+    let fresh = pending.iter().all(|&(_, old_size)| old_size == 0);
+    let progress_base = resumed_bytes + if fresh { disk_bytes - pending_bytes } else { 0 };
 
     let scratch = req
         .scratch_dir
@@ -252,7 +291,8 @@ pub fn run(req: &Request, cancel: &AtomicBool, ev: &dyn Events) -> Result<Finish
         .filter(|s| !space::same_volume(s, &req.game_dir));
     let sizes: Vec<space::PendingSize> = pending
         .iter()
-        .map(|&(i, old)| space::PendingSize { new_size: manifest.files[i].size, old_size: old })
+        .zip(&kept_sizes)
+        .map(|(&(i, old), kept)| space::PendingSize { new_size: manifest.files[i].size - kept, old_size: old })
         .collect();
     let free_game = space::free_bytes(&req.game_dir);
     let scratch_space = scratch.as_ref().map(|s| space::Scratch { free: space::free_bytes(s) });
@@ -308,6 +348,8 @@ cache_budget_mib={} overlap_mib={} free_game={free_game} workers={} process_work
         process_workers: req.process_workers,
         ca_bundle: req.ca_bundle.clone(),
         user_agent: net::user_agent(),
+        progress_base,
+        progress_total: progress_base + pending_bytes - resumed_bytes,
     };
     let stats = writer::run(&input, cancel, ev)?;
     finished.bytes_written = stats.bytes_written;

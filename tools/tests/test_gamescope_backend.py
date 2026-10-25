@@ -18,7 +18,7 @@ GRAPHICS_KEYS = ("DROIDDECK_SYSTEM_VULKAN_GPU", "DROIDDECK_SYSTEM_VULKAN_RUNTIME
 
 
 class GamescopeBackendTest(unittest.TestCase):
-    def select(self, backend=None, mode="desktop"):
+    def select(self, backend=None, mode="desktop", cursor_composite=False):
         source = SESSION.read_text()
         start = source.index('  backend=${BL_GAMESCOPE_BACKEND:-wayland}')
         end = source.index('\n', source.index('  args=(--backend ', start))
@@ -28,9 +28,12 @@ class GamescopeBackendTest(unittest.TestCase):
         env.pop("BL_GAMESCOPE_BACKEND", None)
         env.pop("SDL_VIDEODRIVER", None)
         env.pop("gamescope_cursor_composite", None)
+        env.pop("BL_CURSOR_COMPOSITE", None)
         env["mode"] = mode
         if backend is not None:
             env["BL_GAMESCOPE_BACKEND"] = backend
+        if cursor_composite:
+            env["BL_CURSOR_COMPOSITE"] = "1"
         return subprocess.run(["bash", "-c", script], env=env, text=True,
                               capture_output=True, timeout=5)
 
@@ -47,7 +50,7 @@ class GamescopeBackendTest(unittest.TestCase):
     def test_steam_cursor_composition_preserves_backend_selection(self):
         for backend, sdl in (("wayland", "unset"), ("sdl", "wayland")):
             with self.subTest(backend=backend):
-                result = self.select(backend, mode="steam")
+                result = self.select(backend, mode="steam", cursor_composite=True)
                 self.assertEqual(0, result.returncode, result.stderr)
                 self.assertEqual(["--backend", backend, sdl, "2"], result.stdout.splitlines())
 

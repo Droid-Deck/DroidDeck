@@ -108,10 +108,28 @@ object WinComponents {
     fun cached(context: Context): List<Component>? =
         loadCatalog(null, File(context.filesDir, CATALOG_CACHE))
 
+    const val VCREDIST_ARM64 = "vcredist2022_arm64"
+
+    /**
+     * The ARM64 Visual C++ 2015-2022 runtime as registry values only (the version a 14.44.35211 installer writes, in both
+     * registry views). Xbox games' launchers running as ARM64EC check for it; Wine's own CRT does the work. Same approach as
+     * MGamer404's Bannerlator #627. Used until the catalog carries a component of this name.
+     */
+    internal fun builtInArm64Runtime(): Component {
+        fun value(view: String, name: String, type: String, data: String) = Step("set_register_key", JSONObject()
+            .put("action", "set_register_key").put("key", "HKLM\\Software\\${view}Microsoft\\VisualStudio\\14.0\\VC\\Runtimes\\arm64")
+            .put("value", name).put("type", type).put("data", data))
+        val steps = listOf("", "Wow6432Node\\").flatMap { view ->
+            listOf(value(view, "Installed", "REG_DWORD", "1"), value(view, "Major", "REG_DWORD", "14"), value(view, "Minor", "REG_DWORD", "44"),
+                value(view, "Bld", "REG_DWORD", "35211"), value(view, "Rbld", "REG_DWORD", "0"), value(view, "Version", "REG_SZ", "v14.44.35211.00"))
+        }
+        return Component(VCREDIST_ARM64, "Microsoft Visual C++ 2015-2022 ARM64 runtime 14.44.35211 (registry entries only)", "Microsoft", "ready", emptyList(), steps)
+    }
+
     private fun parse(body: String): List<Component>? {
         return try {
             val arr = JSONObject(body).getJSONArray("components")
-            WinFontComponents.merge((0 until arr.length()).mapNotNull { i ->
+            val listed = (0 until arr.length()).mapNotNull { i ->
                 val o = arr.getJSONObject(i)
                 val name = o.optString("name")
                 if (!validId(name)) return@mapNotNull null
@@ -123,7 +141,10 @@ object WinComponents {
                     (0 until steps.length()).map { steps.getJSONObject(it).let { s -> Step(s.optString("action"), s) } },
                     o.optString("snapshot"),
                 )
-            })
+            }
+            WinFontComponents.merge(
+                if (listed.any { it.name == VCREDIST_ARM64 }) listed else listed + builtInArm64Runtime()
+            )
         } catch (e: Exception) {
             Log.w(TAG, "catalog: $e"); null
         }
