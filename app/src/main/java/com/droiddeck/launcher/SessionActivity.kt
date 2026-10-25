@@ -2257,6 +2257,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun refreshGestureConfig() {
         gestureConfig = com.droiddeck.launcher.input.GesturePrefs.read(this, gestureGame)
         if (::touchscreenGestures.isInitialized) touchscreenGestures.configure(gestureConfig)
+        if (::directTouchHold.isInitialized) directTouchHold.configure(gestureConfig)
         gesturePointerReady = false
         recognizedGesture = null
     }
