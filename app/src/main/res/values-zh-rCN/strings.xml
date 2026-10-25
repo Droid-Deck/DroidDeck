@@ -7,6 +7,7 @@
     <string name="steamvr_recovery_cancel">保持打开</string>
     <string name="steamvr_recovery_restarting">正在重置图形并重新打开 SteamVR…</string>
     <string name="steamvr_recovery_failed">DroidDeck 无法自动重启。请完全关闭应用，然后重新打开。</string>
+    <string name="gpu_device_lost">GPU 已停止响应。重试将重新启动 DroidDeck 并恢复图形。未保存的游戏进度可能丢失。</string>
     <string name="app_name">DroidDeck</string>
     <string-array name="loading_hints">
         <item>首次运行会下载 Steam，这可能需要几分钟。</item>

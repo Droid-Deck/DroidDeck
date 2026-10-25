@@ -81,34 +81,45 @@ object SessionEvents {
             SessionState.failureCode = code
             SessionState.failureMessage = message
             SessionState.failureStatus = status
+            SessionState.firstFrameSeen = false
         }
         record("session.failed", mapOf("code" to code, "message" to message, "status" to status))
     }
 
     fun firstFrame() {
-        SessionState.firstFrameSeen = true
-        record("frame.first")
-        markReadyIfPossible()
+        synchronized(SessionState) {
+            if (SessionState.failureCode != null) return
+            SessionState.firstFrameSeen = true
+            record("frame.first")
+            markReadyIfPossible()
+        }
     }
 
     fun guestStarted(pid: Int) {
-        SessionState.guestPid = pid
-        record("guest.started", mapOf("pid" to pid))
-        if (SessionState.mode == SessionService.MODE_STEAM) {
-            transition(SessionPhase.STARTING_STEAM, "steam.starting")
+        synchronized(SessionState) {
+            SessionState.guestPid = pid
+            record("guest.started", mapOf("pid" to pid))
+            if (SessionState.failureCode != null) return
+            if (SessionState.mode == SessionService.MODE_STEAM) {
+                transition(SessionPhase.STARTING_STEAM, "steam.starting")
+            }
+            markReadyIfPossible()
         }
-        markReadyIfPossible()
     }
 
     fun markReadyIfPossible() {
-        if (!SessionState.running || SessionState.guestPid <= 1 || !SessionState.firstFrameSeen || SessionState.suspended) return
-        if (SessionState.phase != SessionPhase.READY) {
-            transition(SessionPhase.READY, "session.ready")
-            Thread({ com.droiddeck.launcher.gpu.AutoDriverTrial.sessionReady() }, "gpu-driver-trial").start()
+        synchronized(SessionState) {
+            if (SessionState.failureCode != null) return
+            if (!SessionState.running || SessionState.guestPid <= 1 || !SessionState.firstFrameSeen || SessionState.suspended) return
+            if (SessionState.phase != SessionPhase.READY) {
+                transition(SessionPhase.READY, "session.ready")
+                Thread({ com.droiddeck.launcher.gpu.AutoDriverTrial.sessionReady() }, "gpu-driver-trial").start()
+            }
         }
     }
 
     fun resumePhase(): SessionPhase = when {
+        SessionState.failureCode != null -> SessionPhase.FAILED
         SessionState.firstFrameSeen && SessionState.guestPid > 1 -> SessionPhase.READY
         SessionState.mode == SessionService.MODE_STEAM && SessionState.guestPid > 1 -> SessionPhase.STARTING_STEAM
         else -> SessionPhase.STARTING_GUEST

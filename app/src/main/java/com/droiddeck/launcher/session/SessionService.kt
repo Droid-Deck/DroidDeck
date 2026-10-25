@@ -170,8 +170,19 @@ class SessionService : Service() {
     }
     @Volatile private var sessionGen = 0
 
+    private val deviceLostListener = Runnable { mainHandler.post { gpuDeviceLost() } }
+
+    private fun gpuDeviceLost() {
+        SessionEvents.fail("GPU_DEVICE_LOST", getString(com.droiddeck.launcher.R.string.gpu_device_lost), 1)
+        if (SessionState.running) stopSession(1) else {
+            SessionState.notifyEnded(1)
+            stopSelf()
+        }
+    }
+
     override fun onCreate() {
         super.onCreate()
+        WaylandCompositor.setDeviceLostListener(deviceLostListener)
         screenOn = readScreenOn()
         registerReceiver(screenReceiver, IntentFilter().apply {
             addAction(Intent.ACTION_SCREEN_OFF)
@@ -303,6 +314,10 @@ class SessionService : Service() {
             return START_NOT_STICKY
         }
         startForeground(NOTIFICATION_ID, buildNotification())
+        if (WaylandCompositor.hasDeviceLost()) {
+            gpuDeviceLost()
+            return START_NOT_STICKY
+        }
         if (SessionState.running) return START_NOT_STICKY
         if (SessionState.stopRequested) {
             SessionState.running = true
@@ -1609,8 +1624,9 @@ class SessionService : Service() {
             runCatching { com.droiddeck.launcher.agent.AgentEnv.endSession(this) }
                 .onFailure { Log.w(TAG, "clearing the agent's session environment", it) }
             releaseLocks()
-            if (status == 0) {
-                SessionEvents.transition(SessionPhase.IDLE, "session.stopped", mapOf("status" to status))
+            val finalStatus = if (SessionState.failureCode == "GPU_DEVICE_LOST") 1 else status
+            if (finalStatus == 0) {
+                SessionEvents.transition(SessionPhase.IDLE, "session.stopped", mapOf("status" to finalStatus))
             } else {
                 val code = SessionState.failureCode ?: "GUEST_EXIT"
                 val message = SessionState.failureMessage ?: "Session guest exited with status $status"
@@ -1621,7 +1637,7 @@ class SessionService : Service() {
             com.droiddeck.launcher.glasses.Glasses.cancelSteamVrStart()
             com.droiddeck.launcher.glasses.Glasses.setVrActive(false)
             com.droiddeck.launcher.glasses.Glasses.set3dForVr(false)
-            SessionState.notifyEnded(status)
+            SessionState.notifyEnded(finalStatus)
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
         }
@@ -1735,6 +1751,7 @@ class SessionService : Service() {
     }
 
     override fun onDestroy() {
+        WaylandCompositor.clearDeviceLostListener(deviceLostListener)
         stopSession(0)
         GameThreadHints.stop() // also when the session never got as far as running
         if (screenReceiverRegistered) {

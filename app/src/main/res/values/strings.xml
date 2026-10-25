@@ -11,6 +11,7 @@
     <string name="steamvr_recovery_cancel">Keep open</string>
     <string name="steamvr_recovery_restarting">Resetting graphics and reopening SteamVR…</string>
     <string name="steamvr_recovery_failed">DroidDeck could not restart automatically. Close the app completely, then reopen it.</string>
+    <string name="gpu_device_lost">The GPU stopped responding. Retry to restart DroidDeck and restore graphics. Unsaved game progress may be lost.</string>
     <string name="app_name">DroidDeck</string>
     <string-array name="loading_hints">
         <item>First run downloads Steam. This may take a few minutes.</item>

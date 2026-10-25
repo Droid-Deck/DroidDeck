@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import stat
+import subprocess
 import sys
 import tempfile
 import textwrap
@@ -145,6 +146,14 @@ class FakeAdbTest(unittest.TestCase):
 
 
 class DroiddeckctlTest(FakeAdbTest):
+    def test_task_reuse_is_not_mistaken_for_a_new_agent_start(self):
+        output = (b"Warning: Activity not started, intent has been delivered to currently running top-most instance.\n"
+                  b"Status: ok\nActivity: com.droiddeck.launcher/.SessionActivity\n")
+        with unittest.mock.patch.object(ctl, "run_adb", return_value=subprocess.CompletedProcess([], 0, output, b"")):
+            with self.assertRaises(ctl.ControlError) as caught:
+                ctl.start_agent_activity("adb", "fake-1", {"mode": "steam"})
+        self.assertEqual("ACTIVITY_START_FAILED", caught.exception.code)
+
     def test_oversized_requests_are_refused_before_adb(self):
         with self.assertRaises(ctl.ControlError) as caught:
             ctl.provider_call(str(self.adb), "fake-1", "guest", request={"stdin": "x" * ctl.REQUEST_CAP})

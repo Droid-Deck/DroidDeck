@@ -123,6 +123,8 @@ def start_agent_activity(adb: str, serial: str, request: dict) -> None:
         "am",
         "start",
         "-W",
+        "-f",
+        "0x18000000",  # NEW_TASK | MULTIPLE_TASK: the Agent's onCreate must handle this request.
         "-n",
         f"{PACKAGE}/com.droiddeck.launcher.agent.AgentStartActivity",
         "--es",
@@ -131,7 +133,8 @@ def start_agent_activity(adb: str, serial: str, request: dict) -> None:
         timeout=90,
     )
     output = (result.stdout + result.stderr).decode(errors="replace")
-    if result.returncode != 0 or "status: ok" not in output.lower():
+    if (result.returncode != 0 or "status: ok" not in output.lower()
+            or "intent has been delivered to currently running top-most instance" in output.lower()):
         raise ControlError(output.strip() or "The agent start Activity did not launch", "ACTIVITY_START_FAILED")
 
 

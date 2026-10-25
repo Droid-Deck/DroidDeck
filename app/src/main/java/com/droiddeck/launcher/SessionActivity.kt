@@ -454,6 +454,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             finish()
             return
         }
+        if (com.droiddeck.launcher.gpu.GpuProcessRecovery.restartIfNeeded(this, intent)) {
+            runtimeRemovalBlocked = true
+            closeAtOnce = true
+            finish()
+            return
+        }
         if (!SessionState.running && SessionState.phase in setOf(SessionPhase.IDLE, SessionPhase.FAILED)) {
             val mode = intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_STEAM
             SessionState.programArgs = intent.getStringArrayExtra(SessionService.EXTRA_PROGRAM_ARGS)?.toList().orEmpty()
@@ -1956,9 +1962,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             SessionService.MODE_DESKTOP -> getString(R.string.session_ended_desktop)
             else -> getString(R.string.session_ended_named, "Steam")
         }
-        repairOffered = hint?.repair == true
+        val gpuLost = SessionState.failureCode == "GPU_DEVICE_LOST"
+        repairOffered = !gpuLost && hint?.repair == true
         loading.showEnded(
-            hint?.text ?: stopped,
+            if (gpuLost) getString(R.string.gpu_device_lost) else hint?.text ?: stopped,
             getString(R.string.session_ended_detail, status, SessionState.logFile?.path ?: getString(R.string.session_ended_no_log)),
         )
         focusEndedScreen()
@@ -3500,9 +3507,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     private val endListener: (Int) -> Unit = { status -> onSessionEnded(status) }
     private val firstFrameListener = Runnable {
+        if (WaylandCompositor.hasDeviceLost()) return@Runnable
         SessionEvents.firstFrame()
         if (SessionState.mode == SessionService.MODE_STEAM) SteamRepair.clientShown(this)
         runOnUiThread {
+            if (WaylandCompositor.hasDeviceLost()) return@runOnUiThread
             loading.visible = false
             hud.start()
         }

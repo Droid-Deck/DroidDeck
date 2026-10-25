@@ -10,6 +10,27 @@ public final class WaylandCompositor {
     private WaylandCompositor() {}
 
     private static volatile Runnable firstFrameListener;
+    private static volatile boolean deviceLost;
+    private static volatile Runnable deviceLostListener;
+
+    public static boolean hasDeviceLost() { return deviceLost; }
+
+    public static synchronized void setDeviceLostListener(Runnable r) { deviceLostListener = r; }
+
+    public static synchronized void clearDeviceLostListener(Runnable r) {
+        if (deviceLostListener == r) deviceLostListener = null;
+    }
+
+    @SuppressWarnings("unused")
+    static void onDeviceLost() {
+        Runnable r;
+        synchronized (WaylandCompositor.class) {
+            if (deviceLost) return;
+            deviceLost = true;
+            r = deviceLostListener;
+        }
+        if (r != null) r.run();
+    }
 
     public static void setFirstFrameListener(Runnable r) { firstFrameListener = r; }
 
@@ -19,6 +40,7 @@ public final class WaylandCompositor {
 
     @SuppressWarnings("unused")
     static void onFirstFramePresented() {
+        if (deviceLost) return;
         Runnable r = firstFrameListener;
         if (r != null) r.run();
     }
