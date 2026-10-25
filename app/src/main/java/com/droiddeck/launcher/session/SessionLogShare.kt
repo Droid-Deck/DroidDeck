@@ -97,17 +97,19 @@ object SessionLogShare {
         val drive = File(BattleNet.prefix(context), "pfx/drive_c")
         val data = File(drive, "ProgramData/Battle.net")
         fun logsUnder(dir: File, prefix: String) = dir.listFiles { f -> f.isDirectory && f.name.startsWith(prefix) }.orEmpty().map { File(it, "Logs") }
-        return newest("droiddeck", listOf(File(LinuxRuntime.rootDir(context), "root/.cache/droiddeck/battlenet")), 2) +
+        return newest("droiddeck", listOf(File(LinuxRuntime.rootDir(context), "root/.cache/droiddeck/battlenet")), 2, setOf("battlenet.log", "spawned.log")) +
             newest("client", listOf(File(drive, "users/steamuser/AppData/Local/Battle.net/Logs")), 6) +
-            newest("agent", listOf(File(data, "Agent/Logs")) + logsUnder(File(data, "Agent"), "Agent."), 10) +
-            newest("setup", logsUnder(File(data, "Setup"), ""), 3)
+            newest("agent", listOf(File(data, "Agent/Logs")) + logsUnder(File(data, "Agent"), "Agent."), 10, byDir = true) +
+            newest("setup", logsUnder(File(data, "Setup"), ""), 3, byDir = true)
     }
 
-    private fun newest(folder: String, dirs: List<File>, count: Int): List<Pair<String, File>> {
+    private fun newest(folder: String, dirs: List<File>, count: Int, names: Set<String>? = null, byDir: Boolean = false): List<Pair<String, File>> {
         val since = System.currentTimeMillis() - RECENT_DAYS * 86_400_000L
         return dirs.flatMap { dir ->
-            dir.listFiles { f -> f.isFile && f.name.endsWith(".log") && f.lastModified() >= since && f.length() <= STEAM_LOG_MAX_BYTES }.orEmpty().toList()
-        }.sortedByDescending { it.lastModified() }.take(count).map { "$folder/${it.name}" to it }
+            dir.listFiles { f -> f.isFile && f.name.endsWith(".log") && (names == null || f.name in names) && f.lastModified() >= since && f.length() <= STEAM_LOG_MAX_BYTES }.orEmpty().toList()
+        }.sortedByDescending { it.lastModified() }.take(count).map { f ->
+            (if (byDir) "$folder/${f.parentFile?.parentFile?.name}/${f.name}" else "$folder/${f.name}") to f
+        }
     }
 
     private fun recent(dir: File): List<File> {
