@@ -51,6 +51,10 @@ class DualSenseManager(private val context: Context) {
     @Volatile var isRawHidActive: Boolean = false
         private set
     @Volatile private var lastRawHidTimestamp = 0L
+    /** Vendor/product of the pad read over a claimed USB connection; null when raw frames come from the host bridge. */
+    @Volatile private var rawUsbIds: Pair<Int, Int>? = null
+    /** The Android input device that duplicates the raw-HID pad, or -1 when it cannot be told apart from other pads. */
+    @Volatile private var rawTwinDeviceId = -1
 
     @Volatile var onStateUpdated: ((DualSense.State) -> Unit)? = null
     @Volatile var onActivationChanged: ((Boolean) -> Unit)? = null
@@ -278,6 +282,7 @@ class DualSenseManager(private val context: Context) {
             }
 
             closeUsbDevice()
+            rawUsbIds = device.vendorId to device.productId
             usbConnection = connection
             usbInterface = hidIntf
             usbEndpointIn = epIn
@@ -315,6 +320,8 @@ class DualSenseManager(private val context: Context) {
         usbConnection = null
         usbEndpointIn = null
         usbEndpointOut = null
+        rawUsbIds = null
+        rawTwinDeviceId = -1
     }
 
     /**
@@ -457,8 +464,17 @@ class DualSenseManager(private val context: Context) {
         isDualSenseActive && isRawHidActive && (SystemClock.uptimeMillis() - lastRawHidTimestamp < 1000L)
 
     fun shouldSuppressInputDevice(device: InputDevice?): Boolean {
-        if (device == null) return false
-        return DualSense.isDualSense(device) && isRawHidDelivering()
+        if (device == null || !isRawHidDelivering()) return false
+        return device.id == rawTwinDeviceId
+    }
+
+    /** Maps the raw-HID pad to its Android duplicate only when exactly one connected DualSense can be it. */
+    private fun resolveRawTwin() {
+        val ids = rawUsbIds
+        val candidates = InputDevice.getDeviceIds().toList().mapNotNull { getInputDevice(it) }
+            .filter { DualSense.isDualSense(it) }
+            .map { RawTwinCandidate(it.id, it.vendorId, it.productId) }
+        rawTwinDeviceId = pickRawTwin(candidates, ids)
     }
 
     fun onInputDeviceAdded(deviceId: Int) {
@@ -474,11 +490,13 @@ class DualSenseManager(private val context: Context) {
             activeSources.add(key)
             promoteToDualSense()
             registerDeviceSensors(dev)
+            if (isRawHidDelivering()) resolveRawTwin()
         }
     }
 
     fun onInputDeviceRemoved(deviceId: Int) {
         unregisterDeviceSensors(deviceId)
+        if (deviceId == rawTwinDeviceId) rawTwinDeviceId = -1
         val key = "input:$deviceId"
         if (activeSources.remove(key) && activeSources.isEmpty()) {
             hasDetached = true
@@ -626,6 +644,7 @@ class DualSenseManager(private val context: Context) {
         isDualSenseActive = false
         DeckControls.externalImuActive = false
         isRawHidActive = false
+        rawTwinDeviceId = -1
         isEdgeConnected = false
         btConnectTimestampMs = 0L
         btOutputSeq = 0
@@ -733,8 +752,10 @@ class DualSenseManager(private val context: Context) {
             }
         }
 
+        val rawWasStale = !isRawHidDelivering()
         lastRawHidTimestamp = SystemClock.uptimeMillis()
         isRawHidActive = true
+        if (rawWasStale) resolveRawTwin()
 
         // 1. Update PadBridge buttons, sticks, triggers
         // Digital trigger click fallback for DualSense Edge trigger stops
@@ -998,6 +1019,15 @@ class DualSenseManager(private val context: Context) {
 
         @Volatile
         var activeManager: DualSenseManager? = null
+
+        internal data class RawTwinCandidate(val id: Int, val vendorId: Int, val productId: Int)
+
+        /** The single candidate that can duplicate the raw pad (matching its USB ids when known), else -1. */
+        internal fun pickRawTwin(candidates: List<RawTwinCandidate>, rawUsbIds: Pair<Int, Int>?): Int {
+            val matching = if (rawUsbIds == null) candidates
+                else candidates.filter { it.vendorId == rawUsbIds.first && it.productId == rawUsbIds.second }
+            return matching.singleOrNull()?.id ?: -1
+        }
 
         @JvmStatic
         fun shouldSuppress(device: InputDevice?): Boolean =
