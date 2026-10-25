@@ -273,7 +273,8 @@ fun FileManagerScreen(
                 }
             }
             FileManagerNavigation.UP -> {
-                if (canNavigateUp(currentDir, currentRoot)) currentDir.parentFile?.let { loadDirectory(it) }
+                if (showFavorites) showFavorites = false
+                else if (canNavigateUp(currentDir, currentRoot)) currentDir.parentFile?.let { loadDirectory(it) }
                 else onExit?.invoke()
             }
         }
