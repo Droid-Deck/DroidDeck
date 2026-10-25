@@ -277,7 +277,7 @@ class XboxNativePlayerActivity : ComponentActivity() {
         PeerConnectionFactory.initialize(PeerConnectionFactory.InitializationOptions.builder(applicationContext)
             .setFieldTrials(trials).createInitializationOptions())
         val egl = eglBase!!
-        val zeroSurface = if (settings.zeroCopy && settings.frameGen == XboxNativeVideo.FG_OFF) {
+        val zeroSurface = if (zeroCopyWanted(settings)) {
             repeat(40) { if (!surfaceView.holder.surface.isValid) Thread.sleep(50) }
             surfaceView.holder.surface.takeIf { it.isValid }
         } else null
@@ -689,9 +689,16 @@ class XboxNativePlayerActivity : ComponentActivity() {
         XboxCloudSettings.save(this, changed)
         if (changed.frameGen != before.frameGen) setFrameGen(changed.frameGen)
         else if (changed.zeroCopy != before.zeroCopy) applyRoute()
-        if (changed.fpsTarget != before.fpsTarget) { applyDisplayRate(changed.fpsTarget); video?.setFpsTarget(changed.fpsTarget) }
+        if (changed.fpsTarget != before.fpsTarget) { applyDisplayRate(changed.fpsTarget); video?.setFpsTarget(changed.fpsTarget); applyRoute() }
         applyOverlay()
     }
+
+    /**
+     * Zero-copy draws every decoded frame straight onto the screen, so it is used only when nothing has to touch the
+     * frames: frame generation off and no frame-rate target below the stream's 60 fps (the compositor drops frames for that).
+     */
+    private fun zeroCopyWanted(s: XboxCloudSettings) =
+        s.zeroCopy && s.frameGen == XboxNativeVideo.FG_OFF && (s.fpsTarget == 0 || s.fpsTarget >= 60)
 
     private fun applyOverlay() {
         overlayOn = settings.statsLevel > 0
@@ -739,7 +746,7 @@ class XboxNativePlayerActivity : ComponentActivity() {
      */
     private fun applyRoute() {
         val d = decoders ?: return
-        val want = settings.zeroCopy && settings.frameGen == XboxNativeVideo.FG_OFF
+        val want = zeroCopyWanted(settings)
         if (want == zeroCopy) return
         val target = screen
         if (want) {
