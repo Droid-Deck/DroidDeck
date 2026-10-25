@@ -85,3 +85,17 @@ the patched component retained 1/20, then 0 after destruction. The unassigned
 control retained 20/20 and then 0. In Backpack Battles, two batches of ten touch
 drags leaked 188 and 197 SHM descriptors before the fix; the same batches added
 zero after the fix (112 total descriptors before and after each batch).
+
+## 0117 WSI: cache the present-time Xwayland bypass check
+
+`QueuePresentKHR` in the WSI layer calls `canBypassXWayland` for every swapchain on
+every present. Each call makes several synchronous X requests (window geometry,
+`_WINE_ALLOW_FLIP`, parent window, a child-window scan, the toplevel window). At
+high frame rates that is thousands of round trips a second: on an AYANEO Pocket FIT
+running AIO Graphics Test uncapped, Xwayland used 24-32% of a core and the game's
+present thread sat about half idle.
+
+The patch keeps the result for 100 ms (`DROIDDECK_WSI_BYPASS_CHECK_MS`, 0 restores
+the per-present check). A window resize or a flip/obscure change is therefore seen up
+to 100 ms later than before; surface creation and capability queries still check
+every time.
