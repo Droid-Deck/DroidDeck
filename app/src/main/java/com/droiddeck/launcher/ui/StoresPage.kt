@@ -1337,7 +1337,8 @@ internal fun CardFace(
                 Spacer(Modifier.matchParentSize().background(Color.Black.copy(alpha = if (blurs) 0.35f else 0.7f)))
                 AsyncImage(model = art, contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.matchParentSize().padding(bottom = CardStrip))
             } else if (art != null) AsyncImage(
-                model = art, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize(),
+                model = art, contentDescription = null, contentScale = if (capsule) ContentScale.Fit else ContentScale.Crop,
+                modifier = Modifier.matchParentSize().padding(bottom = if (capsule) CardStrip else 0.dp),
                 onSuccess = { r ->
                     val drawn = r.result.drawable
                     if (capsule && drawn.intrinsicWidth > 0 && drawn.intrinsicHeight > 0) landscape = drawn.intrinsicWidth > drawn.intrinsicHeight * 0.95f
