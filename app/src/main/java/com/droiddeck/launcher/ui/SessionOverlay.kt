@@ -42,6 +42,7 @@ import androidx.compose.material.icons.outlined.PictureInPictureAlt
 import androidx.compose.material.icons.automirrored.outlined.ExitToApp
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.SportsEsports
+import androidx.compose.material.icons.outlined.Usb
 import androidx.compose.material3.Icon
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
@@ -157,6 +158,7 @@ private val SessionDrawerPage.title: Int get() = when (this) {
     SessionDrawerPage.VR -> R.string.vr_title
     SessionDrawerPage.EFFECTS -> R.string.drawer_page_effects
     SessionDrawerPage.GAMES -> R.string.game_settings_title
+    SessionDrawerPage.SDL3BRIDGE -> R.string.drawer_page_sdl3bridge
     SessionDrawerPage.SESSION -> R.string.mode_session
 }
 
@@ -168,6 +170,7 @@ private val SessionDrawerPage.icon get() = when (this) {
     SessionDrawerPage.VR -> VrHeadsetIcon
     SessionDrawerPage.EFFECTS -> Icons.Outlined.AutoFixHigh
     SessionDrawerPage.GAMES -> Icons.Outlined.Layers
+    SessionDrawerPage.SDL3BRIDGE -> Icons.Outlined.Usb
     SessionDrawerPage.SESSION -> Icons.Outlined.Settings
 }
 
@@ -642,6 +645,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                 track = { key -> focus.track(page, key) },
                             )
                         }
+                        SessionDrawerPage.SDL3BRIDGE -> SdlBridgeSettingsTab(host) { key -> focus.track(page, key) }
                         SessionDrawerPage.SESSION -> {
                             if (a.isHomeApp) SettingsGroup(stringResource(R.string.drawer_android_apps)) {
                                 SettingsRow(stringResource(R.string.drawer_launch_app), null) {

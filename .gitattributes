@@ -10,3 +10,6 @@ tools/mangoapp/mangoapp text eol=lf
 app/src/main/assets/desktop-removal/*.json text eol=lf
 app/src/main/assets/desktop-removal/*.txt text eol=lf
 *.pdf binary
+third_party/sdlbridge/upstream/** -text
+third_party/sdl3/upstream/** -text
+third_party/*/patches/*.patch text eol=lf

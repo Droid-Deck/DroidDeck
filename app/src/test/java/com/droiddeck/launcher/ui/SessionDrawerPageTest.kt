@@ -22,7 +22,8 @@ class SessionDrawerPageTest {
             assertEquals(SessionDrawerPage.EFFECTS, pages.step(SessionDrawerPage.DISPLAY, 1))
             assertEquals(SessionDrawerPage.VR, pages.step(SessionDrawerPage.EFFECTS, 1))
             assertEquals(SessionDrawerPage.GAMES, pages.step(SessionDrawerPage.VR, 1))
-            assertEquals(SessionDrawerPage.SESSION, pages.step(SessionDrawerPage.GAMES, 1))
+            assertEquals(SessionDrawerPage.SDL3BRIDGE, pages.step(SessionDrawerPage.GAMES, 1))
+            assertEquals(SessionDrawerPage.SESSION, pages.step(SessionDrawerPage.SDL3BRIDGE, 1))
         }
     }
 }

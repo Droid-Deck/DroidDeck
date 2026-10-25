@@ -149,6 +149,7 @@ android {
                 arguments '-DANDROID_STL=c++_shared'
                 arguments "-DDROIDDECK_VITURE_SDK_DIR=${vitureSdkDir.toString().replace('\\', '/')}"
                 arguments "-DDROIDDECK_UVC_DIR=${uvcDir.toString().replace('\\', '/')}"
+                arguments "-DDROIDDECK_CONTROLLER_SOURCES_DIR=${layout.buildDirectory.dir('controller-sources').get().asFile.absolutePath.replace('\\', '/')}"
             }
         }
     }
@@ -275,7 +276,21 @@ if (uvcDir) {
     tasks.named('preBuild').configure { dependsOn(stageUvcNotices) }
     android.sourceSets.main.assets.srcDir(layout.buildDirectory.dir('uvcAssets'))
 }
-tasks.named('preBuild').configure { dependsOn(stageRuntimeAssets) }
+def controllerSourcesDir = layout.buildDirectory.dir('controller-sources')
+def prepareControllerSources = tasks.register('prepareControllerSources', Exec) {
+    inputs.dir(rootProject.file('third_party/sdlbridge'))
+    inputs.dir(rootProject.file('third_party/sdl3'))
+    inputs.file(rootProject.file('tools/prepare_controller_sources.py'))
+    outputs.dir(controllerSourcesDir)
+    workingDir rootProject.projectDir
+    commandLine pythonExecutable, 'tools/prepare_controller_sources.py', '--output', controllerSourcesDir.get().asFile.absolutePath
+}
+android.sourceSets.main.java.srcDir(controllerSourcesDir.map { it.dir('sdlbridge/java') })
+android.sourceSets.main.java.srcDir(controllerSourcesDir.map { it.dir('sdl3/java') })
+tasks.configureEach { task ->
+    if (task.name.startsWith('configureCMake')) task.dependsOn(prepareControllerSources)
+}
+tasks.named('preBuild').configure { dependsOn(stageRuntimeAssets, prepareControllerSources) }
 
 def verifyRuntimeInputs = tasks.register('verifyRuntimeInputs', Exec) {
     mustRunAfter(stageSessionScripts, stageRuntimeAssets)

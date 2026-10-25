@@ -169,6 +169,7 @@ class SessionService : Service() {
         updateSuspendPolicy()
     }
     @Volatile private var sessionGen = 0
+    private var bridgeSession: Any? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -314,6 +315,7 @@ class SessionService : Service() {
         }
         startForeground(NOTIFICATION_ID, buildNotification())
         if (SessionState.running) return START_NOT_STICKY
+        bridgeSession = Any().also { com.droiddeck.launcher.input.DualSenseBridge.beginSession(it) }
         if (SessionState.stopRequested) {
             SessionState.running = true
             stopSession(0)
@@ -815,14 +817,21 @@ class SessionService : Service() {
         guest.add("FAKE_EVDEV_IDENTITY=xbox360")
         guest.add("FAKE_EVDEV_VIBRATION=1")
         val uinput = !File(Environment.getExternalStorageDirectory(), NO_UINPUT_SWITCH).exists()
-        val wantsDeck = uinput && builtinPad && SessionState.mode == MODE_STEAM &&
-            SessionState.steamUi != "desktop" &&
+        // sdl3bridge: the desktop (and Steam's desktop UI) get the deck pad too while the SDL3 bridge is installed,
+        // so its "present as" types and Steam Native Hook-up work there like in the Steam session
+        val sdl3Desktop = (SessionState.mode == MODE_DESKTOP ||
+            (SessionState.mode == MODE_STEAM && SessionState.steamUi == "desktop")) &&
+            com.droiddeck.launcher.input.HookupBridge.wanted(this)
+        val wantsDeck = uinput && builtinPad && (SessionState.mode == MODE_STEAM &&
+            SessionState.steamUi != "desktop" || sdl3Desktop) &&
             !File(Environment.getExternalStorageDirectory(), NO_DECK_PAD_SWITCH).exists()
-        val wantsTouch = wantsDeck && !File(Environment.getExternalStorageDirectory(), NO_STEAM_TOUCH_SWITCH).exists()
-        val wantsTriton = wantsDeck && SteamControllerBle.hasPairedController(this)
+        val wantsTouch = wantsDeck && !sdl3Desktop && !File(Environment.getExternalStorageDirectory(), NO_STEAM_TOUCH_SWITCH).exists()
+        val wantsTriton = wantsDeck && (SteamControllerBle.hasPairedController(this) || com.droiddeck.launcher.input.HookupBridge.wanted(this))
         deckBinds = if (wantsDeck) SteamDeckPad.prepare(this, fakeInputDir.parentFile!!.parentFile!!, wantsTouch, wantsTriton,
             SessionPrefs.padType(SessionPrefs.steamController(this))) else emptyList()
         SessionState.deckPad = deckBinds.isNotEmpty()
+        if (sdl3Desktop && SessionState.deckPad) Log.i(TAG, "deck pad: on for the SDL3 bridge on the desktop " +
+            "(Steam gets the controller as the bridge presents it; other programs keep Xbox 360 pads)")
         if (wantsDeck && !SessionState.deckPad) Log.w(TAG, "deck pad: not available this session; the pad stays an Xbox 360 controller")
         logControllersAtStart()
         com.droiddeck.launcher.input.FakeInputWriter.setLowLatency(SessionPrefs.lowLatencyController(this), SessionPrefs.lowLatencyTouch(this))
@@ -830,6 +839,7 @@ class SessionService : Service() {
             guest.add("FAKE_EVDEV_UINPUT=1")
             if (SessionState.deckPad) {
                 guest.add("FAKE_EVDEV_DECK=1")
+                if (SessionState.mode == MODE_DESKTOP) guest.add("FAKE_EVDEV_DESKTOP=1")  // sdl3bridge
                 if (wantsTriton) guest.add("FAKE_EVDEV_TRITON=1")
                 val padType = SessionPrefs.steamController(this)
                 guest.add("FAKE_EVDEV_PAD_TYPE=$padType")
@@ -838,6 +848,8 @@ class SessionService : Service() {
                 if (wantsTouch) com.droiddeck.launcher.input.SteamTouchDevice.prepare(fakeInputDir)?.let {
                     guest.add("FAKE_TOUCHCTL_RING=" + it.path)
                 }
+                if (com.droiddeck.launcher.input.HookupBridge.wanted(this))
+                    com.droiddeck.launcher.input.HookupBridge.prepare(fakeInputDir, File(sessionDir, "pad.log"))?.let { guest.add("FAKE_HOOKUP_SHM=" + it.path) }
                 guest.add("FAKE_DECK_SYSFS_LISTING=" + SteamDeckPad.listingDir(fakeInputDir.parentFile!!.parentFile!!).path)
             }
         } else if (SessionState.mode == MODE_STEAM) {
@@ -849,7 +861,7 @@ class SessionService : Service() {
         guest.add("FAKE_EVDEV_LOG=1")
         guest.add("FAKE_EVDEV_LOG_FILE=" + File(sessionDir, "pad.log").path)
         inputSysfs = InputSysfsComponent(fakeInputDir, File(fakeInputDir.parentFile!!.parentFile!!, "sys/input"),
-            File(LinuxRuntime.rootDir(this), "run/udev/data"), SessionState.deckPad, !uinput && SessionState.mode == MODE_STEAM)
+            File(LinuxRuntime.rootDir(this), "run/udev/data"), SessionState.deckPad && SessionState.mode != MODE_DESKTOP, !uinput && SessionState.mode == MODE_STEAM)
             .takeIf { it.prepare() }
         SessionState.fakeInputDir = fakeInputDir
     }
@@ -1676,6 +1688,8 @@ class SessionService : Service() {
             SessionEvents.record("guest.exited", mapOf("status" to status))
             SessionEvents.transition(SessionPhase.STOPPING, "session.stopping", mapOf("status" to status))
             SessionState.running = false
+            bridgeSession?.let { com.droiddeck.launcher.input.DualSenseBridge.endSession(it) }
+            bridgeSession = null
             SessionPaths.take() to SessionState.steamClientArch
         }
         SessionState.micAvailable = false
@@ -1761,6 +1775,8 @@ class SessionService : Service() {
     override fun onDestroy() {
         stopSession(0)
         GameThreadHints.stop() // also when the session never got as far as running
+        bridgeSession?.let { com.droiddeck.launcher.input.DualSenseBridge.endSession(it) }
+        bridgeSession = null
         if (screenReceiverRegistered) {
             unregisterReceiver(screenReceiver)
             screenReceiverRegistered = false

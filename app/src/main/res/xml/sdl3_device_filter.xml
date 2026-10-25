@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Sony (0x054C = 1356): any PlayStation controller opens this app when plugged in -->
+    <usb-device vendor-id="1356" />
+    <!-- Valve (0x28DE = 10462): Steam Controller (2026) cable 0x1302 = 4866, wireless puck 0x1304 / 0x1305 -->
+    <usb-device vendor-id="10462" product-id="4866" />
+    <usb-device vendor-id="10462" product-id="4868" />
+    <usb-device vendor-id="10462" product-id="4869" />
+</resources>

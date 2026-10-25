@@ -467,7 +467,7 @@ jobs:
           path: |
             app/.cxx
             app/build/intermediates/cxx
-          key: cxx-${{ env.NDK_VERSION }}-${{ hashFiles('app/src/main/cpp/**', 'tools/vr/src/xr_*.h') }}
+          key: cxx-${{ env.NDK_VERSION }}-${{ hashFiles('app/src/main/cpp/**', 'third_party/sdlbridge/**', 'third_party/sdl3/**', 'tools/prepare_controller_sources.py', 'tools/vr/src/xr_*.h') }}
           restore-keys: |
             cxx-${{ env.NDK_VERSION }}-
 

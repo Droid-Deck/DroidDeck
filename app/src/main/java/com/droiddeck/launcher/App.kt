@@ -34,6 +34,7 @@ class App : Application() {
             com.droiddeck.launcher.stores.StoresState.init(this)
             return
         }
+        if (process == "$packageName:sdl3") return  // sdl3droiddeck: the SDL3 bridge's process
         if (process == "$packageName:vr_recovery" || process == "$packageName:rgb_diagnostic") return
         CrashHandler.install(this)
         com.droiddeck.launcher.session.QuestExperimental.initialize(this)

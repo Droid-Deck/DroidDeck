@@ -8,6 +8,7 @@ internal enum class SessionDrawerPage(val firstControl: String) {
     EFFECTS("look"),
     VR("steamvr"),
     GAMES("anisotropy"),
+    SDL3BRIDGE("sdl3-open"),   // sdl3bridge: SDL3Bridge page
     SESSION("suspend"),
 }
 

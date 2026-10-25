@@ -1,0 +1,13 @@
+--- a/java/org/libsdl/app/HIDDeviceManager.java
++++ b/java/org/libsdl/app/HIDDeviceManager.java
+@@ -377,6 +377,10 @@
+     }
+ 
+     private void initializeBluetooth() {
++        if (true) {  // sdl3droiddeck: Bluetooth controllers are DroidDeck's own (SteamControllerBle)
++            Log.d(TAG, "Bluetooth left to the app");
++            return;
++        }
+         Log.d(TAG, "Initializing Bluetooth");
+ 
+         if (Build.VERSION.SDK_INT >= 31 /* Android 12  */ &&

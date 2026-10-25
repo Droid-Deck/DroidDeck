@@ -510,6 +510,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         bridge.setBuiltinPad(SessionState.mode != SessionService.MODE_STEAM || SessionPrefs.builtinPad(this))
         padBridge = bridge
         SessionState.padBridge = bridge
+        com.droiddeck.launcher.input.DualSenseBridge.attach(this, bridge)
         if (Build.VERSION.SDK_INT >= 31) {
             val vr = com.droiddeck.launcher.input.JoyConVr(this, File(filesDir, ".wayland-rt/${com.droiddeck.launcher.input.JoyConVr.FILE}")) { taken, released ->
                 if (joyConVr == null) return@JoyConVr
@@ -2041,6 +2042,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 return super.dispatchKeyEvent(event)
         }
         if (pipUi) return true
+        if (com.droiddeck.launcher.input.DualSenseBridge.isBridged(event)) return true
         val pad = com.droiddeck.launcher.input.JoyCon.normalize(event)
         if (pad !== event) return dispatchKeyEvent(pad)
         val fromController = PadBridge.isControllerKeyEvent(event)
@@ -3525,6 +3527,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         handCamera?.stop()
         handCamera = null
         padBridge?.stop()
+        if (isFinishing && !SessionState.running) com.droiddeck.launcher.input.DualSenseBridge.detach(this)
+        com.droiddeck.launcher.input.DualSenseBridge.screenClosed(this)
         steamController?.stop()
         if (SessionState.padBridge === padBridge) SessionState.padBridge = null
         padMotion?.stop()

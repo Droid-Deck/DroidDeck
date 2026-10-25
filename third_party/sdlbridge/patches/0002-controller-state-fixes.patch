@@ -1,0 +1,74 @@
+--- a/native/main.c
++++ b/native/main.c
+@@ -279,7 +279,7 @@
+     SDL_free(ids);
+ }
+ 
+-static char g_last_diag[512];
++static char g_last_diag[560];
+ 
+ /* In forced mode an Android-path gamepad (no SDL USB path) is never used. */
+ static bool usable_id(SDL_JoystickID id)
+@@ -328,7 +328,7 @@
+ 
+ static void refresh_status(JNIEnv *env)
+ {
+-    char diag[560];
++    char diag[sizeof(g_last_diag)];
+     if (atomic_load(&g_driver_off)) {
+         snprintf(diag, sizeof(diag), "SDL3 driver OFF \u2014 controller released to Android (tap the bubble to turn it back on)");
+     } else if (g_pads[0]) {
+@@ -453,6 +453,10 @@
+             g_pads[0] = g_pads[k];
+             g_ids[0] = g_ids[k];
+             g_pads[k] = NULL;
++            SDL_RumbleGamepad(g_pads[0], 0, 0, 0);
++            atomic_store(&g_rl[k], 0);
++            atomic_store(&g_rr[k], 0);
++            rumble_on[k] = 0;
+             send_gone(env, k);
+             setup_slot(env, 0);
+             break;
+--- a/native/hookup.h
++++ b/native/hookup.h
+@@ -211,6 +211,11 @@
+     memset(&g_hk[i], 0, sizeof(g_hk[i]));
+     atomic_store(&g_hk_gone[i], 0);
+     atomic_store(&g_hk_fast_now[i], 0);
++    if (g_hks.base) {
++        uint8_t *s = hks_slot(&g_hks, i);
++        __atomic_store_n(hks_u32(s, HKS_PRESENT), 0, __ATOMIC_RELEASE);
++        __atomic_store_n(hks_u64(s, HKS_DIRECT_MS), 0, __ATOMIC_RELEASE);
++    }
+     pthread_mutex_unlock(&g_hk_io);
+     pthread_mutex_unlock(&g_hk_wr);
+     g_hk_fast_logged[i] = 0;
+--- a/java/com/example/dsedge/BridgeActivity.java
++++ b/java/com/example/dsedge/BridgeActivity.java
+@@ -290,7 +290,7 @@
+         gc.addView(button("Reset calibration", v -> resetGyroCalibration()), weight());
+         box.addView(gc);
+         box.addView(gyroCalibView);
+-        box.addView(sub("Calibration samples the controller shown above (player 1 slot). Deadzone ignores tiny drift.", 11f));
++        box.addView(sub("Calibration samples the selected player. Deadzone ignores tiny drift.", 11f));
+ 
+         subhead(box, "Touchpad");
+         addCheck(box, "Invert touchpad X (left/right)", Settings.touchInvX[p], on -> Settings.touchInvX[p] = on);
+@@ -718,8 +718,7 @@
+     }
+ 
+     @Override public void onFrame(float[] f, int slot) {
+-        if (slot != 0) return; // the test screen shows player 1
+-        if (calibCount >= 0 && f.length >= 13) {
++        if (slot == calibPlayer && calibCount >= 0 && f.length >= 13) {
+             calibSum[0] += f[7]; calibSum[1] += f[8]; calibSum[2] += f[9];
+             if (++calibCount >= CALIB_SAMPLES) {
+                 float[] b = Settings.gyroBias[calibPlayer];
+@@ -731,6 +730,7 @@
+                 ui.post(() -> { if (gyroCalibView != null && uiPlayer == calibPlayer) gyroCalibView.setText(calibLabel(calibPlayer)); });
+             }
+         }
++        if (slot != 0) return; // the test screen shows player 1
+         pad.update(f);
+         long now = System.nanoTime();
+         if (now - lastSummary > 300_000_000L) {

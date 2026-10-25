@@ -63,3 +63,5 @@ if(DROIDDECK_UVC_DIR)
     target_link_libraries(droiddeck_uvc PRIVATE rgb_uvc rgb_usb log)
     target_link_options(droiddeck_uvc PRIVATE -Wl,-z,max-page-size=16384)
 endif()
+
+add_subdirectory(sdl3bridge)

@@ -1,0 +1,76 @@
+{
+  "version": 1,
+  "source": {
+    "repository": "https://github.com/pablo89898991/SdlBridge",
+    "commit": "63feeac6a3b9f3b51ec7664d677e099cdf5ae4d0",
+    "integration_repository": "https://github.com/pablo89898991/SDLApiDroidDeck",
+    "integration_commit": "131f1ceffe52554758079c6a3bb3c045b9be2afe"
+  },
+  "files": {
+    "java/com/example/dsedge/BridgeActivity.java": {
+      "source": "app/src/main/java/com/example/dsedge/BridgeActivity.java",
+      "sha256": "e56a7740e897c3a8e72c0aeb29b9cd78c6815fb4b1e177ff713cd28a477ba01c"
+    },
+    "java/com/example/dsedge/BridgeService.java": {
+      "source": "app/src/main/java/com/example/dsedge/BridgeService.java",
+      "sha256": "bc613763a8c3dbef26dc6ddde1cfafa2342391cc230795728a39058365e8f624"
+    },
+    "java/com/example/dsedge/ControllerView.java": {
+      "source": "app/src/main/java/com/example/dsedge/ControllerView.java",
+      "sha256": "4f7bd81223b4058853dd4380263a9e5f99679ba78f3627de87947f7753874fcf"
+    },
+    "java/com/example/dsedge/HookupIdentity.java": {
+      "source": "app/src/main/java/com/example/dsedge/HookupIdentity.java",
+      "sha256": "5179ef52f1b9c4319def2e3af250b0e63ed173c6bbbfc5dfde6ffedae947c9cd"
+    },
+    "java/com/example/dsedge/Host.java": {
+      "source": "app/src/main/java/com/example/dsedge/Host.java",
+      "sha256": "3fb04cb3275af97fec4c76e29d269ac5ed6c282cdcedb3fc249f6165e9ee75d5"
+    },
+    "java/com/example/dsedge/NativeBridge.java": {
+      "source": "app/src/main/java/com/example/dsedge/NativeBridge.java",
+      "sha256": "b3195c541d1f8a476da972f4b3fd5eb1acfa13540ebf516c1cbe4c713d5675b3"
+    },
+    "java/com/example/dsedge/SdlEngine.java": {
+      "source": "app/src/main/java/com/example/dsedge/SdlEngine.java",
+      "sha256": "777af8d6447f9be9cfef054ce016f61daaf6fe99334976c6a8657c58852dfef8"
+    },
+    "java/com/example/dsedge/SdlHostActivity.java": {
+      "source": "app/src/main/java/com/example/dsedge/SdlHostActivity.java",
+      "sha256": "39a1e8f01764ab5cecb0ffe90afd663a292648278dde180f6a0b4a5f35eb01f9"
+    },
+    "java/com/example/dsedge/Settings.java": {
+      "source": "app/src/main/java/com/example/dsedge/Settings.java",
+      "sha256": "65bcd3c9c0c1c2e485b9a14dd5de53505c3053c0bffa1684ae4a6023e66067ac"
+    },
+    "java/com/example/dsedge/UpdateChecker.java": {
+      "source": "app/src/main/java/com/example/dsedge/UpdateChecker.java",
+      "sha256": "f50cd1fbe6d93b74e8f77729c6850fcf0b156dfbc589d8f7725026dbfd296d37"
+    },
+    "java/com/example/dsedge/UsbAttachActivity.java": {
+      "source": "app/src/main/java/com/example/dsedge/UsbAttachActivity.java",
+      "sha256": "0c43ddf11ec8af80259c01359b3c2e920a4311b67d7a426d780f71bc0160e540"
+    },
+    "native/hkshm.h": {
+      "source": "app/jni/src/hkshm.h",
+      "sha256": "38f7f30a087f3ac3c7e0208744a338343e7d8940acd33c1386a3009a1f460df3"
+    },
+    "native/hookup.h": {
+      "source": "app/jni/src/hookup.h",
+      "sha256": "ec3aa73cfac6fecd1169ff91eccbbaf9a8deffc31a84bbb9ab198ea495946407"
+    },
+    "native/main.c": {
+      "source": "app/jni/src/main.c",
+      "sha256": "3bf05818ec786b76fcfc92e17f6e640a7473d74c8abc7acab2d863ca5bee92a6"
+    },
+    "native/triton.h": {
+      "source": "app/jni/src/triton.h",
+      "sha256": "1291e35392757b225cbebbb06e42649c1555fc1536b1b9ea804abaf2933adbde"
+    }
+  },
+  "patches": [
+    "patches/0001-droiddeck-integration.patch",
+    "patches/0002-controller-state-fixes.patch",
+    "patches/0003-persist-controller-settings.patch"
+  ]
+}

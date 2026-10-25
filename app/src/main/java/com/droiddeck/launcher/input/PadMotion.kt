@@ -62,7 +62,7 @@ class PadMotion(private val context: Context, private val rotation: () -> Int) :
         val wanted = FakeInputWriter.readImuMode(SLOT) != 0 ||
             touch != null && touch.plugged && touch.gyroRequested && touch.motionEnabled
         idlePolls = if (wanted) 0 else idlePolls + 1
-        if (wanted && !reading) {
+        if (wanted && !DualSenseBridge.isActive() && !reading) {
             reading = true
             turnAt = 0L
             gyroscope?.let { sensors?.registerListener(this, it, SAMPLING_US, handler) }
@@ -83,6 +83,7 @@ class PadMotion(private val context: Context, private val rotation: () -> Int) :
     }
 
     override fun onSensorChanged(event: SensorEvent) {
+        if (DualSenseBridge.isActive()) return
         if (!active) return
         val values = event.values
         if (event.timestamp - turnAt > ROTATION_REFRESH_NS) {

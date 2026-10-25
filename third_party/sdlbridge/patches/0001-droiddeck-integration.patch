@@ -1,0 +1,76 @@
+--- a/java/com/example/dsedge/BridgeActivity.java
++++ b/java/com/example/dsedge/BridgeActivity.java
+@@ -174,7 +174,7 @@
+         // ---- SDL3 driver ----
+         LinearLayout drv = card(root);
+         cardTitle(drv, "SDL3 driver");
+-        addSpinner(drv, "Controller source", new String[] {
++        if (!Host.embedded(this)) addSpinner(drv, "Controller source", new String[] {
+             "Auto: any controller (SDL3 USB driver when plugged in, else Android/Bluetooth)",
+             "Forced: only SDL3's USB driver (USB cable only)"
+         }, Settings.forceUsb ? 1 : 0, v -> {
+--- a/java/com/example/dsedge/BridgeService.java
++++ b/java/com/example/dsedge/BridgeService.java
+@@ -214,7 +214,7 @@
+                 : "SDL3Bridge · Steam Native Hook-up")
+             .setContentText(text)
+             .setStyle(new Notification.BigTextStyle().bigText(text))
+-            .setSmallIcon(R.drawable.ic_stat_bridge)
++            .setSmallIcon(com.droiddeck.launcher.R.drawable.sdl3_ic_stat_bridge)
+             .setColor(0xFF4FC3F7)
+             .setContentIntent(open)
+             .setOngoing(true)
+@@ -832,6 +832,7 @@
+         b.putInt("presentAs", Settings.presentAs);
+         b.putBoolean("driverEnabled", Settings.driverEnabled);
+         b.putBoolean("forceUsb", Settings.forceUsb);
++        b.putBoolean("embedded", Host.embedded(this));
+         b.putInt("pollMs", Settings.pollMs);
+         b.putBoolean("bubble", Settings.bubble);
+         // choices
+--- a/java/com/example/dsedge/Host.java
++++ b/java/com/example/dsedge/Host.java
+@@ -16,6 +16,11 @@
+         return c != null && !OWN_PACKAGE.equals(c.getPackageName());
+     }
+ 
++    static boolean usbOnly(Context c, boolean configured) {
++        // Android input events go to DroidDeck's activity, outside the headless SDL process.
++        return embedded(c) || configured;
++    }
++
+     /** A preferences file name of the bridge: unchanged as its own app, prefixed when built into another app. */
+     static String prefs(Context c, String name) {
+         return embedded(c) ? "sdl3bridge_" + name : name;
+--- a/java/com/example/dsedge/NativeBridge.java
++++ b/java/com/example/dsedge/NativeBridge.java
+@@ -305,7 +305,7 @@
+ 
+     /** Forced mode: ignore Android's basic input and only use SDL's own USB driver. */
+     static void applyForce() {
+-        try { nativeSetForce(Settings.forceUsb ? 1 : 0); } catch (UnsatisfiedLinkError e) { }
++        try { nativeSetForce(Host.usbOnly(appContext, Settings.forceUsb) ? 1 : 0); } catch (UnsatisfiedLinkError e) { }
+     }
+ 
+     static void rescan() {
+@@ -321,7 +321,7 @@
+         try {
+             nativeSetDriver(Settings.driverEnabled ? 1 : 0);
+             nativeSetHookup(hookupMode());
+-            if (Settings.driverEnabled) nativeSetForce(Settings.forceUsb ? 1 : 0);
++            if (Settings.driverEnabled) nativeSetForce(Host.usbOnly(appContext, Settings.forceUsb) ? 1 : 0);
+         } catch (UnsatisfiedLinkError e) { }
+     }
+ 
+--- a/native/main.c
++++ b/native/main.c
+@@ -359,8 +359,7 @@
+         SDL_free(ids);
+         snprintf(diag, sizeof(diag),
+                  "Forced SDL3 USB mode: waiting for the USB driver. Plug the controller in with a USB-C cable, "
+-                 "then tap 'Force SDL3 USB driver' and allow USB access (or switch Controller source to Auto to "
+-                 "also use Bluetooth / Android-only controllers). Ignored Android-only controllers: %d", ignored);
++                 "then tap 'Force SDL3 USB driver' and allow USB access. Android-only controllers: %d", ignored);
+         if (!atomic_load(&g_force))
+             snprintf(diag, sizeof(diag), "Waiting for a controller: plug any SDL3-supported controller in via USB-C "
+                      "(full features) or connect it over Bluetooth");

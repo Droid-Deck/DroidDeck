@@ -41,6 +41,16 @@ class RumbleComponentTest {
 
     @After fun stopListener() { rumble.stop() }
 
+    @Test fun switchingToTheBridgeCancelsLocalMotorsAndTheirKeepalive() {
+        effect(ms = 65535)
+        assertTrue(shadowOf(vibrator).isVibrating)
+        rumble.bridgeRumble = { _, _, _, _ -> true }
+        effect(ms = 65535)
+        assertFalse(shadowOf(vibrator).isVibrating)
+        idle(2000)
+        assertFalse("the old keepalive restarted local rumble", shadowOf(vibrator).isVibrating)
+    }
+
     @Test fun disablingCancelsCurrentEffectAndDropsSubsequentEffectsUntilEnabled() {
         effect()
         assertTrue(shadowOf(vibrator).isVibrating)

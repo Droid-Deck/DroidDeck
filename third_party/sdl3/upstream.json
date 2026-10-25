@@ -1,0 +1,61 @@
+{
+  "version": 1,
+  "source": {
+    "version": "3.4.18",
+    "archive": "https://github.com/libsdl-org/SDL/releases/download/release-3.4.18/SDL3-3.4.18.tar.gz",
+    "sha256": "9c75cf16330322c217dedd2e0609f1124f1b54b8633e763467b4684d0f4334a3"
+  },
+  "files": {
+    "java/org/libsdl/app/HIDDevice.java": {
+      "source": "android-project/app/src/main/java/org/libsdl/app/HIDDevice.java",
+      "sha256": "afdeaf583f051583eff5cc9dcbfb983e3e8923e66d1130ff3e30c21afc8f87f1"
+    },
+    "java/org/libsdl/app/HIDDeviceBLESteamController.java": {
+      "source": "android-project/app/src/main/java/org/libsdl/app/HIDDeviceBLESteamController.java",
+      "sha256": "2f88711d2c5bb2114be4273b6f3461b165cf19fcedae714d0c0105b2422a4c36"
+    },
+    "java/org/libsdl/app/HIDDeviceManager.java": {
+      "source": "android-project/app/src/main/java/org/libsdl/app/HIDDeviceManager.java",
+      "sha256": "5bff9432726930a17cad9502191dd807da2e3cbcff2ad6990966b4b4bd9a7757"
+    },
+    "java/org/libsdl/app/HIDDeviceUSB.java": {
+      "source": "android-project/app/src/main/java/org/libsdl/app/HIDDeviceUSB.java",
+      "sha256": "2304ead390ae8839405f338866646fd7e12013732c5abe9339af60864626ddf4"
+    },
+    "java/org/libsdl/app/SDL.java": {
+      "source": "android-project/app/src/main/java/org/libsdl/app/SDL.java",
+      "sha256": "49d13bd76b65b40bc13b8f4ff1333ecf9fc5473a57bb2d216e2a60dc2e5973a4"
+    },
+    "java/org/libsdl/app/SDLActivity.java": {
+      "source": "android-project/app/src/main/java/org/libsdl/app/SDLActivity.java",
+      "sha256": "41e9a367d1b623d56735a2f6301dd2370ce1e43ecbb5e956ebb517202e2a200c"
+    },
+    "java/org/libsdl/app/SDLAudioManager.java": {
+      "source": "android-project/app/src/main/java/org/libsdl/app/SDLAudioManager.java",
+      "sha256": "129990250d389bc6550c1a27a81ee9a4cc32a4d6e9080f2fe466480988f214eb"
+    },
+    "java/org/libsdl/app/SDLControllerManager.java": {
+      "source": "android-project/app/src/main/java/org/libsdl/app/SDLControllerManager.java",
+      "sha256": "3bb5d739727b72688cdfe4fe2a3dd6fd7005a2fd2aac311deeda1e53c23e3981"
+    },
+    "java/org/libsdl/app/SDLDummyEdit.java": {
+      "source": "android-project/app/src/main/java/org/libsdl/app/SDLDummyEdit.java",
+      "sha256": "fb777fa4b4cce4d328229014acf156c2c2f47445dacccd5f74f876a64cdf502b"
+    },
+    "java/org/libsdl/app/SDLInputConnection.java": {
+      "source": "android-project/app/src/main/java/org/libsdl/app/SDLInputConnection.java",
+      "sha256": "7079f65944ce0f6e8e3ca0293fc79c1e4e050f3b4290c39990723e3a0e40bc9b"
+    },
+    "java/org/libsdl/app/SDLSensorManager.java": {
+      "source": "android-project/app/src/main/java/org/libsdl/app/SDLSensorManager.java",
+      "sha256": "3ffd781744c54e6809ad61515d254af366d34b44e086db90a296c8f159f13dd7"
+    },
+    "java/org/libsdl/app/SDLSurface.java": {
+      "source": "android-project/app/src/main/java/org/libsdl/app/SDLSurface.java",
+      "sha256": "94762faf8067f9ff64b96c8be13c04c1d6daa5561b59f753e9ad0c0aa30e23c8"
+    }
+  },
+  "patches": [
+    "patches/0001-droiddeck-integration.patch"
+  ]
+}

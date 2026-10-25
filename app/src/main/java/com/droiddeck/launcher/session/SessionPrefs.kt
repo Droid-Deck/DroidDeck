@@ -42,6 +42,12 @@ object SessionPrefs {
 
     private fun prefs(context: Context) = context.getSharedPreferences("session", Context.MODE_PRIVATE)
 
+    fun sdl3Controllers(context: Context): Boolean = prefs(context).getBoolean("sdl3Controllers", false)
+
+    fun setSdl3Controllers(context: Context, enabled: Boolean) {
+        prefs(context).edit().putBoolean("sdl3Controllers", enabled).apply()
+    }
+
     val orientationOptions = listOf(
         ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE to R.string.setup_orientation_auto,
         ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE to R.string.setup_orientation_landscape,

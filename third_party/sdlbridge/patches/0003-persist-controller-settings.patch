@@ -1,0 +1,23 @@
+--- a/java/com/example/dsedge/BridgeActivity.java
++++ b/java/com/example/dsedge/BridgeActivity.java
+@@ -454,12 +454,16 @@
+         sb.setProgressTintList(ColorStateList.valueOf(ACCENT));
+         sb.setThumbTintList(ColorStateList.valueOf(ACCENT));
+         sb.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
++            private boolean tracking;
+             @Override public void onProgressChanged(SeekBar s, int v, boolean fromUser) {
+                 t.setText(label + ":  " + v);
+-                if (fromUser) sink.set(v);
+-            }
+-            @Override public void onStartTrackingTouch(SeekBar s) { }
+-            @Override public void onStopTrackingTouch(SeekBar s) { Settings.save(); }
++                if (fromUser) {
++                    sink.set(v);
++                    if (!tracking) Settings.save();
++                }
++            }
++            @Override public void onStartTrackingTouch(SeekBar s) { tracking = true; }
++            @Override public void onStopTrackingTouch(SeekBar s) { tracking = false; Settings.save(); }
+         });
+         root.addView(t);
+         root.addView(sb);

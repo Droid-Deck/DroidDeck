@@ -29,6 +29,10 @@
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
     <uses-feature android:name="android.hardware.vr.headtracking" android:version="1" android:required="false" />
 
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-feature android:name="android.hardware.usb.host" android:required="false" />
+
     <application
         android:name=".App"
         android:localeConfig="@xml/locales_config"
@@ -256,5 +260,49 @@
                 android:name="backend:com.google.android.datatransport.cct.CctBackendFactory"
                 tools:node="remove" />
         </service>
+
+        <!-- sdl3droiddeck: the SDL3 bridge, built in. SDL3 and the bridge run in their own process (":sdl3"), so a
+             controller-driver crash can't take the session down; DroidDeck talks to it as to the separate app. -->
+        <activity
+            android:name="com.example.dsedge.BridgeActivity"
+            android:process=":sdl3"
+            android:exported="false"
+            android:label="SDL3Bridge"
+            android:launchMode="singleTop"
+            android:alwaysRetainTaskState="true"
+            android:taskAffinity="${applicationId}.sdl3bridge"
+            android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
+            android:configChanges="layoutDirection|locale|orientation|uiMode|screenLayout|screenSize|smallestScreenSize|keyboard|keyboardHidden|navigation" />
+        <activity
+            android:name="com.example.dsedge.SdlHostActivity"
+            android:process=":sdl3"
+            android:exported="false"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:configChanges="layoutDirection|locale|orientation|uiMode|screenLayout|screenSize|smallestScreenSize|keyboard|keyboardHidden|navigation" />
+        <activity
+            android:name="com.example.dsedge.UsbAttachActivity"
+            android:process=":sdl3"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.NoDisplay">
+            <intent-filter>
+                <action android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED" />
+            </intent-filter>
+            <meta-data android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED"
+                       android:resource="@xml/sdl3_device_filter" />
+        </activity>
+        <service
+            android:name="com.example.dsedge.BridgeService"
+            android:process=":sdl3"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                      android:value="game controller bridge" />
+            <intent-filter><action android:name="com.example.dsedge.BRIDGE" /></intent-filter>
+        </service>
     </application>
+    <uses-permission android:name="com.example.dsedge.permission.BRIDGE" />
+    <queries><package android:name="com.example.dsedge" /></queries>
 </manifest>

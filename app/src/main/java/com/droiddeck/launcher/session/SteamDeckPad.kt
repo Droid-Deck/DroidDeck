@@ -27,6 +27,8 @@ object SteamDeckPad {
     private const val TRITON_WIRED_HID = "$TRITON_INTERFACE/0003:28DE:1302.0004"
     private const val SONY_DS4_MINOR = 20
     private const val SONY_DUALSENSE_MINOR = 21
+    private const val SONY_DUALSENSE_EDGE_MINOR = 22
+    private const val SC2015_MINOR = 23
     private val DS4_REPORT_DESCRIPTOR = intArrayOf(
         0x05, 0x01, 0x09, 0x05, 0xa1, 0x01, 0x06, 0x00, 0xff, 0x15, 0x00, 0x26, 0xff, 0x00, 0x75, 0x08,
         0x85, 0x01, 0x09, 0x20, 0x95, 0x3f, 0x81, 0x02, 0x85, 0x05, 0x09, 0x21, 0x95, 0x1f, 0x91, 0x02,
@@ -82,6 +84,10 @@ object SteamDeckPad {
 
     fun listingDir(sessionRoot: File) = File(sessionRoot, "sys/deck/listing")
 
+    // sdl3bridge: where the session sysfs lives, for HookupBridge (Steam Native Hook-up) hot-plug
+    @Volatile @JvmStatic var sysDevicesDir: File? = null
+    @Volatile @JvmStatic var sysHidrawClassDir: File? = null
+    @Volatile @JvmStatic var sysContext: Context? = null
     private val padNodes = mutableMapOf<Int, String>()
     @Volatile private var hidrawClassDir: File? = null
 
@@ -93,6 +99,8 @@ object SteamDeckPad {
             com.droiddeck.launcher.input.FakeInputWriter.PAD_TYPE_STEAM -> TRITON_PAD_MINOR
             com.droiddeck.launcher.input.FakeInputWriter.PAD_TYPE_DS4 -> SONY_DS4_MINOR
             com.droiddeck.launcher.input.FakeInputWriter.PAD_TYPE_DUALSENSE -> SONY_DUALSENSE_MINOR
+            com.droiddeck.launcher.input.FakeInputWriter.PAD_TYPE_DUALSENSE_EDGE -> SONY_DUALSENSE_EDGE_MINOR
+            com.droiddeck.launcher.input.FakeInputWriter.PAD_TYPE_STEAM_2015 -> SC2015_MINOR
             else -> -1
         }
         for ((minor, target) in padNodes) {
@@ -224,12 +232,8 @@ object SteamDeckPad {
                 File(udevData, "c$MAJOR:$minor").writeText("I:1\nE:ID_INPUT=1\nE:ID_INPUT_JOYSTICK=1\n")
                 Log.i(TAG, "steam controller: /dev/$node described as Triton (28de:$product)")
             }
-            fun describeSony(dualSense: Boolean) {
-                val bus = if (dualSense) 5 else 4
-                val product = if (dualSense) "0ce6" else "09cc"
-                val minor = if (dualSense) SONY_DUALSENSE_MINOR else SONY_DS4_MINOR
+            fun describeSony(bus: Int, product: String, minor: Int, name: String, sonyDescriptor: ByteArray) {
                 val node = "hidraw$minor"
-                val name = if (dualSense) "DualSense Wireless Controller" else "Wireless Controller"
                 val usb = "$GUEST_DEVICES/usb$bus"
                 val iface = "$usb/$bus-1:1.3"
                 val hid = "$iface/0003:054C:${product.uppercase()}.000${bus + 1}"
@@ -247,7 +251,7 @@ object SteamDeckPad {
                 write(hid, "uevent", "DRIVER=hid-generic\nHID_ID=0003:0000054C:0000${product.uppercase()}\n" +
                     "HID_NAME=Sony Interactive Entertainment $name\nHID_PHYS=usb-droiddeck-$bus/input3\n" +
                     "HID_UNIQ=5e:43:4b:44:44:02\nMODALIAS=hid:b0003g0001v0000054Cp0000${product.uppercase()}\n")
-                File(dir(hid), "report_descriptor").writeBytes(if (dualSense) DUALSENSE_REPORT_DESCRIPTOR else DS4_REPORT_DESCRIPTOR)
+                File(dir(hid), "report_descriptor").writeBytes(sonyDescriptor)
                 link(File(dir(hid), "subsystem"), "/sys/bus/hid")
                 val hidraw = "$hid/hidraw/$node"
                 write(hidraw, "uevent", "MAJOR=$MAJOR\nMINOR=$minor\nDEVNAME=$node\n")
@@ -259,11 +263,48 @@ object SteamDeckPad {
                 File(udevData, "c$MAJOR:$minor").writeText("I:1\nE:ID_INPUT=1\nE:ID_INPUT_JOYSTICK=1\n")
                 Log.i(TAG, "playstation pad: /dev/$node described as 054c:$product")
             }
-            describeSony(dualSense = false)
-            describeSony(dualSense = true)
+            describeSony(4, "09cc", SONY_DS4_MINOR, "Wireless Controller", DS4_REPORT_DESCRIPTOR)
+            describeSony(5, "0ce6", SONY_DUALSENSE_MINOR, "DualSense Wireless Controller", DUALSENSE_REPORT_DESCRIPTOR)
+            describeSony(6, "0df2", SONY_DUALSENSE_EDGE_MINOR, "DualSense Edge Wireless Controller", DUALSENSE_REPORT_DESCRIPTOR)
+            fun describeSteamController2015() {
+                val usb = "$GUEST_DEVICES/usb7"
+                val iface = "$usb/7-1:1.2"
+                val hid = "$iface/0003:28DE:1102.0008"
+                val node = "hidraw$SC2015_MINOR"
+                write(usb, "uevent", "DEVTYPE=usb_device\nPRODUCT=28de/1102/100\nTYPE=0/0/0\nBUSNUM=007\nDEVNUM=002\n")
+                write(usb, "idVendor", "28de\n")
+                write(usb, "idProduct", "1102\n")
+                write(usb, "bcdDevice", "0100\n")
+                write(usb, "manufacturer", "Valve Software\n")
+                write(usb, "product", "Steam Controller\n")
+                write(usb, "serial", "DROIDDECKSC15\n")
+                link(File(dir(usb), "subsystem"), "/sys/bus/usb")
+                write(iface, "uevent", "DEVTYPE=usb_interface\nPRODUCT=28de/1102/100\nINTERFACE=3/0/0\n")
+                write(iface, "bInterfaceNumber", "02\n")
+                write(iface, "bInterfaceClass", "03\n")
+                link(File(dir(iface), "subsystem"), "/sys/bus/usb")
+                write(hid, "uevent", "DRIVER=hid-steam\nHID_ID=0003:000028DE:00001102\n" +
+                    "HID_NAME=Valve Software Steam Controller\nHID_PHYS=usb-droiddeck-7/input2\n" +
+                    "HID_UNIQ=DROIDDECKSC15\nMODALIAS=hid:b0003g0001v000028DEp00001102\n")
+                File(dir(hid), "report_descriptor").writeBytes(REPORT_DESCRIPTOR)
+                link(File(dir(hid), "subsystem"), "/sys/bus/hid")
+                val hidraw = "$hid/hidraw/$node"
+                write(hidraw, "uevent", "MAJOR=$MAJOR\nMINOR=$SC2015_MINOR\nDEVNAME=$node\n")
+                write(hidraw, "dev", "$MAJOR:$SC2015_MINOR\n")
+                link(File(dir(hidraw), "subsystem"), "/sys/class/hidraw")
+                link(File(dir(hidraw), "device"), hid)
+                padNodes[SC2015_MINOR] = hidraw
+                link(File(LinuxRuntime.liveDir(context), "drm/sys/$MAJOR:$SC2015_MINOR"), hidraw)
+                File(udevData, "c$MAJOR:$SC2015_MINOR").writeText("I:1\nE:ID_INPUT=1\nE:ID_INPUT_JOYSTICK=1\n")
+                Log.i(TAG, "steam controller: /dev/$node described as the 2015 Steam Controller (28de:1102)")
+            }
+            describeSteamController2015()
             describeTriton(wired = true)
             if (triton) describeTriton(wired = false)
             hidrawClassDir = hidrawClass
+            sysDevicesDir = devices
+            sysHidrawClassDir = hidrawClass
+            sysContext = context.applicationContext
             showPad(padType)
 
             Log.i(TAG, "deck pad: /dev/$NODE described as a Steam Deck controller (28de:1205)")

@@ -37,6 +37,7 @@ class RumbleComponent : SessionPart() {
     }
 
     internal var controllerMotors: (Int) -> Motors? = ::lookupController
+    internal var bridgeRumble: (Int, Int, Int, Int) -> Boolean = com.droiddeck.launcher.input.DualSenseBridge::routeRumble
     internal var motorLooper: Looper? = null
 
     @Synchronized private fun refreshEnabled() {
@@ -90,6 +91,11 @@ class RumbleComponent : SessionPart() {
 
     @Synchronized private fun buzz(strong: Int, weak: Int, ms: Int, slot: Int) {
         if (!enabled) return
+        if (bridgeRumble(slot, strong, weak, ms)) {
+            playing.remove(slot)?.cancel()
+            forget(slot)
+            return
+        }
         val target = target(slot)
         val previous = playing[slot]
         if (target !== previous) {
