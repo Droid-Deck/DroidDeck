@@ -69,7 +69,7 @@ internal class XboxNativeVideo(private val context: Context, eglBase: EglBase, p
     fun setSurface(target: Surface?, width: Int, height: Int, displayRefreshHz: Float) = synchronized(lock) {
         refreshHz = displayRefreshHz
         if (target == null) {
-            if (attached) CompositorHost.detach(surface)
+            if (attached) letGo()
             attached = false; surface = null
             return@synchronized
         }
@@ -87,6 +87,17 @@ internal class XboxNativeVideo(private val context: Context, eglBase: EglBase, p
         WaylandCompositor.nativeStreamMode(true)
         attached = true
         applyFrameGen()
+    }
+
+    /**
+     * Gives the screen surface up and waits until the compositor has really disconnected from it: the window request
+     * is applied on the compositor thread at its next tick, and the decoder (zero-copy) can only connect after that.
+     */
+    private fun letGo() {
+        WaylandCompositor.nativeSetFrameGenArmed(false, 0, 0)
+        CompositorHost.detach(surface)
+        WaylandCompositor.nativeVsync(System.nanoTime())
+        if (!WaylandCompositor.nativeWaitSurface(1000)) log("compositor did not let go of the screen within 1 s")
     }
 
     /** Frame-rate target, 0 = the screen's rate. Live. */
@@ -156,7 +167,7 @@ internal class XboxNativeVideo(private val context: Context, eglBase: EglBase, p
     fun release() {
         egl.release()
         synchronized(lock) {
-            if (attached) { WaylandCompositor.nativeSetFrameGenArmed(false, 0, 0); WaylandCompositor.nativeStreamMode(false); CompositorHost.detach(surface) }
+            if (attached) { WaylandCompositor.nativeStreamMode(false); letGo() }
             attached = false; surface = null
             held.forEach { runCatching { it.close() } }; held.clear()
             reader?.close(); reader = null
