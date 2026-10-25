@@ -114,12 +114,19 @@ object ProtonDefault {
         return if (SessionState.running && state.live && (tool == null || state.pending != tool.name)) Outcome.LIVE else Outcome.NEXT_START
     }
 
+    internal fun movedGames(choices: Map<String, GameChoice?>, from: Set<String>, to: String): Map<String, GameChoice?>? {
+        if (choices.values.none { it != null && !it.valve && it.dir in from }) return null
+        return choices.mapValues { (_, choice) -> if (choice != null && !choice.valve && choice.dir in from) GameChoice(false, to) else choice }
+    }
+
     @Synchronized
-    fun requestGame(context: Context, scope: String, proton: ComponentsManager.Proton?): Outcome {
-        require(GameEnvironment.validScope(scope))
+    fun moveGames(context: Context, from: Set<String>, to: String) {
         val d = dir(context)
-        val choices = parseGames(read(File(d, GAMES))).toMutableMap()
-        choices[scope] = proton?.let { GameChoice(it.valve, it.dir.name) }
+        val moved = movedGames(parseGames(read(File(d, GAMES))), from, to) ?: return
+        writeGames(d, moved)
+    }
+
+    private fun writeGames(d: File, choices: Map<String, GameChoice?>) {
         val games = JSONObject()
         choices.forEach { (id, choice) ->
             games.put(id, choice?.let { JSONObject().put("valve", it.valve).put("dir", it.dir) } ?: JSONObject.NULL)
@@ -134,6 +141,15 @@ object ProtonDefault {
             Log.w(TAG, "could not write the per-game Proton request", e)
             throw e
         }
+    }
+
+    @Synchronized
+    fun requestGame(context: Context, scope: String, proton: ComponentsManager.Proton?): Outcome {
+        require(GameEnvironment.validScope(scope))
+        val d = dir(context)
+        val choices = parseGames(read(File(d, GAMES))).toMutableMap()
+        choices[scope] = proton?.let { GameChoice(it.valve, it.dir.name) }
+        writeGames(d, choices)
         val state = state(context)
         val tool = proton?.let { selected -> state.tools.firstOrNull { it.valve == selected.valve && it.dir == selected.dir.name } }
         return if (SessionState.running && state.live && (proton == null || tool != null && state.pending != tool.name)) {

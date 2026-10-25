@@ -3,6 +3,21 @@
 How the Stores section (`app/src/main/java/com/droiddeck/launcher/stores/`, `ui/Stores*.kt`) fits
 the rest of the app, and the on-disk contract that makes a store game an ordinary added game.
 
+## Library and Stores
+
+The rail's Library (`ui/LibraryPage.kt`, rail key `games`) lists every owned game: installed ones
+from the scanned library (`FrontEndState.steamGames`: Steam, added folders, store installs), then,
+under Not installed, each signed-in store's `StoresState.library` products that are not. An
+installed game claims its product by `"<source>:<storeId>" == CatalogItem.key`, so nothing shows
+twice. Stores is only for getting games: a store opens on its storefront (search, then the shelves)
+under a profile strip whose "Owned games in Library" opens the Library filtered to that store. The
+Epic Games Launcher (open, settings, uninstall, install) lives in Epic's profile strip.
+
+Every game opens one page (`ui/GameDetail.kt`) from either place: the hero and its actions by state
+(installed, downloading, failed, unfinished, owned, not owned), then tabs LB/RB cycle through:
+About, Achievements, Launch, Saves & cloud and Install, each hidden when it has nothing to show.
+Library pages are `app:<appId>` for an installed game and `app:<store>:<id>` for a store product.
+
 ## Where a store game lives
 
 ```
@@ -180,8 +195,8 @@ The appid Steam derives (CRC32 of the quoted exe plus the name, high bit set) is
 listing carries, so the live add and the writer never disagree. Uninstall removes the folder and the
 listing drops the entry; the live client is asked to remove it too.
 
-`Library.SteamGame.source` is `steam`, `gog`, `epic`, `amazon` or `added`; the Games tab shows it as
-a chip on every row and in the hero.
+`Library.SteamGame.source` is `steam`, `gog`, `epic`, `amazon` or `added`; the Library shows it as
+a chip on every tile and in the hero, and filters by it.
 
 ## Launch
 
@@ -194,7 +209,7 @@ game that needs arguments or environment gets `.droiddeck-launch.bat` (`StoreLau
 the variable it read the code into is cleared on that same line, so nothing of it is left in the
 game's environment. A launcher from an earlier build is rewritten before the next Epic launch.
 
-The code is minted for every launch, wherever it starts. The Games tab and Stores call
+The code is minted for every launch, wherever it starts. The game page calls
 `StoreLaunch.prepare` before they launch; the compat tool (`droiddeck-proton`,
 `droiddeck-proton-wrap`) runs `droiddeck-store-launch` before Proton on every real launch, the Steam
 client's Play button included. It finds the store launcher among Steam's arguments, reads the
@@ -202,7 +217,7 @@ sidecar beside it, and for an Epic game asks the app through `<session>/stores/r
 (`StoreLaunchRequests` → `StoreLaunch.epicCode`), waiting up to 5 s; the app writes the code into
 the game's folder itself. Each attempt logs `epic launch id=… code=yes|no reason=…`, never the code.
 
-An Epic game's launch choices are the Epic card in the Games tab's launch settings - "Epic sign-in
+An Epic game's launch choices are the Epic card in its page's Launch tab - "Epic sign-in
 (EOS)" (on) and "Launch offline" (off), stored in the sidecar's `epic` block so both launch paths
 read the same thing - and "Resolve Epic sign-in", which opens Epic's account page behind its
 sign-in in Android's browser.
@@ -293,7 +308,6 @@ report "the store engine is not available".
 | Setting | Pref | Where |
 |---|---|---|
 | Show Stores in the rail | `SessionPrefs.gameStoresEnabled` (off) | Setup › Stores |
-| Open a store on: Library · Store | `SessionPrefs.storesOpenTab` (library) | the chip row's cog, Setup › Stores |
 | Download speed tier | `SessionPrefs.gameStoresSpeedTier` (fast) | the cog, Setup › Stores, Downloads |
 | Downloads at a time | `SessionPrefs.gameStoresParallel` (1) | Downloads |
 | Install to (last pick, dialog default only) | `SessionPrefs.storesInstallTarget` | the Install dialog |

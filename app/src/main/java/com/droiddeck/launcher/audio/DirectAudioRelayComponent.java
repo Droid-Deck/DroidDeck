@@ -3,6 +3,7 @@ package com.droiddeck.launcher.audio;
 import android.os.Process;
 import android.util.Log;
 
+import com.droiddeck.launcher.core.FileUtils;
 import com.droiddeck.launcher.core.SessionPart;
 import com.droiddeck.launcher.core.HostProcess;
 
@@ -19,10 +20,13 @@ public class DirectAudioRelayComponent extends SessionPart {
     private volatile int pid = -1;
     private final Object micLock = new Object();
     private boolean micHot;
+    private final File micControl;
+    public java.util.function.Consumer<Boolean> onMicEnabled;
 
     public DirectAudioRelayComponent(File socketPath, File micFifoPath) {
         this.socketPath = socketPath;
         this.micFifoPath = micFifoPath;
+        this.micControl = micFifoPath == null ? null : new File(micFifoPath.getParentFile(), "mic-enabled");
     }
 
     public void setLogFile(File file) {
@@ -63,8 +67,13 @@ public class DirectAudioRelayComponent extends SessionPart {
         StringBuilder command = new StringBuilder(binary.getAbsolutePath());
         command.append(" --socket ").append(socketPath.getAbsolutePath());
         command.append(" --log");
-        if (micFifoPath != null) {
+        final boolean withMic = micFifoPath != null && setMicEnabled(true);
+        if (withMic) {
             command.append(" --mic-fifo ").append(micFifoPath.getAbsolutePath());
+            command.append(" --mic-control ").append(micControl.getAbsolutePath());
+        } else if (micFifoPath != null) {
+            Log.w(TAG, "microphone control unavailable; starting with capture disabled");
+            command.append(" --mic-control /dev/null");
         }
         ArrayList<String> env = new ArrayList<>();
         env.add("HOME=" + app().getFilesDir());
@@ -73,7 +82,7 @@ public class DirectAudioRelayComponent extends SessionPart {
             try {
                 out = new java.io.PrintWriter(new java.io.FileWriter(logFile, true));
                 out.println("== DirectAudio relay helper starting"
-                        + (micFifoPath != null ? " with the microphone" : " (no microphone)"));
+                        + (withMic ? " with the microphone" : " (no microphone)"));
                 out.flush();
             } catch (Exception e) {
                 Log.w(TAG, "could not open " + logFile, e);
@@ -84,14 +93,23 @@ public class DirectAudioRelayComponent extends SessionPart {
                 app().getFilesDir(), null,
                 line -> {
                     Log.i(TAG, line);
-                    trackMic(line);
+                    if (withMic) trackMic(line);
                     if (log != null) synchronized (log) { log.println(line); log.flush(); }
                 });
         Log.i(TAG, "started pid=" + pid + " socket=" + socketPath
-                + (micFifoPath != null ? " mic=" + micFifoPath : " (no microphone)"));
+                + (withMic ? " mic=" + micFifoPath : " (no microphone)"));
+    }
+
+    public synchronized boolean setMicEnabled(boolean enabled) {
+        if (micControl == null) return false;
+        File next = new File(micControl.getPath() + ".new");
+        return FileUtils.writeString(next, enabled ? "1" : "0") && next.renameTo(micControl);
     }
 
     private void trackMic(String line) {
+        if (line.startsWith("DA-Relay: mic enabled=") && onMicEnabled != null) {
+            onMicEnabled.accept(line.equals("DA-Relay: mic enabled=1"));
+        }
         boolean start = line.startsWith("DA-Relay: mic start ");
         if (!start && !line.startsWith("DA-Relay: mic stop ")) return;
         synchronized (micLock) {
