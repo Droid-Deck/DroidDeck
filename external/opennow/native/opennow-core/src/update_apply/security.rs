@@ -34,7 +34,7 @@ pub(super) fn preserve_permissions(source: &Path, destination: &Path) -> Result<
     }
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "android"))]
 fn preserve_unix_acl(source: &Path, destination: &Path) -> Result<(), String> {
     use std::os::unix::ffi::OsStrExt;
     let source =

@@ -212,7 +212,7 @@ fn current_boot_id() -> Result<String, String> {
     Ok(format!("windows-boot-sequence:{boot_id}"))
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "android"))]
 fn current_boot_id() -> Result<String, String> {
     let value = std::fs::read_to_string("/proc/sys/kernel/random/boot_id")
         .map_err(|error| error.to_string())?;
@@ -227,7 +227,7 @@ fn current_boot_id() -> Result<String, String> {
     Ok(value.to_owned())
 }
 
-#[cfg(not(any(windows, target_os = "linux")))]
+#[cfg(not(any(windows, target_os = "linux", target_os = "android")))]
 fn current_boot_id() -> Result<String, String> {
     Err("Managed reboot recovery is not supported on this platform.".to_owned())
 }
