@@ -34,12 +34,11 @@ object UsbRootMount {
     /** Without root: the mount propagates into this process. */
     fun mounted(context: Context): Boolean = lower(context) in GameStorage.mountPoints()
 
-    /** The mount point, made and owned by the app; the returned shell line exits 10 if it cannot be. */
+    /** The mount point, made through FUSE so it gets the app's owner and label; its /data/media path. */
     private fun mountPoint(context: Context): String {
-        path(context).parentFile?.mkdirs()
-        val m = lower(context)
-        val u = Process.myUid()
-        return "[ -d $m ] || { mkdir $m && chown $u:$u $m; } || exit 10"
+        val dir = path(context)
+        check(dir.isDirectory || dir.mkdirs()) { "cannot make $dir" }
+        return lower(context)
     }
 
     private class Result(val code: Int, val out: List<String>)
@@ -97,10 +96,9 @@ object UsbRootMount {
     fun mount(context: Context): String? = attempt("mount") {
         if (mounted(context)) return@attempt
         val drive = chosen(context)
-        val m = lower(context)
+        val m = mountPoint(context)
         val u = Process.myUid()
         val script = buildString {
-            appendLine(mountPoint(context))
             if (drive.fat) {
                 // vold's fs type (sdfat on Samsung), then make vold let go.
                 appendLine("t=\$(grep '^${drive.device} ' /proc/mounts | head -n 1 | cut -d' ' -f3)")
@@ -127,10 +125,9 @@ object UsbRootMount {
     fun prepare(context: Context): String? = attempt("prepare") {
         val drive = chosen(context)
         check(!drive.fat) { "not an ext4 drive" }
-        val m = lower(context)
+        val m = mountPoint(context)
         val u = Process.myUid()
         val result = run(context, """
-            ${mountPoint(context)}
             grep -q ' $m ' /proc/self/mountinfo || mount -t ext4 -o nosuid,nodev,noatime ${drive.device} $m || exit 13
             chown -hR $u:$u $m || exit 21
             chcon -hR ${'$'}(ls -Zd ${files(context)} | cut -d' ' -f1) $m || exit 23
@@ -153,7 +150,7 @@ object UsbRootMount {
             set -- ${'$'}(grep ' $m ' /proc/mounts | head -n 1)
             [ -n "${'$'}1" ] || exit 0
             sync; umount $m || exit 30
-            [ "${'$'}3" = ext4 ] || sm mount "${'$'}{1##*/}"
+            [ "${'$'}3" = ext4 ] || sm mount "${'$'}{1##*/}" || true
         """.trimIndent())
         if (result.code == 30) throw IllegalStateException(context.getString(R.string.usb_root_busy))
         if (result.code != 0) fail(context, result)

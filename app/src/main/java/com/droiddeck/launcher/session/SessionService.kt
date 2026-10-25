@@ -1646,7 +1646,8 @@ class SessionService : Service() {
                 .onFailure { Log.w(TAG, "clearing the agent's session environment", it) }
             releaseLocks()
             // The setting was turned off while the session held the drive; unmount refuses once a new session started.
-            if (UsbRootMount.mounted(this) && !SessionPrefs.usbRootEnabled(this)) Thread({
+            if (!SessionPrefs.usbRootEnabled(this)) Thread({
+                if (!UsbRootMount.mounted(applicationContext)) return@Thread
                 UsbRootMount.unmount(applicationContext)?.let { Log.w(TAG, "USB drive left mounted: $it") }
                 UsbRootMount.onChange?.invoke()
             }, "usb-root").start()

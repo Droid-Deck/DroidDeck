@@ -2018,7 +2018,7 @@ class FrontEndActivity : ComponentActivity() {
                 synchronized(UsbRootMount) {
                     UsbRootMount.unmount(this)?.let { return@usbAction it }
                     SessionPrefs.setUsbRootDrive(this, uuid)
-                    UsbRootMount.mount(this)
+                    if (SessionPrefs.usbRootEnabled(this)) UsbRootMount.mount(this) else null
                 }
             }
         },
@@ -2039,7 +2039,8 @@ class FrontEndActivity : ComponentActivity() {
     /** Off the main thread: root is asked only once its setting is on. */
     private fun refreshUsb(status: String?) {
         val on = SessionPrefs.usbRootEnabled(this)
-        val root = if (!UsbRootMount.available()) null else {
+        // Shown while on even if su went away, so the setting can still be turned off.
+        val root = if (!UsbRootMount.available() && !on) null else {
             var error = status
             val mounted = UsbRootMount.mounted(this)
             // Listed while still mounted after turning off too, so its Eject row shows.
