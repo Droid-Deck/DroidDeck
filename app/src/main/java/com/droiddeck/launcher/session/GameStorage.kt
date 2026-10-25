@@ -109,7 +109,7 @@ object GameStorage {
         val sm = context.getSystemService(StorageManager::class.java)
         return AddedGames.roots(context).mapNotNull { root ->
             val host = canonical(root.host)
-            if (!hasInstalledGames(root.host)) return@mapNotNull null
+            if (!hasInstalledGames(root.host) || onUsb(context, root.host)) return@mapNotNull null
             if ('"' in root.guest || '\\' in root.guest || !root.host.isDirectory || !root.host.canWrite()) return@mapNotNull null
             if (card != null && (host == card || host.startsWith("$card/") || card.startsWith("$host/"))) return@mapNotNull null
             val volume = try { sm?.getStorageVolume(root.host)?.getDescription(context) } catch (e: Exception) { null }
