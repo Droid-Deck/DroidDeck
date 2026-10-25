@@ -650,7 +650,8 @@ class Helper:
         command = [sys.executable, os.path.realpath(__file__), "--choose-file"]
         # Gamescope shows the dialog over the client by the AppId on a reaper above it; the x86-64 client has no
         # native reaper, so the arm64 client's is borrowed when it is installed.
-        for root in (self.steam_root, os.path.join(os.path.expanduser("~"), ".local", "share", "Steam")):
+        data = os.environ.get("XDG_DATA_HOME") or os.path.join(os.path.expanduser("~"), ".local", "share")
+        for root in (self.steam_root, os.path.join(data, "Steam")):
             reaper = os.path.join(root, "steamrtarm64", "reaper")
             if os.access(reaper, os.X_OK):
                 command = [reaper, "SteamLaunch", "AppId=769", "--"] + command
@@ -861,10 +862,11 @@ class Helper:
         say("attached to the client on port %d for its file dialogs" % self.port)
         while True:
             sources = [self.page.ws] + ([self.chooser[1].stdout] if self.chooser is not None else [])
-            ready = [self.page.ws] if self.page.ws.pending() else select.select(sources, [], [], 30)[0]
+            queued = self.page.ws.pending() or bool(self.page.events)
+            ready = [self.page.ws] if queued else select.select(sources, [], [], 30)[0]
             if self.chooser is not None and self.chooser[1].stdout in ready:
                 self.chooser_done()
-            if self.page.ws in ready:
+            if self.page.ws in ready or self.page.events:
                 for e in self.page.drain():
                     if called(e, FILE_BINDING) and isinstance(e.get("params", {}).get("payload"), str):
                         self.open_chooser(e["params"]["payload"])
