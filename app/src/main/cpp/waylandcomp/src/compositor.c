@@ -322,6 +322,18 @@ static void perf_note_release(int64_t since_ns) {
 }
 
 
+/* Completion-unknown is terminal for externally owned DMA-BUF contents too.
+ * Keeping a VkImage alone cannot stop the client from overwriting its backing
+ * memory after wl_buffer.release. All paths (including cursors and idle roles)
+ * use this gate; copied SHM buffers retain their normal release behaviour. */
+static struct dmabuf_buffer *get_dmabuf(struct wl_resource *buffer);
+static int buffer_release_blocked(struct wl_resource *buffer) {
+    return vkp_completion_unknown() && get_dmabuf(buffer) != NULL;
+}
+static void send_buffer_release(struct wl_resource *buffer) {
+    if (!buffer_release_blocked(buffer)) wl_buffer_send_release(buffer);
+}
+
 static void pending_release_free(struct pending_release *pr) {
     if (pr->surface && pr->surface->releases_pending > 0) pr->surface->releases_pending--;
     wl_list_remove(&pr->destroy.link);
@@ -329,6 +341,8 @@ static void pending_release_free(struct pending_release *pr) {
     free(pr);
 }
 
+/* A surface is going away: detach its accounting pointer, including queued
+ * DMA-BUF releases held in the completion-unknown state. */
 static void pending_releases_forget_surface(struct surface *s) {
     struct pending_release *pr;
     wl_list_for_each(pr, &g_pending_releases, link)
@@ -345,7 +359,8 @@ static void arm_release_timer(void) {
     int64_t earliest = 0;
     if (g_release_timer_fd < 0) return;
     wl_list_for_each(pr, &g_pending_releases, link)
-        if (!earliest || pr->at_ns < earliest) earliest = pr->at_ns;
+        if (!buffer_release_blocked(pr->buffer) && (!earliest || pr->at_ns < earliest))
+            earliest = pr->at_ns;
     struct itimerspec its = {0};
     if (earliest) { its.it_value.tv_sec = earliest / 1000000000LL; its.it_value.tv_nsec = earliest % 1000000000LL; }
     timerfd_settime(g_release_timer_fd, TFD_TIMER_ABSTIME, &its, NULL);
@@ -357,8 +372,8 @@ static int on_release_timer(int fd, uint32_t mask, void *data) {
     int64_t now = now_ns() + 300000;
     if (read(fd, &expirations, sizeof(expirations)) < 0 && errno != EAGAIN) return 0;
     wl_list_for_each_safe(pr, tmp, &g_pending_releases, link) {
-        if (pr->at_ns <= now) {
-            wl_buffer_send_release(pr->buffer);
+        if (pr->at_ns <= now && !buffer_release_blocked(pr->buffer)) {
+            send_buffer_release(pr->buffer);
             perf_note_release(pr->since_ns);
             pending_release_free(pr);
         }
@@ -369,9 +384,12 @@ static int on_release_timer(int fd, uint32_t mask, void *data) {
 }
 
 static void release_buffer(struct surface *s, struct wl_resource *buffer, int64_t since_ns) {
+    /* No allocation or immediate-release fallback is allowed for a quarantined
+     * DMA-BUF. Existing queued releases stay held; their timer is disarmed. */
+    if (buffer_release_blocked(buffer)) return;
     const int limit = g_fps_limit;
     const int64_t interval = limit > 0 ? 1000000000LL / limit : g_refresh_ns;
-    if (interval <= 0 || g_release_timer_fd < 0) { wl_buffer_send_release(buffer); perf_note_release(since_ns); return; }
+    if (interval <= 0 || g_release_timer_fd < 0) { send_buffer_release(buffer); perf_note_release(since_ns); return; }
     int64_t now = now_ns();
     int64_t at = s->next_release_ns + interval;
     int64_t latest = now + interval * (int64_t)(s->releases_pending + 1);
@@ -379,7 +397,7 @@ static void release_buffer(struct surface *s, struct wl_resource *buffer, int64_
     if (at > latest) at = latest;
     s->next_release_ns = at;
     struct pending_release *pr = calloc(1, sizeof(*pr));
-    if (!pr) { wl_buffer_send_release(buffer); perf_note_release(since_ns); return; }
+    if (!pr) { send_buffer_release(buffer); perf_note_release(since_ns); return; }
     pr->buffer = buffer;
     pr->surface = s;
     pr->at_ns = at;
@@ -489,7 +507,10 @@ static void constraints_focus_entered(struct wl_resource *target, struct wl_clie
 
 
 void dmabuf_buffer_unref(struct dmabuf_buffer *b) {
-    if (!b || --b->refs > 0) return;
+    /* Surface/client destruction must not close the backing FDs or free the
+     * imported-buffer record while a GPU read may still be pending. Retain the
+     * reference without allocating a quarantine node; process exit reclaims it. */
+    if (!b || vkp_completion_unknown() || --b->refs > 0) return;
     vkp_image_destroy(b->img);
     for (int i = 0; i < b->n_planes; i++)
         if (b->fd[i] >= 0) close(b->fd[i]);
@@ -584,12 +605,16 @@ static void unmap_toplevel(struct surface *s) {
     droiddeck_text_input_refocus();
 }
 
+/* Let go of the surface's dmabuf content. paced = 1: the buffer was replaced, give it back on the
+ * limiter's cadence; paced = 0: the surface is going away, give it back at once (a buffer of a
+ * destroyed surface is not shown again). Completion-unknown overrides both
+ * release modes: prior GPU reads may outlive the surface. */
 static void drop_dmabuf(struct surface *s, int paced) {
     if (s->dmabuf) {
         wl_list_remove(&s->dmabuf_destroy.link);
         if (!ahb_swapchain_defer_release(s->dmabuf_buf, s->dmabuf, s, paced)) {
             if (paced) release_buffer(s, s->dmabuf, now_ns());
-            else wl_buffer_send_release(s->dmabuf);
+            else send_buffer_release(s->dmabuf);
         }
         s->dmabuf = NULL;
     }
@@ -636,7 +661,7 @@ static void take_shm(struct surface *s, struct wl_shm_buffer *shm, struct wl_res
         vkp_image_upload_shm(s->shm_img, wl_shm_buffer_get_data(shm), stride);
         wl_shm_buffer_end_access(shm);
     }
-    wl_buffer_send_release(buffer);
+    send_buffer_release(buffer);
     s->buf_w = w;
     s->buf_h = h;
     s->buf_alpha = wl_shm_buffer_get_format(shm) == WL_SHM_FORMAT_ARGB8888;
@@ -653,7 +678,7 @@ static void take_pixel(struct surface *s, const uint8_t bgra[4], struct wl_resou
     }
     if (!s->shm_img) s->shm_img = vkp_image_create_shm(1, 1);
     if (s->shm_img) vkp_image_upload_shm(s->shm_img, bgra, 4);
-    wl_buffer_send_release(buffer);
+    send_buffer_release(buffer);
     s->buf_w = 1;
     s->buf_h = 1;
     s->buf_alpha = bgra[3] != 0xff;
@@ -760,8 +785,9 @@ void **droiddeck_dmabuf_ahb_slot(struct dmabuf_buffer *b) { return &b->ahb_state
 void droiddeck_dmabuf_ref(struct dmabuf_buffer *b) { b->refs++; }
 void droiddeck_dmabuf_unref(struct dmabuf_buffer *b) { dmabuf_buffer_unref(b); }
 void droiddeck_release_buffer(struct surface *s, struct wl_resource *buffer, int paced, int64_t since_ns) {
+    if (buffer_release_blocked(buffer)) return;
     if (paced && s) release_buffer(s, buffer, since_ns);
-    else { wl_buffer_send_release(buffer); perf_note_release(since_ns); }
+    else { send_buffer_release(buffer); perf_note_release(since_ns); }
 }
 void droiddeck_surface_describe(const struct surface *s, char *out, size_t size) { describe(s, out, size); }
 const struct droiddeck_color *droiddeck_surface_color(const struct surface *s) {
@@ -940,7 +966,7 @@ static void surface_hold_idle(struct surface *s, struct wl_resource *buffer) {
     struct wl_shm_buffer *shm = db ? NULL : wl_shm_buffer_get(buffer);
     int64_t px = db ? (int64_t)db->width * db->height
                : shm ? (int64_t)wl_shm_buffer_get_width(shm) * wl_shm_buffer_get_height(shm) : 0;
-    if (px <= 0 || px > CURSOR_MAX_PX) { wl_buffer_send_release(buffer); return; }
+    if (px <= 0 || px > CURSOR_MAX_PX) { send_buffer_release(buffer); return; }
     s->idle_buffer = buffer;
     s->idle_buffer_destroy.notify = on_idle_buffer_destroyed;
     wl_resource_add_destroy_listener(buffer, &s->idle_buffer_destroy);
@@ -958,7 +984,7 @@ static struct wl_resource *surface_take_idle(struct surface *s) {
 static void surface_drop_idle(struct surface *s) {
     surface_forget_idle_px(s);
     struct wl_resource *buffer = surface_take_idle(s);
-    if (buffer) wl_buffer_send_release(buffer);
+    if (buffer) send_buffer_release(buffer);
 }
 
 static void surface_commit(struct wl_client *c, struct wl_resource *r) {
@@ -1006,7 +1032,7 @@ static void surface_commit(struct wl_client *c, struct wl_resource *r) {
                 cursor_publish_hidden();
             } else {
                 cursor_publish_buffer(s, buffer);
-                wl_buffer_send_release(buffer);
+                send_buffer_release(buffer);
             }
         } else if (s->role == ROLE_NONE) {
             if (buffer) surface_hold_idle(s, buffer);
@@ -1021,7 +1047,7 @@ static void surface_commit(struct wl_client *c, struct wl_resource *r) {
         } else {
             drop_dmabuf(s, 1);
             s->has_content = 0;
-            if (buffer) wl_buffer_send_release(buffer);
+            if (buffer) send_buffer_release(buffer);
         }
     }
 
@@ -2184,7 +2210,7 @@ static void pointer_set_cursor(struct wl_client *c, struct wl_resource *r, uint3
     struct wl_resource *buffer = surface_take_idle(s);
     if (buffer) {
         cursor_publish_buffer(s, buffer);
-        wl_buffer_send_release(buffer);
+        send_buffer_release(buffer);
     } else if (g_cursor_shown == s) {
         cursor_publish_shown();
     } else if (s->idle_px) {
