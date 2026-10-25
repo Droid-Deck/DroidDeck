@@ -70,6 +70,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -99,7 +100,9 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.Date
 
-private enum class FileManagerNavigation { EXIT, RETURN_TO_START, BACK }
+private enum class FileManagerNavigation { EXIT, RETURN_TO_START, BACK, UP }
+
+private const val HISTORY_LIMIT = 50
 
 internal fun canNavigateUp(currentDir: File, currentRoot: File): Boolean =
     currentDir != currentRoot && currentDir.parentFile?.exists() == true
@@ -193,10 +196,17 @@ fun FileManagerScreen(
     var favTick by remember { mutableIntStateOf(0) }
 
     var listingJob by remember { mutableStateOf<Job?>(null) }
+    val history = remember { mutableStateListOf<Pair<File, File>>() }
+    var shownRoot by remember { mutableStateOf(initialRoot) }
 
-    fun loadDirectory(dir: File, resetScroll: Boolean = true) {
+    fun loadDirectory(dir: File, resetScroll: Boolean = true, record: Boolean = true) {
         if (cancellingNavigation) return
+        if (record && dir != currentDir) {
+            history.add(currentDir to shownRoot)
+            if (history.size > HISTORY_LIMIT) history.removeAt(0)
+        }
         currentDir = dir
+        shownRoot = currentRoot
         if (pickMode) pickPrefs.edit().putString("lastFilePickerDir", dir.absolutePath).apply()
         listingJob?.cancel()
         listingJob = scope.launch {
@@ -252,7 +262,18 @@ fun FileManagerScreen(
             FileManagerNavigation.RETURN_TO_START -> returnToStart()
             FileManagerNavigation.BACK -> {
                 if (showFavorites) showFavorites = false
-                else if (canNavigateUp(currentDir, currentRoot)) currentDir.parentFile?.let { loadDirectory(it) }
+                else {
+                    while (history.isNotEmpty() && !history.last().first.isDirectory) history.removeAt(history.lastIndex)
+                    val previous = history.removeLastOrNull()
+                    if (previous != null) {
+                        currentRoot = previous.second
+                        loadDirectory(previous.first, record = false)
+                    } else if (canNavigateUp(currentDir, currentRoot)) currentDir.parentFile?.let { loadDirectory(it, record = false) }
+                    else onExit?.invoke()
+                }
+            }
+            FileManagerNavigation.UP -> {
+                if (canNavigateUp(currentDir, currentRoot)) currentDir.parentFile?.let { loadDirectory(it) }
                 else onExit?.invoke()
             }
         }
@@ -263,7 +284,7 @@ fun FileManagerScreen(
         if (isOperationActive()) pendingNavigation = action else navigate(action)
     }
 
-    BackHandler(enabled = operationActive || cancellingNavigation || showFavorites || currentDir != currentRoot) {
+    BackHandler(enabled = operationActive || cancellingNavigation || showFavorites || currentDir != currentRoot || history.isNotEmpty()) {
         requestNavigation(FileManagerNavigation.BACK)
     }
 
@@ -673,7 +694,7 @@ fun FileManagerScreen(
                 .background(MaterialTheme.colorScheme.surfaceContainer)
                 .padding(horizontal = 8.dp, vertical = 6.dp),
         ) {
-            IconButton(onClick = { requestNavigation(FileManagerNavigation.BACK) }, enabled = canGoUp && !cancellingNavigation) {
+            IconButton(onClick = { requestNavigation(FileManagerNavigation.UP) }, enabled = canGoUp && !cancellingNavigation) {
                 Icon(Icons.Filled.ArrowBack, stringResource(R.string.fm_back), tint = MaterialTheme.colorScheme.primary)
             }
 
@@ -1089,7 +1110,7 @@ fun FileManagerScreen(
                     contentPadding = PaddingValues(8.dp),
                 ) {
                     if (canGoUp) item(key = "..", span = { GridItemSpan(maxLineSpan) }) {
-                        ParentFolderRow(compact = compactRows, onTap = { requestNavigation(FileManagerNavigation.BACK) })
+                        ParentFolderRow(compact = compactRows, onTap = { requestNavigation(FileManagerNavigation.UP) })
                     }
                     items(shownEntries, key = { it.absolutePath }) { file ->
                         val isFav = remember(file.absolutePath, favTick) {
@@ -1155,7 +1176,7 @@ fun FileManagerScreen(
             } else
             LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
                 if (canGoUp) item(key = "..") {
-                    ParentFolderRow(compact = compactRows, onTap = { requestNavigation(FileManagerNavigation.BACK) })
+                    ParentFolderRow(compact = compactRows, onTap = { requestNavigation(FileManagerNavigation.UP) })
                 }
                 if (entries.isEmpty()) {
                     item {
