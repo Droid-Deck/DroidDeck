@@ -1017,7 +1017,8 @@ class SessionService : Service() {
         val x64Here = SessionPrefs.steamClientArch(this) == "x86_64" ||
             (SessionState.mode == MODE_DESKTOP &&
                 com.droiddeck.launcher.storage.SteamStorage.x64ClientPresent(SessionPrefs.steamRoot(this, "x86_64")))
-        if (usb != null && x64Here) {
+        // Only once the bind loop took it, with its private compatdata and tool binds.
+        if (usb != null && x64Here && libraries.any { it.first == usb.guest }) {
             x64Libraries.put(org.json.JSONObject().put("path", usb.guest).put("label", usb.label.replace('"', ' ').replace('\\', ' ')))
         }
         if (storageDiagnosticLibrary != null && library != null && x64Here) {

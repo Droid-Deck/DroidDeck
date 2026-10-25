@@ -400,6 +400,7 @@ class FrontEndActivity : ComponentActivity() {
     private var storageDiagnostics by mutableStateOf(false)
     private var storageOptions by mutableStateOf<List<GameStorage.Option>>(emptyList())
     private var usbRoot by mutableStateOf<com.droiddeck.launcher.ui.UsbRootUi?>(null)
+    private val usbRootListener: () -> Unit = { refreshUsbRoot() }
     private var usbNeedsAccess by mutableStateOf(false)
     private val pickGameStorage = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         if (r.resultCode == RESULT_OK) InAppFilePicker.pickedPath(r.data)?.let { path -> setGameStorage(path, GameStorage.labelFor(this, path)) }
@@ -756,7 +757,7 @@ class FrontEndActivity : ComponentActivity() {
         gameSyncFolder = GameFileSync.folder(this)
         displayManager = getSystemService(DISPLAY_SERVICE) as DisplayManager
         refreshPhantomStatus()
-        UsbRootMount.onChange = { refreshUsbRoot() }
+        UsbRootMount.onChange = usbRootListener
         theme = SessionPrefs.theme(this)
         frameGenLabel = getString(R.string.frame_gen_off)
         appScale = com.droiddeck.launcher.core.AppUiPrefs.scale(this)
@@ -1358,7 +1359,8 @@ class FrontEndActivity : ComponentActivity() {
 
     override fun onDestroy() {
         updates.unregister()
-        UsbRootMount.onChange = null
+        // Another instance (a shortcut picker) may have set its own since.
+        if (UsbRootMount.onChange === usbRootListener) UsbRootMount.onChange = null
         super.onDestroy()
     }
 
@@ -1731,16 +1733,16 @@ class FrontEndActivity : ComponentActivity() {
                 },
                 onUsbRoot = { on ->
                     SessionPrefs.setUsbRootEnabled(this, on)
-                    if (on) UsbRootMount.watch(this)
                     usbRootAction {
-                        if (on) UsbRootMount.mount(this)
+                        if (on) { UsbRootMount.watch(this); UsbRootMount.mount(this) }
                         else UsbRootMount.unwatch(this).let { if (SessionState.running) null else UsbRootMount.unmount(this) }
                     }
                 },
                 onUsbDrive = { uuid ->
                     usbRootAction {
                         if (SessionState.running) return@usbRootAction getString(R.string.usb_root_eject_running)
-                        UsbRootMount.unmount(this) ?: run { SessionPrefs.setUsbRootDrive(this, uuid); UsbRootMount.mount(this) }
+                        // One lock for the whole switch, so two quick picks cannot save one drive and mount the other.
+                        synchronized(UsbRootMount) { UsbRootMount.unmount(this) ?: run { SessionPrefs.setUsbRootDrive(this, uuid); UsbRootMount.mount(this) } }
                     }
                 },
                 onUsbMount = { usbRootAction { UsbRootMount.mount(this) } },

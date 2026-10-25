@@ -54,10 +54,15 @@ object UsbRootMount {
     private fun su(script: String): java.lang.Process =
         ProcessBuilder("su", "--mount-master", "-c", "[ \"\$(id -u)\" = 0 ] && echo $ROOT || exit 1\n$script").redirectErrorStream(true).start()
 
+    // A root prompt nobody answers or a stuck mount must not hold the lock forever; well above the 10 s eject wait.
+    private const val TIMEOUT_S = 60L
+    private val deadlines = java.util.concurrent.Executors.newSingleThreadScheduledExecutor { Thread(it, "usb-root-deadline").apply { isDaemon = true } }
+
     private fun run(context: Context, script: String): Result {
         val process = try { su(script) } catch (e: java.io.IOException) { null }
             ?: throw IllegalStateException(context.getString(R.string.usb_root_denied))
-        val out = process.inputStream.bufferedReader().readLines()
+        val deadline = deadlines.schedule(process::destroy, TIMEOUT_S, java.util.concurrent.TimeUnit.SECONDS)
+        val out = try { process.inputStream.bufferedReader().readLines() } finally { deadline.cancel(false) }
         val code = process.waitFor()
         if (out.firstOrNull() != ROOT) throw IllegalStateException(context.getString(R.string.usb_root_denied))
         return Result(code, out.drop(1))
@@ -152,6 +157,9 @@ object UsbRootMount {
     /** Syncs, unmounts, hands exFAT/FAT back to vold. Refuses while files are open. */
     @Synchronized
     fun unmount(context: Context): String? = attempt("unmount") {
+        // A queued or paused store install would later write to the bare folder under the mount.
+        if (com.droiddeck.launcher.stores.download.SavedQueue.installsTo(path(context)))
+            throw IllegalStateException(context.getString(R.string.usb_root_busy))
         val m = lower(context)
         // The device and type come from the mount itself; an exFAT/FAT drive goes back to vold.
         val result = run(context, """
