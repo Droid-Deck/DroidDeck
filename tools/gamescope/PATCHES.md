@@ -72,6 +72,14 @@ app's Wayland-hosted gamescope never reaches, or need a newer gamescope than the
   retained every old SHM buffer until the surface was destroyed. Ignore cursor-role
   commits before taking the buffer lock; X11 cursor images still follow the existing
   MouseCursor path. Window commits awaiting association are unchanged.
+- `0117-force-relative-mouse-appids.patch` - this app: the nested backend locks the host pointer
+  (and so gets relative motion) only while the focused game hides its cursor and Xwayland holds a
+  locked pointer with a cursor hint. Games that confine the cursor and warp it back to the middle to
+  read movement (`ClipCursor` + `SetCursorPos`) never get there, so they kept reading absolute host
+  positions: the camera stopped at the screen edge (Pool Nation FX) or spun (Batman: Arkham City),
+  issue #845. `mouse_relative_force_appids` (comma-separated, like `mouse_relative_filter_appids`)
+  forces relative mode while one of those appids has input focus and is not Steam's own window; the
+  app sets it from games whose profile has `DROIDDECK_RELATIVE_MOUSE=1`.
 
 The live regression probe is `tools/tests/test_gamescope_cursor_shm.py`. Run it
 inside an active Gamescope session with access to that process's `/proc` fd

@@ -90,6 +90,7 @@
     <string name="game_env_no_fsync">Set to 1 to keep this game off droiddeck-fsync; it uses droiddeck-esync where a pack exists, otherwise droiddeck-ntsync.</string>
     <string name="game_env_fsync_first">Set to 1 to run this game on droiddeck-fsync, or 0 to put droiddeck-esync first where a pack fits its Proton.</string>
     <string name="game_env_xalia">Set to 0 to disable Proton’s gamepad-navigation helper for this game.</string>
+    <string name="game_env_relative_mouse">Per game only. Sends a physical mouse to the game as movement instead of a screen position, for games that turn the camera by confining the cursor and warping it back to the middle; without it the camera stops at the screen edge or spins. Takes effect at the next session.</string>
     <string name="game_env_anticheat_offline">On by default. Starts an Easy Anti-Cheat game without its anti-cheat when the game supports offline play. Turn off to launch through Easy Anti-Cheat as usual. Online modes that require Easy Anti-Cheat remain unavailable.</string>
     <string name="game_env_hud">DXVK overlay for D3D9–11. fps displays frame rate; unset hides it.</string>
     <string name="game_env_dxvk_config">DXVK settings separated by semicolons. Recent builds use dxvk.maxFrameRate for frame limiting; prefer the session frame limiter for ordinary play.</string>

@@ -1,0 +1,46 @@
+diff --git a/src/steamcompmgr.cpp b/src/steamcompmgr.cpp
+index 6c9299d..21cac30 100644
+--- a/src/steamcompmgr.cpp
++++ b/src/steamcompmgr.cpp
+@@ -9465,6 +9465,29 @@ RelativeMouseFilterDefaults(),
+ 	s_uRelativeMouseFilteredAppids = std::move( uFilterAppids );
+ }, true);
+ 
++static std::vector<uint32_t> s_uRelativeMouseForcedAppids;
++
++// Games that confine the cursor and warp it back to the window's middle to
++// read movement (ClipCursor + SetCursorPos) never take a pointer lock, so the
++// nested backend keeps feeding them absolute host positions.
++static gamescope::ConVar<std::string> cv_mouse_relative_force_appids( "mouse_relative_force_appids",
++"",
++"Comma separated appids to always use relative mouse mode for while they have input focus.",
++[]( gamescope::ConVar<std::string> &cvar )
++{
++	std::vector<std::string_view> sForceAppids = gamescope::Split( cvar, "," );
++	std::vector<uint32_t> uForceAppids;
++	uForceAppids.reserve( sForceAppids.size() );
++	for ( auto &sForceAppid : sForceAppids )
++	{
++		std::optional<uint32_t> ouForceAppid = gamescope::Parse<uint32_t>( sForceAppid );
++		if ( ouForceAppid )
++			uForceAppids.push_back( *ouForceAppid );
++	}
++
++	s_uRelativeMouseForcedAppids = std::move( uForceAppids );
++}, true);
++
+ void LaunchNestedChildren( char **ppPrimaryChildArgv )
+ {
+ 	// We could just run this inside the child process,
+@@ -10628,7 +10651,10 @@ steamcompmgr_main(int argc, char **argv)
+ 
+ 				const bool bExcludedAppId = uAppId && gamescope::Algorithm::Contains( s_uRelativeMouseFilteredAppids, uAppId );
+ 
+-				const bool bRelativeMouseMode = bImageEmpty && bHasPointerConstraint && !bExcludedAppId;
++				const bool bForcedAppId = uAppId && !window_is_steam( pPaintFocus->inputFocusWindow ) &&
++					gamescope::Algorithm::Contains( s_uRelativeMouseForcedAppids, uAppId );
++
++				const bool bRelativeMouseMode = bForcedAppId || ( bImageEmpty && bHasPointerConstraint && !bExcludedAppId );
+ 
+ 				pPaintFocus->GetNestedHints()->SetRelativeMouseMode( bRelativeMouseMode );
+ 			}

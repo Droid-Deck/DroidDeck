@@ -12,6 +12,20 @@ class GameEnvironmentTest {
         assertEquals("6_9", values["VKD3D_SHADER_MODEL"])
     }
 
+    @Test fun relativeMouseIsCollectedOnlyFromGamesThatTurnItOn() {
+        val config = GameEnvironment.Config(
+            shared = mapOf(GameEnvironment.RELATIVE_MOUSE to "1"),
+            games = mapOf(
+                "200" to mapOf(GameEnvironment.RELATIVE_MOUSE to "1"),
+                "35140" to mapOf(GameEnvironment.RELATIVE_MOUSE to "true"),
+                "42" to mapOf(GameEnvironment.RELATIVE_MOUSE to "0"),
+                "43" to mapOf("FEX_MULTIBLOCK" to "1"),
+            ),
+        )
+        assertEquals(listOf("200", "35140"), GameEnvironment.relativeMouseGames(config))
+        assertEquals(emptyList<String>(), GameEnvironment.relativeMouseGames(GameEnvironment.Config()))
+    }
+
     @Test fun forceSsbsIsADefaultAGameCanTurnOff() {
         assertFalse(GameEnvironment.defaults("").containsKey(GameEnvironment.FORCE_SSBS))
         assertEquals("1", GameEnvironment.defaults("", forceSsbs = true)[GameEnvironment.FORCE_SSBS])
