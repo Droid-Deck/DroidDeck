@@ -26,7 +26,7 @@ object AppLanguage {
 
     fun setChosen(context: Context, tag: String) {
         val value = if (tag in supported) tag else SYSTEM
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(KEY, value).commit()
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(KEY, value).apply()
         val locale = value.takeIf { it.isNotEmpty() }?.let(Locale::forLanguageTag) ?: system(context)
         Locale.setDefault(locale)
         val app = context.applicationContext

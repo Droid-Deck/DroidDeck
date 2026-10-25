@@ -5,9 +5,11 @@ import android.graphics.PixelFormat
 import android.hardware.HardwareBuffer
 import android.media.Image
 import android.media.ImageReader
+import android.os.Build
 import android.os.Handler
 import android.os.HandlerThread
 import android.view.Surface
+import androidx.annotation.RequiresApi
 import com.droiddeck.launcher.gpu.FrameGen
 import com.droiddeck.launcher.gpu.Lossless
 import com.droiddeck.launcher.wayland.CompositorHost
@@ -113,11 +115,13 @@ internal class XboxNativeVideo(private val context: Context, eglBase: EglBase, p
     }
 
     override fun onFrame(frame: VideoFrame) {
+        if (Build.VERSION.SDK_INT < 29) return
         val w = frame.rotatedWidth; val h = frame.rotatedHeight
         synchronized(lock) { if (w != readerW || h != readerH) startReader(w, h) }
         egl.onFrame(frame)
     }
 
+    @RequiresApi(29)
     private fun startReader(w: Int, h: Int) {
         val old = reader
         if (old != null) egl.releaseEglSurface { }
@@ -132,6 +136,7 @@ internal class XboxNativeVideo(private val context: Context, eglBase: EglBase, p
         log("native video ${w}x$h")
     }
 
+    @RequiresApi(29)
     private fun onImage(r: ImageReader) {
         val image = runCatching { r.acquireLatestImage() }.getOrNull() ?: return
         synchronized(lock) {

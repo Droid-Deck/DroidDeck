@@ -58,6 +58,8 @@ fi
 echo "== appimage $ARGV0 ($APPDIR) ${flags[*]} FEX $fex Qt $qt${QT_QPA_PLATFORM:+ ($QT_QPA_PLATFORM)}"
 cd "$APPDIR" || exit 1
 started=$(mktemp "${TMPDIR:-/tmp}/droiddeck-appimage.XXXXXX")
+# A log can share the marker's timestamp within one filesystem clock tick.
+[ -z "$started" ] || touch -r "$started" -d '-0.000000001 seconds' "$started"
 case ${DBUS_SESSION_BUS_ADDRESS:-} in
   unix:*) "${run[@]}" "${flags[@]}" "$@" ;;
   *) unset DBUS_SESSION_BUS_ADDRESS

@@ -184,7 +184,7 @@ class LinuxNetworkLinkComponent(
         val state = JSONObject().apply {
             put("transport", transport)
             put("interface", properties?.interfaceName ?: "android")
-            put("mtu", properties?.mtu?.takeIf { it > 0 } ?: DEFAULT_MTU)
+            put("mtu", (if (Build.VERSION.SDK_INT >= 29) properties?.mtu else null)?.takeIf { it > 0 } ?: DEFAULT_MTU)
             put("connected", properties != null && capabilities != null)
             put("validated", capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) == true)
             put("captivePortal", capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_CAPTIVE_PORTAL) == true)

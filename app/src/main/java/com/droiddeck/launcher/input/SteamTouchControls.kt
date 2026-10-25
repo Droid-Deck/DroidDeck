@@ -964,7 +964,7 @@ class SteamTouchControls(
         BIG_PICTURE -> "Steam"
         else -> gameNames[appId] ?: run {
             val app = appId
-            gameNames[app] = context.getString(R.string.touch_app_id, Integer.toUnsignedLong(app))
+            gameNames[app] = context.getString(R.string.touch_app_id, Integer.toUnsignedString(app))
             loader.execute {
                 val name = SteamTouchConfig.gameName(context, app) ?: return@execute
                 handler.post { gameNames[app] = name; invalidate() }

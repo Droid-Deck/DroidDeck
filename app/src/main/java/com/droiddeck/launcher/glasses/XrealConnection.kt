@@ -34,7 +34,7 @@ internal class AndroidXrealConnector(context: Context) : XrealConnector {
 
     companion object {
         internal fun hasDirectRoute(properties: LinkProperties, address: InetAddress): Boolean =
-            properties.routes.any { !it.hasGateway() && it.destination.prefixLength > 0 && it.matches(address) }
+            properties.routes.any { it.gateway?.isAnyLocalAddress != false && it.destination.prefixLength > 0 && it.matches(address) }
     }
 
     override fun connect(): XrealChannels {

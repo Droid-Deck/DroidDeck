@@ -5,6 +5,7 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.RadialGradient
 import android.graphics.RectF
@@ -346,6 +347,8 @@ class DeckControlsPanel(
         private val guide = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; color = GUIDE }
         private val dot = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = ACCENT }
         private val glow = Paint(Paint.ANTI_ALIAS_FLAG)
+        private val glowShader = RadialGradient(0f, 0f, 56 * density, ACCENT_GLOW, Color.TRANSPARENT, Shader.TileMode.CLAMP)
+        private val glowMatrix = Matrix()
 
         override fun onDraw(canvas: Canvas) {
             drawSurface(canvas, clicked)
@@ -362,7 +365,9 @@ class DeckControlsPanel(
             if (captioned) canvas.drawText((if (right) context.getString(R.string.deck_right_trackpad) else context.getString(R.string.deck_left_trackpad)).uppercase(), cx, 28 * density, captionPaint)
             if (touching) {
                 val radius = 56 * density
-                glow.shader = RadialGradient(fingerX, fingerY, radius, ACCENT_GLOW, Color.TRANSPARENT, Shader.TileMode.CLAMP)
+                glowMatrix.setTranslate(fingerX, fingerY)
+                glowShader.setLocalMatrix(glowMatrix)
+                glow.shader = glowShader
                 canvas.drawCircle(fingerX, fingerY, radius, glow)
                 canvas.drawCircle(fingerX, fingerY, (if (clicked) 16 else 12) * density, dot)
             }

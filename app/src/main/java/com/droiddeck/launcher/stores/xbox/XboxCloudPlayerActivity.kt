@@ -257,6 +257,8 @@ class XboxCloudPlayerActivity : ComponentActivity() {
     }
 
     // Back opens the player menu so a stray press never ends a stream.
+    // The public Activity override is inherited through AndroidX Core's restricted base class.
+    @android.annotation.SuppressLint("RestrictedApi")
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (menu != null) {
             if (isGuideKey(event)) {

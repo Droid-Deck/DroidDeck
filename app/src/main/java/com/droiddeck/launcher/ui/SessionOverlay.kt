@@ -884,7 +884,7 @@ private fun DrawerPageTabs(page: SessionDrawerPage, pages: List<SessionDrawerPag
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier
-                        .offset(x = ((index - middle) * spacing + lean).dp)
+                        .offset { IntOffset(((index - middle) * spacing + lean).dp.roundToPx(), 0) }
                         .size(tab.dp)
                         .graphicsLayer { scaleX = scale; scaleY = scale; this.alpha = alpha }
                         .clip(RoundedCornerShape(16.dp))

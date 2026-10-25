@@ -1152,83 +1152,84 @@ fun FileManagerScreen(
                         )
                     }
                 }
-            } else
-            LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
-                if (canGoUp) item(key = "..") {
-                    ParentFolderRow(compact = compactRows, onTap = { requestNavigation(FileManagerNavigation.BACK) })
-                }
-                if (entries.isEmpty()) {
-                    item {
-                        Box(
-                            modifier = Modifier.fillParentMaxSize(),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Text(stringResource(R.string.fm_empty_directory), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
+            } else {
+                LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
+                    if (canGoUp) item(key = "..") {
+                        ParentFolderRow(compact = compactRows, onTap = { requestNavigation(FileManagerNavigation.BACK) })
                     }
-                } else {
-                    val shown = shownEntries
-                    items(shown, key = { it.absolutePath }) { file ->
-                        val isFav = remember(file.absolutePath, favTick) {
-                            FavoritesStore.isFavorite(context, file.absolutePath)
+                    if (entries.isEmpty()) {
+                        item {
+                            Box(
+                                modifier = Modifier.fillParentMaxSize(),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text(stringResource(R.string.fm_empty_directory), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
                         }
-                        FileItemRow(
-                            file = file,
-                            showActions = !pickMode,
-                            compact = compactRows,
-                            selectionMode = selectionMode,
-                            selected = file.absolutePath in selectedPaths,
-                            onLongPress = {
-                                if (!pickMode) {
-                                    if (selectionMode) {
-                                        selectedPaths = if (file.absolutePath in selectedPaths)
-                                            selectedPaths - file.absolutePath
-                                        else selectedPaths + file.absolutePath
-                                    } else {
-                                        showMenuFor = file
+                    } else {
+                        val shown = shownEntries
+                        items(shown, key = { it.absolutePath }) { file ->
+                            val isFav = remember(file.absolutePath, favTick) {
+                                FavoritesStore.isFavorite(context, file.absolutePath)
+                            }
+                            FileItemRow(
+                                file = file,
+                                showActions = !pickMode,
+                                compact = compactRows,
+                                selectionMode = selectionMode,
+                                selected = file.absolutePath in selectedPaths,
+                                onLongPress = {
+                                    if (!pickMode) {
+                                        if (selectionMode) {
+                                            selectedPaths = if (file.absolutePath in selectedPaths)
+                                                selectedPaths - file.absolutePath
+                                            else selectedPaths + file.absolutePath
+                                        } else {
+                                            showMenuFor = file
+                                        }
                                     }
-                                }
-                            },
-                            onToggleSelect = {
-                                selectedPaths = if (file.absolutePath in selectedPaths)
-                                    selectedPaths - file.absolutePath
-                                else selectedPaths + file.absolutePath
-                            },
-                            onTap = {
-                                if (file.isDirectory) loadDirectory(file)
-                                else if (pickMode) {
-                                    if (matchesPickExt(file)) {
-                                        pickPrefs.edit().putString("lastFilePickerDir", currentDir.absolutePath).apply()
-                                        onPick?.invoke(file)
+                                },
+                                onToggleSelect = {
+                                    selectedPaths = if (file.absolutePath in selectedPaths)
+                                        selectedPaths - file.absolutePath
+                                    else selectedPaths + file.absolutePath
+                                },
+                                onTap = {
+                                    if (file.isDirectory) loadDirectory(file)
+                                    else if (pickMode) {
+                                        if (matchesPickExt(file)) {
+                                            pickPrefs.edit().putString("lastFilePickerDir", currentDir.absolutePath).apply()
+                                            onPick?.invoke(file)
+                                        }
                                     }
-                                }
-                            },
-                            onMenu = { showMenuFor = file },
-                            menuExpanded = showMenuFor == file,
-                            onDismissMenu = { showMenuFor = null },
-                            onSelect = {
-                                selectionMode = true
-                                selectedPaths = selectedPaths + file.absolutePath
-                                showMenuFor = null
-                            },
-                            onCopy = { clipboardFiles = listOf(file); isCutOperation = false; showMenuFor = null },
-                            onCut = { clipboardFiles = listOf(file); isCutOperation = true; showMenuFor = null },
-                            onDelete = { selectedEntry = file; showMenuFor = null },
-                            onRename = { renameTarget = file; showMenuFor = null },
-                            isFavorite = isFav,
-                            onToggleFavorite = {
-                                val nowFav = FavoritesStore.toggle(context, file.absolutePath)
-                                favTick++
-                                showMenuFor = null
-                                Toast.makeText(
-                                    context,
-                                    if (nowFav) context.getString(R.string.fm_favorite_added, file.name)
-                                    else context.getString(R.string.fm_favorite_removed, file.name),
-                                    Toast.LENGTH_SHORT,
-                                ).show()
-                            },
-                            onProperties = { propertiesTarget = file; showMenuFor = null },
-                        )
+                                },
+                                onMenu = { showMenuFor = file },
+                                menuExpanded = showMenuFor == file,
+                                onDismissMenu = { showMenuFor = null },
+                                onSelect = {
+                                    selectionMode = true
+                                    selectedPaths = selectedPaths + file.absolutePath
+                                    showMenuFor = null
+                                },
+                                onCopy = { clipboardFiles = listOf(file); isCutOperation = false; showMenuFor = null },
+                                onCut = { clipboardFiles = listOf(file); isCutOperation = true; showMenuFor = null },
+                                onDelete = { selectedEntry = file; showMenuFor = null },
+                                onRename = { renameTarget = file; showMenuFor = null },
+                                isFavorite = isFav,
+                                onToggleFavorite = {
+                                    val nowFav = FavoritesStore.toggle(context, file.absolutePath)
+                                    favTick++
+                                    showMenuFor = null
+                                    Toast.makeText(
+                                        context,
+                                        if (nowFav) context.getString(R.string.fm_favorite_added, file.name)
+                                        else context.getString(R.string.fm_favorite_removed, file.name),
+                                        Toast.LENGTH_SHORT,
+                                    ).show()
+                                },
+                                onProperties = { propertiesTarget = file; showMenuFor = null },
+                            )
+                        }
                     }
                 }
             }

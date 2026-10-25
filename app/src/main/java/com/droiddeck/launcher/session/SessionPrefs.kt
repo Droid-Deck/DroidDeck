@@ -272,7 +272,7 @@ object SessionPrefs {
 
     fun setTpUbwcMode(context: Context, mode: String) {
         require(mode in setOf(TP_UBWC_AUTO, TP_UBWC_ON, TP_UBWC_OFF))
-        prefs(context).edit().putString("tpUbwcMode", mode).commit()
+        prefs(context).edit().putString("tpUbwcMode", mode).apply()
     }
 
     fun gpuDriverMode(context: Context): String =
