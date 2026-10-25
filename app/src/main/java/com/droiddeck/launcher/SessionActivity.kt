@@ -818,6 +818,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     lossless = lossless,
                     oscMode = oscMode, onScreenButtonsVisible = onScreenButtonsVisible, suspendPolicy = suspendPolicy,
                     steamDownloadsInBackground = steamDownloadsInBackground, touchMode = touchMode,
+                    micAvailable = SessionState.micAvailable && !SessionState.suspended,
+                    micEnabled = SessionState.micEnabled,
+                    onMicEnabled = { SessionService.setMicEnabled(this@SessionActivity, it) },
                     touchAuto = getString(if (usingTouchpad()) R.string.session_touch_auto_touchpad else R.string.session_touch_auto_direct),
                     fexPreset = fexPreset,
                     secondScreenMode = secondScreenMode,
@@ -1893,7 +1896,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             override fun run() {
                 if (!watching) return
                 if (::pip.isInitialized) pip.refresh()
-                if (SessionState.stopRequested && !SessionState.running && !installingRuntime) {
+                if (SessionState.stopRequested && !SessionState.running && !installingRuntime &&
+                    SessionState.phase != SessionPhase.STOPPING) {
                     SessionState.stopRequested = false
                     SessionEvents.transition(SessionPhase.IDLE, "session.cancelled")
                     collectStartArtifacts("session start cancelled")

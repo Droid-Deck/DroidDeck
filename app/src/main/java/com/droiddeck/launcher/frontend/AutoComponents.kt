@@ -257,10 +257,12 @@ object AutoComponents {
 
 
     private const val FINDINGS = "wincomp-findings.json"
+    private const val DETECTORS = "d2"
 
     internal fun signature(context: Context, game: Library.SteamGame): String {
         val folder = game.gameFiles
         val parts = listOfNotNull(
+            DETECTORS,
             folder?.lastModified(),
             folder?.let { SteamRedists.manifest(it, game.appId)?.lastModified() },
             folder?.let { StoreGameSidecar.file(it).lastModified() },

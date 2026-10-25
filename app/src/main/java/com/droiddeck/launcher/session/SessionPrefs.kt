@@ -91,13 +91,6 @@ object SessionPrefs {
      */
     fun storesEpicMode(context: Context): String = prefs(context).getString("storesEpicMode", "adaptive") ?: "adaptive"
 
-    fun storesOpenTab(context: Context): String =
-        prefs(context).getString("storesOpenTab", STORES_OPEN_LIBRARY)?.takeIf { it == STORES_OPEN_STORE } ?: STORES_OPEN_LIBRARY
-
-    fun setStoresOpenTab(context: Context, tab: String) {
-        prefs(context).edit().putString("storesOpenTab", if (tab == STORES_OPEN_STORE) STORES_OPEN_STORE else STORES_OPEN_LIBRARY).apply()
-    }
-
     fun storesShowMature(context: Context): Boolean = prefs(context).getBoolean("storesShowMature", false)
 
     fun setStoresShowMature(context: Context, show: Boolean) {
@@ -134,9 +127,6 @@ object SessionPrefs {
 
     val STORES_SORTS = listOf("lastPlayed", "recentlyInstalled", "titleAsc", "titleDesc", "sizeDesc", "sizeAsc", "releaseDateDesc")
     val STORES_VIEWS = listOf("cards", "capsules", "list")
-
-    const val STORES_OPEN_LIBRARY = "library"
-    const val STORES_OPEN_STORE = "store"
 
     fun storesInstallTarget(context: Context): String = prefs(context).getString("storesInstallTarget", "") ?: ""
 
@@ -461,6 +451,18 @@ object SessionPrefs {
 
     fun setGamescopeRealtime(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("gamescopeRealtime", on).apply()
+    }
+
+    fun ramCapMb(context: Context): Int = prefs(context).getInt("ramCapMb", 0).coerceAtLeast(0)
+
+    fun setRamCapMb(context: Context, mb: Int) {
+        prefs(context).edit().putInt("ramCapMb", mb.coerceAtLeast(0)).apply()
+    }
+
+    fun vramCapMb(context: Context): Int = prefs(context).getInt("vramCapMb", 0).coerceAtLeast(0)
+
+    fun setVramCapMb(context: Context, mb: Int) {
+        prefs(context).edit().putInt("vramCapMb", mb.coerceAtLeast(0)).apply()
     }
 
     fun gpuClockPin(context: Context): Boolean = prefs(context).getBoolean("gpuClockPin", false)

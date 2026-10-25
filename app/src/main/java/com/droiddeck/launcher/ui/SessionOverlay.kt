@@ -208,6 +208,9 @@ class DrawerActions(
     val onScreenButtonsVisible: Boolean,
     val suspendPolicy: String,
     val steamDownloadsInBackground: Boolean = false,
+    val micAvailable: Boolean = false,
+    val micEnabled: Boolean = false,
+    val onMicEnabled: (Boolean) -> Unit = {},
     val backActionsInverted: Boolean,
     val padType: String? = null,
     val onPadType: (String) -> Unit = {},
@@ -669,6 +672,9 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                 }
                             }
                             SettingsGroup(stringResource(R.string.drawer_session_behavior)) {
+                                if (a.micAvailable) ToggleRow(host, "microphone", stringResource(R.string.mode_mic),
+                                    stringResource(R.string.drawer_mic_hint), a.micEnabled,
+                                    chipModifier = focus.track(page, "microphone"), onChange = a.onMicEnabled)
                                 ChoiceRow(
                                     host, "suspend", stringResource(R.string.mode_suspend),
                                     null,

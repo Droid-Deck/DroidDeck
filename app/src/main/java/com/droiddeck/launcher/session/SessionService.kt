@@ -278,6 +278,16 @@ class SessionService : Service() {
                 updateSuspendPolicy()
                 return START_NOT_STICKY
             }
+            ACTION_MIC_CHANGED -> {
+                if (SessionState.running && SessionState.micAvailable && !SessionState.suspended) {
+                    val enabled = intent.getBooleanExtra("enabled", false)
+                    val relay = components.firstNotNullOfOrNull { it as? DirectAudioRelayComponent }
+                    if (relay?.setMicEnabled(enabled) != true) {
+                        android.widget.Toast.makeText(this, R.string.drawer_mic_failed, android.widget.Toast.LENGTH_LONG).show()
+                    }
+                }
+                return START_NOT_STICKY
+            }
             ACTION_SUSPEND_POLICY_CHANGED -> {
                 if (!SessionState.running) return START_NOT_STICKY
                 suspendPolicy = SessionPrefs.suspendPolicy(this, SessionState.mode)
@@ -329,6 +339,8 @@ class SessionService : Service() {
         freezePending = false
         suspendAttemptFailed = false
         suspendController = null
+        SessionState.micAvailable = false
+        SessionState.micEnabled = false
         SessionState.suspended = false
         SessionState.resumeRequested = false
         SessionState.resuming = false
@@ -360,6 +372,7 @@ class SessionService : Service() {
         acquireLocks()
         Thread({
             OrphanReaper.reap("session starting")
+            ProtonExtras.awaitReplacement(120_000)
             runSession(gen)
         }, "session-start").start()
         return START_NOT_STICKY
@@ -710,7 +723,10 @@ class SessionService : Service() {
         SessionState.steamClientArch = if (steamHere) SessionPrefs.steamClientArch(this) else null
         SessionState.steamClientArch?.let { arch ->
             guest.add("BL_STEAM_CLIENT_ARCH=$arch")
-            SessionPaths.current()?.let { SessionArtifacts.recordClient(it, arch) }
+            SessionPaths.current()?.let {
+                SessionArtifacts.recordClient(it, arch)
+                SessionArtifacts.markSteamLogs(it, File(SessionPrefs.steamRoot(this, arch), "logs"))
+            }
             if (arch == "x86_64") FexCatalog.cached(this)?.let { guest.addAll(FexCatalog.environment(it)) }
         }
         if (SessionState.mode == MODE_STEAM) {
@@ -722,7 +738,11 @@ class SessionService : Service() {
         guest.add("BL_FSYNC_FIRST=" + (if (SessionPrefs.fsyncFirst(this)) "1" else "0"))
         guest.add("BL_GAMESCOPE_REALTIME=" + (if (SessionPrefs.gamescopeRealtime(this)) "1" else "0"))
         if (SessionPrefs.cursorComposite(this)) guest.add("BL_CURSOR_COMPOSITE=1")
-        if (com.droiddeck.launcher.core.ZramSupport.supported()) guest.add("BL_ZRAM=1")
+        if (com.droiddeck.launcher.core.ZramSupport.supported()) {
+            guest.add("BL_ZRAM=1")
+            if (steamHere) SessionPrefs.ramCapMb(this).takeIf { it > 0 }?.let { guest.add("BL_RAM_CAP_MB=$it") }
+        }
+        SessionPrefs.vramCapMb(this).takeIf { it > 0 }?.let { guest.add("BL_VRAM_MB=$it") }
         guest.add("BANNER_AUDIO_DIRECT_DECAY=0")
         val extra = extraEnv() + com.droiddeck.launcher.agent.AgentEnv.beginSession(this)
         if (extra.none { it.startsWith("TU_DEBUG=") }) guest.add("$GAME_TU_DEBUG=" + (tuOverride ?: if (tuDriver) "sysmem" else ""))
@@ -758,6 +778,15 @@ class SessionService : Service() {
         components.add(pulse)
         if (wantsDirectAudio || wantsMic) {
             val relay = DirectAudioRelayComponent(relaySocket, micFifo)
+            val gen = sessionGen
+            relay.onMicEnabled = java.util.function.Consumer { enabled ->
+                mainHandler.post {
+                    if (gen == sessionGen && SessionState.running && wantsMic) {
+                        SessionState.micAvailable = true
+                        SessionState.micEnabled = enabled
+                    }
+                }
+            }
             relay.setLogFile(audioLog)
             relay.attach(this)
             components.add(relay)
@@ -1648,19 +1677,21 @@ class SessionService : Service() {
         completeNativeSleep()
         val (ended, endedArch) = synchronized(stopLock) {
             if (!SessionState.running) return
+            SessionEvents.record("guest.exited", mapOf("status" to status))
+            SessionEvents.transition(SessionPhase.STOPPING, "session.stopping", mapOf("status" to status))
             SessionState.running = false
             SessionPaths.take() to SessionState.steamClientArch
         }
+        SessionState.micAvailable = false
+        SessionState.micEnabled = false
         xrActivityVisible = false
         updateDownloadMonitoring()
         val stoppedGen = sessionGen
         val stoppedSession = SessionState.sessionId
         val launcherEnded = SessionState.mode == MODE_STEAM || SessionState.mode == MODE_DESKTOP || SessionState.program == NoSteamLaunch.EPIC
         SessionState.stopRequested = false
-        SessionEvents.record("guest.exited", mapOf("status" to status))
         GpuClockPin.stop(this)
         GameThreadHints.stop()
-        SessionEvents.transition(SessionPhase.STOPPING, "session.stopping", mapOf("status" to status))
         suspendOperationPending = false
         freezePending = false
         launchWatcher?.stopWatching()
@@ -1945,6 +1976,7 @@ class SessionService : Service() {
         const val ACTION_LAUNCH_GAME = "com.droiddeck.launcher.LAUNCH_STEAM_GAME"
         const val ACTION_HOME_GUIDE = "com.droiddeck.launcher.HOME_GUIDE"
         const val ACTION_AGENT_START = "com.droiddeck.launcher.AGENT_START"
+        private const val ACTION_MIC_CHANGED = "com.droiddeck.launcher.MIC_CHANGED"
         private const val ACTION_SUSPEND_POLICY_CHANGED = "com.droiddeck.launcher.SUSPEND_POLICY_CHANGED"
         private const val ACTION_ACTIVITY_VISIBLE = "com.droiddeck.launcher.ACTIVITY_VISIBLE"
         private const val ACTION_ACTIVITY_HIDDEN = "com.droiddeck.launcher.ACTIVITY_HIDDEN"
@@ -2073,6 +2105,11 @@ class SessionService : Service() {
                 )
                 true
             }.getOrDefault(false)
+        }
+
+        fun setMicEnabled(context: Context, enabled: Boolean) {
+            context.startService(Intent(context, SessionService::class.java).setAction(ACTION_MIC_CHANGED)
+                .putExtra("enabled", enabled))
         }
 
         fun suspendPolicyChanged(context: Context) {
