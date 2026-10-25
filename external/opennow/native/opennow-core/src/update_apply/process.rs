@@ -166,7 +166,7 @@ pub(super) fn failed_start(
     }
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "android"))]
 fn group_is_running(group: u32) -> Result<bool, String> {
     for entry in std::fs::read_dir("/proc").map_err(|error| error.to_string())? {
         let entry = entry.map_err(|error| error.to_string())?;
@@ -356,7 +356,7 @@ pub(super) fn owned_tree_is_running(identity: &ProcessIdentity) -> Result<bool, 
     }
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "android"))]
 fn capture(pid: u32) -> Result<Option<ProcessIdentity>, String> {
     let path = PathBuf::from(format!("/proc/{pid}"));
     let stat = match std::fs::read_to_string(path.join("stat")) {

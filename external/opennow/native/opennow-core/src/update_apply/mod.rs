@@ -158,7 +158,7 @@ pub(super) fn windows_update_package_extension(
 }
 
 pub fn external_update_message() -> Option<&'static str> {
-    if cfg!(target_os = "linux")
+    if cfg!(any(target_os = "linux", target_os = "android"))
         && is_flatpak_installation(
             std::env::var_os("FLATPAK_ID").as_deref(),
             Path::new("/.flatpak-info"),
@@ -191,8 +191,8 @@ pub fn detect_install_kind(application: &Path, package: &Path) -> Result<Install
         .unwrap_or_default()
         .to_ascii_lowercase();
     match extension.as_str() {
-        "appimage" if cfg!(target_os = "linux") => Ok(InstallKind::AppImage),
-        "deb" if cfg!(target_os = "linux") => Ok(InstallKind::DebianPackage),
+        "appimage" if cfg!(any(target_os = "linux", target_os = "android")) => Ok(InstallKind::AppImage),
+        "deb" if cfg!(any(target_os = "linux", target_os = "android")) => Ok(InstallKind::DebianPackage),
         "msi" if cfg!(windows) => Ok(InstallKind::WindowsMsi),
         "zip" if cfg!(windows) => Ok(InstallKind::WindowsPortable),
         "zip" | "dmg"
@@ -211,7 +211,7 @@ pub fn detect_install_kind(application: &Path, package: &Path) -> Result<Install
 
 pub fn compatible_package_extension() -> Result<&'static str, String> {
     require_native_updates()?;
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", target_os = "android"))]
     {
         Ok(
             if std::env::var_os("APPIMAGE").is_some_and(|path| !path.is_empty()) {
@@ -240,7 +240,7 @@ pub fn prepare_update(request: PrepareRequest) -> Result<PreparedUpdate, String>
     if request.kind == InstallKind::WindowsMsi {
         return Err(WINDOWS_INSTALLER_REPLACEMENT_MESSAGE.to_owned());
     }
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", target_os = "android"))]
     validate_linux_install_kind(request.kind, std::env::var_os("APPIMAGE").as_deref())?;
     let package = canonical_file(&request.package)?;
     let manifest = read_manifest(&package)?;
@@ -353,7 +353,7 @@ pub fn prepare_update(request: PrepareRequest) -> Result<PreparedUpdate, String>
     result
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "android"))]
 fn validate_linux_install_kind(
     kind: InstallKind,
     appimage: Option<&std::ffi::OsStr>,

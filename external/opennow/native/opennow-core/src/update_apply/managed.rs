@@ -39,7 +39,7 @@ pub(super) fn verify_identity(
     Ok(())
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "android"))]
 fn output(command: &mut Command) -> Result<String, String> {
     let result = super::command_output(command, Duration::from_secs(120))?;
     if !result.status.success() {
@@ -53,7 +53,7 @@ fn output(command: &mut Command) -> Result<String, String> {
         .map_err(|error| error.to_string())
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "android"))]
 fn deb_identity(package: &Path, target: &Path, version: &str) -> Result<Identity, String> {
     if !Path::new("/usr/bin/pkexec").is_file() {
         return Err(
@@ -110,7 +110,7 @@ fn deb_identity(package: &Path, target: &Path, version: &str) -> Result<Identity
     })
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "android"))]
 fn deb_file_owners(target: &Path) -> Result<String, String> {
     let name = target.file_name().ok_or("Application has no file name")?;
     let mut pattern = std::ffi::OsString::from("*");
@@ -122,7 +122,7 @@ fn deb_file_owners(target: &Path) -> Result<String, String> {
     )
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "android"))]
 fn deb_owns_file(files: &str, target: &Path) -> bool {
     let Ok(target) = super::canonical_file(target) else {
         return false;
@@ -135,7 +135,7 @@ fn deb_owns_file(files: &str, target: &Path) -> bool {
     })
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(any(target_os = "linux", target_os = "android")))]
 fn deb_identity(_: &Path, _: &Path, _: &str) -> Result<Identity, String> {
     Err("DEB updates require Linux".to_owned())
 }
@@ -608,7 +608,7 @@ pub(super) fn verify_installed(
                         .to_owned(),
                 );
             }
-            #[cfg(target_os = "linux")]
+            #[cfg(any(target_os = "linux", target_os = "android"))]
             {
                 let files = deb_file_owners(target)?;
                 if !deb_owns_file(&files, target) {
@@ -721,7 +721,7 @@ mod tests {
         assert!(msi_install_root_argument(Path::new("C:\\evil\"quote")).is_err());
     }
 
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", target_os = "android"))]
     #[test]
     fn deb_ownership_matches_canonical_directories_but_rejects_file_symlinks() {
         let directory = tempfile::tempdir().unwrap();
