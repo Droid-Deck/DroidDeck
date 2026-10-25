@@ -387,11 +387,17 @@ object AddedGames {
         }
     }
 
+    private class LoginUser(val id: String, val mostRecent: Boolean, val autoLogin: Boolean, val timestamp: Long)
+
     internal fun accountConfig(root: File): File? {
         val users = runCatching { File(root, "config/loginusers.vdf").readText() }.getOrDefault("")
-        val recent = Regex(""""(\d{5,})"\s*\{([^}]*)\}""").findAll(users)
-            .lastOrNull { Regex(""""MostRecent"\s*"1"""").containsMatchIn(it.groupValues[2]) }
-        val account = recent?.groupValues?.get(1)?.toLongOrNull()?.let { (it - 76561197960265728L).toString() }
+        val recent = Regex(""""(\d{5,})"\s*\{([^}]*)\}""").findAll(users).map {
+            val body = it.groupValues[2]
+            LoginUser(it.groupValues[1], Regex(""""MostRecent"\s*"1"""").containsMatchIn(body), Regex(""""AutoLogin"\s*"1"""").containsMatchIn(body),
+                Regex(""""timestamp"\s*"(\d+)"""").find(body)?.groupValues?.get(1)?.toLongOrNull() ?: 0L)
+        }.filter { it.mostRecent || it.autoLogin || it.timestamp > 0 }.toList().asReversed()
+            .maxWithOrNull(compareBy<LoginUser>({ it.mostRecent }, { it.autoLogin }, { it.timestamp }))
+        val account = recent?.id?.toLongOrNull()?.let { (it - 76561197960265728L).toString() }
             ?: File(root, "userdata").list()?.filter { it.isNotEmpty() && it.all(Char::isDigit) && it != "0" }?.singleOrNull()
         return account?.let { File(root, "userdata/$it/config") }
     }

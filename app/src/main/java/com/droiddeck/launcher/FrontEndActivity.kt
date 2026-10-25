@@ -91,7 +91,7 @@ class FrontEndActivity : ComponentActivity() {
     private val components = ComponentsMenu(this, ui)
     private val decky = DeckyMenu(this, ui)
     private val updates = UpdatesMenu(this, ui)
-    private val protons = ProtonMenu(this, ui)
+    private val protons = ProtonMenu(this, ui) { !busy && flood == null && pkgStage == null && components.compBusy == null }
 
     private var installed by mutableStateOf<String?>(null)
     private var flood by mutableStateOf<PendingFlood?>(null)
@@ -120,6 +120,7 @@ class FrontEndActivity : ComponentActivity() {
     private var glThread by mutableStateOf(true)
     private var noGlError by mutableStateOf(true)
     private var returnAfterGame by mutableStateOf(true)
+    private var shaderPrecache by mutableStateOf<Boolean?>(null)
     private var steamRepairQueued by mutableStateOf(false)
     private var mangoapp by mutableStateOf(true)
     private var steamController by mutableStateOf(SessionPrefs.CONTROLLER_DECK)
@@ -154,6 +155,7 @@ class FrontEndActivity : ComponentActivity() {
     private var gpuClockPin by mutableStateOf(false)
     private var prootNoSeccomp by mutableStateOf(false)
     private var prootFastPath by mutableStateOf(true)
+    private var cursorComposite by mutableStateOf(false)
     private var guestHostname by mutableStateOf(SessionPrefs.DEFAULT_GUEST_HOSTNAME)
     private var phantomWarning by mutableStateOf<String?>(null)
     private var phantomProcessStatus by mutableStateOf(PhantomProcessStatus.NOT_APPLICABLE)
@@ -161,7 +163,7 @@ class FrontEndActivity : ComponentActivity() {
     private var directAudio by mutableStateOf(false)
     private var picturePosition by mutableStateOf("center")
     private var stretch16x9 by mutableStateOf(false)
-    private var orientation by mutableStateOf(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE)
+    private var orientation by mutableStateOf(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE)
     private var launcherFullscreen by mutableStateOf(true)
     private var downloadSource by mutableStateOf(DownloadSource.MODE_AUTO)
     private var downloadMirror by mutableStateOf("")
@@ -170,7 +172,6 @@ class FrontEndActivity : ComponentActivity() {
     private var launcherIcon by mutableStateOf(LauncherIcon.DARK)
     private var gameStoresEnabled by mutableStateOf(true)
     private var gameStoresSpeedTier by mutableStateOf("fast")
-    private var storesOpenTab by mutableStateOf(SessionPrefs.STORES_OPEN_LIBRARY)
     private var navRequest by mutableStateOf<String?>(null)
     private var storesShowMature by mutableStateOf(false)
     private var storesSort by mutableStateOf(SessionPrefs.STORES_SORTS.first())
@@ -420,6 +421,7 @@ class FrontEndActivity : ComponentActivity() {
     private var dualSenseManager: com.droiddeck.launcher.input.DualSenseManager? = null
     private var dualSenseOutputBridge: com.droiddeck.launcher.session.DualSenseOutputBridge? = null
     private var lastDsState: com.droiddeck.launcher.input.DualSense.State? = null
+    private var dsKeyGeneration = 0
     private val secondScreenDisplayListener = object : DisplayManager.DisplayListener {
         override fun onDisplayAdded(displayId: Int) = refreshSecondScreenDisplays()
         override fun onDisplayRemoved(displayId: Int) = refreshSecondScreenDisplays()
@@ -461,7 +463,13 @@ class FrontEndActivity : ComponentActivity() {
     }
 
     private fun launchFlooded(f: PendingFlood) {
-        if (busy || LinuxRuntimeInstaller.isBusy()) { flood = null; floodProgress = 0f; return }
+        if (busy || LinuxRuntimeInstaller.isBusy() || protons.protonBusyId != null ||
+            ProtonExtras.installInProgress || pkgStage != null) {
+            flood = null
+            floodProgress = 0f
+            com.droiddeck.launcher.ui.LaunchOrigin.flooding = null
+            return
+        }
         val signal = com.droiddeck.launcher.ui.Themes.byId(theme).signal
         super.startActivity(f.intent.putExtra(com.droiddeck.launcher.ui.EXTRA_FLOOD, signal.toArgb()))
         overridePendingTransition(0, 0)
@@ -545,12 +553,12 @@ class FrontEndActivity : ComponentActivity() {
             }
             startActivity(Intent(this, SessionActivity::class.java).setAction(SessionService.ACTION_RESUME)
                 .putExtra(SessionActivity.EXTRA_STEAMVR, steamVr)
-                .putExtra(SessionActivity.EXTRA_RETURN_HOME, returnHome)
+                .returnTo(returnHome)
                 .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP))
             return true
         }
         return startSession(Intent(this, SessionActivity::class.java)
-                .putExtra(SessionActivity.EXTRA_RETURN_HOME, returnHome)
+                .returnTo(returnHome)
                 .apply {
                     if (game.gameIdString == com.droiddeck.launcher.gpu.SteamVr.APP_ID) {
                         putExtra(SessionActivity.EXTRA_STEAMVR, true)
@@ -559,6 +567,12 @@ class FrontEndActivity : ComponentActivity() {
                             com.droiddeck.launcher.frontend.GameLaunchLink.steamUrl(game.gameIdString))
                     }
                 }, steamSession = true)
+    }
+
+    private fun Intent.returnTo(returnHome: Boolean): Intent {
+        val task = taskId
+        return putExtra(SessionActivity.EXTRA_RETURN_HOME, returnHome)
+            .apply { if (returnHome) putExtra(SessionActivity.EXTRA_LINK_TASK, task) }
     }
 
     private fun launchWithoutSteam(game: Library.SteamGame, returnHome: Boolean): Boolean {
@@ -574,7 +588,7 @@ class FrontEndActivity : ComponentActivity() {
                 }
                 com.droiddeck.launcher.session.NoSteamLaunch.remember(command)
                 val next = Intent(this, SessionActivity::class.java)
-                    .putExtra(SessionActivity.EXTRA_RETURN_HOME, returnHome)
+                    .returnTo(returnHome)
                     .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_RUN)
                     .putExtra(SessionService.EXTRA_PROGRAM, command.program)
                     .putExtra(SessionService.EXTRA_PROGRAM_ARGS, command.args.toTypedArray())
@@ -583,7 +597,7 @@ class FrontEndActivity : ComponentActivity() {
                     SessionState.stopRequested -> android.widget.Toast.makeText(this, R.string.game_link_session_busy, android.widget.Toast.LENGTH_LONG).show()
                     SessionState.mode == SessionService.MODE_RUN && SessionState.program == command.program && SessionState.programArgs == command.args ->
                         startActivity(Intent(this, SessionActivity::class.java).setAction(SessionService.ACTION_RESUME)
-                            .putExtra(SessionActivity.EXTRA_RETURN_HOME, returnHome)
+                            .returnTo(returnHome)
                             .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP))
                     else -> pendingSwitch = next
                 }
@@ -762,7 +776,6 @@ class FrontEndActivity : ComponentActivity() {
         launcherIcon = LauncherIcon.current(this)
         gameStoresEnabled = SessionPrefs.gameStoresEnabled(this)
         gameStoresSpeedTier = SessionPrefs.gameStoresSpeedTier(this)
-        storesOpenTab = SessionPrefs.storesOpenTab(this)
         storesShowMature = SessionPrefs.storesShowMature(this)
         storesSort = SessionPrefs.storesSort(this)
         storesView = SessionPrefs.storesView(this)
@@ -835,7 +848,6 @@ class FrontEndActivity : ComponentActivity() {
                         launcherIcon = launcherIcon,
                         gameStoresEnabled = gameStoresEnabled,
                         gameStoresSpeedTier = gameStoresSpeedTier,
-                        storesOpenTab = storesOpenTab,
                         navigate = navRequest,
                         addedGamesArt = addedGamesArt,
                         sgdbUserKey = sgdbUserKey,
@@ -1010,7 +1022,6 @@ class FrontEndActivity : ComponentActivity() {
                             applyLauncherFullscreen()
                         },
                         onGameStoresSpeedTier = { tier -> SessionPrefs.setGameStoresSpeedTier(this, tier); gameStoresSpeedTier = tier },
-                        onStoresOpenTab = { tab -> SessionPrefs.setStoresOpenTab(this, tab); storesOpenTab = tab },
                         onNavigated = { navRequest = null },
                         onStoresShowMature = { show -> SessionPrefs.setStoresShowMature(this, show); storesShowMature = show },
                         onStoresSort = { sort -> SessionPrefs.setStoresSort(this, sort); storesSort = sort },
@@ -1337,50 +1348,30 @@ class FrontEndActivity : ComponentActivity() {
     }
 
     private fun handleLauncherDualSenseInput(state: com.droiddeck.launcher.input.DualSense.State) {
-        val prev = lastDsState
+        val before = launcherDualSenseKeys(lastDsState)
         lastDsState = state
+        val now = launcherDualSenseKeys(state)
+        val generation = dsKeyGeneration
+        for (keyCode in now - before) ui.post { if (generation == dsKeyGeneration) dispatchKeyEvent(syntheticPadKey(KeyEvent.ACTION_DOWN, keyCode)) }
+        for (keyCode in before - now) ui.post { if (generation == dsKeyGeneration) dispatchKeyEvent(syntheticPadKey(KeyEvent.ACTION_UP, keyCode)) }
+    }
 
-        val upNow = state.dpadUp || state.leftY < -0.55f
-        val upPrev = prev?.let { it.dpadUp || it.leftY < -0.55f } ?: false
-        val downNow = state.dpadDown || state.leftY > 0.55f
-        val downPrev = prev?.let { it.dpadDown || it.leftY > 0.55f } ?: false
-        val leftNow = state.dpadLeft || state.leftX < -0.55f
-        val leftPrev = prev?.let { it.dpadLeft || it.leftX < -0.55f } ?: false
-        val rightNow = state.dpadRight || state.leftX > 0.55f
-        val rightPrev = prev?.let { it.dpadRight || it.leftX > 0.55f } ?: false
+    private fun launcherDualSenseKeys(state: com.droiddeck.launcher.input.DualSense.State?) =
+        com.droiddeck.launcher.input.LauncherPadKeys.held(state)
 
-        fun emitTransition(now: Boolean, was: Boolean, keyCode: Int) {
-            if (now != was) {
-                val action = if (now) KeyEvent.ACTION_DOWN else KeyEvent.ACTION_UP
-                val nowMs = android.os.SystemClock.uptimeMillis()
-                val ev = KeyEvent(
-                    nowMs,
-                    nowMs,
-                    action,
-                    keyCode,
-                    0,
-                    0,
-                    android.view.KeyCharacterMap.VIRTUAL_KEYBOARD,
-                    0,
-                    0,
-                    android.view.InputDevice.SOURCE_GAMEPAD or android.view.InputDevice.SOURCE_DPAD,
-                )
-                ui.post { dispatchKeyEvent(ev) }
-            }
-        }
+    private fun syntheticPadKey(action: Int, keyCode: Int): KeyEvent {
+        val now = android.os.SystemClock.uptimeMillis()
+        return KeyEvent(
+            now, now, action, keyCode, 0, 0, android.view.KeyCharacterMap.VIRTUAL_KEYBOARD, 0, 0,
+            android.view.InputDevice.SOURCE_GAMEPAD or android.view.InputDevice.SOURCE_DPAD,
+        )
+    }
 
-        emitTransition(upNow, upPrev, KeyEvent.KEYCODE_DPAD_UP)
-        emitTransition(downNow, downPrev, KeyEvent.KEYCODE_DPAD_DOWN)
-        emitTransition(leftNow, leftPrev, KeyEvent.KEYCODE_DPAD_LEFT)
-        emitTransition(rightNow, rightPrev, KeyEvent.KEYCODE_DPAD_RIGHT)
-        emitTransition(state.cross, prev?.cross ?: false, KeyEvent.KEYCODE_BUTTON_A)
-        emitTransition(state.circle, prev?.circle ?: false, KeyEvent.KEYCODE_BUTTON_B)
-        emitTransition(state.square, prev?.square ?: false, KeyEvent.KEYCODE_BUTTON_X)
-        emitTransition(state.triangle, prev?.triangle ?: false, KeyEvent.KEYCODE_BUTTON_Y)
-        emitTransition(state.l1, prev?.l1 ?: false, KeyEvent.KEYCODE_BUTTON_L1)
-        emitTransition(state.r1, prev?.r1 ?: false, KeyEvent.KEYCODE_BUTTON_R1)
-        emitTransition(state.options, prev?.options ?: false, KeyEvent.KEYCODE_BUTTON_START)
-        emitTransition(state.create, prev?.create ?: false, KeyEvent.KEYCODE_BUTTON_SELECT)
+    /** Releases every key the DualSense holds in the launcher and drops key events still queued for it. */
+    private fun releaseLauncherDualSenseKeys() {
+        dsKeyGeneration++
+        for (keyCode in launcherDualSenseKeys(lastDsState)) dispatchKeyEvent(syntheticPadKey(KeyEvent.ACTION_UP, keyCode))
+        lastDsState = null
     }
 
     override fun onPause() {
@@ -1388,7 +1379,7 @@ class FrontEndActivity : ComponentActivity() {
             dualSenseOutputBridge?.stop()
         }
         dualSenseManager?.stop()
-        lastDsState = null
+        releaseLauncherDualSenseKeys()
         super.onPause()
     }
 
@@ -1591,6 +1582,7 @@ class FrontEndActivity : ComponentActivity() {
                 onRestoreBundled = { TurnipDriver(this).restoreBundled(); drivers.refreshDrivers() },
                 onMode = { m -> drivers.chooseMode(m) },
                 onRestart = { drivers.restartApp() },
+                onTpUbwcMode = { drivers.chooseTpUbwcMode(it) },
             ),
             protons = com.droiddeck.launcher.ui.ProtonsState(
                 rows = protons.protonRows, busyId = protons.protonBusyId, stage = protons.protonStage, percent = protons.protonPercent,
@@ -1716,6 +1708,7 @@ class FrontEndActivity : ComponentActivity() {
                 syncBackend = if (mode == SessionService.MODE_STEAM) SessionPrefs.syncBackendOf(fastSync, fsyncFirst, syncFallback) else null,
                 steamClientArch = if (mode == SessionService.MODE_STEAM) steamClientArch else null,
                 returnAfterGame = if (mode == SessionService.MODE_STEAM) returnAfterGame else null,
+                shaderPrecache = if (mode == SessionService.MODE_STEAM) shaderPrecache else null,
                 steamRepairQueued = steamRepairQueued,
                 mangoapp = mangoapp,
                 steamController = if (mode == SessionService.MODE_STEAM) steamController else null,
@@ -1802,9 +1795,15 @@ class FrontEndActivity : ComponentActivity() {
                     syncFallback = SessionPrefs.syncFallback(this)
                 },
                 onSteamRepair = { steamRepairQueued = SteamRepair.queue(this) },
-                onSteamClientArch = { id -> SessionPrefs.setSteamClientArch(this, id); steamClientArch = id; refresh() },
+                onSteamClientArch = { id ->
+                    SessionPrefs.setSteamClientArch(this, id)
+                    steamClientArch = id
+                    loadShaderPrecache(mode)
+                    refresh()
+                },
                 onMangoapp = { on -> SessionPrefs.setMangoapp(this, on); mangoapp = on },
                 onReturnAfterGame = { on -> SessionPrefs.setReturnAfterGame(this, on); returnAfterGame = on },
+                onShaderPrecache = { on -> SessionPrefs.setShaderPrecache(this, on); shaderPrecache = on },
                 onSteamController = { id -> SessionPrefs.setSteamController(this, id); steamController = id },
                 onRunSteamAtStartup = { on ->
                     SessionPrefs.setRunSteamAtStartup(this, on)
@@ -1845,7 +1844,8 @@ class FrontEndActivity : ComponentActivity() {
             fsyncFirst = fsyncFirst,
             gamescopeRealtime = gamescopeRealtime,
             gpuClockPin = gpuClockPin,
-            prootNoSeccomp = prootNoSeccomp, prootFastPath = prootFastPath, guestHostname = guestHostname, phantomWarning = phantomWarning,
+            prootNoSeccomp = prootNoSeccomp, prootFastPath = prootFastPath, cursorComposite = cursorComposite,
+            guestHostname = guestHostname, phantomWarning = phantomWarning,
             onClientOverride = { on -> SessionPrefs.setClientCpusOverride(this, on); clientOverride = on },
             onTuSysmem = { on -> SessionPrefs.setTuSysmem(this, on); tuSysmem = on },
             onZinkLazy = { on -> SessionPrefs.setZinkLazy(this, on); zinkLazy = on },
@@ -1859,6 +1859,7 @@ class FrontEndActivity : ComponentActivity() {
             onGpuClockPin = { on -> SessionPrefs.setGpuClockPin(this, on); gpuClockPin = on },
             onProotNoSeccomp = { on -> SessionPrefs.setProotNoSeccomp(this, on); prootNoSeccomp = on },
             onProotFastPath = { on -> SessionPrefs.setProotFastPath(this, on); prootFastPath = on },
+            onCursorComposite = { on -> SessionPrefs.setCursorComposite(this, on); cursorComposite = on },
             onGuestHostname = { name -> SessionPrefs.setGuestHostname(this, name) },
             onClientCore = { core, on ->
                 clientCores = if (on) clientCores + core else clientCores - core
@@ -1959,6 +1960,19 @@ class FrontEndActivity : ComponentActivity() {
     private var pipAutoEnter by mutableStateOf(false)
     private var unfoldedControls by mutableStateOf(false)
     private var unfoldedControlsWithController by mutableStateOf(false)
+    private var shaderPrecacheGeneration = 0
+
+    private fun loadShaderPrecache(mode: String) {
+        val generation = ++shaderPrecacheGeneration
+        shaderPrecache = null
+        if (mode != SessionService.MODE_STEAM) return
+        Thread({
+            val precache = SessionPrefs.shaderPrecache(this)
+            ui.post {
+                if (!isDestroyed && generation == shaderPrecacheGeneration) shaderPrecache = precache
+            }
+        }, "shader-precache").start()
+    }
 
     private fun loadModeSettings(mode: String) {
         pipAutoEnter = SessionPrefs.pipAutoEnter(this)
@@ -1974,6 +1988,7 @@ class FrontEndActivity : ComponentActivity() {
         steamRepairQueued = SteamRepair.queued(this)
         mangoapp = SessionPrefs.mangoapp(this)
         returnAfterGame = SessionPrefs.returnAfterGame(this)
+        loadShaderPrecache(mode)
         steamController = com.droiddeck.launcher.input.DualSenseManager.effectiveSteamController(this)
         runSteamAtStartup = SessionPrefs.runSteamAtStartup(this)
         loadBootMovie()
@@ -2040,6 +2055,7 @@ class FrontEndActivity : ComponentActivity() {
         gpuClockPin = SessionPrefs.gpuClockPin(this)
         prootNoSeccomp = SessionPrefs.prootNoSeccomp(this)
         prootFastPath = SessionPrefs.prootFastPath(this)
+        cursorComposite = SessionPrefs.cursorComposite(this)
         guestHostname = SessionPrefs.guestHostname(this)
         refreshPhantomStatus()
     }

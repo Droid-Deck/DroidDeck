@@ -1,0 +1,61 @@
+#!/usr/bin/python3
+"""Sets the Steam client's shader pre-caching (Settings > Downloads), before the client starts.
+
+    droiddeck-steam-shaders <0|1> <steam root>...
+
+The client stores the toggle as InstallConfigStore/Software/Valve/Steam/ShaderCacheManager/
+DisableShaderCache in config/config.vdf: "1" when off, "0" when on. It keeps the setting in memory
+and writes config.vdf back on exit, so this runs only while the client is stopped. The launcher
+passes a value only after its own toggle changes; otherwise the client's toggle stays the user's."""
+from pathlib import Path
+import runpy
+import sys
+
+
+VDF = runpy.run_path(str(Path(__file__).with_name("droiddeck-steam-ui-scale")))
+PATH = ("Software", "Valve", "Steam", "ShaderCacheManager", "DisableShaderCache")
+
+
+def set_text(text, enabled):
+    value = "0" if enabled else "1"
+    updated, changed = VDF["seed_value"](text, PATH, value)
+    if changed:
+        return updated, True
+    block = VDF["parse"](text).get("InstallConfigStore")
+    for section in PATH[:-1]:
+        block = block.get(section)
+    current = block.get(PATH[-1])
+    if isinstance(current, VDF["Block"]):
+        raise ValueError("invalid DisableShaderCache setting")
+    if current == value:
+        return text, False
+    at = block.offset(PATH[-1])
+    end = VDF["TOKEN"].match(text, at).end()
+    return text[:at] + f'"{value}"' + text[end:], True
+
+
+def apply(steam_root, enabled):
+    config = Path(steam_root) / "config/config.vdf"
+    text = config.read_text() if config.exists() else '"InstallConfigStore"\n{\n}\n'
+    updated, changed = set_text(text, enabled)
+    if changed:
+        VDF["atomic_write"](config, updated)
+    return changed
+
+
+if __name__ == "__main__":
+    if len(sys.argv) < 3 or sys.argv[1] not in ("0", "1"):
+        print("usage: droiddeck-steam-shaders <0|1> <steam root>...", file=sys.stderr)
+        sys.exit(2)
+    enabled = sys.argv[1] == "1"
+    status = 0
+    for root in sys.argv[2:]:
+        if not Path(root).is_dir():
+            continue
+        try:
+            if apply(root, enabled):
+                print(f"== steam: shader pre-caching {'on' if enabled else 'off'} in {root}")
+        except (OSError, ValueError, RecursionError) as error:
+            print(f"== steam: left shader pre-caching unchanged in {root}: {error}", file=sys.stderr)
+            status = 1
+    sys.exit(status)

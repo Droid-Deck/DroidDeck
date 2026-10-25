@@ -86,12 +86,6 @@ run_gamescope() (
 
 collect_steam_logs() {
   [ -n "${BL_DEBUG_DIR:-}" ] || return 0
-  local steam_root=${XDG_DATA_HOME:-$HOME/.local/share}/Steam
-  [ "${steam_x64:-0}" = 1 ] && steam_root=${BL_X64_HOME:-$HOME/.droiddeck-x64}/.local/share/Steam
-  mkdir -p "$BL_DEBUG_DIR/steam" 2>/dev/null || return 0
-  [ -d "$steam_root/logs" ] && find "$steam_root/logs" -maxdepth 1 -type f -size -8192k \
-    -exec cp {} "$BL_DEBUG_DIR/steam/" \; 2>/dev/null
-  [ "${steam_x64:-0}" = 0 ] && [ -f "$HOME/.steam/steam/logs/steamwebhelper.log" ] && cp "$HOME/.steam/steam/logs/steamwebhelper.log" "$BL_DEBUG_DIR/steam/" 2>/dev/null
   local sync_store=$HOME/.local/share/droiddeck-esync sync_file
   if [ -d "$sync_store" ] && mkdir -p "$BL_DEBUG_DIR/droiddeck-esync" 2>/dev/null; then
     for sync_file in launches.log tools.tsv wanted.tsv prefixes.json; do
@@ -102,7 +96,6 @@ collect_steam_logs() {
   if [ -d "$fex_state" ] && mkdir -p "$BL_DEBUG_DIR/droiddeck-fex" 2>/dev/null; then
     cp "$fex_state/status.json" "$fex_state/config/Config.json" "$BL_DEBUG_DIR/droiddeck-fex/" 2>/dev/null
   fi
-  echo "== steam logs copied to $BL_DEBUG_DIR/steam"
 }
 trap 'collect_steam_logs 2>/dev/null || true' TERM INT HUP
 if [ -n "${BL_VK_DRIVER:-}" ]; then
@@ -227,7 +220,9 @@ if [ -z "${BL_INSIDE:-}" ]; then
       echo "== gamescope: games at ${nested}x${height} stretched to the ${width}x${height} output"
     fi
   fi
-  if [ "$mode" = steam ]; then
+  # Off unless Performance asks for it. Compositing the cursor here adds a second
+  # plane on the phone's compositor; a controller-driven cursor is the reason to turn it on.
+  if [ "$mode" = steam ] && [ "${BL_CURSOR_COMPOSITE:-0}" = 1 ]; then
     export gamescope_cursor_composite=2
   fi
   args=(--backend wayland --expose-wayland -f -W "$width" -H "$height" -w "$nested" -h "$height")
@@ -401,8 +396,14 @@ case $mode in
       steam_root=$XDG_DATA_HOME/Steam
       if [ -f "${BL_X64_HOME:-$HOME/.droiddeck-x64}/.local/share/Steam/local.vdf" ]; then
         droiddeck-steam-x64 --sync-login || true
+        droiddeck-steam-x64 --share || true
       fi
       steam_client=("$steam_root/steamrtarm64/steam")
+      _bl_srt_shim=$HOME/.droiddeck-steamrt-shim
+      if droiddeck-steamrt-shim "$steam_root/steamrtarm64" "$_bl_srt_shim"; then
+        echo "== steam: Valve containerized the arm64 Steam client (it carries a Steam Runtime container); starting it through $_bl_srt_shim"
+        steam_client=(env STEAM_RUNTIME_STEAMRT="$_bl_srt_shim" PATH="$_bl_srt_shim/bin:$PATH" "${steam_client[@]}")
+      fi
     fi
     _bl_proton_root=$steam_root
     if [ "$steam_x64" = 1 ]; then
@@ -525,6 +526,11 @@ case $mode in
       droiddeck-steam-ui-scale "$steam_root" "${BL_WIDTH:-1280}" "${BL_HEIGHT:-720}" || true
     fi
     droiddeck-seed-redists "$steam_root" || true
+    fi
+    if [ -n "${BL_SHADER_PRECACHE:-}" ]; then
+      droiddeck-steam-shaders "$BL_SHADER_PRECACHE" "$XDG_DATA_HOME/Steam" \
+        "${BL_X64_HOME:-$HOME/.droiddeck-x64}/.local/share/Steam" &&
+        echo "$BL_SHADER_PRECACHE" > "$HOME/.bl-shader-precache-applied" || true
     fi
     if [ "$steam_x64" = 0 ] && [ ! -f "$steam_root/steamapps/appmanifest_4427310.acf" ]; then
       step "asking the client to fetch the ARM64 Proton"
@@ -746,10 +752,13 @@ BUSCONF
     fi
 
     # The UI bridge launches SteamVR, which needs the guest agent's library environment.
-    _bl_compat_env=(env -u LD_LIBRARY_PATH -u STEAM_RUNTIME)
+    _bl_compat_env=(env -u LD_LIBRARY_PATH -u STEAM_RUNTIME -u STEAM_STEAMRT_RECURSION_GUARD)
     [ "${LD_LIBRARY_PATH+x}" ] && _bl_compat_env+=("LD_LIBRARY_PATH=$LD_LIBRARY_PATH")
     [ "${STEAM_RUNTIME+x}" ] && _bl_compat_env+=("STEAM_RUNTIME=$STEAM_RUNTIME")
+    [ "${STEAM_STEAMRT_RECURSION_GUARD+x}" ] && _bl_compat_env+=("STEAM_STEAMRT_RECURSION_GUARD=$STEAM_STEAMRT_RECURSION_GUARD")
     export STEAM_RUNTIME=1
+    # A containerized client re-executes itself through pressure-vessel-wrap (bwrap) unless told it is already inside.
+    export STEAM_STEAMRT_RECURSION_GUARD=1
     export LD_LIBRARY_PATH=$steam_root/steamrtarm64:$steam_root/steamrtarm64/panorama${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
     export SDL_VIDEO_X11_DGAMOUSE=0
     decky_loader=$HOME/homebrew/services/PluginLoader
@@ -799,7 +808,7 @@ BUSCONF
       echo "== steam: devtools port $BL_CDP_PORT, guest processes only"
     fi
     [ -n "${BL_LAUNCH_DIR:-}" ] && mkdir -p "$BL_LAUNCH_DIR/agent" && echo "$BL_CDP_PORT" > "$BL_LAUNCH_DIR/agent/cdp-port"
-    [ "$steam_x64" = 1 ] || "${_bl_compat_env[@]}" droiddeck-steam-compat "$steam_root" 2>&1 &
+    [ "$steam_x64" = 1 ] || { "${_bl_compat_env[@]}" droiddeck-steam-compat "$steam_root" 2>&1 & }
     _bl_ui=(-gamepadui)
     [ "${BL_STEAM_UI:-}" = desktop ] && _bl_ui=()
     _bl_cef=(-cef-force-gpu -cef-use-gl=angle -cef-use-angle=vulkan)
@@ -829,6 +838,9 @@ BUSCONF
       unset _stale _f
     fi
     steam_channel=steamdeck_publicbeta
+    if [ "$steam_x64" = 0 ]; then
+      steam_channel=$(droiddeck-steam-install --channel 2>/dev/null || echo steamdeck_publicbeta)
+    fi
     _bl_lang=()
     [ -n "${BL_STEAM_LANGUAGE:-}" ] && _bl_lang=(-language "$BL_STEAM_LANGUAGE")
     steam_beta=$steam_root/package/beta

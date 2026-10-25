@@ -136,11 +136,13 @@ object ProtonExtras {
 
     fun remove(context: Context, tool: Tool, dir: String? = null) {
         val name = if (dir != null) dir.takeIf { it in installedAll(context, tool) } ?: return else installed(context, tool) ?: return
-        File(toolsDir(context), name).deleteRecursively()
+        if (File(toolsDir(context), name).deleteRecursively()) ComponentsManager.forgetProton(context, name)
     }
 
     fun removeOlder(context: Context, tool: Tool) {
-        installedAll(context, tool).dropLast(1).forEach { File(toolsDir(context), it).deleteRecursively() }
+        installedAll(context, tool).dropLast(1).forEach {
+            if (File(toolsDir(context), it).deleteRecursively()) ComponentsManager.forgetProton(context, it)
+        }
     }
 
     @Synchronized

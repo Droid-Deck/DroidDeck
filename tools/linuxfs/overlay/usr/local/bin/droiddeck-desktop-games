@@ -8,7 +8,7 @@ X64 = os.environ.get("BL_STEAM_CLIENT_ARCH") == "x86_64"
 CLIENT_HOME = (os.environ.get("BL_X64_HOME") or os.path.join(HOME, ".droiddeck-x64")) if X64 else HOME
 STEAM_ROOT = sys.argv[1] if len(sys.argv) > 1 else os.path.join(CLIENT_HOME, ".local/share/Steam")
 LIBRARIES = ((STEAM_ROOT, "Steam Games"), ("/mnt/droiddeck-sd/x86-64" if X64 else "/mnt/droiddeck-sd", "SD Games"))
-NOT_GAMES = {228980, 1070560, 1391110, 1493710, 1628350, 3127680, 4183110, 4185400, 4427310, 4628740}
+NOT_GAMES = {228980, 1070560, 1161040, 1391110, 1493710, 1628350, 1826330, 3127680, 4183110, 4185400, 4427310, 4628740}
 APPS_DIR = os.path.join(HOME, ".local/share/applications")
 PREFIX = "droiddeck-game-"
 NAME = re.compile(r'^\s*"name"\s*"([^"]*)"', re.M)

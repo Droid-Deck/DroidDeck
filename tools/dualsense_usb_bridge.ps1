@@ -359,7 +359,9 @@ public class DualSenseBridge {
                         long elapsed = sw.ElapsedMilliseconds;
                         bool btInit = elapsed < 3000;
                         byte[] copy = (byte[])buf.Clone();
-                        lock (writeLock) { deferred = null; }
+                        if ((copy[2] & 0x04) != 0) {
+                            lock (writeLock) { deferred = null; }
+                        }
                         sendBt(copy, btInit);
                         // The handshake window strips the lightbar; replay the colour once the window closes.
                         if (btInit && (copy[2] & 0x04) != 0) {

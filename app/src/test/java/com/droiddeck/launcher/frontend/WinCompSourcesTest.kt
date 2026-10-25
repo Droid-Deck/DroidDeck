@@ -56,6 +56,17 @@ class WinCompSourcesTest {
         assertEquals(emptyList<String>(), WinCompSources.epic("Installers/LauncherHelper.exe", "Launcher Helper"))
     }
 
+    @Test fun xboxGamesAlwaysGetVisualCppAndTheirDeclaredRuntimes() {
+        val folder = tmp.newFolder("xbox")
+        val vc = listOf("vcredist2022" to "VC14", "vcredist2022_arm64" to "VC14")
+        assertEquals(vc, WinCompSources.xbox(folder))
+        File(folder, "MicrosoftGame.Config").writeText("""<Game><DesktopRegistration><DependencyList><KnownDependency Name="VC14"/></DependencyList></DesktopRegistration></Game>""")
+        assertEquals(vc, WinCompSources.xbox(folder))
+        sidecar(folder, Store.XBOX, emptyMap())
+        assertEquals(listOf("vcredist2022" to WinCompSources.Origin.XBOX, "vcredist2022_arm64" to WinCompSources.Origin.XBOX),
+            auto(WinCompSources.forGame(app, game(folder, Store.XBOX.id))).distinct())
+    }
+
     @Test fun steamworksSharedDepotsMapToComponents() {
         assertEquals(listOf("vcredist2015_dll" to "VC++ 2015", "d3dx9" to "DirectX (June 2010)"), WinCompSources.steamDepots(listOf("228986", "228990", "999")))
     }

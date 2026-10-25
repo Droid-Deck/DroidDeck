@@ -1160,8 +1160,12 @@ class BundleTest(unittest.TestCase):
         except ImportError:
             self.skipTest("PyYAML is not installed")
         apk = yaml.safe_load((self.ROOT / ".github/workflows/build.yml").read_text())
-        steps = {step.get("name"): step for step in apk["jobs"]["build"]["steps"]}
-        bundle = steps["Bundle the droiddeck-esync packs"]
+        steps = {step.get("name"): step for step in apk["jobs"]["components"]["steps"]}
+        import json
+        recipes = json.loads((self.ROOT / "tools/components/recipes.json").read_text())
+        bundle = dict(steps["Bundle the droiddeck-esync packs"])
+        self.assertIn("prepare.py esync", bundle["run"])
+        bundle["run"] = (self.ROOT / recipes["esync"]["script"]).read_text()
         self.assertNotIn("if", bundle)
         self.assertIn("tools/droiddeck-esync/release.env", bundle["run"])
         self.assertIn('release_url="https://github.com/${SYNC_BUNDLE_REPO}/releases/download/${SYNC_BUNDLE_TAG}"', bundle["run"])
@@ -1169,7 +1173,7 @@ class BundleTest(unittest.TestCase):
         self.assertIn('curl -fsSL --retry 3 -o sync-index.json "$release_url/index.json"', bundle["run"])
         self.assertIn("sha256sum -c -", bundle["run"])
         self.assertNotIn("revoked.txt", bundle["run"])
-        stage = next(step for step in apk["jobs"]["build"]["steps"] if "overlay/usr/local/bin/droiddeck-*" in step.get("run", ""))
+        stage = {"run": (self.ROOT / recipes["runtime"]["script"]).read_text()}
         self.assertIn("tools/linuxfs/overlay/usr/local/bin/droiddeck-* ", stage["run"])
         local = (self.ROOT / "tools/build_local.sh").read_text()
         self.assertIn("tools/linuxfs/overlay/usr/local/bin/droiddeck-* ", local)
