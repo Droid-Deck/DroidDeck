@@ -9,6 +9,7 @@ import java.io.FileOutputStream
 import java.io.IOException
 import java.nio.file.Files
 import java.util.Locale
+import java.util.concurrent.CancellationException
 
 object FileOps {
     private const val TAG = "FileOps"
@@ -24,24 +25,27 @@ object FileOps {
 
     fun isSymlink(file: File): Boolean = try { Files.isSymbolicLink(file.toPath()) } catch (e: Exception) { false }
 
-    fun delete(target: File?): Boolean {
+    fun delete(target: File?, isCancelled: () -> Boolean = { false }): Boolean {
+        if (isCancelled()) throw CancellationException("Delete cancelled: $target")
         if (target == null) return false
         if (target.isDirectory && !isSymlink(target)) {
-            if (!clear(target)) return false
+            if (!clear(target, isCancelled)) return false
         }
+        if (isCancelled()) throw CancellationException("Delete cancelled: $target")
         return target.delete()
     }
 
-    fun clear(dir: File): Boolean {
+    fun clear(dir: File, isCancelled: () -> Boolean = { false }): Boolean {
         val children = dir.listFiles() ?: return true
         var ok = true
-        for (child in children) if (!delete(child)) ok = false
+        for (child in children) if (!delete(child, isCancelled)) ok = false
         return ok
     }
 
-    fun totalSize(f: File?): Long {
+    fun totalSize(f: File?, isCancelled: () -> Boolean = { false }): Long {
+        if (isCancelled()) throw CancellationException("Size scan cancelled: $f")
         if (f == null || !f.exists() || isSymlink(f)) return 0
-        if (f.isDirectory) return f.listFiles()?.sumOf { totalSize(it) } ?: 0
+        if (f.isDirectory) return f.listFiles()?.sumOf { totalSize(it, isCancelled) } ?: 0
         return f.length()
     }
 
@@ -53,12 +57,12 @@ object FileOps {
             return true
         }
         if (!copyWithProgress(src, dst, progress, isCancelled)) return false
-        if (isCancelled()) return false
+        // Once the destination is committed, finish deleting the source.
         return delete(src)
     }
 
     fun copyWithProgress(src: File, dst: File, progress: ProgressCallback?, isCancelled: () -> Boolean = { false }): Boolean {
-        val total = maxOf(totalSize(src), 1L)
+        val total = maxOf(totalSize(src, isCancelled), 1L)
         return copyWithProgress(src, dst, longArrayOf(0), total, progress, isCancelled)
     }
 
@@ -71,15 +75,23 @@ object FileOps {
             return false
         }
         if (src.isDirectory) {
-            if (!dst.exists() && !dst.mkdirs()) return false
-            var allOk = true
-            src.list()?.forEach { name ->
-                if (!copyWithProgress(File(src, name), File(dst, name), done, total, progress, isCancelled)) {
-                    Log.e(TAG, "Failed to copy: ${File(src, name)}")
-                    allOk = false
-                }
+            val created = if (dst.exists()) false else {
+                if (!dst.mkdirs()) return false
+                true
             }
-            return allOk
+            try {
+                var allOk = true
+                src.list()?.forEach { name ->
+                    if (!copyWithProgress(File(src, name), File(dst, name), done, total, progress, isCancelled)) {
+                        Log.e(TAG, "Failed to copy: ${File(src, name)}")
+                        allOk = false
+                    }
+                }
+                return allOk
+            } catch (e: CancellationException) {
+                if (created) delete(dst)
+                throw e
+            }
         }
         val parent = dst.parentFile
         if (!src.exists() || (parent != null && !parent.exists() && !parent.mkdirs())) return false
@@ -118,6 +130,7 @@ object FileOps {
                     val size = input.size()
                     var position = 0L
                     while (position < size) {
+                        if (isCancelled()) throw CancellationException("Copy cancelled: $src")
                         val transferred = input.transferTo(position, minOf(chunk, size - position), channel)
                         if (transferred <= 0) break
                         position += transferred
@@ -125,12 +138,19 @@ object FileOps {
                         progress?.onProgress(done[0], total)
                     }
                     if (position < size) throw IOException("Incomplete copy: $position/$size bytes")
+                    if (size > 0 && isCancelled()) throw CancellationException("Copy cancelled: $src")
                 }
             }
             staging?.let { directory ->
                 val copied = File(directory, "file").toPath()
-                if (permissions != null && Files.getPosixFilePermissions(copied) != permissions) {
-                    Files.setPosixFilePermissions(copied, permissions)
+                if (permissions != null) {
+                    try {
+                        if (Files.getPosixFilePermissions(copied) != permissions) {
+                            Files.setPosixFilePermissions(copied, permissions)
+                        }
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Failed to restore destination permissions: $target", e)
+                    }
                 }
                 if (isCancelled()) throw java.util.concurrent.CancellationException("Copy cancelled: $src")
                 Files.move(copied, target.toPath(), java.nio.file.StandardCopyOption.ATOMIC_MOVE)

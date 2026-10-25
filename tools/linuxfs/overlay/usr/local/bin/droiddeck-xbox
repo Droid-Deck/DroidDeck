@@ -15,7 +15,18 @@ import threading
 
 BIN = Path(__file__).resolve().parent
 RUNTIME = Path('/usr/local/lib/droiddeck-xbox')
-DLLS = ('xgameruntime.dll', 'winhttp.dll', 'windows.web.dll', 'twinapi.appcore.dll', 'libnghttp2.dll')
+DLLS = ('xgameruntime.dll', 'winhttp.dll', 'windows.web.dll', 'twinapi.appcore.dll', 'wintypes.dll', 'libnghttp2.dll')
+CLASSES = {
+    'twinapi.appcore.dll': ('Windows.ApplicationModel.DataTransfer.DataTransferManager',
+                            'Windows.Security.ExchangeActiveSyncProvisioning.EasClientDeviceInformation',
+                            'Windows.System.Profile.AnalyticsInfo', 'Windows.System.UserProfile.AdvertisingManager',
+                            'Windows.UI.ViewManagement.ApplicationView'),
+    'windows.web.dll': ('Windows.Data.Json.JsonArray', 'Windows.Data.Json.JsonObject', 'Windows.Data.Json.JsonValue'),
+    'wintypes.dll': ('Windows.Foundation.PropertyValue', 'Windows.Foundation.Collections.PropertySet',
+                     'Windows.Foundation.Metadata.ApiInformation', 'Windows.Storage.Streams.Buffer',
+                     'Windows.Storage.Streams.DataWriter'),
+}
+CLASS_KEY = 'Software\\Microsoft\\WindowsRuntime\\ActivatableClassId\\'
 
 
 def bridge(upstream):
@@ -102,6 +113,30 @@ def bridge(upstream):
     return server.getsockname()[1], key.decode('ascii'), close
 
 
+def register_classes(proton, prefix, env):
+    try:
+        registry = (prefix / 'system.reg').read_text(encoding='utf-8', errors='replace')
+    except OSError:
+        return
+    missing = [(name, dll) for dll, names in CLASSES.items() for name in names
+               if '[%s]' % (CLASS_KEY + name).replace('\\', '\\\\') not in registry]
+    if not missing:
+        return
+    text = 'Windows Registry Editor Version 5.00\r\n\r\n' + ''.join(
+        '[HKEY_LOCAL_MACHINE\\%s%s]\r\n"DllPath"="C:\\\\windows\\\\system32\\\\%s"\r\n\r\n' % (CLASS_KEY, name, dll)
+        for name, dll in missing)
+    with tempfile.TemporaryDirectory(prefix='droiddeck-xbox-') as temporary:
+        source = Path(temporary) / 'classes.reg'
+        source.write_bytes(b'\xff\xfe' + text.encode('utf-16-le'))
+        try:
+            failed = subprocess.run([proton, 'run', 'reg.exe', 'import', 'Z:' + str(source).replace('/', '\\')],
+                                    stdout=sys.stderr, env=env, timeout=90).returncode != 0
+        except subprocess.TimeoutExpired:
+            failed = True
+    if failed:
+        print('droiddeck-xbox: Windows Runtime class registration failed; launching without it', file=sys.stderr)
+
+
 def wine(argv, source_env=None):
     source_env = os.environ if source_env is None else source_env
     with open(source_env['DROIDDECK_XBOX_COMMAND_FILE'], encoding='utf-8') as file:
@@ -109,7 +144,8 @@ def wine(argv, source_env=None):
     if len(command) < 3 or command[1] != 'waitforexitandrun' or len(argv) != 1:
         raise ValueError('Invalid Xbox Proton invocation')
     env = dict(source_env)
-    env.pop('DROIDDECK_XBOX_CREDENTIAL_SOCKET', None)
+    for name in ('DROIDDECK_XBOX_CREDENTIAL_SOCKET', 'DROIDDECK_XBOX_CREDENTIAL_PORT', 'DROIDDECK_XBOX_CREDENTIAL_KEY'):
+        env.pop(name, None)
     env.pop('DROIDDECK_XBOX_COMMAND_FILE', None)
     prefix = Path(source_env['STEAM_COMPAT_DATA_PATH']) / 'pfx'
     prefix.parent.mkdir(parents=True, exist_ok=True)
@@ -124,6 +160,7 @@ def wine(argv, source_env=None):
         if target.is_symlink():
             target.unlink()
         shutil.copyfile(RUNTIME / 'windows' / name, target)
+    register_classes(command[0], prefix, env)
     overrides = ';'.join(name[:-4] + '=n' for name in DLLS if name != 'libnghttp2.dll')
     env['WINEDLLOVERRIDES'] = overrides + ';' + env.get('WINEDLLOVERRIDES', '')
     return subprocess.call([*command[:2], argv[0], *command[3:]], env=env)
@@ -171,7 +208,8 @@ def launch(command, env):
             owned_env = dict(env, DROIDDECK_XBOX_ACTIVE='1', DROIDDECK_XBOX_COMMAND_FILE=str(context),
                              XODUS_SOCKET=reply['socket'], XODUS_BRIDGE_PORT=str(port), XODUS_BRIDGE_KEY=key,
                              XODUS_LOG='off', RUST_LOG='off', XODUS_SAVE_SYNC='auto' if sidecar.get('cloud', True) else 'off')
-            owned_env.pop('DROIDDECK_XBOX_CREDENTIAL_SOCKET', None)
+            for name in ('DROIDDECK_XBOX_CREDENTIAL_SOCKET', 'DROIDDECK_XBOX_CREDENTIAL_PORT', 'DROIDDECK_XBOX_CREDENTIAL_KEY'):
+                owned_env.pop(name, None)
             if reply.get('playfab'):
                 owned_env['XODUS_XSTS_PLAYFAB'] = reply['playfab']
             content = folder / '.xbox-content'

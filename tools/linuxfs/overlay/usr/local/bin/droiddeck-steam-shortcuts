@@ -18,13 +18,17 @@ TAG = "droiddeck-app"
 def account_dir(steam_root):
     """The most recent account's userdata folder, else the only one that is not 0."""
     users = os.path.join(steam_root, "config", "loginusers.vdf")
-    recent = None
+    recent, best = None, None
     try:
         with open(users, encoding="utf-8", errors="replace") as f:
             text = f.read()
         for block in re.finditer(r'"(\d{5,})"\s*\{([^}]*)\}', text):
-            if re.search(r'"MostRecent"\s*"1"', block.group(2)):
-                recent = int(block.group(1))
+            stamp = re.search(r'"timestamp"\s*"(\d+)"', block.group(2))
+            rank = (bool(re.search(r'"MostRecent"\s*"1"', block.group(2))),
+                    bool(re.search(r'"AutoLogin"\s*"1"', block.group(2))),
+                    int(stamp.group(1)) if stamp else 0)
+            if any(rank) and (best is None or rank >= best):
+                recent, best = int(block.group(1)), rank
     except OSError:
         pass
     userdata = os.path.join(steam_root, "userdata")
