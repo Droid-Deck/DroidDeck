@@ -131,7 +131,8 @@ object BattleNetClient {
     }
 
     fun installGame(context: Context, uid: String, root: File) {
-        open(library(context, root) + listOf("install-game", uid))
+        val app = context.applicationContext
+        work.execute { open(library(app, root) + listOf("install-game", uid)) }
     }
 
     internal fun downloaded(context: Context) {

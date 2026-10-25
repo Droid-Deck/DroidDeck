@@ -129,12 +129,12 @@ class ConfigAndMenuTest(Temp):
         return self.tmp / ("steamapps/compatdata/%s/pfx/drive_c/users/steamuser/AppData/Roaming/Battle.net/Battle.net.config"
                            % BNET["APP_ID"])
 
-    def test_the_first_config_turns_hardware_acceleration_on_once(self):
+    def test_the_config_keeps_browser_hardware_acceleration_off(self):
         root = str(self.tmp)
         self.assertEqual(BNET["write_config"](root), "first")
         path = self.config_path()
         config = json.loads(path.read_text())
-        self.assertEqual(config["Client"]["HardwareAcceleration"], "true")
+        self.assertEqual(config["Client"]["HardwareAcceleration"], "false")
         self.assertEqual(config["Client"]["Streaming"]["StreamingEnabled"], "false")
         self.assertEqual(config["Client"]["GameLaunchWindowBehavior"], "2")
         self.assertIsNone(BNET["write_config"](root))
@@ -142,6 +142,9 @@ class ConfigAndMenuTest(Temp):
         self.assertEqual(BNET["write_config"](root), "launch")
         config = json.loads(path.read_text())
         self.assertEqual(config, {"Client": {"HardwareAcceleration": "false", "GameLaunchWindowBehavior": "2"}, "Games": {"osi": {}}})
+        path.write_text('{"Client": {"HardwareAcceleration": "true", "GameLaunchWindowBehavior": "2"}}')
+        self.assertEqual(BNET["write_config"](root), "acceleration")
+        self.assertEqual(json.loads(path.read_text())["Client"]["HardwareAcceleration"], "false")
 
     def test_games_install_to_the_chosen_library(self):
         root = str(self.tmp)
@@ -542,6 +545,32 @@ class OpenTest(Temp):
             self.assertEqual(BNET["open_client"](self.root), 1)
         self.assertIn(("notify", "Battle.net could not be downloaded"), self.calls)
         self.assertEqual(self.calls[0], ("menu",))
+
+    def test_a_cut_off_installer_download_is_not_kept(self):
+        import http.client
+        import io
+
+        class Response(io.BytesIO):
+            def __init__(self, body, length):
+                super().__init__(body)
+                self.headers = {"Content-Length": str(length)}
+
+        folder = str(self.tmp / "dl")
+        body = b"MZ" + b"\0" * (BNET["MIN_INSTALLER"] + 10)
+        with mock.patch.object(BNET["urllib"].request, "urlopen", lambda *a, **k: Response(body, len(body) + 100)), \
+                mock.patch.object(BNET["shutil"], "which", lambda name: None):
+            self.assertIsNone(BNET["download"]("https://example.invalid/setup.exe", folder))
+        self.assertEqual(os.listdir(folder), [])
+
+        def broken(*a, **k):
+            raise http.client.IncompleteRead(b"MZ")
+        with mock.patch.object(BNET["urllib"].request, "urlopen", broken), \
+                mock.patch.object(BNET["shutil"], "which", lambda name: None):
+            self.assertIsNone(BNET["download"]("https://example.invalid/setup.exe", folder))
+        self.assertEqual(os.listdir(folder), [])
+
+        with mock.patch.object(BNET["urllib"].request, "urlopen", lambda *a, **k: Response(body, len(body))):
+            self.assertEqual(BNET["download"]("https://example.invalid/setup.exe", folder), os.path.join(folder, BNET["SETUP"]))
 
     def test_a_client_that_never_starts_is_reported(self):
         self.client()

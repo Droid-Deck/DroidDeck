@@ -413,6 +413,7 @@ class SessionService : Service() {
 
         val root = LinuxRuntime.rootDir(this)
         val sessionRoot = LinuxRuntime.sessionRoot(this).apply { mkdirs() }
+        File(sessionRoot, com.droiddeck.launcher.stores.battlenet.BattleNetClient.REQUEST).delete()
         val runtimeDir = File(filesDir, ".wayland-rt").apply { mkdirs() }
         killStragglers()
         for (pack in listOf(AddonPack.PROOT, AddonPack.DIRECTAUDIO))

@@ -1,13 +1,6 @@
 #!/usr/bin/python3
-"""Blizzard's Battle.net in its own Proton prefix, compatdata/APP_ID, shared with the games it installs.
-
-    droiddeck-battlenet [open]            opens Battle.net, installing it first when it is not there
-    droiddeck-battlenet install           runs Blizzard's installer again
-    droiddeck-battlenet status            prints the prefix, the launcher and whether it runs, as JSON
-    droiddeck-battlenet launch CODE       has Battle.net launch a game (Pro, Fen, OSI...) and lasts as long as it
-    droiddeck-battlenet install-game ID   opens Battle.net on a game's install (fenris, osi, hs_beta...)
-"""
 import fcntl
+import http.client
 import json
 import math
 import os
@@ -29,7 +22,7 @@ CLIENT_DIR = ("Program Files (x86)", "Battle.net")
 LAUNCHER = "Battle.net Launcher.exe"
 CLIENT = "Battle.net.exe"
 CONFIG = ("users", "steamuser", "AppData", "Roaming", "Battle.net", "Battle.net.config")
-DEFAULT_CONFIG = {"Client": {"HardwareAcceleration": "true", "Streaming": {"StreamingEnabled": "false"}}}
+DEFAULT_CONFIG = {"Client": {"HardwareAcceleration": "false", "Streaming": {"StreamingEnabled": "false"}}}
 LAUNCH_BEHAVIOR = ("GameLaunchWindowBehavior", "2")
 CACHE = os.path.join(HOME, ".cache", "droiddeck", "battlenet")
 MENU = "/usr/local/share/applications/droiddeck-battlenet.desktop"
@@ -140,6 +133,9 @@ def write_config(root, library=None):
     if client.get(key) != value:
         client[key] = value
         changes.append("launch")
+    if client.get("HardwareAcceleration") != "false":
+        client["HardwareAcceleration"] = "false"
+        changes.append("acceleration")
     if library and isinstance(client.setdefault("Install", {}), dict) \
             and str(client["Install"].get("DefaultInstallPath", "")).rstrip("/\\") != install_path(library):
         client["Install"]["DefaultInstallPath"] = install_path(library)
@@ -210,7 +206,8 @@ def wallpaper_bmp(width, height):
 def reg_value(reg, key, name, value):
     line = '"%s"="%s"' % (name, value.replace("\\", "\\\\").replace('"', '\\"'))
     try:
-        rows = open(reg, encoding="utf-8", errors="replace").read().splitlines()
+        with open(reg, encoding="utf-8", errors="replace") as f:
+            rows = f.read().splitlines()
     except OSError:
         return False
     inside, last = False, None
@@ -270,12 +267,14 @@ def configure(root, library=None):
     except OSError as error:
         say("Battle.net's desktop wallpaper not set: %s" % error)
     if change == "first":
-        say("wrote Battle.net's first config: hardware acceleration on, streaming off, closing itself as it launches a game")
+        say("wrote Battle.net's first config: hardware acceleration off, streaming off, closing itself as it launches a game")
     elif change:
         if "launch" in change:
             say("Battle.net's config: closing itself as it launches a game")
         if "library" in change:
             say("Battle.net's config: games install to %s" % library)
+        if "acceleration" in change:
+            say("Battle.net's config: browser hardware acceleration off")
 
 
 def write_menu(path=MENU):
@@ -545,7 +544,10 @@ def download(url=INSTALLER_URL, folder=CACHE):
             request = urllib.request.Request(url, headers={"User-Agent": "DroidDeck"})
             with urllib.request.urlopen(request, timeout=60) as response, open(part, "wb") as f:
                 shutil.copyfileobj(response, f)
-        except OSError as error:
+                length = response.headers.get("Content-Length", "")
+                if length.isdigit() and f.tell() != int(length):
+                    raise OSError("the download ended early")
+        except (OSError, http.client.HTTPException) as error:
             if not shutil.which("curl"):
                 raise
             say("download through Python failed (%s); trying curl" % error)
@@ -554,7 +556,7 @@ def download(url=INSTALLER_URL, folder=CACHE):
         if not setup_ready(part):
             raise OSError("not a Windows program")
         os.replace(part, dest)
-    except OSError as error:
+    except (OSError, http.client.HTTPException) as error:
         say("installer download failed: %s" % error)
         try:
             os.unlink(part)
