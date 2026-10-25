@@ -475,9 +475,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         com.droiddeck.launcher.gpu.SteamVrHealth.begin(this, SessionState.sessionId)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         if (!SessionState.running) {
-            SessionState.fpsLimit = SessionPrefs.fpsLimit(
-                this, SessionPrefs.prefMode(intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_STEAM),
-            )
+            val prefMode = SessionPrefs.prefMode(intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_STEAM)
+            SessionState.fpsLimit = SessionPrefs.fpsLimit(this, prefMode)
+            SessionState.performanceMode = SessionPrefs.performanceMode(this, prefMode)
         }
         applyOutputPacing()
         if (!SessionState.running) SessionState.followScreen = followChoice()
@@ -1843,7 +1843,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun mirrorRefreshLimit(): Int =
         GlassesRendering.mirrorRefreshLimit(glassesSettings, glasses, glassesScreen != null)
 
-    private fun outputFpsLimit(): Int = GlassesRendering.fpsLimit(SessionState.fpsLimit, mirrorRefreshLimit())
+    private fun outputFpsLimit(): Int = SessionPrefs.compositorFpsLimit(
+        GlassesRendering.fpsLimit(SessionState.fpsLimit, mirrorRefreshLimit()), SessionState.performanceMode,
+    )
 
     private fun applyOutputPacing() {
         Log.i(TAG, "perf: " + PerfMode.apply(this, outputFpsLimit(), mirrorRefreshLimit()))

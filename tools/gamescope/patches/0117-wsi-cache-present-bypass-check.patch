@@ -14,7 +14,7 @@
      std::optional<VkRect2D> cachedWindowRect;
  
 +    // canBypassXWayland costs several X round trips; at present time it is refreshed at most
-+    // every DROIDDECK_WSI_BYPASS_CHECK_MS (default 100, 0 = every present).
++    // every DROIDDECK_WSI_BYPASS_CHECK_MS (default 0 = every present; DroidDeck's Performance mode sets 100).
 +    std::optional<bool> presentBypass;
 +    bool presentBypassHdr = false;
 +    uint64_t presentBypassNs = 0;
@@ -22,7 +22,7 @@
 +    static uint64_t presentBypassIntervalNs() {
 +      static const uint64_t interval = [] {
 +        const char *v = getenv("DROIDDECK_WSI_BYPASS_CHECK_MS");
-+        return uint64_t(v && *v ? strtoull(v, nullptr, 10) : 100) * 1000000ull;
++        return uint64_t(v && *v ? strtoull(v, nullptr, 10) : 0) * 1000000ull;
 +      }();
 +      return interval;
 +    }

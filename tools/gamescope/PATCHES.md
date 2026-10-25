@@ -95,7 +95,7 @@ high frame rates that is thousands of round trips a second: on an AYANEO Pocket 
 running AIO Graphics Test uncapped, Xwayland used 24-32% of a core and the game's
 present thread sat about half idle.
 
-The patch keeps the result for 100 ms (`DROIDDECK_WSI_BYPASS_CHECK_MS`, 0 restores
-the per-present check). A window resize or a flip/obscure change is therefore seen up
-to 100 ms later than before; surface creation and capability queries still check
-every time.
+The patch can keep the result for `DROIDDECK_WSI_BYPASS_CHECK_MS` milliseconds. Unset
+or 0 keeps the per-present check; the app sets 100 only in Performance mode and 0
+otherwise. With 100, a window resize or a flip/obscure change is seen up to 100 ms
+later than before; surface creation and capability queries still check every time.

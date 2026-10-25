@@ -105,6 +105,9 @@ object SessionState {
     var fpsLimit: Int = 0
 
     @Volatile
+    var performanceMode = false
+
+    @Volatile
     var firstFrameSeen = false
 
     @Volatile
