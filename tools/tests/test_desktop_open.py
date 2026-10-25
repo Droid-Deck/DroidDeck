@@ -584,6 +584,43 @@ class ProtonRunTest(Temp):
         self.assertTrue((self.root / "steamapps/compatdata/2733369024").is_dir())
         self.assertEqual(dirs, [str(start)])
 
+    def write_account(self):
+        self.write("Steam/config/loginusers.vdf",
+                   '"users"\n{\n\t"76561198352563669"\n\t{\n\t\t"MostRecent"\t\t"1"\n\t}\n}\n')
+        return "Steam/userdata/392297941/config/"
+
+    def test_without_steam_and_options_a_game_takes_its_steam_launch_options(self):
+        config = self.write_account()
+        self.write(config + "localconfig.vdf", '"UserLocalConfigStore"\n{\n\t"Software"\n\t{\n\t\t"Valve"\n\t\t{\n'
+                   '\t\t\t"Steam"\n\t\t\t{\n\t\t\t\t"apps"\n\t\t\t\t{\n\t\t\t\t\t"413150"\n\t\t\t\t\t{\n'
+                   '\t\t\t\t\t\t"cloud"\n\t\t\t\t\t\t{\n\t\t\t\t\t\t\t"LaunchOptions"\t\t"-wrong"\n\t\t\t\t\t\t}\n'
+                   '\t\t\t\t\t\t"LaunchOptions"\t\t"DXVK_HUD=1 %command% -d3d9 \\"-name=Two Words\\""\n'
+                   '\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t}\n\t\t}\n\t}\n}\n')
+        shortcuts = runpy.run_path(str(BIN / "droiddeck-steam-shortcuts"))
+        self.write(config + "shortcuts.vdf", shortcuts["write"]({"shortcuts": {
+            "0": {"appid": -1561598272, "AppName": "Batman", "LaunchOptions": "-d3d9"},
+            "1": {"appid": -1, "AppName": "Other", "LaunchOptions": "-x"},
+        }}))
+        root = str(self.root)
+        self.assertEqual(RUN["steam_options"]("413150", root), 'DXVK_HUD=1 %command% -d3d9 "-name=Two Words"')
+        self.assertEqual(RUN["steam_options"]("2733369024", root), "-d3d9")
+        self.assertEqual(RUN["steam_options"]("70", root), "")
+        self.assertEqual(RUN["steam_options"]("2733369025", root), "")
+        info = {"common": {"type": "Game"}, "config": {"launch": {
+            "0": {"executable": "Game.exe", "type": "default", "config": {"oslist": "windows"}}}}}
+        self.write("Steam/appcache/appinfo.vdf", appinfo({413150: info}))
+        program = self.game("413150", "Some Game", "Game.exe")
+        code, calls, _ = self.run_main(["--app", "413150"])
+        self.assertIsNone(code)
+        _, argv, env = calls[0]
+        self.assertEqual(argv[1:], ["waitforexitandrun", str(program), "-d3d9", "-name=Two Words"])
+        self.assertEqual(env["DXVK_HUD"], "1")
+        bat = self.write("Games/GOG/Batman/Batman.exe", b"MZ")
+        code, calls, _ = self.run_main(["--app", "2733369024", "--", str(bat)])
+        self.assertEqual(calls[0][1][1:], ["waitforexitandrun", str(bat), "-d3d9"])
+        code, calls, _ = self.run_main(["--app", "2733369024", "--options", "", "--", str(bat)])
+        self.assertEqual(calls[0][1][1:], ["waitforexitandrun", str(bat)])
+
     def test_launch_options_split_like_steam_does(self):
         split = RUN["split_options"]
         self.assertEqual(split(""), ({}, []))

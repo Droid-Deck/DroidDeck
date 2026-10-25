@@ -41,7 +41,9 @@ object NoSteamLaunch {
 
     fun addedCommand(game: AddedGames.Game): Command = Command(
         PROTON_RUN,
-        listOf("--app", (game.appId and 0xFFFFFFFFL).toString(), "--dir", game.guestDir, "--options", game.launchOptions, "--", game.guestExe),
+        listOf("--app", (game.appId and 0xFFFFFFFFL).toString(), "--dir", game.guestDir) +
+            (if (game.launchOptions.isEmpty()) emptyList() else listOf("--options", game.launchOptions)) +
+            listOf("--", game.guestExe),
         game.name,
     )
 
