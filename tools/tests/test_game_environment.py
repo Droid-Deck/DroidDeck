@@ -357,7 +357,14 @@ class GameEnvironmentTest(unittest.TestCase):
                 (asylum / name).touch()
             self.assertEqual(MODULE["engine_fixes"](str(asylum / "BmLauncher.exe"), []), ({}, [], []))
 
-    def test_caravan_sandwitch_and_cyberpunk_run_at_feature_level_12_1(self):
+    def test_black_ops_iii_and_dark_souls_remastered_skip_protonfixes(self):
+        for exe in ("/game/Call of Duty Black Ops III/BlackOps3.exe", "/game/DARK SOULS REMASTERED/DarkSoulsRemastered.exe"):
+            env, extra, notes = MODULE["engine_fixes"](exe, [])
+            self.assertEqual((env, extra), ({"PROTONFIXES_DISABLE": "1"}, []))
+            self.assertTrue(notes)
+        self.assertEqual(MODULE["engine_fixes"]("/game/Game/DarkSoulsII.exe", []), ({}, [], []))
+
+    def test_caravan_sandwitch_robocop_and_cyberpunk_run_at_feature_level_12_1(self):
         with tempfile.TemporaryDirectory() as tmp:
             caravan = Path(tmp) / "Caravan SandWitch"
             shipping = caravan / "CaravanSandWitch/Binaries/Win64"
@@ -369,8 +376,13 @@ class GameEnvironmentTest(unittest.TestCase):
             (cyberpunk / "bin/x64").mkdir(parents=True)
             for name in ("REDprelauncher.exe", "bin/x64/Cyberpunk2077.exe"):
                 (cyberpunk / name).touch()
+            robocop = Path(tmp) / "RoboCop Rogue City"
+            (robocop / "RoboCop/Binaries/Win64").mkdir(parents=True)
+            for name in ("RoboCop.exe", "RoboCop/Binaries/Win64/RoboCop-Win64-Shipping.exe"):
+                (robocop / name).touch()
             games = [caravan / "CaravanSandWitch.exe", caravan / ".droiddeck-launch.bat",
                      shipping / "CaravanSandWitch-Win64-Shipping.exe",
+                     robocop / "RoboCop.exe", robocop / "RoboCop/Binaries/Win64/RoboCop-Win64-Shipping.exe",
                      cyberpunk / "REDprelauncher.exe", cyberpunk / "bin/x64/Cyberpunk2077.exe"]
             for exe in games:
                 env, extra, notes = MODULE["engine_fixes"](str(exe), [])

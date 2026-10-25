@@ -46,6 +46,8 @@ object SessionState {
     var activityDisplayId = 0
     @Volatile
     var runtimeDriver: String? = null
+    var micAvailable by mutableStateOf(false)
+    var micEnabled by mutableStateOf(false)
     var suspended by mutableStateOf(false)
     var resumeRequested by mutableStateOf(false)
     var resuming by mutableStateOf(false)

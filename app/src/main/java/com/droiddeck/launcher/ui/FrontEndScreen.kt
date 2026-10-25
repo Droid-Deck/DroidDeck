@@ -141,7 +141,6 @@ class FrontEndState(
     val launcherIcon: String = com.droiddeck.launcher.LauncherIcon.DARK,
     val gameStoresEnabled: Boolean = true,
     val gameStoresSpeedTier: String = "fast",
-    val storesOpenTab: String = SessionPrefs.STORES_OPEN_LIBRARY,
     val navigate: String? = null,
     val addedGamesArt: Boolean = true,
     val sgdbUserKey: Boolean = false,
@@ -217,7 +216,6 @@ class FrontEndActions(
     val onDownloadPrefix: (String) -> Unit = {},
     val onGameStoresEnabled: (Boolean) -> Unit = {},
     val onGameStoresSpeedTier: (String) -> Unit = {},
-    val onStoresOpenTab: (String) -> Unit = {},
     val onNavigated: () -> Unit = {},
     val onStoresShowMature: (Boolean) -> Unit = {},
     val onStoresSort: (String) -> Unit = {},
@@ -254,6 +252,12 @@ internal object Motion {
     fun <T> tw(base: Int, delay: Int = 0, easing: Easing = Ease): FiniteAnimationSpec<T> = if (scale == 0f) snap() else tween(base, delay, easing)
     fun <T> sp(damping: Float = 0.7f, stiffness: Float = Spring.StiffnessMediumLow): FiniteAnimationSpec<T> =
         if (scale == 0f) snap() else spring(damping, stiffness)
+}
+
+internal object Ambient {
+    var poked by mutableStateOf(0L)
+        private set
+    fun poke() { poked = android.os.SystemClock.uptimeMillis() }
 }
 
 private val Shape10 = RoundedCornerShape(10.dp)
@@ -440,7 +444,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
     }
     LaunchedEffect(s.isHomeApp) { if (!s.isHomeApp && selected == "android-apps") selected = "steam" }
     LaunchedEffect(s.steamGames.isEmpty()) {
-        if (s.steamGames.isEmpty() && selected.startsWith("app:")) selected = "games"
+        if (s.steamGames.isEmpty() && selected.startsWith("app:") && GameRef.parse(selected).appId != null) selected = "games"
     }
     remember { Motion.refresh(ctx); true }
 
@@ -553,6 +557,8 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
 
         }
         FlightsLayer(screenAt)
+        GamesDialogs(a, s.steamGames)
+        com.droiddeck.launcher.stores.StoresState.pendingInstall?.let { item -> StoreTheme(item.store) { InstallWhere(item) } }
         StepsLayer(screenAt)
 
         appToChooseDisplay?.let { app ->

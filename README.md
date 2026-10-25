@@ -10,6 +10,10 @@ DroidDeck brings the SteamOS experience to Android: Valve's Steam client in Big 
 <p align="center"><a href="https://discord.gg/JRGAvawjsm"><img src="https://img.shields.io/badge/Discord-Join%20the%20community-5865F2?logo=discord&logoColor=white" alt="Join the DroidDeck Discord"></a></p>
 
 <p align="center">
+ <a href="https://www.star-history.com/droid-deck/droiddeck"><img src="https://api.star-history.com/badge?repo=Droid-Deck/DroidDeck&type=rank&theme=dark" alt="Star History Rank" /></a>
+</p>
+
+<p align="center">
   <a href="https://trendshift.io/repositories/267852?utm_source=trendshift-badge&amp;utm_medium=badge&amp;utm_campaign=badge-trendshift-267852" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/trendshift/repositories/267852/daily?language=C" alt="Droid-Deck%2FDroidDeck | Trendshift" width="250" height="55"/></a>
   <a href="https://trendshift.io/repositories/267852?utm_source=trendshift-badge&amp;utm_medium=badge&amp;utm_campaign=badge-trendshift-267852" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/trendshift/repositories/267852/daily?language=Kotlin" alt="Droid-Deck%2FDroidDeck | Trendshift" width="250" height="55"/></a>
 </p>
@@ -68,3 +72,5 @@ Camera hand tracking runs Google's [MediaPipe](https://github.com/google-ai-edge
 The Store installs and runs apps with [Flatpak](https://github.com/flatpak/flatpak) (LGPL-2.1). Its sandbox goes through DroidDeck's own bubblewrap shim, which follows how Flatpak hands bwrap its environment. Chromium and Electron apps from Flathub start their browser processes through [zypak](https://github.com/refi64/zypak) by [@refi64](https://github.com/refi64) (BSD-3-Clause); its source was read to see that it always spawns them through Flatpak's spawn portal, which is why DroidDeck starts them directly without Chromium's sandbox instead.
 
 Steam's Browse buttons open a GTK 3 file chooser through PyGObject (LGPL-2.1-or-later). It runs under Steam's own `reaper` with Steam's app ID, which [gamescope](https://github.com/ValveSoftware/gamescope) (BSD-2-Clause) reads from the process tree (`GetAppIdFromReaper` in `src/Utils/Process.cpp`) to show it over Steam.
+
+Black Ops III and Dark Souls Remastered start without [umu-protonfixes](https://github.com/Open-Wine-Components/umu-protonfixes) (BSD-2-Clause), whose fixes for them (`311210.py` sets ALSA audio, `570940.py` installs VC++ 2017) fail under ARM64 Proton.

@@ -77,8 +77,9 @@ object WinCompSources {
 
     fun steamList(context: Context, gameDir: File?, appId: Int, gameName: String, auto: Boolean): List<Finding> {
         val local = SteamRedists.detect(gameDir, appId)
-        val pairs = if (local.isNotEmpty()) local.map { it.componentName to it.label }
-        else SteamAppInfo.info(context, appId)?.let { steamDepots(it.sharedDepots) }.orEmpty()
+        val pairs = (if (local.isNotEmpty()) local.map { it.componentName to it.label }
+        else SteamAppInfo.info(context, appId)?.let { steamDepots(it.sharedDepots) }.orEmpty()) +
+            SteamRedists.SCRIPTED[appId].orEmpty()
         return pairs.map { (component, label) ->
             Finding(component, label, if (auto) Origin.STEAM else Origin.STEAM_NAME, auto, listOf(label, gameName, appId.toString()))
         }
