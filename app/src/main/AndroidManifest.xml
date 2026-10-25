@@ -157,6 +157,11 @@
             android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|smallestScreenSize|density|navigation|uiMode"
             android:theme="@style/AppTheme" />
 
+        <activity android:name=".stores.xbox.XboxNativePlayerActivity" android:exported="false"
+            android:process=":xcloudnative" android:screenOrientation="sensorLandscape" android:hardwareAccelerated="true"
+            android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|smallestScreenSize|density|navigation|uiMode"
+            android:theme="@style/AppTheme" />
+
         <activity android:name=".stores.xbox.XboxCloudActivity" android:exported="false"
             android:process=":xboxcloud" android:launchMode="singleTop" android:screenOrientation="sensorLandscape"
             android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|smallestScreenSize|density|navigation|uiMode"

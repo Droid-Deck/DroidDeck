@@ -101,6 +101,19 @@ private fun PanelContent(
     fun pending(differs: (XboxCloudSettings) -> Boolean) = startedWith != null && differs(startedWith)
 
     if (section == null || section == "stream") Section("Stream", if (live) "Applies to the next stream." else "Applies when a stream starts.") {
+        if (XboxNativePlayerActivity.supported()) {
+            Choice("Player engine", listOf("web" to "Web", "native" to "Native (frame gen)"), settings.playerEngine,
+                pending { it.playerEngine != settings.playerEngine }) { onChange(settings.copy(playerEngine = it)) }
+            val ctx = androidx.compose.ui.platform.LocalContext.current
+            val lsfg = androidx.compose.runtime.remember { XboxNativeVideo.lsfgReady(ctx) }
+            Choice("Frame generation", XboxNativeVideo.modes(lsfg).map { it to XboxNativeVideo.modeName(it) }, settings.frameGen) {
+                onChange(settings.copy(frameGen = it))
+            }
+            Text("Native engine (experimental): Google's WebRTC and DroidDeck's own compositor, so DroidDeck frame generation " +
+                "(DDFG) or LSFG can add frames. LSFG uses the Lossless.dll DroidDeck already uses for games. Screen effects " +
+                "apply to the web engine.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 8.dp, bottom = 6.dp))
+        }
         // The service picks the size from the reported device profile (the PC profile can send 1440p).
         Choice("Resolution", listOf("720p" to "720p (phone)", "1080p" to "Best (PC)", "1080p_hq" to "1080p HQ (TV)"),
             settings.resolution, pending { it.resolution != settings.resolution }) { onChange(settings.copy(resolution = it)) }
@@ -141,7 +154,28 @@ private fun PanelContent(
             color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp))
     }
 
-    if (section == null || section == "overlay") Section("Overlay and sound", null) {
+    if ((section == null && XboxNativePlayerActivity.supported()) || section == "framerate") Section("Frame rate (native engine)",
+        "With frame generation this is the rate shown; without it, only targets below the stream's 60 fps change anything.") {
+        Choice("Target", listOf(0 to "Screen's rate", 30 to "30 fps", 45 to "45 fps", 60 to "60 fps", 120 to "120 fps", 144 to "144 fps", 165 to "165 fps"),
+            settings.fpsLimit) { onChange(settings.copy(fpsLimit = it, fpsCustomOn = false)) }
+        Toggle("Custom frame rate", "Set any rate from 10 to 165 fps with the slider.", settings.fpsCustomOn) { onChange(settings.copy(fpsCustomOn = it)) }
+        if (settings.fpsCustomOn) SliderRow("Custom", settings.fpsCustom, 10, 165) { onChange(settings.copy(fpsCustom = it)) }
+    }
+
+    if ((section == null && XboxNativePlayerActivity.supported()) || section == "latency") Section("Low latency (native engine)", null) {
+        Toggle("Instant controller input", "Sends each press the moment it happens instead of every 16 ms.", settings.instantInput) {
+            onChange(settings.copy(instantInput = it))
+        }
+        Toggle("Small network buffer", "Shows frames as soon as they are decoded. Less delay; may stutter on weak Wi-Fi.",
+            settings.smallBuffer, pending { it.smallBuffer != settings.smallBuffer }) { onChange(settings.copy(smallBuffer = it)) }
+        Toggle("Fast decoder", "The video chip's low-latency mode.", settings.fastDecoder,
+            pending { it.fastDecoder != settings.fastDecoder }) { onChange(settings.copy(fastDecoder = it)) }
+        Toggle("Zero-copy picture", "Frames go straight from the video chip to the screen: the lowest delay. Used while frame generation is off; switches live.",
+            settings.zeroCopy) { onChange(settings.copy(zeroCopy = it)) }
+    }
+
+    // "overlay-native": the native player's page (its sound has no volume boost).
+    if (section == null || section == "overlay" || section == "overlay-native") Section("Overlay and sound", null) {
         Choice("Performance overlay", listOf(0 to "Off", 1 to "FPS only", 2 to "Basic", 3 to "Detailed", 4 to "Full"), settings.statsLevel) {
             onChange(settings.copy(statsLevel = it))
         }
@@ -149,7 +183,7 @@ private fun PanelContent(
         Choice("Overlay position", listOf("right" to "Top right", "left" to "Top left"), settings.statsCorner) { onChange(settings.copy(statsCorner = it)) }
         Text("Basic: fps, ping, resolution. Detailed: + bitrate, decode time, packet loss. Full: + codec, jitter, " +
             "dropped frames, server.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Step("Volume", "${settings.volume}%", { onChange(settings.copy(volume = (settings.volume - 25).coerceAtLeast(100))) },
+        if (section != "overlay-native") Step("Volume", "${settings.volume}%", { onChange(settings.copy(volume = (settings.volume - 25).coerceAtLeast(100))) },
             { onChange(settings.copy(volume = (settings.volume + 25).coerceAtMost(300))) })
         Step("Controller rumble", if (settings.rumble == 0) "Off" else "${settings.rumble}%", { onChange(settings.copy(rumble = (settings.rumble - 25).coerceAtLeast(0))) },
             { onChange(settings.copy(rumble = (settings.rumble + 25).coerceAtMost(100))) })
@@ -218,6 +252,18 @@ private fun Step(label: String, value: String, onMinus: () -> Unit, onPlus: () -
         Text(value, Modifier.widthIn(min = 112.dp, max = 168.dp).padding(horizontal = 4.dp), textAlign = TextAlign.Center,
             style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
         OutlinedButton(onClick = onPlus, modifier = noFocus.size(40.dp), contentPadding = PaddingValues(0.dp)) { Text("+") }
+    }
+}
+
+/** A value slider (touch) that a controller moves with Left / Right in steps of 1 (hold to repeat). */
+@Composable
+private fun SliderRow(label: String, value: Int, min: Int, max: Int, onValue: (Int) -> Unit) {
+    SettingRow(onLeft = { onValue((value - 1).coerceAtLeast(min)) }, onRight = { onValue((value + 1).coerceAtMost(max)) }, onSelect = null) {
+        Text(label, Modifier.width(72.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+        androidx.compose.material3.Slider(value = value.toFloat(), onValueChange = { onValue(it.toInt().coerceIn(min, max)) },
+            valueRange = min.toFloat()..max.toFloat(), modifier = noFocus.weight(1f))
+        Text("$value fps", Modifier.width(72.dp), textAlign = TextAlign.End, style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface)
     }
 }
 

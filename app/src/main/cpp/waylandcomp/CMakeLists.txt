@@ -95,4 +95,5 @@ target_link_libraries(droiddeckwayland
         dl
         log
         android
+        nativewindow
 )

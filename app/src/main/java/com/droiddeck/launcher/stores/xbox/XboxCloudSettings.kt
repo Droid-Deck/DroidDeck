@@ -27,7 +27,19 @@ data class XboxCloudSettings(
     val toon: Boolean = false,
     val crt: Boolean = false,
     val ntsc: Boolean = false,
+    val playerEngine: String = "web",       // web | native (WebRTC library + DroidDeck's compositor, frame generation)
+    val frameGen: String = "ddfg",          // native engine: off | ddfg (2x) | lsfg | lsfg3 | lsfg4 (needs Lossless.dll)
+    val fpsLimit: Int = 0,                  // native engine target: 0 = the screen's rate, else 30/45/60/120/144/165
+    val fpsCustomOn: Boolean = false,       // use fpsCustom instead of the presets
+    val fpsCustom: Int = 60,                // 10..165
+    val instantInput: Boolean = true,       // native: send controller changes at once (else every 16 ms)
+    val smallBuffer: Boolean = false,       // native: WebRTC shows frames as soon as decoded (no playout delay)
+    val fastDecoder: Boolean = true,        // native: the hardware decoder's low-latency mode
+    val zeroCopy: Boolean = false,          // native, frame generation off: decode straight onto the screen
 ) {
+    /** The native engine's frame-rate target (0 = the screen's own rate). */
+    val fpsTarget get() = if (fpsCustomOn) fpsCustom else fpsLimit
+
     /** The service picks the stream resolution from the reported OS (Better xCloud's mapping). */
     val osName get() = when (resolution) { "720p" -> "android"; "1080p_hq" -> "tizen"; else -> "windows" }
 
@@ -37,6 +49,9 @@ data class XboxCloudSettings(
         .put("volume", volume).put("rumble", rumble).put("maxFps", maxFps).put("brightness", brightness).put("contrast", contrast)
         .put("gamma", gamma.toDouble()).put("saturation", saturation).put("sharpen", sharpen).put("sharpenMode", sharpenMode)
         .put("deband", deband).put("fxaa", fxaa).put("toon", toon).put("crt", crt).put("ntsc", ntsc)
+        .put("playerEngine", playerEngine).put("frameGen", frameGen)
+        .put("fpsLimit", fpsLimit).put("fpsCustomOn", fpsCustomOn).put("fpsCustom", fpsCustom)
+        .put("instantInput", instantInput).put("smallBuffer", smallBuffer).put("fastDecoder", fastDecoder).put("zeroCopy", zeroCopy)
         .toString()
 
     fun withoutEffects() = copy(brightness = 0, contrast = 0, gamma = 1f, saturation = 100, sharpen = 0, sharpenMode = "cas",
@@ -69,6 +84,14 @@ data class XboxCloudSettings(
                 sharpenMode = json.optString("sharpenMode", d.sharpenMode).takeIf { it == "usm" } ?: "cas",
                 deband = json.optInt("deband", d.deband).coerceIn(0, 8),
                 fxaa = json.optBoolean("fxaa"), toon = json.optBoolean("toon"), crt = json.optBoolean("crt"), ntsc = json.optBoolean("ntsc"),
+                playerEngine = json.optString("playerEngine", d.playerEngine).takeIf { it == "native" } ?: "web",
+                frameGen = json.optString("frameGen", d.frameGen).let { if (it == "winfg") "ddfg" else it }
+                    .takeIf { it in setOf("off", "ddfg", "lsfg", "lsfg3", "lsfg4") } ?: d.frameGen,
+                fpsLimit = json.optInt("fpsLimit", d.fpsLimit).takeIf { it in setOf(0, 30, 45, 60, 120, 144, 165) } ?: 0,
+                fpsCustomOn = json.optBoolean("fpsCustomOn", d.fpsCustomOn),
+                fpsCustom = json.optInt("fpsCustom", d.fpsCustom).coerceIn(10, 165),
+                instantInput = json.optBoolean("instantInput", d.instantInput), smallBuffer = json.optBoolean("smallBuffer", d.smallBuffer),
+                fastDecoder = json.optBoolean("fastDecoder", d.fastDecoder), zeroCopy = json.optBoolean("zeroCopy", d.zeroCopy),
             )
         }.getOrDefault(XboxCloudSettings())
 

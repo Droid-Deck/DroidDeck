@@ -104,7 +104,7 @@ object XboxCloudGames {
             android.widget.Toast.makeText(context, "Close the Steam session to stream Xbox games.", android.widget.Toast.LENGTH_LONG).show()
             return
         }
-        context.startActivity(XboxCloudPlayerActivity.intent(context, id, title).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        context.startActivity(XboxCloudPlayerActivity.playerIntent(context, id, title).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }
 
     /** Whether the signed-in library says this game streams (cached library; reads disk). */

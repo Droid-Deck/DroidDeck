@@ -357,7 +357,7 @@ class XboxCloudPlayerActivity : ComponentActivity() {
         Thread({
             if (active != null && path != null) runCatching { XboxCloudSession.request(active, "DELETE", "/$path") }
                 .onSuccess { diag("cloud player restart: session closed ${it.status}") }
-            runOnUiThread { if (!isFinishing) { startActivity(XboxCloudPlayerActivity.intent(this, intent.getStringExtra("product").orEmpty(), intent.getStringExtra("title").orEmpty())); finish() } }
+            runOnUiThread { if (!isFinishing) { startActivity(playerIntent(this, intent.getStringExtra("product").orEmpty(), intent.getStringExtra("title").orEmpty())); finish() } }
         }, "xcloud-restart").start()
     }
 
@@ -388,5 +388,12 @@ class XboxCloudPlayerActivity : ComponentActivity() {
 
         fun intent(context: Context, productId: String, title: String): Intent = Intent(context, XboxCloudPlayerActivity::class.java)
             .putExtra("product", productId.uppercase()).putExtra("title", title)
+
+        /** The player the settings pick: the native engine (frame generation) where it can run, else the web player. */
+        fun playerIntent(context: Context, productId: String, title: String): Intent {
+            val native = XboxNativePlayerActivity.supported() && XboxCloudSettings.load(context).playerEngine == "native"
+            return if (!native) intent(context, productId, title) else Intent(context, XboxNativePlayerActivity::class.java)
+                .putExtra("product", productId.uppercase()).putExtra("title", title)
+        }
     }
 }
