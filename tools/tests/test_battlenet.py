@@ -181,6 +181,60 @@ class ConfigAndMenuTest(Temp):
         self.assertEqual(path.stat().st_mtime_ns, mtime)
 
 
+class GamepadTest(Temp):
+    def registry(self, *entries):
+        rows = ["WINE REGISTRY Version 2"]
+        for name, uid, location in entries:
+            rows += ["", "[Software\\\\Wow6432Node\\\\Microsoft\\\\Windows\\\\CurrentVersion\\\\Uninstall\\\\%s] 1" % name,
+                     '"InstallLocation"="%s"' % location.replace("\\", "\\\\"),
+                     '"UninstallString"="\\"C:\\\\ProgramData\\\\Battle.net\\\\Agent\\\\Blizzard Uninstaller.exe\\" --uid=%s"' % uid]
+        self.write("Steam/steamapps/compatdata/%s/pfx/system.reg" % BNET["APP_ID"], "\n".join(rows) + "\n")
+
+    def z(self, path):
+        return "Z:" + str(path).replace("/", "\\")
+
+    def test_every_world_of_warcraft_flavor_gets_controllers_on(self):
+        wow = self.tmp / "Games/World of Warcraft"
+        retail = self.write("Games/World of Warcraft/_retail_/WTF/Config.wtf", 'SET gxApi "D3D11"')
+        (wow / "_classic_era_").mkdir(parents=True)
+        (wow / "Data").mkdir()
+        self.registry(("World of Warcraft", "wow", self.z(wow)))
+        with mock.patch.dict(BNET, {"say": lambda message: None}):
+            self.assertEqual(len(BNET["enable_gamepad"](str(self.tmp / "Steam"))), 2)
+            self.assertEqual(BNET["enable_gamepad"](str(self.tmp / "Steam")), [])
+        self.assertEqual(retail.read_text(), 'SET gxApi "D3D11"\nSET GamePadEnable "1"\n')
+        self.assertEqual((wow / "_classic_era_/WTF/Config.wtf").read_text(), 'SET GamePadEnable "1"\n')
+        self.assertFalse((wow / "Data/WTF").exists())
+
+    def test_a_players_own_choice_and_other_games_are_left_alone(self):
+        wow = self.tmp / "Games/World of Warcraft Classic"
+        config = self.write("Games/World of Warcraft Classic/_anniversary_/WTF/Config.wtf", 'SET GamePadEnable "0"\n')
+        other = self.tmp / "Games/Diablo IV"
+        (other / "_retail_").mkdir(parents=True)
+        self.registry(("World of Warcraft Classic", "wow_classic_anniversary", self.z(wow)), ("Diablo IV", "fenris", self.z(other)))
+        with mock.patch.dict(BNET, {"say": lambda message: None}):
+            self.assertEqual(BNET["enable_gamepad"](str(self.tmp / "Steam")), [])
+        self.assertEqual(config.read_text(), 'SET GamePadEnable "0"\n')
+        self.assertFalse((other / "_retail_/WTF").exists())
+
+    def test_pads_look_like_an_xbox_360_pad_only_without_the_steam_client(self):
+        proc = self.tmp / "proc"
+        self.write("proc/10/cmdline", b"/usr/bin/python3\0/usr/local/bin/droiddeck-battlenet\0")
+        self.write("proc/11/cmdline", b"c:\\windows\\system32\\steam.exe\0")
+        self.assertFalse(BNET["steam_running"](str(proc)))
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("PROTON_SPOOF_STEAMINPUT_VIDPID", None)
+            with mock.patch.dict(BNET, {"steam_running": lambda: False}):
+                self.assertEqual(BNET["proton_env"]()["PROTON_SPOOF_STEAMINPUT_VIDPID"], "1")
+            with mock.patch.dict(BNET, {"steam_running": lambda: True}):
+                self.assertNotIn("PROTON_SPOOF_STEAMINPUT_VIDPID", BNET["proton_env"]())
+            os.environ["PROTON_SPOOF_STEAMINPUT_VIDPID"] = "0"
+            with mock.patch.dict(BNET, {"steam_running": lambda: False}):
+                self.assertEqual(BNET["proton_env"]()["PROTON_SPOOF_STEAMINPUT_VIDPID"], "0")
+        self.write("proc/12/cmdline", b"/usr/bin/FEX\0/root/.local/share/Steam/ubuntu12_32/steam\0-silent\0")
+        self.assertTrue(BNET["steam_running"](str(proc)))
+
+
 class ProcessTest(Temp):
     def proc(self, pid, argv, prefix=None):
         env = b"HOME=/root\0" + (("WINEPREFIX=%s\0" % prefix).encode() if prefix else b"")

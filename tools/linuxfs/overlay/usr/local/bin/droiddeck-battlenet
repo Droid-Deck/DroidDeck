@@ -59,6 +59,9 @@ MIN_INSTALLER = 1 << 20
 SETUP = "Battle.net-Setup.exe"
 REQUEST = "battlenet-request"
 LIBRARY = None
+WOW_UID = re.compile(r"--uid=wow[a-z0-9_]*", re.I)
+GAMEPAD_SETTING = re.compile(r"(?im)^\s*SET\s+GamePadEnable\s")
+STEAM_CLIENT = {"steam", "steamwebhelper"}
 LOG = os.path.join(CACHE, "battlenet.log")
 LOG_LIMIT = 512 << 10
 
@@ -254,6 +257,92 @@ def wallpaper(root):
     return True
 
 
+def windows_path(root, path):
+    found = re.match(r"(?i)^([cz]):[\\/](.*)$", path.strip())
+    if not found:
+        return None
+    parts = [part for part in re.split(r"[\\/]+", found.group(2)) if part]
+    if not parts or ".." in parts:
+        return None
+    return os.path.join(drive_c(root) if found.group(1).lower() == "c" else "/", *parts)
+
+
+def wow_folders(root):
+    try:
+        with open(os.path.join(prefix(root), "pfx", "system.reg"), encoding="utf-8", errors="replace") as f:
+            rows = f.read().splitlines()
+    except OSError:
+        return []
+    folders, location, wow = [], None, False
+    for row in rows + ["["]:
+        if row.startswith("["):
+            if wow and location:
+                folders.append(location)
+            location, wow = None, False
+        elif row.startswith('"InstallLocation"='):
+            location = windows_path(root, row.split("=", 1)[1].strip().strip('"').replace("\\\\", "\\"))
+        elif row.startswith('"UninstallString"=') and WOW_UID.search(row):
+            wow = True
+    return [folder for folder in dict.fromkeys(folders) if os.path.isdir(folder)]
+
+
+def enable_gamepad(root):
+    changed = []
+    for folder in wow_folders(root):
+        try:
+            flavors = sorted(name for name in os.listdir(folder) if len(name) > 2 and name.startswith("_") and name.endswith("_"))
+        except OSError:
+            continue
+        for name in flavors:
+            if not os.path.isdir(os.path.join(folder, name)):
+                continue
+            path = os.path.join(folder, name, "WTF", "Config.wtf")
+            try:
+                with open(path, encoding="utf-8", errors="replace") as f:
+                    text = f.read()
+            except FileNotFoundError:
+                text = ""
+            except OSError:
+                continue
+            if GAMEPAD_SETTING.search(text):
+                continue
+            try:
+                os.makedirs(os.path.dirname(path), exist_ok=True)
+                with open(path, "a", encoding="utf-8") as f:
+                    f.write(("\n" if text and not text.endswith("\n") else "") + 'SET GamePadEnable "1"\n')
+            except OSError as error:
+                say("controllers not turned on in %s: %s" % (path, error))
+                continue
+            changed.append(path)
+            say("World of Warcraft's controller support turned on in %s" % path)
+    return changed
+
+
+def steam_running(proc="/proc"):
+    try:
+        pids = [p for p in os.listdir(proc) if p.isdigit()]
+    except OSError:
+        return False
+    for pid in pids:
+        try:
+            with open(os.path.join(proc, pid, "cmdline"), "rb") as f:
+                argv = [os.path.basename(a.decode("utf-8", "replace")) for a in f.read().split(b"\0")[:2] if a]
+        except OSError:
+            continue
+        if argv[:1] and argv[0] in ("FEX", "FEXInterpreter"):
+            argv = argv[1:]
+        if argv[:1] and argv[0] in STEAM_CLIENT:
+            return True
+    return False
+
+
+def proton_env():
+    env = dict(os.environ)
+    if not steam_running():
+        env.setdefault("PROTON_SPOOF_STEAMINPUT_VIDPID", "1")
+    return env
+
+
 def configure(root, library=None):
     if library:
         try:
@@ -269,6 +358,7 @@ def configure(root, library=None):
         wallpaper(root)
     except OSError as error:
         say("Battle.net's desktop wallpaper not set: %s" % error)
+    enable_gamepad(root)
     if change == "first":
         say("wrote Battle.net's first config: hardware acceleration off, streaming off, closing itself as it launches a game")
     elif change:
@@ -494,7 +584,7 @@ def proton(exe, args=(), verb=None, watch=None, poll=None, close_grace=None, tid
     cmd = [PROTON_RUN] + proton_options() + ["--prefix", APP_ID] + (["--verb", verb] if verb else []) + [exe] + list(args)
     say(" ".join(cmd))
     try:
-        process = subprocess.Popen(cmd)
+        process = subprocess.Popen(cmd, env=proton_env())
     except OSError as error:
         say("%s: %s" % (PROTON_RUN, error))
         return 127, False
@@ -602,7 +692,7 @@ def spawn(program, verb, args=()):
     try:
         os.makedirs(CACHE, exist_ok=True)
         with open(os.path.join(CACHE, "spawned.log"), "ab") as log:
-            child = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=log, stderr=log, start_new_session=True)
+            child = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=log, stderr=log, start_new_session=True, env=proton_env())
         threading.Thread(target=child.wait, daemon=True).start()
     except OSError as error:
         say("%s: %s" % (PROTON_RUN, error))
@@ -676,7 +766,7 @@ def start(exe, verb=None):
     cmd = [PROTON_RUN] + proton_options() + ["--prefix", APP_ID] + (["--verb", verb] if verb else []) + [exe]
     say(" ".join(cmd))
     try:
-        return subprocess.Popen(cmd)
+        return subprocess.Popen(cmd, env=proton_env())
     except OSError as error:
         say("%s: %s" % (PROTON_RUN, error))
         return None
@@ -747,6 +837,8 @@ def launch(root, code):
             say("Battle.net did not open; %s is not launched" % code)
             notify("Battle.net did not start", "The session's desktop.log says why.", "dialog-error")
             return 1
+        if code.lower().startswith("wow"):
+            enable_gamepad(root)
         say("launching %s" % code)
         spawn(client, "run", ["--exec=launch %s" % code])
         played = follow(pfx, ask=lambda: spawn(client, "run", ["--exec=launch %s" % code]))
