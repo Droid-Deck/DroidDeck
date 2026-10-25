@@ -216,11 +216,23 @@ class GamepadTest(Temp):
         (wow / "Data").mkdir()
         self.registry(("World of Warcraft", "wow", self.z(wow)))
         with mock.patch.dict(BNET, {"say": lambda message: None}):
-            self.assertEqual(len(BNET["enable_gamepad"](str(self.tmp / "Steam"))), 2)
-            self.assertEqual(BNET["enable_gamepad"](str(self.tmp / "Steam")), [])
+            self.assertEqual(len(BNET["wow_settings"](str(self.tmp / "Steam"))), 2)
+            self.assertEqual(BNET["wow_settings"](str(self.tmp / "Steam")), [])
         self.assertEqual(retail.read_text(), 'SET gxApi "D3D11"\nSET GamePadEnable "1"\n')
-        self.assertEqual((wow / "_classic_era_/WTF/Config.wtf").read_text(), 'SET GamePadEnable "1"\n')
+        self.assertEqual((wow / "_classic_era_/WTF/Config.wtf").read_text(), 'SET GamePadEnable "1"\nSET gxApi "D3D11"\n')
         self.assertFalse((wow / "Data/WTF").exists())
+
+    def test_directx_11_is_set_once_and_a_later_pick_is_kept(self):
+        wow = self.tmp / "Games/World of Warcraft"
+        retail = self.write("Games/World of Warcraft/_retail_/WTF/Config.wtf", 'SET GxApi "D3D12"\nSET GamePadEnable "1"\nSET vsync "1"\n')
+        self.registry(("World of Warcraft", "wow", self.z(wow)))
+        with mock.patch.dict(BNET, {"say": lambda message: None}):
+            self.assertEqual(len(BNET["wow_settings"](str(self.tmp / "Steam"))), 1)
+            self.assertEqual(retail.read_text(), 'SET gxApi "D3D11"\nSET GamePadEnable "1"\nSET vsync "1"\n')
+            self.assertTrue((wow / "_retail_/WTF/.droiddeck-d3d11").exists())
+            retail.write_text('SET gxApi "d3d12"\nSET GamePadEnable "1"\nSET vsync "1"\n')
+            self.assertEqual(BNET["wow_settings"](str(self.tmp / "Steam")), [])
+        self.assertEqual(retail.read_text(), 'SET gxApi "d3d12"\nSET GamePadEnable "1"\nSET vsync "1"\n')
 
     def test_a_players_own_choice_and_other_games_are_left_alone(self):
         wow = self.tmp / "Games/World of Warcraft Classic"
@@ -229,8 +241,8 @@ class GamepadTest(Temp):
         (other / "_retail_").mkdir(parents=True)
         self.registry(("World of Warcraft Classic", "wow_classic_anniversary", self.z(wow)), ("Diablo IV", "fenris", self.z(other)))
         with mock.patch.dict(BNET, {"say": lambda message: None}):
-            self.assertEqual(BNET["enable_gamepad"](str(self.tmp / "Steam")), [])
-        self.assertEqual(config.read_text(), 'SET GamePadEnable "0"\n')
+            self.assertEqual(len(BNET["wow_settings"](str(self.tmp / "Steam"))), 1)
+        self.assertEqual(config.read_text(), 'SET GamePadEnable "0"\nSET gxApi "D3D11"\n')
         self.assertFalse((other / "_retail_/WTF").exists())
 
     def test_pads_look_like_an_xbox_360_pad_only_without_the_steam_client(self):

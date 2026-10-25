@@ -29,7 +29,7 @@ object SettingsReset {
     )
 
     internal val SESSION_PREFIXES = listOf(
-        "resolutionCap.", "displayResolution.", "customRes.", "hdr.", "fpsLimit.", "suspendPolicy.",
+        "resolutionCap.", "displayResolution.", "customRes.", "hdr.", "fpsLimit.", "performanceMode.", "suspendPolicy.",
     )
 
     private val STEAM_TOUCH_KEYS = listOf("feedback", "autoFade", "gyro", "shake")

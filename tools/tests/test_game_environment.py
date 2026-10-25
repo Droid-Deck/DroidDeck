@@ -10,6 +10,7 @@ import shlex
 import subprocess
 import sys
 import tempfile
+from unittest import mock
 import unittest
 from unittest.mock import patch
 
@@ -1306,6 +1307,25 @@ class GameEnvironmentTest(unittest.TestCase):
             self.assertEqual((env, extra), ({"PROTONFIXES_DISABLE": "1"}, []))
             self.assertTrue(notes)
         self.assertEqual(MODULE["engine_fixes"]("/game/Game/DarkSoulsII.exe", []), ({}, [], []))
+
+    def test_game_cores_are_parsed_from_lists_and_ranges(self):
+        parse = MODULE["parse_cores"]
+        self.assertEqual(parse("0-3,6"), {0, 1, 2, 3, 6})
+        self.assertEqual(parse(" 4, 5 "), {4, 5})
+        for bad in ("", "a", "3-1", "1,,2", "-1", "1-"):
+            self.assertIsNone(parse(bad), bad)
+
+    def test_a_profiles_game_cores_pin_the_game_within_the_online_cores(self):
+        calls = []
+        os_mod = MODULE["os"]
+        with mock.patch.dict(MODULE["game_cores"].__globals__, {"online_cores": lambda: {0, 1, 2, 3, 4, 5, 6, 7}}), \
+                mock.patch.object(os_mod, "sched_setaffinity", side_effect=lambda pid, cores: calls.append(set(cores)), create=True):
+            MODULE["game_cores"]({"DROIDDECK_GAME_CORES": "0-2,9"})
+            MODULE["game_cores"]({"DROIDDECK_GAME_CORES": "junk"})
+            MODULE["game_cores"]({"DROIDDECK_GAME_CORES": "12-13"})
+            MODULE["game_cores"]({})
+        self.assertEqual(calls, [{0, 1, 2}])
+        self.assertEqual(MODULE["parse_cores"]("0,2-7"), {0, 2, 3, 4, 5, 6, 7})
 
     def test_caravan_sandwitch_robocop_and_cyberpunk_run_at_feature_level_12_1(self):
         with tempfile.TemporaryDirectory() as tmp:

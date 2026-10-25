@@ -121,13 +121,17 @@ object SessionArtifacts {
         object Deferred : ScrubResult()
     }
 
-    private fun scrubFolder(dir: File, record: Record, shouldStop: () -> Boolean): Boolean {
+    private fun scrubFolder(
+        dir: File,
+        record: Record,
+        shouldStop: () -> Boolean,
+        beforeReplace: (File) -> Unit,
+    ): Boolean {
         val files = dir.listFiles { f -> f.isFile && !f.name.startsWith(".") && f !in record.files } ?: return true
         for (f in files) {
             if (shouldStop()) return false
             if (LogRedactor.isBinary(f)) continue
-            if (!LogRedactor.isText(f)) { record.failed = true; continue }
-            when (val result = scrubFile(dir, f, shouldStop)) {
+            when (val result = scrubFile(dir, f, shouldStop, beforeReplace)) {
                 is ScrubResult.Done -> record.files[f] = result.scrubbed
                 ScrubResult.Failed -> record.failed = true
                 ScrubResult.Deferred -> {
@@ -139,7 +143,12 @@ object SessionArtifacts {
         }
         return true
     }
-    private fun scrubFile(dir: File, f: File, shouldStop: () -> Boolean): ScrubResult {
+    private fun scrubFile(
+        dir: File,
+        f: File,
+        shouldStop: () -> Boolean,
+        beforeReplace: (File) -> Unit,
+    ): ScrubResult {
         val tmp = File(dir, ".${f.name}.scrub")
         return try {
             val before = Scrubbed(f.length(), f.lastModified())
@@ -163,6 +172,11 @@ object SessionArtifacts {
                     if (shouldStop()) {
                         tmp.delete()
                         return ScrubResult.Deferred
+                    }
+                    beforeReplace(f)
+                    if (f.length() != before.length || f.lastModified() != before.modified) {
+                        tmp.delete()
+                        return ScrubResult.Failed
                     }
                     if (!tmp.renameTo(f)) {
                         tmp.delete()
@@ -251,10 +265,11 @@ object SessionArtifacts {
     internal fun scrubAndMark(
         dir: File,
         stopWhenSessionStarts: Boolean = false,
+        beforeReplace: (File) -> Unit = {},
         sessionStarted: () -> Boolean = { SessionState.running },
     ): Boolean {
         val shouldStop = { stopWhenSessionStarts && sessionStarted() }
-        val record = scrubTree(Record(dir), shouldStop)
+        val record = scrubTree(Record(dir), shouldStop, beforeReplace)
         if (shouldStop()) {
             record.failed = true
             record.deferred = true
@@ -262,9 +277,13 @@ object SessionArtifacts {
         return markScrubbed(record)
     }
 
-    private fun scrubTree(record: Record, shouldStop: () -> Boolean = { false }): Record {
+    private fun scrubTree(
+        record: Record,
+        shouldStop: () -> Boolean = { false },
+        beforeReplace: (File) -> Unit = {},
+    ): Record {
         for (dir in record.dir.walkTopDown().filter { it.isDirectory }) {
-            if (shouldStop() || !scrubFolder(dir, record, shouldStop)) {
+            if (shouldStop() || !scrubFolder(dir, record, shouldStop, beforeReplace)) {
                 record.failed = true
                 record.deferred = true
                 break

@@ -352,6 +352,7 @@ class SessionService : Service() {
         pipTask = false
         SessionState.program = intent?.getStringExtra(EXTRA_PROGRAM)
         SessionState.programArgs = intent?.getStringArrayExtra(EXTRA_PROGRAM_ARGS)?.toList().orEmpty()
+        SessionState.gameId = intent?.getStringExtra(EXTRA_GAME_ID)
         SessionState.steamUi = intent?.getStringExtra(EXTRA_STEAM_UI)
         SessionState.steamUrl = intent?.getStringExtra(EXTRA_STEAM_URL)
         com.droiddeck.launcher.stores.battlenet.BattleNetClient.clearRequests(LinuxRuntime.sessionRoot(this))
@@ -387,10 +388,10 @@ class SessionService : Service() {
     }
 
     private fun collectSessionArtifacts(dir: File, steamArch: String?) {
+        SessionLogCapture.stopFor(dir)
         try {
             SessionArtifacts.collect(this, dir, "session stopped", steamArch)
         } finally {
-            SessionLogCapture.stopFor(dir)
             SessionPaths.release(this, dir)
         }
     }
@@ -435,14 +436,18 @@ class SessionService : Service() {
         val sessionRoot = LinuxRuntime.sessionRoot(this).apply { mkdirs() }
         val runtimeDir = File(filesDir, ".wayland-rt").apply { mkdirs() }
         killStragglers()
-        try {
+        val agentEnvironment = try {
             if (SystemVulkanDriver.usesDefault(SessionPrefs.linuxDriver(this))) {
                 systemVulkanSnapshot = SystemVulkanDriver.prepareSnapshot(this, !OrphanReaper.hasOtherProcesses())
                 pruneSystemVulkanRuntime()
             }
             for (pack in listOf(AddonPack.PROOT, AddonPack.DIRECTAUDIO))
                 if (!pack.await(this, { gen == sessionGen && SessionState.running })) Log.w(TAG, "${pack.name} pack unavailable")
+            val entries = runCatching { com.droiddeck.launcher.agent.AgentEnv.beginSession(this) }
+                .onFailure { Log.w(TAG, "agent environment skipped", it) }
+                .getOrDefault(emptyList())
             SessionFiles.stage(this, root, startsSession = true)
+            entries
         } catch (error: Exception) {
             Log.e(TAG, "Could not prepare the session graphics runtime", error)
             stopSession(-1)
@@ -457,7 +462,13 @@ class SessionService : Service() {
         com.droiddeck.launcher.stores.StoreLaunchRequests.start(this)
 
         val sessionDir = openSessionFolder()
-        GameEnvironmentStore.publish(this)
+        try {
+            GameEnvironmentStore.publish(this)
+        } catch (e: Exception) {
+            Log.e(TAG, "could not publish the game environment", e)
+            stopSession(-1)
+            return
+        }
         val sessionLog = File(sessionDir, "session.log")
 
         Log.i(TAG, GpuClockPin.start(this))
@@ -472,7 +483,7 @@ class SessionService : Service() {
                 .onFailure { Log.w(TAG, "forced components", it) }
         }
         try {
-            addClientEnvironment(guest, steamHere)
+            addClientEnvironment(guest, steamHere, agentEnvironment)
         } catch (error: IllegalStateException) {
             Log.e(TAG, "Could not configure the session graphics driver", error)
             stopSession(-1)
@@ -498,6 +509,16 @@ class SessionService : Service() {
             Log.i(TAG, "hdr: gamescope --hdr-enabled, DXVK_HDR=1")
         }
         guest.add("BL_FPS=" + SessionState.fpsLimit)
+        // gamescope's WSI layer and winex11 reuse their per-present window checks for this long; 0 checks on every present.
+        val windowCheckMs = if (SessionState.performanceMode) 100 else 0
+        guest.add("DROIDDECK_WSI_BYPASS_CHECK_MS=$windowCheckMs")
+        guest.add("WINE_OFFSCREEN_CHECK_MS=$windowCheckMs")
+        if (SessionPrefs.compositorFpsLimit(SessionState.fpsLimit, SessionState.performanceMode) == SessionPrefs.FPS_UNPACED) {
+            // gamescope turns buffers around slower than an unpaced game draws; more images keep it drawing.
+            guest.add("GAMESCOPE_WSI_MIN_IMAGE_COUNT=8")
+            guest.add("GAMESCOPE_WSI_ENSURE_MIN_IMAGE_COUNT=1")
+        }
+        Log.i(TAG, "performance mode " + (if (SessionState.performanceMode) "on" else "off") + ", frame limit " + SessionState.fpsLimit)
         guest.add("BL_REFRESH=" + Math.round(SessionState.refreshHz))
         guest.add("BL_LOG=" + sessionLog.path)
         guest.add("BL_DEBUG_DIR=" + sessionDir.path)
@@ -587,6 +608,9 @@ class SessionService : Service() {
             Log.i(TAG, "proot: seccomp acceleration off by request")
         }
         fastPathKey?.let { ProotFastPath.hostEnv(it).let { (k, v) -> hostEnv[k] = v } }
+        for (key in listOf("PROOT_PROFILE", "PROOT_PROFILE_SLOW_US")) {
+            guest.lastOrNull { it.startsWith("$key=") }?.substringAfter('=')?.let { hostEnv[key] = it }
+        }
         val prootLibs = LinuxRuntime.prootLibraryPath(this)
         if (prootLibs.isNotEmpty()) hostEnv["LD_LIBRARY_PATH"] = prootLibs
 
@@ -629,7 +653,7 @@ class SessionService : Service() {
             val program = programStatus(sessionRoot)
             Log.i(TAG, "session ended: $status" + if (program != null) " (program $program)" else "")
             stopSession(program ?: status ?: -1)
-        }, null)
+        }, null, sessionLog.takeIf { "PROOT_PROFILE=1" in hostEnv.asArray() })
         Log.i(TAG, "session pid $pid, log ${sessionLog.path}")
         if (gen != sessionGen || !SessionState.running) {
             Log.i(TAG, "session stopped while its guest was starting; taking it down")
@@ -702,7 +726,7 @@ class SessionService : Service() {
         return sessionDir
     }
 
-    private fun addClientEnvironment(guest: MutableList<String>, steamHere: Boolean) {
+    private fun addClientEnvironment(guest: MutableList<String>, steamHere: Boolean, agentEnvironment: List<String>) {
         guest.add("/usr/bin/env")
         guest.add("-i")
         guest.add("DROIDDECK_BWRAP_SOCKET=" + com.droiddeck.launcher.runtime.BwrapSpawner.socket(this))
@@ -785,7 +809,7 @@ class SessionService : Service() {
         }
         SessionPrefs.vramCapMb(this).takeIf { it > 0 }?.let { guest.add("BL_VRAM_MB=$it") }
         guest.add("BANNER_AUDIO_DIRECT_DECAY=0")
-        val extra = extraEnv() + com.droiddeck.launcher.agent.AgentEnv.beginSession(this)
+        val extra = extraEnv() + agentEnvironment
         if (extra.none { it.startsWith("TU_DEBUG=") }) guest.add("$GAME_TU_DEBUG=" + (tuOverride ?: if (tuDriver) "sysmem" else ""))
         extra.forEach { guest.add(it) }
         com.droiddeck.launcher.gpu.TpUbwcHint.forThisDevice(this)?.let { guest.add("${com.droiddeck.launcher.gpu.TpUbwcHint.ENV}=$it") }
@@ -1694,42 +1718,46 @@ class SessionService : Service() {
             .onFailure { Log.w(TAG, "could not prune unused system Vulkan runtimes", it) }
     }
 
-    private fun finishSessionStop(status: Int, stoppedGen: Int) {
+    private fun finishSessionStop(status: Int, stoppedGen: Int, afterStopped: () -> Unit = {}) {
         mainHandler.post {
-            if (stoppedGen != sessionGen || SessionState.running) {
-                Log.i(TAG, "session $stoppedGen finished stopping after a new one started")
-                return@post
+            try {
+                if (stoppedGen != sessionGen || SessionState.running) {
+                    Log.i(TAG, "session $stoppedGen finished stopping after a new one started")
+                    return@post
+                }
+                SessionState.suspended = false
+                SessionState.resumeRequested = false
+                SessionState.resuming = false
+                SessionState.resumeFailed = false
+                SessionState.pipActive = false
+                pipTask = false
+                SessionState.guestPid = -1
+                com.droiddeck.launcher.agent.AgentGuest.stop()
+                com.droiddeck.launcher.stores.StoreLaunchRequests.stop()
+                Thread({ com.droiddeck.launcher.stores.CloudSaves.uploadAllDirty(applicationContext, "session-end", running = false) }, "cloud-session-end").start()
+                runCatching { com.droiddeck.launcher.agent.AgentEnv.endSession(this) }
+                    .onFailure { Log.w(TAG, "clearing the agent's session environment", it) }
+                releaseLocks()
+                MemoryLog.stop()
+                com.droiddeck.launcher.core.BackgroundAppLimit.restoreAsync(applicationContext)
+                if (status == 0) {
+                    SessionEvents.transition(SessionPhase.IDLE, "session.stopped", mapOf("status" to status))
+                } else {
+                    val code = SessionState.failureCode ?: "GUEST_EXIT"
+                    val message = SessionState.failureMessage ?: "Session guest exited with status $status"
+                    val failureStatus = SessionState.failureStatus ?: status
+                    SessionEvents.fail(code, message, failureStatus)
+                }
+                SessionState.steamVr = false
+                com.droiddeck.launcher.glasses.Glasses.cancelSteamVrStart()
+                com.droiddeck.launcher.glasses.Glasses.setVrActive(false)
+                com.droiddeck.launcher.glasses.Glasses.set3dForVr(false)
+                SessionState.notifyEnded(status)
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf()
+            } finally {
+                afterStopped()
             }
-            SessionState.suspended = false
-            SessionState.resumeRequested = false
-            SessionState.resuming = false
-            SessionState.resumeFailed = false
-            SessionState.pipActive = false
-            pipTask = false
-            SessionState.guestPid = -1
-            com.droiddeck.launcher.agent.AgentGuest.stop()
-            com.droiddeck.launcher.stores.StoreLaunchRequests.stop()
-            Thread({ com.droiddeck.launcher.stores.CloudSaves.uploadAllDirty(applicationContext, "session-end", running = false) }, "cloud-session-end").start()
-            runCatching { com.droiddeck.launcher.agent.AgentEnv.endSession(this) }
-                .onFailure { Log.w(TAG, "clearing the agent's session environment", it) }
-            releaseLocks()
-            MemoryLog.stop()
-            com.droiddeck.launcher.core.BackgroundAppLimit.restoreAsync(applicationContext)
-            if (status == 0) {
-                SessionEvents.transition(SessionPhase.IDLE, "session.stopped", mapOf("status" to status))
-            } else {
-                val code = SessionState.failureCode ?: "GUEST_EXIT"
-                val message = SessionState.failureMessage ?: "Session guest exited with status $status"
-                val failureStatus = SessionState.failureStatus ?: status
-                SessionEvents.fail(code, message, failureStatus)
-            }
-            SessionState.steamVr = false
-            com.droiddeck.launcher.glasses.Glasses.cancelSteamVrStart()
-            com.droiddeck.launcher.glasses.Glasses.setVrActive(false)
-            com.droiddeck.launcher.glasses.Glasses.set3dForVr(false)
-            SessionState.notifyEnded(status)
-            stopForeground(STOP_FOREGROUND_REMOVE)
-            stopSelf()
         }
     }
 
@@ -1791,7 +1819,6 @@ class SessionService : Service() {
         if (ended != null) {
             VacDiagnostics.snapshot(this, ended)
             SessionArtifacts.collectionStarted(ended)
-            Thread({ collectSessionArtifacts(ended, endedArch) }, "session-collect").start()
         }
         components.reversed().forEach {
             try {
@@ -1801,6 +1828,9 @@ class SessionService : Service() {
             }
         }
         components.clear()
+        val collectEnded = {
+            if (ended != null) Thread({ collectSessionArtifacts(ended, endedArch) }, "session-collect").start()
+        }
         FakeInputWriter.releaseAllRingSlots()
         com.droiddeck.launcher.input.SteamTouchDevice.release()
         val steamClientMayRun = SessionState.mode == MODE_STEAM || SessionState.mode == MODE_DESKTOP
@@ -1817,7 +1847,7 @@ class SessionService : Service() {
                     if (shouldClearSystemVulkanSnapshot(stoppedGen, sessionGen, stoppedSystemVulkanSnapshot, systemVulkanSnapshot)) {
                         systemVulkanSnapshot = null
                     }
-                    finishSessionStop(status, stoppedGen)
+                    finishSessionStop(status, stoppedGen, collectEnded)
                     if (launcherEnded) importLauncherGames()
                 }, "session-teardown").start()
             } else {
@@ -1828,7 +1858,7 @@ class SessionService : Service() {
                     if (shouldClearSystemVulkanSnapshot(stoppedGen, sessionGen, stoppedSystemVulkanSnapshot, systemVulkanSnapshot)) {
                         systemVulkanSnapshot = null
                     }
-                    finishSessionStop(status, stoppedGen)
+                    finishSessionStop(status, stoppedGen, collectEnded)
                     if (launcherEnded) importLauncherGames()
                 }, "session-stop-finalize").start()
             }
@@ -2122,6 +2152,7 @@ class SessionService : Service() {
         fun start(
             context: Context, mode: String = MODE_STEAM, program: String? = null,
             steamUi: String? = null, steamUrl: String? = null, programArgs: Array<String>? = null,
+            gameId: String? = null,
             displayId: Int = Display.DEFAULT_DISPLAY,
         ) {
             SessionState.activityDisplayId = displayId
@@ -2132,6 +2163,7 @@ class SessionService : Service() {
             if (programArgs != null) intent.putExtra(EXTRA_PROGRAM_ARGS, programArgs)
             if (steamUi != null) intent.putExtra(EXTRA_STEAM_UI, steamUi)
             if (steamUrl != null) intent.putExtra(EXTRA_STEAM_URL, steamUrl)
+            if (gameId != null) intent.putExtra(EXTRA_GAME_ID, gameId)
             if (Build.VERSION.SDK_INT >= 26) context.startForegroundService(intent)
             else context.startService(intent)
         }

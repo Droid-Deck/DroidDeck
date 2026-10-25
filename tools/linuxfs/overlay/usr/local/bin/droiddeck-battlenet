@@ -63,6 +63,8 @@ REQUEST_FILE = re.compile(re.escape(REQUEST) + r"\.\d+")
 LIBRARY = None
 WOW_UID = re.compile(r"--uid=wow[a-z0-9_]*", re.I)
 GAMEPAD_SETTING = re.compile(r"(?im)^\s*SET\s+GamePadEnable\s")
+GX_API_SETTING = re.compile(r"(?im)^[ \t]*SET[ \t]+gxApi[ \t].*$")
+GX_API_MARK = ".droiddeck-d3d11"
 STEAM_CLIENT = {"steam", "steamwebhelper"}
 LOG = os.path.join(CACHE, "battlenet.log")
 LOG_LIMIT = 512 << 10
@@ -294,7 +296,7 @@ def wow_folders(root):
     return [folder for folder in dict.fromkeys(folders) if os.path.isdir(folder)]
 
 
-def enable_gamepad(root):
+def wow_settings(root):
     changed = []
     for folder in wow_folders(root):
         try:
@@ -304,7 +306,9 @@ def enable_gamepad(root):
         for name in flavors:
             if not os.path.isdir(os.path.join(folder, name)):
                 continue
-            path = os.path.join(folder, name, "WTF", "Config.wtf")
+            wtf = os.path.join(folder, name, "WTF")
+            path = os.path.join(wtf, "Config.wtf")
+            mark = os.path.join(wtf, GX_API_MARK)
             try:
                 with open(path, encoding="utf-8", errors="replace") as f:
                     text = f.read()
@@ -312,17 +316,35 @@ def enable_gamepad(root):
                 text = ""
             except OSError:
                 continue
-            if GAMEPAD_SETTING.search(text):
+            updated, notes = text, []
+            if not GAMEPAD_SETTING.search(updated):
+                updated += ("\n" if updated and not updated.endswith("\n") else "") + 'SET GamePadEnable "1"\n'
+                notes.append("controller support on")
+            first = not os.path.exists(mark)
+            if first:
+                before = updated
+                updated, found = GX_API_SETTING.subn('SET gxApi "D3D11"', updated)
+                if not found:
+                    updated += ("\n" if updated and not updated.endswith("\n") else "") + 'SET gxApi "D3D11"\n'
+                if updated != before:
+                    notes.append("DirectX 11")
+            if updated == text and not first:
                 continue
             try:
-                os.makedirs(os.path.dirname(path), exist_ok=True)
-                with open(path, "a", encoding="utf-8") as f:
-                    f.write(("\n" if text and not text.endswith("\n") else "") + 'SET GamePadEnable "1"\n')
+                os.makedirs(wtf, exist_ok=True)
+                if updated != text:
+                    with open(path + ".tmp", "w", encoding="utf-8") as f:
+                        f.write(updated)
+                    os.replace(path + ".tmp", path)
+                if first:
+                    with open(mark, "w", encoding="utf-8"):
+                        pass
             except OSError as error:
-                say("controllers not turned on in %s: %s" % (path, error))
+                say("World of Warcraft's settings not written in %s: %s" % (path, error))
                 continue
-            changed.append(path)
-            say("World of Warcraft's controller support turned on in %s" % path)
+            if notes:
+                changed.append(path)
+                say("World of Warcraft's settings in %s: %s" % (path, ", ".join(notes)))
     return changed
 
 
@@ -366,7 +388,7 @@ def configure(root, library=None):
         wallpaper(root)
     except OSError as error:
         say("Battle.net's desktop wallpaper not set: %s" % error)
-    enable_gamepad(root)
+    wow_settings(root)
     if change == "first":
         say("wrote Battle.net's first config: hardware acceleration off, streaming off, closing itself as it launches a game, "
             "StarCraft on its 32-bit client")
@@ -859,7 +881,7 @@ def launch(root, code):
             notify("Battle.net did not start", "The session's desktop.log says why.", "dialog-error")
             return 1
         if code.lower().startswith("wow"):
-            enable_gamepad(root)
+            wow_settings(root)
         say("launching %s" % code)
         spawn(client, "run", ["--exec=launch %s" % code])
         played = follow(pfx, ask=lambda: spawn(client, "run", ["--exec=launch %s" % code]))

@@ -351,7 +351,66 @@ class ComponentsPageProfileTest {
         compose.onNodeWithText(context.getString(R.string.comp_this_proton).uppercase()).assertExists()
     }
 
-    private fun show(initialGameKey: () -> String? = { null }) {
+    @Test fun componentSourcesStayDisabledWhileADownloadIsActive() {
+        val context = RuntimeEnvironment.getApplication()
+        show(downloads = mapOf("dxvk.wcp" to 42))
+
+        compose.onNodeWithContentDescription(context.getString(R.string.sources_component_title))
+            .assertIsNotEnabled()
+    }
+
+    @Test fun gpuSourcesStayDisabledWhileADriverDownloadIsActive() {
+        val context = RuntimeEnvironment.getApplication()
+        show(
+            comp = GPU_TAB,
+            gpu = GpuDriversState(
+                sourceKey = "gpu/downloads",
+                sourceBuiltIns = listOf("Droid-Deck/DroidDeck"),
+                linuxDownloads = listOf(DownloadRow("driver", "Driver", "Downloading", progress = 42)),
+            ),
+        )
+
+        compose.onNodeWithContentDescription(context.getString(R.string.sources_component_title))
+            .assertIsNotEnabled()
+    }
+
+    @Test fun gpuSourcesStayEnabledForAnAvailableDriverCandidate() {
+        val context = RuntimeEnvironment.getApplication()
+        show(
+            comp = GPU_TAB,
+            gpu = GpuDriversState(
+                sourceKey = "gpu/candidates",
+                sourceBuiltIns = listOf("Droid-Deck/DroidDeck"),
+                androidDownloads = listOf(DownloadRow("driver", "Driver", "Candidate")),
+            ),
+        )
+
+        compose.onNodeWithContentDescription(context.getString(R.string.sources_component_title))
+            .assertIsEnabled()
+    }
+
+    @Test fun systemSourcesStayDisabledWhileABundleDownloadIsActive() {
+        val context = RuntimeEnvironment.getApplication()
+        show(
+            comp = GPU_TAB,
+            gpu = GpuDriversState(
+                systemGpu = true, systemDriverName = "Mali",
+                sourceKey = "gpu/system-vulkan/mali",
+                sourceBuiltIns = listOf("wallentx/DroidDeck"),
+                systemDownloads = listOf(DownloadRow("runtime", "Runtime", "Downloading", progress = 42)),
+            ),
+        )
+
+        compose.onNodeWithContentDescription(context.getString(R.string.sources_component_title))
+            .assertIsNotEnabled()
+    }
+
+    private fun show(
+        downloads: Map<String, Int> = emptyMap(),
+        comp: String = PROTON_TAB,
+        gpu: GpuDriversState = GpuDriversState(),
+        initialGameKey: () -> String? = { null },
+    ) {
         compose.setContent {
             DroidDeckTheme {
                 ComponentsPage(
@@ -359,10 +418,10 @@ class ComponentsPageProfileTest {
                     catalog = emptyList(),
                     catalogAt = 0,
                     protonId = null,
-                    comp = PROTON_TAB,
+                    comp = comp,
                     checking = false,
                     busy = null,
-                    downloads = emptyMap(),
+                    downloads = downloads,
                     onProton = {},
                     onComp = {},
                     onSwap = {},
@@ -377,11 +436,11 @@ class ComponentsPageProfileTest {
                     games = listOf(gameA, gameB),
                     initialGameKey = initialGameKey(),
                     requestInitialFocus = false,
+                    gpu = gpu,
                 )
             }
         }
     }
-
     @Test @Config(qualifiers = "w1280dp-h1000dp")
     fun systemPowerVrKeepsStoredDxvkDisabledAndQueuedDxvkCancellable() {
         val context = RuntimeEnvironment.getApplication()

@@ -232,6 +232,20 @@ class SessionLogShareTest {
         assertFalse(File(folder, SessionArtifacts.SCRUBBED_TREE_MARKER).exists())
     }
 
+    @Test fun historicalScrubDoesNotReplaceALogThatChangedBeforeCommit() {
+        val folder = tmp.newFolder("2026-10-06-12-steam")
+        val original = "sessionid=$leaked\n"
+        val appended = "writer finished after collection started\n"
+        val log = File(folder, "session.log").apply { writeText(original) }
+
+        assertFalse(SessionArtifacts.scrubAndMark(folder, beforeReplace = { it.appendText(appended) }))
+
+        assertEquals(original + appended, log.readText())
+        assertFalse(File(folder, ".session.log.scrub").exists())
+        assertFalse(File(folder, ".scrubbed-r${LogRedactor.RULES_VERSION}").exists())
+        assertFalse(File(folder, SessionArtifacts.SCRUBBED_TREE_MARKER).exists())
+    }
+
     @Test fun comparisonCancellationWinsOverAnImmediateLengthMismatch() {
         val left = tmp.newFile("left.log").apply { writeText("short\n") }
         val right = tmp.newFile("right.log").apply { writeText("a different length\n") }
