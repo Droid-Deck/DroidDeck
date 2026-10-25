@@ -421,6 +421,7 @@ class FrontEndActivity : ComponentActivity() {
     private var dualSenseManager: com.droiddeck.launcher.input.DualSenseManager? = null
     private var dualSenseOutputBridge: com.droiddeck.launcher.session.DualSenseOutputBridge? = null
     private var lastDsState: com.droiddeck.launcher.input.DualSense.State? = null
+    private var dsKeyGeneration = 0
     private val secondScreenDisplayListener = object : DisplayManager.DisplayListener {
         override fun onDisplayAdded(displayId: Int) = refreshSecondScreenDisplays()
         override fun onDisplayRemoved(displayId: Int) = refreshSecondScreenDisplays()
@@ -1346,50 +1347,30 @@ class FrontEndActivity : ComponentActivity() {
     }
 
     private fun handleLauncherDualSenseInput(state: com.droiddeck.launcher.input.DualSense.State) {
-        val prev = lastDsState
+        val before = launcherDualSenseKeys(lastDsState)
         lastDsState = state
+        val now = launcherDualSenseKeys(state)
+        val generation = dsKeyGeneration
+        for (keyCode in now - before) ui.post { if (generation == dsKeyGeneration) dispatchKeyEvent(syntheticPadKey(KeyEvent.ACTION_DOWN, keyCode)) }
+        for (keyCode in before - now) ui.post { if (generation == dsKeyGeneration) dispatchKeyEvent(syntheticPadKey(KeyEvent.ACTION_UP, keyCode)) }
+    }
 
-        val upNow = state.dpadUp || state.leftY < -0.55f
-        val upPrev = prev?.let { it.dpadUp || it.leftY < -0.55f } ?: false
-        val downNow = state.dpadDown || state.leftY > 0.55f
-        val downPrev = prev?.let { it.dpadDown || it.leftY > 0.55f } ?: false
-        val leftNow = state.dpadLeft || state.leftX < -0.55f
-        val leftPrev = prev?.let { it.dpadLeft || it.leftX < -0.55f } ?: false
-        val rightNow = state.dpadRight || state.leftX > 0.55f
-        val rightPrev = prev?.let { it.dpadRight || it.leftX > 0.55f } ?: false
+    private fun launcherDualSenseKeys(state: com.droiddeck.launcher.input.DualSense.State?) =
+        com.droiddeck.launcher.input.LauncherPadKeys.held(state)
 
-        fun emitTransition(now: Boolean, was: Boolean, keyCode: Int) {
-            if (now != was) {
-                val action = if (now) KeyEvent.ACTION_DOWN else KeyEvent.ACTION_UP
-                val nowMs = android.os.SystemClock.uptimeMillis()
-                val ev = KeyEvent(
-                    nowMs,
-                    nowMs,
-                    action,
-                    keyCode,
-                    0,
-                    0,
-                    android.view.KeyCharacterMap.VIRTUAL_KEYBOARD,
-                    0,
-                    0,
-                    android.view.InputDevice.SOURCE_GAMEPAD or android.view.InputDevice.SOURCE_DPAD,
-                )
-                ui.post { dispatchKeyEvent(ev) }
-            }
-        }
+    private fun syntheticPadKey(action: Int, keyCode: Int): KeyEvent {
+        val now = android.os.SystemClock.uptimeMillis()
+        return KeyEvent(
+            now, now, action, keyCode, 0, 0, android.view.KeyCharacterMap.VIRTUAL_KEYBOARD, 0, 0,
+            android.view.InputDevice.SOURCE_GAMEPAD or android.view.InputDevice.SOURCE_DPAD,
+        )
+    }
 
-        emitTransition(upNow, upPrev, KeyEvent.KEYCODE_DPAD_UP)
-        emitTransition(downNow, downPrev, KeyEvent.KEYCODE_DPAD_DOWN)
-        emitTransition(leftNow, leftPrev, KeyEvent.KEYCODE_DPAD_LEFT)
-        emitTransition(rightNow, rightPrev, KeyEvent.KEYCODE_DPAD_RIGHT)
-        emitTransition(state.cross, prev?.cross ?: false, KeyEvent.KEYCODE_BUTTON_A)
-        emitTransition(state.circle, prev?.circle ?: false, KeyEvent.KEYCODE_BUTTON_B)
-        emitTransition(state.square, prev?.square ?: false, KeyEvent.KEYCODE_BUTTON_X)
-        emitTransition(state.triangle, prev?.triangle ?: false, KeyEvent.KEYCODE_BUTTON_Y)
-        emitTransition(state.l1, prev?.l1 ?: false, KeyEvent.KEYCODE_BUTTON_L1)
-        emitTransition(state.r1, prev?.r1 ?: false, KeyEvent.KEYCODE_BUTTON_R1)
-        emitTransition(state.options, prev?.options ?: false, KeyEvent.KEYCODE_BUTTON_START)
-        emitTransition(state.create, prev?.create ?: false, KeyEvent.KEYCODE_BUTTON_SELECT)
+    /** Releases every key the DualSense holds in the launcher and drops key events still queued for it. */
+    private fun releaseLauncherDualSenseKeys() {
+        dsKeyGeneration++
+        for (keyCode in launcherDualSenseKeys(lastDsState)) dispatchKeyEvent(syntheticPadKey(KeyEvent.ACTION_UP, keyCode))
+        lastDsState = null
     }
 
     override fun onPause() {
@@ -1397,7 +1378,7 @@ class FrontEndActivity : ComponentActivity() {
             dualSenseOutputBridge?.stop()
         }
         dualSenseManager?.stop()
-        lastDsState = null
+        releaseLauncherDualSenseKeys()
         super.onPause()
     }
 
