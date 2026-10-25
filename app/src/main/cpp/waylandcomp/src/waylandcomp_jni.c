@@ -48,6 +48,7 @@ static jmethodID g_on_game_frame;
 static jmethodID g_on_game_program;
 static jmethodID g_on_pointer_lock;
 static jmethodID g_on_clipboard;
+static jmethodID g_on_text_input_fallback;
 static jmethodID g_on_text_input;
 
 JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
@@ -68,6 +69,8 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
             if ((*env)->ExceptionCheck(env)) { (*env)->ExceptionClear(env); g_on_game_program = NULL; }
             g_on_pointer_lock = (*env)->GetStaticMethodID(env, g_compositor_cls, "onPointerLock", "(ZII)V");
             g_on_clipboard = (*env)->GetStaticMethodID(env, g_compositor_cls, "onClipboardText", "([B)V");
+            g_on_text_input_fallback = (*env)->GetStaticMethodID(env, g_compositor_cls, "onTextInputFallback",
+                                                                "([B)V");
             g_on_text_input = (*env)->GetStaticMethodID(env, g_compositor_cls, "onTextInput",
                                                         "(ZLjava/lang/String;IIII)V");
         }
@@ -144,6 +147,17 @@ void droiddeck_on_clipboard_text(const char *utf8, int len) {
     if (!arr) { (*env)->ExceptionClear(env); return; }
     (*env)->SetByteArrayRegion(env, arr, 0, len, (const jbyte *)utf8);
     (*env)->CallStaticVoidMethod(env, g_compositor_cls, g_on_clipboard, arr);
+    if ((*env)->ExceptionCheck(env)) (*env)->ExceptionClear(env);
+    (*env)->DeleteLocalRef(env, arr);
+}
+
+void droiddeck_on_text_input_fallback(const char *utf8, int len) {
+    JNIEnv *env;
+    if (len <= 0 || !g_compositor_cls || !g_on_text_input_fallback || !(env = thread_env())) return;
+    jbyteArray arr = (*env)->NewByteArray(env, len);
+    if (!arr) { (*env)->ExceptionClear(env); return; }
+    (*env)->SetByteArrayRegion(env, arr, 0, len, (const jbyte *)utf8);
+    (*env)->CallStaticVoidMethod(env, g_compositor_cls, g_on_text_input_fallback, arr);
     if ((*env)->ExceptionCheck(env)) (*env)->ExceptionClear(env);
     (*env)->DeleteLocalRef(env, arr);
 }

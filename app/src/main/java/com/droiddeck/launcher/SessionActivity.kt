@@ -71,6 +71,7 @@ import com.droiddeck.launcher.input.InputSpace
 import com.droiddeck.launcher.input.KeyboardHost
 import com.droiddeck.launcher.input.ControllerPrefs
 import com.droiddeck.launcher.input.SessionClipboard
+import com.droiddeck.launcher.input.SessionTextInput
 import com.droiddeck.launcher.input.OnScreenControls
 import com.droiddeck.launcher.input.PadBridge
 import com.droiddeck.launcher.input.PadMouse
@@ -187,6 +188,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var controllerSettings by mutableStateOf<ControllerPrefs.Settings?>(null)
     private val sessionClipboard by lazy {
         SessionClipboard(this) {
+            window.decorView.hasWindowFocus() || secondScreenPresentation?.window?.decorView?.hasWindowFocus() == true
+        }
+    }
+    private val sessionTextInput by lazy {
+        SessionTextInput(this) {
             window.decorView.hasWindowFocus() || secondScreenPresentation?.window?.decorView?.hasWindowFocus() == true
         }
     }
@@ -2947,6 +2953,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             guestKeysDown.toList().forEach { sendGuestKey(it, false) }
             keyboard?.hide()
             sessionClipboard.stop()
+            sessionTextInput.stop()
             padMotion?.stop()
             cursorVisible = false
             closeSecondScreen(reset = false)
@@ -2962,7 +2969,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         } else if (!isFinishing && !isDestroyed) {
             window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             updateOnScreenControls()
-            if (resumed) { sessionClipboard.start(); updatePadMotion() }
+            if (resumed) { sessionClipboard.start(); sessionTextInput.start(); updatePadMotion() }
             if (started) refreshSecondScreenDisplays()
             if (CompositorHost.isStarted) applyFrameGen()
         }
@@ -3064,7 +3071,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         controllerSettings = ControllerPrefs.read(this)
         resumed = true
         updatePointerCapture()
-        if (!pipUi) sessionClipboard.start()
+        if (!pipUi) { sessionClipboard.start(); sessionTextInput.start() }
         updatePadMotion()
         readPrefs()
         refreshControls()
@@ -3077,6 +3084,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (runtimeRemovalBlocked) { super.onPause(); return }
         capturePausedFrame()
         sessionClipboard.stop()
+        sessionTextInput.stop()
         if (::touchscreenGestures.isInitialized) touchscreenGestures.cancel()
         if (::touchpad.isInitialized) touchpad.cancel()
         if (::directTouchHold.isInitialized) directTouchHold.cancel()
@@ -3504,6 +3512,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun onDestroy() {
         steamVrRecovery.close()
+        sessionTextInput.stop()
         uiHandler.removeCallbacks(steamTouchRetry)
         if (runtimeRemovalBlocked) { super.onDestroy(); return }
         watching = false

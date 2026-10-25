@@ -263,6 +263,11 @@ if [ -z "${BL_INSIDE:-}" ]; then
   exec gamescope "${args[@]}" -- "$0" "$mode" "$@"
 fi
 
+# Steam and its helpers share one session bus per session; an existing desktop bus is inherited.
+if [ "$mode" = steam ] && [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ]; then
+  exec dbus-run-session -- "$0" "$mode" "$@"
+fi
+
 bl_displays() {
   printf '%s\n' "$DISPLAY"
   [ -n "${STEAM_GAME_DISPLAY_0:-}" ] && [ "$STEAM_GAME_DISPLAY_0" != "$DISPLAY" ] && printf '%s\n' "$STEAM_GAME_DISPLAY_0"
@@ -297,6 +302,13 @@ reap_orphans() {
 
 if [ "${BL_DESKTOP:-}" != 1 ] && [ -n "${BL_ANDROID_CLIPBOARD:-}" ] && [ -x /usr/local/bin/droiddeck-clipboard ]; then
   /usr/local/bin/droiddeck-clipboard "$BL_ANDROID_CLIPBOARD" &
+fi
+
+ime_text_pid=
+if [ "${BL_DESKTOP:-}" != 1 ] && [ -n "${DISPLAY:-}" ] && [ -n "${BL_LAUNCH_DIR:-}" ] \
+   && [ -x /usr/local/bin/droiddeck-text-input ]; then
+  /usr/local/bin/droiddeck-text-input "$BL_LAUNCH_DIR/text-input.sock" &
+  ime_text_pid=$!
 fi
 
 [ "${BL_DESKTOP:-}" = 1 ] || start_agent
@@ -1142,6 +1154,29 @@ BUSCONF
     ) &
     stop_watcher=$!
     rm -f "$HOME/.bl-restart-game" "$HOME/.bl-restarted-for"
+    export IBUS_ADDRESS="unix:path=${XDG_RUNTIME_DIR:-/run/droiddeck}/droiddeck-ibus-$$.sock"
+    ime_ibus_pid=
+    if [ -x /usr/local/bin/droiddeck-steam-ime ]; then
+      /usr/local/bin/droiddeck-steam-ime &
+      ime_ibus_pid=$!
+      ime_ready=0
+      _ime_deadline=$((SECONDS + 5))
+      while [ "$SECONDS" -lt "$_ime_deadline" ]; do
+        if env -u LD_LIBRARY_PATH -u LD_PRELOAD -u GSETTINGS_SCHEMA_DIR -u DCONF_PROFILE \
+             timeout 1 /usr/bin/ibus list-engine --name-only 2>/dev/null | grep -qx 'pinyin'; then
+          ime_ready=1
+          break
+        fi
+        kill -0 "$ime_ibus_pid" 2>/dev/null || break
+        nap 0.1
+      done
+      unset _ime_deadline
+      if [ "$ime_ready" = 1 ]; then
+        echo "== ime: pinyin engine ready at $IBUS_ADDRESS"
+      else
+        echo "== ime: the pinyin engine did not start at $IBUS_ADDRESS; Steam starts without Chinese input"
+      fi
+    fi
     while :; do
       rm -f "$HOME/.bl-restart-once" "$HOME/.bl-restart-lost"
       if [ -f "$steam_beta" ] && [ "$(cat "$steam_beta" 2>/dev/null)" != "$steam_channel" ]; then
@@ -1246,6 +1281,19 @@ BUSCONF
     if [ -n "${games_watcher:-}" ]; then
       kill "$games_watcher" 2>/dev/null || true
       wait "$games_watcher" 2>/dev/null || true
+    fi
+    if [ -n "${ime_ibus_pid:-}" ]; then
+      kill "$ime_ibus_pid" 2>/dev/null || true
+      wait "$ime_ibus_pid" 2>/dev/null || true
+      ime_ibus_pid=
+    fi
+    _ime_socket=${IBUS_ADDRESS#unix:path=}
+    [ -S "$_ime_socket" ] && rm -f "$_ime_socket"
+    unset _ime_socket
+    if [ -n "${ime_text_pid:-}" ]; then
+      kill "$ime_text_pid" 2>/dev/null || true
+      wait "$ime_text_pid" 2>/dev/null || true
+      ime_text_pid=
     fi
     if [ -n "${BL_DESKTOP:-}" ]; then
       if [ -n "${decky_supervisor:-}" ]; then

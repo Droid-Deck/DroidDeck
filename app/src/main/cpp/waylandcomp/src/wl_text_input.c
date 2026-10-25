@@ -10,6 +10,12 @@
 #ifndef KEY_DELETE
 #define KEY_DELETE 111
 #endif
+#ifndef KEY_ENTER
+#define KEY_ENTER 28
+#endif
+#ifndef KEY_TAB
+#define KEY_TAB 15
+#endif
 
 static struct wl_display *g_disp;
 
@@ -203,16 +209,43 @@ static int32_t utf8_offset(const char *s, size_t len, int chars) {
     return (int32_t)i;
 }
 
-void text_input_host_commit(const char *utf8, size_t len) {
+static int control_evdev(unsigned char c) {
+    switch (c) {
+    case '\r': case '\n': return KEY_ENTER;
+    case '\b': return KEY_BACKSPACE;
+    case 0x7f: return KEY_DELETE;
+    case '\t': return KEY_TAB;
+    default: return -1;
+    }
+}
+
+static int all_controls(const char *utf8, size_t len) {
+    for (size_t i = 0; i < len; i++)
+        if (control_evdev((unsigned char)utf8[i]) < 0) return 0;
+    return 1;
+}
+
+int text_input_host_commit(const char *utf8, size_t len) {
     struct text_input *ti = active_input();
     if (!ti) {
-        droiddeck_log("text-input", "typed text (%zu chars) dropped: no program accepts text input", utf8_chars(utf8, len));
-        return;
+        droiddeck_log("text-input", "typed text (%zu chars): no program accepts Wayland text input", utf8_chars(utf8, len));
+        return 0;
+    }
+    if (len > 0 && all_controls(utf8, len)) {
+        /* Keep editing keys on the compositor queue so they cannot overtake text commits. */
+        for (size_t i = 0; i < len; i++) {
+            int code = control_evdev((unsigned char)utf8[i]);
+            droiddeck_inject_key(code, 1);
+            droiddeck_inject_key(code, 0);
+        }
+        droiddeck_log("text-input", "injected %zu soft control(s) to %s", len, ti_program(ti));
+        return 1;
     }
     if (ti->has_preedit) { zwp_text_input_v3_send_preedit_string(ti->res, "", 0, 0); ti->has_preedit = 0; }
     zwp_text_input_v3_send_commit_string(ti->res, utf8);
     zwp_text_input_v3_send_done(ti->res, ti->serial);
     droiddeck_log("text-input", "committed %zu chars to %s", utf8_chars(utf8, len), ti_program(ti));
+    return 1;
 }
 
 void text_input_host_preedit(const char *utf8, size_t len, int cursor_begin, int cursor_end) {
