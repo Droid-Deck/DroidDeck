@@ -210,9 +210,13 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
     val lead = remember { FocusRequester() }
     var detailFocused by remember { mutableStateOf(false) }
     var lastOpened by remember { mutableStateOf<String?>(null) }
+    val wasOpen = remember { booleanArrayOf(false) }
     val backLabel = stringResource(R.string.rail_games)
     LaunchedEffect(open) {
+        val closing = open == null && wasOpen[0]
+        wasOpen[0] = open != null
         if (open != null) lastOpened = open
+        else if (!closing) return@LaunchedEffect
         if (inputMode.inputMode != androidx.compose.ui.input.InputMode.Keyboard || ff == null) return@LaunchedEffect
         repeat(60) { if (!HeldKeys.confirm) return@repeat; androidx.compose.runtime.withFrameNanos { } }
         if (open != null) {
@@ -231,7 +235,7 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
             if (id != null && ff.last == id) return@LaunchedEffect
             val card = id?.let { ff.items[it] }?.takeIf { (ff.attached[id] ?: 0) > 0 }
             if (card != null) runCatching { card.requestFocus() }
-            else if (ff.firstTileAttached > 0 && runCatching { ff.firstTile.requestFocus() }.isSuccess && id == null) return@LaunchedEffect
+            else if (ff.firstTileAttached > 0 && runCatching { ff.firstTile.requestFocus() }.isSuccess) return@LaunchedEffect
         }
     }
     LaunchedEffect(Unit) {
@@ -486,7 +490,7 @@ private fun LibraryTile(e: LibraryEntry, capsule: Boolean, first: Boolean, navig
     }
     Column(
         modifier = Modifier.fillMaxWidth().onGloballyPositioned { placed[0] = it }
-            .then(navigation).paneItem("card:${e.key}").then(if (first) Modifier.firstTile() else Modifier).graphicsLayer { scaleX = scale; scaleY = scale }
+            .then(navigation).paneItem("card:${e.key}").then(if (first) Modifier.firstTile().paneEntry() else Modifier).graphicsLayer { scaleX = scale; scaleY = scale }
             .clip(RoundedCornerShape(10.dp)).glideBorder(hot, RoundedCornerShape(10.dp), pal.signal, pal.line)
             .hoverable(src).clickable(role = Role.Button, interactionSource = src, indication = LocalIndication.current, onClick = open)
             .controllerConfirm(onClick = choose ?: open),
@@ -544,7 +548,7 @@ private fun LibraryRow(e: LibraryEntry, first: Boolean, navigation: Modifier, ch
     Row(
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
         modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp).onGloballyPositioned { placed[0] = it }.then(navigation).paneItem("card:${e.key}")
-            .then(if (first) Modifier.firstTile() else Modifier)
+            .then(if (first) Modifier.firstTile().paneEntry() else Modifier)
             .clip(RoundedCornerShape(10.dp)).glideBorder(hot, RoundedCornerShape(10.dp), pal.signal, pal.line)
             .hoverable(src).clickable(role = Role.Button, interactionSource = src, indication = LocalIndication.current, onClick = open)
             .controllerConfirm(onClick = choose ?: open)
@@ -579,6 +583,17 @@ private fun HeaderIconButton(description: String, icon: androidx.compose.ui.grap
             .controllerConfirm(onClick = onClick)
             .semantics { contentDescription = description },
     ) { Icon(icon, null, tint = if (hot) pal.signal else colors.onSurfaceVariant, modifier = Modifier.size(18.dp)) }
+}
+
+/** Choosing Library in the rail lands on the first game, as Play Steam does on the Steam page. */
+@Composable
+private fun Modifier.paneEntry(): Modifier {
+    val ff = LocalFrontFocus.current ?: return this
+    androidx.compose.runtime.DisposableEffect(ff) {
+        ff.primaryAttached++
+        onDispose { ff.primaryAttached-- }
+    }
+    return focusRequester(ff.primary)
 }
 
 internal fun keepsXbox(filter: String, e: LibraryEntry): Boolean = when {
