@@ -14,10 +14,11 @@ object StoreLaunch {
     const val REGISTRY_HOOK = ".droiddeck-registry.bat"
 
     fun writeLauncher(folder: File, sidecar: StoreGameSidecar): StoreGameSidecar {
-        val needs = sidecar.args.isNotEmpty() || sidecar.env.isNotEmpty() || sidecar.store == Store.EPIC
+        val needs = sidecar.args.isNotEmpty() || sidecar.env.isNotEmpty() || sidecar.store == Store.EPIC ||
+            File(folder, REGISTRY_HOOK).exists()
         val file = File(folder, LAUNCHER)
         if (!needs) { file.delete(); return sidecar.copy(launcher = null) }
-        file.writeText(launcherText(sidecar))
+        file.writeText(launcherText(sidecar.copy(exe = bodyExe(folder, sidecar.exe))))
         return sidecar.copy(launcher = LAUNCHER)
     }
 
@@ -32,8 +33,8 @@ object StoreLaunch {
         for ((k, v) in sidecar.env) if (ENV_NAME.matches(k)) lines += "set \"$k=${v.replace("\"", "")}\""
         val args = sidecar.args.joinToString(" ") { quoteArg(it) }
         val run = "\"%~dp0$exe\"" + (if (args.isNotEmpty()) " $args" else "")
+        lines += "if exist \"%~dp0$REGISTRY_HOOK\" call \"%~dp0$REGISTRY_HOOK\""
         if (sidecar.store == Store.EPIC) {
-            lines += "if exist \"%~dp0$REGISTRY_HOOK\" call \"%~dp0$REGISTRY_HOOK\""
             lines += "if exist \"%~dp0$EPIC_ARGS\" goto client"
             lines += "set \"$CODE_VAR=\""
             lines += "if exist \"%~dp0$EPIC_CODE\" set /p $CODE_VAR=<\"%~dp0$EPIC_CODE\""
@@ -89,10 +90,16 @@ object StoreLaunch {
     private fun bodyExe(folder: File, exe: String): String {
         val name = exe.substringAfterLast('/').substringAfterLast('\\')
         if (!name.startsWith(UPLAY_STUB, ignoreCase = true)) return exe
-        val found = File(folder, "bin").listFiles { f -> f.isFile && f.extension.equals("exe", true) }
-            ?.maxByOrNull { it.length() } ?: return exe
+        val candidates = File(folder, "bin").listFiles { f -> f.isFile && f.extension.equals("exe", true) }
+            ?: return exe
+        val want = normalised(folder.name)
+        val found = candidates.firstOrNull { want.isNotEmpty() && normalised(it.nameWithoutExtension) == want }
+            ?: candidates.maxByOrNull { it.length() }
+            ?: return exe
         return "bin/" + found.name
     }
+
+    private fun normalised(name: String): String = name.lowercase().filter { it.isLetterOrDigit() }
 
     fun prepare(context: Context, store: Store, id: String, onReady: () -> Unit) {
         if (store != Store.EPIC) { onReady(); return }
