@@ -276,7 +276,7 @@ public class DualSenseBridge {
         for (int i = 0; SetupDiEnumDeviceInterfaces(hDevInfo, IntPtr.Zero, ref hidGuid, i, ref ifData); i++) {
             int reqSize = 0;
             SP_DEVICE_INTERFACE_DETAIL_DATA detail = new SP_DEVICE_INTERFACE_DETAIL_DATA();
-            detail.cbSize = IntPtr.Size == 8 ? 8 : 5;
+            detail.cbSize = IntPtr.Size == 8 ? 8 : 4 + Marshal.SystemDefaultCharSize;
             if (SetupDiGetDeviceInterfaceDetail(hDevInfo, ref ifData, ref detail, 512, ref reqSize, IntPtr.Zero)) {
                 string p = detail.devicePath ?? "";
                 bool isUsbMatch = p.IndexOf("vid_054c&pid_0ce6", StringComparison.OrdinalIgnoreCase) >= 0 ||
