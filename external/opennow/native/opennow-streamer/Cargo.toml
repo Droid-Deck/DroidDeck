@@ -1,19 +1,12 @@
 [workspace]
 members = [
-    "crates/opennow-awdl-helper",
-    "crates/opennow-streamer",
     "crates/opennow-streamer-core",
-    "crates/opennow-streamer-ffi",
     "crates/opennow-streamer-hid",
     "crates/opennow-streamer-platform",
-    "crates/opennow-streamer-platform-linux",
-    "crates/opennow-streamer-platform-macos",
     "crates/opennow-streamer-platform-windows",
     "crates/opennow-streamer-protocol",
     "crates/opennow-streamer-transport",
 ]
-default-members = ["crates/opennow-streamer"]
-exclude = ["vendor/cros-codecs-extended"]
 resolver = "2"
 
 [workspace.package]
@@ -69,7 +62,3 @@ strip = true
 str0m = { path = "vendor/str0m" }
 # Always compile the vendored Opus sources for the distributable streamer.
 audiopus_sys = { path = "vendor/audiopus-sys" }
-# Upstream does not expose an NVDEC-only bundled build. This patch keeps CUDA
-# and nvcuvid as driver-loaded interfaces without requiring the CUDA toolkit.
-ffmpeg-sys-next = { path = "vendor/ffmpeg-sys-next" }
-cros-codecs-extended = { path = "vendor/cros-codecs-extended" }
