@@ -337,6 +337,8 @@ def gfnCargoEnvironment = { Exec task ->
     task.environment 'PATH', "${cargoBin}${File.pathSeparator}${System.getenv('PATH')}"
     task.environment 'ANDROID_NDK_HOME', android.ndkDirectory.absolutePath
     task.environment 'CARGO_TERM_COLOR', 'never'
+    // bindgen (the mtu crate) otherwise passes an unversioned Android triple, which the NDK headers reject.
+    task.environment 'BINDGEN_EXTRA_CLANG_ARGS_aarch64_linux_android', '--target=aarch64-linux-android29'
 }
 def buildGfnHost = tasks.register('buildGfnHost', Exec) {
     description = 'Cross-compiles the GeForce NOW streamer host (libdroiddeckgfn.so) with cargo-ndk.'
