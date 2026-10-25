@@ -1,0 +1,12 @@
+[package]
+name = "opennow-streamer-hid"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[features]
+default = []
+test-runtime = []
+
+[dependencies]
