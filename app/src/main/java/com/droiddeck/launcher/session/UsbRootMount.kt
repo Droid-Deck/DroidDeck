@@ -39,11 +39,14 @@ object UsbRootMount {
     private fun lower(context: Context): String = "${files(context)}/usb"
 
     /** Without root: the mount propagates into this process. */
-    fun mounted(context: Context): Boolean = try {
+    fun mounted(context: Context): Boolean = lower(context) in GameStorage.mountPoints()
+
+    /** The mount point, made and owned by the app; the returned shell line exits 10 if it cannot be. */
+    private fun mountPoint(context: Context): String {
+        path(context).parentFile?.mkdirs()
         val m = lower(context)
-        File("/proc/self/mountinfo").readLines().any { it.split(' ').getOrNull(4) == m }
-    } catch (e: Exception) {
-        false
+        val u = Process.myUid()
+        return "[ -d $m ] || { mkdir $m && chown $u:$u $m; } || exit 10"
     }
 
     private class Result(val code: Int, val out: List<String>)
@@ -59,8 +62,7 @@ object UsbRootMount {
     private val deadlines = java.util.concurrent.Executors.newSingleThreadScheduledExecutor { Thread(it, "usb-root-deadline").apply { isDaemon = true } }
 
     private fun run(context: Context, script: String): Result {
-        val process = try { su(script) } catch (e: java.io.IOException) { null }
-            ?: throw IllegalStateException(context.getString(R.string.usb_root_denied))
+        val process = try { su(script) } catch (e: java.io.IOException) { throw IllegalStateException(context.getString(R.string.usb_root_denied)) }
         val deadline = deadlines.schedule(process::destroy, TIMEOUT_S, java.util.concurrent.TimeUnit.SECONDS)
         val out = try { process.inputStream.bufferedReader().readLines() } finally { deadline.cancel(false) }
         val code = process.waitFor()
@@ -88,33 +90,24 @@ object UsbRootMount {
         return Drive(device, uuid, type, fields["LABEL"].orEmpty(), fields["SIZE"]?.toLongOrNull() ?: 0)
     }
 
-    /** The chosen drive's label, once root has read it; null = none known. */
-    @Volatile var label: String? = null
-        private set
-
-    /** The chosen drive, if plugged in; none chosen yet = the first one found. */
-    fun chosen(context: Context): Drive? {
+    /** The chosen drive, saved with its label; none chosen yet = the first one found. */
+    private fun chosen(context: Context): Drive {
         val uuid = SessionPrefs.usbRootDrive(context)
-        val drives = drives(context)
-        val drive = if (uuid.isEmpty()) drives.firstOrNull()?.also { SessionPrefs.setUsbRootDrive(context, it.uuid) }
-            else drives.firstOrNull { it.uuid == uuid }
-        drive?.let { label = it.label.ifEmpty { null } }
+        val drive = drives(context).firstOrNull { uuid.isEmpty() || it.uuid == uuid }
+            ?: throw IllegalStateException(context.getString(R.string.usb_root_not_plugged))
+        SessionPrefs.setUsbRootDrive(context, drive.uuid, drive.label)
         return drive
     }
-
-    private fun chosenOrFail(context: Context): Drive =
-        chosen(context) ?: throw IllegalStateException(context.getString(R.string.usb_root_not_plugged))
 
     /** Mounts the chosen drive; null on success, else the reason. */
     @Synchronized
     fun mount(context: Context): String? = attempt("mount") {
-        val drive = chosenOrFail(context)
         if (mounted(context)) return@attempt
+        val drive = chosen(context)
         val m = lower(context)
         val u = Process.myUid()
-        path(context).parentFile?.mkdirs()
         val script = buildString {
-            appendLine("[ -d $m ] || { mkdir $m && chown $u:$u $m; } || exit 10")
+            appendLine(mountPoint(context))
             if (drive.fat) {
                 // vold's fs type (sdfat on Samsung), then make vold let go.
                 appendLine("t=\$(grep '^${drive.device} ' /proc/mounts | head -n 1 | cut -d' ' -f3)")
@@ -139,13 +132,12 @@ object UsbRootMount {
     /** ext4 only, on user confirm: gives the drive's files this app's owner and SELinux label. */
     @Synchronized
     fun prepare(context: Context): String? = attempt("prepare") {
-        val drive = chosenOrFail(context)
+        val drive = chosen(context)
         check(drive.type == "ext4") { "not an ext4 drive" }
         val m = lower(context)
         val u = Process.myUid()
-        path(context).parentFile?.mkdirs()
         val result = run(context, """
-            [ -d $m ] || { mkdir $m && chown $u:$u $m; } || exit 10
+            ${mountPoint(context)}
             grep -q ' $m ' /proc/self/mountinfo || mount -t ext4 -o nosuid,nodev,noatime ${drive.device} $m || exit 13
             chown -hR $u:$u $m || exit 21
             chcon -hR ${'$'}(ls -Zd ${files(context)} | cut -d' ' -f1) $m || exit 23
@@ -157,6 +149,7 @@ object UsbRootMount {
     /** Syncs, unmounts, hands exFAT/FAT back to vold. Refuses while files are open. */
     @Synchronized
     fun unmount(context: Context): String? = attempt("unmount") {
+        if (SessionState.running) throw IllegalStateException(context.getString(R.string.usb_root_eject_running))
         // A queued or paused store install would later write to the bare folder under the mount.
         if (com.droiddeck.launcher.stores.download.SavedQueue.installsTo(path(context)))
             throw IllegalStateException(context.getString(R.string.usb_root_busy))
@@ -221,6 +214,12 @@ object UsbRootMount {
         }, "usb-root-watch").start()
     }
 
+    /** [watch] and [mount], off the main thread: the setting is on. */
+    fun enable(context: Context): String? {
+        watch(context)
+        return mount(context)
+    }
+
     /** Stops [watch]'s root process; the next [watch] starts a new one. */
     fun unwatch(context: Context) {
         val pid = watcherPid.takeIf { it > 0 } ?: return
@@ -229,6 +228,7 @@ object UsbRootMount {
 
     @Synchronized
     private fun dropIfGone(context: Context) {
+        if (!mounted(context)) return
         val m = lower(context)
         attempt("removed") {
             val result = run(context, "s=\$(grep ' $m ' /proc/mounts | cut -d' ' -f1); { [ -z \"\$s\" ] || [ -b \"\$s\" ]; } && exit 1; umount -l $m")

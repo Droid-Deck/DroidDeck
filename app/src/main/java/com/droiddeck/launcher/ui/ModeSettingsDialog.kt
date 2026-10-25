@@ -31,6 +31,8 @@ import com.droiddeck.launcher.runtime.DeckyManager
 import com.droiddeck.launcher.session.BootMovie
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.SessionService
+import com.droiddeck.launcher.session.UsbRootMount
+import com.droiddeck.launcher.core.FileUtils
 
 class DriverRow(val id: String, val name: String, val detail: String, val removable: Boolean, val tag: String = "") {
     companion object {
@@ -117,7 +119,7 @@ class ModeSettings(
 
 class UsbRootUi(
     val enabled: Boolean,
-    val drives: List<com.droiddeck.launcher.session.UsbRootMount.Drive>,
+    val drives: List<UsbRootMount.Drive>,
     val drive: String,
     val mounted: Boolean,
     /** The last mount/eject error, or null. */
@@ -423,8 +425,8 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
                 if (usb.enabled) {
                     val chosen = usb.drives.firstOrNull { it.uuid == usb.drive }
                     val unnamed = stringResource(R.string.usb_root_unnamed)
-                    val name: (com.droiddeck.launcher.session.UsbRootMount.Drive) -> String = {
-                        val label = it.label.ifEmpty { if (it.size > 0) String.format(unnamed, com.droiddeck.launcher.core.FileUtils.sizeToString(it.size)) else it.uuid }
+                    val name: (UsbRootMount.Drive) -> String = {
+                        val label = it.label.ifEmpty { if (it.size > 0) String.format(unnamed, FileUtils.sizeToString(it.size)) else it.uuid }
                         "$label (${it.type})"
                     }
                     val driveOpen = host.open == "usb-drive"
@@ -443,16 +445,18 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
                             }
                         }
                     }
-                    if (chosen != null) SettingsRow(
-                        stringResource(if (usb.mounted) R.string.usb_root_mounted else R.string.usb_root_unmounted),
-                        if (usb.mounted && usb.sessionRunning) stringResource(R.string.usb_root_eject_running)
-                        else if (!usb.mounted && chosen.type == "ext4") stringResource(R.string.usb_root_prepare_hint) else null,
-                    ) {
+                    val ext4 = chosen?.type == "ext4"
+                    val hint = when {
+                        usb.mounted && usb.sessionRunning -> stringResource(R.string.usb_root_eject_running)
+                        !usb.mounted && ext4 -> stringResource(R.string.usb_root_prepare_hint)
+                        else -> null
+                    }
+                    if (chosen != null) SettingsRow(stringResource(if (usb.mounted) R.string.usb_root_mounted else R.string.usb_root_unmounted), hint) {
                         Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(6.dp)) {
                             if (usb.mounted) SecondaryButton(stringResource(R.string.usb_root_eject), enabled = !usb.sessionRunning, onClick = a.onUsbEject)
                             else {
                                 SecondaryButton(stringResource(R.string.usb_root_mount), onClick = a.onUsbMount)
-                                if (chosen.type == "ext4") ConfirmButton(stringResource(R.string.usb_root_prepare), stringResource(R.string.usb_root_prepare_confirm), onConfirm = a.onUsbPrepare)
+                                if (ext4) ConfirmButton(stringResource(R.string.usb_root_prepare), stringResource(R.string.usb_root_prepare_confirm), onConfirm = a.onUsbPrepare)
                             }
                         }
                     }

@@ -1116,7 +1116,10 @@ object SessionPrefs {
     /** The chosen drive's filesystem UUID. */
     fun usbRootDrive(context: Context): String = prefs(context).getString("usbRootDrive", "") ?: ""
 
-    fun setUsbRootDrive(context: Context, uuid: String) {
-        prefs(context).edit().putString("usbRootDrive", uuid).apply()
+    /** The chosen drive's label, saved when it mounts; "" = none. */
+    fun usbRootLabel(context: Context): String = prefs(context).getString("usbRootLabel", "") ?: ""
+
+    fun setUsbRootDrive(context: Context, uuid: String, label: String = "") {
+        prefs(context).edit().putString("usbRootDrive", uuid).putString("usbRootLabel", label).apply()
     }
 }

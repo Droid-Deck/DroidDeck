@@ -1646,11 +1646,9 @@ class SessionService : Service() {
             runCatching { com.droiddeck.launcher.agent.AgentEnv.endSession(this) }
                 .onFailure { Log.w(TAG, "clearing the agent's session environment", it) }
             releaseLocks()
-            // Mounted, not "enabled": the setting may have been turned off while the session ran. Under
-            // the mount lock, and not once a new session has started (its mount must stay).
-            if (UsbRootMount.mounted(this)) Thread({
-                synchronized(UsbRootMount) { if (!SessionState.running) UsbRootMount.unmount(applicationContext) }
-            }, "usb-root").start()
+            // Mounted, not "enabled": the setting may have been turned off while the session ran.
+            // unmount refuses once a new session has started (its mount must stay).
+            if (UsbRootMount.mounted(this)) Thread({ UsbRootMount.unmount(applicationContext) }, "usb-root").start()
             if (status == 0) {
                 SessionEvents.transition(SessionPhase.IDLE, "session.stopped", mapOf("status" to status))
             } else {

@@ -29,13 +29,16 @@ object GameStorage {
      */
     private fun hiddenUsb(context: Context): List<File> {
         val visible = visibleVolumes(context)
-        return try {
-            File("/proc/self/mountinfo").readLines().mapNotNull { it.split(' ').getOrNull(4) }
-                .filter { it.startsWith("/mnt/media_rw/") && it.count { c -> c == '/' } == 3 && it.substringAfterLast('/') !in visible }
-                .distinct().map(::File)
-        } catch (e: Exception) {
-            emptyList()
-        }
+        return mountPoints()
+            .filter { it.startsWith("/mnt/media_rw/") && it.count { c -> c == '/' } == 3 && it.substringAfterLast('/') !in visible }
+            .distinct().map(::File)
+    }
+
+    /** This process's mount points, from /proc/self/mountinfo; empty if unreadable. */
+    fun mountPoints(): List<String> = try {
+        File("/proc/self/mountinfo").readLines().mapNotNull { it.split(' ').getOrNull(4) }
+    } catch (e: Exception) {
+        emptyList()
     }
 
     /** UUIDs of volumes the app already has a /storage/<uuid> path for (SD cards), offered through that. */
@@ -56,7 +59,7 @@ object GameStorage {
         else hiddenUsb(context).firstOrNull { it.canWrite() }
 
     fun usbLabel(context: Context): String =
-        UsbRootMount.label?.takeIf { SessionPrefs.usbRootEnabled(context) } ?: context.getString(R.string.usb_root_volume)
+        SessionPrefs.usbRootLabel(context).takeIf { it.isNotEmpty() && SessionPrefs.usbRootEnabled(context) } ?: context.getString(R.string.usb_root_volume)
 
     fun free(dir: File): String = try {
         FileUtils.sizeToString(StatFs(dir.path).availableBytes)

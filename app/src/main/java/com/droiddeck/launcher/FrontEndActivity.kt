@@ -37,6 +37,7 @@ import com.droiddeck.launcher.runtime.LinuxRuntimeInstaller
 import com.droiddeck.launcher.runtime.DeckyManager
 import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.ui.PackageRow
+import com.droiddeck.launcher.ui.UsbRootUi
 import com.droiddeck.launcher.ui.exposeTestTags
 import com.droiddeck.launcher.session.OfflineMode
 import com.droiddeck.launcher.session.ProtonExtras
@@ -399,7 +400,7 @@ class FrontEndActivity : ComponentActivity() {
     private var gameStorage by mutableStateOf("")
     private var storageDiagnostics by mutableStateOf(false)
     private var storageOptions by mutableStateOf<List<GameStorage.Option>>(emptyList())
-    private var usbRoot by mutableStateOf<com.droiddeck.launcher.ui.UsbRootUi?>(null)
+    private var usbRoot by mutableStateOf<UsbRootUi?>(null)
     private val usbRootListener: () -> Unit = { refreshUsbRoot() }
     private var usbNeedsAccess by mutableStateOf(false)
     private val pickGameStorage = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
@@ -1734,21 +1735,24 @@ class FrontEndActivity : ComponentActivity() {
                 onUsbRoot = { on ->
                     SessionPrefs.setUsbRootEnabled(this, on)
                     usbRootAction {
-                        if (on) { UsbRootMount.watch(this); UsbRootMount.mount(this) }
-                        else UsbRootMount.unwatch(this).let { if (SessionState.running) null else UsbRootMount.unmount(this) }
+                        if (on) return@usbRootAction UsbRootMount.enable(this)
+                        UsbRootMount.unwatch(this)
+                        // A running session keeps the drive until it stops.
+                        if (SessionState.running) null else UsbRootMount.unmount(this)
                     }
                 },
                 onUsbDrive = { uuid ->
                     usbRootAction {
-                        if (SessionState.running) return@usbRootAction getString(R.string.usb_root_eject_running)
                         // One lock for the whole switch, so two quick picks cannot save one drive and mount the other.
-                        synchronized(UsbRootMount) { UsbRootMount.unmount(this) ?: run { SessionPrefs.setUsbRootDrive(this, uuid); UsbRootMount.mount(this) } }
+                        synchronized(UsbRootMount) {
+                            UsbRootMount.unmount(this)?.let { return@usbRootAction it }
+                            SessionPrefs.setUsbRootDrive(this, uuid)
+                            UsbRootMount.mount(this)
+                        }
                     }
                 },
                 onUsbMount = { usbRootAction { UsbRootMount.mount(this) } },
-                onUsbEject = {
-                    usbRootAction { if (SessionState.running) getString(R.string.usb_root_eject_running) else UsbRootMount.unmount(this) }
-                },
+                onUsbEject = { usbRootAction { UsbRootMount.unmount(this) } },
                 onUsbPrepare = { usbRootAction { UsbRootMount.prepare(this) } },
                 onStorageDiagnostics = { on ->
                     SessionPrefs.setStorageDiagnosticsEnabled(this, on)
@@ -1980,7 +1984,8 @@ class FrontEndActivity : ComponentActivity() {
         settingsMode = mode
         Thread({
             drivers.refreshDrivers()
-            if (mode == SessionService.MODE_STEAM) refreshUsbRoot()
+            // Its own thread: a root prompt must not hold up the rest of the sheet.
+            if (mode == SessionService.MODE_STEAM) Thread({ refreshUsbRoot() }, "usb-root").start()
             val needsAccess = mode == SessionService.MODE_STEAM && GameStorage.usbNeedsAccess(this)
             val storage = GameStorage.options(this)
             val deckyInstalled = if (mode == SessionService.MODE_STEAM) DeckyManager.installed(this) else null
@@ -2008,12 +2013,10 @@ class FrontEndActivity : ComponentActivity() {
         if (!UsbRootMount.available()) return
         val on = SessionPrefs.usbRootEnabled(this)
         var error = status
-        val drives = if (on) try { UsbRootMount.drives(this) } catch (e: Exception) { error = error ?: e.message; emptyList() } else emptyList()
+        val drives = if (!on) emptyList() else runCatching { UsbRootMount.drives(this) }.getOrElse { error = error ?: it.message; emptyList() }
         val drive = SessionPrefs.usbRootDrive(this)
         if (on && drive.isNotEmpty() && drives.none { it.uuid == drive }) error = error ?: getString(R.string.usb_root_not_plugged)
-        val state = com.droiddeck.launcher.ui.UsbRootUi(
-            on, drives, drive, UsbRootMount.mounted(this), error, SessionState.running,
-        )
+        val state = UsbRootUi(on, drives, drive, UsbRootMount.mounted(this), error, SessionState.running)
         ui.post { usbRoot = state }
     }
 

@@ -54,8 +54,7 @@ class App : Application() {
         com.droiddeck.launcher.stores.StoresState.register(com.droiddeck.launcher.stores.itch.ItchBackend)
         com.droiddeck.launcher.stores.StoresState.register(com.droiddeck.launcher.stores.xbox.XboxBackend)
         if (com.droiddeck.launcher.session.SessionPrefs.usbRootEnabled(this)) {
-            com.droiddeck.launcher.session.UsbRootMount.watch(this)
-            Thread({ com.droiddeck.launcher.session.UsbRootMount.mount(this) }, "usb-root").start()
+            Thread({ com.droiddeck.launcher.session.UsbRootMount.enable(this) }, "usb-root").start()
         }
     }
 
