@@ -542,11 +542,11 @@ case $mode in
                 bl_zram_usage "${_bl_pids[@]}" > /dev/null
                 if [ "$_bl_rss" -ge $((512 * 1024)) ]; then
                   bl_zram_send 1 "over the ${BL_RAM_CAP_MB} MB RAM cap, compressing the client" client
+                  [ "$_bl_game" = 1 ] && _bl_packed=$SECONDS
                 else
                   step "RAM cap: over, client already small ($((_bl_rss / 1024)) MB resident), skipping it"
                 fi
                 bl_over_cap && bl_zram_send 1 "still over the RAM cap, compressing the rest of the session" session
-                [ "$_bl_game" = 1 ] && _bl_packed=$SECONDS
                 if bl_over_cap; then
                   _bl_backoff=$((_bl_backoff * 2 > 600 ? 600 : _bl_backoff * 2))
                   step "RAM cap: still over after paging out, next try in ${_bl_backoff} s"
