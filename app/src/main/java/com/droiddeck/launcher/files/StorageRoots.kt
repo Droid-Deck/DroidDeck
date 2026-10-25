@@ -14,6 +14,7 @@ data class StorageRoot(
     val dir: File,
     val removable: Boolean,
     val readable: Boolean,
+    val usb: Boolean = false,
 )
 
 object StorageRoots {
@@ -26,6 +27,7 @@ object StorageRoots {
     private class Volume(val key: String) {
         var label: String? = null
         var removable: Boolean = key != PRIMARY_KEY
+        var usb = false
         val candidates = LinkedHashSet<File>()
         val seeds = LinkedHashSet<File>()
     }
@@ -73,6 +75,7 @@ object StorageRoots {
         GameStorage.usbDrive(context)?.let { usb ->
             volumeOf(usb.name).apply {
                 label = GameStorage.usbLabel(context)
+                this.usb = true
                 candidates += usb
             }
         }
@@ -102,6 +105,7 @@ object StorageRoots {
             dir = dir,
             removable = removable,
             readable = canBrowse(dir),
+            usb = usb,
         )
     }
 
