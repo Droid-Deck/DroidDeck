@@ -1277,6 +1277,13 @@ class FrontEndActivity : ComponentActivity() {
         com.droiddeck.launcher.ui.Ambient.poke()
     }
 
+    override fun dispatchTouchEvent(event: android.view.MotionEvent): Boolean {
+        if (event.actionMasked == android.view.MotionEvent.ACTION_UP || event.actionMasked == android.view.MotionEvent.ACTION_CANCEL) {
+            com.droiddeck.launcher.ui.Ambient.poke()
+        }
+        return super.dispatchTouchEvent(event)
+    }
+
     override fun dispatchGenericMotionEvent(event: android.view.MotionEvent): Boolean {
         com.droiddeck.launcher.ui.Ambient.poke()
         return super.dispatchGenericMotionEvent(event)
