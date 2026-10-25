@@ -11,12 +11,19 @@ object SocNames {
         "SM8975" to "Snapdragon 8 Elite Extreme Gen 6",
         "SM7325" to "Snapdragon 778G", "SM7450" to "Snapdragon 7 Gen 1", "SM7550" to "Snapdragon 7 Gen 3",
         "SM6375" to "Snapdragon 695",
+        "SC8380XP" to "Snapdragon X Elite", "X1E80100" to "Snapdragon X Elite", "X1E-80-100" to "Snapdragon X Elite",
+        "X1E84100" to "Snapdragon X Elite", "X1E-84-100" to "Snapdragon X Elite",
+        "X1E78100" to "Snapdragon X Elite", "X1E-78-100" to "Snapdragon X Elite",
+        "X1P64100" to "Snapdragon X Plus", "X1P-64-100" to "Snapdragon X Plus",
+        "X1P42100" to "Snapdragon X Plus", "X1P-42-100" to "Snapdragon X Plus",
     )
 
     private val PLATFORMS = mapOf(
         "msmnile" to "Snapdragon 855/860", "kona" to "Snapdragon 865/870", "lahaina" to "Snapdragon 888",
         "taro" to "Snapdragon 8 Gen 1", "cape" to "Snapdragon 8+ Gen 1", "kalama" to "Snapdragon 8 Gen 2",
         "pineapple" to "Snapdragon 8 Gen 3", "sun" to "Snapdragon 8 Elite",
+        "hamoa" to "Snapdragon X Elite", "purwa" to "Snapdragon X Plus",
+        "sc8380xp" to "Snapdragon X Elite", "x1e80100" to "Snapdragon X Elite",
     )
 
     fun model(prop: (String) -> String = GpuInfo::systemProperty): String {
