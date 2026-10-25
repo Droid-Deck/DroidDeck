@@ -16,7 +16,7 @@ object ProtonExtras {
     private const val TAG = "ProtonExtras"
     private const val NEED_BYTES = 4L * 1024 * 1024 * 1024
     private const val RELEASES = "https://api.github.com/repos/%s/releases?per_page=15"
-    const val CHECK_EVERY_MS = 6L * 60 * 60 * 1000
+    const val CHECK_EVERY_MS = 60L * 60 * 1000
     @Volatile
     var installInProgress = false
         private set
