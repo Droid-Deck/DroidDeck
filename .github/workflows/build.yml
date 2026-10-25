@@ -86,7 +86,8 @@ jobs:
             --build-url "https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
             --variant "$COMPONENT_VARIANT" \
             --version "$version"
-          sha256sum out/system-vulkan/* > out/system-vulkan/SHA256SUMS
+          cd out/system-vulkan
+          sha256sum ./*.tar.zst ./*.json > SHA256SUMS
       - uses: actions/upload-artifact@v4
         with:
           name: system-vulkan-${{ inputs.system_vulkan_variant }}-${{ github.sha }}
