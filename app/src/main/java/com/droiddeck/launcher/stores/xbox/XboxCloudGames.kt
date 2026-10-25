@@ -98,6 +98,24 @@ object XboxCloudGames {
         }
     }
 
+    private val prefetching = java.util.concurrent.atomic.AtomicBoolean(false)
+
+    /**
+     * Fetches the streaming tokens in the background while a cloud game is on screen (about 20 s), so Stream starts at
+     * once; both players take them from this process (the native one through XboxCloudTokenService).
+     */
+    fun prefetch(context: Context) {
+        val app = context.applicationContext
+        if (!prefetching.compareAndSet(false, true)) return
+        Thread({
+            try {
+                val account = com.droiddeck.launcher.stores.StoreAccounts.signedInAs(app, Store.XBOX) ?: return@Thread
+                runCatching { XboxCloudSession.get(app, account) }
+                    .onFailure { StoresState.logLine("Xbox: cloud tokens not fetched ahead: ${it.message?.take(160)}") }
+            } finally { prefetching.set(false) }
+        }, "xcloud-prefetch").start()
+    }
+
     /** Streaming runs outside the Linux session; the session owns the screen, audio and controllers while it runs. */
     fun stream(context: Context, id: String, title: String) {
         if (SessionState.running) {

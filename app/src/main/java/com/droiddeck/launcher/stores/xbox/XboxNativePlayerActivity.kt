@@ -92,7 +92,7 @@ class XboxNativePlayerActivity : ComponentActivity() {
     private var lastMainEntry = 0
     private val lastRow = mutableMapOf<String, Int>()
     /** The settings this stream started with (stream-start settings changed since then need a restart). */
-    private val startedWith by lazy { XboxCloudSettings.load(this) }
+    private var startedWith: XboxCloudSettings? = null
     /**
      * The picture's route right now: true = zero-copy (decoder straight onto the screen), false = WebRTC's texture
      * through the Vulkan compositor. Zero-copy whenever it is chosen and frame generation is off; switched live.
@@ -126,6 +126,7 @@ class XboxNativePlayerActivity : ComponentActivity() {
         root.addView(overlay, FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.END).apply { topMargin = 16; rightMargin = 16 })
         setContentView(root)
         settings = XboxCloudSettings.load(this)
+        startedWith = settings
         applyDisplayRate(settings.fpsTarget)
         applyOverlay()
 
@@ -248,7 +249,11 @@ class XboxNativePlayerActivity : ComponentActivity() {
         val requested = intent.getStringExtra("product").orEmpty()
         val cached = XboxLibraryCache.read(applicationContext, account, Xodus.market())?.games?.firstOrNull { it.id == requested }
         val product = cached?.extra?.get("cloudId")?.takeIf { it.isNotEmpty() } ?: requested
-        val active = XboxCloudSession.get(applicationContext, account).forStream(settings.region, settings.osName)
+        // The main process's tokens when it has them (no second ~20 s fetch); else this process fetches its own.
+        val shared = runCatching { XboxCloudSession.fromMainProcess(applicationContext, account) }
+            .onFailure { log("tokens from the main process: ${it.message?.take(160)}") }.getOrNull()
+        log(if (shared != null) "tokens from the main process" else "tokens fetched here")
+        val active = (shared ?: XboxCloudSession.get(applicationContext, account)).forStream(settings.region, settings.osName)
         regionNames = active.regionList.map { it.name }
         serverName = active.regionList.firstOrNull { it.baseUri == active.baseUri }?.name
         val title = XboxCloudSession.titles(active)[product] ?: error("This game can't be streamed with this account here.")

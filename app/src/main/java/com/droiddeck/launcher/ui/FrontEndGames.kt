@@ -184,6 +184,7 @@ private fun GameFileFolderActions(s: FrontEndState, a: FrontEndActions) {
 private fun GameActions(g: Library.SteamGame, s: FrontEndState, a: FrontEndActions, onEdit: (Library.SteamGame) -> Unit, launch: (Library.SteamGame) -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     if (g.library == Library.XBOX_CLOUD) {
+        androidx.compose.runtime.LaunchedEffect(g.gameId) { com.droiddeck.launcher.stores.xbox.XboxCloudGames.prefetch(context) }
         Actions {
             PrimaryButton("Stream", enabled = !s.busy, main = true, icon = Icons.Filled.PlayArrow) { launch(g) }
             SecondaryButton("Download") { com.droiddeck.launcher.stores.StoresState.openGameRequest = "${com.droiddeck.launcher.stores.Store.XBOX.id}:${g.storeId}" }
@@ -196,6 +197,7 @@ private fun GameActions(g: Library.SteamGame, s: FrontEndState, a: FrontEndActio
         value = g.source == com.droiddeck.launcher.stores.Store.XBOX.id && !g.storeId.isNullOrEmpty() && !s.shortcutPicker &&
             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.droiddeck.launcher.stores.xbox.XboxCloudGames.streams(context, g.storeId!!) }
     }
+    androidx.compose.runtime.LaunchedEffect(xboxStream) { if (xboxStream) com.droiddeck.launcher.stores.xbox.XboxCloudGames.prefetch(context) }
     Actions {
         PrimaryButton(stringResource(if (s.shortcutPicker) R.string.game_shortcut_choose else R.string.games_launch), enabled = !s.busy, main = true, icon = Icons.Filled.PlayArrow) { launch(g) }
         if (xboxStream) SecondaryButton("Stream") { com.droiddeck.launcher.stores.xbox.XboxCloudGames.stream(context, g.storeId.orEmpty(), g.name) }

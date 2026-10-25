@@ -11,7 +11,7 @@ internal object XboxCloudSession {
     class Region(val name: String, val baseUri: String, val isDefault: Boolean)
 
     class Session(val account: String, val token: String, val offering: String, val baseUri: String, val regionList: List<Region>,
-                  val userToken: String?, private val expiresAt: Long,
+                  val userToken: String?, internal val expiresAt: Long,
                   val osName: String = "windows") {
         val fresh get() = System.currentTimeMillis() < expiresAt - 5 * 60_000L
         val regions get() = regionList.size
@@ -22,6 +22,8 @@ internal object XboxCloudSession {
 
     @Volatile private var cached: Session? = null
 
+    /** One fetch at a time (about 20 s: two ticket exchanges); a second caller waits and gets the same tokens. */
+    @Synchronized
     fun get(app: Context, account: String): Session {
         cached?.takeIf { it.account == account && it.fresh }?.let { return it }
         val json = Xodus.run(app, listOf("cloud-token"), timeout = 60)
@@ -36,6 +38,34 @@ internal object XboxCloudSession {
     }
 
     fun clear() { cached = null; titleIds = null }
+
+    /**
+     * For the native player's own process: the main process's tokens (it keeps them, and fetches them ahead while a
+     * cloud game's page is open), handed over in memory through XboxCloudTokenService; null if that is not reachable.
+     */
+    fun fromMainProcess(app: Context, account: String, timeoutSeconds: Long = 90): Session? {
+        cached?.takeIf { it.account == account && it.fresh }?.let { return it }
+        val reply = XboxCloudTokenService.request(app, account, timeoutSeconds) ?: return null
+        reply.getString("error")?.let { error(it) }
+        return fromBundle(reply).takeIf { it.account == account && it.fresh }?.also { cached = it }
+    }
+
+    internal fun toBundle(s: Session) = android.os.Bundle().apply {
+        putString("account", s.account); putString("token", s.token); putString("offering", s.offering)
+        putString("baseUri", s.baseUri); putString("userToken", s.userToken); putLong("expiresAt", s.expiresAt)
+        putStringArrayList("regionNames", ArrayList(s.regionList.map { it.name }))
+        putStringArrayList("regionUris", ArrayList(s.regionList.map { it.baseUri }))
+        putBooleanArray("regionDefaults", s.regionList.map { it.isDefault }.toBooleanArray())
+    }
+
+    internal fun fromBundle(b: android.os.Bundle): Session {
+        val names = b.getStringArrayList("regionNames").orEmpty()
+        val uris = b.getStringArrayList("regionUris").orEmpty()
+        val defaults = b.getBooleanArray("regionDefaults") ?: BooleanArray(0)
+        val regions = names.indices.map { Region(names[it], uris.getOrElse(it) { "" }, defaults.getOrElse(it) { false }) }
+        return Session(b.getString("account").orEmpty(), b.getString("token").orEmpty(), b.getString("offering").orEmpty(),
+            b.getString("baseUri").orEmpty(), regions, b.getString("userToken"), b.getLong("expiresAt"))
+    }
 
     @Volatile private var titleIds: Pair<String, Map<String, String>>? = null
 

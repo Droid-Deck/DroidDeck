@@ -305,6 +305,7 @@ private fun InstallButton(label: String, modifier: Modifier = Modifier, onInstal
 @Composable
 private fun XboxStreamButton(item: com.droiddeck.launcher.stores.CatalogItem, main: Boolean = false, modifier: Modifier = Modifier) {
     val ctx = LocalContext.current
+    androidx.compose.runtime.LaunchedEffect(Unit) { com.droiddeck.launcher.stores.xbox.XboxCloudGames.prefetch(ctx) }
     val stream = { com.droiddeck.launcher.stores.xbox.XboxCloudGames.stream(ctx, item.id, item.title) }
     if (main) PrimaryButton("Stream", main = true, icon = Icons.Filled.PlayArrow, modifier = modifier) { stream() }
     else SecondaryButton("Stream", modifier = modifier) { stream() }

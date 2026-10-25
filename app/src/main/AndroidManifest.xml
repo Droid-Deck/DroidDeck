@@ -157,6 +157,8 @@
             android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|smallestScreenSize|density|navigation|uiMode"
             android:theme="@style/AppTheme" />
 
+        <service android:name=".stores.xbox.XboxCloudTokenService" android:exported="false" />
+
         <activity android:name=".stores.xbox.XboxNativePlayerActivity" android:exported="false"
             android:process=":xcloudnative" android:screenOrientation="sensorLandscape" android:hardwareAccelerated="true"
             android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|smallestScreenSize|density|navigation|uiMode"
