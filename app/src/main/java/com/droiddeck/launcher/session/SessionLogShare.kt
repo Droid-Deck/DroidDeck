@@ -92,9 +92,9 @@ object SessionLogShare {
         val compat = File(SessionPrefs.activeSteamRoot(context), "steamapps/compatdata")
         return compat.listFiles().orEmpty().flatMap { prefix ->
             File(prefix, "pfx/drive_c/users").listFiles().orEmpty().flatMap { user ->
-                recent(File(user, UBISOFT_LOG_DIR)).map { f -> prefix.name + "/" + f.name to f }
+                recent(File(user, UBISOFT_LOG_DIR), UBISOFT_LOG_MAX_BYTES).map { f -> prefix.name + "/" + f.name to f }
             }
-        }.filter { it.second.length() <= UBISOFT_LOG_MAX_BYTES }
+        }
     }
 
     private const val STEAM_LOG_MAX_BYTES = 8L * 1024 * 1024
@@ -110,9 +110,10 @@ object SessionLogShare {
 
     private fun shareDir(context: Context): File = File(context.cacheDir, "share")
 
-    private fun recent(dir: File): List<File> {
+    private fun recent(dir: File, maxBytes: Long = STEAM_LOG_MAX_BYTES): List<File> {
         val since = System.currentTimeMillis() - RECENT_DAYS * 86_400_000L
-        return dir.listFiles { f -> f.isFile && f.lastModified() >= since }?.sortedBy { it.name }.orEmpty()
+        return dir.listFiles { f -> f.isFile && f.lastModified() >= since && f.length() <= maxBytes }
+            ?.sortedBy { it.name }.orEmpty()
     }
 
     fun clear(context: Context) {
