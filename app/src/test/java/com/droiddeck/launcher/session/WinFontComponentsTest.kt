@@ -61,12 +61,12 @@ class WinFontComponentsTest {
         cache.writeText("invalid catalog")
         assertNull(WinComponents.loadCatalog(null, cache))
         val full = """{"components":[{"name":"d3dx9","status":"ready"}]}"""
-        assertEquals(setOf("d3dx9", "trebuchet", "verdana"),
+        assertEquals(setOf("d3dx9", WinComponents.VCREDIST_ARM64, "trebuchet", "verdana"),
             WinComponents.loadCatalog(full, cache)!!.map { it.name }.toSet())
         assertEquals(full, cache.readText())
-        assertEquals(setOf("d3dx9", "trebuchet", "verdana"),
+        assertEquals(setOf("d3dx9", WinComponents.VCREDIST_ARM64, "trebuchet", "verdana"),
             WinComponents.loadCatalog(null, cache)!!.map { it.name }.toSet())
-        assertEquals(setOf("d3dx9", "trebuchet", "verdana"),
+        assertEquals(setOf("d3dx9", WinComponents.VCREDIST_ARM64, "trebuchet", "verdana"),
             WinComponents.loadCatalog("invalid catalog", cache)!!.map { it.name }.toSet())
         assertEquals(full, cache.readText())
     }

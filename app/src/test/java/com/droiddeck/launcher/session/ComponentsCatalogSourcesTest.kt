@@ -107,7 +107,7 @@ class ComponentsCatalogSourcesTest {
                 it.copy(hidden = true)
             })
         }
-        val source = ComponentsManager.sources(context, comp).single()
+        val source = testSource(comp)
         val sha = "a".repeat(64)
         val bodies = linkedMapOf(
             "unrelated" to JSONObject().put("schema", 1).put("component", "fex").toString(),
@@ -200,8 +200,16 @@ class ComponentsCatalogSourcesTest {
         assertNotEquals(oldName, availableAgain.localFile)
     }
 
+    private fun testSource(comp: String): RepositorySources.Source {
+        val rows = ComponentsManager.sources(context, comp)
+        val selected = rows.single { it.repository.equals("The412Banner/Nightlies", ignoreCase = true) }
+        return ComponentsManager.saveSources(
+            context, comp, rows.map { it.copy(hidden = it.id != selected.id) },
+        ).filterNot { it.hidden }.single()
+    }
+
     private fun bindBuiltIns(): Map<String, RepositorySources.Source> = ComponentsManager.COMPONENTS.associateWith { comp ->
-        val source = ComponentsManager.sources(context, comp).single()
+        val source = testSource(comp)
         RepositorySources.bind(
             context, ComponentsManager.sourceScope(comp), ComponentsManager.sourceBuiltIns(comp), source,
             100L + ComponentsManager.COMPONENTS.indexOf(comp),

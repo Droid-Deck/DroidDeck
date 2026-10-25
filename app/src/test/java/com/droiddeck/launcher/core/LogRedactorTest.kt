@@ -257,6 +257,25 @@ class LogRedactorTest {
         assertFalse(out.toString().contains("abcdef123456"))
     }
 
+    @Test fun sharedStreamDistinguishesOversizedAndUnsupportedLines() {
+        val src = tmp.newFile("shared-lines.log")
+        src.writeText(
+            "x".repeat(LogRedactor.MAX_LINE_LENGTH + 1) + "\n" +
+                "private-prefix\u0000private-suffix\n" +
+                "after sessionid=abcdef123456\n"
+        )
+        val out = StringWriter()
+
+        assertTrue(LogRedactor.scrubForShare(src, out))
+
+        assertEquals(
+            "${LogRedactor.OVERSIZED_LINE}\n" +
+                "<unsupported or oversized line withheld>\n" +
+                "after sessionid=<redacted:token>\n",
+            out.toString(),
+        )
+    }
+
     @Test fun aMaximumLengthLineBeforeCrLfIsStillScrubbed() {
         val src = tmp.newFile("maximum.log")
         val line = "x ".repeat(LogRedactor.MAX_LINE_LENGTH / 2)
