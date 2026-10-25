@@ -77,10 +77,11 @@ object StoresState {
         val app = context.applicationContext
         com.droiddeck.launcher.stores.download.SavedQueue.restore(app)
         background("stores-refresh") {
+            runCatching { com.droiddeck.launcher.stores.battlenet.BattleNetClient.syncAccount(app) }
             val found = Store.entries.mapNotNull { store -> StoreAccounts.displayName(app, store)?.let { store to it } }
             val onDisk = StoreInstallRoot.gameFolders(app).mapNotNull { folder ->
                 StoreGameSidecar.read(folder)?.takeIf { it.isInstalled }?.let { InstalledStoreGame(it, folder) }
-            }
+            } + runCatching { com.droiddeck.launcher.stores.battlenet.BattleNetBackend.installedGames(app) }.getOrDefault(emptyList())
             val partial = StoreInstallRoot.unfinished(app)
             val version = if (StoresNative.available) StoresNative.version ?: "" else ""
             main.post {
@@ -212,9 +213,11 @@ object StoresState {
     }
 
     var pendingInstall by mutableStateOf<CatalogItem?>(null)
+    var itchPicking by mutableStateOf<CatalogItem?>(null)
 
     fun requestInstall(context: Context, item: CatalogItem) {
         askForNotifications(context)
+        if (item.store == Store.ITCH && item.extra["uploadId"].isNullOrEmpty()) { itchPicking = item; return }
         if (isUnfinished(item)) { install(context, item); return }
         val targets = StoreInstallRoot.targets(context)
         if (targets.size > 1 || StoreLanguage.selectable(item.store)) pendingInstall = item
@@ -223,6 +226,10 @@ object StoresState {
 
     fun install(context: Context, item: CatalogItem, root: java.io.File? = null, language: String? = null) {
         val app = context.applicationContext
+        if (item.store == Store.BATTLENET) {
+            backends[item.store]?.install(app, item, root ?: StoreInstallRoot.installRoot(app))
+            return
+        }
         val folder = StoreInstallRoot.folderFor(app, item.store, item.id, item.title, root ?: StoreInstallRoot.installRoot(app))
         val target = folder.parentFile!!.parentFile!!
         val code = language?.takeIf { it.isNotBlank() } ?: StoreLanguage.preferredCode(app)
@@ -256,6 +263,10 @@ object StoresState {
         uninstalling[key] = 0f
         background("stores-uninstall", onFailure = { main.post { uninstalling.remove(key); onDone() } }) {
             runCatching { backends[game.sidecar.store]?.uninstall(app, game) }
+            if (game.sidecar.store == Store.BATTLENET) {
+                main.post { uninstalling.remove(key); onDone() }
+                return@background
+            }
             StoreInstalls.uninstall(app, game, progress = { f -> main.post { if (key in uninstalling) uninstalling[key] = f } }, removed = {
                 main.post {
                     installed = installed.filterNot { it.folder.absolutePath == game.folder.absolutePath }

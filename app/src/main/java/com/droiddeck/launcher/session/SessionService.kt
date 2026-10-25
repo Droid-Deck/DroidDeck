@@ -351,6 +351,7 @@ class SessionService : Service() {
         SessionState.programArgs = intent?.getStringArrayExtra(EXTRA_PROGRAM_ARGS)?.toList().orEmpty()
         SessionState.steamUi = intent?.getStringExtra(EXTRA_STEAM_UI)
         SessionState.steamUrl = intent?.getStringExtra(EXTRA_STEAM_URL)
+        com.droiddeck.launcher.stores.battlenet.BattleNetClient.clearRequests(LinuxRuntime.sessionRoot(this))
         synchronized(stopLock) {
             SessionState.steamClientArch = null
             SessionState.running = true
@@ -365,6 +366,9 @@ class SessionService : Service() {
         SessionEvents.transition(SessionPhase.STARTING_GUEST, "service.started", mapOf("mode" to SessionState.mode))
         com.droiddeck.launcher.wayland.CompositorHost.newSession()
         val gen = ++sessionGen
+        SessionPrefs.backgroundAppLimit(this).takeIf { it != com.droiddeck.launcher.core.BackgroundAppLimit.OFF }
+            ?.let { com.droiddeck.launcher.core.BackgroundAppLimit.applyAsync(this, it) }
+        if (SessionPrefs.clearCachedApps(this)) clearCachedApps()
         cancelQueuedSteamGame(clearMailbox = false)
         clearSteamGameMailbox()
         if (SessionState.mode == MODE_STEAM) SessionState.steamUrl
@@ -681,6 +685,7 @@ class SessionService : Service() {
         DeviceReport.write(this, File(sessionDir, "device.txt"), SessionState.mode)
         NetworkReport.write(this, File(sessionDir, "network.txt"))
         SessionLogCapture.start(File(sessionDir, "app.log"))
+        MemoryLog.start()
         return sessionDir
     }
 
@@ -748,7 +753,12 @@ class SessionService : Service() {
         guest.add("BL_FSYNC_FIRST=" + (if (SessionPrefs.fsyncFirst(this)) "1" else "0"))
         guest.add("BL_GAMESCOPE_REALTIME=" + (if (SessionPrefs.gamescopeRealtime(this)) "1" else "0"))
         if (SessionPrefs.cursorComposite(this)) guest.add("BL_CURSOR_COMPOSITE=1")
-        if (com.droiddeck.launcher.core.ZramSupport.supported()) guest.add("BL_ZRAM=1")
+        if (com.droiddeck.launcher.core.ZramSupport.supported()) {
+            guest.add("BL_ZRAM=1")
+            if (steamHere) SessionPrefs.ramCapMb(this).takeIf { it > 0 }?.let { guest.add("BL_RAM_CAP_MB=$it") }
+            if (!SessionPrefs.zramClient(this)) guest.add("BL_ZRAM_CLIENT=0")
+        }
+        SessionPrefs.vramCapMb(this).takeIf { it > 0 }?.let { guest.add("BL_VRAM_MB=$it") }
         guest.add("BANNER_AUDIO_DIRECT_DECAY=0")
         val extra = extraEnv() + com.droiddeck.launcher.agent.AgentEnv.beginSession(this)
         if (extra.none { it.startsWith("TU_DEBUG=") }) guest.add("$GAME_TU_DEBUG=" + (tuOverride ?: if (tuDriver) "sysmem" else ""))
@@ -763,7 +773,7 @@ class SessionService : Service() {
     }
 
     private fun noSteamGame(): Boolean =
-        SessionState.mode == MODE_RUN && SessionState.program in setOf(NoSteamLaunch.PROTON_RUN, NoSteamLaunch.EPIC)
+        SessionState.mode == MODE_RUN && SessionState.program in setOf(NoSteamLaunch.PROTON_RUN, NoSteamLaunch.EPIC, NoSteamLaunch.BATTLENET)
 
     private fun startAudio(guest: MutableList<String>, sessionDir: File): PulseAudioComponent {
         val wantsDirectAudio = (SessionState.mode == MODE_STEAM || SessionState.mode == MODE_DESKTOP || noSteamGame()) &&
@@ -1063,6 +1073,7 @@ class SessionService : Service() {
         if (!stillSameProcess()) return
         val tree = descendants(prootPid)
         if (!stillSameProcess()) return
+        saveWineRegistries(tree)
         android.os.Process.sendSignal(prootPid, 15)
         if (!waitForExit(prootPid, GRACE_MS)) {
             if (!stillSameProcess()) return
@@ -1077,6 +1088,31 @@ class SessionService : Service() {
             killed++
         }
         if (killed > 0) Log.i(TAG, "swept $killed process(es) proot left behind")
+    }
+
+    private fun clearCachedApps() {
+        val app = applicationContext
+        Thread({
+            val before = MemoryReadout.availableMb()
+            val result = runCatching { com.droiddeck.launcher.core.WirelessAdbFix.clearCachedApps(app) }
+            val after = MemoryReadout.availableMb()
+            result.onSuccess { Log.i(TAG, "cached apps closed: available memory $before -> $after MB") }
+                .onFailure { Log.w(TAG, "cached apps not closed: ${it.message}") }
+        }, "clear-cached-apps").start()
+    }
+
+    private fun saveWineRegistries(tree: List<Pair<Int, Long>>) {
+        val servers = tree.filter { (pid, started) ->
+            readStat(pid)?.second == started && WineProcesses.isWineserver(
+                runCatching { File("/proc/$pid/cmdline").readBytes() }.getOrNull(),
+                runCatching { File("/proc/$pid/comm").readText() }.getOrNull(),
+            )
+        }
+        if (servers.isEmpty()) return
+        servers.forEach { (pid, _) -> android.os.Process.sendSignal(pid, 15) }
+        val deadline = System.currentTimeMillis() + WINE_SAVE_MS
+        val saved = servers.count { (pid, _) -> waitForExit(pid, (deadline - System.currentTimeMillis()).coerceAtLeast(0)) }
+        Log.i(TAG, "wineserver registry save: $saved of ${servers.size} exited after SIGTERM")
     }
 
     private fun descendants(root: Int): List<Pair<Int, Long>> {
@@ -1356,6 +1392,11 @@ class SessionService : Service() {
                         Log.i(TAG, "Steam requested session sleep")
                         updateSuspendPolicy()
                     }
+                    return
+                }
+                if (path == com.droiddeck.launcher.runtime.BattleNet.FEX_REQUEST) {
+                    File(dir, path).delete()
+                    com.droiddeck.launcher.runtime.BattleNet.answerFexRequest(this@SessionService, dir)
                     return
                 }
                 if (path != null && path.startsWith("desktop-import-") && path.endsWith(".request")) {
@@ -1641,6 +1682,8 @@ class SessionService : Service() {
             runCatching { com.droiddeck.launcher.agent.AgentEnv.endSession(this) }
                 .onFailure { Log.w(TAG, "clearing the agent's session environment", it) }
             releaseLocks()
+            MemoryLog.stop()
+            com.droiddeck.launcher.core.BackgroundAppLimit.restoreAsync(applicationContext)
             if (status == 0) {
                 SessionEvents.transition(SessionPhase.IDLE, "session.stopped", mapOf("status" to status))
             } else {
@@ -1694,7 +1737,8 @@ class SessionService : Service() {
         updateDownloadMonitoring()
         val stoppedGen = sessionGen
         val stoppedSession = SessionState.sessionId
-        val launcherEnded = SessionState.mode == MODE_STEAM || SessionState.mode == MODE_DESKTOP || SessionState.program == NoSteamLaunch.EPIC
+        val launcherEnded = SessionState.mode == MODE_STEAM || SessionState.mode == MODE_DESKTOP || SessionState.program == NoSteamLaunch.EPIC ||
+            SessionState.program == NoSteamLaunch.BATTLENET
         SessionState.stopRequested = false
         GpuClockPin.stop(this)
         GameThreadHints.stop()
@@ -1754,6 +1798,9 @@ class SessionService : Service() {
     private fun importLauncherGames() {
         runCatching { com.droiddeck.launcher.stores.epic.EpicClientLibrary.importClientGames(this) }
             .onFailure { Log.w(TAG, "client library scan failed: ${it.javaClass.simpleName}") }
+        runCatching { com.droiddeck.launcher.stores.battlenet.BattleNetClient.syncAccount(this) }
+            .onFailure { Log.w(TAG, "Battle.net sign-in check failed: ${it.javaClass.simpleName}") }
+        com.droiddeck.launcher.stores.StoresState.notifyLibraryChanged(this)
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
@@ -2001,6 +2048,7 @@ class SessionService : Service() {
         private val STRAGGLERS = listOf("droiddeck-session", "gamescope", "Xwayland", "steamrtarm64",
             "steamwebhelper", "linuxfs/opt/android-host/proot", "/libproot.so", "pulseaudio/libpulseaudio.so")
         private const val GRACE_MS = 1200L
+        private const val WINE_SAVE_MS = 3000L
         private const val STEAM_PICKUP_MS = 1500L
         private const val STEAM_EXIT_MS = 10_000L
         private const val GAME_LAUNCH_RETRY_MS = 250L
