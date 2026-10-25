@@ -54,7 +54,7 @@ internal class DriverMenus(
     private var systemRefreshProblem: String? = null
     private var systemRows by mutableStateOf<List<DriverRow>>(emptyList())
     var linuxSelected by mutableStateOf("")
-    var mode by mutableStateOf(SessionPrefs.gpuDriverMode(activity))
+    var mode by mutableStateOf(SessionPrefs.GPU_DRIVERS_AUTO)
     var pairRows by mutableStateOf<List<PairRow>>(emptyList())
     var pairBusy by mutableStateOf<String?>(null)
     var pairPercent by mutableIntStateOf(-1)
@@ -70,6 +70,8 @@ internal class DriverMenus(
     private var sessionRunning by mutableStateOf(false)
     private val systemProfile get() = gpu.family.systemProfile
     private val actualLinuxSelected get() = SessionPrefs.linuxDriver(activity)
+    var tpUbwcMode: String by mutableStateOf(SessionPrefs.TP_UBWC_AUTO)
+        private set
 
     val uiMode: String get() = when (mode) {
         SessionPrefs.GPU_DRIVERS_AUTO -> GPU_MODE_AUTO
@@ -96,7 +98,15 @@ internal class DriverMenus(
         sourceKey = systemProfile?.let { SystemVulkanComponentStore.scope(it) } ?: TurnipReleases.SOURCE_SCOPE,
         sourceBuiltIns = if (systemProfile != null) SystemVulkanComponentStore.sourceBuiltIns() else TurnipReleases.sourceBuiltIns(),
         systemRows = systemRows, systemDownloads = if (systemGpu) linuxDownloads else emptyList(),
+        tpUbwcMode = tpUbwcMode.takeIf { gpu.model == 740 },
+        tpUbwcRestartRequired = com.droiddeck.launcher.gpu.TpUbwcHint.restartRequired(activity),
     )
+
+    fun chooseTpUbwcMode(mode: String) {
+        if (gpu.model != 740) return
+        SessionPrefs.setTpUbwcMode(activity, mode)
+        tpUbwcMode = mode
+    }
 
     private fun slotSource(chosenDefault: Boolean, defaultLabel: Int): String = activity.getString(when {
         uiMode == GPU_MODE_AUTO -> R.string.gpu_src_auto
@@ -153,6 +163,8 @@ internal class DriverMenus(
     var androidSelected by mutableStateOf("")
 
     fun refreshDrivers() {
+        mode = SessionPrefs.gpuDriverMode(activity)
+        tpUbwcMode = SessionPrefs.tpUbwcMode(activity)
         if (systemGpu && SessionPrefs.androidDriver(activity) in TurnipDriver.BUNDLED) {
             SessionPrefs.setAndroidDriver(activity, TurnipDriver.AUTO)
         }

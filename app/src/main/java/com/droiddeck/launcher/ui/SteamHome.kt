@@ -5,12 +5,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import com.droiddeck.launcher.R
 import androidx.compose.ui.res.stringResource
 import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.runtime.State
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -76,6 +70,38 @@ private const val WALL_MIN_GAMES = 4
 private const val WALL_DISTINCT = 40
 
 private const val DRIFT_STEP_NS = 15_000_000L
+private const val AMBIENT_IDLE_NS = 20_000_000_000L
+
+@Composable
+internal fun ambientAwake(): Boolean {
+    val poked = Ambient.poked
+    var awake by remember { mutableStateOf(true) }
+    LaunchedEffect(poked) {
+        awake = true
+        kotlinx.coroutines.delay(AMBIENT_IDLE_NS / 1_000_000)
+        awake = false
+    }
+    return awake
+}
+
+@Composable
+internal fun AmbientFrames(pauseWhenIdle: Boolean = true, step: (Long) -> Unit) {
+    val onStep = androidx.compose.runtime.rememberUpdatedState(step)
+    val poked = if (pauseWhenIdle) Ambient.poked else 0L
+    if (Motion.scale != 0f) LaunchedEffect(poked, pauseWhenIdle) {
+        var shown = 0L
+        var end = Long.MAX_VALUE
+        while (shown < end) withFrameNanos { now ->
+            if (shown == 0L) {
+                shown = now
+                if (pauseWhenIdle) end = now + AMBIENT_IDLE_NS
+            } else if (now - shown >= DRIFT_STEP_NS) {
+                onStep.value(now - shown)
+                shown = now
+            }
+        }
+    }
+}
 
 @Composable
 internal fun SteamHome(s: FrontEndState, a: FrontEndActions, modifier: Modifier) {
@@ -179,6 +205,7 @@ internal fun CapsuleWall(
     modifier: Modifier = Modifier,
     owned: List<Pair<Int, java.io.File>> = emptyList(),
     featured: List<com.droiddeck.launcher.frontend.SteamFeatured.Game> = emptyList(),
+    pauseWhenIdle: Boolean = true,
 ) {
     val pal = LocalPalette.current
     val blank = remember(pal) { WallCapsule(Brush.linearGradient(listOf(pal.surface, pal.background)), edge = pal.line) }
@@ -188,7 +215,7 @@ internal fun CapsuleWall(
         val store = if (owned.isEmpty()) featured.filter { shown.add(it.appId) }.map { it.name to it.art } else emptyList()
         (library + store).take((WALL_DISTINCT - games.size).coerceAtLeast(0))
     }
-    TiltedWall(games.size + padding.size, driftMs, modifier) { i ->
+    TiltedWall(games.size + padding.size, driftMs, modifier, pauseWhenIdle = pauseWhenIdle) { i ->
         when {
             i < games.size -> WallCapsule(artBrush(hueOf(games[i].name)), games[i].art)
             i - games.size < padding.size -> padding[i - games.size].let { (seed, art) -> WallCapsule(artBrush(hueOf(seed)), art) }
@@ -208,20 +235,13 @@ internal fun TiltedWall(
     capH: androidx.compose.ui.unit.Dp = 168.dp,
     gap: androidx.compose.ui.unit.Dp = 14.dp,
     corner: androidx.compose.ui.unit.Dp = 10.dp,
+    pauseWhenIdle: Boolean = true,
     capsule: (index: Int) -> WallCapsule,
 ) {
     val still = Motion.scale == 0f
     val drift = remember { mutableFloatStateOf(0f) }
-    val period = androidx.compose.runtime.rememberUpdatedState(driftMs)
-    if (!still) LaunchedEffect(Unit) {
-        var shown = 0L
-        while (true) withFrameNanos { now ->
-            if (shown == 0L) shown = now
-            else if (now - shown >= DRIFT_STEP_NS) {
-                drift.floatValue = ((drift.floatValue + (now - shown) / (period.value * 1_000_000.0 * Motion.scale)) % 1.0).toFloat()
-                shown = now
-            }
-        }
+    AmbientFrames(pauseWhenIdle) { dt ->
+        drift.floatValue = ((drift.floatValue + dt / (driftMs * 1_000_000.0 * Motion.scale)) % 1.0).toFloat()
     }
     val density = LocalDensity.current
     BoxWithConstraints(modifier.fillMaxSize()) {
@@ -307,10 +327,9 @@ private fun DrawScope.drawCapsule(look: WallCapsule, art: Painter?, radius: Floa
 private fun CapsuleFan(games: List<Library.SteamGame>) {
     val pal = LocalPalette.current
     val density = LocalDensity.current
-    val transition = rememberInfiniteTransition(label = "fan")
-    val floats = listOf(9_000, 11_000, 13_000).map { ms ->
-        transition.animateFloat(0f, 1f, infiniteRepeatable(tween(ms, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "float")
-    }
+    val clock = remember { androidx.compose.runtime.mutableLongStateOf(0L) }
+    AmbientFrames { clock.longValue += it }
+    val floatMs = listOf(9_000, 11_000, 13_000)
     val still = Motion.scale == 0f
     val slots = listOf(
         FanSlot(0.54f, 0.14f, 0.62f, -9f),
@@ -331,7 +350,7 @@ private fun CapsuleFan(games: List<Library.SteamGame>) {
         for (i in games.indices.reversed()) {
             val slot = slots[i]
             val h = maxHeight * slot.height
-            val v: State<Float> = floats[i]
+            val ms = floatMs[i]
             val look = WallCapsule(artBrush(hueOf(games[i].name)), games[i].art)
             val art = look.art?.let { rememberCapsuleArt(it, with(density) { Size((h * 2f / 3f).toPx(), h.toPx()) }, radius) }
             Spacer(
@@ -339,7 +358,10 @@ private fun CapsuleFan(games: List<Library.SteamGame>) {
                     .offset(x = maxWidth * slot.x, y = maxHeight * slot.y)
                     .size(h * 2f / 3f, h)
                     .graphicsLayer {
-                        val t = if (still) 0f else v.value
+                        val t = if (still) 0f else {
+                            val phase = (clock.longValue / (ms * 1_000_000.0 * Motion.scale)) % 2.0
+                            FastOutSlowInEasing.transform((if (phase < 1.0) phase else 2.0 - phase).toFloat())
+                        }
                         rotationZ = slot.lean + 2f * t
                         translationY = -12.dp.toPx() * t
                         shadowElevation = 24.dp.toPx()

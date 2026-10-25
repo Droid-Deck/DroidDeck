@@ -266,20 +266,22 @@ index 8e9a76e..7c3215e 100644
  #include <set>
  #include <sstream>
  #include <type_traits>
-@@ -129,6 +130,29 @@ namespace dxvk {
+@@ -129,6 +130,31 @@ namespace dxvk {
          m_hasBcFormats = false;
      }
  
-+    // Deliberately limited to the native driver measured on the Pixel Mali
-+    // device. Never invent support or enable unsupported Vulkan features.
++    // Limit this experimental profile to the reported Pixel Mali devices.
++    // Never invent support or enable unsupported Vulkan features.
 +    const auto& properties = m_properties.core.properties;
 +
 +    // Pinned Wine e60892c routes Vulkan IDs through a UINT16 PCI structure,
-+    // truncating the native 0xb8a20000 device ID to zero. Keep that path
-+    // restricted to the exact driver and device name measured here.
++    // truncating these native device IDs to zero. Keep that path restricted
++    // to the reported driver version and exact device names.
 +    bool matchesDevice = properties.deviceID == 0xb8a20000
++      || properties.deviceID == 0xa8620000
 +      || (properties.deviceID == 0
-+       && !std::strcmp(properties.deviceName, "Mali-G715"));
++       && (!std::strcmp(properties.deviceName, "Mali-G715")
++        || !std::strcmp(properties.deviceName, "Mali-G710")));
 +
 +    m_maliCompat = env::getEnvVar("DXVK_MALI_COMPAT") == "1"
 +      && properties.vendorID == 0x13b5
@@ -296,7 +298,7 @@ index 8e9a76e..7c3215e 100644
      disableUnusedFeatures(instance, safeMode);
  
      enableFeaturesAndExtensions();
-@@ -863,7 +887,7 @@ namespace dxvk {
+@@ -863,7 +889,7 @@ namespace dxvk {
        ENABLE_FEATURE(core.features, depthClamp, true),
        ENABLE_FEATURE(core.features, drawIndirectFirstInstance, false),
        ENABLE_FEATURE(core.features, dualSrcBlend, true),
@@ -305,7 +307,7 @@ index 8e9a76e..7c3215e 100644
        ENABLE_FEATURE(core.features, fragmentStoresAndAtomics, true),
        ENABLE_FEATURE(core.features, fullDrawIndexUint32, true),
        ENABLE_FEATURE(core.features, geometryShader, true),
-@@ -872,14 +896,14 @@ namespace dxvk {
+@@ -872,14 +898,14 @@ namespace dxvk {
        ENABLE_FEATURE(core.features, largePoints, false),
        ENABLE_FEATURE(core.features, logicOp, false),
        ENABLE_FEATURE(core.features, multiDrawIndirect, true),
@@ -322,7 +324,7 @@ index 8e9a76e..7c3215e 100644
        ENABLE_FEATURE(core.features, shaderFloat64, false),
        ENABLE_FEATURE(core.features, shaderImageGatherExtended, true),
        ENABLE_FEATURE(core.features, shaderInt16, true),
-@@ -1025,7 +1049,7 @@ namespace dxvk {
+@@ -1025,7 +1051,7 @@ namespace dxvk {
        ENABLE_EXT_FEATURE(extPresentTiming, presentAtRelativeTime, false),
  
        /* Robustness, all features effectively required for correctness */

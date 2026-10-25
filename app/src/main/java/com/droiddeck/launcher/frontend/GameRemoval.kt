@@ -11,7 +11,7 @@ object GameRemoval {
     enum class Kind { STORE, SHORTCUT, LAUNCHER }
 
     fun kind(game: Library.SteamGame): Kind = when {
-        game.library == Library.EPIC_LAUNCHER -> Kind.LAUNCHER
+        game.library == Library.EPIC_LAUNCHER || game.library == Library.BATTLENET_LAUNCHER -> Kind.LAUNCHER
         game.library == Library.ADDED && game.source == Library.ADDED -> Kind.SHORTCUT
         else -> Kind.STORE
     }

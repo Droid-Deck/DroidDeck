@@ -90,6 +90,12 @@ logging can reduce performance and consume storage; disable it after collecting
 the report. If the session log directory is unavailable, the launcher reports
 that diagnostics were skipped instead of writing uncollected files elsewhere.
 
+A Unity game under FEX (`UnityPlayer.dll` for Windows builds under Proton,
+`UnityPlayer.so` or `GameAssembly.so` for native Linux builds started by
+**Linux x86 (FEX)**) keeps FEX's TSO on when the Default profile's FEX preset
+turns it off: without TSO such games can deadlock or crash (seen with Megabonk
+and Crab Game). A FEX preset chosen for the game itself still applies.
+
 ## Defaults and available suggestions
 
 The initial configuration enables Mesa shader caching with

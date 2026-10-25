@@ -8,6 +8,7 @@ add_library(droiddeckwayland SHARED
         src/sc_layer.c
         src/ahb_swapchain.c
         src/waylandcomp_jni.c
+        src/gpu_clock_pin.c
         src/droiddeck_ext.c
         src/wl_dmabuf.c
         src/wl_android_buffer.c
@@ -96,4 +97,5 @@ target_link_libraries(droiddeckwayland
         dl
         log
         android
+        nativewindow
 )

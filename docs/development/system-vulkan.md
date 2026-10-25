@@ -11,7 +11,7 @@ DroidDeck's `android_wlegl` / Android hardware buffer receiver.
 | DRM | Accessible, identifiable PowerVR render node | Accessible, identifiable `sgpu` render node | No DRM-node requirement or handle emulation |
 | Inner X11 presentation | Existing DRI3/Steam GL profile | Existing DRI3/Steam GL profile | Bundled X11 WSI with `WSI_X11_FORCE_SHM=1` |
 | Steam UI rendering | GPU CEF; "Software Steam UI" setting selects software CEF | Existing GPU CEF path | Existing GPU CEF path |
-| Proton DXVK | Managed patched `dxvk` | Managed patched `dxvk-2.6.2` for 128-byte push constants | Managed experimental `dxvk-mali`, guarded to Mali-G715 driver 54.3.0 |
+| Proton DXVK | Managed patched `dxvk` | Managed patched `dxvk-2.6.2` for 128-byte push constants | Managed experimental `dxvk-mali`, guarded to Mali-G715 and Mali-G710 driver 54.3.0 |
 | Session / game compatibility layers | compat / WSI + compat (+ placed for i386) | compat / WSI + compat | compat / WSI + compat (+ placed for managed experimental i386) |
 | Session / managed-game BC emulation | Existing policy / `dxvk` | `0` / `dxvk` | Existing policy / `dxvk` |
 
@@ -498,6 +498,12 @@ and the 10 ARM64X hybrids. All 15 baseline DLLs are byte-identical to the tested
 `b3e3322b` component. Wine truncates Mali ID `0xb8a20000` to `0`, so the guard
 accepts `0` only for the exact `Mali-G715` name, vendor `0x13b5`, driver
 `0x0d803000`, and `DXVK_MALI_COMPAT=1`.
+
+The current profile also accepts native Mali-G710 ID `0xa8620000` and the exact
+Wine-visible `Mali-G710` name with ID `0`, retaining the same vendor, driver,
+and opt-in checks. [CalcProgrammer1 reported Portal gameplay on the original
+Pixel Fold](https://github.com/wallentx/DroidDeck/pull/7#issuecomment-6355544607)
+with this extension. That report does not validate other Mali models or versions.
 
 On a Pixel 8 Pro with Mali-G715 54.3.0, the installed `b35888b` 0.3.2 APK was
 manually staged with the `15dc` component. A stock control with four exact DLL
