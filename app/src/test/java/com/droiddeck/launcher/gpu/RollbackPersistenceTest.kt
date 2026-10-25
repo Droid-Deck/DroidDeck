@@ -11,6 +11,7 @@ import com.droiddeck.launcher.R
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.SessionState
 import java.io.File
+import javax.xml.parsers.DocumentBuilderFactory
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
@@ -19,6 +20,7 @@ import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.util.ReflectionHelpers
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [26, 28, 33], manifest = Config.NONE)
@@ -51,18 +53,57 @@ class RollbackPersistenceTest {
         assertNull(shadowOf(activity).nextStartedActivity)
     }
 
+    private fun preferenceFile(name: String): File {
+        ReflectionHelpers.callStaticMethod<Any?>(Class.forName("android.app.QueuedWork"), "waitToFinish")
+        return File(activity.applicationInfo.dataDir, "shared_prefs/$name.xml")
+    }
+
+    private fun diskString(name: String, key: String): String? {
+        val nodes = DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(preferenceFile(name)).getElementsByTagName("string")
+        return (0 until nodes.length).map { nodes.item(it) }
+            .firstOrNull { it.attributes.getNamedItem("name")?.nodeValue == key }?.textContent
+    }
+
+    private fun diskSet(name: String, key: String): Set<String> {
+        val nodes = DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(preferenceFile(name)).getElementsByTagName("set")
+        val node = (0 until nodes.length).map { nodes.item(it) }
+            .first { it.attributes.getNamedItem("name").nodeValue == key }
+        return (0 until node.childNodes.length).map { node.childNodes.item(it) }
+            .filter { it.nodeName == "string" }.map { it.textContent }.toSet()
+    }
+
+    @Test fun aRejectedTrialWriteChangesMemoryButLeavesTheActualFileUnchanged() {
+        val before = preferenceFile("gpu_auto_trial").readBytes()
+        activity.fail += "gpu_auto_trial"
+        recover()
+        assertNoHandoff()
+        assertNull(AutoDriverTrial.current(activity))
+        assertArrayEquals(before, preferenceFile("gpu_auto_trial").readBytes())
+        assertEquals("trial@1", diskString("gpu_auto_trial", "release"))
+    }
+
+    @Test fun rejectedDriverSelectionsLeaveTheActualSessionFileUnchanged() {
+        val before = preferenceFile("session").readBytes()
+        activity.fail += "session"
+        recover()
+        assertNoHandoff()
+        assertEquals("old-display", SessionPrefs.androidDriver(activity))
+        assertArrayEquals(before, preferenceFile("session").readBytes())
+        assertEquals("trial-display", diskString("session", "androidDriver"))
+    }
+
     private fun assertDurableRollback() {
-        assertEquals("old-display", activity.durable["session"]?.get("androidDriver"))
-        assertEquals("old-linux", activity.durable["session"]?.get("linuxDriver"))
-        assertNull(activity.durable["gpu_auto_trial"]?.get("release"))
-        assertTrue("trial@1" in (activity.durable["gpu_auto_trial"]?.get("bad") as Set<*>))
+        assertEquals("old-display", diskString("session", "androidDriver"))
+        assertEquals("old-linux", diskString("session", "linuxDriver"))
+        assertNull(diskString("gpu_auto_trial", "release"))
+        assertTrue("trial@1" in diskSet("gpu_auto_trial", "bad"))
     }
 
     @Test fun aFailedTrialStateCommitBlocksTheRecoveryHandoff() {
         activity.fail += "gpu_auto_trial"
         recover()
         assertNoHandoff()
-        assertEquals("trial@1", activity.durable["gpu_auto_trial"]?.get("release"))
+        assertEquals("trial@1", diskString("gpu_auto_trial", "release"))
     }
 
     @Test fun repeatedFailuresCannotBypassTheGateAfterTheMemoryStateWasCleared() {
@@ -72,11 +113,25 @@ class RollbackPersistenceTest {
             assertNoHandoff()
         }
         assertNull(AutoDriverTrial.current(activity))
-        assertEquals("trial@1", activity.durable["gpu_auto_trial"]?.get("release"))
+        assertEquals("trial@1", diskString("gpu_auto_trial", "release"))
         activity.fail.clear()
         recover()
         assertNotNull(shadowOf(activity).nextStartedActivity)
         assertDurableRollback()
+    }
+
+    @Test fun reloadingAfterARejectedWriteRestoresThePersistedTrialBeforeRetrying() {
+        activity.fail += "gpu_auto_trial"
+        recover()
+        assertNoHandoff()
+        assertNull(AutoDriverTrial.current(activity))
+        assertEquals("trial@1", diskString("gpu_auto_trial", "release"))
+        activity = Robolectric.buildActivity(DiskActivity::class.java).setup().get()
+        assertEquals("trial@1", AutoDriverTrial.rollbackDue(activity)?.release)
+        recover()
+        assertNotNull(shadowOf(activity).nextStartedActivity)
+        assertDurableRollback()
+        assertFalse(trialDriver.exists())
     }
 
     @Test fun aFailedSelectionFlushRetainsTheTrialAndItsDriverFiles() {
@@ -126,7 +181,7 @@ class RollbackPersistenceTest {
         recover()
         assertNotNull(shadowOf(activity).nextStartedActivity)
         assertEquals("user-linux", SessionPrefs.linuxDriver(activity))
-        assertEquals("user-linux", activity.durable["session"]?.get("linuxDriver"))
+        assertEquals("user-linux", diskString("session", "linuxDriver"))
     }
 
     @Test fun manualRecoveryDoesNotWriteUnrelatedTrialState() {
@@ -159,32 +214,85 @@ class RollbackPersistenceTest {
     class DiskActivity : Activity() {
         val fail = mutableSetOf<String>()
         val attempts = mutableListOf<String>()
-        val durable = mutableMapOf<String, Map<String, Any?>>()
         var failSessionAfterTrialClear = false
+        private val files = mutableMapOf<String, SharedPreferences>()
 
         override fun getSharedPreferences(name: String, mode: Int): SharedPreferences {
             val preferences = super.getSharedPreferences(name, mode)
             if (name !in setOf("session", "gpu_auto_trial")) return preferences
-            return object : SharedPreferences by preferences {
-                override fun edit(): SharedPreferences.Editor {
-                    val editor = preferences.edit()
-                    return object : SharedPreferences.Editor by editor {
-                        override fun putString(key: String?, value: String?): SharedPreferences.Editor { editor.putString(key, value); return this }
-                        override fun putStringSet(key: String?, values: MutableSet<String>?): SharedPreferences.Editor { editor.putStringSet(key, values); return this }
-                        override fun putInt(key: String?, value: Int): SharedPreferences.Editor { editor.putInt(key, value); return this }
-                        override fun clear(): SharedPreferences.Editor { editor.clear(); return this }
-                        override fun commit(): Boolean {
-                            attempts += name
-                            val rejected = name in fail || (name == "session" && failSessionAfterTrialClear && AutoDriverTrial.current(this@DiskActivity) == null)
-                            // Android updates memory before reporting a disk-write failure.
-                            if (rejected) { editor.apply(); return false }
-                            if (!editor.commit()) return false
-                            durable[name] = preferences.all.mapValues { (_, value) -> if (value is Set<*>) value.toSet() else value }
-                            return true
-                        }
+            return files.getOrPut(name) {
+                DiskPreferences(preferences,
+                    rejected = { name in fail || (name == "session" && failSessionAfterTrialClear && AutoDriverTrial.current(this) == null) },
+                    committing = { attempts += name })
+            }
+        }
+    }
+
+    private class DiskPreferences(
+        private val disk: SharedPreferences,
+        private val rejected: () -> Boolean,
+        private val committing: () -> Unit,
+    ) : SharedPreferences by disk {
+        // Keep failed writes visible in memory without scheduling any write to the real file.
+        private val memory = disk.all.mapValues { (_, value) -> copy(value) }.toMutableMap()
+
+        override fun getAll(): MutableMap<String, *> = memory.mapValues { (_, value) -> copy(value) }.toMutableMap()
+        override fun contains(key: String?): Boolean = memory.containsKey(key)
+        override fun getString(key: String?, defValue: String?): String? = memory[key] as String? ?: defValue
+        override fun getStringSet(key: String?, defValues: MutableSet<String>?): MutableSet<String>? =
+            (memory[key] as Set<*>?)?.map { it as String }?.toMutableSet() ?: defValues
+        override fun getInt(key: String?, defValue: Int): Int = memory[key] as Int? ?: defValue
+        override fun getLong(key: String?, defValue: Long): Long = memory[key] as Long? ?: defValue
+        override fun getFloat(key: String?, defValue: Float): Float = memory[key] as Float? ?: defValue
+        override fun getBoolean(key: String?, defValue: Boolean): Boolean = memory[key] as Boolean? ?: defValue
+
+        override fun edit(): SharedPreferences.Editor = object : SharedPreferences.Editor {
+            private val changes = mutableMapOf<String, Any?>()
+            private var clear = false
+
+            private fun put(key: String?, value: Any?): SharedPreferences.Editor {
+                changes[requireNotNull(key)] = copy(value)
+                return this
+            }
+
+            override fun putString(key: String?, value: String?) = put(key, value)
+            override fun putStringSet(key: String?, values: MutableSet<String>?) = put(key, values)
+            override fun putInt(key: String?, value: Int) = put(key, value)
+            override fun putLong(key: String?, value: Long) = put(key, value)
+            override fun putFloat(key: String?, value: Float) = put(key, value)
+            override fun putBoolean(key: String?, value: Boolean) = put(key, value)
+            override fun remove(key: String?) = put(key, null)
+            override fun clear(): SharedPreferences.Editor { clear = true; return this }
+
+            private fun save(): Boolean {
+                if (clear) memory.clear()
+                for ((key, value) in changes) {
+                    if (value == null) memory.remove(key) else memory[key] = value
+                }
+                changes.clear()
+                clear = false
+                if (rejected()) return false
+                val editor = disk.edit().clear()
+                for ((key, value) in memory) {
+                    when (value) {
+                        is String -> editor.putString(key, value)
+                        is Set<*> -> editor.putStringSet(key, value.map { it as String }.toSet())
+                        is Int -> editor.putInt(key, value)
+                        is Long -> editor.putLong(key, value)
+                        is Float -> editor.putFloat(key, value)
+                        is Boolean -> editor.putBoolean(key, value)
+                        else -> error("Unsupported preference value: $value")
                     }
                 }
+                return editor.commit()
             }
+
+            override fun commit(): Boolean { committing(); return save() }
+            override fun apply() { save() }
+        }
+
+        companion object {
+            private fun copy(value: Any?): Any? = if (value is Set<*>) value.toSet() else value
         }
     }
 }
