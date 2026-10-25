@@ -135,6 +135,14 @@ def caravan_sandwitch_feature_level(game):
 
 
 @fix
+def robocop_rogue_city_feature_level(game):
+    """vkd3d-proton turns mesh shaders off on Adreno, but 12_2 still advertises them, and UE5 then builds mesh
+    pipelines with no pipeline layout that crash Turnip on launch."""
+    if "robocop.exe" in game.files or game.stem == "robocop-win64-shipping":
+        return {"VKD3D_FEATURE_LEVEL": "12_1"}, [], "RoboCop: Rogue City: D3D12 feature level 12_1"
+
+
+@fix
 def cyberpunk_feature_level(game):
     if game.stem == "cyberpunk2077" or (
         game.stem == "redprelauncher"

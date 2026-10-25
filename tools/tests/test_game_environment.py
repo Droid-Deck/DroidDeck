@@ -364,7 +364,7 @@ class GameEnvironmentTest(unittest.TestCase):
             self.assertTrue(notes)
         self.assertEqual(MODULE["engine_fixes"]("/game/Game/DarkSoulsII.exe", []), ({}, [], []))
 
-    def test_caravan_sandwitch_and_cyberpunk_run_at_feature_level_12_1(self):
+    def test_caravan_sandwitch_robocop_and_cyberpunk_run_at_feature_level_12_1(self):
         with tempfile.TemporaryDirectory() as tmp:
             caravan = Path(tmp) / "Caravan SandWitch"
             shipping = caravan / "CaravanSandWitch/Binaries/Win64"
@@ -376,8 +376,13 @@ class GameEnvironmentTest(unittest.TestCase):
             (cyberpunk / "bin/x64").mkdir(parents=True)
             for name in ("REDprelauncher.exe", "bin/x64/Cyberpunk2077.exe"):
                 (cyberpunk / name).touch()
+            robocop = Path(tmp) / "RoboCop Rogue City"
+            (robocop / "RoboCop/Binaries/Win64").mkdir(parents=True)
+            for name in ("RoboCop.exe", "RoboCop/Binaries/Win64/RoboCop-Win64-Shipping.exe"):
+                (robocop / name).touch()
             games = [caravan / "CaravanSandWitch.exe", caravan / ".droiddeck-launch.bat",
                      shipping / "CaravanSandWitch-Win64-Shipping.exe",
+                     robocop / "RoboCop.exe", robocop / "RoboCop/Binaries/Win64/RoboCop-Win64-Shipping.exe",
                      cyberpunk / "REDprelauncher.exe", cyberpunk / "bin/x64/Cyberpunk2077.exe"]
             for exe in games:
                 env, extra, notes = MODULE["engine_fixes"](str(exe), [])
