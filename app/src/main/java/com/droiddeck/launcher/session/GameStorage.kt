@@ -23,10 +23,7 @@ object GameStorage {
         }
     }
 
-    /**
-     * USB drives vold mounted at /mnt/media_rw but hides from apps (not SD cards, which are visible).
-     * Usable without root once All files access gives the app the external_storage group.
-     */
+    /** USB drives vold mounted at /mnt/media_rw but hides from apps; SD cards are visible. */
     private fun hiddenUsb(context: Context): List<File> {
         val visible = visibleVolumes(context)
         return mountPoints()
@@ -48,20 +45,18 @@ object GameStorage {
 
     enum class UsbAccess { PERMISSION, RESTART }
 
-    /**
-     * What a plugged-in hidden USB drive still needs: All files access, then a new process, which
-     * is when Android gives the app the external_storage group. Null = nothing (or no such drive).
-     */
-    fun usbAccess(context: Context): UsbAccess? = when {
-        android.os.Build.VERSION.SDK_INT < 30 || hiddenUsb(context).all { it.canWrite() } -> null
-        android.os.Environment.isExternalStorageManager() -> UsbAccess.RESTART
-        else -> UsbAccess.PERMISSION
+    /** What a hidden drive still needs: All files access, then a new process for the external_storage group. */
+    fun usbAccess(context: Context): UsbAccess? {
+        if (android.os.Build.VERSION.SDK_INT < 30) return null
+        val drives = hiddenUsb(context)
+        return when {
+            !android.os.Environment.isExternalStorageManager() -> UsbAccess.PERMISSION.takeIf { drives.any { !it.canWrite() } }
+            // Readable but not writable is a read-only drive, which a restart does not fix.
+            else -> UsbAccess.RESTART.takeIf { drives.any { !it.canRead() } }
+        }
     }
 
-    /**
-     * The USB drive, by whichever route is on: the root mount, or vold's own with All files access.
-     * One drive at a time: the first.
-     */
+    /** The USB drive by whichever route is on; the first one only. */
     fun usbDrive(context: Context): File? =
         if (SessionPrefs.usbRootEnabled(context)) UsbRootMount.path(context).takeIf { UsbRootMount.mounted(context) }
         else hiddenUsb(context).firstOrNull { it.canWrite() }

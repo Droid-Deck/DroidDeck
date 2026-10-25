@@ -1011,13 +1011,13 @@ BUSCONF
       : > "$compat_restarted"
       compat_restarts=0
       compat_settled() {
-        local app m flags r card=/mnt/droiddeck-sd
-        # The arm64 card library may hold that client's copy of the same title.
-        [ "$steam_x64" = 1 ] && card=/mnt/droiddeck-sd/x86-64
+        local app m flags r card=/mnt/droiddeck-sd usb=/mnt/droiddeck-usb
+        # The arm64 card and USB libraries may hold that client's copy of the same title.
+        [ "$steam_x64" = 1 ] && { card=$card/x86-64; usb=$usb/x86-64; }
         while read -r app; do
           [ -n "$app" ] || continue
           m=
-          for r in "$steam_root" "$card" /mnt/droiddeck-usb; do
+          for r in "$steam_root" "$card" "$usb"; do
             [ -f "$r/steamapps/appmanifest_$app.acf" ] && { m=$r/steamapps/appmanifest_$app.acf; break; }
           done
           [ -n "$m" ] || return 1

@@ -110,7 +110,7 @@ internal fun StoragePanel(s: FrontEndState, a: FrontEndActions) {
     var view by remember { mutableStateOf("overview") }
     var cleanup by remember { mutableStateOf(false) }
     val report = StorageState.report
-    LaunchedEffect(Unit) { StorageState.refresh(ctx); a.usb.onRefresh() }
+    LaunchedEffect(Unit) { StorageState.refresh(ctx) }
     LaunchedEffect(s.sessionRunning) { if (!s.sessionRunning) StorageState.refresh(ctx, force = report != null) }
     if (report == null) {
         Row(

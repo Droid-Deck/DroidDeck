@@ -904,9 +904,6 @@ class SessionService : Service() {
         File(home, "Storage").mkdirs()
         binds.add(Environment.getExternalStorageDirectory().path + ":/root/Storage")
         if (SessionPrefs.usbRootEnabled(this)) UsbRootMount.mount(this)?.let { Log.w(TAG, "USB drive: $it") }
-        // A second Steam library: the storage chosen in the Steam cog, at the path the runtime's
-        // droiddeck-steam-library registers with the client. Nothing bound = the script removes
-        // the entry, so the client never offers a place that is not there.
         val library = GameStorage.effective(this)
         steamLibraryMounts = emptyMap()
         var storageDiagnosticLibrary: File? = null
@@ -1017,29 +1014,31 @@ class SessionService : Service() {
         val x64Here = SessionPrefs.steamClientArch(this) == "x86_64" ||
             (SessionState.mode == MODE_DESKTOP &&
                 com.droiddeck.launcher.storage.SteamStorage.x64ClientPresent(SessionPrefs.steamRoot(this, "x86_64")))
-        // Only once the bind loop took it, with its private compatdata and tool binds.
-        if (usb != null && x64Here && libraries.any { it.first == usb.guest }) {
-            x64Libraries.put(org.json.JSONObject().put("path", usb.guest).put("label", usb.label.replace('"', ' ').replace('\\', ' ')))
-        }
-        if (storageDiagnosticLibrary != null && library != null && x64Here) {
-            val x64 = File(library.path, GameStorage.X64_CARD_DIR)
-            val problem = GameStorage.prepare(this, x64.path)
+        // The x86-64 client keeps its own folder on the card and the USB drive (the drive only once the bind loop took it).
+        val x64Candidates = if (!x64Here) emptyList() else listOfNotNull(
+            library?.takeIf { storageDiagnosticLibrary != null }
+                ?.let { GameStorage.Library(File(it.path, GameStorage.X64_CARD_DIR), GameStorage.X64_CARD_GUEST, it.label) },
+            usb?.takeIf { libraries.any { (guest, _) -> guest == it.guest } }
+                ?.let { GameStorage.Library(File(it.host, GameStorage.X64_CARD_DIR), it.guest + "/" + GameStorage.X64_CARD_DIR, it.label) },
+        )
+        for (x64 in x64Candidates) {
+            val problem = GameStorage.prepare(this, x64.host.path)
             if (problem != null) {
                 Log.w(TAG, "x86-64 steam library: $problem")
             } else try {
                 val room = if (ProotFastPath.enabled(this)) {
                     ProotFastPath.MAX_BINDS - LinuxRuntime.binds(this, sessionRoot, runtimeDir, Environment.getExternalStorageDirectory(), binds).size
                 } else Int.MAX_VALUE
-                val extra = SecondaryLibrary.binds(filesDir, x64, listOf(GameStorage.X64_CARD_GUEST)).drop(1)
+                val extra = SecondaryLibrary.binds(filesDir, x64.host, listOf(x64.guest)).drop(1)
                 if (extra.size > room) {
-                    Log.w(TAG, "x86-64 steam library: $x64 needs ${extra.size} binds, $room left for the fast path; not a library this session")
+                    Log.w(TAG, "x86-64 steam library: ${x64.host} needs ${extra.size} binds, $room left for the fast path; not a library this session")
                 } else {
                     binds.addAll(extra)
-                    x64Libraries.put(org.json.JSONObject().put("path", GameStorage.X64_CARD_GUEST).put("label", library.label.replace('"', ' ').replace('\\', ' ')))
-                    Log.i(TAG, "x86-64 steam library: $x64 -> ${GameStorage.X64_CARD_GUEST} (\"${library.label}\")")
+                    x64Libraries.put(org.json.JSONObject().put("path", x64.guest).put("label", x64.label.replace('"', ' ').replace('\\', ' ')))
+                    Log.i(TAG, "x86-64 steam library: ${x64.host} -> ${x64.guest} (\"${x64.label}\")")
                 }
             } catch (e: Exception) {
-                Log.w(TAG, "x86-64 steam library: $x64 private directories could not be prepared", e)
+                Log.w(TAG, "x86-64 steam library: ${x64.host} private directories could not be prepared", e)
             }
         }
         try {
@@ -1646,9 +1645,8 @@ class SessionService : Service() {
             runCatching { com.droiddeck.launcher.agent.AgentEnv.endSession(this) }
                 .onFailure { Log.w(TAG, "clearing the agent's session environment", it) }
             releaseLocks()
-            // Mounted, not "enabled": the setting may have been turned off while the session ran.
-            // unmount refuses once a new session has started (its mount must stay).
-            if (UsbRootMount.mounted(this)) Thread({
+            // The setting was turned off while the session held the drive; unmount refuses once a new session started.
+            if (UsbRootMount.mounted(this) && !SessionPrefs.usbRootEnabled(this)) Thread({
                 UsbRootMount.unmount(applicationContext)?.let { Log.w(TAG, "USB drive left mounted: $it") }
                 UsbRootMount.onChange?.invoke()
             }, "usb-root").start()

@@ -403,7 +403,7 @@ class FrontEndActivity : ComponentActivity() {
     private var storageDiagnostics by mutableStateOf(false)
     private var storageOptions by mutableStateOf<List<GameStorage.Option>>(emptyList())
     private var usb by mutableStateOf(UsbUi())
-    private val usbRootListener: () -> Unit = { refreshUsb() }
+    private val usbRootListener: () -> Unit = { usbAction { null } }
     private val pickGameStorage = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         if (r.resultCode == RESULT_OK) InAppFilePicker.pickedPath(r.data)?.let { path -> setGameStorage(path, GameStorage.labelFor(this, path)) }
     }
@@ -2008,9 +2008,12 @@ class FrontEndActivity : ComponentActivity() {
         onPrepare = { usbAction { UsbRootMount.prepare(this) } },
     )
 
+    // One at a time, so a refresh cannot post its state over a later mount or eject.
+    private val usbThread = java.util.concurrent.Executors.newSingleThreadExecutor { Thread(it, "usb") }
+
     /** Runs a USB step off the main thread, then shows its error (if any) and the new state. */
     private fun usbAction(step: () -> String?) {
-        Thread({ val error = step(); refreshUsb(error) }, "usb").start()
+        usbThread.execute { val error = step(); refreshUsb(error) }
     }
 
     /** Off the main thread: root is asked only once its setting is on. */
@@ -2029,7 +2032,6 @@ class FrontEndActivity : ComponentActivity() {
         ui.post { usb = state }
     }
 
-    /** A second Steam library, proven writable first; "" = internal only. */
     private fun setGameStorage(path: String, label: String) {
         if (path.isNotEmpty() && path != SessionPrefs.GAME_STORAGE_OFF) {
             val problem = GameStorage.prepare(this, path)

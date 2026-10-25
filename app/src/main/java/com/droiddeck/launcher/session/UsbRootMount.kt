@@ -7,12 +7,8 @@ import com.droiddeck.launcher.R
 import java.io.File
 
 /**
- * A USB drive as game storage, with root, on phones that do not show USB drives to apps.
- *
- * The block device is mounted (not bound) in the app's own Android/data folder, which Android
- * gives the app straight from disk rather than through FUSE: full speed, the drive's real free
- * space, nothing visible elsewhere, and no SELinux policy change. vold lets go of an exFAT/FAT
- * drive first and gets it back on unmount. ext4 needs [prepare] once.
+ * A hidden USB drive with root, mounted in the app's Android/data folder: below FUSE, so full speed and no SELinux change.
+ * vold lets go of an exFAT/FAT drive and gets it back on unmount; ext4 needs [prepare] once.
  */
 object UsbRootMount {
     private const val TAG = "UsbRootMount"
@@ -174,7 +170,7 @@ object UsbRootMount {
         e.message ?: e.javaClass.simpleName
     }
 
-    @Volatile private var watching = false
+    @Volatile private var watcher: Thread? = null
 
     // The watcher runs as root, so only root can stop it: by its pid.
     @Volatile private var watcherPid = 0
@@ -188,13 +184,12 @@ object UsbRootMount {
      */
     @Synchronized
     fun watch(context: Context) {
-        if (watching) return
-        watching = true
+        if (watcher?.isAlive == true) return
         val app = context.applicationContext
-        Thread({
+        watcher = Thread({
             // An earlier app process's watcher outlives it as an orphan of init; stop those first.
             val lines = try { su("pkill -P 1 -f 'inotifyd - /dev/block/vold'; echo \$\$; exec inotifyd - /dev/block/vold:nd").inputStream.bufferedReader() } catch (e: java.io.IOException) { null }
-            if (lines == null || lines.readLine() != ROOT) { watching = false; return@Thread }
+            if (lines == null || lines.readLine() != ROOT) return@Thread
             try {
                 watcherPid = lines.readLine()?.toIntOrNull() ?: 0
                 // inotifyd: "n<TAB>/dev/block/vold<TAB>public:8,97" on create, "d..." on delete.
@@ -210,9 +205,8 @@ object UsbRootMount {
                 }
             } finally {
                 watcherPid = 0
-                watching = false
             }
-        }, "usb-root-watch").start()
+        }, "usb-root-watch").apply { start() }
     }
 
     /** [watch] and [mount], off the main thread: the setting is on. */
@@ -225,6 +219,8 @@ object UsbRootMount {
     fun unwatch(context: Context) {
         val pid = watcherPid.takeIf { it > 0 } ?: return
         attempt("unwatch") { run(context, "kill $pid") }
+        // Gone before returning, so a quick [watch] after this starts a new one.
+        watcher?.join()
     }
 
     @Synchronized

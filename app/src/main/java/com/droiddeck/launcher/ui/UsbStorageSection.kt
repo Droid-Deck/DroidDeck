@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.droiddeck.launcher.R
@@ -42,6 +43,7 @@ class UsbActions(
 
 @Composable
 internal fun UsbSection(host: MenuHost, usb: UsbUi, a: UsbActions, sessionRunning: Boolean) {
+    LaunchedEffect(Unit) { a.onRefresh() }
     if (usb.access == null && usb.free == null && usb.root == null) return
     SettingsGroup(stringResource(R.string.usb_root_volume)) {
         when (usb.access) {
@@ -61,7 +63,8 @@ internal fun UsbSection(host: MenuHost, usb: UsbUi, a: UsbActions, sessionRunnin
 @Composable
 private fun RootRows(host: MenuHost, usb: UsbRootUi, a: UsbActions, sessionRunning: Boolean) {
     ToggleRow(host, "usb-root", stringResource(R.string.usb_root_title), usb.status ?: stringResource(R.string.usb_root_hint), usb.enabled, onChange = a.onRoot)
-    if (!usb.enabled) return
+    // Still mounted after turning off (busy, or a session holds it): keep Eject reachable.
+    if (!usb.enabled && !usb.mounted) return
     val chosen = usb.drives.firstOrNull { it.uuid == usb.drive }
     val unnamed = stringResource(R.string.usb_root_unnamed)
     val name: (UsbRootMount.Drive) -> String = {
