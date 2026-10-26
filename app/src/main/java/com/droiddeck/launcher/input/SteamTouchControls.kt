@@ -675,7 +675,7 @@ class SteamTouchControls(
                 val e = f?.element
                 if (event.actionMasked != MotionEvent.ACTION_CANCEL && e != null && reach(e, event.getX(index), event.getY(index)) <= 1.3f) {
                     when (e.type) {
-                        SteamTouchConfig.THUMB -> openMenu()
+                        SteamTouchConfig.THUMB -> { cancelForwarded(event); openMenu() }
                         SteamTouchConfig.KEYBOARD -> onKeyboard()
                         SteamTouchConfig.PASTE -> onPaste()
                     }
@@ -687,6 +687,16 @@ class SteamTouchControls(
         return true
     }
 
+
+    private fun cancelForwarded(event: MotionEvent) {
+        val split = event.pointerSubset(forwardedPointerBits).also { forwardedPointerBits = 0 } ?: return
+        split.action = MotionEvent.ACTION_CANCEL
+        try {
+            onTouchMiss?.invoke(split)
+        } finally {
+            split.recycle()
+        }
+    }
 
     private fun forwardPointers(event: MotionEvent, pointerIdBits: Int) {
         val split = event.pointerSubset(pointerIdBits) ?: return
