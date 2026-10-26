@@ -327,6 +327,7 @@ class DualSenseManager(private val context: Context) {
         usbEndpointOut = null
         rawUsbIds = null
         rawTwinDeviceId = -1
+        routedHeadphones = null
     }
 
     /**
@@ -712,6 +713,7 @@ class DualSenseManager(private val context: Context) {
         DeckControls.externalImuActive = false
         isRawHidActive = false
         rawTwinDeviceId = -1
+        routedHeadphones = null
         isEdgeConnected = false
         btConnectTimestampMs = 0L
         btOutputSeq = 0
@@ -822,7 +824,10 @@ class DualSenseManager(private val context: Context) {
         val rawWasStale = !isRawHidDelivering()
         lastRawHidTimestamp = SystemClock.uptimeMillis()
         isRawHidActive = true
-        if (rawWasStale) resolveRawTwin()
+        if (rawWasStale) {
+            resolveRawTwin()
+            routedHeadphones = null
+        }
         if (routesPadAudio && routedHeadphones != state.headphonesPlugged) {
             if (sendOutputReport(DualSense.buildAudioRoutingReport(state.headphonesPlugged))) {
                 routedHeadphones = state.headphonesPlugged

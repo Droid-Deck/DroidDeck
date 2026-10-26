@@ -51,6 +51,7 @@ class DualSenseAudioPump(private val fifo: File) : SessionPart() {
     private fun pump() {
         val audio = app()?.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
         val chunk = ByteArray(CHUNK_BYTES)
+        var carry = 0
         var track: AudioTrack? = null
         var nextLookup = 0L
         var loggedMissing = false
@@ -59,31 +60,39 @@ class DualSenseAudioPump(private val fifo: File) : SessionPart() {
             val stream = FileInputStream(fifo)
             input = stream
             while (running) {
-                val n = stream.read(chunk)
+                val n = stream.read(chunk, carry, chunk.size - carry)
                 if (n <= 0) break
                 val now = SystemClock.uptimeMillis()
-                if (track == null && audio != null && now >= nextLookup) {
+                if (audio != null && now >= nextLookup) {
                     nextLookup = now + LOOKUP_INTERVAL_MS
                     val device = findPad(audio)
-                    if (device != null) {
-                        track = openTrack(device)
-                        Log.i(TAG, "dualsense audio: playing on ${device.productName} (id ${device.id})" +
-                            if (track == null) " failed: no 4-channel track" else "")
-                        loggedMissing = false
-                    } else if (!loggedMissing) {
-                        Log.i(TAG, "dualsense audio: no wired DualSense audio device; haptics go to a Bluetooth pad if there is one")
-                        loggedMissing = true
+                    if (device == null && track != null) {
+                        Log.i(TAG, "dualsense audio: wired pad disconnected; releasing audio track")
+                        runCatching { track.stop() }
+                        track.release()
+                        track = null
+                    }
+                    if (track == null) {
+                        if (device != null) {
+                            track = openTrack(device)
+                            Log.i(TAG, "dualsense audio: playing on ${device.productName} (id ${device.id})" +
+                                if (track == null) " failed: no 4-channel track" else "")
+                            loggedMissing = false
+                        } else if (!loggedMissing) {
+                            Log.i(TAG, "dualsense audio: no wired DualSense audio device; haptics go to a Bluetooth pad if there is one")
+                            loggedMissing = true
+                        }
                     }
                 }
-                val t = track
-                if (t == null) {
-                    bluetooth.feed(chunk, n)
-                    continue
-                }
-                if (t.write(chunk, 0, n - n % FRAME_BYTES) < 0) {
-                    Log.w(TAG, "dualsense audio: the pad's audio track failed; looking for it again")
-                    t.release()
-                    track = null
+                carry = alignFrames(chunk, carry, n) { buf, whole ->
+                    val t = track
+                    if (t == null) {
+                        bluetooth.feed(buf, whole)
+                    } else if (t.write(buf, 0, whole) < 0) {
+                        Log.w(TAG, "dualsense audio: the pad's audio track failed; looking for it again")
+                        t.release()
+                        track = null
+                    }
                 }
             }
         } catch (_: InterruptedException) {
@@ -133,6 +142,20 @@ class DualSenseAudioPump(private val fifo: File) : SessionPart() {
             if (type !in USB_TYPES) return false
             val name = productName.orEmpty()
             return name.contains("DualSense", ignoreCase = true) || name.contains("Wireless Controller", ignoreCase = true)
+        }
+
+        internal fun alignFrames(
+            chunk: ByteArray,
+            carry: Int,
+            read: Int,
+            onWholeFrames: (ByteArray, Int) -> Unit,
+        ): Int {
+            val total = carry + read
+            val whole = total - total % FRAME_BYTES
+            if (whole > 0) onWholeFrames(chunk, whole)
+            val rem = total - whole
+            if (rem > 0 && whole > 0) System.arraycopy(chunk, whole, chunk, 0, rem)
+            return rem
         }
     }
 }

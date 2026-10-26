@@ -50,4 +50,31 @@ class DualSenseAudioConfigTest {
         assertEquals(8, DualSenseAudioPump.FRAME_BYTES)
         assertEquals(480 * 8, DualSenseAudioPump.CHUNK_BYTES)
     }
+
+    @Test fun partialPipeReadsNeverDropOrRotateChannelsAcrossFrames() {
+        val chunk = ByteArray(32)
+        val emitted = ArrayList<Byte>()
+        val source = ByteArray(16) { (it + 1).toByte() }
+
+        System.arraycopy(source, 0, chunk, 0, 3)
+        var carry = DualSenseAudioPump.alignFrames(chunk, 0, 3) { buf, whole ->
+            for (i in 0 until whole) emitted.add(buf[i])
+        }
+        assertEquals(3, carry)
+        assertTrue(emitted.isEmpty())
+
+        System.arraycopy(source, 3, chunk, carry, 10)
+        carry = DualSenseAudioPump.alignFrames(chunk, carry, 10) { buf, whole ->
+            for (i in 0 until whole) emitted.add(buf[i])
+        }
+        assertEquals(5, carry)
+        assertEquals(source.take(8), emitted)
+
+        System.arraycopy(source, 13, chunk, carry, 3)
+        carry = DualSenseAudioPump.alignFrames(chunk, carry, 3) { buf, whole ->
+            for (i in 0 until whole) emitted.add(buf[i])
+        }
+        assertEquals(0, carry)
+        assertEquals(source.toList(), emitted)
+    }
 }
