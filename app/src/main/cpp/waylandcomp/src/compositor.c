@@ -207,7 +207,7 @@ struct surface {
     int buf_w, buf_h, has_content;
     int buf_alpha;
     int opaque[4], pending_opaque[4], pending_opaque_set;
-    int64_t damage_max, pending_damage_max;
+    int64_t damage_max, pending_damage_max, damage_local_max, pending_damage_local_max;
     int src_set, dst_set;
     float src[4];
     int dst[2];
@@ -626,7 +626,8 @@ static void fire_frames(struct wl_list *frames) {
 }
 
 static void scene_size(int *w, int *h);
-static struct surface *g_hud_surface;
+static struct surface *g_hud_surface, *g_hud_shm;
+static int64_t g_hud_shm_ns;
 static int64_t g_hud_last_ns, g_hud_alive_ns;
 static int g_hud_fresh;
 static uint64_t g_game_frames;
@@ -656,13 +657,26 @@ static void take_shm(struct surface *s, struct wl_shm_buffer *shm, struct wl_res
     g_stat_shm++;
     struct client_info *ci = client_info_of(wl_resource_get_client(s->resource));
     if (ci && ci->asked_feedback) ci->shm_frames++;
-    const int64_t area = (int64_t)w * h, damaged = s->damage_max < area ? s->damage_max : area;
-    if (damaged * 16 >= area && (!g_hud_surface || now_ns() - g_hud_alive_ns > 1000000000LL)) {
+    int local_w, local_h;
+    surface_size(s, &local_w, &local_h);
+    const double region = s->src_set ? (double)s->src[2] * s->src[3] : (double)w * h;
+    const int64_t local = local_w > 0 && local_h > 0
+        ? (int64_t)((double)s->damage_local_max * region / ((double)local_w * local_h)) : s->damage_local_max;
+    const int64_t area = (int64_t)w * h;
+    int64_t damaged = s->damage_max > local ? s->damage_max : local;
+    if (damaged > area) damaged = area;
+    const int64_t now = now_ns();
+    if (damaged * 16 >= area && (!g_hud_surface || now - g_hud_last_ns > 1000000000LL) &&
+        (s == g_hud_shm || !g_hud_shm || now - g_hud_shm_ns > 1000000000LL)) {
         const struct surface *top = s;
         int scene_w, scene_h, depth = 0;
         while (top->parent && depth++ < 8) top = top->parent;
         scene_size(&scene_w, &scene_h);
-        if (top->role == ROLE_TOPLEVEL && area * 2 >= (int64_t)scene_w * scene_h) droiddeck_on_game_frame();
+        if (top->role == ROLE_TOPLEVEL && top->mapped && area * 2 >= (int64_t)scene_w * scene_h) {
+            g_hud_shm = s;
+            g_hud_shm_ns = now;
+            droiddeck_on_game_frame();
+        }
     }
 }
 
@@ -796,15 +810,15 @@ static void surface_attach(struct wl_client *c, struct wl_resource *r,
         wl_resource_add_destroy_listener(buffer, &s->pending_buffer_destroy);
     }
 }
-static void note_damage(struct wl_resource *r, int32_t w, int32_t h) {
-    struct surface *s = wl_resource_get_user_data(r);
+static void note_damage(int64_t *max, int32_t w, int32_t h) {
     if (w <= 0 || h <= 0) return;
     const int64_t area = (int64_t)(w < 65536 ? w : 65536) * (h < 65536 ? h : 65536);
-    if (area > s->pending_damage_max) s->pending_damage_max = area;
+    if (area > *max) *max = area;
 }
 static void surface_damage(struct wl_client *c, struct wl_resource *r,
                            int32_t x, int32_t y, int32_t w, int32_t h) {
-    note_damage(r, w, h);
+    struct surface *s = wl_resource_get_user_data(r);
+    note_damage(&s->pending_damage_local_max, w, h);
 }
 static void frame_callback_destroy(struct wl_resource *r) {
     wl_list_remove(wl_resource_get_link(r));
@@ -1006,7 +1020,8 @@ static void surface_commit(struct wl_client *c, struct wl_resource *r) {
     }
 
     s->damage_max = s->pending_damage_max;
-    s->pending_damage_max = 0;
+    s->damage_local_max = s->pending_damage_local_max;
+    s->pending_damage_max = s->pending_damage_local_max = 0;
     if (s->pending_attach) {
         struct wl_resource *buffer = s->pending_buffer;
         struct dmabuf_buffer *db = get_dmabuf(buffer);
@@ -1072,7 +1087,8 @@ static void surface_set_buffer_transform(struct wl_client *c, struct wl_resource
 static void surface_set_buffer_scale(struct wl_client *c, struct wl_resource *r, int32_t s) {}
 static void surface_damage_buffer(struct wl_client *c, struct wl_resource *r,
                                   int32_t x, int32_t y, int32_t w, int32_t h) {
-    note_damage(r, w, h);
+    struct surface *s = wl_resource_get_user_data(r);
+    note_damage(&s->pending_damage_max, w, h);
 }
 static void surface_offset(struct wl_client *c, struct wl_resource *r, int32_t x, int32_t y) {}
 
@@ -1116,6 +1132,7 @@ static void surface_resource_destroy(struct wl_resource *r) {
     droiddeck_text_input_surface_gone(r);
     if (g_desktop == s) { g_desktop = NULL; droiddeck_log("desktop", "the desktop closed"); }
     if (g_hud_surface == s) { g_hud_surface = NULL; droiddeck_on_game_surface(NULL, NULL); }
+    if (g_hud_shm == s) g_hud_shm = NULL;
     constraints_surface_gone(s);
 
     unmap_toplevel(s);
