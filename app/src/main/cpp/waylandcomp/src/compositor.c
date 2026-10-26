@@ -672,7 +672,7 @@ static void take_shm(struct surface *s, struct wl_shm_buffer *shm, struct wl_res
         int scene_w, scene_h, depth = 0;
         while (top->parent && depth++ < 8) top = top->parent;
         scene_size(&scene_w, &scene_h);
-        if (top->role == ROLE_TOPLEVEL && top->mapped && area * 2 >= (int64_t)scene_w * scene_h) {
+        if (top->role == ROLE_TOPLEVEL && top->mapped && (int64_t)local_w * local_h * 2 >= (int64_t)scene_w * scene_h) {
             g_hud_shm = s;
             g_hud_shm_ns = now;
             droiddeck_on_game_frame();
