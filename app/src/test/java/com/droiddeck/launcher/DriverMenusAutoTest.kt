@@ -16,11 +16,14 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowBuild
 import org.robolectric.util.ReflectionHelpers
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28], manifest = Config.NONE)
@@ -59,6 +62,32 @@ class DriverMenusAutoTest {
         DriverMenus(activity, Handler(Looper.getMainLooper())).ensureAuto(force = true)
         assertEquals("chosen-display", SessionPrefs.androidDriver(activity))
         assertEquals("chosen-linux", SessionPrefs.linuxDriver(activity))
+    }
+
+    @Test fun savingDriverSourcesChecksRemoteMetadataWithoutChangingTheSelection() {
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        SessionPrefs.setGpuDriverMode(activity, SessionPrefs.GPU_DRIVERS_MANUAL)
+        SessionPrefs.setAndroidDriver(activity, "chosen-display")
+        SessionPrefs.setLinuxDriver(activity, "chosen-linux")
+        val menus = DriverMenus(activity, Handler(Looper.getMainLooper()))
+        val checked = CountDownLatch(1)
+        menus.releaseRefresher = {
+            checked.countDown()
+            TurnipReleases.Check(emptyList(), emptyList(), emptyList(), 123L)
+        }
+
+        menus.sourcesChanged()
+        assertTrue(checked.await(5, TimeUnit.SECONDS))
+        val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+        while (menus.releaseChecking && System.nanoTime() < deadline) {
+            shadowOf(Looper.getMainLooper()).idle()
+            Thread.sleep(10)
+        }
+
+        assertEquals("chosen-display", SessionPrefs.androidDriver(activity))
+        assertEquals("chosen-linux", SessionPrefs.linuxDriver(activity))
+        assertFalse(menus.releaseChecking)
+        assertNull(menus.pairBusy)
     }
 
     @Test fun sameFilenameFromTwoSourcesResolvesBySourceQualifiedIdentity() {

@@ -26,8 +26,11 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28], application = Application::class)
@@ -115,6 +118,31 @@ class DriverMenusSystemTest {
         SessionPrefs.setAndroidDriver(activity, "imported-driver")
         menus.refreshDrivers()
         assertEquals("imported-driver", SessionPrefs.androidDriver(activity))
+    }
+
+    @Test fun savingSystemSourcesChecksMetadataWithoutChangingManualSelections() {
+        SessionPrefs.setGpuDriverMode(activity, SessionPrefs.GPU_DRIVERS_MIX)
+        SessionPrefs.setAndroidDriver(activity, "imported-driver")
+        SessionPrefs.setLinuxDriver(activity, "manual-runtime")
+        val menus = DriverMenus(activity, Handler(Looper.getMainLooper()), gpu)
+        val checked = CountDownLatch(1)
+        menus.systemReleaseRefresher = {
+            checked.countDown()
+            SystemVulkanComponentStore.Catalog(emptyList(), emptyList(), 123L)
+        }
+
+        menus.sourcesChanged()
+        assertTrue(checked.await(5, TimeUnit.SECONDS))
+        val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+        while (menus.releaseChecking && System.nanoTime() < deadline) {
+            shadowOf(Looper.getMainLooper()).idle()
+            Thread.sleep(10)
+        }
+
+        assertEquals("imported-driver", SessionPrefs.androidDriver(activity))
+        assertEquals("manual-runtime", SessionPrefs.linuxDriver(activity))
+        assertFalse(menus.releaseChecking)
+        assertNull(menus.pairBusy)
     }
 
     @Test fun automaticSystemPolicyRefreshesReadyBuildsAndOnlyBootstrapsWhenMissing() {
