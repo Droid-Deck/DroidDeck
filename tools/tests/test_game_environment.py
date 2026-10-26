@@ -449,6 +449,23 @@ class GameEnvironmentTest(unittest.TestCase):
         self.assertEqual(calls, [{0, 1, 2}])
         self.assertEqual(MODULE["parse_cores"]("0,2-7"), {0, 2, 3, 4, 5, 6, 7})
 
+    def test_windows_games_see_only_the_cores_they_are_pinned_to(self):
+        os_mod = MODULE["os"]
+        online = {"online_cores": lambda: {0, 1, 2, 3, 4, 5, 6, 7}}
+        cases = [
+            ({"BL_GAME_CPUS": "6,7"}, {6, 7}, "2:6,7"),
+            ({"DROIDDECK_GAME_CORES": "0-2"}, {0, 1, 2}, "3:0,1,2"),
+            ({"BL_GAME_CPUS": "0-7"}, set(range(8)), None),
+            ({}, {6, 7}, None),
+            ({"BL_GAME_CPUS": "6,7", "WINE_CPU_TOPOLOGY": "4:0,1,2,3"}, {6, 7}, "4:0,1,2,3"),
+            ({"BL_GAME_CPUS": "9"}, {9}, None),
+        ]
+        for env, affinity, expected in cases:
+            with mock.patch.dict(MODULE["cpu_topology"].__globals__, online), \
+                    mock.patch.object(os_mod, "sched_getaffinity", return_value=affinity, create=True):
+                MODULE["cpu_topology"](env)
+            self.assertEqual(env.get("WINE_CPU_TOPOLOGY"), expected, env)
+
     def test_caravan_sandwitch_robocop_and_cyberpunk_run_at_feature_level_12_1(self):
         with tempfile.TemporaryDirectory() as tmp:
             caravan = Path(tmp) / "Caravan SandWitch"
