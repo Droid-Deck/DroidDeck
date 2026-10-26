@@ -206,6 +206,47 @@ class PadBridgeQamTest {
         assertFalse(pad().isDown(PadState.QAM))
     }
 
+    @Test fun disconnectingThePartnerControllerDiscardsItsQueuedPress() {
+        val device = controller()
+        bridge.setBackQamPressed(true)
+        bridge.onKeyEvent(key(device, KeyEvent.KEYCODE_BUTTON_L1))
+        advance(20)
+        bridge.onDeviceRemoved(device.id)
+        assertTrue(pad().isDown(PadState.QAM))
+        assertFalse(pad().isDown(PadState.LB))
+        advance(60)
+        assertFalse(pad().isDown(PadState.LB))
+        advance(1000)
+        assertFalse(pad().isDown(PadState.LB))
+        assertTrue(pad().isDown(PadState.QAM))
+    }
+
+    @Test fun disconnectingThePartnerControllerImmediatelyReleasesADeliveredPress() {
+        val device = controller()
+        bridge.setBackQamPressed(true)
+        bridge.onKeyEvent(key(device, KeyEvent.KEYCODE_BUTTON_L1))
+        advance(80)
+        assertTrue(pad().isDown(PadState.LB))
+        bridge.onDeviceRemoved(device.id)
+        assertFalse(pad().isDown(PadState.LB))
+        assertTrue(pad().isDown(PadState.QAM))
+        advance(1000)
+        assertFalse(pad().isDown(PadState.LB))
+    }
+
+    @Test fun removingAnotherPlayerDoesNotDiscardThePrimaryPlayersQueuedChord() {
+        val device = controller()
+        bridge.onKeyEvent(key(device, KeyEvent.KEYCODE_BUTTON_L1, KeyEvent.ACTION_UP))
+        val other = controller(11)
+        bridge.onKeyEvent(key(other, KeyEvent.KEYCODE_BUTTON_X, KeyEvent.ACTION_UP))
+        bridge.setBackQamPressed(true)
+        bridge.onKeyEvent(key(device, KeyEvent.KEYCODE_BUTTON_L1))
+        bridge.onDeviceRemoved(other.id)
+        advance(80)
+        assertTrue(pad().isDown(PadState.LB))
+        assertTrue(pad().isDown(PadState.QAM))
+    }
+
     @Test fun queuedReportsUseTheLiveStickAndStopItImmediatelyOnBackRelease() {
         bridge.setBackQamPressed(true)
         bridge.applyExternal({ it.press(PadState.X, true); it.leftY = -1f }, true)
