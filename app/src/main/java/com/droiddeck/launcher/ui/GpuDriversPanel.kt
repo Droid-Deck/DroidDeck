@@ -129,6 +129,8 @@ class GpuDriversState(
     val runtime: DriverSlot = DriverSlot(),
     val canRestart: Boolean = true,
     val checkedAt: Long = 0L,
+    val sourceKey: String = "",
+    val sourceBuiltIns: List<String> = emptyList(),
     val tpUbwcMode: String? = null,
     val tpUbwcRestartRequired: Boolean = false,
 ) {
@@ -150,6 +152,7 @@ class GpuDriversActions(
     val onRestoreBundled: () -> Unit = {},
     val onMode: (String) -> Unit = {},
     val onRestart: () -> Unit = {},
+    val onSourcesChanged: () -> Unit = {},
     val onTpUbwcMode: (String) -> Unit = {},
 )
 

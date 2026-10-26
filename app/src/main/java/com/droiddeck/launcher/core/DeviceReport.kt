@@ -213,7 +213,10 @@ object DeviceReport {
         k("Driver mode", SessionPrefs.gpuDriverMode(context) +
             (com.droiddeck.launcher.gpu.DriverPairs.recommendedKey(gpu, com.droiddeck.launcher.gpu.DriverPairs.from(
                 com.droiddeck.launcher.gpu.TurnipReleases.cached(context)), com.droiddeck.launcher.gpu.TurnipReleases.autoPicks(context),
-                com.droiddeck.launcher.gpu.AutoDriverTrial.bad(context))?.let { " (recommended pair: $it)" } ?: ""))
+                com.droiddeck.launcher.gpu.AutoDriverTrial.bad(context),
+                blob = com.droiddeck.launcher.gpu.AutoPicks.blobVersion(
+                    com.droiddeck.launcher.gpu.VulkanInfo.cachedOrNull()?.get("driver_version")))
+                ?.let { " (recommended pair: $it)" } ?: ""))
         val turnip = TurnipDriver(context)
         val androidChoice = SessionPrefs.androidDriver(context)
         k("Display driver (chosen)", if (androidChoice.isEmpty()) "Auto -> ${turnip.autoId()}" else androidChoice)

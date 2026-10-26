@@ -3,10 +3,12 @@ package com.droiddeck.launcher
 import android.app.Activity
 import android.content.Context
 import java.io.File
+import java.io.IOException
 import android.net.Uri
 import android.provider.OpenableColumns
 import android.os.Handler
 import android.util.Log
+import androidx.annotation.VisibleForTesting
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -20,6 +22,8 @@ import com.droiddeck.launcher.gpu.LinuxVulkanDriver
 import com.droiddeck.launcher.gpu.LinuxVulkanDriverManager
 import com.droiddeck.launcher.gpu.TurnipDriver
 import com.droiddeck.launcher.gpu.TurnipReleases
+import com.droiddeck.launcher.artifact.RepositorySources
+import com.droiddeck.launcher.artifact.GitHubArtifacts
 import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.QuestExperimental
@@ -41,6 +45,7 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
     var releaseChecking by mutableStateOf(false)
     var canRestoreBundled by mutableStateOf(false)
     private val releaseProgress = HashMap<String, Int>()
+    @VisibleForTesting internal var releaseRefresher: () -> TurnipReleases.Check = { TurnipReleases.refresh(activity) }
     var linuxSelected by mutableStateOf("")
     val gpu: GpuInfo = GpuInfo.detect()
     var mode by mutableStateOf(SessionPrefs.GPU_DRIVERS_AUTO)
@@ -50,6 +55,7 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
     var autoStatus by mutableStateOf("")
     var activeBundle by mutableStateOf<String?>(null)
     private var lastAutoCheck = 0L
+    private var sourceRefreshPending = false
     private var pairModeOpen by mutableStateOf(false)
     var restartPending by mutableStateOf(false)
         private set
@@ -75,6 +81,8 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
         mode = uiMode, display = displaySlot(), runtime = runtimeSlot(),
         canRestart = !sessionRunning,
         checkedAt = TurnipReleases.cached(activity)?.checkedAt ?: 0L,
+        sourceKey = TurnipReleases.SOURCE_SCOPE,
+        sourceBuiltIns = TurnipReleases.sourceBuiltIns(),
         tpUbwcMode = tpUbwcMode.takeIf { gpu.model == 740 },
         tpUbwcRestartRequired = com.droiddeck.launcher.gpu.TpUbwcHint.restartRequired(activity),
     )
@@ -234,6 +242,17 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
         else if (!releaseChecking && releasesStale() && com.droiddeck.launcher.frontend.AutoComponents.isOnline(activity)) checkLatestTurnip()
     }
 
+    fun sourcesChanged() {
+        refreshDrivers()
+        sourceRefreshPending = true
+        if (!releaseChecking) checkLatestTurnip()
+    }
+
+    fun refreshSources() {
+        if (mode == SessionPrefs.GPU_DRIVERS_AUTO) ensureAuto(force = true)
+        else checkLatestTurnip()
+    }
+
     private fun releasesStale(): Boolean {
         val cached = TurnipReleases.cached(activity)
         return cached == null || System.currentTimeMillis() - cached.checkedAt > RELEASE_CHECK_INTERVAL_MS ||
@@ -270,13 +289,17 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
         releaseChecking = true
         autoStatus = activity.getString(R.string.drivers_checking_latest)
         Thread({
-            val problem = if (force || releasesStale()) runCatching { TurnipReleases.refresh(activity) }.exceptionOrNull()?.message else null
+            val result = if (force || releasesStale()) runCatching { releaseRefresher() } else null
+            val rateLimited = result?.getOrNull()?.rateLimited == true || result?.exceptionOrNull()?.let(GitHubArtifacts::isRateLimited) == true
+            val problem = if (rateLimited) activity.getString(R.string.sources_github_rate_limited)
+                else result?.exceptionOrNull()?.let { GitHubArtifacts.failureMessage(activity, it) }
             val holdBack = !force && com.droiddeck.launcher.frontend.AutoComponents.constrained(activity)
             runCatching { com.droiddeck.launcher.gpu.VulkanInfo.query() }
             ui.post {
                 releaseChecking = false
                 refreshReleaseRows()
                 refreshPairs()
+                if (force && rateLimited) android.widget.Toast.makeText(activity, problem, android.widget.Toast.LENGTH_LONG).show()
                 val pairs = DriverPairs.from(TurnipReleases.cached(activity))
                 val key = recommendedKey(pairs)
                 val pair = pairs.firstOrNull { it.key == key }
@@ -292,6 +315,7 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
                     holdBack && row?.installed != true -> autoStatus = activity.getString(R.string.drivers_auto_waits_for_network, pair.name, pair.version)
                     else -> installPair(pair, auto = true)
                 }
+                if (sourceRefreshPending) checkLatestTurnip()
             }
         }, "gpu-driver-auto").start()
     }
@@ -375,6 +399,10 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
     private fun installAsset(asset: TurnipReleases.Asset, progress: (Int) -> Unit): String {
         var file: File? = null
         try {
+            require(asset.sourceId.isNotEmpty()) { "Driver release has no source identity" }
+            val sourceGeneration = RepositorySources.generation(
+                activity, TurnipReleases.SOURCE_SCOPE, TurnipReleases.sourceBuiltIns(),
+            )
             file = TurnipReleases.download(activity, asset, progress)
             val uri = Uri.fromFile(file)
             val id = when {
@@ -382,7 +410,18 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
                 asset.linux -> LinuxVulkanDriverManager(activity).installDriver(uri, asset.name)
                 else -> TurnipDriver(activity).installFromZip(uri, asset.name)
             }
-            TurnipReleases.recordDownload(activity, asset, id)
+            val rollback: () -> Unit = {
+                when {
+                    asset.bundle -> DriverBundle.get(activity, id)?.let { DriverBundle.remove(activity, it) }
+                    asset.linux -> LinuxVulkanDriverManager(activity).removeDriver(id)
+                    else -> TurnipDriver(activity).remove(id)
+                }
+            }
+            finishRemoteDriverInstall(
+                activity, asset.sourceId, sourceGeneration,
+                rollback = rollback,
+                record = { TurnipReleases.recordDownload(activity, asset, id) },
+            )
             return id
         } finally {
             file?.let { com.droiddeck.launcher.core.FileUtils.delete(it) }
@@ -478,7 +517,7 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
             .filter { a -> installedIdOf(a) == null }
             .map { a ->
                 val mb = activity.getString(R.string.common_size_mb, a.size / 1_048_576.0)
-                com.droiddeck.launcher.ui.DownloadRow(a.name, "${a.source} ${a.tag}", "${a.label} · $mb", releaseProgress[a.name])
+                com.droiddeck.launcher.ui.DownloadRow(a.id, "${a.source} ${a.tag}", "${a.label} · $mb", releaseProgress[a.id])
             }
         linuxDownloads = rows(linux = true)
         androidDownloads = rows(linux = false)
@@ -504,29 +543,34 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
 
     fun checkLatestTurnip() {
         if (releaseChecking) return
+        sourceRefreshPending = false
         releaseChecking = true
         releaseStatus = activity.getString(R.string.drivers_checking_sources)
         Thread({
-            val problem = try { TurnipReleases.refresh(activity); null } catch (e: Exception) {
-                Log.w(TAG, "latest Turnip check", e); e.message ?: activity.getString(R.string.drivers_check_failed)
-            }
+            val result = runCatching { releaseRefresher() }
+            result.exceptionOrNull()?.let { Log.w(TAG, "latest Turnip check", it) }
+            val rateLimited = result.getOrNull()?.rateLimited == true || result.exceptionOrNull()?.let(GitHubArtifacts::isRateLimited) == true
+            val problem = if (rateLimited) activity.getString(R.string.sources_github_rate_limited)
+                else result.exceptionOrNull()?.let { GitHubArtifacts.failureMessage(activity, it) }
             ui.post {
                 releaseChecking = false
                 refreshReleaseRows()
                 refreshPairs()
                 if (problem != null) releaseStatus = activity.getString(R.string.upd_couldnt_check, problem)
+                if (rateLimited) android.widget.Toast.makeText(activity, problem, android.widget.Toast.LENGTH_LONG).show()
+                if (sourceRefreshPending) checkLatestTurnip()
             }
         }, "turnip-release-check").start()
     }
 
-    fun downloadReleaseDriver(assetName: String) {
-        val asset = TurnipReleases.cached(activity)?.assets?.firstOrNull { it.name == assetName } ?: return
-        if (releaseProgress.containsKey(assetName)) return
-        releaseProgress[assetName] = 0
+    fun downloadReleaseDriver(assetId: String) {
+        val asset = releaseAssetById(TurnipReleases.cached(activity)?.assets.orEmpty(), assetId) ?: return
+        if (releaseProgress.containsKey(assetId)) return
+        releaseProgress[assetId] = 0
         refreshReleaseRows()
         Thread({
             val problem = try {
-                installAsset(asset) { pct -> ui.post { releaseProgress[assetName] = pct; refreshReleaseRows() } }
+                installAsset(asset) { pct -> ui.post { releaseProgress[assetId] = pct; refreshReleaseRows() } }
                 null
             } catch (e: IllegalArgumentException) {
                 e.message
@@ -535,7 +579,7 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
                 activity.getString(R.string.comp_download_failed, e.message)
             }
             ui.post {
-                releaseProgress.remove(assetName)
+                releaseProgress.remove(assetId)
                 val installed = activity.getString(
                     if (asset.bundle) R.string.drivers_installed_pick_either else R.string.drivers_installed_pick,
                     asset.name.removeSuffix(".zip"),
@@ -552,6 +596,26 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
     private companion object {
         const val TAG = "MainActivity"
         const val RELEASE_CHECK_INTERVAL_MS = 3_600_000L
+    }
+}
+
+internal fun releaseAssetById(assets: List<TurnipReleases.Asset>, id: String): TurnipReleases.Asset? =
+    assets.firstOrNull { it.id == id }
+
+internal fun finishRemoteDriverInstall(
+    context: Context,
+    sourceId: String,
+    sourceGeneration: Long,
+    rollback: () -> Unit,
+    record: () -> Unit,
+) {
+    try {
+        RepositorySources.whileCurrent(
+            context, TurnipReleases.SOURCE_SCOPE, TurnipReleases.sourceBuiltIns(), sourceId, sourceGeneration,
+        ) { record() }
+    } catch (error: IOException) {
+        rollback()
+        throw error
     }
 }
 
