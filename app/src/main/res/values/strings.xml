@@ -3204,4 +3204,6 @@
     <string name="stores_xbox_cloud_settings">Cloud settings</string>
     <string name="xbox_cloud_gaming" translatable="false">Xbox Cloud Gaming</string>
     <string name="xbox_filter_game_pass" translatable="false">Game Pass</string>
+    <string name="exit_hint_back">Press back once more to exit</string>
+    <string name="exit_hint_left">Push left once more to exit</string>
 </resources>

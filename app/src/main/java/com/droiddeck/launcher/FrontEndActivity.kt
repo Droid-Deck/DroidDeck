@@ -16,7 +16,9 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import android.view.Display
+import android.view.InputDevice
 import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
@@ -54,6 +56,7 @@ import com.droiddeck.launcher.core.WirelessAdbFix
 import com.droiddeck.launcher.core.WifiDiscovery
 import com.droiddeck.launcher.core.WirelessAdbPairingService
 import com.droiddeck.launcher.ui.CoreRow
+import com.droiddeck.launcher.ui.ExitGesture
 import com.droiddeck.launcher.ui.PerformancePage
 import com.droiddeck.launcher.ui.ModeSettings
 import com.droiddeck.launcher.ui.ModeSettingsActions
@@ -1301,8 +1304,41 @@ class FrontEndActivity : ComponentActivity() {
         }
     }
 
+    private fun onLeftGesture(presses: Int) {
+        when (presses) {
+            1 -> android.widget.Toast.makeText(this, R.string.exit_hint_left, android.widget.Toast.LENGTH_SHORT).show()
+            2 -> {
+                ExitGesture.resetLeft()
+                finishAndRemoveTask()
+            }
+        }
+    }
+
+    private fun isPadKey(event: KeyEvent): Boolean =
+        event.isFromSource(InputDevice.SOURCE_GAMEPAD) || event.isFromSource(InputDevice.SOURCE_JOYSTICK) ||
+            event.isFromSource(InputDevice.SOURCE_DPAD)
+
+    override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {
+        if (event.actionMasked == MotionEvent.ACTION_MOVE && ExitGesture.armed) {
+            val device = event.device
+            if (device != null && !device.isVirtual &&
+                (event.isFromSource(InputDevice.SOURCE_JOYSTICK) || event.isFromSource(InputDevice.SOURCE_GAMEPAD))
+            ) {
+                onLeftGesture(ExitGesture.stick(minOf(event.getAxisValue(MotionEvent.AXIS_X), event.getAxisValue(MotionEvent.AXIS_HAT_X))))
+            }
+        }
+        return super.dispatchGenericMotionEvent(event)
+    }
+
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (event.keyCode == KeyEvent.KEYCODE_BUTTON_A) com.droiddeck.launcher.ui.HeldKeys.confirm = event.action == KeyEvent.ACTION_DOWN
+        if (event.keyCode == KeyEvent.KEYCODE_BACK && event.action == KeyEvent.ACTION_DOWN && !ExitGesture.armed) ExitGesture.resetBack()
+        if (event.keyCode == KeyEvent.KEYCODE_DPAD_LEFT && isPadKey(event)) {
+            when (event.action) {
+                KeyEvent.ACTION_DOWN -> onLeftGesture(ExitGesture.dpad(true))
+                KeyEvent.ACTION_UP -> ExitGesture.dpad(false)
+            }
+        }
         if (showComponents && (event.keyCode == KeyEvent.KEYCODE_BUTTON_L1 || event.keyCode == KeyEvent.KEYCODE_BUTTON_R1)) {
             if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
                 components.compComp = com.droiddeck.launcher.ui.layerStep(components.compComp, if (event.keyCode == KeyEvent.KEYCODE_BUTTON_R1) 1 else -1)

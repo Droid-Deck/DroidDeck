@@ -3080,4 +3080,6 @@
     <string name="xbox_filter_show">Anzeigen</string>
     <string name="xbox_filter_cloud">Cloud</string>
     <string name="stores_xbox_cloud_settings">Cloud-Einstellungen</string>
+    <string name="exit_hint_back">Noch einmal zurück drücken zum Beenden</string>
+    <string name="exit_hint_left">Noch einmal nach links drücken zum Beenden</string>
 </resources>

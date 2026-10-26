@@ -633,8 +633,20 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
         (s.pageKey == null && Hops.origin?.page == selected) ||
         ((s.pageKey == null || page == null) &&
             (selected.startsWith("emu:") || selected.startsWith("rom:") || selected.startsWith("user:") || selected == "store"))
-    BackHandler(enabled = !processSettingsPageVisible && !hasBackTarget) {
-        if (inputModeManager.inputMode != InputMode.Keyboard) inputModeManager.requestInputMode(InputMode.Keyboard)
-        runCatching { frontFocus.railFor(railSelection).requestFocus() }
+    val exitArmed = !processSettingsPageVisible && !hasBackTarget
+    remember(exitArmed) { ExitGesture.armed = exitArmed; true }
+    remember(frontFocus.focusedRail) { ExitGesture.onRail = frontFocus.focusedRail != null; true }
+    BackHandler(enabled = exitArmed) {
+        when (ExitGesture.back()) {
+            2 -> android.widget.Toast.makeText(ctx, R.string.exit_hint_back, android.widget.Toast.LENGTH_SHORT).show()
+            3 -> {
+                ExitGesture.resetBack()
+                ctx.finishTask()
+            }
+            else -> {
+                if (inputModeManager.inputMode != InputMode.Keyboard) inputModeManager.requestInputMode(InputMode.Keyboard)
+                runCatching { frontFocus.railFor(railSelection).requestFocus() }
+            }
+        }
     }
 }

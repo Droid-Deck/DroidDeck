@@ -3055,4 +3055,6 @@
     <string name="xbox_filter_show">Hiển thị</string>
     <string name="xbox_filter_cloud">Đám mây</string>
     <string name="stores_xbox_cloud_settings">Cài đặt đám mây</string>
+    <string name="exit_hint_back">Nhấn lại để thoát</string>
+    <string name="exit_hint_left">Đẩy sang trái một lần nữa để thoát</string>
 </resources>

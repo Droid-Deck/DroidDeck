@@ -3058,4 +3058,6 @@
     <string name="xbox_filter_show">顯示</string>
     <string name="xbox_filter_cloud">雲端</string>
     <string name="stores_xbox_cloud_settings">雲端設定</string>
+    <string name="exit_hint_back">再按一次返回鍵退出</string>
+    <string name="exit_hint_left">再左推一次退出</string>
 </resources>

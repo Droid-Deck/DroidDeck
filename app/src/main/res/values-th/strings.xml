@@ -3055,4 +3055,6 @@
     <string name="xbox_filter_show">แสดง</string>
     <string name="xbox_filter_cloud">คลาวด์</string>
     <string name="stores_xbox_cloud_settings">การตั้งค่าคลาวด์</string>
+    <string name="exit_hint_back">กดกลับอีกครั้งเพื่อออก</string>
+    <string name="exit_hint_left">ดันไปทางซ้ายอีกครั้งเพื่อออก</string>
 </resources>

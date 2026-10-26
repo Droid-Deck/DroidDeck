@@ -3216,4 +3216,6 @@
     <string name="xbox_filter_show">عرض</string>
     <string name="xbox_filter_cloud">سحابية</string>
     <string name="stores_xbox_cloud_settings">إعدادات السحابة</string>
+    <string name="exit_hint_back">اضغط زر الرجوع مرة أخرى للخروج</string>
+    <string name="exit_hint_left">حرّك لليسار مرة أخرى للخروج</string>
 </resources>
