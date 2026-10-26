@@ -70,6 +70,22 @@ class StoreExeTest {
         assertEquals("other", StoreExe.pickLinux(tmp.root, "game.exe", "Zzz"))
     }
 
+    @Test fun aHintCannotSelectALibraryOrAHelper() {
+        elf("lib/UnityPlayer.so", size = 9000)
+        elf("crashhandler", size = 9000)
+        elf("Game.x86_64", size = 100)
+        assertEquals("Game.x86_64", StoreExe.pickLinux(tmp.root, "lib/UnityPlayer.so", "Game"))
+        assertEquals("Game.x86_64", StoreExe.pickLinux(tmp.root, "crashhandler", "Game"))
+    }
+
+    @Test fun amongTitleMatchesTheShallowestWinsThenTheLargest() {
+        elf("bin/Game", size = 9000)
+        elf("Game.x86_64", size = 100)
+        elf("Game", size = 50)
+        elf("Other.x86_64", size = 99999)
+        assertEquals("Game.x86_64", StoreExe.pickLinux(tmp.root, null, "Game"))
+    }
+
     @Test fun anEmptyFolderGivesNothing() {
         assertEquals("", StoreExe.pickLinux(tmp.root, null, "Game"))
     }

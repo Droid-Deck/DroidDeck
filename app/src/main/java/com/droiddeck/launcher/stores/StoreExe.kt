@@ -24,16 +24,23 @@ object StoreExe {
 
     fun pickLinux(folder: File, hint: String?, title: String): String {
         val hinted = hint?.takeIf { it.isNotBlank() }?.replace('\\', '/')?.trimStart('/')?.let { File(folder, it) }
-        if (hinted != null && hinted.isFile && isX86Elf(hinted)) return relative(folder, hinted)
+        if (hinted != null && linuxCandidate(hinted)) return relative(folder, hinted)
         val candidates = ArrayList<File>()
         collectLinux(folder, candidates, 0)
         if (candidates.isEmpty()) return ""
         val key = title.lowercase().replace(Regex("[^a-z0-9]"), "")
-        val best = candidates.firstOrNull { f ->
+        val matches = candidates.filter { f ->
             val n = f.nameWithoutExtension.lowercase().replace(Regex("[^a-z0-9]"), "")
             n.isNotEmpty() && (n == key || (key.length >= 4 && key.startsWith(n)) || (n.length >= 4 && n.startsWith(key)))
-        } ?: candidates.sortedWith(compareBy<File> { depth(folder, it) }.thenByDescending { it.length() }).first()
+        }
+        val best = matches.ifEmpty { candidates }.sortedWith(compareBy<File> { depth(folder, it) }.thenByDescending { it.length() }).first()
         return relative(folder, best)
+    }
+
+    private fun linuxCandidate(f: File): Boolean {
+        if (!f.isFile || f.name.startsWith(".")) return false
+        val lower = f.name.lowercase()
+        return !SHARED_OBJECT.containsMatchIn(lower) && SKIP.none { lower.contains(it) } && isX86Elf(f)
     }
 
     internal fun isX86Elf(file: File): Boolean {
@@ -48,12 +55,7 @@ object StoreExe {
     private fun collectLinux(dir: File, out: MutableList<File>, depth: Int) {
         if (depth > 4) return
         val files = dir.listFiles() ?: return
-        for (f in files) {
-            if (!f.isFile || f.name.startsWith(".")) continue
-            val lower = f.name.lowercase()
-            if (SHARED_OBJECT.containsMatchIn(lower) || SKIP.any { lower.contains(it) }) continue
-            if (isX86Elf(f)) out.add(f)
-        }
+        for (f in files) if (linuxCandidate(f)) out.add(f)
         for (f in files) if (f.isDirectory && !f.name.startsWith(".")) collectLinux(f, out, depth + 1)
     }
 
