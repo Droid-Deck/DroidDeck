@@ -11,6 +11,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -54,6 +55,7 @@ internal class GlideSource {
     var shape: Shape by mutableStateOf<Shape>(androidx.compose.ui.graphics.RectangleShape)
     var color by mutableStateOf(Color.Transparent)
     var width by mutableStateOf(2.dp)
+    var fillAlpha by mutableFloatStateOf(RING_FILL)
     val requester = androidx.compose.ui.focus.FocusRequester()
 }
 
@@ -107,6 +109,7 @@ internal fun Modifier.glideBorder(
     restColor: Color = Color.Transparent,
     hotWidth: Dp = 2.dp,
     restWidth: Dp = 1.dp,
+    hotFillAlpha: Float = RING_FILL,
 ): Modifier {
     val glide = LocalFocusGlide.current
     if (glide == null || glide.view !== LocalView.current) {
@@ -116,6 +119,7 @@ internal fun Modifier.glideBorder(
     src.shape = shape
     src.color = hotColor
     src.width = hotWidth
+    src.fillAlpha = hotFillAlpha
     DisposableEffect(glide, hot) {
         if (hot) glide.claim(src)
         onDispose { glide.release(src) }
@@ -162,6 +166,8 @@ internal fun FocusGlideHost(modifier: Modifier = Modifier, content: @Composable 
     val color by animateColorAsState(cur?.color ?: lastColor, Motion.tw(160), label = "glideColor")
     var width by remember { mutableStateOf(2.dp) }
     if (cur != null) width = cur.width
+    var fillAlpha by remember { mutableFloatStateOf(RING_FILL) }
+    if (cur != null) fillAlpha = cur.fillAlpha
 
     LaunchedEffect(glide, Motion.scale) {
         var shown: GlideSource? = null
@@ -359,7 +365,7 @@ internal fun FocusGlideHost(modifier: Modifier = Modifier, content: @Composable 
                 if (f < 0.99f) {
                     drawRoundRect(
                         color, topLeft = Offset(l + w / 2f, t + w / 2f), size = Size(sw, sh),
-                        cornerRadius = CornerRadius(rad), alpha = a * (1f - f) * RING_FILL,
+                        cornerRadius = CornerRadius(rad), alpha = a * (1f - f) * fillAlpha,
                     )
                     drawRoundRect(
                         color, topLeft = Offset(l + w / 2f, t + w / 2f), size = Size(sw, sh),
