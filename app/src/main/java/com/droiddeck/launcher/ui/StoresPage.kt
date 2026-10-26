@@ -1065,35 +1065,60 @@ internal fun ModeHeader(
         if (query.isNotEmpty()) onQuery("")
     }
     BackHandler(enabled = searching && !clearSearchFocus) { close() }
-    Column(Modifier.fillMaxWidth()) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp).padding(vertical = 4.dp)) {
-            if (lead != null) lead()
-            else Text(
-                title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, maxLines = 1,
-                modifier = Modifier.padding(start = 4.dp, end = 4.dp),
-            )
-            BoxWithConstraints(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
-                if (searching || open > 0.01f) {
-                    val closable = maxWidth >= 80.dp
-                    val w = androidx.compose.ui.unit.lerp(44.dp, (maxWidth - if (closable) 36.dp else 0.dp).coerceIn(44.dp, 520.dp), open)
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Box(Modifier.width(w).graphicsLayer { alpha = (open * 1.6f).coerceAtMost(1f) }) {
-                            AdbTextField(
-                                value = query, onValueChange = onQuery, label = "", keyboardType = KeyboardType.Text, imeAction = ImeAction.Search,
-                                placeholder = placeholder, compact = true, focusOnShow = focusOnOpen,
-                                clearFocus = clearSearchFocus || !searching,
-                                onFocusChange = { focused -> if (!focused && query.isEmpty()) { searching = false; focusOnOpen = false } },
-                            )
-                        }
-                        if (searching && closable) SmallIconButton(Icons.Filled.Close, stringResource(R.string.common_close), tint = colors.onSurfaceVariant, onClick = close)
-                    }
-                } else SearchIcon(stringResource(R.string.stores_search_open)) { searching = true; focusOnOpen = true }
+    val heading: @Composable () -> Unit = {
+        if (lead != null) lead()
+        else Text(
+            title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, maxLines = 1,
+            modifier = Modifier.padding(start = 4.dp, end = 4.dp),
+        )
+    }
+    val searchField: @Composable (Modifier) -> Unit = { modifier ->
+        BoxWithConstraints(modifier, contentAlignment = Alignment.CenterStart) {
+            val closable = maxWidth >= 80.dp
+            val w = androidx.compose.ui.unit.lerp(44.dp, (maxWidth - if (closable) 36.dp else 0.dp).coerceIn(44.dp, 520.dp), open)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                Box(Modifier.width(w).graphicsLayer { alpha = (open * 1.6f).coerceAtMost(1f) }) {
+                    AdbTextField(
+                        value = query, onValueChange = onQuery, label = "", keyboardType = KeyboardType.Text, imeAction = ImeAction.Search,
+                        placeholder = placeholder, compact = true, focusOnShow = focusOnOpen,
+                        clearFocus = clearSearchFocus || !searching,
+                        onFocusChange = { focused -> if (!focused && query.isEmpty()) { searching = false; focusOnOpen = false } },
+                    )
+                }
+                if (searching && closable) SmallIconButton(Icons.Filled.Close, stringResource(R.string.common_close), tint = colors.onSurfaceVariant, onClick = close)
             }
-            trailing()
         }
-        Box(Modifier.fillMaxWidth().height(1.dp).background(pal.line))
+    }
+    val searchButton: @Composable () -> Unit = {
+        SearchIcon(stringResource(R.string.stores_search_open)) { searching = true; focusOnOpen = true }
+    }
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val stacked = maxWidth < NarrowPaneWidth
+        Column(Modifier.fillMaxWidth()) {
+            if (stacked) {
+                Box(Modifier.padding(vertical = 4.dp)) { heading() }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).heightIn(min = 52.dp).padding(vertical = 4.dp),
+                ) {
+                    searchButton()
+                    trailing()
+                }
+                if (searching || open > 0.01f) searchField(Modifier.fillMaxWidth().padding(bottom = 6.dp))
+            } else Row(
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp).padding(vertical = 4.dp),
+            ) {
+                heading()
+                if (searching || open > 0.01f) searchField(Modifier.weight(1f))
+                else Box(Modifier.weight(1f)) { searchButton() }
+                trailing()
+            }
+            Box(Modifier.fillMaxWidth().height(1.dp).background(pal.line))
+        }
     }
 }
+
 
 internal fun storePalette(base: Palette, store: Store?): Palette {
     val (accent, deep) = when (store) {

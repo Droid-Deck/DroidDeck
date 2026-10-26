@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -90,6 +91,29 @@ class PortraitLayoutTest {
             compose.onNodeWithTag("rail-$key").assertIsSelected().assertHeightIsAtLeast(48.dp).assertWidthIsAtLeast(48.dp)
         }
         compose.onNodeWithContentDescription("Resume Steam").assertIsDisplayed()
+    }
+
+    @Test fun compactHeaderKeepsAllActionsReachable() {
+        compose.setContent {
+            DroidDeckTheme {
+                CompositionLocalProvider(LocalNarrowPane provides true) {
+                    Box(Modifier.size(320.dp, 240.dp)) {
+                        ModeHeader("Library", "", {}, "Search library") {
+                            for (label in listOf("Filter", "Sort", "View", "Frontend files", "Add game")) {
+                                SecondaryButton(label) {}
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        compose.mainClock.advanceTimeBy(1_000)
+        compose.onNodeWithText("Add game").performScrollTo()
+        compose.mainClock.advanceTimeBy(1_000)
+        compose.onNodeWithText("Add game").assertIsDisplayed()
+        compose.onNodeWithText("Filter").performScrollTo()
+        compose.mainClock.advanceTimeBy(1_000)
+        compose.onNodeWithText("Filter").assertIsDisplayed()
     }
 
     private fun state(home: Boolean = false, running: String? = null) = FrontEndState(
