@@ -45,8 +45,8 @@ object BattleNetInstall {
         "zhTW", "zhCN", "thTH", "arSA",
     )
 
-    private val checks = Executors.newSingleThreadExecutor { r -> Thread(r, "battlenet-updates") }
-    private val checkedAt = HashMap<String, Long>()
+    internal val checks = Executors.newSingleThreadExecutor { r -> Thread(r, "battlenet-updates") }
+    internal val checkedAt = HashMap<String, Long>()
 
     val updates = mutableStateMapOf<String, Boolean>()
 
@@ -177,10 +177,13 @@ object BattleNetInstall {
             if (!force && now - (checkedAt[id] ?: 0L) < CHECK_AGAIN_MS) return
             checkedAt[id] = now
         }
+        fun retryLater() = synchronized(checkedAt) { if (checkedAt[id] == now) checkedAt.remove(id) }
         checks.execute {
-            val local = runCatching { buildKey(File(folder, BUILD_INFO).readText()) }.getOrNull() ?: return@execute
+            val local = runCatching { buildKey(File(folder, BUILD_INFO).readText()) }.getOrNull()
+                ?: return@execute retryLater()
             val latest = runCatching { latestBuild(fetch(VERSIONS.format(Locale.ROOT, local.first, product)), local.first) }
-                .onFailure { Log.w(TAG, "versions of $product: ${it.javaClass.simpleName}") }.getOrNull() ?: return@execute
+                .onFailure { Log.w(TAG, "versions of $product: ${it.javaClass.simpleName}") }.getOrNull()
+                ?: return@execute retryLater()
             val behind = latest != local.second
             Log.i(TAG, "$id: ${if (behind) "update available" else "up to date"}")
             StoresState.post { if (behind) updates[id] = true else updates.remove(id) }

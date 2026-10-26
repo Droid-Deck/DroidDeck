@@ -8,6 +8,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.nio.file.Files
 import java.util.Locale
 
 class BattleNetInstallTest {
@@ -62,6 +63,17 @@ class BattleNetInstallTest {
         assertEquals("d3", BattleNetInstall.product("diablo3_enus"))
         assertFalse(BattleNetInstall.headless(CatalogItem(Store.BATTLENET, "d3cn", "Diablo III", null)))
         assertFalse(BattleNetInstall.headless(CatalogItem(Store.EPIC, "gryphon", "Warcraft Rumble", null)))
+    }
+
+    @Test fun aCheckThatCouldNotRunIsTriedAgainNextTime() {
+        val folder = Files.createTempDirectory("bnet").toFile()
+        try {
+            BattleNetInstall.check("gryphon", folder, false)
+            BattleNetInstall.checks.submit {}.get()
+            assertFalse(synchronized(BattleNetInstall.checkedAt) { "gryphon" in BattleNetInstall.checkedAt })
+        } finally {
+            folder.deleteRecursively()
+        }
     }
 
     @Test fun theAgentStatusPicksTheDownloadStep() {
