@@ -35,6 +35,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -123,7 +124,7 @@ class GfnActivity : ComponentActivity() {
                         screen = withContext(Dispatchers.IO) { waitForSignIn(current) }
                     }
                 }
-                is Screen.Games -> GameGrid(current) { game -> play(game) }
+                is Screen.Games -> GamesHome(current)
             }
         }
     }
@@ -147,6 +148,218 @@ class GfnActivity : ComponentActivity() {
             Text("Waiting for you to sign in…", color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
                 modifier = Modifier.padding(top = 12.dp))
         }
+    }
+
+    @Composable
+    private fun GamesHome(catalog: Screen.Games) {
+        var tab by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(0) }
+        Row(Modifier.padding(horizontal = 16.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf("Store", "My library", "Connected stores").forEachIndexed { index, label ->
+                androidx.compose.material3.FilterChip(selected = tab == index, onClick = { tab = index }, label = { Text(label) })
+            }
+        }
+        when (tab) {
+            0 -> GameGrid(catalog) { game -> play(game) }
+            1 -> LibraryGrid { game -> play(game) }
+            else -> ConnectedStores()
+        }
+    }
+
+    @Composable
+    private fun GameCard(game: Game, onPlay: (Game) -> Unit) {
+        Column(Modifier.clip(RoundedCornerShape(8.dp)).background(MaterialTheme.colorScheme.surfaceVariant)
+            .clickable { onPlay(game) }) {
+            AsyncImage(model = game.imageUrl, contentDescription = game.title, contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxWidth().aspectRatio(460f / 215f))
+            Text(game.title, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.SemiBold, fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 8.dp, top = 5.dp, end = 8.dp))
+            Text(game.store + if (game.inLibrary) " · in library" else "", fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                modifier = Modifier.padding(start = 8.dp, bottom = 6.dp, end = 8.dp))
+        }
+    }
+
+    /** The account's GeForce NOW library: games from connected stores and ones added on GeForce NOW. */
+    @Composable
+    private fun LibraryGrid(onPlay: (Game) -> Unit) {
+        var games by remember { mutableStateOf<List<Game>?>(null) }
+        var error by remember { mutableStateOf<String?>(null) }
+        var query by remember { mutableStateOf("") }
+        var reload by remember { mutableStateOf(0) }
+        LaunchedEffect(reload) {
+            error = null
+            withContext(Dispatchers.IO) { runCatching { libraryGames() } }
+                .onSuccess { games = it.sortedBy { game -> game.title.lowercase() } }
+                .onFailure { error = it.message ?: "Your GeForce NOW library could not be loaded." }
+        }
+        val words = query.trim().lowercase().split(' ').filter { it.isNotEmpty() }
+        val shown = games.orEmpty().filter { game -> words.all { game.search.contains(it) } }
+        Column {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                OutlinedTextField(value = query, onValueChange = { query = it }, singleLine = true,
+                    label = { Text("Search your ${games?.size ?: 0} games") }, modifier = Modifier.weight(1f))
+                OutlinedButton(onClick = { games = null; reload += 1 }, modifier = Modifier.padding(start = 12.dp)) { Text("Refresh") }
+            }
+            error?.let { Text(it, color = MaterialTheme.colorScheme.error, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp)) }
+            when {
+                games == null && error == null -> Message("Loading your library…")
+                games?.isEmpty() == true -> Message("Your GeForce NOW library is empty. Connect your stores in Connected stores, then sync.")
+                else -> LazyVerticalGrid(columns = GridCells.Fixed(5), modifier = Modifier.fillMaxSize(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 8.dp)) {
+                    items(shown, key = { it.id }) { game -> GameCard(game, onPlay) }
+                }
+            }
+        }
+    }
+
+    private fun libraryGames(): List<Game> {
+        val games = LinkedHashMap<String, Game>()
+        val traversal = System.currentTimeMillis().toString()
+        var cursor = ""
+        var revision: Any? = null
+        var context = ""
+        repeat(50) {
+            val params = JSONObject().put("limit", 100).put("cursor", cursor).put("traversalId", traversal)
+                .put("catalogRevision", revision ?: JSONObject.NULL).put("catalogContext", context)
+            val page = GfnCore.request(this, "catalog.library.list", params, timeoutMs = 60_000)
+            gamesOf(page).forEach { games.putIfAbsent(it.id, it.copy(inLibrary = true)) }
+            revision = page.opt("catalogRevision")
+            context = page.optString("catalogContext")
+            cursor = page.optString("nextCursor")
+            if (!page.optBoolean("hasNextPage") || cursor.isEmpty()) return games.values.toList()
+        }
+        return games.values.toList()
+    }
+
+    private data class StoreAccount(val provider: String, val label: String, val displayName: String, val connected: Boolean,
+                                    val status: String, val syncState: String, val canLink: Boolean, val canSync: Boolean)
+
+    /** Store accounts linked to GeForce NOW, which fill the GeForce NOW library. */
+    @Composable
+    private fun ConnectedStores() {
+        var accounts by remember { mutableStateOf<List<StoreAccount>?>(null) }
+        var message by remember { mutableStateOf<String?>(null) }
+        var busy by remember { mutableStateOf(false) }
+        var reload by remember { mutableStateOf(0) }
+        val scope = rememberCoroutineScope()
+        val scroll = androidx.compose.foundation.rememberScrollState()
+        LaunchedEffect(reload) {
+            withContext(Dispatchers.IO) { runCatching { storeAccounts() } }
+                .onSuccess { accounts = it }.onFailure { message = it.message ?: "Connected stores could not be loaded." }
+        }
+        fun perform(action: suspend () -> String) {
+            if (busy) return
+            busy = true
+            scope.launch {
+                message = runCatching { action() }.getOrElse { it.message ?: "That did not work. Try again." }
+                busy = false
+                reload += 1
+            }
+        }
+        Column(Modifier.fillMaxSize().padding(horizontal = 16.dp).verticalScroll(scroll)) {
+            Text("Games in stores you connect here show up in My library and can be streamed. Amazon and itch.io games are not on GeForce NOW.",
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f), fontSize = 13.sp, modifier = Modifier.padding(vertical = 8.dp))
+            message?.let { Text(it, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(bottom = 8.dp)) }
+            if (accounts == null) Text("Loading…", color = MaterialTheme.colorScheme.onBackground)
+            accounts.orEmpty().forEach { account ->
+                Row(Modifier.fillMaxWidth().padding(vertical = 6.dp).clip(RoundedCornerShape(8.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(account.label, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(statusText(account), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f))
+                    }
+                    when (actionFor(account)) {
+                        "link" -> Button(enabled = !busy, onClick = { perform { link(account) } }) {
+                            Text(if (account.connected) "Reconnect" else "Connect")
+                        }
+                        "sync" -> Button(enabled = !busy, onClick = { perform { sync(account) } }) { Text("Sync library") }
+                        "unlink" -> OutlinedButton(enabled = !busy, onClick = { perform { unlink(account) } }) { Text("Disconnect") }
+                        else -> if (account.provider == "STEAM" && !account.connected)
+                            Text("Link Steam on NVIDIA's site", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun statusText(account: StoreAccount): String = when {
+        account.status == "expired" -> "Connection expired: reconnect"
+        account.status == "sync_error" -> "Last sync failed"
+        account.connected -> "Connected" + if (account.displayName.isNotEmpty()) " as ${account.displayName}" else ""
+        else -> "Not connected"
+    }
+
+    /** OpenNOW's own rule for which action a store row offers. */
+    private fun actionFor(account: StoreAccount): String = when {
+        account.canLink && (!account.connected || account.status == "expired" ||
+            (account.syncState == "SYNC_DENIED" && account.provider != "STEAM")) -> "link"
+        account.canSync -> "sync"
+        account.connected && account.canLink -> "unlink"
+        else -> "none"
+    }
+
+    private fun storeAccounts(): List<StoreAccount> {
+        val list = GfnCore.request(this, "account.connections.list").optJSONArray("accounts") ?: return emptyList()
+        return (0 until list.length()).mapNotNull { index ->
+            val account = list.optJSONObject(index) ?: return@mapNotNull null
+            StoreAccount(provider = account.optString("provider"), label = account.optString("label").ifEmpty { account.optString("provider") },
+                displayName = account.optString("displayName"),
+                connected = account.optBoolean("isConnected") || account.optString("status") == "connected",
+                status = account.optString("status"), syncState = account.optString("syncState"),
+                canLink = account.optBoolean("supportsLinking"), canSync = account.optBoolean("supportsSync"))
+        }
+    }
+
+    private suspend fun link(account: StoreAccount): String {
+        val attempt = withContext(Dispatchers.IO) {
+            GfnCore.request(this@GfnActivity, "account.connections.link.start", JSONObject().put("provider", account.provider))
+        }
+        val url = attempt.optString("loginUrl")
+        if (url.isNotEmpty()) startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+        repeat(150) {
+            delay(2_000)
+            val poll = withContext(Dispatchers.IO) {
+                GfnCore.request(this@GfnActivity, "account.connections.link.poll",
+                    JSONObject().put("attemptId", attempt.optString("attemptId")), timeoutMs = 10_000)
+            }
+            when (poll.optString("status")) {
+                "pending" -> {}
+                "complete" -> return "${account.label} connected."
+                else -> return poll.optString("message").ifEmpty { "${account.label} was not connected." }
+            }
+        }
+        return "Stopped waiting for ${account.label}. Finish signing in, then refresh."
+    }
+
+    private suspend fun sync(account: StoreAccount): String = withContext(Dispatchers.IO) {
+        var state = GfnCore.request(this@GfnActivity, "account.connections.sync", JSONObject().put("provider", account.provider))
+        val operation = state.optString("operationId")
+        if (operation.isEmpty()) return@withContext state.optString("message").ifEmpty { "${account.label} synced." }
+        repeat(90) {
+            when (state.optString("phase")) {
+                "waiting_remote", "starting" -> {
+                    delay(state.optLong("retryAfterMs", 2_000).coerceAtLeast(2_000))
+                    state = GfnCore.request(this@GfnActivity, "account.connections.sync.status", JSONObject().put("operationId", operation))
+                }
+                "refreshing_library" -> {
+                    runCatching { libraryGames() }
+                    runCatching {
+                        GfnCore.request(this@GfnActivity, "account.connections.sync.status",
+                            JSONObject().put("operationId", operation).put("libraryRefreshed", true), timeoutMs = 10_000)
+                    }
+                    return@withContext "${account.label} synced. Your library is up to date."
+                }
+                "timed_out" -> return@withContext "The sync could not be confirmed. ${account.label} may still finish; refresh later."
+                else -> return@withContext "${account.label} could not finish the sync. Try again."
+            }
+        }
+        "Still waiting for ${account.label}; refresh later."
+    }
+
+    private suspend fun unlink(account: StoreAccount): String = withContext(Dispatchers.IO) {
+        GfnCore.request(this@GfnActivity, "account.connections.unlink", JSONObject().put("provider", account.provider))
+            .optString("message").ifEmpty { "${account.label} disconnected." }
     }
 
     private class Page(val games: List<Game>, val next: String, val more: Boolean, val total: Int)
@@ -209,18 +422,7 @@ class GfnActivity : ComponentActivity() {
             LazyVerticalGrid(state = grid, columns = GridCells.Fixed(5), modifier = Modifier.fillMaxSize(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp),
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 8.dp)) {
-                items(games, key = { it.id }) { game ->
-                    Column(Modifier.clip(RoundedCornerShape(8.dp)).background(MaterialTheme.colorScheme.surfaceVariant)
-                        .clickable { onPlay(game) }) {
-                        AsyncImage(model = game.imageUrl, contentDescription = game.title, contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxWidth().aspectRatio(460f / 215f))
-                        Text(game.title, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.SemiBold, fontSize = 13.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 8.dp, top = 5.dp, end = 8.dp))
-                        Text(game.store + if (game.inLibrary) " · in library" else "", fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                            modifier = Modifier.padding(start = 8.dp, bottom = 6.dp, end = 8.dp))
-                    }
-                }
+                items(games, key = { it.id }) { game -> GameCard(game, onPlay) }
             }
         }
     }
