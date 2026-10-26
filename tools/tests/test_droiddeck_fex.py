@@ -928,6 +928,12 @@ class GameEnvironmentTest(FexTestCase):
         env, built = self.environment({"games": {"42": {"DROIDDECK_LOCALE": "ja_JP.UTF-8"}}})
         self.assertEqual("ja_JP.UTF-8", env["LANG"])
         self.assertEqual(["ja_JP.UTF-8"], built)
+        self.assertTrue(env["LOCPATH"].endswith(".droiddeck-locale-data"))
+
+    def test_a_lang_the_game_names_wins_over_its_locale(self):
+        env, built = self.environment({"games": {"42": {"LANG": "C.UTF-8", "DROIDDECK_LOCALE": "ja_JP.UTF-8"}}})
+        self.assertEqual("C.UTF-8", env["LANG"])
+        self.assertEqual([], built)
 
     def test_a_game_without_a_locale_keeps_the_session_one(self):
         env, built = self.environment({"games": {}})

@@ -691,7 +691,8 @@ def game_environment(env, command):
                 config = json.load(source)
         except FileNotFoundError:
             config = {"version": 1}
-        return game_env["game_locale"](game_env["apply_config"](env, config, str(app), fixes))
+        env = game_env["apply_config"](env, config, str(app), fixes)
+        return game_env["game_locale"](env, game_env["configured_lang"](config, str(app)))
     except FileNotFoundError:
         return env
     except Exception as error:
