@@ -101,6 +101,27 @@ impl SecretStore for OsSecretStore {
     }
 }
 
+/// DroidDeck: keyring has no Android backend and falls back to an in-memory mock, which
+/// accepts every write and loses it when the process exits. Declining here sends sessions
+/// to the JSON fallback store in the app's private data directory instead.
+#[cfg(target_os = "android")]
+struct AndroidNoSecretStore;
+
+#[cfg(target_os = "android")]
+impl SecretStore for AndroidNoSecretStore {
+    fn get(&self, _user_id: &str) -> Result<Option<String>, String> {
+        Ok(None)
+    }
+
+    fn set(&self, _user_id: &str, _encoded: &str) -> Result<(), String> {
+        Err("Android has no OS credential store for OpenNOW".into())
+    }
+
+    fn delete(&self, _user_id: &str) -> Result<(), String> {
+        Ok(())
+    }
+}
+
 impl CredentialVault {
     #[cfg(test)]
     pub(crate) fn memory(data_dir: PathBuf) -> Self {
@@ -130,10 +151,12 @@ impl CredentialVault {
                 service: SERVICE_NAME,
             }),
         ));
-        #[cfg(not(windows))]
+        #[cfg(not(any(windows, target_os = "android")))]
         let store = Box::new(OsSecretStore {
             service: SERVICE_NAME,
         });
+        #[cfg(target_os = "android")]
+        let store = Box::new(AndroidNoSecretStore);
         Self::with_store(data_dir, store)
     }
 

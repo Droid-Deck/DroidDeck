@@ -166,14 +166,14 @@ class GfnActivity : ComponentActivity() {
     }
 
     @Composable
-    private fun GameCard(game: Game, onPlay: (Game) -> Unit) {
+    private fun GameCard(game: Game, onPlay: (Game) -> Unit, markLibrary: Boolean = true) {
         Column(Modifier.clip(RoundedCornerShape(8.dp)).background(MaterialTheme.colorScheme.surfaceVariant)
             .clickable { onPlay(game) }) {
             AsyncImage(model = game.imageUrl, contentDescription = game.title, contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxWidth().aspectRatio(460f / 215f))
             Text(game.title, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.SemiBold, fontSize = 13.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 8.dp, top = 5.dp, end = 8.dp))
-            Text(game.store + if (game.inLibrary) " · in library" else "", fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            Text(game.store + if (markLibrary && game.inLibrary) " · in library" else "", fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                 modifier = Modifier.padding(start = 8.dp, bottom = 6.dp, end = 8.dp))
         }
@@ -207,7 +207,7 @@ class GfnActivity : ComponentActivity() {
                 else -> LazyVerticalGrid(columns = GridCells.Fixed(5), modifier = Modifier.fillMaxSize(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp),
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 8.dp)) {
-                    items(shown, key = { it.id }) { game -> GameCard(game, onPlay) }
+                    items(shown, key = { it.id }) { game -> GameCard(game, onPlay, markLibrary = false) }
                 }
             }
         }
@@ -303,12 +303,13 @@ class GfnActivity : ComponentActivity() {
         val list = GfnCore.request(this, "account.connections.list").optJSONArray("accounts") ?: return emptyList()
         return (0 until list.length()).mapNotNull { index ->
             val account = list.optJSONObject(index) ?: return@mapNotNull null
+            if (account.optString("provider") in setOf("", "UNKNOWN", "NONE", "NVIDIA")) return@mapNotNull null
             StoreAccount(provider = account.optString("provider"), label = account.optString("label").ifEmpty { account.optString("provider") },
                 displayName = account.optString("displayName"),
                 connected = account.optBoolean("isConnected") || account.optString("status") == "connected",
                 status = account.optString("status"), syncState = account.optString("syncState"),
                 canLink = account.optBoolean("supportsLinking"), canSync = account.optBoolean("supportsSync"))
-        }
+        }.filter { it.canLink || it.canSync || it.connected }
     }
 
     private suspend fun link(account: StoreAccount): String {
@@ -463,11 +464,23 @@ class GfnActivity : ComponentActivity() {
             Game(id = game.optString("id"),
                 variantId = variant?.optString("id").orEmpty().ifEmpty { game.optString("launchAppId") },
                 title = game.optString("title"),
-                store = variant?.optString("store").orEmpty(),
+                store = storeLabel(variant?.optString("store").orEmpty()),
                 imageUrl = game.optString("imageUrl"),
                 inLibrary = game.optBoolean("isInLibrary") || variant?.optBoolean("inLibrary") == true,
                 search = game.optString("searchText").ifEmpty { game.optString("title").lowercase() })
         }.filter { it.id.isNotEmpty() && it.variantId.isNotEmpty() }
+    }
+
+    private fun storeLabel(store: String): String = when (store.uppercase()) {
+        "STEAM" -> "Steam"
+        "EPIC" -> "Epic Games"
+        "XBOX" -> "Xbox"
+        "BATTLENET" -> "Battle.net"
+        "UPLAY", "UBISOFT" -> "Ubisoft"
+        "GOG" -> "GOG"
+        "EA_APP", "EA", "ORIGIN" -> "EA app"
+        "GAIJIN" -> "Gaijin"
+        else -> store.lowercase().replaceFirstChar { it.uppercase() }
     }
 
     private fun startSignIn(): Screen {
