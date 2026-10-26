@@ -483,6 +483,8 @@ class SessionService : Service() {
         val windowCheckMs = if (SessionState.performanceMode) 100 else 0
         guest.add("DROIDDECK_WSI_BYPASS_CHECK_MS=$windowCheckMs")
         guest.add("WINE_OFFSCREEN_CHECK_MS=$windowCheckMs")
+        // With a frame limit, gamescope's limiter also holds the games to it instead of only pacing the screen.
+        guest.add("DROIDDECK_GAME_FRAME_LIMIT=" + (if (SessionState.performanceMode) 1 else 0))
         if (SessionPrefs.compositorFpsLimit(SessionState.fpsLimit, SessionState.performanceMode) == SessionPrefs.FPS_UNPACED) {
             // gamescope turns buffers around slower than an unpaced game draws; more images keep it drawing.
             guest.add("GAMESCOPE_WSI_MIN_IMAGE_COUNT=8")
