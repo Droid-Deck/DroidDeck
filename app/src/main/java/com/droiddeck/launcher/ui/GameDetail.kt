@@ -219,6 +219,9 @@ internal fun GameDetail(
             }
         }
         if (StoresMotion.heroLands) hero() else Rise(1) { hero() }
+        if (!s.shortcutPicker) Rise(2) {
+            GameResourcesRow(title.takeUnless { it == id }.orEmpty(), game, Modifier.padding(top = 6.dp))
+        }
         if (tab != null) Rise(2) {
             Column(Modifier.fillMaxWidth().padding(top = 14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 val labels = tabs.map { t ->

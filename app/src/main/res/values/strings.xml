@@ -3204,6 +3204,14 @@
     <string name="library_no_installed_matches">No installed games match these filters.</string>
     <string name="library_browse_owned">Browse owned games</string>
     <string name="game_tab_about">About</string>
+    <string name="game_resources_browser">Opens in your browser</string>
+    <string name="game_resource_pcgw" translatable="false">PCGamingWiki</string>
+    <string name="game_resource_guides">Guides</string>
+    <string name="game_resource_protondb" translatable="false">ProtonDB</string>
+    <string name="game_resource_protondb_detail">Linux / Proton compatibility reports</string>
+    <string name="game_resource_steam_cloud">Steam Cloud</string>
+    <string name="game_resource_steam_cloud_detail">For games with saves on your Steam account</string>
+    <string name="game_resource_search">Web search</string>
     <string name="game_tab_achievements_count" translatable="false">%1$s %2$d/%3$d</string>
     <string name="game_tab_launch">Launch</string>
     <string name="game_tab_saves_cloud">Saves &amp; cloud</string>
