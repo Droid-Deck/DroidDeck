@@ -694,6 +694,7 @@ public final class PadBridge {
             if (slot == firstPlayerSlot()) releaseBackPaddles();
             if (slot == 0) clearBackQamWrites();
             stateFor(slot).clear();
+            if (slot == 0) publish();
             Log.i(TAG, "\"" + device.getName() + "\" (id " + id + ") joins \"" + owner.getName() + "\" as player " + (slot + 1));
             return slot;
         }
