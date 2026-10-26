@@ -27,3 +27,7 @@ Windows, macOS and Linux.
   (`--target=<triple>29`), since the NDK headers reject an unversioned triple and
   cargo-ndk's bindgen arguments do not carry the API level. Patched in from
   `opennow-streamer/Cargo.toml` and DroidDeck's `app/src/main/rust/gfn/Cargo.toml`.
+- `opennow-core/src/credential_vault.rs`: on Android the vault's "OS store" declines every
+  write (`AndroidNoSecretStore`), so sessions go to the JSON fallback store in the app's
+  private data directory. keyring has no Android backend and uses an in-memory mock there,
+  which accepted the session and lost it whenever the core restarted.
