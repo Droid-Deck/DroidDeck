@@ -36,7 +36,7 @@ class RumbleComponentTest {
         vibrator = if (Build.VERSION.SDK_INT >= 31) context.getSystemService(VibratorManager::class.java).defaultVibrator
             else context.getSystemService(Vibrator::class.java)
         shadowOf(vibrator).setHasVibrator(true)
-        rumble = RumbleComponent().also { it.motorLooper = Looper.getMainLooper(); it.attach(context); it.start() }
+        rumble = RumbleComponent().also { it.providerMotors = { null }; it.motorLooper = Looper.getMainLooper(); it.attach(context); it.start() }
     }
 
     @After fun stopListener() { rumble.stop() }
@@ -98,6 +98,207 @@ class RumbleComponentTest {
         assertTrue("an effect right after a stop was dropped", pad.vibrating)
     }
 
+    @Test fun aControllerWithoutMotorsFallsBackToThePhone() {
+        rumble.controllerMotors = { null }
+        activeController(PAD_ID)
+        effect()
+        assertTrue(shadowOf(vibrator).isVibrating)
+    }
+
+    @Test fun theOnScreenPadTakingOverMovesTheEffectBackToThePhone() {
+        val pad = FakeMotors()
+        rumble.controllerMotors = { pad }
+        activeController(PAD_ID)
+        effect()
+        assertTrue(pad.vibrating)
+        activeController(PadBridge.NO_CONTROLLER)
+        effect()
+        assertFalse("the controller kept rumbling after the switch", pad.vibrating)
+        assertTrue(shadowOf(vibrator).isVibrating)
+    }
+
+    @Test fun aStopPacketDisablingAndStoppingAllEndTheControllersEffect() {
+        val pad = FakeMotors()
+        rumble.controllerMotors = { pad }
+        activeController(PAD_ID)
+        effect()
+        effect(strong = 0, weak = 0)
+        assertFalse(pad.vibrating)
+        effect()
+        ControllerPrefs.setRumble(context, false)
+        shadowOf(Looper.getMainLooper()).idle()
+        assertFalse(pad.vibrating)
+        ControllerPrefs.setRumble(context, true)
+        shadowOf(Looper.getMainLooper()).idle()
+        effect()
+        rumble.stop()
+        assertFalse(pad.vibrating)
+    }
+
+    @Test fun aStaleActiveIdFindsTheSamePadUnderItsNewId() {
+        val pad = FakeMotors()
+        rumble.controllerMotors = { null }
+        rumble.otherControllerMotors = { skip, _, _ -> if (skip == PAD_ID) pad else null }
+        activeController(PAD_ID)
+        effect()
+        assertTrue(pad.vibrating)
+        assertFalse("the phone buzzed as well", shadowOf(vibrator).isVibrating)
+    }
+
+    @Test fun withPhoneFallbackOffAPadWithoutMotorsLeavesThePhoneStill() {
+        ControllerPrefs.setRumblePhoneFallback(context, false)
+        shadowOf(Looper.getMainLooper()).idle()
+        rumble.controllerMotors = { null }
+        rumble.otherControllerMotors = { _, _, _ -> null }
+        activeController(PAD_ID)
+        effect()
+        assertFalse(shadowOf(vibrator).isVibrating)
+        ControllerPrefs.setRumblePhoneFallback(context, true)
+        shadowOf(Looper.getMainLooper()).idle()
+        effect()
+        assertTrue(shadowOf(vibrator).isVibrating)
+    }
+
+    @Test fun aPadWithoutAndroidMotorsRumblesThroughAProviderBeforeThePhone() {
+        val usb = FakeMotors()
+        rumble.controllerMotors = { null }
+        rumble.otherControllerMotors = { _, _, _ -> null }
+        rumble.providerMotors = { usb }
+        activeController(PAD_ID)
+        effect(strong = 40000, weak = 1000)
+        assertEquals(listOf(Triple(40000, 1000, 5000L)), usb.played)
+        assertFalse("the phone buzzed as well", shadowOf(vibrator).isVibrating)
+    }
+
+    @Test fun androidMotorsWinOverAProvider() {
+        val pad = FakeMotors(); val usb = FakeMotors()
+        rumble.controllerMotors = { pad }
+        rumble.providerMotors = { usb }
+        activeController(PAD_ID)
+        effect()
+        assertTrue(pad.vibrating)
+        assertTrue(usb.played.isEmpty())
+    }
+
+    @Test fun aProvidersPadStillRumblesWhenNoAndroidControllerIsActive() {
+        val usb = FakeMotors()
+        rumble.providerMotors = { usb }
+        activeController(PadBridge.NO_CONTROLLER)
+        effect()
+        assertTrue(usb.vibrating)
+        assertFalse(shadowOf(vibrator).isVibrating)
+    }
+
+    @Test fun aFullStrengthEffectReachesTheMotorsUnscaled() {
+        val pad = FakeMotors()
+        rumble.controllerMotors = { pad }
+        activeController(PAD_ID)
+        effect(strong = 65535, weak = 65535, ms = 200)
+        assertEquals(listOf(Triple(65535, 65535, 200L)), pad.played)
+    }
+
+    @Test fun eachPlayerSlotRumblesItsOwnControllerAndVirtualPadsUseTheLastActive() {
+        val first = FakeMotors()
+        val second = FakeMotors()
+        rumble.controllerMotors = { id -> if (id == PAD_ID) first else if (id == SECOND_PAD_ID) second else null }
+        activeController(PAD_ID)
+        activeController(SECOND_PAD_ID, slot = 1)
+        effect(strong = 100, weak = 0, slot = 1)
+        assertEquals(listOf(Triple(100, 0, 5000L)), second.played)
+        assertTrue(first.played.isEmpty())
+        effect(strong = 200, weak = 0)
+        assertEquals(listOf(Triple(200, 0, 5000L)), first.played)
+        assertTrue("one player's effect ended another's", second.vibrating)
+        effect(strong = 0, weak = 0, slot = 1)
+        assertFalse(second.vibrating)
+        assertTrue(first.vibrating)
+        effect(strong = 300, weak = 0, slot = 16)
+        assertEquals(Triple(300, 0, 5000L), second.played.last())
+        assertFalse(shadowOf(vibrator).isVibrating)
+    }
+
+    @Test fun deckHapticsPlayOnThePhoneNeverOnTheController() {
+        val pad = FakeMotors()
+        rumble.controllerMotors = { id -> if (id == PAD_ID) pad else null }
+        activeController(PAD_ID)
+        haptic(db = 7, ms = 15)
+        assertTrue("a haptic tick did not play on the phone", shadowOf(vibrator).isVibrating)
+        assertTrue("a haptic tick reached the controller's motors", pad.played.isEmpty())
+        effect(strong = 40000, weak = 1000)
+        assertEquals(listOf(Triple(40000, 1000, 5000L)), pad.played)
+    }
+
+    @Test fun deckHapticOnTheFallbackPhoneDoesNotSuppressOrCancelGameRumble() {
+        val phone = FakeMotors()
+        RumbleComponent::class.java.getDeclaredField("phone").apply { isAccessible = true }.set(rumble, phone)
+        activeController(PadBridge.NO_CONTROLLER)
+        effect(strong = 40000, weak = 0)
+        haptic(db = 7, ms = 2500)
+        assertEquals(2000L, phone.played.last().third)
+        val until = RumbleComponent::class.java.getDeclaredField("hapticUntil").apply { isAccessible = true }.getLong(rumble)
+        assertTrue(until - android.os.SystemClock.elapsedRealtime() <= 2000L)
+        haptic(db = 0, ms = 0)
+        assertTrue("a haptic stop cancelled game rumble on the shared phone vibrator", phone.vibrating)
+        effect(strong = 40000, weak = 0)
+        assertEquals("the haptic left game-effect deduplication stale", 3, phone.played.size)
+    }
+
+    @Test fun usbRumbleProviderStartsOnlyWhileGameRumbleIsEnabled() {
+        ControllerPrefs.setRumble(context, false)
+        rumble.stop()
+        var starts = 0
+        var releases = 0
+        val provider = object : RumbleProvider {
+            override val name = "test provider"
+            override fun sessionStart(context: Context) { starts++ }
+            override fun motors(context: Context): RumbleComponent.Motors? = null
+            override fun release(why: String) { releases++ }
+        }
+        RumbleProviders.register(provider)
+        try {
+            rumble = RumbleComponent().also {
+                it.providerMotors = { null }
+                it.motorLooper = Looper.getMainLooper()
+                it.attach(context)
+                it.start()
+            }
+            assertEquals(0, starts)
+            ControllerPrefs.setRumble(context, true)
+            shadowOf(Looper.getMainLooper()).idle()
+            assertEquals(1, starts)
+            ControllerPrefs.setRumble(context, false)
+            shadowOf(Looper.getMainLooper()).idle()
+            assertEquals(1, releases)
+        } finally {
+            RumbleProviders.unregister(provider)
+        }
+    }
+
+    @Test fun deckHapticsIgnoreThePhoneFallbackSetting() {
+        ControllerPrefs.setRumblePhoneFallback(context, false)
+        shadowOf(Looper.getMainLooper()).idle()
+        haptic(db = 0, ms = 15)
+        assertTrue(shadowOf(vibrator).isVibrating)
+    }
+
+    @Test fun deckHapticsPlayAtTheHigherSlidersStrength() {
+        val phone = FakeMotors()
+        RumbleComponent::class.java.getDeclaredField("phone").apply { isAccessible = true }.set(rumble, phone)
+        haptic(db = -5, ms = 15, side = DeckHaptics.LEFT)
+        haptic(db = 7, ms = 15, side = DeckHaptics.RIGHT)
+        haptic(db = -5, ms = 25, side = DeckHaptics.LEFT)
+        assertEquals(listOf(Triple(DeckHaptics.LOW_AMPLITUDE * 257, 0, 15L), Triple(255 * 257, 0, 15L), Triple(255 * 257, 0, 25L)), phone.played)
+    }
+
+    @Test fun aDeckHapticStopNeverEndsAGameRumble() {
+        val pad = FakeMotors()
+        rumble.controllerMotors = { id -> if (id == PAD_ID) pad else null }
+        activeController(PAD_ID)
+        effect()
+        haptic(db = 0, ms = 0)
+        assertTrue(pad.vibrating)
+    }
+
     @Test fun aHeldEffectKeepsTheMotorsRunningUntilTheGameStopsIt() {
         val pad = FakeMotors()
         rumble.controllerMotors = { pad }
@@ -144,63 +345,6 @@ class RumbleComponentTest {
         idle(RumbleComponent.KEEPALIVE_MS * 3)
         assertEquals(1, pad.played.size)
         assertFalse(pad.vibrating)
-    }
-
-    @Test fun aControllerWithoutMotorsFallsBackToThePhone() {
-        rumble.controllerMotors = { null }
-        activeController(PAD_ID)
-        effect()
-        assertTrue(shadowOf(vibrator).isVibrating)
-    }
-
-    @Test fun theOnScreenPadTakingOverMovesTheEffectBackToThePhone() {
-        val pad = FakeMotors()
-        rumble.controllerMotors = { pad }
-        activeController(PAD_ID)
-        effect()
-        assertTrue(pad.vibrating)
-        activeController(PadBridge.NO_CONTROLLER)
-        effect()
-        assertFalse("the controller kept rumbling after the switch", pad.vibrating)
-        assertTrue(shadowOf(vibrator).isVibrating)
-    }
-
-    @Test fun aStopPacketDisablingAndStoppingAllEndTheControllersEffect() {
-        val pad = FakeMotors()
-        rumble.controllerMotors = { pad }
-        activeController(PAD_ID)
-        effect()
-        effect(strong = 0, weak = 0)
-        assertFalse(pad.vibrating)
-        effect()
-        ControllerPrefs.setRumble(context, false)
-        shadowOf(Looper.getMainLooper()).idle()
-        assertFalse(pad.vibrating)
-        ControllerPrefs.setRumble(context, true)
-        shadowOf(Looper.getMainLooper()).idle()
-        effect()
-        rumble.stop()
-        assertFalse(pad.vibrating)
-    }
-
-    @Test fun eachPlayerSlotRumblesItsOwnControllerAndVirtualPadsUseTheLastActive() {
-        val first = FakeMotors()
-        val second = FakeMotors()
-        rumble.controllerMotors = { id -> if (id == PAD_ID) first else if (id == SECOND_PAD_ID) second else null }
-        activeController(PAD_ID)
-        activeController(SECOND_PAD_ID, slot = 1)
-        effect(strong = 100, weak = 0, slot = 1)
-        assertEquals(listOf(Triple(100, 0, 5000L)), second.played)
-        assertTrue(first.played.isEmpty())
-        effect(strong = 200, weak = 0)
-        assertEquals(listOf(Triple(200, 0, 5000L)), first.played)
-        assertTrue("one player's effect ended another's", second.vibrating)
-        effect(strong = 0, weak = 0, slot = 1)
-        assertFalse(second.vibrating)
-        assertTrue(first.vibrating)
-        effect(strong = 300, weak = 0, slot = 16)
-        assertEquals(Triple(300, 0, 5000L), second.played.last())
-        assertFalse(shadowOf(vibrator).isVibrating)
     }
 
     @Test fun eachVrHandRumblesItsOwnJoyConAndNeverThePhone() {
@@ -252,19 +396,23 @@ class RumbleComponentTest {
         pairs.set(slot * 2 + JoyCon.RIGHT, right)
     }
 
+    private fun idle(ms: Long) = shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(ms))
+
     private fun activeController(id: Int, slot: Int = 0) {
         PadBridge::class.java.getDeclaredField("activeControllerId").apply { isAccessible = true }.setInt(null, id)
         val slots = PadBridge::class.java.getDeclaredField("slotControllers").apply { isAccessible = true }.get(null)
         (slots as java.util.concurrent.atomic.AtomicIntegerArray).set(slot, id)
     }
 
-    private fun effect(strong: Int = 65535, weak: Int = 65535, slot: Int = 0, ms: Int = 5000) {
-        val int = Int::class.javaPrimitiveType
-        RumbleComponent::class.java.getDeclaredMethod("buzz", int, int, int, int)
+    private fun effect(strong: Int = 65535, weak: Int = 65535, ms: Int = 5000, slot: Int = 0) {
+        // Inject a decoded force-feedback packet; transport is outside these tests.
+        val i = Int::class.javaPrimitiveType
+        RumbleComponent::class.java.getDeclaredMethod("buzz", i, i, i, i)
             .apply { isAccessible = true }.invoke(rumble, strong, weak, ms, slot)
     }
 
-    private fun idle(ms: Long) = shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(ms))
+    private fun haptic(db: Int, ms: Int, side: Int = DeckHaptics.BOTH) =
+        effect(strong = db and 0xFFFF, weak = 0, ms = ms, slot = RumbleComponent.HAPTIC or side)
 
     private class FakeMotors : RumbleComponent.Motors {
         override val name = "fake pad"
@@ -274,10 +422,7 @@ class RumbleComponentTest {
         override fun cancel() { vibrating = false }
     }
 
-    private companion object {
-        const val PAD_ID = 7
-        const val SECOND_PAD_ID = 8
-    }
+    private companion object { const val PAD_ID = 7; const val SECOND_PAD_ID = 8 }
 
     @Implements(LocalServerSocket::class)
     class NoPacketsSocket {

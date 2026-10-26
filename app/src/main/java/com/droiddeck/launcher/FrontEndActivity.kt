@@ -1135,6 +1135,7 @@ class FrontEndActivity : ComponentActivity() {
                             onStickClick = { on -> ControllerPrefs.setStickClick(this, on); refreshController() },
                             onAdaptiveSticks = { on -> ControllerPrefs.setAdaptiveSticks(this, on); refreshController() },
                             onRumble = { on -> ControllerPrefs.setRumble(this, on); refreshController() },
+                            onRumblePhoneFallback = { on -> ControllerPrefs.setRumblePhoneFallback(this, on); refreshController() },
                             onSteamButton = { on -> ControllerPrefs.setSteamButton(this, on); refreshController() },
                             onQamButton = { on -> ControllerPrefs.setQamButton(this, on); refreshController() },
                             onKeyboardButton = { on -> ControllerPrefs.setKeyboardButton(this, on); refreshController() },
@@ -1144,6 +1145,11 @@ class FrontEndActivity : ComponentActivity() {
                             onResetLayout = { ControllerPrefs.resetAllLayouts(this); refreshController() },
                             onMapping = { showPerformance = false; showComponents = false; showMapping = true },
                             onResetAll = { ControllerPrefs.resetAll(this); refreshController() },
+                            onTestRumble = {
+                                com.droiddeck.launcher.session.RumbleComponent.testFromSettings(this) { msg ->
+                                    android.widget.Toast.makeText(this, msg, android.widget.Toast.LENGTH_LONG).show()
+                                }
+                            },
                         ),
                     ),
                     page = page,
