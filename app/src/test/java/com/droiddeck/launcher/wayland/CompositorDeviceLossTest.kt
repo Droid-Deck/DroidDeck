@@ -2,6 +2,8 @@ package com.droiddeck.launcher.wayland
 
 import org.junit.Assert.*
 import org.junit.Before
+import org.junit.After
+import com.droiddeck.launcher.gpu.GpuDeviceState
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -23,10 +25,12 @@ class CompositorDeviceLossTest {
     }
 
     @Before fun setup() {
-        ReflectionHelpers.setStaticField(WaylandCompositor::class.java, "deviceLost", false)
+        ReflectionHelpers.setStaticField(GpuDeviceState::class.java, "lost", false)
         ReflectionHelpers.setStaticField(WaylandCompositor::class.java, "deviceLostListener", null)
         ReflectionHelpers.setStaticField(WaylandCompositor::class.java, "firstFrameListener", null)
     }
+
+    @After fun cleanup() { setup() }
 
     @Test fun lossIsStickyEvenWithoutAnAttachedListener() {
         assertFalse(WaylandCompositor.hasDeviceLost())

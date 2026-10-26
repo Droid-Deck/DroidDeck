@@ -170,9 +170,11 @@ class SessionService : Service() {
     }
     @Volatile private var sessionGen = 0
 
+    private val gpuLossHandled = java.util.concurrent.atomic.AtomicBoolean()
     private val deviceLostListener = Runnable { mainHandler.post { gpuDeviceLost() } }
 
     private fun gpuDeviceLost() {
+        if (!gpuLossHandled.compareAndSet(false, true)) return
         SessionEvents.fail("GPU_DEVICE_LOST", getString(com.droiddeck.launcher.R.string.gpu_device_lost), 1)
         if (SessionState.running) stopSession(1) else {
             SessionState.notifyEnded(1)

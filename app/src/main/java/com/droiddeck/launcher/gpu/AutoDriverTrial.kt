@@ -68,11 +68,11 @@ object AutoDriverTrial {
         prefs(context).edit().putInt("starts", prefs(context).getInt("starts", 0) + 1).commit()
     }
 
-    fun sessionReady() {
-        val trial = watching ?: return
-        val context = app ?: return
+    fun sessionReady() = GpuDeviceState.whileAlive {
+        val trial = watching ?: return@whileAlive
+        val context = app ?: return@whileAlive
         watching = null
-        if (current(context)?.release != trial.release) return
+        if (current(context)?.release != trial.release) return@whileAlive
         Log.i(TAG, "${trial.release} reached a ready session; keeping it")
         clear(context)
         prune(context, setOf(trial.display, trial.linux))
