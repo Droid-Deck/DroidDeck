@@ -1,9 +1,10 @@
 package com.droiddeck.launcher.ui
 
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
+import com.droiddeck.launcher.ui.GlideAlertDialog as AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -28,12 +29,12 @@ internal fun XboxStoreDialogs(
                 if (content.error != null) Text(content.error)
                 else if (content.offers.isEmpty()) Text(stringResource(R.string.stores_xbox_content_none))
                 content.offers.forEach { offer ->
-                    TextButton(onClick = { XboxContent.install(ctx, offer.item) }) {
+                    TextButton(onClick = { XboxContent.install(ctx, offer.item) }, modifier = Modifier.focusGlide(CircleShape)) {
                         Text(stringResource(if (offer.installed) R.string.stores_xbox_content_update else R.string.stores_xbox_content_install, offer.item.title))
                     }
                 }
             } },
-            confirmButton = { TextButton(onClick = { XboxContent.dismiss() }) { Text(stringResource(android.R.string.ok)) } },
+            confirmButton = { TextButton(onClick = { XboxContent.dismiss() }, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(android.R.string.ok)) } },
         )
     }
     pending?.let {
@@ -41,12 +42,12 @@ internal fun XboxStoreDialogs(
             onDismissRequest = { XboxBackend.dismissPackages() },
             title = { Text(stringResource(R.string.stores_xbox_choose_content)) },
             text = { Column(Modifier.verticalScroll(rememberScrollState())) { pending.choices.forEach { choice ->
-                TextButton(onClick = { XboxBackend.selectPackage(ctx, choice) }) {
+                TextButton(onClick = { XboxBackend.selectPackage(ctx, choice) }, modifier = Modifier.focusGlide(CircleShape)) {
                     Text(stringResource(R.string.stores_xbox_choice, choice.getString("title"), choice.getString("kind")))
                 }
             } } },
             confirmButton = {},
-            dismissButton = { TextButton(onClick = { XboxBackend.dismissPackages() }) { Text(stringResource(android.R.string.cancel)) } },
+            dismissButton = { TextButton(onClick = { XboxBackend.dismissPackages() }, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(android.R.string.cancel)) } },
         )
     }
 }

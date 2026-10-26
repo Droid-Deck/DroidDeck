@@ -170,7 +170,7 @@ fun DroidDeckTheme(theme: String? = null, appScale: Int = AppUiPrefs.DEFAULT_SCA
         LocalConfiguration provides configuration,
     ) {
         MaterialTheme(colorScheme = scheme, typography = ContentDirected) {
-            ProvideTextStyle(TextStyle(textDirection = TextDirection.Content), content)
+            FocusGlideHost { ProvideTextStyle(TextStyle(textDirection = TextDirection.Content), content) }
         }
     }
 }

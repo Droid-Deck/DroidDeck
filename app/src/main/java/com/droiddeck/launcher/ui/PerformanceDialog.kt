@@ -212,7 +212,7 @@ fun PerformancePage(
                     },
                     singleLine = true, isError = !valid && draft.isNotBlank(),
                     placeholder = { Text(SessionPrefs.DEFAULT_GUEST_HOSTNAME) },
-                    modifier = Modifier.width(220.dp),
+                    modifier = Modifier.width(220.dp).focusGlide(),
                 )
             }
         }

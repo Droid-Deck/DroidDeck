@@ -331,6 +331,7 @@ private fun CancelHint(onCancel: () -> Unit, modifier: Modifier = Modifier) {
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
         modifier = modifier.heightIn(min = 44.dp).clip(RoundedCornerShape(22.dp))
             .background(if (hot) colors.onBackground.copy(alpha = 0.08f) else Color.Transparent)
+            .glideBorder(hot, RoundedCornerShape(22.dp), LocalPalette.current.signal)
             .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Button, onClick = onCancel)
             .padding(horizontal = 12.dp),
     ) {
