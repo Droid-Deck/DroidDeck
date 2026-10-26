@@ -25,6 +25,7 @@ extern void droiddeck_wayland_send_pointer(int action, int x, int y);
 extern void droiddeck_wayland_send_touch(int action, int pointer_id, int x, int y);
 extern int  droiddeck_cursor_snapshot(int *out, int cap);
 extern int  droiddeck_cursor_serial(void);
+extern int droiddeck_hud_frame_times(float *out, int len, int64_t *total);
 extern void droiddeck_wayland_send_key(int evdev, int state);
 extern void droiddeck_wayland_send_scene_input(int type, int a, int b);
 extern void droiddeck_wayland_vsync(int64_t frame_time_ns);
@@ -34,6 +35,7 @@ extern unsigned droiddeck_stream_frames(void);
 extern void droiddeck_wayland_output_resized(void);
 extern void droiddeck_wayland_set_output_refresh_rate(int mhz);
 extern volatile int g_fps_limit;
+extern volatile int g_release_unpaced;
 extern volatile int g_hide_shell;
 extern volatile int g_zero_copy;
 extern volatile unsigned g_zero_copy_last;
@@ -265,6 +267,20 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeCursorSnapshot(
     int n = droiddeck_cursor_snapshot((int *)buf, (int)cap);
     (*env)->ReleaseIntArrayElements(env, out, buf, 0);
     return n;
+}
+
+JNIEXPORT jlong JNICALL
+Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeHudFrameTimes(JNIEnv *env, jclass clazz, jfloatArray out) {
+    (void)clazz;
+    if (!out) return 0;
+    jint cap = (*env)->GetArrayLength(env, out);
+    float *buf = cap > 0 ? malloc(sizeof(float) * (size_t)cap) : NULL;
+    if (!buf) return 0;
+    int64_t total = 0;
+    int n = droiddeck_hud_frame_times(buf, cap, &total);
+    if (n > 0) (*env)->SetFloatArrayRegion(env, out, 0, n, buf);
+    free(buf);
+    return (jlong)total;
 }
 
 JNIEXPORT jint JNICALL
@@ -574,6 +590,7 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetLookName(JNIEnv *
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetFpsLimit(JNIEnv *env, jclass clazz, jint fps) {
     g_fps_limit = fps > 0 ? fps : 0;
+    g_release_unpaced = fps < 0;
     __android_log_print(ANDROID_LOG_INFO, TAG, "fps limit %d", fps);
 }
 

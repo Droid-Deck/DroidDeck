@@ -15,6 +15,7 @@ class DirectTouchHold(
     private var y = 0f
     private var consumed = false
     private var pressed = false
+    private var delayMs = 0L
     private val release = Runnable {
         if (pressed) listener.onButton(PointerGestures.BTN_RIGHT, false, x, y)
         pressed = false
@@ -26,6 +27,11 @@ class DirectTouchHold(
         listener.onButton(PointerGestures.BTN_RIGHT, true, x, y)
         pressed = true
         handler.postDelayed(release, 50L)
+    }
+
+    fun configure(config: TouchGestureConfig) {
+        cancel()
+        delayMs = if (config.longPressEnabled) config.longPressDelay.toLong().coerceAtLeast(1L) else 0L
     }
 
     fun cancel() {
@@ -40,7 +46,7 @@ class DirectTouchHold(
             MotionEvent.ACTION_DOWN -> {
                 cancel()
                 x = event.x; y = event.y
-                handler.postDelayed(hold, 500L)
+                if (delayMs > 0L) handler.postDelayed(hold, delayMs)
             }
             MotionEvent.ACTION_MOVE -> if (event.pointerCount > 1 ||
                 abs(event.x - x) > slopPx || abs(event.y - y) > slopPx) handler.removeCallbacks(hold)

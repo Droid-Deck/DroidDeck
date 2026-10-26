@@ -55,7 +55,7 @@ object ItchBackend : StoreBackend {
 
     override fun install(context: Context, item: CatalogItem, root: File) {
         val app = context.applicationContext
-        if (item.extra["downloadKeyId"].isNullOrEmpty()) {
+        if (item.extra["downloadKeyId"].isNullOrEmpty() && !item.isFree) {
             StoresState.logLine("itch.io: \"${item.title}\" is not in the library")
             return
         }

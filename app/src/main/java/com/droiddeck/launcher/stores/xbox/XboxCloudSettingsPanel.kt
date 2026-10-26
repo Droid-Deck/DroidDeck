@@ -1,5 +1,8 @@
 package com.droiddeck.launcher.stores.xbox
 
+import com.droiddeck.launcher.ui.glideBorder
+import androidx.compose.foundation.shape.CircleShape
+import com.droiddeck.launcher.ui.focusGlide
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -16,7 +19,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -148,7 +150,7 @@ private fun PanelContent(
         Toggle("Toon", "Cartoon outlines.", settings.toon) { onChange(settings.copy(toon = it)) }
         Choice("Frame-rate cap", listOf(0 to "Off", 30 to "30 fps", 45 to "45 fps", 60 to "60 fps"), settings.maxFps) { onChange(settings.copy(maxFps = it)) }
         Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = { onChange(settings.withoutEffects()) }) { Text("Reset picture") }
+            OutlinedButton(onClick = { onChange(settings.withoutEffects()) }, modifier = Modifier.focusGlide(CircleShape)) { Text("Reset picture") }
         }
         Text("Effects cost a little GPU time; with none set the stream is shown directly.", style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp))
@@ -220,7 +222,7 @@ private fun SettingRow(
     Row(
         Modifier.fillMaxWidth().padding(vertical = 1.dp).clip(shape)
             .background(if (focused) cs.primary.copy(alpha = 0.16f) else Color.Transparent)
-            .border(2.dp, if (focused) cs.primary else Color.Transparent, shape)
+            .glideBorder(focused, shape, cs.primary, hotFillAlpha = 0f)
             .let { if (panel != null && index >= 0) it.focusRequester(panel.requester(index)) else it }
             .onFocusChanged { state -> focused = state.isFocused; if (state.isFocused && index >= 0) panel?.onFocused?.invoke(index) }
             .onKeyEvent { event ->
@@ -299,8 +301,9 @@ internal fun XboxMenuEntry(title: String, note: String?, focus: FocusRequester? 
     val shape = RoundedCornerShape(10.dp)
     androidx.compose.material3.Surface(
         onClick = onClick, color = if (focused) cs.primary.copy(alpha = 0.2f) else cs.surfaceContainerHigh, shape = shape,
-        border = if (focused) androidx.compose.foundation.BorderStroke(2.dp, cs.primary) else null,
+        border = null,
         modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 3.dp)
+            .glideBorder(focused, shape, cs.primary, hotFillAlpha = 0f)
             .let { if (focus != null) it.focusRequester(focus) else it }
             .onFocusChanged { state -> focused = state.isFocused; if (state.isFocused) onFocused() }
             .onKeyEvent { event -> if (event.type == KeyEventType.KeyDown && event.key == Key.ButtonA) { onClick(); true } else false },

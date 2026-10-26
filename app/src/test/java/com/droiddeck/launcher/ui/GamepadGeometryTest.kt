@@ -13,6 +13,9 @@ class GamepadGeometryTest {
     }
 
     private val panels = listOf(
+        Panel("Thor portrait", 1080, 1920, 369 / 160f),
+        Panel("720p phone portrait", 720, 1280, 2f),
+        Panel("Phone portrait", 1080, 2400, 2.75f),
         Panel("Fold 8 upright", 1848, 2448, 2.625f),
         Panel("Fold 8 as a tablet", 2448, 1848, 2.625f),
         Panel("Pixel Fold upright", 1840, 2208, 2.625f),
@@ -26,10 +29,15 @@ class GamepadGeometryTest {
     private fun boxes(panel: Panel) =
         GamepadGeometry.layout(panel.width.toFloat(), panel.controlsHeight.toFloat(), panel.density)
 
+    private val grips = setOf(Slot.L4, Slot.L5, Slot.R5, Slot.R4)
+    private val portraitPanels get() = panels.take(3) + Panel("312dp phone portrait", 720, 1280, 369 / 160f)
+    private fun portraitBoxes(panel: Panel) =
+        GamepadGeometry.layout(panel.width.toFloat(), panel.controlsHeight.toFloat(), panel.density, portraitDock = true)
+
     @Test fun everyControlIsPlacedAndPanelsOnlyWhenUpright() {
         for (panel in panels) {
             val upright = panel.height > panel.width
-            val expected = Slot.values().toSet() - if (upright) emptySet() else setOf(Slot.PANELS)
+            val expected = Slot.values().toSet() - grips - if (upright) emptySet() else setOf(Slot.PANELS)
             assertEquals(panel.name, expected, boxes(panel).keys)
         }
     }
@@ -79,6 +87,58 @@ class GamepadGeometryTest {
                 x.cx < y.cx - 0.5f || (kotlin.math.abs(x.cx - y.cx) <= 0.5f && x.cy < y.cy) } }
             assertTrue(panel.name, before(Slot.VIEW, Slot.MENU))
             assertTrue(panel.name, before(Slot.STEAM, Slot.QAM))
+        }
+    }
+
+    @Test fun portraitDockPlacesAllControlsWithinThePanel() {
+        for (panel in portraitPanels) {
+            val b = portraitBoxes(panel)
+            assertEquals(panel.name, Slot.values().toSet(), b.keys)
+            for ((slot, box) in b) {
+                val where = "${panel.name}: $slot $box"
+                assertTrue(where, box.left >= 0f && box.top >= 0f)
+                assertTrue(where, box.right <= panel.width && box.bottom <= panel.controlsHeight)
+                assertTrue(where, box.width >= 44 * panel.density - 1 && box.height >= 44 * panel.density - 1)
+            }
+        }
+    }
+
+    @Test fun portraitDockControlsDoNotOverlap() {
+        for (panel in portraitPanels) {
+            val placed = portraitBoxes(panel).entries.toList()
+            for (i in placed.indices) for (j in i + 1 until placed.size) {
+                assertFalse("${panel.name}: ${placed[i].key} overlaps ${placed[j].key}",
+                    placed[i].value.overlaps(placed[j].value))
+            }
+        }
+    }
+
+    @Test fun portraitDockUsesMoreSpaceForTheThumbSurfaces() {
+        for (panel in portraitPanels) {
+            val old = boxes(panel)
+            val b = portraitBoxes(panel)
+            for (slot in listOf(Slot.LEFT_MAIN, Slot.RIGHT_MAIN, Slot.LEFT_SECOND, Slot.RIGHT_SECOND)) {
+                assertTrue("${panel.name}: $slot", b.getValue(slot).width >= old.getValue(slot).width * 1.2f)
+            }
+            assertEquals(panel.name, b.getValue(Slot.LEFT_MAIN).cx, b.getValue(Slot.LEFT_SECOND).cx, 0.5f)
+            assertEquals(panel.name, panel.width - b.getValue(Slot.LEFT_MAIN).cx, b.getValue(Slot.RIGHT_MAIN).cx, 0.5f)
+        }
+    }
+
+    @Test fun portraitDockMovesUtilitiesAndGripsAboveTheGamepad() {
+        for (panel in portraitPanels) {
+            val b = portraitBoxes(panel)
+            assertEquals(panel.name, 8 * panel.density, b.getValue(Slot.VIEW).top, 0.5f)
+            assertTrue(panel.name, b.getValue(Slot.MENU).bottom < b.getValue(Slot.L4).top)
+            assertTrue(panel.name, b.getValue(Slot.L4).bottom < b.getValue(Slot.LEFT_OUTER_SHOULDER).top)
+            assertTrue(panel.name, b.getValue(Slot.LEFT_OUTER_SHOULDER).bottom < b.getValue(Slot.LEFT_SECOND).top)
+        }
+    }
+
+    @Test fun shortPanelsKeepTheExistingLayoutEvenWhenPortraitDockIsRequested() {
+        for ((width, height, density) in listOf(Triple(1920f, 1080f, 2f), Triple(720f, 600f, 2.3f))) {
+            assertEquals(GamepadGeometry.layout(width, height, density),
+                GamepadGeometry.layout(width, height, density, portraitDock = true))
         }
     }
 }

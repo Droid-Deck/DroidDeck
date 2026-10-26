@@ -1,6 +1,6 @@
 # Smart-glasses support
 
-This describes the integrations implemented in DroidDeck as of 2026-10-17. A recognized product name alone does not establish that every firmware, phone, cable, or adapter supports every mode. Controls become available from the connected device's capabilities and the display modes Android actually exposes.
+This describes the integrations implemented in DroidDeck as of 2026-10-24. A recognized product name alone does not establish that every firmware, phone, cable, or adapter supports every mode. Controls become available from the connected device's capabilities and the display modes Android actually exposes.
 
 **3DoF** tracks head rotation: turn, tilt, and roll around a virtual screen. **6DoF** also tracks head position, so leaning or moving changes the view. Both apply to DroidDeck menus, non-Steam launchers, desktop sessions, and games when the tracked virtual screen is enabled. Direct SteamVR rendering uses the corresponding headset pose instead of the virtual-screen layout.
 
@@ -23,10 +23,10 @@ This describes the integrations implemented in DroidDeck as of 2026-10-17. A rec
 | Recognized RayNeo / TCL Air-series devices | Integrated RayNeo USB transport | Yes, with orientation calibration controls | No | No |
 | RayNeo GT-series devices matching the supported USB identity, including GT Max identification | Integrated GT USB/IMU path | Yes, with orientation calibration controls | No | No |
 | **XREAL 1S** | **Experimental**; exact USB identity plus the device's USB-Ethernet control/IMU connection | Yes, when that connection is ready | No | No |
-| Rokid Max; Rokid Air under the same USB identity | Integrated Rokid USB transport (vendor control requests and HID IMU reports) | Yes | No | No |
+| Rokid Max / Max 2; Rokid Air under the Max USB identity | Integrated Rokid USB transport (vendor control requests and HID IMU reports) | Yes | No | No |
 | Other XREAL models; unrecognized glasses; display adapters and docks | Display-only where Android exposes a usable display; automatic glasses routing also requires display recognition | No supported app tracking connection | No | No |
 
-RayNeo's Air-series recognition uses its known USB identity or a RayNeo/TCL Air name under the accepted vendor IDs; it is not a per-model certification list. The GT vendor path requires the specific supported product ID. Rokid recognition requires USB 04d2:162f plus a Rokid product name, since that vendor ID is shared with unrelated devices; it was verified on a Rokid Max, and the Air follows the same published protocol untested. XREAL support currently targets **1S only**: One, One Pro, Air-family devices, and recovery-mode products are not enabled by the 1S transport. VITURE Pro 2 is identified through SDK validation rather than a guessed product ID. A dock does not supply the connected glasses' sensors by itself.
+RayNeo's Air-series recognition uses its known USB identity or a RayNeo/TCL Air name under the accepted vendor IDs; it is not a per-model certification list. The GT vendor path requires the specific supported product ID. Rokid recognition requires USB 04d2:162f (Max/Air) or 04d2:2002 (Max 2), plus a Rokid product name, since that vendor ID is shared with unrelated devices. Max 2 reports the USB product name "Rokid Max2". Hardware checks cover the Max and Max 2; the Air follows the same published protocol untested. XREAL support currently targets **1S only**: One, One Pro, Air-family devices, and recovery-mode products are not enabled by the 1S transport. VITURE Pro 2 is identified through SDK validation rather than a guessed product ID. A dock does not supply the connected glasses' sensors by itself.
 
 The final column refers specifically to Luma Ultra's stereo tracking cameras. DroidDeck's separate phone-camera and physical-controller features are independent of this matrix.
 
@@ -43,7 +43,7 @@ All display modes depend on the phone's video output, the cable/adapter, and And
 | VITURE Pro 2 | 1080p per eye; 2D and SBS | Brightness and volume; no electrochromic-film control |
 | RayNeo Air/GT | 2D/SBS switching; resolution and refresh follow available Android modes | Orientation calibration; no app brightness, volume, or dimming commands |
 | XREAL 1S | Supported 1S display-mode commands, including native 1200p/60 Hz and SBS | Brightness and dimming toggle; no app volume command |
-| Rokid Max | 1080p at 60 or 120 Hz in 2D; SBS at 1080p/60, 1200p/60, or 1200p/90 | Brightness; volume follows Android's USB audio volume; no dimming film |
+| Rokid Max / Max 2 | 1080p at 60 or 120 Hz in 2D; SBS at 1080p/60, 1200p/60, or 1200p/90 | Brightness; volume follows Android's USB audio volume; no dimming film |
 | Rokid Air | 1080p/60 in 2D and SBS | Brightness; volume follows Android's USB audio volume |
 
 DroidDeck saves separate **2D resolution**, **3D resolution**, and **VR resolution** preferences. Unsupported saved choices fall back to the connected model's automatic behavior. Native **30 Hz** is offered only when Android advertises a matching mode and glasses presentation output is enabled. Higher refresh selections are constrained by the active 2D/SBS layout and model; a firmware-rejected switch is not treated as successful until the physical display confirms it.

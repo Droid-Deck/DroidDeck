@@ -269,6 +269,17 @@ class GlassesUsbTest {
         assertTrue(Glasses.isGlassesDisplayName("Rokid Max"))
     }
 
+    @Test fun rokidMax2RequestsPermissionForItsOwnProductId() {
+        val max2 = device(0x2002, 0x04d2, "Rokid Max2")
+        manager.devices[max2.deviceName] = max2
+        refresh(ask = true)
+        assertEquals("Rokid Max2", state.value.model)
+        assertTrue(state.value.controllable)
+        assertEquals(listOf(max2), manager.requests)
+        assertTrue(Glasses.isGlassesDisplayName("Rokid Max 2"))
+        assertEquals(null, Glasses.deviceModel(device(0x2002, 0x04d2, "Generic HID")))
+    }
+
     private fun device(pid: Int, vid: Int = VitureProtocol.VENDOR_ID, name: String = "VITURE device"): UsbDevice = ReflectionHelpers.callConstructor(
         UsbDevice::class.java,
         from(String::class.java, "/dev/bus/usb/$pid"),

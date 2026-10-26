@@ -1,0 +1,7 @@
+#!/bin/sh
+# Runs DroidDeck's bundled innoextract with its own boost libraries. The guest's
+# env -i startup has no LD_LIBRARY_PATH, and the rootfs must not grow a second
+# copy of boost for the installer fallback.
+LD_LIBRARY_PATH=/usr/local/lib/droiddeck-inno
+export LD_LIBRARY_PATH
+exec /usr/local/lib/droiddeck-inno/innoextract "$@"

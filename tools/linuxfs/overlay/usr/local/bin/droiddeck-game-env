@@ -123,9 +123,23 @@ def arkham_city_x87(game):
 
 
 @fix
+def protonfixes_off(game):
+    if game.stem in ("blackops3", "darksoulsremastered"):
+        return {"PROTONFIXES_DISABLE": "1"}, [], "umu-protonfixes off (its ALSA audio and VC++ installer steps fail here)"
+
+
+@fix
 def caravan_sandwitch_feature_level(game):
     if "caravansandwitch.exe" in game.files or game.stem == "caravansandwitch-win64-shipping":
         return {"VKD3D_FEATURE_LEVEL": "12_1"}, [], "Caravan SandWitch: D3D12 feature level 12_1 (12_2 hands it mesh shader pipelines vkd3d-proton cannot build)"
+
+
+@fix
+def robocop_rogue_city_feature_level(game):
+    """vkd3d-proton turns mesh shaders off on Adreno, but 12_2 still advertises them, and UE5 then builds mesh
+    pipelines with no pipeline layout that crash Turnip on launch."""
+    if "robocop.exe" in game.files or game.stem == "robocop-win64-shipping":
+        return {"VKD3D_FEATURE_LEVEL": "12_1"}, [], "RoboCop: Rogue City: D3D12 feature level 12_1"
 
 
 @fix
@@ -271,6 +285,58 @@ def game_gpu(env):
     else:
         result.pop("TU_DEBUG", None)
     return result
+
+
+def vram_cap(env):
+    """Puts the session's VRAM cap ahead of the game's own DXVK settings, so a game profile can still raise it."""
+    value = env.get("BL_VRAM_MB", "")
+    if not re.fullmatch(r"[1-9][0-9]{0,6}", value):
+        return env
+    result = env.copy()
+    cap = "dxgi.maxDeviceMemory = %d" % int(value)
+    own = result.get("DXVK_CONFIG", "").strip().strip(";").strip()
+    result["DXVK_CONFIG"] = cap + "; " + own if own else cap
+    return result
+
+
+def parse_cores(text):
+    """CPU numbers from a list such as "0-3,6"; None when the text is not one."""
+    cores = set()
+    for part in text.replace(" ", "").split(","):
+        match = re.fullmatch(r"(\d{1,3})(?:-(\d{1,3}))?", part)
+        if not match:
+            return None
+        first, last = int(match.group(1)), int(match.group(2) or match.group(1))
+        if last < first:
+            return None
+        cores.update(range(first, last + 1))
+    return cores or None
+
+
+def online_cores():
+    try:
+        with open("/sys/devices/system/cpu/online") as f:
+            cores = parse_cores(f.read().strip())
+    except OSError:
+        cores = None
+    return cores or os.sched_getaffinity(0) | set(range(os.cpu_count() or 0))
+
+
+def game_cores(env):
+    """Pins the game to the cores its profile names, in place of the session's game cores."""
+    text = env.get("DROIDDECK_GAME_CORES", "").strip()
+    if not text:
+        return
+    cores = parse_cores(text)
+    chosen = cores & online_cores() if cores else None
+    if not chosen:
+        print("droiddeck-game-env: ignoring game cores %r" % text, file=sys.stderr)
+        return
+    try:
+        os.sched_setaffinity(0, chosen)
+        print("droiddeck-game-env: game cores %s" % ",".join(map(str, sorted(chosen))), file=sys.stderr)
+    except OSError as error:
+        print("droiddeck-game-env: could not use game cores %r (%s)" % (text, error), file=sys.stderr)
 
 
 def apply_config(env, config, app_id, fixes=None):
@@ -546,7 +612,9 @@ def main():
         command = offline_without_anticheat(command, env)
     if mic_enabled == "0":
         env["BANNER_AUDIO_DIRECT_MIC"] = "0"
+    env = vram_cap(env)
     env = force_ssbs(command, env)
+    game_cores(env)
     try:
         xbox = runpy.run_path(str(Path(__file__).with_name("droiddeck-xbox")))
     except Exception as error:
