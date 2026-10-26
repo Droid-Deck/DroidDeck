@@ -1976,6 +1976,13 @@
     <string name="stores_play">เล่น</string>
     <string name="stores_install">ติดตั้ง</string>
     <string name="bnet_open">เปิด Battle.net</string>
+    <string name="bnet_dl_starting">กำลังเริ่มตัวดาวน์โหลดของ Blizzard…</string>
+    <string name="bnet_dl_waiting">กำลังรอให้ Battle.net ปิด…</string>
+    <string name="bnet_dl_queued">กำลังรอการดาวน์โหลด Battle.net อีกรายการ…</string>
+    <string name="bnet_dl_client_first">เปิด Battle.net และลงชื่อเข้าใช้หนึ่งครั้ง แล้วติดตั้งเกมจากที่นี่</string>
+    <string name="bnet_dl_failed">ตัวดาวน์โหลดของ Blizzard หยุดทำงาน: %1$s</string>
+    <string name="bnet_dl_agent_error">ข้อผิดพลาดของ Blizzard %1$s</string>
+    <string name="bnet_update">อัปเดต</string>
     <string name="bnet_store">เกมของ Blizzard</string>
     <string name="stores_resume_install">ดำเนินการติดตั้งต่อ</string>
     <string name="stores_dl_interrupted">ถูกขัดจังหวะ</string>

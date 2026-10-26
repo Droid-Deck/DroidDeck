@@ -111,6 +111,12 @@ object SessionPrefs {
         prefs(context).edit().putString("storesView", if (view in STORES_VIEWS) view else STORES_VIEWS.first()).apply()
     }
 
+    fun libraryShowUninstalled(context: Context): Boolean = prefs(context).getBoolean("libraryShowUninstalled", false)
+
+    fun setLibraryShowUninstalled(context: Context, show: Boolean) {
+        prefs(context).edit().putBoolean("libraryShowUninstalled", show).apply()
+    }
+
     fun storesTabOrder(context: Context): List<String> = idList(prefs(context).getString("storesTabOrder", null))
 
     fun setStoresTabOrder(context: Context, order: List<String>) {
@@ -223,16 +229,10 @@ object SessionPrefs {
     private fun mangoappSession(context: Context) =
         SessionState.mode == SessionService.MODE_STEAM && mangoapp(context)
 
-    fun lowLatencyController(context: Context): Boolean = prefs(context).getBoolean("lowLatencyController", false)
+    fun lowLatency(context: Context): Boolean = prefs(context).getBoolean("lowLatency", true)
 
-    fun setLowLatencyController(context: Context, on: Boolean) {
-        prefs(context).edit().putBoolean("lowLatencyController", on).apply()
-    }
-
-    fun lowLatencyTouch(context: Context): Boolean = prefs(context).getBoolean("lowLatencyTouch", false)
-
-    fun setLowLatencyTouch(context: Context, on: Boolean) {
-        prefs(context).edit().putBoolean("lowLatencyTouch", on).apply()
+    fun setLowLatency(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("lowLatency", on).apply()
     }
 
     fun backActionsInverted(context: Context): Boolean = prefs(context).getBoolean("backActionsInverted", false)

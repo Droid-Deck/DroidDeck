@@ -2039,6 +2039,13 @@
     <string name="stores_play">Грати</string>
     <string name="stores_install">Встановити</string>
     <string name="bnet_open">Відкрити Battle.net</string>
+    <string name="bnet_dl_starting">Запуск завантажувача Blizzard…</string>
+    <string name="bnet_dl_waiting">Очікування закриття Battle.net…</string>
+    <string name="bnet_dl_queued">Очікування іншого завантаження Battle.net…</string>
+    <string name="bnet_dl_client_first">Відкрийте Battle.net і увійдіть один раз, потім встановлюйте його ігри тут.</string>
+    <string name="bnet_dl_failed">Завантажувач Blizzard зупинився: %1$s</string>
+    <string name="bnet_dl_agent_error">Помилка Blizzard %1$s</string>
+    <string name="bnet_update">Оновити</string>
     <string name="bnet_store">Ігри Blizzard</string>
     <string name="stores_resume_install">Продовжити встановлення</string>
     <string name="stores_dl_interrupted">Перервано</string>

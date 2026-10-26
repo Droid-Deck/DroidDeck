@@ -525,8 +525,8 @@ public class FakeInputWriter {
         }
     }
 
-    public static void setLowLatency(boolean controller, boolean touch) {
-        int flags = (controller ? LATENCY_CONTROLLER : 0) | (touch ? LATENCY_TOUCH : 0);
+    public static void setLowLatency(boolean enabled) {
+        int flags = enabled ? LATENCY_CONTROLLER | LATENCY_TOUCH : 0;
         latency = flags;
         RingSlot ringSlot;
         synchronized (RING_LOCK) {

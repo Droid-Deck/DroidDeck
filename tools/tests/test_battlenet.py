@@ -1,3 +1,4 @@
+import contextlib
 import json
 import os
 from pathlib import Path
@@ -1062,6 +1063,212 @@ class HandOverTest(Harness):
         self.states = [[]]
         self.assertFalse(BNET["hand_over"](self.root, ["--install", "--game=osi"], wait=0))
         self.assertEqual(self.calls, [])
+
+
+class AgentTest(Temp):
+    def test_the_newest_agent_build_and_its_port_are_found(self):
+        root = str(self.tmp / "Steam")
+        agent = "Steam/steamapps/compatdata/%s/pfx/drive_c/ProgramData/Battle.net/Agent" % BNET["APP_ID"]
+        self.write(agent + "/Agent.9100/Agent.exe", b"MZ")
+        self.write(agent + "/Agent.9824/Agent.exe", b"MZ")
+        os.makedirs(self.tmp / agent / "Agent.9999")
+        self.write(agent + "/Agent.dat", "39211\n")
+        self.assertTrue(BNET["agent_exe"](root).endswith("Agent.9824/Agent.exe"))
+        self.assertEqual(BNET["agent_port"](root), 39211)
+        self.write(agent + "/Agent.dat", "not a port")
+        self.assertIsNone(BNET["agent_port"](root))
+
+    def test_progress_keeps_the_fields_the_app_reads(self):
+        status = {"progress": 0.35, "download_current": [2397, 0, 0], "download_total": [6746, 0, 0], "download_rate": 34076920,
+                  "state": 1003, "build_config_kv_pairs": {"x": "y"}, "regional_version_info": {}, "estimated_time_in_sec": 120,
+                  "extended_status": {"current": 1, "state": 500, "total": 2, "unit_type": "bytes"}}
+        self.assertEqual(BNET["summary"](status), {"progress": 0.35, "download_current": 2397, "download_total": 6746,
+                                                   "download_rate": 34076920, "state": 1003, "estimated_time_in_sec": 120, "phase": 500})
+
+    def test_an_unknown_time_left_is_not_reported(self):
+        for eta in (18446744073709551615, -1, 1.5):
+            with self.subTest(eta):
+                self.assertNotIn("estimated_time_in_sec", BNET["summary"]({"estimated_time_in_sec": eta}))
+
+    def test_the_driver_script_reads_its_arguments_in_the_order_they_are_passed(self):
+        script = BNET["AGENT_SCRIPT"]
+        self.assertIn("port = a(0), action = a(1), uid = a(2), product = a(3), dir = a(4)", script)
+        self.assertIn("lang = a(5), country = a(6), region = a(7), out = a(8)", script)
+        self.assertIn('"--internalclienttools"', (BIN / "droiddeck-battlenet").read_text())
+
+
+class AgentJobTest(Harness):
+    def setUp(self):
+        super().setUp()
+        self.lines = []
+        self.files = {}
+        self.started = []
+        self.envs = []
+        test = self
+
+        class Child:
+            def __init__(self, cmd, **kwargs):
+                test.started.append(cmd)
+                test.envs.append(kwargs.get("env") or {})
+                base = cmd[-1][2:].replace("\\", "/")
+                for suffix, value in test.files.items():
+                    with open(base + suffix, "wb") as f:
+                        f.write(value.encode("utf-16"))
+                self.returncode = 0
+
+            def poll(self):
+                return 0
+
+        patcher = mock.patch.dict(BNET, {"emit": lambda kind, value="": self.lines.append((kind, value)),
+                                         "stop_leftovers": lambda pfx: True, "CACHE": str(self.tmp / "cache")})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        popen = mock.patch.object(BNET["subprocess"], "Popen", Child)
+        popen.start()
+        self.addCleanup(popen.stop)
+
+    def install(self):
+        super().install()
+        self.write("Steam/steamapps/compatdata/%s/pfx/drive_c/ProgramData/Battle.net/Agent/Agent.9824/Agent.exe" % BNET["APP_ID"], b"MZ")
+
+    def test_a_game_downloads_headless_and_reports_where_it_landed(self):
+        self.install()
+        folder = str(self.tmp / "Games/Battle.net/Warcraft Rumble")
+        self.files = {
+            ".json": json.dumps({"progress": 1.0, "download_complete": True, "state": 1004, "download_current": [6746, 0, 0],
+                                 "download_total": [6746, 0, 0]}),
+            ".game": json.dumps({"installed": True, "install_dir": "Z:" + folder, "local_version": "16.1.2.119725",
+                                 "binaries": {"game": {"relative_path": "WarcraftRumble.exe"}}}),
+        }
+        code = BNET["agent_job"](self.root, "install", "gryphon", "gryphon", folder, "enUS", "USA", "US", poll=0)
+        self.assertEqual(code, 0)
+        self.assertTrue(os.path.isdir(folder))
+        cmd = self.started[0]
+        self.assertEqual(cmd[:6], ["gamescope", "--backend", "headless", "-w", "640", "-h"])
+        self.assertEqual(cmd[cmd.index("--") + 2:-1], ["agent-serve", "install", "gryphon", "gryphon", "Z:" + folder, "enUS", "USA", "US"])
+        self.assertEqual([kind for kind, _ in self.lines], ["STATE", "PROGRESS", "DONE"])
+        self.assertEqual(json.loads(self.lines[-1][1]), {"install_dir": "Z:" + folder, "exe": "WarcraftRumble.exe", "version": "16.1.2.119725"})
+
+    def test_an_agent_error_is_reported_with_its_code(self):
+        self.install()
+        self.files = {".json": json.dumps({"error": 2421, "progress": 0.0})}
+        self.assertEqual(BNET["agent_job"](self.root, "install", "fenris", "fenris", str(self.tmp / "D4"), "enUS", "USA", "US", poll=0), 5)
+        self.assertEqual(self.lines[-1], ("ERROR", "agent 2421"))
+
+    def test_a_driver_failure_is_reported_with_its_reason(self):
+        self.install()
+        self.files = {".error": "the agent stopped answering"}
+        self.assertEqual(BNET["agent_job"](self.root, "update", "wow", poll=0), 1)
+        self.assertEqual(self.lines[-1], ("ERROR", "stopped the agent stopped answering"))
+
+    def test_an_update_reports_the_new_version(self):
+        self.install()
+        self.files = {".json": json.dumps({"progress": 1.0}),
+                      ".game": json.dumps({"installed": True, "playable": True, "install_dir": "Z:/g", "local_version": "2"})}
+        self.assertEqual(BNET["agent_job"](self.root, "update", "gryphon", poll=0), 0)
+        self.assertIn("agent-serve", self.started[0])
+        self.assertEqual(json.loads(self.lines[-1][1])["version"], "2")
+
+    def test_a_game_left_unplayable_is_not_reported_as_done(self):
+        self.install()
+        self.files = {".json": json.dumps({"state": 1008, "download_complete": True, "progress": 0.0}),
+                      ".game": json.dumps({"installed": True, "playable": False, "install_dir": "Z:/g", "local_version": "2"})}
+        self.assertEqual(BNET["agent_job"](self.root, "update", "gryphon", poll=0), 1)
+        self.assertEqual(self.lines[-1][0], "ERROR")
+
+    def test_the_driver_only_stops_once_the_agent_has_really_run(self):
+        script = BNET["AGENT_SCRIPT"]
+        self.assertIn("if (started && (state == 1004 || complete && /\"playable\"\\s*:\\s*true/.test(s))) break;", script)
+        self.assertNotIn('"progress"', script)
+
+    def test_an_uninstall_is_done_once_the_agent_no_longer_lists_it(self):
+        self.install()
+        self.files = {".json": json.dumps({}), ".game": json.dumps({"installed": False})}
+        self.assertEqual(BNET["agent_job"](self.root, "uninstall", "gryphon", poll=0), 0)
+        self.assertEqual(self.lines[-1], ("DONE", json.dumps({"uninstalled": "gryphon"})))
+
+    def test_a_gamescope_that_cannot_start_is_reported(self):
+        self.install()
+
+        def missing(cmd, **kwargs):
+            raise FileNotFoundError("gamescope")
+
+        with mock.patch.object(BNET["subprocess"], "Popen", missing):
+            self.assertEqual(BNET["agent_job"](self.root, "update", "gryphon", poll=0), 1)
+        self.assertEqual(self.lines[-1], ("ERROR", "stopped gamescope: gamescope"))
+
+    def test_an_agent_answer_that_is_not_an_object_is_ignored(self):
+        path = self.tmp / "answer.json"
+        for value in ([1, 2], "text", 3, None):
+            with self.subTest(value):
+                path.write_bytes(json.dumps(value).encode("utf-16"))
+                self.assertIsNone(BNET["read_status"](str(path)))
+        path.write_bytes(json.dumps({"state": 1004}).encode("utf-8"))
+        self.assertEqual(BNET["read_status"](str(path)), {"state": 1004})
+
+    def test_a_large_agent_log_is_rotated_before_a_job(self):
+        self.install()
+        os.makedirs(self.tmp / "cache")
+        log = self.tmp / "cache" / "agent.log"
+        log.write_bytes(b"x" * (BNET["AGENT_LOG_LIMIT"] + 1))
+        self.files = {".game": json.dumps({"installed": False})}
+        BNET["agent_job"](self.root, "uninstall", "gryphon", poll=0)
+        self.assertEqual((self.tmp / "cache" / "agent.log.1").stat().st_size, BNET["AGENT_LOG_LIMIT"] + 1)
+        self.assertEqual(log.stat().st_size, 0)
+
+    def test_it_queues_behind_another_battle_net_job(self):
+        self.install()
+        self.files = {".game": json.dumps({"installed": False})}
+        locks = iter([None, contextlib.nullcontext()])
+        with mock.patch.dict(BNET, {"acquire": lambda *a: next(locks)}):
+            self.assertEqual(BNET["agent_job"](self.root, "uninstall", "gryphon", poll=0), 0)
+        self.assertEqual(self.lines[:2], [("STATE", "queued"), ("STATE", "starting")])
+
+    def test_an_uninstall_needs_the_agent_to_say_the_game_is_gone(self):
+        self.install()
+        self.files = {".game": json.dumps({"error": 2})}
+        self.assertEqual(BNET["agent_job"](self.root, "uninstall", "gryphon", poll=0), 1)
+        self.assertEqual(self.lines[-1][0], "ERROR")
+        self.files = {".game": json.dumps({})}
+        self.assertEqual(BNET["agent_job"](self.root, "uninstall", "gryphon", poll=0), 0)
+        self.assertEqual(self.lines[-1], ("DONE", json.dumps({"uninstalled": "gryphon"})))
+
+    def test_without_battle_net_nothing_starts(self):
+        self.assertEqual(BNET["agent_job"](self.root, "install", "gryphon", "gryphon", str(self.tmp / "g"), "enUS", "USA", "US", poll=0), 3)
+        self.assertEqual(self.lines, [("ERROR", "client")])
+        self.assertEqual(self.started, [])
+
+    def test_it_waits_while_battle_net_or_a_game_is_open(self):
+        self.install()
+        self.states = [self.clients() + [(40, self.GAME)], [(40, self.GAME)], []]
+        self.files = {".game": json.dumps({"installed": False})}
+        self.assertEqual(BNET["agent_job"](self.root, "uninstall", "gryphon", poll=0), 0)
+        self.assertEqual(self.lines[0], ("STATE", "waiting"))
+        self.assertEqual(self.lines[1], ("STATE", "starting"))
+
+    def test_gamescope_gets_no_display_but_the_agent_keeps_the_one_gamescope_gives_it(self):
+        self.install()
+        os.environ.update(DISPLAY=":5", WAYLAND_DISPLAY="wayland-1")
+        self.files = {".game": json.dumps({"installed": False})}
+        BNET["agent_job"](self.root, "uninstall", "gryphon", poll=0)
+        self.assertNotIn("DISPLAY", self.envs[0])
+        self.assertNotIn("WAYLAND_DISPLAY", self.envs[0])
+        self.assertEqual(self.envs[0]["PROTON_USE_XALIA"], "0")
+        os.environ["DISPLAY"] = ":0"
+        self.assertEqual(BNET["agent_env"]()["DISPLAY"], ":0")
+
+    def test_only_valid_arguments_start_a_job(self):
+        calls = []
+        with mock.patch.dict(BNET, {"agent_job": lambda *a, **k: calls.append(a[1:]) or 0}):
+            for argv in (["agent-install", "gryphon", "gryphon", "relative/dir", "enUS", "USA", "US"],
+                         ["agent-install", "gryphon", "Gry phon", "/g", "enUS", "USA", "US"],
+                         ["agent-install", "gryphon", "gryphon", "/g", "english", "USA", "US"],
+                         ["agent-update"], ["agent-uninstall", "Gryphon"]):
+                with self.subTest(argv):
+                    self.assertEqual(BNET["main"](argv), 2)
+            self.assertEqual(BNET["main"](["agent-install", "gryphon", "gryphon", "/g/../g/Rumble", "enUS", "USA", "US"]), 0)
+            self.assertEqual(BNET["main"](["agent-update", "wow_classic"]), 0)
+        self.assertEqual(calls, [("install", "gryphon", "gryphon", "/g/Rumble", "enUS", "USA", "US"), ("update", "wow_classic")])
 
 
 if __name__ == "__main__":

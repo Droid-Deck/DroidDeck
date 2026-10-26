@@ -702,6 +702,8 @@
     <string name="drawer_touch_auto">Auto (%1$s)</string>
     <string name="drawer_keyboard">Keyboard</string>
     <string name="drawer_latency">Latency</string>
+    <string name="drawer_low_latency">Low latency mode</string>
+    <string name="drawer_low_latency_hint">Increases CPU and battery usage</string>
     <string name="drawer_low_latency_controller">Low-latency controller</string>
     <string name="drawer_low_latency_controller_hint">Pad reports at 1000 Hz instead of 250 Hz. Slightly more CPU.</string>
     <string name="drawer_low_latency_touch">Low-latency touch</string>
@@ -2092,6 +2094,13 @@
     <string name="stores_play">Play</string>
     <string name="stores_install">Install</string>
     <string name="bnet_open">Open Battle.net</string>
+    <string name="bnet_dl_starting">Starting Blizzard\'s downloader…</string>
+    <string name="bnet_dl_waiting">Waiting for Battle.net to close…</string>
+    <string name="bnet_dl_queued">Waiting for the other Battle.net download…</string>
+    <string name="bnet_dl_client_first">Open Battle.net and sign in once, then install its games here.</string>
+    <string name="bnet_dl_failed">Blizzard\'s downloader stopped: %1$s</string>
+    <string name="bnet_dl_agent_error">Blizzard error %1$s</string>
+    <string name="bnet_update">Update</string>
     <string name="bnet_store">Blizzard games</string>
     <string name="stores_resume_install">Resume install</string>
     <string name="stores_dl_interrupted">Interrupted</string>
@@ -3181,6 +3190,11 @@
     <string name="epic_client_open">Open</string>
     <string name="epic_client_install">Install</string>
     <string name="library_filter_added">Added</string>
+    <string name="library_filter">Filter</string>
+    <string name="library_filter_installed">Installed only</string>
+    <string name="library_filter_all_owned">All owned games</string>
+    <string name="library_no_installed_matches">No installed games match these filters.</string>
+    <string name="library_browse_owned">Browse owned games</string>
     <string name="game_tab_about">About</string>
     <string name="game_tab_achievements_count" translatable="false">%1$s %2$d/%3$d</string>
     <string name="game_tab_launch">Launch</string>

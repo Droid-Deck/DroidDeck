@@ -2056,6 +2056,13 @@
     <string name="stores_play">游玩</string>
     <string name="stores_install">安装</string>
     <string name="bnet_open">打开 Battle.net</string>
+    <string name="bnet_dl_starting">正在启动暴雪下载器…</string>
+    <string name="bnet_dl_waiting">正在等待 Battle.net 关闭…</string>
+    <string name="bnet_dl_queued">正在等待另一个 Battle.net 下载…</string>
+    <string name="bnet_dl_client_first">请先打开 Battle.net 并登录一次，然后在这里安装其游戏。</string>
+    <string name="bnet_dl_failed">暴雪下载器已停止：%1$s</string>
+    <string name="bnet_dl_agent_error">暴雪错误 %1$s</string>
+    <string name="bnet_update">更新</string>
     <string name="bnet_store">暴雪游戏</string>
     <string name="stores_resume_install">继续安装</string>
     <string name="stores_dl_interrupted">已中断</string>
