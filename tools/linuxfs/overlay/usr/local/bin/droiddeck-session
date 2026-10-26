@@ -71,19 +71,28 @@ steam_update_stuck() {
 }
 
 # gamescope's --framerate-limit lasts only until its first frame, which recomputes the limit
-# from the per-app value set over gamescope_control. Set that value once gamescope answers:
-# the limiter then makes the WSI layer hold Vulkan games (DXVK and VKD3D included) to it.
+# from the per-app value set over gamescope_control, and Steam resets that value to 0 while it
+# starts. Watch gamescope's limiter state file (first byte 1 = limiter on) and set the value
+# again whenever it is off; the limiter then makes the WSI layer hold Vulkan games (DXVK and
+# VKD3D included) to it. Shell builtins only, so the once-a-second check starts no process.
 hold_games_to_frame_limit() {
-  local fps=$1 i
+  local fps=$1 file=$2 parent=$3 state sent=0 nap napfd=
   command -v gamescopectl >/dev/null || { echo "== gamescope: no gamescopectl, the frame limit paces the screen only"; return 0; }
-  for i in $(seq 1 120); do
-    if gamescopectl debug_set_fps_limit "$fps" >/dev/null 2>&1; then
-      echo "== gamescope: games held to $fps fps"
-      return 0
+  nap=$(mktemp -u "${XDG_RUNTIME_DIR:-/tmp}/droiddeck-nap.XXXXXX") && mkfifo "$nap" 2>/dev/null \
+    && exec {napfd}<>"$nap"; rm -f "$nap"
+  while kill -0 "$parent" 2>/dev/null; do
+    if [ -f "$file" ]; then
+      state=
+      IFS= read -r -n1 -d '' state < "$file"
+      if [ "$state" != $'\x01' ] && gamescopectl debug_set_fps_limit "$fps" >/dev/null 2>&1; then
+        sent=$((sent + 1))
+        if [ "$sent" = 1 ]; then echo "== gamescope: games held to $fps fps"
+        elif [ "$sent" -le 4 ]; then echo "== gamescope: the frame limit was reset, set it again"
+        fi
+      fi
     fi
-    sleep 0.5
+    if [ -n "$napfd" ]; then read -r -t 1 -u "$napfd" _; else sleep 1; fi
   done
-  echo "== gamescope: gamescope did not answer, the frame limit paces the screen only"
 }
 
 run_gamescope() (
@@ -281,9 +290,11 @@ if [ -z "${BL_INSIDE:-}" ]; then
     echo "== gamescope: mangoapp on ($(command -v mangoapp), config $MANGOHUD_CONFIGFILE)"
   fi
   export BL_INSIDE=1
-  # Each gamescope start leaves a limiter state file behind.
-  rm -f "${XDG_RUNTIME_DIR:-/tmp}"/gamescope-limiter-??????
-  [ -n "${game_frame_limit:-}" ] && hold_games_to_frame_limit "$game_frame_limit" &
+  # A fixed path: left to itself gamescope creates a new limiter state file on every start.
+  rm -f "${XDG_RUNTIME_DIR:-/tmp}"/gamescope-limiter-*
+  export GAMESCOPE_LIMITER_FILE="${XDG_RUNTIME_DIR:-/tmp}/droiddeck-gamescope-limiter"
+  rm -f "$GAMESCOPE_LIMITER_FILE"
+  [ -n "${game_frame_limit:-}" ] && hold_games_to_frame_limit "$game_frame_limit" "$GAMESCOPE_LIMITER_FILE" $$ &
   if [ "$mode" = steam ]; then
     if /usr/local/bin/droiddeck-pipewire start; then
       eval "$(/usr/local/bin/droiddeck-pipewire env)"
