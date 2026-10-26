@@ -37,6 +37,7 @@ class CompatLaunchTest {
         protons.protonProblem = null
         protons.protonStage = "Downloading DroidDeck Proton"
         protons.protonPercent = 37
+        setString("setPkgStage", null)
     }
 
     @After fun cleanUp() {
@@ -45,6 +46,7 @@ class CompatLaunchTest {
         protons.protonProblem = null
         protons.protonStage = null
         protons.protonPercent = -1
+        setString("setPkgStage", null)
         installing(false)
         LaunchOrigin.take()
     }
@@ -162,6 +164,36 @@ class CompatLaunchTest {
         assertEquals("first", shadowOf(activity).nextStartedActivity.getStringExtra(SessionService.EXTRA_STEAM_URL))
     }
 
+    @Test fun aPackageDownloadStillBlocksTheLaunchAfterRecreationAndReportsOldWorkerProgress() {
+        activity.startActivity(request("first"))
+        setString("setPkgStage", "Downloading AppImage")
+        ReflectionHelpers.callInstanceMethod<Void>(activity, "setPkgPercent", ReflectionHelpers.ClassParameter.from(Int::class.javaPrimitiveType, 23))
+        val workerActivity = activity
+        val saved = save()
+        cancel()
+        recreate(saved)
+        ReflectionHelpers.setField(activity, "compatLaunchVisible", true)
+        protons.protonBusyId = null
+        advance()
+        assertNotNull(waiting())
+        assertNull(shadowOf(activity).nextStartedActivity)
+        assertEquals("Downloading AppImage", loading().step)
+        assertEquals(23, loading().percent)
+        android.os.Handler(Looper.getMainLooper()).post {
+            setString("setPkgStage", "Placing AppImage", workerActivity)
+            ReflectionHelpers.callInstanceMethod<Void>(workerActivity, "setPkgPercent", ReflectionHelpers.ClassParameter.from(Int::class.javaPrimitiveType, 90))
+        }
+        advance()
+        assertEquals("Placing AppImage", loading().step)
+        assertEquals(90, loading().percent)
+        assertNull(shadowOf(activity).nextStartedActivity)
+        android.os.Handler(Looper.getMainLooper()).post { setString("setPkgStage", null, workerActivity) }
+        advance()
+        assertEquals("first", shadowOf(activity).nextStartedActivity.getStringExtra(SessionService.EXTRA_STEAM_URL))
+        advance()
+        assertNull(shadowOf(activity).nextStartedActivity)
+    }
+
     @Test fun aFailedInstallAfterRecreationKeepsItsProgressAndError() = recreationFailure(false)
 
     @Test fun aFailedInstallBeforeRestorationStillShowsItsError() = recreationFailure(true)
@@ -223,8 +255,8 @@ class CompatLaunchTest {
         ReflectionHelpers.callInstanceMethod<Void>(activity, "restoreCompatLaunch", ReflectionHelpers.ClassParameter.from(Bundle::class.java, saved))
     }
 
-    private fun setString(method: String, value: String?) {
-        ReflectionHelpers.callInstanceMethod<Void>(activity, method, ReflectionHelpers.ClassParameter.from(String::class.java, value))
+    private fun setString(method: String, value: String?, target: FrontEndActivity = activity) {
+        ReflectionHelpers.callInstanceMethod<Void>(target, method, ReflectionHelpers.ClassParameter.from(String::class.java, value))
     }
 
     private fun request(url: String) = Intent(activity, SessionActivity::class.java).putExtra(SessionService.EXTRA_STEAM_URL, url)

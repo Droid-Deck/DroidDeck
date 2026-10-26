@@ -138,9 +138,14 @@ class FrontEndActivity : ComponentActivity() {
     private var catalog by mutableStateOf<List<DesktopCatalog.Entry>?>(null)
     private var catalogLoading by mutableStateOf(false)
     private var packageRows by mutableStateOf<List<PackageRow>?>(null)
-    private var pkgId by mutableStateOf<String?>(null)
-    private var pkgStage by mutableStateOf<String?>(null)
-    private var pkgPercent by mutableIntStateOf(-1)
+    private object PackageOperation {
+        val id = mutableStateOf<String?>(null)
+        val stage = mutableStateOf<String?>(null)
+        val percent = mutableIntStateOf(-1)
+    }
+    private var pkgId by PackageOperation.id
+    private var pkgStage by PackageOperation.stage
+    private var pkgPercent by PackageOperation.percent
     private var desktopInstalled by mutableStateOf(false)
     private var desktopPresent by mutableStateOf(false)
     private var battleNetInstalled by mutableStateOf(false)
