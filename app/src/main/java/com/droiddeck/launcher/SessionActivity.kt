@@ -557,12 +557,18 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             uiHandler.removeCallbacks(cursorHide)
             cursorVisible = false
         }
-        onScreenControls = OnScreenControls(this, bridge, onKeyboard = ::togglePcKeyboard).also { root.addView(it) }
+        onScreenControls = OnScreenControls(this, bridge, onKeyboard = ::togglePcKeyboard).also { controls ->
+            controls.onTouchMiss = miss@{ event ->
+                if (!gestureTouchStreamGate.accepts(GestureTouchStreamGate.Source.ON_SCREEN_CONTROLS, event)) return@miss
+                event.offsetLocation(controls.left - surfaceView.left.toFloat(), controls.top - surfaceView.top.toFloat())
+                onTouchEvent(event)
+            }
+            root.addView(controls)
+        }
         screenKeysShown = com.droiddeck.launcher.input.ControllerPrefs.screenKeysShown(this)
         screenKeys = ScreenKeys(this) { code, down -> if (CompositorHost.isStarted) sendGuestKey(code, down) }.also { keys ->
             keys.onTouchMiss = miss@{ event ->
-                if (routedTouchMode == SessionPrefs.TOUCH_GESTURES &&
-                    !gestureTouchStreamGate.accepts(GestureTouchStreamGate.Source.SCREEN_KEYS, event)) return@miss
+                if (!gestureTouchStreamGate.accepts(GestureTouchStreamGate.Source.SCREEN_KEYS, event)) return@miss
                 event.offsetLocation(keys.left - surfaceView.left.toFloat(), keys.top - surfaceView.top.toFloat())
                 onTouchEvent(event)
             }
@@ -587,8 +593,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         // game surface and on-screen buttons, in either finger-down order.
         root.isMotionEventSplittingEnabled = true
         surfaceView.setOnTouchListener { _, event ->
-            if (routedTouchMode != SessionPrefs.TOUCH_GESTURES) {
-                gestureTouchStreamGate.reset()
+            if (!event.isFromSource(InputDevice.SOURCE_TOUCHSCREEN)) {
                 false
             } else if (!gestureTouchStreamGate.accepts(GestureTouchStreamGate.Source.SURFACE, event)) {
                 false
@@ -2337,6 +2342,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (pipUi) return true
         if (event.actionMasked == MotionEvent.ACTION_DOWN && event.isFromSource(InputDevice.SOURCE_TOUCHSCREEN)) {
             drawerControllerActive = false
+            gestureTouchStreamGate.reset()
         }
         return super.dispatchTouchEvent(event)
     }
@@ -2987,6 +2993,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             uiHandler.postDelayed({ updateOnScreenControls() }, 700)
         }
         view.onStyle = { screenKeys?.refreshAppearance() }
+        view.onTouchMiss = miss@{ event ->
+            if (!gestureTouchStreamGate.accepts(GestureTouchStreamGate.Source.ON_SCREEN_CONTROLS, event)) return@miss
+            event.offsetLocation(view.left - surfaceView.left.toFloat(), view.top - surfaceView.top.toFloat())
+            onTouchEvent(event)
+        }
         root.addView(view, root.indexOfChild(onScreenControls) + 1)
         steamTouchControls = view
         steamTouchAvailable = true
