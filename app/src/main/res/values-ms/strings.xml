@@ -3053,6 +3053,7 @@
     <string name="library_remove">Alih keluar dari Pustaka</string>
     <string name="library_in">Dalam Pustaka</string>
     <string name="xbox_filter_show">Tunjukkan</string>
+    <string name="itch_collections">Koleksi</string>
     <string name="xbox_filter_cloud">Awan</string>
     <string name="stores_xbox_cloud_settings">Tetapan awan</string>
 </resources>

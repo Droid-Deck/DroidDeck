@@ -3078,6 +3078,7 @@
     <string name="library_remove">Verwijderen uit Bibliotheek</string>
     <string name="library_in">In Bibliotheek</string>
     <string name="xbox_filter_show">Weergeven</string>
+    <string name="itch_collections">Collecties</string>
     <string name="xbox_filter_cloud">Cloud</string>
     <string name="stores_xbox_cloud_settings">Cloudinstellingen</string>
 </resources>

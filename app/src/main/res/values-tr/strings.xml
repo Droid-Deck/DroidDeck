@@ -3080,6 +3080,7 @@
     <string name="library_remove">Kütüphane içinden kaldır</string>
     <string name="library_in">Kütüphane içinde</string>
     <string name="xbox_filter_show">Göster</string>
+    <string name="itch_collections">Koleksiyonlar</string>
     <string name="xbox_filter_cloud">Bulut</string>
     <string name="stores_xbox_cloud_settings">Bulut ayarları</string>
 </resources>

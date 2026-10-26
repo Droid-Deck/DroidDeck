@@ -3057,6 +3057,7 @@
     <string name="library_remove">从游戏库移除</string>
     <string name="library_in">已在游戏库</string>
     <string name="xbox_filter_show">显示</string>
+    <string name="itch_collections">收藏集</string>
     <string name="xbox_filter_cloud">云</string>
     <string name="stores_xbox_cloud_settings">云设置</string>
 </resources>

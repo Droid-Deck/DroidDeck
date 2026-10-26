@@ -3053,6 +3053,7 @@
     <string name="library_remove">Xóa khỏi Thư viện</string>
     <string name="library_in">Trong Thư viện</string>
     <string name="xbox_filter_show">Hiển thị</string>
+    <string name="itch_collections">Bộ sưu tập</string>
     <string name="xbox_filter_cloud">Đám mây</string>
     <string name="stores_xbox_cloud_settings">Cài đặt đám mây</string>
 </resources>

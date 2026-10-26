@@ -3112,6 +3112,7 @@
     <string name="library_remove">Rimuovi dalla Libreria</string>
     <string name="library_in">Nella Libreria</string>
     <string name="xbox_filter_show">Mostra</string>
+    <string name="itch_collections">Raccolte</string>
     <string name="xbox_filter_cloud">Cloud</string>
     <string name="stores_xbox_cloud_settings">Impostazioni cloud</string>
 </resources>

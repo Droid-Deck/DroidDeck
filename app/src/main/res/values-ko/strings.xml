@@ -3055,6 +3055,7 @@
     <string name="library_remove">라이브러리에서 제거</string>
     <string name="library_in">라이브러리에 있음</string>
     <string name="xbox_filter_show">표시</string>
+    <string name="itch_collections">컬렉션</string>
     <string name="xbox_filter_cloud">클라우드</string>
     <string name="stores_xbox_cloud_settings">클라우드 설정</string>
 </resources>

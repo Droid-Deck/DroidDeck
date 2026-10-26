@@ -3200,6 +3200,7 @@
     <string name="library_remove">Remove from Library</string>
     <string name="library_in">In Library</string>
     <string name="xbox_filter_show">Show</string>
+    <string name="itch_collections">Collections</string>
     <string name="xbox_filter_cloud">Cloud</string>
     <string name="stores_xbox_cloud_settings">Cloud settings</string>
     <string name="xbox_cloud_gaming" translatable="false">Xbox Cloud Gaming</string>

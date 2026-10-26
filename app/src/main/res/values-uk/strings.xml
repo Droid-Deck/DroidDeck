@@ -3146,6 +3146,7 @@
     <string name="library_remove">Прибрати з бібліотеки</string>
     <string name="library_in">У бібліотеці</string>
     <string name="xbox_filter_show">Показати</string>
+    <string name="itch_collections">Колекції</string>
     <string name="xbox_filter_cloud">Хмара</string>
     <string name="stores_xbox_cloud_settings">Налаштування хмари</string>
 </resources>

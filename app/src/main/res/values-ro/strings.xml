@@ -3112,6 +3112,7 @@
     <string name="library_remove">Elimină din Bibliotecă</string>
     <string name="library_in">În Bibliotecă</string>
     <string name="xbox_filter_show">Afișează</string>
+    <string name="itch_collections">Colecții</string>
     <string name="xbox_filter_cloud">Cloud</string>
     <string name="stores_xbox_cloud_settings">Setări cloud</string>
 </resources>

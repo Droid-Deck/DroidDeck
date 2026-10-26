@@ -3078,6 +3078,7 @@
     <string name="library_remove">Премахни от Библиотека</string>
     <string name="library_in">В Библиотека</string>
     <string name="xbox_filter_show">Показване</string>
+    <string name="itch_collections">Колекции</string>
     <string name="xbox_filter_cloud">Облак</string>
     <string name="stores_xbox_cloud_settings">Настройки на облака</string>
 </resources>

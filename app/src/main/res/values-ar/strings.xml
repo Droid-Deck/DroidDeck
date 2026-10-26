@@ -3214,6 +3214,7 @@
     <string name="library_remove">إزالة من المكتبة</string>
     <string name="library_in">في المكتبة</string>
     <string name="xbox_filter_show">عرض</string>
+    <string name="itch_collections">المجموعات</string>
     <string name="xbox_filter_cloud">سحابية</string>
     <string name="stores_xbox_cloud_settings">إعدادات السحابة</string>
 </resources>

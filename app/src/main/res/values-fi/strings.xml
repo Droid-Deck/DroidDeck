@@ -3078,6 +3078,7 @@
     <string name="library_remove">Poista kirjastosta</string>
     <string name="library_in">Kirjastossa</string>
     <string name="xbox_filter_show">Näytä</string>
+    <string name="itch_collections">Kokoelmat</string>
     <string name="xbox_filter_cloud">Pilvi</string>
     <string name="stores_xbox_cloud_settings">Pilviasetukset</string>
 </resources>

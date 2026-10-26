@@ -3078,6 +3078,7 @@
     <string name="library_remove">लाइब्रेरी से हटाएँ</string>
     <string name="library_in">लाइब्रेरी में</string>
     <string name="xbox_filter_show">दिखाएँ</string>
+    <string name="itch_collections">संग्रह</string>
     <string name="xbox_filter_cloud">क्लाउड</string>
     <string name="stores_xbox_cloud_settings">क्लाउड सेटिंग्स</string>
 </resources>

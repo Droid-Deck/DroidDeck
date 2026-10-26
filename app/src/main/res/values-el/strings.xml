@@ -3078,6 +3078,7 @@
     <string name="library_remove">Αφαίρεση από τη Βιβλιοθήκη</string>
     <string name="library_in">Στη Βιβλιοθήκη</string>
     <string name="xbox_filter_show">Εμφάνιση</string>
+    <string name="itch_collections">Συλλογές</string>
     <string name="xbox_filter_cloud">Cloud</string>
     <string name="stores_xbox_cloud_settings">Ρυθμίσεις cloud</string>
 </resources>

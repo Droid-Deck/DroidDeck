@@ -3078,6 +3078,7 @@
     <string name="library_remove">Ta bort från Bibliotek</string>
     <string name="library_in">I Bibliotek</string>
     <string name="xbox_filter_show">Visa</string>
+    <string name="itch_collections">Samlingar</string>
     <string name="xbox_filter_cloud">Moln</string>
     <string name="stores_xbox_cloud_settings">Molninställningar</string>
 </resources>

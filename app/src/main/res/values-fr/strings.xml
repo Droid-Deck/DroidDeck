@@ -3114,6 +3114,7 @@
     <string name="library_remove">Retirer de la Bibliothèque</string>
     <string name="library_in">Dans la Bibliothèque</string>
     <string name="xbox_filter_show">Afficher</string>
+    <string name="itch_collections">Collections</string>
     <string name="xbox_filter_cloud">Cloud</string>
     <string name="stores_xbox_cloud_settings">Paramètres cloud</string>
 </resources>

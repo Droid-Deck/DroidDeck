@@ -3055,6 +3055,7 @@
     <string name="library_remove">ライブラリから削除</string>
     <string name="library_in">ライブラリにあります</string>
     <string name="xbox_filter_show">表示</string>
+    <string name="itch_collections">コレクション</string>
     <string name="xbox_filter_cloud">クラウド</string>
     <string name="stores_xbox_cloud_settings">クラウド設定</string>
 </resources>

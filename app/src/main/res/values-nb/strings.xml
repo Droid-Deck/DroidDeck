@@ -3078,6 +3078,7 @@
     <string name="library_remove">Fjern fra Bibliotek</string>
     <string name="library_in">I Bibliotek</string>
     <string name="xbox_filter_show">Vis</string>
+    <string name="itch_collections">Samlinger</string>
     <string name="xbox_filter_cloud">Sky</string>
     <string name="stores_xbox_cloud_settings">Skyinnstillinger</string>
 </resources>
