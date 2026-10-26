@@ -258,7 +258,7 @@
     <string name="mode_ratio_auto">Auto uses at least 16:9.</string>
     <string name="mode_fps">Frame limit</string>
     <string name="mode_performance">Performance mode</string>
-    <string name="mode_performance_hint">With no frame limit, games run as fast as they can: frames go back to the game without waiting for the screen. With a frame limit, frames stay paced to it. Either way, gamescope and Wine skip repeated window checks. Uses more power and runs warmer without a limit. Applies next session.</string>
+    <string name="mode_performance_hint">With no frame limit, games run as fast as they can: frames go back to the game without waiting for the screen. With a frame limit, games are held to it instead of drawing frames the screen never shows. Either way, gamescope and Wine skip repeated window checks. Uses more power and runs warmer without a limit. Applies next session.</string>
     <string name="mode_fps_note">Caps the whole session. The display switches to a refresh rate the cap divides evenly.</string>
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">HDR10 output</string>

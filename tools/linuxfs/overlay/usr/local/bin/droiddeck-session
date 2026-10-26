@@ -255,11 +255,11 @@ if [ -z "${BL_INSIDE:-}" ]; then
   if [ "${BL_FPS:-0}" -gt 0 ]; then
     args+=(-r "$BL_FPS")
     # -r alone only paces what reaches the screen: a game without vsync keeps drawing
-    # hundreds of frames that are thrown away.
-    if [ "${DROIDDECK_GAME_FRAME_LIMIT:-1}" = 1 ]; then
+    # hundreds of frames that are thrown away. Performance mode also holds the games to it.
+    if [ "${DROIDDECK_GAME_FRAME_LIMIT:-0}" = 1 ]; then
       game_frame_limit=$BL_FPS
     else
-      echo "== gamescope: frame limit $BL_FPS paces the screen only (DROIDDECK_GAME_FRAME_LIMIT=0)"
+      echo "== gamescope: frame limit $BL_FPS paces the screen only"
     fi
   elif [ "${BL_REFRESH:-0}" -gt 0 ]; then
     args+=(-r "$BL_REFRESH")
