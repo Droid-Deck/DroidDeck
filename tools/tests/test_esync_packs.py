@@ -1119,8 +1119,8 @@ class LauncherTest(SyncTestCase):
 
     def test_session_collects_sync_tables(self):
         script = (BIN / "droiddeck-session").read_text()
-        start = script.index("collect_steam_logs() {")
-        function = script[start:script.index("\n}\n", start) + 3]
+        start = script.index("copy_capped_debug_file() {")
+        function = script[start:script.index("\n}\n", script.index("collect_steam_logs() {", start)) + 3]
         debug = self.tmp / "debug"
         env = {"PATH": os.defpath, "HOME": str(self.home), "BL_DEBUG_DIR": str(debug)}
         subprocess.run(["bash", "-c", "set -u\n" + function + "collect_steam_logs"], env=env, check=True, capture_output=True)
@@ -1131,6 +1131,31 @@ class LauncherTest(SyncTestCase):
         (root / "hash-cache.tsv").write_text("cache\n")
         subprocess.run(["bash", "-c", "set -u\n" + function + "collect_steam_logs"], env=env, check=True, capture_output=True)
         self.assertEqual(sorted(os.listdir(debug / "droiddeck-esync")), ["launches.log", "tools.tsv"])
+
+    def test_session_caps_every_copied_steam_log(self):
+        script = (BIN / "droiddeck-session").read_text()
+        start = script.index("copy_capped_debug_file() {")
+        function = script[start:script.index("\n}\n", script.index("collect_steam_logs() {", start)) + 3]
+        debug = self.tmp / "debug"
+        logs = self.home / ".local/share/Steam/logs"
+        web_logs = self.home / ".steam/steam/logs"
+        logs.mkdir(parents=True)
+        web_logs.mkdir(parents=True)
+        maximum = 64 * 1024 * 1024
+        for path, marker in ((logs / "steam-42.log", b"steam-tail"),
+                             (web_logs / "steamwebhelper.log", b"web-tail")):
+            with path.open("wb") as output:
+                output.truncate(maximum + 1024)
+                output.seek(maximum + 1024 - len(marker))
+                output.write(marker)
+        env = {"PATH": os.defpath, "HOME": str(self.home), "BL_DEBUG_DIR": str(debug)}
+        subprocess.run(["bash", "-c", "set -u\n" + function + "collect_steam_logs"], env=env, check=True, capture_output=True)
+        for name, marker in (("steam-42.log", b"steam-tail"), ("steamwebhelper.log", b"web-tail")):
+            copied = debug / "steam" / name
+            self.assertEqual(copied.stat().st_size, maximum)
+            with copied.open("rb") as result:
+                result.seek(-len(marker), os.SEEK_END)
+                self.assertEqual(result.read(), marker)
 
 
 class BundleTest(unittest.TestCase):

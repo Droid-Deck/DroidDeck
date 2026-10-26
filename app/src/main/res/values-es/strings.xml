@@ -738,6 +738,9 @@
     <string name="setup_session">Sesión</string>
     <string name="setup_logs">Registros de sesión</string>
     <string name="setup_logs_hint">Se guardan tras cada sesión</string>
+    <string name="setup_log_level">Nivel de registro</string>
+    <string name="setup_log_level_standard">Estándar</string>
+    <string name="setup_log_level_detailed">Detallado</string>
     <string name="setup_agent_commands">Herramientas de depuración</string>
     <string name="setup_latest_logs">Últimos registros de sesión</string>
     <string name="setup_saved_logs">Registros de sesión guardados</string>

@@ -733,6 +733,9 @@
     <string name="setup_session">Oturum</string>
     <string name="setup_logs">Oturum günlükleri</string>
     <string name="setup_logs_hint">Her oturumdan sonra kaydedilir</string>
+    <string name="setup_log_level">Günlük düzeyi</string>
+    <string name="setup_log_level_standard">Standart</string>
+    <string name="setup_log_level_detailed">Ayrıntılı</string>
     <string name="setup_agent_commands">Hata ayıklama araçları</string>
     <string name="setup_latest_logs">Son oturum günlükleri</string>
     <string name="setup_saved_logs">Kayıtlı oturum günlükleri</string>

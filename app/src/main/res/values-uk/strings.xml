@@ -739,6 +739,9 @@
     <string name="setup_session">Сеанс</string>
     <string name="setup_logs">Журнали сеансу</string>
     <string name="setup_logs_hint">Зберігаються після кожного сеансу</string>
+    <string name="setup_log_level">Рівень журналу</string>
+    <string name="setup_log_level_standard">Стандартний</string>
+    <string name="setup_log_level_detailed">Докладний</string>
     <string name="setup_agent_commands">Засоби діагностики</string>
     <string name="setup_latest_logs">Останні журнали сеансу</string>
     <string name="setup_saved_logs">Збережені журнали сеансу</string>

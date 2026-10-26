@@ -733,6 +733,9 @@
     <string name="setup_session">Сесия</string>
     <string name="setup_logs">Дневници на сесията</string>
     <string name="setup_logs_hint">Запазват се след всяка сесия</string>
+    <string name="setup_log_level">Ниво на дневника</string>
+    <string name="setup_log_level_standard">Стандартно</string>
+    <string name="setup_log_level_detailed">Подробно</string>
     <string name="setup_agent_commands">Инструменти за отстраняване на грешки</string>
     <string name="setup_latest_logs">Последни дневници на сесията</string>
     <string name="setup_saved_logs">Запазени дневници на сесията</string>

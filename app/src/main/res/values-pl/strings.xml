@@ -739,6 +739,9 @@
     <string name="setup_session">Sesja</string>
     <string name="setup_logs">Logi sesji</string>
     <string name="setup_logs_hint">Zapisywane po każdej sesji</string>
+    <string name="setup_log_level">Poziom logów</string>
+    <string name="setup_log_level_standard">Standardowy</string>
+    <string name="setup_log_level_detailed">Szczegółowy</string>
     <string name="setup_agent_commands">Narzędzia debugowania</string>
     <string name="setup_latest_logs">Najnowsze logi sesji</string>
     <string name="setup_saved_logs">Zapisane logi sesji</string>

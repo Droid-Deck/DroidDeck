@@ -730,6 +730,9 @@
     <string name="setup_session">เซสชัน</string>
     <string name="setup_logs">ล็อกเซสชัน</string>
     <string name="setup_logs_hint">บันทึกไว้หลังจบแต่ละเซสชัน</string>
+    <string name="setup_log_level">ระดับล็อก</string>
+    <string name="setup_log_level_standard">มาตรฐาน</string>
+    <string name="setup_log_level_detailed">ละเอียด</string>
     <string name="setup_agent_commands">เครื่องมือดีบัก</string>
     <string name="setup_latest_logs">ล็อกเซสชันล่าสุด</string>
     <string name="setup_saved_logs">ล็อกเซสชันที่บันทึกไว้</string>
