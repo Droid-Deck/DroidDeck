@@ -82,7 +82,7 @@ jobs:
               (["Compile APK and Android tests", "Python and native regression tests", "Compile and test APK"] |
                 all(. as $name | [$jobs[] | select(.name == $name and .conclusion == "success")] | length == 1)) and
               all($jobs[]; .conclusion == "success" or .conclusion == "skipped")' >/dev/null
-          for pair in "65e6a93567ea2c42a9c274cd8ba63822cc520777...$EXPECTED_SHA" "$EXPECTED_SHA...$GITHUB_SHA"; do
+          for pair in "5974f5aef59a58fae323403d9705844f7c4a2b32...$EXPECTED_SHA" "$EXPECTED_SHA...$GITHUB_SHA"; do
             gh api "repos/$GITHUB_REPOSITORY/compare/$pair" |
               jq -e '.status == "ahead" or .status == "identical"' >/dev/null
           done
