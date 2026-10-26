@@ -1,0 +1,49 @@
+package com.droiddeck.launcher.ui
+
+import androidx.compose.foundation.layout.Column
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import com.droiddeck.launcher.R
+import com.droiddeck.launcher.stores.xbox.XboxBackend
+import com.droiddeck.launcher.stores.xbox.XboxContent
+
+@Composable
+internal fun XboxStoreDialogs(
+    content: XboxContent.Plan? = XboxContent.plan,
+    pending: XboxBackend.PackageChoice? = XboxBackend.packageChoice,
+) {
+    val ctx = LocalContext.current
+    content?.let {
+        AlertDialog(
+            onDismissRequest = { XboxContent.dismiss() },
+            title = { Text(stringResource(R.string.stores_xbox_content_title)) },
+            text = { Column {
+                if (content.error != null) Text(content.error)
+                else if (content.offers.isEmpty()) Text(stringResource(R.string.stores_xbox_content_none))
+                content.offers.forEach { offer ->
+                    TextButton(onClick = { XboxContent.install(ctx, offer.item) }) {
+                        Text(stringResource(if (offer.installed) R.string.stores_xbox_content_update else R.string.stores_xbox_content_install, offer.item.title))
+                    }
+                }
+            } },
+            confirmButton = { TextButton(onClick = { XboxContent.dismiss() }) { Text(stringResource(android.R.string.ok)) } },
+        )
+    }
+    pending?.let {
+        AlertDialog(
+            onDismissRequest = { XboxBackend.dismissPackages() },
+            title = { Text(stringResource(R.string.stores_xbox_choose_content)) },
+            text = { Column { pending.choices.forEach { choice ->
+                TextButton(onClick = { XboxBackend.selectPackage(ctx, choice) }) {
+                    Text(stringResource(R.string.stores_xbox_choice, choice.getString("title"), choice.getString("kind")))
+                }
+            } } },
+            confirmButton = {},
+            dismissButton = { TextButton(onClick = { XboxBackend.dismissPackages() }) { Text(stringResource(android.R.string.cancel)) } },
+        )
+    }
+}
