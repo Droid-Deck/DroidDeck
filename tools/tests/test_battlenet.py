@@ -1210,6 +1210,9 @@ class AgentJobTest(Harness):
         self.files = {".game": json.dumps({"error": 2})}
         self.assertEqual(BNET["agent_job"](self.root, "uninstall", "gryphon", poll=0), 1)
         self.assertEqual(self.lines[-1][0], "ERROR")
+        self.files = {".game": json.dumps({})}
+        self.assertEqual(BNET["agent_job"](self.root, "uninstall", "gryphon", poll=0), 0)
+        self.assertEqual(self.lines[-1], ("DONE", json.dumps({"uninstalled": "gryphon"})))
 
     def test_without_battle_net_nothing_starts(self):
         self.assertEqual(BNET["agent_job"](self.root, "install", "gryphon", "gryphon", str(self.tmp / "g"), "enUS", "USA", "US", poll=0), 3)
