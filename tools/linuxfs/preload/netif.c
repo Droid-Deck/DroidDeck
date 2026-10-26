@@ -23,7 +23,9 @@
 #include <time.h>
 #include <unistd.h>
 
+#ifndef LINK_FILE
 #define LINK_FILE "/etc/droiddeck-net"
+#endif
 #define LO_NAME "lo"
 #define LO_INDEX 1
 #define LO_MTU 65536
@@ -45,6 +47,7 @@ struct link {
     int addr_count;
     struct link_addr gateways[2];
     int gateway_count;
+    unsigned selected;
 };
 
 static int parse_addr(const char *text, struct link_addr *out) {
@@ -67,6 +70,7 @@ static int read_link(struct link *link) {
     char line[160], text[64];
     unsigned m[6], prefix;
     while (fgets(line, sizeof(line), f)) {
+        if (sscanf(line, "selected %u", &link->selected) == 1) continue;
         if (sscanf(line, "if %15s %u %d", link->name, &link->index, &link->mtu) == 3) continue;
         if (sscanf(line, "mac %2x:%2x:%2x:%2x:%2x:%2x", m, m + 1, m + 2, m + 3, m + 4, m + 5) == 6) {
             for (int i = 0; i < 6; i++) link->mac[i] = (unsigned char) m[i];
@@ -208,7 +212,9 @@ int getifaddrs(struct ifaddrs **out) {
     if (real == NULL) real = (getifaddrs_fn) dlsym(RTLD_NEXT, "getifaddrs");
     if (real_freeifaddrs == NULL) real_freeifaddrs = (freeifaddrs_fn) dlsym(RTLD_NEXT, "freeifaddrs");
     struct ifaddrs *list = NULL;
-    int asked = !fresh(&ifaddrs_unusable_at);
+    struct link link;
+    int have_link = load_link(&link);
+    int asked = !(have_link && link.selected) && !fresh(&ifaddrs_unusable_at);
     int rc = -1, saved = errno;
     if (asked) {
         rc = real(&list);
@@ -219,8 +225,7 @@ int getifaddrs(struct ifaddrs **out) {
         }
     }
 
-    struct link link;
-    if (!load_link(&link)) {
+    if (!have_link) {
         if (!asked) return real(out);
         if (rc == 0) *out = list;
         errno = saved;
@@ -269,7 +274,9 @@ struct if_nameindex *if_nameindex(void) {
     static if_nameindex_fn real;
     if (real == NULL) real = (if_nameindex_fn) dlsym(RTLD_NEXT, "if_nameindex");
     struct if_nameindex *list = NULL;
-    int asked = !fresh(&nameindex_unusable_at);
+    struct link link;
+    int have_link = load_link(&link);
+    int asked = !(have_link && link.selected) && !fresh(&nameindex_unusable_at);
     int saved = errno;
     if (asked) {
         list = real();
@@ -277,9 +284,8 @@ struct if_nameindex *if_nameindex(void) {
         if (list && list[0].if_index != 0) return list;
     }
 
-    struct link link;
     struct name_block *block;
-    if (!load_link(&link)) {
+    if (!have_link) {
         if (!asked) return real();
         errno = saved;
         return list;

@@ -341,6 +341,11 @@ internal fun SetupPanel(
                             }
                         }
                         SettingsGroup(stringResource(R.string.setup_runtime)) { runtimeCheck(false) }
+                        SettingsGroup(stringResource(R.string.lan_title)) {
+                            ActionRow(stringResource(R.string.lan_title), stringResource(R.string.lan_setup_hint), stringResource(R.string.setup_manage), onClick = {
+                                ctx.startActivity(android.content.Intent(ctx, com.droiddeck.launcher.lan.LocalLanActivity::class.java))
+                            })
+                        }
                     }
                     1 -> {
                         val controller = s.controller

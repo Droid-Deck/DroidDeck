@@ -19,6 +19,9 @@ import android.provider.Settings
 import android.util.Log
 import com.droiddeck.launcher.core.SessionPart
 import com.droiddeck.launcher.core.WifiDiscovery
+import com.droiddeck.launcher.lan.LanInterface
+import com.droiddeck.launcher.lan.LanAddress
+import com.droiddeck.launcher.lan.LocalLan
 import java.io.File
 import java.io.IOException
 import java.net.Inet4Address
@@ -29,6 +32,7 @@ import org.json.JSONObject
 class LinuxNetworkLinkComponent(
     context: Context,
     private val rootDir: File,
+    private val lanInterface: () -> LanInterface? = LocalLan::selectedInterface,
 ) : SessionPart() {
     private val appContext = context.applicationContext
     private val connectivity =
@@ -43,9 +47,16 @@ class LinuxNetworkLinkComponent(
     private var wifiReceiver: BroadcastReceiver? = null
     private var scanRequestStamp = 0L
     private var lastScanRequest = -SCAN_INTERVAL_MS
+    private var publishedLanSelection: String? = null
+    private var publishedLanInterface: LanInterface? = null
     @Volatile private var lastNamesAllowed = false
     private val scanRequests = object : Runnable {
         override fun run() {
+            val selection = LocalLan.selected.value
+            val lan = lanInterface()
+            synchronized(lock) {
+                if (selection != publishedLanSelection || lan != publishedLanInterface) write(currentProperties, currentCapabilities)
+            }
             if (canReadWifiNames() != lastNamesAllowed) {
                 synchronized(lock) { writeNetworkState(currentProperties, currentCapabilities) }
                 requestWifiScan()
@@ -153,11 +164,16 @@ class LinuxNetworkLinkComponent(
     private fun write(properties: LinkProperties?, capabilities: NetworkCapabilities?) {
         val file = File(rootDir, LINK_FILE)
         synchronized(lock) {
+            val selection = LocalLan.selected.value
+            val lan = lanInterface()
             try {
                 file.parentFile?.mkdirs()
                 val staged = File(file.path + ".staged")
-                staged.writeText(describe(properties))
+                staged.writeText(if (selection == null) describe(properties)
+                    else if (lan != null) describe(null, lan) else "")
                 if (!staged.renameTo(file)) throw IOException("Could not replace $file")
+                publishedLanSelection = selection
+                publishedLanInterface = lan
             } catch (e: IOException) {
                 Log.w(TAG, "Could not publish the network link", e)
             }
@@ -167,13 +183,18 @@ class LinuxNetworkLinkComponent(
     }
 
     @Suppress("DEPRECATION")
-    private fun writeNetworkState(properties: LinkProperties?, capabilities: NetworkCapabilities?) {
+    private fun writeNetworkState(defaultProperties: LinkProperties?, defaultCapabilities: NetworkCapabilities?) {
+        val selection = LocalLan.selected.value
+        val lan = if (selection != null) lanInterface() else null
+        val properties = if (selection == null) defaultProperties else null
+        val capabilities = if (selection == null) defaultCapabilities else null
         val namesAllowed = canReadWifiNames()
         lastNamesAllowed = namesAllowed
         val scans = if (namesAllowed && wifiManager?.isWifiEnabled == true) {
             try { wifiManager.scanResults.orEmpty() } catch (e: SecurityException) { emptyList() }
         } else emptyList()
         val transport = when {
+            lan != null -> "other"
             capabilities == null -> "none"
             capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> "wifi"
             capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> "cellular"
@@ -183,9 +204,10 @@ class LinuxNetworkLinkComponent(
         }
         val state = JSONObject().apply {
             put("transport", transport)
-            put("interface", properties?.interfaceName ?: "android")
-            put("mtu", properties?.mtu?.takeIf { it > 0 } ?: DEFAULT_MTU)
-            put("connected", properties != null && capabilities != null)
+            put("interface", lan?.name ?: properties?.interfaceName ?: "android")
+            put("mtu", lan?.mtu ?: properties?.mtu?.takeIf { it > 0 } ?: DEFAULT_MTU)
+            put("connected", lan != null || (properties != null && capabilities != null))
+            put("localLan", selection != null)
             put("validated", capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) == true)
             put("captivePortal", capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_CAPTIVE_PORTAL) == true)
             put("metered", capabilities?.let { !it.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED) })
@@ -205,7 +227,7 @@ class LinuxNetworkLinkComponent(
                 }
             })
             put("addresses", JSONArray().apply {
-                properties?.linkAddresses.orEmpty().forEach {
+                (lan?.addresses ?: properties?.linkAddresses.orEmpty().map { LanAddress(it.address, it.prefixLength) }).forEach {
                     put(JSONObject().put("address", it.address.hostAddress?.substringBefore('%')).put("prefix", it.prefixLength))
                 }
             })
@@ -277,13 +299,14 @@ class LinuxNetworkLinkComponent(
         }
     }
 
-    private fun describe(properties: LinkProperties?): String {
-        val addresses = properties?.linkAddresses.orEmpty()
+    private fun describe(properties: LinkProperties?, lan: LanInterface? = null): String {
+        val addresses = (lan?.addresses ?: properties?.linkAddresses.orEmpty().map { LanAddress(it.address, it.prefixLength) })
             .filter { it.address is Inet4Address || it.address is Inet6Address }
-        val name = properties?.interfaceName?.takeIf { addresses.isNotEmpty() } ?: OFFLINE_NAME
-        val mtu = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) properties?.mtu ?: 0 else 0
+        val name = (lan?.name ?: properties?.interfaceName)?.takeIf { addresses.isNotEmpty() } ?: OFFLINE_NAME
+        val mtu = lan?.mtu ?: if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) properties?.mtu ?: 0 else 0
         return buildString {
-            append("if $name $LINK_INDEX ${if (mtu > 0) mtu else DEFAULT_MTU}\n")
+            append("if $name ${lan?.index ?: LINK_INDEX} ${if (mtu > 0) mtu else DEFAULT_MTU}\n")
+            if (lan != null) append("selected 1\n")
             append("mac ${seededMac()}\n")
             if (addresses.isEmpty()) {
                 append("addr $OFFLINE_ADDRESS\n")

@@ -38,6 +38,10 @@
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
     <uses-feature android:name="android.hardware.vr.headtracking" android:version="1" android:required="false" />
 
+    <queries>
+        <package android:name="com.valvesoftware.steamlink" />
+    </queries>
+
     <application
         android:name=".App"
         android:localeConfig="@xml/locales_config"
@@ -54,6 +58,8 @@
         android:isGame="true">
 
         <meta-data android:name="android.game_mode_config" android:resource="@xml/game_mode_config" />
+        <activity android:name=".lan.LocalLanActivity" android:exported="false" />
+        <service android:name=".lan.LocalHotspotService" android:exported="false" />
         <service android:name=".glasses.LumaRgbCaptureService" android:exported="false"
             android:process=":rgb_diagnostic" />
         <meta-data android:name="com.oculus.supportedDevices" android:value="quest2|quest3|quest3s" />

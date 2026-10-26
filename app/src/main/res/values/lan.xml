@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="lan_title">Local multiplayer · Experimental</string>
+    <string name="lan_setup_hint">LAN connections and shared-screen co-op with Steam Link</string>
+    <string name="lan_experimental">Choose LAN play with a game on each device, or shared-screen co-op with one game running on the host. The game must support the chosen multiplayer mode. Device testing is still needed.</string>
+    <string name="lan_wireless">Wireless LAN</string>
+    <string name="lan_wireless_help">Host creates a password-protected local network without a router or internet. It may disconnect your current Wi-Fi. On the other device, join using Android Wi-Fi settings and choose to stay connected without internet. For separate-copy LAN games, select the LAN interface below on both devices; for Steam Link, select it on the host only. If cellular takes priority, turn mobile data off while playing.</string>
+    <string name="lan_host">Host offline hotspot</string>
+    <string name="lan_stop">Stop hotspot</string>
+    <string name="lan_starting">Starting hotspot…</string>
+    <string name="lan_notification">Offline hotspot requested. Tap to manage LAN.</string>
+    <string name="lan_credentials">Network: %1$s\nPassword: %2$s</string>
+    <string name="lan_failed">Android could not start a usable hotspot on this device.</string>
+    <string name="lan_incompatible">Turn off any existing hotspot or Wi-Fi Direct connection, then try again.</string>
+    <string name="lan_disallowed">Hotspots are disabled by this device’s policy.</string>
+    <string name="lan_no_channel">No Wi-Fi channel is available. Check Wi-Fi and airplane mode, then retry.</string>
+    <string name="lan_permission_needed">Hosting needs precise location permission for this app’s Android compatibility level. Enable it in App settings, then retry.</string>
+    <string name="lan_location_needed">Turn on Android Location services, then retry hosting.</string>
+    <string name="lan_app_settings">App settings</string>
+    <string name="lan_wifi_settings">Join in Wi-Fi settings</string>
+    <string name="lan_location_settings">Location settings</string>
+    <string name="lan_wired">USB-C / Ethernet LAN</string>
+    <string name="lan_wired_help">Connect a data-capable USB-C cable and enable USB tethering on one device in Android settings. This only works if the other device supports the USB network driver and host role. If no LAN interface appears, try reversing the cable’s host/device roles or use USB Ethernet adapters. Charging or file-transfer mode alone does not create a LAN. DroidDeck cannot enable USB tethering itself.</string>
+    <string name="lan_network_settings">Android network settings</string>
+    <string name="lan_interface">Host / game LAN interface</string>
+    <string name="lan_interface_help">Select the interface whose IP belongs to your local connection. For separate-copy LAN games, do this on both devices. For Steam Link, only the DroidDeck host needs this selection. Set it before launching Steam or the game. This does not change Android routing. Selection lasts until the app process exits or you return to the default below.</string>
+    <string name="lan_no_interfaces">No local IPv4 interfaces are visible yet. Connect the devices first.</string>
+    <string name="lan_interface_lost">%1$s is unavailable. Reconnect or choose another interface.</string>
+    <string name="lan_use">Use for games</string>
+    <string name="lan_selected">Selected</string>
+    <string name="lan_default">Android default network</string>
+    <string name="lan_coop_title">Shared-screen co-op · Steam Link</string>
+    <string name="lan_coop_overview">The host runs one copy of a game with local co-op or split-screen support. Both devices see the same picture and each can provide a controller. Steam Link handles the client’s video, audio, and input.</string>
+    <string name="lan_coop_network">1. Connect both devices to the same Wi-Fi, or create an offline hotspot below and join it from the second device. Select the host’s LAN interface below before starting Steam.</string>
+    <string name="lan_coop_host">2. On the host, start Steam in DroidDeck, then enable Settings → Remote Play → Enable Remote Play. Keep DroidDeck’s host controls enabled. Return to the host to approve the pairing PIN when Steam Link asks.</string>
+    <string name="lan_coop_return_host">Return to host Steam</string>
+    <string name="lan_coop_open_launcher">Back to DroidDeck to start Steam</string>
+    <string name="lan_coop_host_address">Selected LAN address: %1$s\nIf discovery fails, add this host address in Steam Link on the second device.</string>
+    <string name="lan_coop_find_host">If Steam Link cannot find the host, select the host’s LAN interface below to see its address.</string>
+    <string name="lan_coop_client">3. On the second device, open Steam Link, pair with the host, and start streaming. Connect that player’s controller to the second device, or enable Steam Link’s touch controller. The second device does not need to run a DroidDeck Linux session.</string>
+    <string name="lan_coop_open_client">Open Steam Link on this device</string>
+    <string name="lan_coop_get_client">Get Steam Link for this device</string>
+    <string name="lan_coop_controllers">4. Launch the game through the host’s Steam and join its local multiplayer mode. Keep the host’s controller and the Steam Link controller as separate gamepads. If both control the same player, check Steam’s controller order and the game’s controller settings. Keyboard and mouse input may be shared instead of creating another player.</string>
+    <string name="lan_coop_offline">Install, sign in, and pair while online before travel. A local hotspot provides the network, but first-time pairing and fully offline Steam Link play still need testing on this setup. No ADB, Shizuku, or root setup is required by this integration.</string>
+    <string name="lan_coop_client_unavailable">No Steam Link app, app store, or browser could be opened. Install Steam Link on the second device and retry.</string>
+</resources>
