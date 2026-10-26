@@ -92,6 +92,30 @@ class SteamStorageTest {
         assertEquals(emptyMap<String, String>(), SteamStorage.compatMappings("\"x\" {}"))
     }
 
+    @Test fun readsShaderPrecacheFromConfig() {
+        val vdf = """
+            "InstallConfigStore"
+            {
+                "Software" { "Valve" { "Steam" { "ShaderCacheManager"
+                {
+                    "HasCurrentBucket"		"1"
+                    "DisableShaderCache"		"1"
+                } } } }
+            }
+        """.trimIndent()
+        assertEquals(false, SteamStorage.shaderPrecache(vdf))
+        assertEquals(true, SteamStorage.shaderPrecache(vdf.replace("\"DisableShaderCache\"\t\t\"1\"", "\"DisableShaderCache\"\t\t\"0\"")))
+        assertEquals(true, SteamStorage.shaderPrecache("\"InstallConfigStore\" {}"))
+        assertEquals(true, SteamStorage.shaderPrecache("""
+            "InstallConfigStore"
+            {
+                // "DisableShaderCache" "1"
+                "Other" { "DisableShaderCache" "1" }
+                "Software" { "Valve" { "Steam" { "ShaderCacheManager" { "DisableShaderCache" "0" } } } }
+            }
+        """.trimIndent()))
+    }
+
     @Test fun readsCustomToolName() {
         val vdf = "\"compatibilitytools\"\n{\n  \"compat_tools\"\n  {\n    \"GE-Proton11-9-aarch64\"\n    {\n      \"install_path\" \".\"\n    }\n  }\n}"
         assertEquals("GE-Proton11-9-aarch64", SteamStorage.compatToolName(vdf))

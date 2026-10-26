@@ -9,7 +9,8 @@ import sys
 recipe = Path(__file__).resolve().parent
 cache = Path(sys.argv[1]).resolve()
 lock = json.loads((recipe / 'backend.lock.json').read_text())
-local_patches = ['droiddeck-credentials.patch', 'droiddeck-launch-view.patch', 'droiddeck-library-subscriptions.patch']
+local_patches = ['droiddeck-credentials.patch', 'droiddeck-launch-view.patch', 'droiddeck-library-subscriptions.patch',
+                 'droiddeck-credential-fallback.patch', 'droiddeck-credential-diagnostics.patch', 'droiddeck-cloud-token.patch']
 identity = hashlib.sha256((recipe / 'backend.lock.json').read_bytes() + b''.join((recipe / name).read_bytes() for name in local_patches)).hexdigest()
 source = cache / ('source-' + identity[:16])
 if not (source / '.prepared').is_file():

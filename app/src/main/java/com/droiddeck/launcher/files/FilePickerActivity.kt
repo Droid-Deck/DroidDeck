@@ -50,6 +50,7 @@ class FilePickerActivity : ComponentActivity() {
                             setResult(Activity.RESULT_OK, Intent().putExtra(EXTRA_SELECTED_FILE, file.absolutePath))
                             finish()
                         },
+                        onExit = { finish() },
                     )
                 }
             }

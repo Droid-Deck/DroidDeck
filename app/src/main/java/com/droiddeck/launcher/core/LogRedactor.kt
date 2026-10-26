@@ -76,7 +76,7 @@ object LogRedactor {
 
     private const val ACCOUNT_VALUE = "(\"[^\"<\\r\\n]+\"|'[^'<\\r\\n]+'|[^\\s\"'<>&;,}]+)"
     private val ACCOUNT_KV = Regex(
-        "(?i)(?<![A-Za-z0-9_])(account[_-]?name|user[_-]?name|epicusername)" +
+        "(?i)(?<![A-Za-z0-9_])(account[_-]?name|account[_-]?id|user[_-]?name|epicusername)" +
             "([\"']?\\s*[=:]\\s*|[\"']\\s+)" + ACCOUNT_VALUE
     )
     private val LOGIN_KV = Regex(

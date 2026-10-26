@@ -22,7 +22,7 @@ class DirectTouchHoldTest {
         }
         override fun onWheel(steps: Int) {}
         override fun onLongPress() {}
-    }) { events += "cancel touch" }
+    }) { events += "cancel touch" }.also { it.configure(TouchGestureConfig(longPressEnabled = true, longPressDelay = 500)) }
 
     @Test fun holdReleasesRawTouchBeforeClickAndConsumesTheLift() {
         assertFalse(touch(MotionEvent.ACTION_DOWN))
@@ -32,6 +32,25 @@ class DirectTouchHoldTest {
         advance(50)
         assertEquals("false at 40.0,30.0", events.last())
         assertFalse(touch(MotionEvent.ACTION_DOWN))
+        hold.cancel()
+    }
+
+    @Test fun stillHoldKeepsTheTouchWhenLongPressIsOff() {
+        hold.configure(TouchGestureConfig())
+        assertFalse(touch(MotionEvent.ACTION_DOWN))
+        advance(2000)
+        assertFalse(touch(MotionEvent.ACTION_MOVE))
+        assertFalse(touch(MotionEvent.ACTION_UP))
+        assertTrue(events.isEmpty())
+    }
+
+    @Test fun longPressFollowsTheConfiguredDelay() {
+        hold.configure(TouchGestureConfig(longPressEnabled = true, longPressDelay = 800))
+        touch(MotionEvent.ACTION_DOWN)
+        advance(700)
+        assertTrue(events.isEmpty())
+        advance(100)
+        assertEquals(listOf("cancel touch", "true at 40.0,30.0"), events)
         hold.cancel()
     }
 
