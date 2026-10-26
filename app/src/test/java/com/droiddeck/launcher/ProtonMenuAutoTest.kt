@@ -56,6 +56,10 @@ class ProtonMenuAutoTest {
             .put("tag", "${tool.prefix}-11-12").put("at", System.currentTimeMillis()))
         File(activity.filesDir, "proton-latest.json").writeText(latest.toString())
         menu = ProtonMenu(activity, Handler(Looper.getMainLooper())) { idle }
+        menu.protonBusyId = null
+        menu.protonProblem = null
+        menu.protonStage = null
+        menu.protonPercent = -1
         menu.installer = { tool, progress ->
             progress("Installing ${tool.name}", 50)
             install("${tool.prefix}-11-12")
@@ -64,6 +68,10 @@ class ProtonMenuAutoTest {
     }
 
     @After fun reset() {
+        menu.protonBusyId = null
+        menu.protonProblem = null
+        menu.protonStage = null
+        menu.protonPercent = -1
         AutoComponents.online = online
         AutoComponents.unfavourable = constrained
         SessionState.running = false

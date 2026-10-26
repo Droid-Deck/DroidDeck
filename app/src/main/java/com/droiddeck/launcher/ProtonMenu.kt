@@ -20,11 +20,19 @@ internal class ProtonMenu(
     private val ui: Handler,
     private val idle: () -> Boolean = { true },
 ) {
-    var protonRows by mutableStateOf<List<ProtonRow>>(emptyList())
-    var protonBusyId by mutableStateOf<String?>(null)
-    var protonStage by mutableStateOf<String?>(null)
-    var protonPercent by mutableIntStateOf(-1)
-    var protonProblem by mutableStateOf<String?>(null)
+    // Install workers and their results outlive the activity that starts them.
+    private object Operation {
+        val rows = mutableStateOf<List<ProtonRow>>(emptyList())
+        val busyId = mutableStateOf<String?>(null)
+        val stage = mutableStateOf<String?>(null)
+        val percent = mutableIntStateOf(-1)
+        val problem = mutableStateOf<String?>(null)
+    }
+    var protonRows by Operation.rows
+    var protonBusyId by Operation.busyId
+    var protonStage by Operation.stage
+    var protonPercent by Operation.percent
+    var protonProblem by Operation.problem
     private val checking = java.util.concurrent.atomic.AtomicBoolean(false)
     @VisibleForTesting internal var installer: (ProtonExtras.Tool, (String, Int) -> Unit) -> String? =
         { tool, progress -> ProtonExtras.install(activity, tool, progress) }

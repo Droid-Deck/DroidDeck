@@ -100,7 +100,7 @@ class FrontEndActivity : ComponentActivity() {
     private class CompatLaunch(val intent: Intent, val loading: com.droiddeck.launcher.session.LoadingState, var menuInstall: Boolean)
     private var compatLaunch by mutableStateOf<CompatLaunch?>(null)
     private var compatLaunchPoll: Runnable? = null
-    private var compatLaunchVisible = true
+    private var compatLaunchVisible = false
     private var returning by mutableStateOf<ReturningFlood?>(null)
     private class ReturningFlood(val color: Int, val to: androidx.compose.ui.geometry.Rect?)
     private var ready by mutableStateOf(false)
@@ -488,11 +488,11 @@ class FrontEndActivity : ComponentActivity() {
         overridePendingTransition(0, 0)
     }
 
-    private fun waitForCompat(next: Intent) {
+    private fun waitForCompat(next: Intent, menuInstall: Boolean = protons.protonBusyId != null) {
         if (compatLaunch != null) return
         com.droiddeck.launcher.ui.LaunchOrigin.take()
         com.droiddeck.launcher.ui.LaunchOrigin.flooding = null
-        val waiting = CompatLaunch(Intent(next), com.droiddeck.launcher.session.LoadingState(this), protons.protonBusyId != null)
+        val waiting = CompatLaunch(Intent(next), com.droiddeck.launcher.session.LoadingState(this), menuInstall)
         compatLaunch = waiting
         val poll = object : Runnable {
             override fun run() {
@@ -526,6 +526,23 @@ class FrontEndActivity : ComponentActivity() {
         compatLaunchPoll?.let(ui::removeCallbacks)
         compatLaunchPoll = null
         compatLaunch = null
+    }
+
+    private fun restoreCompatLaunch(state: Bundle) {
+        savedIntent(state, KEY_COMPAT_LAUNCH)?.let { next ->
+            val problem = state.getString(KEY_COMPAT_PROBLEM)
+            if (problem == null) waitForCompat(next, state.getBoolean(KEY_COMPAT_MENU_INSTALL))
+            else compatLaunch = CompatLaunch(next,
+                com.droiddeck.launcher.session.LoadingState(this).apply { showEnded(problem) }, false)
+        }
+    }
+
+    private fun saveCompatLaunch(state: Bundle) {
+        compatLaunch?.let {
+            state.putParcelable(KEY_COMPAT_LAUNCH, it.intent)
+            state.putBoolean(KEY_COMPAT_MENU_INSTALL, it.menuInstall)
+            if (it.loading.ended) state.putString(KEY_COMPAT_PROBLEM, it.loading.step)
+        }
     }
 
     private var shortcutPicker by mutableStateOf(false)
@@ -1277,12 +1294,7 @@ class FrontEndActivity : ComponentActivity() {
 
         if (savedInstanceState == null) ui.post { startSteamAtStartupIfEnabled() }
         else {
-            savedIntent(savedInstanceState, KEY_COMPAT_LAUNCH)?.let { next ->
-                val problem = savedInstanceState.getString(KEY_COMPAT_PROBLEM)
-                if (problem == null) waitForCompat(next)
-                else compatLaunch = CompatLaunch(next,
-                    com.droiddeck.launcher.session.LoadingState(this).apply { showEnded(problem) }, false)
-            }
+            restoreCompatLaunch(savedInstanceState)
             pendingSwitch = savedIntent(savedInstanceState, KEY_PENDING_SWITCH)
             savedIntent(savedInstanceState, KEY_SWITCHING_TO)?.let { awaitSessionEnd(it, savedInstanceState.getLong(KEY_SWITCH_DEADLINE)) }
         }
@@ -1459,10 +1471,7 @@ class FrontEndActivity : ComponentActivity() {
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
-        compatLaunch?.let {
-            outState.putParcelable(KEY_COMPAT_LAUNCH, it.intent)
-            if (it.loading.ended) outState.putString(KEY_COMPAT_PROBLEM, it.loading.step)
-        }
+        saveCompatLaunch(outState)
         pendingSwitch?.let { outState.putParcelable(KEY_PENDING_SWITCH, it) }
         switchingTo?.let {
             outState.putParcelable(KEY_SWITCHING_TO, it)
@@ -2403,6 +2412,7 @@ class FrontEndActivity : ComponentActivity() {
         private const val SESSION_SWITCH_POLL_MS = 250L
         private const val KEY_PENDING_SWITCH = "pending_switch"
         private const val KEY_COMPAT_LAUNCH = "compat_launch"
+        private const val KEY_COMPAT_MENU_INSTALL = "compat_menu_install"
         private const val KEY_COMPAT_PROBLEM = "compat_problem"
         private const val KEY_SWITCHING_TO = "switching_to"
         private const val KEY_SWITCH_DEADLINE = "switch_deadline"

@@ -1,12 +1,15 @@
 package com.droiddeck.launcher
 
 import android.content.Intent
+import android.os.Bundle
 import android.os.Looper
 import com.droiddeck.launcher.session.LoadingState
 import com.droiddeck.launcher.session.ProtonExtras
 import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.ui.LaunchOrigin
 import java.time.Duration
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
@@ -29,13 +32,19 @@ class CompatLaunchTest {
         LaunchOrigin.take()
         activity = Robolectric.buildActivity(FrontEndActivity::class.java).get()
         protons = ReflectionHelpers.getField(activity, "protons")
+        ReflectionHelpers.setField(activity, "compatLaunchVisible", true)
         protons.protonBusyId = "droiddeck"
+        protons.protonProblem = null
         protons.protonStage = "Downloading DroidDeck Proton"
         protons.protonPercent = 37
     }
 
     @After fun cleanUp() {
         cancel()
+        protons.protonBusyId = null
+        protons.protonProblem = null
+        protons.protonStage = null
+        protons.protonPercent = -1
         installing(false)
         LaunchOrigin.take()
     }
@@ -107,6 +116,80 @@ class CompatLaunchTest {
         ReflectionHelpers.setField(activity, "compatLaunchVisible", true)
         advance()
         assertNotNull(shadowOf(activity).nextStartedActivity)
+    }
+
+    @Test fun aRestoredCompletedRequestWaitsForResume() {
+        activity.startActivity(request("first"))
+        val saved = save()
+        cancel()
+        protons.protonBusyId = null
+        recreate(saved)
+        advance()
+        assertNull(shadowOf(activity).nextStartedActivity)
+        ReflectionHelpers.setField(activity, "compatLaunchVisible", true)
+        advance()
+        assertEquals("first", shadowOf(activity).nextStartedActivity.getStringExtra(SessionService.EXTRA_STEAM_URL))
+    }
+
+    @Test fun aFailedInstallAfterRecreationKeepsItsProgressAndError() = recreationFailure(false)
+
+    @Test fun aFailedInstallBeforeRestorationStillShowsItsError() = recreationFailure(true)
+
+    private fun recreationFailure(finishBeforeRestore: Boolean) {
+        val entered = CountDownLatch(1)
+        val finish = CountDownLatch(1)
+        protons.protonBusyId = null
+        protons.installer = { _, progress ->
+            progress("Verifying download", 64)
+            entered.countDown()
+            check(finish.await(5, TimeUnit.SECONDS))
+            "Checksum verification failed"
+        }
+        try {
+            protons.installProton("droiddeck")
+            assertTrue(entered.await(5, TimeUnit.SECONDS))
+            activity.startActivity(request("first"))
+            val saved = save()
+            cancel()
+            if (finishBeforeRestore) {
+                finish.countDown()
+                waitForInstall()
+            }
+            recreate(saved)
+            if (!finishBeforeRestore) {
+                advance()
+                assertEquals(64, loading().percent)
+                finish.countDown()
+                waitForInstall()
+            }
+            ReflectionHelpers.setField(activity, "compatLaunchVisible", true)
+            advance()
+            assertEquals("Checksum verification failed", loading().step)
+            assertTrue(loading().ended)
+            assertNull(shadowOf(activity).nextStartedActivity)
+        } finally {
+            finish.countDown()
+            waitForInstall()
+        }
+    }
+
+    private fun waitForInstall() {
+        val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+        while (protons.protonBusyId != null && System.nanoTime() < deadline) {
+            shadowOf(Looper.getMainLooper()).idle()
+            Thread.sleep(10)
+        }
+        assertNull(protons.protonBusyId)
+    }
+
+    private fun save() = Bundle().also {
+        ReflectionHelpers.callInstanceMethod<Void>(activity, "saveCompatLaunch", ReflectionHelpers.ClassParameter.from(Bundle::class.java, it))
+    }
+
+    private fun recreate(saved: Bundle) {
+        activity = Robolectric.buildActivity(FrontEndActivity::class.java).get()
+        protons = ReflectionHelpers.getField(activity, "protons")
+        ReflectionHelpers.callInstanceMethod<Void>(activity, "restoreCompatLaunch", ReflectionHelpers.ClassParameter.from(Bundle::class.java, saved))
     }
 
     private fun request(url: String) = Intent(activity, SessionActivity::class.java).putExtra(SessionService.EXTRA_STEAM_URL, url)
