@@ -1881,9 +1881,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun windowOutputSize(width: Int, height: Int): Pair<Int, Int>? {
-        if (isInPictureInPictureMode) return null
-        val live = com.droiddeck.launcher.session.SessionDisplay.followSize(width, height) ?: return null
-        return if (SessionState.followScreen) live else if (glassesScreen == null) outputSize() else null
+        if (isInPictureInPictureMode || width <= 0 || height <= 0) return null
+        return if (SessionState.followScreen)
+            com.droiddeck.launcher.session.SessionDisplay.followSize(width, height, controlsBelowWanted())
+        else if (glassesScreen == null) outputSize() else null
     }
 
     private fun resizeOutputForWindow(width: Int, height: Int) {

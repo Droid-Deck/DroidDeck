@@ -105,6 +105,13 @@ class SessionDisplayTest {
         assertNull(SessionDisplay.followSize(640, 360))
     }
 
+    @Test fun aPhoneCanFollowTheShortGameAreaAboveItsControls() {
+        assertNull(SessionDisplay.followSize(720, 404))
+        assertEquals(720 to 404, SessionDisplay.followSize(720, 404, controlsBelow = true))
+        assertNull(SessionDisplay.followSize(320, 180, controlsBelow = true))
+        assertNull(SessionDisplay.followSize(720, 0, controlsBelow = true))
+    }
+
     @Test fun resolutionCapsPreserveTheSelectedShapeWithoutExceedingPanelHeight() {
         assertEquals(1280 to 720, SessionDisplay.resolve(1920 to 1080, 720, SessionPrefs.SHAPE_AUTO))
         assertEquals(960 to 720, SessionDisplay.resolve(1440 to 1080, 720, SessionPrefs.SHAPE_EXACT))

@@ -32,8 +32,10 @@ object SessionDisplay {
             .filter { resolveChoice(panel, it) != screenSize(panel) } + MATCH_SCREEN + FOLLOW_SCREEN
     }
 
-    fun followSize(width: Int, height: Int): Pair<Int, Int>? =
-        if (minOf(width, height) < FOLLOW_MIN_SIDE) null else (width and 1.inv()) to (height and 1.inv())
+    fun followSize(width: Int, height: Int, controlsBelow: Boolean = false): Pair<Int, Int>? =
+        if (width <= 0 || height <= 0 ||
+            (if (controlsBelow) width else minOf(width, height)) < FOLLOW_MIN_SIDE) null
+        else (width and 1.inv()) to (height and 1.inv())
 
     const val UNFOLDED_MAX_GAME_SHARE = 0.8f
 

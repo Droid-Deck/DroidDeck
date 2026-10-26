@@ -14,6 +14,7 @@ class GamepadGeometryTest {
 
     private val panels = listOf(
         Panel("Thor portrait", 1080, 1920, 369 / 160f),
+        Panel("720p phone portrait", 720, 1280, 2f),
         Panel("Phone portrait", 1080, 2400, 2.75f),
         Panel("Fold 8 upright", 1848, 2448, 2.625f),
         Panel("Fold 8 as a tablet", 2448, 1848, 2.625f),
