@@ -179,9 +179,14 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
     val all = remember(s.steamGames, cloudRows, owned, installedStore) { libraryEntries(s.steamGames + cloudRows, owned, installedStore) }
     LaunchedEffect(Unit) { XboxLibraryFilter.load(ctx) }
     var showUninstalled by remember(LibraryView.ownedRequest) { mutableStateOf(SessionPrefs.libraryShowUninstalled(ctx)) }
+    var collectionShows by remember { mutableStateOf<Pair<String, Boolean>?>(null) }
     val setShowUninstalled = { show: Boolean ->
-        showUninstalled = show
-        SessionPrefs.setLibraryShowUninstalled(ctx, show)
+        val picked = ItchCollections.selected.takeIf { LibraryView.source == Store.ITCH.id }
+        if (picked != null) collectionShows = picked to show
+        else {
+            showUninstalled = show
+            SessionPrefs.setLibraryShowUninstalled(ctx, show)
+        }
     }
     val itchSignedIn = owned.containsKey(Store.ITCH)
     val listed = librarySources(all, SessionPrefs.storesTabOrder(ctx))
@@ -195,7 +200,7 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
     val matching = pool.filter {
         (source == LIBRARY_ALL || it.source == source) && (q.isEmpty() || it.title.lowercase().contains(q)) && keepsXbox(xboxFilter, it)
     }
-    val listUninstalled = showUninstalled || collection != null
+    val listUninstalled = if (collection == null) showUninstalled else collectionShows?.takeIf { it.first == collection.id }?.second ?: true
     val candidates = if (listUninstalled) matching else matching.filter { it.installed }
     val hiddenUninstalled = if (listUninstalled) 0 else matching.count { !it.installed }
     val sort = s.storesSort
@@ -280,7 +285,7 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
         kotlinx.coroutines.delay(Motion.ms(240).toLong())
         focusWithinFrames({ ff.last?.startsWith("card:") == true }) { if (ff.firstTileAttached > 0) ff.firstTile else FocusRequester.Default }
     }
-    if (all.isEmpty() && open == null) {
+    if (all.isEmpty() && open == null && !itchSignedIn) {
         LibraryEmpty(s, a, modifier)
         return
     }
@@ -288,7 +293,7 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
     val detailScroll = rememberScrollState()
     var cycled by remember { mutableIntStateOf(0) }
     var gridFocused by remember { mutableStateOf(false) }
-    LaunchedEffect(source, sort, showUninstalled) { grid.scrollToItem(0) }
+    LaunchedEffect(source, sort, listUninstalled) { grid.scrollToItem(0) }
     LaunchedEffect(cycled) {
         if (cycled == 0 || ff == null || inputMode.inputMode != androidx.compose.ui.input.InputMode.Keyboard) return@LaunchedEffect
         focusWithinFrames({ gridFocused }) {
@@ -304,7 +309,7 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
         grid = {
             LibraryGrid(
                 s, a, grid, visible, split, visible.size, sources, source, sizesPending, syncing,
-                showUninstalled = showUninstalled.takeIf { stores }, onShowUninstalled = setShowUninstalled,
+                showUninstalled = listUninstalled.takeIf { stores }, onShowUninstalled = setShowUninstalled,
                 hiddenUninstalled = hiddenUninstalled,
                 onSource = { LibraryView.source = it },
                 onCycle = { step ->
