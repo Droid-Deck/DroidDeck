@@ -77,7 +77,11 @@ jobs:
               .head_repository.full_name == $repo and .repository.full_name == $repo and
               .head_sha == $sha and .head_branch == $branch' >/dev/null
           gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/actions/runs/$RUN/jobs?per_page=100" |
-            jq -e '[.[].jobs[] | select(.name == "Build APK" and .conclusion == "success")] | length == 1' >/dev/null
+            jq -e '
+              [.[].jobs[]] as $jobs |
+              (["Compile APK and Android tests", "Python and native regression tests", "Compile and test APK"] |
+                all(. as $name | [$jobs[] | select(.name == $name and .conclusion == "success")] | length == 1)) and
+              all($jobs[]; .conclusion == "success" or .conclusion == "skipped")' >/dev/null
           for pair in "65e6a93567ea2c42a9c274cd8ba63822cc520777...$EXPECTED_SHA" "$EXPECTED_SHA...$GITHUB_SHA"; do
             gh api "repos/$GITHUB_REPOSITORY/compare/$pair" |
               jq -e '.status == "ahead" or .status == "identical"' >/dev/null
@@ -105,7 +109,7 @@ jobs:
           [ ${#apks[@]} = 1 ] && [ -f "${apks[0]}" ]
           tools=$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n1)
           "$tools/aapt" dump badging "${apks[0]}" > "$RUNNER_TEMP/version-badging.txt"
-          grep -qF "package: name='com.droiddeck.launcher' versionCode='17' versionName='0.5.0-wallentx.4'" \
+          grep -qF "package: name='com.droiddeck.launcher' versionCode='18' versionName='0.6.0-wallentx.5'" \
             "$RUNNER_TEMP/version-badging.txt"
 
       - name: Sign
@@ -115,7 +119,7 @@ jobs:
           RELEASE_KEY_ALIAS: droiddeck
           ENVIRONMENT: ${{ inputs.environment || 'signing-main' }}
           VARIANT: ${{ matrix.variant }}
-          LABEL: ${{ inputs.expected_sha != '' && '0.5.0-wallentx.4' || inputs.label }}
+          LABEL: ${{ inputs.expected_sha != '' && '0.6.0-wallentx.5' || inputs.label }}
           MANUAL_FORK: ${{ inputs.expected_sha != '' }}
         run: |
           set -euo pipefail
