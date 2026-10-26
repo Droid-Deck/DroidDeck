@@ -22,7 +22,7 @@ import org.robolectric.shadows.ShadowDisplayManager
 @Config(sdk = [31, 34], manifest = Config.NONE, shadows = [ExternalOutputModeTest.ModeDisplay::class])
 @LooperMode(LooperMode.Mode.PAUSED)
 class ExternalOutputModeTest {
-    @Test fun prefersRefreshRateOverResolution() {
+    @Test fun prefersTheLargestModeAtSixtyHertzOverFourKAtThirty() {
         val uhd30 = mode(28, 3840, 2160, 30.000002f)
         val uhd24 = mode(30, 3840, 2160, 24.000002f)
         val qhd60 = mode(31, 2560, 1440, 60.000004f)
@@ -31,6 +31,44 @@ class ExternalOutputModeTest {
         val display = display(uhd30, arrayOf(uhd30, uhd24, qhd60, hd60, hd50))
 
         assertEquals(qhd60.modeId, ExternalOutput.preferredMode(display).modeId)
+    }
+
+    @Test fun aTvDoesNotDropToALowResolutionForAFasterRate() {
+        val uhd30 = mode(1, 3840, 2160, 30f)
+        val qhd60 = mode(2, 2560, 1440, 60f)
+        val hd60 = mode(3, 1920, 1080, 60f)
+        val sxga75 = mode(4, 1280, 1024, 75f)
+        val display = display(uhd30, arrayOf(uhd30, qhd60, hd60, sxga75))
+
+        assertEquals(qhd60.modeId, ExternalOutput.preferredMode(display).modeId)
+    }
+
+    @Test fun aHighRefreshMonitorKeepsItsNativeResolutionAboveSixtyHertz() {
+        val qhd72 = mode(1, 2560, 1440, 72f)
+        val qhd60 = mode(2, 2560, 1440, 60f)
+        val hd144 = mode(3, 1920, 1080, 144f)
+        val display = display(qhd60, arrayOf(qhd60, qhd72, hd144))
+
+        assertEquals(qhd72.modeId, ExternalOutput.preferredMode(display).modeId)
+    }
+
+    @Test fun aDisplayWithoutSixtyHertzStillGetsItsFastestLargestMode() {
+        val uhd30 = mode(1, 3840, 2160, 30f)
+        val hd30 = mode(2, 1920, 1080, 30f)
+        val display = display(hd30, arrayOf(hd30, uhd30))
+
+        assertEquals(uhd30.modeId, ExternalOutput.preferredMode(display).modeId)
+    }
+
+    @Test fun fourKIsDrawnAt1440AndScaledByTheSystem() {
+        assertEquals(2560 to 1440, ExternalOutput.swapchainSize(mode(1, 3840, 2160, 30f), 720))
+        assertEquals(2730 to 1440, ExternalOutput.swapchainSize(mode(2, 4096, 2160, 30f), 720))
+        assertEquals(3840 to 2160, ExternalOutput.swapchainSize(mode(3, 3840, 2160, 60f), 2160))
+    }
+
+    @Test fun displaysUpTo1440AreDrawnAtTheirOwnSize() {
+        assertEquals(null, ExternalOutput.swapchainSize(mode(1, 2560, 1440, 60f), 720))
+        assertEquals(null, ExternalOutput.swapchainSize(mode(2, 1920, 1080, 60f), 1080))
     }
 
     @Test fun keepsTheLargestResolutionWhenEveryModeHasTheSameRate() {
