@@ -88,6 +88,7 @@ class StoreLoginActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        requestedOrientation = com.droiddeck.launcher.core.AppUiPrefs.orientation(this)
         store = Store.byId(intent.getStringExtra(EXTRA_STORE))
         clientUrl = intent.getStringExtra(EXTRA_CLIENT_URL)?.takeIf { store == Store.EPIC }
         oauthState = savedInstanceState?.getString(KEY_STATE) ?: generateState()

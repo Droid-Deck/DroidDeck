@@ -398,7 +398,12 @@ internal fun SetupPanel(
                                     ActionRow(stringResource(R.string.setup_default_home), s.defaultHomeLabel ?: stringResource(R.string.setup_choose_home), stringResource(R.string.setup_choose), a.onHomeApp)
                                 }
                                 ChoiceRow(
-                                    host, "orientation", stringResource(R.string.setup_orientation), null,
+                                    host, "launcher-orientation", stringResource(R.string.setup_launcher_orientation), null,
+                                    com.droiddeck.launcher.core.AppUiPrefs.orientationOptions.map { (value, label) -> value to stringResource(label) },
+                                    s.launcherOrientation, onPick = a.onLauncherOrientation,
+                                )
+                                ChoiceRow(
+                                    host, "orientation", stringResource(R.string.setup_session_orientation), stringResource(R.string.setup_session_orientation_hint),
                                     SessionPrefs.orientationOptions.map { (value, label) -> value to stringResource(label) },
                                     s.orientation, onPick = a.onOrientation,
                                 )

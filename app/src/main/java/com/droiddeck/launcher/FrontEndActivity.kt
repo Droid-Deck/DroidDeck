@@ -168,6 +168,7 @@ class FrontEndActivity : ComponentActivity() {
     private var picturePosition by mutableStateOf("center")
     private var stretch16x9 by mutableStateOf(false)
     private var orientation by mutableStateOf(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE)
+    private var launcherOrientation by mutableStateOf(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_USER)
     private var launcherFullscreen by mutableStateOf(true)
     private var downloadSource by mutableStateOf(DownloadSource.MODE_AUTO)
     private var downloadMirror by mutableStateOf("")
@@ -775,7 +776,8 @@ class FrontEndActivity : ComponentActivity() {
         steamGamesX64 = cachedX64
         backActionsInverted = SessionPrefs.backActionsInverted(this)
         orientation = SessionPrefs.orientation(this)
-        requestedOrientation = orientation
+        launcherOrientation = com.droiddeck.launcher.core.AppUiPrefs.orientation(this)
+        requestedOrientation = launcherOrientation
         launcherFullscreen = SessionPrefs.launcherFullscreen(this)
         downloadSource = DownloadSource.mode(this)
         downloadMirror = DownloadSource.mirror(this)
@@ -844,6 +846,7 @@ class FrontEndActivity : ComponentActivity() {
                         phantomProcessStatus = phantomProcessStatus,
                         showPhantomGate = showPhantomGate,
                         orientation = orientation,
+                        launcherOrientation = launcherOrientation,
                         launcherFullscreen = launcherFullscreen,
                         downloadSource = downloadSource,
                         downloadMirror = downloadMirror,
@@ -1026,6 +1029,10 @@ class FrontEndActivity : ComponentActivity() {
                         onOrientation = { value ->
                             SessionPrefs.setOrientation(this, value)
                             orientation = value
+                        },
+                        onLauncherOrientation = { value ->
+                            com.droiddeck.launcher.core.AppUiPrefs.setOrientation(this, value)
+                            launcherOrientation = value
                             requestedOrientation = value
                         },
                         onLauncherFullscreen = { on ->
@@ -1321,7 +1328,8 @@ class FrontEndActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         orientation = SessionPrefs.orientation(this)
-        requestedOrientation = orientation
+        launcherOrientation = com.droiddeck.launcher.core.AppUiPrefs.orientation(this)
+        requestedOrientation = launcherOrientation
         refreshWifiDiscovery()
         com.droiddeck.launcher.stores.StoresState.refresh(this)
         com.droiddeck.launcher.stores.StoresState.libraryListener = { refreshAddedGames(); refresh() }

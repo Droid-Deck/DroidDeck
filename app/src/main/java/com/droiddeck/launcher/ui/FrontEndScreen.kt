@@ -11,6 +11,7 @@ import androidx.compose.foundation.focusGroup
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.onFocusChanged
 import android.provider.Settings
 import android.view.Display
@@ -138,6 +139,7 @@ class FrontEndState(
     val phantomProcessStatus: PhantomProcessStatus = PhantomProcessStatus.NOT_APPLICABLE,
     val showPhantomGate: Boolean = false,
     val orientation: Int = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE,
+    val launcherOrientation: Int = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_USER,
     val launcherFullscreen: Boolean = true,
     val downloadSource: String = DownloadSource.MODE_AUTO,
     val downloadMirror: String = "",
@@ -219,6 +221,7 @@ class FrontEndActions(
     val onAppScale: (Int) -> Unit = {},
     val onLauncherIcon: (String) -> Unit = {},
     val onOrientation: (Int) -> Unit = {},
+    val onLauncherOrientation: (Int) -> Unit = {},
     val onLauncherFullscreen: (Boolean) -> Unit = {},
     val onAnimationsEnabled: (Boolean) -> Unit = {},
     val onDownloadSource: (String) -> Unit = {},
@@ -386,7 +389,12 @@ internal suspend fun focusSoon(target: () -> FocusRequester) {
 @Composable
 fun FrontEndScreen(s: FrontEndState, a: FrontEndActions, page: (@Composable () -> Unit)? = null) {
     val frontFocus = remember { FrontFocus() }
-    CompositionLocalProvider(LocalFrontFocus provides frontFocus) { FrontEndScreenBody(s, a, page, frontFocus) }
+    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize()) {
+        CompositionLocalProvider(
+            LocalFrontFocus provides frontFocus,
+            LocalNarrowPane provides (maxWidth < NarrowPaneWidth),
+        ) { FrontEndScreenBody(s, a, page, frontFocus) }
+    }
 }
 
 @OptIn(ExperimentalComposeUiApi::class)
@@ -486,11 +494,12 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
     val window = LocalWindowInfo.current
     val androidContext = androidx.compose.ui.platform.LocalContext.current
     var anyFocused by remember { mutableStateOf(false) }
-    Box(
+    androidx.compose.foundation.layout.BoxWithConstraints(
         modifier = Modifier.fillMaxSize().background(colors.background)
             .windowInsetsPadding(if (s.launcherFullscreen) WindowInsets.displayCutout else WindowInsets.systemBars)
             .onFocusChanged { anyFocused = it.hasFocus },
     ) {
+        val bottomNavigation = maxHeight > maxWidth
         LaunchedEffect(processSettingsPageVisible) {
             if (processSettingsPageVisible) return@LaunchedEffect
             snapshotFlow { window.isWindowFocused }.first { it }
@@ -527,10 +536,19 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
             focusWithinFrames({ frontFocus.focusedRail == null && anyFocused }) { frontFocus.paneEntry() }
         }
         val paneFocus = Modifier
-            .focusProperties { enter = { frontFocus.paneEntry() } }
+            .focusProperties {
+                enter = { frontFocus.paneEntry() }
+                exit = { direction ->
+                    if (bottomNavigation && direction == FocusDirection.Down) frontFocus.railFor(railSelection)
+                    else FocusRequester.Default
+                }
+            }
             .focusGroup()
         val railFocus = Modifier
-            .focusProperties { enter = { frontFocus.railFor(railSelection) } }
+            .focusProperties {
+                enter = { frontFocus.railFor(railSelection) }
+                if (bottomNavigation) up = frontFocus.paneEntry()
+            }
             .focusGroup()
         LaunchedEffect(Hops.restore) {
             val r = Hops.restore ?: return@LaunchedEffect
@@ -544,12 +562,16 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
         }
         var screenAt by remember { mutableStateOf(Offset.Zero) }
         CompositionLocalProvider(LocalShowSection provides { key -> selected = key }) {
-        Row(modifier = Modifier.fillMaxSize().onGloballyPositioned { screenAt = it.positionInRoot() }) {
-            SideRail(s, railSelection, onRailSelect, onRailFocus, a, railFocus.fillMaxHeight())
-            Box(Modifier.width(1.dp).fillMaxHeight().background(pal.line))
-            Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
+        LauncherLayout(
+            bottomNavigation, pal.line,
+            Modifier.fillMaxSize().onGloballyPositioned { screenAt = it.positionInRoot() },
+            navigation = {
+                if (bottomNavigation) BottomBar(s, railSelection, onRailSelect, onRailFocus, a, railFocus)
+                else SideRail(s, railSelection, onRailSelect, onRailFocus, a, railFocus.fillMaxHeight())
+            },
+        ) {
                 Pane(
-                    s, selected, a, page, Modifier.weight(1f).fillMaxWidth().then(paneFocus), { selected = it },
+                    s, selected, a, page, Modifier.fillMaxSize().then(paneFocus), { selected = it },
                     onAndroidAppClick = { app ->
                         if (s.secondScreenDisplays.isEmpty()) a.onAndroidApp(app, null)
                         else appToChooseDisplay = app
@@ -557,7 +579,6 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
                     onOpenDeveloperOptions = requestDeveloperOptions,
                     onRequestWirelessAdb = requestWirelessAdbFix,
                 )
-            }
         }
 
         }
