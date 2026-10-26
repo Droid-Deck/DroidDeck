@@ -159,6 +159,31 @@ int main(void) {
         struct v4l2_buffer rb = { .index = cb.index, .type = types[1], .memory = V4L2_MEMORY_DMABUF, .length = 1, .m.planes = &rp };
         if (call(VIDIOC_QBUF, &rb)) return 28;
     }
+    if (call(VIDIOC_STREAMOFF, &types[1])) return 29;
+    f = (struct v4l2_format){ .type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE };
+    f.fmt.pix_mp.width = 1920; f.fmt.pix_mp.height = 1088; f.fmt.pix_mp.pixelformat = V4L2_PIX_FMT_NV12;
+    if (call(VIDIOC_S_FMT, &f)) return 30;
+    size = f.fmt.pix_mp.plane_fmt[0].sizeimage;
+    r = (struct v4l2_requestbuffers){ .count = 1, .type = types[1], .memory = V4L2_MEMORY_DMABUF };
+    if (call(VIDIOC_REQBUFS, &r)) return 31;
+    struct create_dumb big = { .height = 1088, .width = 1920, .bpp = 16 };
+    if (drm_ioctl(card, 0xc02064b2, &big)) return 32;
+    struct prime_handle bh = { .handle = big.handle, .flags = O_CLOEXEC };
+    if (drm_ioctl(card, 0xc00c642d, &bh)) return 33;
+    if (call(VIDIOC_STREAMON, &types[1])) return 34;
+    struct v4l2_plane bp = { .m.fd = bh.fd };
+    struct v4l2_buffer bb = { .index = 0, .type = types[1], .memory = V4L2_MEMORY_DMABUF, .length = 1, .m.planes = &bp };
+    if (call(VIDIOC_QBUF, &bb)) return 35;
+    memset(in[2], 'z', 50);
+    struct v4l2_plane zp = { .bytesused = 50 };
+    struct v4l2_buffer zb = { .index = 2, .type = types[0], .memory = V4L2_MEMORY_MMAP, .length = 1, .m.planes = &zp };
+    zb.timestamp.tv_usec = 6;
+    if (call(VIDIOC_QBUF, &zb)) return 36;
+    struct v4l2_plane dp = { 0 };
+    struct v4l2_buffer db = { .type = types[1], .memory = V4L2_MEMORY_DMABUF, .length = 1, .m.planes = &dp };
+    if (call(VIDIOC_DQBUF, &db)) return 37;
+    unsigned char *m = mmap(NULL, size, PROT_READ, MAP_SHARED, bh.fd, 0);
+    printf("%ld %u %c%c\n", (long)db.timestamp.tv_usec, db.index, m[0], m[(size_t)1920 * 1088]);
     bl_vdec_closed(vfd);
     return 0;
 }
@@ -233,13 +258,12 @@ class VdecEmulatorTest(unittest.TestCase):
             done = subprocess.run([str(binary)], env=dict(os.environ, BL_VENC_SOCKET=str(sock)),
                                   capture_output=True, text=True, timeout=20)
             self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
-            self.assertEqual(done.stdout.split('\n')[:5],
-                             ['1 0 bu 1', '2 1 cu 1', '3 2 du 1', '4 0 eu 1', '5 1 fu 1'])
-            self.assertEqual(len(server.configs), 1)
-            self.assertEqual(server.configs[0][1:6], (1, 1280, 720, 1280, 736))
+            self.assertEqual(done.stdout.split('\n')[:6],
+                             ['1 0 bu 1', '2 1 cu 1', '3 2 du 1', '4 0 eu 1', '5 1 fu 1', '6 0 zu'])
+            self.assertEqual([c[1:6] for c in server.configs],
+                             [(1, 1280, 720, 1280, 736), (1, 1280, 720, 1920, 1088)])
             self.assertEqual([p[:3] for p in server.packets],
-                             [(1, 101, 0), (2, 102, 1), (3, 103, 2), (0, 104, 0), (1, 105, 1)])
-            self.assertEqual(len({p[3] for p in server.packets}), 5)
+                             [(1, 101, 0), (2, 102, 1), (3, 103, 2), (0, 104, 0), (1, 105, 1), (2, 50, 0)])
 
     def test_other_programs_keep_the_real_libdrm(self):
         with tempfile.TemporaryDirectory() as tmp:

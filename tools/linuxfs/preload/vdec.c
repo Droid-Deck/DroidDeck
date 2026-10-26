@@ -400,7 +400,11 @@ static int vd_map_capture(struct vdec *v, uint32_t index, int fd) {
         c->fd = fd;
         return 0;
     }
-    if (c->map) munmap(c->map, c->len);
+    if (c->map) {
+        munmap(c->map, c->len);
+        *c = (struct vd_capture){ .fd = -1 };
+        if (v->last == (int)index) v->last = -1;
+    }
     off_t len = lseek(fd, 0, SEEK_END);
     if (len < (off_t)v->cap_size) return -EINVAL;
     void *p = mmap(NULL, (size_t)len, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
@@ -568,7 +572,7 @@ static int vd_set_format(struct vdec *v, struct v4l2_format *f, int apply) {
         t.cap_size = t.bpl * t.cap_height * 3 / 2;
     }
     if (apply) {
-        if (t.fourcc != v->fourcc) vd_close_decoder(&t);
+        if (t.fourcc != v->fourcc || (t.hw && (t.bpl != v->bpl || t.cap_height != v->cap_height))) vd_close_decoder(&t);
         *v = t;
     }
     vd_fill_format(&t, f);
@@ -589,6 +593,7 @@ static int vd_reqbufs(struct vdec *v, struct v4l2_requestbuffers *r) {
         }
         v->out_count = n;
     } else if (r->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE && r->memory == V4L2_MEMORY_DMABUF) {
+        if (v->hw) vd_close_decoder(v);
         vd_unmap_capture(v);
         v->cap_count = n;
     } else {
