@@ -43,7 +43,7 @@ class BackQamInputTest {
     @Test fun theConfiguredWindowControlsSingleAndDoubleTaps() {
         for (window in listOf(100L, 800L)) {
             taps.clear()
-            val configured = BackQamInput(changes::add, taps::add) { window }
+            val configured = BackQamInput(changes::add, taps::add, doubleTapMs = { window })
             fun press(action: Int) = configured.onKeyEvent(KeyEvent(action, KeyEvent.KEYCODE_BACK), true)
             press(KeyEvent.ACTION_DOWN)
             press(KeyEvent.ACTION_UP)

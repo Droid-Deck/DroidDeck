@@ -22,9 +22,9 @@ import org.robolectric.util.ReflectionHelpers
 import org.robolectric.shadows.InputDeviceBuilder
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34], manifest = Config.NONE, instrumentedPackages = ["com.droiddeck.launcher.input.FakeInputWriter"],
+@Config(sdk = [34], manifest = Config.NONE, instrumentedPackages = ["com.droiddeck.launcher.input.FakeInputWriter", "com.droiddeck.launcher.wayland.WaylandCompositor"],
     shadows = [JoyConPadTest.RecordingWriter::class, PadBridgeRoutingTest.RegisteredKeyEvent::class,
-        PadBridgeRoutingTest.RegisteredMotionEvent::class])
+        PadBridgeRoutingTest.RegisteredMotionEvent::class, SessionGestureRoutingTest.CompositorShadow::class])
 class PadBridgeQamTest {
     private val directory = Files.createTempDirectory("qam-pad").toFile()
     private lateinit var bridge: PadBridge
@@ -53,6 +53,7 @@ class PadBridgeQamTest {
             bridge.applyExternal({}, false)
             assertEquals(supported, pad().isDown(PadState.QAM))
             bridge.setBackQamPressed(false)
+            advanceTime()
         }
         SessionState.deckPad = false
         assertFalse(bridge.canHoldQam())
@@ -62,10 +63,12 @@ class PadBridgeQamTest {
         bridge.setBackQamPressed(true)
         advanceTime()
         bridge.applyExternal({ it.press(PadState.X, true); it.press(PadState.SELECT, true) }, true)
+        advanceTime()
         assertTrue(pad().isDown(PadState.QAM))
         assertTrue(pad().isDown(PadState.X))
         assertTrue(pad().isDown(PadState.SELECT))
         bridge.setBackQamPressed(false)
+        advanceTime()
         assertFalse(pad().isDown(PadState.QAM))
         assertTrue(pad().isDown(PadState.X))
         assertTrue(pad().isDown(PadState.SELECT))
@@ -80,6 +83,7 @@ class PadBridgeQamTest {
         bridge.setSystemButtons(false, false)
         assertTrue(pad().isDown(PadState.QAM))
         bridge.setBackQamPressed(false)
+        advanceTime()
         assertFalse(pad().isDown(PadState.QAM))
     }
 
@@ -126,11 +130,16 @@ class PadBridgeQamTest {
         shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(25))
         assertTrue(bridge.onKeyEvent(key(device, KeyEvent.KEYCODE_BUTTON_X)))
         assertTrue(pad().isDown(PadState.QAM))
+        assertFalse(pad().isDown(PadState.X))
+        advance(79)
+        assertFalse(pad().isDown(PadState.X))
+        advance(1)
         assertTrue(pad().isDown(PadState.X))
         input.onKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_BACK), true)
         assertFalse(pad().isDown(PadState.QAM))
         assertTrue(pad().isDown(PadState.X))
         bridge.onKeyEvent(key(device, KeyEvent.KEYCODE_BUTTON_X, KeyEvent.ACTION_UP))
+        advance(80)
         assertFalse(pad().isDown(PadState.X))
         shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(1))
         assertTrue(taps.isEmpty())
@@ -155,6 +164,48 @@ class PadBridgeQamTest {
         assertEquals(3, promoted.size)
     }
 
+    @Test fun aQuickChordKeepsItsPressAndReleaseAfterTheModifierLead() {
+        bridge.setBackQamPressed(true)
+        bridge.applyExternal({ it.press(PadState.X, true) }, true)
+        advance(20)
+        bridge.applyExternal({ it.press(PadState.X, false) }, true)
+        bridge.setBackQamPressed(false)
+        assertTrue(pad().isDown(PadState.QAM))
+        assertFalse(pad().isDown(PadState.X))
+        advance(60)
+        assertTrue(pad().isDown(PadState.QAM))
+        assertTrue(pad().isDown(PadState.X))
+        advance(19)
+        assertTrue(pad().isDown(PadState.X))
+        advance(1)
+        assertFalse(pad().isDown(PadState.X))
+        assertFalse(pad().isDown(PadState.QAM))
+    }
+
+    @Test fun cancellationDiscardsQueuedPartnersAndTheirReleases() {
+        val input = BackQamInput(bridge::setBackQamPressed, {}, onCancel = bridge::cancelBackQam)
+        input.onKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_BACK), true)
+        input.onChordInput()
+        bridge.applyExternal({ it.press(PadState.LB, true) }, true)
+        input.onKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_BACK), true)
+        input.cancel()
+        advance(1000)
+        assertFalse(pad().isDown(PadState.LB))
+        assertFalse(pad().isDown(PadState.QAM))
+        bridge.applyExternal({ it.press(PadState.X, true) }, true)
+        input.cancel()
+        assertTrue(pad().isDown(PadState.X))
+    }
+
+    @Test fun aSettledHoldDoesNotDelayLaterPartnerInput() {
+        bridge.setBackQamPressed(true)
+        advance(80)
+        bridge.applyExternal({ it.press(PadState.LB, true) }, true)
+        assertTrue(pad().isDown(PadState.LB))
+        bridge.setBackQamPressed(false)
+        assertFalse(pad().isDown(PadState.QAM))
+    }
+
     @Test fun deliberateStickTriggerAndHatMotionPromoteChordsButNeutralAndDriftDoNot() {
         val device = controller()
         val promoted = mutableListOf<Boolean>()
@@ -162,7 +213,7 @@ class PadBridgeQamTest {
         for ((axis, value) in listOf(MotionEvent.AXIS_X to 0f, MotionEvent.AXIS_X to 0.1f,
             MotionEvent.AXIS_LTRIGGER to 0f, MotionEvent.AXIS_HAT_Y to 0f)) motion(device, axis, value)
         assertTrue(promoted.isEmpty())
-        for ((axis, value) in listOf(MotionEvent.AXIS_X to -0.75f, MotionEvent.AXIS_LTRIGGER to 0.75f,
+        for ((axis, value) in listOf(MotionEvent.AXIS_X to -0.15f, MotionEvent.AXIS_LTRIGGER to 0.75f,
             MotionEvent.AXIS_HAT_Y to -1f)) motion(device, axis, value)
         assertEquals(3, promoted.size)
     }
@@ -196,5 +247,8 @@ class PadBridgeQamTest {
     private fun advanceTime() {
         val handler = ReflectionHelpers.getStaticField<Handler>(PadBridge::class.java, "chordHandler")
         shadowOf(handler.looper).idleFor(Duration.ofSeconds(2))
+        advance(2000)
     }
+
+    private fun advance(ms: Long) = shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(ms))
 }

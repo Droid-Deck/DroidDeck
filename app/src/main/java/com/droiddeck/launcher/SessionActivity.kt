@@ -261,6 +261,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         setPressed = { padBridge?.setBackQamPressed(it) },
         onTap = { performBackAction(double = it) },
         doubleTapMs = { backDoubleTapMs.toLong() },
+        onCancel = { padBridge?.cancelBackQam() },
     )
     private var drawerDirectionKey = KeyEvent.KEYCODE_UNKNOWN
     private var drawerDirectionDownTime = 0L
