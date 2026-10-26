@@ -119,6 +119,21 @@ class BwrapSpawnerPlanTest {
         assertEquals("org.example.Game", plan.env["FLATPAK_ID"])
     }
 
+    @Test fun sandboxedAppsSeeTheSessionsNetworkLink() {
+        val context = RuntimeEnvironment.getApplication()
+        val rootfs = LinuxRuntime.rootDir(context)
+        val lib = File(rootfs, "usr/local/lib/libblsession.so").apply { parentFile?.mkdirs(); writeText("") }
+        val preload = File(rootfs, "etc/ld.so.preload").apply { parentFile?.mkdirs(); writeText("/usr/local/lib/libblsession.so\n") }
+        val link = File(rootfs, "etc/droiddeck-net").apply { writeText("if wlan0 2 1500\n") }
+        try {
+            val plan = BwrapSpawner.plan(context, request(op("t" to "dir", "dest" to "/tmp")), dir)
+            assertEquals("/run/droiddeck-preload/libblsession.so", plan.env["LD_PRELOAD"])
+            assertEquals(link.path, plan.binds.single { it.guest == "/etc/droiddeck-net" }.host)
+        } finally {
+            listOf(lib, preload, link).forEach { it.delete() }
+        }
+    }
+
     @Test fun zypakLaunchesTheBrowserWithoutItsSandbox() {
         val context = RuntimeEnvironment.getApplication()
         val app = File(runtime, "app").apply { File(this, "bin").mkdirs() }

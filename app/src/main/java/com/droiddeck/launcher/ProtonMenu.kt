@@ -41,6 +41,7 @@ internal class ProtonMenu(
                     ui.post { protonStage = label; protonPercent = value }
                 }
             }.getOrElse { it.message ?: it.javaClass.simpleName }
+            if (problem == null && !automatic && tool.id == ProtonExtras.OWN) ProtonExtras.setDeclined(activity, false)
             ui.post {
                 protonBusyId = null
                 protonStage = null
@@ -63,6 +64,7 @@ internal class ProtonMenu(
         protonPercent = -1
         Thread({
             if (older) ProtonExtras.removeOlder(activity, tool) else ProtonExtras.remove(activity, tool, dir)
+            if (tool.id == ProtonExtras.OWN && ProtonExtras.installedAll(activity, tool).isEmpty()) ProtonExtras.setDeclined(activity, true)
             ui.post {
                 protonBusyId = null
                 protonStage = null
@@ -94,9 +96,22 @@ internal class ProtonMenu(
             ProtonExtras.installInProgress || SessionState.running || LinuxRuntimeInstaller.isBusy() ||
             SessionState.phase !in setOf(SessionPhase.IDLE, SessionPhase.FAILED) ||
             !LinuxRuntime.isInstalled(activity) || !AutoComponents.online(activity) || AutoComponents.unfavourable(activity)) return
+        if (ProtonExtras.installedAll(activity, ProtonExtras.tools.first { it.id == ProtonExtras.OWN }).size > 1) {
+            protonBusyId = ProtonExtras.OWN
+            Thread({
+                ProtonExtras.tidy(activity)
+                val tidied = ProtonExtras.installedAll(activity, ProtonExtras.tools.first { it.id == ProtonExtras.OWN }).size <= 1
+                ui.post {
+                    protonBusyId = null
+                    refreshProtons()
+                    if (tidied) ensureAutoUpdates()
+                }
+            }, "proton-tidy").start()
+            return
+        }
         val attempts = activity.getSharedPreferences("proton-auto-updates", android.content.Context.MODE_PRIVATE)
         val (tool, update) = ProtonExtras.tools.firstNotNullOfOrNull { tool ->
-            val update = ProtonExtras.update(activity, tool) ?: return@firstNotNullOfOrNull null
+            val update = ProtonExtras.update(activity, tool) ?: ProtonExtras.missing(activity, tool) ?: return@firstNotNullOfOrNull null
             val previous = attempts.getLong("${tool.id}.at", 0L)
             if (attempts.getString("${tool.id}.tag", null) != update || now - previous !in 0 until 15L * 60 * 1000) tool to update else null
         } ?: return

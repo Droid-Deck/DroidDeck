@@ -2,6 +2,10 @@ package com.droiddeck.launcher.ui
 
 import androidx.annotation.StringRes
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ProvideTextStyle
+import androidx.compose.material3.Typography
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -164,7 +168,22 @@ fun DroidDeckTheme(theme: String? = null, appScale: Int = AppUiPrefs.DEFAULT_SCA
         LocalPalette provides p,
         LocalDensity provides density,
         LocalConfiguration provides configuration,
-    ) { MaterialTheme(colorScheme = scheme, content = content) }
+    ) {
+        MaterialTheme(colorScheme = scheme, typography = ContentDirected) {
+            FocusGlideHost { ProvideTextStyle(TextStyle(textDirection = TextDirection.Content), content) }
+        }
+    }
+}
+
+private val ContentDirected = Typography().run {
+    fun TextStyle.byContent() = copy(textDirection = TextDirection.Content)
+    Typography(
+        displayLarge.byContent(), displayMedium.byContent(), displaySmall.byContent(),
+        headlineLarge.byContent(), headlineMedium.byContent(), headlineSmall.byContent(),
+        titleLarge.byContent(), titleMedium.byContent(), titleSmall.byContent(),
+        bodyLarge.byContent(), bodyMedium.byContent(), bodySmall.byContent(),
+        labelLarge.byContent(), labelMedium.byContent(), labelSmall.byContent(),
+    )
 }
 
 /** Turns the colour wheel on the system's own animation clock; with animations off, in the app or in Android, the colour holds still. */

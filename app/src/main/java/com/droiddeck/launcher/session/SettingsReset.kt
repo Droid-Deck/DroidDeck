@@ -18,7 +18,7 @@ object SettingsReset {
         "gamepadLeft", "gamepadRight", "pipAutoEnter", "unfoldedControls", "unfoldedControlsWithController",
         "stretch16x9", "picturePosition",
         "gpuDriverMode", "androidDriver", "linuxDriver", "linuxDriver.steam", "linuxDriver.desktop",
-        "tuSysmem", "glThread", "noGlError", "zinkLazy", "mangoapp", "gpuClockPin", "gamescopeRealtime",
+        "tuSysmem", "glThread", "noGlError", "zinkLazy", "mangoapp", "gpuClockPin", "gamescopeRealtime", "ramCapMb", "vramCapMb", "zramClient",
         "directAudio", "mic", "wifiDiscovery", "clientCpusOverride", "clientCpus", "gameCpus",
         "noXalia", "fastSync", "fsyncFirst", "syncFallback", "prootNoSeccomp", "prootFastPath", "cursorComposite",
         "guestHostname", "fexPreset", "forceSsbs", "logs", "storageDiagnostics",
@@ -29,7 +29,7 @@ object SettingsReset {
     )
 
     internal val SESSION_PREFIXES = listOf(
-        "resolutionCap.", "displayResolution.", "customRes.", "hdr.", "fpsLimit.", "suspendPolicy.",
+        "resolutionCap.", "displayResolution.", "customRes.", "hdr.", "fpsLimit.", "performanceMode.", "suspendPolicy.",
     )
 
     private val STEAM_TOUCH_KEYS = listOf("feedback", "autoFade", "gyro", "shake")

@@ -875,19 +875,84 @@ int __fxstat(int ver, int fd, struct stat *st) {
 }
 int __fxstat64(int ver, int fd, struct stat64 *st) { return __fxstat(ver, fd, (struct stat *)st); }
 
+#ifndef STATX__RESERVED
+#define STATX__RESERVED 0x80000000U
+#endif
+
+static int statx_missing;
+
+static unsigned int dev_major(unsigned long long dev) {
+  return ((dev >> 8) & 0xfff) | ((unsigned int)(dev >> 32) & ~0xfffU);
+}
+static unsigned int dev_minor(unsigned long long dev) {
+  return (dev & 0xff) | ((unsigned int)(dev >> 12) & ~0xffU);
+}
+
+static void fill_statx(struct statx *out, const struct stat *st) {
+  memset(out, 0, sizeof *out);
+  out->stx_mask = STATX_BASIC_STATS;
+  out->stx_blksize = st->st_blksize;
+  out->stx_nlink = st->st_nlink;
+  out->stx_uid = st->st_uid;
+  out->stx_gid = st->st_gid;
+  out->stx_mode = st->st_mode;
+  out->stx_ino = st->st_ino;
+  out->stx_size = st->st_size;
+  out->stx_blocks = st->st_blocks;
+  out->stx_atime.tv_sec = st->st_atim.tv_sec;
+  out->stx_atime.tv_nsec = st->st_atim.tv_nsec;
+  out->stx_ctime.tv_sec = st->st_ctim.tv_sec;
+  out->stx_ctime.tv_nsec = st->st_ctim.tv_nsec;
+  out->stx_mtime.tv_sec = st->st_mtim.tv_sec;
+  out->stx_mtime.tv_nsec = st->st_mtim.tv_nsec;
+  out->stx_rdev_major = dev_major(st->st_rdev);
+  out->stx_rdev_minor = dev_minor(st->st_rdev);
+  out->stx_dev_major = dev_major(st->st_dev);
+  out->stx_dev_minor = dev_minor(st->st_dev);
+}
+
+/* Emulate statx on older kernels < 4.11 */
+static long statx_call(int dirfd, const char *path, int flags, unsigned mask, struct statx *out) {
+  struct stat st;
+  long rs;
+  if ((flags & ~(AT_EMPTY_PATH | AT_SYMLINK_NOFOLLOW | AT_NO_AUTOMOUNT | AT_STATX_SYNC_TYPE)) ||
+      (flags & AT_STATX_SYNC_TYPE) == AT_STATX_SYNC_TYPE)
+    return -EINVAL;
+  if (!statx_missing) {
+    rs = sc(SYS_statx, dirfd, (long)path, flags, mask, (long)out);
+    if (rs != -ENOSYS) return rs;
+    statx_missing = 1;
+  }
+  if (flags & AT_STATX_SYNC_TYPE) return -ENOSYS;
+  rs = sc(SYS_newfstatat, dirfd, (long)path, (long)&st,
+          flags & (AT_EMPTY_PATH | AT_SYMLINK_NOFOLLOW | AT_NO_AUTOMOUNT), 0);
+  if (rs < 0) return rs;
+  fill_statx(out, &st);
+  return 0;
+}
+
 int statx(int dirfd, const char *path, int flags, unsigned mask, struct statx *out) {
   REAL(statx, int (*)(int, const char *, int, unsigned, struct statx *));
   struct res r;
   long rs;
+  if (mask & STATX__RESERVED) { errno = EINVAL; return -1; }
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wnonnull-compare"
+  if (!out) { errno = EFAULT; return -1; }
+  if (!path) {
+    if (!(flags & AT_EMPTY_PATH)) { errno = EFAULT; return -1; }
+    return real_statx ? real_statx(dirfd, path, flags, mask, out) : ret(sc(SYS_statx, dirfd, (long)path, flags, mask, (long)out));
+  }
+#pragma GCC diagnostic pop
   if ((flags & AT_EMPTY_PATH) && !path[0] && fp_ready()) {
     hits++;
-    return ret(sc(SYS_statx, dirfd, (long)"", flags, mask, (long)out));
+    return ret(statx_call(dirfd, "", flags, mask, out));
   }
   rs = (flags & ~(AT_SYMLINK_NOFOLLOW | AT_NO_AUTOMOUNT | AT_STATX_SYNC_TYPE)) ? FP_SLOW
        : resolve(dirfd, path, (flags & AT_SYMLINK_NOFOLLOW ? 0 : 1) | MAY_BE_UNSEEN, &r);
   if (rs == 1) rs = -ENOENT;
   if (rs == 0 || rs == UNSEEN)
-    rs = sc(SYS_statx, AT_FDCWD, (long)r.host, flags | (rs == 0 && !r.magic ? AT_SYMLINK_NOFOLLOW : 0), mask, (long)out);
+    rs = statx_call(AT_FDCWD, r.host, flags | (rs == 0 && !r.magic ? AT_SYMLINK_NOFOLLOW : 0), mask, out);
   ANSWER(rs, dirfd, path, real_statx(dirfd, path, flags, mask, out));
 }
 

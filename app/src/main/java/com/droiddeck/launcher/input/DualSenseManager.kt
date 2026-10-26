@@ -531,12 +531,16 @@ class DualSenseManager(private val context: Context) {
         return device.id == rawTwinDeviceId
     }
 
-    /** Maps the raw-HID pad to its Android duplicate only when exactly one connected DualSense can be it. */
+    /** Maps the raw-HID pad to its Android duplicate only when a claimed USB pad has a single non-Bluetooth match. */
     private fun resolveRawTwin() {
         val ids = rawUsbIds
+        if (ids == null) {
+            rawTwinDeviceId = -1
+            return
+        }
         val candidates = InputDevice.getDeviceIds().toList().mapNotNull { getInputDevice(it) }
             .filter { DualSense.isDualSense(it) }
-            .map { RawTwinCandidate(it.id, it.vendorId, it.productId) }
+            .map { RawTwinCandidate(it.id, it.vendorId, it.productId, isBluetoothInputDevice(it)) }
         rawTwinDeviceId = pickRawTwin(candidates, ids)
     }
 
@@ -1091,12 +1095,28 @@ class DualSenseManager(private val context: Context) {
         @Volatile
         var activeManager: DualSenseManager? = null
 
-        internal data class RawTwinCandidate(val id: Int, val vendorId: Int, val productId: Int)
+        internal data class RawTwinCandidate(
+            val id: Int,
+            val vendorId: Int,
+            val productId: Int,
+            val bluetooth: Boolean = false,
+        )
 
-        /** The single candidate that can duplicate the raw pad (matching its USB ids when known), else -1. */
+        internal fun isBluetoothInputDevice(device: InputDevice): Boolean {
+            val address = runCatching {
+                device.javaClass.getMethod("getBluetoothAddress").invoke(device) as? String
+            }.getOrNull()
+            if (!address.isNullOrBlank()) return true
+            return Regex("Bluetooth Address:\\s*(?!null\\b)\\S+", RegexOption.IGNORE_CASE)
+                .containsMatchIn(device.toString())
+        }
+
+        /** The single non-Bluetooth candidate that can duplicate a claimed USB raw pad, else -1. */
         internal fun pickRawTwin(candidates: List<RawTwinCandidate>, rawUsbIds: Pair<Int, Int>?): Int {
-            val matching = if (rawUsbIds == null) candidates
-                else candidates.filter { it.vendorId == rawUsbIds.first && it.productId == rawUsbIds.second }
+            if (rawUsbIds == null) return -1
+            val matching = candidates.filter {
+                !it.bluetooth && it.vendorId == rawUsbIds.first && it.productId == rawUsbIds.second
+            }
             return matching.singleOrNull()?.id ?: -1
         }
 

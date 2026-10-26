@@ -47,6 +47,8 @@ elif a[:1] == ["shell"]:
             s.setdefault("log_commands", []).append(a)
             p.write_text(json.dumps(s))
             if "ls" in a: print(s["session"])
+            elif a[-1].endswith("/device.txt"): print(s.get("report", ""))
+            elif a[-1].endswith("/app.log"): print(s.get("app_log", ""))
         else: print("package not debuggable")
 '''
 
@@ -111,6 +113,16 @@ class DeviceSmokeTest(unittest.TestCase):
                 result, _ = self.run_smoke(launch_failed=failure)
                 self.assertEqual(1, result.returncode, result.stdout)
                 self.assertIn("could not launch", result.stdout)
+
+    def test_fast_path_requires_a_session_activation_log(self):
+        for active in (False, True):
+            with self.subTest(active=active):
+                result, _ = self.run_smoke(
+                    session="session", report="proot fast path (eligible) true",
+                    app_log="proot: fast path on (66 binds)" if active else "proot: fast path off - too many binds",
+                )
+                self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+                self.assertEqual(active, "PASS  proot fast path was on" in result.stdout)
 
     def test_session_name_remains_one_remote_argument(self):
         session = "x';id;#"

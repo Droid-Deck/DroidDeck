@@ -11,7 +11,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
-import androidx.compose.ui.window.Dialog
+import com.droiddeck.launcher.ui.GlideDialog as Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background

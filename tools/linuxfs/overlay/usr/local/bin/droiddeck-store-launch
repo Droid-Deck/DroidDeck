@@ -25,6 +25,8 @@ Android: an EOS sign-in step that falls back to a browser (a consent Epic asks f
 is finished there. An EOS overlay pointer (HKCU\Software\Epic Games\EOS "OverlayPath") an earlier
 build wrote is removed - with it the game exited while loading.
 
+Battle.net.exe in Battle.net's prefix is handed to droiddeck-battlenet, which runs the whole launch.
+
     droiddeck-store-launch <the arguments Steam gave the compat tool>
 """
 
@@ -291,6 +293,27 @@ def create_prefix(compat_data, proton, timeout=120):
 CLOUD_TIMEOUT = 15.0
 CLOUD_STORES = ("gog", "epic")
 STORE_GAME = 10
+RAN = 11
+RAN_FAILED = 12
+BATTLENET = "/usr/local/bin/droiddeck-battlenet"
+BATTLENET_EXE = re.compile(r"(?i)/compatdata/2596113170/pfx/drive_c/Program Files \(x86\)/Battle\.net/Battle\.net\.exe$")
+BATTLENET_LAUNCH = re.compile(r'(?i)^--exec=\s*"?launch\s+([A-Za-z0-9_]{1,16})"?$')
+
+
+def battlenet(argv, env=os.environ):
+    if env.get("BL_BATTLENET"):
+        return None
+    exe, code = False, None
+    for raw in argv:
+        arg = raw.strip().strip('"').strip("'")
+        if BATTLENET_EXE.search(arg.replace("\\", "/")):
+            exe = True
+        found = BATTLENET_LAUNCH.match(arg)
+        if found:
+            code = found.group(1)
+    if not exe:
+        return None
+    return [BATTLENET, "launch", code] if code else [BATTLENET, "open"]
 
 
 def cloud_on(sidecar):
@@ -511,6 +534,10 @@ def main(argv):
                 pass
             rest = rest[2:]
         return exited(rest, code)
+    command = battlenet(argv)
+    if command is not None:
+        log("battlenet " + " ".join(command[1:]))
+        return RAN if subprocess.call(command) == 0 else RAN_FAILED
     found = find_store_game(argv)
     if found is None:
         return 0

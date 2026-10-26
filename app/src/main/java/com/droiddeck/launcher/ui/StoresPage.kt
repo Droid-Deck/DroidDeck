@@ -53,6 +53,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusGroup
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.selection.selectable
@@ -86,6 +88,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.automirrored.filled.Login
 import androidx.compose.foundation.basicMarquee
@@ -147,35 +150,6 @@ private data class PaneKey(val chip: String, val signedIn: Boolean, val accounts
 internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier) {
     val ctx = LocalContext.current
     val focusManager = LocalFocusManager.current
-    com.droiddeck.launcher.stores.xbox.XboxContent.plan?.let { content ->
-        androidx.compose.material3.AlertDialog(
-            onDismissRequest = { com.droiddeck.launcher.stores.xbox.XboxContent.dismiss() },
-            title = { Text(stringResource(R.string.stores_xbox_content_title)) },
-            text = { Column {
-                if (content.error != null) Text(content.error)
-                else if (content.offers.isEmpty()) Text(stringResource(R.string.stores_xbox_content_none))
-                content.offers.forEach { offer ->
-                    androidx.compose.material3.TextButton(onClick = { com.droiddeck.launcher.stores.xbox.XboxContent.install(ctx, offer.item) }) {
-                        Text(stringResource(if (offer.installed) R.string.stores_xbox_content_update else R.string.stores_xbox_content_install, offer.item.title))
-                    }
-                }
-            } },
-            confirmButton = { androidx.compose.material3.TextButton(onClick = { com.droiddeck.launcher.stores.xbox.XboxContent.dismiss() }) { Text(stringResource(android.R.string.ok)) } },
-        )
-    }
-    com.droiddeck.launcher.stores.xbox.XboxBackend.packageChoice?.let { pending ->
-        androidx.compose.material3.AlertDialog(
-            onDismissRequest = { com.droiddeck.launcher.stores.xbox.XboxBackend.dismissPackages() },
-            title = { Text(stringResource(R.string.stores_xbox_choose_content)) },
-            text = { Column { pending.choices.forEach { choice ->
-                androidx.compose.material3.TextButton(onClick = { com.droiddeck.launcher.stores.xbox.XboxBackend.selectPackage(ctx, choice) }) {
-                    Text(stringResource(R.string.stores_xbox_choice, choice.getString("title"), choice.getString("kind")))
-                }
-            } } },
-            confirmButton = {},
-            dismissButton = { androidx.compose.material3.TextButton(onClick = { com.droiddeck.launcher.stores.xbox.XboxBackend.dismissPackages() }) { Text(stringResource(android.R.string.cancel)) } },
-        )
-    }
     val narrow = LocalNarrowPane.current
     val padH = if (narrow) 14.dp else 22.dp
     val tabs = remember {
@@ -235,6 +209,12 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
     LaunchedEffect(Unit) { StoresState.refresh(ctx) }
     val lifecycle = androidx.compose.ui.platform.LocalLifecycleOwner.current.lifecycle
     LaunchedEffect(chip) {
+        if (chip == Store.BATTLENET.id) {
+            while (true) {
+                if (lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) com.droiddeck.launcher.stores.battlenet.BattleNetClient.refresh(ctx)
+                delay(5_000)
+            }
+        }
         if (chip == Store.EPIC.id) {
             EpicClient.ensure(ctx)
             while (true) {
@@ -604,6 +584,7 @@ private fun RowScope.ArrangeStoreChip(
     ) { onToggleTab(store) }
 }
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun StoreChips(
     selected: String, focused: String?, active: Int, tabs: List<StoreTab>, arranging: Boolean,
@@ -613,7 +594,6 @@ private fun StoreChips(
     val pal = LocalPalette.current
     val keys = tabs.filter { it.shown }.map { it.store.id } + DOWNLOADS
     val bounds = remember { androidx.compose.runtime.mutableStateMapOf<String, Rect>() }
-    val rootBounds = remember { HashMap<String, Rect>() }
     val highlighted = focused ?: selected
     val inputMode = androidx.compose.ui.platform.LocalInputModeManager.current.inputMode
     val fillShown = inputMode != androidx.compose.ui.input.InputMode.Keyboard && !arranging
@@ -623,47 +603,59 @@ private fun StoreChips(
     val gap = 8.dp
     val gapPx = with(androidx.compose.ui.platform.LocalDensity.current) { gap.toPx() }
     val drag = remember { ChipDrag() }
+    val tabScroll = rememberScrollState()
     Box(Modifier.fillMaxWidth()) {
         Row(horizontalArrangement = Arrangement.spacedBy(gap), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-            for (tab in tabs) {
-                val store = tab.store
-                if (arranging) {
-                    val index = tabs.indexOfFirst { it.store == store }
-                    key(store) { ArrangeStoreChip(tab, index, tabs.lastIndex, gapPx, drag, onFocusChip, onMoveTab, onToggleTab) }
-                } else if (tab.shown) {
-                    val signedIn = StoresState.isSignedIn(store) && StoresState.expired[store] != true
-                    key(store) {
-                        StoreChip(
-                            label = store.shortLabel, on = selected == store.id, under = fillShown && highlighted == store.id, key = store.id, mark = sourceColours(store.id).dot,
-                            modifier = Modifier.weight(1f).onGloballyPositioned { bounds[store.id] = it.boundsInParent(); rootBounds[store.id] = it.boundsInRoot() },
-                            lead = { StoreDot(store, signedIn) },
-                            description = store.label + if (signedIn || !StoresState.accountsLoaded) "" else " " + stringResource(R.string.stores_chip_signed_out),
-                            onFocused = onFocusChip,
-                        ) { onStore(store) }
+            Box(Modifier.weight(1f).then(if (arranging) Modifier else Modifier.edgeFade(tabScroll).horizontalScroll(tabScroll))) {
+                Row(horizontalArrangement = Arrangement.spacedBy(gap), verticalAlignment = Alignment.CenterVertically,
+                    modifier = (if (arranging) Modifier.fillMaxWidth() else Modifier).focusGroup(),
+                ) {
+                    for (tab in tabs) {
+                        val store = tab.store
+                        if (arranging) {
+                            val index = tabs.indexOfFirst { it.store == store }
+                            key(store) { ArrangeStoreChip(tab, index, tabs.lastIndex, gapPx, drag, onFocusChip, onMoveTab, onToggleTab) }
+                        } else if (tab.shown) {
+                            val signedIn = StoresState.isSignedIn(store) && StoresState.expired[store] != true
+                            key(store) {
+                                val reveal = remember { BringIntoViewRequester() }
+                                LaunchedEffect(selected) { if (selected == store.id) reveal.bringIntoView() }
+                                StoreChip(
+                                    label = store.shortLabel, on = selected == store.id, under = fillShown && highlighted == store.id, key = store.id, mark = sourceColours(store.id).dot,
+                                    modifier = Modifier.bringIntoViewRequester(reveal).onGloballyPositioned { bounds[store.id] = it.boundsInParent() },
+                                    lead = { StoreDot(store, signedIn) },
+                                    description = store.label + if (signedIn || !StoresState.accountsLoaded) "" else " " + stringResource(R.string.stores_chip_signed_out),
+                                    onFocused = onFocusChip,
+                                ) { onStore(store) }
+                            }
+                        }
                     }
                 }
+                ChipGlide(keys.indexOf(highlighted), bounds[highlighted], tint, visible = fillShown && highlighted != DOWNLOADS)
             }
             if (arranging) {
                 IconChip(Icons.Filled.Check, stringResource(R.string.stores_tabs_arrange_done)) { onArrangeDone() }
             } else {
-                StoreChip(
-                    label = null, on = selected == DOWNLOADS, under = fillShown && highlighted == DOWNLOADS, key = DOWNLOADS, mark = pal.signal,
-                    modifier = Modifier.onGloballyPositioned {
-                        bounds[DOWNLOADS] = it.boundsInParent()
-                        StoresMotion.downloadsChip = it.boundsInRoot()
-                    },
-                    lead = { Icon(Icons.Outlined.Download, null, modifier = Modifier.size(18.dp)) },
-                    trail = if (active > 0) { { CountPill(active) } } else null,
-                    description = stringResource(R.string.stores_tab_downloads),
-                    onFocused = onFocusChip,
-                ) { onDownloads() }
+                Box {
+                    StoreChip(
+                        label = null, on = selected == DOWNLOADS, under = fillShown && highlighted == DOWNLOADS, key = DOWNLOADS, mark = pal.signal,
+                        modifier = Modifier.onGloballyPositioned {
+                            bounds[DOWNLOADS] = it.boundsInParent()
+                            StoresMotion.downloadsChip = it.boundsInRoot()
+                        },
+                        lead = { Icon(Icons.Outlined.Download, null, modifier = Modifier.size(18.dp)) },
+                        trail = if (active > 0) { { CountPill(active) } } else null,
+                        description = stringResource(R.string.stores_tab_downloads),
+                        onFocused = onFocusChip,
+                    ) { onDownloads() }
+                    ChipGlide(keys.indexOf(DOWNLOADS), bounds[DOWNLOADS], tint, visible = fillShown && highlighted == DOWNLOADS)
+                }
                 var cogAt by remember { mutableStateOf<Rect?>(null) }
                 Box(Modifier.onGloballyPositioned { cogAt = it.boundsInRoot() }) {
                     IconChip(Icons.Filled.Settings, stringResource(R.string.stores_settings)) { onSettings(cogAt) }
                 }
             }
         }
-        ChipGlide(keys.indexOf(highlighted), bounds[highlighted], tint, visible = fillShown)
     }
 }
 
@@ -827,6 +819,7 @@ private fun Storefront(
     clearSearchFocus: Boolean,
     onQuery: (String) -> Unit, onOpen: (String) -> Unit,
 ) {
+    BackHandler(enabled = query.isNotEmpty() && !clearSearchFocus) { onQuery("") }
     val ctx = LocalContext.current
     val library = StoresState.library[store] ?: emptyList()
     val shelves = StoresState.shelves[store]
@@ -839,8 +832,10 @@ private fun Storefront(
     LaunchedEffect(store, q) { StoresState.search(ctx, store, q) }
     val browsing = store == Store.ITCH && q.isEmpty() && ItchBrowseState.active
     val browseItems = if (browsing) ItchBrowseState.items else emptyList()
-    val visible = remember(found, library, shelves, q, s.storesShowMature, browsing, browseItems) {
-        if (browsing) {
+    val catalog = store == Store.BATTLENET && q.isEmpty()
+    val visible = remember(found, library, shelves, q, s.storesShowMature, browsing, browseItems, catalog) {
+        if (catalog) shelf(shelves?.trending) ?: emptyList()
+        else if (browsing) {
             val owned = library.associateBy { it.id }
             browseItems.map { owned[it.id] ?: it }.filter(::shown)
         } else if (q.isEmpty()) emptyList()
@@ -850,6 +845,7 @@ private fun Storefront(
     val nothing = stringResource(when {
         browsing && ItchBrowseState.loading -> R.string.stores_shelves_loading
         browsing && ItchBrowseState.failed -> R.string.stores_itch_browse_failed
+        catalog && shelves == null -> R.string.stores_shelves_loading
         else -> R.string.stores_nothing_matches
     })
     var firstPlaced = false
@@ -857,12 +853,12 @@ private fun Storefront(
     val density = androidx.compose.ui.platform.LocalDensity.current
     val focus = LocalFrontFocus.current
     val scope = rememberCoroutineScope()
-    val searching = q.isNotEmpty() || browsing
+    val searching = q.isNotEmpty() || browsing || catalog
     // A bar only while there is nothing else to look at: no shelves yet and no search results.
     val bareTab = if (searching) visible.isEmpty() else shelves == null || shelves.isEmpty
     val barLine = StoresState.status[store]?.takeIf { bareTab && syncCount(it) != null }
     val itchBar = store == Store.ITCH && q.isEmpty()
-    val headerItems = 2 + (if (barLine != null) 1 else 0) + (if (StoresState.problems[store] != null) 1 else 0) + (if (itchBar) 1 else 0)
+    val headerItems = 2 + (if (barLine != null) 1 else 0) + (if (StoresState.problems[store] != null) 1 else 0) + (if (itchBar) 1 else 0) + (if (catalog) 1 else 0)
     val card: @Composable (CatalogItem) -> Unit = { item ->
         val first = if (searching) item.key == visible.firstOrNull()?.key else !firstPlaced
         firstPlaced = true
@@ -911,6 +907,9 @@ private fun Storefront(
         barLine?.let { line -> item(key = "sync", span = { GridItemSpan(maxLineSpan) }) { Rise(3) { SyncBar(line) } } }
         StoresState.problems[store]?.let { line -> item(key = "problem", span = { GridItemSpan(maxLineSpan) }) { Rise(3) { Box(Modifier.padding(bottom = 8.dp)) { Note(line) } } } }
         if (itchBar) item(key = "itch-browse-bar", span = { GridItemSpan(maxLineSpan) }) { ItchBrowseBar() }
+        if (catalog) item(key = "catalog-label", span = { GridItemSpan(maxLineSpan) }) {
+            Box(Modifier.padding(top = 10.dp)) { SectionLabel(stringResource(R.string.bnet_store)) }
+        }
         if (searching) {
             storeGrid(visible, nothing, card)
             if (browsing) item(key = "itch-more", span = { GridItemSpan(maxLineSpan) }) { ItchLoadMore() }
@@ -954,7 +953,7 @@ private fun ProfileStrip(store: Store, owned: Int, loaded: Boolean, s: FrontEndS
             }
             Actions {
                 SmallTextButton(stringResource(R.string.stores_owned_in_library), key = "owned-in-library") {
-                    LibraryView.showOwned(store)
+                    LibraryView.showOwned(ctx, store)
                     show("games")
                 }
                 SmallTextButton(stringResource(R.string.stores_refresh)) { StoresState.open(ctx, store, force = true) }
@@ -965,6 +964,39 @@ private fun ProfileStrip(store: Store, owned: Int, loaded: Boolean, s: FrontEndS
             }
         }
         if (store == Store.EPIC) EpicLauncherRow(s, a)
+        if (store == Store.BATTLENET) BattleNetLauncherRow(s, a)
+    }
+}
+
+@Composable
+private fun BattleNetLauncherRow(s: FrontEndState, a: FrontEndActions) {
+    val ctx = LocalContext.current
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    val title = stringResource(R.string.bnet_name)
+    Box(Modifier.fillMaxWidth().height(1.dp).background(pal.line))
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth().testTag("stores-battlenet-launcher")) {
+        val icon by androidx.compose.runtime.produceState<java.io.File?>(null, s.battleNetInstalled) {
+            value = if (!s.battleNetInstalled) null
+            else kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.droiddeck.launcher.runtime.BattleNet.icon(ctx) }
+        }
+        if (icon != null) AsyncImage(model = icon, contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.size(36.dp).clip(RoundedCornerShape(8.dp)))
+        Text(title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        Actions {
+            SecondaryButton(stringResource(R.string.bnet_open), enabled = !s.busy, compact = true) { a.onBattleNet() }
+            val entry = remember(s.battleNetInstalled) { com.droiddeck.launcher.runtime.BattleNet.launcherEntry(s.battleNetInstalled) }
+            val scope = entry?.let { com.droiddeck.launcher.session.NoSteamLaunch.scope(it) }
+            if (entry != null && scope != null) {
+                val host = rememberMenuHost()
+                val settings = rememberGameSettings(scope)
+                Box {
+                    SecondaryButton(stringResource(R.string.game_settings_card), compact = true) {
+                        host.open = if (host.open == GAME_SETTINGS_MENU) null else GAME_SETTINGS_MENU
+                    }
+                    GameSettingsMenus(host, entry, settings)
+                }
+            }
+        }
     }
 }
 
@@ -1033,31 +1065,66 @@ internal fun ModeHeader(
     var searching by remember { mutableStateOf(query.isNotEmpty()) }
     var focusOnOpen by remember { mutableStateOf(false) }
     val open by animateFloatAsState(if (searching) 1f else 0f, Motion.sp(0.75f, 420f), label = "searchOpen")
-    Column(Modifier.fillMaxWidth()) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp).padding(vertical = 4.dp)) {
-            if (lead != null) lead()
-            else Text(
-                title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, maxLines = 1,
-                modifier = Modifier.padding(start = 4.dp, end = 4.dp),
-            )
-            BoxWithConstraints(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
-                if (searching || open > 0.01f) {
-                    val w = androidx.compose.ui.unit.lerp(44.dp, maxWidth.coerceAtMost(520.dp), open)
-                    Box(Modifier.width(w).graphicsLayer { alpha = (open * 1.6f).coerceAtMost(1f) }) {
-                        AdbTextField(
-                            value = query, onValueChange = onQuery, label = "", keyboardType = KeyboardType.Text, imeAction = ImeAction.Search,
-                            placeholder = placeholder, compact = true, focusOnShow = focusOnOpen,
-                            clearFocus = clearSearchFocus,
-                            onFocusChange = { focused -> if (!focused && query.isEmpty()) { searching = false; focusOnOpen = false } },
-                        )
-                    }
-                } else SearchIcon(stringResource(R.string.stores_search_open)) { searching = true; focusOnOpen = true }
+    val close = {
+        searching = false
+        focusOnOpen = false
+        if (query.isNotEmpty()) onQuery("")
+    }
+    BackHandler(enabled = searching && !clearSearchFocus) { close() }
+    val heading: @Composable () -> Unit = {
+        if (lead != null) lead()
+        else Text(
+            title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, maxLines = 1,
+            modifier = Modifier.padding(start = 4.dp, end = 4.dp),
+        )
+    }
+    val searchField: @Composable (Modifier) -> Unit = { modifier ->
+        BoxWithConstraints(modifier, contentAlignment = Alignment.CenterStart) {
+            val closable = maxWidth >= 80.dp
+            val w = androidx.compose.ui.unit.lerp(44.dp, (maxWidth - if (closable) 36.dp else 0.dp).coerceIn(44.dp, 520.dp), open)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                Box(Modifier.width(w).graphicsLayer { alpha = (open * 1.6f).coerceAtMost(1f) }) {
+                    AdbTextField(
+                        value = query, onValueChange = onQuery, label = "", keyboardType = KeyboardType.Text, imeAction = ImeAction.Search,
+                        placeholder = placeholder, compact = true, focusOnShow = focusOnOpen,
+                        clearFocus = clearSearchFocus || !searching,
+                        onFocusChange = { focused -> if (!focused && query.isEmpty()) { searching = false; focusOnOpen = false } },
+                    )
+                }
+                if (searching && closable) SmallIconButton(Icons.Filled.Close, stringResource(R.string.common_close), tint = colors.onSurfaceVariant, onClick = close)
             }
-            trailing()
         }
-        Box(Modifier.fillMaxWidth().height(1.dp).background(pal.line))
+    }
+    val searchButton: @Composable () -> Unit = {
+        SearchIcon(stringResource(R.string.stores_search_open)) { searching = true; focusOnOpen = true }
+    }
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val stacked = maxWidth < NarrowPaneWidth
+        Column(Modifier.fillMaxWidth()) {
+            if (stacked) {
+                Box(Modifier.padding(vertical = 4.dp)) { heading() }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).heightIn(min = 52.dp).padding(vertical = 4.dp),
+                ) {
+                    searchButton()
+                    trailing()
+                }
+                if (searching || open > 0.01f) searchField(Modifier.fillMaxWidth().padding(bottom = 6.dp))
+            } else Row(
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp).padding(vertical = 4.dp),
+            ) {
+                heading()
+                if (searching || open > 0.01f) searchField(Modifier.weight(1f))
+                else Box(Modifier.weight(1f)) { searchButton() }
+                trailing()
+            }
+            Box(Modifier.fillMaxWidth().height(1.dp).background(pal.line))
+        }
     }
 }
+
 
 internal fun storePalette(base: Palette, store: Store?): Palette {
     val (accent, deep) = when (store) {
@@ -1066,6 +1133,7 @@ internal fun storePalette(base: Palette, store: Store?): Palette {
         Store.AMAZON -> Color(0xFFFF9900) to Color(0xFFE07800)
         Store.XBOX -> Color(0xFF70C850) to Color(0xFF107C10)
         Store.ITCH -> Color(0xFFFF5C5C) to Color(0xFFD93B3B)
+        Store.BATTLENET -> Color(0xFF148EFF) to Color(0xFF0B6BD3)
         null -> return base
     }
     val on = if (accent.luminance() > 0.18f) Color(0xFF0B0B0D) else Color.White
@@ -1271,7 +1339,8 @@ internal fun CardFace(
                 Spacer(Modifier.matchParentSize().background(Color.Black.copy(alpha = if (blurs) 0.35f else 0.7f)))
                 AsyncImage(model = art, contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.matchParentSize().padding(bottom = CardStrip))
             } else if (art != null) AsyncImage(
-                model = art, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize(),
+                model = art, contentDescription = null, contentScale = if (capsule) ContentScale.Fit else ContentScale.Crop,
+                modifier = Modifier.matchParentSize().padding(bottom = if (capsule) CardStrip else 0.dp),
                 onSuccess = { r ->
                     val drawn = r.result.drawable
                     if (capsule && drawn.intrinsicWidth > 0 && drawn.intrinsicHeight > 0) landscape = drawn.intrinsicWidth > drawn.intrinsicHeight * 0.95f
@@ -1354,7 +1423,11 @@ internal fun downloadLabel(d: com.droiddeck.launcher.stores.download.DownloadEnt
 
 @Composable
 internal fun activeStageLabel(d: com.droiddeck.launcher.stores.download.DownloadEntry): String = when (d.stage) {
-    DownloadStage.MANIFEST -> if (d.stageItemsTotal > 0) stringResource(R.string.stores_stage_checking) else stringResource(R.string.stores_stage_manifest)
+    DownloadStage.MANIFEST -> when {
+        d.store == Store.BATTLENET && d.detail.isNotBlank() -> d.detail
+        d.stageItemsTotal > 0 -> stringResource(R.string.stores_stage_checking)
+        else -> stringResource(R.string.stores_stage_manifest)
+    }
     DownloadStage.DOWNLOAD -> stringResource(R.string.stores_stage_downloading)
     DownloadStage.VERIFY -> stringResource(R.string.stores_stage_verifying)
     DownloadStage.INSTALL -> stringResource(R.string.stores_stage_installing)

@@ -13,6 +13,16 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28], manifest = Config.NONE)
 class SessionScalingPrefsTest {
+    @Test fun legacyAutomaticResolutionsRemainRotatablePresets() {
+        val context = RuntimeEnvironment.getApplication()
+        val prefs = context.getSharedPreferences("session", Context.MODE_PRIVATE)
+        prefs.edit().putString("shape", SessionPrefs.SHAPE_AUTO).putInt("resolutionCap.steam", 900).commit()
+        assertEquals("900p", SessionPrefs.resolutionChoice(context, "steam", 1920 to 1080))
+        val desktop = SessionPrefs.resolutionChoice(context, "lxqt", 1920 to 1080)
+        assertEquals("720p", desktop)
+        assertEquals(720 to 1280, SessionDisplay.resolveChoice(1920 to 1080, desktop, portrait = true))
+    }
+
     @Before fun clearSettings() {
         RuntimeEnvironment.getApplication().getSharedPreferences("session", Context.MODE_PRIVATE).edit().clear().commit()
     }

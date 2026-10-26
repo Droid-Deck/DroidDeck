@@ -98,6 +98,33 @@ class SessionSecondScreenTest {
         }
     }
 
+    @Test
+    @Config(sdk = [34], shadows = [PadBridgeRoutingTest.RegisteredKeyEvent::class])
+    fun drawerShortcutsConsumeRepeatsAndReleasesAfterClosing() {
+        val device = InputDeviceBuilder.newBuilder().setId(43).setName("Drawer shortcut test pad")
+            .setDescriptor("drawer-shortcut-pad").setExternal(true).setSources(InputDevice.SOURCE_GAMEPAD).build()
+        shadowOf(context.getSystemService(InputManager::class.java)).addInputDevice(device)
+        SessionState.mode = SessionService.MODE_STEAM
+        val activity = Robolectric.buildActivity(SessionActivity::class.java).get()
+        val open: MutableState<Boolean> = ReflectionHelpers.getField(activity, "drawerOpen\$delegate")
+        val controller: MutableState<Boolean> = ReflectionHelpers.getField(activity, "drawerControllerActive\$delegate")
+        controller.value = true
+        for (button in listOf(KeyEvent.KEYCODE_BUTTON_SELECT, KeyEvent.KEYCODE_BUTTON_START)) {
+            fun event(action: Int, repeat: Int = 0) = KeyEvent(0L, 0L, action, button, repeat, 0,
+                device.id, 0, 0, InputDevice.SOURCE_GAMEPAD)
+            open.value = true
+            assertTrue(activity.dispatchKeyEvent(event(KeyEvent.ACTION_DOWN)))
+            assertEquals(false, open.value)
+            open.value = true
+            assertTrue(activity.dispatchKeyEvent(event(KeyEvent.ACTION_DOWN, 1)))
+            assertEquals(true, open.value)
+            open.value = false
+            assertTrue(activity.dispatchKeyEvent(event(KeyEvent.ACTION_UP)))
+            val held: Set<Pair<Int, Int>> = ReflectionHelpers.getField(activity, "drawerShortcutKeysDown")
+            assertTrue(held.isEmpty())
+        }
+    }
+
     @Test fun sessionMicrophoneCanBeTurnedOff() {
         val changes = mutableListOf<Boolean>()
         compose.setContent {

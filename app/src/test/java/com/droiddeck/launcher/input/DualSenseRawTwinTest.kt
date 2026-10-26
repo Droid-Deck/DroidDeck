@@ -11,9 +11,22 @@ class DualSenseRawTwinTest {
     private val dualSense = 0x0CE6
     private val edge = 0x0DF2
 
-    @Test fun theOnlyConnectedDualSenseIsTheRawPadsTwin() {
-        assertEquals(7, DualSenseManager.pickRawTwin(listOf(RawTwinCandidate(7, sony, dualSense)), null))
+    @Test fun theOnlyConnectedUsbDualSenseIsTheClaimedPadsTwin() {
         assertEquals(7, DualSenseManager.pickRawTwin(listOf(RawTwinCandidate(7, sony, dualSense)), sony to dualSense))
+    }
+
+    @Test fun tcpOrUnclaimedRawInputNeverSuppressesAnAndroidPad() {
+        assertEquals(-1, DualSenseManager.pickRawTwin(listOf(RawTwinCandidate(7, sony, dualSense)), null))
+    }
+
+    @Test fun aBluetoothPadIsNeverPickedAsTheUsbPadsTwin() {
+        val btOnly = listOf(RawTwinCandidate(9, sony, dualSense, bluetooth = true))
+        assertEquals(-1, DualSenseManager.pickRawTwin(btOnly, sony to dualSense))
+        val usbAndBt = listOf(
+            RawTwinCandidate(7, sony, dualSense, bluetooth = false),
+            RawTwinCandidate(9, sony, dualSense, bluetooth = true),
+        )
+        assertEquals(7, DualSenseManager.pickRawTwin(usbAndBt, sony to dualSense))
     }
 
     @Test fun aSecondPadIsNeverSuppressedWhenTheTwinIsAmbiguous() {

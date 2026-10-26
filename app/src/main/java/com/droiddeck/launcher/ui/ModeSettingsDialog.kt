@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.ui
 
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.foundation.clickable
@@ -7,7 +8,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
-import androidx.compose.material3.AlertDialog
+import com.droiddeck.launcher.ui.GlideAlertDialog as AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.LinearProgressIndicator
@@ -59,7 +60,7 @@ class ModeSettings(
     val hdr: Boolean,
     val hdrReason: String?,
     val gpuDrivers: String? = null,
-    val fpsLimit: Int = 0,
+    val performanceMode: Boolean = false,
     val upscaler: Int = 0,
     val upscaleSharpness: Int = 75,
     val touchMode: String,
@@ -115,7 +116,7 @@ class ModeSettingsActions(
     val onResolution: (String) -> Unit,
     val onHdr: (Boolean) -> Unit,
     val onGpuDrivers: () -> Unit = {},
-    val onFpsLimit: (Int) -> Unit = {},
+    val onPerformanceMode: (Boolean) -> Unit = {},
     val onUpscaler: (Int) -> Unit = {},
     val onUpscaleSharpness: (Int) -> Unit = {},
     val onTouch: (String) -> Unit,
@@ -209,9 +210,16 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
     val host = rememberMenuHost()
     var explainWifiDiscovery by remember { mutableStateOf(false) }
     if (tab == SheetTab.DISPLAY) {
-        val displaySize = com.droiddeck.launcher.session.SessionDisplay.resolveChoice(s.panelSize, s.resolution)
+        val context = LocalContext.current
+        val portraitWindow = SessionPrefs.portrait(context)
+        val longSide = maxOf(s.panelSize.first, s.panelSize.second)
+        val shortSide = minOf(s.panelSize.first, s.panelSize.second)
+        val controlsBelow = SessionPrefs.controlsBelowWanted(context, s.mode,
+            if (portraitWindow) shortSide else longSide, if (portraitWindow) longSide else shortSide)
+        val portrait = portraitWindow && !controlsBelow
+        val displaySize = com.droiddeck.launcher.session.SessionDisplay.resolveChoice(s.panelSize, s.resolution, portrait)
         SettingsGroup(stringResource(R.string.display_session)) {
-            ResolutionRow(host, s.resolution, s.panelSize, a.onResolution)
+            ResolutionRow(host, s.resolution, s.panelSize, a.onResolution, portrait = portrait)
             s.picturePosition?.let { position ->
                 ChoiceRow(host, "picture-position", stringResource(R.string.display_picture_position), null,
                     listOf("top" to stringResource(R.string.display_position_top),
@@ -221,7 +229,8 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
             }
             if (s.stretch16x9 != null && (com.droiddeck.launcher.session.SessionDisplay.canStretch16x9(s.panelSize) ||
                     com.droiddeck.launcher.session.SessionDisplay.canStretch16x9(displaySize))) {
-                val canStretch = com.droiddeck.launcher.session.SessionDisplay.canStretch16x9(displaySize)
+                val canStretch = s.resolution != com.droiddeck.launcher.session.SessionDisplay.FOLLOW_SCREEN &&
+                    com.droiddeck.launcher.session.SessionDisplay.canStretch16x9(displaySize)
                 ChoiceRow(host, "game-fit", stringResource(R.string.display_game_fit),
                     stringResource(if (canStretch) R.string.display_game_fit_hint else R.string.display_game_fit_unavailable),
                     listOf(false to stringResource(R.string.display_preserve), true to stringResource(R.string.display_stretch)),
@@ -240,8 +249,8 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
             )
         }
         SettingsGroup(stringResource(R.string.display_frame_rate)) {
-            ChoiceRow(host, "fps", stringResource(R.string.mode_fps), stringResource(R.string.common_applies_next_session),
-                SessionPrefs.fpsLimitChoices(LocalContext.current), s.fpsLimit, note = stringResource(R.string.mode_fps_note), onPick = a.onFpsLimit)
+            ToggleRow(host, "performance", stringResource(R.string.mode_performance), stringResource(R.string.mode_performance_hint),
+                s.performanceMode, onChange = a.onPerformanceMode)
         }
         SettingsGroup(stringResource(R.string.mode_hdr)) {
             ToggleRow(
@@ -525,12 +534,12 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
         title = { Text(stringResource(R.string.mode_wifi_explain_title)) },
         text = { Text(stringResource(R.string.mode_wifi_explain_text)) },
         confirmButton = {
-            TextButton(onClick = { explainWifiDiscovery = false; a.onWifiDiscovery(true) }) {
+            TextButton(onClick = { explainWifiDiscovery = false; a.onWifiDiscovery(true) }, modifier = Modifier.focusGlide(CircleShape)) {
                 Text(stringResource(if (s.wifiDiscoveryBlocked) R.string.mode_wifi_open_settings else R.string.mode_wifi_continue))
             }
         },
         dismissButton = {
-            TextButton(onClick = { explainWifiDiscovery = false }) { Text(stringResource(R.string.common_cancel)) }
+            TextButton(onClick = { explainWifiDiscovery = false }, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.common_cancel)) }
         },
     )
 }
@@ -577,14 +586,14 @@ internal fun DeckyZipWarningDialog(onConfirm: () -> Unit, onCancel: () -> Unit) 
         title = { Text(stringResource(R.string.decky_zip_warning_title)) },
         text = { Text(stringResource(R.string.decky_zip_warning_text)) },
         confirmButton = {
-            androidx.compose.material3.TextButton(onClick = onConfirm, enabled = left == 0) {
+            androidx.compose.material3.TextButton(onClick = onConfirm, enabled = left == 0, modifier = Modifier.focusGlide(CircleShape)) {
                 Text(
                     if (left > 0) androidx.compose.ui.res.pluralStringResource(R.plurals.decky_zip_warning_wait, left, left)
                     else stringResource(R.string.decky_zip_warning_continue),
                 )
             }
         },
-        dismissButton = { androidx.compose.material3.TextButton(onClick = onCancel) { Text(stringResource(R.string.common_cancel)) } },
+        dismissButton = { androidx.compose.material3.TextButton(onClick = onCancel, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.common_cancel)) } },
     )
 }
 
@@ -619,7 +628,7 @@ private fun DeckyUninstall(enabled: Boolean, onUninstall: () -> Unit) {
 @Composable
 internal fun SgdbKeyDialog(hasKey: Boolean, onSave: (String) -> Unit, onDismiss: () -> Unit) {
     var key by remember { mutableStateOf("") }
-    androidx.compose.material3.AlertDialog(
+    com.droiddeck.launcher.ui.GlideAlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.mode_sgdb_key)) },
         text = {
@@ -627,14 +636,14 @@ internal fun SgdbKeyDialog(hasKey: Boolean, onSave: (String) -> Unit, onDismiss:
                 key, { v -> key = v.trim() }, label = { Text(stringResource(R.string.mode_sgdb_key)) },
                 singleLine = true, visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
                 keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Password),
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().focusGlide(),
             )
         },
-        confirmButton = { androidx.compose.material3.TextButton(onClick = { onSave(key) }, enabled = key.isNotEmpty()) { Text(stringResource(R.string.common_ok)) } },
+        confirmButton = { androidx.compose.material3.TextButton(onClick = { onSave(key) }, enabled = key.isNotEmpty(), modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.common_ok)) } },
         dismissButton = {
             androidx.compose.foundation.layout.Row {
-                if (hasKey) androidx.compose.material3.TextButton(onClick = { onSave("") }) { Text(stringResource(R.string.common_delete)) }
-                androidx.compose.material3.TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
+                if (hasKey) androidx.compose.material3.TextButton(onClick = { onSave("") }, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.common_delete)) }
+                androidx.compose.material3.TextButton(onClick = onDismiss, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.common_cancel)) }
             }
         },
     )
@@ -646,7 +655,7 @@ internal fun CustomResolutionDialog(initial: Pair<Int, Int>?, onSave: (Pair<Int,
     var w by remember { mutableStateOf(initial?.first?.toString() ?: "") }
     var h by remember { mutableStateOf(initial?.second?.toString() ?: "") }
     val parsed = SessionPrefs.parseResolution("${w}x$h")
-    androidx.compose.material3.AlertDialog(
+    com.droiddeck.launcher.ui.GlideAlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.mode_custom_res_title)) },
         text = {
@@ -662,12 +671,12 @@ internal fun CustomResolutionDialog(initial: Pair<Int, Int>?, onSave: (Pair<Int,
                     val numbers = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number)
                     androidx.compose.material3.OutlinedTextField(
                         w, { v -> w = v.filter(Char::isDigit).take(4) }, label = { Text(stringResource(R.string.mode_width)) },
-                        singleLine = true, keyboardOptions = numbers, modifier = Modifier.weight(1f),
+                        singleLine = true, keyboardOptions = numbers, modifier = Modifier.weight(1f).focusGlide(),
                     )
                     Text("×", fontSize = 18.sp, modifier = Modifier.padding(horizontal = 10.dp))
                     androidx.compose.material3.OutlinedTextField(
                         h, { v -> h = v.filter(Char::isDigit).take(4) }, label = { Text(stringResource(R.string.mode_height)) },
-                        singleLine = true, keyboardOptions = numbers, modifier = Modifier.weight(1f),
+                        singleLine = true, keyboardOptions = numbers, modifier = Modifier.weight(1f).focusGlide(),
                     )
                 }
                 androidx.compose.foundation.layout.FlowRow(
@@ -678,6 +687,7 @@ internal fun CustomResolutionDialog(initial: Pair<Int, Int>?, onSave: (Pair<Int,
                         androidx.compose.material3.AssistChip(
                             onClick = { w = pw.toString(); h = ph.toString() },
                             label = { Text("$pw×$ph · $tag", fontSize = 12.sp) },
+                            modifier = Modifier.focusGlide(),
                         )
                     }
                 }
@@ -687,7 +697,7 @@ internal fun CustomResolutionDialog(initial: Pair<Int, Int>?, onSave: (Pair<Int,
                 )
             }
         },
-        confirmButton = { androidx.compose.material3.TextButton(enabled = parsed != null, onClick = { parsed?.let(onSave) }) { Text(stringResource(R.string.common_use)) } },
-        dismissButton = { androidx.compose.material3.TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } },
+        confirmButton = { androidx.compose.material3.TextButton(enabled = parsed != null, onClick = { parsed?.let(onSave) }, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.common_use)) } },
+        dismissButton = { androidx.compose.material3.TextButton(onClick = onDismiss, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.common_cancel)) } },
     )
 }

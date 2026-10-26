@@ -1,9 +1,11 @@
 package com.droiddeck.launcher.glasses
 
+import android.content.Context
 import android.hardware.display.DisplayManager
 import android.view.Display
 import androidx.compose.runtime.MutableState
 import com.droiddeck.launcher.SessionActivity
+import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.SessionState
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -36,10 +38,14 @@ class GlassesMirrorPacingTest {
         val panel = Shadow.extract<ModeDisplay>(activity.display)
         panel.supported = arrayOf(mode(1, 60f), mode(2, 90f), mode(3, 120f))
         panel.current = panel.supported.last()
-        SessionState.fpsLimit = 0
+        SessionState.performanceMode = false
+        activity.getSharedPreferences("session", Context.MODE_PRIVATE).edit().clear().commit()
     }
 
-    @After fun cleanup() { SessionState.fpsLimit = 0 }
+    @After fun cleanup() {
+        SessionState.performanceMode = false
+        activity.getSharedPreferences("session", Context.MODE_PRIVATE).edit().clear().commit()
+    }
 
     @Test fun connectingChangingRateAndDisconnectingUpdatePhonePacingWithoutSavingPreferences() {
         apply(connected, settings)
@@ -48,18 +54,25 @@ class GlassesMirrorPacingTest {
         expect(2, 90f, 90)
         apply(GlassesState(), settings)
         expect(3, 120f, 0)
-        assertEquals(0, SessionState.fpsLimit)
     }
 
-    @Test fun lowerSavedLimitSurvivesMirroringAndStalePhoneRefreshReports() {
-        SessionState.fpsLimit = 30
+    @Test fun retiredSavedLimitsDoNotCapThePhoneOrMirroredOutput() {
+        activity.getSharedPreferences("session", Context.MODE_PRIVATE).edit()
+            .putInt("fpsLimit.steam", 30).putInt("fpsLimit.desktop", 40).commit()
         apply(connected, settings)
-        expect(1, 60f, 30)
+        expect(1, 60f, 60)
         apply(connected.copy(hz = 120f), settings)
-        expect(1, 60f, 30)
+        expect(1, 60f, 60)
         apply(GlassesState(), settings)
-        expect(3, 120f, 30)
-        assertEquals(30, SessionState.fpsLimit)
+        expect(3, 120f, 0)
+    }
+
+    @Test fun performanceModeResumesUnpacedOutputAfterMirrorDisconnects() {
+        SessionState.performanceMode = true
+        apply(connected, settings)
+        expect(1, 60f, 60)
+        apply(GlassesState(), settings)
+        expect(3, 120f, SessionPrefs.FPS_UNPACED)
     }
 
     @Test fun pacingFollowsThePanelWhenTheSystemKeepsALowerRateThanRequested() {

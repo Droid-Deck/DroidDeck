@@ -18,7 +18,6 @@ import com.droiddeck.launcher.wayland.WaylandCompositor
 import java.io.File
 import java.util.Locale
 import java.util.concurrent.atomic.AtomicInteger
-import java.util.concurrent.atomic.AtomicLong
 
 class PerfHud(context: Context) {
     var text by mutableStateOf("")
@@ -32,9 +31,9 @@ class PerfHud(context: Context) {
     private var lastFps = 0f
     private var running = false
     private val handler = Handler(Looper.getMainLooper())
-    private val intervals = FloatArray(GRAPH)
-    private val graphWrite = AtomicInteger()
-    private val lastFrameNs = AtomicLong()
+    private val samples = FloatArray(GRAPH)
+    private var graphBase = 0L
+    private var graphSeen = 0L
 
     @Volatile private var showFps = true
     @Volatile private var showBattery = true
@@ -59,14 +58,6 @@ class PerfHud(context: Context) {
         }
         override fun onGameFrame() {
             frames.incrementAndGet()
-            if (!showGraph) return
-            val now = System.nanoTime()
-            val previous = lastFrameNs.getAndSet(now)
-            if (previous == 0L) return
-            val ms = ((now - previous) / 1_000_000f).coerceIn(0f, 50f)
-            val slot = graphWrite.get()
-            intervals[slot and (GRAPH - 1)] = ms
-            graphWrite.compareAndSet(slot, slot + 1)
         }
     }
 
@@ -100,9 +91,9 @@ class PerfHud(context: Context) {
         if (!enabled || !anyPart || running) return
         running = true
         lastTick = SystemClock.elapsedRealtime()
-        lastFrameNs.set(0L)
         frames.set(0)
-        graphWrite.set(0)
+        graphBase = shownTotal()
+        graphSeen = graphBase
         WaylandCompositor.setGameListener(listener)
         handler.postDelayed(tick, TICK_MS)
     }
@@ -135,23 +126,19 @@ class PerfHud(context: Context) {
         return sticky.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, 0)
     }
 
+    private fun shownTotal(): Long = try { WaylandCompositor.nativeHudFrameTimes(samples) } catch (t: Throwable) { 0L }
+
     private fun clearGraph() {
-        lastFrameNs.set(0L)
-        graphWrite.set(0)
+        graphBase = shownTotal()
+        graphSeen = graphBase
         if (graph.isNotEmpty()) graph = FloatArray(0)
     }
 
     private fun publishGraph() {
-        val count = graphWrite.get()
-        val shown = minOf(count, GRAPH)
-        if (shown < 2) {
-            graph = FloatArray(0)
-            return
-        }
-        val out = FloatArray(shown)
-        val start = count - shown
-        for (i in 0 until shown) out[i] = intervals[(start + i) and (GRAPH - 1)]
-        graph = out
+        val total = shownTotal()
+        if (total == graphSeen && graph.isNotEmpty()) return
+        graphSeen = total
+        graph = recent(samples, total, graphBase)
     }
 
     private fun line(base: Float): String {
@@ -176,6 +163,14 @@ class PerfHud(context: Context) {
     companion object {
         private const val TICK_MS = 1_000L
         private const val GRAPH = 128
+        internal const val GRAPH_MAX_MS = 50f
+
+        internal fun recent(samples: FloatArray, total: Long, base: Long): FloatArray {
+            val filled = minOf(total, samples.size.toLong()).toInt()
+            val shown = minOf(filled.toLong(), (total - base).coerceAtLeast(0L)).toInt()
+            if (shown < 2) return FloatArray(0)
+            return FloatArray(shown) { samples[filled - shown + it].coerceIn(0f, GRAPH_MAX_MS) }
+        }
 
         internal fun batteryCelsius(deci: Int): String? =
             if (deci <= 0) null else String.format(Locale.US, "%.1f°C", deci / 10f)

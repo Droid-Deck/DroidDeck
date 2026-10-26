@@ -35,7 +35,7 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.FilterAlt
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Sort
@@ -86,6 +86,7 @@ import com.droiddeck.launcher.stores.CatalogItem
 import com.droiddeck.launcher.stores.Store
 import com.droiddeck.launcher.stores.StoreSizes
 import com.droiddeck.launcher.stores.StoresState
+import com.droiddeck.launcher.stores.arrangeStoreTabs
 import com.droiddeck.launcher.stores.download.DownloadEntry
 import com.droiddeck.launcher.stores.formatBytes
 import com.droiddeck.launcher.stores.retainOrder
@@ -108,12 +109,16 @@ internal fun libraryEntries(
 ): List<LibraryEntry> {
     val claimed = HashSet<String>()
     val out = ArrayList<LibraryEntry>()
-    for (g in games) {
+    for (g in games.sortedBy { it.library == Library.XBOX_CLOUD }) {
         if (g.library == Library.EPIC_LAUNCHER) continue
         val storeKey = g.storeId?.let { "${g.source}:$it" }
         val item = storeKey?.let { k -> Store.byId(g.source)?.let { st -> owned[st]?.firstOrNull { it.key == k } } }
-        if (storeKey != null) claimed += storeKey
-        out += LibraryEntry(GameRef.key(g), g.source, g.name, g, item, installed = true)
+        if (storeKey != null) {
+            if (g.library == Library.XBOX_CLOUD && storeKey in claimed) continue
+            claimed.add(storeKey)
+        }
+        out += LibraryEntry(GameRef.key(g), g.source, g.name, g, item,
+            installed = g.library != Library.XBOX_CLOUD || storeKey in installedStore)
     }
     for (store in Store.entries) for (item in owned[store].orEmpty()) {
         if (!claimed.add(item.key)) continue
@@ -125,15 +130,21 @@ internal fun libraryEntries(
 internal fun installedFirst(entries: List<LibraryEntry>): List<LibraryEntry> = entries.partition { it.installed }.let { (on, off) -> on + off }
 
 internal const val LIBRARY_ALL = "all"
-internal val LIBRARY_SOURCES = listOf(Library.SOURCE_STEAM) + Store.entries.map { it.id } + Library.ADDED
+internal fun librarySources(entries: List<LibraryEntry>, order: List<String>): List<String> =
+    (listOf(Library.SOURCE_STEAM) + arrangeStoreTabs(order, emptySet()).map { it.store.id } + Library.ADDED)
+        .filter { source -> entries.any { it.source == source } }
 
 /** Survives leaving the page, so Stores can open the Library on one store's owned games. */
 internal object LibraryView {
     var source by mutableStateOf(LIBRARY_ALL)
     var query by mutableStateOf("")
     var focusFirst = false
+    var ownedRequest by mutableIntStateOf(0)
+        private set
 
-    fun showOwned(store: Store) {
+    fun showOwned(context: android.content.Context, store: Store) {
+        SessionPrefs.setLibraryShowUninstalled(context, true)
+        ownedRequest++
         source = store.id
         query = ""
         focusFirst = true
@@ -157,13 +168,20 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
     val cloudRows = rememberXboxCloudRows(s)
     val all = remember(s.steamGames, cloudRows, owned, installedStore) { libraryEntries(s.steamGames + cloudRows, owned, installedStore) }
     LaunchedEffect(Unit) { XboxLibraryFilter.load(ctx) }
-    val sources = LIBRARY_SOURCES.filter { src -> all.any { it.source == src } }
+    var showUninstalled by remember(LibraryView.ownedRequest) { mutableStateOf(SessionPrefs.libraryShowUninstalled(ctx)) }
+    val setShowUninstalled = { show: Boolean ->
+        showUninstalled = show
+        SessionPrefs.setLibraryShowUninstalled(ctx, show)
+    }
+    val sources = librarySources(all, SessionPrefs.storesTabOrder(ctx))
     val source = LibraryView.source.takeIf { it == LIBRARY_ALL || it in sources } ?: LIBRARY_ALL
     val q = LibraryView.query.trim().lowercase()
     val xboxFilter = if (source == Store.XBOX.id) XboxLibraryFilter.current else XboxLibraryFilter.ALL
-    val candidates = all.filter {
+    val matching = all.filter {
         (source == LIBRARY_ALL || it.source == source) && (q.isEmpty() || it.title.lowercase().contains(q)) && keepsXbox(xboxFilter, it)
     }
+    val candidates = if (showUninstalled) matching else matching.filter { it.installed }
+    val hiddenUninstalled = if (showUninstalled) 0 else matching.count { !it.installed }
     val sort = s.storesSort
     val sizeSort = sort == "sizeAsc" || sort == "sizeDesc"
     val installedAt = StoresState.installed.associate { it.key to it.sidecar.installedAt }
@@ -206,6 +224,7 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
 
     val open = selected.takeIf { it.startsWith("app:") }
     val back = { onSelect("games") }
+    BackHandler(enabled = open == null && LibraryView.query.isNotEmpty()) { LibraryView.query = "" }
     BackHandler(enabled = open != null) { back() }
     val lead = remember { FocusRequester() }
     var detailFocused by remember { mutableStateOf(false) }
@@ -253,7 +272,7 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
     val detailScroll = rememberScrollState()
     var cycled by remember { mutableIntStateOf(0) }
     var gridFocused by remember { mutableStateOf(false) }
-    LaunchedEffect(source, sort) { grid.scrollToItem(0) }
+    LaunchedEffect(source, sort, showUninstalled) { grid.scrollToItem(0) }
     LaunchedEffect(cycled) {
         if (cycled == 0 || ff == null || inputMode.inputMode != androidx.compose.ui.input.InputMode.Keyboard) return@LaunchedEffect
         focusWithinFrames({ gridFocused }) {
@@ -268,7 +287,9 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
         wrap = { key, content -> StoreTheme(GameRef.parse(key).let { r -> r.store ?: r.game(s.steamGames)?.source?.let { Store.byId(it) } }) { content() } },
         grid = {
             LibraryGrid(
-                s, a, grid, visible, split, all.size, sources, source, sizesPending, syncing,
+                s, a, grid, visible, split, visible.size, sources, source, sizesPending, syncing,
+                showUninstalled = showUninstalled.takeIf { stores }, onShowUninstalled = setShowUninstalled,
+                hiddenUninstalled = hiddenUninstalled,
                 onSource = { LibraryView.source = it },
                 onCycle = { step ->
                     val ids = listOf(LIBRARY_ALL) + sources
@@ -307,6 +328,7 @@ private fun LibraryEmpty(s: FrontEndState, a: FrontEndActions, modifier: Modifie
 private fun LibraryGrid(
     s: FrontEndState, a: FrontEndActions, grid: LazyGridState, visible: List<LibraryEntry>, split: Int, total: Int,
     sources: List<String>, source: String, sizesPending: Boolean, syncing: List<Pair<Store, String>>,
+    showUninstalled: Boolean?, onShowUninstalled: (Boolean) -> Unit, hiddenUninstalled: Int,
     onSource: (String) -> Unit, onCycle: (Int) -> Unit, onOpen: (String) -> Unit, onFocus: (Boolean) -> Unit, searchCleared: Boolean,
 ) {
     val listMode = s.storesView == "list"
@@ -360,7 +382,9 @@ private fun LibraryGrid(
         horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp),
         contentPadding = PaddingValues(top = 4.dp, bottom = 16.dp),
     ) {
-        item(key = "header", span = { GridItemSpan(maxLineSpan) }) { Rise(0) { LibraryHeader(s, a, total, searchCleared, xbox = source == Store.XBOX.id) } }
+        item(key = "header", span = { GridItemSpan(maxLineSpan) }) {
+            Rise(0) { LibraryHeader(s, a, total, searchCleared, source == Store.XBOX.id, showUninstalled, onShowUninstalled) }
+        }
         item(key = "filters", span = { GridItemSpan(maxLineSpan) }) {
             Rise(1) { LibraryFilters(sources, source, onSource) }
         }
@@ -378,7 +402,13 @@ private fun LibraryGrid(
             }
         }
         val empty = R.string.stores_nothing_matches
-        if (split == 0) libraryGrid(visible, empty, tile)
+        if (visible.isEmpty() && hiddenUninstalled > 0) item(key = "browse-owned", span = { GridItemSpan(maxLineSpan) }) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp)) {
+                Text(stringResource(R.string.library_no_installed_matches), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                SecondaryButton(stringResource(R.string.library_browse_owned), modifier = Modifier.testTag("library-browse-owned")) { onShowUninstalled(true) }
+            }
+        }
+        else if (split == 0) libraryGrid(visible, empty, tile)
         else {
             item(key = "installed-label", span = { GridItemSpan(maxLineSpan) }) { SectionLabel(stringResource(R.string.stores_section_installed)) }
             libraryGrid(visible.take(split), empty, tile)
@@ -398,7 +428,10 @@ private fun LazyGridScope.libraryGrid(entries: List<LibraryEntry>, empty: Int, t
 }
 
 @Composable
-private fun LibraryHeader(s: FrontEndState, a: FrontEndActions, total: Int, searchCleared: Boolean, xbox: Boolean) {
+private fun LibraryHeader(
+    s: FrontEndState, a: FrontEndActions, total: Int, searchCleared: Boolean, xbox: Boolean,
+    showUninstalled: Boolean?, onShowUninstalled: (Boolean) -> Unit,
+) {
     val colors = MaterialTheme.colorScheme
     val narrow = LocalNarrowPane.current
     ModeHeader(
@@ -413,7 +446,7 @@ private fun LibraryHeader(s: FrontEndState, a: FrontEndActions, total: Int, sear
             }
         },
     ) {
-        if (xbox) XboxFilterButton()
+        if (showUninstalled != null || xbox) LibraryFilterButton(showUninstalled, onShowUninstalled, xbox)
         SortButton(s, a)
         ViewButton(s, a)
         GameFileFolderActions(s, a)
@@ -427,7 +460,7 @@ private fun LibraryFilters(sources: List<String>, source: String, onSource: (Str
     if (sources.size < 2) return
     Row(
         horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(top = 4.dp, bottom = 2.dp),
+        modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 2.dp).horizontalScroll(rememberScrollState()),
     ) {
         SourceFilterChip(LIBRARY_ALL, stringResource(R.string.stores_tab_all), source == LIBRARY_ALL, dot = null) { onSource(LIBRARY_ALL) }
         for (src in sources) {
@@ -505,18 +538,31 @@ private fun LibraryTile(e: LibraryEntry, capsule: Boolean, first: Boolean, navig
 @Composable
 private fun RequestSize(e: LibraryEntry) {
     val ctx = LocalContext.current
+    if (e.installed) {
+        val inst = e.storeKey?.let { k -> StoresState.installed.firstOrNull { it.key == k } }
+        LaunchedEffect(e.key, inst) {
+            if (inst != null) StoreSizes.requestDisk(ctx, inst.key, inst)
+            else e.game?.gameFiles?.let { FolderSizes.request(it) }
+        }
+        return
+    }
     val item = e.item?.takeIf { !e.installed && it.accessible && it.sizeBytes <= 0 } ?: return
     LaunchedEffect(item.key) { StoreSizes.request(ctx, item) }
 }
 
 @Composable
-private fun LibraryMarker(e: LibraryEntry, download: DownloadEntry?) {
+internal fun LibraryMarker(e: LibraryEntry, download: DownloadEntry?) {
     val pal = LocalPalette.current
+    val size = if (e.installed) e.storeKey?.let { StoreSizes.onDisk[it] }
+        ?: e.game?.gameFiles?.let { FolderSizes.known[it.path] }
+        else e.item?.let { StoreSizes.size(it) }?.takeIf { it > 0 }
     when {
         download != null -> Text("${download.percent}%", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = pal.signal, maxLines = 1)
-        e.installed -> Unit
         e.item != null && StoresState.isUnfinished(e.item) -> Text(stringResource(R.string.stores_resume), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = pal.signal, maxLines = 1)
-        else -> Icon(Icons.Outlined.Download, stringResource(R.string.stores_section_not_installed), tint = Color.White, modifier = Modifier.size(12.dp))
+        else -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+            if (size != null && size > 0) Text(formatBytes(size), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1)
+            if (!e.installed) Icon(Icons.Outlined.Download, stringResource(R.string.stores_section_not_installed), tint = Color.White, modifier = Modifier.size(12.dp))
+        }
     }
 }
 
@@ -598,7 +644,7 @@ private fun Modifier.paneEntry(): Modifier {
 
 internal fun keepsXbox(filter: String, e: LibraryEntry): Boolean = when {
     filter == XboxLibraryFilter.ALL || e.source != Store.XBOX.id -> true
-    e.game?.library == Library.XBOX_CLOUD -> filter == XboxLibraryFilter.CLOUD
+    e.game?.library == Library.XBOX_CLOUD && e.item == null -> filter == XboxLibraryFilter.CLOUD
     else -> e.item?.let { XboxLibraryFilter.keeps(filter, it) } == true
 }
 
@@ -611,24 +657,38 @@ private fun xboxFilterLabel(filter: String): String = when (filter) {
 }
 
 @Composable
-private fun XboxFilterButton() {
+private fun LibraryFilterButton(showUninstalled: Boolean?, onShowUninstalled: (Boolean) -> Unit, xbox: Boolean) {
     val pal = LocalPalette.current
     val ctx = LocalContext.current
-    val title = stringResource(R.string.xbox_filter_show)
+    val title = stringResource(R.string.library_filter)
+    val visibility = stringResource(if (showUninstalled == true) R.string.library_filter_all_owned else R.string.library_filter_installed)
+    val description = title + " · " + if (showUninstalled == null) xboxFilterLabel(XboxLibraryFilter.current) else visibility
+    val offset = if (showUninstalled == null) 0 else 2
     var at by remember { mutableStateOf<Rect?>(null) }
     Box(Modifier.onGloballyPositioned { at = it.boundsInRoot() }) {
-        HeaderIconButton(title + " · " + xboxFilterLabel(XboxLibraryFilter.current), Icons.Filled.FilterList, "xbox-filter") {
+        HeaderIconButton(description, Icons.Filled.FilterAlt, "library-filter") {
             val from = at ?: return@HeaderIconButton
             Steps.ask(StepAsk(
-                anchor = from, side = StepSide.Left, accent = pal.signal, pillCorner = 8.dp, items = XboxLibraryFilter.ALL_FILTERS.size,
-                handle = { Text(title, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = pal.signal, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                anchor = from, side = StepSide.Left, accent = pal.signal, pillCorner = 8.dp, items = offset + if (xbox) XboxLibraryFilter.ALL_FILTERS.size else 0,
+                handle = { Icon(Icons.Filled.FilterAlt, null, tint = pal.signal, modifier = Modifier.size(18.dp)) },
             ) {
                 StepTitle(title)
                 StepList {
-                    XboxLibraryFilter.ALL_FILTERS.forEachIndexed { i, filter ->
+                    if (showUninstalled != null) listOf(false, true).forEachIndexed { i, show ->
+                        StepChoice(
+                            stringResource(if (show) R.string.library_filter_all_owned else R.string.library_filter_installed),
+                            selected = show == showUninstalled, enabled = open,
+                            modifier = Modifier.fillMaxWidth().stepItem(i).then(if (show == showUninstalled) Modifier.focusRequester(first) else Modifier),
+                        ) {
+                            onShowUninstalled(show)
+                            Steps.fold()
+                        }
+                    }
+                    if (xbox && showUninstalled != null) Text(Store.XBOX.shortLabel, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.stepItem(offset).padding(start = 4.dp, top = 10.dp, bottom = 4.dp))
+                    if (xbox) XboxLibraryFilter.ALL_FILTERS.forEachIndexed { i, filter ->
                         StepChoice(
                             xboxFilterLabel(filter), selected = filter == XboxLibraryFilter.current, enabled = open,
-                            modifier = Modifier.fillMaxWidth().stepItem(i).then(if (filter == XboxLibraryFilter.current) Modifier.focusRequester(first) else Modifier),
+                            modifier = Modifier.fillMaxWidth().stepItem(offset + i).then(if (showUninstalled == null && filter == XboxLibraryFilter.current) Modifier.focusRequester(first) else Modifier),
                         ) {
                             XboxLibraryFilter.set(ctx, filter)
                             Steps.fold()
@@ -650,7 +710,7 @@ private fun SortButton(s: FrontEndState, a: FrontEndActions) {
             val from = at ?: return@HeaderIconButton
             Steps.ask(StepAsk(
                 anchor = from, side = StepSide.Left, accent = pal.signal, pillCorner = 8.dp, items = SessionPrefs.STORES_SORTS.size,
-                handle = { Text(title, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = pal.signal, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                handle = { Icon(Icons.Filled.Sort, null, tint = pal.signal, modifier = Modifier.size(18.dp)) },
             ) {
                 StepTitle(title)
                 StepList {

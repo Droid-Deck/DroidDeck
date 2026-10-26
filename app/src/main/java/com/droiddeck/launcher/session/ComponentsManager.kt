@@ -780,6 +780,64 @@ object ComponentsManager {
         true
     }
 
+    private fun checkPackageUnused(context: Context, state: JSONObject, name: String) {
+        val installed = protons(context).distinctBy { it.id }.associateBy { it.id }
+        for (key in listOf("queued", "active")) {
+            val byProton = state.sub(key)
+            for (pid in byProton.keys()) {
+                val comps = byProton.optJSONObject(pid) ?: continue
+                for (comp in comps.keys()) {
+                    val entry = comps.optJSONObject(comp) ?: continue
+                    check(entry.optString("file") != name || !liveSelection(key, entry, installed[pid])) {
+                        context.getString(R.string.cmgr_package_in_use, name, installed[pid]?.name ?: pid)
+                    }
+                }
+            }
+        }
+        val profiles = state.sub("profiles")
+        for (scope in profiles.keys()) {
+            val profile = profiles.optJSONObject(scope) ?: continue
+            check(COMPONENTS.none { profile.optString(it) == name }) { context.getString(R.string.cmgr_package_in_use, name, scope) }
+        }
+    }
+
+    fun carryOver(context: Context, fromDir: String, toDir: String) {
+        synchronized(lock) {
+            val target = protons(context).firstOrNull { it.id == safeName(toDir) } ?: return
+            val state = loadState(context)
+            val wanted = carried(state, safeName(fromDir)) { File(packagesDir(context), it).isFile }
+            val active = state.sub("active").optJSONObject(target.id)
+            val queued = state.sub("queued").sub(target.id)
+            var changed = false
+            wanted.forEach { (comp, entry) ->
+                if (active?.has(comp) != true && !queued.has(comp)) {
+                    queued.put(comp, entry)
+                    changed = true
+                }
+            }
+            if (queued.length() == 0) state.sub("queued").remove(target.id)
+            if (changed) saveState(context, state)
+        }
+    }
+
+    internal fun carried(state: JSONObject, from: String, present: (String) -> Boolean): Map<String, JSONObject> = buildMap {
+        state.optJSONObject("active")?.optJSONObject(from)?.let { active ->
+            active.keys().forEach { comp ->
+                val entry = active.optJSONObject(comp) ?: return@forEach
+                val file = entry.optString("file")
+                if (comp in COMPONENTS && file.endsWith(".wcp") && present(file)) {
+                    put(comp, JSONObject().put("kind", "package").put("file", file).put("label", entry.optString("label")))
+                }
+            }
+        }
+        state.optJSONObject("queued")?.optJSONObject(from)?.let { queued ->
+            queued.keys().forEach { comp ->
+                val entry = queued.optJSONObject(comp) ?: return@forEach
+                if (comp in COMPONENTS && entry.optString("kind") == "package" && present(entry.optString("file"))) put(comp, entry)
+            }
+        }
+    }
+
     fun forgetProton(context: Context, dirName: String) {
         synchronized(lock) {
             val id = safeName(dirName)
@@ -789,6 +847,33 @@ object ComponentsManager {
             if (selected && runCatching { saveState(context, state) }.onFailure { Log.w(TAG, "forget $id", it) }.isFailure) return
             File(originalsDir(context), id).deleteRecursively()
         }
+    }
+
+    private fun storePackage(context: Context, part: File, dest: File) {
+        try {
+            if (dest.isFile && runCatching { Hashes.sha256(dest) }.getOrNull()?.equals(Hashes.sha256(part), true) == true) return
+            if (dest.exists()) checkPackageUnused(context, loadState(context), dest.name)
+            val store = File(launchDir(context), "store").canonicalFile
+            val cacheKey = unpackedCacheKey(dest.name)
+            val unpacked = File(store, cacheKey).canonicalFile
+            check(unpacked.parentFile == store) { "Invalid unpacked component cache path for ${dest.name}" }
+            val complete = File(unpacked, ".complete")
+            if (complete.exists()) check(complete.delete()) { "Could not invalidate unpacked component ${dest.name}" }
+            if (!part.renameTo(dest)) {
+                dest.delete()
+                check(part.renameTo(dest)) { "Could not store ${dest.name}" }
+            }
+            if (!unpacked.deleteRecursively() && unpacked.exists()) {
+                check(!complete.exists()) { "Could not invalidate unpacked component ${dest.name}" }
+                Log.w(TAG, "Could not remove stale unpacked files for ${dest.name}; cache marker is invalidated")
+            }
+        } finally {
+            part.delete()
+        }
+    }
+
+    internal fun unpackedCacheKey(filename: String): String = safeName(filename.removeSuffix(".wcp")).also {
+        require(it != "." && it != "..") { "Invalid component cache name" }
     }
 
     fun deletePackage(context: Context, file: String): String = synchronized(lock) {
@@ -840,7 +925,7 @@ object ComponentsManager {
     fun importPackage(context: Context, source: File, name: String): Package = synchronized(lock) {
         val info = packageInfo(context, source)
         val dest = File(packagesDir(context), safeName(name).let { if (it.endsWith(".wcp")) it else "$it.wcp" })
-        source.copyTo(File(dest.parentFile, dest.name + ".part"), overwrite = true).renameTo(dest)
+        storePackage(context, source.copyTo(File(dest.parentFile, dest.name + ".part"), overwrite = true), dest)
         info.copy(file = dest.name)
     }
 
@@ -863,6 +948,7 @@ object ComponentsManager {
                     .put("url", a.optString("browser_download_url")).put("size", a.optLong("size")).put("digest", a.optString("digest")))
             }
         }
+        if (items.length() == 0 && cache.isFile) runCatching { return parseCatalog(JSONObject(cache.readText())) }
         val out = JSONObject().put("items", items).put("fetchedAt", System.currentTimeMillis() / 1000)
         val tmp = File(cache.parentFile, cache.name + ".tmp")
         tmp.writeText(out.toString()); tmp.renameTo(cache)
@@ -992,7 +1078,7 @@ object ComponentsManager {
         }
         if (!Hashes.sha256(part).equals(item.digest.substringAfter(':'), true)) { part.delete(); error(context.getString(R.string.cmgr_checksum_mismatch)) }
         val info = runCatching { packageInfo(context, part) }.getOrElse { part.delete(); throw it }
-        synchronized(lock) { part.renameTo(dest) }
+        synchronized(lock) { storePackage(context, part, dest) }
         return info.copy(file = dest.name)
     }
 }
