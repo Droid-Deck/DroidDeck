@@ -73,6 +73,7 @@ object BattleNetInstall {
         val out = ArrayList<String>(StoreInstallRoot.externalBindSpecs(context))
         val root = LinuxRuntime.rootDir(context)
         GameStorage.effective(context)?.let { library ->
+            if (!File(library.path).isDirectory) throw IllegalStateException(context.getString(R.string.game_sync_err_game_storage))
             val content = SecondaryLibrary.contentPath(File(library.path)).path
             for (guest in SecondaryLibrary.CARD_GUESTS) {
                 File(root, guest.removePrefix("/")).mkdirs()

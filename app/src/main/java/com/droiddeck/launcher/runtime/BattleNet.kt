@@ -180,7 +180,7 @@ object BattleNet {
     }
 
     internal fun installs(registry: List<Pair<String, String>>, agent: List<Pair<String, String>>?): List<Pair<String, String>> {
-        if (agent.isNullOrEmpty()) return registry
+        if (agent == null) return registry
         val tracked = agent.map { it.first.lowercase() }.toSet()
         return registry.filter { it.first.lowercase() in tracked } + agent
     }
@@ -250,8 +250,8 @@ object BattleNet {
         return out.toString()
     }
 
-    internal fun productDbEntries(bytes: ByteArray): List<Pair<String, String>> {
-        val installs = runCatching { fields(bytes, 0, bytes.size) }.getOrDefault(emptyList()).filter { it.first == 1 }
+    internal fun productDbEntries(bytes: ByteArray): List<Pair<String, String>>? {
+        val installs = runCatching { fields(bytes, 0, bytes.size) }.getOrNull()?.filter { it.first == 1 }?.takeIf { it.isNotEmpty() } ?: return null
         return installs.mapNotNull { (_, start, end) ->
             runCatching {
                 val install = fields(bytes, start, end)
