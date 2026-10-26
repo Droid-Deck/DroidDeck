@@ -3181,6 +3181,9 @@
     <string name="epic_client_open">Open</string>
     <string name="epic_client_install">Install</string>
     <string name="library_filter_added">Added</string>
+    <string name="library_show_uninstalled">Show uninstalled</string>
+    <string name="library_no_installed_matches">No installed games match these filters.</string>
+    <string name="library_browse_owned">Browse owned games</string>
     <string name="game_tab_about">About</string>
     <string name="game_tab_achievements_count" translatable="false">%1$s %2$d/%3$d</string>
     <string name="game_tab_launch">Launch</string>

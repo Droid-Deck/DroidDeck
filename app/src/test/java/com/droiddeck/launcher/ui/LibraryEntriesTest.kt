@@ -77,6 +77,16 @@ class LibraryEntriesTest {
         assertEquals(listOf("b", "d", "a", "c"), installedFirst(entries).map { it.key })
     }
 
+    @Test fun librarySourcesFollowTheConfiguredStoreOrderWithSteamFirstAndAddedLast() {
+        val entries = listOf("added", "gog", "steam", "epic", "xbox").map { LibraryEntry(it, it, it, null, null, true) }
+        assertEquals(listOf("steam", "xbox", "epic", "gog", "added"), librarySources(entries, listOf("xbox", "epic", "gog")))
+    }
+
+    @Test fun librarySourcesIgnoreUnknownAndDuplicateOrderEntriesAndAppendNewStores() {
+        val entries = listOf("epic", "gog", "battlenet").map { LibraryEntry(it, it, it, null, null, false) }
+        assertEquals(listOf("epic", "gog", "battlenet"), librarySources(entries, listOf("missing", "epic", "epic", "amazon")))
+    }
+
     @Test fun gameKeysNameEitherAnAppOrAStoreProduct() {
         GameRef.parse("app:440").let { assertEquals(440, it.appId); assertNull(it.store) }
         GameRef.parse("app:-12").let { assertEquals(-12, it.appId) }

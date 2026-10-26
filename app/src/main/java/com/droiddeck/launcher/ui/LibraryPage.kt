@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -86,6 +87,7 @@ import com.droiddeck.launcher.stores.CatalogItem
 import com.droiddeck.launcher.stores.Store
 import com.droiddeck.launcher.stores.StoreSizes
 import com.droiddeck.launcher.stores.StoresState
+import com.droiddeck.launcher.stores.arrangeStoreTabs
 import com.droiddeck.launcher.stores.download.DownloadEntry
 import com.droiddeck.launcher.stores.formatBytes
 import com.droiddeck.launcher.stores.retainOrder
@@ -129,7 +131,9 @@ internal fun libraryEntries(
 internal fun installedFirst(entries: List<LibraryEntry>): List<LibraryEntry> = entries.partition { it.installed }.let { (on, off) -> on + off }
 
 internal const val LIBRARY_ALL = "all"
-internal val LIBRARY_SOURCES = listOf(Library.SOURCE_STEAM) + Store.entries.map { it.id } + Library.ADDED
+internal fun librarySources(entries: List<LibraryEntry>, order: List<String>): List<String> =
+    (listOf(Library.SOURCE_STEAM) + arrangeStoreTabs(order, emptySet()).map { it.store.id } + Library.ADDED)
+        .filter { source -> entries.any { it.source == source } }
 
 /** Survives leaving the page, so Stores can open the Library on one store's owned games. */
 internal object LibraryView {
@@ -137,7 +141,8 @@ internal object LibraryView {
     var query by mutableStateOf("")
     var focusFirst = false
 
-    fun showOwned(store: Store) {
+    fun showOwned(context: android.content.Context, store: Store) {
+        SessionPrefs.setLibraryShowUninstalled(context, true)
         source = store.id
         query = ""
         focusFirst = true
@@ -161,13 +166,20 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
     val cloudRows = rememberXboxCloudRows(s)
     val all = remember(s.steamGames, cloudRows, owned, installedStore) { libraryEntries(s.steamGames + cloudRows, owned, installedStore) }
     LaunchedEffect(Unit) { XboxLibraryFilter.load(ctx) }
-    val sources = LIBRARY_SOURCES.filter { src -> all.any { it.source == src } }
+    var showUninstalled by remember { mutableStateOf(SessionPrefs.libraryShowUninstalled(ctx)) }
+    val setShowUninstalled = { show: Boolean ->
+        showUninstalled = show
+        SessionPrefs.setLibraryShowUninstalled(ctx, show)
+    }
+    val sources = librarySources(all, SessionPrefs.storesTabOrder(ctx))
     val source = LibraryView.source.takeIf { it == LIBRARY_ALL || it in sources } ?: LIBRARY_ALL
     val q = LibraryView.query.trim().lowercase()
     val xboxFilter = if (source == Store.XBOX.id) XboxLibraryFilter.current else XboxLibraryFilter.ALL
-    val candidates = all.filter {
+    val matching = all.filter {
         (source == LIBRARY_ALL || it.source == source) && (q.isEmpty() || it.title.lowercase().contains(q)) && keepsXbox(xboxFilter, it)
     }
+    val candidates = if (showUninstalled) matching else matching.filter { it.installed }
+    val hiddenUninstalled = if (showUninstalled) 0 else matching.count { !it.installed }
     val sort = s.storesSort
     val sizeSort = sort == "sizeAsc" || sort == "sizeDesc"
     val installedAt = StoresState.installed.associate { it.key to it.sidecar.installedAt }
@@ -258,7 +270,7 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
     val detailScroll = rememberScrollState()
     var cycled by remember { mutableIntStateOf(0) }
     var gridFocused by remember { mutableStateOf(false) }
-    LaunchedEffect(source, sort) { grid.scrollToItem(0) }
+    LaunchedEffect(source, sort, showUninstalled) { grid.scrollToItem(0) }
     LaunchedEffect(cycled) {
         if (cycled == 0 || ff == null || inputMode.inputMode != androidx.compose.ui.input.InputMode.Keyboard) return@LaunchedEffect
         focusWithinFrames({ gridFocused }) {
@@ -273,7 +285,9 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
         wrap = { key, content -> StoreTheme(GameRef.parse(key).let { r -> r.store ?: r.game(s.steamGames)?.source?.let { Store.byId(it) } }) { content() } },
         grid = {
             LibraryGrid(
-                s, a, grid, visible, split, all.size, sources, source, sizesPending, syncing,
+                s, a, grid, visible, split, visible.size, sources, source, sizesPending, syncing,
+                showUninstalled = showUninstalled.takeIf { stores }, onShowUninstalled = setShowUninstalled,
+                hiddenUninstalled = hiddenUninstalled,
                 onSource = { LibraryView.source = it },
                 onCycle = { step ->
                     val ids = listOf(LIBRARY_ALL) + sources
@@ -312,6 +326,7 @@ private fun LibraryEmpty(s: FrontEndState, a: FrontEndActions, modifier: Modifie
 private fun LibraryGrid(
     s: FrontEndState, a: FrontEndActions, grid: LazyGridState, visible: List<LibraryEntry>, split: Int, total: Int,
     sources: List<String>, source: String, sizesPending: Boolean, syncing: List<Pair<Store, String>>,
+    showUninstalled: Boolean?, onShowUninstalled: (Boolean) -> Unit, hiddenUninstalled: Int,
     onSource: (String) -> Unit, onCycle: (Int) -> Unit, onOpen: (String) -> Unit, onFocus: (Boolean) -> Unit, searchCleared: Boolean,
 ) {
     val listMode = s.storesView == "list"
@@ -367,7 +382,7 @@ private fun LibraryGrid(
     ) {
         item(key = "header", span = { GridItemSpan(maxLineSpan) }) { Rise(0) { LibraryHeader(s, a, total, searchCleared, xbox = source == Store.XBOX.id) } }
         item(key = "filters", span = { GridItemSpan(maxLineSpan) }) {
-            Rise(1) { LibraryFilters(sources, source, onSource) }
+            Rise(1) { LibraryFilters(sources, source, onSource, showUninstalled, onShowUninstalled) }
         }
         for ((store, line) in syncing) item(key = "sync-${store.id}", span = { GridItemSpan(maxLineSpan) }) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
@@ -383,7 +398,13 @@ private fun LibraryGrid(
             }
         }
         val empty = R.string.stores_nothing_matches
-        if (split == 0) libraryGrid(visible, empty, tile)
+        if (visible.isEmpty() && hiddenUninstalled > 0) item(key = "browse-owned", span = { GridItemSpan(maxLineSpan) }) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp)) {
+                Text(stringResource(R.string.library_no_installed_matches), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                SecondaryButton(stringResource(R.string.library_browse_owned), modifier = Modifier.testTag("library-browse-owned")) { onShowUninstalled(true) }
+            }
+        }
+        else if (split == 0) libraryGrid(visible, empty, tile)
         else {
             item(key = "installed-label", span = { GridItemSpan(maxLineSpan) }) { SectionLabel(stringResource(R.string.stores_section_installed)) }
             libraryGrid(visible.take(split), empty, tile)
@@ -428,21 +449,33 @@ private fun LibraryHeader(s: FrontEndState, a: FrontEndActions, total: Int, sear
 }
 
 @Composable
-private fun LibraryFilters(sources: List<String>, source: String, onSource: (String) -> Unit) {
-    if (sources.size < 2) return
+private fun LibraryFilters(
+    sources: List<String>, source: String, onSource: (String) -> Unit,
+    showUninstalled: Boolean?, onShowUninstalled: (Boolean) -> Unit,
+) {
     Row(
         horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(top = 4.dp, bottom = 2.dp),
+        modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 2.dp),
     ) {
-        SourceFilterChip(LIBRARY_ALL, stringResource(R.string.stores_tab_all), source == LIBRARY_ALL, dot = null) { onSource(LIBRARY_ALL) }
-        for (src in sources) {
-            val store = Store.byId(src)
-            val dot = when {
-                store != null -> sourceColours(src).dot.copy(alpha = if (StoresState.isSignedIn(store) && StoresState.expired[store] != true) 1f else 0.35f)
-                src == Library.SOURCE_STEAM -> sourceColours(src).dot
-                else -> null
+        if (sources.size >= 2) Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.weight(1f).horizontalScroll(rememberScrollState()),
+        ) {
+            SourceFilterChip(LIBRARY_ALL, stringResource(R.string.stores_tab_all), source == LIBRARY_ALL, dot = null) { onSource(LIBRARY_ALL) }
+            for (src in sources) {
+                val store = Store.byId(src)
+                val dot = when {
+                    store != null -> sourceColours(src).dot.copy(alpha = if (StoresState.isSignedIn(store) && StoresState.expired[store] != true) 1f else 0.35f)
+                    src == Library.SOURCE_STEAM -> sourceColours(src).dot
+                    else -> null
+                }
+                SourceFilterChip(src, if (src == Library.ADDED) stringResource(R.string.library_filter_added) else store?.shortLabel ?: sourceLabel(src), source == src, dot) { onSource(src) }
             }
-            SourceFilterChip(src, if (src == Library.ADDED) stringResource(R.string.library_filter_added) else store?.shortLabel ?: sourceLabel(src), source == src, dot) { onSource(src) }
+        } else Spacer(Modifier.weight(1f))
+        if (showUninstalled != null) Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(stringResource(R.string.library_show_uninstalled), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            ToggleSwitch(showUninstalled, label = stringResource(R.string.library_show_uninstalled),
+                modifier = Modifier.paneItem("library-show-uninstalled").testTag("library-show-uninstalled"), onChange = onShowUninstalled)
         }
     }
 }

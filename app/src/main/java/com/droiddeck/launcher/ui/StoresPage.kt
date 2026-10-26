@@ -947,7 +947,7 @@ private fun ProfileStrip(store: Store, owned: Int, loaded: Boolean, s: FrontEndS
             }
             Actions {
                 SmallTextButton(stringResource(R.string.stores_owned_in_library), key = "owned-in-library") {
-                    LibraryView.showOwned(store)
+                    LibraryView.showOwned(ctx, store)
                     show("games")
                 }
                 SmallTextButton(stringResource(R.string.stores_refresh)) { StoresState.open(ctx, store, force = true) }
