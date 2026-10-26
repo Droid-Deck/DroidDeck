@@ -255,6 +255,16 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("backActionsInverted", inverted).apply()
     }
 
+    val BACK_DOUBLE_TAP_MS_OPTIONS = (100..800 step 100).toList()
+
+    fun backDoubleTapMs(context: Context): Int =
+        prefs(context).getInt("backDoubleTapMs", 500).takeIf { it in BACK_DOUBLE_TAP_MS_OPTIONS } ?: 500
+
+    fun setBackDoubleTapMs(context: Context, ms: Int) {
+        require(ms in BACK_DOUBLE_TAP_MS_OPTIONS)
+        prefs(context).edit().putInt("backDoubleTapMs", ms).apply()
+    }
+
     const val TOUCH_AUTO = "auto"
     const val TOUCH_PAD = "touchpad"
     const val TOUCH_DIRECT = "direct"

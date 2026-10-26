@@ -260,6 +260,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private val backQamInput = com.droiddeck.launcher.input.BackQamInput(
         setPressed = { padBridge?.setBackQamPressed(it) },
         onTap = { performBackAction(double = it) },
+        doubleTapMs = { backDoubleTapMs.toLong() },
     )
     private var drawerDirectionKey = KeyEvent.KEYCODE_UNKNOWN
     private var drawerDirectionDownTime = 0L
@@ -322,6 +323,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var drawerPage by mutableStateOf(SessionDrawerPage.CONTROLLER)
     private var drawerControllerActive by mutableStateOf(false)
     private var backActionsInverted by mutableStateOf(false)
+    private var backDoubleTapMs by mutableStateOf(500)
     private var lowLatency by mutableStateOf(true)
     private var padType by mutableStateOf(SessionPrefs.CONTROLLER_DECK)
     private var pcKeyboardOpen by mutableStateOf(false)
@@ -529,6 +531,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         bridge.setSelectSteam(ControllerPrefs.read(this).selectSteam)
         bridge.setBuiltinPad(SessionState.mode != SessionService.MODE_STEAM || SessionPrefs.builtinPad(this))
         padBridge = bridge
+        bridge.setOnChordInput(backQamInput::onChordInput)
         SessionState.padBridge = bridge
         if (Build.VERSION.SDK_INT >= 31) {
             val vr = com.droiddeck.launcher.input.JoyConVr(this, File(filesDir, ".wayland-rt/${com.droiddeck.launcher.input.JoyConVr.FILE}")) { taken, released ->
@@ -1019,6 +1022,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                         padType = id
                     },
                     backActionsInverted = backActionsInverted,
+                    backDoubleTapMs = backDoubleTapMs,
+                    onBackDoubleTapMs = { ms ->
+                        SessionPrefs.setBackDoubleTapMs(this@SessionActivity, ms)
+                        backDoubleTapMs = ms
+                    },
                     onBackActionsInverted = { inverted ->
                         SessionPrefs.setBackActionsInverted(this@SessionActivity, inverted)
                         backActionsInverted = inverted
@@ -1297,7 +1305,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             performBackAction(double = false)
         }
         pendingBackAction = pending
-        uiHandler.postDelayed(pending, 500L)
+        uiHandler.postDelayed(pending, backDoubleTapMs.toLong())
     }
 
     private fun performBackAction(double: Boolean) {
@@ -1631,6 +1639,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         steamDownloadsInBackground = SessionPrefs.steamDownloadsInBackground(this)
         oscMode = SessionPrefs.oscMode(this)
         backActionsInverted = SessionPrefs.backActionsInverted(this)
+        backDoubleTapMs = SessionPrefs.backDoubleTapMs(this)
         lowLatency = SessionPrefs.lowLatency(this)
         padType = SessionPrefs.steamController(this)
     }

@@ -68,6 +68,7 @@ public final class PadBridge {
     private boolean qamTapPressed;
     private int qamChordGeneration;
     private volatile Runnable onPlayerInput;
+    private Runnable onChordInput;
     private final java.util.concurrent.atomic.AtomicBoolean playerInputPosted = new java.util.concurrent.atomic.AtomicBoolean();
 
     private static final long STATS_WINDOW_MS = 10_000;
@@ -276,6 +277,14 @@ public final class PadBridge {
         onPlayerInput = listener;
     }
 
+    public synchronized void setOnChordInput(Runnable listener) {
+        onChordInput = listener;
+    }
+
+    private void noteChordInput(int slot) {
+        if (slot == 0 && onChordInput != null) onChordInput.run();
+    }
+
     private void notePlayerInput() {
         Runnable listener = onPlayerInput;
         if (listener == null || !playerInputPosted.compareAndSet(false, true)) return;
@@ -326,6 +335,7 @@ public final class PadBridge {
             default: return false;
         }
         noteDevice(event.getDevice(), slot);
+        if (pressed && event.getRepeatCount() == 0 && !event.isCanceled()) noteChordInput(slot);
         if (pressed) notePlayerInput();
         statButtons++;
         scheduleStats();
@@ -355,7 +365,10 @@ public final class PadBridge {
                 pad.rightX = x;
                 pad.rightY = y;
             }
-            if (Math.max(Math.abs(x), Math.abs(y)) > 0.5f) notePlayerInput();
+            if (Math.max(Math.abs(x), Math.abs(y)) > 0.5f) {
+                noteChordInput(slot);
+                notePlayerInput();
+            }
             publish(slot);
             return true;
         }
@@ -387,6 +400,7 @@ public final class PadBridge {
         }
         if (Math.max(Math.max(Math.abs(pad.leftX), Math.abs(pad.leftY)), Math.max(Math.abs(pad.rightX), Math.abs(pad.rightY))) > 0.5f
                 || lt > 0.5f || rt > 0.5f || pad.up || pad.right || pad.down || pad.left) {
+            noteChordInput(slot);
             notePlayerInput();
         }
         publish(slot);
