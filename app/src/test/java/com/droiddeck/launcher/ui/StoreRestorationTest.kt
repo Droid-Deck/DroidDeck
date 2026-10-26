@@ -2,15 +2,21 @@ package com.droiddeck.launcher.ui
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.Text
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.frontend.Library
 import com.droiddeck.launcher.stores.CatalogItem
 import com.droiddeck.launcher.stores.InstalledStoreGame
 import com.droiddeck.launcher.stores.Store
 import com.droiddeck.launcher.stores.StoreGameSidecar
+import com.droiddeck.launcher.stores.StoreInstallRoot
 import com.droiddeck.launcher.stores.StoreSizes
 import com.droiddeck.launcher.stores.StoresState
 import com.droiddeck.launcher.stores.download.DownloadEntry
@@ -39,6 +45,7 @@ class StoreRestorationTest {
 
     @After fun clear() {
         StoresState.publishDownloads(emptyList())
+        StoresState.unfinished = emptyList()
         StoreSizes.onDisk.clear()
         XboxContent.dismiss()
     }
@@ -63,12 +70,20 @@ class StoreRestorationTest {
     }
 
     @Test fun packageChoicesRenderOutsideTheStoresPage() {
-        val choices = listOf("Standard", "Deluxe").map { JSONObject().put("title", it).put("kind", "Game") }
+        val choices = (1..24).map { JSONObject().put("title", "Package $it").put("kind", "Game") }
         val pending = XboxBackend.PackageChoice(product, ctx.cacheDir, choices)
         compose.setContent { DroidDeckTheme { XboxStoreDialogs(content = null, pending = pending) } }
         compose.onNodeWithText(ctx.getString(R.string.stores_xbox_choose_content)).assertExists()
-        choices.forEach { compose.onNodeWithText(ctx.getString(R.string.stores_xbox_choice, it.getString("title"), "Game")).assertExists() }
+        choices.forEach { compose.onNodeWithText(ctx.getString(R.string.stores_xbox_choice, it.getString("title"), "Game")).performScrollTo().assertIsDisplayed() }
         compose.onNodeWithText(ctx.getString(android.R.string.cancel)).assertExists()
+    }
+
+    @Test fun everyContentOfferCanBeReachedInALandscapeDialog() {
+        val base = InstalledStoreGame(StoreGameSidecar(Store.XBOX, product.id, product.title, "game.exe"), ctx.cacheDir)
+        val offers = (1..24).map { XboxContent.Offer(product.copy(id = "dlc-$it", title = "Content $it"), installed = false) }
+        val plan = XboxContent.Plan(base, offers)
+        compose.setContent { DroidDeckTheme { XboxStoreDialogs(content = plan, pending = null) } }
+        offers.forEach { compose.onNodeWithText(ctx.getString(R.string.stores_xbox_content_install, it.item.title)).performScrollTo().assertIsDisplayed() }
     }
 
     @Test fun libraryCardsShowDownloadAndInstalledSizes() {
@@ -103,6 +118,18 @@ class StoreRestorationTest {
         compose.setContent { DroidDeckTheme { GameActions(Store.XBOX, product.id, cloud, product.copy(sizeBytes = 0, extra = mapOf("pc" to "0", "cloud" to "1")), null, state(), actions(), Modifier) } }
         compose.onNodeWithText(ctx.getString(R.string.game_stream)).assertExists()
         compose.onNodeWithText(ctx.getString(R.string.stores_install)).assertDoesNotExist()
+    }
+
+    @Test fun anInterruptedCloudDownloadCanBeClearedAfterItsLicenseOrPcMetadataChanges() {
+        StoresState.unfinished = listOf(StoreInstallRoot.Unfinished(Store.XBOX, product.id, File(ctx.cacheDir, "partial")))
+        var item by mutableStateOf(product)
+        compose.setContent { DroidDeckTheme { GameActions(Store.XBOX, product.id, cloud, item, null, state(), actions(), Modifier) } }
+        compose.onNodeWithText(ctx.getString(R.string.stores_resume_install)).assertExists()
+        for (changed in listOf(product.copy(owned = false), product.copy(extra = mapOf("pc" to "0", "cloud" to "1")))) {
+            compose.runOnIdle { item = changed }
+            compose.onNodeWithText(ctx.getString(R.string.stores_dl_clear)).assertExists()
+            compose.onNodeWithText(ctx.getString(R.string.stores_resume_install)).assertDoesNotExist()
+        }
     }
 
     private fun state() = FrontEndState(

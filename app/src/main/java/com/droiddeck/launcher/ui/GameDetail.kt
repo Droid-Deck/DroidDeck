@@ -373,7 +373,7 @@ internal fun GameActions(
                 }
                 ConfirmButton(stringResource(R.string.stores_dl_clear), stringResource(R.string.stores_dl_cancel_confirm), compact = true) { DownloadQueue.clear(ctx, failed.key) }
             }
-            cloud && game != null -> {
+            cloud -> {
                 val cloudId = game.storeId.orEmpty()
                 XboxStreamButton(cloudId, game.name, main = true, modifier = leadOn)
                 if (item?.installable == true && item.xboxPc) {
@@ -382,8 +382,8 @@ internal fun GameActions(
                         else if (item.sizeBytes > 0) stringResource(R.string.stores_install_size, formatBytes(item.sizeBytes))
                         else stringResource(R.string.stores_install),
                     ) { StoresState.requestInstall(ctx, item) }
-                    if (StoresState.isUnfinished(item)) ConfirmButton(stringResource(R.string.stores_dl_clear), stringResource(R.string.stores_dl_cancel_confirm), compact = true) { StoresState.clearUnfinished(ctx, item) }
                 }
+                if (item != null && StoresState.isUnfinished(item)) ConfirmButton(stringResource(R.string.stores_dl_clear), stringResource(R.string.stores_dl_cancel_confirm), compact = true) { StoresState.clearUnfinished(ctx, item) }
                 XboxLibraryButton(cloudId, item)
             }
             store == Store.BATTLENET && item != null -> InstallButton(stringResource(R.string.stores_install), leadOn) { StoresState.requestInstall(ctx, item) }
@@ -413,7 +413,7 @@ internal fun GameActions(
             item != null && item.isFree -> PrimaryButton(stringResource(R.string.stores_get_free), main = true, modifier = leadOn) { openStoreUrl(ctx, item) }
             item != null -> PrimaryButton(buyLabel(item), main = true, modifier = leadOn) { openStoreUrl(ctx, item) }
         }
-        if (cloud && game != null && (download != null || failed != null)) {
+        if (cloud && (download != null || failed != null)) {
             XboxStreamButton(game.storeId.orEmpty(), game.name)
             XboxLibraryButton(game.storeId.orEmpty(), item)
         }

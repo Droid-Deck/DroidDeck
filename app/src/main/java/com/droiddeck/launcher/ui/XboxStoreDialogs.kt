@@ -1,10 +1,13 @@
 package com.droiddeck.launcher.ui
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import com.droiddeck.launcher.R
@@ -21,7 +24,7 @@ internal fun XboxStoreDialogs(
         AlertDialog(
             onDismissRequest = { XboxContent.dismiss() },
             title = { Text(stringResource(R.string.stores_xbox_content_title)) },
-            text = { Column {
+            text = { Column(Modifier.verticalScroll(rememberScrollState())) {
                 if (content.error != null) Text(content.error)
                 else if (content.offers.isEmpty()) Text(stringResource(R.string.stores_xbox_content_none))
                 content.offers.forEach { offer ->
@@ -37,7 +40,7 @@ internal fun XboxStoreDialogs(
         AlertDialog(
             onDismissRequest = { XboxBackend.dismissPackages() },
             title = { Text(stringResource(R.string.stores_xbox_choose_content)) },
-            text = { Column { pending.choices.forEach { choice ->
+            text = { Column(Modifier.verticalScroll(rememberScrollState())) { pending.choices.forEach { choice ->
                 TextButton(onClick = { XboxBackend.selectPackage(ctx, choice) }) {
                     Text(stringResource(R.string.stores_xbox_choice, choice.getString("title"), choice.getString("kind")))
                 }

@@ -64,6 +64,14 @@ class LibraryEntriesTest {
         assertFalse(keepsXbox(XboxLibraryFilter.OWNED, entry))
     }
 
+    @Test fun distinctLocalShortcutsForTheSameProductArePreserved() {
+        val first = Library.SteamGame(-5, "First install", null, Library.ADDED, source = "xbox", storeId = "same")
+        val second = Library.SteamGame(-6, "Second install", null, Library.ADDED, source = "xbox", storeId = "same")
+        val cloud = Library.SteamGame(-20, "Cloud game", null, Library.XBOX_CLOUD, source = "xbox", storeId = "same")
+        val entries = libraryEntries(listOf(cloud, first, second), mapOf(Store.XBOX to listOf(owned(Store.XBOX, "same"))), setOf("xbox:same"))
+        assertEquals(listOf(first, second), entries.map { it.game })
+    }
+
     @Test fun installedGamesComeFirstKeepingTheirSortedOrder() {
         val entries = listOf("a", "b", "c", "d").map { LibraryEntry(it, "steam", it, null, null, installed = it == "b" || it == "d") }
         assertEquals(listOf("b", "d", "a", "c"), installedFirst(entries).map { it.key })

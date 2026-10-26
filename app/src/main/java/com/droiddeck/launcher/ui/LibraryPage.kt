@@ -112,7 +112,10 @@ internal fun libraryEntries(
         if (g.library == Library.EPIC_LAUNCHER) continue
         val storeKey = g.storeId?.let { "${g.source}:$it" }
         val item = storeKey?.let { k -> Store.byId(g.source)?.let { st -> owned[st]?.firstOrNull { it.key == k } } }
-        if (storeKey != null && !claimed.add(storeKey)) continue
+        if (storeKey != null) {
+            if (g.library == Library.XBOX_CLOUD && storeKey in claimed) continue
+            claimed.add(storeKey)
+        }
         out += LibraryEntry(GameRef.key(g), g.source, g.name, g, item,
             installed = g.library != Library.XBOX_CLOUD || storeKey in installedStore)
     }
