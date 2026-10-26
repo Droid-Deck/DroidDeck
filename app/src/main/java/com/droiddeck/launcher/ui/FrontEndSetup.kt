@@ -91,6 +91,7 @@ private const val LAUNCHER_TAB = 2
 
 internal object SetupTabs {
     var openLauncher = false
+    var openOverview = false
 }
 private const val GLASSES_TAB = 5
 
@@ -191,6 +192,7 @@ internal fun SetupPanel(
     val tabs = listOf(stringResource(R.string.setup_tab_overview), stringResource(R.string.setup_tab_controller), stringResource(R.string.setup_tab_launcher), stringResource(R.string.setup_tab_storage), stringResource(R.string.setup_tab_diagnostics), stringResource(R.string.setup_tab_glasses))
     var tab by rememberSaveable { mutableStateOf(if (SetupTabs.openLauncher) LAUNCHER_TAB else 0) }
     SetupTabs.openLauncher = false
+    if (SetupTabs.openOverview) { tab = 0; SetupTabs.openOverview = false }
     val chipFocus = remember { List(tabs.size) { FocusRequester() } }
     var tabTurned by remember { mutableStateOf(false) }
     val pick: (Int) -> Unit = { i -> tab = i; tabTurned = true }
@@ -341,10 +343,7 @@ internal fun SetupPanel(
                             }
                         }
                         SettingsGroup(stringResource(R.string.setup_runtime)) { runtimeCheck(false) }
-                        SettingsGroup(stringResource(R.string.integration_optional)) {
-                            ActionRow(stringResource(R.string.integration_title), null,
-                                stringResource(R.string.integration_set_up), { a.onSteamIntegration(null) })
-                        }
+                        SteamIntegrationGroup(s.integration, s.integrationFocus, a.onIntegration, a.onIntegrationAppInfo, a.onIntegrationLocation)
                     }
                     1 -> {
                         val controller = s.controller
@@ -399,7 +398,7 @@ internal fun SetupPanel(
                                     s.homeScreenEnabled,
                                 ) { a.onHomeScreen(it) }
                                 if (s.homeScreenEnabled) {
-                                    ActionRow(stringResource(R.string.setup_default_home), s.defaultHomeLabel ?: stringResource(R.string.setup_choose_home), stringResource(R.string.setup_choose), { a.onSteamIntegration(com.droiddeck.launcher.core.SteamIntegration.Feature.HOME) })
+                                    ActionRow(stringResource(R.string.setup_default_home), s.defaultHomeLabel ?: stringResource(R.string.setup_choose_home), stringResource(R.string.setup_choose), a.onHomeApp)
                                 }
                                 ChoiceRow(
                                     host, "launcher-orientation", stringResource(R.string.setup_launcher_orientation), null,

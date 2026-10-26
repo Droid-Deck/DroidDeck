@@ -141,26 +141,22 @@ internal fun SteamHome(s: FrontEndState, a: FrontEndActions, modifier: Modifier)
         },
         scrim = { if (games.size >= WALL_MIN_GAMES) WallFade() },
         words = {
-            Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
-                val runtimeStatus: @Composable () -> Unit = {
-                    if (s.busy || !s.ready || (s.available != null && s.available != s.installed)) RuntimeChip(s)
-                }
-                if (narrow) Column(
-                    verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.onPlaced { words = it.boundsInParent() },
-                ) {
-                    Wordmark(30.dp)
-                    runtimeStatus()
-                } else Row(
-                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    modifier = Modifier.onPlaced { words = it.boundsInParent() },
-                ) {
-                    Wordmark(if (narrow) 30.dp else 40.dp)
-                    runtimeStatus()
-                }
-                if (s.integrationSuggested && s.ready && !s.busy && signedIn &&
-                    !com.droiddeck.launcher.core.PhantomProcessLimit.blocksSteam(s.phantomProcessStatus)) {
-                    IntegrationSuggestion({ a.onSteamIntegration(null) }, a.onDismissIntegration)
-                }
+            val runtimeStatus: @Composable () -> Unit = {
+                if (s.busy || !s.ready || (s.available != null && s.available != s.installed)) RuntimeChip(s)
+                else if (s.integration.suggested && signedIn && !com.droiddeck.launcher.core.PhantomProcessLimit.blocksSteam(s.phantomProcessStatus))
+                    IntegrationSuggestion(s.integration, { a.onSteamIntegration(null) }, a.onDismissIntegration)
+            }
+            if (narrow) Column(
+                verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.onPlaced { words = it.boundsInParent() },
+            ) {
+                Wordmark(30.dp)
+                runtimeStatus()
+            } else Row(
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.onPlaced { words = it.boundsInParent() },
+            ) {
+                Wordmark(if (narrow) 30.dp else 40.dp)
+                runtimeStatus()
             }
         },
         button = { click ->

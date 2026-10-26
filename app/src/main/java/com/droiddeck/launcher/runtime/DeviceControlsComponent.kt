@@ -142,7 +142,7 @@ class DeviceControlsComponent(context: Context, root: File, private val activity
                         .setContentTitle(context.getString(R.string.brightness_permission_title))
                         .setContentText(context.getString(R.string.brightness_permission_text))
                         .setContentIntent(action).setOnlyAlertOnce(true).setAutoCancel(true).build())
-                    if (activityVisible()) android.widget.Toast.makeText(context, R.string.integration_brightness_hint,
+                    if (activityVisible()) android.widget.Toast.makeText(context, R.string.integration_brightness_needed,
                         android.widget.Toast.LENGTH_LONG).show()
                 } catch (e: Exception) {
                     Log.w(TAG, "Could not open brightness permission", e)

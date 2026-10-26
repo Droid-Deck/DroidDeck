@@ -422,7 +422,7 @@ fun ValueChip(text: String, open: Boolean, enabled: Boolean = true, modifier: Mo
 }
 
 @Composable
-fun SettingsGroup(title: String, compact: Boolean = false, content: @Composable ColumnScope.() -> Unit) {
+fun SettingsGroup(title: String, compact: Boolean = false, detail: String? = null, content: @Composable ColumnScope.() -> Unit) {
     val tight = compact || LocalCompactSettings.current
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
@@ -434,6 +434,7 @@ fun SettingsGroup(title: String, compact: Boolean = false, content: @Composable 
     ) {
         Text(title.uppercase(), fontSize = if (tight) 11.sp else 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp, color = colors.onSurfaceVariant)
         Box(modifier = Modifier.weight(1f).height(1.dp).background(pal.line))
+        if (detail != null) Text(detail, fontSize = if (tight) 11.sp else 12.sp, fontWeight = FontWeight.SemiBold, color = colors.onSurfaceVariant)
     }
     Column(modifier = Modifier.fillMaxWidth().clip(GroupShape).background(colors.surface).border(1.dp, pal.line, GroupShape)) { content() }
     }

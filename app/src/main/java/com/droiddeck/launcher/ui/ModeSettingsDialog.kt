@@ -96,6 +96,7 @@ class ModeSettings(
     val bootMovieCustomName: String? = null,
     val bootMovieImporting: Boolean = false,
     val bootMovieProgress: Int = -1,
+    val integration: com.droiddeck.launcher.core.SteamIntegration.State? = null,
     val deckyInstalled: String? = null,
     val deckyLatestRelease: DeckyManager.Release? = null,
     val deckyBranch: Int = DeckyManager.BRANCH_STABLE,
@@ -143,7 +144,9 @@ class ModeSettingsActions(
     val onBootMovieSound: (Boolean) -> Unit = {},
     val onImportBootMovie: () -> Unit = {},
     val onBootMovieChanged: () -> Unit = {},
-    val onSteamIntegration: () -> Unit = {},
+    val onIntegration: (com.droiddeck.launcher.core.SteamIntegration.Feature) -> Unit = {},
+    val onIntegrationAppInfo: () -> Unit = {},
+    val onIntegrationLocation: () -> Unit = {},
     val onDeckyInstall: (DeckyManager.Release) -> Unit = {},
     val onDeckyCheck: () -> Unit = {},
     val onDeckyBranch: (Int) -> Unit = {},
@@ -505,9 +508,8 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
             )
         }
         if (s.bootMovie != null) BootMovieGroup(s, a, host)
-        SettingsGroup(stringResource(R.string.integration_optional)) {
-            ActionRow(stringResource(R.string.integration_title), null, stringResource(R.string.integration_set_up), a.onSteamIntegration)
-        }
+        if (s.integration != null) SteamIntegrationGroup(s.integration,
+            onFeature = a.onIntegration, onAppInfo = a.onIntegrationAppInfo, onLocation = a.onIntegrationLocation)
     }
 }
 
