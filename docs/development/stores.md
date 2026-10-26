@@ -29,9 +29,11 @@ Library pages are `app:<appId>` for an installed game and `app:<store>:<id>` for
 ```
 
 The default root is the app's internal storage - the runtime's tree, `/root/Games/Stores`, no bind
-needed - whatever the session's Game storage setting says. When a card the app may write is in the
-device (`GameStorage.options`), Install asks "Install to" (internal / the card, free space shown;
-the last pick is only the dialog's default). A card's root is `<card app folder>/Games`; when the
+needed - whatever the session's Game storage setting says. **Setup > Storage > Default storage**
+can send new installs straight to internal storage or the first external target; with **Ask every
+time**, Install asks "Install to" when more than one target exists (internal / the card, free space
+shown; the last pick is only the dialog's default). An existing install is always resumed in place,
+and changing the default does not move it. A card's root is `<card app folder>/Games`; when the
 card is the Steam library the library's bind (`/mnt/droiddeck-sd`) already covers it, otherwise
 `SessionService` binds the root at `/mnt/droiddeck-stores/<volume uuid>`, so a shortcut's guest
 path - and its appid - is the same from one session to the next. Every root is
@@ -268,7 +270,20 @@ the prefix's user folder appears, within a minute. Every path logs
   `CloudSaveFolder`, e.g. `{AppData}/Game/Saved/SaveGames`. `CloudSavePaths` expands it inside the
   game's prefix (`compatdata/<shortcut appid>/pfx/drive_c/users/steamuser`) or its install folder,
   case-insensitively, and refuses a path that leaves its boundary. A game whose store gives none
-  has no cloud saves.
+  has no cloud saves; a cached none is retried after a day.
+- **Galaxy SDK saves:** `cloudStorage.enabled` with an empty `locations` list is Galaxy SDK
+  IStorage, whose objects live under a location named `__default` in
+  `%LocalAppData%/GOG.com/Galaxy/Applications/<clientId>/Storage/Shared/Files`. It goes through the
+  same location-qualified handling below. GET peels gzip when `Content-Encoding` is gzip, or when
+  the object round-trips as GOG's PUT gzip (deflate 6, mtime 0); a gzip-format save is left intact.
+- **GOG names are location-qualified:** the cloud API lists `saves/user1.dat`, where `saves` is the
+  `name` of the selected `cloudStorage.locations` entry and the folder is that entry's `location`
+  (`.../Hollow Knight Silksong/default`). `GogCloud` strips the location segment for the local path
+  and puts it back for `HEAD`/`GET`/`PUT`; files from other locations are ignored. Builds before
+  this wrote `<location>/...` one folder too deep (`default/saves/user1.dat`); `migrateGogNested`
+  moves those copies up, deletes byte-identical leftovers and rewrites their baseline keys. The
+  migration runs once per game (`cloud_layout_<id>`), so a game that legitimately keeps a folder
+  named like the location is not relocated again; a non-prefixed listing is left unchanged.
 - **The services:** GOG `cloudstorage.gog.com/v1/<user>/<client>` with a token issued to the game's
   own client (the client secret is kept at install; the Galaxy token is the fallback); Epic's
   savesync data storage with signed read and write links (`EpicCloud` → `EpicSaveSync` → the Rust

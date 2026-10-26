@@ -22,11 +22,16 @@ object Library {
             SteamGame(appId, name, art, library, gameId, hero, lastPlayed, gameFiles, protonPrefix, icon, source, storeId, logo)
 
         val gameIdString: String get() = java.lang.Long.toUnsignedString(gameId)
-        val profileKey: String get() = if (library == ADDED) java.lang.Integer.toUnsignedString(appId) else appId.toString()
+        val profileKey: String get() = when {
+            source == com.droiddeck.launcher.stores.Store.BATTLENET.id -> com.droiddeck.launcher.runtime.BattleNet.APP_ID.toString()
+            library == ADDED -> java.lang.Integer.toUnsignedString(appId)
+            else -> appId.toString()
+        }
     }
     const val ADDED = "added"
     const val EPIC_LAUNCHER = "epic-launcher"
     const val EPIC_LAUNCHER_NAME = "Epic Games Launcher"
+    const val BATTLENET_LAUNCHER = "battlenet-launcher"
     const val XBOX_CLOUD = "xbox-cloud"
     const val SOURCE_STEAM = "steam"
 
@@ -238,7 +243,8 @@ object Library {
             SteamGame(
                 g.steamAppId ?: g.appId.toInt(), g.name, art.portrait ?: art.header, ADDED, g.gameId,
                 hero = art.hero ?: art.header, lastPlayed = lastPlayed, gameFiles = g.folder,
-                protonPrefix = protonPrefix(context, g.steamAppId?.toLong() ?: g.appId, libraries = roots),
+                protonPrefix = if (g.source == com.droiddeck.launcher.stores.Store.BATTLENET.id) File(com.droiddeck.launcher.runtime.BattleNet.prefix(context), "pfx").takeIf { it.isDirectory }
+                    else protonPrefix(context, g.steamAppId?.toLong() ?: g.appId, libraries = roots),
                 icon = art.icon?.takeIf { it.extension.lowercase() != "ico" },
                 source = g.source, storeId = g.storeId,
                 logo = art.logo,

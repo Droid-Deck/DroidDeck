@@ -21,6 +21,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
@@ -206,7 +207,6 @@ internal fun SetupPanel(
             runCatching { chipFocus[tab].requestFocus() }
         }
     }
-    val wide = !LocalNarrowPane.current
     val runtimeOk = s.ready && !s.busy && !s.removalPending
     val checks = listOf(gpuOk, runtimeOk, !limitBlocks, signedIn)
     val passing = checks.count { it }
@@ -453,10 +453,12 @@ internal fun SetupPanel(
                                 )
                             }
                         }
-                        if (wide) Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.Top) {
-                            Column(Modifier.weight(1f)) { look() }
-                            Column(Modifier.weight(1f)) { device(); art(); download() }
-                        } else { look(); device(); art(); download() }
+                        BoxWithConstraints(Modifier.fillMaxWidth()) {
+                            if (maxWidth >= 840.dp && !LocalNarrowPane.current) Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.Top) {
+                                Column(Modifier.weight(1f)) { look() }
+                                Column(Modifier.weight(1f)) { device(); art(); download() }
+                            } else Column { look(); device(); art(); download() }
+                        }
                     }
                     STORAGE_TAB -> StoragePanel(s, a)
                     4 -> {
@@ -469,6 +471,38 @@ internal fun SetupPanel(
                             ActionRow(stringResource(R.string.setup_saved_logs), stringResource(R.string.setup_saved_logs_hint, com.droiddeck.launcher.session.SessionPaths.KEEP_SESSIONS), stringResource(R.string.setup_clear_logs), a.onClearLogs)
                             ActionRow(stringResource(R.string.setup_reset_settings), stringResource(R.string.setup_reset_settings_hint),
                                 stringResource(R.string.setup_reset_settings_button), a.onResetSettings)
+                        }
+                        SettingsGroup(stringResource(R.string.setup_group_memory)) {
+                            ToggleRow(
+                                host, "clear-cached-apps", stringResource(R.string.setup_clear_cached),
+                                stringResource(if (s.adbPaired) R.string.setup_clear_cached_hint else R.string.setup_clear_cached_unpaired),
+                                s.clearCachedApps, enabled = s.adbPaired || s.clearCachedApps,
+                            ) { a.onClearCachedApps(it) }
+                            ChoiceRow(
+                                host, "background-app-limit", stringResource(R.string.setup_bg_limit),
+                                stringResource(if (s.adbPaired) R.string.setup_bg_limit_hint else R.string.setup_clear_cached_unpaired),
+                                listOf(
+                                    com.droiddeck.launcher.core.BackgroundAppLimit.OFF to stringResource(R.string.game_env_off),
+                                    4 to stringResource(R.string.setup_bg_limit_4),
+                                    1 to stringResource(R.string.setup_bg_limit_1),
+                                    0 to stringResource(R.string.setup_bg_limit_0),
+                                ),
+                                s.backgroundAppLimit, enabled = s.adbPaired || s.backgroundAppLimit != com.droiddeck.launcher.core.BackgroundAppLimit.OFF,
+                                onPick = a.onBackgroundAppLimit,
+                            )
+                            ChoiceRow(
+                                host, "memory-hud", stringResource(R.string.setup_memory_hud), stringResource(R.string.setup_memory_hud_hint),
+                                listOf(
+                                    com.droiddeck.launcher.session.SessionPrefs.MEMORY_HUD_OFF to stringResource(R.string.game_env_off),
+                                    com.droiddeck.launcher.session.SessionPrefs.MEMORY_HUD_SIMPLE to stringResource(R.string.setup_memory_hud_simple),
+                                    com.droiddeck.launcher.session.SessionPrefs.MEMORY_HUD_ADVANCED to stringResource(R.string.setup_memory_hud_advanced),
+                                ),
+                                s.memoryHud, onPick = a.onMemoryHud,
+                            )
+                            if (!s.adbPaired) ActionRow(
+                                stringResource(R.string.setup_adb_pair), stringResource(R.string.setup_adb_pair_hint),
+                                stringResource(R.string.setup_adb_pair_button), { onRequestWirelessAdb(false) },
+                            )
                         }
                     }
                     GLASSES_TAB -> GlassesSetupPanel()

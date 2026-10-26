@@ -141,6 +141,34 @@ object SessionPrefs {
         prefs(context).edit().putString("storesInstallLanguage", code).apply()
     }
 
+    const val DEFAULT_STORAGE_ASK = "ask"
+    const val DEFAULT_STORAGE_INTERNAL = "internal"
+    const val DEFAULT_STORAGE_EXTERNAL = "external"
+    private val DEFAULT_STORAGE_VALUES = setOf(DEFAULT_STORAGE_ASK, DEFAULT_STORAGE_INTERNAL, DEFAULT_STORAGE_EXTERNAL)
+
+    fun defaultStorage(context: Context): String =
+        prefs(context).getString("defaultStorage", DEFAULT_STORAGE_ASK)
+            ?.takeIf { it in DEFAULT_STORAGE_VALUES } ?: DEFAULT_STORAGE_ASK
+
+    fun setDefaultStorage(context: Context, value: String) {
+        prefs(context).edit().putString("defaultStorage", value.takeIf { it in DEFAULT_STORAGE_VALUES } ?: DEFAULT_STORAGE_ASK).apply()
+    }
+
+    fun defaultStorageFolder(context: Context): String = prefs(context).getString("defaultStorageFolder", "") ?: ""
+
+    fun defaultStorageFolderLabel(context: Context): String = prefs(context).getString("defaultStorageFolderLabel", "") ?: ""
+
+    fun setDefaultStorageFolder(context: Context, path: String, label: String) {
+        prefs(context).edit()
+            .putString("defaultStorageFolder", path)
+            .putString("defaultStorageFolderLabel", label)
+            .apply()
+    }
+
+    fun clearDefaultStorageFolder(context: Context) {
+        prefs(context).edit().remove("defaultStorageFolder").remove("defaultStorageFolderLabel").apply()
+    }
+
     fun gameStoresParallel(context: Context): Int = prefs(context).getInt("gameStoresParallel", 1).coerceIn(1, 3)
 
     fun setGameStoresParallel(context: Context, count: Int) {
@@ -459,6 +487,12 @@ object SessionPrefs {
         prefs(context).edit().putInt("ramCapMb", mb.coerceAtLeast(0)).apply()
     }
 
+    fun zramClient(context: Context): Boolean = prefs(context).getBoolean("zramClient", true)
+
+    fun setZramClient(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("zramClient", on).apply()
+    }
+
     fun vramCapMb(context: Context): Int = prefs(context).getInt("vramCapMb", 0).coerceAtLeast(0)
 
     fun setVramCapMb(context: Context, mb: Int) {
@@ -564,6 +598,32 @@ object SessionPrefs {
 
     fun setLogsEnabled(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("logs", on).apply()
+    }
+
+    fun battleNetNoSteamSet(context: Context): Boolean = prefs(context).getBoolean("battleNetNoSteamSet", false)
+    fun setBattleNetNoSteamSet(context: Context) { prefs(context).edit().putBoolean("battleNetNoSteamSet", true).apply() }
+
+    fun clearCachedApps(context: Context): Boolean = prefs(context).getBoolean("clearCachedApps", false)
+    fun setClearCachedApps(context: Context, on: Boolean) { prefs(context).edit().putBoolean("clearCachedApps", on).apply() }
+
+    fun backgroundAppLimit(context: Context): Int =
+        prefs(context).getInt("backgroundAppLimit", com.droiddeck.launcher.core.BackgroundAppLimit.OFF)
+            .takeIf { it in com.droiddeck.launcher.core.BackgroundAppLimit.CHOICES } ?: com.droiddeck.launcher.core.BackgroundAppLimit.OFF
+    fun setBackgroundAppLimit(context: Context, limit: Int) {
+        require(limit in com.droiddeck.launcher.core.BackgroundAppLimit.CHOICES)
+        prefs(context).edit().putInt("backgroundAppLimit", limit).apply()
+    }
+
+    const val MEMORY_HUD_OFF = "off"
+    const val MEMORY_HUD_SIMPLE = "simple"
+    const val MEMORY_HUD_ADVANCED = "advanced"
+
+    fun memoryHud(context: Context): String =
+        prefs(context).getString("memoryHud", MEMORY_HUD_OFF)
+            ?.takeIf { it == MEMORY_HUD_SIMPLE || it == MEMORY_HUD_ADVANCED } ?: MEMORY_HUD_OFF
+    fun setMemoryHud(context: Context, value: String) {
+        require(value == MEMORY_HUD_OFF || value == MEMORY_HUD_SIMPLE || value == MEMORY_HUD_ADVANCED)
+        prefs(context).edit().putString("memoryHud", value).apply()
     }
 
     fun storageDiagnosticsEnabled(context: Context): Boolean =
@@ -843,7 +903,7 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("hdr.$mode", on).apply()
     }
 
-    fun fpsLimit(context: Context, mode: String): Int = prefs(context).getInt("fpsLimit.$mode", 0)
+    fun fpsLimit(context: Context, mode: String): Int = prefs(context).getInt("fpsLimit.$mode", 0).coerceAtLeast(0)
 
     fun setFpsLimit(context: Context, mode: String, fps: Int) {
         prefs(context).edit().putInt("fpsLimit.$mode", fps.coerceAtLeast(0)).apply()
@@ -853,6 +913,22 @@ object SessionPrefs {
 
     fun fpsLimitChoices(context: Context): List<Pair<Int, String>> =
         fpsLimitChoices.map { (fps, label) -> fps to if (fps == 0) context.getString(R.string.frame_gen_off) else label }
+
+    /**
+     * Performance mode: without a frame limit, buffers go back to the game as soon as they are replaced
+     * instead of once per refresh, and gamescope's WSI layer and winex11 reuse their per-present window checks.
+     */
+    fun performanceMode(context: Context, mode: String): Boolean = prefs(context).getBoolean("performanceMode.$mode", false)
+
+    fun setPerformanceMode(context: Context, mode: String, on: Boolean) {
+        prefs(context).edit().putBoolean("performanceMode.$mode", on).apply()
+    }
+
+    /** Compositor frame limit that releases buffers to the game unpaced. */
+    const val FPS_UNPACED = -1
+
+    /** The limit handed to the compositor: Performance mode without a limit is unpaced, a chosen limit still paces. */
+    fun compositorFpsLimit(limit: Int, performanceMode: Boolean): Int = if (performanceMode && limit <= 0) FPS_UNPACED else limit
 
     val upscalerChoices = listOf(
         0 to "Linear", 2 to "Nearest", 4 to "AMD FSR 1", 3 to "Snapdragon GSR",

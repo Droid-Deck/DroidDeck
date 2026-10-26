@@ -102,24 +102,31 @@ object GogBackend : StoreBackend {
             StoreInstalls.begin(folder, Store.GOG, game.gameId, game.title, item.tallImageUrl ?: item.imageUrl, item.imageUrl)
             var downloading = false
             val language = item.extra[StoreLanguage.EXTRA] ?: StoreLanguage.preferredCode(app)
-            val result = GogDownloadManager.install(app, game, folder, object : GogDownloadManager.Callback {
-                override fun onProgress(message: String, pct: Int) {
-                    when {
-                        message.startsWith("Finishing") -> handle.stage(DownloadStage.INSTALL, message)
-                        message.startsWith("Downloading") || message.startsWith("Verified") || message.startsWith("Resuming") -> {
-                            if (!downloading) { downloading = true; handle.stage(DownloadStage.DOWNLOAD, message) } else handle.progress(-1, -1, message)
+            val result = try {
+                GogDownloadManager.install(app, game, folder, object : GogDownloadManager.Callback {
+                    override fun onProgress(message: String, pct: Int) {
+                        when {
+                            message.startsWith("Finishing") || message.startsWith("Extracting") -> handle.stage(DownloadStage.INSTALL, message)
+                            message.startsWith("Downloading") || message.startsWith("Verified") || message.startsWith("Resuming") -> {
+                                if (!downloading) { downloading = true; handle.stage(DownloadStage.DOWNLOAD, message) } else handle.progress(-1, -1, message)
+                            }
+                            else -> handle.stage(DownloadStage.MANIFEST, message)
                         }
-                        else -> handle.stage(DownloadStage.MANIFEST, message)
                     }
+                    override fun onBytes(done: Long, total: Long, speedBps: Long) { handle.progress(done, total, null, speedBps) }
+                    override fun onLog(line: String) { handle.log(line) }
+                    override fun onSizes(downloadBytes: Long, diskBytes: Long) { handle.diskSize(diskBytes) }
+                    override fun onStage(stage: String, done: Long, total: Long, items: Int, itemsTotal: Int) {
+                        handle.stage(when (stage) { "check" -> DownloadStage.MANIFEST; "verify" -> DownloadStage.VERIFY; else -> DownloadStage.INSTALL })
+                        handle.stageProgress(done, total, items, itemsTotal, bytes = stage == "install")
+                    }
+                }, cancelled, language)
+            } catch (t: Throwable) {
+                if (t is GogDownloadManager.InstallerException && !cancelled.get()) {
+                    StoreInstalls.discard(app, folder, listOf(File(folder, ".gog_chunks")))
                 }
-                override fun onBytes(done: Long, total: Long, speedBps: Long) { handle.progress(done, total, null, speedBps) }
-                override fun onLog(line: String) { handle.log(line) }
-                override fun onSizes(downloadBytes: Long, diskBytes: Long) { handle.diskSize(diskBytes) }
-                override fun onStage(stage: String, done: Long, total: Long, items: Int, itemsTotal: Int) {
-                    handle.stage(when (stage) { "check" -> DownloadStage.MANIFEST; "verify" -> DownloadStage.VERIFY; else -> DownloadStage.INSTALL })
-                    handle.stageProgress(done, total, items, itemsTotal, bytes = stage == "install")
-                }
-            }, cancelled, language) ?: return null
+                throw t
+            } ?: return null
             if (cancelled.get()) return null
             handle.stage(DownloadStage.INSTALL, app.getString(com.droiddeck.launcher.R.string.stores_registering))
             val installedLanguage = result.language?.takeIf { it.isNotEmpty() } ?: language

@@ -100,6 +100,10 @@ class FrontEndState(
     val logsEnabled: Boolean,
     val vacDiagnostics: Boolean = false,
     val agentCommands: Boolean = false,
+    val clearCachedApps: Boolean = false,
+    val adbPaired: Boolean = false,
+    val backgroundAppLimit: Int = -1,
+    val memoryHud: String = "off",
     val steamGames: List<Library.SteamGame>,
     val steamGamesX64: Boolean = false,
     val emulators: List<Library.Emulator>,
@@ -124,6 +128,7 @@ class FrontEndState(
     val packageStage: String? = null,
     val packagePercent: Int = -1,
     val sessionRunning: Boolean = false,
+    val battleNetInstalled: Boolean = false,
     val removalPending: Boolean = false,
     val runtimeActionsBlocked: Boolean = false,
     val backActionsInverted: Boolean = false,
@@ -176,6 +181,7 @@ class FrontEndActions(
     val onEmulator: (Library.Emulator) -> Unit,
     val onFlatpakApp: (String, String) -> Unit = { _, _ -> },
     val onUserApp: (com.droiddeck.launcher.runtime.UserApps.App) -> Unit = {},
+    val onBattleNet: () -> Unit = {},
     val onRom: (Library.Rom) -> Unit,
     val onResume: () -> Unit,
     val onSteamSettings: () -> Unit,
@@ -200,6 +206,9 @@ class FrontEndActions(
     val onLogs: () -> Unit,
     val onVacDiagnostics: () -> Unit = {},
     val onAgentCommands: () -> Unit = {},
+    val onClearCachedApps: (Boolean) -> Unit = {},
+    val onMemoryHud: (String) -> Unit = {},
+    val onBackgroundAppLimit: (Int) -> Unit = {},
     val onShareLogs: () -> Unit = {},
     val onClearLogs: () -> Unit = {},
     val onResetSettings: () -> Unit = {},
@@ -561,6 +570,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
         FlightsLayer(screenAt)
         GamesDialogs(a, s.steamGames)
         com.droiddeck.launcher.stores.StoresState.pendingInstall?.let { item -> StoreTheme(item.store) { InstallWhere(item) } }
+        com.droiddeck.launcher.stores.StoresState.itchPicking?.let { item -> StoreTheme(item.store) { ItchBuildPicker(item) { com.droiddeck.launcher.stores.StoresState.itchPicking = null } } }
         StepsLayer(screenAt)
 
         appToChooseDisplay?.let { app ->

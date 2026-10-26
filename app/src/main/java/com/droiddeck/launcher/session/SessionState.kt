@@ -59,6 +59,8 @@ object SessionState {
     @Volatile
     var programArgs: List<String> = emptyList()
     @Volatile
+    var gameId: String? = null
+    @Volatile
     var steamUi: String? = null
     @Volatile
     var steamUrl: String? = null
@@ -103,6 +105,9 @@ object SessionState {
 
     @Volatile
     var fpsLimit: Int = 0
+
+    @Volatile
+    var performanceMode = false
 
     @Volatile
     var firstFrameSeen = false

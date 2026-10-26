@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.input;
 
+import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
@@ -308,10 +309,10 @@ public final class PadBridge {
             case KeyEvent.KEYCODE_BUTTON_MODE:
             case KeyEvent.KEYCODE_HOME: pad.press(PadState.GUIDE, pressed); break;
             case KeyEvent.KEYCODE_BUTTON_Z:
-                if (isPrimary(event)) DeckControls.INSTANCE.setGrip(DeckControls.L4, pressed);
+                if (isPrimary(event)) DeckControls.INSTANCE.setGrip(isNovaController(event.getDevice()) ? DeckControls.R4 : DeckControls.L4, pressed);
                 break;
             case KeyEvent.KEYCODE_BUTTON_C:
-                if (isPrimary(event)) DeckControls.INSTANCE.setGrip(DeckControls.R4, pressed);
+                if (isPrimary(event)) DeckControls.INSTANCE.setGrip(isNovaController(event.getDevice()) ? DeckControls.L4 : DeckControls.R4, pressed);
                 break;
             case KeyEvent.KEYCODE_BUTTON_L2: pad.leftTrigger = pressed ? 1f : 0f; break;
             case KeyEvent.KEYCODE_BUTTON_R2: pad.rightTrigger = pressed ? 1f : 0f; break;
@@ -571,6 +572,12 @@ public final class PadBridge {
 
     private PadState stateFor(int slot) {
         return slot == 0 ? state : playerStates[slot];
+    }
+
+    private static boolean isNovaController(InputDevice device) {
+        return "Retroid Pocket Nova".equalsIgnoreCase(Build.MODEL)
+                && device.getVendorId() == 0x2022
+                && (device.getProductId() == 0x3001 || device.getProductId() == 0x3002);
     }
 
     private boolean isPrimary(KeyEvent event) {

@@ -264,6 +264,8 @@ static struct wl_event_source *g_fallback_timer;
 static int g_fallback_armed;
 
 volatile int g_fps_limit;
+/* fps limit -1 (Performance mode without a limit): replaced buffers go back to the client at once instead of once per refresh. */
+volatile int g_release_unpaced;
 
 volatile int g_hide_shell;
 
@@ -371,7 +373,7 @@ static int on_release_timer(int fd, uint32_t mask, void *data) {
 static void release_buffer(struct surface *s, struct wl_resource *buffer, int64_t since_ns) {
     const int limit = g_fps_limit;
     const int64_t interval = limit > 0 ? 1000000000LL / limit : g_refresh_ns;
-    if (interval <= 0 || g_release_timer_fd < 0) { wl_buffer_send_release(buffer); perf_note_release(since_ns); return; }
+    if (g_release_unpaced || interval <= 0 || g_release_timer_fd < 0) { wl_buffer_send_release(buffer); perf_note_release(since_ns); return; }
     int64_t now = now_ns();
     int64_t at = s->next_release_ns + interval;
     int64_t latest = now + interval * (int64_t)(s->releases_pending + 1);

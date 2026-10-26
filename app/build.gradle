@@ -262,6 +262,7 @@ def runtimeAssetsDir = layout.buildDirectory.dir('runtimeAssets')
 def stageRuntimeAssets = tasks.register('stageRuntimeAssets', Sync) {
     dependsOn(stageSessionScripts)
     from(layout.projectDirectory.dir('src/main/assets')) { exclude 'pulseaudio.tzst' }
+    from(rootProject.file('tools/linuxfs/innoextract'))
     from(layout.buildDirectory.dir('prepared-assets'))
     into(runtimeAssetsDir)
 }
