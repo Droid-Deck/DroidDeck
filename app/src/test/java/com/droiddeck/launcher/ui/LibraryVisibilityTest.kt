@@ -11,6 +11,8 @@ import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -98,8 +100,15 @@ class LibraryVisibilityTest {
         compose.mainClock.advanceTimeBy(2_000)
         compose.onNodeWithText("Installed only").assertIsDisplayed()
         compose.onNodeWithText("All owned games").assertIsDisplayed()
+        compose.onAllNodesWithText("Filter").assertCountEquals(1)
         compose.onNodeWithText("Uninstalled GOG").assertDoesNotExist()
         assertFalse(SessionPrefs.libraryShowUninstalled(ctx))
+        compose.runOnIdle { Steps.fold(); Snapshot.sendApplyNotifications() }
+        compose.mainClock.advanceTimeBy(1_000)
+        sort.performClick()
+        compose.mainClock.advanceTimeBy(2_000)
+        compose.onAllNodesWithText("Sort").assertCountEquals(1)
+        compose.onNodeWithText("Recently played").assertIsDisplayed()
     }
 
     @Test fun theXboxAccessChoicesShareTheLibraryFilter() {

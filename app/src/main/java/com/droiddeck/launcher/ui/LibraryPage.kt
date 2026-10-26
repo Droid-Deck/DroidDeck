@@ -667,7 +667,7 @@ private fun LibraryFilterButton(showUninstalled: Boolean?, onShowUninstalled: (B
             val from = at ?: return@HeaderIconButton
             Steps.ask(StepAsk(
                 anchor = from, side = StepSide.Left, accent = pal.signal, pillCorner = 8.dp, items = offset + if (xbox) XboxLibraryFilter.ALL_FILTERS.size else 0,
-                handle = { Text(title, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = pal.signal, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                handle = { Icon(Icons.Filled.FilterAlt, null, tint = pal.signal, modifier = Modifier.size(18.dp)) },
             ) {
                 StepTitle(title)
                 StepList {
@@ -707,7 +707,7 @@ private fun SortButton(s: FrontEndState, a: FrontEndActions) {
             val from = at ?: return@HeaderIconButton
             Steps.ask(StepAsk(
                 anchor = from, side = StepSide.Left, accent = pal.signal, pillCorner = 8.dp, items = SessionPrefs.STORES_SORTS.size,
-                handle = { Text(title, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = pal.signal, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                handle = { Icon(Icons.Filled.Sort, null, tint = pal.signal, modifier = Modifier.size(18.dp)) },
             ) {
                 StepTitle(title)
                 StepList {
