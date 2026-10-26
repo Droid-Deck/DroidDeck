@@ -49,6 +49,9 @@ if [ ! -f /etc/pacman.d/gnupg/pubring.gpg ] && [ ! -f /etc/pacman.d/gnupg/pubrin
 fi
 
 step "Reading the package lists"
+if [ -e "$WORK/db/db.lck" ] && ! grep -qx pacman /proc/[0-9]*/comm 2>/dev/null; then
+  rm -f "$WORK/db/db.lck"
+fi
 sync_log=$(pacman --config "$CONF" --dbpath "$WORK/db" --noconfirm -Sy 2>&1) \
   || sync_log=$(pacman --config "$CONF" --dbpath "$WORK/db" --noconfirm -Sy 2>&1)
 if [ ! -f "$WORK/db/sync/extra.db" ]; then

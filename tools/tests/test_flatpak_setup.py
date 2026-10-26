@@ -9,9 +9,12 @@ SCRIPT = Path(__file__).resolve().parents[1] / "linuxfs/overlay/usr/local/bin/dr
 
 
 class FlatpakSetupTest(unittest.TestCase):
-    def run_setup(self, uid, pacman):
+    def run_setup(self, uid, pacman, locked=False):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
+            if locked:
+                (root / "work/db").mkdir(parents=True)
+                (root / "work/db/db.lck").write_text("")
             bin_dir = root / "bin"
             bin_dir.mkdir()
             stubs = {"id": "echo %d" % uid, "curl": "exit 7", "pacman": pacman, "pacman-key": "exit 0"}
@@ -39,6 +42,29 @@ class FlatpakSetupTest(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("== FAIL could not reach the Arch Linux ARM mirrors (error: failed retrieving file 'core.db' : "
                       "Could not resolve host)", out)
+
+    SYNC = ("db=; while [ $# -gt 0 ]; do [ \"$1\" = --dbpath ] && db=$2; shift; done\n"
+            "[ -e \"$db/db.lck\" ] && { echo 'error: failed to synchronize all databases (unable to lock database)' >&2; exit 1; }\n"
+            "mkdir -p \"$db/sync\" && touch \"$db/sync/extra.db\"")
+
+    def test_a_lock_left_by_an_interrupted_run_is_cleared(self):
+        code, out = self.run_setup(0, self.SYNC, locked=True)
+        self.assertNotIn("unable to lock database", out)
+        self.assertIn("== STEP Downloading Flatpak", out)
+
+    def test_a_lock_held_by_a_running_pacman_is_kept(self):
+        with tempfile.TemporaryDirectory() as directory:
+            holder = Path(directory) / "pacman"
+            holder.write_bytes(Path("/bin/sleep").read_bytes())
+            holder.chmod(0o755)
+            running = subprocess.Popen([str(holder), "30"])
+            try:
+                code, out = self.run_setup(0, self.SYNC, locked=True)
+            finally:
+                running.kill()
+                running.wait()
+        self.assertEqual(code, 1)
+        self.assertIn("unable to lock database", out)
 
 
 if __name__ == "__main__":
