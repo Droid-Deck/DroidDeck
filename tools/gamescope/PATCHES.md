@@ -113,3 +113,11 @@ positions, fractional host scales and wide intermediates. This patch may be wort
 upstreaming: the same unsigned position calls were present in ValveSoftware/gamescope
 3.16.29 and master `d175688ad4ec490dc7b0695c5c62f8807684a1f1` when checked on
 2026-10-26. Carry it here until an upstream release containing the fix is adopted.
+
+Device validation on AYN Thor (1280x720 session, 1920x1080 Android output):
+800x600 and 1600x600 source windows retained their image through Auto, Fit,
+Stretch, Fill, Integer and 2x Steam magnification, including returning to Fit.
+The old component lost the image in Fill and magnification. The tested executable
+matches the pinned p14 archive and the locally assembled APK. Hardware checks used
+native Gamescope properties; the physical Back+LB shortcut was not independently
+confirmed. The original APK and runtime were restored after validation.
