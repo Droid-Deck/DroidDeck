@@ -352,7 +352,13 @@ def game_cores(env):
 
 
 def cpu_topology(env):
-    if "WINE_CPU_TOPOLOGY" in env or "PROTON_CPU_TOPOLOGY" in env or not (env.get("DROIDDECK_GAME_CORES", "").strip() or env.get("BL_GAME_CPUS", "").strip()):
+    if "PROTON_CPU_TOPOLOGY" in env:
+        return
+    if "WINE_CPU_TOPOLOGY" in env:
+        if env["WINE_CPU_TOPOLOGY"]:
+            env["PROTON_CPU_TOPOLOGY"] = env["WINE_CPU_TOPOLOGY"]
+        return
+    if not (env.get("DROIDDECK_GAME_CORES", "").strip() or env.get("BL_GAME_CPUS", "").strip()):
         return
     try:
         cores = sorted(os.sched_getaffinity(0))
