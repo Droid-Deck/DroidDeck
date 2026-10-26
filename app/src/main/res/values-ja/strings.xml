@@ -3057,4 +3057,5 @@
     <string name="xbox_filter_show">表示</string>
     <string name="xbox_filter_cloud">クラウド</string>
     <string name="stores_xbox_cloud_settings">クラウド設定</string>
+    <string name="exit_hint_back">もう一度戻るを押すと終了します</string>
 </resources>

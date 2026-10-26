@@ -3080,4 +3080,5 @@
     <string name="xbox_filter_show">Visa</string>
     <string name="xbox_filter_cloud">Moln</string>
     <string name="stores_xbox_cloud_settings">Molninställningar</string>
+    <string name="exit_hint_back">Tryck tillbaka igen för att avsluta</string>
 </resources>

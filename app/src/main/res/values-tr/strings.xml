@@ -3082,4 +3082,5 @@
     <string name="xbox_filter_show">Göster</string>
     <string name="xbox_filter_cloud">Bulut</string>
     <string name="stores_xbox_cloud_settings">Bulut ayarları</string>
+    <string name="exit_hint_back">Çıkmak için bir kez daha geri basın</string>
 </resources>

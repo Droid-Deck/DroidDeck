@@ -3080,4 +3080,5 @@
     <string name="xbox_filter_show">Εμφάνιση</string>
     <string name="xbox_filter_cloud">Cloud</string>
     <string name="stores_xbox_cloud_settings">Ρυθμίσεις cloud</string>
+    <string name="exit_hint_back">Πατήστε ξανά πίσω για έξοδο</string>
 </resources>

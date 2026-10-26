@@ -3059,4 +3059,5 @@
     <string name="xbox_filter_show">显示</string>
     <string name="xbox_filter_cloud">云</string>
     <string name="stores_xbox_cloud_settings">云设置</string>
+    <string name="exit_hint_back">再按一次返回键退出</string>
 </resources>

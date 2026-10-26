@@ -3080,4 +3080,5 @@
     <string name="xbox_filter_show">दिखाएँ</string>
     <string name="xbox_filter_cloud">क्लाउड</string>
     <string name="stores_xbox_cloud_settings">क्लाउड सेटिंग्स</string>
+    <string name="exit_hint_back">बाहर निकलने के लिए फिर से बैक दबाएँ</string>
 </resources>
