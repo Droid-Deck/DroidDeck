@@ -3223,4 +3223,34 @@
     <string name="stores_xbox_cloud_settings">Cloud settings</string>
     <string name="xbox_cloud_gaming" translatable="false">Xbox Cloud Gaming</string>
     <string name="xbox_filter_game_pass" translatable="false">Game Pass</string>
+    <!-- GeForce NOW tab (OpenNOW) -->
+    <string name="gfn_name" translatable="false">GeForce NOW</string>
+    <string name="gfn_pitch">Stream your games from NVIDIA\'s servers.</string>
+    <string name="gfn_unofficial">Unofficial client built on OpenNOW. NVIDIA does not support third-party GeForce NOW apps.</string>
+    <string name="gfn_open_page">Open the sign-in page</string>
+    <string name="gfn_code_hint">On this device or another one, open %1$s and enter this code:</string>
+    <string name="gfn_code_waiting">Waiting for you to sign in…</string>
+    <string name="gfn_try_again">Try again</string>
+    <string name="gfn_mode_store">Store</string>
+    <string name="gfn_mode_library">My library</string>
+    <string name="gfn_mode_accounts">Connected stores</string>
+    <string name="gfn_search_store">Search %1$d games</string>
+    <string name="gfn_search_library">Search your %1$d games</string>
+    <string name="gfn_loading_store">Loading the GeForce NOW store…</string>
+    <string name="gfn_loading_library">Loading your library…</string>
+    <string name="gfn_library_empty">Your GeForce NOW library is empty. Connect your stores under Connected stores, then sync.</string>
+    <string name="gfn_profile_line">GeForce NOW · %1$d in library</string>
+    <string name="gfn_accounts_note">Games in the stores you connect here show up in My library and can be streamed. Amazon and itch.io games are not on GeForce NOW.</string>
+    <string name="gfn_connect">Connect</string>
+    <string name="gfn_reconnect">Reconnect</string>
+    <string name="gfn_sync">Sync library</string>
+    <string name="gfn_disconnect">Disconnect</string>
+    <string name="gfn_disconnect_confirm">Press again to disconnect</string>
+    <string name="gfn_signout_confirm">Press again to sign out</string>
+    <string name="gfn_steam_link">Link Steam on NVIDIA\'s site</string>
+    <string name="gfn_status_connected">Connected</string>
+    <string name="gfn_status_connected_as">Connected as %1$s</string>
+    <string name="gfn_status_expired">Connection expired: reconnect</string>
+    <string name="gfn_status_sync_error">Last sync failed</string>
+    <string name="gfn_status_not_connected">Not connected</string>
 </resources>

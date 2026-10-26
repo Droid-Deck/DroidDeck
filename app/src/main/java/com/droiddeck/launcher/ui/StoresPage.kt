@@ -93,7 +93,6 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.automirrored.filled.Login
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.outlined.Cloud
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -198,7 +197,7 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
     LaunchedEffect(StoresState.openDownloads) { if (StoresState.openDownloads) { chip = DOWNLOADS; StoresState.openDownloads = false } }
     val store = Store.byId(chip)
     LaunchedEffect(tabs.toList()) {
-        if (chip != DOWNLOADS && Store.byId(chip) !in shownStores) chip = shownStores.firstOrNull()?.id ?: DOWNLOADS
+        if (chip != DOWNLOADS && chip != GEFORCE_NOW && Store.byId(chip) !in shownStores) chip = shownStores.firstOrNull()?.id ?: DOWNLOADS
     }
     val pane = PaneKey(
         chip,
@@ -251,8 +250,7 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
     }
     val pal = LocalPalette.current
     fun cycleStore(step: Int) {
-        val ids = tabs.filter { it.shown }.map { it.store.id }
-        if (ids.isEmpty()) return
+        val ids = tabs.filter { it.shown }.map { it.store.id } + GEFORCE_NOW
         val at = ids.indexOf(chip)
         pickChip(ids[if (at < 0) (if (step > 0) 0 else ids.size - 1) else (at + step + ids.size) % ids.size])
     }
@@ -325,11 +323,12 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
             )),
     ) {
         Box(Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
-            StoreTheme(Store.byId(focusedChip ?: chip)) {
+            StoreTheme(Store.byId(focusedChip ?: chip), gfn = (focusedChip ?: chip) == GEFORCE_NOW) {
                 Rise(0) {
                     StoreChips(
                         chip, focusedChip, s.storeDownloadsActive, tabs, arranging,
                         onStore = { st -> openModes(st) },
+                        onGfn = { if (chip != GEFORCE_NOW) pickChip(GEFORCE_NOW) else move("first") },
                         onDownloads = { if (chip != DOWNLOADS) pickChip(DOWNLOADS) else move("first") },
                         onFocusChip = { focusedChip = it },
                         onArrangeDone = { arranging = false },
@@ -365,13 +364,14 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
                     CompositionLocalProvider(LocalFrontFocus provides if (outgoing) null else LocalFrontFocus.current) {
                       val leavingNow = androidx.compose.runtime.rememberUpdatedState(outgoing)
                       val st = Store.byId(k.chip)
-                      StoreTheme(st) {
+                      StoreTheme(st, gfn = k.chip == GEFORCE_NOW) {
                           Column(
                               Modifier.fillMaxSize()
                                   .focusProperties { enter = { if (leavingNow.value) androidx.compose.ui.focus.FocusRequester.Cancel else androidx.compose.ui.focus.FocusRequester.Default } }
                                   .focusGroup(),
                           ) {
                             when {
+                                k.chip == GEFORCE_NOW -> GfnPane(viewportH - 20.dp)
                                 k.chip == DOWNLOADS -> Column(Modifier.fillMaxWidth().verticalScroll(scroll).padding(top = 4.dp, bottom = 16.dp)) { StoresDownloadsPane(s, a) }
                                 st == null -> {}
                                 !k.accountsLoaded -> Box(Modifier.fillMaxWidth().padding(top = 16.dp)) {
@@ -589,17 +589,17 @@ private fun RowScope.ArrangeStoreChip(
 @Composable
 private fun StoreChips(
     selected: String, focused: String?, active: Int, tabs: List<StoreTab>, arranging: Boolean,
-    onStore: (Store) -> Unit, onDownloads: () -> Unit, onSettings: (Rect?) -> Unit, onFocusChip: (String?) -> Unit,
+    onStore: (Store) -> Unit, onGfn: () -> Unit, onDownloads: () -> Unit, onSettings: (Rect?) -> Unit, onFocusChip: (String?) -> Unit,
     onArrangeDone: () -> Unit, onMoveTab: (Store, Int) -> Unit, onToggleTab: (Store) -> Unit,
 ) {
     val pal = LocalPalette.current
-    val keys = tabs.filter { it.shown }.map { it.store.id } + DOWNLOADS
+    val keys = tabs.filter { it.shown }.map { it.store.id } + GEFORCE_NOW + DOWNLOADS
     val bounds = remember { androidx.compose.runtime.mutableStateMapOf<String, Rect>() }
     val highlighted = focused ?: selected
     val inputMode = androidx.compose.ui.platform.LocalInputModeManager.current.inputMode
     val fillShown = inputMode != androidx.compose.ui.input.InputMode.Keyboard && !arranging
     val tint = androidx.compose.animation.animateColorAsState(
-        Store.byId(highlighted)?.let { sourceColours(it.id).dot } ?: pal.signal, Motion.tw(160), label = "chipTint",
+        Store.byId(highlighted)?.let { sourceColours(it.id).dot } ?: if (highlighted == GEFORCE_NOW) GfnGreen else pal.signal, Motion.tw(160), label = "chipTint",
     )
     val gap = 8.dp
     val gapPx = with(androidx.compose.ui.platform.LocalDensity.current) { gap.toPx() }
@@ -631,6 +631,17 @@ private fun StoreChips(
                             }
                         }
                     }
+                    if (!arranging) key(GEFORCE_NOW) {
+                        val reveal = remember { BringIntoViewRequester() }
+                        LaunchedEffect(selected) { if (selected == GEFORCE_NOW) reveal.bringIntoView() }
+                        val signedIn = com.droiddeck.launcher.stores.gfn.GfnState.phase is com.droiddeck.launcher.stores.gfn.GfnState.Phase.SignedIn
+                        StoreChip(
+                            label = stringResource(R.string.gfn_name), on = selected == GEFORCE_NOW, under = fillShown && highlighted == GEFORCE_NOW, key = GEFORCE_NOW, mark = GfnGreen,
+                            modifier = Modifier.bringIntoViewRequester(reveal).onGloballyPositioned { bounds[GEFORCE_NOW] = it.boundsInParent() },
+                            lead = { Box(Modifier.size(12.dp).background(GfnGreen.copy(alpha = if (signedIn) 1f else 0.35f), CircleShape)) },
+                            description = stringResource(R.string.gfn_name), onFocused = onFocusChip,
+                        ) { onGfn() }
+                    }
                 }
                 ChipGlide(keys.indexOf(highlighted), bounds[highlighted], tint, visible = fillShown && highlighted != DOWNLOADS)
             }
@@ -651,12 +662,6 @@ private fun StoreChips(
                     ) { onDownloads() }
                     ChipGlide(keys.indexOf(DOWNLOADS), bounds[DOWNLOADS], tint, visible = fillShown && highlighted == DOWNLOADS)
                 }
-                val gfnContext = LocalContext.current
-                StoreChip(
-                    label = "GeForce NOW", on = false, under = false, key = "geforce-now", mark = pal.signal, modifier = Modifier,
-                    lead = { Icon(Icons.Outlined.Cloud, null, modifier = Modifier.size(18.dp)) },
-                    description = "GeForce NOW", onFocused = onFocusChip,
-                ) { gfnContext.startActivity(android.content.Intent(gfnContext, com.droiddeck.launcher.stores.gfn.GfnActivity::class.java)) }
                 var cogAt by remember { mutableStateOf<Rect?>(null) }
                 Box(Modifier.onGloballyPositioned { cogAt = it.boundsInRoot() }) {
                     IconChip(Icons.Filled.Settings, stringResource(R.string.stores_settings)) { onSettings(cogAt) }
@@ -1166,7 +1171,8 @@ internal fun FlathubTheme(content: @Composable () -> Unit) {
 }
 
 @Composable
-internal fun StoreTheme(store: Store?, content: @Composable () -> Unit) {
+internal fun StoreTheme(store: Store?, gfn: Boolean = false, content: @Composable () -> Unit) {
+    if (gfn) return GfnTheme(content)
     val base = LocalPalette.current
     val p = remember(base, store) { storePalette(base, store) }
     val scheme = MaterialTheme.colorScheme.copy(primary = p.primary, onPrimary = p.onPrimary)
