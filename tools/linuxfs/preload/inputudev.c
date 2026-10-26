@@ -173,7 +173,10 @@ static int parse_number(const char **cursor) {
   int value = 0;
 
   if (**cursor < '0' || **cursor > '9') return -1;
-  while (**cursor >= '0' && **cursor <= '9') value = value * 10 + (*(*cursor)++ - '0');
+  while (**cursor >= '0' && **cursor <= '9') {
+    if (value < PAD_MAX) value = value * 10 + (*(*cursor) - '0');
+    (*cursor)++;
+  }
   return value;
 }
 
@@ -211,7 +214,9 @@ static int node_from_syspath(const char *syspath, int *child) {
   }
   if (!match_numbered(&cursor, "/input", node)) return -1;
   if (*cursor == '\0') return node;
-  return match_numbered(&cursor, "/event", node) && *cursor == '\0' ? node : -1;
+  if (!match_numbered(&cursor, "/event", node) || *cursor != '\0') return -1;
+  *child = 0;
+  return node;
 }
 
 static struct pad *pad_for_syspath(const char *syspath) {
@@ -225,14 +230,15 @@ static struct pad *pad_for_syspath(const char *syspath) {
   return pads[node].devnode[0] != '\0' ? &pads[node] : NULL;
 }
 
+/* A pad that went away keeps its address, so identity cannot depend on it still being live. */
 static struct pad *pad_for_device(void *device) {
   int i;
 
   if (device == NULL) return NULL;
   ensure_pads();
   for (i = 0; i < pad_count; i++) {
-    if (&pads[i] == device) return pads[i].devnode[0] != '\0' ? &pads[i] : NULL;
-    if (&parents[i] == device) return parents[i].live ? &parents[i] : NULL;
+    if (&pads[i] == device) return &pads[i];
+    if (&parents[i] == device) return &parents[i];
   }
   return NULL;
 }
@@ -245,11 +251,14 @@ static struct pad *pad_for_syslink(const char *path) {
   if (path == NULL || strncmp(path, prefix, sizeof(prefix) - 1) != 0) return NULL;
   name = path + sizeof(prefix) - 1;
   ensure_pads();
-  if (strncmp(name, "event", 5) == 0 && name[5] >= '0' && name[5] <= '9') {
-    int node = atoi(name + 5);
+  if (strncmp(name, "event", 5) == 0) {
+    const char *cursor = name + 5;
+    int node = parse_number(&cursor);
 
-    refresh_pad(node);
-    if (node >= 0 && node < PAD_MAX && pads[node].devnode[0] != '\0') return &pads[node];
+    if (node >= 0 && node < PAD_MAX && *cursor == '\0') {
+      refresh_pad(node);
+      if (pads[node].devnode[0] != '\0') return &pads[node];
+    }
   }
   for (i = 0; i < pad_count; i++) {
     if (pads[i].devnode[0] != '\0' && strcmp(pads[i].sysname, name) == 0) return &pads[i];
@@ -260,10 +269,21 @@ static struct pad *pad_for_syslink(const char *path) {
 
 static void *real_dlsym(void);
 
+/* libudev is often opened with RTLD_LOCAL, which keeps it out of the global scope that RTLD_NEXT
+ * searches, so the handle the program opened is the only way back to the real implementation. */
+static void *udev_handle;
+
+__attribute__((visibility("hidden"))) void bl_inputudev_note_dlopen(const char *path, void *handle) {
+  if (handle != NULL && path != NULL && strstr(path, "libudev") != NULL) udev_handle = handle;
+}
+
 static void *next_symbol(const char *name) {
   void *(*forward)(void *, const char *) = real_dlsym();
+  void *symbol;
 
-  return forward != NULL ? forward(RTLD_NEXT, name) : NULL;
+  if (forward == NULL) return NULL;
+  if (udev_handle != NULL && (symbol = forward(udev_handle, name)) != NULL) return symbol;
+  return forward(RTLD_NEXT, name);
 }
 
 char *bl_cached_realpath(const char *path, char *resolved, char *(*real)(const char *, char *))
@@ -344,7 +364,7 @@ const char *udev_device_get_devnode(void *device) {
   static const char *(*real_get)(void *);
   struct pad *pad = pad_for_device(device);
 
-  if (pad != NULL) return pad->parent ? NULL : pad->devnode;
+  if (pad != NULL) return pad->parent || pad->devnode[0] == '\0' ? NULL : pad->devnode;
   if (real_get == NULL) real_get = next_symbol("udev_device_get_devnode");
   if (real_get == NULL) return NULL;
   return real_get(device);
@@ -460,7 +480,8 @@ const char *udev_device_get_property_value(void *device, const char *key) {
   if (pad != NULL) {
     if (key == NULL) return NULL;
     if (strcmp(key, "ID_INPUT") == 0 || strcmp(key, "ID_INPUT_JOYSTICK") == 0) return "1";
-    if (strcmp(key, "DEVNAME") == 0 && !pad->parent) return pad->devnode + 5;
+    if (strcmp(key, "DEVNAME") == 0 && !pad->parent && pad->devnode[0] != '\0')
+      return pad->devnode + 5;
     if (strcmp(key, "DEVPATH") == 0) return pad->syspath;
     return NULL;
   }
@@ -531,17 +552,27 @@ void *udev_device_new_from_subsystem_sysname(void *udev, const char *subsystem, 
 
   ensure_pads();
   if (subsystem != NULL && sysname != NULL && strcmp(subsystem, "input") == 0) {
-    if (strncmp(sysname, "event", 5) == 0 && (node = atoi(sysname + 5)) >= 0 && node < PAD_MAX) {
-      refresh_pad(node);
-      if (pads[node].devnode[0] != '\0') {
-        pads[node].udev = udev;
-        sync_parent(node);
-        return &pads[node];
+    if (strncmp(sysname, "event", 5) == 0) {
+      const char *cursor = sysname + 5;
+
+      node = parse_number(&cursor);
+      if (node >= 0 && node < PAD_MAX && *cursor == '\0') {
+        refresh_pad(node);
+        if (pads[node].devnode[0] != '\0') {
+          pads[node].udev = udev;
+          sync_parent(node);
+          return &pads[node];
+        }
       }
     }
-    if (strncmp(sysname, "input", 5) == 0 && (node = atoi(sysname + 5)) >= 0 && node < PAD_MAX) {
-      refresh_pad(node);
-      if (parents[node].live) return &parents[node];
+    if (strncmp(sysname, "input", 5) == 0) {
+      const char *cursor = sysname + 5;
+
+      node = parse_number(&cursor);
+      if (node >= 0 && node < PAD_MAX && *cursor == '\0') {
+        refresh_pad(node);
+        if (parents[node].live) return &parents[node];
+      }
     }
   }
   if (real_new == NULL) real_new = next_symbol("udev_device_new_from_subsystem_sysname");
@@ -557,7 +588,6 @@ struct enumerate {
 #define ENUMERATE_MAX 16
 
 static struct enumerate enumerates[ENUMERATE_MAX];
-static int iteration_cursor;
 
 static struct enumerate *enumerate_state(void *enumerate) {
   int i;
@@ -623,17 +653,14 @@ int udev_enumerate_scan_devices(void *enumerate) {
   return rc;
 }
 
-static void *next_pad_entry(void) {
+static void *next_pad_entry(int from) {
   int node;
 
   ensure_pads();
-  for (node = iteration_cursor; node < PAD_MAX; node++) {
+  for (node = from; node < PAD_MAX; node++) {
     refresh_pad(node);
-    if (pads[node].devnode[0] == '\0') continue;
-    iteration_cursor = node + 1;
-    return &pads[node];
+    if (pads[node].devnode[0] != '\0') return &pads[node];
   }
-  iteration_cursor = PAD_MAX;
   return NULL;
 }
 
@@ -645,14 +672,14 @@ void *udev_enumerate_get_list_entry(void *enumerate) {
     if (real_get == NULL) real_get = next_symbol("udev_enumerate_get_list_entry");
     return real_get != NULL ? real_get(enumerate) : NULL;
   }
-  iteration_cursor = 0;
-  return next_pad_entry();
+  return next_pad_entry(0);
 }
 
 void *udev_list_entry_get_next(void *entry) {
   static void *(*real_get)(void *);
+  struct pad *pad = pad_for_device(entry);
 
-  if (pad_for_device(entry) != NULL) return next_pad_entry();
+  if (pad != NULL) return next_pad_entry(pad->node + 1);
   if (real_get == NULL) real_get = next_symbol("udev_list_entry_get_next");
   return real_get != NULL ? real_get(entry) : NULL;
 }
