@@ -640,9 +640,9 @@ def ubisoft_registry(folder, compat_data, product=None, proton=None):
         existing = (Path(compat_data) / "pfx" / "system.reg").read_text(errors="replace")
     except OSError:
         existing = ""
-    existing = existing.replace("\\\\", "\\")
-    if section in existing and (not game_section or game_section in existing) and (
-            not exe or ("\"Exe\"=\"%s\"" % exe) in existing):
+    existing = existing.replace("\\\\", "\\").lower()
+    if section.lower() in existing and (not game_section or game_section.lower() in existing) and (
+            not exe or ("\"exe\"=\"%s\"" % exe.lower()) in existing):
         return "ready"
     previous = ubisoft_last(folder)
     if previous:
