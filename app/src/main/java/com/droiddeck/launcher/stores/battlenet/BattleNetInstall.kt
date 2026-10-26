@@ -34,7 +34,6 @@ object BattleNetInstall {
     internal const val STATE = "BNET_STATE "
     internal const val DONE = "BNET_DONE "
     internal const val ERROR = "BNET_ERROR "
-    private const val LIBRARY_GUEST = "/mnt/droiddeck-sd"
     private const val VERSIONS = "https://%s.version.battle.net/v2/products/%s/versions"
     private const val BUILD_INFO = ".build.info"
     private const val CHECK_AGAIN_MS = 30 * 60_000L
@@ -70,22 +69,28 @@ object BattleNetInstall {
         return if (two.matches(Regex("[A-Z]{2}")) && three.matches(Regex("[A-Z]{3}"))) three to two else "USA" to "US"
     }
 
-    internal fun binds(context: Context, guest: String): List<String> {
-        val out = ArrayList<String>()
-        if (guest.startsWith(StoreInstallRoot.GUEST_EXTERNAL + "/")) out += StoreInstallRoot.externalBindSpecs(context)
-        if (guest == LIBRARY_GUEST || guest.startsWith("$LIBRARY_GUEST/")) {
-            GameStorage.effective(context)?.let { library ->
-                File(LinuxRuntime.rootDir(context), LIBRARY_GUEST.removePrefix("/")).mkdirs()
-                out += SecondaryLibrary.contentPath(File(library.path)).path + ":" + LIBRARY_GUEST
+    internal fun binds(context: Context): List<String> {
+        val out = ArrayList<String>(StoreInstallRoot.externalBindSpecs(context))
+        val root = LinuxRuntime.rootDir(context)
+        GameStorage.effective(context)?.let { library ->
+            val content = SecondaryLibrary.contentPath(File(library.path)).path
+            for (guest in SecondaryLibrary.CARD_GUESTS) {
+                File(root, guest.removePrefix("/")).mkdirs()
+                out += "$content:$guest"
             }
+        }
+        for (folder in AddedGames.roots(context)) {
+            if (!folder.host.isDirectory || !folder.host.canRead()) continue
+            File(root, folder.guest.removePrefix("/")).mkdirs()
+            out += folder.host.path + ":" + folder.guest
         }
         return out
     }
 
-    internal fun run(context: Context, args: List<String>, guest: String?, cancelled: AtomicBoolean?, onLine: (String) -> Unit): Int =
+    internal fun run(context: Context, args: List<String>, cancelled: AtomicBoolean?, onLine: (String) -> Unit): Int =
         GuestCommand.run(
             context, listOf(BattleNet.PROGRAM) + args, logName = "battlenet-agent",
-            extraBinds = guest?.let { binds(context, it) }, fastPath = true, cancelled = cancelled, onLine = onLine,
+            extraBinds = binds(context), fastPath = true, cancelled = cancelled, onLine = onLine,
         )
 
     fun enqueue(context: Context, item: CatalogItem, folder: File, update: Boolean = false) {
@@ -116,12 +121,12 @@ object BattleNetInstall {
 
     fun uninstall(context: Context, game: InstalledStoreGame): Boolean {
         if (product(game.sidecar.id) == null || !BattleNet.installed(context)) return false
-        val done = agentUninstall(context, installUid(context, game), game.folder)
+        val done = agentUninstall(context, installUid(context, game))
         if (done) StoresState.post { StoresState.notifyLibraryChanged(context.applicationContext) }
         return done
     }
 
-    internal fun agentUninstall(context: Context, uid: String, folder: File): Boolean {
+    internal fun agentUninstall(context: Context, uid: String): Boolean {
         val stop = AtomicBoolean(false)
         val started = AtomicBoolean(false)
         val done = AtomicBoolean(false)
@@ -133,7 +138,7 @@ object BattleNetInstall {
             }
         }, "battlenet-uninstall-wait").apply { isDaemon = true; start() }
         val code = runCatching {
-            run(context, listOf("agent-uninstall", uid), AddedGames.guestPath(context, folder), stop) { line ->
+            run(context, listOf("agent-uninstall", uid), stop) { line ->
                 if (line == STATE + "starting") started.set(true)
                 if (line.startsWith(DONE)) done.set(true)
             }
@@ -263,7 +268,7 @@ internal class BattleNetInstaller(
         else listOf("agent-install", uid, product, guest, BattleNetInstall.localeTag(app), country, region)
         var done: JSONObject? = null
         var reason: String? = null
-        val code = BattleNetInstall.run(app, args, guest, cancelled) { line ->
+        val code = BattleNetInstall.run(app, args, cancelled) { line ->
             when {
                 line.startsWith(BattleNetInstall.PROGRESS) ->
                     runCatching { JSONObject(line.removePrefix(BattleNetInstall.PROGRESS)) }.getOrNull()?.let { progress(handle, it) }
@@ -304,7 +309,7 @@ internal class BattleNetInstaller(
         val uid = item.extra[BattleNetInstall.INSTALL_UID] ?: BattleNet.title(item.id)?.uid ?: return
         Thread({
             if (started.get() && !ended.await(END_WAIT_S, TimeUnit.SECONDS)) Log.w("BattleNetInstall", "the cancelled install of $uid is still stopping")
-            val gone = BattleNetInstall.agentUninstall(app, uid, folder)
+            val gone = BattleNetInstall.agentUninstall(app, uid)
             if (folder.isDirectory && (gone || folder.list().isNullOrEmpty())) com.droiddeck.launcher.core.FileUtils.delete(folder)
             Log.i("BattleNetInstall", "cancelled install of $uid: ${if (gone) "removed" else "left for Battle.net to remove"}")
         }, "battlenet-cancel").start()

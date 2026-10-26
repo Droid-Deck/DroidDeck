@@ -216,6 +216,13 @@ class BattleNetTest {
         assertEquals(emptyList<Pair<String, String>>(), BattleNet.productDbEntries(byteArrayOf(0x0a, 0x7f, 0x01)))
     }
 
+    @Test fun aGameTheAgentNoLongerTracksIsNotInstalled() {
+        val registry = listOf("wow" to "Z:\\mnt\\droiddeck-sd\\Games\\Battle.net\\World of Warcraft", "hs_beta" to "C:\\Hearthstone")
+        assertEquals(listOf("hs_beta" to "C:\\Hearthstone", "HS_BETA" to "C:/Hearthstone"), BattleNet.installs(registry, listOf("HS_BETA" to "C:/Hearthstone")))
+        assertEquals(registry, BattleNet.installs(registry, null))
+        assertEquals(registry, BattleNet.installs(registry, emptyList()))
+    }
+
     @Test fun theGamesAreTheTitlesInstalledInTheirFolders() {
         val pfx = File(BattleNet.prefix(context), "pfx").apply { mkdirs() }
         File(pfx, "system.reg").writeText(REGISTRY)
@@ -229,9 +236,11 @@ class BattleNetTest {
             File(pfx, "drive_c/$folder").mkdirs()
         }
         val games = BattleNet.games(context)
-        assertEquals(listOf("Fen", "OSI", "WTCG", "WoWC"), games.map { it.code })
-        assertEquals(listOf("Diablo IV", "Diablo II: Resurrected", "Hearthstone", "World of Warcraft Classic"), games.map { it.name })
-        assertEquals(File(pfx, "drive_c/Games/Diablo II Resurrected"), games[1].folder)
+        assertEquals(listOf("Fen", "WTCG", "WoWC"), games.map { it.code })
+        assertEquals(listOf("Diablo IV", "Hearthstone", "World of Warcraft Classic"), games.map { it.name })
+        assertEquals(File(pfx, "drive_c/Program Files (x86)/Hearthstone"), games[1].folder)
+        File(pfx, "drive_c/ProgramData/Battle.net/Agent/product.db").delete()
+        assertEquals(listOf("Fen", "OSI"), BattleNet.games(context).map { it.code })
         assertNull(BattleNet.hostFolder(context, "D:\\Games\\X"))
         assertNull(BattleNet.hostFolder(context, "C:\\..\\..\\etc"))
         assertNull(BattleNet.hostFolder(context, "Z:\\root\\..\\..\\etc"))

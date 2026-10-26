@@ -161,8 +161,10 @@ object BattleNet {
 
     fun games(context: Context): List<Game> {
         val pfx = File(prefix(context), "pfx")
-        val entries = runCatching { File(pfx, "system.reg").useLines { uninstallEntries(it) } }.getOrDefault(emptyList()) +
-            runCatching { productDbEntries(File(pfx, "drive_c/ProgramData/Battle.net/Agent/product.db").readBytes()) }.getOrDefault(emptyList())
+        val entries = installs(
+            runCatching { File(pfx, "system.reg").useLines { uninstallEntries(it) } }.getOrDefault(emptyList()),
+            runCatching { productDbEntries(File(pfx, "drive_c/ProgramData/Battle.net/Agent/product.db").readBytes()) }.getOrNull(),
+        )
         val found = LinkedHashMap<String, Game>()
         for ((uid, path) in entries) {
             val title = title(uid)
@@ -175,6 +177,12 @@ object BattleNet {
             found[title.code] = Game(title.uid, title.name, title.code, folder, uid)
         }
         return found.values.toList()
+    }
+
+    internal fun installs(registry: List<Pair<String, String>>, agent: List<Pair<String, String>>?): List<Pair<String, String>> {
+        if (agent.isNullOrEmpty()) return registry
+        val tracked = agent.map { it.first.lowercase() }.toSet()
+        return registry.filter { it.first.lowercase() in tracked } + agent
     }
 
     internal fun hostFolder(context: Context, path: String): File? {
