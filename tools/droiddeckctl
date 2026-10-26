@@ -21,6 +21,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from adb_device import DeviceResolutionError, resolve_serial
+from proot_profile import report as proot_profile_report
 
 
 # tools/release/variants.txt: the same app also ships as other packages (e.g. com.antutu.benchmark.full).
@@ -35,6 +36,13 @@ class ControlError(RuntimeError):
     def __init__(self, message: str, code: str = "COMMAND_FAILED") -> None:
         super().__init__(message)
         self.code = code
+
+
+def profile_slow_us(value: str) -> int:
+    number = int(value)
+    if not 1 <= number <= 1_000_000_000:
+        raise argparse.ArgumentTypeError("--slow-us must be between 1 and 1000000000")
+    return number
 
 
 def adb_path(configured: str | None) -> str:
@@ -628,6 +636,10 @@ def execute(args: argparse.Namespace, adb: str, serial: str) -> dict:
                 request["text"] = args.text
         return add_serial(checked(provider_call(adb, serial, "ui", request=request), "UI_FAILED"), serial)
 
+    if command == "proot-profile":
+        lines = ["PROOT_PROFILE=1", f"PROOT_PROFILE_SLOW_US={args.slow_us}"] if args.profile_op == "enable" else ["PROOT_PROFILE=0"]
+        return add_serial(checked(provider_call(adb, serial, "env", request={"op": "set", "lines": lines, "persistent": False}), "ENV_FAILED"), serial)
+
     if command == "env":
         if args.env_op == "set":
             request = {"op": "set", "lines": args.lines, "persistent": args.persistent}
@@ -828,6 +840,16 @@ def build_parser() -> argparse.ArgumentParser:
         if name == "set-text":
             op.add_argument("--text", required=True)
 
+    profile = commands.add_parser("proot-profile", help="profile PRoot syscall handlers in the next session, or rank a saved log")
+    profile_ops = profile.add_subparsers(dest="profile_op", required=True)
+    profile_enable = profile_ops.add_parser("enable", help="enable counters and bounded slow samples for the next session")
+    profile_enable.add_argument("--slow-us", type=profile_slow_us, default=1000, metavar="US")
+    profile_ops.add_parser("disable", help="disable profiling for the next session")
+    profile_report = profile_ops.add_parser("report", help="read a local session.log without a device")
+    profile_report.add_argument("path", type=Path)
+    profile_report.add_argument("--sort", choices=["wall", "cpu", "calls"], default="wall")
+    profile_report.add_argument("--limit", type=int, default=20)
+
     env = commands.add_parser("env", help="session environment lines (debugging tools)")
     env_ops = env.add_subparsers(dest="env_op", required=True)
     env_ops.add_parser("list")
@@ -837,7 +859,7 @@ def build_parser() -> argparse.ArgumentParser:
     env_clear = env_ops.add_parser("clear")
     env_clear.add_argument("scope", nargs="?", choices=["next", "persistent", "all"], default="next")
 
-    override = commands.add_parser("override", help="put a binary first on the next session's PATH (debugging tools)")
+    override = commands.add_parser("override", help="override a program or libblfastpath.so for the next session (debugging tools)")
     override.add_argument("name", help="the program name, e.g. gamescope")
     override.add_argument("path", help="the local file to push")
 
@@ -941,6 +963,15 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if not PACKAGE_NAME.fullmatch(PACKAGE):  # it reaches the device shell through `am start` and `content call`
             raise ControlError(f"DROIDDECK_PACKAGE is not an Android package name: {PACKAGE!r}", "INVALID_REQUEST")
+        if args.command == "proot-profile" and args.profile_op == "report":
+            if args.limit < 1:
+                raise ControlError("--limit must be positive", "INVALID_ARGUMENTS")
+            try:
+                result = proot_profile_report(args.path.expanduser(), args.sort, args.limit)
+            except OSError as exc:
+                raise ControlError(str(exc), "FILE_IO") from exc
+            print(json.dumps(result, indent=2, sort_keys=True))
+            return 0
         adb = adb_path(args.adb)
         serial = resolve_serial(adb, args.serial, log=True)
         result = execute(args, adb, serial)

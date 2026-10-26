@@ -52,6 +52,12 @@ environment entries and is intentionally narrower than **Reset game profile**.
 Values are literal strings, with no shell expansion; quotes are only needed when
 the consuming program expects them.
 
+A Unity game under FEX (`UnityPlayer.dll` for Windows builds under Proton,
+`UnityPlayer.so` or `GameAssembly.so` for native Linux builds started by
+**Linux x86 (FEX)**) keeps FEX's TSO on when the Default profile's FEX preset
+turns it off: without TSO such games can deadlock or crash (seen with Megabonk
+and Crab Game). A FEX preset chosen for the game itself still applies.
+
 ## Defaults and available suggestions
 
 The initial configuration enables Mesa shader caching with

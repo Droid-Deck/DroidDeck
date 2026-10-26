@@ -7,6 +7,13 @@ class SortCatalogItemsTest {
     private fun item(id: String, title: String, size: Long = 0, releaseDate: String = "") =
         CatalogItem(Store.GOG, id, title, imageUrl = null, sizeBytes = size, releaseDate = releaseDate, owned = true)
 
+    private fun sortCatalogItems(
+        items: List<CatalogItem>, sort: String,
+        lastPlayed: (CatalogItem) -> Long = { 0L }, installedAt: (CatalogItem) -> Long = { 0L },
+    ) = sortGames(items, sort, { it.title }, { it.releaseDate }, lastPlayed, installedAt, { it.sizeBytes })
+
+    private fun retainCatalogOrder(items: List<CatalogItem>, previous: List<CatalogItem>) = retainOrder(items, previous) { it.key }
+
     @Test fun titleOrderIsCaseInsensitiveAndDescendingIsItsMirror() {
         val items = listOf(item("1", "Zelda"), item("2", "alpha"), item("3", "Beta"))
         assertEquals(listOf("alpha", "Beta", "Zelda"), sortCatalogItems(items, "titleAsc").map { it.title })

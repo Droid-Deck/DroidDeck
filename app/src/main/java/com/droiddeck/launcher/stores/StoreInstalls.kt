@@ -40,7 +40,7 @@ object StoreInstalls {
         val app = context.applicationContext
         onStep?.invoke(0, STEPS)
         val before = StoreGameSidecar.read(folder)
-        val finished = StoreLaunch.writeLauncher(folder, sidecar.copy(state = StoreGameSidecar.STATE_INSTALLED, epic = before?.epic ?: sidecar.epic, cloud = before?.cloud ?: sidecar.cloud, achievements = before?.achievements ?: sidecar.achievements))
+        val finished = StoreLaunch.writeLauncher(folder, sidecar.copy(state = StoreGameSidecar.STATE_INSTALLED, epic = before?.epic ?: sidecar.epic, cloud = before?.cloud ?: sidecar.cloud, achievements = before?.achievements ?: sidecar.achievements, logo = sidecar.logo ?: before?.logo))
         finished.write(folder)
         if (StoreGameSidecar.read(folder)?.isInstalled != true) throw java.io.IOException("the install record could not be written in ${folder.name}")
         onStep?.invoke(1, STEPS)
@@ -70,7 +70,7 @@ object StoreInstalls {
     fun uninstall(context: Context, game: InstalledStoreGame, progress: (Float) -> Unit = {}, removed: () -> Unit = {}) {
         val app = context.applicationContext
         val appId = SessionPrefs.addedGameStoredAppId(app, game.folder.path)
-        val files = game.folder.walkBottomUp().toList()
+        val files = game.folder.walkBottomUp().onEnter { !Files.isSymbolicLink(it.toPath()) }.toList()
         val step = (files.size / 100).coerceAtLeast(1)
         files.forEachIndexed { i, f ->
             f.delete()
@@ -98,6 +98,10 @@ object StoreInstalls {
     }
 
     fun deleteTree(dir: File) {
+        if (Files.isSymbolicLink(dir.toPath())) {
+            dir.delete()
+            return
+        }
         dir.listFiles()?.forEach { if (it.isDirectory) deleteTree(it) else it.delete() }
         dir.delete()
     }

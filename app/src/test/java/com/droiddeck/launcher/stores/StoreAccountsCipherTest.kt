@@ -131,6 +131,25 @@ class StoreAccountsCipherTest {
         assertEquals("test@example.test", StoreAccounts.signedInAs(app, Store.XBOX))
     }
 
+    @Test fun xboxShowsTheGamertagElseAMaskedEmail() {
+        StoreAccounts.write(app, Store.XBOX, JSONObject().put("username", "player@example.test"))
+        assertEquals("p•••@example.test", StoreAccounts.displayName(app, Store.XBOX))
+        StoreAccounts.write(app, Store.XBOX, JSONObject().put("username", "player@example.test").put("gamertag", "Some Gamertag"))
+        assertEquals("Some Gamertag", StoreAccounts.displayName(app, Store.XBOX))
+        assertEquals("player@example.test", StoreAccounts.signedInAs(app, Store.XBOX))
+        StoreAccounts.write(app, Store.EPIC, creds)
+        assertEquals("Someone", StoreAccounts.displayName(app, Store.EPIC))
+        assertEquals("n•••", StoreAccounts.maskEmail("nickname"))
+    }
+
+    @Test fun xboxDisplayNameDoesNotRevealEmailWhenCredentialsAreTemporarilyUnavailable() {
+        StoreAccounts.write(app, Store.XBOX, JSONObject().put("username", "player@example.test"))
+        StoreAccounts.keys = Flaky(key, 1) { java.security.ProviderException("busy") }
+        assertEquals(Store.XBOX.label, StoreAccounts.displayName(app, Store.XBOX))
+        assertTrue(StoreAccounts.isUnavailable(Store.XBOX))
+        assertTrue(file(Store.XBOX).exists())
+    }
+
     @Test fun signOutRemovesTheFile() {
         StoreAccounts.write(app, Store.GOG, creds)
         StoreAccounts.clear(app, Store.GOG)
@@ -181,5 +200,21 @@ class StoreAccountsCipherTest {
         assertNull(StoreAccounts.read(app, Store.AMAZON))
         assertFalse(StoreAccounts.isUnavailable(Store.AMAZON))
         assertFalse(file(Store.AMAZON).exists())
+    }
+
+    @Test
+    fun teeEnvelopesUseTheCurrentKeyAndOlderOnesTheLegacyKey() {
+        val legacy = SecretKeySpec(ByteArray(32) { 7 }, "AES")
+        val keys = object : CredentialCipher.KeyProvider {
+            override fun key(): SecretKey = key
+            override fun legacy(): SecretKey = legacy
+            override val version: Int get() = CredentialCipher.VERSION_TEE
+        }
+        val old = CredentialCipher.seal("old", CredentialCipher.KeyProvider { legacy })
+        assertEquals(CredentialCipher.VERSION, old.getInt("v"))
+        assertEquals("old", CredentialCipher.open(old, keys))
+        val new = CredentialCipher.seal("new", keys)
+        assertEquals(CredentialCipher.VERSION_TEE, new.getInt("v"))
+        assertEquals("new", CredentialCipher.open(new, keys))
     }
 }
