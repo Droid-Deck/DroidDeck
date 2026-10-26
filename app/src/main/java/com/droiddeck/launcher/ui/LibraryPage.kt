@@ -735,7 +735,7 @@ private fun CollectionsButton() {
             val choices = listOf<ItchCollection?>(null) + ItchCollections.list
             Steps.ask(StepAsk(
                 anchor = from, side = StepSide.Left, accent = pal.signal, pillCorner = 8.dp, items = choices.size,
-                handle = { Text(title, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = pal.signal, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                handle = { Icon(CollectionsIcon, null, tint = pal.signal, modifier = Modifier.size(18.dp)) },
             ) {
                 StepTitle(title)
                 StepList {
