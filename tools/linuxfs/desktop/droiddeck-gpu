@@ -16,7 +16,6 @@ else
 fi
 if [ "${BL_FPS:-0}" -gt 0 ]; then
   args+=(-r "$BL_FPS")
-  [ "${DROIDDECK_GAME_FRAME_LIMIT:-1}" = 1 ] && args+=(--framerate-limit "$BL_FPS")
 elif [ "${BL_REFRESH:-0}" -gt 0 ]; then
   args+=(-r "$BL_REFRESH")
 fi

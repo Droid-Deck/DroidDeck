@@ -70,6 +70,22 @@ steam_update_stuck() {
   [ "$steam_updates" -ge 3 ]
 }
 
+# gamescope's --framerate-limit lasts only until its first frame, which recomputes the limit
+# from the per-app value set over gamescope_control. Set that value once gamescope answers:
+# the limiter then makes the WSI layer hold Vulkan games (DXVK and VKD3D included) to it.
+hold_games_to_frame_limit() {
+  local fps=$1 i
+  command -v gamescopectl >/dev/null || { echo "== gamescope: no gamescopectl, the frame limit paces the screen only"; return 0; }
+  for i in $(seq 1 120); do
+    if gamescopectl debug_set_fps_limit "$fps" >/dev/null 2>&1; then
+      echo "== gamescope: games held to $fps fps"
+      return 0
+    fi
+    sleep 0.5
+  done
+  echo "== gamescope: gamescope did not answer, the frame limit paces the screen only"
+}
+
 run_gamescope() (
   local status_file child_status compositor_status
   status_file=$(mktemp "${XDG_RUNTIME_DIR:-/tmp}/droiddeck-steam-exit.XXXXXX") || exit 73
@@ -239,11 +255,9 @@ if [ -z "${BL_INSIDE:-}" ]; then
   if [ "${BL_FPS:-0}" -gt 0 ]; then
     args+=(-r "$BL_FPS")
     # -r alone only paces what reaches the screen: a game without vsync keeps drawing
-    # hundreds of frames that are thrown away. The limiter makes gamescope's WSI layer
-    # hold Vulkan games (DXVK and VKD3D included) to the limit.
+    # hundreds of frames that are thrown away.
     if [ "${DROIDDECK_GAME_FRAME_LIMIT:-1}" = 1 ]; then
-      args+=(--framerate-limit "$BL_FPS")
-      echo "== gamescope: frame limit $BL_FPS holds the games too"
+      game_frame_limit=$BL_FPS
     else
       echo "== gamescope: frame limit $BL_FPS paces the screen only (DROIDDECK_GAME_FRAME_LIMIT=0)"
     fi
@@ -267,6 +281,9 @@ if [ -z "${BL_INSIDE:-}" ]; then
     echo "== gamescope: mangoapp on ($(command -v mangoapp), config $MANGOHUD_CONFIGFILE)"
   fi
   export BL_INSIDE=1
+  # Each gamescope start leaves a limiter state file behind.
+  rm -f "${XDG_RUNTIME_DIR:-/tmp}"/gamescope-limiter-??????
+  [ -n "${game_frame_limit:-}" ] && hold_games_to_frame_limit "$game_frame_limit" &
   if [ "$mode" = steam ]; then
     if /usr/local/bin/droiddeck-pipewire start; then
       eval "$(/usr/local/bin/droiddeck-pipewire env)"
