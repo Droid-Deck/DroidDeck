@@ -650,22 +650,30 @@ static void hud_frame_shown(int64_t t) {
     pthread_mutex_unlock(&g_hud_times_lock);
 }
 
-static int inside_surface(const struct surface *s, const struct surface *ancestor) {
-    int depth = 0;
-    for (s = s->parent; s && depth++ < 8; s = s->parent)
-        if (s == ancestor) return 1;
+static int tree_rank(const struct surface *s, const struct surface *want, int *rank, int depth) {
+    const struct surface *c;
+    if (depth > 8) return 0;
+    wl_list_for_each(c, &s->children, child_link)
+        if (c->below_parent && tree_rank(c, want, rank, depth + 1)) return 1;
+    if (s == want) return 1;
+    (*rank)++;
+    wl_list_for_each(c, &s->children, child_link)
+        if (!c->below_parent && tree_rank(c, want, rank, depth + 1)) return 1;
     return 0;
 }
 
+static int render_rank(const struct surface *want) {
+    const struct surface *s;
+    int rank = 0;
+    if (g_desktop && tree_rank(g_desktop, want, &rank, 0)) return rank;
+    wl_list_for_each(s, &g_toplevels, toplevel_link)
+        if (tree_rank(s, want, &rank, 0)) return rank;
+    return -1;
+}
+
 static int below_surface(const struct surface *s, const struct surface *other) {
-    if (inside_surface(other, s)) return 1;
-    if (!s->parent || s->parent != other->parent) return 0;
-    const struct surface *child;
-    wl_list_for_each(child, &s->parent->children, child_link) {
-        if (child == s) return 1;
-        if (child == other) return 0;
-    }
-    return 0;
+    const int a = render_rank(s), b = render_rank(other);
+    return a >= 0 && b >= 0 && a < b;
 }
 
 int droiddeck_hud_frame_times(float *out, int len, int64_t *total) {
