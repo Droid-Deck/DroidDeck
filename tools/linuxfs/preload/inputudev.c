@@ -765,13 +765,30 @@ static void *real_dlsym(void) {
   return resolved;
 }
 
+/* The Steam client reads the pads straight from /dev/input and hands whatever the udev enumeration
+ * gives it back to the real libudev, which cannot read these synthetic devices. */
+static int steam_client_process(void) {
+  static int cached = -1;
+  char path[PATH_MAX];
+  ssize_t length;
+
+  if (cached >= 0) return cached;
+  cached = 0;
+  length = readlink("/proc/self/exe", path, sizeof(path) - 1);
+  if (length > 0) {
+    path[length] = '\0';
+    cached = strstr(path, "steamrtarm64/steam") != NULL;
+  }
+  return cached;
+}
+
 /* Browsers resolve libudev through dlopen and dlsym, which skips symbol interposition, so the
  * devices have to be handed out from here as well. */
 void *dlsym(void *handle, const char *name) {
   void *(*forward)(void *, const char *) = real_dlsym();
   void *own;
 
-  if (strncmp(name, "udev_", 5) == 0) {
+  if (!steam_client_process() && strncmp(name, "udev_", 5) == 0) {
     if ((own = own_udev_symbol(name)) != NULL) return own;
   }
   return forward != NULL ? forward(handle, name) : NULL;
