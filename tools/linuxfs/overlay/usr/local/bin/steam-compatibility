@@ -113,7 +113,7 @@ bl_desktop_gpu() {
     export "BL_GPU_SAVED_$name=${!name}"
     clear+=(-u "$name")
   done
-  echo "droiddeck-gpu: the desktop starts this game full screen on the GPU" >&2
+  echo "droiddeck-gpu: the desktop starts this game on the GPU" >&2
   exec env "${clear[@]}" "$gpu" "$0" "$verb" "$@"
 }
 bl_desktop_gpu "$@"

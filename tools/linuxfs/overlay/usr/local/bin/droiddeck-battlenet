@@ -954,7 +954,7 @@ def main(argv):
         return 0
     gpu = desktop_gpu()
     if gpu:
-        say("the desktop starts Battle.net full screen on the GPU")
+        say("the desktop starts Battle.net on the GPU")
         os.execv(gpu, [gpu, os.path.abspath(sys.argv[0])] + list(sys.argv[1:]))
     os.environ["BL_BATTLENET"] = "1"
     if launching:
