@@ -1,6 +1,10 @@
 package com.droiddeck.launcher
 
 import android.app.Activity
+import kotlin.concurrent.thread
+import java.util.concurrent.ConcurrentLinkedQueue
+import java.io.File
+import com.droiddeck.launcher.artifact.RepositorySources
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
@@ -34,6 +38,7 @@ class DriverMenusAutoTest {
         ReflectionHelpers.setStaticField(TpUbwcHint::class.java, "activeMode", null)
         RuntimeEnvironment.getApplication().getSharedPreferences("session", Context.MODE_PRIVATE)
             .edit().clear().commit()
+        File(RuntimeEnvironment.getApplication().filesDir, "repository-sources").deleteRecursively()
         ShadowBuild.setModel("Quest 3")
         ShadowBuild.setDevice("eureka")
     }
@@ -102,14 +107,72 @@ class DriverMenusAutoTest {
         assertEquals(second, releaseAssetById(listOf(first, second), second.id))
     }
 
-    @Test fun sourceChangeAfterAdoptionRollsBackWithoutRecording() {
-        var rolledBack = false
-        var recorded = false
+    @Test fun sourceChangeAfterAdoptionRollsBackOnlyTheFreshDriverWithoutReplacingItsPriorRecord() {
+        val app: Context = RuntimeEnvironment.getApplication()
+        val builtIns = TurnipReleases.sourceBuiltIns()
+        val source = RepositorySources.visible(app, TurnipReleases.SOURCE_SCOPE, builtIns).first()
+        val generation = RepositorySources.generation(app, TurnipReleases.SOURCE_SCOPE, builtIns)
+        val installed = mutableSetOf("existing-driver", "fresh-driver")
+        var recorded = "existing-driver"
+        RepositorySources.save(app, TurnipReleases.SOURCE_SCOPE, builtIns,
+            RepositorySources.list(app, TurnipReleases.SOURCE_SCOPE, builtIns).map {
+                if (it.id == source.id) it.copy(hidden = true) else it
+            })
+
         assertTrue(runCatching {
-            finishRemoteDriverInstall(false, { rolledBack = true }, { recorded = true })
+            finishRemoteDriverInstall(
+                app, source.id, generation,
+                rollback = { installed.remove("fresh-driver") },
+                record = { recorded = "fresh-driver" },
+            )
         }.isFailure)
-        assertTrue(rolledBack)
-        assertFalse(recorded)
+        assertEquals(setOf("existing-driver"), installed)
+        assertEquals("existing-driver", recorded)
+    }
+
+    @Test fun recordingRemoteDriverDownloadExcludesConcurrentSourceChanges() {
+        val app: Context = RuntimeEnvironment.getApplication()
+        val builtIns = TurnipReleases.sourceBuiltIns()
+        val source = RepositorySources.visible(app, TurnipReleases.SOURCE_SCOPE, builtIns).first()
+        val generation = RepositorySources.generation(app, TurnipReleases.SOURCE_SCOPE, builtIns)
+        val enteredRecord = CountDownLatch(1)
+        val releaseRecord = CountDownLatch(1)
+        val sourceSaveStarted = CountDownLatch(1)
+        val sourceSaved = CountDownLatch(1)
+        val errors = ConcurrentLinkedQueue<Throwable>()
+        var recorded = false
+
+        val installer = thread {
+            runCatching {
+                finishRemoteDriverInstall(app, source.id, generation, rollback = { error("unexpected rollback") }) {
+                    enteredRecord.countDown()
+                    check(releaseRecord.await(2, TimeUnit.SECONDS))
+                    recorded = true
+                }
+            }.onFailure { errors.add(it) }
+        }
+        assertTrue(enteredRecord.await(2, TimeUnit.SECONDS))
+        val policy = thread {
+            sourceSaveStarted.countDown()
+            runCatching {
+                RepositorySources.save(app, TurnipReleases.SOURCE_SCOPE, builtIns,
+                    RepositorySources.list(app, TurnipReleases.SOURCE_SCOPE, builtIns).map {
+                        if (it.id == source.id) it.copy(hidden = true) else it
+                    })
+            }.onFailure { errors.add(it) }
+            sourceSaved.countDown()
+        }
+        assertTrue(sourceSaveStarted.await(2, TimeUnit.SECONDS))
+        assertFalse(sourceSaved.await(150, TimeUnit.MILLISECONDS))
+        releaseRecord.countDown()
+        installer.join(2_000)
+        policy.join(2_000)
+
+        assertFalse(installer.isAlive)
+        assertFalse(policy.isAlive)
+        assertTrue(errors.toString(), errors.isEmpty())
+        assertTrue(recorded)
+        assertTrue(RepositorySources.visible(app, TurnipReleases.SOURCE_SCOPE, builtIns).none { it.id == source.id })
     }
 
     @Test fun driverMenusCanBeConstructedBeforeActivityContextIsAttached() {

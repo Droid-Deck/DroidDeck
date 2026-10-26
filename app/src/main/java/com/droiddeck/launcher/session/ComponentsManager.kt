@@ -1338,12 +1338,22 @@ object ComponentsManager {
     internal val CATALOG_ORDER: Comparator<CatalogItem> =
         compareBy<CatalogItem> { it.comp }.thenBy { it.release == DD_NIGHTLY }.then(newestFirst { it.file })
 
+    private fun pairingSourceMatches(stable: CatalogItem, nightly: CatalogItem): Boolean {
+        if (stable.sourceId.isEmpty() || nightly.sourceId.isEmpty()) {
+            return stable.sourceId.isEmpty() && nightly.sourceId.isEmpty() &&
+                stable.repository == NIGHTLIES && nightly.repository == NIGHTLIES
+        }
+        if (stable.sourceId == nightly.sourceId) return stable.repository == nightly.repository
+        return stable.repository == NIGHTLIES && stable.sourceId == RepositorySources.source(NIGHTLIES).id &&
+            nightly.repository == DD_COMPONENTS && nightly.sourceId == RepositorySources.source(DD_COMPONENTS).id
+    }
+
     internal fun nightlyPairs(items: List<CatalogItem>): Map<CatalogItem, CatalogItem> {
         val stable = items.filter { it.release != DD_NIGHTLY }
         return items.filter { it.release == DD_NIGHTLY }.mapNotNull { n ->
             val base = n.file.removePrefix("DD-").removeSuffix("-nightly.wcp").substringBefore('+')
             val rev = Regex(Regex.escape(base) + "(-\\d+)?-linux\\.wcp")
-            stable.filter { it.comp == n.comp && rev.matches(it.file) }
+            stable.filter { it.comp == n.comp && pairingSourceMatches(it, n) && rev.matches(it.file) }
                 .maxWithOrNull { a, b -> ProtonExtras.compareVersions(a.file, b.file) }?.let { it to n }
         }.groupBy({ it.first }, { it.second })
             .mapValues { (_, ns) -> ns.maxWith { a, b -> ProtonExtras.compareVersions(a.file, b.file) } }
@@ -1489,14 +1499,31 @@ object ComponentsManager {
         refresh: () -> List<CatalogItem>,
     ): CatalogItem? = catalogMatch(cached(), file, release) ?: catalogMatch(refresh(), file, release)
 
+    internal fun commitDownloadedPackage(
+        context: Context,
+        item: CatalogItem,
+        generation: Long?,
+        commit: () -> Unit,
+    ): Unit = synchronized(lock) {
+        if (generation == null) {
+            require(item.sourceId.isEmpty()) { "Qualified component download has no source generation" }
+            commit()
+        } else RepositorySources.whileCurrent(
+            context, sourceScope(item.comp), sourceBuiltIns(item.comp), item.sourceId, generation,
+        ) { commit() }
+    }
+
     fun download(context: Context, item: CatalogItem, progress: (Int) -> Unit): Package {
         val repository = RepositorySources.canonicalRepository(item.repository)
+        val legacyUnbound = repository == NIGHTLIES &&
+            item.sourceId == RepositorySources.source(NIGHTLIES).id && item.repositoryId == 0L
         val generation = if (item.sourceId.isEmpty()) null else {
             val scope = sourceScope(item.comp)
             val builtIns = sourceBuiltIns(item.comp)
             val value = RepositorySources.generation(context, scope, builtIns)
             require(RepositorySources.visible(context, scope, builtIns).any {
-                it.id == item.sourceId && it.repository == repository && it.repositoryId == item.repositoryId
+                it.id == item.sourceId && it.repository == repository &&
+                    (it.repositoryId == item.repositoryId || (legacyUnbound && it.repositoryId == null))
             } && RepositorySources.isCurrent(context, scope, builtIns, item.sourceId, value)) {
                 "Component source is hidden, unavailable, or does not match its catalog"
             }
@@ -1505,7 +1532,9 @@ object ComponentsManager {
         require(releaseUrlMatches(repository, item.release, item.file, item.url)) {
             context.getString(R.string.cmgr_nightlies_only)
         }
-        require(item.sourceId.isNotEmpty() || allowedDownload(item.url)) { context.getString(R.string.cmgr_nightlies_only) }
+        require((item.sourceId.isNotEmpty() && !legacyUnbound) || allowedDownload(item.url)) {
+            context.getString(R.string.cmgr_nightlies_only)
+        }
         require(Hashes.isGithubSha256(item.digest)) { context.getString(R.string.cmgr_list_predates_checksums) }
         require(item.size in 1..(2L * 1024 * 1024 * 1024)) { "Component archive has an invalid size" }
         val dest = File(packagesDir(context), safeName(item.localFile))
@@ -1523,24 +1552,23 @@ object ComponentsManager {
         }
         val info = runCatching { packageInfo(context, part) }.getOrElse { part.delete(); throw it }
         require(info.comp == item.comp) { part.delete(); "Component archive type does not match its catalog" }
-        synchronized(lock) {
-            if (generation != null && !RepositorySources.isCurrent(
-                    context, sourceScope(item.comp), sourceBuiltIns(item.comp), item.sourceId, generation,
-                )) {
-                part.delete()
-                error("Component source changed while verifying")
-            }
-            storePackage(context, part, dest)
-            if (item.sourceId.isNotEmpty()) {
-                try {
-                    RepositorySources.atomicWrite(
-                        provenanceFile(dest), provenance(item).toString().toByteArray(Charsets.UTF_8),
-                    )
-                } catch (error: Throwable) {
-                    dest.delete()
-                    throw error
+        try {
+            commitDownloadedPackage(context, item, generation) {
+                storePackage(context, part, dest)
+                if (item.sourceId.isNotEmpty()) {
+                    try {
+                        RepositorySources.atomicWrite(
+                            provenanceFile(dest), provenance(item).toString().toByteArray(Charsets.UTF_8),
+                        )
+                    } catch (error: Throwable) {
+                        dest.delete()
+                        throw error
+                    }
                 }
             }
+        } catch (error: IOException) {
+            part.delete()
+            throw error
         }
         return info.copy(file = dest.name, source = item.repository)
     }

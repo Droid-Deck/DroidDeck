@@ -152,6 +152,40 @@ class SessionLogShareTest {
         assertTrue(zip(folder).values.none { it.contains(leaked) })
     }
 
+    @Test fun aDirectoryListingFailureLeavesTheTreeUnrecordedButDoesNotStopSiblingScrubbing() {
+        val folder = tmp.newFolder("2026-10-06-06-listing")
+        val unavailable = File(folder, "unavailable").apply { mkdirs() }
+        val unavailableLog = File(unavailable, "session.log").apply { writeText("$secret\n") }
+        val availableLog = File(folder, "available/session.log").apply {
+            parentFile!!.mkdirs()
+            writeText("$secret\n")
+        }
+
+        assertFalse(SessionArtifacts.scrubAndMark(folder, listFiles = {
+            if (it == unavailable) null else it.listFiles()
+        }))
+
+        assertTrue(unavailableLog.readText().contains(leaked))
+        assertFalse(availableLog.readText().contains(leaked))
+        assertFalse(File(folder, ".scrubbed-r${LogRedactor.RULES_VERSION}").exists())
+        assertFalse(File(folder, SessionArtifacts.SCRUBBED_TREE_MARKER).exists())
+    }
+
+    @Test fun aFailedScrubStillRecordsTheCollectionEventWithoutCompletingTheFolder() {
+        val context: android.content.Context = RuntimeEnvironment.getApplication()
+        val folder = tmp.newFolder("2026-10-06-06-collect")
+        File(folder, SessionArtifacts.SCRUBBED_TREE_MARKER).apply {
+            mkdirs()
+            resolve("blocker").writeText("force marker write failure\n")
+        }
+
+        SessionArtifacts.collect(context, folder, "test")
+
+        assertTrue(File(folder, "events.jsonl").readText().contains("session.artifacts_collected"))
+        assertFalse(File(folder, SessionArtifacts.COMPLETE_MARKER).exists())
+        assertFalse(File(folder, ".scrubbed-r${LogRedactor.RULES_VERSION}").exists())
+    }
+
     @Test fun steamLogsPastTheSizeLimitStayOut() {
         val folder = tmp.newFolder("2026-10-06-07-steam")
         File(folder, "session.log").writeText("ok\n")

@@ -7,6 +7,9 @@ import com.droiddeck.launcher.core.SessionLogCapture
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.wayland.WaylandCompositor
 import java.io.File
+import java.io.Writer
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -75,9 +78,9 @@ object SessionArtifacts {
             copySteamLogs(context, dir, record, steamArch)
             VacDiagnostics.collect(context, dir)
             SessionLogCapture.dumpCrashBuffer(File(dir, "crash.log"))
-            markScrubbed(scrubTree(record))
+            val scrubbed = markScrubbed(scrubTree(record))
             SessionEvents.record("session.artifacts_collected", mapOf("reason" to reason), dir)
-            File(dir, COMPLETE_MARKER).writeText("collected: $reason at ${now()}\n")
+            if (scrubbed) File(dir, COMPLETE_MARKER).writeText("collected: $reason at ${now()}\n")
         } catch (e: Exception) {
             Log.w(TAG, "collecting session artifacts", e)
         }
@@ -126,8 +129,13 @@ object SessionArtifacts {
         record: Record,
         shouldStop: () -> Boolean,
         beforeReplace: (File) -> Unit,
+        listFiles: (File) -> Array<File>?,
     ): Boolean {
-        val files = dir.listFiles { f -> f.isFile && !f.name.startsWith(".") && f !in record.files } ?: return true
+        val files = listFiles(dir)?.filter { f -> f.isFile && !f.name.startsWith(".") && f !in record.files }
+        if (files == null) {
+            record.failed = true
+            return true
+        }
         for (f in files) {
             if (shouldStop()) return false
             if (LogRedactor.isBinary(f)) continue
@@ -266,10 +274,16 @@ object SessionArtifacts {
         dir: File,
         stopWhenSessionStarts: Boolean = false,
         beforeReplace: (File) -> Unit = {},
+        listFiles: (File) -> Array<File>? = { it.listFiles() },
         sessionStarted: () -> Boolean = { SessionState.running },
     ): Boolean {
         val shouldStop = { stopWhenSessionStarts && sessionStarted() }
-        val record = scrubTree(Record(dir), shouldStop, beforeReplace)
+        val record = scrubTree(
+            Record(dir),
+            listFiles = listFiles,
+            beforeReplace = beforeReplace,
+            shouldStop = shouldStop,
+        )
         if (shouldStop()) {
             record.failed = true
             record.deferred = true
@@ -279,11 +293,12 @@ object SessionArtifacts {
 
     private fun scrubTree(
         record: Record,
-        shouldStop: () -> Boolean = { false },
+        listFiles: (File) -> Array<File>? = { it.listFiles() },
         beforeReplace: (File) -> Unit = {},
+        shouldStop: () -> Boolean = { false },
     ): Record {
         for (dir in record.dir.walkTopDown().filter { it.isDirectory }) {
-            if (shouldStop() || !scrubFolder(dir, record, shouldStop, beforeReplace)) {
+            if (shouldStop() || !scrubFolder(dir, record, shouldStop, beforeReplace, listFiles)) {
                 record.failed = true
                 record.deferred = true
                 break
@@ -364,13 +379,18 @@ object SessionArtifacts {
         Log.i(TAG, "collected ${out.listFiles()?.size ?: 0} Steam log(s), scrubbed, into $out")
     }
 
-    internal fun copySessionLogs(logs: File, dir: File, out: File): List<File> =
-        copySessionLogsResult(logs, dir, out) { false }.files
+    internal fun copySessionLogs(
+        logs: File,
+        dir: File,
+        out: File,
+        openWriter: (File) -> Writer = { it.bufferedWriter() },
+    ): List<File> = copySessionLogsResult(logs, dir, out, openWriter) { false }.files
 
     private fun copySessionLogsResult(
         logs: File,
         dir: File,
         out: File,
+        openWriter: (File) -> Writer = { it.bufferedWriter() },
         shouldStop: () -> Boolean,
     ): CopyResult {
         val marks = steamLogMarks(dir)
@@ -387,8 +407,9 @@ object SessionArtifacts {
             val size = src.length()
             val from = marks?.let { startOf(src, size, it) } ?: 0L
             if (marks != null && from == size || size - from >= MAX_STEAM_LOG) continue
+            val dst = File(out, src.name)
+            val staging = File(out, ".${src.name}.copy")
             try {
-                val dst = File(out, src.name)
                 src.inputStream().buffered().use { input ->
                     var left = if (from > 0) from - 1 else 0L
                     while (left > 0) {
@@ -402,16 +423,23 @@ object SessionArtifacts {
                             if (c < 0 || c == '\n'.code) break
                         }
                     }
-                    val complete = dst.bufferedWriter().use { w -> scrubSteamLog(input, w, shouldStop) }
+                    val complete = openWriter(staging).use { w -> scrubSteamLog(input, w, shouldStop) }
                     if (!complete) {
-                        dst.delete()
+                        staging.delete()
                         failed = true
                         deferred = true
                     }
                 }
                 if (deferred) break
+                Files.move(
+                    staging.toPath(),
+                    dst.toPath(),
+                    StandardCopyOption.ATOMIC_MOVE,
+                    StandardCopyOption.REPLACE_EXISTING,
+                )
                 copied += dst
             } catch (e: Exception) {
+                staging.delete()
                 Log.w(TAG, "could not scrub ${src.name}", e)
                 failed = true
             }
