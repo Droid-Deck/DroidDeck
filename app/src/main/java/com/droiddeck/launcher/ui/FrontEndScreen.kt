@@ -265,12 +265,6 @@ internal object Motion {
         if (scale == 0f) snap() else spring(damping, stiffness)
 }
 
-internal object Ambient {
-    var poked by mutableStateOf(0L)
-        private set
-    fun poke() { poked = android.os.SystemClock.uptimeMillis() }
-}
-
 private val Shape10 = RoundedCornerShape(10.dp)
 
 internal val Shape12 = RoundedCornerShape(12.dp)
