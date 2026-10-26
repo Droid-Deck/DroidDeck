@@ -3258,6 +3258,7 @@
     <string name="integration_home_hint">Home opens the Steam menu in a session</string>
     <string name="integration_shortcuts_hint">Hold Home for Steam Guide chords</string>
     <string name="integration_shortcuts_needs_home">Needs DroidDeck as Home</string>
+    <string name="integration_shortcuts_maybe_restricted">Greyed out in Android? App info → ⋮ → Allow restricted settings</string>
     <string name="integration_shortcuts_restricted">Blocked by Android · App info → ⋮ → Allow restricted settings</string>
     <string name="integration_shortcuts_service">DroidDeck Home button</string>
     <string name="integration_shortcuts_service_description">Pass Home button presses to Steam Guide while a Steam session is focused and DroidDeck is the default Home app. Does not read screen content.</string>

@@ -271,7 +271,10 @@ class FrontEndActivity : ComponentActivity() {
         integrationState = readIntegration()
     }
 
-    private fun readIntegration() = SteamIntegration.read(this).copy(locationBlocked = wifiDiscoveryBlocked)
+    private var shortcutsTried = false
+
+    private fun readIntegration() = SteamIntegration.read(this)
+        .copy(locationBlocked = wifiDiscoveryBlocked, shortcutsTried = shortcutsTried)
 
     private fun openIntegration(feature: SteamIntegration.Feature? = null) {
         SteamIntegration.dismissSuggestion(this)
@@ -314,6 +317,7 @@ class FrontEndActivity : ComponentActivity() {
                 manageHomeApp()
             }
             SteamIntegration.Feature.SHORTCUTS -> {
+                if (!integrationState.shortcuts) shortcutsTried = true
                 if (!HomeApp.isDefault(this)) configureIntegration(SteamIntegration.Feature.HOME)
                 else integrationSettings(SteamIntegration.shortcutSettings(this), android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)
             }

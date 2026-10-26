@@ -25,6 +25,7 @@ object SteamIntegration {
         val home: Boolean = false,
         val shortcuts: Boolean = false,
         val shortcutsRestricted: Boolean = false,
+        val shortcutsTried: Boolean = false,
         val suggested: Boolean = true,
     )
 
@@ -44,6 +45,7 @@ object SteamIntegration {
     )
 
     // Android 13+ blocks accessibility services for sideloaded APKs until the user allows restricted settings in App info.
+    // MODE_DEFAULT is inconclusive on Android 15, so only an explicit denial counts here.
     private fun restrictedSettings(context: Context): Boolean {
         if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.TIRAMISU) return false
         val mode = runCatching {

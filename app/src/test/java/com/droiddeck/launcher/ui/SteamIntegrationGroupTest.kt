@@ -72,6 +72,16 @@ class SteamIntegrationGroupTest {
         compose.onNodeWithTag("integration-action-shortcuts").assertIsEnabled()
     }
 
+    @Test fun unconfirmedRestrictionOffersAppInfoAfterAnAttempt() {
+        state.value = SteamIntegration.State(home = true)
+        show()
+        compose.onNodeWithText("App info").assertDoesNotExist()
+        compose.runOnIdle { state.value = state.value.copy(shortcutsTried = true) }
+        compose.onNodeWithTag("integration-action-shortcuts").assertIsEnabled()
+        compose.onNodeWithText("App info").performClick()
+        assertEquals(1, appInfo)
+    }
+
     @Test fun deniedLocationPointsToAppInfoWithoutTogglingWifi() {
         state.value = SteamIntegration.State(locationBlocked = true)
         show()

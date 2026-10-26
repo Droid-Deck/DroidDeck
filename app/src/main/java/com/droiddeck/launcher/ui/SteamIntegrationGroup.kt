@@ -107,11 +107,14 @@ private fun IntegrationRow(
     val wifiDenied = feature == Feature.WIFI && !state.locationPermission && state.locationBlocked
     val needsHome = feature == Feature.SHORTCUTS && !state.home
     val restricted = feature == Feature.SHORTCUTS && !needsHome && !state.shortcuts && state.shortcutsRestricted
+    val maybeRestricted = feature == Feature.SHORTCUTS && !needsHome && !state.shortcuts && !restricted && state.shortcutsTried &&
+        android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU
     val hint = stringResource(when {
         wifiLocationOff -> R.string.integration_wifi_location_off
         wifiDenied -> R.string.integration_wifi_denied
         needsHome -> R.string.integration_shortcuts_needs_home
         restricted -> R.string.integration_shortcuts_restricted
+        maybeRestricted -> R.string.integration_shortcuts_maybe_restricted
         feature == Feature.WIFI -> if (on) R.string.integration_wifi_on else R.string.integration_wifi_hint
         feature == Feature.BRIGHTNESS -> R.string.integration_brightness_hint
         feature == Feature.HOME -> R.string.integration_home_hint
@@ -135,7 +138,7 @@ private fun IntegrationRow(
             when {
                 wifiLocationOff -> SecondaryButton(stringResource(R.string.integration_location), compact = true, onClick = onLocation)
                 wifiDenied -> SecondaryButton(stringResource(R.string.integration_app_info), compact = true, onClick = onLocation)
-                restricted -> SecondaryButton(stringResource(R.string.integration_app_info), compact = true, onClick = onAppInfo)
+                restricted || maybeRestricted -> SecondaryButton(stringResource(R.string.integration_app_info), compact = true, onClick = onAppInfo)
             }
             val checked = if (feature == Feature.WIFI) state.wifi && state.locationPermission else on
             ToggleSwitch(checked, enabled = !needsHome && !restricted, label = stringResource(featureTitle(feature)),
