@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.ui
 
+import androidx.compose.foundation.shape.CircleShape
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
@@ -40,7 +41,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
+import com.droiddeck.launcher.ui.GlideDialog as Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.droiddeck.launcher.R
 
@@ -83,14 +84,14 @@ fun ScreenLayoutPanel(
                             stringResource(R.string.screen_key_layout), Modifier.weight(1f),
                             style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold,
                         )
-                        IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, null) }
+                        IconButton(onClick = onDismiss, modifier = Modifier.focusGlide(CircleShape)) { Icon(Icons.Default.Close, null) }
                     }
                     Row(Modifier.fillMaxWidth().padding(end = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        TextButton(onClick = { naming = true }) { Text(stringResource(R.string.screen_key_layout_save)) }
-                        TextButton(onClick = { importer.launch(arrayOf("application/json", "text/plain", "*/*")) }) {
+                        TextButton(onClick = { naming = true }, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.screen_key_layout_save)) }
+                        TextButton(onClick = { importer.launch(arrayOf("application/json", "text/plain", "*/*")) }, modifier = Modifier.focusGlide(CircleShape)) {
                             Text(stringResource(R.string.boot_movie_import))
                         }
-                        TextButton(onClick = { exporter.launch("droiddeck-layout.icp") }) {
+                        TextButton(onClick = { exporter.launch("droiddeck-layout.icp") }, modifier = Modifier.focusGlide(CircleShape)) {
                             Text(stringResource(R.string.screen_key_layout_export))
                         }
                     }
@@ -101,7 +102,7 @@ fun ScreenLayoutPanel(
                                     layout, Modifier.weight(1f).clickable { onLoad(layout) }.padding(vertical = 14.dp),
                                     style = MaterialTheme.typography.bodyLarge,
                                 )
-                                TextButton(onClick = { onDelete(layout) }) {
+                                TextButton(onClick = { onDelete(layout) }, modifier = Modifier.focusGlide(CircleShape)) {
                                     Text(stringResource(R.string.common_delete), color = p.error)
                                 }
                             }
@@ -121,12 +122,12 @@ fun ScreenLayoutPanel(
                 ) {
                     Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         OutlinedTextField(
-                            name, { name = it.take(24) }, Modifier.fillMaxWidth(), singleLine = true,
+                            name, { name = it.take(24) }, Modifier.fillMaxWidth().focusGlide(), singleLine = true,
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                         )
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                            TextButton(onClick = { naming = false }) { Text(stringResource(R.string.common_cancel)) }
-                            Button(onClick = { onSave(name.trim()); naming = false }, enabled = name.isNotBlank()) {
+                            TextButton(onClick = { naming = false }, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.common_cancel)) }
+                            Button(onClick = { onSave(name.trim()); naming = false }, enabled = name.isNotBlank(), modifier = Modifier.focusGlide(CircleShape)) {
                                 Text(stringResource(R.string.screen_key_layout_save))
                             }
                         }

@@ -48,7 +48,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Memory
 import androidx.compose.material.icons.outlined.Tune
-import androidx.compose.material3.DropdownMenu
+import com.droiddeck.launcher.ui.GlideDropdownMenu as DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon

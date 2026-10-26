@@ -807,10 +807,10 @@ private fun DrawerOutlineButton(text: String, modifier: Modifier = Modifier, pro
     OutlinedButton(
         onClick = onClick,
         interactionSource = source,
-        modifier = modifier.controllerConfirm(onClick = onClick),
+        modifier = modifier.controllerConfirm(onClick = onClick).focusGlide(RoundedCornerShape(12.dp)),
         shape = RoundedCornerShape(12.dp),
         contentPadding = PaddingValues(horizontal = 12.dp),
-        border = BorderStroke(if (hot) 2.dp else 1.dp, if (hot) pal.signal else colors.outline),
+        border = BorderStroke(1.dp, colors.outline),
         colors = ButtonDefaults.outlinedButtonColors(containerColor = if (hot) pal.signal.copy(alpha = 0.16f) else Color.Transparent),
     ) { ProgressLabel({ m -> Text(text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, modifier = m) }, progress, fontSize = 13.sp) }
 }
@@ -1387,6 +1387,7 @@ private fun ComponentsDrawerPage(host: MenuHost, a: DrawerActions, track: (Strin
         val pal = LocalPalette.current
         Column(
             modifier = Modifier.fillMaxWidth().then(track("cmp-running"))
+                .glideBorder(hot, Shape12, pal.signal)
                 .focusable(interactionSource = src)
                 .background(if (hot) pal.signal.copy(alpha = 0.12f) else Color.Transparent)
                 .padding(horizontal = 14.dp, vertical = 11.dp),
@@ -1662,6 +1663,7 @@ private fun StopConfirm(
     Box(Modifier.fillMaxSize()) {
         Box(
             Modifier.fillMaxSize().graphicsLayer { alpha = dim.value }.background(Color(0x59000000))
+                .focusProperties { canFocus = false }
                 .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, enabled = open, onClick = onCancel),
         )
         val path = remember { Path() }

@@ -24,6 +24,7 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -59,7 +60,17 @@ internal class GlideSource {
     val requester = androidx.compose.ui.focus.FocusRequester()
 }
 
-internal class FocusGlide(val view: View) {
+internal class FocusGlide(view: View?) {
+    private val deferredWindow = view == null
+    var view = view
+        private set
+
+    fun accepts(view: View): Boolean {
+        // DropdownMenu recreates its popup view after closing.
+        if (this.view == null || deferredWindow && this.view !== view && host?.isAttached != true) this.view = view
+        return this.view === view
+    }
+
     var host: LayoutCoordinates? = null
     val hot = mutableStateListOf<GlideSource>()
     var moves by mutableIntStateOf(0)
@@ -112,7 +123,7 @@ internal fun Modifier.glideBorder(
     hotFillAlpha: Float = RING_FILL,
 ): Modifier {
     val glide = LocalFocusGlide.current
-    if (glide == null || glide.view !== LocalView.current) {
+    if (glide == null || !glide.accepts(LocalView.current)) {
         return border(if (hot) hotWidth else restWidth, if (hot) hotColor else restColor, shape)
     }
     val src = remember { GlideSource() }
@@ -145,11 +156,35 @@ private const val REPEAT_MS = 180L
 private val FAR = 360.dp
 
 @Composable
+internal fun Modifier.focusGlide(
+    shape: Shape = Shape12,
+    color: Color = LocalPalette.current.signal,
+): Modifier {
+    var focused by remember { mutableStateOf(false) }
+    return glideBorder(focused, shape, color, hotFillAlpha = 0f)
+        .onFocusChanged { focused = it.isFocused }
+}
+
+@Composable
 internal fun FocusGlideHost(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     val view = LocalView.current
+    val glide = remember(view) { FocusGlide(view) }
+    Box(modifier.focusGlideOverlay(glide)) {
+        CompositionLocalProvider(LocalFocusGlide provides glide) { content() }
+    }
+}
+
+@Composable
+internal fun FocusGlideWindow(content: @Composable (Modifier) -> Unit) {
+    val glide = remember { FocusGlide(null) }
+    val overlay = Modifier.focusGlideOverlay(glide)
+    CompositionLocalProvider(LocalFocusGlide provides glide) { content(overlay) }
+}
+
+@Composable
+private fun Modifier.focusGlideOverlay(glide: FocusGlide): Modifier {
     val density = LocalDensity.current
     val dir = LocalLayoutDirection.current
-    val glide = remember(view) { FocusGlide(view) }
     val edges = remember { List(4) { Animatable(0f) } }
     val corner = remember { Animatable(0f) }
     val solid = remember { Animatable(0f) }
@@ -345,8 +380,7 @@ internal fun FocusGlideHost(modifier: Modifier = Modifier, content: @Composable 
         }
     }
 
-    Box(
-        modifier
+    return this
             .onGloballyPositioned { glide.host = it }
             .drawWithContent {
                 drawContent()
@@ -372,8 +406,5 @@ internal fun FocusGlideHost(modifier: Modifier = Modifier, content: @Composable 
                         cornerRadius = CornerRadius(rad), style = Stroke(w), alpha = a,
                     )
                 }
-            },
-    ) {
-        CompositionLocalProvider(LocalFocusGlide provides glide) { content() }
-    }
+            }
 }
