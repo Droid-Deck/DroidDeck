@@ -238,6 +238,15 @@ if [ -z "${BL_INSIDE:-}" ]; then
   fi
   if [ "${BL_FPS:-0}" -gt 0 ]; then
     args+=(-r "$BL_FPS")
+    # -r alone only paces what reaches the screen: a game without vsync keeps drawing
+    # hundreds of frames that are thrown away. The limiter makes gamescope's WSI layer
+    # hold Vulkan games (DXVK and VKD3D included) to the limit.
+    if [ "${DROIDDECK_GAME_FRAME_LIMIT:-1}" = 1 ]; then
+      args+=(--framerate-limit "$BL_FPS")
+      echo "== gamescope: frame limit $BL_FPS holds the games too"
+    else
+      echo "== gamescope: frame limit $BL_FPS paces the screen only (DROIDDECK_GAME_FRAME_LIMIT=0)"
+    fi
   elif [ "${BL_REFRESH:-0}" -gt 0 ]; then
     args+=(-r "$BL_REFRESH")
   fi
