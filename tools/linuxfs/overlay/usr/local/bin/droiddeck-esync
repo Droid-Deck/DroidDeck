@@ -10,6 +10,7 @@ import shutil
 import stat
 import struct
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -82,12 +83,17 @@ def write_text(path, text):
         raise
 
 
-def acquire(path, block=True):
+ACQUIRE_WAIT = 60.0
+_HELD = {}
+_HELD_GUARD = threading.Lock()
+
+
+def try_lock(path):
     for _ in range(64):
         fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_CLOEXEC, 0o644)
         try:
             try:
-                fcntl.flock(fd, fcntl.LOCK_EX if block else fcntl.LOCK_EX | fcntl.LOCK_NB)
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
             except BlockingIOError:
                 os.close(fd)
                 return None
@@ -105,20 +111,61 @@ def acquire(path, block=True):
     raise OSError("%s keeps being replaced" % path)
 
 
+def acquire(path, block=True):
+    """A launch that already holds the store lock must not wait on itself, and a holder that never
+    lets go must not stall every later launch, so the lock is counted per process and taken with a
+    bounded wait in place of a blocking flock."""
+    key = os.path.realpath(path)
+    with _HELD_GUARD:
+        held = _HELD.get(key)
+        if held is not None:
+            _HELD[key] = (held[0], held[1] + 1)
+            return held[0]
+    delay = 0.05
+    deadline = time.monotonic() + ACQUIRE_WAIT if block else None
+    while True:
+        fd = try_lock(path)
+        if fd is not None:
+            with _HELD_GUARD:
+                _HELD[key] = (fd, 1)
+            return fd
+        if deadline is None or time.monotonic() >= deadline:
+            return None
+        time.sleep(delay)
+        delay = min(delay * 2, 2.0)
+
+
+def release(path, fd):
+    if fd is None:
+        return
+    key = os.path.realpath(path)
+    with _HELD_GUARD:
+        held = _HELD.get(key)
+        if held is None or held[0] != fd:
+            os.close(fd)
+            return
+        if held[1] > 1:
+            _HELD[key] = (fd, held[1] - 1)
+            return
+        _HELD.pop(key, None)
+    os.close(fd)
+
+
 @contextlib.contextmanager
 def locked(path, block=True):
     fd = acquire(path, block)
     try:
         yield fd
     finally:
-        if fd is not None:
-            os.close(fd)
+        release(path, fd)
 
 
 def update_file(root, name, change):
     path = os.path.join(root, name)
-    with locked(os.path.join(root, STORE_LOCK)):
+    with locked(os.path.join(root, STORE_LOCK)) as fd:
         old = read_text(path)
+        if fd is None:
+            return old
         new = change(old)
         if new != old:
             write_text(path, new)
@@ -599,7 +646,9 @@ def ensure_dist(root, tool_dir, pack, cache=None):
     name = dist_name(pack["id"], stock)
     dist = os.path.join(folder, name)
     pack_dir = os.path.join(root, "packs", pack["id"])
-    with locked(dist + ".lock"):
+    with locked(dist + ".lock") as fd:
+        if fd is None:
+            raise OSError("%s is still being built by another launch" % name)
         record = read_record(dist)
         if record is not None and record.get("pack") == pack["id"] and record.get("stock") == stock:
             previous = record.get("tool")
