@@ -413,7 +413,9 @@ fun ValueChip(text: String, open: Boolean, enabled: Boolean = true, modifier: Mo
             targetState = text,
             transitionSpec = { (fadeIn(Motion.tw(260)) + slideInVertically(Motion.tw(260)) { it / 2 }) togetherWith (fadeOut(Motion.tw(160)) + slideOutVertically(Motion.tw(160)) { -it / 2 }) },
             label = "chipText",
-        ) { t -> Text(t, fontSize = if (compact) 12.sp else 13.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+        ) { t -> Text(t, fontSize = if (compact) 12.sp else 13.sp,
+            lineHeight = if (compact) 16.sp else androidx.compose.ui.unit.TextUnit.Unspecified,
+            fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis) }
         Spacer(Modifier.width(8.dp))
         Text("▾", fontSize = 10.sp, color = colors.onSurfaceVariant, modifier = Modifier.rotate(rot))
     }
@@ -445,13 +447,14 @@ fun SettingsRow(label: String, hint: String?, highlighted: Boolean = false, hint
     val bg by animateColorAsState(if (highlighted) pal.signal.copy(alpha = 0.10f) else Color.Transparent, Motion.tw(200), label = "rowBg")
     val hintText: @Composable (androidx.compose.ui.unit.TextUnit) -> Unit = { size ->
         Text(hint ?: "", fontSize = size, color = colors.onSurfaceVariant, modifier = Modifier.padding(top = 2.dp),
+            lineHeight = if (compact) 14.sp else androidx.compose.ui.unit.TextUnit.Unspecified,
             minLines = hintLines ?: 1, maxLines = hintLines ?: Int.MAX_VALUE, overflow = TextOverflow.Ellipsis)
     }
     if (compact && !stacked) Column(
         modifier = Modifier.fillMaxWidth().background(bg).padding(horizontal = 10.dp, vertical = 6.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(label, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground,
+            Text(label, fontSize = 13.sp, lineHeight = 16.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground,
                 modifier = Modifier.weight(1f))
             control()
         }
@@ -461,7 +464,9 @@ fun SettingsRow(label: String, hint: String?, highlighted: Boolean = false, hint
             horizontal = if (compact) 10.dp else 14.dp,
             vertical = if (compact) 6.dp else 12.dp),
     ) {
-        Text(label, fontSize = if (compact) 13.sp else 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground)
+        Text(label, fontSize = if (compact) 13.sp else 15.sp,
+            lineHeight = if (compact) 16.sp else androidx.compose.ui.unit.TextUnit.Unspecified,
+            fontWeight = FontWeight.SemiBold, color = colors.onBackground)
         if (hint != null || hintLines != null) hintText(if (compact) 11.sp else 13.sp)
         Box(Modifier.padding(top = if (compact) 6.dp else 8.dp)) { control() }
     } else Row(
