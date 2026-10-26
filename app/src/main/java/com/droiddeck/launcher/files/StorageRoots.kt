@@ -91,7 +91,8 @@ object StorageRoots {
             .filter { present(it.state) }
             .forEachIndexed { index, volume ->
                 val uuid = volume.uuid?.takeIf { it.isNotBlank() }
-                val dirName = volume.directory?.name?.takeIf { it.isNotBlank() }
+                val directory = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) volume.directory else null
+                val dirName = directory?.name?.takeIf { it.isNotBlank() }
                 // Unmounted volumes often report neither uuid nor directory; never drop the
                 // volume or a plugged-in drive stays invisible with no explanation.
                 val descSlug = volume.getDescription(context)?.trim()
@@ -101,9 +102,7 @@ object StorageRoots {
                 entry.removable = !volume.isPrimary && volume.isRemovable
                 if (entry.label == null) entry.label = labelFor(context, volume, uuid ?: dirName ?: descSlug)
 
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                    volume.directory?.let { entry.candidates += it }
-                }
+                directory?.let { entry.candidates += it }
                 val name = uuid ?: dirName
                 if (name != null) {
                     entry.candidates += File("/storage/$name")
