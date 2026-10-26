@@ -1,5 +1,7 @@
 package com.droiddeck.launcher.files
 
+import androidx.compose.foundation.shape.CircleShape
+import com.droiddeck.launcher.ui.focusGlide
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
@@ -50,7 +52,7 @@ import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material3.Button
-import androidx.compose.material3.DropdownMenu
+import com.droiddeck.launcher.ui.GlideDropdownMenu as DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -70,6 +72,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -99,7 +102,9 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.Date
 
-private enum class FileManagerNavigation { EXIT, RETURN_TO_START, BACK }
+private enum class FileManagerNavigation { EXIT, RETURN_TO_START, BACK, UP }
+
+private const val HISTORY_LIMIT = 50
 
 internal fun canNavigateUp(currentDir: File, currentRoot: File): Boolean =
     currentDir != currentRoot && currentDir.parentFile?.exists() == true
@@ -193,10 +198,17 @@ fun FileManagerScreen(
     var favTick by remember { mutableIntStateOf(0) }
 
     var listingJob by remember { mutableStateOf<Job?>(null) }
+    val history = remember { mutableStateListOf<Pair<File, File>>() }
+    var shownRoot by remember { mutableStateOf(initialRoot) }
 
-    fun loadDirectory(dir: File, resetScroll: Boolean = true) {
+    fun loadDirectory(dir: File, resetScroll: Boolean = true, record: Boolean = true) {
         if (cancellingNavigation) return
+        if (record && dir != currentDir) {
+            history.add(currentDir to shownRoot)
+            if (history.size > HISTORY_LIMIT) history.removeAt(0)
+        }
         currentDir = dir
+        shownRoot = currentRoot
         if (pickMode) pickPrefs.edit().putString("lastFilePickerDir", dir.absolutePath).apply()
         listingJob?.cancel()
         listingJob = scope.launch {
@@ -252,6 +264,18 @@ fun FileManagerScreen(
             FileManagerNavigation.RETURN_TO_START -> returnToStart()
             FileManagerNavigation.BACK -> {
                 if (showFavorites) showFavorites = false
+                else {
+                    while (history.isNotEmpty() && !history.last().first.isDirectory) history.removeAt(history.lastIndex)
+                    val previous = history.removeLastOrNull()
+                    if (previous != null) {
+                        currentRoot = previous.second
+                        loadDirectory(previous.first, record = false)
+                    } else if (canNavigateUp(currentDir, currentRoot)) currentDir.parentFile?.let { loadDirectory(it, record = false) }
+                    else onExit?.invoke()
+                }
+            }
+            FileManagerNavigation.UP -> {
+                if (showFavorites) showFavorites = false
                 else if (canNavigateUp(currentDir, currentRoot)) currentDir.parentFile?.let { loadDirectory(it) }
                 else onExit?.invoke()
             }
@@ -263,7 +287,7 @@ fun FileManagerScreen(
         if (isOperationActive()) pendingNavigation = action else navigate(action)
     }
 
-    BackHandler(enabled = operationActive || cancellingNavigation || showFavorites || currentDir != currentRoot) {
+    BackHandler(enabled = operationActive || cancellingNavigation || showFavorites || currentDir != currentRoot || history.isNotEmpty()) {
         requestNavigation(FileManagerNavigation.BACK)
     }
 
@@ -296,10 +320,10 @@ fun FileManagerScreen(
                             navigate(action)
                         }
                     }
-                }) { Text(stringResource(R.string.fm_accept)) }
+                }, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.fm_accept)) }
             },
             dismissButton = {
-                TextButton(onClick = { pendingNavigation = null }) {
+                TextButton(onClick = { pendingNavigation = null }, modifier = Modifier.focusGlide(CircleShape)) {
                     Text(stringResource(R.string.fm_decline))
                 }
             },
@@ -487,15 +511,16 @@ fun FileManagerScreen(
                     onValueChange = { folderName = it },
                     label = { Text(stringResource(R.string.fm_folder_name)) },
                     singleLine = true,
+                    modifier = Modifier.focusGlide(),
                 )
             },
             confirmButton = {
                 TextButton(onClick = {
                     showNewFolderDialog = false
                     if (folderName.isNotBlank()) createFolder(currentDir, folderName)
-                }) { Text(stringResource(R.string.fm_create)) }
+                }, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.fm_create)) }
             },
-            dismissButton = { TextButton(onClick = { showNewFolderDialog = false }) { Text(stringResource(R.string.common_cancel)) } },
+            dismissButton = { TextButton(onClick = { showNewFolderDialog = false }, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.common_cancel)) } },
         )
     }
 
@@ -510,6 +535,7 @@ fun FileManagerScreen(
                     onValueChange = { newName = it },
                     label = { Text(stringResource(R.string.fm_new_name)) },
                     singleLine = true,
+                    modifier = Modifier.focusGlide(),
                 )
             },
             confirmButton = {
@@ -517,9 +543,9 @@ fun FileManagerScreen(
                     val file = renameTarget
                     renameTarget = null
                     if (file != null && newName.isNotBlank()) performRename(file, newName)
-                }) { Text(stringResource(R.string.fm_rename)) }
+                }, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.fm_rename)) }
             },
-            dismissButton = { TextButton(onClick = { renameTarget = null }) { Text(stringResource(R.string.common_cancel)) } },
+            dismissButton = { TextButton(onClick = { renameTarget = null }, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.common_cancel)) } },
         )
     }
 
@@ -541,9 +567,9 @@ fun FileManagerScreen(
                 TextButton(onClick = {
                     selectedEntry = null
                     performDelete(file)
-                }) { Text(stringResource(R.string.common_delete)) }
+                }, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.common_delete)) }
             },
-            dismissButton = { TextButton(onClick = { selectedEntry = null }) { Text(stringResource(R.string.common_cancel)) } },
+            dismissButton = { TextButton(onClick = { selectedEntry = null }, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.common_cancel)) } },
         )
     }
 
@@ -589,9 +615,9 @@ fun FileManagerScreen(
                             Toast.makeText(context, context.resources.getQuantityString(R.plurals.fm_delete_some_failed, failed, failed), Toast.LENGTH_SHORT).show()
                         }
                     }
-                }) { Text(stringResource(R.string.common_delete), color = MaterialTheme.colorScheme.error) }
+                }, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.common_delete), color = MaterialTheme.colorScheme.error) }
             },
-            dismissButton = { TextButton(onClick = { pendingBulkDelete = emptyList() }) { Text(stringResource(R.string.common_cancel)) } },
+            dismissButton = { TextButton(onClick = { pendingBulkDelete = emptyList() }, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.common_cancel)) } },
         )
     }
 
@@ -614,6 +640,7 @@ fun FileManagerScreen(
                             androidx.compose.material3.Checkbox(
                                 checked = conflictApplyToAll,
                                 onCheckedChange = { conflictApplyToAll = it },
+                                modifier = Modifier.focusGlide(),
                             )
                             Text(stringResource(R.string.fm_conflict_apply_all), fontSize = 12.sp)
                         }
@@ -626,7 +653,7 @@ fun FileManagerScreen(
                         ConflictChoice.SKIP to stringResource(R.string.fm_conflict_skip),
                     ).forEach { (choice, label) ->
                         TextButton(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier.fillMaxWidth().focusGlide(CircleShape),
                             onClick = { conflictChoice = choice; pendingConflict = null },
                         ) { Text(label, modifier = Modifier.fillMaxWidth()) }
                     }
@@ -634,7 +661,7 @@ fun FileManagerScreen(
             },
             confirmButton = {},
             dismissButton = {
-                TextButton(onClick = { conflictChoice = ConflictChoice.SKIP; pendingConflict = null }) {
+                TextButton(onClick = { conflictChoice = ConflictChoice.SKIP; pendingConflict = null }, modifier = Modifier.focusGlide(CircleShape)) {
                     Text(stringResource(R.string.common_cancel))
                 }
             },
@@ -659,7 +686,7 @@ fun FileManagerScreen(
                 onClick = { onPick?.invoke(currentDir) },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                    .padding(horizontal = 16.dp, vertical = 8.dp).focusGlide(CircleShape),
             ) {
                 Icon(Icons.Filled.Folder, null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
@@ -673,7 +700,7 @@ fun FileManagerScreen(
                 .background(MaterialTheme.colorScheme.surfaceContainer)
                 .padding(horizontal = 8.dp, vertical = 6.dp),
         ) {
-            IconButton(onClick = { requestNavigation(FileManagerNavigation.BACK) }, enabled = canGoUp && !cancellingNavigation) {
+            IconButton(onClick = { requestNavigation(FileManagerNavigation.UP) }, enabled = canGoUp && !cancellingNavigation, modifier = Modifier.focusGlide(CircleShape)) {
                 Icon(Icons.Filled.ArrowBack, stringResource(R.string.fm_back), tint = MaterialTheme.colorScheme.primary)
             }
 
@@ -722,6 +749,7 @@ fun FileManagerScreen(
                                     ).show()
                                 }
                             },
+                            modifier = Modifier.focusGlide(),
                         )
                     }
                     linuxRoot?.let { root ->
@@ -732,6 +760,7 @@ fun FileManagerScreen(
                                 Icon(Icons.Filled.Terminal, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
                             },
                             onClick = { showDriveMenu = false; openDrive(root) },
+                            modifier = Modifier.focusGlide(),
                         )
                     }
                 }
@@ -764,7 +793,7 @@ fun FileManagerScreen(
             }
 
             if (launchDir != null) {
-                IconButton(onClick = { requestNavigation(FileManagerNavigation.RETURN_TO_START) }, enabled = !cancellingNavigation) {
+                IconButton(onClick = { requestNavigation(FileManagerNavigation.RETURN_TO_START) }, enabled = !cancellingNavigation, modifier = Modifier.focusGlide(CircleShape)) {
                     Icon(Icons.AutoMirrored.Filled.KeyboardReturn, stringResource(R.string.fm_return_to_start), tint = MaterialTheme.colorScheme.primary)
                 }
                 if (LocalConfiguration.current.screenWidthDp >= 700) Spacer(Modifier.width(56.dp))
@@ -776,7 +805,7 @@ fun FileManagerScreen(
                         onClick = { showNewFolderDialog = true },
                         border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)),
                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
-                        modifier = Modifier.height(32.dp),
+                        modifier = Modifier.height(32.dp).focusGlide(CircleShape),
                     ) {
                         Icon(Icons.Filled.CreateNewFolder, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(5.dp))
@@ -786,18 +815,18 @@ fun FileManagerScreen(
                 IconButton(onClick = {
                     gridView = !gridView
                     browsePrefs.edit().putBoolean("fmGridView", gridView).apply()
-                }) {
+                }, modifier = Modifier.focusGlide(CircleShape)) {
                     Icon(
                         if (gridView) Icons.Filled.ViewList else Icons.Filled.GridView,
                         if (gridView) stringResource(R.string.fm_list_view) else stringResource(R.string.fm_grid_view),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                IconButton(onClick = { showSearch = !showSearch; if (!showSearch) searchQuery = "" }) {
+                IconButton(onClick = { showSearch = !showSearch; if (!showSearch) searchQuery = "" }, modifier = Modifier.focusGlide(CircleShape)) {
                     Icon(Icons.Filled.Search, stringResource(R.string.fm_search), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 Box {
-                    IconButton(onClick = { showSortMenu = true }) {
+                    IconButton(onClick = { showSortMenu = true }, modifier = Modifier.focusGlide(CircleShape)) {
                         Icon(Icons.Filled.Sort, stringResource(R.string.fm_sort), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     DropdownMenu(expanded = showSortMenu, onDismissRequest = { showSortMenu = false }) {
@@ -814,6 +843,7 @@ fun FileManagerScreen(
                                         showSortMenu = false
                                         loadDirectory(currentDir, resetScroll = false)
                                     },
+                                    modifier = Modifier.focusGlide(),
                                 )
                             }
                         HorizontalDivider(color = MaterialTheme.colorScheme.outline)
@@ -824,6 +854,7 @@ fun FileManagerScreen(
                                 browsePrefs.edit().putBoolean("fmCompactRows", compactRows).apply()
                                 showSortMenu = false
                             },
+                            modifier = Modifier.focusGlide(),
                         )
                         DropdownMenuItem(
                             text = { Text(if (showHidden) stringResource(R.string.fm_hide_hidden) else stringResource(R.string.fm_show_hidden)) },
@@ -833,12 +864,13 @@ fun FileManagerScreen(
                                 showSortMenu = false
                                 loadDirectory(currentDir, resetScroll = false)
                             },
+                            modifier = Modifier.focusGlide(),
                         )
                     }
                 }
             }
 
-            IconButton(onClick = { showFavorites = !showFavorites }) {
+            IconButton(onClick = { showFavorites = !showFavorites }, modifier = Modifier.focusGlide(CircleShape)) {
                 if (showFavorites) {
                     Icon(Icons.Filled.Star, stringResource(R.string.fm_hide_favorites), tint = MaterialTheme.colorScheme.primary)
                 } else {
@@ -846,7 +878,7 @@ fun FileManagerScreen(
                 }
             }
             if (!pickMode && onExit != null) {
-                IconButton(onClick = { requestNavigation(FileManagerNavigation.EXIT) }, enabled = !cancellingNavigation) {
+                IconButton(onClick = { requestNavigation(FileManagerNavigation.EXIT) }, enabled = !cancellingNavigation, modifier = Modifier.focusGlide(CircleShape)) {
                     Icon(Icons.AutoMirrored.Filled.ExitToApp, stringResource(R.string.fm_exit), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
@@ -858,7 +890,7 @@ fun FileManagerScreen(
                 onValueChange = { searchQuery = it },
                 singleLine = true,
                 placeholder = { Text(stringResource(R.string.fm_filter_folder), fontSize = 13.sp) },
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp).focusGlide(),
             )
         }
 
@@ -913,6 +945,7 @@ fun FileManagerScreen(
                         selectedPaths = if (allVisibleSelected) selectedPaths - shown.toSet() else selectedPaths + shown
                     },
                     contentPadding = selBarPadding,
+                    modifier = Modifier.focusGlide(CircleShape),
                 ) { Text(if (allVisibleSelected) stringResource(R.string.fm_select_none) else stringResource(R.string.fm_select_all), fontSize = 12.sp) }
                 Spacer(Modifier.width(4.dp))
                 OutlinedButton(
@@ -924,6 +957,7 @@ fun FileManagerScreen(
                         selectedPaths = emptySet()
                     },
                     contentPadding = selBarPadding,
+                    modifier = Modifier.focusGlide(CircleShape),
                 ) { Text(stringResource(R.string.fm_copy), fontSize = 12.sp) }
                 Spacer(Modifier.width(4.dp))
                 OutlinedButton(
@@ -935,6 +969,7 @@ fun FileManagerScreen(
                         selectedPaths = emptySet()
                     },
                     contentPadding = selBarPadding,
+                    modifier = Modifier.focusGlide(CircleShape),
                 ) { Text(stringResource(R.string.fm_cut), fontSize = 12.sp) }
                 Spacer(Modifier.width(4.dp))
                 OutlinedButton(
@@ -942,11 +977,13 @@ fun FileManagerScreen(
                     onClick = { pendingBulkDelete = visibleEntries.filter { it.absolutePath in selectedPaths } },
                     contentPadding = selBarPadding,
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.error),
+                    modifier = Modifier.focusGlide(CircleShape),
                 ) { Text(stringResource(R.string.common_delete), color = MaterialTheme.colorScheme.error, fontSize = 12.sp) }
                 Spacer(Modifier.width(4.dp))
                 OutlinedButton(
                     onClick = { selectionMode = false; selectedPaths = emptySet() },
                     contentPadding = selBarPadding,
+                    modifier = Modifier.focusGlide(CircleShape),
                 ) { Text(stringResource(R.string.fm_done), fontSize = 12.sp) }
             }
         }
@@ -968,7 +1005,7 @@ fun FileManagerScreen(
                     if (isCutOperation) stringResource(R.string.fm_paste_move_here, what) else stringResource(R.string.fm_paste_here, what),
                     color = MaterialTheme.colorScheme.onBackground, fontSize = 13.sp, modifier = Modifier.weight(1f),
                 )
-                TextButton(onClick = { clipboardFiles = emptyList(); isCutOperation = false }) {
+                TextButton(onClick = { clipboardFiles = emptyList(); isCutOperation = false }, modifier = Modifier.focusGlide(CircleShape)) {
                     Text(stringResource(R.string.common_cancel), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
                 }
             }
@@ -999,7 +1036,7 @@ fun FileManagerScreen(
                             isOperationRunning = false
                             operationDeterminate = false
                             loadDirectory(currentDir, resetScroll = false)
-                        }) { Text(stringResource(R.string.common_cancel), fontSize = 12.sp) }
+                        }, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.common_cancel), fontSize = 12.sp) }
                     }
                 }
                 Spacer(Modifier.height(4.dp))
@@ -1089,7 +1126,7 @@ fun FileManagerScreen(
                     contentPadding = PaddingValues(8.dp),
                 ) {
                     if (canGoUp) item(key = "..", span = { GridItemSpan(maxLineSpan) }) {
-                        ParentFolderRow(compact = compactRows, onTap = { requestNavigation(FileManagerNavigation.BACK) })
+                        ParentFolderRow(compact = compactRows, onTap = { requestNavigation(FileManagerNavigation.UP) })
                     }
                     items(shownEntries, key = { it.absolutePath }) { file ->
                         val isFav = remember(file.absolutePath, favTick) {
@@ -1155,7 +1192,7 @@ fun FileManagerScreen(
             } else
             LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
                 if (canGoUp) item(key = "..") {
-                    ParentFolderRow(compact = compactRows, onTap = { requestNavigation(FileManagerNavigation.BACK) })
+                    ParentFolderRow(compact = compactRows, onTap = { requestNavigation(FileManagerNavigation.UP) })
                 }
                 if (entries.isEmpty()) {
                     item {

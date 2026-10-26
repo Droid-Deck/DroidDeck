@@ -254,7 +254,7 @@ private fun Content(
         return
     }
     if (selected == "games" || selected.startsWith("app:")) {
-        GamesPage(s, a, selected, onSelect, modifier)
+        LibraryPage(s, a, selected, onSelect, modifier)
         return
     }
     if (selected == "desktop") {

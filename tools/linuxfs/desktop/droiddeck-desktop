@@ -12,6 +12,9 @@ export MOZ_DISABLE_SOCKET_PROCESS_SANDBOX=1 MOZ_DISABLE_UTILITY_SANDBOX=1
 export MOZ_SHM_NO_SEALS=1
 export KWIN_COMPOSE=Q QT_QUICK_BACKEND=software LIBGL_ALWAYS_SOFTWARE=1 GALLIUM_DRIVER=llvmpipe
 [ -e /etc/mpv/mpv.conf ] || { mkdir -p /etc/mpv && echo gpu-sw=yes >/etc/mpv/mpv.conf; } 2>/dev/null
+for conf in client client-rt; do
+  mkdir -p "/etc/pipewire/$conf.conf.d" && printf 'context.properties = {\n    module.rt = false\n}\n' >"/etc/pipewire/$conf.conf.d/droiddeck-rt.conf"
+done 2>/dev/null
 export DROIDDECK_NESTED_SCALE=1
 export DROIDDECK_GLTHREAD=${mesa_glthread:-}
 unset MESA_LOADER_DRIVER_OVERRIDE LIBGL_KOPPER_DRI2 mesa_glthread

@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.frontend
 
+import com.droiddeck.launcher.BuildConfig
 import com.droiddeck.launcher.stores.CredentialCipher
 import org.json.JSONArray
 import org.json.JSONObject
@@ -92,8 +93,9 @@ class AddedGameArtLookupTest {
         assertEquals("build", SteamGridDb.pick("", "build"))
         assertEquals("build", SteamGridDb.pick("  ", "build"))
         assertEquals("", SteamGridDb.pick("", ""))
-        assertEquals("", SteamGridDb.builtInKey())
-        assertEquals("", SteamGridDb.key(app))
+        val builtIn = SteamGridDb.builtInKey()
+        assertTrue(builtIn == BuildConfig.SGDB_API_KEY)
+        assertTrue(SteamGridDb.key(app) == builtIn.trim())
     }
 
     @Test fun theUsersKeyIsSealedOnDiskAndClears() {
@@ -106,7 +108,7 @@ class AddedGameArtLookupTest {
         assertEquals("abcdef0123456789secretkey", SteamGridDb.key(app))
         SteamGridDb.setUserKey(app, "")
         assertFalse(file.exists())
-        assertEquals("", SteamGridDb.key(app))
+        assertTrue(SteamGridDb.key(app) == SteamGridDb.builtInKey().trim())
     }
 
     @Test fun aFailedLookupIsNotRememberedAsNoMatch() {

@@ -87,7 +87,7 @@ x64_map_direct() {
   [ -f "$STEAM_X64/config/config.vdf" ] || return 0
   if [ "$mode" = write ] && pgrep -f 'steamrt64/steam( |$)' >/dev/null 2>&1; then return 0; fi
   python3 - "$mode" "$STEAM_X64/config/config.vdf" "$STEAM_X64/appcache/appinfo.vdf" "$X64_HOME/direct-auto.json" \
-    "$X64_HOME/direct-sniper" "$STEAM_X64/steamapps:/mnt/droiddeck-sd/x86-64/steamapps" "$(x64_default_tool)" \
+    "$X64_HOME/direct-sniper" "$STEAM_X64/steamapps:/mnt/droiddeck-sd/x86-64/steamapps:$X64_HOME/shared/arm64/steamapps" "$(x64_default_tool)" \
     "$REAL_HOME/.bl-compat-pending" ${BL_X64_DIRECT_APPS:-550} \
     <<'PY' || { [ "$mode" = live ] || step "could not map titles to DroidDeck direct"; }
 # Steam does not swap an installed build when the tool changes: a title installed for Windows stays on Proton.
@@ -610,6 +610,7 @@ RUN
     printf '"InstallConfigStore"\n{\n\t"Software"\n\t{\n\t\t"Valve"\n\t\t{\n\t\t\t"Steam"\n\t\t\t{\n\t\t\t\t"CompatToolMapping"\n\t\t\t\t{\n\t\t\t\t}\n\t\t\t}\n\t\t}\n\t}\n}\n' \
       > "$STEAM_X64/config/config.vdf"
   fi
+  x64_share x86-64
   x64_map_direct
   # Each wrapper execs droiddeck-x64-arm-proton through an arm64 binary, which FEX hands straight to the CPU.
   arm_tools=$ARM_STEAM/compatibilitytools.d
@@ -659,9 +660,9 @@ VDF
   # Each client keeps its own libraries; written only while no x86 client runs, as it rewrites these on exit.
   if ! pgrep -f 'steamrt64/steam( |$)' >/dev/null 2>&1; then
     listing_ok=0
-    if python3 - "$STEAM_X64" "${BL_X64_STEAM_LIBRARIES:-}" "$STEAM_X64/config/libraryfolders.vdf" "$STEAM_X64/steamapps/libraryfolders.vdf" <<'PY'; then
+    if BL_X64_SHARED=$X64_HOME/shared/arm64 python3 - "$STEAM_X64" "${BL_X64_STEAM_LIBRARIES:-}" "$STEAM_X64/config/libraryfolders.vdf" "$STEAM_X64/steamapps/libraryfolders.vdf" <<'PY'; then
 import json, os, re, sys
-keep = {os.path.realpath(sys.argv[1])}
+keep = {os.path.realpath(sys.argv[1]), os.path.realpath(os.environ["BL_X64_SHARED"])}
 # Without the session's list nothing is known about the card: leave the folders as they are.
 if not sys.argv[2]:
     sys.exit(3)
@@ -911,6 +912,14 @@ x64_exec() {
   exec "${BL_FEX:-/usr/local/bin/FEX}" "$STEAM_X64/steamrt64/steam" "$@"
 }
 
+x64_share() {
+  pgrep -f 'steamrt64/steam( |$)' >/dev/null 2>&1 && return 0
+  pgrep -f 'steamrtarm64/steam( |$)' >/dev/null 2>&1 && return 0
+  [ -d "$STEAM_X64/steamapps" ] && [ -d "$ARM_STEAM/steamapps" ] || return 0
+  droiddeck-steam-share "$1" "$ARM_STEAM" "$STEAM_X64" /mnt/droiddeck-sd/x86-64 "$X64_HOME/shared" ||
+    step "could not share the games between the clients"
+}
+
 # Steam renews its token every few days and refuses old copies: copy the newest every start, never while a client runs.
 x64_sync_login() {
   pgrep -f 'steamrt64/steam( |$)' >/dev/null 2>&1 && return 0
@@ -1027,6 +1036,7 @@ PY
 
 case "${1:-}" in
   --sync-login) x64_sync_login; exit 0 ;;
+  --share) x64_share arm64; exit 0 ;;
   --prepare) x64_prepare; exit 0 ;;
   --exec) shift; x64_exec "$@" ;;
   --gpu) x64_gpu; exit $? ;;

@@ -3,6 +3,7 @@ set -u
 export LANG=C.UTF-8
 step() { echo "== STEP $*"; }
 fail() { echo "== FAIL $*"; exit 1; }
+[ "$(id -u)" = 0 ] || fail "needs root: install Flatpak from the launcher's Store, which runs this as root"
 
 PACKAGES="flatpak ostree appstream libxmlb libmalcontent libfyaml accountsservice composefs xdg-dbus-proxy"
 while read -r pkg probe; do
@@ -48,10 +49,13 @@ if [ ! -f /etc/pacman.d/gnupg/pubring.gpg ] && [ ! -f /etc/pacman.d/gnupg/pubrin
 fi
 
 step "Reading the package lists"
-pacman --config "$CONF" --dbpath "$WORK/db" --noconfirm -Sy >/dev/null 2>&1 \
-  || pacman --config "$CONF" --dbpath "$WORK/db" --noconfirm -Sy 2>&1 | tail -3 \
-  || fail "could not reach the Arch Linux ARM mirrors"
-[ -f "$WORK/db/sync/extra.db" ] || fail "could not reach the Arch Linux ARM mirrors"
+sync_log=$(pacman --config "$CONF" --dbpath "$WORK/db" --noconfirm -Sy 2>&1) \
+  || sync_log=$(pacman --config "$CONF" --dbpath "$WORK/db" --noconfirm -Sy 2>&1)
+if [ ! -f "$WORK/db/sync/extra.db" ]; then
+  printf '%s\n' "$sync_log" | tail -3
+  reason=$(printf '%s\n' "$sync_log" | grep -m1 -i '^error' | cut -c1-160)
+  fail "could not reach the Arch Linux ARM mirrors${reason:+ ($reason)}"
+fi
 
 step "Downloading Flatpak"
 out=$(pacman --config "$CONF" --dbpath "$WORK/db" --cachedir "$WORK/pkg" --noconfirm -Sw -dd $PACKAGES 2>&1)

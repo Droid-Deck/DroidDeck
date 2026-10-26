@@ -240,7 +240,7 @@ private fun SetupButton(s: FrontEndState, busy: Boolean, full: Dp, ring: Int, on
                     drawRect(Brush.horizontalGradient(listOf(Color.Transparent, FlathubTeal.copy(alpha = 0.55f), Color.Transparent), startX = size.width * sweep - w, endX = size.width * sweep + w))
                 }
             }
-            .focusable()
+            .focusGlide(shape, FlathubTeal).focusable()
             .semantics { contentDescription = label }
             .padding(horizontal = 20.dp, vertical = 16.dp),
     ) {

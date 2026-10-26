@@ -589,7 +589,8 @@ def guest_environment(fex, env):
         result["FEX_THUNKHOSTLIBS"] = fex["host_thunks"]
         result["FEX_THUNKGUESTLIBS"] = fex["guest_thunks"]
         result["FEX_THUNKCONFIG"] = os.path.join(CONFIG_DIR, "ThunksConfig.json")
-    preload = [part for part in split_paths(result.get("LD_PRELOAD")) if os.path.exists(part) and not is_arm(part)]
+    preload = [part for part in split_paths(result.get("LD_PRELOAD"))
+               if "/" not in part or (os.path.exists(part) and not is_arm(part))]
     library_path = [part for part in (result.get("LD_LIBRARY_PATH") or "").split(":")
                     if part and "arm64" not in part and "aarch64" not in part]
     for name, parts in (("LD_PRELOAD", preload), ("LD_LIBRARY_PATH", library_path)):
@@ -671,15 +672,26 @@ def launch(command, env, mode, decide=None):
     return os.execve(fex["bin"], [fex["bin"], program] + command[1:], guest)
 
 
-def game_environment(env):
+def game_environment(env, command):
     try:
         game_env = runpy.run_path(os.path.join(BIN_DIR, "droiddeck-game-env"))
         env = game_env["game_gpu"](env)
         app = game_env["game_id"](env) or env.get("SteamAppId") or env.get("SteamGameId")
         if not app:
             return env
-        with open(GAME_ENVIRONMENT, encoding="utf-8") as source:
-            return game_env["apply_config"](env, json.load(source), str(app))
+        fixes = {}
+        game = game_env["Game"](resolve(command[0], env), command[1:])
+        for check in game_env["FIXES"]:
+            found = check(game)
+            if found and found[0]:
+                fixes.update(found[0])
+                say(found[2])
+        try:
+            with open(GAME_ENVIRONMENT, encoding="utf-8") as source:
+                config = json.load(source)
+        except FileNotFoundError:
+            config = {"version": 1}
+        return game_env["apply_config"](env, config, str(app), fixes)
     except FileNotFoundError:
         return env
     except Exception as error:
@@ -810,7 +822,7 @@ def main(argv):
             return 0
         if not command:
             return 2
-        return launch(command, game_environment(dict(os.environ)), os.environ.get("DROIDDECK_FEX", "auto"))
+        return launch(command, game_environment(dict(os.environ), command), os.environ.get("DROIDDECK_FEX", "auto"))
     if action == "run":
         try:
             mode, decide, command = parse_run(args)

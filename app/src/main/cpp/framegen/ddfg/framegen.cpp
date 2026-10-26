@@ -184,8 +184,9 @@ bool FrameGen::onResize(VkExtent2D extent, VkFormat  , bool force) {
         VkExtent2D e = levelExtent(extent, l);
         if (!makeImage(pyrA_[l], e, VK_FORMAT_R32_SFLOAT, lumaUsage)) return false;
         if (!makeImage(pyrB_[l], e, VK_FORMAT_R32_SFLOAT, lumaUsage)) return false;
-        if (!makeImage(flowLvl_[l], e, VK_FORMAT_R16G16B16A16_SFLOAT, flowUsage)) return false;
     }
+    for (int l = flowFinest_; l < kLevels; ++l)
+        if (!makeImage(flowLvl_[l], levelExtent(extent, l), VK_FORMAT_R16G16B16A16_SFLOAT, flowUsage)) return false;
     pyrAs_.resize(kLevels);
     for (int l = flowFinest_; l < kLevels; ++l)
         if (!makeImage(pyrAs_[l], levelExtent(extent, l), VK_FORMAT_R32_SFLOAT, lumaUsage)) return false;

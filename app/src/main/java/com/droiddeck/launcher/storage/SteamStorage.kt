@@ -28,6 +28,8 @@ object SteamStorage {
     private val LAST_PLAYED = Regex("^\\s*\"LastPlayed\"\\s*\"(\\d+)\"", RegexOption.MULTILINE)
     private val MAPPING = Regex("\"(\\d+)\"\\s*\\{\\s*\"name\"\\s*\"([^\"]*)\"")
     private val COMPAT_NAME = Regex("\"compat_tools\"\\s*\\{\\s*\"([^\"]+)\"")
+    private val VDF_TOKEN = Regex("\"((?:\\\\.|[^\"\\\\])*)\"|[{}]|//[^\n]*")
+    private val SHADER_CACHE_OFF = listOf("InstallConfigStore", "Software", "Valve", "Steam", "ShaderCacheManager", "DisableShaderCache")
 
     data class Manifest(
         val file: File, val appId: Int, val name: String, val installDir: String?,
@@ -116,6 +118,28 @@ object SteamStorage {
             }
         }
         return MAPPING.findAll(configVdf.substring(open, end)).associate { it.groupValues[1] to it.groupValues[2] }
+    }
+
+    fun shaderPrecache(configVdf: String): Boolean = vdfValue(configVdf, SHADER_CACHE_OFF) != "1"
+
+    private fun vdfValue(text: String, path: List<String>): String? {
+        val blocks = ArrayList<String>()
+        var key: String? = null
+        for (token in VDF_TOKEN.findAll(text)) {
+            val name = key
+            when {
+                token.value.startsWith("//") -> {}
+                token.value == "{" -> { blocks.add(name.orEmpty()); key = null }
+                token.value == "}" -> { blocks.removeLastOrNull(); key = null }
+                name == null -> key = token.groupValues[1]
+                else -> {
+                    val at = blocks + name
+                    if (at.size == path.size && at.zip(path).all { (a, b) -> a.equals(b, ignoreCase = true) }) return token.groupValues[1]
+                    key = null
+                }
+            }
+        }
+        return null
     }
 
     fun compatToolName(compatibilityToolVdf: String): String? = COMPAT_NAME.find(compatibilityToolVdf)?.groupValues?.get(1)

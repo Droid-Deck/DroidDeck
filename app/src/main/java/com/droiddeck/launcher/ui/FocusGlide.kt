@@ -11,6 +11,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -23,6 +24,7 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -54,10 +56,21 @@ internal class GlideSource {
     var shape: Shape by mutableStateOf<Shape>(androidx.compose.ui.graphics.RectangleShape)
     var color by mutableStateOf(Color.Transparent)
     var width by mutableStateOf(2.dp)
+    var fillAlpha by mutableFloatStateOf(RING_FILL)
     val requester = androidx.compose.ui.focus.FocusRequester()
 }
 
-internal class FocusGlide(val view: View) {
+internal class FocusGlide(view: View?) {
+    private val deferredWindow = view == null
+    var view = view
+        private set
+
+    fun accepts(view: View): Boolean {
+        // DropdownMenu recreates its popup view after closing.
+        if (this.view == null || deferredWindow && this.view !== view && host?.isAttached != true) this.view = view
+        return this.view === view
+    }
+
     var host: LayoutCoordinates? = null
     val hot = mutableStateListOf<GlideSource>()
     var moves by mutableIntStateOf(0)
@@ -107,15 +120,17 @@ internal fun Modifier.glideBorder(
     restColor: Color = Color.Transparent,
     hotWidth: Dp = 2.dp,
     restWidth: Dp = 1.dp,
+    hotFillAlpha: Float = RING_FILL,
 ): Modifier {
     val glide = LocalFocusGlide.current
-    if (glide == null || glide.view !== LocalView.current) {
+    if (glide == null || !glide.accepts(LocalView.current)) {
         return border(if (hot) hotWidth else restWidth, if (hot) hotColor else restColor, shape)
     }
     val src = remember { GlideSource() }
     src.shape = shape
     src.color = hotColor
     src.width = hotWidth
+    src.fillAlpha = hotFillAlpha
     DisposableEffect(glide, hot) {
         if (hot) glide.claim(src)
         onDispose { glide.release(src) }
@@ -141,11 +156,35 @@ private const val REPEAT_MS = 180L
 private val FAR = 360.dp
 
 @Composable
+internal fun Modifier.focusGlide(
+    shape: Shape = Shape12,
+    color: Color = LocalPalette.current.signal,
+): Modifier {
+    var focused by remember { mutableStateOf(false) }
+    return glideBorder(focused, shape, color, hotFillAlpha = 0f)
+        .onFocusChanged { focused = it.isFocused }
+}
+
+@Composable
 internal fun FocusGlideHost(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     val view = LocalView.current
+    val glide = remember(view) { FocusGlide(view) }
+    Box(modifier.focusGlideOverlay(glide)) {
+        CompositionLocalProvider(LocalFocusGlide provides glide) { content() }
+    }
+}
+
+@Composable
+internal fun FocusGlideWindow(content: @Composable (Modifier) -> Unit) {
+    val glide = remember { FocusGlide(null) }
+    val overlay = Modifier.focusGlideOverlay(glide)
+    CompositionLocalProvider(LocalFocusGlide provides glide) { content(overlay) }
+}
+
+@Composable
+private fun Modifier.focusGlideOverlay(glide: FocusGlide): Modifier {
     val density = LocalDensity.current
     val dir = LocalLayoutDirection.current
-    val glide = remember(view) { FocusGlide(view) }
     val edges = remember { List(4) { Animatable(0f) } }
     val corner = remember { Animatable(0f) }
     val solid = remember { Animatable(0f) }
@@ -162,6 +201,8 @@ internal fun FocusGlideHost(modifier: Modifier = Modifier, content: @Composable 
     val color by animateColorAsState(cur?.color ?: lastColor, Motion.tw(160), label = "glideColor")
     var width by remember { mutableStateOf(2.dp) }
     if (cur != null) width = cur.width
+    var fillAlpha by remember { mutableFloatStateOf(RING_FILL) }
+    if (cur != null) fillAlpha = cur.fillAlpha
 
     LaunchedEffect(glide, Motion.scale) {
         var shown: GlideSource? = null
@@ -339,8 +380,7 @@ internal fun FocusGlideHost(modifier: Modifier = Modifier, content: @Composable 
         }
     }
 
-    Box(
-        modifier
+    return this
             .onGloballyPositioned { glide.host = it }
             .drawWithContent {
                 drawContent()
@@ -359,15 +399,12 @@ internal fun FocusGlideHost(modifier: Modifier = Modifier, content: @Composable 
                 if (f < 0.99f) {
                     drawRoundRect(
                         color, topLeft = Offset(l + w / 2f, t + w / 2f), size = Size(sw, sh),
-                        cornerRadius = CornerRadius(rad), alpha = a * (1f - f) * RING_FILL,
+                        cornerRadius = CornerRadius(rad), alpha = a * (1f - f) * fillAlpha,
                     )
                     drawRoundRect(
                         color, topLeft = Offset(l + w / 2f, t + w / 2f), size = Size(sw, sh),
                         cornerRadius = CornerRadius(rad), style = Stroke(w), alpha = a,
                     )
                 }
-            },
-    ) {
-        CompositionLocalProvider(LocalFocusGlide provides glide) { content() }
-    }
+            }
 }
