@@ -93,7 +93,10 @@ class SteamTouchControls(
     private var opened = 0
     private var elements: List<Element> = emptyList()
     private var tint = Color.WHITE
-    private var alphaScale = 0.45f
+    private var alphaScale = 0.99f
+    var style: Pair<Int, Float> = Color.WHITE to 0.99f
+        private set
+    var onStyle: (() -> Unit)? = null
 
     private class Visual(val ref: SteamTouchBindings.Ref?, val binding: SteamTouchBindings.Binding?)
     private var visuals: Map<Int, List<Visual>> = emptyMap()
@@ -191,6 +194,8 @@ class SteamTouchControls(
     private fun applyColor(color: FloatArray?) {
         tint = if (color != null) Color.rgb((color[0] * 255).toInt(), (color[1] * 255).toInt(), (color[2] * 255).toInt()) else Color.WHITE
         alphaScale = ((color?.get(3) ?: 0.45f) * 2.2f).coerceIn(0.15f, 1f)
+        style = tint to alphaScale
+        onStyle?.invoke()
     }
 
     private fun rebuildVisuals() {

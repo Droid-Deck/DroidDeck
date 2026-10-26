@@ -8,6 +8,7 @@ import shlex
 import subprocess
 import sys
 import tempfile
+from unittest import mock
 import unittest
 
 BIN = Path(__file__).resolve().parents[1] / "linuxfs/overlay/usr/local/bin"
@@ -75,6 +76,35 @@ class GameEnvironmentTest(unittest.TestCase):
                                              str(probe), "waitforexitandrun"],
                                             env=env, text=True, capture_output=True, check=True)
                     self.assertEqual(result.stdout.strip(), expected)
+
+    def test_desktop_games_restart_on_the_gpu_with_steams_preloads_handed_back(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            gpu = home / "gpu"
+            gpu.write_text("#!/bin/bash\necho \"gpu LD_PRELOAD=${LD_PRELOAD-unset}\"\nexport BL_DESKTOP_GPU_CHILD=1\nexec \"$@\"\n")
+            gpu.chmod(0o755)
+            launcher = home / "launcher"
+            setup = COMPAT["BL_DESKTOP_GPU_SETUP"].replace("/usr/local/bin/droiddeck-gpu", str(gpu))
+            launcher.write_text("#!/bin/bash\nverb=$1; shift\n" + setup + "echo \"game $verb $* LD_PRELOAD=${LD_PRELOAD-unset} saved=${BL_GPU_SAVED_LD_PRELOAD-unset}\"\n")
+            launcher.chmod(0o755)
+            base = {key: value for key, value in os.environ.items() if not key.startswith("BL_")}
+            base["LD_PRELOAD"] = "overlay.so"
+            for extra, args, expected in (
+                ({"BL_DESKTOP": "1"}, ["waitforexitandrun", "game.exe"],
+                 ["gpu LD_PRELOAD=unset", "game waitforexitandrun game.exe LD_PRELOAD=overlay.so saved=unset"]),
+                ({"BL_DESKTOP": "1", "BL_DESKTOP_GPU": "Off"}, ["waitforexitandrun", "game.exe"],
+                 ["game waitforexitandrun game.exe LD_PRELOAD=overlay.so saved=unset"]),
+                ({"BL_DESKTOP": "1"}, ["run", "setup.exe"],
+                 ["game run setup.exe LD_PRELOAD=overlay.so saved=unset"]),
+                ({"BL_DESKTOP": "1"}, ["waitforexitandrun", "iscriptevaluator.exe"],
+                 ["game waitforexitandrun iscriptevaluator.exe LD_PRELOAD=overlay.so saved=unset"]),
+                ({}, ["waitforexitandrun", "game.exe"],
+                 ["game waitforexitandrun game.exe LD_PRELOAD=overlay.so saved=unset"]),
+            ):
+                with self.subTest(extra=extra, args=args):
+                    result = subprocess.run([str(launcher)] + args, env=dict(base, **extra),
+                                            text=True, capture_output=True, check=True)
+                    self.assertEqual(result.stdout.splitlines(), expected)
 
     def test_the_install_script_evaluator_gets_its_scripts_marked_first(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -180,6 +210,14 @@ class GameEnvironmentTest(unittest.TestCase):
         self.assertEqual(MODULE["apply_config"](env, config, "42")["TU_DEBUG"], "sysmem")
         self.assertNotIn("TU_DEBUG", MODULE["apply_config"](env, config, "43"))
 
+    def test_the_vram_cap_comes_before_the_games_own_dxvk_settings(self):
+        cap = MODULE["vram_cap"]
+        self.assertEqual(cap({"BL_VRAM_MB": "4096"})["DXVK_CONFIG"], "dxgi.maxDeviceMemory = 4096")
+        self.assertEqual(cap({"BL_VRAM_MB": "2048", "DXVK_CONFIG": "dxvk.maxFrameRate = 60;"})["DXVK_CONFIG"],
+                         "dxgi.maxDeviceMemory = 2048; dxvk.maxFrameRate = 60")
+        for off in ({}, {"BL_VRAM_MB": "0"}, {"BL_VRAM_MB": "lots"}, {"BL_VRAM_MB": "²"}, {"BL_VRAM_MB": "-1"}):
+            self.assertNotIn("DXVK_CONFIG", cap(off))
+
     def test_a_games_wine_sync_choice_also_reaches_its_setup_runs(self):
         env = {"BL_SYNC": "1", "BL_SYNC_FALLBACK": "1", "BL_FSYNC_FIRST": "0", "OTHER": "kept"}
         config = {"version": 1, "games": {"42": {"BL_SYNC": "0", "BL_FSYNC_FIRST": "1", "PROTON_NO_ESYNC": "1", "FEX_TSOENABLED": "1"}}}
@@ -264,6 +302,13 @@ class GameEnvironmentTest(unittest.TestCase):
             self.assertEqual(env["WINEDLLOVERRIDES"], "libsentry.windows.release.x86_64=d")
             self.assertEqual(extra, ["--rendering-driver", "vulkan"])
             self.assertEqual(MODULE["engine_fixes"](str(game / "Game.exe"), ["--rendering-driver", "opengl3"])[1], [])
+            script = Path(tmp) / "GDScript Game"
+            script.mkdir()
+            for name in ("Game.exe", "Game.pck", "libsentry.windows.release.x86_64.dll"):
+                (script / name).touch()
+            env, extra, notes = MODULE["engine_fixes"](str(script / "Game.exe"), [])
+            self.assertNotIn("WINEDLLOVERRIDES", env)
+            self.assertEqual(extra, ["--rendering-driver", "vulkan"])
             other = Path(tmp) / "Other"
             other.mkdir()
             (other / "Other.exe").touch()
@@ -356,6 +401,90 @@ class GameEnvironmentTest(unittest.TestCase):
             for name in ("ShippingPC-BmGame.exe", "BmLauncher.exe"):
                 (asylum / name).touch()
             self.assertEqual(MODULE["engine_fixes"](str(asylum / "BmLauncher.exe"), []), ({}, [], []))
+
+    def test_d3dgear_capture_hook_beside_the_game_is_turned_off(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            game = Path(tmp) / "The Crew 2"
+            game.mkdir()
+            for name in ("TheCrew2.exe", "TheCrew2_BE.exe", "d3dgear64.dll"):
+                (game / name).touch()
+            env, extra, notes = MODULE["engine_fixes"](str(game / "TheCrew2.exe"), [])
+            self.assertEqual((env, extra), ({"WINEDLLOVERRIDES": "d3dgear64=d"}, []))
+            self.assertTrue(notes)
+            (game / "d3dgear64.dll").rename(game / "D3DGear64.DLL")
+            self.assertEqual(MODULE["engine_fixes"](str(game / "TheCrew2.exe"), [])[0], {"WINEDLLOVERRIDES": "d3dgear64=d"})
+            (game / "D3DGear64.DLL").unlink()
+            self.assertEqual(MODULE["engine_fixes"](str(game / "TheCrew2.exe"), []), ({}, [], []))
+
+    def test_dll_overrides_from_several_fixes_are_all_kept(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            for name in ("Game.exe", "Game.pck", "GodotSharp.dll", "libsentry.windows.release.x86_64.dll", "d3dgear64.dll"):
+                (Path(tmp) / name).touch()
+            env = MODULE["engine_fixes"](str(Path(tmp) / "Game.exe"), [])[0]
+            self.assertEqual(env["WINEDLLOVERRIDES"], "libsentry.windows.release.x86_64=d;d3dgear64=d")
+
+    def test_black_ops_iii_and_dark_souls_remastered_skip_protonfixes(self):
+        for exe in ("/game/Call of Duty Black Ops III/BlackOps3.exe", "/game/DARK SOULS REMASTERED/DarkSoulsRemastered.exe"):
+            env, extra, notes = MODULE["engine_fixes"](exe, [])
+            self.assertEqual((env, extra), ({"PROTONFIXES_DISABLE": "1"}, []))
+            self.assertTrue(notes)
+        self.assertEqual(MODULE["engine_fixes"]("/game/Game/DarkSoulsII.exe", []), ({}, [], []))
+
+    def test_game_cores_are_parsed_from_lists_and_ranges(self):
+        parse = MODULE["parse_cores"]
+        self.assertEqual(parse("0-3,6"), {0, 1, 2, 3, 6})
+        self.assertEqual(parse(" 4, 5 "), {4, 5})
+        for bad in ("", "a", "3-1", "1,,2", "-1", "1-"):
+            self.assertIsNone(parse(bad), bad)
+
+    def test_a_profiles_game_cores_pin_the_game_within_the_online_cores(self):
+        calls = []
+        os_mod = MODULE["os"]
+        with mock.patch.dict(MODULE["game_cores"].__globals__, {"online_cores": lambda: {0, 1, 2, 3, 4, 5, 6, 7}}), \
+                mock.patch.object(os_mod, "sched_setaffinity", side_effect=lambda pid, cores: calls.append(set(cores)), create=True):
+            MODULE["game_cores"]({"DROIDDECK_GAME_CORES": "0-2,9"})
+            MODULE["game_cores"]({"DROIDDECK_GAME_CORES": "junk"})
+            MODULE["game_cores"]({"DROIDDECK_GAME_CORES": "12-13"})
+            MODULE["game_cores"]({})
+        self.assertEqual(calls, [{0, 1, 2}])
+        self.assertEqual(MODULE["parse_cores"]("0,2-7"), {0, 2, 3, 4, 5, 6, 7})
+
+    def test_caravan_sandwitch_robocop_and_cyberpunk_run_at_feature_level_12_1(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            caravan = Path(tmp) / "Caravan SandWitch"
+            shipping = caravan / "CaravanSandWitch/Binaries/Win64"
+            shipping.mkdir(parents=True)
+            for name in ("CaravanSandWitch.exe", ".droiddeck-launch.bat"):
+                (caravan / name).touch()
+            (shipping / "CaravanSandWitch-Win64-Shipping.exe").touch()
+            cyberpunk = Path(tmp) / "Cyberpunk 2077"
+            (cyberpunk / "bin/x64").mkdir(parents=True)
+            for name in ("REDprelauncher.exe", "bin/x64/Cyberpunk2077.exe"):
+                (cyberpunk / name).touch()
+            robocop = Path(tmp) / "RoboCop Rogue City"
+            (robocop / "RoboCop/Binaries/Win64").mkdir(parents=True)
+            for name in ("RoboCop.exe", "RoboCop/Binaries/Win64/RoboCop-Win64-Shipping.exe"):
+                (robocop / name).touch()
+            games = [caravan / "CaravanSandWitch.exe", caravan / ".droiddeck-launch.bat",
+                     shipping / "CaravanSandWitch-Win64-Shipping.exe",
+                     robocop / "RoboCop.exe", robocop / "RoboCop/Binaries/Win64/RoboCop-Win64-Shipping.exe",
+                     cyberpunk / "REDprelauncher.exe", cyberpunk / "bin/x64/Cyberpunk2077.exe"]
+            for exe in games:
+                env, extra, notes = MODULE["engine_fixes"](str(exe), [])
+                self.assertEqual((env, extra), ({"VKD3D_FEATURE_LEVEL": "12_1"}, []), exe)
+                self.assertTrue(notes)
+            config = {"version": 1, "shared": {"VKD3D_FEATURE_LEVEL": "12_2"}}
+            self.assertEqual(MODULE["apply_config"]({}, config, "1582650", env)["VKD3D_FEATURE_LEVEL"], "12_1")
+            config["games"] = {"1582650": {"VKD3D_FEATURE_LEVEL": "12_2"}}
+            self.assertEqual(MODULE["apply_config"]({}, config, "1582650", env)["VKD3D_FEATURE_LEVEL"], "12_2")
+            other = Path(tmp) / "Other/Binaries/Win64"
+            other.mkdir(parents=True)
+            (other / "Other-Win64-Shipping.exe").touch()
+            self.assertEqual(MODULE["engine_fixes"](str(other / "Other-Win64-Shipping.exe"), []), ({}, [], []))
+            witcher = Path(tmp) / "The Witcher 3"
+            witcher.mkdir()
+            (witcher / "REDprelauncher.exe").touch()
+            self.assertNotIn("VKD3D_FEATURE_LEVEL", MODULE["engine_fixes"](str(witcher / "REDprelauncher.exe"), [])[0])
 
     def test_unity_players_keep_tso_over_the_preset(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -1182,6 +1311,52 @@ class DirectAudioPrefixTest(unittest.TestCase):
         self.assertIn("WINEDLLPATH=\n", result.stdout)
         self.assertEqual(self.audio_values(), [])
         self.assertIsNone(self.link("system32"))
+
+
+class UbisoftOverlayTest(unittest.TestCase):
+    SETTINGS = (
+        "language:\n  code: en-US\n"
+        "overlay:\n  enabled: true\n  forceunhookgame: false\n  fps_enabled: false\n  warning_enabled: true\n"
+        "patchTrigger:\n  source: USER_RESTART\n"
+    )
+
+    def test_the_overlay_and_its_prompt_are_turned_off_and_the_rest_is_kept(self):
+        got = MODULE["overlay_off"](self.SETTINGS)
+        self.assertEqual(got, self.SETTINGS.replace("enabled: true", "enabled: false"))
+        self.assertEqual(MODULE["overlay_off"](got), got)
+
+    def test_missing_keys_or_section_are_added(self):
+        self.assertEqual(MODULE["overlay_off"]("overlay:\n  fps_enabled: true\nmisc:\n  a: 1\n"),
+                         "overlay:\n  fps_enabled: true\n  enabled: false\n  warning_enabled: false\nmisc:\n  a: 1\n")
+        self.assertEqual(MODULE["overlay_off"](""), "overlay:\n  enabled: false\n  warning_enabled: false\n")
+
+    def test_blank_lines_inside_the_overlay_section_do_not_end_it(self):
+        text = "overlay:\n  enabled: true\n\n  warning_enabled: true\n\nmisc:\n  a: 1\n"
+        self.assertEqual(MODULE["overlay_off"](text), text.replace("true", "false"))
+        self.assertEqual(MODULE["overlay_off"]("overlay:\n  fps_enabled: true\n\nmisc:\n  a: 1\n"),
+                         "overlay:\n  fps_enabled: true\n  enabled: false\n  warning_enabled: false\n\nmisc:\n  a: 1\n")
+
+    def test_an_annotated_overlay_header_is_the_same_section(self):
+        self.assertEqual(MODULE["overlay_off"]("overlay:  # in-game\n  enabled: true\n"),
+                         "overlay:  # in-game\n  enabled: false\n  warning_enabled: false\n")
+
+    def test_only_prefixes_with_ubisoft_connect_are_touched(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            prefix = Path(tmp) / "447040/pfx"
+            env = {"STEAM_COMPAT_DATA_PATH": str(prefix.parent)}
+            settings = prefix / MODULE["UBISOFT_SETTINGS"]
+            prefix.mkdir(parents=True)
+            MODULE["ubisoft_overlay_off"](env)
+            self.assertFalse(settings.exists())
+            (prefix / MODULE["UBISOFT_LAUNCHER"]).mkdir(parents=True)
+            MODULE["ubisoft_overlay_off"](env)
+            self.assertEqual(settings.read_text(), "overlay:\n  enabled: false\n  warning_enabled: false\n")
+            settings.write_text(self.SETTINGS)
+            settings.chmod(0o644)
+            MODULE["ubisoft_overlay_off"](env)
+            self.assertEqual(settings.read_text(), self.SETTINGS.replace("enabled: true", "enabled: false"))
+            self.assertEqual(settings.stat().st_mode & 0o777, 0o644)
+            self.assertEqual(sorted(p.name for p in settings.parent.iterdir()), ["settings.yaml"])
 
 
 if __name__ == "__main__":

@@ -9,6 +9,8 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.text.AnnotatedString
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.runtime.LinuxRuntime
+import com.droiddeck.launcher.runtime.ProotFastPath
+import com.droiddeck.launcher.session.SessionState
 import org.json.JSONObject
 import org.junit.Assert.*
 import org.junit.After
@@ -177,6 +179,31 @@ class AgentSecurityTest {
         assertEquals(listOf("TEST=old", "STICKY=1", "TEST=new"), AgentEnv.beginSession(context))
         AgentEnv.endSession(context)
         assertEquals(listOf("TEST=old", "STICKY=1"), AgentEnv.beginSession(context))
+    }
+
+    @Test fun fastPathLibraryIsValidatedAndSelectedForOneSession() {
+        AgentAccess.setCommandsEnabled(context, true)
+        val source = File(AgentEnv.inbox(context).apply { mkdirs() }, "libblfastpath.so")
+        source.writeText("wrong architecture")
+        refused("INVALID_LIBRARY") { AgentEnv.override(context, source.name) }
+        val header = ByteArray(64)
+        byteArrayOf(0x7f, 0x45, 0x4c, 0x46, 2, 1, 1).copyInto(header)
+        header[16] = 3
+        header[18] = 183.toByte()
+        source.writeBytes(header)
+        SessionState.running = true
+        try {
+            refused("SESSION_ACTIVE") { AgentEnv.override(context, source.name) }
+        } finally {
+            SessionState.running = false
+        }
+        val response = AgentEnv.override(context, source.name)
+        assertEquals(64, response.getString("sha256").length)
+        assertEquals(ProotFastPath.LIBRARY, AgentEnv.fastPathLibrary(context))
+        AgentEnv.beginSession(context)
+        assertEquals("/opt/droiddeck-agent/bin/libblfastpath.so", AgentEnv.fastPathLibrary(context))
+        AgentEnv.endSession(context)
+        assertEquals(ProotFastPath.LIBRARY, AgentEnv.fastPathLibrary(context))
     }
 
     @Test fun environmentValuesAreNotLogged() {

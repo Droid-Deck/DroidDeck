@@ -153,6 +153,8 @@ class DesktopGamesTest(unittest.TestCase):
             steam = root / "Steam"
             manifest(steam / "steamapps", 40, name="Game")
             manifest(steam / "steamapps", 1628350, name="Steam Linux Runtime 3.0 (sniper)", installdir="SteamLinuxRuntime_sniper")
+            manifest(steam / "steamapps", 1826330, name="Proton EasyAntiCheat Runtime", installdir="Proton EasyAntiCheat Runtime")
+            manifest(steam / "steamapps", 1161040, name="Proton BattlEye Runtime", installdir="Proton BattlEye Runtime")
             manifest(steam / "steamapps", 5000, name="Some Proton", installdir="Some Proton")
             (steam / "steamapps/common/Some Proton").mkdir(parents=True)
             (steam / "steamapps/common/Some Proton/toolmanifest.vdf").write_text('"manifest"\n{\n}\n')

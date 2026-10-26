@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.input;
 
+import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
@@ -60,12 +61,19 @@ public final class PadBridge {
     private final PadState routedTouch = new PadState();
     private boolean systemGuidePressed;
     private boolean systemQamPressed;
+    private boolean backQamPressed;
+    private final PadState lastBackQamReport = new PadState();
+    private final PadState lastWrittenReport = new PadState();
+    private boolean backQamAxesBlocked;
+    private final java.util.Set<Runnable> backQamWrites = new java.util.HashSet<>();
+    private long backQamDelayMs, backQamWriteAt;
     private boolean qamChordActive;
     private int chordButton = -1;
     private boolean chordButtonPressed;
     private boolean qamTapPressed;
     private int qamChordGeneration;
     private volatile Runnable onPlayerInput;
+    private Runnable onChordInput;
     private final java.util.concurrent.atomic.AtomicBoolean playerInputPosted = new java.util.concurrent.atomic.AtomicBoolean();
 
     private static final long STATS_WINDOW_MS = 10_000;
@@ -128,9 +136,11 @@ public final class PadBridge {
     }
 
     private void resetBuiltin() {
+        clearBackQamWrites();
         routedTouch.clear();
         systemGuidePressed = false;
         systemQamPressed = false;
+        backQamPressed = false;
         qamTapPressed = false;
         qamChordActive = false;
         chordButtonPressed = false;
@@ -149,6 +159,7 @@ public final class PadBridge {
     }
 
     public synchronized void stop() {
+        clearBackQamWrites();
         releaseBackPaddles();
         activeControllerId = NO_CONTROLLER;
         for (int slot = 0; slot < SLOTS; slot++) {
@@ -164,6 +175,7 @@ public final class PadBridge {
         }
         systemGuidePressed = false;
         systemQamPressed = false;
+        backQamPressed = false;
         qamChordActive = false;
         chordButtonPressed = false;
         qamTapPressed = false;
@@ -272,6 +284,14 @@ public final class PadBridge {
         onPlayerInput = listener;
     }
 
+    public synchronized void setOnChordInput(Runnable listener) {
+        onChordInput = listener;
+    }
+
+    private void noteChordInput(int slot) {
+        if (slot == 0 && onChordInput != null) onChordInput.run();
+    }
+
     private void notePlayerInput() {
         Runnable listener = onPlayerInput;
         if (listener == null || !playerInputPosted.compareAndSet(false, true)) return;
@@ -308,10 +328,10 @@ public final class PadBridge {
             case KeyEvent.KEYCODE_BUTTON_MODE:
             case KeyEvent.KEYCODE_HOME: pad.press(PadState.GUIDE, pressed); break;
             case KeyEvent.KEYCODE_BUTTON_Z:
-                if (isPrimary(event)) DeckControls.INSTANCE.setGrip(DeckControls.L4, pressed);
+                if (isPrimary(event)) DeckControls.INSTANCE.setGrip(isNovaController(event.getDevice()) ? DeckControls.R4 : DeckControls.L4, pressed);
                 break;
             case KeyEvent.KEYCODE_BUTTON_C:
-                if (isPrimary(event)) DeckControls.INSTANCE.setGrip(DeckControls.R4, pressed);
+                if (isPrimary(event)) DeckControls.INSTANCE.setGrip(isNovaController(event.getDevice()) ? DeckControls.L4 : DeckControls.R4, pressed);
                 break;
             case KeyEvent.KEYCODE_BUTTON_L2: pad.leftTrigger = pressed ? 1f : 0f; break;
             case KeyEvent.KEYCODE_BUTTON_R2: pad.rightTrigger = pressed ? 1f : 0f; break;
@@ -322,6 +342,7 @@ public final class PadBridge {
             default: return false;
         }
         noteDevice(event.getDevice(), slot);
+        if (pressed && event.getRepeatCount() == 0 && !event.isCanceled()) noteChordInput(slot);
         if (pressed) notePlayerInput();
         statButtons++;
         scheduleStats();
@@ -351,6 +372,7 @@ public final class PadBridge {
                 pad.rightX = x;
                 pad.rightY = y;
             }
+            if (x != 0f || y != 0f) noteChordInput(slot);
             if (Math.max(Math.abs(x), Math.abs(y)) > 0.5f) notePlayerInput();
             publish(slot);
             return true;
@@ -381,6 +403,8 @@ public final class PadBridge {
             pad.up = hatY < -0.5f;
             pad.down = hatY > 0.5f;
         }
+        if (pad.leftX != 0f || pad.leftY != 0f || pad.rightX != 0f || pad.rightY != 0f
+                || lt > 0f || rt > 0f || pad.up || pad.right || pad.down || pad.left) noteChordInput(slot);
         if (Math.max(Math.max(Math.abs(pad.leftX), Math.abs(pad.leftY)), Math.max(Math.abs(pad.rightX), Math.abs(pad.rightY))) > 0.5f
                 || lt > 0.5f || rt > 0.5f || pad.up || pad.right || pad.down || pad.left) {
             notePlayerInput();
@@ -457,7 +481,9 @@ public final class PadBridge {
     }
 
     public synchronized void releaseAll() {
+        clearBackQamWrites();
         routedTouch.clear();
+        backQamPressed = false;
         releaseBackPaddles();
         state.clear();
         publish();
@@ -476,6 +502,116 @@ public final class PadBridge {
 
     private static boolean nativeQam() {
         return SessionState.getDeckPad() && FakeInputWriter.padHasQam();
+    }
+
+    public boolean canHoldQam() {
+        return builtinPad && nativeQam();
+    }
+
+    public synchronized void setBackQamPressed(boolean pressed) {
+        if (pressed && !canHoldQam()) return;
+        if (backQamPressed == pressed) return;
+        backQamPressed = pressed;
+        if (pressed && (open || start())) {
+            backQamAxesBlocked = false;
+            long now = android.os.SystemClock.uptimeMillis();
+            long modifierAt = Math.max(now, backQamWriteAt);
+            backQamDelayMs = modifierAt - now + QAM_GUIDE_LEAD_MIN_MS;
+            PadState modifier = new PadState();
+            modifier.copyFrom(lastBackQamReport);
+            modifier.press(PadState.QAM, true);
+            writeBackQamReport(modifier, modifierAt);
+        }
+        if (!pressed) {
+            backQamAxesBlocked = hasAxes(state);
+            if (!backQamWrites.isEmpty()) {
+                PadState neutral = new PadState();
+                neutral.copyFrom(lastWrittenReport);
+                clearAxes(neutral);
+                writer.writePad(neutral);
+                lastWrittenReport.copyFrom(neutral);
+            }
+        }
+        publish();
+    }
+
+    public synchronized void cancelBackQam() {
+        if (!backQamPressed && backQamWrites.isEmpty()) return;
+        clearBackQamWrites();
+        backQamPressed = false;
+        state.clear();
+        publish();
+    }
+
+    private void clearBackQamWrites() {
+        for (Runnable pending : backQamWrites) mainHandler.removeCallbacks(pending);
+        backQamWrites.clear();
+        backQamDelayMs = backQamWriteAt = 0;
+        lastBackQamReport.clear();
+        lastWrittenReport.clear();
+        backQamAxesBlocked = false;
+    }
+
+    private void writeBackQamReport(PadState report, long at) {
+        lastBackQamReport.copyFrom(report);
+        if (backQamWrites.isEmpty() && at <= android.os.SystemClock.uptimeMillis()) {
+            writeReport(report, false);
+            return;
+        }
+        PadState queued = new PadState();
+        queued.copyFrom(report);
+        Runnable pending = new Runnable() {
+            @Override public void run() {
+                synchronized (PadBridge.this) {
+                    if (!backQamWrites.remove(this)) return;
+                    writeReport(queued, true);
+                    if (backQamWrites.isEmpty() && !hasButtons(lastBackQamReport)) backQamDelayMs = 0;
+                }
+            }
+        };
+        backQamWrites.add(pending);
+        backQamWriteAt = at;
+        mainHandler.postAtTime(pending, at);
+    }
+
+    private void writePad(PadState report) {
+        if (backQamAxesBlocked && !hasAxes(state)) backQamAxesBlocked = false;
+        long at = android.os.SystemClock.uptimeMillis();
+        // Steam must see the modifier before a partner; preserve quick press/release pairs in order.
+        if (backQamPressed || !backQamWrites.isEmpty()) at += backQamDelayMs;
+        writeBackQamReport(report, at);
+    }
+
+    private static boolean hasAxes(PadState pad) {
+        return pad.leftX != 0f || pad.leftY != 0f || pad.rightX != 0f || pad.rightY != 0f
+                || pad.leftTrigger != 0f || pad.rightTrigger != 0f;
+    }
+
+    private static void clearAxes(PadState pad) {
+        pad.leftX = pad.leftY = pad.rightX = pad.rightY = pad.leftTrigger = pad.rightTrigger = 0f;
+    }
+
+    private static boolean hasButtons(PadState pad) {
+        for (int i = 0; i < 10; i++) if (pad.isDown(i)) return true;
+        return pad.isDown(PadState.GUIDE) || pad.up || pad.right || pad.down || pad.left;
+    }
+
+    private void writeReport(PadState report, boolean queued) {
+        if (!queued && !backQamAxesBlocked) {
+            lastWrittenReport.copyFrom(report);
+            writer.writePad(report);
+            return;
+        }
+        PadState live = new PadState();
+        live.copyFrom(report);
+        if (queued) {
+            live.leftX = state.leftX; live.leftY = state.leftY;
+            live.rightX = state.rightX; live.rightY = state.rightY;
+            live.leftTrigger = state.leftTrigger; live.rightTrigger = state.rightTrigger;
+        }
+        if ((queued && (!backQamPressed || !report.isDown(PadState.QAM))) || backQamAxesBlocked) clearAxes(live);
+        lastWrittenReport.copyFrom(live);
+        writer.writePad(live);
     }
 
     public synchronized void triggerQam() {
@@ -571,6 +707,12 @@ public final class PadBridge {
 
     private PadState stateFor(int slot) {
         return slot == 0 ? state : playerStates[slot];
+    }
+
+    private static boolean isNovaController(InputDevice device) {
+        return "Retroid Pocket Nova".equalsIgnoreCase(Build.MODEL)
+                && device.getVendorId() == 0x2022
+                && (device.getProductId() == 0x3001 || device.getProductId() == 0x3002);
     }
 
     private boolean isPrimary(KeyEvent event) {
@@ -677,16 +819,16 @@ public final class PadBridge {
             return;
         }
         boolean guide = systemGuidePressed || qamChordActive;
-        boolean qam = nativeQam() && (systemQamPressed || qamTapPressed);
+        boolean qam = nativeQam() && (systemQamPressed || qamTapPressed || backQamPressed);
         if (!guide && !qam) {
-            writer.writePad(state);
+            writePad(state);
             return;
         }
         effectiveState.copyFrom(state);
         if (guide) effectiveState.press(PadState.GUIDE, true);
         if (qam) effectiveState.press(PadState.QAM, true);
         if (chordButtonPressed) effectiveState.press(chordButton, true);
-        writer.writePad(effectiveState);
+        writePad(effectiveState);
     }
 
     public static boolean wiredXboxLayout(MotionEvent event) {

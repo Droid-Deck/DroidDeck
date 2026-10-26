@@ -9,6 +9,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.hoverable
@@ -42,7 +43,7 @@ import androidx.compose.material.icons.outlined.Verified
 import androidx.compose.material3.Icon
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.material3.AlertDialog
+import com.droiddeck.launcher.ui.GlideAlertDialog as AlertDialog
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -88,6 +89,7 @@ class UpdatesActions(
     val onDismissPermission: () -> Unit = {},
 )
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 internal fun UpdatesPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier) {
     val u = s.updates
@@ -95,10 +97,14 @@ internal fun UpdatesPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
     val me = remember { AppUpdates.installed() }
     val colors = MaterialTheme.colorScheme
     Column(modifier = modifier) {
-        PageHeader(stringResource(R.string.upd_title)) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp),
+        ) {
             Text(
                 stringResource(R.string.upd_build, me.version, s.buildLabel), fontSize = 12.5.sp, color = colors.onSurfaceVariant,
-                maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(top = 6.dp),
+                maxLines = 1, modifier = Modifier.weight(1f)
+                    .basicMarquee(iterations = Int.MAX_VALUE, initialDelayMillis = 700, velocity = 40.dp),
             )
             val checked = u.catalog?.checkedAt?.takeIf { it > 0 }
             if (!LocalNarrowPane.current) Text(
@@ -133,8 +139,8 @@ internal fun UpdatesPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
                 stringResource(R.string.upd_perm_text),
             )
         },
-        confirmButton = { TextButton(onClick = ua.onAllowInstalls) { Text(stringResource(R.string.upd_open_settings)) } },
-        dismissButton = { TextButton(onClick = ua.onDismissPermission) { Text(stringResource(R.string.upd_not_now)) } },
+        confirmButton = { TextButton(onClick = ua.onAllowInstalls, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.upd_open_settings)) } },
+        dismissButton = { TextButton(onClick = ua.onDismissPermission, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.upd_not_now)) } },
     )
 }
 

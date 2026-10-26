@@ -2,6 +2,15 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <queries>
+        <intent>
+            <action android:name="android.content.pm.action.CONFIRM_INSTALL" />
+        </intent>
+        <intent>
+            <action android:name="android.content.pm.action.CONFIRM_PERMISSIONS" />
+        </intent>
+    </queries>
+
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
@@ -18,6 +27,8 @@
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.KILL_BACKGROUND_PROCESSES" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-permission android:name="android.permission.WRITE_SETTINGS" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="android.permission.BLUETOOTH" />
     <uses-permission android:name="android.permission.CAMERA" />
@@ -36,6 +47,7 @@
         android:localeConfig="@xml/locales_config"
         android:networkSecurityConfig="@xml/network_security_config"
         android:allowBackup="false"
+        android:allowAudioPlaybackCapture="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:theme="@style/AppTheme"
@@ -68,7 +80,7 @@
         <activity
             android:name=".FrontEndActivity"
             android:exported="true"
-            android:screenOrientation="sensorLandscape"
+            android:screenOrientation="user"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|density|keyboard|keyboardHidden|navigation">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
@@ -120,7 +132,7 @@
             android:excludeFromRecents="true"
             android:noHistory="true"
             android:taskAffinity="${applicationId}.home"
-            android:screenOrientation="sensorLandscape"
+            android:screenOrientation="user"
             android:theme="@android:style/Theme.Translucent.NoTitleBar">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -141,14 +153,14 @@
         <activity
             android:name=".files.FileManagerActivity"
             android:exported="false"
-            android:screenOrientation="sensorLandscape"
+            android:screenOrientation="user"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|density"
             android:theme="@style/AppTheme" />
 
         <activity
             android:name=".files.FilePickerActivity"
             android:exported="false"
-            android:screenOrientation="sensorLandscape"
+            android:screenOrientation="user"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|density"
             android:theme="@style/AppTheme" />
 
@@ -156,10 +168,31 @@
             android:process=":xboxlogin" android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|density"
             android:theme="@style/AppTheme" />
 
+        <activity android:name=".stores.xbox.XboxCloudPlayerActivity" android:exported="false"
+            android:screenOrientation="sensorLandscape" android:hardwareAccelerated="true"
+            android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|smallestScreenSize|density|navigation|uiMode"
+            android:theme="@style/AppTheme" />
+
+        <service android:name=".stores.xbox.XboxCloudTokenService" android:exported="false" />
+
+        <activity android:name=".stores.xbox.XboxNativePlayerActivity" android:exported="false"
+            android:process=":xcloudnative" android:screenOrientation="sensorLandscape" android:hardwareAccelerated="true"
+            android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|smallestScreenSize|density|navigation|uiMode"
+            android:theme="@style/AppTheme" />
+
+        <activity android:name=".stores.xbox.XboxCloudActivity" android:exported="false"
+            android:process=":xboxcloud" android:launchMode="singleTop" android:screenOrientation="sensorLandscape"
+            android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|smallestScreenSize|density|navigation|uiMode"
+            android:theme="@style/AppTheme" />
+
+        <activity android:name=".stores.xbox.XboxCloudSettingsActivity" android:exported="false"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|density"
+            android:theme="@style/AppTheme" />
+
         <activity
             android:name=".stores.StoreLoginActivity"
             android:exported="false"
-            android:screenOrientation="sensorLandscape"
+            android:screenOrientation="user"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|density"
             android:theme="@style/AppTheme" />
 

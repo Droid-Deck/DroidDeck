@@ -5,6 +5,7 @@ import android.os.StatFs
 import android.os.storage.StorageManager
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.session.GameStorage
+import com.droiddeck.launcher.session.SessionPrefs
 import java.io.File
 import java.util.zip.CRC32
 
@@ -76,33 +77,117 @@ object StoreInstallRoot {
 
     fun targets(context: Context): List<Target> {
         val internal = Target(internalRoot(context), context.getString(com.droiddeck.launcher.R.string.games_internal), removable = false)
+        val custom = customTarget(context)
         val cards = GameStorage.options(context).map { Target(File(it.path, ON_VOLUME), it.name, removable = true) }
         val library = GameStorage.effective(context)?.let { lib ->
             val root = File(lib.path, ON_VOLUME)
             if (cards.any { it.root.absolutePath == root.absolutePath }) return@let null
-            val volume = runCatching { context.getSystemService(StorageManager::class.java)?.getStorageVolume(File(lib.path)) }.getOrNull()
-            val name = File(lib.path).name.ifBlank { lib.label }
-            val where = volume?.takeUnless { it.isPrimary }?.getDescription(context)
-            val label = if (where.isNullOrBlank()) name else context.getString(com.droiddeck.launcher.R.string.gstore_folder_on_volume, name, where)
-            Target(root, label, removable = true, folder = true)
+            Target(root, folderLabel(context, File(lib.path)), removable = true, folder = true)
         }
-        return listOf(internal) + cards + listOfNotNull(library)
+        return (listOf(internal) + listOfNotNull(custom) + cards + listOfNotNull(library))
+            .distinctBy { it.root.absolutePath }
+    }
+
+    fun defaultStorageFolder(context: Context): File? =
+        SessionPrefs.defaultStorageFolder(context).takeIf { it.isNotBlank() }?.let(::File)
+
+    fun customTarget(context: Context): Target? {
+        val folder = defaultStorageFolder(context) ?: return null
+        // Writes are probed when the folder is chosen; File.canWrite() is unreliable on FUSE volumes.
+        if (!folder.isDirectory) return null
+        val label = SessionPrefs.defaultStorageFolderLabel(context).ifBlank { folderLabel(context, folder) }
+        return Target(File(folder, ON_VOLUME), label, removable = true, folder = true)
+    }
+
+    fun detectedExternalTarget(context: Context): Target? {
+        val custom = defaultStorageFolder(context)?.let { File(it, ON_VOLUME) }?.absolutePath
+        return externalTarget(targets(context).filter { it.root.absolutePath != custom }, internalRoot(context))
     }
 
     fun installRoot(context: Context): File = internalRoot(context)
 
+    fun externalTarget(context: Context): Target? =
+        if (SessionPrefs.defaultStorageFolder(context).isNotBlank()) customTarget(context)
+        else detectedExternalTarget(context)
+
+    internal fun externalTarget(targets: List<Target>, internalRoot: File): Target? =
+        targets.firstOrNull { it.folder && it.root.absolutePath != internalRoot.absolutePath }
+            ?: targets.firstOrNull { it.removable && it.root.absolutePath != internalRoot.absolutePath }
+
+    fun defaultTarget(context: Context): Target? = when (SessionPrefs.defaultStorage(context)) {
+        SessionPrefs.DEFAULT_STORAGE_INTERNAL -> Target(internalRoot(context), context.getString(com.droiddeck.launcher.R.string.games_internal), removable = false)
+        SessionPrefs.DEFAULT_STORAGE_EXTERNAL -> externalTarget(context)
+        else -> null
+    }
+
+    fun libraryRoot(context: Context): File? = GameStorage.effective(context)?.let { File(it.path, ON_VOLUME) }
+
     fun roots(context: Context): List<File> {
         val cards = GameStorage.options(context).map { File(it.path, ON_VOLUME) }
+        val custom = defaultStorageFolder(context)?.takeIf { it.isDirectory }?.let { File(it, ON_VOLUME) }
         val library = GameStorage.effective(context)?.let { File(it.path, ON_VOLUME) }
-        return (listOf(internalRoot(context)) + cards + listOfNotNull(library)).distinctBy { it.absolutePath }
+        return (listOf(internalRoot(context)) + cards + listOfNotNull(custom) + listOfNotNull(library))
+            .distinctBy { it.absolutePath }
     }
 
     fun externalRoots(context: Context): List<Pair<File, String>> {
         val library = GameStorage.effective(context)?.path
+        val used = mutableSetOf<String>()
         return roots(context)
             .filter { !isInternal(context, it) && (library == null || !it.absolutePath.startsWith("$library/")) }
-            .map { it to guestFor(context, it) }
+            .map { root ->
+                val base = guestFor(context, root)
+                val guest = if (used.add(base)) base else {
+                    val suffix = "%08x".format(CRC32().apply { update(root.absolutePath.toByteArray()) }.value)
+                    "$base-$suffix".also { used.add(it) }
+                }
+                root to guest
+            }
     }
+
+    fun folderLabel(context: Context, folder: File): String {
+        val name = folder.name.ifBlank { context.getString(com.droiddeck.launcher.R.string.gstore_folder) }
+        val volume = runCatching {
+            context.getSystemService(StorageManager::class.java)?.getStorageVolume(folder)?.getDescription(context)
+        }.getOrNull()
+        return if (volume.isNullOrBlank() || volume.equals("android", true) || volume.equals(name, true)) name
+        else context.getString(com.droiddeck.launcher.R.string.gstore_folder_on_volume, name, volume)
+    }
+
+    fun prepareDefaultFolder(context: Context, folder: File): String? {
+        if (!folder.isDirectory) return context.getString(com.droiddeck.launcher.R.string.gstore_cannot_create, folder.path)
+        val root = File(folder, ON_VOLUME)
+        if (!root.isDirectory && !root.mkdirs()) return context.getString(com.droiddeck.launcher.R.string.gstore_cannot_create, folder.path)
+        return try {
+            File.createTempFile(".droiddeck-write-probe", null, root).delete()
+            null
+        } catch (e: Exception) {
+            context.getString(com.droiddeck.launcher.R.string.gstore_cannot_write_detail, root.path, e.message)
+        }
+    }
+
+    /** Xodus has its own PRoot mount table and cannot see the selected Steam library's SD bind. */
+    fun externalRootsForXodus(context: Context): List<Pair<File, String>> {
+        val roots = externalRoots(context).toMutableList()
+        val selectedLibrary = GameStorage.effective(context)?.let { File(it.path, ON_VOLUME) }
+            ?.takeUnless { isInternal(context, it) }
+        if (selectedLibrary != null && roots.none { it.first.absolutePath == selectedLibrary.absolutePath }) {
+            roots += selectedLibrary to guestFor(context, selectedLibrary)
+        }
+        return roots
+    }
+
+    fun externalBindSpecs(context: Context): List<String> = externalBindSpecs(externalRoots(context), LinuxRuntime.rootDir(context))
+
+    fun externalBindSpecsForXodus(context: Context): List<String> =
+        externalBindSpecs(externalRootsForXodus(context), LinuxRuntime.rootDir(context))
+
+    internal fun externalBindSpecs(roots: List<Pair<File, String>>, guestRoot: File): List<String> =
+        roots.mapNotNull { (host, guest) ->
+            if (!host.isDirectory || !host.canRead()) return@mapNotNull null
+            val target = File(guestRoot, guest.removePrefix("/"))
+            if (target.isDirectory || target.mkdirs()) "${host.path}:$guest" else null
+        }
 
     private fun guestFor(context: Context, root: File): String {
         val sm = context.getSystemService(StorageManager::class.java)
@@ -114,11 +199,21 @@ object StoreInstallRoot {
     fun isInternal(context: Context, root: File): Boolean = root.absolutePath == internalRoot(context).absolutePath
 
     fun externalGuestPath(context: Context, host: File): String? {
+        return externalGuestPath(host, externalRoots(context))
+    }
+
+    fun guestPath(context: Context, host: File): String = externalGuestPath(context, host) ?: host.path
+
+    fun guestPathForXodus(context: Context, host: File): String =
+        externalGuestPath(host, externalRootsForXodus(context)) ?: host.path
+
+    internal fun externalGuestPath(host: File, roots: List<Pair<File, String>>): String? {
         val path = host.absolutePath
-        for ((root, guest) in externalRoots(context)) {
-            val dir = root.absolutePath
+        for ((root, guest) in roots.sortedByDescending { it.first.absolutePath.length }) {
+            val dir = root.absolutePath.trimEnd(File.separatorChar)
             if (path == dir) return guest
-            if (path.startsWith("$dir/")) return guest + "/" + path.removePrefix("$dir/")
+            val prefix = dir + File.separator
+            if (path.startsWith(prefix)) return guest + "/" + path.removePrefix(prefix).replace(File.separatorChar, '/')
         }
         return null
     }
@@ -154,7 +249,7 @@ object StoreInstallRoot {
     fun isFinished(folder: File): Boolean = StoreGameSidecar.read(folder)?.isInstalled == true
 
     fun unfinished(context: Context): List<Unfinished> = roots(context).flatMap { root ->
-        Store.entries.flatMap { store ->
+        Store.entries.filter { it != Store.BATTLENET }.flatMap { store ->
             storeDir(root, store).listFiles { f -> f.isDirectory }.orEmpty().mapNotNull { folder ->
                 val sidecar = StoreGameSidecar.read(folder)
                 when {

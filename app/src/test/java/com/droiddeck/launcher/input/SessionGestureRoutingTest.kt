@@ -172,7 +172,7 @@ class SessionGestureRoutingTest {
             val event = MotionEvent.obtain(now, now, MotionEvent.ACTION_DOWN, 400f, 300f, 0)
             try { assertTrue(activity.onTouchEvent(event)) } finally { event.recycle() }
             val gestureMode = mode == SessionPrefs.TOUCH_GESTURES
-            shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(if (gestureMode) 350 else 500))
+            shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(if (gestureMode) 350 else 320))
             assertEquals(if (gestureMode) listOf(18 to true) else emptyList(), keys)
             assertEquals(if (gestureMode) emptyList() else listOf(PointerGestures.BTN_RIGHT to true), directButtons)
             ReflectionHelpers.callInstanceMethod<Unit>(activity, "onPause")
@@ -220,7 +220,7 @@ class SessionGestureRoutingTest {
             override fun onButton(button: Int, pressed: Boolean, x: Float, y: Float) { directButtons += button to pressed }
             override fun onWheel(steps: Int) {}
             override fun onLongPress() {}
-        }) {}
+        }) {}.also { it.configure(config) }
         setField("directTouchHold", directHold)
         launcherScroll = ScrollTouchGestures(8f, 50f, object : ScrollTouchGestures.Listener {
             override fun onMove(x: Float, y: Float) { scrollPositions += x to y }

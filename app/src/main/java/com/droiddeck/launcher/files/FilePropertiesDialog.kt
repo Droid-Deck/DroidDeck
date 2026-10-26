@@ -1,5 +1,7 @@
 package com.droiddeck.launcher.files
 
+import androidx.compose.foundation.shape.CircleShape
+import com.droiddeck.launcher.ui.focusGlide
 import android.widget.Toast
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -128,7 +130,7 @@ internal fun FilePropertiesDialog(
                 )
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.fm_done)) } },
+        confirmButton = { TextButton(onClick = onDismiss, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.fm_done)) } },
     )
 }
 
@@ -182,6 +184,7 @@ private fun AttributeToggleRow(
             checked = checked,
             enabled = enabled,
             onCheckedChange = onToggle,
+            modifier = Modifier.focusGlide(),
         )
     }
 }
