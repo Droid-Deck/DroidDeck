@@ -174,6 +174,7 @@ class SessionLogShareTest {
     @Test fun aFailedScrubStillRecordsTheCollectionEventWithoutCompletingTheFolder() {
         val context: android.content.Context = RuntimeEnvironment.getApplication()
         val folder = tmp.newFolder("2026-10-06-06-collect")
+        File(folder, "wayland.log").writeText("test compositor log\n")
         File(folder, SessionArtifacts.SCRUBBED_TREE_MARKER).apply {
             mkdirs()
             resolve("blocker").writeText("force marker write failure\n")
