@@ -1248,7 +1248,7 @@ def agent_job(root, action, uid, product="", folder="", locale="enUS", country="
                                      "version": game.get("local_version", "")}, sort_keys=True))
             say("%s %s in %s" % (uid, "updated" if action == "update" else "installed", game.get("install_dir", windows)))
             return 0
-        if reason is None and action == "uninstall" and game.get("installed") is not True:
+        if reason is None and action == "uninstall" and game.get("installed") is False:
             emit("DONE", json.dumps({"uninstalled": uid}))
             say("%s uninstalled" % uid)
             return 0

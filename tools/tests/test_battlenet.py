@@ -1205,6 +1205,12 @@ class AgentJobTest(Harness):
             self.assertEqual(BNET["agent_job"](self.root, "uninstall", "gryphon", poll=0), 0)
         self.assertEqual(self.lines[:2], [("STATE", "queued"), ("STATE", "starting")])
 
+    def test_an_uninstall_needs_the_agent_to_say_the_game_is_gone(self):
+        self.install()
+        self.files = {".game": json.dumps({"error": 2})}
+        self.assertEqual(BNET["agent_job"](self.root, "uninstall", "gryphon", poll=0), 1)
+        self.assertEqual(self.lines[-1][0], "ERROR")
+
     def test_without_battle_net_nothing_starts(self):
         self.assertEqual(BNET["agent_job"](self.root, "install", "gryphon", "gryphon", str(self.tmp / "g"), "enUS", "USA", "US", poll=0), 3)
         self.assertEqual(self.lines, [("ERROR", "client")])

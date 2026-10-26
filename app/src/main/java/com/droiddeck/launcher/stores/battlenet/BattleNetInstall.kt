@@ -25,6 +25,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.util.Locale
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
 object BattleNetInstall {
@@ -37,6 +38,7 @@ object BattleNetInstall {
     private const val VERSIONS = "https://%s.version.battle.net/v2/products/%s/versions"
     private const val BUILD_INFO = ".build.info"
     private const val CHECK_AGAIN_MS = 30 * 60_000L
+    private const val START_WAIT_MS = 60_000L
 
     internal val LOCALES = listOf(
         "enUS", "enGB", "esMX", "esES", "ptBR", "ptPT", "frFR", "deDE", "itIT", "ruRU", "jaJP", "koKR", "plPL", "trTR",
@@ -114,16 +116,31 @@ object BattleNetInstall {
 
     fun uninstall(context: Context, game: InstalledStoreGame): Boolean {
         if (product(game.sidecar.id) == null || !BattleNet.installed(context)) return false
-        val uid = installUid(context, game)
-        var done = false
-        val code = runCatching {
-            run(context, listOf("agent-uninstall", uid), AddedGames.guestPath(context, game.folder), null) { line ->
-                if (line.startsWith(DONE)) done = true
-            }
-        }.onFailure { Log.w(TAG, "uninstall $uid", it) }.getOrDefault(-1)
-        Log.i(TAG, "uninstall $uid: ${if (done) "done" else "exit $code"}")
+        val done = agentUninstall(context, installUid(context, game), game.folder)
         if (done) StoresState.post { StoresState.notifyLibraryChanged(context.applicationContext) }
         return done
+    }
+
+    internal fun agentUninstall(context: Context, uid: String, folder: File): Boolean {
+        val stop = AtomicBoolean(false)
+        val started = AtomicBoolean(false)
+        val done = AtomicBoolean(false)
+        val guard = Thread({
+            try {
+                Thread.sleep(START_WAIT_MS)
+                if (!started.get()) stop.set(true)
+            } catch (_: InterruptedException) {
+            }
+        }, "battlenet-uninstall-wait").apply { isDaemon = true; start() }
+        val code = runCatching {
+            run(context, listOf("agent-uninstall", uid), AddedGames.guestPath(context, folder), stop) { line ->
+                if (line == STATE + "starting") started.set(true)
+                if (line.startsWith(DONE)) done.set(true)
+            }
+        }.onFailure { Log.w(TAG, "uninstall $uid", it) }.getOrDefault(-1)
+        guard.interrupt()
+        Log.i(TAG, "uninstall $uid: ${if (done.get()) "done" else if (stop.get()) "Battle.net stayed busy" else "exit $code"}")
+        return done.get()
     }
 
     internal fun buildKey(text: String): Pair<String, String>? {
@@ -215,10 +232,21 @@ internal class BattleNetInstaller(
     private val update: Boolean,
 ) : DownloadQueue.DownloadJob {
     private val cancelled = AtomicBoolean(false)
+    private val started = AtomicBoolean(false)
+    private val ended = java.util.concurrent.CountDownLatch(1)
     private var before = 0L
     private var kept = -1L
 
     override fun run(handle: DownloadQueue.JobHandle): String? {
+        started.set(true)
+        try {
+            return if (cancelled.get()) null else work(handle)
+        } finally {
+            ended.countDown()
+        }
+    }
+
+    private fun work(handle: DownloadQueue.JobHandle): String? {
         before = DownloadQueue.entry(handle.key)?.bytesTotal ?: 0L
         handle.stage(DownloadStage.MANIFEST, app.getString(R.string.bnet_dl_starting))
         if (!BattleNet.installed(app)) throw IllegalStateException(app.getString(R.string.bnet_dl_client_first))
@@ -272,12 +300,12 @@ internal class BattleNetInstaller(
         if (!deleteFiles || update) return
         val uid = item.extra[BattleNetInstall.INSTALL_UID] ?: BattleNet.title(item.id)?.uid ?: return
         Thread({
-            Thread.sleep(2_000)
-            val gone = runCatching {
-                BattleNetInstall.run(app, listOf("agent-uninstall", uid), AddedGames.guestPath(app, folder), null) {}
-            }.getOrDefault(-1)
-            if (folder.isDirectory) com.droiddeck.launcher.core.FileUtils.delete(folder)
-            Log.i("BattleNetInstall", "cancelled install of $uid cleaned up (exit $gone)")
+            if (started.get() && !ended.await(END_WAIT_S, TimeUnit.SECONDS)) Log.w("BattleNetInstall", "the cancelled install of $uid is still stopping")
+            val gone = BattleNetInstall.agentUninstall(app, uid, folder)
+            if (folder.isDirectory && (gone || folder.list().isNullOrEmpty())) com.droiddeck.launcher.core.FileUtils.delete(folder)
+            Log.i("BattleNetInstall", "cancelled install of $uid: ${if (gone) "removed" else "left for Battle.net to remove"}")
         }, "battlenet-cancel").start()
     }
 }
+
+private const val END_WAIT_S = 120L
