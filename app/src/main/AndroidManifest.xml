@@ -178,11 +178,9 @@
             android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|smallestScreenSize|density|navigation|uiMode"
             android:theme="@style/AppTheme" />
 
-        <!-- GeForce NOW (OpenNOW's core and streamer): both screens share the :gfn process with the core child. -->
-        <activity android:name=".stores.gfn.GfnActivity" android:exported="false"
-            android:process=":gfn" android:launchMode="singleTop"
-            android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|smallestScreenSize|density|navigation|uiMode"
-            android:theme="@style/AppTheme" />
+        <!-- GeForce NOW (OpenNOW's core and streamer): the core child and the player share the :gfn process;
+             the Stores page reaches the core through GfnCoreService. -->
+        <service android:name=".stores.gfn.GfnCoreService" android:exported="false" android:process=":gfn" />
 
         <activity android:name=".stores.gfn.GfnPlayerActivity" android:exported="false"
             android:process=":gfn" android:screenOrientation="sensorLandscape" android:hardwareAccelerated="true"

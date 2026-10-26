@@ -30,6 +30,13 @@ object GfnCore {
     private val nextId = AtomicLong(1)
     private val listeners = java.util.concurrent.CopyOnWriteArrayList<(String, JSONObject) -> Unit>()
 
+    /** The core runs in the :gfn process; other processes reach it through [GfnCoreService]. */
+    private val inCoreProcess: Boolean by lazy {
+        val name = if (android.os.Build.VERSION.SDK_INT >= 28) android.app.Application.getProcessName()
+        else runCatching { File("/proc/self/cmdline").readText().trimEnd('\u0000') }.getOrDefault("")
+        name.endsWith(":gfn")
+    }
+
     fun addListener(listener: (String, JSONObject) -> Unit) { listeners += listener }
     fun removeListener(listener: (String, JSONObject) -> Unit) { listeners -= listener }
 
@@ -63,6 +70,7 @@ object GfnCore {
 
     /** One request, answered with its `result` or thrown as [GfnError]. Blocking: call off the main thread. */
     fun request(context: Context, method: String, params: JSONObject = JSONObject(), timeoutMs: Long = 30_000): JSONObject {
+        if (!inCoreProcess) return GfnRemote.request(context, method, params, timeoutMs)
         if (method != "core.hello") ensureStarted(context)
         val id = "dd-" + nextId.getAndIncrement()
         val answer = CompletableFuture<JSONObject>()
