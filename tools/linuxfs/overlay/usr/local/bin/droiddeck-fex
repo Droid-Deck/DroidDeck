@@ -155,11 +155,26 @@ def first_dir(prefix, candidates):
     return None
 
 
+def own_fex_loads():
+    for name in ("FEX", "FEXServer"):
+        binary = os.path.join(OWN_FEX, "bin", name)
+        if not os.access(binary, os.X_OK):
+            return False
+        try:
+            listed = subprocess.run(["/usr/lib/ld-linux-aarch64.so.1", "--list", binary],
+                                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=20)
+        except (OSError, subprocess.TimeoutExpired):
+            return False
+        if listed.returncode != 0 or b"not found" in listed.stdout:
+            return False
+    return True
+
+
 def update_own_fex():
     wanted = os.environ.get("BL_FEX_TAG")
     if not wanted:
         return
-    if (read_text(OWN_FEX_TAG) or "").strip() == wanted and os.access(os.path.join(OWN_FEX, "bin", "FEX"), os.X_OK):
+    if (read_text(OWN_FEX_TAG) or "").strip() == wanted and own_fex_loads():
         return
     failed = os.path.join(STATE, "update-failed")
     try:
@@ -184,7 +199,7 @@ def update_own_fex():
 
 def fex_install():
     prefixes = []
-    if os.path.isfile(OWN_FEX_TAG):
+    if os.path.isfile(OWN_FEX_TAG) and own_fex_loads():
         prefixes.append((OWN_FEX, False))
     tool = app_dir(FEX_APPID)
     if tool:

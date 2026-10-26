@@ -204,12 +204,26 @@ class LocateTest(FexTestCase):
         self.assertEqual((fex["bin"], fex["server"], fex["portable"]), (str(tool / "usr/bin/FEX"), str(tool / "usr/bin/FEXServer"), True))
         self.assertTrue(fex["host_thunks"].endswith("HostThunks") and fex["guest_thunks"].endswith("GuestThunks") and fex["thunks_db"])
 
-    def own_fex(self, tag):
+    def own_fex(self, tag, loads=True):
         own = self.tmp / "own"
         self.write(own / "bin/FEX", mode=0o755)
         self.write(own / "bin/FEXServer", mode=0o755)
         self.write(own / "share/fex-emu/.droiddeck-tag", tag + "\n")
+        listing = b"libc.so.6 => /usr/lib/libc.so.6\n" if loads else b"libxxhash.so.0 => not found\n"
+        patcher = mock.patch.object(G["subprocess"], "run", lambda args, **kw: subprocess.CompletedProcess(args, 0, listing))
+        patcher.start()
+        self.addCleanup(patcher.stop)
         return own
+
+    def test_an_own_build_that_no_longer_loads_is_installed_again_and_skipped(self):
+        tool = self.fex_tool(self.steam)
+        self.own_fex("fex-2610-r7", loads=False)
+        calls = []
+        with mock.patch.dict(os.environ, {"BL_FEX_TAG": "fex-2610-r7"}), \
+                mock.patch.object(G["subprocess"], "call", lambda args, **kw: calls.append(args) or 1):
+            FEX["update_own_fex"]()
+        self.assertEqual([[str(BIN / "droiddeck-fex-update")]], calls)
+        self.assertEqual(FEX["fex_install"]()["bin"], str(tool / "usr/bin/FEX"))
 
     def test_droiddeck_s_own_build_comes_before_the_steam_tool(self):
         self.fex_tool(self.steam)
