@@ -472,7 +472,9 @@ class SessionService : Service() {
 
         guest.add("BL_WIDTH=" + size.first)
         guest.add("BL_HEIGHT=" + size.second)
-        if (SessionState.followScreen) guest.add("BL_FOLLOW_OUTPUT=1")
+        if (SessionState.followScreen || size.first < size.second ||
+            SessionPrefs.orientation(this) == android.content.pm.ActivityInfo.SCREEN_ORIENTATION_USER)
+            guest.add("BL_FOLLOW_OUTPUT=1")
         if (SessionState.hdr) {
             guest.add("BL_HDR=1")
             guest.add("DXVK_HDR=1")

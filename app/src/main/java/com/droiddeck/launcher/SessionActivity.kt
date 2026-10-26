@@ -1787,9 +1787,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val driverId = if (CompositorHost.isStarted) null else turnip.install()
 
         val previous = SessionState.outputSize
-        val live = if (SessionState.followScreen && !isInPictureInPictureMode)
-            com.droiddeck.launcher.session.SessionDisplay.followSize(holder.surfaceFrame.width(), holder.surfaceFrame.height())
-        else null
+        val live = windowOutputSize(holder.surfaceFrame.width(), holder.surfaceFrame.height())
         val size = live ?: if (SessionState.running) previous else glassesOutputSize() ?: outputSize()
         SessionState.outputSize = size
         if (!SessionState.running) SessionState.refreshHz = refreshHz()
@@ -1846,7 +1844,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         )
         onOutputAttached(holder)
         if (SessionState.running && size != previous) {
-            Log.i(TAG, "follow screen: ${previous.first}x${previous.second} -> ${size.first}x${size.second} on a new surface")
+            Log.i(TAG, "output resized: ${previous.first}x${previous.second} -> ${size.first}x${size.second} on a new surface")
             WaylandCompositor.nativeResizeOutput(size.first, size.second)
         }
         if (!SessionState.running) SessionEvents.record("compositor.started")
@@ -1878,15 +1876,21 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             cancelTouchGestures()
             Log.i(TAG, "surface resized to ${width}x$height - rebinding the compositor")
             CompositorHost.resize(holder.surface) { applyFrameGen() }
-            followWindow(width, height)
+            resizeOutputForWindow(width, height)
         }
     }
 
-    private fun followWindow(width: Int, height: Int) {
-        if (!SessionState.followScreen || isInPictureInPictureMode || !CompositorHost.isStarted) return
-        val size = com.droiddeck.launcher.session.SessionDisplay.followSize(width, height) ?: return
+    private fun windowOutputSize(width: Int, height: Int): Pair<Int, Int>? {
+        if (isInPictureInPictureMode) return null
+        val live = com.droiddeck.launcher.session.SessionDisplay.followSize(width, height) ?: return null
+        return if (SessionState.followScreen) live else if (glassesScreen == null) outputSize() else null
+    }
+
+    private fun resizeOutputForWindow(width: Int, height: Int) {
+        if (!CompositorHost.isStarted) return
+        val size = windowOutputSize(width, height) ?: return
         if (size == SessionState.outputSize) return
-        Log.i(TAG, "follow screen: ${SessionState.outputSize.first}x${SessionState.outputSize.second} -> ${size.first}x${size.second}")
+        Log.i(TAG, "output resized: ${SessionState.outputSize.first}x${SessionState.outputSize.second} -> ${size.first}x${size.second}")
         SessionState.outputSize = size
         val panel = panelBounds()
         SessionState.upscaleRatio = maxOf(panel.width(), panel.height()).toFloat() / maxOf(size.first, size.second).coerceAtLeast(1)
@@ -1900,11 +1904,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun applyFollowOrientation(config: android.content.res.Configuration) {
-        val wanted = if (SessionState.followScreen && config.smallestScreenWidthDp >= 600) {
-            android.content.pm.ActivityInfo.SCREEN_ORIENTATION_USER
-        } else {
-            SessionPrefs.orientation(this)
-        }
+        val wanted = SessionPrefs.windowOrientation(this, SessionState.followScreen, config.smallestScreenWidthDp)
         if (requestedOrientation != wanted) requestedOrientation = wanted
     }
 
@@ -1957,7 +1957,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             Library.drawsAtPanel(program) && !SessionPrefs.resolutionChosen(this, mode))
             com.droiddeck.launcher.session.SessionDisplay.MATCH_SCREEN
         else SessionPrefs.resolutionChoice(this, mode, panel)
-        return com.droiddeck.launcher.session.SessionDisplay.resolveChoice(panel, choice)
+        return com.droiddeck.launcher.session.SessionDisplay.resolveChoice(panel, choice, SessionPrefs.portrait(this))
     }
 
     private fun refreshHz(): Float {
@@ -3143,7 +3143,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     override fun onPictureInPictureModeChanged(inPip: Boolean, newConfig: android.content.res.Configuration) {
         super.onPictureInPictureModeChanged(inPip, newConfig)
         if (::pip.isInitialized) pip.changed(inPip)
-        if (!inPip && surfaceW > 0) followWindow(surfaceW, surfaceH)
+        if (!inPip && surfaceW > 0) resizeOutputForWindow(surfaceW, surfaceH)
         applyUnfoldedControls()
         updateGlassesScreen()
     }

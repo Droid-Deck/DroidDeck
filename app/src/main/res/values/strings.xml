@@ -832,8 +832,8 @@
     <string name="setup_launcher_orientation">Launcher orientation</string>
     <string name="setup_launcher_orientation_auto">Follow device rotation</string>
     <string name="setup_orientation_portrait">Portrait</string>
-    <string name="setup_session_orientation">Game and desktop orientation</string>
-    <string name="setup_session_orientation_hint">Applies to Steam, games, desktop, and the controller editor.</string>
+    <string name="setup_session_orientation">Session orientation</string>
+    <string name="setup_session_orientation_hint">Applies to Steam, games, desktop, and the controller editor. Resolution presets rotate with the session; custom width and height stay as entered.</string>
     <string name="setup_orientation_auto">Automatic landscape</string>
     <string name="setup_orientation_landscape">Landscape</string>
     <string name="setup_orientation_reverse">Reverse landscape</string>

@@ -43,6 +43,8 @@ object SessionPrefs {
     private fun prefs(context: Context) = context.getSharedPreferences("session", Context.MODE_PRIVATE)
 
     val orientationOptions = listOf(
+        ActivityInfo.SCREEN_ORIENTATION_USER to R.string.setup_launcher_orientation_auto,
+        ActivityInfo.SCREEN_ORIENTATION_PORTRAIT to R.string.setup_orientation_portrait,
         ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE to R.string.setup_orientation_auto,
         ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE to R.string.setup_orientation_landscape,
         ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE to R.string.setup_orientation_reverse,
@@ -56,6 +58,17 @@ object SessionPrefs {
     fun setOrientation(context: Context, orientation: Int) {
         require(orientationOptions.any { it.first == orientation })
         prefs(context).edit().putInt("orientation", orientation).apply()
+    }
+
+    fun windowOrientation(context: Context, followScreen: Boolean, smallestWidthDp: Int): Int =
+        if (followScreen && smallestWidthDp >= SessionDisplay.UNFOLDED_MIN_DP && !prefs(context).contains("orientation"))
+            ActivityInfo.SCREEN_ORIENTATION_USER else orientation(context)
+
+    fun portrait(context: Context): Boolean = when (orientation(context)) {
+        ActivityInfo.SCREEN_ORIENTATION_PORTRAIT -> true
+        ActivityInfo.SCREEN_ORIENTATION_USER ->
+            context.resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
+        else -> false
     }
 
     fun launcherFullscreen(context: Context): Boolean = prefs(context).getBoolean("launcherFullscreen", true)

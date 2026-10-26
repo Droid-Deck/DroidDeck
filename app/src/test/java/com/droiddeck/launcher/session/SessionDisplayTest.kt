@@ -4,6 +4,23 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class SessionDisplayTest {
+    @Test fun portraitPresetsSwapTheOutputAndRetainTheResolutionCap() {
+        assertEquals(720 to 1280, SessionDisplay.resolveChoice(1920 to 1080, "720p", portrait = true))
+        assertEquals(900 to 1600, SessionDisplay.resolveChoice(1080 to 1920, "900p", portrait = true))
+        assertEquals(720 to 1280, SessionDisplay.resolveChoice(1440 to 1080, "720p", portrait = true))
+        assertEquals(720 to 1600, SessionDisplay.resolveChoice(2400 to 1080, "720p", portrait = true))
+        assertEquals(1080 to 1920, SessionDisplay.resolveChoice(1921 to 1081, SessionDisplay.MATCH_SCREEN, portrait = true))
+        assertEquals(1080 to 2400, SessionDisplay.resolveChoice(2400 to 1080, SessionDisplay.FOLLOW_SCREEN, portrait = true))
+        assertEquals(720 to 1280, SessionDisplay.resolveChoice(1920 to 1080, "invalid", portrait = true))
+    }
+
+    @Test fun customDimensionsStayExplicitInEitherOrientation() {
+        for (portrait in listOf(false, true)) {
+            assertEquals(1280 to 720, SessionDisplay.resolveChoice(1920 to 1080, "1280x720", portrait))
+            assertEquals(720 to 1280, SessionDisplay.resolveChoice(1920 to 1080, "720x1280", portrait))
+        }
+    }
+
     @Test fun fixedSizesAndMatchScreenResolveWithoutAnyAspectSetting() {
         assertEquals(1280 to 720, SessionDisplay.resolveChoice(1440 to 1080, "1280x720"))
         assertEquals(1600 to 900, SessionDisplay.resolveChoice(1280 to 720, "1600x900"))

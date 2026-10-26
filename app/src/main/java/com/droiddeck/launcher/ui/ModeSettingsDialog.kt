@@ -212,9 +212,10 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
     val host = rememberMenuHost()
     var explainWifiDiscovery by remember { mutableStateOf(false) }
     if (tab == SheetTab.DISPLAY) {
-        val displaySize = com.droiddeck.launcher.session.SessionDisplay.resolveChoice(s.panelSize, s.resolution)
+        val portrait = SessionPrefs.portrait(LocalContext.current)
+        val displaySize = com.droiddeck.launcher.session.SessionDisplay.resolveChoice(s.panelSize, s.resolution, portrait)
         SettingsGroup(stringResource(R.string.display_session)) {
-            ResolutionRow(host, s.resolution, s.panelSize, a.onResolution)
+            ResolutionRow(host, s.resolution, s.panelSize, a.onResolution, portrait = portrait)
             s.picturePosition?.let { position ->
                 ChoiceRow(host, "picture-position", stringResource(R.string.display_picture_position), null,
                     listOf("top" to stringResource(R.string.display_position_top),
