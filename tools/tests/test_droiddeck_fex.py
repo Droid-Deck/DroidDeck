@@ -48,6 +48,8 @@ class FexTestCase(unittest.TestCase):
             "HOST_PRELOAD": str(self.tmp / "ld.so.preload"),
             "DEVICE_FONTS": str(self.tmp / "android-fonts"),
             "FONT_RULES": str(self.tmp / "66-droiddeck-device-fonts.conf"),
+            "OWN_FEX": str(self.tmp / "own"),
+            "OWN_FEX_TAG": str(self.tmp / "own/share/fex-emu/.droiddeck-tag"),
         }
         patcher = mock.patch.dict(G, patches)
         patcher.start()
@@ -201,6 +203,37 @@ class LocateTest(FexTestCase):
         fex = FEX["fex_install"]()
         self.assertEqual((fex["bin"], fex["server"], fex["portable"]), (str(tool / "usr/bin/FEX"), str(tool / "usr/bin/FEXServer"), True))
         self.assertTrue(fex["host_thunks"].endswith("HostThunks") and fex["guest_thunks"].endswith("GuestThunks") and fex["thunks_db"])
+
+    def own_fex(self, tag):
+        own = self.tmp / "own"
+        self.write(own / "bin/FEX", mode=0o755)
+        self.write(own / "bin/FEXServer", mode=0o755)
+        self.write(own / "share/fex-emu/.droiddeck-tag", tag + "\n")
+        return own
+
+    def test_droiddeck_s_own_build_comes_before_the_steam_tool(self):
+        self.fex_tool(self.steam)
+        own = self.own_fex("fex-2610-r7")
+        fex = FEX["fex_install"]()
+        self.assertEqual((fex["bin"], fex["server"], fex["portable"]), (str(own / "bin/FEX"), str(own / "bin/FEXServer"), False))
+
+    def test_the_build_the_session_names_is_installed_once(self):
+        self.own_fex("fex-2610-r6")
+        calls = []
+        with mock.patch.dict(os.environ, {"BL_FEX_TAG": "fex-2610-r7"}), \
+                mock.patch.object(G["subprocess"], "call", lambda args, **kw: calls.append(args) or 0):
+            FEX["update_own_fex"]()
+            self.write(self.tmp / "own/share/fex-emu/.droiddeck-tag", "fex-2610-r7\n")
+            FEX["update_own_fex"]()
+        self.assertEqual([[str(BIN / "droiddeck-fex-update")]], calls)
+
+    def test_no_build_is_installed_without_one_from_the_session(self):
+        calls = []
+        with mock.patch.dict(os.environ, {}, clear=False), \
+                mock.patch.object(G["subprocess"], "call", lambda args, **kw: calls.append(args) or 0):
+            os.environ.pop("BL_FEX_TAG", None)
+            FEX["update_own_fex"]()
+        self.assertEqual([], calls)
 
     def test_library_folders_are_read(self):
         other = self.tmp / "other"

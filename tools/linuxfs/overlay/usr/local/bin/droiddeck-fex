@@ -27,6 +27,8 @@ PRELOADS = "/usr/local/lib/droiddeck-fex"
 URUNTIME = "/usr/local/lib/droiddeck/uruntime"
 HOST_PRELOAD = "/etc/ld.so.preload"
 FEX_APPID = "3127680"
+OWN_FEX = "/usr/local"
+OWN_FEX_TAG = os.path.join(OWN_FEX, "share", "fex-emu", ".droiddeck-tag")
 SNIPER_APPID = "1628350"
 SLR4_APPID = "4183110"
 INSTALL_DIRS = {FEX_APPID: "FEX-Emu", SNIPER_APPID: "SteamLinuxRuntime_sniper", SLR4_APPID: "SteamLinuxRuntime_4"}
@@ -152,8 +154,21 @@ def first_dir(prefix, candidates):
     return None
 
 
+def update_own_fex():
+    wanted = os.environ.get("BL_FEX_TAG")
+    if not wanted:
+        return
+    if (read_text(OWN_FEX_TAG) or "").strip() == wanted and os.access(os.path.join(OWN_FEX, "bin", "FEX"), os.X_OK):
+        return
+    say("installing DroidDeck's FEX build %s" % wanted)
+    if subprocess.call([os.path.join(BIN_DIR, "droiddeck-fex-update")], stdout=sys.stderr) != 0:
+        say("DroidDeck's FEX build %s did not install; using the FEX already here" % wanted)
+
+
 def fex_install():
     prefixes = []
+    if os.path.isfile(OWN_FEX_TAG):
+        prefixes.append((OWN_FEX, False))
     tool = app_dir(FEX_APPID)
     if tool:
         prefixes += [(os.path.join(tool, sub), True) for sub in ("usr", "", "files/usr", "files")]
@@ -445,6 +460,7 @@ def describe(fex, platform, graphics=None):
 
 def prepare(app=SNIPER_APPID):
     with locked():
+        update_own_fex()
         fex = fex_install()
         platform = runtime_platform(app)
         status = describe(fex, platform)
@@ -730,6 +746,7 @@ def extracted():
 
 def want_fex():
     with locked():
+        update_own_fex()
         status = describe(fex_install(), runtime_platform(), graphics_platform())
         if not status["ready"]:
             request_install()

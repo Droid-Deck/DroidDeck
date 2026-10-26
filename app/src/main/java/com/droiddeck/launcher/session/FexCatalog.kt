@@ -8,7 +8,7 @@ import org.json.JSONObject
 import java.io.File
 
 /**
- * The FEX build DroidDeck-Components' fex.json names for the x86-64 client. A session uses the last copy read.
+ * The FEX build DroidDeck-Components' fex.json names for x86 programs. A session uses the last copy read.
  * Components' build-fex.yml replaces the archive on its single `fex` release and records the build's version;
  * a release per build (fex-2610-r5) is still read.
  */
@@ -62,7 +62,7 @@ object FexCatalog {
         return build
     }
 
-    /** For droiddeck-steam-x64: the build and every source its archive may come from (it checks the sha256). */
+    /** For droiddeck-fex-update: the build and every source its archive may come from (it checks the sha256). */
     fun environment(build: Build, sources: List<String> = DownloadSource.candidates(build.url)): List<String> = listOf(
         "BL_FEX_TAG=${build.tag}",
         "BL_FEX_SHA256=${build.sha256}",
