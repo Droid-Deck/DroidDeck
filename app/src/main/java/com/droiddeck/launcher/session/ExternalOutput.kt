@@ -9,10 +9,25 @@ object ExternalOutput {
             (it.flags and Display.FLAG_PRESENTATION) != 0
     }
 
-    fun preferredMode(display: Display): Display.Mode =
-        display.supportedModes.maxWithOrNull(
-            compareBy<Display.Mode> { Math.round(it.refreshRate) }.thenBy { it.physicalWidth.toLong() * it.physicalHeight }
+    fun preferredMode(display: Display): Display.Mode {
+        val modes = display.supportedModes
+        val fastest = modes.maxOfOrNull { it.refreshRate } ?: return display.mode
+        val smooth = minOf(fastest, SMOOTH_HZ) - 1f
+        return modes.filter { it.refreshRate >= smooth }.maxWithOrNull(
+            compareBy<Display.Mode> { it.physicalWidth.toLong() * it.physicalHeight }.thenBy { Math.round(it.refreshRate) }
         ) ?: display.mode
+    }
+
+    fun swapchainSize(display: Display.Mode, sessionHeight: Int): Pair<Int, Int>? {
+        val w = display.physicalWidth
+        val h = display.physicalHeight
+        if (w <= 0 || h <= 0 || h <= MAX_SWAPCHAIN_HEIGHT) return null
+        val height = maxOf(sessionHeight, MAX_SWAPCHAIN_HEIGHT).coerceAtMost(h)
+        return (w.toLong() * height / h).toInt() to height
+    }
+
+    private const val SMOOTH_HZ = 60f
+    private const val MAX_SWAPCHAIN_HEIGHT = 1440
 
     fun describe(display: Display): String {
         val product = if (Build.VERSION.SDK_INT >= 31) display.deviceProductInfo?.name?.takeIf { it.isNotBlank() } else null
