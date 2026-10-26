@@ -470,6 +470,26 @@ class GameEnvironmentTest(unittest.TestCase):
             self.assertEqual(env.get("WINE_CPU_TOPOLOGY"), expected, env)
             self.assertEqual(env.get("PROTON_CPU_TOPOLOGY"), proton, env)
 
+    def test_reskate_runs_at_feature_level_12_1(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            reskate = Path(tmp) / "ReSkate"
+            reskate.mkdir()
+            for name in ("Skate.exe", "ReSkate.dll", "ReSkateLauncher.exe", "EAAntiCheat.GameServiceLauncher.exe"):
+                (reskate / name).touch()
+            for exe in ("ReSkateLauncher.exe", "Skate.exe"):
+                env, extra, notes = MODULE["engine_fixes"](str(reskate / exe), [])
+                self.assertEqual((env, extra), ({"VKD3D_FEATURE_LEVEL": "12_1"}, []), exe)
+                self.assertTrue(notes)
+            config = {"version": 1, "shared": {"VKD3D_FEATURE_LEVEL": "12_2"}}
+            self.assertEqual(MODULE["apply_config"]({}, config, "3354750", env)["VKD3D_FEATURE_LEVEL"], "12_1")
+            config["games"] = {"3354750": {"VKD3D_FEATURE_LEVEL": "12_2"}}
+            self.assertEqual(MODULE["apply_config"]({}, config, "3354750", env)["VKD3D_FEATURE_LEVEL"], "12_2")
+            skate = Path(tmp) / "Skate"
+            skate.mkdir()
+            for name in ("Skate.exe", "EAAntiCheat.GameServiceLauncher.exe"):
+                (skate / name).touch()
+            self.assertEqual(MODULE["engine_fixes"](str(skate / "EAAntiCheat.GameServiceLauncher.exe"), [])[:2], ({}, []))
+
     def test_caravan_sandwitch_robocop_and_cyberpunk_run_at_feature_level_12_1(self):
         with tempfile.TemporaryDirectory() as tmp:
             caravan = Path(tmp) / "Caravan SandWitch"

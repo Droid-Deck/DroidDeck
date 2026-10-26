@@ -152,6 +152,12 @@ def robocop_rogue_city_feature_level(game):
 
 
 @fix
+def reskate_feature_level(game):
+    if "skate.exe" in game.files and "reskate.dll" in game.files:
+        return {"VKD3D_FEATURE_LEVEL": "12_1"}, [], "ReSkate (skate.): D3D12 feature level 12_1"
+
+
+@fix
 def cyberpunk_feature_level(game):
     if game.stem == "cyberpunk2077" or (
         game.stem == "redprelauncher"
