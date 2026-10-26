@@ -410,18 +410,16 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
                 asset.linux -> LinuxVulkanDriverManager(activity).installDriver(uri, asset.name)
                 else -> TurnipDriver(activity).installFromZip(uri, asset.name)
             }
+            val rollback: () -> Unit = {
+                when {
+                    asset.bundle -> DriverBundle.get(activity, id)?.let { DriverBundle.remove(activity, it) }
+                    asset.linux -> LinuxVulkanDriverManager(activity).removeDriver(id)
+                    else -> TurnipDriver(activity).remove(id)
+                }
+            }
             finishRemoteDriverInstall(
-                current = RepositorySources.isCurrent(
-                    activity, TurnipReleases.SOURCE_SCOPE, TurnipReleases.sourceBuiltIns(),
-                    asset.sourceId, sourceGeneration,
-                ),
-                rollback = {
-                    when {
-                        asset.bundle -> DriverBundle.get(activity, id)?.let { DriverBundle.remove(activity, it) }
-                        asset.linux -> LinuxVulkanDriverManager(activity).removeDriver(id)
-                        else -> TurnipDriver(activity).remove(id)
-                    }
-                },
+                activity, asset.sourceId, sourceGeneration,
+                rollback = rollback,
                 record = { TurnipReleases.recordDownload(activity, asset, id) },
             )
             return id
@@ -604,12 +602,21 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
 internal fun releaseAssetById(assets: List<TurnipReleases.Asset>, id: String): TurnipReleases.Asset? =
     assets.firstOrNull { it.id == id }
 
-internal fun finishRemoteDriverInstall(current: Boolean, rollback: () -> Unit, record: () -> Unit) {
-    if (!current) {
+internal fun finishRemoteDriverInstall(
+    context: Context,
+    sourceId: String,
+    sourceGeneration: Long,
+    rollback: () -> Unit,
+    record: () -> Unit,
+) {
+    try {
+        RepositorySources.whileCurrent(
+            context, TurnipReleases.SOURCE_SCOPE, TurnipReleases.sourceBuiltIns(), sourceId, sourceGeneration,
+        ) { record() }
+    } catch (error: IOException) {
         rollback()
-        throw IOException("Driver source changed while installing")
+        throw error
     }
-    record()
 }
 
 internal fun Context.displayNameOf(uri: Uri): String? = if (uri.scheme == "file") uri.lastPathSegment else try {

@@ -24,6 +24,10 @@ import java.io.File
 import java.io.IOException
 import java.io.ByteArrayInputStream
 import java.net.HttpURLConnection
+import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import kotlin.concurrent.thread
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28], manifest = Config.NONE)
@@ -206,6 +210,114 @@ class ComponentsCatalogSourcesTest {
         assertFalse(File(stored.parentFile, "$oldName.source.json").exists())
         val availableAgain = ComponentsManager.catalog(context, false).items.single()
         assertNotEquals(oldName, availableAgain.localFile)
+    }
+
+    @Test
+    fun unboundLegacyNightliesDownloadRequiresItsCanonicalVisibleSourceAndUrl() {
+        val name = "dxvk-legacy-download.wcp"
+        val payload = File(context.cacheDir, "legacy-download.wcp")
+        writeWcp(payload, "legacy download")
+        writeLegacyCatalog(listOf(legacyItem("dxvk", name, payload.length(), Hashes.sha256(payload))))
+        val item = ComponentsManager.catalog(context, false).items.single { it.file == name }
+        val source = RepositorySources.source("the412banner/nightlies")
+        assertEquals(source.id, item.sourceId)
+        assertEquals(0L, item.repositoryId)
+        var calls = 0
+        ComponentsManager.packageDownloader = { _, destination, _, _ ->
+            calls++
+            payload.copyTo(destination, overwrite = true)
+            true
+        }
+
+        val installed = ComponentsManager.download(context, item) {}
+        assertEquals(item.repository, installed.source)
+        assertEquals(1, calls)
+
+        val forged = item.copy(
+            repository = "attacker/nightlies",
+            url = GitHubArtifacts.releaseAssetUrl("attacker/nightlies", item.release, item.file),
+            localFile = "forged-${item.localFile}",
+        )
+        assertTrue(runCatching { ComponentsManager.download(context, forged) {} }.isFailure)
+        assertTrue(runCatching {
+            ComponentsManager.download(context, item.copy(
+                url = GitHubArtifacts.releaseAssetUrl("attacker/nightlies", item.release, item.file),
+                localFile = "forged-url-${item.localFile}",
+            )) {}
+        }.isFailure)
+        assertTrue(runCatching {
+            ComponentsManager.download(context, item.copy(
+                digest = "sha256:" + "0".repeat(64),
+                localFile = "forged-digest-${item.localFile}",
+            )) {}
+        }.isFailure)
+
+        ComponentsManager.saveSources(context, "dxvk", ComponentsManager.sources(context, "dxvk").map {
+            if (it.id == source.id) it.copy(hidden = true) else it
+        })
+        assertTrue(runCatching {
+            ComponentsManager.download(context, item.copy(localFile = "hidden-${item.localFile}")) {}
+        }.isFailure)
+        assertEquals(2, calls)
+    }
+
+    @Test
+    fun sourceChangesWaitUntilPackageAdoptionAndProvenanceCommitFinish() {
+        val comp = "dxvk"
+        val builtIns = ComponentsManager.sourceBuiltIns(comp)
+        val source = ComponentsManager.sources(context, comp).single {
+            it.repository == RepositorySources.canonicalRepository("the412banner/nightlies")
+        }
+        val generation = RepositorySources.generation(context, ComponentsManager.sourceScope(comp), builtIns)
+        val item = ComponentsManager.CatalogItem(
+            "dxvk.wcp", comp, "Dxvk-Linux", "", 1, "sha256:" + "a".repeat(64),
+            sourceId = source.id, repository = source.repository,
+        )
+        val commitEntered = CountDownLatch(1)
+        val releaseCommit = CountDownLatch(1)
+        val sourceSaveStarted = CountDownLatch(1)
+        val sourceSaved = CountDownLatch(1)
+        val errors = ConcurrentLinkedQueue<Throwable>()
+        var committed = false
+
+        val adopter = thread {
+            runCatching {
+                ComponentsManager.commitDownloadedPackage(context, item, generation) {
+                    commitEntered.countDown()
+                    check(releaseCommit.await(2, TimeUnit.SECONDS))
+                    committed = true
+                }
+            }.onFailure { errors.add(it) }
+        }
+        assertTrue(commitEntered.await(2, TimeUnit.SECONDS))
+        val policy = thread {
+            sourceSaveStarted.countDown()
+            runCatching {
+                ComponentsManager.saveSources(context, comp, ComponentsManager.sources(context, comp).map {
+                    if (it.id == source.id) it.copy(hidden = true) else it
+                })
+            }.onFailure { errors.add(it) }
+            sourceSaved.countDown()
+        }
+        assertTrue(sourceSaveStarted.await(2, TimeUnit.SECONDS))
+        assertFalse(sourceSaved.await(150, TimeUnit.MILLISECONDS))
+        releaseCommit.countDown()
+        adopter.join(2_000)
+        policy.join(2_000)
+
+        assertFalse(adopter.isAlive)
+        assertFalse(policy.isAlive)
+        assertTrue(errors.toString(), errors.isEmpty())
+        assertTrue(committed)
+        assertTrue(RepositorySources.visible(context, ComponentsManager.sourceScope(comp), builtIns).none {
+            it.id == source.id
+        })
+
+        var legacyCommitted = false
+        ComponentsManager.commitDownloadedPackage(context, item.copy(sourceId = ""), null) {
+            legacyCommitted = true
+        }
+        assertTrue(legacyCommitted)
     }
 
     @Test
