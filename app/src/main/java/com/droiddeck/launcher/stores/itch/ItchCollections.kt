@@ -14,14 +14,13 @@ import java.util.concurrent.ConcurrentHashMap
 internal class ItchCollection(val id: String, val title: String, val count: Int)
 
 internal object ItchCollections {
-    private const val MAX_PAGES = 20
-
     var list by mutableStateOf<List<ItchCollection>>(emptyList())
         private set
     var selected by mutableStateOf<String?>(null)
         private set
     private val games = mutableStateMapOf<String, List<CatalogItem>>()
     private val loading = ConcurrentHashMap.newKeySet<String>()
+    @Volatile private var generation = 0
 
     fun items(): List<CatalogItem> = games.values.flatten()
 
@@ -29,15 +28,27 @@ internal object ItchCollections {
 
     fun chosen(): ItchCollection? = list.firstOrNull { it.id == selected }
 
+    fun clear() {
+        generation++
+        StoresState.post {
+            list = emptyList()
+            selected = null
+            games.clear()
+        }
+    }
+
     fun load(context: Context) {
         val app = context.applicationContext
         if (!loading.add("")) return
+        val started = generation
         Thread({
             try {
                 val key = ItchAuth.key(app)
                 if (key.isBlank()) return@Thread
                 val parsed = parseCollections(ItchApi.collections(key) ?: return@Thread)
+                if (started != generation) return@Thread
                 StoresState.post {
+                    if (started != generation) return@post
                     list = parsed
                     if (selected != null && parsed.none { it.id == selected }) selected = null
                 }
@@ -51,7 +62,7 @@ internal object ItchCollections {
 
     fun select(context: Context, id: String?) {
         selected = id
-        if (id == null || games.containsKey(id)) return
+        if (id == null) return
         val app = context.applicationContext
         Thread({
             val key = ItchAuth.key(app)
@@ -62,22 +73,25 @@ internal object ItchCollections {
     private fun fetchGames(context: Context, key: String, id: String) {
         if (!loading.add(id)) return
         try {
+            val started = generation
             val out = ArrayList<CatalogItem>()
+            val seen = HashSet<String>()
             var page = 1
-            while (page <= MAX_PAGES) {
+            while (true) {
                 val body = ItchApi.collectionGames(key, id, page)
                 if (body == null) {
                     StoresState.logLine("itch.io: collection $id page $page failed")
-                    if (page == 1) return
-                    break
+                    return
                 }
                 val batch = parseGames(body)
                 if (batch.isEmpty()) break
-                out.addAll(batch)
+                val fresh = batch.filter { seen.add(it.id) }
+                if (fresh.isEmpty()) break
+                out.addAll(fresh)
                 page++
             }
-            val distinct = out.distinctBy { it.id }
-            StoresState.post { games[id] = distinct }
+            val distinct = out.toList()
+            StoresState.post { if (started == generation) games[id] = distinct }
             StoresState.logLine("itch.io: collection $id has ${distinct.size} games")
         } finally {
             loading.remove(id)

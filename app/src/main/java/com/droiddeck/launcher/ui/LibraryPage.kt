@@ -171,7 +171,7 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
     val cloudRows = rememberXboxCloudRows(s)
     val all = remember(s.steamGames, cloudRows, owned, installedStore) { libraryEntries(s.steamGames + cloudRows, owned, installedStore) }
     LaunchedEffect(Unit) { XboxLibraryFilter.load(ctx) }
-    val sources = LIBRARY_SOURCES.filter { src -> all.any { it.source == src } }
+    val sources = LIBRARY_SOURCES.filter { src -> all.any { it.source == src } || (src == Store.ITCH.id && owned.containsKey(Store.ITCH)) }
     val source = LibraryView.source.takeIf { it == LIBRARY_ALL || it in sources } ?: LIBRARY_ALL
     val q = LibraryView.query.trim().lowercase()
     val xboxFilter = if (source == Store.XBOX.id) XboxLibraryFilter.current else XboxLibraryFilter.ALL
