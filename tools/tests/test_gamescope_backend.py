@@ -104,13 +104,16 @@ class DesktopGamescopeBackendTest(unittest.TestCase):
                 "    'gdk': os.environ.get('GDK_BACKEND'),\n"
                 "    'qt': os.environ.get('QT_QPA_PLATFORM'),\n"
                 "    'wayland': os.environ.get('WAYLAND_DISPLAY'),\n"
+                "    'mesa_wsi': os.environ.get('MESA_VK_WSI_DEBUG'),\n"
+                "    'child_wsi': os.environ.get('BL_GPU_CHILD_WSI'),\n"
                 f"    'graphics': {{key: os.environ.get(key) for key in {GRAPHICS_KEYS!r}}},\n"
                 "    'client': client,\n"
                 "}))\n"
             )
             gamescope.chmod(0o755)
             env = dict(os.environ)
-            for name in ("BL_GAMESCOPE_BACKEND", "BL_DEBUG_DIR", "BL_FPS", "BL_REFRESH", "BL_HDR", *GRAPHICS_KEYS):
+            for name in ("BL_GAMESCOPE_BACKEND", "BL_DESKTOP_GPU_WINDOW", "BL_GPU_CHILD_WSI", "BL_DEBUG_DIR",
+                         "BL_FPS", "BL_REFRESH", "BL_HDR", "MESA_VK_WSI_DEBUG", *GRAPHICS_KEYS):
                 env.pop(name, None)
             env.update(PATH=f"{root}{os.pathsep}{env.get('PATH', '')}",
                        GAMESCOPE_CAPTURE=str(capture), WAYLAND_DISPLAY="desktop-0",
@@ -122,28 +125,34 @@ class DesktopGamescopeBackendTest(unittest.TestCase):
                                     env=env, text=True, capture_output=True, timeout=5)
             return result, json.loads(capture.read_text()) if capture.exists() else None
 
-    def assert_xwayland_application(self, capture):
+    def assert_xwayland_application(self, capture, wayland="wayland-0"):
         args = capture["args"]
         self.assertEqual(["env", "SDL_VIDEODRIVER=x11", "/usr/local/bin/droiddeck-gpu-window",
                           "demo", "one argument"], args[args.index("--") + 1:])
         self.assertEqual("x11", capture["gdk"])
         self.assertEqual("xcb", capture["qt"])
-        self.assertEqual("wayland-0", capture["wayland"])
+        self.assertEqual(wayland, capture["wayland"])
         self.assertEqual("x11", capture["client"]["env"]["SDL_VIDEODRIVER"])
         self.assertEqual(["demo", "one argument"], capture["client"]["args"])
 
-    def test_default_keeps_wayland_and_xwayland_application(self):
+    def test_default_opens_a_software_sdl_window_on_the_desktop(self):
         result, capture = self.launch()
         self.assertEqual(0, result.returncode, result.stderr)
-        self.assertEqual(["--backend", "wayland"], capture["args"][:2])
-        self.assertEqual("x11", capture["sdl"])
-        self.assert_xwayland_application(capture)
+        self.assertEqual(["--backend", "sdl"], capture["args"][:2])
+        self.assertNotIn("-f", capture["args"])
+        self.assertEqual("wayland", capture["sdl"])
+        self.assertEqual("sw", capture["mesa_wsi"])
+        self.assertEqual("", capture["child_wsi"])
+        self.assert_xwayland_application(capture, wayland="desktop-0")
 
     def test_sdl_uses_wayland_without_leaking_to_the_application(self):
         result, capture = self.launch("sdl")
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertEqual(["--backend", "sdl"], capture["args"][:2])
+        self.assertIn("-f", capture["args"])
         self.assertEqual("wayland", capture["sdl"])
+        self.assertIsNone(capture["mesa_wsi"])
+        self.assertIsNone(capture["child_wsi"])
         self.assert_xwayland_application(capture)
 
     def test_unknown_backend_fails_before_gamescope(self):

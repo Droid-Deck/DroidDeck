@@ -319,7 +319,7 @@ private fun GameTitle(title: String, logo: Any?, titleSize: TextUnit) {
 }
 
 @Composable
-private fun GameActions(
+internal fun GameActions(
     store: Store?, id: String?, game: Library.SteamGame?, item: CatalogItem?, installed: InstalledStoreGame?,
     s: FrontEndState, a: FrontEndActions, leadOn: Modifier,
 ) {
@@ -328,22 +328,14 @@ private fun GameActions(
     val rawDownload = storeKey?.let { StoresState.download(it) }
     val download = rawDownload?.takeIf { it.isActive }
     val failed = rawDownload?.takeIf { it.state == DownloadState.FAILED }
+    val cloud = game?.library == Library.XBOX_CLOUD && installed == null
     Actions {
         when {
             s.shortcutPicker && game != null -> {
                 PrimaryButton(stringResource(R.string.game_shortcut_choose), enabled = !s.busy, main = true, icon = Icons.Filled.PlayArrow, modifier = leadOn) { a.onSteamGame(game) }
                 FileButtons(game, a)
             }
-            game?.library == Library.XBOX_CLOUD -> {
-                val cloudId = game.storeId.orEmpty()
-                XboxStreamButton(cloudId, game.name, main = true, modifier = leadOn)
-                if (download != null) ActionChip(downloadLabel(download), ok = false)
-                else if (item?.installable == true) SecondaryButton(
-                    if (item.sizeBytes > 0) stringResource(R.string.stores_install_size, formatBytes(item.sizeBytes)) else stringResource(R.string.stores_install),
-                ) { StoresState.requestInstall(ctx, item) }
-                XboxLibraryButton(cloudId, item)
-            }
-            game != null || installed != null -> {
+            !cloud && (game != null || installed != null) -> {
                 val gone = storeKey?.let { StoresState.uninstalling[it] }
                 val xboxBusy = store == Store.XBOX && id != null && XboxContent.busy(id)
                 PrimaryButton(
@@ -381,6 +373,19 @@ private fun GameActions(
                 }
                 ConfirmButton(stringResource(R.string.stores_dl_clear), stringResource(R.string.stores_dl_cancel_confirm), compact = true) { DownloadQueue.clear(ctx, failed.key) }
             }
+            cloud -> {
+                val cloudId = game.storeId.orEmpty()
+                XboxStreamButton(cloudId, game.name, main = true, modifier = leadOn)
+                if (item?.installable == true && item.xboxPc) {
+                    SecondaryButton(
+                        if (StoresState.isUnfinished(item)) stringResource(R.string.stores_resume_install)
+                        else if (item.sizeBytes > 0) stringResource(R.string.stores_install_size, formatBytes(item.sizeBytes))
+                        else stringResource(R.string.stores_install),
+                    ) { StoresState.requestInstall(ctx, item) }
+                }
+                if (item != null && StoresState.isUnfinished(item)) ConfirmButton(stringResource(R.string.stores_dl_clear), stringResource(R.string.stores_dl_cancel_confirm), compact = true) { StoresState.clearUnfinished(ctx, item) }
+                XboxLibraryButton(cloudId, item)
+            }
             store == Store.BATTLENET && item != null -> InstallButton(stringResource(R.string.stores_install), leadOn) { StoresState.requestInstall(ctx, item) }
             store == Store.XBOX && item != null && !item.xboxPc && item.xboxCloud -> {
                 XboxStreamButton(item.id, item.title, main = true, modifier = leadOn)
@@ -407,6 +412,10 @@ private fun GameActions(
             }
             item != null && item.isFree -> PrimaryButton(stringResource(R.string.stores_get_free), main = true, modifier = leadOn) { openStoreUrl(ctx, item) }
             item != null -> PrimaryButton(buyLabel(item), main = true, modifier = leadOn) { openStoreUrl(ctx, item) }
+        }
+        if (cloud && (download != null || failed != null)) {
+            XboxStreamButton(game.storeId.orEmpty(), game.name)
+            XboxLibraryButton(game.storeId.orEmpty(), item)
         }
         BusyChip(s)
     }

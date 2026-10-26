@@ -108,12 +108,16 @@ internal fun libraryEntries(
 ): List<LibraryEntry> {
     val claimed = HashSet<String>()
     val out = ArrayList<LibraryEntry>()
-    for (g in games) {
+    for (g in games.sortedBy { it.library == Library.XBOX_CLOUD }) {
         if (g.library == Library.EPIC_LAUNCHER) continue
         val storeKey = g.storeId?.let { "${g.source}:$it" }
         val item = storeKey?.let { k -> Store.byId(g.source)?.let { st -> owned[st]?.firstOrNull { it.key == k } } }
-        if (storeKey != null) claimed += storeKey
-        out += LibraryEntry(GameRef.key(g), g.source, g.name, g, item, installed = true)
+        if (storeKey != null) {
+            if (g.library == Library.XBOX_CLOUD && storeKey in claimed) continue
+            claimed.add(storeKey)
+        }
+        out += LibraryEntry(GameRef.key(g), g.source, g.name, g, item,
+            installed = g.library != Library.XBOX_CLOUD || storeKey in installedStore)
     }
     for (store in Store.entries) for (item in owned[store].orEmpty()) {
         if (!claimed.add(item.key)) continue
@@ -506,18 +510,31 @@ private fun LibraryTile(e: LibraryEntry, capsule: Boolean, first: Boolean, navig
 @Composable
 private fun RequestSize(e: LibraryEntry) {
     val ctx = LocalContext.current
+    if (e.installed) {
+        val inst = e.storeKey?.let { k -> StoresState.installed.firstOrNull { it.key == k } }
+        LaunchedEffect(e.key, inst) {
+            if (inst != null) StoreSizes.requestDisk(ctx, inst.key, inst)
+            else e.game?.gameFiles?.let { FolderSizes.request(it) }
+        }
+        return
+    }
     val item = e.item?.takeIf { !e.installed && it.accessible && it.sizeBytes <= 0 } ?: return
     LaunchedEffect(item.key) { StoreSizes.request(ctx, item) }
 }
 
 @Composable
-private fun LibraryMarker(e: LibraryEntry, download: DownloadEntry?) {
+internal fun LibraryMarker(e: LibraryEntry, download: DownloadEntry?) {
     val pal = LocalPalette.current
+    val size = if (e.installed) e.storeKey?.let { StoreSizes.onDisk[it] }
+        ?: e.game?.gameFiles?.let { FolderSizes.known[it.path] }
+        else e.item?.let { StoreSizes.size(it) }?.takeIf { it > 0 }
     when {
         download != null -> Text("${download.percent}%", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = pal.signal, maxLines = 1)
-        e.installed -> Unit
         e.item != null && StoresState.isUnfinished(e.item) -> Text(stringResource(R.string.stores_resume), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = pal.signal, maxLines = 1)
-        else -> Icon(Icons.Outlined.Download, stringResource(R.string.stores_section_not_installed), tint = Color.White, modifier = Modifier.size(12.dp))
+        else -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+            if (size != null && size > 0) Text(formatBytes(size), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1)
+            if (!e.installed) Icon(Icons.Outlined.Download, stringResource(R.string.stores_section_not_installed), tint = Color.White, modifier = Modifier.size(12.dp))
+        }
     }
 }
 
@@ -599,7 +616,7 @@ private fun Modifier.paneEntry(): Modifier {
 
 internal fun keepsXbox(filter: String, e: LibraryEntry): Boolean = when {
     filter == XboxLibraryFilter.ALL || e.source != Store.XBOX.id -> true
-    e.game?.library == Library.XBOX_CLOUD -> filter == XboxLibraryFilter.CLOUD
+    e.game?.library == Library.XBOX_CLOUD && e.item == null -> filter == XboxLibraryFilter.CLOUD
     else -> e.item?.let { XboxLibraryFilter.keeps(filter, it) } == true
 }
 

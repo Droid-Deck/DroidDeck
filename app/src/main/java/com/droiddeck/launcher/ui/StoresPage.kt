@@ -150,35 +150,6 @@ private data class PaneKey(val chip: String, val signedIn: Boolean, val accounts
 internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier) {
     val ctx = LocalContext.current
     val focusManager = LocalFocusManager.current
-    com.droiddeck.launcher.stores.xbox.XboxContent.plan?.let { content ->
-        androidx.compose.material3.AlertDialog(
-            onDismissRequest = { com.droiddeck.launcher.stores.xbox.XboxContent.dismiss() },
-            title = { Text(stringResource(R.string.stores_xbox_content_title)) },
-            text = { Column {
-                if (content.error != null) Text(content.error)
-                else if (content.offers.isEmpty()) Text(stringResource(R.string.stores_xbox_content_none))
-                content.offers.forEach { offer ->
-                    androidx.compose.material3.TextButton(onClick = { com.droiddeck.launcher.stores.xbox.XboxContent.install(ctx, offer.item) }) {
-                        Text(stringResource(if (offer.installed) R.string.stores_xbox_content_update else R.string.stores_xbox_content_install, offer.item.title))
-                    }
-                }
-            } },
-            confirmButton = { androidx.compose.material3.TextButton(onClick = { com.droiddeck.launcher.stores.xbox.XboxContent.dismiss() }) { Text(stringResource(android.R.string.ok)) } },
-        )
-    }
-    com.droiddeck.launcher.stores.xbox.XboxBackend.packageChoice?.let { pending ->
-        androidx.compose.material3.AlertDialog(
-            onDismissRequest = { com.droiddeck.launcher.stores.xbox.XboxBackend.dismissPackages() },
-            title = { Text(stringResource(R.string.stores_xbox_choose_content)) },
-            text = { Column { pending.choices.forEach { choice ->
-                androidx.compose.material3.TextButton(onClick = { com.droiddeck.launcher.stores.xbox.XboxBackend.selectPackage(ctx, choice) }) {
-                    Text(stringResource(R.string.stores_xbox_choice, choice.getString("title"), choice.getString("kind")))
-                }
-            } } },
-            confirmButton = {},
-            dismissButton = { androidx.compose.material3.TextButton(onClick = { com.droiddeck.launcher.stores.xbox.XboxBackend.dismissPackages() }) { Text(stringResource(android.R.string.cancel)) } },
-        )
-    }
     val narrow = LocalNarrowPane.current
     val padH = if (narrow) 14.dp else 22.dp
     val tabs = remember {

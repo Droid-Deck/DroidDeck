@@ -90,6 +90,34 @@ bl_run() {
 }
 """
 
+BL_DESKTOP_GPU_SETUP = """
+bl_desktop_gpu() {
+  local name saved gpu=/usr/local/bin/droiddeck-gpu
+  local names=(LD_PRELOAD LD_LIBRARY_PATH ENABLE_VK_LAYER_VALVE_steam_overlay_1 ENABLE_VK_LAYER_VALVE_steam_fossilize_1)
+  if [ -n "${BL_DESKTOP_GPU_CHILD:-}" ]; then
+    for name in "${names[@]}"; do
+      saved=BL_GPU_SAVED_$name
+      [ -n "${!saved+x}" ] || continue
+      export "$name=${!saved}"
+      unset "$saved"
+    done
+    return 0
+  fi
+  [ "${BL_DESKTOP:-}" = 1 ] && [ "${verb:-}" = waitforexitandrun ] && [ -x "$gpu" ] || return 0
+  local choice=${BL_DESKTOP_GPU:-on}
+  case "${choice,,}" in off | 0 | no | false) return 0 ;; esac
+  case " $* " in *iscriptevaluator*) return 0 ;; esac
+  local clear=()
+  for name in "${names[@]}"; do
+    [ -n "${!name+x}" ] || continue
+    export "BL_GPU_SAVED_$name=${!name}"
+    clear+=(-u "$name")
+  done
+  echo "droiddeck-gpu: the desktop starts this game on the GPU" >&2
+  exec env "${clear[@]}" "$gpu" "$0" "$verb" "$@"
+}
+bl_desktop_gpu "$@"
+"""
 BL_COMPONENTS_SETUP = """
 bl_components() {
   base=$1
@@ -389,7 +417,7 @@ LAUNCHER_TEMPLATE = LAUNCHER_SH
 
 def launcher_sh(sources=SOURCES):
     return (LAUNCHER_TEMPLATE % " ".join('"%s"' % n for n in sources)).replace(
-        "verb=$1; shift", "verb=$1; shift\n" + BL_DIRECTAUDIO_SETUP + BL_GAME_CPUS_SETUP + BL_IDTECH3_SETUP
+        "verb=$1; shift", "verb=$1; shift\n" + BL_DESKTOP_GPU_SETUP + BL_DIRECTAUDIO_SETUP + BL_GAME_CPUS_SETUP + BL_IDTECH3_SETUP
         + BL_VACDIAG_SETUP + BL_COMPONENTS_SETUP + BL_LIBPATH_SETUP + BL_STORE_SETUP, 1)
 
 
@@ -478,7 +506,7 @@ verb=$1; shift
 case $verb in
   getcompatpath | getnativepath) printf '%s\\n' "$1"; exit 0 ;;
 esac
-""" + BL_GAME_CPUS_SETUP + """
+""" + BL_DESKTOP_GPU_SETUP + BL_GAME_CPUS_SETUP + """
 bl_game_cpus
 if [ -x /usr/local/bin/droiddeck-steamvr-flat ] && /usr/local/bin/droiddeck-steamvr-flat "$verb"; then
   exec /usr/local/bin/droiddeck-steamvr-game ${BL_TASKSET:-} /usr/local/bin/droiddeck-fex steam "$verb" "$@"
@@ -661,7 +689,7 @@ def adopt_extras(tools):
         try:
             body = (EXTRA_WRAPPER_SH % entry_point).replace(
                     'here=$(dirname "$0")',
-                    'here=$(dirname "$0")\n' + BL_DIRECTAUDIO_SETUP + BL_GAME_CPUS_SETUP + BL_IDTECH3_SETUP
+                    'here=$(dirname "$0")\n' + BL_DESKTOP_GPU_SETUP + BL_DIRECTAUDIO_SETUP + BL_GAME_CPUS_SETUP + BL_IDTECH3_SETUP
                     + BL_VACDIAG_SETUP + BL_COMPONENTS_SETUP + BL_LIBPATH_SETUP + BL_STORE_SETUP, 1)
             write_changed(wrapper, body, 0o755)
             write_changed(manifest, EXTRA_MANIFEST_VDF)

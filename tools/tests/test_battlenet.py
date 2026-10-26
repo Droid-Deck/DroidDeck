@@ -947,6 +947,33 @@ class LaunchTest(Harness):
             os.environ["SteamGameId"] = "0"
             self.assertEqual(BNET["proton_options"](), [])
 
+    def test_on_the_desktop_battle_net_restarts_on_the_gpu_unless_turned_off(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            gpu = os.path.join(tmp, "droiddeck-gpu")
+            with open(gpu, "w") as out:
+                out.write("#!/bin/sh\n")
+            os.chmod(gpu, 0o755)
+            with mock.patch.dict(BNET, {"BIN": tmp}), mock.patch.dict(os.environ, {"BL_DESKTOP": "1"}):
+                os.environ.pop("BL_DESKTOP_GPU", None)
+                os.environ.pop("BL_DESKTOP_GPU_CHILD", None)
+                self.assertEqual(BNET["desktop_gpu"](), gpu)
+                for choice in ("off", "0", "No", "false"):
+                    os.environ["BL_DESKTOP_GPU"] = choice
+                    self.assertIsNone(BNET["desktop_gpu"]())
+                os.environ["BL_DESKTOP_GPU"] = "on"
+                os.environ["BL_DESKTOP_GPU_CHILD"] = "1"
+                self.assertIsNone(BNET["desktop_gpu"]())
+                os.environ.pop("BL_DESKTOP_GPU_CHILD")
+                os.environ["BL_DESKTOP"] = "0"
+                self.assertIsNone(BNET["desktop_gpu"]())
+                os.environ["BL_DESKTOP"] = "1"
+                os.chmod(gpu, 0o644)
+                self.assertIsNone(BNET["desktop_gpu"]())
+
+    def test_on_the_gpu_battle_net_fills_the_screen_instead_of_a_window(self):
+        with mock.patch.dict(os.environ, {"BL_DESKTOP": "1", "BL_DESKTOP_GPU_CHILD": "1", "BL_WIDTH": "1280", "BL_HEIGHT": "720", "SteamGameId": "0"}):
+            self.assertEqual(BNET["proton_options"](), ["--desktop", "1280x720"])
+
     def test_under_gamescope_battle_net_gets_a_desktop_of_the_screens_size(self):
         with mock.patch.dict(os.environ, {"BL_WIDTH": "1280", "BL_HEIGHT": "720", "SteamGameId": "0"}):
             os.environ.pop("BL_DESKTOP", None)

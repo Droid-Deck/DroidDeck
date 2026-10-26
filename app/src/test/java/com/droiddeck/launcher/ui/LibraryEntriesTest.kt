@@ -3,6 +3,7 @@ package com.droiddeck.launcher.ui
 import com.droiddeck.launcher.frontend.Library
 import com.droiddeck.launcher.stores.CatalogItem
 import com.droiddeck.launcher.stores.Store
+import com.droiddeck.launcher.stores.xbox.XboxLibraryFilter
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -34,6 +35,41 @@ class LibraryEntriesTest {
     @Test fun aStoreInstallTheLibraryHasNotScannedYetCountsAsInstalled() {
         val entries = libraryEntries(emptyList(), mapOf(Store.EPIC to listOf(owned(Store.EPIC, "fn"))), setOf("epic:fn"))
         assertTrue(entries.single().installed)
+    }
+
+    @Test fun aSavedCloudGameStaysNotInstalledAndKeepsItsLicenseFilters() {
+        val game = Library.SteamGame(-20, "Cloud game", null, Library.XBOX_CLOUD, source = "xbox", storeId = "cloud")
+        val product = owned(Store.XBOX, "cloud").copy(subscription = true, extra = mapOf("cloud" to "1"))
+        val entries = libraryEntries(listOf(game), mapOf(Store.XBOX to listOf(product)), emptySet())
+        val entry = entries.single()
+        assertFalse(entry.installed)
+        for (filter in XboxLibraryFilter.ALL_FILTERS) assertTrue(filter, keepsXbox(filter, entry))
+        assertEquals(listOf("local", entry.key), installedFirst(listOf(entry, LibraryEntry("local", "steam", "Local", null, null, true))).map { it.key })
+    }
+
+    @Test fun anInstalledPcCopyTakesPrecedenceOverTheSavedCloudRow() {
+        val local = Library.SteamGame(-5, "PC game", null, Library.ADDED, source = "xbox", storeId = "same")
+        val cloud = Library.SteamGame(-20, "PC game", null, Library.XBOX_CLOUD, source = "xbox", storeId = "same")
+        val entries = libraryEntries(listOf(cloud, local), mapOf(Store.XBOX to listOf(owned(Store.XBOX, "same"))), setOf("xbox:same"))
+        assertEquals(1, entries.size)
+        assertEquals(local, entries.single().game)
+        assertTrue(entries.single().installed)
+    }
+
+    @Test fun aSavedCloudGameWithoutACatalogStillAppearsInTheCloudFilter() {
+        val cloud = Library.SteamGame(-20, "Cloud game", null, Library.XBOX_CLOUD, source = "xbox", storeId = "cloud")
+        val entry = libraryEntries(listOf(cloud), emptyMap(), emptySet()).single()
+        assertFalse(entry.installed)
+        assertTrue(keepsXbox(XboxLibraryFilter.CLOUD, entry))
+        assertFalse(keepsXbox(XboxLibraryFilter.OWNED, entry))
+    }
+
+    @Test fun distinctLocalShortcutsForTheSameProductArePreserved() {
+        val first = Library.SteamGame(-5, "First install", null, Library.ADDED, source = "xbox", storeId = "same")
+        val second = Library.SteamGame(-6, "Second install", null, Library.ADDED, source = "xbox", storeId = "same")
+        val cloud = Library.SteamGame(-20, "Cloud game", null, Library.XBOX_CLOUD, source = "xbox", storeId = "same")
+        val entries = libraryEntries(listOf(cloud, first, second), mapOf(Store.XBOX to listOf(owned(Store.XBOX, "same"))), setOf("xbox:same"))
+        assertEquals(listOf(first, second), entries.map { it.game })
     }
 
     @Test fun installedGamesComeFirstKeepingTheirSortedOrder() {

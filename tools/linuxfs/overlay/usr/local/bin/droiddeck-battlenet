@@ -551,8 +551,17 @@ class Tidy:
         return False
 
 
+def desktop_gpu():
+    if os.environ.get("BL_DESKTOP") != "1" or os.environ.get("BL_DESKTOP_GPU_CHILD"):
+        return None
+    if os.environ.get("BL_DESKTOP_GPU", "on").strip().lower() in ("off", "0", "no", "false"):
+        return None
+    gpu = os.path.join(BIN, "droiddeck-gpu")
+    return gpu if os.access(gpu, os.X_OK) else None
+
+
 def proton_options():
-    if os.environ.get("BL_DESKTOP") == "1":
+    if os.environ.get("BL_DESKTOP") == "1" and not os.environ.get("BL_DESKTOP_GPU_CHILD"):
         return ["--window"]
     width, height = os.environ.get("BL_WIDTH", ""), os.environ.get("BL_HEIGHT", "")
     options = ["--desktop", "%sx%s" % (width, height)] if width.isdigit() and height.isdigit() else []
@@ -943,6 +952,10 @@ def main(argv):
     if action == "status":
         print(json.dumps(status(root)))
         return 0
+    gpu = desktop_gpu()
+    if gpu:
+        say("the desktop starts Battle.net on the GPU")
+        os.execv(gpu, [gpu, os.path.abspath(sys.argv[0])] + list(sys.argv[1:]))
     os.environ["BL_BATTLENET"] = "1"
     if launching:
         say("launch %s" % argv[1])
