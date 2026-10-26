@@ -131,6 +131,37 @@ class CompatLaunchTest {
         assertEquals("first", shadowOf(activity).nextStartedActivity.getStringExtra(SessionService.EXTRA_STEAM_URL))
     }
 
+    @Test fun overlappingPackageWorkKeepsTheOriginalLaunchUntilItFinishes() {
+        activity.startActivity(request("first"))
+        setString("setPkgStage", "Installing desktop")
+        ReflectionHelpers.callInstanceMethod<Void>(activity, "setPkgPercent", ReflectionHelpers.ClassParameter.from(Int::class.javaPrimitiveType, 64))
+        protons.protonBusyId = null
+        advance()
+        assertNotNull(waiting())
+        assertNull(shadowOf(activity).nextStartedActivity)
+        assertEquals("Installing desktop", loading().step)
+        assertEquals(64, loading().percent)
+        setString("setPkgStage", null)
+        advance()
+        assertEquals("first", shadowOf(activity).nextStartedActivity.getStringExtra(SessionService.EXTRA_STEAM_URL))
+        advance()
+        assertNull(shadowOf(activity).nextStartedActivity)
+    }
+
+    @Test fun overlappingRuntimeWorkDoesNotDropThePendingLaunch() {
+        activity.startActivity(request("first"))
+        setString("setStage", "Updating runtime")
+        ReflectionHelpers.callInstanceMethod<Void>(activity, "setBusy", ReflectionHelpers.ClassParameter.from(Boolean::class.javaPrimitiveType, true))
+        protons.protonBusyId = null
+        advance()
+        assertNotNull(waiting())
+        assertNull(shadowOf(activity).nextStartedActivity)
+        assertEquals("Updating runtime", loading().step)
+        ReflectionHelpers.callInstanceMethod<Void>(activity, "setBusy", ReflectionHelpers.ClassParameter.from(Boolean::class.javaPrimitiveType, false))
+        advance()
+        assertEquals("first", shadowOf(activity).nextStartedActivity.getStringExtra(SessionService.EXTRA_STEAM_URL))
+    }
+
     @Test fun aFailedInstallAfterRecreationKeepsItsProgressAndError() = recreationFailure(false)
 
     @Test fun aFailedInstallBeforeRestorationStillShowsItsError() = recreationFailure(true)
@@ -190,6 +221,10 @@ class CompatLaunchTest {
         activity = Robolectric.buildActivity(FrontEndActivity::class.java).get()
         protons = ReflectionHelpers.getField(activity, "protons")
         ReflectionHelpers.callInstanceMethod<Void>(activity, "restoreCompatLaunch", ReflectionHelpers.ClassParameter.from(Bundle::class.java, saved))
+    }
+
+    private fun setString(method: String, value: String?) {
+        ReflectionHelpers.callInstanceMethod<Void>(activity, method, ReflectionHelpers.ClassParameter.from(String::class.java, value))
     }
 
     private fun request(url: String) = Intent(activity, SessionActivity::class.java).putExtra(SessionService.EXTRA_STEAM_URL, url)

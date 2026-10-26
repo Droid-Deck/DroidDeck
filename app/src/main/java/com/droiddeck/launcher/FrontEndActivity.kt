@@ -509,8 +509,16 @@ class FrontEndActivity : ComponentActivity() {
                     return
                 }
                 if (!compatLaunchVisible) { ui.postDelayed(this, 250); return }
-                compatLaunchPoll = null
                 val problem = protons.protonProblem.takeIf { waiting.menuInstall }
+                if (problem == null && (busy || LinuxRuntimeInstaller.isBusy() || pkgStage != null)) {
+                    waiting.loading.say(pkgStage ?: stage.takeIf { it.isNotBlank() } ?: getString(R.string.main_wait_runtime),
+                        com.droiddeck.launcher.session.LoadingState.Topic.RUNTIME, readable = true)
+                    waiting.loading.percent = if (pkgStage != null) pkgPercent else percent
+                    waiting.loading.tick()
+                    ui.postDelayed(this, 250)
+                    return
+                }
+                compatLaunchPoll = null
                 if (problem != null) waiting.loading.showEnded(problem)
                 else {
                     compatLaunch = null
