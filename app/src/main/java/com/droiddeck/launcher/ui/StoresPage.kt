@@ -832,8 +832,10 @@ private fun Storefront(
     LaunchedEffect(store, q) { StoresState.search(ctx, store, q) }
     val browsing = store == Store.ITCH && q.isEmpty() && ItchBrowseState.active
     val browseItems = if (browsing) ItchBrowseState.items else emptyList()
-    val visible = remember(found, library, shelves, q, s.storesShowMature, browsing, browseItems) {
-        if (browsing) {
+    val catalog = store == Store.BATTLENET && q.isEmpty()
+    val visible = remember(found, library, shelves, q, s.storesShowMature, browsing, browseItems, catalog) {
+        if (catalog) shelf(shelves?.trending) ?: emptyList()
+        else if (browsing) {
             val owned = library.associateBy { it.id }
             browseItems.map { owned[it.id] ?: it }.filter(::shown)
         } else if (q.isEmpty()) emptyList()
@@ -843,6 +845,7 @@ private fun Storefront(
     val nothing = stringResource(when {
         browsing && ItchBrowseState.loading -> R.string.stores_shelves_loading
         browsing && ItchBrowseState.failed -> R.string.stores_itch_browse_failed
+        catalog && shelves == null -> R.string.stores_shelves_loading
         else -> R.string.stores_nothing_matches
     })
     var firstPlaced = false
@@ -850,12 +853,12 @@ private fun Storefront(
     val density = androidx.compose.ui.platform.LocalDensity.current
     val focus = LocalFrontFocus.current
     val scope = rememberCoroutineScope()
-    val searching = q.isNotEmpty() || browsing
+    val searching = q.isNotEmpty() || browsing || catalog
     // A bar only while there is nothing else to look at: no shelves yet and no search results.
     val bareTab = if (searching) visible.isEmpty() else shelves == null || shelves.isEmpty
     val barLine = StoresState.status[store]?.takeIf { bareTab && syncCount(it) != null }
     val itchBar = store == Store.ITCH && q.isEmpty()
-    val headerItems = 2 + (if (barLine != null) 1 else 0) + (if (StoresState.problems[store] != null) 1 else 0) + (if (itchBar) 1 else 0)
+    val headerItems = 2 + (if (barLine != null) 1 else 0) + (if (StoresState.problems[store] != null) 1 else 0) + (if (itchBar) 1 else 0) + (if (catalog) 1 else 0)
     val card: @Composable (CatalogItem) -> Unit = { item ->
         val first = if (searching) item.key == visible.firstOrNull()?.key else !firstPlaced
         firstPlaced = true
@@ -904,6 +907,9 @@ private fun Storefront(
         barLine?.let { line -> item(key = "sync", span = { GridItemSpan(maxLineSpan) }) { Rise(3) { SyncBar(line) } } }
         StoresState.problems[store]?.let { line -> item(key = "problem", span = { GridItemSpan(maxLineSpan) }) { Rise(3) { Box(Modifier.padding(bottom = 8.dp)) { Note(line) } } } }
         if (itchBar) item(key = "itch-browse-bar", span = { GridItemSpan(maxLineSpan) }) { ItchBrowseBar() }
+        if (catalog) item(key = "catalog-label", span = { GridItemSpan(maxLineSpan) }) {
+            Box(Modifier.padding(top = 10.dp)) { SectionLabel(stringResource(R.string.bnet_store)) }
+        }
         if (searching) {
             storeGrid(visible, nothing, card)
             if (browsing) item(key = "itch-more", span = { GridItemSpan(maxLineSpan) }) { ItchLoadMore() }
@@ -912,7 +918,7 @@ private fun Storefront(
                 Shelf(stringResource(R.string.stores_shelf_new), shelf(shelves?.whatsNew), card)
                 Shelf(stringResource(R.string.stores_shelf_deals), shelf(shelves?.deals), card)
                 Shelf(stringResource(R.string.stores_shelf_free), shelf(shelves?.free), card)
-                Shelf(stringResource(if (store == Store.BATTLENET) R.string.bnet_store else R.string.stores_shelf_trending), shelf(shelves?.trending), card)
+                Shelf(stringResource(R.string.stores_shelf_trending), shelf(shelves?.trending), card)
                 if (shelves == null) Rise(4) { Box(Modifier.padding(top = 8.dp)) { Note(stringResource(R.string.stores_shelves_loading)) } }
                 else if (shelves.isEmpty && store == Store.AMAZON) Rise(4) { Box(Modifier.padding(top = 8.dp)) { Note(stringResource(R.string.stores_amazon_no_catalog)) } }
             }
