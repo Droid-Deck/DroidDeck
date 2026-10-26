@@ -92,7 +92,7 @@ static long path_readlink(int dirfd, const char *path, char *buf, size_t size) {
   return next_readlinkat(dirfd, path, buf, size);
 }
 
-void bl_inputudev_note_dlopen(const char *path, void *handle) __attribute__((visibility("hidden")));
+void bl_inputudev_note_dlopen(const char *path, void *handle) __attribute__((weak, visibility("hidden")));
 
 void *dlopen(const char *filename, int flags) {
   void *handle;
@@ -107,7 +107,7 @@ void *dlopen(const char *filename, int flags) {
     flags &= ~RTLD_DEEPBIND;
   }
   handle = real_dlopen != NULL ? real_dlopen(filename, flags) : NULL;
-  if (handle != NULL) bl_inputudev_note_dlopen(filename, handle);
+  if (handle != NULL && bl_inputudev_note_dlopen != NULL) bl_inputudev_note_dlopen(filename, handle);
   return handle;
 }
 
