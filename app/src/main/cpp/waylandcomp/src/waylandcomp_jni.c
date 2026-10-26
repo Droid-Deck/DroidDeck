@@ -644,6 +644,12 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetLookName(JNIEnv *
 }
 
 JNIEXPORT void JNICALL
+Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetLowLatencyPresent(JNIEnv *env, jclass clazz, jboolean on) {
+    (void)env; (void)clazz;
+    vkp_set_low_latency(on ? 1 : 0);
+}
+
+JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetRenderOnCommit(JNIEnv *env, jclass clazz, jboolean on) {
     g_render_on_commit = on ? 1 : 0;
     __android_log_print(ANDROID_LOG_INFO, TAG, "render on commit %s", on ? "on" : "off");

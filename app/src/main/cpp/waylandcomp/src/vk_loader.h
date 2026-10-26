@@ -9,6 +9,7 @@
     X(EnumeratePhysicalDevices) X(GetPhysicalDeviceProperties) \
     X(GetPhysicalDeviceQueueFamilyProperties) X(GetPhysicalDeviceSurfaceSupportKHR) \
     X(GetPhysicalDeviceSurfaceCapabilitiesKHR) X(GetPhysicalDeviceSurfaceFormatsKHR) \
+    X(GetPhysicalDeviceSurfacePresentModesKHR) \
     X(CreateAndroidSurfaceKHR) X(DestroySurfaceKHR) X(CreateDevice) \
     X(GetDeviceProcAddr) X(EnumerateDeviceExtensionProperties) \
     X(GetPhysicalDeviceMemoryProperties) X(GetPhysicalDeviceFormatProperties2) \

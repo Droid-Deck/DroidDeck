@@ -317,6 +317,7 @@ public final class WaylandCompositor {
 
     public static native void nativeSetFpsLimit(int fps);
 
+    public static native void nativeSetLowLatencyPresent(boolean on);
     public static native void nativeSetRenderOnCommit(boolean on);
 
     public static native void nativeSetGpuTurbo(boolean on);
