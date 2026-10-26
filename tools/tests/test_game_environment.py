@@ -302,6 +302,13 @@ class GameEnvironmentTest(unittest.TestCase):
             self.assertEqual(env["WINEDLLOVERRIDES"], "libsentry.windows.release.x86_64=d")
             self.assertEqual(extra, ["--rendering-driver", "vulkan"])
             self.assertEqual(MODULE["engine_fixes"](str(game / "Game.exe"), ["--rendering-driver", "opengl3"])[1], [])
+            script = Path(tmp) / "GDScript Game"
+            script.mkdir()
+            for name in ("Game.exe", "Game.pck", "libsentry.windows.release.x86_64.dll"):
+                (script / name).touch()
+            env, extra, notes = MODULE["engine_fixes"](str(script / "Game.exe"), [])
+            self.assertNotIn("WINEDLLOVERRIDES", env)
+            self.assertEqual(extra, ["--rendering-driver", "vulkan"])
             other = Path(tmp) / "Other"
             other.mkdir()
             (other / "Other.exe").touch()

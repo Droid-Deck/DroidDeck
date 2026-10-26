@@ -26,6 +26,7 @@ public class PulseAudioComponent extends SessionPart {
 
 
     private final File workingDir;
+    private final File deviceControls;
     private File logFile;
     private final String micFifoPath;
     private final String dualSenseFifoPath;
@@ -41,6 +42,8 @@ public class PulseAudioComponent extends SessionPart {
 
     public PulseAudioComponent(Context context, String micFifoPath, String dualSenseFifoPath) {
         this.workingDir = new File(context.getFilesDir(), "pulseaudio");
+        this.deviceControls = com.droiddeck.launcher.runtime.DeviceControlsComponent.directory(
+                com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(context));
         this.micFifoPath = micFifoPath;
         this.dualSenseFifoPath = dualSenseFifoPath;
     }
@@ -57,20 +60,25 @@ public class PulseAudioComponent extends SessionPart {
     }
 
     static ArrayList<String> buildConfig(String socketPath, String micFifoPath, String dualSenseFifoPath) {
+        return buildConfig(socketPath, micFifoPath, dualSenseFifoPath, null);
+    }
+
+    static ArrayList<String> buildConfig(String socketPath, String micFifoPath, String dualSenseFifoPath, File deviceControls) {
         ArrayList<String> config = new ArrayList<>();
         config.add("load-module module-native-protocol-unix auth-anonymous=1 auth-cookie-enabled=0 socket=\""
                 + socketPath + "\"");
         config.add(".nofail");
-        config.add("load-module module-directaudio-native-sink sink_name=DirectAudio performance_mode=1 adaptive=1 decay=0 limiter=1 watchdog=1 volume=1.0");
+        String controlArg = deviceControls != null ? " control_dir=" + deviceControls : "";
+        config.add("load-module module-directaudio-native-sink sink_name=DirectAudio performance_mode=1 adaptive=1 decay=0 limiter=1 watchdog=1 volume=1.0" + controlArg);
         config.add("set-default-sink DirectAudio");
         if (dualSenseFifoPath != null && !dualSenseFifoPath.isEmpty()) {
             config.add(dualSenseSinkLine(dualSenseFifoPath));
         }
         config.add(".fail");
         if (micFifoPath != null && !micFifoPath.isEmpty()) {
-            config.add("load-module module-pipe-source source_name=DirectAudioMic file=\""
+            config.add("load-module module-pipe-source source_name=" + MIC_SOURCE + " file=\""
                     + micFifoPath + "\" format=s16le rate=48000 channels=1");
-            config.add("set-default-source DirectAudioMic");
+            config.add("set-default-source " + MIC_SOURCE);
         }
         return config;
     }
@@ -129,7 +137,7 @@ public class PulseAudioComponent extends SessionPart {
         if (dualSenseFifoPath != null && !dualSenseFifoPath.isEmpty()) {
             new File(dualSenseFifoPath).delete();
         }
-        ArrayList<String> config = buildConfig(socket().getAbsolutePath(), micFifoPath, dualSenseFifoPath);
+        ArrayList<String> config = buildConfig(socket().getAbsolutePath(), micFifoPath, dualSenseFifoPath, deviceControls);
         FileUtils.writeString(new File(workingDir, "default.pa"), String.join("\n", config));
 
         File modules = new File(workingDir, "modules/arm64");
@@ -167,7 +175,7 @@ public class PulseAudioComponent extends SessionPart {
             } else if (sinks.contains("\tDirectAudio\t") || sinks.startsWith("DirectAudio\t") || sinks.contains("\tDirectAudio\n") || sinks.matches("(?s).*\\bDirectAudio\\b.*")) {
                 line = "== client sink: DirectAudio (module-directaudio-native-sink)";
             } else {
-                boolean loaded = pactl("load-module", "module-aaudio-sink", "sink_name=AAudioSink", "performance_mode=1", "adaptive=1", "volume=1.0") != null
+                boolean loaded = pactl("load-module", "module-aaudio-sink", "sink_name=AAudioSink", "performance_mode=1", "adaptive=1", "volume=1.0", "control_dir=" + deviceControls) != null
                         && pactl("set-default-sink", "AAudioSink") != null;
                 line = loaded ? "== client sink: DirectAudio did not come up; FALLBACK to the plain AAudio sink (AAudioSink)"
                               : "== client sink: DirectAudio did not come up and the AAudio fallback failed too - no client sound";

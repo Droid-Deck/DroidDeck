@@ -2189,7 +2189,7 @@ class FrontEndActivity : ComponentActivity() {
         val scanGeneration = ++libraryScanGeneration
         val artRefreshesAtStart = HashMap(steamArtRefreshes)
         if (shortcutPicker) shortcutLibraryScanning = true
-        if (SessionPrefs.steamClientArch(this) == "x86_64" && !OfflineMode.enabled(this)) {
+        if (!OfflineMode.enabled(this)) {
             Thread({ com.droiddeck.launcher.session.FexCatalog.refresh(this) }, "fex-catalog").start()
         }
         Thread({

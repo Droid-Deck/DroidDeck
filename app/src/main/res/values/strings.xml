@@ -306,6 +306,9 @@
     <string name="mode_controller_x360">Xbox 360 controller</string>
     <string name="mode_controller_note">Deck: Quick Access button and gyro. Steam Controller: the same, with grip sense on the back buttons. DualShock 4 and DualSense: gyro, and the trackpads as their touchpad. Xbox 360: open Quick Access with Guide+A.</string>
     <string name="mode_back">Back</string>
+    <string name="back_native_qam_hint">Hold Back for 700 ms, then press another button for Steam shortcuts. Single and double taps keep the selected actions.</string>
+    <string name="brightness_permission_title">Allow brightness control</string>
+    <string name="brightness_permission_text">Tap to allow Steam to change Android screen brightness.</string>
     <string name="back_menu_then_qam">Menu → QAM</string>
     <string name="back_qam_then_menu">QAM → Menu</string>
     <string name="mode_session">Session</string>
