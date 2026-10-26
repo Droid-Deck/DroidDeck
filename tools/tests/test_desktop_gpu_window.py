@@ -51,11 +51,13 @@ class DesktopGpuWindowTest(unittest.TestCase):
             self.assertIsNone(run["env"]["BL_GPU_CHILD_WSI"])
 
     def test_an_explicit_backend_bypasses_the_automatic_desktop_window(self):
-        for backend, sdl in (("wayland", "x11"), ("sdl", "wayland")):
+        for backend, selected, sdl in (("", "wayland", "x11"),
+                                       ("wayland", "wayland", "x11"),
+                                       ("sdl", "sdl", "wayland")):
             with self.subTest(backend=backend):
                 run = self.run_gpu(WAYLAND_DISPLAY="wayland-1", BL_GAMESCOPE_BACKEND=backend,
                                    MESA_VK_WSI_DEBUG="sw,linear")
-                self.assertEqual(run["args"][:2], ["--backend", backend])
+                self.assertEqual(run["args"][:2], ["--backend", selected])
                 self.assertIn("-f", run["args"])
                 self.assertEqual(run["env"]["WAYLAND_DISPLAY"], "wayland-0")
                 self.assertEqual(run["env"]["SDL_VIDEODRIVER"], sdl)

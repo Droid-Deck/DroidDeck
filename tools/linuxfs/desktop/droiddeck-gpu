@@ -12,7 +12,7 @@ case "$backend" in
   *) echo "== unsupported gamescope backend: $backend" >&2; exit 64 ;;
 esac
 window=0
-if [ -z "${BL_GAMESCOPE_BACKEND:-}" ] && [ "${BL_DESKTOP_GPU_WINDOW:-1}" != 0 ] && \
+if [ -z "${BL_GAMESCOPE_BACKEND+x}" ] && [ "${BL_DESKTOP_GPU_WINDOW:-1}" != 0 ] && \
     [ -n "${WAYLAND_DISPLAY:-}" ] && [ "$WAYLAND_DISPLAY" != wayland-0 ]; then
   window=1
   backend=sdl

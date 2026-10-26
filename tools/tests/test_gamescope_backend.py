@@ -145,6 +145,41 @@ class DesktopGamescopeBackendTest(unittest.TestCase):
         self.assertEqual("", capture["child_wsi"])
         self.assert_xwayland_application(capture, wayland="desktop-0")
 
+    def test_automatic_window_keeps_session_policy_outside_and_game_policy_inside(self):
+        result, capture = self.launch(inherited={
+            "DROIDDECK_SYSTEM_VULKAN_GPU": "future-vendor",
+            "DROIDDECK_SYSTEM_VULKAN_RUNTIME": "/runtime",
+            "DROIDDECK_SYSTEM_VULKAN_PRESENTATION": "x11-shm",
+            "DROIDDECK_HYBRIS_SESSION_LAYERS": "VK_LAYER_vendor_session",
+            "DROIDDECK_HYBRIS_LAYER_PATH": "/vendor-layer",
+            "DROIDDECK_HYBRIS_SESSION_BC_TEXTURES": "0",
+            "HYBRIS_BC_TEXTURES": "dxvk",
+            "MESA_VK_WSI_DEBUG": "sw,linear",
+            "VK_LAYER_PATH": "/runtime/wsi:/runtime/lib:/vendor-layer",
+            "VK_INSTANCE_LAYERS": "VK_LAYER_window_system_integration:VK_LAYER_vendor_session",
+            "WSI_X11_FORCE_SHM": "1",
+        })
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(["--backend", "sdl"], capture["args"][:2])
+        self.assertNotIn("-f", capture["args"])
+        self.assertEqual("desktop-0", capture["wayland"])
+        self.assertEqual("wayland", capture["sdl"])
+        self.assertEqual("sw", capture["mesa_wsi"])
+        self.assertEqual("linear", capture["child_wsi"])
+        self.assertEqual("0", capture["graphics"]["HYBRIS_BC_TEXTURES"])
+        self.assertEqual("/runtime/lib:/vendor-layer", capture["graphics"]["VK_LAYER_PATH"])
+        self.assertEqual("VK_LAYER_vendor_session", capture["graphics"]["VK_INSTANCE_LAYERS"])
+        self.assertIsNone(capture["graphics"]["WSI_X11_FORCE_SHM"])
+        client = capture["client"]["env"]
+        self.assertEqual("dxvk", client["HYBRIS_BC_TEXTURES"])
+        self.assertEqual("/runtime/wsi:/runtime/lib:/vendor-layer", client["VK_LAYER_PATH"])
+        self.assertEqual("VK_LAYER_window_system_integration:VK_LAYER_vendor_session",
+                         client["VK_INSTANCE_LAYERS"])
+        self.assertEqual("1", client["WSI_X11_FORCE_SHM"])
+        self.assertEqual("0", client["ENABLE_GAMESCOPE_WSI"])
+        self.assertEqual("*gamescope*", client["VK_LOADER_LAYERS_DISABLE"])
+        self.assertNotIn("DISABLE_WSI_LAYER", client)
+
     def test_sdl_uses_wayland_without_leaking_to_the_application(self):
         result, capture = self.launch("sdl")
         self.assertEqual(0, result.returncode, result.stderr)
