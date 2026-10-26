@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="android_xr_not_ready">请先启动 Steam 会话，再进入沉浸式 SteamVR。</string>
+</resources>

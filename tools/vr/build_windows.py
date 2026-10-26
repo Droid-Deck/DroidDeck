@@ -12,7 +12,7 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[2]
 IMAGE = 'droiddeck-local-cross:24.04-v3'
 MANIFEST = 'vr-build.json'
-SOURCE_TREES = ('tools/vr/src', 'tools/vr/tests', 'tools/vr/third_party',
+SOURCE_TREES = ('xr-core/src/main/cpp', 'tools/vr/src', 'tools/vr/tests', 'tools/vr/third_party',
                 'tools/vr/driver_droiddeck', 'tools/vr/layer')
 SOURCE_FILES = ('tools/vr/build.sh', 'tools/vr/build_windows.py', 'tools/vr/make_hand_models.cpp', 'tools/local-cross.Dockerfile',
                 'app/src/main/cpp/waylandcomp/src/headpose_shm.h',
@@ -34,6 +34,8 @@ HAND_MODELS = {
     for name in (f'droiddeck_hand_{side}.json', 'hand.mtl', 'hand.png', 'hand_open.obj',
                  'hand_fist.obj', 'thumb_index_open.obj', 'thumb_index_pinch.obj')
 }
+HAND_MODELS |= {f'droiddeck/resources/rendermodels/droiddeck_hand_{side}_xr/droiddeck_hand_{side}_xr.json'
+                for side in ('left', 'right')}
 OUTPUTS = LIBRARIES | CONFIGS.keys() | EXECUTABLES | HAND_MODELS
 
 
