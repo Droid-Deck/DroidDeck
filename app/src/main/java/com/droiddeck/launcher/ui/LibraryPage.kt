@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -36,7 +35,7 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.FilterAlt
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Sort
@@ -380,9 +379,11 @@ private fun LibraryGrid(
         horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp),
         contentPadding = PaddingValues(top = 4.dp, bottom = 16.dp),
     ) {
-        item(key = "header", span = { GridItemSpan(maxLineSpan) }) { Rise(0) { LibraryHeader(s, a, total, searchCleared, xbox = source == Store.XBOX.id) } }
+        item(key = "header", span = { GridItemSpan(maxLineSpan) }) {
+            Rise(0) { LibraryHeader(s, a, total, searchCleared, source == Store.XBOX.id, showUninstalled, onShowUninstalled) }
+        }
         item(key = "filters", span = { GridItemSpan(maxLineSpan) }) {
-            Rise(1) { LibraryFilters(sources, source, onSource, showUninstalled, onShowUninstalled) }
+            Rise(1) { LibraryFilters(sources, source, onSource) }
         }
         for ((store, line) in syncing) item(key = "sync-${store.id}", span = { GridItemSpan(maxLineSpan) }) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
@@ -424,7 +425,10 @@ private fun LazyGridScope.libraryGrid(entries: List<LibraryEntry>, empty: Int, t
 }
 
 @Composable
-private fun LibraryHeader(s: FrontEndState, a: FrontEndActions, total: Int, searchCleared: Boolean, xbox: Boolean) {
+private fun LibraryHeader(
+    s: FrontEndState, a: FrontEndActions, total: Int, searchCleared: Boolean, xbox: Boolean,
+    showUninstalled: Boolean?, onShowUninstalled: (Boolean) -> Unit,
+) {
     val colors = MaterialTheme.colorScheme
     val narrow = LocalNarrowPane.current
     ModeHeader(
@@ -439,7 +443,7 @@ private fun LibraryHeader(s: FrontEndState, a: FrontEndActions, total: Int, sear
             }
         },
     ) {
-        if (xbox) XboxFilterButton()
+        if (showUninstalled != null || xbox) LibraryFilterButton(showUninstalled, onShowUninstalled, xbox)
         SortButton(s, a)
         ViewButton(s, a)
         GameFileFolderActions(s, a)
@@ -449,33 +453,21 @@ private fun LibraryHeader(s: FrontEndState, a: FrontEndActions, total: Int, sear
 }
 
 @Composable
-private fun LibraryFilters(
-    sources: List<String>, source: String, onSource: (String) -> Unit,
-    showUninstalled: Boolean?, onShowUninstalled: (Boolean) -> Unit,
-) {
+private fun LibraryFilters(sources: List<String>, source: String, onSource: (String) -> Unit) {
+    if (sources.size < 2) return
     Row(
         horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 2.dp),
+        modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 2.dp).horizontalScroll(rememberScrollState()),
     ) {
-        if (sources.size >= 2) Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.weight(1f).horizontalScroll(rememberScrollState()),
-        ) {
-            SourceFilterChip(LIBRARY_ALL, stringResource(R.string.stores_tab_all), source == LIBRARY_ALL, dot = null) { onSource(LIBRARY_ALL) }
-            for (src in sources) {
-                val store = Store.byId(src)
-                val dot = when {
-                    store != null -> sourceColours(src).dot.copy(alpha = if (StoresState.isSignedIn(store) && StoresState.expired[store] != true) 1f else 0.35f)
-                    src == Library.SOURCE_STEAM -> sourceColours(src).dot
-                    else -> null
-                }
-                SourceFilterChip(src, if (src == Library.ADDED) stringResource(R.string.library_filter_added) else store?.shortLabel ?: sourceLabel(src), source == src, dot) { onSource(src) }
+        SourceFilterChip(LIBRARY_ALL, stringResource(R.string.stores_tab_all), source == LIBRARY_ALL, dot = null) { onSource(LIBRARY_ALL) }
+        for (src in sources) {
+            val store = Store.byId(src)
+            val dot = when {
+                store != null -> sourceColours(src).dot.copy(alpha = if (StoresState.isSignedIn(store) && StoresState.expired[store] != true) 1f else 0.35f)
+                src == Library.SOURCE_STEAM -> sourceColours(src).dot
+                else -> null
             }
-        } else Spacer(Modifier.weight(1f))
-        if (showUninstalled != null) Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(stringResource(R.string.library_show_uninstalled), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            ToggleSwitch(showUninstalled, label = stringResource(R.string.library_show_uninstalled),
-                modifier = Modifier.paneItem("library-show-uninstalled").testTag("library-show-uninstalled"), onChange = onShowUninstalled)
+            SourceFilterChip(src, if (src == Library.ADDED) stringResource(R.string.library_filter_added) else store?.shortLabel ?: sourceLabel(src), source == src, dot) { onSource(src) }
         }
     }
 }
@@ -662,24 +654,38 @@ private fun xboxFilterLabel(filter: String): String = when (filter) {
 }
 
 @Composable
-private fun XboxFilterButton() {
+private fun LibraryFilterButton(showUninstalled: Boolean?, onShowUninstalled: (Boolean) -> Unit, xbox: Boolean) {
     val pal = LocalPalette.current
     val ctx = LocalContext.current
-    val title = stringResource(R.string.xbox_filter_show)
+    val title = stringResource(R.string.library_filter)
+    val visibility = stringResource(if (showUninstalled == true) R.string.library_filter_all_owned else R.string.library_filter_installed)
+    val description = title + " · " + if (showUninstalled == null) xboxFilterLabel(XboxLibraryFilter.current) else visibility
+    val offset = if (showUninstalled == null) 0 else 2
     var at by remember { mutableStateOf<Rect?>(null) }
     Box(Modifier.onGloballyPositioned { at = it.boundsInRoot() }) {
-        HeaderIconButton(title + " · " + xboxFilterLabel(XboxLibraryFilter.current), Icons.Filled.FilterList, "xbox-filter") {
+        HeaderIconButton(description, Icons.Filled.FilterAlt, "library-filter") {
             val from = at ?: return@HeaderIconButton
             Steps.ask(StepAsk(
-                anchor = from, side = StepSide.Left, accent = pal.signal, pillCorner = 8.dp, items = XboxLibraryFilter.ALL_FILTERS.size,
+                anchor = from, side = StepSide.Left, accent = pal.signal, pillCorner = 8.dp, items = offset + if (xbox) XboxLibraryFilter.ALL_FILTERS.size else 0,
                 handle = { Text(title, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = pal.signal, maxLines = 1, overflow = TextOverflow.Ellipsis) },
             ) {
                 StepTitle(title)
                 StepList {
-                    XboxLibraryFilter.ALL_FILTERS.forEachIndexed { i, filter ->
+                    if (showUninstalled != null) listOf(false, true).forEachIndexed { i, show ->
+                        StepChoice(
+                            stringResource(if (show) R.string.library_filter_all_owned else R.string.library_filter_installed),
+                            selected = show == showUninstalled, enabled = open,
+                            modifier = Modifier.fillMaxWidth().stepItem(i).then(if (show == showUninstalled) Modifier.focusRequester(first) else Modifier),
+                        ) {
+                            onShowUninstalled(show)
+                            Steps.fold()
+                        }
+                    }
+                    if (xbox && showUninstalled != null) Text(Store.XBOX.shortLabel, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.stepItem(offset).padding(start = 4.dp, top = 10.dp, bottom = 4.dp))
+                    if (xbox) XboxLibraryFilter.ALL_FILTERS.forEachIndexed { i, filter ->
                         StepChoice(
                             xboxFilterLabel(filter), selected = filter == XboxLibraryFilter.current, enabled = open,
-                            modifier = Modifier.fillMaxWidth().stepItem(i).then(if (filter == XboxLibraryFilter.current) Modifier.focusRequester(first) else Modifier),
+                            modifier = Modifier.fillMaxWidth().stepItem(offset + i).then(if (showUninstalled == null && filter == XboxLibraryFilter.current) Modifier.focusRequester(first) else Modifier),
                         ) {
                             XboxLibraryFilter.set(ctx, filter)
                             Steps.fold()

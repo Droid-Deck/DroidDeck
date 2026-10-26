@@ -1,24 +1,28 @@
 package com.droiddeck.launcher.ui
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performSemanticsAction
 import com.droiddeck.launcher.frontend.Library
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.stores.CatalogItem
+import com.droiddeck.launcher.stores.CredentialCipher
 import com.droiddeck.launcher.stores.Store
 import com.droiddeck.launcher.stores.StoreAccounts
 import com.droiddeck.launcher.stores.StoresState
+import com.droiddeck.launcher.stores.xbox.XboxLibraryFilter
 import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -31,6 +35,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
+import javax.crypto.spec.SecretKeySpec
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34], qualifiers = "w1200dp-h752dp-land", application = android.app.Application::class)
@@ -40,6 +45,8 @@ class LibraryVisibilityTest {
     private var generation by mutableIntStateOf(0)
 
     @Before fun prepare() {
+        StoreAccounts.keys = CredentialCipher.KeyProvider { SecretKeySpec(ByteArray(32) { 7 }, "AES") }
+        StoreAccounts.keystoreFailed = false
         ctx.getSharedPreferences("session", 0).edit().clear().commit()
         LibraryView.source = LIBRARY_ALL
         LibraryView.query = ""
@@ -54,7 +61,11 @@ class LibraryVisibilityTest {
     }
 
     @After fun clear() {
+        Steps.drop()
+        XboxLibraryFilter.set(ctx, XboxLibraryFilter.ALL)
         for (store in listOf(Store.GOG, Store.EPIC)) StoreAccounts.clear(ctx, store)
+        StoreAccounts.keys = CredentialCipher.Keystore
+        StoreAccounts.keystoreFailed = false
         StoresState.library.clear()
         StoresState.accounts.clear()
         ctx.getSharedPreferences("session", 0).edit().clear().commit()
@@ -63,21 +74,52 @@ class LibraryVisibilityTest {
         LibraryView.focusFirst = false
     }
 
-    @Test fun uninstalledGamesAreHiddenUntilToggledAndTheChoiceSurvivesReopeningLibrary() {
+    @Test fun uninstalledGamesAreHiddenUntilSelectedInTheFilterAndTheChoiceSurvivesReopeningLibrary() {
         show()
         compose.onNodeWithText("Installed Steam game").assertExists()
         compose.onNodeWithText("Uninstalled GOG").assertDoesNotExist()
-        compose.onNodeWithTag("library-show-uninstalled").performClick()
-        compose.mainClock.advanceTimeBy(1_000)
+        chooseVisibility(true)
         compose.onNodeWithText("Uninstalled GOG").assertExists()
         assertTrue(SessionPrefs.libraryShowUninstalled(ctx))
-        compose.runOnIdle { generation++ }
+        compose.runOnIdle { generation++; Snapshot.sendApplyNotifications() }
         compose.mainClock.advanceTimeBy(2_000)
         compose.onNodeWithText("Uninstalled GOG").assertExists()
-        compose.onNodeWithTag("library-show-uninstalled").performSemanticsAction(SemanticsActions.OnClick) { it() }
-        compose.mainClock.advanceTimeBy(1_000)
+        chooseVisibility(false)
         compose.onNodeWithText("Uninstalled GOG").assertDoesNotExist()
         assertFalse(SessionPrefs.libraryShowUninstalled(ctx))
+    }
+
+    @Test fun theFilterExpandsBesideSortWithoutChangingTheSelectionOnOpen() {
+        show()
+        val filter = compose.onNodeWithContentDescription("Filter · Installed only")
+        val sort = compose.onNodeWithContentDescription("Sort")
+        assertTrue(filter.fetchSemanticsNode().boundsInRoot.right <= sort.fetchSemanticsNode().boundsInRoot.left)
+        filter.performClick()
+        compose.mainClock.advanceTimeBy(2_000)
+        compose.onNodeWithText("Installed only").assertIsDisplayed()
+        compose.onNodeWithText("All owned games").assertIsDisplayed()
+        compose.onNodeWithText("Uninstalled GOG").assertDoesNotExist()
+        assertFalse(SessionPrefs.libraryShowUninstalled(ctx))
+    }
+
+    @Test fun theXboxAccessChoicesShareTheLibraryFilter() {
+        StoreAccounts.write(ctx, Store.XBOX, JSONObject().put("username", "Library test"))
+        StoresState.accounts[Store.XBOX] = "Library test"
+        StoresState.library[Store.XBOX] = listOf(CatalogItem(Store.XBOX, "owned", "Uninstalled Xbox", null, owned = true))
+        LibraryView.source = Store.XBOX.id
+        try {
+            show()
+            compose.onNodeWithContentDescription("Filter · Installed only").performClick()
+            compose.mainClock.advanceTimeBy(2_000)
+            compose.onNodeWithText("Installed only").assertIsDisplayed()
+            compose.onNodeWithText("All owned games").assertIsDisplayed()
+            compose.onNodeWithText("Game Pass").assertIsDisplayed().performClick()
+            compose.mainClock.advanceTimeBy(1_000)
+            assertEquals(XboxLibraryFilter.GAME_PASS, XboxLibraryFilter.current)
+            assertFalse(SessionPrefs.libraryShowUninstalled(ctx))
+        } finally {
+            StoreAccounts.clear(ctx, Store.XBOX)
+        }
     }
 
     @Test fun aSearchWithOnlyUninstalledMatchesOffersToRevealThem() {
@@ -118,11 +160,25 @@ class LibraryVisibilityTest {
         compose.setContent { key(generation) {
             DroidDeckTheme {
                 CompositionLocalProvider(LocalFrontFocus provides FrontFocus()) {
-                    FocusGlideHost { LibraryPage(state(), actions(), "games", {}, Modifier.fillMaxSize()) }
+                    FocusGlideHost { Box(Modifier.fillMaxSize()) {
+                        LibraryPage(state(), actions(), "games", {}, Modifier.fillMaxSize())
+                        StepsLayer(Offset.Zero)
+                    } }
                 }
             }
         } }
         compose.mainClock.advanceTimeBy(2_000)
+    }
+
+    private fun chooseVisibility(show: Boolean) {
+        compose.onNodeWithContentDescription("Filter · " + if (SessionPrefs.libraryShowUninstalled(ctx)) "All owned games" else "Installed only")
+            .performClick()
+        compose.mainClock.advanceTimeBy(2_000)
+        assertTrue(Steps.open)
+        compose.onNodeWithText(if (show) "All owned games" else "Installed only")
+            .performClick()
+        compose.mainClock.advanceTimeBy(1_000)
+        assertEquals(show, SessionPrefs.libraryShowUninstalled(ctx))
     }
 
     private fun state() = FrontEndState(
