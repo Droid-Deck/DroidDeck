@@ -35,6 +35,7 @@ import binascii
 import json
 import os
 import re
+import signal
 import sys
 import time
 import subprocess
@@ -560,10 +561,27 @@ def wine_server_running():
     return any(Path("/tmp/.wine-%d" % os.getuid()).glob("server-*/socket"))
 
 
+def kill_group(child):
+    for action in (signal.SIGTERM, signal.SIGKILL):
+        try:
+            os.killpg(child.pid, action)
+        except OSError:
+            return
+        try:
+            child.wait(timeout=5)
+            return
+        except subprocess.TimeoutExpired:
+            continue
+
+
 def run_reg_import(proton, table, timeout=UBISOFT_IMPORT_TIMEOUT):
     """A plain proton client picks the wrong sync pack and trips the server_init_process assertion
     while any prefix has a wineserver, so a live session imports through the sync pack wrapper
-    in the background and leaves the hook as the backstop."""
+    in the background and leaves the hook as the backstop.
+
+    The output goes to a file and the child gets its own process group: with a pipe on stdout an
+    expired timeout still waits for EOF, which a wineserver under the child holds open forever, and
+    that leaves the import holding the sync store lock while the launch waits for it."""
     if not proton or not Path(proton).is_file():
         return "no-proton"
     if wine_server_running():
@@ -575,16 +593,26 @@ def run_reg_import(proton, table, timeout=UBISOFT_IMPORT_TIMEOUT):
             return "prefix-busy"
         log("ubisoft import: deferred, the hook carries it")
         return "prefix-busy deferred"
+    log_path = table.with_name(UBISOFT_LOG)
     try:
-        run = subprocess.run([proton, "run", "reg.exe", "import", windows_path(str(table))],
-                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=timeout, text=True)
-    except subprocess.TimeoutExpired:
-        return "timeout"
+        with open(str(log_path), "wb") as out:
+            child = subprocess.Popen([proton, "run", "reg.exe", "import", windows_path(str(table))],
+                                     stdin=subprocess.DEVNULL, stdout=out, stderr=subprocess.STDOUT,
+                                     start_new_session=True)
     except OSError:
         return "spawn-failed"
-    if run.returncode == 0:
+    try:
+        code = child.wait(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        kill_group(child)
+        return "timeout"
+    if code == 0:
         return "ok"
-    return "failed=%d %s" % (run.returncode, " ".join((run.stdout or "").split())[-120:])
+    try:
+        text = log_path.read_bytes().decode("utf-8", "replace")
+    except OSError:
+        text = ""
+    return "failed=%d %s" % (code, " ".join(text.split())[-120:])
 
 
 def ubisoft_game_exe(folder):
