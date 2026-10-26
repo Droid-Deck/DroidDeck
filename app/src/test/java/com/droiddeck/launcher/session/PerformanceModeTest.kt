@@ -24,19 +24,13 @@ class PerformanceModeTest {
         assertFalse(SessionPrefs.performanceMode(app, SessionService.MODE_DESKTOP))
     }
 
-    @Test fun offKeepsTodaysPacing() {
+    @Test fun offKeepsDisplayAndMirrorPacing() {
         assertEquals(0, SessionPrefs.compositorFpsLimit(0, false))
         assertEquals(60, SessionPrefs.compositorFpsLimit(60, false))
     }
 
-    @Test fun onWithoutALimitIsUnpacedAndAChosenLimitStillPaces() {
+    @Test fun onIsUnpacedUnlessMirroring() {
         assertEquals(SessionPrefs.FPS_UNPACED, SessionPrefs.compositorFpsLimit(0, true))
         assertEquals(60, SessionPrefs.compositorFpsLimit(60, true))
-    }
-
-    @Test fun anOldUncappedFrameLimitReadsAsOff() {
-        session.edit().putInt("fpsLimit.steam", -1).commit()
-        assertEquals(0, SessionPrefs.fpsLimit(app, SessionService.MODE_STEAM))
-        assertFalse(SessionPrefs.fpsLimitChoices.any { it.first < 0 })
     }
 }

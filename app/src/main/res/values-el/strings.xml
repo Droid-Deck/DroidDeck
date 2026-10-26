@@ -247,8 +247,6 @@
     <string name="mode_ratio">Αναλογία οθόνης</string>
     <string name="mode_ratio_custom">Καθορίζεται από την προσαρμοσμένη ανάλυση.</string>
     <string name="mode_ratio_auto">Το Αυτόματο χρησιμοποιεί τουλάχιστον 16:9.</string>
-    <string name="mode_fps">Όριο καρέ</string>
-    <string name="mode_fps_note">Περιορίζει ολόκληρη τη συνεδρία. Η οθόνη μεταβαίνει σε ρυθμό ανανέωσης που διαιρείται ακριβώς με το όριο.</string>
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">Έξοδος HDR10</string>
     <string name="mode_hdr_unavailable">Μη διαθέσιμο: %1$s.</string>

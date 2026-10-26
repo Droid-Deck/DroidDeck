@@ -247,8 +247,6 @@
     <string name="mode_ratio">Format d\'écran</string>
     <string name="mode_ratio_custom">Défini par la résolution personnalisée.</string>
     <string name="mode_ratio_auto">Le mode automatique utilise au moins 16:9.</string>
-    <string name="mode_fps">Limite de taux de rafraîchissement</string>
-    <string name="mode_fps_note">Limite le taux de rafraîchissement de toute la session. Le moniteur basculera vers un taux de rafraîchissement divisible par cette limite.</string>
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">Sortie HDR10</string>
     <string name="mode_hdr_unavailable">Non disponible : %1$s.</string>

@@ -247,8 +247,6 @@
     <string name="mode_ratio">Rasio layar</string>
     <string name="mode_ratio_custom">Ditentukan oleh resolusi khusus.</string>
     <string name="mode_ratio_auto">Otomatis menggunakan setidaknya 16:9.</string>
-    <string name="mode_fps">Batas frame rate</string>
-    <string name="mode_fps_note">Membatasi seluruh sesi. Tampilan beralih ke refresh rate yang habis dibagi oleh batas ini.</string>
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">Output HDR10</string>
     <string name="mode_hdr_unavailable">Tidak tersedia: %1$s.</string>

@@ -247,8 +247,6 @@
     <string name="mode_ratio">Tỷ lệ màn hình</string>
     <string name="mode_ratio_custom">Được đặt theo độ phân giải tùy chỉnh.</string>
     <string name="mode_ratio_auto">Tự động dùng tối thiểu 16:9.</string>
-    <string name="mode_fps">Giới hạn khung hình</string>
-    <string name="mode_fps_note">Giới hạn toàn bộ phiên. Màn hình chuyển sang tốc độ làm mới mà giới hạn chia hết.</string>
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">Xuất HDR10</string>
     <string name="mode_hdr_unavailable">Không khả dụng: %1$s.</string>

@@ -247,8 +247,6 @@
     <string name="mode_ratio">स्क्रीन रेशियो</string>
     <string name="mode_ratio_custom">कस्टम रिज़ॉल्यूशन से तय होता है।</string>
     <string name="mode_ratio_auto">ऑटो कम से कम 16:9 इस्तेमाल करता है।</string>
-    <string name="mode_fps">फ़्रेम सीमा</string>
-    <string name="mode_fps_note">पूरे सेशन को सीमित करता है। डिस्प्ले उस रिफ्रेश रेट पर चला जाता है जिसे यह सीमा बराबर बांटती है।</string>
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">HDR10 आउटपुट</string>
     <string name="mode_hdr_unavailable">उपलब्ध नहीं: %1$s।</string>

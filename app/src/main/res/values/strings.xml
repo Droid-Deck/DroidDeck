@@ -94,7 +94,7 @@
     <string name="game_env_xalia">Set to 0 to disable Proton’s gamepad-navigation helper for this game.</string>
     <string name="game_env_anticheat_offline">On by default. Starts an Easy Anti-Cheat game without its anti-cheat when the game supports offline play. Turn off to launch through Easy Anti-Cheat as usual. Online modes that require Easy Anti-Cheat remain unavailable.</string>
     <string name="game_env_hud">DXVK overlay for D3D9–11. fps displays frame rate; unset hides it.</string>
-    <string name="game_env_dxvk_config">DXVK settings separated by semicolons. Recent builds use dxvk.maxFrameRate for frame limiting; prefer the session frame limiter for ordinary play.</string>
+    <string name="game_env_dxvk_config">DXVK settings separated by semicolons. Recent builds use dxvk.maxFrameRate for frame limiting; prefer Steam\'s Quick Access menu frame limiter for ordinary play.</string>
     <string name="game_env_cores">CPU cores for this game, such as 0-4 or 0,2,4, in place of the session\'s game cores. Fewer cores run cooler.</string>
     <string name="game_env_vkd3d_limit">D3D12 frame-rate limit. 0 disables the limit.</string>
     <string name="game_env_glthread">Mesa OpenGL threading. true can help CPU-limited OpenGL games; test per game.</string>
@@ -256,10 +256,8 @@
     <string name="mode_ratio">Screen ratio</string>
     <string name="mode_ratio_custom">Set by the custom resolution.</string>
     <string name="mode_ratio_auto">Auto uses at least 16:9.</string>
-    <string name="mode_fps">Frame limit</string>
     <string name="mode_performance">Performance mode</string>
-    <string name="mode_performance_hint">With no frame limit, games run as fast as they can: frames go back to the game without waiting for the screen. With a frame limit, games are held to it instead of drawing frames the screen never shows. Either way, gamescope and Wine skip repeated window checks. Uses more power and runs warmer without a limit. Applies next session.</string>
-    <string name="mode_fps_note">Caps the whole session. The display switches to a refresh rate the cap divides evenly.</string>
+    <string name="mode_performance_hint">Lets games run without waiting for the screen and reduces repeated window checks in gamescope and Wine. Can use more power and run warmer. Use Steam\'s Quick Access menu to limit Steam games. Applies next session.</string>
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">HDR10 output</string>
     <string name="mode_hdr_unavailable">Not available: %1$s.</string>

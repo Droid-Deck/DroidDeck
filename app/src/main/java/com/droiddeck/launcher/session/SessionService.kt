@@ -478,19 +478,16 @@ class SessionService : Service() {
             guest.add("DXVK_HDR=1")
             Log.i(TAG, "hdr: gamescope --hdr-enabled, DXVK_HDR=1")
         }
-        guest.add("BL_FPS=" + SessionState.fpsLimit)
         // gamescope's WSI layer and winex11 reuse their per-present window checks for this long; 0 checks on every present.
         val windowCheckMs = if (SessionState.performanceMode) 100 else 0
         guest.add("DROIDDECK_WSI_BYPASS_CHECK_MS=$windowCheckMs")
         guest.add("WINE_OFFSCREEN_CHECK_MS=$windowCheckMs")
-        // With a frame limit, gamescope's limiter also holds the games to it instead of only pacing the screen.
-        guest.add("DROIDDECK_GAME_FRAME_LIMIT=" + (if (SessionState.performanceMode) 1 else 0))
-        if (SessionPrefs.compositorFpsLimit(SessionState.fpsLimit, SessionState.performanceMode) == SessionPrefs.FPS_UNPACED) {
+        if (SessionState.performanceMode) {
             // gamescope turns buffers around slower than an unpaced game draws; more images keep it drawing.
             guest.add("GAMESCOPE_WSI_MIN_IMAGE_COUNT=8")
             guest.add("GAMESCOPE_WSI_ENSURE_MIN_IMAGE_COUNT=1")
         }
-        Log.i(TAG, "performance mode " + (if (SessionState.performanceMode) "on" else "off") + ", frame limit " + SessionState.fpsLimit)
+        Log.i(TAG, "performance mode " + (if (SessionState.performanceMode) "on" else "off"))
         guest.add("BL_REFRESH=" + Math.round(SessionState.refreshHz))
         guest.add("BL_LOG=" + sessionLog.path)
         guest.add("BL_DEBUG_DIR=" + sessionDir.path)

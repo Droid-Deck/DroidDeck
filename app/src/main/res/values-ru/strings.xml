@@ -247,8 +247,6 @@
     <string name="mode_ratio">Соотношение сторон</string>
     <string name="mode_ratio_custom">Задается пользовательским разрешением.</string>
     <string name="mode_ratio_auto">Автоматический режим использует не менее 16:9.</string>
-    <string name="mode_fps">Ограничение частоты кадров</string>
-    <string name="mode_fps_note">Ограничивает частоту кадров всей сессии. Экран переключится на частоту обновления, кратную этому пределу.</string>
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">Вывод HDR10</string>
     <string name="mode_hdr_unavailable">Недоступно: %1$s.</string>

@@ -247,8 +247,6 @@
     <string name="mode_ratio">화면 비율</string>
     <string name="mode_ratio_custom">사용자 정의 해상도로 설정됩니다.</string>
     <string name="mode_ratio_auto">자동 모드에서는 최소 16:9를 사용합니다.</string>
-    <string name="mode_fps">프레임 속도 제한</string>
-    <string name="mode_fps_note">세션 전체의 프레임 속도를 제한합니다. 모니터는 이 상한으로 나누어떨어지는 주사율로 전환됩니다.</string>
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">HDR10 출력</string>
     <string name="mode_hdr_unavailable">사용 불가: %1$s.</string>

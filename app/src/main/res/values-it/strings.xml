@@ -247,8 +247,6 @@
     <string name="mode_ratio">Proporzioni schermo</string>
     <string name="mode_ratio_custom">Definite dalla risoluzione personalizzata.</string>
     <string name="mode_ratio_auto">Auto usa almeno 16:9.</string>
-    <string name="mode_fps">Limite frame</string>
-    <string name="mode_fps_note">Limita l\'intera sessione. Lo schermo passa a una frequenza di aggiornamento multipla del limite.</string>
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">Uscita HDR10</string>
     <string name="mode_hdr_unavailable">Non disponibile: %1$s.</string>

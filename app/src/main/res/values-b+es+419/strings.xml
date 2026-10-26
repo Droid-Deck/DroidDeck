@@ -247,8 +247,6 @@
     <string name="mode_ratio">Relación de aspecto</string>
     <string name="mode_ratio_custom">Definida por la resolución personalizada.</string>
     <string name="mode_ratio_auto">Auto usa al menos 16:9.</string>
-    <string name="mode_fps">Límite de fotogramas</string>
-    <string name="mode_fps_note">Limita toda la sesión. La pantalla cambia a una tasa de refresco que el límite divide exactamente.</string>
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">Salida HDR10</string>
     <string name="mode_hdr_unavailable">No disponible: %1$s.</string>

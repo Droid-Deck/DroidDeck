@@ -247,8 +247,6 @@
     <string name="mode_ratio">螢幕比例</string>
     <string name="mode_ratio_custom">由自訂解析度設定。</string>
     <string name="mode_ratio_auto">自動模式至少使用 16:9。</string>
-    <string name="mode_fps">影格率限制</string>
-    <string name="mode_fps_note">限制整個工作階段的影格率。顯示器會切換到能夠被該上限整除的重新整理率。</string>
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">HDR10 輸出</string>
     <string name="mode_hdr_unavailable">無法使用：%1$s。</string>

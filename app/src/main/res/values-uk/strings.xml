@@ -247,8 +247,6 @@
     <string name="mode_ratio">Співвідношення сторін</string>
     <string name="mode_ratio_custom">Визначається власною роздільною здатністю.</string>
     <string name="mode_ratio_auto">«Авто» використовує щонайменше 16:9.</string>
-    <string name="mode_fps">Обмеження кадрів</string>
-    <string name="mode_fps_note">Обмежує весь сеанс. Екран перемикається на частоту оновлення, кратну цьому обмеженню.</string>
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">Вивід HDR10</string>
     <string name="mode_hdr_unavailable">Недоступно: %1$s.</string>

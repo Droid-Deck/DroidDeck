@@ -247,8 +247,6 @@
     <string name="mode_ratio">Proporcje ekranu</string>
     <string name="mode_ratio_custom">Ustalane przez własną rozdzielczość.</string>
     <string name="mode_ratio_auto">Auto używa co najmniej 16:9.</string>
-    <string name="mode_fps">Limit klatek</string>
-    <string name="mode_fps_note">Ogranicza całą sesję. Wyświetlacz przełącza się na częstotliwość odświeżania będącą wielokrotnością limitu.</string>
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">Wyjście HDR10</string>
     <string name="mode_hdr_unavailable">Niedostępne: %1$s.</string>

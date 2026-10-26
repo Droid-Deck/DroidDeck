@@ -492,7 +492,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         if (!SessionState.running) {
             val prefMode = SessionPrefs.prefMode(intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_STEAM)
-            SessionState.fpsLimit = SessionPrefs.fpsLimit(this, prefMode)
             SessionState.performanceMode = SessionPrefs.performanceMode(this, prefMode)
         }
         applyOutputPacing()
@@ -1976,7 +1975,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         GlassesRendering.mirrorRefreshLimit(glassesSettings, glasses, glassesScreen != null)
 
     private fun outputFpsLimit(): Int = SessionPrefs.compositorFpsLimit(
-        GlassesRendering.fpsLimit(SessionState.fpsLimit, mirrorRefreshLimit()), SessionState.performanceMode,
+        mirrorRefreshLimit(), SessionState.performanceMode,
     )
 
     private fun applyOutputPacing() {

@@ -247,8 +247,6 @@
     <string name="mode_ratio">Proporção do ecrã</string>
     <string name="mode_ratio_custom">Definida pela resolução personalizada.</string>
     <string name="mode_ratio_auto">Automático utiliza pelo menos 16:9.</string>
-    <string name="mode_fps">Limite de fotogramas</string>
-    <string name="mode_fps_note">Limita toda a sessão. O ecrã muda para uma taxa de atualização que seja múltipla do limite.</string>
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">Saída HDR10</string>
     <string name="mode_hdr_unavailable">Indisponível: %1$s.</string>

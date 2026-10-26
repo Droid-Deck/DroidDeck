@@ -247,8 +247,6 @@
     <string name="mode_ratio">Poměr stran obrazovky</string>
     <string name="mode_ratio_custom">Určen vlastním rozlišením.</string>
     <string name="mode_ratio_auto">Automaticky použije alespoň 16:9.</string>
-    <string name="mode_fps">Omezení snímků</string>
-    <string name="mode_fps_note">Omezuje celou relaci. Displej přejde na obnovovací frekvenci, kterou lze tímto limitem dělit beze zbytku.</string>
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">Výstup HDR10</string>
     <string name="mode_hdr_unavailable">Není k dispozici: %1$s.</string>

@@ -903,19 +903,8 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("hdr.$mode", on).apply()
     }
 
-    fun fpsLimit(context: Context, mode: String): Int = prefs(context).getInt("fpsLimit.$mode", 0).coerceAtLeast(0)
-
-    fun setFpsLimit(context: Context, mode: String, fps: Int) {
-        prefs(context).edit().putInt("fpsLimit.$mode", fps.coerceAtLeast(0)).apply()
-    }
-
-    val fpsLimitChoices = listOf(0 to "Off", 30 to "30", 40 to "40", 45 to "45", 60 to "60", 90 to "90", 120 to "120")
-
-    fun fpsLimitChoices(context: Context): List<Pair<Int, String>> =
-        fpsLimitChoices.map { (fps, label) -> fps to if (fps == 0) context.getString(R.string.frame_gen_off) else label }
-
     /**
-     * Performance mode: without a frame limit, buffers go back to the game as soon as they are replaced
+     * Performance mode: buffers go back to the game as soon as they are replaced
      * instead of once per refresh, and gamescope's WSI layer and winex11 reuse their per-present window checks.
      */
     fun performanceMode(context: Context, mode: String): Boolean = prefs(context).getBoolean("performanceMode.$mode", false)
@@ -927,8 +916,9 @@ object SessionPrefs {
     /** Compositor frame limit that releases buffers to the game unpaced. */
     const val FPS_UNPACED = -1
 
-    /** The limit handed to the compositor: Performance mode without a limit is unpaced, a chosen limit still paces. */
-    fun compositorFpsLimit(limit: Int, performanceMode: Boolean): Int = if (performanceMode && limit <= 0) FPS_UNPACED else limit
+    /** Mirroring still follows the glasses' refresh rate when Performance mode is on. */
+    fun compositorFpsLimit(mirrorRefreshLimit: Int, performanceMode: Boolean): Int =
+        if (performanceMode && mirrorRefreshLimit <= 0) FPS_UNPACED else mirrorRefreshLimit
 
     val upscalerChoices = listOf(
         0 to "Linear", 2 to "Nearest", 4 to "AMD FSR 1", 3 to "Snapdragon GSR",

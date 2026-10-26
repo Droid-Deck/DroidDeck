@@ -247,8 +247,6 @@
     <string name="mode_ratio">Beeldverhouding</string>
     <string name="mode_ratio_custom">Ingesteld door de aangepaste resolutie.</string>
     <string name="mode_ratio_auto">Automatisch gebruikt minimaal 16:9.</string>
-    <string name="mode_fps">Framelimiet</string>
-    <string name="mode_fps_note">Begrenst de hele sessie. Het scherm schakelt naar een verversingssnelheid die een veelvoud van de limiet is.</string>
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">HDR10-uitvoer</string>
     <string name="mode_hdr_unavailable">Niet beschikbaar: %1$s.</string>

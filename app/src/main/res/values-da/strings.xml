@@ -247,8 +247,6 @@
     <string name="mode_ratio">Billedformat</string>
     <string name="mode_ratio_custom">Angivet af den brugerdefinerede opløsning.</string>
     <string name="mode_ratio_auto">Auto bruger mindst 16:9.</string>
-    <string name="mode_fps">Billedgrænse</string>
-    <string name="mode_fps_note">Begrænser hele sessionen. Skærmen skifter til en opdateringshastighed, grænsen går lige op med.</string>
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">HDR10-output</string>
     <string name="mode_hdr_unavailable">Ikke tilgængelig: %1$s.</string>

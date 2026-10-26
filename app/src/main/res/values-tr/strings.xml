@@ -247,8 +247,6 @@
     <string name="mode_ratio">Ekran oranı</string>
     <string name="mode_ratio_custom">Özel çözünürlüğe göre ayarlanır.</string>
     <string name="mode_ratio_auto">Otomatik en az 16:9 kullanır.</string>
-    <string name="mode_fps">Kare sınırı</string>
-    <string name="mode_fps_note">Tüm oturumu sınırlar. Ekran, sınırın tam katı olan bir yenileme hızına geçer.</string>
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">HDR10 çıkışı</string>
     <string name="mode_hdr_unavailable">Kullanılamıyor: %1$s.</string>

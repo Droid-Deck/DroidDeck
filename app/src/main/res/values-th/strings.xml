@@ -247,8 +247,6 @@
     <string name="mode_ratio">อัตราส่วนหน้าจอ</string>
     <string name="mode_ratio_custom">กำหนดโดยความละเอียดกำหนดเอง</string>
     <string name="mode_ratio_auto">อัตโนมัติใช้อย่างน้อย 16:9</string>
-    <string name="mode_fps">ขีดจำกัดเฟรม</string>
-    <string name="mode_fps_note">จำกัดทั้งเซสชัน หน้าจอจะเปลี่ยนไปใช้อัตรารีเฟรชที่หารขีดจำกัดได้พอดี</string>
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">เอาต์พุต HDR10</string>
     <string name="mode_hdr_unavailable">ไม่พร้อมใช้งาน: %1$s</string>

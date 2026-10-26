@@ -247,8 +247,6 @@
     <string name="mode_ratio">屏幕比例</string>
     <string name="mode_ratio_custom">由自定义分辨率决定。</string>
     <string name="mode_ratio_auto">自动模式至少使用 16:9。</string>
-    <string name="mode_fps">帧率上限</string>
-    <string name="mode_fps_note">限制整个会话。显示器会切换到能被该上限整除的刷新率。</string>
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">HDR10 输出</string>
     <string name="mode_hdr_unavailable">不可用：%1$s。</string>

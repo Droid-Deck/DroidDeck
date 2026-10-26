@@ -247,8 +247,6 @@
     <string name="mode_ratio">Seitenverhältnis</string>
     <string name="mode_ratio_custom">Durch die benutzerdefinierte Auflösung festgelegt.</string>
     <string name="mode_ratio_auto">Auto verwendet mindestens 16:9.</string>
-    <string name="mode_fps">Bildratenlimit</string>
-    <string name="mode_fps_note">Begrenzt die gesamte Sitzung. Das Display wechselt auf eine Bildwiederholrate, die ein ganzzahliges Vielfaches des Limits ist.</string>
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">HDR10-Ausgabe</string>
     <string name="mode_hdr_unavailable">Nicht verfügbar: %1$s.</string>

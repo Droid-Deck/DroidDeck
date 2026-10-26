@@ -247,8 +247,6 @@
     <string name="mode_ratio">画面比率</string>
     <string name="mode_ratio_custom">カスタム解像度で設定されます。</string>
     <string name="mode_ratio_auto">自動モードでは少なくとも16:9を使用します。</string>
-    <string name="mode_fps">フレームレート制限</string>
-    <string name="mode_fps_note">セッション全体のフレームレートを制限します。モニターはこの上限で割り切れるリフレッシュレートに切り替わります。</string>
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">HDR10出力</string>
     <string name="mode_hdr_unavailable">利用不可：%1$s。</string>

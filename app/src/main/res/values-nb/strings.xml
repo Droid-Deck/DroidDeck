@@ -247,8 +247,6 @@
     <string name="mode_ratio">Skjermforhold</string>
     <string name="mode_ratio_custom">Angis av den egendefinerte oppløsningen.</string>
     <string name="mode_ratio_auto">Auto bruker minst 16:9.</string>
-    <string name="mode_fps">Bildefrekvensgrense</string>
-    <string name="mode_fps_note">Begrenser hele sesjonen. Skjermen bytter til en oppdateringsfrekvens som grensen går opp i.</string>
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">HDR10-utgang</string>
     <string name="mode_hdr_unavailable">Ikke tilgjengelig: %1$s.</string>

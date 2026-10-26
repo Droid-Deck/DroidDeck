@@ -247,8 +247,6 @@
     <string name="mode_ratio">نسبة أبعاد الشاشة</string>
     <string name="mode_ratio_custom">تحددها الدقة المخصّصة.</string>
     <string name="mode_ratio_auto">يستخدم الخيار «تلقائي» نسبة 16:9 على الأقل.</string>
-    <string name="mode_fps">حد الإطارات</string>
-    <string name="mode_fps_note">يحدّ الجلسة بأكملها. تنتقل الشاشة إلى معدل تحديث يكون من مضاعفات الحد.</string>
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">إخراج HDR10</string>
     <string name="mode_hdr_unavailable">غير متاح: %1$s.</string>

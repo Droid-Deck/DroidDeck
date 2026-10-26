@@ -247,8 +247,6 @@
     <string name="mode_ratio">Пропорции на екрана</string>
     <string name="mode_ratio_custom">Определени от персонализираната резолюция.</string>
     <string name="mode_ratio_auto">Автоматично използва поне 16:9.</string>
-    <string name="mode_fps">Ограничение на кадрите</string>
-    <string name="mode_fps_note">Ограничава цялата сесия. Екранът преминава към честота на опресняване, която се дели точно на ограничението.</string>
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">HDR10 изход</string>
     <string name="mode_hdr_unavailable">Не е налично: %1$s.</string>
