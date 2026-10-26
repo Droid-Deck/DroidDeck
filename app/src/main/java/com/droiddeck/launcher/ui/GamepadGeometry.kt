@@ -67,7 +67,7 @@ object GamepadGeometry {
             }
             middleGrid(columns, gap - 2 * gutter, shoulderY - buttonH / 2f)
         } else {
-            val side = min(w * 0.5f, h * 0.70f)
+            val side = min(min(w * 0.5f, h * 0.70f), (w - 2 * gridButton - 2 * gutter) / 1.42f)
             val main = side * 0.62f
             val second = side * 0.46f
             val secondCy = h - side * 0.97f
