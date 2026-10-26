@@ -402,6 +402,27 @@ class GameEnvironmentTest(unittest.TestCase):
                 (asylum / name).touch()
             self.assertEqual(MODULE["engine_fixes"](str(asylum / "BmLauncher.exe"), []), ({}, [], []))
 
+    def test_d3dgear_capture_hook_beside_the_game_is_turned_off(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            game = Path(tmp) / "The Crew 2"
+            game.mkdir()
+            for name in ("TheCrew2.exe", "TheCrew2_BE.exe", "d3dgear64.dll"):
+                (game / name).touch()
+            env, extra, notes = MODULE["engine_fixes"](str(game / "TheCrew2.exe"), [])
+            self.assertEqual((env, extra), ({"WINEDLLOVERRIDES": "d3dgear64=d"}, []))
+            self.assertTrue(notes)
+            (game / "d3dgear64.dll").rename(game / "D3DGear64.DLL")
+            self.assertEqual(MODULE["engine_fixes"](str(game / "TheCrew2.exe"), [])[0], {"WINEDLLOVERRIDES": "d3dgear64=d"})
+            (game / "D3DGear64.DLL").unlink()
+            self.assertEqual(MODULE["engine_fixes"](str(game / "TheCrew2.exe"), []), ({}, [], []))
+
+    def test_dll_overrides_from_several_fixes_are_all_kept(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            for name in ("Game.exe", "Game.pck", "GodotSharp.dll", "libsentry.windows.release.x86_64.dll", "d3dgear64.dll"):
+                (Path(tmp) / name).touch()
+            env = MODULE["engine_fixes"](str(Path(tmp) / "Game.exe"), [])[0]
+            self.assertEqual(env["WINEDLLOVERRIDES"], "libsentry.windows.release.x86_64=d;d3dgear64=d")
+
     def test_black_ops_iii_and_dark_souls_remastered_skip_protonfixes(self):
         for exe in ("/game/Call of Duty Black Ops III/BlackOps3.exe", "/game/DARK SOULS REMASTERED/DarkSoulsRemastered.exe"):
             env, extra, notes = MODULE["engine_fixes"](exe, [])
