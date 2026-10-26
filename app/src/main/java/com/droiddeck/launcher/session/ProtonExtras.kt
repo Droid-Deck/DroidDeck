@@ -313,7 +313,7 @@ object ProtonExtras {
     }
 
     fun tidy(context: Context) {
-        val tool = tools.firstOrNull { it.id == OWN } ?: return
+        val tool = displayTools(context).firstOrNull { it.id == OWN } ?: return
         if (installedAll(context, tool).size > 1) replaceOlder(context, tool)
     }
 

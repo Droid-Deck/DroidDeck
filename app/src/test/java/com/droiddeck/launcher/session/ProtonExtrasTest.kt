@@ -479,6 +479,32 @@ class ProtonExtrasTest {
     }
 
     @Test
+    fun tidyIncludesReceiptOwnedDroidDeckProtonBuilds() {
+        val context = RuntimeEnvironment.getApplication()
+        val tool = tool("droiddeck")
+        val source = RepositorySources.source(tool.repo)
+        val tools = File(LinuxRuntime.rootDir(context), "root/.local/share/Steam/compatibilitytools.d")
+        for (name in listOf("DroidDeck-Proton 11-11.1", "DroidDeck-Proton 11-11.5")) {
+            val installed = installTool(tools, name)
+            File(installed, ".droiddeck-source.json").writeText(JSONObject()
+                .put("schema", 1).put("sourceId", source.id).put("toolId", tool.id)
+                .put("baseId", tool.id).put("toolPrefix", tool.prefix)
+                .put("toolName", tool.name).put("repository", source.repository).toString())
+        }
+        val foreign = installTool(tools, "DroidDeck-Proton 11-10.9")
+        File(foreign, ".droiddeck-source.json").writeText(JSONObject()
+            .put("schema", 1).put("sourceId", "foreign-source").put("toolId", tool.id)
+            .put("baseId", tool.id).put("toolPrefix", tool.prefix)
+            .put("toolName", "Foreign DroidDeck Proton").put("repository", "other/proton").toString())
+
+        ProtonExtras.tidy(context)
+
+        val owned = ProtonExtras.displayTools(context).first { it.id == ProtonExtras.OWN }
+        assertEquals(listOf("DroidDeck-Proton 11-11.5"), ProtonExtras.installedAll(context, owned))
+        assertTrue(foreign.isDirectory)
+    }
+
+    @Test
     fun droidDeckProtonIsFetchedWhenMissingUnlessTheUserRemovedIt() {
         val context = RuntimeEnvironment.getApplication()
         val tools = File(LinuxRuntime.rootDir(context), "root/.local/share/Steam/compatibilitytools.d")

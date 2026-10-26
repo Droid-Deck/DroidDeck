@@ -8,6 +8,7 @@ import android.net.Uri
 import android.provider.OpenableColumns
 import android.os.Handler
 import android.util.Log
+import androidx.annotation.VisibleForTesting
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -44,6 +45,7 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
     var releaseChecking by mutableStateOf(false)
     var canRestoreBundled by mutableStateOf(false)
     private val releaseProgress = HashMap<String, Int>()
+    @VisibleForTesting internal var releaseRefresher: () -> TurnipReleases.Check = { TurnipReleases.refresh(activity) }
     var linuxSelected by mutableStateOf("")
     val gpu: GpuInfo = GpuInfo.detect()
     var mode by mutableStateOf(SessionPrefs.GPU_DRIVERS_AUTO)
@@ -53,6 +55,7 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
     var autoStatus by mutableStateOf("")
     var activeBundle by mutableStateOf<String?>(null)
     private var lastAutoCheck = 0L
+    private var sourceRefreshPending = false
     private var pairModeOpen by mutableStateOf(false)
     var restartPending by mutableStateOf(false)
         private set
@@ -241,6 +244,8 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
 
     fun sourcesChanged() {
         refreshDrivers()
+        sourceRefreshPending = true
+        if (!releaseChecking) checkLatestTurnip()
     }
 
     fun refreshSources() {
@@ -284,7 +289,7 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
         releaseChecking = true
         autoStatus = activity.getString(R.string.drivers_checking_latest)
         Thread({
-            val result = if (force || releasesStale()) runCatching { TurnipReleases.refresh(activity) } else null
+            val result = if (force || releasesStale()) runCatching { releaseRefresher() } else null
             val rateLimited = result?.getOrNull()?.rateLimited == true || result?.exceptionOrNull()?.let(GitHubArtifacts::isRateLimited) == true
             val problem = if (rateLimited) activity.getString(R.string.sources_github_rate_limited)
                 else result?.exceptionOrNull()?.let { GitHubArtifacts.failureMessage(activity, it) }
@@ -310,6 +315,7 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
                     holdBack && row?.installed != true -> autoStatus = activity.getString(R.string.drivers_auto_waits_for_network, pair.name, pair.version)
                     else -> installPair(pair, auto = true)
                 }
+                if (sourceRefreshPending) checkLatestTurnip()
             }
         }, "gpu-driver-auto").start()
     }
@@ -539,10 +545,11 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
 
     fun checkLatestTurnip() {
         if (releaseChecking) return
+        sourceRefreshPending = false
         releaseChecking = true
         releaseStatus = activity.getString(R.string.drivers_checking_sources)
         Thread({
-            val result = runCatching { TurnipReleases.refresh(activity) }
+            val result = runCatching { releaseRefresher() }
             result.exceptionOrNull()?.let { Log.w(TAG, "latest Turnip check", it) }
             val rateLimited = result.getOrNull()?.rateLimited == true || result.exceptionOrNull()?.let(GitHubArtifacts::isRateLimited) == true
             val problem = if (rateLimited) activity.getString(R.string.sources_github_rate_limited)
@@ -553,6 +560,7 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
                 refreshPairs()
                 if (problem != null) releaseStatus = activity.getString(R.string.upd_couldnt_check, problem)
                 if (rateLimited) android.widget.Toast.makeText(activity, problem, android.widget.Toast.LENGTH_LONG).show()
+                if (sourceRefreshPending) checkLatestTurnip()
             }
         }, "turnip-release-check").start()
     }

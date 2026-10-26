@@ -30,6 +30,7 @@ import java.net.HttpURLConnection
 class ComponentsCatalogSourcesTest {
     private lateinit var context: Context
     private val productionRefresher = ComponentsManager.catalogRefresher
+    private val productionDownloader = ComponentsManager.packageDownloader
 
     @Before
     fun setUp() {
@@ -43,11 +44,13 @@ class ComponentsCatalogSourcesTest {
             })
         }
         ComponentsManager.catalogRefresher = productionRefresher
+        ComponentsManager.packageDownloader = productionDownloader
     }
 
     @After
     fun tearDown() {
         ComponentsManager.catalogRefresher = productionRefresher
+        ComponentsManager.packageDownloader = productionDownloader
     }
 
     @Test
@@ -203,6 +206,69 @@ class ComponentsCatalogSourcesTest {
         assertFalse(File(stored.parentFile, "$oldName.source.json").exists())
         val availableAgain = ComponentsManager.catalog(context, false).items.single()
         assertNotEquals(oldName, availableAgain.localFile)
+    }
+
+    @Test
+    fun aBoundCustomSourceCanDownloadButCannotBorrowAnotherRepositoryIdentity() {
+        val comp = "dxvk"
+        val custom = RepositorySources.source("wallentx/custom-components")
+        val rows = ComponentsManager.sources(context, comp).map { it.copy(hidden = true) } + custom
+        ComponentsManager.saveSources(context, comp, rows)
+        val generation = RepositorySources.generation(
+            context, ComponentsManager.sourceScope(comp), ComponentsManager.sourceBuiltIns(comp),
+        )
+        val bound = RepositorySources.bind(
+            context, ComponentsManager.sourceScope(comp), ComponentsManager.sourceBuiltIns(comp), custom,
+            1234L, generation,
+        )
+        val payload = File(context.cacheDir, "custom.wcp")
+        writeWcp(payload, "custom source")
+        val digest = Hashes.sha256(payload)
+        val item = ComponentsManager.CatalogItem(
+            file = "custom.wcp", comp = comp, release = "v1",
+            url = GitHubArtifacts.releaseAssetUrl(bound.repository, "v1", "custom.wcp"),
+            size = payload.length(), digest = "sha256:$digest", sourceId = bound.id,
+            repository = bound.repository, repositoryId = bound.repositoryId!!,
+            releaseId = 44L, assetId = 55L, localFile = "$digest-${bound.id}-remote.wcp",
+        )
+        var calls = 0
+        ComponentsManager.packageDownloader = { _, destination, expected, progress ->
+            calls++
+            assertEquals(digest, expected)
+            payload.copyTo(destination, overwrite = true)
+            progress(100)
+            true
+        }
+
+        val installed = ComponentsManager.download(context, item) {}
+        assertEquals(bound.repository, installed.source)
+        assertEquals(1, calls)
+        assertTrue(File(context.filesDir, "components/packages/${item.localFile}").isFile)
+
+        val forged = item.copy(
+            repository = "attacker/other-components",
+            url = GitHubArtifacts.releaseAssetUrl("attacker/other-components", "v1", "custom.wcp"),
+        )
+        assertTrue(runCatching { ComponentsManager.download(context, forged) {} }.isFailure)
+        assertTrue(runCatching { ComponentsManager.download(context, item.copy(sourceId = "forged-source")) {} }.isFailure)
+        assertTrue(runCatching { ComponentsManager.download(context, item.copy(repositoryId = bound.repositoryId!! + 1)) {} }.isFailure)
+        assertEquals(1, calls)
+
+        val stale = item.copy(assetId = 56L, localFile = "$digest-${bound.id}-stale.wcp")
+        ComponentsManager.packageDownloader = { _, destination, _, _ ->
+            calls++
+            payload.copyTo(destination, overwrite = true)
+            ComponentsManager.saveSources(context, comp, ComponentsManager.sources(context, comp).map {
+                if (it.id == bound.id) it.copy(hidden = true) else it
+            })
+            true
+        }
+        assertTrue(runCatching { ComponentsManager.download(context, stale) {} }.isFailure)
+        assertEquals(2, calls)
+        val packages = File(context.filesDir, "components/packages")
+        assertFalse(File(packages, stale.localFile).exists())
+        assertFalse(File(packages, stale.localFile + ".part").exists())
+        assertFalse(File(packages, stale.localFile + ".source.json").exists())
     }
 
     private fun bindBuiltIns(): Map<String, RepositorySources.Source> = ComponentsManager.COMPONENTS.associateWith { comp ->

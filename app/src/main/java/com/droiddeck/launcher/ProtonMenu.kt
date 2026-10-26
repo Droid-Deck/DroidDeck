@@ -113,11 +113,12 @@ internal class ProtonMenu(
             ProtonExtras.installInProgress || SessionState.running || LinuxRuntimeInstaller.isBusy() ||
             SessionState.phase !in setOf(SessionPhase.IDLE, SessionPhase.FAILED) ||
             !LinuxRuntime.isInstalled(activity) || !AutoComponents.online(activity) || AutoComponents.unfavourable(activity)) return
-        if (ProtonExtras.installedAll(activity, ProtonExtras.tools.first { it.id == ProtonExtras.OWN }).size > 1) {
+        val own = ProtonExtras.displayTools(activity).firstOrNull { it.id == ProtonExtras.OWN } ?: return
+        if (ProtonExtras.installedAll(activity, own).size > 1) {
             protonBusyId = ProtonExtras.OWN
             Thread({
                 ProtonExtras.tidy(activity)
-                val tidied = ProtonExtras.installedAll(activity, ProtonExtras.tools.first { it.id == ProtonExtras.OWN }).size <= 1
+                val tidied = ProtonExtras.installedAll(activity, own).size <= 1
                 ui.post {
                     protonBusyId = null
                     refreshProtons()

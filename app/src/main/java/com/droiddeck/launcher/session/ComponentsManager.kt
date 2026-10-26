@@ -1067,6 +1067,11 @@ object ComponentsManager {
 
     internal var catalogRefresher: (Context, String, RepositorySources.Source) -> List<CatalogItem> =
         ::refreshCatalogSource
+    internal var packageDownloader: (String, File, String, (Int) -> Unit) -> Boolean = { url, file, digest, progress ->
+        Downloader.downloadFile(url, file, true, digest) { value ->
+            progress(if (value < 0) -1 else (value * 100).toInt().coerceIn(0, 100))
+        }
+    }
 
     fun catalog(context: Context, force: Boolean): Catalog {
         val items = ArrayList<CatalogItem>()
@@ -1468,23 +1473,29 @@ object ComponentsManager {
     ): CatalogItem? = catalogMatch(cached(), file, release) ?: catalogMatch(refresh(), file, release)
 
     fun download(context: Context, item: CatalogItem, progress: (Int) -> Unit): Package {
-        val generation = if (item.sourceId.isEmpty()) null else RepositorySources.generation(
-            context, sourceScope(item.comp), sourceBuiltIns(item.comp),
-        ).also {
-            require(RepositorySources.isCurrent(context, sourceScope(item.comp), sourceBuiltIns(item.comp), item.sourceId, it)) {
-                "Component source is hidden or unavailable"
-            }
-        }
         val repository = RepositorySources.canonicalRepository(item.repository)
+        val generation = if (item.sourceId.isEmpty()) null else {
+            val scope = sourceScope(item.comp)
+            val builtIns = sourceBuiltIns(item.comp)
+            val value = RepositorySources.generation(context, scope, builtIns)
+            require(RepositorySources.visible(context, scope, builtIns).any {
+                it.id == item.sourceId && it.repository == repository && it.repositoryId == item.repositoryId
+            } && RepositorySources.isCurrent(context, scope, builtIns, item.sourceId, value)) {
+                "Component source is hidden, unavailable, or does not match its catalog"
+            }
+            value
+        }
         require(releaseUrlMatches(repository, item.release, item.file, item.url)) {
             context.getString(R.string.cmgr_nightlies_only)
         }
-        require(allowedDownload(item.url)) { context.getString(R.string.cmgr_nightlies_only) }
+        require(item.sourceId.isNotEmpty() || allowedDownload(item.url)) { context.getString(R.string.cmgr_nightlies_only) }
         require(Hashes.isGithubSha256(item.digest)) { context.getString(R.string.cmgr_list_predates_checksums) }
         require(item.size in 1..(2L * 1024 * 1024 * 1024)) { "Component archive has an invalid size" }
         val dest = File(packagesDir(context), safeName(item.localFile))
         val part = File(dest.parentFile, dest.name + ".part")
-        check(Downloader.downloadFile(item.url, part, true, item.digest.substringAfter(':')) { f -> progress(if (f < 0) -1 else (f * 100).toInt().coerceIn(0, 100)) }) { context.getString(R.string.user_apps_download_failed) }
+        check(packageDownloader(item.url, part, item.digest.substringAfter(':'), progress)) {
+            context.getString(R.string.user_apps_download_failed)
+        }
         if (part.length() != item.size) { part.delete(); error("Component archive size does not match") }
         if (!Hashes.sha256(part).equals(item.digest.substringAfter(':'), true)) { part.delete(); error(context.getString(R.string.cmgr_checksum_mismatch)) }
         if (generation != null && !RepositorySources.isCurrent(
