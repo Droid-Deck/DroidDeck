@@ -2711,7 +2711,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
         if (panel == null) {
             panel = com.droiddeck.launcher.ui.DeckControlsPanel(this, onClose = { chooseUnfoldedControls(false) },
-                onSteamMenu = ::tapSteamButton, onQam = ::tapQam, pad = padBridge)
+                onSteamMenu = ::tapSteamButton, onQam = ::tapQam, pad = padBridge,
+                portraitDock = !com.droiddeck.launcher.session.SessionDisplay.foldable(this))
             sessionRoot.addView(panel, sessionRoot.indexOfChild(surfaceView) + 1)
             unfoldedPanel = panel
             updateOnScreenControls()
