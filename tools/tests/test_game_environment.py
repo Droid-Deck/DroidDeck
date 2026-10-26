@@ -458,6 +458,7 @@ class GameEnvironmentTest(unittest.TestCase):
             ({"BL_GAME_CPUS": "0-7"}, set(range(8)), None),
             ({}, {6, 7}, None),
             ({"BL_GAME_CPUS": "6,7", "WINE_CPU_TOPOLOGY": "4:0,1,2,3"}, {6, 7}, "4:0,1,2,3"),
+            ({"BL_GAME_CPUS": "6,7", "WINE_CPU_TOPOLOGY": ""}, {6, 7}, ""),
             ({"BL_GAME_CPUS": "9"}, {9}, None),
         ]
         for env, affinity, expected in cases:
