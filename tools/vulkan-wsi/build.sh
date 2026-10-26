@@ -15,8 +15,10 @@ fetch() {
 }
 fetch https://github.com/ginkage/vulkan-wsi-layer.git "$WSI_REVISION" "$work/source"
 fetch https://github.com/KhronosGroup/Vulkan-Headers.git "$VULKAN_HEADERS_REVISION" "$work/headers"
-git -C "$work/source" apply --check "$root/tools/vulkan-wsi/patches/0001-link-x11-external-memory.patch"
-git -C "$work/source" apply "$root/tools/vulkan-wsi/patches/0001-link-x11-external-memory.patch"
+for patch in "$root"/tools/vulkan-wsi/patches/*.patch; do
+  git -C "$work/source" apply --check "$patch"
+  git -C "$work/source" apply "$patch"
+done
 cmake -S "$work/source" -B "$work/build" -G Ninja -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_INSTALL_PREFIX=/usr -DVULKAN_CXX_INCLUDE="$work/headers/include" \
   -DBUILD_WSI_HEADLESS=OFF -DBUILD_WSI_WAYLAND=OFF -DBUILD_WSI_DISPLAY=OFF -DBUILD_WSI_X11=ON \
@@ -24,7 +26,7 @@ cmake -S "$work/source" -B "$work/build" -G Ninja -DCMAKE_BUILD_TYPE=Release \
 cmake --build "$work/build" --parallel 4
 DESTDIR="$work/stage" cmake --install "$work/build"
 cp "$work/stage/usr/share/vulkan/implicit_layer.d/"* "$out/"
-cp "$root/tools/vulkan-wsi/patches/0001-link-x11-external-memory.patch" "$out/downstream.patch"
+git -C "$work/source" diff > "$out/downstream.patch"
 cp "$work/source/LICENSE" "$out/LICENSE"
 mkdir -p "$out/licenses/Vulkan-Headers"
 cp "$root/tools/vulkan-wsi/licenses/Vulkan-Headers/"* "$out/licenses/Vulkan-Headers/"

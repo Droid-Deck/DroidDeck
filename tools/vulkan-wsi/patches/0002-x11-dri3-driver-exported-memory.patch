@@ -1,0 +1,265 @@
+diff --git a/util/wsialloc/wsialloc_dma_buf_heaps.c b/util/wsialloc/wsialloc_dma_buf_heaps.c
+index 5339166..a1d1f49 100644
+--- a/util/wsialloc/wsialloc_dma_buf_heaps.c
++++ b/util/wsialloc/wsialloc_dma_buf_heaps.c
+@@ -120,15 +120,11 @@ wsialloc_error wsialloc_new(wsialloc_allocator **allocator)
+       return WSIALLOC_ERROR_NO_RESOURCE;
+    }
+ 
++   /* Without a heap (an Android app's SELinux domain denies /dev/dma_heap) the allocator still serves
++    * WSIALLOC_ALLOCATE_NO_MEMORY layout queries; memory allocations fail and the caller allocates instead. */
+    dma_buf_heaps->memory_fd = open("/dev/dma_heap/" STR(WSIALLOC_MEMORY_HEAP_NAME), O_RDWR);
+    dma_buf_heaps->protected_fd = -1;
+ 
+-   if (dma_buf_heaps->memory_fd < 0)
+-   {
+-      free(dma_buf_heaps);
+-      return WSIALLOC_ERROR_NO_RESOURCE;
+-   }
+-
+    *allocator = dma_buf_heaps;
+    return WSIALLOC_ERROR_NONE;
+ }
+@@ -166,7 +162,7 @@ wsialloc_error wsialloc_alloc(wsialloc_allocator *allocator, const wsialloc_allo
+    {
+       fd_to_use = allocator->protected_fd;
+    }
+-   if (fd_to_use < 0)
++   if (fd_to_use < 0 && !(info->flags & WSIALLOC_ALLOCATE_NO_MEMORY))
+    {
+       return WSIALLOC_ERROR_NO_RESOURCE;
+    }
+diff --git a/wsi/external_memory.cpp b/wsi/external_memory.cpp
+index 4c454fd..bf9e967 100644
+--- a/wsi/external_memory.cpp
++++ b/wsi/external_memory.cpp
+@@ -51,6 +51,11 @@ external_memory::~external_memory()
+    }
+ 
+    auto &device_data = layer::device_private_data::get(m_device);
++   if (m_owns_exported_fds)
++   {
++      /* Exported fds are ours even though memory exists (imported fds belong to the driver once imported). */
++      release_buffer_fds();
++   }
+    for (uint32_t plane = 0; plane < get_num_planes(); plane++)
+    {
+       auto &memory = m_memories[plane];
+@@ -199,6 +204,83 @@ VkResult external_memory::import_memory_and_bind_swapchain_image(const VkImage &
+    return VK_SUCCESS;
+ }
+ 
++VkResult external_memory::allocate_exported_and_bind(const VkImage &image)
++{
++   auto &device_data = layer::device_private_data::get(m_device);
++   assert(m_memories[0] == VK_NULL_HANDLE && m_buffer_fds[0] < 0);
++
++   VkMemoryRequirements requirements = {};
++   device_data.disp.GetImageMemoryRequirements(m_device, image, &requirements);
++   if (requirements.memoryTypeBits == 0)
++   {
++      return VK_ERROR_FEATURE_NOT_PRESENT;
++   }
++   VkPhysicalDeviceMemoryProperties2 memory_props = {};
++   memory_props.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PROPERTIES_2;
++   device_data.instance_data.disp.GetPhysicalDeviceMemoryProperties2KHR(device_data.physical_device, &memory_props);
++   uint32_t memory_type = UINT32_MAX;
++   for (uint32_t i = 0; i < memory_props.memoryProperties.memoryTypeCount; i++)
++   {
++      if (!(requirements.memoryTypeBits & (1u << i)))
++      {
++         continue;
++      }
++      if (memory_type == UINT32_MAX ||
++          (memory_props.memoryProperties.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
++      {
++         memory_type = i;
++      }
++      if (memory_props.memoryProperties.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
++      {
++         break;
++      }
++   }
++   if (memory_type == UINT32_MAX)
++   {
++      return VK_ERROR_FEATURE_NOT_PRESENT;
++   }
++
++   /* shortcut: always dedicated (export commonly requires it), so an app image bound to swapchain memory through
++    * VkBindImageMemorySwapchainInfoKHR would break the dedicated-allocation rules; query
++    * VkMemoryDedicatedRequirements if such an app turns up. */
++   VkMemoryDedicatedAllocateInfo dedicated = {};
++   dedicated.sType = VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO;
++   dedicated.image = image;
++   VkExportMemoryAllocateInfo export_info = {};
++   export_info.sType = VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO;
++   export_info.pNext = &dedicated;
++   export_info.handleTypes = m_handle_type;
++   VkMemoryAllocateInfo alloc_info = {};
++   alloc_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
++   alloc_info.pNext = &export_info;
++   alloc_info.allocationSize = requirements.size;
++   alloc_info.memoryTypeIndex = memory_type;
++   TRY_LOG(device_data.disp.AllocateMemory(m_device, &alloc_info, m_allocator.get_original_callbacks(), &m_memories[0]),
++           "Failed to allocate exportable device memory");
++   TRY_LOG(device_data.disp.BindImageMemory(m_device, image, m_memories[0], 0), "Failed to bind exportable memory");
++
++   VkMemoryGetFdInfoKHR get_fd_info = {};
++   get_fd_info.sType = VK_STRUCTURE_TYPE_MEMORY_GET_FD_INFO_KHR;
++   get_fd_info.memory = m_memories[0];
++   get_fd_info.handleType = m_handle_type;
++   TRY_LOG(device_data.disp.GetMemoryFdKHR(m_device, &get_fd_info, &m_buffer_fds[0]), "Failed to export memory fd");
++   m_owns_exported_fds = true;
++   return VK_SUCCESS;
++}
++
++void external_memory::release_buffer_fds()
++{
++   for (uint32_t plane = 0; plane < MAX_PLANES; plane++)
++   {
++      auto it = std::find(std::begin(m_buffer_fds), std::end(m_buffer_fds), m_buffer_fds[plane]);
++      if (m_buffer_fds[plane] >= 0 && std::distance(std::begin(m_buffer_fds), it) == static_cast<int>(plane))
++      {
++         close(m_buffer_fds[plane]);
++      }
++   }
++   m_buffer_fds.fill(-1);
++}
++
+ VkResult external_memory::fill_image_plane_layouts(util::vector<VkSubresourceLayout> &image_plane_layouts)
+ {
+    if (!image_plane_layouts.try_resize(get_num_planes()))
+diff --git a/wsi/external_memory.hpp b/wsi/external_memory.hpp
+index 9b2e836..e4dee85 100644
+--- a/wsi/external_memory.hpp
++++ b/wsi/external_memory.hpp
+@@ -192,6 +192,22 @@ public:
+     */
+    VkResult import_memory_and_bind_swapchain_image(const VkImage &image);
+ 
++   /**
++    * @brief Allocates dedicated, dma-buf exportable device memory for a single-plane image, binds it and exports
++    *        one fd into the plane 0 buffer fd. For when no external dma-buf allocator is reachable.
++    *
++    * @param image     The swapchain image, created with the external memory image create info.
++    *
++    * @return VK_ERROR_FEATURE_NOT_PRESENT when the device cannot export dma-bufs. Other possible values include the
++    *         result of calling VkAllocateMemory/VkBindImageMemory/VkGetMemoryFdKHR.
++    */
++   VkResult allocate_exported_and_bind(const VkImage &image);
++
++   /**
++    * @brief Closes the plane buffer fds without touching the device memory (exported memory stays owned here).
++    */
++   void release_buffer_fds();
++
+    /* --- RK3588 host-visible memory (X11 SHM backend) --- */
+ 
+    /** @brief Configure this object to allocate host-visible memory for the image. */
+@@ -269,6 +285,7 @@ private:
+                                                          VK_NULL_HANDLE };
+    uint32_t m_num_planes{ 0 };
+    uint32_t m_num_memories{ 0 };
++   bool m_owns_exported_fds{ false };
+    VkExternalMemoryHandleTypeFlagBits m_handle_type{ VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT };
+ 
+    wsi_memory_type m_memory_type{ wsi_memory_type::EXTERNAL_DMA_BUF };
+diff --git a/wsi/image_backing_memory_external.cpp b/wsi/image_backing_memory_external.cpp
+index 636b706..422cee5 100644
+--- a/wsi/image_backing_memory_external.cpp
++++ b/wsi/image_backing_memory_external.cpp
+@@ -72,8 +72,44 @@ VkResult image_backing_memory_external::allocate()
+    return VK_SUCCESS;
+ }
+ 
++VkResult image_backing_memory_external::allocate(VkImage image)
++{
++   if (allocate() == VK_SUCCESS)
++   {
++      return VK_SUCCESS;
++   }
++
++   /* The image was created with the WSI allocator's layout for the selected format; ask it for that layout again
++    * without memory, then let the driver provide (and export) memory in that layout. */
++   allocation_params params = { false, m_create_info.extent, &m_create_info.selected_format, 1,
++                                m_create_info.explicit_compression, true };
++   wsialloc_allocate_result layout = { {}, { 0 }, { 0 }, { -1 }, false };
++   if ((m_create_info.flags & VK_IMAGE_CREATE_PROTECTED_BIT) != 0 ||
++       util::drm::drm_fourcc_format_get_num_planes(m_create_info.selected_format.fourcc) != 1 ||
++       m_wsialloc_allocator.allocate(params, &layout) != VK_SUCCESS)
++   {
++      return VK_ERROR_OUT_OF_DEVICE_MEMORY;
++   }
++
++   m_external_mem.set_strides(layout.average_row_strides);
++   m_external_mem.set_offsets(layout.offsets);
++   m_external_mem.set_num_memories(1);
++   m_external_mem.set_format_info(false, 1);
++   m_external_mem.set_memory_handle_type(VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT);
++   TRY_LOG(m_external_mem.allocate_exported_and_bind(image), "Failed to allocate exportable swapchain image memory");
++   m_driver_allocated = true;
++   return VK_SUCCESS;
++}
++
+ VkResult image_backing_memory_external::import_and_bind(VkImage image)
+ {
++   if (m_driver_allocated)
++   {
++      /* Bound at allocation; the window system holds its own duplicates of the fds by now. */
++      m_external_mem.release_buffer_fds();
++      return VK_SUCCESS;
++   }
++
+    TRY_LOG(m_external_mem.import_memory_and_bind_swapchain_image(image),
+            "Failed to import memory and bind swapchain image");
+ 
+diff --git a/wsi/image_backing_memory_external.hpp b/wsi/image_backing_memory_external.hpp
+index 1182acc..51b99fe 100644
+--- a/wsi/image_backing_memory_external.hpp
++++ b/wsi/image_backing_memory_external.hpp
+@@ -78,6 +78,18 @@ public:
+     */
+    VkResult allocate();
+ 
++   /**
++    * @brief Allocate external memory for the image, falling back to driver-allocated memory.
++    *
++    * Tries the WSI allocator first. If it cannot allocate (no dma-buf heap is reachable), the image's
++    * memory is allocated by the driver as dma-buf exportable, bound, and exported, so the same fds can
++    * be handed to the window system. import_and_bind() then only releases the exported fds.
++    *
++    * @param image Vulkan image the memory is for (created with the external memory layout).
++    * @return VK_SUCCESS if successful, otherwise an error.
++    */
++   VkResult allocate(VkImage image);
++
+    /**
+     * @brief Import external memory and bind it to the image.
+     * Note: The backing memory must be allocated before calling this function.
+@@ -123,6 +135,9 @@ private:
+ 
+    swapchain_wsialloc_allocator &m_wsialloc_allocator;
+    wsialloc_create_info_args m_create_info;
++
++   /* Memory came from the driver (allocate(VkImage) fallback) and is already bound. */
++   bool m_driver_allocated{ false };
+ };
+ 
+ class external_image_backing_memory_creator : public image_backing_memory_creator
+diff --git a/wsi/x11/swapchain.cpp b/wsi/x11/swapchain.cpp
+index a857035..9b269ff 100644
+--- a/wsi/x11/swapchain.cpp
++++ b/wsi/x11/swapchain.cpp
+@@ -512,9 +512,10 @@ VkResult swapchain::allocate_and_bind_swapchain_image(swapchain_image &image)
+    if (m_use_dri3)
+    {
+       /* DRI3: allocate the GPU-local dma-buf, wrap it as an X pixmap (before the Vulkan import, so
+-       * the fds are still ours to duplicate), then import and bind. */
++       * the fds are still ours to duplicate), then import and bind. Without a dma-buf heap the driver
++       * allocates and exports the memory instead (bound here, so import_and_bind only drops the fds). */
+       auto &backing = swapchain_image_factory::get_backing_memory_from_image<image_backing_memory_external>(image);
+-      TRY_LOG_CALL(backing.allocate());
++      TRY_LOG_CALL(backing.allocate(image.get_image()));
+       TRY_LOG(m_presenter->create_image_resources(image, image_data, width, height, depth),
+               "Failed to create DRI3 pixmap resources");
+       TRY_LOG_CALL(backing.import_and_bind(image.get_image()));
