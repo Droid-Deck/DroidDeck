@@ -108,6 +108,15 @@ def godot_sentry(game):
 
 
 @fix
+def d3dgear_hook(game):
+    """D3DGear's capture DLL left beside a game (The Crew 2) is loaded by it and hooks the DXGI swapchain;
+    under Wine the hook faults over a thousand times within seconds and the game never presents again:
+    black screen while the sound keeps playing."""
+    if "d3dgear64.dll" in game.files:
+        return {"WINEDLLOVERRIDES": "d3dgear64=d"}, [], "D3DGear capture hook off (it stops the game drawing)"
+
+
+@fix
 def deep_rock_gdk_raytracing(game):
     if game.stem == "fsd-wingdk-shipping" and not any(game.has_arg(arg) for arg in ("-raytracing", "-noraytracing")):
         return {}, ["-noraytracing", "-ini:Engine:[/Script/Engine.RendererSettings]:r.RayTracing=False"], "Deep Rock Galactic GDK: ray tracing off (D3D12 pipeline creation fails on Thor)"
@@ -254,7 +263,10 @@ def engine_fixes(exe, args):
     for check in FIXES:
         found = check(game)
         if found:
-            env.update(found[0])
+            for name, value in found[0].items():
+                if name == "WINEDLLOVERRIDES" and env.get(name):
+                    value = env[name] + ";" + value
+                env[name] = value
             extra += found[1]
             notes.append(found[2])
     return env, extra, notes
