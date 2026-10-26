@@ -1134,9 +1134,11 @@ def read_status(path):
         return None
     for encoding in ("utf-16", "utf-8-sig"):
         try:
-            return json.loads(data.decode(encoding))
+            value = json.loads(data.decode(encoding))
         except (UnicodeDecodeError, ValueError):
             continue
+        if isinstance(value, dict):
+            return value
     return None
 
 
@@ -1211,7 +1213,11 @@ def agent_job(root, action, uid, product="", folder="", locale="enUS", country="
         except OSError:
             pass
         with open(output, "ab") as log:
-            child = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=log, stderr=log, env=env)
+            try:
+                child = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=log, stderr=log, env=env)
+            except OSError as error:
+                emit("ERROR", "stopped gamescope: %s" % error)
+                return 1
         seen = None
         while True:
             done = child.poll() is not None

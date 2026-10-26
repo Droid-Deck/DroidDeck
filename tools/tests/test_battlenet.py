@@ -1187,6 +1187,25 @@ class AgentJobTest(Harness):
         self.assertEqual(BNET["agent_job"](self.root, "uninstall", "gryphon", poll=0), 0)
         self.assertEqual(self.lines[-1], ("DONE", json.dumps({"uninstalled": "gryphon"})))
 
+    def test_a_gamescope_that_cannot_start_is_reported(self):
+        self.install()
+
+        def missing(cmd, **kwargs):
+            raise FileNotFoundError("gamescope")
+
+        with mock.patch.object(BNET["subprocess"], "Popen", missing):
+            self.assertEqual(BNET["agent_job"](self.root, "update", "gryphon", poll=0), 1)
+        self.assertEqual(self.lines[-1], ("ERROR", "stopped gamescope: gamescope"))
+
+    def test_an_agent_answer_that_is_not_an_object_is_ignored(self):
+        path = self.tmp / "answer.json"
+        for value in ([1, 2], "text", 3, None):
+            with self.subTest(value):
+                path.write_bytes(json.dumps(value).encode("utf-16"))
+                self.assertIsNone(BNET["read_status"](str(path)))
+        path.write_bytes(json.dumps({"state": 1004}).encode("utf-8"))
+        self.assertEqual(BNET["read_status"](str(path)), {"state": 1004})
+
     def test_a_large_agent_log_is_rotated_before_a_job(self):
         self.install()
         os.makedirs(self.tmp / "cache")
