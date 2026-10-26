@@ -356,7 +356,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
     BackHandler(enabled = open && confirmStop) { confirmStop = false }
     LaunchedEffect(page) { host.open = null; appToChooseDisplay = null }
     LaunchedEffect(a.selectedGameProfileId) {
-        if (host.open == "fex") host.open = null
+        if (host.open == "fex" || host.open == "locale") host.open = null
     }
     LaunchedEffect(open, page, a.componentDownloadRevision) {
         if (open && page == SessionDrawerPage.GAMES) {

@@ -234,10 +234,12 @@ fun ComponentsPage(
                     ComponentsManager.gameComponents(ctx, game.profileKey),
                 )
             }
+            val current = withContext(Dispatchers.IO) { GameEnvironmentStore.read(ctx) }
             if (profileLoadGeneration == generation && selectedGameKey == game.profileKey) {
                 gameProtonChoice = choice
                 gameProtonId = id
                 gameComponents = components
+                environment = current
             }
         } catch (error: CancellationException) {
             throw error
@@ -280,16 +282,19 @@ fun ComponentsPage(
     }
     fun setGameLocale(locale: String?) {
         val game = selectedGame ?: return
+        val scope = game.profileKey
         environmentBusy = true
         profileNotice = null
         coroutine.launch {
             runCatching {
                 withContext(Dispatchers.IO) {
-                    GameEnvironmentStore.setGameLocale(ctx, game.profileKey, locale)
+                    GameEnvironmentStore.setGameLocale(ctx, scope, locale)
                 }
             }.onSuccess { saved ->
-                environment = saved
-                if (selectedGameKey == game.profileKey) {
+                environment = environment
+                    ?.let { GameEnvironment.withScopeValue(it, scope, GameEnvironment.LOCALE, locale) }
+                    ?: saved
+                if (selectedGameKey == scope) {
                     environmentError = false
                     profileNotice = ctx.getString(R.string.comp_game_saved_next, game.name)
                 }
