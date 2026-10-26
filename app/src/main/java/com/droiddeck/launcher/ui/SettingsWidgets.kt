@@ -439,6 +439,7 @@ fun SettingsGroup(title: String, compact: Boolean = false, content: @Composable 
 
 @Composable
 fun SettingsRow(label: String, hint: String?, highlighted: Boolean = false, hintLines: Int? = null, stacked: Boolean = false, control: @Composable () -> Unit) {
+    val compact = LocalCompactSettings.current
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val bg by animateColorAsState(if (highlighted) pal.signal.copy(alpha = 0.10f) else Color.Transparent, Motion.tw(200), label = "rowBg")
@@ -446,7 +447,7 @@ fun SettingsRow(label: String, hint: String?, highlighted: Boolean = false, hint
         Text(hint ?: "", fontSize = size, color = colors.onSurfaceVariant, modifier = Modifier.padding(top = 2.dp),
             minLines = hintLines ?: 1, maxLines = hintLines ?: Int.MAX_VALUE, overflow = TextOverflow.Ellipsis)
     }
-    if (LocalCompactSettings.current) Column(
+    if (compact && !stacked) Column(
         modifier = Modifier.fillMaxWidth().background(bg).padding(horizontal = 10.dp, vertical = 6.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -456,11 +457,13 @@ fun SettingsRow(label: String, hint: String?, highlighted: Boolean = false, hint
         }
         if (hint != null || hintLines != null) hintText(11.sp)
     } else if (stacked || LocalNarrowPane.current) Column(
-        modifier = Modifier.fillMaxWidth().background(bg).padding(start = 14.dp, end = 14.dp, top = 11.dp, bottom = 12.dp),
+        modifier = Modifier.fillMaxWidth().background(bg).padding(
+            horizontal = if (compact) 10.dp else 14.dp,
+            vertical = if (compact) 6.dp else 12.dp),
     ) {
-        Text(label, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground)
-        if (hint != null || hintLines != null) hintText(13.sp)
-        Box(Modifier.padding(top = 8.dp)) { control() }
+        Text(label, fontSize = if (compact) 13.sp else 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground)
+        if (hint != null || hintLines != null) hintText(if (compact) 11.sp else 13.sp)
+        Box(Modifier.padding(top = if (compact) 6.dp else 8.dp)) { control() }
     } else Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.fillMaxWidth().background(bg).padding(horizontal = 14.dp, vertical = 11.dp),

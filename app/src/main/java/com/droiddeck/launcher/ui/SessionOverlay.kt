@@ -566,7 +566,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                     stringResource(R.string.ctrl_edit), a.onGestureSettings,
                                     modifier = focus.track(page, "gesture-settings"))
                                 if (a.onScreenKeys != null) {
-                                    SettingsRow(stringResource(R.string.screen_keys), null) {
+                                    SettingsRow(stringResource(R.string.screen_keys), null, stacked = narrow) {
                                         Row(
                                             verticalAlignment = Alignment.CenterVertically,
                                             horizontalArrangement = Arrangement.spacedBy(10.dp),
