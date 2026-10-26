@@ -1285,6 +1285,10 @@
 
     <string name="main_wait_runtime">Wait for the runtime operation to finish</string>
     <string name="main_wait_proton_install">Wait for the compatibility tool install to finish</string>
+    <string name="load_compat_title">Preparing compatibility tools</string>
+    <string name="load_compat_wait">Waiting for compatibility setup to finish</string>
+    <string name="load_compat_hint">Your session will start when setup finishes.</string>
+    <string name="load_compat_progress">%1$s · %2$d%%</string>
     <string name="main_wait_desktop_install">Wait for the desktop app install to finish</string>
     <string name="main_wait_install_game">Wait for the install to finish before launching a game</string>
     <string name="main_saves_close_session">Close the Steam session first, so the game can\'t save over the import</string>
