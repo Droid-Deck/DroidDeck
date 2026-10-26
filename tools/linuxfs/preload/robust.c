@@ -100,7 +100,7 @@ static long path_statx(int dirfd, const char *path, int flags, unsigned int mask
   return next_statx(dirfd, path, flags, mask, out);
 }
 
-void bl_inputudev_note_dlopen(const char *path, void *handle) __attribute__((visibility("hidden")));
+void bl_inputudev_note_dlopen(const char *path, void *handle) __attribute__((weak, visibility("hidden")));
 
 void *dlopen(const char *filename, int flags) {
   void *handle;
@@ -114,7 +114,7 @@ void *dlopen(const char *filename, int flags) {
     flags &= ~RTLD_DEEPBIND;
   }
   handle = real_dlopen != NULL ? real_dlopen(filename, flags) : NULL;
-  if (handle != NULL) bl_inputudev_note_dlopen(filename, handle);
+  if (handle != NULL && bl_inputudev_note_dlopen != NULL) bl_inputudev_note_dlopen(filename, handle);
   return handle;
 }
 
