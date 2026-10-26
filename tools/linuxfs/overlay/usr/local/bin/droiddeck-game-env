@@ -352,7 +352,7 @@ def game_cores(env):
 
 
 def cpu_topology(env):
-    if "WINE_CPU_TOPOLOGY" in env or not (env.get("DROIDDECK_GAME_CORES", "").strip() or env.get("BL_GAME_CPUS", "").strip()):
+    if "WINE_CPU_TOPOLOGY" in env or "PROTON_CPU_TOPOLOGY" in env or not (env.get("DROIDDECK_GAME_CORES", "").strip() or env.get("BL_GAME_CPUS", "").strip()):
         return
     try:
         cores = sorted(os.sched_getaffinity(0))
@@ -361,7 +361,7 @@ def cpu_topology(env):
     online = online_cores()
     if not cores or set(cores) >= online or cores[-1] >= len(online):
         return
-    env["WINE_CPU_TOPOLOGY"] = "%d:%s" % (len(cores), ",".join(map(str, cores)))
+    env["WINE_CPU_TOPOLOGY"] = env["PROTON_CPU_TOPOLOGY"] = "%d:%s" % (len(cores), ",".join(map(str, cores)))
     print("droiddeck-game-env: Windows sees %d cores (%s)" % (len(cores), env["WINE_CPU_TOPOLOGY"]), file=sys.stderr)
 
 
