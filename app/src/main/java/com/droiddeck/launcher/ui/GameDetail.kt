@@ -56,6 +56,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalConfiguration
@@ -86,6 +87,7 @@ import com.droiddeck.launcher.stores.StoreInstallRoot
 import com.droiddeck.launcher.stores.StoreLanguage
 import com.droiddeck.launcher.stores.StoreSizes
 import com.droiddeck.launcher.stores.StoresState
+import com.droiddeck.launcher.stores.battlenet.BattleNetInstall
 import com.droiddeck.launcher.stores.download.DownloadQueue
 import com.droiddeck.launcher.stores.download.DownloadState
 import com.droiddeck.launcher.stores.formatBytes
@@ -267,13 +269,15 @@ private fun GameHero(
             )
         }
         Spacer(Modifier.matchParentSize().background(Brush.horizontalGradient(0f to colors.background.copy(alpha = 0.94f), 0.55f to colors.background.copy(alpha = 0.58f), 1f to Color.Transparent)))
+        var scoresWidth by remember { mutableStateOf(0) }
         if (scores != null) {
             Spacer(Modifier.matchParentSize().background(Brush.horizontalGradient(0.45f to Color.Transparent, 1f to colors.background.copy(alpha = 0.75f))))
-            HeroScores(scores, Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = 18.dp))
+            HeroScores(scores, Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = 18.dp).onSizeChanged { scoresWidth = it.width })
         }
+        val scoresSpace = with(LocalDensity.current) { if (scores != null && scoresWidth > 0) scoresWidth.toDp() + 16.dp else 0.dp }
         Column(
             verticalArrangement = Arrangement.spacedBy(6.dp),
-            modifier = Modifier.align(Alignment.BottomStart).padding(horizontal = 22.dp, vertical = 18.dp),
+            modifier = Modifier.align(Alignment.BottomStart).padding(start = 22.dp, end = 22.dp + scoresSpace, top = 18.dp, bottom = 18.dp),
             content = content,
         )
         Box(Modifier.align(Alignment.TopEnd).padding(12.dp), content = corner)
@@ -358,7 +362,19 @@ internal fun GameActions(
                     }
                     SecondaryButton(stringResource(R.string.stores_xbox_manage), enabled = download == null) { XboxContent.manage(ctx, installed) }
                 }
-                if (store == Store.BATTLENET) SecondaryButton(stringResource(R.string.bnet_open)) { a.onBattleNet() }
+                if (store == Store.BATTLENET) {
+                    if (installed != null && id != null) {
+                        LaunchedEffect(id) { BattleNetInstall.checkUpdate(ctx, installed) }
+                        if (download != null) {
+                            ActionChip(downloadLabel(download), ok = false)
+                            if (download.state != DownloadState.PAUSED) SecondaryButton(stringResource(R.string.stores_dl_pause)) { DownloadQueue.pause(download.key) }
+                            else SecondaryButton(stringResource(R.string.stores_dl_resume)) { DownloadQueue.resume(ctx, download.key) }
+                        } else if (BattleNetInstall.updates[id] == true) {
+                            SecondaryButton(stringResource(R.string.bnet_update)) { BattleNetInstall.update(ctx, installed) }
+                        }
+                    }
+                    SecondaryButton(stringResource(R.string.bnet_open)) { a.onBattleNet() }
+                }
             }
             download != null -> {
                 ActionChip(downloadLabel(download), ok = false)
@@ -534,7 +550,7 @@ private fun IconAction(icon: androidx.compose.ui.graphics.vector.ImageVector, la
 private fun RemoveButton(title: String, game: Library.SteamGame?, installed: InstalledStoreGame?, a: FrontEndActions) {
     val ctx = LocalContext.current
     val colors = MaterialTheme.colorScheme
-    if ((installed?.sidecar?.store?.id ?: game?.source) == Store.BATTLENET.id) return
+    if ((installed?.sidecar?.store?.id ?: game?.source) == Store.BATTLENET.id && installed?.sidecar?.id?.let(BattleNetInstall::product) == null) return
     if (installed != null) {
         val key = installed.key
         val gone = StoresState.uninstalling[key]

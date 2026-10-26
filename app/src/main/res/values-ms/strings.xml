@@ -1976,6 +1976,13 @@
     <string name="stores_play">Main</string>
     <string name="stores_install">Pasang</string>
     <string name="bnet_open">Buka Battle.net</string>
+    <string name="bnet_dl_starting">Memulakan pemuat turun Blizzard…</string>
+    <string name="bnet_dl_waiting">Menunggu Battle.net ditutup…</string>
+    <string name="bnet_dl_queued">Menunggu muat turun Battle.net yang lain…</string>
+    <string name="bnet_dl_client_first">Buka Battle.net dan log masuk sekali, kemudian pasang permainannya dari sini.</string>
+    <string name="bnet_dl_failed">Pemuat turun Blizzard berhenti: %1$s</string>
+    <string name="bnet_dl_agent_error">Ralat Blizzard %1$s</string>
+    <string name="bnet_update">Kemas kini</string>
     <string name="bnet_store">Permainan Blizzard</string>
     <string name="stores_resume_install">Sambung pemasangan</string>
     <string name="stores_dl_interrupted">Terganggu</string>

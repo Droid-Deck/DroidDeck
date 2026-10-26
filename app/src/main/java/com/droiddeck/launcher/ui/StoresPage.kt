@@ -1392,7 +1392,11 @@ internal fun downloadLabel(d: com.droiddeck.launcher.stores.download.DownloadEnt
 
 @Composable
 internal fun activeStageLabel(d: com.droiddeck.launcher.stores.download.DownloadEntry): String = when (d.stage) {
-    DownloadStage.MANIFEST -> if (d.stageItemsTotal > 0) stringResource(R.string.stores_stage_checking) else stringResource(R.string.stores_stage_manifest)
+    DownloadStage.MANIFEST -> when {
+        d.store == Store.BATTLENET && d.detail.isNotBlank() -> d.detail
+        d.stageItemsTotal > 0 -> stringResource(R.string.stores_stage_checking)
+        else -> stringResource(R.string.stores_stage_manifest)
+    }
     DownloadStage.DOWNLOAD -> stringResource(R.string.stores_stage_downloading)
     DownloadStage.VERIFY -> stringResource(R.string.stores_stage_verifying)
     DownloadStage.INSTALL -> stringResource(R.string.stores_stage_installing)

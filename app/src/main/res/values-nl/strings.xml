@@ -1997,6 +1997,13 @@
     <string name="stores_play">Spelen</string>
     <string name="stores_install">Installeren</string>
     <string name="bnet_open">Battle.net openen</string>
+    <string name="bnet_dl_starting">Blizzards downloader wordt gestart…</string>
+    <string name="bnet_dl_waiting">Wachten tot Battle.net is gesloten…</string>
+    <string name="bnet_dl_queued">Wachten op de andere Battle.net-download…</string>
+    <string name="bnet_dl_client_first">Open Battle.net en meld je één keer aan, installeer daarna de games hier.</string>
+    <string name="bnet_dl_failed">Blizzards downloader is gestopt: %1$s</string>
+    <string name="bnet_dl_agent_error">Blizzard-fout %1$s</string>
+    <string name="bnet_update">Bijwerken</string>
     <string name="bnet_store">Blizzard-games</string>
     <string name="stores_resume_install">Installatie hervatten</string>
     <string name="stores_dl_interrupted">Onderbroken</string>

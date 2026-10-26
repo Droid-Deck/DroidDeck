@@ -1978,6 +1978,13 @@
     <string name="stores_play">플레이</string>
     <string name="stores_install">설치</string>
     <string name="bnet_open">Battle.net 열기</string>
+    <string name="bnet_dl_starting">Blizzard 다운로더를 시작하는 중…</string>
+    <string name="bnet_dl_waiting">Battle.net이 닫히기를 기다리는 중…</string>
+    <string name="bnet_dl_queued">다른 Battle.net 다운로드를 기다리는 중…</string>
+    <string name="bnet_dl_client_first">Battle.net을 열고 한 번 로그인한 다음 여기에서 게임을 설치하세요.</string>
+    <string name="bnet_dl_failed">Blizzard 다운로더가 중지됨: %1$s</string>
+    <string name="bnet_dl_agent_error">Blizzard 오류 %1$s</string>
+    <string name="bnet_update">업데이트</string>
     <string name="bnet_store">Blizzard 게임</string>
     <string name="stores_resume_install">설치 재개</string>
     <string name="stores_dl_interrupted">중단됨</string>

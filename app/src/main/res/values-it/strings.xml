@@ -2010,6 +2010,13 @@
     <string name="stores_play">Gioca</string>
     <string name="stores_install">Installa</string>
     <string name="bnet_open">Apri Battle.net</string>
+    <string name="bnet_dl_starting">Avvio del downloader di Blizzard…</string>
+    <string name="bnet_dl_waiting">In attesa della chiusura di Battle.net…</string>
+    <string name="bnet_dl_queued">In attesa dell\'altro download di Battle.net…</string>
+    <string name="bnet_dl_client_first">Apri Battle.net ed esegui l\'accesso una volta, poi installa qui i suoi giochi.</string>
+    <string name="bnet_dl_failed">Il downloader di Blizzard si è fermato: %1$s</string>
+    <string name="bnet_dl_agent_error">Errore Blizzard %1$s</string>
+    <string name="bnet_update">Aggiorna</string>
     <string name="bnet_store">Giochi Blizzard</string>
     <string name="stores_resume_install">Riprendi installazione</string>
     <string name="stores_dl_interrupted">Interrotto</string>

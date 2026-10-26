@@ -1989,6 +1989,13 @@
     <string name="stores_play">Spielen</string>
     <string name="stores_install">Installieren</string>
     <string name="bnet_open">Battle.net öffnen</string>
+    <string name="bnet_dl_starting">Blizzards Downloader wird gestartet…</string>
+    <string name="bnet_dl_waiting">Warten, bis Battle.net geschlossen ist…</string>
+    <string name="bnet_dl_queued">Warten auf den anderen Battle.net-Download…</string>
+    <string name="bnet_dl_client_first">Öffne Battle.net und melde dich einmal an, dann installiere seine Spiele hier.</string>
+    <string name="bnet_dl_failed">Blizzards Downloader wurde beendet: %1$s</string>
+    <string name="bnet_dl_agent_error">Blizzard-Fehler %1$s</string>
+    <string name="bnet_update">Aktualisieren</string>
     <string name="bnet_store">Blizzard-Spiele</string>
     <string name="stores_resume_install">Installation fortsetzen</string>
     <string name="stores_dl_interrupted">Unterbrochen</string>

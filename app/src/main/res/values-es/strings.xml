@@ -2020,6 +2020,13 @@
     <string name="stores_play">Jugar</string>
     <string name="stores_install">Instalar</string>
     <string name="bnet_open">Abrir Battle.net</string>
+    <string name="bnet_dl_starting">Iniciando el descargador de Blizzard…</string>
+    <string name="bnet_dl_waiting">Esperando a que se cierre Battle.net…</string>
+    <string name="bnet_dl_queued">Esperando a la otra descarga de Battle.net…</string>
+    <string name="bnet_dl_client_first">Abre Battle.net e inicia sesión una vez; después instala sus juegos desde aquí.</string>
+    <string name="bnet_dl_failed">El descargador de Blizzard se ha detenido: %1$s</string>
+    <string name="bnet_dl_agent_error">Error de Blizzard %1$s</string>
+    <string name="bnet_update">Actualizar</string>
     <string name="bnet_store">Juegos de Blizzard</string>
     <string name="stores_resume_install">Reanudar instalación</string>
     <string name="stores_dl_interrupted">Interrumpida</string>

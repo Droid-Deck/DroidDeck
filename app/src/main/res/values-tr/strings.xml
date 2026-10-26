@@ -1991,6 +1991,13 @@
     <string name="stores_play">Oyna</string>
     <string name="stores_install">Yükle</string>
     <string name="bnet_open">Battle.net\'i aç</string>
+    <string name="bnet_dl_starting">Blizzard indiricisi başlatılıyor…</string>
+    <string name="bnet_dl_waiting">Battle.net\'in kapanması bekleniyor…</string>
+    <string name="bnet_dl_queued">Diğer Battle.net indirmesi bekleniyor…</string>
+    <string name="bnet_dl_client_first">Battle.net\'i açıp bir kez oturum açın, ardından oyunlarını buradan yükleyin.</string>
+    <string name="bnet_dl_failed">Blizzard indiricisi durdu: %1$s</string>
+    <string name="bnet_dl_agent_error">Blizzard hatası %1$s</string>
+    <string name="bnet_update">Güncelle</string>
     <string name="bnet_store">Blizzard oyunları</string>
     <string name="stores_resume_install">Yüklemeyi sürdür</string>
     <string name="stores_dl_interrupted">Kesintiye uğradı</string>

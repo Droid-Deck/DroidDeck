@@ -236,7 +236,7 @@ object StoresState {
     fun install(context: Context, item: CatalogItem, root: java.io.File? = null, language: String? = null) {
         val app = context.applicationContext
         val targetRoot = root ?: StoreInstallRoot.defaultTarget(app)?.root ?: StoreInstallRoot.installRoot(app)
-        if (item.store == Store.BATTLENET) {
+        if (item.store == Store.BATTLENET && !com.droiddeck.launcher.stores.battlenet.BattleNetInstall.headless(item)) {
             backends[item.store]?.install(app, item, targetRoot)
             return
         }
@@ -273,7 +273,7 @@ object StoresState {
         uninstalling[key] = 0f
         background("stores-uninstall", onFailure = { main.post { uninstalling.remove(key); onDone() } }) {
             runCatching { backends[game.sidecar.store]?.uninstall(app, game) }
-            if (game.sidecar.store == Store.BATTLENET) {
+            if (game.sidecar.store == Store.BATTLENET && com.droiddeck.launcher.runtime.BattleNet.games(app).any { it.folder.absolutePath == game.folder.absolutePath }) {
                 main.post { uninstalling.remove(key); onDone() }
                 return@background
             }

@@ -1997,6 +1997,13 @@
     <string name="stores_play">Spill</string>
     <string name="stores_install">Installer</string>
     <string name="bnet_open">Åpne Battle.net</string>
+    <string name="bnet_dl_starting">Starter Blizzards nedlaster…</string>
+    <string name="bnet_dl_waiting">Venter på at Battle.net lukkes…</string>
+    <string name="bnet_dl_queued">Venter på den andre Battle.net-nedlastingen…</string>
+    <string name="bnet_dl_client_first">Åpne Battle.net og logg på én gang, og installer deretter spillene herfra.</string>
+    <string name="bnet_dl_failed">Blizzards nedlaster stoppet: %1$s</string>
+    <string name="bnet_dl_agent_error">Blizzard-feil %1$s</string>
+    <string name="bnet_update">Oppdater</string>
     <string name="bnet_store">Blizzard-spill</string>
     <string name="stores_resume_install">Gjenoppta installasjon</string>
     <string name="stores_dl_interrupted">Avbrutt</string>

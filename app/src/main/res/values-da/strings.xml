@@ -1997,6 +1997,13 @@
     <string name="stores_play">Spil</string>
     <string name="stores_install">Installer</string>
     <string name="bnet_open">Åbn Battle.net</string>
+    <string name="bnet_dl_starting">Starter Blizzards downloader…</string>
+    <string name="bnet_dl_waiting">Venter på, at Battle.net lukker…</string>
+    <string name="bnet_dl_queued">Venter på den anden Battle.net-download…</string>
+    <string name="bnet_dl_client_first">Åbn Battle.net, og log ind én gang, og installer derefter dets spil herfra.</string>
+    <string name="bnet_dl_failed">Blizzards downloader stoppede: %1$s</string>
+    <string name="bnet_dl_agent_error">Blizzard-fejl %1$s</string>
+    <string name="bnet_update">Opdater</string>
     <string name="bnet_store">Blizzard-spil</string>
     <string name="stores_resume_install">Genoptag installation</string>
     <string name="stores_dl_interrupted">Afbrudt</string>

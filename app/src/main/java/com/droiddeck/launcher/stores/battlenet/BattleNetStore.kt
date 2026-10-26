@@ -189,9 +189,15 @@ object BattleNetBackend : StoreBackend {
     override fun search(context: Context, query: String): List<CatalogItem> =
         BattleNet.STORE.filter { it.name.contains(query, ignoreCase = true) }.map { item(context, it) }
 
-    override fun install(context: Context, item: CatalogItem, root: File) = BattleNetClient.installGame(context, item.id, root)
+    override fun install(context: Context, item: CatalogItem, root: File) {
+        if (!BattleNetInstall.headless(item)) return BattleNetClient.installGame(context, item.id, root)
+        val app = context.applicationContext
+        BattleNetInstall.enqueue(app, item, StoreInstallRoot.folderFor(app, store, item.id, item.title, root))
+    }
 
-    override fun uninstall(context: Context, game: InstalledStoreGame) = BattleNetClient.open(emptyList())
+    override fun uninstall(context: Context, game: InstalledStoreGame) {
+        if (!BattleNetInstall.uninstall(context, game)) BattleNetClient.open(emptyList())
+    }
 
     fun installed(context: Context): List<BattleNet.Game> = if (BattleNet.installed(context)) BattleNet.games(context) else emptyList()
 
