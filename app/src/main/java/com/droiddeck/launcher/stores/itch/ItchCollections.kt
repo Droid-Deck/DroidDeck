@@ -87,9 +87,7 @@ internal object ItchCollections {
                 }
                 val batch = parseGames(body)
                 if (batch.isEmpty()) break
-                val fresh = batch.filter { seen.add(it.id) }
-                if (fresh.isEmpty()) break
-                out.addAll(fresh)
+                out.addAll(batch.filter { seen.add(it.id) })
                 page++
             }
             val distinct = out.toList()
