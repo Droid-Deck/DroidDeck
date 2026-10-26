@@ -5,6 +5,8 @@ import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
+@org.junit.runner.RunWith(org.robolectric.RobolectricTestRunner::class)
+@org.robolectric.annotation.Config(sdk = [33], application = android.app.Application::class)
 class ItchCollectionsTest {
     @Test fun collectionsKeepTheirIdTitleAndCount() {
         val body = JSONArray()
