@@ -432,4 +432,54 @@ int main() {
     assert(xrContext.properties.strings.at({4, Prop_InputProfilePath_String}) == handProfile);
     puts("PASS: Android XR hand profile stays immutable and disconnect releases held input");
 
+    xrContext.input.handles.clear();
+    CardboardController galaxyController(false);
+    assert(galaxyController.ConfigureAndroidXr(false));
+    assert(galaxyController.Activate(4) == VRInitError_None);
+    assert(!galaxyController.ConfigureAndroidXr());
+    const auto controllerProfile = xrContext.properties.strings.at({5, Prop_InputProfilePath_String});
+    assert(controllerProfile == "{oculus}/input/touch_profile.json");
+    assert(xrContext.properties.strings.at({5, Prop_ControllerType_String}) == "oculus_touch");
+    assert(xrContext.properties.strings.at({4, Prop_ControllerType_String}) == "knuckles");
+    const auto &controllerHandles = xrContext.input.handles;
+    assert(controllerHandles.count("/input/joystick/x") && controllerHandles.count("/input/x/click"));
+    assert(!controllerHandles.count("/input/thumbstick/x") && !controllerHandles.count("/input/skeleton/left"));
+    assert(galaxyController.Haptic() && !trackedHand.Haptic());
+    const auto controllerTrigger = controllerHandles.at("/input/trigger/value");
+    const auto controllerThumbrest = controllerHandles.at("/input/thumbrest/touch");
+    const auto controllerX = controllerHandles.at("/input/x/click");
+    DroidDeckXrHand controllerState{};
+    controllerState.active = 1;
+    controllerState.pose.flags = 15;
+    controllerState.pose.orientation[3] = 1;
+    controllerState.trigger = 1;
+    controllerState.buttons = DROIDDECK_XR_PRIMARY_CLICK | DROIDDECK_XR_THUMBREST_TOUCH;
+
+    CardboardHmd routing;
+    routing.SetHands(&trackedHand, nullptr);
+    assert(routing.ActiveHand(0) == &trackedHand);
+    sample.pinch = 0;
+    trackedHand.UpdateXrHand(handPacket, noSkeleton, 2000000000, false);
+    trackedHand.UpdateXrHand(handPacket, noSkeleton, 2000000000, false);
+    sample.pinch = 1;
+    trackedHand.UpdateXrHand(handPacket, noSkeleton, 2000000000, false);
+    assert(xrContext.input.values.at(handTrigger) == 1);
+    routing.SetHands(&galaxyController, nullptr);
+    assert(routing.ActiveHand(0) == &galaxyController);
+    assert(!trackedHand.GetPose().deviceIsConnected && xrContext.input.values.at(handTrigger) == 0);
+    galaxyController.UpdateXr(controllerState, 0);
+    assert(galaxyController.GetPose().poseIsValid);
+    assert(xrContext.input.values.at(controllerTrigger) == 1);
+    assert(xrContext.input.values.at(controllerX) == 1 && xrContext.input.values.at(controllerThumbrest) == 1);
+    routing.SetHands(&trackedHand, nullptr);
+    assert(routing.ActiveHand(0) == &trackedHand);
+    assert(!galaxyController.GetPose().deviceIsConnected && xrContext.input.values.at(controllerTrigger) == 0);
+    assert(xrContext.input.values.at(controllerX) == 0 && xrContext.input.values.at(controllerThumbrest) == 0);
+    trackedHand.UpdateXrHand(handPacket, noSkeleton, 2000000000, false);
+    assert(xrContext.input.values.at(handTrigger) == 0);
+    assert(xrContext.properties.strings.at({4, Prop_InputProfilePath_String}) == handProfile);
+    assert(xrContext.properties.strings.at({5, Prop_InputProfilePath_String}) == controllerProfile);
+    assert(!xrContext.input.values.count(0));
+    puts("PASS: Galaxy XR Touch and tracked hands keep separate profiles across switches and release held input");
+
 }

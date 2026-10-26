@@ -1,5 +1,6 @@
 #include <jni.h>
 #include <EGL/egl.h>
+#include <EGL/eglext.h>
 #include <GLES3/gl3.h>
 #include <android/log.h>
 #include <android_native_app_glue.h>
@@ -27,6 +28,7 @@
 #include "xr_frame_math.h"
 #include "GpuFrames.h"
 #include "OpenXrAndroid.h"
+#include "OpenXrCompatibility.h"
 #include "MappedGuestXrAdapter.h"
 #include "xr_skeleton.h"
 #include "Json.h"
@@ -516,9 +518,8 @@ private:
             reinterpret_cast<PFN_xrVoidFunction *>(&requirementsFunction)), "GLES requirements entrypoint");
         XrGraphicsRequirementsOpenGLESKHR requirements{XR_TYPE_GRAPHICS_REQUIREMENTS_OPENGL_ES_KHR};
         check(requirementsFunction(instance_, system_, &requirements), "GLES requirements");
-        if (requirements.minApiVersionSupported > XR_MAKE_VERSION(3, 2, 0)
-            || requirements.maxApiVersionSupported < XR_MAKE_VERSION(3, 0, 0))
-            throw std::runtime_error("Runtime has no supported GLES 3.x version");
+        const XrVersion glesVersion = compatibleGlesVersion(requirements.minApiVersionSupported,
+                                                           requirements.maxApiVersionSupported);
         display_ = eglGetDisplay(EGL_DEFAULT_DISPLAY);
         if (!eglInitialize(display_, nullptr, nullptr)) throw std::runtime_error("eglInitialize failed");
         const EGLint attributes[] = {EGL_RENDERABLE_TYPE, EGL_OPENGL_ES3_BIT, EGL_SURFACE_TYPE, EGL_PBUFFER_BIT | EGL_WINDOW_BIT,
@@ -527,7 +528,8 @@ private:
         EGLint found = 0;
         if (!eglChooseConfig(display_, attributes, &config, 1, &found) || found != 1)
             throw std::runtime_error("EGL config unavailable");
-        const EGLint contextAttributes[] = {EGL_CONTEXT_CLIENT_VERSION, 3, EGL_NONE};
+        const EGLint contextAttributes[] = {EGL_CONTEXT_CLIENT_VERSION, 3,
+            EGL_CONTEXT_MINOR_VERSION_KHR, static_cast<EGLint>(XR_VERSION_MINOR(glesVersion)), EGL_NONE};
         context_ = eglCreateContext(display_, config, EGL_NO_CONTEXT, contextAttributes);
         const EGLint surfaceAttributes[] = {EGL_WIDTH, 16, EGL_HEIGHT, 16, EGL_NONE};
         surface_ = eglCreatePbufferSurface(display_, config, surfaceAttributes);
@@ -535,7 +537,7 @@ private:
         GLint glMajor = 0, glMinor = 0;
         glGetIntegerv(GL_MAJOR_VERSION, &glMajor); glGetIntegerv(GL_MINOR_VERSION, &glMinor);
         XrVersion actualGl = XR_MAKE_VERSION(glMajor, glMinor, 0);
-        if (actualGl < requirements.minApiVersionSupported || actualGl > requirements.maxApiVersionSupported)
+        if (actualGl < glesVersion || actualGl > requirements.maxApiVersionSupported)
             throw std::runtime_error("Actual GLES version outside runtime requirements");
         XrGraphicsBindingOpenGLESAndroidKHR binding{XR_TYPE_GRAPHICS_BINDING_OPENGL_ES_ANDROID_KHR};
         binding.display = display_; binding.config = config; binding.context = context_;
@@ -604,9 +606,10 @@ private:
         XrInteractionProfileSuggestedBinding suggest{XR_TYPE_INTERACTION_PROFILE_SUGGESTED_BINDING};
         suggest.interactionProfile = path("/interaction_profiles/ext/hand_interaction_ext");
         suggest.countSuggestedBindings = suggestions.size(); suggest.suggestedBindings = suggestions.data();
-        XrResult bindingResult = xrSuggestInteractionProfileBindings(instance_, &suggest);
-        if (bindingResult == XR_ERROR_PATH_UNSUPPORTED && jointAimExtension_) { handExtension_ = false; return; }
-        check(bindingResult, "hand interaction bindings");
+        if (!optionalXrBindings(instance_, suggest, xrSuggestInteractionProfileBindings)) {
+            handExtension_ = false;
+            return;
+        }
         for (int hand = 0; hand < 2; ++hand) {
             XrActionSpaceCreateInfo space{XR_TYPE_ACTION_SPACE_CREATE_INFO};
             space.subactionPath = hands_[hand]; space.poseInActionSpace.orientation.w = 1;
@@ -827,8 +830,8 @@ private:
         XrInteractionProfileSuggestedBinding suggestion{XR_TYPE_INTERACTION_PROFILE_SUGGESTED_BINDING};
         suggestion.interactionProfile = path("/interaction_profiles/oculus/touch_controller");
         suggestion.countSuggestedBindings = bindings.size(); suggestion.suggestedBindings = bindings.data();
-        XrResult touchBindings = xrSuggestInteractionProfileBindings(instance_, &suggestion);
-        if (touchBindings != XR_ERROR_PATH_UNSUPPORTED) check(touchBindings, "Touch bindings");
+        const bool touchBindings = optionalXrBindings(instance_, suggestion, xrSuggestInteractionProfileBindings);
+        __android_log_print(ANDROID_LOG_INFO, "DroidDeckXR", "Touch bindings available=%d", touchBindings);
         if (handExtension_) initializeHandActions();
         XrSessionActionSetsAttachInfo attach{XR_TYPE_SESSION_ACTION_SETS_ATTACH_INFO};
         attach.countActionSets = 1; attach.actionSets = &actions_;
@@ -929,12 +932,12 @@ private:
                 {pose.position.x, pose.position.y, pose.position.z}, (uint32_t)flags};
     }
 
-    void publishTracking(const XrView views[2], XrTime predicted) {
+    void publishTracking(const XrView views[2], bool validViews, XrTime predicted) {
         if (!tracking_) return;
         timespec now{}; clock_gettime(CLOCK_MONOTONIC, &now);
         DroidDeckXrTracking packet{};
         packet.magic = DROIDDECK_XR_MAGIC; packet.version = DROIDDECK_XR_VERSION;
-        packet.active = (state_ == XR_SESSION_STATE_VISIBLE || state_ == XR_SESSION_STATE_FOCUSED)
+        packet.active = validViews && (state_ == XR_SESSION_STATE_VISIBLE || state_ == XR_SESSION_STATE_FOCUSED)
             ? DROIDDECK_ANDROID_XR_ACTIVE : 0;
         packet.sampled_ns = (int64_t)now.tv_sec * 1000000000LL + now.tv_nsec;
         if (convertTime_) {
@@ -945,12 +948,14 @@ private:
         packet.period_ns = period_;
         packet.head = posePacket(head_.pose, head_.locationFlags);
         for (int eye = 0; eye < 2; eye++) {
-            packet.eyes[eye].pose = posePacket(views[eye].pose, viewFlags_);
-            packet.eyes[eye].fov[0] = views[eye].fov.angleLeft;
-            packet.eyes[eye].fov[1] = views[eye].fov.angleRight;
-            packet.eyes[eye].fov[2] = views[eye].fov.angleUp;
-            packet.eyes[eye].fov[3] = views[eye].fov.angleDown;
-            packet.eyes[eye].width = eyes_[eye].width; packet.eyes[eye].height = eyes_[eye].height;
+            if (validViews) {
+                packet.eyes[eye].pose = posePacket(views[eye].pose, viewFlags_);
+                packet.eyes[eye].fov[0] = views[eye].fov.angleLeft;
+                packet.eyes[eye].fov[1] = views[eye].fov.angleRight;
+                packet.eyes[eye].fov[2] = views[eye].fov.angleUp;
+                packet.eyes[eye].fov[3] = views[eye].fov.angleDown;
+                packet.eyes[eye].width = eyes_[eye].width; packet.eyes[eye].height = eyes_[eye].height;
+            }
             packet.hands[eye] = inputs_[eye];
             packet.hands[eye].pose = posePacket(handLocations_[eye].pose, handLocations_[eye].locationFlags);
             packet.hands[eye].active = handMode_ ? false : handActive_[eye];
@@ -1126,7 +1131,7 @@ private:
                 __android_log_print(ANDROID_LOG_INFO, "DroidDeckXR", "session state=%d", state_);
                 callbacks_->onInputFocus(state_ == XR_SESSION_STATE_FOCUSED);
                 if (state_ != XR_SESSION_STATE_FOCUSED) releaseHands();
-                attachGuest(state_ == XR_SESSION_STATE_VISIBLE || state_ == XR_SESSION_STATE_FOCUSED);
+                if (state_ != XR_SESSION_STATE_VISIBLE && state_ != XR_SESSION_STATE_FOCUSED) attachGuest(false);
                 if (state_ == XR_SESSION_STATE_READY) {
                     XrSessionBeginInfo begin{XR_TYPE_SESSION_BEGIN_INFO};
                     begin.primaryViewConfigurationType = XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO;
@@ -1224,17 +1229,18 @@ private:
         XrView views[2]{{XR_TYPE_VIEW}, {XR_TYPE_VIEW}};
         check(xrLocateViews(session_, &locate, &viewState, 2, &count, views), "xrLocateViews");
         viewFlags_ = viewState.viewStateFlags;
+        const bool validViews = validStereoViews(views, count, viewFlags_);
         eyeSeparation_ = 0;
-        if (count == 2) {
+        if (validViews) {
             const auto &a = views[0].pose.position; const auto &b = views[1].pose.position;
             eyeSeparation_ = std::sqrt((a.x-b.x)*(a.x-b.x) + (a.y-b.y)*(a.y-b.y) + (a.z-b.z)*(a.z-b.z));
         }
-        publishTracking(views, frameState.predictedDisplayTime);
+        publishTracking(views, validViews, frameState.predictedDisplayTime);
+        if (validViews && tracking_ && (state_ == XR_SESSION_STATE_VISIBLE || state_ == XR_SESSION_STATE_FOCUSED))
+            attachGuest(true);
         if (guestAttached_ && callbacks_) callbacks_->onFrame(xr_monotonic_ns());
         XrCompositionLayerProjectionView projection[2]{{XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW}, {XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW}};
-        bool valid = frameState.shouldRender && count == 2 &&
-            (viewState.viewStateFlags & (XR_VIEW_STATE_ORIENTATION_VALID_BIT | XR_VIEW_STATE_POSITION_VALID_BIT))
-            == (XR_VIEW_STATE_ORIENTATION_VALID_BIT | XR_VIEW_STATE_POSITION_VALID_BIT);
+        bool valid = frameState.shouldRender && validViews;
         const auto transferBegin = xr_monotonic_ns();
         receiveFrame();
         transferMs_ = (xr_monotonic_ns() - transferBegin) / 1e6;

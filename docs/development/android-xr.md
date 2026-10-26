@@ -22,7 +22,7 @@ Android XR uses its own native library and Activity. `xr-core` contains the Andr
 
 System features select Android XR after the existing Quest detection. Capability checks happen inside the Full Space unmanaged Activity. Optional OpenXR-library and hand-tracking declarations do not establish device compatibility.
 
-The Activity requests hand input, associates ownership with the current Steam session, and starts the guest after the XR session becomes visible or focused. A retiring Activity cannot hide or stop its replacement. Initialization or guest failure returns to the panel. Closing immersive mode stops SteamVR and can interrupt an active game.
+The Activity defaults to automatic hand/controller selection and preserves an explicit `xr_input=hands|controllers|auto` override. It associates ownership with the current Steam session and starts the guest after the XR session is visible or focused and has published valid tracking with the Android XR session marker. A retiring Activity cannot hide or stop its replacement. Initialization or guest failure returns to the panel. Closing immersive mode stops SteamVR and can interrupt an active game. Native XR devices can launch SteamVR from the Steam home screen without USB glasses or the phone-camera placement check.
 
 Reference spaces prefer STAGE, LOCAL_FLOOR, then LOCAL. No fabricated floor is added to LOCAL. Initial localization changes before the first uploaded guest frame reset the input origin and allow startup to continue. A reference-space change after guest frames have been uploaded ends the Android XR session until a restarted guest can produce matching frame poses.
 
@@ -32,7 +32,7 @@ The Android XR runtime reads `XR_EXT_hand_interaction` when available. A capabil
 
 Aim and grip remain distinct. Runtime select/pinch drives existing SteamVR trigger components; runtime grasp drives grip when available. Tracking/focus/session/origin discontinuities release held input and require release before rearming. The runtime does not infer gestures from camera images or invent missing sticks or face buttons.
 
-The 26 OpenXR joints are converted to SteamVR's 31-bone parent-space skeleton. Android XR uses a dedicated tracked-hand device pair with a fixed input profile and separate render models. Joint tracking depends on permission and actual tracker availability. A Dashboard hand model alone does not prove application skeletal input.
+The 26 OpenXR joints are converted to SteamVR's 31-bone parent-space skeleton. Android XR uses separate tracked-hand and Touch-compatible controller device pairs with input profiles fixed at activation; switching modes disconnects the previous pair. This permits Galaxy XR controllers without rewriting an activated hand device's bindings. Joint tracking depends on permission and actual tracker availability. A Dashboard hand model alone does not prove application skeletal input.
 
 SteamVR's reference gloves are skinned GLB meshes, not ordinary controller OBJ models. Android XR loads the slim left/right gloves from the installed SteamVR resources; Valve assets are not redistributed in the APK. Its GLES renderer updates skin matrices from the same real joints used by the SteamVR skeleton. There are no pinch-driven visual poses in this path. The wrist and finger coordinate bases differ.
 
@@ -54,8 +54,19 @@ On an earlier, broader experimental fork build with that GPU package, the tester
 
 The reduced contribution has since been packaged, installed and started through Steam and SteamVR on the same device. Both installed SteamVR reference glove models and the skinning shaders loaded. The latest observation had no tracked hands in view: actual animated glove drawing, wrist orientation and pinch dragging still need physical acceptance. Aircar has not been revalidated end to end on this latest reduced source. No other Android XR headset is validated by these observations.
 
+On 2026-10-26, a community tester supplied a recording of the `informalTechCode/DroidDeckXR` `feat/android-xr` build on Samsung Galaxy XR and confirmed using Galaxy XR physical controllers. It shows Steam/SteamVR startup, menu interaction and Ding Dong VR gameplay. This supports the original implementation; this rebased combination still needs Galaxy XR and AURA regression testing. The recording does not establish articulated hand tracking, haptics, every button or sustained performance.
+
 ## Validation limits
 
 The main application is the only APK target. Device-specific GPU drivers, per-chip tuning, scheduling experiments, Quest hand/controller switching and unrelated game fixes are excluded.
 
 This reduced contribution needs fresh Android XR end-to-end acceptance. Automated contracts, application compilation and Linux driver checks cannot establish headset behavior or smooth gameplay. Dashboard jitter and application skeletal input remain open acceptance items. See the [runbook](android-xr-runbook.md).
+
+After starting a Steam session and installing SteamVR, a debug build can be checked with:
+
+```sh
+python3 tools/test_xr.py --input controllers --package com.droiddeck.launcher.xr --serial <serial> --seconds 30
+python3 tools/test_xr.py --input hands --package com.droiddeck.launcher.xr --serial <serial> --seconds 30
+```
+
+Controller validation requires both runtime controllers active in the final sample as well as advancing guest images. It does not prove buttons, haptics or SteamVR input consumption. Automatic mode checks the runtime/image path without certifying a particular input source. Guest-frame stall timing starts when frames arrive; a run with no guest images still fails. A logcat capture error is recorded separately from the validation verdict.

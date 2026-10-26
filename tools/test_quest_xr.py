@@ -1,6 +1,7 @@
 import argparse
 import json
 import os
+import shlex
 import subprocess
 import time
 from pathlib import Path
@@ -56,7 +57,7 @@ def collect_device_metrics(adb, package):
     result = {}
     for name, command in [('battery', ('shell', 'dumpsys', 'battery')),
                           ('thermal', ('shell', 'dumpsys', 'thermalservice')),
-                          ('memory', ('shell', 'dumpsys', 'meminfo', package))]:
+                          ('memory', ('shell', 'dumpsys', 'meminfo', shlex.quote(package)))]:
         try:
             result[name] = {'available': True, 'text': adb(*command)}
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as error:

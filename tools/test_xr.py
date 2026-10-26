@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import shlex
 import subprocess
+import sys
 import time
 
 from adb_device import DeviceResolutionError, resolve_serial
@@ -18,7 +19,9 @@ def validate_progress(samples, counters=('rendered', 'uploadedFrames', 'sourceFr
     if any('_hostMonotonicSeconds' not in sample for sample in samples):
         return 'Missing monotonic sample timestamps'
     previous_time = samples[0]['_hostMonotonicSeconds']
-    last = {key: (samples[0][key], previous_time) for key in counters if key in samples[0]}
+    guest_counters = {'uploadedFrames', 'sourceFrameId'}
+    last = {key: (samples[0][key], previous_time if key not in guest_counters or samples[0][key] > 0 else None)
+            for key in counters if key in samples[0]}
     for sample in samples[1:]:
         now = sample['_hostMonotonicSeconds']
         if now < previous_time:
@@ -28,14 +31,17 @@ def validate_progress(samples, counters=('rendered', 'uploadedFrames', 'sourceFr
             if key not in sample or sample[key] < value:
                 return 'XR telemetry counter regressed or disappeared: ' + key
             if sample[key] > value:
-                last[key] = (sample[key], now)
-            elif now - advanced > 5:
+                last[key] = (sample[key], now if key not in guest_counters or sample[key] > 0 else None)
+            elif advanced is not None and now - advanced > 5:
                 return 'Stale XR telemetry: ' + key + ' did not advance for over 5 seconds'
+        for key in counters:
+            if key in guest_counters and key not in last and key in sample:
+                last[key] = (sample[key], now if sample[key] > 0 else None)
     return None
 
 
 
-def validate_samples(samples, require_hands=True):
+def validate_samples(samples, require_hands=True, require_controllers=False):
     if len(samples) < 2:
         return 'No advancing OpenXR telemetry'
     stalled = validate_progress(samples)
@@ -60,6 +66,10 @@ def validate_samples(samples, require_hands=True):
     failure = validate_guest(samples)
     if failure:
         return failure
+    if require_controllers:
+        controllers = final.get('controllersActive', [])
+        if final.get('inputMode') != 'controllers' or len(controllers) != 2 or not all(controllers):
+            return 'Both runtime controllers must be active at the final sample'
     if require_hands:
         if final.get('inputMode') != 'hands' or not any(final.get('handsActive', [])):
             return 'No active runtime hand at the final sample'
@@ -91,14 +101,12 @@ def main():
     parser.add_argument('--output', type=Path, default=Path('build/xr-validation'))
     parser.add_argument('--metrics', action='store_true')
     args = parser.parse_args()
-    if args.input != 'hands':
-        parser.error('Android XR SteamVR entry requires --input hands')
     if not 5 <= args.seconds <= 600:
         parser.error('--seconds must be between 5 and 600')
     args.output.mkdir(parents=True, exist_ok=True)
     package = args.package or 'com.droiddeck.launcher'
     activity = args.activity or 'com.droiddeck.launcher.AndroidXrActivity'
-    samples, failure, metrics, serial = [], None, None, None
+    samples, failure, metrics, serial, logcat_error = [], None, None, None, None
     try:
         serial = resolve_serial(args.adb, args.serial)
 
@@ -130,14 +138,19 @@ def main():
                 pass
         if metrics is not None:
             metrics['after'] = collect_device_metrics(adb, package)
-        failure = validate_samples(samples, args.input == 'hands')
-        (args.output / 'logcat.txt').write_text(adb('logcat', '-d', '-s', 'DroidDeckXR:I', 'OpenXR-Loader:W', 'AndroidRuntime:E'), encoding='utf-8')
+        failure = validate_samples(samples, args.input == 'hands', args.input == 'controllers')
+        try:
+            (args.output / 'logcat.txt').write_text(adb('logcat', '-d', '-s', 'DroidDeckXR:I', 'OpenXR-Loader:W', 'AndroidRuntime:E'), encoding='utf-8')
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as error:
+            logcat_error = str(error)
+            print(f'logcat capture failed: {error}', file=sys.stderr)
     except (DeviceResolutionError, subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as error:
         failure = str(error)
     report = {'ok': failure is None, 'status': 'passed' if failure is None else 'failed' if samples else 'not_run',
               'platform': 'androidxr', 'mode': 'steamvr', 'input': args.input,
-              'package': package, 'activity': activity, 'error': failure, 'samples': samples,
-              'evidence': 'shared-hand-action-bridge', 'opticalHandTrackingVerified': False,
+              'package': package, 'activity': activity, 'error': failure, 'samples': samples, 'logcatError': logcat_error,
+              'evidence': {'hands': 'shared-hand-action-bridge', 'controllers': 'runtime-controller-activity',
+                           'auto': 'shared-openxr-runtime'}[args.input], 'opticalHandTrackingVerified': False,
               'steamVrInputDeliveryVerified': False,
               'summary': summarize_samples(samples), 'deviceMetrics': metrics}
     (args.output / 'report.json').write_text(json.dumps(report, indent=2), encoding='utf-8')

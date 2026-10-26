@@ -68,7 +68,12 @@ jobs:
           java-version: '17'
       - uses: gradle/actions/setup-gradle@v4
       - run: ./gradlew -PxrCoreOnly=true :xr-core:test --no-daemon
-      - run: cmake -S xr-core/src/main/cpp -B build/xr-contracts -DCMAKE_BUILD_TYPE=Debug
+      - uses: actions/checkout@v4
+        with:
+          repository: KhronosGroup/OpenXR-SDK
+          ref: release-1.1.49
+          path: build/openxr-sdk
+      - run: cmake -S xr-core/src/main/cpp -B build/xr-contracts -DCMAKE_BUILD_TYPE=Debug -DOPENXR_INCLUDE_DIR="${{ github.workspace }}/build/openxr-sdk/include"
       - run: cmake --build build/xr-contracts
       - run: ctest --test-dir build/xr-contracts --output-on-failure
       - run: python3 -m unittest tools.tests.test_xr_validation tools.tests.test_runtime_inputs tools.tests.test_windows_vr_build tools.tests.test_prepare_windows_runtime -v

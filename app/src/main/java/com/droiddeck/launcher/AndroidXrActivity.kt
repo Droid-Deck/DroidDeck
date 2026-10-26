@@ -1,6 +1,7 @@
 package com.droiddeck.launcher
 
 import android.app.NativeActivity
+import android.content.Intent
 import android.os.Bundle
 import android.os.SystemClock
 import android.util.Log
@@ -24,7 +25,7 @@ class AndroidXrActivity : NativeActivity() {
     @Volatile private var steamVrStatus = SteamVr.Status.UNAVAILABLE
     private var sessionId: String? = null
     override fun onCreate(savedInstanceState: Bundle?) {
-        intent.putExtra("xr_input", "hands")
+        applyAndroidXrDefaults(intent)
         gamepad = XrGamepadInput(this) { SessionState.padBridge }
         sessionId = SessionState.sessionId
         publishVisibility(true)
@@ -166,4 +167,8 @@ class AndroidXrActivity : NativeActivity() {
         private val steamVrLock = Any()
         private var steamVrOwner: AndroidXrActivity? = null
     }
+}
+
+internal fun applyAndroidXrDefaults(intent: Intent) {
+    if (!intent.hasExtra("xr_input")) intent.putExtra("xr_input", "auto")
 }
