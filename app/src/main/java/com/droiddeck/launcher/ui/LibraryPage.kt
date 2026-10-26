@@ -175,7 +175,8 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
     val source = LibraryView.source.takeIf { it == LIBRARY_ALL || it in sources } ?: LIBRARY_ALL
     val q = LibraryView.query.trim().lowercase()
     val xboxFilter = if (source == Store.XBOX.id) XboxLibraryFilter.current else XboxLibraryFilter.ALL
-    LaunchedEffect(source) { if (source == Store.ITCH.id) ItchCollections.load(ctx) }
+    val itchSignedIn = owned.containsKey(Store.ITCH)
+    LaunchedEffect(source, itchSignedIn) { if (source == Store.ITCH.id && itchSignedIn) ItchCollections.load(ctx) }
     val collection = if (source == Store.ITCH.id) ItchCollections.chosen() else null
     val pool = if (collection == null) all else collectionEntries(all, ItchCollections.gamesOf(collection.id).orEmpty())
     val candidates = pool.filter {

@@ -39,8 +39,9 @@ internal object ItchCollections {
 
     fun load(context: Context) {
         val app = context.applicationContext
-        if (!loading.add("")) return
         val started = generation
+        val guard = "$started:"
+        if (!loading.add(guard)) return
         Thread({
             try {
                 val key = ItchAuth.key(app)
@@ -53,9 +54,9 @@ internal object ItchCollections {
                     if (selected != null && parsed.none { it.id == selected }) selected = null
                 }
                 StoresState.logLine("itch.io: ${parsed.size} collections")
-                selected?.let { fetchGames(app, key, it) }
+                selected?.let { fetchGames(key, it, started) }
             } finally {
-                loading.remove("")
+                loading.remove(guard)
             }
         }, "itch-collections").start()
     }
@@ -64,16 +65,17 @@ internal object ItchCollections {
         selected = id
         if (id == null) return
         val app = context.applicationContext
+        val started = generation
         Thread({
             val key = ItchAuth.key(app)
-            if (key.isNotBlank()) fetchGames(app, key, id)
+            if (key.isNotBlank()) fetchGames(key, id, started)
         }, "itch-collection-games").start()
     }
 
-    private fun fetchGames(context: Context, key: String, id: String) {
-        if (!loading.add(id)) return
+    private fun fetchGames(key: String, id: String, started: Int) {
+        val guard = "$started:$id"
+        if (!loading.add(guard)) return
         try {
-            val started = generation
             val out = ArrayList<CatalogItem>()
             val seen = HashSet<String>()
             var page = 1
@@ -94,7 +96,7 @@ internal object ItchCollections {
             StoresState.post { if (started == generation) games[id] = distinct }
             StoresState.logLine("itch.io: collection $id has ${distinct.size} games")
         } finally {
-            loading.remove(id)
+            loading.remove(guard)
         }
     }
 

@@ -24,7 +24,6 @@ object ItchBackend : StoreBackend {
 
     override fun signOut(context: Context) {
         ItchPrefs.get(context).edit().remove("library_cache").remove("library_synced_at").apply()
-        ItchCollections.clear()
         StoresState.post {
             StoresState.library.remove(store)
             StoresState.shelves.remove(store)
