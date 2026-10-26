@@ -79,8 +79,9 @@ object BootMovieLibrary {
         return customMovieDirs(context).map { File(it, name) }.firstOrNull { it.isFile && it.length() > 0L }
     }
 
-    private fun isMovie(file: File) = file.isFile && file.length() > 0L && file.name.endsWith(".webm", ignoreCase = true) &&
-        file.name !in STAGED && !file.name.startsWith(".")
+    private fun isMovie(file: File) = isWebm(file) && file.name !in STAGED
+
+    private fun isWebm(file: File) = file.isFile && file.length() > 0L && file.name.endsWith(".webm", ignoreCase = true) && !file.name.startsWith(".")
 
     private fun readMeta(context: Context): JSONObject =
         runCatching { JSONObject(metaFile(context).readText()) }.getOrDefault(JSONObject())
@@ -136,7 +137,7 @@ object BootMovieLibrary {
         }
         val bought = HashMap<String, String>()
         for (root in steamRoots(context)) {
-            File(root, "steamui/movies").listFiles { f -> isMovie(f) && f.nameWithoutExtension.lowercase() in NATIVE }.orEmpty()
+            File(root, "steamui/movies").listFiles { f -> isWebm(f) && f.nameWithoutExtension.lowercase() in NATIVE }.orEmpty()
                 .sortedBy { it.name.lowercase() }.forEach { steam.putIfAbsent(STEAM_PREFIX + "/movies/" + it.name, it) }
             val scan = pointShopMovies(root)
             bought.putAll(scan.titles)
@@ -144,8 +145,8 @@ object BootMovieLibrary {
         }
         val seen = HashSet<String>()
         for ((id, file) in steam) {
-            if (file.name in STAGED || !seen.add(file.canonicalPath)) continue
             val native = file.nameWithoutExtension.lowercase() in NATIVE
+            if ((file.name in STAGED && !native) || !seen.add(file.canonicalPath)) continue
             // Steam names a bought movie by an item number and a hash; the points shop's own title is shown when Steam has it.
             val title = if (native) NATIVE[file.nameWithoutExtension.lowercase()] ?: file.nameWithoutExtension else bought[file.path] ?: boughtId(file)?.let { "#$it" } ?: file.nameWithoutExtension
             out.add(Entry(id, title, if (native) SOURCE_STEAM else SOURCE_POINTSHOP, file, removable = false))
@@ -153,8 +154,11 @@ object BootMovieLibrary {
         return out
     }
 
-    /** The three startup movies Steam ships with; Steam's movies folder holds many more videos that are not startup movies. */
-    private val NATIVE = mapOf("deck_startup" to "Deck startup", "oled_startup" to "Oled startup", "startup_machine" to "Machine startup")
+    /** The four startup movies Steam ships with; Steam's movies folder holds many more videos that are not startup movies. */
+    private val NATIVE = mapOf(
+        "deck_startup" to "Deck startup", "oled_startup" to "Oled startup", "startup_machine" to "Machine startup",
+        "steam_os_startup" to "SteamOS startup",
+    )
 
     private val skippedFolders = setOf("uioverrides", "steamapps", "librarycache", "httpcache", "logs", "compatdata", "shadercache")
 

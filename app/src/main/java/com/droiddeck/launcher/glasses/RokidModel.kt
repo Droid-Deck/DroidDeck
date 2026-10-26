@@ -3,7 +3,7 @@ package com.droiddeck.launcher.glasses
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
-/** Rokid Air/Max share one USB identity; the product string distinguishes them. */
+/** Rokid Air/Max share one USB identity; Max 2 has a separate product ID. */
 internal class RokidModel private constructor(override val name: String, private val max: Boolean) : GlassesModel {
     override val controllable = true
     override val brightnessMax = BRIGHTNESS_STEPS
@@ -33,6 +33,7 @@ internal class RokidModel private constructor(override val name: String, private
     companion object {
         const val VENDOR_ID = 0x04d2
         const val PRODUCT_ID = 0x162f
+        const val MAX2_PRODUCT_ID = 0x2002
         const val BRIGHTNESS_STEPS = 10
 
         // Vendor control requests, device recipient.
@@ -52,9 +53,9 @@ internal class RokidModel private constructor(override val name: String, private
 
         // 0x04d2 is a shared vendor ID, so the Rokid product string is required too.
         fun model(vid: Int, pid: Int, name: String?): GlassesModel? {
-            if (vid != VENDOR_ID || pid != PRODUCT_ID) return null
+            if (vid != VENDOR_ID || (pid != PRODUCT_ID && pid != MAX2_PRODUCT_ID)) return null
             val product = name?.trim()?.takeIf { it.startsWith("Rokid", ignoreCase = true) } ?: return null
-            return RokidModel(product, product.contains("Max", ignoreCase = true))
+            return RokidModel(product, pid == MAX2_PRODUCT_ID || product.contains("Max", ignoreCase = true))
         }
 
         fun isDisplay(name: String) = name.contains("Rokid", ignoreCase = true)

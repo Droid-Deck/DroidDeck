@@ -74,6 +74,36 @@ class PipeWireHelperTest(unittest.TestCase):
         self.assertIn('did not open', result.stderr)
         self.assertFalse((self.runtime / 'droiddeck-pipewire/pids').exists())
 
+    def test_clients_get_full_access_without_the_flatpak_check(self):
+        self.pack('python3 -c "import socket,sys; s=socket.socket(socket.AF_UNIX); s.bind(sys.argv[1]); '
+                  'import time; time.sleep(30)" "$XDG_RUNTIME_DIR/pipewire-0"')
+        for _ in range(2):
+            result = self.run_helper('start')
+            self.assertEqual(result.returncode, 0, result.stderr)
+            daemon = (self.dir / 'share/pipewire/pipewire.conf.d/droiddeck-access.conf').read_text()
+            self.assertIn('module.access = false', daemon)
+            self.assertIn('name = libpipewire-module-access', daemon)
+            self.assertIn('access.socket = { pipewire-0 = "unrestricted", pipewire-0-manager = "unrestricted" }',
+                          daemon)
+            self.assertNotIn('access.legacy', daemon)
+            manager = (self.dir / 'share/wireplumber/wireplumber.conf.d/droiddeck-access.conf').read_text()
+            self.assertIn('matches = [ { pipewire.access = "unrestricted" } ]', manager)
+            self.assertIn('default_permissions = "all"', manager)
+
+    def test_start_fails_cleanly_when_the_access_settings_cannot_be_written(self):
+        self.pack('exec sleep 30')
+        self.run_helper('start')
+        self.run_helper('stop')
+        conf = self.dir / 'share/pipewire/pipewire.conf.d'
+        for child in conf.iterdir():
+            child.unlink()
+        conf.rmdir()
+        conf.write_text('')
+        result = self.run_helper('start')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('could not write the access settings', result.stderr)
+        self.assertFalse((self.runtime / 'droiddeck-pipewire/pids').exists())
+
     def test_unchanged_bundle_is_not_unpacked_again(self):
         self.pack('exec sleep 30')
         self.run_helper('start')

@@ -110,6 +110,11 @@ public final class LinuxRuntime {
         File root = rootDir(context);
         List<String> binds = binds(context, sessionRoot, runtimeDir, externalStorage, extraBinds);
         if (sessionRoot != null) lastBinds = binds;
+        return commandWithBinds(context, root, binds, guestCommand);
+    }
+
+    public static List<String> commandWithBinds(Context context, File root, List<String> binds,
+                                                List<String> guestCommand) {
         List<String> cmd = prootPrefix(context, root, "/root");
         for (String spec : binds) bind(cmd, spec);
         cmd.addAll(guestCommand);

@@ -1,7 +1,9 @@
 package com.droiddeck.launcher.ui
 
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.Modifier
 import androidx.compose.foundation.layout.Column
-import androidx.compose.material3.AlertDialog
+import com.droiddeck.launcher.ui.GlideAlertDialog as AlertDialog
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -32,8 +34,8 @@ internal fun GlassesCalibrationControls(
         onDismissRequest = { reset = false },
         title = { Text(stringResource(R.string.glasses_calibration_reset)) },
         text = { Text(stringResource(R.string.glasses_calibration_reset_hint)) },
-        confirmButton = { TextButton(onClick = { onReset(); reset = false }) { Text(stringResource(R.string.glasses_calibration_reset_button)) } },
-        dismissButton = { TextButton(onClick = { reset = false }) { Text(stringResource(R.string.common_cancel)) } },
+        confirmButton = { TextButton(onClick = { onReset(); reset = false }, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.glasses_calibration_reset_button)) } },
+        dismissButton = { TextButton(onClick = { reset = false }, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.common_cancel)) } },
     )
     if (shown) AlertDialog(
         onDismissRequest = { onCancel(); shown = false },
@@ -57,8 +59,8 @@ internal fun GlassesCalibrationControls(
             if (!state.running) TextButton(onClick = {
                 if (state.phase == CalibrationPhase.SAVED) { onDone(); onCancel(); shown = false }
                 else onStart()
-            }) { Text(stringResource(if (state.phase == CalibrationPhase.SAVED) R.string.glasses_calibration_done else R.string.glasses_calibration_start)) }
+            }, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(if (state.phase == CalibrationPhase.SAVED) R.string.glasses_calibration_done else R.string.glasses_calibration_start)) }
         },
-        dismissButton = { TextButton(onClick = { onCancel(); shown = false }) { Text(stringResource(R.string.common_cancel)) } },
+        dismissButton = { TextButton(onClick = { onCancel(); shown = false }, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.common_cancel)) } },
     )
 }

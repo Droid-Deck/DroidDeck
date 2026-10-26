@@ -12,6 +12,7 @@ import androidx.compose.runtime.setValue
 import androidx.core.content.FileProvider
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.core.LogRedactor
+import com.droiddeck.launcher.runtime.BattleNet
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import java.io.File
 import java.util.zip.ZipEntry
@@ -49,7 +50,8 @@ object SessionLogShare {
         val logs = LinuxRuntime.logDir(context)
         val stores = recent(File(logs, STORES_DIR))
         val tools = recent(File(logs, SessionPaths.TOOLS_DIR))
-        val total = (files + live + stores + tools).sumOf { it.length() }.coerceAtLeast(1L)
+        val battleNet = battleNetLogs(context)
+        val total = (files + live + stores + tools + battleNet.map { it.second }).sumOf { it.length() }.coerceAtLeast(1L)
         var done = 0L
         var shown = -1
         fun advance(f: File) {
@@ -62,6 +64,7 @@ object SessionLogShare {
             live.forEach { f -> addEntry(z, folder.name + "/steam/" + f.name, f); advance(f) }
             stores.forEach { f -> addEntry(z, "$STORES_DIR/" + f.name, f); advance(f) }
             tools.forEach { f -> addEntry(z, SessionPaths.TOOLS_DIR + "/" + f.name, f); advance(f) }
+            battleNet.forEach { (name, f) -> addEntry(z, "$BATTLENET_DIR/$name", f); advance(f) }
         }
         return zip
     }
@@ -87,6 +90,27 @@ object SessionLogShare {
     private const val RECENT_DAYS = 7
 
     private fun shareDir(context: Context): File = File(context.cacheDir, "share")
+
+    private const val BATTLENET_DIR = "battlenet"
+
+    private fun battleNetLogs(context: Context): List<Pair<String, File>> {
+        val drive = File(BattleNet.prefix(context), "pfx/drive_c")
+        val data = File(drive, "ProgramData/Battle.net")
+        fun logsUnder(dir: File, prefix: String) = dir.listFiles { f -> f.isDirectory && f.name.startsWith(prefix) }.orEmpty().map { File(it, "Logs") }
+        return newest("droiddeck", listOf(File(LinuxRuntime.rootDir(context), "root/.cache/droiddeck/battlenet")), 2, setOf("battlenet.log", "spawned.log")) +
+            newest("client", listOf(File(drive, "users/steamuser/AppData/Local/Battle.net/Logs")), 6) +
+            newest("agent", listOf(File(data, "Agent/Logs")) + logsUnder(File(data, "Agent"), "Agent."), 10, byDir = true) +
+            newest("setup", logsUnder(File(data, "Setup"), ""), 3, byDir = true)
+    }
+
+    private fun newest(folder: String, dirs: List<File>, count: Int, names: Set<String>? = null, byDir: Boolean = false): List<Pair<String, File>> {
+        val since = System.currentTimeMillis() - RECENT_DAYS * 86_400_000L
+        return dirs.flatMap { dir ->
+            dir.listFiles { f -> f.isFile && f.name.endsWith(".log") && (names == null || f.name in names) && f.lastModified() >= since && f.length() <= STEAM_LOG_MAX_BYTES }.orEmpty().toList()
+        }.sortedByDescending { it.lastModified() }.take(count).map { f ->
+            (if (byDir) "$folder/${f.parentFile?.parentFile?.name}/${f.name}" else "$folder/${f.name}") to f
+        }
+    }
 
     private fun recent(dir: File): List<File> {
         val since = System.currentTimeMillis() - RECENT_DAYS * 86_400_000L

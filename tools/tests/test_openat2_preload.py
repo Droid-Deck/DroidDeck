@@ -230,7 +230,7 @@ class Openat2PreloadTest(unittest.TestCase):
         cls.tmp = Path(tempfile.mkdtemp())
         cls.lib = cls.tmp / "libopenat2.so"
         subprocess.run(["cc", "-O2", "-Wall", "-Werror", "-fPIC", "-shared", "-pthread", "-o", str(cls.lib),
-                        str(PRELOAD / "robust.c"), str(PRELOAD / "fsync.c"), str(PRELOAD / "noexec.c"), "-ldl"], check=True)
+                        str(PRELOAD / "robust.c"), str(PRELOAD / "fsync.c"), str(PRELOAD / "noexec.c"), str(PRELOAD / "writewatch.c"), "-ldl"], check=True)
         source = cls.tmp / "openat2.c"
         source.write_text(PROGRAM)
         subprocess.run(["cc", "-O2", "-Wall", "-Werror", "-o", str(cls.tmp / "openat2"), str(source), "-ldl"], check=True)

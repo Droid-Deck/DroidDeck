@@ -1,8 +1,10 @@
+import io
 import json
 import os
 from pathlib import Path
 import runpy
 import socket
+import subprocess
 import tempfile
 import threading
 import unittest
@@ -54,11 +56,13 @@ class XboxLaunchTest(unittest.TestCase):
                  patch.dict(xbox['launch'].__globals__, wine=unittest.mock.Mock(return_value=7)):
                 launch = xbox['launch']
                 self.assertEqual(launch(['/proton', 'waitforexitandrun', '/encrypted/Game.exe'],
-                                        {'BL_LAUNCH_DIR': '/launch', 'DROIDDECK_XBOX_CREDENTIAL_SOCKET': 'stale'}), 7)
+                                        {'BL_LAUNCH_DIR': '/launch', 'DROIDDECK_XBOX_CREDENTIAL_SOCKET': 'stale',
+                                         'DROIDDECK_XBOX_CREDENTIAL_PORT': '4100', 'DROIDDECK_XBOX_CREDENTIAL_KEY': 'stale-key'}), 7)
                 wine = launch.__globals__['wine']
                 self.assertEqual(wine.call_args.args[0], ['/private/Game.exe'])
                 env = wine.call_args.args[1]
-                self.assertNotIn('DROIDDECK_XBOX_CREDENTIAL_SOCKET', env)
+                for name in ('DROIDDECK_XBOX_CREDENTIAL_SOCKET', 'DROIDDECK_XBOX_CREDENTIAL_PORT', 'DROIDDECK_XBOX_CREDENTIAL_KEY'):
+                    self.assertNotIn(name, env)
                 self.assertEqual(env['XODUS_XSTS_PLAYFAB'], 'game-token')
             close.assert_called_once()
             self.assertEqual(store['ask'].call_args.args[1], {'op': 'xbox-released', 'lease': 'lease-1'})
@@ -115,7 +119,8 @@ class XboxLaunchTest(unittest.TestCase):
             command = root / 'command.json'
             command.write_text(json.dumps(['/selected/proton', 'waitforexitandrun', '/encrypted/Game.exe', '--custom', 'two words']))
             env = {'STEAM_COMPAT_DATA_PATH': str(prefix.parent), 'DROIDDECK_XBOX_COMMAND_FILE': str(command),
-                   'DROIDDECK_XBOX_CREDENTIAL_SOCKET': 'private-account-channel', 'XODUS_BRIDGE_KEY': 'runtime-key'}
+                   'DROIDDECK_XBOX_CREDENTIAL_SOCKET': 'private-account-channel', 'DROIDDECK_XBOX_CREDENTIAL_PORT': '4100',
+                   'DROIDDECK_XBOX_CREDENTIAL_KEY': 'private-key', 'XODUS_BRIDGE_KEY': 'runtime-key'}
             with patch.dict(os.environ, env), patch.dict(xbox['wine'].__globals__, RUNTIME=runtime.parent), patch('subprocess.run') as initialize, patch('subprocess.call', return_value=7) as call:
                 initialize.return_value.returncode = 0
                 self.assertEqual(xbox['wine'](['/private-view/Game.exe']), 7)
@@ -126,6 +131,43 @@ class XboxLaunchTest(unittest.TestCase):
                 initialize.assert_called_once()
                 for child in (initialize, call):
                     child_env = child.call_args.kwargs['env']
-                    self.assertNotIn('DROIDDECK_XBOX_CREDENTIAL_SOCKET', child_env)
+                    for name in ('DROIDDECK_XBOX_CREDENTIAL_SOCKET', 'DROIDDECK_XBOX_CREDENTIAL_PORT', 'DROIDDECK_XBOX_CREDENTIAL_KEY'):
+                        self.assertNotIn(name, child_env)
                     self.assertNotIn('DROIDDECK_XBOX_COMMAND_FILE', child_env)
                     self.assertEqual(child_env['XODUS_BRIDGE_KEY'], 'runtime-key')
+
+    def test_missing_runtime_classes_are_registered_once(self):
+        with tempfile.TemporaryDirectory() as root:
+            prefix = Path(root)
+            key = xbox['CLASS_KEY'].replace('\\', '\\\\')
+            present = [name for names in xbox['CLASSES'].values() for name in names
+                       if name != 'Windows.ApplicationModel.DataTransfer.DataTransferManager']
+            (prefix / 'system.reg').write_text(''.join('[%s%s] 1\n"DllPath"="x"\n\n' % (key, name) for name in present))
+            imported = []
+            def run(argv, **kwargs):
+                imported.append(Path(argv[4][2:].replace('\\', '/')).read_bytes()[2:].decode('utf-16-le'))
+                return subprocess.CompletedProcess(argv, 0)
+            with patch('subprocess.run', side_effect=run) as child:
+                xbox['register_classes']('/selected/proton', prefix, {'A': '1'})
+            self.assertEqual(child.call_args.args[0][:4], ['/selected/proton', 'run', 'reg.exe', 'import'])
+            self.assertEqual(child.call_args.kwargs['env'], {'A': '1'})
+            self.assertEqual(imported, ['Windows Registry Editor Version 5.00\r\n\r\n[HKEY_LOCAL_MACHINE\\Software\\Microsoft\\WindowsRuntime'
+                                        '\\ActivatableClassId\\Windows.ApplicationModel.DataTransfer.DataTransferManager]\r\n'
+                                        '"DllPath"="C:\\\\windows\\\\system32\\\\twinapi.appcore.dll"\r\n\r\n'])
+            with (prefix / 'system.reg').open('a') as file:
+                file.write('[%sWindows.ApplicationModel.DataTransfer.DataTransferManager] 1\n' % key)
+            with patch('subprocess.run') as child:
+                xbox['register_classes']('/selected/proton', prefix, {})
+                (prefix / 'system.reg').unlink()
+                xbox['register_classes']('/selected/proton', prefix, {})
+            child.assert_not_called()
+
+    def test_failed_class_registration_is_reported_and_launch_continues(self):
+        with tempfile.TemporaryDirectory() as root:
+            prefix = Path(root)
+            (prefix / 'system.reg').write_text('')
+            for outcome in ({'return_value': subprocess.CompletedProcess([], 1)},
+                            {'side_effect': subprocess.TimeoutExpired('reg.exe', 90)}):
+                with patch('subprocess.run', **outcome), patch('sys.stderr', new_callable=io.StringIO) as err:
+                    self.assertIsNone(xbox['register_classes']('/selected/proton', prefix, {}))
+                self.assertIn('registration failed', err.getvalue())

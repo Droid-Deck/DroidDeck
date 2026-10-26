@@ -21,6 +21,30 @@ unpack() {
         { rm -rf "$dir.new"; echo "droiddeck-pipewire: could not unpack $bundle" >&2; return 1; }
 }
 
+access_config() {
+    mkdir -p "$dir/share/pipewire/pipewire.conf.d" "$dir/share/wireplumber/wireplumber.conf.d" || return 1
+    cat > "$dir/share/pipewire/pipewire.conf.d/droiddeck-access.conf" <<'EOF' || return 1
+context.properties = {
+    module.access = false
+}
+context.modules = [
+    { name = libpipewire-module-access
+        args = {
+            access.socket = { pipewire-0 = "unrestricted", pipewire-0-manager = "unrestricted" }
+        }
+    }
+]
+EOF
+    cat > "$dir/share/wireplumber/wireplumber.conf.d/droiddeck-access.conf" <<'EOF' || return 1
+access.rules = [
+    {
+        matches = [ { pipewire.access = "unrestricted" } ]
+        actions = { update-props = { default_permissions = "all" } }
+    }
+]
+EOF
+}
+
 stop() {
     for pid in $(cat "$state/pids" 2>/dev/null); do kill "$pid" 2>/dev/null; done
     rm -f "$state/pids"
@@ -32,6 +56,7 @@ env)
     ;;
 start)
     unpack || exit 1
+    access_config || { echo "droiddeck-pipewire: could not write the access settings" >&2; exit 1; }
     stop
     mkdir -p "$state"
     eval "$(client_env)"

@@ -25,9 +25,19 @@ class App : Application() {
             if (android.os.Build.VERSION.SDK_INT >= 28) android.webkit.WebView.setDataDirectorySuffix("xbox")
             return
         }
+        if (process == "$packageName:xboxcloud") {
+            if (android.os.Build.VERSION.SDK_INT >= 28) android.webkit.WebView.setDataDirectorySuffix("xboxcloud")
+            return
+        }
+        if (process == "$packageName:xcloudnative") {
+            // The native cloud player: the stores log and nothing that touches the Linux session.
+            com.droiddeck.launcher.stores.StoresState.init(this)
+            return
+        }
         if (process == "$packageName:vr_recovery" || process == "$packageName:rgb_diagnostic") return
         CrashHandler.install(this)
         com.droiddeck.launcher.session.QuestExperimental.initialize(this)
+        com.droiddeck.launcher.session.SessionPrefs.applyNtsyncDefault(this)
         com.droiddeck.launcher.session.SessionPrefs.settleGpuDriverMode(this)
         com.droiddeck.launcher.update.AppUpdates.init(this)
         com.droiddeck.launcher.core.DownloadSource.init(this)
@@ -43,6 +53,7 @@ class App : Application() {
         com.droiddeck.launcher.stores.StoresState.register(com.droiddeck.launcher.stores.amazon.AmazonBackend)
         com.droiddeck.launcher.stores.StoresState.register(com.droiddeck.launcher.stores.itch.ItchBackend)
         com.droiddeck.launcher.stores.StoresState.register(com.droiddeck.launcher.stores.xbox.XboxBackend)
+        com.droiddeck.launcher.stores.StoresState.register(com.droiddeck.launcher.stores.battlenet.BattleNetBackend)
     }
 
     /** Fetches the packs an existing setup already relies on, so the first use after an update does not wait. */

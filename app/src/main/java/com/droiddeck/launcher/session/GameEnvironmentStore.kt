@@ -79,6 +79,14 @@ object GameEnvironmentStore {
     }
 
     @Synchronized
+    fun setDefault(context: Context, scope: String, name: String, value: String): Boolean {
+        val config = read(context)
+        if (GameEnvironment.hasOverride(config, scope, name)) return false
+        save(context, GameEnvironment.withScopeValue(config, scope, name, value))
+        return true
+    }
+
+    @Synchronized
     fun publish(context: Context, config: GameEnvironment.Config = read(context)) {
         val resolved = config.copy(shared = GameEnvironment.defaults(SessionPrefs.fexPreset(context), SessionPrefs.forceSsbs(context)) + config.shared)
         val json = encode(resolved)

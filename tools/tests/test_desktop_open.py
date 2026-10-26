@@ -456,6 +456,15 @@ class ProtonRunTest(Temp):
                          ("0", "0", str(appid << 32 | 0x02000000), "1"))
         self.assertEqual(env["STEAM_COMPAT_DATA_PATH"], str(self.root / ("steamapps/compatdata/%d" % appid)))
 
+    def test_a_window_draws_with_the_desktops_software_gl(self):
+        target = RUN["Target"]("2596113170", "/c", "/i", str(self.root), "fixed")
+        session = {"MESA_LOADER_DRIVER_OVERRIDE": "zink", "GALLIUM_DRIVER": "zink", "LIBGL_KOPPER_DRI2": "true"}
+        env = RUN["environment"](session, target, "/tool", str(self.root), window=True)
+        self.assertEqual((env["LIBGL_ALWAYS_SOFTWARE"], env["GALLIUM_DRIVER"]), ("1", "llvmpipe"))
+        self.assertNotIn("MESA_LOADER_DRIVER_OVERRIDE", env)
+        self.assertNotIn("LIBGL_KOPPER_DRI2", env)
+        self.assertEqual(RUN["environment"](session, target, "/tool", str(self.root))["GALLIUM_DRIVER"], "zink")
+
     def test_a_steam_game_keeps_its_own_id(self):
         target = RUN["Target"]("413150", "/c", "/i", str(self.root), "steam")
         env = RUN["environment"]({"PROTON_USE_WINED3D": "0"}, target, "/tool", str(self.root), window=True)
@@ -464,6 +473,13 @@ class ProtonRunTest(Temp):
     def test_an_installer_package_goes_to_msiexec(self):
         self.assertEqual(RUN["arguments"]("/root/x/setup.msi", ["/qn"]), ["msiexec", "/i", "Z:\\root\\x\\setup.msi", "/qn"])
         self.assertEqual(RUN["arguments"]("/root/x/a.exe", ["-w"]), ["/root/x/a.exe", "-w"])
+
+    def test_a_virtual_desktop_runs_the_program_by_its_windows_path(self):
+        pfx = "/root/Steam/steamapps/compatdata/2596113170"
+        self.assertEqual(RUN["arguments"](pfx + "/pfx/drive_c/Program Files (x86)/Battle.net/Battle.net Launcher.exe", [], "1280x720", pfx),
+                         ["explorer.exe", "/desktop=droiddeck,1280x720", "C:\\Program Files (x86)\\Battle.net\\Battle.net Launcher.exe"])
+        self.assertEqual(RUN["arguments"]("/root/.cache/setup.exe", ["--lang=enUS"], "1920x1080", pfx),
+                         ["explorer.exe", "/desktop=droiddeck,1920x1080", "Z:\\root\\.cache\\setup.exe", "--lang=enUS"])
 
     def test_a_games_own_program_is_left_to_steam(self):
         self.write("Steam/appcache/appinfo.vdf", appinfo({413150: STARDEW}))
@@ -554,6 +570,50 @@ class ProtonRunTest(Temp):
         self.game("70", "Linux Game", "run.sh")
         self.assertEqual(self.run_main(["--app", "70"])[0], 2)
 
+    def test_without_steam_a_shortcut_reuses_a_signed_prefix_folder(self):
+        bat = self.write("Games/Epic/Game/.droiddeck-launch.bat", b"@echo off")
+        start = self.tmp / "Games/Epic/Game/Binaries"
+        start.mkdir()
+        signed = self.root / "steamapps/compatdata/-1561598272"
+        signed.mkdir(parents=True)
+        code, calls, dirs = self.run_main(["--app", "2733369024", "--dir", str(start), "--", str(bat)])
+        self.assertIsNone(code)
+        env = calls[0][2]
+        self.assertEqual(env["STEAM_COMPAT_DATA_PATH"], str(signed))
+        self.assertFalse((self.root / "steamapps/compatdata/2733369024").exists())
+
+    def test_prefix_folder_prefers_initialized_unsigned_over_empty_signed(self):
+        signed = self.root / "steamapps/compatdata/-1561598272"
+        signed.mkdir(parents=True)
+        initialized = self.root / "steamapps/compatdata/2733369024/pfx"
+        initialized.mkdir(parents=True)
+
+        self.assertEqual(RUN["prefix_folder"](str(self.root), 2733369024), str(initialized.parent))
+
+    def test_prefix_folder_prefers_initialized_signed_over_empty_unsigned(self):
+        unsigned = self.root / "steamapps/compatdata/2733369024"
+        unsigned.mkdir(parents=True)
+        initialized = self.root / "steamapps/compatdata/-1561598272/pfx"
+        initialized.mkdir(parents=True)
+
+        self.assertEqual(RUN["prefix_folder"](str(self.root), 2733369024), str(initialized.parent))
+
+    def test_prefix_folder_prefers_unsigned_when_initialization_ties(self):
+        unsigned = self.root / "steamapps/compatdata/2733369024/pfx"
+        unsigned.mkdir(parents=True)
+        signed = self.root / "steamapps/compatdata/-1561598272/pfx"
+        signed.mkdir(parents=True)
+
+        self.assertEqual(RUN["prefix_folder"](str(self.root), 2733369024), str(unsigned.parent))
+
+    def test_prefix_folder_skips_numeric_names_too_long_to_convert(self):
+        from unittest.mock import patch
+        folder = self.root / "steamapps/compatdata"
+        folder.mkdir(parents=True)
+        with patch.object(RUN["os"], "listdir", return_value=["9" * 5000]):
+            self.assertEqual(RUN["prefix_folder"](str(self.root), 2733369024),
+                             str(folder / "2733369024"))
+
     def test_without_steam_a_shortcut_keeps_its_prefix_folder_and_launch_options(self):
         bat = self.write("Games/Epic/Game/.droiddeck-launch.bat", b"@echo off")
         start = self.tmp / "Games/Epic/Game/Binaries"
@@ -567,6 +627,43 @@ class ProtonRunTest(Temp):
                          (str(self.root / "steamapps/compatdata/2733369024"), "0", str(2733369024 << 32 | 0x02000000), "1"))
         self.assertTrue((self.root / "steamapps/compatdata/2733369024").is_dir())
         self.assertEqual(dirs, [str(start)])
+
+    def write_account(self):
+        self.write("Steam/config/loginusers.vdf",
+                   '"users"\n{\n\t"76561198352563669"\n\t{\n\t\t"MostRecent"\t\t"1"\n\t}\n}\n')
+        return "Steam/userdata/392297941/config/"
+
+    def test_without_steam_and_options_a_game_takes_its_steam_launch_options(self):
+        config = self.write_account()
+        self.write(config + "localconfig.vdf", '"UserLocalConfigStore"\n{\n\t"Software"\n\t{\n\t\t"Valve"\n\t\t{\n'
+                   '\t\t\t"Steam"\n\t\t\t{\n\t\t\t\t"apps"\n\t\t\t\t{\n\t\t\t\t\t"413150"\n\t\t\t\t\t{\n'
+                   '\t\t\t\t\t\t"cloud"\n\t\t\t\t\t\t{\n\t\t\t\t\t\t\t"LaunchOptions"\t\t"-wrong"\n\t\t\t\t\t\t}\n'
+                   '\t\t\t\t\t\t"LaunchOptions"\t\t"DXVK_HUD=1 %command% -d3d9 \\"-name=Two Words\\""\n'
+                   '\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t}\n\t\t}\n\t}\n}\n')
+        shortcuts = runpy.run_path(str(BIN / "droiddeck-steam-shortcuts"))
+        self.write(config + "shortcuts.vdf", shortcuts["write"]({"shortcuts": {
+            "0": {"appid": -1561598272, "AppName": "Batman", "LaunchOptions": "-d3d9"},
+            "1": {"appid": -1, "AppName": "Other", "LaunchOptions": "-x"},
+        }}))
+        root = str(self.root)
+        self.assertEqual(RUN["steam_options"]("413150", root), 'DXVK_HUD=1 %command% -d3d9 "-name=Two Words"')
+        self.assertEqual(RUN["steam_options"]("2733369024", root), "-d3d9")
+        self.assertEqual(RUN["steam_options"]("70", root), "")
+        self.assertEqual(RUN["steam_options"]("2733369025", root), "")
+        info = {"common": {"type": "Game"}, "config": {"launch": {
+            "0": {"executable": "Game.exe", "type": "default", "config": {"oslist": "windows"}}}}}
+        self.write("Steam/appcache/appinfo.vdf", appinfo({413150: info}))
+        program = self.game("413150", "Some Game", "Game.exe")
+        code, calls, _ = self.run_main(["--app", "413150"])
+        self.assertIsNone(code)
+        _, argv, env = calls[0]
+        self.assertEqual(argv[1:], ["waitforexitandrun", str(program), "-d3d9", "-name=Two Words"])
+        self.assertEqual(env["DXVK_HUD"], "1")
+        bat = self.write("Games/GOG/Batman/Batman.exe", b"MZ")
+        code, calls, _ = self.run_main(["--app", "2733369024", "--", str(bat)])
+        self.assertEqual(calls[0][1][1:], ["waitforexitandrun", str(bat), "-d3d9"])
+        code, calls, _ = self.run_main(["--app", "2733369024", "--options", "", "--", str(bat)])
+        self.assertEqual(calls[0][1][1:], ["waitforexitandrun", str(bat)])
 
     def test_launch_options_split_like_steam_does(self):
         split = RUN["split_options"]
