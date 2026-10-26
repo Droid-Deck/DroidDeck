@@ -1,3 +1,5 @@
+import contextlib
+import fcntl
 import os
 from pathlib import Path
 import subprocess
@@ -9,12 +11,15 @@ SCRIPT = Path(__file__).resolve().parents[1] / "linuxfs/overlay/usr/local/bin/dr
 
 
 class FlatpakSetupTest(unittest.TestCase):
-    def run_setup(self, uid, pacman, locked=False):
-        with tempfile.TemporaryDirectory() as directory:
+    def run_setup(self, uid, pacman, locked=False, busy=False):
+        with tempfile.TemporaryDirectory() as directory, contextlib.ExitStack() as held:
             root = Path(directory)
             if locked:
                 (root / "work/db").mkdir(parents=True)
                 (root / "work/db/db.lck").write_text("")
+            if busy:
+                holder = held.enter_context(open(root / "work/setup.lock", "w"))
+                fcntl.flock(holder, fcntl.LOCK_EX | fcntl.LOCK_NB)
             bin_dir = root / "bin"
             bin_dir.mkdir()
             stubs = {"id": "echo %d" % uid, "curl": "exit 7", "pacman": pacman, "pacman-key": "exit 0"}
@@ -52,20 +57,11 @@ class FlatpakSetupTest(unittest.TestCase):
         self.assertNotIn("unable to lock database", out)
         self.assertIn("== STEP Downloading Flatpak", out)
 
-    def test_a_lock_held_by_a_running_pacman_is_kept(self):
-        with tempfile.TemporaryDirectory() as directory:
-            holder = Path(directory) / "pacman"
-            holder.write_bytes(Path("/bin/sleep").read_bytes())
-            holder.chmod(0o755)
-            running = subprocess.Popen([str(holder), "30"])
-            try:
-                code, out = self.run_setup(0, self.SYNC, locked=True)
-            finally:
-                running.kill()
-                running.wait()
+    def test_a_setup_that_is_still_running_keeps_its_lock(self):
+        code, out = self.run_setup(0, self.SYNC, locked=True, busy=True)
         self.assertEqual(code, 1)
-        self.assertIn("unable to lock database", out)
-
+        self.assertIn("== FAIL another Flatpak setup is still running", out)
+        self.assertNotIn("Reading the package lists", out)
 
 if __name__ == "__main__":
     unittest.main()
