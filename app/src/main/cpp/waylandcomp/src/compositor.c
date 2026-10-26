@@ -634,6 +634,49 @@ static struct surface *g_hud_surface, *g_hud_shm;
 static int64_t g_hud_shm_ns;
 static int64_t g_hud_last_ns, g_hud_alive_ns;
 static int g_hud_fresh;
+static int g_hud_new;
+#define HUD_TIMES 256
+static pthread_mutex_t g_hud_times_lock = PTHREAD_MUTEX_INITIALIZER;
+static float g_hud_times[HUD_TIMES];
+static int64_t g_hud_times_total, g_hud_shown_ns;
+
+static void hud_frame_shown(int64_t t) {
+    const int64_t previous = g_hud_shown_ns;
+    g_hud_shown_ns = t;
+    if (!previous || t <= previous) return;
+    pthread_mutex_lock(&g_hud_times_lock);
+    g_hud_times[g_hud_times_total % HUD_TIMES] = (float)((t - previous) / 1e6);
+    g_hud_times_total++;
+    pthread_mutex_unlock(&g_hud_times_lock);
+}
+
+static int inside_surface(const struct surface *s, const struct surface *ancestor) {
+    int depth = 0;
+    for (s = s->parent; s && depth++ < 8; s = s->parent)
+        if (s == ancestor) return 1;
+    return 0;
+}
+
+static int below_surface(const struct surface *s, const struct surface *other) {
+    if (inside_surface(other, s)) return 1;
+    if (!s->parent || s->parent != other->parent) return 0;
+    const struct surface *child;
+    wl_list_for_each(child, &s->parent->children, child_link) {
+        if (child == s) return 1;
+        if (child == other) return 0;
+    }
+    return 0;
+}
+
+int droiddeck_hud_frame_times(float *out, int len, int64_t *total) {
+    pthread_mutex_lock(&g_hud_times_lock);
+    *total = g_hud_times_total;
+    int64_t n = *total < len ? *total : len;
+    if (n > HUD_TIMES) n = HUD_TIMES;
+    for (int64_t i = 0; i < n; i++) out[i] = g_hud_times[(*total - n + i) % HUD_TIMES];
+    pthread_mutex_unlock(&g_hud_times_lock);
+    return (int)n;
+}
 static uint64_t g_game_frames;
 extern void droiddeck_on_game_surface(const char *window, const char *gpu);
 extern void droiddeck_on_game_frame(void);
@@ -684,6 +727,7 @@ static void take_shm(struct surface *s, struct wl_shm_buffer *shm, struct wl_res
         if (top->role == ROLE_TOPLEVEL && top->mapped && shown * 2 >= (int64_t)scene_w * scene_h) {
             g_hud_shm = s;
             g_hud_shm_ns = now;
+            g_hud_new = 1;
             droiddeck_on_game_frame();
         }
     }
@@ -757,8 +801,9 @@ static void take_dmabuf(struct surface *s, struct dmabuf_buffer *b, struct wl_re
                        name, b->width, b->height, (unsigned long long)b->modifier);
     }
     if (s != g_hud_surface && (b->img || ahb_swapchain_has_ahb(b)) &&
-        (!g_hud_surface || now_ns() - g_hud_alive_ns > 1000000000LL ||
-         (announced_now && (int64_t)b->width * b->height >= (int64_t)g_hud_surface->buf_w * g_hud_surface->buf_h))) {
+        (!g_hud_surface || now_ns() - g_hud_alive_ns > 1000000000LL || (!repeat && below_surface(s, g_hud_surface)) ||
+         (announced_now && !below_surface(g_hud_surface, s) &&
+          (int64_t)b->width * b->height >= (int64_t)g_hud_surface->buf_w * g_hud_surface->buf_h))) {
         char name[160];
         describe(s, name, sizeof(name));
         g_hud_surface = s;
@@ -782,7 +827,7 @@ static void take_dmabuf(struct surface *s, struct dmabuf_buffer *b, struct wl_re
     }
     if (s == g_hud_surface) {
         g_hud_alive_ns = now_ns();
-        if (!repeat) { g_hud_last_ns = g_hud_alive_ns; g_hud_fresh = 1; g_game_frames++; droiddeck_on_game_frame(); }
+        if (!repeat) { g_hud_last_ns = g_hud_alive_ns; g_hud_fresh = 1; g_hud_new = 1; g_game_frames++; droiddeck_on_game_frame(); }
     }
 }
 
@@ -2180,6 +2225,10 @@ static void render_scene(void) {
     if (rendered) {
         int64_t t = presented_ns(t_scene);
         g_stat_frames++;
+        if (g_hud_new) {
+            g_hud_new = 0;
+            hud_frame_shown(t);
+        }
         wl_list_for_each(s, &g_surfaces, link) {
             if (s->drawn) feedback_present_all(&s->feedback, t);
             else feedback_discard_all(&s->feedback);
