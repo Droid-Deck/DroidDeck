@@ -256,10 +256,8 @@ class DrawerActions(
     val onSuspendPolicy: (String) -> Unit,
     val onSteamDownloadsInBackground: (Boolean) -> Unit = {},
     val onBackActionsInverted: (Boolean) -> Unit,
-    val lowLatencyController: Boolean = false,
-    val lowLatencyTouch: Boolean = false,
-    val onLowLatencyController: (Boolean) -> Unit = {},
-    val onLowLatencyTouch: (Boolean) -> Unit = {},
+    val lowLatency: Boolean = true,
+    val onLowLatency: (Boolean) -> Unit = {},
     val onTouch: (String) -> Unit,
     val onGestureSettings: () -> Unit = {},
     val onScreenKeys: (() -> Unit)? = null,
@@ -612,12 +610,9 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                     onChange = a.onUnfoldedControlsWithController)
                             }
                             SettingsGroup(stringResource(R.string.drawer_latency)) {
-                                ToggleRow(host, "low-latency-controller", stringResource(R.string.drawer_low_latency_controller),
-                                    stringResource(R.string.drawer_low_latency_controller_hint), a.lowLatencyController,
-                                    chipModifier = focus.track(page, "low-latency-controller"), onChange = a.onLowLatencyController)
-                                ToggleRow(host, "low-latency-touch", stringResource(R.string.drawer_low_latency_touch),
-                                    stringResource(R.string.drawer_low_latency_touch_hint), a.lowLatencyTouch,
-                                    chipModifier = focus.track(page, "low-latency-touch"), onChange = a.onLowLatencyTouch)
+                                ToggleRow(host, "low-latency", stringResource(R.string.drawer_low_latency),
+                                    stringResource(R.string.drawer_low_latency_hint), a.lowLatency,
+                                    chipModifier = focus.track(page, "low-latency"), onChange = a.onLowLatency)
                             }
                             SettingsGroup(stringResource(R.string.drawer_keyboard)) {
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(8.dp)) {

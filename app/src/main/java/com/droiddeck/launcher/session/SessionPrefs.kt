@@ -229,16 +229,10 @@ object SessionPrefs {
     private fun mangoappSession(context: Context) =
         SessionState.mode == SessionService.MODE_STEAM && mangoapp(context)
 
-    fun lowLatencyController(context: Context): Boolean = prefs(context).getBoolean("lowLatencyController", false)
+    fun lowLatency(context: Context): Boolean = prefs(context).getBoolean("lowLatency", true)
 
-    fun setLowLatencyController(context: Context, on: Boolean) {
-        prefs(context).edit().putBoolean("lowLatencyController", on).apply()
-    }
-
-    fun lowLatencyTouch(context: Context): Boolean = prefs(context).getBoolean("lowLatencyTouch", false)
-
-    fun setLowLatencyTouch(context: Context, on: Boolean) {
-        prefs(context).edit().putBoolean("lowLatencyTouch", on).apply()
+    fun setLowLatency(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("lowLatency", on).apply()
     }
 
     fun backActionsInverted(context: Context): Boolean = prefs(context).getBoolean("backActionsInverted", false)
