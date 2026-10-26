@@ -11,6 +11,7 @@ import shutil
 import struct
 import subprocess
 import sys
+import time
 
 HOME = os.environ.get("HOME") or "/root"
 STEAM_ROOT = os.path.join(HOME, ".local", "share", "Steam")
@@ -160,9 +161,25 @@ def update_own_fex():
         return
     if (read_text(OWN_FEX_TAG) or "").strip() == wanted and os.access(os.path.join(OWN_FEX, "bin", "FEX"), os.X_OK):
         return
+    failed = os.path.join(STATE, "update-failed")
+    try:
+        if (read_text(failed) or "").strip() == wanted and time.time() - os.path.getmtime(failed) < 3600:
+            return
+    except OSError:
+        pass
     say("installing DroidDeck's FEX build %s" % wanted)
-    if subprocess.call([os.path.join(BIN_DIR, "droiddeck-fex-update")], stdout=sys.stderr) != 0:
-        say("DroidDeck's FEX build %s did not install; using the FEX already here" % wanted)
+    try:
+        code = subprocess.call([os.path.join(BIN_DIR, "droiddeck-fex-update")], stdout=sys.stderr)
+    except OSError:
+        code = 1
+    if code == 0:
+        with contextlib.suppress(OSError):
+            os.remove(failed)
+        return
+    with contextlib.suppress(OSError):
+        with open(failed, "w", encoding="utf-8") as handle:
+            handle.write(wanted + "\n")
+    say("DroidDeck's FEX build %s did not install; using the FEX already here" % wanted)
 
 
 def fex_install():

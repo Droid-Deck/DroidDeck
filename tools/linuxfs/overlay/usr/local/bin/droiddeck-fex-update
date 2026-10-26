@@ -19,7 +19,7 @@ fex_install() {
   local tag=$1 sha=$2 urls=$3 dst=/ tmp u f
   tmp=$(mktemp -d)
   for u in $urls; do
-    curl -fsSL --retry 2 "$u" -o "$tmp/fex.tzst" && echo "$sha  $tmp/fex.tzst" | sha256sum -c --quiet >/dev/null 2>&1 && break
+    curl -fsSL --retry 2 --connect-timeout 20 --speed-limit 1024 --speed-time 60 "$u" -o "$tmp/fex.tzst" && echo "$sha  $tmp/fex.tzst" | sha256sum -c --quiet >/dev/null 2>&1 && break
     rm -f "$tmp/fex.tzst"
   done
   if [ ! -s "$tmp/fex.tzst" ]; then

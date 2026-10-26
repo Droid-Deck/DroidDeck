@@ -227,6 +227,30 @@ class LocateTest(FexTestCase):
             FEX["update_own_fex"]()
         self.assertEqual([[str(BIN / "droiddeck-fex-update")]], calls)
 
+    def test_a_failed_build_waits_an_hour_unless_the_session_names_another(self):
+        self.own_fex("fex-2610-r6")
+        Path(G["STATE"]).mkdir(parents=True, exist_ok=True)
+        calls = []
+        tag = {"BL_FEX_TAG": "fex-2610-r7"}
+        with mock.patch.dict(os.environ, tag), \
+                mock.patch.object(G["subprocess"], "call", lambda args, **kw: calls.append(os.environ["BL_FEX_TAG"]) or 1):
+            FEX["update_own_fex"]()
+            FEX["update_own_fex"]()
+            failed = Path(G["STATE"]) / "update-failed"
+            os.utime(failed, (failed.stat().st_atime, failed.stat().st_mtime - 3601))
+            FEX["update_own_fex"]()
+            os.environ["BL_FEX_TAG"] = "fex-2610-r8"
+            FEX["update_own_fex"]()
+        self.assertEqual(["fex-2610-r7", "fex-2610-r7", "fex-2610-r8"], calls)
+
+    def test_a_missing_updater_falls_back_to_the_fex_already_here(self):
+        self.fex_tool(self.steam)
+        Path(G["STATE"]).mkdir(parents=True, exist_ok=True)
+        with mock.patch.dict(os.environ, {"BL_FEX_TAG": "fex-2610-r7"}), \
+                mock.patch.object(G["subprocess"], "call", mock.Mock(side_effect=FileNotFoundError)):
+            FEX["update_own_fex"]()
+        self.assertEqual(FEX["fex_install"]()["bin"], str(self.steam / "steamapps/common/FEX-Emu/usr/bin/FEX"))
+
     def test_no_build_is_installed_without_one_from_the_session(self):
         calls = []
         with mock.patch.dict(os.environ, {}, clear=False), \
