@@ -423,10 +423,10 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                     .controllerBack {
                         if (host.open != null) host.open = null else a.onClose()
                     }
-                    .padding(if (short) 12.dp else 16.dp),
+                    .padding(12.dp),
             ) {
                 val title = a.title ?: if (a.steam) stringResource(R.string.drawer_steam) else stringResource(R.string.drawer_desktop)
-                if (narrow) Text(title, fontSize = 20.sp, fontWeight = FontWeight.Bold,
+                if (narrow) Text(title, fontSize = 18.sp, fontWeight = FontWeight.Bold,
                     color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp))
                 Row(
@@ -434,7 +434,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp),
                 ) {
-                    if (narrow) Spacer(Modifier.weight(1f)) else Text(title, fontSize = if (short) 18.sp else 20.sp, fontWeight = FontWeight.Bold,
+                    if (narrow) Spacer(Modifier.weight(1f)) else Text(title, fontSize = 18.sp, fontWeight = FontWeight.Bold,
                         color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                     if (a.pipSupported) SteamActionPill(
                         stringResource(R.string.pip_title), Icons.Outlined.PictureInPictureAlt, focus.track(page, "pip"),
@@ -475,12 +475,12 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
 
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth().padding(top = if (short) 6.dp else 12.dp),
+                    modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
                 ) {
                     DrawerBumper("LB", stringResource(R.string.drawer_prev_page), modifier = focus.track(page, "prev")) {
                         host.open = null; onPageChange(pages.step(page, -1))
                     }
-                    DrawerPageTabs(page = page, pages = pages, compact = short, modifier = Modifier.weight(1f)) { index -> host.open = null; onPageChange(index) }
+                    DrawerPageTabs(page = page, pages = pages, compact = true, modifier = Modifier.weight(1f)) { index -> host.open = null; onPageChange(index) }
                     DrawerBumper("RB", stringResource(R.string.drawer_next_page), modifier = focus.track(page, "next")) {
                         host.open = null; onPageChange(pages.step(page, 1))
                     }
@@ -491,7 +491,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                 ) { selectedGlassesTab = it }
                 Column(
                     modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(pageScroll.getValue(page)),
-                ) { CompositionLocalProvider(LocalChipMinWidth provides 120.dp) {
+                ) { CompositionLocalProvider(LocalChipMinWidth provides 96.dp, LocalCompactSettings provides true) {
                     when (page) {
                         SessionDrawerPage.DISPLAY -> {
                             SettingsGroup(stringResource(R.string.drawer_page_display)) {
