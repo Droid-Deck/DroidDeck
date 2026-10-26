@@ -252,7 +252,7 @@ object BattleNet {
 
     internal fun productDbEntries(bytes: ByteArray): List<Pair<String, String>>? {
         val installs = runCatching { fields(bytes, 0, bytes.size) }.getOrNull()?.filter { it.first == 1 }?.takeIf { it.isNotEmpty() } ?: return null
-        return installs.mapNotNull { (_, start, end) ->
+        return installs.map { (_, start, end) ->
             runCatching {
                 val install = fields(bytes, start, end)
                 val uid = install.firstOrNull { it.first == 1 }?.let { String(bytes, it.second, it.third - it.second) }
@@ -261,8 +261,8 @@ object BattleNet {
                 val installed = install.firstOrNull { it.first == 4 }?.let { s -> fields(bytes, s.second, s.third).firstOrNull { it.first == 1 } }
                     ?.let { s -> varints(bytes, s.second, s.third)[1] }
                 if (uid.isNullOrEmpty() || path.isNullOrEmpty() || installed == 0L) null else uid to path
-            }.getOrNull()
-        }
+            }.getOrElse { return null }
+        }.filterNotNull()
     }
 
     private fun fields(bytes: ByteArray, from: Int, to: Int): List<Triple<Int, Int, Int>> = walk(bytes, from, to) { _, _ -> }

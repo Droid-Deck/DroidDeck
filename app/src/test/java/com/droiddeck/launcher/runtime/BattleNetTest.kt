@@ -215,6 +215,7 @@ class BattleNetTest {
         assertNull(BattleNet.productDbEntries(db.copyOf(db.size - 3)))
         assertNull(BattleNet.productDbEntries(byteArrayOf(0x0a, 0x7f, 0x01)))
         assertNull(BattleNet.productDbEntries(ByteArray(0)))
+        assertNull(BattleNet.productDbEntries(byteArrayOf(0x0a, 0x03, 0x0a, 0x7f, 0x01)))
         assertEquals(emptyList<Pair<String, String>>(), BattleNet.productDbEntries(message(field(1, message(field(1, "s1"), field(3, message(field(1, "Z:/Games/StarCraft"))), field(4, message(field(1, message(varintField(1, 0))))))))))
     }
 
