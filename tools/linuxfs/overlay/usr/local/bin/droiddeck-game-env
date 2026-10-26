@@ -103,7 +103,7 @@ def godot_vulkan(game):
 @fix
 def godot_sentry(game):
     sentry = sorted(n[:-4] for n in game.files if n.startswith("libsentry.windows.") and n.endswith(".dll"))
-    if is_godot(game) and sentry:
+    if is_godot(game) and sentry and ("coreclr.dll" in game.files or "godotsharp.dll" in game.files):
         return {"WINEDLLOVERRIDES": ";".join(n + "=d" for n in sentry)}, [], "Godot: Sentry crash handler off"
 
 
