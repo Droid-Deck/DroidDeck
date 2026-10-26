@@ -196,6 +196,8 @@ class DeckControlsPanel(
         text = label
         contentDescription = description
         textSize = 13f
+        isSingleLine = true
+        setAutoSizeTextTypeUniformWithConfiguration(9, 13, 1, android.util.TypedValue.COMPLEX_UNIT_SP)
         typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
         letterSpacing = 0.08f
         gravity = Gravity.CENTER
