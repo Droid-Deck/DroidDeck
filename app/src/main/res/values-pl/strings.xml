@@ -3151,4 +3151,6 @@
     <string name="xbox_filter_show">Pokaż</string>
     <string name="xbox_filter_cloud">Chmura</string>
     <string name="stores_xbox_cloud_settings">Ustawienia chmury</string>
+    <string name="exit_hint_back">Naciśnij wstecz jeszcze raz, aby wyjść</string>
+    <string name="exit_hint_left">Przesuń jeszcze raz w lewo, aby wyjść</string>
 </resources>

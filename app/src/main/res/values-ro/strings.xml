@@ -3114,4 +3114,6 @@
     <string name="xbox_filter_show">Afișează</string>
     <string name="xbox_filter_cloud">Cloud</string>
     <string name="stores_xbox_cloud_settings">Setări cloud</string>
+    <string name="exit_hint_back">Apasă din nou înapoi pentru a ieși</string>
+    <string name="exit_hint_left">Împinge din nou la stânga pentru a ieși</string>
 </resources>

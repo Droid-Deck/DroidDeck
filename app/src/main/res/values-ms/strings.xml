@@ -3055,4 +3055,6 @@
     <string name="xbox_filter_show">Tunjukkan</string>
     <string name="xbox_filter_cloud">Awan</string>
     <string name="stores_xbox_cloud_settings">Tetapan awan</string>
+    <string name="exit_hint_back">Tekan kembali sekali lagi untuk keluar</string>
+    <string name="exit_hint_left">Tolak ke kiri sekali lagi untuk keluar</string>
 </resources>

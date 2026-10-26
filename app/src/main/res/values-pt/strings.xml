@@ -3114,4 +3114,6 @@
     <string name="xbox_filter_show">Mostrar</string>
     <string name="xbox_filter_cloud">Nuvem</string>
     <string name="stores_xbox_cloud_settings">Configurações da nuvem</string>
+    <string name="exit_hint_back">Prime novamente voltar para sair</string>
+    <string name="exit_hint_left">Empurre mais uma vez para a esquerda para sair</string>
 </resources>

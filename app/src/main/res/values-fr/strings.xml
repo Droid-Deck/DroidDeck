@@ -3116,4 +3116,6 @@
     <string name="xbox_filter_show">Afficher</string>
     <string name="xbox_filter_cloud">Cloud</string>
     <string name="stores_xbox_cloud_settings">Paramètres cloud</string>
+    <string name="exit_hint_back">Appuyez à nouveau sur retour pour quitter</string>
+    <string name="exit_hint_left">Poussez encore une fois à gauche pour quitter</string>
 </resources>

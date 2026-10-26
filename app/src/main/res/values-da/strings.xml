@@ -3080,4 +3080,6 @@
     <string name="xbox_filter_show">Vis</string>
     <string name="xbox_filter_cloud">Sky</string>
     <string name="stores_xbox_cloud_settings">Skyindstillinger</string>
+    <string name="exit_hint_back">Tryk tilbage igen for at afslutte</string>
+    <string name="exit_hint_left">Skub til venstre igen for at afslutte</string>
 </resources>

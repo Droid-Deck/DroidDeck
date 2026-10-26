@@ -3148,4 +3148,6 @@
     <string name="xbox_filter_show">Zobrazit</string>
     <string name="xbox_filter_cloud">Cloud</string>
     <string name="stores_xbox_cloud_settings">Nastavení cloudu</string>
+    <string name="exit_hint_back">Stiskněte znovu zpět pro ukončení</string>
+    <string name="exit_hint_left">Posuňte ještě jednou doleva pro ukončení</string>
 </resources>

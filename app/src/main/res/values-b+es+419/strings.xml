@@ -3066,4 +3066,6 @@
     <string name="xbox_filter_show">Mostrar</string>
     <string name="xbox_filter_cloud">Nube</string>
     <string name="stores_xbox_cloud_settings">Configuración de nube</string>
+    <string name="exit_hint_back">Presiona atrás una vez más para salir</string>
+    <string name="exit_hint_left">Mueve a la izquierda una vez más para salir</string>
 </resources>

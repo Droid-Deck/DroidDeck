@@ -3080,4 +3080,6 @@
     <string name="xbox_filter_show">Показване</string>
     <string name="xbox_filter_cloud">Облак</string>
     <string name="stores_xbox_cloud_settings">Настройки на облака</string>
+    <string name="exit_hint_back">Натиснете отново „Назад“, за да излезете</string>
+    <string name="exit_hint_left">Отклонете наляво още веднъж, за да излезете</string>
 </resources>

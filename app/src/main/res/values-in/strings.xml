@@ -3070,4 +3070,6 @@
     <string name="xbox_filter_show">Tampilkan</string>
     <string name="xbox_filter_cloud">Cloud</string>
     <string name="stores_xbox_cloud_settings">Pengaturan cloud</string>
+    <string name="exit_hint_back">Tekan kembali sekali lagi untuk keluar</string>
+    <string name="exit_hint_left">Dorong ke kiri sekali lagi untuk keluar</string>
 </resources>

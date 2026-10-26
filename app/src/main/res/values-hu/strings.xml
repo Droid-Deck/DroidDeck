@@ -3080,4 +3080,6 @@
     <string name="xbox_filter_show">Megjelenítés</string>
     <string name="xbox_filter_cloud">Felhő</string>
     <string name="stores_xbox_cloud_settings">Felhőbeállítások</string>
+    <string name="exit_hint_back">Nyomd meg még egyszer a visszát a kilépéshez</string>
+    <string name="exit_hint_left">Tolld még egyszer balra a kilépéshez</string>
 </resources>
