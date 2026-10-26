@@ -3,7 +3,27 @@ package com.droiddeck.launcher.stores
 import java.io.File
 
 object CloudSavePaths {
+    const val GOG_DEFAULT_NAMESPACE = "__default"
+
     fun profile(prefix: File): File = File(prefix, "drive_c/users/steamuser")
+
+    fun gogGalaxySdkTemplate(clientId: String) =
+        "%LocalAppData%/GOG.com/Galaxy/Applications/$clientId/Storage/Shared/Files"
+
+    class GogCloudLocation(val name: String, val template: String)
+
+    /**
+     * cloudStorage.enabled with an empty locations list is Galaxy SDK IStorage, whose objects the
+     * API names under a location called `__default`.
+     */
+    fun gogSaveFromRemote(enabled: Boolean, locations: List<Pair<String, String>>, clientId: String): GogCloudLocation? {
+        if (!enabled) return null
+        val named = locations.filter { it.second.isNotEmpty() }
+        val pick = named.firstOrNull { it.first.equals("saves", true) } ?: named.firstOrNull()
+        if (pick != null) return GogCloudLocation(pick.first, pick.second)
+        if (clientId.isEmpty()) return null
+        return GogCloudLocation(GOG_DEFAULT_NAMESPACE, gogGalaxySdkTemplate(clientId))
+    }
 
     fun gog(template: String, prefix: File, install: File): File? {
         val norm = template.replace('\\', '/').trim().trimStart('/')

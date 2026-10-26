@@ -6,6 +6,7 @@ import re
 import runpy
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 GAME_TU_DEBUG = "DROIDDECK_GAME_TU_DEBUG"
@@ -88,6 +89,12 @@ def dotnet_memory_ordering(game):
 
 
 @fix
+def unity_memory_ordering(game):
+    if {"unityplayer.so", "gameassembly.so", "unityplayer.dll"} & game.files:
+        return {"FEX_TSOENABLED": "1"}, [], "Unity: FEX with TSO"
+
+
+@fix
 def godot_vulkan(game):
     if is_godot(game) and not game.has_arg("--rendering-driver"):
         return {}, ["--rendering-driver", "vulkan"], "Godot: Vulkan renderer"
@@ -114,6 +121,35 @@ def arkham_city_x87(game):
         return {"FEX_X87REDUCEDPRECISION": "0"}, [], "Batman: Arkham City: FEX with full x87 precision"
 
 
+
+@fix
+def protonfixes_off(game):
+    if game.stem in ("blackops3", "darksoulsremastered"):
+        return {"PROTONFIXES_DISABLE": "1"}, [], "umu-protonfixes off (its ALSA audio and VC++ installer steps fail here)"
+
+
+@fix
+def caravan_sandwitch_feature_level(game):
+    if "caravansandwitch.exe" in game.files or game.stem == "caravansandwitch-win64-shipping":
+        return {"VKD3D_FEATURE_LEVEL": "12_1"}, [], "Caravan SandWitch: D3D12 feature level 12_1 (12_2 hands it mesh shader pipelines vkd3d-proton cannot build)"
+
+
+@fix
+def robocop_rogue_city_feature_level(game):
+    """vkd3d-proton turns mesh shaders off on Adreno, but 12_2 still advertises them, and UE5 then builds mesh
+    pipelines with no pipeline layout that crash Turnip on launch."""
+    if "robocop.exe" in game.files or game.stem == "robocop-win64-shipping":
+        return {"VKD3D_FEATURE_LEVEL": "12_1"}, [], "RoboCop: Rogue City: D3D12 feature level 12_1"
+
+
+@fix
+def cyberpunk_feature_level(game):
+    if game.stem == "cyberpunk2077" or (
+        game.stem == "redprelauncher"
+        and os.path.isfile(os.path.join(os.path.dirname(game.exe), "bin", "x64", "Cyberpunk2077.exe"))
+    ):
+        return {"VKD3D_FEATURE_LEVEL": "12_1"}, [], "Cyberpunk 2077: D3D12 feature level 12_1"
+
 def skip_red_launcher(command):
     """Cyberpunk 2077's prelauncher opens REDlauncher, a Qt WebEngine window that hands over to the
     game half a minute later and then stays up beside it, well over a core busy for as long as the
@@ -125,6 +161,61 @@ def skip_red_launcher(command):
             print("droiddeck-game-env: REDlauncher skipped", file=sys.stderr)
             return command[:2] + [game] + command[3:]
     return command
+
+
+UBISOFT_LAUNCHER = "drive_c/Program Files (x86)/Ubisoft/Ubisoft Game Launcher"
+UBISOFT_SETTINGS = "drive_c/users/steamuser/AppData/Local/Ubisoft Game Launcher/settings.yaml"
+
+
+def overlay_off(text):
+    lines = text.splitlines()
+    try:
+        start = next(i for i, line in enumerate(lines) if re.fullmatch(r"overlay:\s*(#.*)?", line))
+    except StopIteration:
+        if lines and not lines[-1].strip():
+            lines.pop()
+        return "\n".join(lines + ["overlay:", "  enabled: false", "  warning_enabled: false"]) + "\n"
+    end = start + 1
+    for index in range(start + 1, len(lines)):
+        if lines[index].strip() and not lines[index].startswith("  "):
+            break
+        if lines[index].strip():
+            end = index + 1
+    block = lines[start + 1:end]
+    for key in ("enabled", "warning_enabled"):
+        entry = "  %s: false" % key
+        found = [i for i, line in enumerate(block) if line.split(":", 1)[0] == "  " + key]
+        if found:
+            block[found[0]] = entry
+        else:
+            block.append(entry)
+    return "\n".join(lines[:start + 1] + block + lines[end:]) + "\n"
+
+
+def ubisoft_overlay_off(env):
+    prefix = Path(env.get("STEAM_COMPAT_DATA_PATH", "/nonexistent")) / "pfx"
+    if not (prefix / UBISOFT_LAUNCHER).is_dir():
+        return
+    settings = prefix / UBISOFT_SETTINGS
+    try:
+        text = settings.read_text(encoding="utf-8") if settings.exists() else ""
+        updated = overlay_off(text)
+        if updated == text:
+            return
+        settings.parent.mkdir(parents=True, exist_ok=True)
+        handle, staged = tempfile.mkstemp(prefix=".settings-", dir=settings.parent)
+        try:
+            with os.fdopen(handle, "w", encoding="utf-8") as target:
+                target.write(updated)
+            if settings.exists():
+                os.chmod(staged, settings.stat().st_mode & 0o7777)
+            os.replace(staged, settings)
+        except BaseException:
+            os.unlink(staged)
+            raise
+        print("droiddeck-game-env: Ubisoft Connect overlay turned off", file=sys.stderr)
+    except (OSError, UnicodeDecodeError) as error:
+        print("droiddeck-game-env: Ubisoft Connect overlay left as is (%s)" % error, file=sys.stderr)
 
 
 def offline_without_anticheat(command, env):
@@ -194,6 +285,58 @@ def game_gpu(env):
     else:
         result.pop("TU_DEBUG", None)
     return result
+
+
+def vram_cap(env):
+    """Puts the session's VRAM cap ahead of the game's own DXVK settings, so a game profile can still raise it."""
+    value = env.get("BL_VRAM_MB", "")
+    if not re.fullmatch(r"[1-9][0-9]{0,6}", value):
+        return env
+    result = env.copy()
+    cap = "dxgi.maxDeviceMemory = %d" % int(value)
+    own = result.get("DXVK_CONFIG", "").strip().strip(";").strip()
+    result["DXVK_CONFIG"] = cap + "; " + own if own else cap
+    return result
+
+
+def parse_cores(text):
+    """CPU numbers from a list such as "0-3,6"; None when the text is not one."""
+    cores = set()
+    for part in text.replace(" ", "").split(","):
+        match = re.fullmatch(r"(\d{1,3})(?:-(\d{1,3}))?", part)
+        if not match:
+            return None
+        first, last = int(match.group(1)), int(match.group(2) or match.group(1))
+        if last < first:
+            return None
+        cores.update(range(first, last + 1))
+    return cores or None
+
+
+def online_cores():
+    try:
+        with open("/sys/devices/system/cpu/online") as f:
+            cores = parse_cores(f.read().strip())
+    except OSError:
+        cores = None
+    return cores or os.sched_getaffinity(0) | set(range(os.cpu_count() or 0))
+
+
+def game_cores(env):
+    """Pins the game to the cores its profile names, in place of the session's game cores."""
+    text = env.get("DROIDDECK_GAME_CORES", "").strip()
+    if not text:
+        return
+    cores = parse_cores(text)
+    chosen = cores & online_cores() if cores else None
+    if not chosen:
+        print("droiddeck-game-env: ignoring game cores %r" % text, file=sys.stderr)
+        return
+    try:
+        os.sched_setaffinity(0, chosen)
+        print("droiddeck-game-env: game cores %s" % ",".join(map(str, sorted(chosen))), file=sys.stderr)
+    except OSError as error:
+        print("droiddeck-game-env: could not use game cores %r (%s)" % (text, error), file=sys.stderr)
 
 
 def apply_config(env, config, app_id, fixes=None):
@@ -443,6 +586,7 @@ def main():
         fixes = {}
         if waiting:
             command = skip_red_launcher(command)
+            ubisoft_overlay_off(env)
             fixes, extra, notes = engine_fixes(command[2], command[3:]) if len(command) > 2 else ({}, [], [])
             for note in notes:
                 print("droiddeck-game-env: " + note, file=sys.stderr)
@@ -468,7 +612,9 @@ def main():
         command = offline_without_anticheat(command, env)
     if mic_enabled == "0":
         env["BANNER_AUDIO_DIRECT_MIC"] = "0"
+    env = vram_cap(env)
     env = force_ssbs(command, env)
+    game_cores(env)
     try:
         xbox = runpy.run_path(str(Path(__file__).with_name("droiddeck-xbox")))
     except Exception as error:

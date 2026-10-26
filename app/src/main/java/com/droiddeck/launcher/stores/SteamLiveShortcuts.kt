@@ -23,14 +23,14 @@ object SteamLiveShortcuts {
         val wanted = games.filter(include)
         if (wanted.isEmpty() || !clientRunning()) return
         val list = JSONArray()
-        for (g in wanted) list.put(JSONObject().put("name", g.name).put("exe", g.guestExe).put("dir", g.guestDir).put("appid", g.appId and 0xFFFFFFFFL))
+        for (g in wanted) list.put(JSONObject().put("name", g.name).put("exe", g.guestExe).put("dir", g.guestDir).put("appid", g.appId and 0xFFFFFFFFL).put("launch", g.launchOptions))
         val js = """
             (async () => {
               const want = ${list};
               let added = 0;
               for (const w of want) {
                 if (await ${KNOWN}(w.appid, w.name, w.exe)) continue;
-                if (await ${ADD}(w.name, w.exe, w.dir, true)) added++;
+                if (await ${ADD}(w.name, w.exe, w.dir, true, ${JSONObject.quote(compatTool(context))}, w.launch)) added++;
               }
               return added;
             })()
@@ -46,7 +46,7 @@ object SteamLiveShortcuts {
             (async () => {
               const known = await ${KNOWN}(${appId?.and(0xFFFFFFFFL) ?: 0}, ${JSONObject.quote(name)}, ${JSONObject.quote(exe)});
               if (known) return known;
-              return await ${ADD}(${JSONObject.quote(name)}, ${JSONObject.quote(exe)}, ${JSONObject.quote(dir)}, $compat);
+              return await ${ADD}(${JSONObject.quote(name)}, ${JSONObject.quote(exe)}, ${JSONObject.quote(dir)}, $compat, ${JSONObject.quote(compatTool(context))});
             })()
         """.trimIndent()
         val id = evaluate(context, js)?.toLongOrNull()?.and(0xFFFFFFFFL)?.takeIf { it != 0L } ?: return null
@@ -161,12 +161,15 @@ object SteamLiveShortcuts {
           return 0;
         })"""
 
-    private val ADD = """(async (name, exe, dir, compat) => {
-          const id = await SteamClient.Apps.AddShortcut(name, exe, dir, "");
+    private fun compatTool(context: Context): String =
+        com.droiddeck.launcher.session.ProtonDefault.state(context).default ?: COMPAT_TOOL
+
+    private val ADD = """(async (name, exe, dir, compat, tool, launch) => {
+          const id = await SteamClient.Apps.AddShortcut(name, exe, dir, launch || "");
           if (!id) return 0;
           try { SteamClient.Apps.SetShortcutName(id, name); } catch (e) {}
           try { SteamClient.Apps.AddUserTagToApps([id], ${JSONObject.quote(TAG_NAME)}); } catch (e) {}
-          if (compat) { try { SteamClient.Apps.SpecifyCompatTool(id, ${JSONObject.quote(COMPAT_TOOL)}); } catch (e) {} }
+          if (compat) { try { SteamClient.Apps.SpecifyCompatTool(id, tool); } catch (e) {} }
           for (let i = 0; i < 40; i++) {
             try { if (globalThis.appStore.GetAppOverviewByAppID(id)) break; } catch (e) {}
             await new Promise(r => setTimeout(r, 250));

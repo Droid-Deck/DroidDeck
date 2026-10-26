@@ -96,7 +96,10 @@ class SessionDisplayTest {
     @Test fun gameStretchAvailabilityMatchesTheRuntimeIncludingRounding() {
         assertTrue(SessionDisplay.canStretch16x9(960 to 720))
         assertFalse(SessionDisplay.canStretch16x9(1280 to 720))
-        assertFalse(SessionDisplay.canStretch16x9(1600 to 720))
+        assertTrue(SessionDisplay.canStretch16x9(1600 to 720))
+        assertTrue(SessionDisplay.canStretch16x9(2400 to 1080))
+        assertFalse(SessionDisplay.canStretch16x9(1920 to 1080))
+        assertFalse(SessionDisplay.canStretch16x9(1366 to 768))
         val wide = SessionDisplay.resolve(1440 to 1080, 0, SessionPrefs.SHAPE_WIDE)
         assertFalse(SessionDisplay.canStretch16x9(wide))
     }

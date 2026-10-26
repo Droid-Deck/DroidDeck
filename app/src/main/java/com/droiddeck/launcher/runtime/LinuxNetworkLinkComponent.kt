@@ -301,15 +301,18 @@ class LinuxNetworkLinkComponent(
         }
     }
 
-    private fun seededMac(): String {
-        val id = Settings.Secure.getString(appContext.contentResolver, Settings.Secure.ANDROID_ID) ?: "bannerlator"
-        val bytes = java.security.MessageDigest.getInstance("SHA-1").digest(id.toByteArray())
-        val b0 = (bytes[0].toInt() and 0xfc) or 0x02
-        return listOf(b0, bytes[1].toInt(), bytes[2].toInt(), bytes[3].toInt(), bytes[4].toInt(), bytes[5].toInt())
-            .joinToString(":") { "%02x".format(it and 0xff) }
-    }
+    private fun seededMac(): String =
+        seededMac { Settings.Secure.getString(appContext.contentResolver, Settings.Secure.ANDROID_ID) }
 
     companion object {
+        internal fun seededMac(readId: () -> String?): String {
+            val id = runCatching(readId).getOrNull() ?: "bannerlator"
+            val bytes = java.security.MessageDigest.getInstance("SHA-1").digest(id.toByteArray())
+            val b0 = (bytes[0].toInt() and 0xfc) or 0x02
+            return listOf(b0, bytes[1].toInt(), bytes[2].toInt(), bytes[3].toInt(), bytes[4].toInt(), bytes[5].toInt())
+                .joinToString(":") { "%02x".format(it and 0xff) }
+        }
+
         private const val TAG = "LinuxNetworkLink"
         private const val LINK_FILE = "etc/droiddeck-net"
         private const val LINK_INDEX = 2

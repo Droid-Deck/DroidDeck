@@ -83,6 +83,18 @@ class EpicLibraryTest {
         assertEquals("Fig", EpicLibrary.gameFrom(record, null, null).title)
     }
 
+    @Test fun theCatalogLogoIsKeptInTheCacheAndHandedToTheInstall() {
+        val record = JSONObject().put("appName", "Fig").put("namespace", "ns").put("catalogItemId", "cat")
+        val fresh = EpicLibrary.gameFrom(record, JSONObject().put("logo", "https://e/logo.png"), null)
+        assertEquals("https://e/logo.png", fresh.artLogo)
+        assertEquals("https://e/logo.png", EpicLibrary.gameFrom(record, JSONObject().put("title", "Fig"), fresh).artLogo)
+        assertEquals(listOf(fresh), EpicLibrary.fromCacheJson(EpicLibrary.toCacheJson(listOf(fresh))))
+        assertEquals("https://e/logo.png", EpicLibrary.toCatalogItem(app, fresh).logoUrl)
+        val plain = EpicGame("Old", "ns", "c", "Old")
+        assertFalse(JSONArray(EpicLibrary.toCacheJson(listOf(plain))).getJSONObject(0).has("artLogo"))
+        assertEquals(null, EpicLibrary.toCatalogItem(app, plain).logoUrl)
+    }
+
     @Test fun signOutForgetsOnlyTheLibrary() {
         EpicPrefs.get(app).edit().putString(EpicLibrary.KEY_CACHE, "[]").putLong(EpicLibrary.KEY_SYNCED_AT, 1L)
             .putString("cloud_template_Fig", "{AppData}/x").commit()

@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.ui
 
+import androidx.compose.foundation.shape.CircleShape
 import com.droiddeck.launcher.R
 import androidx.compose.ui.res.stringResource
 import android.content.Context
@@ -17,7 +18,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.material3.AlertDialog
+import com.droiddeck.launcher.ui.GlideAlertDialog as AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -276,12 +277,12 @@ fun DeveloperDisplayChoiceDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
                 Text(stringResource(R.string.gate_choose_display))
-                TextButton(modifier = Modifier.fillMaxWidth(), onClick = onMainScreen) { Text(stringResource(R.string.gate_main_screen)) }
+                TextButton(modifier = Modifier.fillMaxWidth().focusGlide(CircleShape), onClick = onMainScreen) { Text(stringResource(R.string.gate_main_screen)) }
                 displays.forEach { (id, label) ->
-                    TextButton(modifier = Modifier.fillMaxWidth(), onClick = { onSecondaryScreen(id) }) { Text(label) }
+                    TextButton(modifier = Modifier.fillMaxWidth().focusGlide(CircleShape), onClick = { onSecondaryScreen(id) }) { Text(label) }
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } },
+        confirmButton = { TextButton(onClick = onDismiss, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.common_cancel)) } },
     )
 }

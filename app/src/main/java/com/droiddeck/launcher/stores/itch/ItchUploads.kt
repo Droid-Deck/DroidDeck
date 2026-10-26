@@ -30,6 +30,28 @@ internal object ItchUploads {
         return names.none { it in PLATFORM_TRAITS }
     }
 
+    fun platforms(upload: JSONObject): Set<String> {
+        val found = LinkedHashSet<String>()
+        upload.optJSONObject("platforms")?.let { flags ->
+            for (name in listOf("windows", "linux", "osx", "android")) if (flags.optBoolean(name)) found.add(name)
+        }
+        upload.optJSONArray("traits")?.let { traits ->
+            for (i in 0 until traits.length()) when (traits.optString(i)) {
+                "p_windows" -> found.add("windows")
+                "p_linux" -> found.add("linux")
+                "p_osx" -> found.add("osx")
+                "p_android" -> found.add("android")
+            }
+        }
+        if (upload.optString("type") == "html") found.add("web")
+        return if (found.isEmpty()) setOf("windows") else found
+    }
+
+    fun byId(uploads: JSONArray?, id: String): JSONObject? {
+        if (uploads == null || id.isBlank()) return null
+        return (0 until uploads.length()).mapNotNull { uploads.optJSONObject(it) }.firstOrNull { it.optString("id") == id }
+    }
+
     fun size(upload: JSONObject): Long = upload.optLong("size", upload.optLong("size_bytes"))
 
     fun filename(upload: JSONObject): String = upload.optString("filename").substringAfterLast('/')

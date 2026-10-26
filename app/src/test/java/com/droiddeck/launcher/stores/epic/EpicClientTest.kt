@@ -16,17 +16,6 @@ import java.security.MessageDigest
 class EpicClientTest {
     @get:Rule val tmp = TemporaryFolder()
 
-    private fun game(appId: Int, source: String) =
-        com.droiddeck.launcher.frontend.Library.SteamGame(appId, "g$appId", null, "internal", source = source)
-
-    @Test fun theLauncherSitsRightAboveTheFirstEpicGame() {
-        val launcher = game(EpicClient.LAUNCHER_APP_ID, "epic")
-        val games = listOf(game(1, "steam"), game(2, "epic"), game(3, "steam"), game(4, "epic"))
-        assertEquals(listOf(1, 0, 2, 3, 4), EpicClient.withLauncher(games, launcher).map { it.appId })
-        assertEquals(listOf(1, 3, 0), EpicClient.withLauncher(listOf(games[0], games[2]), launcher).map { it.appId })
-        assertEquals(listOf(1, 2), EpicClient.withLauncher(games.take(2), null).map { it.appId })
-    }
-
     private fun added(name: String, source: String, storeId: String?) =
         com.droiddeck.launcher.frontend.AddedGames.Game(File(tmp.root, name), name, File(tmp.root, "$name/$name.exe"),
             "/root/Games/$name/$name.exe", "/root/Games/$name", 3_000_000_000L, 0L, emptyList(), source = source, storeId = storeId)
@@ -285,6 +274,28 @@ class EpicClientTest {
         assertTrue(EpicClient.loopback("http://localhost:5/launcher/authorized?code=1"))
     }
 
+    @Test fun theManifestLaunchCommandJoinsTheGameArguments() {
+        val store = com.droiddeck.launcher.stores.Store.EPIC
+        val epicArgs = listOf("-EpicPortal", "-epicapp=Fig", "-epicenv=Prod")
+        val installed = com.droiddeck.launcher.stores.StoreGameSidecar(store, "Fig", "Fig Game", exe = "Fig.exe", args = epicArgs)
+        val first = EpicClientLibrary.withLaunchArgs(installed, listOf("-PCStore=EGS"))
+        assertEquals(epicArgs + "-PCStore=EGS", first.args)
+        assertTrue(EpicClientLibrary.withLaunchArgs(first, listOf("-PCStore=EGS")) === first)
+        val updated = EpicClientLibrary.withLaunchArgs(first, listOf("-PCStore=EGS", "-log=a b.txt"))
+        assertEquals(epicArgs + listOf("-PCStore=EGS", "-log=a b.txt"), updated.args)
+        val dropped = EpicClientLibrary.withLaunchArgs(updated, emptyList())
+        assertEquals(epicArgs, dropped.args)
+        assertFalse(dropped.extra.containsKey("launchArgs"))
+        val reinstalled = first.copy(args = epicArgs)
+        assertEquals(epicArgs + "-PCStore=EGS", EpicClientLibrary.withLaunchArgs(reinstalled, listOf("-PCStore=EGS")).args)
+        assertTrue(EpicClientLibrary.withLaunchArgs(installed, emptyList()) === installed)
+        val own = installed.copy(args = epicArgs + "-PCStore=EGS")
+        assertTrue(EpicClientLibrary.withLaunchArgs(own, listOf("-PCStore=EGS")) === own)
+        val ownUpdated = EpicClientLibrary.withLaunchArgs(own, listOf("-PCStore=EGS", "-log=a b.txt"))
+        assertEquals(epicArgs + listOf("-PCStore=EGS", "-log=a b.txt"), ownUpdated.args)
+        assertEquals(epicArgs + "-PCStore=EGS", EpicClientLibrary.withLaunchArgs(ownUpdated, emptyList()).args)
+    }
+
     @Test fun itemsDescribeTheInstallForTheLauncher() {
         val install = EpicClientLibrary.Install(
             "Fig", "ns1", "item1", "Fig Game", "1.0.5", "Binaries/Win64/Fig.exe", "/root/Games/Stores/Epic/Fig Game",
@@ -444,5 +455,27 @@ class EpicClientTest {
         assertEquals("/root/MyGames", org.json.JSONObject(settings.readText()).getString("defaultInstallDir"))
         settings.writeText("""{"defaultInstallDir":"/mnt/droiddeck-sd/Stores/Epic"}""")
         assertEquals("/root/Games/Stores/Epic", EpicClient.prepareInstallDir(context))
+    }
+
+    @Test fun aDisconnectedDefaultFolderKeepsTheLauncherInstallDir() {
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
+        val previousStorage = com.droiddeck.launcher.session.SessionPrefs.defaultStorage(context)
+        val previousFolder = com.droiddeck.launcher.session.SessionPrefs.defaultStorageFolder(context)
+        val previousLabel = com.droiddeck.launcher.session.SessionPrefs.defaultStorageFolderLabel(context)
+        val settings = File(EpicClient.dataDir(context), "settings/app-settings.json").apply { parentFile!!.mkdirs() }
+        val current = "/mnt/droiddeck-stores/1234/Epic"
+        settings.writeText("""{"defaultInstallDir":"$current"}""")
+        com.droiddeck.launcher.session.SessionPrefs.setDefaultStorage(
+            context, com.droiddeck.launcher.session.SessionPrefs.DEFAULT_STORAGE_EXTERNAL)
+        com.droiddeck.launcher.session.SessionPrefs.setDefaultStorageFolder(
+            context, File(context.filesDir, "missing-${System.nanoTime()}").path, "SSD")
+        try {
+            assertEquals(current, EpicClient.prepareInstallDir(context))
+            assertEquals(current, org.json.JSONObject(settings.readText()).getString("defaultInstallDir"))
+        } finally {
+            com.droiddeck.launcher.session.SessionPrefs.setDefaultStorage(context, previousStorage)
+            if (previousFolder.isBlank()) com.droiddeck.launcher.session.SessionPrefs.clearDefaultStorageFolder(context)
+            else com.droiddeck.launcher.session.SessionPrefs.setDefaultStorageFolder(context, previousFolder, previousLabel)
+        }
     }
 }

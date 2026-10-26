@@ -549,11 +549,12 @@ class LaunchTest(FexTestCase):
     def test_the_guest_environment(self):
         arm = self.write(self.tmp / "arm.so", elf(183))
         x86 = self.write(self.tmp / "x86.so", elf(62))
-        env = {"LD_PRELOAD": "%s:%s %s" % (arm, x86, self.tmp / "gone.so"),
+        env = {"LD_PRELOAD": "%s:%s %s libMelonLoader.Bootstrap.so" % (arm, x86, self.tmp / "gone.so"),
                "LD_LIBRARY_PATH": "/steam/steamrtarm64:/usr/lib/aarch64-linux-gnu:/game/lib:/steam/linuxarm64",
                "FEX_ROOTFS": "/usr/share/guestos/fex-mesa", "FEX_TSOENABLED": "1"}
         guest = FEX["guest_environment"]({"portable": True}, env)
-        self.assertEqual((guest["LD_PRELOAD"], guest["LD_LIBRARY_PATH"], guest["FEX_PORTABLE"]), (str(x86), "/game/lib", "1"))
+        self.assertEqual((guest["LD_PRELOAD"], guest["LD_LIBRARY_PATH"], guest["FEX_PORTABLE"]),
+                         ("%s:libMelonLoader.Bootstrap.so" % x86, "/game/lib", "1"))
         self.assertNotIn("FEX_ROOTFS", guest)
         self.assertEqual(guest["FEX_TSOENABLED"], "1")
         self.assertTrue(guest["FEX_APP_CONFIG_LOCATION"].endswith("/config/"))
@@ -689,6 +690,32 @@ class LaunchTest(FexTestCase):
             FEX["main"](["steam", "waitforexitandrun", "/game/run.sh", "-a"])
             command, env, mode = G["launch"].call_args[0]
             self.assertEqual((command, mode), (["/game/run.sh", "-a"], "auto"))
+
+    def test_steam_games_get_their_settings_and_linux_unity_keeps_tso(self):
+        config = self.home / ".config/droiddeck/game-environment.json"
+        unity = self.write(self.tmp / "Megabonk/Megabonk.x86_64", elf(62), 0o755)
+        self.write(self.tmp / "Megabonk/UnityPlayer.so", elf(62))
+        self.write(self.tmp / "Megabonk/GameAssembly.so", elf(62))
+        other = self.write(self.tmp / "Other/game.x86_64", elf(62), 0o755)
+        self.write(config, json.dumps({"version": 1, "shared": {"FEX_TSOENABLED": "0", "FEX_MULTIBLOCK": "1"},
+                                       "games": {"20": {"FEX_TSOENABLED": "0"}}}))
+
+        def started(program, app):
+            with mock.patch.dict(G, {"launch": mock.Mock(return_value=0), "GAME_ENVIRONMENT": str(config)}), \
+                    mock.patch.dict(os.environ, {"SteamAppId": app}, clear=True):
+                _, said = self.quiet(FEX["main"], ["steam", "waitforexitandrun", str(program), "-arg"])
+                command, env, _ = G["launch"].call_args[0]
+            self.assertEqual(command, [str(program), "-arg"])
+            return env.get("FEX_TSOENABLED"), env.get("FEX_MULTIBLOCK"), said
+
+        tso, multiblock, said = started(unity, "10")
+        self.assertEqual((tso, multiblock), ("1", "1"))
+        self.assertIn("Unity: FEX with TSO", said)
+        self.assertEqual(started(other, "10")[:2], ("0", "1"))
+        self.assertEqual(started(unity, "20")[:2], ("0", "1"))
+        config.unlink()
+        self.assertEqual(started(unity, "10")[:2], ("1", None))
+        self.assertEqual(started(other, "10")[:2], (None, None))
 
 
 class AppInfoTest(unittest.TestCase):

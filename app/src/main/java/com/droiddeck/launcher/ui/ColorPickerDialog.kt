@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -70,12 +71,15 @@ internal fun ColorPickerDialog(title: String, initial: Int, onDismiss: () -> Uni
     var hexText by remember { mutableStateOf(ThemeColors.hex(initial)) }
     val current = ThemeColors.fromHsv(hue, sat, value)
     val first = remember { FocusRequester() }
+    val scroll = rememberScrollState()
+    var typingHex by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { focusSoon { first } }
+    LaunchedEffect(typingHex, scroll.maxValue) { if (typingHex) scroll.animateScrollTo(scroll.maxValue) }
     fun picked(h: Float = hue, s: Float = sat, v: Float = value) {
         hue = h.coerceIn(0f, 360f); sat = s.coerceIn(0f, 1f); value = v.coerceIn(0f, 1f)
         hexText = ThemeColors.hex(ThemeColors.fromHsv(hue, sat, value))
     }
-    AppDialog(shown, close, "colorPicker", wide = false, maxWidth = 460.dp) {
+    AppDialog(shown, close, "colorPicker", wide = false, maxWidth = 460.dp, scrollState = scroll) {
         DialogTitleRow(title, close)
         Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             ColorWheel(hue, sat, value) { h, s -> picked(h = h, s = s) }
@@ -95,6 +99,7 @@ internal fun ColorPickerDialog(title: String, initial: Int, onDismiss: () -> Uni
                 ThemeColors.parseHex(text)?.let { argb -> ThemeColors.toHsv(argb).let { hsv -> hue = hsv.h; sat = hsv.s; value = hsv.v } }
             },
             label = "", keyboardType = KeyboardType.Ascii, imeAction = ImeAction.Done, placeholder = stringResource(R.string.theme_color_hex),
+            onFocusChange = { typingHex = it },
             onDone = { ThemeColors.parseHex(hexText)?.let { onApply(it); close() } },
         )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
