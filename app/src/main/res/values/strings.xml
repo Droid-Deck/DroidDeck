@@ -310,7 +310,7 @@
     <string name="back_double_tap_window">Double-tap window</string>
     <string name="back_tap_ms">%1$d ms</string>
     <string name="brightness_permission_title">Allow brightness control</string>
-    <string name="brightness_permission_text">Tap to allow Steam to change Android screen brightness.</string>
+    <string name="brightness_permission_text">Set up brightness control in DroidDeck.</string>
     <string name="back_menu_then_qam">Menu → QAM</string>
     <string name="back_qam_then_menu">QAM → Menu</string>
     <string name="mode_session">Session</string>
@@ -3240,4 +3240,26 @@
     <string name="stores_xbox_cloud_settings">Cloud settings</string>
     <string name="xbox_cloud_gaming" translatable="false">Xbox Cloud Gaming</string>
     <string name="xbox_filter_game_pass" translatable="false">Game Pass</string>
+    <string name="integration_title">Steam integration</string>
+    <string name="integration_done">Done</string>
+    <string name="integration_optional">Optional</string>
+    <string name="integration_set_up">Set up</string>
+    <string name="integration_enabled">Enabled</string>
+    <string name="integration_suggestion">Enhance your Steam experience</string>
+    <string name="integration_later">Later</string>
+    <string name="integration_wifi">Wi-Fi names &amp; discovery</string>
+    <string name="integration_brightness">Brightness control</string>
+    <string name="integration_home">DroidDeck as Home</string>
+    <string name="integration_shortcuts">Home button shortcuts</string>
+    <string name="integration_choose_home">Choose Home app</string>
+    <string name="integration_turn_off">Turn off</string>
+    <string name="integration_brightness_description">Control device brightness from Steam. On the next screen, enable “Allow modifying system settings.”</string>
+    <string name="integration_home_description">Use DroidDeck as your Android Home app. During a Steam session, Home opens the Steam menu. Outside a session, it returns to DroidDeck.</string>
+    <string name="integration_shortcuts_description">Hold Home for Steam Guide shortcuts during a focused Steam session. On the next screen, enable “DroidDeck Home button.” This service handles button presses and does not read screen content.</string>
+    <string name="integration_shortcuts_home_first">First choose DroidDeck as your Home app. You can then enable button access for held Steam Guide shortcuts.</string>
+    <string name="integration_shortcuts_service">DroidDeck Home button</string>
+    <string name="integration_shortcuts_service_description">Pass Home button presses to Steam Guide while a Steam session is focused and DroidDeck is the default Home app. Does not read screen content.</string>
+    <string name="integration_restricted_help">If Android blocks this setting, open App info → ⋮ → Allow restricted settings, then try again.</string>
+    <string name="integration_app_info">App info</string>
+    <string name="integration_brightness_hint">Enable brightness control in DroidDeck → Setup → Steam integration.</string>
 </resources>

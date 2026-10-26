@@ -341,6 +341,10 @@ internal fun SetupPanel(
                             }
                         }
                         SettingsGroup(stringResource(R.string.setup_runtime)) { runtimeCheck(false) }
+                        SettingsGroup(stringResource(R.string.integration_optional)) {
+                            ActionRow(stringResource(R.string.integration_title), null,
+                                stringResource(R.string.integration_set_up), { a.onSteamIntegration(null) })
+                        }
                     }
                     1 -> {
                         val controller = s.controller
@@ -395,7 +399,7 @@ internal fun SetupPanel(
                                     s.homeScreenEnabled,
                                 ) { a.onHomeScreen(it) }
                                 if (s.homeScreenEnabled) {
-                                    ActionRow(stringResource(R.string.setup_default_home), s.defaultHomeLabel ?: stringResource(R.string.setup_choose_home), stringResource(R.string.setup_choose), a.onHomeApp)
+                                    ActionRow(stringResource(R.string.setup_default_home), s.defaultHomeLabel ?: stringResource(R.string.setup_choose_home), stringResource(R.string.setup_choose), { a.onSteamIntegration(com.droiddeck.launcher.core.SteamIntegration.Feature.HOME) })
                                 }
                                 ChoiceRow(
                                     host, "launcher-orientation", stringResource(R.string.setup_launcher_orientation), null,

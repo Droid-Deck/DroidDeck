@@ -62,6 +62,7 @@ public final class PadBridge {
     private boolean systemGuidePressed;
     private boolean systemQamPressed;
     private boolean backQamPressed;
+    private boolean homeGuidePressed;
     private final PadState lastBackQamReport = new PadState();
     private final PadState lastWrittenReport = new PadState();
     private boolean backQamAxesBlocked;
@@ -136,6 +137,7 @@ public final class PadBridge {
     }
 
     private void resetBuiltin() {
+        homeGuidePressed = false;
         clearBackQamWrites();
         routedTouch.clear();
         systemGuidePressed = false;
@@ -159,6 +161,7 @@ public final class PadBridge {
     }
 
     public synchronized void stop() {
+        homeGuidePressed = false;
         clearBackQamWrites();
         releaseBackPaddles();
         activeControllerId = NO_CONTROLLER;
@@ -481,6 +484,7 @@ public final class PadBridge {
     }
 
     public synchronized void releaseAll() {
+        homeGuidePressed = false;
         clearBackQamWrites();
         routedTouch.clear();
         backQamPressed = false;
@@ -508,10 +512,33 @@ public final class PadBridge {
         return builtinPad && nativeQam();
     }
 
+    public boolean canHoldGuide() {
+        return builtinPad;
+    }
+
+    public synchronized void setHomeGuidePressed(boolean pressed) {
+        if (pressed && !canHoldGuide()) return;
+        if (homeGuidePressed == pressed) return;
+        homeGuidePressed = pressed;
+        updateHeldModifier(PadState.GUIDE, pressed);
+    }
+
+    public synchronized void cancelHomeGuide() {
+        if (!homeGuidePressed) return;
+        clearBackQamWrites();
+        homeGuidePressed = false;
+        state.clear();
+        publish();
+    }
+
     public synchronized void setBackQamPressed(boolean pressed) {
         if (pressed && !canHoldQam()) return;
         if (backQamPressed == pressed) return;
         backQamPressed = pressed;
+        updateHeldModifier(PadState.QAM, pressed);
+    }
+
+    private void updateHeldModifier(int button, boolean pressed) {
         if (pressed && (open || start())) {
             backQamAxesBlocked = false;
             long now = android.os.SystemClock.uptimeMillis();
@@ -519,10 +546,10 @@ public final class PadBridge {
             backQamDelayMs = modifierAt - now + QAM_GUIDE_LEAD_MIN_MS;
             PadState modifier = new PadState();
             modifier.copyFrom(lastBackQamReport);
-            modifier.press(PadState.QAM, true);
+            modifier.press(button, true);
             writeBackQamReport(modifier, modifierAt);
         }
-        if (!pressed) {
+        if (!pressed && !backQamPressed && !homeGuidePressed) {
             backQamAxesBlocked = hasAxes(state);
             if (!backQamWrites.isEmpty()) {
                 PadState neutral = new PadState();
@@ -578,7 +605,7 @@ public final class PadBridge {
         if (backQamAxesBlocked && !hasAxes(state)) backQamAxesBlocked = false;
         long at = android.os.SystemClock.uptimeMillis();
         // Steam must see the modifier before a partner; preserve quick press/release pairs in order.
-        if (backQamPressed || !backQamWrites.isEmpty()) at += backQamDelayMs;
+        if (backQamPressed || homeGuidePressed || !backQamWrites.isEmpty()) at += backQamDelayMs;
         writeBackQamReport(report, at);
     }
 
@@ -609,7 +636,8 @@ public final class PadBridge {
             live.rightX = state.rightX; live.rightY = state.rightY;
             live.leftTrigger = state.leftTrigger; live.rightTrigger = state.rightTrigger;
         }
-        if ((queued && (!backQamPressed || !report.isDown(PadState.QAM))) || backQamAxesBlocked) clearAxes(live);
+        boolean held = (backQamPressed && report.isDown(PadState.QAM)) || (homeGuidePressed && report.isDown(PadState.GUIDE));
+        if ((queued && !held) || backQamAxesBlocked) clearAxes(live);
         lastWrittenReport.copyFrom(live);
         writer.writePad(live);
     }
@@ -821,7 +849,7 @@ public final class PadBridge {
             statDropped++;
             return;
         }
-        boolean guide = systemGuidePressed || qamChordActive;
+        boolean guide = systemGuidePressed || qamChordActive || homeGuidePressed;
         boolean qam = nativeQam() && (systemQamPressed || qamTapPressed || backQamPressed);
         if (!guide && !qam) {
             writePad(state);

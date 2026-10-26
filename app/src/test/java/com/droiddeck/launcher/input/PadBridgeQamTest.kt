@@ -328,6 +328,53 @@ class PadBridgeQamTest {
         }
     }
 
+    @Test fun homeGuidePrecedesEarlyPartnerInputAndDoesNotGenerateABareButton() {
+        bridge.setHomeGuidePressed(true)
+        assertTrue(pad().isDown(PadState.GUIDE))
+        bridge.applyExternal({ it.press(PadState.X, true) }, true)
+        assertFalse(pad().isDown(PadState.X))
+        advance(80)
+        assertTrue(pad().isDown(PadState.GUIDE))
+        assertTrue(pad().isDown(PadState.X))
+        bridge.applyExternal({ it.press(PadState.X, false) }, true)
+        bridge.setHomeGuidePressed(false)
+        advance(1000)
+        assertFalse(pad().isDown(PadState.GUIDE))
+        assertFalse(pad().isDown(PadState.X))
+    }
+
+    @Test fun cancellingHomeDiscardsQueuedPartnersAndReleasesGuideImmediately() {
+        bridge.setHomeGuidePressed(true)
+        bridge.applyExternal({ it.press(PadState.LB, true); it.leftY = -1f }, true)
+        bridge.cancelHomeGuide()
+        advance(1000)
+        assertFalse(pad().isDown(PadState.GUIDE))
+        assertFalse(pad().isDown(PadState.LB))
+        assertEquals(0f, pad().leftY)
+    }
+
+    @Test fun homeAndTouchGuideHaveIndependentReleases() {
+        bridge.setHomeGuidePressed(true)
+        bridge.setSystemButtons(true, false)
+        bridge.setHomeGuidePressed(false)
+        advance(1000)
+        assertTrue(pad().isDown(PadState.GUIDE))
+        bridge.setSystemButtons(false, false)
+        advance(1000)
+        assertFalse(pad().isDown(PadState.GUIDE))
+    }
+
+    @Test fun releasingHomeStopsHeldAxesFromBecomingNavigation() {
+        bridge.setHomeGuidePressed(true)
+        bridge.applyExternal({ it.leftY = -1f }, true)
+        advance(80)
+        assertEquals(-1f, pad().leftY)
+        bridge.setHomeGuidePressed(false)
+        advance(1000)
+        assertEquals(0f, pad().leftY)
+        assertFalse(pad().isDown(PadState.GUIDE))
+    }
+
     private fun key(device: InputDevice, code: Int, action: Int = KeyEvent.ACTION_DOWN, repeat: Int = 0, scan: Int = 0) =
         KeyEvent(0L, 0L, action, code, repeat, 0, device.id, scan, 0, InputDevice.SOURCE_GAMEPAD)
 

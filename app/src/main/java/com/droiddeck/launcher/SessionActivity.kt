@@ -788,6 +788,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 LaunchedEffect(drawerOpen, pcKeyboardOpen, achievementsOpen, gestureSettingsOpen, pipUi, SessionState.suspended) {
                     if (drawerOpen || pcKeyboardOpen || achievementsOpen || gestureSettingsOpen || pipUi || SessionState.suspended) {
                         backQamInput.cancel()
+                        com.droiddeck.launcher.input.HomeButtonShortcuts.cancel(this@SessionActivity)
                         cancelTouchGestures()
                         screenKeys?.stopEditing()
                     }
@@ -2127,6 +2128,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun releasePads() {
+        com.droiddeck.launcher.input.HomeButtonShortcuts.cancel(this)
         backQamInput.cancel()
         padBridge?.releaseAll()
         joyConVr?.releaseButtons()
@@ -3277,6 +3279,15 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         onScreenControls?.reload()
         controllerSettings = ControllerPrefs.read(this)
         resumed = true
+        com.droiddeck.launcher.input.HomeButtonShortcuts.attach(this,
+            enabled = {
+                resumed && window.decorView.hasWindowFocus() && !ended && !drawerOpen && !pcKeyboardOpen &&
+                    !achievementsOpen && !gestureSettingsOpen && !pipUi && SessionState.running && !SessionState.suspended &&
+                    SessionState.mode == SessionService.MODE_STEAM && padBridge?.canHoldGuide() == true
+            },
+            setPressed = { padBridge?.setHomeGuidePressed(it) },
+            onCancel = { padBridge?.cancelHomeGuide() },
+        )
         updatePointerCapture()
         if (!pipUi) sessionClipboard.start()
         updatePadMotion()
@@ -3288,6 +3299,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     override fun onPause() {
+        com.droiddeck.launcher.input.HomeButtonShortcuts.detach(this)
         if (runtimeRemovalBlocked) { super.onPause(); return }
         backQamInput.cancel()
         capturePausedFrame()
@@ -3673,6 +3685,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
+        if (!hasFocus) com.droiddeck.launcher.input.HomeButtonShortcuts.cancel(this)
         if (!hasFocus) backQamInput.cancel()
         if (!hasFocus && ::padMouse.isInitialized) padMouse.reset()
         if (runtimeRemovalBlocked) return
@@ -3721,6 +3734,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     override fun onDestroy() {
+        com.droiddeck.launcher.input.HomeButtonShortcuts.detach(this)
         backQamInput.cancel()
         steamVrRecovery.close()
         uiHandler.removeCallbacks(steamTouchRetry)

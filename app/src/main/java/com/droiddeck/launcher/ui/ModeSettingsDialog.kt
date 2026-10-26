@@ -96,11 +96,6 @@ class ModeSettings(
     val bootMovieCustomName: String? = null,
     val bootMovieImporting: Boolean = false,
     val bootMovieProgress: Int = -1,
-    val wifiDiscovery: Boolean? = null,
-    val wifiDiscoveryPermission: Boolean = false,
-    val wifiDiscoveryLocation: Boolean = false,
-    val wifiDiscoveryAsked: Boolean = false,
-    val wifiDiscoveryBlocked: Boolean = false,
     val deckyInstalled: String? = null,
     val deckyLatestRelease: DeckyManager.Release? = null,
     val deckyBranch: Int = DeckyManager.BRANCH_STABLE,
@@ -148,8 +143,7 @@ class ModeSettingsActions(
     val onBootMovieSound: (Boolean) -> Unit = {},
     val onImportBootMovie: () -> Unit = {},
     val onBootMovieChanged: () -> Unit = {},
-    val onWifiDiscovery: (Boolean) -> Unit = {},
-    val onWifiDiscoverySettings: () -> Unit = {},
+    val onSteamIntegration: () -> Unit = {},
     val onDeckyInstall: (DeckyManager.Release) -> Unit = {},
     val onDeckyCheck: () -> Unit = {},
     val onDeckyBranch: (Int) -> Unit = {},
@@ -208,7 +202,6 @@ class SheetExtras(
 fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: SheetExtras = SheetExtras()) {
     val steam = s.mode == SessionService.MODE_STEAM
     val host = rememberMenuHost()
-    var explainWifiDiscovery by remember { mutableStateOf(false) }
     if (tab == SheetTab.DISPLAY) {
         val context = LocalContext.current
         val portraitWindow = SessionPrefs.portrait(context)
@@ -512,39 +505,10 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
             )
         }
         if (s.bootMovie != null) BootMovieGroup(s, a, host)
-        if (s.wifiDiscovery != null) SettingsGroup(stringResource(R.string.mode_network)) {
-            val hint = when {
-                s.wifiDiscovery && !s.wifiDiscoveryLocation -> stringResource(R.string.mode_wifi_location_off)
-                !s.wifiDiscoveryPermission && s.wifiDiscoveryAsked -> stringResource(R.string.mode_wifi_permission_denied)
-                else -> stringResource(R.string.mode_wifi_discovery_hint)
-            }
-            SettingsRow(stringResource(R.string.mode_wifi_discovery), hint) {
-                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                    horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
-                    if (s.wifiDiscoveryBlocked || (s.wifiDiscovery && !s.wifiDiscoveryLocation)) {
-                        SecondaryButton(stringResource(R.string.mode_wifi_open_settings), onClick = a.onWifiDiscoverySettings)
-                    }
-                    ToggleSwitch(s.wifiDiscovery, label = stringResource(R.string.mode_wifi_discovery)) { on ->
-                        host.open = null
-                        if (on) explainWifiDiscovery = true else a.onWifiDiscovery(false)
-                    }
-                }
-            }
+        SettingsGroup(stringResource(R.string.integration_optional)) {
+            ActionRow(stringResource(R.string.integration_title), null, stringResource(R.string.integration_set_up), a.onSteamIntegration)
         }
     }
-    if (explainWifiDiscovery) AlertDialog(
-        onDismissRequest = { explainWifiDiscovery = false },
-        title = { Text(stringResource(R.string.mode_wifi_explain_title)) },
-        text = { Text(stringResource(R.string.mode_wifi_explain_text)) },
-        confirmButton = {
-            TextButton(onClick = { explainWifiDiscovery = false; a.onWifiDiscovery(true) }, modifier = Modifier.focusGlide(CircleShape)) {
-                Text(stringResource(if (s.wifiDiscoveryBlocked) R.string.mode_wifi_open_settings else R.string.mode_wifi_continue))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = { explainWifiDiscovery = false }, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.common_cancel)) }
-        },
-    )
 }
 
 @Composable
