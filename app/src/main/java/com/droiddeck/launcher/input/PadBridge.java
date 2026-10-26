@@ -63,6 +63,8 @@ public final class PadBridge {
     private boolean systemQamPressed;
     private boolean backQamPressed;
     private final PadState lastBackQamReport = new PadState();
+    private final PadState lastWrittenReport = new PadState();
+    private boolean backQamAxesBlocked;
     private final java.util.Set<Runnable> backQamWrites = new java.util.HashSet<>();
     private long backQamDelayMs, backQamWriteAt;
     private boolean qamChordActive;
@@ -511,13 +513,24 @@ public final class PadBridge {
         if (backQamPressed == pressed) return;
         backQamPressed = pressed;
         if (pressed && (open || start())) {
+            backQamAxesBlocked = false;
             long now = android.os.SystemClock.uptimeMillis();
             long modifierAt = Math.max(now, backQamWriteAt);
-            backQamDelayMs = modifierAt - now + qamGuideLeadMs();
+            backQamDelayMs = modifierAt - now + QAM_GUIDE_LEAD_MIN_MS;
             PadState modifier = new PadState();
             modifier.copyFrom(lastBackQamReport);
             modifier.press(PadState.QAM, true);
             writeBackQamReport(modifier, modifierAt);
+        }
+        if (!pressed) {
+            backQamAxesBlocked = hasAxes(state);
+            if (!backQamWrites.isEmpty()) {
+                PadState neutral = new PadState();
+                neutral.copyFrom(lastWrittenReport);
+                clearAxes(neutral);
+                writer.writePad(neutral);
+                lastWrittenReport.copyFrom(neutral);
+            }
         }
         publish();
     }
@@ -535,12 +548,14 @@ public final class PadBridge {
         backQamWrites.clear();
         backQamDelayMs = backQamWriteAt = 0;
         lastBackQamReport.clear();
+        lastWrittenReport.clear();
+        backQamAxesBlocked = false;
     }
 
     private void writeBackQamReport(PadState report, long at) {
         lastBackQamReport.copyFrom(report);
         if (backQamWrites.isEmpty() && at <= android.os.SystemClock.uptimeMillis()) {
-            writer.writePad(report);
+            writeReport(report, false);
             return;
         }
         PadState queued = new PadState();
@@ -549,8 +564,8 @@ public final class PadBridge {
             @Override public void run() {
                 synchronized (PadBridge.this) {
                     if (!backQamWrites.remove(this)) return;
-                    writer.writePad(queued);
-                    if (backQamWrites.isEmpty()) backQamDelayMs = 0;
+                    writeReport(queued, true);
+                    if (backQamWrites.isEmpty() && !hasButtons(lastBackQamReport)) backQamDelayMs = 0;
                 }
             }
         };
@@ -560,10 +575,43 @@ public final class PadBridge {
     }
 
     private void writePad(PadState report) {
+        if (backQamAxesBlocked && !hasAxes(state)) backQamAxesBlocked = false;
         long at = android.os.SystemClock.uptimeMillis();
         // Steam must see the modifier before a partner; preserve quick press/release pairs in order.
         if (backQamPressed || !backQamWrites.isEmpty()) at += backQamDelayMs;
         writeBackQamReport(report, at);
+    }
+
+    private static boolean hasAxes(PadState pad) {
+        return pad.leftX != 0f || pad.leftY != 0f || pad.rightX != 0f || pad.rightY != 0f
+                || pad.leftTrigger != 0f || pad.rightTrigger != 0f;
+    }
+
+    private static void clearAxes(PadState pad) {
+        pad.leftX = pad.leftY = pad.rightX = pad.rightY = pad.leftTrigger = pad.rightTrigger = 0f;
+    }
+
+    private static boolean hasButtons(PadState pad) {
+        for (int i = 0; i < 10; i++) if (pad.isDown(i)) return true;
+        return pad.isDown(PadState.GUIDE) || pad.up || pad.right || pad.down || pad.left;
+    }
+
+    private void writeReport(PadState report, boolean queued) {
+        if (!queued && !backQamAxesBlocked) {
+            lastWrittenReport.copyFrom(report);
+            writer.writePad(report);
+            return;
+        }
+        PadState live = new PadState();
+        live.copyFrom(report);
+        if (queued) {
+            live.leftX = state.leftX; live.leftY = state.leftY;
+            live.rightX = state.rightX; live.rightY = state.rightY;
+            live.leftTrigger = state.leftTrigger; live.rightTrigger = state.rightTrigger;
+        }
+        if ((queued && (!backQamPressed || !report.isDown(PadState.QAM))) || backQamAxesBlocked) clearAxes(live);
+        lastWrittenReport.copyFrom(live);
+        writer.writePad(live);
     }
 
     public synchronized void triggerQam() {

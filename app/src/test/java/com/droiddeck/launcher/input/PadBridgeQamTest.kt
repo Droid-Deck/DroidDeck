@@ -206,6 +206,44 @@ class PadBridgeQamTest {
         assertFalse(pad().isDown(PadState.QAM))
     }
 
+    @Test fun queuedReportsUseTheLiveStickAndStopItImmediatelyOnBackRelease() {
+        bridge.setBackQamPressed(true)
+        bridge.applyExternal({ it.press(PadState.X, true); it.leftY = -1f }, true)
+        advance(20)
+        bridge.applyExternal({ it.leftY = -0.25f }, true)
+        advance(60)
+        assertEquals(-0.25f, pad().leftY)
+        bridge.setBackQamPressed(false)
+        assertEquals(0f, pad().leftY)
+        advance(1000)
+        assertEquals(0f, pad().leftY)
+        bridge.applyExternal({ it.leftY = 0f }, true)
+        bridge.applyExternal({ it.leftY = 0.75f }, true)
+        assertEquals(0.75f, pad().leftY)
+    }
+
+    @Test fun releasingBackDuringTheLeadNeverReplaysAnOldStickMovement() {
+        bridge.setBackQamPressed(true)
+        bridge.applyExternal({ it.leftY = -1f }, true)
+        advance(20)
+        bridge.setBackQamPressed(false)
+        advance(1000)
+        assertEquals(0f, pad().leftY)
+        assertFalse(pad().isDown(PadState.QAM))
+    }
+
+    @Test fun theInitialPartnerKeepsItsDurationWhenReleasedAfterTheLead() {
+        bridge.setBackQamPressed(true)
+        bridge.applyExternal({ it.press(PadState.X, true) }, true)
+        advance(100)
+        bridge.applyExternal({ it.press(PadState.X, false) }, true)
+        assertTrue(pad().isDown(PadState.X))
+        advance(79)
+        assertTrue(pad().isDown(PadState.X))
+        advance(1)
+        assertFalse(pad().isDown(PadState.X))
+    }
+
     @Test fun deliberateStickTriggerAndHatMotionPromoteChordsButNeutralAndDriftDoNot() {
         val device = controller()
         val promoted = mutableListOf<Boolean>()
