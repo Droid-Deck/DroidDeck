@@ -1130,6 +1130,18 @@ object SessionPrefs {
 
     fun unfoldedControls(context: Context): Boolean = prefs(context).getBoolean("unfoldedControls", false)
 
+    fun controlsBelowWanted(context: Context, mode: String, width: Int, height: Int, pip: Boolean = false): Boolean =
+        SessionDisplay.unfoldedControlsWanted(
+            enabled = unfoldedControls(context),
+            foldable = SessionDisplay.foldable(context),
+            controllerConnected = com.droiddeck.launcher.input.PadBridge.anyControllerConnected() ||
+                com.droiddeck.launcher.input.SteamControllerBle.connected,
+            keepWithController = unfoldedControlsWithController(context),
+            gamepadAvailable = mode == SessionService.MODE_STEAM && builtinPad(context),
+            pip = pip, width = width, height = height,
+            smallestWidthDp = context.resources.configuration.smallestScreenWidthDp,
+        )
+
     fun setUnfoldedControls(context: Context, enabled: Boolean) {
         prefs(context).edit().putBoolean("unfoldedControls", enabled).apply()
     }

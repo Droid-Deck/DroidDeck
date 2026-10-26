@@ -50,13 +50,14 @@ object SessionDisplay {
         foldable: Boolean,
         controllerConnected: Boolean,
         keepWithController: Boolean,
-        steamDeckPad: Boolean,
+        gamepadAvailable: Boolean,
         pip: Boolean,
         width: Int,
         height: Int,
         smallestWidthDp: Int,
-    ): Boolean = enabled && foldable && (keepWithController || !controllerConnected) && steamDeckPad &&
-        !pip && width > 0 && height > 0 && smallestWidthDp >= UNFOLDED_MIN_DP
+    ): Boolean = enabled && (keepWithController || !controllerConnected) && gamepadAvailable &&
+        !pip && width > 0 && height > 0 &&
+        (height > width || (foldable && smallestWidthDp >= UNFOLDED_MIN_DP))
 
 
     fun panelSize(context: Context): Pair<Int, Int> {

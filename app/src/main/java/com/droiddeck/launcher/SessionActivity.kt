@@ -1085,7 +1085,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                         pipAutoEnter = on
                         pip.refresh(true)
                     },
-                    unfoldedControls = if (com.droiddeck.launcher.session.SessionDisplay.foldable(this@SessionActivity)) unfoldedControls else null,
+                    unfoldedControls = unfoldedControls,
                     onUnfoldedControls = ::chooseUnfoldedControls,
                     unfoldedControlsWithController = unfoldedControlsWithController,
                     onUnfoldedControlsWithController = ::chooseUnfoldedControlsWithController,
@@ -1916,6 +1916,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         cancelTouchGestures()
         applyFollowOrientation(newConfig)
         applyUnfoldedControls()
+        resizeOutputForWindow(surfaceW, surfaceH)
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
@@ -1957,7 +1958,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             Library.drawsAtPanel(program) && !SessionPrefs.resolutionChosen(this, mode))
             com.droiddeck.launcher.session.SessionDisplay.MATCH_SCREEN
         else SessionPrefs.resolutionChoice(this, mode, panel)
-        return com.droiddeck.launcher.session.SessionDisplay.resolveChoice(panel, choice, SessionPrefs.portrait(this))
+        return com.droiddeck.launcher.session.SessionDisplay.resolveChoice(panel, choice,
+            SessionPrefs.portrait(this) && !controlsBelowWanted())
     }
 
     private fun refreshHz(): Float {
@@ -2677,21 +2679,17 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         screenKeys?.refreshAppearance()
     }
 
+    private fun controlsBelowWanted(): Boolean {
+        if (!::sessionRoot.isInitialized || glassesScreen != null || cardboard.enabled) return false
+        return SessionPrefs.controlsBelowWanted(this, SessionState.mode, sessionRoot.width, sessionRoot.height,
+            pipUi || isInPictureInPictureMode)
+    }
+
     private fun applyUnfoldedControls() {
         if (!::sessionRoot.isInitialized) return
         val width = sessionRoot.width
         val height = sessionRoot.height
-        val wanted = com.droiddeck.launcher.session.SessionDisplay.unfoldedControlsWanted(
-            enabled = unfoldedControls,
-            foldable = com.droiddeck.launcher.session.SessionDisplay.foldable(this),
-            controllerConnected = PadBridge.anyControllerConnected() || SteamControllerBle.connected,
-            keepWithController = unfoldedControlsWithController,
-            steamDeckPad = SessionState.mode == SessionService.MODE_STEAM && SessionState.deckPad,
-            pip = pipUi || isInPictureInPictureMode,
-            width = width,
-            height = height,
-            smallestWidthDp = resources.configuration.smallestScreenWidthDp,
-        )
+        val wanted = controlsBelowWanted()
         val gameHeight = if (wanted) com.droiddeck.launcher.session.SessionDisplay.unfoldedGameHeight(width, height)
             else FrameLayout.LayoutParams.MATCH_PARENT
         val params = surfaceView.layoutParams as FrameLayout.LayoutParams
@@ -2701,6 +2699,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 else "unfolded controls: game full screen")
         }
         var panel = unfoldedPanel
+        if (panel != null && panel.deckControls != SessionState.deckPad) {
+            sessionRoot.removeView(panel)
+            unfoldedPanel = null
+            panel = null
+        }
         if (!wanted) {
             if (panel != null) { sessionRoot.removeView(panel); unfoldedPanel = null; updateOnScreenControls() }
             return

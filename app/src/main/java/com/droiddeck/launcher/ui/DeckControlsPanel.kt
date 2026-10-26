@@ -41,6 +41,7 @@ class DeckControlsPanel(
     private enum class Tab(val label: Int) { GAMEPAD(R.string.deck_tab_gamepad), GRIPS(R.string.deck_tab_grips), LEFT(R.string.deck_tab_left), RIGHT(R.string.deck_tab_right), BOTH(R.string.deck_tab_both) }
 
     private val content = FrameLayout(context)
+    val deckControls = pad == null || SessionState.deckPad
     private val tabViews = HashMap<Tab, TextView>()
     private val topBar: View by lazy { topBar() }
 
@@ -49,7 +50,7 @@ class DeckControlsPanel(
         setBackgroundColor(Color.BLACK)
         addView(topBar, LayoutParams(LayoutParams.MATCH_PARENT, dp(64)))
         addView(content, LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f))
-        select(if (pad != null) selectedWithPad else selected)
+        select(if (pad != null && !deckControls) Tab.GAMEPAD else if (pad != null) selectedWithPad else selected)
     }
 
     override fun onDetachedFromWindow() {
@@ -67,6 +68,7 @@ class DeckControlsPanel(
             background = outline(CORNER_PILL, SURFACE)
             setPadding(dp(4), dp(4), dp(4), dp(4))
             for (tab in Tab.values()) {
+                if (!deckControls && tab != Tab.GAMEPAD) continue
                 if (tab == Tab.GAMEPAD && pad == null) continue
                 val view = TextView(context).apply {
                     text = context.getString(tab.label)
@@ -186,7 +188,7 @@ class DeckControlsPanel(
             place(centreTap("\u2022\u2022\u2022", context.getString(R.string.drawer_open_qam), onQam), GamepadGeometry.Slot.QAM)
         }
         place(pill("MENU") { st, d -> st.press(PadState.START, d) }, GamepadGeometry.Slot.MENU)
-        place(centreTap("\u25a6 " + context.getString(R.string.deck_panels), context.getString(R.string.deck_more_controls)) { select(Tab.BOTH) },
+        if (deckControls) place(centreTap("\u25a6 " + context.getString(R.string.deck_panels), context.getString(R.string.deck_more_controls)) { select(Tab.BOTH) },
             GamepadGeometry.Slot.PANELS)
     }
 
@@ -206,6 +208,11 @@ class DeckControlsPanel(
     }
 
     private fun surfaceSlot(pad: PadBridge, right: Boolean): View = FrameLayout(context).apply {
+        if (!deckControls) {
+            addView(StickView(context, pad, right),
+                FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
+            return@apply
+        }
         val slot = this
         fun show() {
             slot.removeAllViews()

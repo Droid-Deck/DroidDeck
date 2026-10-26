@@ -52,6 +52,7 @@ class SessionDisplayTest {
     }
 
     @Test fun unfoldedControlsKeepTheGameSixteenByNineAcrossTheWidth() {
+        assertEquals(606, SessionDisplay.unfoldedGameHeight(1080, 1920))
         assertEquals(1376, SessionDisplay.unfoldedGameHeight(2448, 1848))
         assertEquals(1038, SessionDisplay.unfoldedGameHeight(1848, 2448))
         assertEquals(864, SessionDisplay.unfoldedGameHeight(1920, 1080))
@@ -82,6 +83,18 @@ class SessionDisplayTest {
         assertFalse(unfoldedWanted(pip = true, keepWithController = true))
         assertFalse(unfoldedWanted(smallestWidthDp = 599, keepWithController = true))
         assertFalse(SessionDisplay.unfoldedControlsWanted(true, true, true, true, true, false, 0, 1848, 700))
+    }
+
+    @Test fun portraitControlsWorkOnHandheldsAndPhonesWithoutAHinge() {
+        fun wanted(width: Int = 1080, height: Int = 1920, controller: Boolean = false,
+            keep: Boolean = false, pad: Boolean = true, pip: Boolean = false) =
+            SessionDisplay.unfoldedControlsWanted(true, false, controller, keep, pad, pip, width, height, 393)
+        assertTrue(wanted())
+        assertFalse(wanted(width = 1920, height = 1080))
+        assertFalse(wanted(controller = true))
+        assertTrue(wanted(controller = true, keep = true))
+        assertFalse(wanted(pad = false))
+        assertFalse(wanted(pip = true))
     }
 
 
