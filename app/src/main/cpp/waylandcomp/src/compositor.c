@@ -186,6 +186,9 @@ static void on_client_created(struct wl_listener *l, void *data) {
 
 enum surface_role { ROLE_NONE, ROLE_TOPLEVEL, ROLE_SUBSURFACE, ROLE_DESKTOP, ROLE_CURSOR };
 
+#define DAMAGE_RECTS 8
+struct damage_list { int32_t r[DAMAGE_RECTS][4]; int n; };
+
 struct surface {
     struct wl_resource *resource;
     struct wl_list link;
@@ -207,7 +210,7 @@ struct surface {
     int buf_w, buf_h, has_content;
     int buf_alpha;
     int opaque[4], pending_opaque[4], pending_opaque_set;
-    int64_t damage_max, pending_damage_max, damage_local_max, pending_damage_local_max;
+    struct damage_list damage_buf, pending_damage_buf, damage_local, pending_damage_local;
     int src_set, dst_set;
     float src[4];
     int dst[2];
@@ -626,6 +629,7 @@ static void fire_frames(struct wl_list *frames) {
 }
 
 static void scene_size(int *w, int *h);
+static int64_t damage_area(const struct damage_list *d, int bound_w, int bound_h);
 static struct surface *g_hud_surface, *g_hud_shm;
 static int64_t g_hud_shm_ns;
 static int64_t g_hud_last_ns, g_hud_alive_ns;
@@ -660,10 +664,12 @@ static void take_shm(struct surface *s, struct wl_shm_buffer *shm, struct wl_res
     int local_w, local_h;
     surface_size(s, &local_w, &local_h);
     const double region = s->src_set ? (double)s->src[2] * s->src[3] : (double)w * h;
+    const int64_t local_max = damage_area(&s->damage_local, local_w, local_h);
     const int64_t local = local_w > 0 && local_h > 0
-        ? (int64_t)((double)s->damage_local_max * region / ((double)local_w * local_h)) : s->damage_local_max;
+        ? (int64_t)((double)local_max * region / ((double)local_w * local_h)) : local_max;
+    const int64_t buffer_max = damage_area(&s->damage_buf, w, h);
     const int64_t area = (int64_t)w * h;
-    int64_t damaged = s->damage_max > local ? s->damage_max : local;
+    int64_t damaged = buffer_max > local ? buffer_max : local;
     if (damaged > area) damaged = area;
     const int64_t now = now_ns();
     if (damaged * 16 >= area && (!g_hud_surface || now - g_hud_last_ns > 1000000000LL) &&
@@ -813,26 +819,44 @@ static void surface_attach(struct wl_client *c, struct wl_resource *r,
         wl_resource_add_destroy_listener(buffer, &s->pending_buffer_destroy);
     }
 }
-static void note_damage(int64_t *max, int32_t x, int32_t y, int32_t w, int32_t h, int bound_w, int bound_h) {
-    if (w <= 0 || h <= 0) return;
-    int64_t x0 = x, y0 = y, x1 = (int64_t)x + w, y1 = (int64_t)y + h;
+static int64_t rect_area(const int32_t *r, int bound_w, int bound_h) {
+    int64_t x0 = r[0], y0 = r[1], x1 = (int64_t)r[0] + r[2], y1 = (int64_t)r[1] + r[3];
     if (bound_w > 0 && bound_h > 0) {
         if (x0 < 0) x0 = 0;
         if (y0 < 0) y0 = 0;
         if (x1 > bound_w) x1 = bound_w;
         if (y1 > bound_h) y1 = bound_h;
-        if (x1 <= x0 || y1 <= y0) return;
     }
-    const int64_t cw = x1 - x0, ch = y1 - y0;
-    const int64_t area = (cw < 65536 ? cw : 65536) * (ch < 65536 ? ch : 65536);
-    if (area > *max) *max = area;
+    if (x1 <= x0 || y1 <= y0) return 0;
+    const int64_t w = x1 - x0, h = y1 - y0;
+    return (w < 65536 ? w : 65536) * (h < 65536 ? h : 65536);
+}
+static void note_damage(struct damage_list *d, int32_t x, int32_t y, int32_t w, int32_t h) {
+    if (w <= 0 || h <= 0) return;
+    const int32_t rect[4] = { x, y, w, h };
+    int slot = d->n;
+    if (slot == DAMAGE_RECTS) {
+        slot = 0;
+        for (int i = 1; i < DAMAGE_RECTS; i++)
+            if (rect_area(d->r[i], 0, 0) < rect_area(d->r[slot], 0, 0)) slot = i;
+        if (rect_area(rect, 0, 0) <= rect_area(d->r[slot], 0, 0)) return;
+    } else {
+        d->n++;
+    }
+    memcpy(d->r[slot], rect, sizeof(rect));
+}
+static int64_t damage_area(const struct damage_list *d, int bound_w, int bound_h) {
+    int64_t max = 0;
+    for (int i = 0; i < d->n; i++) {
+        const int64_t area = rect_area(d->r[i], bound_w, bound_h);
+        if (area > max) max = area;
+    }
+    return max;
 }
 static void surface_damage(struct wl_client *c, struct wl_resource *r,
                            int32_t x, int32_t y, int32_t w, int32_t h) {
     struct surface *s = wl_resource_get_user_data(r);
-    int sw, sh;
-    surface_size(s, &sw, &sh);
-    note_damage(&s->pending_damage_local_max, x, y, w, h, sw, sh);
+    note_damage(&s->pending_damage_local, x, y, w, h);
 }
 static void frame_callback_destroy(struct wl_resource *r) {
     wl_list_remove(wl_resource_get_link(r));
@@ -1033,9 +1057,9 @@ static void surface_commit(struct wl_client *c, struct wl_resource *r) {
         s->pending_opaque_set = 0;
     }
 
-    s->damage_max = s->pending_damage_max;
-    s->damage_local_max = s->pending_damage_local_max;
-    s->pending_damage_max = s->pending_damage_local_max = 0;
+    s->damage_buf = s->pending_damage_buf;
+    s->damage_local = s->pending_damage_local;
+    s->pending_damage_buf.n = s->pending_damage_local.n = 0;
     if (s->pending_attach) {
         struct wl_resource *buffer = s->pending_buffer;
         struct dmabuf_buffer *db = get_dmabuf(buffer);
@@ -1102,7 +1126,7 @@ static void surface_set_buffer_scale(struct wl_client *c, struct wl_resource *r,
 static void surface_damage_buffer(struct wl_client *c, struct wl_resource *r,
                                   int32_t x, int32_t y, int32_t w, int32_t h) {
     struct surface *s = wl_resource_get_user_data(r);
-    note_damage(&s->pending_damage_max, x, y, w, h, s->buf_w, s->buf_h);
+    note_damage(&s->pending_damage_buf, x, y, w, h);
 }
 static void surface_offset(struct wl_client *c, struct wl_resource *r, int32_t x, int32_t y) {}
 
