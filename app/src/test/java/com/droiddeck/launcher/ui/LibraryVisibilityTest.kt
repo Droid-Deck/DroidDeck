@@ -164,6 +164,15 @@ class LibraryVisibilityTest {
         compose.onNodeWithText("Installed Steam game").assertDoesNotExist()
     }
 
+    @Test fun theStoresOwnedGamesLinkUpdatesALibraryPageThatIsStillComposed() {
+        LibraryView.source = Store.GOG.id
+        show()
+        compose.onNodeWithText("Uninstalled GOG").assertDoesNotExist()
+        compose.runOnIdle { LibraryView.showOwned(ctx, Store.GOG); Snapshot.sendApplyNotifications() }
+        compose.mainClock.advanceTimeBy(1_000)
+        compose.onNodeWithText("Uninstalled GOG").assertExists()
+    }
+
     private fun show() {
         compose.mainClock.autoAdvance = false
         compose.setContent { key(generation) {

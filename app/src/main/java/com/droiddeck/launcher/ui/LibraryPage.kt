@@ -139,9 +139,12 @@ internal object LibraryView {
     var source by mutableStateOf(LIBRARY_ALL)
     var query by mutableStateOf("")
     var focusFirst = false
+    var ownedRequest by mutableIntStateOf(0)
+        private set
 
     fun showOwned(context: android.content.Context, store: Store) {
         SessionPrefs.setLibraryShowUninstalled(context, true)
+        ownedRequest++
         source = store.id
         query = ""
         focusFirst = true
@@ -165,7 +168,7 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
     val cloudRows = rememberXboxCloudRows(s)
     val all = remember(s.steamGames, cloudRows, owned, installedStore) { libraryEntries(s.steamGames + cloudRows, owned, installedStore) }
     LaunchedEffect(Unit) { XboxLibraryFilter.load(ctx) }
-    var showUninstalled by remember { mutableStateOf(SessionPrefs.libraryShowUninstalled(ctx)) }
+    var showUninstalled by remember(LibraryView.ownedRequest) { mutableStateOf(SessionPrefs.libraryShowUninstalled(ctx)) }
     val setShowUninstalled = { show: Boolean ->
         showUninstalled = show
         SessionPrefs.setLibraryShowUninstalled(ctx, show)
