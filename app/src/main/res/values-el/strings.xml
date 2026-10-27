@@ -1941,7 +1941,6 @@
     <string name="display_filter_live">Εφαρμόζεται σε πραγματικό χρόνο. Κοινό για το Steam και την Επιφάνεια εργασίας.</string>
     <string name="display_filter_note">Τα FSR, GSR και NIS εφαρμόζονται κατά τη μεγέθυνση της εικόνας συνεδρίας. Το Μόνο όξυνση λειτουργεί και χωρίς μεγέθυνση.</string>
     <string name="display_sharpness">Οξύτητα φίλτρου</string>
-    <string name="display_frame_rate">Καρέ ανά δευτερόλεπτο</string>
     <string name="display_look_filter">%1$s Ορίζει την κλιμάκωση σε %2$s.</string>
     <string name="display_match_screen">Αντιστοίχιση οθόνης (%1$d×%2$d)</string>
     <string name="display_follow_screen">Ακολούθηση οθόνης (αλλάζει μέγεθος όταν διπλώνει ή ξεδιπλώνει)</string>

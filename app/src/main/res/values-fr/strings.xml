@@ -1964,7 +1964,6 @@
     <string name="display_filter_live">S\'applique en direct. Partagé entre Steam et le bureau.</string>
     <string name="display_filter_note">FSR, GSR et NIS s\'appliquent lors de l\'agrandissement de l\'image de la session. « Netteté seule » fonctionne aussi sans agrandissement.</string>
     <string name="display_sharpness">Netteté du filtre</string>
-    <string name="display_frame_rate">Fréquence d\'images</string>
     <string name="display_look_filter">%1$s Règle la mise à l\'échelle sur %2$s.</string>
     <string name="display_match_screen">Adapter à l\'écran (%1$d×%2$d)</string>
     <string name="display_follow_screen">Suivre l\'écran (s\'adapte au pliage et au dépliage)</string>

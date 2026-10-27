@@ -1983,7 +1983,6 @@
     <string name="display_filter_live">Použije se okamžitě. Sdíleno Steamem a Plochou.</string>
     <string name="display_filter_note">FSR, GSR a NIS se použijí při zvětšování obrazu relace. Jen zaostření funguje i bez zvětšení.</string>
     <string name="display_sharpness">Ostrost filtru</string>
-    <string name="display_frame_rate">Snímková frekvence</string>
     <string name="display_look_filter">%1$s Nastaví škálování na %2$s.</string>
     <string name="display_match_screen">Podle obrazovky (%1$d×%2$d)</string>
     <string name="display_follow_screen">Sledovat obrazovku (změní velikost při složení nebo rozložení)</string>

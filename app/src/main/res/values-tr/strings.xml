@@ -1935,7 +1935,6 @@
     <string name="display_filter_live">Anında uygulanır. Steam ve Masaüstü tarafından paylaşılır.</string>
     <string name="display_filter_note">FSR, GSR ve NIS, oturum görüntüsü büyütülürken uygulanır. Yalnızca keskinleştirme büyütme olmadan da çalışır.</string>
     <string name="display_sharpness">Filtre keskinliği</string>
-    <string name="display_frame_rate">Kare hızı</string>
     <string name="display_look_filter">%1$s Ölçeklemeyi %2$s olarak ayarlar.</string>
     <string name="display_match_screen">Ekrana Uydur (%1$d×%2$d)</string>
     <string name="display_follow_screen">Ekranı takip et (katlanıp açıldığında yeniden boyutlanır)</string>

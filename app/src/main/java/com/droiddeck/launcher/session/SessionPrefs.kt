@@ -938,22 +938,15 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("hdr.$mode", on).apply()
     }
 
-    /**
-     * Performance mode: buffers go back to the game as soon as they are replaced
-     * instead of once per refresh, and gamescope's WSI layer and winex11 reuse their per-present window checks.
-     */
-    fun performanceMode(context: Context, mode: String): Boolean = prefs(context).getBoolean("performanceMode.$mode", false)
-
-    fun setPerformanceMode(context: Context, mode: String, on: Boolean) {
-        prefs(context).edit().putBoolean("performanceMode.$mode", on).apply()
-    }
-
     /** Compositor frame limit that releases buffers to the game unpaced. */
     const val FPS_UNPACED = -1
 
-    /** Mirroring still follows the glasses' refresh rate when Performance mode is on. */
-    fun compositorFpsLimit(mirrorRefreshLimit: Int, performanceMode: Boolean): Int =
-        if (performanceMode && mirrorRefreshLimit <= 0) FPS_UNPACED else mirrorRefreshLimit
+    /**
+     * Buffers go back to the game as soon as they are replaced instead of once per refresh;
+     * Steam's Frame Limit in the Quick Access menu caps games. Mirroring still follows the glasses' refresh rate.
+     */
+    fun compositorFpsLimit(mirrorRefreshLimit: Int): Int =
+        if (mirrorRefreshLimit <= 0) FPS_UNPACED else mirrorRefreshLimit
 
     val upscalerChoices = listOf(
         0 to "Linear", 2 to "Nearest", 4 to "AMD FSR 1", 3 to "Snapdragon GSR",

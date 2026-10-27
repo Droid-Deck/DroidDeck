@@ -1941,7 +1941,6 @@
     <string name="display_filter_live">Tillämpas direkt. Delas av Steam och skrivbordet.</string>
     <string name="display_filter_note">FSR, GSR och NIS tillämpas när sessionens bild förstoras. Endast skärpa fungerar även utan förstoring.</string>
     <string name="display_sharpness">Filterskärpa</string>
-    <string name="display_frame_rate">Bildfrekvens</string>
     <string name="display_look_filter">%1$s Ställer in skalning till %2$s.</string>
     <string name="display_match_screen">Matcha skärmen (%1$d×%2$d)</string>
     <string name="display_follow_screen">Följ skärmen (ändrar storlek vid vikning)</string>

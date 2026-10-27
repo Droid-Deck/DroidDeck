@@ -241,6 +241,74 @@ TOUR_JS = r"""
   return "off";
 })()
 """
+# Steam keeps the Quick Access Frame Limit as the client setting gamescope_app_target_framerate
+# (CMsgClientSettings field 21002) and offers the values gamescope's display state lists in
+# active_display_info.supported_frame_rates. When the panel's refresh rate changes, a remembered
+# limit that is not one of the new values leaves the slider on its first value while the game runs
+# at the old limit. The limit is kept when it is still offered and moved to the highest value
+# otherwise. Choices are read once they have been unchanged for a moment, since a mode switch can
+# report a passing rate first.
+FRAME_LIMIT_JS = r"""
+(() => {
+  if (window.__droiddeckFrameLimit) return "present";
+  const settings = window.settingsStore;
+  let service = null;
+  try {
+    // Steam's webpack does not expose its module cache; the gamescope service client is found by
+    // the calls its module makes and loaded by id.
+    let require;
+    window.webpackChunksteamui.push([[Symbol("droiddeck-frame-limit")], {}, r => { require = r; }]);
+    for (const id of Object.keys(require.m || {})) {
+      const source = String(require.m[id]);
+      if (!source.includes("SetBlurParams") || !source.includes("RegisterForNotifyStateChanged")) continue;
+      let exports;
+      try { exports = require(id); } catch (e) { continue; }
+      if (!exports || typeof exports !== "object") continue;
+      service = Object.values(exports).find(value => value && typeof value.GetState === "function" &&
+        typeof value.RegisterForNotifyStateChanged === "function" && typeof value.SetBlurParams === "function");
+      if (service) break;
+    }
+  } catch (e) {
+    service = null;
+  }
+  if (!service || !settings?.clientSettings || typeof SteamClient.Settings?.SetSetting !== "function") return "unavailable";
+  const self = { choices: null, timer: null };
+  const write = value => {
+    const bytes = [];
+    for (let n of [21002 * 8, value]) {
+      while (n > 127) { bytes.push((n & 127) | 128); n = Math.floor(n / 128); }
+      bytes.push(n);
+    }
+    SteamClient.Settings.SetSetting(btoa(String.fromCharCode(...bytes)));
+  };
+  self.check = async () => {
+    let rates;
+    try {
+      const reply = await service.GetState({});
+      if (!reply.BSuccess()) return;
+      rates = reply.Body().toObject().state?.active_display_info?.supported_frame_rates;
+    } catch (e) {
+      return;
+    }
+    if (!Array.isArray(rates) || rates.length === 0) return;
+    const choices = rates.join(",");
+    if (choices === self.choices) return;
+    self.choices = choices;
+    const current = settings.clientSettings;
+    if (!current.gamescope_enable_app_target_framerate || rates.includes(current.gamescope_app_target_framerate)) return;
+    write(Math.max(...rates));
+  };
+  self.schedule = () => {
+    clearTimeout(self.timer);
+    self.timer = setTimeout(self.check, 1500);
+  };
+  self.subscription = service.RegisterForNotifyStateChanged(self.schedule);
+  self.interval = setInterval(self.schedule, 5000);
+  self.schedule();
+  window.__droiddeckFrameLimit = self;
+  return "installed";
+})()
+"""
 FILE_BINDING = "droiddeckOpenFileDialog"
 FILE_JS = r"""
 (() => {
@@ -680,6 +748,8 @@ class Helper:
         self.chooser = None
         self.controls_state = None
         self.controls_installed = False
+        self.frame_limit_state = None
+        self.frame_limit_retry = 0
 
     def sync_controls(self):
         try:
@@ -701,6 +771,19 @@ class Helper:
                     self.controls_state = None
         except (OSError, ValueError, TypeError):
             pass
+
+    def sync_frame_limit(self):
+        # Steam can still be loading its settings and gamescope state when the helper attaches.
+        if self.frame_limit_state in ("installed", "present") or time.monotonic() < self.frame_limit_retry:
+            return
+        try:
+            state = self.page.evaluate(FRAME_LIMIT_JS)
+        except RuntimeError as e:
+            state = "failed (%s)" % e
+        if state != self.frame_limit_state:
+            say("frame limit sync: %s" % state)
+        self.frame_limit_state = state
+        self.frame_limit_retry = time.monotonic() + 10
 
     def open_chooser(self, payload):
         try:
@@ -801,6 +884,8 @@ class Helper:
         self.page = page
         self.controls_state = None
         self.controls_installed = False
+        self.frame_limit_state = None
+        self.frame_limit_retry = 0
         self.sync_controls()
         return True
 
@@ -956,6 +1041,7 @@ class Helper:
         self.ensure_tools()
         while True:
             self.sync_controls()
+            self.sync_frame_limit()
             sources = [self.page.ws] + ([watcher] if watcher.fileno() >= 0 else [])
             if self.chooser is not None:
                 sources.append(self.chooser[1].stdout)
