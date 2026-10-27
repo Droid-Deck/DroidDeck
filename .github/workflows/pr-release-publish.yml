@@ -8,8 +8,12 @@ on:
         description: Open pull request number
         required: true
         type: string
+      automatic_build_run_id:
+        description: Completed build run for automatic publishing
+        required: false
+        type: string
   pull_request_target:
-    types: [opened, synchronize, reopened, ready_for_review, labeled]
+    types: [labeled]
     branches: [main]
   workflow_run:
     workflows: [Build APK]
@@ -27,6 +31,36 @@ concurrency:
   queue: max
 
 jobs:
+  dispatch-fork-builds:
+    if: >-
+      github.event_name == 'workflow_run' && github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_repository.full_name != github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      actions: write
+      pull-requests: read
+    steps:
+      - name: Find fork PRs for the completed build
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+          RUN_REPO: ${{ github.event.workflow_run.head_repository.full_name }}
+          RUN_BRANCH: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          set -euo pipefail
+          owner=${RUN_REPO%%/*}
+          gh api --paginate --slurp -X GET "repos/$GITHUB_REPOSITORY/pulls" \
+            -f state=open -f base=main -f "head=$owner:$RUN_BRANCH" -f per_page=100 |
+            jq -r --arg sha "$RUN_SHA" --arg repo "$RUN_REPO" --arg branch "$RUN_BRANCH" '
+              .[][] | select(.head.sha == $sha and .head.repo.full_name == $repo and .head.ref == $branch) | .number' |
+            while IFS= read -r number; do
+              gh workflow run pr-release-publish.yml -R "$GITHUB_REPOSITORY" --ref main \
+                -f "pr_number=$number" -f "automatic_build_run_id=$RUN_ID"
+            done
+
   authorize:
     if: >-
       (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
@@ -51,6 +85,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          fetch-depth: 0
           persist-credentials: false
       - name: The packages a signed build ships as
         id: variants
@@ -63,8 +98,8 @@ jobs:
           REQUESTER: ${{ github.actor }}
           PR_NUMBER: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.number || github.event_name == 'workflow_run' && github.event.workflow_run.pull_requests[0].number || inputs.pr_number }}
           ACTION: ${{ github.event.action }}
-          EVENT_HEAD: ${{ github.event.pull_request.head.sha }}
           BUILT_SHA: ${{ github.event.workflow_run.head_sha }}
+          AUTO_RUN: ${{ inputs.automatic_build_run_id }}
         run: |
           set -euo pipefail
           [[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]] || { echo "::error::Invalid PR number '$PR_NUMBER'"; exit 1; }
@@ -84,9 +119,8 @@ jobs:
             [ "$(jq -r .head.sha <<<"$pr")" = "$BUILT_SHA" ] || skip "a newer push is building"
             jq -e 'any(.labels[]; .name == "no-test-build")' <<<"$pr" >/dev/null && skip "it is labelled no-test-build"
             echo "automatic=true" >> "$GITHUB_OUTPUT"
-          elif [ "$EVENT_NAME" = pull_request_target ] && [ "$ACTION" != labeled ]; then
-            [ "$(jq -r .head.repo.full_name <<<"$pr")" != "$GITHUB_REPOSITORY" ] || skip "same-repository builds are handled after build completion"
-            [ "$(jq -r .head.sha <<<"$pr")" = "$EVENT_HEAD" ] || skip "a newer push is building"
+          elif [ "$EVENT_NAME" = workflow_dispatch ] && [ -n "$AUTO_RUN" ]; then
+            [[ "$AUTO_RUN" =~ ^[1-9][0-9]*$ ]] || { echo '::error::Invalid automatic build run ID'; exit 1; }
             jq -e 'any(.labels[]; .name == "no-test-build")' <<<"$pr" >/dev/null && skip "it is labelled no-test-build"
             git fetch --no-tags origin main
             opener=$(jq -r .user.login <<<"$pr")
@@ -102,10 +136,26 @@ jobs:
               jq -c --arg head "$head" --arg repo "$(jq -r .head.repo.full_name <<<"$pr")" --arg ref "$(jq -r .head.ref <<<"$pr")" '
                 [.workflow_runs[] | select(.head_sha == $head and .head_repository.full_name == $repo and .head_branch == $ref)] |
                 sort_by([.created_at, .run_attempt]) | last // empty')
+            if [[ -z "$latest" && "$attempt" == 1 ]]; then
+              git fetch --no-tags origin main
+              git fetch --no-tags origin "refs/pull/$PR_NUMBER/head"
+              git diff --no-renames --name-only -z "$base...FETCH_HEAD" > "$RUNNER_TEMP/pr-changed-paths"
+              excluded=true
+              while IFS= read -r -d '' path; do
+                case "$path" in
+                  *.md|LICENSE|.gitignore) ;;
+                  *) excluded=false; break ;;
+                esac
+              done < "$RUNNER_TEMP/pr-changed-paths"
+              [ "$excluded" = false ] || skip "its changes do not trigger the APK build"
+            fi
             if [[ -n "$latest" && $(jq -r .status <<<"$latest") == completed ]]; then
               conclusion=$(jq -r .conclusion <<<"$latest")
               if [[ "$conclusion" == success ]]; then
                 run_id=$(jq -r .id <<<"$latest")
+                if [ -n "$AUTO_RUN" ] && [ "$run_id" != "$AUTO_RUN" ]; then
+                  skip "a newer build exists"
+                fi
                 break
               fi
               [[ "$conclusion" == action_required ]] || { echo "::error::The latest PR build is not green ($conclusion)"; exit 1; }
@@ -145,9 +195,9 @@ jobs:
             .head.sha == $head and .base.sha == $base
           ' <<<"$current" >/dev/null ||
             { echo "::error::PR #$PR_NUMBER moved on while its build was checked; publish again"; exit 1; }
-          if [ "$EVENT_NAME" = workflow_run ] || { [ "$EVENT_NAME" = pull_request_target ] && [ "$ACTION" != labeled ]; }; then
+          if [ "$EVENT_NAME" = workflow_run ] || { [ "$EVENT_NAME" = workflow_dispatch ] && [ -n "$AUTO_RUN" ]; }; then
             jq -e 'any(.labels[]; .name == "no-test-build")' <<<"$current" >/dev/null && skip "it is labelled no-test-build"
-            if [ "$EVENT_NAME" = pull_request_target ]; then
+            if [ "$EVENT_NAME" = workflow_dispatch ]; then
               git fetch --no-tags origin main
               git show origin/main:.github/trusted-test-builds.txt | grep -Fixq -- "$(jq -r .user.login <<<"$current")" || skip "the PR opener is no longer trusted"
             fi
