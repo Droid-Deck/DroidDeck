@@ -118,4 +118,37 @@ class DualSenseHapticsTest {
         assertEquals(0, converter.leftMotor)
         assertEquals(0, converter.rightMotor)
     }
+
+    @Test fun rumbleToHapticsSynthesizerProducesValid3kHzStereoWaveformsAndCrc() {
+        val targets = DualSenseHaptics.RumbleToHapticsSynthesizer.calculateTargets(255, 255)
+        assertEquals(0.82f, targets.leftAmp, 0.001f)
+        assertEquals(0.35f, targets.rightAmp, 0.001f)
+        assertEquals(45f, targets.leftFreq, 0.001f)
+        assertEquals(100f, targets.rightFreq, 0.001f)
+
+        val synth = DualSenseHaptics.RumbleToHapticsSynthesizer()
+        val r0 = synth.nextReport(leftMotor = 200, rightMotor = 180, seq = 3)
+        assertEquals(142, r0.size)
+        assertEquals(0x32, r0[0].toInt() and 0xFF)
+        assertEquals(0x30, r0[1].toInt() and 0xFF)
+        assertEquals(0, r0[10].toInt() and 0xFF)
+        assertEquals(crcOf(r0), storedCrc(r0))
+
+        // After several packets of strong rumble, non-zero stereo samples are emitted
+        var maxAbsL = 0
+        var maxAbsR = 0
+        repeat(4) {
+            val samples = synth.nextSamples(255, 255)
+            for (f in 0 until 32) {
+                maxAbsL = maxOf(maxAbsL, kotlin.math.abs(samples[f * 2].toInt()))
+                maxAbsR = maxOf(maxAbsR, kotlin.math.abs(samples[f * 2 + 1].toInt()))
+            }
+        }
+        assertTrue("Expected non-zero Left oscillator amplitude, got $maxAbsL", maxAbsL > 20)
+        assertTrue("Expected non-zero Right oscillator amplitude, got $maxAbsR", maxAbsR > 10)
+
+        synth.reset()
+        val silentSamples = synth.nextSamples(0, 0)
+        assertTrue(silentSamples.all { it.toInt() == 0 })
+    }
 }

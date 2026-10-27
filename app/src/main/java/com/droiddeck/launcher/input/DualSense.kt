@@ -141,7 +141,8 @@ object DualSense {
         val batteryPercent: Int = 100,
         val isCharging: Boolean = false,
         val headphonesPlugged: Boolean = false,
-        val batteryStatusByte: Int = 0x2a
+        val batteryStatusByte: Int = 0x2a,
+        val sensorTimestamp: Long = 0L
     )
 
     data class Calibration(
@@ -406,6 +407,63 @@ object DualSense {
         }
     }
 
+    /**
+     * Tracks the DualSense 3 MHz hardware sensor timestamp (0.333 us per tick at usb[28..31]),
+     * handling 32-bit unsigned wrap-around and rejecting duplicate or discontinuous (> 50 ms) deltas.
+     */
+    class MotionTimestampDelta {
+        data class Sample(
+            val deltaSeconds: Float,
+            val deltaMicroseconds: Int,
+            val hasValidDelta: Boolean
+        )
+
+        private var lastTimestamp: Long = 0L
+        private var initialized: Boolean = false
+
+        @Synchronized
+        fun reset() {
+            lastTimestamp = 0L
+            initialized = false
+        }
+
+        @Synchronized
+        fun capture(sensorTimestamp: Long): Sample {
+            val curr = sensorTimestamp and 0xFFFFFFFFL
+            if (!initialized) {
+                initialized = true
+                lastTimestamp = curr
+                return Sample(0f, 0, false)
+            }
+            val deltaTicks = (curr - lastTimestamp) and 0xFFFFFFFFL
+            lastTimestamp = curr
+            if (deltaTicks == 0L) return Sample(0f, 0, false)
+            val rawSeconds = deltaTicks.toFloat() / TICKS_PER_SECOND
+            if (rawSeconds > MAX_DISCONTINUITY_SECONDS) return Sample(0f, 0, false)
+            val clampedSeconds = rawSeconds.coerceIn(MIN_DELTA_SECONDS, MAX_DELTA_SECONDS)
+            val deltaUs = (deltaTicks / 3L).toInt().coerceAtLeast(1)
+            return Sample(clampedSeconds, deltaUs, true)
+        }
+
+        companion object {
+            const val TICKS_PER_SECOND = 3_000_000f
+            const val MIN_DELTA_SECONDS = 0.0005f
+            const val MAX_DELTA_SECONDS = 0.02f
+            const val MAX_DISCONTINUITY_SECONDS = 0.05f
+        }
+    }
+
+    fun playerLedMaskForBattery(batteryPercent: Int, flashOff: Boolean = false): Int {
+        if (flashOff) return 0x00
+        return when (batteryPercent.coerceIn(0, 100)) {
+            in 0..19 -> 0x04
+            in 20..39 -> 0x0A
+            in 40..59 -> 0x15
+            in 60..79 -> 0x1B
+            else -> 0x1F
+        }
+    }
+
     fun touchXToPad(rawX: Int): Short {
         val clampedX = rawX.coerceIn(0, TOUCHPAD_WIDTH - 1).toLong()
         return ((clampedX * 65535L / (TOUCHPAD_WIDTH - 1)) - 32768L).toShort()
@@ -534,6 +592,11 @@ object DualSense {
         val gyroY = adjustedGyro?.get(1) ?: calGyroY
         val gyroZ = adjustedGyro?.get(2) ?: calGyroZ
 
+        val sensorTimestamp = ((data[offset + 28 + off].toInt() and 0xFF).toLong()) or
+                ((data[offset + 29 + off].toInt() and 0xFF).toLong() shl 8) or
+                ((data[offset + 30 + off].toInt() and 0xFF).toLong() shl 16) or
+                ((data[offset + 31 + off].toInt() and 0xFF).toLong() shl 24)
+
         val t0b0 = data[offset + 33 + off].toInt() and 0xFF
         val t0b1 = data[offset + 34 + off].toInt() and 0xFF
         val t0b2 = data[offset + 35 + off].toInt() and 0xFF
@@ -586,7 +649,8 @@ object DualSense {
             batteryPercent = batteryPercent,
             isCharging = isCharging,
             headphonesPlugged = headphonesPlugged,
-            batteryStatusByte = batteryStatusByte
+            batteryStatusByte = batteryStatusByte,
+            sensorTimestamp = sensorTimestamp
         )
     }
 

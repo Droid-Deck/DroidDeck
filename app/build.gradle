@@ -145,8 +145,8 @@ android {
         buildConfigField "String", "DESKTOP_KDE_SHA256", "\"${desktopKde.DESKTOP_KDE_SHA256}\""
         buildConfigField "long", "DESKTOP_KDE_SIZE", "${desktopKde.DESKTOP_KDE_SIZE}L"
         addonPacks.each { name, pack ->
-            buildConfigField "String", "PACK_${name.toUpperCase()}_SHA256", "\"${pack.sha256}\""
-            buildConfigField "long", "PACK_${name.toUpperCase()}_SIZE", "${pack.size}L"
+            buildConfigField "String", "PACK_${name.toUpperCase(java.util.Locale.ROOT)}_SHA256", "\"${pack.sha256}\""
+            buildConfigField "long", "PACK_${name.toUpperCase(java.util.Locale.ROOT)}_SIZE", "${pack.size}L"
         }
 
         ndk {

@@ -1068,6 +1068,52 @@ class DualSenseTest {
         manager.stop()
     }
 
+    @Test
+    fun `sensorTimestamp and MotionTimestampDelta handle 3MHz ticks wrap-around and discontinuities`() {
+        val report = createNeutralReport()
+        // 0x89ABCDEF at usb[28..31]
+        report[28] = 0xEF.toByte()
+        report[29] = 0xCD.toByte()
+        report[30] = 0xAB.toByte()
+        report[31] = 0x89.toByte()
+        val state = DualSense.parseInputReport(report)!!
+        assertEquals(0x89ABCDEFL, state.sensorTimestamp)
+
+        val delta = DualSense.MotionTimestampDelta()
+        // First sample initializes state and hasValidDelta = false
+        val first = delta.capture(0xFFFFFF00L)
+        assertFalse(first.hasValidDelta)
+
+        // Wrap-around across 0xFFFFFFFF -> +12000 ticks (4.0 ms at 3 MHz)
+        val wrapped = delta.capture((0xFFFFFF00L + 12000L) and 0xFFFFFFFFL)
+        assertTrue(wrapped.hasValidDelta)
+        assertEquals(0.004f, wrapped.deltaSeconds, 0.0001f)
+        assertEquals(4000, wrapped.deltaMicroseconds)
+
+        // Duplicate timestamp (deltaTicks == 0) is rejected
+        val dup = delta.capture((0xFFFFFF00L + 12000L) and 0xFFFFFFFFL)
+        assertFalse(dup.hasValidDelta)
+
+        // Discontinuity (> 50 ms = 150,000 ticks) is rejected
+        val jump = delta.capture((0xFFFFFF00L + 12000L + 300_000L) and 0xFFFFFFFFL)
+        assertFalse(jump.hasValidDelta)
+    }
+
+    @Test
+    fun `playerLedMaskForBattery maps battery percentage to 5-LED bar mask`() {
+        assertEquals(0x04, DualSense.playerLedMaskForBattery(0))
+        assertEquals(0x04, DualSense.playerLedMaskForBattery(19))
+        assertEquals(0x0A, DualSense.playerLedMaskForBattery(20))
+        assertEquals(0x0A, DualSense.playerLedMaskForBattery(39))
+        assertEquals(0x15, DualSense.playerLedMaskForBattery(40))
+        assertEquals(0x15, DualSense.playerLedMaskForBattery(59))
+        assertEquals(0x1B, DualSense.playerLedMaskForBattery(60))
+        assertEquals(0x1B, DualSense.playerLedMaskForBattery(79))
+        assertEquals(0x1F, DualSense.playerLedMaskForBattery(80))
+        assertEquals(0x1F, DualSense.playerLedMaskForBattery(100))
+        assertEquals(0x00, DualSense.playerLedMaskForBattery(15, flashOff = true))
+    }
+
     // -------------------------------------------------------------------------
     // Shadow FakeInputWriter for Robolectric Unit Testing
     // -------------------------------------------------------------------------

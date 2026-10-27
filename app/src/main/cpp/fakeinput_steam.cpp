@@ -2573,15 +2573,36 @@ __attribute__((visibility("hidden"))) static int sony_feature(const DeckHidraw &
       reply[1] = cmd_group;
       reply[2] = cmd_id;
       reply[3] = 0x02;
-      if (cmd_group == 2 && cmd_id == 0x02) {
-        for (int i = 0; i < 6; i++) reply[4 + i] = SONY_MAC[i];
+      if ((cmd_group == 9 || cmd_group == 2) && cmd_id == 0x02) {
+        for (int i = 0; i < 6; i++) reply[4 + i] = SONY_MAC[5 - i];
+      } else if (cmd_group == 3 && cmd_id == 0x03) {
+        reply[4] = 0x01;
       } else if (cmd_group == 4 && cmd_id == 0x03) {
-        put16(reply + 4, 4150);
+        put16(reply + 4, 0x0C9C);
+        put16(reply + 6, 0x0874);
+      } else if (cmd_group == 7 && cmd_id == 0x25) {
+        reply[4] = 0xFF;
       } else if (cmd_group == 1 && cmd_id == 0x09) {
-        memcpy(reply + 4, "DROIDDCK", 8);
-      } else if ((cmd_group == 1 && ((cmd_id >= 0x11 && cmd_id <= 0x15) || (cmd_id >= 0x18 && cmd_id <= 0x1C))) ||
-                 (cmd_group == 0x70 && cmd_id == 0x01)) {
-        memcpy(reply + 4, "P0000000000000000", 17);
+        reply[4] = 0x00;
+        memcpy(reply + 5, "\xF1\xE3\x0E\x22\xAD\x4F\x4F\x2F", 8);
+      } else if (cmd_group == 1 && cmd_id == 0x11) {
+        memcpy(reply + 4, "51271090421414", 14);
+      } else if (cmd_group == 1 && (cmd_id == 0x12 || cmd_id == 0x19)) {
+        reply[4] = 0x02;
+      } else if (cmd_group == 1 && cmd_id == 0x13) {
+        memcpy(reply + 4, "E442080CM10342049", 17);
+      } else if (cmd_group == 1 && (cmd_id == 0x15 || cmd_id == 0x1B)) {
+        memcpy(reply + 4, "\x01\x05\x05\x06", 4);
+      } else if (cmd_group == 1 && cmd_id == 0x18) {
+        memcpy(reply + 4, "ASNYHR37022401274229", 20);
+      } else if (cmd_group == 1 && (cmd_id == 0x1A || cmd_id == 0x1C)) {
+        memcpy(reply + 4, "BS31V25725F01477", 16);
+      } else if (cmd_group == 0x70 && cmd_id == 0x01) {
+        reply[3] = 0x03;
+        reply[4] = 0x00;
+        memcpy(reply + 5, "E442080CM10342049", 17);
+        reply[22] = 0x26;
+        reply[23] = 0x01;
       }
     } else {
       reply[1] = 0x02;
@@ -2722,6 +2743,7 @@ __attribute__((visibility("hidden"))) static int ioctl_sony(DeckHidraw &pad, ioc
     const auto *in = static_cast<const uint8_t *>(argp);
     size_t sz = std::min<size_t>(_IOC_SIZE(op), sizeof(pad.sony_feature_buf));
     if (in && sz > 0) {
+      memset(pad.sony_feature_buf, 0, sizeof(pad.sony_feature_buf));
       memcpy(pad.sony_feature_buf, in, sz);
     }
     return static_cast<int>(_IOC_SIZE(op));

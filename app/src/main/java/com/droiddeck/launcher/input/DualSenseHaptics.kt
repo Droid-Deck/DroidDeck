@@ -1,8 +1,12 @@
 package com.droiddeck.launcher.input
 
+import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.exp
 import kotlin.math.max
 import kotlin.math.pow
+import kotlin.math.roundToInt
+import kotlin.math.sin
 import kotlin.math.sqrt
 
 /**
@@ -205,6 +209,122 @@ object DualSenseHaptics {
             const val PRE_GAIN = 2.5f
             const val MOTOR_FLOOR = 15
             const val LP_ALPHA = 0.0196f
+        }
+    }
+
+    /**
+     * Synthesizes 3 kHz signed 8-bit stereo DualSense haptic waveforms (32 stereo frames = 64 bytes)
+     * from standard Left/Right motor rumble intensities, using dual phase-continuous oscillators
+     * tuned to the heavy (30..45 Hz) and crisp (80..100 Hz) voice-coil actuator resonances.
+     */
+    class RumbleToHapticsSynthesizer(sampleRate: Int = SAMPLE_RATE) {
+        private val dt = 1f / sampleRate.toFloat()
+        private val alphaAttack = 1f - exp(-dt / TAU_ATTACK)
+        private val alphaRelease = 1f - exp(-dt / TAU_RELEASE)
+        private val alphaFreq = 1f - exp(-dt / TAU_FREQ)
+
+        private var curLeftAmp = 0f
+        private var curRightAmp = 0f
+        private var curLeftFreq = BASE_LEFT_FREQ
+        private var curRightFreq = BASE_RIGHT_FREQ
+        private var leftPhase = 0f
+        private var rightPhase = 0f
+        private var counter = 0
+
+        fun reset() {
+            curLeftAmp = 0f
+            curRightAmp = 0f
+            curLeftFreq = BASE_LEFT_FREQ
+            curRightFreq = BASE_RIGHT_FREQ
+            leftPhase = 0f
+            rightPhase = 0f
+            counter = 0
+        }
+
+        fun nextSamples(leftMotor: Int, rightMotor: Int, gain: Float = 1f): ByteArray {
+            val (leftTargetAmp, rightTargetAmp, leftTargetFreq, rightTargetFreq) =
+                calculateTargets(leftMotor, rightMotor, gain)
+            val out = ByteArray(SAMPLE_BYTES)
+            val frames = SAMPLE_BYTES / 2
+            for (i in 0 until frames) {
+                val aL = if (leftTargetAmp > curLeftAmp) alphaAttack else alphaRelease
+                val aR = if (rightTargetAmp > curRightAmp) alphaAttack else alphaRelease
+                curLeftAmp += aL * (leftTargetAmp - curLeftAmp)
+                curRightAmp += aR * (rightTargetAmp - curRightAmp)
+                curLeftFreq += alphaFreq * (leftTargetFreq - curLeftFreq)
+                curRightFreq += alphaFreq * (rightTargetFreq - curRightFreq)
+
+                if (curLeftAmp < AMP_SILENCE_FLOOR && leftTargetAmp == 0f) {
+                    curLeftAmp = 0f
+                    leftPhase = 0f
+                } else {
+                    leftPhase = (leftPhase + TWO_PI * curLeftFreq * dt) % TWO_PI
+                }
+
+                if (curRightAmp < AMP_SILENCE_FLOOR && rightTargetAmp == 0f) {
+                    curRightAmp = 0f
+                    rightPhase = 0f
+                } else {
+                    rightPhase = (rightPhase + TWO_PI * curRightFreq * dt) % TWO_PI
+                }
+
+                val sampleL = sin(leftPhase) * curLeftAmp
+                val sampleR = sin(rightPhase) * curRightAmp
+                out[i * 2] = floatToInt8(sampleL)
+                out[i * 2 + 1] = floatToInt8(sampleR)
+            }
+            return out
+        }
+
+        fun nextReport(leftMotor: Int, rightMotor: Int, seq: Int = 0, gain: Float = 1f): ByteArray {
+            val samples = nextSamples(leftMotor, rightMotor, gain)
+            val report = buildReport(samples, counter, seq)
+            counter = (counter + 1) and 0xFF
+            return report
+        }
+
+        companion object {
+            const val BASE_LEFT_FREQ = 30f
+            const val SPAN_LEFT_FREQ = 15f
+            const val BASE_RIGHT_FREQ = 80f
+            const val SPAN_RIGHT_FREQ = 20f
+            const val LEFT_MAX_AMP = 0.82f
+            const val RIGHT_MAX_AMP = 0.35f
+            const val LEFT_GAMMA = 0.70f
+            const val RIGHT_GAMMA = 0.75f
+            const val TAU_ATTACK = 0.008f
+            const val TAU_RELEASE = 0.055f
+            const val TAU_FREQ = 0.030f
+            const val AMP_SILENCE_FLOOR = 0.002f
+            const val SOFT_LIMIT_CEILING = 0.98f
+            private const val TWO_PI = (2.0 * PI).toFloat()
+
+            data class Targets(
+                val leftAmp: Float,
+                val rightAmp: Float,
+                val leftFreq: Float,
+                val rightFreq: Float
+            )
+
+            fun calculateTargets(leftMotor: Int, rightMotor: Int, gain: Float = 1f): Targets {
+                val leftNorm = (leftMotor.coerceIn(0, 255) / 255f)
+                val rightNorm = (rightMotor.coerceIn(0, 255) / 255f)
+                val g = gain.coerceIn(0f, 2f)
+                val leftAmp = if (leftNorm > 0f) {
+                    (LEFT_MAX_AMP * leftNorm.pow(LEFT_GAMMA) * g).coerceIn(0f, SOFT_LIMIT_CEILING)
+                } else 0f
+                val rightAmp = if (rightNorm > 0f) {
+                    (RIGHT_MAX_AMP * rightNorm.pow(RIGHT_GAMMA) * g).coerceIn(0f, SOFT_LIMIT_CEILING)
+                } else 0f
+                val leftFreq = BASE_LEFT_FREQ + leftNorm * SPAN_LEFT_FREQ
+                val rightFreq = BASE_RIGHT_FREQ + rightNorm * SPAN_RIGHT_FREQ
+                return Targets(leftAmp, rightAmp, leftFreq, rightFreq)
+            }
+
+            fun floatToInt8(sample: Float): Byte {
+                val clamped = sample.coerceIn(-1f, 1f)
+                return (clamped * 127f).roundToInt().coerceIn(-128, 127).toByte()
+            }
         }
     }
 
