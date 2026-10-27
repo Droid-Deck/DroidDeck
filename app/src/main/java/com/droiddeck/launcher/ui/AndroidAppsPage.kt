@@ -244,7 +244,7 @@ internal fun AndroidAppsPage(s: FrontEndState, modifier: Modifier, onLaunch: (Ho
     var picking by rememberSaveable { mutableStateOf(false) }
     val folders = HomeFolders.folders
     val byKey = remember(s.androidApps) { s.androidApps.associateBy { it.key } }
-    val byPkg = remember(s.androidApps) { s.androidApps.filterNot { it.work }.associateBy { it.packageName } }
+    val byPkg = remember(s.androidApps) { s.androidApps.filterNot { it.work }.groupBy { it.packageName }.mapNotNull { (pkg, apps) -> apps.singleOrNull()?.let { pkg to it } }.toMap() }
     LaunchedEffect(byPkg) { if (byPkg.isNotEmpty()) HomeFolders.migrateMembers(ctx) { byPkg[it]?.key } }
     val member: (String) -> HomeApp.LaunchableApp? = { byKey[it] ?: byPkg[it] }
     val pins = HomePins.pinned
