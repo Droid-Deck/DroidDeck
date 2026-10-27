@@ -272,7 +272,7 @@ FRAME_LIMIT_JS = r"""
     service = null;
   }
   if (!service || !settings?.clientSettings || typeof SteamClient.Settings?.SetSetting !== "function") return "unavailable";
-  const self = { choices: null, timer: null };
+  const self = { timer: null };
   const write = value => {
     const bytes = [];
     for (let n of [21002 * 8, value]) {
@@ -291,12 +291,12 @@ FRAME_LIMIT_JS = r"""
       return;
     }
     if (!Array.isArray(rates) || rates.length === 0) return;
-    const choices = rates.join(",");
-    if (choices === self.choices) return;
-    self.choices = choices;
     const current = settings.clientSettings;
     if (!current.gamescope_enable_app_target_framerate || rates.includes(current.gamescope_app_target_framerate)) return;
-    write(Math.max(...rates));
+    try {
+      write(Math.max(...rates));
+    } catch (e) {
+    }
   };
   self.schedule = () => {
     clearTimeout(self.timer);

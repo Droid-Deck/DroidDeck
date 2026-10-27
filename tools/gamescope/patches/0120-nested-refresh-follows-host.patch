@@ -1,8 +1,8 @@
 diff --git a/src/Backends/WaylandBackend.cpp b/src/Backends/WaylandBackend.cpp
-index 40164ba..cc04fa7 100644
+index 40164ba..1b85e63 100644
 --- a/src/Backends/WaylandBackend.cpp
 +++ b/src/Backends/WaylandBackend.cpp
-@@ -1698,6 +1698,49 @@ namespace gamescope
+@@ -1698,6 +1698,52 @@ namespace gamescope
          }
      }
  
@@ -21,6 +21,7 @@ index 40164ba..cc04fa7 100644
 +
 +    // A mode switch on the host can report a passing rate for a few frames (72 Hz between 144 and
 +    // 120 on an AYANEO Pocket FIT); a new rate is taken once it has been reported for 300 ms.
++    // Until then gamescope keeps presenting, so a still screen also gets the feedback that takes it.
 +    static bool HostRefreshChanged( int32_t nRefreshmHz, uint64_t ulPresentedNs )
 +    {
 +        static int32_t s_nPendingmHz = 0;
@@ -36,9 +37,11 @@ index 40164ba..cc04fa7 100644
 +        {
 +            s_nPendingmHz = nRefreshmHz;
 +            s_ulPendingSinceNs = ulPresentedNs;
-+            return false;
 +        }
-+        return ulPresentedNs - s_ulPendingSinceNs >= 300'000'000ul;
++        if ( ulPresentedNs - s_ulPendingSinceNs >= 300'000'000ul )
++            return true;
++        force_repaint();
++        return false;
 +    }
 +
 +    static void FollowHostRefresh( int32_t nRefreshmHz )
@@ -52,7 +55,7 @@ index 40164ba..cc04fa7 100644
      void CWaylandPlane::UpdateVRRRefreshRate()
      {
          if ( m_pParent )
-@@ -1724,6 +1767,7 @@ namespace gamescope
+@@ -1724,6 +1770,7 @@ namespace gamescope
              // TODO(strategy): We should pick the largest refresh rate.
              xdg_log.infof( "Changed refresh to: %.3fhz", ConvertmHzToHz( (float) nLargestRefreshRateMhz ) );
              g_nOutputRefresh = nLargestRefreshRateMhz;
@@ -60,7 +63,7 @@ index 40164ba..cc04fa7 100644
          }
      }
  
-@@ -1794,10 +1838,11 @@ namespace gamescope
+@@ -1794,10 +1841,11 @@ namespace gamescope
          if ( uRefreshCycle )
          {
              int32_t nRefresh = RefreshCycleTomHz( uRefreshCycle );
@@ -73,6 +76,16 @@ index 40164ba..cc04fa7 100644
              }
  
              m_pConnector->SetHostCompositorIsCurrentlyVRR( false );
+@@ -2636,6 +2684,9 @@ namespace gamescope
+     }
+     void CWaylandBackend::Wayland_Output_Mode( wl_output *pOutput, uint32_t uFlags, int32_t nWidth, int32_t nHeight, int32_t nRefresh )
+     {
++        // The followed rate comes from presentation feedback, so a still screen presents once for it.
++        if ( NestedRefreshFollowsHost() && m_pOutputs[ pOutput ].nRefresh != nRefresh )
++            force_repaint();
+         m_pOutputs[ pOutput ].nRefresh = nRefresh;
+     }
+     void CWaylandBackend::Wayland_Output_Done( wl_output *pOutput )
 diff --git a/src/steamcompmgr.cpp b/src/steamcompmgr.cpp
 index 6c9299d..5fb9086 100644
 --- a/src/steamcompmgr.cpp
