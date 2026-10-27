@@ -298,10 +298,18 @@ struct hybris_bc_command *hybris_bc_command_find(VkCommandBuffer c, struct hybri
 void *hybris_bc_alloc(struct hybris_bc_device *d, size_t size) { (void)d; return push_test_calloc(1, size); }
 void hybris_bc_free(struct hybris_bc_device *d, void *p) { (void)d; free(p); }
 void hybris_bc_command_retire(struct hybris_bc_command *c) { hybris_bc_command_state_reset(&c->state); }
-void hybris_bc_transfer_init(struct hybris_bc_transfer *t, const struct hybris_bc_decoder *d,
+void hybris_bc_transfer_init(struct hybris_bc_transfer *t, struct hybris_bc_decoder *d,
     const VkPhysicalDeviceMemoryProperties *m, const VkPhysicalDeviceLimits *l)
 { memset(t, 0, sizeof(*t)); t->decoder = d; t->memory = m; t->limits = l; }
 void hybris_bc_transfer_finish(struct hybris_bc_transfer *t) { (void)t; }
+/* Upstream command registry, polygon emulation and transcode helpers: inert here. */
+void hybris_bc_command_publish(struct hybris_bc_device *d, struct hybris_bc_command *c) { (void)d; (void)c; }
+void hybris_bc_command_unpublish(struct hybris_bc_command *c) { (void)c; }
+int hybris_shader_polygon_active(VkDevice d) { (void)d; return 0; }
+int hybris_bc_mutable_format(VkFormat f) { (void)f; return 0; }
+int hybris_bc_view_format_allowed(VkFormat base, VkFormat view, VkImageCreateFlags flags)
+{ (void)flags; return base == view; }
+VkFormat hybris_bc_transcode_format(VkFormat f) { (void)f; return VK_FORMAT_UNDEFINED; }
 
 static void reset_state(void)
 {

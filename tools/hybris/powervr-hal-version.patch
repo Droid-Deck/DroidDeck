@@ -1,6 +1,7 @@
+diff --git a/hybris/vulkan/icd/icd.c b/hybris/vulkan/icd/icd.c
 --- a/hybris/vulkan/icd/icd.c
 +++ b/hybris/vulkan/icd/icd.c
-@@ -71,7 +71,8 @@
+@@ -71,7 +71,8 @@ static void initialize_hal(void)
      int result = module->methods->open(module, HWVULKAN_DEVICE_0,
                                        (hw_device_t **)&candidate);
      if (result || !candidate || candidate->common.tag != HARDWARE_DEVICE_TAG ||

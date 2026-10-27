@@ -7,7 +7,10 @@ static int clip = 1;
 static int full_bc;
 int hybris_clip_active(VkPhysicalDevice physical) { return clip; }
 int hybris_vertex_stores_active(VkPhysicalDevice physical) { return 0; }
-int hybris_vendor_full_bc_feature(VkPhysicalDevice physical) { return full_bc; }
+int hybris_bc_complete(VkPhysicalDevice physical) { return full_bc; }
+void hybris_bc_enable_transcode_features(VkPhysicalDevice physical, VkPhysicalDeviceFeatures *features) {}
+int hybris_cull_active(VkPhysicalDevice physical) { return 0; }
+int hybris_shader_polygon_emulated(VkPhysicalDevice physical) { return 0; }
 void *hybris_scaled_alloc(const VkAllocationCallbacks *allocator, size_t size,
     VkSystemAllocationScope scope) { return calloc(1, size); }
 void hybris_scaled_free(const VkAllocationCallbacks *allocator, void *memory) { free(memory); }

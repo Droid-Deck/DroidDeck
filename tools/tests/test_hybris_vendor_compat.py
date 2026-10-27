@@ -167,19 +167,24 @@ class HybrisVendorCompatibilityTest(unittest.TestCase):
                     "return sizeof(VkPhysicalDeviceFeatures2);\n")
                 for name, declaration in {
                     "vertex_stores.h": "int hybris_vertex_stores_active(VkPhysicalDevice);",
-                    "clip_distance.h": "int hybris_clip_active(VkPhysicalDevice);",
-                    "vendor_compat.h": "int hybris_vendor_full_bc_feature(VkPhysicalDevice);",
+                    "clip_distance.h": "int hybris_clip_active(VkPhysicalDevice); int hybris_cull_active(VkPhysicalDevice);",
+                    "bc_policy.h": ("int hybris_bc_complete(VkPhysicalDevice); void hybris_bc_enable_transcode_features("
+                        "VkPhysicalDevice, VkPhysicalDeviceFeatures *);"),
+                    "shader_dispatch.h": "int hybris_shader_polygon_emulated(VkPhysicalDevice);",
                     "scaled_vertex.h": ("void *hybris_scaled_alloc(const VkAllocationCallbacks *, size_t, "
                         "VkSystemAllocationScope); void hybris_scaled_free(const VkAllocationCallbacks *, void *);"),
                 }.items():
                     (compat / name).write_text("#pragma once\n#include <vulkan/vulkan.h>\n#include <stddef.h>\n" +
                                                declaration + "\n")
                 patch_file = Path(directory) / "device-features.patch"
-                patch_file.write_text(file_diff(PATCH, "hybris/vulkan/layer/device_features.c"))
-                applied = subprocess.run(["git", "-C", str(checkout), "apply", "--check", str(patch_file)],
-                                         capture_output=True, text=True)
-                self.assertEqual(applied.returncode, 0, applied.stdout + applied.stderr)
-                subprocess.run(["git", "-C", str(checkout), "apply", str(patch_file)], check=True)
+                target = "hybris/vulkan/layer/device_features.c"
+                patch_file.write_text(file_diff(PATCH, target) if f"b/{target}" in PATCH.read_text() else "")
+                # Upstream's device_features.c now implements the BC feature itself; the patch may not touch it.
+                if patch_file.read_text():
+                    applied = subprocess.run(["git", "-C", str(checkout), "apply", "--check", str(patch_file)],
+                                             capture_output=True, text=True)
+                    self.assertEqual(applied.returncode, 0, applied.stdout + applied.stderr)
+                    subprocess.run(["git", "-C", str(checkout), "apply", str(patch_file)], check=True)
             program = Path(directory) / "device-features-test"
             built = subprocess.run([
                 compiler, "-std=gnu11", "-Wall", "-Wextra", "-Werror",

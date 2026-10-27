@@ -1,8 +1,7 @@
 diff --git a/hybris/vulkan/compat/clip_distance.c b/hybris/vulkan/compat/clip_distance.c
-index a412833..07e294a 100644
 --- a/hybris/vulkan/compat/clip_distance.c
 +++ b/hybris/vulkan/compat/clip_distance.c
-@@ -40,6 +40,19 @@ int hybris_clip_pipeline(const VkGraphicsPipelineCreateInfo *info)
+@@ -52,6 +52,19 @@ int hybris_clip_pipeline(const VkGraphicsPipelineCreateInfo *info)
      return vertex == 1 && fragment == 1;
  }
  
@@ -23,12 +22,11 @@ index a412833..07e294a 100644
  {
      if (features && hybris_clip_active(physical)) features->shaderClipDistance = VK_FALSE;
 diff --git a/hybris/vulkan/compat/clip_distance.h b/hybris/vulkan/compat/clip_distance.h
-index b82b3ea..7dbe41a 100644
 --- a/hybris/vulkan/compat/clip_distance.h
 +++ b/hybris/vulkan/compat/clip_distance.h
-@@ -5,6 +5,8 @@
- int hybris_clip_enabled(void);
- int hybris_clip_active(VkPhysicalDevice physical);
+@@ -7,6 +7,8 @@ int hybris_clip_active(VkPhysicalDevice physical);
+ /* GPU whole-primitive culling using a native geometry-stage adapter. */
+ int hybris_cull_active(VkPhysicalDevice physical);
  int hybris_clip_pipeline(const VkGraphicsPipelineCreateInfo *info);
 +int hybris_clip_extension_allowed(const char *name);
 +int hybris_clip_command_allowed(const char *name);
@@ -36,10 +34,9 @@ index b82b3ea..7dbe41a 100644
  PFN_vkVoidFunction hybris_clip_policy_proc(const char *name);
  /* count==0 means the vertex module does not write ClipDistance. */
 diff --git a/hybris/vulkan/compat/shader_dispatch.c b/hybris/vulkan/compat/shader_dispatch.c
-index 3154ce7..4825171 100644
 --- a/hybris/vulkan/compat/shader_dispatch.c
 +++ b/hybris/vulkan/compat/shader_dispatch.c
-@@ -64,8 +64,9 @@ static struct shader_device *find_device(VkDevice handle)
+@@ -69,8 +69,9 @@ static struct shader_device *find_device(VkDevice handle)
  }
  int hybris_shader_device_proc_allowed(VkDevice handle, const char *name)
  {
@@ -47,10 +44,10 @@ index 3154ce7..4825171 100644
      struct shader_device *device = find_device(handle);
 +    if (device && device->clip && !hybris_clip_command_allowed(name)) return 0;
 +    if (hybris_shader_command_allowed(name)) return 1;
-     return !device || (!device->mask && !device->vertex_stores);
+     return !device || (!device->mask && !device->vertex_stores && !device->polygon);
  }
- VkResult hybris_shader_device_create(VkDevice handle, VkPhysicalDevice physical,
-@@ -277,6 +278,34 @@ static VkResult convert_pipeline(struct shader_device *device, VkGraphicsPipelin
+ int hybris_shader_polygon_active(VkDevice handle)
+@@ -346,6 +347,34 @@ static VkResult convert_pipeline(struct shader_device *device, VkGraphicsPipelin
      int point = device->point_size && hybris_point_size_pipeline(info);
      int inout = device->inout && hybris_inout_pipeline(info);
      int clip = device->clip && hybris_clip_pipeline(info);
@@ -83,26 +80,27 @@ index 3154ce7..4825171 100644
 +        }
 +    }
      uint32_t clip_location = 0, clip_count = 0;
-     int discard = 0;
-     VkShaderStageFlagBits last_stage = VK_SHADER_STAGE_VERTEX_BIT;
+     uint32_t cull_location = 0, cull_count = 0;
+     struct shader *fragment_shader = NULL;
 diff --git a/hybris/vulkan/compat/shader_policy.c b/hybris/vulkan/compat/shader_policy.c
-index 21a4cc7..acab560 100644
 --- a/hybris/vulkan/compat/shader_policy.c
 +++ b/hybris/vulkan/compat/shader_policy.c
-@@ -4,6 +4,7 @@
- #include "vertex_stores.h"
+@@ -5,6 +5,7 @@
  #include "scaled_formats.h"
  #include "bc_policy.h"
+ #include "shader_dispatch.h"
 +#include "clip_distance.h"
  #include "../layer/layer.h"
  #include <string.h>
  #include <stdlib.h>
-@@ -34,20 +35,26 @@ int hybris_shader_command_allowed(const char *name)
+@@ -35,21 +36,27 @@ int hybris_shader_command_allowed(const char *name)
  }
  VkResult hybris_shader_prepare_device(VkPhysicalDevice physical, const VkDeviceCreateInfo *info)
  {
--    if (!hybris_shader_physical_mask(physical) && !hybris_vertex_stores_active(physical)) return VK_SUCCESS;
-+    int full = hybris_shader_physical_mask(physical) || hybris_vertex_stores_active(physical);
+-    if (!hybris_shader_physical_mask(physical) && !hybris_vertex_stores_active(physical) &&
+-        !hybris_shader_polygon_emulated(physical)) return VK_SUCCESS;
++    int full = hybris_shader_physical_mask(physical) || hybris_vertex_stores_active(physical) ||
++        hybris_shader_polygon_emulated(physical);
 +    int clip = hybris_clip_active(physical);
 +    if (!full && !clip) return VK_SUCCESS;
      for (uint32_t i = 0; i < info->enabledExtensionCount; ++i)
@@ -129,12 +127,12 @@ index 21a4cc7..acab560 100644
              break;
          default: break;
          }
-@@ -64,17 +71,19 @@ static void features2(VkPhysicalDevice physical, VkPhysicalDeviceFeatures2 *out,
-     PFN_vkGetPhysicalDeviceFeatures2 query = (PFN_vkGetPhysicalDeviceFeatures2)hybris_bc_policy_proc(name);
-     if (!query) query = (PFN_vkGetPhysicalDeviceFeatures2)context.resolver(context.instance, name);
+@@ -77,17 +84,19 @@ static void features2(VkPhysicalDevice physical, VkPhysicalDeviceFeatures2 *out,
      query(physical, out);
--    if (!hybris_shader_physical_mask(physical) && !hybris_vertex_stores_active(physical)) return;
-+    int full = hybris_shader_physical_mask(physical) || hybris_vertex_stores_active(physical);
+     int polygon=hybris_shader_polygon_emulated(physical);
+     if(polygon) out->features.fillModeNonSolid=VK_TRUE;
+-    if (!hybris_shader_physical_mask(physical) && !hybris_vertex_stores_active(physical) && !polygon) return;
++    int full = hybris_shader_physical_mask(physical) || hybris_vertex_stores_active(physical) || polygon;
 +    int clip = hybris_clip_active(physical);
 +    if (!full && !clip) return;
      for (VkBaseOutStructure *node = out->pNext; node; node = node->pNext) {
@@ -154,7 +152,6 @@ index 21a4cc7..acab560 100644
          default: break;
          }
 diff --git a/hybris/vulkan/compat/spirv_entry.c b/hybris/vulkan/compat/spirv_entry.c
-index 8faf390..9d0298f 100644
 --- a/hybris/vulkan/compat/spirv_entry.c
 +++ b/hybris/vulkan/compat/spirv_entry.c
 @@ -191,3 +191,142 @@ VkResult hybris_spirv_entry(const uint32_t *code, size_t size, uint32_t model,
@@ -301,7 +298,6 @@ index 8faf390..9d0298f 100644
 +    return result;
 +}
 diff --git a/hybris/vulkan/compat/spirv_entry.h b/hybris/vulkan/compat/spirv_entry.h
-index 4251705..67540e4 100644
 --- a/hybris/vulkan/compat/spirv_entry.h
 +++ b/hybris/vulkan/compat/spirv_entry.h
 @@ -5,6 +5,9 @@
@@ -315,7 +311,6 @@ index 4251705..67540e4 100644
  int hybris_spirv_multiple(const uint32_t *code, size_t size);
  #endif
 diff --git a/hybris/vulkan/layer/physical.c b/hybris/vulkan/layer/physical.c
-index 4c694ef..105c9c1 100644
 --- a/hybris/vulkan/layer/physical.c
 +++ b/hybris/vulkan/layer/physical.c
 @@ -66,8 +66,9 @@ static VkResult VKAPI_CALL enumerate_device_extensions(VkPhysicalDevice physical

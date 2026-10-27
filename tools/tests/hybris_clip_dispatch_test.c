@@ -23,6 +23,30 @@ int hybris_clip_enabled(void) { return 1; }
 int hybris_clip_active(VkPhysicalDevice p) { (void)p; return 1; }
 int hybris_vertex_stores_active(VkPhysicalDevice p) { (void)p; return 0; }
 int hybris_shader_cleanup_enabled(void) { return 0; }
+/* Upstream polygon-mode/cull emulation and BC layout identities: inactive here. */
+int hybris_cull_active(VkPhysicalDevice p) { (void)p; return 0; }
+struct hybris_bc_device *hybris_bc_device_find(VkDevice h) { (void)h; return NULL; }
+VkResult hybris_bc_layout_acquire(struct hybris_bc_layouts *l, VkPipelineLayout h, struct hybris_bc_layout **o)
+{ (void)l; (void)h; *o = NULL; return VK_SUCCESS; }
+void hybris_bc_layout_release(struct hybris_bc_layouts *l, struct hybris_bc_layout *o) { (void)l; (void)o; }
+int hybris_layer_lookup_physical(VkPhysicalDevice p, struct hybris_layer_physical *o) { (void)p; (void)o; return 0; }
+const struct hybris_polygon_layout *hybris_polygon_layout_acquire(VkDevice d, VkPipelineLayout l)
+{ (void)d; (void)l; return NULL; }
+void hybris_polygon_layout_release(const struct hybris_polygon_layout *l) { (void)l; }
+VkResult hybris_polygon_pipeline_create(VkDevice d, PFN_vkGetDeviceProcAddr r,
+    const VkGraphicsPipelineCreateInfo *g, const VkPipelineLayoutCreateInfo *al,
+    const VkDescriptorSetLayoutCreateInfo *as, const uint32_t *c, size_t s,
+    const VkAllocationCallbacks *a, struct hybris_polygon_pipeline **o)
+{ (void)d; (void)r; (void)g; (void)al; (void)as; (void)c; (void)s; (void)a; *o = NULL; return VK_ERROR_FEATURE_NOT_PRESENT; }
+void hybris_polygon_pipeline_destroy(struct hybris_polygon_pipeline *p) { (void)p; }
+VkResult hybris_polygon_pipeline_publish(struct hybris_polygon_pipeline *p, const struct hybris_polygon_layout *l,
+    struct hybris_bc_layouts *j, struct hybris_bc_layout *i)
+{ (void)p; (void)l; (void)j; (void)i; return VK_SUCCESS; }
+int hybris_polygon_pipeline_remove(VkDevice d, VkPipeline h) { (void)d; (void)h; return 0; }
+VkResult hybris_spirv_primitive_adapter_topology(const uint32_t *v, size_t b, uint32_t dl, uint32_t dc,
+    VkPrimitiveTopology t, int e, const struct hybris_primitive_faces *f, const VkAllocationCallbacks *a,
+    uint32_t **o, size_t *ob, const char **reason)
+{ (void)v; (void)b; (void)dl; (void)dc; (void)t; (void)e; (void)f; (void)a; *o = NULL; *ob = 0; *reason = "stub"; return VK_SUCCESS; }
 VkResult hybris_shader_cleanup_code(const uint32_t *c, size_t s,
     const VkAllocationCallbacks *a, uint32_t **o, size_t *os)
 { (void)c; (void)s; (void)a; *o = NULL; *os = 0; return VK_SUCCESS; }

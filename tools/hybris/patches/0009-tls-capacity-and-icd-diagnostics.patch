@@ -1,5 +1,4 @@
 diff --git a/hybris/common/bionic_tls.c b/hybris/common/bionic_tls.c
-index 004e3d4..f841f40 100644
 --- a/hybris/common/bionic_tls.c
 +++ b/hybris/common/bionic_tls.c
 @@ -72,12 +72,12 @@
@@ -30,10 +29,9 @@ index 004e3d4..f841f40 100644
  #define BIONIC_TLS_PTR_OFFSET    0    /* slot -1 (TLS_SLOT_BIONIC_TLS) at TP-8 = 0 */
  #define BIONIC_TLS_COMPAT_SIZE   16384
 diff --git a/hybris/vulkan/icd/icd.c b/hybris/vulkan/icd/icd.c
-index 938393b..34a2a0f 100644
 --- a/hybris/vulkan/icd/icd.c
 +++ b/hybris/vulkan/icd/icd.c
-@@ -159,8 +159,11 @@ vk_icdNegotiateLoaderICDInterfaceVersion(uint32_t *version)
+@@ -165,8 +165,11 @@ vk_icdNegotiateLoaderICDInterfaceVersion(uint32_t *version)
  {
      /* Version 5 lets the loader validate instance API versions. Legacy
       * loaders are deliberately unsupported, rather than assuming 1.0. */
@@ -47,7 +45,6 @@ index 938393b..34a2a0f 100644
      return VK_SUCCESS;
  }
 diff --git a/hybris/vulkan/icd/instance.c b/hybris/vulkan/icd/instance.c
-index 6ff495a..a3e3020 100644
 --- a/hybris/vulkan/icd/instance.c
 +++ b/hybris/vulkan/icd/instance.c
 @@ -103,6 +103,7 @@ VkResult hybris_icd_create_instance(hwvulkan_device_t *hal,
@@ -59,7 +56,6 @@ index 6ff495a..a3e3020 100644
          return result;
      }
 diff --git a/tests/baseline/probe_icd_version.c b/tests/baseline/probe_icd_version.c
-index 18545ef..719e429 100644
 --- a/tests/baseline/probe_icd_version.c
 +++ b/tests/baseline/probe_icd_version.c
 @@ -7,8 +7,16 @@ int icd_version_probe(void) {
@@ -82,7 +78,6 @@ index 18545ef..719e429 100644
        gip(VK_NULL_HANDLE, "vkEnumerateInstanceVersion");
    uint32_t version = 0;
 diff --git a/tests/baseline/probe_tls_bounds.c b/tests/baseline/probe_tls_bounds.c
-index 2ddab4f..13f2066 100644
 --- a/tests/baseline/probe_tls_bounds.c
 +++ b/tests/baseline/probe_tls_bounds.c
 @@ -14,7 +14,7 @@ static void *promote_on_worker(void *opaque) {
