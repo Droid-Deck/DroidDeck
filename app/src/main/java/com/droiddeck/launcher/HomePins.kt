@@ -67,6 +67,8 @@ object HomePins {
             val keep = launcher.getShortcuts(query, info.userHandle).orEmpty().map { it.id } - info.id
             launcher.pinShortcuts(info.`package`, keep, info.userHandle)
         }.isSuccess
-        if (unpinned) this.pinned = this.pinned.filterNot { it.key == pinned.key }
+        if (!unpinned) return
+        listing++
+        this.pinned = this.pinned.filterNot { it.key == pinned.key }
     }
 }
