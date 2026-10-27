@@ -360,6 +360,8 @@ object BattleNet {
         if (ComponentsManager.gameComponents(context, scope)["fex"] != file) {
             ComponentsManager.setGameComponent(context, scope, "fex", file)
             Log.i(TAG, "FEX for the Battle.net prefix: $file")
+        } else if (ComponentsManager.republish(context)) {
+            Log.i(TAG, "FEX for the Battle.net prefix: $file, now in every installed Proton")
         }
         return file
     }
