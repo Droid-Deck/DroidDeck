@@ -1855,6 +1855,7 @@
     <string name="adbpair_applying">Applying the setting…</string>
     <string name="adbpair_command_failed">Wireless debugging command failed</string>
     <string name="adbpair_channel_name">Wireless debugging setup</string>
+    <string name="adbpair_progress_channel_name">Wireless debugging setup progress</string>
     <string name="adbpair_channel_description">Asks for the Wireless debugging pairing code while Settings is open</string>
     <string name="adbpair_title_pair">Pair Wireless debugging</string>
     <string name="adbpair_waiting_text">Turn on Wireless debugging, then tap “Pair device with pairing code”.</string>

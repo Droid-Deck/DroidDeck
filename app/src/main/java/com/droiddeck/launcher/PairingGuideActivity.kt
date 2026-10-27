@@ -57,6 +57,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.droiddeck.launcher.core.AppLanguage
+import com.droiddeck.launcher.core.GlobalSettings
 import com.droiddeck.launcher.core.WirelessAdbPairingService
 import com.droiddeck.launcher.core.WirelessAdbPairingService.Stage
 import com.droiddeck.launcher.ui.DroidDeckTheme
@@ -212,7 +213,6 @@ class PairingGuideActivity : ComponentActivity() {
         val accent = LocalPalette.current.signal
         val pulse = rememberInfiniteTransition(label = "guidePulse")
         val beat by pulse.animateFloat(0f, 1f, infiniteRepeatable(tween(900, easing = LinearEasing), RepeatMode.Restart), label = "beat")
-        val taps by pulse.animateFloat(0f, 7f, infiniteRepeatable(tween(7 * 450, easing = LinearEasing), RepeatMode.Restart), label = "taps")
         val label = when (step) {
             Step.BUILD_NUMBER -> stringResource(R.string.pairguide_row_build_number)
             Step.WIRELESS_DEBUGGING -> stringResource(R.string.pairguide_row_wireless)
@@ -229,12 +229,14 @@ class PairingGuideActivity : ComponentActivity() {
             Text(label, style = if (compact) MaterialTheme.typography.labelMedium else MaterialTheme.typography.bodyLarge,
                 color = colors.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
             when (step) {
-                Step.BUILD_NUMBER -> Text("${taps.toInt() + 1}/7", style = MaterialTheme.typography.labelLarge, color = accent)
                 Step.WIRELESS_DEBUGGING -> Toggle(on = beat > 0.5f, accent = accent, compact = compact)
-                else -> Box(contentAlignment = Alignment.Center) {
-                    Box(Modifier.size(if (compact) 18.dp else 26.dp).scale(0.6f + beat * 0.8f).alpha(1f - beat)
-                        .background(accent, CircleShape))
-                    Box(Modifier.size(if (compact) 8.dp else 12.dp).background(accent, CircleShape))
+                else -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    if (step == Step.BUILD_NUMBER) Text("×7", style = MaterialTheme.typography.labelLarge, color = accent)
+                    Box(contentAlignment = Alignment.Center) {
+                        Box(Modifier.size(if (compact) 18.dp else 26.dp).scale(0.6f + beat * 0.8f).alpha(1f - beat)
+                            .background(accent, CircleShape))
+                        Box(Modifier.size(if (compact) 8.dp else 12.dp).background(accent, CircleShape))
+                    }
                 }
             }
         }
@@ -268,8 +270,8 @@ class PairingGuideActivity : ComponentActivity() {
     private data class SettingsState(val developerOptions: Boolean, val wirelessDebugging: Boolean) {
         companion object {
             fun read(context: Context) = SettingsState(
-                Settings.Global.getInt(context.contentResolver, Settings.Global.DEVELOPMENT_SETTINGS_ENABLED, 0) == 1,
-                Settings.Global.getInt(context.contentResolver, ADB_WIFI_ENABLED, 0) == 1,
+                GlobalSettings.developerOptionsOn(context),
+                GlobalSettings.wirelessDebuggingOn(context),
             )
         }
     }
@@ -277,8 +279,6 @@ class PairingGuideActivity : ComponentActivity() {
     companion object {
         private const val EXTRA_DISPLAY = "settingsDisplay"
         private const val HIGHLIGHT_KEY = ":settings:fragment_args_key"
-        // Settings.Global.ADB_WIFI_ENABLED is hidden; the key is stable since Android 11.
-        private const val ADB_WIFI_ENABLED = "adb_wifi_enabled"
 
         private fun stepFor(context: Context, stage: Stage) = stepFor(SettingsState.read(context), stage)
 

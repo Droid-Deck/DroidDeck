@@ -452,7 +452,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
     }
     var applyingSavedPairing by remember { mutableStateOf(false) }
     val fixPhantomLimit = {
-        if (!s.adbPaired) startGuidedPairing()
+        if (!s.adbPaired || !com.droiddeck.launcher.core.GlobalSettings.wirelessDebuggingOn(ctx)) startGuidedPairing()
         else if (!applyingSavedPairing) {
             applyingSavedPairing = true
             a.onSetPhantomProcessLimit(false) { error ->
