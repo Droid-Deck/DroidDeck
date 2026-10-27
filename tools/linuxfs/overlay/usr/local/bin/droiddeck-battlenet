@@ -112,6 +112,17 @@ function field(text, name) {
   return m ? m[1] : "";
 }
 
+function object(text, name) {
+  var start = new RegExp('"' + name + '"\\s*:\\s*\\{').exec(text);
+  if (!start) return "";
+  var from = start.index + start[0].length, depth = 0;
+  for (var i = from - 1; i < text.length; i++) {
+    if (text.charAt(i) == "{") depth++;
+    else if (text.charAt(i) == "}" && --depth == 0) return text.substring(from, i);
+  }
+  return "";
+}
+
 function install() {
   var form = call("POST", "/install", '{"uid":"' + uid + '","instructions_patch_url":"http://' + zone + '.patch.battle.net:1119/' +
     product + '","instructions_product":"NGDP","monitor_pid":12345,"priority":{"insert_at_head":true,"value":900}}');
@@ -129,7 +140,10 @@ function watch(path) {
   for (var i = 0; ; i++) {
     var s = call("GET", path);
     save(".json", s);
-    if (/"error"\s*:\s*[1-9]/.test(s)) break;
+    if (/"form"\s*:\s*\{/.test(s)) {
+      var refused = /"error"\s*:\s*(\d+)/.exec(object(s, "game_dir"));
+      if (refused && +refused[1] != 0) throw new Error(+refused[1] == 800 ? "the game folder already holds a game" : "Battle.net refused the game folder (error " + refused[1] + ")");
+    } else if (/"error"\s*:\s*[1-9]/.test(s)) break;
     var state = /"state"\s*:\s*(\d+)/.exec(s.replace(/"extended_status"\s*:\s*\{[^}]*\}/, "")), complete = /"download_complete"\s*:\s*true/.test(s);
     state = state ? +state[1] : 0;
     if (state == 1000 || state == 1003 || !complete) started = true;
