@@ -173,3 +173,11 @@ thousands of round trips to Xwayland every second.
 The override now remembers the window it was asked for. When the same swapchain and
 surface ask for the same window again within 100 ms, the request returns at once; after
 100 ms the walk runs again, so a window that moved to another top level is still found.
+
+## 0122 Wayland: wake steamcompmgr after reading host events
+
+Backport of upstream commit 2962992 by Matthew Schwartz (ValveSoftware/gamescope).
+The nested Wayland backend's input thread reads the host display, but steamcompmgr
+does not watch that file descriptor, so buffer releases and presentation feedback
+queued by that read could wait up to one refresh for steamcompmgr's next poll. The
+input thread now wakes steamcompmgr after each read.
