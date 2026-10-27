@@ -241,6 +241,69 @@ TOUR_JS = r"""
   return "off";
 })()
 """
+# Steam keeps the Quick Access Frame Limit as the client setting gamescope_app_target_framerate
+# (CMsgClientSettings field 21002) and offers the values gamescope's display state lists in
+# active_display_info.supported_frame_rates. When the panel's refresh rate changes, a remembered
+# limit that is not one of the new values leaves the slider on its first value while the game runs
+# at the old limit. The limit is kept when it is still offered and moved to the highest value
+# otherwise. Choices are read once they have been unchanged for a moment, since a mode switch can
+# report a passing rate first.
+FRAME_LIMIT_JS = r"""
+(() => {
+  if (window.__droiddeckFrameLimit) return "present";
+  const settings = window.settingsStore;
+  let service = null;
+  try {
+    let require;
+    window.webpackChunksteamui.push([[Symbol("droiddeck-frame-limit")], {}, r => { require = r; }]);
+    for (const module of Object.values(require.c || {})) {
+      const exports = module && module.exports;
+      if (!exports || typeof exports !== "object") continue;
+      service = Object.values(exports).find(value => value && typeof value.GetState === "function" &&
+        typeof value.RegisterForNotifyStateChanged === "function" && typeof value.SetBlurParams === "function");
+      if (service) break;
+    }
+  } catch (e) {
+    service = null;
+  }
+  if (!service || !settings?.clientSettings || typeof SteamClient.Settings?.SetSetting !== "function") return "unavailable";
+  const self = { choices: null, timer: null };
+  const write = value => {
+    const bytes = [];
+    for (let n of [21002 * 8, value]) {
+      while (n > 127) { bytes.push((n & 127) | 128); n = Math.floor(n / 128); }
+      bytes.push(n);
+    }
+    SteamClient.Settings.SetSetting(btoa(String.fromCharCode(...bytes)));
+  };
+  self.check = async () => {
+    let rates;
+    try {
+      const reply = await service.GetState({});
+      if (!reply.BSuccess()) return;
+      rates = reply.Body().toObject().state?.active_display_info?.supported_frame_rates;
+    } catch (e) {
+      return;
+    }
+    if (!Array.isArray(rates) || rates.length === 0) return;
+    const choices = rates.join(",");
+    if (choices === self.choices) return;
+    self.choices = choices;
+    const current = settings.clientSettings;
+    if (!current.gamescope_enable_app_target_framerate || rates.includes(current.gamescope_app_target_framerate)) return;
+    write(Math.max(...rates));
+  };
+  self.schedule = () => {
+    clearTimeout(self.timer);
+    self.timer = setTimeout(self.check, 1500);
+  };
+  self.subscription = service.RegisterForNotifyStateChanged(self.schedule);
+  self.interval = setInterval(self.schedule, 5000);
+  self.schedule();
+  window.__droiddeckFrameLimit = self;
+  return "installed";
+})()
+"""
 FILE_BINDING = "droiddeckOpenFileDialog"
 FILE_JS = r"""
 (() => {
@@ -791,6 +854,10 @@ class Helper:
             except RuntimeError:
                 # The optional tour setting must not block the compat bridge.
                 pass
+            try:
+                say("frame limit sync: %s" % page.evaluate(FRAME_LIMIT_JS))
+            except RuntimeError as e:
+                say("frame limit sync failed: %s" % e)
             if not self.steamos:
                 page.call("Runtime.addBinding", {"name": SWITCH_BINDING})
                 page.evaluate(SWITCH_JS)

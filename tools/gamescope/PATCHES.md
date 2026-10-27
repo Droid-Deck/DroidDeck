@@ -151,3 +151,8 @@ with the panel. `-r` still sets the starting rate, which avoids gamescope assumi
 60 Hz until the first frame is shown. When the refresh changes, gamescope also sends
 its `gamescope_control` display information to Steam again; Steam otherwise reads it
 only when it binds.
+
+A host mode switch can report a passing rate for a few frames (72 Hz between 144 and
+120 Hz on the AYANEO Pocket FIT), so with following on a new rate is taken once it has
+been reported for 300 ms. Without the variable the reported rate is taken at once, as
+upstream does.

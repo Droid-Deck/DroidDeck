@@ -1,22 +1,49 @@
 diff --git a/src/Backends/WaylandBackend.cpp b/src/Backends/WaylandBackend.cpp
-index 40164ba..fa6060e 100644
+index 40164ba..cc04fa7 100644
 --- a/src/Backends/WaylandBackend.cpp
 +++ b/src/Backends/WaylandBackend.cpp
-@@ -1698,6 +1698,22 @@ namespace gamescope
+@@ -1698,6 +1698,49 @@ namespace gamescope
          }
      }
  
 +    // -r sets the refresh gamescope starts with. With GAMESCOPE_NESTED_REFRESH_FOLLOWS_HOST=1 a refresh
 +    // the host compositor reports later replaces it, so pacing and the frame limiter follow a panel
 +    // switched to another mode during the session.
-+    static void FollowHostRefresh( int32_t nRefreshmHz )
++    static bool NestedRefreshFollowsHost()
 +    {
 +        static const bool s_bFollow = []
 +        {
 +            const char *pszFollow = getenv( "GAMESCOPE_NESTED_REFRESH_FOLLOWS_HOST" );
 +            return pszFollow && atoi( pszFollow ) != 0;
 +        }();
-+        if ( !s_bFollow || !g_nNestedRefresh || g_nNestedRefresh == nRefreshmHz )
++        return s_bFollow;
++    }
++
++    // A mode switch on the host can report a passing rate for a few frames (72 Hz between 144 and
++    // 120 on an AYANEO Pocket FIT); a new rate is taken once it has been reported for 300 ms.
++    static bool HostRefreshChanged( int32_t nRefreshmHz, uint64_t ulPresentedNs )
++    {
++        static int32_t s_nPendingmHz = 0;
++        static uint64_t s_ulPendingSinceNs = 0;
++        if ( !nRefreshmHz || nRefreshmHz == g_nOutputRefresh )
++        {
++            s_nPendingmHz = 0;
++            return false;
++        }
++        if ( !NestedRefreshFollowsHost() )
++            return true;
++        if ( nRefreshmHz != s_nPendingmHz )
++        {
++            s_nPendingmHz = nRefreshmHz;
++            s_ulPendingSinceNs = ulPresentedNs;
++            return false;
++        }
++        return ulPresentedNs - s_ulPendingSinceNs >= 300'000'000ul;
++    }
++
++    static void FollowHostRefresh( int32_t nRefreshmHz )
++    {
++        if ( !NestedRefreshFollowsHost() || !g_nNestedRefresh || g_nNestedRefresh == nRefreshmHz )
 +            return;
 +        xdg_log.infof( "Nested refresh follows the host: %.3fhz", ConvertmHzToHz( (float) nRefreshmHz ) );
 +        g_nNestedRefresh = nRefreshmHz;
@@ -25,7 +52,7 @@ index 40164ba..fa6060e 100644
      void CWaylandPlane::UpdateVRRRefreshRate()
      {
          if ( m_pParent )
-@@ -1724,6 +1740,7 @@ namespace gamescope
+@@ -1724,6 +1767,7 @@ namespace gamescope
              // TODO(strategy): We should pick the largest refresh rate.
              xdg_log.infof( "Changed refresh to: %.3fhz", ConvertmHzToHz( (float) nLargestRefreshRateMhz ) );
              g_nOutputRefresh = nLargestRefreshRateMhz;
@@ -33,7 +60,12 @@ index 40164ba..fa6060e 100644
          }
      }
  
-@@ -1798,6 +1815,7 @@ namespace gamescope
+@@ -1794,10 +1838,11 @@ namespace gamescope
+         if ( uRefreshCycle )
+         {
+             int32_t nRefresh = RefreshCycleTomHz( uRefreshCycle );
+-            if ( nRefresh && nRefresh != g_nOutputRefresh )
++            if ( HostRefreshChanged( nRefresh, ulTime ) )
              {
                  xdg_log.infof( "Changed refresh to: %.3fhz", ConvertmHzToHz( (float) nRefresh ) );
                  g_nOutputRefresh = nRefresh;
