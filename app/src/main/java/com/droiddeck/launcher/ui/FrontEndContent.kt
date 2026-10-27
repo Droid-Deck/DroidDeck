@@ -105,7 +105,7 @@ import java.io.File
 internal fun Pane(
     s: FrontEndState, selected: String, a: FrontEndActions, page: (@Composable () -> Unit)?, modifier: Modifier,
     onSelect: (String) -> Unit, onAndroidAppClick: (HomeApp.LaunchableApp) -> Unit,
-    onOpenDeveloperOptions: () -> Unit, onRequestWirelessAdb: (Boolean) -> Unit,
+    onOpenDeveloperOptions: () -> Unit, onRequestWirelessAdb: (Boolean) -> Unit, onPairWirelessDebugging: () -> Unit,
 ) {
     BoxWithConstraints(modifier = modifier) {
       CompositionLocalProvider(LocalNarrowPane provides (maxWidth < NarrowPaneWidth)) {
@@ -162,7 +162,7 @@ internal fun Pane(
             label = "pane",
         ) { key ->
             val drawn = (if (page != null && key == s.pageKey) page else pages[key])
-                ?: { Content(s, if (key == "games") gameShown[0] else key, a, Modifier.fillMaxSize(), onSelect, onAndroidAppClick, onOpenDeveloperOptions, onRequestWirelessAdb) }
+                ?: { Content(s, if (key == "games") gameShown[0] else key, a, Modifier.fillMaxSize(), onSelect, onAndroidAppClick, onOpenDeveloperOptions, onRequestWirelessAdb, onPairWirelessDebugging) }
             val hopSink by androidx.compose.animation.core.animateFloatAsState(
                 if (Hops.sinking == key) 1f else 0f, Motion.tw(260), label = "hopSink",
             )
@@ -223,7 +223,7 @@ private fun romFor(s: FrontEndState, selected: String): Pair<Library.Emulator, L
 private fun Content(
     s: FrontEndState, selected: String, a: FrontEndActions, modifier: Modifier,
     onSelect: (String) -> Unit, onAndroidAppClick: (HomeApp.LaunchableApp) -> Unit,
-    onOpenDeveloperOptions: () -> Unit, onRequestWirelessAdb: (Boolean) -> Unit,
+    onOpenDeveloperOptions: () -> Unit, onRequestWirelessAdb: (Boolean) -> Unit, onPairWirelessDebugging: () -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
     val detailPosterWidth = if (LocalConfiguration.current.screenHeightDp < 600) 72.dp else 120.dp
@@ -233,7 +233,7 @@ private fun Content(
     val padV = if (narrow) 12.dp else 18.dp
     if (selected == "setup") {
         Column(modifier = modifier.padding(horizontal = padH, vertical = padV)) {
-            SetupPanel(s, a, onOpenDeveloperOptions, onRequestWirelessAdb)
+            SetupPanel(s, a, onOpenDeveloperOptions, onRequestWirelessAdb, onPairWirelessDebugging)
         }
         return
     }

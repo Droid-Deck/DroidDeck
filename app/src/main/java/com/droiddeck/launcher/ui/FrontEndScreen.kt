@@ -256,6 +256,7 @@ class FrontEndActions(
     val onDismissPhantomGate: () -> Unit = {},
     val onStartWirelessAdbPairing: () -> Unit = {},
     val onStartPairingGuide: (Int?) -> Boolean = { false },
+    val onShowPhantomGate: () -> Unit = {},
     val onOpenNotificationSettings: () -> Unit = {},
     val controller: ControllerActions? = null,
     val updates: UpdatesActions = UpdatesActions(),
@@ -443,6 +444,23 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
         if (!developerChoiceGuided || !a.onStartPairingGuide(displayId)) a.onOpenDeveloperOptions(displayId)
         developerChoiceGuided = false
     }
+    val startGuidedPairing = {
+        a.onStartWirelessAdbPairing()
+        developerChoiceGuided = true
+        if (s.secondScreenDisplays.isEmpty()) openDeveloperOptionsOn(null)
+        else showDeveloperDisplayChoice = true
+    }
+    var applyingSavedPairing by remember { mutableStateOf(false) }
+    val fixPhantomLimit = {
+        if (!s.adbPaired) startGuidedPairing()
+        else if (!applyingSavedPairing) {
+            applyingSavedPairing = true
+            a.onSetPhantomProcessLimit(false) { error ->
+                applyingSavedPairing = false
+                if (error != null) startGuidedPairing()
+            }
+        }
+    }
     val requestWirelessAdbFix: (Boolean) -> Unit = { enabled ->
         wirelessAdbDesiredEnabled = enabled
         showWirelessAdbFix = true
@@ -593,6 +611,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
                     },
                     onOpenDeveloperOptions = requestDeveloperOptions,
                     onRequestWirelessAdb = requestWirelessAdbFix,
+                    onPairWirelessDebugging = startGuidedPairing,
                 )
         }
 
@@ -626,12 +645,8 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
                     status = s.phantomProcessStatus,
                     onDismiss = a.onDismissPhantomGate,
                     onOpenDeveloperOptions = requestDeveloperOptions,
-                    onFixWithWirelessDebugging = {
-                        a.onStartWirelessAdbPairing()
-                        developerChoiceGuided = true
-                        if (s.secondScreenDisplays.isEmpty()) openDeveloperOptionsOn(null)
-                        else showDeveloperDisplayChoice = true
-                    },
+                    applyingSavedPairing = applyingSavedPairing,
+                    onFixWithWirelessDebugging = fixPhantomLimit,
                     onEnterAddressManually = { requestWirelessAdbFix(false) },
                     onCopyCommand = { a.onCopyPhantomCommand(false) },
                     onOpenNotificationSettings = a.onOpenNotificationSettings,

@@ -1274,6 +1274,10 @@ class FrontEndActivity : ComponentActivity() {
                             android.widget.Toast.makeText(this, R.string.main_adb_copied, android.widget.Toast.LENGTH_SHORT).show()
                         },
                         onDismissPhantomGate = { showPhantomGate = false },
+                        onShowPhantomGate = {
+                            refreshPhantomStatus()
+                            showPhantomGate = true
+                        },
                         onStartWirelessAdbPairing = { WirelessAdbPairingService.start(this) },
                         onStartPairingGuide = { displayId -> PairingGuideActivity.start(this, displayId) },
                         onOpenNotificationSettings = {
