@@ -1640,6 +1640,7 @@ class FrontEndActivity : ComponentActivity() {
 
     private fun refreshAndroidApps() {
         if (!homeAppSelected) {
+            ++androidAppsListing
             androidApps = emptyList()
             return
         }
