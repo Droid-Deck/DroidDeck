@@ -2210,8 +2210,20 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         when (event.keyCode) {
-            KeyEvent.KEYCODE_VOLUME_UP, KeyEvent.KEYCODE_VOLUME_DOWN, KeyEvent.KEYCODE_VOLUME_MUTE ->
+            KeyEvent.KEYCODE_VOLUME_UP, KeyEvent.KEYCODE_VOLUME_DOWN, KeyEvent.KEYCODE_VOLUME_MUTE -> {
+                val steamVolume =
+                    SessionState.mode == SessionService.MODE_STEAM && SessionState.running &&
+                    SessionState.firstFrameSeen && !SessionState.suspended && !ended &&
+                    !pipUi && !drawerOpen && !pcKeyboardOpen && !achievementsOpen &&
+                    !gestureSettingsOpen && !screenKeyTextFocus && window.decorView.hasWindowFocus()
+                if (steamVolume) {
+                    val audio = getSystemService(android.media.AudioManager::class.java)
+                    if (com.droiddeck.launcher.input.SteamVolumeKeys.dispatch(event, !audio.isVolumeFixed) { direction ->
+                            audio.adjustStreamVolume(android.media.AudioManager.STREAM_MUSIC, direction, 0)
+                        }) return true
+                }
                 return super.dispatchKeyEvent(event)
+            }
         }
         val backToQam = !pipUi && !screenKeyTextFocus && !drawerOpen && !pcKeyboardOpen && !achievementsOpen &&
             SessionState.mode == SessionService.MODE_STEAM && SessionState.running && SessionState.firstFrameSeen &&
