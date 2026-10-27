@@ -305,12 +305,12 @@ class DualSenseOutputBridge : SessionPart() {
                 val ep = usbOutEndpoint
                 if (ep != null) {
                     val sent = conn.bulkTransfer(ep, report, REPORT_SIZE, 1000)
-                    if (sent >= 0) return true
+                    if (sent == REPORT_SIZE) return true
                 }
                 val intf = usbInterface
                 if (intf != null) {
                     val sent = conn.controlTransfer(0x21, 0x09, 0x0202, intf.id, report, REPORT_SIZE, 1000)
-                    if (sent >= 0) return true
+                    if (sent == REPORT_SIZE) return true
                 }
             } catch (e: Exception) {
                 Log.w(TAG, "dualsense: USB dispatch failed: $e")

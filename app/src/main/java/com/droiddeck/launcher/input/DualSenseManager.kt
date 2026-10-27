@@ -417,10 +417,10 @@ class DualSenseManager(private val context: Context) {
             val intf = usbInterface
             val sent = try {
                 if (epOut != null) {
-                    conn.bulkTransfer(epOut, wiredData, DualSense.REPORT_SIZE_OUTPUT, 1000) >= 0
+                    conn.bulkTransfer(epOut, wiredData, DualSense.REPORT_SIZE_OUTPUT, 1000) == DualSense.REPORT_SIZE_OUTPUT
                 } else if (intf != null) {
                     // HID SET_REPORT: Request Type 0x21, Request 0x09, Value 0x0202 (Report Type Output | Report ID 2)
-                    conn.controlTransfer(0x21, 0x09, 0x0202, intf.id, wiredData, DualSense.REPORT_SIZE_OUTPUT, 1000) >= 0
+                    conn.controlTransfer(0x21, 0x09, 0x0202, intf.id, wiredData, DualSense.REPORT_SIZE_OUTPUT, 1000) == DualSense.REPORT_SIZE_OUTPUT
                 } else false
             } catch (e: Exception) {
                 false

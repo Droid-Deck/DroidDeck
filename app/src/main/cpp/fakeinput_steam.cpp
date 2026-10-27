@@ -2564,10 +2564,11 @@ __attribute__((visibility("hidden"))) static int sony_feature(const DeckHidraw &
 
 __attribute__((visibility("hidden"))) static void
 send_dualsense_output(const uint8_t *data, size_t size) {
+  if (!data || size < 48) return;
   static std::atomic<uint32_t> seq{0};
   uint8_t record[64] = {};
   uint32_t current_seq = ++seq;
-  uint32_t copy_len = static_cast<uint32_t>(std::min(size, static_cast<size_t>(48)));
+  uint32_t copy_len = 48;
   put32(record, current_seq);
   put32(record + 4, copy_len);
   memcpy(record + 8, data, copy_len);
@@ -2575,12 +2576,29 @@ send_dualsense_output(const uint8_t *data, size_t size) {
   const char *dir = fake_hook_dir();
   if (dir && *dir) {
     char path[PATH_MAX];
-    snprintf(path, sizeof(path), "%s/ds_output.bin", dir);
-    int fd = static_cast<int>(syscall(SYS_openat, AT_FDCWD, path, O_WRONLY | O_CREAT | O_CLOEXEC, 0644));
-    if (fd >= 0) {
-      ssize_t ignored = pwrite(fd, record, sizeof(record), 0);
-      (void)ignored;
-      syscall(SYS_close, fd);
+    char temp_path[PATH_MAX];
+    int path_len = snprintf(path, sizeof(path), "%s/ds_output.bin", dir);
+    int temp_len = snprintf(temp_path, sizeof(temp_path), "%s/ds_output.bin.%u.tmp", dir, current_seq);
+    if (path_len > 0 && static_cast<size_t>(path_len) < sizeof(path) &&
+        temp_len > 0 && static_cast<size_t>(temp_len) < sizeof(temp_path)) {
+      int fd = static_cast<int>(syscall(SYS_openat, AT_FDCWD, temp_path, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0644));
+      if (fd >= 0) {
+        size_t written = 0;
+        while (written < sizeof(record)) {
+          ssize_t n = write(fd, record + written, sizeof(record) - written);
+          if (n > 0) {
+            written += static_cast<size_t>(n);
+          } else if (n < 0 && errno == EINTR) {
+            continue;
+          } else {
+            break;
+          }
+        }
+        syscall(SYS_close, fd);
+        if (written != sizeof(record) || rename(temp_path, path) != 0) {
+          unlink(temp_path);
+        }
+      }
     }
   }
 
@@ -2591,8 +2609,27 @@ send_dualsense_output(const uint8_t *data, size_t size) {
     const char *name = "droiddeck-dualsense";
     memcpy(addr.sun_path + 1, name, strlen(name));
     socklen_t addrlen = offsetof(struct sockaddr_un, sun_path) + 1 + strlen(name);
-    if (connect(sock, reinterpret_cast<struct sockaddr *>(&addr), addrlen) == 0) {
-      send(sock, record + 8, 48, MSG_DONTWAIT | MSG_NOSIGNAL);
+    int connect_rc = connect(sock, reinterpret_cast<struct sockaddr *>(&addr), addrlen);
+    if (connect_rc == 0 || (connect_rc < 0 && errno == EINPROGRESS)) {
+      const uint8_t *payload = record + 8;
+      size_t sent = 0;
+      while (sent < 48) {
+        ssize_t n = send(sock, payload + sent, 48 - sent, MSG_DONTWAIT | MSG_NOSIGNAL);
+        if (n > 0) {
+          sent += static_cast<size_t>(n);
+          continue;
+        }
+        if (n < 0 && errno == EINTR) {
+          continue;
+        }
+        if (n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+          struct pollfd pfd = {sock, POLLOUT, 0};
+          if (poll(&pfd, 1, 1000) > 0 && (pfd.revents & POLLOUT)) {
+            continue;
+          }
+        }
+        break;
+      }
     }
     syscall(SYS_close, sock);
   }
@@ -2606,6 +2643,7 @@ __attribute__((visibility("hidden"))) static void sony_output(const DeckHidraw &
     weak = data[4];
     strong = data[5];
   } else if (pad.sony == 5 && data[0] == 0x02) {
+    if (size < 48) return;
     send_dualsense_output(data, size);
     bool has_rumble = (data[1] & 0x03) != 0 || (size > 39 && (data[39] & 0x04) != 0);
     if (!has_rumble) return;

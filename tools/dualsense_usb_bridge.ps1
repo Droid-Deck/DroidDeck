@@ -216,6 +216,11 @@ public class DualSenseBridge {
             return true;
         }
         if (readBytes >= 78 && inBuf[0] == 0x31) {
+            if ((inBuf[1] & 0x01) == 0) return false;
+            uint crcBytes = (uint)(inBuf[74] | (inBuf[75] << 8) | (inBuf[76] << 16) | (inBuf[77] << 24));
+            if (crcBytes != 0 && ComputeBtCrc32(0xA1, inBuf, 0, 74) != crcBytes) {
+                return false;
+            }
             outUsb64[0] = 0x01;
             Array.Copy(inBuf, 2, outUsb64, 1, 63);
             return true;

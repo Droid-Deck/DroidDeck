@@ -1599,9 +1599,7 @@ class FrontEndActivity : ComponentActivity() {
 
     override fun onPause() {
         compatLaunchVisible = false
-        if (!SessionState.running) {
-            dualSenseOutputBridge?.stop()
-        }
+        dualSenseOutputBridge?.stop()
         dualSenseManager?.stop()
         releaseLauncherDualSenseKeys()
         super.onPause()
