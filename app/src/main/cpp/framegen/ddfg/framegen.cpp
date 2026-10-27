@@ -168,6 +168,9 @@ bool FrameGen::onResize(VkExtent2D extent, VkFormat  , bool force) {
 
 
     if (!force && ready_ && extent.width == extent_.width && extent.height == extent_.height) return true;
+    /* Mali (G77 r32p1, Retroid Pocket 4 Pro) faulted inside the driver when these images, and the
+     * descriptor sets naming them, went away under a frame still in flight: wait first. */
+    if (ready_ && dd_ && dd_->DeviceWaitIdle) dd_->DeviceWaitIdle(device_);
     for (auto& i : pyrA_) destroyImage(i); pyrA_.clear();
     for (auto& i : pyrB_) destroyImage(i); pyrB_.clear();
     for (auto& i : pyrAs_) destroyImage(i); pyrAs_.clear();
@@ -212,9 +215,12 @@ void FrameGen::barrier(VkCommandBuffer cmd, VkImage img, VkImageLayout from, VkI
 }
 
 
+static void destroyScratch(const DeviceDispatch* dd, VkDevice dev, VkDescriptorPool pool); /* record_impl.inc */
+
 void FrameGen::destroy() {
     if (!device_) return;
     dd_->DeviceWaitIdle(device_);
+    destroyScratch(dd_, device_, descPool_); /* its sets came from this pool; a later engine at the same size must not reuse them */
     for (auto& i : pyrA_) destroyImage(i); pyrA_.clear();
     for (auto& i : pyrB_) destroyImage(i); pyrB_.clear();
     for (auto& i : pyrAs_) destroyImage(i); pyrAs_.clear();

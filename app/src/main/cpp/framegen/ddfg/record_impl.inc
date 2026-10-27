@@ -136,6 +136,8 @@ static bool ensureScratch(FrameGen* fg, const DeviceDispatch* dd, VkDevice dev,
                           int kLevels, const Config& cfg);
 
 static void destroyScratch(const DeviceDispatch* dd, VkDevice dev, VkDescriptorPool pool) {
+    if (!g_scratch.built && !g_scratch.synthUbo) return;
+    if (dd->DeviceWaitIdle) dd->DeviceWaitIdle(dev); /* the sets and buffers may be in a frame still in flight (Mali faults otherwise) */
     auto freeUbo = [&](VkBuffer& b, VkDeviceMemory& m, void*& p) {
         if (m) dd->UnmapMemory(dev, m);
         if (b) dd->DestroyBuffer(dev, b, nullptr);
