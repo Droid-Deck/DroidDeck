@@ -27,8 +27,13 @@ object CompositorHost {
     }
     private val vsyncHandler: Handler by lazy { Handler(vsyncThread.looper) }
 
-    private val vsync = object : Choreographer.FrameCallback {
+    @Volatile
+    private var vsyncGeneration = 0
+
+    // Each resume gets a new callback; one left queued from an earlier resume, on either thread, stops itself.
+    private fun vsyncCallback(generation: Int) = object : Choreographer.FrameCallback {
         override fun doFrame(frameTimeNanos: Long) {
+            if (generation != vsyncGeneration) return
             WaylandCompositor.nativeVsync(frameTimeNanos)
             if (vsyncRunning) Choreographer.getInstance().postFrameCallback(this)
         }
@@ -117,17 +122,14 @@ object CompositorHost {
 
     private fun resumeVsync() {
         if (vsyncRunning) return
+        val callback = vsyncCallback(++vsyncGeneration)
         vsyncRunning = true
         WaylandCompositor.nativeLog("screen", if (ownVsyncThread) "screen tick runs on its own display-priority thread" else "screen tick runs on the main thread")
         if (!ownVsyncThread) {
-            Choreographer.getInstance().postFrameCallback(vsync)
+            Choreographer.getInstance().postFrameCallback(callback)
             return
         }
-        vsyncHandler.post {
-            val choreographer = Choreographer.getInstance()
-            choreographer.removeFrameCallback(vsync)
-            if (vsyncRunning) choreographer.postFrameCallback(vsync)
-        }
+        vsyncHandler.post { Choreographer.getInstance().postFrameCallback(callback) }
     }
 
     private fun pauseVsync() {

@@ -1144,6 +1144,7 @@ static void surface_commit(struct wl_client *c, struct wl_resource *r) {
 
         g_pace.replaced += feedback_discard_all(&s->feedback);
         if (!buffer) g_pace.null_attaches++;
+        else if (!db) s->last_dmabuf = NULL;
 
         if (buffer) {
             wl_list_remove(&s->pending_buffer_destroy.link);
@@ -2116,7 +2117,7 @@ void droiddeck_stream_frame(AHardwareBuffer *ahb) {
 unsigned droiddeck_stream_frames(void) { return atomic_load(&g_stream_frames); }
 
 static void render_scene(void) {
-    if (atomic_load(&g_stream_on)) { render_stream(); return; }
+    if (atomic_load(&g_stream_on)) { g_dirty_since_ns = 0; render_stream(); return; }
     struct draw_list dl = {0};
     struct surface *s;
     int w, h;
