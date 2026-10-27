@@ -343,6 +343,19 @@ class PadBridgeQamTest {
         assertFalse(pad().isDown(PadState.X))
     }
 
+    @Test fun homeGuideHoldsOnThePrimaryPlayerWithoutABuiltinPad() {
+        PadBridge.setFirstSlot(1)
+        try {
+            bridge.setBuiltinPad(false)
+            bridge.setHomeGuidePressed(true)
+            assertTrue(requireNotNull(JoyConPadTest.RecordingWriter.pads[1]).isDown(PadState.GUIDE))
+            bridge.setHomeGuidePressed(false)
+            assertFalse(requireNotNull(JoyConPadTest.RecordingWriter.pads[1]).isDown(PadState.GUIDE))
+        } finally {
+            PadBridge.setFirstSlot(0)
+        }
+    }
+
     @Test fun cancellingHomeDiscardsQueuedPartnersAndReleasesGuideImmediately() {
         bridge.setHomeGuidePressed(true)
         bridge.applyExternal({ it.press(PadState.LB, true); it.leftY = -1f }, true)

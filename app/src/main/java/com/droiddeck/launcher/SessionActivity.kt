@@ -3290,7 +3290,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             enabled = {
                 resumed && window.decorView.hasWindowFocus() && !ended && !drawerOpen && !pcKeyboardOpen &&
                     !achievementsOpen && !gestureSettingsOpen && !pipUi && SessionState.running && !SessionState.suspended &&
-                    SessionState.mode == SessionService.MODE_STEAM && padBridge?.canHoldGuide() == true
+                    SessionState.mode == SessionService.MODE_STEAM && padBridge != null
             },
             setPressed = { padBridge?.setHomeGuidePressed(it) },
             onCancel = { padBridge?.cancelHomeGuide() },
