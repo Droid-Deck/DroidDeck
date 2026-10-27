@@ -23,6 +23,7 @@ object AgentEnv {
     private const val BASE_PATH = "/usr/local/bin:/usr/bin:/bin"
     private val NAME = Regex("[A-Za-z0-9._-]{1,64}")
     private val KEY = Regex("[A-Za-z_][A-Za-z0-9_]*")
+    private val liveSessions = mutableSetOf<String>()
     private val lock = Any()
 
     fun inbox(context: Context): File = File(context.getExternalFilesDir(null), "agent-inbox")
@@ -140,6 +141,9 @@ object AgentEnv {
         val binOverrides = overrides.filter { it != "libblfastpath.so" }
         val sessionBin = sessionBin(context, sessionId)
         if (sessionBin.exists()) throw AgentException("SESSION_EXISTS", "The agent session directory already exists")
+        guestDirectory(context, SESSION_BINS).listFiles()
+            ?.filter { it.name != sessionId && it.name !in liveSessions }
+            ?.forEach { FileUtils.delete(it) }
         try {
             if (binOverrides.isNotEmpty()) {
                 if (!sessionBin.mkdirs()) throw AgentException("OVERRIDE_FAILED", "Could not create the session override directory")
@@ -153,7 +157,7 @@ object AgentEnv {
                 }
             }
         } catch (e: Exception) {
-            FileUtils.delete(sessionBin)
+            FileUtils.delete(sessionBin.parentFile)
             throw e
         }
         val lines = strings(state.optJSONArray("persistent")) + active
@@ -165,9 +169,10 @@ object AgentEnv {
         try {
             save(context, state)
         } catch (e: Exception) {
-            FileUtils.delete(sessionBin)
+            FileUtils.delete(sessionBin.parentFile)
             throw e
         }
+        liveSessions += sessionId
         binOverrides.forEach { File(pendingBin, it).delete() }
         if (withPath.isNotEmpty()) Log.i(TAG, "agent environment keys for this session: ${withPath.map { it.substringBefore('=') }}")
         withPath
@@ -183,7 +188,10 @@ object AgentEnv {
     fun endSession(context: Context, sessionId: String? = null) = synchronized(lock) {
         val state = load(context)
         val endingId = sessionId ?: state.optString("activeOverrideSession").takeIf { it.isNotEmpty() }
-        if (endingId != null) FileUtils.delete(sessionBin(context, endingId))
+        if (endingId != null) {
+            FileUtils.delete(sessionBin(context, endingId).parentFile)
+            liveSessions -= endingId
+        }
         if (endingId == null || state.optString("activeOverrideSession") == endingId) {
             state.put("active", JSONArray()).put("activeOverrides", JSONArray()).put("activeOverrideSession", "")
             save(context, state)
