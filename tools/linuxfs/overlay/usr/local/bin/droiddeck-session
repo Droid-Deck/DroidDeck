@@ -307,6 +307,13 @@ if [ -z "${BL_INSIDE:-}" ]; then
   if [ "$mode" = steam ] && [ "${BL_CURSOR_COMPOSITE:-0}" = 1 ]; then
     export gamescope_cursor_composite=2
   fi
+  # Through the Mali bridge, Steam's UI flickered while gamescope handed its layers to the phone's
+  # compositor as separate planes, for a reason not yet found; one composited image does not
+  # (Mali-G76 MC4: 145 footer flips in 6 s at rest, 0 composited).
+  if [ "$mode" = steam ] && [ "${BL_VKBRIDGE:-0}" = 1 ] && [ -z "${gamescope_composite_force:-}" ]; then
+    export gamescope_composite_force=1
+    echo "== gamescope: composites every frame (Mali bridge: the Steam UI flickers on separate planes)"
+  fi
   args=(--backend wayland --expose-wayland -f -W "$width" -H "$height" -w "$nested" -h "$nested_h")
   if [ "$nested" != "$width" ] || [ "$nested_h" != "$height" ]; then
     args+=(-S stretch)
