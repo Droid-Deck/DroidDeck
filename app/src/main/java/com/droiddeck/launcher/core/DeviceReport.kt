@@ -220,15 +220,18 @@ object DeviceReport {
         k("  name / version", "${turnip.displayName(if (androidChoice.isEmpty()) turnip.autoId() else androidChoice)} ${turnip.driverVersion(if (androidChoice.isEmpty()) turnip.autoId() else androidChoice)}".trim())
         k("  imported available", turnip.enumerateImported().ifEmpty { listOf("none") }.joinToString(", "))
         val lm = LinuxVulkanDriverManager(context)
+        val mali = gpu.family == com.droiddeck.launcher.gpu.GpuInfo.Family.MALI
         run {
             val id = SessionPrefs.linuxDriver(context)
-            val label = if (id.isEmpty()) "runtime default (the Turnip built into the runtime)"
+            val label = if (mali) "not used: the guest draws in software (llvmpipe, lavapipe)"
+            else if (id.isEmpty()) "runtime default (the Turnip built into the runtime)"
             else "${lm.getDriverName(id)} ${lm.getDriverVersion(id)}".trim() +
                 lm.getMinGlibc(id).let { if (it.isEmpty()) "" else " (glibc $it+)" } +
                 if (lm.isInstalled(id)) "" else "  [MISSING - falls back to the runtime's own]"
             k("Linux driver", label)
         }
         k("Runtime's own ICD", LinuxRuntime.vulkanIcd(context)?.path)
+        if (mali) k("Software Vulkan ICD", LinuxRuntime.softwareVulkanIcd(context)?.path ?: "none in the runtime")
 
         h("Runtime")
         k("Installed version", LinuxRuntimeInstaller.installedVersion(context))

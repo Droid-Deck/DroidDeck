@@ -1313,9 +1313,11 @@ class FrontEndActivity : ComponentActivity() {
                     onDismiss = { showRoms = false },
                 )
                 showNonAdreno?.let { release ->
+                    val mali = androidx.compose.runtime.remember { com.droiddeck.launcher.core.DeviceSupport.mali() }
                     ConfirmDialog(
-                        title = androidx.compose.ui.res.stringResource(R.string.main_non_adreno_title),
-                        text = androidx.compose.ui.res.stringResource(R.string.main_non_adreno_text, com.droiddeck.launcher.core.DeviceSupport.gpuName(this@FrontEndActivity), release.size / 1e6),
+                        title = androidx.compose.ui.res.stringResource(if (mali) R.string.main_mali_title else R.string.main_non_adreno_title),
+                        text = androidx.compose.ui.res.stringResource(if (mali) R.string.main_mali_text else R.string.main_non_adreno_text,
+                            com.droiddeck.launcher.core.DeviceSupport.gpuName(this@FrontEndActivity), release.size / 1e6),
                         confirm = androidx.compose.ui.res.stringResource(R.string.main_install_anyway),
                         onConfirm = { showNonAdreno = null; install(release) },
                         onDismiss = { showNonAdreno = null },
