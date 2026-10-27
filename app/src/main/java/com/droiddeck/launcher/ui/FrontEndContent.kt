@@ -241,13 +241,13 @@ private fun Content(
     val padH = if (narrow) 16.dp else 22.dp
     val padV = if (narrow) 12.dp else 18.dp
     if (selected == "setup") {
-        Column(modifier = modifier.padding(horizontal = padH, vertical = padV)) {
+        Column(modifier = modifier.padding(horizontal = padH).padding(top = padV)) {
             SetupPanel(s, a, onOpenDeveloperOptions, onRequestWirelessAdb, onPairWirelessDebugging)
         }
         return
     }
     if (selected == "updates") {
-        UpdatesPage(s, a, modifier.padding(horizontal = padH, vertical = padV))
+        UpdatesPage(s, a, modifier.padding(horizontal = padH).padding(top = padV))
         return
     }
     if (selected == "steam") {

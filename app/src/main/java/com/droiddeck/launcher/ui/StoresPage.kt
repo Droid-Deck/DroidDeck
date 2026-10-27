@@ -311,7 +311,7 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
     val backLabel = stringResource(R.string.common_back)
     Box(modifier.onGloballyPositioned { hostAt = it.positionInRoot() }) {
     Column(
-        modifier = Modifier.fillMaxSize().padding(horizontal = padH, vertical = if (narrow) 10.dp else 14.dp)
+        modifier = Modifier.fillMaxSize().padding(horizontal = padH).padding(top = if (narrow) 10.dp else 14.dp)
             .then(if (openGame != null && !arranging) Modifier else Modifier.bumpers(
                 onPrevious = {
                     val picked = Store.byId(focusedChip)

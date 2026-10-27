@@ -304,7 +304,7 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
         open, detailScroll,
         gridScrolled = { grid.firstVisibleItemIndex > 0 || grid.firstVisibleItemScrollOffset > 0 },
         onDetailFocus = { detailFocused = it },
-        modifier = modifier.padding(horizontal = if (narrow) 14.dp else 22.dp, vertical = if (narrow) 10.dp else 14.dp),
+        modifier = modifier.padding(horizontal = if (narrow) 14.dp else 22.dp).padding(top = if (narrow) 10.dp else 14.dp),
         wrap = { key, content -> StoreTheme(GameRef.parse(key).let { r -> r.store ?: r.game(s.steamGames)?.source?.let { Store.byId(it) } }) { content() } },
         grid = {
             LibraryGrid(
