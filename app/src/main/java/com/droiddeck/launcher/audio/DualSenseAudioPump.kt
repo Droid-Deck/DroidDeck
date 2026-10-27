@@ -26,7 +26,16 @@ class DualSenseAudioPump(private val fifo: File) : SessionPart() {
     @Volatile private var input: InputStream? = null
     private var thread: Thread? = null
     private var loggedBluetooth = false
+    private var nextBtEmitNs = 0L
     private val bluetooth = DualSenseHaptics.Encoder { report ->
+        val nowNs = System.nanoTime()
+        if (nextBtEmitNs > nowNs) {
+            val waitNs = nextBtEmitNs - nowNs
+            if (waitNs <= DualSenseHaptics.REPORT_INTERVAL_NANOS * 4) {
+                java.util.concurrent.TimeUnit.NANOSECONDS.sleep(waitNs)
+            }
+        }
+        nextBtEmitNs = maxOf(System.nanoTime(), nextBtEmitNs) + DualSenseHaptics.REPORT_INTERVAL_NANOS
         val sent = DualSenseManager.activeManager?.sendBluetoothReport(report) == true
         if (sent && !loggedBluetooth) {
             loggedBluetooth = true

@@ -38,6 +38,19 @@ object DualSense {
         }
         return report
     }
+
+    fun preserveSpeakerRouting(report: ByteArray): ByteArray {
+        if (report.size < REPORT_SIZE_OUTPUT || (report[1].toInt() and 0x80) == 0 || report[8].toInt() != 0) {
+            return report
+        }
+        val out = report.copyOf(REPORT_SIZE_OUTPUT)
+        out[1] = (out[1].toInt() or 0xA0).toByte()
+        if (out[6].toInt() == 0) out[6] = 0x64
+        out[8] = 0x30
+        out[2] = (out[2].toInt() or 0x80).toByte()
+        out[38] = (out[38].toInt() or 0x02).toByte()
+        return out
+    }
     const val REPORT_SIZE_BT_INPUT = 78
     const val REPORT_SIZE_BT_OUTPUT = 78
     const val REPORT_SIZE_BT_BASIC_INPUT = 10

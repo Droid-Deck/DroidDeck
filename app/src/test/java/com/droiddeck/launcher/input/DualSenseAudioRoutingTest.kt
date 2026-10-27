@@ -52,4 +52,18 @@ class DualSenseAudioRoutingTest {
         report[54] = 0x02
         assertFalse("a microphone alone is not headphones", DualSense.parseInputReport(report)!!.headphonesPlugged)
     }
+
+    @Test fun preserveSpeakerRoutingKeepsSpeakerAliveWhenGameSendsZeroedAudioControl() {
+        val gameReport = DualSense.buildOutputReport(leftMotor = 80, rightMotor = 40).apply {
+            this[1] = (this[1].toInt() or 0x80).toByte()
+            this[8] = 0x00
+        }
+        val sent = DualSense.preserveSpeakerRouting(gameReport)
+        assertEquals(DualSense.REPORT_SIZE_OUTPUT, sent.size)
+        assertEquals("speaker output path preserved", 0x30, u(sent[8]))
+        assertEquals("speaker volume preserved", 0x64, u(sent[6]))
+        assertEquals("speaker preamp preserved", 0x02, u(sent[38]) and 0x02)
+        assertEquals("rumble preserved", 40, u(sent[3]))
+        assertEquals("rumble preserved", 80, u(sent[4]))
+    }
 }

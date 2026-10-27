@@ -89,4 +89,11 @@ class DualSenseHapticsTest {
         assertEquals(10_666_666L, DualSenseHaptics.REPORT_INTERVAL_NANOS)
         assertEquals(16, DualSenseHaptics.DECIMATION)
     }
+
+    @Test fun sequenceNibbleIsEncodedInByteOneAndIncludedInCrc() {
+        val samples = ByteArray(64) { 1 }
+        val r = DualSenseHaptics.buildReport(samples, counter = 3, seq = 5)
+        assertEquals(0x50, r[1].toInt() and 0xFF)
+        assertEquals(crcOf(r), storedCrc(r))
+    }
 }

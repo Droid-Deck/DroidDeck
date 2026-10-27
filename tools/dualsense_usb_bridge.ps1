@@ -340,14 +340,19 @@ public class DualSenseBridge {
                         if (!ReadFully(stream, len, 0, 2)) return;
                         byte[] raw = new byte[len[0] | (len[1] << 8)];
                         if (!ReadFully(stream, raw, 0, raw.Length)) return;
-                        if (!isBluetooth || raw.Length == 0 || raw.Length > outReportLen) continue;
-                        byte[] padded = new byte[outReportLen];
-                        Array.Copy(raw, padded, raw.Length);
+                        if (!isBluetooth || raw.Length == 0) continue;
+                        byte[] payload;
+                        if (outReportLen > raw.Length) {
+                            payload = new byte[outReportLen];
+                            Array.Copy(raw, payload, raw.Length);
+                        } else {
+                            payload = raw;
+                        }
                         lock (writeLock) {
                             if (writeHandle == null || writeHandle.IsInvalid || writeHandle.IsClosed) continue;
                             int w = 0;
-                            if (!WriteFile(writeHandle, padded, outReportLen, out w, IntPtr.Zero)) {
-                                HidD_SetOutputReport(writeHandle, padded, outReportLen);
+                            if (!WriteFile(writeHandle, payload, payload.Length, out w, IntPtr.Zero)) {
+                                HidD_SetOutputReport(writeHandle, payload, payload.Length);
                             }
                         }
                         continue;

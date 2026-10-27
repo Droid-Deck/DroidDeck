@@ -389,15 +389,19 @@ class DualSenseManager(private val context: Context) {
         return sendOutputReport(pending, nowMs)
     }
 
+    internal fun preserveSpeakerRoutingIfNeeded(data: ByteArray): ByteArray =
+        if (routesPadAudio && routedHeadphones == false) DualSense.preserveSpeakerRouting(data) else data
+
     fun sendOutputReport(data: ByteArray, nowMs: Long = SystemClock.uptimeMillis()): Boolean {
         if (data.size < DualSense.REPORT_SIZE_OUTPUT || data[0] != DualSense.REPORT_ID_OUTPUT) {
             return false
         }
+        val wiredData = preserveSpeakerRoutingIfNeeded(data)
         val tcpOut = tcpOutputStream
         if (tcpOut != null) {
             return try {
                 synchronized(tcpOut) {
-                    tcpOut.write(data, 0, DualSense.REPORT_SIZE_OUTPUT)
+                    tcpOut.write(wiredData, 0, DualSense.REPORT_SIZE_OUTPUT)
                     tcpOut.flush()
                 }
                 true
@@ -413,10 +417,10 @@ class DualSenseManager(private val context: Context) {
             val intf = usbInterface
             val sent = try {
                 if (epOut != null) {
-                    conn.bulkTransfer(epOut, data, DualSense.REPORT_SIZE_OUTPUT, 1000) >= 0
+                    conn.bulkTransfer(epOut, wiredData, DualSense.REPORT_SIZE_OUTPUT, 1000) >= 0
                 } else if (intf != null) {
                     // HID SET_REPORT: Request Type 0x21, Request 0x09, Value 0x0202 (Report Type Output | Report ID 2)
-                    conn.controlTransfer(0x21, 0x09, 0x0202, intf.id, data, DualSense.REPORT_SIZE_OUTPUT, 1000) >= 0
+                    conn.controlTransfer(0x21, 0x09, 0x0202, intf.id, wiredData, DualSense.REPORT_SIZE_OUTPUT, 1000) >= 0
                 } else false
             } catch (e: Exception) {
                 false
@@ -892,10 +896,13 @@ class DualSenseManager(private val context: Context) {
             resolveRawTwin()
             routedHeadphones = null
         }
-        if (routesPadAudio && routedHeadphones != state.headphonesPlugged) {
+        if (routesPadAudio && (usbConnection != null || tcpOutputStream != null) && routedHeadphones != state.headphonesPlugged) {
+            val prevRouted = routedHeadphones
+            routedHeadphones = state.headphonesPlugged
             if (sendOutputReport(DualSense.buildAudioRoutingReport(state.headphonesPlugged))) {
-                routedHeadphones = state.headphonesPlugged
                 Log.i(TAG, "DualSense audio routed to " + if (state.headphonesPlugged) "the headphone jack" else "the speaker")
+            } else {
+                routedHeadphones = prevRouted
             }
         }
 

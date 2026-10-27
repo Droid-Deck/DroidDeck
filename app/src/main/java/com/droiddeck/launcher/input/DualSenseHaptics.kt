@@ -21,11 +21,11 @@ object DualSenseHaptics {
     private const val SAMPLES_OFFSET = CONTROL_OFFSET + 2 + CONTROL_LENGTH + 2
     private const val CRC_OFFSET = REPORT_SIZE - 4
 
-    fun buildReport(samples: ByteArray, counter: Int): ByteArray {
+    fun buildReport(samples: ByteArray, counter: Int, seq: Int = 0): ByteArray {
         require(samples.size == SAMPLE_BYTES) { "need $SAMPLE_BYTES haptic bytes, got ${samples.size}" }
         val r = ByteArray(REPORT_SIZE)
         r[0] = REPORT_ID
-        r[1] = 0
+        r[1] = ((seq and 0x0F) shl 4).toByte()
         r[CONTROL_OFFSET] = (0x11 or 0x80).toByte()
         r[CONTROL_OFFSET + 1] = CONTROL_LENGTH.toByte()
         r[CONTROL_OFFSET + 2] = 0xFE.toByte()
