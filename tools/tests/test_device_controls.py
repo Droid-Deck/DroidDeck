@@ -30,6 +30,7 @@ class DeviceControlsTest(unittest.TestCase):
             page.evaluate.side_effect = evaluate
             page.drain.side_effect = drain
             helper.reconcile = mock.Mock()
+            helper.sync_frame_limit = mock.Mock()
             helper.ensure_tools = mock.Mock(side_effect=[None, StopIteration])
             helper.open_chooser = mock.Mock()
             watcher = mock.Mock()

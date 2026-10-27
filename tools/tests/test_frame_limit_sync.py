@@ -4,6 +4,7 @@ import runpy
 import subprocess
 import tempfile
 import unittest
+from unittest import mock
 
 BIN = Path(__file__).resolve().parents[1] / "linuxfs/overlay/usr/local/bin"
 LIVE = runpy.run_path(str(BIN / "droiddeck-steam-compat"))
@@ -40,9 +41,15 @@ globalThis.SteamClient = { Settings: { SetSetting(encoded) {
   writes.push(value);
   settingsStore.clientSettings.gamescope_app_target_framerate = value;
 } } };
-globalThis.webpackChunksteamui = { push([, , callback]) {
-  callback({ c: { 1: { exports: { other: { GetState() {} } } }, 2: { exports: { MX: service } } } });
-} };
+const modules = {
+  1: { source: () => 'RegisterForNotifyStateChanged only', exports: { other: { GetState() {} } } },
+  2: { source: () => 'n.MX.SetBlurParams(); n.MX.RegisterForNotifyStateChanged()', exports: { hooks: () => {} } },
+  3: { source: () => 'SetBlurParams RegisterForNotifyStateChanged GetState', exports: { MX: service } },
+};
+const webpack = modules => { const require = id => modules[id].exports;
+  require.m = Object.fromEntries(Object.entries(modules).map(([id, m]) => [id, { toString: m.source }]));
+  return require; };
+globalThis.webpackChunksteamui = { push([, , callback]) { callback(webpack(modules)); } };
 const script = require('fs').readFileSync(process.argv[2], 'utf8');
 const change = async next => { rates = next; notify.forEach(callback => callback()); };
 (async () => {
@@ -70,7 +77,7 @@ const change = async next => { rates = next; notify.forEach(callback => callback
   await fire();
   assert.deepStrictEqual(writes, [144, 120], 'nothing changes while Steam has the frame limit turned off');
   delete window.__droiddeckFrameLimit;
-  webpackChunksteamui.push = ([, , callback]) => callback({ c: {} });
+  webpackChunksteamui.push = ([, , callback]) => callback(webpack({ 1: modules[1], 2: modules[2] }));
   assert.strictEqual(eval(script), 'unavailable');
 })().catch(error => { console.error(error); process.exit(1); });
 """
@@ -86,10 +93,25 @@ class FrameLimitSyncTest(unittest.TestCase):
             result = subprocess.run(["node", str(test), str(script)], capture_output=True, text=True, timeout=20)
             self.assertEqual(result.returncode, 0, result.stderr)
 
-    def test_attach_installs_the_sync_and_reports_it(self):
-        source = (BIN / "droiddeck-steam-compat").read_text()
-        attach = source[source.index("    def attach(self):"):source.index("    def reconcile(self):")]
-        self.assertIn('say("frame limit sync: %s" % page.evaluate(FRAME_LIMIT_JS))', attach)
+    def test_install_is_retried_until_steam_is_ready_and_reported_once_per_state(self):
+        helper = LIVE["Helper"]("/steam", 0)
+        page = mock.Mock()
+        page.evaluate.side_effect = ["unavailable", "unavailable", "installed"]
+        helper.page = page
+        said = []
+        clock = [100.0]
+        globals_ = LIVE["Helper"].sync_frame_limit.__globals__
+        with mock.patch.dict(globals_, {"say": said.append}), mock.patch.object(globals_["time"], "monotonic", lambda: clock[0]):
+            helper.sync_frame_limit()
+            helper.sync_frame_limit()
+            clock[0] += 10
+            helper.sync_frame_limit()
+            clock[0] += 10
+            helper.sync_frame_limit()
+            clock[0] += 10
+            helper.sync_frame_limit()
+        self.assertEqual(page.evaluate.call_count, 3)
+        self.assertEqual(said, ["frame limit sync: unavailable", "frame limit sync: installed"])
 
 
 if __name__ == "__main__":

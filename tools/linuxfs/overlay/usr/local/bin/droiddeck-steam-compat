@@ -254,10 +254,15 @@ FRAME_LIMIT_JS = r"""
   const settings = window.settingsStore;
   let service = null;
   try {
+    // Steam's webpack does not expose its module cache; the gamescope service client is found by
+    // the calls its module makes and loaded by id.
     let require;
     window.webpackChunksteamui.push([[Symbol("droiddeck-frame-limit")], {}, r => { require = r; }]);
-    for (const module of Object.values(require.c || {})) {
-      const exports = module && module.exports;
+    for (const id of Object.keys(require.m || {})) {
+      const source = String(require.m[id]);
+      if (!source.includes("SetBlurParams") || !source.includes("RegisterForNotifyStateChanged")) continue;
+      let exports;
+      try { exports = require(id); } catch (e) { continue; }
       if (!exports || typeof exports !== "object") continue;
       service = Object.values(exports).find(value => value && typeof value.GetState === "function" &&
         typeof value.RegisterForNotifyStateChanged === "function" && typeof value.SetBlurParams === "function");
@@ -743,6 +748,8 @@ class Helper:
         self.chooser = None
         self.controls_state = None
         self.controls_installed = False
+        self.frame_limit_state = None
+        self.frame_limit_retry = 0
 
     def sync_controls(self):
         try:
@@ -764,6 +771,19 @@ class Helper:
                     self.controls_state = None
         except (OSError, ValueError, TypeError):
             pass
+
+    def sync_frame_limit(self):
+        # Steam can still be loading its settings and gamescope state when the helper attaches.
+        if self.frame_limit_state in ("installed", "present") or time.monotonic() < self.frame_limit_retry:
+            return
+        try:
+            state = self.page.evaluate(FRAME_LIMIT_JS)
+        except RuntimeError as e:
+            state = "failed (%s)" % e
+        if state != self.frame_limit_state:
+            say("frame limit sync: %s" % state)
+        self.frame_limit_state = state
+        self.frame_limit_retry = time.monotonic() + 10
 
     def open_chooser(self, payload):
         try:
@@ -854,10 +874,6 @@ class Helper:
             except RuntimeError:
                 # The optional tour setting must not block the compat bridge.
                 pass
-            try:
-                say("frame limit sync: %s" % page.evaluate(FRAME_LIMIT_JS))
-            except RuntimeError as e:
-                say("frame limit sync failed: %s" % e)
             if not self.steamos:
                 page.call("Runtime.addBinding", {"name": SWITCH_BINDING})
                 page.evaluate(SWITCH_JS)
@@ -868,6 +884,8 @@ class Helper:
         self.page = page
         self.controls_state = None
         self.controls_installed = False
+        self.frame_limit_state = None
+        self.frame_limit_retry = 0
         self.sync_controls()
         return True
 
@@ -1023,6 +1041,7 @@ class Helper:
         self.ensure_tools()
         while True:
             self.sync_controls()
+            self.sync_frame_limit()
             sources = [self.page.ws] + ([watcher] if watcher.fileno() >= 0 else [])
             if self.chooser is not None:
                 sources.append(self.chooser[1].stdout)
