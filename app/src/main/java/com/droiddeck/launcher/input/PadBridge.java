@@ -53,6 +53,7 @@ public final class PadBridge {
     private final FakeInputWriter[] playerWriters = new FakeInputWriter[SLOTS];
     private final PadState[] playerStates = new PadState[SLOTS];
     private final PadState effectiveState = new PadState();
+    private final PadState homeGuideReport = new PadState();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private boolean open;
     private volatile boolean selectSteam;
@@ -521,7 +522,6 @@ public final class PadBridge {
         int slot = pressed ? firstPlayerSlot() : homeGuideSlot;
         if (slot > 0) {
             homeGuideSlot = pressed ? slot : -1;
-            stateFor(slot).press(PadState.GUIDE, pressed);
             publish(slot);
             return;
         }
@@ -531,10 +531,11 @@ public final class PadBridge {
     }
 
     public synchronized void cancelHomeGuide() {
-        if (homeGuideSlot > 0) {
-            stateFor(homeGuideSlot).clear();
-            publish(homeGuideSlot);
+        int slot = homeGuideSlot;
+        if (slot > 0) {
             homeGuideSlot = -1;
+            stateFor(slot).clear();
+            publish(slot);
         }
         if (!homeGuidePressed) return;
         clearBackQamWrites();
@@ -796,6 +797,7 @@ public final class PadBridge {
         partners[slot] = NO_CONTROLLER;
         clearJoyCons(slot);
         slotControllers.set(slot, NO_CONTROLLER);
+        if (slot == homeGuideSlot) homeGuideSlot = -1;
         if (slot == firstPlayerSlot()) releaseBackPaddles();
         if (slot == 0) {
             state.clear();
@@ -852,7 +854,13 @@ public final class PadBridge {
             }
             playerWriters[slot] = player;
         }
-        player.writePad(playerStates[slot]);
+        PadState report = playerStates[slot];
+        if (slot == homeGuideSlot) {
+            homeGuideReport.copyFrom(report);
+            homeGuideReport.press(PadState.GUIDE, true);
+            report = homeGuideReport;
+        }
+        player.writePad(report);
     }
 
     private void publish() {
