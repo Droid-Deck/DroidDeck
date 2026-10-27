@@ -1039,6 +1039,15 @@ BUSCONF
       _bl_ui=(-nobigpicture)
     fi
     if [ "${BL_VKBRIDGE:-0}" = 1 ]; then
+      # On the GPU the Steam UI held about 400 MB through the bridge (Mali-G76 MC4, 3 GB of RAM); with
+      # a game loading beside it, Android's low-memory killer took the whole session down.
+      if [ -z "${BL_VKBRIDGE_CEF_GPU:-}" ]; then
+        _bl_mem_kb=$(awk '/^MemTotal:/ {print $2}' /proc/meminfo 2>/dev/null)
+        if [ "${_bl_mem_kb:-0}" -gt 0 ] && [ "$_bl_mem_kb" -lt 4194304 ]; then
+          BL_VKBRIDGE_CEF_GPU=0
+          echo "== steam: $((_bl_mem_kb / 1024)) MB of RAM: the browser UI draws in software to leave games the memory"
+        fi
+      fi
       if [ "${BL_VKBRIDGE_CEF_GPU:-1}" = 0 ]; then
         _bl_cef=(-cef-disable-gpu -cef-disable-gpu-compositing)
         echo "== steam: browser UI in software (Mali bridge)"
