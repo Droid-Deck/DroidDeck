@@ -181,3 +181,16 @@ The nested Wayland backend's input thread reads the host display, but steamcompm
 does not watch that file descriptor, so buffer releases and presentation feedback
 queued by that read could wait up to one refresh for steamcompmgr's next poll. The
 input thread now wakes steamcompmgr after each read.
+
+## 0123 VBlank: avoid scheduling the same refresh twice
+
+Port of upstream commit 72ad630 by Matthew Schwartz (ValveSoftware/gamescope) to
+3.16.29's vblank timer. The pre-emptive re-arm runs before the next vblank feedback
+arrives, and a shrinking draw estimate could target the refresh just consumed, so the
+timer fired twice for one refresh; with an X11 client each repeat latched a second FIFO
+frame and the first never reached the screen. Targets within half an interval of the
+consumed refresh now count as the same cycle, also for records from the
+`GAMESCOPE_DISABLE_TIMERFD` nudge thread. The schedule maths moves to
+`src/Utils/VBlankSchedule.h` with upstream's `utils/vblank_schedule` test, which the
+build now runs. On the AYANEO Pocket FIT at a 60 fps limit on a 120 Hz panel, gamescope
+sent about 620 frames per 10 s for 600 game frames before this change.

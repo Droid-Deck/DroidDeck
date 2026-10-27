@@ -39,7 +39,7 @@ else
 fi
 PREP
 makepkg -A -s --noconfirm --skipchecksums --skippgpcheck
-meson test -C src/build --no-rebuild --print-errorlogs cursor_routing wayland_scaling
+meson test -C src/build --no-rebuild --print-errorlogs cursor_routing wayland_scaling utils/vblank_schedule
 ls -l *.pkg.tar.*
 "
 cd "$WORK"

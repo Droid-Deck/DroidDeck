@@ -1,0 +1,319 @@
+diff --git a/src/Utils/VBlankSchedule.h b/src/Utils/VBlankSchedule.h
+new file mode 100644
+index 0000000..365e66b
+--- /dev/null
++++ b/src/Utils/VBlankSchedule.h
+@@ -0,0 +1,63 @@
++#pragma once
++
++#include <algorithm>
++#include <cstdint>
++
++namespace gamescope
++{
++    struct VBlankScheduleTime
++    {
++        // The expected time for the vblank we want to target.
++        uint64_t ulTargetVBlank = 0;
++        // The vblank offset by the redzone/scheduling calculation.
++        // This is when we want to wake-up by to meet that vblank time above.
++        uint64_t ulScheduledWakeupPoint = 0;
++        // Refresh period the target was stepped with, zero when unknown.
++        uint64_t ulRefreshCycle = 0;
++    };
++
++    namespace VBlank
++    {
++        struct ScheduleParams
++        {
++            uint64_t ulLastVBlank = 0;
++            uint64_t ulInterval = 0;
++            uint64_t ulOffset = 0;
++            uint64_t ulNow = 0;
++            bool bVRR = false;
++        };
++
++        inline uint64_t LastTarget( const VBlankScheduleTime &lastSchedule, uint64_t ulInterval )
++        {
++            // Do not retain several cycles of old draw lead when the rate increases.
++            return std::min( lastSchedule.ulTargetVBlank, lastSchedule.ulScheduledWakeupPoint + ulInterval );
++        }
++
++        inline uint64_t TargetFloor( const VBlankScheduleTime &lastSchedule, const ScheduleParams &params )
++        {
++            // VRR wakes have no fixed phase and can follow a newly ready frame.
++            if ( params.bVRR || !lastSchedule.ulTargetVBlank )
++                return 0;
++
++            return LastTarget( lastSchedule, params.ulInterval ) + params.ulInterval / 2;
++        }
++
++        inline VBlankScheduleTime Next( const ScheduleParams &params, const VBlankScheduleTime &lastSchedule )
++        {
++            const uint64_t ulAnchor = params.ulLastVBlank;
++            const uint64_t ulOffset = params.ulOffset;
++            const uint64_t ulTargetFloor = TargetFloor( lastSchedule, params );
++            uint64_t ulWake = ulAnchor + params.ulInterval - ulOffset;
++            uint64_t ulEarliestWake = params.ulNow;
++            if ( ulTargetFloor >= ulOffset )
++                ulEarliestWake = std::max( ulEarliestWake, ulTargetFloor - ulOffset + 1 );
++            // Step in one go, a headless session never marks a vblank so the gap grows with uptime.
++            if ( ulWake < ulEarliestWake )
++            {
++                const uint64_t ulDelta = ulEarliestWake - ulWake;
++                ulWake += ( ulDelta / params.ulInterval + ( ulDelta % params.ulInterval != 0 ) ) * params.ulInterval;
++            }
++            return { .ulTargetVBlank = ulWake + ulOffset, .ulScheduledWakeupPoint = ulWake, .ulRefreshCycle = params.ulInterval };
++        }
++    }
++}
+diff --git a/src/vblankmanager.cpp b/src/vblankmanager.cpp
+index 54492a1..3f6c25c 100644
+--- a/src/vblankmanager.cpp
++++ b/src/vblankmanager.cpp
+@@ -82,19 +82,6 @@ namespace gamescope
+ 		return m_ulLastVBlank;
+ 	}
+ 
+-	uint64_t CVBlankTimer::GetNextVBlank( uint64_t ulOffset ) const
+-	{
+-		const uint64_t ulIntervalNSecs = mHzToRefreshCycle( GetRefresh() );
+-		const uint64_t ulNow = get_time_in_nanos();
+-
+-		uint64_t ulTargetPoint = GetLastVBlank() + ulIntervalNSecs - ulOffset;
+-
+-		while ( ulTargetPoint < ulNow )
+-			ulTargetPoint += ulIntervalNSecs;
+-
+-		return ulTargetPoint;
+-	}
+-
+ 	uint64_t CVBlankTimer::VRRWakeupOffset( uint64_t *pulDrawTime, uint64_t *pulRedZone ) const
+ 	{
+ 		uint64_t ulDrawTime = cv_adaptive_sync_uncapped ? m_ulVRRRollingMaxSubmitTime.load() : 0;
+@@ -119,6 +106,12 @@ namespace gamescope
+ 	}
+ 
+ 	VBlankScheduleTime CVBlankTimer::CalcNextWakeupTime( bool bPreemptive )
++	{
++		std::unique_lock lock( m_ScheduleMutex );
++		return CalcNextWakeupTimeLocked( bPreemptive );
++	}
++
++	VBlankScheduleTime CVBlankTimer::CalcNextWakeupTimeLocked( bool bPreemptive )
+ 	{
+ 		const GamescopeScreenType eScreenType = GetBackend()->GetScreenType();
+ 
+@@ -195,15 +188,14 @@ namespace gamescope
+ 				VBlankDebugSpew( ulOffset, ulDrawTime, ulRedZone );
+ 		}
+ 
+-		const uint64_t ulScheduledWakeupPoint = GetNextVBlank( ulOffset );
+-		const uint64_t ulTargetVBlank = ulScheduledWakeupPoint + ulOffset;
+-
+-		VBlankScheduleTime schedule =
++		return VBlank::Next(
+ 		{
+-			.ulTargetVBlank = ulTargetVBlank,
+-			.ulScheduledWakeupPoint = ulScheduledWakeupPoint,
+-		};
+-		return schedule;
++			.ulLastVBlank = GetLastVBlank(),
++			.ulInterval = ulRefreshInterval,
++			.ulOffset = ulOffset,
++			.ulNow = get_time_in_nanos(),
++			.bVRR = bVRR,
++		}, m_LastVBlankSchedule );
+ 	}
+ 
+ 	std::optional<VBlankTime> CVBlankTimer::ProcessVBlank()
+@@ -272,7 +264,7 @@ namespace gamescope
+ 
+ 		if ( UsingTimerFD() )
+ 		{
+-			m_TimerFDSchedule = CalcNextWakeupTime( bPreemptive );
++			m_TimerFDSchedule = CalcNextWakeupTimeLocked( bPreemptive );
+ 
+ 			ITimerWaitable::ArmTimer( m_TimerFDSchedule.ulScheduledWakeupPoint );
+ 		}
+@@ -298,6 +290,7 @@ namespace gamescope
+ 			if ( !m_bArmed.exchange( false ) )
+ 				return;
+ 
++			m_LastVBlankSchedule = m_TimerFDSchedule;
+ 
+ 			m_PendingVBlank = VBlankTime
+ 			{
+@@ -352,8 +345,26 @@ namespace gamescope
+ 				return;
+ 			}
+ 
+-			gpuvis_trace_printf( "got vblank" );
+-			m_PendingVBlank = time;
++			{
++				std::unique_lock lock( m_ScheduleMutex );
++				const bool bVRR = GetBackend()->GetCurrentConnector() && GetBackend()->GetCurrentConnector()->IsVRRActive();
++				const uint64_t ulTargetFloor = VBlank::TargetFloor( m_LastVBlankSchedule,
++				{
++					.ulInterval = mHzToRefreshCycle( GetRefresh() ),
++					.bVRR = bVRR,
++				} );
++				// A feedback rearm can start FrameSync before the previous nudge is read.
++				if ( time.schedule.ulTargetVBlank > ulTargetFloor )
++				{
++					m_LastVBlankSchedule = time.schedule;
++					gpuvis_trace_printf( "got vblank" );
++					m_PendingVBlank = time;
++					return;
++				}
++			}
++
++			gpuvis_trace_printf( "Ignoring duplicate vblank... Pre-emptively re-arming." );
++			ArmNextVBlank( true );
+ 		}
+ 	}
+ 
+diff --git a/src/vblankmanager.hpp b/src/vblankmanager.hpp
+index 41902c3..399d26e 100644
+--- a/src/vblankmanager.hpp
++++ b/src/vblankmanager.hpp
+@@ -1,18 +1,11 @@
+ #pragma once
+ 
+ #include <optional>
++#include "Utils/VBlankSchedule.h"
+ #include "waitable.h"
+ 
+ namespace gamescope
+ {
+-    struct VBlankScheduleTime
+-    {
+-        // The expected time for the vblank we want to target.
+-        uint64_t ulTargetVBlank = 0;
+-        // The vblank offset by the redzone/scheduling calculation.
+-        // This is when we want to wake-up by to meet that vblank time above.
+-        uint64_t ulScheduledWakeupPoint = 0;
+-    };
+ 
+     struct VBlankTime
+     {
+@@ -44,7 +37,6 @@ namespace gamescope
+ 
+         int GetRefresh() const;
+         uint64_t GetLastVBlank() const;
+-        uint64_t GetNextVBlank( uint64_t ulOffset ) const;
+         bool IsVRRFlipReady() const;
+ 
+         VBlankScheduleTime CalcNextWakeupTime( bool bPreemptive );
+@@ -65,6 +57,7 @@ namespace gamescope
+         void OnPollIn() final;
+     private:
+         void VBlankDebugSpew( uint64_t ulOffset, uint64_t ulDrawTime, uint64_t ulRedZone );
++        VBlankScheduleTime CalcNextWakeupTimeLocked( bool bPreemptive );
+         uint64_t VRRWakeupOffset( uint64_t *pulDrawTime = nullptr, uint64_t *pulRedZone = nullptr ) const;
+ 
+         uint64_t m_ulTargetVBlank = 0;
+@@ -82,6 +75,7 @@ namespace gamescope
+         // Does not cover m_ulLastVBlank, this is just atomic.
+         std::mutex m_ScheduleMutex;
+         VBlankScheduleTime m_TimerFDSchedule{};
++        VBlankScheduleTime m_LastVBlankSchedule{};
+ 
+         std::thread m_NudgeThread;
+         int m_nNudgePipe[2] = { -1, -1 };
+diff --git a/tests/meson.build b/tests/meson.build
+index d86bf9e..e0e8151 100644
+--- a/tests/meson.build
++++ b/tests/meson.build
+@@ -8,7 +8,7 @@ endforeach
+ 
+ gamescope_tests = executable(
+ 	'gamescope_tests',
+-	unittest_src + ['test_convar.cpp', 'test_cursor_routing.cpp', 'test_focus_placement.cpp', 'test_mangoapp_config.cpp', 'test_mangoapp_control.cpp', 'test_process.cpp', 'test_upscale.cpp', 'test_utils_parsers.cpp', 'test_utils_string.cpp', 'test_vrclient_detect.cpp', 'test_wayland_scaling.cpp'],
++	unittest_src + ['test_convar.cpp', 'test_cursor_routing.cpp', 'test_focus_placement.cpp', 'test_mangoapp_config.cpp', 'test_mangoapp_control.cpp', 'test_process.cpp', 'test_upscale.cpp', 'test_utils_parsers.cpp', 'test_utils_string.cpp', 'test_utils_vblank_schedule.cpp', 'test_vrclient_detect.cpp', 'test_wayland_scaling.cpp'],
+ 	include_directories: [srcdir, sol2_include],
+ 	dependencies: [catch2_dep, luajit_dep, cap_dep, drm_dep, glm_dep, wlroots_dep],
+ 	cpp_args: gamescope_cpp_args,
+@@ -26,4 +26,5 @@ test('upscale', gamescope_tests, args: ['[upscale]'])
+ test('utils/parsers', gamescope_tests, args: ['[parsers]'])
+ test('utils/process', gamescope_tests, args: ['[process]'], depends: [reaper_test_helper])
+ test('utils/string', gamescope_tests, args: ['[string]'])
++test('utils/vblank_schedule', gamescope_tests, args: ['[vblank_schedule]'])
+ test('vrclient_detect', gamescope_tests, args: ['[vrclient_detect]'])
+diff --git a/tests/test_utils_vblank_schedule.cpp b/tests/test_utils_vblank_schedule.cpp
+new file mode 100644
+index 0000000..1e3d0d6
+--- /dev/null
++++ b/tests/test_utils_vblank_schedule.cpp
+@@ -0,0 +1,71 @@
++#include <catch2/catch_test_macros.hpp>
++#include "Utils/VBlankSchedule.h"
++
++using namespace gamescope;
++
++namespace
++{
++
++uint64_t NextWake( uint64_t last, uint64_t interval, uint64_t offset, uint64_t now,
++                   const VBlankScheduleTime &consumed, bool vrr = false )
++{
++	return VBlank::Next({
++		.ulLastVBlank = last,
++		.ulInterval = interval,
++		.ulOffset = offset,
++		.ulNow = now,
++		.bVRR = vrr,
++	}, consumed).ulScheduledWakeupPoint;
++}
++
++constexpr VBlankScheduleTime consumed{ 1'004'166'667, 1'000'000'000 };
++
++}
++
++TEST_CASE("A shorter draw estimate cannot schedule a refresh twice", "[vblank_schedule]") {
++	REQUIRE(NextWake( 1'000'000'000, 4'166'667, 4'166'667, 1'000'000'000, {} ) == 1'000'000'000);
++	REQUIRE(NextWake( 1'000'000'000, 4'166'667, 4'118'333, 1'000'010'000, consumed ) == 1'004'215'001);
++}
++
++TEST_CASE("Feedback can refine an unconsumed refresh deadline", "[vblank_schedule]") {
++	REQUIRE(NextWake( 1'000'020'000, 4'166'667, 4'118'333, 1'000'030'000, {} ) == 1'000'068'334);
++}
++
++TEST_CASE("Feedback phase corrections do not repeat a consumed refresh", "[vblank_schedule]") {
++	REQUIRE(NextWake( 1'000'020'000, 4'166'667, 4'118'333, 1'000'030'000, consumed ) == 1'004'235'001);
++	REQUIRE(NextWake( 999'980'000, 4'166'667, 4'118'333, 1'000'010'000, consumed ) == 1'004'195'001);
++	// Late feedback still targets the next unconsumed cycle on the same grid.
++	REQUIRE(NextWake( 995'833'333, 4'166'667, 4'118'333, 1'000'010'000, consumed ) == 1'004'215'001);
++}
++
++TEST_CASE("VRR feedback is not quantized to a fixed refresh phase", "[vblank_schedule]") {
++	VBlankScheduleTime vrrConsumed{ 1'004'166'667, 1'003'866'667 };
++	REQUIRE(NextWake( 1'000'020'000, 4'166'667, 300'000, 1'003'876'667, vrrConsumed, true ) == 1'003'886'667);
++}
++
++TEST_CASE("The half-cycle boundary belongs to the consumed refresh", "[vblank_schedule]") {
++	REQUIRE(NextWake( 1'002'083'333, 4'166'667, 1'000'000, 1'005'000'000, consumed ) == 1'009'416'667);
++	REQUIRE(NextWake( 1'002'083'334, 4'166'667, 1'000'000, 1'005'000'000, consumed ) == 1'005'250'001);
++}
++
++TEST_CASE("Refresh changes do not retain several cycles of old draw lead", "[vblank_schedule]") {
++	VBlankScheduleTime slowConsumed{ 1'016'666'667, 1'000'000'000 };
++	REQUIRE(NextWake( 1'000'000'000, 4'166'667, 4'166'667, 1'000'010'000, slowConsumed ) == 1'004'166'667);
++	REQUIRE(NextWake( 1'000'000'000, 16'666'667, 4'650'000, 1'000'010'000, consumed ) == 1'012'016'667);
++}
++
++TEST_CASE("Small refresh corrections do not reset consumed cycles", "[vblank_schedule]") {
++	REQUIRE(NextWake( 1'000'000'000, 4'166'649, 4'118'333, 1'000'010'000, consumed ) == 1'004'214'965);
++	REQUIRE(NextWake( 1'000'000'000, 4'166'684, 4'118'333, 1'000'010'000, consumed ) == 1'004'215'035);
++}
++
++TEST_CASE("Missing feedback and idle periods still allow forward progress", "[vblank_schedule]") {
++	VBlankScheduleTime last = consumed;
++	for ( uint64_t target : { 1'008'333'334ul, 1'012'500'001ul, 1'016'666'668ul } )
++	{
++		uint64_t wake = NextWake( 1'000'000'000, 4'166'667, 4'118'333, last.ulScheduledWakeupPoint + 10'000, last );
++		REQUIRE(wake + 4'118'333 == target);
++		last = { target, wake };
++	}
++	REQUIRE(NextWake( 1'000'000'000, 4'166'667, 4'118'333, 2'000'000'000, last ) == 2'000'048'414);
++}
