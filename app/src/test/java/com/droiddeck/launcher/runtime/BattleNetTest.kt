@@ -259,6 +259,7 @@ class BattleNetTest {
             BattleNet.hostFolder(context, "Z:/root/Games/Stores/Battle.net/Hearthstone/"))
     }
 
+
     @Test fun wowForeverIsListedBesideRetailInTheSharedWorldOfWarcraftFolder() {
         val pfx = File(BattleNet.prefix(context), "pfx").apply { mkdirs() }
         val wow = File(pfx, "drive_c/Program Files (x86)/World of Warcraft").apply { mkdirs() }
@@ -329,6 +330,24 @@ class BattleNetTest {
         assertEquals(listOf(File(wow, "_forever_")), BattleNet.games(context).map { it.folder })
         db.writeBytes(message(forever, retail))
         assertEquals(listOf(File(wow, "_forever_"), wow), BattleNet.games(context).map { it.folder })
+
+    @Test fun aGameInstalledUnderBlizzardsChineseUidIsStillListed() {
+        val pfx = File(BattleNet.prefix(context), "pfx").apply { mkdirs() }
+        File(pfx, "drive_c/ProgramData/Battle.net/Agent").mkdirs()
+        File(pfx, "drive_c/ProgramData/Battle.net/Agent/product.db").writeBytes(message(
+            field(1, message(field(1, "osic"), field(3, message(field(1, "Z:/root/Games/Stores/Battle.net/Diablo II Resurrected"))))),
+            field(1, message(field(1, "s2_cn"), field(3, message(field(1, "Z:/root/Games/Stores/Battle.net/StarCraft II"))))),
+        ))
+        for (folder in listOf("Diablo II Resurrected", "StarCraft II")) {
+            File(LinuxRuntime.rootDir(context), "root/Games/Stores/Battle.net/$folder").mkdirs()
+        }
+        val games = BattleNet.games(context)
+        assertEquals(listOf("osic", "s2_cn"), games.map { it.installUid })
+        assertEquals(listOf("osi", "s2"), games.map { it.uid })
+        assertEquals(listOf("Diablo II: Resurrected" to "OSI", "StarCraft II" to "S2"), games.map { it.name to it.code })
+        assertFalse(BattleNet.notInstalled(BattleNet.title("osi")!!, listOf("osic")))
+        assertFalse(BattleNet.notInstalled(BattleNet.title("s2")!!, games.map { it.installUid }))
+
     }
 
     @Test fun aGamesShortcutHasBattleNetLaunchItInItsPrefix() {
