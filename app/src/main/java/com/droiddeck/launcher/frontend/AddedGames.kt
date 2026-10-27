@@ -420,7 +420,14 @@ object AddedGames {
                 ?.takeIf { SessionPrefs.adoptAddedGameExe(context, folder.path, picked, it.path, rev) }
             val exe = adopted ?: found
             val guestExe = if (adopted != null) guestPath(context, adopted) ?: return else foundGuest
+            val storeExe = sidecar?.exeFile(folder)
+            val launched = adopted ?: chosen ?: storeExe?.takeIf { it.isFile }
+            val storeOwnExe = launched != null && storeExe != null && canonical(launched) == canonical(storeExe)
+            val sidecarDir = sidecar?.workdir?.takeIf { storeOwnExe }?.let { dir ->
+                guestPath(context, if (dir.isEmpty()) folder else File(folder, dir))
+            }
             val guestDir = SessionPrefs.addedGameStartIn(context, folder.path).takeIf { sidecar == null && it.isNotEmpty() }
+                ?: sidecarDir
                 ?: guestPath(context, (if (adopted != null) adopted else launch).parentFile ?: folder) ?: return
             val steamId = config?.let { steamRoute(it, appId) }
             out.add(Game(folder, name, exe, guestExe, guestDir, appId,
