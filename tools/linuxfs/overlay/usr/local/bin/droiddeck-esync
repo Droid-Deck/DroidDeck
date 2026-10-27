@@ -160,11 +160,12 @@ def locked(path, block=True):
         release(path, fd)
 
 
-def update_file(root, name, change):
+def update_file(root, name, change, block=True):
     path = os.path.join(root, name)
-    with locked(os.path.join(root, STORE_LOCK)) as fd:
+    with locked(os.path.join(root, STORE_LOCK), block) as fd:
         old = read_text(path)
         if fd is None:
+            say("droiddeck-esync: %s not written, the store lock is taken elsewhere" % name)
             return old
         new = change(old)
         if new != old:
@@ -296,7 +297,7 @@ class HashCache:
             return format_cache(list(rows.items())[-CACHE_ROWS:])
 
         try:
-            update_file(self.root, "hash-cache.tsv", merge)
+            update_file(self.root, "hash-cache.tsv", merge, False)
         except OSError as error:
             say("droiddeck-esync: hash cache not saved (%s)" % error)
         self.changed.clear()
@@ -707,7 +708,7 @@ def log_launch(root, command, env, tool, pack_id):
             lines.append(line.rstrip("\n"))
             return "\n".join(lines[-LOG_LINES:]) + "\n"
 
-        update_file(root, "launches.log", append)
+        update_file(root, "launches.log", append, False)
     except Exception as error:
         say("droiddeck-esync: launch not logged (%s)" % error)
 
@@ -735,7 +736,7 @@ def merge_wanted(text, fresh, drop):
 def want(root, measured):
     try:
         row = wanted_row(measured)
-        update_file(root, "wanted.tsv", lambda text: merge_wanted(text, {(row[0], row[1]): row}, set()))
+        update_file(root, "wanted.tsv", lambda text: merge_wanted(text, {(row[0], row[1]): row}, set()), False)
     except Exception as error:
         say("droiddeck-esync: wanted.tsv not updated (%s)" % error)
 
@@ -830,7 +831,7 @@ def remember(root, env, tool, chosen):
         return json.dumps(dict(list(rows.items())[-LIVE_ROWS:]), sort_keys=False) + "\n"
 
     try:
-        update_file(root, LIVE_FILE, merge)
+        update_file(root, LIVE_FILE, merge, False)
     except OSError as error:
         say("droiddeck-esync: sync choice not recorded (%s)" % error)
 
