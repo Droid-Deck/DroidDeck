@@ -441,14 +441,19 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
         else showDeveloperDisplayChoice = true
     }
     val openDeveloperOptionsOn: (Int?) -> Unit = { displayId ->
+        if (developerChoiceGuided) a.onStartWirelessAdbPairing()
         if (!developerChoiceGuided || !a.onStartPairingGuide(displayId)) a.onOpenDeveloperOptions(displayId)
         developerChoiceGuided = false
     }
     val startGuidedPairing = {
-        a.onStartWirelessAdbPairing()
-        developerChoiceGuided = true
-        if (s.secondScreenDisplays.isEmpty()) openDeveloperOptionsOn(null)
-        else showDeveloperDisplayChoice = true
+        if (!com.droiddeck.launcher.core.WirelessAdbPairingService.notificationsEnabled(ctx)) {
+            wirelessAdbDesiredEnabled = false
+            showWirelessAdbFix = true
+        } else {
+            developerChoiceGuided = true
+            if (s.secondScreenDisplays.isEmpty()) openDeveloperOptionsOn(null)
+            else showDeveloperDisplayChoice = true
+        }
     }
     var applyingSavedPairing by remember { mutableStateOf(false) }
     val fixPhantomLimit = {

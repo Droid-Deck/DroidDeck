@@ -82,10 +82,21 @@ class PairingGuideActivity : ComponentActivity() {
         launchPending = savedInstanceState == null
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        settingsDisplay = intent.getIntExtra(EXTRA_DISPLAY, -1).takeIf { it >= 0 }
+        launchPending = true
+    }
+
     override fun onResume() {
         super.onResume()
         if (!launchPending) return
-        if (settingsDisplay == null) enterPip()
+        if (inPip || settingsDisplay != null) {
+            launchSettings()
+            return
+        }
+        enterPip()
         if (!inPip) launchSettings()
     }
 
