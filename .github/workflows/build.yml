@@ -32,7 +32,7 @@ on:
         type: string
         default: ''
       wallentx_preview:
-        description: Build wallentx Preview 5 as an in-place fork update
+        description: Build wallentx Preview 6 as an in-place fork update
         type: boolean
         default: false
       rebuild_preloads:
@@ -558,8 +558,8 @@ jobs:
           path = Path('app/build.gradle')
           source = path.read_text()
           for old, new in (
-              (r'(?m)^        versionCode 15$', '        versionCode 18'),
-              (r'(?m)^        versionName "0\.6\.0"$', '        versionName "0.6.0-wallentx.5"'),
+              (r'(?m)^        versionCode 15$', '        versionCode 19'),
+              (r'(?m)^        versionName "0\.6\.0"$', '        versionName "0.6.0-wallentx.6"'),
           ):
               source, count = re.subn(old, new, source)
               if count != 1:

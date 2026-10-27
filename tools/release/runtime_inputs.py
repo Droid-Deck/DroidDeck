@@ -20,9 +20,18 @@ PACKED_FILES = {'lib/arm64-v8a/libproot.so': ('proot', 'libproot.so'),
                 'lib/arm64-v8a/libproot-loader.so': ('proot', 'libproot-loader.so')}
 PACKED_LIBRARIES = ['lib/arm64-v8a/libopencv_java4.so', 'lib/arm64-v8a/libmediapipe_tasks_jni.so']
 PACK_NAMES = ['proot', 'directaudio', 'tracking', 'xbox', 'comet']
+SYSTEM_VULKAN_COMPONENT_CONFIG = Path('tools/powervr/component-bootstrap.json')
+GAMESCOPE = 'assets/linuxfs/usr/local/bin/gamescope'
+# These are production diagnostics from 0120-nested-swapchain-capability-fallback.patch.
+# They are a regression guard for the System Vulkan fork, not source attestation.
+SYSTEM_VULKAN_GAMESCOPE_MARKERS = (
+    b'Using FIFO acquire pacing; presentation timestamps unavailable',
+    b'Surface supports neither direct composition nor transfer presentation',
+    b'Nested swapchain: composing offscreen and copying to FIFO presentation images',
+)
 SOURCE_PATHS = ['app/build.gradle', 'app/src/main/cpp/fakeinput_steam.cpp', 'app/src/main/assets/pulseaudio.tzst',
                 'tools/linuxfs', 'tools/proot', 'tools/aaudio-sink', 'tools/directaudio', 'tools/packs',
-                'tools/gamescope/release.env', 'tools/droiddeck-esync/release.env',
+                'tools/gamescope/release.env', 'tools/powervr/component-bootstrap.json', 'tools/droiddeck-esync/release.env',
                 'tools/mangoapp', 'tools/msitools', 'tools/pipewire', 'tools/comet', 'tools/xbox', 'tools/components', 'tools/ci', 'tools/build_local.sh',
                 'tools/release/runtime_inputs.py', 'app/src/main/assets/desktop-removal',
                 'tools/quest', 'tools/vr/src', 'tools/vr/driver_droiddeck', 'tools/vr/layer', 'tools/vr/build.sh',
@@ -116,6 +125,17 @@ def required():
     return paths
 
 
+def validate_gamescope_system_vulkan_fallbacks(root, gamescope):
+    """Reject a stock Gamescope when this build ships System Vulkan components."""
+    if not (root / SYSTEM_VULKAN_COMPONENT_CONFIG).is_file():
+        return
+    if not gamescope.startswith(b'\x7fELF'):
+        raise ValueError('System Vulkan Gamescope is not an ELF binary')
+    missing = [marker.decode() for marker in SYSTEM_VULKAN_GAMESCOPE_MARKERS if marker not in gamescope]
+    if missing:
+        raise ValueError('Gamescope lacks System Vulkan nested-swapchain fallbacks: ' + '; '.join(missing))
+
+
 def record(root=ROOT):
     if root == ROOT:
         from check_session_assets import source_assets
@@ -127,6 +147,7 @@ def record(root=ROOT):
     missing = [name for name in required() if name not in paths or not (root / paths[name]).is_file()]
     if missing:
         raise ValueError('Missing runtime inputs:\n' + '\n'.join(missing))
+    validate_gamescope_system_vulkan_fallbacks(root, (root / paths[GAMESCOPE]).read_bytes())
     for name, path in paths.items():
         if name.startswith('assets/desktop-removal/') and name.endswith('.gzip'):
             try:
@@ -215,6 +236,8 @@ def check_apk(apk, root=ROOT):
                 content = package.read(name)
             except KeyError:
                 raise ValueError('APK missing ' + name)
+            if name == GAMESCOPE:
+                validate_gamescope_system_vulkan_fallbacks(root, content)
             if hashlib.sha256(content).hexdigest() != output['sha256']:
                 raise ValueError('APK has stale runtime input: ' + name)
 
