@@ -279,7 +279,7 @@ FRAME_LIMIT_JS = r"""
       while (n > 127) { bytes.push((n & 127) | 128); n = Math.floor(n / 128); }
       bytes.push(n);
     }
-    SteamClient.Settings.SetSetting(btoa(String.fromCharCode(...bytes)));
+    return SteamClient.Settings.SetSetting(btoa(String.fromCharCode(...bytes)));
   };
   self.check = async () => {
     let rates;
@@ -294,7 +294,7 @@ FRAME_LIMIT_JS = r"""
     const current = settings.clientSettings;
     if (!current.gamescope_enable_app_target_framerate || rates.includes(current.gamescope_app_target_framerate)) return;
     try {
-      write(Math.max(...rates));
+      await write(Math.max(...rates));
     } catch (e) {
     }
   };

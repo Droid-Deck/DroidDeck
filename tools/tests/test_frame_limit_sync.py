@@ -89,6 +89,14 @@ const change = async next => { rates = next; notify.forEach(callback => callback
   window.__droiddeckFrameLimit.schedule();
   await fire();
   assert.deepStrictEqual(writes, [144, 120, 144, 144], 'a failed write is tried again on the next check');
+  settingsStore.clientSettings.gamescope_app_target_framerate = 72;
+  SteamClient.Settings.SetSetting = () => Promise.reject(new Error('busy'));
+  window.__droiddeckFrameLimit.schedule();
+  await fire();
+  SteamClient.Settings.SetSetting = setSetting;
+  window.__droiddeckFrameLimit.schedule();
+  await fire();
+  assert.deepStrictEqual(writes, [144, 120, 144, 144, 144], 'a rejected write is caught and tried again');
   delete window.__droiddeckFrameLimit;
   webpackChunksteamui.push = ([, , callback]) => callback(webpack({ 1: modules[1], 2: modules[2] }));
   assert.strictEqual(eval(script), 'unavailable');
