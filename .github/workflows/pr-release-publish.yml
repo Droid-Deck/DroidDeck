@@ -1,5 +1,5 @@
 name: PR Release Publish
-run-name: "sign PR #${{ github.event_name == 'pull_request_target' && github.event.pull_request.number || inputs.pr_number }} with the release key"
+run-name: "sign PR #${{ github.event_name == 'pull_request_target' && github.event.pull_request.number || github.event_name == 'workflow_run' && github.event.workflow_run.pull_requests[0].number || inputs.pr_number }} with the release key"
 
 on:
   workflow_dispatch:
@@ -11,6 +11,9 @@ on:
   pull_request_target:
     types: [opened, synchronize, reopened, ready_for_review, labeled]
     branches: [main]
+  workflow_run:
+    workflows: [Build APK]
+    types: [completed]
 
 permissions:
   actions: read
@@ -19,7 +22,7 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: pr-release-${{ github.event_name == 'pull_request_target' && github.event.pull_request.number || inputs.pr_number }}
+  group: pr-release-${{ github.event_name == 'pull_request_target' && github.event.pull_request.number || github.event_name == 'workflow_run' && github.event.workflow_run.pull_requests[0].number || inputs.pr_number }}
   cancel-in-progress: false
   queue: max
 
@@ -28,7 +31,11 @@ jobs:
     if: >-
       (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
       (github.event_name == 'pull_request_target' &&
-       (github.event.action != 'labeled' || github.event.label.name == 'publish-test'))
+       (github.event.action != 'labeled' || github.event.label.name == 'publish-test')) ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.event == 'pull_request' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_repository.full_name == github.repository &&
+       github.event.workflow_run.pull_requests[0] != null)
     runs-on: ubuntu-24.04
     timeout-minutes: 150
     outputs:
@@ -54,9 +61,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           EVENT_NAME: ${{ github.event_name }}
           REQUESTER: ${{ github.actor }}
-          PR_NUMBER: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.number || inputs.pr_number }}
+          PR_NUMBER: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.number || github.event_name == 'workflow_run' && github.event.workflow_run.pull_requests[0].number || inputs.pr_number }}
           ACTION: ${{ github.event.action }}
           EVENT_HEAD: ${{ github.event.pull_request.head.sha }}
+          BUILT_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           set -euo pipefail
           [[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]] || { echo "::error::Invalid PR number '$PR_NUMBER'"; exit 1; }
@@ -71,7 +79,13 @@ jobs:
           pr=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")
           jq -e '.state == "open" and .draft == false and .base.ref == "main"' <<<"$pr" >/dev/null ||
             skip "it must be open, ready for review, and target main"
-          if [ "$EVENT_NAME" = pull_request_target ] && [ "$ACTION" != labeled ]; then
+          if [ "$EVENT_NAME" = workflow_run ]; then
+            [ "$(jq -r .head.repo.full_name <<<"$pr")" = "$GITHUB_REPOSITORY" ] || skip "it comes from a fork"
+            [ "$(jq -r .head.sha <<<"$pr")" = "$BUILT_SHA" ] || skip "a newer push is building"
+            jq -e 'any(.labels[]; .name == "no-test-build")' <<<"$pr" >/dev/null && skip "it is labelled no-test-build"
+            echo "automatic=true" >> "$GITHUB_OUTPUT"
+          elif [ "$EVENT_NAME" = pull_request_target ] && [ "$ACTION" != labeled ]; then
+            [ "$(jq -r .head.repo.full_name <<<"$pr")" != "$GITHUB_REPOSITORY" ] || skip "same-repository builds are handled after build completion"
             [ "$(jq -r .head.sha <<<"$pr")" = "$EVENT_HEAD" ] || skip "a newer push is building"
             jq -e 'any(.labels[]; .name == "no-test-build")' <<<"$pr" >/dev/null && skip "it is labelled no-test-build"
             git fetch --no-tags origin main
@@ -131,10 +145,12 @@ jobs:
             .head.sha == $head and .base.sha == $base
           ' <<<"$current" >/dev/null ||
             { echo "::error::PR #$PR_NUMBER moved on while its build was checked; publish again"; exit 1; }
-          if [ "$EVENT_NAME" = pull_request_target ] && [ "$ACTION" != labeled ]; then
+          if [ "$EVENT_NAME" = workflow_run ] || { [ "$EVENT_NAME" = pull_request_target ] && [ "$ACTION" != labeled ]; }; then
             jq -e 'any(.labels[]; .name == "no-test-build")' <<<"$current" >/dev/null && skip "it is labelled no-test-build"
-            git fetch --no-tags origin main
-            git show origin/main:.github/trusted-test-builds.txt | grep -Fixq -- "$(jq -r .user.login <<<"$current")" || skip "the PR opener is no longer trusted"
+            if [ "$EVENT_NAME" = pull_request_target ]; then
+              git fetch --no-tags origin main
+              git show origin/main:.github/trusted-test-builds.txt | grep -Fixq -- "$(jq -r .user.login <<<"$current")" || skip "the PR opener is no longer trusted"
+            fi
           fi
           {
             echo "pr_number=$PR_NUMBER"
@@ -276,9 +292,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ needs.authorize.outputs.pr_number }}
         run: |
-          opener=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq .user.login)
+          pr=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")
+          opener=$(jq -r .user.login <<<"$pr")
           git fetch --no-tags origin main
-          if git show origin/main:.github/trusted-test-builds.txt | grep -Fixq -- "$opener"; then
+          if [ "$(jq -r .head.repo.full_name <<<"$pr")" = "$GITHUB_REPOSITORY" ] ||
+             git show origin/main:.github/trusted-test-builds.txt | grep -Fixq -- "$opener"; then
             echo "trusted=true" >> "$GITHUB_OUTPUT"
           else
             echo "trusted=false" >> "$GITHUB_OUTPUT"
