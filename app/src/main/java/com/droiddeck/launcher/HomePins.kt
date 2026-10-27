@@ -62,9 +62,11 @@ object HomePins {
     fun unpin(context: Context, pinned: Pinned) {
         val info = pinned.info
         val launcher = context.getSystemService(LauncherApps::class.java)
-        val keep = this.pinned.filter { it.info.`package` == info.`package` && it.info.userHandle == info.userHandle && it.info.id != info.id }
-            .map { it.info.id }
-        runCatching { launcher.pinShortcuts(info.`package`, keep, info.userHandle) }
-        this.pinned = this.pinned.filterNot { it.key == pinned.key }
+        val query = LauncherApps.ShortcutQuery().setPackage(info.`package`).setQueryFlags(LauncherApps.ShortcutQuery.FLAG_MATCH_PINNED)
+        val unpinned = runCatching {
+            val keep = launcher.getShortcuts(query, info.userHandle).orEmpty().map { it.id } - info.id
+            launcher.pinShortcuts(info.`package`, keep, info.userHandle)
+        }.isSuccess
+        if (unpinned) this.pinned = this.pinned.filterNot { it.key == pinned.key }
     }
 }

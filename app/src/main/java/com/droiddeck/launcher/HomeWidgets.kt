@@ -193,10 +193,13 @@ object HomeWidgets {
         return w.roundToInt().coerceAtLeast(MIN_WIDTH_DP) to h.roundToInt().coerceAtLeast(MIN_HEIGHT_DP)
     }
 
-    fun add(activity: Activity, provider: Provider) = add(activity, provider.info, null)
+    fun add(activity: Activity, provider: Provider) {
+        if (pendingId == AppWidgetManager.INVALID_APPWIDGET_ID) add(activity, provider.info, null)
+    }
 
     /** Places a widget another app asked for; its own app has already configured it. */
     fun addPinned(activity: Activity, request: LauncherApps.PinItemRequest): Boolean {
+        if (pendingId != AppWidgetManager.INVALID_APPWIDGET_ID) return false
         val info = request.getAppWidgetProviderInfo(activity) ?: return false
         load(activity)
         add(activity, info, request)

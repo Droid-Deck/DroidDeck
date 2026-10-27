@@ -3159,6 +3159,7 @@
     <string name="apps_sort_updated">Atualizados recentemente</string>
     <plurals name="apps_count">
         <item quantity="one">%d app</item>
+        <item quantity="many">%d apps</item>
         <item quantity="other">%d apps</item>
     </plurals>
 </resources>
