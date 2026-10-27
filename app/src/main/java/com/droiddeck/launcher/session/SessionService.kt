@@ -1558,6 +1558,9 @@ class SessionService : Service() {
             SessionPrefs.SUSPEND_MANUAL -> manualPauseRequested && prepared && !downloadsBlockingSuspend
             else -> false
         }
+        // A frozen game never sends the stop for a held rumble, so the keepalive would run on.
+        val quietRumble = !screenOn || shouldSuspend || SessionState.suspended
+        components.forEach { (it as? RumbleComponent)?.quiet(quietRumble) }
         if (freezePending && !shouldSuspend && !freezeCancelled) {
             freezeCancelled = true
             controller.cancelFreeze()
