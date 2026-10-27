@@ -12,8 +12,11 @@ import android.provider.Settings
 import androidx.core.graphics.drawable.toBitmap
 import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionState
+import kotlin.math.roundToInt
 
 object HomeApp {
+    private const val ICON_DP = 72
+
     data class LaunchableApp(
         val label: String,
         val packageName: String,
@@ -71,13 +74,14 @@ object HomeApp {
     fun launchableApps(context: Context): List<LaunchableApp> {
         val pm = context.packageManager
         val launch = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+        val iconPx = (ICON_DP * context.resources.displayMetrics.density).roundToInt()
         val apps = pm.queryIntentActivities(launch, 0)
             .asSequence()
             .mapNotNull { result ->
                 val activity = result.activityInfo ?: return@mapNotNull null
                 if (!activity.exported || activity.packageName == context.packageName) return@mapNotNull null
                 val label = result.loadLabel(pm)?.toString()?.trim().orEmpty().ifEmpty { activity.packageName }
-                val icon = runCatching { result.loadIcon(pm).toBitmap(48, 48) }.getOrNull()
+                val icon = runCatching { result.loadIcon(pm).toBitmap(iconPx, iconPx) }.getOrNull()
                 LaunchableApp(label, activity.packageName, activity.name, icon)
             }
             .distinctBy { it.packageName }

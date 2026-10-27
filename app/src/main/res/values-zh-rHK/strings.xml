@@ -1923,7 +1923,6 @@
     <string name="display_filter_live">即時生效。Steam 和桌面共用。</string>
     <string name="display_filter_note">FSR、GSR 和 NIS 會在放大會話畫面時套用。「只銳化」不放大也能使用。</string>
     <string name="display_sharpness">濾鏡銳利度</string>
-    <string name="display_frame_rate">幀率</string>
     <string name="display_look_filter">%1$s 將縮放設為 %2$s。</string>
     <string name="display_match_screen">配合螢幕（%1$d×%2$d）</string>
     <string name="display_follow_screen">跟隨螢幕（摺疊或展開時調整大小）</string>
@@ -3061,6 +3060,7 @@
     <string name="library_remove">從收藏庫移除</string>
     <string name="library_in">已在收藏庫</string>
     <string name="xbox_filter_show">顯示</string>
+    <string name="itch_collections">收藏集</string>
     <string name="xbox_filter_cloud">雲端</string>
     <string name="stores_xbox_cloud_settings">雲端設定</string>
 </resources>

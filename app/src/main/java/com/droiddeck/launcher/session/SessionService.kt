@@ -480,6 +480,9 @@ class SessionService : Service() {
         val size = SessionState.outputSize
         val guest = ArrayList<String>()
         val steamHere = SessionState.mode == MODE_STEAM || SessionState.mode == MODE_DESKTOP
+        runCatching { ComponentsManager.republish(this) }
+            .onSuccess { if (it) Log.i(TAG, "component selections published for the installed Proton builds") }
+            .onFailure { Log.w(TAG, "component selections", it) }
         if (steamHere) {
             runCatching { ComponentsManager.ensureForcedPackages(this) }
                 .onSuccess { if (it != null) Log.i(TAG, it) }
@@ -507,16 +510,13 @@ class SessionService : Service() {
             guest.add("DXVK_HDR=1")
             Log.i(TAG, "hdr: gamescope --hdr-enabled, DXVK_HDR=1")
         }
-        // gamescope's WSI layer and winex11 reuse their per-present window checks for this long; 0 checks on every present.
-        val windowCheckMs = if (SessionState.performanceMode) 100 else 0
-        guest.add("DROIDDECK_WSI_BYPASS_CHECK_MS=$windowCheckMs")
-        guest.add("WINE_OFFSCREEN_CHECK_MS=$windowCheckMs")
-        if (SessionState.performanceMode) {
-            // gamescope turns buffers around slower than an unpaced game draws; more images keep it drawing.
-            guest.add("GAMESCOPE_WSI_MIN_IMAGE_COUNT=8")
-            guest.add("GAMESCOPE_WSI_ENSURE_MIN_IMAGE_COUNT=1")
-        }
-        Log.i(TAG, "performance mode " + (if (SessionState.performanceMode) "on" else "off"))
+        // gamescope's WSI layer and winex11 reuse their per-present window checks for this long.
+        guest.add("DROIDDECK_WSI_BYPASS_CHECK_MS=100")
+        guest.add("WINE_OFFSCREEN_CHECK_MS=100")
+        // gamescope turns buffers around slower than an uncapped game draws; more images keep it drawing.
+        // The WSI layer goes back to its default count while Steam's Frame Limit holds the game.
+        guest.add("GAMESCOPE_WSI_MIN_IMAGE_COUNT=8")
+        guest.add("GAMESCOPE_WSI_ENSURE_MIN_IMAGE_COUNT=1")
         guest.add("BL_REFRESH=" + Math.round(SessionState.refreshHz))
         guest.add("BL_LOG=" + sessionLog.path)
         guest.add("BL_DEBUG_DIR=" + sessionDir.path)

@@ -1922,7 +1922,6 @@
     <string name="display_filter_live">すぐに反映されます。Steamとデスクトップで共有されます。</string>
     <string name="display_filter_note">FSR、GSR、NISはセッションの映像を拡大するときに機能します。「シャープのみ」は拡大しなくても機能します。</string>
     <string name="display_sharpness">フィルターのシャープネス</string>
-    <string name="display_frame_rate">フレームレート</string>
     <string name="display_look_filter">%1$s スケーリングを%2$sに設定します。</string>
     <string name="display_match_screen">画面に合わせる（%1$d×%2$d）</string>
     <string name="display_follow_screen">画面に追従（開閉時にサイズを変更）</string>
@@ -3060,6 +3059,7 @@
     <string name="library_remove">ライブラリから削除</string>
     <string name="library_in">ライブラリにあります</string>
     <string name="xbox_filter_show">表示</string>
+    <string name="itch_collections">コレクション</string>
     <string name="xbox_filter_cloud">クラウド</string>
     <string name="stores_xbox_cloud_settings">クラウド設定</string>
 </resources>

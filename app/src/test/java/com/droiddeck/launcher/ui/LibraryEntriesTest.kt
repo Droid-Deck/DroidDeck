@@ -94,4 +94,23 @@ class LibraryEntriesTest {
         GameRef.parse("xbox:9NBLGGH4R315").let { assertEquals(Store.XBOX, it.store); assertEquals("9NBLGGH4R315", it.storeId) }
         GameRef.parse("app:nope:1").let { assertNull(it.store); assertNull(it.appId) }
     }
+
+    @Test fun aCollectionKeepsItsInstalledGamesAndListsTheRestAsNotInstalled() {
+        val games = listOf(
+            Library.SteamGame(440, "Team Fortress 2", null, "Steam library"),
+            Library.SteamGame(-5, "Celeste", null, Library.ADDED, source = "itch", storeId = "a/celeste"),
+            Library.SteamGame(-6, "Other", null, Library.ADDED, source = "itch", storeId = "a/other"),
+        )
+        val library = mapOf(Store.ITCH to listOf(owned(Store.ITCH, "a/celeste"), owned(Store.ITCH, "a/other"), owned(Store.ITCH, "b/owned")))
+        val all = libraryEntries(games, library, setOf("itch:a/celeste", "itch:a/other"))
+        val collection = listOf(owned(Store.ITCH, "a/celeste"), owned(Store.ITCH, "b/owned"), owned(Store.ITCH, "c/new"))
+        val out = collectionEntries(all, collection)
+        assertEquals(listOf("app:-5", "app:itch:b/owned", "app:itch:c/new"), out.map { it.key })
+        assertEquals(listOf(true, false, false), out.map { it.installed })
+    }
+
+    @Test fun anEmptyCollectionHidesEveryGame() {
+        val all = libraryEntries(listOf(Library.SteamGame(440, "Team Fortress 2", null, "Steam library")), emptyMap(), emptySet())
+        assertEquals(emptyList<String>(), collectionEntries(all, emptyList()).map { it.key })
+    }
 }

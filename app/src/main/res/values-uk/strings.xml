@@ -1983,7 +1983,6 @@
     <string name="display_filter_live">Застосовується відразу. Спільний для Steam і Робочого столу.</string>
     <string name="display_filter_note">FSR, GSR і NIS застосовуються під час збільшення зображення сеансу. «Лише різкість» працює і без збільшення.</string>
     <string name="display_sharpness">Різкість фільтра</string>
-    <string name="display_frame_rate">Частота кадрів</string>
     <string name="display_look_filter">%1$s Встановлює масштабування на %2$s.</string>
     <string name="display_match_screen">Під екран (%1$d×%2$d)</string>
     <string name="display_follow_screen">Слідувати за екраном (змінює розмір при згортанні чи розгортанні)</string>
@@ -3151,6 +3150,7 @@
     <string name="library_remove">Прибрати з бібліотеки</string>
     <string name="library_in">У бібліотеці</string>
     <string name="xbox_filter_show">Показати</string>
+    <string name="itch_collections">Колекції</string>
     <string name="xbox_filter_cloud">Хмара</string>
     <string name="stores_xbox_cloud_settings">Налаштування хмари</string>
 </resources>

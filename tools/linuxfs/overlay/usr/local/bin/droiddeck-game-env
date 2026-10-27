@@ -108,6 +108,15 @@ def godot_sentry(game):
 
 
 @fix
+def d3dgear_hook(game):
+    """D3DGear's capture DLL left beside a game (The Crew 2) is loaded by it and hooks the DXGI swapchain;
+    under Wine the hook faults over a thousand times within seconds and the game never presents again:
+    black screen while the sound keeps playing."""
+    if "d3dgear64.dll" in game.files:
+        return {"WINEDLLOVERRIDES": "d3dgear64=d"}, [], "D3DGear capture hook off (it stops the game drawing)"
+
+
+@fix
 def deep_rock_gdk_raytracing(game):
     if game.stem == "fsd-wingdk-shipping" and not any(game.has_arg(arg) for arg in ("-raytracing", "-noraytracing")):
         return {}, ["-noraytracing", "-ini:Engine:[/Script/Engine.RendererSettings]:r.RayTracing=False"], "Deep Rock Galactic GDK: ray tracing off (D3D12 pipeline creation fails on Thor)"
@@ -140,6 +149,12 @@ def robocop_rogue_city_feature_level(game):
     pipelines with no pipeline layout that crash Turnip on launch."""
     if "robocop.exe" in game.files or game.stem == "robocop-win64-shipping":
         return {"VKD3D_FEATURE_LEVEL": "12_1"}, [], "RoboCop: Rogue City: D3D12 feature level 12_1"
+
+
+@fix
+def reskate_feature_level(game):
+    if "skate.exe" in game.files and "reskate.dll" in game.files:
+        return {"VKD3D_FEATURE_LEVEL": "12_1"}, [], "ReSkate (skate.): D3D12 feature level 12_1"
 
 
 @fix
@@ -254,7 +269,10 @@ def engine_fixes(exe, args):
     for check in FIXES:
         found = check(game)
         if found:
-            env.update(found[0])
+            for name, value in found[0].items():
+                if name == "WINEDLLOVERRIDES" and env.get(name):
+                    value = env[name] + ";" + value
+                env[name] = value
             extra += found[1]
             notes.append(found[2])
     return env, extra, notes
@@ -337,6 +355,26 @@ def game_cores(env):
         print("droiddeck-game-env: game cores %s" % ",".join(map(str, sorted(chosen))), file=sys.stderr)
     except OSError as error:
         print("droiddeck-game-env: could not use game cores %r (%s)" % (text, error), file=sys.stderr)
+
+
+def cpu_topology(env):
+    if "PROTON_CPU_TOPOLOGY" in env:
+        return
+    if "WINE_CPU_TOPOLOGY" in env:
+        if env["WINE_CPU_TOPOLOGY"]:
+            env["PROTON_CPU_TOPOLOGY"] = env["WINE_CPU_TOPOLOGY"]
+        return
+    if not (env.get("DROIDDECK_GAME_CORES", "").strip() or env.get("BL_GAME_CPUS", "").strip()):
+        return
+    try:
+        cores = sorted(os.sched_getaffinity(0))
+    except OSError:
+        return
+    online = online_cores()
+    if not cores or set(cores) >= online or cores[-1] >= len(online):
+        return
+    env["WINE_CPU_TOPOLOGY"] = env["PROTON_CPU_TOPOLOGY"] = "%d:%s" % (len(cores), ",".join(map(str, cores)))
+    print("droiddeck-game-env: Windows sees %d cores (%s)" % (len(cores), env["WINE_CPU_TOPOLOGY"]), file=sys.stderr)
 
 
 def apply_config(env, config, app_id, fixes=None):
@@ -615,6 +653,7 @@ def main():
     env = vram_cap(env)
     env = force_ssbs(command, env)
     game_cores(env)
+    cpu_topology(env)
     try:
         xbox = runpy.run_path(str(Path(__file__).with_name("droiddeck-xbox")))
     except Exception as error:

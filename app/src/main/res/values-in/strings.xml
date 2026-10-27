@@ -1920,7 +1920,6 @@
     <string name="display_filter_live">Berlaku langsung. Digunakan bersama oleh Steam dan Desktop.</string>
     <string name="display_filter_note">FSR, GSR, dan NIS berlaku saat memperbesar gambar sesi. Hanya penajaman juga berfungsi tanpa pembesaran.</string>
     <string name="display_sharpness">Ketajaman filter</string>
-    <string name="display_frame_rate">Frame rate</string>
     <string name="display_look_filter">%1$s Mengatur skala ke %2$s.</string>
     <string name="display_match_screen">Sesuaikan layar (%1$d×%2$d)</string>
     <string name="display_follow_screen">Ikuti layar (ukuran berubah saat dilipat atau dibuka)</string>
@@ -3073,6 +3072,7 @@
     <string name="library_remove">Hapus dari Pustaka</string>
     <string name="library_in">Di Pustaka</string>
     <string name="xbox_filter_show">Tampilkan</string>
+    <string name="itch_collections">Koleksi</string>
     <string name="xbox_filter_cloud">Cloud</string>
     <string name="stores_xbox_cloud_settings">Pengaturan cloud</string>
 </resources>

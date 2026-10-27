@@ -1165,7 +1165,8 @@ static constexpr uint32_t DECK_EXTRA_L4 = 1, DECK_EXTRA_R4 = 2, DECK_EXTRA_L5 = 
                           DECK_EXTRA_R5 = 8, DECK_EXTRA_LPAD_TOUCH = 16,
                           DECK_EXTRA_RPAD_TOUCH = 32, DECK_EXTRA_LPAD_CLICK = 64,
                           DECK_EXTRA_RPAD_CLICK = 128, DECK_EXTRA_MUTE = 256,
-                          DECK_EXTRA_FULL_TOUCHPAD = 512;
+                          DECK_EXTRA_FULL_TOUCHPAD = 512, DECK_EXTRA_HEADPHONES = 1024,
+                          DECK_EXTRA_BATTERY_VALID = 2048;
 
 struct DeckExtras {
   int16_t accel[3] = {};
@@ -1386,6 +1387,11 @@ __attribute__((visibility("hidden"))) static bool is_deck_hidraw_path(const char
 static constexpr const char *DS4_HIDRAW_PATH = "/dev/hidraw20";
 static constexpr const char *DUALSENSE_HIDRAW_PATH = "/dev/hidraw21";
 static constexpr unsigned int DS4_HIDRAW_MINOR = 20, DUALSENSE_HIDRAW_MINOR = 21;
+
+__attribute__((visibility("hidden"))) static bool sony_pad_active() {
+  uint32_t type = live_pad_type();
+  return type == PAD_TYPE_DUALSENSE || type == PAD_TYPE_DS4;
+}
 
 __attribute__((visibility("hidden"))) static int sony_pad_path(const char *pathname) {
   if (!pathname || !fake_deck_enabled() || strncmp(pathname, "/dev/hidraw2", 12)) return 0;
@@ -1613,8 +1619,11 @@ build_sony_report(uint8_t *report, uint8_t model, uint32_t packet, uint64_t elap
     put_sony_touch(p + 32, touch, 0, left, extras.pads[0], extras.pads[1], SONY_TOUCH_HEIGHT_DUALSENSE, full_touchpad);
     put_sony_touch(p + 36, touch, 1, right, extras.pads[2], extras.pads[3], SONY_TOUCH_HEIGHT_DUALSENSE, full_touchpad);
     p[40] = static_cast<uint8_t>(packet);
-    p[52] = 0x2a;
-    p[53] = static_cast<uint8_t>(0x18 | ((extras.controls & DECK_EXTRA_MUTE) ? 0x04 : 0));
+    p[52] = (extras.controls & DECK_EXTRA_BATTERY_VALID)
+                ? static_cast<uint8_t>((extras.controls >> 16) & 0xff)
+                : 0x2a;
+    p[53] = static_cast<uint8_t>(0x18 | ((extras.controls & DECK_EXTRA_MUTE) ? 0x04 : 0) |
+                                 ((extras.controls & DECK_EXTRA_HEADPHONES) ? 0x01 : 0));
   }
 }
 
@@ -1651,7 +1660,7 @@ __attribute__((visibility("hidden"))) static void *sony_report_thread(void *arg)
 __attribute__((visibility("hidden"))) static int open_deck_hidraw(int flags, uint8_t sony = 0) {
   const char *path = sony == 4 ? DS4_HIDRAW_PATH : sony == 5 ? DUALSENSE_HIDRAW_PATH : DECK_HIDRAW_PATH;
   static auto my_open = reinterpret_cast<int (*)(const char *, int, ...)>(dlsym(RTLD_NEXT, "open"));
-  if (!process_is_steam_client()) {
+  if (!sony && !process_is_steam_client()) {
     Logger::log("deck: %s refused: not the Steam client\n", path);
     errno = ENOENT;
     return -1;
@@ -2922,7 +2931,7 @@ __attribute__((visibility("hidden"))) static int ioctl_triton(DeckHidraw &triton
 __attribute__((visibility("hidden"))) static std::string note_sys_failure(int dirfd, const char *pathname) {
   int saved_errno = errno;
   std::string path;
-  if (saved_errno == ENOENT || !pathname || !process_is_steam_client()) {
+  if (saved_errno == ENOENT || !pathname || (!process_is_steam_client() && !sony_pad_active())) {
     errno = saved_errno;
     return path;
   }
@@ -2961,7 +2970,9 @@ __attribute__((visibility("hidden"))) static std::string note_sys_failure(int di
 
 __attribute__((visibility("hidden"))) static std::string deck_listing_for(const char *path) {
   const char *listing = deck_listing_dir();
-  if (!path || !listing || errno != EACCES || !fake_deck_enabled() || !process_is_steam_client()) return {};
+  if (!path || !listing || errno != EACCES || !fake_deck_enabled() ||
+      (!process_is_steam_client() && !sony_pad_active()))
+    return {};
   std::string p(path);
   while (p.size() > 1 && p.back() == '/') p.pop_back();
   int which = p == "/sys" ? 0 : p == "/sys/class" ? 1 : p == "/sys/bus" ? 2 : -1;
@@ -3214,8 +3225,10 @@ EXPORT int openat(int dirfd, const char *pathname, int flags, ...) {
 template <typename S, typename Real>
 static int fake_stat_path(const char *pathname, S *statbuf, Real real) {
   if (is_withdrawn_pad_path(pathname) ||
-      ((is_deck_hidraw_path(pathname) || is_triton_hidraw_path(pathname) || is_triton_pad_path(pathname) ||
-        sony_pad_path(pathname)) && !process_is_steam_client())) {
+      (pathname && (!strcmp(pathname, DS4_HIDRAW_PATH) || !strcmp(pathname, DUALSENSE_HIDRAW_PATH)) &&
+       !sony_pad_path(pathname)) ||
+      ((is_deck_hidraw_path(pathname) || is_triton_hidraw_path(pathname) || is_triton_pad_path(pathname)) &&
+       !process_is_steam_client())) {
     errno = ENOENT;
     return -1;
   }
@@ -3341,12 +3354,14 @@ EXPORT int access(const char *pathname, int mode) {
   static auto my_access = reinterpret_cast<decltype(&::access)>(dlsym(RTLD_NEXT, "access"));
   if (fake_uinput_enabled() && is_uinput_path(pathname)) return 0;
   if (is_deck_hidraw_path(pathname) && process_is_steam_client()) return 0;
-  if ((is_triton_hidraw_path(pathname) || is_triton_pad_path(pathname) || sony_pad_path(pathname)) &&
+  if (sony_pad_path(pathname)) return 0;
+  if ((is_triton_hidraw_path(pathname) || is_triton_pad_path(pathname)) &&
       process_is_steam_client())
     return 0;
   if (is_touch_hidraw_path(pathname)) return 0;
   if (is_withdrawn_pad_path(pathname) || is_deck_hidraw_path(pathname) || is_triton_hidraw_path(pathname) ||
-      is_triton_pad_path(pathname) || sony_pad_path(pathname)) {
+      is_triton_pad_path(pathname) ||
+      (pathname && (!strcmp(pathname, DS4_HIDRAW_PATH) || !strcmp(pathname, DUALSENSE_HIDRAW_PATH)))) {
     errno = ENOENT;
     return -1;
   }
@@ -3382,12 +3397,14 @@ EXPORT int faccessat(int dirfd, const char *pathname, int mode, int flags) {
   static auto my_faccessat = reinterpret_cast<decltype(&::faccessat)>(dlsym(RTLD_NEXT, "faccessat"));
   if (fake_uinput_enabled() && is_uinput_path(pathname)) return 0;
   if (is_deck_hidraw_path(pathname) && process_is_steam_client()) return 0;
-  if ((is_triton_hidraw_path(pathname) || is_triton_pad_path(pathname) || sony_pad_path(pathname)) &&
+  if (sony_pad_path(pathname)) return 0;
+  if ((is_triton_hidraw_path(pathname) || is_triton_pad_path(pathname)) &&
       process_is_steam_client())
     return 0;
   if (is_touch_hidraw_path(pathname)) return 0;
   if (is_withdrawn_pad_path(pathname) || is_deck_hidraw_path(pathname) || is_triton_hidraw_path(pathname) ||
-      is_triton_pad_path(pathname) || sony_pad_path(pathname)) {
+      is_triton_pad_path(pathname) ||
+      (pathname && (!strcmp(pathname, DS4_HIDRAW_PATH) || !strcmp(pathname, DUALSENSE_HIDRAW_PATH)))) {
     errno = ENOENT;
     return -1;
   }

@@ -1941,7 +1941,6 @@
     <string name="display_filter_live">Gjelder live. Delt av Steam og Skrivebord.</string>
     <string name="display_filter_note">FSR, GSR og NIS gjelder ved forstørring av sesjonsbildet. Bare skarphet fungerer også uten forstørring.</string>
     <string name="display_sharpness">Filterskarphet</string>
-    <string name="display_frame_rate">Bildefrekvens</string>
     <string name="display_look_filter">%1$s Setter skalering til %2$s.</string>
     <string name="display_match_screen">Tilpass skjerm (%1$d×%2$d)</string>
     <string name="display_follow_screen">Følg skjermen (endrer størrelse ved sammenslåing eller utbretting)</string>
@@ -3083,6 +3082,7 @@
     <string name="library_remove">Fjern fra Bibliotek</string>
     <string name="library_in">I Bibliotek</string>
     <string name="xbox_filter_show">Vis</string>
+    <string name="itch_collections">Samlinger</string>
     <string name="xbox_filter_cloud">Sky</string>
     <string name="stores_xbox_cloud_settings">Skyinnstillinger</string>
 </resources>

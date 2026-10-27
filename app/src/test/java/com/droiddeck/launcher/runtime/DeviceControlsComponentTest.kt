@@ -66,14 +66,16 @@ class DeviceControlsComponentTest {
         assertEquals(3, audio.getStreamVolume(AudioManager.STREAM_MUSIC))
     }
 
-    @Test fun deniedBrightnessIsReadBackAndAppliedOnlyAfterPermission() {
+    @Test fun deniedBrightnessDoesNotOpenSettingsOrReplayAnOldSliderValueAfterPermission() {
         WriteSettingsShadow.writable = false
         request("brightness", "0.75")
         assertEquals(128, Settings.System.getInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS))
-        assertEquals(Settings.ACTION_MANAGE_WRITE_SETTINGS, shadowOf(context).nextStartedActivity.action)
+        assertNull(shadowOf(context).nextStartedActivity)
         assertFalse(JSONObject(File(directory, "state.json").readText()).getBoolean("brightnessWritable"))
         WriteSettingsShadow.writable = true
         tick()
+        assertEquals(128, Settings.System.getInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS))
+        request("brightness", "0.75")
         assertEquals(192, Settings.System.getInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS))
     }
 
@@ -87,7 +89,7 @@ class DeviceControlsComponentTest {
         assertEquals(1.0, JSONObject(File(directory, "state.json").readText()).getDouble("brightness"), 0.0001)
     }
 
-    @Test fun hiddenPermissionRequestOffersANotificationAndRetainsTheLatestValue() {
+    @Test fun permissionNotificationOpensOptionalLauncherSetupOnlyWhenSelected() {
         visible = false
         WriteSettingsShadow.writable = false
         request("brightness", "0.25")
@@ -96,11 +98,13 @@ class DeviceControlsComponentTest {
         val notifications = context.getSystemService(NotificationManager::class.java)
         val notification = notifications.activeNotifications.single().notification
         notification.contentIntent.send()
-        assertEquals(Settings.ACTION_MANAGE_WRITE_SETTINGS, shadowOf(context).nextStartedActivity.action)
+        val intent = shadowOf(context).nextStartedActivity
+        assertEquals(com.droiddeck.launcher.core.SteamIntegration.ACTION_SETUP, intent.action)
+        assertEquals("BRIGHTNESS", intent.getStringExtra(com.droiddeck.launcher.core.SteamIntegration.EXTRA_FEATURE))
         shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(121))
         WriteSettingsShadow.writable = true
         tick()
-        assertEquals(192, Settings.System.getInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS))
+        assertEquals(128, Settings.System.getInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS))
         assertTrue(notifications.activeNotifications.isEmpty())
     }
 
@@ -123,15 +127,15 @@ class DeviceControlsComponentTest {
         assertEquals(128, Settings.System.getInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS))
     }
 
-    @Test fun rejectedPermissionCanBeRequestedAgainWithoutOpeningRepeatedScreens() {
+    @Test fun repeatedSliderChangesDoNotInterruptTheSession() {
         WriteSettingsShadow.writable = false
         request("brightness", "0.75")
-        assertNotNull(shadowOf(context).nextStartedActivity)
+        assertNull(shadowOf(context).nextStartedActivity)
         request("brightness", "0.8")
         assertNull(shadowOf(context).nextStartedActivity)
         shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(5))
         request("brightness", "0.8")
-        assertNotNull(shadowOf(context).nextStartedActivity)
+        assertNull(shadowOf(context).nextStartedActivity)
     }
 
     @Test fun oversizedRequestsAreDiscardedAndDoNotBlockLaterCommands() {

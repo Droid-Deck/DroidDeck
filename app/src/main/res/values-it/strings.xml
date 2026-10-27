@@ -1954,7 +1954,6 @@
     <string name="display_filter_live">Si applica subito. Condiviso da Steam e Desktop.</string>
     <string name="display_filter_note">FSR, GSR e NIS si applicano quando l\'immagine della sessione viene ingrandita. Solo nitidezza funziona anche senza ingrandimento.</string>
     <string name="display_sharpness">Nitidezza del filtro</string>
-    <string name="display_frame_rate">Frequenza fotogrammi</string>
     <string name="display_look_filter">%1$s Imposta il ridimensionamento su %2$s.</string>
     <string name="display_match_screen">Adatta allo schermo (%1$d×%2$d)</string>
     <string name="display_follow_screen">Segui lo schermo (si ridimensiona quando lo pieghi o lo apri)</string>
@@ -3117,6 +3116,7 @@
     <string name="library_remove">Rimuovi dalla Libreria</string>
     <string name="library_in">Nella Libreria</string>
     <string name="xbox_filter_show">Mostra</string>
+    <string name="itch_collections">Raccolte</string>
     <string name="xbox_filter_cloud">Cloud</string>
     <string name="stores_xbox_cloud_settings">Impostazioni cloud</string>
 </resources>

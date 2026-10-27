@@ -10,10 +10,12 @@ object DualSense {
 
     const val REPORT_ID_INPUT: Byte = 0x01
     const val REPORT_ID_OUTPUT: Byte = 0x02
+    const val REPORT_ID_CALIBRATION: Byte = 0x05
     const val REPORT_ID_BT_INPUT: Byte = 0x31
     const val REPORT_ID_BT_OUTPUT: Byte = 0x31
     const val REPORT_SIZE_INPUT = 64
     const val REPORT_SIZE_OUTPUT = 48
+    const val REPORT_SIZE_CALIBRATION = 41
     const val STATUS1_HEADPHONE_DETECT = 0x01
 
     /**
@@ -112,8 +114,90 @@ object DualSense {
         val isEdgeTuningActive: Boolean = false,
         val batteryPercent: Int = 100,
         val isCharging: Boolean = false,
-        val headphonesPlugged: Boolean = false
+        val headphonesPlugged: Boolean = false,
+        val batteryStatusByte: Int = 0x2a
     )
+
+    data class Calibration(
+        val gyroBias: ShortArray,
+        val gyroPlus: ShortArray,
+        val gyroMinus: ShortArray,
+        val gyroSpeedPlus: Short,
+        val gyroSpeedMinus: Short,
+        val accelPlus: ShortArray,
+        val accelMinus: ShortArray
+    ) {
+        fun applyGyro(axis: Int, raw: Short): Short {
+            val denom = gyroPlus[axis].toInt() - gyroMinus[axis].toInt()
+            val speed2x = gyroSpeedPlus.toInt() + gyroSpeedMinus.toInt()
+            if (denom <= 0 || speed2x <= 0) return raw
+            val num = speed2x.toLong() * 16L
+            return ((raw.toInt() - gyroBias[axis].toInt()).toLong() * num / denom)
+                .coerceIn(Short.MIN_VALUE.toLong(), Short.MAX_VALUE.toLong())
+                .toShort()
+        }
+
+        fun applyAccel(axis: Int, raw: Short): Short {
+            val range2g = accelPlus[axis].toInt() - accelMinus[axis].toInt()
+            if (range2g <= 0) return raw
+            val bias = (accelPlus[axis].toInt() + accelMinus[axis].toInt()) / 2
+            return ((raw.toInt() - bias).toLong() * 16384L / range2g)
+                .coerceIn(Short.MIN_VALUE.toLong(), Short.MAX_VALUE.toLong())
+                .toShort()
+        }
+    }
+
+    fun parseCalibrationReport(data: ByteArray, offset: Int = 0): Calibration? {
+        if (offset < 0 || offset > data.size - REPORT_SIZE_CALIBRATION) return null
+        if (data[offset] != REPORT_ID_CALIBRATION) return null
+
+        fun shortLE(idx: Int): Short =
+            ((data[idx].toInt() and 0xFF) or (data[idx + 1].toInt() shl 8)).toShort()
+
+        val gyroBias = shortArrayOf(
+            shortLE(offset + 1),
+            shortLE(offset + 3),
+            shortLE(offset + 5)
+        )
+        val gyroPlus = shortArrayOf(
+            shortLE(offset + 7),
+            shortLE(offset + 11),
+            shortLE(offset + 15)
+        )
+        val gyroMinus = shortArrayOf(
+            shortLE(offset + 9),
+            shortLE(offset + 13),
+            shortLE(offset + 17)
+        )
+        val gyroSpeedPlus = shortLE(offset + 19)
+        val gyroSpeedMinus = shortLE(offset + 21)
+        val accelPlus = shortArrayOf(
+            shortLE(offset + 23),
+            shortLE(offset + 27),
+            shortLE(offset + 31)
+        )
+        val accelMinus = shortArrayOf(
+            shortLE(offset + 25),
+            shortLE(offset + 29),
+            shortLE(offset + 33)
+        )
+
+        if (gyroSpeedPlus.toInt() + gyroSpeedMinus.toInt() <= 0) return null
+        for (i in 0..2) {
+            if (gyroPlus[i].toInt() - gyroMinus[i].toInt() <= 0) return null
+            if (accelPlus[i].toInt() - accelMinus[i].toInt() <= 0) return null
+        }
+
+        return Calibration(
+            gyroBias = gyroBias,
+            gyroPlus = gyroPlus,
+            gyroMinus = gyroMinus,
+            gyroSpeedPlus = gyroSpeedPlus,
+            gyroSpeedMinus = gyroSpeedMinus,
+            accelPlus = accelPlus,
+            accelMinus = accelMinus
+        )
+    }
 
     fun touchXToPad(rawX: Int): Short {
         val clampedX = rawX.coerceIn(0, TOUCHPAD_WIDTH - 1).toLong()
@@ -137,7 +221,7 @@ object DualSense {
         else -> ((raw - 128) / 127f).coerceIn(-1f, 1f)
     }
 
-    fun parseInputReport(data: ByteArray, offset: Int = 0): State? {
+    fun parseInputReport(data: ByteArray, offset: Int = 0, calibration: Calibration? = null): State? {
         if (offset < 0 || offset >= data.size) return null
         val reportId = data[offset]
         val off: Int
@@ -216,12 +300,19 @@ object DualSense {
         fun shortLE(idx: Int): Short =
             ((data[idx].toInt() and 0xFF) or (data[idx + 1].toInt() shl 8)).toShort()
 
-        val gyroX = shortLE(offset + 16 + off)
-        val gyroY = shortLE(offset + 18 + off)
-        val gyroZ = shortLE(offset + 20 + off)
-        val accelX = shortLE(offset + 22 + off)
-        val accelY = shortLE(offset + 24 + off)
-        val accelZ = shortLE(offset + 26 + off)
+        val rawGyroX = shortLE(offset + 16 + off)
+        val rawGyroY = shortLE(offset + 18 + off)
+        val rawGyroZ = shortLE(offset + 20 + off)
+        val rawAccelX = shortLE(offset + 22 + off)
+        val rawAccelY = shortLE(offset + 24 + off)
+        val rawAccelZ = shortLE(offset + 26 + off)
+
+        val gyroX = calibration?.applyGyro(0, rawGyroX) ?: rawGyroX
+        val gyroY = calibration?.applyGyro(1, rawGyroY) ?: rawGyroY
+        val gyroZ = calibration?.applyGyro(2, rawGyroZ) ?: rawGyroZ
+        val accelX = calibration?.applyAccel(0, rawAccelX) ?: rawAccelX
+        val accelY = calibration?.applyAccel(1, rawAccelY) ?: rawAccelY
+        val accelZ = calibration?.applyAccel(2, rawAccelZ) ?: rawAccelZ
 
         val t0b0 = data[offset + 33 + off].toInt() and 0xFF
         val t0b1 = data[offset + 34 + off].toInt() and 0xFF
@@ -246,9 +337,16 @@ object DualSense {
         val b53 = data[offset + 53 + off].toInt() and 0xFF
         val batteryRaw = b53 and 0x0F
         val powerState = (b53 ushr 4) and 0x0F
-        val batteryPercent = if (b53 == 0) 100 else minOf(batteryRaw * 10 + 5, 100)
+        val batteryPercent = when {
+            b53 == 0 -> 100
+            powerState == 0x02 -> 100
+            powerState == 0x0A || powerState == 0x0B || powerState == 0x0F -> 0
+            else -> minOf(batteryRaw * 10 + 5, 100)
+        }
         val isCharging = powerState == 0x01 || powerState == 0x02
-        val headphonesPlugged = (data[offset + 54 + off].toInt() and STATUS1_HEADPHONE_DETECT) != 0
+        val b54 = data[offset + 54 + off].toInt() and 0xFF
+        val headphonesPlugged = (b54 and STATUS1_HEADPHONE_DETECT) != 0
+        val batteryStatusByte = if (b53 == 0) 0x2a else b53
 
         return State(
             leftX = leftX, leftY = leftY,
@@ -267,7 +365,8 @@ object DualSense {
             isEdgeTuningActive = isEdgeTuningActive,
             batteryPercent = batteryPercent,
             isCharging = isCharging,
-            headphonesPlugged = headphonesPlugged
+            headphonesPlugged = headphonesPlugged,
+            batteryStatusByte = batteryStatusByte
         )
     }
 
@@ -420,6 +519,15 @@ object DualSense {
         if (isEdge || disableEdgeFnSwitching) {
             report[41] = 0x80.toByte()
         }
+        return report
+    }
+
+    fun buildMicMuteReport(muted: Boolean): ByteArray {
+        val report = ByteArray(REPORT_SIZE_OUTPUT)
+        report[0] = REPORT_ID_OUTPUT
+        report[2] = 0x03
+        report[9] = if (muted) 1 else 0
+        report[10] = if (muted) 0x10 else 0
         return report
     }
 

@@ -1920,7 +1920,6 @@
     <string name="display_filter_live">Áp dụng ngay. Dùng chung cho Steam và Desktop.</string>
     <string name="display_filter_note">FSR, GSR và NIS áp dụng khi phóng to hình ảnh phiên. Chỉ làm nét cũng hoạt động mà không cần phóng to.</string>
     <string name="display_sharpness">Độ sắc nét bộ lọc</string>
-    <string name="display_frame_rate">Tốc độ khung hình</string>
     <string name="display_look_filter">%1$s Đặt chia tỷ lệ thành %2$s.</string>
     <string name="display_match_screen">Khớp màn hình (%1$d×%2$d)</string>
     <string name="display_follow_screen">Theo màn hình (đổi kích thước khi gập hoặc mở)</string>
@@ -3058,6 +3057,7 @@
     <string name="library_remove">Xóa khỏi Thư viện</string>
     <string name="library_in">Trong Thư viện</string>
     <string name="xbox_filter_show">Hiển thị</string>
+    <string name="itch_collections">Bộ sưu tập</string>
     <string name="xbox_filter_cloud">Đám mây</string>
     <string name="stores_xbox_cloud_settings">Cài đặt đám mây</string>
 </resources>

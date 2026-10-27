@@ -2000,7 +2000,6 @@
     <string name="display_filter_live">即时生效。由 Steam 和桌面共享。</string>
     <string name="display_filter_note">FSR、GSR 和 NIS 在放大会话画面时生效。“仅锐化”在不放大时也可用。</string>
     <string name="display_sharpness">滤镜锐度</string>
-    <string name="display_frame_rate">帧率</string>
     <string name="display_look_filter">%1$s 将缩放设为 %2$s。</string>
     <string name="display_match_screen">匹配屏幕（%1$d×%2$d）</string>
     <string name="display_follow_screen">跟随屏幕（折叠或展开时调整大小）</string>
@@ -3062,6 +3061,7 @@
     <string name="library_remove">从游戏库移除</string>
     <string name="library_in">已在游戏库</string>
     <string name="xbox_filter_show">显示</string>
+    <string name="itch_collections">收藏集</string>
     <string name="xbox_filter_cloud">云</string>
     <string name="stores_xbox_cloud_settings">云设置</string>
 </resources>

@@ -767,6 +767,135 @@ class DualSenseTest {
         assertEquals(expectedCrc, actualCrc)
     }
 
+    @Test
+    fun testFactoryImuCalibrationFeatureReport05() {
+        val calBuf = ByteArray(DualSense.REPORT_SIZE_CALIBRATION)
+        val bb = ByteBuffer.wrap(calBuf).order(ByteOrder.LITTLE_ENDIAN)
+        calBuf[0] = DualSense.REPORT_ID_CALIBRATION
+        // Gyro bias: +10, -20, +30
+        bb.putShort(1, 10.toShort())
+        bb.putShort(3, (-20).toShort())
+        bb.putShort(5, 30.toShort())
+        // Gyro plus/minus: nominal +/-8640, speed 540/540 -> 1x scale after bias subtraction
+        for (axis in 0..2) {
+            bb.putShort(7 + axis * 4, 8640.toShort())
+            bb.putShort(9 + axis * 4, (-8640).toShort())
+        }
+        bb.putShort(19, 540.toShort())
+        bb.putShort(21, 540.toShort())
+        // Accel plus/minus: +8292 / -8092 (bias = +100, range2g = 16384 -> 1x scale after bias subtraction)
+        for (axis in 0..2) {
+            bb.putShort(23 + axis * 4, 8292.toShort())
+            bb.putShort(25 + axis * 4, (-8092).toShort())
+        }
+
+        val cal = DualSense.parseCalibrationReport(calBuf)
+        assertNotNull(cal)
+
+        val report = createNeutralReport()
+        val rbb = ByteBuffer.wrap(report).order(ByteOrder.LITTLE_ENDIAN)
+        rbb.putShort(16, 110.toShort())   // gyroX - 10 = 100
+        rbb.putShort(18, 180.toShort())   // gyroY - (-20) = 200
+        rbb.putShort(20, 330.toShort())   // gyroZ - 30 = 300
+        rbb.putShort(22, 1100.toShort())  // accelX - 100 = 1000
+        rbb.putShort(24, 2100.toShort())  // accelY - 100 = 2000
+        rbb.putShort(26, 3100.toShort())  // accelZ - 100 = 3000
+
+        val parsed = DualSense.parseInputReport(report, calibration = cal)!!
+        assertEquals(100.toShort(), parsed.gyroX)
+        assertEquals(200.toShort(), parsed.gyroY)
+        assertEquals(300.toShort(), parsed.gyroZ)
+        assertEquals(1000.toShort(), parsed.accelX)
+        assertEquals(2000.toShort(), parsed.accelY)
+        assertEquals(3000.toShort(), parsed.accelZ)
+
+        // Zeroed/degenerate calibration report must safely return null
+        val invalidCal = ByteArray(DualSense.REPORT_SIZE_CALIBRATION)
+        invalidCal[0] = DualSense.REPORT_ID_CALIBRATION
+        assertNull(DualSense.parseCalibrationReport(invalidCal))
+    }
+
+    @Test
+    fun testBatteryStatesAndHeadphoneStatus() {
+        val report = createNeutralReport()
+        // Power state 0x02 (Full charge) must report 100% and charging = true even if raw level is 8
+        report[53] = 0x28.toByte()
+        report[54] = 0x01.toByte() // Headphones plugged
+        var state = DualSense.parseInputReport(report)!!
+        assertEquals(100, state.batteryPercent)
+        assertTrue(state.isCharging)
+        assertTrue(state.headphonesPlugged)
+        assertEquals(0x28, state.batteryStatusByte)
+
+        // Power state 0x0A / 0x0B / 0x0F (Charge error) must report 0% and charging = false
+        for (errState in listOf(0xA5, 0xB5, 0xF5)) {
+            report[53] = errState.toByte()
+            state = DualSense.parseInputReport(report)!!
+            assertEquals(0, state.batteryPercent)
+            assertFalse(state.isCharging)
+        }
+
+        // Verify DeckControls packs HEADPHONES and BATTERY_VALID + battery byte into controls
+        val manager = DualSenseManager(context)
+        report[53] = 0x17.toByte()
+        report[54] = 0x01.toByte()
+        manager.onInputReport(report)
+        assertTrue((RecordingWriter.lastControls and DeckControls.HEADPHONES) != 0)
+        assertTrue((RecordingWriter.lastControls and DeckControls.BATTERY_VALID) != 0)
+        assertEquals(0x17, (RecordingWriter.lastControls ushr 16) and 0xFF)
+        manager.stop()
+    }
+
+    @Test
+    fun testBluetoothLightbarDeferredReplayAndMicMuteToggle() {
+        val manager = DualSenseManager(context)
+        val sentBtReports = mutableListOf<ByteArray>()
+        manager.bluetoothReportSender = { bt ->
+            sentBtReports.add(bt.clone())
+            true
+        }
+
+        manager.btConnectTimestampMs = 1000L
+        val colorReport = DualSense.buildOutputReport(r = 12, g = 34, b = 56, playerLeds = 0x04)
+
+        // Build within 3.0s guard window (t = 2000ms): RGB is suppressed, report is saved as pending
+        val suppressed = manager.buildNextBluetoothOutputReport(colorReport, nowMs = 2000L)
+        assertEquals(0, suppressed[3].toInt() and 0x04)
+        assertNotNull(manager.pendingBtLightbarReport)
+
+        // Flushing before 3.0s elapsed does nothing
+        assertFalse(manager.flushPendingBluetoothLightbar(nowMs = 3500L))
+        assertTrue(sentBtReports.isEmpty())
+
+        // Flushing after 3.0s elapsed (t = 4005ms) dispatches the saved lightbar report with RGB intact
+        assertTrue(manager.flushPendingBluetoothLightbar(nowMs = 4005L))
+        assertEquals(1, sentBtReports.size)
+        assertEquals(12.toByte(), sentBtReports[0][46])
+        assertEquals(34.toByte(), sentBtReports[0][47])
+        assertEquals(56.toByte(), sentBtReports[0][48])
+
+        // Hardware Mic Mute button rising edge toggles hardwareMicMuted and dispatches buildMicMuteReport
+        sentBtReports.clear()
+        val report = createNeutralReport()
+        report[10] = 0x04 // Mute pressed
+        manager.onInputReport(report)
+        assertTrue(manager.hardwareMicMuted)
+        assertEquals(1, sentBtReports.size)
+        assertEquals(1.toByte(), sentBtReports[0][10])  // bt[10] = usb[9] = micLed ON (1)
+        assertEquals(0x10.toByte(), sentBtReports[0][11]) // bt[11] = usb[10] = MUTE_Y (0x10)
+
+        // Release and press again -> unmutes
+        report[10] = 0x00
+        manager.onInputReport(report)
+        report[10] = 0x04
+        manager.onInputReport(report)
+        assertFalse(manager.hardwareMicMuted)
+        assertEquals(2, sentBtReports.size)
+        assertEquals(0.toByte(), sentBtReports[1][10])
+
+        manager.stop()
+    }
+
     // -------------------------------------------------------------------------
     // Shadow FakeInputWriter for Robolectric Unit Testing
     // -------------------------------------------------------------------------
