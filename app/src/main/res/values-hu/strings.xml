@@ -247,8 +247,6 @@
     <string name="mode_ratio">Képernyőarány</string>
     <string name="mode_ratio_custom">Az egyéni felbontás határozza meg.</string>
     <string name="mode_ratio_auto">Az Automatikus legalább 16:9-et használ.</string>
-    <string name="mode_fps">Képkocka-korlát</string>
-    <string name="mode_fps_note">Korlátozza a teljes munkamenetet. A kijelző olyan frissítési frekvenciára vált, amelyet a korlát egyenlően oszt.</string>
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">HDR10-kimenet</string>
     <string name="mode_hdr_unavailable">Nem elérhető: %1$s.</string>
@@ -1943,7 +1941,6 @@
     <string name="display_filter_live">Élőben érvénybe lép. A Steam és az Asztal közösen használja.</string>
     <string name="display_filter_note">Az FSR, a GSR és a NIS a munkamenet képének felnagyításakor lép érvénybe. A Csak élesítés nagyítás nélkül is működik.</string>
     <string name="display_sharpness">Szűrőélesség</string>
-    <string name="display_frame_rate">Képkockasebesség</string>
     <string name="display_look_filter">%1$s A méretezést erre állítja: %2$s.</string>
     <string name="display_match_screen">Képernyőhöz illesztés (%1$d×%2$d)</string>
     <string name="display_follow_screen">Képernyő követése (átméreteződik össze- vagy kinyitáskor)</string>
@@ -1997,6 +1994,13 @@
     <string name="stores_play">Játék</string>
     <string name="stores_install">Telepítés</string>
     <string name="bnet_open">Battle.net megnyitása</string>
+    <string name="bnet_dl_starting">A Blizzard letöltőjének indítása…</string>
+    <string name="bnet_dl_waiting">Várakozás a Battle.net bezárására…</string>
+    <string name="bnet_dl_queued">Várakozás a másik Battle.net-letöltésre…</string>
+    <string name="bnet_dl_client_first">Nyisd meg a Battle.netet, és jelentkezz be egyszer, majd innen telepítsd a játékait.</string>
+    <string name="bnet_dl_failed">A Blizzard letöltője leállt: %1$s</string>
+    <string name="bnet_dl_agent_error">Blizzard-hiba: %1$s</string>
+    <string name="bnet_update">Frissítés</string>
     <string name="bnet_store">Blizzard-játékok</string>
     <string name="stores_resume_install">Telepítés folytatása</string>
     <string name="stores_dl_interrupted">Megszakítva</string>
@@ -3078,6 +3082,7 @@
     <string name="library_remove">Eltávolítás a könyvtárból</string>
     <string name="library_in">A könyvtárban</string>
     <string name="xbox_filter_show">Megjelenítés</string>
+    <string name="itch_collections">Gyűjtemények</string>
     <string name="xbox_filter_cloud">Felhő</string>
     <string name="stores_xbox_cloud_settings">Felhőbeállítások</string>
 </resources>

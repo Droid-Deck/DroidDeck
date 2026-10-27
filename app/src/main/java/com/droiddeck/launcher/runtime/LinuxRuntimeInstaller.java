@@ -6,6 +6,7 @@ import android.util.Log;
 
 
 import com.droiddeck.launcher.R;
+import com.droiddeck.launcher.session.SessionPrefs;
 import com.droiddeck.launcher.core.ArchivePaths;
 import com.droiddeck.launcher.core.Downloader;
 import com.droiddeck.launcher.core.Hashes;
@@ -262,7 +263,9 @@ public final class LinuxRuntimeInstaller {
             emptyTrash(LinuxRuntime.rootDir(context).getParentFile());
             String downloading = context.getString(R.string.rtinst_downloading);
             if (listener != null) listener.onProgress(Step.DOWNLOADING, downloading, 0);
-            if (!AddonPack.PROOT.await(context)) throw new IOException("Cannot download proot");
+            if (!LinuxRuntime.patchedProot(context) && !AddonPack.PROOT.await(context)
+                    && !SessionPrefs.allowStockProot(context))
+                throw new IOException("Cannot download proot");
             if (!AddonPack.DIRECTAUDIO.await(context)) throw new IOException("Cannot download DirectAudio");
             boolean ok = Downloader.downloadFile(release.url, archive, true, release.sha256, (fraction) -> {
                 if (listener != null) {

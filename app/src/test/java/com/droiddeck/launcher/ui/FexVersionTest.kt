@@ -20,8 +20,8 @@ class FexVersionTest {
     }
 
     @Test fun theShippedLauncherHasOne() {
-        val script = java.io.File("../tools/linuxfs/overlay/usr/local/bin/droiddeck-steam-x64").takeIf { it.isFile }
-            ?: java.io.File("tools/linuxfs/overlay/usr/local/bin/droiddeck-steam-x64")
+        val script = java.io.File("../tools/linuxfs/overlay/usr/local/bin/droiddeck-fex-update").takeIf { it.isFile }
+            ?: java.io.File("tools/linuxfs/overlay/usr/local/bin/droiddeck-fex-update")
         assertEquals(true, fexVersionOf(script.readText()) != null)
     }
 }

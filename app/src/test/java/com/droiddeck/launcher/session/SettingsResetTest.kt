@@ -27,9 +27,10 @@ class SettingsResetTest {
 
     @Test fun settingsGoBackToTheirDefaults() {
         SessionPrefs.setTheme(app, "ocean")
+        SessionPrefs.setBackDoubleTapMs(app, 100)
         SessionPrefs.setUnfoldedControlsWithController(app, true)
         SessionPrefs.setNoXalia(app, false)
-        SessionPrefs.setFpsLimit(app, SessionService.MODE_STEAM, 30)
+        session.edit().putInt("fpsLimit.steam", 30).commit()
         SessionPrefs.setHdr(app, SessionService.MODE_DESKTOP, true)
         SessionPrefs.setResolutionChoice(app, SessionService.MODE_STEAM, "1280x800")
         SessionPrefs.setGuestHostname(app, "MyDeck")
@@ -46,9 +47,10 @@ class SettingsResetTest {
         assertTrue(SettingsReset.resetAll(app, gameProfiles = false))
 
         assertEquals("graphite", SessionPrefs.theme(app))
+        assertEquals(500, SessionPrefs.backDoubleTapMs(app))
         assertFalse(SessionPrefs.unfoldedControlsWithController(app))
         assertTrue(SessionPrefs.noXalia(app))
-        assertEquals(0, SessionPrefs.fpsLimit(app, SessionService.MODE_STEAM))
+        assertFalse(session.contains("fpsLimit.steam"))
         assertFalse(SessionPrefs.hdr(app, SessionService.MODE_DESKTOP))
         assertFalse(SessionPrefs.resolutionChosen(app, SessionService.MODE_STEAM))
         assertEquals(SessionPrefs.DEFAULT_GUEST_HOSTNAME, SessionPrefs.guestHostname(app))

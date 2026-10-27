@@ -16,7 +16,7 @@ if [ -n "${BL_LOG:-}" ] && [ -z "${BL_INSIDE:-}" ]; then
   fi
   exec > >({ dd of="$BL_LOG" oflag=append conv=notrunc iflag=count_bytes count="${BL_LOG_CAP:-268435456}" bs=65536 status=none; cat >/dev/null; }) 2>&1
   echo "== droiddeck-session $(date) mode=$mode $*"
-  echo "== uid=$(id -u) size=${BL_WIDTH:-?}x${BL_HEIGHT:-?} fps=${BL_FPS:-0} icd=${VK_ICD_FILENAMES:-none}"
+  echo "== uid=$(id -u) size=${BL_WIDTH:-?}x${BL_HEIGHT:-?} icd=${VK_ICD_FILENAMES:-none}"
   echo "== gamescope: $(gamescope --version 2>&1 | head -1) at $(command -v gamescope)"
   echo "== rootfs: $(cat /.version 2>/dev/null || echo unversioned)"
 fi
@@ -236,10 +236,10 @@ if [ -z "${BL_INSIDE:-}" ]; then
     args+=(-S stretch)
     export BL_STRETCHED=1
   fi
-  if [ "${BL_FPS:-0}" -gt 0 ]; then
-    args+=(-r "$BL_FPS")
-  elif [ "${BL_REFRESH:-0}" -gt 0 ]; then
+  if [ "${BL_REFRESH:-0}" -gt 0 ]; then
     args+=(-r "$BL_REFRESH")
+    # -r is the starting rate; gamescope follows the panel when it switches modes later.
+    export GAMESCOPE_NESTED_REFRESH_FOLLOWS_HOST=1
   fi
   [ "$mode" = steam ] && [ "${BL_STEAM_UI:-}" != desktop ] && args+=(-e)
   if [ "$mode" = steam ] && [ "${BL_XWAYLAND_COUNT:-2}" -gt 1 ]; then
@@ -258,6 +258,10 @@ if [ -z "${BL_INSIDE:-}" ]; then
     echo "== gamescope: mangoapp on ($(command -v mangoapp), config $MANGOHUD_CONFIGFILE)"
   fi
   export BL_INSIDE=1
+  # A fixed path: left to itself gamescope creates a new limiter state file on every start.
+  rm -f "${XDG_RUNTIME_DIR:-/tmp}"/gamescope-limiter-*
+  export GAMESCOPE_LIMITER_FILE="${XDG_RUNTIME_DIR:-/tmp}/droiddeck-gamescope-limiter"
+  rm -f "$GAMESCOPE_LIMITER_FILE"
   if [ "$mode" = steam ]; then
     if /usr/local/bin/droiddeck-pipewire start; then
       eval "$(/usr/local/bin/droiddeck-pipewire env)"
@@ -464,16 +468,32 @@ case $mode in
       esac
       (
         bl_zram_scan() {
-          _bl_game=0 _bl_pids=() _bl_others=()
+          _bl_game=0 _bl_pids=() _bl_others=() _bl_apps=
+          local _d _c _args _name _a _id
           for _d in /proc/[0-9]*; do
-            [ "${_d#/proc/}" != "$BASHPID" ] || continue
-            # Under FEX the program is FEX's first argument.
-            { IFS= read -r -d '' _c && case ${_c##*/} in FEX|FEXInterpreter) IFS= read -r -d '' _c ;; esac; } \
-              2>/dev/null < "$_d/cmdline" || continue
-            case ${_c##*/} in
-              reaper) _bl_game=1 ;;
-              steam|steamwebhelper) _bl_pids+=("${_d#/proc/}") ;;
-              *) _bl_others+=("${_d#/proc/}") ;;
+            [ "${_d##*/}" != "$BASHPID" ] || continue
+            _args=()
+            # Under FEX the program is FEX's first argument. AppId= is its own argument.
+            while IFS= read -r -d '' _c; do _args+=("$_c"); done 2>/dev/null < "$_d/cmdline" || true
+            [ "${#_args[@]}" -gt 0 ] || continue
+            _name=${_args[0]}
+            if [ "${#_args[@]}" -gt 1 ]; then
+              case ${_name##*/} in FEX|FEXInterpreter) _name=${_args[1]} ;; esac
+            fi
+            case ${_name##*/} in
+              reaper)
+                for _a in "${_args[@]}"; do
+                  case $_a in
+                    AppId=769) ;;
+                    AppId=[0-9]*)
+                      _id=${_a#AppId=}
+                      case $_id in *[!0-9]*) ;; *) _bl_game=1; _bl_apps="$_bl_apps $_id" ;; esac
+                      ;;
+                  esac
+                done
+                ;;
+              steam|steamwebhelper) _bl_pids+=("${_d##*/}") ;;
+              *) _bl_others+=("${_d##*/}") ;;
             esac
           done
         }
@@ -532,6 +552,22 @@ case $mode in
           bl_zram_pick "$_which"
           step "zRAM: done ($(bl_zram_usage "${_pids[@]}"))"
         }
+        # Proton starts its reaper before the game window; compressing during launch stalls it.
+        # Desktop Steam has no focus.json, so it still uses the game process as its trigger.
+        # A configured RAM cap can still force compression while a game is launching.
+        bl_game_focused() {
+          if [ "${BL_DESKTOP:-}" = 1 ] || [ -z "${BL_LAUNCH_DIR:-}" ]; then
+            return 0
+          fi
+          local id
+          id=$(sed -n 's/.*"focusedApp"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p' \
+            "$BL_LAUNCH_DIR/agent/focus.json" 2>/dev/null | head -1)
+          [ -n "$id" ] || return 1
+          case " ${_bl_apps-} " in
+            *" $id "*) return 0 ;;
+          esac
+          return 1
+        }
         bl_over_cap() {
           [ "$_bl_ram_cap" -gt 0 ] || return 1
           _bl_measured=$SECONDS
@@ -542,7 +578,7 @@ case $mode in
         bl_cap_due() {
           [ "$_bl_ram_cap" -gt 0 ] && { [ "$_bl_measured" -lt 0 ] || [ $((SECONDS - _bl_measured)) -ge 30 ]; }
         }
-        _bl_since=-1 _bl_packed=-1 _bl_measured=-1 _bl_unpack=0 _bl_capped=-1 _bl_backoff=30
+        _bl_since=-1 _bl_since_apps= _bl_packed=-1 _bl_measured=-1 _bl_unpack=0 _bl_capped=-1 _bl_backoff=30
         while kill -0 $$ 2>/dev/null; do
           bl_zram_scan
           if bl_cap_due; then
@@ -573,18 +609,22 @@ case $mode in
               fi
             fi
           fi
-          if [ "$_bl_game" = 1 ]; then
-            [ "$_bl_since" -ge 0 ] || _bl_since=$SECONDS
+          if [ "$_bl_game" = 1 ] && bl_game_focused; then
+            if [ "$_bl_since" -lt 0 ] || [ "$_bl_since_apps" != "$_bl_apps" ]; then
+              _bl_since=$SECONDS _bl_since_apps=$_bl_apps
+            fi
             if [ "${BL_ZRAM_CLIENT:-1}" = 1 ] && [ $((SECONDS - _bl_since)) -ge 20 ] && [ "${#_bl_pids[@]}" -gt 0 ] &&
                { [ "$_bl_packed" -lt 0 ] || [ $((SECONDS - _bl_packed)) -ge 300 ]; }; then
               bl_zram_send 1 "compressing the client" client
               _bl_packed=$SECONDS
             fi
-          elif [ "$_bl_since" -ge 0 ]; then
+          elif [ "$_bl_game" != 1 ]; then
             if [ "$_bl_packed" -ge 0 ]; then
               if bl_over_cap; then _bl_unpack=1; else bl_zram_send 0 "game closed, reading the client back" client; _bl_unpack=0; fi
             fi
             _bl_since=-1 _bl_packed=-1
+          else
+            _bl_since=-1
           fi
           nap 5
         done

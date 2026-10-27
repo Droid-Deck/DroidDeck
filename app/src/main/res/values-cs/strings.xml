@@ -247,8 +247,6 @@
     <string name="mode_ratio">Poměr stran obrazovky</string>
     <string name="mode_ratio_custom">Určen vlastním rozlišením.</string>
     <string name="mode_ratio_auto">Automaticky použije alespoň 16:9.</string>
-    <string name="mode_fps">Omezení snímků</string>
-    <string name="mode_fps_note">Omezuje celou relaci. Displej přejde na obnovovací frekvenci, kterou lze tímto limitem dělit beze zbytku.</string>
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">Výstup HDR10</string>
     <string name="mode_hdr_unavailable">Není k dispozici: %1$s.</string>
@@ -1985,7 +1983,6 @@
     <string name="display_filter_live">Použije se okamžitě. Sdíleno Steamem a Plochou.</string>
     <string name="display_filter_note">FSR, GSR a NIS se použijí při zvětšování obrazu relace. Jen zaostření funguje i bez zvětšení.</string>
     <string name="display_sharpness">Ostrost filtru</string>
-    <string name="display_frame_rate">Snímková frekvence</string>
     <string name="display_look_filter">%1$s Nastaví škálování na %2$s.</string>
     <string name="display_match_screen">Podle obrazovky (%1$d×%2$d)</string>
     <string name="display_follow_screen">Sledovat obrazovku (změní velikost při složení nebo rozložení)</string>
@@ -2039,6 +2036,13 @@
     <string name="stores_play">Hrát</string>
     <string name="stores_install">Instalovat</string>
     <string name="bnet_open">Otevřít Battle.net</string>
+    <string name="bnet_dl_starting">Spouštění stahovače Blizzardu…</string>
+    <string name="bnet_dl_waiting">Čekání na zavření Battle.net…</string>
+    <string name="bnet_dl_queued">Čekání na druhé stahování z Battle.net…</string>
+    <string name="bnet_dl_client_first">Otevřete Battle.net a jednou se přihlaste, pak instalujte jeho hry odsud.</string>
+    <string name="bnet_dl_failed">Stahovač Blizzardu se zastavil: %1$s</string>
+    <string name="bnet_dl_agent_error">Chyba Blizzardu %1$s</string>
+    <string name="bnet_update">Aktualizovat</string>
     <string name="bnet_store">Hry od Blizzardu</string>
     <string name="stores_resume_install">Pokračovat v instalaci</string>
     <string name="stores_dl_interrupted">Přerušeno</string>
@@ -3146,6 +3150,7 @@
     <string name="library_remove">Odebrat z knihovny</string>
     <string name="library_in">V knihovně</string>
     <string name="xbox_filter_show">Zobrazit</string>
+    <string name="itch_collections">Kolekce</string>
     <string name="xbox_filter_cloud">Cloud</string>
     <string name="stores_xbox_cloud_settings">Nastavení cloudu</string>
 </resources>

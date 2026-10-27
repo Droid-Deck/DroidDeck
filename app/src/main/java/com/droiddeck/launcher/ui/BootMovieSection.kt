@@ -308,12 +308,12 @@ private fun InstalledMoviesDialog(a: ModeSettingsActions, onDismiss: () -> Unit)
 
 @Composable
 private fun RemoveMovieDialog(entry: BootMovieLibrary.Entry, onConfirm: () -> Unit, onDismiss: () -> Unit) {
-    androidx.compose.material3.AlertDialog(
+    com.droiddeck.launcher.ui.GlideAlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.boot_movie_remove_confirm, entry.title)) },
         text = { Text(stringResource(R.string.boot_movie_remove_confirm_body)) },
-        confirmButton = { androidx.compose.material3.TextButton(onClick = onConfirm) { Text(stringResource(R.string.boot_movie_remove)) } },
-        dismissButton = { androidx.compose.material3.TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } },
+        confirmButton = { androidx.compose.material3.TextButton(onClick = onConfirm, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.boot_movie_remove)) } },
+        dismissButton = { androidx.compose.material3.TextButton(onClick = onDismiss, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.common_cancel)) } },
     )
 }
 

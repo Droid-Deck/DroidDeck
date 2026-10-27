@@ -247,8 +247,6 @@
     <string name="mode_ratio">نسبة أبعاد الشاشة</string>
     <string name="mode_ratio_custom">تحددها الدقة المخصّصة.</string>
     <string name="mode_ratio_auto">يستخدم الخيار «تلقائي» نسبة 16:9 على الأقل.</string>
-    <string name="mode_fps">حد الإطارات</string>
-    <string name="mode_fps_note">يحدّ الجلسة بأكملها. تنتقل الشاشة إلى معدل تحديث يكون من مضاعفات الحد.</string>
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">إخراج HDR10</string>
     <string name="mode_hdr_unavailable">غير متاح: %1$s.</string>
@@ -2027,7 +2025,6 @@
     <string name="display_filter_live">يُطبَّق فوريًا. مشترك بين Steam وسطح المكتب.</string>
     <string name="display_filter_note">تُطبَّق FSR و GSR و NIS عند تكبير صورة الجلسة. ويعمل خيار «زيادة الحدة فقط» أيضًا دون تكبير.</string>
     <string name="display_sharpness">حدّة المرشِّح</string>
-    <string name="display_frame_rate">معدّل الإطارات</string>
     <string name="display_look_filter">%1$s يضبط أسلوب التكبير على %2$s.</string>
     <string name="display_match_screen">مطابقة الشاشة (%1$d×%2$d)</string>
     <string name="display_follow_screen">اتباع الشاشة (يُغيَّر الحجم عند الطي أو الفتح)</string>
@@ -2081,6 +2078,13 @@
     <string name="stores_play">تشغيل</string>
     <string name="stores_install">تثبيت</string>
     <string name="bnet_open">فتح Battle.net</string>
+    <string name="bnet_dl_starting">جارٍ تشغيل أداة التنزيل من Blizzard…</string>
+    <string name="bnet_dl_waiting">في انتظار إغلاق Battle.net…</string>
+    <string name="bnet_dl_queued">في انتظار تنزيل Battle.net الآخر…</string>
+    <string name="bnet_dl_client_first">افتح Battle.net وسجّل الدخول مرة واحدة، ثم ثبّت ألعابه من هنا.</string>
+    <string name="bnet_dl_failed">توقفت أداة التنزيل من Blizzard: %1$s</string>
+    <string name="bnet_dl_agent_error">خطأ Blizzard %1$s</string>
+    <string name="bnet_update">تحديث</string>
     <string name="bnet_store">ألعاب Blizzard</string>
     <string name="stores_resume_install">استئناف التثبيت</string>
     <string name="stores_dl_interrupted">منقطع</string>
@@ -3214,6 +3218,7 @@
     <string name="library_remove">إزالة من المكتبة</string>
     <string name="library_in">في المكتبة</string>
     <string name="xbox_filter_show">عرض</string>
+    <string name="itch_collections">المجموعات</string>
     <string name="xbox_filter_cloud">سحابية</string>
     <string name="stores_xbox_cloud_settings">إعدادات السحابة</string>
 </resources>

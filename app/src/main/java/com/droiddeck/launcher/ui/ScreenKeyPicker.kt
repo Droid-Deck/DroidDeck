@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.ui
 
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -41,7 +42,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
+import com.droiddeck.launcher.ui.GlideDialog as Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.input.PC_KEYS
@@ -86,7 +87,7 @@ fun ScreenKeyPicker(
                 Column {
                     Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text(stringResource(R.string.screen_keys_add), Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                        IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, null) }
+                        IconButton(onClick = onDismiss, modifier = Modifier.focusGlide(CircleShape)) { Icon(Icons.Default.Close, null) }
                     }
                     Row(
                         Modifier.fillMaxWidth().heightIn(min = 26.dp).horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
@@ -136,7 +137,7 @@ fun ScreenKeyPicker(
                         Button(
                             onClick = { onAdd(picked) },
                             enabled = picked.isNotEmpty(),
-                            modifier = Modifier.weight(1f),
+                            modifier = Modifier.weight(1f).focusGlide(CircleShape),
                         ) {
                             Text(stringResource(R.string.screen_keys_add))
                         }
@@ -155,7 +156,7 @@ private fun KeyCell(key: PcKey, selected: Boolean, modifier: Modifier, onClick: 
         shape = RoundedCornerShape(8.dp),
         color = if (selected) p.primary.copy(alpha = 0.2f) else p.surface,
         border = BorderStroke(1.dp, if (selected) p.primary else p.line),
-        modifier = modifier.height(36.dp).clickable(onClick = onClick),
+        modifier = modifier.height(36.dp).focusGlide(RoundedCornerShape(8.dp)).clickable(onClick = onClick),
     ) {
         Box(Modifier.fillMaxSize().padding(horizontal = 2.dp), contentAlignment = Alignment.Center) {
             Text(

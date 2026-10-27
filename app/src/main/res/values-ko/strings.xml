@@ -247,8 +247,6 @@
     <string name="mode_ratio">화면 비율</string>
     <string name="mode_ratio_custom">사용자 정의 해상도로 설정됩니다.</string>
     <string name="mode_ratio_auto">자동 모드에서는 최소 16:9를 사용합니다.</string>
-    <string name="mode_fps">프레임 속도 제한</string>
-    <string name="mode_fps_note">세션 전체의 프레임 속도를 제한합니다. 모니터는 이 상한으로 나누어떨어지는 주사율로 전환됩니다.</string>
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">HDR10 출력</string>
     <string name="mode_hdr_unavailable">사용 불가: %1$s.</string>
@@ -1924,7 +1922,6 @@
     <string name="display_filter_live">즉시 적용됩니다. Steam과 데스크톱에서 공유됩니다.</string>
     <string name="display_filter_note">FSR, GSR, NIS는 세션 이미지를 확대할 때 적용됩니다. 샤프닝 전용은 확대하지 않아도 작동합니다.</string>
     <string name="display_sharpness">필터 선명도</string>
-    <string name="display_frame_rate">프레임 속도</string>
     <string name="display_look_filter">%1$s 스케일링을 %2$s(으)로 설정합니다.</string>
     <string name="display_match_screen">화면에 맞춤(%1$d×%2$d)</string>
     <string name="display_follow_screen">화면 따라가기(접거나 펼치면 크기 변경)</string>
@@ -1978,6 +1975,13 @@
     <string name="stores_play">플레이</string>
     <string name="stores_install">설치</string>
     <string name="bnet_open">Battle.net 열기</string>
+    <string name="bnet_dl_starting">Blizzard 다운로더를 시작하는 중…</string>
+    <string name="bnet_dl_waiting">Battle.net이 닫히기를 기다리는 중…</string>
+    <string name="bnet_dl_queued">다른 Battle.net 다운로드를 기다리는 중…</string>
+    <string name="bnet_dl_client_first">Battle.net을 열고 한 번 로그인한 다음 여기에서 게임을 설치하세요.</string>
+    <string name="bnet_dl_failed">Blizzard 다운로더가 중지됨: %1$s</string>
+    <string name="bnet_dl_agent_error">Blizzard 오류 %1$s</string>
+    <string name="bnet_update">업데이트</string>
     <string name="bnet_store">Blizzard 게임</string>
     <string name="stores_resume_install">설치 재개</string>
     <string name="stores_dl_interrupted">중단됨</string>
@@ -3055,6 +3059,7 @@
     <string name="library_remove">라이브러리에서 제거</string>
     <string name="library_in">라이브러리에 있음</string>
     <string name="xbox_filter_show">표시</string>
+    <string name="itch_collections">컬렉션</string>
     <string name="xbox_filter_cloud">클라우드</string>
     <string name="stores_xbox_cloud_settings">클라우드 설정</string>
 </resources>

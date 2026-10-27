@@ -166,7 +166,7 @@ fun ScreenKeyEditor(
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                             modifier = Modifier.fillMaxWidth().onFocusChanged {
                                 if (it.isFocused) onTextFocus() else onTextBlur()
-                            },
+                            }.focusGlide(),
                         )
                         if (text.isEmpty()) {
                             Text(
@@ -177,26 +177,26 @@ fun ScreenKeyEditor(
                         }
                     }
                     if (button) {
-                        IconButton(onClick = onBind, modifier = Modifier.width(38.dp)) {
+                        IconButton(onClick = onBind, modifier = Modifier.width(38.dp).focusGlide(CircleShape)) {
                             Icon(
                                 Icons.Default.Keyboard, stringResource(R.string.screen_key_bind),
                                 tint = p.onBackground.copy(alpha = 0.8f),
                             )
                         }
                     }
-                    IconButton(onClick = { pickImage.launch("image/*") }, modifier = Modifier.width(38.dp)) {
+                    IconButton(onClick = { pickImage.launch("image/*") }, modifier = Modifier.width(38.dp).focusGlide(CircleShape)) {
                         Icon(
                             Icons.Default.Image, stringResource(R.string.screen_key_image),
                             tint = p.onBackground.copy(alpha = 0.8f),
                         )
                     }
-                    if (hasImage) IconButton(onClick = onClearImage, modifier = Modifier.width(34.dp)) {
+                    if (hasImage) IconButton(onClick = onClearImage, modifier = Modifier.width(34.dp).focusGlide(CircleShape)) {
                         Icon(Icons.Default.Close, stringResource(R.string.screen_key_image_clear), tint = p.error)
                     }
-                    IconButton(onClick = onRemove, modifier = Modifier.width(38.dp)) {
+                    IconButton(onClick = onRemove, modifier = Modifier.width(38.dp).focusGlide(CircleShape)) {
                         Icon(Icons.Default.Delete, stringResource(R.string.common_delete), tint = p.error)
                     }
-                    IconButton(onClick = onDismiss, modifier = Modifier.width(34.dp)) {
+                    IconButton(onClick = onDismiss, modifier = Modifier.width(34.dp).focusGlide(CircleShape)) {
                         Icon(Icons.Default.Close, null, tint = p.onBackground)
                     }
                 }
@@ -232,7 +232,7 @@ fun ScreenKeyEditor(
                         stringResource(R.string.screen_key_toggle), Modifier.padding(start = 6.dp, end = 2.dp),
                         style = MaterialTheme.typography.bodySmall, maxLines = 1,
                     )
-                    Switch(checked = toggle, onCheckedChange = onToggle, modifier = Modifier.height(30.dp))
+                    Switch(checked = toggle, onCheckedChange = onToggle, modifier = Modifier.height(30.dp).focusGlide())
                 }
                 if (directions.isNotEmpty()) {
                     Row(
@@ -251,7 +251,7 @@ fun ScreenKeyEditor(
                             stringResource(R.string.screen_key_text), Modifier.padding(start = 6.dp, end = 2.dp),
                             style = MaterialTheme.typography.bodySmall, maxLines = 1,
                         )
-                        Switch(checked = labels, onCheckedChange = onLabels, modifier = Modifier.height(30.dp))
+                        Switch(checked = labels, onCheckedChange = onLabels, modifier = Modifier.height(30.dp).focusGlide())
                     }
                 }
                 Row(
@@ -294,7 +294,7 @@ private fun KeySlider(
 ) {
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
         Text(label, style = MaterialTheme.typography.bodySmall, maxLines = 1)
-        Slider(current, onChange, Modifier.weight(1f).height(28.dp), valueRange = min..max)
+        Slider(current, onChange, Modifier.weight(1f).height(28.dp).focusGlide(), valueRange = min..max)
         Text(
             value, Modifier.width(32.dp), style = MaterialTheme.typography.bodySmall,
             fontWeight = FontWeight.SemiBold, maxLines = 1,
@@ -317,7 +317,7 @@ private fun Chip(
                 if (selected) p.primary.copy(alpha = 0.18f) else p.line2.copy(alpha = 0.28f),
                 CircleShape,
             )
-            .clickable(enabled = enabled, onClick = onClick)
+            .focusGlide(RoundedCornerShape(8.dp)).clickable(enabled = enabled, onClick = onClick)
             .padding(vertical = 6.dp),
         contentAlignment = Alignment.Center,
     ) {

@@ -247,8 +247,6 @@
     <string name="mode_ratio">Rasio layar</string>
     <string name="mode_ratio_custom">Ditentukan oleh resolusi khusus.</string>
     <string name="mode_ratio_auto">Otomatis menggunakan setidaknya 16:9.</string>
-    <string name="mode_fps">Batas frame rate</string>
-    <string name="mode_fps_note">Membatasi seluruh sesi. Tampilan beralih ke refresh rate yang habis dibagi oleh batas ini.</string>
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">Output HDR10</string>
     <string name="mode_hdr_unavailable">Tidak tersedia: %1$s.</string>
@@ -1922,7 +1920,6 @@
     <string name="display_filter_live">Berlaku langsung. Digunakan bersama oleh Steam dan Desktop.</string>
     <string name="display_filter_note">FSR, GSR, dan NIS berlaku saat memperbesar gambar sesi. Hanya penajaman juga berfungsi tanpa pembesaran.</string>
     <string name="display_sharpness">Ketajaman filter</string>
-    <string name="display_frame_rate">Frame rate</string>
     <string name="display_look_filter">%1$s Mengatur skala ke %2$s.</string>
     <string name="display_match_screen">Sesuaikan layar (%1$d×%2$d)</string>
     <string name="display_follow_screen">Ikuti layar (ukuran berubah saat dilipat atau dibuka)</string>
@@ -1976,6 +1973,13 @@
     <string name="stores_play">Mainkan</string>
     <string name="stores_install">Instal</string>
     <string name="bnet_open">Buka Battle.net</string>
+    <string name="bnet_dl_starting">Memulai pengunduh Blizzard…</string>
+    <string name="bnet_dl_waiting">Menunggu Battle.net ditutup…</string>
+    <string name="bnet_dl_queued">Menunggu unduhan Battle.net lainnya…</string>
+    <string name="bnet_dl_client_first">Buka Battle.net dan masuk sekali, lalu instal gamenya dari sini.</string>
+    <string name="bnet_dl_failed">Pengunduh Blizzard berhenti: %1$s</string>
+    <string name="bnet_dl_agent_error">Kesalahan Blizzard %1$s</string>
+    <string name="bnet_update">Perbarui</string>
     <string name="bnet_store">Game Blizzard</string>
     <string name="stores_resume_install">Lanjutkan instalasi</string>
     <string name="stores_dl_interrupted">Terhenti</string>
@@ -3068,6 +3072,7 @@
     <string name="library_remove">Hapus dari Pustaka</string>
     <string name="library_in">Di Pustaka</string>
     <string name="xbox_filter_show">Tampilkan</string>
+    <string name="itch_collections">Koleksi</string>
     <string name="xbox_filter_cloud">Cloud</string>
     <string name="stores_xbox_cloud_settings">Pengaturan cloud</string>
 </resources>

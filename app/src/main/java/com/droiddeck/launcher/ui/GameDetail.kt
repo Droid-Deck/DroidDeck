@@ -56,6 +56,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalConfiguration
@@ -86,6 +87,7 @@ import com.droiddeck.launcher.stores.StoreInstallRoot
 import com.droiddeck.launcher.stores.StoreLanguage
 import com.droiddeck.launcher.stores.StoreSizes
 import com.droiddeck.launcher.stores.StoresState
+import com.droiddeck.launcher.stores.battlenet.BattleNetInstall
 import com.droiddeck.launcher.stores.download.DownloadQueue
 import com.droiddeck.launcher.stores.download.DownloadState
 import com.droiddeck.launcher.stores.formatBytes
@@ -217,6 +219,9 @@ internal fun GameDetail(
             }
         }
         if (StoresMotion.heroLands) hero() else Rise(1) { hero() }
+        if (!s.shortcutPicker) Rise(2) {
+            GameResourcesRow(title.takeUnless { it == id }.orEmpty(), game, Modifier.padding(top = 6.dp))
+        }
         if (tab != null) Rise(2) {
             Column(Modifier.fillMaxWidth().padding(top = 14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 val labels = tabs.map { t ->
@@ -267,13 +272,15 @@ private fun GameHero(
             )
         }
         Spacer(Modifier.matchParentSize().background(Brush.horizontalGradient(0f to colors.background.copy(alpha = 0.94f), 0.55f to colors.background.copy(alpha = 0.58f), 1f to Color.Transparent)))
+        var scoresWidth by remember { mutableStateOf(0) }
         if (scores != null) {
             Spacer(Modifier.matchParentSize().background(Brush.horizontalGradient(0.45f to Color.Transparent, 1f to colors.background.copy(alpha = 0.75f))))
-            HeroScores(scores, Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = 18.dp))
+            HeroScores(scores, Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = 18.dp).onSizeChanged { scoresWidth = it.width })
         }
+        val scoresSpace = with(LocalDensity.current) { if (scores != null && scoresWidth > 0) scoresWidth.toDp() + 16.dp else 0.dp }
         Column(
             verticalArrangement = Arrangement.spacedBy(6.dp),
-            modifier = Modifier.align(Alignment.BottomStart).padding(horizontal = 22.dp, vertical = 18.dp),
+            modifier = Modifier.align(Alignment.BottomStart).padding(start = 22.dp, end = 22.dp + scoresSpace, top = 18.dp, bottom = 18.dp),
             content = content,
         )
         Box(Modifier.align(Alignment.TopEnd).padding(12.dp), content = corner)
@@ -319,7 +326,7 @@ private fun GameTitle(title: String, logo: Any?, titleSize: TextUnit) {
 }
 
 @Composable
-private fun GameActions(
+internal fun GameActions(
     store: Store?, id: String?, game: Library.SteamGame?, item: CatalogItem?, installed: InstalledStoreGame?,
     s: FrontEndState, a: FrontEndActions, leadOn: Modifier,
 ) {
@@ -328,22 +335,14 @@ private fun GameActions(
     val rawDownload = storeKey?.let { StoresState.download(it) }
     val download = rawDownload?.takeIf { it.isActive }
     val failed = rawDownload?.takeIf { it.state == DownloadState.FAILED }
+    val cloud = game?.library == Library.XBOX_CLOUD && installed == null
     Actions {
         when {
             s.shortcutPicker && game != null -> {
                 PrimaryButton(stringResource(R.string.game_shortcut_choose), enabled = !s.busy, main = true, icon = Icons.Filled.PlayArrow, modifier = leadOn) { a.onSteamGame(game) }
                 FileButtons(game, a)
             }
-            game?.library == Library.XBOX_CLOUD -> {
-                val cloudId = game.storeId.orEmpty()
-                XboxStreamButton(cloudId, game.name, main = true, modifier = leadOn)
-                if (download != null) ActionChip(downloadLabel(download), ok = false)
-                else if (item?.installable == true) SecondaryButton(
-                    if (item.sizeBytes > 0) stringResource(R.string.stores_install_size, formatBytes(item.sizeBytes)) else stringResource(R.string.stores_install),
-                ) { StoresState.requestInstall(ctx, item) }
-                XboxLibraryButton(cloudId, item)
-            }
-            game != null || installed != null -> {
+            !cloud && (game != null || installed != null) -> {
                 val gone = storeKey?.let { StoresState.uninstalling[it] }
                 val xboxBusy = store == Store.XBOX && id != null && XboxContent.busy(id)
                 PrimaryButton(
@@ -366,7 +365,19 @@ private fun GameActions(
                     }
                     SecondaryButton(stringResource(R.string.stores_xbox_manage), enabled = download == null) { XboxContent.manage(ctx, installed) }
                 }
-                if (store == Store.BATTLENET) SecondaryButton(stringResource(R.string.bnet_open)) { a.onBattleNet() }
+                if (store == Store.BATTLENET) {
+                    if (installed != null && id != null) {
+                        LaunchedEffect(id) { BattleNetInstall.checkUpdate(ctx, installed) }
+                        if (download != null) {
+                            ActionChip(downloadLabel(download), ok = false)
+                            if (download.state != DownloadState.PAUSED) SecondaryButton(stringResource(R.string.stores_dl_pause)) { DownloadQueue.pause(download.key) }
+                            else SecondaryButton(stringResource(R.string.stores_dl_resume)) { DownloadQueue.resume(ctx, download.key) }
+                        } else if (BattleNetInstall.updates[id] == true) {
+                            SecondaryButton(stringResource(R.string.bnet_update)) { BattleNetInstall.update(ctx, installed) }
+                        }
+                    }
+                    SecondaryButton(stringResource(R.string.bnet_open)) { a.onBattleNet() }
+                }
             }
             download != null -> {
                 ActionChip(downloadLabel(download), ok = false)
@@ -380,6 +391,19 @@ private fun GameActions(
                     if (item != null) StoresState.requestInstall(ctx, item) else DownloadQueue.retry(ctx, failed.key)
                 }
                 ConfirmButton(stringResource(R.string.stores_dl_clear), stringResource(R.string.stores_dl_cancel_confirm), compact = true) { DownloadQueue.clear(ctx, failed.key) }
+            }
+            cloud -> {
+                val cloudId = game.storeId.orEmpty()
+                XboxStreamButton(cloudId, game.name, main = true, modifier = leadOn)
+                if (item?.installable == true && item.xboxPc) {
+                    SecondaryButton(
+                        if (StoresState.isUnfinished(item)) stringResource(R.string.stores_resume_install)
+                        else if (item.sizeBytes > 0) stringResource(R.string.stores_install_size, formatBytes(item.sizeBytes))
+                        else stringResource(R.string.stores_install),
+                    ) { StoresState.requestInstall(ctx, item) }
+                }
+                if (item != null && StoresState.isUnfinished(item)) ConfirmButton(stringResource(R.string.stores_dl_clear), stringResource(R.string.stores_dl_cancel_confirm), compact = true) { StoresState.clearUnfinished(ctx, item) }
+                XboxLibraryButton(cloudId, item)
             }
             store == Store.BATTLENET && item != null -> InstallButton(stringResource(R.string.stores_install), leadOn) { StoresState.requestInstall(ctx, item) }
             store == Store.XBOX && item != null && !item.xboxPc && item.xboxCloud -> {
@@ -407,6 +431,10 @@ private fun GameActions(
             }
             item != null && item.isFree -> PrimaryButton(stringResource(R.string.stores_get_free), main = true, modifier = leadOn) { openStoreUrl(ctx, item) }
             item != null -> PrimaryButton(buyLabel(item), main = true, modifier = leadOn) { openStoreUrl(ctx, item) }
+        }
+        if (cloud && (download != null || failed != null)) {
+            XboxStreamButton(game.storeId.orEmpty(), game.name)
+            XboxLibraryButton(game.storeId.orEmpty(), item)
         }
         BusyChip(s)
     }
@@ -525,7 +553,7 @@ private fun IconAction(icon: androidx.compose.ui.graphics.vector.ImageVector, la
 private fun RemoveButton(title: String, game: Library.SteamGame?, installed: InstalledStoreGame?, a: FrontEndActions) {
     val ctx = LocalContext.current
     val colors = MaterialTheme.colorScheme
-    if ((installed?.sidecar?.store?.id ?: game?.source) == Store.BATTLENET.id) return
+    if ((installed?.sidecar?.store?.id ?: game?.source) == Store.BATTLENET.id && installed?.sidecar?.id?.let(BattleNetInstall::product) == null) return
     if (installed != null) {
         val key = installed.key
         val gone = StoresState.uninstalling[key]

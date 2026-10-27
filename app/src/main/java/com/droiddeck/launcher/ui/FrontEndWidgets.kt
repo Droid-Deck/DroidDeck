@@ -186,7 +186,7 @@ internal fun PrimaryButton(
             .clip(Shape12)
             .background(if (enabled) Brush.linearGradient(listOf(colors.primary, pal.primary2)) else Brush.linearGradient(listOf(colors.surfaceVariant, colors.surfaceVariant)))
             .then(if (enabled) Modifier else Modifier.border(1.dp, pal.line2, Shape12))
-            .then(if (hot) Modifier.border(2.dp, pal.signal, Shape12) else Modifier)
+            .glideBorder(hot, Shape12, pal.signal, hotFillAlpha = 0f)
             .hoverable(src).clickable(role = Role.Button, interactionSource = src, indication = null, enabled = enabled) {
                 placed[0]?.takeIf { it.isAttached }?.let { LaunchOrigin.mark(it.boundsInRoot(), placed) }
                 onClick()

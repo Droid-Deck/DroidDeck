@@ -72,6 +72,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.ScrollState
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -213,6 +215,8 @@ class DrawerActions(
     val micEnabled: Boolean = false,
     val onMicEnabled: (Boolean) -> Unit = {},
     val backActionsInverted: Boolean,
+    val backDoubleTapMs: Int = 500,
+    val onBackDoubleTapMs: (Int) -> Unit = {},
     val padType: String? = null,
     val onPadType: (String) -> Unit = {},
     val touchMode: String,
@@ -256,10 +260,8 @@ class DrawerActions(
     val onSuspendPolicy: (String) -> Unit,
     val onSteamDownloadsInBackground: (Boolean) -> Unit = {},
     val onBackActionsInverted: (Boolean) -> Unit,
-    val lowLatencyController: Boolean = false,
-    val lowLatencyTouch: Boolean = false,
-    val onLowLatencyController: (Boolean) -> Unit = {},
-    val onLowLatencyTouch: (Boolean) -> Unit = {},
+    val lowLatency: Boolean = true,
+    val onLowLatency: (Boolean) -> Unit = {},
     val onTouch: (String) -> Unit,
     val onGestureSettings: () -> Unit = {},
     val onScreenKeys: (() -> Unit)? = null,
@@ -407,6 +409,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
     androidx.compose.foundation.layout.BoxWithConstraints(modifier = Modifier.fillMaxSize().exposeTestTags(), contentAlignment = Alignment.CenterEnd) {
         val short = maxHeight < 440.dp
         val sheetWidth = minOf(360.dp, maxWidth * 0.92f)
+        val narrow = sheetWidth < 320.dp
         AnimatedVisibility(
             open,
             enter = slideInHorizontally(Motion.sp(0.8f, Spring.StiffnessLow)) { it } + fadeIn(Motion.tw(220)),
@@ -422,14 +425,18 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                     .controllerBack {
                         if (host.open != null) host.open = null else a.onClose()
                     }
-                    .padding(if (short) 12.dp else 16.dp),
+                    .padding(12.dp),
             ) {
+                val title = a.title ?: if (a.steam) stringResource(R.string.drawer_steam) else stringResource(R.string.drawer_desktop)
+                if (narrow) Text(title, fontSize = 18.sp, fontWeight = FontWeight.Bold,
+                    color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp))
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp),
                 ) {
-                    Text(a.title ?: if (a.steam) stringResource(R.string.drawer_steam) else stringResource(R.string.drawer_desktop), fontSize = if (short) 18.sp else 20.sp, fontWeight = FontWeight.Bold,
+                    if (narrow) Spacer(Modifier.weight(1f)) else Text(title, fontSize = 18.sp, fontWeight = FontWeight.Bold,
                         color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                     if (a.pipSupported) SteamActionPill(
                         stringResource(R.string.pip_title), Icons.Outlined.PictureInPictureAlt, focus.track(page, "pip"),
@@ -470,12 +477,12 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
 
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth().padding(top = if (short) 6.dp else 12.dp),
+                    modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
                 ) {
                     DrawerBumper("LB", stringResource(R.string.drawer_prev_page), modifier = focus.track(page, "prev")) {
                         host.open = null; onPageChange(pages.step(page, -1))
                     }
-                    DrawerPageTabs(page = page, pages = pages, compact = short, modifier = Modifier.weight(1f)) { index -> host.open = null; onPageChange(index) }
+                    DrawerPageTabs(page = page, pages = pages, compact = true, modifier = Modifier.weight(1f)) { index -> host.open = null; onPageChange(index) }
                     DrawerBumper("RB", stringResource(R.string.drawer_next_page), modifier = focus.track(page, "next")) {
                         host.open = null; onPageChange(pages.step(page, 1))
                     }
@@ -486,7 +493,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                 ) { selectedGlassesTab = it }
                 Column(
                     modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(pageScroll.getValue(page)),
-                ) { CompositionLocalProvider(LocalChipMinWidth provides 120.dp) {
+                ) { CompositionLocalProvider(LocalChipMinWidth provides 96.dp, LocalCompactSettings provides true) {
                     when (page) {
                         SessionDrawerPage.DISPLAY -> {
                             SettingsGroup(stringResource(R.string.drawer_page_display)) {
@@ -557,11 +564,13 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                 ChoiceRow(host, "touch", stringResource(R.string.mode_touch), null,
                                     listOf(SessionPrefs.TOUCH_AUTO to stringResource(R.string.drawer_touch_auto, a.touchAuto), SessionPrefs.TOUCH_PAD to stringResource(R.string.mode_touch_touchpad), SessionPrefs.TOUCH_DIRECT to stringResource(R.string.mode_touch_direct), SessionPrefs.TOUCH_GESTURES to stringResource(R.string.mode_touch_gestures), SessionPrefs.TOUCH_OFF to stringResource(R.string.widgets_off)),
                                     a.touchMode, chipModifier = focus.track(page, "touch"), onPick = a.onTouch)
-                                ActionRow(stringResource(R.string.gesture_settings), stringResource(R.string.gesture_settings_hint),
-                                    stringResource(R.string.ctrl_edit), a.onGestureSettings,
-                                    modifier = focus.track(page, "gesture-settings"))
+                                if (a.touchMode == SessionPrefs.TOUCH_GESTURES) {
+                                    ActionRow(stringResource(R.string.gesture_settings), null,
+                                        stringResource(R.string.ctrl_edit), a.onGestureSettings,
+                                        modifier = focus.track(page, "gesture-settings"))
+                                }
                                 if (a.onScreenKeys != null) {
-                                    SettingsRow(stringResource(R.string.screen_keys), null) {
+                                    SettingsRow(stringResource(R.string.screen_keys), null, stacked = narrow) {
                                         Row(
                                             verticalAlignment = Alignment.CenterVertically,
                                             horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -602,6 +611,9 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                 if (a.steam) ChoiceRow(host, "back-actions", stringResource(R.string.mode_back), null,
                                     listOf(false to stringResource(SessionPrefs.BACK_MENU_THEN_QAM), true to stringResource(SessionPrefs.BACK_QAM_THEN_MENU)),
                                     a.backActionsInverted, chipModifier = focus.track(page, "back-actions"), onPick = a.onBackActionsInverted)
+                                if (a.steam) ChoiceRow(host, "back-double-tap", stringResource(R.string.back_double_tap_window), null,
+                                    SessionPrefs.BACK_DOUBLE_TAP_MS_OPTIONS.map { it to stringResource(R.string.back_tap_ms, it) },
+                                    a.backDoubleTapMs, chipModifier = focus.track(page, "back-double-tap"), onPick = a.onBackDoubleTapMs)
                                 if (a.steam && a.unfoldedControls != null) ToggleRow(host, "unfolded-controls", stringResource(R.string.unfolded_controls),
                                     stringResource(R.string.unfolded_controls_hint), a.unfoldedControls,
                                     chipModifier = focus.track(page, "unfolded-controls"), onChange = a.onUnfoldedControls)
@@ -612,12 +624,9 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                     onChange = a.onUnfoldedControlsWithController)
                             }
                             SettingsGroup(stringResource(R.string.drawer_latency)) {
-                                ToggleRow(host, "low-latency-controller", stringResource(R.string.drawer_low_latency_controller),
-                                    stringResource(R.string.drawer_low_latency_controller_hint), a.lowLatencyController,
-                                    chipModifier = focus.track(page, "low-latency-controller"), onChange = a.onLowLatencyController)
-                                ToggleRow(host, "low-latency-touch", stringResource(R.string.drawer_low_latency_touch),
-                                    stringResource(R.string.drawer_low_latency_touch_hint), a.lowLatencyTouch,
-                                    chipModifier = focus.track(page, "low-latency-touch"), onChange = a.onLowLatencyTouch)
+                                ToggleRow(host, "low-latency", stringResource(R.string.drawer_low_latency),
+                                    stringResource(R.string.drawer_low_latency_hint), a.lowLatency,
+                                    chipModifier = focus.track(page, "low-latency"), onChange = a.onLowLatency)
                             }
                             SettingsGroup(stringResource(R.string.drawer_keyboard)) {
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(8.dp)) {
@@ -807,10 +816,10 @@ private fun DrawerOutlineButton(text: String, modifier: Modifier = Modifier, pro
     OutlinedButton(
         onClick = onClick,
         interactionSource = source,
-        modifier = modifier.controllerConfirm(onClick = onClick),
+        modifier = modifier.controllerConfirm(onClick = onClick).focusGlide(RoundedCornerShape(12.dp)),
         shape = RoundedCornerShape(12.dp),
         contentPadding = PaddingValues(horizontal = 12.dp),
-        border = BorderStroke(if (hot) 2.dp else 1.dp, if (hot) pal.signal else colors.outline),
+        border = BorderStroke(1.dp, colors.outline),
         colors = ButtonDefaults.outlinedButtonColors(containerColor = if (hot) pal.signal.copy(alpha = 0.16f) else Color.Transparent),
     ) { ProgressLabel({ m -> Text(text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, modifier = m) }, progress, fontSize = 13.sp) }
 }
@@ -901,16 +910,22 @@ private fun DrawerPageTabs(page: SessionDrawerPage, pages: List<SessionDrawerPag
         modifier = modifier.height(if (compact) 44.dp else 64.dp).clipToBounds().selectableGroup(),
     ) {
         val tab = if (compact) 36f else 44f
+        val scrolling = maxWidth < (tab + (count - 1) * 24f).dp
+        val scroll = rememberScrollState()
+        val density = LocalDensity.current.density
+        LaunchedEffect(scrolling, selectedIndex, maxWidth) {
+            if (scrolling) scroll.animateScrollTo(((selectedIndex * (tab + 4f) + tab / 2f - maxWidth.value / 2f) * density).roundToInt().coerceAtLeast(0))
+        }
         val spacing = ((maxWidth.value - tab) / ((count - 1) * (1f + DRAWER_TAB_LEAN_DP / DRAWER_TAB_SPACING_DP))).coerceIn(24f, DRAWER_TAB_SPACING_DP)
         val leanStep = DRAWER_TAB_LEAN_DP * spacing / DRAWER_TAB_SPACING_DP
         val lean by animateFloatAsState(-(selectedIndex - middle) * leanStep, motion, label = "tabLean")
-        pages.forEachIndexed { index, item ->
+        @Composable fun tabs() { pages.forEachIndexed { index, item ->
             androidx.compose.runtime.key(item) {
                 val selected = item == page
                 val source = remember { MutableInteractionSource() }
                 val focused = source.collectIsFocusedAsState().value
-                val scale by animateFloatAsState(if (selected) 1f else DRAWER_TAB_SIDE_SCALE, motion, label = "tabScale")
-                val alpha by animateFloatAsState(if (selected) 1f else DRAWER_TAB_SIDE_ALPHA, motion, label = "tabAlpha")
+                val scale by animateFloatAsState(if (selected || scrolling) 1f else DRAWER_TAB_SIDE_SCALE, motion, label = "tabScale")
+                val alpha by animateFloatAsState(if (selected || scrolling) 1f else DRAWER_TAB_SIDE_ALPHA, motion, label = "tabAlpha")
                 val glow by animateFloatAsState(if (selected) 1f else 0f, motion, label = "tabGlow")
                 val pageDescription = stringResource(R.string.drawer_page_desc, stringResource(item.title))
                 val tint by animateColorAsState(if (selected) colors.onBackground else colors.onSurfaceVariant, Motion.tw(340, easing = FastOutSlowInEasing), label = "tabTint")
@@ -918,7 +933,7 @@ private fun DrawerPageTabs(page: SessionDrawerPage, pages: List<SessionDrawerPag
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier
-                        .offset { IntOffset(((index - middle) * spacing + lean).dp.roundToPx(), 0) }
+                        .then(if (scrolling) Modifier else Modifier.offset { IntOffset(((index - middle) * spacing + lean).dp.roundToPx(), 0) })
                         .size(tab.dp)
                         .graphicsLayer { scaleX = scale; scaleY = scale; this.alpha = alpha }
                         .clip(RoundedCornerShape(16.dp))
@@ -938,6 +953,9 @@ private fun DrawerPageTabs(page: SessionDrawerPage, pages: List<SessionDrawerPag
                 }
             }
         }
+        }
+        if (scrolling) Row(Modifier.fillMaxWidth().horizontalScroll(scroll), horizontalArrangement = Arrangement.spacedBy(4.dp)) { tabs() }
+        else tabs()
     }
 }
 
@@ -1387,6 +1405,7 @@ private fun ComponentsDrawerPage(host: MenuHost, a: DrawerActions, track: (Strin
         val pal = LocalPalette.current
         Column(
             modifier = Modifier.fillMaxWidth().then(track("cmp-running"))
+                .glideBorder(hot, Shape12, pal.signal)
                 .focusable(interactionSource = src)
                 .background(if (hot) pal.signal.copy(alpha = 0.12f) else Color.Transparent)
                 .padding(horizontal = 14.dp, vertical = 11.dp),
@@ -1662,6 +1681,7 @@ private fun StopConfirm(
     Box(Modifier.fillMaxSize()) {
         Box(
             Modifier.fillMaxSize().graphicsLayer { alpha = dim.value }.background(Color(0x59000000))
+                .focusProperties { canFocus = false }
                 .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, enabled = open, onClick = onCancel),
         )
         val path = remember { Path() }

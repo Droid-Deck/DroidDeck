@@ -247,8 +247,6 @@
     <string name="mode_ratio">Proporção da tela</string>
     <string name="mode_ratio_custom">Definida pela resolução personalizada.</string>
     <string name="mode_ratio_auto">O Automático usa no mínimo 16:9.</string>
-    <string name="mode_fps">Limite de quadros</string>
-    <string name="mode_fps_note">Limita a sessão inteira. A tela muda para uma taxa de atualização que seja múltipla do limite.</string>
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">Saída HDR10</string>
     <string name="mode_hdr_unavailable">Indisponível: %1$s.</string>
@@ -1956,7 +1954,6 @@
     <string name="display_filter_live">Aplicado na hora. Compartilhado entre Steam e Área de trabalho.</string>
     <string name="display_filter_note">FSR, GSR e NIS são aplicados ao ampliar a imagem da sessão. Só nitidez também funciona sem ampliação.</string>
     <string name="display_sharpness">Nitidez do filtro</string>
-    <string name="display_frame_rate">Taxa de quadros</string>
     <string name="display_look_filter">%1$s Define a escala como %2$s.</string>
     <string name="display_match_screen">Igual à tela (%1$d×%2$d)</string>
     <string name="display_follow_screen">Seguir a tela (redimensiona ao dobrar ou desdobrar)</string>
@@ -2010,6 +2007,13 @@
     <string name="stores_play">Jogar</string>
     <string name="stores_install">Instalar</string>
     <string name="bnet_open">Abrir o Battle.net</string>
+    <string name="bnet_dl_starting">Iniciando o downloader da Blizzard…</string>
+    <string name="bnet_dl_waiting">Aguardando o Battle.net fechar…</string>
+    <string name="bnet_dl_queued">Aguardando o outro download do Battle.net…</string>
+    <string name="bnet_dl_client_first">Abra o Battle.net e entre uma vez; depois instale os jogos dele aqui.</string>
+    <string name="bnet_dl_failed">O downloader da Blizzard parou: %1$s</string>
+    <string name="bnet_dl_agent_error">Erro da Blizzard %1$s</string>
+    <string name="bnet_update">Atualizar</string>
     <string name="bnet_store">Jogos da Blizzard</string>
     <string name="stores_resume_install">Retomar instalação</string>
     <string name="stores_dl_interrupted">Interrompido</string>
@@ -3112,6 +3116,7 @@
     <string name="library_remove">Remover da Biblioteca</string>
     <string name="library_in">Na Biblioteca</string>
     <string name="xbox_filter_show">Mostrar</string>
+    <string name="itch_collections">Coleções</string>
     <string name="xbox_filter_cloud">Nuvem</string>
     <string name="stores_xbox_cloud_settings">Configurações da nuvem</string>
 </resources>

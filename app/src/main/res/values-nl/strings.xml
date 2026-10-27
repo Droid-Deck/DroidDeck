@@ -247,8 +247,6 @@
     <string name="mode_ratio">Beeldverhouding</string>
     <string name="mode_ratio_custom">Ingesteld door de aangepaste resolutie.</string>
     <string name="mode_ratio_auto">Automatisch gebruikt minimaal 16:9.</string>
-    <string name="mode_fps">Framelimiet</string>
-    <string name="mode_fps_note">Begrenst de hele sessie. Het scherm schakelt naar een verversingssnelheid die een veelvoud van de limiet is.</string>
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">HDR10-uitvoer</string>
     <string name="mode_hdr_unavailable">Niet beschikbaar: %1$s.</string>
@@ -1943,7 +1941,6 @@
     <string name="display_filter_live">Wordt direct toegepast. Gedeeld door Steam en Desktop.</string>
     <string name="display_filter_note">FSR, GSR en NIS worden toegepast bij het vergroten van het sessiebeeld. Alleen verscherpen werkt ook zonder vergroting.</string>
     <string name="display_sharpness">Filterscherpte</string>
-    <string name="display_frame_rate">Framerate</string>
     <string name="display_look_filter">%1$s Zet schaling op %2$s.</string>
     <string name="display_match_screen">Schermformaat (%1$d×%2$d)</string>
     <string name="display_follow_screen">Scherm volgen (past formaat aan bij vouwen of uitvouwen)</string>
@@ -1997,6 +1994,13 @@
     <string name="stores_play">Spelen</string>
     <string name="stores_install">Installeren</string>
     <string name="bnet_open">Battle.net openen</string>
+    <string name="bnet_dl_starting">Blizzards downloader wordt gestart…</string>
+    <string name="bnet_dl_waiting">Wachten tot Battle.net is gesloten…</string>
+    <string name="bnet_dl_queued">Wachten op de andere Battle.net-download…</string>
+    <string name="bnet_dl_client_first">Open Battle.net en meld je één keer aan, installeer daarna de games hier.</string>
+    <string name="bnet_dl_failed">Blizzards downloader is gestopt: %1$s</string>
+    <string name="bnet_dl_agent_error">Blizzard-fout %1$s</string>
+    <string name="bnet_update">Bijwerken</string>
     <string name="bnet_store">Blizzard-games</string>
     <string name="stores_resume_install">Installatie hervatten</string>
     <string name="stores_dl_interrupted">Onderbroken</string>
@@ -3078,6 +3082,7 @@
     <string name="library_remove">Verwijderen uit Bibliotheek</string>
     <string name="library_in">In Bibliotheek</string>
     <string name="xbox_filter_show">Weergeven</string>
+    <string name="itch_collections">Collecties</string>
     <string name="xbox_filter_cloud">Cloud</string>
     <string name="stores_xbox_cloud_settings">Cloudinstellingen</string>
 </resources>

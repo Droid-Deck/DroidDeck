@@ -247,8 +247,6 @@
     <string name="mode_ratio">Співвідношення сторін</string>
     <string name="mode_ratio_custom">Визначається власною роздільною здатністю.</string>
     <string name="mode_ratio_auto">«Авто» використовує щонайменше 16:9.</string>
-    <string name="mode_fps">Обмеження кадрів</string>
-    <string name="mode_fps_note">Обмежує весь сеанс. Екран перемикається на частоту оновлення, кратну цьому обмеженню.</string>
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">Вивід HDR10</string>
     <string name="mode_hdr_unavailable">Недоступно: %1$s.</string>
@@ -1985,7 +1983,6 @@
     <string name="display_filter_live">Застосовується відразу. Спільний для Steam і Робочого столу.</string>
     <string name="display_filter_note">FSR, GSR і NIS застосовуються під час збільшення зображення сеансу. «Лише різкість» працює і без збільшення.</string>
     <string name="display_sharpness">Різкість фільтра</string>
-    <string name="display_frame_rate">Частота кадрів</string>
     <string name="display_look_filter">%1$s Встановлює масштабування на %2$s.</string>
     <string name="display_match_screen">Під екран (%1$d×%2$d)</string>
     <string name="display_follow_screen">Слідувати за екраном (змінює розмір при згортанні чи розгортанні)</string>
@@ -2039,6 +2036,13 @@
     <string name="stores_play">Грати</string>
     <string name="stores_install">Встановити</string>
     <string name="bnet_open">Відкрити Battle.net</string>
+    <string name="bnet_dl_starting">Запуск завантажувача Blizzard…</string>
+    <string name="bnet_dl_waiting">Очікування закриття Battle.net…</string>
+    <string name="bnet_dl_queued">Очікування іншого завантаження Battle.net…</string>
+    <string name="bnet_dl_client_first">Відкрийте Battle.net і увійдіть один раз, потім встановлюйте його ігри тут.</string>
+    <string name="bnet_dl_failed">Завантажувач Blizzard зупинився: %1$s</string>
+    <string name="bnet_dl_agent_error">Помилка Blizzard %1$s</string>
+    <string name="bnet_update">Оновити</string>
     <string name="bnet_store">Ігри Blizzard</string>
     <string name="stores_resume_install">Продовжити встановлення</string>
     <string name="stores_dl_interrupted">Перервано</string>
@@ -3146,6 +3150,7 @@
     <string name="library_remove">Прибрати з бібліотеки</string>
     <string name="library_in">У бібліотеці</string>
     <string name="xbox_filter_show">Показати</string>
+    <string name="itch_collections">Колекції</string>
     <string name="xbox_filter_cloud">Хмара</string>
     <string name="stores_xbox_cloud_settings">Налаштування хмари</string>
 </resources>

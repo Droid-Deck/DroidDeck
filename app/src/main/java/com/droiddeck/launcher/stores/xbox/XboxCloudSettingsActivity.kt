@@ -1,5 +1,7 @@
 package com.droiddeck.launcher.stores.xbox
 
+import androidx.compose.foundation.shape.CircleShape
+import com.droiddeck.launcher.ui.focusGlide
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -45,7 +47,7 @@ class XboxCloudSettingsActivity : ComponentActivity() {
                 }
                 Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).verticalScroll(rememberScrollState())) {
                     Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                        OutlinedButton(onClick = { finish() }) { Text("Back") }
+                        OutlinedButton(onClick = { finish() }, modifier = Modifier.focusGlide(CircleShape)) { Text("Back") }
                         Text("Xbox Cloud Gaming", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onBackground, modifier = Modifier.padding(horizontal = 16.dp))
                     }
