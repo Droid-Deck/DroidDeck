@@ -83,7 +83,7 @@ class PortraitLayoutTest {
         }
         compose.mainClock.advanceTimeBy(1_000)
         for (key in listOf("games", "stores", "desktop", "components", "android-apps", "setup", "updates", "steam")) {
-            compose.onNodeWithTag("rail-$key").performScrollTo()
+            compose.onNodeWithTag("rail-$key").scrollWithClock()
             compose.mainClock.advanceTimeBy(1_000)
             compose.onNodeWithTag("rail-$key").assertIsDisplayed().performClick()
             compose.mainClock.advanceTimeBy(1_000)
@@ -108,12 +108,19 @@ class PortraitLayoutTest {
             }
         }
         compose.mainClock.advanceTimeBy(1_000)
-        compose.onNodeWithText("Add game").performScrollTo()
+        compose.onNodeWithText("Add game").scrollWithClock()
         compose.mainClock.advanceTimeBy(1_000)
         compose.onNodeWithText("Add game").assertIsDisplayed()
-        compose.onNodeWithText("Filter").performScrollTo()
+        compose.onNodeWithText("Filter").scrollWithClock()
         compose.mainClock.advanceTimeBy(1_000)
         compose.onNodeWithText("Filter").assertIsDisplayed()
+    }
+
+    private fun SemanticsNodeInteraction.scrollWithClock(): SemanticsNodeInteraction {
+        val previous = compose.mainClock.autoAdvance
+        // Animated scroll semantics need frames even when layout assertions use a paused clock.
+        compose.mainClock.autoAdvance = true
+        return try { performScrollTo() } finally { compose.mainClock.autoAdvance = previous }
     }
 
     private fun state(home: Boolean = false, running: String? = null) = FrontEndState(
