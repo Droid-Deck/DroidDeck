@@ -681,10 +681,11 @@ class FrontEndActivity : ComponentActivity() {
 
     private fun restoreCompatLaunch(state: Bundle) {
         savedIntent(state, KEY_COMPAT_LAUNCH)?.let { next ->
+            val request = intent.takeIf { state.getBoolean(KEY_COMPAT_GAME_LINK) }
             val problem = state.getString(KEY_COMPAT_PROBLEM)
-            if (problem == null) waitForCompat(next, state.getBoolean(KEY_COMPAT_MENU_INSTALL))
+            if (problem == null) waitForCompat(next, state.getBoolean(KEY_COMPAT_MENU_INSTALL), request)
             else compatLaunch = CompatLaunch(next,
-                com.droiddeck.launcher.session.LoadingState(this).apply { showEnded(problem) }, false)
+                com.droiddeck.launcher.session.LoadingState(this).apply { showEnded(problem) }, false, request)
         }
     }
 
@@ -692,6 +693,7 @@ class FrontEndActivity : ComponentActivity() {
         compatLaunch?.let {
             state.putParcelable(KEY_COMPAT_LAUNCH, it.intent)
             state.putBoolean(KEY_COMPAT_MENU_INSTALL, it.menuInstall)
+            state.putBoolean(KEY_COMPAT_GAME_LINK, it.gameLinkRequest != null)
             if (it.loading.ended) state.putString(KEY_COMPAT_PROBLEM, it.loading.step)
         }
     }
@@ -2617,6 +2619,7 @@ class FrontEndActivity : ComponentActivity() {
         private const val KEY_PENDING_SWITCH = "pending_switch"
         private const val KEY_COMPAT_LAUNCH = "compat_launch"
         private const val KEY_COMPAT_MENU_INSTALL = "compat_menu_install"
+        private const val KEY_COMPAT_GAME_LINK = "compat_game_link"
         private const val KEY_COMPAT_PROBLEM = "compat_problem"
         private const val KEY_SWITCHING_TO = "switching_to"
         private const val KEY_SWITCH_DEADLINE = "switch_deadline"
