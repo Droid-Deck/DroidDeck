@@ -734,6 +734,7 @@ private:
             }
         } else if (neutralFrames_) --neutralFrames_;
         if (handMode_) handPacket_.flags |= DROIDDECK_XR_INPUT_HAND_MODE;
+        if (handMode_ && showHandVisuals_ && handVisuals_.ready()) handPacket_.flags |= DROIDDECK_XR_INPUT_LOCAL_HAND_MESH;
         if (handMode_) for (int hand = 0; hand < 2; ++hand)
             handActive_[hand] = poseTracked(handPacket_.hands[hand].grip) &&
                 (handPacket_.hands[hand].status_bits & DROIDDECK_XR_GRIP_ACTIVE);
