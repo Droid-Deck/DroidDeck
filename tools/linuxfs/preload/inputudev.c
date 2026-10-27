@@ -583,11 +583,13 @@ struct enumerate {
   void *real;
   int matched;
   int scanned;
+  unsigned seq;
 };
 
 #define ENUMERATE_MAX 16
 
 static struct enumerate enumerates[ENUMERATE_MAX];
+static unsigned enumerate_seq;
 
 static struct enumerate *enumerate_state(void *enumerate) {
   int i;
@@ -597,22 +599,33 @@ static struct enumerate *enumerate_state(void *enumerate) {
   return NULL;
 }
 
+/* A caller that walks more than ENUMERATE_MAX enumerates without unrefing would silently lose the
+   pads, so the oldest slot is recycled instead of the new state being dropped. */
+static struct enumerate *enumerate_claim(void) {
+  struct enumerate *oldest = &enumerates[0];
+  int i;
+
+  for (i = 0; i < ENUMERATE_MAX; i++) {
+    if (enumerates[i].real == NULL) return &enumerates[i];
+    if (enumerates[i].seq < oldest->seq) oldest = &enumerates[i];
+  }
+  return oldest;
+}
+
 void *udev_enumerate_new(void *udev) {
   static void *(*real_new)(void *);
   void *enumerate;
-  int i;
+  struct enumerate *state;
 
   if (real_new == NULL) real_new = next_symbol("udev_enumerate_new");
   if (real_new == NULL) return NULL;
   enumerate = real_new(udev);
   if (enumerate == NULL) return NULL;
-  for (i = 0; i < ENUMERATE_MAX; i++) {
-    if (enumerates[i].real != NULL) continue;
-    enumerates[i].real = enumerate;
-    enumerates[i].matched = 0;
-    enumerates[i].scanned = 0;
-    break;
-  }
+  state = enumerate_claim();
+  state->real = enumerate;
+  state->matched = 0;
+  state->scanned = 0;
+  state->seq = ++enumerate_seq;
   return enumerate;
 }
 
@@ -649,6 +662,8 @@ int udev_enumerate_scan_devices(void *enumerate) {
   rc = real_scan != NULL ? real_scan(enumerate) : -1;
   if (state == NULL) return rc;
   state->scanned = 1;
+  /* Both browsers abandon the enumeration when the scan reports an error, and the real scan always
+     fails here because Android hides /sys/class from readdir. */
   if (state->matched && rc < 0) rc = 0;
   return rc;
 }
