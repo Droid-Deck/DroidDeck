@@ -5,6 +5,7 @@ import android.os.HandlerThread
 import android.os.Process
 import android.view.Choreographer
 import android.view.Surface
+import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.SessionState
 
 object CompositorHost {
@@ -16,6 +17,9 @@ object CompositorHost {
 
     @Volatile
     private var vsyncRunning = false
+
+    @Volatile
+    private var ownVsyncThread = true
 
     // The screen tick gets its own thread so a busy main thread cannot delay the compositor's frames.
     private val vsyncThread: HandlerThread by lazy {
@@ -43,6 +47,7 @@ object CompositorHost {
         refreshHz: Float,
         fpsLimit: Int,
     ): Boolean {
+        ownVsyncThread = SessionPrefs.vsyncThread(context)
         pace(refreshHz, fpsLimit)
         if (!SessionState.running) WaylandCompositor.nativeSetOutputSize(outputWidth, outputHeight)
         if (started) {
@@ -113,6 +118,11 @@ object CompositorHost {
     private fun resumeVsync() {
         if (vsyncRunning) return
         vsyncRunning = true
+        WaylandCompositor.nativeLog("screen", if (ownVsyncThread) "screen tick runs on its own display-priority thread" else "screen tick runs on the main thread")
+        if (!ownVsyncThread) {
+            Choreographer.getInstance().postFrameCallback(vsync)
+            return
+        }
         vsyncHandler.post {
             val choreographer = Choreographer.getInstance()
             choreographer.removeFrameCallback(vsync)
