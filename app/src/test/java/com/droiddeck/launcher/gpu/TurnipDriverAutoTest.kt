@@ -60,7 +60,7 @@ class TurnipDriverAutoTest {
         try {
             assertEquals("system", TurnipDriver(RuntimeEnvironment.getApplication()).autoId())
         } finally {
-            ShadowSystemProperties.override("ro.hardware.vulkan", "")
+            ShadowSystemProperties.reset()
         }
     }
 }
