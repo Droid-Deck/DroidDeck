@@ -64,7 +64,8 @@ object HomePins {
         val launcher = context.getSystemService(LauncherApps::class.java)
         val query = LauncherApps.ShortcutQuery().setPackage(info.`package`).setQueryFlags(LauncherApps.ShortcutQuery.FLAG_MATCH_PINNED)
         val unpinned = runCatching {
-            val keep = launcher.getShortcuts(query, info.userHandle).orEmpty().map { it.id } - info.id
+            val current = checkNotNull(launcher.getShortcuts(query, info.userHandle))
+            val keep = current.map { it.id } - info.id
             launcher.pinShortcuts(info.`package`, keep, info.userHandle)
         }.isSuccess
         if (!unpinned) return
