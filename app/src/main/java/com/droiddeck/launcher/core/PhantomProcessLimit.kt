@@ -1,6 +1,7 @@
 package com.droiddeck.launcher.core
 
 import android.content.Context
+import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import com.droiddeck.launcher.R
@@ -60,14 +61,14 @@ object PhantomProcessLimit {
         if (usesDeviceConfig(sdk)) {
             val off = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(PREF_ANDROID_12_OFF, false)
             val global = try {
-                Settings.Global.getString(context.contentResolver, SETTING)
+                globalSetting(context)
             } catch (_: Exception) {
                 null
             }
             return android12Status(off, global, systemProperty(OVERRIDE_PROPERTY))
         }
         val global = try {
-            Settings.Global.getString(context.contentResolver, SETTING)
+            globalSetting(context)
         } catch (_: Exception) {
             return PhantomProcessStatus.UNREADABLE
         }
@@ -96,6 +97,15 @@ object PhantomProcessLimit {
             .invoke(null, name) as? String
     } catch (_: Exception) {
         null
+    }
+
+    // Settings.Global caches values in-process and misses deletions made over adb; ask the provider directly.
+    private fun globalSetting(context: Context): String? {
+        val uri = Uri.withAppendedPath(Settings.Global.CONTENT_URI, SETTING)
+        context.contentResolver.query(uri, arrayOf(Settings.NameValueTable.VALUE), null, null, null)?.use { cursor ->
+            return if (cursor.moveToFirst()) cursor.getString(0) else null
+        }
+        return Settings.Global.getString(context.contentResolver, SETTING)
     }
 
     fun hasDeveloperToggle(sdk: Int = Build.VERSION.SDK_INT): Boolean = sdk >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE
