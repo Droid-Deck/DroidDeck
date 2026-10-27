@@ -479,7 +479,8 @@ class GameEnvironmentTest(unittest.TestCase):
             proton = Path(tmp) / "proton"
             proton.write_text('default_cpu_limit = {\n    "19900"     :  "16",  # Far Cry 2\n'
                               '    "2229830"   :  "1",   # Command & Conquer\n    "11440"     :  "4",   # DiRT\n'
-                              '    "1038250"   :  "P",   # DIRT 5\n}\n\nother = {\n    "620"       :  "2",\n}\n')
+                              '    "1038250"   :  "P",   # DIRT 5\n    "618970"    :  4,     # Outcast, written as Proton 10 does\n'
+                              '}\n\nother = {\n    "620"       :  "2",\n}\n')
             command = [str(proton), "waitforexitandrun", "/game/game.exe"]
             cases = [
                 ({}, every, pocket_fit, "8:7,2,3,4,5,6,0,1", "8:7,2,3,4,5,6,0,1"),
@@ -493,7 +494,8 @@ class GameEnvironmentTest(unittest.TestCase):
                 ({"SteamGameId": "2229830"}, every, pocket_fit, "1:7", "1:7"),
                 ({"SteamGameId": "11440"}, every, pocket_fit, "4:7,2,3,4", "4:7,2,3,4"),
                 ({"SteamGameId": "19900"}, every, pocket_fit, "8:7,2,3,4,5,6,0,1", "8:7,2,3,4,5,6,0,1"),
-                ({"SteamGameId": "1038250"}, every, pocket_fit, "8:7,2,3,4,5,6,0,1", "8:7,2,3,4,5,6,0,1"),
+                ({"SteamGameId": "1038250"}, every, pocket_fit, None, None),
+                ({"SteamGameId": "618970"}, every, pocket_fit, "4:7,2,3,4", "4:7,2,3,4"),
                 ({"SteamGameId": "620"}, every, pocket_fit, "8:7,2,3,4,5,6,0,1", "8:7,2,3,4,5,6,0,1"),
                 ({"SteamGameId": "2229830", "BL_GAME_CPUS": "0,1"}, {0, 1}, pocket_fit, "2:0,1", "2:0,1"),
                 ({}, every, {core: 100 for core in every}, None, None),
@@ -516,6 +518,8 @@ class GameEnvironmentTest(unittest.TestCase):
                 self.assertEqual(env.get("PROTON_CPU_TOPOLOGY"), proton_topology, env)
             self.assertIsNone(MODULE["proton_cpu_limit"](["/missing/proton"], {"SteamGameId": "11440"}))
             self.assertIsNone(MODULE["proton_cpu_limit"](command, {}))
+            self.assertEqual(MODULE["proton_cpu_limit"](command, {"SteamGameId": "1038250"}), "P")
+            self.assertEqual(MODULE["proton_cpu_limit"](command, {"SteamGameId": "618970"}), 4)
 
     def test_core_speeds_read_capacity_then_top_clock(self):
         with tempfile.TemporaryDirectory() as tmp:

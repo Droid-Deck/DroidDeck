@@ -380,7 +380,7 @@ def fastest_first(cores):
 
 
 def proton_cpu_limit(command, env):
-    """The core count Proton's own default_cpu_limit list gives this game, or None."""
+    """This game's entry in Proton's own default_cpu_limit list: a core count, another value such as "P" as text, or None."""
     app_id = env.get("SteamGameId", "")
     if not command or not app_id.isdigit():
         return None
@@ -392,10 +392,11 @@ def proton_cpu_limit(command, env):
     except OSError:
         return None
     table = re.search(r"^default_cpu_limit = \{(.*?)^\}", text, re.M | re.S)
-    match = table and re.search(r'^\s*"%s"\s*:\s*"(\d+)"' % app_id, table.group(1), re.M)
+    match = table and re.search(r'^\s*"%s"\s*:\s*"?(\w+)' % app_id, table.group(1), re.M)
     if not match:
         return None
-    return int(match.group(1)) or None
+    value = match.group(1)
+    return int(value) if value.isdigit() else value
 
 
 def cpu_topology(env, command=()):
@@ -418,7 +419,10 @@ def cpu_topology(env, command=()):
     if not cores or cores[-1] >= len(online):
         return
     if fastest:
-        cores = fastest_first(cores)[:None if picked else proton_cpu_limit(command, env)]
+        limit = None if picked else proton_cpu_limit(command, env)
+        if isinstance(limit, str):
+            return
+        cores = fastest_first(cores)[:limit or None]
     elif set(cores) >= online:
         return
     if cores == sorted(online):
