@@ -588,6 +588,12 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetLookName(JNIEnv *
 }
 
 JNIEXPORT void JNICALL
+Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetLowLatencyPresent(JNIEnv *env, jclass clazz, jboolean on) {
+    (void)env; (void)clazz;
+    vkp_set_low_latency(on ? 1 : 0);
+}
+
+JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetFpsLimit(JNIEnv *env, jclass clazz, jint fps) {
     g_fps_limit = fps > 0 ? fps : 0;
     g_release_unpaced = fps < 0;

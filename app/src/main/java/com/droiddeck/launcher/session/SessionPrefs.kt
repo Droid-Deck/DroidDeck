@@ -1152,6 +1152,12 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("unfoldedControls", enabled).apply()
     }
 
+    fun externalGameOutput(context: Context): Boolean = prefs(context).getBoolean("externalGameOutput", false)
+
+    fun setExternalGameOutput(context: Context, enabled: Boolean) {
+        prefs(context).edit().putBoolean("externalGameOutput", enabled).apply()
+    }
+
     fun unfoldedControlsWithController(context: Context): Boolean =
         prefs(context).getBoolean("unfoldedControlsWithController", false)
 

@@ -18,6 +18,7 @@
 #include <poll.h>
 #include <time.h>
 #include <pthread.h>
+#include <stdatomic.h>
 #include <android/log.h>
 #include <android/hardware_buffer.h>
 
@@ -54,6 +55,8 @@ static VkCommandBuffer g_cmds[MAX_PRESENTS];
 static VkSemaphore g_acqs[MAX_PRESENTS], g_rnds[MAX_PRESENTS];
 static VkFence g_fence;
 static int g_swap_extra;
+static atomic_int g_low_latency_want;
+static int g_low_latency;
 #define SCENE_FMT VK_FORMAT_R8G8B8A8_UNORM
 static VkPhysicalDeviceMemoryProperties g_memprops;
 
@@ -720,7 +723,21 @@ static int swap_init_locked(void) {
         g_extent.height = ANativeWindow_getHeight(g_window);
     }
     g_swap_extra = vkp_framegen_extra_images();
+    g_low_latency = atomic_load(&g_low_latency_want);
     uint32_t want = caps.minImageCount + 1 + (uint32_t)g_swap_extra;
+    VkPresentModeKHR present_mode = VK_PRESENT_MODE_FIFO_KHR;
+    // Frame generation queues several presents per frame, which only FIFO keeps in order.
+    if (g_low_latency && !g_swap_extra) {
+        uint32_t nmodes = 0;
+        VkPresentModeKHR modes[8];
+        if (g_vk.GetPhysicalDeviceSurfacePresentModesKHR) {
+            nmodes = 8;
+            if (g_vk.GetPhysicalDeviceSurfacePresentModesKHR(g_pd, g_surface, &nmodes, modes) < 0) nmodes = 0;
+        }
+        for (uint32_t i = 0; i < nmodes; i++)
+            if (modes[i] == VK_PRESENT_MODE_MAILBOX_KHR) present_mode = VK_PRESENT_MODE_MAILBOX_KHR;
+        if (present_mode != VK_PRESENT_MODE_MAILBOX_KHR) want = caps.minImageCount;
+    }
     if (caps.maxImageCount && want > caps.maxImageCount) want = caps.maxImageCount;
 
     VkSurfaceTransformFlagBitsKHR pretrans =
@@ -734,7 +751,7 @@ static int swap_init_locked(void) {
         .imageUsage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
         .imageSharingMode = VK_SHARING_MODE_EXCLUSIVE, .preTransform = pretrans,
         .compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
-        .presentMode = VK_PRESENT_MODE_FIFO_KHR, .clipped = VK_TRUE};
+        .presentMode = present_mode, .clipped = VK_TRUE};
     VkResult cr = g_vk.CreateSwapchainKHR(g_dev, &sci, NULL, &g_swapchain);
     if (cr != VK_SUCCESS && g_swap_is_hdr) {
         droiddeck_log("color", "the driver refused the HDR10 swapchain (%s): frames with frame generation are "
@@ -756,7 +773,9 @@ static int swap_init_locked(void) {
     g_images = calloc(g_nimg, sizeof(VkImage));
     g_vk.GetSwapchainImagesKHR(g_dev, g_swapchain, &g_nimg, g_images);
 
-    droiddeck_log("gpu", "screen output %ux%u, %u buffers, vsync%s", g_extent.width, g_extent.height, g_nimg,
+    droiddeck_log("gpu", "screen output %ux%u, %u buffers, %s%s", g_extent.width, g_extent.height, g_nimg,
+               present_mode == VK_PRESENT_MODE_MAILBOX_KHR ? "mailbox (newest frame wins)"
+                   : g_low_latency && !g_swap_extra ? "vsync, shortest queue" : "vsync",
                g_swap_extra ? " (frame generation: several presents per frame)" : "");
     return 0;
 }
@@ -1535,6 +1554,11 @@ static int render_impl(int scene_w, int scene_h, const struct vkp_draw *draws, i
     if (g_dev_state == -2) return -1;
     if (dev_init() != 0 || !g_window || scene_w <= 0 || scene_h <= 0) return -1;
 
+    if (g_swapchain && atomic_load(&g_low_latency_want) != g_low_latency) {
+        droiddeck_log("gpu", "low-latency presentation %s: rebuilding the swapchain",
+                   atomic_load(&g_low_latency_want) ? "on" : "off");
+        destroy_swapchain();
+    }
     if (g_swapchain && vkp_framegen_extra_images() != g_swap_extra) {
         droiddeck_log("gpu", "frame generation now wants %d present%s per frame: rebuilding the swapchain",
                    1 + vkp_framegen_extra_images(), vkp_framegen_extra_images() ? "s" : "");
@@ -2206,3 +2230,5 @@ void vkp_pass_abort(void) {
     g_pass.active = 0;
     g_vk.EndCommandBuffer(g_cmds[0]);
 }
+
+void vkp_set_low_latency(int on) { atomic_store(&g_low_latency_want, on ? 1 : 0); }
