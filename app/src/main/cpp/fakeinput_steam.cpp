@@ -2625,6 +2625,57 @@ send_dualsense_output(const uint8_t *data, size_t size) {
   put32(record + 4, copy_len);
   memcpy(record + 8, data, copy_len);
 
+  bool sent_over_socket = false;
+  int sock = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
+  if (sock >= 0) {
+    struct sockaddr_un addr = {};
+    addr.sun_family = AF_UNIX;
+    const char *name = "droiddeck-dualsense";
+    memcpy(addr.sun_path + 1, name, strlen(name));
+    socklen_t addrlen = offsetof(struct sockaddr_un, sun_path) + 1 + strlen(name);
+    int connect_rc = connect(sock, reinterpret_cast<struct sockaddr *>(&addr), addrlen);
+    bool connected = (connect_rc == 0);
+    if (!connected && connect_rc < 0 && errno == EINPROGRESS) {
+      struct pollfd pfd = {sock, POLLOUT, 0};
+      struct timespec ts = {0, 20000000L};
+      int prc = static_cast<int>(syscall(SYS_ppoll, &pfd, 1, &ts, nullptr, sizeof(sigset_t)));
+      if (prc > 0 && (pfd.revents & POLLOUT)) {
+        int so_error = 0;
+        socklen_t so_len = sizeof(so_error);
+        if (getsockopt(sock, SOL_SOCKET, SO_ERROR, &so_error, &so_len) == 0 && so_error == 0) {
+          connected = true;
+        }
+      }
+    }
+    if (connected) {
+      const uint8_t *payload = record + 8;
+      size_t sent = 0;
+      while (sent < 48) {
+        ssize_t n = send(sock, payload + sent, 48 - sent, MSG_DONTWAIT | MSG_NOSIGNAL);
+        if (n > 0) {
+          sent += static_cast<size_t>(n);
+          continue;
+        }
+        if (n < 0 && errno == EINTR) {
+          continue;
+        }
+        if (n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+          struct pollfd pfd = {sock, POLLOUT, 0};
+          struct timespec ts = {0, 20000000L};
+          int prc = static_cast<int>(syscall(SYS_ppoll, &pfd, 1, &ts, nullptr, sizeof(sigset_t)));
+          if (prc > 0 && (pfd.revents & POLLOUT)) {
+            continue;
+          }
+        }
+        break;
+      }
+      sent_over_socket = (sent == 48);
+    }
+    syscall(SYS_close, sock);
+  }
+
+  if (sent_over_socket) return;
+
   const char *dir = fake_hook_dir();
   if (dir && *dir) {
     char path[PATH_MAX];
@@ -2652,32 +2703,6 @@ send_dualsense_output(const uint8_t *data, size_t size) {
         }
       }
     }
-  }
-
-  int sock = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
-  if (sock >= 0) {
-    struct sockaddr_un addr = {};
-    addr.sun_family = AF_UNIX;
-    const char *name = "droiddeck-dualsense";
-    memcpy(addr.sun_path + 1, name, strlen(name));
-    socklen_t addrlen = offsetof(struct sockaddr_un, sun_path) + 1 + strlen(name);
-    int connect_rc = connect(sock, reinterpret_cast<struct sockaddr *>(&addr), addrlen);
-    if (connect_rc == 0 || (connect_rc < 0 && errno == EINPROGRESS)) {
-      const uint8_t *payload = record + 8;
-      size_t sent = 0;
-      while (sent < 48) {
-        ssize_t n = send(sock, payload + sent, 48 - sent, MSG_DONTWAIT | MSG_NOSIGNAL);
-        if (n > 0) {
-          sent += static_cast<size_t>(n);
-          continue;
-        }
-        if (n < 0 && errno == EINTR) {
-          continue;
-        }
-        break;
-      }
-    }
-    syscall(SYS_close, sock);
   }
 }
 
