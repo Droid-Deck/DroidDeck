@@ -407,7 +407,7 @@ def cpu_topology(env, command=()):
             env["PROTON_CPU_TOPOLOGY"] = env["WINE_CPU_TOPOLOGY"]
         return
     picked = bool(env.get("DROIDDECK_GAME_CORES", "").strip() or env.get("BL_GAME_CPUS", "").strip())
-    fastest = env.get("DROIDDECK_FASTEST_CORES", "").strip() != "0"
+    fastest = env.get("DROIDDECK_FASTEST_CORES", "").strip() != "0" and game_id(env) is not None
     if not (picked or fastest):
         return
     try:

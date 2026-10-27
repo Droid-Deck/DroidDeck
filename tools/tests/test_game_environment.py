@@ -501,7 +501,13 @@ class GameEnvironmentTest(unittest.TestCase):
                 ({"SteamGameId": "11440"}, every, None, "4:0,1,2,3", "4:0,1,2,3"),
                 ({"BL_GAME_CPUS": "9"}, {9}, pocket_fit, None, None),
             ]
+            cases += [
+                ({"STEAM_COMPAT_DATA_PATH": "/steam/compatdata/0"}, every, pocket_fit, None, None),
+                ({"STEAM_COMPAT_DATA_PATH": ""}, every, pocket_fit, None, None),
+                ({"STEAM_COMPAT_DATA_PATH": "/steam/compatdata/0", "BL_GAME_CPUS": "6,7"}, {6, 7}, pocket_fit, "2:6,7", "2:6,7"),
+            ]
             for env, affinity, speeds, expected, proton_topology in cases:
+                env.setdefault("STEAM_COMPAT_DATA_PATH", "/steam/compatdata/3608888694")
                 with mock.patch.dict(MODULE["cpu_topology"].__globals__, {"online_cores": lambda: every}), \
                         mock.patch.dict(MODULE["fastest_first"].__globals__, {"core_speeds": lambda cores, speeds=speeds: speeds}), \
                         mock.patch.object(os_mod, "sched_getaffinity", return_value=affinity, create=True):
