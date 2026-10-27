@@ -748,11 +748,17 @@ class SessionService : Service() {
         guest.add("WAYLAND_DISPLAY=wayland-0")
         guest.add("BL_ANDROID_CLIPBOARD=" + File(filesDir, "session/android-clipboard").path)
         guest.add("GAMESCOPE_FORCE_GENERAL_QUEUE=1")
-        guest.add("MESA_LOADER_DRIVER_OVERRIDE=zink")
-        guest.add("GALLIUM_DRIVER=zink")
-        guest.add("LIBGL_KOPPER_DRI2=true")
-        LinuxRuntime.vulkanIcd(this)?.let { guest.add("VK_ICD_FILENAMES=" + it.path) }
-        val linuxDriverId = SessionPrefs.linuxDriver(this)
+        val softwareGpu = com.droiddeck.launcher.core.DeviceSupport.mali()
+        if (softwareGpu) {
+            guest.addAll(softwareGpuEnvironment(LinuxRuntime.softwareVulkanIcd(this)?.path))
+            Log.i(TAG, "Mali GPU: the guest draws in software (llvmpipe, lavapipe)")
+        } else {
+            guest.add("MESA_LOADER_DRIVER_OVERRIDE=zink")
+            guest.add("GALLIUM_DRIVER=zink")
+            guest.add("LIBGL_KOPPER_DRI2=true")
+            LinuxRuntime.vulkanIcd(this)?.let { guest.add("VK_ICD_FILENAMES=" + it.path) }
+        }
+        val linuxDriverId = if (softwareGpu) "" else SessionPrefs.linuxDriver(this)
         SessionState.runtimeDriver = linuxDriverId
         com.droiddeck.launcher.gpu.AutoDriverTrial.sessionStarting(
             this,
@@ -765,7 +771,7 @@ class SessionService : Service() {
         val tuOverride = tuDebugOverride()
         val tuDriver = sysmemDriver(linuxDriverId)
         (tuOverride ?: "sysmem".takeIf { tuDriver || SessionPrefs.tuSysmem(this) })?.let { guest.add("TU_DEBUG=$it") }
-        if (SessionPrefs.zinkLazy(this)) {
+        if (!softwareGpu && SessionPrefs.zinkLazy(this)) {
             guest.add("ZINK_DESCRIPTORS=lazy")
             guest.add("ZINK_DEBUG=compact")
         }
@@ -2055,6 +2061,18 @@ class SessionService : Service() {
         private const val GAME_TU_DEBUG = "DROIDDECK_GAME_TU_DEBUG"
         private const val LEGACY_ENV_SWITCH = "Download/droiddeck-env"
         private const val ENV_SWITCH_NAME = "droiddeck-env"
+
+        internal fun softwareGpuEnvironment(lavapipeIcd: String?): List<String> = buildList {
+            add("BL_SOFTWARE_GPU=1")
+            add("LIBGL_ALWAYS_SOFTWARE=1")
+            add("GALLIUM_DRIVER=llvmpipe")
+            add("LIBGL_DRI3_DISABLE=1")
+            add("BL_X64_SOFTWARE=1")
+            lavapipeIcd?.let {
+                add("VK_ICD_FILENAMES=$it")
+                add("VK_DRIVER_FILES=$it")
+            }
+        }
 
         fun envSwitchFile(context: Context): File? =
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R)

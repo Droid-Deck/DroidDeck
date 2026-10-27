@@ -11,6 +11,7 @@ TOOLS = Path(__file__).resolve().parents[1]
 GPU = TOOLS / "linuxfs/desktop/droiddeck-gpu"
 WINDOW = TOOLS / "linuxfs/overlay/usr/local/bin/droiddeck-gpu-window"
 KEYS = ("MESA_VK_WSI_DEBUG", "SDL_VIDEODRIVER", "WAYLAND_DISPLAY", "BL_GPU_CHILD_WSI", "BL_DESKTOP_GPU_CHILD")
+GL_KEYS = ("LIBGL_ALWAYS_SOFTWARE", "GALLIUM_DRIVER", "MESA_LOADER_DRIVER_OVERRIDE", "LIBGL_KOPPER_DRI2")
 
 
 class DesktopGpuWindowTest(unittest.TestCase):
@@ -20,11 +21,12 @@ class DesktopGpuWindowTest(unittest.TestCase):
         self.out = self.tmp / "gamescope.json"
         fake = self.tmp / "gamescope"
         fake.write_text("#!%s\nimport json, os, sys\njson.dump({'args': sys.argv[1:], 'env': {k: os.environ.get(k) for k in %r}}, open(%r, 'w'))\n"
-                        % (sys.executable, KEYS, str(self.out)))
+                        % (sys.executable, KEYS + GL_KEYS, str(self.out)))
         fake.chmod(0o755)
 
     def run_gpu(self, **env):
-        base = {k: v for k, v in os.environ.items() if k not in KEYS + ("BL_DEBUG_DIR", "BL_DESKTOP_GPU_WINDOW")}
+        base = {k: v for k, v in os.environ.items()
+                if k not in KEYS + GL_KEYS + ("BL_DEBUG_DIR", "BL_DESKTOP_GPU_WINDOW", "BL_SOFTWARE_GPU")}
         base.update(PATH="%s:%s" % (self.tmp, os.environ["PATH"]), BL_WIDTH="1280", BL_HEIGHT="720", **env)
         subprocess.run(["bash", str(GPU), "game.exe"], env=base, check=True, capture_output=True)
         return json.loads(self.out.read_text())
@@ -48,6 +50,21 @@ class DesktopGpuWindowTest(unittest.TestCase):
             self.assertEqual(run["env"]["WAYLAND_DISPLAY"], "wayland-0")
             self.assertIsNone(run["env"]["MESA_VK_WSI_DEBUG"])
             self.assertIsNone(run["env"]["BL_GPU_CHILD_WSI"])
+
+    def test_adreno_games_draw_gl_through_zink(self):
+        run = self.run_gpu(WAYLAND_DISPLAY="wayland-1", LIBGL_ALWAYS_SOFTWARE="1", GALLIUM_DRIVER="llvmpipe")
+        self.assertIsNone(run["env"]["LIBGL_ALWAYS_SOFTWARE"])
+        self.assertEqual(run["env"]["GALLIUM_DRIVER"], "zink")
+        self.assertEqual(run["env"]["MESA_LOADER_DRIVER_OVERRIDE"], "zink")
+        self.assertEqual(run["env"]["LIBGL_KOPPER_DRI2"], "true")
+
+    def test_software_gpu_games_keep_llvmpipe(self):
+        run = self.run_gpu(WAYLAND_DISPLAY="wayland-1", BL_SOFTWARE_GPU="1", LIBGL_ALWAYS_SOFTWARE="1", GALLIUM_DRIVER="llvmpipe")
+        self.assertEqual(run["args"][-2:], ["/usr/local/bin/droiddeck-gpu-window", "game.exe"])
+        self.assertEqual(run["env"]["LIBGL_ALWAYS_SOFTWARE"], "1")
+        self.assertEqual(run["env"]["GALLIUM_DRIVER"], "llvmpipe")
+        self.assertIsNone(run["env"]["MESA_LOADER_DRIVER_OVERRIDE"])
+        self.assertIsNone(run["env"]["LIBGL_KOPPER_DRI2"])
 
     def test_the_game_inside_the_window_gets_its_own_settings_back(self):
         script = "import json, os; print(json.dumps({k: os.environ.get(k) for k in %r}))" % (KEYS,)

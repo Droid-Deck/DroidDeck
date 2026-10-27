@@ -131,6 +131,12 @@ public final class LinuxRuntime {
         return manifests.length > 0 ? manifests[0] : null;
     }
 
+    public static File softwareVulkanIcd(Context context) {
+        File icdDir = new File(rootDir(context), "usr/share/vulkan/icd.d");
+        File[] manifests = icdDir.listFiles((dir, name) -> name.startsWith("lvp_icd") && name.endsWith(".json"));
+        return manifests != null && manifests.length > 0 ? manifests[0] : null;
+    }
+
     public static List<String> command(Context context, File sessionRoot, File runtimeDir,
                                        File externalStorage, List<String> guestCommand) {
         return command(context, sessionRoot, runtimeDir, externalStorage, null, guestCommand);
