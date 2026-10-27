@@ -638,7 +638,7 @@ private fun LibraryRow(e: LibraryEntry, first: Boolean, navigation: Modifier, ch
 }
 
 @Composable
-private fun HeaderIconButton(description: String, icon: androidx.compose.ui.graphics.vector.ImageVector, key: String, onClick: () -> Unit) {
+internal fun HeaderIconButton(description: String, icon: androidx.compose.ui.graphics.vector.ImageVector, key: String, onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val src = remember { MutableInteractionSource() }
@@ -655,7 +655,7 @@ private fun HeaderIconButton(description: String, icon: androidx.compose.ui.grap
 
 /** Choosing Library in the rail lands on the first game, as Play Steam does on the Steam page. */
 @Composable
-private fun Modifier.paneEntry(): Modifier {
+internal fun Modifier.paneEntry(): Modifier {
     val ff = LocalFrontFocus.current ?: return this
     androidx.compose.runtime.DisposableEffect(ff) {
         ff.primaryAttached++

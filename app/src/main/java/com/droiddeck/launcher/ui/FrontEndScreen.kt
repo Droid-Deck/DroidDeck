@@ -507,6 +507,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
         selected.startsWith("emu:") || selected.startsWith("rom:") || selected.startsWith("user:") || selected == "store" -> "desktop"
         else -> s.pageKey ?: selected
     }
+    val railSelectionNow = androidx.compose.runtime.rememberUpdatedState(railSelection)
     var railPicks by remember { mutableStateOf(0) }
     val showRailPage: (String, Boolean) -> Unit = { key, focusContent ->
         if (key == "components") a.onComponents(focusContent)
@@ -609,7 +610,16 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
             },
         ) {
                 Pane(
-                    s, selected, a, page, Modifier.fillMaxSize().then(paneFocus), { selected = it },
+                    s, selected, a, page,
+                    Modifier.fillMaxSize().then(paneFocus).pageSwipe({ !processSettingsPageVisible && appToChooseDisplay == null }) { dir ->
+                        val keys = navigationKeys(s)
+                        val at = keys.indexOf(railSelectionNow.value)
+                        if (at >= 0) keys.getOrNull(at + dir)?.let { key ->
+                            PageSwipe.direction = dir
+                            showRailPage(key, false)
+                        }
+                    },
+                    { selected = it },
                     onAndroidAppClick = { app ->
                         if (s.secondScreenDisplays.isEmpty()) a.onAndroidApp(app, null)
                         else appToChooseDisplay = app

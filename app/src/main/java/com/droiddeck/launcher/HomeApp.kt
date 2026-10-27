@@ -6,7 +6,9 @@ import android.graphics.Bitmap
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import androidx.core.graphics.drawable.toBitmap
@@ -22,6 +24,10 @@ object HomeApp {
         val packageName: String,
         val className: String,
         val icon: Bitmap?,
+        val system: Boolean = false,
+        val game: Boolean = false,
+        val installedAt: Long = 0L,
+        val updatedAt: Long = 0L,
     )
 
     fun isHomeScreenEnabled(context: Context): Boolean =
@@ -82,7 +88,17 @@ object HomeApp {
                 if (!activity.exported || activity.packageName == context.packageName) return@mapNotNull null
                 val label = result.loadLabel(pm)?.toString()?.trim().orEmpty().ifEmpty { activity.packageName }
                 val icon = runCatching { result.loadIcon(pm).toBitmap(iconPx, iconPx) }.getOrNull()
-                LaunchableApp(label, activity.packageName, activity.name, icon)
+                val info = activity.applicationInfo
+                val pkg = runCatching { pm.getPackageInfo(activity.packageName, 0) }.getOrNull()
+                @Suppress("DEPRECATION")
+                val game = info.category == ApplicationInfo.CATEGORY_GAME || info.flags and ApplicationInfo.FLAG_IS_GAME != 0
+                LaunchableApp(
+                    label, activity.packageName, activity.name, icon,
+                    system = info.flags and (ApplicationInfo.FLAG_SYSTEM or ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0,
+                    game = game,
+                    installedAt = pkg?.firstInstallTime ?: 0L,
+                    updatedAt = pkg?.lastUpdateTime ?: 0L,
+                )
             }
             .distinctBy { it.packageName }
             .toList()
@@ -101,6 +117,25 @@ object HomeApp {
         val options = ActivityOptions.makeBasic().setLaunchDisplayId(displayId)
         context.startActivity(intent, options.toBundle())
     }
+
+    fun openAppInfo(context: Context, packageName: String) {
+        context.startActivity(
+            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", packageName, null))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+        )
+    }
+
+    fun uninstall(context: Context, packageName: String) {
+        context.startActivity(
+            Intent(Intent.ACTION_DELETE, Uri.fromParts("package", packageName, null))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+        )
+    }
+
+    fun isSystemApp(context: Context, packageName: String): Boolean =
+        runCatching {
+            context.packageManager.getApplicationInfo(packageName, 0).flags and ApplicationInfo.FLAG_SYSTEM != 0
+        }.getOrDefault(true)
 
     fun isActiveSteamSession(): Boolean =
         SessionState.running && SessionState.mode == SessionService.MODE_STEAM

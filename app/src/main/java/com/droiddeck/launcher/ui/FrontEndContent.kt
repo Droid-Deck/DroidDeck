@@ -10,6 +10,8 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.scaleIn
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.scaleOut
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.rememberUpdatedState
@@ -138,12 +140,19 @@ internal fun Pane(
         before[0] = target
         val targetNow by rememberUpdatedState(target)
         val leave = if (Hops.linking) PageLeave.Link else PageLeave.Ordinary
-        LaunchedEffect(target) { Hops.linking = false }
+        LaunchedEffect(target) {
+            Hops.linking = false
+            PageSwipe.direction = 0
+        }
         AnimatedContent(
             targetState = target,
             modifier = Modifier.onGloballyPositioned { paneAt[0] = it.positionInRoot() },
             transitionSpec = {
+                val swipe = PageSwipe.direction
                 when {
+                    swipe != 0 -> (fadeIn(Motion.tw(260, 40)) + slideInHorizontally(Motion.tw(360)) { it * swipe / 8 })
+                        .togetherWith(fadeOut(Motion.tw(160)) + slideOutHorizontally(Motion.tw(220)) { -it * swipe / 8 })
+                        .apply { targetContentZIndex = 1f }
                     targetState in origins -> (fadeIn(Motion.tw(120)))
                         .togetherWith(fadeOut(Motion.tw(320, 80)) + scaleOut(Motion.tw(480), targetScale = 0.95f))
                         .apply { targetContentZIndex = 1f }
@@ -261,24 +270,12 @@ private fun Content(
         DesktopPage(s, a, modifier, onSelect)
         return
     }
+    if (selected == "android-apps" && s.isHomeApp) {
+        AndroidAppsPage(s, modifier, onAndroidAppClick)
+        return
+    }
     Column(modifier = modifier.verticalScroll(rememberScrollState()).padding(horizontal = padH, vertical = padV)) {
         when {
-            selected == "android-apps" && s.isHomeApp -> {
-                Rise(0) { PageHeader(stringResource(R.string.content_android_apps)) { Chip(stringResource(R.string.content_apps_count, s.androidApps.size), ok = false) } }
-                if (s.androidApps.isEmpty()) Rise(3) { Note(stringResource(R.string.content_no_android_apps)) }
-                else Rise(3, Modifier.fillMaxWidth()) {
-                    ArtGrid(s.androidApps.map { app ->
-                        Tile(
-                            app.label,
-                            null,
-                            null,
-                            "android:${app.packageName}",
-                            onClick = { onAndroidAppClick(app) },
-                            iconBitmap = app.icon,
-                        )
-                    })
-                }
-            }
             selected.startsWith("user:") -> {
                 val app = UserAppsState.items.firstOrNull { "user:${it.key}" == selected }
                 if (app == null) Note(stringResource(R.string.user_apps_gone)) else UserAppPage(app, s, a, onSelect)
