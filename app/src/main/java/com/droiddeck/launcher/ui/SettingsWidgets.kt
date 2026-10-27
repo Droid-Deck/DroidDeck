@@ -812,7 +812,8 @@ fun <T> SegmentedTabs(options: List<Pair<T, String>>, selected: T?, modifier: Mo
                 .padding(4.dp),
         ) {
             Box(
-                Modifier.offset(x = slide).width(segment).fillMaxHeight()
+                Modifier.offset { IntOffset(slide.roundToPx(), 0) }
+                    .testTag("segmented-tabs-selection").width(segment).fillMaxHeight()
                     .graphicsLayer { alpha = shown }
                     .clip(pillShape).background(pal.signal),
             )

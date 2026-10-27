@@ -11,6 +11,7 @@ import android.os.StatFs
 import android.provider.Settings
 import android.util.Log
 import android.view.Display
+import androidx.core.content.pm.PackageInfoCompat
 import com.droiddeck.launcher.gpu.LinuxVulkanDriver
 import com.droiddeck.launcher.gpu.LinuxVulkanDriverManager
 import com.droiddeck.launcher.gpu.TurnipDriver
@@ -105,7 +106,7 @@ object DeviceReport {
         h("App")
         runCatching {
             val info = context.packageManager.getPackageInfo(context.packageName, 0)
-            k("Version", "${info.versionName} (${info.longVersionCode})")
+            k("Version", "${info.versionName} (${PackageInfoCompat.getLongVersionCode(info)})")
         }
         k("Package", context.packageName)
         k("targetSdk", context.applicationInfo.targetSdkVersion)

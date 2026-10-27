@@ -455,7 +455,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private val deviceListener = object : InputManager.InputDeviceListener {
         override fun onInputDeviceAdded(deviceId: Int) {
             logInputDevice("connected", deviceId)
-            joyConVr?.refresh()
+            if (Build.VERSION.SDK_INT >= 31) joyConVr?.refresh()
             padBridge?.syncConnectedControllers()
             refreshControls()
             updatePointerCapture()
@@ -464,7 +464,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         override fun onInputDeviceRemoved(deviceId: Int) {
             Log.i(TAG, "input device $deviceId disconnected")
             backQamInput.onDeviceRemoved(deviceId)
-            joyConVr?.refresh()
+            if (Build.VERSION.SDK_INT >= 31) joyConVr?.refresh()
             padBridge?.onDeviceRemoved(deviceId)
             if (::padMouse.isInitialized) padMouse.reset()
             refreshControls()
@@ -472,7 +472,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             updateHandCamera()
         }
         override fun onInputDeviceChanged(deviceId: Int) {
-            joyConVr?.refresh()
+            if (Build.VERSION.SDK_INT >= 31) joyConVr?.refresh()
             refreshControls()
         }
     }
@@ -485,6 +485,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             com.droiddeck.launcher.runtime.LinuxRuntimeInstaller.isMaintaining()) {
             runtimeRemovalBlocked = true
             android.widget.Toast.makeText(this, R.string.session_wait_removal, android.widget.Toast.LENGTH_SHORT).show()
+            finish()
+            return
+        }
+        if (com.droiddeck.launcher.gpu.GpuProcessRecovery.restartIfNeeded(this, intent)) {
+            runtimeRemovalBlocked = true
+            closeAtOnce = true
             finish()
             return
         }
@@ -751,7 +757,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 if (!phonePanel && GlassesRendering.usesGlasses(glasses, glassesOutputActive, steamVrStatus == SteamVr.Status.RUNNING) &&
                     headTracking && !drawerOpen && !pcKeyboardOpen && !loading.visible) com.droiddeck.launcher.ui.GlassesRecenterButton(
                     controllerSettings?.tint ?: android.graphics.Color.rgb(90, 160, 255), controllerSettings?.opacity ?: 100,
-                    onRecenterJoyCons = if (steamVrStatus == SteamVr.Status.RUNNING &&
+                    onRecenterJoyCons = if (Build.VERSION.SDK_INT >= 31 && steamVrStatus == SteamVr.Status.RUNNING &&
                         glasses.usesSpatialControllers(glassesSettings) && glassesSettings.joyConTracking)
                         joyConVr?.let { { it.recenter() } } else null,
                 ) { headTracker?.recenter() }
@@ -1234,7 +1240,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val pads = com.droiddeck.launcher.input.VrControllers.settings.collectAsState().value
         com.droiddeck.launcher.ui.GlassesPhonePanel(glasses.model, battery, com.droiddeck.launcher.ui.GlassesPhoneActions(
             onRecenter = if (headTracking) ({ headTracker?.recenter() }) else null,
-            onRecenterJoyCons = if (vr && glasses.usesSpatialControllers(glassesSettings) && glassesSettings.joyConTracking)
+            onRecenterJoyCons = if (Build.VERSION.SDK_INT >= 31 && vr && glasses.usesSpatialControllers(glassesSettings) && glassesSettings.joyConTracking)
                 joyConVr?.let { { it.recenter() } } else null,
             onSteamVrMenu = if (vr && SessionState.mode == SessionService.MODE_STEAM) ({ sendSteamGuide() }) else null,
             onSwitchSticks = if (vr && pads.emulate != com.droiddeck.launcher.input.VrControllers.Emulate.OFF) ({ switchVrSticks() }) else null,
@@ -2122,9 +2128,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             SessionService.MODE_DESKTOP -> getString(R.string.session_ended_desktop)
             else -> getString(R.string.session_ended_named, "Steam")
         }
-        repairOffered = hint?.repair == true
+        val gpuLost = SessionState.failureCode == "GPU_DEVICE_LOST"
+        repairOffered = !gpuLost && hint?.repair == true
         loading.showEnded(
-            hint?.text ?: stopped,
+            if (gpuLost) getString(R.string.gpu_device_lost) else hint?.text ?: stopped,
             getString(R.string.session_ended_detail, status,
                 SessionState.logFile?.path?.let { android.text.BidiFormatter.getInstance().unicodeWrap(it, android.text.TextDirectionHeuristics.LTR) }
                     ?: getString(R.string.session_ended_no_log)),
@@ -2136,7 +2143,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         com.droiddeck.launcher.input.HomeButtonShortcuts.cancel(this)
         backQamInput.cancel()
         padBridge?.releaseAll()
-        joyConVr?.releaseButtons()
+        if (Build.VERSION.SDK_INT >= 31) joyConVr?.releaseButtons()
     }
 
     private fun focusEndedScreen() {
@@ -2208,6 +2215,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
 
+    // The public Activity override is inherited through AndroidX Core's restricted base class.
+    @android.annotation.SuppressLint("RestrictedApi")
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         when (event.keyCode) {
             KeyEvent.KEYCODE_VOLUME_UP, KeyEvent.KEYCODE_VOLUME_DOWN, KeyEvent.KEYCODE_VOLUME_MUTE ->
@@ -2290,7 +2299,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             return true
         }
         if ((pcKeyboardOpen || achievementsOpen) && fromController) return super.dispatchKeyEvent(event)
-        if (joyConVr?.onKeyEvent(event) == true) return true
+        if (Build.VERSION.SDK_INT >= 31 && joyConVr?.onKeyEvent(event) == true) return true
         if (fromController && event.keyCode != KeyEvent.KEYCODE_BACK && padMouseMode() && padMouse.onKey(event)) return true
         if (event.keyCode != KeyEvent.KEYCODE_BACK && padBridge?.onKeyEvent(event) == true) return true
         if (CompositorHost.isStarted && event.keyCode != KeyEvent.KEYCODE_BACK && !fromController) {
@@ -2335,7 +2344,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
         if (drawerDirectionKey != KeyEvent.KEYCODE_UNKNOWN) releaseDrawerDirection()
         if ((pcKeyboardOpen || achievementsOpen) && PadBridge.isControllerMotionEvent(event)) return super.dispatchGenericMotionEvent(event)
-        if (joyConVr?.onMotionEvent(event) == true) return true
+        if (Build.VERSION.SDK_INT >= 31 && joyConVr?.onMotionEvent(event) == true) return true
         if (PadBridge.isControllerMotionEvent(event) && padMouseMode() && padMouse.onMotion(event)) return true
         if (padBridge?.onMotionEvent(event) == true) return true
         if (event.isFromSource(android.view.InputDevice.SOURCE_MOUSE) && !drawerOpen && onMouse(event)) return true
@@ -2414,6 +2423,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         drawerDirectionRepeatCount = 0
     }
 
+    // Keep AndroidX's normal key dispatch for synthetic drawer events too.
+    @android.annotation.SuppressLint("RestrictedApi")
     private fun dispatchDrawerKey(action: Int, repeatCount: Int, eventTime: Long) {
         val event = KeyEvent(
             drawerDirectionDownTime, eventTime, action, drawerDirectionKey,
@@ -3284,7 +3295,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         (getSystemService(INPUT_SERVICE) as? InputManager)
             ?.registerInputDeviceListener(deviceListener, Handler(Looper.getMainLooper()))
         if (SessionState.guestPid > 1) padBridge?.syncConnectedControllers()
-        joyConVr?.refresh()
+        if (Build.VERSION.SDK_INT >= 31) joyConVr?.refresh()
         onScreenControls?.reload()
         controllerSettings = ControllerPrefs.read(this)
         resumed = true
@@ -3415,13 +3426,14 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             glasses.usesSpatialControllers(glassesSettings)
 
     private fun updateJoyConTracking() {
+        if (Build.VERSION.SDK_INT < 31) return
         joyConVr?.setActive(steamVrStatus == SteamVr.Status.RUNNING &&
             (ControllerPrefs.joyConVr(this) ||
                 (usesSpatialControllers() && glassesSettings.joyConTracking)))
     }
 
     private fun updateHandCamera() {
-        val joyCons = joyConVr?.holding == true
+        val joyCons = Build.VERSION.SDK_INT >= 31 && joyConVr?.holding == true
         val bare = !joyCons && !controllerConnected()
         val want = started && steamVrStatus == SteamVr.Status.RUNNING && (joyCons || bare) &&
             !usesSpatialControllers() &&
@@ -3442,7 +3454,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun controllerConnected(): Boolean = InputDevice.getDeviceIds().any { id ->
-        joyConVr?.owns(id) != true && com.droiddeck.launcher.input.PadBridge.isFromController(InputDevice.getDevice(id))
+        (Build.VERSION.SDK_INT < 31 || joyConVr?.owns(id) != true) && com.droiddeck.launcher.input.PadBridge.isFromController(InputDevice.getDevice(id))
     }
 
     private fun onSteamVrStatus(now: SteamVr.Status) {
@@ -3732,10 +3744,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     private val endListener: (Int) -> Unit = { status -> onSessionEnded(status) }
     private val firstFrameListener = Runnable {
+        if (WaylandCompositor.hasDeviceLost()) return@Runnable
         SessionEvents.firstFrame()
         if (SessionState.mode == SessionService.MODE_STEAM) SteamRepair.clientShown(this)
         runOnUiThread {
-            if (isFinishing || isDestroyed) return@runOnUiThread
+            if (isFinishing || isDestroyed || WaylandCompositor.hasDeviceLost()) return@runOnUiThread
             loading.visible = false
             hud.start()
             memoryHud.start()
@@ -3759,7 +3772,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         headTracker?.stop()
         if (::hud.isInitialized) hud.stop()
         if (::memoryHud.isInitialized) memoryHud.stop()
-        joyConVr?.close()
+        if (Build.VERSION.SDK_INT >= 31) joyConVr?.close()
         joyConVr = null
         handCamera?.stop()
         handCamera = null

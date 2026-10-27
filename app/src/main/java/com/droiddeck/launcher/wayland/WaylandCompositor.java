@@ -1,6 +1,7 @@
 package com.droiddeck.launcher.wayland;
 
 import android.view.Surface;
+import com.droiddeck.launcher.gpu.GpuDeviceState;
 
 public final class WaylandCompositor {
     static {
@@ -10,6 +11,25 @@ public final class WaylandCompositor {
     private WaylandCompositor() {}
 
     private static volatile Runnable firstFrameListener;
+    private static volatile Runnable deviceLostListener;
+
+    public static boolean hasDeviceLost() { return GpuDeviceState.isLost(); }
+
+    public static synchronized void setDeviceLostListener(Runnable r) { deviceLostListener = r; }
+
+    public static synchronized void clearDeviceLostListener(Runnable r) {
+        if (deviceLostListener == r) deviceLostListener = null;
+    }
+
+    @SuppressWarnings("unused")
+    static void onDeviceLost() {
+        Runnable r;
+        synchronized (WaylandCompositor.class) {
+            if (!GpuDeviceState.markLost()) return;
+            r = deviceLostListener;
+        }
+        if (r != null) r.run();
+    }
 
     public static void setFirstFrameListener(Runnable r) { firstFrameListener = r; }
 
@@ -19,6 +39,7 @@ public final class WaylandCompositor {
 
     @SuppressWarnings("unused")
     static void onFirstFramePresented() {
+        if (GpuDeviceState.isLost()) return;
         Runnable r = firstFrameListener;
         if (r != null) r.run();
     }

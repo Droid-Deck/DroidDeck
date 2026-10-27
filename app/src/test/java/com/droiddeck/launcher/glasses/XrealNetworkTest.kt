@@ -13,7 +13,7 @@ import org.robolectric.util.ReflectionHelpers.ClassParameter.from
 import java.net.InetAddress
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [28], manifest = Config.NONE)
+@Config(sdk = [26, 28, 29], manifest = Config.NONE)
 class XrealNetworkTest {
     private val target = InetAddress.getByName(XrealProtocol.HOST)
     private fun properties(address: String, prefix: Int, gateway: String? = null) = LinkProperties().apply {

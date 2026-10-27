@@ -1476,6 +1476,8 @@ class FrontEndActivity : ComponentActivity() {
         }
     }
 
+    // The public Activity override is inherited through AndroidX Core's restricted base class.
+    @android.annotation.SuppressLint("RestrictedApi")
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (compatLaunch != null) {
             if (event.keyCode == KeyEvent.KEYCODE_BACK || event.keyCode == KeyEvent.KEYCODE_BUTTON_B) {

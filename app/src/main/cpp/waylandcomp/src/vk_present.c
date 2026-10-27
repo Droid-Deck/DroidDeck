@@ -1305,7 +1305,8 @@ static void device_lost(const char *where) {
     g_base_black = 0;
     vkp_framegen_device_lost();
     droiddeck_log("error", "GPU device lost (VK_ERROR_DEVICE_LOST in %s): the compositor has stopped presenting; "
-               "restart the session", where);
+               "restart the app process", where);
+    droiddeck_on_device_lost();
     for (uint32_t i = 0; i < g_nimg; i++) blendp_forget_image(g_images[i]);
     if (g_swapchain) g_vk.DestroySwapchainKHR(g_dev, g_swapchain, NULL);
     g_swapchain = VK_NULL_HANDLE;

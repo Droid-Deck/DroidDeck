@@ -49,6 +49,7 @@ static JavaVM *g_jvm;
 static volatile pid_t g_comp_tid;
 static jclass g_compositor_cls;
 static jmethodID g_on_first_frame;
+static jmethodID g_on_device_lost;
 static jmethodID g_on_game_surface;
 static jmethodID g_on_game_frame;
 static jmethodID g_on_game_program;
@@ -64,6 +65,7 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
         jclass c = (*env)->FindClass(env, "com/droiddeck/launcher/wayland/WaylandCompositor");
         if (c) {
             g_compositor_cls = (*env)->NewGlobalRef(env, c);
+            g_on_device_lost = (*env)->GetStaticMethodID(env, g_compositor_cls, "onDeviceLost", "()V");
             g_on_first_frame = (*env)->GetStaticMethodID(env, g_compositor_cls,
                                                          "onFirstFramePresented", "()V");
             g_on_game_surface = (*env)->GetStaticMethodID(env, g_compositor_cls, "onGameSurface",
@@ -107,6 +109,13 @@ static JNIEnv *thread_env(void) {
         t_attached = 1;
     }
     return t_env = env;
+}
+
+void droiddeck_on_device_lost(void) {
+    JNIEnv *env;
+    if (!g_compositor_cls || !g_on_device_lost || !(env = thread_env())) return;
+    (*env)->CallStaticVoidMethod(env, g_compositor_cls, g_on_device_lost);
+    if ((*env)->ExceptionCheck(env)) (*env)->ExceptionClear(env);
 }
 
 void droiddeck_on_game_surface(const char *window, const char *gpu) {

@@ -197,7 +197,7 @@ object SteamTouchConfig {
         }
         return try {
             val text = file.readText()
-            val kv = KeyValues.parse(text.removePrefix("﻿"))
+            val kv = KeyValues.parse(text.removePrefix("\uFEFF"))
             val mappings = kv.child("controller_mappings") ?: kv
             val layouts = mappings.string("touch_layout")?.let { hex -> decodeLayouts(hexToBytes(hex)) }
             Log.i(TAG, "steam touch: app $appId uses ${file.path} (${layouts?.layouts?.size ?: 0} layouts)")

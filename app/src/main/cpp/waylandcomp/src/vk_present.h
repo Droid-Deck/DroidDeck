@@ -100,5 +100,6 @@ int vkp_pass_copy_to(struct vkp_image *dst, int wait_fd);
 void vkp_pass_abort(void);
 
 void droiddeck_log(const char *tag, const char *fmt, ...) __attribute__((format(printf, 2, 3)));
+void droiddeck_on_device_lost(void);
 
 #endif

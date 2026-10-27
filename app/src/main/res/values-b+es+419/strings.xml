@@ -1571,7 +1571,7 @@
         <item quantity="other">%1$d elementos copiados</item>
         <item quantity="many">%1$d elementos copiados</item>
     </plurals>
-    <string name="fm_already_exists">\\"%1$s\\" ya existe</string>
+    <string name="fm_already_exists">\"%1$s\" ya existe</string>
     <string name="fm_op_renaming">Renombrando...</string>
     <string name="fm_rename_failed">No se pudo renombrar</string>
     <string name="fm_op_creating_folder">Creando carpeta...</string>
@@ -1651,7 +1651,7 @@
     <string name="fm_rail_session_logs">Registros de sesión</string>
     <string name="fm_rail_pictures">Imágenes</string>
     <string name="fm_favorite_added">Se agregó \"%1$s\" a Favoritos</string>
-    <string name="fm_favorite_removed">Se quitó \\"%1$s\\" de Favoritos</string>
+    <string name="fm_favorite_removed">Se quitó \"%1$s\" de Favoritos</string>
     <string name="fm_empty_directory">Carpeta vacía</string>
     <string name="fm_up_one_level">Subir un nivel</string>
     <string name="fm_choose_folder">Elige una carpeta</string>
@@ -2416,7 +2416,7 @@
     <string name="touch_done">Hecho</string>
     <string name="touch_save_failed">No se pudo guardar la disposición táctil</string>
     <string name="touch_saved">Disposición táctil guardada en Steam</string>
-    <string name="touch_app_id">App %1$d</string>
+    <string name="touch_app_id">App %1$s</string>
     <string name="touch_label_hint">Etiqueta (opcional)</string>
     <string name="touch_icons_missing">No se encontraron los iconos de Steam</string>
     <plurals name="touch_icons_found">

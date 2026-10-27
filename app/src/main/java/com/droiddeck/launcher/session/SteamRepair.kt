@@ -1,6 +1,7 @@
 package com.droiddeck.launcher.session
 
 import android.content.Context
+import com.droiddeck.launcher.gpu.GpuDeviceState
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import java.io.File
 
@@ -16,7 +17,7 @@ object SteamRepair {
         request(context).apply { parentFile?.mkdirs() }.writeText("1\n")
     }.isSuccess
 
-    fun clientShown(context: Context) {
+    fun clientShown(context: Context) = GpuDeviceState.whileAlive {
         (if (SessionPrefs.activeSteamClientArch(context) == "x86_64") x64Unconfirmed(context) else unconfirmed(context)).delete()
     }
 }

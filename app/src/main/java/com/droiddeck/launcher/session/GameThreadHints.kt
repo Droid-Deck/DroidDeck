@@ -8,6 +8,7 @@ import android.os.Process
 import android.system.Os
 import android.system.OsConstants
 import android.util.Log
+import androidx.annotation.RequiresApi
 import com.droiddeck.launcher.wayland.WaylandCompositor
 import java.io.File
 import kotlin.math.abs
@@ -76,6 +77,7 @@ object GameThreadHints {
         worker = null
     }
 
+    @RequiresApi(31)
     private fun run(hm: PerformanceHintManager, pm: PowerManager) {
         val scanner = Scanner()
         var session: PerformanceHintManager.Session? = null
@@ -120,6 +122,7 @@ object GameThreadHints {
     }
 
     /** A new session over [tids] in place of [session]; null for none. The set changes seldom, so no setThreads. */
+    @RequiresApi(31)
     private fun update(hm: PerformanceHintManager, session: PerformanceHintManager.Session?, tids: Set<Int>): PerformanceHintManager.Session? {
         session?.close()
         if (tids.isEmpty()) return null

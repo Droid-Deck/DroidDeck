@@ -248,7 +248,10 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
             return
         }
         AutoDriverTrial.rollbackDue(activity)?.let { trial ->
-            AutoDriverTrial.rollBack(activity, trial)
+            if (!AutoDriverTrial.rollBack(activity, trial)) {
+                autoStatus = activity.getString(R.string.game_env_error)
+                return
+            }
             autoStatus = activity.getString(R.string.drivers_rolled_back, trial.name)
             refreshDrivers()
             return

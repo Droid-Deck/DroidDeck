@@ -127,6 +127,11 @@ class XboxNativePlayerActivity : ComponentActivity() {
         }
         root.addView(overlay, FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.END).apply { topMargin = 16; rightMargin = 16 })
         setContentView(root)
+        if (!supported()) {
+            startActivity(Intent(this, XboxCloudPlayerActivity::class.java).putExtras(intent))
+            finish()
+            return
+        }
         settings = XboxCloudSettings.load(this)
         startedWith = settings
         applyDisplayRate(settings.fpsTarget)
@@ -452,6 +457,8 @@ class XboxNativePlayerActivity : ComponentActivity() {
         root.postDelayed({ pad.overrideButtons = pad.overrideButtons and 2.inv() }, 200)
     }
 
+    // The public Activity override is inherited through AndroidX Core's restricted base class.
+    @android.annotation.SuppressLint("RestrictedApi")
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (menu != null) {
             // Guide closes the menu; Back goes up one page, then closes it.

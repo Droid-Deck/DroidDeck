@@ -62,7 +62,10 @@ class XboxCloudActivity : ComponentActivity() {
             userAgentString = chromeUserAgent(userAgentString)
         }
         // No "X-Requested-With: <package>" header: it marks the page as embedded in an app.
-        if (WebViewFeature.isFeatureSupported(WebViewFeature.REQUESTED_WITH_HEADER_ALLOW_LIST))
+        // WebKit's public allow-list setter requires this library-restricted feature token.
+        @SuppressLint("RestrictedApi")
+        val requestedWithFeature = WebViewFeature.REQUESTED_WITH_HEADER_ALLOW_LIST
+        if (WebViewFeature.isFeatureSupported(requestedWithFeature))
             WebSettingsCompat.setRequestedWithHeaderOriginAllowList(view.settings, emptySet())
         Log.i(TAG, "UA ${view.settings.userAgentString}")
         CookieManager.getInstance().setAcceptCookie(true)
@@ -125,6 +128,8 @@ class XboxCloudActivity : ComponentActivity() {
     }
 
     // A controller's unused B arrives as BACK; ask before leaving so a stray press never ends a stream.
+    // The public Activity override is inherited through AndroidX Core's restricted base class.
+    @SuppressLint("RestrictedApi")
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (event.keyCode == KeyEvent.KEYCODE_BACK && event.action == KeyEvent.ACTION_UP) {
             val fromController = event.source and InputDevice.SOURCE_GAMEPAD == InputDevice.SOURCE_GAMEPAD ||

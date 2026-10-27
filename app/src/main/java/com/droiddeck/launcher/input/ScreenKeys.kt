@@ -300,11 +300,13 @@ class ScreenKeys(context: Context, private val sendKey: (Int, Boolean) -> Unit) 
     }
 
     override fun onApplyWindowInsets(insets: WindowInsets): WindowInsets {
-        val cutout = if (Build.VERSION.SDK_INT >= 28) insets.displayCutout else null
-        val fresh = Rect(
-            cutout?.safeInsetLeft ?: 0, cutout?.safeInsetTop ?: 0,
-            cutout?.safeInsetRight ?: 0, cutout?.safeInsetBottom ?: 0,
-        )
+        val fresh = if (Build.VERSION.SDK_INT >= 28) {
+            val cutout = insets.displayCutout
+            Rect(
+                cutout?.safeInsetLeft ?: 0, cutout?.safeInsetTop ?: 0,
+                cutout?.safeInsetRight ?: 0, cutout?.safeInsetBottom ?: 0,
+            )
+        } else Rect()
         if (fresh != safe) {
             safe = fresh
             placeToolbar()

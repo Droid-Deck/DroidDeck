@@ -116,6 +116,34 @@ class AppImageRunTest(unittest.TestCase):
         result = subprocess.run(["bash", str(RUN), str(self.dir)], env=env, capture_output=True, text=True, timeout=30)
         self.assertNotIn("end of", result.stdout)
 
+    def test_a_failed_program_reports_a_log_with_the_start_markers_timestamp(self):
+        home = self.tmp / "home"
+        logs = home / ".local/share/emulator/log"
+        logs.mkdir(parents=True)
+        old = logs / "old.log"
+        old.write_text("from an earlier run\n")
+        os.utime(old, (1, 1))
+        reference = self.tmp / "start-time"
+        bin_dir = self.tmp / "bin"
+        bin_dir.mkdir()
+        mktemp = bin_dir / "mktemp"
+        mktemp.write_text(
+            "#!/bin/sh\n"
+            'file=$("%s" "$@") || exit $?\n'
+            'cp -p "$file" "$DROIDDECK_START_TIME"\n'
+            'printf "%%s\\n" "$file"\n' % shutil.which("mktemp"))
+        mktemp.chmod(0o755)
+        (self.dir / "app/AppRun").write_text(
+            '#!/bin/sh\nprintf "current failure\\n" > "$HOME/.local/share/emulator/log/current.log"\n'
+            'touch -r "$DROIDDECK_START_TIME" "$HOME/.local/share/emulator/log/current.log"\n'
+            'kill -ILL $$\n')
+        env = dict(os.environ, HOME=str(home), DBUS_SESSION_BUS_ADDRESS="unix:path=/dev/null",
+                   DROIDDECK_START_TIME=str(reference), PATH=str(bin_dir) + os.pathsep + os.environ["PATH"])
+        result = subprocess.run(["bash", str(RUN), str(self.dir)], env=env, capture_output=True, text=True, timeout=30)
+        self.assertIn("end of %s" % (logs / "current.log"), result.stdout)
+        self.assertIn("current failure", result.stdout)
+        self.assertNotIn("from an earlier run", result.stdout)
+
     def test_the_per_app_choice_wins(self):
         self.bundle(*QUICK)
         (self.dir / "qt").write_text("xcb\n")
