@@ -85,7 +85,7 @@
             android:name=".PairingGuideActivity"
             android:exported="false"
             android:launchMode="singleTask"
-            android:taskAffinity="com.droiddeck.launcher.pairingguide"
+            android:taskAffinity="${applicationId}.pairingguide"
             android:excludeFromRecents="true"
             android:supportsPictureInPicture="true"
             android:resizeableActivity="true"
