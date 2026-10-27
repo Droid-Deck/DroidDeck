@@ -4,7 +4,7 @@ import android.content.Intent
 import android.net.Uri
 import android.app.Activity
 import com.droiddeck.launcher.LauncherIcon
-import com.droiddeck.launcher.MainActivity
+import com.droiddeck.launcher.FrontEndActivity
 import com.droiddeck.launcher.frontend.Library
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -54,7 +54,7 @@ class GameShortcutIntentTest {
 
         assertEquals(Intent.ACTION_VIEW, intent.action)
         assertEquals(Uri.parse("droiddeck://game/$id"), intent.data)
-        assertEquals(MainActivity::class.java.name, intent.component?.className)
+        assertEquals(FrontEndActivity::class.java.name, intent.component?.className)
         assertEquals(android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP or android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP, intent.flags)
     }
 
@@ -69,8 +69,8 @@ class GameShortcutIntentTest {
         val launch = requireNotNull(shortcut.intent)
         assertEquals("game:8400", shortcut.id)
         assertEquals("Geometry Wars: Retro Evolved", shortcut.shortLabel.toString())
-        assertEquals("com.droiddeck.launcher.LauncherDark", shortcut.activity?.className)
-        assertEquals(MainActivity::class.java.name, launch.component?.className)
+        assertEquals("com.droiddeck.launcher.MainActivity", shortcut.activity?.className)
+        assertEquals(FrontEndActivity::class.java.name, launch.component?.className)
         assertEquals(Intent.ACTION_VIEW, launch.action)
         assertEquals(Uri.parse("droiddeck://game/8400"), launch.data)
         assertEquals(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP, launch.flags)
@@ -92,5 +92,39 @@ class GameShortcutIntentTest {
         val game = Library.SteamGame(8400, "Geometry Wars: Retro Evolved", null, "steam", 8400L)
 
         assertNotNull(GameShortcuts.result(activity, game))
+    }
+
+    @Test fun theDefaultLauncherEntryKeepsTheMainActivityName() {
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        val launchers = activity.packageManager.queryIntentActivities(
+            Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER).setPackage(activity.packageName), 0)
+
+        assertEquals(listOf("com.droiddeck.launcher.MainActivity"), launchers.map { it.activityInfo.name })
+        assertEquals(android.content.ComponentName(activity, "com.droiddeck.launcher.MainActivity"), LauncherIcon.activity(activity))
+    }
+
+    @Test fun repairDropsTheDefaultIconLeftBesideAChosenLightIcon() {
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        val pm = activity.packageManager
+        pm.setComponentEnabledSetting(android.content.ComponentName(activity, "com.droiddeck.launcher.LauncherLight"),
+            android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_ENABLED, android.content.pm.PackageManager.DONT_KILL_APP)
+        val dark = android.content.ComponentName(activity, "com.droiddeck.launcher.MainActivity")
+
+        LauncherIcon.repair(activity, dark)
+        assertEquals(android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DEFAULT, pm.getComponentEnabledSetting(dark))
+
+        LauncherIcon.repair(activity, android.content.ComponentName(activity, "com.droiddeck.launcher.LauncherLight"))
+        assertEquals(android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DISABLED, pm.getComponentEnabledSetting(dark))
+        assertEquals(LauncherIcon.LIGHT, LauncherIcon.current(activity))
+    }
+
+    @Test fun repairLeavesASingleIconAlone() {
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        val dark = android.content.ComponentName(activity, "com.droiddeck.launcher.MainActivity")
+
+        LauncherIcon.repair(activity, null)
+
+        assertEquals(android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DEFAULT, activity.packageManager.getComponentEnabledSetting(dark))
+        assertEquals(LauncherIcon.DARK, LauncherIcon.current(activity))
     }
 }

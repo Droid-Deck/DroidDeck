@@ -128,7 +128,7 @@ internal fun SteamHome(s: FrontEndState, a: FrontEndActions, modifier: Modifier)
         },
         onOpen = a.onSteamSettings, onPrimary = a.onPlay,
         modifier = modifier.clipToBounds(),
-        start = if (narrow) 20.dp else 44.dp, bottom = if (narrow) 20.dp else 44.dp,
+        start = if (narrow) 20.dp else 44.dp, bottom = 44.dp,
         background = {
             when {
                 games.isEmpty() -> EmptyLibrary(
@@ -141,12 +141,22 @@ internal fun SteamHome(s: FrontEndState, a: FrontEndActions, modifier: Modifier)
         },
         scrim = { if (games.size >= WALL_MIN_GAMES) WallFade() },
         words = {
-            Row(
+            val runtimeStatus: @Composable () -> Unit = {
+                if (s.busy || !s.ready || (s.available != null && s.available != s.installed)) RuntimeChip(s)
+                else if (s.integration.suggested && signedIn && !com.droiddeck.launcher.core.PhantomProcessLimit.blocksSteam(s.phantomProcessStatus))
+                    IntegrationSuggestion(s.integration, { a.onSteamIntegration(null) }, a.onDismissIntegration)
+            }
+            if (narrow) Column(
+                verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.onPlaced { words = it.boundsInParent() },
+            ) {
+                Wordmark(30.dp)
+                runtimeStatus()
+            } else Row(
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.onPlaced { words = it.boundsInParent() },
             ) {
                 Wordmark(if (narrow) 30.dp else 40.dp)
-                if (s.busy || !s.ready || (s.available != null && s.available != s.installed)) RuntimeChip(s)
+                runtimeStatus()
             }
         },
         button = { click ->
