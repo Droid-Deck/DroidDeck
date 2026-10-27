@@ -1,9 +1,13 @@
 package com.droiddeck.launcher.files
 
+import androidx.compose.foundation.shape.CircleShape
+import com.droiddeck.launcher.ui.focusGlide
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import android.content.res.Configuration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -19,6 +23,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -28,6 +33,8 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ExitToApp
+import androidx.compose.material.icons.automirrored.filled.KeyboardReturn
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.CreateNewFolder
@@ -48,7 +55,7 @@ import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material3.Button
-import androidx.compose.material3.DropdownMenu
+import com.droiddeck.launcher.ui.GlideDropdownMenu as DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -68,6 +75,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -90,11 +98,19 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.droiddeck.launcher.session.SessionPrefs
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.Date
+
+private enum class FileManagerNavigation { EXIT, RETURN_TO_START, BACK, UP }
+
+private const val HISTORY_LIMIT = 50
+
+internal fun canNavigateUp(currentDir: File, currentRoot: File): Boolean =
+    currentDir != currentRoot && currentDir.parentFile?.exists() == true
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -105,6 +121,7 @@ fun FileManagerScreen(
     initialDir: File? = null,
     pickerTitle: String? = null,
     onPick: ((File) -> Unit)? = null,
+    onExit: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -118,12 +135,14 @@ fun FileManagerScreen(
 
     val pickPrefs = remember { context.getSharedPreferences("file_manager", android.content.Context.MODE_PRIVATE) }
     val browsePrefs = pickPrefs
-    val rootDir = remember {
+    val rootDir = remember(initialDir) {
         initialDir?.takeIf { it.isDirectory } ?: File("/storage/emulated/0")
     }
-
+    val launchDir = remember(initialDir, pickMode) {
+        initialDir?.takeIf { !pickMode }
+    }
     var currentDir by remember { mutableStateOf(rootDir) }
-    var currentRoot by remember {
+    val initialRoot = remember(rootDir) {
         val abs = rootDir.absolutePath
         val internal = "/storage/emulated/0"
         val vol = when {
@@ -139,8 +158,9 @@ fun FileManagerScreen(
                     ?: rootDir
             }
         }
-        mutableStateOf(vol)
+        vol
     }
+    var currentRoot by remember { mutableStateOf(initialRoot) }
     var entries by remember { mutableStateOf(listOf<File>()) }
     var selectedEntry by remember { mutableStateOf<File?>(null) }
     var showMenuFor by remember { mutableStateOf<File?>(null) }
@@ -151,8 +171,10 @@ fun FileManagerScreen(
     var pendingConflict by remember { mutableStateOf<File?>(null) }
     var conflictChoice by remember { mutableStateOf<ConflictChoice?>(null) }
     var conflictApplyToAll by remember { mutableStateOf(false) }
-    var operationJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
-    var cancelledJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    var operationJob by remember { mutableStateOf<Job?>(null) }
+    var cancelledJob by remember { mutableStateOf<Job?>(null) }
+    var pendingNavigation by remember { mutableStateOf<FileManagerNavigation?>(null) }
+    var cancellingNavigation by remember { mutableStateOf(false) }
     var pendingBulkDelete by remember { mutableStateOf<List<File>>(emptyList()) }
     var searchQuery by remember { mutableStateOf("") }
     val visibleEntries = if (searchQuery.isBlank()) entries
@@ -178,10 +200,18 @@ fun FileManagerScreen(
     var showFavorites by remember { mutableStateOf(false) }
     var favTick by remember { mutableIntStateOf(0) }
 
-    var listingJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    var listingJob by remember { mutableStateOf<Job?>(null) }
+    val history = remember { mutableStateListOf<Pair<File, File>>() }
+    var shownRoot by remember { mutableStateOf(initialRoot) }
 
-    fun loadDirectory(dir: File, resetScroll: Boolean = true) {
+    fun loadDirectory(dir: File, resetScroll: Boolean = true, record: Boolean = true) {
+        if (cancellingNavigation) return
+        if (record && dir != currentDir) {
+            history.add(currentDir to shownRoot)
+            if (history.size > HISTORY_LIMIT) history.removeAt(0)
+        }
         currentDir = dir
+        shownRoot = currentRoot
         if (pickMode) pickPrefs.edit().putString("lastFilePickerDir", dir.absolutePath).apply()
         listingJob?.cancel()
         listingJob = scope.launch {
@@ -205,25 +235,102 @@ fun FileManagerScreen(
     }
 
     fun openDrive(dir: File) {
+        if (cancellingNavigation) return
         currentRoot = dir
+        loadDirectory(dir)
+    }
+
+    fun returnToStart() {
+        if (cancellingNavigation) return
+        val dir = launchDir ?: return
+        if (!dir.isDirectory) {
+            Toast.makeText(context, R.string.fm_start_unavailable, Toast.LENGTH_SHORT).show()
+            return
+        }
+        showFavorites = false
+        showSearch = false
+        searchQuery = ""
+        currentRoot = initialRoot
         loadDirectory(dir)
     }
 
     LaunchedEffect(Unit) { loadDirectory(rootDir) }
 
-    BackHandler(enabled = showFavorites || currentDir != currentRoot) {
-        if (showFavorites) {
-            showFavorites = false
-            return@BackHandler
+    val canGoUp = currentDir != currentRoot && currentDir.parentFile?.exists() == true
+    fun isOperationActive() = isOperationRunning || operationJob?.isCompleted == false || cancelledJob?.isCompleted == false
+    val operationActive = isOperationActive()
+
+    fun navigate(action: FileManagerNavigation) {
+        if (cancellingNavigation) return
+        when (action) {
+            FileManagerNavigation.EXIT -> onExit?.invoke()
+            FileManagerNavigation.RETURN_TO_START -> returnToStart()
+            FileManagerNavigation.BACK -> {
+                if (showFavorites) showFavorites = false
+                else {
+                    while (history.isNotEmpty() && !history.last().first.isDirectory) history.removeAt(history.lastIndex)
+                    val previous = history.removeLastOrNull()
+                    if (previous != null) {
+                        currentRoot = previous.second
+                        loadDirectory(previous.first, record = false)
+                    } else if (canNavigateUp(currentDir, currentRoot)) currentDir.parentFile?.let { loadDirectory(it, record = false) }
+                    else onExit?.invoke()
+                }
+            }
+            FileManagerNavigation.UP -> {
+                if (showFavorites) showFavorites = false
+                else if (canNavigateUp(currentDir, currentRoot)) currentDir.parentFile?.let { loadDirectory(it) }
+                else onExit?.invoke()
+            }
         }
-        val parent = currentDir.parentFile
-        if (parent != null && parent.exists()) loadDirectory(parent)
     }
 
-    val canGoUp = currentDir != currentRoot && currentDir.parentFile?.exists() == true
-    fun goUp() {
-        val parent = currentDir.parentFile
-        if (currentDir != currentRoot && parent != null && parent.exists()) loadDirectory(parent)
+    fun requestNavigation(action: FileManagerNavigation) {
+        if (cancellingNavigation) return
+        if (isOperationActive()) pendingNavigation = action else navigate(action)
+    }
+
+    BackHandler(enabled = operationActive || cancellingNavigation || showFavorites || currentDir != currentRoot || history.isNotEmpty()) {
+        requestNavigation(FileManagerNavigation.BACK)
+    }
+
+    if (pendingNavigation != null) {
+        OutlinedAlertDialog(
+            onDismissRequest = { pendingNavigation = null },
+            title = { Text(stringResource(R.string.fm_cancel_operation_title)) },
+            text = { Text(stringResource(R.string.fm_cancel_operation_confirmation)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    val action = pendingNavigation ?: return@TextButton
+                    pendingNavigation = null
+                    val job = operationJob?.takeUnless(Job::isCompleted)
+                        ?: cancelledJob?.takeUnless(Job::isCompleted)
+                    if (job == null) {
+                        navigate(action)
+                    } else {
+                        cancellingNavigation = true
+                        cancelledJob = job
+                        job.cancel()
+                        scope.launch {
+                            job.join()
+                            if (operationJob === job) operationJob = null
+                            if (cancelledJob === job) cancelledJob = null
+                            pendingConflict = null
+                            isOperationRunning = false
+                            operationDeterminate = false
+                            cancellingNavigation = false
+                            if (action != FileManagerNavigation.EXIT) loadDirectory(currentDir, resetScroll = false)
+                            navigate(action)
+                        }
+                    }
+                }, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.fm_accept)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingNavigation = null }, modifier = Modifier.focusGlide(CircleShape)) {
+                    Text(stringResource(R.string.fm_decline))
+                }
+            },
+        )
     }
 
     fun uniqueDestination(dir: File, name: String): File {
@@ -241,11 +348,14 @@ fun FileManagerScreen(
     }
 
     fun performDelete(file: File) {
-        scope.launch {
+        if (isOperationActive()) return
+        operationJob = scope.launch {
             isOperationRunning = true
             operationLabel = context.getString(R.string.fm_op_deleting)
-            val ok = withContext(Dispatchers.IO) { FileOps.delete(file) }
+            val job = coroutineContext[Job]
+            val ok = withContext(Dispatchers.IO) { FileOps.delete(file) { job?.isActive == false } }
             isOperationRunning = false
+            if (operationJob === job) operationJob = null
             loadDirectory(currentDir, resetScroll = false)
             if (!ok) Toast.makeText(context, R.string.fm_delete_failed, Toast.LENGTH_SHORT).show()
         }
@@ -260,7 +370,7 @@ fun FileManagerScreen(
 
     fun performPaste() {
         val sources = clipboardFiles
-        if (sources.isEmpty() || isOperationRunning || operationJob?.isActive == true || cancelledJob?.isCompleted == false) return
+        if (sources.isEmpty() || isOperationActive()) return
         val dstDir = currentDir
         val cut = isCutOperation
 
@@ -269,7 +379,7 @@ fun FileManagerScreen(
             operationDeterminate = true
             operationLabel = context.getString(if (cut) R.string.fm_op_moving else R.string.fm_op_copying)
             isOperationRunning = true
-            val job = coroutineContext[kotlinx.coroutines.Job]
+            val job = coroutineContext[Job]
 
             var applyToAll: ConflictChoice? = null
             var failed = 0
@@ -322,7 +432,7 @@ fun FileManagerScreen(
 
             isOperationRunning = false
             operationDeterminate = false
-            operationJob = null
+            if (operationJob === job) operationJob = null
             clipboardFiles = emptyList()
             isCutOperation = false
             selectionMode = false
@@ -340,32 +450,38 @@ fun FileManagerScreen(
     }
 
     fun performRename(file: File, newName: String) {
+        if (isOperationActive()) return
         val target = File(file.parentFile, newName)
         if (target.exists()) {
             Toast.makeText(context, context.getString(R.string.fm_already_exists, newName), Toast.LENGTH_SHORT).show()
             return
         }
-        scope.launch {
+        operationJob = scope.launch {
+            val job = coroutineContext[Job]
             isOperationRunning = true
             operationLabel = context.getString(R.string.fm_op_renaming)
             val ok = withContext(Dispatchers.IO) { file.renameTo(target) }
             isOperationRunning = false
+            if (operationJob === job) operationJob = null
             loadDirectory(currentDir, resetScroll = false)
             if (!ok) Toast.makeText(context, R.string.fm_rename_failed, Toast.LENGTH_SHORT).show()
         }
     }
 
     fun createFolder(parent: File, name: String) {
+        if (isOperationActive()) return
         val target = File(parent, name)
         if (target.exists()) {
             Toast.makeText(context, context.getString(R.string.fm_already_exists, name), Toast.LENGTH_SHORT).show()
             return
         }
-        scope.launch {
+        operationJob = scope.launch {
+            val job = coroutineContext[Job]
             isOperationRunning = true
             operationLabel = context.getString(R.string.fm_op_creating_folder)
             val ok = withContext(Dispatchers.IO) { target.mkdirs() }
             isOperationRunning = false
+            if (operationJob === job) operationJob = null
             loadDirectory(currentDir, resetScroll = false)
             if (!ok) Toast.makeText(context, R.string.fm_create_folder_failed, Toast.LENGTH_SHORT).show()
         }
@@ -398,15 +514,16 @@ fun FileManagerScreen(
                     onValueChange = { folderName = it },
                     label = { Text(stringResource(R.string.fm_folder_name)) },
                     singleLine = true,
+                    modifier = Modifier.focusGlide(),
                 )
             },
             confirmButton = {
                 TextButton(onClick = {
                     showNewFolderDialog = false
                     if (folderName.isNotBlank()) createFolder(currentDir, folderName)
-                }) { Text(stringResource(R.string.fm_create)) }
+                }, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.fm_create)) }
             },
-            dismissButton = { TextButton(onClick = { showNewFolderDialog = false }) { Text(stringResource(R.string.common_cancel)) } },
+            dismissButton = { TextButton(onClick = { showNewFolderDialog = false }, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.common_cancel)) } },
         )
     }
 
@@ -421,6 +538,7 @@ fun FileManagerScreen(
                     onValueChange = { newName = it },
                     label = { Text(stringResource(R.string.fm_new_name)) },
                     singleLine = true,
+                    modifier = Modifier.focusGlide(),
                 )
             },
             confirmButton = {
@@ -428,9 +546,9 @@ fun FileManagerScreen(
                     val file = renameTarget
                     renameTarget = null
                     if (file != null && newName.isNotBlank()) performRename(file, newName)
-                }) { Text(stringResource(R.string.fm_rename)) }
+                }, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.fm_rename)) }
             },
-            dismissButton = { TextButton(onClick = { renameTarget = null }) { Text(stringResource(R.string.common_cancel)) } },
+            dismissButton = { TextButton(onClick = { renameTarget = null }, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.common_cancel)) } },
         )
     }
 
@@ -452,9 +570,9 @@ fun FileManagerScreen(
                 TextButton(onClick = {
                     selectedEntry = null
                     performDelete(file)
-                }) { Text(stringResource(R.string.common_delete)) }
+                }, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.common_delete)) }
             },
-            dismissButton = { TextButton(onClick = { selectedEntry = null }) { Text(stringResource(R.string.common_cancel)) } },
+            dismissButton = { TextButton(onClick = { selectedEntry = null }, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.common_cancel)) } },
         )
     }
 
@@ -481,26 +599,28 @@ fun FileManagerScreen(
             },
             confirmButton = {
                 TextButton(onClick = {
+                    if (isOperationActive()) return@TextButton
                     pendingBulkDelete = emptyList()
                     selectionMode = false
                     selectedPaths = emptySet()
                     operationJob = scope.launch {
                         isOperationRunning = true
+                        val job = coroutineContext[Job]
                         var failed = 0
                         victims.forEachIndexed { i, f ->
                             operationLabel = context.getString(R.string.fm_op_deleting_batch, i + 1, victims.size, f.name)
-                            if (!withContext(Dispatchers.IO) { FileOps.delete(f) }) failed++
+                            if (!withContext(Dispatchers.IO) { FileOps.delete(f) { job?.isActive == false } }) failed++
                         }
                         isOperationRunning = false
-                        operationJob = null
+                        if (operationJob === job) operationJob = null
                         loadDirectory(currentDir, resetScroll = false)
                         if (failed > 0) {
                             Toast.makeText(context, context.resources.getQuantityString(R.plurals.fm_delete_some_failed, failed, failed), Toast.LENGTH_SHORT).show()
                         }
                     }
-                }) { Text(stringResource(R.string.common_delete), color = MaterialTheme.colorScheme.error) }
+                }, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.common_delete), color = MaterialTheme.colorScheme.error) }
             },
-            dismissButton = { TextButton(onClick = { pendingBulkDelete = emptyList() }) { Text(stringResource(R.string.common_cancel)) } },
+            dismissButton = { TextButton(onClick = { pendingBulkDelete = emptyList() }, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.common_cancel)) } },
         )
     }
 
@@ -523,6 +643,7 @@ fun FileManagerScreen(
                             androidx.compose.material3.Checkbox(
                                 checked = conflictApplyToAll,
                                 onCheckedChange = { conflictApplyToAll = it },
+                                modifier = Modifier.focusGlide(),
                             )
                             Text(stringResource(R.string.fm_conflict_apply_all), fontSize = 12.sp)
                         }
@@ -535,7 +656,7 @@ fun FileManagerScreen(
                         ConflictChoice.SKIP to stringResource(R.string.fm_conflict_skip),
                     ).forEach { (choice, label) ->
                         TextButton(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier.fillMaxWidth().focusGlide(CircleShape),
                             onClick = { conflictChoice = choice; pendingConflict = null },
                         ) { Text(label, modifier = Modifier.fillMaxWidth()) }
                     }
@@ -543,13 +664,14 @@ fun FileManagerScreen(
             },
             confirmButton = {},
             dismissButton = {
-                TextButton(onClick = { conflictChoice = ConflictChoice.SKIP; pendingConflict = null }) {
+                TextButton(onClick = { conflictChoice = ConflictChoice.SKIP; pendingConflict = null }, modifier = Modifier.focusGlide(CircleShape)) {
                     Text(stringResource(R.string.common_cancel))
                 }
             },
         )
     }
 
+    val compactToolbar = LocalConfiguration.current.screenWidthDp < 600
     Column(modifier = Modifier.fillMaxSize()) {
         if (pickMode && !pickerTitle.isNullOrEmpty()) {
             Text(
@@ -568,7 +690,7 @@ fun FileManagerScreen(
                 onClick = { onPick?.invoke(currentDir) },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                    .padding(horizontal = 16.dp, vertical = 8.dp).focusGlide(CircleShape),
             ) {
                 Icon(Icons.Filled.Folder, null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
@@ -580,9 +702,10 @@ fun FileManagerScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(MaterialTheme.colorScheme.surfaceContainer)
+                .then(if (compactToolbar) Modifier.horizontalScroll(rememberScrollState()) else Modifier)
                 .padding(horizontal = 8.dp, vertical = 6.dp),
         ) {
-            IconButton(onClick = { goUp() }, enabled = canGoUp) {
+            IconButton(onClick = { requestNavigation(FileManagerNavigation.UP) }, enabled = canGoUp && !cancellingNavigation, modifier = Modifier.focusGlide(CircleShape)) {
                 Icon(Icons.Filled.ArrowBack, stringResource(R.string.fm_back), tint = MaterialTheme.colorScheme.primary)
             }
 
@@ -631,6 +754,7 @@ fun FileManagerScreen(
                                     ).show()
                                 }
                             },
+                            modifier = Modifier.focusGlide(),
                         )
                     }
                     linuxRoot?.let { root ->
@@ -641,6 +765,7 @@ fun FileManagerScreen(
                                 Icon(Icons.Filled.Terminal, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
                             },
                             onClick = { showDriveMenu = false; openDrive(root) },
+                            modifier = Modifier.focusGlide(),
                         )
                     }
                 }
@@ -656,10 +781,10 @@ fun FileManagerScreen(
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
+                    modifier = if (compactToolbar) Modifier.widthIn(max = 140.dp) else Modifier.weight(1f),
                 )
             } else if (LocalConfiguration.current.orientation == Configuration.ORIENTATION_PORTRAIT) {
-                Spacer(Modifier.weight(1f))
+                if (!compactToolbar) Spacer(Modifier.weight(1f))
             } else {
                 Text(
                     text = currentDir.name.ifBlank { currentDir.absolutePath },
@@ -668,8 +793,15 @@ fun FileManagerScreen(
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
+                    modifier = if (compactToolbar) Modifier.widthIn(max = 140.dp) else Modifier.weight(1f),
                 )
+            }
+
+            if (launchDir != null) {
+                IconButton(onClick = { requestNavigation(FileManagerNavigation.RETURN_TO_START) }, enabled = !cancellingNavigation, modifier = Modifier.focusGlide(CircleShape)) {
+                    Icon(Icons.AutoMirrored.Filled.KeyboardReturn, stringResource(R.string.fm_return_to_start), tint = MaterialTheme.colorScheme.primary)
+                }
+                if (LocalConfiguration.current.screenWidthDp >= 700) Spacer(Modifier.width(56.dp))
             }
 
             if (!showFavorites) {
@@ -678,7 +810,7 @@ fun FileManagerScreen(
                         onClick = { showNewFolderDialog = true },
                         border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)),
                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
-                        modifier = Modifier.height(32.dp),
+                        modifier = Modifier.height(32.dp).focusGlide(CircleShape),
                     ) {
                         Icon(Icons.Filled.CreateNewFolder, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(5.dp))
@@ -688,18 +820,18 @@ fun FileManagerScreen(
                 IconButton(onClick = {
                     gridView = !gridView
                     browsePrefs.edit().putBoolean("fmGridView", gridView).apply()
-                }) {
+                }, modifier = Modifier.focusGlide(CircleShape)) {
                     Icon(
                         if (gridView) Icons.Filled.ViewList else Icons.Filled.GridView,
                         if (gridView) stringResource(R.string.fm_list_view) else stringResource(R.string.fm_grid_view),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                IconButton(onClick = { showSearch = !showSearch; if (!showSearch) searchQuery = "" }) {
+                IconButton(onClick = { showSearch = !showSearch; if (!showSearch) searchQuery = "" }, modifier = Modifier.focusGlide(CircleShape)) {
                     Icon(Icons.Filled.Search, stringResource(R.string.fm_search), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 Box {
-                    IconButton(onClick = { showSortMenu = true }) {
+                    IconButton(onClick = { showSortMenu = true }, modifier = Modifier.focusGlide(CircleShape)) {
                         Icon(Icons.Filled.Sort, stringResource(R.string.fm_sort), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     DropdownMenu(expanded = showSortMenu, onDismissRequest = { showSortMenu = false }) {
@@ -716,6 +848,7 @@ fun FileManagerScreen(
                                         showSortMenu = false
                                         loadDirectory(currentDir, resetScroll = false)
                                     },
+                                    modifier = Modifier.focusGlide(),
                                 )
                             }
                         HorizontalDivider(color = MaterialTheme.colorScheme.outline)
@@ -726,6 +859,7 @@ fun FileManagerScreen(
                                 browsePrefs.edit().putBoolean("fmCompactRows", compactRows).apply()
                                 showSortMenu = false
                             },
+                            modifier = Modifier.focusGlide(),
                         )
                         DropdownMenuItem(
                             text = { Text(if (showHidden) stringResource(R.string.fm_hide_hidden) else stringResource(R.string.fm_show_hidden)) },
@@ -735,16 +869,22 @@ fun FileManagerScreen(
                                 showSortMenu = false
                                 loadDirectory(currentDir, resetScroll = false)
                             },
+                            modifier = Modifier.focusGlide(),
                         )
                     }
                 }
             }
 
-            IconButton(onClick = { showFavorites = !showFavorites }) {
+            IconButton(onClick = { showFavorites = !showFavorites }, modifier = Modifier.focusGlide(CircleShape)) {
                 if (showFavorites) {
                     Icon(Icons.Filled.Star, stringResource(R.string.fm_hide_favorites), tint = MaterialTheme.colorScheme.primary)
                 } else {
                     Icon(Icons.Filled.StarBorder, stringResource(R.string.fm_show_favorites), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            if (!pickMode && onExit != null) {
+                IconButton(onClick = { requestNavigation(FileManagerNavigation.EXIT) }, enabled = !cancellingNavigation, modifier = Modifier.focusGlide(CircleShape)) {
+                    Icon(Icons.AutoMirrored.Filled.ExitToApp, stringResource(R.string.fm_exit), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
@@ -755,7 +895,7 @@ fun FileManagerScreen(
                 onValueChange = { searchQuery = it },
                 singleLine = true,
                 placeholder = { Text(stringResource(R.string.fm_filter_folder), fontSize = 13.sp) },
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp).focusGlide(),
             )
         }
 
@@ -793,13 +933,14 @@ fun FileManagerScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
+                    .then(if (compactToolbar) Modifier.horizontalScroll(rememberScrollState()) else Modifier)
                     .padding(horizontal = 12.dp, vertical = 6.dp),
             ) {
                 Text(
                     stringResource(R.string.fm_selected_count, selectedPaths.size),
                     color = MaterialTheme.colorScheme.onBackground,
                     fontSize = 13.sp,
-                    modifier = Modifier.weight(1f),
+                    modifier = if (compactToolbar) Modifier.padding(end = 12.dp) else Modifier.weight(1f),
                 )
                 val allVisibleSelected = visibleEntries.isNotEmpty() && visibleEntries.all { it.absolutePath in selectedPaths }
                 val anyVisibleSelected = visibleEntries.any { it.absolutePath in selectedPaths }
@@ -810,6 +951,7 @@ fun FileManagerScreen(
                         selectedPaths = if (allVisibleSelected) selectedPaths - shown.toSet() else selectedPaths + shown
                     },
                     contentPadding = selBarPadding,
+                    modifier = Modifier.focusGlide(CircleShape),
                 ) { Text(if (allVisibleSelected) stringResource(R.string.fm_select_none) else stringResource(R.string.fm_select_all), fontSize = 12.sp) }
                 Spacer(Modifier.width(4.dp))
                 OutlinedButton(
@@ -821,6 +963,7 @@ fun FileManagerScreen(
                         selectedPaths = emptySet()
                     },
                     contentPadding = selBarPadding,
+                    modifier = Modifier.focusGlide(CircleShape),
                 ) { Text(stringResource(R.string.fm_copy), fontSize = 12.sp) }
                 Spacer(Modifier.width(4.dp))
                 OutlinedButton(
@@ -832,6 +975,7 @@ fun FileManagerScreen(
                         selectedPaths = emptySet()
                     },
                     contentPadding = selBarPadding,
+                    modifier = Modifier.focusGlide(CircleShape),
                 ) { Text(stringResource(R.string.fm_cut), fontSize = 12.sp) }
                 Spacer(Modifier.width(4.dp))
                 OutlinedButton(
@@ -839,11 +983,13 @@ fun FileManagerScreen(
                     onClick = { pendingBulkDelete = visibleEntries.filter { it.absolutePath in selectedPaths } },
                     contentPadding = selBarPadding,
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.error),
+                    modifier = Modifier.focusGlide(CircleShape),
                 ) { Text(stringResource(R.string.common_delete), color = MaterialTheme.colorScheme.error, fontSize = 12.sp) }
                 Spacer(Modifier.width(4.dp))
                 OutlinedButton(
                     onClick = { selectionMode = false; selectedPaths = emptySet() },
                     contentPadding = selBarPadding,
+                    modifier = Modifier.focusGlide(CircleShape),
                 ) { Text(stringResource(R.string.fm_done), fontSize = 12.sp) }
             }
         }
@@ -865,7 +1011,7 @@ fun FileManagerScreen(
                     if (isCutOperation) stringResource(R.string.fm_paste_move_here, what) else stringResource(R.string.fm_paste_here, what),
                     color = MaterialTheme.colorScheme.onBackground, fontSize = 13.sp, modifier = Modifier.weight(1f),
                 )
-                TextButton(onClick = { clipboardFiles = emptyList(); isCutOperation = false }) {
+                TextButton(onClick = { clipboardFiles = emptyList(); isCutOperation = false }, modifier = Modifier.focusGlide(CircleShape)) {
                     Text(stringResource(R.string.common_cancel), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
                 }
             }
@@ -896,7 +1042,7 @@ fun FileManagerScreen(
                             isOperationRunning = false
                             operationDeterminate = false
                             loadDirectory(currentDir, resetScroll = false)
-                        }) { Text(stringResource(R.string.common_cancel), fontSize = 12.sp) }
+                        }, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.common_cancel), fontSize = 12.sp) }
                     }
                 }
                 Spacer(Modifier.height(4.dp))
@@ -986,7 +1132,7 @@ fun FileManagerScreen(
                     contentPadding = PaddingValues(8.dp),
                 ) {
                     if (canGoUp) item(key = "..", span = { GridItemSpan(maxLineSpan) }) {
-                        ParentFolderRow(compact = compactRows, onTap = { goUp() })
+                        ParentFolderRow(compact = compactRows, onTap = { requestNavigation(FileManagerNavigation.UP) })
                     }
                     items(shownEntries, key = { it.absolutePath }) { file ->
                         val isFav = remember(file.absolutePath, favTick) {
@@ -1052,7 +1198,7 @@ fun FileManagerScreen(
             } else
             LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
                 if (canGoUp) item(key = "..") {
-                    ParentFolderRow(compact = compactRows, onTap = { goUp() })
+                    ParentFolderRow(compact = compactRows, onTap = { requestNavigation(FileManagerNavigation.UP) })
                 }
                 if (entries.isEmpty()) {
                     item {

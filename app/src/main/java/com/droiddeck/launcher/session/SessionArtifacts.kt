@@ -200,22 +200,86 @@ object SessionArtifacts {
     internal fun recordedClient(dir: File): String? =
         runCatching { File(dir, CLIENT_FILE).readText().trim() }.getOrNull()?.takeIf { it == "arm64" || it == "x86_64" }
 
+    private const val LOG_MARKS = "steam-log-marks.txt"
+    private const val MAX_STEAM_LOG = 8L * 1024 * 1024
+    private const val HEAD = 4096L
+
+    private class Mark(val size: Long, val head: String)
+
+    fun markSteamLogs(dir: File, logs: File) {
+        val lines = logs.listFiles { f -> f.isFile }?.mapNotNull { f ->
+            val size = f.length()
+            head(f, size)?.let { "$size\t$it\t${f.name}" }
+        } ?: return
+        runCatching { File(dir, LOG_MARKS).writeText(lines.joinToString("") { "$it\n" }) }
+    }
+
+    private fun head(f: File, length: Long): String? = runCatching {
+        val buf = ByteArray(minOf(length, HEAD).toInt())
+        f.inputStream().use { input ->
+            var off = 0
+            while (off < buf.size) {
+                val n = input.read(buf, off, buf.size - off)
+                if (n < 0) return@runCatching null
+                off += n
+            }
+        }
+        java.security.MessageDigest.getInstance("SHA-1").digest(buf).joinToString("") { "%02x".format(it) }
+    }.getOrNull()
+
+    private fun steamLogMarks(dir: File): List<Mark>? = runCatching {
+        File(dir, LOG_MARKS).readLines().mapNotNull { line ->
+            val parts = line.split('\t', limit = 3)
+            parts.getOrNull(0)?.toLongOrNull()?.let { size -> parts.getOrNull(1)?.let { Mark(size, it) } }
+        }
+    }.getOrNull()
+
+    private fun startOf(src: File, size: Long, marks: List<Mark>): Long {
+        val heads = HashMap<Long, String?>()
+        return marks.filter { it.size <= size }.sortedByDescending { it.size }
+            .firstOrNull { m -> heads.getOrPut(minOf(m.size, HEAD)) { head(src, m.size) } == m.head }?.size ?: 0L
+    }
+
     private fun copySteamLogs(context: Context, dir: File, record: Record, steamArch: String? = null) {
         val logs = File(steamArch?.let { SessionPrefs.steamRoot(context, it) } ?: SessionPrefs.activeSteamRoot(context), "logs")
         if (!logs.isDirectory) return
         val out = File(dir, "steam").apply { mkdirs() }
-        logs.listFiles { f -> f.isFile && f.length() < 8L * 1024 * 1024 }?.forEach { src ->
+        copySessionLogs(logs, dir, out).forEach { dst -> record.files[dst] = Scrubbed(dst.length(), dst.lastModified()) }
+        Log.i(TAG, "collected ${out.listFiles()?.size ?: 0} Steam log(s), scrubbed, into $out")
+    }
+
+    internal fun copySessionLogs(logs: File, dir: File, out: File): List<File> {
+        val marks = steamLogMarks(dir)
+        val copied = ArrayList<File>()
+        logs.listFiles { f -> f.isFile }?.forEach { src ->
+            val size = src.length()
+            val from = marks?.let { startOf(src, size, it) } ?: 0L
+            if (marks != null && from == size || size - from >= MAX_STEAM_LOG) return@forEach
             try {
                 val dst = File(out, src.name)
-                dst.bufferedWriter().use { w ->
-                    src.forEachLine { line -> w.write(LogRedactor.redact(line)); w.newLine() }
+                src.inputStream().buffered().use { input ->
+                    var left = if (from > 0) from - 1 else 0L
+                    while (left > 0) {
+                        val skipped = input.skip(left)
+                        if (skipped <= 0) break
+                        left -= skipped
+                    }
+                    if (from > 0 && input.read() != '\n'.code) {
+                        while (true) {
+                            val c = input.read()
+                            if (c < 0 || c == '\n'.code) break
+                        }
+                    }
+                    dst.bufferedWriter().use { w ->
+                        input.bufferedReader().forEachLine { line -> w.write(LogRedactor.redact(line)); w.newLine() }
+                    }
                 }
-                record.files[dst] = Scrubbed(dst.length(), dst.lastModified())
+                copied.add(dst)
             } catch (e: Exception) {
                 Log.w(TAG, "could not scrub ${src.name}", e)
             }
         }
-        Log.i(TAG, "collected ${out.listFiles()?.size ?: 0} Steam log(s), scrubbed, into $out")
+        return copied
     }
 
     @Synchronized

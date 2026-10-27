@@ -356,9 +356,11 @@ internal fun AdbTextField(
     placeholder: String? = null,
     compact: Boolean = false,
     onFocusChange: (Boolean) -> Unit = {},
+    clearFocus: Boolean = false,
     onNext: (() -> Unit)? = null,
     onDone: (() -> Unit)? = null,
     focusOnShow: Boolean = false,
+    showLabel: Boolean = true,
 ) {
     val context = LocalContext.current
     val focusAsked = remember { booleanArrayOf(false) }
@@ -373,7 +375,7 @@ internal fun AdbTextField(
     val colors = MaterialTheme.colorScheme
 
     Column(modifier = modifier.fillMaxWidth()) {
-        Text(
+        if (showLabel) Text(
             label,
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Medium,
@@ -443,6 +445,11 @@ internal fun AdbTextField(
                             (editText.context.getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager)
                                 ?.showSoftInput(editText, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT)
                         }
+                    }
+                    if (clearFocus && editText.hasFocus()) {
+                        editText.clearFocus()
+                        (editText.context.getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager)
+                            ?.hideSoftInputFromWindow(editText.windowToken, 0)
                     }
                     editText.setTextColor(colors.onBackground.toArgb())
                     editText.setHintTextColor(colors.onSurfaceVariant.toArgb())

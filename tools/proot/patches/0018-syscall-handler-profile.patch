@@ -1,0 +1,38 @@
+--- a/src/syscall/syscall.c
++++ b/src/syscall/syscall.c
+@@ -32,6 +32,7 @@
+ #include "tracee/reg.h"
+ #include "tracee/mem.h"
+ #include "cli/note.h"
++#include "syscall/profile.h"
+ 
+ /**
+  * Copy in @path a C string (PATH_MAX bytes max.) from the @tracee's
+@@ -100,7 +101,7 @@
+ 	return set_sysarg_data(tracee, path, strlen(path) + 1, reg);
+ }
+ 
+-void translate_syscall(Tracee *tracee)
++static void translate_syscall_impl(Tracee *tracee)
+ {
+ 	const bool is_enter_stage = IS_IN_SYSENTER(tracee);
+ 	int status;
+@@ -283,3 +284,18 @@
+ 	else
+ 		print_current_regs(tracee, 4, "sysexit end");
+ }
++
++void translate_syscall(Tracee *tracee)
++{
++	if (!dd_profile_enabled()) {
++		translate_syscall_impl(tracee);
++		return;
++	}
++	int saved = errno;
++	const bool entering = IS_IN_SYSENTER(tracee);
++	uint64_t wall = dd_profile_clock(CLOCK_MONOTONIC);
++	uint64_t cpu = dd_profile_clock(CLOCK_THREAD_CPUTIME_ID);
++	errno = saved;
++	translate_syscall_impl(tracee);
++	dd_profile_record(get_sysnum(tracee, ORIGINAL), entering, tracee->pid, wall, cpu);
++}

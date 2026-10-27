@@ -11,7 +11,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
-import androidx.compose.ui.window.Dialog
+import com.droiddeck.launcher.ui.GlideDialog as Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
@@ -267,6 +267,23 @@ internal fun StoreAchievementsCardContent(label: String, state: AchievementsStat
             }
         }
         SecondaryButton(stringResource(R.string.achievements_show_all, list.size), compact = true, onClick = onOpen)
+    }
+}
+
+@Composable
+internal fun AchievementsTab(label: String, state: AchievementsState, modifier: Modifier = Modifier) {
+    val colors = MaterialTheme.colorScheme
+    val list = state.list
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = modifier.fillMaxWidth().tabPanel()) {
+        if (list.isNullOrEmpty()) {
+            Text(achievementsNote(state, label).orEmpty(), fontSize = 13.sp, color = colors.onSurfaceVariant, modifier = Modifier.readable().padding(4.dp))
+            return@Column
+        }
+        Box(Modifier.fillMaxWidth().readable().padding(4.dp)) { AchievementsProgress(state) }
+        for ((group, items) in groups(list)) {
+            AchievementGroupLabel(stringResource(group, items.size))
+            for (a in items) androidx.compose.runtime.key(a.id) { AchievementRow(a, compact = true) }
+        }
     }
 }
 

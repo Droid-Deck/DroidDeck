@@ -475,7 +475,7 @@ internal fun TextEntryDialog(title: String, initial: String, onDismiss: () -> Un
     AppDialog(shown, close, "textEntry", wide = false, maxWidth = 460.dp) {
         DialogTitleRow(title, onClose = close)
         androidx.compose.material3.OutlinedTextField(
-            value, { value = it }, singleLine = true, modifier = Modifier.fillMaxWidth().focusRequester(focus),
+            value, { value = it }, singleLine = true, modifier = Modifier.fillMaxWidth().focusRequester(focus).focusGlide(),
             keyboardActions = androidx.compose.foundation.text.KeyboardActions(onDone = { onSave(value.trim()); close() }),
             keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Done),
         )
@@ -644,7 +644,7 @@ private fun SgdbSearchDialog(
             SmallIconButton(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.common_back), colors.onBackground, onClick = back)
         })
         androidx.compose.material3.OutlinedTextField(
-            query, { query = it }, singleLine = true, modifier = Modifier.fillMaxWidth(),
+            query, { query = it }, singleLine = true, modifier = Modifier.fillMaxWidth().focusGlide(),
             label = { Text(stringResource(R.string.art_sgdb_search_label)) },
             keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSearch = { leaveField(); search() }),
             keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Search),

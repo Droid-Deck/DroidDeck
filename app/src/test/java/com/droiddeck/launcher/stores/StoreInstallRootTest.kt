@@ -5,7 +5,10 @@ import com.droiddeck.launcher.session.SessionPrefs
 import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -18,12 +21,84 @@ import org.robolectric.shadows.ShadowStatFs
 class StoreInstallRootTest {
     private val app get() = RuntimeEnvironment.getApplication()
 
+    @Before fun resetStoragePreferences() {
+        SessionPrefs.setDefaultStorageFolder(app, "", "")
+        SessionPrefs.setDefaultStorage(app, SessionPrefs.DEFAULT_STORAGE_ASK)
+        SessionPrefs.setGameStorage(app, SessionPrefs.GAME_STORAGE_OFF, "")
+    }
+
     @Test fun theDefaultRootIsInternalWhateverTheSteamLibrarySettingSays() {
         val card = File(app.filesDir, "fake-card/steam").apply { mkdirs() }
         SessionPrefs.setGameStorage(app, card.path, "Card")
         assertEquals(File(LinuxRuntime.rootDir(app), "root/Games/Stores").absolutePath, StoreInstallRoot.installRoot(app).absolutePath)
         assertTrue(StoreInstallRoot.roots(app).any { it.absolutePath == File(card, "Games").absolutePath })
         assertFalse(StoreInstallRoot.targets(app).first().removable)
+    }
+
+    @Test fun defaultStoragePicksTheInternalOrTheConfiguredExternalTarget() {
+        val library = File(app.filesDir, "default-card/steam").apply { mkdirs() }
+        SessionPrefs.setGameStorage(app, library.path, "Card")
+        val external = File(library, "Games")
+
+        SessionPrefs.setDefaultStorage(app, SessionPrefs.DEFAULT_STORAGE_INTERNAL)
+        assertEquals(StoreInstallRoot.internalRoot(app).absolutePath, StoreInstallRoot.defaultTarget(app)?.root?.absolutePath)
+
+        SessionPrefs.setDefaultStorage(app, SessionPrefs.DEFAULT_STORAGE_EXTERNAL)
+        assertEquals(external.absolutePath, StoreInstallRoot.defaultTarget(app)?.root?.absolutePath)
+
+        SessionPrefs.setDefaultStorage(app, SessionPrefs.DEFAULT_STORAGE_ASK)
+        assertNull(StoreInstallRoot.defaultTarget(app))
+
+        SessionPrefs.setDefaultStorage(app, "bogus")
+        assertEquals(SessionPrefs.DEFAULT_STORAGE_ASK, SessionPrefs.defaultStorage(app))
+    }
+
+    @Test fun defaultExternalStorageFallsBackToTheInstallDialogWhenNoCardIsPresent() {
+        SessionPrefs.setGameStorage(app, SessionPrefs.GAME_STORAGE_OFF, "")
+        SessionPrefs.setDefaultStorage(app, SessionPrefs.DEFAULT_STORAGE_EXTERNAL)
+        assertNull(StoreInstallRoot.defaultTarget(app))
+    }
+
+    @Test fun aChosenFolderIsUsedForDefaultExternalStorage() {
+        val folder = File(app.filesDir, "usb/SSD").apply { mkdirs() }
+        assertNull(StoreInstallRoot.prepareDefaultFolder(app, folder))
+        val root = File(folder, "Games")
+        assertTrue(root.isDirectory)
+        SessionPrefs.setDefaultStorageFolder(app, folder.path, "SSD")
+        SessionPrefs.setDefaultStorage(app, SessionPrefs.DEFAULT_STORAGE_EXTERNAL)
+
+        assertEquals(root.absolutePath, StoreInstallRoot.defaultTarget(app)?.root?.absolutePath)
+        assertTrue(StoreInstallRoot.targets(app).any { it.root.absolutePath == root.absolutePath && it.folder })
+        assertTrue(StoreInstallRoot.roots(app).any { it.absolutePath == root.absolutePath })
+        assertTrue(StoreInstallRoot.externalRoots(app).any { it.first.absolutePath == root.absolutePath })
+        assertFalse(File(root, ".droiddeck-write-probe").exists())
+    }
+
+    @Test fun aDisconnectedChosenFolderDoesNotFallBackToAnotherTarget() {
+        val card = File(app.filesDir, "card/steam").apply { mkdirs() }
+        SessionPrefs.setGameStorage(app, card.path, "Card")
+        val folder = File(app.filesDir, "usb/SSD").apply { mkdirs() }
+        SessionPrefs.setDefaultStorageFolder(app, folder.path, "SSD")
+        SessionPrefs.setDefaultStorage(app, SessionPrefs.DEFAULT_STORAGE_EXTERNAL)
+        assertNotNull(StoreInstallRoot.defaultTarget(app))
+
+        assertTrue(folder.delete())
+        assertNull(StoreInstallRoot.defaultTarget(app))
+        assertEquals(File(card, "Games").absolutePath, StoreInstallRoot.detectedExternalTarget(app)?.root?.absolutePath)
+    }
+
+    @Test fun filesOnAChosenFolderAreMappedIntoTheGuest() {
+        val folder = File(app.filesDir, "usb/SSD").apply { mkdirs() }
+        SessionPrefs.setDefaultStorageFolder(app, folder.path, "SSD")
+        val game = File(folder, "Games/GOG/Test/game.exe").apply {
+            parentFile?.mkdirs()
+            writeText("MZ")
+        }
+
+        val guest = StoreInstallRoot.externalGuestPath(app, game)
+        assertNotNull(guest)
+        assertTrue(guest!!.startsWith(StoreInstallRoot.GUEST_EXTERNAL + "/"))
+        assertTrue(guest.endsWith("/GOG/Test/game.exe"))
     }
 
     @Test fun theSteamLibraryFolderIsOfferedAsAnInstallTarget() {
@@ -36,6 +111,43 @@ class StoreInstallRootTest {
         assertTrue(targets.last().label.startsWith("Games"))
         SessionPrefs.setGameStorage(app, SessionPrefs.GAME_STORAGE_OFF, "")
         assertEquals(1, StoreInstallRoot.targets(app).size)
+    }
+
+    @Test fun externalStoreInstallPathsMapIntoTheirGuestMountWithoutPrefixCollisions() {
+        val cardRoot = File(app.filesDir, "card/Games").apply { mkdirs() }
+        val guestRoot = "/mnt/droiddeck-stores/card"
+        val roots = listOf(cardRoot to guestRoot)
+
+        assertEquals("$guestRoot/Stores/Xbox/Doom", StoreInstallRoot.externalGuestPath(
+            File(cardRoot, "Stores/Xbox/Doom"), roots))
+        assertEquals(null, StoreInstallRoot.externalGuestPath(
+            File(cardRoot.parentFile, "Games-old/Stores/Xbox/Doom"), roots))
+    }
+
+    @Test fun xodusMapsTheSelectedSteamLibraryOnAnExternalVolume() {
+        val library = File(app.filesDir, "card/steam").apply { mkdirs() }
+        val storeRoot = File(library, "Games").apply { mkdirs() }
+        SessionPrefs.setGameStorage(app, library.path, "Card")
+
+        val xodusRoot = StoreInstallRoot.externalRootsForXodus(app).single { it.first.absolutePath == storeRoot.absolutePath }
+        val gameFolder = File(storeRoot, "Xbox/Doom")
+        assertEquals("${xodusRoot.second}/Xbox/Doom", StoreInstallRoot.guestPathForXodus(app, gameFolder))
+
+        val bindSpecs = StoreInstallRoot.externalBindSpecsForXodus(app)
+        assertTrue(bindSpecs.contains("${storeRoot.path}:${xodusRoot.second}"))
+        assertTrue(File(LinuxRuntime.rootDir(app), xodusRoot.second.removePrefix("/")).isDirectory)
+    }
+
+    @Test fun externalStoreBindsCreateGuestTargetsAndSkipUnavailableVolumes() {
+        val host = File(app.filesDir, "card/Games").apply { mkdirs() }
+        val guestRoot = "/mnt/droiddeck-stores/card"
+        val guestFs = File(app.filesDir, "linuxfs").apply { mkdirs() }
+        val missing = File(app.filesDir, "missing/Games")
+
+        assertEquals(listOf("${host.path}:$guestRoot"), StoreInstallRoot.externalBindSpecs(
+            listOf(host to guestRoot, missing to "/mnt/droiddeck-stores/missing"), guestFs))
+        assertTrue(File(guestFs, "mnt/droiddeck-stores/card").isDirectory)
+        assertFalse(File(guestFs, "mnt/droiddeck-stores/missing").exists())
     }
 
     @Test fun anExistingInstallWinsOverAFreshFolderUnderTheChosenRoot() {

@@ -1,0 +1,55 @@
+--- a/layer/VkLayer_FROG_gamescope_wsi.cpp	2026-10-25 07:56:48.179978889 +0000
++++ b/layer/VkLayer_FROG_gamescope_wsi.cpp	2026-10-25 07:56:48.207978889 +0000
+@@ -23,6 +23,8 @@
+ #include <optional>
+ 
+ #include <poll.h>
++#include <time.h>
++#include <cstdlib>
+ #include <sys/stat.h>
+ // For limiter file.
+ #include <time.h>
+@@ -476,6 +478,34 @@
+     // Cached for comparison.
+     std::optional<VkRect2D> cachedWindowRect;
+ 
++    // canBypassXWayland costs several X round trips; at present time it is refreshed at most
++    // every DROIDDECK_WSI_BYPASS_CHECK_MS (default 0 = every present; DroidDeck's Performance mode sets 100).
++    std::optional<bool> presentBypass;
++    bool presentBypassHdr = false;
++    uint64_t presentBypassNs = 0;
++
++    static uint64_t presentBypassIntervalNs() {
++      static const uint64_t interval = [] {
++        const char *v = getenv("DROIDDECK_WSI_BYPASS_CHECK_MS");
++        return uint64_t(v && *v ? strtoull(v, nullptr, 10) : 0) * 1000000ull;
++      }();
++      return interval;
++    }
++
++    bool canBypassXWaylandAtPresent(bool hdrColorspace) {
++      if (isWayland())
++        return true;
++      timespec ts;
++      clock_gettime(CLOCK_MONOTONIC, &ts);
++      const uint64_t now = uint64_t(ts.tv_sec) * 1000000000ull + uint64_t(ts.tv_nsec);
++      if (!presentBypass || presentBypassHdr != hdrColorspace || now - presentBypassNs >= presentBypassIntervalNs()) {
++        presentBypass = canBypassXWayland(hdrColorspace);
++        presentBypassHdr = hdrColorspace;
++        presentBypassNs = now;
++      }
++      return *presentBypass;
++    }
++
+     bool isWayland() const {
+       // Is native Wayland?
+       return connection == nullptr;
+@@ -1597,7 +1627,7 @@
+             continue;
+           }
+ 
+-          const bool canBypass = gamescopeSurface->canBypassXWayland(gamescopeSwapchain->isHdrColorspace);
++          const bool canBypass = gamescopeSurface->canBypassXWaylandAtPresent(gamescopeSwapchain->isHdrColorspace);
+           if (canBypass != gamescopeSwapchain->isBypassingXWayland) {
+             if (canBypass) {
+               if (!(gamescopeSurface->flags & GamescopeLayerClient::Flag::NoSuboptimal))
