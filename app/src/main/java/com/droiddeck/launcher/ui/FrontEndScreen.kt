@@ -331,6 +331,7 @@ internal class FrontFocus {
     fun railFor(key: String): FocusRequester = rail.getOrPut(key) { FocusRequester() }
     val items = HashMap<String, FocusRequester>()
     val attached = HashMap<String, Int>()
+    var attachedCount by mutableStateOf(0)
     val attachedOrder = ArrayList<String>()
     var last by mutableStateOf<String?>(null)
     val firstTile = FocusRequester()
@@ -374,10 +375,12 @@ internal fun Modifier.paneItem(id: String): Modifier {
     val req = remember(id) { ff.items.getOrPut(id) { FocusRequester() } }
     DisposableEffect(id) {
         ff.attached[id] = (ff.attached[id] ?: 0) + 1
+        ff.attachedCount++
         if (id !in ff.attachedOrder) ff.attachedOrder.add(id)
         onDispose {
             val next = (ff.attached[id] ?: 1) - 1
             ff.attached[id] = next
+            ff.attachedCount--
             if (next <= 0) ff.attachedOrder.remove(id)
         }
     }
@@ -556,7 +559,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
             kotlinx.coroutines.delay(Motion.ms(PAGE_EXIT_MS).toLong())
             if (inputModeManager.inputMode != InputMode.Keyboard) return@LaunchedEffect
             withTimeoutOrNull(1_000) {
-                snapshotFlow { frontFocus.primaryAttached > 0 || frontFocus.attached.values.any { it > 0 } }.first { it }
+                snapshotFlow { frontFocus.primaryAttached > 0 || frontFocus.attachedCount > 0 }.first { it }
             } ?: return@LaunchedEffect
             focusWithinFrames({ frontFocus.focusedRail == null && anyFocused }) { frontFocus.paneEntry() }
         }

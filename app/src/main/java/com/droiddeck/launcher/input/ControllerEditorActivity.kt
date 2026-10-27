@@ -116,7 +116,7 @@ class ControllerEditorActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        if (dualSense == null) {
+        if (dualSense == null && !com.droiddeck.launcher.session.SessionState.running) {
             dualSense = DualSenseManager(this).apply {
                 onStateUpdated = { state ->
                     val next = LauncherPadKeys.held(state).toIntArray()

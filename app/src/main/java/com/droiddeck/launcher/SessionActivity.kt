@@ -2246,7 +2246,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (pad !== event) return dispatchKeyEvent(pad)
         if (event.keyCode == KeyEvent.KEYCODE_BUTTON_A) com.droiddeck.launcher.ui.HeldKeys.confirm = event.action == KeyEvent.ACTION_DOWN
         if (event.action == KeyEvent.ACTION_DOWN) com.droiddeck.launcher.ui.HeldKeys.focusWakeup++
-        val fromController = PadBridge.isControllerKeyEvent(event) || event.deviceId == -1
+        val fromController = PadBridge.isControllerKeyEvent(event) ||
+            (event.deviceId == -1 && event.isFromSource(InputDevice.SOURCE_GAMEPAD))
         if (fromController && event.action == KeyEvent.ACTION_DOWN) {
             if (drawerOpen && !drawerControllerActive) sessionOverlay.requestFocus()
             drawerControllerActive = true

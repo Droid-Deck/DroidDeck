@@ -4051,7 +4051,11 @@ EXPORT ssize_t writev(int fd, const struct iovec *iov, int iovcnt) {
     auto device = deck_map()[fd];
     for (int i = 0; i < iovcnt; i++) {
       if (device->touch) touch_output(static_cast<const uint8_t *>(iov[i].iov_base), iov[i].iov_len);
-      else if (device->sony) sony_output(*device, static_cast<const uint8_t *>(iov[i].iov_base), iov[i].iov_len);
+      else if (device->sony) {
+        guard.unlock();
+        sony_output(*device, static_cast<const uint8_t *>(iov[i].iov_base), iov[i].iov_len);
+        guard.lock();
+      }
       else if (device->emulated) triton_pad_output(static_cast<const uint8_t *>(iov[i].iov_base), iov[i].iov_len);
       else if (device->triton) triton_queue_output(*device, static_cast<const uint8_t *>(iov[i].iov_base), iov[i].iov_len, false);
       total += static_cast<ssize_t>(iov[i].iov_len);

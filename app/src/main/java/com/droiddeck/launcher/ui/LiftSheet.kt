@@ -526,7 +526,7 @@ internal fun LiftHero(
                             if (k.keyCode == KeyEvent.KEYCODE_DPAD_UP) { if (k.action == KeyEvent.ACTION_DOWN) close(); true } else false
                         },
                 ) {
-                    SheetChips(tabs.map { it.second }, tab, chipFocus) { i -> travel = if (i > tab) 1 else -1; tab = i }
+                    SheetChips(tabs.map { it.second }, tab, chipFocus, inSheet = true) { i -> travel = if (i > tab) 1 else -1; tab = i }
                 }
                 Box(
                     Modifier
@@ -697,6 +697,7 @@ internal fun SheetChips(
     selected: Int,
     focus: List<FocusRequester>? = null,
     width: Dp = Dp.Unspecified,
+    inSheet: Boolean = false,
     onPick: (Int) -> Unit,
 ) {
     val pal = LocalPalette.current
@@ -713,7 +714,6 @@ internal fun SheetChips(
         val least = if (width.isSpecified) maxOf(width, 64.dp) else 64.dp
         val scroll = rememberScrollState()
         val ff = LocalFrontFocus.current
-        val inSheet = LocalSheetBeat.current != null
         Box(if (equal) Modifier.fillMaxWidth() else Modifier.edgeFade(scroll).horizontalScroll(scroll).padding(3.dp)) {
             Row(
                 horizontalArrangement = Arrangement.spacedBy(ChipGap),

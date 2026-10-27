@@ -416,7 +416,7 @@ internal fun BoxWithConstraintsScope.DropSheet(
                         if (k.keyCode == KeyEvent.KEYCODE_DPAD_DOWN) { if (k.action == KeyEvent.ACTION_DOWN) close(); true } else false
                     },
             ) {
-                SheetChips(tabs.map { it.second }, state.tab, chipFocus, width = LocalSheetChipWidth.current) { i -> state.travel = if (i > state.tab) 1 else -1; state.tab = i }
+                SheetChips(tabs.map { it.second }, state.tab, chipFocus, width = LocalSheetChipWidth.current, inSheet = true) { i -> state.travel = if (i > state.tab) 1 else -1; state.tab = i }
             }
             val closeSource = remember { MutableInteractionSource() }
             val closeHot = rememberHot(closeSource)
