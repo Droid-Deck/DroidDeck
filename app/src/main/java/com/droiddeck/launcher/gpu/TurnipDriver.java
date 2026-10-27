@@ -37,6 +37,7 @@ public final class TurnipDriver {
     private static final String PREFS = "graphics_driver";
     private static final String KEY_HIDDEN = "hiddenBundled";
     public static final String AUTO = "";
+    public static final String SYSTEM = "system";
 
     public static final String HELP_TEXT =
             "The driver the app's compositor puts frames on the screen with - the last step of every "
@@ -63,6 +64,7 @@ public final class TurnipDriver {
     }
 
     public String displayName(String driverId) {
+        if (SYSTEM.equals(driverId)) return "System Vulkan";
         JSONObject meta = readMeta(driverId);
         String name = meta != null ? meta.optString("name", "") : "";
         return name.isEmpty() ? driverId : name;
@@ -130,7 +132,7 @@ public final class TurnipDriver {
 
     public String autoId() {
         String id = chooseByDevice();
-        return id == null ? "system" : id;
+        return id == null ? SYSTEM : id;
     }
 
     public void remove(String driverId) {
@@ -282,11 +284,20 @@ public final class TurnipDriver {
             if (forced.startsWith("a7")) return DRIVER_A7XX;
             if (forced.startsWith("a6")) return DRIVER_A6XX;
         }
+        GpuInfo gpu = GpuInfo.Companion.detect();
+        if (gpu.getFamily() == GpuInfo.Family.MALI) {
+            Log.i(TAG, "Mali GPU (" + gpu.getName() + "): the system Vulkan driver");
+            return null;
+        }
         String quest = QuestExperimental.INSTANCE.defaultAndroidDriver();
         if (quest != null) return quest;
-        int model = GpuInfo.Companion.detect().getModel();
+        int model = gpu.getModel();
         Log.i(TAG, "gpu model: " + (model == 0 ? "unknown" : model));
-        return chooseByModel(model, android.os.Build.VERSION.SDK_INT);
+        return chooseByGpu(gpu.getFamily(), model, android.os.Build.VERSION.SDK_INT);
+    }
+
+    static String chooseByGpu(GpuInfo.Family family, int model, int sdk) {
+        return family == GpuInfo.Family.MALI ? null : chooseByModel(model, sdk);
     }
 
     static String chooseByModel(int model, int sdk) {

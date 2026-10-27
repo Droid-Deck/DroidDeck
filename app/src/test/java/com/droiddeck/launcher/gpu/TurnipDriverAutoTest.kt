@@ -2,6 +2,7 @@ package com.droiddeck.launcher.gpu
 
 import com.droiddeck.launcher.session.QuestExperimental
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -9,6 +10,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowBuild
+import org.robolectric.shadows.ShadowSystemProperties
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28], manifest = Config.NONE)
@@ -42,5 +44,23 @@ class TurnipDriverAutoTest {
     @Test fun unknownGpuModelsRetainTheSdkFallback() {
         assertEquals("turnip25.1.0", TurnipDriver.chooseByModel(0, 28))
         assertEquals("turnip-sdk36", TurnipDriver.chooseByModel(0, 36))
+    }
+
+    @Test fun maliUsesTheSystemDriverAndOtherGpusKeepTheTurnipFallback() {
+        for (sdk in listOf(28, 36)) {
+            assertNull(TurnipDriver.chooseByGpu(GpuInfo.Family.MALI, 0, sdk))
+            assertEquals(TurnipDriver.chooseByModel(0, sdk), TurnipDriver.chooseByGpu(GpuInfo.Family.NOT_ADRENO, 0, sdk))
+            assertEquals(TurnipDriver.chooseByModel(0, sdk), TurnipDriver.chooseByGpu(GpuInfo.Family.ADRENO_UNKNOWN, 0, sdk))
+            assertEquals("turnip25.1.0", TurnipDriver.chooseByGpu(GpuInfo.Family.A7XX, 740, sdk))
+        }
+    }
+
+    @Test fun maliEvidenceMakesAutoPickTheSystemDriver() {
+        ShadowSystemProperties.override("ro.hardware.vulkan", "mali")
+        try {
+            assertEquals("system", TurnipDriver(RuntimeEnvironment.getApplication()).autoId())
+        } finally {
+            ShadowSystemProperties.override("ro.hardware.vulkan", "")
+        }
     }
 }

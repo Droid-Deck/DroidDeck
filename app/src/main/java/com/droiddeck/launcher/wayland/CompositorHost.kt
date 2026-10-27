@@ -43,6 +43,7 @@ object CompositorHost {
             return false
         }
         com.droiddeck.launcher.gpu.TpUbwcHint.applyToProcess(context)
+        if (com.droiddeck.launcher.core.DeviceSupport.mali()) WaylandCompositor.nativeSetUbwc(false)
         WaylandCompositor.nativeStartWithSurface(
             surface, xdgRuntimeDir, driverPath, libraryName, nativeLibDir,
         )
