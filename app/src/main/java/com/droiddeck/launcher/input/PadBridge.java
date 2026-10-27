@@ -154,8 +154,7 @@ public final class PadBridge {
     }
 
     public synchronized void setInputEnabled(boolean enabled) {
-        if (inputRouter == null) return;
-        inputRouter.setEnabled(enabled);
+        if (inputRouter == null || !inputRouter.setEnabled(enabled)) return;
         if (!enabled) clearBackQamWrites();
         if (open) publish();
         for (int slot = 1; slot < SLOTS; slot++) if (playerWriters[slot] != null) publish(slot);
@@ -988,7 +987,7 @@ public final class PadBridge {
         boolean routedQam = output.isDown(PadState.QAM);
         boolean routedQamStarted = routedQam && !routedQamPressed;
         routedQamPressed = routedQam;
-        if (routedQamStarted && !nativeQam()) {
+        if (routedQamStarted && !nativeQam() && !qamChordActive) {
             startChord(PadState.A);
             return;
         }

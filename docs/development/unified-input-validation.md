@@ -159,6 +159,19 @@ zero failures/errors/skips**, using Java 17, NDK `28.2.13676358` and
 APK build, Thor validation and device latency measurements were not performed
 for this merge.
 
+### QAM and repeated enable-state review (2026-10-27)
+
+A routed QAM press during an existing emulated chord now publishes simultaneous
+button and stick changes immediately. Repeated enable/disable requests no longer
+republish unchanged pad or Deck reports; the router reports whether its state
+changed, so the bridge does not keep a second copy of that state.
+
+Both regressions failed before the fixes. Two additional tests cover replacing a
+disabled router and enabling a router that was disabled before attachment. The
+complete `:app:testDebugUnitTest` run passes **2,636 tests across 385 suites, zero
+failures/errors/skips**, with the same Java/SDK/NDK settings and `-PskipRust=true`.
+These fixes have not been tested or benchmarked on Thor.
+
 ## Manual AYN Thor results
 
 The user performed the following checks in the installed candidate. The desktop

@@ -37,6 +37,47 @@ class InputSourceOwnershipTest {
         assertFalse(state().isDown(PadState.A))
     }
 
+    @Test fun repeatedEnableStateDoesNotRepublishPadOrDeckReports() {
+        val router = InputRouter(RecordingOutput())
+        bridge.setInputRouter(router)
+        DeckControls.setRouter(router)
+        bridge.applyExternal({ it.press(PadState.A, true) }, true)
+        DeckControls.setGrip(DeckControls.L4, true)
+        for (enabled in listOf(true, false, true)) {
+            bridge.setInputEnabled(enabled)
+            val padWrites = JoyConPadTest.RecordingWriter.padWrites
+            val deckWrites = JoyConPadTest.RecordingWriter.deckWrites
+            repeat(10) { bridge.setInputEnabled(enabled) }
+            assertEquals(padWrites, JoyConPadTest.RecordingWriter.padWrites)
+            assertEquals(deckWrites, JoyConPadTest.RecordingWriter.deckWrites)
+        }
+        assertFalse(state().isDown(PadState.A))
+        assertEquals(0, JoyConPadTest.RecordingWriter.grips)
+        bridge.applyExternal({ it.press(PadState.A, false) }, true)
+        DeckControls.setGrip(DeckControls.L4, false)
+        bridge.applyExternal({ it.press(PadState.A, true) }, true)
+        DeckControls.setGrip(DeckControls.L4, true)
+        assertTrue(state().isDown(PadState.A))
+        assertEquals(DeckControls.L4, JoyConPadTest.RecordingWriter.grips)
+    }
+
+    @Test fun replacingADisabledRouterAllowsTheNewRouterToBeDisabled() {
+        bridge.setInputRouter(InputRouter(RecordingOutput()))
+        bridge.setInputEnabled(false)
+        bridge.setInputRouter(InputRouter(RecordingOutput()))
+        bridge.applyExternal({ it.press(PadState.A, true) }, true)
+        assertTrue(state().isDown(PadState.A))
+        bridge.setInputEnabled(false)
+        assertFalse(state().isDown(PadState.A))
+    }
+
+    @Test fun attachingADisabledRouterAllowsItToBeEnabled() {
+        bridge.setInputRouter(InputRouter(RecordingOutput()).also { it.setEnabled(false) })
+        bridge.setInputEnabled(true)
+        bridge.applyExternal({ it.press(PadState.A, true) }, true)
+        assertTrue(state().isDown(PadState.A))
+    }
+
     @Test fun replacingRouterReleasesRetainedPhysicalAndTouchHoldsUntilNeutral() {
         val before = RecordingOutput()
         val after = RecordingOutput()

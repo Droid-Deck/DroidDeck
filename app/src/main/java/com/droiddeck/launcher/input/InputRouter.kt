@@ -29,11 +29,12 @@ class InputRouter(private val output: InputOutput) {
     fun removeSnapshot(snapshot: () -> Unit) { snapshots.remove(snapshot) }
 
     @Synchronized
-    fun setEnabled(on: Boolean) {
-        if (enabled == on) return
+    fun setEnabled(on: Boolean): Boolean {
+        if (enabled == on) return false
         if (!on) releaseAll()
         enabled = on
         for (pad in pads) pad.refreshIdentity()
+        return true
     }
 
     @Synchronized

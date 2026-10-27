@@ -385,6 +385,25 @@ class PadBridgeQamTest {
         assertEquals(0f, pad().leftX)
     }
 
+    @Test fun routedQamDuringAnActiveChordPublishesOtherInputImmediately() {
+        ReflectionHelpers.setStaticField(FakeInputWriter::class.java, "padType", FakeInputWriter.PAD_TYPE_XBOX)
+        routed(InputProfile.defaults(InputProfile.GAME)
+            .withBinding(InputRole.PHYSICAL, InputControl.X, InputAction.Native(InputControl.QAM)))
+        bridge.triggerQam()
+        assertTrue(pad().isDown(PadState.GUIDE))
+        bridge.applyExternal({ it.press(PadState.X, true); it.press(PadState.B, true); it.leftX = .6f }, true)
+        assertTrue(pad().isDown(PadState.GUIDE))
+        assertTrue(pad().isDown(PadState.B))
+        assertEquals(.6f, pad().leftX)
+        assertFalse(pad().isDown(PadState.QAM))
+        bridge.applyExternal({ it.press(PadState.X, false); it.press(PadState.B, false); it.leftX = 0f }, true)
+        assertFalse(pad().isDown(PadState.B))
+        assertEquals(0f, pad().leftX)
+        advanceTime()
+        assertFalse(pad().isDown(PadState.GUIDE))
+        assertFalse(pad().isDown(PadState.A))
+    }
+
     @Test fun queuedChordsKeepRoutedAndTouchAxesInsteadOfRawPhysicalAxes() {
         routed(InputProfile.defaults(InputProfile.GAME)
             .withBinding(InputRole.PHYSICAL, InputControl.LS, InputAction.Native(InputControl.RS)))
