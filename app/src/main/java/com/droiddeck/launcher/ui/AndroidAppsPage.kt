@@ -102,6 +102,12 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.zIndex
 import com.droiddeck.launcher.HomeApp
 import com.droiddeck.launcher.HomeFolders
+import com.droiddeck.launcher.HomeHidden
+import com.droiddeck.launcher.HomePins
+import android.content.pm.ShortcutInfo
+import android.graphics.Bitmap
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import com.droiddeck.launcher.HomeWidgets
 import com.droiddeck.launcher.R
 import kotlinx.coroutines.launch
@@ -112,7 +118,7 @@ private sealed interface AppEntry : AppEntryKey {
 
     class App(val app: HomeApp.LaunchableApp) : AppEntry {
         override val label get() = app.label
-        override val key get() = "app:" + app.packageName
+        override val key get() = "app:" + app.key
         override val installedAt get() = app.installedAt
         override val updatedAt get() = app.updatedAt
     }
@@ -122,6 +128,13 @@ private sealed interface AppEntry : AppEntryKey {
         override val key get() = "folder:" + folder.id
         override val installedAt get() = apps.maxOf { it.installedAt }
         override val updatedAt get() = apps.maxOf { it.updatedAt }
+    }
+
+    class Shortcut(val pinned: HomePins.Pinned) : AppEntry {
+        override val label get() = pinned.label
+        override val key get() = pinned.key
+        override val installedAt get() = 0L
+        override val updatedAt get() = 0L
     }
 }
 
@@ -160,7 +173,8 @@ internal object AppsView {
     const val GAMES = "games"
     const val DOWNLOADED = "downloaded"
     const val SYSTEM = "system"
-    val FILTERS = listOf(ALL, GAMES, DOWNLOADED, SYSTEM)
+    const val HIDDEN = "hidden"
+    val FILTERS = listOf(ALL, GAMES, DOWNLOADED, SYSTEM, HIDDEN)
     const val NAME_ASC = "nameAsc"
     const val NAME_DESC = "nameDesc"
     const val INSTALLED = "installed"
@@ -191,11 +205,15 @@ internal object AppsView {
         prefs(context).edit().putString("sort", value).apply()
     }
 
-    fun keeps(app: HomeApp.LaunchableApp): Boolean = when (filter) {
-        GAMES -> app.game
-        DOWNLOADED -> !app.system
-        SYSTEM -> app.system
-        else -> true
+    fun keeps(app: HomeApp.LaunchableApp): Boolean {
+        val hidden = app.key in HomeHidden.keys
+        return when (filter) {
+            HIDDEN -> hidden
+            GAMES -> !hidden && app.game
+            DOWNLOADED -> !hidden && !app.system
+            SYSTEM -> !hidden && app.system
+            else -> !hidden
+        }
     }
 
     fun comparator(): Comparator<AppEntryKey> = when (sort) {
@@ -216,7 +234,7 @@ internal interface AppEntryKey {
 @Composable
 internal fun AndroidAppsPage(s: FrontEndState, modifier: Modifier, onLaunch: (HomeApp.LaunchableApp) -> Unit) {
     val ctx = LocalContext.current
-    remember { HomeFolders.load(ctx); HomeWidgets.load(ctx); AppsView.load(ctx); true }
+    remember { HomeFolders.load(ctx); HomeWidgets.load(ctx); HomeHidden.load(ctx); AppsView.load(ctx); true }
     val colors = MaterialTheme.colorScheme
     val narrow = LocalNarrowPane.current
     val padH = if (narrow) 16.dp else 22.dp
@@ -225,25 +243,31 @@ internal fun AndroidAppsPage(s: FrontEndState, modifier: Modifier, onLaunch: (Ho
     var renameOnOpen by rememberSaveable { mutableStateOf(false) }
     var picking by rememberSaveable { mutableStateOf(false) }
     val folders = HomeFolders.folders
-    val byPkg = remember(s.androidApps) { s.androidApps.associateBy { it.packageName } }
+    val byKey = remember(s.androidApps) { s.androidApps.associateBy { it.key } }
+    val byPkg = remember(s.androidApps) { s.androidApps.filterNot { it.work }.associateBy { it.packageName } }
+    LaunchedEffect(byPkg) { if (byPkg.isNotEmpty()) HomeFolders.migrateMembers(ctx) { byPkg[it]?.key } }
+    val member: (String) -> HomeApp.LaunchableApp? = { byKey[it] ?: byPkg[it] }
+    val pins = HomePins.pinned
+    val hidden = HomeHidden.keys
     val q = query.trim()
     val filter = AppsView.filter
     val sort = AppsView.sort
-    val entries: List<AppEntry> = remember(s.androidApps, folders, q, filter, sort) {
+    val entries: List<AppEntry> = remember(s.androidApps, folders, q, filter, sort, pins, hidden) {
         val kept = s.androidApps.filter { AppsView.keeps(it) }
+        val shortcuts = if (filter == AppsView.ALL) pins.map { AppEntry.Shortcut(it) } else emptyList()
         if (q.isNotEmpty()) {
-            kept.mapNotNull { app -> searchRank(app.label, q)?.let { it to app } }
-                .sortedWith(compareBy<Pair<Int, HomeApp.LaunchableApp>> { it.first }.thenBy(String.CASE_INSENSITIVE_ORDER) { it.second.label })
-                .map { AppEntry.App(it.second) }
+            (kept.map { AppEntry.App(it) } + shortcuts).mapNotNull { e -> searchRank(e.label, q)?.let { it to e } }
+                .sortedWith(compareBy<Pair<Int, AppEntry>> { it.first }.thenBy(String.CASE_INSENSITIVE_ORDER) { it.second.label })
+                .map { it.second }
         } else if (filter != AppsView.ALL) {
             kept.map { AppEntry.App(it) }.sortedWith(AppsView.comparator())
         } else {
-            val grouped = folders.flatMap { it.apps }.toSet()
             val folderEntries = folders.mapNotNull { f ->
-                val apps = f.apps.mapNotNull { byPkg[it] }.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.label })
+                val apps = f.apps.mapNotNull(member).filter { it.key !in hidden }.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.label })
                 if (apps.isEmpty()) null else AppEntry.Folder(f, apps)
             }
-            (folderEntries + kept.filter { it.packageName !in grouped }.map { AppEntry.App(it) }).sortedWith(AppsView.comparator())
+            val grouped = folderEntries.flatMap { f -> f.apps.map { it.key } }.toSet()
+            (folderEntries + kept.filter { it.key !in grouped }.map { AppEntry.App(it) } + shortcuts).sortedWith(AppsView.comparator())
         }
     }
     val grid = rememberLazyGridState()
@@ -252,7 +276,7 @@ internal fun AndroidAppsPage(s: FrontEndState, modifier: Modifier, onLaunch: (Ho
     val leadItems = if (widgetsShown) 1 else 0
     val byName = sort == AppsView.NAME_ASC || sort == AppsView.NAME_DESC
     val newFolder: (HomeApp.LaunchableApp) -> Unit = { app ->
-        val f = HomeFolders.create(ctx, ctx.getString(R.string.apps_folder_default), app.packageName)
+        val f = HomeFolders.create(ctx, ctx.getString(R.string.apps_folder_default), app.key)
         renameOnOpen = true
         openFolder = f.id
     }
@@ -267,7 +291,8 @@ internal fun AndroidAppsPage(s: FrontEndState, modifier: Modifier, onLaunch: (Ho
                     lead = {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(start = 2.dp, end = 4.dp)) {
                             Text(stringResource(R.string.content_android_apps), fontSize = if (narrow) 20.sp else 24.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, maxLines = 1)
-                            Text(stringResource(R.string.content_apps_count, s.androidApps.count { AppsView.keeps(it) }), fontSize = 13.sp, color = colors.onSurfaceVariant, maxLines = 1)
+                            val shownCount = s.androidApps.count { AppsView.keeps(it) } + if (filter == AppsView.ALL) pins.size else 0
+                            Text(androidx.compose.ui.res.pluralStringResource(R.plurals.apps_count, shownCount, shownCount), fontSize = 13.sp, color = colors.onSurfaceVariant, maxLines = 1)
                         }
                     },
                 ) {
@@ -302,7 +327,13 @@ internal fun AndroidAppsPage(s: FrontEndState, modifier: Modifier, onLaunch: (Ho
                         }
                     }
                     if (entries.isEmpty()) item(key = "empty", span = { GridItemSpan(maxLineSpan) }) {
-                        Note(if (q.isNotEmpty()) stringResource(R.string.apps_no_match, q) else stringResource(R.string.content_no_android_apps))
+                        Note(
+                            when {
+                                q.isNotEmpty() -> stringResource(R.string.apps_no_match, q)
+                                filter == AppsView.HIDDEN -> stringResource(R.string.apps_hidden_none)
+                                else -> stringResource(R.string.content_no_android_apps)
+                            },
+                        )
                     }
                     items(entries, key = { it.key }) { entry ->
                         when (entry) {
@@ -310,6 +341,7 @@ internal fun AndroidAppsPage(s: FrontEndState, modifier: Modifier, onLaunch: (Ho
                                 entry.app, folderId = null, onLaunch = onLaunch, onNewFolder = newFolder,
                                 first = entry === entries.first(),
                             )
+                            is AppEntry.Shortcut -> PinnedTile(entry.pinned, first = entry === entries.first())
                             is AppEntry.Folder -> FolderTile(entry, first = entry === entries.first(), onOpen = { renameOnOpen = false; openFolder = entry.folder.id }) {
                                 renameOnOpen = true
                                 openFolder = entry.folder.id
@@ -330,7 +362,7 @@ internal fun AndroidAppsPage(s: FrontEndState, modifier: Modifier, onLaunch: (Ho
             var last by remember { mutableStateOf(folder) }
             if (folder != null) last = folder
             last?.let { f ->
-                FolderSheet(f, f.apps.mapNotNull { byPkg[it] }.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.label }), renameOnOpen, onLaunch, newFolder) {
+                FolderSheet(f, f.apps.mapNotNull(member).filter { it.key !in hidden }.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.label }), renameOnOpen, onLaunch, newFolder) {
                     openFolder = null
                     renameOnOpen = false
                 }
@@ -357,6 +389,7 @@ private fun appsFilterLabel(filter: String): String = stringResource(
         AppsView.GAMES -> R.string.apps_filter_games
         AppsView.DOWNLOADED -> R.string.apps_filter_downloaded
         AppsView.SYSTEM -> R.string.apps_filter_system
+        AppsView.HIDDEN -> R.string.apps_filter_hidden
         else -> R.string.apps_filter_all
     },
 )
@@ -533,7 +566,7 @@ private fun AppTile(
 ) {
     var menu by remember { mutableStateOf(false) }
     Box {
-        TileFrame(app.packageName, first, onClick = { onLaunch(app) }, onMenu = { menu = true }) {
+        TileFrame(app.key, first, onClick = { onLaunch(app) }, onMenu = { menu = true }) {
             AppIcon(app, 52.dp)
             TileLabel(app.label)
         }
@@ -548,15 +581,24 @@ private fun AppMenu(
 ) {
     val ctx = LocalContext.current
     var choosing by remember { mutableStateOf(false) }
-    LaunchedEffect(open) { if (!open) choosing = false }
-    val removable = remember(app.packageName) { !HomeApp.isSystemApp(ctx, app.packageName) }
-    AnchoredMenu(open, onDismiss = onDismiss, title = app.label, compact = true, minWidth = 180.dp) { first ->
+    var shortcuts by remember { mutableStateOf<List<Pair<ShortcutInfo, Bitmap?>>>(emptyList()) }
+    LaunchedEffect(open) {
+        if (!open) {
+            choosing = false
+            return@LaunchedEffect
+        }
+        shortcuts = withContext(Dispatchers.IO) {
+            HomeApp.shortcuts(ctx, app).map { it to HomeApp.shortcutIcon(ctx, it, 64) }
+        }
+    }
+    val isHidden = app.key in HomeHidden.keys
+    AnchoredMenu(open, onDismiss = onDismiss, title = app.label, compact = true, minWidth = 200.dp) { first ->
         if (choosing) {
             val others = HomeFolders.folders.filter { it.id != folderId }
             var firstUsed = false
             for (f in others) key(f.id) {
                 MenuItem(f.name, checked = false, focusRequester = if (!firstUsed) first.also { firstUsed = true } else null) {
-                    HomeFolders.add(ctx, f.id, app.packageName)
+                    HomeFolders.add(ctx, f.id, app.key)
                     onDismiss()
                 }
             }
@@ -565,18 +607,64 @@ private fun AppMenu(
                 onNewFolder(app)
             }
         } else {
-            MenuItem(stringResource(R.string.apps_add_to_folder), checked = false, focusRequester = first) { choosing = true }
+            shortcuts.forEachIndexed { i, (info, icon) ->
+                key(info.id) {
+                    MenuItem(
+                        info.shortLabel?.toString().orEmpty(), checked = false,
+                        focusRequester = if (i == 0) first else null,
+                        leading = { MenuIcon(icon) },
+                    ) {
+                        onDismiss()
+                        runCatching { HomeApp.startShortcut(ctx, info) }
+                    }
+                }
+            }
+            if (shortcuts.isNotEmpty()) Box(Modifier.fillMaxWidth().padding(vertical = 4.dp).height(1.dp).background(LocalPalette.current.line))
+            if (!isHidden) MenuItem(stringResource(R.string.apps_add_to_folder), checked = false, focusRequester = if (shortcuts.isEmpty()) first else null) { choosing = true }
             if (folderId != null) MenuItem(stringResource(R.string.apps_remove_from_folder), checked = false) {
-                HomeFolders.remove(ctx, app.packageName)
+                HomeFolders.remove(ctx, app.key)
                 onDismiss()
+            }
+            MenuItem(stringResource(if (isHidden) R.string.apps_unhide else R.string.apps_hide), checked = false,
+                focusRequester = if (isHidden && shortcuts.isEmpty()) first else null) {
+                onDismiss()
+                HomeHidden.set(ctx, app.key, !isHidden)
             }
             MenuItem(stringResource(R.string.apps_app_info), checked = false) {
                 onDismiss()
-                runCatching { HomeApp.openAppInfo(ctx, app.packageName) }
+                runCatching { HomeApp.openAppInfo(ctx, app) }
             }
-            if (removable) MenuItem(stringResource(R.string.apps_uninstall), checked = false) {
+            if (HomeApp.canUninstall(app)) MenuItem(stringResource(R.string.apps_uninstall), checked = false) {
                 onDismiss()
-                runCatching { HomeApp.uninstall(ctx, app.packageName) }
+                runCatching { HomeApp.uninstall(ctx, app) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MenuIcon(icon: Bitmap?) {
+    if (icon != null) Image(icon.asImageBitmap(), null, modifier = Modifier.size(20.dp))
+    else Spacer(Modifier.size(20.dp))
+}
+
+@Composable
+private fun PinnedTile(pinned: HomePins.Pinned, first: Boolean) {
+    val ctx = LocalContext.current
+    var menu by remember { mutableStateOf(false) }
+    Box {
+        TileFrame(pinned.key, first, onClick = { runCatching { HomeApp.startShortcut(ctx, pinned.info) } }, onMenu = { menu = true }) {
+            Box {
+                val icon = pinned.icon
+                if (icon != null) Image(icon.asImageBitmap(), null, contentScale = ContentScale.Fit, modifier = Modifier.size(52.dp))
+                else Box(Modifier.size(52.dp).clip(CircleShape).background(artBrush(hueOf(pinned.label))))
+            }
+            TileLabel(pinned.label)
+        }
+        AnchoredMenu(menu, onDismiss = { menu = false }, title = pinned.label, compact = true, minWidth = 180.dp) { firstItem ->
+            MenuItem(stringResource(R.string.apps_shortcut_remove), checked = false, detail = pinned.appLabel, focusRequester = firstItem) {
+                menu = false
+                HomePins.unpin(ctx, pinned)
             }
         }
     }
@@ -674,7 +762,7 @@ private fun FolderSheet(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    items(apps, key = { it.packageName }) { app ->
+                    items(apps, key = { it.key }) { app ->
                         AppTile(app, folderId = folder.id, first = false, onLaunch = { onClose(); onLaunch(it) }, onNewFolder = onNewFolder)
                     }
                 }
@@ -818,6 +906,48 @@ private fun ProviderCard(p: HomeWidgets.Provider, first: Boolean, onClick: () ->
             Text(p.label, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
             val cells = "${(p.widthDp / 80f).roundToInt().coerceAtLeast(1)} × ${(p.heightDp / 80f).roundToInt().coerceAtLeast(1)}"
             Text(if (p.appLabel == p.label) cells else "${p.appLabel} · $cells", fontSize = 12.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}
+
+@Composable
+fun PinShortcutPrompt(label: String, appLabel: String, icon: Bitmap?, onAdd: () -> Unit, onCancel: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    BackHandler { onCancel() }
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.55f))
+            .pointerInput(Unit) { awaitEachGesture { awaitFirstDown().consume(); onCancel() } },
+    ) {
+        val shown = remember { androidx.compose.animation.core.MutableTransitionState(false) }.apply { targetState = true }
+        AnimatedVisibility(shown, enter = scaleIn(Motion.sp(0.75f), initialScale = 0.92f) + fadeIn(Motion.tw(160))) {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+                modifier = Modifier.widthIn(min = 280.dp, max = 420.dp)
+                    .clip(Shape16).background(pal.surfaceVariant.copy(alpha = 0.97f))
+                    .glideBorder(false, Shape16, pal.signal, pal.signal.copy(alpha = 0.22f))
+                    .pointerInput(Unit) { awaitEachGesture { awaitFirstDown(requireUnconsumed = false).consume() } }
+                    .controllerBack(onCancel)
+                    .padding(18.dp),
+            ) {
+                Text(
+                    stringResource(R.string.apps_pin_title).uppercase(), fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                    letterSpacing = 1.5.sp, color = colors.onSurfaceVariant,
+                )
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    if (icon != null) Image(icon.asImageBitmap(), null, contentScale = ContentScale.Fit, modifier = Modifier.size(52.dp))
+                    else Box(Modifier.size(52.dp).clip(CircleShape).background(artBrush(hueOf(label))))
+                    Column(Modifier.weight(1f)) {
+                        Text(label, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        Text(appLabel, fontSize = 13.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End), modifier = Modifier.fillMaxWidth()) {
+                    SecondaryButton(stringResource(R.string.common_cancel), onClick = onCancel)
+                    PrimaryButton(stringResource(R.string.apps_pin_add), onClick = onAdd)
+                }
+            }
         }
     }
 }

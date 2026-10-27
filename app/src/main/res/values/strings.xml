@@ -1108,6 +1108,17 @@
     <string name="apps_filter_games">Games</string>
     <string name="apps_filter_downloaded">Downloaded</string>
     <string name="apps_filter_system">System</string>
+    <string name="apps_filter_hidden">Hidden</string>
+    <string name="apps_hide">Hide</string>
+    <string name="apps_unhide">Show in apps</string>
+    <string name="apps_shortcut_remove">Remove shortcut</string>
+    <string name="apps_pin_title">Add to Apps</string>
+    <string name="apps_pin_add">Add</string>
+    <string name="apps_hidden_none">No hidden apps.</string>
+    <plurals name="apps_count">
+        <item quantity="one">%d app</item>
+        <item quantity="other">%d apps</item>
+    </plurals>
     <string name="apps_sort_name_asc">Name A–Z</string>
     <string name="apps_sort_name_desc">Name Z–A</string>
     <string name="apps_sort_installed">Recently installed</string>

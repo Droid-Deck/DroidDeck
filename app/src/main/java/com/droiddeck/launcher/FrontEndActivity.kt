@@ -496,10 +496,18 @@ class FrontEndActivity : ComponentActivity() {
     private var defaultHomeLabel by mutableStateOf<String?>(null)
     private var androidApps by mutableStateOf<List<HomeApp.LaunchableApp>>(emptyList())
     private var androidAppsListing = 0
-    private val packageReceiver = object : android.content.BroadcastReceiver() {
-        override fun onReceive(context: android.content.Context?, intent: Intent?) {
+    private val packageCallback = object : android.content.pm.LauncherApps.Callback() {
+        private fun changed() {
             refreshAndroidApps()
             if (HomeWidgets.providers != null) HomeWidgets.refreshProviders(this@FrontEndActivity)
+        }
+        override fun onPackageRemoved(packageName: String, user: android.os.UserHandle) = changed()
+        override fun onPackageAdded(packageName: String, user: android.os.UserHandle) = changed()
+        override fun onPackageChanged(packageName: String, user: android.os.UserHandle) = changed()
+        override fun onPackagesAvailable(packageNames: Array<out String>, user: android.os.UserHandle, replacing: Boolean) = changed()
+        override fun onPackagesUnavailable(packageNames: Array<out String>, user: android.os.UserHandle, replacing: Boolean) = changed()
+        override fun onShortcutsChanged(packageName: String, shortcuts: MutableList<android.content.pm.ShortcutInfo>, user: android.os.UserHandle) {
+            if (homeAppSelected) HomePins.refresh(this@FrontEndActivity)
         }
     }
     private var secondScreenDisplays by mutableStateOf<List<SecondScreenDisplay>>(emptyList())
@@ -1575,10 +1583,7 @@ class FrontEndActivity : ComponentActivity() {
         })
         displayManager.registerDisplayListener(secondScreenDisplayListener, ui)
         refreshSecondScreenDisplays()
-        registerReceiver(packageReceiver, android.content.IntentFilter().apply {
-            for (action in listOf(Intent.ACTION_PACKAGE_ADDED, Intent.ACTION_PACKAGE_REMOVED, Intent.ACTION_PACKAGE_CHANGED)) addAction(action)
-            addDataScheme("package")
-        })
+        getSystemService(android.content.pm.LauncherApps::class.java).registerCallback(packageCallback, ui)
         HomeWidgets.startListening(this)
     }
 
@@ -1612,7 +1617,7 @@ class FrontEndActivity : ComponentActivity() {
     override fun onStop() {
         unregisterReceiver(wifiLocationReceiver)
         unregisterReceiver(mediaReceiver)
-        unregisterReceiver(packageReceiver)
+        getSystemService(android.content.pm.LauncherApps::class.java).unregisterCallback(packageCallback)
         HomeWidgets.stopListening(this)
         ui.removeCallbacks(mediaRefresh)
         com.droiddeck.launcher.stores.StoresState.libraryListener = null
@@ -1639,6 +1644,7 @@ class FrontEndActivity : ComponentActivity() {
             return
         }
         val seq = ++androidAppsListing
+        HomePins.refresh(this)
         Thread({
             val apps = runCatching { HomeApp.launchableApps(this) }.getOrDefault(emptyList())
             ui.post { if (seq == androidAppsListing) androidApps = apps }

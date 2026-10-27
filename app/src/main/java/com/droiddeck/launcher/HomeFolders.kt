@@ -32,26 +32,29 @@ object HomeFolders {
         }.getOrDefault(emptyList())
     }
 
-    fun create(context: Context, name: String, packageName: String): Folder {
-        val folder = Folder(UUID.randomUUID().toString(), name, listOf(packageName))
-        update(context, without(packageName) + folder)
+    fun create(context: Context, name: String, appKey: String): Folder {
+        val folder = Folder(UUID.randomUUID().toString(), name, listOf(appKey))
+        update(context, without(appKey) + folder)
         return folder
     }
 
-    fun add(context: Context, folderId: String, packageName: String) =
-        update(context, without(packageName).map { if (it.id == folderId) it.copy(apps = it.apps + packageName) else it })
+    fun add(context: Context, folderId: String, appKey: String) =
+        update(context, without(appKey).map { if (it.id == folderId) it.copy(apps = it.apps + appKey) else it })
 
-    fun remove(context: Context, packageName: String) = update(context, without(packageName))
+    fun remove(context: Context, appKey: String) = update(context, without(appKey))
 
     fun rename(context: Context, folderId: String, name: String) =
         update(context, folders.map { if (it.id == folderId) it.copy(name = name) else it })
 
     fun delete(context: Context, folderId: String) = update(context, folders.filterNot { it.id == folderId })
 
-    fun folderOf(packageName: String): Folder? = folders.firstOrNull { packageName in it.apps }
+    fun migrateMembers(context: Context, keyFor: (String) -> String?) {
+        if (folders.none { f -> f.apps.any { '/' !in it } }) return
+        update(context, folders.map { f -> f.copy(apps = f.apps.map { if ('/' in it) it else keyFor(it) ?: it }.distinct()) })
+    }
 
-    private fun without(packageName: String): List<Folder> =
-        folders.map { it.copy(apps = it.apps - packageName) }.filter { it.apps.isNotEmpty() }
+    private fun without(appKey: String): List<Folder> =
+        folders.map { it.copy(apps = it.apps - appKey) }.filter { it.apps.isNotEmpty() }
 
     private fun update(context: Context, next: List<Folder>) {
         folders = next
