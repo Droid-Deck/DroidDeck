@@ -457,15 +457,19 @@ class SessionService : Service() {
             }
         }
         val agentSessionId = UUID.randomUUID().toString().replace("-", "")
-        val agentEnvironment = synchronized(stopLock) {
+        synchronized(stopLock) {
             if (gen != sessionGen || !SessionState.running) return
             agentEnvSessionIds[gen] = agentSessionId
-            runCatching { com.droiddeck.launcher.agent.AgentEnv.beginSession(this, agentSessionId) }
-                .onFailure {
-                    agentEnvSessionIds.remove(gen, agentSessionId)
-                    Log.w(TAG, "agent environment skipped", it)
-                }
-                .getOrDefault(emptyList())
+        }
+        val agentEnvironment = runCatching { com.droiddeck.launcher.agent.AgentEnv.beginSession(this, agentSessionId) }
+            .onFailure {
+                synchronized(stopLock) { agentEnvSessionIds.remove(gen, agentSessionId) }
+                Log.w(TAG, "agent environment skipped", it)
+            }
+            .getOrDefault(emptyList())
+        if (synchronized(stopLock) { (gen != sessionGen || !SessionState.running).also { if (it) agentEnvSessionIds.remove(gen, agentSessionId) } }) {
+            runCatching { com.droiddeck.launcher.agent.AgentEnv.endSession(this, agentSessionId) }
+            return
         }
         SessionFiles.stage(this, root, startsSession = true)
         // Earlier sessions' reports still read the Steam logs and VAC marker this session replaces.
@@ -1717,7 +1721,7 @@ class SessionService : Service() {
 
     private fun finishSessionStop(status: Int, stoppedGen: Int) {
         mainHandler.post {
-            val agentSessionId = agentEnvSessionIds.remove(stoppedGen)
+            val agentSessionId = synchronized(stopLock) { agentEnvSessionIds.remove(stoppedGen) }
             if (agentSessionId != null) runCatching { com.droiddeck.launcher.agent.AgentEnv.endSession(this, agentSessionId) }
                 .onFailure { Log.w(TAG, "clearing agent overrides for session $stoppedGen", it) }
             if (stoppedGen != sessionGen || SessionState.running) {
@@ -1805,7 +1809,7 @@ class SessionService : Service() {
         val auxiliary = synchronized(auxiliaryProcessesLock) {
             auxiliaryProcesses.toMap().also { auxiliaryProcesses.clear() }
         }
-        SessionTerminal.clear(sessionGen)
+        SessionTerminal.clear(stoppedGen)
         val controller = suspendController
         suspendController = null
         if (ended != null) {

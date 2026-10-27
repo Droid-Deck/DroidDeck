@@ -180,9 +180,12 @@ object AgentEnv {
 
     fun revoke(context: Context) = synchronized(lock) {
         val state = load(context)
-        for (key in listOf("pending", "active", "persistent", "pendingOverrides")) state.put(key, JSONArray())
+        for (key in listOf("pending", "active", "persistent", "pendingOverrides", "activeOverrides")) state.put(key, JSONArray())
+        state.put("activeOverrideSession", "")
         save(context, state)
+        liveSessions.clear()
         bin(context).listFiles()?.forEach { it.delete() }
+        FileUtils.delete(guestDirectory(context, SESSION_BINS))
     }
 
     fun endSession(context: Context, sessionId: String? = null) = synchronized(lock) {
