@@ -247,8 +247,6 @@
     <string name="mode_ratio">Raport de ecran</string>
     <string name="mode_ratio_custom">Stabilit de rezoluția personalizată.</string>
     <string name="mode_ratio_auto">Automat folosește cel puțin 16:9.</string>
-    <string name="mode_fps">Limită de cadre</string>
-    <string name="mode_fps_note">Limitează întreaga sesiune. Afișajul trece la o rată de reîmprospătare pe care limita o împarte exact.</string>
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">Ieșire HDR10</string>
     <string name="mode_hdr_unavailable">Indisponibil: %1$s.</string>
@@ -1964,7 +1962,6 @@
     <string name="display_filter_live">Se aplică live. Partajat de Steam și Desktop.</string>
     <string name="display_filter_note">FSR, GSR și NIS se aplică la mărirea imaginii sesiunii. Doar claritate funcționează și fără mărire.</string>
     <string name="display_sharpness">Claritatea filtrului</string>
-    <string name="display_frame_rate">Rata de cadre</string>
     <string name="display_look_filter">%1$s Setează scalarea la %2$s.</string>
     <string name="display_match_screen">Potrivire ecran (%1$d×%2$d)</string>
     <string name="display_follow_screen">Urmărește ecranul (se redimensionează la împăturire sau desfacere)</string>
@@ -2018,6 +2015,13 @@
     <string name="stores_play">Joacă</string>
     <string name="stores_install">Instalează</string>
     <string name="bnet_open">Deschide Battle.net</string>
+    <string name="bnet_dl_starting">Se pornește programul de descărcare Blizzard…</string>
+    <string name="bnet_dl_waiting">Se așteaptă închiderea Battle.net…</string>
+    <string name="bnet_dl_queued">Se așteaptă cealaltă descărcare Battle.net…</string>
+    <string name="bnet_dl_client_first">Deschide Battle.net și conectează-te o dată, apoi instalează jocurile de aici.</string>
+    <string name="bnet_dl_failed">Programul de descărcare Blizzard s-a oprit: %1$s</string>
+    <string name="bnet_dl_agent_error">Eroare Blizzard %1$s</string>
+    <string name="bnet_update">Actualizează</string>
     <string name="bnet_store">Jocuri Blizzard</string>
     <string name="stores_resume_install">Reia instalarea</string>
     <string name="stores_dl_interrupted">Întreruptă</string>
@@ -3112,6 +3116,7 @@
     <string name="library_remove">Elimină din Bibliotecă</string>
     <string name="library_in">În Bibliotecă</string>
     <string name="xbox_filter_show">Afișează</string>
+    <string name="itch_collections">Colecții</string>
     <string name="xbox_filter_cloud">Cloud</string>
     <string name="stores_xbox_cloud_settings">Setări cloud</string>
 </resources>

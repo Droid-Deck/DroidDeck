@@ -155,8 +155,7 @@ object ComponentsManager {
         if (staged.exists()) check(staged.delete()) { "Could not remove unpublished component selections" }
     }
 
-    private fun saveState(context: Context, state: JSONObject) {
-        val prepared = prepareLaunchState(context, state)
+    private fun saveState(context: Context, state: JSONObject, prepared: PreparedLaunchState = prepareLaunchState(context, state)) {
         val dir = launchDir(context)
         val tmp = File(dir, "desired.tsv.tmp")
         try {
@@ -173,6 +172,17 @@ object ComponentsManager {
         }
         File(dir, "store").listFiles()?.filter { it.isDirectory && it.name !in prepared.keep }
             ?.forEach { it.deleteRecursively() }
+    }
+
+    fun republish(context: Context): Boolean = synchronized(lock) {
+        recoverState(context)
+        val saved = stateFile(context)
+        if (saved.exists() && runCatching { JSONObject(saved.readText()) }.isFailure) return false
+        val state = loadState(context)
+        val prepared = prepareLaunchState(context, state)
+        if ((FileUtils.readString(File(launchDir(context), "desired.tsv")) ?: "") == prepared.text) return false
+        saveState(context, state, prepared)
+        true
     }
 
     private fun JSONObject.sub(key: String): JSONObject = optJSONObject(key) ?: JSONObject().also { put(key, it) }

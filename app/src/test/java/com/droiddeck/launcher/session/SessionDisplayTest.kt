@@ -4,6 +4,23 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class SessionDisplayTest {
+    @Test fun portraitPresetsSwapTheOutputAndRetainTheResolutionCap() {
+        assertEquals(720 to 1280, SessionDisplay.resolveChoice(1920 to 1080, "720p", portrait = true))
+        assertEquals(900 to 1600, SessionDisplay.resolveChoice(1080 to 1920, "900p", portrait = true))
+        assertEquals(720 to 1280, SessionDisplay.resolveChoice(1440 to 1080, "720p", portrait = true))
+        assertEquals(720 to 1600, SessionDisplay.resolveChoice(2400 to 1080, "720p", portrait = true))
+        assertEquals(1080 to 1920, SessionDisplay.resolveChoice(1921 to 1081, SessionDisplay.MATCH_SCREEN, portrait = true))
+        assertEquals(1080 to 2400, SessionDisplay.resolveChoice(2400 to 1080, SessionDisplay.FOLLOW_SCREEN, portrait = true))
+        assertEquals(720 to 1280, SessionDisplay.resolveChoice(1920 to 1080, "invalid", portrait = true))
+    }
+
+    @Test fun customDimensionsStayExplicitInEitherOrientation() {
+        for (portrait in listOf(false, true)) {
+            assertEquals(1280 to 720, SessionDisplay.resolveChoice(1920 to 1080, "1280x720", portrait))
+            assertEquals(720 to 1280, SessionDisplay.resolveChoice(1920 to 1080, "720x1280", portrait))
+        }
+    }
+
     @Test fun fixedSizesAndMatchScreenResolveWithoutAnyAspectSetting() {
         assertEquals(1280 to 720, SessionDisplay.resolveChoice(1440 to 1080, "1280x720"))
         assertEquals(1600 to 900, SessionDisplay.resolveChoice(1280 to 720, "1600x900"))
@@ -35,6 +52,7 @@ class SessionDisplayTest {
     }
 
     @Test fun unfoldedControlsKeepTheGameSixteenByNineAcrossTheWidth() {
+        assertEquals(606, SessionDisplay.unfoldedGameHeight(1080, 1920))
         assertEquals(1376, SessionDisplay.unfoldedGameHeight(2448, 1848))
         assertEquals(1038, SessionDisplay.unfoldedGameHeight(1848, 2448))
         assertEquals(864, SessionDisplay.unfoldedGameHeight(1920, 1080))
@@ -67,12 +85,31 @@ class SessionDisplayTest {
         assertFalse(SessionDisplay.unfoldedControlsWanted(true, true, true, true, true, false, 0, 1848, 700))
     }
 
+    @Test fun portraitControlsWorkOnHandheldsAndPhonesWithoutAHinge() {
+        fun wanted(width: Int = 1080, height: Int = 1920, controller: Boolean = false,
+            keep: Boolean = false, pad: Boolean = true, pip: Boolean = false) =
+            SessionDisplay.unfoldedControlsWanted(true, false, controller, keep, pad, pip, width, height, 393)
+        assertTrue(wanted())
+        assertFalse(wanted(width = 1920, height = 1080))
+        assertFalse(wanted(controller = true))
+        assertTrue(wanted(controller = true, keep = true))
+        assertFalse(wanted(pad = false))
+        assertFalse(wanted(pip = true))
+    }
+
 
     @Test fun followScreenKeepsTheWindowShapeAndSkipsTinyWindows() {
         assertEquals(2520 to 1080, SessionDisplay.resolveChoice(1080 to 2520, SessionDisplay.FOLLOW_SCREEN))
         assertEquals(1968 to 2184, SessionDisplay.followSize(1968, 2184))
         assertEquals(2184 to 1968, SessionDisplay.followSize(2185, 1969))
         assertNull(SessionDisplay.followSize(640, 360))
+    }
+
+    @Test fun aPhoneCanFollowTheShortGameAreaAboveItsControls() {
+        assertNull(SessionDisplay.followSize(720, 404))
+        assertEquals(720 to 404, SessionDisplay.followSize(720, 404, controlsBelow = true))
+        assertNull(SessionDisplay.followSize(320, 180, controlsBelow = true))
+        assertNull(SessionDisplay.followSize(720, 0, controlsBelow = true))
     }
 
     @Test fun resolutionCapsPreserveTheSelectedShapeWithoutExceedingPanelHeight() {

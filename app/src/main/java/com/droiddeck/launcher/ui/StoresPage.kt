@@ -832,8 +832,10 @@ private fun Storefront(
     LaunchedEffect(store, q) { StoresState.search(ctx, store, q) }
     val browsing = store == Store.ITCH && q.isEmpty() && ItchBrowseState.active
     val browseItems = if (browsing) ItchBrowseState.items else emptyList()
-    val visible = remember(found, library, shelves, q, s.storesShowMature, browsing, browseItems) {
-        if (browsing) {
+    val catalog = store == Store.BATTLENET && q.isEmpty()
+    val visible = remember(found, library, shelves, q, s.storesShowMature, browsing, browseItems, catalog) {
+        if (catalog) shelf(shelves?.trending) ?: emptyList()
+        else if (browsing) {
             val owned = library.associateBy { it.id }
             browseItems.map { owned[it.id] ?: it }.filter(::shown)
         } else if (q.isEmpty()) emptyList()
@@ -843,6 +845,7 @@ private fun Storefront(
     val nothing = stringResource(when {
         browsing && ItchBrowseState.loading -> R.string.stores_shelves_loading
         browsing && ItchBrowseState.failed -> R.string.stores_itch_browse_failed
+        catalog && shelves == null -> R.string.stores_shelves_loading
         else -> R.string.stores_nothing_matches
     })
     var firstPlaced = false
@@ -850,12 +853,12 @@ private fun Storefront(
     val density = androidx.compose.ui.platform.LocalDensity.current
     val focus = LocalFrontFocus.current
     val scope = rememberCoroutineScope()
-    val searching = q.isNotEmpty() || browsing
+    val searching = q.isNotEmpty() || browsing || catalog
     // A bar only while there is nothing else to look at: no shelves yet and no search results.
     val bareTab = if (searching) visible.isEmpty() else shelves == null || shelves.isEmpty
     val barLine = StoresState.status[store]?.takeIf { bareTab && syncCount(it) != null }
     val itchBar = store == Store.ITCH && q.isEmpty()
-    val headerItems = 2 + (if (barLine != null) 1 else 0) + (if (StoresState.problems[store] != null) 1 else 0) + (if (itchBar) 1 else 0)
+    val headerItems = 2 + (if (barLine != null) 1 else 0) + (if (StoresState.problems[store] != null) 1 else 0) + (if (itchBar) 1 else 0) + (if (catalog) 1 else 0)
     val card: @Composable (CatalogItem) -> Unit = { item ->
         val first = if (searching) item.key == visible.firstOrNull()?.key else !firstPlaced
         firstPlaced = true
@@ -904,6 +907,9 @@ private fun Storefront(
         barLine?.let { line -> item(key = "sync", span = { GridItemSpan(maxLineSpan) }) { Rise(3) { SyncBar(line) } } }
         StoresState.problems[store]?.let { line -> item(key = "problem", span = { GridItemSpan(maxLineSpan) }) { Rise(3) { Box(Modifier.padding(bottom = 8.dp)) { Note(line) } } } }
         if (itchBar) item(key = "itch-browse-bar", span = { GridItemSpan(maxLineSpan) }) { ItchBrowseBar() }
+        if (catalog) item(key = "catalog-label", span = { GridItemSpan(maxLineSpan) }) {
+            Box(Modifier.padding(top = 10.dp)) { SectionLabel(stringResource(R.string.bnet_store)) }
+        }
         if (searching) {
             storeGrid(visible, nothing, card)
             if (browsing) item(key = "itch-more", span = { GridItemSpan(maxLineSpan) }) { ItchLoadMore() }
@@ -912,7 +918,7 @@ private fun Storefront(
                 Shelf(stringResource(R.string.stores_shelf_new), shelf(shelves?.whatsNew), card)
                 Shelf(stringResource(R.string.stores_shelf_deals), shelf(shelves?.deals), card)
                 Shelf(stringResource(R.string.stores_shelf_free), shelf(shelves?.free), card)
-                Shelf(stringResource(if (store == Store.BATTLENET) R.string.bnet_store else R.string.stores_shelf_trending), shelf(shelves?.trending), card)
+                Shelf(stringResource(R.string.stores_shelf_trending), shelf(shelves?.trending), card)
                 if (shelves == null) Rise(4) { Box(Modifier.padding(top = 8.dp)) { Note(stringResource(R.string.stores_shelves_loading)) } }
                 else if (shelves.isEmpty && store == Store.AMAZON) Rise(4) { Box(Modifier.padding(top = 8.dp)) { Note(stringResource(R.string.stores_amazon_no_catalog)) } }
             }
@@ -947,7 +953,7 @@ private fun ProfileStrip(store: Store, owned: Int, loaded: Boolean, s: FrontEndS
             }
             Actions {
                 SmallTextButton(stringResource(R.string.stores_owned_in_library), key = "owned-in-library") {
-                    LibraryView.showOwned(store)
+                    LibraryView.showOwned(ctx, store)
                     show("games")
                 }
                 SmallTextButton(stringResource(R.string.stores_refresh)) { StoresState.open(ctx, store, force = true) }
@@ -1065,35 +1071,60 @@ internal fun ModeHeader(
         if (query.isNotEmpty()) onQuery("")
     }
     BackHandler(enabled = searching && !clearSearchFocus) { close() }
-    Column(Modifier.fillMaxWidth()) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp).padding(vertical = 4.dp)) {
-            if (lead != null) lead()
-            else Text(
-                title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, maxLines = 1,
-                modifier = Modifier.padding(start = 4.dp, end = 4.dp),
-            )
-            BoxWithConstraints(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
-                if (searching || open > 0.01f) {
-                    val closable = maxWidth >= 80.dp
-                    val w = androidx.compose.ui.unit.lerp(44.dp, (maxWidth - if (closable) 36.dp else 0.dp).coerceIn(44.dp, 520.dp), open)
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Box(Modifier.width(w).graphicsLayer { alpha = (open * 1.6f).coerceAtMost(1f) }) {
-                            AdbTextField(
-                                value = query, onValueChange = onQuery, label = "", keyboardType = KeyboardType.Text, imeAction = ImeAction.Search,
-                                placeholder = placeholder, compact = true, focusOnShow = focusOnOpen,
-                                clearFocus = clearSearchFocus || !searching,
-                                onFocusChange = { focused -> if (!focused && query.isEmpty()) { searching = false; focusOnOpen = false } },
-                            )
-                        }
-                        if (searching && closable) SmallIconButton(Icons.Filled.Close, stringResource(R.string.common_close), tint = colors.onSurfaceVariant, onClick = close)
-                    }
-                } else SearchIcon(stringResource(R.string.stores_search_open)) { searching = true; focusOnOpen = true }
+    val heading: @Composable () -> Unit = {
+        if (lead != null) lead()
+        else Text(
+            title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, maxLines = 1,
+            modifier = Modifier.padding(start = 4.dp, end = 4.dp),
+        )
+    }
+    val searchField: @Composable (Modifier) -> Unit = { modifier ->
+        BoxWithConstraints(modifier, contentAlignment = Alignment.CenterStart) {
+            val closable = maxWidth >= 80.dp
+            val w = androidx.compose.ui.unit.lerp(44.dp, (maxWidth - if (closable) 36.dp else 0.dp).coerceIn(44.dp, 520.dp), open)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                Box(Modifier.width(w).graphicsLayer { alpha = (open * 1.6f).coerceAtMost(1f) }) {
+                    AdbTextField(
+                        value = query, onValueChange = onQuery, label = "", keyboardType = KeyboardType.Text, imeAction = ImeAction.Search,
+                        placeholder = placeholder, compact = true, focusOnShow = focusOnOpen,
+                        clearFocus = clearSearchFocus || !searching,
+                        onFocusChange = { focused -> if (!focused && query.isEmpty()) { searching = false; focusOnOpen = false } },
+                    )
+                }
+                if (searching && closable) SmallIconButton(Icons.Filled.Close, stringResource(R.string.common_close), tint = colors.onSurfaceVariant, onClick = close)
             }
-            trailing()
         }
-        Box(Modifier.fillMaxWidth().height(1.dp).background(pal.line))
+    }
+    val searchButton: @Composable () -> Unit = {
+        SearchIcon(stringResource(R.string.stores_search_open)) { searching = true; focusOnOpen = true }
+    }
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val stacked = maxWidth < NarrowPaneWidth
+        Column(Modifier.fillMaxWidth()) {
+            if (stacked) {
+                Box(Modifier.padding(vertical = 4.dp)) { heading() }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).heightIn(min = 52.dp).padding(vertical = 4.dp),
+                ) {
+                    searchButton()
+                    trailing()
+                }
+                if (searching || open > 0.01f) searchField(Modifier.fillMaxWidth().padding(bottom = 6.dp))
+            } else Row(
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp).padding(vertical = 4.dp),
+            ) {
+                heading()
+                if (searching || open > 0.01f) searchField(Modifier.weight(1f))
+                else Box(Modifier.weight(1f)) { searchButton() }
+                trailing()
+            }
+            Box(Modifier.fillMaxWidth().height(1.dp).background(pal.line))
+        }
     }
 }
+
 
 internal fun storePalette(base: Palette, store: Store?): Palette {
     val (accent, deep) = when (store) {
@@ -1392,7 +1423,11 @@ internal fun downloadLabel(d: com.droiddeck.launcher.stores.download.DownloadEnt
 
 @Composable
 internal fun activeStageLabel(d: com.droiddeck.launcher.stores.download.DownloadEntry): String = when (d.stage) {
-    DownloadStage.MANIFEST -> if (d.stageItemsTotal > 0) stringResource(R.string.stores_stage_checking) else stringResource(R.string.stores_stage_manifest)
+    DownloadStage.MANIFEST -> when {
+        d.store == Store.BATTLENET && d.detail.isNotBlank() -> d.detail
+        d.stageItemsTotal > 0 -> stringResource(R.string.stores_stage_checking)
+        else -> stringResource(R.string.stores_stage_manifest)
+    }
     DownloadStage.DOWNLOAD -> stringResource(R.string.stores_stage_downloading)
     DownloadStage.VERIFY -> stringResource(R.string.stores_stage_verifying)
     DownloadStage.INSTALL -> stringResource(R.string.stores_stage_installing)

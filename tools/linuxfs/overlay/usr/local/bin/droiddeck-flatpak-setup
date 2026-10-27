@@ -25,6 +25,7 @@ NEEDS
 WORK=/var/cache/droiddeck-flatpak
 CONF=$WORK/pacman.conf
 mkdir -p "$WORK/pkg" "$WORK/db" || fail "cannot create $WORK"
+exec 9>"$WORK/setup.lock" && flock -n 9 || fail "another Flatpak setup is still running"
 
 OVERSEAS="https://ca.us.mirror.archlinuxarm.org https://fl.us.mirror.archlinuxarm.org https://de3.mirror.archlinuxarm.org https://nl.mirror.archlinuxarm.org"
 MAINLAND=""
@@ -49,6 +50,7 @@ if [ ! -f /etc/pacman.d/gnupg/pubring.gpg ] && [ ! -f /etc/pacman.d/gnupg/pubrin
 fi
 
 step "Reading the package lists"
+rm -f "$WORK/db/db.lck"
 sync_log=$(pacman --config "$CONF" --dbpath "$WORK/db" --noconfirm -Sy 2>&1) \
   || sync_log=$(pacman --config "$CONF" --dbpath "$WORK/db" --noconfirm -Sy 2>&1)
 if [ ! -f "$WORK/db/sync/extra.db" ]; then

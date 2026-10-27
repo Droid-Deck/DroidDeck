@@ -247,8 +247,6 @@
     <string name="mode_ratio">Näytön kuvasuhde</string>
     <string name="mode_ratio_custom">Määräytyy mukautetun resoluution mukaan.</string>
     <string name="mode_ratio_auto">Automaattinen käyttää vähintään 16:9:ää.</string>
-    <string name="mode_fps">Kuvanopeusraja</string>
-    <string name="mode_fps_note">Rajoittaa koko istuntoa. Näyttö vaihtaa virkistystaajuuteen, jonka rajoitus jakaa tasan.</string>
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">HDR10-lähtö</string>
     <string name="mode_hdr_unavailable">Ei käytettävissä: %1$s.</string>
@@ -1943,7 +1941,6 @@
     <string name="display_filter_live">Vaikuttaa välittömästi. Yhteinen Steamille ja Työpöydälle.</string>
     <string name="display_filter_note">FSR, GSR ja NIS vaikuttavat, kun istunnon kuvaa suurennetaan. Vain terävöinti toimii myös suurentamatta.</string>
     <string name="display_sharpness">Suodattimen terävyys</string>
-    <string name="display_frame_rate">Kuvanopeus</string>
     <string name="display_look_filter">%1$s Asettaa skaalauksen tilaan %2$s.</string>
     <string name="display_match_screen">Sovita näyttöön (%1$d×%2$d)</string>
     <string name="display_follow_screen">Seuraa näyttöä (koko muuttuu taitettuna tai avattuna)</string>
@@ -1997,6 +1994,13 @@
     <string name="stores_play">Pelaa</string>
     <string name="stores_install">Asenna</string>
     <string name="bnet_open">Avaa Battle.net</string>
+    <string name="bnet_dl_starting">Käynnistetään Blizzardin latausohjelmaa…</string>
+    <string name="bnet_dl_waiting">Odotetaan Battle.netin sulkeutumista…</string>
+    <string name="bnet_dl_queued">Odotetaan toista Battle.net-latausta…</string>
+    <string name="bnet_dl_client_first">Avaa Battle.net ja kirjaudu sisään kerran, asenna sitten sen pelit täältä.</string>
+    <string name="bnet_dl_failed">Blizzardin latausohjelma pysähtyi: %1$s</string>
+    <string name="bnet_dl_agent_error">Blizzard-virhe %1$s</string>
+    <string name="bnet_update">Päivitä</string>
     <string name="bnet_store">Blizzardin pelit</string>
     <string name="stores_resume_install">Jatka asennusta</string>
     <string name="stores_dl_interrupted">Keskeytynyt</string>
@@ -3078,6 +3082,7 @@
     <string name="library_remove">Poista kirjastosta</string>
     <string name="library_in">Kirjastossa</string>
     <string name="xbox_filter_show">Näytä</string>
+    <string name="itch_collections">Kokoelmat</string>
     <string name="xbox_filter_cloud">Pilvi</string>
     <string name="stores_xbox_cloud_settings">Pilviasetukset</string>
 </resources>

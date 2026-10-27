@@ -17,45 +17,45 @@ object BattleNet {
 
     const val PROGRAM = "/usr/local/bin/droiddeck-battlenet"
 
-    class Title(val uid: String, val name: String, val code: String, val steam: Int? = null, val shop: String? = null)
+    class Title(val uid: String, val name: String, val code: String, val steam: Int? = null, val shop: String? = null, val product: String? = null)
 
     internal val TITLES = listOf(
-        Title("wow", "World of Warcraft", "WoW", shop = "world-of-warcraft-midnight"),
-        Title("wow_classic", "World of Warcraft Classic", "WoWC", shop = "world-of-warcraft-burning-crusade-classic-anniversary-edition-upgrades"),
-        Title("wow_classic_era", "World of Warcraft Classic", "WoWC"),
-        Title("wow_classic_anniversary", "World of Warcraft Classic", "WoWC"),
-        Title("diablo3", "Diablo III", "D3", shop = "diablo-iii"),
+        Title("wow", "World of Warcraft", "WoW", shop = "world-of-warcraft-midnight", product = "wow"),
+        Title("wow_classic", "World of Warcraft Classic", "WoWC", shop = "world-of-warcraft-burning-crusade-classic-anniversary-edition-upgrades", product = "wow_classic"),
+        Title("wow_classic_era", "World of Warcraft Classic", "WoWC", product = "wow_classic_era"),
+        Title("wow_classic_anniversary", "World of Warcraft Classic", "WoWC", product = "wow_anniversary"),
+        Title("diablo3", "Diablo III", "D3", shop = "diablo-iii", product = "d3"),
         Title("d3cn", "Diablo III", "D3CN", shop = "diablo-iii"),
-        Title("s2", "StarCraft II", "S2", shop = "starcraft-ii"),
-        Title("s1", "StarCraft", "S1", shop = "starcraft-remastered"),
-        Title("hs_beta", "Hearthstone", "WTCG", shop = "hearthstone"),
-        Title("heroes", "Heroes of the Storm", "Hero", shop = "heroes-of-the-storm"),
-        Title("prometheus", "Overwatch 2", "Pro", 2357570, shop = "overwatch"),
-        Title("w3", "Warcraft III: Reforged", "W3", shop = "warcraft-3-reforged"),
-        Title("viper", "Call of Duty: Black Ops 4", "VIPR", shop = "call-of-duty-black-ops-4"),
-        Title("odin", "Call of Duty: Modern Warfare", "ODIN", 2000950, shop = "call-of-duty-modern-warfare"),
-        Title("lazarus", "Call of Duty: Modern Warfare 2 Campaign Remastered", "LAZR", shop = "call-of-duty-modern-warfare-2-campaign-remastered"),
-        Title("zeus", "Call of Duty: Black Ops Cold War", "ZEUS", shop = "call-of-duty-black-ops-cold-war"),
-        Title("fore", "Call of Duty: Vanguard", "FORE", shop = "call-of-duty-vanguard"),
-        Title("auks", "Call of Duty: Modern Warfare II", "AUKS", shop = "call-of-duty-modern-warfare-ii"),
-        Title("pinta", "Call of Duty: Modern Warfare III", "PNTA", 2519060, shop = "call-of-duty-modern-warfare-iii"),
-        Title("wlby", "Crash Bandicoot 4: It's About Time", "WLBY", 1378990, shop = "crash-bandicoot-4"),
-        Title("osi", "Diablo II: Resurrected", "OSI"),
-        Title("rtro", "Blizzard Arcade Collection", "RTRO", shop = "blizzard-arcade-collection"),
-        Title("anbs", "Diablo Immortal", "ANBS", shop = "diablo-immortal"),
-        Title("fenris", "Diablo IV", "Fen", 2344520, shop = "diablo-iv"),
-        Title("fen", "Diablo IV", "Fen", 2344520, shop = "diablo-iv"),
-        Title("d1", "Diablo", "D1", shop = "diablo"),
-        Title("w1", "Warcraft: Orcs & Humans", "W1", shop = "warcraft-orcs-and-humans"),
-        Title("w2", "Warcraft II: Battle.net Edition", "W2", shop = "warcraft-2-battle-net-edition"),
-        Title("w1r", "Warcraft: Remastered", "W1R", shop = "warcraft-1-remastered"),
-        Title("w2r", "Warcraft II: Remastered", "W2R", shop = "warcraft-2-remastered"),
-        Title("gryphon", "Warcraft Rumble", "GRY", shop = "warcraft-rumble"),
-        Title("aris", "Doom: The Dark Ages", "ARIS", 3017860, shop = "doom-the-dark-ages"),
-        Title("scorpio", "Sea of Thieves", "SCOR", 1172620, shop = "sea-of-thieves"),
-        Title("arkansas", "The Outer Worlds 2", "ARK", 1449110, shop = "the-outer-worlds-2"),
-        Title("libra", "Tony Hawk's Pro Skater 3 + 4", "LBRA", 2545710),
-        Title("aqua", "Avowed", "AQUA", 2457220, shop = "avowed"),
+        Title("s2", "StarCraft II", "S2", shop = "starcraft-ii", product = "s2"),
+        Title("s1", "StarCraft", "S1", shop = "starcraft-remastered", product = "s1"),
+        Title("hs_beta", "Hearthstone", "WTCG", shop = "hearthstone", product = "hsb"),
+        Title("heroes", "Heroes of the Storm", "Hero", shop = "heroes-of-the-storm", product = "hero"),
+        Title("prometheus", "Overwatch 2", "Pro", 2357570, shop = "overwatch", product = "pro"),
+        Title("w3", "Warcraft III: Reforged", "W3", shop = "warcraft-3-reforged", product = "w3"),
+        Title("viper", "Call of Duty: Black Ops 4", "VIPR", shop = "call-of-duty-black-ops-4", product = "viper"),
+        Title("odin", "Call of Duty: Modern Warfare", "ODIN", 2000950, shop = "call-of-duty-modern-warfare", product = "odin"),
+        Title("lazarus", "Call of Duty: Modern Warfare 2 Campaign Remastered", "LAZR", shop = "call-of-duty-modern-warfare-2-campaign-remastered", product = "lazr"),
+        Title("zeus", "Call of Duty: Black Ops Cold War", "ZEUS", shop = "call-of-duty-black-ops-cold-war", product = "zeus"),
+        Title("fore", "Call of Duty: Vanguard", "FORE", shop = "call-of-duty-vanguard", product = "fore"),
+        Title("auks", "Call of Duty: Modern Warfare II", "AUKS", shop = "call-of-duty-modern-warfare-ii", product = "auks"),
+        Title("pinta", "Call of Duty: Modern Warfare III", "PNTA", 2519060, shop = "call-of-duty-modern-warfare-iii", product = "pinta"),
+        Title("wlby", "Crash Bandicoot 4: It's About Time", "WLBY", 1378990, shop = "crash-bandicoot-4", product = "wlby"),
+        Title("osi", "Diablo II: Resurrected", "OSI", product = "osi"),
+        Title("rtro", "Blizzard Arcade Collection", "RTRO", shop = "blizzard-arcade-collection", product = "rtro"),
+        Title("anbs", "Diablo Immortal", "ANBS", shop = "diablo-immortal", product = "anbs"),
+        Title("fenris", "Diablo IV", "Fen", 2344520, shop = "diablo-iv", product = "fenris"),
+        Title("fen", "Diablo IV", "Fen", 2344520, shop = "diablo-iv", product = "fenris"),
+        Title("d1", "Diablo", "D1", shop = "diablo", product = "drtl"),
+        Title("w1", "Warcraft: Orcs & Humans", "W1", shop = "warcraft-orcs-and-humans", product = "war1"),
+        Title("w2", "Warcraft II: Battle.net Edition", "W2", shop = "warcraft-2-battle-net-edition", product = "w2bn"),
+        Title("w1r", "Warcraft: Remastered", "W1R", shop = "warcraft-1-remastered", product = "w1r"),
+        Title("w2r", "Warcraft II: Remastered", "W2R", shop = "warcraft-2-remastered", product = "w2r"),
+        Title("gryphon", "Warcraft Rumble", "GRY", shop = "warcraft-rumble", product = "gryphon"),
+        Title("aris", "Doom: The Dark Ages", "ARIS", 3017860, shop = "doom-the-dark-ages", product = "aris"),
+        Title("scorpio", "Sea of Thieves", "SCOR", 1172620, shop = "sea-of-thieves", product = "scor"),
+        Title("arkansas", "The Outer Worlds 2", "ARK", 1449110, shop = "the-outer-worlds-2", product = "ark"),
+        Title("libra", "Tony Hawk's Pro Skater 3 + 4", "LBRA", 2545710, product = "lbra"),
+        Title("aqua", "Avowed", "AQUA", 2457220, shop = "avowed", product = "aqua"),
     )
 
     val STORE: List<Title> get() = TITLES.distinctBy { it.code }.filter { it.uid != "d3cn" && it.code != "WoWC" }
@@ -104,7 +104,7 @@ object BattleNet {
 
     private val NOT_GAMES = setOf("agent", "bna", "battle.net")
 
-    class Game(val uid: String, val name: String, val code: String, val folder: File) {
+    class Game(val uid: String, val name: String, val code: String, val folder: File, val installUid: String = uid) {
         val title: Title get() = title(uid) ?: Title(uid, name, code)
     }
 
@@ -161,8 +161,10 @@ object BattleNet {
 
     fun games(context: Context): List<Game> {
         val pfx = File(prefix(context), "pfx")
-        val entries = runCatching { File(pfx, "system.reg").useLines { uninstallEntries(it) } }.getOrDefault(emptyList()) +
-            runCatching { productDbEntries(File(pfx, "drive_c/ProgramData/Battle.net/Agent/product.db").readBytes()) }.getOrDefault(emptyList())
+        val entries = installs(
+            runCatching { File(pfx, "system.reg").useLines { uninstallEntries(it) } }.getOrDefault(emptyList()),
+            runCatching { productDbEntries(File(pfx, "drive_c/ProgramData/Battle.net/Agent/product.db").readBytes()) }.getOrNull(),
+        )
         val found = LinkedHashMap<String, Game>()
         for ((uid, path) in entries) {
             val title = title(uid)
@@ -172,9 +174,15 @@ object BattleNet {
             }
             if (title.code in found) continue
             val folder = hostFolder(context, path)?.takeIf { it.isDirectory } ?: continue
-            found[title.code] = Game(title.uid, title.name, title.code, folder)
+            found[title.code] = Game(title.uid, title.name, title.code, folder, uid)
         }
         return found.values.toList()
+    }
+
+    internal fun installs(registry: List<Pair<String, String>>, agent: List<Pair<String, String>>?): List<Pair<String, String>> {
+        if (agent == null) return registry
+        val tracked = agent.map { it.first.lowercase() }.toSet()
+        return registry.filter { it.first.lowercase() in tracked } + agent
     }
 
     internal fun hostFolder(context: Context, path: String): File? {
@@ -242,9 +250,9 @@ object BattleNet {
         return out.toString()
     }
 
-    internal fun productDbEntries(bytes: ByteArray): List<Pair<String, String>> {
-        val installs = runCatching { fields(bytes, 0, bytes.size) }.getOrDefault(emptyList()).filter { it.first == 1 }
-        return installs.mapNotNull { (_, start, end) ->
+    internal fun productDbEntries(bytes: ByteArray): List<Pair<String, String>>? {
+        val installs = runCatching { fields(bytes, 0, bytes.size) }.getOrNull()?.filter { it.first == 1 }?.takeIf { it.isNotEmpty() } ?: return null
+        return installs.map { (_, start, end) ->
             runCatching {
                 val install = fields(bytes, start, end)
                 val uid = install.firstOrNull { it.first == 1 }?.let { String(bytes, it.second, it.third - it.second) }
@@ -253,8 +261,8 @@ object BattleNet {
                 val installed = install.firstOrNull { it.first == 4 }?.let { s -> fields(bytes, s.second, s.third).firstOrNull { it.first == 1 } }
                     ?.let { s -> varints(bytes, s.second, s.third)[1] }
                 if (uid.isNullOrEmpty() || path.isNullOrEmpty() || installed == 0L) null else uid to path
-            }.getOrNull()
-        }
+            }.getOrElse { return null }
+        }.filterNotNull()
     }
 
     private fun fields(bytes: ByteArray, from: Int, to: Int): List<Triple<Int, Int, Int>> = walk(bytes, from, to) { _, _ -> }
@@ -352,6 +360,8 @@ object BattleNet {
         if (ComponentsManager.gameComponents(context, scope)["fex"] != file) {
             ComponentsManager.setGameComponent(context, scope, "fex", file)
             Log.i(TAG, "FEX for the Battle.net prefix: $file")
+        } else if (ComponentsManager.republish(context)) {
+            Log.i(TAG, "FEX for the Battle.net prefix: $file, now in every installed Proton")
         }
         return file
     }

@@ -247,8 +247,6 @@
     <string name="mode_ratio">螢幕比例</string>
     <string name="mode_ratio_custom">由自訂解析度設定。</string>
     <string name="mode_ratio_auto">自動模式至少使用 16:9。</string>
-    <string name="mode_fps">影格率限制</string>
-    <string name="mode_fps_note">限制整個工作階段的影格率。顯示器會切換到能夠被該上限整除的重新整理率。</string>
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">HDR10 輸出</string>
     <string name="mode_hdr_unavailable">無法使用：%1$s。</string>
@@ -1925,7 +1923,6 @@
     <string name="display_filter_live">立即生效。Steam 和桌面共用。</string>
     <string name="display_filter_note">FSR、GSR 和 NIS 會在放大工作階段畫面時套用。「僅銳化」不放大也能使用。</string>
     <string name="display_sharpness">濾鏡銳利度</string>
-    <string name="display_frame_rate">影格率</string>
     <string name="display_look_filter">%1$s 將縮放設為 %2$s。</string>
     <string name="display_match_screen">符合螢幕（%1$d×%2$d）</string>
     <string name="display_follow_screen">跟隨螢幕（摺疊或展開時調整大小）</string>
@@ -1979,6 +1976,13 @@
     <string name="stores_play">執行</string>
     <string name="stores_install">安裝</string>
     <string name="bnet_open">開啟 Battle.net</string>
+    <string name="bnet_dl_starting">正在啟動暴雪下載器…</string>
+    <string name="bnet_dl_waiting">正在等待 Battle.net 關閉…</string>
+    <string name="bnet_dl_queued">正在等待另一個 Battle.net 下載…</string>
+    <string name="bnet_dl_client_first">請先開啟 Battle.net 並登入一次，然後在這裡安裝其遊戲。</string>
+    <string name="bnet_dl_failed">暴雪下載器已停止：%1$s</string>
+    <string name="bnet_dl_agent_error">暴雪錯誤 %1$s</string>
+    <string name="bnet_update">更新</string>
     <string name="bnet_store">Blizzard 遊戲</string>
     <string name="stores_resume_install">繼續安裝</string>
     <string name="stores_dl_interrupted">已中斷</string>
@@ -3056,6 +3060,7 @@
     <string name="library_remove">從收藏庫移除</string>
     <string name="library_in">已在收藏庫</string>
     <string name="xbox_filter_show">顯示</string>
+    <string name="itch_collections">收藏集</string>
     <string name="xbox_filter_cloud">雲端</string>
     <string name="stores_xbox_cloud_settings">雲端設定</string>
 </resources>

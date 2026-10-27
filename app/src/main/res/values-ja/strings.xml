@@ -247,8 +247,6 @@
     <string name="mode_ratio">画面比率</string>
     <string name="mode_ratio_custom">カスタム解像度で設定されます。</string>
     <string name="mode_ratio_auto">自動モードでは少なくとも16:9を使用します。</string>
-    <string name="mode_fps">フレームレート制限</string>
-    <string name="mode_fps_note">セッション全体のフレームレートを制限します。モニターはこの上限で割り切れるリフレッシュレートに切り替わります。</string>
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">HDR10出力</string>
     <string name="mode_hdr_unavailable">利用不可：%1$s。</string>
@@ -1924,7 +1922,6 @@
     <string name="display_filter_live">すぐに反映されます。Steamとデスクトップで共有されます。</string>
     <string name="display_filter_note">FSR、GSR、NISはセッションの映像を拡大するときに機能します。「シャープのみ」は拡大しなくても機能します。</string>
     <string name="display_sharpness">フィルターのシャープネス</string>
-    <string name="display_frame_rate">フレームレート</string>
     <string name="display_look_filter">%1$s スケーリングを%2$sに設定します。</string>
     <string name="display_match_screen">画面に合わせる（%1$d×%2$d）</string>
     <string name="display_follow_screen">画面に追従（開閉時にサイズを変更）</string>
@@ -1978,6 +1975,13 @@
     <string name="stores_play">プレイ</string>
     <string name="stores_install">インストール</string>
     <string name="bnet_open">Battle.net を開く</string>
+    <string name="bnet_dl_starting">Blizzard のダウンローダーを起動しています…</string>
+    <string name="bnet_dl_waiting">Battle.net が閉じるのを待っています…</string>
+    <string name="bnet_dl_queued">もう一つの Battle.net のダウンロードを待っています…</string>
+    <string name="bnet_dl_client_first">Battle.net を開いて一度サインインしてから、ここでゲームをインストールしてください。</string>
+    <string name="bnet_dl_failed">Blizzard のダウンローダーが停止しました: %1$s</string>
+    <string name="bnet_dl_agent_error">Blizzard エラー %1$s</string>
+    <string name="bnet_update">アップデート</string>
     <string name="bnet_store">Blizzard のゲーム</string>
     <string name="stores_resume_install">インストールを再開</string>
     <string name="stores_dl_interrupted">中断</string>
@@ -3055,6 +3059,7 @@
     <string name="library_remove">ライブラリから削除</string>
     <string name="library_in">ライブラリにあります</string>
     <string name="xbox_filter_show">表示</string>
+    <string name="itch_collections">コレクション</string>
     <string name="xbox_filter_cloud">クラウド</string>
     <string name="stores_xbox_cloud_settings">クラウド設定</string>
 </resources>

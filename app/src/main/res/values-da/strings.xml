@@ -247,8 +247,6 @@
     <string name="mode_ratio">Billedformat</string>
     <string name="mode_ratio_custom">Angivet af den brugerdefinerede opløsning.</string>
     <string name="mode_ratio_auto">Auto bruger mindst 16:9.</string>
-    <string name="mode_fps">Billedgrænse</string>
-    <string name="mode_fps_note">Begrænser hele sessionen. Skærmen skifter til en opdateringshastighed, grænsen går lige op med.</string>
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">HDR10-output</string>
     <string name="mode_hdr_unavailable">Ikke tilgængelig: %1$s.</string>
@@ -1943,7 +1941,6 @@
     <string name="display_filter_live">Træder i kraft øjeblikkeligt. Deles af Steam og Desktop.</string>
     <string name="display_filter_note">FSR, GSR og NIS anvendes ved forstørrelse af sessionsbilledet. Kun skærpning virker også uden forstørrelse.</string>
     <string name="display_sharpness">Filterskarphed</string>
-    <string name="display_frame_rate">Billedfrekvens</string>
     <string name="display_look_filter">%1$s Indstiller skalering til %2$s.</string>
     <string name="display_match_screen">Match skærm (%1$d×%2$d)</string>
     <string name="display_follow_screen">Følg skærm (ændrer størrelse ved fold/udfold)</string>
@@ -1997,6 +1994,13 @@
     <string name="stores_play">Spil</string>
     <string name="stores_install">Installer</string>
     <string name="bnet_open">Åbn Battle.net</string>
+    <string name="bnet_dl_starting">Starter Blizzards downloader…</string>
+    <string name="bnet_dl_waiting">Venter på, at Battle.net lukker…</string>
+    <string name="bnet_dl_queued">Venter på den anden Battle.net-download…</string>
+    <string name="bnet_dl_client_first">Åbn Battle.net, og log ind én gang, og installer derefter dets spil herfra.</string>
+    <string name="bnet_dl_failed">Blizzards downloader stoppede: %1$s</string>
+    <string name="bnet_dl_agent_error">Blizzard-fejl %1$s</string>
+    <string name="bnet_update">Opdater</string>
     <string name="bnet_store">Blizzard-spil</string>
     <string name="stores_resume_install">Genoptag installation</string>
     <string name="stores_dl_interrupted">Afbrudt</string>
@@ -3078,6 +3082,7 @@
     <string name="library_remove">Fjern fra Bibliotek</string>
     <string name="library_in">I Bibliotek</string>
     <string name="xbox_filter_show">Vis</string>
+    <string name="itch_collections">Samlinger</string>
     <string name="xbox_filter_cloud">Sky</string>
     <string name="stores_xbox_cloud_settings">Skyindstillinger</string>
 </resources>

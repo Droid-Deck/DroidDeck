@@ -17,12 +17,13 @@ object SessionDisplay {
     fun screenSize(panel: Pair<Int, Int>): Pair<Int, Int> =
         (maxOf(panel.first, panel.second) and 1.inv()) to (minOf(panel.first, panel.second) and 1.inv())
 
-    fun resolveChoice(panel: Pair<Int, Int>, choice: String): Pair<Int, Int> {
-        if (choice == MATCH_SCREEN || choice == FOLLOW_SCREEN) return screenSize(panel)
-        presetHeight(choice)?.let { return resolve(panel, it, SessionPrefs.SHAPE_AUTO) }
+    fun resolveChoice(panel: Pair<Int, Int>, choice: String, portrait: Boolean = false): Pair<Int, Int> {
+        fun orient(size: Pair<Int, Int>) = if (portrait) size.second to size.first else size
+        if (choice == MATCH_SCREEN || choice == FOLLOW_SCREEN) return orient(screenSize(panel))
+        presetHeight(choice)?.let { return orient(resolve(panel, it, SessionPrefs.SHAPE_AUTO)) }
         val parts = choice.split('x').map { it.toIntOrNull() }
         return if (parts.size == 2 && parts.all { it != null && it > 0 }) parts[0]!! to parts[1]!!
-        else resolve(panel, 720, SessionPrefs.SHAPE_AUTO)
+        else orient(resolve(panel, 720, SessionPrefs.SHAPE_AUTO))
     }
 
     fun resolutionOptions(panel: Pair<Int, Int>): List<String> {
@@ -31,8 +32,10 @@ object SessionDisplay {
             .filter { resolveChoice(panel, it) != screenSize(panel) } + MATCH_SCREEN + FOLLOW_SCREEN
     }
 
-    fun followSize(width: Int, height: Int): Pair<Int, Int>? =
-        if (minOf(width, height) < FOLLOW_MIN_SIDE) null else (width and 1.inv()) to (height and 1.inv())
+    fun followSize(width: Int, height: Int, controlsBelow: Boolean = false): Pair<Int, Int>? =
+        if (width <= 0 || height <= 0 ||
+            (if (controlsBelow) width else minOf(width, height)) < FOLLOW_MIN_SIDE) null
+        else (width and 1.inv()) to (height and 1.inv())
 
     const val UNFOLDED_MAX_GAME_SHARE = 0.8f
 
@@ -49,13 +52,14 @@ object SessionDisplay {
         foldable: Boolean,
         controllerConnected: Boolean,
         keepWithController: Boolean,
-        steamDeckPad: Boolean,
+        gamepadAvailable: Boolean,
         pip: Boolean,
         width: Int,
         height: Int,
         smallestWidthDp: Int,
-    ): Boolean = enabled && foldable && (keepWithController || !controllerConnected) && steamDeckPad &&
-        !pip && width > 0 && height > 0 && smallestWidthDp >= UNFOLDED_MIN_DP
+    ): Boolean = enabled && (keepWithController || !controllerConnected) && gamepadAvailable &&
+        !pip && width > 0 && height > 0 &&
+        (height > width || (foldable && smallestWidthDp >= UNFOLDED_MIN_DP))
 
 
     fun panelSize(context: Context): Pair<Int, Int> {

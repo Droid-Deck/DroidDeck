@@ -77,11 +77,40 @@ class LibraryEntriesTest {
         assertEquals(listOf("b", "d", "a", "c"), installedFirst(entries).map { it.key })
     }
 
+    @Test fun librarySourcesFollowTheConfiguredStoreOrderWithSteamFirstAndAddedLast() {
+        val entries = listOf("added", "gog", "steam", "epic", "xbox").map { LibraryEntry(it, it, it, null, null, true) }
+        assertEquals(listOf("steam", "xbox", "epic", "gog", "added"), librarySources(entries, listOf("xbox", "epic", "gog")))
+    }
+
+    @Test fun librarySourcesIgnoreUnknownAndDuplicateOrderEntriesAndAppendNewStores() {
+        val entries = listOf("epic", "gog", "battlenet").map { LibraryEntry(it, it, it, null, null, false) }
+        assertEquals(listOf("epic", "gog", "battlenet"), librarySources(entries, listOf("missing", "epic", "epic", "amazon")))
+    }
+
     @Test fun gameKeysNameEitherAnAppOrAStoreProduct() {
         GameRef.parse("app:440").let { assertEquals(440, it.appId); assertNull(it.store) }
         GameRef.parse("app:-12").let { assertEquals(-12, it.appId) }
         GameRef.parse("app:gog:1207658924").let { assertEquals(Store.GOG, it.store); assertEquals("1207658924", it.storeId); assertNull(it.appId) }
         GameRef.parse("xbox:9NBLGGH4R315").let { assertEquals(Store.XBOX, it.store); assertEquals("9NBLGGH4R315", it.storeId) }
         GameRef.parse("app:nope:1").let { assertNull(it.store); assertNull(it.appId) }
+    }
+
+    @Test fun aCollectionKeepsItsInstalledGamesAndListsTheRestAsNotInstalled() {
+        val games = listOf(
+            Library.SteamGame(440, "Team Fortress 2", null, "Steam library"),
+            Library.SteamGame(-5, "Celeste", null, Library.ADDED, source = "itch", storeId = "a/celeste"),
+            Library.SteamGame(-6, "Other", null, Library.ADDED, source = "itch", storeId = "a/other"),
+        )
+        val library = mapOf(Store.ITCH to listOf(owned(Store.ITCH, "a/celeste"), owned(Store.ITCH, "a/other"), owned(Store.ITCH, "b/owned")))
+        val all = libraryEntries(games, library, setOf("itch:a/celeste", "itch:a/other"))
+        val collection = listOf(owned(Store.ITCH, "a/celeste"), owned(Store.ITCH, "b/owned"), owned(Store.ITCH, "c/new"))
+        val out = collectionEntries(all, collection)
+        assertEquals(listOf("app:-5", "app:itch:b/owned", "app:itch:c/new"), out.map { it.key })
+        assertEquals(listOf(true, false, false), out.map { it.installed })
+    }
+
+    @Test fun anEmptyCollectionHidesEveryGame() {
+        val all = libraryEntries(listOf(Library.SteamGame(440, "Team Fortress 2", null, "Steam library")), emptyMap(), emptySet())
+        assertEquals(emptyList<String>(), collectionEntries(all, emptyList()).map { it.key })
     }
 }

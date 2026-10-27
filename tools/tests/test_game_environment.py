@@ -302,6 +302,13 @@ class GameEnvironmentTest(unittest.TestCase):
             self.assertEqual(env["WINEDLLOVERRIDES"], "libsentry.windows.release.x86_64=d")
             self.assertEqual(extra, ["--rendering-driver", "vulkan"])
             self.assertEqual(MODULE["engine_fixes"](str(game / "Game.exe"), ["--rendering-driver", "opengl3"])[1], [])
+            script = Path(tmp) / "GDScript Game"
+            script.mkdir()
+            for name in ("Game.exe", "Game.pck", "libsentry.windows.release.x86_64.dll"):
+                (script / name).touch()
+            env, extra, notes = MODULE["engine_fixes"](str(script / "Game.exe"), [])
+            self.assertNotIn("WINEDLLOVERRIDES", env)
+            self.assertEqual(extra, ["--rendering-driver", "vulkan"])
             other = Path(tmp) / "Other"
             other.mkdir()
             (other / "Other.exe").touch()
@@ -395,6 +402,27 @@ class GameEnvironmentTest(unittest.TestCase):
                 (asylum / name).touch()
             self.assertEqual(MODULE["engine_fixes"](str(asylum / "BmLauncher.exe"), []), ({}, [], []))
 
+    def test_d3dgear_capture_hook_beside_the_game_is_turned_off(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            game = Path(tmp) / "The Crew 2"
+            game.mkdir()
+            for name in ("TheCrew2.exe", "TheCrew2_BE.exe", "d3dgear64.dll"):
+                (game / name).touch()
+            env, extra, notes = MODULE["engine_fixes"](str(game / "TheCrew2.exe"), [])
+            self.assertEqual((env, extra), ({"WINEDLLOVERRIDES": "d3dgear64=d"}, []))
+            self.assertTrue(notes)
+            (game / "d3dgear64.dll").rename(game / "D3DGear64.DLL")
+            self.assertEqual(MODULE["engine_fixes"](str(game / "TheCrew2.exe"), [])[0], {"WINEDLLOVERRIDES": "d3dgear64=d"})
+            (game / "D3DGear64.DLL").unlink()
+            self.assertEqual(MODULE["engine_fixes"](str(game / "TheCrew2.exe"), []), ({}, [], []))
+
+    def test_dll_overrides_from_several_fixes_are_all_kept(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            for name in ("Game.exe", "Game.pck", "GodotSharp.dll", "libsentry.windows.release.x86_64.dll", "d3dgear64.dll"):
+                (Path(tmp) / name).touch()
+            env = MODULE["engine_fixes"](str(Path(tmp) / "Game.exe"), [])[0]
+            self.assertEqual(env["WINEDLLOVERRIDES"], "libsentry.windows.release.x86_64=d;d3dgear64=d")
+
     def test_black_ops_iii_and_dark_souls_remastered_skip_protonfixes(self):
         for exe in ("/game/Call of Duty Black Ops III/BlackOps3.exe", "/game/DARK SOULS REMASTERED/DarkSoulsRemastered.exe"):
             env, extra, notes = MODULE["engine_fixes"](exe, [])
@@ -420,6 +448,47 @@ class GameEnvironmentTest(unittest.TestCase):
             MODULE["game_cores"]({})
         self.assertEqual(calls, [{0, 1, 2}])
         self.assertEqual(MODULE["parse_cores"]("0,2-7"), {0, 2, 3, 4, 5, 6, 7})
+
+    def test_windows_games_see_only_the_cores_they_are_pinned_to(self):
+        os_mod = MODULE["os"]
+        online = {"online_cores": lambda: {0, 1, 2, 3, 4, 5, 6, 7}}
+        cases = [
+            ({"BL_GAME_CPUS": "6,7"}, {6, 7}, "2:6,7", "2:6,7"),
+            ({"DROIDDECK_GAME_CORES": "0-2"}, {0, 1, 2}, "3:0,1,2", "3:0,1,2"),
+            ({"BL_GAME_CPUS": "0-7"}, set(range(8)), None, None),
+            ({}, {6, 7}, None, None),
+            ({"BL_GAME_CPUS": "6,7", "WINE_CPU_TOPOLOGY": "4:0,1,2,3"}, {6, 7}, "4:0,1,2,3", "4:0,1,2,3"),
+            ({"WINE_CPU_TOPOLOGY": "2:0,1"}, set(range(8)), "2:0,1", "2:0,1"),
+            ({"BL_GAME_CPUS": "6,7", "WINE_CPU_TOPOLOGY": ""}, {6, 7}, "", None),
+            ({"BL_GAME_CPUS": "6,7", "PROTON_CPU_TOPOLOGY": "1:7"}, {6, 7}, None, "1:7"),
+            ({"BL_GAME_CPUS": "9"}, {9}, None, None),
+        ]
+        for env, affinity, expected, proton in cases:
+            with mock.patch.dict(MODULE["cpu_topology"].__globals__, online), \
+                    mock.patch.object(os_mod, "sched_getaffinity", return_value=affinity, create=True):
+                MODULE["cpu_topology"](env)
+            self.assertEqual(env.get("WINE_CPU_TOPOLOGY"), expected, env)
+            self.assertEqual(env.get("PROTON_CPU_TOPOLOGY"), proton, env)
+
+    def test_reskate_runs_at_feature_level_12_1(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            reskate = Path(tmp) / "ReSkate"
+            reskate.mkdir()
+            for name in ("Skate.exe", "ReSkate.dll", "ReSkateLauncher.exe", "EAAntiCheat.GameServiceLauncher.exe"):
+                (reskate / name).touch()
+            for exe in ("ReSkateLauncher.exe", "Skate.exe"):
+                env, extra, notes = MODULE["engine_fixes"](str(reskate / exe), [])
+                self.assertEqual((env, extra), ({"VKD3D_FEATURE_LEVEL": "12_1"}, []), exe)
+                self.assertTrue(notes)
+            config = {"version": 1, "shared": {"VKD3D_FEATURE_LEVEL": "12_2"}}
+            self.assertEqual(MODULE["apply_config"]({}, config, "3354750", env)["VKD3D_FEATURE_LEVEL"], "12_1")
+            config["games"] = {"3354750": {"VKD3D_FEATURE_LEVEL": "12_2"}}
+            self.assertEqual(MODULE["apply_config"]({}, config, "3354750", env)["VKD3D_FEATURE_LEVEL"], "12_2")
+            skate = Path(tmp) / "Skate"
+            skate.mkdir()
+            for name in ("Skate.exe", "EAAntiCheat.GameServiceLauncher.exe"):
+                (skate / name).touch()
+            self.assertEqual(MODULE["engine_fixes"](str(skate / "EAAntiCheat.GameServiceLauncher.exe"), [])[:2], ({}, []))
 
     def test_caravan_sandwitch_robocop_and_cyberpunk_run_at_feature_level_12_1(self):
         with tempfile.TemporaryDirectory() as tmp:

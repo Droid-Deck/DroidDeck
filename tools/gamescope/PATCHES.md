@@ -96,6 +96,63 @@ running AIO Graphics Test uncapped, Xwayland used 24-32% of a core and the game'
 present thread sat about half idle.
 
 The patch can keep the result for `DROIDDECK_WSI_BYPASS_CHECK_MS` milliseconds. Unset
-or 0 keeps the per-present check; the app sets 100 only in Performance mode and 0
-otherwise. With 100, a window resize or a flip/obscure change is seen up to 100 ms
+or 0 keeps the per-present check; the app sets 100. With 100, a window resize or a flip/obscure change is seen up to 100 ms
 later than before; surface creation and capability queries still check every time.
+
+## 0118 Wayland: preserve signed plane positions
+
+Fill scaling and Steam magnification can place the image at negative x/y coordinates.
+The Wayland backend converted these signed positions through an unsigned size helper:
+at host scale 120, -120 became 35791275 and the image moved off-screen while overlays
+could remain visible. A separate signed conversion uses a 64-bit intermediate and
+retains the existing ceiling convention; viewport sizes keep their original helper.
+
+The component build runs `wayland_scaling` for negative crop offsets, positive/zero
+positions, fractional host scales and wide intermediates. This patch may be worth
+upstreaming: the same unsigned position calls were present in ValveSoftware/gamescope
+3.16.29 and master `d175688ad4ec490dc7b0695c5c62f8807684a1f1` when checked on
+2026-10-26. Carry it here until an upstream release containing the fix is adopted.
+
+Device validation on AYN Thor (1280x720 session, 1920x1080 Android output):
+800x600 and 1600x600 source windows retained their image through Auto, Fit,
+Stretch, Fill, Integer and 2x Steam magnification, including returning to Fit.
+The old component lost the image in Fill and magnification. The tested executable
+matches the pinned p14 archive and the locally assembled APK. Hardware checks used
+native Gamescope properties; the physical Back+LB shortcut was not independently
+confirmed. The original APK and runtime were restored after validation.
+
+## 0119 WSI: default image count while the frame limiter runs
+
+The app sets `GAMESCOPE_WSI_MIN_IMAGE_COUNT=8` so an uncapped game keeps drawing while
+gamescope turns its buffers around. With Steam's Frame Limit on, gamescope forces FIFO,
+and the layer always hands the driver MAILBOX, so a game with eight images could queue
+up to seven frames inside gamescope before it blocked: each one adds a frame of input
+latency at the limited rate.
+
+While the limiter forces FIFO, the layer now reports and enforces its default minimum
+of 3 images instead of the raised count; with the limiter off it uses the raised count
+as before. DXVK and VKD3D-Proton already recreate their swapchain when the limiter
+changes (the layer returns `VK_ERROR_OUT_OF_DATE_KHR`), so their image count follows
+the Quick Access menu. Other apps keep their swapchain on a limiter change; they now
+get `VK_SUBOPTIMAL_KHR` while their image count no longer matches, unless the layer
+marks them as not taking it (`NoSuboptimal`).
+
+## 0120 Wayland: nested refresh follows the host
+
+`-r` fixes the refresh gamescope paces at, and the frame limiter and Steam's Frame Limit
+slider use the same value. The app passes the panel refresh at session start, so a
+panel switched to another mode during the session (for example in the device's own
+quick settings) left gamescope pacing at the old rate until the next session; only the
+reported output refresh changed.
+
+With `GAMESCOPE_NESTED_REFRESH_FOLLOWS_HOST=1`, a refresh the host compositor reports
+through presentation feedback replaces the `-r` value, so pacing and the limiter switch
+with the panel. `-r` still sets the starting rate, which avoids gamescope assuming
+60 Hz until the first frame is shown. When the refresh changes, gamescope also sends
+its `gamescope_control` display information to Steam again; Steam otherwise reads it
+only when it binds.
+
+A host mode switch can report a passing rate for a few frames (72 Hz between 144 and
+120 Hz on the AYANEO Pocket FIT), so with following on a new rate is taken once it has
+been reported for 300 ms. Without the variable the reported rate is taken at once, as
+upstream does.

@@ -87,10 +87,18 @@ def desktopKde = rootProject.file('tools/desktop-kde/release.env').readLines()
 def trackingPack = rootProject.file('tools/packs/tracking/release.env').readLines()
     .findAll { it.contains('=') && !it.startsWith('#') }
     .collectEntries { def kv = it.split('=', 2); [(kv[0].trim()): kv[1].trim()] }
+def prootPackPin = rootProject.file('tools/packs/proot/release.env').readLines()
+    .findAll { it.contains('=') && !it.startsWith('#') }
+    .collectEntries { def kv = it.split('=', 2); [(kv[0].trim()): kv[1].trim()] }
 def addonPacks = ['proot', 'directaudio', 'tracking', 'xbox', 'comet'].collectEntries { name ->
     def pack = file("build/packs/${name}.tar.zst")
     if (!pack.isFile()) {
         if (ciBuild) throw new GradleException("Add-on pack ${pack} is missing: run tools/packs/build.sh app/build/packs")
+        // A source build that did not compile proot still pins a published pack, so the app
+        // downloads the patched binary instead of falling back to the rootfs copy.
+        if (name == 'proot' && prootPackPin.PROOT_PACK_SHA256) {
+            return [(name): [sha256: prootPackPin.PROOT_PACK_SHA256, size: (prootPackPin.PROOT_PACK_SIZE ?: '0') as long]]
+        }
         return [(name): [sha256: '', size: 0L]]
     }
     def digest = java.security.MessageDigest.getInstance('SHA-256')

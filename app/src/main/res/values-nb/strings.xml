@@ -247,8 +247,6 @@
     <string name="mode_ratio">Skjermforhold</string>
     <string name="mode_ratio_custom">Angis av den egendefinerte oppløsningen.</string>
     <string name="mode_ratio_auto">Auto bruker minst 16:9.</string>
-    <string name="mode_fps">Bildefrekvensgrense</string>
-    <string name="mode_fps_note">Begrenser hele sesjonen. Skjermen bytter til en oppdateringsfrekvens som grensen går opp i.</string>
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">HDR10-utgang</string>
     <string name="mode_hdr_unavailable">Ikke tilgjengelig: %1$s.</string>
@@ -1943,7 +1941,6 @@
     <string name="display_filter_live">Gjelder live. Delt av Steam og Skrivebord.</string>
     <string name="display_filter_note">FSR, GSR og NIS gjelder ved forstørring av sesjonsbildet. Bare skarphet fungerer også uten forstørring.</string>
     <string name="display_sharpness">Filterskarphet</string>
-    <string name="display_frame_rate">Bildefrekvens</string>
     <string name="display_look_filter">%1$s Setter skalering til %2$s.</string>
     <string name="display_match_screen">Tilpass skjerm (%1$d×%2$d)</string>
     <string name="display_follow_screen">Følg skjermen (endrer størrelse ved sammenslåing eller utbretting)</string>
@@ -1997,6 +1994,13 @@
     <string name="stores_play">Spill</string>
     <string name="stores_install">Installer</string>
     <string name="bnet_open">Åpne Battle.net</string>
+    <string name="bnet_dl_starting">Starter Blizzards nedlaster…</string>
+    <string name="bnet_dl_waiting">Venter på at Battle.net lukkes…</string>
+    <string name="bnet_dl_queued">Venter på den andre Battle.net-nedlastingen…</string>
+    <string name="bnet_dl_client_first">Åpne Battle.net og logg på én gang, og installer deretter spillene herfra.</string>
+    <string name="bnet_dl_failed">Blizzards nedlaster stoppet: %1$s</string>
+    <string name="bnet_dl_agent_error">Blizzard-feil %1$s</string>
+    <string name="bnet_update">Oppdater</string>
     <string name="bnet_store">Blizzard-spill</string>
     <string name="stores_resume_install">Gjenoppta installasjon</string>
     <string name="stores_dl_interrupted">Avbrutt</string>
@@ -3078,6 +3082,7 @@
     <string name="library_remove">Fjern fra Bibliotek</string>
     <string name="library_in">I Bibliotek</string>
     <string name="xbox_filter_show">Vis</string>
+    <string name="itch_collections">Samlinger</string>
     <string name="xbox_filter_cloud">Sky</string>
     <string name="stores_xbox_cloud_settings">Skyinnstillinger</string>
 </resources>

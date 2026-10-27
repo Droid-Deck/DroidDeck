@@ -2,6 +2,7 @@
 import base64
 import ctypes
 import json
+import math
 import os
 import runpy
 import select
@@ -15,6 +16,50 @@ import time
 HERE = os.path.dirname(os.path.realpath(__file__))
 COMPAT = runpy.run_path(os.path.join(HERE, "steam-compatibility"))
 BINDING = "droiddeckCompatChanged"
+BRIGHTNESS_BINDING = "droiddeckBrightnessChanged"
+CONTROLS_DIR = "/etc/droiddeck-device-controls"
+BRIGHTNESS_JS = r"""
+(() => {
+  if (window.__droiddeckBrightness) return "present";
+  const display = SteamClient.System?.Display;
+  if (!display?.RegisterForBrightnessChanges || !display?.SetBrightness) return "unavailable";
+  const self = { expected: null, updating: true, revision: 0 };
+  self.set = value => {
+    if (typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > 1) return;
+    if (!self.updating && self.expected !== null && Math.abs(value - self.expected) < 0.0001) return;
+    self.expected = value;
+    self.updating = true;
+    const revision = ++self.revision;
+    setTimeout(() => { if (self.revision === revision) self.updating = false; }, 500);
+    display.SetBrightness(value);
+  };
+  self.subscription = display.RegisterForBrightnessChanges(state => {
+    const value = state?.flBrightness;
+    if (typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > 1 || self.expected === null) return;
+    if (Math.abs(value - self.expected) < 0.0001) { self.updating = false; return; }
+    if (self.updating) { self.updating = false; return; }
+    self.expected = value;
+    if (typeof window.__BINDING__ === "function") window.__BINDING__(String(value));
+  });
+  window.__droiddeckBrightness = self;
+  return "installed";
+})()
+""".replace("__BINDING__", BRIGHTNESS_BINDING)
+
+
+def brightness_request(payload, directory=CONTROLS_DIR):
+    try:
+        value = float(payload)
+        if not math.isfinite(value) or not 0 <= value <= 1:
+            return
+        path = os.path.join(directory, "brightness.request")
+        with open(path + ".tmp", "w") as target:
+            target.write(str(value) + "\n")
+        os.replace(path + ".tmp", path)
+    except (ValueError, TypeError, OSError):
+        return
+
+
 INSTALL_JS = r"""
 (() => {
   if (window.__droiddeckCompat) return "present";
@@ -194,6 +239,74 @@ TOUR_JS = r"""
   bytes.push(key, 0);
   SteamClient.Settings.SetSetting(btoa(String.fromCharCode(...bytes)));
   return "off";
+})()
+"""
+# Steam keeps the Quick Access Frame Limit as the client setting gamescope_app_target_framerate
+# (CMsgClientSettings field 21002) and offers the values gamescope's display state lists in
+# active_display_info.supported_frame_rates. When the panel's refresh rate changes, a remembered
+# limit that is not one of the new values leaves the slider on its first value while the game runs
+# at the old limit. The limit is kept when it is still offered and moved to the highest value
+# otherwise. Choices are read once they have been unchanged for a moment, since a mode switch can
+# report a passing rate first.
+FRAME_LIMIT_JS = r"""
+(() => {
+  if (window.__droiddeckFrameLimit) return "present";
+  const settings = window.settingsStore;
+  let service = null;
+  try {
+    // Steam's webpack does not expose its module cache; the gamescope service client is found by
+    // the calls its module makes and loaded by id.
+    let require;
+    window.webpackChunksteamui.push([[Symbol("droiddeck-frame-limit")], {}, r => { require = r; }]);
+    for (const id of Object.keys(require.m || {})) {
+      const source = String(require.m[id]);
+      if (!source.includes("SetBlurParams") || !source.includes("RegisterForNotifyStateChanged")) continue;
+      let exports;
+      try { exports = require(id); } catch (e) { continue; }
+      if (!exports || typeof exports !== "object") continue;
+      service = Object.values(exports).find(value => value && typeof value.GetState === "function" &&
+        typeof value.RegisterForNotifyStateChanged === "function" && typeof value.SetBlurParams === "function");
+      if (service) break;
+    }
+  } catch (e) {
+    service = null;
+  }
+  if (!service || !settings?.clientSettings || typeof SteamClient.Settings?.SetSetting !== "function") return "unavailable";
+  const self = { choices: null, timer: null };
+  const write = value => {
+    const bytes = [];
+    for (let n of [21002 * 8, value]) {
+      while (n > 127) { bytes.push((n & 127) | 128); n = Math.floor(n / 128); }
+      bytes.push(n);
+    }
+    SteamClient.Settings.SetSetting(btoa(String.fromCharCode(...bytes)));
+  };
+  self.check = async () => {
+    let rates;
+    try {
+      const reply = await service.GetState({});
+      if (!reply.BSuccess()) return;
+      rates = reply.Body().toObject().state?.active_display_info?.supported_frame_rates;
+    } catch (e) {
+      return;
+    }
+    if (!Array.isArray(rates) || rates.length === 0) return;
+    const choices = rates.join(",");
+    if (choices === self.choices) return;
+    self.choices = choices;
+    const current = settings.clientSettings;
+    if (!current.gamescope_enable_app_target_framerate || rates.includes(current.gamescope_app_target_framerate)) return;
+    write(Math.max(...rates));
+  };
+  self.schedule = () => {
+    clearTimeout(self.timer);
+    self.timer = setTimeout(self.check, 1500);
+  };
+  self.subscription = service.RegisterForNotifyStateChanged(self.schedule);
+  self.interval = setInterval(self.schedule, 5000);
+  self.schedule();
+  window.__droiddeckFrameLimit = self;
+  return "installed";
 })()
 """
 FILE_BINDING = "droiddeckOpenFileDialog"
@@ -633,6 +746,44 @@ class Helper:
         self.tools_checked = None
         self.vr_launch = None
         self.chooser = None
+        self.controls_state = None
+        self.controls_installed = False
+        self.frame_limit_state = None
+        self.frame_limit_retry = 0
+
+    def sync_controls(self):
+        try:
+            with open(os.path.join(CONTROLS_DIR, "state.json")) as source:
+                state = json.load(source)
+            value = state.get("brightness")
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or not 0 <= value <= 1:
+                return
+            if not self.controls_installed:
+                self.page.call("Runtime.addBinding", {"name": BRIGHTNESS_BINDING})
+                self.controls_installed = self.page.evaluate(BRIGHTNESS_JS) in ("installed", "present")
+                if not self.controls_installed:
+                    return
+            if state != self.controls_state:
+                if self.page.evaluate("!!window.__droiddeckBrightness && (window.__droiddeckBrightness.set(%s), true)" % json.dumps(value)) is True:
+                    self.controls_state = state
+                else:
+                    self.controls_installed = False
+                    self.controls_state = None
+        except (OSError, ValueError, TypeError):
+            pass
+
+    def sync_frame_limit(self):
+        # Steam can still be loading its settings and gamescope state when the helper attaches.
+        if self.frame_limit_state in ("installed", "present") or time.monotonic() < self.frame_limit_retry:
+            return
+        try:
+            state = self.page.evaluate(FRAME_LIMIT_JS)
+        except RuntimeError as e:
+            state = "failed (%s)" % e
+        if state != self.frame_limit_state:
+            say("frame limit sync: %s" % state)
+        self.frame_limit_state = state
+        self.frame_limit_retry = time.monotonic() + 10
 
     def open_chooser(self, payload):
         try:
@@ -709,6 +860,9 @@ class Helper:
                 page.call("Runtime.addBinding", {"name": FILE_BINDING})
                 page.evaluate(FILE_JS)
                 self.page = page
+                self.controls_state = None
+                self.controls_installed = False
+                self.sync_controls()
                 return True
             page.call("Runtime.addBinding", {"name": BINDING})
             page.call("Runtime.addBinding", {"name": VR_BINDING})
@@ -728,6 +882,11 @@ class Helper:
             page.ws.close()
             raise
         self.page = page
+        self.controls_state = None
+        self.controls_installed = False
+        self.frame_limit_state = None
+        self.frame_limit_retry = 0
+        self.sync_controls()
         return True
 
     def reconcile(self):
@@ -854,6 +1013,8 @@ class Helper:
             say("preparing SteamVR for library app(s): " + ", ".join(sorted(vr_games)))
             self.vr_launch = launch_steamvr()
         for e in events:
+            if called(e, BRIGHTNESS_BINDING):
+                brightness_request(e.get("params", {}).get("payload"))
             if called(e, FILE_BINDING) and isinstance(e.get("params", {}).get("payload"), str):
                 self.open_chooser(e["params"]["payload"])
         return events
@@ -861,15 +1022,14 @@ class Helper:
     def serve_files(self):
         say("attached to the client on port %d for its file dialogs" % self.port)
         while True:
+            self.sync_controls()
             sources = [self.page.ws] + ([self.chooser[1].stdout] if self.chooser is not None else [])
             queued = self.page.ws.pending() or bool(self.page.events)
-            ready = [self.page.ws] if queued else select.select(sources, [], [], 30)[0]
+            ready = [self.page.ws] if queued else select.select(sources, [], [], 0.25)[0]
             if self.chooser is not None and self.chooser[1].stdout in ready:
                 self.chooser_done()
             if self.page.ws in ready or self.page.events:
-                for e in self.page.drain():
-                    if called(e, FILE_BINDING) and isinstance(e.get("params", {}).get("payload"), str):
-                        self.open_chooser(e["params"]["payload"])
+                self.drain()
 
     def serve(self, watcher):
         if self.files_only:
@@ -880,10 +1040,13 @@ class Helper:
         self.reconcile()
         self.ensure_tools()
         while True:
+            self.sync_controls()
+            self.sync_frame_limit()
             sources = [self.page.ws] + ([watcher] if watcher.fileno() >= 0 else [])
             if self.chooser is not None:
                 sources.append(self.chooser[1].stdout)
-            ready = [self.page.ws] if self.page.ws.pending() else select.select(sources, [], [], 30 if watcher.fileno() >= 0 else 2)[0]
+            queued = self.page.ws.pending() or bool(self.page.events)
+            ready = [self.page.ws] if queued else select.select(sources, [], [], 0.25)[0]
             if self.chooser is not None and self.chooser[1].stdout in ready:
                 self.chooser_done()
             due = False

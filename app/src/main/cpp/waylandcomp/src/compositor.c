@@ -186,6 +186,9 @@ static void on_client_created(struct wl_listener *l, void *data) {
 
 enum surface_role { ROLE_NONE, ROLE_TOPLEVEL, ROLE_SUBSURFACE, ROLE_DESKTOP, ROLE_CURSOR };
 
+#define DAMAGE_RECTS 8
+struct damage_list { int32_t r[DAMAGE_RECTS][4]; int n; };
+
 struct surface {
     struct wl_resource *resource;
     struct wl_list link;
@@ -207,6 +210,7 @@ struct surface {
     int buf_w, buf_h, has_content;
     int buf_alpha;
     int opaque[4], pending_opaque[4], pending_opaque_set;
+    struct damage_list damage_buf, pending_damage_buf, damage_local, pending_damage_local;
     int src_set, dst_set;
     float src[4];
     int dst[2];
@@ -264,7 +268,7 @@ static struct wl_event_source *g_fallback_timer;
 static int g_fallback_armed;
 
 volatile int g_fps_limit;
-/* fps limit -1 (Performance mode without a limit): replaced buffers go back to the client at once instead of once per refresh. */
+/* fps limit -1 (phone output, not mirrored): replaced buffers go back to the client at once instead of once per refresh. */
 volatile int g_release_unpaced;
 
 volatile int g_hide_shell;
@@ -624,6 +628,68 @@ static void fire_frames(struct wl_list *frames) {
     }
 }
 
+static void scene_size(int *w, int *h);
+static int64_t damage_area(const struct damage_list *d, int bound_w, int bound_h);
+static struct surface *g_hud_surface, *g_hud_shm;
+static int64_t g_hud_shm_ns;
+static int64_t g_hud_last_ns, g_hud_alive_ns;
+static int g_hud_fresh;
+static int g_hud_new;
+#define HUD_TIMES 256
+static pthread_mutex_t g_hud_times_lock = PTHREAD_MUTEX_INITIALIZER;
+static float g_hud_times[HUD_TIMES];
+static int64_t g_hud_times_total, g_hud_shown_ns;
+
+static void hud_frame_shown(int64_t t) {
+    const int64_t previous = g_hud_shown_ns;
+    g_hud_shown_ns = t;
+    if (!previous || t <= previous) return;
+    pthread_mutex_lock(&g_hud_times_lock);
+    g_hud_times[g_hud_times_total % HUD_TIMES] = (float)((t - previous) / 1e6);
+    g_hud_times_total++;
+    pthread_mutex_unlock(&g_hud_times_lock);
+}
+
+static int tree_rank(const struct surface *s, const struct surface *want, int *rank, int depth) {
+    const struct surface *c;
+    if (depth > 8) return 0;
+    wl_list_for_each(c, &s->children, child_link)
+        if (c->below_parent && tree_rank(c, want, rank, depth + 1)) return 1;
+    if (s == want) return 1;
+    (*rank)++;
+    wl_list_for_each(c, &s->children, child_link)
+        if (!c->below_parent && tree_rank(c, want, rank, depth + 1)) return 1;
+    return 0;
+}
+
+static int render_rank(const struct surface *want) {
+    const struct surface *s;
+    int rank = 0;
+    if (g_desktop && tree_rank(g_desktop, want, &rank, 0)) return rank;
+    wl_list_for_each(s, &g_toplevels, toplevel_link)
+        if (tree_rank(s, want, &rank, 0)) return rank;
+    return -1;
+}
+
+static int below_surface(const struct surface *s, const struct surface *other) {
+    const int a = render_rank(s), b = render_rank(other);
+    return a >= 0 && b >= 0 && a < b;
+}
+
+int droiddeck_hud_frame_times(float *out, int len, int64_t *total) {
+    pthread_mutex_lock(&g_hud_times_lock);
+    *total = g_hud_times_total;
+    int64_t n = *total < len ? *total : len;
+    if (n > HUD_TIMES) n = HUD_TIMES;
+    for (int64_t i = 0; i < n; i++) out[i] = g_hud_times[(*total - n + i) % HUD_TIMES];
+    pthread_mutex_unlock(&g_hud_times_lock);
+    return (int)n;
+}
+static uint64_t g_game_frames;
+extern void droiddeck_on_game_surface(const char *window, const char *gpu);
+extern void droiddeck_on_game_frame(void);
+extern void droiddeck_on_game_program(int pid, const char *program);
+
 static void take_shm(struct surface *s, struct wl_shm_buffer *shm, struct wl_resource *buffer) {
     int32_t w = wl_shm_buffer_get_width(shm), h = wl_shm_buffer_get_height(shm);
     int32_t stride = wl_shm_buffer_get_stride(shm);
@@ -646,6 +712,33 @@ static void take_shm(struct surface *s, struct wl_shm_buffer *shm, struct wl_res
     g_stat_shm++;
     struct client_info *ci = client_info_of(wl_resource_get_client(s->resource));
     if (ci && ci->asked_feedback) ci->shm_frames++;
+    int local_w, local_h;
+    surface_size(s, &local_w, &local_h);
+    const double region = s->src_set ? (double)s->src[2] * s->src[3] : (double)w * h;
+    const int64_t local_max = damage_area(&s->damage_local, local_w, local_h);
+    const int64_t local = local_w > 0 && local_h > 0
+        ? (int64_t)((double)local_max * region / ((double)local_w * local_h)) : local_max;
+    const int64_t buffer_max = damage_area(&s->damage_buf, w, h);
+    const int64_t area = (int64_t)w * h;
+    int64_t damaged = buffer_max > local ? buffer_max : local;
+    if (damaged > area) damaged = area;
+    const int64_t now = now_ns();
+    if (damaged * 16 >= area && (!g_hud_surface || now - g_hud_last_ns > 1000000000LL) &&
+        (s == g_hud_shm || !g_hud_shm || now - g_hud_shm_ns > 1000000000LL)) {
+        const struct surface *top = s;
+        int scene_w, scene_h, top_w, top_h, depth = 0;
+        while (top->parent && depth++ < 8) top = top->parent;
+        scene_size(&scene_w, &scene_h);
+        surface_size(top, &top_w, &top_h);
+        int64_t shown = (int64_t)local_w * local_h;
+        if ((int64_t)top_w * top_h > shown) shown = (int64_t)top_w * top_h;
+        if (top->role == ROLE_TOPLEVEL && top->mapped && shown * 2 >= (int64_t)scene_w * scene_h) {
+            g_hud_shm = s;
+            g_hud_shm_ns = now;
+            g_hud_new = 1;
+            droiddeck_on_game_frame();
+        }
+    }
 }
 
 static void take_pixel(struct surface *s, const uint8_t bgra[4], struct wl_resource *buffer) {
@@ -661,14 +754,6 @@ static void take_pixel(struct surface *s, const uint8_t bgra[4], struct wl_resou
     s->buf_alpha = bgra[3] != 0xff;
     s->has_content = s->shm_img != NULL;
 }
-
-static struct surface *g_hud_surface;
-static int64_t g_hud_last_ns, g_hud_alive_ns;
-static int g_hud_fresh;
-static uint64_t g_game_frames;
-extern void droiddeck_on_game_surface(const char *window, const char *gpu);
-extern void droiddeck_on_game_frame(void);
-extern void droiddeck_on_game_program(int pid, const char *program);
 
 static void take_dmabuf(struct surface *s, struct dmabuf_buffer *b, struct wl_resource *buffer) {
     const int repeat = s->dmabuf == buffer && s->dmabuf_buf == b;
@@ -724,8 +809,9 @@ static void take_dmabuf(struct surface *s, struct dmabuf_buffer *b, struct wl_re
                        name, b->width, b->height, (unsigned long long)b->modifier);
     }
     if (s != g_hud_surface && (b->img || ahb_swapchain_has_ahb(b)) &&
-        (!g_hud_surface || now_ns() - g_hud_alive_ns > 1000000000LL ||
-         (announced_now && (int64_t)b->width * b->height >= (int64_t)g_hud_surface->buf_w * g_hud_surface->buf_h))) {
+        (!g_hud_surface || now_ns() - g_hud_alive_ns > 1000000000LL || (!repeat && below_surface(s, g_hud_surface)) ||
+         (announced_now && !below_surface(g_hud_surface, s) &&
+          (int64_t)b->width * b->height >= (int64_t)g_hud_surface->buf_w * g_hud_surface->buf_h))) {
         char name[160];
         describe(s, name, sizeof(name));
         g_hud_surface = s;
@@ -749,7 +835,7 @@ static void take_dmabuf(struct surface *s, struct dmabuf_buffer *b, struct wl_re
     }
     if (s == g_hud_surface) {
         g_hud_alive_ns = now_ns();
-        if (!repeat) { g_hud_last_ns = g_hud_alive_ns; g_hud_fresh = 1; g_game_frames++; droiddeck_on_game_frame(); }
+        if (!repeat) { g_hud_last_ns = g_hud_alive_ns; g_hud_fresh = 1; g_hud_new = 1; g_game_frames++; droiddeck_on_game_frame(); }
     }
 }
 
@@ -786,8 +872,45 @@ static void surface_attach(struct wl_client *c, struct wl_resource *r,
         wl_resource_add_destroy_listener(buffer, &s->pending_buffer_destroy);
     }
 }
+static int64_t rect_area(const int32_t *r, int bound_w, int bound_h) {
+    int64_t x0 = r[0], y0 = r[1], x1 = (int64_t)r[0] + r[2], y1 = (int64_t)r[1] + r[3];
+    if (bound_w > 0 && bound_h > 0) {
+        if (x0 < 0) x0 = 0;
+        if (y0 < 0) y0 = 0;
+        if (x1 > bound_w) x1 = bound_w;
+        if (y1 > bound_h) y1 = bound_h;
+    }
+    if (x1 <= x0 || y1 <= y0) return 0;
+    const int64_t w = x1 - x0, h = y1 - y0;
+    return (w < 65536 ? w : 65536) * (h < 65536 ? h : 65536);
+}
+static void note_damage(struct damage_list *d, int32_t x, int32_t y, int32_t w, int32_t h) {
+    if (w <= 0 || h <= 0) return;
+    const int32_t rect[4] = { x, y, w, h };
+    int slot = d->n;
+    if (slot == DAMAGE_RECTS) {
+        slot = 0;
+        for (int i = 1; i < DAMAGE_RECTS; i++)
+            if (rect_area(d->r[i], 0, 0) < rect_area(d->r[slot], 0, 0)) slot = i;
+        if (rect_area(rect, 0, 0) <= rect_area(d->r[slot], 0, 0)) return;
+    } else {
+        d->n++;
+    }
+    memcpy(d->r[slot], rect, sizeof(rect));
+}
+static int64_t damage_area(const struct damage_list *d, int bound_w, int bound_h) {
+    int64_t max = 0;
+    for (int i = 0; i < d->n; i++) {
+        const int64_t area = rect_area(d->r[i], bound_w, bound_h);
+        if (area > max) max = area;
+    }
+    return max;
+}
 static void surface_damage(struct wl_client *c, struct wl_resource *r,
-                           int32_t x, int32_t y, int32_t w, int32_t h) {}
+                           int32_t x, int32_t y, int32_t w, int32_t h) {
+    struct surface *s = wl_resource_get_user_data(r);
+    note_damage(&s->pending_damage_local, x, y, w, h);
+}
 static void frame_callback_destroy(struct wl_resource *r) {
     wl_list_remove(wl_resource_get_link(r));
 }
@@ -987,6 +1110,9 @@ static void surface_commit(struct wl_client *c, struct wl_resource *r) {
         s->pending_opaque_set = 0;
     }
 
+    s->damage_buf = s->pending_damage_buf;
+    s->damage_local = s->pending_damage_local;
+    s->pending_damage_buf.n = s->pending_damage_local.n = 0;
     if (s->pending_attach) {
         struct wl_resource *buffer = s->pending_buffer;
         struct dmabuf_buffer *db = get_dmabuf(buffer);
@@ -1051,7 +1177,10 @@ static void surface_commit(struct wl_client *c, struct wl_resource *r) {
 static void surface_set_buffer_transform(struct wl_client *c, struct wl_resource *r, int32_t t) {}
 static void surface_set_buffer_scale(struct wl_client *c, struct wl_resource *r, int32_t s) {}
 static void surface_damage_buffer(struct wl_client *c, struct wl_resource *r,
-                                  int32_t x, int32_t y, int32_t w, int32_t h) {}
+                                  int32_t x, int32_t y, int32_t w, int32_t h) {
+    struct surface *s = wl_resource_get_user_data(r);
+    note_damage(&s->pending_damage_buf, x, y, w, h);
+}
 static void surface_offset(struct wl_client *c, struct wl_resource *r, int32_t x, int32_t y) {}
 
 static const struct wl_surface_interface surface_impl = {
@@ -1094,6 +1223,7 @@ static void surface_resource_destroy(struct wl_resource *r) {
     droiddeck_text_input_surface_gone(r);
     if (g_desktop == s) { g_desktop = NULL; droiddeck_log("desktop", "the desktop closed"); }
     if (g_hud_surface == s) { g_hud_surface = NULL; droiddeck_on_game_surface(NULL, NULL); }
+    if (g_hud_shm == s) g_hud_shm = NULL;
     constraints_surface_gone(s);
 
     unmap_toplevel(s);
@@ -2103,6 +2233,10 @@ static void render_scene(void) {
     if (rendered) {
         int64_t t = presented_ns(t_scene);
         g_stat_frames++;
+        if (g_hud_new) {
+            g_hud_new = 0;
+            hud_frame_shown(t);
+        }
         wl_list_for_each(s, &g_surfaces, link) {
             if (s->drawn) feedback_present_all(&s->feedback, t);
             else feedback_discard_all(&s->feedback);

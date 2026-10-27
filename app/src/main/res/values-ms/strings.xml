@@ -247,8 +247,6 @@
     <string name="mode_ratio">Nisbah skrin</string>
     <string name="mode_ratio_custom">Ditetapkan oleh resolusi tersuai.</string>
     <string name="mode_ratio_auto">Auto menggunakan sekurang-kurangnya 16:9.</string>
-    <string name="mode_fps">Had bingkai</string>
-    <string name="mode_fps_note">Mengehadkan keseluruhan sesi. Paparan beralih kepada kadar penyegaran yang boleh dibahagi sama rata dengan had ini.</string>
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">Output HDR10</string>
     <string name="mode_hdr_unavailable">Tidak tersedia: %1$s.</string>
@@ -1922,7 +1920,6 @@
     <string name="display_filter_live">Berkuat kuasa secara langsung. Dikongsi oleh Steam dan Desktop.</string>
     <string name="display_filter_note">FSR, GSR dan NIS berkuat kuasa semasa membesarkan imej sesi. Ketajaman sahaja juga berfungsi tanpa pembesaran.</string>
     <string name="display_sharpness">Ketajaman penapis</string>
-    <string name="display_frame_rate">Kadar bingkai</string>
     <string name="display_look_filter">%1$s Menetapkan penskalaan ke %2$s.</string>
     <string name="display_match_screen">Sepadan skrin (%1$d×%2$d)</string>
     <string name="display_follow_screen">Ikut skrin (mengubah saiz apabila dilipat atau dibuka)</string>
@@ -1976,6 +1973,13 @@
     <string name="stores_play">Main</string>
     <string name="stores_install">Pasang</string>
     <string name="bnet_open">Buka Battle.net</string>
+    <string name="bnet_dl_starting">Memulakan pemuat turun Blizzard…</string>
+    <string name="bnet_dl_waiting">Menunggu Battle.net ditutup…</string>
+    <string name="bnet_dl_queued">Menunggu muat turun Battle.net yang lain…</string>
+    <string name="bnet_dl_client_first">Buka Battle.net dan log masuk sekali, kemudian pasang permainannya dari sini.</string>
+    <string name="bnet_dl_failed">Pemuat turun Blizzard berhenti: %1$s</string>
+    <string name="bnet_dl_agent_error">Ralat Blizzard %1$s</string>
+    <string name="bnet_update">Kemas kini</string>
     <string name="bnet_store">Permainan Blizzard</string>
     <string name="stores_resume_install">Sambung pemasangan</string>
     <string name="stores_dl_interrupted">Terganggu</string>
@@ -3053,6 +3057,7 @@
     <string name="library_remove">Alih keluar dari Pustaka</string>
     <string name="library_in">Dalam Pustaka</string>
     <string name="xbox_filter_show">Tunjukkan</string>
+    <string name="itch_collections">Koleksi</string>
     <string name="xbox_filter_cloud">Awan</string>
     <string name="stores_xbox_cloud_settings">Tetapan awan</string>
 </resources>

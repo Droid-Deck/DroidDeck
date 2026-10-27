@@ -247,8 +247,6 @@
     <string name="mode_ratio">Seitenverhältnis</string>
     <string name="mode_ratio_custom">Durch die benutzerdefinierte Auflösung festgelegt.</string>
     <string name="mode_ratio_auto">Auto verwendet mindestens 16:9.</string>
-    <string name="mode_fps">Bildratenlimit</string>
-    <string name="mode_fps_note">Begrenzt die gesamte Sitzung. Das Display wechselt auf eine Bildwiederholrate, die ein ganzzahliges Vielfaches des Limits ist.</string>
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">HDR10-Ausgabe</string>
     <string name="mode_hdr_unavailable">Nicht verfügbar: %1$s.</string>
@@ -1935,7 +1933,6 @@
     <string name="display_filter_live">Wirkt sofort. Gemeinsam für Steam und Desktop.</string>
     <string name="display_filter_note">FSR, GSR und NIS wirken beim Vergrößern des Sitzungsbilds. „Nur schärfen“ funktioniert auch ohne Vergrößerung.</string>
     <string name="display_sharpness">Filterschärfe</string>
-    <string name="display_frame_rate">Bildrate</string>
     <string name="display_look_filter">%1$s Stellt die Skalierung auf %2$s.</string>
     <string name="display_match_screen">An Bildschirm anpassen (%1$d×%2$d)</string>
     <string name="display_follow_screen">Bildschirm folgen (passt sich beim Auf- und Zuklappen an)</string>
@@ -1989,6 +1986,13 @@
     <string name="stores_play">Spielen</string>
     <string name="stores_install">Installieren</string>
     <string name="bnet_open">Battle.net öffnen</string>
+    <string name="bnet_dl_starting">Blizzards Downloader wird gestartet…</string>
+    <string name="bnet_dl_waiting">Warten, bis Battle.net geschlossen ist…</string>
+    <string name="bnet_dl_queued">Warten auf den anderen Battle.net-Download…</string>
+    <string name="bnet_dl_client_first">Öffne Battle.net und melde dich einmal an, dann installiere seine Spiele hier.</string>
+    <string name="bnet_dl_failed">Blizzards Downloader wurde beendet: %1$s</string>
+    <string name="bnet_dl_agent_error">Blizzard-Fehler %1$s</string>
+    <string name="bnet_update">Aktualisieren</string>
     <string name="bnet_store">Blizzard-Spiele</string>
     <string name="stores_resume_install">Installation fortsetzen</string>
     <string name="stores_dl_interrupted">Unterbrochen</string>
@@ -3078,6 +3082,7 @@
     <string name="library_remove">Aus der Bibliothek entfernen</string>
     <string name="library_in">In der Bibliothek</string>
     <string name="xbox_filter_show">Anzeigen</string>
+    <string name="itch_collections">Sammlungen</string>
     <string name="xbox_filter_cloud">Cloud</string>
     <string name="stores_xbox_cloud_settings">Cloud-Einstellungen</string>
 </resources>

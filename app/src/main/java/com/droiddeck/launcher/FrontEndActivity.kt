@@ -52,6 +52,7 @@ import com.droiddeck.launcher.core.PhantomProcessLimit
 import com.droiddeck.launcher.core.PhantomProcessStatus
 import com.droiddeck.launcher.core.WirelessAdbFix
 import com.droiddeck.launcher.core.WifiDiscovery
+import com.droiddeck.launcher.core.SteamIntegration
 import com.droiddeck.launcher.core.WirelessAdbPairingService
 import com.droiddeck.launcher.ui.CoreRow
 import com.droiddeck.launcher.ui.PerformancePage
@@ -91,12 +92,16 @@ class FrontEndActivity : ComponentActivity() {
     private val components = ComponentsMenu(this, ui)
     private val decky = DeckyMenu(this, ui)
     private val updates = UpdatesMenu(this, ui)
-    private val protons = ProtonMenu(this, ui) { !busy && flood == null && pkgStage == null && components.compBusy == null }
+    private val protons = ProtonMenu(this, ui) { !busy && flood == null && compatLaunch == null && pkgStage == null && components.compBusy == null }
 
     private var installed by mutableStateOf<String?>(null)
     private var flood by mutableStateOf<PendingFlood?>(null)
     private var floodProgress by androidx.compose.runtime.mutableFloatStateOf(0f)
     private class PendingFlood(val from: androidx.compose.ui.geometry.Rect, val intent: Intent)
+    private class CompatLaunch(val intent: Intent, val loading: com.droiddeck.launcher.session.LoadingState, var menuInstall: Boolean)
+    private var compatLaunch by mutableStateOf<CompatLaunch?>(null)
+    private var compatLaunchPoll: Runnable? = null
+    private var compatLaunchVisible = false
     private var returning by mutableStateOf<ReturningFlood?>(null)
     private class ReturningFlood(val color: Int, val to: androidx.compose.ui.geometry.Rect?)
     private var ready by mutableStateOf(false)
@@ -134,9 +139,14 @@ class FrontEndActivity : ComponentActivity() {
     private var catalog by mutableStateOf<List<DesktopCatalog.Entry>?>(null)
     private var catalogLoading by mutableStateOf(false)
     private var packageRows by mutableStateOf<List<PackageRow>?>(null)
-    private var pkgId by mutableStateOf<String?>(null)
-    private var pkgStage by mutableStateOf<String?>(null)
-    private var pkgPercent by mutableIntStateOf(-1)
+    private object PackageOperation {
+        val id = mutableStateOf<String?>(null)
+        val stage = mutableStateOf<String?>(null)
+        val percent = mutableIntStateOf(-1)
+    }
+    private var pkgId by PackageOperation.id
+    private var pkgStage by PackageOperation.stage
+    private var pkgPercent by PackageOperation.percent
     private var desktopInstalled by mutableStateOf(false)
     private var desktopPresent by mutableStateOf(false)
     private var battleNetInstalled by mutableStateOf(false)
@@ -168,6 +178,7 @@ class FrontEndActivity : ComponentActivity() {
     private var picturePosition by mutableStateOf("center")
     private var stretch16x9 by mutableStateOf(false)
     private var orientation by mutableStateOf(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE)
+    private var launcherOrientation by mutableStateOf(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_USER)
     private var launcherFullscreen by mutableStateOf(true)
     private var downloadSource by mutableStateOf(DownloadSource.MODE_AUTO)
     private var downloadMirror by mutableStateOf("")
@@ -187,6 +198,8 @@ class FrontEndActivity : ComponentActivity() {
     private var wifiDiscoveryLocation by mutableStateOf(false)
     private var wifiDiscoveryAsked by mutableStateOf(false)
     private var wifiDiscoveryBlocked by mutableStateOf(false)
+    private var integrationState by mutableStateOf(SteamIntegration.State())
+    private var integrationFocus by mutableStateOf<SteamIntegration.Feature?>(null)
     private val wifiLocationReceiver = object : android.content.BroadcastReceiver() {
         override fun onReceive(context: android.content.Context?, intent: Intent?) {
             refreshWifiDiscovery()
@@ -255,7 +268,64 @@ class FrontEndActivity : ComponentActivity() {
             SessionPrefs.setWifiDiscoveryEnabled(this, false)
         }
         wifiDiscovery = SessionPrefs.wifiDiscoveryEnabled(this)
+        integrationState = readIntegration()
     }
+
+    private var shortcutsTried = false
+
+    private fun readIntegration() = SteamIntegration.read(this)
+        .copy(locationBlocked = wifiDiscoveryBlocked, shortcutsTried = shortcutsTried)
+
+    private fun openIntegration(feature: SteamIntegration.Feature? = null) {
+        SteamIntegration.dismissSuggestion(this)
+        refreshWifiDiscovery()
+        integrationState = readIntegration()
+        integrationFocus = feature
+        navRequest = "setup:integration"
+    }
+
+    private fun readIntegrationIntent(incoming: Intent) {
+        if (incoming.action != SteamIntegration.ACTION_SETUP) return
+        openIntegration(incoming.getStringExtra(SteamIntegration.EXTRA_FEATURE)?.let {
+            runCatching { SteamIntegration.Feature.valueOf(it) }.getOrNull()
+        })
+    }
+
+    private fun integrationSettings(intent: Intent, fallback: String = android.provider.Settings.ACTION_SETTINGS) {
+        try { startActivity(intent) }
+        catch (_: android.content.ActivityNotFoundException) { startActivity(Intent(fallback)) }
+        catch (_: SecurityException) { startActivity(Intent(fallback)) }
+    }
+
+    private fun configureIntegration(feature: SteamIntegration.Feature) {
+        when (feature) {
+            SteamIntegration.Feature.WIFI -> {
+                if (wifiDiscovery && wifiDiscoveryPermission) {
+                    SessionPrefs.setWifiDiscoveryEnabled(this, false)
+                } else if (wifiDiscoveryPermission) {
+                    SessionPrefs.setWifiDiscoveryEnabled(this, true)
+                } else {
+                    SessionPrefs.setWifiDiscoveryAsked(this)
+                    wifiLocationPermission.launch(WifiDiscovery.permissions)
+                }
+                refreshWifiDiscovery()
+            }
+            SteamIntegration.Feature.BRIGHTNESS -> integrationSettings(SteamIntegration.brightnessSettings(this))
+            SteamIntegration.Feature.HOME -> if (HomeApp.isDefault(this)) HomeApp.openSystemHomeSettings(this) else {
+                HomeApp.setHomeScreenEnabled(this, true)
+                refreshHomeAppState()
+                manageHomeApp()
+            }
+            SteamIntegration.Feature.SHORTCUTS -> {
+                if (!integrationState.shortcuts) shortcutsTried = true
+                if (!HomeApp.isDefault(this)) configureIntegration(SteamIntegration.Feature.HOME)
+                else integrationSettings(SteamIntegration.shortcutSettings(this), android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)
+            }
+        }
+    }
+
+    private fun openAppInfo() =
+        integrationSettings(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")))
 
     private fun openWifiDiscoverySettings() {
         if (!WifiDiscovery.permissionGranted(this)) {
@@ -391,8 +461,6 @@ class FrontEndActivity : ComponentActivity() {
     private var theme by mutableStateOf("graphite")
     private var appScale by mutableStateOf(com.droiddeck.launcher.core.AppUiPrefs.DEFAULT_SCALE)
     private var hdrOn by mutableStateOf(false)
-    private var fpsLimit by mutableStateOf(0)
-    private var performanceMode by mutableStateOf(false)
     private var upscaler by mutableStateOf(0)
     private var upscaleSharpness by mutableStateOf(75)
     private var hdrReason by mutableStateOf<String?>(null)
@@ -440,13 +508,14 @@ class FrontEndActivity : ComponentActivity() {
 
     override fun startActivity(intent: Intent?) {
         if (intent?.component?.className == SessionActivity::class.java.name) {
+            if (compatLaunch != null) return
             when {
                 busy || LinuxRuntimeInstaller.isBusy() -> {
                     android.widget.Toast.makeText(this, R.string.main_wait_runtime, android.widget.Toast.LENGTH_SHORT).show()
                     return
                 }
                 protons.protonBusyId != null || ProtonExtras.installInProgress -> {
-                    android.widget.Toast.makeText(this, R.string.main_wait_proton_install, android.widget.Toast.LENGTH_SHORT).show()
+                    waitForCompat(intent)
                     return
                 }
                 pkgStage != null -> {
@@ -474,11 +543,78 @@ class FrontEndActivity : ComponentActivity() {
             flood = null
             floodProgress = 0f
             com.droiddeck.launcher.ui.LaunchOrigin.flooding = null
+            if (!busy && !LinuxRuntimeInstaller.isBusy() && pkgStage == null &&
+                (protons.protonBusyId != null || ProtonExtras.installInProgress)) waitForCompat(f.intent)
             return
         }
         val signal = com.droiddeck.launcher.ui.Themes.byId(theme).signal
         super.startActivity(f.intent.putExtra(com.droiddeck.launcher.ui.EXTRA_FLOOD, signal.toArgb()))
         overridePendingTransition(0, 0)
+    }
+
+    private fun waitForCompat(next: Intent, menuInstall: Boolean = protons.protonBusyId != null) {
+        if (compatLaunch != null) return
+        com.droiddeck.launcher.ui.LaunchOrigin.take()
+        com.droiddeck.launcher.ui.LaunchOrigin.flooding = null
+        val waiting = CompatLaunch(Intent(next), com.droiddeck.launcher.session.LoadingState(this), menuInstall)
+        compatLaunch = waiting
+        val poll = object : Runnable {
+            override fun run() {
+                if (isDestroyed || isFinishing || compatLaunch !== waiting) return
+                if (protons.protonBusyId != null || ProtonExtras.installInProgress) {
+                    waiting.menuInstall = waiting.menuInstall || protons.protonBusyId != null
+                    val percent = if (protons.protonBusyId != null) protons.protonPercent else -1
+                    val stage = protons.protonStage ?: getString(R.string.load_compat_wait)
+                    waiting.loading.say(if (percent >= 0) getString(R.string.load_compat_progress, stage, percent) else stage,
+                        com.droiddeck.launcher.session.LoadingState.Topic.RUNTIME, readable = true)
+                    waiting.loading.percent = percent
+                    waiting.loading.tick()
+                    ui.postDelayed(this, 250)
+                    return
+                }
+                if (!compatLaunchVisible) { ui.postDelayed(this, 250); return }
+                val problem = protons.protonProblem.takeIf { waiting.menuInstall }
+                if (problem == null && (busy || LinuxRuntimeInstaller.isBusy() || pkgStage != null)) {
+                    waiting.loading.say(pkgStage ?: stage.takeIf { it.isNotBlank() } ?: getString(R.string.main_wait_runtime),
+                        com.droiddeck.launcher.session.LoadingState.Topic.RUNTIME, readable = true)
+                    waiting.loading.percent = if (pkgStage != null) pkgPercent else percent
+                    waiting.loading.tick()
+                    ui.postDelayed(this, 250)
+                    return
+                }
+                compatLaunchPoll = null
+                if (problem != null) waiting.loading.showEnded(problem)
+                else {
+                    compatLaunch = null
+                    startActivity(waiting.intent)
+                }
+            }
+        }
+        compatLaunchPoll = poll
+        poll.run()
+    }
+
+    private fun cancelCompatLaunch() {
+        compatLaunchPoll?.let(ui::removeCallbacks)
+        compatLaunchPoll = null
+        compatLaunch = null
+    }
+
+    private fun restoreCompatLaunch(state: Bundle) {
+        savedIntent(state, KEY_COMPAT_LAUNCH)?.let { next ->
+            val problem = state.getString(KEY_COMPAT_PROBLEM)
+            if (problem == null) waitForCompat(next, state.getBoolean(KEY_COMPAT_MENU_INSTALL))
+            else compatLaunch = CompatLaunch(next,
+                com.droiddeck.launcher.session.LoadingState(this).apply { showEnded(problem) }, false)
+        }
+    }
+
+    private fun saveCompatLaunch(state: Bundle) {
+        compatLaunch?.let {
+            state.putParcelable(KEY_COMPAT_LAUNCH, it.intent)
+            state.putBoolean(KEY_COMPAT_MENU_INSTALL, it.menuInstall)
+            if (it.loading.ended) state.putString(KEY_COMPAT_PROBLEM, it.loading.step)
+        }
     }
 
     private var shortcutPicker by mutableStateOf(false)
@@ -542,7 +678,7 @@ class FrontEndActivity : ComponentActivity() {
     }
 
     private fun launchGame(game: Library.SteamGame, returnHome: Boolean = false): Boolean {
-        if (protons.protonBusyId != null || ProtonExtras.installInProgress || pkgStage != null) {
+        if (pkgStage != null) {
             android.widget.Toast.makeText(this, R.string.main_wait_install_game, android.widget.Toast.LENGTH_SHORT).show()
             return false
         }
@@ -654,7 +790,7 @@ class FrontEndActivity : ComponentActivity() {
             android.widget.Toast.makeText(this, R.string.epic_client_uninstalling, android.widget.Toast.LENGTH_SHORT).show()
             return false
         }
-        if (protons.protonBusyId != null || ProtonExtras.installInProgress || pkgStage != null) {
+        if (pkgStage != null) {
             android.widget.Toast.makeText(this, R.string.main_wait_install_game, android.widget.Toast.LENGTH_SHORT).show()
             return false
         }
@@ -762,6 +898,7 @@ class FrontEndActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (savedInstanceState == null) readIntegrationIntent(intent)
         readGameIntent(intent)
         gameSyncFolder = GameFileSync.folder(this)
         displayManager = getSystemService(DISPLAY_SERVICE) as DisplayManager
@@ -775,7 +912,8 @@ class FrontEndActivity : ComponentActivity() {
         steamGamesX64 = cachedX64
         backActionsInverted = SessionPrefs.backActionsInverted(this)
         orientation = SessionPrefs.orientation(this)
-        requestedOrientation = orientation
+        launcherOrientation = com.droiddeck.launcher.core.AppUiPrefs.orientation(this)
+        requestedOrientation = launcherOrientation
         launcherFullscreen = SessionPrefs.launcherFullscreen(this)
         downloadSource = DownloadSource.mode(this)
         downloadMirror = DownloadSource.mirror(this)
@@ -827,6 +965,8 @@ class FrontEndActivity : ComponentActivity() {
                         isHomeApp = homeAppSelected,
                         homeScreenEnabled = homeScreenEnabled,
                         defaultHomeLabel = defaultHomeLabel,
+                        integration = integrationState,
+                        integrationFocus = integrationFocus,
                         androidApps = androidApps,
                         secondScreenDisplays = secondScreenDisplays,
                         packages = packageRows,
@@ -844,6 +984,7 @@ class FrontEndActivity : ComponentActivity() {
                         phantomProcessStatus = phantomProcessStatus,
                         showPhantomGate = showPhantomGate,
                         orientation = orientation,
+                        launcherOrientation = launcherOrientation,
                         launcherFullscreen = launcherFullscreen,
                         downloadSource = downloadSource,
                         downloadMirror = downloadMirror,
@@ -1026,6 +1167,10 @@ class FrontEndActivity : ComponentActivity() {
                         onOrientation = { value ->
                             SessionPrefs.setOrientation(this, value)
                             orientation = value
+                        },
+                        onLauncherOrientation = { value ->
+                            com.droiddeck.launcher.core.AppUiPrefs.setOrientation(this, value)
+                            launcherOrientation = value
                             requestedOrientation = value
                         },
                         onLauncherFullscreen = { on ->
@@ -1061,6 +1206,14 @@ class FrontEndActivity : ComponentActivity() {
                             downloadProxy = DownloadSource.proxyHostPort(this)
                         },
                         onHomeApp = { manageHomeApp() },
+                        onSteamIntegration = ::openIntegration,
+                        onIntegration = { integrationFocus = null; configureIntegration(it) },
+                        onIntegrationAppInfo = ::openAppInfo,
+                        onIntegrationLocation = ::openWifiDiscoverySettings,
+                        onDismissIntegration = {
+                            SteamIntegration.dismissSuggestion(this)
+                            integrationState = readIntegration()
+                        },
                         onHomeScreen = { on ->
                             HomeApp.setHomeScreenEnabled(this, on)
                             refreshHomeAppState()
@@ -1210,12 +1363,21 @@ class FrontEndActivity : ComponentActivity() {
                         com.droiddeck.launcher.ui.LaunchOrigin.flooding = null
                     }
                 }
+                androidx.activity.compose.BackHandler(compatLaunch != null) { cancelCompatLaunch() }
+                compatLaunch?.loading?.let { loading ->
+                    com.droiddeck.launcher.ui.LoadingOverlay(
+                        loading.step, loading.percent, loading.elapsed, getString(R.string.load_compat_hint), loading.ended,
+                        loading.topic, loading.readable, title = getString(R.string.load_compat_title),
+                        onCancel = ::cancelCompatLaunch, onClose = ::cancelCompatLaunch,
+                    )
+                }
             }
         }
         }
 
         if (savedInstanceState == null) ui.post { startSteamAtStartupIfEnabled() }
         else {
+            restoreCompatLaunch(savedInstanceState)
             pendingSwitch = savedIntent(savedInstanceState, KEY_PENDING_SWITCH)
             savedIntent(savedInstanceState, KEY_SWITCHING_TO)?.let { awaitSessionEnd(it, savedInstanceState.getLong(KEY_SWITCH_DEADLINE)) }
         }
@@ -1244,6 +1406,10 @@ class FrontEndActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        if (intent.action == SteamIntegration.ACTION_SETUP) {
+            readIntegrationIntent(intent)
+            return
+        }
         readGameIntent(intent)
         refresh()
         startSteamAtStartupIfEnabled()
@@ -1301,24 +1467,15 @@ class FrontEndActivity : ComponentActivity() {
         }
     }
 
-    override fun onUserInteraction() {
-        super.onUserInteraction()
-        com.droiddeck.launcher.ui.Ambient.poke()
-    }
-
-    override fun dispatchTouchEvent(event: android.view.MotionEvent): Boolean {
-        if (event.actionMasked == android.view.MotionEvent.ACTION_UP || event.actionMasked == android.view.MotionEvent.ACTION_CANCEL) {
-            com.droiddeck.launcher.ui.Ambient.poke()
-        }
-        return super.dispatchTouchEvent(event)
-    }
-
-    override fun dispatchGenericMotionEvent(event: android.view.MotionEvent): Boolean {
-        com.droiddeck.launcher.ui.Ambient.poke()
-        return super.dispatchGenericMotionEvent(event)
-    }
-
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (compatLaunch != null) {
+            if (event.keyCode == KeyEvent.KEYCODE_BACK || event.keyCode == KeyEvent.KEYCODE_BUTTON_B) {
+                if (event.action == KeyEvent.ACTION_UP) cancelCompatLaunch()
+                return true
+            }
+            if (!compatLaunch!!.loading.ended && event.keyCode !in listOf(
+                    KeyEvent.KEYCODE_VOLUME_UP, KeyEvent.KEYCODE_VOLUME_DOWN, KeyEvent.KEYCODE_VOLUME_MUTE)) return true
+        }
         if (event.keyCode == KeyEvent.KEYCODE_BUTTON_A) com.droiddeck.launcher.ui.HeldKeys.confirm = event.action == KeyEvent.ACTION_DOWN
         if (showComponents && (event.keyCode == KeyEvent.KEYCODE_BUTTON_L1 || event.keyCode == KeyEvent.KEYCODE_BUTTON_R1)) {
             if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
@@ -1335,16 +1492,28 @@ class FrontEndActivity : ComponentActivity() {
         }
     }
 
+    override fun dispatchGenericMotionEvent(event: android.view.MotionEvent): Boolean {
+        if (compatLaunch != null && !compatLaunch!!.loading.ended &&
+            com.droiddeck.launcher.input.PadBridge.isControllerMotionEvent(event)) return true
+        return super.dispatchGenericMotionEvent(event)
+    }
+
+    override fun onPause() {
+        compatLaunchVisible = false
+        super.onPause()
+    }
+
     override fun onResume() {
         super.onResume()
+        compatLaunchVisible = true
         orientation = SessionPrefs.orientation(this)
-        requestedOrientation = orientation
+        launcherOrientation = com.droiddeck.launcher.core.AppUiPrefs.orientation(this)
+        requestedOrientation = launcherOrientation
         refreshWifiDiscovery()
         com.droiddeck.launcher.stores.StoresState.refresh(this)
         com.droiddeck.launcher.stores.StoresState.libraryListener = { refreshAddedGames(); refresh() }
         com.droiddeck.launcher.stores.battlenet.BattleNetClient.opener = { args -> openBattleNet(args) }
         com.droiddeck.launcher.ui.Motion.refresh(this)
-        com.droiddeck.launcher.ui.Ambient.poke()
         com.droiddeck.launcher.ui.QuitFlood.take()?.let { c ->
             returning = ReturningFlood(c, com.droiddeck.launcher.ui.LaunchOrigin.takeReturn())
         }
@@ -1389,6 +1558,7 @@ class FrontEndActivity : ComponentActivity() {
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
+        saveCompatLaunch(outState)
         pendingSwitch?.let { outState.putParcelable(KEY_PENDING_SWITCH, it) }
         switchingTo?.let {
             outState.putParcelable(KEY_SWITCHING_TO, it)
@@ -1401,6 +1571,7 @@ class FrontEndActivity : ComponentActivity() {
         else @Suppress("DEPRECATION") state.getParcelable(key)
 
     override fun onDestroy() {
+        cancelCompatLaunch()
         updates.unregister()
         super.onDestroy()
     }
@@ -1424,6 +1595,7 @@ class FrontEndActivity : ComponentActivity() {
         homeAppSelected = homeScreenEnabled && HomeApp.isDefault(this)
         defaultHomeLabel = HomeApp.defaultLabel(this)
         androidApps = if (homeAppSelected) HomeApp.launchableApps(this) else emptyList()
+        integrationState = readIntegration()
     }
 
     private fun refreshSecondScreenDisplays() {
@@ -1605,7 +1777,7 @@ class FrontEndActivity : ComponentActivity() {
     }
 
     private fun openBattleNet(args: List<String> = emptyList()) {
-        if (protons.protonBusyId != null || ProtonExtras.installInProgress || pkgStage != null) {
+        if (pkgStage != null) {
             android.widget.Toast.makeText(this, R.string.main_wait_install_game, android.widget.Toast.LENGTH_SHORT).show()
             return
         }
@@ -1713,7 +1885,7 @@ class FrontEndActivity : ComponentActivity() {
             ModeSettings(
                 mode = mode, resolution = resolution,
                 panelSize = com.droiddeck.launcher.session.SessionDisplay.panelSize(this),
-                hdr = hdrOn, hdrReason = hdrReason, fpsLimit = fpsLimit, performanceMode = performanceMode,
+                hdr = hdrOn, hdrReason = hdrReason,
                 upscaler = upscaler, upscaleSharpness = upscaleSharpness,
                 gpuDrivers = drivers.summary(),
                 touchMode = touchMode,
@@ -1721,8 +1893,7 @@ class FrontEndActivity : ComponentActivity() {
                 steamDownloadsInBackground = steamDownloadsInBackground,
                 pipSupported = com.droiddeck.launcher.session.SessionPipController.supported(this),
                 pipAutoEnter = pipAutoEnter,
-                unfoldedControls = if (mode == SessionService.MODE_STEAM &&
-                    com.droiddeck.launcher.session.SessionDisplay.foldable(this)) unfoldedControls else null,
+                unfoldedControls = if (mode == SessionService.MODE_STEAM) unfoldedControls else null,
                 unfoldedControlsWithController = unfoldedControlsWithController,
                 oscMode = if (mode == SessionService.MODE_STEAM) oscMode else null,
                 backActionsInverted = backActionsInverted,
@@ -1748,11 +1919,7 @@ class FrontEndActivity : ComponentActivity() {
                 bootMovieCustomName = bootMovieCustomName,
                 bootMovieImporting = bootMovieImporting,
                 bootMovieProgress = bootMovieProgress,
-                wifiDiscovery = if (mode == SessionService.MODE_STEAM) wifiDiscovery else null,
-                wifiDiscoveryPermission = wifiDiscoveryPermission,
-                wifiDiscoveryLocation = wifiDiscoveryLocation,
-                wifiDiscoveryAsked = wifiDiscoveryAsked,
-                wifiDiscoveryBlocked = wifiDiscoveryBlocked,
+                integration = if (mode == SessionService.MODE_STEAM) integrationState else null,
                 deckyInstalled = if (mode == SessionService.MODE_STEAM) decky.deckyInstalled else null,
                 deckyLatestRelease = if (mode == SessionService.MODE_STEAM) decky.deckyLatest else null,
                 deckyBranch = decky.deckyBranch,
@@ -1761,26 +1928,12 @@ class FrontEndActivity : ComponentActivity() {
                 deckyEnabled = decky.deckySupervisor, deckySessionRunning = SessionState.running,
             ),
             ModeSettingsActions(
-                onWifiDiscovery = { on ->
-                    if (!on) {
-                        SessionPrefs.setWifiDiscoveryEnabled(this, false)
-                        refreshWifiDiscovery()
-                    } else if (WifiDiscovery.permissionGranted(this)) {
-                        SessionPrefs.setWifiDiscoveryEnabled(this, true)
-                        refreshWifiDiscovery()
-                    } else if (wifiDiscoveryBlocked) {
-                        openWifiDiscoverySettings()
-                    } else {
-                        SessionPrefs.setWifiDiscoveryAsked(this)
-                        wifiLocationPermission.launch(WifiDiscovery.permissions)
-                    }
-                },
-                onWifiDiscoverySettings = { openWifiDiscoverySettings() },
+                onIntegration = ::configureIntegration,
+                onIntegrationAppInfo = ::openAppInfo,
+                onIntegrationLocation = ::openWifiDiscoverySettings,
                 onResolution = { value -> SessionPrefs.setResolutionChoice(this, mode, value); resolution = value },
                 onHdr = { on -> SessionPrefs.setHdr(this, mode, on); hdrOn = on },
                 onGpuDrivers = { openComponents(focusContent = true, tab = com.droiddeck.launcher.ui.GPU_TAB) },
-                onFpsLimit = { fps -> SessionPrefs.setFpsLimit(this, mode, fps); fpsLimit = fps },
-                onPerformanceMode = { on -> SessionPrefs.setPerformanceMode(this, mode, on); performanceMode = on },
                 onUpscaler = { m -> SessionPrefs.setUpscaler(this, m); upscaler = m },
                 onUpscaleSharpness = { pct -> SessionPrefs.setUpscaleSharpness(this, pct); upscaleSharpness = pct },
                 onTouch = { t -> SessionPrefs.setTouchMode(this, t); touchMode = t },
@@ -2031,8 +2184,6 @@ class FrontEndActivity : ComponentActivity() {
         runSteamAtStartup = SessionPrefs.runSteamAtStartup(this)
         loadBootMovie()
         hdrOn = SessionPrefs.hdr(this, mode)
-        fpsLimit = SessionPrefs.fpsLimit(this, mode)
-        performanceMode = SessionPrefs.performanceMode(this, mode)
         upscaler = SessionPrefs.upscaler(this)
         upscaleSharpness = SessionPrefs.upscaleSharpness(this)
         hdrReason = com.droiddeck.launcher.wayland.HdrSupport.probe(this).reason
@@ -2138,7 +2289,7 @@ class FrontEndActivity : ComponentActivity() {
         val scanGeneration = ++libraryScanGeneration
         val artRefreshesAtStart = HashMap(steamArtRefreshes)
         if (shortcutPicker) shortcutLibraryScanning = true
-        if (SessionPrefs.steamClientArch(this) == "x86_64" && !OfflineMode.enabled(this)) {
+        if (!OfflineMode.enabled(this)) {
             Thread({ com.droiddeck.launcher.session.FexCatalog.refresh(this) }, "fex-catalog").start()
         }
         Thread({
@@ -2330,6 +2481,9 @@ class FrontEndActivity : ComponentActivity() {
         private const val SESSION_SWITCH_WAIT_MS = 30_000L
         private const val SESSION_SWITCH_POLL_MS = 250L
         private const val KEY_PENDING_SWITCH = "pending_switch"
+        private const val KEY_COMPAT_LAUNCH = "compat_launch"
+        private const val KEY_COMPAT_MENU_INSTALL = "compat_menu_install"
+        private const val KEY_COMPAT_PROBLEM = "compat_problem"
         private const val KEY_SWITCHING_TO = "switching_to"
         private const val KEY_SWITCH_DEADLINE = "switch_deadline"
         private val SESSION_ENDED = setOf(SessionPhase.IDLE, SessionPhase.FAILED)

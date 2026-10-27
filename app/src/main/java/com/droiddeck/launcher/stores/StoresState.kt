@@ -130,7 +130,7 @@ object StoresState {
 
     fun detailItem(store: Store, id: String): CatalogItem? = detailCatalogItem(
         store, id, library[store].orEmpty(),
-        found[store].orEmpty() + if (store == Store.ITCH) com.droiddeck.launcher.stores.itch.ItchBrowseState.items else emptyList(),
+        found[store].orEmpty() + if (store == Store.ITCH) com.droiddeck.launcher.stores.itch.ItchBrowseState.items + com.droiddeck.launcher.stores.itch.ItchCollections.items() else emptyList(),
         shelves[store],
     )
 
@@ -191,6 +191,7 @@ object StoresState {
             backend?.signOut(app)
             if (store == Store.GOG) com.droiddeck.launcher.stores.gog.GogComet.replaceAccount { StoreAccounts.clear(app, store) }
             else if (store != Store.XBOX || backend == null) StoreAccounts.clear(app, store)
+            if (store == Store.ITCH) com.droiddeck.launcher.stores.itch.ItchCollections.clear()
             main.post {
                 if (store == Store.XBOX && StoreAccounts.signedInAs(app, store) != null) return@post
                 accounts.remove(store); library.remove(store); status.remove(store); problems.remove(store); libraryAsked.remove(store)
@@ -236,7 +237,7 @@ object StoresState {
     fun install(context: Context, item: CatalogItem, root: java.io.File? = null, language: String? = null) {
         val app = context.applicationContext
         val targetRoot = root ?: StoreInstallRoot.defaultTarget(app)?.root ?: StoreInstallRoot.installRoot(app)
-        if (item.store == Store.BATTLENET) {
+        if (item.store == Store.BATTLENET && !com.droiddeck.launcher.stores.battlenet.BattleNetInstall.headless(item)) {
             backends[item.store]?.install(app, item, targetRoot)
             return
         }
@@ -273,7 +274,7 @@ object StoresState {
         uninstalling[key] = 0f
         background("stores-uninstall", onFailure = { main.post { uninstalling.remove(key); onDone() } }) {
             runCatching { backends[game.sidecar.store]?.uninstall(app, game) }
-            if (game.sidecar.store == Store.BATTLENET) {
+            if (game.sidecar.store == Store.BATTLENET && com.droiddeck.launcher.runtime.BattleNet.games(app).any { it.folder.absolutePath == game.folder.absolutePath }) {
                 main.post { uninstalling.remove(key); onDone() }
                 return@background
             }
