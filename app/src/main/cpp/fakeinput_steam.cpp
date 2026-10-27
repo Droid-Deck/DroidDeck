@@ -2547,11 +2547,42 @@ __attribute__((visibility("hidden"))) static int sony_feature(const DeckHidraw &
     put32(reply + 48, 0x0001003C);
     put32(reply + 52, 0x0002000A);
     put32(reply + 56, 0x00000006);
+  } else if (pad.sony == 5 && id == 0x22) {
+    reply[1] = 0x02;
+    put32(reply + 3, 0x00000621);
+    put32(reply + 7, 0x0110002A);
+    for (int i = 0; i < 6; i++) reply[17 + i] = SONY_MAC[5 - i];
+    reply[23] = 0x0A;
+    reply[25] = 0x02;
+    reply[27] = 0x06;
+    reply[31] = 0x19;
+    put32(reply + 35, 0x00012821);
+    reply[39] = 0x04;
+    reply[41] = 0x02;
+    reply[42] = 0x02;
+    put32(reply + 45, 0x08325F7A);
+    put32(reply + 49, 0x000B1B1C);
+    reply[53] = 0x3C;
+    reply[55] = 0x01;
+    reply[57] = 0x02;
+    reply[58] = 0x04;
   } else if (pad.sony == 5 && id == 0x81) {
     if (pad.sony_feature_buf[0] == 0x80) {
-      reply[1] = pad.sony_feature_buf[1];
-      reply[2] = pad.sony_feature_buf[2];
+      uint8_t cmd_group = pad.sony_feature_buf[1];
+      uint8_t cmd_id = pad.sony_feature_buf[2];
+      reply[1] = cmd_group;
+      reply[2] = cmd_id;
       reply[3] = 0x02;
+      if (cmd_group == 2 && cmd_id == 0x02) {
+        for (int i = 0; i < 6; i++) reply[4 + i] = SONY_MAC[i];
+      } else if (cmd_group == 4 && cmd_id == 0x03) {
+        put16(reply + 4, 4150);
+      } else if (cmd_group == 1 && cmd_id == 0x09) {
+        memcpy(reply + 4, "DROIDDCK", 8);
+      } else if ((cmd_group == 1 && ((cmd_id >= 0x11 && cmd_id <= 0x15) || (cmd_id >= 0x18 && cmd_id <= 0x1C))) ||
+                 (cmd_group == 0x70 && cmd_id == 0x01)) {
+        memcpy(reply + 4, "P0000000000000000", 17);
+      }
     } else {
       reply[1] = 0x02;
     }

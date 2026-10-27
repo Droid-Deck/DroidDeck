@@ -96,4 +96,26 @@ class DualSenseHapticsTest {
         assertEquals(0x50, r[1].toInt() and 0xFF)
         assertEquals(crcOf(r), storedCrc(r))
     }
+
+    @Test fun rumbleConverterMapsHapticPcmToLeftAndRightMotors() {
+        val converter = DualSenseHaptics.RumbleConverter()
+        val silence = pcm(512) { 0 to 0 }
+        converter.processFrame(silence, silence.size)
+        assertEquals(0, converter.leftMotor)
+        assertEquals(0, converter.rightMotor)
+
+        // Steady DC / low-frequency haptic signal activates both low-pass (Left<=128) and high-pass/transient (Right<=255)
+        val buzz = pcm(512) { i ->
+            val v = if ((i % 32) < 16) 0x5000 else -0x5000
+            v to v
+        }
+        converter.processFrame(buzz, buzz.size)
+        assertTrue("Expected leftMotor in 15..128, got ${converter.leftMotor}", converter.leftMotor in 15..128)
+        assertTrue("Expected rightMotor in 15..255, got ${converter.rightMotor}", converter.rightMotor in 15..255)
+
+        converter.reset()
+        converter.processFrame(silence, silence.size)
+        assertEquals(0, converter.leftMotor)
+        assertEquals(0, converter.rightMotor)
+    }
 }

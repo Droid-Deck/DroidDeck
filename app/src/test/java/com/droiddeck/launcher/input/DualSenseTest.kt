@@ -623,19 +623,191 @@ class DualSenseTest {
         val report = createNeutralReport()
         // Default neutral: not tuning
         report[49] = 0x00
-        assertFalse(DualSense.parseInputReport(report)!!.isEdgeTuningActive)
+        assertFalse(DualSense.parseInputReport(report, isEdge = false)!!.isEdgeTuningActive)
+        assertFalse(DualSense.parseInputReport(report, isEdge = true)!!.isEdgeTuningActive)
 
-        // Tuning active values: 0x0D, 0x0E, 0x0F
-        for (v in listOf(0x0D, 0x0E, 0x0F, 0x1D, 0x2E, 0xFD)) {
+        // Tuning active values: 0x0D, 0x0E, 0x0F, 0x5F (live hardware timestamp byte on standard DualSense)
+        for (v in listOf(0x0D, 0x0E, 0x0F, 0x1D, 0x2E, 0x5F, 0xFD)) {
             report[49] = v.toByte()
-            assertTrue("Expected tuning active for $v", DualSense.parseInputReport(report)!!.isEdgeTuningActive)
+            assertFalse(
+                "Standard DualSense must never treat timestamp byte $v as Edge tuning",
+                DualSense.parseInputReport(report, isEdge = false)!!.isEdgeTuningActive
+            )
+            assertTrue(
+                "DualSense Edge must detect tuning active for $v",
+                DualSense.parseInputReport(report, isEdge = true)!!.isEdgeTuningActive
+            )
         }
 
         // Non-tuning values: 0x00..0x0C
         for (v in 0..12) {
             report[49] = v.toByte()
-            assertFalse("Expected non-tuning for $v", DualSense.parseInputReport(report)!!.isEdgeTuningActive)
+            assertFalse("Expected non-tuning for $v", DualSense.parseInputReport(report, isEdge = true)!!.isEdgeTuningActive)
         }
+    }
+
+    @Test
+    fun testLiveHardwareVectorsAndFeatureReports() {
+        // Live Feature 0x09 (20B) captured from physical DualSense 0x054C:0x0CE6
+        val f09 = byteArrayOf(
+            0x09, 0x4D, 0x50, 0xF6.toByte(), 0x49, 0x18, 0x10, 0x08, 0x25, 0x00,
+            0xA4.toByte(), 0x97.toByte(), 0x22, 0x4C, 0x8F.toByte(), 0xE0.toByte(), 0x00, 0x00, 0x00, 0x00
+        )
+        val pairing = DualSense.parsePairingInfoReport(f09)
+        assertNotNull(pairing)
+        assertEquals("10:18:49:F6:50:4D", pairing!!.deviceMac)
+        assertEquals("E0:8F:4C:22:97:A4", pairing.hostMac)
+
+        // Live Feature 0x20 (64B) captured from physical DualSense 0x054C:0x0CE6
+        val f20 = ByteArray(64)
+        f20[0] = 0x20
+        "Jul  4 2025".toByteArray(Charsets.US_ASCII).copyInto(f20, 1)
+        "10:10:32".toByteArray(Charsets.US_ASCII).copyInto(f20, 12)
+        val bb20 = ByteBuffer.wrap(f20).order(ByteOrder.LITTLE_ENDIAN)
+        bb20.putShort(20, 0x0002)
+        bb20.putShort(22, 0x0004)
+        bb20.putInt(24, 0x00000621)
+        bb20.putInt(28, 0x0110002A)
+        bb20.putShort(44, 0x0630)
+        bb20.putShort(46, 0x0000)
+        bb20.putInt(48, 0x0001003C)
+        bb20.putInt(52, 0x0002000A)
+        val fw = DualSense.parseFirmwareInfoReport(f20)
+        assertNotNull(fw)
+        assertEquals("Jul  4 2025", fw!!.buildDate)
+        assertEquals("10:10:32", fw.buildTime)
+        assertEquals(2, fw.fwType)
+        assertEquals(4, fw.swSeries)
+        assertEquals(0x00000621, fw.hardwareInfo)
+        assertEquals(0x0110002A, fw.mainFwVersion)
+        assertEquals(0x00000630, fw.sblFwVersion)
+        assertEquals(0x0001003C, fw.dspFwVersion)
+    }
+
+    @Test
+    fun testPadBinDeduplicationIgnoresRollingCountersAndTimestamps() {
+        val prev = createNeutralReport()
+        val curr = prev.clone()
+        // Modify rolling counter & timestamp bytes that change every frame when idle
+        curr[7] = 0x55
+        curr[12] = 0x12
+        curr[13] = 0x34
+        curr[14] = 0x56
+        curr[15] = 0x78
+        curr[28] = 0x9A.toByte()
+        curr[32] = 0xBC.toByte()
+        curr[41] = 0x07
+        curr[49] = 0x5F
+        curr[50] = 0x72
+        curr[51] = 0xE9.toByte()
+        curr[52] = 0x87.toByte()
+        curr[56] = 0xDE.toByte()
+        curr[63] = 0xF0.toByte()
+
+        assertTrue(DualSense.isSamePadBinState(prev, curr, isEdge = false))
+        // On DualSense Edge, byte 49 is the active profile/tuning indicator so a change in byte 49 is meaningful
+        assertFalse(DualSense.isSamePadBinState(prev, curr, isEdge = true))
+
+        // Any meaningful input change (e.g., button press at byte 8) must trigger pad.bin update
+        val pressed = prev.clone()
+        pressed[8] = 0x28
+        assertFalse(DualSense.isSamePadBinState(prev, pressed, isEdge = false))
+    }
+
+    @Test
+    fun testDsxTriggerEffectGeneratorsAndOutputFlags() {
+        val off = DualSense.TriggerEffects.off()
+        assertEquals(0x05.toByte(), off[0])
+        assertFalse(DualSense.isActiveTriggerMode(off[0]))
+
+        val feedback = DualSense.TriggerEffects.feedback(startPosition = 2, strength = 8)
+        assertEquals(0x21.toByte(), feedback[0])
+        assertTrue(DualSense.isActiveTriggerMode(feedback[0]))
+
+        val weapon = DualSense.TriggerEffects.weapon(startPosition = 2, endPosition = 6, strength = 7)
+        assertEquals(0x25.toByte(), weapon[0])
+        assertTrue(DualSense.isActiveTriggerMode(weapon[0]))
+
+        val vibration = DualSense.TriggerEffects.vibration(startPosition = 1, amplitude = 6, frequency = 40)
+        assertEquals(0x26.toByte(), vibration[0])
+        assertEquals(40.toByte(), vibration[9])
+
+        val bow = DualSense.TriggerEffects.bow(startPosition = 1, endPosition = 5, strength = 6, snapForce = 7)
+        assertEquals(0x22.toByte(), bow[0])
+
+        val galloping = DualSense.TriggerEffects.galloping(1, 7, 3, 6, 15)
+        assertEquals(0x23.toByte(), galloping[0])
+
+        val machine = DualSense.TriggerEffects.machine(1, 8, 4, 7, 30, 2)
+        assertEquals(0x27.toByte(), machine[0])
+
+        val slope = DualSense.TriggerEffects.slopeFeedback(0, 9, 1, 8)
+        assertEquals(0x21.toByte(), slope[0])
+
+        val outWithTriggers = DualSense.buildOutputReport(
+            leftTriggerEffect = feedback,
+            rightTriggerEffect = weapon,
+            playerLeds = 0x04,
+            playerLedBrightness = DualSense.PLAYER_LED_BRIGHTNESS_MEDIUM
+        )
+        assertTrue((outWithTriggers[1].toInt() and 0x0C) == 0x0C)
+        assertTrue((outWithTriggers[2].toInt() and 0x40) != 0)
+        assertEquals(DualSense.PLAYER_LED_BRIGHTNESS_MEDIUM.toByte(), outWithTriggers[43])
+        assertEquals(0x25.toByte(), outWithTriggers[11]) // Right trigger effect at bytes 11..21
+        assertEquals(0x21.toByte(), outWithTriggers[22]) // Left trigger effect at bytes 22..32
+    }
+
+    @Test
+    fun testMotionNoiseCalibrationSubtractsStationaryGyroBias() {
+        val motionCal = DualSense.MotionNoiseCalibration()
+        val report = createNeutralReport()
+        val bb = ByteBuffer.wrap(report).order(ByteOrder.LITTLE_ENDIAN)
+        // Stationary controller on desk: gyro has steady bias (+18, -14, +9), accel is 1G on Z (8192)
+        bb.putShort(16, 18.toShort())
+        bb.putShort(18, (-14).toShort())
+        bb.putShort(20, 9.toShort())
+        bb.putShort(22, 0.toShort())
+        bb.putShort(24, 0.toShort())
+        bb.putShort(26, 8192.toShort())
+
+        var lastState: DualSense.State? = null
+        repeat(64) {
+            lastState = DualSense.parseInputReport(report, motionCalibration = motionCal)
+        }
+        assertTrue(motionCal.isCalibrated)
+        assertNotNull(lastState)
+        assertEquals(0.toShort(), lastState!!.gyroX)
+        assertEquals(0.toShort(), lastState!!.gyroY)
+        assertEquals(0.toShort(), lastState!!.gyroZ)
+    }
+
+    @Test
+    fun testRumbleWatchdogAndHapticRumbleFallback() {
+        val manager = DualSenseManager(context)
+        val sentReports = mutableListOf<ByteArray>()
+        manager.bluetoothReportSender = { bt ->
+            sentReports.add(bt.clone())
+            true
+        }
+        manager.btConnectTimestampMs = 1000L
+
+        // Send non-zero rumble at t = 5000ms
+        val rumbleReport = DualSense.buildOutputReport(leftMotor = 120, rightMotor = 200)
+        assertTrue(manager.sendOutputReport(rumbleReport))
+        assertTrue(manager.rumbleWatchdogArmed)
+        val initialTime = manager.lastRumbleActiveMs
+
+        // Before 5000ms timeout: watchdog does not fire
+        assertFalse(manager.checkRumbleWatchdog(initialTime + 4000L))
+        assertTrue(manager.rumbleWatchdogArmed)
+
+        // At 5001ms: watchdog fires and clears rumble
+        sentReports.clear()
+        assertTrue(manager.checkRumbleWatchdog(initialTime + 5001L))
+        assertFalse(manager.rumbleWatchdogArmed)
+        assertEquals(1, sentReports.size)
+        assertEquals(0.toByte(), sentReports[0][4]) // rightMotor cleared
+        assertEquals(0.toByte(), sentReports[0][5]) // leftMotor cleared
     }
 
     @Test

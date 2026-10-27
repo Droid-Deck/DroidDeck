@@ -2,6 +2,10 @@ package com.droiddeck.launcher.input
 
 import android.hardware.usb.UsbDevice
 import android.view.InputDevice
+import kotlin.math.abs
+import kotlin.math.max
+import kotlin.math.roundToInt
+import kotlin.math.sqrt
 
 object DualSense {
     const val VENDOR_SONY = 0x054C
@@ -11,12 +15,21 @@ object DualSense {
     const val REPORT_ID_INPUT: Byte = 0x01
     const val REPORT_ID_OUTPUT: Byte = 0x02
     const val REPORT_ID_CALIBRATION: Byte = 0x05
+    const val REPORT_ID_PAIRING: Byte = 0x09
+    const val REPORT_ID_FIRMWARE: Byte = 0x20
     const val REPORT_ID_BT_INPUT: Byte = 0x31
     const val REPORT_ID_BT_OUTPUT: Byte = 0x31
     const val REPORT_SIZE_INPUT = 64
     const val REPORT_SIZE_OUTPUT = 48
     const val REPORT_SIZE_CALIBRATION = 41
+    const val REPORT_SIZE_PAIRING = 20
+    const val REPORT_SIZE_FIRMWARE = 64
     const val STATUS1_HEADPHONE_DETECT = 0x01
+    const val RUMBLE_WATCHDOG_MS = 5000L
+
+    const val PLAYER_LED_BRIGHTNESS_HIGH = 0x00
+    const val PLAYER_LED_BRIGHTNESS_MEDIUM = 0x01
+    const val PLAYER_LED_BRIGHTNESS_LOW = 0x02
 
     /**
      * Routes the pad's own audio the way Linux hid-playstation does on a jack change: headphones get the stereo
@@ -212,6 +225,187 @@ object DualSense {
         )
     }
 
+    data class FirmwareInfo(
+        val buildDate: String,
+        val buildTime: String,
+        val fwType: Int,
+        val swSeries: Int,
+        val hardwareInfo: Int,
+        val mainFwVersion: Int,
+        val sblFwVersion: Int,
+        val dspFwVersion: Int
+    )
+
+    data class PairingInfo(
+        val deviceMac: String,
+        val hostMac: String
+    )
+
+    fun parseFirmwareInfoReport(data: ByteArray, offset: Int = 0): FirmwareInfo? {
+        if (offset < 0 || offset > data.size - REPORT_SIZE_FIRMWARE) return null
+        if (data[offset] != REPORT_ID_FIRMWARE) return null
+
+        fun u16LE(idx: Int): Int =
+            (data[idx].toInt() and 0xFF) or ((data[idx + 1].toInt() and 0xFF) shl 8)
+
+        fun i32LE(idx: Int): Int =
+            (data[idx].toInt() and 0xFF) or
+                    ((data[idx + 1].toInt() and 0xFF) shl 8) or
+                    ((data[idx + 2].toInt() and 0xFF) shl 16) or
+                    ((data[idx + 3].toInt() and 0xFF) shl 24)
+
+        val dateBytes = data.copyOfRange(offset + 1, offset + 12)
+        val timeBytes = data.copyOfRange(offset + 12, offset + 20)
+        val buildDate = String(dateBytes, Charsets.US_ASCII).trimEnd('\u0000', ' ')
+        val buildTime = String(timeBytes, Charsets.US_ASCII).trimEnd('\u0000', ' ')
+
+        return FirmwareInfo(
+            buildDate = buildDate,
+            buildTime = buildTime,
+            fwType = u16LE(offset + 20),
+            swSeries = u16LE(offset + 22),
+            hardwareInfo = i32LE(offset + 24),
+            mainFwVersion = i32LE(offset + 28),
+            sblFwVersion = i32LE(offset + 44),
+            dspFwVersion = i32LE(offset + 48)
+        )
+    }
+
+    fun parsePairingInfoReport(data: ByteArray, offset: Int = 0): PairingInfo? {
+        if (offset < 0 || offset > data.size - REPORT_SIZE_PAIRING) return null
+        if (data[offset] != REPORT_ID_PAIRING) return null
+
+        fun macAt(start: Int): String =
+            (5 downTo 0).joinToString(":") { i ->
+                String.format("%02X", data[start + i].toInt() and 0xFF)
+            }
+
+        return PairingInfo(
+            deviceMac = macAt(offset + 1),
+            hostMac = macAt(offset + 10)
+        )
+    }
+
+    class MotionNoiseCalibration(private val windowSize: Int = 64) {
+        @Volatile var gyroBiasX: Float = 0f
+            private set
+        @Volatile var gyroBiasY: Float = 0f
+            private set
+        @Volatile var gyroBiasZ: Float = 0f
+            private set
+        @Volatile var isCalibrated: Boolean = false
+            private set
+
+        private var count = 0
+        private var sumGx = 0f
+        private var sumGy = 0f
+        private var sumGz = 0f
+        private var sumGxSq = 0f
+        private var sumGySq = 0f
+        private var sumGzSq = 0f
+        private var sumAx = 0f
+        private var sumAy = 0f
+        private var sumAz = 0f
+        private var sumAxSq = 0f
+        private var sumAySq = 0f
+        private var sumAzSq = 0f
+
+        @Synchronized
+        fun reset() {
+            count = 0
+            sumGx = 0f; sumGy = 0f; sumGz = 0f
+            sumGxSq = 0f; sumGySq = 0f; sumGzSq = 0f
+            sumAx = 0f; sumAy = 0f; sumAz = 0f
+            sumAxSq = 0f; sumAySq = 0f; sumAzSq = 0f
+        }
+
+        @Synchronized
+        fun feedAndApply(
+            gyroX: Short,
+            gyroY: Short,
+            gyroZ: Short,
+            accelX: Short,
+            accelY: Short,
+            accelZ: Short
+        ): ShortArray {
+            val gx = gyroX.toFloat()
+            val gy = gyroY.toFloat()
+            val gz = gyroZ.toFloat()
+            val ax = accelX.toFloat()
+            val ay = accelY.toFloat()
+            val az = accelZ.toFloat()
+
+            if (isAutoCalibrationCandidate(gx, gy, gz, ax, ay, az)) {
+                sumGx += gx; sumGy += gy; sumGz += gz
+                sumGxSq += gx * gx; sumGySq += gy * gy; sumGzSq += gz * gz
+                sumAx += ax; sumAy += ay; sumAz += az
+                sumAxSq += ax * ax; sumAySq += ay * ay; sumAzSq += az * az
+                if (++count >= windowSize) {
+                    val n = count.toFloat()
+                    val meanGx = sumGx / n
+                    val meanGy = sumGy / n
+                    val meanGz = sumGz / n
+                    val meanAx = sumAx / n
+                    val meanAy = sumAy / n
+                    val meanAz = sumAz / n
+                    val varGx = max(0f, sumGxSq / n - meanGx * meanGx)
+                    val varGy = max(0f, sumGySq / n - meanGy * meanGy)
+                    val varGz = max(0f, sumGzSq / n - meanGz * meanGz)
+                    val varAx = max(0f, sumAxSq / n - meanAx * meanAx)
+                    val varAy = max(0f, sumAySq / n - meanAy * meanAy)
+                    val varAz = max(0f, sumAzSq / n - meanAz * meanAz)
+                    val gyroStdMax = sqrt(max(varGx, max(varGy, varGz)))
+                    val accelStdMax = sqrt(max(varAx, max(varAy, varAz)))
+                    if (gyroStdMax <= AUTO_GYRO_STD_DEV_LIMIT && accelStdMax <= AUTO_ACCEL_STD_DEV_LIMIT) {
+                        if (!isCalibrated ||
+                            abs(meanGx - gyroBiasX) > SIGNIFICANT_GYRO_DELTA ||
+                            abs(meanGy - gyroBiasY) > SIGNIFICANT_GYRO_DELTA ||
+                            abs(meanGz - gyroBiasZ) > SIGNIFICANT_GYRO_DELTA
+                        ) {
+                            gyroBiasX = meanGx
+                            gyroBiasY = meanGy
+                            gyroBiasZ = meanGz
+                            isCalibrated = true
+                        }
+                    }
+                    reset()
+                }
+            } else {
+                reset()
+            }
+
+            if (!isCalibrated) return shortArrayOf(gyroX, gyroY, gyroZ)
+            return shortArrayOf(
+                (gx - gyroBiasX).roundToInt().coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort(),
+                (gy - gyroBiasY).roundToInt().coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort(),
+                (gz - gyroBiasZ).roundToInt().coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
+            )
+        }
+
+        companion object {
+            const val EXPECTED_ACCEL_MAGNITUDE = 8192f
+            const val AUTO_GYRO_MAGNITUDE_LIMIT = 256f
+            const val AUTO_ACCEL_MAGNITUDE_TOLERANCE = 1200f
+            const val AUTO_GYRO_STD_DEV_LIMIT = 24f
+            const val AUTO_ACCEL_STD_DEV_LIMIT = 160f
+            const val SIGNIFICANT_GYRO_DELTA = 0.5f
+
+            fun isAutoCalibrationCandidate(
+                gx: Float,
+                gy: Float,
+                gz: Float,
+                ax: Float,
+                ay: Float,
+                az: Float
+            ): Boolean {
+                val gyroMag = sqrt(gx * gx + gy * gy + gz * gz)
+                if (gyroMag > AUTO_GYRO_MAGNITUDE_LIMIT) return false
+                val accelMag = sqrt(ax * ax + ay * ay + az * az)
+                return abs(accelMag - EXPECTED_ACCEL_MAGNITUDE) <= AUTO_ACCEL_MAGNITUDE_TOLERANCE
+            }
+        }
+    }
+
     fun touchXToPad(rawX: Int): Short {
         val clampedX = rawX.coerceIn(0, TOUCHPAD_WIDTH - 1).toLong()
         return ((clampedX * 65535L / (TOUCHPAD_WIDTH - 1)) - 32768L).toShort()
@@ -234,7 +428,13 @@ object DualSense {
         else -> ((raw - 128) / 127f).coerceIn(-1f, 1f)
     }
 
-    fun parseInputReport(data: ByteArray, offset: Int = 0, calibration: Calibration? = null): State? {
+    fun parseInputReport(
+        data: ByteArray,
+        offset: Int = 0,
+        calibration: Calibration? = null,
+        isEdge: Boolean = false,
+        motionCalibration: MotionNoiseCalibration? = null
+    ): State? {
         if (offset < 0 || offset >= data.size) return null
         val reportId = data[offset]
         val off: Int
@@ -320,12 +520,19 @@ object DualSense {
         val rawAccelY = shortLE(offset + 24 + off)
         val rawAccelZ = shortLE(offset + 26 + off)
 
-        val gyroX = calibration?.applyGyro(0, rawGyroX) ?: rawGyroX
-        val gyroY = calibration?.applyGyro(1, rawGyroY) ?: rawGyroY
-        val gyroZ = calibration?.applyGyro(2, rawGyroZ) ?: rawGyroZ
+        val calGyroX = calibration?.applyGyro(0, rawGyroX) ?: rawGyroX
+        val calGyroY = calibration?.applyGyro(1, rawGyroY) ?: rawGyroY
+        val calGyroZ = calibration?.applyGyro(2, rawGyroZ) ?: rawGyroZ
         val accelX = calibration?.applyAccel(0, rawAccelX) ?: rawAccelX
         val accelY = calibration?.applyAccel(1, rawAccelY) ?: rawAccelY
         val accelZ = calibration?.applyAccel(2, rawAccelZ) ?: rawAccelZ
+
+        val adjustedGyro = motionCalibration?.feedAndApply(
+            calGyroX, calGyroY, calGyroZ, accelX, accelY, accelZ
+        )
+        val gyroX = adjustedGyro?.get(0) ?: calGyroX
+        val gyroY = adjustedGyro?.get(1) ?: calGyroY
+        val gyroZ = adjustedGyro?.get(2) ?: calGyroZ
 
         val t0b0 = data[offset + 33 + off].toInt() and 0xFF
         val t0b1 = data[offset + 34 + off].toInt() and 0xFF
@@ -345,7 +552,7 @@ object DualSense {
         val touch1X = (t1b1 or ((t1b2 and 0x0F) shl 8)).coerceIn(0, TOUCHPAD_WIDTH - 1)
         val touch1Y = (((t1b2 and 0xF0) ushr 4) or (t1b3 shl 4)).coerceIn(0, TOUCHPAD_HEIGHT - 1)
 
-        val isEdgeTuningActive = (data[offset + 49 + off].toInt() and 0x0F) in 0x0D..0x0F
+        val isEdgeTuningActive = isEdge && ((data[offset + 49 + off].toInt() and 0x0F) in 0x0D..0x0F)
 
         val b53 = data[offset + 53 + off].toInt() and 0xFF
         val batteryRaw = b53 and 0x0F
@@ -408,6 +615,23 @@ object DualSense {
     }
 
     /**
+     * Compares two 64-byte USB 0x01 input reports while ignoring hardware-ticking counters,
+     * sensor timestamps, and rolling checksum bytes (7, 12..15, 28..32, 41, 49..52, 56..63).
+     */
+    fun isSamePadBinState(prev: ByteArray?, curr: ByteArray, isEdge: Boolean = false): Boolean {
+        if (prev == null || prev.size < REPORT_SIZE_INPUT || curr.size < REPORT_SIZE_INPUT) return false
+        if (prev[0] != curr[0]) return false
+        for (i in 1..6) if (prev[i] != curr[i]) return false
+        for (i in 8..11) if (prev[i] != curr[i]) return false
+        for (i in 16..27) if (prev[i] != curr[i]) return false
+        for (i in 33..40) if (prev[i] != curr[i]) return false
+        for (i in 42..48) if (prev[i] != curr[i]) return false
+        if (isEdge && (prev[49].toInt() and 0x0F) != (curr[49].toInt() and 0x0F)) return false
+        for (i in 53..55) if (prev[i] != curr[i]) return false
+        return true
+    }
+
+    /**
      * Parses a 10-byte basic Bluetooth 0x01 input report (sent over Bluetooth before Feature 0x05 is queried).
      */
     fun parseBasicBtInputReport(data: ByteArray, offset: Int = 0): State? {
@@ -460,6 +684,281 @@ object DualSense {
         )
     }
 
+    object TriggerEffects {
+        const val MODE_OFF: Byte = 0x05
+        const val MODE_SIMPLE_FEEDBACK: Byte = 0x01
+        const val MODE_SIMPLE_WEAPON: Byte = 0x02
+        const val MODE_SIMPLE_VIBRATION: Byte = 0x06
+        const val MODE_LIMITED_FEEDBACK: Byte = 0x11
+        const val MODE_LIMITED_WEAPON: Byte = 0x12
+        const val MODE_FEEDBACK: Byte = 0x21
+        const val MODE_BOW: Byte = 0x22
+        const val MODE_GALLOPING: Byte = 0x23
+        const val MODE_WEAPON: Byte = 0x25
+        const val MODE_VIBRATION: Byte = 0x26
+        const val MODE_MACHINE: Byte = 0x27
+
+        fun off(): ByteArray = ByteArray(11).apply { this[0] = MODE_OFF }
+
+        fun feedback(startPosition: Int, strength: Int): ByteArray {
+            if (startPosition !in 0..9 || strength !in 0..8) return off()
+            if (strength == 0) return off()
+            val forceValue = (strength - 1) and 0x07
+            var forceZones = 0
+            var activeZones = 0
+            for (i in startPosition..9) {
+                forceZones = forceZones or (forceValue shl ((3 * i) and 31))
+                activeZones = (activeZones or (1 shl (i and 31))) and 0xFFFF
+            }
+            return ByteArray(11).apply {
+                this[0] = MODE_FEEDBACK
+                this[1] = (activeZones and 0xFF).toByte()
+                this[2] = ((activeZones shr 8) and 0xFF).toByte()
+                this[3] = (forceZones and 0xFF).toByte()
+                this[4] = ((forceZones ushr 8) and 0xFF).toByte()
+                this[5] = ((forceZones ushr 16) and 0xFF).toByte()
+                this[6] = ((forceZones ushr 24) and 0xFF).toByte()
+            }
+        }
+
+        fun weapon(startPosition: Int, endPosition: Int, strength: Int): ByteArray {
+            if (startPosition !in 2..7 || endPosition !in (startPosition + 1)..8 || strength !in 0..8) return off()
+            if (strength == 0) return off()
+            val zones = ((1 shl startPosition) or (1 shl endPosition)) and 0xFFFF
+            return ByteArray(11).apply {
+                this[0] = MODE_WEAPON
+                this[1] = (zones and 0xFF).toByte()
+                this[2] = ((zones shr 8) and 0xFF).toByte()
+                this[3] = (strength - 1).toByte()
+            }
+        }
+
+        fun vibration(startPosition: Int, amplitude: Int, frequency: Int): ByteArray {
+            if (startPosition !in 0..9 || amplitude !in 0..8 || frequency !in 0..255) return off()
+            if (amplitude == 0 || frequency == 0) return off()
+            val ampValue = (amplitude - 1) and 0x07
+            var ampZones = 0
+            var activeZones = 0
+            for (i in startPosition..9) {
+                ampZones = ampZones or (ampValue shl ((3 * i) and 31))
+                activeZones = (activeZones or (1 shl (i and 31))) and 0xFFFF
+            }
+            return ByteArray(11).apply {
+                this[0] = MODE_VIBRATION
+                this[1] = (activeZones and 0xFF).toByte()
+                this[2] = ((activeZones shr 8) and 0xFF).toByte()
+                this[3] = (ampZones and 0xFF).toByte()
+                this[4] = ((ampZones ushr 8) and 0xFF).toByte()
+                this[5] = ((ampZones ushr 16) and 0xFF).toByte()
+                this[6] = ((ampZones ushr 24) and 0xFF).toByte()
+                this[9] = (frequency and 0xFF).toByte()
+            }
+        }
+
+        fun multiplePositionFeedback(strengths: ByteArray): ByteArray {
+            if (strengths.size != 10 || strengths.all { (it.toInt() and 0xFF) == 0 }) return off()
+            var forceZones = 0
+            var activeZones = 0
+            for (i in 0..9) {
+                val s = strengths[i].toInt() and 0xFF
+                if (s > 0) {
+                    val forceValue = (s.coerceAtMost(8) - 1) and 0x07
+                    forceZones = forceZones or (forceValue shl ((3 * i) and 31))
+                    activeZones = (activeZones or (1 shl (i and 31))) and 0xFFFF
+                }
+            }
+            return ByteArray(11).apply {
+                this[0] = MODE_FEEDBACK
+                this[1] = (activeZones and 0xFF).toByte()
+                this[2] = ((activeZones shr 8) and 0xFF).toByte()
+                this[3] = (forceZones and 0xFF).toByte()
+                this[4] = ((forceZones ushr 8) and 0xFF).toByte()
+                this[5] = ((forceZones ushr 16) and 0xFF).toByte()
+                this[6] = ((forceZones ushr 24) and 0xFF).toByte()
+            }
+        }
+
+        fun slopeFeedback(startPosition: Int, endPosition: Int, startStrength: Int, endStrength: Int): ByteArray {
+            if (startPosition !in 0..8 || endPosition !in (startPosition + 1)..9 ||
+                startStrength !in 1..8 || endStrength !in 1..8
+            ) return off()
+            val strengths = ByteArray(10)
+            val slope = (endStrength - startStrength).toFloat() / (endPosition - startPosition).toFloat()
+            for (i in startPosition..9) {
+                strengths[i] = if (i <= endPosition) {
+                    (startStrength + slope * (i - startPosition)).roundToInt().coerceIn(1, 8).toByte()
+                } else {
+                    endStrength.toByte()
+                }
+            }
+            return multiplePositionFeedback(strengths)
+        }
+
+        fun multiplePositionVibration(frequency: Int, amplitudes: ByteArray): ByteArray {
+            if (amplitudes.size != 10 || frequency !in 1..255 || amplitudes.all { (it.toInt() and 0xFF) == 0 }) {
+                return off()
+            }
+            var ampZones = 0
+            var activeZones = 0
+            for (i in 0..9) {
+                val a = amplitudes[i].toInt() and 0xFF
+                if (a > 0) {
+                    val ampValue = (a.coerceAtMost(8) - 1) and 0x07
+                    ampZones = ampZones or (ampValue shl ((3 * i) and 31))
+                    activeZones = (activeZones or (1 shl (i and 31))) and 0xFFFF
+                }
+            }
+            return ByteArray(11).apply {
+                this[0] = MODE_VIBRATION
+                this[1] = (activeZones and 0xFF).toByte()
+                this[2] = ((activeZones shr 8) and 0xFF).toByte()
+                this[3] = (ampZones and 0xFF).toByte()
+                this[4] = ((ampZones ushr 8) and 0xFF).toByte()
+                this[5] = ((ampZones ushr 16) and 0xFF).toByte()
+                this[6] = ((ampZones ushr 24) and 0xFF).toByte()
+                this[9] = (frequency and 0xFF).toByte()
+            }
+        }
+
+        fun bow(startPosition: Int, endPosition: Int, strength: Int, snapForce: Int): ByteArray {
+            if (startPosition !in 0..8 || endPosition !in (startPosition + 1)..8 ||
+                strength !in 0..8 || snapForce !in 0..8
+            ) return off()
+            if (strength == 0 || snapForce == 0) return off()
+            val zones = ((1 shl startPosition) or (1 shl endPosition)) and 0xFFFF
+            val force = ((strength - 1) and 0x07) or (((snapForce - 1) and 0x07) shl 3)
+            return ByteArray(11).apply {
+                this[0] = MODE_BOW
+                this[1] = (zones and 0xFF).toByte()
+                this[2] = ((zones shr 8) and 0xFF).toByte()
+                this[3] = (force and 0xFF).toByte()
+                this[4] = ((force ushr 8) and 0xFF).toByte()
+            }
+        }
+
+        fun galloping(
+            startPosition: Int,
+            endPosition: Int,
+            firstFoot: Int,
+            secondFoot: Int,
+            frequency: Int
+        ): ByteArray {
+            if (startPosition !in 0..8 || endPosition !in (startPosition + 1)..9 ||
+                firstFoot !in 0..6 || secondFoot !in (firstFoot + 1)..7 || frequency !in 0..255
+            ) return off()
+            if (frequency == 0) return off()
+            val zones = ((1 shl startPosition) or (1 shl endPosition)) and 0xFFFF
+            val ratio = (secondFoot and 0x07) or ((firstFoot and 0x07) shl 3)
+            return ByteArray(11).apply {
+                this[0] = MODE_GALLOPING
+                this[1] = (zones and 0xFF).toByte()
+                this[2] = ((zones shr 8) and 0xFF).toByte()
+                this[3] = (ratio and 0xFF).toByte()
+                this[4] = (frequency and 0xFF).toByte()
+            }
+        }
+
+        fun machine(
+            startPosition: Int,
+            endPosition: Int,
+            amplitudeA: Int,
+            amplitudeB: Int,
+            frequency: Int,
+            period: Int
+        ): ByteArray {
+            if (startPosition !in 0..8 || endPosition !in (startPosition + 1)..9 ||
+                amplitudeA !in 0..7 || amplitudeB !in 0..7 || frequency !in 0..255 || period !in 0..255
+            ) return off()
+            if (frequency == 0) return off()
+            val zones = ((1 shl startPosition) or (1 shl endPosition)) and 0xFFFF
+            val amp = (amplitudeA and 0x07) or ((amplitudeB and 0x07) shl 3)
+            return ByteArray(11).apply {
+                this[0] = MODE_MACHINE
+                this[1] = (zones and 0xFF).toByte()
+                this[2] = ((zones shr 8) and 0xFF).toByte()
+                this[3] = (amp and 0xFF).toByte()
+                this[4] = (frequency and 0xFF).toByte()
+                this[5] = (period and 0xFF).toByte()
+            }
+        }
+
+        fun simpleFeedback(start: Int, force: Int): ByteArray = ByteArray(11).apply {
+            this[0] = MODE_SIMPLE_FEEDBACK
+            this[1] = (start and 0xFF).toByte()
+            this[2] = (force and 0xFF).toByte()
+        }
+
+        fun simpleWeapon(start: Int, end: Int, force: Int): ByteArray = ByteArray(11).apply {
+            this[0] = MODE_SIMPLE_WEAPON
+            this[1] = (start and 0xFF).toByte()
+            this[2] = (end and 0xFF).toByte()
+            this[3] = (force and 0xFF).toByte()
+        }
+
+        fun simpleVibration(position: Int, amplitude: Int, frequency: Int): ByteArray {
+            if (amplitude <= 0 || frequency <= 0) return off()
+            return ByteArray(11).apply {
+                this[0] = MODE_SIMPLE_VIBRATION
+                this[1] = (frequency and 0xFF).toByte()
+                this[2] = (amplitude and 0xFF).toByte()
+                this[3] = (position and 0xFF).toByte()
+            }
+        }
+
+        fun limitedFeedback(start: Int, force: Int): ByteArray {
+            if (force !in 0..10 || force == 0) return off()
+            return ByteArray(11).apply {
+                this[0] = MODE_LIMITED_FEEDBACK
+                this[1] = (start and 0xFF).toByte()
+                this[2] = (force and 0xFF).toByte()
+            }
+        }
+
+        fun limitedWeapon(start: Int, end: Int, force: Int): ByteArray {
+            if (start < 16 || end < start + 100 || force !in 0..10 || force == 0) return off()
+            return ByteArray(11).apply {
+                this[0] = MODE_LIMITED_WEAPON
+                this[1] = (start and 0xFF).toByte()
+                this[2] = (end and 0xFF).toByte()
+                this[3] = (force and 0xFF).toByte()
+            }
+        }
+    }
+
+    fun isActiveTriggerMode(mode: Byte): Boolean {
+        val m = mode.toInt() and 0xFF
+        return m != 0x00 && m != 0x05
+    }
+
+    fun shouldClearRumble(report: ByteArray): Boolean {
+        if (report.size < REPORT_SIZE_OUTPUT || report[0] != REPORT_ID_OUTPUT) return false
+        val flag0 = report[1].toInt() and 0xFF
+        val flag1 = report[2].toInt() and 0xFF
+        val flag2 = report[39].toInt() and 0xFF
+        val allZeroFlags = flag0 == 0 && flag1 == 0 && flag2 == 0
+        if (allZeroFlags) return true
+        return (flag0 and 0x03) == 1 ||
+                (((flag0 and 0x03) != 0 || (flag2 and 0x04) != 0) && report[3].toInt() == 0 && report[4].toInt() == 0)
+    }
+
+    fun shouldClearVisibleLeds(report: ByteArray): Boolean {
+        if (report.size < REPORT_SIZE_OUTPUT || report[0] != REPORT_ID_OUTPUT) return false
+        val flag0 = report[1].toInt() and 0xFF
+        val flag1 = report[2].toInt() and 0xFF
+        val flag2 = report[39].toInt() and 0xFF
+        if (flag0 == 0 && flag1 == 0 && flag2 == 0) return true
+        return (flag1 and 0x08) != 0
+    }
+
+    fun buildRumbleClearReport(): ByteArray {
+        val report = ByteArray(REPORT_SIZE_OUTPUT)
+        report[0] = REPORT_ID_OUTPUT
+        report[1] = 0x03
+        report[2] = 0x40
+        report[39] = 0x04
+        return report
+    }
+
     fun buildOutputReport(
         leftMotor: Int = 0,
         rightMotor: Int = 0,
@@ -468,6 +967,7 @@ object DualSense {
         b: Int = 0,
         micLed: Int = 0,
         playerLeds: Int = 0,
+        playerLedBrightness: Int = PLAYER_LED_BRIGHTNESS_HIGH,
         rightTriggerEffect: ByteArray? = null,
         leftTriggerEffect: ByteArray? = null,
         isEdge: Boolean = false,
@@ -486,8 +986,10 @@ object DualSense {
         var enable2 = 0
         if (micLed != 0) enable2 = enable2 or 0x01
         if (updateLightbar || r != 0 || g != 0 || b != 0) enable2 = enable2 or 0x04
-        if (playerLeds != 0) enable2 = enable2 or 0x10
-        if (leftMotor > 0 || rightMotor > 0) enable2 = enable2 or 0x40
+        if (playerLeds != 0 || playerLedBrightness != PLAYER_LED_BRIGHTNESS_HIGH) enable2 = enable2 or 0x10
+        if (leftMotor > 0 || rightMotor > 0 || rightTriggerEffect != null || leftTriggerEffect != null) {
+            enable2 = enable2 or 0x40
+        }
         report[2] = enable2.toByte()
 
         report[3] = (rightMotor and 0xFF).toByte()
@@ -512,6 +1014,7 @@ object DualSense {
         }
 
         report[42] = (lightbarSetup and 0xFF).toByte()
+        report[43] = (playerLedBrightness and 0x03).toByte()
         report[44] = (playerLeds and 0xFF).toByte()
         report[45] = (r and 0xFF).toByte()
         report[46] = (g and 0xFF).toByte()

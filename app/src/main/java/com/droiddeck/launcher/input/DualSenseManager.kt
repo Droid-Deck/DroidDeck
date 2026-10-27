@@ -75,6 +75,9 @@ class DualSenseManager(private val context: Context) {
     @Volatile var usbEndpointIn: UsbEndpoint? = null
     @Volatile var usbEndpointOut: UsbEndpoint? = null
     @Volatile var usbCalibration: DualSense.Calibration? = null
+    @Volatile var usbFirmwareInfo: DualSense.FirmwareInfo? = null
+    @Volatile var usbPairingInfo: DualSense.PairingInfo? = null
+    val motionNoiseCalibration = DualSense.MotionNoiseCalibration()
     private var usbReaderThread: Thread? = null
 
     // Phase 2: Wireless (Bluetooth / InputDevice) state
@@ -87,6 +90,12 @@ class DualSenseManager(private val context: Context) {
     @Volatile var pendingBtLightbarReport: ByteArray? = null
     @Volatile var hardwareMicMuted: Boolean = false
     private var lastRawMuteButton: Boolean = false
+    @Volatile var rumbleWatchdogArmed: Boolean = false
+        private set
+    @Volatile var lastRumbleActiveMs: Long = 0L
+        private set
+    private var lastFallbackLeftMotor: Int = 0
+    private var lastFallbackRightMotor: Int = 0
     @Volatile var bluetoothReportSender: ((ByteArray) -> Boolean)? = null
     @Volatile private var bluetoothHidHostProxy: BluetoothProfile? = null
 
@@ -299,6 +308,9 @@ class DualSenseManager(private val context: Context) {
             usbEndpointIn = epIn
             usbEndpointOut = epOut
             usbCalibration = queryUsbCalibration(connection, hidIntf)
+            usbFirmwareInfo = queryUsbFirmwareInfo(connection, hidIntf)
+            usbPairingInfo = queryUsbPairingInfo(connection, hidIntf)
+            motionNoiseCalibration.reset()
 
             usbReaderThread = Thread({
                 val buffer = ByteArray(DualSense.REPORT_SIZE_INPUT)
@@ -328,6 +340,24 @@ class DualSenseManager(private val context: Context) {
         null
     }
 
+    private fun queryUsbFirmwareInfo(connection: UsbDeviceConnection, hidIntf: UsbInterface): DualSense.FirmwareInfo? = try {
+        val buf = ByteArray(DualSense.REPORT_SIZE_FIRMWARE)
+        buf[0] = DualSense.REPORT_ID_FIRMWARE
+        val len = connection.controlTransfer(0xA1, 0x01, 0x0320, hidIntf.id, buf, buf.size, 1000)
+        if (len >= DualSense.REPORT_SIZE_FIRMWARE) DualSense.parseFirmwareInfoReport(buf) else null
+    } catch (e: Exception) {
+        null
+    }
+
+    private fun queryUsbPairingInfo(connection: UsbDeviceConnection, hidIntf: UsbInterface): DualSense.PairingInfo? = try {
+        val buf = ByteArray(DualSense.REPORT_SIZE_PAIRING)
+        buf[0] = DualSense.REPORT_ID_PAIRING
+        val len = connection.controlTransfer(0xA1, 0x01, 0x0309, hidIntf.id, buf, buf.size, 1000)
+        if (len >= DualSense.REPORT_SIZE_PAIRING) DualSense.parsePairingInfoReport(buf) else null
+    } catch (e: Exception) {
+        null
+    }
+
     private fun closeUsbDevice() {
         usbReaderThread?.interrupt()
         usbReaderThread = null
@@ -342,11 +372,17 @@ class DualSenseManager(private val context: Context) {
         usbEndpointIn = null
         usbEndpointOut = null
         usbCalibration = null
+        usbFirmwareInfo = null
+        usbPairingInfo = null
         rawUsbIds = null
         rawTwinDeviceId = -1
         routedHeadphones = null
         hardwareMicMuted = false
         lastRawMuteButton = false
+        rumbleWatchdogArmed = false
+        lastRumbleActiveMs = 0L
+        lastFallbackLeftMotor = 0
+        lastFallbackRightMotor = 0
     }
 
     /**
@@ -389,6 +425,52 @@ class DualSenseManager(private val context: Context) {
         return sendOutputReport(pending, nowMs)
     }
 
+    private fun updateRumbleWatchdog(report: ByteArray, nowMs: Long) {
+        if (report.size < DualSense.REPORT_SIZE_OUTPUT || report[0] != DualSense.REPORT_ID_OUTPUT) return
+        val hasRumble = (report[1].toInt() and 0x03) != 0 || (report[39].toInt() and 0x04) != 0
+        if (!hasRumble && !DualSense.shouldClearRumble(report)) return
+        if (DualSense.shouldClearRumble(report)) {
+            rumbleWatchdogArmed = false
+            lastRumbleActiveMs = 0L
+        } else if ((report[3].toInt() and 0xFF) > 0 || (report[4].toInt() and 0xFF) > 0) {
+            rumbleWatchdogArmed = true
+            lastRumbleActiveMs = nowMs
+        }
+    }
+
+    fun checkRumbleWatchdog(nowMs: Long = SystemClock.uptimeMillis()): Boolean {
+        if (!rumbleWatchdogArmed) return false
+        if (nowMs - lastRumbleActiveMs < DualSense.RUMBLE_WATCHDOG_MS) return false
+        rumbleWatchdogArmed = false
+        lastRumbleActiveMs = 0L
+        return sendOutputReport(DualSense.buildRumbleClearReport(), nowMs)
+    }
+
+    fun sendHapticRumbleFallback(
+        leftMotor: Int,
+        rightMotor: Int,
+        nowMs: Long = SystemClock.uptimeMillis()
+    ): Boolean {
+        val clampedL = leftMotor.coerceIn(0, 255)
+        val clampedR = rightMotor.coerceIn(0, 255)
+        if (clampedL == lastFallbackLeftMotor && clampedR == lastFallbackRightMotor && clampedL == 0 && clampedR == 0) {
+            return false
+        }
+        lastFallbackLeftMotor = clampedL
+        lastFallbackRightMotor = clampedR
+        val report = if (clampedL == 0 && clampedR == 0) {
+            DualSense.buildRumbleClearReport()
+        } else {
+            DualSense.buildOutputReport(
+                leftMotor = clampedL,
+                rightMotor = clampedR,
+                updateLightbar = false,
+                lightbarSetup = 0
+            )
+        }
+        return sendOutputReport(report, nowMs)
+    }
+
     internal fun preserveSpeakerRoutingIfNeeded(data: ByteArray): ByteArray =
         if (routesPadAudio && routedHeadphones == false) DualSense.preserveSpeakerRouting(data) else data
 
@@ -404,6 +486,7 @@ class DualSenseManager(private val context: Context) {
                     tcpOut.write(wiredData, 0, DualSense.REPORT_SIZE_OUTPUT)
                     tcpOut.flush()
                 }
+                updateRumbleWatchdog(wiredData, nowMs)
                 true
             } catch (e: Exception) {
                 Log.w(TAG, "Failed to send output report to host TCP bridge: $e")
@@ -425,19 +508,28 @@ class DualSenseManager(private val context: Context) {
             } catch (e: Exception) {
                 false
             }
-            if (sent) return true
+            if (sent) {
+                updateRumbleWatchdog(wiredData, nowMs)
+                return true
+            }
         }
 
         // Phase 2: Wireless Bluetooth 0x31 Output Report dispatch (Adaptive Triggers, LEDs, Rumble)
         val btSender = bluetoothReportSender
         if (btSender != null) {
             val btReport = buildNextBluetoothOutputReport(data, nowMs)
-            if (btSender(btReport)) return true
+            if (btSender(btReport)) {
+                updateRumbleWatchdog(data, nowMs)
+                return true
+            }
         }
 
         if (bluetoothHidHostProxy != null) {
             val btReport = buildNextBluetoothOutputReport(data, nowMs)
-            if (sendViaBluetoothHidHost(btReport)) return true
+            if (sendViaBluetoothHidHost(btReport)) {
+                updateRumbleWatchdog(data, nowMs)
+                return true
+            }
         }
 
         return false
@@ -783,6 +875,11 @@ class DualSenseManager(private val context: Context) {
         btConnectTimestampMs = 0L
         btOutputSeq = 0
         pendingBtLightbarReport = null
+        rumbleWatchdogArmed = false
+        lastRumbleActiveMs = 0L
+        lastFallbackLeftMotor = 0
+        lastFallbackRightMotor = 0
+        motionNoiseCalibration.reset()
         hardwareMicMuted = false
         lastRawMuteButton = false
         cachedPreference = null
@@ -879,7 +976,13 @@ class DualSenseManager(private val context: Context) {
 
     fun onInputReport(data: ByteArray, offset: Int = 0) {
         if (stopped) return
-        val state = DualSense.parseInputReport(data, offset, usbCalibration) ?: return
+        val state = DualSense.parseInputReport(
+            data = data,
+            offset = offset,
+            calibration = usbCalibration,
+            isEdge = isEdgeConnected,
+            motionCalibration = motionNoiseCalibration
+        ) ?: return
 
         synchronized(this) {
             if (!isDualSenseActive) {
@@ -967,6 +1070,7 @@ class DualSenseManager(private val context: Context) {
         }
         lastRawMuteButton = state.mute
         flushPendingBluetoothLightbar(lastRawHidTimestamp)
+        checkRumbleWatchdog(lastRawHidTimestamp)
 
         // 3. Call FakeInputWriter.setDeckIMU(0, accel, gyro) with proper axis transformation:
         // Bytes 49..52 are a running counter on a standard DualSense; only the Edge reuses them for tuning.
@@ -1038,7 +1142,7 @@ class DualSenseManager(private val context: Context) {
             val raf = padBinRaf ?: return
             val prev = lastPadBinBytes
             val len = raf.length()
-            if (prev != null && len == DualSense.REPORT_SIZE_INPUT.toLong() && prev.contentEquals(usb64)) {
+            if (prev != null && len == DualSense.REPORT_SIZE_INPUT.toLong() && DualSense.isSamePadBinState(prev, usb64, isEdgeConnected)) {
                 return
             }
             raf.seek(0)

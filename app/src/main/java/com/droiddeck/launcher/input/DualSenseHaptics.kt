@@ -1,5 +1,10 @@
 package com.droiddeck.launcher.input
 
+import kotlin.math.abs
+import kotlin.math.max
+import kotlin.math.pow
+import kotlin.math.sqrt
+
 /**
  * Bluetooth DualSense haptics: report 0x32 carries a control block (0x11) and 32 frames of signed 8-bit stereo
  * at 3 kHz for the two actuators (0x12), sealed with the same 0xA2-seeded CRC-32 as report 0x31. Layout follows
@@ -90,6 +95,117 @@ object DualSenseHaptics {
         private fun le16(b: ByteArray, at: Int): Int = (b[at].toInt() and 0xFF) or (b[at + 1].toInt() shl 8)
 
         private fun toS8(v: Int): Byte = (v shr 8).coerceIn(-128, 127).toByte()
+    }
+
+    /**
+     * Converts 4-channel s16le PCM haptic frames (channels 3-4 at byte offsets +4/+6) into
+     * DualSense Left/Right motor rumble intensities when direct 4-channel USB audio or
+     * Bluetooth 0x32 haptics is unavailable.
+     */
+    class RumbleConverter {
+        var leftMotor: Int = 0
+            private set
+        var rightMotor: Int = 0
+            private set
+        private var lpL: Float = 0f
+        private var lpR: Float = 0f
+
+        fun reset() {
+            leftMotor = 0
+            rightMotor = 0
+            lpL = 0f
+            lpR = 0f
+        }
+
+        fun processFrame(pcm: ByteArray, length: Int, channels: Int = 4, gain: Float = 1f) {
+            val stride = channels * 2
+            val validLen = minOf(length, pcm.size)
+            if (channels < 4 || validLen < stride) {
+                leftMotor = 0
+                rightMotor = 0
+                return
+            }
+            val frameCount = validLen / stride
+            var sumLpLSq = 0f
+            var maxLpL = 0f
+            var sumHpRSq = 0f
+            var maxHpR = 0f
+            var sumHpLSq = 0f
+            var maxHpL = 0f
+            var sumLpRSq = 0f
+            var maxLpR = 0f
+
+            for (i in 0 until frameCount) {
+                val base = i * stride
+                val rawL = ((pcm[base + 4].toInt() and 0xFF) or (pcm[base + 5].toInt() shl 8)).toShort() / 32768f
+                val rawR = ((pcm[base + 6].toInt() and 0xFF) or (pcm[base + 7].toInt() shl 8)).toShort() / 32768f
+
+                lpL += LP_ALPHA * (rawL - lpL)
+                lpR += LP_ALPHA * (rawR - lpR)
+                val curLpL = lpL
+                val curLpR = lpR
+                val curHpL = rawL - curLpL
+                val curHpR = rawR - curLpR
+
+                sumLpLSq += curLpL * curLpL
+                val absLpL = abs(curLpL)
+                if (absLpL > maxLpL) maxLpL = absLpL
+
+                sumHpLSq += curHpL * curHpL
+                val absHpL = abs(curHpL)
+                if (absHpL > maxHpL) maxHpL = absHpL
+
+                sumHpRSq += curHpR * curHpR
+                val absHpR = abs(curHpR)
+                if (absHpR > maxHpR) maxHpR = absHpR
+
+                sumLpRSq += curLpR * curLpR
+                val absLpR = abs(curLpR)
+                if (absLpR > maxLpR) maxLpR = absLpR
+            }
+
+            val invN = 1f / frameCount.toFloat()
+            val rmsLpL = sqrt(sumLpLSq * invN)
+            val rmsHpL = sqrt(sumHpLSq * invN)
+            val rmsHpR = sqrt(sumHpRSq * invN)
+            val rmsLpR = sqrt(sumLpRSq * invN)
+
+            val totalL = rmsLpL + rmsHpL
+            val totalR = rmsLpR + rmsHpR
+            val total = totalL + totalR
+            val rightRatio = if (total > 0.001f) totalR / total else 0.5f
+
+            var rightEnv = (rmsHpR * 0.25f + maxHpR * 0.75f) * PRE_GAIN +
+                    (rmsLpR * 0.65f + maxLpR * 0.35f) * PRE_GAIN * 0.30f
+            var leftEnv = (rmsLpL * 0.65f + maxLpL * 0.35f) * PRE_GAIN +
+                    (rmsHpL * 0.40f + maxHpL * 0.60f) * PRE_GAIN * 0.20f
+
+            val balanceScale = if (rightRatio > 0.5f) {
+                1f - (rightRatio - 0.5f) * 2f * 0.70f
+            } else {
+                1f
+            }
+            leftEnv *= balanceScale
+
+            if (leftEnv < ENERGY_THRESHOLD) leftEnv = 0f
+            if (rightEnv < ENERGY_THRESHOLD) rightEnv = 0f
+
+            leftEnv = leftEnv.coerceIn(0f, 1f).pow(0.45f)
+            rightEnv = rightEnv.coerceIn(0f, 1f).pow(0.35f)
+
+            val rawLeft = (leftEnv * 128f * gain).toInt()
+            val rawRight = (rightEnv * 255f * gain).toInt()
+
+            leftMotor = if (rawLeft > 0) max(rawLeft, MOTOR_FLOOR).coerceIn(0, 128) else 0
+            rightMotor = if (rawRight > 0) max(rawRight, MOTOR_FLOOR).coerceIn(0, 255) else 0
+        }
+
+        companion object {
+            const val ENERGY_THRESHOLD = 0.005f
+            const val PRE_GAIN = 2.5f
+            const val MOTOR_FLOOR = 15
+            const val LP_ALPHA = 0.0196f
+        }
     }
 
     private const val FRAME_BYTES = 8

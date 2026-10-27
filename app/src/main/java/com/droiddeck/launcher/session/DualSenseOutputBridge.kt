@@ -355,9 +355,10 @@ class DualSenseOutputBridge : SessionPart() {
         var handled = false
         val enable0 = report[1].toInt() and 0xFF
         val enable1 = report[2].toInt() and 0xFF
+        val clearVisibleLeds = DualSense.shouldClearVisibleLeds(report)
 
-        // 1. Lights: RGB Lightbar (valid_flag1 & 0x04), Player ID LEDs (0x10), Mic Mute LED (0x01)
-        if ((enable1 and 0x15) != 0) {
+        // 1. Lights: RGB Lightbar (valid_flag1 & 0x04), Player ID LEDs (0x10), Mic Mute LED (0x01), Clear Visible LEDs (0x08)
+        if ((enable1 and 0x15) != 0 || clearVisibleLeds) {
             val customLights = lightsDispatcher
             if (customLights != null) {
                 if (customLights(report, device)) handled = true
@@ -368,11 +369,15 @@ class DualSenseOutputBridge : SessionPart() {
                     val reqBuilder = LightsRequest.Builder()
                     var addedAny = false
 
-                    if ((enable1 and 0x04) != 0) {
-                        val r = report[45].toInt() and 0xFF
-                        val g = report[46].toInt() and 0xFF
-                        val b = report[47].toInt() and 0xFF
-                        val color = (0xFF shl 24) or (r shl 16) or (g shl 8) or b
+                    if ((enable1 and 0x04) != 0 || clearVisibleLeds) {
+                        val color = if ((enable1 and 0x04) != 0) {
+                            val r = report[45].toInt() and 0xFF
+                            val g = report[46].toInt() and 0xFF
+                            val b = report[47].toInt() and 0xFF
+                            (0xFF shl 24) or (r shl 16) or (g shl 8) or b
+                        } else {
+                            0xFF000000.toInt()
+                        }
                         val rgbLight = lights.firstOrNull { it.hasRgbControl() }
                         if (rgbLight != null) {
                             reqBuilder.addLight(rgbLight, LightState.Builder().setColor(color).build())
@@ -380,16 +385,19 @@ class DualSenseOutputBridge : SessionPart() {
                         }
                     }
 
-                    if ((enable1 and 0x10) != 0) {
-                        val playerMask = report[44].toInt() and 0x1F
-                        val playerId = when (playerMask) {
-                            0x04 -> 1
-                            0x0A -> 2
-                            0x15 -> 3
-                            0x1B -> 4
-                            0x1F -> 5
-                            0x00 -> 0
-                            else -> playerMask.coerceIn(0, 5)
+                    if ((enable1 and 0x10) != 0 || clearVisibleLeds) {
+                        val playerId = if ((enable1 and 0x10) != 0) {
+                            when (val playerMask = report[44].toInt() and 0x1F) {
+                                0x04 -> 1
+                                0x0A -> 2
+                                0x15 -> 3
+                                0x1B -> 4
+                                0x1F -> 5
+                                0x00 -> 0
+                                else -> playerMask.coerceIn(0, 5)
+                            }
+                        } else {
+                            0
                         }
                         val playerLight = lights.firstOrNull { it.type == Light.LIGHT_TYPE_PLAYER_ID }
                         if (playerLight != null) {
@@ -438,7 +446,7 @@ class DualSenseOutputBridge : SessionPart() {
                     val vm = device.vibratorManager
                     val rightWeak = report[3].toInt() and 0xFF
                     val leftStrong = report[4].toInt() and 0xFF
-                    if (leftStrong == 0 && rightWeak == 0) {
+                    if (DualSense.shouldClearRumble(report) || (leftStrong == 0 && rightWeak == 0)) {
                         vm.cancel()
                         handled = true
                     } else {

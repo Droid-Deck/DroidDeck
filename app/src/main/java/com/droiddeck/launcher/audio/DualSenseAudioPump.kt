@@ -26,7 +26,9 @@ class DualSenseAudioPump(private val fifo: File) : SessionPart() {
     @Volatile private var input: InputStream? = null
     private var thread: Thread? = null
     private var loggedBluetooth = false
+    private var btReportAccepted = true
     private var nextBtEmitNs = 0L
+    private val rumbleFallback = DualSenseHaptics.RumbleConverter()
     private val bluetooth = DualSenseHaptics.Encoder { report ->
         val nowNs = System.nanoTime()
         if (nextBtEmitNs > nowNs) {
@@ -37,6 +39,7 @@ class DualSenseAudioPump(private val fifo: File) : SessionPart() {
         }
         nextBtEmitNs = maxOf(System.nanoTime(), nextBtEmitNs) + DualSenseHaptics.REPORT_INTERVAL_NANOS
         val sent = DualSenseManager.activeManager?.sendBluetoothReport(report) == true
+        btReportAccepted = sent
         if (sent && !loggedBluetooth) {
             loggedBluetooth = true
             Log.i(TAG, "dualsense audio: no wired pad, sending haptics as Bluetooth reports (speaker stays silent)")
@@ -97,6 +100,13 @@ class DualSenseAudioPump(private val fifo: File) : SessionPart() {
                     val t = track
                     if (t == null) {
                         bluetooth.feed(buf, whole)
+                        if (!btReportAccepted) {
+                            rumbleFallback.processFrame(buf, whole, CHANNELS)
+                            DualSenseManager.activeManager?.sendHapticRumbleFallback(
+                                rumbleFallback.leftMotor,
+                                rumbleFallback.rightMotor
+                            )
+                        }
                     } else if (t.write(buf, 0, whole) < 0) {
                         Log.w(TAG, "dualsense audio: the pad's audio track failed; looking for it again")
                         t.release()

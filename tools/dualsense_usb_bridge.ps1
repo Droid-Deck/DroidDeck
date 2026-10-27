@@ -438,20 +438,49 @@ try {
             Write-Host "DualSense Feature 0x05 (IMU Calibration / BT 0x31 Mode Switch) read OK (41 bytes)." -ForegroundColor Cyan
         }
 
+        $f09 = New-Object byte[] 20
+        $f09[0] = 0x09
+        if ([DualSenseBridge]::HidD_GetFeature($handle, $f09, 20)) {
+            $devMac = ("{0:X2}:{1:X2}:{2:X2}:{3:X2}:{4:X2}:{5:X2}" -f $f09[6], $f09[5], $f09[4], $f09[3], $f09[2], $f09[1])
+            $hostMac = ("{0:X2}:{1:X2}:{2:X2}:{3:X2}:{4:X2}:{5:X2}" -f $f09[15], $f09[14], $f09[13], $f09[12], $f09[11], $f09[10])
+            Write-Host "Feature 0x09 (Pairing) OK: Device MAC=$devMac, Host MAC=$hostMac" -ForegroundColor Cyan
+        }
+
         $f20 = New-Object byte[] 64
         $f20[0] = 0x20
         if ([DualSenseBridge]::HidD_GetFeature($handle, $f20, 64)) {
-            $hw = [BitConverter]::ToUInt16($f20, 24)
-            $fw = [BitConverter]::ToUInt16($f20, 44)
-            Write-Host ("DualSense Verified: HW 0x{0:X4}, FW 0x{1:X4}" -f $hw, $fw) -ForegroundColor Cyan
+            $buildDate = [System.Text.Encoding]::ASCII.GetString($f20, 1, 11).Trim([char]0, ' ')
+            $buildTime = [System.Text.Encoding]::ASCII.GetString($f20, 12, 8).Trim([char]0, ' ')
+            $hw = [BitConverter]::ToUInt32($f20, 24)
+            $fw = [BitConverter]::ToUInt32($f20, 28)
+            Write-Host ("Feature 0x20 (Firmware) OK: Build '{0} {1}', HW 0x{2:X8}, FW 0x{3:X8}" -f $buildDate, $buildTime, $hw, $fw) -ForegroundColor Cyan
+        }
+
+        $f22 = New-Object byte[] 64
+        $f22[0] = 0x22
+        if ([DualSenseBridge]::HidD_GetFeature($handle, $f22, 64)) {
+            Write-Host ("Feature 0x22 (BtPatchInfo) OK: Rev=0x{0:X2}, HW=0x{1:X8}, FW=0x{2:X8}" -f $f22[1], [BitConverter]::ToUInt32($f22, 3), [BitConverter]::ToUInt32($f22, 7)) -ForegroundColor Cyan
         }
 
         $testOut = New-Object byte[] 48
         $testOut[0] = 0x02
-        $testOut[1] = 0x03
-        $testOut[2] = 0x15
+        $testOut[1] = 0x0F
+        $testOut[2] = 0x55
         $testOut[9] = 0x01
+        $testOut[11] = 0x21
+        $testOut[12] = 0xFC
+        $testOut[13] = 0x03
+        $testOut[14] = 0xFF
+        $testOut[15] = 0xFF
+        $testOut[16] = 0x03
+        $testOut[22] = 0x21
+        $testOut[23] = 0xFC
+        $testOut[24] = 0x03
+        $testOut[25] = 0xFF
+        $testOut[26] = 0xFF
+        $testOut[27] = 0x03
         $testOut[42] = 0x02
+        $testOut[43] = 0x00
         $testOut[44] = 0x04
         $testOut[45] = 0x00
         $testOut[46] = 180
@@ -468,7 +497,23 @@ try {
                 [DualSenseBridge]::HidD_SetOutputReport($handle, $testOut, 48) | Out-Null
             }
         }
-        Write-Host "Test output report sent ($transportLabel). Written: $written bytes." -ForegroundColor Green
+        Write-Host "Test output report (0x21 Feedback + Cyan LED + Player 1) sent ($transportLabel). Written: $written bytes." -ForegroundColor Green
+
+        Start-Sleep -Milliseconds 150
+        [Array]::Clear($testOut, 11, 22)
+        $testOut[11] = 0x05
+        $testOut[22] = 0x05
+        if ($isBluetooth) {
+            $btBuf = [DualSenseBridge]::WrapUsbOutputToBt78($testOut, 1, $false, $outReportLen)
+            if (-not [DualSenseBridge]::WriteFile($handle, $btBuf, $outReportLen, [ref]$written, [IntPtr]::Zero)) {
+                [DualSenseBridge]::HidD_SetOutputReport($handle, $btBuf, $outReportLen) | Out-Null
+            }
+        } else {
+            if (-not [DualSenseBridge]::WriteFile($handle, $testOut, 48, [ref]$written, [IntPtr]::Zero)) {
+                [DualSenseBridge]::HidD_SetOutputReport($handle, $testOut, 48) | Out-Null
+            }
+        }
+        Write-Host "Trigger reset (0x05 Off) sent ($transportLabel)." -ForegroundColor Green
         $handle.Close()
         exit 0
     }
