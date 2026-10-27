@@ -156,3 +156,28 @@ A host mode switch can report a passing rate for a few frames (72 Hz between 144
 120 Hz on the AYANEO Pocket FIT), so with following on a new rate is taken once it has
 been reported for 300 ms. Without the variable the reported rate is taken at once, as
 upstream does.
+
+The rate comes from the feedback of a frame gamescope presents, so with nothing moving
+on screen no feedback arrived and the old rate stayed. With following on, gamescope
+presents once when the host's `wl_output` mode changes (DroidDeck's compositor sends
+the new mode) and keeps presenting while a new rate is pending (since p16).
+
+## 0121 Xwayland: skip the X tree walk for a repeated window override
+
+The WSI layer sends `override_window_content` on every present of an X11 swapchain.
+gamescope first walked from that window to its top-level window with `XQueryTree`, one
+blocking X round trip per level under the wlserver lock, and only then noticed that the
+same swapchain already overrides that window. At thousands of frames per second that is
+thousands of round trips to Xwayland every second.
+
+The override now remembers the window it was asked for. When the same swapchain and
+surface ask for the same window again within 100 ms, the request returns at once; after
+100 ms the walk runs again, so a window that moved to another top level is still found.
+
+## 0122 Wayland: wake steamcompmgr after reading host events
+
+Backport of upstream commit 2962992 by Matthew Schwartz (ValveSoftware/gamescope).
+The nested Wayland backend's input thread reads the host display, but steamcompmgr
+does not watch that file descriptor, so buffer releases and presentation feedback
+queued by that read could wait up to one refresh for steamcompmgr's next poll. The
+input thread now wakes steamcompmgr after each read.
