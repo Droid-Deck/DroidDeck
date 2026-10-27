@@ -187,6 +187,30 @@ void vkp_framegen_device_ready(VkDevice dev, VkQueue queue, uint32_t qfam, int f
 
 void vkp_framegen_device_lost(void) { g_dev_lost = 1; }
 
+static void destroy_ring(void);
+
+/*
+ * A session boundary: the engine and the ring are dropped, so the next session builds them from
+ * nothing. The device outlives sessions (dev_init runs once per process), and so did the engine's
+ * images, views and descriptor sets: the second session in a process began by rebuilding them for
+ * its own size, and Mali (G77 r32p1, Retroid Pocket 4 Pro) faulted inside vkUpdateDescriptorSets
+ * while overwriting descriptors that still named the destroyed views - a null dereference in the
+ * driver at vkp_framegen_run -> record (2026-10-26, "Thread-5" SIGSEGV, fault address 0x68); every
+ * session after the first in a process ended there, and DroidDeck needed a second Play press for
+ * the fresh process it got. Starting clean costs one engine build per session.
+ */
+void vkp_framegen_session_begin(void) {
+    if (!g_dev_ready) return;
+    if (g_ring_n || g_engine_ok) FGLOG("session start: frame generation reset (engine and ring rebuilt on first use)");
+    destroy_ring();
+    if (g_engine_ok) fge_stop();
+    g_engine_ok = 0; g_engine_kind = -1;
+    g_built_w = g_built_h = 0; g_built_fmt = VK_FORMAT_UNDEFINED;
+    g_generating_logged = 0;
+    g_was_armed = 0;
+    atomic_store(&g_cfg_dirty, 1);
+}
+
 
 static void destroy_ring(void) {
     if (!g_ring_n) return;

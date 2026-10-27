@@ -30,7 +30,11 @@ string(SUBSTRING "${DDFG_CHAIN_HASH_FULL}" 0 12 DDFG_CHAIN_HASH)
 message(STATUS "dd-fg chain: win-fg ${DDFG_UPSTREAM} (src ${DDFG_CHAIN_HASH})")
 
 add_subdirectory(waylandcomp)
-add_subdirectory(questxr)
+# The Quest module needs the OpenXR SDK, which Gradle supplies as a prefab; a plain NDK/CMake
+# build of the compositor (tools, local debugging) can leave it out: -DDROIDDECK_SKIP_QUESTXR=ON.
+if(NOT DROIDDECK_SKIP_QUESTXR)
+    add_subdirectory(questxr)
+endif()
 add_library(sdnative SHARED sdnative/sdnative.c)
 target_link_libraries(sdnative log)
 

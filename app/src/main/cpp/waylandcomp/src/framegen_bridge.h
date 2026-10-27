@@ -23,6 +23,8 @@ const void *vkp_framegen_device_features(VkInstance inst, PFN_vkGetInstanceProcA
                                          VkPhysicalDevice pd);
 void vkp_framegen_device_ready(VkDevice dev, VkQueue queue, uint32_t qfam, int features_enabled);
 void vkp_framegen_device_lost(void);
+/* At each session start: the engine and the ring are dropped and rebuilt on first use (see the .c). */
+void vkp_framegen_session_begin(void);
 
 int vkp_framegen_active(void);
 int vkp_framegen_extra_images(void);

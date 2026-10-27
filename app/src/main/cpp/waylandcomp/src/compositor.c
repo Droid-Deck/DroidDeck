@@ -3493,6 +3493,7 @@ int droiddeck_wayland_run(void) {
     open_session_log();
 
     if (vkp_ready() != 0) WLOGE("renderer unavailable; clients will connect but nothing is drawn");
+    vkp_framegen_session_begin(); /* the previous session's engine and ring are not reused (Mali faulted on them) */
     /* Presentation compatibility is not HDR capability. Set the initial layer mode before
      * clients bind, including when Desktop is the first session in this app process. */
     if (vkp_quest_layer_presentation() && sc_layer_available()) g_zero_copy = 1;
