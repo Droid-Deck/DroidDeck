@@ -3,6 +3,8 @@ package com.droiddeck.launcher.gpu
 import com.droiddeck.launcher.gpu.GpuInfo.Family
 import com.droiddeck.launcher.gpu.GpuInfo.Support
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class GpuDetectionTest {
@@ -72,6 +74,44 @@ class GpuDetectionTest {
         assertEquals("Not supported: DroidDeck needs an Adreno (Snapdragon) GPU", info(false, 0).supportText)
         assertEquals("Not an Adreno GPU", Family.NOT_ADRENO.label)
         assertEquals("Adreno 8xx", Family.A8XX.label)
+    }
+
+    private fun mali(paths: Set<String> = emptySet(), props: Map<String, String> = emptyMap(), vulkan: String? = null) =
+        GpuInfo.maliEvidence({ it in paths }, { props[it] ?: "" }, vulkan)
+
+    @Test fun maliNeedsPositiveEvidence() {
+        assertFalse(mali())
+        assertFalse(mali(props = mapOf("ro.hardware.egl" to "adreno", "ro.hardware.vulkan" to "adreno")))
+        assertFalse(mali(vulkan = "Samsung Xclipse 940"))
+        assertFalse(mali(vulkan = "Adreno (TM) 740"))
+        assertFalse(mali(paths = setOf("/sys/class/kgsl/kgsl-3d0", "/vendor/lib64/hw/vulkan.adreno.so")))
+        for (path in listOf("/dev/mali0", "/sys/class/misc/mali0", "/vendor/lib64/egl/libGLES_mali.so", "/vendor/lib64/hw/vulkan.mali.so"))
+            assertTrue(path, mali(paths = setOf(path)))
+        assertTrue(mali(props = mapOf("ro.hardware.egl" to "mali")))
+        assertTrue(mali(props = mapOf("ro.hardware.vulkan" to " Mali ")))
+        assertFalse(mali(props = mapOf("ro.hardware.egl" to "meow")))
+        assertTrue(mali(vulkan = "Mali-G715"))
+        assertTrue(mali(vulkan = "Mali-G720-Immortalis MC12"))
+        assertTrue(mali(vulkan = "Immortalis-G925"))
+    }
+
+    @Test fun adrenoAlwaysWinsOverMaliEvidence() {
+        assertEquals(Family.MALI, GpuInfo.familyOf(false, 0, mali = true))
+        assertEquals(Family.NOT_ADRENO, GpuInfo.familyOf(false, 0, mali = false))
+        assertEquals(Family.A7XX, GpuInfo.familyOf(true, 740, mali = true))
+        assertEquals(Family.ADRENO_UNKNOWN, GpuInfo.familyOf(true, 0, mali = true))
+        assertFalse(Family.MALI.isAdreno)
+        assertFalse(Family.NOT_ADRENO.isAdreno)
+        for (f in listOf(Family.A6XX, Family.A7XX, Family.A7XX_LOW, Family.A8XX, Family.ADRENO_UNKNOWN)) assertTrue("$f", f.isAdreno)
+    }
+
+    @Test fun maliIsExperimentalAndNotAdrenoStaysUnsupported() {
+        val mali = GpuInfo("Mali-G715", 0, Family.MALI, "", false)
+        assertEquals(Support.UNTESTED, mali.support)
+        assertEquals("Experimental Mali support: the Linux side renders in software, so games are slow and many will not run", mali.supportText)
+        assertEquals("Arm Mali (experimental)", Family.MALI.label)
+        assertEquals(Support.UNSUPPORTED, info(false, 0).support)
+        assertEquals("Not supported: DroidDeck needs an Adreno (Snapdragon) GPU", info(false, 0).supportText)
     }
 
     @Test fun platformCodeNamesIncludingCaseAndUnknowns() {

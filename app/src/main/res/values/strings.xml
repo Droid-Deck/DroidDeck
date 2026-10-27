@@ -1322,6 +1322,8 @@
     <string name="main_pick_roms">Choose the ROMs folder</string>
     <string name="main_non_adreno_title">Not an Adreno GPU</string>
     <string name="main_non_adreno_text">Turnip supports Adreno GPUs. On %1$s, Steam may show a black screen. Download: %2$.0f MB.</string>
+    <string name="main_mali_title">Mali GPU: experimental</string>
+    <string name="main_mali_text">Mali support is experimental. On %1$s the Linux side draws in software on the CPU: the Steam interface and the desktop should work, but games run slowly and many will not start. Download: %2$.0f MB.</string>
     <string name="main_install_anyway">Install anyway</string>
     <string name="main_remove_runtime_title">Remove Linux runtime</string>
     <string name="main_remove_runtime_text">This deletes the runtime, the Steam client inside it, and every game installed there.</string>
@@ -1960,6 +1962,8 @@
     <string name="gpuinfo_a850_experimental">Experimental Adreno 850 support: requires compatible experimental display and game drivers; not verified on this device</string>
     <string name="gpuinfo_below_tested">Below tested hardware (Adreno 725 and newer): it may not run</string>
     <string name="gpuinfo_unsupported">Not supported: DroidDeck needs an Adreno (Snapdragon) GPU</string>
+    <string name="gpuinfo_mali">Arm Mali (experimental)</string>
+    <string name="gpuinfo_mali_experimental">Experimental Mali support: the Linux side renders in software, so games are slow and many will not run</string>
 
     <string name="turnip_rate_limited">GitHub\'s rate limit was hit - try again later</string>
     <string name="turnip_github_http">GitHub answered HTTP %1$d</string>

@@ -23,9 +23,16 @@ data class GpuInfo(
         A7XX("Adreno 7xx"),
         A6XX("Adreno 6xx"),
         ADRENO_UNKNOWN("Adreno"),
+        MALI("Arm Mali (experimental)"),
         NOT_ADRENO("Not an Adreno GPU");
 
-        fun label(context: Context): String = if (this == NOT_ADRENO) context.getString(R.string.gpuinfo_not_adreno) else label
+        val isAdreno: Boolean get() = this != NOT_ADRENO && this != MALI
+
+        fun label(context: Context): String = when (this) {
+            NOT_ADRENO -> context.getString(R.string.gpuinfo_not_adreno)
+            MALI -> context.getString(R.string.gpuinfo_mali)
+            else -> label
+        }
     }
 
     enum class Support { TESTED, UNTESTED, UNSUPPORTED }
@@ -35,6 +42,7 @@ data class GpuInfo(
     val support: Support
         get() = when {
             family == Family.NOT_ADRENO -> Support.UNSUPPORTED
+            family == Family.MALI -> Support.UNTESTED
             isA850 -> Support.UNTESTED
             family == Family.A6XX && model == 650 -> Support.TESTED
             family == Family.A8XX -> Support.TESTED
@@ -45,7 +53,8 @@ data class GpuInfo(
     val supportText: String
         get() = when (support) {
             Support.TESTED -> "Supported"
-            Support.UNTESTED -> if (isA850) "Experimental Adreno 850 support: requires compatible experimental display and game drivers; not verified on this device"
+            Support.UNTESTED -> if (family == Family.MALI) "Experimental Mali support: the Linux side renders in software, so games are slow and many will not run"
+                else if (isA850) "Experimental Adreno 850 support: requires compatible experimental display and game drivers; not verified on this device"
                 else if (family == Family.A7XX_LOW) "Experimental: its drivers are test builds"
                 else "Outside tested hardware (Adreno 650, 725 and newer): it may not run"
             Support.UNSUPPORTED -> "Not supported: DroidDeck needs an Adreno (Snapdragon) GPU"
@@ -54,6 +63,7 @@ data class GpuInfo(
     fun supportText(context: Context): String = context.getString(when (support) {
         Support.TESTED -> R.string.gpuinfo_supported
         Support.UNTESTED -> when {
+            family == Family.MALI -> R.string.gpuinfo_mali_experimental
             isA850 -> R.string.gpuinfo_a850_experimental
             family == Family.A7XX_LOW -> R.string.gpuinfo_experimental
             else -> R.string.gpuinfo_below_tested
@@ -77,10 +87,12 @@ data class GpuInfo(
                 { VulkanInfo.cachedOrNull()?.get("device") },
                 { platformGpuModel },
             ) else 0 to ""
-            val family = familyOf(adreno, model)
+            val vulkanName = if (adreno) null else VulkanInfo.cachedOrNull()?.get("device")
+            val family = familyOf(adreno, model, !adreno && maliPresent(vulkanName))
             val samsung = Build.MANUFACTURER.equals("samsung", ignoreCase = true)
             return GpuInfo(
-                name = if (!adreno) Build.HARDWARE.ifBlank { UNNAMED } else if (model > 0) "Adreno $model" else "Adreno",
+                name = if (family == Family.MALI) vulkanName?.trim()?.ifBlank { null } ?: Build.HARDWARE.ifBlank { UNNAMED }
+                    else if (!adreno) Build.HARDWARE.ifBlank { UNNAMED } else if (model > 0) "Adreno $model" else "Adreno",
                 model = model, family = family, soc = soc,
                 oneUi8Gen2 = samsung && model == 740,
                 kgslName = raw.orEmpty(), modelSource = source, kgslChipId = chipId,
@@ -117,6 +129,26 @@ data class GpuInfo(
         } catch (_: Exception) {
             ""
         }
+
+        private val MALI_NODES = listOf(
+            "/dev/mali0", "/sys/class/misc/mali0", "/vendor/lib64/egl/libGLES_mali.so", "/vendor/lib64/hw/vulkan.mali.so",
+        )
+        private val MALI_PROPERTIES = listOf("ro.hardware.egl", "ro.hardware.vulkan")
+        private val MALI_RENDERER = Regex("""(?i)\b(mali|immortalis)""")
+
+        internal fun maliEvidence(
+            exists: (String) -> Boolean,
+            property: (String) -> String,
+            vulkanName: String?,
+        ): Boolean = MALI_NODES.any(exists) ||
+            MALI_PROPERTIES.any { property(it).trim().equals("mali", ignoreCase = true) } ||
+            (vulkanName != null && MALI_RENDERER.containsMatchIn(vulkanName))
+
+        fun maliPresent(vulkanName: String? = VulkanInfo.cachedOrNull()?.get("device")): Boolean =
+            maliEvidence({ File(it).exists() }, ::systemProperty, vulkanName)
+
+        internal fun familyOf(adreno: Boolean, model: Int, mali: Boolean): Family =
+            if (!adreno && mali) Family.MALI else familyOf(adreno, model)
 
         internal fun familyOf(adreno: Boolean, model: Int): Family = when {
             !adreno -> Family.NOT_ADRENO

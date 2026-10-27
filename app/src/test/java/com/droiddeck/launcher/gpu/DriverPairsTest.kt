@@ -55,6 +55,20 @@ class DriverPairsTest {
     }
 
     @Test
+    fun maliGetsNoTurnipPairEvenWhenReleasesAreListed() {
+        val mali = GpuInfo("Mali-G715", 0, Family.MALI, "", false)
+        val pairs = DriverPairs.from(TurnipReleases.Check(
+            listOf(asset("Turnip-r4.zip", "r4", false, DriverPairs.BANNER), asset("Turnip-r4-Linux.zip", "r4", true, DriverPairs.BANNER),
+                asset("WN-Turnip-1.19-b_Axxx.zip", "v1.19", false, DriverPairs.WN_BALANCED),
+                asset("WN-Linux-Turnip-0.1.2-b_Axxx.zip", "linux-v0.1.2", true, DriverPairs.WN_BALANCED)),
+            emptyList(), emptyList(), 0L,
+        ))
+        assertNull(DriverPairs.recommendedKey(mali, emptyList()))
+        assertNull(DriverPairs.recommendedKey(mali, pairs))
+        assertFalse(pairs.any { it.suits(mali) })
+    }
+
+    @Test
     fun pairsMatchHalvesAndNeverMixBannersReleases() {
         val check = TurnipReleases.Check(
             listOf(
