@@ -3436,8 +3436,9 @@ static int on_stats_timer(void *data) {
 #undef PERF_MS
         memset(&g_perf, 0, sizeof(g_perf));
     }
-    if (g_pace.ticks || g_pace.renders) {
-        const uint64_t game = g_game_frames - g_pace.game_frames_seen;
+    const uint64_t game = g_game_frames - g_pace.game_frames_seen;
+    if (g_pace.ticks || g_pace.renders || game || g_pace.reattaches || g_pace.null_attaches || g_pace.distinct ||
+        g_pace.presented || g_pace.replaced || g_pace.undrawn) {
         droiddeck_log("pacing", "last 10 s: tick reaches compositor %.2f/%.2f ms late (%u ticks, %u over 2 ms) | "
                    "new frame waits %.2f/%.2f ms to be drawn (%u scenes) | %llu game frames, %u re-attached after an "
                    "empty attach, %u empty attaches, %u distinct buffers | feedback %u shown, %u replaced before drawing, "
