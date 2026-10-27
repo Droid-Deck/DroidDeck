@@ -175,6 +175,9 @@ object ComponentsManager {
     }
 
     fun republish(context: Context): Boolean = synchronized(lock) {
+        recoverState(context)
+        val saved = stateFile(context)
+        if (saved.exists() && runCatching { JSONObject(saved.readText()) }.isFailure) return false
         val state = loadState(context)
         val prepared = prepareLaunchState(context, state)
         if ((FileUtils.readString(File(launchDir(context), "desired.tsv")) ?: "") == prepared.text) return false

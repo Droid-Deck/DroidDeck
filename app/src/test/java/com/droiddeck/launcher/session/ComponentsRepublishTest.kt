@@ -60,6 +60,19 @@ class ComponentsRepublishTest {
         assertEquals(modified, launchState().lastModified())
     }
 
+    @Test fun anUnreadableStateLeavesThePublishedSelectionsAlone() {
+        proton("DroidDeck-Proton 11-11.7", "DroidDeck-Proton-11-11.7")
+        packageFile()
+        ComponentsManager.setGameComponent(context, scope, "fex", fex)
+        val published = launchState().readText()
+        val state = File(context.filesDir, "components/state.json").apply { writeText("{\"active\": ") }
+        proton("DroidDeck-Proton 11-11.8", "DroidDeck-Proton-11-11.8")
+
+        assertFalse(ComponentsManager.republish(context))
+        assertEquals(published, launchState().readText())
+        assertEquals("{\"active\": ", state.readText())
+    }
+
     @Test fun withNoSelectionsNothingIsPublished() {
         proton("DroidDeck-Proton 11-11.8", "DroidDeck-Proton-11-11.8")
 
