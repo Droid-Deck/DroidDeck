@@ -44,8 +44,8 @@ def trusted_list_violation(repo, pr, sha):
     if changed.returncode == 0:
         return []
     opener = pr["user"]["login"]
-    permission = api(f"repos/{repo}/collaborators/{opener}/permission")["permission"]
-    if permission not in ("admin", "maintain"):
+    permission = api(f"repos/{repo}/collaborators/{opener}/permission")
+    if permission["permission"] != "admin" and permission.get("role_name") != "maintain":
         return [f"Only a maintainer may open a PR changing .github/trusted-test-builds.txt (opened by @{opener})"]
     return []
 
