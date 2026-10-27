@@ -357,21 +357,71 @@ def game_cores(env):
         print("droiddeck-game-env: could not use game cores %r (%s)" % (text, error), file=sys.stderr)
 
 
-def cpu_topology(env):
+def core_speeds(cores, root="/sys/devices/system/cpu"):
+    """Each core's capacity, else its top clock; None when some core reports neither."""
+    for name in ("cpu_capacity", "cpufreq/cpuinfo_max_freq"):
+        speeds = {}
+        for core in cores:
+            try:
+                with open("%s/cpu%d/%s" % (root, core, name)) as f:
+                    speeds[core] = int(f.read().strip())
+            except (OSError, ValueError):
+                break
+        else:
+            return speeds
+    return None
+
+
+def fastest_first(cores):
+    """The cores, fastest first; cores of equal or unknown speed keep their numeric order."""
+    cores = sorted(cores)
+    speeds = core_speeds(cores)
+    return sorted(cores, key=lambda core: -speeds[core]) if speeds else cores
+
+
+def proton_cpu_limit(command, env):
+    """The core count Proton's own default_cpu_limit list gives this game, or None."""
+    app_id = env.get("SteamGameId", "")
+    if not command or not app_id.isdigit():
+        return None
+    try:
+        if os.path.getsize(command[0]) > 4 * 1024 * 1024:
+            return None
+        with open(command[0], encoding="utf-8", errors="replace") as f:
+            text = f.read()
+    except OSError:
+        return None
+    table = re.search(r"^default_cpu_limit = \{(.*?)^\}", text, re.M | re.S)
+    match = table and re.search(r'^\s*"%s"\s*:\s*"(\d+)"' % app_id, table.group(1), re.M)
+    if not match:
+        return None
+    return int(match.group(1)) or None
+
+
+def cpu_topology(env, command=()):
+    """Windows sees the game's cores fastest first, so a thread a game pins to CPU 0 runs on the fastest core."""
     if "PROTON_CPU_TOPOLOGY" in env:
         return
     if "WINE_CPU_TOPOLOGY" in env:
         if env["WINE_CPU_TOPOLOGY"]:
             env["PROTON_CPU_TOPOLOGY"] = env["WINE_CPU_TOPOLOGY"]
         return
-    if not (env.get("DROIDDECK_GAME_CORES", "").strip() or env.get("BL_GAME_CPUS", "").strip()):
+    picked = bool(env.get("DROIDDECK_GAME_CORES", "").strip() or env.get("BL_GAME_CPUS", "").strip())
+    fastest = env.get("DROIDDECK_FASTEST_CORES", "").strip() != "0"
+    if not (picked or fastest):
         return
     try:
         cores = sorted(os.sched_getaffinity(0))
     except OSError:
         return
     online = online_cores()
-    if not cores or set(cores) >= online or cores[-1] >= len(online):
+    if not cores or cores[-1] >= len(online):
+        return
+    if fastest:
+        cores = fastest_first(cores)[:None if picked else proton_cpu_limit(command, env)]
+    elif set(cores) >= online:
+        return
+    if cores == sorted(online):
         return
     env["WINE_CPU_TOPOLOGY"] = env["PROTON_CPU_TOPOLOGY"] = "%d:%s" % (len(cores), ",".join(map(str, cores)))
     print("droiddeck-game-env: Windows sees %d cores (%s)" % (len(cores), env["WINE_CPU_TOPOLOGY"]), file=sys.stderr)
@@ -653,7 +703,7 @@ def main():
     env = vram_cap(env)
     env = force_ssbs(command, env)
     game_cores(env)
-    cpu_topology(env)
+    cpu_topology(env, command)
     try:
         xbox = runpy.run_path(str(Path(__file__).with_name("droiddeck-xbox")))
     except Exception as error:
