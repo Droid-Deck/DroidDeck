@@ -287,7 +287,7 @@ object DualSense {
         )
     }
 
-    class MotionNoiseCalibration(private val windowSize: Int = 64) {
+    class MotionNoiseCalibration(private val windowSize: Int = 250) {
         @Volatile var gyroBiasX: Float = 0f
             private set
         @Volatile var gyroBiasY: Float = 0f
@@ -357,7 +357,10 @@ object DualSense {
                     val varAz = max(0f, sumAzSq / n - meanAz * meanAz)
                     val gyroStdMax = sqrt(max(varGx, max(varGy, varGz)))
                     val accelStdMax = sqrt(max(varAx, max(varAy, varAz)))
-                    if (gyroStdMax <= AUTO_GYRO_STD_DEV_LIMIT && accelStdMax <= AUTO_ACCEL_STD_DEV_LIMIT) {
+                    val meanGyroMag = sqrt(meanGx * meanGx + meanGy * meanGy + meanGz * meanGz)
+                    if (gyroStdMax <= AUTO_GYRO_STD_DEV_LIMIT && accelStdMax <= AUTO_ACCEL_STD_DEV_LIMIT &&
+                        meanGyroMag <= AUTO_MAX_BIAS_MAGNITUDE
+                    ) {
                         if (!isCalibrated ||
                             abs(meanGx - gyroBiasX) > SIGNIFICANT_GYRO_DELTA ||
                             abs(meanGy - gyroBiasY) > SIGNIFICANT_GYRO_DELTA ||
@@ -385,10 +388,11 @@ object DualSense {
 
         companion object {
             const val EXPECTED_ACCEL_MAGNITUDE = 8192f
-            const val AUTO_GYRO_MAGNITUDE_LIMIT = 256f
+            const val AUTO_GYRO_MAGNITUDE_LIMIT = 64f
+            const val AUTO_MAX_BIAS_MAGNITUDE = 32f
             const val AUTO_ACCEL_MAGNITUDE_TOLERANCE = 1200f
-            const val AUTO_GYRO_STD_DEV_LIMIT = 24f
-            const val AUTO_ACCEL_STD_DEV_LIMIT = 160f
+            const val AUTO_GYRO_STD_DEV_LIMIT = 8f
+            const val AUTO_ACCEL_STD_DEV_LIMIT = 64f
             const val SIGNIFICANT_GYRO_DELTA = 0.5f
 
             fun isAutoCalibrationCandidate(

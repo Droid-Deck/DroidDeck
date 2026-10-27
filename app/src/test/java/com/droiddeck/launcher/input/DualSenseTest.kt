@@ -771,7 +771,7 @@ class DualSenseTest {
         bb.putShort(26, 8192.toShort())
 
         var lastState: DualSense.State? = null
-        repeat(64) {
+        repeat(250) {
             lastState = DualSense.parseInputReport(report, motionCalibration = motionCal)
         }
         assertTrue(motionCal.isCalibrated)
@@ -779,6 +779,28 @@ class DualSenseTest {
         assertEquals(0.toShort(), lastState!!.gyroX)
         assertEquals(0.toShort(), lastState!!.gyroY)
         assertEquals(0.toShort(), lastState!!.gyroZ)
+    }
+
+    @Test
+    fun testMotionNoiseCalibrationPreservesSlowSteadyRotation() {
+        val motionCal = DualSense.MotionNoiseCalibration()
+        val report = createNeutralReport()
+        val bb = ByteBuffer.wrap(report).order(ByteOrder.LITTLE_ENDIAN)
+        // Constant 80-count rotation (~5 deg/s) while gravity is 1G on Z (8192) must never be learned as stationary bias
+        bb.putShort(16, 80.toShort())
+        bb.putShort(18, 0.toShort())
+        bb.putShort(20, 0.toShort())
+        bb.putShort(22, 0.toShort())
+        bb.putShort(24, 0.toShort())
+        bb.putShort(26, 8192.toShort())
+
+        var lastState: DualSense.State? = null
+        repeat(300) {
+            lastState = DualSense.parseInputReport(report, motionCalibration = motionCal)
+        }
+        assertFalse(motionCal.isCalibrated)
+        assertNotNull(lastState)
+        assertEquals(80.toShort(), lastState!!.gyroX)
     }
 
     @Test

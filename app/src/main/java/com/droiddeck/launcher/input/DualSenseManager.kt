@@ -85,6 +85,7 @@ class DualSenseManager(private val context: Context) {
     @Volatile private var routesPadAudio = false
     /** Null until the first report after start, so the routing is sent once even if the jack never changes. */
     @Volatile private var routedHeadphones: Boolean? = null
+    @Volatile private var lastRoutingFailureMs = 0L
     @Volatile var btConnectTimestampMs: Long = 0L
     private var btOutputSeq: Int = 0
     @Volatile var pendingBtLightbarReport: ByteArray? = null
@@ -560,8 +561,28 @@ class DualSenseManager(private val context: Context) {
         return false
     }
 
+    private fun hasBluetoothHidPermission(): Boolean {
+        val perm = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            android.Manifest.permission.BLUETOOTH_CONNECT
+        } else {
+            android.Manifest.permission.BLUETOOTH_ADMIN
+        }
+        return try {
+            context.checkSelfPermission(perm) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        } catch (_: Exception) {
+            false
+        }
+    }
+
     private fun sendDataViaBluetoothHidHost(report: ByteArray): Boolean {
         val proxy = bluetoothHidHostProxy ?: return false
+        if (!hasBluetoothHidPermission()) {
+            if (!loggedSendDataFailure) {
+                loggedSendDataFailure = true
+                Log.w(TAG, "BluetoothHidHost.sendData lacks Bluetooth permission; Bluetooth haptics stay off")
+            }
+            return false
+        }
         return try {
             val target = connectedBluetoothPad(proxy) ?: return false
             val sendData = proxy.javaClass.getMethod("sendData", BluetoothDevice::class.java, String::class.java)
@@ -576,6 +597,8 @@ class DualSenseManager(private val context: Context) {
     }
 
     @Volatile private var loggedSendDataFailure = false
+    @Volatile private var loggedSetReportFailure = false
+    @Volatile private var loggedGetReportFailure = false
 
     private fun connectedBluetoothPad(proxy: BluetoothProfile): BluetoothDevice? =
         proxy.connectedDevices?.firstOrNull { dev ->
@@ -628,30 +651,29 @@ class DualSenseManager(private val context: Context) {
     @Suppress("MissingPermission")
     private fun sendViaBluetoothHidHost(btReport: ByteArray): Boolean {
         val proxy = bluetoothHidHostProxy ?: return false
+        if (!hasBluetoothHidPermission()) {
+            if (!loggedSetReportFailure) {
+                loggedSetReportFailure = true
+                Log.w(TAG, "BluetoothHidHost.setReport lacks Bluetooth permission; Bluetooth output stays off")
+            }
+            return false
+        }
         return try {
-            val devices = proxy.connectedDevices ?: return false
-            val target: BluetoothDevice = devices.firstOrNull { dev ->
-                val name = try { dev.name ?: "" } catch (_: Exception) { "" }
-                name.contains("DualSense", ignoreCase = true) ||
-                        name.contains("Wireless Controller", ignoreCase = true)
-            } ?: return false
-
+            val target = connectedBluetoothPad(proxy) ?: return false
             val setReport = proxy.javaClass.getMethod(
                 "setReport",
                 BluetoothDevice::class.java,
                 Byte::class.javaPrimitiveType,
                 String::class.java
             )
-            val hex = StringBuilder(btReport.size * 2)
-            for (b in btReport) {
-                val v = b.toInt() and 0xFF
-                hex.append(HEX_CHARS[v ushr 4])
-                hex.append(HEX_CHARS[v and 0x0F])
-            }
             // REPORT_TYPE_OUTPUT = 2
-            val ok = setReport.invoke(proxy, target, 2.toByte(), hex.toString()) as? Boolean
+            val ok = setReport.invoke(proxy, target, 2.toByte(), toHex(btReport)) as? Boolean
             ok == true
         } catch (e: Exception) {
+            if (!loggedSetReportFailure) {
+                loggedSetReportFailure = true
+                Log.w(TAG, "BluetoothHidHost.setReport is not available; Bluetooth output stays off: $e")
+            }
             false
         }
     }
@@ -659,13 +681,15 @@ class DualSenseManager(private val context: Context) {
     @Suppress("MissingPermission")
     private fun requestBluetoothCalibrationFeature(): Boolean {
         val proxy = bluetoothHidHostProxy ?: return false
+        if (!hasBluetoothHidPermission()) {
+            if (!loggedGetReportFailure) {
+                loggedGetReportFailure = true
+                Log.w(TAG, "BluetoothHidHost.getReport lacks Bluetooth permission; extended 0x31 request skipped")
+            }
+            return false
+        }
         return try {
-            val devices = proxy.connectedDevices ?: return false
-            val target: BluetoothDevice = devices.firstOrNull { dev ->
-                val name = try { dev.name ?: "" } catch (_: Exception) { "" }
-                name.contains("DualSense", ignoreCase = true) ||
-                        name.contains("Wireless Controller", ignoreCase = true)
-            } ?: return false
+            val target = connectedBluetoothPad(proxy) ?: return false
             val getReport = proxy.javaClass.getMethod(
                 "getReport",
                 BluetoothDevice::class.java,
@@ -676,6 +700,10 @@ class DualSenseManager(private val context: Context) {
             // REPORT_TYPE_FEATURE = 3, Report ID = 0x05 (switches Bluetooth DualSense into extended 0x31 report mode)
             (getReport.invoke(proxy, target, 3.toByte(), DualSense.REPORT_ID_CALIBRATION, DualSense.REPORT_SIZE_CALIBRATION) as? Boolean) == true
         } catch (e: Exception) {
+            if (!loggedGetReportFailure) {
+                loggedGetReportFailure = true
+                Log.w(TAG, "BluetoothHidHost.getReport is not available; extended 0x31 request skipped: $e")
+            }
             false
         }
     }
@@ -999,13 +1027,15 @@ class DualSenseManager(private val context: Context) {
             resolveRawTwin()
             routedHeadphones = null
         }
-        if (routesPadAudio && (usbConnection != null || tcpOutputStream != null) && routedHeadphones != state.headphonesPlugged) {
+        if (routesPadAudio && (usbConnection != null || tcpOutputStream != null) && routedHeadphones != state.headphonesPlugged &&
+            lastRawHidTimestamp - lastRoutingFailureMs >= ROUTING_RETRY_MS) {
             val prevRouted = routedHeadphones
             routedHeadphones = state.headphonesPlugged
             if (sendOutputReport(DualSense.buildAudioRoutingReport(state.headphonesPlugged))) {
                 Log.i(TAG, "DualSense audio routed to " + if (state.headphonesPlugged) "the headphone jack" else "the speaker")
             } else {
                 routedHeadphones = prevRouted
+                lastRoutingFailureMs = lastRawHidTimestamp
             }
         }
 
@@ -1040,30 +1070,6 @@ class DualSenseManager(private val context: Context) {
             padState.press(PadState.GUIDE, state.ps)
         }, padChanged)
 
-        // 2. Call DeckControls.setDualSenseTouch and setDualSenseExtras
-        val x0 = DualSense.touchXToPad(state.touch0X)
-        val y0 = DualSense.touchYToPad(state.touch0Y)
-        val x1 = DualSense.touchXToPad(state.touch1X)
-        val y1 = DualSense.touchYToPad(state.touch1Y)
-        DeckControls.setDualSenseTouch(
-            x0 = x0,
-            y0 = y0,
-            down0 = state.touch0Down,
-            x1 = x1,
-            y1 = y1,
-            down1 = state.touch1Down,
-            click = state.touchpadClick
-        )
-        DeckControls.setDualSenseExtras(
-            mute = state.mute,
-            l4 = state.l4,
-            r4 = state.r4,
-            l5 = state.l5,
-            r5 = state.r5,
-            headphonesPlugged = state.headphonesPlugged,
-            batteryStatusByte = state.batteryStatusByte
-        )
-
         if (state.mute && !lastRawMuteButton) {
             hardwareMicMuted = !hardwareMicMuted
             sendOutputReport(DualSense.buildMicMuteReport(hardwareMicMuted))
@@ -1072,24 +1078,44 @@ class DualSenseManager(private val context: Context) {
         flushPendingBluetoothLightbar(lastRawHidTimestamp)
         checkRumbleWatchdog(lastRawHidTimestamp)
 
-        // 3. Call FakeInputWriter.setDeckIMU(0, accel, gyro) with proper axis transformation:
-        // Bytes 49..52 are a running counter on a standard DualSense; only the Edge reuses them for tuning.
-        if (!(isEdgeConnected && state.isEdgeTuningActive)) {
-            val gyroZ = (-state.gyroZ.toInt()).coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
-            val gyro = shortArrayOf(state.gyroX, gyroZ, state.gyroY)
-            val accel = shortArrayOf(
-                (state.accelX.toInt() * 2).coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort(),
-                ((-state.accelZ.toInt()) * 2).coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort(),
-                (state.accelY.toInt() * 2).coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
-            )
-            FakeInputWriter.setDeckIMU(0, accel, gyro)
-        }
-
-        // 4. Set DeckControls.externalImuActive = true (synchronized to prevent racing with demoteFromDualSense)
+        // 2-4. Publish guest-visible touch, extras, and IMU state under the manager lock so a report
+        // in flight during demoteFromDualSense() cannot overwrite the zeroed ring state.
+        val x0 = DualSense.touchXToPad(state.touch0X)
+        val y0 = DualSense.touchYToPad(state.touch0Y)
+        val x1 = DualSense.touchXToPad(state.touch1X)
+        val y1 = DualSense.touchYToPad(state.touch1Y)
         synchronized(this) {
-            if (isDualSenseActive) {
-                DeckControls.externalImuActive = true
+            if (stopped || !isDualSenseActive) return
+            DeckControls.setDualSenseTouch(
+                x0 = x0,
+                y0 = y0,
+                down0 = state.touch0Down,
+                x1 = x1,
+                y1 = y1,
+                down1 = state.touch1Down,
+                click = state.touchpadClick
+            )
+            DeckControls.setDualSenseExtras(
+                mute = state.mute,
+                l4 = state.l4,
+                r4 = state.r4,
+                l5 = state.l5,
+                r5 = state.r5,
+                headphonesPlugged = state.headphonesPlugged,
+                batteryStatusByte = state.batteryStatusByte
+            )
+            // Bytes 49..52 are a running counter on a standard DualSense; only the Edge reuses them for tuning.
+            if (!(isEdgeConnected && state.isEdgeTuningActive)) {
+                val gyroZ = (-state.gyroZ.toInt()).coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
+                val gyro = shortArrayOf(state.gyroX, gyroZ, state.gyroY)
+                val accel = shortArrayOf(
+                    (state.accelX.toInt() * 2).coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort(),
+                    ((-state.accelZ.toInt()) * 2).coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort(),
+                    (state.accelY.toInt() * 2).coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
+                )
+                FakeInputWriter.setDeckIMU(0, accel, gyro)
             }
+            DeckControls.externalImuActive = true
         }
 
         // 5. Save normalized 64B 0x01 report to ${fakeInputDir}/pad.bin (normalizing 78B 0x31 BT reports)
@@ -1287,6 +1313,7 @@ class DualSenseManager(private val context: Context) {
         /** First byte of a variable-length bridge frame; a plain output report always starts with 0x02. */
         const val BRIDGE_FRAME_MARKER: Byte = 0xB2.toByte()
         private const val RECONNECT_DELAY_MS = 1000L
+        private const val ROUTING_RETRY_MS = 1000L
         private const val HID_HOST_PROFILE = 4
         private const val SENSOR_SAMPLING_US = 4000
         const val KEYCODE_BUTTON_TOUCHPAD = 1004

@@ -3774,10 +3774,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         joyConVr = null
         handCamera?.stop()
         handCamera = null
-        padBridge?.stop()
-        steamController?.stop()
         dualSenseManager?.stop()
         dualSenseManager = null
+        padBridge?.stop()
+        steamController?.stop()
         if (SessionState.padBridge === padBridge) SessionState.padBridge = null
         padMotion?.stop()
         if (SessionState.deckPadListener === deckPadListener) SessionState.deckPadListener = null

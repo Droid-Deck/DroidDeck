@@ -2674,12 +2674,6 @@ send_dualsense_output(const uint8_t *data, size_t size) {
         if (n < 0 && errno == EINTR) {
           continue;
         }
-        if (n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
-          struct pollfd pfd = {sock, POLLOUT, 0};
-          if (poll(&pfd, 1, 1000) > 0 && (pfd.revents & POLLOUT)) {
-            continue;
-          }
-        }
         break;
       }
     }
@@ -4020,10 +4014,13 @@ EXPORT ssize_t write(int fd, const void *buf, size_t count) {
   auto made = uinput_map().find(fd);
   if (made != uinput_map().end()) return write_uinput(*made->second, buf, count);
   if (deck_map().count(fd)) {
-    if (deck_map()[fd]->touch) touch_output(static_cast<const uint8_t *>(buf), count);
-    else if (deck_map()[fd]->sony) sony_output(*deck_map()[fd], static_cast<const uint8_t *>(buf), count);
-    else if (deck_map()[fd]->emulated) triton_pad_output(static_cast<const uint8_t *>(buf), count);
-    else if (deck_map()[fd]->triton) triton_queue_output(*deck_map()[fd], static_cast<const uint8_t *>(buf), count, false);
+    auto pad = deck_map()[fd];
+    if (pad->touch) touch_output(static_cast<const uint8_t *>(buf), count);
+    else if (pad->sony) {
+      guard.unlock();
+      sony_output(*pad, static_cast<const uint8_t *>(buf), count);
+    } else if (pad->emulated) triton_pad_output(static_cast<const uint8_t *>(buf), count);
+    else if (pad->triton) triton_queue_output(*pad, static_cast<const uint8_t *>(buf), count, false);
     return static_cast<ssize_t>(count);
   }
   auto controller = controller_map().find(fd);

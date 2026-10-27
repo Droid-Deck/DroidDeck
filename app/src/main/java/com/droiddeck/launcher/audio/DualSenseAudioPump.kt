@@ -6,13 +6,13 @@ import android.media.AudioDeviceInfo
 import android.media.AudioFormat
 import android.media.AudioManager
 import android.media.AudioTrack
+import android.os.ParcelFileDescriptor
 import android.os.SystemClock
 import android.util.Log
 import com.droiddeck.launcher.core.SessionPart
 import com.droiddeck.launcher.input.DualSenseHaptics
 import com.droiddeck.launcher.input.DualSenseManager
 import java.io.File
-import java.io.FileInputStream
 import java.io.InputStream
 
 /**
@@ -24,6 +24,7 @@ import java.io.InputStream
 class DualSenseAudioPump(private val fifo: File) : SessionPart() {
     @Volatile private var running = false
     @Volatile private var input: InputStream? = null
+    @Volatile private var fallbackActive = false
     private var thread: Thread? = null
     private var loggedBluetooth = false
     private var btReportAccepted = true
@@ -58,6 +59,15 @@ class DualSenseAudioPump(private val fifo: File) : SessionPart() {
         input = null
         thread?.interrupt()
         thread = null
+        clearFallbackRumble()
+    }
+
+    private fun clearFallbackRumble() {
+        rumbleFallback.reset()
+        if (fallbackActive) {
+            fallbackActive = false
+            DualSenseManager.activeManager?.sendHapticRumbleFallback(0, 0)
+        }
     }
 
     private fun pump() {
@@ -69,7 +79,9 @@ class DualSenseAudioPump(private val fifo: File) : SessionPart() {
         var loggedMissing = false
         try {
             while (running && !fifo.exists()) Thread.sleep(100)
-            val stream = FileInputStream(fifo)
+            if (!running) return
+            val descriptor = ParcelFileDescriptor.open(fifo, ParcelFileDescriptor.MODE_READ_WRITE)
+            val stream = ParcelFileDescriptor.AutoCloseInputStream(descriptor)
             input = stream
             while (running) {
                 val n = stream.read(chunk, carry, chunk.size - carry)
@@ -102,15 +114,22 @@ class DualSenseAudioPump(private val fifo: File) : SessionPart() {
                         bluetooth.feed(buf, whole)
                         if (!btReportAccepted) {
                             rumbleFallback.processFrame(buf, whole, CHANNELS)
-                            DualSenseManager.activeManager?.sendHapticRumbleFallback(
-                                rumbleFallback.leftMotor,
-                                rumbleFallback.rightMotor
-                            )
+                            val left = rumbleFallback.leftMotor
+                            val right = rumbleFallback.rightMotor
+                            if (left > 0 || right > 0 || fallbackActive) {
+                                fallbackActive = left > 0 || right > 0
+                                DualSenseManager.activeManager?.sendHapticRumbleFallback(left, right)
+                            }
+                        } else {
+                            clearFallbackRumble()
                         }
-                    } else if (t.write(buf, 0, whole) < 0) {
-                        Log.w(TAG, "dualsense audio: the pad's audio track failed; looking for it again")
-                        t.release()
-                        track = null
+                    } else {
+                        clearFallbackRumble()
+                        if (t.write(buf, 0, whole) < 0) {
+                            Log.w(TAG, "dualsense audio: the pad's audio track failed; looking for it again")
+                            t.release()
+                            track = null
+                        }
                     }
                 }
             }
@@ -118,6 +137,7 @@ class DualSenseAudioPump(private val fifo: File) : SessionPart() {
         } catch (e: Exception) {
             if (running) Log.w(TAG, "dualsense audio pump stopped", e)
         } finally {
+            clearFallbackRumble()
             track?.let { runCatching { it.stop() }; it.release() }
         }
     }

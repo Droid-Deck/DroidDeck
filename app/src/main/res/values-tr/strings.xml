@@ -974,7 +974,7 @@
     <string name="ctrl_joycon_vr">VR kumandası olarak Joy-Con\'lar</string>
     <string name="ctrl_joycon_vr_hint">SteamVR çalışırken her Joy-Con bir el olur. Öne doğrultun ve yeniden ortalamak için Home veya Capture düğmesini basılı tutun.</string>
     <string name="ctrl_dualsense_audio">DualSense haptik ve hoparlör (Beta)</string>
-    <string name="ctrl_dualsense_audio_hint">DualSense hoparlörünü ve haptiklerini destekleyen oyunlar sesini kabloyla bağlı DualSense\'e gönderir. Bluetooth henüz desteklenmiyor. Bu açıkken oyun sesi DirectAudio yerine PulseAudio üzerinden gider; bu biraz gecikme ekler.</string>
+    <string name="ctrl_dualsense_audio_hint">DualSense haptiklerini ve hoparlörünü destekleyen oyunlar haptikleri USB veya Bluetooth üzerinden gönderir; hoparlör sesi ise kabloyla bağlı DualSense gerektirir. Bu açıkken oyun sesi DirectAudio yerine PulseAudio üzerinden gider; bu biraz gecikme ekler.</string>
     <string name="setup_animations">Animasyonlar</string>
     <string name="ctrl_adaptive_hint">Çubuklar dokunduğunuz yerde görünür, bıraktığınızda gizlenir</string>
     <string name="ctrl_layout">Düzen</string>

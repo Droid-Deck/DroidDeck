@@ -945,7 +945,13 @@ class FrontEndActivity : ComponentActivity() {
         }
         val dsManager = com.droiddeck.launcher.input.DualSenseManager(this).apply {
             onStateUpdated = { state -> handleLauncherDualSenseInput(state) }
-            onActivationChanged = { _ -> ui.post { refreshController() } }
+            onActivationChanged = { active ->
+                if (!active) dsKeyGeneration.incrementAndGet()
+                ui.post {
+                    if (!active) releaseLauncherDualSenseKeys()
+                    refreshController()
+                }
+            }
         }
         dualSenseManager = dsManager
         dualSenseOutputBridge = com.droiddeck.launcher.session.DualSenseOutputBridge()
@@ -1567,11 +1573,15 @@ class FrontEndActivity : ComponentActivity() {
         }
     }
 
+    private val dsKeyGeneration = java.util.concurrent.atomic.AtomicInteger(0)
+
     // Reports arrive on the USB reader thread; the key state is only read and changed on the main thread, and a
-    // report that lands after onPause is dropped, so no key is pressed again once the launcher has released it.
+    // report that lands after onPause or after deactivation is dropped, so no key is pressed again once released.
     private fun handleLauncherDualSenseInput(state: com.droiddeck.launcher.input.DualSense.State) {
+        val gen = dsKeyGeneration.get()
         ui.post {
             if (!lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) return@post
+            if (gen != dsKeyGeneration.get() || dualSenseManager?.isDualSenseActive != true) return@post
             val before = launcherDualSenseKeys(lastDsState)
             lastDsState = state
             val now = launcherDualSenseKeys(state)
@@ -1593,6 +1603,7 @@ class FrontEndActivity : ComponentActivity() {
 
     /** Releases every key the DualSense holds in the launcher. */
     private fun releaseLauncherDualSenseKeys() {
+        dsKeyGeneration.incrementAndGet()
         for (keyCode in launcherDualSenseKeys(lastDsState)) dispatchKeyEvent(syntheticPadKey(KeyEvent.ACTION_UP, keyCode))
         lastDsState = null
     }
