@@ -95,6 +95,36 @@ class InputSourceOwnershipTest {
         } finally { surface.close() }
     }
 
+    @Test fun releasingAllKeepsPhysicalGripsBlockedUntilNeutral() {
+        val router = InputRouter(RecordingOutput())
+        bridge.setInputRouter(router)
+        DeckControls.setRouter(router)
+        DeckControls.setGrip(DeckControls.L4, true)
+        assertEquals(DeckControls.L4, JoyConPadTest.RecordingWriter.grips)
+        bridge.releaseAll()
+        DeckControls.setGrip(DeckControls.L4, true)
+        assertEquals(0, JoyConPadTest.RecordingWriter.grips)
+        DeckControls.setGrip(DeckControls.L4, false)
+        DeckControls.setGrip(DeckControls.L4, true)
+        assertEquals(DeckControls.L4, JoyConPadTest.RecordingWriter.grips)
+    }
+
+    @Test fun cancellingHomeReleasesDeckOutputAndKeepsGripsBlockedUntilNeutral() {
+        val router = InputRouter(RecordingOutput())
+        bridge.setInputRouter(router)
+        DeckControls.setRouter(router)
+        bridge.setHomeGuidePressed(true)
+        DeckControls.setGrip(DeckControls.L4, true)
+        assertEquals(DeckControls.L4, JoyConPadTest.RecordingWriter.grips)
+        bridge.cancelHomeGuide()
+        assertEquals(0, JoyConPadTest.RecordingWriter.grips)
+        DeckControls.setGrip(DeckControls.L4, true)
+        assertEquals(0, JoyConPadTest.RecordingWriter.grips)
+        DeckControls.setGrip(DeckControls.L4, false)
+        DeckControls.setGrip(DeckControls.L4, true)
+        assertEquals(DeckControls.L4, JoyConPadTest.RecordingWriter.grips)
+    }
+
     private class RecordingOutput : InputOutput {
         val events = mutableListOf<String>()
         override fun key(code: Int, down: Boolean) { events += "key $code $down" }

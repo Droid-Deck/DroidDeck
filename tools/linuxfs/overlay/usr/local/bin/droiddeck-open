@@ -9,9 +9,9 @@ Add an app does) when that holds native programs or libraries. A Steam library's
     droiddeck-open --exec FILE [ARGS...]                     an exec the kernel refused (libblsession)
     droiddeck-open --install                                 the Run entries and default handlers
 
-The desktop composites in software, so a program started from it goes full screen on the GPU
-(droiddeck-gpu), as the menu's games do: --window keeps it in a desktop window instead, --terminal
-runs it in Konsole. A plain script stays on the desktop, and an exec whose output is read (a terminal,
+The desktop composites in software, so a program started from it runs on the GPU in a window of its
+own (droiddeck-gpu), as the menu's games do: --window keeps it on the desktop's software drawing
+instead, --terminal runs it in Konsole. A plain script stays on the desktop, and an exec whose output is read (a terminal,
 a pipe, a file) stays where it was started.
 """
 import fcntl
@@ -337,7 +337,7 @@ def unattended(env):
 
 
 def placed(cmd, what, mode, env):
-    """[cmd] where it shows: full screen on the GPU from the desktop, else where it was started."""
+    """[cmd] where it shows: on the GPU from the desktop, else where it was started."""
     if mode == "terminal" and what not in ("windows", "steam") and shutil.which("konsole"):
         return ["konsole", "--hold", "-e"] + cmd
     if mode == "window" or what in ("script", "steam") or not on_desktop(env):

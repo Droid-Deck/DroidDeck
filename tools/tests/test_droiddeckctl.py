@@ -413,6 +413,21 @@ class DroiddeckctlTest(FakeAdbTest):
         self.assertEqual("Awake", out["wakefulness"])
         self.assertIn(["shell", "input", "keyevent", "KEYCODE_WAKEUP"], [c["args"] for c in self.calls()])
 
+    def test_proot_profile_queues_only_the_next_session(self):
+        self.configure({"env": {"ok": True}})
+        code, out = self.run_ctl("proot-profile", "enable", "--slow-us", "250")
+        self.assertEqual(0, code, out)
+        self.assertEqual({"op": "set", "lines": ["PROOT_PROFILE=1", "PROOT_PROFILE_SLOW_US=250"], "persistent": False},
+                         self.calls("env")[0]["request"])
+
+    def test_proot_profile_report_needs_no_adb_or_device(self):
+        path = self.dir / "session.log"
+        path.write_text('ordinary log')
+        with unittest.mock.patch.object(ctl, "adb_path", side_effect=AssertionError("must stay offline")):
+            code, out = self.run_ctl("proot-profile", "report", str(path))
+        self.assertEqual(0, code, out)
+        self.assertFalse(out["hasCounters"])
+
     def test_override_pushes_to_the_inbox_first(self):
         self.configure({
             "access": {"ok": True, "commands": True, "inbox": "/sdcard/Android/data/x/files/agent-inbox"},

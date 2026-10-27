@@ -48,7 +48,7 @@ class GamesClientTagTest {
             DroidDeckTheme {
                 CompositionLocalProvider(LocalFrontFocus provides FrontFocus(), LocalNarrowPane provides narrow) {
                     FocusGlideHost {
-                        GamesPage(FrontEndState(
+                        LibraryPage(FrontEndState(
                             installed = "r9", ready = true, available = null, busy = false, stage = "", percent = -1,
                             desktopInstalled = true, offlineAccount = null, offline = false, frameGenLabel = "",
                             romsDir = null, logsEnabled = false, steamGames = games, steamGamesX64 = x64, emulators = emptyList(), running = null,
@@ -60,7 +60,7 @@ class GamesClientTagTest {
                             onRoms = {}, onFiles = {}, onLogs = {}, onOffline = {},
                             onWirelessAdbPair = { _, _, _, _ -> }, onWirelessAdbApply = { _, _, _, _ -> },
                             onSetPhantomProcessLimit = { _, _ -> },
-                        ), selected = "app:440", onSelect = {}, modifier = Modifier.fillMaxSize())
+                        ), selected = "games", onSelect = {}, modifier = Modifier.fillMaxSize())
                     }
                 }
             }

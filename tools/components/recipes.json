@@ -110,7 +110,8 @@
     ],
     "outputs": [
       "app/src/main/jniLibs/arm64-v8a/libdirectaudiorelay.so"
-    ]
+    ],
+    "ndk": true
   },
   "audio": {
     "script": "tools/components/recipes/audio.sh",

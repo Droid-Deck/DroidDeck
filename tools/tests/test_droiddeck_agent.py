@@ -196,6 +196,63 @@ class AgentTest(unittest.TestCase):
         answer = self.ask({"kind": "vr", "action": "status"})
         self.assertEqual("UNAVAILABLE", answer["error"]["code"])
 
+    def fake_proc(self, pid, parent, comm, env):
+        root = self.dir / "proc" / str(pid)
+        root.mkdir(parents=True)
+        (root / "comm").write_text(comm + "\n")
+        (root / "stat").write_text("%d (%s) S %d 0 0" % (pid, comm, parent))
+        (root / "environ").write_bytes(b"\0".join(b"%s=%s" % (k.encode(), v.encode()) for k, v in env.items()) + b"\0")
+
+    def tag(self, wins, arch="arm64"):
+        snap = {"displays": {":0": [], ":1": wins}}
+        with patch.dict(os.environ, {"DISPLAY": ":0", "BL_STEAM_CLIENT_ARCH": arch}), \
+                patch.object(agent.subprocess, "run") as run, patch.object(agent, "log"):
+            run.return_value.returncode = 0
+            tagged = agent.tag_game_windows(snap, proc=self.dir / "proc")
+        return tagged, [call.args[0][-1] for call in run.call_args_list]
+
+    def test_a_sandboxed_flatpak_window_is_tagged_with_its_shortcut(self):
+        self.fake_proc(40, 1, "gjs", {"FLATPAK_ID": "com.github.tchx84.Flatseal", "SteamAppId": "2166984148"})
+        win = {"window": 7, "map": "viewable", "class": "com.github.tchx84.Flatseal", "pid": None}
+        self.assertEqual(self.tag([win]), (True, ["2166984148"]))
+
+    def test_a_flatpak_window_named_after_the_app_is_matched(self):
+        self.fake_proc(40, 1, "vacuumtube", {"FLATPAK_ID": "rocks.shy.VacuumTube", "SteamAppId": "3000000001"})
+        win = {"window": 7, "map": "viewable", "class": "VacuumTube", "pid": None}
+        self.assertEqual(self.tag([win]), (True, ["3000000001"]))
+
+    def test_a_window_whose_process_has_no_app_id_falls_back_to_its_flatpak(self):
+        self.fake_proc(40, 1, "bwrap", {"FLATPAK_ID": "com.github.tchx84.Flatseal", "SteamAppId": "2166984148"})
+        self.fake_proc(41, 1, "gjs", {})
+        win = {"window": 7, "map": "viewable", "class": "com.github.tchx84.Flatseal", "pid": 41}
+        self.assertEqual(self.tag([win]), (True, ["2166984148"]))
+
+    def test_a_flatpak_shared_by_two_shortcuts_is_not_guessed(self):
+        self.fake_proc(40, 1, "gjs", {"FLATPAK_ID": "com.github.tchx84.Flatseal", "SteamAppId": "2166984148"})
+        self.fake_proc(42, 1, "gjs", {"FLATPAK_ID": "com.github.tchx84.Flatseal", "SteamAppId": "3000000003"})
+        win = {"window": 7, "map": "viewable", "class": "com.github.tchx84.Flatseal", "pid": None}
+        self.assertEqual(self.tag([win]), (False, []))
+
+    def test_a_window_outside_the_reaper_takes_its_process_app_id(self):
+        self.fake_proc(30, 1, "proot", {})
+        self.fake_proc(31, 30, "electron", {"SteamAppId": "3000000002"})
+        win = {"window": 8, "map": "viewable", "class": "electron", "pid": 31}
+        self.assertEqual(self.tag([win]), (True, ["3000000002"]))
+
+    def test_windows_gamescope_already_resolves_are_left_alone(self):
+        self.fake_proc(20, 1, "reaper", {})
+        self.fake_proc(21, 20, "game", {"SteamAppId": "413150"})
+        wins = [{"window": 9, "map": "viewable", "class": "game", "pid": 21},
+                {"window": 10, "map": "viewable", "class": "tagged", "pid": None, "appId": 5},
+                {"window": 11, "map": "viewable", "class": "other", "pid": None},
+                {"window": 12, "map": "unmapped", "class": "game", "pid": 21},
+                {"window": 13, "map": "viewable", "class": "steam_app_550", "pid": None}]
+        self.assertEqual(self.tag(wins), (False, []))
+
+    def test_the_x86_client_still_tags_its_game_classes(self):
+        win = {"window": 13, "map": "viewable", "class": "steam_app_550", "pid": None}
+        self.assertEqual(self.tag([win], arch="x86_64"), (True, ["550"]))
+
     def test_exec_output_and_status(self):
         answer = self.ask({"kind": "exec", "argv": ["sh", "-c", "echo out; echo err >&2; exit 3"], "env": {"X": "1"}})
         self.assertTrue(answer["ok"])

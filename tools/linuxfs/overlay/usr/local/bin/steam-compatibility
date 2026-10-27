@@ -69,7 +69,10 @@ bl_store_launch() {
   fi
   [ -x /usr/local/bin/droiddeck-store-launch ] || return 0
   /usr/local/bin/droiddeck-store-launch "$@"
-  [ $? -eq 10 ] && BL_STORE_EXIT=1
+  rc=$?
+  [ $rc -eq 10 ] && BL_STORE_EXIT=1
+  [ $rc -eq 11 ] && exit 0
+  [ $rc -eq 12 ] && exit 1
   return 0
 }
 
@@ -87,6 +90,34 @@ bl_run() {
 }
 """
 
+BL_DESKTOP_GPU_SETUP = """
+bl_desktop_gpu() {
+  local name saved gpu=/usr/local/bin/droiddeck-gpu
+  local names=(LD_PRELOAD LD_LIBRARY_PATH ENABLE_VK_LAYER_VALVE_steam_overlay_1 ENABLE_VK_LAYER_VALVE_steam_fossilize_1)
+  if [ -n "${BL_DESKTOP_GPU_CHILD:-}" ]; then
+    for name in "${names[@]}"; do
+      saved=BL_GPU_SAVED_$name
+      [ -n "${!saved+x}" ] || continue
+      export "$name=${!saved}"
+      unset "$saved"
+    done
+    return 0
+  fi
+  [ "${BL_DESKTOP:-}" = 1 ] && [ "${verb:-}" = waitforexitandrun ] && [ -x "$gpu" ] || return 0
+  local choice=${BL_DESKTOP_GPU:-on}
+  case "${choice,,}" in off | 0 | no | false) return 0 ;; esac
+  case " $* " in *iscriptevaluator*) return 0 ;; esac
+  local clear=()
+  for name in "${names[@]}"; do
+    [ -n "${!name+x}" ] || continue
+    export "BL_GPU_SAVED_$name=${!name}"
+    clear+=(-u "$name")
+  done
+  echo "droiddeck-gpu: the desktop starts this game on the GPU" >&2
+  exec env "${clear[@]}" "$gpu" "$0" "$verb" "$@"
+}
+bl_desktop_gpu "$@"
+"""
 BL_COMPONENTS_SETUP = """
 bl_components() {
   base=$1
@@ -377,7 +408,7 @@ LAUNCHER_TEMPLATE = LAUNCHER_SH
 
 def launcher_sh(sources=SOURCES):
     return (LAUNCHER_TEMPLATE % " ".join('"%s"' % n for n in sources)).replace(
-        "verb=$1; shift", "verb=$1; shift\n" + BL_DIRECTAUDIO_SETUP + BL_GAME_CPUS_SETUP + BL_IDTECH3_SETUP
+        "verb=$1; shift", "verb=$1; shift\n" + BL_DESKTOP_GPU_SETUP + BL_DIRECTAUDIO_SETUP + BL_GAME_CPUS_SETUP + BL_IDTECH3_SETUP
         + BL_VACDIAG_SETUP + BL_COMPONENTS_SETUP + BL_LIBPATH_SETUP + BL_STORE_SETUP, 1)
 
 
@@ -466,7 +497,7 @@ verb=$1; shift
 case $verb in
   getcompatpath | getnativepath) printf '%s\\n' "$1"; exit 0 ;;
 esac
-""" + BL_GAME_CPUS_SETUP + """
+""" + BL_DESKTOP_GPU_SETUP + BL_GAME_CPUS_SETUP + """
 bl_game_cpus
 if [ -x /usr/local/bin/droiddeck-steamvr-flat ] && /usr/local/bin/droiddeck-steamvr-flat "$verb"; then
   exec /usr/local/bin/droiddeck-steamvr-game ${BL_TASKSET:-} /usr/local/bin/droiddeck-fex steam "$verb" "$@"
@@ -649,7 +680,7 @@ def adopt_extras(tools):
         try:
             body = (EXTRA_WRAPPER_SH % entry_point).replace(
                     'here=$(dirname "$0")',
-                    'here=$(dirname "$0")\n' + BL_DIRECTAUDIO_SETUP + BL_GAME_CPUS_SETUP + BL_IDTECH3_SETUP
+                    'here=$(dirname "$0")\n' + BL_DESKTOP_GPU_SETUP + BL_DIRECTAUDIO_SETUP + BL_GAME_CPUS_SETUP + BL_IDTECH3_SETUP
                     + BL_VACDIAG_SETUP + BL_COMPONENTS_SETUP + BL_LIBPATH_SETUP + BL_STORE_SETUP, 1)
             write_changed(wrapper, body, 0o755)
             write_changed(manifest, EXTRA_MANIFEST_VDF)
@@ -1219,6 +1250,32 @@ def requested_games(requests, catalog, runnable=None):
     return resolved
 
 
+OWN_PROTON = "DroidDeck-Proton"
+ARCH_WORDS = re.compile(r"(?i)aarch64|arm64|x86_64|x86-64|amd64")
+
+
+def own_builds(tools):
+    return [t for t in tools if isinstance(t, dict) and not t.get("valve") and
+            isinstance(t.get("dir"), str) and t["dir"].startswith(OWN_PROTON) and t.get("name")]
+
+
+def build_key(name):
+    return [int(n) for n in re.findall(r"\d+", ARCH_WORDS.sub(" ", name))]
+
+
+def own_proton_moves(state, catalog):
+    names = {t["name"] for t in catalog}
+    before = state.get("tools") if isinstance(state.get("tools"), list) else ()
+    seen = state.get("own_builds") if isinstance(state.get("own_builds"), list) else []
+    known = {n for n in seen if isinstance(n, str)} | {t["name"] for t in own_builds(before)} | {t["name"] for t in own_builds(catalog)}
+    state["own_builds"] = sorted(known)
+    builds = own_builds(catalog)
+    if not builds:
+        return None, set()
+    newest = max(builds, key=lambda t: (build_key(t["dir"]), t["dir"]))["name"]
+    return newest, known - names
+
+
 def now_ms():
     import time
     return int(time.time() * 1000)
@@ -1379,11 +1436,26 @@ def register_default(config_path, apps=(), protect=(), default=None, catalog=Non
             catalog = tool_catalog(os.path.dirname(os.path.dirname(os.path.abspath(config_path))),
                                    dict(protect) if isinstance(protect, dict) else {name: name for name in protect})
         names = [t["name"] for t in catalog]
+        newest, gone = own_proton_moves(state, catalog)
+        previous, applied, chosen = state.get("default"), state.get("applied"), state.get("seq")
         if default is None:
             if settle:
                 default, state = choose_default(current.get("0", ""), state, read_json(state_path("request.json", directory)), catalog)
             else:
                 default = state.get("default") if state.get("default") in names else TOOL
+            if settle and newest and default == TOOL and state.get("applied") == applied and state.get("seq") == chosen and (
+                    previous in gone or not state.get("own_proton")):
+                default = newest
+                state.update(default=newest, seq=now_ms(), source="update")
+            if settle and newest:
+                state["own_proton"] = True
+        if newest:
+            for app, name in list(current.items()):
+                if app != "0" and name in gone:
+                    set_mapping(tokens, mapping, app, newest)
+                    current[app] = newest
+            if isinstance(state.get("auto"), dict):
+                state["auto"] = {app: newest if name in gone else name for app, name in state["auto"].items()}
         steam_root = os.path.dirname(os.path.dirname(os.path.abspath(config_path)))
         requests = settled_game_requests(state, current, catalog, not steam_running(), directory)
         overrides = requested_games(requests or {}, catalog)

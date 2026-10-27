@@ -236,6 +236,53 @@ class OnScreenControlsTest {
         assertEquals(-1, field(control("ls"), "pressedBy"))
     }
 
+    @Test fun trackpadFingerKeepsItsOwnStreamWhileAStickIsHeld() {
+        val forwarded = mutableListOf<Triple<Int, Int, Float>>()
+        view.onTouchMiss = { forwarded += Triple(it.actionMasked, it.getPointerId(0), it.getX(0)) }
+        touch(MotionEvent.ACTION_DOWN, 7 to (540f to 400f))
+        assertTrue(touch(MotionEvent.ACTION_POINTER_DOWN or (1 shl 8), 7 to (540f to 400f), 9 to (600f to 200f)))
+        touch(MotionEvent.ACTION_MOVE, 7 to (500f to 400f), 9 to (650f to 200f))
+        touch(MotionEvent.ACTION_POINTER_UP or (1 shl 8), 7 to (500f to 400f), 9 to (650f to 200f))
+        assertEquals(listOf(
+            Triple(MotionEvent.ACTION_DOWN, 9, 600f),
+            Triple(MotionEvent.ACTION_MOVE, 9, 650f),
+            Triple(MotionEvent.ACTION_UP, 9, 650f),
+        ), forwarded)
+        assertEquals(7, field(control("ls"), "pressedBy"))
+        assertTrue(value(control("ls"), "kx") < 0f)
+    }
+
+    @Test fun stickPressedAfterTrackpadFingerReachesTheControls() {
+        val received = mutableListOf<Triple<Int, Int, Int>>()
+        val trackpad = View(context).apply {
+            setOnTouchListener { _, event -> received += Triple(event.actionMasked, event.pointerCount, event.getPointerId(0)); true }
+        }
+        val root = FrameLayout(context).apply {
+            isMotionEventSplittingEnabled = true
+            addView(trackpad, FrameLayout.LayoutParams(1200, 800))
+            addView(view, FrameLayout.LayoutParams(1200, 800))
+            measure(View.MeasureSpec.makeMeasureSpec(1200, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(800, View.MeasureSpec.EXACTLY))
+            layout(0, 0, 1200, 800)
+        }
+        fun dispatch(action: Int, vararg pointers: Pair<Int, Pair<Float, Float>>) {
+            val properties = pointers.map { (id, _) -> MotionEvent.PointerProperties().apply { this.id = id; toolType = MotionEvent.TOOL_TYPE_FINGER } }.toTypedArray()
+            val coords = pointers.map { (_, position) -> MotionEvent.PointerCoords().apply { x = position.first; y = position.second; pressure = 1f; size = 1f } }.toTypedArray()
+            val event = MotionEvent.obtain(1000L, time++, action, pointers.size, properties, coords, 0, 0, 1f, 1f, 0, 0, 0, 0)
+            try { assertTrue(root.dispatchTouchEvent(event)) } finally { event.recycle() }
+        }
+        dispatch(MotionEvent.ACTION_DOWN, 0 to (600f to 200f))
+        dispatch(MotionEvent.ACTION_POINTER_DOWN or (1 shl 8), 0 to (600f to 200f), 1 to (540f to 400f))
+        dispatch(MotionEvent.ACTION_MOVE, 0 to (640f to 220f), 1 to (500f to 400f))
+        assertEquals(1, field(control("ls"), "pressedBy"))
+        assertTrue(value(control("ls"), "kx") < 0f)
+        dispatch(MotionEvent.ACTION_POINTER_UP or (1 shl 8), 0 to (640f to 220f), 1 to (500f to 400f))
+        dispatch(MotionEvent.ACTION_UP, 0 to (640f to 220f))
+        assertEquals(-1, field(control("ls"), "pressedBy"))
+        assertEquals(Triple(MotionEvent.ACTION_DOWN, 1, 0), received.first())
+        assertEquals(Triple(MotionEvent.ACTION_UP, 1, 0), received.last())
+        assertTrue(received.all { it.second == 1 && it.third == 0 })
+    }
+
     @Test fun adaptiveActivationLeavesFivePixelsAroundButtonHitTargets() {
         for (id in listOf("a", "rb")) {
             val button = control(id)

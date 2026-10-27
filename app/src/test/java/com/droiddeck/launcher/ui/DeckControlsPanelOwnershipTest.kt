@@ -12,6 +12,7 @@ import com.droiddeck.launcher.input.JoyConPadTest
 import com.droiddeck.launcher.input.PadBridge
 import com.droiddeck.launcher.input.PadState
 import com.droiddeck.launcher.session.SessionPrefs
+import com.droiddeck.launcher.session.SessionState
 import java.io.File
 import org.junit.After
 import org.junit.Assert.*
@@ -30,8 +31,10 @@ class DeckControlsPanelOwnershipTest {
     private val root = FrameLayout(activity)
     private val bridge = PadBridge(File(activity.cacheDir, "panel-ownership"))
     private lateinit var panel: DeckControlsPanel
+    private val previousDeckPad = SessionState.deckPad
 
     @Before fun setUp() {
+        SessionState.deckPad = true
         DeckControls.releaseAll()
         SessionPrefs.setGamepadSurface(activity, false, SessionPrefs.SURFACE_STICK)
         SessionPrefs.setGamepadSurface(activity, true, SessionPrefs.SURFACE_TRACKPAD)
@@ -51,6 +54,7 @@ class DeckControlsPanelOwnershipTest {
         bridge.stop()
         DeckControls.releaseAll()
         controller.pause().stop().destroy()
+        SessionState.deckPad = previousDeckPad
     }
 
     @Test fun switchingTheOtherStickKeepsTrackpadContactAndClickHeld() {

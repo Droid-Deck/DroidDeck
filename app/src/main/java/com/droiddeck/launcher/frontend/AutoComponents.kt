@@ -257,14 +257,18 @@ object AutoComponents {
 
 
     private const val FINDINGS = "wincomp-findings.json"
+    private const val DETECTORS = "d3"
 
     internal fun signature(context: Context, game: Library.SteamGame): String {
         val folder = game.gameFiles
         val parts = listOfNotNull(
+            DETECTORS,
             folder?.lastModified(),
             folder?.let { SteamRedists.manifest(it, game.appId)?.lastModified() },
             folder?.let { StoreGameSidecar.file(it).lastModified() },
             folder?.let { File(it, "fuel.json").lastModified() },
+            folder?.listFiles { f -> f.name.lowercase().let { it.startsWith("installscript") && it.endsWith(".vdf") } }
+                ?.maxOfOrNull { it.lastModified() },
             SteamAppInfo.appinfoFile(context).lastModified(),
             folder?.let { SteamMatch.get(context, it.path) }?.let { "${it.appId}/${it.certainty}" },
             steamAppOf(context, game)?.let { SteamAppInfo.state(context, it) },

@@ -134,6 +134,31 @@ suites pass. The debug APK build, session-asset check and runtime-input
 verification also pass. This follow-up has not been tested on Thor or benchmarked
 on the device.
 
+### Upstream integration (2026-10-27)
+
+Merged upstream `43a0ce93` while preserving the published PR history. The merge
+retains upstream screen keys, portrait controls and Home/Back shortcuts alongside
+the input profiles and custom second-screen layouts. Screen keys have their own
+held-key owner, and explicit physical Back bindings take precedence over the
+default QAM shortcut.
+
+Queued Home/Back chord reports now use current routed axes, including touch
+sources, rather than raw physical axes. Router/profile changes and disabled
+routing discard queued reports. Cancelling a chord or releasing all input keeps
+held controls blocked until neutral, including Deck grips. Ordinary routed input
+still publishes synchronously without waiting for the chord queue.
+
+Eleven integration regressions cover these interactions. Four routed-axis and
+cancellation scenarios failed before their fixes. The existing panel ownership
+fixture now explicitly selects a Deck controller, matching upstream's restriction
+of native trackpad controls to that controller type.
+
+The complete `:app:testDebugUnitTest` run passes **2,632 tests across 385 suites,
+zero failures/errors/skips**, using Java 17, NDK `28.2.13676358` and
+`-PskipRust=true`. This compiles the Android Java/Kotlin code and resources; a new
+APK build, Thor validation and device latency measurements were not performed
+for this merge.
+
 ## Manual AYN Thor results
 
 The user performed the following checks in the installed candidate. The desktop

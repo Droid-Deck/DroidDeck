@@ -1,0 +1,81 @@
+#!/bin/bash
+FEX_TAG=fex-2610-r5
+FEX_SHA256=0fc1ca2ba13817ad70d1ea157119a75c9c02446b57d166e6d676cce0807c19c4
+FEX_URL=https://github.com/Droid-Deck/DroidDeck-Components/releases/download/$FEX_TAG/fex.tzst
+
+# Whether every program in the FEX tree at $1 finds its libraries (r4 did not without libxxhash).
+fex_loads() {
+  local b out
+  for b in FEX FEXServer unsquashfs; do
+    out=$(/usr/lib/ld-linux-aarch64.so.1 --list "$1/usr/local/bin/$b" 2>&1) && ! grep -q "not found" <<<"$out" && continue
+    echo "== FEX check: $b: $(grep -E "not found|error" <<<"$out" | tr -s '\t ' ' ' | tr '\n' ';')" >&2
+    return 1
+  done
+}
+
+# Installs one FEX build only once its archive matches the sha256 and it loads. The files it replaces are kept
+# until the installed copy loads too, and put back otherwise; the tag is written last.
+fex_install() {
+  local tag=$1 sha=$2 urls=$3 dst=/ tmp u f
+  tmp=$(mktemp -d)
+  for u in $urls; do
+    curl -fsSL --retry 2 --connect-timeout 20 --speed-limit 1024 --speed-time 60 "$u" -o "$tmp/fex.tzst" && echo "$sha  $tmp/fex.tzst" | sha256sum -c --quiet >/dev/null 2>&1 && break
+    rm -f "$tmp/fex.tzst"
+  done
+  if [ ! -s "$tmp/fex.tzst" ]; then
+    echo "== FEX $tag: no source gave the archive with sha256 ${sha:0:12}" >&2
+    rm -rf "$tmp"
+    return 1
+  fi
+  if ! { mkdir "$tmp/root" && zstd -dc "$tmp/fex.tzst" | tar -C "$tmp/root" -x && fex_loads "$tmp/root"; }; then
+    rm -rf "$tmp"
+    return 1
+  fi
+  (cd "$tmp/root" && find . ! -type d) > "$tmp/files"
+  mkdir "$tmp/old"
+  while IFS= read -r f; do
+    f=${f#./}
+    if [ -e "$dst$f" ] || [ -L "$dst$f" ]; then
+      cp -a --parents "$dst$f" "$tmp/old" || { echo "== FEX $tag: could not keep $dst$f aside" >&2; rm -rf "$tmp"; return 1; }
+    fi
+  done < "$tmp/files"
+  if tar -C "$tmp/root" -c . | tar -C "$dst" -x && fex_loads "$dst" &&
+     mkdir -p "${dst}usr/local/share/fex-emu" && echo "$tag" > "${dst}usr/local/share/fex-emu/.droiddeck-tag"; then
+    rm -rf "$tmp"
+    return 0
+  fi
+  echo "== FEX $tag: the installed copy did not load or its tag was not written; putting the previous files back" >&2
+  while IFS= read -r f; do
+    f=${f#./}
+    [ -e "$tmp/old/$dst$f" ] || [ -L "$tmp/old/$dst$f" ] || rm -f "$dst$f"
+  done < "$tmp/files"
+  tar -C "$tmp/old$dst" -c . | tar -C "$dst" -x || echo "== FEX $tag: could not put the previous files back" >&2
+  rm -rf "$tmp"
+  return 1
+}
+
+# The build DroidDeck-Components' fex.json names (the app passes it as BL_FEX_*) comes first, then a working
+# installed one, then FEX_TAG above. Sets FEX_NOW and FEX_FROM.
+fex_ready() {
+  local have ok=
+  have=$(cat /usr/local/share/fex-emu/.droiddeck-tag 2>/dev/null || true)
+  [ -x /usr/local/bin/FEX ] && fex_loads / && ok=1
+  if [ -n "${BL_FEX_TAG:-}" ]; then
+    if [ -n "$ok" ] && [ "$have" = "$BL_FEX_TAG" ]; then FEX_NOW=$have FEX_FROM=catalog; return 0; fi
+    step "downloading FEX ($BL_FEX_TAG)"
+    if fex_install "$BL_FEX_TAG" "${BL_FEX_SHA256:-}" "${BL_FEX_URLS:-}"; then FEX_NOW=$BL_FEX_TAG FEX_FROM=catalog; return 0; fi
+    if [ -n "$ok" ]; then FEX_NOW=$have FEX_FROM="kept; $BL_FEX_TAG did not install"; return 0; fi
+  fi
+  if [ -n "$ok" ] && [ "$have" = "$FEX_TAG" ]; then FEX_NOW=$have FEX_FROM=built-in; return 0; fi
+  step "downloading FEX ($FEX_TAG)"
+  if fex_install "$FEX_TAG" "$FEX_SHA256" "$FEX_URL"; then FEX_NOW=$FEX_TAG FEX_FROM=built-in; return 0; fi
+  if [ -n "$ok" ]; then FEX_NOW=$have FEX_FROM="kept; $FEX_TAG did not install"; return 0; fi
+  return 1
+}
+
+if [ "${BASH_SOURCE[0]}" = "$0" ]; then
+  set -eu
+  step() { echo "== STEP $*" >&2; }
+  fex_ready || exit 1
+  echo "$FEX_NOW ($FEX_FROM)"
+fi

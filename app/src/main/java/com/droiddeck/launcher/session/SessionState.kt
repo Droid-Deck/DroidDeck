@@ -46,6 +46,8 @@ object SessionState {
     var activityDisplayId = 0
     @Volatile
     var runtimeDriver: String? = null
+    var micAvailable by mutableStateOf(false)
+    var micEnabled by mutableStateOf(false)
     var suspended by mutableStateOf(false)
     var resumeRequested by mutableStateOf(false)
     var resuming by mutableStateOf(false)
@@ -56,6 +58,8 @@ object SessionState {
     var program: String? = null
     @Volatile
     var programArgs: List<String> = emptyList()
+    @Volatile
+    var gameId: String? = null
     @Volatile
     var steamUi: String? = null
     @Volatile
@@ -98,9 +102,6 @@ object SessionState {
 
     @Volatile
     var upscaleRatio: Float = 0f
-
-    @Volatile
-    var fpsLimit: Int = 0
 
     @Volatile
     var firstFrameSeen = false

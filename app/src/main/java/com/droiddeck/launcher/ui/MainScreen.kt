@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.ui
 
+import androidx.compose.foundation.shape.CircleShape
 import com.droiddeck.launcher.R
 import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.Arrangement
@@ -12,7 +13,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
+import com.droiddeck.launcher.ui.GlideAlertDialog as AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -46,9 +47,9 @@ fun ChooseAppDisplayDialog(
                     ?: stringResource(R.string.main_secondary_gone),
             )
         },
-        confirmButton = { TextButton(onClick = onPrimary) { Text(stringResource(R.string.main_primary)) } },
+        confirmButton = { TextButton(onClick = onPrimary, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.main_primary)) } },
         dismissButton = {
-            TextButton(onClick = onSecondary, enabled = secondaryDisplay != null) {
+            TextButton(onClick = onSecondary, enabled = secondaryDisplay != null, modifier = Modifier.focusGlide(CircleShape)) {
                 Text(stringResource(R.string.main_secondary))
             }
         },
@@ -61,8 +62,8 @@ fun ConfirmDialog(title: String, text: String, confirm: String, onConfirm: () ->
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = { Text(text) },
-        confirmButton = { TextButton(onClick = { onDismiss(); onConfirm() }) { Text(confirm) } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } },
+        confirmButton = { TextButton(onClick = { onDismiss(); onConfirm() }, modifier = Modifier.focusGlide(CircleShape)) { Text(confirm) } },
+        dismissButton = { TextButton(onClick = onDismiss, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.common_cancel)) } },
     )
 }
 
@@ -72,11 +73,11 @@ fun RuntimeActionsDialog(onRepair: () -> Unit, onRemove: () -> Unit, onDismiss: 
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.runtime_actions_title)) },
         text = { Text(stringResource(R.string.runtime_actions_text)) },
-        confirmButton = { TextButton(onClick = onRepair) { Text(stringResource(R.string.runtime_repair)) } },
+        confirmButton = { TextButton(onClick = onRepair, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.runtime_repair)) } },
         dismissButton = {
             Row {
-                TextButton(onClick = onRemove) { Text(stringResource(R.string.store_remove)) }
-                TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
+                TextButton(onClick = onRemove, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.store_remove)) }
+                TextButton(onClick = onDismiss, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.common_cancel)) }
             }
         },
     )
@@ -92,7 +93,7 @@ fun ResetSettingsDialog(onConfirm: (gameProfiles: Boolean) -> Unit, onDismiss: (
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(stringResource(R.string.setup_reset_settings_body))
                 Row(
-                    Modifier.fillMaxWidth().toggleable(gameProfiles, role = Role.Checkbox) { gameProfiles = it },
+                    Modifier.fillMaxWidth().focusGlide().toggleable(gameProfiles, role = Role.Checkbox) { gameProfiles = it },
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Checkbox(checked = gameProfiles, onCheckedChange = null)
@@ -102,10 +103,10 @@ fun ResetSettingsDialog(onConfirm: (gameProfiles: Boolean) -> Unit, onDismiss: (
             }
         },
         confirmButton = {
-            TextButton(onClick = { onDismiss(); onConfirm(gameProfiles) }) {
+            TextButton(onClick = { onDismiss(); onConfirm(gameProfiles) }, modifier = Modifier.focusGlide(CircleShape)) {
                 Text(stringResource(R.string.setup_reset_settings_button), color = MaterialTheme.colorScheme.error)
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } },
+        dismissButton = { TextButton(onClick = onDismiss, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.common_cancel)) } },
     )
 }

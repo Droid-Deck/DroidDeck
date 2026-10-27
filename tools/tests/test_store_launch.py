@@ -277,9 +277,38 @@ class CloudHooks(unittest.TestCase):
         for sh in (compat.LAUNCHER_SH, compat.EXTRA_WRAPPER_SH):
             self.assertIn('bl_run ${BL_TASKSET:-} /usr/local/bin/droiddeck-game-env', sh)
             self.assertNotIn('exec ${BL_TASKSET:-} /usr/local/bin/droiddeck-game-env', sh)
-        self.assertIn('[ $? -eq 10 ] && BL_STORE_EXIT=1', compat.BL_STORE_SETUP)
+        self.assertIn('[ $rc -eq 10 ] && BL_STORE_EXIT=1', compat.BL_STORE_SETUP)
         self.assertIn('droiddeck-store-launch --exited --code "$rc" "${BL_STORE_ARGS[@]}"', compat.BL_STORE_SETUP)
         self.assertIn('exec "$@"', compat.BL_STORE_SETUP)
+
+
+BNET_EXE = '/root/.local/share/Steam/steamapps/compatdata/2596113170/pfx/drive_c/Program Files (x86)/Battle.net/Battle.net.exe'
+
+
+class BattleNet(unittest.TestCase):
+    def test_a_games_shortcut_is_handed_to_droiddeck_battlenet(self):
+        self.assertEqual([store.BATTLENET, 'launch', 'Fen'], store.battlenet(['waitforexitandrun', BNET_EXE, '--exec=launch Fen'], env={}))
+        self.assertEqual([store.BATTLENET, 'launch', 'OSI'], store.battlenet(['"%s"' % BNET_EXE, '--exec="launch OSI"'], env={}))
+        self.assertEqual([store.BATTLENET, 'open'], store.battlenet([BNET_EXE], env={}))
+
+    def test_anything_else_and_its_own_starts_are_left_alone(self):
+        other = BNET_EXE.replace('2596113170', '123')
+        self.assertIsNone(store.battlenet([other, '--exec=launch Fen'], env={}))
+        self.assertIsNone(store.battlenet(['/x/Diablo IV/Diablo IV.exe'], env={}))
+        self.assertIsNone(store.battlenet([BNET_EXE, '--exec=launch Fen'], env={'BL_BATTLENET': '1'}))
+        self.assertEqual([store.BATTLENET, 'open'], store.battlenet([BNET_EXE, '--exec=launch Fen;rm'], env={}))
+
+    def test_the_launch_runs_there_and_the_wrapper_ends_with_it(self):
+        with patch.dict(os.environ, {}, clear=False), patch.object(store.subprocess, 'call', return_value=0) as call:
+            os.environ.pop('BL_BATTLENET', None)
+            self.assertEqual(store.RAN, store.main([BNET_EXE, '--exec=launch Pro']))
+        call.assert_called_once_with([store.BATTLENET, 'launch', 'Pro'])
+        with patch.dict(os.environ, {}, clear=False), patch.object(store.subprocess, 'call', return_value=1):
+            os.environ.pop('BL_BATTLENET', None)
+            self.assertEqual(store.RAN_FAILED, store.main([BNET_EXE, '--exec=launch Pro']))
+        self.assertIn('[ $rc -eq 11 ] && exit 0', compat.BL_STORE_SETUP)
+        self.assertIn('[ $rc -eq 12 ] && exit 1', compat.BL_STORE_SETUP)
+        self.assertLess(compat.BL_STORE_SETUP.index('droiddeck-store-launch "$@"'), compat.BL_STORE_SETUP.index('[ $rc -eq 11 ] && exit 0'))
 
 
 class Launchers(unittest.TestCase):

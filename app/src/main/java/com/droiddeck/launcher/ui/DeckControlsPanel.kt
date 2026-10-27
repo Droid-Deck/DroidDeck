@@ -42,11 +42,13 @@ class DeckControlsPanel(
     private val pad: PadBridge? = null,
     private val customLayout: List<InputSurfaceElement>? = null,
     private val inputRole: InputRole = InputRole.SECONDARY,
+    private val portraitDock: Boolean = false,
 ) : LinearLayout(context) {
     private enum class Tab(val label: Int) { GAMEPAD(R.string.deck_tab_gamepad), GRIPS(R.string.deck_tab_grips), LEFT(R.string.deck_tab_left), RIGHT(R.string.deck_tab_right), BOTH(R.string.deck_tab_both) }
 
     private val deckSource = DeckControls.source(inputRole)
     private val content = FrameLayout(context)
+    val deckControls = pad == null || SessionState.deckPad
     private val tabViews = HashMap<Tab, TextView>()
     private val topBar: View by lazy { topBar() }
 
@@ -56,7 +58,7 @@ class DeckControlsPanel(
         addView(topBar, LayoutParams(LayoutParams.MATCH_PARENT, dp(64)))
         addView(content, LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f))
         if (customLayout != null && pad != null) renderCustom(pad, customLayout)
-        else select(if (pad != null) selectedWithPad else selected)
+        else select(if (pad != null && !deckControls) Tab.GAMEPAD else if (pad != null) selectedWithPad else selected)
     }
 
     private fun renderCustom(pad: PadBridge, layout: List<InputSurfaceElement>) {
@@ -121,6 +123,7 @@ class DeckControlsPanel(
             background = outline(CORNER_PILL, SURFACE)
             setPadding(dp(4), dp(4), dp(4), dp(4))
             for (tab in Tab.values()) {
+                if (!deckControls && tab != Tab.GAMEPAD) continue
                 if (tab == Tab.GAMEPAD && pad == null) continue
                 val view = TextView(context).apply {
                     text = context.getString(tab.label)
@@ -225,7 +228,7 @@ class DeckControlsPanel(
         addView(grips, LayoutParams(LayoutParams.MATCH_PARENT, dp(84)))
     }
 
-    private fun gamepad(pad: PadBridge): View = GamepadLayout(context).apply {
+    private fun gamepad(pad: PadBridge): View = GamepadLayout(context, portraitDock).apply {
         fun pill(label: String, write: (PadState, Boolean) -> Unit) = PadButton(context, pad, label, write)
         place(surfaceSlot(pad, right = false), GamepadGeometry.Slot.LEFT_MAIN)
         place(DirectionPad(context, pad), GamepadGeometry.Slot.LEFT_SECOND)
@@ -241,14 +244,22 @@ class DeckControlsPanel(
             place(centreTap("\u2022\u2022\u2022", context.getString(R.string.drawer_open_qam), onQam), GamepadGeometry.Slot.QAM)
         }
         place(pill("MENU") { st, d -> st.press(PadState.START, d) }, GamepadGeometry.Slot.MENU)
-        place(centreTap("\u25a6 " + context.getString(R.string.deck_panels), context.getString(R.string.deck_more_controls)) { select(Tab.BOTH) },
+        if (deckControls) place(centreTap("\u25a6 " + context.getString(R.string.deck_panels), context.getString(R.string.deck_more_controls)) { select(Tab.BOTH) },
             GamepadGeometry.Slot.PANELS)
+        if (portraitDock && deckControls) {
+            place(GripButton(context, "L4", null, DeckControls.L4), GamepadGeometry.Slot.L4)
+            place(GripButton(context, "L5", null, DeckControls.L5), GamepadGeometry.Slot.L5)
+            place(GripButton(context, "R5", null, DeckControls.R5), GamepadGeometry.Slot.R5)
+            place(GripButton(context, "R4", null, DeckControls.R4), GamepadGeometry.Slot.R4)
+        }
     }
 
     private fun centreTap(label: String, description: String, onClick: () -> Unit) = TextView(context).apply {
         text = label
         contentDescription = description
         textSize = 13f
+        maxLines = 1
+        setAutoSizeTextTypeUniformWithConfiguration(9, 13, 1, android.util.TypedValue.COMPLEX_UNIT_SP)
         typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
         letterSpacing = 0.08f
         gravity = Gravity.CENTER
@@ -261,6 +272,11 @@ class DeckControlsPanel(
     }
 
     private fun surfaceSlot(pad: PadBridge, right: Boolean): View = FrameLayout(context).apply {
+        if (!deckControls) {
+            addView(StickView(context, pad, right),
+                FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
+            return@apply
+        }
         val slot = this
         fun show() {
             slot.removeAllViews()
@@ -674,7 +690,7 @@ class DeckControlsPanel(
         }
     }
 
-    private class GamepadLayout(context: Context) : ViewGroup(context) {
+    private class GamepadLayout(context: Context, private val portraitDock: Boolean) : ViewGroup(context) {
         private val slots = LinkedHashMap<View, GamepadGeometry.Slot>()
 
         fun place(view: View, slot: GamepadGeometry.Slot) {
@@ -682,7 +698,7 @@ class DeckControlsPanel(
             addView(view)
         }
 
-        private fun boxes(w: Int, h: Int) = GamepadGeometry.layout(w.toFloat(), h.toFloat(), resources.displayMetrics.density)
+        private fun boxes(w: Int, h: Int) = GamepadGeometry.layout(w.toFloat(), h.toFloat(), resources.displayMetrics.density, portraitDock)
 
         override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
             val w = MeasureSpec.getSize(widthMeasureSpec)

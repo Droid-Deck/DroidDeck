@@ -1,10 +1,9 @@
 package com.droiddeck.launcher.ui
 
-import com.droiddeck.launcher.input.PcKey
+import com.droiddeck.launcher.R
 import com.droiddeck.launcher.input.PC_KEY_ROWS
 import com.droiddeck.launcher.input.PC_MODIFIERS
-import com.droiddeck.launcher.R
-import androidx.annotation.StringRes
+import com.droiddeck.launcher.input.PcKey
 import androidx.compose.ui.res.stringResource
 import android.view.KeyEvent
 import androidx.compose.animation.animateColorAsState

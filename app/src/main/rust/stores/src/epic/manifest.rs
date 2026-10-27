@@ -68,6 +68,7 @@ pub struct Manifest {
     pub version: i64,
     pub build_version: String,
     pub launch_exe: String,
+    pub launch_command: String,
     pub prereq_name: String,
     pub prereq_path: String,
     pub prereq_read: bool,
@@ -279,6 +280,7 @@ fn parse_binary(bytes: &[u8]) -> Result<Manifest, String> {
         version,
         build_version: meta.build_version,
         launch_exe: meta.launch_exe,
+        launch_command: meta.launch_command,
         prereq_name: meta.prereq_name,
         prereq_path: meta.prereq_path,
         prereq_read: meta.complete,
@@ -292,6 +294,7 @@ fn parse_binary(bytes: &[u8]) -> Result<Manifest, String> {
 struct Meta {
     build_version: String,
     launch_exe: String,
+    launch_command: String,
     prereq_name: String,
     prereq_path: String,
     complete: bool,
@@ -308,7 +311,7 @@ fn read_meta(data: &[u8]) -> Meta {
         r.fstring()?;
         meta.build_version = r.fstring()?;
         meta.launch_exe = normalise_path(&r.fstring()?);
-        r.fstring()?;
+        meta.launch_command = r.fstring()?;
         let ids = r.count(4)?;
         for _ in 0..ids {
             r.fstring()?;
@@ -548,6 +551,7 @@ fn parse_json(bytes: &[u8]) -> Result<Manifest, String> {
         version,
         build_version: str_field("BuildVersionString"),
         launch_exe: normalise_path(launch),
+        launch_command: str_field("LaunchCommand"),
         prereq_name: str_field("PrereqName"),
         prereq_path: normalise_path(&str_field("PrereqPath")),
         prereq_read: true,
@@ -611,7 +615,7 @@ pub mod testing {
         fstring(&mut meta, "App");
         fstring(&mut meta, &m.build);
         fstring(&mut meta, &m.exe);
-        fstring(&mut meta, "");
+        fstring(&mut meta, "-PCStore=EGS \"-log=a b.txt\"");
         if let Some((name, path)) = &m.prereq {
             meta.extend_from_slice(&1i32.to_le_bytes());
             fstring(&mut meta, "prereq-id");
@@ -763,6 +767,7 @@ mod tests {
             assert_eq!(m.chunk_folder(), "ChunksV4");
             assert_eq!(m.build_version, "1.2.3-CL-99");
             assert_eq!(m.launch_exe, "Binaries/Win64/Game.exe");
+            assert_eq!(m.launch_command, "-PCStore=EGS \"-log=a b.txt\"");
             assert_eq!(m.prereq_name, "UE4 Prerequisites (x64)");
             assert_eq!(m.prereq_path, "Engine/Extras/UE4PrereqSetup_x64.exe");
             assert!(m.prereq_read);
@@ -851,6 +856,7 @@ mod tests {
         let doc = r#"{
             "ManifestFileVersion": "013000000000",
             "LaunchExeString": "Bin\\Game.exe",
+            "LaunchCommand": "-PCStore=EGS",
             "BuildVersionString": "++Game+Release-1.0",
             "PrereqName": "Redist", "PrereqPath": "Redist\\setup.exe",
             "ChunkHashList": {
@@ -872,6 +878,7 @@ mod tests {
         assert_eq!(m.version, 13);
         assert_eq!(m.chunk_folder(), "ChunksV3");
         assert_eq!(m.launch_exe, "Bin/Game.exe");
+        assert_eq!(m.launch_command, "-PCStore=EGS");
         assert!(m.prereq_read);
         assert_eq!(m.prereq_path, "Redist/setup.exe");
         assert_eq!(m.chunks.len(), 2);

@@ -494,6 +494,16 @@ jobs:
       - name: Build the add-on packs
         run: bash tools/packs/build.sh app/build/packs
 
+      - name: Note when the proot pack pin is behind this build
+        run: |
+          set -euo pipefail
+          # shellcheck disable=SC1091
+          source tools/packs/proot/release.env
+          sha=$(sha256sum app/build/packs/proot.tar.zst | cut -d' ' -f1)
+          if [ "$sha" != "$PROOT_PACK_SHA256" ]; then
+            echo "::warning::built proot pack $sha does not match tools/packs/proot/release.env ($PROOT_PACK_SHA256). This build publishes the pack it just built. Source builds keep downloading the pinned pack until release.env is updated."
+          fi
+
       - name: Build
         id: build
         env:
@@ -610,7 +620,6 @@ jobs:
           UNIT_TEST_OUTCOME: ${{ steps.unit-tests.outcome }}
           TEST_DIAGNOSTICS_URL: ${{ steps.unit-test-diagnostics.outputs.artifact-url }}
           APK_OUTCOME: ${{ steps.apk-upload.outcome }}
-          SAME_REPO: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
         run: bash tools/release/report-build.sh
 
   python-tests:

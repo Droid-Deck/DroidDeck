@@ -1,12 +1,13 @@
 package com.droiddeck.launcher.ui
 
+import androidx.compose.foundation.shape.CircleShape
 import com.droiddeck.launcher.R
 import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.Column
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
-import androidx.compose.material3.AlertDialog
+import com.droiddeck.launcher.ui.GlideAlertDialog as AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -38,10 +39,10 @@ fun RomsDialog(path: String?, onChoose: () -> Unit, onClear: () -> Unit, onDismi
                 )
             }
         },
-        confirmButton = { TextButton(onClick = onChoose) { Text(if (path == null) stringResource(R.string.roms_choose) else stringResource(R.string.roms_change)) } },
+        confirmButton = { TextButton(onClick = onChoose, modifier = Modifier.focusGlide(CircleShape)) { Text(if (path == null) stringResource(R.string.roms_choose) else stringResource(R.string.roms_change)) } },
         dismissButton = {
-            if (path != null) TextButton(onClick = onClear) { Text(stringResource(R.string.common_forget)) }
-            else TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
+            if (path != null) TextButton(onClick = onClear, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.common_forget)) }
+            else TextButton(onClick = onDismiss, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.common_cancel)) }
         },
     )
 }

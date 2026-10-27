@@ -14,6 +14,11 @@ internal class XboxCredentials(private val app: Context, expectedGeneration: Str
     val name = "droiddeck-xbox-${UUID.randomUUID()}"
     private val generation = lifecycle(app, expectedGeneration) { it }
     private val server = LocalServerSocket(name)
+    // Some devices refuse the abstract socket from inside PRoot; the backend then falls back to this keyed loopback port.
+    private val loopback = java.net.ServerSocket(0, 8, java.net.InetAddress.getByAddress(byteArrayOf(127, 0, 0, 1)))
+    val port: Int get() = loopback.localPort
+    val key: String = ByteArray(32).also { java.security.SecureRandom().nextBytes(it) }.joinToString("") { "%02x".format(it) }
+    @Volatile private var loopbackUsed = false
     @Volatile private var closed = false
     private val bound = java.util.concurrent.CountDownLatch(1)
     private var backend: Process? = null
@@ -79,33 +84,122 @@ internal class XboxCredentials(private val app: Context, expectedGeneration: Str
         } }
     }
 
-    init {
+    /** Each connection gets its own thread; an accept error is logged and retried instead of silently ending the loop. */
+    private fun <S> listen(route: String, accept: () -> S, serve: (S) -> Unit) = Thread({
+        var failures = 0
+        while (!closed) {
+            val socket = try { accept() } catch (e: Exception) {
+                if (closed) break
+                failures++
+                note("Credential $route accept failed: ${e.javaClass.simpleName}")
+                if (failures >= 20) { note("Credential $route listener stopped after repeated accept failures"); break }
+                Thread.sleep(100)
+                continue
+            }
+            failures = 0
+            Thread({ serve(socket) }, "xbox-credentials-$route-request").start()
+        }
+    }, "xbox-credentials-$route").start()
+
+    /** Logs requests that take 2 s or more, and the stage a request is still in after 8 s (the backend waits 30 s). */
+    private fun tracked(route: String, block: (step: (String) -> Unit) -> JSONObject): JSONObject {
+        val started = android.os.SystemClock.elapsedRealtime()
+        val stage = java.util.concurrent.atomic.AtomicReference("auth")
+        val done = java.util.concurrent.CountDownLatch(1)
+        val stages = java.util.Collections.synchronizedList(mutableListOf<String>())
+        var mark = started
+        val step = { next: String ->
+            val now = android.os.SystemClock.elapsedRealtime()
+            stages += "${stage.getAndSet(next)} ${now - mark} ms"
+            mark = now
+        }
         Thread({
-            while (!closed) {
-                val socket = runCatching { server.accept() }.getOrNull() ?: break
-                socket.use {
-                    it.soTimeout = 10_000
-                    val reply = runCatching {
+            if (!done.await(8, java.util.concurrent.TimeUnit.SECONDS)) note("Credential $route request still in ${stage.get()} after 8 s")
+        }, "xbox-credentials-watch").apply { isDaemon = true; start() }
+        try {
+            return block(step)
+        } finally {
+            done.countDown()
+            step("done")
+            val total = android.os.SystemClock.elapsedRealtime() - started
+            if (total >= 2000) note("Credential $route request took $total ms (${stages.joinToString(", ")})")
+        }
+    }
+
+    init {
+        listen("socket", { server.accept() }) { socket ->
+            socket.use {
+                it.soTimeout = 10_000
+                val reply = tracked("socket") { step ->
+                    runCatching {
                         val peer = it.peerCredentials
                         check(peer.uid == android.os.Process.myUid() && authorized(peer.pid))
+                        step("read")
                         val request = JSONObject(readLine(it.inputStream.buffered(), 2_097_152))
+                        step("lock")
                         storage(app) {
+                            step("answer")
                             check(!closed && epoch(app) == generation && authorized(peer.pid))
-                            answer(request)
+                            answer(request, step)
                         }
                     }.getOrElse {
                         note("Credential request rejected: ${it.javaClass.simpleName}")
                         JSONObject().put("ok", false)
                     }
-                    runCatching { it.outputStream.write((reply.toString() + "\n").toByteArray()) }
                 }
+                runCatching { it.outputStream.write((reply.toString() + "\n").toByteArray()) }
+                    .onFailure { failure -> note("Credential reply not delivered: ${failure.javaClass.simpleName}") }
             }
-        }, "xbox-credentials").start()
+        }
+        listen("loopback", { loopback.accept() }) { socket ->
+            socket.use {
+                it.soTimeout = 10_000
+                val reply = tracked("loopback") { step ->
+                    runCatching {
+                        val input = it.getInputStream().buffered()
+                        check(it.inetAddress.isLoopbackAddress)
+                        if (!java.security.MessageDigest.isEqual(readLine(input, 128).toByteArray(), key.toByteArray())) {
+                            rejected("loopback-key"); error("loopback key")
+                        }
+                        if (!loopbackOwner(it.port)) { rejected("loopback-owner"); error("loopback owner") }
+                        check(bound.await(5, java.util.concurrent.TimeUnit.SECONDS) && backend?.isAlive == true)
+                        if (!loopbackUsed) { loopbackUsed = true; note("Backend reached the app over the loopback fallback") }
+                        step("read")
+                        val request = JSONObject(readLine(input, 2_097_152))
+                        step("lock")
+                        storage(app) {
+                            step("answer")
+                            check(!closed && epoch(app) == generation)
+                            answer(request, step)
+                        }
+                    }.getOrElse { failure ->
+                        note("Credential request rejected: ${failure.javaClass.simpleName}")
+                        JSONObject().put("ok", false)
+                    }
+                }
+                runCatching { it.getOutputStream().write((reply.toString() + "\n").toByteArray()) }
+                    .onFailure { failure -> note("Credential reply not delivered: ${failure.javaClass.simpleName}") }
+            }
+        }
     }
 
-    private fun answer(request: JSONObject): JSONObject {
+    /** The connecting socket must belong to this app's user; an unreadable table (newer Android) leaves the key as the check. */
+    private fun loopbackOwner(peerPort: Int): Boolean {
+        val uid = android.os.Process.myUid()
+        val rows = listOf("/proc/net/tcp", "/proc/net/tcp6").mapNotNull { runCatching { java.io.File(it).readLines().drop(1) }.getOrNull() }.flatten()
+        val owners = rows.mapNotNull { row ->
+            val fields = row.trim().split(Regex("\\s+"))
+            val local = fields.getOrNull(1)?.substringAfterLast(':')?.toIntOrNull(16)
+            val remote = fields.getOrNull(2)?.substringAfterLast(':')?.toIntOrNull(16)
+            if (local == peerPort && remote == loopback.localPort) fields.getOrNull(7)?.toIntOrNull() else null
+        }
+        return owners.isEmpty() || owners.all { it == uid }
+    }
+
+    private fun answer(request: JSONObject, step: (String) -> Unit = {}): JSONObject {
         val key = request.getString("key")
         require(key.isNotEmpty() && key.length <= 512)
+        step("record-read")
         val record = StoreAccounts.read(app, Store.XBOX)
         check(!StoreAccounts.isUnavailable(Store.XBOX))
         val json = record ?: JSONObject()
@@ -118,15 +212,16 @@ internal class XboxCredentials(private val app: Context, expectedGeneration: Str
                 require(bytes.length() <= 262_144)
                 for (i in 0 until bytes.length()) require(bytes.getInt(i) in 0..255)
                 slots.put(key, bytes)
+                step("record-save")
                 StoreAccounts.write(app, Store.XBOX, json)
             }
-            "remove" -> { slots.remove(key); StoreAccounts.write(app, Store.XBOX, json) }
+            "remove" -> { slots.remove(key); step("record-save"); StoreAccounts.write(app, Store.XBOX, json) }
             else -> error("Invalid credential operation")
         }
         return result
     }
 
-    override fun close() { closed = true; bound.countDown(); runCatching { server.close() } }
+    override fun close() { closed = true; bound.countDown(); runCatching { server.close() }; runCatching { loopback.close() } }
 
     companion object {
         val lock = Any()

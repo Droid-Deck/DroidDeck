@@ -98,7 +98,7 @@ custom components can support a different set of options. Android Wine wrapper,
 ALSA-server, Box64 and patched async-DXVK options are identified in the editor as
 requiring a different/custom component; custom entries remain allowed. The old
 `DXVK_FRAME_RATE` environment variable was removed from current DXVK, so it is
-not offered as a suggestion. Prefer the session frame limiter for ordinary play.
+not offered as a suggestion. Prefer Steam's Quick Access menu frame limiter for ordinary play.
 
 ## Launch path and references
 
