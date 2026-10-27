@@ -1,5 +1,8 @@
 package com.droiddeck.launcher.wayland
 
+import android.os.Handler
+import android.os.HandlerThread
+import android.os.Process
 import android.view.Choreographer
 import android.view.Surface
 import com.droiddeck.launcher.session.SessionState
@@ -13,6 +16,12 @@ object CompositorHost {
 
     @Volatile
     private var vsyncRunning = false
+
+    // The screen tick gets its own thread so a busy main thread cannot delay the compositor's frames.
+    private val vsyncThread: HandlerThread by lazy {
+        HandlerThread("droiddeck-vsync", Process.THREAD_PRIORITY_DISPLAY).apply { start() }
+    }
+    private val vsyncHandler: Handler by lazy { Handler(vsyncThread.looper) }
 
     private val vsync = object : Choreographer.FrameCallback {
         override fun doFrame(frameTimeNanos: Long) {
@@ -104,7 +113,11 @@ object CompositorHost {
     private fun resumeVsync() {
         if (vsyncRunning) return
         vsyncRunning = true
-        Choreographer.getInstance().postFrameCallback(vsync)
+        vsyncHandler.post {
+            val choreographer = Choreographer.getInstance()
+            choreographer.removeFrameCallback(vsync)
+            if (vsyncRunning) choreographer.postFrameCallback(vsync)
+        }
     }
 
     private fun pauseVsync() {
