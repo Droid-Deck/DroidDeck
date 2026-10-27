@@ -1313,6 +1313,12 @@ class FrontEndActivity : ComponentActivity() {
                             onSelectSteam = { on -> ControllerPrefs.setSelectSteam(this, on); refreshController() },
                             onJoyConVr = { on -> ControllerPrefs.setJoyConVr(this, on); refreshController() },
                             onDualSenseAudio = { on -> ControllerPrefs.setDualSenseAudio(this, on); refreshController() },
+                            onDualSenseLightbarMode = { mode -> ControllerPrefs.setDualSenseLightbarMode(this, mode); refreshController() },
+                            onDualSensePlayerLeds = { mode -> ControllerPrefs.setDualSensePlayerLeds(this, mode); refreshController() },
+                            onDualSensePlayerLedBrightness = { b -> ControllerPrefs.setDualSensePlayerLedBrightness(this, b); refreshController() },
+                            onDualSenseTriggerMode = { mode -> ControllerPrefs.setDualSenseTriggerMode(this, mode); refreshController() },
+                            onDualSenseTouchpad = { on -> ControllerPrefs.setDualSenseTouchpad(this, on); refreshController() },
+                            onDualSenseGyroAutoCal = { on -> ControllerPrefs.setDualSenseGyroAutoCal(this, on); refreshController() },
                             onEditLayout = { startActivity(Intent(this, ControllerEditorActivity::class.java)) },
                             onResetLayout = { ControllerPrefs.resetAllLayouts(this); refreshController() },
                             onMapping = { showPerformance = false; showComponents = false; showMapping = true },
@@ -1506,6 +1512,7 @@ class FrontEndActivity : ComponentActivity() {
         }
         if (event.keyCode == KeyEvent.KEYCODE_BUTTON_A) com.droiddeck.launcher.ui.HeldKeys.confirm = event.action == KeyEvent.ACTION_DOWN
         if (event.action == KeyEvent.ACTION_DOWN) com.droiddeck.launcher.ui.HeldKeys.focusWakeup++
+        if (com.droiddeck.launcher.ui.ActiveGlideWindows.dispatchKeyEvent(window?.decorView, event)) return true
         if (showComponents && (event.keyCode == KeyEvent.KEYCODE_BUTTON_L1 || event.keyCode == KeyEvent.KEYCODE_BUTTON_R1)) {
             if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
                 components.compComp = com.droiddeck.launcher.ui.layerStep(components.compComp, if (event.keyCode == KeyEvent.KEYCODE_BUTTON_R1) 1 else -1)
@@ -1736,6 +1743,7 @@ class FrontEndActivity : ComponentActivity() {
     private fun refreshController() {
         controllerSettings = ControllerPrefs.read(this)
         steamController = com.droiddeck.launcher.input.DualSenseManager.effectiveSteamController(this)
+        com.droiddeck.launcher.input.DualSenseManager.refreshActivePreferences(this)
     }
 
     @Composable

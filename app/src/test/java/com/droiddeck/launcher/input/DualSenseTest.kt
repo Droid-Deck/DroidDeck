@@ -1136,6 +1136,66 @@ class DualSenseTest {
         assertEquals(0x00, DualSense.playerLedMaskForBattery(15, flashOff = true))
     }
 
+    @Test
+    fun `lightbarRgbForMode playerLedMaskForMode and triggerPresetEffect map user settings`() {
+        val tintArgb = android.graphics.Color.rgb(255, 110, 150)
+        assertEquals(Triple(255, 110, 150), DualSense.lightbarRgbForMode(ControllerPrefs.LIGHTBAR_TINT, tintArgb, 50))
+        assertEquals(Triple(0, 0, 0), DualSense.lightbarRgbForMode(ControllerPrefs.LIGHTBAR_OFF, tintArgb, 50))
+        assertEquals(Triple(0x00, 0x40, 0xFF), DualSense.lightbarRgbForMode(ControllerPrefs.LIGHTBAR_PS_BLUE, tintArgb, 50))
+        assertEquals(Triple(0x22, 0xE5, 0x66), DualSense.lightbarRgbForMode(ControllerPrefs.LIGHTBAR_BATTERY, tintArgb, 85))
+        assertEquals(Triple(0xFF, 0xA7, 0x26), DualSense.lightbarRgbForMode(ControllerPrefs.LIGHTBAR_BATTERY, tintArgb, 40))
+        assertEquals(Triple(0xFF, 0x33, 0x33), DualSense.lightbarRgbForMode(ControllerPrefs.LIGHTBAR_BATTERY, tintArgb, 15))
+
+        assertEquals(0x04, DualSense.playerLedMaskForMode(ControllerPrefs.PLAYER_LEDS_P1, 80))
+        assertEquals(0x1F, DualSense.playerLedMaskForMode(ControllerPrefs.PLAYER_LEDS_BATTERY, 85))
+        assertEquals(0x00, DualSense.playerLedMaskForMode(ControllerPrefs.PLAYER_LEDS_OFF, 85))
+
+        assertNull(DualSense.triggerPresetEffect(ControllerPrefs.TRIGGER_AUTO))
+        assertEquals(0x21.toByte(), DualSense.triggerPresetEffect(ControllerPrefs.TRIGGER_FEEDBACK)!![0])
+        assertEquals(0x25.toByte(), DualSense.triggerPresetEffect(ControllerPrefs.TRIGGER_WEAPON)!![0])
+        assertEquals(0x22.toByte(), DualSense.triggerPresetEffect(ControllerPrefs.TRIGGER_BOW)!![0])
+        assertEquals(0x26.toByte(), DualSense.triggerPresetEffect(ControllerPrefs.TRIGGER_VIBRATION)!![0])
+        assertEquals(0x05.toByte(), DualSense.triggerPresetEffect(ControllerPrefs.TRIGGER_OFF)!![0])
+    }
+
+    @Test
+    fun `applyUserPreferences dispatches lightbar playerLeds triggers and touchpad gating`() {
+        ControllerPrefs.setTint(context, android.graphics.Color.rgb(80, 215, 165))
+        ControllerPrefs.setDualSenseLightbarMode(context, ControllerPrefs.LIGHTBAR_TINT)
+        ControllerPrefs.setDualSensePlayerLeds(context, ControllerPrefs.PLAYER_LEDS_OFF)
+        ControllerPrefs.setDualSensePlayerLedBrightness(context, 2)
+        ControllerPrefs.setDualSenseTriggerMode(context, ControllerPrefs.TRIGGER_WEAPON)
+        ControllerPrefs.setDualSenseTouchpad(context, false)
+
+        val manager = DualSenseManager(context)
+        val sentBt = mutableListOf<ByteArray>()
+        manager.bluetoothReportSender = { bt ->
+            sentBt.add(bt.clone())
+            true
+        }
+        manager.refreshUserPreferences()
+        assertTrue(manager.applyUserPreferences())
+        assertEquals(1, sentBt.size)
+        val bt = sentBt[0]
+        // bt[2..] mirrors usb[1..]: usb[45..47] -> bt[46..48], usb[44] -> bt[45], usb[43] -> bt[44], usb[11] -> bt[12], usb[22] -> bt[23]
+        assertEquals(80.toByte(), bt[46])
+        assertEquals(215.toByte(), bt[47])
+        assertEquals(165.toByte(), bt[48])
+        assertEquals(0x00.toByte(), bt[45])
+        assertEquals(2.toByte(), bt[44])
+        assertEquals(0x25.toByte(), bt[12])
+        assertEquals(0x25.toByte(), bt[23])
+
+        // Touchpad disabled suppresses touch0Down/touchpadClick in guest state
+        val report = createNeutralReport()
+        report[33] = 0x01 // Touch0 active
+        report[10] = 0x02 // Touchpad click
+        manager.onInputReport(report)
+        assertEquals(0, RecordingWriter.lastControls and 0xF0)
+
+        manager.stop()
+    }
+
     // -------------------------------------------------------------------------
     // Shadow FakeInputWriter for Robolectric Unit Testing
     // -------------------------------------------------------------------------

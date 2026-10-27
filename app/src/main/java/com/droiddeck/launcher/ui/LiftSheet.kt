@@ -712,6 +712,8 @@ internal fun SheetChips(
         val equal = !width.isSpecified && maxWidth / labels.size.coerceAtLeast(1) >= 96.dp
         val least = if (width.isSpecified) maxOf(width, 64.dp) else 64.dp
         val scroll = rememberScrollState()
+        val ff = LocalFrontFocus.current
+        val inSheet = LocalSheetBeat.current != null
         Box(if (equal) Modifier.fillMaxWidth() else Modifier.edgeFade(scroll).horizontalScroll(scroll).padding(3.dp)) {
             Row(
                 horizontalArrangement = Arrangement.spacedBy(ChipGap),
@@ -723,6 +725,12 @@ internal fun SheetChips(
                     val m = (if (equal) Modifier.weight(1f) else Modifier.widthIn(min = least))
                         .onGloballyPositioned { bounds[i] = it.boundsInParent() }
                         .focusRequester(chips[i])
+                        .focusProperties {
+                            canFocus = within || i == selected
+                            if (ff != null && !inSheet) {
+                                down = ff.firstAttachedItem() ?: FocusRequester.Default
+                            }
+                        }
                     SheetChip(label, i == selected, m.onFocusChanged { if (it.isFocused && i != selected) onPick(i) }) { onPick(i) }
                 }
             }

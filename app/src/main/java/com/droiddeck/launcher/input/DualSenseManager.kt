@@ -58,6 +58,7 @@ class DualSenseManager(private val context: Context) {
 
     @Volatile var onStateUpdated: ((DualSense.State) -> Unit)? = null
     @Volatile var onActivationChanged: ((Boolean) -> Unit)? = null
+    @Volatile var uiOverlayActive: Boolean = false
 
     private var tcpThread: Thread? = null
     @Volatile private var tcpSocket: Socket? = null
@@ -83,6 +84,17 @@ class DualSenseManager(private val context: Context) {
     // Phase 2: Wireless (Bluetooth / InputDevice) state
     @Volatile var isEdgeConnected: Boolean = false
     @Volatile private var routesPadAudio = false
+    @Volatile private var lightbarMode: String = ControllerPrefs.LIGHTBAR_TINT
+    @Volatile private var lightbarTint: Int = ControllerPrefs.STEAM_BLUE
+    @Volatile private var playerLedsMode: String = ControllerPrefs.PLAYER_LEDS_P1
+    @Volatile private var playerLedBrightness: Int = DualSense.PLAYER_LED_BRIGHTNESS_HIGH
+    @Volatile private var triggerMode: String = ControllerPrefs.TRIGGER_AUTO
+    @Volatile private var touchpadEnabled: Boolean = true
+    @Volatile private var gyroAutoCalEnabled: Boolean = true
+    @Volatile private var lastBatteryPercent: Int = 100
+    @Volatile private var lastBatteryCharging: Boolean = false
+    @Volatile private var lastHeadphonesPlugged: Boolean = false
+    @Volatile private var lastAppliedBatteryBucket: Int = -1
     /** Null until the first report after start, so the routing is sent once even if the jack never changes. */
     @Volatile private var routedHeadphones: Boolean? = null
     @Volatile private var lastRoutingFailureMs = 0L
@@ -155,7 +167,7 @@ class DualSenseManager(private val context: Context) {
         running = true
         stopped = false
         hasDetached = false
-        routesPadAudio = ControllerPrefs.dualSenseAudio(context)
+        loadUserPreferences()
         routedHeadphones = null
         startGeneration++
         activeManager = this
@@ -208,6 +220,7 @@ class DualSenseManager(private val context: Context) {
         activeSources.clear()
         if (wasActiveManager) {
             demoteFromDualSense()
+            liveStatus = StatusSnapshot()
         } else {
             isDualSenseActive = false
         }
@@ -312,6 +325,8 @@ class DualSenseManager(private val context: Context) {
             usbFirmwareInfo = queryUsbFirmwareInfo(connection, hidIntf)
             usbPairingInfo = queryUsbPairingInfo(connection, hidIntf)
             motionNoiseCalibration.reset()
+            loadUserPreferences()
+            applyUserPreferences()
 
             usbReaderThread = Thread({
                 val buffer = ByteArray(DualSense.REPORT_SIZE_INPUT)
@@ -472,6 +487,75 @@ class DualSenseManager(private val context: Context) {
         return sendOutputReport(report, nowMs)
     }
 
+    private fun loadUserPreferences() {
+        val prefs = ControllerPrefs.read(context)
+        routesPadAudio = prefs.dualSenseAudio
+        lightbarMode = prefs.dualSenseLightbarMode
+        lightbarTint = prefs.tint
+        playerLedsMode = prefs.dualSensePlayerLeds
+        playerLedBrightness = prefs.dualSensePlayerLedBrightness
+        triggerMode = prefs.dualSenseTriggerMode
+        touchpadEnabled = prefs.dualSenseTouchpad
+        gyroAutoCalEnabled = prefs.dualSenseGyroAutoCal
+        if (!touchpadEnabled) {
+            DeckControls.setDualSenseTouch(0, 0, false, 0, 0, false, false)
+        }
+    }
+
+    fun refreshUserPreferences(clearTriggersIfAuto: Boolean = false) {
+        loadUserPreferences()
+        routedHeadphones = null
+        if (isDualSenseActive) {
+            applyUserPreferences(clearTriggersIfAuto)
+            updateLiveStatus()
+        }
+    }
+
+    fun applyUserPreferences(clearTriggersIfAuto: Boolean = false): Boolean {
+        val (r, g, b) = DualSense.lightbarRgbForMode(lightbarMode, lightbarTint, lastBatteryPercent)
+        val playerLeds = DualSense.playerLedMaskForMode(playerLedsMode, lastBatteryPercent)
+        val triggerEffect = DualSense.triggerPresetEffect(triggerMode)
+            ?: if (clearTriggersIfAuto) DualSense.TriggerEffects.off() else null
+        lastAppliedBatteryBucket = lastBatteryPercent / 20
+        return sendOutputReport(
+            DualSense.buildOutputReport(
+                r = r,
+                g = g,
+                b = b,
+                playerLeds = playerLeds,
+                playerLedBrightness = playerLedBrightness,
+                rightTriggerEffect = triggerEffect,
+                leftTriggerEffect = triggerEffect,
+                isEdge = isEdgeConnected,
+                updateLightbar = true,
+                updatePlayerLeds = true,
+            )
+        )
+    }
+
+    private fun updateLiveStatus() {
+        if (activeManager !== this && !isDualSenseActive) return
+        val transport = when {
+            usbConnection != null -> "USB"
+            tcpOutputStream != null || activeSources.contains("tcp") -> "Bridge"
+            activeSources.any { it.startsWith("input:") } -> "Bluetooth"
+            isRawHidActive -> "USB"
+            else -> ""
+        }
+        val next = StatusSnapshot(
+            connected = isDualSenseActive,
+            isEdge = isEdgeConnected,
+            transport = transport,
+            batteryPercent = lastBatteryPercent,
+            isCharging = lastBatteryCharging,
+            headphonesPlugged = lastHeadphonesPlugged,
+            gyroCalibrated = gyroAutoCalEnabled && motionNoiseCalibration.isCalibrated,
+        )
+        if (liveStatus != next) {
+            liveStatus = next
+        }
+    }
+
     internal fun preserveSpeakerRoutingIfNeeded(data: ByteArray): ByteArray =
         if (routesPadAudio && routedHeadphones == false) DualSense.preserveSpeakerRouting(data) else data
 
@@ -488,6 +572,26 @@ class DualSenseManager(private val context: Context) {
                     tcpOut.flush()
                 }
                 updateRumbleWatchdog(wiredData, nowMs)
+                true
+            } catch (_: android.os.NetworkOnMainThreadException) {
+                val copy = wiredData.copyOf(DualSense.REPORT_SIZE_OUTPUT)
+                Thread({
+                    try {
+                        synchronized(tcpOut) {
+                            tcpOut.write(copy, 0, DualSense.REPORT_SIZE_OUTPUT)
+                            tcpOut.flush()
+                        }
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Failed to send output report to host TCP bridge: $e")
+                        if (tcpOutputStream === tcpOut) {
+                            tcpOutputStream = null
+                        }
+                    }
+                }, "dualsense-tcp-out").apply {
+                    isDaemon = true
+                    start()
+                }
+                updateRumbleWatchdog(copy, nowMs)
                 true
             } catch (e: Exception) {
                 Log.w(TAG, "Failed to send output report to host TCP bridge: $e")
@@ -878,6 +982,8 @@ class DualSenseManager(private val context: Context) {
         SteamDeckPad.showPad(FakeInputWriter.PAD_TYPE_DUALSENSE)
         isDualSenseActive = true
         DeckControls.externalImuActive = true
+        loadUserPreferences()
+        updateLiveStatus()
         onActivationChanged?.invoke(true)
         Log.i(TAG, "DualSense activated as primary controller (cached preference: $prev -> dualsense)")
     }
@@ -929,6 +1035,7 @@ class DualSenseManager(private val context: Context) {
         FakeInputWriter.writeMotion(0, ShortArray(3), ShortArray(3))
         DeckControls.releaseAll()
         SessionState.padBridge?.releaseAll()
+        if (activeManager === this) liveStatus = StatusSnapshot()
         onActivationChanged?.invoke(false)
         Log.i(TAG, "DualSense deactivated, restored preference to: $restorePref (padType: $padType)")
     }
@@ -957,15 +1064,7 @@ class DualSenseManager(private val context: Context) {
                                     hasDetached = false
                                     activeSources.add("tcp")
                                     promoteToDualSense()
-                                    // Send initial handshake output report (DroidDeck Cyan lightbar + Player 1 LED)
-                                    sendOutputReport(
-                                        DualSense.buildOutputReport(
-                                            r = 0,
-                                            g = 180,
-                                            b = 255,
-                                            playerLeds = 0x04
-                                        )
-                                    )
+                                    applyUserPreferences()
                                 }
                                 onInputReport(buffer)
                             }
@@ -1009,7 +1108,7 @@ class DualSenseManager(private val context: Context) {
             offset = offset,
             calibration = usbCalibration,
             isEdge = isEdgeConnected,
-            motionCalibration = motionNoiseCalibration
+            motionCalibration = if (gyroAutoCalEnabled) motionNoiseCalibration else null
         ) ?: return
 
         synchronized(this) {
@@ -1023,10 +1122,20 @@ class DualSenseManager(private val context: Context) {
         val rawWasStale = !isRawHidDelivering()
         lastRawHidTimestamp = SystemClock.uptimeMillis()
         isRawHidActive = true
+        lastBatteryPercent = state.batteryPercent
+        lastBatteryCharging = state.isCharging
+        lastHeadphonesPlugged = state.headphonesPlugged
         if (rawWasStale) {
             resolveRawTwin()
             routedHeadphones = null
         }
+        val batteryBucket = state.batteryPercent / 20
+        if (batteryBucket != lastAppliedBatteryBucket &&
+            (lightbarMode == ControllerPrefs.LIGHTBAR_BATTERY || playerLedsMode == ControllerPrefs.PLAYER_LEDS_BATTERY)
+        ) {
+            applyUserPreferences()
+        }
+        updateLiveStatus()
         if (routesPadAudio && (usbConnection != null || tcpOutputStream != null) && routedHeadphones != state.headphonesPlugged &&
             lastRawHidTimestamp - lastRoutingFailureMs >= ROUTING_RETRY_MS) {
             val prevRouted = routedHeadphones
@@ -1046,29 +1155,31 @@ class DualSenseManager(private val context: Context) {
         val padChanged = hasPadStateChanged(lastPadState, state)
         lastPadState = state
 
-        SessionState.padBridge?.applyExternal({ padState ->
-            padState.leftX = state.leftX
-            padState.leftY = state.leftY
-            padState.rightX = state.rightX
-            padState.rightY = state.rightY
-            padState.leftTrigger = lt
-            padState.rightTrigger = rt
-            padState.up = state.dpadUp
-            padState.right = state.dpadRight
-            padState.down = state.dpadDown
-            padState.left = state.dpadLeft
-            padState.press(PadState.X, state.square)
-            padState.press(PadState.A, state.cross)
-            padState.press(PadState.B, state.circle)
-            padState.press(PadState.Y, state.triangle)
-            padState.press(PadState.LB, state.l1)
-            padState.press(PadState.RB, state.r1)
-            padState.press(PadState.SELECT, state.create)
-            padState.press(PadState.START, state.options)
-            padState.press(PadState.L3, state.l3)
-            padState.press(PadState.R3, state.r3)
-            padState.press(PadState.GUIDE, state.ps)
-        }, padChanged)
+        if (!uiOverlayActive) {
+            SessionState.padBridge?.applyExternal({ padState ->
+                padState.leftX = state.leftX
+                padState.leftY = state.leftY
+                padState.rightX = state.rightX
+                padState.rightY = state.rightY
+                padState.leftTrigger = lt
+                padState.rightTrigger = rt
+                padState.up = state.dpadUp
+                padState.right = state.dpadRight
+                padState.down = state.dpadDown
+                padState.left = state.dpadLeft
+                padState.press(PadState.X, state.square)
+                padState.press(PadState.A, state.cross)
+                padState.press(PadState.B, state.circle)
+                padState.press(PadState.Y, state.triangle)
+                padState.press(PadState.LB, state.l1)
+                padState.press(PadState.RB, state.r1)
+                padState.press(PadState.SELECT, state.create)
+                padState.press(PadState.START, state.options)
+                padState.press(PadState.L3, state.l3)
+                padState.press(PadState.R3, state.r3)
+                padState.press(PadState.GUIDE, state.ps)
+            }, padChanged)
+        }
 
         if (state.mute && !lastRawMuteButton) {
             hardwareMicMuted = !hardwareMicMuted
@@ -1080,46 +1191,50 @@ class DualSenseManager(private val context: Context) {
 
         // 2-4. Publish guest-visible touch, extras, and IMU state under the manager lock so a report
         // in flight during demoteFromDualSense() cannot overwrite the zeroed ring state.
-        val x0 = DualSense.touchXToPad(state.touch0X)
-        val y0 = DualSense.touchYToPad(state.touch0Y)
-        val x1 = DualSense.touchXToPad(state.touch1X)
-        val y1 = DualSense.touchYToPad(state.touch1Y)
+        val x0 = if (touchpadEnabled) DualSense.touchXToPad(state.touch0X) else 0
+        val y0 = if (touchpadEnabled) DualSense.touchYToPad(state.touch0Y) else 0
+        val x1 = if (touchpadEnabled) DualSense.touchXToPad(state.touch1X) else 0
+        val y1 = if (touchpadEnabled) DualSense.touchYToPad(state.touch1Y) else 0
         synchronized(this) {
             if (stopped || !isDualSenseActive) return
-            DeckControls.setDualSenseTouch(
-                x0 = x0,
-                y0 = y0,
-                down0 = state.touch0Down,
-                x1 = x1,
-                y1 = y1,
-                down1 = state.touch1Down,
-                click = state.touchpadClick
-            )
-            DeckControls.setDualSenseExtras(
-                mute = state.mute,
-                l4 = state.l4,
-                r4 = state.r4,
-                l5 = state.l5,
-                r5 = state.r5,
-                headphonesPlugged = state.headphonesPlugged,
-                batteryStatusByte = state.batteryStatusByte
-            )
-            // Bytes 49..52 are a running counter on a standard DualSense; only the Edge reuses them for tuning.
-            if (!(isEdgeConnected && state.isEdgeTuningActive)) {
-                val gyroZ = (-state.gyroZ.toInt()).coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
-                val gyro = shortArrayOf(state.gyroX, gyroZ, state.gyroY)
-                val accel = shortArrayOf(
-                    (state.accelX.toInt() * 2).coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort(),
-                    ((-state.accelZ.toInt()) * 2).coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort(),
-                    (state.accelY.toInt() * 2).coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
+            if (!uiOverlayActive) {
+                DeckControls.setDualSenseTouch(
+                    x0 = x0,
+                    y0 = y0,
+                    down0 = touchpadEnabled && state.touch0Down,
+                    x1 = x1,
+                    y1 = y1,
+                    down1 = touchpadEnabled && state.touch1Down,
+                    click = touchpadEnabled && state.touchpadClick
                 )
-                FakeInputWriter.setDeckIMU(0, accel, gyro)
+                DeckControls.setDualSenseExtras(
+                    mute = state.mute,
+                    l4 = state.l4,
+                    r4 = state.r4,
+                    l5 = state.l5,
+                    r5 = state.r5,
+                    headphonesPlugged = state.headphonesPlugged,
+                    batteryStatusByte = state.batteryStatusByte
+                )
+                // Bytes 49..52 are a running counter on a standard DualSense; only the Edge reuses them for tuning.
+                if (!(isEdgeConnected && state.isEdgeTuningActive)) {
+                    val gyroZ = (-state.gyroZ.toInt()).coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
+                    val gyro = shortArrayOf(state.gyroX, gyroZ, state.gyroY)
+                    val accel = shortArrayOf(
+                        (state.accelX.toInt() * 2).coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort(),
+                        ((-state.accelZ.toInt()) * 2).coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort(),
+                        (state.accelY.toInt() * 2).coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
+                    )
+                    FakeInputWriter.setDeckIMU(0, accel, gyro)
+                }
             }
             DeckControls.externalImuActive = true
         }
 
         // 5. Save normalized 64B 0x01 report to ${fakeInputDir}/pad.bin (normalizing 78B 0x31 BT reports)
-        writePadBin(data, offset)
+        if (!uiOverlayActive) {
+            writePadBin(data, offset)
+        }
 
         // 6. Notify optional UI/activity state listener
         onStateUpdated?.invoke(state)
@@ -1191,6 +1306,7 @@ class DualSenseManager(private val context: Context) {
             if (!isDualSenseActive) return false
         }
         if (isRawHidDelivering()) return shouldSuppressInputDevice(device)
+        if (!touchpadEnabled) return true
 
         val action = event.actionMasked
         val pointerCount = event.pointerCount
@@ -1260,6 +1376,7 @@ class DualSenseManager(private val context: Context) {
             scanCode == 317 ||
             (scanCode == 272 && (event.isFromSource(InputDevice.SOURCE_TOUCHPAD) || event.isFromSource(InputDevice.SOURCE_MOUSE)))
         ) {
+            if (!touchpadEnabled) return true
             osTouchpadClickDown = down
             DeckControls.setDualSenseTouch(
                 osTouch0X, osTouch0Y, osTouch0Down,
@@ -1323,6 +1440,37 @@ class DualSenseManager(private val context: Context) {
 
         @Volatile
         var activeManager: DualSenseManager? = null
+
+        data class StatusSnapshot(
+            val connected: Boolean = false,
+            val isEdge: Boolean = false,
+            val transport: String = "",
+            val batteryPercent: Int = 100,
+            val isCharging: Boolean = false,
+            val headphonesPlugged: Boolean = false,
+            val gyroCalibrated: Boolean = false,
+        )
+
+        private val liveStatusState = androidx.compose.runtime.mutableStateOf(StatusSnapshot())
+        var liveStatus: StatusSnapshot
+            get() = liveStatusState.value
+            internal set(value) { liveStatusState.value = value }
+
+        @JvmStatic
+        fun refreshActivePreferences(context: Context, clearTriggersIfAuto: Boolean = false) {
+            val mgr = activeManager ?: return
+            mgr.loadUserPreferences()
+            mgr.routedHeadphones = null
+            if (mgr.isDualSenseActive) {
+                mgr.updateLiveStatus()
+                Thread({
+                    mgr.applyUserPreferences(clearTriggersIfAuto)
+                }, "dualsense-prefs-apply").apply {
+                    isDaemon = true
+                    start()
+                }
+            }
+        }
 
         internal data class RawTwinCandidate(
             val id: Int,

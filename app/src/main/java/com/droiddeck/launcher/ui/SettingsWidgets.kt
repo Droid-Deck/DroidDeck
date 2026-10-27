@@ -22,6 +22,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.size
 import androidx.compose.ui.focus.focusProperties
@@ -82,6 +83,7 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
@@ -263,6 +265,7 @@ private class BelowEndProvider(private val gap: Int) : PopupPositionProvider {
     }
 }
 
+@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 fun AnchoredMenu(
     open: Boolean, onDismiss: () -> Unit, title: String? = null, note: String? = null,
@@ -273,14 +276,8 @@ fun AnchoredMenu(
     state.targetState = open
     if (!state.currentState && !state.targetState && state.isIdle) return
     val firstItemFocus = remember { FocusRequester() }
-    val inputMode = LocalInputModeManager.current.inputMode
-    LaunchedEffect(open, inputMode) {
-        if (open && inputMode == InputMode.Keyboard) {
-            repeat(2) { androidx.compose.runtime.withFrameNanos { } }
-            runCatching { firstItemFocus.requestFocus() }
-            android.util.Log.i("AnchoredMenu", "requested first option focus")
-        }
-    }
+    val parentInputMode = LocalInputModeManager.current.inputMode
+    var hasFocused by remember(open) { mutableStateOf(false) }
     val density = LocalDensity.current
     val configuration = LocalConfiguration.current
     val gap = with(density) { 6.dp.roundToPx() }
@@ -288,6 +285,24 @@ fun AnchoredMenu(
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     Popup(popupPositionProvider = provider, onDismissRequest = onDismiss, properties = PopupProperties(focusable = true)) {
+      TrackActiveGlideWindow(onDismiss)
+      val popupInputModeManager = LocalInputModeManager.current
+      LaunchedEffect(open, parentInputMode, HeldKeys.focusWakeup) {
+          val keyboardWanted = parentInputMode == InputMode.Keyboard ||
+              popupInputModeManager.inputMode == InputMode.Keyboard ||
+              HeldKeys.focusWakeup > 0
+          if (open && keyboardWanted && !hasFocused) {
+              if (popupInputModeManager.inputMode != InputMode.Keyboard) {
+                  popupInputModeManager.requestInputMode(InputMode.Keyboard)
+              }
+              repeat(6) {
+                  androidx.compose.runtime.withFrameNanos { }
+                  if (hasFocused) return@LaunchedEffect
+                  runCatching { firstItemFocus.requestFocus() }
+              }
+              android.util.Log.i("AnchoredMenu", "requested first option focus")
+          }
+      }
       CompositionLocalProvider(LocalDensity provides density, LocalConfiguration provides configuration) {
         AnimatedVisibility(
             visibleState = state,
@@ -298,6 +313,7 @@ fun AnchoredMenu(
             val maxHeight = (androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp * 0.86f).dp
             Column(
                 modifier = Modifier
+                    .onFocusChanged { if (it.hasFocus) hasFocused = true }
                     .then(if (compact) Modifier.widthIn(min = minWidth, max = 260.dp).width(androidx.compose.foundation.layout.IntrinsicSize.Max) else Modifier.widthIn(min = 220.dp, max = 340.dp))
                     .heightIn(max = maxHeight)
                     .shadow(24.dp, RowShape, ambientColor = Color.Black, spotColor = Color.Black)
@@ -495,10 +511,11 @@ fun <T> ChoiceRow(
     val open = host.open == key
     SettingsRow(label, hint, highlighted = open, hintLines = hintLines) {
         Box {
-            ValueChip(options.firstOrNull { it.first == selected }?.second ?: "-", open, enabled, modifier = chipModifier.testTag("setting-$key")) { host.open = if (open) null else key }
+            ValueChip(options.firstOrNull { it.first == selected }?.second ?: "-", open, enabled, modifier = chipModifier.paneItem("setting:$key").testTag("setting-$key")) { host.open = if (open) null else key }
             AnchoredMenu(open, onDismiss = { if (host.open == key) host.open = null }, title = label, note = note) { firstItemFocus ->
+                val focusIndex = options.indexOfFirst { it.first == selected }.takeIf { it >= 0 } ?: 0
                 options.forEachIndexed { index, (value, text) ->
-                    MenuItem(text, checked = value == selected, focusRequester = if (index == 0) firstItemFocus else null) {
+                    MenuItem(text, checked = value == selected, focusRequester = if (index == focusIndex) firstItemFocus else null) {
                         onPick(value)
                         host.open = null
                     }
@@ -523,7 +540,7 @@ fun UncertainMark(description: String) {
 @Composable
 fun ToggleRow(host: MenuHost, key: String, label: String, hint: String?, checked: Boolean, enabled: Boolean = true, chipModifier: Modifier = Modifier, onChange: (Boolean) -> Unit) =
     SettingsRow(label, hint) {
-        ToggleSwitch(checked, enabled, label, chipModifier.testTag("setting-$key")) { host.open = null; onChange(it) }
+        ToggleSwitch(checked, enabled, label, chipModifier.paneItem("setting:$key").testTag("setting-$key")) { host.open = null; onChange(it) }
     }
 
 @Composable
@@ -670,7 +687,7 @@ fun MultiRow(
     }
     SettingsRow(label, hint, highlighted = open) {
         Box {
-            ValueChip(summary, open, enabled) { host.open = if (open) null else key }
+            ValueChip(summary, open, enabled, modifier = Modifier.paneItem("setting:$key").testTag("setting-$key")) { host.open = if (open) null else key }
             AnchoredMenu(open, onDismiss = { if (host.open == key) host.open = null }, title = label, note = note) { firstItemFocus ->
                 items.forEachIndexed { index, (value, text) ->
                     val on = value in selected
@@ -786,6 +803,7 @@ fun SettingsPage(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
+                    .focusGroup()
                     .graphicsLayer { alpha = dim }
                     .then(if (scrollContent) Modifier.verticalScroll(scrollState) else Modifier)
                     .padding(bottom = if (compactLayout) 0.dp else 24.dp),

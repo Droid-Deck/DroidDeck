@@ -7,6 +7,31 @@ object ControllerPrefs {
     const val STEAM_BLUE = 0xFF1A9FFF.toInt()
     const val OFF = "off"
 
+    const val LIGHTBAR_TINT = "tint"
+    const val LIGHTBAR_BATTERY = "battery"
+    const val LIGHTBAR_PS_BLUE = "ps_blue"
+    const val LIGHTBAR_OFF = "off"
+
+    const val PLAYER_LEDS_P1 = "player1"
+    const val PLAYER_LEDS_BATTERY = "battery"
+    const val PLAYER_LEDS_OFF = "off"
+
+    const val TRIGGER_AUTO = "auto"
+    const val TRIGGER_FEEDBACK = "feedback"
+    const val TRIGGER_WEAPON = "weapon"
+    const val TRIGGER_BOW = "bow"
+    const val TRIGGER_VIBRATION = "vibration"
+    const val TRIGGER_OFF = "off"
+
+    val lightbarModes = listOf(LIGHTBAR_TINT, LIGHTBAR_BATTERY, LIGHTBAR_PS_BLUE, LIGHTBAR_OFF)
+    val playerLedModes = listOf(PLAYER_LEDS_P1, PLAYER_LEDS_BATTERY, PLAYER_LEDS_OFF)
+    val playerLedBrightnesses = listOf(
+        DualSense.PLAYER_LED_BRIGHTNESS_HIGH,
+        DualSense.PLAYER_LED_BRIGHTNESS_MEDIUM,
+        DualSense.PLAYER_LED_BRIGHTNESS_LOW,
+    )
+    val triggerModes = listOf(TRIGGER_AUTO, TRIGGER_FEEDBACK, TRIGGER_WEAPON, TRIGGER_BOW, TRIGGER_VIBRATION, TRIGGER_OFF)
+
     val tints = listOf(
         STEAM_BLUE to R.string.ctrl_tint_steam_blue,
         0xFF66C0F4.toInt() to R.string.ctrl_tint_sky,
@@ -52,6 +77,12 @@ object ControllerPrefs {
         val customLayout: Boolean,
         val mapping: Map<String, String>,
         val dualSenseAudio: Boolean = false,
+        val dualSenseLightbarMode: String = LIGHTBAR_TINT,
+        val dualSensePlayerLeds: String = PLAYER_LEDS_P1,
+        val dualSensePlayerLedBrightness: Int = DualSense.PLAYER_LED_BRIGHTNESS_HIGH,
+        val dualSenseTriggerMode: String = TRIGGER_AUTO,
+        val dualSenseTouchpad: Boolean = true,
+        val dualSenseGyroAutoCal: Boolean = true,
     )
 
     internal fun prefs(context: Context) = context.getSharedPreferences("controller", Context.MODE_PRIVATE)
@@ -74,6 +105,12 @@ object ControllerPrefs {
             customLayout = p.all.keys.any { it.startsWith("layout.") },
             mapping = mappable.associate { (id, _) -> id to target(context, id) },
             dualSenseAudio = dualSenseAudio(context),
+            dualSenseLightbarMode = dualSenseLightbarMode(context),
+            dualSensePlayerLeds = dualSensePlayerLeds(context),
+            dualSensePlayerLedBrightness = dualSensePlayerLedBrightness(context),
+            dualSenseTriggerMode = dualSenseTriggerMode(context),
+            dualSenseTouchpad = dualSenseTouchpad(context),
+            dualSenseGyroAutoCal = dualSenseGyroAutoCal(context),
         )
     }
 
@@ -141,6 +178,48 @@ object ControllerPrefs {
 
     fun setDualSenseAudio(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("dualSenseAudio", on).apply()
+    }
+
+    fun dualSenseLightbarMode(context: Context): String =
+        prefs(context).getString("dualSenseLightbarMode", LIGHTBAR_TINT)?.takeIf { it in lightbarModes } ?: LIGHTBAR_TINT
+
+    fun setDualSenseLightbarMode(context: Context, mode: String) {
+        prefs(context).edit().putString("dualSenseLightbarMode", mode.takeIf { it in lightbarModes } ?: LIGHTBAR_TINT).apply()
+    }
+
+    fun dualSensePlayerLeds(context: Context): String =
+        prefs(context).getString("dualSensePlayerLeds", PLAYER_LEDS_P1)?.takeIf { it in playerLedModes } ?: PLAYER_LEDS_P1
+
+    fun setDualSensePlayerLeds(context: Context, mode: String) {
+        prefs(context).edit().putString("dualSensePlayerLeds", mode.takeIf { it in playerLedModes } ?: PLAYER_LEDS_P1).apply()
+    }
+
+    fun dualSensePlayerLedBrightness(context: Context): Int =
+        prefs(context).getInt("dualSensePlayerLedBrightness", DualSense.PLAYER_LED_BRIGHTNESS_HIGH)
+            .takeIf { it in playerLedBrightnesses } ?: DualSense.PLAYER_LED_BRIGHTNESS_HIGH
+
+    fun setDualSensePlayerLedBrightness(context: Context, brightness: Int) {
+        val valid = brightness.takeIf { it in playerLedBrightnesses } ?: DualSense.PLAYER_LED_BRIGHTNESS_HIGH
+        prefs(context).edit().putInt("dualSensePlayerLedBrightness", valid).apply()
+    }
+
+    fun dualSenseTriggerMode(context: Context): String =
+        prefs(context).getString("dualSenseTriggerMode", TRIGGER_AUTO)?.takeIf { it in triggerModes } ?: TRIGGER_AUTO
+
+    fun setDualSenseTriggerMode(context: Context, mode: String) {
+        prefs(context).edit().putString("dualSenseTriggerMode", mode.takeIf { it in triggerModes } ?: TRIGGER_AUTO).apply()
+    }
+
+    fun dualSenseTouchpad(context: Context): Boolean = prefs(context).getBoolean("dualSenseTouchpad", true)
+
+    fun setDualSenseTouchpad(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("dualSenseTouchpad", on).apply()
+    }
+
+    fun dualSenseGyroAutoCal(context: Context): Boolean = prefs(context).getBoolean("dualSenseGyroAutoCal", true)
+
+    fun setDualSenseGyroAutoCal(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("dualSenseGyroAutoCal", on).apply()
     }
 
     fun setSnap(context: Context, on: Boolean) {

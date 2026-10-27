@@ -1,15 +1,20 @@
 package com.droiddeck.launcher.input
 
 import com.droiddeck.launcher.ui.focusGlide
+import com.droiddeck.launcher.ui.controllerBack
+import com.droiddeck.launcher.ui.controllerConfirm
+import com.droiddeck.launcher.ui.HeldKeys
 import android.os.Build
 import android.os.Bundle
 import android.view.Gravity
+import android.view.KeyEvent
 import android.view.View
 import android.view.WindowManager
 import android.widget.FrameLayout
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -20,13 +25,19 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.ui.Alignment
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.InputMode
+import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.platform.ComposeView
@@ -45,7 +56,10 @@ class ControllerEditorActivity : ComponentActivity() {
     }
 
     private lateinit var controls: OnScreenControls
+    private var dualSense: DualSenseManager? = null
+    private var heldPadKeys = IntArray(0)
 
+    @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         requestedOrientation = com.droiddeck.launcher.session.SessionPrefs.orientation(this)
@@ -58,16 +72,29 @@ class ControllerEditorActivity : ComponentActivity() {
             setContent {
                 DroidDeckTheme {
                     var snap by remember { mutableStateOf(ControllerPrefs.read(context).snap) }
+                    val firstFocus = remember { FocusRequester() }
+                    var hasFocused by remember { mutableStateOf(false) }
+                    val inputModeManager = LocalInputModeManager.current
+                    LaunchedEffect(HeldKeys.focusWakeup) {
+                        if (HeldKeys.focusWakeup > 0 && !hasFocused) {
+                            if (inputModeManager.inputMode != InputMode.Keyboard) {
+                                inputModeManager.requestInputMode(InputMode.Keyboard)
+                            }
+                            runCatching { firstFocus.requestFocus() }
+                        }
+                    }
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(5.dp),
                         modifier = Modifier
+                            .onFocusChanged { hasFocused = it.hasFocus }
+                            .controllerBack { finish() }
                             .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.9f), RoundedCornerShape(20.dp))
                             .padding(start = 5.dp, end = 5.dp, top = 8.dp, bottom = 5.dp),
                     ) {
                         Text(stringResource(R.string.ctrl_editor_drag), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            EditorButton(stringResource(R.string.ctrl_editor_snap), false, selected = snap) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.focusGroup()) {
+                            EditorButton(stringResource(R.string.ctrl_editor_snap), false, selected = snap, modifier = Modifier.focusRequester(firstFocus)) {
                                 snap = !snap
                                 ControllerPrefs.setSnap(context, snap)
                                 controls.setSnap(snap)
@@ -87,8 +114,55 @@ class ControllerEditorActivity : ComponentActivity() {
         setContentView(root)
     }
 
+    override fun onResume() {
+        super.onResume()
+        if (dualSense == null) {
+            dualSense = DualSenseManager(this).apply {
+                onStateUpdated = { state ->
+                    val next = LauncherPadKeys.held(state).toIntArray()
+                    if (!next.contentEquals(heldPadKeys)) {
+                        runOnUiThread { dispatchPadKeys(next) }
+                    }
+                }
+                start()
+            }
+        }
+    }
+
+    override fun onPause() {
+        releasePadKeys()
+        dualSense?.stop()
+        dualSense = null
+        super.onPause()
+    }
+
+    private fun dispatchPadKeys(next: IntArray) {
+        val now = android.os.SystemClock.uptimeMillis()
+        for (code in heldPadKeys) {
+            if (code !in next) dispatchKeyEvent(KeyEvent(now, now, KeyEvent.ACTION_UP, code, 0))
+        }
+        for (code in next) {
+            if (code !in heldPadKeys) dispatchKeyEvent(KeyEvent(now, now, KeyEvent.ACTION_DOWN, code, 0))
+        }
+        heldPadKeys = next
+    }
+
+    private fun releasePadKeys() {
+        val held = heldPadKeys
+        if (held.isEmpty()) return
+        heldPadKeys = IntArray(0)
+        val now = android.os.SystemClock.uptimeMillis()
+        for (code in held) dispatchKeyEvent(KeyEvent(now, now, KeyEvent.ACTION_UP, code, 0))
+    }
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (event.keyCode == KeyEvent.KEYCODE_BUTTON_A) HeldKeys.confirm = event.action == KeyEvent.ACTION_DOWN
+        if (event.action == KeyEvent.ACTION_DOWN) HeldKeys.focusWakeup++
+        return super.dispatchKeyEvent(event)
+    }
+
     @Composable
-    private fun EditorButton(label: String, primary: Boolean, selected: Boolean? = null, onClick: () -> Unit) {
+    private fun EditorButton(label: String, primary: Boolean, selected: Boolean? = null, modifier: Modifier = Modifier, onClick: () -> Unit) {
         val pal = LocalPalette.current
         Text(
             label, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
@@ -97,7 +171,7 @@ class ControllerEditorActivity : ComponentActivity() {
                 selected == true -> pal.signal
                 else -> MaterialTheme.colorScheme.onBackground
             },
-            modifier = Modifier.clip(RoundedCornerShape(50))
+            modifier = modifier.clip(RoundedCornerShape(50))
                 .background(
                     when {
                         primary -> pal.signal
@@ -110,6 +184,7 @@ class ControllerEditorActivity : ComponentActivity() {
                     if (selected == null) Modifier.clickable(onClick = onClick)
                     else Modifier.toggleable(value = selected, role = Role.Switch, onValueChange = { onClick() }),
                 )
+                .controllerConfirm(onClick = onClick)
                 .padding(horizontal = 12.dp, vertical = 6.dp),
         )
     }

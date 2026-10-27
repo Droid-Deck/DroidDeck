@@ -1041,7 +1041,8 @@ object DualSense {
         isEdge: Boolean = false,
         disableEdgeFnSwitching: Boolean = false,
         updateLightbar: Boolean = true,
-        lightbarSetup: Int = 0x02
+        lightbarSetup: Int = 0x02,
+        updatePlayerLeds: Boolean = false,
     ): ByteArray {
         val report = ByteArray(REPORT_SIZE_OUTPUT)
         report[0] = REPORT_ID_OUTPUT
@@ -1054,7 +1055,7 @@ object DualSense {
         var enable2 = 0
         if (micLed != 0) enable2 = enable2 or 0x01
         if (updateLightbar || r != 0 || g != 0 || b != 0) enable2 = enable2 or 0x04
-        if (playerLeds != 0 || playerLedBrightness != PLAYER_LED_BRIGHTNESS_HIGH) enable2 = enable2 or 0x10
+        if (updatePlayerLeds || playerLeds != 0 || playerLedBrightness != PLAYER_LED_BRIGHTNESS_HIGH) enable2 = enable2 or 0x10
         if (leftMotor > 0 || rightMotor > 0 || rightTriggerEffect != null || leftTriggerEffect != null) {
             enable2 = enable2 or 0x40
         }
@@ -1113,6 +1114,32 @@ object DualSense {
         report[9] = if (muted) 1 else 0
         report[10] = if (muted) 0x10 else 0
         return report
+    }
+
+    fun lightbarRgbForMode(mode: String, tintColor: Int, batteryPercent: Int): Triple<Int, Int, Int> = when (mode) {
+        ControllerPrefs.LIGHTBAR_BATTERY -> when {
+            batteryPercent >= 60 -> Triple(0x22, 0xE5, 0x66)
+            batteryPercent >= 25 -> Triple(0xFF, 0xA7, 0x26)
+            else -> Triple(0xFF, 0x33, 0x33)
+        }
+        ControllerPrefs.LIGHTBAR_PS_BLUE -> Triple(0x00, 0x40, 0xFF)
+        ControllerPrefs.LIGHTBAR_OFF -> Triple(0, 0, 0)
+        else -> Triple((tintColor ushr 16) and 0xFF, (tintColor ushr 8) and 0xFF, tintColor and 0xFF)
+    }
+
+    fun playerLedMaskForMode(mode: String, batteryPercent: Int): Int = when (mode) {
+        ControllerPrefs.PLAYER_LEDS_BATTERY -> playerLedMaskForBattery(batteryPercent)
+        ControllerPrefs.PLAYER_LEDS_OFF -> 0x00
+        else -> 0x04
+    }
+
+    fun triggerPresetEffect(mode: String): ByteArray? = when (mode) {
+        ControllerPrefs.TRIGGER_FEEDBACK -> TriggerEffects.feedback(startPosition = 2, strength = 6)
+        ControllerPrefs.TRIGGER_WEAPON -> TriggerEffects.weapon(startPosition = 2, endPosition = 6, strength = 7)
+        ControllerPrefs.TRIGGER_BOW -> TriggerEffects.bow(startPosition = 1, endPosition = 5, strength = 6, snapForce = 7)
+        ControllerPrefs.TRIGGER_VIBRATION -> TriggerEffects.vibration(startPosition = 2, amplitude = 6, frequency = 40)
+        ControllerPrefs.TRIGGER_OFF -> TriggerEffects.off()
+        else -> null
     }
 
     fun buildBluetoothOutputReport(
