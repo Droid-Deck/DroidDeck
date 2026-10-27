@@ -68,6 +68,7 @@ import com.droiddeck.launcher.gpu.ScreenEffects
 import com.droiddeck.launcher.gpu.Lossless
 import com.droiddeck.launcher.gpu.TurnipDriver
 import com.droiddeck.launcher.input.EvdevKeys
+import com.droiddeck.launcher.input.HomeGuideInput
 import com.droiddeck.launcher.input.InputSpace
 import com.droiddeck.launcher.input.KeyboardHost
 import com.droiddeck.launcher.input.ControllerPrefs
@@ -1330,7 +1331,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (incoming?.action != SessionService.ACTION_HOME_GUIDE) return
         incoming.action = null
         setIntent(incoming)
-        if (SessionState.running && SessionState.mode == SessionService.MODE_STEAM) sendSteamGuide()
+        if (SessionState.suspended) SessionService.resume(this)
+        else if (SessionState.running && SessionState.mode == SessionService.MODE_STEAM) sendSteamGuide()
     }
 
 
@@ -2276,7 +2278,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             return true
         }
         val resumeKey = event.keyCode == KeyEvent.KEYCODE_BUTTON_A || event.keyCode == KeyEvent.KEYCODE_BUTTON_START ||
-            event.keyCode == KeyEvent.KEYCODE_BUTTON_MODE || event.keyCode == KeyEvent.KEYCODE_HOME
+            event.keyCode == KeyEvent.KEYCODE_BUTTON_MODE || HomeGuideInput.isHome(event.keyCode)
         val resumeKeyId = event.deviceId to event.keyCode
         if (fromController && resumeKey && (SessionState.suspended || resumeKeyId in resumeKeysDown)) {
             if (event.action == KeyEvent.ACTION_DOWN) {

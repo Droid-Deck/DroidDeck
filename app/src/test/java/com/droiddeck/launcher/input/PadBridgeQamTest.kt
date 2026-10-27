@@ -392,6 +392,22 @@ class PadBridgeQamTest {
         }
     }
 
+    @Test fun cancellingHomeGuideOnAPlayerSlotKeepsItsHeldControls() {
+        PadBridge.setFirstSlot(1)
+        try {
+            bridge.setBuiltinPad(false)
+            val device = controller()
+            bridge.onKeyEvent(key(device, KeyEvent.KEYCODE_BUTTON_A))
+            bridge.setHomeGuidePressed(true)
+            bridge.cancelHomeGuide()
+            val pad = requireNotNull(JoyConPadTest.RecordingWriter.pads[1])
+            assertFalse(pad.isDown(PadState.GUIDE))
+            assertTrue(pad.isDown(PadState.A))
+        } finally {
+            PadBridge.setFirstSlot(0)
+        }
+    }
+
     @Test fun cancellingHomeDiscardsQueuedPartnersAndReleasesGuideImmediately() {
         bridge.setHomeGuidePressed(true)
         bridge.applyExternal({ it.press(PadState.LB, true); it.leftY = -1f }, true)

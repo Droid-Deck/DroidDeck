@@ -534,7 +534,6 @@ public final class PadBridge {
         int slot = homeGuideSlot;
         if (slot > 0) {
             homeGuideSlot = -1;
-            stateFor(slot).clear();
             publish(slot);
         }
         if (!homeGuidePressed) return;
