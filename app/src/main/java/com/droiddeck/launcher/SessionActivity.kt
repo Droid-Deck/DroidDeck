@@ -2039,11 +2039,18 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
     }
 
+    private val frameGenLock = Any()
+    private var frameGenSeq = 0
+
     private fun applyFrameGen(hz: Float = activeRefreshHz()) {
+        val seq = synchronized(frameGenLock) { ++frameGenSeq }
         Thread({
-            val problem = FrameGen.apply(this, hz)
-            val state = Lossless.state(this)
+            val (problem, state) = synchronized(frameGenLock) {
+                if (seq != frameGenSeq) return@Thread
+                FrameGen.apply(this, hz) to Lossless.state(this)
+            }
             runOnUiThread {
+                if (synchronized(frameGenLock) { seq != frameGenSeq }) return@runOnUiThread
                 lossless = state
                 if (problem != null) Toast.makeText(this, problem, Toast.LENGTH_LONG).show()
             }
