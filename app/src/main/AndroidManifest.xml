@@ -159,14 +159,14 @@
 
 
         <activity
-            android:name=".PinShortcutActivity"
+            android:name=".PinRequestActivity"
             android:exported="true"
             android:excludeFromRecents="true"
-            android:noHistory="true"
             android:taskAffinity="${applicationId}.pin"
             android:theme="@android:style/Theme.Translucent.NoTitleBar.Fullscreen">
             <intent-filter>
                 <action android:name="android.content.pm.action.CONFIRM_PIN_SHORTCUT" />
+                <action android:name="android.content.pm.action.CONFIRM_PIN_APPWIDGET" />
             </intent-filter>
         </activity>
 

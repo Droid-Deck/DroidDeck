@@ -911,7 +911,7 @@ private fun ProviderCard(p: HomeWidgets.Provider, first: Boolean, onClick: () ->
 }
 
 @Composable
-fun PinShortcutPrompt(label: String, appLabel: String, icon: Bitmap?, onAdd: () -> Unit, onCancel: () -> Unit) {
+fun PinRequestPrompt(label: String, appLabel: String, icon: Bitmap?, wide: Boolean, onAdd: () -> Unit, onCancel: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     BackHandler { onCancel() }
@@ -935,9 +935,15 @@ fun PinShortcutPrompt(label: String, appLabel: String, icon: Bitmap?, onAdd: () 
                     stringResource(R.string.apps_pin_title).uppercase(), fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
                     letterSpacing = 1.5.sp, color = colors.onSurfaceVariant,
                 )
+                if (wide && icon != null) Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 180.dp).clip(Shape12).background(MaterialTheme.colorScheme.surface).padding(10.dp),
+                ) { Image(icon.asImageBitmap(), null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxWidth()) }
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                    if (icon != null) Image(icon.asImageBitmap(), null, contentScale = ContentScale.Fit, modifier = Modifier.size(52.dp))
-                    else Box(Modifier.size(52.dp).clip(CircleShape).background(artBrush(hueOf(label))))
+                    if (!wide) {
+                        if (icon != null) Image(icon.asImageBitmap(), null, contentScale = ContentScale.Fit, modifier = Modifier.size(52.dp))
+                        else Box(Modifier.size(52.dp).clip(CircleShape).background(artBrush(hueOf(label))))
+                    }
                     Column(Modifier.weight(1f)) {
                         Text(label, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, maxLines = 2, overflow = TextOverflow.Ellipsis)
                         Text(appLabel, fontSize = 13.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)

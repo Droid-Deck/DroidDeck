@@ -7,6 +7,7 @@ import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProviderInfo
 import android.content.Context
 import android.content.Intent
+import android.content.pm.LauncherApps
 import android.graphics.Bitmap
 import android.os.Build
 import android.os.Bundle
@@ -54,6 +55,7 @@ object HomeWidgets {
     private var host: Host? = null
     private var pending: AppWidgetProviderInfo? = null
     private var pendingId = AppWidgetManager.INVALID_APPWIDGET_ID
+    private var pinRequest: LauncherApps.PinItemRequest? = null
     private val main = Handler(Looper.getMainLooper())
 
     private class Host(context: Context) : AppWidgetHost(context, HOST_ID) {
@@ -191,23 +193,45 @@ object HomeWidgets {
         return w.roundToInt().coerceAtLeast(MIN_WIDTH_DP) to h.roundToInt().coerceAtLeast(MIN_HEIGHT_DP)
     }
 
-    fun add(activity: Activity, provider: Provider) {
+    fun add(activity: Activity, provider: Provider) = add(activity, provider.info, null)
+
+    /** Places a widget another app asked for; its own app has already configured it. */
+    fun addPinned(activity: Activity, request: LauncherApps.PinItemRequest): Boolean {
+        val info = request.getAppWidgetProviderInfo(activity) ?: return false
+        load(activity)
+        add(activity, info, request)
+        return pending != null
+    }
+
+    private fun add(activity: Activity, info: AppWidgetProviderInfo, request: LauncherApps.PinItemRequest?) {
         val h = host(activity)
         val id = h.allocateAppWidgetId()
-        pending = provider.info
+        pending = info
         pendingId = id
+        pinRequest = request
         val manager = AppWidgetManager.getInstance(activity)
-        val bound = runCatching { manager.bindAppWidgetIdIfAllowed(id, provider.info.profile, provider.info.provider, null) }.getOrDefault(false)
+        val bound = runCatching { manager.bindAppWidgetIdIfAllowed(id, info.profile, info.provider, null) }.getOrDefault(false)
         if (bound) {
-            configure(activity, id, provider.info)
+            bound(activity, id, info)
             return
         }
         val bind = Intent(AppWidgetManager.ACTION_APPWIDGET_BIND)
             .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id)
-            .putExtra(AppWidgetManager.EXTRA_APPWIDGET_PROVIDER, provider.info.provider)
-            .putExtra(AppWidgetManager.EXTRA_APPWIDGET_PROVIDER_PROFILE, provider.info.profile)
+            .putExtra(AppWidgetManager.EXTRA_APPWIDGET_PROVIDER, info.provider)
+            .putExtra(AppWidgetManager.EXTRA_APPWIDGET_PROVIDER_PROFILE, info.profile)
         @Suppress("DEPRECATION")
         runCatching { activity.startActivityForResult(bind, REQUEST_BIND) }.onFailure { abandon(activity) }
+    }
+
+    private fun bound(activity: Activity, id: Int, info: AppWidgetProviderInfo) {
+        val request = pinRequest
+        if (request == null) {
+            configure(activity, id, info)
+            return
+        }
+        val accepted = runCatching { request.isValid && request.accept(Bundle().apply { putInt(AppWidgetManager.EXTRA_APPWIDGET_ID, id) }) }
+            .getOrDefault(false)
+        if (accepted) place(activity, id, info) else abandon(activity)
     }
 
     private fun configure(activity: Activity, id: Int, info: AppWidgetProviderInfo) {
@@ -235,7 +259,7 @@ object HomeWidgets {
         when (requestCode) {
             REQUEST_BIND -> {
                 val info = pending
-                if (resultCode == Activity.RESULT_OK && info != null) configure(activity, pendingId, info) else abandon(activity)
+                if (resultCode == Activity.RESULT_OK && info != null) bound(activity, pendingId, info) else abandon(activity)
             }
             REQUEST_CONFIGURE -> {
                 val info = pending
@@ -250,12 +274,14 @@ object HomeWidgets {
     private fun abandon(context: Context) {
         if (pendingId != AppWidgetManager.INVALID_APPWIDGET_ID) host(context).deleteAppWidgetId(pendingId)
         pending = null
+        pinRequest = null
         pendingId = AppWidgetManager.INVALID_APPWIDGET_ID
     }
 
     private fun place(context: Context, id: Int, info: AppWidgetProviderInfo) {
         val (w, h) = defaultSize(context, info)
         pending = null
+        pinRequest = null
         pendingId = AppWidgetManager.INVALID_APPWIDGET_ID
         widgets = widgets + Placed(id, w, h)
         save(context)
