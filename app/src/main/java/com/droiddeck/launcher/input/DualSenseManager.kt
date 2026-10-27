@@ -67,18 +67,23 @@ class DualSenseManager(private val context: Context) {
 
     private var padBinRaf: RandomAccessFile? = null
     private var lastFakeInputDir: File? = null
+    private var lastPadBinBytes: ByteArray? = null
 
     // Direct Android USB HID Reader / Writer state
     @Volatile var usbConnection: UsbDeviceConnection? = null
     @Volatile var usbInterface: UsbInterface? = null
     @Volatile var usbEndpointIn: UsbEndpoint? = null
     @Volatile var usbEndpointOut: UsbEndpoint? = null
+    @Volatile var usbCalibration: DualSense.Calibration? = null
     private var usbReaderThread: Thread? = null
 
     // Phase 2: Wireless (Bluetooth / InputDevice) state
     @Volatile var isEdgeConnected: Boolean = false
     @Volatile var btConnectTimestampMs: Long = 0L
     private var btOutputSeq: Int = 0
+    @Volatile var pendingBtLightbarReport: ByteArray? = null
+    @Volatile var hardwareMicMuted: Boolean = false
+    private var lastRawMuteButton: Boolean = false
     @Volatile var bluetoothReportSender: ((ByteArray) -> Boolean)? = null
     @Volatile private var bluetoothHidHostProxy: BluetoothProfile? = null
 
@@ -199,6 +204,7 @@ class DualSenseManager(private val context: Context) {
         }
         padBinRaf = null
         lastFakeInputDir = null
+        lastPadBinBytes = null
     }
 
     fun checkConnectedDevices() {
@@ -287,6 +293,7 @@ class DualSenseManager(private val context: Context) {
             usbInterface = hidIntf
             usbEndpointIn = epIn
             usbEndpointOut = epOut
+            usbCalibration = queryUsbCalibration(connection, hidIntf)
 
             usbReaderThread = Thread({
                 val buffer = ByteArray(DualSense.REPORT_SIZE_INPUT)
@@ -307,6 +314,15 @@ class DualSenseManager(private val context: Context) {
         }
     }
 
+    private fun queryUsbCalibration(connection: UsbDeviceConnection, hidIntf: UsbInterface): DualSense.Calibration? = try {
+        val buf = ByteArray(DualSense.REPORT_SIZE_CALIBRATION)
+        buf[0] = DualSense.REPORT_ID_CALIBRATION
+        val len = connection.controlTransfer(0xA1, 0x01, 0x0305, hidIntf.id, buf, buf.size, 1000)
+        if (len >= DualSense.REPORT_SIZE_CALIBRATION) DualSense.parseCalibrationReport(buf) else null
+    } catch (e: Exception) {
+        null
+    }
+
     private fun closeUsbDevice() {
         usbReaderThread?.interrupt()
         usbReaderThread = null
@@ -320,8 +336,11 @@ class DualSenseManager(private val context: Context) {
         usbConnection = null
         usbEndpointIn = null
         usbEndpointOut = null
+        usbCalibration = null
         rawUsbIds = null
         rawTwinDeviceId = -1
+        hardwareMicMuted = false
+        lastRawMuteButton = false
     }
 
     /**
@@ -335,6 +354,13 @@ class DualSenseManager(private val context: Context) {
     ): ByteArray {
         val btInit = btConnectTimestampMs > 0L &&
                 (nowMs - btConnectTimestampMs) in 0 until DualSense.BT_LIGHTBAR_GUARD_MS
+        val hasLightbar = usbReport.size >= DualSense.REPORT_SIZE_OUTPUT &&
+                (usbReport[2].toInt() and 0x04) != 0
+        if (btInit && hasLightbar) {
+            pendingBtLightbarReport = usbReport.copyOf(DualSense.REPORT_SIZE_OUTPUT)
+        } else if (!btInit && hasLightbar) {
+            pendingBtLightbarReport = null
+        }
         val seq = synchronized(this) {
             val s = btOutputSeq
             btOutputSeq = (btOutputSeq + 1) and 0x0F
@@ -348,7 +374,16 @@ class DualSenseManager(private val context: Context) {
         )
     }
 
-    fun sendOutputReport(data: ByteArray): Boolean {
+    fun flushPendingBluetoothLightbar(nowMs: Long = SystemClock.uptimeMillis()): Boolean {
+        if (btConnectTimestampMs <= 0L || (nowMs - btConnectTimestampMs) < DualSense.BT_LIGHTBAR_GUARD_MS) {
+            return false
+        }
+        val pending = pendingBtLightbarReport ?: return false
+        pendingBtLightbarReport = null
+        return sendOutputReport(pending, nowMs)
+    }
+
+    fun sendOutputReport(data: ByteArray, nowMs: Long = SystemClock.uptimeMillis()): Boolean {
         if (data.size < DualSense.REPORT_SIZE_OUTPUT || data[0] != DualSense.REPORT_ID_OUTPUT) {
             return false
         }
@@ -386,12 +421,12 @@ class DualSenseManager(private val context: Context) {
         // Phase 2: Wireless Bluetooth 0x31 Output Report dispatch (Adaptive Triggers, LEDs, Rumble)
         val btSender = bluetoothReportSender
         if (btSender != null) {
-            val btReport = buildNextBluetoothOutputReport(data)
+            val btReport = buildNextBluetoothOutputReport(data, nowMs)
             if (btSender(btReport)) return true
         }
 
         if (bluetoothHidHostProxy != null) {
-            val btReport = buildNextBluetoothOutputReport(data)
+            val btReport = buildNextBluetoothOutputReport(data, nowMs)
             if (sendViaBluetoothHidHost(btReport)) return true
         }
 
@@ -405,6 +440,7 @@ class DualSenseManager(private val context: Context) {
                 override fun onServiceConnected(profile: Int, proxy: BluetoothProfile?) {
                     if (profile == HID_HOST_PROFILE) {
                         bluetoothHidHostProxy = proxy
+                        requestBluetoothCalibrationFeature()
                     }
                 }
 
@@ -460,6 +496,30 @@ class DualSenseManager(private val context: Context) {
         }
     }
 
+    @Suppress("MissingPermission")
+    private fun requestBluetoothCalibrationFeature(): Boolean {
+        val proxy = bluetoothHidHostProxy ?: return false
+        return try {
+            val devices = proxy.connectedDevices ?: return false
+            val target: BluetoothDevice = devices.firstOrNull { dev ->
+                val name = try { dev.name ?: "" } catch (_: Exception) { "" }
+                name.contains("DualSense", ignoreCase = true) ||
+                        name.contains("Wireless Controller", ignoreCase = true)
+            } ?: return false
+            val getReport = proxy.javaClass.getMethod(
+                "getReport",
+                BluetoothDevice::class.java,
+                Byte::class.javaPrimitiveType,
+                Byte::class.javaPrimitiveType,
+                Int::class.javaPrimitiveType
+            )
+            // REPORT_TYPE_FEATURE = 3, Report ID = 0x05 (switches Bluetooth DualSense into extended 0x31 report mode)
+            (getReport.invoke(proxy, target, 3.toByte(), DualSense.REPORT_ID_CALIBRATION, DualSense.REPORT_SIZE_CALIBRATION) as? Boolean) == true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
     fun isRawHidDelivering(): Boolean =
         isDualSenseActive && isRawHidActive && (SystemClock.uptimeMillis() - lastRawHidTimestamp < 1000L)
 
@@ -494,6 +554,7 @@ class DualSenseManager(private val context: Context) {
             activeSources.add(key)
             promoteToDualSense()
             registerDeviceSensors(dev)
+            if (isBluetoothInputDevice(dev)) requestBluetoothCalibrationFeature()
             if (isRawHidDelivering()) resolveRawTwin()
         }
     }
@@ -652,6 +713,9 @@ class DualSenseManager(private val context: Context) {
         isEdgeConnected = false
         btConnectTimestampMs = 0L
         btOutputSeq = 0
+        pendingBtLightbarReport = null
+        hardwareMicMuted = false
+        lastRawMuteButton = false
         cachedPreference = null
         lastPadState = null
         osTouch0X = 0
@@ -746,7 +810,7 @@ class DualSenseManager(private val context: Context) {
 
     fun onInputReport(data: ByteArray, offset: Int = 0) {
         if (stopped) return
-        val state = DualSense.parseInputReport(data, offset) ?: return
+        val state = DualSense.parseInputReport(data, offset, usbCalibration) ?: return
 
         synchronized(this) {
             if (!isDualSenseActive) {
@@ -811,8 +875,17 @@ class DualSenseManager(private val context: Context) {
             l4 = state.l4,
             r4 = state.r4,
             l5 = state.l5,
-            r5 = state.r5
+            r5 = state.r5,
+            headphonesPlugged = state.headphonesPlugged,
+            batteryStatusByte = state.batteryStatusByte
         )
+
+        if (state.mute && !lastRawMuteButton) {
+            hardwareMicMuted = !hardwareMicMuted
+            sendOutputReport(DualSense.buildMicMuteReport(hardwareMicMuted))
+        }
+        lastRawMuteButton = state.mute
+        flushPendingBluetoothLightbar(lastRawHidTimestamp)
 
         // 3. Call FakeInputWriter.setDeckIMU(0, accel, gyro) with proper axis transformation:
         // Bytes 49..52 are a running counter on a standard DualSense; only the Edge reuses them for tuning.
@@ -876,14 +949,23 @@ class DualSenseManager(private val context: Context) {
             if (dir != lastFakeInputDir || padBinRaf == null) {
                 padBinRaf?.close()
                 lastFakeInputDir = dir
+                lastPadBinBytes = null
                 val file = File(dir, "pad.bin")
                 file.parentFile?.mkdirs()
                 padBinRaf = RandomAccessFile(file, "rw")
             }
             val raf = padBinRaf ?: return
+            val prev = lastPadBinBytes
+            val len = raf.length()
+            if (prev != null && len == DualSense.REPORT_SIZE_INPUT.toLong() && prev.contentEquals(usb64)) {
+                return
+            }
             raf.seek(0)
             raf.write(usb64, 0, DualSense.REPORT_SIZE_INPUT)
-            raf.setLength(DualSense.REPORT_SIZE_INPUT.toLong())
+            if (len != DualSense.REPORT_SIZE_INPUT.toLong()) {
+                raf.setLength(DualSense.REPORT_SIZE_INPUT.toLong())
+            }
+            lastPadBinBytes = usb64
         } catch (e: Exception) {
             // ignore
         }
@@ -978,6 +1060,10 @@ class DualSenseManager(private val context: Context) {
 
         // 2. Mic Mute Button (KEYCODE_MUTE = 91, KEYCODE_VOLUME_MUTE = 164, KEY_MICMUTE = 248)
         if (keyCode == KeyEvent.KEYCODE_MUTE || keyCode == KeyEvent.KEYCODE_VOLUME_MUTE || scanCode == 248) {
+            if (down && !osMuteDown) {
+                hardwareMicMuted = !hardwareMicMuted
+                sendOutputReport(DualSense.buildMicMuteReport(hardwareMicMuted))
+            }
             osMuteDown = down
             DeckControls.setDualSenseExtras(osMuteDown, osL4Down, osR4Down, osL5Down, osR5Down)
             return true

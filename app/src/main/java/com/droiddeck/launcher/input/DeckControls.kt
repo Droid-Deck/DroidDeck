@@ -11,6 +11,8 @@ object DeckControls {
     private const val RIGHT_CLICK = 128
     const val MUTE = 256
     const val FULL_TOUCHPAD = 512
+    const val HEADPHONES = 1024
+    const val BATTERY_VALID = 2048
 
     @Volatile var externalImuActive: Boolean = false
 
@@ -58,12 +60,26 @@ object DeckControls {
     }
 
     @Synchronized
-    fun setDualSenseExtras(mute: Boolean, l4: Boolean, r4: Boolean, l5: Boolean, r5: Boolean) {
+    fun setDualSenseExtras(
+        mute: Boolean,
+        l4: Boolean,
+        r4: Boolean,
+        l5: Boolean,
+        r5: Boolean,
+        headphonesPlugged: Boolean = false,
+        batteryStatusByte: Int = -1
+    ) {
         set(MUTE, mute)
         set(L4, l4)
         set(R4, r4)
         set(L5, l5)
         set(R5, r5)
+        set(HEADPHONES, headphonesPlugged)
+        if (batteryStatusByte in 0..255) {
+            controls = (controls and 0x00FF0000.inv()) or BATTERY_VALID or ((batteryStatusByte and 0xFF) shl 16)
+        } else {
+            controls = controls and (BATTERY_VALID or 0x00FF0000).inv()
+        }
         publish()
     }
 
