@@ -100,6 +100,7 @@ class FrontEndActivity : ComponentActivity() {
     private class PendingFlood(val from: androidx.compose.ui.geometry.Rect, val intent: Intent)
     private class CompatLaunch(val intent: Intent, val loading: com.droiddeck.launcher.session.LoadingState, var menuInstall: Boolean)
     private var compatLaunch by mutableStateOf<CompatLaunch?>(null)
+    private var compatFlood by mutableStateOf<androidx.compose.ui.graphics.Color?>(null)
     private var compatLaunchPoll: Runnable? = null
     private var compatLaunchVisible = false
     private var returning by mutableStateOf<ReturningFlood?>(null)
@@ -507,6 +508,7 @@ class FrontEndActivity : ComponentActivity() {
     }
 
     override fun startActivity(intent: Intent?) {
+        val compat = protons.protonBusyId != null || ProtonExtras.installInProgress
         if (intent?.component?.className == SessionActivity::class.java.name) {
             if (compatLaunch != null) return
             when {
@@ -514,10 +516,7 @@ class FrontEndActivity : ComponentActivity() {
                     android.widget.Toast.makeText(this, R.string.main_wait_runtime, android.widget.Toast.LENGTH_SHORT).show()
                     return
                 }
-                protons.protonBusyId != null || ProtonExtras.installInProgress -> {
-                    waitForCompat(intent)
-                    return
-                }
+                compat -> Unit
                 pkgStage != null -> {
                     android.widget.Toast.makeText(this, R.string.main_wait_desktop_install, android.widget.Toast.LENGTH_SHORT).show()
                     return
@@ -532,6 +531,10 @@ class FrontEndActivity : ComponentActivity() {
                 return
             }
             com.droiddeck.launcher.ui.LaunchOrigin.flooding = null
+            if (compat) {
+                waitForCompat(intent)
+                return
+            }
         }
         super.startActivity(intent)
         if (intent?.component?.className == SessionActivity::class.java.name) overridePendingTransition(R.anim.session_rise, R.anim.session_hold)
@@ -543,8 +546,11 @@ class FrontEndActivity : ComponentActivity() {
             flood = null
             floodProgress = 0f
             com.droiddeck.launcher.ui.LaunchOrigin.flooding = null
-            if (!busy && !LinuxRuntimeInstaller.isBusy() && pkgStage == null &&
-                (protons.protonBusyId != null || ProtonExtras.installInProgress)) waitForCompat(f.intent)
+            if (!busy && !LinuxRuntimeInstaller.isBusy() &&
+                (protons.protonBusyId != null || ProtonExtras.installInProgress)) {
+                compatFlood = com.droiddeck.launcher.ui.Themes.byId(theme).signal
+                waitForCompat(f.intent)
+            }
             return
         }
         val signal = com.droiddeck.launcher.ui.Themes.byId(theme).signal
@@ -598,6 +604,7 @@ class FrontEndActivity : ComponentActivity() {
         compatLaunchPoll?.let(ui::removeCallbacks)
         compatLaunchPoll = null
         compatLaunch = null
+        compatFlood = null
     }
 
     private fun restoreCompatLaunch(state: Bundle) {
@@ -1365,10 +1372,12 @@ class FrontEndActivity : ComponentActivity() {
                 }
                 androidx.activity.compose.BackHandler(compatLaunch != null) { cancelCompatLaunch() }
                 compatLaunch?.loading?.let { loading ->
+                    if (!loading.ended) com.droiddeck.launcher.ui.VeilRing()
                     com.droiddeck.launcher.ui.LoadingOverlay(
                         loading.step, loading.percent, loading.elapsed, getString(R.string.load_compat_hint), loading.ended,
                         loading.topic, loading.readable, title = getString(R.string.load_compat_title),
                         onCancel = ::cancelCompatLaunch, onClose = ::cancelCompatLaunch,
+                        flood = compatFlood, onFlooded = { compatFlood = null },
                     )
                 }
             }
