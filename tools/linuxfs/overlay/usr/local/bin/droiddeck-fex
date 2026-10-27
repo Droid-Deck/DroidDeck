@@ -11,6 +11,7 @@ import shutil
 import struct
 import subprocess
 import sys
+import time
 
 HOME = os.environ.get("HOME") or "/root"
 STEAM_ROOT = os.path.join(HOME, ".local", "share", "Steam")
@@ -27,6 +28,8 @@ PRELOADS = "/usr/local/lib/droiddeck-fex"
 URUNTIME = "/usr/local/lib/droiddeck/uruntime"
 HOST_PRELOAD = "/etc/ld.so.preload"
 FEX_APPID = "3127680"
+OWN_FEX = "/usr/local"
+OWN_FEX_TAG = os.path.join(OWN_FEX, "share", "fex-emu", ".droiddeck-tag")
 SNIPER_APPID = "1628350"
 SLR4_APPID = "4183110"
 INSTALL_DIRS = {FEX_APPID: "FEX-Emu", SNIPER_APPID: "SteamLinuxRuntime_sniper", SLR4_APPID: "SteamLinuxRuntime_4"}
@@ -152,8 +155,52 @@ def first_dir(prefix, candidates):
     return None
 
 
+def own_fex_loads():
+    for name in ("FEX", "FEXServer"):
+        binary = os.path.join(OWN_FEX, "bin", name)
+        if not os.access(binary, os.X_OK):
+            return False
+        try:
+            listed = subprocess.run(["/usr/lib/ld-linux-aarch64.so.1", "--list", binary],
+                                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=20)
+        except (OSError, subprocess.TimeoutExpired):
+            return False
+        if listed.returncode != 0 or b"not found" in listed.stdout:
+            return False
+    return True
+
+
+def update_own_fex():
+    wanted = os.environ.get("BL_FEX_TAG")
+    if not wanted:
+        return
+    if (read_text(OWN_FEX_TAG) or "").strip() == wanted and own_fex_loads():
+        return
+    failed = os.path.join(STATE, "update-failed")
+    try:
+        if (read_text(failed) or "").strip() == wanted and time.time() - os.path.getmtime(failed) < 3600:
+            return
+    except OSError:
+        pass
+    say("installing DroidDeck's FEX build %s" % wanted)
+    try:
+        code = subprocess.call([os.path.join(BIN_DIR, "droiddeck-fex-update")], stdout=sys.stderr)
+    except OSError:
+        code = 1
+    if code == 0:
+        with contextlib.suppress(OSError):
+            os.remove(failed)
+        return
+    with contextlib.suppress(OSError):
+        with open(failed, "w", encoding="utf-8") as handle:
+            handle.write(wanted + "\n")
+    say("DroidDeck's FEX build %s did not install; using the FEX already here" % wanted)
+
+
 def fex_install():
     prefixes = []
+    if os.path.isfile(OWN_FEX_TAG) and own_fex_loads():
+        prefixes.append((OWN_FEX, False))
     tool = app_dir(FEX_APPID)
     if tool:
         prefixes += [(os.path.join(tool, sub), True) for sub in ("usr", "", "files/usr", "files")]
@@ -445,6 +492,7 @@ def describe(fex, platform, graphics=None):
 
 def prepare(app=SNIPER_APPID):
     with locked():
+        update_own_fex()
         fex = fex_install()
         platform = runtime_platform(app)
         status = describe(fex, platform)
@@ -730,6 +778,7 @@ def extracted():
 
 def want_fex():
     with locked():
+        update_own_fex()
         status = describe(fex_install(), runtime_platform(), graphics_platform())
         if not status["ready"]:
             request_install()

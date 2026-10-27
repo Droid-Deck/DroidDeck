@@ -17,6 +17,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
@@ -168,6 +169,8 @@ fun SessionPausedOverlay(
         runCatching { focus.requestFocus() }
     }
     val resumeLabel = stringResource(R.string.resume_session)
+    val source = remember { MutableInteractionSource() }
+    val focused by source.collectIsFocusedAsState()
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier
@@ -176,7 +179,7 @@ fun SessionPausedOverlay(
             .focusRequester(focus)
             .controllerConfirm(enabled = idle, onClick = onResume)
             .clickable(
-                interactionSource = remember { MutableInteractionSource() },
+                interactionSource = source,
                 indication = null,
                 role = Role.Button,
                 onClickLabel = resumeLabel,
@@ -187,7 +190,7 @@ fun SessionPausedOverlay(
         } else {
             Box(Modifier.fillMaxSize().graphicsLayer { alpha = presence }.background(Color.Black.copy(alpha = 0.55f)))
         }
-        ResumeOrb(orb.value, press.value, ring.value, shake.value, idle)
+        ResumeOrb(orb.value, press.value, ring.value, shake.value, idle, focused)
     }
 }
 
@@ -221,7 +224,7 @@ private fun BoxScope.PausedCard(frame: PausedFrame, lift: Float, presence: Float
 }
 
 @Composable
-private fun ResumeOrb(presence: Float, press: Float, ring: Float, shake: Float, idle: Boolean) {
+private fun ResumeOrb(presence: Float, press: Float, ring: Float, shake: Float, idle: Boolean, focused: Boolean) {
     val glintAlpha by animateFloatAsState(if (idle) 1f else 0f, Motion.tw(160), label = "glintAlpha")
     val glint: State<Float>? = if (Motion.scale > 0f) {
         rememberInfiniteTransition(label = "glint").animateFloat(
@@ -245,6 +248,7 @@ private fun ResumeOrb(presence: Float, press: Float, ring: Float, shake: Float, 
             }
             .clip(CircleShape)
             .background(Color.White.copy(alpha = 0.08f))
+            .glideBorder(focused, CircleShape, Color.White, hotFillAlpha = 0f)
             .drawWithContent {
                 drawContent()
                 val stroke = 2.5.dp.toPx()

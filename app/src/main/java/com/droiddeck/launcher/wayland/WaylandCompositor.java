@@ -307,6 +307,8 @@ public final class WaylandCompositor {
 
     public static native float[] nativeFrameGenStats();
 
+    public static native long nativeHudFrameTimes(float[] out);
+
     /** Stream mode: the scene is the Xbox Cloud Gaming native player's picture, handed over frame by frame. */
     public static native void nativeStreamMode(boolean on);
 

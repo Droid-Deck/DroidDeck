@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -37,6 +38,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
 
 /** A grid of cards with a game page that floods out of the opened card and drains back into it. */
+internal val LocalDetailFloor = compositionLocalOf<() -> Float> { { Float.MAX_VALUE } }
+
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 internal fun CardDetailHost(
@@ -57,6 +60,7 @@ internal fun CardDetailHost(
     var from by remember { mutableStateOf<Origin?>(null) }
     var art by remember { mutableStateOf<String?>(null) }
     var viewportAt by remember { mutableStateOf(Offset.Zero) }
+    var viewportH by remember { mutableStateOf(0) }
     LaunchedEffect(open) {
         if (open != null) {
             val mark = StoresMotion.takeCard(open)
@@ -83,7 +87,7 @@ internal fun CardDetailHost(
     val fade = with(density) { 14.dp.toPx() }
     Box(
         modifier.clipToBounds()
-            .onGloballyPositioned { viewportAt = it.positionInRoot() }
+            .onGloballyPositioned { viewportAt = it.positionInRoot(); viewportH = it.size.height }
             .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
             .drawWithContent {
                 drawContent()
@@ -114,7 +118,10 @@ internal fun CardDetailHost(
                                 .onFocusChanged { onDetailFocus(it.hasFocus) }
                                 .focusProperties { exit = { if (coveringNow.value && Steps.step == null && StoresMotion.step == null) FocusRequester.Cancel else FocusRequester.Default } }
                                 .focusGroup(),
-                        ) { detail(key) }
+                        ) {
+                            val floor = { viewportAt.y + viewportH - with(density) { 16.dp.toPx() } - detailScroll.value }
+                            CompositionLocalProvider(LocalDetailFloor provides floor) { detail(key) }
+                        }
                     }
                 }
                 val origin = from

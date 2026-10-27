@@ -144,7 +144,7 @@ class GlobalGlassesSettingsTest {
                             onRoms = {}, onFiles = {}, onLogs = {}, onOffline = {},
                             onWirelessAdbPair = { _, _, _, _ -> }, onWirelessAdbApply = { _, _, _, _ -> },
                             onSetPhantomProcessLimit = { _, _ -> },
-                        ), onOpenDeveloperOptions = {}, onRequestWirelessAdb = {})
+                        ), onOpenDeveloperOptions = {}, onRequestWirelessAdb = {}, onPairWirelessDebugging = {})
                     }
                 }
             }

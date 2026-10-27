@@ -53,6 +53,7 @@ class App : Application() {
         com.droiddeck.launcher.stores.StoresState.register(com.droiddeck.launcher.stores.amazon.AmazonBackend)
         com.droiddeck.launcher.stores.StoresState.register(com.droiddeck.launcher.stores.itch.ItchBackend)
         com.droiddeck.launcher.stores.StoresState.register(com.droiddeck.launcher.stores.xbox.XboxBackend)
+        com.droiddeck.launcher.stores.StoresState.register(com.droiddeck.launcher.stores.battlenet.BattleNetBackend)
     }
 
     /** Fetches the packs an existing setup already relies on, so the first use after an update does not wait. */

@@ -124,3 +124,11 @@ Old kernel fixes:
   by the kernel instead. The original clone flags are preserved. When the kernel supplies a valid
   ID in the notification, normal setup is unchanged. No timers or background polling are added.
   Completely missing notifications and ambiguous matches for separate processes are not recovered.
+
+Development diagnostics:
+
+- `0018-syscall-handler-profile.patch` - `PROOT_PROFILE=1` enables per-syscall entry/exit handler
+  counts, wall/CPU time, periodic cumulative JSON totals, and bounded slow-handler samples on
+  stderr. `profile.h` is copied into the source tree by `build.sh`. It adds no ptrace stops;
+  handler timing excludes tracee kernel time and scheduling before handler entry. See
+  `docs/development/proot-performance.md` for the capture and library-override workflow.

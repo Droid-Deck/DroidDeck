@@ -12,7 +12,7 @@ internal object LoginFlows {
         Store.GOG -> GogFlow(state, browserUserAgent)
         Store.EPIC -> epicFlow()
         Store.AMAZON -> amazonFlow()
-        Store.ITCH, Store.XBOX -> null
+        Store.ITCH, Store.XBOX, Store.BATTLENET -> null
     }
 
     @Volatile var epicFlow: () -> StoreLoginActivity.Flow? = { null }
