@@ -464,11 +464,65 @@ class GameEnvironmentTest(unittest.TestCase):
             ({"BL_GAME_CPUS": "9"}, {9}, None, None),
         ]
         for env, affinity, expected, proton in cases:
+            env["DROIDDECK_FASTEST_CORES"] = "0"
             with mock.patch.dict(MODULE["cpu_topology"].__globals__, online), \
                     mock.patch.object(os_mod, "sched_getaffinity", return_value=affinity, create=True):
                 MODULE["cpu_topology"](env)
             self.assertEqual(env.get("WINE_CPU_TOPOLOGY"), expected, env)
             self.assertEqual(env.get("PROTON_CPU_TOPOLOGY"), proton, env)
+
+    def test_windows_cpu_0_is_the_fastest_core(self):
+        os_mod = MODULE["os"]
+        pocket_fit = {0: 379, 1: 379, 2: 923, 3: 923, 4: 923, 5: 867, 6: 867, 7: 1024}
+        every = set(range(8))
+        with tempfile.TemporaryDirectory() as tmp:
+            proton = Path(tmp) / "proton"
+            proton.write_text('default_cpu_limit = {\n    "19900"     :  "16",  # Far Cry 2\n'
+                              '    "2229830"   :  "1",   # Command & Conquer\n    "11440"     :  "4",   # DiRT\n'
+                              '    "1038250"   :  "P",   # DIRT 5\n}\n\nother = {\n    "620"       :  "2",\n}\n')
+            command = [str(proton), "waitforexitandrun", "/game/game.exe"]
+            cases = [
+                ({}, every, pocket_fit, "8:7,2,3,4,5,6,0,1", "8:7,2,3,4,5,6,0,1"),
+                ({"BL_GAME_CPUS": "6,7"}, {6, 7}, pocket_fit, "2:7,6", "2:7,6"),
+                ({"DROIDDECK_GAME_CORES": "0-2"}, {0, 1, 2}, pocket_fit, "3:2,0,1", "3:2,0,1"),
+                ({"BL_GAME_CPUS": "0-7"}, every, pocket_fit, "8:7,2,3,4,5,6,0,1", "8:7,2,3,4,5,6,0,1"),
+                ({"WINE_CPU_TOPOLOGY": "2:0,1"}, every, pocket_fit, "2:0,1", "2:0,1"),
+                ({"WINE_CPU_TOPOLOGY": ""}, every, pocket_fit, "", None),
+                ({"PROTON_CPU_TOPOLOGY": "1:0"}, every, pocket_fit, None, "1:0"),
+                ({"DROIDDECK_FASTEST_CORES": "0"}, every, pocket_fit, None, None),
+                ({"SteamGameId": "2229830"}, every, pocket_fit, "1:7", "1:7"),
+                ({"SteamGameId": "11440"}, every, pocket_fit, "4:7,2,3,4", "4:7,2,3,4"),
+                ({"SteamGameId": "19900"}, every, pocket_fit, "8:7,2,3,4,5,6,0,1", "8:7,2,3,4,5,6,0,1"),
+                ({"SteamGameId": "1038250"}, every, pocket_fit, "8:7,2,3,4,5,6,0,1", "8:7,2,3,4,5,6,0,1"),
+                ({"SteamGameId": "620"}, every, pocket_fit, "8:7,2,3,4,5,6,0,1", "8:7,2,3,4,5,6,0,1"),
+                ({"SteamGameId": "2229830", "BL_GAME_CPUS": "0,1"}, {0, 1}, pocket_fit, "2:0,1", "2:0,1"),
+                ({}, every, {core: 100 for core in every}, None, None),
+                ({}, every, None, None, None),
+                ({"SteamGameId": "11440"}, every, None, "4:0,1,2,3", "4:0,1,2,3"),
+                ({"BL_GAME_CPUS": "9"}, {9}, pocket_fit, None, None),
+            ]
+            for env, affinity, speeds, expected, proton_topology in cases:
+                with mock.patch.dict(MODULE["cpu_topology"].__globals__, {"online_cores": lambda: every}), \
+                        mock.patch.dict(MODULE["fastest_first"].__globals__, {"core_speeds": lambda cores, speeds=speeds: speeds}), \
+                        mock.patch.object(os_mod, "sched_getaffinity", return_value=affinity, create=True):
+                    MODULE["cpu_topology"](env, command)
+                self.assertEqual(env.get("WINE_CPU_TOPOLOGY"), expected, env)
+                self.assertEqual(env.get("PROTON_CPU_TOPOLOGY"), proton_topology, env)
+            self.assertIsNone(MODULE["proton_cpu_limit"](["/missing/proton"], {"SteamGameId": "11440"}))
+            self.assertIsNone(MODULE["proton_cpu_limit"](command, {}))
+
+    def test_core_speeds_read_capacity_then_top_clock(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            for core, capacity, clock in ((0, "379", "2265600"), (1, None, "3302400")):
+                folder = Path(tmp) / ("cpu%d" % core) / "cpufreq"
+                folder.mkdir(parents=True)
+                (folder / "cpuinfo_max_freq").write_text(clock + "\n")
+                if capacity:
+                    (folder.parent / "cpu_capacity").write_text(capacity + "\n")
+            speeds = MODULE["core_speeds"]
+            self.assertEqual(speeds([0], tmp), {0: 379})
+            self.assertEqual(speeds([0, 1], tmp), {0: 2265600, 1: 3302400})
+            self.assertIsNone(speeds([0, 2], tmp))
 
     def test_reskate_runs_at_feature_level_12_1(self):
         with tempfile.TemporaryDirectory() as tmp:
