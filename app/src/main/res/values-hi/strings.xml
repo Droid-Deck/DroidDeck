@@ -1941,7 +1941,6 @@
     <string name="display_filter_live">लाइव लागू होता है। Steam और डेस्कटॉप में साझा।</string>
     <string name="display_filter_note">FSR, GSR और NIS सेशन इमेज को बड़ा करने पर लागू होते हैं। सिर्फ़ शार्पन बिना बड़ा किए भी काम करता है।</string>
     <string name="display_sharpness">फ़िल्टर शार्पनेस</string>
-    <string name="display_frame_rate">फ़्रेम रेट</string>
     <string name="display_look_filter">%1$s स्केलिंग को %2$s पर सेट करता है।</string>
     <string name="display_match_screen">स्क्रीन से मिलाएँ (%1$d×%2$d)</string>
     <string name="display_follow_screen">Follow screen (खुलने या बंद होने पर आकार बदलता है)</string>
@@ -3083,6 +3082,7 @@
     <string name="library_remove">लाइब्रेरी से हटाएँ</string>
     <string name="library_in">लाइब्रेरी में</string>
     <string name="xbox_filter_show">दिखाएँ</string>
+    <string name="itch_collections">संग्रह</string>
     <string name="xbox_filter_cloud">क्लाउड</string>
     <string name="stores_xbox_cloud_settings">क्लाउड सेटिंग्स</string>
 </resources>

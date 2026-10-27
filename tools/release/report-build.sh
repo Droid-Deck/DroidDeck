@@ -13,11 +13,8 @@ MARK="<!-- droiddeck-pr-build -->"
       echo
       echo "The \`droiddeck-apk\` artifact is [on this run]($RUN_URL), signed with the public test key."
       echo
-      if [ "$SAME_REPO" = true ]; then
-        echo "After the parallel regression tests pass, a release-signed tester build that installs over Stable or Preview will be published and will appear in DroidDeck's **Test builds** list. Label the PR \`no-test-build\` to skip that."
-      else
-        echo "**Maintainer:** add the \`publish-test\` label to publish a release-signed tester build that installs over Stable or Preview and appears in DroidDeck's **Test builds** list. The label is removed automatically after publishing."
-      fi
+      echo "Same-repository PRs and PRs opened by contributors listed in \`.github/trusted-test-builds.txt\` are eligible for automatic release-signed test builds after the full build passes. Label the PR \`no-test-build\` to skip that."
+      echo "For other PRs, a maintainer can add the \`publish-test\` label to request a signed build."
       echo
       echo "Fallback: [open **PR Release Publish**]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/workflows/pr-release-publish.yml) on \`main\` and enter PR \`$PR\`."
       ;;

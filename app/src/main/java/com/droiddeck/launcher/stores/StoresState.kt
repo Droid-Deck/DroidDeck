@@ -130,7 +130,7 @@ object StoresState {
 
     fun detailItem(store: Store, id: String): CatalogItem? = detailCatalogItem(
         store, id, library[store].orEmpty(),
-        found[store].orEmpty() + if (store == Store.ITCH) com.droiddeck.launcher.stores.itch.ItchBrowseState.items else emptyList(),
+        found[store].orEmpty() + if (store == Store.ITCH) com.droiddeck.launcher.stores.itch.ItchBrowseState.items + com.droiddeck.launcher.stores.itch.ItchCollections.items() else emptyList(),
         shelves[store],
     )
 
@@ -191,6 +191,7 @@ object StoresState {
             backend?.signOut(app)
             if (store == Store.GOG) com.droiddeck.launcher.stores.gog.GogComet.replaceAccount { StoreAccounts.clear(app, store) }
             else if (store != Store.XBOX || backend == null) StoreAccounts.clear(app, store)
+            if (store == Store.ITCH) com.droiddeck.launcher.stores.itch.ItchCollections.clear()
             main.post {
                 if (store == Store.XBOX && StoreAccounts.signedInAs(app, store) != null) return@post
                 accounts.remove(store); library.remove(store); status.remove(store); problems.remove(store); libraryAsked.remove(store)

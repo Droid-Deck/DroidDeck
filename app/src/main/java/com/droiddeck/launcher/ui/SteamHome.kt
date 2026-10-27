@@ -143,6 +143,8 @@ internal fun SteamHome(s: FrontEndState, a: FrontEndActions, modifier: Modifier)
         words = {
             val runtimeStatus: @Composable () -> Unit = {
                 if (s.busy || !s.ready || (s.available != null && s.available != s.installed)) RuntimeChip(s)
+                else if (s.integration.suggested && signedIn && !com.droiddeck.launcher.core.PhantomProcessLimit.blocksSteam(s.phantomProcessStatus))
+                    IntegrationSuggestion(s.integration, { a.onSteamIntegration(null) }, a.onDismissIntegration)
             }
             if (narrow) Column(
                 verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.onPlaced { words = it.boundsInParent() },

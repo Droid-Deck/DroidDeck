@@ -238,6 +238,8 @@ if [ -z "${BL_INSIDE:-}" ]; then
   fi
   if [ "${BL_REFRESH:-0}" -gt 0 ]; then
     args+=(-r "$BL_REFRESH")
+    # -r is the starting rate; gamescope follows the panel when it switches modes later.
+    export GAMESCOPE_NESTED_REFRESH_FOLLOWS_HOST=1
   fi
   [ "$mode" = steam ] && [ "${BL_STEAM_UI:-}" != desktop ] && args+=(-e)
   if [ "$mode" = steam ] && [ "${BL_XWAYLAND_COUNT:-2}" -gt 1 ]; then

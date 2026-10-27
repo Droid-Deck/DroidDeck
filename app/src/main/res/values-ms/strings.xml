@@ -1920,7 +1920,6 @@
     <string name="display_filter_live">Berkuat kuasa secara langsung. Dikongsi oleh Steam dan Desktop.</string>
     <string name="display_filter_note">FSR, GSR dan NIS berkuat kuasa semasa membesarkan imej sesi. Ketajaman sahaja juga berfungsi tanpa pembesaran.</string>
     <string name="display_sharpness">Ketajaman penapis</string>
-    <string name="display_frame_rate">Kadar bingkai</string>
     <string name="display_look_filter">%1$s Menetapkan penskalaan ke %2$s.</string>
     <string name="display_match_screen">Sepadan skrin (%1$d×%2$d)</string>
     <string name="display_follow_screen">Ikut skrin (mengubah saiz apabila dilipat atau dibuka)</string>
@@ -3058,6 +3057,7 @@
     <string name="library_remove">Alih keluar dari Pustaka</string>
     <string name="library_in">Dalam Pustaka</string>
     <string name="xbox_filter_show">Tunjukkan</string>
+    <string name="itch_collections">Koleksi</string>
     <string name="xbox_filter_cloud">Awan</string>
     <string name="stores_xbox_cloud_settings">Tetapan awan</string>
 </resources>

@@ -1941,7 +1941,6 @@
     <string name="display_filter_live">Прилага се веднага. Общ за Steam и Desktop.</string>
     <string name="display_filter_note">FSR, GSR и NIS се прилагат при уголемяване на изображението на сесията. „Само изостряне“ работи и без уголемяване.</string>
     <string name="display_sharpness">Острота на филтъра</string>
-    <string name="display_frame_rate">Честота на кадрите</string>
     <string name="display_look_filter">%1$s Задава мащабиране на %2$s.</string>
     <string name="display_match_screen">Напасване на екрана (%1$d×%2$d)</string>
     <string name="display_follow_screen">Следване на екрана (преоразмерява при сгъване или разгъване)</string>
@@ -3083,6 +3082,7 @@
     <string name="library_remove">Премахни от Библиотека</string>
     <string name="library_in">В Библиотека</string>
     <string name="xbox_filter_show">Показване</string>
+    <string name="itch_collections">Колекции</string>
     <string name="xbox_filter_cloud">Облак</string>
     <string name="stores_xbox_cloud_settings">Настройки на облака</string>
 </resources>

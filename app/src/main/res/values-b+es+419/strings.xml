@@ -1994,7 +1994,6 @@
     <string name="display_filter_live">Se aplica al instante. Compartido por Steam y Escritorio.</string>
     <string name="display_filter_note">FSR, GSR y NIS se aplican al ampliar la imagen de la sesión. Solo nitidez también funciona sin ampliar.</string>
     <string name="display_sharpness">Nitidez del filtro</string>
-    <string name="display_frame_rate">Velocidad de fotogramas</string>
     <string name="display_look_filter">%1$s Cambia el escalado a %2$s.</string>
     <string name="display_match_screen">Igual a la pantalla (%1$d×%2$d)</string>
     <string name="display_follow_screen">Seguir la pantalla (cambia de tamaño al plegar o desplegar)</string>
@@ -3069,6 +3068,7 @@
     <string name="library_remove">Quitar de Biblioteca</string>
     <string name="library_in">En Biblioteca</string>
     <string name="xbox_filter_show">Mostrar</string>
+    <string name="itch_collections">Colecciones</string>
     <string name="xbox_filter_cloud">Nube</string>
     <string name="stores_xbox_cloud_settings">Configuración de nube</string>
 </resources>

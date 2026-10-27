@@ -1962,7 +1962,6 @@
     <string name="display_filter_live">Se aplică live. Partajat de Steam și Desktop.</string>
     <string name="display_filter_note">FSR, GSR și NIS se aplică la mărirea imaginii sesiunii. Doar claritate funcționează și fără mărire.</string>
     <string name="display_sharpness">Claritatea filtrului</string>
-    <string name="display_frame_rate">Rata de cadre</string>
     <string name="display_look_filter">%1$s Setează scalarea la %2$s.</string>
     <string name="display_match_screen">Potrivire ecran (%1$d×%2$d)</string>
     <string name="display_follow_screen">Urmărește ecranul (se redimensionează la împăturire sau desfacere)</string>
@@ -3117,6 +3116,7 @@
     <string name="library_remove">Elimină din Bibliotecă</string>
     <string name="library_in">În Bibliotecă</string>
     <string name="xbox_filter_show">Afișează</string>
+    <string name="itch_collections">Colecții</string>
     <string name="xbox_filter_cloud">Cloud</string>
     <string name="stores_xbox_cloud_settings">Setări cloud</string>
 </resources>

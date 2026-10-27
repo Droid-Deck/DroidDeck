@@ -1922,7 +1922,6 @@
     <string name="display_filter_live">즉시 적용됩니다. Steam과 데스크톱에서 공유됩니다.</string>
     <string name="display_filter_note">FSR, GSR, NIS는 세션 이미지를 확대할 때 적용됩니다. 샤프닝 전용은 확대하지 않아도 작동합니다.</string>
     <string name="display_sharpness">필터 선명도</string>
-    <string name="display_frame_rate">프레임 속도</string>
     <string name="display_look_filter">%1$s 스케일링을 %2$s(으)로 설정합니다.</string>
     <string name="display_match_screen">화면에 맞춤(%1$d×%2$d)</string>
     <string name="display_follow_screen">화면 따라가기(접거나 펼치면 크기 변경)</string>
@@ -3060,6 +3059,7 @@
     <string name="library_remove">라이브러리에서 제거</string>
     <string name="library_in">라이브러리에 있음</string>
     <string name="xbox_filter_show">표시</string>
+    <string name="itch_collections">컬렉션</string>
     <string name="xbox_filter_cloud">클라우드</string>
     <string name="stores_xbox_cloud_settings">클라우드 설정</string>
 </resources>

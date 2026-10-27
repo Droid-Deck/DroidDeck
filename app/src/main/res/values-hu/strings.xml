@@ -1941,7 +1941,6 @@
     <string name="display_filter_live">Élőben érvénybe lép. A Steam és az Asztal közösen használja.</string>
     <string name="display_filter_note">Az FSR, a GSR és a NIS a munkamenet képének felnagyításakor lép érvénybe. A Csak élesítés nagyítás nélkül is működik.</string>
     <string name="display_sharpness">Szűrőélesség</string>
-    <string name="display_frame_rate">Képkockasebesség</string>
     <string name="display_look_filter">%1$s A méretezést erre állítja: %2$s.</string>
     <string name="display_match_screen">Képernyőhöz illesztés (%1$d×%2$d)</string>
     <string name="display_follow_screen">Képernyő követése (átméreteződik össze- vagy kinyitáskor)</string>
@@ -3083,6 +3082,7 @@
     <string name="library_remove">Eltávolítás a könyvtárból</string>
     <string name="library_in">A könyvtárban</string>
     <string name="xbox_filter_show">Megjelenítés</string>
+    <string name="itch_collections">Gyűjtemények</string>
     <string name="xbox_filter_cloud">Felhő</string>
     <string name="stores_xbox_cloud_settings">Felhőbeállítások</string>
 </resources>

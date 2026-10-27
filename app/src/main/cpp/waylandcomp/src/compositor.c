@@ -268,7 +268,7 @@ static struct wl_event_source *g_fallback_timer;
 static int g_fallback_armed;
 
 volatile int g_fps_limit;
-/* fps limit -1 (Performance mode without a limit): replaced buffers go back to the client at once instead of once per refresh. */
+/* fps limit -1 (phone output, not mirrored): replaced buffers go back to the client at once instead of once per refresh. */
 volatile int g_release_unpaced;
 
 volatile int g_hide_shell;

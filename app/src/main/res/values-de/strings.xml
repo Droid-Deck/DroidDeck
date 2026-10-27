@@ -1933,7 +1933,6 @@
     <string name="display_filter_live">Wirkt sofort. Gemeinsam für Steam und Desktop.</string>
     <string name="display_filter_note">FSR, GSR und NIS wirken beim Vergrößern des Sitzungsbilds. „Nur schärfen“ funktioniert auch ohne Vergrößerung.</string>
     <string name="display_sharpness">Filterschärfe</string>
-    <string name="display_frame_rate">Bildrate</string>
     <string name="display_look_filter">%1$s Stellt die Skalierung auf %2$s.</string>
     <string name="display_match_screen">An Bildschirm anpassen (%1$d×%2$d)</string>
     <string name="display_follow_screen">Bildschirm folgen (passt sich beim Auf- und Zuklappen an)</string>
@@ -3083,6 +3082,7 @@
     <string name="library_remove">Aus der Bibliothek entfernen</string>
     <string name="library_in">In der Bibliothek</string>
     <string name="xbox_filter_show">Anzeigen</string>
+    <string name="itch_collections">Sammlungen</string>
     <string name="xbox_filter_cloud">Cloud</string>
     <string name="stores_xbox_cloud_settings">Cloud-Einstellungen</string>
 </resources>

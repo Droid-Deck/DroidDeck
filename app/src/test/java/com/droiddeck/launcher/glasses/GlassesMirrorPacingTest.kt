@@ -1,12 +1,13 @@
 package com.droiddeck.launcher.glasses
 
 import android.content.Context
+import android.database.ContentObserver
+import android.provider.Settings
 import android.hardware.display.DisplayManager
 import android.view.Display
 import androidx.compose.runtime.MutableState
 import com.droiddeck.launcher.SessionActivity
 import com.droiddeck.launcher.session.SessionPrefs
-import com.droiddeck.launcher.session.SessionState
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Before
@@ -38,12 +39,10 @@ class GlassesMirrorPacingTest {
         val panel = Shadow.extract<ModeDisplay>(activity.display)
         panel.supported = arrayOf(mode(1, 60f), mode(2, 90f), mode(3, 120f))
         panel.current = panel.supported.last()
-        SessionState.performanceMode = false
         activity.getSharedPreferences("session", Context.MODE_PRIVATE).edit().clear().commit()
     }
 
     @After fun cleanup() {
-        SessionState.performanceMode = false
         activity.getSharedPreferences("session", Context.MODE_PRIVATE).edit().clear().commit()
     }
 
@@ -53,7 +52,7 @@ class GlassesMirrorPacingTest {
         apply(connected, settings.copy(refreshHz = 90))
         expect(2, 90f, 90)
         apply(GlassesState(), settings)
-        expect(3, 120f, 0)
+        expect(3, 120f, SessionPrefs.FPS_UNPACED)
     }
 
     @Test fun retiredSavedLimitsDoNotCapThePhoneOrMirroredOutput() {
@@ -64,21 +63,22 @@ class GlassesMirrorPacingTest {
         apply(connected.copy(hz = 120f), settings)
         expect(1, 60f, 60)
         apply(GlassesState(), settings)
-        expect(3, 120f, 0)
-    }
-
-    @Test fun performanceModeResumesUnpacedOutputAfterMirrorDisconnects() {
-        SessionState.performanceMode = true
-        apply(connected, settings)
-        expect(1, 60f, 60)
-        apply(GlassesState(), settings)
         expect(3, 120f, SessionPrefs.FPS_UNPACED)
     }
 
     @Test fun pacingFollowsThePanelWhenTheSystemKeepsALowerRateThanRequested() {
         Shadow.extract<ModeDisplay>(activity.display).current = mode(2, 90f)
         apply(GlassesState(), settings)
-        expect(3, 90f, 0)
+        expect(3, 90f, SessionPrefs.FPS_UNPACED)
+    }
+
+    @Test fun aHigherRefreshSettingChoosesTheFasterModeAgain() {
+        Settings.System.putFloat(activity.contentResolver, "peak_refresh_rate", 60f)
+        apply(GlassesState(), settings)
+        assertEquals(1, activity.window.attributes.preferredDisplayModeId)
+        Settings.System.putFloat(activity.contentResolver, "peak_refresh_rate", 120f)
+        ReflectionHelpers.getField<ContentObserver>(activity, "refreshSettingObserver").onChange(false)
+        assertEquals(3, activity.window.attributes.preferredDisplayModeId)
     }
 
     private fun apply(state: GlassesState, config: GlassesSettings) {

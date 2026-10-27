@@ -89,6 +89,8 @@ import com.droiddeck.launcher.stores.StoresState
 import com.droiddeck.launcher.stores.arrangeStoreTabs
 import com.droiddeck.launcher.stores.download.DownloadEntry
 import com.droiddeck.launcher.stores.formatBytes
+import com.droiddeck.launcher.stores.itch.ItchCollection
+import com.droiddeck.launcher.stores.itch.ItchCollections
 import com.droiddeck.launcher.stores.retainOrder
 import com.droiddeck.launcher.stores.xbox.XboxLibraryFilter
 import com.droiddeck.launcher.stores.sortGames
@@ -125,6 +127,14 @@ internal fun libraryEntries(
         out += LibraryEntry(GameRef.key(item), store.id, item.title, null, item, installed = item.key in installedStore)
     }
     return out.distinctBy { it.key }
+}
+
+internal fun collectionEntries(all: List<LibraryEntry>, items: List<CatalogItem>): List<LibraryEntry> {
+    val keys = items.map { it.key }.toSet()
+    val itch = all.filter { it.source == Store.ITCH.id }
+    val have = itch.mapNotNull { it.storeKey }.toSet()
+    return itch.filter { it.storeKey in keys } +
+        items.filter { it.key !in have }.map { LibraryEntry(GameRef.key(it), Store.ITCH.id, it.title, null, it, false) }
 }
 
 internal fun installedFirst(entries: List<LibraryEntry>): List<LibraryEntry> = entries.partition { it.installed }.let { (on, off) -> on + off }
@@ -169,19 +179,30 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
     val all = remember(s.steamGames, cloudRows, owned, installedStore) { libraryEntries(s.steamGames + cloudRows, owned, installedStore) }
     LaunchedEffect(Unit) { XboxLibraryFilter.load(ctx) }
     var showUninstalled by remember(LibraryView.ownedRequest) { mutableStateOf(SessionPrefs.libraryShowUninstalled(ctx)) }
+    var collectionShows by remember { mutableStateOf<Pair<String, Boolean>?>(null) }
     val setShowUninstalled = { show: Boolean ->
-        showUninstalled = show
-        SessionPrefs.setLibraryShowUninstalled(ctx, show)
+        val picked = ItchCollections.selected.takeIf { LibraryView.source == Store.ITCH.id }
+        if (picked != null) collectionShows = picked to show
+        else {
+            showUninstalled = show
+            SessionPrefs.setLibraryShowUninstalled(ctx, show)
+        }
     }
-    val sources = librarySources(all, SessionPrefs.storesTabOrder(ctx))
+    val itchSignedIn = owned.containsKey(Store.ITCH)
+    val listed = librarySources(all, SessionPrefs.storesTabOrder(ctx))
+    val sources = if (itchSignedIn && Store.ITCH.id !in listed) listed + Store.ITCH.id else listed
     val source = LibraryView.source.takeIf { it == LIBRARY_ALL || it in sources } ?: LIBRARY_ALL
     val q = LibraryView.query.trim().lowercase()
     val xboxFilter = if (source == Store.XBOX.id) XboxLibraryFilter.current else XboxLibraryFilter.ALL
-    val matching = all.filter {
+    LaunchedEffect(source, itchSignedIn) { if (source == Store.ITCH.id && itchSignedIn) ItchCollections.load(ctx) }
+    val collection = if (source == Store.ITCH.id) ItchCollections.chosen() else null
+    val pool = if (collection == null) all else collectionEntries(all, ItchCollections.gamesOf(collection.id).orEmpty())
+    val matching = pool.filter {
         (source == LIBRARY_ALL || it.source == source) && (q.isEmpty() || it.title.lowercase().contains(q)) && keepsXbox(xboxFilter, it)
     }
-    val candidates = if (showUninstalled) matching else matching.filter { it.installed }
-    val hiddenUninstalled = if (showUninstalled) 0 else matching.count { !it.installed }
+    val listUninstalled = if (collection == null) showUninstalled else collectionShows?.takeIf { it.first == collection.id }?.second ?: true
+    val candidates = if (listUninstalled) matching else matching.filter { it.installed }
+    val hiddenUninstalled = if (listUninstalled) 0 else matching.count { !it.installed }
     val sort = s.storesSort
     val sizeSort = sort == "sizeAsc" || sort == "sizeDesc"
     val installedAt = StoresState.installed.associate { it.key to it.sidecar.installedAt }
@@ -264,7 +285,7 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
         kotlinx.coroutines.delay(Motion.ms(240).toLong())
         focusWithinFrames({ ff.last?.startsWith("card:") == true }) { if (ff.firstTileAttached > 0) ff.firstTile else FocusRequester.Default }
     }
-    if (all.isEmpty() && open == null) {
+    if (all.isEmpty() && open == null && !itchSignedIn) {
         LibraryEmpty(s, a, modifier)
         return
     }
@@ -272,7 +293,7 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
     val detailScroll = rememberScrollState()
     var cycled by remember { mutableIntStateOf(0) }
     var gridFocused by remember { mutableStateOf(false) }
-    LaunchedEffect(source, sort, showUninstalled) { grid.scrollToItem(0) }
+    LaunchedEffect(source, sort, listUninstalled) { grid.scrollToItem(0) }
     LaunchedEffect(cycled) {
         if (cycled == 0 || ff == null || inputMode.inputMode != androidx.compose.ui.input.InputMode.Keyboard) return@LaunchedEffect
         focusWithinFrames({ gridFocused }) {
@@ -288,7 +309,7 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
         grid = {
             LibraryGrid(
                 s, a, grid, visible, split, visible.size, sources, source, sizesPending, syncing,
-                showUninstalled = showUninstalled.takeIf { stores }, onShowUninstalled = setShowUninstalled,
+                showUninstalled = listUninstalled.takeIf { stores }, onShowUninstalled = setShowUninstalled,
                 hiddenUninstalled = hiddenUninstalled,
                 onSource = { LibraryView.source = it },
                 onCycle = { step ->
@@ -383,7 +404,7 @@ private fun LibraryGrid(
         contentPadding = PaddingValues(top = 4.dp, bottom = 16.dp),
     ) {
         item(key = "header", span = { GridItemSpan(maxLineSpan) }) {
-            Rise(0) { LibraryHeader(s, a, total, searchCleared, source == Store.XBOX.id, showUninstalled, onShowUninstalled) }
+            Rise(0) { LibraryHeader(s, a, total, searchCleared, source == Store.XBOX.id, showUninstalled, onShowUninstalled, collections = source == Store.ITCH.id) }
         }
         item(key = "filters", span = { GridItemSpan(maxLineSpan) }) {
             Rise(1) { LibraryFilters(sources, source, onSource) }
@@ -430,7 +451,7 @@ private fun LazyGridScope.libraryGrid(entries: List<LibraryEntry>, empty: Int, t
 @Composable
 private fun LibraryHeader(
     s: FrontEndState, a: FrontEndActions, total: Int, searchCleared: Boolean, xbox: Boolean,
-    showUninstalled: Boolean?, onShowUninstalled: (Boolean) -> Unit,
+    showUninstalled: Boolean?, onShowUninstalled: (Boolean) -> Unit, collections: Boolean,
 ) {
     val colors = MaterialTheme.colorScheme
     val narrow = LocalNarrowPane.current
@@ -447,6 +468,7 @@ private fun LibraryHeader(
         },
     ) {
         if (showUninstalled != null || xbox) LibraryFilterButton(showUninstalled, onShowUninstalled, xbox)
+        if (collections) CollectionsButton()
         SortButton(s, a)
         ViewButton(s, a)
         GameFileFolderActions(s, a)
@@ -691,6 +713,39 @@ private fun LibraryFilterButton(showUninstalled: Boolean?, onShowUninstalled: (B
                             modifier = Modifier.fillMaxWidth().stepItem(offset + i).then(if (showUninstalled == null && filter == XboxLibraryFilter.current) Modifier.focusRequester(first) else Modifier),
                         ) {
                             XboxLibraryFilter.set(ctx, filter)
+                            Steps.fold()
+                        }
+                    }
+                }
+            })
+        }
+    }
+}
+
+@Composable
+private fun CollectionsButton() {
+    val pal = LocalPalette.current
+    val ctx = LocalContext.current
+    val title = stringResource(R.string.itch_collections)
+    val all = stringResource(R.string.stores_tab_all)
+    var at by remember { mutableStateOf<Rect?>(null) }
+    Box(Modifier.onGloballyPositioned { at = it.boundsInRoot() }) {
+        HeaderIconButton(title + " · " + (ItchCollections.chosen()?.title ?: all), CollectionsIcon, "itch-collections") {
+            val from = at ?: return@HeaderIconButton
+            val choices = listOf<ItchCollection?>(null) + ItchCollections.list
+            Steps.ask(StepAsk(
+                anchor = from, side = StepSide.Left, accent = pal.signal, pillCorner = 8.dp, items = choices.size,
+                handle = { Icon(CollectionsIcon, null, tint = pal.signal, modifier = Modifier.size(18.dp)) },
+            ) {
+                StepTitle(title)
+                StepList {
+                    choices.forEachIndexed { i, c ->
+                        val picked = c?.id == ItchCollections.selected
+                        StepChoice(
+                            c?.let { it.title + " (" + it.count + ")" } ?: all, selected = picked, enabled = open,
+                            modifier = Modifier.fillMaxWidth().stepItem(i).then(if (picked) Modifier.focusRequester(first) else Modifier),
+                        ) {
+                            ItchCollections.select(ctx, c?.id)
                             Steps.fold()
                         }
                     }

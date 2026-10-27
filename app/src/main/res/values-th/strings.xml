@@ -1920,7 +1920,6 @@
     <string name="display_filter_live">มีผลทันที ใช้ร่วมกันระหว่าง Steam และเดสก์ท็อป</string>
     <string name="display_filter_note">FSR, GSR และ NIS จะมีผลเมื่อขยายภาพของเซสชัน เพิ่มความคมชัดเท่านั้นทำงานได้โดยไม่ต้องขยายภาพด้วย</string>
     <string name="display_sharpness">ความคมชัดของตัวกรอง</string>
-    <string name="display_frame_rate">อัตราเฟรม</string>
     <string name="display_look_filter">%1$s ตั้งการปรับขนาดเป็น %2$s</string>
     <string name="display_match_screen">พอดีหน้าจอ (%1$d×%2$d)</string>
     <string name="display_follow_screen">ตามหน้าจอ (ปรับขนาดเมื่อพับหรือกาง)</string>
@@ -3058,6 +3057,7 @@
     <string name="library_remove">นำออกจากไลบรารี</string>
     <string name="library_in">อยู่ในไลบรารี</string>
     <string name="xbox_filter_show">แสดง</string>
+    <string name="itch_collections">คอลเลกชัน</string>
     <string name="xbox_filter_cloud">คลาวด์</string>
     <string name="stores_xbox_cloud_settings">การตั้งค่าคลาวด์</string>
 </resources>

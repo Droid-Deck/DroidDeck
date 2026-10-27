@@ -104,9 +104,6 @@ object SessionState {
     var upscaleRatio: Float = 0f
 
     @Volatile
-    var performanceMode = false
-
-    @Volatile
     var firstFrameSeen = false
 
     @Volatile

@@ -1941,7 +1941,6 @@
     <string name="display_filter_live">Wordt direct toegepast. Gedeeld door Steam en Desktop.</string>
     <string name="display_filter_note">FSR, GSR en NIS worden toegepast bij het vergroten van het sessiebeeld. Alleen verscherpen werkt ook zonder vergroting.</string>
     <string name="display_sharpness">Filterscherpte</string>
-    <string name="display_frame_rate">Framerate</string>
     <string name="display_look_filter">%1$s Zet schaling op %2$s.</string>
     <string name="display_match_screen">Schermformaat (%1$d×%2$d)</string>
     <string name="display_follow_screen">Scherm volgen (past formaat aan bij vouwen of uitvouwen)</string>
@@ -3083,6 +3082,7 @@
     <string name="library_remove">Verwijderen uit Bibliotheek</string>
     <string name="library_in">In Bibliotheek</string>
     <string name="xbox_filter_show">Weergeven</string>
+    <string name="itch_collections">Collecties</string>
     <string name="xbox_filter_cloud">Cloud</string>
     <string name="stores_xbox_cloud_settings">Cloudinstellingen</string>
 </resources>
