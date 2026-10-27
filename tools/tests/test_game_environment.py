@@ -498,6 +498,8 @@ class GameEnvironmentTest(unittest.TestCase):
                 ({"SteamGameId": "618970"}, every, pocket_fit, "4:7,2,3,4", "4:7,2,3,4"),
                 ({"SteamGameId": "620"}, every, pocket_fit, "8:7,2,3,4,5,6,0,1", "8:7,2,3,4,5,6,0,1"),
                 ({"SteamGameId": "2229830", "BL_GAME_CPUS": "0,1"}, {0, 1}, pocket_fit, "2:0,1", "2:0,1"),
+                ({"SteamGameId": "2229830", "DROIDDECK_GAME_CORES": "12-13"}, every, pocket_fit, "1:7", "1:7"),
+                ({"SteamGameId": "11440", "BL_GAME_CPUS": "0-7"}, every, pocket_fit, "4:7,2,3,4", "4:7,2,3,4"),
                 ({}, every, {core: 100 for core in every}, None, None),
                 ({}, every, None, None, None),
                 ({"SteamGameId": "11440"}, every, None, "4:0,1,2,3", "4:0,1,2,3"),

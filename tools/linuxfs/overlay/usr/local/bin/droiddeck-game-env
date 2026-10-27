@@ -418,6 +418,7 @@ def cpu_topology(env, command=()):
     online = online_cores()
     if not cores or cores[-1] >= len(online):
         return
+    picked = picked and not set(cores) >= online
     if fastest:
         limit = None if picked else proton_cpu_limit(command, env)
         if isinstance(limit, str):
