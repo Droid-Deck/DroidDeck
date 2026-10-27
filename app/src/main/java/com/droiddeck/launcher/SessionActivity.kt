@@ -9,6 +9,7 @@ import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
+import android.database.ContentObserver
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
@@ -429,6 +430,14 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val changed = refreshActivityDisplayId()
         if (started && (changed || changedDisplayId == sessionActivityDisplayId)) {
             SessionService.setActivityDisplay(this, sessionActivityDisplayId)
+        }
+    }
+
+    // A higher refresh rate allowed in Android's settings does not change the display while this window
+    // still asks for a lower mode, so the mode is chosen again when the setting changes.
+    private val refreshSettingObserver = object : ContentObserver(Handler(Looper.getMainLooper())) {
+        override fun onChange(selfChange: Boolean) {
+            applyOutputPacing()
         }
     }
 
@@ -3202,6 +3211,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         started = true
         refreshActivityDisplayId()
         displayManager.registerDisplayListener(displayListener, Handler(Looper.getMainLooper()))
+        for (name in arrayOf("peak_refresh_rate", "min_refresh_rate")) {
+            contentResolver.registerContentObserver(android.provider.Settings.System.getUriFor(name), false, refreshSettingObserver)
+        }
         refreshSecondScreenDisplays()
         if (secondScreenMode != SecondScreenMode.NONE && secondScreenPresentation == null) showSecondScreen(secondScreenMode)
         startedScreens++
@@ -3216,6 +3228,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         started = false
         updateHandCamera()
         displayManager.unregisterDisplayListener(displayListener)
+        contentResolver.unregisterContentObserver(refreshSettingObserver)
         closeSecondScreen(reset = false)
         startedScreens = (startedScreens - 1).coerceAtLeast(0)
         updateGlassesScreen()

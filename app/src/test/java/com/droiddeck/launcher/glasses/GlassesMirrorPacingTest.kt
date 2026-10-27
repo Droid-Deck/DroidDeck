@@ -1,6 +1,8 @@
 package com.droiddeck.launcher.glasses
 
 import android.content.Context
+import android.database.ContentObserver
+import android.provider.Settings
 import android.hardware.display.DisplayManager
 import android.view.Display
 import androidx.compose.runtime.MutableState
@@ -68,6 +70,15 @@ class GlassesMirrorPacingTest {
         Shadow.extract<ModeDisplay>(activity.display).current = mode(2, 90f)
         apply(GlassesState(), settings)
         expect(3, 90f, SessionPrefs.FPS_UNPACED)
+    }
+
+    @Test fun aHigherRefreshSettingChoosesTheFasterModeAgain() {
+        Settings.System.putFloat(activity.contentResolver, "peak_refresh_rate", 60f)
+        apply(GlassesState(), settings)
+        assertEquals(1, activity.window.attributes.preferredDisplayModeId)
+        Settings.System.putFloat(activity.contentResolver, "peak_refresh_rate", 120f)
+        ReflectionHelpers.getField<ContentObserver>(activity, "refreshSettingObserver").onChange(false)
+        assertEquals(3, activity.window.attributes.preferredDisplayModeId)
     }
 
     private fun apply(state: GlassesState, config: GlassesSettings) {
