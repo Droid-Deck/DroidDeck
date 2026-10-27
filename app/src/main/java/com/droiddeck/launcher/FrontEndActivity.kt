@@ -1275,6 +1275,7 @@ class FrontEndActivity : ComponentActivity() {
                         },
                         onDismissPhantomGate = { showPhantomGate = false },
                         onStartWirelessAdbPairing = { WirelessAdbPairingService.start(this) },
+                        onStartPairingGuide = { displayId -> PairingGuideActivity.start(this, displayId) },
                         onOpenNotificationSettings = {
                             startActivity(Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
                                 .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, packageName)

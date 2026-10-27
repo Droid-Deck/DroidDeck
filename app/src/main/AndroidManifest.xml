@@ -82,6 +82,17 @@
         </activity>
 
         <activity
+            android:name=".PairingGuideActivity"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:taskAffinity="com.droiddeck.launcher.pairingguide"
+            android:excludeFromRecents="true"
+            android:supportsPictureInPicture="true"
+            android:resizeableActivity="true"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|density|keyboard|keyboardHidden|navigation"
+            android:theme="@style/AppTheme" />
+
+        <activity
             android:name=".FrontEndActivity"
             android:exported="true"
             android:screenOrientation="user"

@@ -255,6 +255,7 @@ class FrontEndActions(
     val onCopyPhantomCommand: (Boolean) -> Unit = {},
     val onDismissPhantomGate: () -> Unit = {},
     val onStartWirelessAdbPairing: () -> Unit = {},
+    val onStartPairingGuide: (Int?) -> Boolean = { false },
     val onOpenNotificationSettings: () -> Unit = {},
     val controller: ControllerActions? = null,
     val updates: UpdatesActions = UpdatesActions(),
@@ -425,6 +426,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
     }
     var showWirelessAdbFix by rememberSaveable { mutableStateOf(false) }
     var showDeveloperDisplayChoice by rememberSaveable { mutableStateOf(false) }
+    var developerChoiceGuided by rememberSaveable { mutableStateOf(false) }
     var wirelessAdbDesiredEnabled by rememberSaveable { mutableStateOf(false) }
     var appToChooseDisplay by remember { mutableStateOf<HomeApp.LaunchableApp?>(null) }
     val colors = MaterialTheme.colorScheme
@@ -433,8 +435,13 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
     val phantomGateVisible = s.showPhantomGate && PhantomProcessLimit.blocksSteam(s.phantomProcessStatus)
     val processSettingsPageVisible = phantomGateVisible || showWirelessAdbFix || showDeveloperDisplayChoice
     val requestDeveloperOptions = {
+        developerChoiceGuided = false
         if (s.secondScreenDisplays.isEmpty()) a.onOpenDeveloperOptions(null)
         else showDeveloperDisplayChoice = true
+    }
+    val openDeveloperOptionsOn: (Int?) -> Unit = { displayId ->
+        if (!developerChoiceGuided || !a.onStartPairingGuide(displayId)) a.onOpenDeveloperOptions(displayId)
+        developerChoiceGuided = false
     }
     val requestWirelessAdbFix: (Boolean) -> Unit = { enabled ->
         wirelessAdbDesiredEnabled = enabled
@@ -621,7 +628,9 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
                     onOpenDeveloperOptions = requestDeveloperOptions,
                     onFixWithWirelessDebugging = {
                         a.onStartWirelessAdbPairing()
-                        requestDeveloperOptions()
+                        developerChoiceGuided = true
+                        if (s.secondScreenDisplays.isEmpty()) openDeveloperOptionsOn(null)
+                        else showDeveloperDisplayChoice = true
                     },
                     onEnterAddressManually = { requestWirelessAdbFix(false) },
                     onCopyCommand = { a.onCopyPhantomCommand(false) },
@@ -648,13 +657,16 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
                 },
                 onMainScreen = {
                     showDeveloperDisplayChoice = false
-                    a.onOpenDeveloperOptions(null)
+                    openDeveloperOptionsOn(null)
                 },
                 onSecondaryScreen = { displayId ->
                     showDeveloperDisplayChoice = false
-                    a.onOpenDeveloperOptions(displayId)
+                    openDeveloperOptionsOn(displayId)
                 },
-                onDismiss = { showDeveloperDisplayChoice = false },
+                onDismiss = {
+                    showDeveloperDisplayChoice = false
+                    developerChoiceGuided = false
+                },
             )
         }
     }
