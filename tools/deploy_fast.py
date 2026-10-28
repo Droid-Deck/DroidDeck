@@ -199,7 +199,30 @@ def pwsh():
     raise Refused('PowerShell 7 (pwsh) is required for the local signer')
 
 
+def signing_env():
+    """The .signing.env build_local.sh uses: the checkout's own, else the main checkout's."""
+    common = Path(git('rev-parse', '--path-format=absolute', '--git-common-dir').decode().strip())
+    for candidate in (ROOT / '.signing.env', os.environ.get('DROIDDECK_SIGNING_ENV'), common.parent / '.signing.env'):
+        if candidate and Path(candidate).is_file():
+            return Path(candidate)
+    return None
+
+
+def sign_with_env(env_file, unsigned, signed):
+    build_tools = sorted((sdk_root() / 'build-tools').glob('*/aapt'), reverse=True)
+    if not build_tools:
+        raise Refused('aapt not found under ' + str(sdk_root() / 'build-tools'))
+    script = f'set -a; cd "$(dirname "$1")"; . "$1"; set +a; exec "$2" "$3" standard "$4"'
+    result = subprocess.run(['bash', '-c', script, 'sign', str(env_file), str(ROOT / 'tools/release/sign-apk.sh'),
+                             str(unsigned), str(signed)], env={**os.environ, 'BUILD_TOOLS': str(build_tools[0].parent)},
+                            capture_output=True, text=True)
+    if result.returncode or not signed.is_file():
+        raise Refused('Signing failed:\n' + (result.stdout + result.stderr).strip())
+
+
 def sign(unsigned, signed):
+    if not SIGNER.is_file() and (env_file := signing_env()):
+        return sign_with_env(env_file, unsigned, signed)
     # Microsoft Store Python virtualizes AppData for child processes too and hides the signer; use a python.org install.
     def quoted(value):
         return "'" + str(value).replace("'", "''") + "'"
