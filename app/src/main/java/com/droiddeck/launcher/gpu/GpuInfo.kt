@@ -36,7 +36,7 @@ data class GpuInfo(
         get() = when {
             family == Family.NOT_ADRENO -> Support.UNSUPPORTED
             isA850 -> Support.UNTESTED
-            family == Family.A6XX && model == 650 -> Support.TESTED
+            family == Family.A6XX && (model == 618 || model == 650) -> Support.TESTED
             family == Family.A8XX -> Support.TESTED
             family == Family.A7XX && model >= 725 -> Support.TESTED
             else -> Support.UNTESTED
@@ -47,7 +47,7 @@ data class GpuInfo(
             Support.TESTED -> "Supported"
             Support.UNTESTED -> if (isA850) "Experimental Adreno 850 support: requires compatible experimental display and game drivers; not verified on this device"
                 else if (family == Family.A7XX_LOW) "Experimental: its drivers are test builds"
-                else "Outside tested hardware (Adreno 650, 725 and newer): it may not run"
+                else "Outside tested hardware (Adreno 618, 650, 725 and newer): it may not run"
             Support.UNSUPPORTED -> "Not supported: DroidDeck needs an Adreno (Snapdragon) GPU"
         }
 
