@@ -29,6 +29,10 @@ internal class FrameStats {
     @Volatile var fps = 0f
         private set
 
+    /** Completed sampling periods; MangoHud redraws its readouts when one completes. */
+    @Volatile var fpsUpdates = 0L
+        private set
+
     /** Frames added so far; the HUD redraws its graph when this moves. */
     @Volatile var count = 0L
         private set
@@ -45,6 +49,7 @@ internal class FrameStats {
             fps = (1e9 * framesSinceUpdate / elapsed).toFloat()
             framesSinceUpdate = 0
             lastFpsUpdateNs = timeNs
+            fpsUpdates++
         }
         lastPresentNs = timeNs
         framesSinceUpdate++

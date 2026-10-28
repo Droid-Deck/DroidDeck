@@ -56,6 +56,18 @@ class FrameStatsTest {
         }
     }
 
+    @Test fun aCompletedPeriodIsCountedWhenMangoHudWouldRedraw() {
+        val stats = FrameStats()
+        var now = 1_000_000_000L
+        stats.add(10_000_000L, now)
+        assertEquals(1L, stats.fpsUpdates)
+        repeat(49) { now += 10_000_000L; stats.add(10_000_000L, now) }
+        assertEquals(1L, stats.fpsUpdates)
+        now += 10_000_000L; stats.add(10_000_000L, now)
+        assertEquals(2L, stats.fpsUpdates)
+        assertEquals(100f, stats.fps, 0.01f)
+    }
+
     @Test fun aSteadyRateReadsExactlyWithoutMillisecondRounding() {
         val stats = FrameStats()
         var now = 1_000_000_000L

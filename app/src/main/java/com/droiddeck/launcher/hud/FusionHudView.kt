@@ -36,10 +36,11 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Fusion HUD — the 4th selectable in-game overlay. One color-coded visual language rendered at four
@@ -226,8 +227,19 @@ class FusionHudView(context: Context) : View(context) {
     /** The game's output from gamescope ("1280x720 @ 144Hz"), as MangoHud shows it; "" = this display. */
     fun setResolution(s: String?) { resolution = s ?: "" }
 
-    /** New frames arrived: redraw the graph (MangoHud redraws it every frame). */
-    fun onFrames() { if (graphRect != null) invalidate() }
+    private val periodDone = Channel<Unit>(Channel.CONFLATED)
+    private var seenFpsUpdates = 0L
+
+    /** New frames arrived: redraw the graph (MangoHud redraws it every frame), and the readouts when a
+     *  sampling period completed, at the moment MangoHud redraws its own. */
+    fun onFrames() {
+        val updates = frames?.fpsUpdates ?: 0L
+        if (updates != seenFpsUpdates) {
+            seenFpsUpdates = updates
+            periodDone.trySend(Unit)
+        }
+        if (graphRect != null) invalidate()
+    }
 
     /** Fusion has no orientation (tap cycles size instead); kept for a symmetric host surface. */
     fun setVertical(vertical: Boolean) { /* no-op */ }
@@ -311,7 +323,8 @@ class FusionHudView(context: Context) : View(context) {
                 graphMaxMs = stats?.graphMaxMs() ?: 0f
                 onRefresh?.run()
                 rebuildAndInvalidate()
-                delay(REFRESH_MS)
+                // Without frames (a still screen) MangoHud redraws nothing; the HUD keeps refreshing.
+                withTimeoutOrNull(REFRESH_MS) { periodDone.receive() }
             }
         }
     }
