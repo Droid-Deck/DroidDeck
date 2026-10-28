@@ -516,11 +516,7 @@ jobs:
         run: |
           set -o pipefail
           python3 tools/release/runtime_inputs.py record
-          skip_lint=()
-          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
-            skip_lint=(-x lintVitalRelease -x lintVitalAnalyzeRelease -x lintVitalReportRelease -x generateReleaseLintVitalReportModel)
-          fi
-          ./gradlew assembleRelease "${skip_lint[@]}" --console=plain -PndkVersion="$NDK_VERSION" 2>&1 | tee /tmp/build.log
+          ./gradlew assembleRelease --console=plain -PndkVersion="$NDK_VERSION" 2>&1 | tee /tmp/build.log
           python3 tools/release/check_session_assets.py app/build/outputs/apk/release/app-release.apk
           python3 tools/release/runtime_inputs.py apk app/build/outputs/apk/release/app-release.apk
 
