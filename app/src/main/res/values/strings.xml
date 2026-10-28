@@ -94,7 +94,7 @@
     <string name="game_env_xalia">Set to 0 to disable Proton’s gamepad-navigation helper for this game.</string>
     <string name="game_env_anticheat_offline">On by default. Starts an Easy Anti-Cheat game without its anti-cheat when the game supports offline play. Turn off to launch through Easy Anti-Cheat as usual. Online modes that require Easy Anti-Cheat remain unavailable.</string>
     <string name="game_env_hud">DXVK overlay for D3D9–11. fps displays frame rate; unset hides it.</string>
-    <string name="game_env_dxvk_config">DXVK settings separated by semicolons. Recent builds use dxvk.maxFrameRate for frame limiting; prefer the session frame limiter for ordinary play.</string>
+    <string name="game_env_dxvk_config">DXVK settings separated by semicolons. Recent builds use dxvk.maxFrameRate for frame limiting; prefer Steam\'s Quick Access menu frame limiter for ordinary play.</string>
     <string name="game_env_cores">CPU cores for this game, such as 0-4 or 0,2,4, in place of the session\'s game cores. Fewer cores run cooler.</string>
     <string name="game_env_vkd3d_limit">D3D12 frame-rate limit. 0 disables the limit.</string>
     <string name="game_env_glthread">Mesa OpenGL threading. true can help CPU-limited OpenGL games; test per game.</string>
@@ -184,6 +184,8 @@
     <string name="app_fex_hint">FEX runs x86 Linux programs on this ARM64 device. Auto uses it when the program is built for x86.</string>
     <string name="app_fex_x86">%1$s through FEX</string>
     <string name="app_fex_not_ready">This program is built for %1$s PCs and runs through FEX, which is not set up yet. Open Steam once while signed in: DroidDeck has it download FEX and the Steam Linux Runtime it needs, then this opens.</string>
+    <string name="session_proot_missing">DroidDeck\'s proot could not be downloaded. Check the connection and try again. The session was not started, because the fallback proot is too slow to play on.</string>
+    <string name="session_directaudio_missing">DirectAudio could not be downloaded, so game audio uses the slower path this session.</string>
     <string name="session_end_program">This program</string>
     <string name="session_end_steam_download">Couldn\'t download the Steam client. Your network or VPN may be blocking Steam\'s servers; check the connection and try again.</string>
     <string name="session_end_steam_setup">Couldn\'t set up the Steam client. Check your connection and free storage, then try again.</string>
@@ -256,10 +258,6 @@
     <string name="mode_ratio">Screen ratio</string>
     <string name="mode_ratio_custom">Set by the custom resolution.</string>
     <string name="mode_ratio_auto">Auto uses at least 16:9.</string>
-    <string name="mode_fps">Frame limit</string>
-    <string name="mode_performance">Performance mode</string>
-    <string name="mode_performance_hint">With no frame limit, games run as fast as they can: frames go back to the game without waiting for the screen. With a frame limit, frames stay paced to it. Either way, gamescope and Wine skip repeated window checks. Uses more power and runs warmer without a limit. Applies next session.</string>
-    <string name="mode_fps_note">Caps the whole session. The display switches to a refresh rate the cap divides evenly.</string>
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">HDR10 output</string>
     <string name="mode_hdr_unavailable">Not available: %1$s.</string>
@@ -306,6 +304,11 @@
     <string name="mode_controller_x360">Xbox 360 controller</string>
     <string name="mode_controller_note">Deck: Quick Access button and gyro. Steam Controller: the same, with grip sense on the back buttons. DualShock 4 and DualSense: gyro, and the trackpads as their touchpad. Xbox 360: open Quick Access with Guide+A.</string>
     <string name="mode_back">Back</string>
+    <string name="back_native_qam_hint">Hold Back for 700 ms, or hold Back and press another button for Steam shortcuts.</string>
+    <string name="back_double_tap_window">Double-tap window</string>
+    <string name="back_tap_ms">%1$d ms</string>
+    <string name="brightness_permission_title">Allow brightness control</string>
+    <string name="brightness_permission_text">Set up brightness control in DroidDeck.</string>
     <string name="back_menu_then_qam">Menu → QAM</string>
     <string name="back_qam_then_menu">QAM → Menu</string>
     <string name="mode_session">Session</string>
@@ -706,6 +709,8 @@
     <string name="drawer_touch_auto">Auto (%1$s)</string>
     <string name="drawer_keyboard">Keyboard</string>
     <string name="drawer_latency">Latency</string>
+    <string name="drawer_low_latency">Low latency mode</string>
+    <string name="drawer_low_latency_hint">Increases CPU and battery usage</string>
     <string name="drawer_low_latency_controller">Low-latency controller</string>
     <string name="drawer_low_latency_controller_hint">Pad reports at 1000 Hz instead of 250 Hz. Slightly more CPU.</string>
     <string name="drawer_low_latency_touch">Low-latency touch</string>
@@ -835,6 +840,11 @@
     <string name="setup_home_on">DroidDeck can be the Home app</string>
     <string name="setup_home_off">DroidDeck is never offered as a Home app</string>
     <string name="setup_orientation">Orientation</string>
+    <string name="setup_launcher_orientation">Launcher orientation</string>
+    <string name="setup_launcher_orientation_auto">Follow device rotation</string>
+    <string name="setup_orientation_portrait">Portrait</string>
+    <string name="setup_session_orientation">Session orientation</string>
+    <string name="setup_session_orientation_hint">Applies to Steam, games, desktop, and the controller editor. Resolution presets rotate with the session; custom width and height stay as entered.</string>
     <string name="setup_orientation_auto">Automatic landscape</string>
     <string name="setup_orientation_landscape">Landscape</string>
     <string name="setup_orientation_reverse">Reverse landscape</string>
@@ -988,6 +998,12 @@
     <string name="gate_step1">Open Settings → Developer options → Wireless debugging and turn it on</string>
     <string name="gate_step2">Tap “Pair device with pairing code”</string>
     <string name="gate_step3">Type the code into the DroidDeck notification</string>
+    <string name="pairguide_build_number">In About phone, tap Build number 7 times</string>
+    <string name="pairguide_wireless">Turn on Wireless debugging</string>
+    <string name="pairguide_pair">Open Wireless debugging, then tap “Pair device with pairing code”</string>
+    <string name="pairguide_row_build_number">Build number</string>
+    <string name="pairguide_row_wireless">Wireless debugging</string>
+    <string name="pairguide_row_pair">Pair device with pairing code</string>
     <string name="gate_waiting">Waiting for the pairing pop-up…</string>
     <string name="gate_code_needed">Pop-up found. Enter its code in the notification.</string>
     <string name="gate_status">Status</string>
@@ -1073,6 +1089,48 @@
     <string name="content_android_apps">Android apps</string>
     <string name="content_apps_count">%1$d apps</string>
     <string name="content_no_android_apps">No launchable Android apps found.</string>
+    <string name="apps_search_hint">Search apps</string>
+    <string name="apps_no_match">No apps match “%1$s”.</string>
+    <string name="apps_add_widget">Add widget</string>
+    <string name="apps_widgets_loading">Loading widgets…</string>
+    <string name="apps_widgets_none">No apps on this device offer widgets.</string>
+    <string name="apps_widget_wider">Wider</string>
+    <string name="apps_widget_narrower">Narrower</string>
+    <string name="apps_widget_taller">Taller</string>
+    <string name="apps_widget_shorter">Shorter</string>
+    <string name="apps_widget_move_earlier">Move earlier</string>
+    <string name="apps_widget_move_later">Move later</string>
+    <string name="apps_widget_configure">Widget settings</string>
+    <string name="apps_widget_remove">Remove widget</string>
+    <string name="apps_add_to_folder">Add to folder</string>
+    <string name="apps_new_folder">New folder</string>
+    <string name="apps_remove_from_folder">Remove from folder</string>
+    <string name="apps_app_info">App info</string>
+    <string name="apps_uninstall">Uninstall</string>
+    <string name="apps_folder_rename">Rename</string>
+    <string name="apps_folder_ungroup">Ungroup</string>
+    <string name="apps_folder_default">Folder</string>
+    <string name="apps_folder_name">Folder name</string>
+    <string name="apps_filter">Show</string>
+    <string name="apps_filter_all">All apps</string>
+    <string name="apps_filter_games">Games</string>
+    <string name="apps_filter_downloaded">Downloaded</string>
+    <string name="apps_filter_system">System</string>
+    <string name="apps_filter_hidden">Hidden</string>
+    <string name="apps_hide">Hide</string>
+    <string name="apps_unhide">Show in apps</string>
+    <string name="apps_shortcut_remove">Remove shortcut</string>
+    <string name="apps_pin_title">Add to Apps</string>
+    <string name="apps_pin_add">Add</string>
+    <string name="apps_hidden_none">No hidden apps.</string>
+    <plurals name="apps_count">
+        <item quantity="one">%d app</item>
+        <item quantity="other">%d apps</item>
+    </plurals>
+    <string name="apps_sort_name_asc">Name A–Z</string>
+    <string name="apps_sort_name_desc">Name Z–A</string>
+    <string name="apps_sort_installed">Recently installed</string>
+    <string name="apps_sort_updated">Recently updated</string>
     <string name="content_desktop_installed">● Desktop installed</string>
     <string name="content_desktop_first_open">Installs on first open</string>
     <string name="content_available">Available to install</string>
@@ -1252,10 +1310,10 @@
     <string name="game_env_eyebrow">Proton games</string>
     <string name="pip_title">Picture in picture</string>
     <string name="pip_auto">Automatically enter PiP</string>
-    <string name="unfolded_controls">Controls on the unfolded screen</string>
-    <string name="unfolded_controls_hint">Unfolded, the game sits above the Steam Deck trackpads and back grips. Folded, the game is full screen.</string>
+    <string name="unfolded_controls">Controls below the game</string>
+    <string name="unfolded_controls_hint">In portrait or on an unfolded screen, place a landscape game above the touch controls.</string>
     <string name="unfolded_controls_with_controller">Keep them with a controller</string>
-    <string name="unfolded_controls_with_controller_hint">Also show the unfolded controls while a controller is connected, for controllers that hold the phone.</string>
+    <string name="unfolded_controls_with_controller_hint">Also show these touch controls while a controller is connected.</string>
     <string name="pip_suspended">Suspended</string>
     <string name="pip_not_ready">Picture in picture is available once the session is ready.</string>
     <string name="pip_permission">Allow picture in picture for DroidDeck in Android settings.</string>
@@ -1283,6 +1341,10 @@
 
     <string name="main_wait_runtime">Wait for the runtime operation to finish</string>
     <string name="main_wait_proton_install">Wait for the compatibility tool install to finish</string>
+    <string name="load_compat_title">Preparing compatibility tools</string>
+    <string name="load_compat_wait">Waiting for compatibility setup to finish</string>
+    <string name="load_compat_hint">Your session will start when setup finishes.</string>
+    <string name="load_compat_progress">%1$s · %2$d%%</string>
     <string name="main_wait_desktop_install">Wait for the desktop app install to finish</string>
     <string name="main_wait_install_game">Wait for the install to finish before launching a game</string>
     <string name="main_saves_close_session">Close the Steam session first, so the game can\'t save over the import</string>
@@ -1843,6 +1905,7 @@
     <string name="adbpair_applying">Applying the setting…</string>
     <string name="adbpair_command_failed">Wireless debugging command failed</string>
     <string name="adbpair_channel_name">Wireless debugging setup</string>
+    <string name="adbpair_progress_channel_name">Wireless debugging setup progress</string>
     <string name="adbpair_channel_description">Asks for the Wireless debugging pairing code while Settings is open</string>
     <string name="adbpair_title_pair">Pair Wireless debugging</string>
     <string name="adbpair_waiting_text">Turn on Wireless debugging, then tap “Pair device with pairing code”.</string>
@@ -2054,7 +2117,6 @@
     <string name="display_filter_live">Applies live. Shared by Steam and Desktop.</string>
     <string name="display_filter_note">FSR, GSR and NIS apply when enlarging the session image. Sharpen only also works without enlargement.</string>
     <string name="display_sharpness">Filter sharpness</string>
-    <string name="display_frame_rate">Frame rate</string>
     <string name="display_look_filter">%1$s Sets scaling to %2$s.</string>
     <string name="display_match_screen">Match screen (%1$d×%2$d)</string>
     <string name="display_follow_screen">Follow screen (resizes when folded or unfolded)</string>
@@ -2108,6 +2170,13 @@
     <string name="stores_play">Play</string>
     <string name="stores_install">Install</string>
     <string name="bnet_open">Open Battle.net</string>
+    <string name="bnet_dl_starting">Starting Blizzard\'s downloader…</string>
+    <string name="bnet_dl_waiting">Waiting for Battle.net to close…</string>
+    <string name="bnet_dl_queued">Waiting for the other Battle.net download…</string>
+    <string name="bnet_dl_client_first">Open Battle.net and sign in once, then install its games here.</string>
+    <string name="bnet_dl_failed">Blizzard\'s downloader stopped: %1$s</string>
+    <string name="bnet_dl_agent_error">Blizzard error %1$s</string>
+    <string name="bnet_update">Update</string>
     <string name="bnet_store">Blizzard games</string>
     <string name="stores_resume_install">Resume install</string>
     <string name="stores_dl_interrupted">Interrupted</string>
@@ -3239,7 +3308,20 @@
     <string name="epic_client_open">Open</string>
     <string name="epic_client_install">Install</string>
     <string name="library_filter_added">Added</string>
+    <string name="library_filter">Filter</string>
+    <string name="library_filter_installed">Installed only</string>
+    <string name="library_filter_all_owned">All owned games</string>
+    <string name="library_no_installed_matches">No installed games match these filters.</string>
+    <string name="library_browse_owned">Browse owned games</string>
     <string name="game_tab_about">About</string>
+    <string name="game_resources_browser">Opens in your browser</string>
+    <string name="game_resource_pcgw" translatable="false">PCGamingWiki</string>
+    <string name="game_resource_guides">Guides</string>
+    <string name="game_resource_protondb" translatable="false">ProtonDB</string>
+    <string name="game_resource_protondb_detail">Linux / Proton compatibility reports</string>
+    <string name="game_resource_steam_cloud">Steam Cloud</string>
+    <string name="game_resource_steam_cloud_detail">For games with saves on your Steam account</string>
+    <string name="game_resource_search">Web search</string>
     <string name="game_tab_achievements_count" translatable="false">%1$s %2$d/%3$d</string>
     <string name="game_tab_launch">Launch</string>
     <string name="game_tab_saves_cloud">Saves &amp; cloud</string>
@@ -3258,8 +3340,32 @@
     <string name="library_remove">Remove from Library</string>
     <string name="library_in">In Library</string>
     <string name="xbox_filter_show">Show</string>
+    <string name="itch_collections">Collections</string>
     <string name="xbox_filter_cloud">Cloud</string>
     <string name="stores_xbox_cloud_settings">Cloud settings</string>
     <string name="xbox_cloud_gaming" translatable="false">Xbox Cloud Gaming</string>
     <string name="xbox_filter_game_pass" translatable="false">Game Pass</string>
+    <string name="integration_title">Steam integration</string>
+    <string name="integration_count">%1$d of %2$d on</string>
+    <string name="integration_set_up">Set up</string>
+    <string name="integration_later">Not now</string>
+    <string name="integration_location">Location</string>
+    <string name="integration_app_info">App info</string>
+    <string name="integration_wifi">Wi-Fi names</string>
+    <string name="integration_brightness">Brightness</string>
+    <string name="integration_home">DroidDeck as Home</string>
+    <string name="integration_shortcuts">Home button shortcuts</string>
+    <string name="integration_wifi_hint">Show networks in Steam · needs Location access, never tracked</string>
+    <string name="integration_wifi_on">Networks show in Steam</string>
+    <string name="integration_wifi_location_off">Location is off</string>
+    <string name="integration_wifi_denied">Location denied · allow it in App info</string>
+    <string name="integration_brightness_hint">Steam’s slider sets screen brightness</string>
+    <string name="integration_home_hint">Home opens the Steam menu in a session</string>
+    <string name="integration_shortcuts_hint">Hold Home for Steam Guide chords</string>
+    <string name="integration_shortcuts_needs_home">Needs DroidDeck as Home</string>
+    <string name="integration_shortcuts_maybe_restricted">Greyed out in Android? App info → ⋮ → Allow restricted settings</string>
+    <string name="integration_shortcuts_restricted">Blocked by Android · App info → ⋮ → Allow restricted settings</string>
+    <string name="integration_shortcuts_service">DroidDeck Home button</string>
+    <string name="integration_shortcuts_service_description">Pass Home button presses to Steam Guide while a Steam session is focused and DroidDeck is the default Home app. Does not read screen content.</string>
+    <string name="integration_brightness_needed">Turn on Brightness in Setup → Steam integration</string>
 </resources>

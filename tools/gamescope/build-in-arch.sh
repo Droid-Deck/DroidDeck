@@ -39,7 +39,7 @@ else
 fi
 PREP
 makepkg -A -s --noconfirm --skipchecksums --skippgpcheck
-meson test -C src/build --no-rebuild --print-errorlogs cursor_routing
+meson test -C src/build --no-rebuild --print-errorlogs cursor_routing wayland_scaling
 ls -l *.pkg.tar.*
 "
 cd "$WORK"

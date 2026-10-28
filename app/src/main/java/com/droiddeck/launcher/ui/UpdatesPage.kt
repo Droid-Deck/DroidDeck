@@ -130,7 +130,7 @@ internal fun UpdatesPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
         UpdateSourcePicker(u, ua)
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
             val stacked = LocalNarrowPane.current || maxWidth < 600.dp
-            Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 8.dp)) {
+            Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 16.dp)) {
                 if (stacked) {
                     StatusPanel(s, u, ua, me)
                     Box(Modifier.height(18.dp))

@@ -104,8 +104,17 @@ def godot_vulkan(game):
 @fix
 def godot_sentry(game):
     sentry = sorted(n[:-4] for n in game.files if n.startswith("libsentry.windows.") and n.endswith(".dll"))
-    if is_godot(game) and sentry:
+    if is_godot(game) and sentry and ("coreclr.dll" in game.files or "godotsharp.dll" in game.files):
         return {"WINEDLLOVERRIDES": ";".join(n + "=d" for n in sentry)}, [], "Godot: Sentry crash handler off"
+
+
+@fix
+def d3dgear_hook(game):
+    """D3DGear's capture DLL left beside a game (The Crew 2) is loaded by it and hooks the DXGI swapchain;
+    under Wine the hook faults over a thousand times within seconds and the game never presents again:
+    black screen while the sound keeps playing."""
+    if "d3dgear64.dll" in game.files:
+        return {"WINEDLLOVERRIDES": "d3dgear64=d"}, [], "D3DGear capture hook off (it stops the game drawing)"
 
 
 @fix
@@ -141,6 +150,12 @@ def robocop_rogue_city_feature_level(game):
     pipelines with no pipeline layout that crash Turnip on launch."""
     if "robocop.exe" in game.files or game.stem == "robocop-win64-shipping":
         return {"VKD3D_FEATURE_LEVEL": "12_1"}, [], "RoboCop: Rogue City: D3D12 feature level 12_1"
+
+
+@fix
+def reskate_feature_level(game):
+    if "skate.exe" in game.files and "reskate.dll" in game.files:
+        return {"VKD3D_FEATURE_LEVEL": "12_1"}, [], "ReSkate (skate.): D3D12 feature level 12_1"
 
 
 @fix
@@ -255,7 +270,10 @@ def engine_fixes(exe, args):
     for check in FIXES:
         found = check(game)
         if found:
-            env.update(found[0])
+            for name, value in found[0].items():
+                if name == "WINEDLLOVERRIDES" and env.get(name):
+                    value = env[name] + ";" + value
+                env[name] = value
             extra += found[1]
             notes.append(found[2])
     return env, extra, notes
@@ -338,6 +356,81 @@ def game_cores(env):
         print("droiddeck-game-env: game cores %s" % ",".join(map(str, sorted(chosen))), file=sys.stderr)
     except OSError as error:
         print("droiddeck-game-env: could not use game cores %r (%s)" % (text, error), file=sys.stderr)
+
+
+def core_speeds(cores, root="/sys/devices/system/cpu"):
+    """Each core's capacity, else its top clock; None when some core reports neither."""
+    for name in ("cpu_capacity", "cpufreq/cpuinfo_max_freq"):
+        speeds = {}
+        for core in cores:
+            try:
+                with open("%s/cpu%d/%s" % (root, core, name)) as f:
+                    speeds[core] = int(f.read().strip())
+            except (OSError, ValueError):
+                break
+        else:
+            return speeds
+    return None
+
+
+def fastest_first(cores):
+    """The cores, fastest first; cores of equal or unknown speed keep their numeric order."""
+    cores = sorted(cores)
+    speeds = core_speeds(cores)
+    return sorted(cores, key=lambda core: -speeds[core]) if speeds else cores
+
+
+def proton_cpu_limit(command, env):
+    """This game's entry in Proton's own default_cpu_limit list: a core count, another value such as "P" as text, or None."""
+    app_id = env.get("SteamGameId", "")
+    if not command or not app_id.isdigit():
+        return None
+    try:
+        if os.path.getsize(command[0]) > 4 * 1024 * 1024:
+            return None
+        with open(command[0], encoding="utf-8", errors="replace") as f:
+            text = f.read()
+    except OSError:
+        return None
+    table = re.search(r"^default_cpu_limit = \{(.*?)^\}", text, re.M | re.S)
+    match = table and re.search(r'^\s*"%s"\s*:\s*"?(\w+)' % app_id, table.group(1), re.M)
+    if not match:
+        return None
+    value = match.group(1)
+    return int(value) if value.isdigit() else value
+
+
+def cpu_topology(env, command=()):
+    """Windows sees the game's cores fastest first, so a thread a game pins to CPU 0 runs on the fastest core."""
+    if "PROTON_CPU_TOPOLOGY" in env:
+        return
+    if "WINE_CPU_TOPOLOGY" in env:
+        if env["WINE_CPU_TOPOLOGY"]:
+            env["PROTON_CPU_TOPOLOGY"] = env["WINE_CPU_TOPOLOGY"]
+        return
+    picked = bool(env.get("DROIDDECK_GAME_CORES", "").strip() or env.get("BL_GAME_CPUS", "").strip())
+    fastest = env.get("DROIDDECK_FASTEST_CORES", "").strip() != "0" and game_id(env) is not None
+    if not (picked or fastest):
+        return
+    try:
+        cores = sorted(os.sched_getaffinity(0))
+    except OSError:
+        return
+    online = online_cores()
+    if not cores or cores[-1] >= len(online):
+        return
+    picked = picked and not set(cores) >= online
+    if fastest:
+        limit = None if picked else proton_cpu_limit(command, env)
+        if isinstance(limit, str):
+            return
+        cores = fastest_first(cores)[:limit or None]
+    elif set(cores) >= online:
+        return
+    if cores == sorted(online):
+        return
+    env["WINE_CPU_TOPOLOGY"] = env["PROTON_CPU_TOPOLOGY"] = "%d:%s" % (len(cores), ",".join(map(str, cores)))
+    print("droiddeck-game-env: Windows sees %d cores (%s)" % (len(cores), env["WINE_CPU_TOPOLOGY"]), file=sys.stderr)
 
 
 def apply_config(env, config, app_id, fixes=None):
@@ -678,6 +771,21 @@ def system_icd_selected(directory, env):
         return False
 
 
+def proton_executable_path(program, env):
+    if not re.match(r"^[A-Za-z]:", program):
+        return program
+    if len(program) < 3 or program[2] not in "\\/":
+        return None
+    prefix = env.get("STEAM_COMPAT_DATA_PATH")
+    if not prefix or not os.path.isabs(prefix):
+        return None
+    relative = Path(program[2:].replace("\\", "/").lstrip("/"))
+    if ".." in relative.parts:
+        return None
+    drive = Path(prefix) / "pfx/dosdevices" / (program[0].lower() + ":")
+    return str(drive / relative) if drive.is_symlink() else None
+
+
 def placed_memory_requested(command, directory, env):
     setting = env.get(PLACED_MEMORY_SETTING)
     gpu = env.get("DROIDDECK_SYSTEM_VULKAN_GPU")
@@ -685,10 +793,11 @@ def placed_memory_requested(command, directory, env):
                     env.get("DROIDDECK_HYBRIS_DXVK") == "dxvk-mali" and env.get("DXVK_MALI_COMPAT") == "1")
     if setting not in (None, "1") or (setting != "1" and gpu != "powervr" and not managed_mali):
         return False
-    if Path(command[2]).name.lower() in ("steam.exe", "steamwebhelper.exe", "iscriptevaluator.exe"):
+    program = proton_executable_path(command[2], env)
+    if not program or Path(program).name.lower() in ("steam.exe", "steamwebhelper.exe", "iscriptevaluator.exe"):
         return False
     return (Path(command[0]).name == "proton" and system_icd_selected(directory, env) and
-            is_i386_pe_executable(command[2]))
+            is_i386_pe_executable(program))
 
 
 def validate_placed_memory(directory):
@@ -912,6 +1021,7 @@ def main():
     env = vram_cap(env)
     env = force_ssbs(command, env)
     game_cores(env)
+    cpu_topology(env, command)
     sync = load_sync()
     launch, launch_env = select_sync(command, env, sync)
     try:

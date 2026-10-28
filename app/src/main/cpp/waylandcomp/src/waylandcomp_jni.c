@@ -25,6 +25,7 @@ extern void droiddeck_wayland_send_pointer(int action, int x, int y);
 extern void droiddeck_wayland_send_touch(int action, int pointer_id, int x, int y);
 extern int  droiddeck_cursor_snapshot(int *out, int cap);
 extern int  droiddeck_cursor_serial(void);
+extern int droiddeck_hud_frame_times(float *out, int len, int64_t *total);
 extern void droiddeck_wayland_send_key(int evdev, int state);
 extern void droiddeck_wayland_send_scene_input(int type, int a, int b);
 extern void droiddeck_wayland_vsync(int64_t frame_time_ns);
@@ -266,6 +267,20 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeCursorSnapshot(
     int n = droiddeck_cursor_snapshot((int *)buf, (int)cap);
     (*env)->ReleaseIntArrayElements(env, out, buf, 0);
     return n;
+}
+
+JNIEXPORT jlong JNICALL
+Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeHudFrameTimes(JNIEnv *env, jclass clazz, jfloatArray out) {
+    (void)clazz;
+    if (!out) return 0;
+    jint cap = (*env)->GetArrayLength(env, out);
+    float *buf = cap > 0 ? malloc(sizeof(float) * (size_t)cap) : NULL;
+    if (!buf) return 0;
+    int64_t total = 0;
+    int n = droiddeck_hud_frame_times(buf, cap, &total);
+    if (n > 0) (*env)->SetFloatArrayRegion(env, out, 0, n, buf);
+    free(buf);
+    return (jlong)total;
 }
 
 JNIEXPORT jint JNICALL

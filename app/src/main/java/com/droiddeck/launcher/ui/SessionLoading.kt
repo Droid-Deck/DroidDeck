@@ -18,6 +18,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import com.droiddeck.launcher.frontend.Library
 import com.droiddeck.launcher.session.LoadingState
+import com.droiddeck.launcher.session.PerfHud
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -116,7 +117,7 @@ fun HudText(text: String, graph: FloatArray = FloatArray(0), color: String = "mi
 @Composable
 private fun HudGraph(samples: FloatArray, accent: Color, wash: Float) {
     Canvas(Modifier.width(148.dp).height(44.dp)) {
-        val maxMs = (samples.maxOrNull() ?: 16.7f).coerceAtLeast(16.7f)
+        val maxMs = PerfHud.GRAPH_MAX_MS
         val step = size.width / (samples.size - 1)
         fun yOf(ms: Float) = size.height * (1f - (ms / maxMs).coerceIn(0f, 1f))
         val fillAlpha = wash * 0.5f
@@ -222,7 +223,7 @@ fun LoadingOverlay(
             .background(colors.background)
             .blockTouches(),
     ) {
-        CapsuleWall(games, driftMs = 65_000, modifier = Modifier.alpha(0.3f), pauseWhenIdle = false)
+        CapsuleWall(games, driftMs = 65_000, modifier = Modifier.alpha(0.3f))
         Box(
             Modifier.fillMaxSize().drawBehind {
                 drawRect(

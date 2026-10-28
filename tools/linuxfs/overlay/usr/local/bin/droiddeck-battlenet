@@ -67,6 +67,110 @@ GX_API_SETTING = re.compile(r"(?im)^[ \t]*SET[ \t]+gxApi[ \t].*$")
 GX_API_MARK = ".droiddeck-d3d11"
 STEAM_CLIENT = {"steam", "steamwebhelper"}
 LOG = os.path.join(CACHE, "battlenet.log")
+AGENT_DIR = ("ProgramData", "Battle.net", "Agent")
+AGENT_BUILD = re.compile(r"Agent\.(\d+)")
+AGENT_PORT = re.compile(r"\d{2,5}")
+AGENT_START = 90
+AGENT_HELPER = "agent.js"
+AGENT_RUNTIME = "agent-runtime"
+AGENT_LOG = "agent.log"
+AGENT_LOG_LIMIT = 4 << 20
+HEADLESS = ["--backend", "headless", "-w", "640", "-h", "480"]
+PRODUCT = re.compile(r"[a-z0-9_]{1,32}")
+LOCALE = re.compile(r"[a-z]{2}[A-Z]{2}")
+COUNTRY = re.compile(r"[A-Z]{3}")
+REGION = re.compile(r"[A-Z]{2}")
+REPORT = "BNET"
+ETA_LIMIT = 30 * 86400
+DONE_STATE = 1004
+REPORTED = ("progress", "playable_progress", "download_rate", "download_remaining", "estimated_time_in_sec", "state",
+            "playable", "paused", "download_complete", "installed", "error")
+AGENT_SCRIPT = r"""var a = WScript.Arguments, port = a(0), action = a(1), uid = a(2), product = a(3), dir = a(4);
+var lang = a(5), country = a(6), region = a(7), out = a(8), token = "";
+var fso = new ActiveXObject("Scripting.FileSystemObject");
+
+function save(name, text) {
+  var f = fso.CreateTextFile(out + name + ".tmp", true, true);
+  f.Write(text);
+  f.Close();
+  if (fso.FileExists(out + name)) fso.DeleteFile(out + name);
+  fso.MoveFile(out + name + ".tmp", out + name);
+}
+
+function call(method, path, body) {
+  var r = new ActiveXObject("WinHttp.WinHttpRequest.5.1");
+  r.SetTimeouts(10000, 10000, 30000, 30000);
+  r.Open(method, "http://127.0.0.1:" + port + path, false);
+  r.SetRequestHeader("User-Agent", "phoenix-agent/1.0");
+  if (token) r.SetRequestHeader("Authorization", token);
+  r.Send(body || "");
+  return r.ResponseText;
+}
+
+function field(text, name) {
+  var m = new RegExp('"' + name + '"\\s*:\\s*"([^"]*)"').exec(text);
+  return m ? m[1] : "";
+}
+
+function install() {
+  var form = call("POST", "/install", '{"uid":"' + uid + '","instructions_patch_url":"http://' + zone + '.patch.battle.net:1119/' +
+    product + '","instructions_product":"NGDP","monitor_pid":12345,"priority":{"insert_at_head":true,"value":900}}');
+  save(".form", form);
+  if (form.indexOf('"' + lang + '"') < 0) lang = "enUS";
+  var locale = lang.toLowerCase();
+  call("POST", "/install/" + uid, '{"account_country":"' + country + '","finalized":true,"game_dir":"' + dir + '","geo_ip_country":"' +
+    region + '","language":["' + locale + '"],"selected_asset_locale":"' + locale + '","selected_locale":"' + locale +
+    '","shortcut":"none","tome_torrent":""}');
+  watch("/install/" + uid);
+}
+
+function watch(path) {
+  var started = false;
+  for (var i = 0; ; i++) {
+    var s = call("GET", path);
+    save(".json", s);
+    if (/"error"\s*:\s*[1-9]/.test(s)) break;
+    var state = /"state"\s*:\s*(\d+)/.exec(s.replace(/"extended_status"\s*:\s*\{[^}]*\}/, "")), complete = /"download_complete"\s*:\s*true/.test(s);
+    state = state ? +state[1] : 0;
+    if (state == 1000 || state == 1003 || !complete) started = true;
+    if (started && (state == 1004 || complete && /"playable"\s*:\s*true/.test(s))) break;
+    if (!started && state == 1004 && i >= 20) break;
+    if (!started && i >= 180) {
+      if (/"playable"\s*:\s*true/.test(call("GET", "/game/" + uid))) break;
+      throw new Error("the agent did not start the " + action);
+    }
+    WScript.Sleep(1000);
+  }
+  save(".game", call("GET", "/game/" + uid));
+}
+
+function update() {
+  save(".form", call("POST", "/update", '{"uid":"' + uid + '","priority":{"insert_at_head":true,"value":900}}'));
+  watch("/update/" + uid);
+}
+
+function uninstall() {
+  save(".json", call("POST", "/uninstall", '{"uid":"' + uid + '","run_compaction":true}'));
+  for (var i = 0; i < 900; i++) {
+    var s = call("GET", "/game/" + uid);
+    save(".game", s);
+    if (!/"installed"\s*:\s*true/.test(s)) break;
+    WScript.Sleep(1000);
+  }
+}
+
+var zone = "us";
+try {
+  var agent = call("GET", "/agent");
+  token = field(agent, "authorization");
+  zone = field(agent, "region") || "us";
+  if (!token) throw new Error("no authorization from the agent");
+  if (action == "install") install(); else if (action == "update") update(); else uninstall();
+} catch (e) {
+  save(".error", e.message || "the agent stopped answering");
+  WScript.Quit(1);
+}
+"""
 LOG_LIMIT = 512 << 10
 
 
@@ -933,6 +1037,234 @@ def install_game(root, uid):
         return open_client(root)
 
 
+def agent_exe(root):
+    folder = os.path.join(drive_c(root), *AGENT_DIR)
+    try:
+        names = os.listdir(folder)
+    except OSError:
+        return None
+    builds = sorted(((int(m.group(1)), name) for name in names for m in [AGENT_BUILD.fullmatch(name)] if m), reverse=True)
+    for _, name in builds:
+        exe = os.path.join(folder, name, "Agent.exe")
+        if os.path.isfile(exe):
+            return exe
+    return None
+
+
+def agent_port(root):
+    try:
+        with open(os.path.join(drive_c(root), *AGENT_DIR, "Agent.dat"), encoding="ascii", errors="replace") as f:
+            text = f.read().strip()
+    except OSError:
+        return None
+    return int(text) if AGENT_PORT.fullmatch(text) else None
+
+
+def answers(port, timeout=2):
+    try:
+        conn = http.client.HTTPConnection("127.0.0.1", port, timeout=timeout)
+        try:
+            conn.request("GET", "/agent", headers={"User-Agent": "phoenix-agent/1.0"})
+            conn.getresponse().read()
+        finally:
+            conn.close()
+        return True
+    except (OSError, http.client.HTTPException):
+        return False
+
+
+def agent_env():
+    env = proton_env()
+    env["PROTON_USE_XALIA"] = "0"
+    return env
+
+
+def agent_failed(status, reason):
+    say(reason)
+    try:
+        with open(status.replace("\\", "/")[2:] + ".error", "w", encoding="utf-8") as f:
+            f.write(reason)
+    except OSError:
+        pass
+
+
+def agent_serve(root, args, wait=None, poll=None):
+    exe = agent_exe(root)
+    if exe is None:
+        agent_failed(args[-1], "no Blizzard Agent in the Battle.net prefix")
+        return 3
+    cmd = [PROTON_RUN, "--prefix", APP_ID, "--verb", "run"]
+    say("starting Blizzard's Agent on its own: %s" % exe)
+    try:
+        agent = subprocess.Popen(cmd + [exe, "--internalclienttools"], stdin=subprocess.DEVNULL, env=agent_env())
+    except OSError as error:
+        say("%s: %s" % (PROTON_RUN, error))
+        return 127
+    deadline = time.monotonic() + (AGENT_START if wait is None else wait)
+    port = None
+    while time.monotonic() < deadline:
+        port = agent_port(root)
+        if port and answers(port):
+            break
+        if agent.poll() is not None and not any(program(argv) == AGENT for _, argv in wine_processes(os.path.join(prefix(root), "pfx"))):
+            agent_failed(args[-1], "the Agent exited before it answered")
+            return 4
+        port = None
+        time.sleep(POLL if poll is None else poll)
+    if port is None:
+        agent_failed(args[-1], "the Agent did not answer in time")
+        return 4
+    helper = os.path.join(CACHE, AGENT_HELPER)
+    with open(helper, "w", encoding="utf-8") as f:
+        f.write(AGENT_SCRIPT)
+    cscript = os.path.join(drive_c(root), "windows", "system32", "cscript.exe")
+    say("the Agent answers on port %d; %s %s" % (port, args[0], args[1]))
+    return subprocess.call(cmd + [cscript, "//nologo", "Z:" + helper.replace("/", "\\"), str(port)] + list(args), env=agent_env())
+
+
+def emit(kind, value=""):
+    print(("%s_%s %s" % (REPORT, kind, value)).rstrip(), flush=True)
+
+
+def read_status(path):
+    try:
+        with open(path, "rb") as f:
+            data = f.read()
+    except OSError:
+        return None
+    for encoding in ("utf-16", "utf-8-sig"):
+        try:
+            value = json.loads(data.decode(encoding))
+        except (UnicodeDecodeError, ValueError):
+            continue
+        if isinstance(value, dict):
+            return value
+    return None
+
+
+def summary(status):
+    out = {key: status[key] for key in REPORTED if key in status}
+    for key in ("download_current", "download_total"):
+        value = status.get(key)
+        if isinstance(value, list) and value and isinstance(value[0], (int, float)):
+            out[key] = value[0]
+    phase = (status.get("extended_status") or {}).get("state")
+    if isinstance(phase, int):
+        out["phase"] = phase
+    eta = out.get("estimated_time_in_sec")
+    if not isinstance(eta, int) or not 0 <= eta <= ETA_LIMIT:
+        out.pop("estimated_time_in_sec", None)
+    return out
+
+
+def agent_job(root, action, uid, product="", folder="", locale="enUS", country="USA", region="US", poll=None, wait=None):
+    pfx = os.path.join(prefix(root), "pfx")
+    if not installed(root) or agent_exe(root) is None:
+        emit("ERROR", "client")
+        return 3
+    windows = ""
+    if action == "install":
+        if not folder.startswith("/") or any(c in folder for c in '"\\\n'):
+            emit("ERROR", "folder")
+            return 2
+        try:
+            os.makedirs(folder, exist_ok=True)
+        except OSError as error:
+            say("%s not made: %s" % (folder, error))
+            emit("ERROR", "folder")
+            return 2
+        windows = "Z:" + folder
+    told = None
+    while True:
+        processes = wine_processes(pfx)
+        busy = bool(processes) and not idle(processes)
+        lock = None if busy else acquire()
+        if lock is not None:
+            break
+        state = "waiting" if busy else "queued"
+        if told != state:
+            say("%s; the %s of %s waits for it" % ("Battle.net or a game is open" if busy else "another Battle.net job holds the prefix",
+                                                  action, uid))
+            emit("STATE", state)
+            told = state
+        time.sleep(POLL if poll is None else poll)
+    with lock:
+        stop_leftovers(pfx)
+        emit("STATE", "starting")
+        base = os.path.join(CACHE, "agent-%s" % uid)
+        for suffix in (".json", ".game", ".form", ".error"):
+            try:
+                os.unlink(base + suffix)
+            except OSError:
+                pass
+        runtime = os.path.join(CACHE, AGENT_RUNTIME)
+        os.makedirs(runtime, mode=0o700, exist_ok=True)
+        env = agent_env()
+        for name in ("DISPLAY", "WAYLAND_DISPLAY"):
+            env.pop(name, None)
+        env["XDG_RUNTIME_DIR"] = runtime
+        cmd = ["gamescope"] + HEADLESS + ["--", os.path.abspath(sys.argv[0]), "agent-serve", action, uid, product or "-",
+                                          windows or "-", locale, country, region, "Z:" + base.replace("/", "\\")]
+        say("%s %s through the Agent: %s" % (action, uid, " ".join(cmd)))
+        output = os.path.join(CACHE, AGENT_LOG)
+        try:
+            if os.path.getsize(output) > AGENT_LOG_LIMIT:
+                os.replace(output, output + ".1")
+        except OSError:
+            pass
+        with open(output, "ab") as log:
+            try:
+                child = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=log, stderr=log, env=env)
+            except OSError as error:
+                emit("ERROR", "stopped gamescope: %s" % error)
+                return 1
+        seen = None
+        while True:
+            done = child.poll() is not None
+            status = read_status(base + ".json")
+            if status is not None and action != "uninstall":
+                brief = summary(status)
+                if brief != seen:
+                    emit("PROGRESS", json.dumps(brief, sort_keys=True))
+                    seen = brief
+            if done:
+                break
+            time.sleep(POLL if poll is None else poll)
+        leftovers = wine_processes(pfx)
+        if leftovers and idle(leftovers):
+            stop(leftovers)
+        answer = read_status(base + ".game")
+        game = answer or {}
+        status = read_status(base + ".json") or {}
+        try:
+            with open(base + ".error", "rb") as f:
+                data = f.read()
+            reason = data.decode("utf-16" if data[:2] in (b"\xff\xfe", b"\xfe\xff") else "utf-8", "replace").strip() \
+                or "the agent stopped answering"
+        except OSError:
+            reason = None
+        code = status.get("error")
+        if reason is None and isinstance(code, int) and code > 0:
+            emit("ERROR", "agent %d" % code)
+            say("the %s of %s stopped: Agent error %d" % (action, uid, code))
+            return 5
+        if reason is None and action != "uninstall" and game.get("installed") is True \
+                and (game.get("playable") is True or status.get("state") == DONE_STATE):
+            binary = ((game.get("binaries") or {}).get("game") or {}).get("relative_path", "")
+            emit("DONE", json.dumps({"install_dir": game.get("install_dir", windows), "exe": binary,
+                                     "version": game.get("local_version", "")}, sort_keys=True))
+            say("%s %s in %s" % (uid, "updated" if action == "update" else "installed", game.get("install_dir", windows)))
+            return 0
+        if reason is None and action == "uninstall" and (game.get("installed") is False or answer == {}):
+            emit("DONE", json.dumps({"uninstalled": uid}))
+            say("%s uninstalled" % uid)
+            return 0
+        reason = reason or "exit %d" % child.returncode
+        say("the %s of %s stopped: %s" % (action, uid, reason))
+        emit("ERROR", "stopped %s" % reason.replace("\n", " "))
+        return 1
+
+
 def main(argv):
     global LIBRARY
     argv = list(argv)
@@ -943,10 +1275,18 @@ def main(argv):
         LIBRARY = os.path.normpath(argv[1])
         argv = argv[2:]
     action = argv[0] if argv else "open"
+    if action == "agent-serve" and len(argv) == 9:
+        return agent_serve(steam_root(), argv[1:])
+    if action == "agent-install" and len(argv) == 7 and GAME_UID.fullmatch(argv[1]) and PRODUCT.fullmatch(argv[2]) and argv[3].startswith("/") \
+            and LOCALE.fullmatch(argv[4]) and COUNTRY.fullmatch(argv[5]) and REGION.fullmatch(argv[6]):
+        return agent_job(steam_root(), "install", argv[1], argv[2], os.path.normpath(argv[3]), argv[4], argv[5], argv[6])
+    if action in ("agent-update", "agent-uninstall") and len(argv) == 2 and GAME_UID.fullmatch(argv[1]):
+        return agent_job(steam_root(), action[len("agent-"):], argv[1])
     launching = action == "launch" and len(argv) == 2 and CODE.fullmatch(argv[1])
     getting = action == "install-game" and len(argv) == 2 and GAME_UID.fullmatch(argv[1])
     if not (launching or getting) and (action not in ("open", "install", "status") or len(argv) > 1):
-        say("usage: droiddeck-battlenet [--library DIR] [open | install | status | launch CODE | install-game ID]")
+        say("usage: droiddeck-battlenet [--library DIR] [open | install | status | launch CODE | install-game ID | "
+            "agent-install ID PRODUCT DIR LOCALE COUNTRY REGION | agent-update ID | agent-uninstall ID]")
         return 2
     root = steam_root()
     if action == "status":

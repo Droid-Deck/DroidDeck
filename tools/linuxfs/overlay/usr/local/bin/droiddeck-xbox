@@ -27,6 +27,7 @@ CLASSES = {
                      'Windows.Storage.Streams.DataWriter'),
 }
 CLASS_KEY = 'Software\\Microsoft\\WindowsRuntime\\ActivatableClassId\\'
+VIEW_DRIVES = 'xwvutsrqponmlkjihgfe'
 
 
 def bridge(upstream):
@@ -138,6 +139,29 @@ def register_classes(proton, prefix, env, game_runner=None):
         print('droiddeck-xbox: Windows Runtime class registration failed; launching without it', file=sys.stderr)
 
 
+def view_drive(prefix, exe):
+    path = Path(exe)
+    view = next((parent for parent in path.parents if parent.name.startswith('droiddeck-xbox-')), None)
+    if not path.is_absolute() or view is None:
+        return exe, None
+    devices = prefix / 'dosdevices'
+    for letter in VIEW_DRIVES:
+        link = devices / (letter + ':')
+        staged = devices / ('.%s-%s' % (letter, secrets.token_hex(4)))
+        try:
+            if os.path.lexists(link) and (os.path.exists(link) or not os.readlink(link).startswith(str(view.parent.parent) + '/')):
+                continue
+            devices.mkdir(parents=True, exist_ok=True)
+            staged.symlink_to(view)
+            os.replace(staged, link)
+        except OSError:
+            if os.path.lexists(staged):
+                staged.unlink()
+            continue
+        return letter.upper() + ':\\' + str(path.relative_to(view)).replace('/', '\\'), link
+    return exe, None
+
+
 def wine(argv, source_env=None, game_runner=None):
     source_env = os.environ if source_env is None else source_env
     with open(source_env['DROIDDECK_XBOX_COMMAND_FILE'], encoding='utf-8') as file:
@@ -166,8 +190,16 @@ def wine(argv, source_env=None, game_runner=None):
     register_classes(command[0], prefix, env, game_runner)
     overrides = ';'.join(name[:-4] + '=n' for name in DLLS if name != 'libnghttp2.dll')
     env['WINEDLLOVERRIDES'] = overrides + ';' + env.get('WINEDLLOVERRIDES', '')
-    launch = [*command[:2], argv[0], *command[3:]]
-    return game_runner(launch, env) if game_runner is not None else subprocess.call(launch, env=env)
+    exe, drive = view_drive(prefix, argv[0])
+    try:
+        launch = [*command[:2], exe, *command[3:]]
+        return game_runner(launch, env) if game_runner is not None else subprocess.call(launch, env=env)
+    finally:
+        if drive is not None:
+            try:
+                drive.unlink()
+            except OSError:
+                pass
 
 
 def renew_lease(ask, channel, product, lease, stopped):

@@ -687,6 +687,71 @@ class PlacedMemoryLaunchTest(unittest.TestCase):
             self.assertEqual(record.call_args.args[1],
                              ["/stock/proton", "waitforexitandrun", str(prepared)])
 
+    def test_xbox_short_view_drive_keeps_placed_memory_detection_and_launch_arguments(self):
+        xbox = runpy.run_path(str(BIN / "droiddeck-xbox"))
+        with tempfile.TemporaryDirectory() as tmp:
+            for gpu in ("powervr", "mali"):
+                with self.subTest(gpu=gpu):
+                    root = Path(tmp) / gpu
+                    root.mkdir()
+                    if gpu == "mali":
+                        runtime, env = self.mali_profile(root)
+                    else:
+                        runtime, _ = self.runtime(root)
+                        env = self.environment(runtime)
+                    self.components(runtime)
+                    prefix = root / "compatdata/42/pfx"
+                    prefix.mkdir(parents=True)
+                    (prefix / "system.reg").touch()
+                    view = root / "views/launch-1/droiddeck-xbox-game/Bin"
+                    view.mkdir(parents=True)
+                    prepared = self.executable(view, name="Game.exe")
+                    xbox_runtime = root / "xbox/windows"
+                    xbox_runtime.mkdir(parents=True)
+                    for name in xbox["DLLS"]:
+                        (xbox_runtime / name).write_bytes(b"MZ-synthetic")
+                    command = root / "command.json"
+                    command.write_text(json.dumps(["/selected/proton", "waitforexitandrun",
+                                                   "/encrypted/Game.exe", "--custom"]))
+                    env.update(STEAM_COMPAT_DATA_PATH=str(prefix.parent),
+                               DROIDDECK_XBOX_COMMAND_FILE=str(command))
+                    with patch.dict(xbox["wine"].__globals__, RUNTIME=xbox_runtime.parent,
+                                    register_classes=lambda *args: None), \
+                            patch.object(subprocess, "call", return_value=7) as call:
+                        self.assertEqual(xbox["wine"]([str(prepared)], env, MODULE["call_proton"]), 7)
+                    self.assertEqual(call.call_args.args[0], [str(runtime / "run-proton.py"),
+                                     "/selected/proton", "waitforexitandrun", "X:\\Bin\\Game.exe", "--custom"])
+                    self.assertEqual(call.call_args.kwargs["env"][self.setting], "1")
+                    self.assertTrue(call.call_args.kwargs["env"]["VK_INSTANCE_LAYERS"].endswith(":" + self.layer))
+                    self.assertFalse(os.path.lexists(prefix / "dosdevices/x:"))
+
+    def test_windows_executable_metadata_requires_an_absolute_mapped_drive(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            runtime, _ = self.runtime(root)
+            self.components(runtime)
+            view = root / "view"
+            view.mkdir()
+            self.executable(view, name="Game.exe")
+            self.executable(view, name="steam.exe")
+            prefix = root / "compatdata/42/pfx"
+            devices = prefix / "dosdevices"
+            devices.mkdir(parents=True)
+            (devices / "x:").symlink_to(view)
+            env = self.environment(runtime)
+            env["STEAM_COMPAT_DATA_PATH"] = str(prefix.parent)
+            for path in ("X:\\Game.exe", "x:/Game.exe"):
+                command, actual = self.launch(path, env)
+                self.assertEqual(command[-1], path)
+                self.assertIn(self.layer, actual["VK_INSTANCE_LAYERS"])
+            for path in ("X:Game.exe", "Y:\\Game.exe", "X:\\..\\Game.exe", "X:\\steam.exe"):
+                with self.subTest(path=path):
+                    _, actual = self.launch(path, env)
+                    self.assertNotIn(self.layer, actual["VK_INSTANCE_LAYERS"])
+            for compat in ("", "relative/42"):
+                _, actual = self.launch("X:\\Game.exe", dict(env, STEAM_COMPAT_DATA_PATH=compat))
+                self.assertNotIn(self.layer, actual.get("VK_INSTANCE_LAYERS", ""))
+
     def test_mali_default_requires_the_managed_experimental_profile(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -1237,6 +1302,13 @@ class GameEnvironmentTest(unittest.TestCase):
             self.assertEqual(env["WINEDLLOVERRIDES"], "libsentry.windows.release.x86_64=d")
             self.assertEqual(extra, ["--rendering-driver", "vulkan"])
             self.assertEqual(MODULE["engine_fixes"](str(game / "Game.exe"), ["--rendering-driver", "opengl3"])[1], [])
+            script = Path(tmp) / "GDScript Game"
+            script.mkdir()
+            for name in ("Game.exe", "Game.pck", "libsentry.windows.release.x86_64.dll"):
+                (script / name).touch()
+            env, extra, notes = MODULE["engine_fixes"](str(script / "Game.exe"), [])
+            self.assertNotIn("WINEDLLOVERRIDES", env)
+            self.assertEqual(extra, ["--rendering-driver", "vulkan"])
             other = Path(tmp) / "Other"
             other.mkdir()
             (other / "Other.exe").touch()
@@ -1330,6 +1402,27 @@ class GameEnvironmentTest(unittest.TestCase):
                 (asylum / name).touch()
             self.assertEqual(MODULE["engine_fixes"](str(asylum / "BmLauncher.exe"), []), ({}, [], []))
 
+    def test_d3dgear_capture_hook_beside_the_game_is_turned_off(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            game = Path(tmp) / "The Crew 2"
+            game.mkdir()
+            for name in ("TheCrew2.exe", "TheCrew2_BE.exe", "d3dgear64.dll"):
+                (game / name).touch()
+            env, extra, notes = MODULE["engine_fixes"](str(game / "TheCrew2.exe"), [])
+            self.assertEqual((env, extra), ({"WINEDLLOVERRIDES": "d3dgear64=d"}, []))
+            self.assertTrue(notes)
+            (game / "d3dgear64.dll").rename(game / "D3DGear64.DLL")
+            self.assertEqual(MODULE["engine_fixes"](str(game / "TheCrew2.exe"), [])[0], {"WINEDLLOVERRIDES": "d3dgear64=d"})
+            (game / "D3DGear64.DLL").unlink()
+            self.assertEqual(MODULE["engine_fixes"](str(game / "TheCrew2.exe"), []), ({}, [], []))
+
+    def test_dll_overrides_from_several_fixes_are_all_kept(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            for name in ("Game.exe", "Game.pck", "GodotSharp.dll", "libsentry.windows.release.x86_64.dll", "d3dgear64.dll"):
+                (Path(tmp) / name).touch()
+            env = MODULE["engine_fixes"](str(Path(tmp) / "Game.exe"), [])[0]
+            self.assertEqual(env["WINEDLLOVERRIDES"], "libsentry.windows.release.x86_64=d;d3dgear64=d")
+
     def test_black_ops_iii_and_dark_souls_remastered_skip_protonfixes(self):
         for exe in ("/game/Call of Duty Black Ops III/BlackOps3.exe", "/game/DARK SOULS REMASTERED/DarkSoulsRemastered.exe"):
             env, extra, notes = MODULE["engine_fixes"](exe, [])
@@ -1355,6 +1448,113 @@ class GameEnvironmentTest(unittest.TestCase):
             MODULE["game_cores"]({})
         self.assertEqual(calls, [{0, 1, 2}])
         self.assertEqual(MODULE["parse_cores"]("0,2-7"), {0, 2, 3, 4, 5, 6, 7})
+
+    def test_windows_games_see_only_the_cores_they_are_pinned_to(self):
+        os_mod = MODULE["os"]
+        online = {"online_cores": lambda: {0, 1, 2, 3, 4, 5, 6, 7}}
+        cases = [
+            ({"BL_GAME_CPUS": "6,7"}, {6, 7}, "2:6,7", "2:6,7"),
+            ({"DROIDDECK_GAME_CORES": "0-2"}, {0, 1, 2}, "3:0,1,2", "3:0,1,2"),
+            ({"BL_GAME_CPUS": "0-7"}, set(range(8)), None, None),
+            ({}, {6, 7}, None, None),
+            ({"BL_GAME_CPUS": "6,7", "WINE_CPU_TOPOLOGY": "4:0,1,2,3"}, {6, 7}, "4:0,1,2,3", "4:0,1,2,3"),
+            ({"WINE_CPU_TOPOLOGY": "2:0,1"}, set(range(8)), "2:0,1", "2:0,1"),
+            ({"BL_GAME_CPUS": "6,7", "WINE_CPU_TOPOLOGY": ""}, {6, 7}, "", None),
+            ({"BL_GAME_CPUS": "6,7", "PROTON_CPU_TOPOLOGY": "1:7"}, {6, 7}, None, "1:7"),
+            ({"BL_GAME_CPUS": "9"}, {9}, None, None),
+        ]
+        for env, affinity, expected, proton in cases:
+            env["DROIDDECK_FASTEST_CORES"] = "0"
+            with mock.patch.dict(MODULE["cpu_topology"].__globals__, online), \
+                    mock.patch.object(os_mod, "sched_getaffinity", return_value=affinity, create=True):
+                MODULE["cpu_topology"](env)
+            self.assertEqual(env.get("WINE_CPU_TOPOLOGY"), expected, env)
+            self.assertEqual(env.get("PROTON_CPU_TOPOLOGY"), proton, env)
+
+    def test_windows_cpu_0_is_the_fastest_core(self):
+        os_mod = MODULE["os"]
+        pocket_fit = {0: 379, 1: 379, 2: 923, 3: 923, 4: 923, 5: 867, 6: 867, 7: 1024}
+        every = set(range(8))
+        with tempfile.TemporaryDirectory() as tmp:
+            proton = Path(tmp) / "proton"
+            proton.write_text('default_cpu_limit = {\n    "19900"     :  "16",  # Far Cry 2\n'
+                              '    "2229830"   :  "1",   # Command & Conquer\n    "11440"     :  "4",   # DiRT\n'
+                              '    "1038250"   :  "P",   # DIRT 5\n    "618970"    :  4,     # Outcast, written as Proton 10 does\n'
+                              '}\n\nother = {\n    "620"       :  "2",\n}\n')
+            command = [str(proton), "waitforexitandrun", "/game/game.exe"]
+            cases = [
+                ({}, every, pocket_fit, "8:7,2,3,4,5,6,0,1", "8:7,2,3,4,5,6,0,1"),
+                ({"BL_GAME_CPUS": "6,7"}, {6, 7}, pocket_fit, "2:7,6", "2:7,6"),
+                ({"DROIDDECK_GAME_CORES": "0-2"}, {0, 1, 2}, pocket_fit, "3:2,0,1", "3:2,0,1"),
+                ({"BL_GAME_CPUS": "0-7"}, every, pocket_fit, "8:7,2,3,4,5,6,0,1", "8:7,2,3,4,5,6,0,1"),
+                ({"WINE_CPU_TOPOLOGY": "2:0,1"}, every, pocket_fit, "2:0,1", "2:0,1"),
+                ({"WINE_CPU_TOPOLOGY": ""}, every, pocket_fit, "", None),
+                ({"PROTON_CPU_TOPOLOGY": "1:0"}, every, pocket_fit, None, "1:0"),
+                ({"DROIDDECK_FASTEST_CORES": "0"}, every, pocket_fit, None, None),
+                ({"SteamGameId": "2229830"}, every, pocket_fit, "1:7", "1:7"),
+                ({"SteamGameId": "11440"}, every, pocket_fit, "4:7,2,3,4", "4:7,2,3,4"),
+                ({"SteamGameId": "19900"}, every, pocket_fit, "8:7,2,3,4,5,6,0,1", "8:7,2,3,4,5,6,0,1"),
+                ({"SteamGameId": "1038250"}, every, pocket_fit, None, None),
+                ({"SteamGameId": "618970"}, every, pocket_fit, "4:7,2,3,4", "4:7,2,3,4"),
+                ({"SteamGameId": "620"}, every, pocket_fit, "8:7,2,3,4,5,6,0,1", "8:7,2,3,4,5,6,0,1"),
+                ({"SteamGameId": "2229830", "BL_GAME_CPUS": "0,1"}, {0, 1}, pocket_fit, "2:0,1", "2:0,1"),
+                ({"SteamGameId": "2229830", "DROIDDECK_GAME_CORES": "12-13"}, every, pocket_fit, "1:7", "1:7"),
+                ({"SteamGameId": "11440", "BL_GAME_CPUS": "0-7"}, every, pocket_fit, "4:7,2,3,4", "4:7,2,3,4"),
+                ({}, every, {core: 100 for core in every}, None, None),
+                ({}, every, None, None, None),
+                ({"SteamGameId": "11440"}, every, None, "4:0,1,2,3", "4:0,1,2,3"),
+                ({"BL_GAME_CPUS": "9"}, {9}, pocket_fit, None, None),
+            ]
+            cases += [
+                ({"STEAM_COMPAT_DATA_PATH": "/steam/compatdata/0"}, every, pocket_fit, None, None),
+                ({"STEAM_COMPAT_DATA_PATH": ""}, every, pocket_fit, None, None),
+                ({"STEAM_COMPAT_DATA_PATH": "/steam/compatdata/0", "BL_GAME_CPUS": "6,7"}, {6, 7}, pocket_fit, "2:6,7", "2:6,7"),
+            ]
+            for env, affinity, speeds, expected, proton_topology in cases:
+                env.setdefault("STEAM_COMPAT_DATA_PATH", "/steam/compatdata/3608888694")
+                with mock.patch.dict(MODULE["cpu_topology"].__globals__, {"online_cores": lambda: every}), \
+                        mock.patch.dict(MODULE["fastest_first"].__globals__, {"core_speeds": lambda cores, speeds=speeds: speeds}), \
+                        mock.patch.object(os_mod, "sched_getaffinity", return_value=affinity, create=True):
+                    MODULE["cpu_topology"](env, command)
+                self.assertEqual(env.get("WINE_CPU_TOPOLOGY"), expected, env)
+                self.assertEqual(env.get("PROTON_CPU_TOPOLOGY"), proton_topology, env)
+            self.assertIsNone(MODULE["proton_cpu_limit"](["/missing/proton"], {"SteamGameId": "11440"}))
+            self.assertIsNone(MODULE["proton_cpu_limit"](command, {}))
+            self.assertEqual(MODULE["proton_cpu_limit"](command, {"SteamGameId": "1038250"}), "P")
+            self.assertEqual(MODULE["proton_cpu_limit"](command, {"SteamGameId": "618970"}), 4)
+
+    def test_core_speeds_read_capacity_then_top_clock(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            for core, capacity, clock in ((0, "379", "2265600"), (1, None, "3302400")):
+                folder = Path(tmp) / ("cpu%d" % core) / "cpufreq"
+                folder.mkdir(parents=True)
+                (folder / "cpuinfo_max_freq").write_text(clock + "\n")
+                if capacity:
+                    (folder.parent / "cpu_capacity").write_text(capacity + "\n")
+            speeds = MODULE["core_speeds"]
+            self.assertEqual(speeds([0], tmp), {0: 379})
+            self.assertEqual(speeds([0, 1], tmp), {0: 2265600, 1: 3302400})
+            self.assertIsNone(speeds([0, 2], tmp))
+
+    def test_reskate_runs_at_feature_level_12_1(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            reskate = Path(tmp) / "ReSkate"
+            reskate.mkdir()
+            for name in ("Skate.exe", "ReSkate.dll", "ReSkateLauncher.exe", "EAAntiCheat.GameServiceLauncher.exe"):
+                (reskate / name).touch()
+            for exe in ("ReSkateLauncher.exe", "Skate.exe"):
+                env, extra, notes = MODULE["engine_fixes"](str(reskate / exe), [])
+                self.assertEqual((env, extra), ({"VKD3D_FEATURE_LEVEL": "12_1"}, []), exe)
+                self.assertTrue(notes)
+            config = {"version": 1, "shared": {"VKD3D_FEATURE_LEVEL": "12_2"}}
+            self.assertEqual(MODULE["apply_config"]({}, config, "3354750", env)["VKD3D_FEATURE_LEVEL"], "12_1")
+            config["games"] = {"3354750": {"VKD3D_FEATURE_LEVEL": "12_2"}}
+            self.assertEqual(MODULE["apply_config"]({}, config, "3354750", env)["VKD3D_FEATURE_LEVEL"], "12_2")
+            skate = Path(tmp) / "Skate"
+            skate.mkdir()
+            for name in ("Skate.exe", "EAAntiCheat.GameServiceLauncher.exe"):
+                (skate / name).touch()
+            self.assertEqual(MODULE["engine_fixes"](str(skate / "EAAntiCheat.GameServiceLauncher.exe"), [])[:2], ({}, []))
 
     def test_caravan_sandwitch_robocop_and_cyberpunk_run_at_feature_level_12_1(self):
         with tempfile.TemporaryDirectory() as tmp:

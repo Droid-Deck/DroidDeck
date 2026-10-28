@@ -10,6 +10,8 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.scaleIn
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.scaleOut
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.rememberUpdatedState
@@ -105,7 +107,7 @@ import java.io.File
 internal fun Pane(
     s: FrontEndState, selected: String, a: FrontEndActions, page: (@Composable () -> Unit)?, modifier: Modifier,
     onSelect: (String) -> Unit, onAndroidAppClick: (HomeApp.LaunchableApp) -> Unit,
-    onOpenDeveloperOptions: () -> Unit, onRequestWirelessAdb: (Boolean) -> Unit,
+    onOpenDeveloperOptions: () -> Unit, onRequestWirelessAdb: (Boolean) -> Unit, onPairWirelessDebugging: () -> Unit,
 ) {
     BoxWithConstraints(modifier = modifier) {
       CompositionLocalProvider(LocalNarrowPane provides (maxWidth < NarrowPaneWidth)) {
@@ -138,12 +140,19 @@ internal fun Pane(
         before[0] = target
         val targetNow by rememberUpdatedState(target)
         val leave = if (Hops.linking) PageLeave.Link else PageLeave.Ordinary
-        LaunchedEffect(target) { Hops.linking = false }
+        LaunchedEffect(target) {
+            Hops.linking = false
+            PageSwipe.direction = 0
+        }
         AnimatedContent(
             targetState = target,
             modifier = Modifier.onGloballyPositioned { paneAt[0] = it.positionInRoot() },
             transitionSpec = {
+                val swipe = PageSwipe.direction
                 when {
+                    swipe != 0 -> (fadeIn(Motion.tw(260, 40)) + slideInHorizontally(Motion.tw(360)) { it * swipe / 8 })
+                        .togetherWith(fadeOut(Motion.tw(160)) + slideOutHorizontally(Motion.tw(220)) { -it * swipe / 8 })
+                        .apply { targetContentZIndex = 1f }
                     targetState in origins -> (fadeIn(Motion.tw(120)))
                         .togetherWith(fadeOut(Motion.tw(320, 80)) + scaleOut(Motion.tw(480), targetScale = 0.95f))
                         .apply { targetContentZIndex = 1f }
@@ -162,7 +171,7 @@ internal fun Pane(
             label = "pane",
         ) { key ->
             val drawn = (if (page != null && key == s.pageKey) page else pages[key])
-                ?: { Content(s, if (key == "games") gameShown[0] else key, a, Modifier.fillMaxSize(), onSelect, onAndroidAppClick, onOpenDeveloperOptions, onRequestWirelessAdb) }
+                ?: { Content(s, if (key == "games") gameShown[0] else key, a, Modifier.fillMaxSize(), onSelect, onAndroidAppClick, onOpenDeveloperOptions, onRequestWirelessAdb, onPairWirelessDebugging) }
             val hopSink by androidx.compose.animation.core.animateFloatAsState(
                 if (Hops.sinking == key) 1f else 0f, Motion.tw(260), label = "hopSink",
             )
@@ -223,7 +232,7 @@ private fun romFor(s: FrontEndState, selected: String): Pair<Library.Emulator, L
 private fun Content(
     s: FrontEndState, selected: String, a: FrontEndActions, modifier: Modifier,
     onSelect: (String) -> Unit, onAndroidAppClick: (HomeApp.LaunchableApp) -> Unit,
-    onOpenDeveloperOptions: () -> Unit, onRequestWirelessAdb: (Boolean) -> Unit,
+    onOpenDeveloperOptions: () -> Unit, onRequestWirelessAdb: (Boolean) -> Unit, onPairWirelessDebugging: () -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
     val detailPosterWidth = if (LocalConfiguration.current.screenHeightDp < 600) 72.dp else 120.dp
@@ -232,13 +241,13 @@ private fun Content(
     val padH = if (narrow) 16.dp else 22.dp
     val padV = if (narrow) 12.dp else 18.dp
     if (selected == "setup") {
-        Column(modifier = modifier.padding(horizontal = padH, vertical = padV)) {
-            SetupPanel(s, a, onOpenDeveloperOptions, onRequestWirelessAdb)
+        Column(modifier = modifier.padding(horizontal = padH).padding(top = padV)) {
+            SetupPanel(s, a, onOpenDeveloperOptions, onRequestWirelessAdb, onPairWirelessDebugging)
         }
         return
     }
     if (selected == "updates") {
-        UpdatesPage(s, a, modifier.padding(horizontal = padH, vertical = padV))
+        UpdatesPage(s, a, modifier.padding(horizontal = padH).padding(top = padV))
         return
     }
     if (selected == "steam") {
@@ -261,24 +270,12 @@ private fun Content(
         DesktopPage(s, a, modifier, onSelect)
         return
     }
+    if (selected == "android-apps" && s.isHomeApp) {
+        AndroidAppsPage(s, modifier, onAndroidAppClick)
+        return
+    }
     Column(modifier = modifier.verticalScroll(rememberScrollState()).padding(horizontal = padH, vertical = padV)) {
         when {
-            selected == "android-apps" && s.isHomeApp -> {
-                Rise(0) { PageHeader(stringResource(R.string.content_android_apps)) { Chip(stringResource(R.string.content_apps_count, s.androidApps.size), ok = false) } }
-                if (s.androidApps.isEmpty()) Rise(3) { Note(stringResource(R.string.content_no_android_apps)) }
-                else Rise(3, Modifier.fillMaxWidth()) {
-                    ArtGrid(s.androidApps.map { app ->
-                        Tile(
-                            app.label,
-                            null,
-                            null,
-                            "android:${app.packageName}",
-                            onClick = { onAndroidAppClick(app) },
-                            iconBitmap = app.icon,
-                        )
-                    })
-                }
-            }
             selected.startsWith("user:") -> {
                 val app = UserAppsState.items.firstOrNull { "user:${it.key}" == selected }
                 if (app == null) Note(stringResource(R.string.user_apps_gone)) else UserAppPage(app, s, a, onSelect)
