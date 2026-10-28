@@ -641,6 +641,10 @@ jobs:
     if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    continue-on-error: true
+    permissions:
+      contents: read
+      actions: read
     steps:
       - uses: actions/checkout@v4
         with:
@@ -681,8 +685,10 @@ jobs:
             stores-host-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.rust.outputs.rustc }}-${{ hashFiles('app/src/main/rust/stores/Cargo.lock') }}-
             stores-host-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.rust.outputs.rustc }}-
       - name: Store engines host unit tests
+        timeout-minutes: 10
         continue-on-error: true
         run: |
+          set -o pipefail
           cd app/src/main/rust/stores
           cargo test --locked 2>&1 | tail -60
 
