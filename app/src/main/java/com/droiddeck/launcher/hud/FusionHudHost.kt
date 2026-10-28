@@ -42,7 +42,7 @@ class FusionHudHost(context: Context) {
 
     private val listener = object : WaylandCompositor.GameListener {
         override fun onGameSurface(window: String?, gpuName: String?) {
-            if (!gpuName.isNullOrBlank()) handler.post { this@FusionHudHost.gpuName = gpuName }
+            if (!gpuName.isNullOrBlank()) handler.post { this@FusionHudHost.gpuName = cleanGpuName(gpuName) }
             if (window != null && window != lastWindow) {
                 lastWindow = window
                 handler.post { onPresentingWindowChanged?.invoke() }
@@ -72,7 +72,7 @@ class FusionHudHost(context: Context) {
         val hud = FusionHudView(root.context)
         hud.setFrameStats(feed.stats)
         hud.setMangoReadings(readings)
-        hud.setGpuModel(GpuInfo.detect().displayName(context))
+        hud.setGpuModel(cleanGpuName(GpuInfo.detect().displayName(context)))
         hud.onRefresh = Runnable { refreshLabels(hud) }
         hud.setOnMovedListener { x, y -> SessionPrefs.setFusionHudPosition(context, x, y) }
         hud.setOnSizeCycledListener { size -> FusionHudConfig.set(context, "hudSize", size); onConfigChanged?.invoke() }
@@ -183,6 +183,9 @@ class FusionHudHost(context: Context) {
         /** True while the HUD is on screen; DroidDeck keeps sampling VRAM for it (GpuMemComponent). */
         @Volatile @JvmStatic var showing = false
             private set
+
+        /** "Adreno (TM) 750" as the driver names it, "Adreno 750" as DroidDeck does elsewhere. */
+        internal fun cleanGpuName(name: String): String = name.replace("(TM)", "").replace(Regex("\\s+"), " ").trim()
 
         /** The Proton build of a game process: the first STEAM_COMPAT_TOOL_PATHS entry's folder. */
         internal fun protonName(pid: Int): String? = runCatching {
