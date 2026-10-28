@@ -997,6 +997,8 @@
     <string name="pairguide_build_number">In About phone, tap Build number 7 times</string>
     <string name="pairguide_wireless">Turn on Wireless debugging</string>
     <string name="pairguide_pair">Open Wireless debugging, then tap “Pair device with pairing code”</string>
+    <string name="pairguide_child_process">Turn on “Disable child process restrictions”</string>
+    <string name="pairguide_row_child_process">Disable child process restrictions</string>
     <string name="pairguide_row_build_number">Build number</string>
     <string name="pairguide_row_wireless">Wireless debugging</string>
     <string name="pairguide_row_pair">Pair device with pairing code</string>
