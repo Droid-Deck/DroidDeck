@@ -83,7 +83,7 @@ internal class GlassBackdrop {
     fun fadeBottom(scope: DrawScope, size: Size) {
         val fade = minOf(size.height * 0.5f, with(scope) { 240.dp.toPx() })
         if (size.height <= 0f) return
-        scope.drawRect(Brush.verticalGradient((1f - fade / size.height) to Color.Black, 1f to Color.Transparent), blendMode = BlendMode.DstIn)
+        scope.drawRect(Brush.verticalGradient((1f - fade / size.height) to Color.Black, 1f to Color.Transparent), size = size, blendMode = BlendMode.DstIn)
     }
 }
 
