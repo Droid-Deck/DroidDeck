@@ -53,7 +53,7 @@ interface StoreMaintenanceAdapter {
     fun capabilities(game: InstalledStoreGame): Set<MaintenanceAction>
     fun check(context: Context, game: InstalledStoreGame): MaintenanceCheck
     fun prepare(context: Context, game: InstalledStoreGame, action: MaintenanceAction): MaintenanceProposal
-    fun enqueue(context: Context, game: InstalledStoreGame, proposal: MaintenanceProposal)
+    fun enqueue(context: Context, game: InstalledStoreGame, proposal: MaintenanceProposal): Boolean
     fun resume(context: Context, game: InstalledStoreGame, operation: JSONObject)
     fun recovery(context: Context, game: InstalledStoreGame): MaintenanceRecovery = MaintenanceRecovery()
     fun openClient(context: Context, game: InstalledStoreGame) = Unit
@@ -71,6 +71,7 @@ object StoreMaintenance {
     private val inFlight = ConcurrentHashMap<String, Long>()
     private val revisions = ConcurrentHashMap<Store, Long>()
     private val accounts = ConcurrentHashMap<Store, String>()
+    private val operationLocks = ConcurrentHashMap<String, Any>()
     val checks = mutableStateMapOf<String, MaintenanceCheck>()
 
     fun register(adapter: StoreMaintenanceAdapter) {
@@ -129,8 +130,25 @@ object StoreMaintenance {
         require(game.folder.canonicalFile == proposal.folder.canonicalFile)
         require(proposal.operation != MaintenanceAction.OPEN_CLIENT && proposal.operation in capabilities(game))
         val adapter = adapters[game.sidecar.store] ?: error("${game.sidecar.store.label} maintenance is unavailable")
-        writeOperation(proposal, game)
-        adapter.enqueue(context.applicationContext, game, proposal)
+        val folder = game.folder.canonicalFile
+        synchronized(operationLock(folder)) {
+            require(!com.droiddeck.launcher.stores.download.DownloadQueue.isActive(game.key)) {
+                "${game.sidecar.store.label} already has an active operation"
+            }
+            val enqueueId = java.util.UUID.randomUUID().toString()
+            writeOperation(proposal, game, enqueueId)
+            val accepted = try {
+                adapter.enqueue(context.applicationContext, game, proposal)
+            } catch (error: Throwable) {
+                runCatching { clearNewQueuedOperation(game, enqueueId, preserveActive = true) }
+                    .onFailure(error::addSuppressed)
+                throw error
+            }
+            if (!accepted) {
+                clearNewQueuedOperation(game, enqueueId, preserveActive = false)
+                error("${game.sidecar.store.label} already has an active operation")
+            }
+        }
     }
 
     fun resume(context: Context, game: InstalledStoreGame) {
@@ -192,6 +210,10 @@ object StoreMaintenance {
 
     fun beginApplyLease(game: InstalledStoreGame): AutoCloseable {
         val folder = game.folder.canonicalFile
+        synchronized(operationLock(folder)) { return beginApplyLeaseLocked(game, folder) }
+    }
+
+    private fun beginApplyLeaseLocked(game: InstalledStoreGame, folder: File): AutoCloseable {
         require(folder == game.folder.absoluteFile.canonicalFile)
         val operation = readOperation(folder) ?: error("${game.sidecar.store.label} operation journal is missing")
         require(operation.optString("folder") == folder.path && operation.optString("store") == game.sidecar.store.id && operation.optString("id") == game.sidecar.id)
@@ -219,6 +241,20 @@ object StoreMaintenance {
         return AutoCloseable { lock.close(); lease.close() }
     }
 
+    private fun operationLock(folder: File): Any = operationLocks.computeIfAbsent(folder.path) { Any() }
+
+    private fun clearNewQueuedOperation(game: InstalledStoreGame, enqueueId: String, preserveActive: Boolean) {
+        val folder = game.folder.canonicalFile
+        if (preserveActive && com.droiddeck.launcher.stores.download.DownloadQueue.isActive(game.key)) return
+        val operation = readOperation(folder) ?: return
+        if (operation.optString("enqueueId") != enqueueId || operation.optString("phase") != "queued" ||
+            operation.optString("folder") != folder.path || operation.optString("store") != game.sidecar.store.id ||
+            operation.optString("id") != game.sidecar.id) return
+        val file = operationFile(folder)
+        require(!Files.isSymbolicLink(file.toPath())) { "Maintenance journal is a symbolic link" }
+        if (file.isFile) check(file.delete()) { "Could not clear the failed queued maintenance operation" }
+    }
+
     fun complete(
         context: Context,
         game: InstalledStoreGame,
@@ -238,7 +274,7 @@ object StoreMaintenance {
         StoresState.post { checks.remove(game.key) }
     }
 
-    private fun writeOperation(proposal: MaintenanceProposal, game: InstalledStoreGame) {
+    private fun writeOperation(proposal: MaintenanceProposal, game: InstalledStoreGame, enqueueId: String) {
         val folder = proposal.folder.canonicalFile
         require(proposal.before.store == game.sidecar.store && proposal.before.id == game.sidecar.id)
         val directory = File(folder, ".droiddeck-maintenance")
@@ -248,7 +284,7 @@ object StoreMaintenance {
         require(!Files.isSymbolicLink(file.toPath())) { "Maintenance journal is a symbolic link" }
         require(!file.exists()) { "Resume or recover the existing ${game.sidecar.store.label} operation first" }
         val value = JSONObject().put("schema", 1).put("store", game.sidecar.store.id).put("id", game.sidecar.id)
-            .put("folder", folder.path).put("operation", proposal.operation.name).put("phase", "queued")
+            .put("folder", folder.path).put("enqueueId", enqueueId).put("operation", proposal.operation.name).put("phase", "queued")
             .put("before", proposal.before.toJson()).put("targetLabel", proposal.targetLabel)
             .put("downloadBytes", proposal.downloadBytes).put("diskBytes", proposal.diskBytes)
             .put("description", proposal.description).put("target", proposal.target)

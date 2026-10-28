@@ -26,9 +26,9 @@ internal object XboxMaintenanceAdapter : StoreMaintenanceAdapter {
         return XboxBackend.prepareMaintenance(context, game)
     }
 
-    override fun enqueue(context: Context, game: InstalledStoreGame, proposal: MaintenanceProposal) {
+    override fun enqueue(context: Context, game: InstalledStoreGame, proposal: MaintenanceProposal): Boolean {
         require(proposal.operation == MaintenanceAction.UPDATE && proposal.target.optInt("schema") == 1)
-        XboxBackend.enqueueMaintenance(context, game, proposal)
+        return XboxBackend.enqueueMaintenance(context, game, proposal)
     }
 
     override fun resume(context: Context, game: InstalledStoreGame, operation: JSONObject) {
@@ -40,7 +40,7 @@ internal object XboxMaintenanceAdapter : StoreMaintenanceAdapter {
                 ?: error("The original Xbox settings are missing"), operation.optString("targetLabel"), MaintenanceAction.UPDATE,
             operation.optLong("downloadBytes", MaintenanceProposal.UNKNOWN_BYTES),
             operation.optLong("diskBytes", MaintenanceProposal.UNKNOWN_BYTES), operation.optString("description"), JSONObject(target.toString()))
-        XboxBackend.enqueueMaintenance(context, game, proposal)
+        check(XboxBackend.enqueueMaintenance(context, game, proposal)) { "Xbox maintenance is already queued" }
     }
 
     override fun recovery(context: Context, game: InstalledStoreGame): MaintenanceRecovery {

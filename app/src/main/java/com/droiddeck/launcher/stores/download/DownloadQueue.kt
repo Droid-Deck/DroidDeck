@@ -129,9 +129,32 @@ object DownloadQueue {
     fun isActive(key: String): Boolean = entry(key)?.isActive == true
 
     fun enqueue(context: Context, entry: DownloadEntry, factory: () -> DownloadJob) {
+        enqueueInternal(context, entry, onAccepted = {}, factory = factory)
+    }
+
+    /** Enqueues only if the key is idle, running [onAccepted] atomically before the accepted row is saved. */
+    fun enqueueIfIdle(
+        context: Context,
+        entry: DownloadEntry,
+        onAccepted: () -> Unit,
+        factory: () -> DownloadJob,
+    ): Boolean = enqueueInternal(context, entry, onAccepted = onAccepted, factory = factory)
+
+    private fun enqueueInternal(
+        context: Context,
+        entry: DownloadEntry,
+        onAccepted: () -> Unit,
+        factory: () -> DownloadJob,
+    ): Boolean {
         val app = context.applicationContext
         synchronized(lock) {
-            items[entry.key]?.let { if (it.entry.isActive) { Log.i(TAG, "${entry.key}: already queued"); return } }
+            items[entry.key]?.let {
+                if (it.entry.isActive) {
+                    Log.i(TAG, "${entry.key}: already queued")
+                    return false
+                }
+            }
+            onAccepted()
             items.remove(entry.key)
             val state = if (heldPaused.remove(entry.key)) DownloadState.PAUSED else DownloadState.QUEUED
             items[entry.key] = Item(entry.copy(state = state, stage = DownloadStage.MANIFEST, startedAt = System.currentTimeMillis()), factory)
@@ -140,6 +163,7 @@ object DownloadQueue {
         StoresState.logLine("${entry.store.label}: queued \"${entry.name}\"" + if (entry.bytesTotal > 0) " (${com.droiddeck.launcher.stores.formatBytes(entry.bytesTotal)})" else "")
         publish(app)
         advance(app)
+        return true
     }
 
     /** Immediately records a failed download (e.g. from pre-flight storage check). */

@@ -103,18 +103,17 @@ internal object EpicMaintenanceAdapter : StoreMaintenanceAdapter {
         )
     }
 
-    override fun enqueue(context: Context, game: InstalledStoreGame, proposal: MaintenanceProposal) {
+    override fun enqueue(context: Context, game: InstalledStoreGame, proposal: MaintenanceProposal): Boolean {
         check(proposal.operation == MaintenanceAction.UPDATE || proposal.operation == MaintenanceAction.REPAIR)
-        check(!DownloadQueue.isActive(game.key)) { "Epic maintenance is already queued" }
         val target = validateTarget(game, proposal.target)
-        enqueueJob(context, game, target, proposal.downloadBytes, proposal.operation)
+        return enqueueJob(context, game, target, proposal.downloadBytes, proposal.operation)
     }
 
     override fun resume(context: Context, game: InstalledStoreGame, operation: JSONObject) {
         require(operation.optString("phase") in setOf("queued", "download", "applying")) { "The Epic operation needs attention before it can resume" }
         val target = validateTarget(game, operation.getJSONObject("target"))
-        enqueueJob(context, game, target, operation.optLong("downloadBytes", 0L).coerceAtLeast(0L),
-            MaintenanceAction.valueOf(operation.getString("operation")))
+        check(enqueueJob(context, game, target, operation.optLong("downloadBytes", 0L).coerceAtLeast(0L),
+            MaintenanceAction.valueOf(operation.getString("operation")))) { "Epic maintenance is already queued" }
     }
 
     override fun recovery(context: Context, game: InstalledStoreGame): MaintenanceRecovery {
@@ -155,15 +154,16 @@ internal object EpicMaintenanceAdapter : StoreMaintenanceAdapter {
         EpicInstallTags.tagsFor(StoreLanguage.localeFor(game.sidecar.extra[StoreLanguage.EXTRA], context))
     }
 
-    private fun enqueueJob(context: Context, game: InstalledStoreGame, target: JSONObject, bytes: Long, action: MaintenanceAction) {
+    private fun enqueueJob(context: Context, game: InstalledStoreGame, target: JSONObject, bytes: Long, action: MaintenanceAction): Boolean {
         val app = context.applicationContext
         val sidecar = game.sidecar
         val extra = LinkedHashMap(sidecar.extra)
         val item = CatalogItem(Store.EPIC, sidecar.id, sidecar.title, sidecar.hero, tallImageUrl = sidecar.cover,
             extra = extra + mapOf(StoreMaintenance.OPERATION_KEY to action.name, StoreMaintenance.FOLDER_KEY to game.folder.absolutePath))
-        SavedQueue.remember(app, item, null)
-        DownloadQueue.enqueue(app, DownloadEntry(Store.EPIC, item.id, item.title, cover = item.tallImageUrl,
-            bytesTotal = bytes, location = StoreInstallRoot.labelFor(app, game.folder))) {
+        return DownloadQueue.enqueueIfIdle(app, DownloadEntry(Store.EPIC, item.id, item.title, cover = item.tallImageUrl,
+            bytesTotal = bytes, location = StoreInstallRoot.labelFor(app, game.folder)), onAccepted = {
+            SavedQueue.remember(app, item, null)
+        }) {
             EpicInstaller(app, item, game.folder, target, game)
         }
     }

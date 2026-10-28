@@ -7,6 +7,7 @@ import java.io.File
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicBoolean
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Test
@@ -136,5 +137,41 @@ class DownloadQueueRetryTest {
         DownloadQueue.resume(app, entry.key)
         assertTrue(ran.await(5, TimeUnit.SECONDS))
         awaitFailure(entry.key, "restored")
+    }
+
+    @Test fun maintenanceAdmissionRejectsDuplicateWithoutReplacingSavedQueueItem() {
+        val id = "maintenance-admission-${java.util.UUID.randomUUID()}"
+        val first = CatalogItem(Store.EPIC, id, "First update", imageUrl = null, owned = true)
+        val second = CatalogItem(Store.EPIC, id, "Other operation", imageUrl = null, owned = true)
+        val entry = DownloadEntry(Store.EPIC, id, first.title)
+        val firstFactory = { object : DownloadQueue.DownloadJob {
+            override fun run(handle: DownloadQueue.JobHandle): String? = null
+            override fun cancel(deleteFiles: Boolean) = Unit
+        } }
+        DownloadQueue.holdPaused(entry.key)
+
+        val firstAccepted = DownloadQueue.enqueueIfIdle(app, entry,
+            onAccepted = { SavedQueue.remember(app, first, null) }, factory = firstFactory)
+        val duplicateRemembered = AtomicBoolean(false)
+        val secondAccepted = DownloadQueue.enqueueIfIdle(app, entry.copy(name = second.title),
+            onAccepted = { duplicateRemembered.set(true); SavedQueue.remember(app, second, null) }, factory = firstFactory)
+
+        assertTrue(firstAccepted)
+        assertFalse(secondAccepted)
+        assertFalse(duplicateRemembered.get())
+        assertEquals(DownloadState.PAUSED, DownloadQueue.entry(entry.key)?.state)
+
+        val saved = File(app.filesDir, "store-queue.json")
+        val until = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+        var savedFirst = false
+        while (!savedFirst && System.nanoTime() < until) {
+            savedFirst = runCatching {
+                val rows = JSONArray(saved.readText())
+                (0 until rows.length()).any { i -> rows.getJSONObject(i).getJSONObject("item").getString("title") == first.title }
+            }.getOrDefault(false)
+            if (!savedFirst) Thread.sleep(10)
+        }
+        assertTrue("only the accepted operation's saved item should persist", savedFirst)
+        DownloadQueue.clear(app, entry.key)
     }
 }

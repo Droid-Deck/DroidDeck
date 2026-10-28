@@ -191,17 +191,18 @@ object XboxBackend : StoreBackend {
             downloadBytes = size, diskBytes = size, description = "Xodus refreshes the installed package through its licensed streaming path.", target = target)
     }
 
-    internal fun enqueueMaintenance(context: Context, game: InstalledStoreGame, proposal: MaintenanceProposal) {
+    internal fun enqueueMaintenance(context: Context, game: InstalledStoreGame, proposal: MaintenanceProposal): Boolean {
         val sidecar = game.sidecar
         val item = CatalogItem(store, sidecar.id, sidecar.title, sidecar.hero, tallImageUrl = sidecar.cover,
             owned = sidecar.extra["access"] == "owned", subscription = sidecar.extra["access"] == "gamepass",
             extra = sidecar.extra + mapOf("contentId" to proposal.target.getString("contentId"), "market" to proposal.target.getString("market"),
                 StoreMaintenance.OPERATION_KEY to MaintenanceAction.UPDATE.name, StoreMaintenance.FOLDER_KEY to game.folder.canonicalPath))
         val root = game.folder.parentFile?.parentFile ?: error("Xbox install root is missing")
-        com.droiddeck.launcher.stores.download.SavedQueue.remember(context, item, root)
         val entry = DownloadEntry(store, sidecar.id, sidecar.title, cover = sidecar.cover,
             bytesTotal = proposal.downloadBytes, location = StoreInstallRoot.labelFor(context, game.folder))
-        DownloadQueue.enqueue(context.applicationContext, entry) { XboxInstaller(context.applicationContext, item, game.folder, game) }
+        return DownloadQueue.enqueueIfIdle(context.applicationContext, entry, onAccepted = {
+            com.droiddeck.launcher.stores.download.SavedQueue.remember(context, item, root)
+        }) { XboxInstaller(context.applicationContext, item, game.folder, game) }
     }
 
     private fun enqueue(context: Context, item: CatalogItem, root: File) {

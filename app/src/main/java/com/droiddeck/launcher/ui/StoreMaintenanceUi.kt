@@ -129,7 +129,10 @@ internal fun StoreMaintenanceActions(game: InstalledStoreGame) {
         when (current.state) {
             MaintenanceCheckState.CHECKING -> Text("Checking for updates…", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             MaintenanceCheckState.CURRENT -> Text("Up to date", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            MaintenanceCheckState.AVAILABLE -> Unit
+            MaintenanceCheckState.AVAILABLE -> if (MaintenanceAction.UPDATE !in capabilities) {
+                Text("An update is available. Use ${adapter.openClientLabel(game)} to apply it.",
+                    fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
             MaintenanceCheckState.UNKNOWN, MaintenanceCheckState.FAILED -> if (current.reason.isNotBlank())
                 Text(current.reason, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }

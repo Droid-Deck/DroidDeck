@@ -91,18 +91,19 @@ internal object AmazonMaintenanceAdapter : StoreMaintenanceAdapter {
         )
     }
 
-    override fun enqueue(context: Context, game: InstalledStoreGame, proposal: MaintenanceProposal) {
+    override fun enqueue(context: Context, game: InstalledStoreGame, proposal: MaintenanceProposal): Boolean {
         check(proposal.operation == MaintenanceAction.UPDATE || proposal.operation == MaintenanceAction.REPAIR)
-        check(!DownloadQueue.isActive(game.key)) { "Amazon maintenance is already queued" }
         val target = validateTarget(game, proposal.target)
-        enqueueJob(context, game, target, proposal.downloadBytes, proposal.operation)
+        return enqueueJob(context, game, target, proposal.downloadBytes, proposal.operation)
     }
 
     override fun resume(context: Context, game: InstalledStoreGame, operation: JSONObject) {
         require(operation.optString("phase") in setOf("queued", "download", "applying")) { "The Amazon operation needs attention before it can resume" }
         val target = validateTarget(game, operation.getJSONObject("target"))
         val bytes = operation.optLong("downloadBytes", 0L).coerceAtLeast(0L)
-        enqueueJob(context, game, target, bytes, MaintenanceAction.valueOf(operation.getString("operation")))
+        check(enqueueJob(context, game, target, bytes, MaintenanceAction.valueOf(operation.getString("operation")))) {
+            "Amazon maintenance is already queued"
+        }
     }
 
     override fun recovery(context: Context, game: InstalledStoreGame): MaintenanceRecovery {
@@ -126,15 +127,16 @@ internal object AmazonMaintenanceAdapter : StoreMaintenanceAdapter {
         return JSONObject(target.toString()).put("manifestPath", path.absolutePath)
     }
 
-    private fun enqueueJob(context: Context, game: InstalledStoreGame, target: JSONObject, bytes: Long, action: MaintenanceAction) {
+    private fun enqueueJob(context: Context, game: InstalledStoreGame, target: JSONObject, bytes: Long, action: MaintenanceAction): Boolean {
         val app = context.applicationContext
         val sidecar = game.sidecar
         val item = CatalogItem(Store.AMAZON, sidecar.id, sidecar.title, sidecar.hero, tallImageUrl = sidecar.cover,
             extra = mapOf("entitlementId" to sidecar.extra["entitlementId"].orEmpty(), "sku" to sidecar.extra["sku"].orEmpty(),
                 StoreMaintenance.OPERATION_KEY to action.name, StoreMaintenance.FOLDER_KEY to game.folder.absolutePath))
-        SavedQueue.remember(app, item, null)
-        DownloadQueue.enqueue(app, DownloadEntry(Store.AMAZON, item.id, item.title, cover = item.tallImageUrl,
-            bytesTotal = bytes, location = StoreInstallRoot.labelFor(app, game.folder))) {
+        return DownloadQueue.enqueueIfIdle(app, DownloadEntry(Store.AMAZON, item.id, item.title, cover = item.tallImageUrl,
+            bytesTotal = bytes, location = StoreInstallRoot.labelFor(app, game.folder)), onAccepted = {
+            SavedQueue.remember(app, item, null)
+        }) {
             AmazonInstaller(app, item, game.folder, target, game)
         }
     }

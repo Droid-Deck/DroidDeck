@@ -18,10 +18,11 @@ its existing engine or client can perform.
   checkout; it is not an optional engine pack. Upstream comparison: [Nile CLI](https://github.com/imLinguin/nile/blob/master/nile/cli.py),
   [download manager](https://github.com/imLinguin/nile/blob/master/nile/downloading/manager.py),
   and [active worker](https://github.com/imLinguin/nile/blob/master/nile/downloading/worker.py).
-- **Battle.net:** checks and update handoff to the existing Agent workflow.
-  When unattended repair is unavailable, the UI opens Battle.net for its
-  Scan and Repair flow. The app does not claim the client repair already ran.
-  See [Blizzard's Scan and Repair instructions](https://eu.support.blizzard.com/es/help/article/6572).
+- **Battle.net:** metadata checks and client handoff for Scan and Repair. Its
+  Agent-managed installs do not have the executable sidecar required by the
+  shared apply/restore flow, so updates remain in the existing Agent/Battle.net
+  workflow. The app does not claim client repair already ran. See [Blizzard's
+  Scan and Repair instructions](https://eu.support.blizzard.com/en/help/article/6572).
 - **Xbox:** update through Xodus's licensed package streaming path. The UI
   reports an unknown package version when Xodus does not expose one; transfer
   and space amounts are client-determined. Metadata checks do not claim success

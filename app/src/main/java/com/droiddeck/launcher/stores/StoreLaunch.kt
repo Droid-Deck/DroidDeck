@@ -64,10 +64,21 @@ object StoreLaunch {
     private const val CODE_VAR = "DD_X"
     private const val CLIENT_VAR = "DD_A"
 
+    internal fun matchingInstalls(context: Context, store: Store, id: String): List<Pair<File, StoreGameSidecar>> =
+        StoreInstallRoot.gameFolders(context.applicationContext).mapNotNull { folder ->
+            StoreGameSidecar.read(folder)?.takeIf { it.store == store && it.id == id }?.let { folder to it }
+        }
+
+    internal fun findInstalled(context: Context, store: Store, id: String): Pair<File, StoreGameSidecar>? =
+        matchingInstalls(context, store, id).firstOrNull { it.second.isInstalled }
+
+    private fun preferredInstall(context: Context, store: Store, id: String): Pair<File, StoreGameSidecar>? {
+        val matches = matchingInstalls(context, store, id)
+        return matches.firstOrNull { it.second.isInstalled } ?: matches.firstOrNull()
+    }
+
     fun installedGame(context: Context, store: Store, id: String): Library.SteamGame? {
-        val folder = StoreInstallRoot.gameFolders(context).firstOrNull { folder ->
-            StoreGameSidecar.read(folder)?.let { it.store == store && it.id == id && it.isInstalled } == true
-        } ?: return null
+        val folder = findInstalled(context, store, id)?.first ?: return null
         val game = AddedGames.single(context, folder.path) ?: return null
         return Library.addedGame(context, game)
     }
@@ -84,17 +95,19 @@ object StoreLaunch {
 
     fun prepare(context: Context, store: Store, id: String, onReady: () -> Unit) {
         val app = context.applicationContext
-        val folder = StoreInstallRoot.gameFolders(app).firstOrNull { f ->
-            StoreGameSidecar.read(f)?.let { it.store == store && it.id == id } == true
-        }
-        val sidecar = folder?.let { StoreGameSidecar.read(it) }
-        if (folder != null && sidecar != null && com.droiddeck.launcher.stores.maintenance.StoreMaintenance.launchExcluded(InstalledStoreGame(sidecar, folder))) {
-            Log.i(TAG, "launch blocked while ${store.label} maintenance is active: $id")
-            return
-        }
-        if (store != Store.EPIC) { onReady(); return }
         Thread({
-            epicCode(app, id)
+            val selected = try {
+                preferredInstall(app, store, id)
+            } catch (e: Exception) {
+                Log.w(TAG, "could not inspect installed ${store.label} launch records for $id", e)
+                return@Thread
+            }
+            if (selected != null && com.droiddeck.launcher.stores.maintenance.StoreMaintenance.launchExcluded(
+                    InstalledStoreGame(selected.second, selected.first))) {
+                Log.i(TAG, "launch blocked while ${store.label} maintenance is active: $id")
+                return@Thread
+            }
+            if (store == Store.EPIC) epicCode(app, id)
             StoresState.post(onReady)
         }, "stores-launch-prep").start()
     }
@@ -104,9 +117,10 @@ object StoreLaunch {
     fun epicCode(context: Context, id: String): CodeResult {
         val app = context.applicationContext
         val result = try {
-            val folder = StoreInstallRoot.gameFolders(app).firstOrNull { f -> StoreGameSidecar.read(f)?.let { it.store == Store.EPIC && it.id == id } == true }
-            val sidecar = folder?.let { StoreGameSidecar.read(it) }
-            sidecar?.let { refreshLauncher(folder, it) }
+            val selected = preferredInstall(app, Store.EPIC, id)
+            val folder = selected?.first
+            val sidecar = selected?.second
+            selected?.let { (installedFolder, installedSidecar) -> refreshLauncher(installedFolder, installedSidecar) }
             val options = sidecar?.epic
             if (folder == null) CodeResult(false, "not-installed")
             else if (options != null && !options.wantsCode) {
@@ -135,7 +149,7 @@ object StoreLaunch {
     fun prepare(context: Context, game: Library.SteamGame, onReady: () -> Unit) {
         val store = Store.byId(game.source)
         val id = game.storeId
-        if (store == null || id == null) { onReady(); return }
+        if (store == null || id == null) { StoresState.post(onReady); return }
         prepare(context, store, id, onReady)
     }
 }

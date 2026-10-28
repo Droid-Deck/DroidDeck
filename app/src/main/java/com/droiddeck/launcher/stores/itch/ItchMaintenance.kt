@@ -91,11 +91,12 @@ internal object ItchMaintenanceAdapter : StoreMaintenanceAdapter {
             "Downloads one pinned archive. Extracted size and required free space are unknown until download; DroidDeck checks the measured extracted payload before replacing files.", target)
     }
 
-    override fun enqueue(context: Context, game: InstalledStoreGame, proposal: MaintenanceProposal) = enqueuePinned(context, game, proposal.target)
+    override fun enqueue(context: Context, game: InstalledStoreGame, proposal: MaintenanceProposal): Boolean =
+        enqueuePinned(context, game, proposal.target)
 
     override fun resume(context: Context, game: InstalledStoreGame, operation: JSONObject) {
         val target = operation.optJSONObject("target") ?: throw IllegalStateException("itch.io maintenance target is missing")
-        enqueuePinned(context, game, target)
+        check(enqueuePinned(context, game, target)) { "itch.io maintenance is already queued" }
     }
 
     override fun recovery(context: Context, game: InstalledStoreGame): MaintenanceRecovery {
@@ -106,7 +107,7 @@ internal object ItchMaintenanceAdapter : StoreMaintenanceAdapter {
         else MaintenanceRecovery()
     }
 
-    private fun enqueuePinned(context: Context, game: InstalledStoreGame, target: JSONObject) {
+    private fun enqueuePinned(context: Context, game: InstalledStoreGame, target: JSONObject): Boolean {
         val item = CatalogItem(
             Store.ITCH, game.sidecar.id, game.sidecar.title, game.sidecar.hero,
             tallImageUrl = game.sidecar.cover, isFree = game.sidecar.extra["downloadKeyId"].isNullOrBlank(), owned = true,
@@ -114,10 +115,11 @@ internal object ItchMaintenanceAdapter : StoreMaintenanceAdapter {
                 StoreMaintenance.OPERATION_KEY to (StoreMaintenance.readOperation(game.folder)?.optString("operation") ?: MaintenanceAction.REFRESH.name),
                 StoreMaintenance.FOLDER_KEY to game.folder.absolutePath),
         )
-        SavedQueue.remember(context.applicationContext, item, null)
         val entry = DownloadEntry(Store.ITCH, game.sidecar.id, game.sidecar.title,
             bytesTotal = target.optLong("size"), location = StoreInstallRoot.labelFor(context, game.folder))
-        DownloadQueue.enqueue(context, entry) { ItchInstaller(context.applicationContext, item, game.folder, target) }
+        return DownloadQueue.enqueueIfIdle(context.applicationContext, entry, onAccepted = {
+            SavedQueue.remember(context.applicationContext, item, null)
+        }) { ItchInstaller(context.applicationContext, item, game.folder, target) }
     }
 
     private fun targetJson(game: InstalledStoreGame, upload: JSONObject): JSONObject = JSONObject()
