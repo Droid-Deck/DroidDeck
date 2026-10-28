@@ -233,7 +233,6 @@ class SignTest(unittest.TestCase):
 
             def run(command, **options):
                 signed.write_text('apk')
-                self.assertEqual(options['env']['BUILD_TOOLS'], str((base / 'build-tools/35.0.0').resolve()))
                 return mock.Mock(returncode=0, stdout='', stderr='')
 
             with mock.patch.object(deploy_fast, 'SIGNER', base / 'missing.ps1'), \
@@ -241,7 +240,7 @@ class SignTest(unittest.TestCase):
                     mock.patch.object(deploy_fast, 'sdk_root', return_value=base), \
                     mock.patch.object(deploy_fast.subprocess, 'run', side_effect=run) as run_:
                 deploy_fast.sign(base / 'in.apk', signed)
-            self.assertEqual(run_.call_args[0][0][-4:], [str(base / '.signing.env'), str(deploy_fast.ROOT / 'tools/release/sign-apk.sh'), str(base / 'in.apk'), str(signed)])
+            self.assertEqual(run_.call_args[0][0][-4:], [str(deploy_fast.ROOT / 'tools/release/sign-apk.sh'), str(base / 'in.apk'), str(signed), str((base / 'build-tools/35.0.0').resolve())])
             failed = mock.Mock(returncode=1, stdout='', stderr='boom')
             signed.unlink()
             with mock.patch.object(deploy_fast, 'SIGNER', base / 'missing.ps1'), \
@@ -250,6 +249,25 @@ class SignTest(unittest.TestCase):
                     mock.patch.object(deploy_fast.subprocess, 'run', return_value=failed):
                 with self.assertRaises(deploy_fast.Refused):
                     deploy_fast.sign(base / 'in.apk', signed)
+
+    def test_the_newest_build_tools_win_numerically_and_the_env_file_cannot_replace_them(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory).resolve()
+            for version in ('9.0.0', '35.0.0', '100.0.0'):
+                (base / 'build-tools' / version).mkdir(parents=True)
+                (base / 'build-tools' / version / 'aapt').write_text('')
+            root = base / 'checkout'
+            (root / 'tools/release').mkdir(parents=True)
+            fake = root / 'tools/release/sign-apk.sh'
+            fake.write_text('#!/bin/bash\necho "$BUILD_TOOLS" > "$3"\n')
+            fake.chmod(0o755)
+            env_file = base / 'keys/.signing.env'
+            env_file.parent.mkdir()
+            env_file.write_text('BUILD_TOOLS=/wrong\n')
+            signed = base / 'out.apk'
+            with mock.patch.object(deploy_fast, 'ROOT', root), mock.patch.object(deploy_fast, 'sdk_root', return_value=base):
+                deploy_fast.sign_with_env(env_file, base / 'in.apk', signed)
+            self.assertEqual(signed.read_text().strip(), str(base / 'build-tools/100.0.0'))
 
 
 if __name__ == '__main__':

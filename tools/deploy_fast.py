@@ -208,13 +208,18 @@ def signing_env():
     return None
 
 
+def version_key(path):
+    return [int(part) if part.isdigit() else -1 for part in path.parent.name.replace('-', '.').split('.')]
+
+
 def sign_with_env(env_file, unsigned, signed):
-    build_tools = sorted((sdk_root() / 'build-tools').glob('*/aapt'), reverse=True)
+    build_tools = sorted((sdk_root() / 'build-tools').glob('*/aapt'), key=version_key, reverse=True)
     if not build_tools:
         raise Refused('aapt not found under ' + str(sdk_root() / 'build-tools'))
-    script = f'set -a; cd "$(dirname "$1")"; . "$1"; set +a; exec "$2" "$3" standard "$4"'
+    # BUILD_TOOLS is assigned after the env file is sourced so the file cannot replace the chosen SDK.
+    script = 'set -a; cd "$(dirname "$1")"; . "$1"; set +a; BUILD_TOOLS="$5" exec "$2" "$3" standard "$4"'
     result = subprocess.run(['bash', '-c', script, 'sign', str(env_file), str(ROOT / 'tools/release/sign-apk.sh'),
-                             str(unsigned), str(signed)], env={**os.environ, 'BUILD_TOOLS': str(build_tools[0].parent.resolve())},
+                             str(unsigned), str(signed), str(build_tools[0].parent.resolve())],
                             capture_output=True, text=True)
     if result.returncode or not signed.is_file():
         raise Refused('Signing failed:\n' + (result.stdout + result.stderr).strip())
