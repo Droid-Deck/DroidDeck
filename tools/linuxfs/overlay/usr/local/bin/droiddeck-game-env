@@ -357,21 +357,76 @@ def game_cores(env):
         print("droiddeck-game-env: could not use game cores %r (%s)" % (text, error), file=sys.stderr)
 
 
-def cpu_topology(env):
+def core_speeds(cores, root="/sys/devices/system/cpu"):
+    """Each core's capacity, else its top clock; None when some core reports neither."""
+    for name in ("cpu_capacity", "cpufreq/cpuinfo_max_freq"):
+        speeds = {}
+        for core in cores:
+            try:
+                with open("%s/cpu%d/%s" % (root, core, name)) as f:
+                    speeds[core] = int(f.read().strip())
+            except (OSError, ValueError):
+                break
+        else:
+            return speeds
+    return None
+
+
+def fastest_first(cores):
+    """The cores, fastest first; cores of equal or unknown speed keep their numeric order."""
+    cores = sorted(cores)
+    speeds = core_speeds(cores)
+    return sorted(cores, key=lambda core: -speeds[core]) if speeds else cores
+
+
+def proton_cpu_limit(command, env):
+    """This game's entry in Proton's own default_cpu_limit list: a core count, another value such as "P" as text, or None."""
+    app_id = env.get("SteamGameId", "")
+    if not command or not app_id.isdigit():
+        return None
+    try:
+        if os.path.getsize(command[0]) > 4 * 1024 * 1024:
+            return None
+        with open(command[0], encoding="utf-8", errors="replace") as f:
+            text = f.read()
+    except OSError:
+        return None
+    table = re.search(r"^default_cpu_limit = \{(.*?)^\}", text, re.M | re.S)
+    match = table and re.search(r'^\s*"%s"\s*:\s*"?(\w+)' % app_id, table.group(1), re.M)
+    if not match:
+        return None
+    value = match.group(1)
+    return int(value) if value.isdigit() else value
+
+
+def cpu_topology(env, command=()):
+    """Windows sees the game's cores fastest first, so a thread a game pins to CPU 0 runs on the fastest core."""
     if "PROTON_CPU_TOPOLOGY" in env:
         return
     if "WINE_CPU_TOPOLOGY" in env:
         if env["WINE_CPU_TOPOLOGY"]:
             env["PROTON_CPU_TOPOLOGY"] = env["WINE_CPU_TOPOLOGY"]
         return
-    if not (env.get("DROIDDECK_GAME_CORES", "").strip() or env.get("BL_GAME_CPUS", "").strip()):
+    picked = bool(env.get("DROIDDECK_GAME_CORES", "").strip() or env.get("BL_GAME_CPUS", "").strip())
+    fastest = env.get("DROIDDECK_FASTEST_CORES", "").strip() != "0" and game_id(env) is not None
+    if not (picked or fastest):
         return
     try:
         cores = sorted(os.sched_getaffinity(0))
     except OSError:
         return
     online = online_cores()
-    if not cores or set(cores) >= online or cores[-1] >= len(online):
+    if not cores or cores[-1] >= len(online):
+        return
+    picked = picked and not set(cores) >= online
+    if fastest:
+        limit = None if picked else proton_cpu_limit(command, env)
+        if isinstance(limit, str):
+            return
+        cores = fastest_first(cores)[:limit or None]
+    elif set(cores) >= online:
+        return
+    if cores == sorted(online):
         return
     env["WINE_CPU_TOPOLOGY"] = env["PROTON_CPU_TOPOLOGY"] = "%d:%s" % (len(cores), ",".join(map(str, cores)))
     print("droiddeck-game-env: Windows sees %d cores (%s)" % (len(cores), env["WINE_CPU_TOPOLOGY"]), file=sys.stderr)
@@ -406,6 +461,59 @@ def apply_config(env, config, app_id, fixes=None):
         if dxvk:
             own = result.get("DXVK_CONFIG", "").strip().rstrip(";").strip()
             result["DXVK_CONFIG"] = own + "; " + dxvk if own else dxvk
+    return result
+
+
+GAME_DEBUG_CHANNELS = (
+    "timestamp", "pid", "tid", "seh", "unwind", "threadname", "debugstr", "loaddll", "mscoree",
+)
+WINE_DEBUG_SELECTOR = re.compile(r"(?:(trace|warn|err|fixme))?([+-])([A-Za-z_][A-Za-z0-9_]*)")
+
+
+def game_debug_channels(*values):
+    """Normalize Wine selectors, retaining custom channels before required diagnostics."""
+    selectors = {}
+    for value in values:
+        if not isinstance(value, str) or "\0" in value or len(value) > 8192:
+            continue
+        for part in value.split(","):
+            part = part.strip()
+            match = WINE_DEBUG_SELECTOR.fullmatch(part)
+            if match is None:
+                continue
+            key = (match[1] or "", match[3])
+            # Move the last value to the end: global +/-all and per-class selectors
+            # have ordered semantics, so replacing a value in its old position is wrong.
+            selectors.pop(key, None)
+            selectors[key] = part
+    for channel in GAME_DEBUG_CHANNELS:
+        key = ("", channel)
+        selectors.pop(key, None)
+        selectors[key] = "+" + channel
+    formatted = ",".join(selectors.values())
+    if len(formatted) > 8192:
+        formatted = ",".join("+" + channel for channel in GAME_DEBUG_CHANNELS)
+    return formatted
+
+
+def apply_game_debug_logs(env, config, debug_dir):
+    """Apply app-owned diagnostics to a real game, without editing its launch command."""
+    if not isinstance(config, dict) or config.get("version") != 1 or config.get("gameDebugLogs") is not True:
+        return env
+    if (not isinstance(debug_dir, str) or "\0" in debug_dir or len(debug_dir) > 8192
+            or not os.path.isabs(debug_dir) or not os.path.isdir(debug_dir)):
+        print("droiddeck-game-env: game debug logs skipped; session log directory unavailable", file=sys.stderr)
+        return env
+    result = dict(env)
+    result.update({
+        "PROTON_LOG": "1",
+        "PROTON_LOG_DIR": debug_dir,
+        "PROTON_CRASH_REPORT_DIR": debug_dir,
+        "DXVK_LOG_PATH": debug_dir,
+        "DXVK_LOG_LEVEL": "debug",
+        "VKD3D_DEBUG": "info",
+        "WINEDEBUG": game_debug_channels(env.get("WINEDEBUG"), env.get("PROTON_LOG")),
+    })
     return result
 
 
@@ -610,6 +718,7 @@ def main():
         return 2
     env = game_gpu(os.environ.copy())
     mic_enabled = env.get("BL_MIC_ENABLED")
+    debug_dir = env.get("BL_DEBUG_DIR", "")
     scripts = mark_install_scripts(command, env)
     if scripts and install_scripts_done(scripts, env):
         print("droiddeck-game-env: install scripts already run in this prefix; evaluator skipped", file=sys.stderr)
@@ -634,6 +743,7 @@ def main():
                 own = fixes.get("WINEDLLOVERRIDES")
                 fixes["WINEDLLOVERRIDES"] = components + ";" + own if own else components
         path = Path.home() / ".config/droiddeck/game-environment.json"
+        config = {}
         try:
             with path.open(encoding="utf-8") as source:
                 config = json.load(source)
@@ -646,6 +756,11 @@ def main():
                 env = apply_config(env, {"version": 1}, app_id, fixes)
         except (OSError, ValueError, TypeError, AttributeError):
             print("droiddeck-game-env: invalid configuration; using inherited environment", file=sys.stderr)
+        if waiting:
+            before_debug = env
+            env = apply_game_debug_logs(env, config, debug_dir)
+            if env is not before_debug:
+                print("droiddeck-game-env: game debug logs enabled for this launch", file=sys.stderr)
     if app_id and len(command) > 1 and command[1] == "waitforexitandrun":
         command = offline_without_anticheat(command, env)
     if mic_enabled == "0":
@@ -653,7 +768,7 @@ def main():
     env = vram_cap(env)
     env = force_ssbs(command, env)
     game_cores(env)
-    cpu_topology(env)
+    cpu_topology(env, command)
     try:
         xbox = runpy.run_path(str(Path(__file__).with_name("droiddeck-xbox")))
     except Exception as error:

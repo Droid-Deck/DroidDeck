@@ -172,6 +172,20 @@ complete `:app:testDebugUnitTest` run passes **2,636 tests across 385 suites, ze
 failures/errors/skips**, with the same Java/SDK/NDK settings and `-PskipRust=true`.
 These fixes have not been tested or benchmarked on Thor.
 
+### Upstream Home/player-slot integration (2026-10-28)
+
+Merged upstream `213c2da5` without rewriting the published branch. Home/Guide now
+follows upstream's primary-player slot selection when the built-in pad is off,
+while its report retains routed buttons and axes. The input-settings overlay
+continues to gate Home shortcuts and now also gates upstream's Steam volume-key
+handling.
+
+A new regression combines Home on player slot 1 with button/stick remapping and
+disabled routing. The complete `:app:testDebugUnitTest` run passes **2,707 tests
+across 389 suites, zero failures/errors/skips**, using the same Java/SDK/NDK
+settings and `-PskipRust=true`. A new APK build, Thor validation and latency
+measurement were not performed for this merge.
+
 ## Manual AYN Thor results
 
 The user performed the following checks in the installed candidate. The desktop

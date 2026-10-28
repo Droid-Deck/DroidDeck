@@ -53,6 +53,7 @@ public final class PadBridge {
     private final FakeInputWriter[] playerWriters = new FakeInputWriter[SLOTS];
     private final PadState[] playerStates = new PadState[SLOTS];
     private final PadState effectiveState = new PadState();
+    private final PadState homeGuideReport = new PadState();
     private final PadState combinedState = new PadState();
     private InputRouter inputRouter;
     private final InputRouter.PadSource[] physicalRoutes = new InputRouter.PadSource[SLOTS];
@@ -76,6 +77,7 @@ public final class PadBridge {
     private boolean systemQamPressed;
     private boolean backQamPressed;
     private boolean homeGuidePressed;
+    private int homeGuideSlot = -1;
     private final PadState lastBackQamReport = new PadState();
     private final PadState lastWrittenReport = new PadState();
     private final PadState liveReport = new PadState();
@@ -225,6 +227,7 @@ public final class PadBridge {
         Arrays.fill(physicalRoutes, null);
         inputRouter = null;
         homeGuidePressed = false;
+        homeGuideSlot = -1;
         clearBackQamWrites();
         releaseBackPaddles();
         activeControllerId = NO_CONTROLLER;
@@ -292,6 +295,7 @@ public final class PadBridge {
             case KeyEvent.KEYCODE_BACK:
             case KeyEvent.KEYCODE_MENU:
             case KeyEvent.KEYCODE_HOME:
+            case KeyEvent.KEYCODE_MOVE_HOME:
                 if (!isFromController(device)) return false;
                 return device.supportsSource(InputDevice.SOURCE_GAMEPAD)
                         || device.getKeyboardType() != InputDevice.KEYBOARD_TYPE_ALPHABETIC
@@ -390,7 +394,8 @@ public final class PadBridge {
             case KeyEvent.KEYCODE_BUTTON_THUMBL: pad.press(8, pressed); break;
             case KeyEvent.KEYCODE_BUTTON_THUMBR: pad.press(9, pressed); break;
             case KeyEvent.KEYCODE_BUTTON_MODE:
-            case KeyEvent.KEYCODE_HOME: pad.press(PadState.GUIDE, pressed); break;
+            case KeyEvent.KEYCODE_HOME:
+            case KeyEvent.KEYCODE_MOVE_HOME: pad.press(PadState.GUIDE, pressed); break;
             case KeyEvent.KEYCODE_BUTTON_Z:
                 if (isPrimary(event)) DeckControls.INSTANCE.setGrip(isNovaController(event.getDevice()) ? DeckControls.R4 : DeckControls.L4, pressed);
                 break;
@@ -568,6 +573,7 @@ public final class PadBridge {
         DeckControls.INSTANCE.suspend();
         if (inputRouter == null) state.clear();
         homeGuidePressed = false;
+        homeGuideSlot = -1;
         clearBackQamWrites();
         backQamPressed = false;
         if (inputRouter == null) releaseBackPaddles();
@@ -593,18 +599,24 @@ public final class PadBridge {
         return builtinPad && nativeQam();
     }
 
-    public boolean canHoldGuide() {
-        return builtinPad;
-    }
-
     public synchronized void setHomeGuidePressed(boolean pressed) {
-        if (pressed && !canHoldGuide()) return;
+        int slot = pressed ? firstPlayerSlot() : homeGuideSlot;
+        if (slot > 0) {
+            homeGuideSlot = pressed ? slot : -1;
+            publish(slot);
+            return;
+        }
         if (homeGuidePressed == pressed) return;
         homeGuidePressed = pressed;
         updateHeldModifier(PadState.GUIDE, pressed);
     }
 
     public synchronized void cancelHomeGuide() {
+        int slot = homeGuideSlot;
+        if (slot > 0) {
+            homeGuideSlot = -1;
+            publish(slot);
+        }
         if (!homeGuidePressed) return;
         clearBackQamWrites();
         homeGuidePressed = false;
@@ -903,6 +915,7 @@ public final class PadBridge {
         partners[slot] = NO_CONTROLLER;
         clearJoyCons(slot);
         slotControllers.set(slot, NO_CONTROLLER);
+        if (slot == homeGuideSlot) homeGuideSlot = -1;
         if (slot == firstPlayerSlot()) releaseBackPaddles();
         if (slot == 0) {
             state.clear();
@@ -959,6 +972,11 @@ public final class PadBridge {
                 return;
             }
             playerWriters[slot] = player;
+        }
+        if (slot == homeGuideSlot) {
+            homeGuideReport.copyFrom(output);
+            homeGuideReport.press(PadState.GUIDE, true);
+            output = homeGuideReport;
         }
         player.writePad(output);
     }

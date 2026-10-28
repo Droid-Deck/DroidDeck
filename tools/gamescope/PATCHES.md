@@ -156,3 +156,46 @@ A host mode switch can report a passing rate for a few frames (72 Hz between 144
 120 Hz on the AYANEO Pocket FIT), so with following on a new rate is taken once it has
 been reported for 300 ms. Without the variable the reported rate is taken at once, as
 upstream does.
+
+The rate comes from the feedback of a frame gamescope presents, so with nothing moving
+on screen no feedback arrived and the old rate stayed. With following on, gamescope
+presents once when the host's `wl_output` mode changes (DroidDeck's compositor sends
+the new mode) and keeps presenting while a new rate is pending (since p16).
+
+## 0121 Xwayland: skip the X tree walk for a repeated window override
+
+The WSI layer sends `override_window_content` on every present of an X11 swapchain.
+gamescope first walked from that window to its top-level window with `XQueryTree`, one
+blocking X round trip per level under the wlserver lock, and only then noticed that the
+same swapchain already overrides that window. At thousands of frames per second that is
+thousands of round trips to Xwayland every second.
+
+The override now remembers the window it was asked for. When the same swapchain and
+surface ask for the same window again within 100 ms, the request returns at once; after
+100 ms the walk runs again, so a window that moved to another top level is still found.
+
+## 0122 Wayland: wake steamcompmgr after reading host events
+
+Backport of upstream commit 2962992 by Matthew Schwartz (ValveSoftware/gamescope).
+The nested Wayland backend's input thread reads the host display, but steamcompmgr
+does not watch that file descriptor, so buffer releases and presentation feedback
+queued by that read could wait up to one refresh for steamcompmgr's next poll. The
+input thread now wakes steamcompmgr after each read.
+
+## 0123 commit: fence lifetime fixes from upstream
+
+Backport of upstream commits 0efe47c and 666c52b by Matthew Schwartz (ValveSoftware/gamescope).
+Pending commits share ownership of their completion list with the Xwayland context, so a late
+fence signal can no longer append to a list freed with the context; and a commit being destroyed
+no longer hands the image waiter a new reference to itself. Both touch the code 0124 changes.
+
+## 0124 commit: mark a finished frame done at import
+
+Every game frame took two passes of steamcompmgr's loop: the import duplicated the buffer's
+fence and handed the commit to the image waiter (epoll add), then the waiter thread saw the fence
+signalled, removed and closed it and woke steamcompmgr again to handle the finished commit.
+`update_wayland_res` now polls the fence without waiting first. A frame that is already finished
+is marked done at once - no duplicate fence, no epoll add or delete, no waiter wake - and the main
+loop handles it in the same pass, after the import (FIFO commits still wait for a vblank). The
+`commit_ready_check` convar (default on, `gamescopectl commit_ready_check 0`) turns it off; the
+`xwm` log counts fences ready at import and waited for, every 10 s.

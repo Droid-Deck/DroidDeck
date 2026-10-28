@@ -304,12 +304,12 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
         open, detailScroll,
         gridScrolled = { grid.firstVisibleItemIndex > 0 || grid.firstVisibleItemScrollOffset > 0 },
         onDetailFocus = { detailFocused = it },
-        modifier = modifier.padding(horizontal = if (narrow) 14.dp else 22.dp, vertical = if (narrow) 10.dp else 14.dp),
+        modifier = modifier.padding(horizontal = if (narrow) 14.dp else 22.dp).padding(top = if (narrow) 10.dp else 14.dp),
         wrap = { key, content -> StoreTheme(GameRef.parse(key).let { r -> r.store ?: r.game(s.steamGames)?.source?.let { Store.byId(it) } }) { content() } },
         grid = {
             LibraryGrid(
                 s, a, grid, visible, split, visible.size, sources, source, sizesPending, syncing,
-                showUninstalled = listUninstalled.takeIf { stores }, onShowUninstalled = setShowUninstalled,
+                showUninstalled = listUninstalled.takeIf { !s.shortcutPicker },onShowUninstalled = setShowUninstalled,
                 hiddenUninstalled = hiddenUninstalled,
                 onSource = { LibraryView.source = it },
                 onCycle = { step ->
@@ -638,7 +638,7 @@ private fun LibraryRow(e: LibraryEntry, first: Boolean, navigation: Modifier, ch
 }
 
 @Composable
-private fun HeaderIconButton(description: String, icon: androidx.compose.ui.graphics.vector.ImageVector, key: String, onClick: () -> Unit) {
+internal fun HeaderIconButton(description: String, icon: androidx.compose.ui.graphics.vector.ImageVector, key: String, onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val src = remember { MutableInteractionSource() }
@@ -655,7 +655,7 @@ private fun HeaderIconButton(description: String, icon: androidx.compose.ui.grap
 
 /** Choosing Library in the rail lands on the first game, as Play Steam does on the Steam page. */
 @Composable
-private fun Modifier.paneEntry(): Modifier {
+internal fun Modifier.paneEntry(): Modifier {
     val ff = LocalFrontFocus.current ?: return this
     androidx.compose.runtime.DisposableEffect(ff) {
         ff.primaryAttached++

@@ -77,6 +77,7 @@ class PausedFrame(val image: ImageBitmap, val bounds: android.graphics.Rect)
 
 private const val CARD_SCALE = 0.82f
 private const val FRAME_WAIT_MS = 600L
+private val PopEasing = CubicBezierEasing(0.3f, 1.5f, 0.4f, 1f)
 
 private fun tone(saturation: Float, brightness: Float): ColorMatrix =
     ColorMatrix().apply {
@@ -90,6 +91,7 @@ fun SessionPausedOverlay(
     engaged: Boolean,
     failures: Int,
     frame: PausedFrame?,
+    animateIn: Boolean,
     title: String,
     onResume: () -> Unit,
     onFrameNeeded: () -> Unit,
@@ -106,6 +108,18 @@ fun SessionPausedOverlay(
     LaunchedEffect(suspended, engaged) {
         when {
             suspended && !engaged -> {
+                if (!shown && animateIn) {
+                    if (currentFrame == null) {
+                        onFrameNeeded()
+                        withTimeoutOrNull(FRAME_WAIT_MS) { snapshotFlow { currentFrame }.first { it != null } }
+                    }
+                    shown = true
+                    launch { press.animateTo(1f, Motion.sp(0.5f, Spring.StiffnessMedium)) }
+                    launch { ring.animateTo(0f, Motion.tw(200)) }
+                    launch { lift.animateTo(1f, Motion.tw(520)) }
+                    orb.animateTo(1f, Motion.tw(380, delay = if (orb.value < 0.5f) 260 else 0, easing = PopEasing))
+                    return@LaunchedEffect
+                }
                 if (!shown) {
                     if (currentFrame == null) {
                         onFrameNeeded()

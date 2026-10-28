@@ -343,6 +343,102 @@ class PadBridgeQamTest {
         assertFalse(pad().isDown(PadState.X))
     }
 
+    @Test fun homeGuideHoldsOnThePrimaryPlayerWithoutABuiltinPad() {
+        PadBridge.setFirstSlot(1)
+        try {
+            bridge.setBuiltinPad(false)
+            bridge.setHomeGuidePressed(true)
+            assertTrue(requireNotNull(JoyConPadTest.RecordingWriter.pads[1]).isDown(PadState.GUIDE))
+            bridge.setHomeGuidePressed(false)
+            assertFalse(requireNotNull(JoyConPadTest.RecordingWriter.pads[1]).isDown(PadState.GUIDE))
+        } finally {
+            PadBridge.setFirstSlot(0)
+        }
+    }
+
+    @Test fun homeGuideAndControllerGuideReleaseIndependentlyOnThePrimaryPlayer() {
+        PadBridge.setFirstSlot(1)
+        try {
+            bridge.setBuiltinPad(false)
+            val device = controller()
+            bridge.onKeyEvent(key(device, KeyEvent.KEYCODE_BUTTON_MODE))
+            bridge.setHomeGuidePressed(true)
+            bridge.onKeyEvent(key(device, KeyEvent.KEYCODE_BUTTON_MODE, KeyEvent.ACTION_UP))
+            assertTrue(requireNotNull(JoyConPadTest.RecordingWriter.pads[1]).isDown(PadState.GUIDE))
+            bridge.onKeyEvent(key(device, KeyEvent.KEYCODE_BUTTON_MODE))
+            bridge.setHomeGuidePressed(false)
+            assertTrue(requireNotNull(JoyConPadTest.RecordingWriter.pads[1]).isDown(PadState.GUIDE))
+            bridge.onKeyEvent(key(device, KeyEvent.KEYCODE_BUTTON_MODE, KeyEvent.ACTION_UP))
+            assertFalse(requireNotNull(JoyConPadTest.RecordingWriter.pads[1]).isDown(PadState.GUIDE))
+        } finally {
+            PadBridge.setFirstSlot(0)
+        }
+    }
+
+    @Test fun playerSlotHomeGuidePreservesRemappedInputAndTheEnableGate() {
+        PadBridge.setFirstSlot(1)
+        try {
+            bridge.setBuiltinPad(false)
+            routed(InputProfile.defaults(InputProfile.GAME)
+                .withBinding(InputRole.PHYSICAL, InputControl.A, InputAction.Native(InputControl.B))
+                .withBinding(InputRole.PHYSICAL, InputControl.LS, InputAction.Native(InputControl.RS)))
+            val device = controller()
+            bridge.onKeyEvent(key(device, KeyEvent.KEYCODE_BUTTON_A))
+            motion(device, MotionEvent.AXIS_X, .6f)
+            bridge.setHomeGuidePressed(true)
+            val held = requireNotNull(JoyConPadTest.RecordingWriter.pads[1])
+            assertTrue(held.isDown(PadState.GUIDE))
+            assertTrue(held.isDown(PadState.B))
+            assertFalse(held.isDown(PadState.A))
+            assertEquals(0f, held.leftX)
+            assertEquals(.6f, held.rightX)
+            bridge.setInputEnabled(false)
+            val disabled = requireNotNull(JoyConPadTest.RecordingWriter.pads[1])
+            assertTrue(disabled.isDown(PadState.GUIDE))
+            assertFalse(disabled.isDown(PadState.A))
+            assertFalse(disabled.isDown(PadState.B))
+            assertEquals(0f, disabled.leftX)
+            assertEquals(0f, disabled.rightX)
+            bridge.cancelHomeGuide()
+            assertFalse(requireNotNull(JoyConPadTest.RecordingWriter.pads[1]).isDown(PadState.GUIDE))
+        } finally {
+            PadBridge.setFirstSlot(0)
+        }
+    }
+
+    @Test fun removingThePrimaryPlayerForgetsItsHomeGuide() {
+        PadBridge.setFirstSlot(1)
+        try {
+            bridge.setBuiltinPad(false)
+            val device = controller()
+            bridge.onKeyEvent(key(device, KeyEvent.KEYCODE_BUTTON_A, KeyEvent.ACTION_UP))
+            bridge.setHomeGuidePressed(true)
+            bridge.onDeviceRemoved(device.id)
+            JoyConPadTest.RecordingWriter.pads.remove(1)
+            bridge.cancelHomeGuide()
+            bridge.setHomeGuidePressed(false)
+            assertNull(JoyConPadTest.RecordingWriter.pads[1])
+        } finally {
+            PadBridge.setFirstSlot(0)
+        }
+    }
+
+    @Test fun cancellingHomeGuideOnAPlayerSlotKeepsItsHeldControls() {
+        PadBridge.setFirstSlot(1)
+        try {
+            bridge.setBuiltinPad(false)
+            val device = controller()
+            bridge.onKeyEvent(key(device, KeyEvent.KEYCODE_BUTTON_A))
+            bridge.setHomeGuidePressed(true)
+            bridge.cancelHomeGuide()
+            val pad = requireNotNull(JoyConPadTest.RecordingWriter.pads[1])
+            assertFalse(pad.isDown(PadState.GUIDE))
+            assertTrue(pad.isDown(PadState.A))
+        } finally {
+            PadBridge.setFirstSlot(0)
+        }
+    }
+
     @Test fun cancellingHomeDiscardsQueuedPartnersAndReleasesGuideImmediately() {
         bridge.setHomeGuidePressed(true)
         bridge.applyExternal({ it.press(PadState.LB, true); it.leftY = -1f }, true)
