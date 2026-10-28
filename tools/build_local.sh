@@ -303,7 +303,7 @@ pa_source=${DROIDDECK_PA13_SOURCE_DIR:-"${staging_dir}/pulseaudio-13.0"}
 if [[ -z "${DROIDDECK_PA13_SOURCE_DIR:-}" ]]; then
     pa_tarball="${cache_dir}/pulseaudio-13.0.tar.gz"
     if [[ ! -s "${pa_tarball}" ]] || ! tar -tzf "${pa_tarball}" >/dev/null 2>&1; then
-        curl -fsSL -o "${pa_tarball}.part" \
+        curl -fsSL --retry 5 --retry-all-errors --connect-timeout 20 -o "${pa_tarball}.part" \
             https://github.com/pulseaudio/pulseaudio/archive/refs/tags/v13.0.tar.gz
         mv "${pa_tarball}.part" "${pa_tarball}"
     fi
