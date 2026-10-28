@@ -82,7 +82,7 @@ public class KeyValueSet implements Iterable<String[]> {
     public void put(String key, Object value) {
         int[] range = indexOfKey(key);
         if (range != null) {
-            data = StringUtils.replace(data, range[0], range[1], key + "=" + value);
+            data = data.substring(0, range[0]) + key + "=" + value + data.substring(range[1]);
         } else {
             data = (!data.isEmpty() ? data + "," : "") + key + "=" + value;
         }
