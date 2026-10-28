@@ -558,8 +558,8 @@ jobs:
           path = Path('app/build.gradle')
           source = path.read_text()
           for old, new in (
-              (r'(?m)^        versionCode 15$', '        versionCode 19'),
-              (r'(?m)^        versionName "0\.6\.0"$', '        versionName "0.6.0-wallentx.6"'),
+              (r'(?m)^        versionCode 15$', '        versionCode 20'),
+              (r'(?m)^        versionName "0\.6\.0"$', '        versionName "0.6.0-wallentx.7"'),
           ):
               source, count = re.subn(old, new, source)
               if count != 1:

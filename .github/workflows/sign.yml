@@ -109,7 +109,7 @@ jobs:
           [ ${#apks[@]} = 1 ] && [ -f "${apks[0]}" ]
           tools=$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n1)
           "$tools/aapt" dump badging "${apks[0]}" > "$RUNNER_TEMP/version-badging.txt"
-          grep -qF "package: name='com.droiddeck.launcher' versionCode='19' versionName='0.6.0-wallentx.6'" \
+          grep -qF "package: name='com.droiddeck.launcher' versionCode='20' versionName='0.6.0-wallentx.7'" \
             "$RUNNER_TEMP/version-badging.txt"
 
       - name: Sign
@@ -119,7 +119,7 @@ jobs:
           RELEASE_KEY_ALIAS: droiddeck
           ENVIRONMENT: ${{ inputs.environment || 'signing-main' }}
           VARIANT: ${{ matrix.variant }}
-          LABEL: ${{ inputs.expected_sha != '' && '0.6.0-wallentx.6' || inputs.label }}
+          LABEL: ${{ inputs.expected_sha != '' && '0.6.0-wallentx.7' || inputs.label }}
           MANUAL_FORK: ${{ inputs.expected_sha != '' }}
         run: |
           set -euo pipefail
