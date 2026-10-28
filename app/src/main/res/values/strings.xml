@@ -3316,7 +3316,6 @@
     <string name="integration_title">Steam integration</string>
     <string name="integration_count">%1$d of %2$d on</string>
     <string name="integration_set_up">Set up</string>
-    <string name="integration_later">Not now</string>
     <string name="integration_location">Location</string>
     <string name="integration_app_info">App info</string>
     <string name="integration_wifi">Wi-Fi names</string>
