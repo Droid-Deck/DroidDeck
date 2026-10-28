@@ -102,7 +102,8 @@ drawing (DirectDraw, Direct3D 1–7) never lowers it, so those games ran at the
 refresh rate even with no frame limit (AIO Direct3D 7: 144 fps at 144 Hz, about
 2,260 with the wait off). Steam's Frame Limit still holds a game: while it is on,
 gamescope's WSI layer presents every swapchain in FIFO at the limit. A
-`vblank_mode` from the launch options or the environment editor is kept.
+`vblank_mode` from the launch options or the environment editor is kept, and
+**Remove** in the editor leaves Mesa's own default.
 
 ## Defaults and available suggestions
 

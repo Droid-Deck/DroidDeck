@@ -437,9 +437,9 @@ def gl_vsync(env):
     # Wine asks for interval 1 on every GL window, and WineD3D's front-buffer drawing (DirectDraw,
     # Direct3D 1-7) never lowers it, so those games ran at the refresh rate with no limit set.
     if "vblank_mode" in env or game_id(env) is None:
-        return
+        return False
     env["vblank_mode"] = "0"
-    print("droiddeck-game-env: OpenGL does not wait for the screen refresh (vblank_mode=0)", file=sys.stderr)
+    return True
 
 
 def apply_config(env, config, app_id, fixes=None):
@@ -739,6 +739,7 @@ def main():
         digest = None
     app_id = game_id(env)
     if app_id:
+        gl_default = gl_vsync(env)
         waiting = len(command) > 1 and command[1] == "waitforexitandrun"
         fixes = {}
         if waiting:
@@ -771,6 +772,8 @@ def main():
             env = apply_game_debug_logs(env, config, debug_dir)
             if env is not before_debug:
                 print("droiddeck-game-env: game debug logs enabled for this launch", file=sys.stderr)
+        if gl_default and env.get("vblank_mode") == "0":
+            print("droiddeck-game-env: OpenGL does not wait for the screen refresh (vblank_mode=0)", file=sys.stderr)
     if app_id and len(command) > 1 and command[1] == "waitforexitandrun":
         command = offline_without_anticheat(command, env)
     if mic_enabled == "0":
@@ -779,7 +782,6 @@ def main():
     env = force_ssbs(command, env)
     game_cores(env)
     cpu_topology(env, command)
-    gl_vsync(env)
     try:
         xbox = runpy.run_path(str(Path(__file__).with_name("droiddeck-xbox")))
     except Exception as error:

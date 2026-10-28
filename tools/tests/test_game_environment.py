@@ -598,19 +598,27 @@ class GameEnvironmentTest(unittest.TestCase):
         ]
         for env, expected in cases:
             env.setdefault("STEAM_COMPAT_DATA_PATH", "/steam/compatdata/3608888694")
-            with mock.patch("sys.stderr", io.StringIO()):
-                MODULE["gl_vsync"](env)
+            added = expected == "0" and "vblank_mode" not in env
+            self.assertEqual(MODULE["gl_vsync"](env), added, env)
             self.assertEqual(env.get("vblank_mode"), expected, env)
+        said = "OpenGL does not wait for the screen refresh"
         with tempfile.TemporaryDirectory() as tmp:
             probe = Path(tmp) / "probe"
             probe.write_text("#!" + sys.executable + "\nimport os\nprint(os.environ.get('vblank_mode', 'unset'))\n")
             probe.chmod(0o755)
-            for inherited, expected in (({}, "0"), ({"vblank_mode": "3"}, "3")):
-                env = {name: value for name, value in os.environ.items() if name != "vblank_mode"}
-                env.update(HOME=tmp, STEAM_COMPAT_DATA_PATH="/compatdata/42", **inherited)
-                result = subprocess.run([sys.executable, str(BIN / "droiddeck-game-env"), str(probe), "waitforexitandrun"],
-                                        env=env, text=True, capture_output=True, check=True)
-                self.assertEqual(result.stdout.strip(), expected)
+            config = Path(tmp) / ".config/droiddeck/game-environment.json"
+            config.parent.mkdir(parents=True)
+            for inherited, edits, expected in (({}, None, "0"), ({"vblank_mode": "3"}, None, "3"),
+                                               ({}, {"vblank_mode": None}, "unset"), ({}, {"vblank_mode": "2"}, "2"),
+                                               ({"vblank_mode": "3"}, {"vblank_mode": None}, "unset")):
+                with self.subTest(inherited=inherited, edits=edits):
+                    config.write_text(json.dumps({"version": 1, "games": {"42": edits or {}}}))
+                    env = {name: value for name, value in os.environ.items() if name != "vblank_mode"}
+                    env.update(HOME=tmp, STEAM_COMPAT_DATA_PATH="/compatdata/42", **inherited)
+                    result = subprocess.run([sys.executable, str(BIN / "droiddeck-game-env"), str(probe), "waitforexitandrun"],
+                                            env=env, text=True, capture_output=True, check=True)
+                    self.assertEqual(result.stdout.strip(), expected)
+                    self.assertEqual(said in result.stderr, expected == "0" and not inherited, result.stderr)
 
     def test_windows_cpu_0_is_the_fastest_core(self):
         os_mod = MODULE["os"]
