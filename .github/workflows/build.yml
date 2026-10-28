@@ -8,6 +8,8 @@ on:
       - '**/*.md'
       - 'LICENSE'
       - '.gitignore'
+      - 'docs/**'
+      - '.github/ISSUE_TEMPLATE/**'
   pull_request:
     branches: [ main ]
     types: [ opened, synchronize, reopened, ready_for_review ]
@@ -15,6 +17,8 @@ on:
       - '**/*.md'
       - 'LICENSE'
       - '.gitignore'
+      - 'docs/**'
+      - '.github/ISSUE_TEMPLATE/**'
   workflow_dispatch:
     inputs:
       rebuild_preloads:
@@ -28,8 +32,8 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: build-${{ github.event.pull_request.number || github.run_id }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: build-${{ github.event.pull_request.number || (github.event_name == 'push' && 'main') || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}
 
 jobs:
   source:
@@ -404,7 +408,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           cache-read-only: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
-          cache-cleanup: on-success
+          cache-cleanup: ${{ github.event_name == 'pull_request' && 'never' || 'on-success' }}
 
       - name: Resolve the pinned Android NDK
         run: bash tools/ci/resolve-ndk.sh
@@ -681,7 +685,7 @@ jobs:
           timeout 10 /tmp/test-presenter-shutdown
 
       - name: Steam import and game environment tests
-        run: python3 -m unittest discover -s tools/tests -p 'test_*.py'
+        run: bash tools/ci/run-python-tests.sh
 
   checks:
     name: Compile and test APK

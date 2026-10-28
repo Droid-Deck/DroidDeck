@@ -231,6 +231,7 @@ android {
             if (ciBuild) {
                 outputs.upToDateWhen { false }
                 outputs.doNotCacheIf('CI executes the test suite on every run') { true }
+                maxParallelForks = Math.max(1, Math.min(2, (int) (Runtime.runtime.availableProcessors() / 2)))
             }
             // Robolectric keeps a sandbox per SDK level the tests ask for; seven no longer fit in Gradle's default 512 MB.
             maxHeapSize = '2g'

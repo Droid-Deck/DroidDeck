@@ -23,7 +23,7 @@ fi
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 fetch() {
-  curl -fsSL --retry 3 -o "$WORK/$1" "$2"
+  curl -fsSL --retry 5 --retry-all-errors --connect-timeout 20 -o "$WORK/$1" "$2"
   echo "$3  $WORK/$1" | shasum -a 256 -c -
   mkdir -p "$WORK/${1%%.*}"
   tar -xzf "$WORK/$1" -C "$WORK/${1%%.*}" --strip-components=1

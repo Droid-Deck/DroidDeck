@@ -1170,8 +1170,8 @@ class BundleTest(unittest.TestCase):
         self.assertNotIn("if", bundle)
         self.assertIn("tools/droiddeck-esync/release.env", bundle["run"])
         self.assertIn('release_url="https://github.com/${SYNC_BUNDLE_REPO}/releases/download/${SYNC_BUNDLE_TAG}"', bundle["run"])
-        self.assertIn('curl -fsSL --retry 3 -o sync-bundle.tzst "$release_url/$SYNC_BUNDLE_ASSET"', bundle["run"])
-        self.assertIn('curl -fsSL --retry 3 -o sync-index.json "$release_url/index.json"', bundle["run"])
+        self.assertIn('curl -fsSL --retry 5 --retry-all-errors --connect-timeout 20 -o sync-bundle.tzst "$release_url/$SYNC_BUNDLE_ASSET"', bundle["run"])
+        self.assertIn('curl -fsSL --retry 5 --retry-all-errors --connect-timeout 20 -o sync-index.json "$release_url/index.json"', bundle["run"])
         self.assertIn("sha256sum -c -", bundle["run"])
         self.assertNotIn("revoked.txt", bundle["run"])
         stage = {"run": (self.ROOT / recipes["runtime"]["script"]).read_text()}

@@ -221,7 +221,7 @@ fi
 
 . "${repo_root}/tools/linuxfs/uruntime.env"
 uruntime_binary=$(cached "${URUNTIME_SHA256}" "${URUNTIME_ASSET}" \
-    bash -c 'curl -fsSL --retry 3 -o "$out" "$0"' "https://github.com/VHSgunzo/uruntime/releases/download/${URUNTIME_VERSION}/${URUNTIME_ASSET}")
+    bash -c 'curl -fsSL --retry 5 --retry-all-errors --connect-timeout 20 -o "$out" "$0"' "https://github.com/VHSgunzo/uruntime/releases/download/${URUNTIME_VERSION}/${URUNTIME_ASSET}")
 mkdir -p "${linuxfs_dir}/usr/local/lib/droiddeck" "${linuxfs_dir}/usr/local/share/licenses/uruntime"
 install -m644 "${uruntime_binary}" "${linuxfs_dir}/usr/local/lib/droiddeck/uruntime"
 install -m644 "${repo_root}/tools/linuxfs/licenses/uruntime-LICENSE" "${linuxfs_dir}/usr/local/share/licenses/uruntime/LICENSE"
@@ -256,7 +256,7 @@ mkdir -p "${msi_pkgs}" "${msi_dir}"
 while read -r package_sha256 package_url; do
     [[ -n "${package_url}" ]] || continue
     package_archive=$(cached "${package_sha256}" "$(basename "${package_url}")" \
-        bash -c 'curl -fsSL --retry 3 -o "$out" "$0"' "${package_url}")
+        bash -c 'curl -fsSL --retry 5 --retry-all-errors --connect-timeout 20 -o "$out" "$0"' "${package_url}")
     tar -xJf "${package_archive}" -C "${msi_pkgs}"
 done < <(grep -v '^#' "${repo_root}/tools/msitools/packages.txt")
 for tool in msiinfo cabextract; do install -m644 "${msi_pkgs}/usr/bin/${tool}" "${msi_dir}/${tool}"; done
@@ -276,7 +276,7 @@ mkdir -p "${mango_dir}" "${mango_pkgs}"
 while read -r package_sha256 package_url; do
     [[ -n "${package_url}" ]] || continue
     package_archive=$(cached "${package_sha256}" "$(basename "${package_url}")" \
-        bash -c 'curl -fsSL --retry 3 -o "$out" "$0"' "${package_url}")
+        bash -c 'curl -fsSL --retry 5 --retry-all-errors --connect-timeout 20 -o "$out" "$0"' "${package_url}")
     zstd -dc "${package_archive}" | tar -xf - -C "${mango_pkgs}"
 done < <(grep -v '^#' "${repo_root}/tools/mangoapp/packages.txt")
 install -m644 "${mango_pkgs}/usr/bin/mangoapp" "${mango_dir}/mangoapp"
@@ -294,7 +294,7 @@ mkdir -p "${pw_pkgs}"
 while read -r package_sha256 package_url; do
     [[ -n "${package_url}" ]] || continue
     package_archive=$(cached "${package_sha256}" "$(basename "${package_url}")" \
-        bash -c 'curl -fsSL --retry 3 -o "$out" "$0"' "${package_url}")
+        bash -c 'curl -fsSL --retry 5 --retry-all-errors --connect-timeout 20 -o "$out" "$0"' "${package_url}")
     zstd -dc "${package_archive}" | tar -xf - -C "${pw_pkgs}"
 done < <(grep -v '^#' "${repo_root}/tools/pipewire/packages.txt")
 "${repo_root}/tools/pipewire/assemble.sh" "${pw_pkgs}" "${linuxfs_dir}/usr/local/lib/droiddeck-pipewire.tzst"
