@@ -32,6 +32,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
@@ -163,6 +164,7 @@ internal fun PrimaryButton(
 ) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
+    val btnShape = if (LocalPillButtons.current) CircleShape else Shape12
     val frontFocus = if (main) LocalFrontFocus.current else null
     if (frontFocus != null) DisposableEffect(Unit) {
         frontFocus.primaryAttached++
@@ -182,11 +184,11 @@ internal fun PrimaryButton(
             .onGloballyPositioned { placed[0] = it }
             .heightIn(min = if (compact) 44.dp else 48.dp)
             .then(if (frontFocus != null) Modifier.focusRequester(frontFocus.primary).onFocusChanged { if (it.isFocused) frontFocus.last = FrontFocus.PRIMARY } else Modifier)
-            .graphicsLayer { alpha = if (LaunchOrigin.flooding === placed) 0f else 1f; scaleX = scale; scaleY = scale; shadowElevation = if (enabled) lift.dp.toPx() else 0f; shape = Shape12; clip = false; ambientShadowColor = pal.signal; spotShadowColor = pal.signal }
-            .clip(Shape12)
+            .graphicsLayer { alpha = if (LaunchOrigin.flooding === placed) 0f else 1f; scaleX = scale; scaleY = scale; shadowElevation = if (enabled) lift.dp.toPx() else 0f; shape = btnShape; clip = false; ambientShadowColor = pal.signal; spotShadowColor = pal.signal }
+            .clip(btnShape)
             .background(if (enabled) Brush.linearGradient(listOf(colors.primary, pal.primary2)) else Brush.linearGradient(listOf(colors.surfaceVariant, colors.surfaceVariant)))
-            .then(if (enabled) Modifier else Modifier.border(1.dp, pal.line2, Shape12))
-            .glideBorder(hot, Shape12, pal.signal, hotFillAlpha = 0f)
+            .then(if (enabled) Modifier else Modifier.border(1.dp, pal.line2, btnShape))
+            .glideBorder(hot, btnShape, pal.signal, hotFillAlpha = 0f)
             .hoverable(src).clickable(role = Role.Button, interactionSource = src, indication = null, enabled = enabled) {
                 placed[0]?.takeIf { it.isAttached }?.let { LaunchOrigin.mark(it.boundsInRoot(), placed) }
                 onClick()
@@ -240,15 +242,17 @@ internal fun ProgressLabel(label: @Composable (Modifier) -> Unit, progress: Floa
 @Composable
 internal fun SecondaryButton(text: String, enabled: Boolean = true, compact: Boolean = false, modifier: Modifier = Modifier, progress: Float? = null, onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
+    val pill = LocalPillButtons.current
+    val shape = if (pill) CircleShape else Shape12
     val src = remember { MutableInteractionSource() }
     val hot = rememberHot(src) && enabled
     val pressed by src.collectIsPressedAsState()
     val scale by animateFloatAsState(if (pressed) 0.955f else if (hot) 1.02f else 1f, Motion.sp(0.5f, Spring.StiffnessMedium), label = "secScale")
     val pal = LocalPalette.current
-    val fill by animateColorAsState(if (hot) pal.signal.copy(alpha = 0.14f) else Color.White.copy(alpha = 0.03f), Motion.tw(250), label = "secFill")
+    val fill by animateColorAsState(if (hot) pal.signal.copy(alpha = 0.14f) else Color.White.copy(alpha = if (pill) 0.09f else 0.03f), Motion.tw(250), label = "secFill")
     Box(
         contentAlignment = Alignment.Center,
-        modifier = modifier.paneItem("btn:$text").downToFirstTile().heightIn(min = if (compact) 44.dp else 48.dp).graphicsLayer { scaleX = scale; scaleY = scale }.clip(Shape12).background(fill).glideBorder(hot, Shape12, pal.signal, pal.line2)
+        modifier = modifier.paneItem("btn:$text").downToFirstTile().heightIn(min = if (compact) 44.dp else 48.dp).graphicsLayer { scaleX = scale; scaleY = scale }.clip(shape).background(fill).glideBorder(hot, shape, pal.signal, if (pill) Color.White.copy(alpha = 0.14f) else pal.line2)
             .alpha(if (enabled) 1f else 0.5f)
             .hoverable(src).clickable(role = androidx.compose.ui.semantics.Role.Button, interactionSource = src, indication = LocalIndication.current, enabled = enabled, onClick = onClick)
             .controllerConfirm(enabled = enabled, onClick = onClick)

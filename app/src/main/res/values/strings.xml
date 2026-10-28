@@ -1335,6 +1335,9 @@
     <string name="pip_not_ready">Picture in picture is available once the session is ready.</string>
     <string name="pip_permission">Allow picture in picture for DroidDeck in Android settings.</string>
     <string name="pip_unavailable">Android could not open picture in picture.</string>
+    <string name="game_more">More</string>
+    <string name="game_edit_art">Edit art</string>
+    <string name="stores_in_steam_label">In Steam</string>
     <string name="game_shortcut">Shortcut</string>
     <string name="game_shortcut_add">Add to home screen</string>
     <string name="game_shortcut_choose">Choose game</string>

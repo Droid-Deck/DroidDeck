@@ -6,6 +6,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.background
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Build
 import androidx.compose.material3.Text
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
@@ -88,7 +90,10 @@ internal fun GogMaintenanceActions(game: InstalledStoreGame) {
         SecondaryButton(stringResource(R.string.gog_update, check.version.ifBlank { game.sidecar.title }), enabled = !busy, modifier = Modifier.testTag("gog-update")) { prepare(GogOperation.UPDATE) }
     }
     androidx.compose.foundation.layout.Box {
-        SecondaryButton(stringResource(if (busy) R.string.common_checking else R.string.gog_maintenance), enabled = !busy && !active, modifier = Modifier.testTag("gog-maintenance")) { menu = !menu }
+        val manageLabel = stringResource(if (busy) R.string.common_checking else R.string.gog_maintenance)
+        if (LocalPillButtons.current) androidx.compose.foundation.layout.Box(Modifier.testTag("gog-maintenance")) {
+            IconAction(Icons.Outlined.Build, manageLabel, "game:gog-maintenance", enabled = !busy && !active) { menu = !menu }
+        } else SecondaryButton(manageLabel, enabled = !busy && !active, modifier = Modifier.testTag("gog-maintenance")) { menu = !menu }
         AnchoredMenu(menu, { menu = false }, title = stringResource(R.string.gog_maintenance), compact = true) { first ->
             MenuItem(stringResource(R.string.common_update), checked = false) { prepare(GogOperation.UPDATE) }
             MenuItem(stringResource(R.string.gog_check), checked = false, focusRequester = first) { menu = false; GogMaintenance.check(ctx, game, true) }
