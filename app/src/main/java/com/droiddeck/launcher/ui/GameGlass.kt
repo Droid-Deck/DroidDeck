@@ -120,7 +120,7 @@ private fun ambientRequest(ctx: android.content.Context, model: Any?): ImageRequ
 
 private const val AmbientPixels = 6
 
-/** Average brightness of the art, 0 to 1, read from a tiny decode so pale art can be dimmed and dark art left alone. */
+/** How washed-out the art is: average brightness less its saturation, from a tiny decode, so pale art is dimmed while dark and vivid art are left alone. */
 @Composable
 private fun rememberArtBrightness(model: Any?): Float {
     val ctx = LocalContext.current
@@ -130,14 +130,22 @@ private fun rememberArtBrightness(model: Any?): Float {
         val request = ImageRequest.Builder(ctx).data(data).size(SamplePixels, SamplePixels).precision(Precision.EXACT)
             .allowHardware(false).memoryCacheKey("lum:$data").build()
         val bitmap = (ctx.imageLoader.execute(request).drawable as? android.graphics.drawable.BitmapDrawable)?.bitmap ?: return@produceState
-        var sum = 0.0
-        for (y in 0 until bitmap.height) for (x in 0 until bitmap.width) sum += Color(bitmap.getPixel(x, y)).luminance()
-        value = (sum / (bitmap.width * bitmap.height)).toFloat()
+        var light = 0.0
+        var saturation = 0.0
+        for (y in 0 until bitmap.height) for (x in 0 until bitmap.width) {
+            val pixel = Color(bitmap.getPixel(x, y))
+            val top = maxOf(pixel.red, pixel.green, pixel.blue)
+            light += pixel.luminance()
+            if (top > 0f) saturation += (top - minOf(pixel.red, pixel.green, pixel.blue)) / top
+        }
+        val count = bitmap.width * bitmap.height
+        value = ((light - SaturationWeight * saturation) / count).toFloat().coerceAtLeast(0f)
     }
     return brightness
 }
 
 private const val SamplePixels = 8
+private const val SaturationWeight = 0.6
 
 /**
  * A page whose game art fills the background: a blurred wash behind everything and the sharp art
