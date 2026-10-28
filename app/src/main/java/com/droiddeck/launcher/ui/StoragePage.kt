@@ -273,7 +273,7 @@ private fun Overview(report: StorageReport, sessionRunning: Boolean, onCleanUp: 
     val summary = Modifier.fillMaxWidth().padding(top = 8.dp).clip(Shape14).background(colors.surface).border(1.dp, pal.line, Shape14)
         .padding(horizontal = 18.dp, vertical = 14.dp)
     val usage: @Composable (Modifier) -> Unit = { m -> Column(m) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FlowRow(verticalArrangement = Arrangement.spacedBy(4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(stringResource(R.string.storage_internal), fontSize = 17.sp, fontWeight = FontWeight.Bold, color = colors.onBackground)
                 Text("· " + stringResource(R.string.storage_used_of, gb(used), gb(report.total)), fontSize = 15.sp, color = colors.onSurfaceVariant)
                 Pill(stringResource(R.string.storage_free, gb(report.free)), if (low) AttentionAmber else pal.good)
