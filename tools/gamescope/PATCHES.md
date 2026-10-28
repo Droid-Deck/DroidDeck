@@ -200,11 +200,12 @@ loop handles it in the same pass, after the import (FIFO commits still wait for 
 `commit_ready_check` convar (default on, `gamescopectl commit_ready_check 0`) turns it off; the
 `xwm` log counts fences ready at import and waited for, every 10 s.
 
-## 0125 steamcompmgr: share MangoHud's frame times with DroidDeck's HUD
+## 0125 steamcompmgr: share mangoapp's frame times with DroidDeck's HUD
 
-DroidDeck's in-app HUD shows the same frame rate and frame times as MangoHud. With
-`DROIDDECK_HUD_FRAMES` set (droiddeck-session sets `/run/droiddeck-hud/frames`), gamescope maps that
-file and writes one frame time per new base plane commit of the single-output connector, measured
-the same way as the visible frame time it sends a per-connector mangoapp, whether or not a mangoapp
-runs. It also writes the focused pid, output size, refresh, Steam focus and engine name. The layout
-is in the comment above `publish_droiddeck_hud_frames`; the app reads it in `hudframes.c`.
+DroidDeck's in-app HUD shows the same frame rate and frame times as Steam's performance overlay.
+DroidDeck's mangoapp (Valve's 20260902.1 build) reads the field at byte 16 of gamescope's messages as
+its frame time; gamescope 3.16.29 puts `app_frametime_ns` there, the time between signalled commits of
+the connector's windows (`mangoapp_nudge_app_frame`). With `DROIDDECK_HUD_FRAMES` set (droiddeck-session
+sets `/run/droiddeck-hud/frames`), gamescope maps that file and writes the same commits of connector 0,
+whether or not a mangoapp runs, plus the focused pid, output size, refresh, Steam focus and engine name.
+The layout is in the comment above `droiddeck_hud_frames_map`; the app reads it in `hudframes.c`.
