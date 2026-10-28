@@ -276,12 +276,13 @@ bl_vacdiag() {
 }
 """
 
-# Steam's shader pre-caching runs its D3D driver query through every Proton tool at each start. Here it has never
-# succeeded (exit 1 every time), and each run started Wine in compatdata/0, where the two Protons upgrade the prefix
-# back and forth for many seconds while the game starts. Steam gets the same failure without starting Wine.
+# Steam's shader pre-caching runs its D3D driver query through every Proton tool at each start, as
+# "run <client>/bin/d3ddriverquery64.exe" in compatdata/0. Here it has never succeeded (exit 1 every time), and each
+# run started Wine in compatdata/0, where the two Protons upgrade the prefix back and forth for many seconds while the
+# game starts. Steam gets the same failure without starting Wine; other verbs and prefixes are left alone.
 BL_DRIVER_QUERY_SKIP = """
-case "${1##*/}" in
-  d3ddriverquery64.exe | d3ddriverquery.exe)
+case "$verb:${1##*/}:${STEAM_COMPAT_DATA_PATH%/}" in
+  run:d3ddriverquery64.exe:*/compatdata/0 | run:d3ddriverquery.exe:*/compatdata/0)
     echo "droiddeck-proton: Steam's D3D driver query is not run (it fails here and would start Wine in compatdata/0)" >&2
     exit 1 ;;
 esac

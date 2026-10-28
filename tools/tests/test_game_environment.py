@@ -974,21 +974,32 @@ class GameEnvironmentTest(unittest.TestCase):
     def test_both_proton_wrappers_answer_steams_driver_query_without_wine(self):
         scripts = (COMPAT["launcher_sh"](), COMPAT["extra_wrapper_sh"]("proton"))
         query = "/root/.local/share/Steam/steamrtarm64/../bin/d3ddriverquery64.exe"
+        probe = "/root/.local/share/Steam/steamapps/compatdata/0"
         for script in scripts:
             subprocess.run(["bash", "-n"], input=script, text=True, check=True)
-            self.assertLess(script.index('case "${1##*/}" in'), script.index("bl_components "))
-            for args in ([query, "-d3d12"], [query], [query.replace("64.exe", ".exe")]):
+            self.assertLess(script.index('case "$verb:${1##*/}:'), script.index("bl_components "))
+            for args, prefix in (([query, "-d3d12"], probe), ([query], probe + "/"),
+                                 ([query.replace("64.exe", ".exe")], probe)):
                 result = subprocess.run(["bash", "-s", "run"] + args, input=script, text=True, capture_output=True,
-                                        env={"PATH": os.defpath, "HOME": "/nonexistent"}, timeout=10)
+                                        env={"PATH": os.defpath, "HOME": "/nonexistent", "STEAM_COMPAT_DATA_PATH": prefix},
+                                        timeout=10)
                 self.assertEqual(result.returncode, 1, result.stderr)
                 self.assertEqual(result.stdout, "")
                 self.assertIn("D3D driver query is not run", result.stderr)
         skip = COMPAT["BL_DRIVER_QUERY_SKIP"]
-        for args in (["/games/AIO/AIO-Graphics-Test-64bit.exe", "--cube", "dx11"],
-                     ["/games/Tool/tool.exe", query], ["/games/d3ddriverquery64.exe.bak"]):
-            out = subprocess.run(["bash", "-c", "verb=run\n" + skip + "echo continued", "_"] + args,
-                                 capture_output=True, text=True, check=True).stdout
-            self.assertEqual(out, "continued\n", args)
+        for verb, args, prefix in (
+                ("getcompatpath", [query], probe),
+                ("run", [query], "/root/.local/share/Steam/steamapps/compatdata/2276548447"),
+                ("run", [query], None),
+                ("waitforexitandrun", ["/games/AIO/AIO-Graphics-Test-64bit.exe", "--cube", "dx11"], probe),
+                ("run", ["/games/Tool/tool.exe", query], probe),
+                ("run", ["/games/d3ddriverquery64.exe.bak"], probe)):
+            env = {"PATH": os.defpath}
+            if prefix is not None:
+                env["STEAM_COMPAT_DATA_PATH"] = prefix
+            out = subprocess.run(["bash", "-c", "verb=" + verb + "\n" + skip + "echo continued", "_"] + args,
+                                 env=env, capture_output=True, text=True, check=True).stdout
+            self.assertEqual(out, "continued\n", (verb, args, prefix))
 
     def test_wrappers_preload_the_session_library_before_the_input_shim(self):
         overlay = "/root/.local/share/Steam/ubuntu12_64/gameoverlayrenderer.so"
