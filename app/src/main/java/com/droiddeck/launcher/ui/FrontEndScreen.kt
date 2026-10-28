@@ -453,7 +453,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
         developerChoiceToggle = false
     }
     val requestChildProcessToggle = {
-        if (com.droiddeck.launcher.core.GlobalSettings.developerOptionsOn(ctx)) {
+        if (!PhantomProcessLimit.hasDeveloperToggle() || com.droiddeck.launcher.core.GlobalSettings.developerOptionsOn(ctx)) {
             requestDeveloperOptions()
         } else {
             developerChoiceGuided = false
