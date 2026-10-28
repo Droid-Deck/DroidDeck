@@ -207,6 +207,7 @@ struct surface {
     struct wl_resource *dmabuf;
     struct dmabuf_buffer *dmabuf_buf;
     struct wl_listener dmabuf_destroy;
+    const void *last_dmabuf;
     int buf_w, buf_h, has_content;
     int buf_alpha;
     int opaque[4], pending_opaque[4], pending_opaque_set;
@@ -261,6 +262,21 @@ static struct wl_event_source *g_render_idle, *g_frame_timer;
 
 
 static int g_dirty;
+static int64_t g_dirty_since_ns;
+#define PACE_BUFFERS 32
+static struct {
+    unsigned ticks, ticks_late_2ms, renders, null_attaches, reattaches, presented, replaced, undrawn, distinct;
+    int64_t tick_late_ns, tick_late_max_ns, wait_ns, wait_max_ns;
+    const void *buffers[PACE_BUFFERS];
+    uint64_t game_frames_seen;
+} g_pace;
+
+static void pace_note_buffer(const void *buffer) {
+    for (unsigned i = 0; i < g_pace.distinct && i < PACE_BUFFERS; i++)
+        if (g_pace.buffers[i] == buffer) return;
+    if (g_pace.distinct < PACE_BUFFERS) g_pace.buffers[g_pace.distinct] = buffer;
+    g_pace.distinct++;
+}
 static int64_t g_last_vsync_ns;
 static int64_t g_tick_vsync_ns;
 static int64_t g_refresh_ns = 16666667;
@@ -758,6 +774,9 @@ static void take_pixel(struct surface *s, const uint8_t bgra[4], struct wl_resou
 static void take_dmabuf(struct surface *s, struct dmabuf_buffer *b, struct wl_resource *buffer) {
     const int repeat = s->dmabuf == buffer && s->dmabuf_buf == b;
     if (!repeat) {
+        if (!s->dmabuf && s->last_dmabuf == buffer) g_pace.reattaches++;
+        s->last_dmabuf = buffer;
+        pace_note_buffer(buffer);
         drop_dmabuf(s, 1);
         s->dmabuf = buffer;
         s->dmabuf_buf = b;
@@ -919,12 +938,15 @@ static void feedback_resource_destroy(struct wl_resource *r) {
     wl_list_remove(wl_resource_get_link(r));
 }
 
-static void feedback_discard_all(struct wl_list *list) {
+static unsigned feedback_discard_all(struct wl_list *list) {
     struct wl_resource *fb, *tmp;
+    unsigned n = 0;
     wl_resource_for_each_safe(fb, tmp, list) {
         wp_presentation_feedback_send_discarded(fb);
         wl_resource_destroy(fb);
+        n++;
     }
+    return n;
 }
 
 static uint32_t nominal_refresh_ns(void) {
@@ -953,6 +975,7 @@ static void feedback_present_all(struct wl_list *list, int64_t t) {
                                                 nominal_refresh_ns(), 0, 0,
                                                 WP_PRESENTATION_FEEDBACK_KIND_VSYNC);
         wl_resource_destroy(fb);
+        g_pace.presented++;
     }
 }
 
@@ -1119,7 +1142,9 @@ static void surface_commit(struct wl_client *c, struct wl_resource *r) {
         struct wl_shm_buffer *shm = buffer && !db ? wl_shm_buffer_get(buffer) : NULL;
         uint8_t pixel[4];
 
-        feedback_discard_all(&s->feedback);
+        g_pace.replaced += feedback_discard_all(&s->feedback);
+        if (!buffer) g_pace.null_attaches++;
+        else if (!db) s->last_dmabuf = NULL;
 
         if (buffer) {
             wl_list_remove(&s->pending_buffer_destroy.link);
@@ -2092,13 +2117,20 @@ void droiddeck_stream_frame(AHardwareBuffer *ahb) {
 unsigned droiddeck_stream_frames(void) { return atomic_load(&g_stream_frames); }
 
 static void render_scene(void) {
-    if (atomic_load(&g_stream_on)) { render_stream(); return; }
+    if (atomic_load(&g_stream_on)) { g_dirty_since_ns = 0; render_stream(); return; }
     struct draw_list dl = {0};
     struct surface *s;
     int w, h;
     const int64_t t_scene = now_ns();
     int copy = 0;
 
+    if (g_dirty_since_ns) {
+        const int64_t wait = t_scene - g_dirty_since_ns;
+        g_pace.wait_ns += wait;
+        if (wait > g_pace.wait_max_ns) g_pace.wait_max_ns = wait;
+        g_pace.renders++;
+        g_dirty_since_ns = 0;
+    }
     g_dirty = 0;
     g_hud_fresh = 0;
     g_hdr_unimported = NULL;
@@ -2239,7 +2271,7 @@ static void render_scene(void) {
         }
         wl_list_for_each(s, &g_surfaces, link) {
             if (s->drawn) feedback_present_all(&s->feedback, t);
-            else feedback_discard_all(&s->feedback);
+            else g_pace.undrawn += feedback_discard_all(&s->feedback);
         }
         fire_all_frames();
     } else {
@@ -2265,6 +2297,7 @@ static int on_fallback_timer(void *data) {
 }
 
 static void schedule_render(void) {
+    if (!g_dirty && !g_dirty_since_ns) g_dirty_since_ns = now_ns();
     g_dirty = 1;
     if (!g_display) return;
     if (g_last_vsync_ns && now_ns() - g_last_vsync_ns < 100000000LL) return;
@@ -2284,6 +2317,13 @@ static int scene_waits_for_game(int64_t now) {
 static void on_vsync(int64_t frame_time_ns) {
     int64_t now = now_ns();
     g_perf.ticks++;
+    if (frame_time_ns > 0 && now >= frame_time_ns) {
+        const int64_t late = now - frame_time_ns;
+        g_pace.ticks++;
+        g_pace.tick_late_ns += late;
+        if (late > g_pace.tick_late_max_ns) g_pace.tick_late_max_ns = late;
+        if (late > 2000000LL) g_pace.ticks_late_2ms++;
+    }
     if (g_last_vsync_ns) {
         int64_t d = now - g_last_vsync_ns;
         if (d > 3000000LL && d < 40000000LL) g_refresh_ns = (g_refresh_ns * 7 + d) / 8;
@@ -3395,6 +3435,24 @@ static int on_stats_timer(void *data) {
                        g_perf.releases, g_perf.releases_held, drops);
 #undef PERF_MS
         memset(&g_perf, 0, sizeof(g_perf));
+    }
+    const uint64_t game = g_game_frames - g_pace.game_frames_seen;
+    if (g_pace.ticks || g_pace.renders || game || g_pace.reattaches || g_pace.null_attaches || g_pace.distinct ||
+        g_pace.presented || g_pace.replaced || g_pace.undrawn) {
+        droiddeck_log("pacing", "last 10 s: tick reaches compositor %.2f/%.2f ms late (%u ticks, %u over 2 ms) | "
+                   "new frame waits %.2f/%.2f ms to be drawn (%u scenes) | %llu game frames, %u re-attached after an "
+                   "empty attach, %u empty attaches, %u distinct buffers | feedback %u shown, %u replaced before drawing, "
+                   "%u not drawn",
+                   g_pace.ticks ? (double)g_pace.tick_late_ns / 1e6 / g_pace.ticks : 0.0, (double)g_pace.tick_late_max_ns / 1e6,
+                   g_pace.ticks, g_pace.ticks_late_2ms,
+                   g_pace.renders ? (double)g_pace.wait_ns / 1e6 / g_pace.renders : 0.0, (double)g_pace.wait_max_ns / 1e6,
+                   g_pace.renders, (unsigned long long)game, g_pace.reattaches, g_pace.null_attaches, g_pace.distinct,
+                   g_pace.presented, g_pace.replaced, g_pace.undrawn);
+    }
+    {
+        const uint64_t seen = g_game_frames;
+        memset(&g_pace, 0, sizeof(g_pace));
+        g_pace.game_frames_seen = seen;
     }
     g_stat_frames = g_stat_dmabuf = g_stat_shm = 0;
     droiddeck_color_stats_tick();

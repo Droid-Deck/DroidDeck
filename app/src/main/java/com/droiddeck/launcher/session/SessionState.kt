@@ -53,6 +53,7 @@ object SessionState {
     var resuming by mutableStateOf(false)
     var resumeFailures by mutableIntStateOf(0)
     var resumeFailed by mutableStateOf(false)
+    var manualPause by mutableStateOf(false)
     @Volatile var pipActive = false
     @Volatile
     var program: String? = null

@@ -34,6 +34,7 @@ class SettingsResetTest {
         SessionPrefs.setHdr(app, SessionService.MODE_DESKTOP, true)
         SessionPrefs.setResolutionChoice(app, SessionService.MODE_STEAM, "1280x800")
         SessionPrefs.setGuestHostname(app, "MyDeck")
+        assertTrue(SessionPrefs.setGameDebugLogsEnabled(app, true))
         SessionPrefs.setHudShowFps(app, false)
         SessionPrefs.setHudShowBattery(app, false)
         SessionPrefs.setHudShowGraph(app, false)
@@ -54,6 +55,10 @@ class SettingsResetTest {
         assertFalse(SessionPrefs.hdr(app, SessionService.MODE_DESKTOP))
         assertFalse(SessionPrefs.resolutionChosen(app, SessionService.MODE_STEAM))
         assertEquals(SessionPrefs.DEFAULT_GUEST_HOSTNAME, SessionPrefs.guestHostname(app))
+        assertFalse(SessionPrefs.gameDebugLogsEnabled(app))
+        val guest = java.io.File(com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(app),
+            "root/.config/droiddeck/game-environment.json")
+        assertFalse(org.json.JSONObject(guest.readText()).getBoolean(GameEnvironmentStore.GAME_DEBUG_LOGS))
         assertTrue(SessionPrefs.hudShowFps(app))
         assertTrue(SessionPrefs.hudShowBattery(app))
         assertTrue(SessionPrefs.hudShowGraph(app))
@@ -65,6 +70,22 @@ class SettingsResetTest {
         assertEquals(AppUiPrefs.DEFAULT_SCALE, AppUiPrefs.scale(app))
         assertEquals(FrameGen.Mode.OFF.engine, FrameGen.engine(app))
         assertFalse(prefs("steam_touch").contains("gyro"))
+    }
+
+    @Test fun aFailedDebugOptOutDoesNotHideTheEnabledPreference() {
+        assertTrue(SessionPrefs.setGameDebugLogsEnabled(app, true))
+        val directory = java.io.File(com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(app),
+            "root/.config/droiddeck")
+        directory.deleteRecursively()
+        directory.writeText("blocks configuration publication")
+        try {
+            assertFalse(SettingsReset.resetAll(app, gameProfiles = false))
+            assertTrue(SessionPrefs.gameDebugLogsEnabled(app))
+        } finally {
+            directory.delete()
+            directory.mkdirs()
+            GameEnvironmentStore.publish(app)
+        }
     }
 
     @Test fun libraryAndRecordsAreKept() {

@@ -45,6 +45,7 @@ import com.droiddeck.launcher.core.WirelessAdbPairingService.Stage
 @Composable
 fun PhantomProcessGatePage(
     status: PhantomProcessStatus,
+    applyingSavedPairing: Boolean,
     onDismiss: () -> Unit,
     onOpenDeveloperOptions: () -> Unit,
     onFixWithWirelessDebugging: () -> Unit,
@@ -77,7 +78,7 @@ fun PhantomProcessGatePage(
             BoxWithConstraints(Modifier.fillMaxWidth()) {
                 val wide = maxWidth >= 620.dp
                 val fix: @Composable ColumnScope.() -> Unit = {
-                    FixGroup(hasToggle, stage, environment, compact, onOpenDeveloperOptions, onFixWithWirelessDebugging,
+                    FixGroup(hasToggle, stage, environment, compact, applyingSavedPairing, onOpenDeveloperOptions, onFixWithWirelessDebugging,
                         onOpenNotificationSettings, onCancel = { WirelessAdbPairingService.cancel(context) })
                 }
                 val side: @Composable ColumnScope.() -> Unit = {
@@ -119,6 +120,7 @@ private fun FixGroup(
     stage: Stage,
     environment: GateEnvironment,
     compact: Boolean,
+    applyingSavedPairing: Boolean,
     onOpenDeveloperOptions: () -> Unit,
     onFixWithWirelessDebugging: () -> Unit,
     onOpenNotificationSettings: () -> Unit,
@@ -131,6 +133,10 @@ private fun FixGroup(
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             when {
+                applyingSavedPairing -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                    Body(stringResource(R.string.adbpair_applying))
+                }
                 pairing -> PairingProgress(stage, onCancel)
                 hasToggle -> {
                     Body(stringResource(R.string.gate_toggle_steps))

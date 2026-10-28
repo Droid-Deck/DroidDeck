@@ -30,6 +30,7 @@ class RumbleComponent : SessionPart() {
     private val joyConPairs = HashMap<Long, Motors>()
     private var preferences: SharedPreferences? = null
     private var enabled = false
+    private var quiet = false
     private var motorThread: HandlerThread? = null
     private var handler: Handler? = null
     private val preferenceListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
@@ -42,6 +43,11 @@ class RumbleComponent : SessionPart() {
     @Synchronized private fun refreshEnabled() {
         enabled = app()?.let { ControllerPrefs.rumbleEnabled(it) } == true
         if (!enabled) cancelAll()
+    }
+
+    @Synchronized fun quiet(on: Boolean) {
+        quiet = on
+        if (on) cancelAll()
     }
 
     override fun start() {
@@ -89,7 +95,7 @@ class RumbleComponent : SessionPart() {
     private fun u16(b: ByteArray, at: Int): Int = (b[at].toInt() and 0xFF) or ((b[at + 1].toInt() and 0xFF) shl 8)
 
     @Synchronized private fun buzz(strong: Int, weak: Int, ms: Int, slot: Int) {
-        if (!enabled) return
+        if (!enabled || quiet) return
         val target = target(slot)
         val previous = playing[slot]
         if (target !== previous) {

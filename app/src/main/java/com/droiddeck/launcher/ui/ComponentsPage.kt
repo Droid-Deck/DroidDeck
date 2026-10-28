@@ -699,7 +699,7 @@ fun ComponentsPage(
 
     Box(Modifier.fillMaxSize().onGloballyPositioned { pageAt = it.positionInRoot() }.onFocusChanged { pageFocused = it.hasFocus }) {
         Column(
-            Modifier.fillMaxSize().padding(horizontal = if (narrow) 16.dp else 22.dp, vertical = if (narrow) 12.dp else 18.dp)
+            Modifier.fillMaxSize().padding(horizontal = if (narrow) 16.dp else 22.dp).padding(top = if (narrow) 12.dp else 18.dp)
                 .then(if (selectedGame == null) Modifier.bumpers(
                     onPrevious = { pick(layerStep(layer, -1)) },
                     onNext = { pick(layerStep(layer, 1)) },
@@ -972,7 +972,7 @@ private fun Stack(
             onFocus = { onFocus(l) }, onClick = { onOpen(l) },
         )
     }
-    Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+    Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
         StackHeading(stringResource(R.string.comp_this_device))
         card(GPU_TAB)
         Spacer(Modifier.height(6.dp))

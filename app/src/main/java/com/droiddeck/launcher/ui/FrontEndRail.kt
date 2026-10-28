@@ -84,7 +84,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.layout.boundsInParent
 import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onPlaced
 import com.droiddeck.launcher.core.PhantomProcessLimit
 
 
@@ -99,15 +101,15 @@ internal fun BottomBar(
     val keys = navigationKeys(s)
     val bounds = remember { androidx.compose.runtime.mutableStateMapOf<String, androidx.compose.ui.geometry.Rect>() }
     val tint = androidx.compose.runtime.rememberUpdatedState(LocalPalette.current.signal)
-    var barAt by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
+    val content = remember { arrayOfNulls<LayoutCoordinates>(1) }
     Row(modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface), verticalAlignment = Alignment.CenterVertically) {
         BoxWithConstraints(Modifier.weight(1f)) {
             val itemWidth = (maxWidth / keys.size).coerceIn(56.dp, 88.dp)
-            Box(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).onGloballyPositioned { barAt = it.boundsInRoot().topLeft }) {
-                if (shown in keys) ChipGlide(keys.indexOf(shown), bounds[shown]?.translate(-barAt), tint, GlideAxis.Horizontal, corner = 14.dp, fill = 0.14f, outline = 0f)
+            Box(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).onPlaced { content[0] = it }) {
+                if (shown in keys) ChipGlide(keys.indexOf(shown), bounds[shown], tint, GlideAxis.Horizontal, corner = 14.dp, fill = 0.14f, outline = 0f)
                 Row(Modifier.selectableGroup().padding(vertical = 4.dp), horizontalArrangement = Arrangement.Center) {
                     NavigationItems(s, shown, compact = true, iconOnly = false, height = 56.dp, width = itemWidth,
-                        place = { key -> Modifier.onGloballyPositioned { bounds[key] = it.boundsInRoot(); Hops.railBounds[key] = it.boundsInRoot() } },
+                        place = { key -> Modifier.onGloballyPositioned { item -> content[0]?.let { bounds[key] = it.localBoundingBoxOf(item) }; Hops.railBounds[key] = item.boundsInRoot() } },
                         onSelect = onSelect, onFocusSelect = onFocusSelect)
                 }
             }
@@ -116,7 +118,7 @@ internal fun BottomBar(
     }
 }
 
-private fun navigationKeys(s: FrontEndState) = buildList {
+internal fun navigationKeys(s: FrontEndState) = buildList {
     add("steam"); add("games")
     if (s.gameStoresEnabled) add("stores")
     add("desktop"); add("components")
@@ -143,18 +145,18 @@ internal fun SideRail(
         val keys = navigationKeys(s)
         val bounds = remember { androidx.compose.runtime.mutableStateMapOf<String, androidx.compose.ui.geometry.Rect>() }
         val tint = androidx.compose.runtime.rememberUpdatedState(LocalPalette.current.signal)
-        var railAt by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
-        Box(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).onGloballyPositioned { railAt = it.boundsInRoot().topLeft }) {
-        if (shown in keys) ChipGlide(keys.indexOf(shown), bounds[shown]?.translate(-railAt), tint, GlideAxis.Vertical, corner = 14.dp, fill = 0.14f, outline = 0f)
+        val content = remember { arrayOfNulls<LayoutCoordinates>(1) }
+        Box(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).onPlaced { content[0] = it }) {
+        if (shown in keys) ChipGlide(keys.indexOf(shown), bounds[shown], tint, GlideAxis.Vertical, corner = 14.dp, fill = 0.14f, outline = 0f)
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(4.dp),
             modifier = Modifier.fillMaxWidth().selectableGroup(),
         ) {
             val place: (String) -> Modifier = { key ->
-                Modifier.onGloballyPositioned {
-                    bounds[key] = it.boundsInRoot()
-                    Hops.railBounds[key] = it.boundsInRoot()
+                Modifier.onGloballyPositioned { item ->
+                    content[0]?.let { bounds[key] = it.localBoundingBoxOf(item) }
+                    Hops.railBounds[key] = item.boundsInRoot()
                 }
             }
             NavigationItems(s, shown, compact, iconOnly, fit, if (iconOnly) 52.dp else 80.dp, place, onSelect, onFocusSelect)

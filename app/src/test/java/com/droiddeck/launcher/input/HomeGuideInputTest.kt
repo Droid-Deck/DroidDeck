@@ -27,6 +27,14 @@ class HomeGuideInputTest {
         assertEquals(listOf(true, false), states)
     }
 
+    @Test fun genericLayoutMoveHomeHoldsGuideLikeHome() {
+        val down = KeyEvent(10, 110, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MOVE_HOME, 0, 0, 10, 102)
+        val up = KeyEvent(10, 200, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_MOVE_HOME, 0, 0, 10, 102)
+        assertTrue(input.onKeyEvent(down, true))
+        assertTrue(input.onKeyEvent(up, true))
+        assertEquals(listOf(true, false), states)
+    }
+
     @Test fun anUnownedHomePressKeepsAndroidBehaviorEvenIfSessionBecomesEligibleBeforeRelease() {
         assertFalse(input.onKeyEvent(home(KeyEvent.ACTION_DOWN), false))
         assertFalse(input.onKeyEvent(home(KeyEvent.ACTION_UP), true))
