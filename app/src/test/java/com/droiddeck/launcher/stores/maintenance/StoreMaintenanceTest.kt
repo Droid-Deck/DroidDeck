@@ -5,6 +5,7 @@ import com.droiddeck.launcher.stores.InstalledStoreGame
 import com.droiddeck.launcher.stores.Store
 import com.droiddeck.launcher.stores.StoreGameSidecar
 import com.droiddeck.launcher.stores.CatalogItem
+import com.droiddeck.launcher.stores.StoresState
 import com.droiddeck.launcher.stores.download.DownloadEntry
 import com.droiddeck.launcher.stores.download.DownloadQueue
 import com.droiddeck.launcher.stores.download.DownloadState
@@ -24,7 +25,9 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import java.io.File
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
@@ -196,6 +199,84 @@ class StoreMaintenanceTest {
         }
         assertTrue("rejected maintenance must not replace the active queue's saved item", existingSaved)
         DownloadQueue.clear(app, key)
+    }
+
+    @Test fun uninstallAdmissionAndMaintenanceAdmissionCannotOverlapOrRecreateADeletedInstall() {
+        val app = RuntimeEnvironment.getApplication()
+        val folder = temporary.newFolder().canonicalFile
+        val sidecar = StoreGameSidecar(Store.EPIC, "uninstall-race", "Example", "bin/game.exe")
+        sidecar.write(folder)
+        val game = InstalledStoreGame(sidecar, folder)
+        val proposal = MaintenanceProposal(folder, sidecar, "target", MaintenanceAction.UPDATE,
+            target = JSONObject().put("schema", 1).put("build", "target"))
+        StoreMaintenance.register(adapter)
+
+        assertTrue(StoreMaintenance.beginUninstall(game))
+        assertTrue(game.key in StoresState.uninstalling)
+        val prepareFailure = runCatching { StoreMaintenance.prepare(app, game, MaintenanceAction.UPDATE) }.exceptionOrNull()
+        assertTrue(prepareFailure?.message.orEmpty().contains("being uninstalled"))
+        assertTrue(runCatching { StoreMaintenance.enqueue(app, game, proposal) }.isFailure)
+        assertNull(StoreMaintenance.readOperation(folder))
+
+        StoresState.uninstalling.remove(game.key)
+        folder.deleteRecursively()
+        assertTrue(runCatching { StoreMaintenance.enqueue(app, game, proposal) }.isFailure)
+        assertFalse("stale proposals must not recreate an uninstalled game folder", folder.exists())
+    }
+
+    @Test fun queuedMaintenanceBlocksUninstallAdmission() {
+        val folder = temporary.newFolder().canonicalFile
+        val sidecar = StoreGameSidecar(Store.EPIC, "maintenance-before-uninstall", "Example", "bin/game.exe")
+        sidecar.write(folder)
+        val game = InstalledStoreGame(sidecar, folder)
+        StoreMaintenance.register(adapter)
+        StoreMaintenance.enqueue(RuntimeEnvironment.getApplication(), game,
+            MaintenanceProposal(folder, sidecar, "target", MaintenanceAction.UPDATE, target = JSONObject().put("schema", 1)))
+
+        assertFalse(StoreMaintenance.beginUninstall(game))
+        assertFalse(game.key in StoresState.uninstalling)
+        assertEquals("queued", StoreMaintenance.readOperation(folder)!!.getString("phase"))
+    }
+
+    @Test fun inFlightMaintenancePreparationBlocksUninstallAdmission() {
+        val app = RuntimeEnvironment.getApplication()
+        val folder = temporary.newFolder().canonicalFile
+        val sidecar = StoreGameSidecar(Store.EPIC, "prepare-uninstall-race", "Example", "bin/game.exe")
+        sidecar.write(folder)
+        val game = InstalledStoreGame(sidecar, folder)
+        val proposal = MaintenanceProposal(folder, sidecar, "target", MaintenanceAction.UPDATE,
+            target = JSONObject().put("schema", 1))
+        val enteredPrepare = CountDownLatch(1)
+        val finishPrepare = CountDownLatch(1)
+        val failure = AtomicReference<Throwable?>()
+        StoreMaintenance.register(object : StoreMaintenanceAdapter {
+            override val store = Store.EPIC
+            override fun capabilities(game: InstalledStoreGame) = setOf(MaintenanceAction.UPDATE)
+            override fun check(context: Context, game: InstalledStoreGame) = MaintenanceCheck()
+            override fun prepare(context: Context, game: InstalledStoreGame, action: MaintenanceAction): MaintenanceProposal {
+                enteredPrepare.countDown()
+                check(finishPrepare.await(5, TimeUnit.SECONDS))
+                return proposal
+            }
+            override fun enqueue(context: Context, game: InstalledStoreGame, proposal: MaintenanceProposal) = true
+            override fun resume(context: Context, game: InstalledStoreGame, operation: JSONObject) = Unit
+        })
+        val worker = Thread({ runCatching { StoreMaintenance.prepare(app, game, MaintenanceAction.UPDATE) }
+            .onFailure(failure::set) }, "test-maintenance-prepare")
+        worker.start()
+
+        assertTrue(enteredPrepare.await(5, TimeUnit.SECONDS))
+        try {
+            assertFalse(StoreMaintenance.beginUninstall(game))
+            assertFalse(game.key in StoresState.uninstalling)
+        } finally {
+            finishPrepare.countDown()
+        }
+        worker.join(TimeUnit.SECONDS.toMillis(5))
+        assertFalse("maintenance preparation should finish", worker.isAlive)
+        assertNull(failure.get())
+        assertTrue(StoreMaintenance.beginUninstall(game))
+        StoresState.uninstalling.remove(game.key)
     }
 
     @Test fun applyLeaseIsExclusiveAndMarksTheJournalBeforeMutation() {

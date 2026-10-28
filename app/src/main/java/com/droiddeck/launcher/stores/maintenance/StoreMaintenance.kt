@@ -72,6 +72,7 @@ object StoreMaintenance {
     private val revisions = ConcurrentHashMap<Store, Long>()
     private val accounts = ConcurrentHashMap<Store, String>()
     private val operationLocks = ConcurrentHashMap<String, Any>()
+    private val preparing = ConcurrentHashMap.newKeySet<String>()
     val checks = mutableStateMapOf<String, MaintenanceCheck>()
 
     fun register(adapter: StoreMaintenanceAdapter) {
@@ -119,8 +120,17 @@ object StoreMaintenance {
     fun prepare(context: Context, game: InstalledStoreGame, action: MaintenanceAction): MaintenanceProposal {
         require(action in capabilities(game)) { "${game.sidecar.store.label} does not support ${action.name.lowercase()}" }
         require(action != MaintenanceAction.OPEN_CLIENT)
-        return adapters[game.sidecar.store]?.prepare(context.applicationContext, game, action)
-            ?: error("${game.sidecar.store.label} maintenance is unavailable")
+        val adapter = adapters[game.sidecar.store] ?: error("${game.sidecar.store.label} maintenance is unavailable")
+        val folder = game.folder.canonicalFile
+        synchronized(operationLock(folder)) {
+            requireCurrentInstalledGame(game)
+            check(preparing.add(folder.path)) { "${game.sidecar.store.label} maintenance is already being prepared" }
+        }
+        return try {
+            adapter.prepare(context.applicationContext, game, action)
+        } finally {
+            synchronized(operationLock(folder)) { preparing.remove(folder.path) }
+        }
     }
 
     fun capabilities(game: InstalledStoreGame): Set<MaintenanceAction> =
@@ -132,6 +142,8 @@ object StoreMaintenance {
         val adapter = adapters[game.sidecar.store] ?: error("${game.sidecar.store.label} maintenance is unavailable")
         val folder = game.folder.canonicalFile
         synchronized(operationLock(folder)) {
+            requireCurrentInstalledGame(game)
+            check(folder.path !in preparing) { "${game.sidecar.store.label} maintenance is being prepared" }
             require(!com.droiddeck.launcher.stores.download.DownloadQueue.isActive(game.key)) {
                 "${game.sidecar.store.label} already has an active operation"
             }
@@ -148,6 +160,22 @@ object StoreMaintenance {
                 clearNewQueuedOperation(game, enqueueId, preserveActive = false)
                 error("${game.sidecar.store.label} already has an active operation")
             }
+        }
+    }
+
+    fun beginUninstall(game: InstalledStoreGame): Boolean {
+        val folder = game.folder.canonicalFile
+        return synchronized(operationLock(folder)) {
+            if (game.key in StoresState.uninstalling || folder.path in preparing) return@synchronized false
+            val hasSharedApply = capabilities(game).any { it != MaintenanceAction.OPEN_CLIENT }
+            val currentInstall = runCatching {
+                if (hasSharedApply) requireCurrentInstalledGame(game)
+                else require(folder.isDirectory && !Files.isSymbolicLink(folder.toPath()))
+                readOperation(folder) == null
+            }.getOrDefault(false)
+            if (!currentInstall) return@synchronized false
+            StoresState.uninstalling[game.key] = 0f
+            true
         }
     }
 
@@ -242,6 +270,18 @@ object StoreMaintenance {
     }
 
     private fun operationLock(folder: File): Any = operationLocks.computeIfAbsent(folder.path) { Any() }
+
+    private fun requireCurrentInstalledGame(game: InstalledStoreGame) {
+        val folder = game.folder.canonicalFile
+        require(game.sidecar.isInstalled && folder.isDirectory && !Files.isSymbolicLink(folder.toPath())) {
+            "${game.sidecar.store.label} installation is no longer available"
+        }
+        val current = StoreGameSidecar.read(folder)
+        require(current?.store == game.sidecar.store && current.id == game.sidecar.id && current.isInstalled) {
+            "${game.sidecar.store.label} installation record is no longer available"
+        }
+        require(game.key !in StoresState.uninstalling) { "${game.sidecar.store.label} game is being uninstalled" }
+    }
 
     private fun clearNewQueuedOperation(game: InstalledStoreGame, enqueueId: String, preserveActive: Boolean) {
         val folder = game.folder.canonicalFile

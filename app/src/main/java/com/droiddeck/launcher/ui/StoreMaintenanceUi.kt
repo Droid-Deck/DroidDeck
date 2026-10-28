@@ -32,6 +32,7 @@ import com.droiddeck.launcher.stores.maintenance.MaintenanceRecovery
 import com.droiddeck.launcher.stores.maintenance.RecoveryState
 import com.droiddeck.launcher.stores.maintenance.StoreMaintenance
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -81,9 +82,10 @@ internal fun StoreMaintenanceActions(game: InstalledStoreGame) {
             SecondaryButton("Resume", enabled = !busy, modifier = Modifier.testTag("store-resume")) {
                 busy = true
                 scope.launch {
-                    runCatching { withContext(Dispatchers.IO) { StoreMaintenance.resume(context, game) } }
-                        .onFailure { error = it.message }
-                    busy = false
+                    try {
+                        runCatchingCancellable { withContext(Dispatchers.IO) { StoreMaintenance.resume(context, game) } }
+                            .onFailure { error = it.message }
+                    } finally { busy = false }
                 }
             }
         } else if (MaintenanceAction.UPDATE in capabilities && check?.state == MaintenanceCheckState.AVAILABLE) {
@@ -170,9 +172,10 @@ internal fun StoreMaintenanceActions(game: InstalledStoreGame) {
                     busy = true
                     close()
                     scope.launch {
-                        runCatching { withContext(Dispatchers.IO) { StoreMaintenance.enqueue(context, game, selected) } }
-                            .onFailure { error = it.message }
-                        busy = false
+                        try {
+                            runCatchingCancellable { withContext(Dispatchers.IO) { StoreMaintenance.enqueue(context, game, selected) } }
+                                .onFailure { error = it.message }
+                        } finally { busy = false }
                     }
                 }
                 SecondaryButton("Cancel", onClick = close)
@@ -192,10 +195,19 @@ private fun beginPrepare(
 ) {
     setBusy(true)
     scope.launch {
-        runCatching { withContext(Dispatchers.IO) { StoreMaintenance.prepare(context, game, action) } }
-            .onSuccess(setProposal).onFailure { setError(it.message) }
-        setBusy(false)
+        try {
+            runCatchingCancellable { withContext(Dispatchers.IO) { StoreMaintenance.prepare(context, game, action) } }
+                .onSuccess(setProposal).onFailure { setError(it.message) }
+        } finally { setBusy(false) }
     }
+}
+
+private suspend fun <T> runCatchingCancellable(block: suspend () -> T): Result<T> = try {
+    Result.success(block())
+} catch (cancelled: CancellationException) {
+    throw cancelled
+} catch (error: Throwable) {
+    Result.failure(error)
 }
 
 private fun MaintenanceAction.label(): String = when (this) {

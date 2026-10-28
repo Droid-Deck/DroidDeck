@@ -365,7 +365,7 @@ internal fun GameActions(
                 }
                 if (store == Store.ITCH && installed != null && StoreMaintenance.adapter(installed) == null) ItchUpdateButton(installed, download == null && StoresState.uninstalling[installed.key] == null)
                 if (store == Store.GOG && installed != null) GogMaintenanceActions(installed)
-                if (store != Store.GOG && installed != null && StoreMaintenance.adapter(installed) != null) StoreMaintenanceActions(installed)
+                if (store != Store.GOG && installed != null && installed.key !in StoresState.uninstalling && StoreMaintenance.adapter(installed) != null) StoreMaintenanceActions(installed)
                 if (store == null && game != null && game.source == Library.SOURCE_STEAM && game.appId > 0) SteamClientMaintenanceActions(a, s.sessionRunning)
                 if (store == Store.XBOX && id != null) XboxInstalledStream(id, game?.name ?: item?.title.orEmpty(), item)
                 if (store == Store.XBOX && installed != null && id != null) {

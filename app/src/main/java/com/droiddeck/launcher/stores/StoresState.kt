@@ -282,7 +282,11 @@ object StoresState {
     fun uninstall(context: Context, game: InstalledStoreGame, onDone: () -> Unit = {}) {
         val app = context.applicationContext
         val key = "${game.sidecar.store.id}:${game.sidecar.id}"
-        uninstalling[key] = 0f
+        if (!com.droiddeck.launcher.stores.maintenance.StoreMaintenance.beginUninstall(game)) {
+            android.widget.Toast.makeText(app, "Close, finish, or recover maintenance before uninstalling.", android.widget.Toast.LENGTH_LONG).show()
+            onDone()
+            return
+        }
         background("stores-uninstall", onFailure = { main.post { uninstalling.remove(key); onDone() } }) {
             runCatching { backends[game.sidecar.store]?.uninstall(app, game) }
             if (game.sidecar.store == Store.BATTLENET && com.droiddeck.launcher.runtime.BattleNet.games(app).any { it.folder.absolutePath == game.folder.absolutePath }) {
