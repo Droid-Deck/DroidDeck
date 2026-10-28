@@ -11,6 +11,7 @@ import android.os.FileObserver
 import android.util.Log
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.session.SessionEvents
+import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionState
 import com.droiddeck.launcher.session.SteamSessionUrl
 import org.json.JSONObject
@@ -97,13 +98,30 @@ object AgentGuest {
     fun focus(context: Context): JSONObject? =
         if (SessionState.running) readJson(File(dir(context), "focus.json")) else null
 
-    fun openSteamUrl(context: Context, url: String): JSONObject {
+    fun openSteamUrl(context: Context, url: String, timeoutMs: Long = STEAM_URL_TIMEOUT_MS): JSONObject {
         require(SteamSessionUrl.isSupported(url)) { "Unsupported Steam navigation URL" }
-        val result = call(context, JSONObject().put("kind", "steam-url").put("url", url), 8_000, trusted = true)
+        val result = call(context, JSONObject().put("kind", "steam-url").put("url", url)
+            .put("timeout", (timeoutMs - 1_000).coerceAtLeast(1_000) / 1_000.0), timeoutMs, trusted = true)
         check(SteamSessionUrl.wasOpened(result.optBoolean("ok"), result.optBoolean("launched"))) {
             "Steam did not accept the navigation request"
         }
         return result
+    }
+
+    fun awaitAndOpenSteamUrl(context: Context, url: String, timeoutMs: Long = STEAM_START_URL_TIMEOUT_MS): JSONObject {
+        require(SteamSessionUrl.isSupported(url)) { "Unsupported Steam navigation URL" }
+        val deadline = android.os.SystemClock.elapsedRealtime() + timeoutMs
+        while (android.os.SystemClock.elapsedRealtime() < deadline) {
+            check(SessionState.running && SessionState.mode == SessionService.MODE_STEAM && !SessionState.stopRequested) {
+                "The Steam session ended before its UI became ready"
+            }
+            if (hello(context) != null) {
+                val remaining = deadline - android.os.SystemClock.elapsedRealtime()
+                return openSteamUrl(context, url, minOf(STEAM_URL_TIMEOUT_MS, remaining))
+            }
+            Thread.sleep(POLL_MS)
+        }
+        throw AgentException("AGENT_UNAVAILABLE", "The Steam guest agent did not become ready")
     }
 
     fun selectedSteamAppId(context: Context): Long? {
@@ -204,4 +222,7 @@ object AgentGuest {
     } catch (e: Exception) {
         null
     }
+
+    private const val STEAM_URL_TIMEOUT_MS = 125_000L
+    private const val STEAM_START_URL_TIMEOUT_MS = 180_000L
 }

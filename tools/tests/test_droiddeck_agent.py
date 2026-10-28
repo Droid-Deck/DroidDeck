@@ -197,12 +197,29 @@ class AgentTest(unittest.TestCase):
         self.assertEqual("UNAVAILABLE", answer["error"]["code"])
 
     def test_steam_url_uses_client_argv_for_supported_navigation(self):
-        with patch.object(agent.subprocess, "Popen") as popen:
+        with patch.object(agent, "wait_for_steam_ui") as ready, patch.object(agent.subprocess, "Popen") as popen:
             answer = self.ask({"kind": "steam-url", "url": "steam://open/downloads"})
         self.assertTrue(answer["ok"])
         self.assertTrue(answer["launched"])
+        ready.assert_called_once_with(self.dir, 120)
         self.assertEqual(["steam", "steam://open/downloads"], popen.call_args.args[0])
         self.assertTrue(popen.call_args.kwargs["start_new_session"])
+
+    def test_steam_url_waits_for_initialized_ui_router(self):
+        with patch.object(agent, "cdp_eval", side_effect=[OSError("DevTools restarted"),
+                                                            {"value": False}, {"value": True}]) as evaluate, \
+                patch.object(agent.time, "sleep"):
+            agent.wait_for_steam_ui(self.dir, timeout=2)
+        self.assertEqual(3, evaluate.call_count)
+        self.assertIn("appStore", evaluate.call_args.args[1])
+
+    def test_steam_url_is_not_forwarded_when_ui_readiness_times_out(self):
+        with patch.object(agent, "wait_for_steam_ui", side_effect=agent.AgentError("STEAM_UI_TIMEOUT", "not ready")), \
+                patch.object(agent.subprocess, "Popen") as popen:
+            answer = self.ask({"kind": "steam-url", "url": "steam://open/downloads"})
+        self.assertFalse(answer["ok"])
+        self.assertEqual("STEAM_UI_TIMEOUT", answer["error"]["code"])
+        popen.assert_not_called()
 
     def test_steam_url_rejects_untrusted_routes_and_argument_injection(self):
         for url in ("steam://open/settings", "steam://nav/library", "steam://open/downloads\n--exec", "https://example.com"):

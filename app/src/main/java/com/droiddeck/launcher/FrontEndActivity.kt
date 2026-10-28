@@ -1038,9 +1038,23 @@ class FrontEndActivity : ComponentActivity() {
                         onSteamUrl = { url ->
                             if (!com.droiddeck.launcher.session.SteamSessionUrl.isSupported(url)) {
                                 android.widget.Toast.makeText(this, R.string.steam_navigation_failed, android.widget.Toast.LENGTH_LONG).show()
-                            } else if (!SessionState.running) startSession(
-                                Intent(this, SessionActivity::class.java).putExtra(SessionService.EXTRA_STEAM_URL, url), steamSession = true,
-                            ) else if (SessionState.mode != SessionService.MODE_STEAM) {
+                            } else if (!SessionState.running) {
+                                if (!startSession(Intent(this, SessionActivity::class.java), steamSession = true)) {
+                                    android.widget.Toast.makeText(this, R.string.steam_navigation_failed, android.widget.Toast.LENGTH_LONG).show()
+                                } else {
+                                    val context = applicationContext
+                                    Thread({
+                                        val opened = runCatching {
+                                            com.droiddeck.launcher.agent.AgentGuest.awaitAndOpenSteamUrl(context, url)
+                                        }.isSuccess
+                                        if (!opened) ui.post {
+                                            if (!isDestroyed) android.widget.Toast.makeText(
+                                                this, R.string.steam_navigation_failed, android.widget.Toast.LENGTH_LONG,
+                                            ).show()
+                                        }
+                                    }, "steam-navigation-start").start()
+                                }
+                            } else if (SessionState.mode != SessionService.MODE_STEAM) {
                                 android.widget.Toast.makeText(this, R.string.steam_navigation_switch_mode, android.widget.Toast.LENGTH_LONG).show()
                             } else if (SessionState.stopRequested) {
                                 android.widget.Toast.makeText(this, R.string.game_link_session_busy, android.widget.Toast.LENGTH_LONG).show()
