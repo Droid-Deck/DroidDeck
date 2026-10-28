@@ -237,6 +237,15 @@ class ItchStagingTest {
         assertEquals("user settings", File(game, "profiles/settings.ini").readText())
     }
 
+    @Test fun extractedPayloadAndBackupExtraSpaceAreAddedWithoutOverflow() {
+        val stage = tmp.newFolder("space-stage")
+        file(stage, "profiles/default.ini", "1234567890")
+        file(stage, "saves/default.sav", "")
+        assertEquals(10L, ItchStaging.regularFileBytes(stage))
+        assertEquals(38L, ItchStaging.additionalBytesRequired(10L, 28L))
+        assertEquals(Long.MAX_VALUE, ItchStaging.additionalBytesRequired(Long.MAX_VALUE - 1, 2))
+    }
+
     @Test fun aDoneJournalEntryIsRehashedBeforeResumeSkipsIt() {
         val game = tmp.newFolder("corrupt-resume-game")
         val staged = tmp.newFolder("corrupt-resume-stage")

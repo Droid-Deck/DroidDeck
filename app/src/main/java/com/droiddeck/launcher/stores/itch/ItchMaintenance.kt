@@ -87,8 +87,8 @@ internal object ItchMaintenanceAdapter : StoreMaintenanceAdapter {
             else -> if (id == extra["uploadId"] && stamp == game.sidecar.installVersion) "current upload $id ($stamp)" else "current upload $id ($stamp); the installed upload is no longer available"
         }
         val size = target.optLong("size")
-        return MaintenanceProposal(game.folder, game.sidecar, label, action, size, size,
-            "Downloads and safely replaces files from one pinned itch.io archive upload.", target)
+        return MaintenanceProposal(game.folder, game.sidecar, label, action, size, MaintenanceProposal.UNKNOWN_BYTES,
+            "Downloads one pinned archive. Extracted size and required free space are unknown until download; DroidDeck checks the measured extracted payload before replacing files.", target)
     }
 
     override fun enqueue(context: Context, game: InstalledStoreGame, proposal: MaintenanceProposal) = enqueuePinned(context, game, proposal.target)

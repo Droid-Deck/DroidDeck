@@ -218,6 +218,7 @@ internal class ItchInstaller(
         work = if (updating) File(folder, ItchStaging.DIR) else folder
         if (updating) ItchStaging.delete(work)
         work.mkdirs()
+        val availableBeforeExtraction = if (maintenanceTarget != null) StoreInstallRoot.availableBytes(folder) else StoreInstallRoot.SPACE_UNKNOWN
         if (resuming) clearPartialInstall()
         val exe = try {
             when (val kind = sniff(archive, filename)) {
@@ -241,6 +242,17 @@ internal class ItchInstaller(
             handle.log("itch.io: no exe found in ${folder.name}")
             if (updating) ItchStaging.delete(work)
             return null
+        }
+        if (maintenanceTarget != null) {
+            val stagedBytes = ItchStaging.regularFileBytes(work)
+                ?: throw IllegalStateException("Could not measure the extracted itch.io archive")
+            val requiredBytes = ItchStaging.additionalBytesRequired(stagedBytes, backupExtraBytes = 0L)
+            handle.diskSize(requiredBytes)
+            if (StoreInstallRoot.insufficientSpace(requiredBytes, availableBeforeExtraction)) {
+                throw IllegalStateException(app.getString(R.string.stores_storage_insufficient,
+                    com.droiddeck.launcher.stores.formatBytes(requiredBytes),
+                    com.droiddeck.launcher.stores.formatBytes(availableBeforeExtraction)))
+            }
         }
         if (updating && maintenanceTarget != null) {
             handle.interruptible(false)

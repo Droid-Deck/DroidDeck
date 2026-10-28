@@ -34,6 +34,35 @@ internal object ItchStaging {
         visit(root, "")
     }
 
+    fun regularFileBytes(root: File): Long? {
+        var total = 0L
+        var readable = true
+        fun visit(dir: File) {
+            if (!readable || Files.isSymbolicLink(dir.toPath())) return
+            val children = dir.listFiles() ?: run { readable = false; return }
+            for (child in children) {
+                if (Files.isSymbolicLink(child.toPath())) continue
+                if (child.isDirectory) visit(child)
+                else if (child.isFile) {
+                    val length = runCatching { Files.size(child.toPath()) }.getOrNull()
+                    if (length == null || Long.MAX_VALUE - total < length) {
+                        readable = false
+                        return
+                    }
+                    total += length
+                }
+            }
+        }
+        if (!root.isDirectory) return null
+        visit(root)
+        return total.takeIf { readable }
+    }
+
+    fun additionalBytesRequired(stagedBytes: Long, backupExtraBytes: Long): Long {
+        require(stagedBytes >= 0L && backupExtraBytes >= 0L)
+        return if (Long.MAX_VALUE - stagedBytes < backupExtraBytes) Long.MAX_VALUE else stagedBytes + backupExtraBytes
+    }
+
     private fun protectedUserData(relative: String): Boolean = relative.split('/').any {
         it.lowercase() in setOf("save", "saves", "userdata", "user data", "profiles")
     } || relative.substringAfterLast('/').substringAfterLast('.', "").lowercase() in setOf("sav", "save")
