@@ -124,10 +124,11 @@ private const val AmbientPixels = 6
 @Composable
 private fun rememberArtBrightness(model: Any?): Float {
     val ctx = LocalContext.current
-    val brightness by produceState(0.3f, model) {
-        if (model == null) return@produceState
-        val request = ImageRequest.Builder(ctx).data(model).size(SamplePixels, SamplePixels).precision(Precision.EXACT)
-            .allowHardware(false).memoryCacheKey("lum:$model").build()
+    val data = (model as? ImageRequest)?.data ?: model
+    val brightness by produceState(0.3f, data) {
+        if (data == null) return@produceState
+        val request = ImageRequest.Builder(ctx).data(data).size(SamplePixels, SamplePixels).precision(Precision.EXACT)
+            .allowHardware(false).memoryCacheKey("lum:$data").build()
         val bitmap = (ctx.imageLoader.execute(request).drawable as? android.graphics.drawable.BitmapDrawable)?.bitmap ?: return@produceState
         var sum = 0.0
         for (y in 0 until bitmap.height) for (x in 0 until bitmap.width) sum += Color(bitmap.getPixel(x, y)).luminance()
@@ -170,16 +171,16 @@ internal fun GameBackdrop(
                     glass.fadeBottom(this, size)
                 },
         )
-        if (art != null) ArtLayer(art, fadeTop, onArtPlaced)
+        if (art != null) ArtLayer(art, ambient ?: art, fadeTop, onArtPlaced)
         CompositionLocalProvider(LocalGlass provides glass) { content() }
     }
 }
 
 @Composable
-private fun ArtLayer(model: Any?, fadeTop: Boolean, onPlaced: (androidx.compose.ui.geometry.Rect?) -> Unit) {
+private fun ArtLayer(model: Any?, sample: Any?, fadeTop: Boolean, onPlaced: (androidx.compose.ui.geometry.Rect?) -> Unit) {
     val colors = MaterialTheme.colorScheme
     val light = colors.background.luminance() > 0.5f
-    val pale = ((rememberArtBrightness(model) - 0.28f) / 0.5f).coerceIn(0f, 1f)
+    val pale = ((rememberArtBrightness(sample) - 0.28f) / 0.5f).coerceIn(0f, 1f)
     val dim = if (light) 1f else 1f - 0.4f * pale
     val artFilter = remember(dim) { ColorFilter.colorMatrix(ColorMatrix(floatArrayOf(dim, 0f, 0f, 0f, 0f, 0f, dim, 0f, 0f, 0f, 0f, 0f, dim, 0f, 0f, 0f, 0f, 0f, 1f, 0f))) }
     BoxWithConstraints(Modifier.fillMaxWidth()) {
