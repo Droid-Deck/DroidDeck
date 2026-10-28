@@ -14,6 +14,8 @@
 package com.droiddeck.launcher.hud
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BlurMaskFilter
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
@@ -23,6 +25,7 @@ import android.graphics.Typeface
 import android.text.format.DateFormat
 import android.view.MotionEvent
 import android.view.View
+import androidx.annotation.VisibleForTesting
 import androidx.compose.ui.graphics.toArgb
 import com.droiddeck.launcher.ui.Themes
 import java.util.Date
@@ -32,6 +35,7 @@ import java.util.function.Consumer
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
+import kotlin.math.sqrt
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -142,6 +146,15 @@ class FusionHudView(context: Context) : View(context) {
     private var headerMark: RectF? = null
     private var chipRect: RectF? = null
 
+    // Minimal's panel is the DroidDeck mark's D: a straight left side split by the orb, a half circle on
+    // the right. Its fixed layers (fill, header band, watermark, glowing outline) go into a bitmap,
+    // because Android before 9 skips glow on shapes drawn with hardware acceleration.
+    private var dPanel: RectF? = null
+    private var dDividerTop = 0f
+    private var dFrame: Bitmap? = null
+    private var dFrameKey = ""
+    private val glowPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+
     // ---- Colors (mockup) --------------------------------------------------
     private val colGpu = 0xFF5EE08A.toInt()
     private val colCpu = 0xFF58A6FF.toInt()
@@ -177,7 +190,7 @@ class FusionHudView(context: Context) : View(context) {
     private val clipPath = Path()
 
     // ---- Built geometry ---------------------------------------------------
-    private class Glyph(val x: Float, val baseline: Float, val text: String, val color: Int, val sizePx: Float, val sans: Boolean = false)
+    private class Glyph(val x: Float, val baseline: Float, val text: String, val color: Int, val sizePx: Float, val sans: Boolean = false, val glow: Boolean = false)
     private class Span(val text: String, val color: Int, val sizePx: Float)
     /**
      * A "label + value-run" row for the aligned grid sizes (Full / Mega). When [inline] is true the row
@@ -255,7 +268,7 @@ class FusionHudView(context: Context) : View(context) {
         if (configString.isNullOrEmpty()) return
         val cfg = KeyValueSet(configString)
 
-        size = FusionSize.from(cfg.get("hudSize", "pill"))
+        size = FusionSize.from(cfg.get("hudSize", "minimal"))
         showFPS = cfg.get("showFPS", "1") == "1"
         showEngine = cfg.get("showEngine", "1") == "1"
         showGpuModel = cfg.get("showGpuModel", "1") == "1"
@@ -373,10 +386,10 @@ class FusionHudView(context: Context) : View(context) {
         return w
     }
 
-    private fun placeRun(startX: Float, baseline: Float, spans: List<Span>): Float {
+    private fun placeRun(startX: Float, baseline: Float, spans: List<Span>, glow: Boolean = false): Float {
         var x = startX
         for (s in spans) {
-            glyphs.add(Glyph(x, baseline, s.text, blend(s.color), s.sizePx))
+            glyphs.add(Glyph(x, baseline, s.text, blend(s.color), s.sizePx, glow = glow))
             x += measure(s.text, s.sizePx)
         }
         return x
@@ -509,7 +522,7 @@ class FusionHudView(context: Context) : View(context) {
     // ---- Layout builders --------------------------------------------------
     private fun rebuild() {
         glyphs.clear(); tileRects.clear(); pillBorder = null; graphRect = null
-        headerRect = null; headerMark = null; chipRect = null
+        headerRect = null; headerMark = null; chipRect = null; dPanel = null
         val s = snap
         if (s == null) { contentW = 0f; contentH = 0f; return }
         when (size) {
@@ -519,7 +532,7 @@ class FusionHudView(context: Context) : View(context) {
             FusionSize.MINIMAL -> buildMinimal(s)
             FusionSize.MEGA -> buildMega(s)
         }
-        if (size != FusionSize.PILL) addHeader()
+        if (size != FusionSize.PILL && size != FusionSize.MINIMAL) addHeader()
     }
 
     // ---- DroidDeck header and chip ----------------------------------------
@@ -925,9 +938,15 @@ class FusionHudView(context: Context) : View(context) {
         pillBorder = RectF(0f, 0f, contentW, contentH)
     }
 
+    // One column as wide as the widest row: the logo, FPS, lows, graph and engine line start on its left
+    // edge (ink, not advance), and the header keeps the same space above and below the logo.
     private fun buildMinimal(s: HudMetrics.Snapshot) {
-        val bigPx = sp(34f); val bigUnitPx = bigPx * 0.32f; val subPx = sp(11.5f)
-        val pad = sp(10f); val lineGap = sp(6f)
+        val bigPx = sp(34f); val bigUnitPx = bigPx * 0.32f; val subPx = sp(11.5f); val footPx = sp(9.5f)
+        val stroke = outlineWidth()
+        val ins = sp(8f)                     // room for the glow around the panel
+        val panelLeft = sp(13f)              // the orb and its glow stick out of the left side
+        val left = panelLeft + sp(16f)
+        val inner = ins + stroke
 
         // Same reasoning as the pill: 34sp is sized for one number, not two.
         val minGenerating = differs(fpsNow)
@@ -940,49 +959,91 @@ class FusionHudView(context: Context) : View(context) {
         if (showLow001) {
             sub += Span("  ·  0.01% ", colDim, subPx); sub += Span(lowText(lows.low001Fps) ?: "—", colFps, subPx)
         }
-        val bigW = runWidth(big); val bigH = lineH(bigPx)
-        val subW = runWidth(sub); val subH = lineH(subPx)
-        val gw = sp(120f); val gh = sp(22f)
-        val inner = max(max(bigW, subW), if (showGraph) gw else 0f)
-        contentW = inner + pad * 2
-        var y = pad
-        // big (centered)
-        placeRun(pad + (inner - bigW) / 2f, y - ascent(bigPx), big)
-        y += bigH + lineGap
-        // sub (centered)
-        placeRun(pad + (inner - subW) / 2f, y - ascent(subPx), sub)
-        y += subH + lineGap
-        // graph (centered) — toggled by the FPS-graph chip
-        if (showGraph) {
-            graphRect = RectF(pad + (inner - gw) / 2f, y, pad + (inner - gw) / 2f + gw, y + gh)
-            y += gh
-        }
-        contentH = y + pad
-        // Small API/engine label (DXVK/VKD3D/Zink), bottom-LEFT, near the graph — balances the subtle
-        // clock on the bottom-right (both share the same footer line). Gated by the "Engine" chip. Placed
-        // BEFORE addSubtleClock so both read the same footerTop (= contentH - pad).
         val footerLabel = listOf(if (showEngine) engineLabel else "", displayServer)
             .filter { it.isNotBlank() }.joinToString(" · ")
+        val hdr = if (hdrState != FusionHdr.NONE) hdrLine(footPx) else emptyList()
+
+        val wordPx = sp(10f); val clockPx = sp(9.5f); val gapH = sp(7f)
+        wordmarkPaint.textSize = wordPx
+        val markH = wordmarkPaint.fontMetrics.let { it.descent - it.ascent } * 0.95f
+        val markTop = inner + gapH
+        val markLeft = left - DroidDeckMark.inkLeftFor(markH)
+        headerMark = RectF(markLeft, markTop, markLeft + DroidDeckMark.widthFor(markH), markTop + markH)
+        val midY = markTop + markH / 2f
+        var x = markLeft + DroidDeckMark.inkRightFor(markH) + sp(6f)
+        wordmarkPaint.getTextBounds("DroidDeck", 0, 9, inkRect)
+        glyphs.add(Glyph(x, midY - inkRect.exactCenterY(), "DroidDeck", blend(colValue), wordPx, sans = true))
+        x += measureSans("DroidDeck", wordPx)
+        if (showClockTime) {
+            measurePaint.textSize = clockPx
+            measurePaint.getTextBounds("0", 0, 1, inkRect)
+            val base = midY - inkRect.exactCenterY()
+            x += sp(6f)
+            glyphs.add(Glyph(x, base, "·", blend(colDim), clockPx))
+            x += measure("·", clockPx) + sp(6f)
+            val t = clockTimeString()
+            glyphs.add(Glyph(x, base, t, blend(colDim), clockPx))
+            x += measure(t, clockPx)
+        }
+        dDividerTop = markTop + markH + gapH
+
+        val colW = maxOf(runWidth(big), runWidth(sub), x - left,
+            max(measure(footerLabel, footPx), runWidth(hdr)), if (showGraph) sp(120f) else 0f)
+        val bigBase = dDividerTop + max(1f, density) + sp(8f) + capHeight(big[0].sizePx)
+        placeRun(left - inkLeft(big[0].text, big[0].sizePx), bigBase, big, glow = true)
+        val subBase = bigBase + sp(10f) + capHeight(subPx)
+        placeRun(left - inkLeft(sub[0].text, subPx), subBase, sub)
+        var last = subBase
+        if (showGraph) {
+            val top = subBase + sp(9f)
+            graphRect = RectF(left, top, left + colW, top + sp(24f))
+            last = top + sp(24f)
+        }
         if (footerLabel.isNotBlank()) {
-            val apiPx = sp(9.5f)
-            val footerTop = contentH - pad
-            glyphs.add(Glyph(pad, footerTop - ascent(apiPx), footerLabel, blend(colDim), apiPx))
-            val apiW = measure(footerLabel, apiPx)
-            val clockW = if (footerClock()) measure(clockTimeString(), apiPx) else 0f
-            contentW = max(contentW, pad + apiW + sp(12f) + clockW + pad)
-            // The clock (when shown) grows contentH for the footer line; when it's hidden, do it here.
-            if (!footerClock()) contentH = footerTop + lineH(apiPx) + pad * 0.5f
+            val base = last + sp(8f) + capHeight(footPx)
+            glyphs.add(Glyph(left - inkLeft(footerLabel, footPx), base, footerLabel, blend(colDim), footPx))
+            last = base
         }
-        addSubtleClock(pad)
-        // Wayland HDR state on its own line under the footer (engine · display server), HDR sessions only.
-        if (hdrState != FusionHdr.NONE) {
-            val px = sp(9.5f)
-            val line = hdrLine(px)
-            val top = contentH - pad * 0.5f + sp(1f)
-            val end = placeRun(pad, top - ascent(px), line)
-            contentH = top + lineH(px) + pad * 0.5f
-            contentW = max(contentW, end + pad)
+        if (hdr.isNotEmpty()) {
+            val base = last + sp(6f) + capHeight(footPx)
+            placeRun(left - inkLeft(hdr[0].text, footPx), base, hdr)
+            last = base
         }
+        measurePaint.textSize = footPx
+        val panel = RectF(panelLeft, ins, left + colW + sp(34f), last + measurePaint.fontMetrics.descent + sp(9f) + stroke)
+
+        // The round side curves in towards the top and bottom: widen the panel until every row clears it.
+        val r = panel.height() / 2f; val cy = panel.centerY(); val margin = stroke + sp(4f)
+        fun curveIn(top: Float, bottom: Float): Float {
+            val dy = max(cy - top, bottom - cy)
+            return if (dy <= 0f) 0f else if (dy >= r) r else r - sqrt(r * r - dy * dy)
+        }
+        var right = panel.right
+        for (g in glyphs) {
+            val paint = if (g.sans) wordmarkPaint else measurePaint
+            paint.textSize = g.sizePx
+            paint.getTextBounds(g.text, 0, g.text.length, inkRect)
+            if (inkRect.isEmpty) continue
+            right = max(right, g.x + inkRect.right + curveIn(g.baseline + inkRect.top, g.baseline + inkRect.bottom) + margin)
+        }
+        graphRect?.let { right = max(right, it.right + curveIn(it.top, it.bottom) + margin) }
+        panel.right = max(right, panel.left + sp(6f) + r)
+        dPanel = panel
+        contentW = panel.right + ins
+        contentH = panel.bottom + ins
+    }
+
+    private fun capHeight(px: Float): Float {
+        measurePaint.textSize = px
+        measurePaint.getTextBounds("0", 0, 1, inkRect)
+        return -inkRect.top.toFloat()
+    }
+
+    private fun inkLeft(text: String, px: Float): Float {
+        if (text.isEmpty()) return 0f
+        measurePaint.textSize = px
+        measurePaint.getTextBounds(text, 0, text.length, inkRect)
+        return inkRect.left.toFloat()
     }
 
     /** Places a column of "label + value" rows; returns (bottomY, rightX). Appends glyphs. Rows flagged
@@ -1170,24 +1231,28 @@ class FusionHudView(context: Context) : View(context) {
     override fun onDraw(canvas: Canvas) {
         if (contentW <= 0f || contentH <= 0f) { lockController.drawBadge(canvas); return }
 
-        // The Pill is a capsule — its background must use the SAME height/2 radius as the outline, or the
-        // boxier 8sp background corners poke out past the accent border (the "bg larger than outline" bug).
-        val pill = pillBorder
-        val radius = if (pill != null) height / 2f else sp(8f)
-        bgPaint.color = Color.argb((bgOpacity.coerceIn(0f, 1f) * 255f).roundToInt(),
-            Color.red(surfaceRgb), Color.green(surfaceRgb), Color.blue(surfaceRgb))
-        canvas.drawRoundRect(0f, 0f, width.toFloat(), height.toFloat(), radius, radius, bgPaint)
-        headerRect?.let { drawHeader(canvas, it, radius) }
+        val panel = dPanel
+        if (panel != null) {
+            minimalFrame(panel)?.let { canvas.drawBitmap(it, 0f, 0f, null) }
+        } else {
+            // The Pill is a capsule — its background must use the SAME height/2 radius as the outline, or the
+            // boxier 8sp background corners poke out past the accent border (the "bg larger than outline" bug).
+            val pill = pillBorder
+            val radius = if (pill != null) height / 2f else sp(8f)
+            bgPaint.color = panelColor()
+            canvas.drawRoundRect(0f, 0f, width.toFloat(), height.toFloat(), radius, radius, bgPaint)
+            headerRect?.let { drawHeader(canvas, it, radius) }
 
-        // Outline follows the settings for EVERY size (incl. the Pill): width from the outline slider
-        // (0 = none), colour = accent or grey per the "Outline color" toggle. The Pill only differs in
-        // its capsule radius (height/2), which is baked into `radius` above.
-        val strokeW = if (outlineIntensity > 0f) outlineIntensity * sp(3.5f) else 0f
-        if (strokeW > 0f) {
-            strokePaint.strokeWidth = strokeW
-            strokePaint.color = if (outlineFollowAccent) accent else Color.rgb(200, 200, 200)
-            val h = strokeW / 2f
-            canvas.drawRoundRect(h, h, width - h, height - h, radius, radius, strokePaint)
+            // Outline follows the settings for EVERY size (incl. the Pill): width from the outline slider
+            // (0 = none), colour = accent or grey per the "Outline color" toggle. The Pill only differs in
+            // its capsule radius (height/2), which is baked into `radius` above.
+            val strokeW = outlineWidth()
+            if (strokeW > 0f) {
+                strokePaint.strokeWidth = strokeW
+                strokePaint.color = outlineColor()
+                val h = strokeW / 2f
+                canvas.drawRoundRect(h, h, width - h, height - h, radius, radius, strokePaint)
+            }
         }
 
         // Tile backings
@@ -1204,7 +1269,9 @@ class FusionHudView(context: Context) : View(context) {
             val paint = if (g.sans) wordmarkPaint else drawPaint
             paint.textSize = g.sizePx
             paint.color = g.color
+            if (g.glow) paint.setShadowLayer(sp(6f), 0f, 0f, withAlpha(colGraph, 217))
             canvas.drawText(g.text, g.x, g.baseline, paint)
+            if (g.glow) paint.clearShadowLayer()
         }
         headerMark?.let { DroidDeckMark.draw(canvas, it.left, it.top, it.height(), blend(colValue), accent) }
 
@@ -1219,8 +1286,6 @@ class FusionHudView(context: Context) : View(context) {
     private fun drawGraph(canvas: Canvas, rect: RectF) {
         val stats = frames ?: return
         stats.graph(graphBuf)
-        graphPaint.strokeWidth = sp(1.6f)
-        graphPaint.color = blend(colGraph)
         val step = rect.width() / (graphBuf.size - 1)
         graphPath.rewind()
         for (i in graphBuf.indices) {
@@ -1228,8 +1293,100 @@ class FusionHudView(context: Context) : View(context) {
             val py = rect.bottom - min(graphBuf[i], GRAPH_CLIP_MS) / FrameStats.GRAPH_MAX_MS * rect.height()
             if (i == 0) graphPath.moveTo(px, py) else graphPath.lineTo(px, py)
         }
+        if (dPanel != null) {
+            // Neon without a blur: a blur would be redrawn with every frame.
+            graphPaint.strokeWidth = sp(4.5f)
+            graphPaint.color = withAlpha(blend(colGraph), 56)
+            canvas.drawPath(graphPath, graphPaint)
+        }
+        graphPaint.strokeWidth = sp(1.6f)
+        graphPaint.color = blend(colGraph)
         canvas.drawPath(graphPath, graphPaint)
     }
+
+    private fun outlineWidth(): Float = if (outlineIntensity > 0f) outlineIntensity * sp(3.5f) else 0f
+    private fun outlineColor(): Int = if (outlineFollowAccent) accent else Color.rgb(200, 200, 200)
+    private fun panelColor(): Int = Color.argb((bgOpacity.coerceIn(0f, 1f) * 255f).roundToInt(),
+        Color.red(surfaceRgb), Color.green(surfaceRgb), Color.blue(surfaceRgb))
+    private fun withAlpha(color: Int, alpha: Int): Int =
+        Color.argb(alpha, Color.red(color), Color.green(color), Color.blue(color))
+
+    /** The D: straight left side with small corners, a half circle on the right. [split] > 0 leaves that
+     *  much open above and below the middle of the left side, where the orb sits. */
+    private fun dShape(l: Float, t: Float, r: Float, b: Float, corner: Float, split: Float): Path {
+        val rad = (b - t) / 2f; val cy = (t + b) / 2f
+        return Path().apply {
+            if (split > 0f) moveTo(l, cy + split) else moveTo(l, t + corner)
+            lineTo(l, b - corner); quadTo(l, b, l + corner, b)
+            lineTo(r - rad, b)
+            arcTo(r - 2f * rad, t, r, b, 90f, -180f, false)
+            lineTo(l + corner, t); quadTo(l, t, l, t + corner)
+            if (split > 0f) lineTo(l, cy - split) else close()
+        }
+    }
+
+    /** Where the inside of the outline's round side is at height [y]. */
+    private fun roundEdgeX(p: RectF, y: Float, stroke: Float): Float {
+        val r = p.height() / 2f - stroke
+        val dy = p.centerY() - y
+        val cx = p.right - p.height() / 2f
+        return if (kotlin.math.abs(dy) >= r) cx else cx + sqrt(r * r - dy * dy)
+    }
+
+    private fun minimalFrame(panel: RectF): Bitmap? {
+        if (width <= 0 || height <= 0) return null
+        val stroke = outlineWidth()
+        val key = "$width,$height,$panel,$dDividerTop,$stroke,$accent,$surfaceRgb,$bgOpacity,${outlineColor()}"
+        if (key == dFrameKey) dFrame?.let { return it }
+        val bmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val c = Canvas(bmp)
+        val corner = sp(6f)
+        val body = dShape(panel.left, panel.top, panel.right, panel.bottom, corner, 0f)
+        bgPaint.color = panelColor()
+        c.drawPath(body, bgPaint)
+        c.save()
+        c.clipPath(body)
+        val dividerBottom = dDividerTop + max(1f, density)
+        headerPaint.shader = android.graphics.LinearGradient(panel.left, 0f, panel.right, 0f,
+            withAlpha(accent, 46), withAlpha(accent, 0), android.graphics.Shader.TileMode.CLAMP)
+        c.drawRect(panel.left, panel.top, panel.right, dividerBottom, headerPaint)
+        headerPaint.shader = null
+        headerPaint.color = withAlpha(accent, 90)
+        c.drawRect(panel.left, dDividerTop, roundEdgeX(panel, dDividerTop, stroke), dividerBottom, headerPaint)
+        val wmH = panel.height() * 0.92f
+        DroidDeckMark.draw(c, panel.right - DroidDeckMark.widthFor(wmH) - panel.height() * 0.02f,
+            panel.centerY() - wmH / 2f, wmH, Color.argb(20, 255, 255, 255), withAlpha(accent, 20))
+        c.restore()
+        if (stroke > 0f) {
+            val h = stroke / 2f
+            val outline = dShape(panel.left + h, panel.top + h, panel.right - h, panel.bottom - h, corner, sp(9f))
+            val blur = BlurMaskFilter((sp(3.2f) - 0.5f).coerceAtLeast(0.5f) / 0.57735f, BlurMaskFilter.Blur.NORMAL)
+            glowPaint.strokeWidth = stroke
+            // Two blurred passes under the sharp one, as the 4-in-1 preview's neon.
+            for (pass in 0..2) {
+                glowPaint.maskFilter = if (pass < 2) blur else null
+                glowPaint.style = Paint.Style.STROKE; glowPaint.color = outlineColor()
+                c.drawPath(outline, glowPaint)
+                glowPaint.style = Paint.Style.FILL; glowPaint.color = accent
+                c.drawCircle(panel.left + h, panel.centerY(), sp(5.5f), glowPaint)
+            }
+            glowPaint.maskFilter = null
+        }
+        dFrame = bmp; dFrameKey = key
+        return bmp
+    }
+
+    @VisibleForTesting
+    internal fun showForTest(snapshot: HudMetrics.Snapshot, engine: String, nowNs: Long) {
+        engineLabel = engine
+        snap = snapshot
+        lows = frames?.lows(nowNs) ?: FrameStats.Lows.EMPTY
+        fpsNow = frames?.fps ?: 0f
+        rebuild()
+    }
+
+    @VisibleForTesting internal fun minimalPanel(): RectF? = dPanel
+    @VisibleForTesting internal fun graphArea(): RectF? = graphRect
 
     private fun drawHeader(canvas: Canvas, rect: RectF, radius: Float) {
         canvas.save()
