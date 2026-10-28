@@ -1,5 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="gog_maintenance">Manage GOG installation</string>
+    <string name="gog_check">Check for updates</string>
+    <string name="gog_repair">Verify/Repair</string>
+    <string name="gog_patches">Offline patches</string>
+    <string name="gog_refresh">Download full offline installer</string>
+    <string name="gog_update">Update to %1$s</string>
+    <string name="gog_resume">Resume GOG maintenance</string>
+    <string name="gog_open_patch">Open patch installer</string>
+    <string name="gog_patch_in_session">Finish or cancel the patch installer in the Linux session.</string>
+    <string name="gog_patch_requirements">Choose a patch for your installed version and language. Supported source versions may not be listed.</string>
+    <string name="gog_no_patches">GOG has no standalone Windows patches for this game.</string>
+    <string name="gog_managed_files">Modified game files may be replaced.</string>
+    <string name="gog_patch_installer_note">The installer opens in your Linux session.</string>
+    <string name="gog_download_label">Download</string>
+    <string name="gog_space_label">Extra space</string>
+    <string name="gog_space_estimate_label">Space estimate</string>
+    <string name="gog_repair_action">Repair files</string>
+    <string name="gog_refresh_action">Refresh installation</string>
+    <string name="gog_select_patch">Select</string>
     <string name="glasses_experimental">Luma Ultra cameras — Experimental</string>
     <string name="glasses_joycons">Joy-Con position tracking</string>
     <string name="glasses_joycons_hint">Use the glasses cameras to position your paired Joy-Cons. Rotation and button inputs come from the Joy-Cons. Position is estimated when your wrists are hidden. Replaces bare-hand controllers and pauses phone-camera tracking. Point the Joy-Cons forward when connecting or recentering.</string>
@@ -3333,4 +3352,6 @@
     <string name="desktop_restore_done_body">The apps you added are installed again.</string>
     <string name="desktop_restore_failed_title">Some software couldn\'t be restored</string>
     <string name="desktop_restore_failed_body">See ~/.cache/droiddeck/apt-restore.log, then try sudo apt install in Konsole.</string>
+    <string name="gog_full_files">Native optimizations are unavailable. The download includes complete replacement files.</string>
+    <string name="gog_recover">Verify patch result</string>
 </resources>

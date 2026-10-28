@@ -199,7 +199,37 @@ def pwsh():
     raise Refused('PowerShell 7 (pwsh) is required for the local signer')
 
 
+def signing_env():
+    """The .signing.env build_local.sh uses: the override, else the checkout's own, else the main checkout's."""
+    common = Path(git('rev-parse', '--path-format=absolute', '--git-common-dir').decode().strip())
+    for candidate in (os.environ.get('DROIDDECK_SIGNING_ENV'), ROOT / '.signing.env', common.parent / '.signing.env'):
+        if candidate and Path(candidate).is_file():
+            return Path(candidate).resolve()
+    return None
+
+
+def version_key(path):
+    return [int(part) if part.isdigit() else -1 for part in path.parent.name.replace('-', '.').split('.')]
+
+
+def sign_with_env(env_file, unsigned, signed):
+    complete = [path for path in (sdk_root() / 'build-tools').glob('*/aapt')
+                if all((path.parent / tool).is_file() for tool in ('zipalign', 'apksigner'))]
+    build_tools = sorted(complete, key=version_key, reverse=True)
+    if not build_tools:
+        raise Refused('no build-tools with aapt, zipalign and apksigner under ' + str(sdk_root() / 'build-tools'))
+    # BUILD_TOOLS is assigned after the env file is sourced so the file cannot replace the chosen SDK.
+    script = 'set -a; cd "$(dirname "$1")"; . "$1"; set +a; BUILD_TOOLS="$5" exec "$2" "$3" standard "$4"'
+    result = subprocess.run(['bash', '-c', script, 'sign', str(env_file), str(ROOT / 'tools/release/sign-apk.sh'),
+                             str(unsigned), str(signed), str(build_tools[0].parent.resolve())],
+                            capture_output=True, text=True)
+    if result.returncode or not signed.is_file():
+        raise Refused('Signing failed:\n' + (result.stdout + result.stderr).strip())
+
+
 def sign(unsigned, signed):
+    if not SIGNER.is_file() and (env_file := signing_env()):
+        return sign_with_env(env_file, unsigned, signed)
     # Microsoft Store Python virtualizes AppData for child processes too and hides the signer; use a python.org install.
     def quoted(value):
         return "'" + str(value).replace("'", "''") + "'"

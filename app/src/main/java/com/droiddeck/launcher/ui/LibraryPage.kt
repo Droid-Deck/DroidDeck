@@ -92,6 +92,7 @@ import com.droiddeck.launcher.stores.formatBytes
 import com.droiddeck.launcher.stores.itch.ItchCollection
 import com.droiddeck.launcher.stores.itch.ItchCollections
 import com.droiddeck.launcher.stores.itch.ItchUpdates
+import com.droiddeck.launcher.stores.gog.GogMaintenance
 import com.droiddeck.launcher.stores.retainOrder
 import com.droiddeck.launcher.stores.xbox.XboxLibraryFilter
 import com.droiddeck.launcher.stores.sortGames
@@ -586,12 +587,15 @@ internal fun LibraryMarker(e: LibraryEntry, download: DownloadEntry?) {
         download != null -> Text("${download.percent}%", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = pal.signal, maxLines = 1)
         e.item != null && StoresState.isUnfinished(e.item) -> Text(stringResource(R.string.stores_resume), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = pal.signal, maxLines = 1)
         else -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-            if (e.installed && e.storeKey?.let { it in ItchUpdates.available } == true) Text(stringResource(R.string.common_update), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = pal.signal, maxLines = 1)
+            if (e.installed && libraryUpdateAvailable(e)) Text(stringResource(R.string.common_update), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = pal.signal, maxLines = 1)
             if (size != null && size > 0) Text(formatBytes(size), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1)
             if (!e.installed) Icon(Icons.Outlined.Download, stringResource(R.string.stores_section_not_installed), tint = Color.White, modifier = Modifier.size(12.dp))
         }
     }
 }
+
+private fun libraryUpdateAvailable(e: LibraryEntry): Boolean = e.storeKey?.let { it in ItchUpdates.available } == true ||
+    e.source == Store.GOG.id && (e.item?.id ?: e.game?.storeId)?.let { GogMaintenance.checks[it]?.state } == GogMaintenance.State.AVAILABLE
 
 @Composable
 private fun LibraryRow(e: LibraryEntry, first: Boolean, navigation: Modifier, choose: (() -> Unit)?, onOpen: (String) -> Unit) {
@@ -613,6 +617,7 @@ private fun LibraryRow(e: LibraryEntry, first: Boolean, navigation: Modifier, ch
     val size = if (e.installed && folder != null) diskSize(inst, folder) else e.item?.let { StoreSizes.size(it) }?.takeIf { it > 0 }
     val status = when {
         download != null -> downloadLabel(download)
+        e.installed && libraryUpdateAvailable(e) -> stringResource(R.string.common_update)
         !e.installed -> stringResource(R.string.stores_section_not_installed)
         e.game != null -> playedSpan(e.game.lastPlayed)?.replaceFirstChar { it.uppercase() } ?: stringResource(R.string.games_never_played)
         else -> stringResource(R.string.stores_installed_chip)

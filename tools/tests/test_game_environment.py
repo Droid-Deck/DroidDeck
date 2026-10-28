@@ -30,6 +30,24 @@ def config_text(entries):
 
 
 class GameDebugLoggingTest(unittest.TestCase):
+    def test_maintenance_precision_survives_run_with_performance_game_settings(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            config = home / ".config/droiddeck/game-environment.json"
+            config.parent.mkdir(parents=True)
+            config.write_text(json.dumps({"version": 1, "shared": {"FEX_X87REDUCEDPRECISION": "1"},
+                                          "games": {"42": {"FEX_X87REDUCEDPRECISION": "1"}}}))
+            probe = home / "proton"
+            probe.write_text("#!" + sys.executable + "\nimport os\nprint(os.environ['FEX_X87REDUCEDPRECISION'])\n")
+            probe.chmod(0o755)
+            base = {**os.environ, "HOME": tmp, "STEAM_COMPAT_DATA_PATH": str(home / "compatdata/42")}
+            maintenance = subprocess.run([sys.executable, str(BIN / "droiddeck-game-env"), str(probe), "run"],
+                env={**base, "DROIDDECK_GOG_MAINTENANCE": "1", "FEX_X87REDUCEDPRECISION": "0"}, text=True, capture_output=True, check=True)
+            game = subprocess.run([sys.executable, str(BIN / "droiddeck-game-env"), str(probe), "waitforexitandrun"],
+                env={**base, "FEX_X87REDUCEDPRECISION": "1"}, text=True, capture_output=True, check=True)
+            self.assertEqual("0", maintenance.stdout.strip())
+            self.assertEqual("1", game.stdout.strip())
+
     def test_real_game_launch_without_config_file_keeps_the_base_environment(self):
         with tempfile.TemporaryDirectory() as tmp:
             home = Path(tmp)

@@ -193,7 +193,8 @@ class SignTest(unittest.TestCase):
             seen.append(command)
             return mock.Mock(returncode=1, stdout='', stderr='')
 
-        with mock.patch.object(deploy_fast, 'pwsh', return_value='pwsh'):
+        with mock.patch.object(deploy_fast, 'pwsh', return_value='pwsh'), \
+                mock.patch.object(deploy_fast, 'signing_env', return_value=None):
             with mock.patch.object(deploy_fast, 'SIGNER', Path("C:/O'Brien/sign.ps1")):
                 with mock.patch.object(deploy_fast.subprocess, 'run', side_effect=run):
                     with self.assertRaises(deploy_fast.Refused):
@@ -203,6 +204,74 @@ class SignTest(unittest.TestCase):
         self.assertIn("a''b", script)
         self.assertNotIn("a'b", script.replace("a''b", ''))
         self.assertNotIn("O'Brien", script.replace("O''Brien", ''))
+
+    def test_signing_env_prefers_the_override_then_the_checkout_then_the_main_checkout(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            (base / 'main').mkdir()
+            (base / 'checkout').mkdir()
+            base = base.resolve()
+            override, local, shared = base / 'override.env', base / 'checkout/.signing.env', base / 'main/.signing.env'
+            common = (str(base / 'main/.git') + '\n').encode()
+            with mock.patch.object(deploy_fast, 'ROOT', base / 'checkout'), \
+                    mock.patch.object(deploy_fast, 'git', return_value=common), \
+                    mock.patch.dict(deploy_fast.os.environ, {'DROIDDECK_SIGNING_ENV': str(override)}):
+                self.assertIsNone(deploy_fast.signing_env())
+                shared.write_text('x')
+                self.assertEqual(deploy_fast.signing_env(), shared)
+                local.write_text('x')
+                self.assertEqual(deploy_fast.signing_env(), local)
+                override.write_text('x')
+                self.assertEqual(deploy_fast.signing_env(), override)
+
+    def test_the_env_signer_is_used_when_the_windows_signer_is_missing(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            (base / 'build-tools/35.0.0').mkdir(parents=True)
+            for tool in ('aapt', 'zipalign', 'apksigner'):
+                (base / 'build-tools/35.0.0' / tool).write_text('')
+            signed = base / 'out.apk'
+
+            def run(command, **options):
+                signed.write_text('apk')
+                return mock.Mock(returncode=0, stdout='', stderr='')
+
+            with mock.patch.object(deploy_fast, 'SIGNER', base / 'missing.ps1'), \
+                    mock.patch.object(deploy_fast, 'signing_env', return_value=base / '.signing.env'), \
+                    mock.patch.object(deploy_fast, 'sdk_root', return_value=base), \
+                    mock.patch.object(deploy_fast.subprocess, 'run', side_effect=run) as run_:
+                deploy_fast.sign(base / 'in.apk', signed)
+            self.assertEqual(run_.call_args[0][0][-4:], [str(deploy_fast.ROOT / 'tools/release/sign-apk.sh'), str(base / 'in.apk'), str(signed), str((base / 'build-tools/35.0.0').resolve())])
+            failed = mock.Mock(returncode=1, stdout='', stderr='boom')
+            signed.unlink()
+            with mock.patch.object(deploy_fast, 'SIGNER', base / 'missing.ps1'), \
+                    mock.patch.object(deploy_fast, 'signing_env', return_value=base / '.signing.env'), \
+                    mock.patch.object(deploy_fast, 'sdk_root', return_value=base), \
+                    mock.patch.object(deploy_fast.subprocess, 'run', return_value=failed):
+                with self.assertRaises(deploy_fast.Refused):
+                    deploy_fast.sign(base / 'in.apk', signed)
+
+    def test_the_newest_build_tools_win_numerically_and_the_env_file_cannot_replace_them(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory).resolve()
+            for version in ('9.0.0', '35.0.0', '100.0.0'):
+                (base / 'build-tools' / version).mkdir(parents=True)
+                for tool in ('aapt', 'zipalign', 'apksigner'):
+                    (base / 'build-tools' / version / tool).write_text('')
+            (base / 'build-tools/200.0.0').mkdir()
+            (base / 'build-tools/200.0.0/aapt').write_text('')
+            root = base / 'checkout'
+            (root / 'tools/release').mkdir(parents=True)
+            fake = root / 'tools/release/sign-apk.sh'
+            fake.write_text('#!/bin/bash\necho "$BUILD_TOOLS" > "$3"\n')
+            fake.chmod(0o755)
+            env_file = base / 'keys/.signing.env'
+            env_file.parent.mkdir()
+            env_file.write_text('BUILD_TOOLS=/wrong\n')
+            signed = base / 'out.apk'
+            with mock.patch.object(deploy_fast, 'ROOT', root), mock.patch.object(deploy_fast, 'sdk_root', return_value=base):
+                deploy_fast.sign_with_env(env_file, base / 'in.apk', signed)
+            self.assertEqual(signed.read_text().strip(), str(base / 'build-tools/100.0.0'))
 
 
 if __name__ == '__main__':

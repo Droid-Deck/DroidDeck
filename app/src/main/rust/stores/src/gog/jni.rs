@@ -153,6 +153,15 @@ impl GogEvents for JniEvents {
             let _ = env.delete_local_ref(text);
         });
     }
+
+    fn on_maintenance(&self, network_bytes: u64, reused_bytes: u64, applied_bytes: u64) {
+        self.with_env(|env| {
+            let _ = env.call_method(self.listener.as_obj(), "onMaintenance", "(JJJ)V", &[
+                JValue::Long(network_bytes as jlong), JValue::Long(reused_bytes as jlong), JValue::Long(applied_bytes as jlong),
+            ]);
+            Self::clear_exception(env);
+        });
+    }
 }
 
 fn jstring_to_string(env: &mut JNIEnv, value: &JString) -> Option<String> {
@@ -197,7 +206,7 @@ pub extern "system" fn Java_com_droiddeck_launcher_stores_gog_GogNative_nativePr
     _env: JNIEnv,
     _class: JClass,
 ) -> jint {
-    1
+    2
 }
 
 #[no_mangle]

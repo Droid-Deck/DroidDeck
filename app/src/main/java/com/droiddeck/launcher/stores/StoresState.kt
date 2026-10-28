@@ -81,7 +81,7 @@ object StoresState {
             runCatching { com.droiddeck.launcher.stores.battlenet.BattleNetClient.syncAccount(app) }
             val found = Store.entries.mapNotNull { store -> StoreAccounts.displayName(app, store)?.let { store to it } }
             val onDisk = StoreInstallRoot.gameFolders(app).mapNotNull { folder ->
-                StoreGameSidecar.read(folder)?.takeIf { it.isInstalled }?.let { InstalledStoreGame(it, folder) }
+                StoreGameSidecar.read(folder)?.takeIf { it.isInstalled || it.store == Store.GOG && it.state == StoreGameSidecar.STATE_UPDATING }?.let { InstalledStoreGame(it, folder) }
             } + runCatching { com.droiddeck.launcher.stores.battlenet.BattleNetBackend.installedGames(app) }.getOrDefault(emptyList())
             val partial = StoreInstallRoot.unfinished(app)
             val version = if (StoresNative.available) StoresNative.version ?: "" else ""
@@ -95,6 +95,7 @@ object StoresState {
                     engine = version
                     accountsLoaded = true
                 }
+                com.droiddeck.launcher.stores.gog.GogMaintenance.checkInstalled(app, onDisk)
             }
         }
     }

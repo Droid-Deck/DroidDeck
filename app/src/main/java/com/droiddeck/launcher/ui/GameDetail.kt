@@ -351,7 +351,7 @@ internal fun GameActions(
                 val gone = storeKey?.let { StoresState.uninstalling[it] }
                 val xboxBusy = store == Store.XBOX && id != null && XboxContent.busy(id)
                 PrimaryButton(
-                    stringResource(R.string.stores_play), enabled = !s.busy && gone == null && download == null && !xboxBusy,
+                    stringResource(R.string.stores_play), enabled = !s.busy && gone == null && download == null && !xboxBusy && (store != Store.GOG || installed?.sidecar?.isInstalled != false),
                     main = true, icon = Icons.Filled.PlayArrow, modifier = leadOn,
                 ) {
                     if (game != null) a.onSteamGame(game) else if (store != null && id != null) launchStoreGame(ctx, store, id, s, a)
@@ -363,6 +363,7 @@ internal fun GameActions(
                     EditArtButton(game)
                 }
                 if (store == Store.ITCH && installed != null) ItchUpdateButton(installed, download == null && StoresState.uninstalling[installed.key] == null)
+                if (store == Store.GOG && installed != null) GogMaintenanceActions(installed)
                 if (store == Store.XBOX && id != null) XboxInstalledStream(id, game?.name ?: item?.title.orEmpty(), item)
                 if (store == Store.XBOX && installed != null && id != null) {
                     SecondaryButton(stringResource(R.string.stores_xbox_update), enabled = download == null && !XboxRuntime.isActive(id)) {
