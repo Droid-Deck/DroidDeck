@@ -36,8 +36,15 @@ class Refused(Exception):
     pass
 
 
+def run_bounded(command, timeout, **options):
+    try:
+        return subprocess.run(command, timeout=timeout, **options)
+    except subprocess.TimeoutExpired:
+        raise Refused(' '.join(map(str, command[:4])) + ' timed out')
+
+
 def git(*args, check=True):
-    result = subprocess.run(['git', '-C', str(ROOT), *args], capture_output=True, check=False)
+    result = run_bounded(['git', '-C', str(ROOT), *args], 300, capture_output=True, check=False)
     if check and result.returncode:
         raise Refused('git ' + ' '.join(args) + ' failed: ' + result.stderr.decode(errors='replace').strip())
     return result.stdout
@@ -107,8 +114,8 @@ def graft(donor, replacements, output):
 
 
 def release_tags(limit=60):
-    out = subprocess.run(['gh', 'release', 'list', '-R', CI_REPO, '--limit', str(limit), '--json', 'tagName'],
-                         capture_output=True, text=True)
+    out = run_bounded(['gh', 'release', 'list', '-R', CI_REPO, '--limit', str(limit), '--json', 'tagName'],
+                      120, capture_output=True, text=True)
     if out.returncode:
         raise Refused('Could not list DroidDeck-CI releases: ' + out.stderr.strip())
     return [item['tagName'] for item in json.loads(out.stdout) if item['tagName'].startswith('main-')]
@@ -143,13 +150,17 @@ def fetch_donor(tag):
     folder = CACHE / tag
     apk = folder / f'DroidDeck-{tag}.apk'
     sums = folder / 'SHA256SUMS.txt'
-    if not apk.is_file():
+    if not (apk.is_file() and sums.is_file()):
         folder.mkdir(parents=True, exist_ok=True)
         for pattern in (apk.name, sums.name):
-            result = subprocess.run(['gh', 'release', 'download', tag, '-R', CI_REPO, '-p', pattern,
-                                     '-D', str(folder), '--clobber'], capture_output=True, text=True)
-            if result.returncode:
-                raise Refused('Download failed: ' + result.stderr.strip())
+            try:
+                result = run_bounded(['gh', 'release', 'download', tag, '-R', CI_REPO, '-p', pattern,
+                                      '-D', str(folder), '--clobber'], 900, capture_output=True, text=True)
+                if result.returncode:
+                    raise Refused('Download failed: ' + result.stderr.strip())
+            except Refused:
+                apk.unlink(missing_ok=True)
+                raise
     expected = dict(reversed(line.split(None, 1)) for line in sums.read_text().splitlines() if line.strip())
     if digest(apk) != expected.get(apk.name, '').strip():
         apk.unlink()
@@ -190,8 +201,10 @@ def pwsh():
 
 def sign(unsigned, signed):
     # Microsoft Store Python virtualizes AppData for child processes too and hides the signer; use a python.org install.
-    command = (f"if (-not (Test-Path -LiteralPath '{SIGNER}')) {{ Write-Error 'Local signer not found: {SIGNER}'; exit 1 }}; "
-               f"& '{SIGNER}' -InputApk '{unsigned}' -OutputApk '{signed}' -SdkRoot '{sdk_root()}'")
+    def quoted(value):
+        return "'" + str(value).replace("'", "''") + "'"
+    command = (f"if (-not (Test-Path -LiteralPath {quoted(SIGNER)})) {{ Write-Error 'Local signer not found'; exit 1 }}; "
+               f"& {quoted(SIGNER)} -InputApk {quoted(unsigned)} -OutputApk {quoted(signed)} -SdkRoot {quoted(sdk_root())}")
     result = subprocess.run([pwsh(), '-NoProfile', '-Command', command], capture_output=True, text=True)
     if result.returncode or not signed.is_file():
         raise Refused('Signing failed:\n' + (result.stdout + result.stderr).strip())
@@ -251,6 +264,8 @@ def run(args):
         print('Nothing to graft; the donor already matches this checkout.')
         if not args.plan:
             print('Donor APK:', donor)
+            if args.install:
+                install(donor)
         return
     if args.plan:
         return

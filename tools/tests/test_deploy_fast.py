@@ -147,6 +147,63 @@ class DonorTest(unittest.TestCase):
                 sums.write_text(hashlib.sha256(b'apk').hexdigest() + '  DroidDeck-main-x.apk\n')
                 self.assertEqual(deploy_fast.fetch_donor('main-x'), apk)
 
+    def test_a_cached_apk_without_checksums_is_downloaded_again(self):
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory) / 'main-x'
+            folder.mkdir()
+            apk = folder / 'DroidDeck-main-x.apk'
+            apk.write_bytes(b'truncated')
+            calls = []
+            sums = hashlib.sha256(b'apk').hexdigest() + '  ' + apk.name + '\n'
+
+            def download(command, timeout, **options):
+                pattern = command[command.index('-p') + 1]
+                calls.append(pattern)
+                (folder / pattern).write_bytes(b'apk' if pattern.endswith('.apk') else sums.encode())
+                return mock.Mock(returncode=0, stderr='')
+
+            with mock.patch.object(deploy_fast, 'CACHE', Path(directory)):
+                with mock.patch.object(deploy_fast, 'run_bounded', download):
+                    self.assertEqual(deploy_fast.fetch_donor('main-x'), apk)
+            self.assertEqual(calls, [apk.name, 'SHA256SUMS.txt'])
+
+    def test_a_failed_download_removes_the_apk_and_a_timeout_is_refused(self):
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory) / 'main-x'
+            folder.mkdir()
+            apk = folder / 'DroidDeck-main-x.apk'
+            apk.write_bytes(b'partial')
+            failed = mock.Mock(returncode=1, stderr='boom')
+            with mock.patch.object(deploy_fast, 'CACHE', Path(directory)):
+                with mock.patch.object(deploy_fast, 'run_bounded', return_value=failed):
+                    with self.assertRaises(deploy_fast.Refused):
+                        deploy_fast.fetch_donor('main-x')
+            self.assertFalse(apk.exists())
+        timeout = deploy_fast.subprocess.TimeoutExpired('git', 1)
+        with mock.patch.object(deploy_fast.subprocess, 'run', side_effect=timeout):
+            with self.assertRaises(deploy_fast.Refused):
+                deploy_fast.git('status')
+
+
+class SignTest(unittest.TestCase):
+    def test_paths_with_apostrophes_are_escaped_for_powershell(self):
+        seen = []
+
+        def run(command, **options):
+            seen.append(command)
+            return mock.Mock(returncode=1, stdout='', stderr='')
+
+        with mock.patch.object(deploy_fast, 'pwsh', return_value='pwsh'):
+            with mock.patch.object(deploy_fast, 'SIGNER', Path("C:/O'Brien/sign.ps1")):
+                with mock.patch.object(deploy_fast.subprocess, 'run', side_effect=run):
+                    with self.assertRaises(deploy_fast.Refused):
+                        deploy_fast.sign(Path("C:/a'b/in.apk"), Path("C:/a'b/out.apk"))
+        script = seen[0][-1]
+        self.assertIn("O''Brien", script)
+        self.assertIn("a''b", script)
+        self.assertNotIn("a'b", script.replace("a''b", ''))
+        self.assertNotIn("O'Brien", script.replace("O''Brien", ''))
+
 
 if __name__ == '__main__':
     unittest.main()
