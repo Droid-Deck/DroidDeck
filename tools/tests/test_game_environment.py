@@ -971,6 +971,25 @@ class GameEnvironmentTest(unittest.TestCase):
             subprocess.run(["bash", "-n"], input=script, text=True, check=True)
             self.assertIn('bl_run ${BL_TASKSET:-} /usr/local/bin/droiddeck-game-env', script)
 
+    def test_both_proton_wrappers_answer_steams_driver_query_without_wine(self):
+        scripts = (COMPAT["launcher_sh"](), COMPAT["extra_wrapper_sh"]("proton"))
+        query = "/root/.local/share/Steam/steamrtarm64/../bin/d3ddriverquery64.exe"
+        for script in scripts:
+            subprocess.run(["bash", "-n"], input=script, text=True, check=True)
+            self.assertLess(script.index('case "${1##*/}" in'), script.index("bl_components "))
+            for args in ([query, "-d3d12"], [query], [query.replace("64.exe", ".exe")]):
+                result = subprocess.run(["bash", "-s", "run"] + args, input=script, text=True, capture_output=True,
+                                        env={"PATH": os.defpath, "HOME": "/nonexistent"}, timeout=10)
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertEqual(result.stdout, "")
+                self.assertIn("D3D driver query is not run", result.stderr)
+        skip = COMPAT["BL_DRIVER_QUERY_SKIP"]
+        for args in (["/games/AIO/AIO-Graphics-Test-64bit.exe", "--cube", "dx11"],
+                     ["/games/Tool/tool.exe", query], ["/games/d3ddriverquery64.exe.bak"]):
+            out = subprocess.run(["bash", "-c", "verb=run\n" + skip + "echo continued", "_"] + args,
+                                 capture_output=True, text=True, check=True).stdout
+            self.assertEqual(out, "continued\n", args)
+
     def test_wrappers_preload_the_session_library_before_the_input_shim(self):
         overlay = "/root/.local/share/Steam/ubuntu12_64/gameoverlayrenderer.so"
         with tempfile.TemporaryDirectory() as tmp:
