@@ -213,9 +213,11 @@ def version_key(path):
 
 
 def sign_with_env(env_file, unsigned, signed):
-    build_tools = sorted((sdk_root() / 'build-tools').glob('*/aapt'), key=version_key, reverse=True)
+    complete = [path for path in (sdk_root() / 'build-tools').glob('*/aapt')
+                if all((path.parent / tool).is_file() for tool in ('zipalign', 'apksigner'))]
+    build_tools = sorted(complete, key=version_key, reverse=True)
     if not build_tools:
-        raise Refused('aapt not found under ' + str(sdk_root() / 'build-tools'))
+        raise Refused('no build-tools with aapt, zipalign and apksigner under ' + str(sdk_root() / 'build-tools'))
     # BUILD_TOOLS is assigned after the env file is sourced so the file cannot replace the chosen SDK.
     script = 'set -a; cd "$(dirname "$1")"; . "$1"; set +a; BUILD_TOOLS="$5" exec "$2" "$3" standard "$4"'
     result = subprocess.run(['bash', '-c', script, 'sign', str(env_file), str(ROOT / 'tools/release/sign-apk.sh'),

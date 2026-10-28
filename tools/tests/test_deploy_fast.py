@@ -228,7 +228,8 @@ class SignTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             base = Path(directory)
             (base / 'build-tools/35.0.0').mkdir(parents=True)
-            (base / 'build-tools/35.0.0/aapt').write_text('')
+            for tool in ('aapt', 'zipalign', 'apksigner'):
+                (base / 'build-tools/35.0.0' / tool).write_text('')
             signed = base / 'out.apk'
 
             def run(command, **options):
@@ -255,7 +256,10 @@ class SignTest(unittest.TestCase):
             base = Path(directory).resolve()
             for version in ('9.0.0', '35.0.0', '100.0.0'):
                 (base / 'build-tools' / version).mkdir(parents=True)
-                (base / 'build-tools' / version / 'aapt').write_text('')
+                for tool in ('aapt', 'zipalign', 'apksigner'):
+                    (base / 'build-tools' / version / tool).write_text('')
+            (base / 'build-tools/200.0.0').mkdir()
+            (base / 'build-tools/200.0.0/aapt').write_text('')
             root = base / 'checkout'
             (root / 'tools/release').mkdir(parents=True)
             fake = root / 'tools/release/sign-apk.sh'
