@@ -309,7 +309,7 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
         grid = {
             LibraryGrid(
                 s, a, grid, visible, split, visible.size, sources, source, sizesPending, syncing,
-                showUninstalled = listUninstalled.takeIf { stores }, onShowUninstalled = setShowUninstalled,
+                showUninstalled = listUninstalled.takeIf { !s.shortcutPicker },onShowUninstalled = setShowUninstalled,
                 hiddenUninstalled = hiddenUninstalled,
                 onSource = { LibraryView.source = it },
                 onCycle = { step ->
