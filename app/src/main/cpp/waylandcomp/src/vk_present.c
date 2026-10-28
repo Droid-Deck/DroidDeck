@@ -47,6 +47,7 @@ static char *g_driver_path, *g_library_name, *g_native_lib_dir;
 static int g_dev_state;
 static VkInstance g_inst;
 static VkPhysicalDevice g_pd;
+static uint32_t g_vendor_id;
 static VkDevice g_dev;
 static VkQueue g_queue;
 static PFN_vkGetAndroidHardwareBufferPropertiesANDROID g_ahb_properties;
@@ -457,6 +458,7 @@ static int dev_init(void) {
     {
         VkPhysicalDeviceProperties props;
         g_vk.GetPhysicalDeviceProperties(g_pd, &props);
+        g_vendor_id = props.vendorID;
         snprintf(g_gpu_name, sizeof(g_gpu_name), "%s", props.deviceName);
         droiddeck_log("gpu", "compositor renders on %s with %s", props.deviceName,
                    g_library_name ? g_library_name : "the system Vulkan driver");
@@ -1013,6 +1015,102 @@ struct vkp_image *vkp_image_from_android_buffer(AHardwareBuffer *buffer) {
     return img;
 fail:
     LOGE("android_wlegl: Vulkan buffer import failed: %s", vk_result_name(result));
+    vkp_image_destroy(img);
+    return NULL;
+}
+
+int vkp_output_ahb_supported(void) {
+    char linear[PROP_VALUE_MAX] = {0};
+    __system_property_get("debug.droiddeck.linear_output", linear);
+    return strcmp(linear, "1") != 0 && dev_init() == 0 && !g_library_name &&
+           g_vendor_id != 0x5143 && g_ahb_properties &&
+           g_vk.GetPhysicalDeviceFormatProperties2 && g_vk.GetPhysicalDeviceImageFormatProperties2;
+}
+
+struct vkp_image *vkp_image_import_output_ahb(AHardwareBuffer *buffer, int w, int h, uint32_t ahb_format) {
+    if (!buffer || w <= 0 || h <= 0 || !vkp_output_ahb_supported()) return NULL;
+    VkFormat expected = ahb_format == AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM ? VK_FORMAT_R8G8B8A8_UNORM :
+                        ahb_format == AHARDWAREBUFFER_FORMAT_R10G10B10A2_UNORM ? VK_FORMAT_A2B10G10R10_UNORM_PACK32 :
+                        VK_FORMAT_UNDEFINED;
+    AHardwareBuffer_Desc desc;
+    AHardwareBuffer_describe(buffer, &desc);
+    const uint64_t required_usage = AHARDWAREBUFFER_USAGE_GPU_COLOR_OUTPUT | AHARDWAREBUFFER_USAGE_COMPOSER_OVERLAY;
+    if (expected == VK_FORMAT_UNDEFINED || desc.width != (uint32_t)w || desc.height != (uint32_t)h ||
+        desc.layers != 1 || desc.format != ahb_format ||
+        (desc.usage & required_usage) != required_usage ||
+        (desc.usage & (AHARDWAREBUFFER_USAGE_PROTECTED_CONTENT | AHARDWAREBUFFER_USAGE_GPU_MIPMAP_COMPLETE)))
+        return NULL;
+
+    VkAndroidHardwareBufferFormatPropertiesANDROID format = {
+        .sType = VK_STRUCTURE_TYPE_ANDROID_HARDWARE_BUFFER_FORMAT_PROPERTIES_ANDROID};
+    VkAndroidHardwareBufferPropertiesANDROID props = {
+        .sType = VK_STRUCTURE_TYPE_ANDROID_HARDWARE_BUFFER_PROPERTIES_ANDROID, .pNext = &format};
+    VkResult result = g_ahb_properties(g_dev, buffer, &props);
+    if (result != VK_SUCCESS || format.format != expected || !props.allocationSize || !props.memoryTypeBits) {
+        LOGE("layer: unsupported output AHB (%s, Vulkan format %d, expected %d)",
+             vk_result_name(result), format.format, expected);
+        return NULL;
+    }
+    /* AHB formatFeatures describes external-format sampling, not typed-image blits. */
+    VkFormatProperties2 features = {.sType = VK_STRUCTURE_TYPE_FORMAT_PROPERTIES_2};
+    g_vk.GetPhysicalDeviceFormatProperties2(g_pd, expected, &features);
+    if (!(features.formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_BLIT_DST_BIT)) return NULL;
+    VkPhysicalDeviceExternalImageFormatInfo external_query = {
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_IMAGE_FORMAT_INFO,
+        .handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_ANDROID_HARDWARE_BUFFER_BIT_ANDROID};
+    VkPhysicalDeviceImageFormatInfo2 query = {
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_FORMAT_INFO_2, .pNext = &external_query,
+        .format = expected, .type = VK_IMAGE_TYPE_2D, .tiling = VK_IMAGE_TILING_OPTIMAL,
+        .usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT};
+    VkExternalImageFormatProperties external_props = {.sType = VK_STRUCTURE_TYPE_EXTERNAL_IMAGE_FORMAT_PROPERTIES};
+    VkImageFormatProperties2 image_props = {.sType = VK_STRUCTURE_TYPE_IMAGE_FORMAT_PROPERTIES_2, .pNext = &external_props};
+    result = g_vk.GetPhysicalDeviceImageFormatProperties2(g_pd, &query, &image_props);
+    const VkImageFormatProperties *limits = &image_props.imageFormatProperties;
+    if (result != VK_SUCCESS ||
+        !(external_props.externalMemoryProperties.externalMemoryFeatures & VK_EXTERNAL_MEMORY_FEATURE_IMPORTABLE_BIT) ||
+        !(external_props.externalMemoryProperties.compatibleHandleTypes &
+          VK_EXTERNAL_MEMORY_HANDLE_TYPE_ANDROID_HARDWARE_BUFFER_BIT_ANDROID) ||
+        desc.width > limits->maxExtent.width || desc.height > limits->maxExtent.height ||
+        limits->maxExtent.depth < 1 || limits->maxMipLevels < 1 || limits->maxArrayLayers < 1 ||
+        !(limits->sampleCounts & VK_SAMPLE_COUNT_1_BIT)) {
+        LOGE("layer: output AHB is not importable as a %dx%d blit target (%s)", w, h, vk_result_name(result));
+        return NULL;
+    }
+    uint32_t memory_type;
+    for (memory_type = 0; memory_type < g_memprops.memoryTypeCount && memory_type < 32; memory_type++)
+        if (props.memoryTypeBits & (1u << memory_type)) break;
+    if (memory_type == g_memprops.memoryTypeCount || memory_type == 32) return NULL;
+
+    struct vkp_image *img = calloc(1, sizeof(*img));
+    if (!img) return NULL;
+    img->w = w; img->h = h; img->fmt = expected; img->dmabuf = 1; img->blit_dst = 1;
+    VkExternalMemoryImageCreateInfo external = {
+        .sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO,
+        .handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_ANDROID_HARDWARE_BUFFER_BIT_ANDROID};
+    VkImageCreateInfo create = {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO, .pNext = &external,
+        .imageType = VK_IMAGE_TYPE_2D, .format = expected, .extent = {desc.width, desc.height, 1},
+        .mipLevels = 1, .arrayLayers = 1, .samples = VK_SAMPLE_COUNT_1_BIT, .tiling = VK_IMAGE_TILING_OPTIMAL,
+        .usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT, .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED};
+    result = g_vk.CreateImage(g_dev, &create, NULL, &img->image);
+    if (result != VK_SUCCESS) goto fail;
+    VkImportAndroidHardwareBufferInfoANDROID import = {
+        .sType = VK_STRUCTURE_TYPE_IMPORT_ANDROID_HARDWARE_BUFFER_INFO_ANDROID, .buffer = buffer};
+    VkMemoryDedicatedAllocateInfo dedicated = {
+        .sType = VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO, .pNext = &import, .image = img->image};
+    VkMemoryAllocateInfo allocate = {
+        .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO, .pNext = &dedicated,
+        .allocationSize = props.allocationSize, .memoryTypeIndex = memory_type};
+    result = g_vk.AllocateMemory(g_dev, &allocate, NULL, &img->mem);
+    if (result != VK_SUCCESS) goto fail;
+    result = g_vk.BindImageMemory(g_dev, img->image, img->mem, 0);
+    if (result != VK_SUCCESS) goto fail;
+    AHardwareBuffer_acquire(buffer);
+    img->android_buffer = buffer;
+    return img;
+fail:
+    LOGE("layer: Vulkan output AHB import failed: %s", vk_result_name(result));
     vkp_image_destroy(img);
     return NULL;
 }

@@ -51,6 +51,31 @@ not describe its current selection. The old
 `DROIDDECK_POWERVR_RUNTIME` alias remains available for PowerVR and Xclipse helpers.
 Manual driver selections retain their existing behavior.
 
+### Native compositor output buffers
+
+On non-Qualcomm system drivers, the Android compositor first tries to import its
+SurfaceControl output pool as Android hardware buffers. This lets the driver use
+gralloc's native layout without interpreting an opaque handle as a linear DMA-BUF.
+The path checks the allocated descriptor, typed Vulkan format's blit-destination
+support, external-memory importability, image limits and memory types. Failed
+allocation or import falls back to the existing pool path. Adreno keeps its UBWC
+and DMA-BUF path; imported custom Vulkan drivers keep their existing path.
+
+This still copies the composited frame with a GPU blit. SurfaceControl release
+fences and FOREIGN queue ownership transfers are unchanged. Logs identify the
+successful pool as `native gralloc`, `UBWC`, or `linear`; a native allocation does
+not establish a performance improvement without a matched device comparison.
+The approach is adapted from [PR #1587](https://github.com/Droid-Deck/DroidDeck/pull/1587).
+
+For a baseline comparison, set the host Android property and restart DroidDeck:
+
+```sh
+adb shell setprop debug.droiddeck.linear_output 1
+```
+
+Set it back to `0` and restart DroidDeck to restore automatic selection. This is
+a host-compositor diagnostic switch, not a guest environment variable.
+
 ### Vendor TLS bounds and loader diagnostics
 
 The bridge reserves 1040 bytes for promoted Bionic static TLS. This accommodates
