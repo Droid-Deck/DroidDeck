@@ -1,4 +1,5 @@
 import hashlib
+import io
 import json
 import os
 import shutil
@@ -585,6 +586,31 @@ class GameEnvironmentTest(unittest.TestCase):
                 MODULE["cpu_topology"](env)
             self.assertEqual(env.get("WINE_CPU_TOPOLOGY"), expected, env)
             self.assertEqual(env.get("PROTON_CPU_TOPOLOGY"), proton, env)
+
+    def test_opengl_games_do_not_wait_for_the_screen_refresh(self):
+        cases = [
+            ({}, "0"),
+            ({"STEAM_COMPAT_DATA_PATH": "/steam/compatdata/-686078602"}, "0"),
+            ({"vblank_mode": "2"}, "2"),
+            ({"vblank_mode": ""}, ""),
+            ({"STEAM_COMPAT_DATA_PATH": "/steam/compatdata/0"}, None),
+            ({"STEAM_COMPAT_DATA_PATH": ""}, None),
+        ]
+        for env, expected in cases:
+            env.setdefault("STEAM_COMPAT_DATA_PATH", "/steam/compatdata/3608888694")
+            with mock.patch("sys.stderr", io.StringIO()):
+                MODULE["gl_vsync"](env)
+            self.assertEqual(env.get("vblank_mode"), expected, env)
+        with tempfile.TemporaryDirectory() as tmp:
+            probe = Path(tmp) / "probe"
+            probe.write_text("#!" + sys.executable + "\nimport os\nprint(os.environ.get('vblank_mode', 'unset'))\n")
+            probe.chmod(0o755)
+            for inherited, expected in (({}, "0"), ({"vblank_mode": "3"}, "3")):
+                env = {name: value for name, value in os.environ.items() if name != "vblank_mode"}
+                env.update(HOME=tmp, STEAM_COMPAT_DATA_PATH="/compatdata/42", **inherited)
+                result = subprocess.run([sys.executable, str(BIN / "droiddeck-game-env"), str(probe), "waitforexitandrun"],
+                                        env=env, text=True, capture_output=True, check=True)
+                self.assertEqual(result.stdout.strip(), expected)
 
     def test_windows_cpu_0_is_the_fastest_core(self):
         os_mod = MODULE["os"]

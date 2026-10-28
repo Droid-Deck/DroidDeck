@@ -432,6 +432,16 @@ def cpu_topology(env, command=()):
     print("droiddeck-game-env: Windows sees %d cores (%s)" % (len(cores), env["WINE_CPU_TOPOLOGY"]), file=sys.stderr)
 
 
+def gl_vsync(env):
+    """OpenGL stops waiting for each screen refresh; Steam's Frame Limit still holds the game through gamescope."""
+    # Wine asks for interval 1 on every GL window, and WineD3D's front-buffer drawing (DirectDraw,
+    # Direct3D 1-7) never lowers it, so those games ran at the refresh rate with no limit set.
+    if "vblank_mode" in env or game_id(env) is None:
+        return
+    env["vblank_mode"] = "0"
+    print("droiddeck-game-env: OpenGL does not wait for the screen refresh (vblank_mode=0)", file=sys.stderr)
+
+
 def apply_config(env, config, app_id, fixes=None):
     if config.get("version") != 1:
         raise ValueError("unsupported environment configuration")
@@ -769,6 +779,7 @@ def main():
     env = force_ssbs(command, env)
     game_cores(env)
     cpu_topology(env, command)
+    gl_vsync(env)
     try:
         xbox = runpy.run_path(str(Path(__file__).with_name("droiddeck-xbox")))
     except Exception as error:
