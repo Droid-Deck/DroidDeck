@@ -722,10 +722,10 @@ class FusionHudView(context: Context) : View(context) {
         if (showFPS) tiles.add(Tile("FRAME", colDim, numUnit(fmt1(1000f / max(fpsNow, 1f)), "ms", valPx, unitPx),
             "${fmt1(graphMinMs)} – ${fmt1(graphMaxMs)}", false))
         if (showGPU) tiles.add(Tile("GPU", colGpu, numUnit(s.gpuPercent?.toString(), "%", valPx, unitPx),
-            if (showGpuTemp && s.gpuTempC != null) "${s.gpuTempC}°C"
+            if (showGpuTemp && s.gpuTempC != null) HudMetrics.formatTemp(s.gpuTempC.toFloat(), tempDisplay, false)
             else s.gpuClockMhz?.let { "${it}MHz" }, false))
         if (showCPU) tiles.add(Tile("CPU", colCpu, numUnit(s.cpuPercent?.toString(), "%", valPx, unitPx),
-            listOfNotNull(if (showCpuTemp) s.cpuTempC?.let { "${it}°C" } else null,
+            listOfNotNull(if (showCpuTemp) s.cpuTempC?.let { HudMetrics.formatTemp(it.toFloat(), tempDisplay, false) } else null,
                 s.cpuClockMhz?.toString()).joinToString(" · ").ifBlank { null }, false))
         if (showVram && s.vramText() != null) tiles.add(Tile("VRAM", colVram, valueUnit(s.vramText()!!, valPx, unitPx), null, false))
         if (showRAM) tiles.add(Tile("RAM", colRam, numUnit(s.ramPercent.roundToInt().toString(), "%", valPx, unitPx),
