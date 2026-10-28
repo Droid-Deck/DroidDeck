@@ -329,7 +329,8 @@ class DrawerActions(
 
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
-internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, controllerActive: Boolean, onPageChange: (SessionDrawerPage) -> Unit, a: DrawerActions, docked: Boolean = false) {
+internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, controllerActive: Boolean, onPageChange: (SessionDrawerPage) -> Unit, a: DrawerActions, docked: Boolean = false,
+    backRequest: Int = 0, onLayerChange: (Boolean) -> Unit = {}) {
     val pages = sessionDrawerPages(a.secondScreenDisplays.isNotEmpty(), a.glassesPresent)
     val page = requestedPage.takeIf { it in pages } ?: SessionDrawerPage.CONTROLLER
     LaunchedEffect(requestedPage, pages) { if (page != requestedPage) onPageChange(page) }
@@ -359,6 +360,18 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
         if (host.open != null) host.open = null else a.onClose()
     }
     BackHandler(enabled = open && confirmStop) { confirmStop = false }
+    val layerOpen = open && (host.open != null || appToChooseDisplay != null || confirmStop)
+    LaunchedEffect(layerOpen) { onLayerChange(layerOpen) }
+    var seenBackRequest by remember { mutableStateOf(backRequest) }
+    LaunchedEffect(backRequest) {
+        if (backRequest == seenBackRequest) return@LaunchedEffect
+        seenBackRequest = backRequest
+        when {
+            confirmStop -> confirmStop = false
+            appToChooseDisplay != null -> appToChooseDisplay = null
+            host.open != null -> host.open = null
+        }
+    }
     LaunchedEffect(page) { host.open = null; appToChooseDisplay = null }
     LaunchedEffect(a.selectedGameProfileId) {
         if (host.open == "fex") host.open = null
@@ -389,6 +402,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
             val first = when {
                 page == SessionDrawerPage.GLASSES -> "glasses-tab-$glassesTab"
                 page == SessionDrawerPage.SESSION && a.isHomeApp -> "apps"
+                page == SessionDrawerPage.SECOND_SCREEN -> "second-screen:${a.secondScreenMode.id}"
                 else -> page.firstControl
             }
             if (turned) focus.forget(page)
@@ -400,6 +414,11 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
             }
             focus.forget(page)
             focus.request(first)
+            if (first != page.firstControl) repeat(4) {
+                androidx.compose.runtime.withFrameNanos { }
+                if (focus.focused == first) return@LaunchedEffect
+                focus.request(page.firstControl)
+            }
         }
     }
     if (!docked && (open || veil > 0.01f)) {
@@ -1731,6 +1750,12 @@ private fun StopConfirm(
             shown = false
             content = null
         }
+    }
+    LaunchedEffect(open, controllerActive) {
+        if (!open || !controllerActive || stopFocused || cancelFocused) return@LaunchedEffect
+        delay(Motion.ms(300).toLong())
+        withFrameNanos { }
+        runCatching { cancelFocus.requestFocus() }
     }
     val p = pill ?: return
 

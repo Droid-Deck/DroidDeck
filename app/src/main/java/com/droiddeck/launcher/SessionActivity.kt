@@ -295,10 +295,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     private var drawerOpenState by mutableStateOf(false)
     private var drawerDocked by mutableStateOf(false)
+    private var drawerLayerOpen = false
+    private var drawerBackRequests by mutableIntStateOf(0)
     private var drawerOpen: Boolean
         get() = drawerOpenState
         set(value) {
             if (value == drawerOpenState) return
+            drawerLayerOpen = false
             if (value) drawerDocked = dockDrawer() && openDockedMenu()
             drawerOpenState = value
             if (!value && drawerDocked) closeDockedMenu()
@@ -1003,7 +1006,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     @androidx.compose.runtime.Composable
     private fun SessionMenu(docked: Boolean) {
-        SessionDrawer(drawerOpen, drawerPage, drawerControllerActive, onPageChange = { drawerPage = it }, docked = docked, a = DrawerActions(
+        SessionDrawer(drawerOpen, drawerPage, drawerControllerActive, onPageChange = { drawerPage = it }, docked = docked,
+            backRequest = drawerBackRequests, onLayerChange = { drawerLayerOpen = it }, a = DrawerActions(
             steam = SessionState.mode == SessionService.MODE_STEAM,
             direct = noSteamSession(),
             title = if (SessionState.mode == SessionService.MODE_RUN)
@@ -2351,7 +2355,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 Log.i(TAG, "drawer key=${KeyEvent.keyCodeToString(event.keyCode)} handled=$handled viewFocused=${sessionOverlay.hasFocus()}")
             }
             if (event.keyCode == KeyEvent.KEYCODE_BUTTON_B || event.keyCode == KeyEvent.KEYCODE_BACK) {
-                if (!handled && event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) drawerOpen = false
+                if (!handled && event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+                    if (drawerLayerOpen) drawerBackRequests++ else drawerOpen = false
+                }
                 releaseDrawerDirection()
             }
             return true
