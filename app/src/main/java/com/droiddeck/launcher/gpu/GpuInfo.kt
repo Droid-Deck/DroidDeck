@@ -16,6 +16,7 @@ data class GpuInfo(
     val modelSource: String = "",
     val kgslChipId: String = "",
     val platformGpuModel: Int = 0,
+    val verifiedDevice: Boolean = false,
 ) {
     enum class Family(val label: String) {
         A8XX("Adreno 8xx"),
@@ -36,6 +37,7 @@ data class GpuInfo(
         get() = when {
             family == Family.NOT_ADRENO -> Support.UNSUPPORTED
             isA850 -> Support.UNTESTED
+            verifiedDevice -> Support.TESTED
             family == Family.A6XX && model == 650 -> Support.TESTED
             family == Family.A8XX -> Support.TESTED
             family == Family.A7XX && model >= 725 -> Support.TESTED
@@ -85,8 +87,12 @@ data class GpuInfo(
                 oneUi8Gen2 = samsung && model == 740,
                 kgslName = raw.orEmpty(), modelSource = source, kgslChipId = chipId,
                 platformGpuModel = platformGpuModel,
+                verifiedDevice = adreno && verifiedOn(model, Build.MODEL),
             )
         }
+
+        internal fun verifiedOn(model: Int, device: String): Boolean =
+            model == 722 && device.equals("Retroid Pocket Duo", ignoreCase = true)
 
         internal fun threeDigits(text: String): Int = Regex("""(?i)\badreno\s*(?:\(TM\)\s*)?(\d{3})(?!\d)""").find(text)?.groupValues?.get(1)?.toIntOrNull() ?: 0
 
