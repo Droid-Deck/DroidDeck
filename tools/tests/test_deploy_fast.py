@@ -240,7 +240,7 @@ class SignTest(unittest.TestCase):
                     mock.patch.object(deploy_fast, 'sdk_root', return_value=base), \
                     mock.patch.object(deploy_fast.subprocess, 'run', side_effect=run) as run_:
                 deploy_fast.sign(base / 'in.apk', signed)
-            self.assertEqual(run_.call_args[0][0][-3:], [str(base / 'in.apk'), 'standard', str(signed)])
+            self.assertEqual(run_.call_args[0][0][-4:], [str(base / '.signing.env'), str(deploy_fast.ROOT / 'tools/release/sign-apk.sh'), str(base / 'in.apk'), str(signed)])
             failed = mock.Mock(returncode=1, stdout='', stderr='boom')
             signed.unlink()
             with mock.patch.object(deploy_fast, 'SIGNER', base / 'missing.ps1'), \
