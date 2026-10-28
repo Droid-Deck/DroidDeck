@@ -79,7 +79,14 @@ internal class ItchInstaller(
             handle.stage(DownloadStage.INSTALL)
             install(archive, filename, handle, resuming)
         } catch (t: Throwable) {
-            if (maintenanceTarget != null) runCatching { handle.interruptible(true) }
+            if (maintenanceTarget != null) {
+                runCatching { handle.interruptible(true) }
+                val beforeSidecar = previous
+                val recoverableCommit = runCatching { ItchStaging.recover(folder) }.getOrDefault(true)
+                if (t is ItchStaging.PreflightConflict && !recoverableCommit && beforeSidecar != null) {
+                    runCatching { StoreMaintenance.complete(app, InstalledStoreGame(beforeSidecar, folder)) }
+                }
+            }
             if (!cancelled.get()) dropCaches(scratch)
             throw t
         }
@@ -246,9 +253,16 @@ internal class ItchInstaller(
                 val old = previous ?: throw IllegalStateException("The installed itch.io sidecar disappeared")
                 val game = InstalledStoreGame(old, folder)
                 StoreMaintenance.withApplyLease(game) {
-                    val managed = ItchStaging.readInventory(folder).filterKeys { it != old.exe }
-                    val next = ItchStaging.commit(work, folder, managed)
-                    ItchStaging.writeInventory(folder, next)
+                    val targetInventory = ItchStaging.inventory(work)
+                    val savedInventory = ItchStaging.readInventoryIfPresent(folder)
+                    val targetUploadId = maintenanceTarget?.optString("uploadId").orEmpty()
+                    val targetVersion = maintenanceTarget?.optString("updatedAt").orEmpty()
+                    val installedExactUpload = targetUploadId.isNotBlank() && old.extra["uploadId"] == targetUploadId &&
+                        old.installVersion == targetVersion
+                    val managed = ItchStaging.previousInventory(savedInventory, targetInventory, installedExactUpload, old.exe)
+                    ItchStaging.commit(work, folder, managed, onCommitted = { next ->
+                        ItchStaging.writeInventory(folder, next)
+                    })
                 }
             }
             return exe

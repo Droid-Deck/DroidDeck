@@ -95,7 +95,8 @@ internal object EpicMaintenanceAdapter : StoreMaintenanceAdapter {
             .put("deploymentId", deploymentId)
             .put("manifestPath", targetPath.absolutePath).put("tags", JSONArray(tags))
         return MaintenanceProposal(
-            game.folder.canonicalFile, game.sidecar, StoreInstallRoot.labelFor(context, game.folder), action,
+            game.folder.canonicalFile, game.sidecar,
+            if (action == MaintenanceAction.REPAIR) "Installed build $targetBuild" else "Build $targetBuild", action,
             downloadBytes = downloadBytes, diskBytes = diskBytes,
             description = "Up to ${com.droiddeck.launcher.stores.formatBytes(downloadBytes)} of unique Epic chunks; files are SHA-1 verified against the pinned manifest.",
             target = target,

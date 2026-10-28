@@ -1,6 +1,7 @@
 package com.droiddeck.launcher.ui
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -17,6 +18,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -55,10 +57,11 @@ internal fun StoreMaintenanceActions(game: InstalledStoreGame) {
     val key = game.key
     val download = StoresState.download(key)
     val active = download?.isActive == true
-    var busy by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf<String?>(null) }
-    var proposal by remember { mutableStateOf<MaintenanceProposal?>(null) }
-    var recovery by remember { mutableStateOf(MaintenanceRecovery()) }
+    var busy by remember(key) { mutableStateOf(false) }
+    var error by remember(key) { mutableStateOf<String?>(null) }
+    var proposal by remember(key) { mutableStateOf<MaintenanceProposal?>(null) }
+    var recovery by remember(key) { mutableStateOf(MaintenanceRecovery()) }
+    var menu by remember(key) { mutableStateOf(false) }
 
     LaunchedEffect(game.folder.path) { StoreMaintenance.check(context, game) }
     LaunchedEffect(game.folder.path, active, download?.state) {
@@ -74,7 +77,7 @@ internal fun StoreMaintenanceActions(game: InstalledStoreGame) {
                 if (download.state == com.droiddeck.launcher.stores.download.DownloadState.PAUSED) DownloadQueue.resume(context, key) else DownloadQueue.pause(key)
             }
         } else if (recovery.state == RecoveryState.RESUMABLE) {
-            SecondaryButton("Resume", enabled = !busy) {
+            SecondaryButton("Resume", enabled = !busy, modifier = Modifier.testTag("store-resume")) {
                 busy = true
                 scope.launch {
                     runCatching { withContext(Dispatchers.IO) { StoreMaintenance.resume(context, game) } }
@@ -82,25 +85,42 @@ internal fun StoreMaintenanceActions(game: InstalledStoreGame) {
                     busy = false
                 }
             }
-        } else {
-            if (MaintenanceAction.UPDATE in capabilities) {
-                val target = check?.takeIf { it.state == MaintenanceCheckState.AVAILABLE }?.version?.takeIf { it.isNotBlank() }
-                SecondaryButton(target?.let { "Update to $it" } ?: "Update", enabled = !busy) {
-                    beginPrepare(MaintenanceAction.UPDATE, context, game, scope, { busy = it }, { proposal = it }, { error = it })
-                }
-            }
-            if (MaintenanceAction.REPAIR in capabilities) SecondaryButton("Repair", enabled = !busy) {
-                beginPrepare(MaintenanceAction.REPAIR, context, game, scope, { busy = it }, { proposal = it }, { error = it })
-            }
-            if (MaintenanceAction.REFRESH in capabilities) SecondaryButton("Refresh", enabled = !busy) {
-                beginPrepare(MaintenanceAction.REFRESH, context, game, scope, { busy = it }, { proposal = it }, { error = it })
-            }
-            if (MaintenanceAction.OPEN_CLIENT in capabilities) SecondaryButton(adapter.openClientLabel(game), enabled = !busy) {
-                runCatching { StoreMaintenance.openClient(context, game) }.onFailure { error = it.message }
+        } else if (MaintenanceAction.UPDATE in capabilities && check?.state == MaintenanceCheckState.AVAILABLE) {
+            val target = check.version.takeIf { it.isNotBlank() }
+            SecondaryButton(target?.let { "Update to $it" } ?: "Update", enabled = !busy, modifier = Modifier.testTag("store-update")) {
+                beginPrepare(MaintenanceAction.UPDATE, context, game, scope, { busy = it }, { proposal = it }, { error = it })
             }
         }
-        if (!active && game.sidecar.isInstalled) SecondaryButton("Check", enabled = !busy) {
-            StoreMaintenance.check(context, game, force = true)
+        if (!active) Box {
+            SecondaryButton("Maintenance", enabled = !busy, modifier = Modifier.testTag("store-maintenance")) { menu = !menu }
+            AnchoredMenu(menu, onDismiss = { menu = false }, title = "Maintenance", compact = true) { first ->
+                MenuItem("Check for updates", checked = false, enabled = !busy && game.sidecar.isInstalled,
+                    modifier = Modifier.testTag("store-check"), focusRequester = first) {
+                    menu = false
+                    StoreMaintenance.check(context, game, force = true)
+                }
+                if (MaintenanceAction.UPDATE in capabilities) {
+                    val legacyBootstrap = game.sidecar.store in setOf(com.droiddeck.launcher.stores.Store.EPIC, com.droiddeck.launcher.stores.Store.AMAZON) &&
+                        check?.state != MaintenanceCheckState.AVAILABLE
+                    MenuItem(if (legacyBootstrap) "Update / verify current build" else "Update", checked = false, enabled = !busy,
+                        modifier = Modifier.testTag("store-update-menu")) {
+                        beginPrepare(MaintenanceAction.UPDATE, context, game, scope, { busy = it }, { proposal = it }, { error = it })
+                    }
+                }
+                if (MaintenanceAction.REPAIR in capabilities) MenuItem("Verify / Repair", checked = false, enabled = !busy,
+                    modifier = Modifier.testTag("store-repair")) {
+                    beginPrepare(MaintenanceAction.REPAIR, context, game, scope, { busy = it }, { proposal = it }, { error = it })
+                }
+                if (MaintenanceAction.REFRESH in capabilities) MenuItem("Refresh", checked = false, enabled = !busy,
+                    modifier = Modifier.testTag("store-refresh")) {
+                    beginPrepare(MaintenanceAction.REFRESH, context, game, scope, { busy = it }, { proposal = it }, { error = it })
+                }
+                if (MaintenanceAction.OPEN_CLIENT in capabilities) MenuItem(adapter.openClientLabel(game), checked = false, enabled = !busy,
+                    modifier = Modifier.testTag("store-open-client")) {
+                    menu = false
+                    runCatching { StoreMaintenance.openClient(context, game) }.onFailure { error = it.message }
+                }
+            }
         }
     }
     if (!active && recovery.state == RecoveryState.NEEDS_ATTENTION && recovery.message.isNotBlank())

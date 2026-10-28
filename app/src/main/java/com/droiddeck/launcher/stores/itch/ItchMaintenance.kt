@@ -99,6 +99,7 @@ internal object ItchMaintenanceAdapter : StoreMaintenanceAdapter {
     }
 
     override fun recovery(context: Context, game: InstalledStoreGame): MaintenanceRecovery {
+        ItchStaging.readInventoryIfPresent(game.folder)
         val operation = StoreMaintenance.readOperation(game.folder)
         return if (operation?.optString("phase")?.let { it in setOf("queued", "download", "applying") } == true || ItchStaging.recover(game.folder))
             MaintenanceRecovery(RecoveryState.RESUMABLE, "Resume the interrupted itch.io archive replacement")

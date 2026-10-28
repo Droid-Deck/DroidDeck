@@ -85,7 +85,7 @@ internal object AmazonMaintenanceAdapter : StoreMaintenanceAdapter {
         val target = JSONObject().put("schema", TARGET_SCHEMA).put("versionId", version)
             .put("manifestPath", path.absolutePath)
         return MaintenanceProposal(
-            game.folder.canonicalFile, game.sidecar, StoreInstallRoot.labelFor(context, game.folder), action,
+            game.folder.canonicalFile, game.sidecar, "Version $version", action,
             downloadBytes = bytes, diskBytes = bytes, description = "Up to ${com.droiddeck.launcher.stores.formatBytes(bytes)} of whole-file data; existing files are verified against Amazon's manifest.",
             target = target,
         )

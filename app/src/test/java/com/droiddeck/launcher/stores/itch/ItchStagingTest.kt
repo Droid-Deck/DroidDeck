@@ -1,14 +1,22 @@
 package com.droiddeck.launcher.stores.itch
 
+import com.droiddeck.launcher.stores.InstalledStoreGame
+import com.droiddeck.launcher.stores.Store
+import com.droiddeck.launcher.stores.StoreGameSidecar
+import com.droiddeck.launcher.stores.maintenance.RecoveryState
+import com.droiddeck.launcher.stores.maintenance.StoreMaintenance
+import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.rules.TemporaryFolder
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
 import java.io.File
 
 @RunWith(RobolectricTestRunner::class)
@@ -117,7 +125,7 @@ class ItchStagingTest {
         file(staged, "b.txt", "new-b")
         val previous = ItchStaging.inventory(game)
         assertThrows(IllegalStateException::class.java) {
-            ItchStaging.commit(staged, game, previous) { if (it == 1) error("simulated interruption") }
+            ItchStaging.commit(staged, game, previous, afterEntry = { if (it == 1) error("simulated interruption") })
         }
         assertTrue(ItchStaging.recover(game))
         val next = ItchStaging.commit(staged, game, previous)
@@ -128,6 +136,20 @@ class ItchStagingTest {
         assertFalse(ItchStaging.recover(game))
     }
 
+    @Test fun failedInventoryPublicationKeepsCommitJournalUntilResume() {
+        val game = tmp.newFolder("inventory-publication-game")
+        val staged = tmp.newFolder("inventory-publication-stage")
+        file(staged, "game.exe", "publisher")
+        assertThrows(IllegalStateException::class.java) {
+            ItchStaging.commit(staged, game, emptyMap(), onCommitted = { error("simulated inventory failure") })
+        }
+        assertTrue(ItchStaging.recover(game))
+        val next = ItchStaging.commit(staged, game, emptyMap(), onCommitted = { ItchStaging.writeInventory(game, it) })
+        assertEquals("publisher", File(game, "game.exe").readText())
+        assertEquals(next, ItchStaging.readInventory(game))
+        assertFalse(ItchStaging.recover(game))
+    }
+
     @Test fun unmanagedCollisionPreservesUserFile() {
         val game = tmp.newFolder("collision-game")
         val staged = tmp.newFolder("collision-stage")
@@ -135,6 +157,45 @@ class ItchStagingTest {
         file(staged, "saves/slot1.sav", "archive-file")
         assertThrows(IllegalArgumentException::class.java) { ItchStaging.commit(staged, game, emptyMap()) }
         assertEquals("my-save", File(game, "saves/slot1.sav").readText())
+        assertFalse(ItchStaging.recover(game))
+    }
+
+    @Test fun legacyInventoryBootstrapRequiresAnAbsentInventoryAndExactTarget() {
+        val targetStage = tmp.newFolder("legacy-target")
+        file(targetStage, "game.exe", "publisher build")
+        file(targetStage, "notes.txt", "publisher notes")
+        val target = ItchStaging.inventory(targetStage)
+
+        assertEquals(target, ItchStaging.previousInventory(null, target, exactLegacyTarget = true, selectedExe = "game.exe"))
+        assertEquals(emptyMap<String, String>(), ItchStaging.previousInventory(null, target, exactLegacyTarget = false, selectedExe = "game.exe"))
+        assertEquals(emptyMap<String, String>(), ItchStaging.previousInventory(emptyMap(), target, exactLegacyTarget = true, selectedExe = "game.exe"))
+        assertEquals(mapOf("notes.txt" to target.getValue("notes.txt")),
+            ItchStaging.previousInventory(target, target - "game.exe", exactLegacyTarget = true, selectedExe = "game.exe"))
+
+        val game = tmp.newFolder("legacy-game")
+        file(game, "game.exe", "corrupted publisher build")
+        file(game, "user-notes.txt", "keep")
+        ItchStaging.commit(targetStage, game,
+            ItchStaging.previousInventory(null, target, exactLegacyTarget = true, selectedExe = "game.exe"))
+        assertEquals("publisher build", File(game, "game.exe").readText())
+        assertEquals("keep", File(game, "user-notes.txt").readText())
+
+        val unknownBuild = tmp.newFolder("unknown-legacy-game")
+        val unknownTargetStage = tmp.newFolder("unknown-legacy-target")
+        file(unknownTargetStage, "game.exe", "publisher build")
+        file(unknownTargetStage, "notes.txt", "publisher notes")
+        file(unknownBuild, "game.exe", "unknown installed build")
+        assertThrows(IllegalArgumentException::class.java) {
+            ItchStaging.commit(unknownTargetStage, unknownBuild,
+                ItchStaging.previousInventory(null, target, exactLegacyTarget = false, selectedExe = "game.exe"))
+        }
+        assertEquals("unknown installed build", File(unknownBuild, "game.exe").readText())
+        assertFalse(ItchStaging.recover(unknownBuild))
+
+        val inventoryState = tmp.newFolder("inventory-state")
+        assertNull(ItchStaging.readInventoryIfPresent(inventoryState))
+        ItchStaging.writeInventory(inventoryState, emptyMap())
+        assertEquals(emptyMap<String, String>(), ItchStaging.readInventoryIfPresent(inventoryState))
     }
 
     @Test fun publisherUserDataPlaceholdersAndEmptyDirectoriesAreInstalledAndManaged() {
@@ -145,7 +206,7 @@ class ItchStagingTest {
         File(staged, "data/required-empty").mkdirs()
 
         assertThrows(IllegalStateException::class.java) {
-            ItchStaging.commit(staged, game, emptyMap()) { if (it == 2) error("simulated interruption") }
+            ItchStaging.commit(staged, game, emptyMap(), afterEntry = { if (it == 2) error("simulated interruption") })
         }
         assertTrue(ItchStaging.recover(game))
         val next = ItchStaging.commit(staged, game, emptyMap())
@@ -184,7 +245,7 @@ class ItchStagingTest {
         file(staged, "b.txt", "new-b")
         val previous = ItchStaging.inventory(game)
         assertThrows(IllegalStateException::class.java) {
-            ItchStaging.commit(staged, game, previous) { if (it == 2) error("simulated interruption") }
+            ItchStaging.commit(staged, game, previous, afterEntry = { if (it == 2) error("simulated interruption") })
         }
         file(game, "a.txt", "tampered")
         file(staged, "a.txt", "new-a")
@@ -227,5 +288,21 @@ class ItchStagingTest {
         File(metadata, "itch-inventory.json").writeText("{\"../outside.txt\":\"bad\"}")
         assertThrows(IllegalArgumentException::class.java) { ItchStaging.readInventory(game) }
         assertEquals("keep", File(game, "publisher.txt").readText())
+    }
+
+    @Test fun corruptInventoryMakesApplyingRecoveryNeedAttention() {
+        val folder = tmp.newFolder("corrupt-recovery-inventory").canonicalFile
+        val sidecar = StoreGameSidecar(Store.ITCH, "game", "Example", "game.exe")
+        sidecar.write(folder)
+        val game = InstalledStoreGame(sidecar, folder)
+        StoreMaintenance.register(ItchMaintenanceAdapter)
+        val operation = StoreMaintenance.operationFile(folder)
+        operation.parentFile.mkdirs()
+        operation.writeText(JSONObject().put("schema", 1).put("store", Store.ITCH.id)
+            .put("id", sidecar.id).put("folder", folder.path).put("phase", "applying").toString())
+        File(operation.parentFile, "itch-inventory.json").writeText("{")
+
+        assertEquals(RecoveryState.NEEDS_ATTENTION,
+            StoreMaintenance.recovery(RuntimeEnvironment.getApplication(), game).state)
     }
 }

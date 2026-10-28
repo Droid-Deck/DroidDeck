@@ -16,6 +16,8 @@ internal object ItchStaging {
     private const val BACKUPS = "itch-backups"
     private const val DIRECTORY = "<directory>"
 
+    class PreflightConflict(message: String) : IllegalArgumentException(message)
+
     fun inventory(root: File): Map<String, String> = linkedMapOf<String, String>().also { out ->
         fun visit(dir: File, prefix: String) {
             for (child in dir.listFiles().orEmpty().sortedBy { it.name }) {
@@ -36,12 +38,22 @@ internal object ItchStaging {
         it.lowercase() in setOf("save", "saves", "userdata", "user data", "profiles")
     } || relative.substringAfterLast('/').substringAfterLast('.', "").lowercase() in setOf("sav", "save")
 
-    fun readInventory(root: File): Map<String, String> {
+    fun readInventory(root: File): Map<String, String> = readInventoryIfPresent(root).orEmpty()
+
+    fun previousInventory(
+        saved: Map<String, String>?,
+        target: Map<String, String>,
+        exactLegacyTarget: Boolean,
+        selectedExe: String,
+    ): Map<String, String> = (saved ?: if (exactLegacyTarget) target else emptyMap())
+        .filterKeys { it != selectedExe || it in target }
+
+    fun readInventoryIfPresent(root: File): Map<String, String>? {
         val metadata = File(root, ".droiddeck-maintenance")
         require(!Files.isSymbolicLink(metadata.toPath())) { "Maintenance metadata directory is a symbolic link" }
         val file = File(metadata, INVENTORY)
         require(!Files.isSymbolicLink(file.toPath())) { "itch.io inventory is a symbolic link" }
-        if (!file.exists()) return emptyMap()
+        if (!file.exists()) return null
         require(file.isFile) { "itch.io inventory is not a regular file" }
         val value = runCatching { JSONObject(file.readText()) }
             .getOrElse { throw IllegalStateException("itch.io inventory is corrupt", it) }
@@ -63,7 +75,13 @@ internal object ItchStaging {
         writeJournal(file, JSONObject().apply { inventory.forEach { (path, hash) -> put(path, hash) } })
     }
 
-    fun commit(from: File, to: File, previous: Map<String, String>, afterEntry: ((Int) -> Unit)? = null): Map<String, String> {
+    fun commit(
+        from: File,
+        to: File,
+        previous: Map<String, String>,
+        afterEntry: ((Int) -> Unit)? = null,
+        onCommitted: ((Map<String, String>) -> Unit)? = null,
+    ): Map<String, String> {
         require(!Files.isSymbolicLink(to.toPath())) { "The itch.io install folder is a symbolic link" }
         val metadata = File(to, ".droiddeck-maintenance").apply { mkdirs() }
         require(!Files.isSymbolicLink(metadata.toPath())) { "Maintenance metadata directory is a symbolic link" }
@@ -98,72 +116,120 @@ internal object ItchStaging {
         check(state.optInt("schema") == 1 && existingNext != null && state.optJSONObject("done") != null && state.optJSONObject("obsolete") != null || existing == null) {
             "An interrupted itch.io replacement has an unsupported journal"
         }
-        writeJournal(journal, state)
         require(!Files.isSymbolicLink(backups.toPath())) { "The itch.io backup directory is a symbolic link" }
         backups.mkdirs()
         require(!Files.isSymbolicLink(backups.toPath())) { "The itch.io backup directory is a symbolic link" }
+        check(backups.isDirectory) { "The itch.io backup path is not a directory" }
+        val journalDone = state.optJSONObject("done")
+        for (relative in paths) {
+            val expected = next[relative]
+            if (expected == null) continue
+            val path = relative.removeSuffix("/")
+            val dest = safe(root, path) ?: throw PreflightConflict("Unsafe itch.io archive path: $relative")
+            safe(backups, path) ?: throw PreflightConflict("Unsafe itch.io backup path: $relative")
+            val wasJournaledDone = journalDone?.optBoolean(relative) == true
+            if (expected == DIRECTORY) {
+                if (dest.exists() && !dest.isDirectory) {
+                    val oldFileHash = previous[path]
+                    if (oldFileHash == null || !dest.isFile || sha256(dest) != oldFileHash)
+                        throw PreflightConflict("itch.io archive directory collides with an unmanaged file: $path")
+                }
+                continue
+            }
+            val oldHash = previous[relative]
+            if (protectedUserData(path) && dest.exists()) {
+                if (!((oldHash != null && dest.isFile && sha256(dest) == oldHash) || wasJournaledDone))
+                    throw PreflightConflict("itch.io archive collides with untracked or modified user data: $path")
+            }
+            val currentHash = if (dest.isFile) sha256(dest) else null
+            if (currentHash != expected) {
+                val emptyManagedDirectory = dest.isDirectory && !Files.isSymbolicLink(dest.toPath()) && dest.listFiles().isNullOrEmpty()
+                if (dest.exists() && !dest.isFile && !emptyManagedDirectory)
+                    throw PreflightConflict("itch.io update collides with an unmanaged directory: $relative")
+                if (dest.exists() && oldHash == null && !emptyManagedDirectory && !wasJournaledDone)
+                    throw PreflightConflict("itch.io update collides with an unmanaged file: $relative")
+                require(safe(stage, path)?.isFile == true) { "Staged itch.io file is missing: $relative" }
+            }
+        }
+        writeJournal(journal, state)
         var count = 0
         for (relative in paths) {
             val directory = next[relative] == DIRECTORY
             val path = relative.removeSuffix("/")
-            val dest = safe(root, path) ?: throw IllegalStateException("Unsafe itch.io archive path: $relative")
-            val staged = safe(stage, path)
             val expected = next[relative]
             val oldHash = previous[relative]
-            val backup = safe(backups, path)!!
             val done = state.optJSONObject("done") ?: JSONObject().also { state.put("done", it) }
             val wasJournaledDone = done.optBoolean(relative)
+            val dest = safe(root, path)
+            if (dest == null && expected == null) {
+                done.put(relative, true)
+                writeJournal(journal, state)
+                count++
+                afterEntry?.invoke(count)
+                continue
+            }
+            val actualDest = dest ?: throw IllegalStateException("Unsafe itch.io archive path: $relative")
+            val staged = safe(stage, path)
+            val backup = safe(backups, path)
+            if (backup == null && expected == null) {
+                done.put(relative, true)
+                writeJournal(journal, state)
+                count++
+                afterEntry?.invoke(count)
+                continue
+            }
+            val actualBackup = backup ?: throw IllegalStateException("Unsafe itch.io backup path: $relative")
             if (wasJournaledDone) {
                 val expectedHash = expected.takeUnless { it == DIRECTORY }
-                if (expectedHash != null && dest.isFile && sha256(dest) == expectedHash) { count++; continue }
-                if (expected == DIRECTORY && dest.isDirectory && !Files.isSymbolicLink(dest.toPath())) { count++; continue }
-                if (expectedHash == null && expected != DIRECTORY && (!dest.isFile || oldHash == null || sha256(dest) != oldHash)) { count++; continue }
+                if (expectedHash != null && actualDest.isFile && sha256(actualDest) == expectedHash) { count++; continue }
+                if (expected == DIRECTORY && actualDest.isDirectory && !Files.isSymbolicLink(actualDest.toPath())) { count++; continue }
+                if (expectedHash == null && expected != DIRECTORY && (!actualDest.isFile || oldHash == null || sha256(actualDest) != oldHash)) { count++; continue }
                 done.put(relative, false)
                 writeJournal(journal, state)
             }
             if (expected == null) {
                 if (oldHash == DIRECTORY) {
-                    if (dest.isDirectory && !Files.isSymbolicLink(dest.toPath()) && dest.listFiles().isNullOrEmpty()) dest.delete()
-                } else if (dest.isFile && oldHash != null && sha256(dest) == oldHash) {
-                    backup.parentFile?.mkdirs()
-                    move(dest, backup)
+                    if (actualDest.isDirectory && !Files.isSymbolicLink(actualDest.toPath()) && actualDest.listFiles().isNullOrEmpty()) actualDest.delete()
+                } else if (actualDest.isFile && oldHash != null && sha256(actualDest) == oldHash) {
+                    actualBackup.parentFile?.mkdirs()
+                    move(actualDest, actualBackup)
                 }
                 done.put(relative, true)
                 writeJournal(journal, state)
             } else if (directory) {
-                require(!Files.isSymbolicLink(dest.toPath())) { "itch.io archive directory collides with a symbolic link: $path" }
-                if (dest.exists() && !dest.isDirectory) {
+                require(!Files.isSymbolicLink(actualDest.toPath())) { "itch.io archive directory collides with a symbolic link: $path" }
+                if (actualDest.exists() && !actualDest.isDirectory) {
                     val oldFileHash = previous[path]
-                    require(oldFileHash != null && sha256(dest) == oldFileHash) { "itch.io archive directory collides with an unmanaged file: $path" }
-                    backup.parentFile?.mkdirs()
-                    move(dest, backup)
+                    require(oldFileHash != null && sha256(actualDest) == oldFileHash) { "itch.io archive directory collides with an unmanaged file: $path" }
+                    actualBackup.parentFile?.mkdirs()
+                    move(actualDest, actualBackup)
                 }
-                check(dest.isDirectory || dest.mkdirs()) { "Could not create itch.io archive directory: $path" }
+                check(actualDest.isDirectory || actualDest.mkdirs()) { "Could not create itch.io archive directory: $path" }
                 done.put(relative, true)
                 writeJournal(journal, state)
             } else {
-                if (protectedUserData(path) && dest.exists()) {
-                    require(oldHash != null && dest.isFile && sha256(dest) == oldHash) {
+                if (protectedUserData(path) && actualDest.exists()) {
+                    require((oldHash != null && actualDest.isFile && sha256(actualDest) == oldHash) || wasJournaledDone) {
                         "itch.io archive collides with untracked or modified user data: $path"
                     }
                 }
-                val currentHash = if (dest.isFile) sha256(dest) else null
+                val currentHash = if (actualDest.isFile) sha256(actualDest) else null
                 if (currentHash == expected) {
                     staged?.delete()
                 } else {
                     val stagedFile = staged?.takeIf { it.isFile } ?: throw IllegalStateException("Staged itch.io file is missing: $relative")
-                    val emptyManagedDirectory = dest.isDirectory && !Files.isSymbolicLink(dest.toPath()) && dest.listFiles().isNullOrEmpty()
-                    require(!dest.exists() || oldHash != null || emptyManagedDirectory || wasJournaledDone || backup.exists()) { "itch.io update collides with an unmanaged file: $relative" }
-                    if (dest.isDirectory && !Files.isSymbolicLink(dest.toPath()) && dest.listFiles().isNullOrEmpty()) dest.delete()
-                    require(!dest.exists() || dest.isFile) { "itch.io update collides with an unmanaged directory: $relative" }
-                    require(!Files.isSymbolicLink(dest.toPath())) { "itch.io update collides with a symbolic link: $relative" }
-                    if (dest.exists() && !backup.exists()) {
-                        backup.parentFile?.mkdirs()
-                        move(dest, backup)
+                    val emptyManagedDirectory = actualDest.isDirectory && !Files.isSymbolicLink(actualDest.toPath()) && actualDest.listFiles().isNullOrEmpty()
+                    require(!actualDest.exists() || oldHash != null || emptyManagedDirectory || wasJournaledDone) { "itch.io update collides with an unmanaged file: $relative" }
+                    if (actualDest.isDirectory && !Files.isSymbolicLink(actualDest.toPath()) && actualDest.listFiles().isNullOrEmpty()) actualDest.delete()
+                    require(!actualDest.exists() || actualDest.isFile) { "itch.io update collides with an unmanaged directory: $relative" }
+                    require(!Files.isSymbolicLink(actualDest.toPath())) { "itch.io update collides with a symbolic link: $relative" }
+                    if (actualDest.exists() && !actualBackup.exists()) {
+                        actualBackup.parentFile?.mkdirs()
+                        move(actualDest, actualBackup)
                     }
-                    dest.parentFile?.mkdirs()
-                    move(stagedFile, dest)
-                    check(sha256(dest) == expected) { "itch.io replacement failed verification: $relative" }
+                    actualDest.parentFile?.mkdirs()
+                    move(stagedFile, actualDest)
+                    check(sha256(actualDest) == expected) { "itch.io replacement failed verification: $relative" }
                 }
                 done.put(relative, true)
                 writeJournal(journal, state)
@@ -171,6 +237,7 @@ internal object ItchStaging {
             count++
             afterEntry?.invoke(count)
         }
+        onCommitted?.invoke(next)
         StoreInstallsSafeDelete.delete(from)
         StoreInstallsSafeDelete.delete(backups)
         journal.delete()
