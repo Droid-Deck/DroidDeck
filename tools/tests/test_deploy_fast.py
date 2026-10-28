@@ -233,7 +233,7 @@ class SignTest(unittest.TestCase):
 
             def run(command, **options):
                 signed.write_text('apk')
-                self.assertEqual(options['env']['BUILD_TOOLS'], str(base / 'build-tools/35.0.0'))
+                self.assertEqual(options['env']['BUILD_TOOLS'], str((base / 'build-tools/35.0.0').resolve()))
                 return mock.Mock(returncode=0, stdout='', stderr='')
 
             with mock.patch.object(deploy_fast, 'SIGNER', base / 'missing.ps1'), \

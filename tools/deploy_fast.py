@@ -214,7 +214,7 @@ def sign_with_env(env_file, unsigned, signed):
         raise Refused('aapt not found under ' + str(sdk_root() / 'build-tools'))
     script = f'set -a; cd "$(dirname "$1")"; . "$1"; set +a; exec "$2" "$3" standard "$4"'
     result = subprocess.run(['bash', '-c', script, 'sign', str(env_file), str(ROOT / 'tools/release/sign-apk.sh'),
-                             str(unsigned), str(signed)], env={**os.environ, 'BUILD_TOOLS': str(build_tools[0].parent)},
+                             str(unsigned), str(signed)], env={**os.environ, 'BUILD_TOOLS': str(build_tools[0].parent.resolve())},
                             capture_output=True, text=True)
     if result.returncode or not signed.is_file():
         raise Refused('Signing failed:\n' + (result.stdout + result.stderr).strip())
