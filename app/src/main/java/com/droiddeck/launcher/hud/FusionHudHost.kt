@@ -1,0 +1,194 @@
+package com.droiddeck.launcher.hud
+
+import android.content.Context
+import android.os.Environment
+import android.os.Handler
+import android.os.Looper
+import android.view.Choreographer
+import android.view.View
+import android.view.ViewGroup
+import android.widget.FrameLayout
+import com.droiddeck.launcher.gpu.FrameGen
+import com.droiddeck.launcher.gpu.GpuInfo
+import com.droiddeck.launcher.runtime.LinuxRuntime
+import com.droiddeck.launcher.session.SessionPrefs
+import com.droiddeck.launcher.wayland.WaylandCompositor
+import java.io.File
+import kotlin.math.roundToInt
+
+/**
+ * FusionHUD on the session screen, in place of the old text HUD: the view, the frame feed from gamescope
+ * (MangoHud's frame times) and MangoHud's readings, started with the session's first frame.
+ */
+class FusionHudHost(context: Context) {
+    private val context = context.applicationContext
+    private val handler = Handler(Looper.getMainLooper())
+    private val feed = GameFrameFeed(File(LinuxRuntime.rootDir(this.context), HudFrames.PATH))
+    private val readings = MangoReadings(File(this.context.filesDir, "session"), LinuxRuntime.rootDir(this.context))
+    private var view: FusionHudView? = null
+    private var parent: ViewGroup? = null
+    private var running = false
+    private var hidden = false
+    private var engine = ""
+    private var gpuName = ""
+    private var protonPid = 0
+    private var proton = ""
+    @Volatile private var lastWindow: String? = null
+
+    var onPresentingWindowChanged: (() -> Unit)? = null
+
+    /** The HUD itself changed a setting: a tap cycles the size, a long press locks it. */
+    var onConfigChanged: (() -> Unit)? = null
+
+    private val listener = object : WaylandCompositor.GameListener {
+        override fun onGameSurface(window: String?, gpuName: String?) {
+            if (!gpuName.isNullOrBlank()) handler.post { this@FusionHudHost.gpuName = gpuName }
+            if (window != null && window != lastWindow) {
+                lastWindow = window
+                handler.post { onPresentingWindowChanged?.invoke() }
+            }
+        }
+
+        override fun onGameFrame() {
+            feed.onCompositorFrame(System.nanoTime())
+        }
+    }
+
+    private val frameCallback = object : Choreographer.FrameCallback {
+        override fun doFrame(frameTimeNanos: Long) {
+            if (!running) return
+            if (feed.poll(System.nanoTime())) view?.onFrames()
+            Choreographer.getInstance().postFrameCallback(this)
+        }
+    }
+
+    private val enabled: Boolean
+        get() = SessionPrefs.hudEnabled(context) &&
+            !File(Environment.getExternalStorageDirectory(), "Download/droiddeck-no-hud").exists()
+
+    /** Adds the HUD to [root] at [index] (above the game surface, under the session overlay). */
+    fun attach(root: FrameLayout, index: Int) {
+        if (view != null) return
+        val hud = FusionHudView(root.context)
+        hud.setFrameStats(feed.stats)
+        hud.setMangoReadings(readings)
+        hud.setGpuModel(GpuInfo.detect().displayName(context))
+        hud.onRefresh = Runnable { refreshLabels(hud) }
+        hud.setOnMovedListener { x, y -> SessionPrefs.setFusionHudPosition(context, x, y) }
+        hud.setOnSizeCycledListener { size -> FusionHudConfig.set(context, "hudSize", size); onConfigChanged?.invoke() }
+        hud.setOnLockChangedListener { locked ->
+            FusionHudConfig.set(context, "hudLocked", if (locked) "1" else "0")
+            onConfigChanged?.invoke()
+        }
+        hud.addOnLayoutChangeListener { v, _, _, _, _, _, _, _, _ -> keepOnScreen(v) }
+        hud.visibility = View.GONE
+        val margin = (16 * root.resources.displayMetrics.density).roundToInt()
+        root.addView(hud, index, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            leftMargin = margin
+            topMargin = margin
+        })
+        SessionPrefs.fusionHudPosition(context)?.let { (x, y) -> hud.post { hud.x = x; hud.y = y; keepOnScreen(hud) } }
+        view = hud
+        parent = root
+        applyConfig()
+    }
+
+    fun applyConfig() {
+        view?.applyConfig(FusionHudConfig.encode(FusionHudConfig.load(context)))
+    }
+
+    fun refresh() {
+        applyConfig()
+        if (!enabled) stop() else if (!running) start()
+    }
+
+    fun start() {
+        if (running || !enabled || view == null) return
+        running = true
+        WaylandCompositor.setGameListener(listener)
+        Choreographer.getInstance().postFrameCallback(frameCallback)
+        showing = !hidden
+        view?.visibility = if (hidden) View.GONE else View.VISIBLE
+    }
+
+    fun stop() {
+        running = false
+        showing = false
+        Choreographer.getInstance().removeFrameCallback(frameCallback)
+        WaylandCompositor.clearGameListener(listener)
+        feed.close()
+        view?.visibility = View.GONE
+    }
+
+    /** Picture-in-picture and similar: keep running, draw nothing. */
+    fun setHidden(hide: Boolean) {
+        hidden = hide
+        if (running) {
+            view?.visibility = if (hide) View.GONE else View.VISIBLE
+            showing = !hide
+        }
+    }
+
+    /** A sensor report (FusionHUD's diagnostics) in Downloads/DroidDeck; null when it can't be written. */
+    fun exportDiagnostics(): File? = runCatching {
+        val dir = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "DroidDeck")
+        dir.mkdirs()
+        val stamp = java.text.SimpleDateFormat("yyyyMMdd-HHmmss", java.util.Locale.US).format(java.util.Date())
+        val file = File(dir, "HUD-diagnostics-$stamp.txt")
+        val metrics = HudMetrics(context)
+        val mango = metrics.also { it.setMangoReadings(readings) }.snapshot()
+        file.writeText(metrics.also { it.setMangoReadings(null) }.buildDiagnosticsReport(context) + "\n== As the HUD shows them (MangoHud's sources) ==\n" +
+            "CPU ${mango.cpuPercent}% ${mango.cpuTempC}°C, GPU ${mango.gpuPercent}% ${mango.gpuClockMhz}MHz ${mango.gpuTempC}°C, " +
+            "RAM ${mango.ramUsedText()}/${mango.ramTotalText()}, VRAM ${mango.vramText()}, battery ${mango.battery.percent}% " +
+            "${mango.battery.watts}W charging=${mango.battery.charging}\n" +
+            "CPU temperature zones: ${LinuxRuntime.cpuTempZones().joinToString { it.name }}\n" +
+            "Frames: ${if (feed.engine.isNotEmpty() || feed.pid > 0) "gamescope (pid ${feed.pid}, ${feed.engine})" else "compositor"}, " +
+            "fps ${feed.stats.fps}\n")
+        file
+    }.getOrNull()
+
+    private fun refreshLabels(hud: FusionHudView) {
+        if (feed.engine.isNotBlank() && !feed.steamFocused) engine = feed.engine
+        hud.setEngineLabel(engine)
+        if (gpuName.isNotBlank()) hud.setGpuModel(gpuName)
+        hud.setResolution(if (feed.outputWidth > 0 && feed.outputHeight > 0) buildString {
+            append(feed.outputWidth).append('x').append(feed.outputHeight)
+            if (feed.refreshMilliHz > 0) append(" @ ").append((feed.refreshMilliHz + 499) / 1000).append("Hz")
+        } else "")
+        val pid = feed.pid
+        if (pid > 0 && pid != protonPid) {
+            protonPid = pid
+            proton = protonName(pid) ?: proton
+        }
+        hud.setWineVersion(proton)
+        hud.setPresentedFps(presentedFps())
+    }
+
+    private fun presentedFps(): Float {
+        if (FrameGen.mode(context).engine == FrameGen.ENGINE_OFF) return 0f
+        val stats = runCatching { WaylandCompositor.nativeFrameGenStats() }.getOrNull() ?: return 0f
+        return if (stats.size > 3 && stats[3] > 1f) stats[3] else 0f
+    }
+
+    private fun keepOnScreen(v: View) {
+        val p = v.parent as? View ?: return
+        if (p.width <= 0 || p.height <= 0 || v.width <= 0 || v.height <= 0) return
+        val maxX = (p.width - v.width).toFloat().coerceAtLeast(0f)
+        val maxY = (p.height - v.height).toFloat().coerceAtLeast(0f)
+        if (v.x > maxX || v.x < 0f) v.x = v.x.coerceIn(0f, maxX)
+        if (v.y > maxY || v.y < 0f) v.y = v.y.coerceIn(0f, maxY)
+    }
+
+    companion object {
+        /** True while the HUD is on screen; DroidDeck keeps sampling VRAM for it (GpuMemComponent). */
+        @Volatile @JvmStatic var showing = false
+            private set
+
+        /** The Proton build of a game process: the first STEAM_COMPAT_TOOL_PATHS entry's folder. */
+        internal fun protonName(pid: Int): String? = runCatching {
+            val environ = File("/proc/$pid/environ").readBytes().toString(Charsets.UTF_8).split('\u0000')
+            val paths = environ.firstOrNull { it.startsWith("STEAM_COMPAT_TOOL_PATHS=") }?.substringAfter('=') ?: return null
+            paths.split(':').firstOrNull { it.isNotBlank() }?.trimEnd('/')?.substringAfterLast('/')
+        }.getOrNull()?.takeIf { it.isNotBlank() }
+    }
+}

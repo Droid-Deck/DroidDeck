@@ -42,6 +42,7 @@ import androidx.compose.material.icons.outlined.Pause
 import androidx.compose.material.icons.outlined.PictureInPictureAlt
 import androidx.compose.material.icons.automirrored.outlined.ExitToApp
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material.icons.outlined.SportsEsports
 import androidx.compose.material3.Icon
 import androidx.compose.material3.RadioButton
@@ -157,6 +158,7 @@ private val SessionDrawerPage.title: Int get() = when (this) {
     SessionDrawerPage.GLASSES -> R.string.drawer_page_glasses
     SessionDrawerPage.SECOND_SCREEN -> R.string.drawer_second_screen
     SessionDrawerPage.DISPLAY -> R.string.drawer_page_display
+    SessionDrawerPage.HUD -> R.string.drawer_hud
     SessionDrawerPage.VR -> R.string.vr_title
     SessionDrawerPage.EFFECTS -> R.string.drawer_page_effects
     SessionDrawerPage.GAMES -> R.string.game_settings_title
@@ -168,6 +170,7 @@ private val SessionDrawerPage.icon get() = when (this) {
     SessionDrawerPage.GLASSES -> GlassesIcon
     SessionDrawerPage.SECOND_SCREEN -> Icons.Outlined.ScreenShare
     SessionDrawerPage.DISPLAY -> Icons.Outlined.DesktopWindows
+    SessionDrawerPage.HUD -> Icons.Outlined.Speed
     SessionDrawerPage.VR -> VrHeadsetIcon
     SessionDrawerPage.EFFECTS -> Icons.Outlined.AutoFixHigh
     SessionDrawerPage.GAMES -> Icons.Outlined.Layers
@@ -201,11 +204,7 @@ class DrawerActions(
     val isHomeApp: Boolean,
     val androidApps: List<HomeApp.LaunchableApp>,
     val hudOn: Boolean,
-    val hudFps: Boolean = true,
-    val hudBattery: Boolean = true,
-    val hudGraph: Boolean = true,
-    val hudColor: String = SessionPrefs.HUD_COLOR_MINT,
-    val hudOpacity: Int = SessionPrefs.HUD_OPACITY_DEFAULT,
+    val hudConfig: Map<String, String> = emptyMap(),
     val frameGen: FrameGen.Mode,
     val lossless: Lossless.State,
     val oscMode: String,
@@ -238,11 +237,9 @@ class DrawerActions(
     val secondScreenDisplays: List<SecondScreenDisplay>,
     val selectedSecondScreenDisplay: Int,
     val onHud: (Boolean) -> Unit,
-    val onHudFps: (Boolean) -> Unit = {},
-    val onHudBattery: (Boolean) -> Unit = {},
-    val onHudGraph: (Boolean) -> Unit = {},
-    val onHudColor: (String) -> Unit = {},
-    val onHudOpacity: (Int) -> Unit = {},
+    val onHudSetting: (String, String) -> Unit = { _, _ -> },
+    val onHudReset: () -> Unit = {},
+    val onHudExport: () -> Unit = {},
     val onFrameGenPick: (FrameGen.Mode) -> Unit,
     val onImportLossless: () -> Unit,
     val onKeyboard: () -> Unit,
@@ -495,34 +492,9 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                     modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(pageScroll.getValue(page)),
                 ) { CompositionLocalProvider(LocalChipMinWidth provides 96.dp, LocalCompactSettings provides true) {
                     when (page) {
+                        SessionDrawerPage.HUD -> FusionHudSettings(host, a) { key -> focus.track(page, key) }
                         SessionDrawerPage.DISPLAY -> {
                             SettingsGroup(stringResource(R.string.drawer_page_display)) {
-                                ToggleRow(host, "hud", stringResource(R.string.drawer_hud), null, a.hudOn,
-                                    chipModifier = focus.track(page, "hud"), onChange = a.onHud)
-                                if (a.hudOn) {
-                                    ToggleRow(host, "hud-fps", stringResource(R.string.drawer_hud_fps), null, a.hudFps,
-                                        chipModifier = focus.track(page, "hud-fps"), onChange = a.onHudFps)
-                                    ToggleRow(host, "hud-battery", stringResource(R.string.drawer_hud_battery), null, a.hudBattery,
-                                        chipModifier = focus.track(page, "hud-battery"), onChange = a.onHudBattery)
-                                    ToggleRow(host, "hud-graph", stringResource(R.string.drawer_hud_graph), null, a.hudGraph,
-                                        chipModifier = focus.track(page, "hud-graph"), onChange = a.onHudGraph)
-                                    ChoiceRow(
-                                        host, "hud-color", stringResource(R.string.drawer_hud_color), null,
-                                        listOf(
-                                            SessionPrefs.HUD_COLOR_MINT to stringResource(R.string.drawer_hud_color_mint),
-                                            "white" to stringResource(R.string.drawer_hud_color_white),
-                                            "sky" to stringResource(R.string.drawer_hud_color_sky),
-                                            "amber" to stringResource(R.string.drawer_hud_color_amber),
-                                            "violet" to stringResource(R.string.drawer_hud_color_violet),
-                                        ),
-                                        a.hudColor, chipModifier = focus.track(page, "hud-color"), onPick = a.onHudColor,
-                                    )
-                                    SliderRow(
-                                        stringResource(R.string.drawer_hud_opacity), null, a.hudOpacity,
-                                        SessionPrefs.HUD_OPACITY_RANGE, step = 10, format = { "$it%" },
-                                        modifier = focus.track(page, "hud-opacity"), onChange = a.onHudOpacity,
-                                    )
-                                }
                                 val fgOpen = host.open == "fg"
                                 val fgLabel = FrameGen.label(LocalContext.current, a.frameGen)
                                 SettingsRow(stringResource(R.string.frame_gen_title), null, highlighted = fgOpen) {
