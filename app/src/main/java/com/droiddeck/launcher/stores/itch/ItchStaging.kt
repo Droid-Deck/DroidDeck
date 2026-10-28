@@ -4,6 +4,7 @@ import org.json.JSONObject
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
+import java.io.RandomAccessFile
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import java.security.MessageDigest
@@ -12,6 +13,7 @@ internal object ItchStaging {
     const val DIR = ".droiddeck-update"
     const val RECORD = ".droiddeck-store.json"
     private const val JOURNAL = "itch-commit.json"
+    private const val PROGRESS = "itch-commit-progress.jsonl"
     private const val INVENTORY = "itch-inventory.json"
     private const val BACKUPS = "itch-backups"
     private const val DIRECTORY = "<directory>"
@@ -112,10 +114,12 @@ internal object ItchStaging {
         onCommitted: ((Map<String, String>) -> Unit)? = null,
     ): Map<String, String> {
         require(!Files.isSymbolicLink(to.toPath())) { "The itch.io install folder is a symbolic link" }
-        val metadata = File(to, ".droiddeck-maintenance").apply { mkdirs() }
+        val root = to.canonicalFile
+        val metadata = File(root, ".droiddeck-maintenance").apply { mkdirs() }
         require(!Files.isSymbolicLink(metadata.toPath())) { "Maintenance metadata directory is a symbolic link" }
         val backups = File(metadata, BACKUPS)
         val journal = File(metadata, JOURNAL)
+        val progress = File(metadata, PROGRESS)
         val existing = readJournal(journal)
         val discovered = inventory(from)
         val existingNext = existing?.getJSONObject("next")
@@ -123,7 +127,7 @@ internal object ItchStaging {
             linkedMapOf<String, String>().apply {
                 saved.keys().forEach { relative ->
                     val hash = saved.optString(relative)
-                    require(validInventoryEntry(to.canonicalFile, relative, hash)) { "The interrupted itch.io inventory is invalid" }
+                    require(validInventoryEntry(root, relative, hash)) { "The interrupted itch.io inventory is invalid" }
                     put(relative, hash)
                 }
                 for ((relative, hash) in discovered) {
@@ -137,26 +141,37 @@ internal object ItchStaging {
         } ?: discovered
         val files = JSONObject().apply { next.forEach { (path, hash) -> put(path, hash) } }
         val obsolete = previous.keys.filter { it !in next }.sorted()
-        val root = to.canonicalFile
         val stage = from.canonicalFile
         val paths = obsolete.sortedWith(compareByDescending<String> { it.count { ch -> ch == '/' } }.thenBy { it }) +
             next.keys.sortedWith(compareBy<String> { it.count { ch -> ch == '/' } }.thenBy { it })
-        val state = existing ?: JSONObject().put("schema", 1).put("next", files).put("obsolete", JSONObject().apply { obsolete.forEach { put(it, previous[it]) } }).put("done", JSONObject())
-        check(state.optInt("schema") == 1 && existingNext != null && state.optJSONObject("done") != null && state.optJSONObject("obsolete") != null || existing == null) {
+        val obsoletePlan = JSONObject().apply { obsolete.forEach { put(it, previous[it]) } }
+        val legacyDone = existing?.optJSONObject("done")
+        check(existing == null || existing.optInt("schema") == 1 && existingNext != null && existing.optJSONObject("obsolete") != null) {
             "An interrupted itch.io replacement has an unsupported journal"
+        }
+        check(existing == null || !existing.has("done") || legacyDone != null) {
+            "An interrupted itch.io progress journal is invalid"
+        }
+        require(!Files.isSymbolicLink(progress.toPath())) { "The itch.io progress log is a symbolic link" }
+        val allowedPaths = next.keys + obsoletePlan.keys().asSequence().toSet()
+        val completed = if (existing != null) readProgress(progress, root, allowedPaths) else linkedSetOf()
+        if (existing != null && legacyDone != null) {
+            validateDone(root, legacyDone, allowedPaths)
+            for (relative in legacyDone.keys().asSequence().filter { legacyDone.optBoolean(it) }) {
+                if (completed.add(relative)) appendProgress(progress, relative)
+            }
         }
         require(!Files.isSymbolicLink(backups.toPath())) { "The itch.io backup directory is a symbolic link" }
         backups.mkdirs()
         require(!Files.isSymbolicLink(backups.toPath())) { "The itch.io backup directory is a symbolic link" }
         check(backups.isDirectory) { "The itch.io backup path is not a directory" }
-        val journalDone = state.optJSONObject("done")
         for (relative in paths) {
             val expected = next[relative]
             if (expected == null) continue
             val path = relative.removeSuffix("/")
             val dest = safe(root, path) ?: throw PreflightConflict("Unsafe itch.io archive path: $relative")
             safe(backups, path) ?: throw PreflightConflict("Unsafe itch.io backup path: $relative")
-            val wasJournaledDone = journalDone?.optBoolean(relative) == true
+            val wasJournaledDone = relative in completed
             if (expected == DIRECTORY) {
                 if (dest.exists() && !dest.isDirectory) {
                     val oldFileHash = previous[path]
@@ -180,19 +195,21 @@ internal object ItchStaging {
                 require(safe(stage, path)?.isFile == true) { "Staged itch.io file is missing: $relative" }
             }
         }
-        writeJournal(journal, state)
+        val plan = JSONObject().put("schema", 1).put("next", files).put("obsolete", obsoletePlan)
+        if (existing == null || legacyDone != null) {
+            if (existing == null && progress.exists()) check(progress.delete()) { "Could not clear stale itch.io progress log" }
+            writeJournal(journal, plan)
+        }
         var count = 0
         for (relative in paths) {
             val directory = next[relative] == DIRECTORY
             val path = relative.removeSuffix("/")
             val expected = next[relative]
             val oldHash = previous[relative]
-            val done = state.optJSONObject("done") ?: JSONObject().also { state.put("done", it) }
-            val wasJournaledDone = done.optBoolean(relative)
+            val wasJournaledDone = relative in completed
             val dest = safe(root, path)
             if (dest == null && expected == null) {
-                done.put(relative, true)
-                writeJournal(journal, state)
+                if (completed.add(relative)) appendProgress(progress, relative)
                 count++
                 afterEntry?.invoke(count)
                 continue
@@ -201,8 +218,7 @@ internal object ItchStaging {
             val staged = safe(stage, path)
             val backup = safe(backups, path)
             if (backup == null && expected == null) {
-                done.put(relative, true)
-                writeJournal(journal, state)
+                if (completed.add(relative)) appendProgress(progress, relative)
                 count++
                 afterEntry?.invoke(count)
                 continue
@@ -213,8 +229,6 @@ internal object ItchStaging {
                 if (expectedHash != null && actualDest.isFile && sha256(actualDest) == expectedHash) { count++; continue }
                 if (expected == DIRECTORY && actualDest.isDirectory && !Files.isSymbolicLink(actualDest.toPath())) { count++; continue }
                 if (expectedHash == null && expected != DIRECTORY && (!actualDest.isFile || oldHash == null || sha256(actualDest) != oldHash)) { count++; continue }
-                done.put(relative, false)
-                writeJournal(journal, state)
             }
             if (expected == null) {
                 if (oldHash == DIRECTORY) {
@@ -223,8 +237,6 @@ internal object ItchStaging {
                     actualBackup.parentFile?.mkdirs()
                     move(actualDest, actualBackup)
                 }
-                done.put(relative, true)
-                writeJournal(journal, state)
             } else if (directory) {
                 require(!Files.isSymbolicLink(actualDest.toPath())) { "itch.io archive directory collides with a symbolic link: $path" }
                 if (actualDest.exists() && !actualDest.isDirectory) {
@@ -234,8 +246,6 @@ internal object ItchStaging {
                     move(actualDest, actualBackup)
                 }
                 check(actualDest.isDirectory || actualDest.mkdirs()) { "Could not create itch.io archive directory: $path" }
-                done.put(relative, true)
-                writeJournal(journal, state)
             } else {
                 if (protectedUserData(path) && actualDest.exists()) {
                     require((oldHash != null && actualDest.isFile && sha256(actualDest) == oldHash) || wasJournaledDone) {
@@ -260,41 +270,42 @@ internal object ItchStaging {
                     move(stagedFile, actualDest)
                     check(sha256(actualDest) == expected) { "itch.io replacement failed verification: $relative" }
                 }
-                done.put(relative, true)
-                writeJournal(journal, state)
             }
+            if (completed.add(relative)) appendProgress(progress, relative)
             count++
             afterEntry?.invoke(count)
         }
         onCommitted?.invoke(next)
         StoreInstallsSafeDelete.delete(from)
         StoreInstallsSafeDelete.delete(backups)
+        if (progress.exists()) check(progress.delete()) { "Could not remove itch.io progress log" }
         journal.delete()
         return next
     }
 
     fun recover(to: File): Boolean {
-        val file = File(to, ".droiddeck-maintenance/$JOURNAL")
+        require(!Files.isSymbolicLink(to.toPath())) { "The itch.io install folder is a symbolic link" }
+        val root = to.canonicalFile
+        val file = File(root, ".droiddeck-maintenance/$JOURNAL")
         val state = readJournal(file) ?: return false
         require(state.optInt("schema") == 1) { "The interrupted itch.io replacement has an unsupported journal" }
         val next = state.optJSONObject("next") ?: throw IllegalStateException("The interrupted itch.io inventory is missing")
-        val done = state.optJSONObject("done") ?: throw IllegalStateException("The interrupted itch.io progress is missing")
         val obsolete = state.optJSONObject("obsolete") ?: throw IllegalStateException("The interrupted itch.io cleanup list is missing")
         for (relative in next.keys()) {
-            require(validInventoryEntry(to.canonicalFile, relative, next.optString(relative))) {
+            require(validInventoryEntry(root, relative, next.optString(relative))) {
                 "The interrupted itch.io inventory is invalid"
             }
         }
-        for (relative in done.keys()) {
-            require(safe(to.canonicalFile, relative.removeSuffix("/")) != null && done.get(relative) is Boolean) {
-                "The interrupted itch.io progress is invalid"
-            }
-        }
         for (relative in obsolete.keys()) {
-            require(validInventoryEntry(to.canonicalFile, relative, obsolete.optString(relative))) {
+            require(validInventoryEntry(root, relative, obsolete.optString(relative))) {
                 "The interrupted itch.io cleanup list is invalid"
             }
         }
+        val metadata = file.parentFile
+        val progress = File(metadata, PROGRESS)
+        val allowedPaths = next.keys().asSequence().toSet() + obsolete.keys().asSequence().toSet()
+        readProgress(progress, root, allowedPaths)
+        state.optJSONObject("done")?.let { validateDone(root, it, allowedPaths) }
         return true
     }
 
@@ -306,6 +317,9 @@ internal object ItchStaging {
                 merge(child, dest, false)
             } else {
                 if (Files.isSymbolicLink(dest.toPath())) dest.delete()
+                require(!dest.exists() || child.isDirectory == dest.isDirectory) {
+                    "itch.io archive path collides with an existing path: ${child.name}"
+                }
                 require(!dest.exists() || !dest.isDirectory) { "itch.io archive path collides with a directory: ${child.name}" }
                 dest.parentFile?.mkdirs()
                 move(child, dest)
@@ -330,6 +344,54 @@ internal object ItchStaging {
     private fun validInventoryEntry(root: File, relative: String, value: String): Boolean =
         safe(root, relative.removeSuffix("/")) != null &&
             (if (value == DIRECTORY) relative.endsWith('/') else value.matches(HASH) && !relative.endsWith('/'))
+
+    private fun validateDone(root: File, done: JSONObject, allowed: Set<String>) {
+        for (relative in done.keys()) {
+            require(relative in allowed && safe(root, relative.removeSuffix("/")) != null && done.get(relative) is Boolean) {
+                "The interrupted itch.io progress is invalid"
+            }
+        }
+    }
+
+    private fun readProgress(file: File, root: File, allowed: Set<String>): MutableSet<String> {
+        require(!Files.isSymbolicLink(file.toPath())) { "The itch.io progress log is a symbolic link" }
+        if (!file.exists()) return linkedSetOf()
+        require(file.isFile) { "The itch.io progress log is not a regular file" }
+        val bytes = file.readBytes()
+        val text = bytes.toString(Charsets.UTF_8)
+        val completed = linkedSetOf<String>()
+        var start = 0
+        while (true) {
+            val end = text.indexOf('\n', start)
+            if (end < 0) break
+            val line = text.substring(start, end)
+            require(line.isNotBlank()) { "The itch.io progress log contains an empty record" }
+            val relative = runCatching { JSONObject(line).getString("path") }
+                .getOrElse { throw IllegalStateException("The itch.io progress log is corrupt", it) }
+            require(relative in allowed && safe(root, relative.removeSuffix("/")) != null) {
+                "The itch.io progress log contains an invalid path"
+            }
+            completed += relative
+            start = end + 1
+        }
+        val lastNewline = bytes.indexOfLast { it == '\n'.code.toByte() }
+        if (lastNewline + 1 < bytes.size) {
+            RandomAccessFile(file, "rw").use { journal ->
+                journal.setLength((lastNewline + 1).toLong())
+                journal.fd.sync()
+            }
+        }
+        return completed
+    }
+
+    private fun appendProgress(file: File, relative: String) {
+        require(!Files.isSymbolicLink(file.toPath())) { "The itch.io progress log is a symbolic link" }
+        val record = JSONObject().put("path", relative).toString() + "\n"
+        FileOutputStream(file, true).use { output ->
+            output.write(record.toByteArray(Charsets.UTF_8))
+            output.fd.sync()
+        }
+    }
 
     private fun sha256(file: File): String {
         val digest = MessageDigest.getInstance("SHA-256")

@@ -136,6 +136,87 @@ class ItchStagingTest {
         assertFalse(ItchStaging.recover(game))
     }
 
+    @Test fun progressIsAppendedAndTornTrailingRecordIsDiscardedBeforeResume() {
+        val game = tmp.newFolder("progress-game")
+        val staged = tmp.newFolder("progress-stage")
+        file(staged, "a.txt", "a")
+        file(staged, "b.txt", "b")
+        assertThrows(IllegalStateException::class.java) {
+            ItchStaging.commit(staged, game, emptyMap(), afterEntry = { if (it == 1) error("simulated interruption") })
+        }
+        val metadata = File(game, ".droiddeck-maintenance")
+        val plan = File(metadata, "itch-commit.json")
+        val progress = File(metadata, "itch-commit-progress.jsonl")
+        val planBefore = plan.readText()
+        assertFalse(JSONObject(planBefore).has("done"))
+        assertTrue(progress.readText().contains("\"path\""))
+        progress.appendText("{\"path\":\"torn")
+
+        assertTrue(ItchStaging.recover(game))
+        assertFalse(progress.readText().contains("torn"))
+        ItchStaging.commit(staged, game, emptyMap())
+        assertEquals("a", File(game, "a.txt").readText())
+        assertEquals("b", File(game, "b.txt").readText())
+        assertFalse(plan.exists())
+        assertFalse(progress.exists())
+    }
+
+    @Test fun completeMalformedProgressRecordFailsClosed() {
+        val game = tmp.newFolder("bad-progress-game")
+        val staged = tmp.newFolder("bad-progress-stage")
+        file(staged, "a.txt", "a")
+        assertThrows(IllegalStateException::class.java) {
+            ItchStaging.commit(staged, game, emptyMap(), afterEntry = { error("simulated interruption") })
+        }
+        val progress = File(game, ".droiddeck-maintenance/itch-commit-progress.jsonl")
+        progress.appendText("{bad}\n")
+        assertThrows(IllegalStateException::class.java) { ItchStaging.recover(game) }
+    }
+
+    @Test fun legacyDoneJournalMigratesToAppendOnlyProgress() {
+        val game = tmp.newFolder("legacy-journal-game")
+        val staged = tmp.newFolder("legacy-journal-stage")
+        file(staged, "a.txt", "a")
+        file(staged, "b.txt", "b")
+        assertThrows(IllegalStateException::class.java) {
+            ItchStaging.commit(staged, game, emptyMap(), afterEntry = { if (it == 1) error("simulated interruption") })
+        }
+        val metadata = File(game, ".droiddeck-maintenance")
+        val journal = File(metadata, "itch-commit.json")
+        val progress = File(metadata, "itch-commit-progress.jsonl")
+        val old = JSONObject(journal.readText())
+        val done = JSONObject().put("a.txt", true)
+        journal.writeText(JSONObject().put("schema", 1).put("next", old.getJSONObject("next"))
+            .put("obsolete", old.getJSONObject("obsolete")).put("done", done).toString())
+        progress.delete()
+
+        ItchStaging.commit(staged, game, emptyMap())
+        assertEquals("a", File(game, "a.txt").readText())
+        assertEquals("b", File(game, "b.txt").readText())
+        assertFalse(journal.exists())
+        assertFalse(progress.exists())
+    }
+
+    @Test fun backupMetadataUsesCanonicalInstallWhenParentIsSymlinked() {
+        val actualParent = tmp.newFolder("actual-install-parent")
+        val aliasParent = File(tmp.root, "linked-install-parent")
+        java.nio.file.Files.createSymbolicLink(aliasParent.toPath(), actualParent.toPath())
+        val game = File(aliasParent, "game").also { assertTrue(it.mkdirs()) }
+        val staged = tmp.newFolder("canonical-stage")
+        file(game, "bin/game.dat", "old")
+        file(staged, "bin/game.dat", "new")
+        val previous = ItchStaging.inventory(game)
+
+        assertThrows(IllegalStateException::class.java) {
+            ItchStaging.commit(staged, game, previous, afterEntry = { error("simulated interruption") })
+        }
+        val canonicalGame = File(actualParent, "game")
+        assertTrue(File(canonicalGame, ".droiddeck-maintenance/itch-backups/bin/game.dat").isFile)
+        assertTrue(ItchStaging.recover(game))
+        ItchStaging.commit(staged, game, previous)
+        assertEquals("new", File(canonicalGame, "bin/game.dat").readText())
+    }
+
     @Test fun failedInventoryPublicationKeepsCommitJournalUntilResume() {
         val game = tmp.newFolder("inventory-publication-game")
         val staged = tmp.newFolder("inventory-publication-stage")
