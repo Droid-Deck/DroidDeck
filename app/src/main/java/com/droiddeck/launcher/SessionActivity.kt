@@ -190,6 +190,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var routedTouchMode = SessionPrefs.TOUCH_AUTO
     private var touchRoute: com.droiddeck.launcher.input.TouchRouter.Route? = null
     private var keyboard: KeyboardHost? = null
+    private var desktopKeyboardButton: com.droiddeck.launcher.input.DesktopKeyboardButton? = null
     private var controllerSettings by mutableStateOf<ControllerPrefs.Settings?>(null)
     private val sessionClipboard by lazy {
         SessionClipboard(this) {
@@ -628,7 +629,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             keys.visibility = if (screenKeysShown) View.VISIBLE else View.GONE
             root.addView(keys)
         }
-        keyboard = KeyboardHost(this).also { root.addView(it) }
+        keyboard = KeyboardHost(this).also { host ->
+            host.onImeChanged = { updateDesktopKeyboardButton() }
+            root.addView(host)
+        }
+        desktopKeyboardButton = com.droiddeck.launcher.input.DesktopKeyboardButton(this) { keyboard?.show() }
+            .also { root.addView(it) }
         touchpad = TouchpadGestures(PointerGestures.slop(this), pointerListener)
         directTouchHold = DirectTouchHold(PointerGestures.slop(this), pointerListener, directTouchSink)
         threeFingerTap = com.droiddeck.launcher.input.ThreeFingerTap(PointerGestures.slop(this) * 2)
@@ -783,6 +789,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             }
             androidx.compose.runtime.LaunchedEffect(drawerOpen, pcKeyboardOpen, achievementsOpen, pipUi) { updatePointerCapture() }
             androidx.compose.runtime.LaunchedEffect(AgentGuest.steamKeyboard) { updateOnScreenControls() }
+            androidx.compose.runtime.LaunchedEffect(AgentGuest.desktopTextField) { onDesktopTextField(AgentGuest.desktopTextField) }
+            androidx.compose.runtime.LaunchedEffect(pipUi, pcKeyboardOpen) { updateDesktopKeyboardButton() }
             androidx.compose.runtime.LaunchedEffect(picturePosition, SessionState.running, pipUi, cardboard.enabled) { applyGameAlignment() }
             DroidDeckTheme {
             if (pipUi) {
@@ -3373,6 +3381,29 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             buttonsOnly -> "Steam + QAM"
             else -> "full pad"
         })
+    }
+
+    private fun desktopTextInput() =
+        SessionState.mode == SessionService.MODE_DESKTOP && SessionState.running && !pipUi
+
+    private fun onDesktopTextField(focused: Boolean) {
+        val host = keyboard
+        if (host != null && desktopTextInput()) {
+            if (focused && resumed && !pcKeyboardOpen &&
+                resources.configuration.hardKeyboardHidden != android.content.res.Configuration.HARDKEYBOARDHIDDEN_NO) host.show()
+            else if (!focused && host.shown) host.hide()
+        }
+        updateDesktopKeyboardButton()
+    }
+
+    private fun updateDesktopKeyboardButton() {
+        val button = desktopKeyboardButton ?: return
+        val show = desktopTextInput() && AgentGuest.desktopTextField && !pcKeyboardOpen &&
+            !(keyboard?.let { it.shown && (Build.VERSION.SDK_INT < 30 || it.imeShowing) } ?: false)
+        val visibility = if (show) View.VISIBLE else View.GONE
+        if (button.visibility == visibility) return
+        if (show) button.applyColors()
+        button.visibility = visibility
     }
 
     private fun keyboardCoversPad() =

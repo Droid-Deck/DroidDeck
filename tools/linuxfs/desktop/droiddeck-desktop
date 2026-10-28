@@ -44,6 +44,19 @@ python3 /usr/local/bin/droiddeck-pad-defaults 2>&1 | sed 's/^/[pads] /'
 ( while sleep 30; do python3 /usr/local/bin/droiddeck-pad-defaults 2>&1 | sed 's/^/[pads] /'; done ) &
 python3 /usr/local/bin/droiddeck-desktop-gpu 2>&1 | sed 's/^/[gpu] /'
 /usr/local/bin/droiddeck-desktop-window-rules 2>&1 | sed 's/^/[rules] /'
+mkdir -p /usr/local/share/applications
+cat > /usr/local/share/applications/droiddeck-ime.desktop <<'ENTRY'
+[Desktop Entry]
+Type=Application
+Name=Android keyboard
+Exec=/usr/local/bin/droiddeck-ime
+NoDisplay=true
+X-KDE-Wayland-VirtualKeyboard=true
+ENTRY
+input_method=$(kreadconfig6 --file kwinrc --group Wayland --key InputMethod 2>/dev/null)
+case $input_method in
+  ''|*/droiddeck-ime.desktop) kwriteconfig6 --file kwinrc --group Wayland --key InputMethod /usr/local/share/applications/droiddeck-ime.desktop ;;
+esac
 python3 /usr/local/bin/droiddeck-open --install 2>&1 | sed 's/^/[open] /'
 export APPIMAGE_EXTRACT_AND_RUN=1
 [ -e /etc/xdg/kiorc ] || printf '[Executable scripts]\nbehaviourOnLaunch=execute\n' >/etc/xdg/kiorc 2>/dev/null

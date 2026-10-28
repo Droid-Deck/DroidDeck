@@ -22,6 +22,8 @@ object AgentGuest {
         private set
     var steamKeyboard by mutableStateOf(false)
         private set
+    var desktopTextField by mutableStateOf(false)
+        private set
     private const val TAG = "AgentGuest"
     private const val POLL_MS = 50L
     private val lock = Any()
@@ -35,7 +37,7 @@ object AgentGuest {
             observer?.stopWatching()
             observer = null
             lastFocusKey = null
-            main.post { steamKeyboard = false }
+            main.post { steamKeyboard = false; desktopTextField = false }
             val dir = dir(context)
             dir.deleteRecursively()
             dir.mkdirs()
@@ -48,6 +50,7 @@ object AgentGuest {
                         }
                         "focus.json" -> readJson(File(dir, path))?.let(::recordFocus)
                         "keyboard.json" -> readJson(File(dir, path))?.let { recordKeyboard(this, it) }
+                        "ime.json" -> readJson(File(dir, path))?.let { recordTextField(this, it) }
                     }
                 }
             }.also { it.startWatching() }
@@ -58,7 +61,7 @@ object AgentGuest {
         synchronized(lock) {
             observer?.stopWatching()
             observer = null
-            main.post { steamKeyboard = false }
+            main.post { steamKeyboard = false; desktopTextField = false }
         }
     }
 
@@ -69,6 +72,15 @@ object AgentGuest {
             main.post { steamKeyboard = showing }
         }
         SessionEvents.record("keyboard.changed", mapOf("steamKeyboard" to showing, "seq" to snapshot.optInt("seq")))
+    }
+
+    private fun recordTextField(source: FileObserver, snapshot: JSONObject) {
+        val focused = snapshot.optBoolean("textField")
+        synchronized(lock) {
+            if (source !== observer) return
+            main.post { desktopTextField = focused }
+        }
+        SessionEvents.record("ime.changed", mapOf("textField" to focused, "seq" to snapshot.optInt("seq")))
     }
 
     private fun recordFocus(snapshot: JSONObject) {
