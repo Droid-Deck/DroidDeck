@@ -119,6 +119,11 @@ Prototype (inert unless `PROOT_FASTPATH` is set; see `docs/development/proot-per
   root. Rust's `metadata` and GNU `stat` use `statx`, so uutils' `test -w` (Ubuntu's `/usr/bin/test`)
   said root could not write to its own directories and apt's AppStream hook never built Discover's
   catalog. fake_id0 keeps that exit stop when it fakes ids; identity-only mode is unchanged.
+- `0023-reused-pid-new-child.patch` - when a thread that is not its process's leader calls `execve`,
+  the kernel retires that thread's ID without reporting an exit, so PRoot keeps its entry. Once the
+  IDs wrap (32768 on many Android kernels) a new child can get that ID, and PRoot aborted on the
+  assertion that a new child has no state, ending the whole session. Chromium-based programs such as
+  Steam's client do this. PRoot now retires the stale entry and sets the new child up from scratch.
 
 Old kernel fixes:
 
