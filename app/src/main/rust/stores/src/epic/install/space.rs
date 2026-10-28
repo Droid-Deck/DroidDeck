@@ -115,7 +115,12 @@ pub fn net_peak(pending: &[PendingSize]) -> u64 {
     peak.max(0) as u64
 }
 
-pub fn plan(pending: &[PendingSize], free_game: i64, scratch: Option<Scratch>, label: &str) -> Result<SpacePlan, String> {
+pub fn plan(
+    pending: &[PendingSize],
+    free_game: i64,
+    scratch: Option<Scratch>,
+    label: &str,
+) -> Result<SpacePlan, String> {
     let peak = net_peak(pending);
     let largest_replaced = pending.iter().filter(|p| p.old_size > 0).map(|p| p.new_size).max();
 
@@ -139,7 +144,11 @@ pub fn plan(pending: &[PendingSize], free_game: i64, scratch: Option<Scratch>, l
         if free_game < 0 {
             largest
         } else {
-            largest.max((free_game as u64).saturating_sub(peak).saturating_sub(cache_on_game))
+            largest.max(
+                (free_game as u64)
+                    .saturating_sub(peak)
+                    .saturating_sub(cache_on_game),
+            )
         }
     });
     let game_need = peak + overlap.unwrap_or(0) + cache_on_game;
@@ -184,7 +193,9 @@ pub fn plan(pending: &[PendingSize], free_game: i64, scratch: Option<Scratch>, l
         human(peak.saturating_sub(free))
     );
     if moved {
-        message.push_str(". The download cache had to move beside the game because internal storage is full");
+        message.push_str(
+            ". The download cache had to move beside the game because internal storage is full",
+        );
     }
     Err(message)
 }
@@ -196,15 +207,27 @@ mod tests {
     const GB: u64 = 1024 * MIB;
 
     fn fresh(sizes: &[u64]) -> Vec<PendingSize> {
-        sizes.iter().map(|&s| PendingSize { new_size: s, old_size: 0 }).collect()
+        sizes
+            .iter()
+            .map(|&s| PendingSize {
+                new_size: s,
+                old_size: 0,
+            })
+            .collect()
     }
 
     #[test]
     fn net_peak_credits_old_copies_at_their_swap() {
         assert_eq!(net_peak(&fresh(&[10, 20])), 30);
         let update = vec![
-            PendingSize { new_size: 100, old_size: 90 },
-            PendingSize { new_size: 50, old_size: 60 },
+            PendingSize {
+                new_size: 100,
+                old_size: 90,
+            },
+            PendingSize {
+                new_size: 50,
+                old_size: 60,
+            },
         ];
         assert_eq!(net_peak(&update), 100);
         assert_eq!(net_peak(&[PendingSize { new_size: 5, old_size: 500 }]), 5);
@@ -224,13 +247,24 @@ mod tests {
         let p = plan(&fresh(&[50 * GB]), -1, Some(Scratch { free: -1 }), "Card").unwrap();
         assert!(p.cache_on_scratch);
         assert_eq!(p.cache_budget, CACHE_WHEN_UNKNOWN);
-        let update = vec![PendingSize { new_size: GB, old_size: GB }];
+        let update = vec![PendingSize {
+            new_size: GB,
+            old_size: GB,
+        }];
         assert_eq!(plan(&update, -1, None, "Card").unwrap().overlap, Some(GB));
     }
 
     #[test]
     fn scratch_too_small_moves_the_cache_beside_the_game() {
-        let p = plan(&fresh(&[GB]), (20 * GB) as i64, Some(Scratch { free: (100 * MIB) as i64 }), "Card").unwrap();
+        let p = plan(
+            &fresh(&[GB]),
+            (20 * GB) as i64,
+            Some(Scratch {
+                free: (100 * MIB) as i64,
+            }),
+            "Card",
+        )
+        .unwrap();
         assert!(!p.cache_on_scratch && p.cache_moved_beside_game);
     }
 
@@ -256,8 +290,14 @@ mod tests {
     #[test]
     fn updates_get_an_overlap_budget_of_at_least_the_largest_replaced_file() {
         let update = vec![
-            PendingSize { new_size: GB, old_size: GB },
-            PendingSize { new_size: 2 * GB, old_size: 2 * GB },
+            PendingSize {
+                new_size: GB,
+                old_size: GB,
+            },
+            PendingSize {
+                new_size: 2 * GB,
+                old_size: 2 * GB,
+            },
         ];
         let p = plan(&update, (40 * GB) as i64, None, "Internal").unwrap();
         assert!(p.overlap.unwrap() >= 2 * GB);

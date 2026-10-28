@@ -6,10 +6,16 @@ use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 use sha2::{Digest, Sha256};
+use sha3::{
+    digest::{ExtendableOutput, Update, XofReader},
+    Shake128,
+};
 
 use super::check::temp_path;
 use super::{Events, ReplaceGate, Stop};
-use crate::fetch_core::{distinct_host_count, run_fetch, FetchItem, FetchOptions, FetchSink, SinkError};
+use crate::fetch_core::{
+    distinct_host_count, run_fetch, FetchItem, FetchOptions, FetchSink, SinkError,
+};
 
 const PROGRESS_EVERY_MS: u64 = 50;
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(120);
@@ -18,8 +24,42 @@ pub struct Job {
     pub path: String,
     pub dest: PathBuf,
     pub size: u64,
-    pub sha256: Option<[u8; 32]>,
+    pub algorithm: u64,
+    pub digest: Vec<u8>,
     pub url: String,
+}
+
+enum HashState {
+    Sha256(Sha256),
+    Shake128(Shake128),
+}
+
+impl HashState {
+    fn for_algorithm(algorithm: u64) -> Self {
+        match algorithm {
+            1 => Self::Shake128(Shake128::default()),
+            _ => Self::Sha256(Sha256::new()),
+        }
+    }
+
+    fn update(&mut self, data: &[u8]) {
+        match self {
+            Self::Sha256(h) => Digest::update(h, data),
+            Self::Shake128(h) => Update::update(h, data),
+        }
+    }
+
+    fn matches(self, digest: &[u8]) -> bool {
+        match self {
+            Self::Sha256(h) => h.finalize().as_slice() == digest,
+            Self::Shake128(h) => {
+                let mut reader = h.finalize_xof();
+                let mut got = vec![0; digest.len()];
+                reader.read(&mut got);
+                got == digest
+            }
+        }
+    }
 }
 
 pub struct Settings {
@@ -47,7 +87,7 @@ pub struct Stats {
 struct Active {
     file: File,
     tmp: PathBuf,
-    hasher: Sha256,
+    hasher: HashState,
     written: u64,
 }
 
@@ -113,7 +153,12 @@ impl Placer<'_> {
         }
         let tmp = temp_path(&job.dest);
         let file = File::create(&tmp).map_err(|e| format!("Could not write {}: {e}", job.path))?;
-        Ok(Active { file, tmp, hasher: Sha256::new(), written: 0 })
+        Ok(Active {
+            file,
+            tmp,
+            hasher: HashState::for_algorithm(job.algorithm),
+            written: 0,
+        })
     }
 
     fn piece(&self, i: usize, offset: u64, data: &[u8]) -> Result<(), SinkError> {
@@ -124,7 +169,10 @@ impl Placer<'_> {
                 self.in_flight.fetch_sub(old.written, Ordering::Relaxed);
                 discard(old);
             }
-            *slot = Some(self.start(job).map_err(|e| SinkError::Fatal(self.fail(e)))?);
+            *slot = Some(
+                self.start(job)
+                    .map_err(|e| SinkError::Fatal(self.fail(e)))?,
+            );
         }
         let Some(active) = slot.as_mut() else {
             return Err(SinkError::Retry(format!("{}: data arrived before the start of the file", job.path)));
@@ -135,10 +183,9 @@ impl Placer<'_> {
         if active.written + data.len() as u64 > job.size {
             return Err(SinkError::Retry(format!("{}: the CDN sent more than the manifest size", job.path)));
         }
-        active
-            .file
-            .write_all(data)
-            .map_err(|e| SinkError::Fatal(self.fail(format!("Could not write {}: {e}", job.path))))?;
+        active.file.write_all(data).map_err(|e| {
+            SinkError::Fatal(self.fail(format!("Could not write {}: {e}", job.path)))
+        })?;
         active.hasher.update(data);
         active.written += data.len() as u64;
         self.in_flight.fetch_add(data.len() as u64, Ordering::Relaxed);
@@ -161,19 +208,23 @@ impl Placer<'_> {
             discard(active);
             return Err(SinkError::Retry(format!("{}: {got} bytes arrived, the manifest says {}", job.path, job.size)));
         }
-        let Active { file, tmp, hasher, .. } = active;
-        if let Some(expected) = job.sha256 {
-            let got: [u8; 32] = hasher.finalize().into();
-            if got != expected {
-                drop(file);
-                let _ = fs::remove_file(&tmp);
-                return Err(SinkError::Retry(format!("{}: SHA-256 mismatch", job.path)));
-            }
+        let Active {
+            file, tmp, hasher, ..
+        } = active;
+        if !hasher.matches(&job.digest) {
+            drop(file);
+            let _ = fs::remove_file(&tmp);
+            return Err(SinkError::Retry(format!(
+                "{}: file hash mismatch",
+                job.path
+            )));
         }
         if let Err(e) = file.sync_all() {
             drop(file);
             let _ = fs::remove_file(&tmp);
-            return Err(SinkError::Fatal(self.fail(format!("Could not write {}: {e}", job.path))));
+            return Err(SinkError::Fatal(
+                self.fail(format!("Could not write {}: {e}", job.path)),
+            ));
         }
         drop(file);
         if self.stop.load(Ordering::SeqCst) {
@@ -186,7 +237,9 @@ impl Placer<'_> {
         }
         if let Err(e) = fs::rename(&tmp, &job.dest) {
             let _ = fs::remove_file(&tmp);
-            return Err(SinkError::Fatal(self.fail(format!("Could not put {} in place: {e}", job.path))));
+            return Err(SinkError::Fatal(
+                self.fail(format!("Could not put {} in place: {e}", job.path)),
+            ));
         }
         self.placed[i].store(true, Ordering::SeqCst);
         self.placed_bytes.fetch_add(job.size, Ordering::Relaxed);
@@ -213,11 +266,23 @@ impl FetchSink for Sink<'_, '_> {
 }
 
 pub fn worker_counts(max_workers: usize, process_workers: usize) -> (usize, usize) {
-    let cores = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(2);
-    (max_workers.clamp(1, 128), process_workers.max(cores / 2).max(1))
+    let cores = std::thread::available_parallelism()
+        .map(|n| n.get())
+        .unwrap_or(2);
+    (
+        max_workers.clamp(1, 128),
+        process_workers.max(cores / 2).max(1),
+    )
 }
 
-pub fn run(jobs: &[Job], settings: &Settings, base: Baseline, gate: &ReplaceGate, stop: &AtomicBool, events: &dyn Events) -> Result<Stats, Stop> {
+pub fn run(
+    jobs: &[Job],
+    settings: &Settings,
+    base: Baseline,
+    gate: &ReplaceGate,
+    stop: &AtomicBool,
+    events: &dyn Events,
+) -> Result<Stats, Stop> {
     let placer = Placer {
         jobs,
         slots: jobs.iter().map(|_| Mutex::new(None)).collect(),
@@ -250,7 +315,12 @@ pub fn run(jobs: &[Job], settings: &Settings, base: Baseline, gate: &ReplaceGate
     let items: Vec<FetchItem> = jobs
         .iter()
         .enumerate()
-        .map(|(i, j)| FetchItem { id: i as u64, urls: vec![j.url.clone()], reserve: j.size, range: None })
+        .map(|(i, j)| FetchItem {
+            id: i as u64,
+            urls: vec![j.url.clone()],
+            reserve: j.size,
+            range: None,
+        })
         .collect();
     events.log(&format!(
         "engine files={} window={window} process_workers={process} per_host_cap={} hosts={}",
@@ -263,7 +333,15 @@ pub fn run(jobs: &[Job], settings: &Settings, base: Baseline, gate: &ReplaceGate
     let outcome = if items.is_empty() {
         None
     } else {
-        Some(run_fetch(items, &settings.hosts, &options, &Sink(&placer), stop, &|_: u64, _: u64| {}, &log))
+        Some(run_fetch(
+            items,
+            &settings.hosts,
+            &options,
+            &Sink(&placer),
+            stop,
+            &|_: u64, _: u64| {},
+            &log,
+        ))
     };
 
     for slot in &placer.slots {
@@ -299,5 +377,7 @@ pub fn run(jobs: &[Job], settings: &Settings, base: Baseline, gate: &ReplaceGate
     if stop.load(Ordering::SeqCst) {
         return Err(Stop::Cancelled);
     }
-    Err(Stop::Failed("The download ended before every file was written".into()))
+    Err(Stop::Failed(
+        "The download ended before every file was written".into(),
+    ))
 }

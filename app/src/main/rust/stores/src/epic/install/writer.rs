@@ -182,10 +182,14 @@ impl<'a> Engine<'a> {
         let Some(handle) = handle else {
             return Err(format!("internal: {} is not open", file.path));
         };
-        handle
-            .write_all_at(piece, part.file_offset)
-            .map_err(|e| format!("Could not assemble or atomically replace {}: {e}", file.path))?;
-        self.written.fetch_add(piece.len() as u64, Ordering::Relaxed);
+        handle.write_all_at(piece, part.file_offset).map_err(|e| {
+            format!(
+                "Could not assemble or atomically replace {}: {e}",
+                file.path
+            )
+        })?;
+        self.written
+            .fetch_add(piece.len() as u64, Ordering::Relaxed);
 
         let complete = {
             let mut slot = self.slots[f].lock().expect("slot lock");
@@ -231,14 +235,21 @@ impl<'a> Engine<'a> {
         let (handle, stage, hash) = {
             let mut slot = self.slots[f].lock().expect("slot lock");
             slot.done = true;
-            (slot.file.take(), slot.stage.clone(), slot.hasher.take().map(|h| -> Hash { h.finalize().into() }))
+            (
+                slot.file.take(),
+                slot.stage.clone(),
+                slot.hasher.take().map(|h| -> Hash { h.finalize().into() }),
+            )
         };
         let stage = stage.ok_or_else(|| format!("internal: {} has no stage file", file.path))?;
         let result = (|| -> Result<(), String> {
             let handle = handle.ok_or_else(|| format!("internal: {} is not open", file.path))?;
-            handle
-                .sync_all()
-                .map_err(|e| format!("Could not assemble or atomically replace {}: {e}", file.path))?;
+            handle.sync_all().map_err(|e| {
+                format!(
+                    "Could not assemble or atomically replace {}: {e}",
+                    file.path
+                )
+            })?;
             let len = handle.metadata().map(|m| m.len()).unwrap_or(u64::MAX);
             if len != file.size {
                 return Err(format!("Size mismatch for {}", file.path));
@@ -266,11 +277,19 @@ impl<'a> Engine<'a> {
                 }
             }
             if let Some(parent) = file.dest.parent() {
-                fs::create_dir_all(parent)
-                    .map_err(|e| format!("Could not assemble or atomically replace {}: {e}", file.path))?;
+                fs::create_dir_all(parent).map_err(|e| {
+                    format!(
+                        "Could not assemble or atomically replace {}: {e}",
+                        file.path
+                    )
+                })?;
             }
-            fs::rename(&stage, &file.dest)
-                .map_err(|e| format!("Could not assemble or atomically replace {}: {e}", file.path))
+            fs::rename(&stage, &file.dest).map_err(|e| {
+                format!(
+                    "Could not assemble or atomically replace {}: {e}",
+                    file.path
+                )
+            })
         })();
         if file.resume.is_some() {
             let _ = fs::remove_file(staging::list_path(&stage));
@@ -295,7 +314,10 @@ impl<'a> Engine<'a> {
     fn open_stage(&self, f: usize) -> Result<(), String> {
         let file = &self.input.files[f];
         let (path, opened) = match &file.resume {
-            Some(r) => (r.stage.clone(), OpenOptions::new().read(true).write(true).open(&r.stage)),
+            Some(r) => (
+                r.stage.clone(),
+                OpenOptions::new().read(true).write(true).open(&r.stage),
+            ),
             None => {
                 let path = self.input.stage_dir.join(staging::unique_name());
                 let opened = OpenOptions::new().read(true).write(true).create_new(true).open(&path);
@@ -397,8 +419,12 @@ impl<'a> Engine<'a> {
             producer.uses.iter().any(|&u| schedule.use_file[u as usize] as usize >= c.next_file)
         };
         if needs_cache {
-            cache::store(&self.input.cache_dir, &cache::entry_name(info, producer.copy), &data)
-                .map_err(|e| SinkError::Fatal(self.fail(e)))?;
+            cache::store(
+                &self.input.cache_dir,
+                &cache::entry_name(info, producer.copy),
+                &data,
+            )
+            .map_err(|e| SinkError::Fatal(self.fail(e)))?;
         }
         let claims: Vec<usize> = {
             let mut c = self.coord.lock().expect("coord lock");
@@ -521,7 +547,12 @@ pub fn run(input: &EngineInput<'_>, stop: &AtomicBool, events: &dyn Events) -> R
         stream: false,
     };
 
-    events.progress(input.progress_base, engine.total_bytes, 0, input.files.len() as u32);
+    events.progress(
+        input.progress_base,
+        engine.total_bytes,
+        0,
+        input.files.len() as u32,
+    );
     let log = |line: &str| events.log(line);
     let gate = |i: usize| -> bool {
         engine.hint.fetch_max(i, Ordering::Relaxed);
@@ -546,7 +577,16 @@ pub fn run(input: &EngineInput<'_>, stop: &AtomicBool, events: &dyn Events) -> R
         let outcome = if items.is_empty() {
             None
         } else {
-            Some(run_fetch_gated(items, &hosts, &options, &Sink(&engine), stop, &|_: u64, _: u64| {}, &log, &gate))
+            Some(run_fetch_gated(
+                items,
+                &hosts,
+                &options,
+                &Sink(&engine),
+                stop,
+                &|_: u64, _: u64| {},
+                &log,
+                &gate,
+            ))
         };
         {
             let mut c = engine.coord.lock().expect("coord lock");
@@ -597,7 +637,10 @@ fetches={} refetches={} peak_cache_mib={} hosts={}",
         return Err(Stop::Failed(message));
     }
     if complete {
-        return Ok(Stats { bytes_written: written, files_written: input.files.len() });
+        return Ok(Stats {
+            bytes_written: written,
+            files_written: input.files.len(),
+        });
     }
     if let Some(message) = fetch_error {
         return Err(Stop::Failed(format!("Download failed: {}", tidy_fetch_error(&message))));
@@ -605,7 +648,9 @@ fetches={} refetches={} peak_cache_mib={} hosts={}",
     if stop.load(Ordering::SeqCst) {
         return Err(Stop::Cancelled);
     }
-    Err(Stop::Failed("The download ended before every file was written".into()))
+    Err(Stop::Failed(
+        "The download ended before every file was written".into(),
+    ))
 }
 
 fn hash_whole(handle: &File, file: &EngineFile) -> Result<Hash, String> {
@@ -624,8 +669,18 @@ fn hash_whole(handle: &File, file: &EngineFile) -> Result<Hash, String> {
 }
 
 fn keep_partial(file: &EngineFile, written: &[bool], stage: &Path, dir: &Path) -> bool {
-    let mut kept: Vec<u64> = file.resume.as_ref().map(|r| r.kept.clone()).unwrap_or_default();
-    kept.extend(file.parts.iter().zip(written).filter(|(_, w)| **w).map(|(p, _)| p.file_offset));
+    let mut kept: Vec<u64> = file
+        .resume
+        .as_ref()
+        .map(|r| r.kept.clone())
+        .unwrap_or_default();
+    kept.extend(
+        file.parts
+            .iter()
+            .zip(written)
+            .filter(|(_, w)| **w)
+            .map(|(p, _)| p.file_offset),
+    );
     if kept.is_empty() || file.sha1.is_none() {
         return false;
     }
@@ -657,7 +712,12 @@ mod tests {
     use super::*;
 
     fn part(file_offset: u64, size: u32) -> PlanPart {
-        PlanPart { chunk: 0, chunk_offset: 0, size, file_offset }
+        PlanPart {
+            chunk: 0,
+            chunk_offset: 0,
+            size,
+            file_offset,
+        }
     }
 
     #[test]
@@ -697,7 +757,10 @@ mod tests {
 
         let resumed = EngineFile {
             parts: vec![part(0, 10)],
-            resume: Some(Resume { stage: kept.clone(), kept: vec![20, 10] }),
+            resume: Some(Resume {
+                stage: kept.clone(),
+                kept: vec![20, 10],
+            }),
             ..file
         };
         assert!(keep_partial(&resumed, &[false], &kept, &dir));

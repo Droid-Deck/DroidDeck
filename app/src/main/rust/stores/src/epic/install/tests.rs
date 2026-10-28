@@ -117,8 +117,16 @@ fn fixture() -> Fixture {
             sha1: sha(&a),
             tags: vec![],
             parts: vec![
-                PartRef { guid: c1.guid, offset: 0, size: 3000 },
-                PartRef { guid: c2.guid, offset: 100, size: 1000 },
+                PartRef {
+                    guid: c1.guid,
+                    offset: 0,
+                    size: 3000,
+                },
+                PartRef {
+                    guid: c2.guid,
+                    offset: 100,
+                    size: 1000,
+                },
             ],
         },
         TestFile {
@@ -126,22 +134,43 @@ fn fixture() -> Fixture {
             sha1: sha(&c),
             tags: vec!["English".into()],
             parts: vec![
-                PartRef { guid: c1.guid, offset: 3000, size: 1096 },
-                PartRef { guid: c3.guid, offset: 0, size: 1000 },
+                PartRef {
+                    guid: c1.guid,
+                    offset: 3000,
+                    size: 1096,
+                },
+                PartRef {
+                    guid: c3.guid,
+                    offset: 0,
+                    size: 1000,
+                },
             ],
         },
         TestFile {
             path: "d.bin".into(),
             sha1: sha(&d),
             tags: vec![],
-            parts: vec![PartRef { guid: c2.guid, offset: 0, size: 100 }],
+            parts: vec![PartRef {
+                guid: c2.guid,
+                offset: 0,
+                size: 100,
+            }],
         },
-        TestFile { path: "e.txt".into(), sha1: [0; 20], tags: vec![], parts: vec![] },
+        TestFile {
+            path: "e.txt".into(),
+            sha1: [0; 20],
+            tags: vec![],
+            parts: vec![],
+        },
         TestFile {
             path: "fr.txt".into(),
             sha1: [0; 20],
             tags: vec!["French".into()],
-            parts: vec![PartRef { guid: c3.guid, offset: 0, size: 10 }],
+            parts: vec![PartRef {
+                guid: c3.guid,
+                offset: 0,
+                size: 10,
+            }],
         },
     ];
     let m = TestManifest {
@@ -159,7 +188,10 @@ fn fixture() -> Fixture {
     let mut served = HashMap::new();
     served.insert("/Builds/x/test.manifest".to_string(), manifest_bytes);
     for (info, data) in [(&c1, &d1), (&c2, &d2), (&c3, &d3)] {
-        served.insert(format!("/Builds/x/{}", parsed.chunk_path(info)), encode(data, true));
+        served.insert(
+            format!("/Builds/x/{}", parsed.chunk_path(info)),
+            encode(data, true),
+        );
     }
     let hits = Arc::new(AtomicUsize::new(0));
     let base = serve(served, Arc::clone(&hits));
@@ -178,15 +210,21 @@ fn fixture() -> Fixture {
 fn request(fx: &Fixture, game: &Path) -> Request {
     Request {
         info: BuildInfo {
-            cdns: vec![Cdn { base: fx.base.clone(), dir: "/Builds/x".into(), auth: String::new() }],
+            cdns: vec![Cdn {
+                base: fx.base.clone(),
+                dir: "/Builds/x".into(),
+                auth: String::new(),
+            }],
             manifest_file: "test.manifest".into(),
             build_version: "9.9".into(),
             deployment_id: "dep".into(),
         },
         game_dir: game.to_path_buf(),
+        target_manifest_path: None,
         scratch_dir: None,
         storage_label: "Test storage".into(),
         tags: vec!["English".into(), "en-US".into(), "en".into()],
+        previous_tags: vec!["English".into(), "en-US".into(), "en".into()],
         max_workers: 4,
         process_workers: 2,
         ca_bundle: String::new(),
@@ -216,6 +254,11 @@ fn fresh_install_then_rerun_then_repair() {
     assert_eq!(done.prereq_path, "redist/setup.exe");
     assert!(done.prereq_read);
     assert_eq!(done.deployment_id, "dep");
+    let installed_manifest = game.join(".droiddeck-maintenance/epic/installed.manifest");
+    assert!(
+        installed_manifest.is_file(),
+        "the parsed installed manifest is retained without CDN credentials"
+    );
     assert_eq!(done.disk_bytes, 4000 + 2096 + 100);
     assert_eq!(events.replaced.load(Ordering::SeqCst), 1);
     assert_eq!(*events.last_progress.lock().unwrap(), (6196, 6196));
@@ -223,17 +266,41 @@ fn fresh_install_then_rerun_then_repair() {
     assert!(!game.join(staging::DIR_NAME).exists());
 
     let hits_before = fx.hits.load(Ordering::Relaxed);
+    let mut pinned = request(&fx, &game);
+    pinned.target_manifest_path = Some(installed_manifest);
+    let pinned_events = Recorder::default();
+    let pinned_result = run(&pinned, &cancel, &pinned_events).unwrap();
+    assert_eq!(pinned_result.build_version, "9.9");
+    assert_eq!(
+        pinned_events.replaced.load(Ordering::SeqCst),
+        0,
+        "an already-correct repair writes no files"
+    );
+    assert_eq!(
+        fx.hits.load(Ordering::Relaxed),
+        hits_before,
+        "pinned repair does not fetch the current manifest"
+    );
+
     let again = Recorder::default();
     run(&request(&fx, &game), &cancel, &again).unwrap();
     assert_eq!(fx.hits.load(Ordering::Relaxed) - hits_before, 1, "only the manifest is fetched");
     assert_eq!(again.sizes.lock().unwrap().0, 0);
-    assert_eq!(again.replaced.load(Ordering::SeqCst), 1);
+    assert_eq!(
+        again.replaced.load(Ordering::SeqCst),
+        0,
+        "the pinned files are already correct"
+    );
 
     fs::write(game.join("b/c.bin"), b"damaged").unwrap();
     let repair = Recorder::default();
     run(&request(&fx, &game), &cancel, &repair).unwrap();
     assert_eq!(fs::read(game.join("b/c.bin")).unwrap(), fx.expected[1].1);
-    assert_eq!(repair.sizes.lock().unwrap().0, 2096 + 0, "the damaged file and the hashless empty file");
+    assert_eq!(
+        repair.sizes.lock().unwrap().0,
+        2096,
+        "only the damaged file needs repair"
+    );
     let _ = fs::remove_dir_all(&game);
 }
 
@@ -255,6 +322,39 @@ fn a_refused_update_switch_replaces_nothing() {
 }
 
 #[test]
+fn obsolete_cleanup_removes_only_unchanged_prior_manifest_files() {
+    let game = temp_game("obsolete-cleanup");
+    fs::create_dir_all(&game).unwrap();
+    fs::write(game.join("old.bin"), b"old").unwrap();
+    fs::write(game.join("modified.bin"), b"user edit").unwrap();
+    fs::write(game.join("untracked.bin"), b"untracked").unwrap();
+    let old = vec![
+        FileEntry { path: "old.bin".into(), sha1: Some(Sha1::digest(b"old").into()), tags: vec![], parts: vec![], size: 3 },
+        FileEntry { path: "modified.bin".into(), sha1: Some(Sha1::digest(b"original").into()), tags: vec![], parts: vec![], size: 8 },
+    ];
+    let new = vec![FileEntry { path: "current.bin".into(), sha1: None, tags: vec![], parts: vec![], size: 0 }];
+    let cancel = AtomicBool::new(false);
+    assert!(!cleanup_obsolete(&game, &old, &[], &new, &[], &cancel, &|_| {}));
+    assert!(!game.join("old.bin").exists());
+    assert_eq!(fs::read(game.join("modified.bin")).unwrap(), b"user edit");
+    assert_eq!(fs::read(game.join("untracked.bin")).unwrap(), b"untracked");
+    let _ = fs::remove_dir_all(&game);
+}
+
+#[test]
+fn obsolete_cleanup_cancellation_preserves_the_old_inventory() {
+    let game = temp_game("obsolete-cancel");
+    fs::create_dir_all(&game).unwrap();
+    fs::write(game.join("old.bin"), b"old").unwrap();
+    let old = vec![FileEntry { path: "old.bin".into(), sha1: Some(Sha1::digest(b"old").into()), tags: vec![], parts: vec![], size: 3 }];
+    let new = vec![FileEntry { path: "current.bin".into(), sha1: None, tags: vec![], parts: vec![], size: 0 }];
+    let cancel = AtomicBool::new(true);
+    assert!(cleanup_obsolete(&game, &old, &[], &new, &[], &cancel, &|_| {}));
+    assert_eq!(fs::read(game.join("old.bin")).unwrap(), b"old");
+    let _ = fs::remove_dir_all(&game);
+}
+
+#[test]
 fn a_cancelled_run_reports_cancel() {
     let fx = fixture();
     let game = temp_game("cancel");
@@ -267,7 +367,11 @@ fn a_cancelled_run_reports_cancel() {
 fn place_partial(fx: &Fixture, game: &Path, data: &[u8], list: &str) -> PathBuf {
     let stage = staging::recover(game).unwrap();
     let a = &fx.expected[0].1;
-    let partial = stage.join(staging::partial_name("a.bin", 4000, Some(Sha1::digest(a).into())));
+    let partial = stage.join(staging::partial_name(
+        "a.bin",
+        4000,
+        Some(Sha1::digest(a).into()),
+    ));
     fs::write(&partial, data).unwrap();
     fs::write(staging::list_path(&partial), list).unwrap();
     partial
@@ -285,7 +389,11 @@ fn a_paused_install_resumes_from_its_written_parts() {
     place_done_c(&fx, &game);
     place_partial(&fx, &game, &fx.expected[0].1[..3000], "0\n");
     let stage = game.join(staging::DIR_NAME);
-    fs::write(stage.join(staging::partial_name("gone.bin", 9, None)), b"old").unwrap();
+    fs::write(
+        stage.join(staging::partial_name("gone.bin", 9, None)),
+        b"old",
+    )
+    .unwrap();
 
     let events = Recorder::default();
     run(&request(&fx, &game), &AtomicBool::new(false), &events).unwrap();
@@ -334,7 +442,12 @@ fn a_damaged_partial_fails_its_check_and_is_not_kept() {
     let fx = fixture();
     let game = temp_game("damagedpartial");
     place_partial(&fx, &game, &[0u8; 3000], "0\n");
-    let err = run(&request(&fx, &game), &AtomicBool::new(false), &Recorder::default()).unwrap_err();
+    let err = run(
+        &request(&fx, &game),
+        &AtomicBool::new(false),
+        &Recorder::default(),
+    )
+    .unwrap_err();
     assert_eq!(err, Stop::Failed("SHA-1 mismatch for a.bin".into()));
     assert!(staging::partials(&game.join(staging::DIR_NAME)).is_empty());
     let retry = Recorder::default();

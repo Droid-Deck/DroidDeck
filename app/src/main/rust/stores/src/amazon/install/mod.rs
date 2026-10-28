@@ -21,7 +21,10 @@ pub const NOT_SIGNED_IN: &str = "Not signed in to Amazon Games";
 pub const NO_DOWNLOAD: &str = "Amazon gave no download for this game";
 pub const NO_MANIFEST: &str = "The manifest could not be downloaded";
 pub const FILE_FAILED: &str = "A file failed to download";
-pub const REPLACE_REFUSED: &str = "The install record could not be switched to updating; nothing was replaced";
+pub const NO_VERIFIABLE_HASH: &str =
+    "Amazon's manifest uses a file hash that DroidDeck cannot verify";
+pub const REPLACE_REFUSED: &str =
+    "The install record could not be switched to updating; nothing was replaced";
 
 const CHECK_REPORT_EVERY: Duration = Duration::from_millis(200);
 
@@ -66,6 +69,8 @@ pub struct Request {
     pub access_token: String,
     pub entitlement_id: String,
     pub game_dir: PathBuf,
+    pub target_manifest_path: Option<PathBuf>,
+    pub target_version_id: Option<String>,
     pub max_workers: usize,
     pub process_workers: usize,
     pub ca_bundle: String,
@@ -89,6 +94,14 @@ impl Request {
             access_token: access_token.to_string(),
             entitlement_id: entitlement_id.to_string(),
             game_dir: PathBuf::from(game_dir),
+            target_manifest_path: match net::str_of(v, "targetManifestPath") {
+                "" => None,
+                path => Some(PathBuf::from(path)),
+            },
+            target_version_id: match net::str_of(v, "targetVersionId") {
+                "" => None,
+                version => Some(version.to_string()),
+            },
             max_workers: v.get("maxWorkers").and_then(|n| n.as_u64()).unwrap_or(8) as usize,
             process_workers: v.get("processWorkers").and_then(|n| n.as_u64()).unwrap_or(2) as usize,
             ca_bundle: net::str_of(v, "caBundle").to_string(),
@@ -125,11 +138,12 @@ fn cancelled(cancel: &AtomicBool) -> Result<(), Stop> {
     }
 }
 
-pub fn load_manifest(download: &Download, access_token: &str, log: &dyn Fn(&str)) -> Result<manifest::Manifest, String> {
-    let bytes = cdn::fetch_manifest(&download.base_url, access_token).map_err(|e| {
-        log(&format!("manifest download: {e}"));
-        NO_MANIFEST.to_string()
-    })?;
+pub fn load_manifest(
+    download: &Download,
+    access_token: &str,
+    log: &dyn Fn(&str),
+) -> Result<manifest::Manifest, String> {
+    let bytes = load_manifest_bytes(download, access_token, log)?;
     manifest::parse(&bytes).map_err(|e| {
         log(&format!("manifest parse: {e}"));
         if e.starts_with("The manifest") {
@@ -138,6 +152,166 @@ pub fn load_manifest(download: &Download, access_token: &str, log: &dyn Fn(&str)
             format!("The manifest could not be read: {e}")
         }
     })
+}
+
+fn load_manifest_bytes(
+    download: &Download,
+    access_token: &str,
+    log: &dyn Fn(&str),
+) -> Result<Vec<u8>, String> {
+    cdn::fetch_manifest(&download.base_url, access_token).map_err(|e| {
+        log(&format!("manifest download: {e}"));
+        NO_MANIFEST.to_string()
+    })
+}
+
+fn metadata_dir(game_dir: &PathBuf) -> PathBuf {
+    game_dir.join(".droiddeck-maintenance/amazon")
+}
+
+fn read_target_manifest(req: &Request) -> Result<Option<Vec<u8>>, String> {
+    let Some(path) = &req.target_manifest_path else {
+        return Ok(None);
+    };
+    let root = req
+        .game_dir
+        .canonicalize()
+        .map_err(|e| format!("Could not resolve the install folder: {e}"))?;
+    if fs::symlink_metadata(path)
+        .map(|m| m.file_type().is_symlink())
+        .unwrap_or(false)
+    {
+        return Err("The pinned Amazon manifest is a symbolic link".into());
+    }
+    let candidate = path
+        .canonicalize()
+        .map_err(|e| format!("The pinned Amazon manifest is unavailable: {e}"))?;
+    if !candidate.starts_with(&root) || !candidate.is_file() {
+        return Err("The pinned Amazon manifest is outside the install folder".into());
+    }
+    fs::read(candidate)
+        .map(Some)
+        .map_err(|e| format!("Could not read the pinned Amazon manifest: {e}"))
+}
+
+fn write_installed_manifest(game_dir: &PathBuf, bytes: &[u8]) -> Result<(), String> {
+    let metadata = game_dir.join(".droiddeck-maintenance");
+    if fs::symlink_metadata(&metadata)
+        .map(|m| m.file_type().is_symlink())
+        .unwrap_or(false)
+    {
+        return Err("Amazon maintenance metadata is a symbolic link".into());
+    }
+    let dir = metadata_dir(game_dir);
+    if fs::symlink_metadata(&dir)
+        .map(|m| m.file_type().is_symlink())
+        .unwrap_or(false)
+    {
+        return Err("Amazon maintenance metadata is a symbolic link".into());
+    }
+    fs::create_dir_all(&dir)
+        .map_err(|e| format!("Could not save the Amazon install manifest: {e}"))?;
+    let temp = dir.join("installed.manifest.tmp");
+    if fs::symlink_metadata(&temp)
+        .map(|m| m.file_type().is_symlink())
+        .unwrap_or(false)
+    {
+        return Err("Amazon maintenance metadata is a symbolic link".into());
+    }
+    fs::write(&temp, bytes)
+        .map_err(|e| format!("Could not save the Amazon install manifest: {e}"))?;
+    fs::rename(&temp, dir.join("installed.manifest"))
+        .map_err(|e| format!("Could not save the Amazon install manifest: {e}"))
+}
+
+fn read_installed_manifest(game_dir: &PathBuf, log: &dyn Fn(&str)) -> Option<manifest::Manifest> {
+    let path = metadata_dir(game_dir).join("installed.manifest");
+    match fs::symlink_metadata(&path) {
+        Ok(meta) if meta.is_file() && !meta.file_type().is_symlink() => {}
+        Ok(_) => {
+            log("obsolete Amazon files preserved: retained manifest is not a regular file");
+            return None;
+        }
+        Err(_) => return None,
+    }
+    match fs::read(path).ok().and_then(|bytes| manifest::parse(&bytes).ok()) {
+        Some(manifest) => Some(manifest),
+        None => {
+            log("obsolete Amazon files preserved: retained manifest is unavailable or invalid");
+            None
+        }
+    }
+}
+
+fn cleanup_obsolete(
+    game_dir: &PathBuf,
+    old: &[GameFile],
+    new: &[GameFile],
+    cancel: &AtomicBool,
+    log: &dyn Fn(&str),
+) -> bool {
+    let key = |path: &str| -> Option<String> {
+        let normalized = manifest::check_path(path).ok()?;
+        Some(normalized.to_lowercase())
+    };
+    let inventory = |files: &[GameFile]| -> Option<std::collections::HashSet<String>> {
+        let mut out = std::collections::HashSet::new();
+        for file in files {
+            if !out.insert(key(&file.path)?) {
+                return None;
+            }
+        }
+        Some(out)
+    };
+    let Some(old_keys) = inventory(old) else {
+        log("obsolete Amazon files preserved: old inventory contains unsafe or case-colliding paths");
+        return cancel.load(Ordering::Relaxed);
+    };
+    let Some(new_keys) = inventory(new) else {
+        log("obsolete Amazon files preserved: target inventory contains unsafe or case-colliding paths");
+        return cancel.load(Ordering::Relaxed);
+    };
+    let _ = old_keys;
+    let Ok(root) = game_dir.canonicalize() else {
+        log("obsolete Amazon files preserved: install folder could not be resolved");
+        return cancel.load(Ordering::Relaxed);
+    };
+    let mut removed = 0usize;
+    let mut preserved = 0usize;
+    for file in old {
+        if cancel.load(Ordering::Relaxed) {
+            log("obsolete Amazon cleanup cancelled; remaining files were preserved");
+            return true;
+        }
+        let Some(k) = key(&file.path) else { preserved += 1; continue };
+        if new_keys.contains(&k) { continue; }
+        if !file.has_supported_hash() && !(file.size == 0 && file.digest.is_empty()) {
+            preserved += 1;
+            continue;
+        }
+        let mut path = game_dir.clone();
+        let mut safe = true;
+        for segment in file.path.split('/') {
+            path.push(segment);
+            if fs::symlink_metadata(&path).map(|m| m.file_type().is_symlink()).unwrap_or(false) {
+                safe = false;
+                break;
+            }
+        }
+        let Ok(metadata) = fs::symlink_metadata(&path) else { continue };
+        let Ok(canonical) = path.canonicalize() else { preserved += 1; continue };
+        if !safe || !metadata.is_file() || !canonical.starts_with(&root) {
+            preserved += 1;
+            continue;
+        }
+        if check::state(&canonical, file, cancel) != check::State::Complete {
+            preserved += 1;
+            continue;
+        }
+        if fs::remove_file(&canonical).is_ok() { removed += 1; } else { preserved += 1; }
+    }
+    log(&format!("obsolete Amazon cleanup removed={removed} preserved={preserved}"));
+    cancel.load(Ordering::Relaxed)
 }
 
 pub fn run(req: &Request, cancel: &AtomicBool, ev: &dyn Events) -> Result<Finished, Stop> {
@@ -156,7 +330,12 @@ fn empty_sha256() -> [u8; 32] {
     Sha256::digest(b"").into()
 }
 
-pub fn run_download(req: &Request, download: &Download, cancel: &AtomicBool, ev: &dyn Events) -> Result<Finished, Stop> {
+pub fn run_download(
+    req: &Request,
+    download: &Download,
+    cancel: &AtomicBool,
+    ev: &dyn Events,
+) -> Result<Finished, Stop> {
     let failed = Stop::Failed;
     let started = Instant::now();
     fs::create_dir_all(&req.game_dir).map_err(|e| failed(format!("Could not create the install folder: {e}")))?;
@@ -164,7 +343,16 @@ pub fn run_download(req: &Request, download: &Download, cancel: &AtomicBool, ev:
 
     ev.status("Downloading manifest…");
     let log = |line: &str| ev.log(line);
-    let manifest = load_manifest(download, &req.access_token, &log).map_err(failed)?;
+    let pinned_bytes = read_target_manifest(req).map_err(failed)?;
+    let manifest_bytes = match pinned_bytes {
+        Some(bytes) => bytes,
+        None => load_manifest_bytes(download, &req.access_token, &log).map_err(failed)?,
+    };
+    let manifest = manifest::parse(&manifest_bytes).map_err(|e| {
+        ev.log(&format!("manifest parse: {e}"));
+        failed(format!("The manifest could not be read: {e}"))
+    })?;
+    let installed_manifest = read_installed_manifest(&req.game_dir, &log);
     cancelled(cancel)?;
     for w in &manifest.warnings {
         ev.log(w);
@@ -216,6 +404,9 @@ pub fn run_download(req: &Request, download: &Download, cancel: &AtomicBool, ev:
     let (local, remote): (Vec<&GameFile>, Vec<&GameFile>) = pending
         .into_iter()
         .partition(|f| f.size == 0 && (f.digest.is_empty() || f.sha256() == Some(empty)));
+    if remote.iter().any(|f| !f.has_supported_hash()) {
+        return Err(failed(NO_VERIFIABLE_HASH.into()));
+    }
     for f in &local {
         let dest = req.game_dir.join(&f.path);
         if let Some(parent) = dest.parent() {
@@ -240,7 +431,8 @@ pub fn run_download(req: &Request, download: &Download, cancel: &AtomicBool, ev:
             path: f.path.clone(),
             dest: req.game_dir.join(&f.path),
             size: f.size,
-            sha256: f.sha256(),
+            algorithm: f.algorithm,
+            digest: f.digest.clone(),
             url: cdn::file_url(&download.base_url, &f.cdn_name()),
         })
         .collect();
@@ -273,10 +465,24 @@ pub fn run_download(req: &Request, download: &Download, cancel: &AtomicBool, ev:
     ));
     let stats = result?;
 
+    let cleanup_cancelled = if let Some(installed) = installed_manifest.as_ref() {
+        cleanup_obsolete(&req.game_dir, &installed.files, &manifest.files, cancel, &log)
+    } else {
+        ev.log("obsolete Amazon files preserved: no retained prior manifest is available");
+        cancel.load(Ordering::Relaxed)
+    };
+    if cleanup_cancelled || cancel.load(Ordering::Relaxed) {
+        return Err(Stop::Cancelled);
+    }
     let _ = fs::remove_file(req.game_dir.join(IN_PROGRESS_MARKER));
     let _ = fs::File::create(req.game_dir.join(COMPLETE_MARKER));
+    write_installed_manifest(&req.game_dir, &manifest_bytes).map_err(failed)?;
     Ok(Finished {
-        version_id: download.version_id.clone(),
+        version_id: req
+            .target_version_id
+            .as_deref()
+            .unwrap_or(&download.version_id)
+            .to_string(),
         total_bytes: total,
         file_count: manifest.files.len(),
         files_written: stats.files_written + local.len(),
@@ -285,8 +491,12 @@ pub fn run_download(req: &Request, download: &Download, cancel: &AtomicBool, ev:
 }
 
 pub fn size_of(access_token: &str, entitlement_id: &str) -> u64 {
-    let Ok(download) = distribution::game_download(access_token, entitlement_id) else { return 0 };
-    load_manifest(&download, access_token, &|_: &str| {}).map(|m| m.total_size()).unwrap_or(0)
+    let Ok(download) = distribution::game_download(access_token, entitlement_id) else {
+        return 0;
+    };
+    load_manifest(&download, access_token, &|_: &str| {})
+        .map(|m| m.total_size())
+        .unwrap_or(0)
 }
 
 #[cfg(test)]

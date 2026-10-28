@@ -11,6 +11,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.stores.download.DownloadEntry
+import com.droiddeck.launcher.stores.maintenance.StoreMaintenance
 
 object StoresState {
     private const val TAG = "Stores"
@@ -72,7 +73,10 @@ object StoresState {
 
     fun backend(store: Store): StoreBackend? = backends[store]
 
-    fun register(backend: StoreBackend) { backends[backend.store] = backend }
+    fun register(backend: StoreBackend) {
+        backends[backend.store] = backend
+        backend.maintenanceAdapter()?.let(StoreMaintenance::register)
+    }
 
     fun refresh(context: Context) {
         val app = context.applicationContext
@@ -81,7 +85,7 @@ object StoresState {
             runCatching { com.droiddeck.launcher.stores.battlenet.BattleNetClient.syncAccount(app) }
             val found = Store.entries.mapNotNull { store -> StoreAccounts.displayName(app, store)?.let { store to it } }
             val onDisk = StoreInstallRoot.gameFolders(app).mapNotNull { folder ->
-                StoreGameSidecar.read(folder)?.takeIf { it.isInstalled || it.store == Store.GOG && it.state == StoreGameSidecar.STATE_UPDATING }?.let { InstalledStoreGame(it, folder) }
+                StoreGameSidecar.read(folder)?.takeIf { it.isInstalled || it.state == StoreGameSidecar.STATE_UPDATING }?.let { InstalledStoreGame(it, folder) }
             } + runCatching { com.droiddeck.launcher.stores.battlenet.BattleNetBackend.installedGames(app) }.getOrDefault(emptyList())
             val partial = StoreInstallRoot.unfinished(app)
             val version = if (StoresNative.available) StoresNative.version ?: "" else ""
@@ -95,6 +99,7 @@ object StoresState {
                     engine = version
                     accountsLoaded = true
                 }
+                StoreMaintenance.checkInstalled(app, onDisk)
                 com.droiddeck.launcher.stores.gog.GogMaintenance.checkInstalled(app, onDisk)
             }
         }
@@ -180,6 +185,7 @@ object StoresState {
     }
 
     fun signIn(context: Context, store: Store) {
+        StoreMaintenance.invalidate(store)
         expired.remove(store)
         libraryAsked.remove(store)
         backends[store]?.signIn(context) ?: logLine("${store.label}: this build has no sign-in for it yet")
@@ -190,6 +196,7 @@ object StoresState {
         background("stores-signout") {
             val backend = backends[store]
             backend?.signOut(app)
+            StoreMaintenance.invalidate(store)
             if (store == Store.GOG) com.droiddeck.launcher.stores.gog.GogComet.replaceAccount { StoreAccounts.clear(app, store) }
             else if (store != Store.XBOX || backend == null) StoreAccounts.clear(app, store)
             if (store == Store.ITCH) {
@@ -348,4 +355,5 @@ interface StoreBackend {
     fun search(context: Context, query: String): List<CatalogItem> = emptyList()
     fun install(context: Context, item: CatalogItem, root: java.io.File)
     fun uninstall(context: Context, game: InstalledStoreGame)
+    fun maintenanceAdapter(): com.droiddeck.launcher.stores.maintenance.StoreMaintenanceAdapter? = null
 }

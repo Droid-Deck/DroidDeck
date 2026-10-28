@@ -566,6 +566,9 @@ def main(argv):
         return 0
     folder, sidecar = found
     store, game = str(sidecar.get("store")), str(sidecar.get("id"))
+    if sidecar.get("state", "installed") != "installed":
+        log("%s: resume or recover maintenance before playing" % store)
+        return RAN_FAILED
     if store == "gog":
         helper = Path(__file__).resolve().with_name("droiddeck-gog-maintenance")
         if helper.is_file():
@@ -577,6 +580,18 @@ def main(argv):
             threading.Thread(target=child.wait, daemon=True).start()
             if ready != "ready":
                 log("gog: close or recover the maintenance operation before playing")
+                return RAN_FAILED
+    else:
+        helper = Path(__file__).resolve().with_name("droiddeck-gog-maintenance")
+        if helper.is_file():
+            child = subprocess.Popen([sys.executable, str(helper), "store-lease", str(folder), str(os.getppid())],
+                                     stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL,
+                                     start_new_session=True)
+            ready = child.stdout.readline().decode().strip()
+            child.stdout.close()
+            threading.Thread(target=child.wait, daemon=True).start()
+            if ready != "ready":
+                log("%s: close or recover the maintenance operation before playing" % store)
                 return RAN_FAILED
     compat_data = os.environ.get("STEAM_COMPAT_DATA_PATH", "").rstrip("/")
     prefix_id = os.path.basename(compat_data) if compat_data else ""

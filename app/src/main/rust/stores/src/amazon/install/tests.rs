@@ -39,7 +39,11 @@ fn serve(files: HashMap<String, Vec<u8>>) -> Server {
             std::thread::spawn(move || answer(stream, &files, &seen));
         }
     });
-    Server { base: format!("http://{addr}/v/abc?sig=s%2Bt&e=1"), seen, files }
+    Server {
+        base: format!("http://{addr}/v/abc?sig=s%2Bt&e=1"),
+        seen,
+        files,
+    }
 }
 
 fn answer(mut stream: TcpStream, files: &Mutex<HashMap<String, Vec<u8>>>, seen: &Mutex<Seen>) {
@@ -136,15 +140,26 @@ fn fixture_with(paths: &[(&'static str, Vec<u8>)]) -> Fixture {
     let mut packages = vec![Vec::new(), Vec::new()];
     for (i, (path, bytes)) in paths.iter().enumerate() {
         let digest: &[u8] = if bytes.is_empty() { &[] } else { &digests[i] };
-        packages[i % 2].push(Entry { path, size: bytes.len() as u64, algorithm: Some(0), digest });
+        packages[i % 2].push(Entry {
+            path,
+            size: bytes.len() as u64,
+            algorithm: Some(0),
+            digest,
+        });
     }
     let manifest = frame(&message(&packages), b"\x08\x01\x12\x00", true);
     let mut files = HashMap::new();
     files.insert("/v/abc/manifest.proto".to_string(), manifest);
     for (i, (_, bytes)) in paths.iter().enumerate() {
-        files.insert(format!("/v/abc/files/{}", net::hex_lower(&digests[i])), bytes.clone());
+        files.insert(
+            format!("/v/abc/files/{}", net::hex_lower(&digests[i])),
+            bytes.clone(),
+        );
     }
-    Fixture { server: serve(files), expected: paths.iter().map(|(p, b)| (*p, b.clone())).collect() }
+    Fixture {
+        server: serve(files),
+        expected: paths.iter().map(|(p, b)| (*p, b.clone())).collect(),
+    }
 }
 
 fn fixture() -> Fixture {
@@ -153,8 +168,29 @@ fn fixture() -> Fixture {
         ("Data\\pak0.pak", pattern(2, 70_000)),
         ("Data\\Sub\\readme.txt", b"hello".to_vec()),
         ("Data\\empty.cfg", Vec::new()),
-        ("fuel.json", br#"{"Main":{"Command":"Game.exe","Args":["-w"]}}"#.to_vec()),
+        (
+            "fuel.json",
+            br#"{"Main":{"Command":"Game.exe","Args":["-w"]}}"#.to_vec(),
+        ),
     ])
+}
+
+fn unsupported_hash_fixture() -> Fixture {
+    let body = b"trusted old file".to_vec();
+    let message = message(&[vec![Entry {
+        path: "Game.exe",
+        size: body.len() as u64,
+        algorithm: Some(7),
+        digest: &[1, 2],
+    }]]);
+    let manifest = frame(&message, b"\x08\x01\x12\x00", true);
+    let mut files = HashMap::new();
+    files.insert("/v/abc/manifest.proto".to_string(), manifest);
+    files.insert("/v/abc/files/0102".to_string(), vec![0; body.len()]);
+    Fixture {
+        server: serve(files),
+        expected: vec![("Game.exe", body)],
+    }
 }
 
 fn request(game: &Path) -> Request {
@@ -162,6 +198,8 @@ fn request(game: &Path) -> Request {
         access_token: "token-1".into(),
         entitlement_id: "ent".into(),
         game_dir: game.to_path_buf(),
+        target_manifest_path: None,
+        target_version_id: None,
         max_workers: 4,
         process_workers: 2,
         ca_bundle: String::new(),
@@ -169,7 +207,10 @@ fn request(game: &Path) -> Request {
 }
 
 fn download(fx: &Fixture) -> Download {
-    Download { base_url: fx.server.base.clone(), version_id: "ver-9".into() }
+    Download {
+        base_url: fx.server.base.clone(),
+        version_id: "ver-9".into(),
+    }
 }
 
 fn temp_game(name: &str) -> PathBuf {
@@ -217,6 +258,11 @@ fn fresh_install_then_rerun_then_repair() {
     assert!(!ev.backwards.load(Ordering::SeqCst));
     assert!(game.join(COMPLETE_MARKER).exists());
     assert!(!game.join(IN_PROGRESS_MARKER).exists());
+    let installed_manifest = game.join(".droiddeck-maintenance/amazon/installed.manifest");
+    assert!(
+        installed_manifest.is_file(),
+        "the exact installed manifest is retained without CDN credentials"
+    );
     assert!(no_temps(&game));
     {
         let seen = fx.server.seen.lock().unwrap();
@@ -228,6 +274,26 @@ fn fresh_install_then_rerun_then_repair() {
     }
 
     let before = requests(&fx);
+    let mut pinned = request(&game);
+    pinned.target_manifest_path = Some(installed_manifest.clone());
+    pinned.target_version_id = Some("ver-installed".into());
+    let pinned_events = Recorder::default();
+    let pinned_result = run_download(&pinned, &download(&fx), &cancel, &pinned_events).unwrap();
+    assert_eq!(
+        pinned_result.version_id, "ver-installed",
+        "repair reports the pinned installed target"
+    );
+    assert_eq!(
+        pinned_events.gate_calls.load(Ordering::SeqCst),
+        0,
+        "an already-correct repair writes no files"
+    );
+    assert_eq!(
+        requests(&fx),
+        before,
+        "a pinned repair uses its retained manifest and downloads no current manifest"
+    );
+
     let again = Recorder::default();
     run_download(&request(&game), &download(&fx), &cancel, &again).unwrap();
     assert_eq!(requests(&fx) - before, 1);
@@ -262,7 +328,61 @@ fn a_corrupt_file_fails_the_run_and_leaves_no_temporary_files() {
     assert!(!game.join("Data/pak0.pak").exists());
     assert!(no_temps(&game));
     assert!(game.join(IN_PROGRESS_MARKER).exists());
-    assert!(ev.logs.lock().unwrap().iter().any(|l| l.contains("SHA-256 mismatch")));
+    assert!(ev
+        .logs
+        .lock()
+        .unwrap()
+        .iter()
+        .any(|l| l.contains("file hash mismatch")));
+    let _ = fs::remove_dir_all(&game);
+}
+
+#[test]
+fn obsolete_cleanup_removes_only_unchanged_prior_manifest_files() {
+    let game = temp_game("obsolete-cleanup");
+    fs::create_dir_all(&game).unwrap();
+    fs::write(game.join("old.bin"), b"old").unwrap();
+    fs::write(game.join("modified.bin"), b"user edit").unwrap();
+    fs::write(game.join("untracked.bin"), b"untracked").unwrap();
+    let old = vec![
+        GameFile { path: "old.bin".into(), size: 3, algorithm: 0, digest: Sha256::digest(b"old").to_vec() },
+        GameFile { path: "modified.bin".into(), size: 8, algorithm: 0, digest: Sha256::digest(b"original").to_vec() },
+    ];
+    let new = vec![GameFile { path: "current.bin".into(), size: 0, algorithm: 0, digest: vec![] }];
+    let cancel = AtomicBool::new(false);
+    assert!(!cleanup_obsolete(&game, &old, &new, &cancel, &|_| {}));
+    assert!(!game.join("old.bin").exists());
+    assert_eq!(fs::read(game.join("modified.bin")).unwrap(), b"user edit");
+    assert_eq!(fs::read(game.join("untracked.bin")).unwrap(), b"untracked");
+    let _ = fs::remove_dir_all(&game);
+}
+
+#[test]
+fn obsolete_cleanup_cancellation_preserves_the_old_inventory() {
+    let game = temp_game("obsolete-cancel");
+    fs::create_dir_all(&game).unwrap();
+    fs::write(game.join("old.bin"), b"old").unwrap();
+    let old = vec![GameFile { path: "old.bin".into(), size: 3, algorithm: 0, digest: Sha256::digest(b"old").to_vec() }];
+    let new = vec![GameFile { path: "current.bin".into(), size: 0, algorithm: 0, digest: vec![] }];
+    let cancel = AtomicBool::new(true);
+    assert!(cleanup_obsolete(&game, &old, &new, &cancel, &|_| {}));
+    assert_eq!(fs::read(game.join("old.bin")).unwrap(), b"old");
+    let _ = fs::remove_dir_all(&game);
+}
+
+#[test]
+fn unsupported_hash_does_not_trust_size_or_replace_existing_content() {
+    let fx = unsupported_hash_fixture();
+    let game = temp_game("unsupported-hash");
+    fs::create_dir_all(&game).unwrap();
+    fs::write(game.join("Game.exe"), &fx.expected[0].1).unwrap();
+    let cancel = AtomicBool::new(false);
+    let ev = Recorder::default();
+    let err = run_download(&request(&game), &download(&fx), &cancel, &ev).unwrap_err();
+    assert_eq!(err, Stop::Failed(NO_VERIFIABLE_HASH.into()));
+    assert_eq!(fs::read(game.join("Game.exe")).unwrap(), fx.expected[0].1);
+    assert_eq!(ev.gate_calls.load(Ordering::SeqCst), 0);
+    assert_eq!(requests(&fx), 1, "only the signed manifest was requested");
     let _ = fs::remove_dir_all(&game);
 }
 
@@ -290,14 +410,23 @@ fn cancel_and_bad_manifests() {
 
     let bad = fixture_with(&[("..\\escape.dll", b"x".to_vec())]);
     let cancel = AtomicBool::new(false);
-    let err = run_download(&request(&game), &download(&bad), &cancel, &Recorder::default()).unwrap_err();
+    let err = run_download(
+        &request(&game),
+        &download(&bad),
+        &cancel,
+        &Recorder::default(),
+    )
+    .unwrap_err();
     match err {
         Stop::Failed(m) => assert!(m.contains("..\\escape.dll"), "{m}"),
         other => panic!("{other:?}"),
     }
     assert!(!game.parent().unwrap().join("escape.dll").exists());
 
-    let missing = Download { base_url: format!("{}x", fx.server.base.split('?').next().unwrap()), version_id: String::new() };
+    let missing = Download {
+        base_url: format!("{}x", fx.server.base.split('?').next().unwrap()),
+        version_id: String::new(),
+    };
     let err = run_download(&request(&game), &missing, &cancel, &Recorder::default()).unwrap_err();
     assert_eq!(err, Stop::Failed(NO_MANIFEST.into()));
     let _ = fs::remove_dir_all(&game);
@@ -305,7 +434,10 @@ fn cancel_and_bad_manifests() {
 
 #[test]
 fn requests_from_json() {
-    let ok = Request::from_json(&json!({"accessToken":"t","entitlementId":"e","gameDir":"/g","maxWorkers":16})).unwrap();
+    let ok = Request::from_json(
+        &json!({"accessToken":"t","entitlementId":"e","gameDir":"/g","maxWorkers":16}),
+    )
+    .unwrap();
     assert_eq!((ok.max_workers, ok.process_workers), (16, 2));
     assert!(Request::from_json(&json!({"accessToken":"t","entitlementId":"e","gameDir":"rel"})).is_err());
     assert_eq!(Request::from_json(&json!({"entitlementId":"e","gameDir":"/g"})).err().unwrap(), NOT_SIGNED_IN);

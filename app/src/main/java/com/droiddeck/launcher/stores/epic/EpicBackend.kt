@@ -14,10 +14,12 @@ import com.droiddeck.launcher.stores.StoreLoginActivity
 import com.droiddeck.launcher.stores.StoresState
 import com.droiddeck.launcher.stores.download.DownloadEntry
 import com.droiddeck.launcher.stores.download.DownloadQueue
+import com.droiddeck.launcher.stores.maintenance.StoreMaintenanceAdapter
 import com.droiddeck.launcher.stores.mergeItems
 
 object EpicBackend : StoreBackend, EpicLaunchSupport {
     override val store: Store = Store.EPIC
+    override fun maintenanceAdapter(): StoreMaintenanceAdapter = EpicMaintenanceAdapter
 
     init {
         LoginFlows.epicFlow = { EpicLogin.create() }

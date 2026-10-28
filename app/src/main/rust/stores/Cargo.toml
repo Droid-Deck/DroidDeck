@@ -20,6 +20,7 @@ futures-util = { version = "0.3", default-features = false, features = ["std"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 sha1 = "0.10"
 sha2 = "0.10"
+sha3 = "0.10"
 
 [build-dependencies]
 cc = "1"

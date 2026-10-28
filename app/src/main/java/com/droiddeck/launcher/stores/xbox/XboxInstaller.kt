@@ -4,13 +4,15 @@ import android.content.Context
 import com.droiddeck.launcher.stores.*
 import com.droiddeck.launcher.stores.download.DownloadQueue
 import com.droiddeck.launcher.stores.download.DownloadStage
+import com.droiddeck.launcher.stores.maintenance.StoreMaintenance
 import org.json.JSONObject
 import java.io.File
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
-internal class XboxInstaller(private val app: Context, private val item: CatalogItem, private val folder: File) : DownloadQueue.DownloadJob {
+internal class XboxInstaller(private val app: Context, private val item: CatalogItem, private val folder: File,
+    private val maintenanceGame: InstalledStoreGame? = null) : DownloadQueue.DownloadJob {
     private val cancelled = AtomicBoolean(false)
     private val paused = CountDownLatch(1)
     @Volatile private var child: Xodus.Child? = null
@@ -32,8 +34,10 @@ internal class XboxInstaller(private val app: Context, private val item: Catalog
             folder.mkdirs()
         } else {
             check(!XboxRuntime.isActive(item.id)) { "Close this Xbox game before updating it." }
-            StoreInstalls.markUpdating(folder)
-            StoreInstalls.begin(folder, Store.XBOX, item.id, item.title, item.tallImageUrl, item.imageUrl)
+            if (maintenanceGame == null) {
+                StoreInstalls.markUpdating(folder)
+                StoreInstalls.begin(folder, Store.XBOX, item.id, item.title, item.tallImageUrl, item.imageUrl)
+            }
         }
         var complete = false
         var sequence = -1L
@@ -41,8 +45,9 @@ internal class XboxInstaller(private val app: Context, private val item: Catalog
             val source = if (content) selected else item.id
             val guestFolder = StoreInstallRoot.guestPathForXodus(app, folder)
             val selection = if (content) emptyList() else listOf("--selected-content-id", selected)
-            Xodus.start(app, listOf("streaming", source, guestFolder, "--market", market,
-                "--progress-json", "--control-stdin") + selection).use { process ->
+            val stream = stream@ {
+                Xodus.start(app, listOf("streaming", source, guestFolder, "--market", market,
+                    "--progress-json", "--control-stdin") + selection).use { process ->
                 child = process
                 val rejected = AtomicBoolean(false)
                 val rejectedLine = Regex(Xodus.SIGN_IN_REJECTED)
@@ -67,18 +72,25 @@ internal class XboxInstaller(private val app: Context, private val item: Catalog
                 } }
                 check(process.process.waitFor(15, TimeUnit.SECONDS)) { "Xbox installer did not exit." }
                 diagnostics.join(2000)
-                if (cancelled.get()) return null
+                if (cancelled.get()) return@stream
                 check(!rejected.get()) { app.getString(com.droiddeck.launcher.R.string.stores_xbox_sign_in_again) }
                 check(process.process.exitValue() == 0 && complete) { "Xbox download did not complete. Resume to retry with fresh licenses." }
+                }
             }
+            if (maintenanceGame != null) StoreMaintenance.withApplyLease(maintenanceGame, stream) else stream()
+            if (cancelled.get()) return null
             if (content) {
                 XboxContent.complete(app, item, folder)
                 return folder.path
             }
             val exe = executable(folder)
-            StoreInstalls.complete(app, folder, StoreGameSidecar(Store.XBOX, item.id, item.title, exe,
-                installVersion = XboxManifest.read(folder).version, installedAt = System.currentTimeMillis(), cover = item.tallImageUrl, hero = item.imageUrl,
-                extra = item.extra + mapOf("contentId" to selected, "market" to market)))
+            val version = XboxManifest.read(folder).version
+            if (maintenanceGame != null) {
+                StoreMaintenance.complete(app, maintenanceGame, version,
+                    maintenanceSidecarExtra(maintenanceGame.sidecar.extra, selected, market))
+            } else StoreInstalls.complete(app, folder, StoreGameSidecar(Store.XBOX, item.id, item.title, exe,
+                installVersion = version, installedAt = System.currentTimeMillis(), cover = item.tallImageUrl, hero = item.imageUrl,
+                extra = maintenanceSidecarExtra(item.extra, selected, market)))
             return folder.path
         } finally {
             child = null
@@ -89,11 +101,11 @@ internal class XboxInstaller(private val app: Context, private val item: Catalog
 
     override fun cancel(deleteFiles: Boolean) {
         cancelled.set(true)
-        delete = deleteFiles
+        delete = deleteFiles && maintenanceGame == null
         val process = child
         if (process == null) {
-            if (deleteFiles && !item.extra["baseId"].isNullOrBlank()) StoreInstalls.deleteTree(folder)
-            else if (deleteFiles) StoreInstalls.discard(app, folder, emptyList())
+            if (delete && !item.extra["baseId"].isNullOrBlank()) StoreInstalls.deleteTree(folder)
+            else if (delete) StoreInstalls.discard(app, folder, emptyList())
             return
         }
         Thread({
@@ -107,5 +119,13 @@ internal class XboxInstaller(private val app: Context, private val item: Catalog
 
     companion object {
         internal fun executable(folder: File): String = XboxManifest.executable(folder)
+
+        internal fun maintenanceSidecarExtra(before: Map<String, String>, contentId: String, market: String): Map<String, String> =
+            LinkedHashMap(before).apply {
+                remove(StoreMaintenance.OPERATION_KEY)
+                remove(StoreMaintenance.FOLDER_KEY)
+                put("contentId", contentId)
+                put("market", market)
+            }
     }
 }

@@ -68,11 +68,12 @@ object SavedQueue {
                 for ((item, root, paused) in back) {
                     if (DownloadQueue.entry(key(item)) != null) continue
                     if (paused) DownloadQueue.holdPaused(key(item))
-                    if (item.store == Store.GOG && item.extra.containsKey(com.droiddeck.launcher.stores.gog.GogMaintenance.OPERATION)) {
+                    if (item.extra.containsKey(com.droiddeck.launcher.stores.maintenance.StoreMaintenance.OPERATION_KEY) ||
+                        item.store == Store.GOG && item.extra.containsKey(com.droiddeck.launcher.stores.gog.GogMaintenance.OPERATION)) {
                         Thread({
-                            runCatching { com.droiddeck.launcher.stores.gog.GogMaintenance.restore(app, item) }
-                                .onFailure { DownloadQueue.recordFailed(app, DownloadEntry(item.store, item.id, item.title), it.message ?: "GOG recovery failed") }
-                        }, "gog-restore").start()
+                            runCatching { com.droiddeck.launcher.stores.maintenance.StoreMaintenance.restore(app, item) }
+                                .onFailure { DownloadQueue.recordFailed(app, DownloadEntry(item.store, item.id, item.title), it.message ?: "${item.store.label} recovery failed") }
+                        }, "store-maintenance-restore").start()
                     } else StoresState.install(app, item, root)
                 }
             }

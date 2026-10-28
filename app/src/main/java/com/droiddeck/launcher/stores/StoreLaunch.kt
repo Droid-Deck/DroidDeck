@@ -83,8 +83,16 @@ object StoreLaunch {
     }
 
     fun prepare(context: Context, store: Store, id: String, onReady: () -> Unit) {
-        if (store != Store.EPIC) { onReady(); return }
         val app = context.applicationContext
+        val folder = StoreInstallRoot.gameFolders(app).firstOrNull { f ->
+            StoreGameSidecar.read(f)?.let { it.store == store && it.id == id } == true
+        }
+        val sidecar = folder?.let { StoreGameSidecar.read(it) }
+        if (folder != null && sidecar != null && com.droiddeck.launcher.stores.maintenance.StoreMaintenance.launchExcluded(InstalledStoreGame(sidecar, folder))) {
+            Log.i(TAG, "launch blocked while ${store.label} maintenance is active: $id")
+            return
+        }
+        if (store != Store.EPIC) { onReady(); return }
         Thread({
             epicCode(app, id)
             StoresState.post(onReady)

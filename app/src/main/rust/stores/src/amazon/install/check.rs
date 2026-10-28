@@ -4,6 +4,10 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use sha2::{Digest, Sha256};
+use sha3::{
+    digest::{ExtendableOutput, Update},
+    Shake128,
+};
 
 use crate::amazon::manifest::{GameFile, TEMP_SUFFIX};
 
@@ -15,7 +19,9 @@ pub enum State {
 }
 
 pub fn sha256_of(path: &Path, cancel: &AtomicBool) -> Result<Option<[u8; 32]>, ()> {
-    let Ok(mut f) = fs::File::open(path) else { return Ok(None) };
+    let Ok(mut f) = fs::File::open(path) else {
+        return Ok(None);
+    };
     let mut hasher = Sha256::new();
     let mut buf = vec![0u8; 1024 * 1024];
     loop {
@@ -24,22 +30,73 @@ pub fn sha256_of(path: &Path, cancel: &AtomicBool) -> Result<Option<[u8; 32]>, (
         }
         match f.read(&mut buf) {
             Ok(0) => return Ok(Some(hasher.finalize().into())),
-            Ok(n) => hasher.update(&buf[..n]),
+            Ok(n) => Digest::update(&mut hasher, &buf[..n]),
             Err(e) if e.kind() == std::io::ErrorKind::Interrupted => {}
             Err(_) => return Ok(None),
         }
     }
 }
 
+pub fn hash_matches(path: &Path, file: &GameFile, cancel: &AtomicBool) -> Result<Option<bool>, ()> {
+    if !file.has_supported_hash() {
+        return Ok(None);
+    }
+    let Ok(mut f) = fs::File::open(path) else {
+        return Ok(None);
+    };
+    let mut buf = vec![0u8; 1024 * 1024];
+    match file.algorithm {
+        0 => {
+            let mut h = Sha256::new();
+            loop {
+                if cancel.load(Ordering::Relaxed) {
+                    return Err(());
+                }
+                match f.read(&mut buf) {
+                    Ok(0) => break,
+                    Ok(n) => Digest::update(&mut h, &buf[..n]),
+                    Err(e) if e.kind() == std::io::ErrorKind::Interrupted => {}
+                    Err(_) => return Ok(None),
+                }
+            }
+            Ok(Some(h.finalize().as_slice() == file.digest.as_slice()))
+        }
+        1 => {
+            let mut h = Shake128::default();
+            loop {
+                if cancel.load(Ordering::Relaxed) {
+                    return Err(());
+                }
+                match f.read(&mut buf) {
+                    Ok(0) => break,
+                    Ok(n) => Update::update(&mut h, &buf[..n]),
+                    Err(e) if e.kind() == std::io::ErrorKind::Interrupted => {}
+                    Err(_) => return Ok(None),
+                }
+            }
+            let mut reader = h.finalize_xof();
+            let mut got = vec![0u8; file.digest.len()];
+            std::io::Read::read(&mut reader, &mut got).map_err(|_| ())?;
+            Ok(Some(got == file.digest))
+        }
+        _ => Ok(None),
+    }
+}
+
 pub fn state(dest: &Path, file: &GameFile, cancel: &AtomicBool) -> State {
+    if file.size == 0 && file.digest.is_empty() {
+        return match fs::symlink_metadata(dest) {
+            Ok(m) if m.is_file() && m.len() == 0 => State::Complete,
+            _ => State::Pending,
+        };
+    }
     match fs::symlink_metadata(dest) {
         Ok(m) if m.is_file() && m.len() == file.size => {}
         _ => return State::Pending,
     }
-    let Some(expected) = file.sha256() else { return State::Complete };
-    match sha256_of(dest, cancel) {
+    match hash_matches(dest, file, cancel) {
         Err(()) => State::Cancelled,
-        Ok(Some(got)) if got == expected => State::Complete,
+        Ok(Some(true)) => State::Complete,
         Ok(_) => State::Pending,
     }
 }
@@ -54,7 +111,11 @@ pub fn remove_stray_temps(game_dir: &Path, files: &[GameFile]) -> usize {
     files
         .iter()
         .map(|f| temp_path(&game_dir.join(&f.path)))
-        .filter(|t| fs::symlink_metadata(t).map(|m| m.is_file() || m.file_type().is_symlink()).unwrap_or(false))
+        .filter(|t| {
+            fs::symlink_metadata(t)
+                .map(|m| m.is_file() || m.file_type().is_symlink())
+                .unwrap_or(false)
+        })
         .filter(|t| fs::remove_file(t).is_ok())
         .count()
 }
@@ -73,7 +134,9 @@ pub fn free_bytes(path: &Path) -> i64 {
 #[cfg(unix)]
 fn available(path: &Path) -> i64 {
     use std::os::unix::ffi::OsStrExt;
-    let Ok(c) = std::ffi::CString::new(path.as_os_str().as_bytes()) else { return -1 };
+    let Ok(c) = std::ffi::CString::new(path.as_os_str().as_bytes()) else {
+        return -1;
+    };
     let mut st: libc::statvfs = unsafe { std::mem::zeroed() };
     if unsafe { libc::statvfs(c.as_ptr(), &mut st) } != 0 {
         return -1;
@@ -111,7 +174,12 @@ mod tests {
     use super::*;
 
     fn file(path: &str, size: u64, digest: Vec<u8>) -> GameFile {
-        GameFile { path: path.into(), size, algorithm: 0, digest }
+        GameFile {
+            path: path.into(),
+            size,
+            algorithm: 0,
+            digest,
+        }
     }
 
     #[test]
@@ -123,15 +191,76 @@ mod tests {
         fs::write(&p, b"hello").unwrap();
         let good = Sha256::digest(b"hello").to_vec();
         let cancel = AtomicBool::new(false);
-        assert_eq!(state(&p, &file("a.bin", 5, good.clone()), &cancel), State::Complete);
-        assert_eq!(state(&p, &file("a.bin", 5, Sha256::digest(b"HELLO").to_vec()), &cancel), State::Pending);
-        assert_eq!(state(&p, &file("a.bin", 6, good.clone()), &cancel), State::Pending);
-        let other = GameFile { path: "a.bin".into(), size: 5, algorithm: 3, digest: vec![1, 2] };
-        assert_eq!(state(&p, &other, &cancel), State::Complete, "no SHA-256: size decides");
-        assert_eq!(state(&dir, &file("x", 0, vec![]), &cancel), State::Pending, "a directory is not a file");
-        assert_eq!(state(&dir.join("missing"), &file("m", 0, vec![]), &cancel), State::Pending);
+        assert_eq!(
+            state(&p, &file("a.bin", 5, good.clone()), &cancel),
+            State::Complete
+        );
+        assert_eq!(
+            state(
+                &p,
+                &file("a.bin", 5, Sha256::digest(b"HELLO").to_vec()),
+                &cancel
+            ),
+            State::Pending
+        );
+        assert_eq!(
+            state(&p, &file("a.bin", 6, good.clone()), &cancel),
+            State::Pending
+        );
+        let other = GameFile {
+            path: "a.bin".into(),
+            size: 5,
+            algorithm: 3,
+            digest: vec![1, 2],
+        };
+        assert_eq!(
+            state(&p, &other, &cancel),
+            State::Pending,
+            "unsupported hashes cannot establish file integrity"
+        );
+        assert_eq!(
+            state(&dir, &file("x", 0, vec![]), &cancel),
+            State::Pending,
+            "a directory is not a file"
+        );
+        assert_eq!(
+            state(&dir.join("missing"), &file("m", 0, vec![]), &cancel),
+            State::Pending
+        );
         cancel.store(true, Ordering::Relaxed);
-        assert_eq!(state(&p, &file("a.bin", 5, good), &cancel), State::Cancelled);
+        assert_eq!(
+            state(&p, &file("a.bin", 5, good), &cancel),
+            State::Cancelled
+        );
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn shake128_checks_the_manifest_digest_length() {
+        use sha3::{
+            digest::{ExtendableOutput, Update},
+            Shake128,
+        };
+        let dir = std::env::temp_dir().join(format!("dd-amazon-shake-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let p = dir.join("a.bin");
+        fs::write(&p, b"hello").unwrap();
+        let mut hasher = Shake128::default();
+        Update::update(&mut hasher, b"hello");
+        let mut reader = hasher.finalize_xof();
+        let mut digest = vec![0; 32];
+        std::io::Read::read(&mut reader, &mut digest).unwrap();
+        let file = GameFile {
+            path: "a.bin".into(),
+            size: 5,
+            algorithm: 1,
+            digest: digest.clone(),
+        };
+        let cancel = AtomicBool::new(false);
+        assert_eq!(state(&p, &file, &cancel), State::Complete);
+        fs::write(&p, b"HELLO").unwrap();
+        assert_eq!(state(&p, &file, &cancel), State::Pending);
         let _ = fs::remove_dir_all(&dir);
     }
 
@@ -142,7 +271,10 @@ mod tests {
         fs::create_dir_all(dir.join("sub")).unwrap();
         fs::write(dir.join("sub/a.bin.tmp"), b"x").unwrap();
         fs::write(dir.join("save.tmp"), b"keep").unwrap();
-        let files = vec![file("sub/a.bin", 1, vec![0; 32]), file("b.bin", 1, vec![0; 32])];
+        let files = vec![
+            file("sub/a.bin", 1, vec![0; 32]),
+            file("b.bin", 1, vec![0; 32]),
+        ];
         assert_eq!(temp_path(&dir.join("sub/a.bin")), dir.join("sub/a.bin.tmp"));
         assert_eq!(remove_stray_temps(&dir, &files), 1);
         assert!(!dir.join("sub/a.bin.tmp").exists());

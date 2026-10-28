@@ -19,6 +19,9 @@ import com.droiddeck.launcher.stores.StoresState
 import com.droiddeck.launcher.stores.download.DownloadEntry
 import com.droiddeck.launcher.stores.download.DownloadQueue
 import com.droiddeck.launcher.stores.download.DownloadStage
+import com.droiddeck.launcher.stores.maintenance.MaintenanceCheck
+import com.droiddeck.launcher.stores.maintenance.MaintenanceCheckState
+import com.droiddeck.launcher.stores.maintenance.StoreMaintenance
 import org.json.JSONObject
 import java.io.File
 import java.net.HttpURLConnection
@@ -103,6 +106,13 @@ object BattleNetInstall {
         DownloadQueue.enqueue(app, entry) { BattleNetInstaller(app, item, folder, update) }
     }
 
+    fun enqueueMaintenance(context: Context, item: CatalogItem, game: InstalledStoreGame) {
+        val app = context.applicationContext
+        val entry = DownloadEntry(Store.BATTLENET, item.id, item.title, cover = item.tallImageUrl ?: item.imageUrl,
+            location = StoreInstallRoot.labelFor(app, game.folder))
+        DownloadQueue.enqueue(app, entry) { BattleNetInstaller(app, item, game.folder, update = true, maintenanceGame = game) }
+    }
+
     fun update(context: Context, game: InstalledStoreGame) {
         val app = context.applicationContext
         Thread({
@@ -176,6 +186,18 @@ object BattleNetInstall {
 
     fun checkUpdate(context: Context, game: InstalledStoreGame, force: Boolean = false) = check(game.sidecar.id, game.folder, force)
 
+    fun maintenanceCheck(context: Context, game: InstalledStoreGame): MaintenanceCheck {
+        val product = product(game.sidecar.id)
+            ?: return MaintenanceCheck(MaintenanceCheckState.UNKNOWN, reason = "Battle.net does not support this installed product")
+        val local = runCatching { buildKey(File(game.folder, BUILD_INFO).readText()) }.getOrNull()
+            ?: return MaintenanceCheck(MaintenanceCheckState.UNKNOWN, reason = "The installed Battle.net build is unknown")
+        val latest = runCatching { latestBuild(fetch(VERSIONS.format(Locale.ROOT, local.first, product)), local.first) }
+            .getOrElse { return MaintenanceCheck(MaintenanceCheckState.FAILED, reason = it.message ?: "Battle.net update check failed") }
+            ?: return MaintenanceCheck(MaintenanceCheckState.UNKNOWN, reason = "Battle.net did not provide a build for region ${local.first}")
+        return if (latest == local.second) MaintenanceCheck(MaintenanceCheckState.CURRENT, latest)
+        else MaintenanceCheck(MaintenanceCheckState.AVAILABLE, latest)
+    }
+
     internal fun check(id: String, folder: File, force: Boolean) {
         val product = product(id) ?: return
         val now = System.currentTimeMillis()
@@ -239,23 +261,28 @@ internal class BattleNetInstaller(
     private val item: CatalogItem,
     private val folder: File,
     private val update: Boolean,
+    private val maintenanceGame: InstalledStoreGame? = null,
 ) : DownloadQueue.DownloadJob {
     private val cancelled = AtomicBoolean(false)
     private val started = AtomicBoolean(false)
     private val ended = java.util.concurrent.CountDownLatch(1)
     private var before = 0L
     private var kept = -1L
+    @Volatile private var applyLease: AutoCloseable? = null
 
     override fun run(handle: DownloadQueue.JobHandle): String? {
         started.set(true)
         try {
             return if (cancelled.get()) null else work(handle)
         } finally {
+            runCatching { applyLease?.close() }
+            applyLease = null
             ended.countDown()
         }
     }
 
     private fun work(handle: DownloadQueue.JobHandle): String? {
+        val maintenance = maintenanceGame
         before = DownloadQueue.entry(handle.key)?.bytesTotal ?: 0L
         handle.stage(DownloadStage.MANIFEST, app.getString(R.string.bnet_dl_starting))
         if (!BattleNet.installed(app)) throw IllegalStateException(app.getString(R.string.bnet_dl_client_first))
@@ -269,10 +296,18 @@ internal class BattleNetInstaller(
         else listOf("agent-install", uid, product, guest, BattleNetInstall.localeTag(app), country, region)
         var done: JSONObject? = null
         var reason: String? = null
+        var leaseFailure: String? = null
         val code = BattleNetInstall.run(app, args, cancelled) { line ->
             when {
-                line.startsWith(BattleNetInstall.PROGRESS) ->
-                    runCatching { JSONObject(line.removePrefix(BattleNetInstall.PROGRESS)) }.getOrNull()?.let { progress(handle, it) }
+                line.startsWith(BattleNetInstall.PROGRESS) -> runCatching { JSONObject(line.removePrefix(BattleNetInstall.PROGRESS)) }.getOrNull()?.let {
+                    progress(handle, it)
+                    if (maintenance != null && applyLease == null &&
+                        BattleNetInstall.step(it.optInt("state", 0), it.optInt("phase", 0), it.optLong("download_current", 0L), it.optLong("download_total", 0L)) == BattleNetInstall.Step.APPLYING) {
+                        runCatching { StoreMaintenance.beginApplyLease(maintenance) }
+                            .onSuccess { applyLease = it }
+                            .onFailure { leaseFailure = it.message ?: "Close the game before maintenance"; cancelled.set(true) }
+                    }
+                }
                 line == BattleNetInstall.STATE + "waiting" -> handle.stage(DownloadStage.MANIFEST, app.getString(R.string.bnet_dl_waiting))
                 line == BattleNetInstall.STATE + "queued" -> handle.stage(DownloadStage.MANIFEST, app.getString(R.string.bnet_dl_queued))
                 line == BattleNetInstall.STATE + "starting" -> handle.stage(DownloadStage.MANIFEST, app.getString(R.string.bnet_dl_starting))
@@ -280,9 +315,16 @@ internal class BattleNetInstaller(
                 line.startsWith(BattleNetInstall.ERROR) -> reason = line.removePrefix(BattleNetInstall.ERROR)
             }
         }
+        leaseFailure?.let { throw IllegalStateException(it) }
         if (cancelled.get()) return null
         if (done == null) throw IllegalStateException(BattleNetInstall.failure(app, reason, code))
         handle.log("Battle.net: ${item.title} ${if (update) "updated" else "installed"} ${done?.optString("version").orEmpty()}".trimEnd())
+        if (maintenance != null) {
+            if (applyLease == null) applyLease = StoreMaintenance.beginApplyLease(maintenance)
+            val installedBuild = runCatching { BattleNetInstall.buildKey(File(folder, ".build.info").readText())?.second }.getOrNull()
+                ?: throw IllegalStateException("Battle.net completed, but the installed build could not be verified")
+            StoreMaintenance.complete(app, maintenance, installedBuild)
+        }
         StoresState.post {
             BattleNetInstall.updates.remove(item.id)
             StoresState.notifyLibraryChanged(app)

@@ -19,6 +19,7 @@ import com.droiddeck.launcher.stores.StoresState
 import com.droiddeck.launcher.stores.download.DownloadEntry
 import com.droiddeck.launcher.stores.download.DownloadQueue
 import com.droiddeck.launcher.stores.download.DownloadStage
+import com.droiddeck.launcher.stores.maintenance.StoreMaintenanceAdapter
 import org.json.JSONObject
 import java.io.File
 import java.io.FileOutputStream
@@ -153,6 +154,7 @@ object BattleNetClient {
 
 object BattleNetBackend : StoreBackend {
     override val store: Store = Store.BATTLENET
+    override fun maintenanceAdapter(): StoreMaintenanceAdapter = BattleNetMaintenanceAdapter
 
     override fun signIn(context: Context) = BattleNetClient.signIn(context)
 

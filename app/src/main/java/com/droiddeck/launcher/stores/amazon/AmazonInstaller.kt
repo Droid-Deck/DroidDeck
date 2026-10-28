@@ -11,6 +11,8 @@ import com.droiddeck.launcher.stores.StoreInstalls
 import com.droiddeck.launcher.stores.download.DownloadQueue
 import com.droiddeck.launcher.stores.download.DownloadStage
 import com.droiddeck.launcher.stores.download.StoreDownloadTier
+import com.droiddeck.launcher.stores.InstalledStoreGame
+import com.droiddeck.launcher.stores.maintenance.StoreMaintenance
 import org.json.JSONObject
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
@@ -20,6 +22,8 @@ internal class AmazonInstaller(
     private val app: Context,
     private val item: CatalogItem,
     private val folder: File,
+    private val maintenance: JSONObject? = null,
+    private val maintenanceGame: InstalledStoreGame? = null,
 ) : DownloadQueue.DownloadJob {
     private val cancelled = AtomicBoolean(false)
 
@@ -29,7 +33,7 @@ internal class AmazonInstaller(
         val entitlementId = item.extra["entitlementId"].orEmpty()
         val sku = item.extra["sku"].orEmpty()
         val cover = item.tallImageUrl ?: item.imageUrl
-        StoreInstalls.begin(folder, Store.AMAZON, item.id, item.title, cover, item.imageUrl)
+        if (maintenance == null) StoreInstalls.begin(folder, Store.AMAZON, item.id, item.title, cover, item.imageUrl)
         if (cancelled.get()) return null
 
         val tier = StoreDownloadTier.current(app)
@@ -41,9 +45,14 @@ internal class AmazonInstaller(
             .put("maxWorkers", tier.networkWindow.coerceIn(1, 128))
             .put("processWorkers", tier.processWorkers)
             .put("caBundle", "")
+        maintenance?.let {
+            request.put("targetManifestPath", it.getString("manifestPath"))
+            request.put("targetVersionId", it.getString("versionId"))
+        }
 
         val shown = AtomicLong(-1)
         val downloading = AtomicBoolean(false)
+        var applyLease: AutoCloseable? = null
         val prefs = AmazonPrefs.get(app)
         val listener = object : AmazonNative.InstallListener {
             override fun onStatus(text: String) { handle.stage(DownloadStage.MANIFEST, text) }
@@ -70,7 +79,8 @@ internal class AmazonInstaller(
             override fun onLog(line: String) { handle.log("amazon: $line") }
 
             override fun beforeReplace(): Boolean = try {
-                StoreInstalls.markUpdating(folder)
+                if (maintenance == null) StoreInstalls.markUpdating(folder)
+                else if (applyLease == null) applyLease = StoreMaintenance.beginApplyLease(maintenanceGame!!)
                 true
             } catch (e: Exception) {
                 handle.log("amazon: the install record could not be switched to updating (${e.javaClass.simpleName})")
@@ -80,18 +90,25 @@ internal class AmazonInstaller(
             override fun onComplete(success: Boolean, cancelled: Boolean, error: String, result: String) = Unit
         }
 
-        val outcome = AmazonNative.install(request, listener, cancelled)
+        val outcome = try { AmazonNative.install(request, listener, cancelled) }
+        finally { runCatching { applyLease?.close() } }
         if (outcome.cancelled || cancelled.get() && !outcome.success) return null
         if (!outcome.success) throw IllegalStateException(outcome.error.ifEmpty { "The Amazon install failed" })
         val result = outcome.result ?: JSONObject()
-
-        handle.stage(DownloadStage.INSTALL, "Finishing…")
         val versionId = result.optString("versionId")
         val total = result.optLong("totalBytes", 0L)
         prefs.edit().apply {
             if (total > 0) putLong("size_${item.id}", total)
             putString("version_${item.id}", versionId)
         }.apply()
+
+        if (maintenance != null && maintenanceGame != null) {
+            if (applyLease == null) StoreMaintenance.beginApplyLease(maintenanceGame).close()
+            StoreMaintenance.complete(app, maintenanceGame, versionId.ifEmpty { maintenance.optString("versionId") })
+            return folder.path
+        }
+
+        handle.stage(DownloadStage.INSTALL, "Finishing…")
 
         handle.stage(DownloadStage.INSTALL, app.getString(R.string.stores_registering))
         val spec = AmazonNative.call("launch.spec", JSONObject().put("gameDir", folder.absolutePath).put("title", item.title))
