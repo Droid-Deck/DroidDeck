@@ -199,3 +199,12 @@ is marked done at once - no duplicate fence, no epoll add or delete, no waiter w
 loop handles it in the same pass, after the import (FIFO commits still wait for a vblank). The
 `commit_ready_check` convar (default on, `gamescopectl commit_ready_check 0`) turns it off; the
 `xwm` log counts fences ready at import and waited for, every 10 s.
+
+## 0125 steamcompmgr: share MangoHud's frame times with DroidDeck's HUD
+
+DroidDeck's in-app HUD shows the same frame rate and frame times as MangoHud. With
+`DROIDDECK_HUD_FRAMES` set (droiddeck-session sets `/run/droiddeck-hud/frames`), gamescope maps that
+file and writes one frame time per new base plane commit of the single-output connector, measured
+the same way as the visible frame time it sends a per-connector mangoapp, whether or not a mangoapp
+runs. It also writes the focused pid, output size, refresh, Steam focus and engine name. The layout
+is in the comment above `publish_droiddeck_hud_frames`; the app reads it in `hudframes.c`.
