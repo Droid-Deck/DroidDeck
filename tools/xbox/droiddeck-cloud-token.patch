@@ -1,18 +1,40 @@
-diff --git a/crates/xodus-cli/src/commands.rs b/crates/xodus-cli/src/commands.rs
-index 5a66715..5b310e4 100644
 --- a/crates/xodus-cli/src/commands.rs
 +++ b/crates/xodus-cli/src/commands.rs
-@@ -6,6 +6,7 @@ pub mod license;
+@@ -6,6 +6,7 @@
  pub mod login;
  pub mod logout;
  pub mod profile;
 +pub mod cloud_token;
+ pub mod social;
  pub mod game_activity;
  pub mod achievements;
- pub mod subscription;
-diff --git a/crates/xodus-cli/src/commands/cloud_token.rs b/crates/xodus-cli/src/commands/cloud_token.rs
-new file mode 100644
-index 0000000..fbd0ed0
+--- a/crates/xodus-cli/src/main.rs
++++ b/crates/xodus-cli/src/main.rs
+@@ -70,6 +70,8 @@
+         #[arg(long, default_value_t = false)]
+         json: bool,
+     },
++    #[command(about = "Get an Xbox Cloud Gaming streaming token for the stored account")]
++    CloudToken,
+     #[command(about = "Read Xbox gamertag and gamerpic for the stored account")]
+     Profile {
+         #[arg(long, default_value_t = false)]
+@@ -251,6 +253,7 @@
+         args.command,
+         SubCommand::Account { .. }
+             | SubCommand::Profile { .. }
++            | SubCommand::CloudToken
+             | SubCommand::Social { .. }
+             | SubCommand::GameActivity { .. }
+             | SubCommand::Achievements { .. }
+@@ -317,6 +320,7 @@
+             }
+         },
+         SubCommand::Profile { json } => commands::profile::run(&tokens, json).await,
++        SubCommand::CloudToken => commands::cloud_token::run(&tokens).await,
+         SubCommand::Social { .. } => commands::social::run(&tokens).await,
+         SubCommand::GameActivity { title_id, json } => commands::game_activity::run(&tokens, title_id, json).await,
+         SubCommand::Achievements { title_id, json } => commands::achievements::run(&tokens, title_id, json).await,
 --- /dev/null
 +++ b/crates/xodus-cli/src/commands/cloud_token.rs
 @@ -0,0 +1,124 @@
@@ -41,7 +63,7 @@ index 0000000..fbd0ed0
 +        ExchangeUserTokenOutcome::Issued(soap::BodyContent::RequestSecurityTokenResponse(response)) => *response,
 +        _ => return Err("msa-response"),
 +    };
-+    // Token::from panics on token types it does not know; only take the compact forms here. The cloud
++    // Only accept compact forms here and reject incomplete token responses. The cloud
 +    // transfer purpose answers with a login proof token, which is what /connect takes (Greenlight
 +    // sends the MSAL response's "lpt").
 +    let kind = response.token_type.clone();
@@ -64,7 +86,7 @@ index 0000000..fbd0ed0
 +        eprintln!("NEXUS_SESSION_DIAGNOSTIC_V1 ticket-type-{slug}");
 +        return Err("msa-ticket");
 +    }
-+    let Token::Compact(ticket) = Token::from(response) else { return Err("msa-ticket"); };
++    let Token::Compact(ticket) = Token::try_from(response).map_err(|_| "msa-ticket")? else { return Err("msa-ticket"); };
 +    Ok((account, ticket))
 +}
 +
@@ -140,32 +162,3 @@ index 0000000..fbd0ed0
 +        assert_eq!(list[0]["baseUri"], "https://weu.core.gssv-play-prod.xboxlive.com");
 +    }
 +}
-diff --git a/crates/xodus-cli/src/main.rs b/crates/xodus-cli/src/main.rs
-index 1ae4167..4b0ac26 100644
---- a/crates/xodus-cli/src/main.rs
-+++ b/crates/xodus-cli/src/main.rs
-@@ -68,6 +68,8 @@ enum SubCommand {
-         #[arg(long, default_value_t = false)]
-         json: bool,
-     },
-+    #[command(about = "Get an Xbox Cloud Gaming streaming token for the stored account")]
-+    CloudToken,
-     #[command(about = "Read Xbox gamertag and gamerpic for the stored account")]
-     Profile {
-         #[arg(long, default_value_t = false)]
-@@ -239,6 +241,7 @@ async fn main() -> ExitCode {
-         args.command,
-         SubCommand::Account { .. }
-             | SubCommand::Profile { .. }
-+            | SubCommand::CloudToken
-             | SubCommand::GameActivity { .. }
-             | SubCommand::Achievements { .. }
-             | SubCommand::Library { .. }
-@@ -304,6 +307,7 @@ async fn main() -> ExitCode {
-             }
-         },
-         SubCommand::Profile { json } => commands::profile::run(&tokens, json).await,
-+        SubCommand::CloudToken => commands::cloud_token::run(&tokens).await,
-         SubCommand::GameActivity { title_id, json } => commands::game_activity::run(&tokens, title_id, json).await,
-         SubCommand::Achievements { title_id, json } => commands::achievements::run(&tokens, title_id, json).await,
-         SubCommand::Login => commands::login::run(&client, &tokens).await,
