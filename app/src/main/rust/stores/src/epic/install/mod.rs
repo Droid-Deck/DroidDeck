@@ -246,8 +246,9 @@ fn cleanup_obsolete(
     new: &[FileEntry],
     new_tags: &[String],
     cancel: &AtomicBool,
+    ev: &dyn Events,
     log: &dyn Fn(&str),
-) -> bool {
+) -> Result<bool, Stop> {
     let old_selected = locale::select(old, Some(old_tags));
     let new_selected = locale::select(new, Some(new_tags));
     let key = |path: &str| -> Option<String> {
@@ -267,23 +268,23 @@ fn cleanup_obsolete(
     };
     let Some(old_keys) = inventory(old, &old_selected) else {
         log("obsolete Epic files preserved: old inventory contains unsafe or case-colliding paths");
-        return cancel.load(Ordering::Relaxed);
+        return Ok(cancel.load(Ordering::Relaxed));
     };
     let Some(new_keys) = inventory(new, &new_selected) else {
         log("obsolete Epic files preserved: target inventory contains unsafe or case-colliding paths");
-        return cancel.load(Ordering::Relaxed);
+        return Ok(cancel.load(Ordering::Relaxed));
     };
     let _ = old_keys;
     let Ok(root) = game_dir.canonicalize() else {
         log("obsolete Epic files preserved: install folder could not be resolved");
-        return cancel.load(Ordering::Relaxed);
+        return Ok(cancel.load(Ordering::Relaxed));
     };
     let mut removed = 0usize;
     let mut preserved = 0usize;
     for i in old_selected {
         if cancel.load(Ordering::Relaxed) {
             log("obsolete Epic cleanup cancelled; remaining files were preserved");
-            return true;
+            return Ok(true);
         }
         let file = &old[i];
         let Some(k) = key(&file.path) else { preserved += 1; continue };
@@ -308,10 +309,17 @@ fn cleanup_obsolete(
             preserved += 1;
             continue;
         }
+        if !ev.before_replace() {
+            return Err(Stop::Failed("The install record could not be switched to updating; nothing was replaced".into()));
+        }
+        if cancel.load(Ordering::Relaxed) {
+            log("obsolete Epic cleanup cancelled; remaining files were preserved");
+            return Ok(true);
+        }
         if fs::remove_file(&canonical).is_ok() { removed += 1; } else { preserved += 1; }
     }
     log(&format!("obsolete Epic cleanup removed={removed} preserved={preserved}"));
-    cancel.load(Ordering::Relaxed)
+    Ok(cancel.load(Ordering::Relaxed))
 }
 
 fn resume_from(stage: &Path, parts: &[PlanPart], size: u64) -> Option<HashSet<u64>> {
@@ -430,8 +438,9 @@ pub fn run(req: &Request, cancel: &AtomicBool, ev: &dyn Events) -> Result<Finish
                 &manifest.files,
                 &req.tags,
                 cancel,
+                ev,
                 &log,
-            )
+            )?
         } else {
             ev.log("obsolete Epic files preserved: no retained prior manifest is available");
             cancel.load(Ordering::Relaxed)
@@ -635,8 +644,9 @@ cache_budget_mib={} overlap_mib={} free_game={free_game} workers={} process_work
             &manifest.files,
             &req.tags,
             cancel,
+            ev,
             &log,
-        )
+        )?
     } else {
         ev.log("obsolete Epic files preserved: no retained prior manifest is available");
         cancel.load(Ordering::Relaxed)

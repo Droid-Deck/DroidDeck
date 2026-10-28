@@ -350,7 +350,7 @@ fn obsolete_cleanup_removes_only_unchanged_prior_manifest_files() {
     ];
     let new = vec![GameFile { path: "current.bin".into(), size: 0, algorithm: 0, digest: vec![] }];
     let cancel = AtomicBool::new(false);
-    assert!(!cleanup_obsolete(&game, &old, &new, &cancel, &|_| {}));
+    assert!(!cleanup_obsolete(&game, &old, &new, &cancel, &ReplaceGate::new(), &Recorder::default(), &|_| {}).unwrap());
     assert!(!game.join("old.bin").exists());
     assert_eq!(fs::read(game.join("modified.bin")).unwrap(), b"user edit");
     assert_eq!(fs::read(game.join("untracked.bin")).unwrap(), b"untracked");
@@ -365,8 +365,45 @@ fn obsolete_cleanup_cancellation_preserves_the_old_inventory() {
     let old = vec![GameFile { path: "old.bin".into(), size: 3, algorithm: 0, digest: Sha256::digest(b"old").to_vec() }];
     let new = vec![GameFile { path: "current.bin".into(), size: 0, algorithm: 0, digest: vec![] }];
     let cancel = AtomicBool::new(true);
-    assert!(cleanup_obsolete(&game, &old, &new, &cancel, &|_| {}));
+    assert!(cleanup_obsolete(&game, &old, &new, &cancel, &ReplaceGate::new(), &Recorder::default(), &|_| {}).unwrap());
     assert_eq!(fs::read(game.join("old.bin")).unwrap(), b"old");
+    let _ = fs::remove_dir_all(&game);
+}
+
+#[test]
+fn refused_obsolete_cleanup_preserves_file_and_installed_manifest() {
+    let fx = fixture();
+    let game = temp_game("obsolete-refused");
+    fs::create_dir_all(&game).unwrap();
+    for (path, bytes) in &fx.expected {
+        let path = game.join(path.replace('\\', "/"));
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(path, bytes).unwrap();
+    }
+    let metadata = game.join(".droiddeck-maintenance/amazon");
+    fs::create_dir_all(&metadata).unwrap();
+    let old_digest = Sha256::digest(b"old").to_vec();
+    let old_manifest = frame(
+        &message(&[vec![Entry { path: "obsolete.bin", size: 3, algorithm: Some(0), digest: &old_digest }]]),
+        b"\x08\x01\x12\x00",
+        true,
+    );
+    fs::write(game.join("obsolete.bin"), b"old").unwrap();
+    fs::write(metadata.join("installed.manifest"), &old_manifest).unwrap();
+    let target_manifest = fx.server.files.lock().unwrap()["/v/abc/manifest.proto"].clone();
+    let target_path = metadata.join("target.manifest");
+    fs::write(&target_path, target_manifest).unwrap();
+    let mut req = request(&game);
+    req.target_manifest_path = Some(target_path);
+    req.target_version_id = Some("pinned".into());
+    let cancel = AtomicBool::new(false);
+    let ev = Recorder { refuse: true, ..Default::default() };
+    let result = run_download(&req, &download(&fx), &cancel, &ev);
+    assert_eq!(result.unwrap_err(), Stop::Failed(REPLACE_REFUSED.into()));
+    assert_eq!(ev.gate_calls.load(Ordering::SeqCst), 1);
+    assert_eq!(fs::read(game.join("obsolete.bin")).unwrap(), b"old");
+    assert_eq!(fs::read(metadata.join("installed.manifest")).unwrap(), old_manifest);
+    assert!(!game.join(COMPLETE_MARKER).exists());
     let _ = fs::remove_dir_all(&game);
 }
 

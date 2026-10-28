@@ -334,7 +334,7 @@ fn obsolete_cleanup_removes_only_unchanged_prior_manifest_files() {
     ];
     let new = vec![FileEntry { path: "current.bin".into(), sha1: None, tags: vec![], parts: vec![], size: 0 }];
     let cancel = AtomicBool::new(false);
-    assert!(!cleanup_obsolete(&game, &old, &[], &new, &[], &cancel, &|_| {}));
+    assert!(!cleanup_obsolete(&game, &old, &[], &new, &[], &cancel, &Recorder::default(), &|_| {}).unwrap());
     assert!(!game.join("old.bin").exists());
     assert_eq!(fs::read(game.join("modified.bin")).unwrap(), b"user edit");
     assert_eq!(fs::read(game.join("untracked.bin")).unwrap(), b"untracked");
@@ -349,8 +349,49 @@ fn obsolete_cleanup_cancellation_preserves_the_old_inventory() {
     let old = vec![FileEntry { path: "old.bin".into(), sha1: Some(Sha1::digest(b"old").into()), tags: vec![], parts: vec![], size: 3 }];
     let new = vec![FileEntry { path: "current.bin".into(), sha1: None, tags: vec![], parts: vec![], size: 0 }];
     let cancel = AtomicBool::new(true);
-    assert!(cleanup_obsolete(&game, &old, &[], &new, &[], &cancel, &|_| {}));
+    assert!(cleanup_obsolete(&game, &old, &[], &new, &[], &cancel, &Recorder::default(), &|_| {}).unwrap());
     assert_eq!(fs::read(game.join("old.bin")).unwrap(), b"old");
+    let _ = fs::remove_dir_all(&game);
+}
+
+#[test]
+fn refused_obsolete_cleanup_preserves_file_and_installed_manifest() {
+    let fx = fixture();
+    let game = temp_game("obsolete-refused");
+    fs::create_dir_all(&game).unwrap();
+    let metadata = game.join(".droiddeck-maintenance/epic");
+    fs::create_dir_all(&metadata).unwrap();
+    let old_bytes = b"old";
+    let old_chunk = chunk(90, old_bytes.len() as u32);
+    let old_manifest = build(&TestManifest {
+        version: 21,
+        build: "old".into(),
+        exe: "Old.exe".into(),
+        prereq: None,
+        chunks: vec![old_chunk.clone()],
+        files: vec![TestFile {
+            path: "obsolete.bin".into(),
+            sha1: Sha1::digest(old_bytes).into(),
+            tags: Vec::new(),
+            parts: vec![PartRef { guid: old_chunk.guid, offset: 0, size: old_bytes.len() as u32 }],
+        }],
+        compress: true,
+        meta_tail: Vec::new(),
+    });
+    fs::write(game.join("obsolete.bin"), old_bytes).unwrap();
+    fs::write(metadata.join("installed.manifest"), &old_manifest).unwrap();
+    let target_manifest = br#"{"ManifestFileVersion":"20","ChunkHashList":{},"FileManifestList":[]}"#;
+    let target_path = metadata.join("target.manifest");
+    fs::write(&target_path, target_manifest).unwrap();
+    let mut req = request(&fx, &game);
+    req.target_manifest_path = Some(target_path);
+    let cancel = AtomicBool::new(false);
+    let ev = Recorder { refuse: true, ..Default::default() };
+    let result = run(&req, &cancel, &ev);
+    assert_eq!(result.unwrap_err(), Stop::Failed("The install record could not be switched to updating; nothing was replaced".into()));
+    assert_eq!(ev.replaced.load(Ordering::SeqCst), 1);
+    assert_eq!(fs::read(game.join("obsolete.bin")).unwrap(), old_bytes);
+    assert_eq!(fs::read(metadata.join("installed.manifest")).unwrap(), old_manifest);
     let _ = fs::remove_dir_all(&game);
 }
 

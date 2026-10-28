@@ -134,6 +134,7 @@ pub fn prepare(
 struct Rebuilt {
     bytes: Vec<u8>,
     covered: Vec<bool>,
+    uncovered: usize,
     valid: bool,
 }
 
@@ -147,6 +148,25 @@ pub fn seed_from_verified_installed(
     budget: u64,
     cancel: &AtomicBool,
 ) -> (Vec<u32>, u64) {
+    seed_from_verified_installed_with_check(
+        dir, game_dir, installed, target, needed, cached, budget, cancel, super::delta::check,
+    )
+}
+
+fn seed_from_verified_installed_with_check<F>(
+    dir: &Path,
+    game_dir: &Path,
+    installed: &Manifest,
+    target: &Manifest,
+    needed: &HashSet<u32>,
+    cached: &[u32],
+    budget: u64,
+    cancel: &AtomicBool,
+    mut check: F,
+) -> (Vec<u32>, u64)
+where
+    F: FnMut(&Path, u64, Option<[u8; 20]>, &AtomicBool) -> super::delta::Check,
+{
     const MAX_WINDOW: u32 = 64 * 1024 * 1024;
     const MAX_REBUILD_MEMORY: u64 = 32 * 1024 * 1024;
     let cached: HashSet<u32> = cached.iter().copied().collect();
@@ -157,8 +177,44 @@ pub fn seed_from_verified_installed(
         if cancel.load(Ordering::Relaxed) {
             break;
         }
+        if !rebuilt.is_empty()
+            && rebuilt.values().all(|chunk| !chunk.valid || chunk.uncovered == 0)
+        {
+            break;
+        }
         let Some(expected) = file.sha1 else { continue };
         if !super::safe_relative(&file.path) {
+            continue;
+        }
+        let useful = file.parts.iter().any(|part| {
+            if part.size == 0 {
+                return false;
+            }
+            let Some(&target_index) = target.chunk_index.get(&part.guid) else {
+                return false;
+            };
+            let target_index = target_index as u32;
+            if !needed.contains(&target_index) || cached.contains(&target_index) {
+                return false;
+            }
+            let Some(info) = target.chunks.get(target_index as usize) else {
+                return false;
+            };
+            if !info.window_exact
+                || info.window > MAX_WINDOW
+                || part.offset.saturating_add(part.size) > info.window
+            {
+                return false;
+            }
+            if let Some(chunk) = rebuilt.get(&target_index) {
+                let start = part.offset as usize;
+                let end = start + part.size as usize;
+                chunk.valid && chunk.covered[start..end].iter().any(|present| !present)
+            } else {
+                reserved.saturating_add(info.window as u64) <= budget
+            }
+        });
+        if !useful {
             continue;
         }
         let path = game_dir.join(&file.path);
@@ -183,7 +239,7 @@ pub fn seed_from_verified_installed(
         if !meta.is_file() || meta.file_type().is_symlink() {
             continue;
         }
-        match super::delta::check(&path, file.size, Some(expected), cancel) {
+        match check(&path, file.size, Some(expected), cancel) {
             super::delta::Check::Cancelled => break,
             super::delta::Check::UpToDate => {}
             super::delta::Check::Pending { .. } => continue,
@@ -223,6 +279,7 @@ pub fn seed_from_verified_installed(
                     Rebuilt {
                         bytes: vec![0; info.window as usize],
                         covered: vec![false; info.window as usize],
+                        uncovered: info.window as usize,
                         valid: true,
                     },
                 );
@@ -250,6 +307,9 @@ pub fn seed_from_verified_installed(
                     chunk.valid = false;
                     break;
                 }
+                if !chunk.covered[at] {
+                    chunk.uncovered -= 1;
+                }
                 chunk.bytes[at] = byte;
                 chunk.covered[at] = true;
             }
@@ -263,7 +323,7 @@ pub fn seed_from_verified_installed(
         if cancel.load(Ordering::Relaxed) {
             break;
         }
-        if !chunk.valid || chunk.covered.iter().any(|present| !present) {
+        if !chunk.valid || chunk.uncovered != 0 {
             continue;
         }
         if target.chunks[index as usize]
@@ -387,6 +447,79 @@ mod tests {
         assert!(seeded.is_empty());
         assert_eq!(written, 0);
         assert!(!cache.join(guid_text(&info.guid)).exists());
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn skips_verified_installed_files_that_cannot_seed_needed_chunks() {
+        let root = std::env::temp_dir().join(format!("dd-epic-cache-filter-{}", std::process::id()));
+        let game = root.join("game");
+        let cache = root.join("cache");
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&game).unwrap();
+        let needed_chunk = chunk(51, 4);
+        let unrelated_chunk = chunk(52, 4);
+        let installed_bytes = build(&TestManifest {
+            version: 21,
+            build: "installed".into(),
+            exe: "Game.exe".into(),
+            prereq: None,
+            chunks: vec![needed_chunk.clone(), unrelated_chunk.clone()],
+            files: vec![
+                TestFile {
+                    path: "source.bin".into(),
+                    sha1: Sha1::digest(b"abcd").into(),
+                    tags: Vec::new(),
+                    parts: vec![PartRef { guid: needed_chunk.guid, offset: 0, size: 4 }],
+                },
+                TestFile {
+                    path: "irrelevant.bin".into(),
+                    sha1: Sha1::digest(b"wxyz").into(),
+                    tags: Vec::new(),
+                    parts: vec![PartRef { guid: unrelated_chunk.guid, offset: 0, size: 4 }],
+                },
+            ],
+            compress: false,
+            meta_tail: Vec::new(),
+        });
+        let target_bytes = build(&TestManifest {
+            version: 21,
+            build: "target".into(),
+            exe: "Game.exe".into(),
+            prereq: None,
+            chunks: vec![needed_chunk.clone()],
+            files: vec![TestFile {
+                path: "source.bin".into(),
+                sha1: Sha1::digest(b"abcd").into(),
+                tags: Vec::new(),
+                parts: vec![PartRef { guid: needed_chunk.guid, offset: 0, size: 4 }],
+            }],
+            compress: false,
+            meta_tail: Vec::new(),
+        });
+        let installed = crate::epic::manifest::parse(&installed_bytes).unwrap();
+        let target = crate::epic::manifest::parse(&target_bytes).unwrap();
+        fs::write(game.join("source.bin"), b"abcd").unwrap();
+        fs::write(game.join("irrelevant.bin"), b"wxyz").unwrap();
+        let checked = std::cell::RefCell::new(Vec::new());
+        let cancel = AtomicBool::new(false);
+        let (seeded, written) = seed_from_verified_installed_with_check(
+            &cache,
+            &game,
+            &installed,
+            &target,
+            &HashSet::from([0]),
+            &[],
+            4,
+            &cancel,
+            |path, size, sha1, cancel| {
+                checked.borrow_mut().push(path.file_name().unwrap().to_owned());
+                super::super::delta::check(path, size, sha1, cancel)
+            },
+        );
+        assert_eq!(seeded, vec![0]);
+        assert_eq!(written, 4);
+        assert_eq!(*checked.borrow(), vec![std::ffi::OsString::from("source.bin")]);
         let _ = fs::remove_dir_all(&root);
     }
 }

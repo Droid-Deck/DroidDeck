@@ -248,8 +248,10 @@ fn cleanup_obsolete(
     old: &[GameFile],
     new: &[GameFile],
     cancel: &AtomicBool,
+    gate: &ReplaceGate,
+    ev: &dyn Events,
     log: &dyn Fn(&str),
-) -> bool {
+) -> Result<bool, Stop> {
     let key = |path: &str| -> Option<String> {
         let normalized = manifest::check_path(path).ok()?;
         Some(normalized.to_lowercase())
@@ -265,23 +267,23 @@ fn cleanup_obsolete(
     };
     let Some(old_keys) = inventory(old) else {
         log("obsolete Amazon files preserved: old inventory contains unsafe or case-colliding paths");
-        return cancel.load(Ordering::Relaxed);
+        return Ok(cancel.load(Ordering::Relaxed));
     };
     let Some(new_keys) = inventory(new) else {
         log("obsolete Amazon files preserved: target inventory contains unsafe or case-colliding paths");
-        return cancel.load(Ordering::Relaxed);
+        return Ok(cancel.load(Ordering::Relaxed));
     };
     let _ = old_keys;
     let Ok(root) = game_dir.canonicalize() else {
         log("obsolete Amazon files preserved: install folder could not be resolved");
-        return cancel.load(Ordering::Relaxed);
+        return Ok(cancel.load(Ordering::Relaxed));
     };
     let mut removed = 0usize;
     let mut preserved = 0usize;
     for file in old {
         if cancel.load(Ordering::Relaxed) {
             log("obsolete Amazon cleanup cancelled; remaining files were preserved");
-            return true;
+            return Ok(true);
         }
         let Some(k) = key(&file.path) else { preserved += 1; continue };
         if new_keys.contains(&k) { continue; }
@@ -308,10 +310,17 @@ fn cleanup_obsolete(
             preserved += 1;
             continue;
         }
+        if !gate.allow(ev) {
+            return Err(Stop::Failed(REPLACE_REFUSED.into()));
+        }
+        if cancel.load(Ordering::Relaxed) {
+            log("obsolete Amazon cleanup cancelled; remaining files were preserved");
+            return Ok(true);
+        }
         if fs::remove_file(&canonical).is_ok() { removed += 1; } else { preserved += 1; }
     }
     log(&format!("obsolete Amazon cleanup removed={removed} preserved={preserved}"));
-    cancel.load(Ordering::Relaxed)
+    Ok(cancel.load(Ordering::Relaxed))
 }
 
 pub fn run(req: &Request, cancel: &AtomicBool, ev: &dyn Events) -> Result<Finished, Stop> {
@@ -466,7 +475,7 @@ pub fn run_download(
     let stats = result?;
 
     let cleanup_cancelled = if let Some(installed) = installed_manifest.as_ref() {
-        cleanup_obsolete(&req.game_dir, &installed.files, &manifest.files, cancel, &log)
+        cleanup_obsolete(&req.game_dir, &installed.files, &manifest.files, cancel, &gate, ev, &log)?
     } else {
         ev.log("obsolete Amazon files preserved: no retained prior manifest is available");
         cancel.load(Ordering::Relaxed)
