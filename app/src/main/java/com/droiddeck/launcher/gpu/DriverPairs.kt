@@ -12,6 +12,26 @@ object DriverPairs {
     const val DD_TURNIP = "dd-turnip"
     fun ddTurnip(tag: String) = "$DD_TURNIP:$tag"
 
+    internal data class DdTurnipVersion(val major: Long, val minor: Long, val patch: Long) : Comparable<DdTurnipVersion> {
+        override fun compareTo(other: DdTurnipVersion): Int {
+            major.compareTo(other.major).takeIf { it != 0 }?.let { return it }
+            minor.compareTo(other.minor).takeIf { it != 0 }?.let { return it }
+            return patch.compareTo(other.patch)
+        }
+    }
+
+    private val DD_TURNIP_VERSION = Regex("""(\d+)\.(\d+)\.(\d+)$""")
+
+    internal fun ddTurnipVersion(pairKind: String): DdTurnipVersion? {
+        val match = DD_TURNIP_VERSION.find(pairKind) ?: return null
+        val (major, minor, patch) = match.destructured
+        return DdTurnipVersion(
+            major.toLongOrNull() ?: return null,
+            minor.toLongOrNull() ?: return null,
+            patch.toLongOrNull() ?: return null,
+        )
+    }
+
     class DriverPair(
         val key: String,
         val name: String,
@@ -31,7 +51,7 @@ object DriverPairs {
     private val ALL_ADRENO = setOf(Family.A6XX, Family.A7XX, Family.A7XX_LOW, Family.A8XX, Family.ADRENO_UNKNOWN)
 
     private fun describe(key: String): Pair<String, Set<Family>> = when {
-        key.startsWith(DD_TURNIP) -> "DroidDeck · DD-Turnip" to ALL_ADRENO
+        key == DD_TURNIP || key.startsWith("$DD_TURNIP:") -> "DroidDeck · DD-Turnip" to ALL_ADRENO
         else -> describeFixed(key)
     }
 
@@ -42,7 +62,7 @@ object DriverPairs {
         BANNER_ONEUI -> "Banners-Turnip · 8 Gen 2 on One UI" to setOf(Family.A7XX)
         WN_BALANCED -> "WinNative · Balanced" to ALL_ADRENO
         WN_PERFORMANCE -> "WinNative · Performance" to ALL_ADRENO
-        else -> key to ALL_ADRENO
+        else -> key to emptySet()
     }
 
     fun from(check: TurnipReleases.Check?): List<DriverPair> {
@@ -51,12 +71,14 @@ object DriverPairs {
         return assets.map { it.pair }.distinct()
             .sortedBy { key -> order.indexOf(key.substringBefore(':')).let { i -> if (i < 0) order.size else i } }
             .map { key ->
-                val (name, families) = describe(key)
                 val halves = assets.filter { it.pair == key }
+                val kind = halves.map { it.pairKind }.distinct().singleOrNull().orEmpty()
+                val (classifiedName, families) = describe(kind)
+                val name = classifiedName.ifEmpty { key }
                 halves.firstOrNull { it.bundle }?.let { return@map DriverPair(key, name, families, null, null, it) }
                 val display = halves.firstOrNull { !it.linux }
                 val linux = halves.firstOrNull { it.linux }
-                val sameRelease = !key.startsWith(BANNER) || display?.tag == linux?.tag
+                val sameRelease = !kind.startsWith(BANNER) || display?.tag == linux?.tag
                 DriverPair(key, name, families, display, if (sameRelease) linux else null)
             }
     }
@@ -66,7 +88,7 @@ object DriverPairs {
         rules: List<AutoPicks.Rule> = AutoPicks.BUILT_IN, bad: Set<String> = emptySet(),
         sdk: Int = android.os.Build.VERSION.SDK_INT, blob: Int? = null,
     ): String? {
-        if (gpu.family == Family.NOT_ADRENO) return null
+        if (gpu.family == Family.NOT_ADRENO || gpu.family.systemProfile != null) return null
         val keys = AutoPicks.preferences(gpu, rules, sdk, blob)
             .ifEmpty { AutoPicks.preferences(gpu, AutoPicks.BUILT_IN, sdk, blob) }
             .mapNotNull { if (it == AutoPicks.NEWEST_DD_TURNIP) newestDdTurnip(pairs) else it }
@@ -76,8 +98,9 @@ object DriverPairs {
 
     fun newestDdTurnip(pairs: List<DriverPair>): String? = pairs
         .filter { it.key.startsWith("$DD_TURNIP:") && it.complete }
-        .maxByOrNull { p ->
-            Regex("""(\d+)\.(\d+)\.(\d+)$""").find(p.key)?.destructured
-                ?.let { (major, minor, patch) -> major.toLong() * 1_000_000_000_000 + minor.toLong() * 1_000_000 + patch.toLong() } ?: -1L
-        }?.key
+        .mapNotNull { pair ->
+            ddTurnipVersion(pair.assets.firstOrNull()?.pairKind ?: pair.key)?.let { pair to it }
+        }
+        .maxWithOrNull { first, second -> first.second.compareTo(second.second) }
+        ?.first?.key
 }

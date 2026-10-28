@@ -3,6 +3,8 @@ package com.droiddeck.launcher.session
 import com.droiddeck.launcher.core.AddonPack
 import com.droiddeck.launcher.gpu.LinuxVulkanDriver
 import com.droiddeck.launcher.gpu.LinuxVulkanDriverManager
+import com.droiddeck.launcher.gpu.SystemVulkanDriver
+import com.droiddeck.launcher.gpu.SystemVulkanComponentStore
 
 import android.app.Notification
 import android.app.NotificationChannel
@@ -170,6 +172,7 @@ class SessionService : Service() {
         updateSuspendPolicy()
     }
     @Volatile private var sessionGen = 0
+    @Volatile private var systemVulkanSnapshot: SystemVulkanComponentStore.Snapshot? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -368,6 +371,7 @@ class SessionService : Service() {
         SessionEvents.transition(SessionPhase.STARTING_GUEST, "service.started", mapOf("mode" to SessionState.mode))
         com.droiddeck.launcher.wayland.CompositorHost.newSession()
         val gen = ++sessionGen
+        SessionState.generation = gen
         SessionPrefs.backgroundAppLimit(this).takeIf { it != com.droiddeck.launcher.core.BackgroundAppLimit.OFF }
             ?.let { com.droiddeck.launcher.core.BackgroundAppLimit.applyAsync(this, it) }
         if (SessionPrefs.clearCachedApps(this)) clearCachedApps()
@@ -385,10 +389,10 @@ class SessionService : Service() {
     }
 
     private fun collectSessionArtifacts(dir: File, steamArch: String?) {
+        SessionLogCapture.stopFor(dir)
         try {
             SessionArtifacts.collect(this, dir, "session stopped", steamArch)
         } finally {
-            SessionLogCapture.stopFor(dir)
             SessionPaths.release(this, dir)
         }
     }
@@ -417,6 +421,8 @@ class SessionService : Service() {
 
 
     private fun runSession(gen: Int) {
+        systemVulkanSnapshot = null
+        SessionPrefs.ensureSystemVulkanAutoDrivers(this)
         SessionTerminal.clear()
         com.droiddeck.launcher.gpu.TpUbwcHint.forThisDevice(this)
         try {
@@ -431,43 +437,61 @@ class SessionService : Service() {
         val sessionRoot = LinuxRuntime.sessionRoot(this).apply { mkdirs() }
         val runtimeDir = File(filesDir, ".wayland-rt").apply { mkdirs() }
         killStragglers()
-        val stillStarting = { gen == sessionGen && SessionState.running }
-        val prootPack = LinuxRuntime.patchedProot(this) || AddonPack.PROOT.await(this, stillStarting)
-        val directAudioPack = AddonPack.DIRECTAUDIO.await(this, stillStarting)
-        if (!stillStarting()) {
-            Log.i(TAG, "session stopped while add-on packs were downloading")
-            return
-        }
-        if (!directAudioPack) {
-            Log.w(TAG, "directaudio pack unavailable; game audio drivers will not be staged")
-            mainHandler.post {
-                Toast.makeText(this, R.string.session_directaudio_missing, Toast.LENGTH_LONG).show()
+        val (directAudioPack, agentEnvironment) = try {
+            if (SystemVulkanDriver.usesDefault(SessionPrefs.linuxDriver(this))) {
+                systemVulkanSnapshot = SystemVulkanDriver.prepareSnapshot(this, !OrphanReaper.hasOtherProcesses())
+                pruneSystemVulkanRuntime()
             }
-        }
-        if (!LinuxRuntime.patchedProot(this)) {
-            if (SessionPrefs.allowStockProot(this)) {
-                Log.w(TAG, "proot: patched proot missing; droiddeck-stock-proot allows the rootfs copy")
-            } else {
-                val message = getString(R.string.session_proot_missing)
-                Log.e(TAG, "$message (pack ready=$prootPack)")
-                SessionEvents.fail("PROOT_MISSING", message, -1)
-                stopSession(-1)
+            val stillStarting = { gen == sessionGen && SessionState.running }
+            val prootPack = LinuxRuntime.patchedProot(this) || AddonPack.PROOT.await(this, stillStarting)
+            val directAudioPack = AddonPack.DIRECTAUDIO.await(this, stillStarting)
+            if (!stillStarting()) {
+                Log.i(TAG, "session stopped while add-on packs were downloading")
                 return
             }
+            if (!directAudioPack) {
+                Log.w(TAG, "directaudio pack unavailable; game audio drivers will not be staged")
+                mainHandler.post {
+                    Toast.makeText(this, R.string.session_directaudio_missing, Toast.LENGTH_LONG).show()
+                }
+            }
+            if (!LinuxRuntime.patchedProot(this)) {
+                if (SessionPrefs.allowStockProot(this)) {
+                    Log.w(TAG, "proot: patched proot missing; droiddeck-stock-proot allows the rootfs copy")
+                } else {
+                    val message = getString(R.string.session_proot_missing)
+                    Log.e(TAG, "$message (pack ready=$prootPack)")
+                    SessionEvents.fail("PROOT_MISSING", message, -1)
+                    stopSession(-1)
+                    return
+                }
+            }
+            val entries = runCatching { com.droiddeck.launcher.agent.AgentEnv.beginSession(this) }
+                .onFailure { Log.w(TAG, "agent environment skipped", it) }
+                .getOrDefault(emptyList())
+            SessionFiles.stage(this, root, startsSession = true)
+            directAudioPack to entries
+        } catch (error: Exception) {
+            Log.e(TAG, "Could not prepare the session graphics runtime", error)
+            stopSession(-1)
+            return
         }
-        val agentEnvironment = runCatching { com.droiddeck.launcher.agent.AgentEnv.beginSession(this) }
-            .onFailure { Log.w(TAG, "agent environment skipped", it) }
-            .getOrDefault(emptyList())
-        SessionFiles.stage(this, root, startsSession = true)
         // Earlier sessions' reports still read the Steam logs and VAC marker this session replaces.
         SessionArtifacts.awaitCollections()
-        SessionArtifacts.finishAbandoned(this)
+        SessionArtifacts.finishAbandoned(this, beforeGuestStart = true)
         VacDiagnostics.arm(this)
         com.droiddeck.launcher.agent.AgentGuest.reset(this)
         com.droiddeck.launcher.stores.gog.GogComet.begin()
         com.droiddeck.launcher.stores.StoreLaunchRequests.start(this)
 
         val sessionDir = openSessionFolder()
+        try {
+            GameEnvironmentStore.publish(this)
+        } catch (e: Exception) {
+            Log.e(TAG, "could not publish the game environment", e)
+            stopSession(-1)
+            return
+        }
         val sessionLog = File(sessionDir, "session.log")
         val prootLine = "== proot: ${LinuxRuntime.prootBinary(this).path} (${LinuxRuntime.prootSource(this)})"
         Log.i(TAG, prootLine)
@@ -488,7 +512,13 @@ class SessionService : Service() {
                 .onSuccess { if (it != null) Log.i(TAG, it) }
                 .onFailure { Log.w(TAG, "forced components", it) }
         }
-        addClientEnvironment(guest, steamHere, agentEnvironment)
+        try {
+            addClientEnvironment(guest, steamHere, agentEnvironment)
+        } catch (error: IllegalStateException) {
+            Log.e(TAG, "Could not configure the session graphics driver", error)
+            stopSession(-1)
+            return
+        }
         if (steamHere) guest.add("BL_EPIC_APP_ID=" + com.droiddeck.launcher.stores.epic.EpicClient.shortcutAppId)
         val fastPathAt = guest.size
 
@@ -753,6 +783,13 @@ class SessionService : Service() {
         guest.add("LIBGL_KOPPER_DRI2=true")
         LinuxRuntime.vulkanIcd(this)?.let { guest.add("VK_ICD_FILENAMES=" + it.path) }
         val linuxDriverId = SessionPrefs.linuxDriver(this)
+        val systemVulkan = SystemVulkanDriver.usesDefault(linuxDriverId)
+        if (systemVulkan) {
+            val snapshot = systemVulkanSnapshot
+                ?: throw IllegalStateException("System Vulkan session snapshot is unavailable")
+            SystemVulkanDriver.addEnvironment(snapshot, guest)
+            SystemVulkanComponentStore.launchStarting(this, snapshot, SessionState.generation)
+        }
         SessionState.runtimeDriver = linuxDriverId
         com.droiddeck.launcher.gpu.AutoDriverTrial.sessionStarting(
             this,
@@ -760,7 +797,11 @@ class SessionService : Service() {
                 ?: SessionPrefs.androidDriver(this),
             linuxDriverId,
         )
-        LinuxVulkanDriver.resolveIcdPath(this, linuxDriverId)
+        (if (systemVulkan) {
+            SystemVulkanDriver.icdPath(
+                systemVulkanSnapshot ?: throw IllegalStateException("System Vulkan session snapshot is unavailable"),
+            )
+        } else LinuxVulkanDriver.resolveIcdPath(this, linuxDriverId))
             ?.let { guest.add(LinuxVulkanDriver.ENV + "=" + it) }
         val tuOverride = tuDebugOverride()
         val tuDriver = sysmemDriver(linuxDriverId)
@@ -772,8 +813,9 @@ class SessionService : Service() {
         if (SessionPrefs.glThread(this)) guest.add("mesa_glthread=true")
         if (SessionPrefs.noGlError(this)) guest.add("MESA_NO_ERROR=1")
         guest.add("MESA_DISK_CACHE_DATABASE=1")
-        guest.add("GLIBC_TUNABLES=glibc.pthread.rseq=0:glibc.malloc.top_pad=16777216")
+        guest.add("GLIBC_TUNABLES=" + sessionGlibcTunables(systemVulkan))
         if (SessionState.mode == MODE_STEAM) guest.add("BL_MANGOAPP=" + (if (SessionPrefs.mangoapp(this)) "1" else "0"))
+        if (SessionState.mode == MODE_STEAM && SessionPrefs.steamUiSoftware(this)) guest.add("BL_STEAM_CEF_SOFTWARE=1")
         SessionState.steamClientArch = if (steamHere) SessionPrefs.steamClientArch(this) else null
         SessionState.steamClientArch?.let { arch ->
             guest.add("BL_STEAM_CLIENT_ARCH=$arch")
@@ -1706,42 +1748,52 @@ class SessionService : Service() {
         }.onFailure { Log.w(TAG, "could not request Steam wake", it) }
     }
 
-    private fun finishSessionStop(status: Int, stoppedGen: Int) {
+    /** Background-only: preserve old runtimes until all earlier guest processes are gone. */
+    private fun pruneSystemVulkanRuntime() {
+        runCatching { SystemVulkanDriver.pruneUnused(this, !OrphanReaper.hasOtherProcesses()) }
+            .onFailure { Log.w(TAG, "could not prune unused system Vulkan runtimes", it) }
+    }
+
+    private fun finishSessionStop(status: Int, stoppedGen: Int, afterStopped: () -> Unit = {}) {
         mainHandler.post {
-            if (stoppedGen != sessionGen || SessionState.running) {
-                Log.i(TAG, "session $stoppedGen finished stopping after a new one started")
-                return@post
+            try {
+                if (stoppedGen != sessionGen || SessionState.running) {
+                    Log.i(TAG, "session $stoppedGen finished stopping after a new one started")
+                    return@post
+                }
+                SessionState.suspended = false
+                SessionState.resumeRequested = false
+                SessionState.resuming = false
+                SessionState.resumeFailed = false
+                SessionState.pipActive = false
+                pipTask = false
+                SessionState.guestPid = -1
+                com.droiddeck.launcher.agent.AgentGuest.stop()
+                com.droiddeck.launcher.stores.StoreLaunchRequests.stop()
+                Thread({ com.droiddeck.launcher.stores.CloudSaves.uploadAllDirty(applicationContext, "session-end", running = false) }, "cloud-session-end").start()
+                runCatching { com.droiddeck.launcher.agent.AgentEnv.endSession(this) }
+                    .onFailure { Log.w(TAG, "clearing the agent's session environment", it) }
+                releaseLocks()
+                MemoryLog.stop()
+                com.droiddeck.launcher.core.BackgroundAppLimit.restoreAsync(applicationContext)
+                if (status == 0) {
+                    SessionEvents.transition(SessionPhase.IDLE, "session.stopped", mapOf("status" to status))
+                } else {
+                    val code = SessionState.failureCode ?: "GUEST_EXIT"
+                    val message = SessionState.failureMessage ?: "Session guest exited with status $status"
+                    val failureStatus = SessionState.failureStatus ?: status
+                    SessionEvents.fail(code, message, failureStatus)
+                }
+                SessionState.steamVr = false
+                com.droiddeck.launcher.glasses.Glasses.cancelSteamVrStart()
+                com.droiddeck.launcher.glasses.Glasses.setVrActive(false)
+                com.droiddeck.launcher.glasses.Glasses.set3dForVr(false)
+                SessionState.notifyEnded(status)
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf()
+            } finally {
+                afterStopped()
             }
-            SessionState.suspended = false
-            SessionState.resumeRequested = false
-            SessionState.resuming = false
-            SessionState.resumeFailed = false
-            SessionState.pipActive = false
-            pipTask = false
-            SessionState.guestPid = -1
-            com.droiddeck.launcher.agent.AgentGuest.stop()
-            com.droiddeck.launcher.stores.StoreLaunchRequests.stop()
-            Thread({ com.droiddeck.launcher.stores.CloudSaves.uploadAllDirty(applicationContext, "session-end", running = false) }, "cloud-session-end").start()
-            runCatching { com.droiddeck.launcher.agent.AgentEnv.endSession(this) }
-                .onFailure { Log.w(TAG, "clearing the agent's session environment", it) }
-            releaseLocks()
-            MemoryLog.stop()
-            com.droiddeck.launcher.core.BackgroundAppLimit.restoreAsync(applicationContext)
-            if (status == 0) {
-                SessionEvents.transition(SessionPhase.IDLE, "session.stopped", mapOf("status" to status))
-            } else {
-                val code = SessionState.failureCode ?: "GUEST_EXIT"
-                val message = SessionState.failureMessage ?: "Session guest exited with status $status"
-                val failureStatus = SessionState.failureStatus ?: status
-                SessionEvents.fail(code, message, failureStatus)
-            }
-            SessionState.steamVr = false
-            com.droiddeck.launcher.glasses.Glasses.cancelSteamVrStart()
-            com.droiddeck.launcher.glasses.Glasses.setVrActive(false)
-            com.droiddeck.launcher.glasses.Glasses.set3dForVr(false)
-            SessionState.notifyEnded(status)
-            stopForeground(STOP_FOREGROUND_REMOVE)
-            stopSelf()
         }
     }
 
@@ -1772,13 +1824,16 @@ class SessionService : Service() {
             SessionEvents.record("guest.exited", mapOf("status" to status))
             SessionEvents.transition(SessionPhase.STOPPING, "session.stopping", mapOf("status" to status))
             SessionState.running = false
-            SessionPaths.take() to SessionState.steamClientArch
+            val ended = SessionPaths.take()
+            if (ended != null) SessionArtifacts.collectionStarted(ended)
+            ended to SessionState.steamClientArch
         }
         SessionState.micAvailable = false
         SessionState.micEnabled = false
         xrActivityVisible = false
         updateDownloadMonitoring()
         val stoppedGen = sessionGen
+        val stoppedSystemVulkanSnapshot = systemVulkanSnapshot
         val stoppedSession = SessionState.sessionId
         val launcherEnded = SessionState.mode == MODE_STEAM || SessionState.mode == MODE_DESKTOP || SessionState.program == NoSteamLaunch.EPIC ||
             SessionState.program == NoSteamLaunch.BATTLENET
@@ -1801,8 +1856,6 @@ class SessionService : Service() {
         suspendController = null
         if (ended != null) {
             VacDiagnostics.snapshot(this, ended)
-            SessionArtifacts.collectionStarted(ended)
-            Thread({ collectSessionArtifacts(ended, endedArch) }, "session-collect").start()
         }
         components.reversed().forEach {
             try {
@@ -1812,6 +1865,9 @@ class SessionService : Service() {
             }
         }
         components.clear()
+        val collectEnded = {
+            if (ended != null) Thread({ collectSessionArtifacts(ended, endedArch) }, "session-collect").start()
+        }
         FakeInputWriter.releaseAllRingSlots()
         com.droiddeck.launcher.input.SteamTouchDevice.release()
         val steamClientMayRun = SessionState.mode == MODE_STEAM || SessionState.mode == MODE_DESKTOP
@@ -1823,15 +1879,25 @@ class SessionService : Service() {
                     auxiliary.forEach { (pid, started) -> teardown(pid, started) }
                     if (prootPid > 1) teardown(prootPid)
                     killGuestLeftovers()
-                    finishSessionStop(status, stoppedGen)
+                    pruneSystemVulkanRuntime()
+                    SystemVulkanComponentStore.sessionStopped(stoppedGen)
+                    if (shouldClearSystemVulkanSnapshot(stoppedGen, sessionGen, stoppedSystemVulkanSnapshot, systemVulkanSnapshot)) {
+                        systemVulkanSnapshot = null
+                    }
+                    finishSessionStop(status, stoppedGen, collectEnded)
                     if (launcherEnded) importLauncherGames()
                 }, "session-teardown").start()
             } else {
                 Thread({
                     com.droiddeck.launcher.stores.gog.GogComet.end(stoppedSession)
-                    finishSessionStop(status, stoppedGen)
+                    pruneSystemVulkanRuntime()
+                    SystemVulkanComponentStore.sessionStopped(stoppedGen)
+                    if (shouldClearSystemVulkanSnapshot(stoppedGen, sessionGen, stoppedSystemVulkanSnapshot, systemVulkanSnapshot)) {
+                        systemVulkanSnapshot = null
+                    }
+                    finishSessionStop(status, stoppedGen, collectEnded)
                     if (launcherEnded) importLauncherGames()
-                }, "gog-session-stop").start()
+                }, "session-stop-finalize").start()
             }
         }
         if (prootPid > 1) acquireLocks()
@@ -2241,3 +2307,10 @@ class SessionService : Service() {
         }
     }
 }
+
+internal fun shouldClearSystemVulkanSnapshot(
+    stoppedGeneration: Int,
+    currentGeneration: Int,
+    stopped: SystemVulkanComponentStore.Snapshot?,
+    current: SystemVulkanComponentStore.Snapshot?,
+): Boolean = stoppedGeneration == currentGeneration && stopped === current

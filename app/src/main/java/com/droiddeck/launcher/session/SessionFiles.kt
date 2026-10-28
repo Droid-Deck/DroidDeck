@@ -42,6 +42,7 @@ object SessionFiles {
             "usr/local/bin/droiddeck-msi-install" to "usr/local/bin/droiddeck-msi-install",
             "usr/local/bin/droiddeck-esync" to "usr/local/bin/droiddeck-esync",
             "usr/local/bin/droiddeck-steam-compat" to "usr/local/bin/droiddeck-steam-compat",
+            "usr/local/bin/droiddeck-steam-taskset" to "usr/local/libexec/droiddeck-steam/taskset",
             "usr/local/bin/droiddeck-fex" to "usr/local/bin/droiddeck-fex",
             "libblsession.so" to "usr/local/lib/libblsession.so",
             "libfakeinput.so" to "usr/local/lib/libfakeinput.so",
@@ -127,6 +128,7 @@ object SessionFiles {
             "usr/local/lib/mangoapp/libglfw.so.3",
             "usr/local/lib/mangoapp/libtraceevent.so.1",
             "usr/local/lib/mangoapp/libtracefs.so.1",
+            "usr/local/lib/mangoapp/libsysfs-listing-shim.so",
         ).map { it to it }
         val msitools = listOf("msiinfo", "cabextract", "7z", "7z.so", "libmsi-1.0.so.0", "libgsf-1.so.114", "libgcab-1.0.so.0")
             .map { "usr/local/lib/droiddeck-msitools/$it" } +

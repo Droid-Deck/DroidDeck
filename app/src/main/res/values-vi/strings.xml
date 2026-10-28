@@ -323,6 +323,8 @@
     <string name="mode_client">Client</string>
     <string name="mode_mangoapp">Lớp phủ hiệu năng</string>
     <string name="mode_mangoapp_hint">Tắt nếu game bị crash hoặc màn hình đen ở Chế độ Deck. Áp dụng từ phiên sau.</string>
+    <string name="mode_steam_ui_software">Giao diện Steam bằng phần mềm</string>
+    <string name="mode_steam_ui_software_hint">Vẽ menu Steam bằng CPU thay vì GPU. Chậm hơn; bật nếu giao diện Steam bị treo hoặc hiện ô vỡ. Áp dụng từ phiên tiếp theo.</string>
     <string name="mode_steam_repair">Sửa chữa client Steam</string>
     <string name="mode_steam_repair_hint">Tải lại client Steam vào lần Steam khởi động kế tiếp. Dùng khi Steam bị kẹt ở màn hình tải. Game, đăng nhập và thiết lập được giữ lại.</string>
     <string name="mode_steam_repair_queued">Client Steam sẽ được tải lại vào lần Steam khởi động kế tiếp.</string>

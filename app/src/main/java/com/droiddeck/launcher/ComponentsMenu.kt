@@ -7,6 +7,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.droiddeck.launcher.session.ComponentsManager
 import com.droiddeck.launcher.session.ProtonDefault
+import com.droiddeck.launcher.artifact.GitHubArtifacts
+
+internal var componentsCatalogReader: (android.content.Context, Boolean) -> ComponentsManager.Catalog =
+    ComponentsManager::catalog
 
 internal class ComponentsMenu(private val activity: android.app.Activity, private val ui: Handler) {
     var compSnapshot by mutableStateOf<ComponentsManager.Snapshot?>(null)
@@ -21,17 +25,22 @@ internal class ComponentsMenu(private val activity: android.app.Activity, privat
         private set(value) { downloads = value }
     val compDownloadRevision: Long get() = downloadRevision
     private var shownDefault: String? = null
+    private var catalogRequest = 0
 
     fun refreshComponents(snapshotFirst: Boolean = false) {
+        val catalogId = catalogRequest
         Thread({
             if (snapshotFirst) runCatching { ComponentsManager.snapshotAll(activity) }
             runCatching { ComponentsManager.applyQueued(activity) }
             val snap = runCatching { ComponentsManager.snapshot(activity) }.onFailure { Log.w(TAG, "components", it) }.getOrNull()
-            val cat = runCatching { ComponentsManager.catalog(activity, false) }.getOrNull()
+            val cat = runCatching { componentsCatalogReader(activity, false) }.getOrNull()
             val chosen = snap?.let { s -> runCatching { ProtonDefault.selectedId(activity, s.protons.map { it.proton }) }.getOrNull() }
             ui.post {
                 compSnapshot = snap ?: ComponentsManager.Snapshot(emptyList(), emptyList())
-                if (cat != null && cat.fetchedAt > 0) { compCatalog = cat.items; compCatalogAt = cat.fetchedAt }
+                if (cat != null && catalogId == catalogRequest) {
+                    compCatalog = cat.items
+                    compCatalogAt = cat.fetchedAt
+                }
                 if (chosen != null && chosen != shownDefault) {
                     shownDefault = chosen
                     compProton = chosen
@@ -71,28 +80,42 @@ internal class ComponentsMenu(private val activity: android.app.Activity, privat
     }
 
     fun refreshComponentCatalog(force: Boolean = true) {
-        if (compChecking) return
+        val id = ++catalogRequest
         compChecking = true
         Thread({
-            val cat = runCatching { ComponentsManager.catalog(activity, force) }.getOrNull()
+            val result = runCatching { componentsCatalogReader(activity, force) }
+            val cat = result.getOrNull()
             ui.post {
+                if (id != catalogRequest) return@post
                 compChecking = false
-                if (cat != null && cat.items.isNotEmpty()) { compCatalog = cat.items; compCatalogAt = cat.fetchedAt }
-                else if (force) android.widget.Toast.makeText(activity, activity.getString(R.string.comp_nightlies_unreachable), android.widget.Toast.LENGTH_LONG).show()
+                if (cat != null) { compCatalog = cat.items; compCatalogAt = cat.fetchedAt }
+                if (force && (cat == null || cat.failed.isNotEmpty())) {
+                    val rateLimited = cat?.rateLimited == true || result.exceptionOrNull()?.let(GitHubArtifacts::isRateLimited) == true
+                    val message = activity.getString(if (rateLimited) R.string.sources_github_rate_limited else R.string.comp_nightlies_unreachable)
+                    android.widget.Toast.makeText(activity, message, android.widget.Toast.LENGTH_LONG).show()
+                }
             }
         }, "components-catalog").start()
     }
 
+    fun sourcesChanged(component: String) {
+        if (component !in ComponentsManager.COMPONENTS) return
+        catalogRequest++
+        compChecking = false
+        compCatalog = compCatalog.filterNot { it.comp == component }
+        refreshComponentCatalog(force = true)
+    }
+
     fun downloadComponent(item: ComponentsManager.CatalogItem) {
-        if (compDownloads.containsKey(item.file)) return
-        compDownloads = compDownloads + (item.file to -1)
+        if (compDownloads.containsKey(item.id)) return
+        compDownloads = compDownloads + (item.id to -1)
         Thread({
             val message = runCatching {
-                val pkg = ComponentsManager.download(activity, item) { pc -> ui.post { if (compDownloads.containsKey(item.file)) compDownloads = compDownloads + (item.file to pc) } }
+                val pkg = ComponentsManager.download(activity, item) { pc -> ui.post { if (compDownloads.containsKey(item.id)) compDownloads = compDownloads + (item.id to pc) } }
                 activity.getString(R.string.comp_stored, pkg.version)
             }.getOrElse { e -> activity.getString(R.string.comp_download_failed, e.message ?: e.javaClass.simpleName) }
             ui.post {
-                compDownloads = compDownloads - item.file
+                compDownloads = compDownloads - item.id
                 downloadRevision++
                 android.widget.Toast.makeText(activity, message, android.widget.Toast.LENGTH_SHORT).show()
                 refreshComponents()

@@ -323,6 +323,8 @@
     <string name="mode_client">क्लाइंट</string>
     <string name="mode_mangoapp">परफ़ॉर्मेंस ओवरले</string>
     <string name="mode_mangoapp_hint">Deck मोड में गेम क्रैश होने या काली स्क्रीन होने पर इसे बंद करें। अगले सेशन से लागू होता है।</string>
+    <string name="mode_steam_ui_software">सॉफ़्टवेयर Steam UI</string>
+    <string name="mode_steam_ui_software_hint">Steam के मेनू GPU की बजाय CPU से बनाता है। धीमा है; अगर Steam UI रुक जाए या टूटी टाइलें दिखाए तो चालू करें। अगले सत्र से लागू होता है।</string>
     <string name="mode_steam_repair">Steam क्लाइंट रिपेयर करें</string>
     <string name="mode_steam_repair_hint">अगली बार Steam शुरू होने पर Steam क्लाइंट फिर से डाउनलोड होता है। इसे इस्तेमाल करें जब Steam अपनी लोडिंग स्क्रीन पर अटका रह जाए। गेम, साइन-इन और सेटिंग बनी रहती हैं।</string>
     <string name="mode_steam_repair_queued">अगली बार Steam शुरू होने पर Steam क्लाइंट फिर से डाउनलोड होगा।</string>

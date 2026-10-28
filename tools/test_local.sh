@@ -5,7 +5,7 @@ cd "$repo_root"
 if [[ $(uname -s) == Linux ]]; then
     exec python3 -m unittest discover -s tools/tests "$@"
 fi
-image=${DROIDDECK_BUILD_IMAGE:-droiddeck-local-cross:24.04-v3}
+image=${DROIDDECK_BUILD_IMAGE:-droiddeck-local-cross:24.04-v4}
 python3 tools/docker_preflight.py "$image"
 exec docker run --rm --platform linux/amd64 --user "$(id -u):$(id -g)" \
     -v "$repo_root:/src:ro" -w /src "$image" python3 -m unittest discover -s tools/tests "$@"

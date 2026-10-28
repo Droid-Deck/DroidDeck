@@ -136,6 +136,37 @@ class XboxLaunchTest(unittest.TestCase):
                     self.assertNotIn('DROIDDECK_XBOX_COMMAND_FILE', child_env)
                     self.assertEqual(child_env['XODUS_BRIDGE_KEY'], 'runtime-key')
 
+    def test_wine_hands_the_prepared_executable_to_the_profiled_game_runner(self):
+        with tempfile.TemporaryDirectory() as root:
+            root = Path(root)
+            prefix = root / 'compat/pfx'
+            prefix.mkdir(parents=True)
+            runtime = root / 'runtime/windows'
+            runtime.mkdir(parents=True)
+            for name in xbox['DLLS']:
+                (runtime / name).write_bytes(b'MZ-synthetic')
+            command = root / 'command.json'
+            command.write_text(json.dumps(['/selected/proton', 'waitforexitandrun',
+                                            '/encrypted/Game.exe', '--custom']))
+            env = {'STEAM_COMPAT_DATA_PATH': str(prefix.parent),
+                   'DROIDDECK_XBOX_COMMAND_FILE': str(command),
+                   'DROIDDECK_XBOX_CREDENTIAL_SOCKET': 'private-account-channel'}
+            runner = unittest.mock.Mock(side_effect=[0, 9])
+            with patch.dict(xbox['wine'].__globals__, RUNTIME=runtime.parent), \
+                    patch('subprocess.run') as initialize, patch('subprocess.call') as direct:
+                initialize.return_value.returncode = 0
+                self.assertEqual(xbox['wine'](['/private-view/Game.exe'], env, runner), 9)
+            initialize.assert_not_called()
+            direct.assert_not_called()
+            initialize_call, game_call = runner.call_args_list
+            self.assertEqual(initialize_call.args[0],
+                             ['/selected/proton', 'run', 'cmd', '/c', 'exit', '0'])
+            self.assertEqual(game_call.args[0], ['/selected/proton', 'waitforexitandrun',
+                                                 '/private-view/Game.exe', '--custom'])
+            for child_env in (initialize_call.args[1], game_call.args[1]):
+                self.assertNotIn('DROIDDECK_XBOX_CREDENTIAL_SOCKET', child_env)
+                self.assertNotIn('DROIDDECK_XBOX_COMMAND_FILE', child_env)
+
     def test_launch_view_runs_from_a_short_drive_letter(self):
         with tempfile.TemporaryDirectory() as root:
             root = Path(root)
@@ -176,6 +207,39 @@ class XboxLaunchTest(unittest.TestCase):
             self.assertEqual(sorted(p.name for p in devices.iterdir()), ['v:', 'w:', 'x:'])
             self.assertEqual(xbox['view_drive'](root / 'pfx', '/games/Game.exe'), ('/games/Game.exe', None))
 
+    def test_profiled_game_runner_uses_and_releases_the_short_view_drive(self):
+        with tempfile.TemporaryDirectory() as root:
+            root = Path(root)
+            prefix = root / 'compat/pfx'
+            prefix.mkdir(parents=True)
+            runtime = root / 'runtime/windows'
+            runtime.mkdir(parents=True)
+            for name in xbox['DLLS']:
+                (runtime / name).write_bytes(b'MZ-synthetic')
+            view = root / 'views/launch-1/droiddeck-xbox-game'
+            (view / 'Bin').mkdir(parents=True)
+            command = root / 'command.json'
+            command.write_text(json.dumps(['/selected/proton', 'waitforexitandrun',
+                                           '/encrypted/Game.exe', '--custom']))
+            env = {'STEAM_COMPAT_DATA_PATH': str(prefix.parent),
+                   'DROIDDECK_XBOX_COMMAND_FILE': str(command)}
+            seen = []
+
+            def run(argv, child_env):
+                if argv[1] == 'run':
+                    return 0
+                seen.append((argv, os.readlink(prefix / 'dosdevices/x:')))
+                return 9
+
+            with patch.dict(xbox['wine'].__globals__, RUNTIME=runtime.parent), \
+                    patch('subprocess.run') as initialize, patch('subprocess.call') as direct:
+                self.assertEqual(xbox['wine']([str(view / 'Bin/Game.exe')], env, run), 9)
+            initialize.assert_not_called()
+            direct.assert_not_called()
+            self.assertEqual(seen, [(['/selected/proton', 'waitforexitandrun',
+                                      'X:\\Bin\\Game.exe', '--custom'], str(view))])
+            self.assertFalse(os.path.lexists(prefix / 'dosdevices/x:'))
+
     def test_missing_runtime_classes_are_registered_once(self):
         with tempfile.TemporaryDirectory() as root:
             prefix = Path(root)
@@ -211,3 +275,15 @@ class XboxLaunchTest(unittest.TestCase):
                 with patch('subprocess.run', **outcome), patch('sys.stderr', new_callable=io.StringIO) as err:
                     self.assertIsNone(xbox['register_classes']('/selected/proton', prefix, {}))
                 self.assertIn('registration failed', err.getvalue())
+
+    def test_runtime_class_registration_uses_the_profiled_game_runner(self):
+        with tempfile.TemporaryDirectory() as root:
+            prefix = Path(root)
+            (prefix / 'system.reg').write_text('')
+            runner = unittest.mock.Mock(return_value=0)
+            with patch('subprocess.run') as direct:
+                xbox['register_classes']('/selected/proton', prefix, {'A': '1'}, runner)
+            direct.assert_not_called()
+            self.assertEqual(runner.call_args.args[0][:4],
+                             ['/selected/proton', 'run', 'reg.exe', 'import'])
+            self.assertEqual(runner.call_args.args[1], {'A': '1'})

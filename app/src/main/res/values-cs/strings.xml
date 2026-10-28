@@ -323,6 +323,8 @@
     <string name="mode_client">Klient</string>
     <string name="mode_mangoapp">Výkonový overlay</string>
     <string name="mode_mangoapp_hint">Vypněte, pokud hry v režimu Deck padají nebo zčernají. Použije se od příští relace.</string>
+    <string name="mode_steam_ui_software">Softwarové rozhraní Steamu</string>
+    <string name="mode_steam_ui_software_hint">Vykresluje nabídky Steamu procesorem místo GPU. Pomalejší; zapněte, pokud rozhraní Steamu zamrzá nebo zobrazuje rozbité dlaždice. Projeví se v příští relaci.</string>
     <string name="mode_steam_repair">Opravit klienta Steam</string>
     <string name="mode_steam_repair_hint">Při dalším spuštění znovu stáhne klienta Steam. Použijte, pokud Steam zůstává na načítací obrazovce. Hry, přihlášení a nastavení zůstanou zachovány.</string>
     <string name="mode_steam_repair_queued">Klient Steam se znovu stáhne při dalším spuštění Steamu.</string>

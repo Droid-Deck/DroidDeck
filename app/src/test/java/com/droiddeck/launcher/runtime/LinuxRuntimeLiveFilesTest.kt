@@ -54,6 +54,25 @@ class LinuxRuntimeLiveFilesTest {
         assertTrue(live.toPath().startsWith(context.noBackupFilesDir.toPath()))
     }
 
+    @Test fun cacheEvictionPreservesSystemVulkanRenderNodeBindings() {
+        val node = "/dev/dri/renderD130"
+        val binds = mutableListOf<String>()
+        LinuxRuntime.bindSystemVulkanGpuNode(context, binds, node)
+        val dri = File(binds.single { it.endsWith(":/dev/dri") }.removeSuffix(":/dev/dri"))
+        val placeholder = File(dri, "renderD130")
+        val disposable = File(context.cacheDir, "download").apply { writeText("cached") }
+
+        context.cacheDir.deleteRecursively()
+
+        assertFalse(disposable.exists())
+        assertTrue(placeholder.isFile)
+        assertTrue(dri.toPath().startsWith(context.noBackupFilesDir.toPath()))
+        assertTrue(binds.contains("$node:$node"))
+        val nextBinds = mutableListOf<String>()
+        LinuxRuntime.bindSystemVulkanGpuNode(context, nextBinds, node)
+        assertEquals(binds, nextBinds)
+    }
+
     @Test fun successfulRemovalClearsGuestScratchAndPreservesOtherNoBackupData() {
         val runtime = runtime()
         val scratch = scratch()

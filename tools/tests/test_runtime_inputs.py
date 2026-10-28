@@ -1,6 +1,7 @@
 import importlib.util
 import gzip
 import io
+import json
 from pathlib import Path, PureWindowsPath
 import subprocess
 import tarfile
@@ -129,6 +130,52 @@ class RuntimeInputsTest(unittest.TestCase):
                 if self.in_apk(name):
                     package.writestr(name, (self.root / output['path']).read_bytes())
         runtime.check_apk(apk, self.root)
+
+    def require_system_vulkan(self):
+        config = self.root / runtime.SYSTEM_VULKAN_COMPONENT_CONFIG
+        config.parent.mkdir(parents=True, exist_ok=True)
+        config.write_text('{}\n')
+        release = self.root / 'tools/gamescope/release.env'
+        release.parent.mkdir(parents=True, exist_ok=True)
+        release.write_text('GAMESCOPE_TAG=gamescope-3.16.29-p13\n')
+
+    @staticmethod
+    def compatible_gamescope():
+        return b'\x7fELF' + b'\0'.join(runtime.SYSTEM_VULKAN_GAMESCOPE_MARKERS)
+
+    def gamescope_path(self):
+        return self.root / runtime.outputs(self.root)[runtime.GAMESCOPE]
+
+    def test_system_vulkan_rejects_stock_gamescope_while_recording(self):
+        self.require_system_vulkan()
+        self.gamescope_path().write_bytes(b'\x7fELFstock gamescope p13')
+        with self.assertRaisesRegex(ValueError, 'nested-swapchain fallbacks'):
+            runtime.record(self.root)
+
+    def test_system_vulkan_accepts_gamescope_with_nested_swapchain_fallbacks(self):
+        self.require_system_vulkan()
+        self.gamescope_path().write_bytes(self.compatible_gamescope())
+        runtime.record(self.root)
+        runtime.check_apk(self.current_apk(self.root / 'compatible.apk'), self.root)
+
+    def test_apk_rejects_hash_valid_gamescope_without_system_vulkan_fallbacks(self):
+        self.require_system_vulkan()
+        self.gamescope_path().write_bytes(self.compatible_gamescope())
+        runtime.record(self.root)
+        stock = b'\x7fELFstock gamescope p13'
+        self.gamescope_path().write_bytes(stock)
+        manifest = self.root / runtime.MANIFEST
+        data = json.loads(manifest.read_text())
+        data['outputs'][runtime.GAMESCOPE]['sha256'] = runtime.digest(self.gamescope_path())
+        manifest.write_text(json.dumps(data))
+        data = runtime.verify(self.root)
+        apk = self.root / 'stock.apk'
+        with ZipFile(apk, 'w') as package:
+            for name, output in data['outputs'].items():
+                if self.in_apk(name):
+                    package.writestr(name, (self.root / output['path']).read_bytes())
+        with self.assertRaisesRegex(ValueError, 'nested-swapchain fallbacks'):
+            runtime.check_apk(apk, self.root)
 
     def current_apk(self, path, extra=None):
         runtime.record(self.root)

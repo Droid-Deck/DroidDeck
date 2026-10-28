@@ -1,0 +1,109 @@
+name: Publish System Vulkan components
+run-name: System Vulkan ${{ inputs.variant }} ${{ inputs.version }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      variant:
+        description: GPU component to package independently
+        required: true
+        type: choice
+        options: [powervr, xclipse, mali]
+      version:
+        description: Component version (v0.1.0 or v0.1.0-rc.1)
+        required: true
+        type: string
+      prerelease:
+        description: Mark the GitHub release as a prerelease
+        required: true
+        default: true
+        type: boolean
+      publish:
+        description: Publish a GitHub release after validation
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: system-vulkan-${{ inputs.variant }}-${{ inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install archive tools
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y zstd
+
+      - name: Validate component packager
+        run: |
+          set -euo pipefail
+          python3 -m unittest \
+            tools.tests.test_powervr_runtime \
+            tools.tests.test_system_vulkan_components \
+            tools.tests.test_system_vulkan_publish
+
+      - name: Package the selected vendor component
+        id: component
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMPONENT_VERSION: ${{ inputs.version }}
+          COMPONENT_VARIANT: ${{ inputs.variant }}
+        run: |
+          set -euo pipefail
+          repository_id=$(gh api "repos/${GITHUB_REPOSITORY}" --jq .id)
+          python3 tools/powervr/package_components.py \
+            --output out/system-vulkan \
+            --repository "$GITHUB_REPOSITORY" \
+            --repository-id "$repository_id" \
+            --commit "$GITHUB_SHA" \
+            --build-url "https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+            --variant "$COMPONENT_VARIANT" \
+            --version "$COMPONENT_VERSION"
+          release_tag=$(jq -r --arg variant "$COMPONENT_VARIANT" '.profiles[$variant].tag' out/system-vulkan/component-bootstrap.json)
+          printf 'tag=%s\n' "$release_tag" >> "$GITHUB_OUTPUT"
+          cd out/system-vulkan
+          sha256sum ./*.tar.zst ./*.json > SHA256SUMS
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.component.outputs.tag }}
+          path: out/system-vulkan/
+          if-no-files-found: error
+
+      - name: Publish immutable component release
+        if: inputs.publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMPONENT_VERSION: ${{ inputs.version }}
+          COMPONENT_VARIANT: ${{ inputs.variant }}
+          COMPONENT_PRERELEASE: ${{ inputs.prerelease }}
+          RELEASE_TAG: ${{ steps.component.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "::error::Release $RELEASE_TAG already exists; component releases are immutable."
+            exit 1
+          fi
+          gh api "repos/${GITHUB_REPOSITORY}/git/refs" --method POST \
+            -f "ref=refs/tags/${RELEASE_TAG}" -f "sha=${GITHUB_SHA}" >/dev/null
+          gh release create "$RELEASE_TAG" \
+            out/system-vulkan/system-vulkan-*.tar.zst \
+            out/system-vulkan/droiddeck-component-system-vulkan-*.json \
+            out/system-vulkan/component-bootstrap.json \
+            out/system-vulkan/SHA256SUMS \
+            --verify-tag --prerelease="$COMPONENT_PRERELEASE" --latest=false \
+            --target "$GITHUB_SHA" \
+            --title "System Vulkan $COMPONENT_VARIANT $COMPONENT_VERSION" \
+            --notes "The $COMPONENT_VARIANT runtime component, built from the checksum-pinned native archives in this commit. Other GPU components retain their own versions."

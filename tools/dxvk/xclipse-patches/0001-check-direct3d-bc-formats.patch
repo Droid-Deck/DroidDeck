@@ -1,0 +1,168 @@
+diff --git a/src/util/config/config.cpp b/src/util/config/config.cpp
+--- a/src/util/config/config.cpp
++++ b/src/util/config/config.cpp
+@@ -1,3 +1,4 @@
++#include <algorithm>
+ #include <array>
+ #include <fstream>
+ #include <sstream>
+diff --git a/src/d3d11/d3d11_device.cpp b/src/d3d11/d3d11_device.cpp
+index 3a26017..1386f06 100644
+--- a/src/d3d11/d3d11_device.cpp
++++ b/src/d3d11/d3d11_device.cpp
+@@ -1902,7 +1902,8 @@ namespace dxvk {
+     // Check whether baseline features are supported by the device    
+     DxvkDeviceFeatures features = GetDeviceFeatures(Adapter);
+     
+-    if (!Adapter->checkFeatureSupport(features))
++    if (!Adapter->checkFeatureSupport(features)
++     || !Adapter->checkD3dBcFormatSupport())
+       return D3D_FEATURE_LEVEL();
+ 
+     // The feature level override always takes precedence
+@@ -1955,7 +1956,7 @@ namespace dxvk {
+     enabled.core.features.shaderClipDistance                      = VK_TRUE;
+     enabled.core.features.shaderCullDistance                      = VK_TRUE;
+     enabled.core.features.shaderImageGatherExtended               = VK_TRUE;
+-    enabled.core.features.textureCompressionBC                    = VK_TRUE;
++    enabled.core.features.textureCompressionBC                    = supported.core.features.textureCompressionBC;
+ 
+     enabled.vk12.samplerMirrorClampToEdge                         = VK_TRUE;
+ 
+diff --git a/src/d3d9/d3d9_device.cpp b/src/d3d9/d3d9_device.cpp
+index c451009..823c93e 100644
+--- a/src/d3d9/d3d9_device.cpp
++++ b/src/d3d9/d3d9_device.cpp
+@@ -4599,8 +4599,9 @@ namespace dxvk {
+     enabled.core.features.shaderClipDistance = VK_TRUE;
+     enabled.core.features.shaderCullDistance = VK_TRUE;
+ 
+-    // Ensure we support real BC formats and unofficial vendor ones.
+-    enabled.core.features.textureCompressionBC = VK_TRUE;
++    // Enable native BC decoding when available. Format support is checked
++    // separately so an implementation may provide these formats another way.
++    enabled.core.features.textureCompressionBC = supported.core.features.textureCompressionBC;
+ 
+     // SM2 level hardware
+     enabled.core.features.occlusionQueryPrecise = VK_TRUE;
+diff --git a/src/d3d9/d3d9_interface.cpp b/src/d3d9/d3d9_interface.cpp
+index 192ead6..ff9d58e 100644
+--- a/src/d3d9/d3d9_interface.cpp
++++ b/src/d3d9/d3d9_interface.cpp
+@@ -390,6 +390,11 @@ namespace dxvk {
+ 
+     auto dxvkAdapter = adapter->GetDXVKAdapter();
+ 
++    if (!dxvkAdapter->checkD3dBcFormatSupport()) {
++      Logger::err("D3D9InterfaceEx: Device does not support the BC formats required by Direct3D");
++      return D3DERR_NOTAVAILABLE;
++    }
++
+     try {
+       auto dxvkDevice = dxvkAdapter->createDevice(m_instance, D3D9DeviceEx::GetDeviceFeatures(dxvkAdapter));
+ 
+diff --git a/src/dxvk/dxvk_pipemanager.cpp b/src/dxvk/dxvk_pipemanager.cpp
+--- a/src/dxvk/dxvk_pipemanager.cpp
++++ b/src/dxvk/dxvk_pipemanager.cpp
+@@ -444,6 +444,6 @@ namespace dxvk {
+     auto iter = m_shaderLibraries.emplace(
+       std::piecewise_construct,
+-      std::tuple(),
++      std::tuple(key),
+       std::tuple(m_device, this, key, layout));
+     return &iter.first->second;
+   }
+diff --git a/src/dxvk/dxvk_adapter.cpp b/src/dxvk/dxvk_adapter.cpp
+index f9dbae1..c222ca7 100644
+--- a/src/dxvk/dxvk_adapter.cpp
++++ b/src/dxvk/dxvk_adapter.cpp
+@@ -2,6 +2,7 @@
+ #include <unordered_set>
+ 
+ #include "dxvk_adapter.h"
++#include "dxvk_bc_formats.h"
+ #include "dxvk_device.h"
+ #include "dxvk_instance.h"
+ 
+@@ -265,6 +266,13 @@ namespace dxvk {
+         && CHECK_FEATURE_NEED(extVertexAttributeDivisor.vertexAttributeInstanceRateZeroDivisor);
+   }
+ 
++
++  bool DxvkAdapter::checkD3dBcFormatSupport() const {
++    return bc::supportsD3dFormats([this] (VkFormat format) {
++      return getFormatFeatures(format).optimal;
++    });
++  }
++
+ #undef CHECK_FEATURE_NEED
+ 
+   void DxvkAdapter::enableExtensions(const DxvkNameSet& extensions) {
+diff --git a/src/dxvk/dxvk_adapter.h b/src/dxvk/dxvk_adapter.h
+index f545849..76089e4 100644
+--- a/src/dxvk/dxvk_adapter.h
++++ b/src/dxvk/dxvk_adapter.h
+@@ -200,6 +200,15 @@ namespace dxvk {
+      */
+     bool checkFeatureSupport(
+       const DxvkDeviceFeatures& required) const;
++
++    /**
++     * \brief Tests Direct3D BC format support
++     *
++     * Checks the exact compressed formats and usages used by
++     * Direct3D instead of relying on the aggregate Vulkan feature.
++     * \returns \c true if every required format is supported
++     */
++    bool checkD3dBcFormatSupport() const;
+     
+     /**
+      * \brief Enables extensions for this adapter
+diff --git a/src/dxvk/dxvk_bc_formats.h b/src/dxvk/dxvk_bc_formats.h
+new file mode 100644
+index 0000000..e55faca
+--- /dev/null
++++ b/src/dxvk/dxvk_bc_formats.h
+@@ -0,0 +1,42 @@
++#pragma once
++
++#include <array>
++
++#include <vulkan/vulkan.h>
++
++namespace dxvk::bc {
++
++  constexpr std::array<VkFormat, 14> D3dFormats = {{
++    VK_FORMAT_BC1_RGBA_UNORM_BLOCK,
++    VK_FORMAT_BC1_RGBA_SRGB_BLOCK,
++    VK_FORMAT_BC2_UNORM_BLOCK,
++    VK_FORMAT_BC2_SRGB_BLOCK,
++    VK_FORMAT_BC3_UNORM_BLOCK,
++    VK_FORMAT_BC3_SRGB_BLOCK,
++    VK_FORMAT_BC4_UNORM_BLOCK,
++    VK_FORMAT_BC4_SNORM_BLOCK,
++    VK_FORMAT_BC5_UNORM_BLOCK,
++    VK_FORMAT_BC5_SNORM_BLOCK,
++    VK_FORMAT_BC6H_UFLOAT_BLOCK,
++    VK_FORMAT_BC6H_SFLOAT_BLOCK,
++    VK_FORMAT_BC7_UNORM_BLOCK,
++    VK_FORMAT_BC7_SRGB_BLOCK,
++  }};
++
++  constexpr VkFormatFeatureFlags2 D3dFormatFeatures =
++      VK_FORMAT_FEATURE_2_SAMPLED_IMAGE_BIT
++    | VK_FORMAT_FEATURE_2_SAMPLED_IMAGE_FILTER_LINEAR_BIT
++    | VK_FORMAT_FEATURE_2_TRANSFER_SRC_BIT
++    | VK_FORMAT_FEATURE_2_TRANSFER_DST_BIT;
++
++  template<typename Query>
++  bool supportsD3dFormats(Query&& query) {
++    for (VkFormat format : D3dFormats) {
++      if ((query(format) & D3dFormatFeatures) != D3dFormatFeatures)
++        return false;
++    }
++
++    return true;
++  }
++
++}

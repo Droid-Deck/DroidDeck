@@ -323,6 +323,8 @@
     <string name="mode_client">العميل</string>
     <string name="mode_mangoapp">تراكب الأداء</string>
     <string name="mode_mangoapp_hint">أوقفه إذا تعطلت الألعاب أو أصبحت شاشتها سوداء في وضع Deck. يُطبَّق في الجلسة التالية.</string>
+    <string name="mode_steam_ui_software">واجهة Steam البرمجية</string>
+    <string name="mode_steam_ui_software_hint">يرسم قوائم Steam على المعالج بدل معالج الرسوميات. أبطأ؛ فعّله إذا تجمّدت واجهة Steam أو ظهرت مربعات مشوهة. يُطبَّق في الجلسة التالية.</string>
     <string name="mode_steam_repair">إصلاح عميل Steam</string>
     <string name="mode_steam_repair_hint">يُنزّل عميل Steam مجددًا في المرة التالية التي يبدأ فيها Steam. استخدمه إذا بقي Steam على شاشة التحميل. يتم الاحتفاظ بالألعاب وتسجيل الدخول والإعدادات.</string>
     <string name="mode_steam_repair_queued">سيتم تنزيل عميل Steam مجددًا في المرة التالية التي يبدأ فيها Steam.</string>

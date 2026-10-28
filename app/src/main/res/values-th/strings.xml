@@ -323,6 +323,8 @@
     <string name="mode_client">ไคลเอนต์</string>
     <string name="mode_mangoapp">โอเวอร์เลย์แสดงประสิทธิภาพ</string>
     <string name="mode_mangoapp_hint">ปิดหากเกมขัดข้องหรือจอดำในโหมด Deck จะมีผลในเซสชันถัดไป</string>
+    <string name="mode_steam_ui_software">UI ของ Steam แบบซอฟต์แวร์</string>
+    <string name="mode_steam_ui_software_hint">วาดเมนูของ Steam ด้วย CPU แทน GPU ช้ากว่า เปิดใช้หาก UI ของ Steam ค้างหรือแสดงไทล์เสีย มีผลในเซสชันถัดไป</string>
     <string name="mode_steam_repair">ซ่อมแซมไคลเอนต์ Steam</string>
     <string name="mode_steam_repair_hint">ดาวน์โหลดไคลเอนต์ Steam ใหม่อีกครั้งในครั้งถัดไปที่ Steam เริ่มทำงาน ใช้เมื่อ Steam ค้างอยู่ที่หน้าจอโหลด เกม การลงชื่อเข้าใช้ และการตั้งค่ายังคงอยู่</string>
     <string name="mode_steam_repair_queued">ไคลเอนต์ Steam จะถูกดาวน์โหลดใหม่อีกครั้งในครั้งถัดไปที่ Steam เริ่มทำงาน</string>

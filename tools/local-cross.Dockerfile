@@ -10,6 +10,7 @@ RUN apt-get update \
         g++ \
         gcc-aarch64-linux-gnu \
         g++-aarch64-linux-gnu \
+        libvulkan-dev \
         python3 \
         zstd \
         unzip \

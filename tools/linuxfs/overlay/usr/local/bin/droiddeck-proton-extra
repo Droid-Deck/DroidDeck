@@ -8,6 +8,8 @@ import subprocess
 import sys
 import urllib.error
 import urllib.request
+import posixpath
+import tarfile
 
 RELEASES = "https://api.github.com/repos/%s/releases"
 SOURCES = {
@@ -17,6 +19,9 @@ SOURCES = {
 }
 USER_AGENT = "droiddeck-proton-extra"
 NEED_BYTES = 4 * 1024 * 1024 * 1024
+MAX_ENTRIES = 100000
+MAX_FILE_BYTES = 2 * 1024 * 1024 * 1024
+MAX_EXPANDED_BYTES = 8 * 1024 * 1024 * 1024
 
 
 def log(*args):
@@ -90,7 +95,36 @@ def verify(path, sums_url):
     log("checksum ok")
 
 
+def validate_archive(tarball):
+    seen = set()
+    expanded = 0
+    with tarfile.open(tarball, "r:*") as archive:
+        members = archive.getmembers()
+        if len(members) > MAX_ENTRIES:
+            raise SystemExit("droiddeck-proton-extra: archive has too many entries")
+        for member in members:
+            name = member.name.replace("\\", "/")
+            normalized = posixpath.normpath(name)
+            if (not name or name.startswith("/") or normalized in (".", "..")
+                    or normalized.startswith("../") or normalized in seen):
+                raise SystemExit("droiddeck-proton-extra: unsafe or duplicate archive path")
+            seen.add(normalized)
+            if member.ischr() or member.isblk() or member.isfifo():
+                raise SystemExit("droiddeck-proton-extra: unsupported archive entry")
+            if member.isfile():
+                if member.size < 0 or member.size > MAX_FILE_BYTES:
+                    raise SystemExit("droiddeck-proton-extra: archive entry is too large")
+                expanded += member.size
+                if expanded > MAX_EXPANDED_BYTES:
+                    raise SystemExit("droiddeck-proton-extra: archive expands beyond its limit")
+            if member.issym() or member.islnk():
+                target = posixpath.normpath(posixpath.join(posixpath.dirname(normalized), member.linkname))
+                if (not member.linkname or member.linkname.startswith("/") or target == ".." or target.startswith("../")):
+                    raise SystemExit("droiddeck-proton-extra: unsafe archive link")
+
+
 def extract(tarball, into):
+    validate_archive(tarball)
     os.makedirs(into, exist_ok=True)
     log("unpacking (a few minutes; nothing is shown while tar runs)")
     rc = subprocess.call(["tar", "-xf", tarball, "-C", into])
@@ -104,6 +138,28 @@ def extract(tarball, into):
     if len(entries) == 1 and os.path.isdir(os.path.join(into, entries[0])):
         return os.path.join(into, entries[0])
     raise SystemExit("droiddeck-proton-extra: no Proton tree in the archive")
+
+
+def namespace_tool(tree, identity):
+    path = os.path.join(tree, "compatibilitytool.vdf")
+    try:
+        with open(path, "r", encoding="utf-8") as source:
+            text = source.read()
+    except OSError as error:
+        raise SystemExit("droiddeck-proton-extra: could not read compatibilitytool.vdf (%s)" % error)
+    pattern = re.compile(r'(\"compat_tools\"\s*\{\s*)\"([^\"]+)\"', re.DOTALL)
+    matches = list(pattern.finditer(text))
+    if len(matches) != 1:
+        raise SystemExit("droiddeck-proton-extra: expected one compatibility tool identity")
+    old = matches[0].group(2)
+    new = "%s--dd-%s" % (old, identity)
+    text = pattern.sub(lambda match: match.group(1) + '"' + new + '"', text, count=1)
+    staged = path + ".tmp"
+    with open(staged, "w", encoding="utf-8") as output:
+        output.write(text)
+        output.flush()
+        os.fsync(output.fileno())
+    os.replace(staged, path)
 
 
 def installed(tools):
@@ -134,6 +190,22 @@ def main():
     if argv and argv[0] in ("--tag", "-t"):
         argv.pop(0)
         tag = argv.pop(0) if argv else None
+
+    identity = None
+    required_prefix = None
+    while argv:
+        option = argv.pop(0)
+        if option == "--identity" and argv:
+            identity = argv.pop(0)
+            if not re.fullmatch(r"[0-9a-f]{64}-[0-9a-f]{64}", identity):
+                raise SystemExit("droiddeck-proton-extra: invalid source identity")
+        elif option == "--prefix" and argv:
+            required_prefix = argv.pop(0)
+            if (not required_prefix or len(required_prefix) > 100
+                    or not re.fullmatch(r"[A-Za-z0-9._+ -]+", required_prefix)):
+                raise SystemExit("droiddeck-proton-extra: invalid tool prefix")
+        else:
+            raise SystemExit("droiddeck-proton-extra: unknown or incomplete option %r" % option)
 
     local = None
     if what in SOURCES:
@@ -169,6 +241,13 @@ def main():
     shutil.rmtree(unpacked, ignore_errors=True)
     tree = extract(tarball, unpacked)
     name = os.path.basename(tree)
+    if required_prefix and not name.startswith(required_prefix):
+        raise SystemExit("droiddeck-proton-extra: archive tool identity does not match its manifest")
+    if identity:
+        namespace_tool(tree, identity)
+        suffix = "--dd-%s" % identity
+        safe_name = re.sub(r"[^A-Za-z0-9._+ -]+", "_", name).strip(" .") or "Proton"
+        name = "%s%s" % (safe_name[:255 - len(suffix)], suffix)
     final = os.path.join(tools, name)
     if os.path.exists(final):
         shutil.rmtree(final, ignore_errors=True)

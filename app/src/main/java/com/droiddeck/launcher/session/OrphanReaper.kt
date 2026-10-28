@@ -11,6 +11,23 @@ object OrphanReaper {
 
     fun release(pid: Int) { kept.remove(pid) }
 
+    /** Signal 0 checks ownership/liveness without sending a signal, even when /proc is unreadable. */
+    fun hasOtherProcesses(): Boolean = hasOtherProcesses(
+        File("/proc").list()?.mapNotNull { it.toIntOrNull() }, android.os.Process.myPid(),
+    ) { pid ->
+        try {
+            android.system.Os.kill(pid, 0)
+            true
+        } catch (error: android.system.ErrnoException) {
+            error.errno != android.system.OsConstants.ESRCH && error.errno != android.system.OsConstants.EPERM
+        } catch (error: SecurityException) {
+            true
+        }
+    }
+
+    internal fun hasOtherProcesses(pids: List<Int>?, ownPid: Int, signalable: (Int) -> Boolean): Boolean =
+        pids == null || pids.any { it > 1 && it != ownPid && signalable(it) }
+
     fun reap(reason: String): Int {
         val me = android.os.Process.myPid()
         val uid = android.os.Process.myUid()

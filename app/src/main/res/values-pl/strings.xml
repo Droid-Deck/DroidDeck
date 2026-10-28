@@ -323,6 +323,8 @@
     <string name="mode_client">Klient</string>
     <string name="mode_mangoapp">Nakładka wydajności</string>
     <string name="mode_mangoapp_hint">Wyłącz, jeśli gry ulegają awarii lub mają czarny ekran w trybie Deck. Działa od następnej sesji.</string>
+    <string name="mode_steam_ui_software">Programowy interfejs Steam</string>
+    <string name="mode_steam_ui_software_hint">Rysuje menu Steam procesorem zamiast GPU. Wolniej; włącz, jeśli interfejs Steam się zawiesza lub pokazuje uszkodzone kafelki. Działa od następnej sesji.</string>
     <string name="mode_steam_repair">Napraw klienta Steam</string>
     <string name="mode_steam_repair_hint">Pobiera klienta Steam ponownie przy następnym uruchomieniu Steam. Użyj, jeśli Steam utknie na ekranie wczytywania. Gry, logowanie i ustawienia zostaną zachowane.</string>
     <string name="mode_steam_repair_queued">Klient Steam zostanie pobrany ponownie przy następnym uruchomieniu Steam.</string>

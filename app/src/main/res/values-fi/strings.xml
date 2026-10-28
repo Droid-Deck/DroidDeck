@@ -323,6 +323,8 @@
     <string name="mode_client">Asiakasohjelma</string>
     <string name="mode_mangoapp">Suorituskyvyn peittokuva</string>
     <string name="mode_mangoapp_hint">Poista käytöstä, jos pelit kaatuvat tai näyttö mustuu Deck-tilassa. Tulee voimaan seuraavassa istunnossa.</string>
+    <string name="mode_steam_ui_software">Steamin ohjelmistokäyttöliittymä</string>
+    <string name="mode_steam_ui_software_hint">Piirtää Steamin valikot suorittimella näytönohjaimen sijaan. Hitaampi; ota käyttöön, jos Steamin käyttöliittymä jäätyy tai näyttää rikkinäisiä ruutuja. Tulee voimaan seuraavassa istunnossa.</string>
     <string name="mode_steam_repair">Korjaa Steam-asiakasohjelma</string>
     <string name="mode_steam_repair_hint">Lataa Steam-asiakasohjelman uudelleen, kun Steam käynnistyy seuraavan kerran. Käytä tätä, jos Steam jää lataus­näytölle. Pelit, kirjautuminen ja asetukset säilyvät.</string>
     <string name="mode_steam_repair_queued">Steam-asiakasohjelma ladataan uudelleen, kun Steam käynnistyy seuraavan kerran.</string>

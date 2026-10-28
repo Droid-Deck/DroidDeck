@@ -24,7 +24,8 @@ class DesktopGpuWindowTest(unittest.TestCase):
         fake.chmod(0o755)
 
     def run_gpu(self, **env):
-        base = {k: v for k, v in os.environ.items() if k not in KEYS + ("BL_DEBUG_DIR", "BL_DESKTOP_GPU_WINDOW")}
+        base = {k: v for k, v in os.environ.items()
+                if k not in KEYS + ("BL_DEBUG_DIR", "BL_DESKTOP_GPU_WINDOW", "BL_GAMESCOPE_BACKEND")}
         base.update(PATH="%s:%s" % (self.tmp, os.environ["PATH"]), BL_WIDTH="1280", BL_HEIGHT="720", **env)
         subprocess.run(["bash", str(GPU), "game.exe"], env=base, check=True, capture_output=True)
         return json.loads(self.out.read_text())
@@ -48,6 +49,20 @@ class DesktopGpuWindowTest(unittest.TestCase):
             self.assertEqual(run["env"]["WAYLAND_DISPLAY"], "wayland-0")
             self.assertIsNone(run["env"]["MESA_VK_WSI_DEBUG"])
             self.assertIsNone(run["env"]["BL_GPU_CHILD_WSI"])
+
+    def test_an_explicit_backend_bypasses_the_automatic_desktop_window(self):
+        for backend, selected, sdl in (("", "wayland", "x11"),
+                                       ("wayland", "wayland", "x11"),
+                                       ("sdl", "sdl", "wayland")):
+            with self.subTest(backend=backend):
+                run = self.run_gpu(WAYLAND_DISPLAY="wayland-1", BL_GAMESCOPE_BACKEND=backend,
+                                   MESA_VK_WSI_DEBUG="sw,linear")
+                self.assertEqual(run["args"][:2], ["--backend", selected])
+                self.assertIn("-f", run["args"])
+                self.assertEqual(run["env"]["WAYLAND_DISPLAY"], "wayland-0")
+                self.assertEqual(run["env"]["SDL_VIDEODRIVER"], sdl)
+                self.assertEqual(run["env"]["MESA_VK_WSI_DEBUG"], "linear")
+                self.assertIsNone(run["env"]["BL_GPU_CHILD_WSI"])
 
     def test_the_game_inside_the_window_gets_its_own_settings_back(self):
         script = "import json, os; print(json.dumps({k: os.environ.get(k) for k in %r}))" % (KEYS,)

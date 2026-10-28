@@ -1,0 +1,213 @@
+diff --git a/hybris/vulkan/Makefile.am b/hybris/vulkan/Makefile.am
+--- a/hybris/vulkan/Makefile.am
++++ b/hybris/vulkan/Makefile.am
+@@ -24,6 +24,7 @@ libVkLayer_hybris_compat_la_SOURCES = layer/entry.c layer/device.c layer/physica
+     compat/clip_distance.c compat/clip_distance.h compat/spirv_clip.c \
+     compat/shader_policy.c compat/shader_policy.h \
+     compat/shader_cleanup.c compat/shader_cleanup.h compat/spirv_builtins.c compat/spirv_builtins.h \
++    compat/spirv_names.c compat/spirv_names.h \
+     compat/spirv_decorations.c compat/spirv_decorations.h compat/spirv_constants.c compat/spirv_constants.h compat/spirv_aggregate.c compat/spirv_aggregate.h compat/spirv_entry.c compat/spirv_entry.h compat/spirv_results.inc compat/spirv_literals.inc compat/scaled_dump.c compat/shader_dispatch.c compat/shader_dispatch.h compat/scaled_formats.c compat/scaled_formats.h compat/scaled_spirv.c compat/scaled_vertex.h compat/inline_shader.c compat/inline_shader.h
+ libVkLayer_hybris_compat_la_CFLAGS = -fvisibility=hidden
+ # Keep process-wide policy initialization and lifetime generations across the
+diff --git a/hybris/vulkan/compat/shader_cleanup.c b/hybris/vulkan/compat/shader_cleanup.c
+--- a/hybris/vulkan/compat/shader_cleanup.c
++++ b/hybris/vulkan/compat/shader_cleanup.c
+@@ -3,6 +3,7 @@
+ #define VK_NO_PROTOTYPES
+ #include "shader_cleanup.h"
+ #include "spirv_builtins.h"
++#include "spirv_names.h"
+ #include "shader_dispatch.h"
+ #include "../layer/layer.h"
+ #include <pthread.h>
+@@ -12,19 +13,51 @@
+ #include <sys/auxv.h>
+ 
+ static pthread_once_t once = PTHREAD_ONCE_INIT;
+-static int enabled;
++static int enabled, builtins;
++static _Atomic unsigned name_reports;
+ static _Atomic unsigned reports;
+ static void configure(void)
+ {
+-    if (getauxval(AT_SECURE)) return;
+-    const char *value = getenv("HYBRIS_VULKAN_COMPAT_UNUSED_BUILTINS");
+-    enabled = !value || !strcmp(value, "1");
++    const char *value = getauxval(AT_SECURE) ? NULL : getenv("HYBRIS_VULKAN_COMPAT_UNUSED_BUILTINS");
++    builtins = !getauxval(AT_SECURE) && (!value || !strcmp(value, "1"));
++    enabled = builtins || hybris_spirv_strip_names_enabled();
+ }
+ int hybris_shader_cleanup_enabled(void)
+ {
+     pthread_once(&once, configure);
+     return enabled;
+ }
++static VkResult strip_names(const uint32_t *code, size_t size, const VkAllocationCallbacks *allocator,
++    uint32_t **output, size_t *output_size)
++{
++    unsigned removed = 0;
++    *output = NULL;
++    if (!hybris_spirv_strip_names_enabled()) return VK_SUCCESS;
++    VkResult result = hybris_spirv_strip_names(code, size, allocator, output, output_size, &removed);
++    if (*output && atomic_fetch_add(&name_reports, 1) == 0)
++        fprintf(stderr, "HYBRIS_STRIP_NAMES active (first module: %u names)\n", removed);
++    return result;
++}
++VkResult hybris_shader_cleanup_code(const uint32_t *code, size_t size,
++    const VkAllocationCallbacks *allocator, uint32_t **output, size_t *output_size)
++{
++    pthread_once(&once, configure);
++    uint32_t *clean = NULL;
++    size_t clean_size = 0;
++    unsigned removed = 0;
++    *output = NULL;
++    VkResult result = builtins ?
++        hybris_spirv_unused_builtins(code, size, allocator, &clean, &clean_size, &removed) : VK_SUCCESS;
++    if (result != VK_SUCCESS) return result;
++    uint32_t *unnamed = NULL;
++    size_t unnamed_size = 0;
++    result = strip_names(clean ? clean : code, clean ? clean_size : size, allocator, &unnamed, &unnamed_size);
++    if (result != VK_SUCCESS) { hybris_scaled_free(allocator, clean); return result; }
++    if (unnamed) { hybris_scaled_free(allocator, clean); clean = unnamed; clean_size = unnamed_size; }
++    *output = clean;
++    *output_size = clean_size;
++    return VK_SUCCESS;
++}
+ VkResult VKAPI_CALL hybris_shader_cleanup_create(VkDevice device, const VkShaderModuleCreateInfo *info,
+     const VkAllocationCallbacks *allocator, VkShaderModule *module)
+ {
+@@ -37,14 +70,20 @@ VkResult VKAPI_CALL hybris_shader_cleanup_create(VkDevice device, const VkShader
+     uint32_t *code = NULL;
+     size_t size = 0;
+     unsigned removed = 0;
+-    VkResult result = hybris_spirv_unused_builtins(info->pCode, info->codeSize, allocator, &code, &size, &removed);
++    VkResult result = builtins ?
++        hybris_spirv_unused_builtins(info->pCode, info->codeSize, allocator, &code, &size, &removed) : VK_SUCCESS;
+     if (result != VK_SUCCESS) return result;
++    uint32_t *unnamed = NULL;
++    size_t unnamed_size = 0;
++    result = strip_names(code ? code : info->pCode, code ? size : info->codeSize, allocator, &unnamed, &unnamed_size);
++    if (result != VK_SUCCESS) { hybris_scaled_free(allocator, code); return result; }
++    if (unnamed) { hybris_scaled_free(allocator, code); code = unnamed; size = unnamed_size; }
+     VkShaderModuleCreateInfo changed = *info;
+     if (code) {
+         changed.pCode = code; changed.codeSize = size;
+         unsigned slot = atomic_load(&reports);
+         while (slot < 129 && !atomic_compare_exchange_weak(&reports, &slot, slot + 1)) {}
+-        if (slot < 128) fprintf(stderr, "HYBRIS_UNUSED_BUILTINS removed=%u original=%zu converted=%zu\n", removed, info->codeSize, size);
++        if (slot < 128 && removed) fprintf(stderr, "HYBRIS_UNUSED_BUILTINS removed=%u original=%zu converted=%zu\n", removed, info->codeSize, size);
+         else if (slot == 128) fprintf(stderr, "HYBRIS_UNUSED_BUILTINS truncated\n");
+     }
+     result = create(device, &changed, allocator, module);
+diff --git a/hybris/vulkan/compat/shader_cleanup.h b/hybris/vulkan/compat/shader_cleanup.h
+--- a/hybris/vulkan/compat/shader_cleanup.h
++++ b/hybris/vulkan/compat/shader_cleanup.h
+@@ -3,6 +3,10 @@
+ #define HYBRIS_SHADER_CLEANUP_H
+ #include <vulkan/vulkan.h>
+ int hybris_shader_cleanup_enabled(void);
++/* Unused builtins (HYBRIS_VULKAN_COMPAT_UNUSED_BUILTINS), then debug names
++ * (HYBRIS_VULKAN_COMPAT_STRIP_NAMES). Null output means the original is unchanged. */
++VkResult hybris_shader_cleanup_code(const uint32_t *code, size_t size,
++    const VkAllocationCallbacks *allocator, uint32_t **output, size_t *output_size);
+ VkResult VKAPI_CALL hybris_shader_cleanup_create(VkDevice device,
+     const VkShaderModuleCreateInfo *info, const VkAllocationCallbacks *allocator, VkShaderModule *module);
+ PFN_vkVoidFunction hybris_shader_cleanup_proc(const char *name);
+diff --git a/hybris/vulkan/compat/shader_dispatch.c b/hybris/vulkan/compat/shader_dispatch.c
+--- a/hybris/vulkan/compat/shader_dispatch.c
++++ b/hybris/vulkan/compat/shader_dispatch.c
+@@ -479,8 +479,7 @@ static VkResult convert_pipeline(struct shader_device *device, VkGraphicsPipelin
+         if (hybris_shader_cleanup_enabled()) {
+             uint32_t *clean = NULL;
+             size_t clean_size = 0;
+-            unsigned removed = 0;
+-            result = hybris_spirv_unused_builtins(code, size, allocator, &clean, &clean_size, &removed);
++            result = hybris_shader_cleanup_code(code, size, allocator, &clean, &clean_size);
+             if (result != VK_SUCCESS) { hybris_scaled_free(allocator, code); goto done; }
+             if (clean) { hybris_scaled_free(allocator, code); code = clean; size = clean_size; }
+         }
+diff --git a/hybris/vulkan/compat/spirv_names.c b/hybris/vulkan/compat/spirv_names.c
+new file mode 100644
+--- /dev/null
++++ b/hybris/vulkan/compat/spirv_names.c
+@@ -0,0 +1,63 @@
++/* SPDX-License-Identifier: Apache-2.0 */
++/* PowerVR D-Series (driver 25.3, Android 17) miscompiles a vertex shader in which an Input and an Output
++ * variable carry the same OpName: the input then reads as zero. DXVK names a passed-through attribute and
++ * its varying alike ("TEXCOORD"), so Unity's full-screen blits sample one texel and the frame goes flat
++ * (Megabonk). Names are debug information only, so dropping them never changes what a shader does. */
++#define _GNU_SOURCE
++#define VK_NO_PROTOTYPES
++#include "spirv_names.h"
++#include <pthread.h>
++#include <stdlib.h>
++#include <string.h>
++#include <sys/auxv.h>
++
++#define SPIRV_MAGIC 0x07230203u
++#define OP_NAME 5
++#define OP_MEMBER_NAME 6
++
++static pthread_once_t once = PTHREAD_ONCE_INIT;
++static int enabled;
++static void configure(void)
++{
++    const char *value = getauxval(AT_SECURE) ? NULL : getenv("HYBRIS_VULKAN_COMPAT_STRIP_NAMES");
++    enabled = !value || strcmp(value, "0");
++}
++int hybris_spirv_strip_names_enabled(void)
++{
++    pthread_once(&once, configure);
++    return enabled;
++}
++VkResult hybris_spirv_strip_names(const uint32_t *code, size_t size,
++    const VkAllocationCallbacks *allocator, uint32_t **output, size_t *output_size,
++    unsigned *removed)
++{
++    *output = NULL;
++    *output_size = 0;
++    *removed = 0;
++    size_t words = size / sizeof(uint32_t);
++    if (!code || size % sizeof(uint32_t) || words < 5 || code[0] != SPIRV_MAGIC) return VK_SUCCESS;
++    unsigned names = 0;
++    for (size_t i = 5; i < words;) {
++        uint32_t count = code[i] >> 16, op = code[i] & 0xffff;
++        if (!count || count > words - i) return VK_SUCCESS; /* malformed: the driver reports it */
++        names += op == OP_NAME || op == OP_MEMBER_NAME;
++        i += count;
++    }
++    if (!names) return VK_SUCCESS;
++    uint32_t *copy = hybris_scaled_alloc(allocator, size, VK_SYSTEM_ALLOCATION_SCOPE_COMMAND);
++    if (!copy) return VK_ERROR_OUT_OF_HOST_MEMORY;
++    memcpy(copy, code, 5 * sizeof(uint32_t));
++    size_t kept = 5;
++    for (size_t i = 5; i < words;) {
++        uint32_t count = code[i] >> 16, op = code[i] & 0xffff;
++        if (op != OP_NAME && op != OP_MEMBER_NAME) {
++            memcpy(copy + kept, code + i, count * sizeof(uint32_t));
++            kept += count;
++        }
++        i += count;
++    }
++    *output = copy;
++    *output_size = kept * sizeof(uint32_t);
++    *removed = names;
++    return VK_SUCCESS;
++}
+diff --git a/hybris/vulkan/compat/spirv_names.h b/hybris/vulkan/compat/spirv_names.h
+new file mode 100644
+--- /dev/null
++++ b/hybris/vulkan/compat/spirv_names.h
+@@ -0,0 +1,12 @@
++/* SPDX-License-Identifier: Apache-2.0 */
++#ifndef HYBRIS_SPIRV_NAMES_H
++#define HYBRIS_SPIRV_NAMES_H
++#include "scaled_vertex.h"
++/* HYBRIS_VULKAN_COMPAT_STRIP_NAMES: on unless set to 0. */
++int hybris_spirv_strip_names_enabled(void);
++/* Drop every OpName and OpMemberName. Null output means the original is unchanged
++ * (nothing to drop, or code this pass does not parse). */
++VkResult hybris_spirv_strip_names(const uint32_t *code, size_t size,
++    const VkAllocationCallbacks *allocator, uint32_t **output, size_t *output_size,
++    unsigned *removed);
++#endif

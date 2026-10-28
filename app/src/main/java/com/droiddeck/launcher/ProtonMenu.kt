@@ -10,6 +10,7 @@ import androidx.compose.runtime.setValue
 import com.droiddeck.launcher.session.ProtonExtras
 import com.droiddeck.launcher.ui.ProtonRow
 import com.droiddeck.launcher.session.SessionState
+import com.droiddeck.launcher.artifact.GitHubArtifacts
 import com.droiddeck.launcher.session.SessionPhase
 import com.droiddeck.launcher.frontend.AutoComponents
 import com.droiddeck.launcher.runtime.LinuxRuntime
@@ -27,18 +28,21 @@ internal class ProtonMenu(
         val stage = mutableStateOf<String?>(null)
         val percent = mutableIntStateOf(-1)
         val problem = mutableStateOf<String?>(null)
+        val inFlightChecks = java.util.concurrent.atomic.AtomicInteger(0)
+        val checkRequest = java.util.concurrent.atomic.AtomicInteger(0)
     }
     var protonRows by Operation.rows
     var protonBusyId by Operation.busyId
     var protonStage by Operation.stage
     var protonPercent by Operation.percent
     var protonProblem by Operation.problem
-    private val checking = java.util.concurrent.atomic.AtomicBoolean(false)
+    private val inFlightChecks = Operation.inFlightChecks
+    private val checkRequest = Operation.checkRequest
     @VisibleForTesting internal var installer: (ProtonExtras.Tool, (String, Int) -> Unit) -> String? =
         { tool, progress -> ProtonExtras.install(activity, tool, progress) }
 
     fun installProton(id: String, automatic: Boolean = false) {
-        val tool = ProtonExtras.tools.firstOrNull { it.id == id } ?: return
+        val tool = ProtonExtras.availableTools(activity).firstOrNull { it.id == id } ?: return
         if (protonBusyId != null || ProtonExtras.installInProgress || SessionState.running) return
         ProtonExtras.unqueue(activity, tool)
         protonBusyId = id
@@ -68,7 +72,7 @@ internal class ProtonMenu(
     }
 
     fun removeProton(id: String, dir: String? = null, older: Boolean = false) {
-        val tool = ProtonExtras.tools.firstOrNull { it.id == id } ?: return
+        val tool = ProtonExtras.displayTools(activity).firstOrNull { it.id == id } ?: return
         if (protonBusyId != null || SessionState.running) return
         protonBusyId = id
         protonProblem = null
@@ -86,21 +90,36 @@ internal class ProtonMenu(
     }
 
     fun refreshProtons() {
-        protonRows = ProtonExtras.tools.map {
+        val available = ProtonExtras.availableTools(activity).map { it.id }.toSet()
+        protonRows = ProtonExtras.displayTools(activity).map {
             val all = ProtonExtras.installedAll(activity, it)
-            ProtonRow(it.id, it.name, all.lastOrNull(), ProtonExtras.queued(activity, it), all, ProtonExtras.update(activity, it))
+            ProtonRow(it.id, it.name, all.lastOrNull(), ProtonExtras.queued(activity, it), all,
+                if (it.id in available) ProtonExtras.update(activity, it) else null)
         }
     }
 
     fun checkUpdates(force: Boolean = false) {
-        if (!checking.compareAndSet(false, true)) return
+        if (!force && inFlightChecks.get() > 0) return
+        val id = checkRequest.incrementAndGet()
+        inFlightChecks.incrementAndGet()
         Thread({
-            val asked = try { ProtonExtras.checkLatest(activity, force) } catch (_: Throwable) { false } finally { checking.set(false) }
+            val result = try { runCatching { ProtonExtras.checkLatest(activity, force) } }
+                finally { inFlightChecks.decrementAndGet() }
             ui.post {
-                if (asked) refreshProtons()
+                if (id != checkRequest.get()) return@post
+                if (result.getOrDefault(false) || result.isFailure) refreshProtons()
+                if (force) result.exceptionOrNull()?.let {
+                    android.widget.Toast.makeText(activity, GitHubArtifacts.failureMessage(activity, it), android.widget.Toast.LENGTH_LONG).show()
+                }
                 ensureAutoUpdates()
             }
         }, "proton-updates").start()
+    }
+
+    fun sourcesChanged() {
+        checkRequest.incrementAndGet()
+        refreshProtons()
+        checkUpdates(force = true)
     }
 
     internal fun ensureAutoUpdates(now: Long = System.currentTimeMillis()) {
@@ -108,12 +127,13 @@ internal class ProtonMenu(
             ProtonExtras.installInProgress || SessionState.running || LinuxRuntimeInstaller.isBusy() ||
             SessionState.phase !in setOf(SessionPhase.IDLE, SessionPhase.FAILED) ||
             !LinuxRuntime.isInstalled(activity) || !AutoComponents.online(activity) || AutoComponents.unfavourable(activity)) return
-        if (ProtonExtras.installedAll(activity, ProtonExtras.tools.first { it.id == ProtonExtras.OWN }).size > 1) {
+        val own = ProtonExtras.displayTools(activity).firstOrNull { it.id == ProtonExtras.OWN } ?: return
+        if (ProtonExtras.installedAll(activity, own).size > 1) {
             protonBusyId = ProtonExtras.OWN
             protonProblem = null
             Thread({
                 ProtonExtras.tidy(activity)
-                val tidied = ProtonExtras.installedAll(activity, ProtonExtras.tools.first { it.id == ProtonExtras.OWN }).size <= 1
+                val tidied = ProtonExtras.installedAll(activity, own).size <= 1
                 ui.post {
                     protonBusyId = null
                     refreshProtons()
@@ -123,7 +143,7 @@ internal class ProtonMenu(
             return
         }
         val attempts = activity.getSharedPreferences("proton-auto-updates", android.content.Context.MODE_PRIVATE)
-        val (tool, update) = ProtonExtras.tools.firstNotNullOfOrNull { tool ->
+        val (tool, update) = ProtonExtras.availableTools(activity).firstNotNullOfOrNull { tool ->
             val update = ProtonExtras.update(activity, tool) ?: ProtonExtras.missing(activity, tool) ?: return@firstNotNullOfOrNull null
             val previous = attempts.getLong("${tool.id}.at", 0L)
             if (attempts.getString("${tool.id}.tag", null) != update || now - previous !in 0 until 15L * 60 * 1000) tool to update else null

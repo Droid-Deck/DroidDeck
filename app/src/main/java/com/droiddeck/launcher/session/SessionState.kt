@@ -8,6 +8,9 @@ import androidx.compose.runtime.setValue
 
 object SessionState {
     @Volatile
+    var generation = 0
+
+    @Volatile
     var phase = SessionPhase.IDLE
 
     @Volatile

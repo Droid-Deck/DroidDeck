@@ -323,6 +323,8 @@
     <string name="mode_client">Cliente</string>
     <string name="mode_mangoapp">Overlay de desempenho</string>
     <string name="mode_mangoapp_hint">Desative se os jogos travarem ou ficarem com a tela preta no modo Deck. Vale a partir da próxima sessão.</string>
+    <string name="mode_steam_ui_software">Interface do Steam por software</string>
+    <string name="mode_steam_ui_software_hint">Desenha os menus do Steam com a CPU em vez da GPU. Mais lento; ative se a interface do Steam travar ou mostrar blocos quebrados. Vale a partir da próxima sessão.</string>
     <string name="mode_steam_repair">Reparar o cliente Steam</string>
     <string name="mode_steam_repair_hint">Baixa o cliente Steam de novo na próxima vez que a Steam iniciar. Use se a Steam ficar presa na tela de carregamento. Jogos, login e configurações são mantidos.</string>
     <string name="mode_steam_repair_queued">O cliente Steam será baixado de novo na próxima vez que a Steam iniciar.</string>

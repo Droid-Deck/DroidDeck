@@ -11,6 +11,8 @@ import android.os.StatFs
 import android.provider.Settings
 import android.util.Log
 import android.view.Display
+import com.droiddeck.launcher.gpu.DeviceInfo
+import com.droiddeck.launcher.gpu.SystemVulkanDriver
 import com.droiddeck.launcher.gpu.LinuxVulkanDriver
 import com.droiddeck.launcher.gpu.LinuxVulkanDriverManager
 import com.droiddeck.launcher.gpu.TurnipDriver
@@ -181,7 +183,10 @@ object DeviceReport {
         h("GPU")
         k("KGSL gpu_model", readSys("/sys/class/kgsl/kgsl-3d0/gpu_model"))
         k("KGSL chip id", readSys("/sys/class/kgsl/kgsl-3d0/gpu_chipid"))
-        k("System Vulkan ICD", if (File("/vendor/lib64/hw/vulkan.adreno.so").exists()) "/vendor/lib64/hw/vulkan.adreno.so" else "not at the usual path")
+        k("System Vulkan ICD", SystemVulkanDriver.hal() ?: when {
+            File("/vendor/lib64/hw/vulkan.adreno.so").exists() -> "/vendor/lib64/hw/vulkan.adreno.so"
+            else -> "not at the usual path"
+        })
 
         h("Display")
         k("Session output", SessionState.outputSize?.let { "${it.first}x${it.second}" })
@@ -213,19 +218,26 @@ object DeviceReport {
         k("Driver mode", SessionPrefs.gpuDriverMode(context) +
             (com.droiddeck.launcher.gpu.DriverPairs.recommendedKey(gpu, com.droiddeck.launcher.gpu.DriverPairs.from(
                 com.droiddeck.launcher.gpu.TurnipReleases.cached(context)), com.droiddeck.launcher.gpu.TurnipReleases.autoPicks(context),
-                com.droiddeck.launcher.gpu.AutoDriverTrial.bad(context))?.let { " (recommended pair: $it)" } ?: ""))
+                com.droiddeck.launcher.gpu.AutoDriverTrial.bad(context),
+                blob = com.droiddeck.launcher.gpu.AutoPicks.blobVersion(
+                    com.droiddeck.launcher.gpu.VulkanInfo.cachedOrNull()?.get("driver_version")))
+                ?.let { " (recommended pair: $it)" } ?: ""))
         val turnip = TurnipDriver(context)
         val androidChoice = SessionPrefs.androidDriver(context)
-        k("Display driver (chosen)", if (androidChoice.isEmpty()) "Auto -> ${turnip.autoId()}" else androidChoice)
-        k("  name / version", "${turnip.displayName(if (androidChoice.isEmpty()) turnip.autoId() else androidChoice)} ${turnip.driverVersion(if (androidChoice.isEmpty()) turnip.autoId() else androidChoice)}".trim())
+        val displayId = androidChoice.ifEmpty { turnip.autoId() }
+        val displayLabel = if (displayId == "system") DeviceInfo.builtinDriverLabel(SystemVulkanDriver.profile(), runtime = false)
+            else "${turnip.displayName(displayId)} ${turnip.driverVersion(displayId)}".trim()
+        k("Display driver (chosen)", if (androidChoice.isEmpty()) "Auto -> $displayLabel" else androidChoice)
+        k("  name / version", displayLabel)
         k("  imported available", turnip.enumerateImported().ifEmpty { listOf("none") }.joinToString(", "))
         val lm = LinuxVulkanDriverManager(context)
         run {
             val id = SessionPrefs.linuxDriver(context)
-            val label = if (id.isEmpty()) "runtime default (the Turnip built into the runtime)"
+            val label = if (id.isEmpty()) DeviceInfo.builtinDriverLabel(SystemVulkanDriver.profile(), runtime = true)
             else "${lm.getDriverName(id)} ${lm.getDriverVersion(id)}".trim() +
                 lm.getMinGlibc(id).let { if (it.isEmpty()) "" else " (glibc $it+)" } +
-                if (lm.isInstalled(id)) "" else "  [MISSING - falls back to the runtime's own]"
+                if (lm.isInstalled(id)) "" else if (SystemVulkanDriver.isSupportedGpu()) "  [MISSING - select an installed driver or Auto]"
+                else "  [MISSING - falls back to the runtime's own]"
             k("Linux driver", label)
         }
         k("Runtime's own ICD", LinuxRuntime.vulkanIcd(context)?.path)

@@ -52,6 +52,44 @@ environment entries and is intentionally narrower than **Reset game profile**.
 Values are literal strings, with no shell expansion; quotes are only needed when
 the consuming program expects them.
 
+## Game debug logs
+
+Under **Setup > Diagnostics**, enable **Session logs** and **Game debug logs**
+before reproducing a Windows game problem. Game debug logs is off by default and
+is available when Session logs is enabled. It applies to the next game launch through DroidDeck's
+Valve or third-party Proton wrapper, including added games and store shortcuts.
+A running game must be restarted. If the current session began with Session logs
+disabled, restart that session first: its existing log folder is disposable, and
+the UI shows a restart reminder instead of enabling logs that would be discarded.
+
+| Generated setting | Effective value while enabled |
+| --- | --- |
+| `PROTON_LOG` | `1` |
+| `PROTON_LOG_DIR`, `PROTON_CRASH_REPORT_DIR`, `DXVK_LOG_PATH` | The actual session log directory |
+| `DXVK_LOG_LEVEL` | `debug` |
+| `VKD3D_DEBUG` | `info` |
+| `WINEDEBUG` | Valid custom channels plus Proton's standard diagnostic channels |
+
+Diagnostics take precedence over conflicting inherited, shared, or per-game log
+settings while the switch is on. Wine channel selectors are normalized and
+deduplicated with the last selector winning; required exception, module, and
+timestamp channels are applied last, including when a profile contains `-all`.
+Custom channels from `PROTON_LOG` are retained when valid. Malformed channel tokens
+are omitted; an oversized list falls back to the standard diagnostic channels.
+
+Saved profiles and Steam launch options are unchanged. The launcher merges a
+process-environment map, so every variable has one value and paths containing
+spaces, quotes, or shell characters stay literal. Existing arguments and
+`%command%` are not reconstructed. Disabling the switch restores the user's normal
+settings on the next launch. It does not change Steam probes or native Linux
+programs, whose ordinary output remains in the session log.
+
+After reproducing once, stop the session and use **Latest session logs > Share
+logs**. The archive includes the generated Wine/Proton and graphics logs. Debug
+logging can reduce performance and consume storage; disable it after collecting
+the report. If the session log directory is unavailable, the launcher reports
+that diagnostics were skipped instead of writing uncollected files elsewhere.
+
 A Unity game under FEX (`UnityPlayer.dll` for Windows builds under Proton,
 `UnityPlayer.so` or `GameAssembly.so` for native Linux builds started by
 **Linux x86 (FEX)**) keeps FEX's TSO on when the Default profile's FEX preset
