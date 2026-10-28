@@ -466,6 +466,7 @@
     <string name="game_no_steam_title">Indítás Steam nélkül</string>
     <string name="game_no_steam_detail">Proton/FEX alatt nyitja meg a Steam kliens nélkül; a Steam funkciói ki vannak kapcsolva.</string>
     <string name="game_no_steam_on">Be</string>
+    <string name="game_locale_title">Területi beállítások</string>
     <string name="game_steam_with">Steammel indul</string>
     <string name="game_steam_without">Steam nélkül indul</string>
     <string name="game_settings_card">Beállítások</string>

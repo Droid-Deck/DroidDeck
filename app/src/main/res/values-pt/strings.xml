@@ -468,6 +468,7 @@
     <string name="game_no_steam_title">Iniciar sem o Steam</string>
     <string name="game_no_steam_detail">Abre no Proton/FEX sem o cliente do Steam; os recursos do Steam ficam desligados.</string>
     <string name="game_no_steam_on">Ativado</string>
+    <string name="game_locale_title">Localidade</string>
     <string name="game_steam_with">Inicia com o Steam</string>
     <string name="game_steam_without">Inicia sem o Steam</string>
     <string name="game_settings_card">Configurações</string>

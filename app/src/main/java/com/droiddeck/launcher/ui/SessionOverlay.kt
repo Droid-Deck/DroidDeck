@@ -317,6 +317,8 @@ class DrawerActions(
     val onGameFexPreset: (Long, String?) -> Unit = { _, _ -> },
     val gameNoSteamSaving: Boolean = false,
     val onGameNoSteam: (Long, Boolean) -> Unit = { _, _ -> },
+    val gameLocaleSaving: Boolean = false,
+    val onGameLocale: (Long, String?) -> Unit = { _, _ -> },
     val onComponentSwap: (protonId: String, comp: String, value: String) -> Unit = { _, _, _ -> },
     val onGameComponent: (appId: Long, comp: String, file: String?) -> Unit = { _, _, _ -> },
     val defaultProtonId: String? = null,
@@ -358,7 +360,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
     BackHandler(enabled = open && confirmStop) { confirmStop = false }
     LaunchedEffect(page) { host.open = null; appToChooseDisplay = null }
     LaunchedEffect(a.selectedGameProfileId) {
-        if (host.open == "fex") host.open = null
+        if (host.open == "fex" || host.open == "locale") host.open = null
     }
     LaunchedEffect(open, page, a.componentDownloadRevision) {
         if (open && page == SessionDrawerPage.GAMES) {
@@ -657,6 +659,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                             if (a.steam || a.direct) SettingsGroup(stringResource(R.string.game_settings_title)) {
                                 DrawerFexPresetRow(host, a, focus.track(page, "fex"))
                                 DrawerNoSteamRow(host, a, focus.track(page, "no-steam"))
+                                DrawerLocaleRow(host, a, focus.track(page, "locale"))
                                 GameEnvironmentRow(
                                     modifier = focus.track(page, "game-env"),
                                     showHint = false,
@@ -1178,6 +1181,19 @@ private fun DrawerNoSteamRow(host: MenuHost, a: DrawerActions, modifier: Modifie
 }
 
 @Composable
+private fun DrawerLocaleRow(host: MenuHost, a: DrawerActions, modifier: Modifier) {
+    val appId = a.selectedGameProfileId ?: return
+    val profile = a.selectedGameProfile?.takeIf { it.appId == appId } ?: return
+    val options: List<Pair<String?, String>> = listOf(null to stringResource(R.string.comp_game_use_general)) +
+        GameEnvironment.locales.map { it to localeLabel(it) } +
+        listOfNotNull(profile.locale?.takeIf { it !in GameEnvironment.locales }?.let { it to it })
+    ChoiceRow(
+        host, "locale", stringResource(R.string.game_locale_title), null, options, profile.locale,
+        enabled = !a.gameLocaleSaving, chipModifier = modifier,
+    ) { locale -> a.onGameLocale(appId, locale) }
+}
+
+@Composable
 private fun TextureFilteringGroup(host: MenuHost, a: DrawerActions, track: (String) -> Modifier) {
     val inherited = a.selectedGameProfileId != null
     val anisotropyChoices: List<Pair<Int?, String>> =
@@ -1267,6 +1283,7 @@ private fun SelectedGameProfileGroup(host: MenuHost, a: DrawerActions, track: (S
             if (profile.startWithoutSteam) {
                 ProfileSummaryRow(stringResource(R.string.game_no_steam_title), stringResource(R.string.game_no_steam_on))
             }
+            profile.locale?.let { ProfileSummaryRow(stringResource(R.string.game_locale_title), localeLabel(it)) }
             if (profile.environmentOverrides > 0) {
                 ProfileSummaryRow(
                     stringResource(R.string.game_env_title),

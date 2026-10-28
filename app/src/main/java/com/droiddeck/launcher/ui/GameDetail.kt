@@ -526,7 +526,7 @@ private fun EditArtButton(g: Library.SteamGame) {
     val folder = g.gameFiles
     val open: (() -> Unit)? = when {
         g.library == Library.ADDED && g.source == Library.ADDED && folder != null -> {
-            { GamesDialogState.editing = EditRequest(folder.path, openTarget = false, fromSummary = false, preview = EditPreview.of(ctx, g, folder.path)) }
+            { GamesDialogState.editing = EditRequest(folder.path, openTarget = false, fromSummary = false, preview = EditPreview.of(ctx, g, folder.path), scope = g.profileKey) }
         }
         g.library != Library.ADDED && g.source == Library.SOURCE_STEAM -> { { GamesDialogState.steamArt = g } }
         g.library == Library.ADDED && g.source != Library.ADDED && folder != null -> { { GamesDialogState.storeArt = g } }
@@ -700,7 +700,7 @@ private fun LaunchTab(game: Library.SteamGame, s: FrontEndState, a: FrontEndActi
 private fun ShortcutFields(game: Library.SteamGame, folder: File) {
     val ctx = LocalContext.current
     val preview = remember(game.gameId, game.name, GamesDialogState.editing) { EditPreview.of(ctx, game, folder.path) }
-    fun edit(target: Boolean) { GamesDialogState.editing = EditRequest(folder.path, openTarget = target, fromSummary = false, preview = EditPreview.of(ctx, game, folder.path)) }
+    fun edit(target: Boolean) { GamesDialogState.editing = EditRequest(folder.path, openTarget = target, fromSummary = false, preview = EditPreview.of(ctx, game, folder.path), scope = game.profileKey) }
     Column(Modifier.fillMaxWidth().tabPanel(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
         SectionLabel(stringResource(R.string.game_launch_shortcut))
         MenuItem(stringResource(R.string.edit_name), checked = false, detail = preview.name) { edit(false) }

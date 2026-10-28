@@ -470,6 +470,7 @@
     <string name="game_no_steam_title">Spustit bez Steamu</string>
     <string name="game_no_steam_detail">Otevře ji v Protonu/FEX bez klienta Steamu; funkce Steamu jsou vypnuté.</string>
     <string name="game_no_steam_on">Zapnuto</string>
+    <string name="game_locale_title">Národní prostředí</string>
     <string name="game_steam_with">Spouští se se Steamem</string>
     <string name="game_steam_without">Spouští se bez Steamu</string>
     <string name="game_settings_card">Nastavení</string>

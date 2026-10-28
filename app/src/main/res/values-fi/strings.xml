@@ -466,6 +466,7 @@
     <string name="game_no_steam_title">Käynnistä ilman Steamia</string>
     <string name="game_no_steam_detail">Avaa sen Protonissa/FEXissä ilman Steam-asiakasta; Steamin ominaisuudet ovat pois päältä.</string>
     <string name="game_no_steam_on">Päällä</string>
+    <string name="game_locale_title">Kielialue</string>
     <string name="game_steam_with">Käynnistyy Steamin kanssa</string>
     <string name="game_steam_without">Käynnistyy ilman Steamia</string>
     <string name="game_settings_card">Asetukset</string>

@@ -80,6 +80,13 @@ object GameEnvironmentStore {
     }
 
     @Synchronized
+    fun setGameLocale(context: Context, scope: String, locale: String?): GameEnvironment.Config {
+        val config = GameEnvironment.withGameLocale(read(context), scope, locale)
+        save(context, config)
+        return config
+    }
+
+    @Synchronized
     fun setDefault(context: Context, scope: String, name: String, value: String): Boolean {
         val config = read(context)
         if (GameEnvironment.hasOverride(config, scope, name)) return false

@@ -466,6 +466,7 @@
     <string name="game_no_steam_title">Steam के बिना शुरू करें</string>
     <string name="game_no_steam_detail">इसे Steam क्लाइंट के बिना Proton/FEX में खोलता है; Steam सुविधाएँ बंद रहती हैं।</string>
     <string name="game_no_steam_on">चालू</string>
+    <string name="game_locale_title">लोकेल</string>
     <string name="game_steam_with">Steam के साथ शुरू होता है</string>
     <string name="game_steam_without">Steam के बिना शुरू होता है</string>
     <string name="game_settings_card">सेटिंग</string>

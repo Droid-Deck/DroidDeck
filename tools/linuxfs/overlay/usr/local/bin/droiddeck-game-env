@@ -575,6 +575,71 @@ def without_pack(chosen_env, env):
     return result
 
 
+LOCALE_DIR = Path.home() / ".droiddeck-locale-data"
+
+
+def ensure_locale(name):
+    """The locale's glibc data, built from the rootfs' own i18n sources the first time it is asked
+    for: the rootfs ships only C.utf8. It goes into a directory of ours that LOCPATH names, not
+    into the shared archive, because an x86-64 guest reads its own rootfs and never sees the host's
+    archive. The compiled files are what is checked: a stamp outlives the archive it was written
+    for."""
+    target = LOCALE_DIR / name
+    if (target / "LC_CTYPE").exists():
+        return True
+    language, _, encoding = name.partition(".")
+    if "@" in encoding:
+        encoding, modifier = encoding.split("@", 1)
+        language += "@" + modifier
+    try:
+        LOCALE_DIR.mkdir(parents=True, exist_ok=True)
+        built = subprocess.run(["localedef", "-i", language, "-f", encoding or "UTF-8", "--no-archive", str(target)],
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=120)
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return built.returncode == 0 and (target / "LC_CTYPE").exists()
+
+
+def with_locale_path(env):
+    parts = [part for part in env.get("LOCPATH", "").split(":") if part]
+    if str(LOCALE_DIR) in parts:
+        return env
+    return dict(env, LOCPATH=":".join([str(LOCALE_DIR)] + parts))
+
+
+def configured_lang(config, app_id):
+    """True when the game's own environment names LANG: the session always exports C.UTF-8, so a
+    game that names LANG means that value even when it is the default one."""
+    try:
+        return "LANG" in (config.get("games", {}).get(str(app_id)) or {})
+    except AttributeError:
+        return False
+
+
+def game_locale(env, configured=False):
+    """A LANG set for the game, or DROIDDECK_LOCALE (a game's Locale): Wine reads LANG itself and
+    takes the game's codepage and language from it, so one game can run in its own locale while the
+    session and every other game stay on C.UTF-8. The session is always on C.UTF-8, so any other
+    LANG was set for this game by hand and wins."""
+    default = ("", "C", "POSIX", "C.UTF-8")
+    name = env.get("LANG", "")
+    if name in default:
+        if configured:
+            return env
+        name = env.get("DROIDDECK_LOCALE") or ""
+    if name in default:
+        return env
+    if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_-]+)?(?:@[A-Za-z0-9_-]+)?", name):
+        print("droiddeck-game-env: locale %s ignored" % name, file=sys.stderr)
+        return env
+    if ensure_locale(name):
+        env = with_locale_path(env)
+    else:
+        print("droiddeck-game-env: locale data for %s could not be built; the Linux side falls back to C" % name, file=sys.stderr)
+    print("droiddeck-game-env: locale %s" % name, file=sys.stderr)
+    return dict(env, LANG=name)
+
+
 SSBS_LIB = "/usr/local/lib/libssbs.so"
 
 
@@ -738,6 +803,7 @@ def main():
     except OSError:
         digest = None
     app_id = game_id(env)
+    configured = False
     if app_id:
         gl_default = gl_vsync(env)
         waiting = len(command) > 1 and command[1] == "waitforexitandrun"
@@ -758,6 +824,7 @@ def main():
         try:
             with path.open(encoding="utf-8") as source:
                 config = json.load(source)
+            configured = configured_lang(config, app_id)
             if waiting:
                 env = apply_config(env, config, app_id, fixes)
             else:
@@ -779,6 +846,7 @@ def main():
     if mic_enabled == "0":
         env["BANNER_AUDIO_DIRECT_MIC"] = "0"
     env = vram_cap(env)
+    env = game_locale(env, configured)
     env = force_ssbs(command, env)
     game_cores(env)
     cpu_topology(env, command)

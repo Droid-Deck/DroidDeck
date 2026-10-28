@@ -466,6 +466,7 @@
     <string name="game_no_steam_title">Εκκίνηση χωρίς το Steam</string>
     <string name="game_no_steam_detail">Το ανοίγει στο Proton/FEX χωρίς το πρόγραμμα Steam· οι λειτουργίες του Steam είναι ανενεργές.</string>
     <string name="game_no_steam_on">Ενεργό</string>
+    <string name="game_locale_title">Τοπικές ρυθμίσεις</string>
     <string name="game_steam_with">Ξεκινά με το Steam</string>
     <string name="game_steam_without">Ξεκινά χωρίς το Steam</string>
     <string name="game_settings_card">Ρυθμίσεις</string>

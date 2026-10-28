@@ -466,6 +466,7 @@
     <string name="game_no_steam_title">不啟動 Steam 直接開始</string>
     <string name="game_no_steam_detail">在不啟動 Steam 用戶端的情況下用 Proton/FEX 開啟；Steam 功能關閉。</string>
     <string name="game_no_steam_on">開</string>
+    <string name="game_locale_title">語言區域</string>
     <string name="game_steam_with">隨 Steam 啟動</string>
     <string name="game_steam_without">不經 Steam 啟動</string>
     <string name="game_settings_card">設定</string>

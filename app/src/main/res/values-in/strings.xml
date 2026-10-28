@@ -464,6 +464,7 @@
     <string name="game_no_steam_title">Mulai tanpa Steam</string>
     <string name="game_no_steam_detail">Membukanya di Proton/FEX tanpa klien Steam; fitur Steam nonaktif.</string>
     <string name="game_no_steam_on">Aktif</string>
+    <string name="game_locale_title">Lokal</string>
     <string name="game_steam_with">Dimulai dengan Steam</string>
     <string name="game_steam_without">Dimulai tanpa Steam</string>
     <string name="game_settings_card">Setelan</string>

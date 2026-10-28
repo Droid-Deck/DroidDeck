@@ -2273,6 +2273,7 @@
         <item quantity="many">%1$d juegos agregados</item>
         <item quantity="other">%1$d juegos agregados</item>
     </plurals>
+    <string name="game_locale_title">Configuración regional</string>
     <plurals name="games_already_n">
         <item quantity="one">%1$d ya en Juegos</item>
         <item quantity="other">%1$d ya en Juegos</item>

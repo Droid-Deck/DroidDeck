@@ -846,3 +846,17 @@ fun <T> SegmentedTabs(options: List<Pair<T, String>>, selected: T?, modifier: Mo
         }
     }
 }
+
+internal fun localeLabel(tag: String) = when (tag.substringBefore('.')) {
+    "ja_JP" -> "日本語"
+    "ko_KR" -> "한국어"
+    "zh_CN" -> "简体中文"
+    "zh_TW" -> "繁體中文"
+    "en_US" -> "English"
+    "ru_RU" -> "Русский"
+    "de_DE" -> "Deutsch"
+    "fr_FR" -> "Français"
+    "es_ES" -> "Español"
+    "pt_BR" -> "Português"
+    else -> tag
+}

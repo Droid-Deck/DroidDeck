@@ -468,6 +468,7 @@
     <string name="game_no_steam_title">Pornește fără Steam</string>
     <string name="game_no_steam_detail">Îl deschide în Proton/FEX fără clientul Steam; funcțiile Steam sunt oprite.</string>
     <string name="game_no_steam_on">Activat</string>
+    <string name="game_locale_title">Setări regionale</string>
     <string name="game_steam_with">Pornește cu Steam</string>
     <string name="game_steam_without">Pornește fără Steam</string>
     <string name="game_settings_card">Setări</string>

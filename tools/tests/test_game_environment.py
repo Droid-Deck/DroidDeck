@@ -1617,6 +1617,95 @@ class DirectAudioPrefixTest(unittest.TestCase):
         self.assertIsNone(self.link("system32"))
 
 
+class GameLocaleTest(unittest.TestCase):
+    def test_only_a_chosen_locale_replaces_the_session_one(self):
+        g = MODULE["game_locale"].__globals__
+        built = []
+        old = g["ensure_locale"]
+        g["ensure_locale"] = lambda name: built.append(name) or name != "xx_XX.UTF-8"
+        try:
+            session = {"LANG": "C.UTF-8", "HOME": "/root"}
+            self.assertEqual(MODULE["game_locale"](dict(session)), session)
+            self.assertEqual(MODULE["game_locale"](dict(session, DROIDDECK_LOCALE="C.UTF-8")), dict(session, DROIDDECK_LOCALE="C.UTF-8"))
+            chosen = MODULE["game_locale"](dict(session, DROIDDECK_LOCALE="ja_JP.UTF-8"))
+            self.assertEqual((chosen["LANG"], chosen["HOME"]), ("ja_JP.UTF-8", "/root"))
+            self.assertTrue(chosen["LOCPATH"].startswith(str(Path.home() / ".droiddeck-locale-data")))
+            self.assertEqual(MODULE["game_locale"](dict(session, LANG="ko_KR.UTF-8"))["LANG"], "ko_KR.UTF-8")
+            self.assertEqual(MODULE["game_locale"](dict(session, DROIDDECK_LOCALE="../passwd"))["LANG"], "C.UTF-8")
+            failed = MODULE["game_locale"](dict(session, DROIDDECK_LOCALE="xx_XX.UTF-8"))
+            self.assertEqual(failed["LANG"], "xx_XX.UTF-8")
+            self.assertNotIn("LOCPATH", failed)
+            both = MODULE["game_locale"](dict(session, LANG="fr_FR.UTF-8", DROIDDECK_LOCALE="ja_JP.UTF-8"))
+            self.assertEqual(both["LANG"], "fr_FR.UTF-8")
+            self.assertEqual(built, ["ja_JP.UTF-8", "ko_KR.UTF-8", "xx_XX.UTF-8", "fr_FR.UTF-8"])
+        finally:
+            g["ensure_locale"] = old
+
+    def test_a_lang_the_game_names_wins_even_when_it_is_the_default(self):
+        g = MODULE["game_locale"].__globals__
+        old = g["ensure_locale"]
+        built = []
+        g["ensure_locale"] = lambda name: built.append(name) or True
+        try:
+            session = {"LANG": "C.UTF-8", "HOME": "/root"}
+            config = {"version": 1, "games": {"42": {"LANG": "C.UTF-8", "DROIDDECK_LOCALE": "ja_JP.UTF-8"}}}
+            self.assertTrue(MODULE["configured_lang"](config, "42"))
+            self.assertFalse(MODULE["configured_lang"](config, "43"))
+            named = MODULE["game_locale"](dict(session, DROIDDECK_LOCALE="ja_JP.UTF-8"), MODULE["configured_lang"](config, "42"))
+            self.assertEqual(named["LANG"], "C.UTF-8")
+            self.assertEqual(built, [])
+            chosen = MODULE["game_locale"](dict(session, DROIDDECK_LOCALE="ja_JP.UTF-8"), MODULE["configured_lang"](config, "43"))
+            self.assertEqual(chosen["LANG"], "ja_JP.UTF-8")
+            self.assertEqual(built, ["ja_JP.UTF-8"])
+        finally:
+            g["ensure_locale"] = old
+
+    def test_locale_data_is_built_once_and_a_failure_is_retried(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            g = MODULE["ensure_locale"].__globals__
+
+            class Fake:
+                DEVNULL = None
+                PIPE = subprocess.PIPE
+                SubprocessError = subprocess.SubprocessError
+
+                def __init__(self, code):
+                    self.code = code
+                    self.calls = []
+                    self.available = set()
+
+                def run(self, command, **kwargs):
+                    self.calls.append(command)
+                    if self.code == 0:
+                        target = Path(command[-1])
+                        target.mkdir(parents=True, exist_ok=True)
+                        (target / "LC_CTYPE").write_text("")
+                    return subprocess.CompletedProcess(command, self.code)
+
+            old_dir, old_subprocess = g["LOCALE_DIR"], g["subprocess"]
+            g["LOCALE_DIR"] = Path(tmp) / "data"
+            try:
+                fake = Fake(0)
+                g["subprocess"] = fake
+                self.assertTrue(MODULE["ensure_locale"]("ja_JP.UTF-8"))
+                self.assertTrue(MODULE["ensure_locale"]("ja_JP.UTF-8"))
+                self.assertEqual(fake.calls, [["localedef", "-i", "ja_JP", "-f", "UTF-8", "--no-archive", str(Path(tmp) / "data" / "ja_JP.UTF-8")]])
+                (Path(tmp) / "data" / "ja_JP.UTF-8" / "LC_CTYPE").unlink()
+                self.assertTrue(MODULE["ensure_locale"]("ja_JP.UTF-8"))
+                self.assertEqual(len(fake.calls), 2)
+                self.assertTrue(MODULE["ensure_locale"]("sr_RS.UTF-8@latin"))
+                self.assertEqual(fake.calls[-1],
+                                 ["localedef", "-i", "sr_RS@latin", "-f", "UTF-8", "--no-archive",
+                                  str(Path(tmp) / "data" / "sr_RS.UTF-8@latin")])
+                failing = Fake(1)
+                g["subprocess"] = failing
+                self.assertFalse(MODULE["ensure_locale"]("ru_RU.UTF-8"))
+                self.assertFalse(MODULE["ensure_locale"]("ru_RU.UTF-8"))
+                self.assertEqual(len([call for call in failing.calls if call[0] == "localedef"]), 2)
+            finally:
+                g["LOCALE_DIR"], g["subprocess"] = old_dir, old_subprocess
+
+
 class UbisoftOverlayTest(unittest.TestCase):
     SETTINGS = (
         "language:\n  code: en-US\n"
@@ -1661,6 +1750,7 @@ class UbisoftOverlayTest(unittest.TestCase):
             self.assertEqual(settings.read_text(), self.SETTINGS.replace("enabled: true", "enabled: false"))
             self.assertEqual(settings.stat().st_mode & 0o777, 0o644)
             self.assertEqual(sorted(p.name for p in settings.parent.iterdir()), ["settings.yaml"])
+
 
 
 if __name__ == "__main__":

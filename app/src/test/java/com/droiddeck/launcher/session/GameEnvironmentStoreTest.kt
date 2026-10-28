@@ -179,6 +179,16 @@ class GameEnvironmentStoreTest {
         assertFalse(JSONObject(guest.readText()).getJSONObject("shared").has("FEX_SMCCHECKS"))
     }
 
+    @Test fun gameLocaleIsSavedAndPublished() {
+        GameEnvironmentStore.save(context, GameEnvironment.Config())
+        GameEnvironmentStore.setGameLocale(context, "42", "ja_JP.UTF-8")
+        assertEquals("ja_JP.UTF-8", GameEnvironment.gameLocale(GameEnvironmentStore.read(context), "42"))
+        val published = GameEnvironmentStore.decode(JSONObject(guest.readText()))
+        assertEquals("ja_JP.UTF-8", published.games.getValue("42").getValue(GameEnvironment.LOCALE))
+        GameEnvironmentStore.setGameLocale(context, "42", null)
+        assertEquals(emptyMap<String, Map<String, String?>>(), GameEnvironmentStore.read(context).games)
+    }
+
     @Test fun textureFilteringPublishesDxvkOptionsBesideTheProfiles() {
         GameEnvironmentStore.save(context, GameEnvironment.Config(shared = mapOf("DXVK_CONFIG" to "dxvk.tearFree = True")))
         assertFalse(JSONObject(guest.readText()).has(GameEnvironmentStore.DXVK_CONFIG))
