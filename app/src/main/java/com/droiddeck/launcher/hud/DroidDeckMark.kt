@@ -36,6 +36,10 @@ internal object DroidDeckMark {
 
     fun widthFor(height: Float): Float = height * VIEW_W / VIEW_H
 
+    /** Where the drawn mark starts and ends inside [widthFor]: the artwork has empty space on both sides. */
+    fun inkLeftFor(height: Float): Float = (-31.98f - VIEW_X) * height / VIEW_H
+    fun inkRightFor(height: Float): Float = (175.93f - VIEW_X) * height / VIEW_H
+
     fun draw(canvas: Canvas, left: Float, top: Float, height: Float, bodyColor: Int, orbColor: Int) {
         val s = height / VIEW_H
         matrix.setScale(s, s)
