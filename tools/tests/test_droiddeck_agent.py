@@ -196,6 +196,22 @@ class AgentTest(unittest.TestCase):
         answer = self.ask({"kind": "vr", "action": "status"})
         self.assertEqual("UNAVAILABLE", answer["error"]["code"])
 
+    def test_steam_url_uses_client_argv_for_supported_navigation(self):
+        with patch.object(agent.subprocess, "Popen") as popen:
+            answer = self.ask({"kind": "steam-url", "url": "steam://open/downloads"})
+        self.assertTrue(answer["ok"])
+        self.assertTrue(answer["launched"])
+        self.assertEqual(["steam", "steam://open/downloads"], popen.call_args.args[0])
+        self.assertTrue(popen.call_args.kwargs["start_new_session"])
+
+    def test_steam_url_rejects_untrusted_routes_and_argument_injection(self):
+        for url in ("steam://open/settings", "steam://open/downloads\n--exec", "https://example.com"):
+            with self.subTest(url=url), patch.object(agent.subprocess, "Popen") as popen:
+                answer = self.ask({"kind": "steam-url", "url": url})
+                self.assertFalse(answer["ok"])
+                self.assertEqual("INVALID_REQUEST", answer["error"]["code"])
+                popen.assert_not_called()
+
     def fake_proc(self, pid, parent, comm, env):
         root = self.dir / "proc" / str(pid)
         root.mkdir(parents=True)

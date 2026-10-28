@@ -12,6 +12,7 @@ import android.util.Log
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.session.SessionEvents
 import com.droiddeck.launcher.session.SessionState
+import com.droiddeck.launcher.session.SteamSessionUrl
 import org.json.JSONObject
 import java.io.File
 import java.util.UUID
@@ -95,6 +96,15 @@ object AgentGuest {
 
     fun focus(context: Context): JSONObject? =
         if (SessionState.running) readJson(File(dir(context), "focus.json")) else null
+
+    fun openSteamUrl(context: Context, url: String): JSONObject {
+        require(SteamSessionUrl.isSupported(url)) { "Unsupported Steam navigation URL" }
+        val result = call(context, JSONObject().put("kind", "steam-url").put("url", url), 8_000, trusted = true)
+        check(SteamSessionUrl.wasOpened(result.optBoolean("ok"), result.optBoolean("launched"))) {
+            "Steam did not accept the navigation request"
+        }
+        return result
+    }
 
     fun selectedSteamAppId(context: Context): Long? {
         val result = call(context, JSONObject().put("kind", "steam-selection"), 6_000)
