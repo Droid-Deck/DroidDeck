@@ -3261,4 +3261,10 @@
     <string name="integration_shortcuts_service">DroidDeck Home button</string>
     <string name="integration_shortcuts_service_description">Pass Home button presses to Steam Guide while a Steam session is focused and DroidDeck is the default Home app. Does not read screen content.</string>
     <string name="integration_brightness_needed">Turn on Brightness in Setup → Steam integration</string>
+    <string name="upd_download_ready">Download complete — ready to install</string>
+    <string name="upd_continue_install">Continue installation</string>
+    <string name="upd_verifying">Verifying update</string>
+    <string name="upd_task_target">Installation target: %1$s</string>
+    <string name="upd_task_different">This package differs from the selected release. Continue to install the package shown above, or discard it to download the selected release.</string>
+    <string name="upd_discard_download">Discard downloaded package</string>
 </resources>

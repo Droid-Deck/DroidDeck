@@ -1,12 +1,6 @@
 package com.droiddeck.launcher
 
 import android.app.Activity
-import android.content.BroadcastReceiver
-import android.content.Context
-import android.content.Intent
-import android.content.IntentFilter
-import android.content.pm.PackageInstaller
-import android.os.Build
 import android.os.Handler
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -15,6 +9,9 @@ import androidx.compose.runtime.setValue
 import com.droiddeck.launcher.session.SessionState
 import com.droiddeck.launcher.ui.UpdatesActions
 import com.droiddeck.launcher.ui.UpdatesState
+import com.droiddeck.launcher.update.AppUpdateService
+import com.droiddeck.launcher.update.AppUpdateState
+import com.droiddeck.launcher.update.AppUpdateState.Phase
 import com.droiddeck.launcher.update.AppUpdates
 import com.droiddeck.launcher.update.SelfInstaller
 
@@ -29,25 +26,58 @@ internal class UpdatesMenu(private val activity: Activity, private val ui: Handl
     private var pending: AppUpdates.Release? = null
     private var lastCheck = 0L
     private var request = 0
-    @Volatile private var session = -1
+    private var resumed = false
+    private var ready by mutableStateOf(false)
+    private var taskApk by mutableStateOf<AppUpdates.Apk?>(null)
+    private var taskLabel by mutableStateOf<String?>(null)
+    private var taskError: String? = null
+    private var continuing = false
+    private var continueReady = false
+    private val observer: (AppUpdateState.Snapshot) -> Unit = { task ->
+        taskError = task.error
+        error = task.error
+        ready = task.phase == Phase.READY
+        taskApk = if (task.phase in setOf(Phase.IDLE, Phase.FAILED)) null else task.apk
+        taskLabel = task.targetLabel
+        percent = task.percent
+        stage = when (task.phase) {
+            Phase.DOWNLOADING -> activity.getString(R.string.upd_stage_downloading)
+            Phase.VERIFYING -> activity.getString(R.string.upd_verifying)
+            Phase.INSTALLING -> activity.getString(R.string.upd_stage_installing)
+            Phase.CONFIRMING -> activity.getString(R.string.upd_stage_confirm)
+            else -> null
+        }
+        continueWhenVisible()
+    }
 
-    fun state() = UpdatesState(catalog, follow, checking, error, stage, percent, askPermission)
+    fun state() = UpdatesState(catalog, follow, checking, error, stage, percent, askPermission, ready, taskApk, taskLabel)
 
     fun actions() = UpdatesActions(
         onCheck = { check(force = true) },
         onFollow = ::choose,
         onInstall = ::install,
+        onContinueInstall = { continueWhenVisible(explicit = true) },
+        onDiscardDownload = {
+            continueReady = false
+            askPermission = false
+            pending = null
+            AppUpdateState.discardReady(activity)
+        },
         onAllowInstalls = {
             askPermission = false
             runCatching { activity.startActivity(SelfInstaller.permissionIntent(activity)) }
                 .onFailure { error = activity.getString(R.string.upd_unknown_apps_failed); pending = null }
         },
-        onDismissPermission = { askPermission = false; pending = null },
+        onDismissPermission = { askPermission = false; pending = null; continueReady = false },
     )
 
     val hasUpdate: Boolean get() = AppUpdates.hasUpdate(catalog, follow)
 
+    fun onPause() { resumed = false }
+
     fun onResume() {
+        resumed = true
+        continueWhenVisible(explicit = continueReady)
         pending?.let { r ->
             if (SelfInstaller.canInstall(activity)) { pending = null; install(r) }
         }
@@ -69,16 +99,19 @@ internal class UpdatesMenu(private val activity: Activity, private val ui: Handl
                 result.onSuccess {
                     catalog = it
                     follow = AppUpdates.follow(activity, it)
-                    error = null
+                    error = taskError
                 }.onFailure { if (force) error = activity.getString(R.string.upd_couldnt_check, it.message ?: it.javaClass.simpleName) }
             }
         }, "app-updates").start()
     }
 
     private fun choose(f: AppUpdates.Follow) {
+        continueReady = false
+        askPermission = false
+        pending = null
         AppUpdates.setFollow(activity, f)
         follow = f
-        error = null
+        error = taskError
     }
 
     private fun install(r: AppUpdates.Release) {
@@ -88,49 +121,49 @@ internal class UpdatesMenu(private val activity: Activity, private val ui: Handl
         if (SessionState.running) { error = activity.getString(R.string.upd_stop_first); return }
         if (!SelfInstaller.canInstall(activity)) { pending = r; askPermission = true; return }
         error = null
-        session = -1
-        stage = activity.getString(R.string.upd_stage_downloading)
-        percent = 0
-        Thread({
-            val result = runCatching {
-                val file = SelfInstaller.download(activity, apk) { pct -> ui.post { percent = pct } }
-                ui.post { stage = activity.getString(R.string.upd_stage_installing); percent = -1 }
-                SelfInstaller.install(activity, file) { id -> session = id }
-            }
-            result.onFailure { e -> ui.post { stage = null; error = e.message ?: activity.getString(R.string.upd_failed) } }
-        }, "app-update-install").start()
+        val target = "${r.version ?: r.title.ifBlank { r.tag }} (${r.commit.take(7)})"
+        AppUpdateService.start(activity, apk, target)
     }
 
-    private val receiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context, intent: Intent) {
-            if (intent.getIntExtra(PackageInstaller.EXTRA_SESSION_ID, -1).let { it < 0 || it != session }) return
-            when (val status = intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE)) {
-                PackageInstaller.STATUS_PENDING_USER_ACTION -> {
-                    val confirm = if (Build.VERSION.SDK_INT >= 33) intent.getParcelableExtra(Intent.EXTRA_INTENT, Intent::class.java)
-                    else @Suppress("DEPRECATION") intent.getParcelableExtra(Intent.EXTRA_INTENT)
-                    val safe = confirm?.let { SelfInstaller.safeConfirmIntent(activity, it) }
-                    if (safe == null) { stage = null; error = activity.getString(R.string.upd_not_offered); return }
-                    stage = activity.getString(R.string.upd_stage_confirm)
-                    if (runCatching { activity.startActivity(safe) }.isFailure) { stage = null; error = activity.getString(R.string.upd_not_offered) }
+    private fun continueWhenVisible(explicit: Boolean = false) {
+        if (!resumed || continuing || SessionState.running) return
+        val power = activity.getSystemService(android.os.PowerManager::class.java)
+        val keyguard = activity.getSystemService(android.app.KeyguardManager::class.java)
+        if (!power.isInteractive || keyguard.isKeyguardLocked) return
+        continuing = true
+        try {
+            val task = AppUpdateState.snapshot
+            val selected = catalog?.let { AppUpdates.release(it, follow)?.apk }
+            val matchesSelection = selected != null && selected.sha256.equals(task.apk?.sha256, ignoreCase = true)
+            if (task.phase == Phase.READY && (explicit || task.automatic && matchesSelection)) {
+                if (!SelfInstaller.canInstall(activity)) {
+                    continueReady = true
+                    askPermission = true
+                    return
                 }
-                PackageInstaller.STATUS_SUCCESS -> stage = null
-                else -> {
-                    stage = null
-                    error = SelfInstaller.describeFailure(activity, status, intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE))
+                continueReady = false
+                AppUpdateState.install(activity)
+            }
+            AppUpdateState.takeConfirmation()?.let { confirm ->
+                if (runCatching { activity.startActivity(confirm) }.isFailure) {
+                    AppUpdateState.fail(activity, activity.getString(R.string.upd_not_offered))
                 }
             }
+        } finally {
+            continuing = false
         }
     }
 
     fun start() {
         catalog = AppUpdates.cached(activity)
         follow = AppUpdates.follow(activity, catalog)
-        val filter = IntentFilter(SelfInstaller.ACTION_STATUS)
-        if (Build.VERSION.SDK_INT >= 33) activity.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
-        else activity.registerReceiver(receiver, filter)
+        AppUpdateState.initialize(activity)
+        AppUpdateState.subscribe(observer)
     }
 
     fun unregister() {
-        runCatching { activity.unregisterReceiver(receiver) }
+        resumed = false
+        request++
+        AppUpdateState.unsubscribe(observer)
     }
 }
