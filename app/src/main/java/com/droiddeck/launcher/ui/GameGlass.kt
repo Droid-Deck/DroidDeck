@@ -46,6 +46,7 @@ import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import coil.imageLoader
@@ -166,9 +167,18 @@ internal fun GameBackdrop(
     val wash = rememberAsyncImagePainter(remember(ambient) { ambientRequest(ctx, ambient ?: art) })
     glass.painter = if (ambient != null || art != null) wash else null
     val edge = 24.dp
+    val artMin = with(LocalDensity.current) { ArtMin.toPx() }
     Box(
-        modifier.fillMaxWidth().onGloballyPositioned { glass.coords = it; if (!glass.ready) glass.ready = true },
+        modifier.fillMaxWidth().onGloballyPositioned {
+            glass.coords = it
+            if (!glass.ready) glass.ready = true
+            if (art == null) {
+                val at = it.boundsInRoot()
+                onArtPlaced(Rect(at.left, at.top, at.right, at.top + artMin))
+            }
+        },
     ) {
+        DisposableEffect(art == null) { onDispose { if (art == null) onArtPlaced(null) } }
         Box(
             Modifier.matchParentSize()
                 .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
