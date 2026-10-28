@@ -93,6 +93,8 @@ import com.droiddeck.launcher.stores.itch.ItchCollection
 import com.droiddeck.launcher.stores.itch.ItchCollections
 import com.droiddeck.launcher.stores.itch.ItchUpdates
 import com.droiddeck.launcher.stores.gog.GogMaintenance
+import com.droiddeck.launcher.stores.maintenance.MaintenanceCheckState
+import com.droiddeck.launcher.stores.maintenance.StoreMaintenance
 import com.droiddeck.launcher.stores.retainOrder
 import com.droiddeck.launcher.stores.xbox.XboxLibraryFilter
 import com.droiddeck.launcher.stores.sortGames
@@ -595,7 +597,8 @@ internal fun LibraryMarker(e: LibraryEntry, download: DownloadEntry?) {
 }
 
 private fun libraryUpdateAvailable(e: LibraryEntry): Boolean = e.storeKey?.let { it in ItchUpdates.available } == true ||
-    e.source == Store.GOG.id && (e.item?.id ?: e.game?.storeId)?.let { GogMaintenance.checks[it]?.state } == GogMaintenance.State.AVAILABLE
+    e.source == Store.GOG.id && (e.item?.id ?: e.game?.storeId)?.let { GogMaintenance.checks[it]?.state } == GogMaintenance.State.AVAILABLE ||
+    e.storeKey?.let { StoreMaintenance.checks[it]?.state == MaintenanceCheckState.AVAILABLE } == true
 
 @Composable
 private fun LibraryRow(e: LibraryEntry, first: Boolean, navigation: Modifier, choose: (() -> Unit)?, onOpen: (String) -> Unit) {
