@@ -40,7 +40,6 @@ internal fun SteamClientMaintenanceActions(actions: FrontEndActions) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             SecondaryButton("Open Steam downloads") { actions.onSteamUrl("steam://open/downloads") }
-            SecondaryButton("Open Steam library") { actions.onSteamUrl("steam://nav/library") }
         }
         Text("In Steam, open this game’s Properties → Installed Files → Verify integrity.",
             fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)

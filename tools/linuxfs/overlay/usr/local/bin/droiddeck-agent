@@ -1053,7 +1053,7 @@ def handle(agent_dir, req):
     if kind == "steam-url":
         url = req.get("url")
         if not isinstance(url, str) or not re.fullmatch(
-                r"steam://(?:open/downloads|nav/library|uninstall/[1-9][0-9]{0,9})", url):
+                r"steam://(?:open/downloads|uninstall/[1-9][0-9]{0,9})", url):
             raise AgentError("INVALID_REQUEST", "Steam navigation URL is not supported")
         try:
             subprocess.Popen(["steam", url], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,

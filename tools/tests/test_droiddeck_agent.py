@@ -205,7 +205,7 @@ class AgentTest(unittest.TestCase):
         self.assertTrue(popen.call_args.kwargs["start_new_session"])
 
     def test_steam_url_rejects_untrusted_routes_and_argument_injection(self):
-        for url in ("steam://open/settings", "steam://open/downloads\n--exec", "https://example.com"):
+        for url in ("steam://open/settings", "steam://nav/library", "steam://open/downloads\n--exec", "https://example.com"):
             with self.subTest(url=url), patch.object(agent.subprocess, "Popen") as popen:
                 answer = self.ask({"kind": "steam-url", "url": url})
                 self.assertFalse(answer["ok"])

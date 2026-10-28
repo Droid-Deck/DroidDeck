@@ -28,7 +28,7 @@ its existing engine or client can perform.
   and space amounts are client-determined. Metadata checks do not claim success
   when package identity or version information is missing. References: [Xodus](https://github.com/xodus-gaming/xodus),
   [Nexus](https://github.com/domsvoboda/xodus-nexus), and the [pinned package-update query](https://github.com/domsvoboda/xodus-nexus/blob/396e7fb8fe0e5f00d956091195c614b8a0732ab1/assets/xodus-store-updates.patch).
-- **Steam:** navigation to Steam downloads/library and guidance to use the
+- **Steam:** navigation to Steam downloads and guidance to use the
   game's Properties → Installed Files → Verify integrity. The app does not run
   Steam validation itself. Native Steam apps are distinguished from
   third-party shortcuts. See [Valve's game-file validation instructions](https://help.steampowered.com/en/faqs/view/0C48-FCBD-DA71-93EB).
