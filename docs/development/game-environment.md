@@ -96,6 +96,14 @@ A Unity game under FEX (`UnityPlayer.dll` for Windows builds under Proton,
 turns it off: without TSO such games can deadlock or crash (seen with Megabonk
 and Crab Game). A FEX preset chosen for the game itself still applies.
 
+Games get `vblank_mode=0`, so OpenGL does not wait for each screen refresh. Wine
+asks for a swap interval of 1 on every OpenGL window, and WineD3D's front-buffer
+drawing (DirectDraw, Direct3D 1–7) never lowers it, so those games ran at the
+refresh rate even with no frame limit (AIO Direct3D 7: 144 fps at 144 Hz, about
+2,260 with the wait off). Steam's Frame Limit still holds a game: while it is on,
+gamescope's WSI layer presents every swapchain in FIFO at the limit. A
+`vblank_mode` from the launch options or the environment editor is kept.
+
 ## Defaults and available suggestions
 
 The initial configuration enables Mesa shader caching with
