@@ -264,6 +264,10 @@
             android:name=".core.WirelessAdbPairingService"
             android:exported="false" />
         <service
+            android:name=".update.AppUpdateService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+        <service
             android:name=".stores.download.StoreDownloadService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />

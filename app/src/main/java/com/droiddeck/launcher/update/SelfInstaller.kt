@@ -28,12 +28,24 @@ object SelfInstaller {
 
     fun download(context: Context, apk: AppUpdates.Apk, progress: (Int) -> Unit): File {
         val dir = File(context.cacheDir, "updates")
-        dir.listFiles()?.forEach { if (it.name != apk.name) FileUtils.delete(it) }
+        cleanDownloads(dir, apk.name)
         dir.mkdirs()
         val target = File(dir, apk.name)
         val ok = Downloader.downloadFile(apk.url, target, true, apk.sha256) { f -> progress(if (f < 0) -1 else (f * 100).toInt()) }
         if (!ok) throw IOException(context.getString(R.string.selfinst_download_failed))
+        validate(context, target, apk)
+        return target
+    }
+
+    internal fun cleanDownloads(dir: File, name: String) {
+        dir.listFiles()?.forEach {
+            if (it.name != name && it.name != "$name.resume.properties") FileUtils.delete(it)
+        }
+    }
+
+    internal fun validate(context: Context, target: File, apk: AppUpdates.Apk) {
         try {
+            if (!target.isFile) throw IOException(context.getString(R.string.selfinst_download_failed))
             if (apk.size > 0 && target.length() != apk.size) {
                 throw IOException(context.getString(R.string.selfinst_size_mismatch))
             }
@@ -43,9 +55,9 @@ object SelfInstaller {
             validateDownloaded(context, target, apk)
         } catch (e: Exception) {
             FileUtils.delete(target)
+            FileUtils.delete(File(target.path + ".resume.properties"))
             throw e
         }
-        return target
     }
 
     private fun validateDownloaded(context: Context, file: File, apk: AppUpdates.Apk) {
@@ -100,19 +112,36 @@ object SelfInstaller {
             if (Build.VERSION.SDK_INT >= 31) setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
         }
         val id = installer.createSession(params)
-        installer.openSession(id).use { session ->
-            apk.inputStream().use { input ->
-                session.openWrite("base.apk", 0, apk.length()).use { out ->
-                    input.copyTo(out, 1 shl 16)
-                    session.fsync(out)
+        try {
+            installer.openSession(id).use { session ->
+                apk.inputStream().use { input ->
+                    session.openWrite("base.apk", 0, apk.length()).use { out ->
+                        input.copyTo(out, 1 shl 16)
+                        session.fsync(out)
+                    }
                 }
+                onSession(id)
+                commit(context, id, session)
             }
-            val status = Intent(ACTION_STATUS).setPackage(context.packageName)
-            val flags = PendingIntent.FLAG_UPDATE_CURRENT or (if (Build.VERSION.SDK_INT >= 31) PendingIntent.FLAG_MUTABLE else 0)
-            onSession(id)
-            session.commit(PendingIntent.getBroadcast(context, id, status, flags).intentSender)
+        } catch (e: Exception) {
+            runCatching { installer.abandonSession(id) }
+            throw e
         }
     }
+
+    internal fun resume(context: Context, id: Int) {
+        context.packageManager.packageInstaller.openSession(id).use { commit(context, id, it) }
+    }
+
+    private fun commit(context: Context, id: Int, session: PackageInstaller.Session) {
+        val status = Intent(ACTION_STATUS).setPackage(context.packageName)
+        val flags = PendingIntent.FLAG_UPDATE_CURRENT or (if (Build.VERSION.SDK_INT >= 31) PendingIntent.FLAG_MUTABLE else 0)
+        session.commit(PendingIntent.getBroadcast(context, id, status, flags).intentSender)
+    }
+
+    internal fun isInstalled(context: Context, apk: AppUpdates.Apk): Boolean =
+        apk.packageName == context.packageName && apk.versionCode == BuildConfig.VERSION_CODE &&
+            apk.sha256.equals(Hashes.sha256(File(context.applicationInfo.sourceDir)), ignoreCase = true)
 
     /** Only a system installer activity may be launched from the status broadcast, without URI grants. */
     fun safeConfirmIntent(context: Context, confirm: Intent): Intent? {

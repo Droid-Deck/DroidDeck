@@ -3068,6 +3068,12 @@
     <string name="itch_collections">收藏集</string>
     <string name="xbox_filter_cloud">云</string>
     <string name="stores_xbox_cloud_settings">云设置</string>
+    <string name="upd_download_ready">下载完成，等待安装</string>
+    <string name="upd_continue_install">继续安装</string>
+    <string name="upd_verifying">正在校验更新</string>
+    <string name="upd_task_target">安装目标：%1$s</string>
+    <string name="upd_task_different">此安装包与当前所选版本不同。继续安装将使用上方安装包，或丢弃后下载当前所选版本。</string>
+    <string name="upd_discard_download">丢弃已下载的安装包</string>
     <string name="apps_search_hint">搜索应用</string>
     <string name="apps_no_match">没有与“%1$s”匹配的应用。</string>
     <string name="apps_add_widget">添加微件</string>

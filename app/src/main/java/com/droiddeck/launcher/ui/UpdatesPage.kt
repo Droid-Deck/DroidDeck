@@ -77,6 +77,9 @@ class UpdatesState(
     val stage: String? = null,
     val percent: Int = -1,
     val askPermission: Boolean = false,
+    val ready: Boolean = false,
+    val taskApk: AppUpdates.Apk? = null,
+    val taskLabel: String? = null,
 ) {
     val hasUpdate: Boolean get() = AppUpdates.hasUpdate(catalog, follow)
 }
@@ -87,6 +90,8 @@ class UpdatesActions(
     val onInstall: (Release) -> Unit = {},
     val onAllowInstalls: () -> Unit = {},
     val onDismissPermission: () -> Unit = {},
+    val onContinueInstall: () -> Unit = {},
+    val onDiscardDownload: () -> Unit = {},
 )
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
@@ -190,9 +195,20 @@ private fun StatusPanel(s: FrontEndState, u: UpdatesState, ua: UpdatesActions, m
         Box(Modifier.padding(top = 14.dp)) {
             when {
                 u.stage != null -> Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    u.taskApk?.let { Text(stringResource(R.string.upd_task_target, u.taskLabel ?: it.name), fontSize = 13.sp, color = colors.onSurfaceVariant) }
                     Text(if (u.percent >= 0) stringResource(R.string.upd_stage_percent, u.stage, u.percent) else stringResource(R.string.upd_stage, u.stage), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground)
                     if (u.percent >= 0) LinearProgressIndicator(progress = { u.percent / 100f }, modifier = Modifier.fillMaxWidth().height(6.dp).clip(CircleShape))
                     else LinearProgressIndicator(modifier = Modifier.fillMaxWidth().height(6.dp).clip(CircleShape))
+                }
+                u.ready -> Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    u.taskApk?.let { apk ->
+                        Text(stringResource(R.string.upd_task_target, u.taskLabel ?: apk.name), fontSize = 13.sp, color = colors.onSurfaceVariant)
+                        if (!apk.sha256.equals(release?.apk?.sha256, ignoreCase = true)) {
+                            Text(stringResource(R.string.upd_task_different), fontSize = 13.sp, color = AttentionAmber)
+                        }
+                    }
+                    PrimaryButton(stringResource(R.string.upd_continue_install), enabled = !s.sessionRunning, main = true, onClick = ua.onContinueInstall)
+                    SecondaryButton(stringResource(R.string.upd_discard_download), onClick = ua.onDiscardDownload)
                 }
                 offered && installBlock != null -> Unit
                 offer == Offer.UPDATE -> PrimaryButton(stringResource(R.string.upd_update_button, button), enabled = installable, main = true) { ua.onInstall(release!!) }
