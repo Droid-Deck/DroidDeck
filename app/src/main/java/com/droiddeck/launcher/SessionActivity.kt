@@ -294,6 +294,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private val drawerShortcutKeysDown = mutableSetOf<Pair<Int, Int>>()
 
     private var drawerOpenState by mutableStateOf(false)
+    private var typingReturnMode: SecondScreenMode? = null
     private var drawerDocked by mutableStateOf(false)
     private var drawerLayerOpen = false
     private var drawerBackRequests by mutableIntStateOf(0)
@@ -749,6 +750,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     openBottomKeyboard()
                 }
             }
+            val keyboardDismissalsSeen = androidx.compose.runtime.remember { intArrayOf(AgentGuest.keyboardDismissals) }
+            androidx.compose.runtime.LaunchedEffect(AgentGuest.keyboardDismissals) {
+                if (AgentGuest.keyboardDismissals != keyboardDismissalsSeen[0]) {
+                    keyboardDismissalsSeen[0] = AgentGuest.keyboardDismissals
+                    secondScreenPresentation?.closeFieldKeyboard()
+                }
+            }
             androidx.compose.runtime.LaunchedEffect(picturePosition, SessionState.running, pipUi, cardboard.enabled) { applyGameAlignment() }
             DroidDeckTheme {
             if (pipUi) {
@@ -1167,7 +1175,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 screenLayoutsOpen = true
             },
             onFexPreset = { v -> SessionPrefs.setFexPreset(this@SessionActivity, v); readPrefs() },
-            onSecondScreenMode = { mode -> if (docked) drawerOpen = false; selectSecondScreenMode(mode) },
+            onSecondScreenMode = { mode -> if (docked) drawerOpen = false; typingReturnMode = null; selectSecondScreenMode(mode) },
             onSecondScreenDisplay = ::selectSecondScreenDisplay,
             onLaunchAndroidApp = { app, displayId ->
                 drawerOpen = false
@@ -2762,6 +2770,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (selectedSecondScreenDisplay !in newIds) selectedSecondScreenDisplay = candidates.firstOrNull()?.id ?: -1
         if (secondScreenMode != SecondScreenMode.NONE && candidates.isEmpty()) closeSecondScreen(reset = true)
         else if (started && secondScreenMode != SecondScreenMode.NONE && secondScreenPresentation == null) showSecondScreen(secondScreenMode)
+        updateKeyboardRoute()
     }
 
     private fun openDualScreenControls() {
@@ -2833,7 +2842,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         onQam = ::tapQam,
         onClose = { selectSecondScreenMode(SecondScreenMode.NONE) },
         pad = padBridge,
-        onKeyboardClosed = { com.droiddeck.launcher.ui.SessionTyping.returnFocus(this, taskId) },
+        onKeyboardClosed = ::bottomKeyboardClosed,
         onMenu = if (dockDrawer()) ({ drawerOpen = true }) else null,
         menu = {
             DroidDeckTheme { SessionMenu(docked = true) }
@@ -2923,15 +2932,31 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun openBottomKeyboard() {
+        if (!started) return
+        if (secondScreenPresentation?.showsKeyboard != true && dockDrawer()) {
+            val target = com.droiddeck.launcher.input.DualScreen.display(this, displayManager, shownOnDisplayId) ?: return
+            if (drawerOpen) drawerOpen = false
+            typingReturnMode = secondScreenMode
+            selectedSecondScreenDisplay = target.displayId
+            selectSecondScreenMode(SecondScreenMode.KEYBOARD_TRACKPAD)
+        }
         val presentation = secondScreenPresentation ?: return
-        if (!started || !presentation.showsKeyboard) return
+        if (!presentation.showsKeyboard) return
         val display = presentation.display?.displayId ?: return
-        presentation.requestKeyboard()
+        presentation.requestKeyboard(forField = true)
         com.droiddeck.launcher.ui.SessionTyping.focusDisplay(this, display)
     }
 
+    private fun bottomKeyboardClosed() {
+        com.droiddeck.launcher.ui.SessionTyping.returnFocus(this, taskId)
+        val mode = typingReturnMode ?: return
+        typingReturnMode = null
+        uiHandler.post { if (secondScreenMode == SecondScreenMode.KEYBOARD_TRACKPAD) selectSecondScreenMode(mode) }
+    }
+
     private fun updateKeyboardRoute() {
-        AgentGuest.routeKeyboard(this, SessionState.mode == SessionService.MODE_STEAM && secondScreenPresentation?.showsKeyboard == true)
+        AgentGuest.routeKeyboard(this, SessionState.mode == SessionService.MODE_STEAM &&
+            (secondScreenPresentation?.showsKeyboard == true || dockDrawer()))
     }
 
     private fun closeSecondScreen(reset: Boolean) {

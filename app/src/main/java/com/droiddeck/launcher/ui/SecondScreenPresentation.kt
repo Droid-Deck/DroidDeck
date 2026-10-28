@@ -71,6 +71,7 @@ class SecondScreenPresentation(
     private var keyboardButton: TextView? = null
     private var keyboardPending = false
     private var imeSeen = false
+    private var fieldKeyboard = false
     private var terminalSession: TerminalSession? = null
     private var terminalView: TerminalView? = null
     private var terminalPid = -1
@@ -102,8 +103,9 @@ class SecondScreenPresentation(
         renderMode()
     }
 
-    fun requestKeyboard() {
+    fun requestKeyboard(forField: Boolean = false) {
         if (!showsKeyboard || keyboardHost == null) return
+        if (forField) fieldKeyboard = true
         keyboardPending = true
         if (window?.decorView?.hasWindowFocus() == true) showPendingKeyboard()
     }
@@ -117,7 +119,16 @@ class SecondScreenPresentation(
         }, delay)
     }
 
+    val fieldKeyboardOpen: Boolean get() = fieldKeyboard
+
+    fun closeFieldKeyboard() {
+        if (!fieldKeyboard) return
+        keyboardPending = false
+        keyboardClosed()
+    }
+
     private fun keyboardClosed() {
+        fieldKeyboard = false
         imeSeen = false
         keyboardHost?.takeIf { it.shown }?.hide()
         keyboardButton?.text = context.getString(R.string.second_show_keyboard)
@@ -197,6 +208,7 @@ class SecondScreenPresentation(
     }
 
     private fun renderMode() {
+        fieldKeyboard = false
         keyboardHost?.hide()
         keyboardHost = null
         keyboardButton = null
@@ -257,7 +269,12 @@ class SecondScreenPresentation(
         }
         panel.addView(controls, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
         root.addView(panel, weightParams())
-        val host = KeyboardHost(context) { sessionActivity.dispatchKeyEvent(it) }
+        val host = KeyboardHost(context) { event ->
+            val handled = sessionActivity.dispatchKeyEvent(event)
+            if (fieldKeyboard && event.action == KeyEvent.ACTION_UP &&
+                (event.keyCode == KeyEvent.KEYCODE_ENTER || event.keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER)) root.post { closeFieldKeyboard() }
+            handled
+        }
         keyboardHost = host
         root.addView(host, ViewGroup.LayoutParams(1, 1))
     }

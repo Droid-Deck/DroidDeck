@@ -24,6 +24,8 @@ object AgentGuest {
         private set
     var keyboardRequests by mutableIntStateOf(0)
         private set
+    var keyboardDismissals by mutableIntStateOf(0)
+        private set
     @Volatile private var keyboardRoute = false
     @Volatile private var routeDir: File? = null
     private const val TAG = "AgentGuest"
@@ -55,6 +57,7 @@ object AgentGuest {
                         "focus.json" -> readJson(File(dir, path))?.let(::recordFocus)
                         "keyboard.json" -> readJson(File(dir, path))?.let { recordKeyboard(this, it) }
                         "keyboard-request.json" -> readJson(File(dir, path))?.let { recordKeyboardRequest(this) }
+                        "keyboard-dismiss.json" -> readJson(File(dir, path))?.let { recordKeyboardDismiss(this) }
                     }
                 }
             }.also { it.startWatching() }
@@ -95,6 +98,14 @@ object AgentGuest {
             main.post { keyboardRequests++ }
         }
         SessionEvents.record("keyboard.requested", emptyMap())
+    }
+
+    private fun recordKeyboardDismiss(source: FileObserver) {
+        synchronized(lock) {
+            if (source !== observer) return
+            main.post { keyboardDismissals++ }
+        }
+        SessionEvents.record("keyboard.dismissed", emptyMap())
     }
 
     private fun recordKeyboard(source: FileObserver, snapshot: JSONObject) {
