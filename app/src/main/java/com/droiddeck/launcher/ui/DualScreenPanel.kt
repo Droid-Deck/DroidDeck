@@ -4,6 +4,7 @@ import android.app.ActivityOptions
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.view.KeyEvent
 import android.view.View
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
@@ -179,12 +180,24 @@ class DualScreenActivity : ComponentActivity() {
 
     private fun acceptFocus(on: Boolean) {
         if (on) {
+            unfocusPending = false
             window.clearFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
             runCatching { (getSystemService(ACTIVITY_SERVICE) as android.app.ActivityManager).moveTaskToFront(taskId, 0) }
         } else {
-            window.addFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
+            unfocusPending = true
             DualScreenPanel.returnFocus(this)
+            window.decorView.postDelayed({
+                if (!unfocusPending || DualScreenPanel.typingShown) return@postDelayed
+                if (window.decorView.hasWindowFocus()) DualScreenPanel.returnFocus(this) else dropFocus()
+            }, 400)
         }
+    }
+
+    private var unfocusPending = false
+
+    private fun dropFocus() {
+        unfocusPending = false
+        window.addFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
     }
 
     override fun onResume() {
@@ -195,11 +208,20 @@ class DualScreenActivity : ComponentActivity() {
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
         if (hasFocus) applyImmersiveMode()
+        else if (unfocusPending && !DualScreenPanel.typingShown) dropFocus()
     }
 
     @Suppress("OVERRIDE_DEPRECATION")
     override fun onBackPressed() {
         if (DualScreenPanel.typingShown) DualScreenPanel.finishTyping()
+    }
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (DualScreenPanel.typingShown && event.keyCode == KeyEvent.KEYCODE_BUTTON_B) {
+            if (event.action == KeyEvent.ACTION_UP && !event.isCanceled) DualScreenPanel.finishTyping()
+            return true
+        }
+        return super.dispatchKeyEvent(event)
     }
 
     override fun onDestroy() {

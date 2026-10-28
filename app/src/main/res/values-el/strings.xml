@@ -775,7 +775,7 @@
     <string name="setup_dual_screen_on">Ενεργό</string>
     <string name="setup_dual_screen_off">Ανενεργό</string>
     <string name="setup_dual_screen_menu">Μενού κάτω οθόνης</string>
-    <string name="setup_dual_screen_menu_hint">Μεταφέρει τις ενότητες στη δεύτερη οθόνη και η πληκτρολόγηση γίνεται εκεί, ώστε η πάνω οθόνη να κρατά την πλήρη προβολή. Τα L2 και R2 αλλάζουν ενότητα.</string>
+    <string name="setup_dual_screen_menu_hint">Μεταφέρει τις ενότητες και το μενού του παιχνιδιού στη δεύτερη οθόνη και η πληκτρολόγηση γίνεται εκεί, ώστε η πάνω οθόνη να κρατά την πλήρη προβολή. Τα L2 και R2 αλλάζουν ενότητα.</string>
     <string name="setup_dual_screen_controls">Χειριστήρια κάτω οθόνης στα παιχνίδια</string>
     <string name="setup_dual_screen_controls_hint">Ανοίγει την επιφάνεια αφής και το πληκτρολόγιο στη δεύτερη οθόνη όταν ξεκινά μια συνεδρία.</string>
     <string name="dual_typing_title">Πληκτρολόγηση για την πάνω οθόνη</string>

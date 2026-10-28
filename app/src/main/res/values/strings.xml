@@ -853,7 +853,7 @@
     <string name="setup_dual_screen_on">On</string>
     <string name="setup_dual_screen_off">Off</string>
     <string name="setup_dual_screen_menu">Bottom screen menu</string>
-    <string name="setup_dual_screen_menu_hint">Moves the sections to the second screen and types there, so the top screen keeps the full view. L2 and R2 switch sections.</string>
+    <string name="setup_dual_screen_menu_hint">Moves the sections and the in-game menu to the second screen and types there, so the top screen keeps the full view. L2 and R2 switch sections.</string>
     <string name="setup_dual_screen_controls">Bottom screen controls in games</string>
     <string name="setup_dual_screen_controls_hint">Opens the trackpad and keyboard on the second screen when a session starts.</string>
     <string name="dual_typing_title">Typing on the top screen</string>

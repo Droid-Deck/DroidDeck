@@ -778,7 +778,7 @@
     <string name="setup_dual_screen_on">Pornit</string>
     <string name="setup_dual_screen_off">Oprit</string>
     <string name="setup_dual_screen_menu">Meniu pe ecranul de jos</string>
-    <string name="setup_dual_screen_menu_hint">Mută secțiunile pe al doilea ecran și scrierea se face acolo, astfel încât ecranul de sus păstrează imaginea completă. L2 și R2 schimbă secțiunea.</string>
+    <string name="setup_dual_screen_menu_hint">Mută secțiunile și meniul din joc pe al doilea ecran și scrierea se face acolo, astfel încât ecranul de sus păstrează imaginea completă. L2 și R2 schimbă secțiunea.</string>
     <string name="setup_dual_screen_controls">Comenzi pe ecranul de jos în jocuri</string>
     <string name="setup_dual_screen_controls_hint">Deschide trackpadul și tastatura pe al doilea ecran când pornește o sesiune.</string>
     <string name="dual_typing_title">Scriere pentru ecranul de sus</string>

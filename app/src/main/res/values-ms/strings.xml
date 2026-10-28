@@ -772,7 +772,7 @@
     <string name="setup_dual_screen_on">Hidup</string>
     <string name="setup_dual_screen_off">Mati</string>
     <string name="setup_dual_screen_menu">Menu skrin bawah</string>
-    <string name="setup_dual_screen_menu_hint">Memindahkan bahagian ke skrin kedua dan menaip di sana, supaya skrin atas kekal dengan paparan penuh. L2 dan R2 menukar bahagian.</string>
+    <string name="setup_dual_screen_menu_hint">Memindahkan bahagian dan menu dalam permainan ke skrin kedua dan menaip di sana, supaya skrin atas kekal dengan paparan penuh. L2 dan R2 menukar bahagian.</string>
     <string name="setup_dual_screen_controls">Kawalan skrin bawah dalam permainan</string>
     <string name="setup_dual_screen_controls_hint">Membuka pad jejak dan papan kekunci pada skrin kedua apabila sesi bermula.</string>
     <string name="dual_typing_title">Menaip untuk skrin atas</string>

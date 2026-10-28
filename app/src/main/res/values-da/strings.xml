@@ -775,7 +775,7 @@
     <string name="setup_dual_screen_on">Til</string>
     <string name="setup_dual_screen_off">Fra</string>
     <string name="setup_dual_screen_menu">Menu på nederste skærm</string>
-    <string name="setup_dual_screen_menu_hint">Flytter sektionerne til den anden skærm og skriver der, så den øverste skærm beholder hele visningen. L2 og R2 skifter sektion.</string>
+    <string name="setup_dual_screen_menu_hint">Flytter sektionerne og menuen i spillet til den anden skærm og skriver der, så den øverste skærm beholder hele visningen. L2 og R2 skifter sektion.</string>
     <string name="setup_dual_screen_controls">Kontroller på nederste skærm i spil</string>
     <string name="setup_dual_screen_controls_hint">Åbner pegefeltet og tastaturet på den anden skærm, når en session starter.</string>
     <string name="dual_typing_title">Skriver til den øverste skærm</string>

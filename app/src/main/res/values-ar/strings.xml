@@ -787,7 +787,7 @@
     <string name="setup_dual_screen_on">تشغيل</string>
     <string name="setup_dual_screen_off">إيقاف</string>
     <string name="setup_dual_screen_menu">قائمة الشاشة السفلية</string>
-    <string name="setup_dual_screen_menu_hint">ينقل الأقسام إلى الشاشة الثانية ويتم الكتابة هناك، لتبقى الشاشة العلوية بعرضها الكامل. يبدّل L2 وR2 بين الأقسام.</string>
+    <string name="setup_dual_screen_menu_hint">ينقل الأقسام وقائمة اللعبة إلى الشاشة الثانية ويتم الكتابة هناك، لتبقى الشاشة العلوية بعرضها الكامل. يبدّل L2 وR2 بين الأقسام.</string>
     <string name="setup_dual_screen_controls">عناصر تحكم الشاشة السفلية في الألعاب</string>
     <string name="setup_dual_screen_controls_hint">يفتح لوحة اللمس ولوحة المفاتيح على الشاشة الثانية عند بدء الجلسة.</string>
     <string name="dual_typing_title">الكتابة على الشاشة العلوية</string>

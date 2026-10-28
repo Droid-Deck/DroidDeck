@@ -770,7 +770,7 @@
     <string name="setup_dual_screen_on">Attivo</string>
     <string name="setup_dual_screen_off">Disattivo</string>
     <string name="setup_dual_screen_menu">Menu sullo schermo inferiore</string>
-    <string name="setup_dual_screen_menu_hint">Sposta le sezioni sul secondo schermo e si digita lì, così lo schermo superiore mantiene la vista completa. L2 e R2 cambiano sezione.</string>
+    <string name="setup_dual_screen_menu_hint">Sposta le sezioni e il menu di gioco sul secondo schermo e si digita lì, così lo schermo superiore mantiene la vista completa. L2 e R2 cambiano sezione.</string>
     <string name="setup_dual_screen_controls">Controlli sullo schermo inferiore nei giochi</string>
     <string name="setup_dual_screen_controls_hint">Apre il trackpad e la tastiera sul secondo schermo all\'avvio di una sessione.</string>
     <string name="dual_typing_title">Digitazione per lo schermo superiore</string>

@@ -781,7 +781,7 @@
     <string name="setup_dual_screen_on">Увімк.</string>
     <string name="setup_dual_screen_off">Вимк.</string>
     <string name="setup_dual_screen_menu">Меню на нижньому екрані</string>
-    <string name="setup_dual_screen_menu_hint">Переносить розділи на другий екран, і введення відбувається там, тож верхній екран лишається повністю вільним. L2 і R2 перемикають розділи.</string>
+    <string name="setup_dual_screen_menu_hint">Переносить розділи та меню в грі на другий екран, і введення відбувається там, тож верхній екран лишається повністю вільним. L2 і R2 перемикають розділи.</string>
     <string name="setup_dual_screen_controls">Керування на нижньому екрані в іграх</string>
     <string name="setup_dual_screen_controls_hint">Відкриває тачпад і клавіатуру на другому екрані під час запуску сеансу.</string>
     <string name="dual_typing_title">Введення для верхнього екрана</string>

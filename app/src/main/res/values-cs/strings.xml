@@ -781,7 +781,7 @@
     <string name="setup_dual_screen_on">Zapnuto</string>
     <string name="setup_dual_screen_off">Vypnuto</string>
     <string name="setup_dual_screen_menu">Nabídka na spodní obrazovce</string>
-    <string name="setup_dual_screen_menu_hint">Přesune sekce na druhou obrazovku a píše se tam, takže horní obrazovka zůstane celá volná. L2 a R2 přepínají sekce.</string>
+    <string name="setup_dual_screen_menu_hint">Přesune sekce a herní nabídku na druhou obrazovku a píše se tam, takže horní obrazovka zůstane celá volná. L2 a R2 přepínají sekce.</string>
     <string name="setup_dual_screen_controls">Ovládání na spodní obrazovce ve hrách</string>
     <string name="setup_dual_screen_controls_hint">Při spuštění relace otevře touchpad a klávesnici na druhé obrazovce.</string>
     <string name="dual_typing_title">Psaní pro horní obrazovku</string>

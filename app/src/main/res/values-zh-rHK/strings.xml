@@ -774,7 +774,7 @@
     <string name="setup_dual_screen_on">開啟</string>
     <string name="setup_dual_screen_off">關閉</string>
     <string name="setup_dual_screen_menu">下屏選單</string>
-    <string name="setup_dual_screen_menu_hint">將各個分區移到第二塊螢幕並在那裡輸入，讓上屏保持完整畫面。L2 和 R2 切換分區。</string>
+    <string name="setup_dual_screen_menu_hint">將各個分區和遊戲內選單移到第二塊螢幕並在那裡輸入，讓上屏保持完整畫面。L2 和 R2 切換分區。</string>
     <string name="setup_dual_screen_controls">遊戲中的下屏控制</string>
     <string name="setup_dual_screen_controls_hint">工作階段開始時在第二塊螢幕上開啟觸控板和鍵盤。</string>
     <string name="dual_typing_title">正在為上屏輸入</string>

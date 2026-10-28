@@ -775,7 +775,7 @@
     <string name="setup_dual_screen_on">Päällä</string>
     <string name="setup_dual_screen_off">Pois</string>
     <string name="setup_dual_screen_menu">Alanäytön valikko</string>
-    <string name="setup_dual_screen_menu_hint">Siirtää osiot toiselle näytölle ja kirjoitus tehdään siellä, joten yläruutu säilyttää koko näkymän. L2 ja R2 vaihtavat osiota.</string>
+    <string name="setup_dual_screen_menu_hint">Siirtää osiot ja pelin aikaisen valikon toiselle näytölle ja kirjoitus tehdään siellä, joten yläruutu säilyttää koko näkymän. L2 ja R2 vaihtavat osiota.</string>
     <string name="setup_dual_screen_controls">Alanäytön ohjaimet peleissä</string>
     <string name="setup_dual_screen_controls_hint">Avaa kosketuslevyn ja näppäimistön toiselle näytölle, kun istunto alkaa.</string>
     <string name="dual_typing_title">Kirjoitus yläruudulle</string>

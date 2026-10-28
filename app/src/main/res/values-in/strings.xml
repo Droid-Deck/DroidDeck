@@ -772,7 +772,7 @@
     <string name="setup_dual_screen_on">Aktif</string>
     <string name="setup_dual_screen_off">Nonaktif</string>
     <string name="setup_dual_screen_menu">Menu layar bawah</string>
-    <string name="setup_dual_screen_menu_hint">Memindahkan bagian ke layar kedua dan mengetik di sana, agar layar atas tetap menampilkan tampilan penuh. L2 dan R2 berpindah bagian.</string>
+    <string name="setup_dual_screen_menu_hint">Memindahkan bagian dan menu dalam game ke layar kedua dan mengetik di sana, agar layar atas tetap menampilkan tampilan penuh. L2 dan R2 berpindah bagian.</string>
     <string name="setup_dual_screen_controls">Kontrol layar bawah dalam game</string>
     <string name="setup_dual_screen_controls_hint">Membuka trackpad dan keyboard di layar kedua saat sesi dimulai.</string>
     <string name="dual_typing_title">Mengetik untuk layar atas</string>

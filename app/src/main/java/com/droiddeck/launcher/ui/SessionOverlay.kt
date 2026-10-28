@@ -29,6 +29,9 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.foundation.layout.offset
 import androidx.compose.material.icons.Icons
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Terminal
+import androidx.compose.material.icons.outlined.Keyboard
 import androidx.compose.material.icons.outlined.AutoFixHigh
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.Home
@@ -326,7 +329,7 @@ class DrawerActions(
 
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
-internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, controllerActive: Boolean, onPageChange: (SessionDrawerPage) -> Unit, a: DrawerActions) {
+internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, controllerActive: Boolean, onPageChange: (SessionDrawerPage) -> Unit, a: DrawerActions, docked: Boolean = false) {
     val pages = sessionDrawerPages(a.secondScreenDisplays.isNotEmpty(), a.glassesPresent)
     val page = requestedPage.takeIf { it in pages } ?: SessionDrawerPage.CONTROLLER
     LaunchedEffect(requestedPage, pages) { if (page != requestedPage) onPageChange(page) }
@@ -399,7 +402,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
             focus.request(first)
         }
     }
-    if (open || veil > 0.01f) {
+    if (!docked && (open || veil > 0.01f)) {
         val closeLabel = stringResource(R.string.common_close)
         Box(
             modifier = Modifier.fillMaxSize()
@@ -410,18 +413,18 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
     }
     androidx.compose.foundation.layout.BoxWithConstraints(modifier = Modifier.fillMaxSize().exposeTestTags(), contentAlignment = Alignment.CenterEnd) {
         val short = maxHeight < 440.dp
-        val sheetWidth = minOf(360.dp, maxWidth * 0.92f)
+        val sheetWidth = if (docked) maxWidth else minOf(360.dp, maxWidth * 0.92f)
         val narrow = sheetWidth < 320.dp
         AnimatedVisibility(
             open,
-            enter = slideInHorizontally(Motion.sp(0.8f, Spring.StiffnessLow)) { it } + fadeIn(Motion.tw(220)),
-            exit = slideOutHorizontally(Motion.tw(240)) { it } + fadeOut(Motion.tw(200)),
+            enter = if (docked) fadeIn(Motion.tw(160)) else slideInHorizontally(Motion.sp(0.8f, Spring.StiffnessLow)) { it } + fadeIn(Motion.tw(220)),
+            exit = if (docked) fadeOut(Motion.tw(140)) else slideOutHorizontally(Motion.tw(240)) { it } + fadeOut(Motion.tw(200)),
         ) {
             FocusGlideHost(Modifier.fillMaxHeight().width(sheetWidth)) { Box(Modifier.fillMaxSize().onGloballyPositioned { sheetCoords = it }) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(pal.background.copy(alpha = 0.97f))
+                    .background(if (docked) pal.background else pal.background.copy(alpha = 0.97f))
                     .blockTouches()
                     .focusGroup()
                     .controllerBack {
@@ -434,6 +437,13 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp),
                 ) {
+                    if (docked) {
+                        SteamActionPill(
+                            stringResource(R.string.common_close), Icons.Outlined.Close, focus.track(page, "close"),
+                        ) { host.open = null; a.onClose() }
+                        Spacer(Modifier.width(4.dp))
+                        BottomScreenModes(a, focus.track(page, "bottom-modes")) { host.open = null }
+                    }
                     Spacer(Modifier.weight(1f))
                     SteamActionPill(
                         stringResource(R.string.stores_dl_pause), Icons.Outlined.Pause, focus.track(page, "pause"),
@@ -842,6 +852,52 @@ private fun StopSessionButton(modifier: Modifier = Modifier, onClick: () -> Unit
     ) {
         Icon(Icons.Outlined.PowerSettingsNew, contentDescription = null, tint = colors.error, modifier = Modifier.size(18.dp))
         Text(stringResource(R.string.drawer_stop), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = colors.error)
+    }
+}
+
+@Composable
+private fun BottomScreenModes(a: DrawerActions, modifier: Modifier, onPick: () -> Unit) {
+    val pal = LocalPalette.current
+    val colors = MaterialTheme.colorScheme
+    val modes = buildList {
+        if (com.droiddeck.launcher.session.SessionState.deckPad) add(SecondScreenMode.DECK_CONTROLS to Icons.Outlined.SportsEsports)
+        add(SecondScreenMode.KEYBOARD_TRACKPAD to Icons.Outlined.Keyboard)
+        add(SecondScreenMode.TERMINAL to Icons.Outlined.Terminal)
+    }
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        modifier = modifier.focusGroup().clip(RoundedCornerShape(26.dp)).border(1.dp, pal.line, RoundedCornerShape(26.dp)).padding(4.dp),
+    ) {
+        modes.forEach { (mode, icon) ->
+            val selected = a.secondScreenMode == mode
+            val source = remember { MutableInteractionSource() }
+            val hot = source.collectIsFocusedAsState().value || source.collectIsHoveredAsState().value
+            val shape = RoundedCornerShape(20.dp)
+            val pick = { onPick(); a.onSecondScreenMode(mode) }
+            val label = stringResource(mode.label)
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.size(width = 52.dp, height = 40.dp).semantics { contentDescription = label }
+                    .clip(shape)
+                    .background(when {
+                        selected -> pal.signal
+                        hot -> pal.signal.copy(alpha = 0.14f)
+                        else -> Color.Transparent
+                    })
+                    .glideBorder(hot, shape, pal.signal)
+                    .hoverable(source)
+                    .selectable(selected, interactionSource = source, indication = LocalIndication.current, role = Role.Tab, onClick = pick)
+                    .controllerConfirm(onClick = pick),
+            ) {
+                Icon(icon, contentDescription = null, modifier = Modifier.size(22.dp),
+                    tint = when {
+                        selected -> colors.background
+                        hot -> pal.signal
+                        else -> colors.onBackground
+                    })
+            }
+        }
     }
 }
 

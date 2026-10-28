@@ -772,7 +772,7 @@
     <string name="setup_dual_screen_on">เปิด</string>
     <string name="setup_dual_screen_off">ปิด</string>
     <string name="setup_dual_screen_menu">เมนูหน้าจอล่าง</string>
-    <string name="setup_dual_screen_menu_hint">ย้ายส่วนต่าง ๆ ไปที่หน้าจอที่สองและพิมพ์ที่นั่น เพื่อให้หน้าจอบนแสดงเต็มพื้นที่ L2 และ R2 ใช้สลับส่วน</string>
+    <string name="setup_dual_screen_menu_hint">ย้ายส่วนต่าง ๆ และเมนูระหว่างเล่นเกมไปที่หน้าจอที่สองและพิมพ์ที่นั่น เพื่อให้หน้าจอบนแสดงเต็มพื้นที่ L2 และ R2 ใช้สลับส่วน</string>
     <string name="setup_dual_screen_controls">ปุ่มควบคุมหน้าจอล่างในเกม</string>
     <string name="setup_dual_screen_controls_hint">เปิดแทร็กแพดและแป้นพิมพ์บนหน้าจอที่สองเมื่อเริ่มเซสชัน</string>
     <string name="dual_typing_title">กำลังพิมพ์ให้หน้าจอบน</string>

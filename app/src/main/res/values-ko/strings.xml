@@ -774,7 +774,7 @@
     <string name="setup_dual_screen_on">켜기</string>
     <string name="setup_dual_screen_off">끄기</string>
     <string name="setup_dual_screen_menu">하단 화면 메뉴</string>
-    <string name="setup_dual_screen_menu_hint">섹션을 두 번째 화면으로 옮기고 입력도 그곳에서 하므로 상단 화면은 전체 보기를 유지합니다. L2와 R2로 섹션을 전환합니다.</string>
+    <string name="setup_dual_screen_menu_hint">섹션과 게임 중 메뉴를 두 번째 화면으로 옮기고 입력도 그곳에서 하므로 상단 화면은 전체 보기를 유지합니다. L2와 R2로 섹션을 전환합니다.</string>
     <string name="setup_dual_screen_controls">게임 중 하단 화면 컨트롤</string>
     <string name="setup_dual_screen_controls_hint">세션이 시작되면 두 번째 화면에 트랙패드와 키보드를 엽니다.</string>
     <string name="dual_typing_title">상단 화면에 입력 중</string>

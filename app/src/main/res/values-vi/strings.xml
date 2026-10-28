@@ -772,7 +772,7 @@
     <string name="setup_dual_screen_on">Bật</string>
     <string name="setup_dual_screen_off">Tắt</string>
     <string name="setup_dual_screen_menu">Menu ở màn hình dưới</string>
-    <string name="setup_dual_screen_menu_hint">Chuyển các mục sang màn hình thứ hai và nhập liệu ở đó, để màn hình trên giữ toàn bộ khung nhìn. L2 và R2 chuyển mục.</string>
+    <string name="setup_dual_screen_menu_hint">Chuyển các mục và menu trong trò chơi sang màn hình thứ hai và nhập liệu ở đó, để màn hình trên giữ toàn bộ khung nhìn. L2 và R2 chuyển mục.</string>
     <string name="setup_dual_screen_controls">Điều khiển màn hình dưới khi chơi game</string>
     <string name="setup_dual_screen_controls_hint">Mở bàn di chuột và bàn phím trên màn hình thứ hai khi phiên bắt đầu.</string>
     <string name="dual_typing_title">Đang nhập cho màn hình trên</string>

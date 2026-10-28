@@ -775,7 +775,7 @@
     <string name="setup_dual_screen_on">चालू</string>
     <string name="setup_dual_screen_off">बंद</string>
     <string name="setup_dual_screen_menu">नीचे की स्क्रीन पर मेनू</string>
-    <string name="setup_dual_screen_menu_hint">सेक्शन को दूसरी स्क्रीन पर ले जाता है और टाइपिंग वहीं होती है, ताकि ऊपर की स्क्रीन पूरा दृश्य दिखाए। L2 और R2 सेक्शन बदलते हैं।</string>
+    <string name="setup_dual_screen_menu_hint">सेक्शन और गेम के दौरान का मेनू दूसरी स्क्रीन पर ले जाता है और टाइपिंग वहीं होती है, ताकि ऊपर की स्क्रीन पूरा दृश्य दिखाए। L2 और R2 सेक्शन बदलते हैं।</string>
     <string name="setup_dual_screen_controls">गेम में नीचे की स्क्रीन के कंट्रोल</string>
     <string name="setup_dual_screen_controls_hint">सेशन शुरू होने पर दूसरी स्क्रीन पर ट्रैकपैड और कीबोर्ड खोलता है।</string>
     <string name="dual_typing_title">ऊपर की स्क्रीन के लिए टाइपिंग</string>
