@@ -13,6 +13,7 @@ import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.CompositionLocalProvider
@@ -47,6 +48,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import coil.imageLoader
 import coil.compose.rememberAsyncImagePainter
 import coil.request.ImageRequest
 import coil.size.Precision
@@ -118,6 +120,24 @@ private fun ambientRequest(ctx: android.content.Context, model: Any?): ImageRequ
 
 private const val AmbientPixels = 6
 
+/** Average brightness of the art, 0 to 1, read from a tiny decode so pale art can be dimmed and dark art left alone. */
+@Composable
+private fun rememberArtBrightness(model: Any?): Float {
+    val ctx = LocalContext.current
+    val brightness by produceState(0.3f, model) {
+        if (model == null) return@produceState
+        val request = ImageRequest.Builder(ctx).data(model).size(SamplePixels, SamplePixels).precision(Precision.EXACT)
+            .allowHardware(false).memoryCacheKey("lum:$model").build()
+        val bitmap = (ctx.imageLoader.execute(request).drawable as? android.graphics.drawable.BitmapDrawable)?.bitmap ?: return@produceState
+        var sum = 0.0
+        for (y in 0 until bitmap.height) for (x in 0 until bitmap.width) sum += Color(bitmap.getPixel(x, y)).luminance()
+        value = (sum / (bitmap.width * bitmap.height)).toFloat()
+    }
+    return brightness
+}
+
+private const val SamplePixels = 8
+
 /**
  * A page whose game art fills the background: a blurred wash behind everything and the sharp art
  * across the top, fading into the page. Surfaces inside draw frosted glass over the wash.
@@ -145,7 +165,7 @@ internal fun GameBackdrop(
                 .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
                 .drawWithContent {
                     if (glass.painter == null) drawRect(artBrush(fallbackHue), alpha = 0.55f) else glass.paint(this, size)
-                    drawRect(colors.background.copy(alpha = if (glass.light) 0.7f else 0.22f))
+                    drawRect(colors.background.copy(alpha = if (glass.light) 0.7f else 0.58f))
                     if (fadeTop) drawRect(Brush.verticalGradient(0f to Color.Transparent, (edge.toPx() / size.height).coerceAtMost(0.5f) to Color.Black), blendMode = BlendMode.DstIn)
                     glass.fadeBottom(this, size)
                 },
@@ -159,6 +179,9 @@ internal fun GameBackdrop(
 private fun ArtLayer(model: Any?, fadeTop: Boolean, onPlaced: (androidx.compose.ui.geometry.Rect?) -> Unit) {
     val colors = MaterialTheme.colorScheme
     val light = colors.background.luminance() > 0.5f
+    val pale = ((rememberArtBrightness(model) - 0.28f) / 0.5f).coerceIn(0f, 1f)
+    val dim = if (light) 1f else 1f - 0.4f * pale
+    val artFilter = remember(dim) { ColorFilter.colorMatrix(ColorMatrix(floatArrayOf(dim, 0f, 0f, 0f, 0f, 0f, dim, 0f, 0f, 0f, 0f, 0f, dim, 0f, 0f, 0f, 0f, 0f, 1f, 0f))) }
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val height = (maxWidth * 0.4f).coerceIn(ArtMin, ArtMax)
         DisposableEffect(Unit) { onDispose { onPlaced(null) } }
@@ -168,19 +191,20 @@ private fun ArtLayer(model: Any?, fadeTop: Boolean, onPlaced: (androidx.compose.
                 .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
                 .drawWithContent {
                     drawContent()
-                    drawRect(Brush.horizontalGradient(0f to Color.Transparent, 0.45f to Color.Black), blendMode = BlendMode.DstIn)
-                    drawRect(Brush.verticalGradient(0.7f to Color.Black, 1f to Color.Transparent), blendMode = BlendMode.DstIn)
+                    drawRect(Brush.horizontalGradient(0.08f to Color.Transparent, 0.55f to Color.Black), blendMode = BlendMode.DstIn)
+                    drawRect(Brush.verticalGradient(0.55f to Color.Black, 1f to Color.Transparent), blendMode = BlendMode.DstIn)
                     if (fadeTop) drawRect(Brush.verticalGradient(0f to Color.Transparent, (24.dp.toPx() / size.height) to Color.Black), blendMode = BlendMode.DstIn)
                 },
         ) {
             AsyncImage(
                 model = model, contentDescription = null, contentScale = ContentScale.Crop,
                 alignment = BiasAlignment(0.45f, -0.35f),
-                colorFilter = if (light) null else ArtDim,
+                colorFilter = artFilter,
                 modifier = Modifier.matchParentSize(),
             )
             Box(
                 Modifier.matchParentSize().drawBehind {
+                    drawRect(colors.background.copy(alpha = if (light) 0.1f else 0.12f + 0.3f * pale))
                     drawRect(
                         Brush.radialGradient(
                             0f to colors.background.copy(alpha = if (light) 0.5f else 0.66f),
@@ -195,7 +219,6 @@ private fun ArtLayer(model: Any?, fadeTop: Boolean, onPlaced: (androidx.compose.
     }
 }
 
-private val ArtDim = ColorFilter.colorMatrix(ColorMatrix(floatArrayOf(0.85f, 0f, 0f, 0f, 0f, 0f, 0.85f, 0f, 0f, 0f, 0f, 0f, 0.85f, 0f, 0f, 0f, 0f, 0f, 1f, 0f)))
 private val ArtMin = 220.dp
 private val ArtMax = 340.dp
 
@@ -207,7 +230,7 @@ internal fun Modifier.glass(shape: Shape, lift: Float = 0f): Modifier {
     val pal = LocalPalette.current
     if (g == null) return clip(shape).background(colors.surface).border(1.dp, pal.line2, shape)
     val light = g.light
-    val tint = colors.background.copy(alpha = if (light) 0.62f else 0.5f + lift)
+    val tint = colors.background.copy(alpha = if (light) 0.62f else 0.46f + lift)
     val rim = if (light) Color.Black.copy(alpha = 0.1f) else Color.White.copy(alpha = 0.12f + lift)
     val self = remember { arrayOfNulls<LayoutCoordinates>(1) }
     var placed by remember { mutableIntStateOf(0) }

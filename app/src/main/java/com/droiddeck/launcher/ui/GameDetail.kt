@@ -214,7 +214,7 @@ internal fun GameDetail(
     GameBackdrop(artModel, art ?: game?.art, hueOf(title), fadeTop = inset.top < 8.dp, onArtPlaced = { StoresMotion.heroAt = it }) {
         Column(Modifier.fillMaxWidth().padding(horizontal = inset.horizontal).padding(top = inset.top).onFocusChanged { inPage = it.hasFocus }.bumpers(onPrevious = { cycle(-1) }, onNext = { cycle(1) })) {
             Rise(0) {
-                Row(Modifier.fillMaxWidth().padding(bottom = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.glass(CircleShape)) { BackLink(backLabel, compact = true, onClick = onBack) }
                     Spacer(Modifier.weight(1f))
                     if (!s.shortcutPicker) CompositionLocalProvider(LocalPillButtons provides true) {
@@ -226,9 +226,9 @@ internal fun GameDetail(
                 }
             }
             val header: @Composable () -> Unit = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     GameStatusLine(source, game, item, installed, download?.location ?: failed?.location, inSteam)
-                    GameTitle(title, game?.logo ?: item?.logoUrl, if (narrow) 30.sp else 38.sp)
+                    GameTitle(title, game?.logo ?: item?.logoUrl, if (narrow) 30.sp else 40.sp)
                     if (!failed?.error.isNullOrBlank()) Text(
                         failed!!.error!!, fontSize = 13.sp, lineHeight = 17.sp, fontWeight = FontWeight.Medium,
                         color = MaterialTheme.colorScheme.error, maxLines = 3, overflow = TextOverflow.Ellipsis,
@@ -239,7 +239,7 @@ internal fun GameDetail(
             }
             if (StoresMotion.heroLands) header() else Rise(1) { header() }
             if (tab != null) Rise(2) {
-                Column(Modifier.fillMaxWidth().padding(top = 18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(Modifier.fillMaxWidth().padding(top = 14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     val labels = tabs.map { t ->
                         when (t) {
                             GameTab.ABOUT -> stringResource(R.string.game_tab_about)
@@ -277,10 +277,10 @@ private fun SourceBadge(source: String) {
     val c = sourceColours(source)
     Row(
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp),
-        modifier = Modifier.glass(CircleShape, 0.06f).padding(horizontal = 11.dp, vertical = 5.dp),
+        modifier = Modifier.glass(CircleShape, 0.06f).padding(horizontal = 10.dp, vertical = 4.dp),
     ) {
         Box(Modifier.size(8.dp).clip(CircleShape).background(c.dot))
-        Text(sourceLabel(source), fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp, color = MaterialTheme.colorScheme.onBackground, maxLines = 1)
+        Text(sourceLabel(source), fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp, color = MaterialTheme.colorScheme.onBackground, maxLines = 1)
     }
 }
 
@@ -307,12 +307,12 @@ private fun GameStatusLine(source: String, game: Library.SteamGame?, item: Catal
     val muted = colors.onBackground.copy(alpha = 0.78f)
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         SourceBadge(source)
-        Text(line, fontSize = 13.sp, color = muted, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+        Text(line, fontSize = 12.sp, color = muted, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
         if (inSteam) {
-            Text("·", fontSize = 13.sp, color = muted.copy(alpha = 0.5f))
+            Text("·", fontSize = 12.sp, color = muted.copy(alpha = 0.5f))
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                 Icon(Icons.Outlined.VideogameAsset, contentDescription = null, tint = muted, modifier = Modifier.size(15.dp))
-                Text(stringResource(R.string.stores_in_steam_label), fontSize = 13.sp, color = muted, maxLines = 1)
+                Text(stringResource(R.string.stores_in_steam_label), fontSize = 12.sp, color = muted, maxLines = 1)
                 Icon(Icons.Filled.Check, contentDescription = null, tint = pal.good, modifier = Modifier.size(14.dp))
             }
         }
@@ -324,7 +324,7 @@ private fun GameStatusLine(source: String, game: Library.SteamGame?, item: Catal
 private fun GameCapsule(scores: GameScores?, actions: @Composable () -> Unit) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth().glass(RoundedCornerShape(34.dp)).padding(8.dp),
+        modifier = Modifier.fillMaxWidth().glass(RoundedCornerShape(30.dp)).padding(6.dp),
     ) {
         CompositionLocalProvider(LocalPillButtons provides true) { Box(Modifier.weight(1f)) { actions() } }
         if (scores != null) CapsuleScores(scores, Modifier.padding(start = 8.dp, end = 10.dp))
@@ -356,10 +356,10 @@ private fun GameTabBar(
                     .glideBorder(hot, CircleShape, pal.signal, if (on) pal.signal.copy(alpha = 0.5f) else Color.Transparent)
                     .hoverable(src).selectable(selected = on, interactionSource = src, indication = null, role = Role.Tab, onClick = pick)
                     .controllerConfirm(onClick = pick)
-                    .padding(horizontal = 6.dp, vertical = if (compact) 9.dp else 12.dp),
+                    .padding(horizontal = 6.dp, vertical = if (compact) 8.dp else 10.dp),
             ) {
                 Text(
-                    label, fontSize = if (compact) 13.sp else 15.sp, fontWeight = if (on) FontWeight.Bold else FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    label, fontSize = if (compact) 13.sp else 14.sp, fontWeight = if (on) FontWeight.Bold else FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis,
                     color = if (on || hot) colors.onBackground else colors.onSurfaceVariant,
                 )
             }
@@ -374,7 +374,7 @@ private fun GameTitle(title: String, logo: Any?, titleSize: TextUnit) {
     if (logo != null && !failed) AsyncImage(
         model = logo, contentDescription = title, contentScale = ContentScale.Fit, alignment = Alignment.CenterStart,
         onError = { failed = true },
-        modifier = Modifier.padding(vertical = 4.dp).height((titleSize.value * 2.2f).dp).widthIn(max = (titleSize.value * 9f).dp).clip(RoundedCornerShape(12.dp)).testTag("game-logo"),
+        modifier = Modifier.padding(vertical = 4.dp).height((titleSize.value * 1.5f).dp).widthIn(max = (titleSize.value * 7f).dp).clip(RoundedCornerShape(10.dp)).testTag("game-logo"),
     ) else Text(
         title, fontSize = titleSize, lineHeight = titleSize * 1.12f, fontWeight = FontWeight.Black,
         color = MaterialTheme.colorScheme.onBackground, maxLines = 2, overflow = TextOverflow.Ellipsis,
@@ -623,7 +623,7 @@ internal fun IconAction(icon: androidx.compose.ui.graphics.vector.ImageVector, l
     val accent = if (danger) colors.error else pal.signal
     Box(
         contentAlignment = Alignment.Center,
-        modifier = Modifier.paneItem(id).downToFirstTile().size(44.dp).clip(shape)
+        modifier = Modifier.paneItem(id).downToFirstTile().size(if (LocalPillButtons.current) 40.dp else 44.dp).clip(shape)
             .background(if (hot) accent.copy(alpha = if (danger) 0.22f else 0.14f) else if (danger) Color.Black.copy(alpha = 0.34f) else Color.White.copy(alpha = 0.03f))
             .glideBorder(hot, shape, accent, pal.line2)
             .alpha(if (enabled) 1f else 0.45f)

@@ -164,7 +164,8 @@ internal fun PrimaryButton(
 ) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
-    val btnShape = if (LocalPillButtons.current) CircleShape else Shape12
+    val pillMode = LocalPillButtons.current
+    val btnShape = if (pillMode) CircleShape else Shape12
     val frontFocus = if (main) LocalFrontFocus.current else null
     if (frontFocus != null) DisposableEffect(Unit) {
         frontFocus.primaryAttached++
@@ -182,7 +183,7 @@ internal fun PrimaryButton(
         horizontalArrangement = if (fill) Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally) else Arrangement.spacedBy(8.dp),
         modifier = modifier.then(track)
             .onGloballyPositioned { placed[0] = it }
-            .heightIn(min = if (compact) 44.dp else 48.dp)
+            .heightIn(min = if (pillMode) 40.dp else if (compact) 44.dp else 48.dp)
             .then(if (frontFocus != null) Modifier.focusRequester(frontFocus.primary).onFocusChanged { if (it.isFocused) frontFocus.last = FrontFocus.PRIMARY } else Modifier)
             .graphicsLayer { alpha = if (LaunchOrigin.flooding === placed) 0f else 1f; scaleX = scale; scaleY = scale; shadowElevation = if (enabled) lift.dp.toPx() else 0f; shape = btnShape; clip = false; ambientShadowColor = pal.signal; spotShadowColor = pal.signal }
             .clip(btnShape)
@@ -194,10 +195,10 @@ internal fun PrimaryButton(
                 onClick()
             }
             .padding(
-                start = if (fill) 12.dp else if (large) 20.dp else if (compact) 10.dp else if (icon != null) 14.dp else 18.dp,
-                end = if (fill) 12.dp else if (large) 26.dp else if (compact) 10.dp else 18.dp,
-                top = if (large) 16.dp else if (compact) 7.dp else 11.dp,
-                bottom = if (large) 16.dp else if (compact) 7.dp else 11.dp,
+                start = if (fill) 12.dp else if (large) 20.dp else if (pillMode) 18.dp else if (compact) 10.dp else if (icon != null) 14.dp else 18.dp,
+                end = if (fill) 12.dp else if (large) 26.dp else if (pillMode) 20.dp else if (compact) 10.dp else 18.dp,
+                top = if (large) 16.dp else if (pillMode) 8.dp else if (compact) 7.dp else 11.dp,
+                bottom = if (large) 16.dp else if (pillMode) 8.dp else if (compact) 7.dp else 11.dp,
             ),
     ) {
         val fg = if (enabled) colors.onPrimary else colors.onSurfaceVariant
@@ -252,14 +253,14 @@ internal fun SecondaryButton(text: String, enabled: Boolean = true, compact: Boo
     val fill by animateColorAsState(if (hot) pal.signal.copy(alpha = 0.14f) else Color.White.copy(alpha = if (pill) 0.09f else 0.03f), Motion.tw(250), label = "secFill")
     Box(
         contentAlignment = Alignment.Center,
-        modifier = modifier.paneItem("btn:$text").downToFirstTile().heightIn(min = if (compact) 44.dp else 48.dp).graphicsLayer { scaleX = scale; scaleY = scale }.clip(shape).background(fill).glideBorder(hot, shape, pal.signal, if (pill) Color.White.copy(alpha = 0.14f) else pal.line2)
+        modifier = modifier.paneItem("btn:$text").downToFirstTile().heightIn(min = if (pill) 40.dp else if (compact) 44.dp else 48.dp).graphicsLayer { scaleX = scale; scaleY = scale }.clip(shape).background(fill).glideBorder(hot, shape, pal.signal, if (pill) Color.White.copy(alpha = 0.14f) else pal.line2)
             .alpha(if (enabled) 1f else 0.5f)
             .hoverable(src).clickable(role = androidx.compose.ui.semantics.Role.Button, interactionSource = src, indication = LocalIndication.current, enabled = enabled, onClick = onClick)
             .controllerConfirm(enabled = enabled, onClick = onClick)
-            .padding(horizontal = if (compact) 10.dp else 16.dp, vertical = if (compact) 7.dp else 11.dp),
+            .padding(horizontal = if (pill) 16.dp else if (compact) 10.dp else 16.dp, vertical = if (pill) 8.dp else if (compact) 7.dp else 11.dp),
     ) {
-        ProgressLabel({ m -> Text(text, fontSize = if (compact) 12.sp else 15.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.5.sp, color = colors.onBackground, maxLines = 1, modifier = m) },
-            progress, fontSize = if (compact) 12.sp else 15.sp)
+        ProgressLabel({ m -> Text(text, fontSize = if (compact || pill) 13.sp else 15.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.5.sp, color = colors.onBackground, maxLines = 1, modifier = m) },
+            progress, fontSize = if (compact || pill) 13.sp else 15.sp)
     }
 }
 
