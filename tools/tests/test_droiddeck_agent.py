@@ -205,6 +205,12 @@ class AgentTest(unittest.TestCase):
         self.assertEqual(["steam", "steam://open/downloads"], popen.call_args.args[0])
         self.assertTrue(popen.call_args.kwargs["start_new_session"])
 
+    def test_steam_url_accepts_maximum_uint32_uninstall_id(self):
+        with patch.object(agent, "wait_for_steam_ui"), patch.object(agent.subprocess, "Popen") as popen:
+            answer = self.ask({"kind": "steam-url", "url": "steam://uninstall/4294967295"})
+        self.assertTrue(answer["ok"])
+        self.assertEqual(["steam", "steam://uninstall/4294967295"], popen.call_args.args[0])
+
     def test_steam_url_waits_for_initialized_ui_router(self):
         with patch.object(agent, "cdp_eval", side_effect=[OSError("DevTools restarted"),
                                                             {"value": False}, {"value": True}]) as evaluate, \
@@ -222,7 +228,8 @@ class AgentTest(unittest.TestCase):
         popen.assert_not_called()
 
     def test_steam_url_rejects_untrusted_routes_and_argument_injection(self):
-        for url in ("steam://open/settings", "steam://nav/library", "steam://open/downloads\n--exec", "https://example.com"):
+        for url in ("steam://open/settings", "steam://nav/library", "steam://uninstall/4294967296",
+                    "steam://open/downloads\n--exec", "https://example.com"):
             with self.subTest(url=url), patch.object(agent.subprocess, "Popen") as popen:
                 answer = self.ask({"kind": "steam-url", "url": url})
                 self.assertFalse(answer["ok"])

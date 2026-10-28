@@ -7,6 +7,7 @@
     <string name="gog_refresh">Download full offline installer</string>
     <string name="gog_update">Update to %1$s</string>
     <string name="gog_resume">Resume GOG maintenance</string>
+    <string name="store_maintenance_launch_blocked">Maintenance is running. Finish it before launching this game.</string>
     <string name="gog_open_patch">Open patch installer</string>
     <string name="gog_patch_in_session">Finish or cancel the patch installer in the Linux session.</string>
     <string name="gog_patch_requirements">Choose a patch for your installed version and language. Supported source versions may not be listed.</string>

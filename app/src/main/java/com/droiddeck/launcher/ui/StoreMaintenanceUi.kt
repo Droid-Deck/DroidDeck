@@ -36,10 +36,12 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 @Composable
-internal fun SteamClientMaintenanceActions(actions: FrontEndActions) {
+internal fun SteamClientMaintenanceActions(actions: FrontEndActions, sessionRunning: Boolean) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            SecondaryButton("Open Steam downloads") { actions.onSteamUrl("steam://open/downloads") }
+            if (sessionRunning) SecondaryButton("Open Steam downloads", modifier = Modifier.testTag("steam-downloads")) {
+                actions.onSteamUrl("steam://open/downloads")
+            } else SecondaryButton("Start Steam", modifier = Modifier.testTag("steam-start")) { actions.onPlay() }
         }
         Text("In Steam, open this game’s Properties → Installed Files → Verify integrity.",
             fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -129,7 +131,12 @@ internal fun StoreMaintenanceActions(game: InstalledStoreGame) {
             MaintenanceCheckState.CHECKING -> Text("Checking for updates…", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             MaintenanceCheckState.CURRENT -> Text("Up to date", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             MaintenanceCheckState.AVAILABLE -> if (MaintenanceAction.UPDATE !in capabilities) {
-                Text("An update is available. Use ${adapter.openClientLabel(game)} to apply it.",
+                val message = if (MaintenanceAction.OPEN_CLIENT in capabilities) {
+                    "An update is available. Use ${adapter.openClientLabel(game)} to apply it."
+                } else {
+                    "An update is available."
+                }
+                Text(message,
                     fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             MaintenanceCheckState.UNKNOWN, MaintenanceCheckState.FAILED -> if (current.reason.isNotBlank())

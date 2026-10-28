@@ -10,6 +10,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
+import org.json.JSONObject
 import java.io.File
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -59,6 +60,31 @@ class StoreLaunchTest {
         val folder = install()
         File(folder, "FSD/Binaries/WinGDK/FSD.exe").delete()
         assertNull(StoreLaunch.installedGame(app, Store.XBOX, "9NHFVWX1V7QJ"))
+    }
+
+    @Test fun maintenanceBlockedLaunchReportsTheBlockWithoutLaunching() {
+        val folder = install()
+        val operation = com.droiddeck.launcher.stores.maintenance.StoreMaintenance.operationFile(folder)
+        operation.parentFile!!.mkdirs()
+        operation.writeText(JSONObject().put("schema", 1).put("folder", folder.canonicalPath).put("phase", "applying").toString())
+        val blocked = CountDownLatch(1)
+        val ready = AtomicBoolean(false)
+
+        try {
+            StoreLaunch.prepare(app, Store.XBOX, "9NHFVWX1V7QJ", onBlocked = { blocked.countDown() }) {
+                ready.set(true)
+            }
+
+            val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+            while (blocked.count > 0 && System.nanoTime() < deadline) {
+                org.robolectric.shadows.ShadowLooper.idleMainLooper()
+                Thread.sleep(10)
+            }
+            assertTrue("the blocked callback was not posted", blocked.await(1, TimeUnit.SECONDS))
+            assertFalse("an excluded install must not reach the launch callback", ready.get())
+        } finally {
+            operation.parentFile?.deleteRecursively()
+        }
     }
 
     @Test fun installedTargetWinsOverAnEarlierUpdatingDuplicate() {

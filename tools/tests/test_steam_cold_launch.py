@@ -1,6 +1,7 @@
 """Retry a dropped shortcut without duplicating a launch that is still preparing its first window."""
 import os
 from pathlib import Path
+import re
 import subprocess
 import tempfile
 import textwrap
@@ -16,6 +17,18 @@ SHORTCUT = str((3551182975 << 32) | 0x02000000)
 
 
 class SteamColdLaunchTest(unittest.TestCase):
+    def test_uninstall_id_uses_the_steam_app_id_range(self):
+        match = re.search(r"^steam_uninstall_id_valid\(\) \{.*?^}", SOURCE, re.M | re.S)
+        self.assertIsNotNone(match)
+        for app_id, expected in (("1", True), ("4294967295", True), ("4294967296", False),
+                                 ("0", False), ("01", False), ("10000000000", False)):
+            with self.subTest(app_id=app_id):
+                result = subprocess.run(
+                    ["bash", "-c", f'{match.group(0)}\nsteam_uninstall_id_valid "$1"', "test", app_id],
+                    capture_output=True,
+                )
+                self.assertEqual(expected, result.returncode == 0)
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)

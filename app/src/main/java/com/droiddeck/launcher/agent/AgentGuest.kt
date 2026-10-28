@@ -108,22 +108,6 @@ object AgentGuest {
         return result
     }
 
-    fun awaitAndOpenSteamUrl(context: Context, url: String, timeoutMs: Long = STEAM_START_URL_TIMEOUT_MS): JSONObject {
-        require(SteamSessionUrl.isSupported(url)) { "Unsupported Steam navigation URL" }
-        val deadline = android.os.SystemClock.elapsedRealtime() + timeoutMs
-        while (android.os.SystemClock.elapsedRealtime() < deadline) {
-            check(SessionState.running && SessionState.mode == SessionService.MODE_STEAM && !SessionState.stopRequested) {
-                "The Steam session ended before its UI became ready"
-            }
-            if (hello(context) != null) {
-                val remaining = deadline - android.os.SystemClock.elapsedRealtime()
-                return openSteamUrl(context, url, minOf(STEAM_URL_TIMEOUT_MS, remaining))
-            }
-            Thread.sleep(POLL_MS)
-        }
-        throw AgentException("AGENT_UNAVAILABLE", "The Steam guest agent did not become ready")
-    }
-
     fun selectedSteamAppId(context: Context): Long? {
         val result = call(context, JSONObject().put("kind", "steam-selection"), 6_000)
         if (!result.optBoolean("ok") || result.isNull("appId")) return null
@@ -224,5 +208,4 @@ object AgentGuest {
     }
 
     private const val STEAM_URL_TIMEOUT_MS = 125_000L
-    private const val STEAM_START_URL_TIMEOUT_MS = 180_000L
 }

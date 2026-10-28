@@ -173,12 +173,17 @@ where
     let mut rebuilt: HashMap<u32, Rebuilt> = HashMap::new();
     let mut reserved = 0u64;
     let budget = budget.min(MAX_REBUILD_MEMORY);
+    let wanted = needed
+        .iter()
+        .filter(|index| !cached.contains(index) && target.chunks.get(**index as usize).is_some())
+        .count();
     for file in &installed.files {
         if cancel.load(Ordering::Relaxed) {
             break;
         }
         if !rebuilt.is_empty()
             && rebuilt.values().all(|chunk| !chunk.valid || chunk.uncovered == 0)
+            && (reserved >= budget || rebuilt.len() >= wanted)
         {
             break;
         }
@@ -458,7 +463,8 @@ mod tests {
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&game).unwrap();
         let needed_chunk = chunk(51, 4);
-        let unrelated_chunk = chunk(52, 4);
+        let second_needed_chunk = chunk(52, 4);
+        let unrelated_chunk = chunk(53, 4);
         let installed_bytes = build(&TestManifest {
             version: 21,
             build: "installed".into(),
@@ -478,6 +484,12 @@ mod tests {
                     tags: Vec::new(),
                     parts: vec![PartRef { guid: unrelated_chunk.guid, offset: 0, size: 4 }],
                 },
+                TestFile {
+                    path: "second-source.bin".into(),
+                    sha1: Sha1::digest(b"efgh").into(),
+                    tags: Vec::new(),
+                    parts: vec![PartRef { guid: second_needed_chunk.guid, offset: 0, size: 4 }],
+                },
             ],
             compress: false,
             meta_tail: Vec::new(),
@@ -487,13 +499,21 @@ mod tests {
             build: "target".into(),
             exe: "Game.exe".into(),
             prereq: None,
-            chunks: vec![needed_chunk.clone()],
-            files: vec![TestFile {
-                path: "source.bin".into(),
-                sha1: Sha1::digest(b"abcd").into(),
-                tags: Vec::new(),
-                parts: vec![PartRef { guid: needed_chunk.guid, offset: 0, size: 4 }],
-            }],
+            chunks: vec![needed_chunk.clone(), second_needed_chunk.clone()],
+            files: vec![
+                TestFile {
+                    path: "source.bin".into(),
+                    sha1: Sha1::digest(b"abcd").into(),
+                    tags: Vec::new(),
+                    parts: vec![PartRef { guid: needed_chunk.guid, offset: 0, size: 4 }],
+                },
+                TestFile {
+                    path: "second-source.bin".into(),
+                    sha1: Sha1::digest(b"efgh").into(),
+                    tags: Vec::new(),
+                    parts: vec![PartRef { guid: second_needed_chunk.guid, offset: 0, size: 4 }],
+                },
+            ],
             compress: false,
             meta_tail: Vec::new(),
         });
@@ -501,6 +521,7 @@ mod tests {
         let target = crate::epic::manifest::parse(&target_bytes).unwrap();
         fs::write(game.join("source.bin"), b"abcd").unwrap();
         fs::write(game.join("irrelevant.bin"), b"wxyz").unwrap();
+        fs::write(game.join("second-source.bin"), b"efgh").unwrap();
         let checked = std::cell::RefCell::new(Vec::new());
         let cancel = AtomicBool::new(false);
         let (seeded, written) = seed_from_verified_installed_with_check(
@@ -508,18 +529,26 @@ mod tests {
             &game,
             &installed,
             &target,
-            &HashSet::from([0]),
+            &HashSet::from([0, 1]),
             &[],
-            4,
+            8,
             &cancel,
             |path, size, sha1, cancel| {
                 checked.borrow_mut().push(path.file_name().unwrap().to_owned());
                 super::super::delta::check(path, size, sha1, cancel)
             },
         );
-        assert_eq!(seeded, vec![0]);
-        assert_eq!(written, 4);
-        assert_eq!(*checked.borrow(), vec![std::ffi::OsString::from("source.bin")]);
+        assert_eq!(seeded.len(), 2);
+        assert!(seeded.contains(&0));
+        assert!(seeded.contains(&1));
+        assert_eq!(written, 8);
+        assert_eq!(
+            *checked.borrow(),
+            vec![
+                std::ffi::OsString::from("source.bin"),
+                std::ffi::OsString::from("second-source.bin"),
+            ]
+        );
         let _ = fs::remove_dir_all(&root);
     }
 }

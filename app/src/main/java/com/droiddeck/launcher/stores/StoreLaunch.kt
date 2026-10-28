@@ -93,7 +93,7 @@ object StoreLaunch {
         }
     }
 
-    fun prepare(context: Context, store: Store, id: String, onReady: () -> Unit) {
+    fun prepare(context: Context, store: Store, id: String, onBlocked: () -> Unit = {}, onReady: () -> Unit) {
         val app = context.applicationContext
         Thread({
             val selected = try {
@@ -105,6 +105,7 @@ object StoreLaunch {
             if (selected != null && com.droiddeck.launcher.stores.maintenance.StoreMaintenance.launchExcluded(
                     InstalledStoreGame(selected.second, selected.first))) {
                 Log.i(TAG, "launch blocked while ${store.label} maintenance is active: $id")
+                StoresState.post(onBlocked)
                 return@Thread
             }
             if (store == Store.EPIC) epicCode(app, id)
@@ -146,11 +147,11 @@ object StoreLaunch {
         return result
     }
 
-    fun prepare(context: Context, game: Library.SteamGame, onReady: () -> Unit) {
+    fun prepare(context: Context, game: Library.SteamGame, onBlocked: () -> Unit = {}, onReady: () -> Unit) {
         val store = Store.byId(game.source)
         val id = game.storeId
         if (store == null || id == null) { StoresState.post(onReady); return }
-        prepare(context, store, id, onReady)
+        prepare(context, store, id, onBlocked = onBlocked, onReady = onReady)
     }
 }
 
