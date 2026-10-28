@@ -649,6 +649,8 @@
     <string name="drawer_low_latency_controller_hint">La manette émet à 1000 Hz au lieu de 250 Hz. Un peu plus de CPU.</string>
     <string name="drawer_low_latency_touch">Tactile à faible latence</string>
     <string name="drawer_low_latency_touch_hint">Les touchers ignorent le regroupement d\'images ; les commandes tactiles Steam passent à 1000 Hz. Un peu plus de CPU.</string>
+    <string name="drawer_evdev_mouse">Canal souris brut</string>
+    <string name="drawer_direct_cursor">Curseur</string>
     <string name="drawer_pc_keyboard">Clavier PC</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Deuxième écran</string>

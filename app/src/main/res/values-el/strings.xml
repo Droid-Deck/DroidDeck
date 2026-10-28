@@ -645,6 +645,8 @@
     <string name="drawer_low_latency_controller_hint">Το χειριστήριο αναφέρει στα 1000 Hz αντί για 250 Hz. Λίγο περισσότερο CPU.</string>
     <string name="drawer_low_latency_touch">Αφή χαμηλής καθυστέρησης</string>
     <string name="drawer_low_latency_touch_hint">Οι αφές παρακάμπτουν την ομαδοποίηση καρέ, οπότε ο χειρισμός αφής του Steam τρέχει στα 1000 Hz. Λίγο περισσότερο CPU.</string>
+    <string name="drawer_evdev_mouse">Ακατέργαστο κανάλι ποντικιού</string>
+    <string name="drawer_direct_cursor">Δείκτης</string>
     <string name="drawer_pc_keyboard">Πληκτρολόγιο PC</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Δεύτερη οθόνη</string>

@@ -653,6 +653,8 @@
     <string name="drawer_low_latency_controller_hint">تبلغ وحدة التحكم بمعدل 1000 هرتز بدلًا من 250 هرتز. استهلاك معالج أعلى قليلًا.</string>
     <string name="drawer_low_latency_touch">لمس بزمن استجابة منخفض</string>
     <string name="drawer_low_latency_touch_hint">تتجاوز اللمسات تجميع الإطارات، فيعمل اللمس في Steam بمعدل 1000 هرتز. استهلاك معالج أعلى قليلًا.</string>
+    <string name="drawer_evdev_mouse">قناة فأرة خام</string>
+    <string name="drawer_direct_cursor">المؤشر</string>
     <string name="drawer_pc_keyboard">لوحة مفاتيح الكمبيوتر</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">الشاشة الثانية</string>

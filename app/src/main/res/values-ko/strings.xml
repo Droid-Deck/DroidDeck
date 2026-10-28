@@ -645,6 +645,8 @@
     <string name="drawer_low_latency_controller_hint">컨트롤러가 250 Hz 대신 1000 Hz로 보고됩니다. CPU 사용량이 약간 늘어납니다.</string>
     <string name="drawer_low_latency_touch">저지연 터치</string>
     <string name="drawer_low_latency_touch_hint">터치가 프레임 병합을 건너뛰고 Steam 터치가 1000 Hz로 보고됩니다. CPU 사용량이 약간 늘어납니다.</string>
+    <string name="drawer_evdev_mouse">원시 마우스 채널</string>
+    <string name="drawer_direct_cursor">커서</string>
     <string name="drawer_pc_keyboard">PC 키보드</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">보조 화면</string>

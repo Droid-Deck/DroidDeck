@@ -880,7 +880,7 @@ class SessionService : Service() {
     }
 
     private fun addControllerEnvironment(guest: MutableList<String>, fakeInputDir: File, sessionDir: File) {
-        FakeInputWriter.prepareRingSlots(fakeInputDir, 4)
+        FakeInputWriter.prepareRingSlots(fakeInputDir, 5)
         val builtinPad = SessionPrefs.builtinPad(this)
         val hiddenPad = SessionState.mode == MODE_STEAM && !builtinPad &&
             !com.droiddeck.launcher.input.PadBridge.anyControllerConnected()

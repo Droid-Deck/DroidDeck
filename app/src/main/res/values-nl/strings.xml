@@ -645,6 +645,8 @@
     <string name="drawer_low_latency_controller_hint">De controller rapporteert op 1000 Hz in plaats van 250 Hz. Iets meer CPU.</string>
     <string name="drawer_low_latency_touch">Aanraking met lage latentie</string>
     <string name="drawer_low_latency_touch_hint">Aanrakingen slaan framebundeling over; Steam-aanraakbediening op 1000 Hz. Iets meer CPU.</string>
+    <string name="drawer_evdev_mouse">Ruw muiskanaal</string>
+    <string name="drawer_direct_cursor">Cursor</string>
     <string name="drawer_pc_keyboard">Pc-toetsenbord</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Tweede scherm</string>

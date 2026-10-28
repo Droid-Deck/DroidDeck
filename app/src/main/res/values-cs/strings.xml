@@ -649,6 +649,8 @@
     <string name="drawer_low_latency_controller_hint">Ovladač hlásí na 1000 Hz místo 250 Hz. O něco víc CPU.</string>
     <string name="drawer_low_latency_touch">Dotek s nízkým zpožděním</string>
     <string name="drawer_low_latency_touch_hint">Doteky přeskakují dávkování snímků, takže ovládání dotykem ve Steamu běží na 1000 Hz. O něco víc CPU.</string>
+    <string name="drawer_evdev_mouse">Surový kanál myši</string>
+    <string name="drawer_direct_cursor">Kurzor</string>
     <string name="drawer_pc_keyboard">Klávesnice PC</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Druhá obrazovka</string>

@@ -645,6 +645,8 @@
     <string name="drawer_low_latency_controller_hint">コントローラーが 250 Hz ではなく 1000 Hz で報告されます。CPU 使用率がわずかに上がります。</string>
     <string name="drawer_low_latency_touch">低遅延タッチ</string>
     <string name="drawer_low_latency_touch_hint">タッチはフレームの結合を省略し、Steam のタッチは 1000 Hz で報告されます。CPU 使用率がわずかに上がります。</string>
+    <string name="drawer_evdev_mouse">生のマウス経路</string>
+    <string name="drawer_direct_cursor">カーソル</string>
     <string name="drawer_pc_keyboard">PCキーボード</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">セカンドスクリーン</string>

@@ -645,6 +645,8 @@
     <string name="drawer_low_latency_controller_hint">Контролерът докладва при 1000 Hz вместо 250 Hz. Малко повече CPU.</string>
     <string name="drawer_low_latency_touch">Докосване с ниско закъснение</string>
     <string name="drawer_low_latency_touch_hint">Докосванията пропускат групирането на кадри; управлението с докосване в Steam работи при 1000 Hz. Малко повече CPU.</string>
+    <string name="drawer_evdev_mouse">Суров канал за мишка</string>
+    <string name="drawer_direct_cursor">Курсор</string>
     <string name="drawer_pc_keyboard">Клавиатура за компютър</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Втори екран</string>

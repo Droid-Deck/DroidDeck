@@ -643,6 +643,8 @@
     <string name="drawer_low_latency_controller_hint">Tay cầm báo cáo ở 1000 Hz thay vì 250 Hz. Tốn thêm một chút CPU.</string>
     <string name="drawer_low_latency_touch">Cảm ứng độ trễ thấp</string>
     <string name="drawer_low_latency_touch_hint">Cảm ứng bỏ qua việc gộp khung hình, nên điều khiển cảm ứng của Steam chạy ở 1000 Hz. Tốn thêm một chút CPU.</string>
+    <string name="drawer_evdev_mouse">Kênh chuột thô</string>
+    <string name="drawer_direct_cursor">Con trỏ</string>
     <string name="drawer_pc_keyboard">Bàn phím PC</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Màn hình thứ hai</string>

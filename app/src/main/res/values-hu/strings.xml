@@ -645,6 +645,8 @@
     <string name="drawer_low_latency_controller_hint">A kontroller 250 Hz helyett 1000 Hz-en jelent. Kicsit több CPU.</string>
     <string name="drawer_low_latency_touch">Alacsony késleltetésű érintés</string>
     <string name="drawer_low_latency_touch_hint">Az érintések kihagyják a képkockák kötegelését, így a Steam érintésvezérlése 1000 Hz-en fut. Kicsit több CPU.</string>
+    <string name="drawer_evdev_mouse">Nyers egércsatorna</string>
+    <string name="drawer_direct_cursor">Kurzor</string>
     <string name="drawer_pc_keyboard">PC-billentyűzet</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Második képernyő</string>

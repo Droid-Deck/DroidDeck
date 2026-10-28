@@ -645,6 +645,8 @@
     <string name="drawer_low_latency_controller_hint">कंट्रोलर 250 Hz के बजाय 1000 Hz पर रिपोर्ट करता है। थोड़ा ज़्यादा CPU।</string>
     <string name="drawer_low_latency_touch">कम लेटेंसी टच</string>
     <string name="drawer_low_latency_touch_hint">टच फ़्रेम बैचिंग छोड़ देते हैं, इसलिए Steam का टच कंट्रोल 1000 Hz पर चलता है। थोड़ा ज़्यादा CPU।</string>
+    <string name="drawer_evdev_mouse">रॉ माउस चैनल</string>
+    <string name="drawer_direct_cursor">कर्सर</string>
     <string name="drawer_pc_keyboard">पीसी कीबोर्ड</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">दूसरी स्क्रीन</string>

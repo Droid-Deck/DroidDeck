@@ -645,6 +645,8 @@
     <string name="drawer_low_latency_controller_hint">控制器以 1000 Hz 而非 250 Hz 回報。CPU 使用率略高。</string>
     <string name="drawer_low_latency_touch">低延遲觸控</string>
     <string name="drawer_low_latency_touch_hint">觸控略過幀合併，Steam 觸控以 1000 Hz 回報。CPU 使用率略高。</string>
+    <string name="drawer_evdev_mouse">原生滑鼠通道</string>
+    <string name="drawer_direct_cursor">游標</string>
     <string name="drawer_pc_keyboard">電腦鍵盤</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">第二螢幕</string>

@@ -643,6 +643,8 @@
     <string name="drawer_low_latency_controller_hint">Pengontrol melapor pada 1000 Hz, bukan 250 Hz. Sedikit lebih banyak CPU.</string>
     <string name="drawer_low_latency_touch">Sentuh latensi rendah</string>
     <string name="drawer_low_latency_touch_hint">Sentuhan melewati pengelompokan frame, jadi kontrol sentuh Steam berjalan pada 1000 Hz. Sedikit lebih banyak CPU.</string>
+    <string name="drawer_evdev_mouse">Kanal mouse mentah</string>
+    <string name="drawer_direct_cursor">Kursor</string>
     <string name="drawer_pc_keyboard">Keyboard PC</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Layar kedua</string>

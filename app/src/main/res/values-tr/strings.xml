@@ -645,6 +645,8 @@
     <string name="drawer_low_latency_controller_hint">Kumanda 250 Hz yerine 1000 Hz bildirir. CPU kullanımı biraz artar.</string>
     <string name="drawer_low_latency_touch">Düşük gecikmeli dokunma</string>
     <string name="drawer_low_latency_touch_hint">Dokunmalar kare gruplamasını atlar; Steam dokunmatik kontrolleri 1000 Hz çalışır. CPU kullanımı biraz artar.</string>
+    <string name="drawer_evdev_mouse">Ham fare kanalı</string>
+    <string name="drawer_direct_cursor">İmleç</string>
     <string name="drawer_pc_keyboard">PC klavyesi</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">İkinci ekran</string>

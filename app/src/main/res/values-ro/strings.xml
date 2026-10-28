@@ -647,6 +647,8 @@
     <string name="drawer_low_latency_controller_hint">Controllerul raportează la 1000 Hz în loc de 250 Hz. Consum CPU puțin mai mare.</string>
     <string name="drawer_low_latency_touch">Atingere cu latență mică</string>
     <string name="drawer_low_latency_touch_hint">Atingerile sar peste gruparea cadrelor, deci controlul tactil Steam rulează la 1000 Hz. Consum CPU puțin mai mare.</string>
+    <string name="drawer_evdev_mouse">Canal brut de mouse</string>
+    <string name="drawer_direct_cursor">Cursor</string>
     <string name="drawer_pc_keyboard">Tastatură de PC</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Al doilea ecran</string>

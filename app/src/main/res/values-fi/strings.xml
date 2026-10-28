@@ -645,6 +645,8 @@
     <string name="drawer_low_latency_controller_hint">Ohjain raportoi 1000 Hz:n taajuudella 250 Hz:n sijaan. Hieman enemmän CPU:ta.</string>
     <string name="drawer_low_latency_touch">Matalan viiveen kosketus</string>
     <string name="drawer_low_latency_touch_hint">Kosketukset ohittavat ruutujen niputuksen, joten Steamin kosketusohjaus toimii 1000 Hz:llä. Hieman enemmän CPU:ta.</string>
+    <string name="drawer_evdev_mouse">Raaka hiirikanava</string>
+    <string name="drawer_direct_cursor">Osoitin</string>
     <string name="drawer_pc_keyboard">PC-näppäimistö</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Toinen näyttö</string>

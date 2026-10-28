@@ -664,6 +664,8 @@
     <string name="drawer_low_latency_controller_hint">El control informa a 1000 Hz en lugar de 250 Hz. Usa algo más de CPU.</string>
     <string name="drawer_low_latency_touch">Táctil de baja latencia</string>
     <string name="drawer_low_latency_touch_hint">Los toques omiten la agrupación de fotogramas; los controles táctiles de Steam van a 1000 Hz. Usa algo más de CPU.</string>
+    <string name="drawer_evdev_mouse">Canal de ratón sin procesar</string>
+    <string name="drawer_direct_cursor">Cursor</string>
     <string name="drawer_pc_keyboard">Teclado de PC</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Segunda pantalla</string>

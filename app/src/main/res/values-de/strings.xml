@@ -645,6 +645,8 @@
     <string name="drawer_low_latency_controller_hint">Der Controller meldet mit 1000 Hz statt 250 Hz. Die CPU-Last ist etwas höher.</string>
     <string name="drawer_low_latency_touch">Touch mit geringer Latenz</string>
     <string name="drawer_low_latency_touch_hint">Touch überspringt das Zusammenfassen von Frames, Steam-Touch meldet mit 1000 Hz. Die CPU-Last ist etwas höher.</string>
+    <string name="drawer_evdev_mouse">Roher Mauskanal</string>
+    <string name="drawer_direct_cursor">Zeiger</string>
     <string name="drawer_pc_keyboard">PC-Tastatur</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Zweiter Bildschirm</string>

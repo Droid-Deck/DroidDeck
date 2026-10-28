@@ -52,7 +52,7 @@ class TouchpadGestures(
         releaseClick()
         listener.onButton(button, true, x, y)
         clicked = button
-        handler.postDelayed(clickUp, CLICK_MS)
+        handler.postDelayed(clickUp, TouchTiming.CLICK_MS)
     }
 
     private fun releaseClick() {
@@ -79,6 +79,20 @@ class TouchpadGestures(
         y = py.coerceIn(bounds.top, bounds.bottom)
     }
 
+    private fun trackMove(px: Float, py: Float) {
+        val dx = px - lastX
+        val dy = py - lastY
+        lastX = px; lastY = py
+        travelled += abs(dx) + abs(dy)
+        if (travelled > slopPx) {
+            handler.removeCallbacks(longPress)
+            val speed = abs(dx) + abs(dy)
+            val gain = sensitivity * (1f + minOf(speed / 40f, 1.5f))
+            place(x + dx * gain, y + dy * gain)
+            listener.onMove(x, y)
+        }
+    }
+
     fun onTouch(event: MotionEvent): Boolean {
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
@@ -87,12 +101,12 @@ class TouchpadGestures(
                 downAt = event.eventTime
                 travelled = 0f; held = false; twoFingers = false; scrolled = false; secondWasTap = false
                 anchorId = event.getPointerId(0); moverId = -1; holdDrag = false; scrollLocked = false
-                if (event.eventTime - lastTapAt < DOUBLE_TAP_MS) {
+                if (event.eventTime - lastTapAt < TouchTiming.DOUBLE_TAP_MS) {
                     dragging = true
                     listener.onButton(PointerGestures.BTN_LEFT, true, x, y)
                 } else {
                     dragging = false
-                    handler.postDelayed(longPress, HOLD_MS)
+                    handler.postDelayed(longPress, TouchTiming.HOLD_MS)
                 }
                 return true
             }
@@ -149,26 +163,18 @@ class TouchpadGestures(
                 if (twoFingers && event.pointerCount >= 2) {
                     val mid = (event.getY(0) + event.getY(1)) / 2f
                     val dy = mid - scrollAnchorY
-                    val steps = (dy / SCROLL_STEP_PX).toInt()
+                    val steps = (dy / TouchTiming.SCROLL_STEP_PX).toInt()
                     if (steps != 0) {
                         listener.onWheel(-steps)
-                        scrollAnchorY += steps * SCROLL_STEP_PX
+                        scrollAnchorY += steps * TouchTiming.SCROLL_STEP_PX
                         scrolled = true
                         secondWasTap = false
                     }
                     return true
                 }
-                val dx = event.x - lastX
-                val dy = event.y - lastY
-                lastX = event.x; lastY = event.y
-                travelled += abs(dx) + abs(dy)
-                if (travelled > slopPx) {
-                    handler.removeCallbacks(longPress)
-                    val speed = (abs(dx) + abs(dy))
-                    val gain = sensitivity * (1f + minOf(speed / 40f, 1.5f))
-                    place(x + dx * gain, y + dy * gain)
-                    listener.onMove(x, y)
-                }
+                for (h in 0 until event.historySize)
+                    trackMove(event.getHistoricalX(0, h), event.getHistoricalY(0, h))
+                trackMove(event.x, event.y)
                 return true
             }
             MotionEvent.ACTION_POINTER_UP -> {
@@ -194,7 +200,7 @@ class TouchpadGestures(
                 event.findPointerIndex(anchorId).takeIf { it >= 0 && it != event.actionIndex }?.let {
                     lastX = event.getX(it); lastY = event.getY(it)
                 }
-                if (twoFingers && secondWasTap && event.eventTime - secondDownAt < TAP_MS && !scrolled) {
+                if (twoFingers && secondWasTap && event.eventTime - secondDownAt < TouchTiming.TAP_MS && !scrolled) {
                     click(PointerGestures.BTN_RIGHT)
                     secondWasTap = false
                 }
@@ -206,11 +212,11 @@ class TouchpadGestures(
                 when {
                     dragging -> listener.onButton(PointerGestures.BTN_LEFT, false, x, y)
                     twoFingers -> {
-                        if (secondWasTap && !scrolled && !cancelled && event.eventTime - downAt < TAP_MS * 2) {
+                        if (secondWasTap && !scrolled && !cancelled && event.eventTime - downAt < TouchTiming.TAP_MS * 2) {
                             click(PointerGestures.BTN_RIGHT)
                         }
                     }
-                    !cancelled && travelled <= slopPx && event.eventTime - downAt < TAP_MS -> {
+                    !cancelled && travelled <= slopPx && event.eventTime - downAt < TouchTiming.TAP_MS -> {
                         click(PointerGestures.BTN_LEFT)
                         lastTapAt = event.eventTime
                     }
@@ -224,11 +230,6 @@ class TouchpadGestures(
     }
 
     companion object {
-        private const val HOLD_MS = 500L
-        private const val TAP_MS = 300L
-        private const val CLICK_MS = 50L
-        private const val DOUBLE_TAP_MS = 300L
-        private const val SCROLL_STEP_PX = 36f
         private const val HOLD_DRAG_MOVER_SLOPS = 2f
         private const val HOLD_DRAG_ANCHOR_SLOPS = 0.5f
     }

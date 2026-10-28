@@ -503,6 +503,7 @@ struct active_touch { struct surface *surface; int pointer_fallback; };
 static struct active_touch g_touch_points[MAX_TOUCH_POINTS];
 static void touch_cancel_surface(struct surface *surface);
 static struct surface *g_grab;
+static void publish_query_state(void);
 static struct surface *g_key_target;
 static struct surface *g_ime_click;
 static int g_input_pipe[2] = {-1, -1};
@@ -596,6 +597,7 @@ static void map_toplevel(struct surface *s) {
     raise_kept_on_top();
     if (!g_desktop) g_key_target = s;
     apply_zorder();
+    publish_query_state();
 }
 
 static void unmap_toplevel(struct surface *s) {
@@ -2432,6 +2434,7 @@ static const struct wl_touch_interface touch_impl = { .release = touch_release }
 static void touch_res_destroy(struct wl_resource *r) {
     for (int i = 0; i < g_ntouches; i++)
         if (g_touches[i].touch == r) { g_touches[i] = g_touches[--g_ntouches]; break; }
+    publish_query_state();
 }
 
 static void seat_get_pointer(struct wl_client *c, struct wl_resource *r, uint32_t id) {
@@ -2469,6 +2472,7 @@ static void seat_get_touch(struct wl_client *c, struct wl_resource *r, uint32_t 
         g_touches[g_ntouches].focus = NULL;
         g_ntouches++;
     }
+    publish_query_state();
 }
 static void seat_release(struct wl_client *c, struct wl_resource *r) { wl_resource_destroy(r); }
 static const struct wl_seat_interface seat_impl = {
@@ -2948,6 +2952,7 @@ static void pointer_input(double x, double y, int relative, uint32_t button, int
             if (button && !pressed) g_grab = NULL;
         }
     }
+    publish_query_state();
     if (!target) return;
 
     struct wl_client *client = wl_resource_get_client(target->resource);
@@ -2963,9 +2968,9 @@ static void pointer_input(double x, double y, int relative, uint32_t button, int
     // may have warped its cursor since the last motion (before taking lock,
     // or while releasing it), so that replay can become an unintended pan.
     // Absolute touch events still carry their position, including on clicks.
-    if (!(k && k->is_lock) && (!relative || dx != 0 || dy != 0))
+    int rel_consumed = send_relative_motion(client, dx, dy);
+    if (!(k && k->is_lock) && !(relative && rel_consumed) && (!relative || dx != 0 || dy != 0))
         for_each_pointer_of(client, sp) wl_pointer_send_motion(sp->ptr, t, fx, fy);
-    send_relative_motion(client, dx, dy);
     for_each_pointer_of(client, sp) {
         if (button)
             wl_pointer_send_button(sp->ptr, wl_display_next_serial(g_display), t, button,
@@ -3104,6 +3109,63 @@ static struct surface *touch_target_at(double x, double y) {
     return g_grab ? g_grab : g_key_target;
 }
 
+static pthread_mutex_t g_query_lock = PTHREAD_MUTEX_INITIALIZER;
+struct query_snapshot {
+    int has_position;
+    int input_x, input_y;
+    int focus_takes_touch;
+};
+static struct query_snapshot g_query = { 0, 0, 0, 1 };
+
+static void publish_query_state(void) {
+    struct surface *target = g_key_target ? g_key_target : (g_grab ? g_grab : toplevel_at(g_ptr_x, g_ptr_y));
+    int takes_touch = 1;
+    if (target) {
+        struct wl_client *client = wl_resource_get_client(target->resource);
+        struct seat_touch *st;
+        takes_touch = 0;
+        for_each_touch_of(client, st) takes_touch = 1;
+    }
+    int w = 0, h = 0, ow = 0, oh = 0, input_x = 0, input_y = 0, has_position = 0;
+    scene_size(&w, &h);
+    vkp_output_size(&ow, &oh);
+    if (w > 0 && h > 0) {
+        double ox, oy;
+        if (ow > 0 && oh > 0 && vkp_scene_to_output(g_ptr_x, g_ptr_y, &ox, &oy)) {
+            input_x = (int)(ox * INPUT_SPACE_W / ow);
+            input_y = (int)(oy * INPUT_SPACE_H / oh);
+        } else {
+            input_x = (int)(g_ptr_x * INPUT_SPACE_W / w);
+            input_y = (int)(g_ptr_y * INPUT_SPACE_H / h);
+        }
+        has_position = 1;
+    }
+    pthread_mutex_lock(&g_query_lock);
+    g_query.focus_takes_touch = takes_touch;
+    g_query.has_position = has_position;
+    g_query.input_x = input_x;
+    g_query.input_y = input_y;
+    pthread_mutex_unlock(&g_query_lock);
+}
+
+int droiddeck_focus_takes_touch(void) {
+    pthread_mutex_lock(&g_query_lock);
+    int takes_touch = g_query.focus_takes_touch;
+    pthread_mutex_unlock(&g_query_lock);
+    return takes_touch;
+}
+
+int droiddeck_cursor_input_pos(int *x, int *y) {
+    pthread_mutex_lock(&g_query_lock);
+    int has_position = g_query.has_position;
+    int input_x = g_query.input_x, input_y = g_query.input_y;
+    pthread_mutex_unlock(&g_query_lock);
+    if (!has_position) return 0;
+    *x = input_x;
+    *y = input_y;
+    return 1;
+}
+
 static void touch_down(int id, double x, double y) {
     if (id < 0 || id >= MAX_TOUCH_POINTS) return;
     struct surface *target = touch_target_at(x, y);
@@ -3203,6 +3265,7 @@ static void deliver_touch(const struct input_msg *m) {
     else if (m->p1 == 1) touch_motion(m->p2, x, y);
     else if (m->p1 == 2) touch_up(m->p2, x, y);
     else if (m->p1 == 3) touch_cancel_all();
+    publish_query_state();
 }
 
 static void key_event(uint32_t evdev, int pressed);

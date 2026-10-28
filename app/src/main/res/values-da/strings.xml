@@ -645,6 +645,8 @@
     <string name="drawer_low_latency_controller_hint">Controlleren rapporterer ved 1000 Hz i stedet for 250 Hz. Lidt mere CPU.</string>
     <string name="drawer_low_latency_touch">Berøring med lav forsinkelse</string>
     <string name="drawer_low_latency_touch_hint">Berøringer springer billedsamling over; Steams berøringsstyring kører ved 1000 Hz. Lidt mere CPU.</string>
+    <string name="drawer_evdev_mouse">Rå musekanal</string>
+    <string name="drawer_direct_cursor">Markør</string>
     <string name="drawer_pc_keyboard">PC-tastatur</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Anden skærm</string>

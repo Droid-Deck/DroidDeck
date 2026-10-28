@@ -645,6 +645,8 @@
     <string name="drawer_low_latency_controller_hint">Handkontrollen rapporterar i 1000 Hz i stället för 250 Hz. Något mer CPU.</string>
     <string name="drawer_low_latency_touch">Pekning med låg latens</string>
     <string name="drawer_low_latency_touch_hint">Pekningar hoppar över bildrutebatchning; Steams pekstyrning går i 1000 Hz. Något mer CPU.</string>
+    <string name="drawer_evdev_mouse">Rå muskanal</string>
+    <string name="drawer_direct_cursor">Markör</string>
     <string name="drawer_pc_keyboard">PC-tangentbord</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Andra skärmen</string>

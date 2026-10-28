@@ -647,6 +647,8 @@
     <string name="drawer_low_latency_controller_hint">O controle envia dados a 1000 Hz em vez de 250 Hz. Um pouco mais de CPU.</string>
     <string name="drawer_low_latency_touch">Toque de baixa latência</string>
     <string name="drawer_low_latency_touch_hint">Os toques ignoram o agrupamento de quadros; os controles de toque da Steam vão a 1000 Hz. Um pouco mais de CPU.</string>
+    <string name="drawer_evdev_mouse">Canal de mouse bruto</string>
+    <string name="drawer_direct_cursor">Cursor</string>
     <string name="drawer_pc_keyboard">Teclado de PC</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Segunda tela</string>
