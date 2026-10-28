@@ -210,6 +210,7 @@ class SignTest(unittest.TestCase):
             base = Path(directory)
             (base / 'main').mkdir()
             (base / 'checkout').mkdir()
+            base = base.resolve()
             override, local, shared = base / 'override.env', base / 'checkout/.signing.env', base / 'main/.signing.env'
             common = (str(base / 'main/.git') + '\n').encode()
             with mock.patch.object(deploy_fast, 'ROOT', base / 'checkout'), \

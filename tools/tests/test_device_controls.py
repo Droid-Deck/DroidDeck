@@ -55,7 +55,7 @@ globalThis.window = globalThis;
 const requests = [], callbacks = [];
 const timers = [];
 let now = 0;
-Date.now = () => now;
+Object.defineProperty(globalThis, 'performance', { value: { now: () => now }, configurable: true });
 globalThis.setTimeout = callback => timers.push(callback);
 let current = 1;
 window.droiddeckBrightnessChanged = value => requests.push(Number(value));
@@ -98,12 +98,12 @@ assert.deepStrictEqual(requests, [0.8, 0.6, 0.7]);
 let applied = [];
 SteamClient.System.Display.SetBrightness = value => applied.push(value);
 for (const value of [0.71, 0.72, 0.73]) { now += 50; callbacks.forEach(cb => cb({ flBrightness: value })); }
-bridge.set(0.71);
+assert.strictEqual(bridge.set(0.71), 'held');
 now += 100;
-bridge.set(0.72);
+assert.strictEqual(bridge.set(0.72), 'held');
 assert.deepStrictEqual(applied, []);
 now += 800;
-bridge.set(0.3);
+assert.strictEqual(bridge.set(0.3), true);
 assert.deepStrictEqual(applied, [0.3]);
 """
         with tempfile.TemporaryDirectory() as directory:
@@ -141,6 +141,27 @@ assert.deepStrictEqual(applied, [0.3]);
                 path.write_text(json.dumps({"brightness": 0.5, "revision": 2}))
                 helper.sync_controls()
                 self.assertEqual(len(calls), 2)
+            finally:
+                globals_["CONTROLS_DIR"] = previous
+
+    def test_a_readback_held_by_the_bridge_is_retried_instead_of_cached(self):
+        with tempfile.TemporaryDirectory() as directory:
+            globals_ = LIVE["Helper"].sync_controls.__globals__
+            previous = globals_["CONTROLS_DIR"]
+            try:
+                globals_["CONTROLS_DIR"] = directory
+                Path(directory, "state.json").write_text(json.dumps({"brightness": 0.5, "revision": 1}))
+                results = ["held", "held", True]
+                helper = LIVE["Helper"]("/steam", 0)
+                helper.controls_installed = True
+                helper.page = type("Page", (), {"evaluate": lambda self, expression: results.pop(0)})()
+                helper.sync_controls()
+                helper.sync_controls()
+                self.assertTrue(helper.controls_installed)
+                self.assertIsNone(helper.controls_state)
+                helper.sync_controls()
+                self.assertEqual(helper.controls_state["revision"], 1)
+                self.assertEqual(results, [])
             finally:
                 globals_["CONTROLS_DIR"] = previous
 

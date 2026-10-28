@@ -204,7 +204,7 @@ def signing_env():
     common = Path(git('rev-parse', '--path-format=absolute', '--git-common-dir').decode().strip())
     for candidate in (os.environ.get('DROIDDECK_SIGNING_ENV'), ROOT / '.signing.env', common.parent / '.signing.env'):
         if candidate and Path(candidate).is_file():
-            return Path(candidate)
+            return Path(candidate).resolve()
     return None
 
 
