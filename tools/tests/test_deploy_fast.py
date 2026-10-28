@@ -193,7 +193,8 @@ class SignTest(unittest.TestCase):
             seen.append(command)
             return mock.Mock(returncode=1, stdout='', stderr='')
 
-        with mock.patch.object(deploy_fast, 'pwsh', return_value='pwsh'):
+        with mock.patch.object(deploy_fast, 'pwsh', return_value='pwsh'), \
+                mock.patch.object(deploy_fast, 'signing_env', return_value=None):
             with mock.patch.object(deploy_fast, 'SIGNER', Path("C:/O'Brien/sign.ps1")):
                 with mock.patch.object(deploy_fast.subprocess, 'run', side_effect=run):
                     with self.assertRaises(deploy_fast.Refused):
@@ -203,6 +204,51 @@ class SignTest(unittest.TestCase):
         self.assertIn("a''b", script)
         self.assertNotIn("a'b", script.replace("a''b", ''))
         self.assertNotIn("O'Brien", script.replace("O''Brien", ''))
+
+    def test_signing_env_prefers_the_override_then_the_checkout_then_the_main_checkout(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            (base / 'main').mkdir()
+            (base / 'checkout').mkdir()
+            override, local, shared = base / 'override.env', base / 'checkout/.signing.env', base / 'main/.signing.env'
+            common = (str(base / 'main/.git') + '\n').encode()
+            with mock.patch.object(deploy_fast, 'ROOT', base / 'checkout'), \
+                    mock.patch.object(deploy_fast, 'git', return_value=common), \
+                    mock.patch.dict(deploy_fast.os.environ, {'DROIDDECK_SIGNING_ENV': str(override)}):
+                self.assertIsNone(deploy_fast.signing_env())
+                shared.write_text('x')
+                self.assertEqual(deploy_fast.signing_env(), shared)
+                local.write_text('x')
+                self.assertEqual(deploy_fast.signing_env(), local)
+                override.write_text('x')
+                self.assertEqual(deploy_fast.signing_env(), override)
+
+    def test_the_env_signer_is_used_when_the_windows_signer_is_missing(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            (base / 'build-tools/35.0.0').mkdir(parents=True)
+            (base / 'build-tools/35.0.0/aapt').write_text('')
+            signed = base / 'out.apk'
+
+            def run(command, **options):
+                signed.write_text('apk')
+                self.assertEqual(options['env']['BUILD_TOOLS'], str(base / 'build-tools/35.0.0'))
+                return mock.Mock(returncode=0, stdout='', stderr='')
+
+            with mock.patch.object(deploy_fast, 'SIGNER', base / 'missing.ps1'), \
+                    mock.patch.object(deploy_fast, 'signing_env', return_value=base / '.signing.env'), \
+                    mock.patch.object(deploy_fast, 'sdk_root', return_value=base), \
+                    mock.patch.object(deploy_fast.subprocess, 'run', side_effect=run) as run_:
+                deploy_fast.sign(base / 'in.apk', signed)
+            self.assertEqual(run_.call_args[0][0][-3:], [str(base / 'in.apk'), 'standard', str(signed)])
+            failed = mock.Mock(returncode=1, stdout='', stderr='boom')
+            signed.unlink()
+            with mock.patch.object(deploy_fast, 'SIGNER', base / 'missing.ps1'), \
+                    mock.patch.object(deploy_fast, 'signing_env', return_value=base / '.signing.env'), \
+                    mock.patch.object(deploy_fast, 'sdk_root', return_value=base), \
+                    mock.patch.object(deploy_fast.subprocess, 'run', return_value=failed):
+                with self.assertRaises(deploy_fast.Refused):
+                    deploy_fast.sign(base / 'in.apk', signed)
 
 
 if __name__ == '__main__':

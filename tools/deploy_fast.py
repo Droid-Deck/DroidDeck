@@ -200,9 +200,9 @@ def pwsh():
 
 
 def signing_env():
-    """The .signing.env build_local.sh uses: the checkout's own, else the main checkout's."""
+    """The .signing.env build_local.sh uses: the override, else the checkout's own, else the main checkout's."""
     common = Path(git('rev-parse', '--path-format=absolute', '--git-common-dir').decode().strip())
-    for candidate in (ROOT / '.signing.env', os.environ.get('DROIDDECK_SIGNING_ENV'), common.parent / '.signing.env'):
+    for candidate in (os.environ.get('DROIDDECK_SIGNING_ENV'), ROOT / '.signing.env', common.parent / '.signing.env'):
         if candidate and Path(candidate).is_file():
             return Path(candidate)
     return None
