@@ -565,6 +565,18 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
     val window = LocalWindowInfo.current
     val androidContext = androidx.compose.ui.platform.LocalContext.current
     var anyFocused by remember { mutableStateOf(false) }
+    val paneRequester = remember { FocusRequester() }
+    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
+    suspend fun focusDualPane() {
+        repeat(30) {
+            withFrameNanos { }
+            if (anyFocused) return
+            runCatching { paneRequester.requestFocus() }
+            if (anyFocused) return
+            focusManager.moveFocus(FocusDirection.Down)
+            if (anyFocused) return
+        }
+    }
     androidx.compose.foundation.layout.BoxWithConstraints(
         modifier = Modifier.fillMaxSize().background(colors.background)
             .windowInsetsPadding(if (s.launcherFullscreen) WindowInsets.displayCutout else WindowInsets.systemBars)
@@ -575,7 +587,8 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
             if (processSettingsPageVisible) return@LaunchedEffect
             snapshotFlow { window.isWindowFocused }.first { it }
             if (inputModeManager.inputMode != InputMode.Keyboard) inputModeManager.requestInputMode(InputMode.Keyboard)
-            focusWithinFrames({ anyFocused }) { if (frontFocus.primaryAttached > 0) frontFocus.primary else frontFocus.railFor(railSelection) }
+            if (s.dualScreen && frontFocus.primaryAttached == 0) focusDualPane()
+            else focusWithinFrames({ anyFocused }) { if (frontFocus.primaryAttached > 0) frontFocus.primary else frontFocus.railFor(railSelection) }
         }
         var openPage by remember { mutableStateOf<String?>(null) }
         LaunchedEffect(s.pageKey) {
@@ -597,16 +610,22 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
                 return@LaunchedEffect
             }
             if (anyFocused) return@LaunchedEffect
-            focusWithinFrames({ anyFocused }) { if (frontFocus.primaryAttached > 0) frontFocus.primary else frontFocus.railFor(railSelection) }
+            if (s.dualScreen && frontFocus.primaryAttached == 0) focusDualPane()
+            else focusWithinFrames({ anyFocused }) { if (frontFocus.primaryAttached > 0) frontFocus.primary else frontFocus.railFor(railSelection) }
         }
         LaunchedEffect(railPicks) {
             if (railPicks == 0 || processSettingsPageVisible) return@LaunchedEffect
             kotlinx.coroutines.delay(Motion.ms(PAGE_EXIT_MS).toLong())
             if (inputModeManager.inputMode != InputMode.Keyboard) return@LaunchedEffect
-            withTimeoutOrNull(1_000) { snapshotFlow { frontFocus.primaryAttached > 0 }.first { it } } ?: return@LaunchedEffect
+            val entry = withTimeoutOrNull(1_000) { snapshotFlow { frontFocus.primaryAttached > 0 }.first { it } }
+            if (entry == null) {
+                if (s.dualScreen) focusDualPane()
+                return@LaunchedEffect
+            }
             focusWithinFrames({ frontFocus.focusedRail == null && anyFocused }) { frontFocus.paneEntry() }
         }
         val paneFocus = Modifier
+            .focusRequester(paneRequester)
             .focusProperties {
                 enter = { frontFocus.paneEntry() }
                 exit = { direction ->
@@ -632,7 +651,11 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
             focusWithinFrames({ frontFocus.last == r.control && anyFocused }) { frontFocus.items[r.control] ?: frontFocus.paneEntry() }
         }
         var screenAt by remember { mutableStateOf(Offset.Zero) }
-        if (s.dualScreen) DualPanelPublisher(s, railSelection, onRailSelect, a)
+        if (s.dualScreen) DualPanelPublisher(s, railSelection, { key ->
+            if (inputModeManager.inputMode != InputMode.Keyboard) inputModeManager.requestInputMode(InputMode.Keyboard)
+            focusManager.clearFocus(force = true)
+            onRailSelect(key)
+        }, a)
         CompositionLocalProvider(LocalShowSection provides { key -> selected = key }) {
         LauncherLayout(
             bottomNavigation && !s.dualScreen, pal.line,
