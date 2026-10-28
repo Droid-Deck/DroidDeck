@@ -32,4 +32,16 @@ class AccountsMergeTest {
         assertEquals("root:x:10123:\nroot:x:0:\nsudo:x:27:\naudio:x:29:pulse\n",
             LinuxRuntime.mergedAccounts(existing, 2, "root:x:10123:", "root:x:0:", 10123))
     }
+
+    @Test fun storageGroupsAreAddedWithRoot() {
+        assertEquals("root:x:0:\nsudo:x:27:\nsdcard_rw:x:1015:root\nmedia_rw:x:1023:root\neverybody:x:9997:root\n",
+            LinuxRuntime.withStorageGroups("root:x:0:\nsudo:x:27:\n"))
+    }
+
+    @Test fun existingStorageGroupsGainRootOnce() {
+        val existing = "root:x:0:\nmedia_rw:x:1023:pulse\nsdcard_rw:x:1015:root\nshared:x:9997:\n"
+        val updated = LinuxRuntime.withStorageGroups(existing)
+        assertEquals("root:x:0:\nmedia_rw:x:1023:pulse,root\nsdcard_rw:x:1015:root\nshared:x:9997:root\n", updated)
+        assertEquals(updated, LinuxRuntime.withStorageGroups(updated))
+    }
 }

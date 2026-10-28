@@ -455,6 +455,39 @@ public final class LinuxRuntime {
                 "root:x:" + uid + ":" + uid + ":root:/root:/bin/bash", "root:x:0:0:root:/root:/bin/bash", uid);
         mergeAccounts(new File(root, "etc/group"), 2,
                 "root:x:" + uid + ":", "root:x:0:", uid);
+        File group = new File(root, "etc/group");
+        String groups = new String(Files.readAllBytes(group.toPath()), StandardCharsets.UTF_8);
+        writeIfChanged(group, groups, withStorageGroups(groups));
+    }
+
+    private static final String[][] STORAGE_GROUPS = {
+            {"sdcard_rw", "1015"}, {"media_rw", "1023"}, {"everybody", "9997"}};
+
+    static String withStorageGroups(String groups) {
+        StringBuilder out = new StringBuilder();
+        List<String> present = new ArrayList<>();
+        for (String line : groups.split("\n")) {
+            if (line.trim().isEmpty()) continue;
+            String[] fields = line.split(":", -1);
+            if (fields.length >= 4) {
+                for (String[] storage : STORAGE_GROUPS) {
+                    if (fields[0].equals(storage[0])) present.add(storage[0]);
+                    if (!fields[2].equals(storage[1])) continue;
+                    present.add(storage[0]);
+                    if (!java.util.Arrays.asList(fields[3].split(",")).contains("root")) {
+                        fields[3] = fields[3].isEmpty() ? "root" : fields[3] + ",root";
+                        line = String.join(":", fields);
+                    }
+                }
+            }
+            out.append(line).append('\n');
+        }
+        for (String[] storage : STORAGE_GROUPS) {
+            if (!present.contains(storage[0])) {
+                out.append(storage[0]).append(":x:").append(storage[1]).append(":root\n");
+            }
+        }
+        return out.toString();
     }
 
     static String mergedAccounts(String existing, int idField, String own, String zero, int uid) {
@@ -473,7 +506,10 @@ public final class LinuxRuntime {
 
     private static void mergeAccounts(File file, int idField, String own, String zero, int uid) throws IOException {
         String existing = file.isFile() ? new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8) : null;
-        String merged = mergedAccounts(existing, idField, own, zero, uid);
+        writeIfChanged(file, existing, mergedAccounts(existing, idField, own, zero, uid));
+    }
+
+    private static void writeIfChanged(File file, String existing, String merged) throws IOException {
         if (merged.equals(existing)) return;
         File staged = File.createTempFile(file.getName(), ".staged", file.getParentFile());
         Files.write(staged.toPath(), merged.getBytes(StandardCharsets.UTF_8));
