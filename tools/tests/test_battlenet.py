@@ -1096,6 +1096,12 @@ class AgentTest(Temp):
         self.assertIn("lang = a(5), country = a(6), region = a(7), out = a(8)", script)
         self.assertIn('"--internalclienttools"', (BIN / "droiddeck-battlenet").read_text())
 
+    def test_the_driver_installs_chinas_products_under_their_own_uids(self):
+        script = BNET["AGENT_SCRIPT"]
+        self.assertIn('var CHINA = {osi: "osic", s2: "s2_cn", anbs: "anbs_cn", diablo3: "d3cn"};', script)
+        self.assertIn('var CHINA_PRODUCT = {osi: "osic", diablo3: "d3cn"};', script)
+        self.assertIn('if (zone == "cn" && action == "install" && CHINA[uid]) {', script)
+
 
 class AgentJobTest(Harness):
     def setUp(self):
