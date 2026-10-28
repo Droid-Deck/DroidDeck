@@ -54,6 +54,8 @@ const assert = require('assert');
 globalThis.window = globalThis;
 const requests = [], callbacks = [];
 const timers = [];
+let now = 0;
+Date.now = () => now;
 globalThis.setTimeout = callback => timers.push(callback);
 let current = 1;
 window.droiddeckBrightnessChanged = value => requests.push(Number(value));
@@ -69,16 +71,19 @@ const script = require('fs').readFileSync(process.argv[2], 'utf8');
 assert.strictEqual(eval(script), 'installed');
 assert.strictEqual(eval(script), 'present');
 const bridge = window.__droiddeckBrightness;
+now = 10000;
 bridge.set(0.5);
 bridge.set(0.5);
 assert.deepStrictEqual(requests, []);
 callbacks.forEach(cb => cb({ flBrightness: 0.8 }));
 assert.deepStrictEqual(requests, [0.8]);
+now += 1000;
 bridge.set(0.7992126);
 assert.deepStrictEqual(requests, [0.8]);
 for (const value of [NaN, Infinity, -1, 2, '0.5']) callbacks.forEach(cb => cb({ flBrightness: value }));
 assert.deepStrictEqual(requests, [0.8]);
 assert.strictEqual(callbacks.length, 1);
+now += 1000;
 SteamClient.System.Display.SetBrightness = value => callbacks.forEach(cb => cb({ flBrightness: value + 0.1 }));
 bridge.set(0.3);
 assert.deepStrictEqual(requests, [0.8]);
@@ -89,6 +94,17 @@ bridge.set(0.65);
 timers.forEach(callback => callback());
 callbacks.forEach(cb => cb({ flBrightness: 0.7 }));
 assert.deepStrictEqual(requests, [0.8, 0.6, 0.7]);
+// A held stick: Android's lagging readbacks must not pull Steam back while it keeps stepping.
+let applied = [];
+SteamClient.System.Display.SetBrightness = value => applied.push(value);
+for (const value of [0.71, 0.72, 0.73]) { now += 50; callbacks.forEach(cb => cb({ flBrightness: value })); }
+bridge.set(0.71);
+now += 100;
+bridge.set(0.72);
+assert.deepStrictEqual(applied, []);
+now += 800;
+bridge.set(0.3);
+assert.deepStrictEqual(applied, [0.3]);
 """
         with tempfile.TemporaryDirectory() as directory:
             script = Path(directory) / "bridge.js"

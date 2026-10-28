@@ -23,9 +23,12 @@ BRIGHTNESS_JS = r"""
   if (window.__droiddeckBrightness) return "present";
   const display = SteamClient.System?.Display;
   if (!display?.RegisterForBrightnessChanges || !display?.SetBrightness) return "unavailable";
-  const self = { expected: null, updating: true, revision: 0 };
+  const self = { expected: null, updating: true, revision: 0, localAt: -Infinity };
+  // A held stick steps Steam faster than Android's readback returns; those stale readbacks would snap the slider back.
+  const HOLD_MS = 750;
   self.set = value => {
     if (typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > 1) return;
+    if (Date.now() - self.localAt < HOLD_MS) return;
     if (!self.updating && self.expected !== null && Math.abs(value - self.expected) < 0.0001) return;
     self.expected = value;
     self.updating = true;
@@ -39,6 +42,7 @@ BRIGHTNESS_JS = r"""
     if (Math.abs(value - self.expected) < 0.0001) { self.updating = false; return; }
     if (self.updating) { self.updating = false; return; }
     self.expected = value;
+    self.localAt = Date.now();
     if (typeof window.__BINDING__ === "function") window.__BINDING__(String(value));
   });
   window.__droiddeckBrightness = self;
