@@ -2210,7 +2210,6 @@
     <string name="stores_itch_pick_failed">Could not load the downloads from itch.io</string>
     <string name="stores_itch_build_demo">Demo</string>
     <string name="stores_itch_build_open">Open on itch.io</string>
-    <string name="stores_itch_build_linux_soon">Not supported yet</string>
     <string name="stores_itch_no_game">Could not find this game on itch.io</string>
     <string name="stores_itch_build_windows" translatable="false">Windows</string>
     <string name="stores_itch_build_macos" translatable="false">macOS</string>

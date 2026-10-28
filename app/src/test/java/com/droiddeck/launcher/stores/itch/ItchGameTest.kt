@@ -37,15 +37,27 @@ class ItchGameTest {
         assertEquals(setOf("linux"), ItchUploads.platforms(JSONObject().put("platforms", flags)))
     }
 
-    @Test fun buildsSkipExternalUploadsAndPutWindowsFirst() {
+    @Test fun buildsSkipExternalUploadsAndPutWindowsFirstThenLinux() {
         val uploads = JSONArray()
             .put(upload("10", "linux.tar.gz", "p_linux", updated = "2026-10-01T00:00:00Z"))
             .put(upload("11", "win.zip", "p_windows", updated = "2026-09-01T00:00:00Z"))
             .put(upload("12", "site", "p_windows", storage = "external"))
+            .put(upload("13", "mac.zip", "p_osx", updated = "2026-10-05T00:00:00Z"))
         val builds = ItchGame.builds(uploads)
-        assertEquals(listOf("11", "10"), builds.map { it.uploadId })
+        assertEquals(listOf("11", "10", "13"), builds.map { it.uploadId })
         assertTrue(builds[0].installable)
-        assertFalse(builds[1].installable)
+        assertTrue(builds[1].installable)
+        assertTrue(builds[1].linux)
+        assertFalse(builds[2].installable)
+    }
+
+    @Test fun aBuildForBothWindowsAndLinuxCountsAsWindows() {
+        val build = ItchGame.builds(JSONArray().put(upload("14", "both.zip", "p_windows", "p_linux"))).single()
+        assertTrue(build.installable)
+        assertFalse(build.linux)
+        assertFalse(ItchUploads.linuxOnly(setOf("windows", "linux")))
+        assertTrue(ItchUploads.linuxOnly(setOf("linux", "osx")))
+        assertFalse(ItchUploads.linuxOnly(setOf("osx")))
     }
 
     @Test fun aDemoIsFlagged() {

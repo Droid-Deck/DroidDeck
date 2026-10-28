@@ -2044,7 +2044,6 @@
     <string name="stores_itch_pick_failed">Kunne ikke indlæse downloads fra itch.io</string>
     <string name="stores_itch_build_demo">Demo</string>
     <string name="stores_itch_build_open">Åbn på itch.io</string>
-    <string name="stores_itch_build_linux_soon">Understøttes ikke endnu</string>
     <string name="stores_itch_no_game">Kunne ikke finde dette spil på itch.io</string>
     <string name="stores_free">Gratis</string>
     <string name="stores_resume">Genoptag</string>

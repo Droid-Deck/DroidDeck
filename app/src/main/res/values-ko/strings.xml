@@ -2025,7 +2025,6 @@
     <string name="stores_itch_pick_failed">itch.io에서 다운로드를 불러오지 못했습니다</string>
     <string name="stores_itch_build_demo">데모</string>
     <string name="stores_itch_build_open">itch.io에서 열기</string>
-    <string name="stores_itch_build_linux_soon">아직 지원되지 않음</string>
     <string name="stores_itch_no_game">itch.io에서 이 게임을 찾을 수 없습니다</string>
     <string name="stores_free">무료</string>
     <string name="stores_resume">재개</string>

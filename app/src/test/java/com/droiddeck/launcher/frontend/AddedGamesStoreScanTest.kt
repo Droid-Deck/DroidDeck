@@ -73,6 +73,35 @@ class AddedGamesStoreScanTest {
         assertTrue(AddedGames.scan(app).any { it.folder.absolutePath == folder.absolutePath })
     }
 
+    private fun installLinux(): File {
+        SessionPrefs.setGameStorage(app, SessionPrefs.GAME_STORAGE_OFF, "")
+        val folder = File(StoreInstallRoot.storeDir(StoreInstallRoot.installRoot(app), Store.ITCH), StoreInstallRoot.folderName("Lin Game", "77"))
+        File(folder, "LinGame.x86_64").apply { parentFile!!.mkdirs(); writeText("game") }
+        StoreGameSidecar(Store.ITCH, "77", "Lin Game", "LinGame.x86_64", extra = mapOf("platform" to "linux")).write(folder)
+        return folder
+    }
+
+    @Test fun aLinuxInstallIsListedAsLinuxWithItsProgramAsTheExe() {
+        val folder = installLinux()
+        val game = AddedGames.scan(app).single { it.folder.absolutePath == folder.absolutePath }
+        assertTrue(game.linux)
+        assertEquals("LinGame.x86_64", game.exe.name)
+        assertTrue(game.guestExe.endsWith("/LinGame.x86_64"))
+        assertEquals(Store.ITCH.id, game.source)
+    }
+
+    @Test fun onlyALinuxGameCarriesTheLinuxMarkInTheListing() {
+        val linux = installLinux()
+        val windows = install(Store.GOG, "1207658924", "Heroes of Might and Magic 3: Complete", "HOMM3.exe")
+        val games = AddedGames.scan(app)
+        val listing = org.json.JSONArray(AddedGames.writeListing(app, games).readText())
+        val byName = (0 until listing.length()).map { listing.getJSONObject(it) }.associateBy { it.getString("name") }
+        assertTrue(byName.getValue("Lin Game").optBoolean("linux"))
+        assertFalse(byName.getValue("Heroes of Might and Magic 3: Complete").has("linux"))
+        assertFalse(games.single { it.folder.absolutePath == windows.absolutePath }.linux)
+        assertTrue(games.single { it.folder.absolutePath == linux.absolutePath }.linux)
+    }
+
     @Test fun theListingCarriesTheLauncherAndTheTitle() {
         val folder = install(Store.EPIC, "abc", "Celeste", "Celeste.exe", launcher = true)
         val games = AddedGames.scan(app).filter { it.folder.absolutePath == folder.absolutePath }

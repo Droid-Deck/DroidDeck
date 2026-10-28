@@ -2067,7 +2067,6 @@
     <string name="stores_itch_pick_failed">Impossible de charger les téléchargements depuis itch.io</string>
     <string name="stores_itch_build_demo">Démo</string>
     <string name="stores_itch_build_open">Ouvrir sur itch.io</string>
-    <string name="stores_itch_build_linux_soon">Pas encore pris en charge</string>
     <string name="stores_itch_no_game">Ce jeu est introuvable sur itch.io</string>
     <string name="stores_free">Gratuit</string>
     <string name="stores_resume">Reprendre</string>

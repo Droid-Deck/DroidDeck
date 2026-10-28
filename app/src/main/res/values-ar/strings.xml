@@ -2128,7 +2128,6 @@
     <string name="stores_itch_pick_failed">تعذر تحميل التنزيلات من itch.io</string>
     <string name="stores_itch_build_demo">نسخة تجريبية</string>
     <string name="stores_itch_build_open">فتح على itch.io</string>
-    <string name="stores_itch_build_linux_soon">غير مدعوم بعد</string>
     <string name="stores_itch_no_game">تعذر العثور على هذه اللعبة على itch.io</string>
     <string name="stores_free">مجاني</string>
     <string name="stores_resume">استئناف</string>

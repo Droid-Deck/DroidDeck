@@ -2044,7 +2044,6 @@
     <string name="stores_itch_pick_failed">De downloads van itch.io konden niet worden geladen</string>
     <string name="stores_itch_build_demo">Demo</string>
     <string name="stores_itch_build_open">Openen op itch.io</string>
-    <string name="stores_itch_build_linux_soon">Nog niet ondersteund</string>
     <string name="stores_itch_no_game">Deze game is niet gevonden op itch.io</string>
     <string name="stores_free">Gratis</string>
     <string name="stores_resume">Hervatten</string>

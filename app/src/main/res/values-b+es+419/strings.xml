@@ -2812,7 +2812,6 @@
     <string name="stores_itch_pick_failed">No se pudieron cargar las descargas de itch.io</string>
     <string name="stores_itch_build_demo">Demo</string>
     <string name="stores_itch_build_open">Abrir en itch.io</string>
-    <string name="stores_itch_build_linux_soon">Aún no es compatible</string>
     <string name="stores_itch_no_game">No se encontró este juego en itch.io</string>
     <string name="glasses_experimental">Cámaras Luma Ultra — Experimental</string>
     <string name="glasses_joycons">Seguimiento de posición de los Joy-Con</string>

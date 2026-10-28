@@ -2044,7 +2044,6 @@
     <string name="stores_itch_pick_failed">itch.io से डाउनलोड लोड नहीं हो सके</string>
     <string name="stores_itch_build_demo">डेमो</string>
     <string name="stores_itch_build_open">itch.io पर खोलें</string>
-    <string name="stores_itch_build_linux_soon">अभी समर्थित नहीं है</string>
     <string name="stores_itch_no_game">यह गेम itch.io पर नहीं मिला</string>
     <string name="stores_free">फ़्री</string>
     <string name="stores_resume">फिर से शुरू करें</string>

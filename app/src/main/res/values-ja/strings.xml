@@ -2025,7 +2025,6 @@
     <string name="stores_itch_pick_failed">itch.io からダウンロードを読み込めませんでした</string>
     <string name="stores_itch_build_demo">デモ</string>
     <string name="stores_itch_build_open">itch.io で開く</string>
-    <string name="stores_itch_build_linux_soon">まだ対応していません</string>
     <string name="stores_itch_no_game">itch.io でこのゲームが見つかりませんでした</string>
     <string name="stores_free">無料</string>
     <string name="stores_resume">再開</string>

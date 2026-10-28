@@ -2044,7 +2044,6 @@
     <string name="stores_itch_pick_failed">Δεν ήταν δυνατή η φόρτωση των λήψεων από το itch.io</string>
     <string name="stores_itch_build_demo">Demo</string>
     <string name="stores_itch_build_open">Άνοιγμα στο itch.io</string>
-    <string name="stores_itch_build_linux_soon">Δεν υποστηρίζεται ακόμη</string>
     <string name="stores_itch_no_game">Δεν βρέθηκε αυτό το παιχνίδι στο itch.io</string>
     <string name="stores_free">Δωρεάν</string>
     <string name="stores_resume">Συνέχιση</string>

@@ -2038,7 +2038,6 @@
     <string name="stores_itch_pick_failed">İndirmeler itch.io\'dan yüklenemedi</string>
     <string name="stores_itch_build_demo">Demo</string>
     <string name="stores_itch_build_open">itch.io\'da aç</string>
-    <string name="stores_itch_build_linux_soon">Henüz desteklenmiyor</string>
     <string name="stores_itch_no_game">Bu oyun itch.io\'da bulunamadı</string>
     <string name="stores_free">Ücretsiz</string>
     <string name="stores_resume">Sürdür</string>

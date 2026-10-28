@@ -47,7 +47,7 @@ object StoreInstalls {
         try { StoreArt.fetchInto(folder, finished) } catch (e: Exception) { Log.w(TAG, "art for ${folder.name}: ${e.message}") }
         onStep?.invoke(2, STEPS)
         register(app)
-        AddedGames.single(app, folder.path)?.let { com.droiddeck.launcher.frontend.AutoComponents.refreshLater(app, Library.addedGame(app, it)) }
+        AddedGames.single(app, folder.path)?.takeUnless { it.linux }?.let { com.droiddeck.launcher.frontend.AutoComponents.refreshLater(app, Library.addedGame(app, it)) }
         onStep?.invoke(STEPS, STEPS)
     }
 

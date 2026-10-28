@@ -16,6 +16,8 @@ object SteamLiveShortcuts {
     private const val TAG = "SteamLive"
     private const val TAG_NAME = "droiddeck-app"
     private const val COMPAT_TOOL = "droiddeck-proton-arm64"
+    private const val LINUX_TOOL = "droiddeck-fex"
+    private const val LINUX_TOOL_X64 = "droiddeck-direct"
     private const val EVAL_TIMEOUT_MS = 20_000L
     private const val THAW_WAIT_MS = 15_000L
 
@@ -23,14 +25,14 @@ object SteamLiveShortcuts {
         val wanted = games.filter(include)
         if (wanted.isEmpty() || !clientRunning()) return
         val list = JSONArray()
-        for (g in wanted) list.put(JSONObject().put("name", g.name).put("exe", g.guestExe).put("dir", g.guestDir).put("appid", g.appId and 0xFFFFFFFFL).put("launch", g.launchOptions))
+        for (g in wanted) list.put(JSONObject().put("name", g.name).put("exe", g.guestExe).put("dir", g.guestDir).put("appid", g.appId and 0xFFFFFFFFL).put("launch", g.launchOptions).put("tool", if (g.linux) linuxTool() else ""))
         val js = """
             (async () => {
               const want = ${list};
               let added = 0;
               for (const w of want) {
                 if (await ${KNOWN}(w.appid, w.name, w.exe)) continue;
-                if (await ${ADD}(w.name, w.exe, w.dir, true, ${JSONObject.quote(compatTool(context))}, w.launch)) added++;
+                if (await ${ADD}(w.name, w.exe, w.dir, true, w.tool || ${JSONObject.quote(compatTool(context))}, w.launch)) added++;
               }
               return added;
             })()
@@ -116,6 +118,8 @@ object SteamLiveShortcuts {
         else "(async () => { try { await SteamClient.Apps.SetCustomLogoPositionForApp($id, ${JSONObject.quote(LogoPosition.toJson(position).toString())}); } catch (e) {} return 1; })()"
         if (evaluate(context, js) != null) Log.i(TAG, "live shortcuts: logo position for $id")
     }
+
+    internal fun linuxTool(): String = if (SessionState.steamClientArch == "x86_64") LINUX_TOOL_X64 else LINUX_TOOL
 
     private fun clientRunning(): Boolean =
         SessionState.running && SessionState.mode == SessionService.MODE_STEAM && !SessionState.stopRequested && !SessionState.suspended

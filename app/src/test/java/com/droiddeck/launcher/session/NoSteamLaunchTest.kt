@@ -85,6 +85,14 @@ class NoSteamLaunchTest {
         assertEquals(2733369024L, NoSteamLaunch.settingsId(plain))
     }
 
+    @Test fun aLinuxGameIsNeverStartedThroughProtonWithoutSteam() {
+        val linux = AddedGames.Game(
+            File("/x/Lin"), "Lin", File("/x/Lin/Lin.x86_64"), "/g/Lin/Lin.x86_64", "/g/Lin", 2733369024L, 0L, emptyList(),
+            source = "itch", linux = true,
+        )
+        assertNull(NoSteamLaunch.command(shortcut, linux))
+    }
+
     @Test fun theRunningSessionIsNamedAfterItsGame() {
         val command = NoSteamLaunch.command(steamGame, null)!!
         assertNull(NoSteamLaunch.nameFor(command.program, command.args))

@@ -47,6 +47,8 @@ internal object ItchUploads {
         return if (found.isEmpty()) setOf("windows") else found
     }
 
+    fun linuxOnly(platforms: Set<String>): Boolean = "windows" !in platforms && "linux" in platforms
+
     fun byId(uploads: JSONArray?, id: String): JSONObject? {
         if (uploads == null || id.isBlank()) return null
         return (0 until uploads.length()).mapNotNull { uploads.optJSONObject(it) }.firstOrNull { it.optString("id") == id }

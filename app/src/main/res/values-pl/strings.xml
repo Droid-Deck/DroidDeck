@@ -2086,7 +2086,6 @@
     <string name="stores_itch_pick_failed">Nie udało się wczytać plików z itch.io</string>
     <string name="stores_itch_build_demo">Demo</string>
     <string name="stores_itch_build_open">Otwórz w itch.io</string>
-    <string name="stores_itch_build_linux_soon">Jeszcze nieobsługiwane</string>
     <string name="stores_itch_no_game">Nie znaleziono tej gry w itch.io</string>
     <string name="stores_free">Bezpłatna</string>
     <string name="stores_resume">Wznów</string>

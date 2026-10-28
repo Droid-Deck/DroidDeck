@@ -34,7 +34,7 @@ object NoSteamLaunch {
         game.library == Library.EPIC_LAUNCHER -> Command(EPIC, listOf("run"), game.name)
         game.library == Library.ADDED && game.source == com.droiddeck.launcher.stores.Store.BATTLENET.id ->
             game.storeId?.let(com.droiddeck.launcher.runtime.BattleNet::title)?.let { Command(BATTLENET, listOf("launch", it.code), game.name) }
-        game.library == Library.ADDED -> added?.let { a -> a.steamAppId?.let { Command(PROTON_RUN, listOf("--app", it.toString()), a.name) } ?: addedCommand(a) }
+        game.library == Library.ADDED -> added?.takeUnless { it.linux }?.let { a -> a.steamAppId?.let { Command(PROTON_RUN, listOf("--app", it.toString()), a.name) } ?: addedCommand(a) }
         game.appId > 0 -> Command(PROTON_RUN, listOf("--app", game.appId.toString()), game.name)
         else -> null
     }

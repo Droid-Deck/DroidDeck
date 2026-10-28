@@ -361,7 +361,7 @@ def main():
             else:
                 protect = compat.adopt_extras(tools)
             used = compat.register_default(cfg, apps=[str(int(g["appid"]) & 0xFFFFFFFF) for g in games if g.get("exe") and not g.get("native")] + [str(appid) for appid in set(routes.values())],
-                                           protect=protect, **own)
+                                           protect=protect, linux=[str(int(g["appid"]) & 0xFFFFFFFF) for g in games if g.get("exe") and g.get("linux")], **own)
             print("droiddeck-steam-shortcuts: mapped them to %s" % used)
     except Exception as e:
         print("droiddeck-steam-shortcuts: compat mapping skipped (%s)" % e)

@@ -1419,7 +1419,7 @@ def live_helper_running(directory=None):
 
 
 def register_default(config_path, apps=(), protect=(), default=None, catalog=None, directory=None, settle=False, picks=(),
-                     linux_tool=FEX_TOOL):
+                     linux_tool=FEX_TOOL, linux=()):
     """Writes the mapping: the "0" default and every title that follows it (see plan_mapping).
     With settle, the default itself is decided first (see choose_default): before the client
     starts, config.vdf holds what the client last kept, menu changes included."""
@@ -1464,6 +1464,7 @@ def register_default(config_path, apps=(), protect=(), default=None, catalog=Non
         native = native_targets(steam_root, set(apps) | set(picks) | set(managed) | set(native_choices))
         if linux_tool != FEX_TOOL:
             native = {app: linux_tool if tool == FEX_TOOL else tool for app, tool in native.items()}
+        native.update({str(app): linux_tool for app in linux})
         for app in picked_apps(state) & set(native):
             current.setdefault(app, "")
         changes, auto = plan_mapping(

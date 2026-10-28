@@ -2103,7 +2103,6 @@
     <string name="stores_itch_pick_failed">无法从 itch.io 加载下载内容</string>
     <string name="stores_itch_build_demo">试玩版</string>
     <string name="stores_itch_build_open">在 itch.io 上打开</string>
-    <string name="stores_itch_build_linux_soon">暂不支持</string>
     <string name="stores_itch_no_game">在 itch.io 上找不到这款游戏</string>
     <string name="stores_free">免费</string>
     <string name="stores_resume">继续</string>
