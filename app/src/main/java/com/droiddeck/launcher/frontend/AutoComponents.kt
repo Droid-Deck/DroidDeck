@@ -203,7 +203,7 @@ object AutoComponents {
             queueDownload(context, id, asked, inSession)
             missing.add(id)
         }
-        if (inSession) Pending.set(context, key, missing)
+        if (inSession) Pending.set(context, key, (Pending.ids(context, key).filter { it !in installed && it !in wanted } + missing).distinct())
         if (before.keys != kept.keys) {
             WinComponents.setAuto(context, key, kept)
             Log.i(TAG, "${game.name}: on by itself ${kept.keys.joinToString().ifEmpty { "(none)" }}")
@@ -241,6 +241,9 @@ object AutoComponents {
             if (ids.isEmpty()) games.remove(key) else games.put(key, JSONArray(ids))
             write(context, games)
         }
+
+        @Synchronized fun ids(context: Context, key: String): List<String> =
+            read(context).optJSONArray(key)?.let { a -> (0 until a.length()).map { a.optString(it) } }.orEmpty()
 
         @Synchronized fun add(context: Context, key: String, ids: List<String>) {
             val games = read(context)

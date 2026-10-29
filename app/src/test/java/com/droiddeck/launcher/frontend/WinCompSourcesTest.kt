@@ -475,4 +475,26 @@ class WinCompSourcesTest {
         session = false
         AutoComponents.drain(app)
     }
+
+    @Test fun aGameJobThatRunsFirstKeepsARestoredComponentPending() = withFakeWorker {
+        AutoComponents.catalogOf = { _, _ -> catalog3 + ready("dmband") }
+        val seen = ArrayList<List<String>>()
+        AutoComponents.installer = { _, c, _, _ ->
+            if (c.name == "dmband") seen.add(AutoComponents.Pending.ids(app, "1262580"))
+            downloaded.add(c.name); installedNow.add(c.name); null
+        }
+        val game = payback()
+        WinComponents.setUser(app, "1262580", "dmband", true)
+        session = true
+        gameUp = true
+        AutoComponents.queueInSession(app, game)
+        AutoComponents.restoreMissing(app)
+        gameUp = false
+        AutoComponents.drain(app)
+        assertEquals(1, seen.size)
+        assertTrue("dmband" in seen.single())
+        assertEquals(0, AutoComponents.Pending.read(app).length())
+        session = false
+        AutoComponents.drain(app)
+    }
 }

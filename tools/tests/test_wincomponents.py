@@ -151,19 +151,30 @@ class WinComponentsTest(unittest.TestCase):
         self.assertFalse((self.pfx / "syswow64/openal32.dll").exists())
 
     def test_state_from_before_the_update_keeps_a_missing_bundles_parts(self):
-        dll = self.pfx / "syswow64/dmband.dll"
-        dll.parent.mkdir(parents=True)
-        dll.write_bytes(b"band")
-        self.compat.joinpath(".droiddeck-wincomponents.json").write_text(json.dumps({
-            "files": {"syswow64/dmband.dll": "dmband"}, "components": ["dmband", "directmusic"], "registry": {}}))
+        self.component("dmband", ["dmband"], {"syswow64/dmband.dll": b"band"})
+        meta = self.store / "directmusic"
+        meta.mkdir(parents=True)
+        (meta / "component.json").write_text(json.dumps({"id": "directmusic", "overrides": [], "requires": ["dmband"]}))
         self.pick("directmusic")
-        names, notes = self.apply()
-        self.assertEqual(MODULE["overrides_value"](names), "dmband=n,b")
-        self.assertEqual(dll.read_bytes(), b"band")
-        self.assertEqual(len(notes), 2)
-        names, _ = self.apply()
-        self.assertEqual(MODULE["overrides_value"](names), "dmband=n,b")
-        self.assertTrue(dll.exists())
+        self.apply()
+        state_file = self.compat / ".droiddeck-wincomponents.json"
+        state = json.loads(state_file.read_text())
+        rel = next(iter(state["files"]))
+        state_file.write_text(json.dumps({"files": state["files"], "components": state["components"], "registry": {}}))
+        for cid in ("dmband", "directmusic"):
+            for path in sorted((self.store / cid).rglob("*"), reverse=True):
+                path.rmdir() if path.is_dir() else path.unlink()
+            (self.store / cid).rmdir()
+        dll = self.compat / "pfx" / rel
+        for _ in range(2):
+            names, notes = self.apply()
+            self.assertEqual(MODULE["overrides_value"](names), "dmband=n,b")
+            self.assertEqual(dll.read_bytes(), b"band")
+            self.assertEqual(len(notes), 2)
+            self.assertNotIn("requires", json.loads(state_file.read_text()))
+        self.pick()
+        self.apply()
+        self.assertFalse(dll.exists())
 
     def test_a_missing_component_that_only_set_registry_values_keeps_them(self):
         self.pfx.parent.mkdir(parents=True)
