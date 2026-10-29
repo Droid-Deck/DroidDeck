@@ -612,7 +612,7 @@
     <string name="hud_size_hint">HUDをタップしてもサイズを切り替えられます。</string>
     <string name="hud_size_full">フル</string>
     <string name="hud_size_tiles">タイル</string>
-    <string name="hud_size_pill">ピル</string>
+    <string name="hud_size_pill">カプセル</string>
     <string name="hud_size_minimal">ミニマル</string>
     <string name="hud_size_mega">メガ</string>
     <string name="hud_locked">位置を固定</string>

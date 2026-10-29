@@ -612,7 +612,7 @@
     <string name="hud_size_hint">HUD를 탭해도 크기가 바뀝니다.</string>
     <string name="hud_size_full">전체</string>
     <string name="hud_size_tiles">타일</string>
-    <string name="hud_size_pill">필</string>
+    <string name="hud_size_pill">캡슐</string>
     <string name="hud_size_minimal">미니멀</string>
     <string name="hud_size_mega">메가</string>
     <string name="hud_locked">위치 고정</string>

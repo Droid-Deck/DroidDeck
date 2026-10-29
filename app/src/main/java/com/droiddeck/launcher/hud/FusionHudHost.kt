@@ -135,8 +135,13 @@ class FusionHudHost(context: Context) {
         dir.mkdirs()
         val stamp = java.text.SimpleDateFormat("yyyyMMdd-HHmmss", java.util.Locale.US).format(java.util.Date())
         val file = File(dir, "HUD-diagnostics-$stamp.txt")
+        // Its own reader: the HUD's CPU load is the change since its previous sample, which an export must
+        // not move. Two samples half a second apart, MangoHud's sampling period.
         val metrics = HudMetrics(context)
-        val mango = metrics.also { it.setMangoReadings(readings) }.snapshot()
+        metrics.setMangoReadings(MangoReadings(File(context.filesDir, "session"), LinuxRuntime.rootDir(context)))
+        metrics.snapshot()
+        Thread.sleep(500)
+        val mango = metrics.snapshot()
         file.writeText(metrics.also { it.setMangoReadings(null) }.buildDiagnosticsReport(context) + "\n== As the HUD shows them (MangoHud's sources) ==\n" +
             "CPU ${mango.cpuPercent}% ${mango.cpuTempC}°C, GPU ${mango.gpuPercent}% ${mango.gpuClockMhz}MHz ${mango.gpuTempC}°C, " +
             "RAM ${mango.ramUsedText()}/${mango.ramTotalText()}, VRAM ${mango.vramText()}, battery ${mango.battery.percent}% " +

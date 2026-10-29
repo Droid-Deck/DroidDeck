@@ -311,12 +311,23 @@ class FusionHudView(context: Context) : View(context) {
     // ---- Lifecycle: self-refresh ------------------------------------------
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
-        startUpdates()
+        if (isShown) startUpdates()
     }
 
     override fun onDetachedFromWindow() {
-        updateJob?.cancel(); updateJob = null
+        stopUpdates()
         super.onDetachedFromWindow()
+    }
+
+    // The host hides the HUD with GONE (HUD off, picture-in-picture) and keeps it attached: read the
+    // sensors only while it shows.
+    override fun onVisibilityChanged(changedView: View, visibility: Int) {
+        super.onVisibilityChanged(changedView, visibility)
+        if (isAttachedToWindow && isShown) startUpdates() else stopUpdates()
+    }
+
+    private fun stopUpdates() {
+        updateJob?.cancel(); updateJob = null
     }
 
     private fun startUpdates() {
