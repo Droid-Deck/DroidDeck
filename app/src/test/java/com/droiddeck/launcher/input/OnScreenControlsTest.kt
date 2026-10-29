@@ -173,6 +173,17 @@ class OnScreenControlsTest {
         assertEquals(-1, field(control("rs"), "pressedBy"))
     }
 
+    @Test fun takesTouchAtMatchesWhatATouchDoes() {
+        var checked = 0
+        for (x in 0 until 1200 step 40) for (y in 0 until 800 step 40) {
+            val expected = view.takesTouchAt(x.toFloat(), y.toFloat())
+            assertEquals("($x, $y)", expected, touch(MotionEvent.ACTION_DOWN, 0 to (x.toFloat() to y.toFloat())))
+            touch(MotionEvent.ACTION_UP, 0 to (x.toFloat() to y.toFloat()))
+            if (expected) checked++
+        }
+        assertTrue("some points land on controls", checked > 0)
+    }
+
     @Test fun fixedSticksAndEditorRemainVisibleAtSavedPositions() {
         ControllerPrefs.setAdaptiveSticks(context, false)
         view.reload()

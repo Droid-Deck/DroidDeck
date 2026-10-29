@@ -663,19 +663,17 @@ class DualSenseManager(private val context: Context) {
         report: ByteArray,
         nowMs: Long = SystemClock.uptimeMillis()
     ): Boolean {
-        if (report.size < DualSense.REPORT_SIZE_OUTPUT || report[0] != DualSense.REPORT_ID_OUTPUT) {
-            return false
-        }
-        if (DualSense.hasActiveTriggerEffect(report)) {
+        val normalized = DualSense.normalizeOutputReportToUsb48(report) ?: return false
+        if (DualSense.hasActiveTriggerEffect(normalized)) {
             gameNativeTriggersActive = true
-            return sendOutputReport(report, nowMs)
+            return sendOutputReport(normalized, nowMs)
         }
-        val enable0 = report[1].toInt() and 0xFF
+        val enable0 = normalized[1].toInt() and 0xFF
         val gameTouchesTriggers = (enable0 and 0x0C) != 0
         val leftEffect = DualSense.triggerPresetEffect(leftTriggerMode)
         val rightEffect = DualSense.triggerPresetEffect(rightTriggerMode)
         if (!gameNativeTriggersActive && (leftEffect != null || rightEffect != null)) {
-            val merged = report.copyOf(DualSense.REPORT_SIZE_OUTPUT)
+            val merged = normalized.copyOf(DualSense.REPORT_SIZE_OUTPUT)
             var e0 = merged[1].toInt() and 0xFF
             var e1 = merged[2].toInt() and 0xFF
             if (rightEffect != null && (e0 and 0x04) == 0) {
@@ -692,10 +690,10 @@ class DualSenseManager(private val context: Context) {
             merged[2] = e1.toByte()
             return sendOutputReport(merged, nowMs)
         }
-        if (gameTouchesTriggers && !DualSense.hasActiveTriggerEffect(report)) {
+        if (gameTouchesTriggers && !DualSense.hasActiveTriggerEffect(normalized)) {
             gameNativeTriggersActive = false
             if (leftEffect != null || rightEffect != null) {
-                val merged = report.copyOf(DualSense.REPORT_SIZE_OUTPUT)
+                val merged = normalized.copyOf(DualSense.REPORT_SIZE_OUTPUT)
                 if (rightEffect != null) {
                     merged[1] = (merged[1].toInt() or 0x04).toByte()
                     merged[2] = (merged[2].toInt() or 0x40).toByte()
@@ -709,7 +707,7 @@ class DualSenseManager(private val context: Context) {
                 return sendOutputReport(merged, nowMs)
             }
         }
-        return sendOutputReport(report, nowMs)
+        return sendOutputReport(normalized, nowMs)
     }
 
     fun onGameOutputSessionStopped() {
@@ -791,10 +789,13 @@ class DualSenseManager(private val context: Context) {
             val epOut = usbEndpointOut
             val intf = usbInterface
             val sent = try {
-                if (epOut != null) {
+                val epOk = epOut != null &&
                     conn.bulkTransfer(epOut, wiredData, DualSense.REPORT_SIZE_OUTPUT, 1000) == DualSense.REPORT_SIZE_OUTPUT
+                if (epOk) {
+                    true
                 } else if (intf != null) {
-                    // HID SET_REPORT: Request Type 0x21, Request 0x09, Value 0x0202 (Report Type Output | Report ID 2)
+                    // HID SET_REPORT fallback (benlypan/UsbHid & android-hid-client):
+                    // Request Type 0x21, Request 0x09, Value 0x0202 (Report Type Output | Report ID 2)
                     conn.controlTransfer(0x21, 0x09, 0x0202, intf.id, wiredData, DualSense.REPORT_SIZE_OUTPUT, 1000) == DualSense.REPORT_SIZE_OUTPUT
                 } else false
             } catch (e: Exception) {
@@ -996,8 +997,9 @@ class DualSenseManager(private val context: Context) {
             }
             return false
         }
-        return try {
-            val target = connectedBluetoothPad(proxy) ?: return false
+        val target = try { connectedBluetoothPad(proxy) } catch (_: Exception) { null } ?: return false
+        val hexPayload = toHex(btReport)
+        val setReportOk = try {
             val setReport = proxy.javaClass.getMethod(
                 "setReport",
                 BluetoothDevice::class.java,
@@ -1005,15 +1007,53 @@ class DualSenseManager(private val context: Context) {
                 String::class.java
             )
             // REPORT_TYPE_OUTPUT = 2
-            val ok = setReport.invoke(proxy, target, 2.toByte(), toHex(btReport)) as? Boolean
-            ok == true
+            (setReport.invoke(proxy, target, 2.toByte(), hexPayload) as? Boolean) == true
         } catch (e: Exception) {
             if (!loggedSetReportFailure) {
                 loggedSetReportFailure = true
-                Log.w(TAG, "BluetoothHidHost.setReport is not available; Bluetooth output stays off: $e")
+                Log.w(TAG, "BluetoothHidHost.setReport is not available; falling back to sendData/L2CAP: $e")
             }
             false
         }
+        if (setReportOk) return true
+
+        val sendDataOk = try {
+            val sendData = proxy.javaClass.getMethod("sendData", BluetoothDevice::class.java, String::class.java)
+            (sendData.invoke(proxy, target, hexPayload) as? Boolean) == true
+        } catch (_: Exception) {
+            false
+        }
+        if (sendDataOk) return true
+
+        return sendViaBluetoothL2capFallback(target, btReport)
+    }
+
+    /**
+     * Rootless L2CAP HID Interrupt (PSM 0x0013) / Control (PSM 0x0011) socket fallback
+     * inspired by `d4rken-org/capod` for ROMs that restrict `BluetoothHidHost.setReport`.
+     */
+    @Suppress("MissingPermission")
+    private fun sendViaBluetoothL2capFallback(device: BluetoothDevice, btReport: ByteArray): Boolean {
+        for (methodName in arrayOf("createInsecureL2capSocket", "createL2capSocket")) {
+            try {
+                val m = device.javaClass.getMethod(methodName, Int::class.javaPrimitiveType)
+                val sock = m.invoke(device, 0x0013) as? android.bluetooth.BluetoothSocket ?: continue
+                sock.use { s ->
+                    s.connect()
+                    val out = s.outputStream
+                    // HIDP DATA | OUTPUT header (0xA2) + 78-byte 0x31 report
+                    val frame = ByteArray(1 + btReport.size)
+                    frame[0] = 0xA2.toByte()
+                    System.arraycopy(btReport, 0, frame, 1, btReport.size)
+                    out.write(frame)
+                    out.flush()
+                    return true
+                }
+            } catch (_: Exception) {
+                // Continue to next L2CAP method
+            }
+        }
+        return false
     }
 
     @Suppress("MissingPermission")

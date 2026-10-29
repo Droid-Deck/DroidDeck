@@ -52,6 +52,47 @@ class RuntimeUserDataCarryTest {
         assertFalse("only DroidDeck's own menu entries are user data", File(staging, "usr/local/share/applications/other.desktop").exists())
     }
 
+    @Test fun aMenuEntryTheNewRuntimeShipsIsNotCarried() {
+        val old = tmp.newFolder("old").also {
+            put(it, "root/save.dat", "mine")
+            put(it, "usr/share/applications/droiddeck-return-gaming.desktop", "old runtime")
+            put(it, "usr/share/applications/droiddeck-steam-x64.desktop", "made by the old desktop")
+        }
+        val staging = tmp.newFolder("new").also {
+            put(it, "root/.bashrc", "shipped")
+            put(it, "usr/share/applications/droiddeck-return-gaming.desktop", "new runtime")
+        }
+
+        val paths = RuntimeFileTree.existingUserPaths(old, staging)
+
+        assertTrue("root" in paths)
+        assertTrue("usr/share/applications/droiddeck-steam-x64.desktop" in paths)
+        assertFalse("usr/share/applications/droiddeck-return-gaming.desktop" in paths)
+        RuntimeFileTree.carryUserData(old, staging, false, paths)
+        assertEquals("new runtime", File(staging, "usr/share/applications/droiddeck-return-gaming.desktop").readText())
+    }
+
+    @Test fun cachesTiedToThePreviousRuntimeAreDropped() {
+        val root = tmp.newFolder("rt")
+        val keep = listOf("root/.cache/mozilla/cache2/entry", "root/.cache/droiddeck/session.log",
+            "root/.local/share/droiddeck/apt/packages.txt", "root/.local/share/Steam/steam.sh", "root/.config/kwinrc")
+        val drop = listOf("root/.local/share/droiddeck/pacman/packages.txt", "root/.cache/droiddeck/pacman-restore.log",
+            "root/.cache/mesa_shader_cache_db/index", "root/.cache/mesa_shader_cache/a/b", "root/.cache/appstream/x.xb",
+            "root/.cache/discover/c", "root/.cache/ksycoca6_en-POSIX_abc", "root/.cache/plasma_theme_Vapor.kcache",
+            "root/.cache/kwinsession.kcache", "root/.cache/qtshadercache-arm64-little_endian-lp64/s",
+            "root/.cache/event-sound-cache.tdb.1.aarch64-unknown-linux-gnu", "root/.cache/fontconfig/x.cache-9")
+        (keep + drop).forEach { put(root, it) }
+
+        RuntimeFileTree.dropStaleState(root)
+
+        keep.forEach { assertTrue(it, File(root, it).exists()) }
+        drop.forEach { assertFalse(it, File(root, it).exists()) }
+    }
+
+    @Test fun droppingStateWithoutAHomeDoesNothing() {
+        RuntimeFileTree.dropStaleState(tmp.newFolder("empty"))
+    }
+
     @Test fun aFailureHalfwayPutsEverythingBack() {
         val old = userTree()
         val staging = tmp.newFolder("new")

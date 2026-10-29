@@ -39,7 +39,7 @@ import java.util.function.Consumer;
  *       position — disabled (frozen) while locked.</li>
  *   <li><b>long-press</b> → toggles {@code hudLocked}, persisted via {@link Callbacks#onLockChanged}
  *       and kept in sync with the "Lock in place" menu chip. Works locked or unlocked (so a long-press
- *       always unlocks).</li>
+ *       always unlocks); a locked {@code FusionHudView} passes touches on only over on-screen controls.</li>
  * </ul>
  *
  * <p>On every lock/unlock (and on a blocked gesture while locked) a small padlock badge fades in →

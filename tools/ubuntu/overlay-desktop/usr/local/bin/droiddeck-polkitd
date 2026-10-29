@@ -1,0 +1,92 @@
+#!/usr/bin/python3
+from gi.repository import Gio, GLib
+
+XML = """
+<node>
+  <interface name="org.freedesktop.PolicyKit1.Authority">
+    <method name="EnumerateActions">
+      <arg type="s" name="locale" direction="in"/>
+      <arg type="a(ssssssuuua{ss})" name="action_descriptions" direction="out"/>
+    </method>
+    <method name="CheckAuthorization">
+      <arg type="(sa{sv})" name="subject" direction="in"/>
+      <arg type="s" name="action_id" direction="in"/>
+      <arg type="a{ss}" name="details" direction="in"/>
+      <arg type="u" name="flags" direction="in"/>
+      <arg type="s" name="cancellation_id" direction="in"/>
+      <arg type="(bba{ss})" name="result" direction="out"/>
+    </method>
+    <method name="CancelCheckAuthorization">
+      <arg type="s" name="cancellation_id" direction="in"/>
+    </method>
+    <method name="RegisterAuthenticationAgent">
+      <arg type="(sa{sv})" name="subject" direction="in"/>
+      <arg type="s" name="locale" direction="in"/>
+      <arg type="s" name="object_path" direction="in"/>
+    </method>
+    <method name="RegisterAuthenticationAgentWithOptions">
+      <arg type="(sa{sv})" name="subject" direction="in"/>
+      <arg type="s" name="locale" direction="in"/>
+      <arg type="s" name="object_path" direction="in"/>
+      <arg type="a{sv}" name="options" direction="in"/>
+    </method>
+    <method name="UnregisterAuthenticationAgent">
+      <arg type="(sa{sv})" name="subject" direction="in"/>
+      <arg type="s" name="object_path" direction="in"/>
+    </method>
+    <method name="AuthenticationAgentResponse">
+      <arg type="s" name="cookie" direction="in"/>
+      <arg type="(sa{sv})" name="identity" direction="in"/>
+    </method>
+    <method name="AuthenticationAgentResponse2">
+      <arg type="u" name="uid" direction="in"/>
+      <arg type="s" name="cookie" direction="in"/>
+      <arg type="(sa{sv})" name="identity" direction="in"/>
+    </method>
+    <method name="EnumerateTemporaryAuthorizations">
+      <arg type="(sa{sv})" name="subject" direction="in"/>
+      <arg type="a(ss(sa{sv})tt)" name="temporary_authorizations" direction="out"/>
+    </method>
+    <method name="RevokeTemporaryAuthorizations">
+      <arg type="(sa{sv})" name="subject" direction="in"/>
+    </method>
+    <method name="RevokeTemporaryAuthorizationById">
+      <arg type="s" name="id" direction="in"/>
+    </method>
+    <signal name="Changed"/>
+    <property type="s" name="BackendName" access="read"/>
+    <property type="s" name="BackendVersion" access="read"/>
+    <property type="u" name="BackendFeatures" access="read"/>
+  </interface>
+</node>
+"""
+
+REPLIES = {
+    "EnumerateActions": GLib.Variant("(a(ssssssuuua{ss}))", ([],)),
+    "CheckAuthorization": GLib.Variant("((bba{ss}))", ((True, False, {}),)),
+    "EnumerateTemporaryAuthorizations": GLib.Variant("(a(ss(sa{sv})tt))", ([],)),
+}
+PROPERTIES = {
+    "BackendName": GLib.Variant("s", "droiddeck"),
+    "BackendVersion": GLib.Variant("s", "1"),
+    "BackendFeatures": GLib.Variant("u", 1),
+}
+
+
+def call(connection, sender, path, interface, method, parameters, invocation):
+    invocation.return_value(REPLIES.get(method))
+
+
+def get_property(connection, sender, path, interface, name):
+    return PROPERTIES.get(name)
+
+
+def acquired(connection, name):
+    info = Gio.DBusNodeInfo.new_for_xml(XML).interfaces[0]
+    connection.register_object("/org/freedesktop/PolicyKit1/Authority", info, call, get_property, None)
+
+
+loop = GLib.MainLoop()
+Gio.bus_own_name(Gio.BusType.SYSTEM, "org.freedesktop.PolicyKit1", Gio.BusNameOwnerFlags.NONE,
+                 acquired, None, lambda *a: loop.quit())
+loop.run()

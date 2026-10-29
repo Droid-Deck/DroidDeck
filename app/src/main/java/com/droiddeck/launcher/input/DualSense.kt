@@ -1208,6 +1208,33 @@ object DualSense {
     }
 
     /**
+     * Normalizes either a 48/63-byte USB output report (`0x02`) or a 78-byte Bluetooth output
+     * report (`0x31`) into a canonical 48-byte `0x02` report preserving all 47 payload bytes
+     * (rumble, audio/mic volumes, R2/L2 11-byte trigger blocks, LED flags, player LEDs, RGB).
+     */
+    fun normalizeOutputReportToUsb48(report: ByteArray): ByteArray? {
+        if (report.isEmpty()) return null
+        return when (report[0]) {
+            REPORT_ID_OUTPUT -> {
+                if (report.size < REPORT_SIZE_OUTPUT) return null
+                if (report.size == REPORT_SIZE_OUTPUT) report else report.copyOf(REPORT_SIZE_OUTPUT)
+            }
+            REPORT_ID_BT_OUTPUT -> {
+                if (report.size < 49) return null
+                val out = ByteArray(REPORT_SIZE_OUTPUT)
+                out[0] = REPORT_ID_OUTPUT
+                val srcOffset = if ((report[1].toInt() and 0x0F) == 0x02) 2 else 1
+                val copyLen = minOf(47, report.size - srcOffset)
+                if (copyLen > 0) {
+                    System.arraycopy(report, srcOffset, out, 1, copyLen)
+                }
+                out
+            }
+            else -> null
+        }
+    }
+
+    /**
      * Checks whether a 48-byte 0x02 USB output report carries an active adaptive trigger command
      * on either R2 (enable0 & 0x04, report[11]) or L2 (enable0 & 0x08, report[22]).
      */

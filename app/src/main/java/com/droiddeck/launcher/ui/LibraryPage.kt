@@ -3,6 +3,8 @@ package com.droiddeck.launcher.ui
 import android.view.KeyEvent
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
@@ -30,6 +32,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridScope
+import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -426,10 +429,11 @@ private fun LibraryGrid(
                     if (key.action == KeyEvent.ACTION_DOWN) {
                         val target = "card:${visible[next].key}"
                         val targetIndex = headerItems + next + if (split == 0) 0 else if (next < split) 1 else 2
+                        val currentIndex = headerItems + index + if (split == 0) 0 else if (index < split) 1 else 2
                         val shown = grid.layoutInfo.visibleItemsInfo.any { it.index == targetIndex }
                         if (!shown || (focus.attached[target] ?: 0) == 0 ||
                             runCatching { focus.items.getValue(target).requestFocus() }.isFailure) scope.launch {
-                            grid.scrollToItem(targetIndex)
+                            launch { grid.revealRow(currentIndex, targetIndex, direction, with(density) { 10.dp.toPx() }) }
                             focusWithinFrames({ focus.last == target }) { focus.items[target] ?: FocusRequester.Default }
                         }
                     }
@@ -485,6 +489,20 @@ private fun LibraryGrid(
             libraryGrid(visible.drop(split), empty, tile)
         }
     }
+}
+
+internal suspend fun LazyGridState.revealRow(currentIndex: Int, targetIndex: Int, direction: Int, gapPx: Float) {
+    val current = layoutInfo.visibleItemsInfo.firstOrNull { it.index == currentIndex }
+    if (current != null) {
+        val row = current.size.height + gapPx
+        val delta = if (direction > 0) {
+            current.offset.y + 2 * row - gapPx - (layoutInfo.viewportSize.height - layoutInfo.afterContentPadding)
+        } else {
+            current.offset.y - row - layoutInfo.beforeContentPadding
+        }
+        if (direction > 0 && delta > 0f || direction < 0 && delta < 0f) animateScrollBy(delta, tween(durationMillis = 160, easing = FastOutSlowInEasing))
+    }
+    if (layoutInfo.visibleItemsInfo.none { it.index == targetIndex }) scrollToItem(targetIndex)
 }
 
 private fun LazyGridScope.libraryGrid(entries: List<LibraryEntry>, empty: Int, tile: @Composable (LibraryEntry) -> Unit) {

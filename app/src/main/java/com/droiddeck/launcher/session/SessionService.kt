@@ -546,6 +546,7 @@ class SessionService : Service() {
         val fakeInputDir = File(sessionRoot, "dev/input").apply { mkdirs() }
         val controllersOn = !File(Environment.getExternalStorageDirectory(), NO_PAD_SWITCH).exists()
         SessionState.deckPad = false
+        SessionState.secondScreenAutoOpened = false
         deckBinds = emptyList()
         inputSysfs = null
         if (controllersOn) {
@@ -756,7 +757,7 @@ class SessionService : Service() {
         guest.add("DROIDDECK_BWRAP_SOCKET=" + com.droiddeck.launcher.runtime.BwrapSpawner.socket(this))
         guest.add("HOME=/root")
         guest.add("USER=root")
-        guest.add("PATH=/usr/local/bin:/usr/bin:/bin")
+        guest.add("PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games")
         guest.add("TERM=xterm-256color")
         guest.add("LANG=C.UTF-8")
         guest.add("BL_STEAM_LANGUAGE=" + SteamLanguage.forLocale(
@@ -889,7 +890,7 @@ class SessionService : Service() {
     }
 
     private fun addControllerEnvironment(guest: MutableList<String>, fakeInputDir: File, sessionDir: File) {
-        FakeInputWriter.prepareRingSlots(fakeInputDir, 4)
+        FakeInputWriter.prepareRingSlots(fakeInputDir, 5)
         val builtinPad = SessionPrefs.builtinPad(this)
         val hiddenPad = SessionState.mode == MODE_STEAM && !builtinPad &&
             !com.droiddeck.launcher.input.PadBridge.anyControllerConnected()
@@ -1895,6 +1896,9 @@ class SessionService : Service() {
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
+        if (rootIntent?.component?.className in setOf(
+                com.droiddeck.launcher.ui.DualScreenActivity::class.java.name,
+                com.droiddeck.launcher.ui.SessionTypingActivity::class.java.name)) return
         if (pipTask || xrActivityVisible) {
             Log.i(TAG, "panel task dismissed - retaining the session under its active surface policy")
             activityVisible = false

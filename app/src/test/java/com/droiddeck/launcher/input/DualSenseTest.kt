@@ -1613,6 +1613,36 @@ class DualSenseTest {
         manager.stop()
     }
 
+    @Test
+    fun testNormalizeOutputReportToUsb48PreservesAll47PayloadBytes() {
+        val usbOrig = DualSense.buildOutputReport(
+            leftMotor = 140,
+            rightMotor = 95,
+            r = 0x11,
+            g = 0x22,
+            b = 0x33,
+            micLed = 2,
+            playerLeds = 0x15,
+            playerLedBrightness = DualSense.PLAYER_LED_BRIGHTNESS_LOW,
+            rightTriggerEffect = DualSense.TriggerEffects.machine(1, 9, 5, 7, 45, 20),
+            leftTriggerEffect = DualSense.TriggerEffects.galloping(1, 8, 2, 5, 35)
+        )
+        // Populate audio/mic volume and powerSaveMute bytes (5..10) to verify zero-loss passthrough
+        usbOrig[5] = 0x40
+        usbOrig[6] = 0x50
+        usbOrig[7] = 0x60
+        usbOrig[8] = 0x31
+        usbOrig[10] = 0x10
+
+        val bt78 = DualSense.buildBluetoothOutputReport(usbOrig, seq = 9)
+        val roundtrip = DualSense.normalizeOutputReportToUsb48(bt78)
+        assertNotNull(roundtrip)
+        assertEquals(DualSense.REPORT_SIZE_OUTPUT, roundtrip!!.size)
+        for (i in 0 until DualSense.REPORT_SIZE_OUTPUT) {
+            assertEquals("Byte $i mismatch after 0x31 -> 0x02 normalization", usbOrig[i], roundtrip[i])
+        }
+    }
+
     // -------------------------------------------------------------------------
     // Shadow FakeInputWriter for Robolectric Unit Testing
     // -------------------------------------------------------------------------
