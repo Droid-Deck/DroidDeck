@@ -475,6 +475,14 @@ class FrontEndActivity : ComponentActivity() {
     private var gameStorage by mutableStateOf("")
     private var slowUsb by mutableStateOf<com.droiddeck.launcher.session.UsbLink.SlowDrive?>(null)
     private var usbScan = 0
+    private var slowUsbNever by mutableStateOf(false)
+
+    private fun showSlowUsb(drive: com.droiddeck.launcher.session.UsbLink.SlowDrive?) {
+        val off = slowUsbNever
+        if (off) SessionPrefs.setSlowUsbWarningOff(this)
+        slowUsbNever = false
+        slowUsb = drive.takeUnless { off }
+    }
     private var storageDiagnostics by mutableStateOf(false)
     private var storageOptions by mutableStateOf<List<GameStorage.Option>>(emptyList())
     private val pickGameStorage = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
@@ -969,10 +977,9 @@ class FrontEndActivity : ComponentActivity() {
                     onConfirm = { decky.confirmPluginZip() }, onCancel = { decky.cancelPluginZip() },
                 )
                 slowUsb?.let { drive ->
-                    com.droiddeck.launcher.ui.SlowUsbDialog(drive) { never ->
+                    com.droiddeck.launcher.ui.SlowUsbDialog(drive, slowUsbNever, { slowUsbNever = it }) {
                         com.droiddeck.launcher.session.UsbLink.markShown(this, drive)
-                        if (never) SessionPrefs.setSlowUsbWarningOff(this)
-                        slowUsb = null
+                        showSlowUsb(null)
                         checkUsbLink()
                     }
                 }
@@ -2325,7 +2332,7 @@ class FrontEndActivity : ComponentActivity() {
             ui.post {
                 if (scan != usbScan || isFinishing) return@post
                 val due = drive?.takeIf { com.droiddeck.launcher.session.UsbLink.stillDue(this, it) }
-                if (due == null) slowUsb = null else if (slowUsb?.key != due.key) slowUsb = due
+                if (due == null) { if (slowUsb != null) showSlowUsb(null) } else if (slowUsb?.key != due.key) showSlowUsb(due)
             }
         }, "usb-link").start()
     }

@@ -17,10 +17,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -36,9 +33,8 @@ import com.droiddeck.launcher.R
 import com.droiddeck.launcher.session.UsbLink
 
 @Composable
-internal fun SlowUsbDialog(drive: UsbLink.SlowDrive, onDismiss: (never: Boolean) -> Unit) {
-    var never by remember { mutableStateOf(false) }
-    val shown = rememberShown { onDismiss(never) }
+internal fun SlowUsbDialog(drive: UsbLink.SlowDrive, never: Boolean, onNever: (Boolean) -> Unit, onDismiss: () -> Unit) {
+    val shown = rememberShown(onDismiss)
     val close = { shown.targetState = false }
     val focus = remember { FocusRequester() }
     LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
@@ -55,7 +51,7 @@ internal fun SlowUsbDialog(drive: UsbLink.SlowDrive, onDismiss: (never: Boolean)
         val pal = LocalPalette.current
         val src = remember { MutableInteractionSource() }
         val hot = rememberHot(src)
-        val flip = { never = !never }
+        val flip = { onNever(!never) }
         Row(
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
             modifier = Modifier.fillMaxWidth().clip(Shape12)
@@ -67,7 +63,7 @@ internal fun SlowUsbDialog(drive: UsbLink.SlowDrive, onDismiss: (never: Boolean)
                 .padding(start = 14.dp, end = 4.dp),
         ) {
             Text(stringResource(R.string.slow_usb_never), fontSize = 14.sp, color = MaterialTheme.colorScheme.onBackground, modifier = Modifier.weight(1f))
-            ToggleSwitch(never, label = stringResource(R.string.slow_usb_never), modifier = Modifier.focusProperties { canFocus = false }) { never = it }
+            ToggleSwitch(never, label = stringResource(R.string.slow_usb_never), modifier = Modifier.focusProperties { canFocus = false }) { onNever(it) }
         }
         Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
             PrimaryButton(stringResource(R.string.slow_usb_dismiss), modifier = Modifier.focusRequester(focus), onClick = close)
