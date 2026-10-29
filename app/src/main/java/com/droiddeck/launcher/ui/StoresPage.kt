@@ -1314,7 +1314,7 @@ private fun GameCard(
         }
         val priced = installed || item.isFree || item.isDiscounted || item.hasPrice
         val pill: (@Composable BoxScope.() -> Unit)? = if (priced && !LibraryDisplay.size && !hot) ({
-            Box(Modifier.align(Alignment.TopStart).padding(6.dp).clip(RoundedCornerShape(6.dp)).background(Color.Black.copy(alpha = 0.6f)).padding(horizontal = 6.dp, vertical = 2.dp)) {
+            Box(Modifier.align(Alignment.TopStart).padding(6.dp).clip(RoundedCornerShape(6.dp)).background(Color.Black.copy(alpha = 0.82f)).padding(horizontal = 6.dp, vertical = 2.dp)) {
                 CardMarker(item, installed, download, compact = true, status = false)
             }
         }) else null
