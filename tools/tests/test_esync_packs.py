@@ -1085,7 +1085,8 @@ class LauncherTest(SyncTestCase):
         self.assertEqual([call[:2] for call in calls], [(str(dist / "proton"), [str(dist / "proton")] + command[1:]),
                                                         (str(tool / "proton"), command)])
         self.assertEqual((calls[0][2]["WINEESYNC"], calls[0][2]["PROTON_NO_ESYNC"], calls[0][2]["BL_SYNC_PACK"]), ("0", "1", pack["id"]))
-        self.assertEqual(calls[1][2], self.env(STEAM_COMPAT_APP_ID="2630", PROTON_NO_NTSYNC="1", BL_SYNC="0", WINEESYNC="1"))
+        self.assertEqual(calls[1][2], self.env(STEAM_COMPAT_APP_ID="2630", PROTON_NO_NTSYNC="1", BL_SYNC="0", WINEESYNC="1",
+                                               vblank_mode="0"))
         self.assertIn("could not start (", said.getvalue())
 
     def test_generated_launchers_run_the_dist_proton(self):
@@ -1169,8 +1170,8 @@ class BundleTest(unittest.TestCase):
         self.assertNotIn("if", bundle)
         self.assertIn("tools/droiddeck-esync/release.env", bundle["run"])
         self.assertIn('release_url="https://github.com/${SYNC_BUNDLE_REPO}/releases/download/${SYNC_BUNDLE_TAG}"', bundle["run"])
-        self.assertIn('curl -fsSL --retry 3 -o sync-bundle.tzst "$release_url/$SYNC_BUNDLE_ASSET"', bundle["run"])
-        self.assertIn('curl -fsSL --retry 3 -o sync-index.json "$release_url/index.json"', bundle["run"])
+        self.assertIn('curl -fsSL --retry 5 --retry-all-errors --connect-timeout 20 -o sync-bundle.tzst "$release_url/$SYNC_BUNDLE_ASSET"', bundle["run"])
+        self.assertIn('curl -fsSL --retry 5 --retry-all-errors --connect-timeout 20 -o sync-index.json "$release_url/index.json"', bundle["run"])
         self.assertIn("sha256sum -c -", bundle["run"])
         self.assertNotIn("revoked.txt", bundle["run"])
         stage = {"run": (self.ROOT / recipes["runtime"]["script"]).read_text()}

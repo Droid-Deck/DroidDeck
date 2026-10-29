@@ -2,6 +2,8 @@ package com.droiddeck.launcher.session
 
 import android.content.Context
 import android.content.Intent
+import com.droiddeck.launcher.BuildConfig
+import com.droiddeck.launcher.core.AddonPack
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import java.io.File
 import org.junit.After
@@ -41,6 +43,15 @@ class SteamStartupTest {
         for (mode in SteamStartup.entries) {
             SessionPrefs.setSteamStartup(app, mode)
             assertEquals(mode, SessionPrefs.steamStartup(app))
+        }
+    }
+
+    @Test fun offAndOpenModesNeverRequestBackgroundPreparation() {
+        installRuntimeFiles()
+        for (mode in listOf(SteamStartup.OFF, SteamStartup.OPEN)) {
+            SessionPrefs.setSteamStartup(app, mode)
+            SessionService.prepareSteam(app)
+            assertNull(mode.name, shadowOf(app).nextStartedService)
         }
     }
 
@@ -141,22 +152,44 @@ class SteamStartupTest {
         assertFalse(inUse(service))
     }
 
-    @Test fun anExistingDesktopSessionIsNotReplacedByALatePreparationRequest() {
+    @Test fun existingSessionModesAreNotReplacedByALatePreparationRequest() {
         val service = Robolectric.buildService(SessionService::class.java).get()
         SessionPrefs.setSteamStartup(app, SteamStartup.BACKGROUND)
-        SessionState.mode = SessionService.MODE_DESKTOP
-        SessionState.running = true
-        SessionState.phase = SessionPhase.READY
-        service.onStartCommand(Intent().setAction("com.droiddeck.launcher.PREPARE_STEAM"), 0, 1)
-        assertTrue(SessionState.running)
-        assertEquals(SessionService.MODE_DESKTOP, SessionState.mode)
-        assertEquals(SessionPhase.READY, SessionState.phase)
+        for (mode in listOf(SessionService.MODE_STEAM, SessionService.MODE_DESKTOP, SessionService.MODE_RUN)) {
+            SessionState.mode = mode
+            SessionState.running = true
+            SessionState.phase = SessionPhase.READY
+            service.onStartCommand(Intent().setAction("com.droiddeck.launcher.PREPARE_STEAM"), 0, 1)
+            assertTrue(mode, SessionState.running)
+            assertEquals(mode, SessionState.mode)
+            assertEquals(SessionPhase.READY, SessionState.phase)
+        }
+    }
+
+    @Test fun returningToTheLauncherKeepsAManuallyPausedSessionAsleep() {
+        val service = Robolectric.buildService(SessionService::class.java).get()
+        ReflectionHelpers.setField(service, "activityVisible", false)
+        ReflectionHelpers.setField(service, "preparingSteam", true)
+        ReflectionHelpers.setField(service, "manualHold", true)
+        ReflectionHelpers.setField(service, "nativeSleepToken", "manual-pause")
+        ReflectionHelpers.setField(service, "steamSleepToken", "manual-pause")
+        for (policy in listOf(SessionPrefs.SUSPEND_AUTO, SessionPrefs.SUSPEND_NATIVE)) {
+            ReflectionHelpers.setField(service, "suspendPolicy", policy)
+            ReflectionHelpers.callInstanceMethod<Unit>(service, "resumeSteamSleepOnReturn")
+            assertEquals("manual-pause", ReflectionHelpers.getField<String>(service, "nativeSleepToken"))
+            assertEquals("manual-pause", ReflectionHelpers.getField<String>(service, "steamSleepToken"))
+        }
     }
 
     private fun inUse(service: SessionService): Boolean = ReflectionHelpers.callInstanceMethod(service, "getSessionInUse")
 
     private fun installRuntimeFiles() {
         val root = LinuxRuntime.rootDir(app)
+        val version = BuildConfig.PACK_PROOT_SHA256.ifEmpty { "test-pack" }
+        val pack = File(app.filesDir, "addons/proot/$version").apply { mkdirs() }
+        File(pack, "libproot.so").writeText("")
+        File(pack, "libproot-loader.so").writeText("")
+        File(pack, AddonPack.COMPLETE).writeText(version)
         for (file in listOf(File(root, "usr/bin/gamescope"), File(root, LinuxRuntime.SESSION_SCRIPT.drop(1)),
             LinuxRuntime.prootBinary(app), LinuxRuntime.prootLoader(app),
             File(root, "root/.local/share/Steam/steamapps/appmanifest_4427310.acf"))) {

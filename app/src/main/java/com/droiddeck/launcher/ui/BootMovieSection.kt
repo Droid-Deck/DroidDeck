@@ -308,12 +308,12 @@ private fun InstalledMoviesDialog(a: ModeSettingsActions, onDismiss: () -> Unit)
 
 @Composable
 private fun RemoveMovieDialog(entry: BootMovieLibrary.Entry, onConfirm: () -> Unit, onDismiss: () -> Unit) {
-    androidx.compose.material3.AlertDialog(
+    com.droiddeck.launcher.ui.GlideAlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.boot_movie_remove_confirm, entry.title)) },
         text = { Text(stringResource(R.string.boot_movie_remove_confirm_body)) },
-        confirmButton = { androidx.compose.material3.TextButton(onClick = onConfirm) { Text(stringResource(R.string.boot_movie_remove)) } },
-        dismissButton = { androidx.compose.material3.TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } },
+        confirmButton = { androidx.compose.material3.TextButton(onClick = onConfirm, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.boot_movie_remove)) } },
+        dismissButton = { androidx.compose.material3.TextButton(onClick = onDismiss, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.common_cancel)) } },
     )
 }
 
@@ -676,14 +676,15 @@ private fun MoviePreview(url: String, modifier: Modifier = Modifier) {
 
 /** A dialog with one text box, for a search term or a page number; the Android keyboard comes up with it. */
 @Composable
-private fun TextEntryDialog(
+internal fun TextEntryDialog(
     title: String, initial: String, number: Boolean, confirm: String, onSubmit: (String) -> Unit, onDismiss: () -> Unit,
+    id: String = "boot-movie-entry",
 ) {
     val shown = rememberShown(onDismiss)
     val close = { shown.targetState = false }
     var text by remember { mutableStateOf(initial) }
     val submit = { onSubmit(text.trim()); close() }
-    AppDialog(shown, close, "boot-movie-entry", wide = false, maxWidth = 460.dp) {
+    AppDialog(shown, close, id, wide = false, maxWidth = 460.dp) {
         DialogTitleRow(title, close)
         AdbTextField(
             value = text, onValueChange = { text = it }, label = "", keyboardType = if (number) KeyboardType.Number else KeyboardType.Text,

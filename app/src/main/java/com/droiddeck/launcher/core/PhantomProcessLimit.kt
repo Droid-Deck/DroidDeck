@@ -60,14 +60,14 @@ object PhantomProcessLimit {
         if (usesDeviceConfig(sdk)) {
             val off = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(PREF_ANDROID_12_OFF, false)
             val global = try {
-                Settings.Global.getString(context.contentResolver, SETTING)
+                GlobalSettings.read(context, SETTING)
             } catch (_: Exception) {
                 null
             }
             return android12Status(off, global, systemProperty(OVERRIDE_PROPERTY))
         }
         val global = try {
-            Settings.Global.getString(context.contentResolver, SETTING)
+            GlobalSettings.read(context, SETTING)
         } catch (_: Exception) {
             return PhantomProcessStatus.UNREADABLE
         }

@@ -1,7 +1,8 @@
 use crate::fetch_tuning::{
     budget_admits, connect_timeout, inflight_budget_bytes, retry_backoff_millis, AsyncFetchError,
     FetchFailKind, BOOTSTRAP_WINDOW, MAX_CHUNK_ATTEMPTS, NOMINAL_CHUNK_RESERVE_BYTES,
-    RATE_LIMIT_COOLDOWN_MS, SERVER_EXPLORE_EVERY, USER_AGENT, WINDOW_BPS_EWMA_ALPHA,
+    RATE_LIMIT_COOLDOWN_MS, SERVER_EXPLORE_EVERY, SERVER_FAULT_COOLDOWN_MS, USER_AGENT,
+    WINDOW_BPS_EWMA_ALPHA,
     WINDOW_COOLDOWN_MS, WINDOW_DECLINE_EPS, WINDOW_ERR_BURST_IMMEDIATE, WINDOW_ERR_RATE_HIGH,
     WINDOW_ERR_RATE_LOW, WINDOW_HARD_CAP, WINDOW_IMPROVE_EPS, WINDOW_LOG_EVERY_PROBES,
     WINDOW_MIN_FLOOR, WINDOW_PLATEAU_PATIENCE, WINDOW_PLATEAU_REARM_MAX_MS,
@@ -607,6 +608,10 @@ fn classify_reqwest_error(err: &reqwest::Error) -> FetchFailKind {
         FetchFailKind::Timeout
     } else if err.is_connect() {
         FetchFailKind::Connect
+    } else if err.is_body() || err.is_decode() {
+        // A truncated or undecodable body comes from the CDN, not the request. Rest that host so
+        // the retry goes to another mirror instead of reading the same bad object again.
+        FetchFailKind::ServerFault
     } else {
         FetchFailKind::Other
     }
@@ -663,14 +668,9 @@ async fn fetch_once(
                 }
                 Ok(None) => break,
                 Err(err) => {
-                    let kind = if err.is_timeout() {
-                        FetchFailKind::Timeout
-                    } else {
-                        FetchFailKind::Other
-                    };
                     return Err(AsyncFetchError {
                         message: format!("http body: {err}"),
-                        kind,
+                        kind: classify_reqwest_error(&err),
                     });
                 }
             }
@@ -1150,7 +1150,7 @@ async fn run_driver(ctx: DriverCtx<'_>) {
             Ok(Fetched::Body(body)) => {
                 let raw_len = body.len() as u64;
                 meter.record(done.server_idx, raw_len);
-                sched.on_success(done.server_idx, raw_len, done.elapsed);
+                sched.on_success(done.server_idx, raw_len, done.elapsed, now);
                 window.record_ok(done.elapsed.as_secs_f64() * 1000.0);
                 if raw_len >= done.reserve {
                     in_flight.fetch_add(raw_len - done.reserve, Ordering::Relaxed);
@@ -1172,7 +1172,7 @@ async fn run_driver(ctx: DriverCtx<'_>) {
             }
             Ok(Fetched::Streamed(total_len)) => {
                 meter.record(done.server_idx, total_len);
-                sched.on_success(done.server_idx, total_len, done.elapsed);
+                sched.on_success(done.server_idx, total_len, done.elapsed, now);
                 window.record_ok(done.elapsed.as_secs_f64() * 1000.0);
                 outstanding += 1;
                 if txs[done.idx % txs.len()]
@@ -1335,6 +1335,7 @@ struct ServerHealth {
     samples: u32,
     consecutive_errors: u32,
     cooldown_until: Option<Instant>,
+    fault_until: Option<Instant>,
 }
 
 struct FetchScheduler {
@@ -1412,7 +1413,7 @@ impl FetchScheduler {
         })
     }
 
-    fn on_success(&mut self, server_idx: usize, bytes: u64, elapsed: Duration) {
+    fn on_success(&mut self, server_idx: usize, bytes: u64, elapsed: Duration, now: Instant) {
         let secs = elapsed.as_secs_f64().max(0.001);
         let bps = bytes as f64 / secs;
         let h = &mut self.health[server_idx];
@@ -1423,7 +1424,15 @@ impl FetchScheduler {
         };
         h.samples = h.samples.saturating_add(1);
         h.consecutive_errors = 0;
-        h.cooldown_until = None;
+        // A success can belong to a request that was already in flight when another response from
+        // this host failed. Keep a server-fault cooldown until it expires instead of clearing it
+        // early and sending the retry straight back to the same mirror.
+        if let Some(fault) = h.fault_until.filter(|until| *until > now) {
+            h.cooldown_until = Some(h.cooldown_until.map_or(fault, |current| current.max(fault)));
+        } else {
+            h.fault_until = None;
+            h.cooldown_until = None;
+        }
     }
 
     fn rest(&mut self, server_idx: usize, now: Instant, rest: Duration) {
@@ -1436,10 +1445,18 @@ impl FetchScheduler {
         let h = &mut self.health[server_idx];
         h.consecutive_errors = h.consecutive_errors.saturating_add(1);
         let mut backoff = retry_backoff_millis(h.consecutive_errors);
-        if kind == FetchFailKind::RateLimited {
-            backoff = backoff.max(RATE_LIMIT_COOLDOWN_MS);
+        match kind {
+            FetchFailKind::RateLimited => backoff = backoff.max(RATE_LIMIT_COOLDOWN_MS),
+            FetchFailKind::ServerFault => backoff = backoff.max(SERVER_FAULT_COOLDOWN_MS),
+            _ => {}
         }
-        h.cooldown_until = Some(now + Duration::from_millis(backoff));
+        let until = now + Duration::from_millis(backoff);
+        if kind == FetchFailKind::ServerFault {
+            h.fault_until = Some(now + Duration::from_millis(SERVER_FAULT_COOLDOWN_MS));
+        }
+        let current = h.cooldown_until.unwrap_or(until);
+        let fault = h.fault_until.unwrap_or(until);
+        h.cooldown_until = Some(current.max(fault).max(until));
         h.ewma_bps *= 0.5;
     }
 }
@@ -1806,6 +1823,7 @@ mod tests {
     use super::*;
     use crate::fetch_tuning::{
         FETCH_INFLIGHT_BUDGET_FLOOR_BYTES, FETCH_INFLIGHT_BUDGET_HARD_CAP_BYTES, PER_HOST_CAP,
+        SERVER_FAULT_COOLDOWN_MS,
     };
     use std::collections::HashMap;
     use std::io::{Read, Write};
@@ -1900,15 +1918,66 @@ mod tests {
         let mut s = FetchScheduler::new(&hosts, 2);
         let now = Instant::now();
         assert_eq!(s.pick(now), Some(0));
-        s.on_success(0, 1_000_000, Duration::from_millis(100));
+        s.on_success(0, 1_000_000, Duration::from_millis(100), now);
         assert_eq!(s.pick(now), Some(1));
-        s.on_success(1, 1_000_000, Duration::from_millis(500));
+        s.on_success(1, 1_000_000, Duration::from_millis(500), now);
         assert_eq!(s.pick(now), Some(0));
         s.on_error(0, now, FetchFailKind::Timeout);
         assert_eq!(s.pick(now), Some(1));
         s.on_error(1, now, FetchFailKind::RateLimited);
         assert_eq!(s.pick(now), None);
         assert_eq!(s.pick(now + Duration::from_secs(6)), Some(0));
+    }
+
+    #[test]
+    fn a_server_fault_rests_the_host_for_the_other_mirror() {
+        let hosts = vec!["a".to_string(), "b".to_string()];
+        let mut s = FetchScheduler::new(&hosts, 2);
+        let now = Instant::now();
+        s.on_success(0, 1_000_000, Duration::from_millis(100), now);
+        s.on_success(1, 1_000_000, Duration::from_millis(100), now);
+        s.on_error(0, now, FetchFailKind::ServerFault);
+        assert_eq!(s.pick(now), Some(1));
+        assert_eq!(
+            s.pick(now + Duration::from_millis(SERVER_FAULT_COOLDOWN_MS - 1)),
+            Some(1)
+        );
+        assert!(!s.eligible(0, now + Duration::from_millis(SERVER_FAULT_COOLDOWN_MS - 1)));
+        assert!(s.eligible(0, now + Duration::from_millis(SERVER_FAULT_COOLDOWN_MS)));
+    }
+
+    #[test]
+    fn a_success_from_an_earlier_request_does_not_clear_a_server_fault_cooldown() {
+        let hosts = vec!["a".to_string(), "b".to_string()];
+        let mut s = FetchScheduler::new(&hosts, 2);
+        let now = Instant::now();
+        s.on_error(0, now, FetchFailKind::ServerFault);
+        s.on_success(0, 1_000_000, Duration::from_millis(100), now + Duration::from_millis(100));
+        assert!(!s.eligible(0, now + Duration::from_millis(100)));
+        assert!(s.eligible(0, now + Duration::from_millis(SERVER_FAULT_COOLDOWN_MS)));
+    }
+
+    #[test]
+    fn a_success_keeps_a_longer_cooldown_than_the_server_fault() {
+        let hosts = vec!["a".to_string(), "b".to_string()];
+        let mut s = FetchScheduler::new(&hosts, 2);
+        let now = Instant::now();
+        s.on_error(0, now, FetchFailKind::ServerFault);
+        s.rest(0, now, Duration::from_secs(30));
+        s.on_success(0, 1_000_000, Duration::from_millis(100), now + Duration::from_millis(100));
+        assert!(!s.eligible(0, now + Duration::from_secs(29)));
+        assert!(s.eligible(0, now + Duration::from_secs(30)));
+    }
+
+    #[test]
+    fn a_server_fault_keeps_a_longer_host_stall_cooldown() {
+        let hosts = vec!["a".to_string(), "b".to_string()];
+        let mut s = FetchScheduler::new(&hosts, 2);
+        let now = Instant::now();
+        s.rest(0, now, Duration::from_secs(30));
+        s.on_error(0, now, FetchFailKind::ServerFault);
+        assert!(!s.eligible(0, now + Duration::from_secs(29)));
+        assert!(s.eligible(0, now + Duration::from_secs(30)));
     }
 
     #[test]

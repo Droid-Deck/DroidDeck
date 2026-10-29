@@ -30,7 +30,12 @@ object StoreInstalls {
                 it.write(before.copy(state = StoreGameSidecar.STATE_UPDATING, installVersion = "").toJson().toString(2).toByteArray(Charsets.UTF_8))
                 it.fd.sync()
             }
-            Files.move(stage.toPath(), StoreGameSidecar.file(folder).toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
+            val record = StoreGameSidecar.file(folder).toPath()
+            try {
+                Files.move(stage.toPath(), record, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
+            } catch (e: java.nio.file.AtomicMoveNotSupportedException) {
+                Files.move(stage.toPath(), record, StandardCopyOption.REPLACE_EXISTING)
+            }
         } finally {
             stage.delete()
         }
@@ -70,7 +75,7 @@ object StoreInstalls {
     fun uninstall(context: Context, game: InstalledStoreGame, progress: (Float) -> Unit = {}, removed: () -> Unit = {}) {
         val app = context.applicationContext
         val appId = SessionPrefs.addedGameStoredAppId(app, game.folder.path)
-        val files = game.folder.walkBottomUp().toList()
+        val files = game.folder.walkBottomUp().onEnter { !Files.isSymbolicLink(it.toPath()) }.toList()
         val step = (files.size / 100).coerceAtLeast(1)
         files.forEachIndexed { i, f ->
             f.delete()
@@ -98,6 +103,10 @@ object StoreInstalls {
     }
 
     fun deleteTree(dir: File) {
+        if (Files.isSymbolicLink(dir.toPath())) {
+            dir.delete()
+            return
+        }
         dir.listFiles()?.forEach { if (it.isDirectory) deleteTree(it) else it.delete() }
         dir.delete()
     }

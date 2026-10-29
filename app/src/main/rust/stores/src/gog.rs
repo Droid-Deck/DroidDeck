@@ -2,6 +2,7 @@
 pub mod engine;
 pub mod jni;
 pub mod plan;
+pub mod maintenance;
 
 use std::fs::File;
 use std::io::Read;

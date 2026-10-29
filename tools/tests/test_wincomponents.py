@@ -123,6 +123,33 @@ class WinComponentsTest(unittest.TestCase):
         self.assertEqual(names, [])
         self.assertEqual(notes, ["physx is not installed; skipped"])
 
+    def test_a_component_gone_from_the_store_keeps_what_it_placed(self):
+        self.component("dmband", ["dmband"], {"syswow64/dmband.dll": b"band"})
+        meta = self.store / "directmusic"
+        meta.mkdir(parents=True)
+        (meta / "component.json").write_text(json.dumps({"id": "directmusic", "overrides": [], "requires": ["dmband"]}))
+        self.component("openal", ["openal32"], {"syswow64/OpenAL32.dll": b"x86"})
+        self.pick("directmusic", "openal")
+        self.apply()
+        for cid in ("dmband", "directmusic", "openal"):
+            for path in sorted((self.store / cid).rglob("*"), reverse=True):
+                path.rmdir() if path.is_dir() else path.unlink()
+            (self.store / cid).rmdir()
+        names, notes = self.apply()
+        self.assertEqual(MODULE["overrides_value"](names), "dmband=n,b;openal32=n,b")
+        self.assertEqual((self.pfx / "syswow64/dmband.dll").read_bytes(), b"band")
+        self.assertEqual((self.pfx / "syswow64/openal32.dll").read_bytes(), b"x86")
+        self.assertTrue(all("kept the files it placed" in note for note in notes), notes)
+        self.component("openal", ["openal32"], {"syswow64/OpenAL32.dll": b"x86 v2"})
+        os.utime(self.store / "openal/syswow64/OpenAL32.dll", (1, 1))
+        names, _ = self.apply()
+        self.assertEqual(MODULE["overrides_value"](names), "dmband=n,b;openal32=n,b")
+        self.assertEqual((self.pfx / "syswow64/openal32.dll").read_bytes(), b"x86 v2")
+        self.pick()
+        self.apply()
+        self.assertFalse((self.pfx / "syswow64/dmband.dll").exists())
+        self.assertFalse((self.pfx / "syswow64/openal32.dll").exists())
+
     def test_no_selection_touches_nothing(self):
         self.assertEqual(self.apply(), ([], []))
         self.assertFalse(self.compat.exists())

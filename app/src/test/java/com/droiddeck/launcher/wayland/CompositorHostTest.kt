@@ -43,6 +43,10 @@ class CompositorHostTest {
         ReflectionHelpers.setStaticField(CompositorHost::class.java, "started", false)
         ReflectionHelpers.setStaticField(CompositorHost::class.java, "attached", null)
         ReflectionHelpers.setStaticField(CompositorHost::class.java, "vsyncRunning", false)
+        app.getSharedPreferences("session", Context.MODE_PRIVATE).edit().clear().commit()
+        Native.renderOnCommit.clear()
+        Native.runtimes.clear()
+        Native.drivers.clear()
         Native.starts.clear()
         Native.surfaces.clear()
         Native.sizes.clear()
@@ -79,6 +83,45 @@ class CompositorHostTest {
 
             ReflectionHelpers.callStaticMethod<Unit>(WaylandCompositor::class.java, "onFirstFramePresented")
             assertTrue(SessionState.firstFrameSeen)
+        } finally {
+            CompositorHost.detach(surface)
+            surface.release()
+        }
+    }
+
+    @Test fun nativeStreamingKeepsItsOwnRuntimeAndSystemDriver() {
+        val surface = Surface(android.graphics.SurfaceTexture(0))
+        val runtime = java.io.File(app.cacheDir, "xcloud-wayland").path
+        try {
+            assertTrue(CompositorHost.startOrAttach(app, surface, runtime, null, null,
+                "/native", 1920, 1080, 60f, 0))
+            assertEquals(listOf(runtime), Native.runtimes)
+            assertEquals(listOf<String?>(null), Native.drivers)
+            assertEquals(0, Driver.installs)
+            assertFalse(CompositorHost.startOrAttach(app, surface, runtime, null, null,
+                "/native", 1920, 1080, 120f, 0))
+            assertEquals(1, Native.starts.size)
+            assertSame(surface, Native.surfaces.last())
+        } finally {
+            CompositorHost.detach(surface)
+            surface.release()
+        }
+    }
+
+    @Test fun foregroundAndBackgroundStartsRespectTheCompositorTimingSettings() {
+        val surface = Surface(android.graphics.SurfaceTexture(0))
+        try {
+            for (enabled in listOf(false, true)) {
+                app.getSharedPreferences("session", Context.MODE_PRIVATE).edit()
+                    .putBoolean("vsyncThread", enabled).putBoolean("renderOnCommit", enabled).commit()
+                CompositorHost.startOrAttach(app, null, 1280, 720, 60f, 0)
+                assertEquals(enabled, Native.renderOnCommit.last())
+                assertEquals(enabled, ReflectionHelpers.getStaticField<Boolean>(CompositorHost::class.java, "ownVsyncThread"))
+                CompositorHost.startOrAttach(app, surface, 1280, 720, 60f, 0)
+                assertEquals(enabled, Native.renderOnCommit.last())
+                assertEquals(enabled, ReflectionHelpers.getStaticField<Boolean>(CompositorHost::class.java, "ownVsyncThread"))
+                CompositorHost.detach(surface)
+            }
         } finally {
             CompositorHost.detach(surface)
             surface.release()
@@ -174,14 +217,18 @@ class CompositorHostTest {
     @Implements(value = WaylandCompositor::class, isInAndroidSdk = false)
     class Native {
         companion object {
+            val renderOnCommit = mutableListOf<Boolean>()
+            val runtimes = mutableListOf<String>()
+            val drivers = mutableListOf<String?>()
             val starts = mutableListOf<Surface?>()
             val surfaces = mutableListOf<Surface?>()
             val sizes = mutableListOf<Pair<Int, Int>>()
             @JvmStatic @Implementation fun __staticInitializer__() = Unit
             @JvmStatic @Implementation fun nativeStartWithSurface(surface: Surface?, runtime: String,
-                driver: String?, library: String?, nativeLibs: String?) { starts += surface }
+                driver: String?, library: String?, nativeLibs: String?) { starts += surface; runtimes += runtime; drivers += driver }
             @JvmStatic @Implementation fun nativeSetSurface(surface: Surface?) { surfaces += surface }
             @JvmStatic @Implementation fun nativeSetOutputSize(width: Int, height: Int) { sizes += width to height }
+            @JvmStatic @Implementation fun nativeSetRenderOnCommit(on: Boolean) { renderOnCommit += on }
             @JvmStatic @Implementation fun nativeSetFpsLimit(limit: Int) = Unit
             @JvmStatic @Implementation fun nativeSetLayerFrameRate(hz: Float) = Unit
             @JvmStatic @Implementation fun nativeSetOutputRefreshRate(hz: Float) = Unit

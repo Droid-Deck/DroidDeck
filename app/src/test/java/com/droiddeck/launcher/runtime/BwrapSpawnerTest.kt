@@ -119,6 +119,21 @@ class BwrapSpawnerPlanTest {
         assertEquals("org.example.Game", plan.env["FLATPAK_ID"])
     }
 
+    @Test fun sandboxedAppsSeeTheSessionsNetworkLink() {
+        val context = RuntimeEnvironment.getApplication()
+        val rootfs = LinuxRuntime.rootDir(context)
+        val lib = File(rootfs, "usr/local/lib/libblsession.so").apply { parentFile?.mkdirs(); writeText("") }
+        val preload = File(rootfs, "etc/ld.so.preload").apply { parentFile?.mkdirs(); writeText("/usr/local/lib/libblsession.so\n") }
+        val link = File(rootfs, "etc/droiddeck-net").apply { writeText("if wlan0 2 1500\n") }
+        try {
+            val plan = BwrapSpawner.plan(context, request(op("t" to "dir", "dest" to "/tmp")), dir)
+            assertEquals("/run/droiddeck-preload/libblsession.so", plan.env["LD_PRELOAD"])
+            assertEquals(link.path, plan.binds.single { it.guest == "/etc/droiddeck-net" }.host)
+        } finally {
+            listOf(lib, preload, link).forEach { it.delete() }
+        }
+    }
+
     @Test fun zypakLaunchesTheBrowserWithoutItsSandbox() {
         val context = RuntimeEnvironment.getApplication()
         val app = File(runtime, "app").apply { File(this, "bin").mkdirs() }
@@ -144,5 +159,26 @@ class BwrapSpawnerPlanTest {
 
         assertFalse(plan.binds.any { it.guest.startsWith("/app/bin/") })
         assertFalse(File(dir, "zypak-wrapper").exists())
+    }
+
+    @Test fun preloadsStayOutOfSandboxesWithAnOlderGlibc() {
+        val base = Files.createTempDirectory("glibc").toFile()
+        try {
+            val rootfs = File(base, "rootfs")
+            File(rootfs, "usr/local/lib").mkdirs()
+            File(rootfs, "etc").mkdirs()
+            File(rootfs, "etc/ld.so.preload").writeText("/usr/local/lib/libone.so\n/usr/local/lib/libtwo.so\n")
+            File(rootfs, "usr/local/lib/libone.so").writeText("x GLIBC_2.17 y GLIBC_2.34 z")
+            File(rootfs, "usr/local/lib/libtwo.so").writeText("GLIBC_2.38 GLIBC_2.25")
+            val old = File(base, "old-libc").apply { writeText("GNU C Library (Ubuntu GLIBC 2.23-0ubuntu11) stable release version 2.23, by Roland") }
+            val new = File(base, "new-libc").apply { writeText("GNU C Library (Ubuntu GLIBC 2.43-0ubuntu1) stable release version 2.43.") }
+            val same = File(base, "same-libc").apply { writeText("stable release version 2.38.") }
+            assertFalse(BwrapSpawner.preloadFits(rootfs.path, old.path))
+            assertTrue(BwrapSpawner.preloadFits(rootfs.path, new.path))
+            assertTrue(BwrapSpawner.preloadFits(rootfs.path, same.path))
+            assertTrue(BwrapSpawner.preloadFits(rootfs.path, File(base, "missing").path))
+        } finally {
+            base.deleteRecursively()
+        }
     }
 }

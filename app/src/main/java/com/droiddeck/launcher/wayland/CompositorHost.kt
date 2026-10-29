@@ -2,6 +2,9 @@ package com.droiddeck.launcher.wayland
 
 import android.content.Context
 import android.os.Build
+import android.os.Handler
+import android.os.HandlerThread
+import android.os.Process
 import android.util.Log
 import android.view.Choreographer
 import android.view.Display
@@ -24,14 +27,27 @@ object CompositorHost {
     @Volatile
     private var vsyncRunning = false
 
-    private val vsync = object : Choreographer.FrameCallback {
+    @Volatile
+    private var ownVsyncThread = true
+
+    // The screen tick gets its own thread so a busy main thread cannot delay the compositor's frames.
+    private val vsyncThread: HandlerThread by lazy {
+        HandlerThread("droiddeck-vsync", Process.THREAD_PRIORITY_DISPLAY).apply { start() }
+    }
+    private val vsyncHandler: Handler by lazy { Handler(vsyncThread.looper) }
+
+    @Volatile
+    private var vsyncGeneration = 0
+
+    // Each resume gets a new callback; one left queued from an earlier resume, on either thread, stops itself.
+    private fun vsyncCallback(generation: Int) = object : Choreographer.FrameCallback {
         override fun doFrame(frameTimeNanos: Long) {
+            if (generation != vsyncGeneration) return
             WaylandCompositor.nativeVsync(frameTimeNanos)
             if (vsyncRunning) Choreographer.getInstance().postFrameCallback(this)
         }
     }
 
-    @Synchronized
     fun startOrAttach(
         context: Context,
         surface: Surface?,
@@ -41,18 +57,7 @@ object CompositorHost {
         fpsLimit: Int,
         mode: String = SessionService.MODE_STEAM,
         display: Display? = null,
-    ): Boolean {
-        if (started && surface == null && attached != null) return false
-        pace(refreshHz, fpsLimit)
-        if (!SessionState.running || !started || surface == null) WaylandCompositor.nativeSetOutputSize(outputWidth, outputHeight)
-        if (started) {
-            if (surface != null) {
-                attached = surface
-                WaylandCompositor.nativeSetSurface(surface)
-                resumeVsync()
-            }
-            return false
-        }
+    ): Boolean = startOrAttachOutput(context, surface, outputWidth, outputHeight, refreshHz, fpsLimit) {
         val runtimeDir = File(context.filesDir, ".wayland-rt").apply { mkdirs() }
         FileUtils.copyAsset(context, "wayland/keymap.xkb", File(runtimeDir, "keymap.xkb"))
         val choice = SessionPrefs.androidDriver(context)
@@ -68,6 +73,48 @@ object CompositorHost {
             surface, runtimeDir.path, driverId?.let { turnip.driverPath(it) },
             driverId?.let { turnip.libraryName(it) }, context.applicationInfo.nativeLibraryDir,
         )
+    }
+
+    fun startOrAttach(
+        context: Context,
+        surface: Surface,
+        xdgRuntimeDir: String,
+        driverPath: String?,
+        libraryName: String?,
+        nativeLibDir: String,
+        outputWidth: Int,
+        outputHeight: Int,
+        refreshHz: Float,
+        fpsLimit: Int,
+    ): Boolean = startOrAttachOutput(context, surface, outputWidth, outputHeight, refreshHz, fpsLimit) {
+        com.droiddeck.launcher.gpu.TpUbwcHint.applyToProcess(context)
+        WaylandCompositor.nativeStartWithSurface(surface, xdgRuntimeDir, driverPath, libraryName, nativeLibDir)
+    }
+
+    @Synchronized
+    private fun startOrAttachOutput(
+        context: Context,
+        surface: Surface?,
+        outputWidth: Int,
+        outputHeight: Int,
+        refreshHz: Float,
+        fpsLimit: Int,
+        start: () -> Unit,
+    ): Boolean {
+        if (started && surface == null && attached != null) return false
+        ownVsyncThread = SessionPrefs.vsyncThread(context)
+        WaylandCompositor.nativeSetRenderOnCommit(SessionPrefs.renderOnCommit(context))
+        pace(refreshHz, fpsLimit)
+        if (!SessionState.running || !started || surface == null) WaylandCompositor.nativeSetOutputSize(outputWidth, outputHeight)
+        if (started) {
+            if (surface != null) {
+                attached = surface
+                WaylandCompositor.nativeSetSurface(surface)
+                resumeVsync()
+            }
+            return false
+        }
+        start()
         attached = surface
         started = true
         if (surface != null) resumeVsync()
@@ -125,8 +172,14 @@ object CompositorHost {
 
     private fun resumeVsync() {
         if (vsyncRunning) return
+        val callback = vsyncCallback(++vsyncGeneration)
         vsyncRunning = true
-        Choreographer.getInstance().postFrameCallback(vsync)
+        WaylandCompositor.nativeLog("screen", if (ownVsyncThread) "screen tick runs on its own display-priority thread" else "screen tick runs on the main thread")
+        if (!ownVsyncThread) {
+            Choreographer.getInstance().postFrameCallback(callback)
+            return
+        }
+        vsyncHandler.post { Choreographer.getInstance().postFrameCallback(callback) }
     }
 
     private fun pauseVsync() {

@@ -1,0 +1,106 @@
+diff --git a/src/Backends/WaylandBackend.cpp b/src/Backends/WaylandBackend.cpp
+index d00644f..40164ba 100644
+--- a/src/Backends/WaylandBackend.cpp
++++ b/src/Backends/WaylandBackend.cpp
+@@ -11,6 +11,7 @@
+ #include "waitable.h"
+ #include "Utils/TempFiles.h"
+ #include "Utils/CursorRouting.h"
++#include "Utils/WaylandScaling.h"
+ 
+ #include <cstring>
+ #include <unordered_map>
+@@ -1618,8 +1619,8 @@ namespace gamescope
+             {
+                 wl_subsurface_set_position(
+                     m_pSubsurface,
+-                    WaylandScaleToLogical( oState->nDestX, uScale ),
+-                    WaylandScaleToLogical( oState->nDestY, uScale ) );
++                    gamescope::WaylandPositionToLogical( oState->nDestX, uScale ),
++                    gamescope::WaylandPositionToLogical( oState->nDestY, uScale ) );
+             }
+             // The x/y here does nothing? Why? What is it for...
+             // Use the subsurface set_position thing instead.
+diff --git a/src/Utils/WaylandScaling.h b/src/Utils/WaylandScaling.h
+new file mode 100644
+index 0000000..d488e39
+--- /dev/null
++++ b/src/Utils/WaylandScaling.h
+@@ -0,0 +1,12 @@
++#pragma once
++
++#include <cstdint>
++
++namespace gamescope
++{
++    constexpr int32_t WaylandPositionToLogical( int32_t nValue, uint32_t uFactor )
++    {
++        const int64_t nScaled = int64_t( nValue ) * 120;
++        return int32_t( nScaled / uFactor + ( nScaled % uFactor > 0 ) );
++    }
++}
+diff --git a/tests/meson.build b/tests/meson.build
+index 1ccdf7d..d86bf9e 100644
+--- a/tests/meson.build
++++ b/tests/meson.build
+@@ -8,7 +8,7 @@ endforeach
+ 
+ gamescope_tests = executable(
+ 	'gamescope_tests',
+-	unittest_src + ['test_convar.cpp', 'test_cursor_routing.cpp', 'test_focus_placement.cpp', 'test_mangoapp_config.cpp', 'test_mangoapp_control.cpp', 'test_process.cpp', 'test_upscale.cpp', 'test_utils_parsers.cpp', 'test_utils_string.cpp', 'test_vrclient_detect.cpp'],
++	unittest_src + ['test_convar.cpp', 'test_cursor_routing.cpp', 'test_focus_placement.cpp', 'test_mangoapp_config.cpp', 'test_mangoapp_control.cpp', 'test_process.cpp', 'test_upscale.cpp', 'test_utils_parsers.cpp', 'test_utils_string.cpp', 'test_vrclient_detect.cpp', 'test_wayland_scaling.cpp'],
+ 	include_directories: [srcdir, sol2_include],
+ 	dependencies: [catch2_dep, luajit_dep, cap_dep, drm_dep, glm_dep, wlroots_dep],
+ 	cpp_args: gamescope_cpp_args,
+@@ -18,6 +18,7 @@ reaper_test_helper = executable('reaper_test_helper', 'reaper_test_helper.cpp')
+ 
+ test('convar', gamescope_tests, args: ['[convar]'])
+ test('cursor_routing', gamescope_tests, args: ['[cursor_routing]'])
++test('wayland_scaling', gamescope_tests, args: ['[wayland_scaling]'])
+ test('focus_placement', gamescope_tests, args: ['[focus_placement]'])
+ test('mangoapp_config', gamescope_tests, args: ['[mangoapp_config]'])
+ test('mangoapp_control', gamescope_tests, args: ['[mangoapp_control]'])
+diff --git a/tests/test_wayland_scaling.cpp b/tests/test_wayland_scaling.cpp
+new file mode 100644
+index 0000000..498f55b
+--- /dev/null
++++ b/tests/test_wayland_scaling.cpp
+@@ -0,0 +1,38 @@
++#include <catch2/catch_test_macros.hpp>
++
++#include "Utils/WaylandScaling.h"
++
++#include <cmath>
++#include <limits>
++
++using namespace gamescope;
++
++TEST_CASE("cropped Wayland planes retain negative positions", "[wayland_scaling]")
++{
++    REQUIRE( WaylandPositionToLogical( -120, 120 ) == -120 );
++    REQUIRE( WaylandPositionToLogical( -640, 120 ) == -640 );
++    REQUIRE( WaylandPositionToLogical( -360, 120 ) == -360 );
++    REQUIRE( WaylandPositionToLogical( 0, 120 ) == 0 );
++    REQUIRE( WaylandPositionToLogical( 160, 120 ) == 160 );
++}
++
++TEST_CASE("Wayland positions round up at fractional host scales", "[wayland_scaling]")
++{
++    const int32_t positions[] = { -100000000, -1000000, -640, -120, -1, 0, 1, 120, 640, 1000000, 100000000 };
++    const uint32_t scales[] = { 120, 150, 180, 240, 360, 480 };
++    for ( uint32_t uScale : scales )
++    {
++        for ( int32_t nPosition : positions )
++        {
++            CAPTURE( nPosition, uScale );
++            const int32_t nExpected = int32_t( std::ceil( (long double)( nPosition ) * 120 / uScale ) );
++            REQUIRE( WaylandPositionToLogical( nPosition, uScale ) == nExpected );
++        }
++    }
++}
++
++TEST_CASE("Wayland position conversion widens before multiplying", "[wayland_scaling]")
++{
++    REQUIRE( WaylandPositionToLogical( std::numeric_limits<int32_t>::min(), 120 ) == std::numeric_limits<int32_t>::min() );
++    REQUIRE( WaylandPositionToLogical( std::numeric_limits<int32_t>::max(), 120 ) == std::numeric_limits<int32_t>::max() );
++}

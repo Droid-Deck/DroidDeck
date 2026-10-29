@@ -33,16 +33,26 @@ internal class ItchInstaller(
     private val folder: File,
 ) : DownloadQueue.DownloadJob {
     private val cancelled = AtomicBoolean(false)
+    private var work: File = folder
+    private var updating = false
+    private var previous: StoreGameSidecar? = null
+    private val commit = Any()
 
     override fun run(handle: DownloadQueue.JobHandle): String? {
         val key = ItchAuth.key(app)
         if (key.isBlank()) throw IllegalStateException(app.getString(R.string.stores_sync_sign_in))
         val downloadKeyId = item.extra["downloadKeyId"].orEmpty()
-        if (downloadKeyId.isBlank()) throw IllegalStateException(app.getString(R.string.stores_itch_not_owned))
-        val gameId = item.extra["gameId"].orEmpty().ifBlank { item.id.substringAfterLast('/') }
+        if (downloadKeyId.isBlank() && !item.isFree) throw IllegalStateException(app.getString(R.string.stores_itch_not_owned))
+        val gameId = ItchGame.resolveId(item) ?: throw IllegalStateException(app.getString(R.string.stores_itch_no_game))
+        val before = StoreGameSidecar.read(folder)
+        previous = before
+        updating = before != null && (before.isInstalled || before.state == StoreGameSidecar.STATE_UPDATING)
+        val resuming = before?.let { it.state == StoreGameSidecar.STATE_INSTALLING && it.id == item.id } == true
         StoreInstalls.begin(folder, Store.ITCH, item.id, item.title, item.imageUrl, item.imageUrl)
         handle.stage(DownloadStage.MANIFEST)
-        val upload = ItchUploads.windows(ItchApi.uploads(key, gameId, downloadKeyId))
+        val uploads = ItchApi.uploads(key, gameId, downloadKeyId)
+        val chosen = item.extra["uploadId"].orEmpty()
+        val upload = (if (chosen.isBlank()) ItchUploads.windows(uploads) else ItchUploads.byId(uploads, chosen))
             ?: throw IllegalStateException(app.getString(R.string.stores_itch_no_upload))
         val uploadId = upload.optString("id")
         val filename = ItchUploads.filename(upload)
@@ -55,14 +65,14 @@ internal class ItchInstaller(
             download(key, downloadKeyId, uploadId, upload.optString("updated_at", upload.optString("updatedAt")), archive, size, handle)
             if (cancelled.get()) return null
             handle.stage(DownloadStage.INSTALL)
-            install(archive, filename, handle)
+            install(archive, filename, handle, resuming)
         } catch (t: Throwable) {
-            if (!cancelled.get()) StoreInstalls.discard(app, folder, listOf(scratch))
+            if (!cancelled.get()) dropCaches(scratch)
             throw t
         }
         if (exe == null) {
             if (cancelled.get()) return null
-            StoreInstalls.discard(app, folder, listOf(scratch))
+            dropCaches(scratch)
             throw IllegalStateException(app.getString(R.string.stores_itch_no_exe))
         }
         archive.delete()
@@ -72,6 +82,8 @@ internal class ItchInstaller(
             id = item.id,
             title = item.title,
             exe = exe,
+            args = previous?.args.orEmpty(),
+            env = previous?.env.orEmpty(),
             installVersion = upload.optString("updated_at", upload.optString("updatedAt")),
             installedAt = System.currentTimeMillis(),
             cover = item.imageUrl,
@@ -80,12 +92,24 @@ internal class ItchInstaller(
             cloud = false,
         )
         StoreInstalls.complete(app, folder, sidecar) { done, steps -> handle.stageProgress(done.toLong(), steps.toLong()) }
+        ItchUpdates.applied(app, item.key)
         return folder.path
     }
 
     override fun cancel(deleteFiles: Boolean) {
         cancelled.set(true)
-        if (deleteFiles) StoreInstalls.discard(app, folder, listOf(StoreInstallRoot.scratchDir(app, Store.ITCH, item.id)))
+        if (deleteFiles) dropCaches(StoreInstallRoot.scratchDir(app, Store.ITCH, item.id))
+    }
+
+    private fun dropCaches(scratch: File) {
+        if (!updating) {
+            StoreInstalls.discard(app, folder, listOf(scratch))
+            return
+        }
+        synchronized(commit) {
+            StoreInstalls.deleteTree(scratch)
+            ItchStaging.delete(File(folder, ItchStaging.DIR))
+        }
     }
 
     private fun download(key: String, downloadKeyId: String, uploadId: String, version: String, target: File, expected: Long,
@@ -147,22 +171,52 @@ internal class ItchInstaller(
         }
     }
 
-    private fun install(archive: File, filename: String, handle: DownloadQueue.JobHandle): String? {
-        folder.mkdirs()
-        when (val kind = sniff(archive, filename)) {
-            "zip" -> unzip(archive, handle)
-            "7z" -> sevenZip(archive, handle)
-            "rar" -> unrar(archive, handle)
-            "exe" -> copy(archive, File(folder, filename.ifBlank { "game.exe" }))
-            "tar" -> untar(archive, null, handle)
-            "gz", "bz2", "xz" -> untar(archive, kind, handle) ?: single(archive, kind, handle)
-            else -> copy(archive, File(folder, filename.ifBlank { "game" }))
+    private fun clearPartialInstall() {
+        folder.listFiles()?.forEach {
+            if (it.name == StoreGameSidecar.FILE_NAME) return@forEach
+            if (it.isDirectory) StoreInstalls.deleteTree(it) else it.delete()
         }
-        val hint = filename.substringBeforeLast('.')
-        val exe = StoreExe.pick(folder, hint.ifBlank { null }, item.title)
+    }
+
+    private fun install(archive: File, filename: String, handle: DownloadQueue.JobHandle, resuming: Boolean): String? {
+        work = if (updating) File(folder, ItchStaging.DIR) else folder
+        if (updating) ItchStaging.delete(work)
+        work.mkdirs()
+        if (resuming) clearPartialInstall()
+        val exe = try {
+            when (val kind = sniff(archive, filename)) {
+                "zip" -> unzip(archive, handle)
+                "7z" -> sevenZip(archive, handle)
+                "rar" -> unrar(archive, handle)
+                "exe" -> copy(archive, File(work, filename.ifBlank { "game.exe" }))
+                "tar" -> untar(archive, null, handle)
+                "gz", "bz2", "xz" -> untar(archive, kind, handle) ?: single(archive, kind, handle)
+                else -> copy(archive, File(work, filename.ifBlank { "game" }))
+            }
+            val hint = filename.substringBeforeLast('.')
+            StoreExe.pick(work, hint.ifBlank { null }, item.title)
+        } catch (t: Throwable) {
+            if (updating) ItchStaging.delete(work)
+            throw t
+        }
         if (exe.isBlank()) {
             handle.log("itch.io: no exe found in ${folder.name}")
+            if (updating) ItchStaging.delete(work)
             return null
+        }
+        if (updating) synchronized(commit) {
+            if (cancelled.get()) {
+                ItchStaging.delete(work)
+                return null
+            }
+            try {
+                StoreInstalls.markUpdating(folder)
+            } catch (t: Throwable) {
+                ItchStaging.delete(work)
+                throw t
+            }
+            ItchStaging.merge(work, folder)
+            ItchStaging.delete(work)
         }
         return exe
     }
@@ -186,8 +240,8 @@ internal class ItchInstaller(
     }
 
     private fun target(name: String): File? {
-        val file = File(folder, name.replace('\\', '/'))
-        val root = folder.canonicalPath
+        val file = File(work, name.replace('\\', '/'))
+        val root = work.canonicalPath
         val path = file.canonicalPath
         return if (path == root || path.startsWith(root + File.separator)) file else null
     }
@@ -195,8 +249,8 @@ internal class ItchInstaller(
     // No JVM library reads RAR5; the runtime's bsdtar (libarchive) does.
     private fun unrar(archive: File, handle: DownloadQueue.JobHandle) {
         if (!LinuxRuntime.isInstalled(app)) throw IllegalStateException(app.getString(R.string.stores_itch_archive, "rar"))
-        val binds = if (listOf(app.filesDir, app.cacheDir).any { folder.absolutePath.startsWith(it.absolutePath + "/") }) null
-            else listOf(folder.absolutePath)
+        val binds = if (listOf(app.filesDir, app.cacheDir).any { work.absolutePath.startsWith(it.absolutePath + "/") }) null
+            else listOf(work.absolutePath)
         fun bsdtar(args: List<String>, onLine: (String) -> Unit) =
             GuestCommand.run(app, listOf("/usr/bin/bsdtar") + args, logName = "itch-unrar", extraBinds = binds, fastPath = true) { line ->
                 if (!line.startsWith("proot ")) onLine(line)
@@ -205,7 +259,7 @@ internal class ItchInstaller(
         bsdtar(listOf("-tf", archive.absolutePath)) { entries++ }
         var done = 0L
         val tail = ArrayDeque<String>()
-        val code = bsdtar(listOf("-xvf", archive.absolutePath, "-C", folder.absolutePath)) { line ->
+        val code = bsdtar(listOf("-xvf", archive.absolutePath, "-C", work.absolutePath)) { line ->
             if (line.startsWith("x ")) handle.stageProgress(++done, entries) else {
                 if (tail.size == 5) tail.removeFirst()
                 tail.addLast(line)

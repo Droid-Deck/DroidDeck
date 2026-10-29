@@ -101,6 +101,8 @@ internal object Xodus {
             val command = LinuxRuntime.commandWithBinds(app, root, binds, guestCommand)
             val builder = ProcessBuilder(command).directory(LinuxRuntime.rootDir(app))
             if (launchDirectory != null) builder.environment()["TMPDIR"] = launchDirectory.path
+            builder.environment()["DROIDDECK_XBOX_CREDENTIAL_PORT"] = credentials.port.toString()
+            builder.environment()["DROIDDECK_XBOX_CREDENTIAL_KEY"] = credentials.key
             builder.environment().apply {
                 remove("LD_PRELOAD"); remove("LD_AUDIT"); remove("LD_LIBRARY_PATH")
                 put("PROOT_LOADER", LinuxRuntime.prootLoader(app).path)
@@ -150,11 +152,13 @@ internal object Xodus {
         }
     }
 
+    const val SIGN_IN_REJECTED = "Microsoft content licensing rejected sign-in \\(HTTP 401\\)\\. Sign in again in Settings\\."
+
     /** Passes the backend's known stderr diagnostics to [report]; other stderr text never leaves the process. */
     fun diagnostics(child: Child, report: (String) -> Unit = { com.droiddeck.launcher.stores.StoresState.logLine("Xbox: $it") }): Thread = Thread({
         runCatching {
             child.process.errorStream.bufferedReader().useLines { lines -> lines.forEach { line ->
-                if (line.matches(Regex("NEXUS_CREDENTIAL_ERROR_V1 [a-z-]{1,48}|NEXUS_LIBRARY_DIAGNOSTIC_V1 [a-z-]{1,48} [0-9]{1,3} [0-9]{1,6}|NEXUS_SESSION_DIAGNOSTIC_V1 [a-z-]{1,64}|Account library unavailable \\([a-z-]{1,64}\\); credentials and installed games are unchanged\\.|Account library timed out; installed games are unchanged\\.|Xbox profile is temporarily unavailable \\([a-z-]{1,48}\\); stored account is unchanged\\.|Xbox profile request timed out; stored account is unchanged\\.")))
+                if (line.matches(Regex("NEXUS_CREDENTIAL_ERROR_V1 [a-z-]{1,48}|NEXUS_LIBRARY_DIAGNOSTIC_V1 [a-z-]{1,48} [0-9]{1,3} [0-9]{1,6}|NEXUS_SESSION_DIAGNOSTIC_V1 [a-z-]{1,64}|Account library unavailable \\([a-z-]{1,64}\\); credentials and installed games are unchanged\\.|Account library timed out; installed games are unchanged\\.|Xbox profile is temporarily unavailable \\([a-z-]{1,48}\\); stored account is unchanged\\.|Xbox profile request timed out; stored account is unchanged\\.|NEXUS_CONTENT_LICENSE_DIAGNOSTIC_V1 [a-z-]{1,48} [0-9]{3}|$SIGN_IN_REJECTED")))
                     report(line)
             } }
         }
