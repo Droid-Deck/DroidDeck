@@ -11,6 +11,7 @@ internal object GameJoltProbe {
     private const val MAX_FOUND = 80
     private const val MAX_REDIRECTS = 5
     private const val MIN_ROUTE_COUNT = 3
+    private const val MAX_WRAPS = 4
 
     private val endpoint = Regex("[\"'`](/?(?:site-api|web|x)/[^\"'`\\s]{3,140})[\"'`]")
     private val absolute = Regex("https?://[A-Za-z0-9.\\-]*gamejolt\\.(?:com|net)/[^\"'`\\s<>)]{0,140}")
@@ -92,10 +93,10 @@ internal object GameJoltProbe {
         return counts.filterValues { it >= MIN_ROUTE_COUNT }.keys
     }
 
-    private fun keys(value: Any?, depth: Int): String = when {
+    private fun keys(value: Any?, depth: Int, wraps: Int = MAX_WRAPS): String = when {
         value is org.json.JSONObject && depth > 0 -> value.keys().asSequence().take(40).joinToString(",", "{", "}") { k -> k + ":" + keys(value.opt(k), depth - 1) }
         value is org.json.JSONObject -> "{...}"
-        value is org.json.JSONArray -> "[" + (if (value.length() > 0 && depth > 0) keys(value.opt(0), depth - 1) else "") + "]"
+        value is org.json.JSONArray -> "[" + (if (value.length() > 0 && wraps > 0) keys(value.opt(0), depth, wraps - 1) else "") + "]"
         else -> ""
     }
 
