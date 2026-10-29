@@ -213,6 +213,7 @@ class FrontEndActivity : ComponentActivity() {
     }
     private val mediaReceiver = object : android.content.BroadcastReceiver() {
         override fun onReceive(context: android.content.Context?, intent: Intent?) {
+            usbScan++
             ui.removeCallbacks(mediaRefresh)
             ui.postDelayed(mediaRefresh, MEDIA_SETTLE_MS)
         }
