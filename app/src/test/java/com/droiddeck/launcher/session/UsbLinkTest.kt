@@ -81,6 +81,12 @@ class UsbLinkTest {
         assertEquals("name:sda1", UsbLink.mountDevice("/mnt/usb/a", "/dev/block/sda1 /mnt/usb vfat rw 0 0"))
     }
 
+    @Test fun rawMountPathsAreTreatedAsTheirStorageVolume() {
+        assertEquals("/storage/8C5A-1F23/Games", UsbLink.storagePath("/mnt/media_rw/8C5A-1F23/Games"))
+        assertEquals("/storage/emulated/0/Games", UsbLink.storagePath("/storage/emulated/0/Games"))
+        assertTrue(UsbLink.external(UsbLink.storagePath("/mnt/media_rw/8C5A-1F23/Games")))
+    }
+
     @Test fun generationsFollowTheLinkSpeed() {
         assertEquals("USB 1.1", UsbLink.generation(12.0))
         assertEquals("USB 2.0", UsbLink.generation(480.0))

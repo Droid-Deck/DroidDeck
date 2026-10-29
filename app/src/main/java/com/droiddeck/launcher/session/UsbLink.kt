@@ -50,8 +50,10 @@ object UsbLink {
             else -> pref
         }
         val folders = runCatching { AddedGames.roots(context).map { it.host.absolutePath } }.getOrDefault(emptyList())
-        return (listOfNotNull(storage) + folders).filter { external(it) }.distinct()
+        return (listOfNotNull(storage) + folders).map(::storagePath).filter { external(it) }.distinct()
     }
+
+    internal fun storagePath(path: String) = if (path.startsWith("/mnt/media_rw/")) "/storage/" + path.removePrefix("/mnt/media_rw/") else path
 
     internal fun external(path: String) = path.startsWith("/storage/") && !path.startsWith("/storage/emulated/") && !path.startsWith("/storage/self/")
 

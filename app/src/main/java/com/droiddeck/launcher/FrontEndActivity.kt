@@ -2320,11 +2320,12 @@ class FrontEndActivity : ComponentActivity() {
     private fun checkUsbLink() {
         if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) { ui.post { checkUsbLink() }; return }
         val scan = ++usbScan
-        if (slowUsb != null) return
         Thread({
             val drive = runCatching { com.droiddeck.launcher.session.UsbLink.slowLibrary(this) }.getOrNull()
-            if (drive != null) ui.post {
-                if (scan == usbScan && slowUsb == null && !isFinishing && com.droiddeck.launcher.session.UsbLink.stillDue(this, drive)) slowUsb = drive
+            ui.post {
+                if (scan != usbScan || isFinishing) return@post
+                val due = drive?.takeIf { com.droiddeck.launcher.session.UsbLink.stillDue(this, it) }
+                if (due == null) slowUsb = null else if (slowUsb?.key != due.key) slowUsb = due
             }
         }, "usb-link").start()
     }
