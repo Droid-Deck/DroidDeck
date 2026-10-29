@@ -294,7 +294,7 @@ class FusionHudView(context: Context) : View(context) {
         showDxVer = cfg.get("showDxVer", "1") == "1"
         showSession = cfg.get("showSession", "1") == "1"
         tempDisplay = HudMetrics.TempDisplay.from(cfg)
-        lockController.setLocked(cfg.get("hudLocked", "0") == "1")
+        lockController.setLocked(cfg.get("hudLocked", "1") == "1")
 
         colorIntensity = when (cfg.get("hudColor", "vivid")) {
             "soft" -> 0.72f; "mid" -> 0.88f; else -> 1.0f

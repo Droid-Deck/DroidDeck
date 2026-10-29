@@ -5,9 +5,12 @@ import com.droiddeck.launcher.session.SessionPrefs
 
 /** FusionHUD's settings as one "key=value,…" string (FusionHudView.applyConfig), stored in SessionPrefs. */
 internal object FusionHudConfig {
-    /** Bannerlator's Fusion defaults (DeckOverlaySettings), with the FPS graph from the old DroidDeck HUD. */
+    /**
+     * Bannerlator's Fusion defaults (DeckOverlaySettings), with the FPS graph from the old DroidDeck HUD. The HUD starts
+     * locked, so like the old HUD it lets touches through until it is unlocked to move it.
+     */
     val DEFAULTS: Map<String, String> = linkedMapOf(
-        "hudSize" to "minimal", "hudLocked" to "0", "hudScale" to "100", "hudOpacity" to "80", "hudColor" to "mid",
+        "hudSize" to "minimal", "hudLocked" to "1", "hudScale" to "100", "hudOpacity" to "80", "hudColor" to "mid",
         "hudOutline" to "40", "hudOutlineAccent" to "1",
         "showFPS" to "1", "showFPSGraph" to "1", "showCPUUsage" to "1", "showCPULoad" to "1", "showGPULoad" to "1",
         "showVram" to "1", "showRAM" to "1", "showPower" to "1", "showTemp" to "1", "showBatteryTemp" to "1",
