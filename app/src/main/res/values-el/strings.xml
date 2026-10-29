@@ -616,7 +616,7 @@
     <string name="hud_size_minimal">Ελάχιστο</string>
     <string name="hud_size_mega">Μέγα</string>
     <string name="hud_locked">Κλείδωμα θέσης</string>
-    <string name="hud_locked_hint">Σύρετε το HUD για να το μετακινήσετε· ένα παρατεταμένο πάτημα το κλειδώνει ή το ξεκλειδώνει.</string>
+    <string name="hud_locked_hint">Σύρετε το HUD για να το μετακινήσετε· ένα παρατεταμένο πάτημα το κλειδώνει. Κλειδωμένο αφήνει τα αγγίγματα να περνούν· απενεργοποιήστε αυτό για να το μετακινήσετε ξανά.</string>
     <string name="hud_group_look">Εμφάνιση</string>
     <string name="hud_scale">Μέγεθος στην οθόνη</string>
     <string name="hud_color_soft">Απαλό</string>

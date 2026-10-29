@@ -616,7 +616,7 @@
     <string name="hud_size_minimal">Minimal</string>
     <string name="hud_size_mega">Mega</string>
     <string name="hud_locked">Lås fast</string>
-    <string name="hud_locked_hint">Træk i HUD for at flytte det; et langt tryk låser eller frigør det.</string>
+    <string name="hud_locked_hint">Træk i HUD for at flytte det; et langt tryk låser det. Låst lader det berøringer gå igennem; slå dette fra for at flytte det igen.</string>
     <string name="hud_group_look">Udseende</string>
     <string name="hud_scale">Størrelse på skærmen</string>
     <string name="hud_color_soft">Blød</string>

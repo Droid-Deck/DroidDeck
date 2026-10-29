@@ -616,7 +616,7 @@
     <string name="hud_size_minimal">미니멀</string>
     <string name="hud_size_mega">메가</string>
     <string name="hud_locked">위치 고정</string>
-    <string name="hud_locked_hint">HUD를 드래그하여 이동하고, 길게 눌러 고정하거나 해제합니다.</string>
+    <string name="hud_locked_hint">HUD를 드래그하여 이동하고, 길게 눌러 고정합니다. 고정된 HUD는 터치를 통과시키며, 다시 이동하려면 이 옵션을 끄세요.</string>
     <string name="hud_group_look">외관</string>
     <string name="hud_scale">화면상 크기</string>
     <string name="hud_color_soft">은은함</string>

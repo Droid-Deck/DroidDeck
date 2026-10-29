@@ -675,7 +675,7 @@
     <string name="hud_size_minimal">Minimal</string>
     <string name="hud_size_mega">Mega</string>
     <string name="hud_locked">Lock in place</string>
-    <string name="hud_locked_hint">Drag the HUD to move it; a long press locks or unlocks it.</string>
+    <string name="hud_locked_hint">Drag the HUD to move it; a long press locks it. A locked HUD lets touches through; turn this off to move it again.</string>
     <string name="hud_group_look">Look</string>
     <string name="hud_scale">Size on screen</string>
     <string name="hud_color_soft">Soft</string>
