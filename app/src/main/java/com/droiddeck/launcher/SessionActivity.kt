@@ -2417,7 +2417,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
         return onScreenControls?.let { takes(it, it::takesTouchAt) } == true ||
             steamTouchControls?.let { takes(it, it::takesTouchAt) } == true ||
-            screenKeys?.let { takes(it, it::takesTouchAt) } == true
+            screenKeys?.let { takes(it, it::takesTouchAt) } == true ||
+            unfoldedPanel?.let { takes(it, it::takesTouchAt) } == true
     }
 
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {
