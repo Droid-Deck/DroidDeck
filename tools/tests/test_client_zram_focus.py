@@ -30,18 +30,18 @@ class ClientZramFocusTest(unittest.TestCase):
                 (folder / 'environ').write_bytes(b''.join(item.encode() + b'\0' for item in env))
 
             fex = '/s/FEX-Emu/usr/bin/FEX'
-            task(10, ['/s/steamrtarm64/steam', '-gamepadui'])
-            task(11, [fex, '/e/usr/bin/EpicGamesLauncher'], ['HOME=/root', 'DROIDDECK_EPIC_HIDDEN=1'])
-            task(12, [fex, './/lib/webkit2gtk-4.1/WebKitWebProcess', '4'], ['DROIDDECK_EPIC_HIDDEN=1', 'LANG=C'])
-            task(13, [fex, '/e/usr/bin/EpicGamesLauncher'], ['HOME=/root'])
-            task(14, ['/e/WebKitWebProcess', '4'], ['DROIDDECK_EPIC_HIDDEN=1'])
-            task(15, [fex, '/e/usr/bin/EpicGamesLauncher'], ['DROIDDECK_EPIC_HIDDEN=10'])
-            task(16, ['/s/reaper', 'SteamLaunch', 'AppId=413150', '--', 'game'])
+            task(5000010, ['/s/steamrtarm64/steam', '-gamepadui'])
+            task(5000011, [fex, '/e/usr/bin/EpicGamesLauncher'], ['HOME=/root', 'DROIDDECK_EPIC_HIDDEN=1'])
+            task(5000012, [fex, './/lib/webkit2gtk-4.1/WebKitWebProcess', '4'], ['DROIDDECK_EPIC_HIDDEN=1', 'LANG=C'])
+            task(5000013, [fex, '/e/usr/bin/EpicGamesLauncher'], ['HOME=/root'])
+            task(5000014, ['/e/WebKitWebProcess', '4'], ['DROIDDECK_EPIC_HIDDEN=1'])
+            task(5000015, [fex, '/e/usr/bin/EpicGamesLauncher'], ['DROIDDECK_EPIC_HIDDEN=10'])
+            task(5000016, ['/s/reaper', 'SteamLaunch', 'AppId=413150', '--', 'game'])
             source = function_source('bl_zram_scan').replace('/proc/[0-9]*', tmp + '/[0-9]*')
             result = run_bash(source + '\nbl_zram_scan\necho "${_bl_pids[*]}|${_bl_others[*]}|$_bl_game|$_bl_apps"')
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertEqual('', result.stderr)
-        self.assertEqual('10 11 12|13 14 15|1| 413150', result.stdout.strip())
+        self.assertEqual('5000010 5000011 5000012|5000013 5000014 5000015|1| 413150', result.stdout.strip())
 
     def test_refocus_restarts_the_delay_and_game_exit_restores_a_packed_client(self):
         source = SCRIPT.read_text()
