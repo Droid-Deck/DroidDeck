@@ -91,7 +91,16 @@ if [ -z "${BL_INSIDE:-}" ]; then
 fi
 
 steam_update_stuck() {
-  [ "$1" -lt 60 ] || steam_updates=0
+  local stamp
+  stamp=$(stat -c '%n %Y %s' "${steam_root:-}"/package/*.installed 2>/dev/null)
+  if [ "$1" -ge 60 ]; then
+    steam_updates=0
+    steam_installs=0
+  elif [ "$stamp" != "${steam_update_stamp-$stamp}" ] && [ "${steam_installs:-0}" -lt 5 ]; then
+    steam_updates=0
+    steam_installs=$((${steam_installs:-0} + 1))
+  fi
+  steam_update_stamp=$stamp
   steam_updates=$((steam_updates + 1))
   [ "$steam_updates" -ge 3 ]
 }
@@ -1021,6 +1030,8 @@ case $mode in
     fi
     echo "== steam args: ${_bl_ui[*]} ${_bl_cdp[*]} ${_bl_lang[*]} -clientbeta $steam_channel -no-cef-sandbox -cef-ozone-platform=x11 ${_bl_cef[*]} $*$([ "$steam_x64" = 1 ] && echo ' (x86-64 client under FEX)')"
     steam_updates=0
+    steam_installs=0
+    steam_update_stamp=$(stat -c '%n %Y %s' "$steam_root"/package/*.installed 2>/dev/null)
     rm -f "$HOME/.bl-stop-requested" "$STEAMOS_STEAM_SHUTDOWN_SENTINEL" "$STEAMOS_STEAM_REBOOT_SENTINEL"
     steam_other_game_running() {
       local line value n open
