@@ -620,7 +620,7 @@
     <string name="hud_size_minimal">Minimal</string>
     <string name="hud_size_mega">Méga</string>
     <string name="hud_locked">Verrouiller la position</string>
-    <string name="hud_locked_hint">Faites glisser le HUD pour le déplacer ; un appui long le verrouille. Verrouillé, il laisse passer les touchers ; désactivez cette option pour le déplacer à nouveau.</string>
+    <string name="hud_locked_hint">Faites glisser le HUD pour le déplacer ; un appui long le verrouille ou le déverrouille. Tant qu\'il est verrouillé, les commandes à l\'écran situées dessous restent utilisables.</string>
     <string name="hud_group_look">Apparence</string>
     <string name="hud_scale">Taille à l\'écran</string>
     <string name="hud_color_soft">Douce</string>

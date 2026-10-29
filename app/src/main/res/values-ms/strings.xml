@@ -614,7 +614,7 @@
     <string name="hud_size_minimal">Minimal</string>
     <string name="hud_size_mega">Mega</string>
     <string name="hud_locked">Kunci di tempat</string>
-    <string name="hud_locked_hint">Seret HUD untuk mengalihkannya; tekan lama untuk menguncinya. Apabila dikunci, sentuhan diteruskan ke bawahnya; matikan ini untuk mengalihkannya semula.</string>
+    <string name="hud_locked_hint">Seret HUD untuk mengalihkannya; tekan lama untuk mengunci atau membuka kuncinya. Semasa dikunci, kawalan skrin di bawahnya masih berfungsi.</string>
     <string name="hud_group_look">Rupa</string>
     <string name="hud_scale">Saiz pada skrin</string>
     <string name="hud_color_soft">Lembut</string>

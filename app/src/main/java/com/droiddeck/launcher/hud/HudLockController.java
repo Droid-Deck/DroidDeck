@@ -38,8 +38,8 @@ import java.util.function.Consumer;
  *   <li><b>drag</b> → moves the host view and, on release, {@link Callbacks#onMoved} to persist the
  *       position — disabled (frozen) while locked.</li>
  *   <li><b>long-press</b> → toggles {@code hudLocked}, persisted via {@link Callbacks#onLockChanged}
- *       and kept in sync with the "Lock in place" menu chip. Works locked or unlocked here, but
- *       {@code FusionHudView} does not pass touches on while locked, so there it is unlocked from the menu.</li>
+ *       and kept in sync with the "Lock in place" menu chip. Works locked or unlocked (so a long-press
+ *       always unlocks); a locked {@code FusionHudView} passes touches on only over on-screen controls.</li>
  * </ul>
  *
  * <p>On every lock/unlock (and on a blocked gesture while locked) a small padlock badge fades in →

@@ -609,6 +609,9 @@ class ScreenKeys(context: Context, private val sendKey: (Int, Boolean) -> Unit) 
         else -> entry.halfH
     }
 
+    /** Whether a finger going down at ([x], [y]) lands on something here, as [onTouchEvent] decides it. */
+    fun takesTouchAt(x: Float, y: Float): Boolean = editing || entryAt(x, y) != null
+
     private fun entryAt(x: Float, y: Float): Entry? = entries.lastOrNull { entry ->
         x >= entry.cx - entry.halfW && x <= entry.cx + entry.halfW && y >= entry.cy - entry.halfH && y <= entry.cy + entry.halfH
     }

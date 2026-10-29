@@ -618,7 +618,7 @@
     <string name="hud_size_minimal">Mínimo</string>
     <string name="hud_size_mega">Mega</string>
     <string name="hud_locked">Travar posição</string>
-    <string name="hud_locked_hint">Arraste o HUD para movê-lo; um toque longo o trava. Travado, ele deixa os toques passarem; desative esta opção para movê-lo de novo.</string>
+    <string name="hud_locked_hint">Arraste o HUD para movê-lo; um toque longo o trava ou destrava. Enquanto estiver travado, os controles na tela embaixo dele continuam funcionando.</string>
     <string name="hud_group_look">Aparência</string>
     <string name="hud_scale">Tamanho na tela</string>
     <string name="hud_color_soft">Suave</string>

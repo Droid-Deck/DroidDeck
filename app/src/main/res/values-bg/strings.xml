@@ -616,7 +616,7 @@
     <string name="hud_size_minimal">Минимален</string>
     <string name="hud_size_mega">Мега</string>
     <string name="hud_locked">Заключване на място</string>
-    <string name="hud_locked_hint">Плъзнете HUD, за да го преместите; продължително натискане го заключва. Заключеният HUD пропуска докосванията; изключете това, за да го местите отново.</string>
+    <string name="hud_locked_hint">Плъзнете HUD, за да го преместите; продължително натискане го заключва или отключва. Докато е заключен, екранните контроли под него продължават да работят.</string>
     <string name="hud_group_look">Визия</string>
     <string name="hud_scale">Размер на екрана</string>
     <string name="hud_color_soft">Мек</string>

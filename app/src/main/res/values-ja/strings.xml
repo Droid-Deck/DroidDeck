@@ -616,7 +616,7 @@
     <string name="hud_size_minimal">ミニマル</string>
     <string name="hud_size_mega">メガ</string>
     <string name="hud_locked">位置を固定</string>
-    <string name="hud_locked_hint">HUDはドラッグで移動できます。長押しで固定します。固定中はタッチが下に通ります。再び動かすにはこれをオフにします。</string>
+    <string name="hud_locked_hint">HUDはドラッグで移動できます。長押しで固定または解除します。固定中も、下にある画面上のコントロールは使えます。</string>
     <string name="hud_group_look">外観</string>
     <string name="hud_scale">画面上のサイズ</string>
     <string name="hud_color_soft">ソフト</string>

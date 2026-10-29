@@ -620,7 +620,7 @@
     <string name="hud_size_minimal">Minimalny</string>
     <string name="hud_size_mega">Mega</string>
     <string name="hud_locked">Zablokuj w miejscu</string>
-    <string name="hud_locked_hint">Przeciągnij HUD, aby go przesunąć; długie naciśnięcie go blokuje. Zablokowany przepuszcza dotyk; wyłącz tę opcję, aby znów go przesuwać.</string>
+    <string name="hud_locked_hint">Przeciągnij HUD, aby go przesunąć; długie naciśnięcie blokuje go lub odblokowuje. Gdy jest zablokowany, sterowanie ekranowe pod nim nadal działa.</string>
     <string name="hud_group_look">Wygląd</string>
     <string name="hud_scale">Rozmiar na ekranie</string>
     <string name="hud_color_soft">Stonowany</string>

@@ -55,9 +55,10 @@ import kotlinx.coroutines.withTimeoutOrNull
  * coroutine, collecting the snapshot on Dispatchers.IO; the frame graph is redrawn whenever new frames
  * arrive ([onFrames]), as MangoHud draws it.
  *
- * Gestures go through [HudLockController]: long-press locks the HUD (with a lock badge fade), a tap
- * cycles the size (Full→Tiles→Pill→Minimal→Full), and a drag repositions. A locked HUD lets touches
- * through to what is under it; it is unlocked from the HUD settings ("Lock in place").
+ * Gestures go through [HudLockController]: long-press toggles the position lock (with a lock/unlock
+ * badge fade), a tap cycles the size (Full→Tiles→Pill→Minimal→Full), and a drag repositions — tap +
+ * drag are frozen while locked. A locked HUD lets a touch through where an on-screen control under it
+ * takes it ([passesTouchAt]); everywhere else it keeps the touch, so a long press there unlocks it.
  */
 class FusionHudView(context: Context) : View(context) {
 
@@ -1352,9 +1353,13 @@ class FusionHudView(context: Context) : View(context) {
         DroidDeckMark.draw(canvas, rect.centerX() - markW / 2f, rect.centerY() - markH / 2f, markH, blend(colValue), accent)
     }
 
-    // Declining the down event while locked hands the whole gesture to the views under the HUD.
+    /** Screen point → whether an on-screen control under the HUD takes a touch there. */
+    internal var passesTouchAt: ((rawX: Float, rawY: Float) -> Boolean)? = null
+
+    // Declining the down event hands the whole gesture to the views under the HUD.
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        if (event.actionMasked == MotionEvent.ACTION_DOWN && lockController.isLocked()) return false
+        if (event.actionMasked == MotionEvent.ACTION_DOWN && lockController.isLocked() &&
+            passesTouchAt?.invoke(event.rawX, event.rawY) == true) return false
         return lockController.onTouchEvent(event)
     }
 

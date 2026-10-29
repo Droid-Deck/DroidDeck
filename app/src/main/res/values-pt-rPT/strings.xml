@@ -618,7 +618,7 @@
     <string name="hud_size_minimal">Mínimo</string>
     <string name="hud_size_mega">Mega</string>
     <string name="hud_locked">Bloquear posição</string>
-    <string name="hud_locked_hint">Arraste o HUD para o mover; um toque longo bloqueia-o. Bloqueado, deixa passar os toques; desative esta opção para o voltar a mover.</string>
+    <string name="hud_locked_hint">Arraste o HUD para o mover; um toque longo bloqueia-o ou desbloqueia-o. Enquanto estiver bloqueado, os controlos no ecrã por baixo dele continuam a funcionar.</string>
     <string name="hud_group_look">Aspeto</string>
     <string name="hud_scale">Tamanho no ecrã</string>
     <string name="hud_color_soft">Suave</string>
