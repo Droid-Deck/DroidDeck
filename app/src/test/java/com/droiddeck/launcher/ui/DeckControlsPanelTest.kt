@@ -29,12 +29,14 @@ class DeckControlsPanelTest {
                 val panel = DeckControlsPanel(RuntimeEnvironment.getApplication(), onClose = {}, onSteamMenu = {}, onQam = {},
                     pad = pad, portraitDock = portraitDock)
                 assertEquals(name, pad == null, panel.deckControls)
-                panel.measure(View.MeasureSpec.makeMeasureSpec(1200, View.MeasureSpec.EXACTLY),
-                    View.MeasureSpec.makeMeasureSpec(480, View.MeasureSpec.EXACTLY))
-                panel.layout(0, 0, 1200, 480)
+                // The portrait dock sits under a portrait game; its gamepad layout needs a tall panel.
+                val (w, h) = if (portraitDock) 720 to 1000 else 1200 to 480
+                panel.measure(View.MeasureSpec.makeMeasureSpec(w, View.MeasureSpec.EXACTLY),
+                    View.MeasureSpec.makeMeasureSpec(h, View.MeasureSpec.EXACTLY))
+                panel.layout(0, 0, w, h)
                 var taken = 0
                 var missed = 0
-                for (x in 0 until 1200 step 30) for (y in 0 until 480 step 20) {
+                for (x in 0 until w step w / 40) for (y in 0 until h step h / 24) {
                     val expected = panel.takesTouchAt(x.toFloat(), y.toFloat())
                     val down = MotionEvent.obtain(0L, 0L, MotionEvent.ACTION_DOWN, x.toFloat(), y.toFloat(), 0)
                     assertEquals("$name ($x, $y)", expected, panel.dispatchTouchEvent(down))
