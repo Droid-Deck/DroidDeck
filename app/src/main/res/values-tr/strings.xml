@@ -306,6 +306,7 @@
     <string name="mode_suspend_note">Otomatik: arka planda duraklatır, gösterilince devam eder. Manuel: Devam et\'i bekler. Asla: çalışmaya devam eder.</string>
     <string name="mode_startup">Başlangıç</string>
     <string name="mode_steam_startup">Steam\'i DroidDeck ile başlat</string>
+    <string name="mode_steam_startup_hint">DroidDeck açıldığında Steam oturumunu açar.</string>
     <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">Sürümler kontrol ediliyor…</string>
     <string name="mode_decky_ready">%1$s yüklenmeye hazır.</string>

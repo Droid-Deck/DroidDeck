@@ -306,6 +306,7 @@
     <string name="mode_suspend_note">Auto pausiert im Hintergrund und setzt fort, sobald die App wieder sichtbar ist. Manuell wartet auf „Fortsetzen“. Nie lässt alles weiterlaufen.</string>
     <string name="mode_startup">Start</string>
     <string name="mode_steam_startup">Steam mit DroidDeck starten</string>
+    <string name="mode_steam_startup_hint">Öffnet die Steam-Sitzung, wenn DroidDeck startet.</string>
     <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">Suche nach Releases…</string>
     <string name="mode_decky_ready">Bereit zur Installation von %1$s.</string>

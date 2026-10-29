@@ -306,6 +306,7 @@
     <string name="mode_suspend_note">Automat pune pe pauză în fundal și reia atunci când este afișată. Manual așteaptă Reluare. Niciodată continuă să ruleze.</string>
     <string name="mode_startup">Pornire</string>
     <string name="mode_steam_startup">Pornește Steam odată cu DroidDeck</string>
+    <string name="mode_steam_startup_hint">Deschide sesiunea Steam la lansarea DroidDeck.</string>
     <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">Se verifică versiunile…</string>
     <string name="mode_decky_ready">Pregătit pentru instalarea %1$s.</string>

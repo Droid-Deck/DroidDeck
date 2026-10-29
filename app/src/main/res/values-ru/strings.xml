@@ -306,6 +306,7 @@
     <string name="mode_suspend_note">Авто: пауза в фоне и возобновление при показе. Вручную: ждет нажатия «Продолжить». Никогда: сессия продолжает работать.</string>
     <string name="mode_startup">Запуск</string>
     <string name="mode_steam_startup">Запускать Steam при открытии DroidDeck</string>
+    <string name="mode_steam_startup_hint">Открывает сессию Steam при запуске DroidDeck.</string>
     <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">Проверка выпусков…</string>
     <string name="mode_decky_ready">Готово к установке %1$s.</string>

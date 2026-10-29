@@ -306,6 +306,7 @@
     <string name="mode_suspend_note">Le mode automatique met en pause en arrière-plan et reprend à l\'affichage. Le mode manuel nécessite d\'appuyer sur « Reprendre ». Ne reste jamais en cours d\'exécution.</string>
     <string name="mode_startup">Démarrage</string>
     <string name="mode_steam_startup">Lancer Steam à l\'ouverture de DroidDeck</string>
+    <string name="mode_steam_startup_hint">Ouvre une session Steam au démarrage de DroidDeck.</string>
     <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">Vérification des versions…</string>
     <string name="mode_decky_ready">Prêt à installer %1$s.</string>

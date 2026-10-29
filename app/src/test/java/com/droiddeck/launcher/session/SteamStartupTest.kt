@@ -44,6 +44,8 @@ class SteamStartupTest {
         SessionState.hdr = false
         SessionState.launcherVisible = true
         SessionState.phase = SessionPhase.IDLE
+        SessionPrefs.setSteamStartup(app, SteamStartup.BACKGROUND)
+        installRuntimeFiles()
     }
 
     @After fun tearDown() {
@@ -55,158 +57,98 @@ class SteamStartupTest {
         SessionState.mode = SessionService.MODE_STEAM
     }
 
-    @Test fun startupIsOptInAndEachChoiceIsRemembered() {
+    @Test fun startupIsOptInAndOnlyBackgroundPrepares() {
+        prefs.edit().clear().commit()
         assertEquals(SteamStartup.OFF, SessionPrefs.steamStartup(app))
         for (mode in SteamStartup.entries) {
             SessionPrefs.setSteamStartup(app, mode)
             assertEquals(mode, SessionPrefs.steamStartup(app))
+            assertEquals(mode == SteamStartup.BACKGROUND, request() != null)
         }
     }
 
-    @Test fun offAndOpenModesNeverRequestBackgroundPreparation() {
-        installRuntimeFiles()
-        for (mode in listOf(SteamStartup.OFF, SteamStartup.OPEN)) {
-            SessionPrefs.setSteamStartup(app, mode)
-            SessionService.prepareSteam(app)
-            assertNull(mode.name, shadowOf(app).nextStartedService)
+    @Test fun legacySettingsMigrateOnce() {
+        for (enabled in listOf(false, true)) {
+            prefs.edit().putBoolean("runSteamAtStartup", enabled).commit()
+            assertEquals(if (enabled) SteamStartup.OPEN else SteamStartup.OFF, SessionPrefs.steamStartup(app))
+            assertFalse(prefs.contains("runSteamAtStartup"))
+            SessionPrefs.setSteamStartup(app, SteamStartup.BACKGROUND)
+            assertEquals(SteamStartup.BACKGROUND, SessionPrefs.steamStartup(app))
         }
     }
 
-    @Test fun existingOpenSteamChoiceIsMovedOnceAndTheOldKeyIsRemoved() {
-        prefs.edit().putBoolean("runSteamAtStartup", true).commit()
-        assertEquals(SteamStartup.OPEN, SessionPrefs.steamStartup(app))
-        assertFalse(prefs.contains("runSteamAtStartup"))
-        SessionPrefs.setSteamStartup(app, SteamStartup.BACKGROUND)
-        assertEquals(SteamStartup.BACKGROUND, SessionPrefs.steamStartup(app))
-    }
-
-    @Test fun incompleteSetupDoesNotStartAServiceOrInstallAnything() {
-        SessionPrefs.setSteamStartup(app, SteamStartup.BACKGROUND)
-        SessionService.prepareSteam(app)
-        assertNull(shadowOf(app).nextStartedService)
-        assertFalse(SessionState.running)
-        assertEquals(SessionPhase.IDLE, SessionState.phase)
-    }
-
-    @Test fun configuredBackgroundStartupRequestsTheExistingServiceOnce() {
-        installRuntimeFiles()
-        SessionPrefs.setSteamStartup(app, SteamStartup.BACKGROUND)
-        SessionService.prepareSteam(app)
-        assertEquals("com.droiddeck.launcher.PREPARE_STEAM", shadowOf(app).nextStartedService.action)
-        SessionState.running = true
-        SessionService.prepareSteam(app)
-        assertNull(shadowOf(app).nextStartedService)
-    }
-
-    @Test fun hdrStartupPreparesForTheLauncherDisplay() {
-        installRuntimeFiles()
-        SessionPrefs.setSteamStartup(app, SteamStartup.BACKGROUND)
-        SessionPrefs.setHdr(app, SessionService.MODE_STEAM, true)
-        SessionService.prepareSteam(app)
-        val request = requireNotNull(shadowOf(app).nextStartedService)
-        assertEquals(Display.DEFAULT_DISPLAY, request.getIntExtra("displayId", -1))
-    }
-
-    @Test fun hdrStartupSelectsGlassesWhenTheyAreTheGameOutput() {
-        installRuntimeFiles()
-        SessionPrefs.setSteamStartup(app, SteamStartup.BACKGROUND)
-        SessionPrefs.setHdr(app, SessionService.MODE_STEAM, true)
-        val id = org.robolectric.shadows.ShadowDisplayManager.addDisplay("w1920dp-h1080dp")
-        glassesState.value = GlassesState(present = true, displayId = id)
-        SessionService.prepareSteam(app)
-        val request = requireNotNull(shadowOf(app).nextStartedService)
-        assertEquals(id, request.getIntExtra("displayId", -1))
-        assertEquals(Display.DEFAULT_DISPLAY, request.getIntExtra("activityDisplayId", -1))
-        glassesSettings.value = GlassesSettings(gameOnGlasses = false)
-        SessionService.prepareSteam(app)
-        assertEquals(Display.DEFAULT_DISPLAY,
-            requireNotNull(shadowOf(app).nextStartedService).getIntExtra("displayId", -1))
-    }
-
-    @Test fun anUnknownSelectedOutputDefersPreparationInsteadOfUsingThePhone() {
-        installRuntimeFiles()
-        SessionPrefs.setSteamStartup(app, SteamStartup.BACKGROUND)
-        SessionPrefs.setHdr(app, SessionService.MODE_STEAM, true)
-        glassesState.value = GlassesState(present = true)
-        SessionService.prepareSteam(app)
-        assertNull(shadowOf(app).nextStartedService)
-        glassesSettings.value = GlassesSettings(gameOnGlasses = false)
-        SessionService.prepareSteam(app)
-        assertNotNull(shadowOf(app).nextStartedService)
-    }
-
-    @Test fun theServiceRechecksTheSelectedDisplayBeforeStarting() {
-        installRuntimeFiles()
-        SessionPrefs.setSteamStartup(app, SteamStartup.BACKGROUND)
-        SessionPrefs.setHdr(app, SessionService.MODE_STEAM, true)
-        SessionService.prepareSteam(app)
-        val request = requireNotNull(shadowOf(app).nextStartedService)
-        glassesState.value = GlassesState(present = true)
-        val service = Robolectric.buildService(SessionService::class.java).get()
-        service.onStartCommand(request, 0, 1)
-        assertFalse(SessionState.running)
-        assertEquals(SessionPhase.IDLE, SessionState.phase)
-    }
-
-    @Test fun aCancelledRequestCannotBeginAnotherSession() {
-        installRuntimeFiles()
-        SessionPrefs.setSteamStartup(app, SteamStartup.BACKGROUND)
-        SessionState.stopRequested = true
-        SessionService.prepareSteam(app)
-        assertNull(shadowOf(app).nextStartedService)
-        assertFalse(SessionState.running)
-    }
-
-    @Test fun startupAndTeardownExcludeAnotherBackgroundRequest() {
-        installRuntimeFiles()
-        SessionPrefs.setSteamStartup(app, SteamStartup.BACKGROUND)
+    @Test fun preparationRequiresCompleteIdleSetupAndEnoughSpace() {
+        assertNotNull(request())
+        val root = LinuxRuntime.rootDir(app)
+        for (path in listOf(LinuxRuntime.SESSION_SCRIPT.drop(1), "root/.local/share/Steam/steamapps/appmanifest_4427310.acf")) {
+            val file = File(root, path)
+            file.delete()
+            assertNull(path, request())
+            file.writeText("")
+        }
         for (phase in SessionPhase.entries.filter { it !in setOf(SessionPhase.IDLE, SessionPhase.FAILED) }) {
             SessionState.phase = phase
-            SessionService.prepareSteam(app)
-            assertNull(phase.name, shadowOf(app).nextStartedService)
+            assertNull(phase.name, request())
+        }
+        SessionState.phase = SessionPhase.IDLE
+        ReflectionHelpers.setStaticField(ProtonExtras::class.java, "installInProgress", true)
+        try { assertNull(request()) }
+        finally { ReflectionHelpers.setStaticField(ProtonExtras::class.java, "installInProgress", false) }
+        org.robolectric.shadows.ShadowStatFs.registerStats(app.filesDir.path, 10_000_000, 1, 1)
+        assertNull(request())
+        assertFalse(SessionState.running)
+    }
+
+    @Test fun cancellationAndExistingModesCannotBeReplacedByPreparation() {
+        SessionState.stopRequested = true
+        assertNull(request())
+        SessionState.stopRequested = false
+        val service = Robolectric.buildService(SessionService::class.java).get()
+        for (mode in listOf(SessionService.MODE_STEAM, SessionService.MODE_DESKTOP, SessionService.MODE_RUN)) {
+            SessionState.mode = mode
+            SessionState.running = true
+            SessionState.phase = SessionPhase.READY
+            assertNull(request())
+            service.onStartCommand(Intent().setAction("com.droiddeck.launcher.PREPARE_STEAM"), 0, 1)
+            assertTrue(SessionState.running)
+            assertEquals(mode, SessionState.mode)
+            assertEquals(SessionPhase.READY, SessionState.phase)
         }
     }
 
-    @Test fun missingProtonSeedLeavesSetupToPlay() {
-        installRuntimeFiles()
-        File(LinuxRuntime.rootDir(app), "root/.local/share/Steam/steamapps/appmanifest_4427310.acf").delete()
-        SessionPrefs.setSteamStartup(app, SteamStartup.BACKGROUND)
-        SessionService.prepareSteam(app)
-        assertNull(shadowOf(app).nextStartedService)
+    @Test fun hdrUsesTheSelectedOutputAndDefersWhenItIsUnknown() {
+        SessionPrefs.setHdr(app, SessionService.MODE_STEAM, true)
+        assertEquals(Display.DEFAULT_DISPLAY, requireNotNull(request()).getIntExtra("displayId", -1))
+        val id = org.robolectric.shadows.ShadowDisplayManager.addDisplay("w1920dp-h1080dp")
+        glassesState.value = GlassesState(present = true, displayId = id)
+        val request = requireNotNull(request())
+        assertEquals(id, request.getIntExtra("displayId", -1))
+        assertEquals(Display.DEFAULT_DISPLAY, request.getIntExtra("activityDisplayId", -1))
+        glassesState.value = GlassesState(present = true)
+        assertNull(request())
+        glassesSettings.value = GlassesSettings(gameOnGlasses = false)
+        assertEquals(Display.DEFAULT_DISPLAY, requireNotNull(request()).getIntExtra("displayId", -1))
     }
 
-    @Test fun backgroundStartupWaitsForProtonInstallsAndEnoughFreeSpace() {
-        installRuntimeFiles()
-        SessionPrefs.setSteamStartup(app, SteamStartup.BACKGROUND)
-        ReflectionHelpers.setStaticField(ProtonExtras::class.java, "installInProgress", true)
-        try {
-            SessionService.prepareSteam(app)
-            assertNull(shadowOf(app).nextStartedService)
-        } finally { ReflectionHelpers.setStaticField(ProtonExtras::class.java, "installInProgress", false) }
-        org.robolectric.shadows.ShadowStatFs.registerStats(app.filesDir.path, 10_000_000, 1, 1)
-        SessionService.prepareSteam(app)
-        assertNull(shadowOf(app).nextStartedService)
+    @Test fun queuedPreparationRechecksLauncherAndDisplayAvailability() {
+        for (hideLauncher in listOf(true, false)) {
+            SessionState.launcherVisible = true
+            glassesState.value = GlassesState()
+            val request = requireNotNull(request())
+            if (hideLauncher) SessionService.setLauncherVisible(app, false)
+            else glassesState.value = GlassesState(present = true)
+            Robolectric.buildService(SessionService::class.java).get().onStartCommand(request, 0, 1)
+            assertFalse(SessionState.running)
+            assertEquals(SessionPhase.IDLE, SessionState.phase)
+        }
     }
 
-    @Test fun leavingTheLauncherBeforeTheServiceReceivesItsRequestCancelsPreparation() {
-        installRuntimeFiles()
-        SessionPrefs.setSteamStartup(app, SteamStartup.BACKGROUND)
-        SessionService.prepareSteam(app)
-        val request = requireNotNull(shadowOf(app).nextStartedService)
-        SessionService.setLauncherVisible(app, false)
-        val service = Robolectric.buildService(SessionService::class.java).get()
-        service.onStartCommand(request, 0, 1)
-        assertFalse(SessionState.running)
-        assertEquals(SessionPhase.IDLE, SessionState.phase)
-    }
-
-    @Test fun launcherVisibilityDoesNotAutomaticallyRestartAStoppedSession() {
-        SessionPrefs.setSteamStartup(app, SteamStartup.BACKGROUND)
+    @Test fun launcherVisibilityNeverRestartsAStoppedSession() {
         SessionService.setLauncherVisible(app, true)
         assertNull(shadowOf(app).nextStartedService)
     }
 
-    @Test fun preparationStaysAwakeOnlyWhileTheLauncherAndScreenAreVisible() {
+    @Test fun launcherHoldHonorsVisibilityManualPauseAndTheSessionHandoff() {
         val service = Robolectric.buildService(SessionService::class.java).get()
         ReflectionHelpers.setField(service, "activityVisible", false)
         ReflectionHelpers.setField(service, "preparingSteam", true)
@@ -216,45 +158,23 @@ class SteamStartupTest {
         SessionState.launcherVisible = true
         ReflectionHelpers.setField(service, "screenOn", false)
         assertFalse(inUse(service))
-    }
-
-    @Test fun attachingTheSessionScreenEndsTheLauncherPreparationHold() {
-        val service = Robolectric.buildService(SessionService::class.java).get()
-        SessionState.running = true
-        ReflectionHelpers.setField(service, "preparingSteam", true)
+        ReflectionHelpers.setField(service, "screenOn", true)
+        ReflectionHelpers.setField(service, "manualHold", true)
+        ReflectionHelpers.setField(service, "nativeSleepToken", "manual-pause")
+        for (policy in listOf(SessionPrefs.SUSPEND_AUTO, SessionPrefs.SUSPEND_NATIVE)) {
+            ReflectionHelpers.setField(service, "suspendPolicy", policy)
+            ReflectionHelpers.callInstanceMethod<Unit>(service, "resumeSteamSleepOnReturn")
+            assertEquals("manual-pause", ReflectionHelpers.getField<String>(service, "nativeSleepToken"))
+        }
         service.onStartCommand(Intent().setAction("com.droiddeck.launcher.ACTIVITY_VISIBLE"), 0, 1)
         assertFalse(ReflectionHelpers.getField(service, "preparingSteam"))
         service.onStartCommand(Intent().setAction("com.droiddeck.launcher.ACTIVITY_HIDDEN"), 0, 2)
         assertFalse(inUse(service))
     }
 
-    @Test fun existingSessionModesAreNotReplacedByALatePreparationRequest() {
-        val service = Robolectric.buildService(SessionService::class.java).get()
-        SessionPrefs.setSteamStartup(app, SteamStartup.BACKGROUND)
-        for (mode in listOf(SessionService.MODE_STEAM, SessionService.MODE_DESKTOP, SessionService.MODE_RUN)) {
-            SessionState.mode = mode
-            SessionState.running = true
-            SessionState.phase = SessionPhase.READY
-            service.onStartCommand(Intent().setAction("com.droiddeck.launcher.PREPARE_STEAM"), 0, 1)
-            assertTrue(mode, SessionState.running)
-            assertEquals(mode, SessionState.mode)
-            assertEquals(SessionPhase.READY, SessionState.phase)
-        }
-    }
-
-    @Test fun returningToTheLauncherKeepsAManuallyPausedSessionAsleep() {
-        val service = Robolectric.buildService(SessionService::class.java).get()
-        ReflectionHelpers.setField(service, "activityVisible", false)
-        ReflectionHelpers.setField(service, "preparingSteam", true)
-        ReflectionHelpers.setField(service, "manualHold", true)
-        ReflectionHelpers.setField(service, "nativeSleepToken", "manual-pause")
-        ReflectionHelpers.setField(service, "steamSleepToken", "manual-pause")
-        for (policy in listOf(SessionPrefs.SUSPEND_AUTO, SessionPrefs.SUSPEND_NATIVE)) {
-            ReflectionHelpers.setField(service, "suspendPolicy", policy)
-            ReflectionHelpers.callInstanceMethod<Unit>(service, "resumeSteamSleepOnReturn")
-            assertEquals("manual-pause", ReflectionHelpers.getField<String>(service, "nativeSleepToken"))
-            assertEquals("manual-pause", ReflectionHelpers.getField<String>(service, "steamSleepToken"))
-        }
+    private fun request(): Intent? {
+        SessionService.prepareSteam(app)
+        return shadowOf(app).nextStartedService
     }
 
     private fun inUse(service: SessionService): Boolean = ReflectionHelpers.callInstanceMethod(service, "getSessionInUse")

@@ -369,7 +369,6 @@ class SessionService : Service() {
         sessionDisplayId = backgroundDisplay?.displayId
             ?: intent?.getIntExtra(EXTRA_DISPLAY_ID, Display.DEFAULT_DISPLAY) ?: Display.DEFAULT_DISPLAY
         activityDisplayId = intent?.getIntExtra(EXTRA_ACTIVITY_DISPLAY_ID, sessionDisplayId) ?: sessionDisplayId
-        if (backgroundStart) prepareBackgroundOutput()
         screenOn = readScreenOn()
         manualPauseRequested = false
         suspendDownloadNow = false
@@ -423,48 +422,39 @@ class SessionService : Service() {
         val preparation = if (backgroundStart) CompositorPreparation() else null
         compositorStart = preparation
         Thread({
-            val result = runCatching {
-                if (gen != sessionGen || !SessionState.running || SessionState.stopRequested) {
-                    throw CancellationException("Session start cancelled")
-                }
+            try {
+                if (gen != sessionGen || !SessionState.running || SessionState.stopRequested) return@Thread
                 OrphanReaper.reap("session starting")
                 ProtonExtras.awaitReplacement(120_000)
-                if (gen != sessionGen || !SessionState.running || SessionState.stopRequested) {
-                    throw CancellationException("Session start cancelled")
-                }
+                if (gen != sessionGen || !SessionState.running || SessionState.stopRequested) return@Thread
                 if (preparation != null) prepareCompositor(preparation)
-            }
-            preparation?.result?.complete(result)
-            result.exceptionOrNull()?.let { error ->
+                preparation?.result?.complete(Unit)
+                if (gen == sessionGen && SessionState.running && !SessionState.stopRequested) runSession(gen)
+            } catch (error: Exception) {
+                preparation?.result?.completeExceptionally(error)
                 if (error !is CancellationException) Log.e(TAG, "session preparation failed", error)
-                if (gen == sessionGen && SessionState.running) stopSession(if (error is CancellationException) 0 else -1)
-                return@Thread
+                if (gen == sessionGen && SessionState.running &&
+                    (preparation == null || preparation.sessionId == SessionState.sessionId)) {
+                    stopSession(if (error is CancellationException) 0 else -1)
+                }
+            } finally {
+                preparation?.result?.cancel()
             }
-            if (gen == sessionGen && SessionState.running && !SessionState.stopRequested) runSession(gen)
         }, "session-start").start()
         return START_NOT_STICKY
     }
 
-    private fun prepareBackgroundOutput() {
+    private fun prepareCompositor(preparation: CompositorPreparation) {
+        preparation.checkCurrent()
         val display = getSystemService(DisplayManager::class.java).getDisplay(sessionDisplayId)
-        val panel = display?.mode?.let { maxOf(it.physicalWidth, it.physicalHeight) to minOf(it.physicalWidth, it.physicalHeight) }
-            ?: SessionDisplay.panelSize(this)
+            ?.takeIf { it.isValid } ?: throw CancellationException("Preparation output is no longer available")
+        val panel = display.mode.let { maxOf(it.physicalWidth, it.physicalHeight) to minOf(it.physicalWidth, it.physicalHeight) }
         val choice = SessionPrefs.resolutionChoice(this, MODE_STEAM, panel)
         val size = SessionDisplay.resolveChoice(panel, choice)
         SessionState.outputSize = size
         SessionState.followScreen = choice == SessionDisplay.FOLLOW_SCREEN
-    }
-
-    private fun prepareCompositor(preparation: CompositorPreparation) {
-        val size = SessionState.outputSize
-        val display = getSystemService(DisplayManager::class.java).getDisplay(sessionDisplayId)
-            ?.takeIf { it.isValid } ?: throw CancellationException("Preparation output is no longer available")
-        preparation.checkCurrent()
-        CompositorHost.configureOutput(this, MODE_STEAM, display, preparation::checkCurrent)
-        CompositorHost.prepare(
-            this, size.first, size.second, display.refreshRate.takeIf { it > 1f } ?: 60f,
-            SessionPrefs.compositorFpsLimit(0), preparation::checkCurrent,
-        )
+        CompositorHost.prepare(this, size.first, size.second, display.refreshRate, SessionPrefs.compositorFpsLimit(0),
+            MODE_STEAM, display, preparation::checkCurrent)
         preparation.checkCurrent()
         SessionEvents.record("compositor.prepared")
     }

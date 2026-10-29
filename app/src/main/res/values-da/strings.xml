@@ -306,6 +306,7 @@
     <string name="mode_suspend_note">Auto sætter på pause i baggrunden og genoptager, når den vises. Manuel venter på Genoptag. Aldrig fortsætter med at køre.</string>
     <string name="mode_startup">Opstart</string>
     <string name="mode_steam_startup">Start Steam med DroidDeck</string>
+    <string name="mode_steam_startup_hint">Åbner Steam-sessionen, når DroidDeck starter.</string>
     <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">Søger efter udgivelser…</string>
     <string name="mode_decky_ready">Klar til at installere %1$s.</string>

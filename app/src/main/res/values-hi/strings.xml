@@ -306,6 +306,7 @@
     <string name="mode_suspend_note">ऑटो बैकग्राउंड में रुकता है और दिखने पर फिर से शुरू होता है। मैनुअल फिर से शुरू करें का इंतज़ार करता है। कभी नहीं वाला चलता रहता है।</string>
     <string name="mode_startup">स्टार्टअप</string>
     <string name="mode_steam_startup">DroidDeck के साथ Steam शुरू करें</string>
+    <string name="mode_steam_startup_hint">DroidDeck लॉन्च होने पर Steam सेशन खोलता है।</string>
     <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">रिलीज़ देखी जा रही हैं…</string>
     <string name="mode_decky_ready">%1$s इंस्टॉल करने के लिए तैयार।</string>

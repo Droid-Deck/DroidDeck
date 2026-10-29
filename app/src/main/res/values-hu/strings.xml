@@ -306,6 +306,7 @@
     <string name="mode_suspend_note">Az Automatikus szüneteltet a háttérben, és megjelenéskor folytatja. A Manuális megvárja a Folytatást. A Soha mindig futva tartja.</string>
     <string name="mode_startup">Indítás</string>
     <string name="mode_steam_startup">Steam indítása a DroidDeckkel</string>
+    <string name="mode_steam_startup_hint">Megnyitja a Steam-munkamenetet a DroidDeck indulásakor.</string>
     <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">Kiadások keresése…</string>
     <string name="mode_decky_ready">Készen áll a %1$s telepítésére.</string>

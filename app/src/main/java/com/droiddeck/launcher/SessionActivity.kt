@@ -1970,38 +1970,32 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val preparation = SessionService.compositorPreparation
         if (!SessionState.running) SessionEvents.transition(SessionPhase.STARTING_COMPOSITOR, "compositor.starting")
         surfacePreparation = glassesScope.launch {
-            val result = if (preparation != null) preparation.result.await() else {
-                val size = surfaceOutputSize(holder)
-                val mode = SessionPrefs.prefMode(intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_STEAM)
-                val display = glassesScreen?.display
-                val hz = refreshHz()
-                val fps = outputFpsLimit()
-                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                    val worker = coroutineContext[Job]!!
-                    val checkCurrent = {
-                        worker.ensureActive()
-                        if (sessionId != SessionState.sessionId || SessionState.stopRequested ||
-                            SessionState.phase == SessionPhase.STOPPING) throw CancellationException("Session start cancelled")
-                    }
-                    runCatching {
-                        CompositorHost.configureOutput(this@SessionActivity, mode, display, checkCurrent)
-                        CompositorHost.prepare(this@SessionActivity, size.first, size.second, hz, fps, checkCurrent)
-                        Unit
+            try {
+                if (preparation != null) preparation.result.await() else {
+                    val size = surfaceOutputSize(holder)
+                    val mode = SessionPrefs.prefMode(intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_STEAM)
+                    val display = glassesScreen?.display
+                    val hz = refreshHz()
+                    val fps = outputFpsLimit()
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        val worker = coroutineContext[Job]!!
+                        CompositorHost.prepare(this@SessionActivity, size.first, size.second, hz, fps, mode, display) {
+                            worker.ensureActive()
+                            if (sessionId != SessionState.sessionId || SessionState.stopRequested ||
+                                SessionState.phase == SessionPhase.STOPPING) throw CancellationException("Session start cancelled")
+                        }
                     }
                 }
+                if (sessionId == SessionState.sessionId && !isDestroyed && !isFinishing && !ended &&
+                    holder === outputHolder() && holder.surface === surface && surface.isValid) attachPreparedOutput(holder)
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                if (sessionId != SessionState.sessionId || ended) return@launch
+                Log.e(TAG, "compositor preparation failed", error)
+                SessionEvents.fail("COMPOSITOR_PREPARATION", error.message ?: "Compositor preparation failed")
+                onSessionEnded(-1)
             }
-            if (sessionId != SessionState.sessionId || isDestroyed || isFinishing || ended ||
-                holder !== outputHolder() || holder.surface !== surface || !surface.isValid) return@launch
-            result.fold(
-                onSuccess = { attachPreparedOutput(holder) },
-                onFailure = { error ->
-                    if (error !is CancellationException) {
-                        Log.e(TAG, "compositor preparation failed", error)
-                        SessionEvents.fail("COMPOSITOR_PREPARATION", error.message ?: "Compositor preparation failed")
-                        onSessionEnded(-1)
-                    }
-                },
-            )
         }
     }
 

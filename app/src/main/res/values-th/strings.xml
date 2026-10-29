@@ -306,6 +306,7 @@
     <string name="mode_suspend_note">อัตโนมัติจะหยุดชั่วคราวเมื่ออยู่ในพื้นหลังและดำเนินการต่อเมื่อแสดงผล กำหนดเองรอการกดดำเนินการต่อ ไม่มีวันทำงานต่อเนื่องตลอด</string>
     <string name="mode_startup">การเริ่มทำงาน</string>
     <string name="mode_steam_startup">เริ่ม Steam พร้อมกับ DroidDeck</string>
+    <string name="mode_steam_startup_hint">เปิดเซสชัน Steam เมื่อ DroidDeck เริ่มทำงาน</string>
     <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">กำลังค้นหารุ่นที่เผยแพร่…</string>
     <string name="mode_decky_ready">พร้อมติดตั้ง %1$s</string>

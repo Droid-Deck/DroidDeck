@@ -306,6 +306,7 @@
     <string name="mode_suspend_note">Auto menjeda di latar belakang dan menyambung semula apabila dipaparkan. Manual menunggu Sambung. Jangan sekali-kali terus berjalan.</string>
     <string name="mode_startup">Permulaan</string>
     <string name="mode_steam_startup">Mulakan Steam bersama DroidDeck</string>
+    <string name="mode_steam_startup_hint">Membuka sesi Steam apabila DroidDeck dilancarkan.</string>
     <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">Menyemak keluaran…</string>
     <string name="mode_decky_ready">Sedia untuk memasang %1$s.</string>

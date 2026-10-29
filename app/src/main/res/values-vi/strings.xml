@@ -306,6 +306,7 @@
     <string name="mode_suspend_note">Tự động tạm dừng ở nền và tiếp tục khi hiển thị lại. Thủ công chờ nhấn Tiếp tục. Không bao giờ giữ nó luôn chạy.</string>
     <string name="mode_startup">Khởi động</string>
     <string name="mode_steam_startup">Khởi động Steam cùng DroidDeck</string>
+    <string name="mode_steam_startup_hint">Mở phiên Steam khi DroidDeck khởi chạy.</string>
     <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">Đang kiểm tra bản phát hành…</string>
     <string name="mode_decky_ready">Sẵn sàng cài %1$s.</string>

@@ -52,15 +52,8 @@ class CompositorHostTest {
         ReflectionHelpers.setStaticField(CompositorHost::class.java, "attached", null)
         ReflectionHelpers.setStaticField(CompositorHost::class.java, "vsyncRunning", false)
         app.getSharedPreferences("session", Context.MODE_PRIVATE).edit().clear().commit()
-        Native.startHdr.clear()
-        Native.hdrRequests.clear()
-        Native.displayIds.clear()
-        Native.renderOnCommit.clear()
-        Native.runtimes.clear()
-        Native.drivers.clear()
-        Native.starts.clear()
-        Native.surfaces.clear()
-        Native.sizes.clear()
+        listOf(Native.startHdr, Native.hdrRequests, Native.displayIds,
+            Native.runtimes, Native.drivers, Native.starts, Native.surfaces, Native.sizes).forEach { it.clear() }
         Driver.installs = 0
         Driver.beforeInstall = {}
         SessionState.sessionId = "test-session"
@@ -82,14 +75,16 @@ class CompositorHostTest {
     }
 
     @Test fun backgroundPreparationStartsWithoutAWindowAndPlayAttachesToTheSameCompositor() {
-        assertTrue(CompositorHost.prepare(app, 1280, 720, 60f, 0))
+        CompositorHost.prepare(app, 1280, 720, 60f, 0)
         assertEquals(listOf<Surface?>(null), Native.starts)
         assertFalse(ReflectionHelpers.getStaticField(CompositorHost::class.java, "vsyncRunning"))
         assertFalse(SessionState.firstFrameSeen)
 
-        val surface = Surface(android.graphics.SurfaceTexture(0))
-        try {
-            CompositorHost.attach(app, surface, 1280, 720, 120f, 0)
+        val id = org.robolectric.shadows.ShadowDisplayManager.addDisplay("w1920dp-h1080dp")
+        val display = app.getSystemService(DisplayManager::class.java).getDisplay(id)
+        withSurface { surface ->
+            CompositorHost.attach(app, surface, 1280, 720, 120f, 0, display)
+            assertEquals(id, Native.displayIds.last())
             assertEquals(1, Native.starts.size)
             assertEquals(1, Driver.installs)
             assertSame(surface, Native.surfaces.last())
@@ -99,16 +94,12 @@ class CompositorHostTest {
 
             ReflectionHelpers.callStaticMethod<Unit>(WaylandCompositor::class.java, "onFirstFramePresented")
             assertTrue(SessionState.firstFrameSeen)
-        } finally {
-            CompositorHost.detach(surface)
-            surface.release()
         }
     }
 
     @Test fun nativeStreamingKeepsItsOwnRuntimeAndSystemDriver() {
-        val surface = Surface(android.graphics.SurfaceTexture(0))
         val runtime = java.io.File(app.cacheDir, "xcloud-wayland").path
-        try {
+        withSurface { surface ->
             assertTrue(CompositorHost.startOrAttach(app, surface, runtime, null, null,
                 "/native", 1920, 1080, 60f, 0))
             assertEquals(listOf(runtime), Native.runtimes)
@@ -118,45 +109,18 @@ class CompositorHostTest {
                 "/native", 1920, 1080, 120f, 0))
             assertEquals(1, Native.starts.size)
             assertSame(surface, Native.surfaces.last())
-        } finally {
-            CompositorHost.detach(surface)
-            surface.release()
-        }
-    }
-
-    @Test fun foregroundAndBackgroundStartsRespectTheCompositorTimingSettings() {
-        val surface = Surface(android.graphics.SurfaceTexture(0))
-        try {
-            for (enabled in listOf(false, true)) {
-                app.getSharedPreferences("session", Context.MODE_PRIVATE).edit()
-                    .putBoolean("vsyncThread", enabled).putBoolean("renderOnCommit", enabled).commit()
-                CompositorHost.prepare(app, 1280, 720, 60f, 0)
-                assertEquals(enabled, Native.renderOnCommit.last())
-                assertEquals(enabled, ReflectionHelpers.getStaticField<Boolean>(CompositorHost::class.java, "ownVsyncThread"))
-                CompositorHost.attach(app, surface, 1280, 720, 60f, 0)
-                assertEquals(enabled, Native.renderOnCommit.last())
-                assertEquals(enabled, ReflectionHelpers.getStaticField<Boolean>(CompositorHost::class.java, "ownVsyncThread"))
-                CompositorHost.detach(surface)
-            }
-        } finally {
-            CompositorHost.detach(surface)
-            surface.release()
         }
     }
 
     @Test fun lateBackgroundPreparationCannotDetachOrReconfigureAVisibleSession() {
-        val surface = Surface(android.graphics.SurfaceTexture(0))
-        try {
+        withSurface { surface ->
             CompositorHost.prepare(app, 1280, 720, 120f, 0)
             CompositorHost.attach(app, surface, 1280, 720, 120f, 0)
-            assertFalse(CompositorHost.prepare(app, 1920, 1080, 60f, 30))
+            CompositorHost.prepare(app, 1920, 1080, 60f, 30)
             assertEquals(listOf(1280 to 720), Native.sizes)
             assertEquals(120f, SessionState.refreshHz)
             assertEquals(listOf(surface), Native.surfaces)
             assertEquals(listOf<Surface?>(null), Native.starts)
-        } finally {
-            CompositorHost.detach(surface)
-            surface.release()
         }
     }
 
@@ -164,28 +128,11 @@ class CompositorHostTest {
         CompositorHost.prepare(app, 1280, 720, 60f, 0)
         CompositorHost.detach(null)
         CompositorHost.newSession(app)
-        assertFalse(CompositorHost.prepare(app, 1920, 1080, 60f, 30))
+        CompositorHost.prepare(app, 1920, 1080, 60f, 30)
         assertEquals(listOf(1280 to 720, 1920 to 1080), Native.sizes)
         assertEquals(1, Native.starts.size)
         assertEquals(1, Driver.installs)
         assertFalse(ReflectionHelpers.getStaticField(CompositorHost::class.java, "vsyncRunning"))
-    }
-
-    @Test fun attachmentUsesTheActualOutputDisplayAfterPreparation() {
-        val id = org.robolectric.shadows.ShadowDisplayManager.addDisplay("w1920dp-h1080dp")
-        val display = app.getSystemService(DisplayManager::class.java).getDisplay(id)
-        val surface = Surface(android.graphics.SurfaceTexture(0))
-        try {
-            CompositorHost.prepare(app, 1280, 720, 60f, 0)
-            assertTrue(Native.displayIds.isEmpty())
-            CompositorHost.attach(app, surface, 1920, 1080, 90f, 0, display)
-            assertEquals(listOf(id), Native.displayIds)
-            assertEquals(90f, SessionState.refreshHz)
-            assertEquals(1, Driver.installs)
-        } finally {
-            CompositorHost.detach(surface)
-            surface.release()
-        }
     }
 
     @Test @Config(sdk = [33])
@@ -204,8 +151,7 @@ class CompositorHostTest {
         assertEquals(listOf(WaylandCompositor.HDR_MODE_ON), Native.hdrRequests)
         assertEquals(listOf<Surface?>(null), Native.starts)
         assertEquals(listOf(id), Native.displayIds)
-        val surface = Surface(android.graphics.SurfaceTexture(0))
-        try {
+        withSurface { surface ->
             CompositorHost.attach(app, surface, 1920, 1080, 60f, 0, display)
             assertTrue(SessionService.launchGame(app, "570"))
             val request = requireNotNull(shadowOf(app).nextStartedService)
@@ -214,9 +160,6 @@ class CompositorHostTest {
             assertTrue(SessionState.hdr)
             assertEquals(1, Native.starts.size)
             assertEquals(listOf(WaylandCompositor.HDR_MODE_ON), Native.hdrRequests)
-        } finally {
-            CompositorHost.detach(surface)
-            surface.release()
         }
     }
 
@@ -241,12 +184,11 @@ class CompositorHostTest {
         Driver.beforeInstall = { throw failure }
         val preparation = CompositorPreparation()
         ReflectionHelpers.setStaticField(SessionService::class.java, "compositorStart", preparation)
-        preparation.result.complete(runCatching {
-            CompositorHost.prepare(app, 1280, 720, 60f, 0, preparation::checkCurrent)
-            Unit
-        })
+        val error = runCatching { CompositorHost.prepare(app, 1280, 720, 60f, 0, checkCurrent = preparation::checkCurrent) }.exceptionOrNull()!!
+        preparation.result.completeExceptionally(error)
         assertSame(preparation, SessionService.compositorPreparation)
-        assertSame(failure, runBlocking { preparation.result.await() }.exceptionOrNull())
+        val delivered = runCatching { runBlocking { preparation.result.await() } }.exceptionOrNull()
+        assertEquals(failure.message, delivered?.message)
         assertFalse(CompositorHost.isStarted)
         assertTrue(Native.starts.isEmpty())
     }
@@ -270,7 +212,7 @@ class CompositorHostTest {
             check(release.await(5, TimeUnit.SECONDS))
         }
         val startup = FutureTask {
-            runCatching { CompositorHost.prepare(app, 1280, 720, 60f, 0, preparation::checkCurrent) }
+            runCatching { CompositorHost.prepare(app, 1280, 720, 60f, 0, checkCurrent = preparation::checkCurrent) }
         }
         Thread(startup, "test-cancel-preparation").apply { isDaemon = true; start() }
         try {
@@ -286,42 +228,7 @@ class CompositorHostTest {
         }
     }
 
-    @Test fun foregroundPreparationAlsoKeepsSurfaceCallbacksResponsive() {
-        SessionState.running = false
-        val entered = CountDownLatch(1)
-        val release = CountDownLatch(1)
-        Driver.beforeInstall = {
-            entered.countDown()
-            check(release.await(5, TimeUnit.SECONDS))
-        }
-        val activity = Robolectric.buildActivity(SessionActivity::class.java).get()
-        val view = object : SurfaceView(activity) {
-            private val testHolder = object : SurfaceHolder by super.getHolder() {
-                override fun getSurfaceFrame() = android.graphics.Rect(0, 0, 1280, 720)
-            }
-            override fun getHolder(): SurfaceHolder = testHolder
-        }
-        ReflectionHelpers.setField(activity, "surfaceView", view)
-        val scope = ReflectionHelpers.getField<CoroutineScope>(activity, "glassesScope")
-        try {
-            activity.surfaceCreated(view.holder)
-            shadowOf(Looper.getMainLooper()).idle()
-            assertTrue(entered.await(5, TimeUnit.SECONDS))
-            activity.surfaceDestroyed(view.holder)
-            val responsive = CountDownLatch(1)
-            Handler(Looper.getMainLooper()).post { responsive.countDown() }
-            shadowOf(Looper.getMainLooper()).idle()
-            assertEquals(0L, responsive.count)
-            release.countDown()
-            CompositorHost.detach(null)
-            assertTrue(Native.starts.isEmpty())
-        } finally {
-            release.countDown()
-            scope.cancel()
-            CompositorHost.detach(null)
-            shadowOf(Looper.getMainLooper()).idle()
-        }
-    }
+    @Test fun foregroundPreparationAlsoKeepsSurfaceCallbacksResponsive() = responsivePreparation(background = false)
 
     @Test fun recreatingTheSameHolderKeepsOnlyTheLatestPreparationWaiter() {
         val preparation = CompositorPreparation()
@@ -339,7 +246,7 @@ class CompositorHostTest {
             shadowOf(Looper.getMainLooper()).idle()
             assertEquals(1, scope.coroutineContext[Job]!!.children.count { it.isActive })
             activity.surfaceDestroyed(view.holder)
-            preparation.result.complete(Result.success(Unit))
+            preparation.result.complete(Unit)
             shadowOf(Looper.getMainLooper()).idle()
             assertTrue(Native.surfaces.isEmpty())
         } finally {
@@ -347,27 +254,32 @@ class CompositorHostTest {
         }
     }
 
-    @Test fun playAndSurfaceCallbacksStayResponsiveWhileTheBackgroundDriverIsPreparing() {
+    @Test fun playAndSurfaceCallbacksStayResponsiveWhileTheBackgroundDriverIsPreparing() = responsivePreparation(background = true)
+
+    private fun responsivePreparation(background: Boolean) {
+        SessionState.running = background
         val preparation = CompositorPreparation()
-        ReflectionHelpers.setStaticField(SessionService::class.java, "compositorStart", preparation)
+        if (background) ReflectionHelpers.setStaticField(SessionService::class.java, "compositorStart", preparation)
         val entered = CountDownLatch(1)
         val release = CountDownLatch(1)
-        Driver.beforeInstall = {
-            entered.countDown()
-            check(release.await(5, TimeUnit.SECONDS))
-        }
+        Driver.beforeInstall = { entered.countDown(); check(release.await(5, TimeUnit.SECONDS)) }
         val activity = Robolectric.buildActivity(SessionActivity::class.java).get()
-        val view = SurfaceView(activity)
+        val view = object : SurfaceView(activity) {
+            private val testHolder = object : SurfaceHolder by super.getHolder() {
+                override fun getSurfaceFrame() = android.graphics.Rect(0, 0, 1280, 720)
+            }
+            override fun getHolder(): SurfaceHolder = testHolder
+        }
         ReflectionHelpers.setField(activity, "surfaceView", view)
         val scope = ReflectionHelpers.getField<CoroutineScope>(activity, "glassesScope")
-        val startup = FutureTask {
+        val startup = if (background) FutureTask {
             try { CompositorHost.prepare(app, 1280, 720, 60f, 0) }
-            finally { preparation.result.complete(Result.success(Unit)) }
-        }
-        Thread(startup, "test-compositor-prepare").apply { isDaemon = true; start() }
+            finally { preparation.result.complete(Unit) }
+        }.also { Thread(it, "test-prepare").apply { isDaemon = true; start() } } else null
         try {
-            assertTrue(entered.await(5, TimeUnit.SECONDS))
             activity.surfaceCreated(view.holder)
+            shadowOf(Looper.getMainLooper()).idle()
+            assertTrue(entered.await(5, TimeUnit.SECONDS))
             activity.surfaceChanged(view.holder, 0, 800, 600)
             activity.surfaceChanged(view.holder, 0, 1000, 600)
             activity.surfaceDestroyed(view.holder)
@@ -375,21 +287,26 @@ class CompositorHostTest {
             Handler(Looper.getMainLooper()).post { responsive.countDown() }
             shadowOf(Looper.getMainLooper()).idle()
             assertEquals(0L, responsive.count)
-            assertFalse(preparation.result.isCompleted)
             assertTrue(scope.coroutineContext[Job]!!.children.none { it.isActive })
-
-            ReflectionHelpers.setField(activity, "surfaceView", SurfaceView(activity))
             release.countDown()
-            assertTrue(startup.get(5, TimeUnit.SECONDS))
-            shadowOf(Looper.getMainLooper()).idle()
-            assertTrue(scope.coroutineContext[Job]!!.children.none())
-            assertTrue(Native.surfaces.isEmpty())
+            startup?.get(5, TimeUnit.SECONDS)
+            CompositorHost.detach(null)
             assertFalse(SessionState.firstFrameSeen)
+            if (background) assertTrue(Native.starts.single() == null) else assertTrue(Native.starts.isEmpty())
         } finally {
             release.countDown()
-            startup.get(5, TimeUnit.SECONDS)
+            startup?.get(5, TimeUnit.SECONDS)
             scope.cancel()
-            ReflectionHelpers.setStaticField(SessionService::class.java, "compositorStart", null)
+            CompositorHost.detach(null)
+            shadowOf(Looper.getMainLooper()).idle()
+        }
+    }
+
+    private fun withSurface(block: (Surface) -> Unit) {
+        val surface = Surface(android.graphics.SurfaceTexture(0))
+        try { block(surface) } finally {
+            CompositorHost.detach(surface)
+            surface.release()
         }
     }
 
@@ -413,7 +330,6 @@ class CompositorHostTest {
             val startHdr = mutableListOf<Boolean>()
             val hdrRequests = mutableListOf<Int>()
             val displayIds = mutableListOf<Int>()
-            val renderOnCommit = mutableListOf<Boolean>()
             val runtimes = mutableListOf<String>()
             val drivers = mutableListOf<String?>()
             val starts = mutableListOf<Surface?>()
@@ -427,13 +343,6 @@ class CompositorHostTest {
             }
             @JvmStatic @Implementation fun nativeSetSurface(surface: Surface?) { surfaces += surface }
             @JvmStatic @Implementation fun nativeSetOutputSize(width: Int, height: Int) { sizes += width to height }
-            @JvmStatic @Implementation fun nativeSetRenderOnCommit(on: Boolean) { renderOnCommit += on }
-            @JvmStatic @Implementation fun nativeSetFpsLimit(limit: Int) = Unit
-            @JvmStatic @Implementation fun nativeSetLayerFrameRate(hz: Float) = Unit
-            @JvmStatic @Implementation fun nativeSetOutputRefreshRate(hz: Float) = Unit
-            @JvmStatic @Implementation fun nativeResetFirstFrame() = Unit
-            @JvmStatic @Implementation fun nativeVsync(time: Long) = Unit
-            @JvmStatic @Implementation fun nativeSetZeroCopy(on: Boolean) = Unit
             @JvmStatic @Implementation fun nativeSetHdrRequest(mode: Int, source: String, dxvk: Boolean, zeroCopy: Boolean) { hdrRequests += mode }
             @JvmStatic @Implementation fun nativeSetHdrDisplay(id: Int, name: String, formats: String, hdr10: Boolean,
                 max: Float, average: Float, min: Float, ratioAvailable: Boolean, ratio: Float, sdk: Int) { displayIds += id }

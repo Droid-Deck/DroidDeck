@@ -4,7 +4,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 
 internal class CompositorPreparation(val sessionId: String? = SessionState.sessionId) {
-    val result = CompletableDeferred<Result<Unit>>()
+    val result = CompletableDeferred<Unit>()
 
     fun checkCurrent() {
         if (result.isCancelled || sessionId != SessionState.sessionId || SessionState.stopRequested ||

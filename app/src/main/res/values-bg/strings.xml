@@ -306,6 +306,7 @@
     <string name="mode_suspend_note">Автоматично поставя на пауза във фонов режим и продължава при показване. Ръчно изчаква „Продължи“. Никога продължава да работи.</string>
     <string name="mode_startup">Стартиране</string>
     <string name="mode_steam_startup">Стартиране на Steam заедно с DroidDeck</string>
+    <string name="mode_steam_startup_hint">Отваря сесията на Steam при стартиране на DroidDeck.</string>
     <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">Проверка за издания…</string>
     <string name="mode_decky_ready">Готово за инсталиране на %1$s.</string>

@@ -306,6 +306,7 @@
     <string name="mode_suspend_note">Automaticky pozastaví na pozadí a obnoví při zobrazení. Manuálně čeká na Obnovit. Nikdy běh nezastavuje.</string>
     <string name="mode_startup">Spouštění</string>
     <string name="mode_steam_startup">Spustit Steam s DroidDeck</string>
+    <string name="mode_steam_startup_hint">Otevře relaci Steamu při spuštění DroidDeck.</string>
     <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">Hledání vydání…</string>
     <string name="mode_decky_ready">Připraveno k instalaci %1$s.</string>

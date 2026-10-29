@@ -54,10 +54,12 @@ object CompositorHost {
         outputHeight: Int,
         refreshHz: Float,
         fpsLimit: Int,
+        mode: String = SessionState.mode,
+        display: Display? = null,
         checkCurrent: () -> Unit = {},
-    ): Boolean {
+    ) {
         checkCurrent()
-        return startOrAttachOutput(context, null, outputWidth, outputHeight, refreshHz, fpsLimit) {
+        startOrAttachOutput(context, null, outputWidth, outputHeight, refreshHz, fpsLimit) {
             checkCurrent()
             val runtimeDir = File(context.filesDir, ".wayland-rt").apply { mkdirs() }
             FileUtils.copyAsset(context, "wayland/keymap.xkb", File(runtimeDir, "keymap.xkb"))
@@ -67,6 +69,7 @@ object CompositorHost {
             val turnip = TurnipDriver(context)
             val driverId = turnip.install()
             checkCurrent()
+            configureOutput(context, mode, display)
             newSession(context)
             com.droiddeck.launcher.gpu.TpUbwcHint.applyToProcess(context)
             com.droiddeck.launcher.gpu.DriverSetupLog.write(context, "compositor.start driver=$driverId")
@@ -221,9 +224,7 @@ object CompositorHost {
         return probe
     }
 
-    @Synchronized
-    fun configureOutput(context: Context, mode: String, display: Display? = null, checkCurrent: () -> Unit = {}) {
-        checkCurrent()
+    private fun configureOutput(context: Context, mode: String, display: Display?) {
         val probe = updateDisplay(context, display)
         if (started) return
         val wanted = SessionPrefs.hdr(context, mode)

@@ -306,6 +306,7 @@
     <string name="mode_suspend_note">Automatisch pauzeert op de achtergrond en hervat zodra de app weer zichtbaar is. Handmatig wacht op Hervatten. Nooit laat alles doorlopen.</string>
     <string name="mode_startup">Opstarten</string>
     <string name="mode_steam_startup">Steam starten met DroidDeck</string>
+    <string name="mode_steam_startup_hint">Opent de Steam-sessie als DroidDeck start.</string>
     <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">Zoeken naar releases…</string>
     <string name="mode_decky_ready">Klaar om %1$s te installeren.</string>

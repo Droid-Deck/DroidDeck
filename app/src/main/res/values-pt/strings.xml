@@ -306,6 +306,7 @@
     <string name="mode_suspend_note">Automático pausa em segundo plano e retoma quando o app reaparece. Manual aguarda Retomar. Nunca continua em execução.</string>
     <string name="mode_startup">Inicialização</string>
     <string name="mode_steam_startup">Iniciar a Steam com o DroidDeck</string>
+    <string name="mode_steam_startup_hint">Abre a sessão da Steam quando o DroidDeck é iniciado.</string>
     <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">Procurando versões…</string>
     <string name="mode_decky_ready">Pronto para instalar %1$s.</string>

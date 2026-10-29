@@ -306,6 +306,7 @@
     <string name="mode_suspend_note">Το Αυτόματο θέτει σε παύση στο παρασκήνιο και συνεχίζει όταν εμφανίζεται. Το Μη αυτόματο περιμένει το Συνέχιση. Το Ποτέ συνεχίζει να εκτελείται.</string>
     <string name="mode_startup">Εκκίνηση</string>
     <string name="mode_steam_startup">Εκκίνηση του Steam με το DroidDeck</string>
+    <string name="mode_steam_startup_hint">Ανοίγει τη συνεδρία Steam όταν εκκινείται το DroidDeck.</string>
     <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">Έλεγχος για εκδόσεις…</string>
     <string name="mode_decky_ready">Έτοιμο για εγκατάσταση %1$s.</string>

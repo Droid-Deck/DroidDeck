@@ -306,6 +306,7 @@
     <string name="mode_suspend_note">«تلقائي» يوقف مؤقتًا في الخلفية ويستأنف عند الظهور. «يدوي» ينتظر الضغط على «استئناف». «أبدًا» يُبقيه قيد التشغيل.</string>
     <string name="mode_startup">بدء التشغيل</string>
     <string name="mode_steam_startup">تشغيل Steam مع DroidDeck</string>
+    <string name="mode_steam_startup_hint">يفتح جلسة Steam عند تشغيل DroidDeck.</string>
     <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">جارٍ البحث عن إصدارات…</string>
     <string name="mode_decky_ready">جاهز لتثبيت %1$s.</string>
