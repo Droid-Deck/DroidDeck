@@ -695,7 +695,8 @@ class FrontEndActivity : ComponentActivity() {
         poll.run()
     }
 
-    private fun cancelCompatLaunch() {
+    private fun cancelCompatLaunch(consumeRequest: Boolean = false) {
+        if (consumeRequest) consumeGameLinkRequest(compatLaunch?.gameLinkRequest)
         compatLaunchPoll?.let(ui::removeCallbacks)
         compatLaunchPoll = null
         compatLaunch = null
@@ -1501,13 +1502,13 @@ class FrontEndActivity : ComponentActivity() {
                         com.droiddeck.launcher.ui.LaunchOrigin.flooding = null
                     }
                 }
-                androidx.activity.compose.BackHandler(compatLaunch != null) { cancelCompatLaunch() }
+                androidx.activity.compose.BackHandler(compatLaunch != null) { cancelCompatLaunch(consumeRequest = true) }
                 compatLaunch?.loading?.let { loading ->
                     if (!loading.ended) com.droiddeck.launcher.ui.VeilRing()
                     com.droiddeck.launcher.ui.LoadingOverlay(
                         loading.step, loading.percent, loading.elapsed, getString(R.string.load_compat_hint), loading.ended,
                         loading.topic, loading.readable, title = getString(R.string.load_compat_title),
-                        onCancel = ::cancelCompatLaunch, onClose = ::cancelCompatLaunch,
+                        onCancel = { cancelCompatLaunch(consumeRequest = true) }, onClose = { cancelCompatLaunch(consumeRequest = true) },
                         flood = compatFlood, onFlooded = { compatFlood = null },
                     )
                 }
@@ -1610,7 +1611,7 @@ class FrontEndActivity : ComponentActivity() {
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (compatLaunch != null) {
             if (event.keyCode == KeyEvent.KEYCODE_BACK || event.keyCode == KeyEvent.KEYCODE_BUTTON_B) {
-                if (event.action == KeyEvent.ACTION_UP) cancelCompatLaunch()
+                if (event.action == KeyEvent.ACTION_UP) cancelCompatLaunch(consumeRequest = true)
                 return true
             }
             if (!compatLaunch!!.loading.ended && event.keyCode !in listOf(
