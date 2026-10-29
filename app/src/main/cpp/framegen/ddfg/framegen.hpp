@@ -1,12 +1,20 @@
 #pragma once
 #include "vk_dispatch.hpp"
 #include "config.hpp"
+#include <memory>
 #include <vector>
 
 namespace ddfg {
 
+struct ScratchState;
+
 class FrameGen {
 public:
+    FrameGen();
+    ~FrameGen();
+    FrameGen(const FrameGen&) = delete;
+    FrameGen& operator=(const FrameGen&) = delete;
+
     bool init(const DeviceDispatch* dd, const InstanceDispatch* id,
               VkPhysicalDevice phys, VkDevice dev, uint32_t queueFamily, VkQueue queue);
     void configure(const Config& c);
@@ -14,7 +22,7 @@ public:
     void record(VkCommandBuffer cmd, VkImageView prevView, VkImageView currView,
                 VkImageView outView, float alpha, uint32_t gmSlot = 0,
                 uint32_t synthSlot = 0, bool reuseFlow = false);
-    void destroy();
+    bool destroy();
     bool valid() const { return device_ != VK_NULL_HANDLE && ready_; }
     const Config& config() const { return cfg_; }
 
@@ -55,6 +63,8 @@ private:
     bool makeImage(Img& out, VkExtent2D ext, VkFormat fmt, VkImageUsageFlags usage);
     void destroyImage(Img& i);
     bool makeGmBuffers();
+    bool waitIdle(const char* operation);
+    void releaseScratch();
 
 
 
@@ -77,7 +87,9 @@ private:
     Config    cfg_;
     VkExtent2D extent_{};
     bool ready_ = false;
+    bool completionUnknown_ = false;
     int  flowFinest_ = kFlowFinestDefault;
+    std::unique_ptr<ScratchState> scratch_;
 
     Pipe pLuma_, pDown_, pFlow_, pFlowM4_, pExpand_, pExpandM4_, pSynth_;
     Pipe pGmReduce_, pGmPrewarp_;
