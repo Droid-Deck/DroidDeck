@@ -6,34 +6,41 @@ import com.droiddeck.launcher.frontend.AddedGames
 import java.io.File
 
 object UsbLink {
-    data class Link(val device: String, val mbps: Double, val name: String, val portMbps: Double)
+    data class Link(val device: String, val mbps: Double, val name: String, val portMbps: Double?, val plug: String = "")
 
-    class SlowDrive(val key: String, val name: String, val mbps: Double, val portMbps: Double) {
-        val portLimited get() = portMbps < FAST_MBPS
+    class SlowDrive(val key: String, val name: String, val mbps: Double, val portMbps: Double?) {
+        val portLimited get() = portMbps != null && portMbps < FAST_MBPS
     }
 
     const val FAST_MBPS = 5000.0
 
-    private val shown = mutableSetOf<String>()
+    fun markShown(context: Context, drive: SlowDrive) = synchronized(this) {
+        SessionPrefs.setSlowUsbDismissed(context, SessionPrefs.slowUsbDismissed(context) + drive.key)
+    }
 
-    fun replugged() = synchronized(shown) { shown.clear() }
-
-    fun markShown(drive: SlowDrive) = synchronized(shown) { shown += drive.key }
+    fun stillDue(context: Context, drive: SlowDrive) =
+        !SessionPrefs.slowUsbWarningOff(context) && drive.key !in SessionPrefs.slowUsbDismissed(context)
 
     fun slowLibrary(context: Context): SlowDrive? {
         if (SessionPrefs.slowUsbWarningOff(context)) return null
         val mounts = runCatching { File("/proc/self/mounts").readText() }.getOrNull() ?: return null
         val sm = context.getSystemService(StorageManager::class.java)
-        for (path in libraries(context)) {
-            val link = forPath(path, mounts) ?: continue
-            if (link.mbps >= FAST_MBPS) continue
-            val key = "${link.device}@${link.mbps}"
-            if (synchronized(shown) { key in shown }) continue
+        val boot = runCatching { android.provider.Settings.Global.getInt(context.contentResolver, android.provider.Settings.Global.BOOT_COUNT) }.getOrDefault(0)
+        val drives = libraries(context).mapNotNull { path ->
+            val link = forPath(path, mounts) ?: return@mapNotNull null
+            if (link.mbps >= FAST_MBPS) return@mapNotNull null
             val volume = runCatching { sm?.getStorageVolume(File(path))?.getDescription(context) }.getOrNull()
-            return SlowDrive(key, link.name.ifBlank { volume.orEmpty() }.ifBlank { File(path).name }, link.mbps, link.portMbps)
+            SlowDrive(dismissKey(boot, link), link.name.ifBlank { volume.orEmpty() }.ifBlank { File(path).name }, link.mbps, link.portMbps)
         }
-        return null
+        return synchronized(this) {
+            val dismissed = SessionPrefs.slowUsbDismissed(context)
+            val current = dismissed.intersect(drives.map { it.key }.toSet())
+            if (current != dismissed) SessionPrefs.setSlowUsbDismissed(context, current)
+            drives.firstOrNull { it.key !in current }
+        }
     }
+
+    internal fun dismissKey(boot: Int, link: Link) = "$boot/${link.plug}/${link.device}@${link.mbps}"
 
     private fun libraries(context: Context): List<String> {
         val pref = SessionPrefs.gameStorage(context)
@@ -54,7 +61,8 @@ object UsbLink {
         val usb = usbDevice(block, sys) ?: return null
         val mbps = readSpeed(usb) ?: return null
         val name = listOf("manufacturer", "product").mapNotNull { read(File(usb, it)) }.joinToString(" ").trim()
-        return Link(device, mbps, name, portSpeed(usb, sys) ?: mbps)
+        val plug = listOf("busnum", "devnum").mapNotNull { read(File(usb, it)) }.joinToString("-")
+        return Link(device, mbps, name, portSpeed(usb, sys), plug)
     }
 
     internal fun rawPath(path: String) = if (external(path)) "/mnt/media_rw/" + path.removePrefix("/storage/") else path

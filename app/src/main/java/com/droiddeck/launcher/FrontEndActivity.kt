@@ -213,7 +213,6 @@ class FrontEndActivity : ComponentActivity() {
     }
     private val mediaReceiver = object : android.content.BroadcastReceiver() {
         override fun onReceive(context: android.content.Context?, intent: Intent?) {
-            if (intent?.action == Intent.ACTION_MEDIA_MOUNTED) com.droiddeck.launcher.session.UsbLink.replugged()
             ui.removeCallbacks(mediaRefresh)
             ui.postDelayed(mediaRefresh, MEDIA_SETTLE_MS)
         }
@@ -969,9 +968,10 @@ class FrontEndActivity : ComponentActivity() {
                 )
                 slowUsb?.let { drive ->
                     com.droiddeck.launcher.ui.SlowUsbDialog(drive) { never ->
-                        com.droiddeck.launcher.session.UsbLink.markShown(drive)
+                        com.droiddeck.launcher.session.UsbLink.markShown(this, drive)
                         if (never) SessionPrefs.setSlowUsbWarningOff(this)
                         slowUsb = null
+                        checkUsbLink()
                     }
                 }
                 val page: (@Composable () -> Unit)? = when {
@@ -2319,7 +2319,9 @@ class FrontEndActivity : ComponentActivity() {
         if (slowUsb != null) return
         Thread({
             val drive = runCatching { com.droiddeck.launcher.session.UsbLink.slowLibrary(this) }.getOrNull()
-            if (drive != null) ui.post { if (slowUsb == null && !isFinishing) slowUsb = drive }
+            if (drive != null) ui.post {
+                if (slowUsb == null && !isFinishing && com.droiddeck.launcher.session.UsbLink.stillDue(this, drive)) slowUsb = drive
+            }
         }, "usb-link").start()
     }
 

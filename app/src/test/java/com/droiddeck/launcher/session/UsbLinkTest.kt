@@ -33,6 +33,7 @@ class UsbLinkTest {
         File(device, "speed").writeText("$deviceSpeed\n")
         File(device, "idVendor").writeText("04e8\n")
         File(device, "busnum").writeText("1\n")
+        File(device, "devnum").writeText("7\n")
         File(device, "manufacturer").writeText("Samsung\n")
         File(device, "product").writeText("PSSD T7\n")
         val part = File(device, "1-1:1.0/host1/target1:0:0/1:0:0:0/block/sdg/sdg1").apply { mkdirs() }
@@ -48,7 +49,9 @@ class UsbLinkTest {
         assertEquals("8:97", link.device)
         assertEquals(480.0, link.mbps, 0.0)
         assertEquals("Samsung PSSD T7", link.name)
-        assertEquals(10000.0, link.portMbps, 0.0)
+        assertEquals(10000.0, link.portMbps!!, 0.0)
+        assertEquals("1-7", link.plug)
+        assertEquals("3/1-7/8:97@480.0", UsbLink.dismissKey(3, link))
         assertFalse(UsbLink.SlowDrive("k", link.name, link.mbps, link.portMbps).portLimited)
     }
 
@@ -56,6 +59,14 @@ class UsbLinkTest {
         drive("480", "480")
         val link = UsbLink.forPath("/storage/8C5A-1F23", mounts, sys)!!
         assertTrue(UsbLink.SlowDrive("k", link.name, link.mbps, link.portMbps).portLimited)
+    }
+
+    @Test fun anUnknownPortSpeedIsNotReportedAsTheLimit() {
+        drive("480", "10000")
+        Files.delete(File(sys, "bus/usb/devices/usb1").toPath())
+        val link = UsbLink.forPath("/storage/8C5A-1F23", mounts, sys)!!
+        assertNull(link.portMbps)
+        assertFalse(UsbLink.SlowDrive("k", link.name, link.mbps, link.portMbps).portLimited)
     }
 
     @Test fun internalStorageAndUnknownMountsHaveNoLink() {
