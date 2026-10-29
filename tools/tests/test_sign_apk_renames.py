@@ -15,10 +15,10 @@ class SignApkRenamesTest(unittest.TestCase):
         names = set()
         for attribute in ('authorities', 'taskAffinity'):
             for value in re.findall(r'android:%s="([^"]*)"' % attribute, manifest):
-                for name in value.split(';'):
-                    name = name.strip().replace('${applicationId}', PACKAGE)
-                    if name.startswith(PACKAGE + '.'):
-                        names.add(name[len(PACKAGE):])
+                self.assertNotIn(';', value, 'sign-apk.sh renames whole values, so give each authority its own provider')
+                name = value.strip().replace('${applicationId}', PACKAGE)
+                if name.startswith(PACKAGE + '.'):
+                    names.add(name[len(PACKAGE):])
         self.assertIn('.agent', names)
         script = (ROOT / 'tools/release/sign-apk.sh').read_text()
         renamed = set(re.findall(r'"\$P(\.[A-Za-z0-9_.-]+)=\$pkg\1"', script))
