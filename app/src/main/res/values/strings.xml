@@ -2308,6 +2308,8 @@
     <string name="stores_resume">Resume</string>
     <string name="stores_refresh">Refresh</string>
     <string name="stores_sort">Sort</string>
+    <string name="setup_rail_labels">Sidebar labels</string>
+    <string name="setup_rail_labels_hint">Show names under the sidebar icons. Turn off for a slimmer sidebar.</string>
     <string name="library_display">Display</string>
     <string name="library_display_larger">Larger cards</string>
     <string name="library_display_smaller">Smaller cards</string>
