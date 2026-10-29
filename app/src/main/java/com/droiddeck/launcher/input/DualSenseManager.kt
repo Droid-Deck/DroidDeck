@@ -1236,8 +1236,12 @@ class DualSenseManager(private val context: Context) {
             writePadBin(data, offset)
         }
 
-        // 6. Notify optional UI/activity state listener
-        onStateUpdated?.invoke(state)
+        // 6. Notify optional UI/activity state listener under the activation lock
+        synchronized(this) {
+            if (!stopped && isDualSenseActive) {
+                onStateUpdated?.invoke(state)
+            }
+        }
     }
 
     private fun hasPadStateChanged(prev: DualSense.State?, curr: DualSense.State): Boolean {
