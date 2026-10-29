@@ -695,7 +695,9 @@ class FrontEndActivity : ComponentActivity() {
         poll.run()
     }
 
-    private fun cancelCompatLaunch(consumeRequest: Boolean = false) {
+    private fun cancelCompatLaunch() = cancelCompatLaunch(consumeRequest = true)
+
+    private fun cancelCompatLaunch(consumeRequest: Boolean) {
         if (consumeRequest) consumeGameLinkRequest(compatLaunch?.gameLinkRequest)
         compatLaunchPoll?.let(ui::removeCallbacks)
         compatLaunchPoll = null
@@ -1728,7 +1730,7 @@ class FrontEndActivity : ComponentActivity() {
 
     override fun onDestroy() {
         if (isFinishing) LauncherJobs.abandonSavePick(savePickerOwner)
-        cancelCompatLaunch()
+        cancelCompatLaunch(consumeRequest = false)
         updates.unregister()
         super.onDestroy()
     }
