@@ -30,6 +30,7 @@ class FusionHudHost(context: Context) {
     private var running = false
     private var hidden = false
     private var backgrounded = false
+    private var polling = false
     private var engine = ""
     private var gpuName = ""
     private var protonPid = 0
@@ -57,7 +58,7 @@ class FusionHudHost(context: Context) {
 
     private val frameCallback = object : Choreographer.FrameCallback {
         override fun doFrame(frameTimeNanos: Long) {
-            if (!running) return
+            if (!running || !polling) return
             if (feed.poll(System.nanoTime())) view?.onFrames()
             Choreographer.getInstance().postFrameCallback(this)
         }
@@ -107,13 +108,13 @@ class FusionHudHost(context: Context) {
         if (running || !enabled || view == null) return
         running = true
         WaylandCompositor.setGameListener(listener)
-        Choreographer.getInstance().postFrameCallback(frameCallback)
         applyShown()
     }
 
     fun stop() {
         running = false
         showing = false
+        polling = false
         Choreographer.getInstance().removeFrameCallback(frameCallback)
         WaylandCompositor.clearGameListener(listener)
         feed.close()
@@ -137,6 +138,12 @@ class FusionHudHost(context: Context) {
         val show = !hidden && !backgrounded
         view?.visibility = if (show) View.VISIBLE else View.GONE
         showing = show
+        // Frames are read once per display frame only while the HUD is drawn.
+        if (show != polling) {
+            polling = show
+            if (show) Choreographer.getInstance().postFrameCallback(frameCallback)
+            else Choreographer.getInstance().removeFrameCallback(frameCallback)
+        }
     }
 
     /** A sensor report (FusionHUD's diagnostics) in Downloads/DroidDeck; null when it can't be written. */
