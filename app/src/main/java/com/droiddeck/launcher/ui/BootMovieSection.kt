@@ -181,7 +181,11 @@ private fun InstalledTab(a: ModeSettingsActions) {
     var saving by remember { mutableStateOf(false) }
     // The report is for bug reports, so it shows only while Debugging tools is on (read each time this tab opens).
     val debugging = remember { com.droiddeck.launcher.agent.AgentAccess.commandsEnabled(app) }
+    var probing by remember { mutableStateOf(false) }
     if (debugging) {
+        SettingsRow("Game Jolt probe", "Logs what Game Jolt's pages and endpoints return for one game link") {
+            SecondaryButton("Run probe", onClick = { probing = true })
+        }
         SettingsRow(stringResource(R.string.boot_movie_report), stringResource(R.string.boot_movie_report_hint)) {
             SecondaryButton(stringResource(R.string.boot_movie_report_save), enabled = !saving, onClick = {
                 saving = true
@@ -198,6 +202,11 @@ private fun InstalledTab(a: ModeSettingsActions) {
         }
     }
     if (browsing) InstalledMoviesDialog(a) { browsing = false }
+    if (probing) TextEntryDialog(
+        "Game Jolt game link", "", number = false, confirm = "Run",
+        onSubmit = { value -> if (value.isNotEmpty()) com.droiddeck.launcher.stores.GameJoltProbe.run(value) }, onDismiss = { probing = false },
+        id = "gamejolt-probe-entry",
+    )
 }
 
 @Composable
