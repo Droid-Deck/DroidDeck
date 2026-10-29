@@ -1059,7 +1059,7 @@ internal fun SectionLabel(title: String) {
 internal fun ModeHeader(
     title: String, query: String, onQuery: (String) -> Unit, placeholder: String,
     clearSearchFocus: Boolean = false,
-    lead: (@Composable () -> Unit)? = null, trailing: @Composable () -> Unit,
+    lead: (@Composable () -> Unit)? = null, inlineWhenStacked: Boolean = false, trailing: @Composable () -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
@@ -1101,8 +1101,21 @@ internal fun ModeHeader(
     }
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val stacked = maxWidth < NarrowPaneWidth
+        val inline = stacked && inlineWhenStacked && maxWidth >= 440.dp
         Column(Modifier.fillMaxWidth()) {
-            if (stacked) {
+            if (inline && !(searching || open > 0.01f)) Row(
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp).padding(vertical = 4.dp),
+            ) {
+                heading()
+                Row(
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.End),
+                    modifier = Modifier.weight(1f),
+                ) {
+                    searchButton()
+                    trailing()
+                }
+            } else if (stacked) {
                 Box(Modifier.padding(vertical = 4.dp)) { heading() }
                 Row(
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),

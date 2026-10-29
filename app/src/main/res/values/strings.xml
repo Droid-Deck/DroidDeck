@@ -2249,6 +2249,11 @@
     <string name="stores_resume">Resume</string>
     <string name="stores_refresh">Refresh</string>
     <string name="stores_sort">Sort</string>
+    <string name="library_display">Display</string>
+    <string name="library_display_larger">Larger cards</string>
+    <string name="library_display_smaller">Smaller cards</string>
+    <string name="library_display_title">Show title</string>
+    <string name="library_display_size">Show size</string>
     <string name="stores_sort_last_played">Recently played</string>
     <string name="stores_sort_recently_installed">Recently installed</string>
     <string name="stores_sort_title_asc">Title A–Z</string>
