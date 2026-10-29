@@ -1,4 +1,5 @@
 #!/usr/bin/python3
+import hashlib
 import os
 import re
 import subprocess
@@ -9,6 +10,7 @@ SHARE = "/usr/share/droiddeck/pacman"
 LIB = "/var/lib/pacman"
 CACHE = "/var/cache/pacman/pkg"
 SHARED = os.path.join(LIB, "droiddeck-shared")
+SHARED_FILES = SHARED + "-files"
 
 
 def owned():
@@ -27,6 +29,17 @@ def owned():
             elif reading and line:
                 paths.add(line.rstrip("/"))
     return paths
+
+
+def same(archive, member, path):
+    if member.issym():
+        return os.path.islink(path) and os.readlink(path) == member.linkname
+    if not member.isfile() or os.path.islink(path) or not os.path.isfile(path):
+        return False
+    if os.path.getsize(path) != member.size:
+        return False
+    with archive.extractfile(member) as packaged, open(path, "rb") as installed:
+        return hashlib.file_digest(packaged, "sha256").digest() == hashlib.file_digest(installed, "sha256").digest()
 
 
 def planned(args):
@@ -62,6 +75,8 @@ def main():
                     continue
                 if member.name in have or not os.path.lexists("/" + member.name) or os.path.isdir("/" + member.name):
                     continue
+                if not same(archive, member, "/" + member.name):
+                    continue
                 paths.append("/" + member.name)
                 found = True
         if found:
@@ -77,6 +92,15 @@ def main():
     with open(SHARED + ".tmp", "w") as f:
         f.write("".join(f"{name}\n" for name in sorted(shared | set(names))))
     os.replace(SHARED + ".tmp", SHARED)
+    files = set()
+    try:
+        with open(SHARED_FILES, encoding="utf-8", errors="surrogateescape") as f:
+            files = {line.rstrip("\n") for line in f if line.strip()}
+    except OSError:
+        pass
+    with open(SHARED_FILES + ".tmp", "w", encoding="utf-8", errors="surrogateescape") as f:
+        f.write("".join(f"{path}\n" for path in sorted(files | set(paths))))
+    os.replace(SHARED_FILES + ".tmp", SHARED_FILES)
     print(f":: Other DroidDeck software already installed {len(paths)} files from {' '.join(names)}.", file=sys.stderr)
     print(":: pacman will take them over and keep these packages installed so that software keeps working.",
           file=sys.stderr)

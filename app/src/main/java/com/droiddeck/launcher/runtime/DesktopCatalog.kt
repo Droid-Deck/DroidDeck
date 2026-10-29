@@ -177,7 +177,7 @@ object DesktopCatalog {
                               listener: LinuxRuntimeInstaller.ProgressListener?): String? {
         val root = LinuxRuntime.rootDir(context)
         if (!root.isDirectory) return context.getString(R.string.deskpkg_runtime_missing)
-        if (entry.id == EMULATORS_ID && desktopFromPack(root)) return installEmulators(context, entry, listener)
+        if (entry.id == EMULATORS_ID && desktopFromPack(root)) return installEmulators(context, entry, cancelled, listener)
         if (entry.sha256.isEmpty()) return context.getString(R.string.deskpkg_no_checksum, entry.name)
         val download = downloadFile(context, entry)
         val journal = journal(root, entry.id)
@@ -249,11 +249,25 @@ object DesktopCatalog {
         }
     }
 
-    private fun installEmulators(context: Context, entry: Entry, listener: LinuxRuntimeInstaller.ProgressListener?): String? {
+    private fun installEmulators(context: Context, entry: Entry, cancelled: Downloader.Cancellation?,
+                                 listener: LinuxRuntimeInstaller.ProgressListener?): String? {
         val release = RuntimeInstallService.holdForPackage(context, context.getString(R.string.deskpkg_installing, entry.name))
+        val stop = java.util.concurrent.atomic.AtomicBoolean(false)
+        val finished = java.util.concurrent.atomic.AtomicBoolean(false)
+        cancelled?.let { token ->
+            Thread({
+                try {
+                    while (!finished.get() && !stop.get()) {
+                        if (token.getAsBoolean()) stop.set(true) else Thread.sleep(200)
+                    }
+                } catch (_: InterruptedException) {
+                }
+            }, "emulators-cancel").apply { isDaemon = true; start() }
+        }
         try {
             var failure: String? = null
-            val status = GuestCommand.run(context, listOf("/bin/bash", EMULATORS_SCRIPT, "install"), logName = "emulators") { line ->
+            val status = GuestCommand.run(context, listOf("/bin/bash", EMULATORS_SCRIPT, "install"), logName = "emulators",
+                cancelled = stop) { line ->
                 when {
                     line.startsWith("== STEP ") -> {
                         val stage = context.getString(R.string.deskpkg_installing, line.removePrefix("== STEP "))
@@ -263,6 +277,7 @@ object DesktopCatalog {
                     line.startsWith("== FAIL ") -> failure = line.removePrefix("== FAIL ")
                 }
             }
+            if (stop.get()) return context.getString(R.string.user_apps_download_failed)
             if (failure != null || status != 0) return context.getString(R.string.deskpkg_install_failed)
             check(FileUtils.writeString(marker(context, entry.id), entry.version)) { "Could not finish package installation" }
             return null
@@ -270,6 +285,7 @@ object DesktopCatalog {
             Log.e(TAG, "install ${entry.id}", e)
             return e.message ?: context.getString(R.string.deskpkg_install_failed)
         } finally {
+            finished.set(true)
             release()
         }
     }
