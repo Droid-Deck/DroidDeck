@@ -14,6 +14,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -602,10 +603,29 @@ private fun LibraryTile(e: LibraryEntry, capsule: Boolean, first: Boolean, navig
     }
 }
 
-private val LibraryCardWidth = 150.dp
+internal val LibraryCardWidth = 150.dp
+
+internal fun libraryTileWidth() = LibraryCardWidth * LibraryDisplay.scales[LibraryDisplay.level]
 
 @Composable
 private fun LibraryArt(e: LibraryEntry, wide: Any?, tall: Any?, download: DownloadEntry?, hot: Boolean, capsule: Boolean, showSource: Boolean) {
+    val chip = when {
+        download != null -> "${download.percent}%"
+        e.item != null && StoresState.isUnfinished(e.item) -> stringResource(R.string.stores_resume)
+        e.installed && libraryUpdateAvailable(e) -> stringResource(R.string.common_update)
+        else -> null
+    }
+    ArtCard(
+        e.title, wide, tall, download, hot, capsule, chip,
+        badge = if (showSource) ({ SourceChip(e.source, small = true, modifier = Modifier.align(Alignment.TopStart).padding(6.dp)) }) else null,
+    ) { LibrarySize(e) }
+}
+
+@Composable
+internal fun ArtCard(
+    title: String, wide: Any?, tall: Any?, download: DownloadEntry?, hot: Boolean, capsule: Boolean, chip: String?,
+    badge: (@Composable BoxScope.() -> Unit)? = null, detail: @Composable () -> Unit,
+) {
     val url = if (capsule) tall ?: wide else wide ?: tall
     val art = cardArtRequest(url, tall)
     val ratio = if (capsule) 5f / 7f else 16f / 9f
@@ -614,7 +634,7 @@ private fun LibraryArt(e: LibraryEntry, wide: Any?, tall: Any?, download: Downlo
     val blurs = android.os.Build.VERSION.SDK_INT >= 31
     Box(
         Modifier.fillMaxWidth().aspectRatio(ratio).background(Color(0xFF101318))
-            .then(if (url == null) Modifier.background(artBrush(hueOf(e.title))) else Modifier),
+            .then(if (url == null) Modifier.background(artBrush(hueOf(title))) else Modifier),
     ) {
         if (art != null && offRatio) {
             AsyncImage(model = art, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize().blur(32.dp))
@@ -631,24 +651,18 @@ private fun LibraryArt(e: LibraryEntry, wide: Any?, tall: Any?, download: Downlo
                 }
             },
         )
-        if (showSource) SourceChip(e.source, small = true, modifier = Modifier.align(Alignment.TopStart).padding(6.dp))
-        val state = when {
-            download != null -> "${download.percent}%"
-            e.item != null && StoresState.isUnfinished(e.item) -> stringResource(R.string.stores_resume)
-            e.installed && libraryUpdateAvailable(e) -> stringResource(R.string.common_update)
-            else -> null
-        }
-        if (state != null) Box(Modifier.align(Alignment.TopEnd).padding(6.dp)) { StateChip(state, ChipTone.BUSY, small = true) }
+        badge?.invoke(this)
+        if (chip != null) Box(Modifier.align(Alignment.TopEnd).padding(6.dp)) { StateChip(chip, ChipTone.BUSY, small = true) }
         val showName = LibraryDisplay.title || hot
-        val showSize = LibraryDisplay.size || hot
-        if (showName || showSize) Column(
+        val showDetail = LibraryDisplay.size || hot
+        if (showName || showDetail) Column(
             verticalArrangement = Arrangement.spacedBy(1.dp),
             modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth()
                 .background(Brush.verticalGradient(0f to Color.Transparent, 0.6f to Color.Black.copy(alpha = 0.78f), 1f to Color.Black.copy(alpha = 0.92f)))
                 .padding(start = 8.dp, end = 8.dp, top = 20.dp, bottom = if (download != null) 14.dp else 6.dp),
         ) {
-            if (showName) Text(e.title, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = if (hot) 2 else 1, overflow = TextOverflow.Ellipsis, lineHeight = 13.sp)
-            if (showSize) LibrarySize(e)
+            if (showName) Text(title, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = if (hot) 2 else 1, overflow = TextOverflow.Ellipsis, lineHeight = 13.sp)
+            if (showDetail) detail()
         }
         if (download != null) Box(Modifier.align(Alignment.BottomCenter).padding(start = 6.dp, end = 6.dp, bottom = 5.dp)) {
             ProgressBarThin(download.fraction, paused = download.state == DownloadState.PAUSED, verify = download.stage == DownloadStage.VERIFY)
@@ -868,7 +882,7 @@ private fun CollectionsButton() {
 }
 
 @Composable
-private fun DisplayButton() {
+internal fun DisplayButton() {
     val pal = LocalPalette.current
     val ctx = LocalContext.current
     val title = stringResource(R.string.library_display)
