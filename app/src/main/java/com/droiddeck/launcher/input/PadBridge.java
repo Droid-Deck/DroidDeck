@@ -279,9 +279,13 @@ public final class PadBridge {
     }
 
     public synchronized void syncConnectedControllers() {
+        syncConnectedControllers(device -> true);
+    }
+
+    public synchronized void syncConnectedControllers(java.util.function.Predicate<InputDevice> accepts) {
         for (int deviceId : InputDevice.getDeviceIds()) {
             InputDevice device = InputDevice.getDevice(deviceId);
-            if (!isFromController(device) || excluded.test(deviceId)) continue;
+            if (!isFromController(device) || excluded.test(deviceId) || !accepts.test(device)) continue;
             int slot = slotFor(device);
             if (slot >= 0) publish(slot);
         }

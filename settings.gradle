@@ -15,4 +15,6 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "DroidDeck"
-include ':app'
+def xrCoreOnly = providers.gradleProperty('xrCoreOnly').getOrElse('false').toBoolean()
+include ':xr-core'
+if (!xrCoreOnly) include ':app'

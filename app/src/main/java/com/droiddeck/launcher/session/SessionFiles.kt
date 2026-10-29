@@ -133,9 +133,10 @@ object SessionFiles {
             .map { "usr/local/lib/droiddeck-msitools/$it" } +
             listOf("NOTICE", "GPL-2", "GPL-3", "LGPL-2.1", "7zip-License", "7zip-unRarLicense").map { "usr/local/share/licenses/droiddeck-msitools/$it" }
         val handModels = listOf("left", "right").flatMap { side ->
-            listOf("droiddeck_hand_$side.json", "hand.mtl", "hand.png", "hand_open.obj", "hand_fist.obj", "thumb_index_open.obj",
-                "thumb_index_pinch.obj")
-                .map { "droiddeck/resources/rendermodels/droiddeck_hand_$side/$it" }
+            val name = "droiddeck_hand_$side"
+            listOf("$name.json", "hand.mtl", "hand.png", "hand_open.obj", "hand_fist.obj", "thumb_index_open.obj",
+                "thumb_index_pinch.obj").map { "droiddeck/resources/rendermodels/$name/$it" } +
+                "droiddeck/resources/rendermodels/${name}_xr/${name}_xr.json"
         }
         val vr = (listOf(
             "droiddeck/bin/linuxarm64/driver_droiddeck.so",

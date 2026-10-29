@@ -107,7 +107,8 @@ internal fun SteamHome(s: FrontEndState, a: FrontEndActions, modifier: Modifier)
         },
     )
     val (glasses, glassesSettings) = rememberGlasses()
-    val headset = glasses.present && glasses.canControl
+    val nativeXr = com.droiddeck.launcher.xr.XrPlatform.current(ctx) != com.droiddeck.xr.XrPlatform.NONE
+    val headset = nativeXr || (glasses.present && glasses.canControl)
     val drop = rememberDropSheetState()
     LaunchedEffect(headset) { if (!headset && (drop.open || drop.shown)) drop.reset() }
     LiftHero(
@@ -115,9 +116,9 @@ internal fun SteamHome(s: FrontEndState, a: FrontEndActions, modifier: Modifier)
         drop = drop.takeIf { headset },
         overlay = { lifted ->
             if (headset) DropSheet(
-                drop, glassesTabs(glasses) + (GlassesTab.CONTROLLERS to stringResource(R.string.vr_controllers_tab)), covered = lifted,
+                drop, (if (nativeXr) emptyList() else glassesTabs(glasses)) + (GlassesTab.CONTROLLERS to stringResource(R.string.vr_controllers_tab)), covered = lifted,
                 button = { enabled ->
-                    PrimaryButton(stringResource(R.string.games_play_steamvr), enabled = !s.busy && glasses.usable, large = true, icon = Icons.Filled.PlayArrow, fill = true,
+                    PrimaryButton(stringResource(R.string.games_play_steamvr), enabled = !s.busy && (nativeXr || glasses.usable), large = true, icon = Icons.Filled.PlayArrow, fill = true,
                         modifier = Modifier.fillMaxWidth().testTag("play-steamvr")) { if (enabled) { drop.open = false; a.onPlaySteamVr() } }
                 },
             ) { tab ->

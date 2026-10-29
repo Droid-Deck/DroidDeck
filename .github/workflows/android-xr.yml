@@ -1,0 +1,93 @@
+name: Android XR bridge
+
+on:
+  push:
+    paths:
+      - 'xr-core/**'
+      - 'tools/vr/**'
+      - 'tools/linuxfs/overlay/usr/local/bin/droiddeck-steamvr'
+      - 'tools/test_xr.py'
+      - 'tools/build_local.sh'
+      - 'tools/release/runtime_inputs.py'
+      - 'app/build.gradle'
+      - 'tools/tests/test_xr_validation.py'
+      - 'app/src/main/cpp/androidxr/**'
+      - 'app/src/main/java/com/droiddeck/launcher/input/XrGamepadInput.kt'
+      - 'app/src/main/java/com/droiddeck/launcher/input/PadBridge.java'
+      - 'app/src/test/java/com/droiddeck/launcher/input/**'
+      - 'app/src/debug/AndroidManifest.xml'
+      - 'app/src/main/java/com/droiddeck/launcher/session/SessionFiles.kt'
+      - 'app/src/main/java/com/droiddeck/launcher/xr/**'
+      - 'app/src/main/java/com/droiddeck/launcher/AndroidXrActivity.kt'
+      - 'app/src/main/java/com/droiddeck/launcher/SessionActivity.kt'
+      - 'app/src/main/AndroidManifest.xml'
+      - 'settings.gradle'
+      - 'build.gradle'
+      - 'gradle.properties'
+      - 'gradle/**'
+      - '.github/workflows/android-xr.yml'
+  pull_request:
+    paths:
+      - 'xr-core/**'
+      - 'tools/vr/**'
+      - 'tools/linuxfs/overlay/usr/local/bin/droiddeck-steamvr'
+      - 'tools/test_xr.py'
+      - 'tools/build_local.sh'
+      - 'tools/release/runtime_inputs.py'
+      - 'app/build.gradle'
+      - 'tools/tests/test_xr_validation.py'
+      - 'app/src/main/cpp/androidxr/**'
+      - 'app/src/main/java/com/droiddeck/launcher/input/XrGamepadInput.kt'
+      - 'app/src/main/java/com/droiddeck/launcher/input/PadBridge.java'
+      - 'app/src/test/java/com/droiddeck/launcher/input/**'
+      - 'app/src/debug/AndroidManifest.xml'
+      - 'app/src/main/java/com/droiddeck/launcher/session/SessionFiles.kt'
+      - 'app/src/main/java/com/droiddeck/launcher/xr/**'
+      - 'app/src/main/java/com/droiddeck/launcher/AndroidXrActivity.kt'
+      - 'app/src/main/java/com/droiddeck/launcher/SessionActivity.kt'
+      - 'app/src/main/AndroidManifest.xml'
+      - 'settings.gradle'
+      - 'build.gradle'
+      - 'gradle.properties'
+      - 'gradle/**'
+      - '.github/workflows/android-xr.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - run: ./gradlew -PxrCoreOnly=true :xr-core:test --no-daemon
+      - uses: actions/checkout@v4
+        with:
+          repository: KhronosGroup/OpenXR-SDK
+          ref: release-1.1.49
+          path: build/openxr-sdk
+      - run: cmake -S xr-core/src/main/cpp -B build/xr-contracts -DCMAKE_BUILD_TYPE=Debug -DOPENXR_INCLUDE_DIR="${{ github.workspace }}/build/openxr-sdk/include"
+      - run: cmake --build build/xr-contracts
+      - run: ctest --test-dir build/xr-contracts --output-on-failure
+      - run: python3 -m unittest tools.tests.test_xr_validation tools.tests.test_runtime_inputs tools.tests.test_windows_vr_build tools.tests.test_prepare_windows_runtime -v
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: xr-core-test-results
+          path: xr-core/build/test-results/test/
+
+  linux-guest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu libvulkan-dev
+      - run: VK_INCLUDE=/usr/include tools/vr/build.sh --native
+      - run: python3 -m unittest tools.tests.test_vr_wsi -v
