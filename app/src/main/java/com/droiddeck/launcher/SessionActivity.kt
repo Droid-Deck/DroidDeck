@@ -562,15 +562,20 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
         SteamControllerBle.listener = { uiHandler.post { updatePadMotion(); refreshControls() } }
         steamController = SteamControllerBle(this).also { it.start() }
+        val overlayPadKeyGen = java.util.concurrent.atomic.AtomicInteger(0)
         dualSenseManager = com.droiddeck.launcher.input.DualSenseManager(this).also { ds ->
             ds.onActivationChanged = { active ->
-                if (!active) uiHandler.post { releaseOverlayPadKeys() }
+                if (!active) {
+                    overlayPadKeyGen.incrementAndGet()
+                    uiHandler.post { releaseOverlayPadKeys() }
+                }
             }
             ds.onStateUpdated = { state ->
-                if (ds.uiOverlayActive) {
+                if (ds.isDualSenseActive && ds.uiOverlayActive) {
+                    val gen = overlayPadKeyGen.get()
                     val next = com.droiddeck.launcher.input.LauncherPadKeys.held(state).toIntArray()
                     uiHandler.post {
-                        if (ds.uiOverlayActive && !next.contentEquals(overlayPadKeys)) {
+                        if (gen == overlayPadKeyGen.get() && ds.isDualSenseActive && ds.uiOverlayActive && !next.contentEquals(overlayPadKeys)) {
                             dispatchOverlayPadKeys(next)
                         }
                     }
