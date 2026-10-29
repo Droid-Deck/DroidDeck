@@ -257,6 +257,8 @@ if [ -z "${BL_INSIDE:-}" ]; then
     args+=(--mangoapp)
     echo "== gamescope: mangoapp on ($(command -v mangoapp), config $MANGOHUD_CONFIGFILE)"
   fi
+  # gamescope writes the frame times the app's HUD shows here (patch 0125).
+  mkdir -p /run/droiddeck-hud && export DROIDDECK_HUD_FRAMES=/run/droiddeck-hud/frames
   export BL_INSIDE=1
   # A fixed path: left to itself gamescope creates a new limiter state file on every start.
   rm -f "${XDG_RUNTIME_DIR:-/tmp}"/gamescope-limiter-*

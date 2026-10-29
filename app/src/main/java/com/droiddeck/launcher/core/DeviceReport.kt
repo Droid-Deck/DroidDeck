@@ -29,6 +29,11 @@ import java.util.Locale
 object DeviceReport {
     private const val TAG = "DeviceReport"
 
+    internal fun cpuFeaturesSummary(cpuInfo: String): String = cpuInfo.lineSequence()
+        .filter { it.substringBefore(':').trim() == "Features" }
+        .map { it.substringAfter(':').trim().split(Regex("\\s+")).filter(String::isNotEmpty).joinToString(" ") }
+        .filter(String::isNotEmpty).distinct().joinToString(" | ").ifEmpty { "not reported" }
+
     fun write(context: Context, target: File, mode: String) {
         try {
             target.writeText(build(context, mode))
@@ -141,6 +146,7 @@ object DeviceReport {
 
         h("CPU and memory")
         k("Cores", CpuCores.all.size)
+        k("CPU features", cpuFeaturesSummary(FileUtils.readString(File("/proc/cpuinfo")).orEmpty()))
         b.append("Core ceilings          ")
         b.append(CpuCores.all.joinToString(", ") { c ->
             "cpu$c " + (CpuCores.maxGhz(c)?.let { String.format(Locale.US, "%.2f GHz", it) } ?: "?")

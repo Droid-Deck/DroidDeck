@@ -28,6 +28,7 @@ object GogBackend : StoreBackend {
     }
 
     override fun signOut(context: Context) {
+        GogMaintenance.reset()
         GogPrefs.get(context).edit().remove("library_cache").remove("library_cache_v2").remove("library_synced_at").apply()
     }
 
@@ -53,7 +54,11 @@ object GogBackend : StoreBackend {
             StoresState.post {
                 StoresState.status.remove(store)
                 when (result) {
-                    is GogLibrary.SyncResult.Ok -> { StoresState.library[store] = com.droiddeck.launcher.stores.mergeItems(StoresState.library[store], result.games.map { GogLibrary.toCatalogItem(app, it) }); StoresState.problems.remove(store) }
+                    is GogLibrary.SyncResult.Ok -> {
+                        StoresState.library[store] = com.droiddeck.launcher.stores.mergeItems(StoresState.library[store], result.games.map { GogLibrary.toCatalogItem(app, it) })
+                        StoresState.problems.remove(store)
+                        GogMaintenance.checkInstalled(app, StoresState.installed)
+                    }
                     is GogLibrary.SyncResult.Failed -> StoresState.problems[store] = result.message
                     GogLibrary.SyncResult.NotLoggedIn -> StoresState.problems[store] = StoresState.notSignedInLine(store)
                     GogLibrary.SyncResult.Busy -> {}

@@ -68,13 +68,13 @@ object VacDiagnostics {
         }
     }
 
-    fun collect(context: Context, dir: File) {
+    fun collect(context: Context, dir: File): Boolean {
         val root = LinuxRuntime.rootDir(context)
         val kept = File(dir, SNAPSHOT_MARKER).takeIf { it.isFile }
         val marker = kept ?: File(root, MARKER)
         val launchList = if (kept != null) File(dir, SNAPSHOT_LAUNCHES) else File(root, LAUNCHES)
-        if (!marker.isFile) return
-        try {
+        if (!marker.isFile) return true
+        return try {
             val armed = marker.readLines().map { it.trim() }
             val since = (armed.getOrNull(0)?.toLongOrNull() ?: 0L) * 1000 - 5_000
             val arch = armed.getOrNull(1)?.takeIf { it.isNotEmpty() } ?: SessionPrefs.steamClientArch(context)
@@ -125,8 +125,10 @@ object VacDiagnostics {
             File(dir, SNAPSHOT_MARKER).delete()
             File(dir, SNAPSHOT_LAUNCHES).delete()
             Log.i(TAG, "VAC diagnostics: ${consoles.size} console log(s), ${steamHits.size} client VAC line(s), into $dir")
+            true
         } catch (e: Exception) {
             Log.w(TAG, "collecting VAC diagnostics", e)
+            false
         }
     }
 

@@ -23,6 +23,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 public final class Downloader {
     private static final String TAG = "Downloader";
@@ -33,14 +35,75 @@ public final class Downloader {
     private static final long SLOW_AFTER_MS = 10_000;
     private static final int PROBE_BYTES = 2 * 1024 * 1024;
     private static final int PROBE_TIMEOUT_MS = 3_000;
+    private static final java.util.concurrent.ExecutorService CANCEL_EXECUTOR =
+            java.util.concurrent.Executors.newCachedThreadPool(r -> {
+                Thread thread = new Thread(r, "download-cancel");
+                thread.setDaemon(true);
+                return thread;
+            });
 
     private Downloader() {}
 
+    public static final class Cancellation implements java.util.function.BooleanSupplier {
+        private final AtomicBoolean cancelled = new AtomicBoolean();
+        private final AtomicReference<HttpURLConnection> connection = new AtomicReference<>();
+        private final AtomicReference<InputStream> input = new AtomicReference<>();
+        private final java.util.function.BooleanSupplier external;
+
+        public Cancellation() { this(null); }
+        public Cancellation(java.util.function.BooleanSupplier external) { this.external = external; }
+
+        public void cancel() {
+            cancelled.set(true);
+            HttpURLConnection active = connection.get();
+            if (active != null) disconnectAsync(active);
+            InputStream activeInput = input.get();
+            if (activeInput != null) closeAsync(activeInput);
+        }
+
+        private static void disconnectAsync(HttpURLConnection active) {
+            CANCEL_EXECUTOR.execute(() -> {
+                try { active.disconnect(); } catch (RuntimeException ignored) { }
+            });
+        }
+
+        private static void closeAsync(InputStream active) {
+            CANCEL_EXECUTOR.execute(() -> {
+                try { active.close(); } catch (IOException ignored) { }
+            });
+        }
+
+        @Override public boolean getAsBoolean() {
+            return cancelled.get() || (external != null && external.getAsBoolean());
+        }
+
+        private void attach(HttpURLConnection active) {
+            connection.set(active);
+            if (getAsBoolean()) disconnectAsync(active);
+        }
+
+        private void detach(HttpURLConnection active) { connection.compareAndSet(active, null); }
+
+        private void attach(InputStream active) {
+            input.set(active);
+            if (getAsBoolean()) closeAsync(active);
+        }
+
+        private void detach(InputStream active) { input.compareAndSet(active, null); }
+    }
+
     public static String downloadString(String url) {
+        return downloadString(url, null);
+    }
+
+    public static String downloadString(String url, java.util.function.BooleanSupplier cancelled) {
         List<String> sources = DownloadSource.INSTANCE.candidates(url);
         for (int i = 0; i < sources.size(); i++) {
+            if (isCancelled(cancelled)) return null;
             if (i > 0) Log.i(TAG, "retrying " + url + " via " + sources.get(i));
-            Fetch fetch = fetch(sources.get(i));
+            Fetch fetch = fetch(sources.get(i), cancelled);
+            // A cancelled fetch says nothing about the source, so it must not count as a failure.
+            if (isCancelled(cancelled)) return null;
             if (fetch.body != null) {
                 DownloadSource.INSTANCE.succeeded(sources.get(i));
                 return fetch.body;
@@ -64,38 +127,61 @@ public final class Downloader {
     /** Verify each candidate before accepting it, so a bad mirror can fall back. */
     public static boolean downloadFile(String url, File destination, boolean resume, String expectedSha256,
                                        java.util.function.Consumer<Float> progress) {
+        return downloadFile(url, destination, resume, expectedSha256, null, progress);
+    }
+
+    /** {@code cancelled} is polled while bytes arrive; a cancel stops at once and leaves the partial file for the caller. */
+    public static boolean downloadFile(String url, File destination, boolean resume, String expectedSha256,
+                                       java.util.function.BooleanSupplier cancelled,
+                                       java.util.function.Consumer<Float> progress) {
         if (expectedSha256 != null && !expectedSha256.matches("(?i)[0-9a-f]{64}"))
             throw new IllegalArgumentException("Expected SHA-256 must be 64 hex characters");
-        return downloadCandidates(url, sources(url, expectedSha256), destination, resume, expectedSha256, progress);
+        return downloadCandidates(url, sources(url, expectedSha256), destination, resume, expectedSha256, cancelled, progress);
     }
 
     /** A third-party mirror may only serve bytes that can be checked against a digest from a direct source. */
     static List<String> sources(String url, String expectedSha256) {
         return expectedSha256 == null ? java.util.Collections.singletonList(url) : DownloadSource.INSTANCE.candidates(url);
+
     }
 
     // Package-private for the local multi-source HTTP test.
     static boolean downloadCandidates(String original, List<String> sources, File destination, boolean resume,
                                       String expectedSha256, java.util.function.Consumer<Float> progress) {
+        return downloadCandidates(original, sources, destination, resume, expectedSha256, null, progress);
+    }
+
+    static boolean downloadCandidates(String original, List<String> sources, File destination, boolean resume,
+                                      String expectedSha256, java.util.function.BooleanSupplier cancelled,
+                                      java.util.function.Consumer<Float> progress) {
         Identity identity = loadIdentity(destination, resume, expectedSha256);
-        boolean ranked = sources.size() < 2;
+        boolean speedChecked = sources.size() < 2;
         for (int i = 0; i < sources.size(); i++) {
             String source = sources.get(i);
+            if (isCancelled(cancelled)) return false;
             if (i > 0) Log.i(TAG, "retrying " + original + " via " + source);
-            Outcome outcome = attempt(source, destination, resume, identity, expectedSha256, progress, sources.size() > 1 && !ranked);
-            if (outcome == Outcome.SLOW && !ranked) {
-                ranked = true;
+            Outcome outcome = attempt(source, destination, resume, identity, expectedSha256, cancelled, progress,
+                    sources.size() > 1 && !speedChecked);
+            // A cancel is not a source failure: no other mirror, and no DownloadSource.failed().
+            if (outcome == Outcome.CANCELLED) return false;
+            if (outcome == Outcome.SLOW && !speedChecked) {
+                speedChecked = true;
                 Log.i(TAG, source + " is too slow; measuring the sources");
                 sources = ranked(sources);
                 i = -1;
                 continue;
             }
             if (outcome == Outcome.DONE) {
-                if (expectedSha256 != null && !expectedSha256.equalsIgnoreCase(Hashes.sha256(destination))) {
-                    Log.w(TAG, "checksum mismatch from " + source + "; trying another source");
-                    if (!discardPartial(destination, identity)) return false;
-                    continue;
+                if (expectedSha256 != null) {
+                    String actualSha256 = Hashes.sha256(destination);
+                    if (isCancelled(cancelled)) return false;
+                    if (!expectedSha256.equalsIgnoreCase(actualSha256)) {
+                        Log.w(TAG, "checksum mismatch from " + source + "; trying another source");
+                        if (!discardPartial(destination, identity)) return false;
+                        continue;
+                    }
                 }
+                if (isCancelled(cancelled)) return false;
                 resumeFile(destination).delete();
                 DownloadSource.INSTANCE.succeeded(source);
                 if (progress != null) progress.accept(1f);
@@ -107,7 +193,11 @@ public final class Downloader {
         return false;
     }
 
-    private enum Outcome { DONE, RETRY, FATAL, SLOW }
+    private enum Outcome { DONE, RETRY, FATAL, CANCELLED, SLOW }
+
+    private static boolean isCancelled(java.util.function.BooleanSupplier cancelled) {
+        return cancelled != null && cancelled.getAsBoolean();
+    }
 
     private static final class Identity {
         private String source;
@@ -175,8 +265,9 @@ public final class Downloader {
     }
 
     private static Outcome attempt(String url, File destination, boolean resume, Identity identity,
-                                   String expectedSha256, java.util.function.Consumer<Float> progress,
-                                   boolean watchSpeed) {
+                                   String expectedSha256, java.util.function.BooleanSupplier cancelled,
+                                   java.util.function.Consumer<Float> progress, boolean watchSpeed) {
+        if (isCancelled(cancelled)) return Outcome.CANCELLED;
         HttpURLConnection connection = null;
         long have = resume && destination.isFile() ? destination.length() : 0;
         try {
@@ -186,6 +277,7 @@ public final class Downloader {
                 have = 0;
             }
             connection = open(url, STALL_TIMEOUT_MS);
+            if (cancelled instanceof Cancellation) ((Cancellation) cancelled).attach(connection);
             if (have > 0) {
                 connection.setRequestProperty("Range", "bytes=" + have + "-");
                 connection.setRequestProperty("If-Range", identity.etag);
@@ -194,7 +286,7 @@ public final class Downloader {
             if (have > 0 && code == HTTP_RANGE_NOT_SATISFIABLE) {
                 connection.disconnect();
                 if (!discardPartial(destination, identity)) return Outcome.RETRY;
-                return attempt(url, destination, false, identity, expectedSha256, progress, watchSpeed);
+                return attempt(url, destination, false, identity, expectedSha256, cancelled, progress, watchSpeed);
             }
             if (code / 100 != 2) {
                 Log.w(TAG, url + " -> HTTP " + code);
@@ -205,13 +297,13 @@ public final class Downloader {
             if (appending && !rangeStartsAt(connection.getHeaderField("Content-Range"), have)) {
                 connection.disconnect();
                 if (!discardPartial(destination, identity)) return Outcome.RETRY;
-                return attempt(url, destination, false, identity, expectedSha256, progress, watchSpeed);
+                return attempt(url, destination, false, identity, expectedSha256, cancelled, progress, watchSpeed);
             }
             String etag = connection.getHeaderField("ETag");
             if (have > 0 && appending && (!strongETag(etag) || !etag.equals(identity.etag))) {
                 connection.disconnect();
                 if (!discardPartial(destination, identity)) return Outcome.RETRY;
-                return attempt(url, destination, false, identity, expectedSha256, progress, watchSpeed);
+                return attempt(url, destination, false, identity, expectedSha256, cancelled, progress, watchSpeed);
             }
             if (!appending && have > 0) {
                 // If-Range may legitimately return full 200 when representation changed.
@@ -228,15 +320,18 @@ public final class Downloader {
             identity.etag = strongETag(etag) ? etag : null;
             saveIdentity(destination, identity, expectedSha256);
             long written = have;
-            long startedAt = System.currentTimeMillis();
-            boolean watched = false;
-            try (InputStream in = new BufferedInputStream(connection.getInputStream(), 1 << 16);
+            InputStream input = connection.getInputStream();
+            if (cancelled instanceof Cancellation) ((Cancellation) cancelled).attach(input);
+            try (InputStream in = new BufferedInputStream(input, 1 << 16);
                  OutputStream out = new FileOutputStream(destination, appending)) {
                 byte[] buffer = new byte[1 << 16];
                 long lastReport = 0;
+                long startedAt = System.currentTimeMillis();
+                boolean watched = false;
                 for (int read = in.read(buffer); read > 0; read = in.read(buffer)) {
                     out.write(buffer, 0, read);
                     written += read;
+                    if (isCancelled(cancelled)) return Outcome.CANCELLED;
                     if (progress != null && written - lastReport > (1 << 20)) {
                         lastReport = written;
                         progress.accept(total > 0 ? written / (float) total : -1f);
@@ -247,14 +342,21 @@ public final class Downloader {
                         if (moved < SLOW_BYTES_PER_SECOND * SLOW_AFTER_MS / 1000) return Outcome.SLOW;
                     }
                 }
+            } finally {
+                if (cancelled instanceof Cancellation) ((Cancellation) cancelled).detach(input);
             }
+            if (isCancelled(cancelled)) return Outcome.CANCELLED;
             if (total > 0 && written < total) return Outcome.RETRY;
             return Outcome.DONE;
         } catch (Exception e) {
+            if (isCancelled(cancelled)) return Outcome.CANCELLED;
             Log.w(TAG, "download " + url, e);
             return Outcome.RETRY;
         } finally {
-            if (connection != null) connection.disconnect();
+            if (connection != null) {
+                if (cancelled instanceof Cancellation) ((Cancellation) cancelled).detach(connection);
+                connection.disconnect();
+            }
         }
     }
 
@@ -331,9 +433,15 @@ public final class Downloader {
     }
 
     private static Fetch fetch(String url) {
+        return fetch(url, null);
+    }
+
+    private static Fetch fetch(String url, java.util.function.BooleanSupplier cancelled) {
         HttpURLConnection connection = null;
+        Cancellation token = cancelled instanceof Cancellation ? (Cancellation) cancelled : null;
         try {
             connection = open(url, STALL_TIMEOUT_MS);
+            if (token != null) token.attach(connection);
             int code = connection.getResponseCode();
             if (code / 100 != 2) {
                 Log.w(TAG, url + " -> HTTP " + code);
@@ -345,10 +453,14 @@ public final class Downloader {
                 return new Fetch(new String(out.toByteArray(), StandardCharsets.UTF_8), false);
             }
         } catch (Exception e) {
+            if (isCancelled(cancelled)) return new Fetch(null, false);
             Log.w(TAG, "GET " + url, e);
             return new Fetch(null, false);
         } finally {
-            if (connection != null) connection.disconnect();
+            if (connection != null) {
+                if (token != null) token.detach(connection);
+                connection.disconnect();
+            }
         }
     }
 

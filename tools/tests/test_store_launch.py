@@ -391,6 +391,30 @@ def set_registry(**arguments):
 
 
 class GogRegistry(unittest.TestCase):
+    def test_patch_registration_uses_authentic_build_and_the_prefix_registry_executable(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = game(root, store_id='gog', ident='7')
+            (folder / 'goggame-7.id').write_text(json.dumps({'buildId': 'opaque-0001'}))
+            proton = Path(root) / 'proton'; proton.write_text('selected Proton')
+            data = Path(root) / 'compat'
+            executable = data / 'pfx/drive_c/windows/system32/reg.exe'
+            executable.parent.mkdir(parents=True); executable.write_bytes(b'MZreg')
+            (data / 'pfx/system.reg').write_text('registry')
+            imported = []
+            def run(argv, **kwargs):
+                self.assertEqual([str(proton), 'run', str(executable), 'import'], argv[:4])
+                text = Path(argv[4][2:].replace('\\', '/')).read_bytes()[2:].decode('utf-16-le')
+                imported.append(text)
+                return __import__('subprocess').CompletedProcess(argv, 0)
+            record = {'id': '7', 'build': 'opaque-0001', 'version': 'RC-final'}
+            with patch.object(store.subprocess, 'run', side_effect=run):
+                self.assertTrue(store.apply_gog_registry(folder, str(data), str(proton), installation=record).startswith('written='))
+            self.assertIn('[HKEY_LOCAL_MACHINE\\Software\\GOG.com\\Games\\7]', imported[0])
+            self.assertIn('"BUILDID"="opaque-0001"', imported[0])
+            self.assertIn('"VER"="RC-final"', imported[0])
+            with self.assertRaises(ValueError):
+                store.apply_gog_registry(folder, str(data), str(proton), installation=dict(record, build='invented'))
+
     def test_the_scripts_registry_values_are_read_with_the_games_paths(self):
         with tempfile.TemporaryDirectory() as root:
             folder = game(root, store_id='gog', ident='1454587428')

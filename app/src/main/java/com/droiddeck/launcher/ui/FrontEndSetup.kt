@@ -141,6 +141,7 @@ internal fun SetupPanel(
     a: FrontEndActions,
     onOpenDeveloperOptions: () -> Unit,
     onRequestWirelessAdb: (Boolean) -> Unit,
+    onPairWirelessDebugging: () -> Unit,
 ) {
     val host = rememberMenuHost()
     val ctx = LocalContext.current
@@ -201,6 +202,12 @@ internal fun SetupPanel(
         if (com.droiddeck.launcher.storage.StorageState.openPending) {
             com.droiddeck.launcher.storage.StorageState.openPending = false
             tab = STORAGE_TAB
+        }
+    }
+    LaunchedEffect(Unit) {
+        while (true) {
+            kotlinx.coroutines.delay(2_000)
+            a.onRefreshPhantomStatus()
         }
     }
     LaunchedEffect(tab) {
@@ -279,7 +286,7 @@ internal fun SetupPanel(
                                 },
                                 divider = divider && !showLimitDetails,
                             ) {
-                                if (limitBlocks) PrimaryButton(if (showLimitDetails) stringResource(R.string.common_hide) else stringResource(R.string.setup_fix_it), compact = true) { showLimitDetails = !showLimitDetails }
+                                if (limitBlocks) PrimaryButton(stringResource(R.string.setup_fix_it), compact = true, onClick = a.onShowPhantomGate)
                                 else if (s.phantomProcessStatus != PhantomProcessStatus.NOT_APPLICABLE) {
                                     SecondaryButton(if (showLimitDetails) stringResource(R.string.common_hide) else stringResource(R.string.setup_details), compact = true) { showLimitDetails = !showLimitDetails }
                                 }
@@ -292,11 +299,7 @@ internal fun SetupPanel(
                                         fontSize = 14.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(vertical = 4.dp),
                                     )
                                     Actions {
-                                        if (limitBlocks) {
-                                            PrimaryButton(stringResource(R.string.setup_dev_options), compact = true, onClick = onOpenDeveloperOptions)
-                                            SecondaryButton(stringResource(R.string.setup_use_wireless), compact = true, enabled = !processLimitBusy) { setProcessLimit(false) }
-                                            SecondaryButton(stringResource(R.string.setup_check_again), compact = true, onClick = a.onRefreshPhantomStatus)
-                                        } else if (s.phantomProcessStatus == PhantomProcessStatus.DISABLED) {
+                                        if (s.phantomProcessStatus == PhantomProcessStatus.DISABLED) {
                                             SecondaryButton(stringResource(R.string.setup_limit_turn_on), compact = true, enabled = !processLimitBusy) { setProcessLimit(true) }
                                         }
                                     }
@@ -472,6 +475,12 @@ internal fun SetupPanel(
                     4 -> {
                         SettingsGroup(stringResource(R.string.setup_tab_diagnostics)) {
                             ToggleRow(host, "logs", stringResource(R.string.setup_logs), stringResource(R.string.setup_logs_hint), s.logsEnabled) { a.onLogs() }
+                            ToggleRow(
+                                host, "game-debug-logs", stringResource(R.string.setup_game_debug_logs),
+                                stringResource(if (s.gameDebugLogsNeedsRestart) R.string.setup_game_debug_logs_restart else R.string.setup_game_debug_logs_hint),
+                                s.gameDebugLogsEnabled,
+                                enabled = s.logsEnabled,
+                            ) { a.onGameDebugLogs() }
                             ToggleRow(host, "vacdiag", stringResource(R.string.setup_vac_diag), stringResource(R.string.setup_vac_diag_hint), s.vacDiagnostics) { a.onVacDiagnostics() }
                             ToggleRow(host, "agent-commands", stringResource(R.string.setup_agent_commands), null, s.agentCommands) { a.onAgentCommands() }
                             ActionRow(stringResource(R.string.setup_latest_logs), stringResource(R.string.drawer_logs_hint), stringResource(R.string.drawer_share_logs), a.onShareLogs,
@@ -509,7 +518,7 @@ internal fun SetupPanel(
                             )
                             if (!s.adbPaired) ActionRow(
                                 stringResource(R.string.setup_adb_pair), stringResource(R.string.setup_adb_pair_hint),
-                                stringResource(R.string.setup_adb_pair_button), { onRequestWirelessAdb(false) },
+                                stringResource(R.string.setup_adb_pair_button), onPairWirelessDebugging,
                             )
                         }
                     }
@@ -832,9 +841,8 @@ private fun SettingCard(label: String, value: String, id: String, modifier: Modi
         verticalArrangement = Arrangement.spacedBy(3.dp),
         modifier = modifier.paneItem(id)
             .graphicsLayer { scaleX = scale; scaleY = scale }
-            .clip(Shape14)
-            .background(if (hot) pal.signal.copy(alpha = 0.10f) else colors.surface)
-            .glideBorder(hot, Shape14, pal.signal, pal.line2)
+            .then(if (LocalGlass.current != null) Modifier.glass(Shape14, if (hot) 0.04f else 0f) else Modifier.clip(Shape14).background(if (hot) pal.signal.copy(alpha = 0.10f) else colors.surface))
+            .glideBorder(hot, Shape14, pal.signal, if (LocalGlass.current != null) Color.Transparent else pal.line2)
             .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Button, onClick = onClick)
             .controllerConfirm(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 12.dp),

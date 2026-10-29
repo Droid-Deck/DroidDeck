@@ -23,15 +23,20 @@ BRIGHTNESS_JS = r"""
   if (window.__droiddeckBrightness) return "present";
   const display = SteamClient.System?.Display;
   if (!display?.RegisterForBrightnessChanges || !display?.SetBrightness) return "unavailable";
-  const self = { expected: null, updating: true, revision: 0 };
+  const self = { expected: null, updating: true, revision: 0, localAt: -Infinity };
+  // A held stick steps Steam faster than Android's readback returns; those stale readbacks would snap the slider back.
+  const HOLD_MS = 750;
+  // Returns "held" while a readback is being ignored, so the caller retries it after the hold.
   self.set = value => {
-    if (typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > 1) return;
-    if (!self.updating && self.expected !== null && Math.abs(value - self.expected) < 0.0001) return;
+    if (typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > 1) return true;
+    if (performance.now() - self.localAt < HOLD_MS) return "held";
+    if (!self.updating && self.expected !== null && Math.abs(value - self.expected) < 0.0001) return true;
     self.expected = value;
     self.updating = true;
     const revision = ++self.revision;
     setTimeout(() => { if (self.revision === revision) self.updating = false; }, 500);
     display.SetBrightness(value);
+    return true;
   };
   self.subscription = display.RegisterForBrightnessChanges(state => {
     const value = state?.flBrightness;
@@ -39,6 +44,7 @@ BRIGHTNESS_JS = r"""
     if (Math.abs(value - self.expected) < 0.0001) { self.updating = false; return; }
     if (self.updating) { self.updating = false; return; }
     self.expected = value;
+    self.localAt = performance.now();
     if (typeof window.__BINDING__ === "function") window.__BINDING__(String(value));
   });
   window.__droiddeckBrightness = self;
@@ -272,14 +278,14 @@ FRAME_LIMIT_JS = r"""
     service = null;
   }
   if (!service || !settings?.clientSettings || typeof SteamClient.Settings?.SetSetting !== "function") return "unavailable";
-  const self = { choices: null, timer: null };
+  const self = { timer: null };
   const write = value => {
     const bytes = [];
     for (let n of [21002 * 8, value]) {
       while (n > 127) { bytes.push((n & 127) | 128); n = Math.floor(n / 128); }
       bytes.push(n);
     }
-    SteamClient.Settings.SetSetting(btoa(String.fromCharCode(...bytes)));
+    return SteamClient.Settings.SetSetting(btoa(String.fromCharCode(...bytes)));
   };
   self.check = async () => {
     let rates;
@@ -291,12 +297,12 @@ FRAME_LIMIT_JS = r"""
       return;
     }
     if (!Array.isArray(rates) || rates.length === 0) return;
-    const choices = rates.join(",");
-    if (choices === self.choices) return;
-    self.choices = choices;
     const current = settings.clientSettings;
     if (!current.gamescope_enable_app_target_framerate || rates.includes(current.gamescope_app_target_framerate)) return;
-    write(Math.max(...rates));
+    try {
+      await write(Math.max(...rates));
+    } catch (e) {
+    }
   };
   self.schedule = () => {
     clearTimeout(self.timer);
@@ -764,9 +770,10 @@ class Helper:
                 if not self.controls_installed:
                     return
             if state != self.controls_state:
-                if self.page.evaluate("!!window.__droiddeckBrightness && (window.__droiddeckBrightness.set(%s), true)" % json.dumps(value)) is True:
+                applied = self.page.evaluate("window.__droiddeckBrightness ? window.__droiddeckBrightness.set(%s) : false" % json.dumps(value))
+                if applied is True:
                     self.controls_state = state
-                else:
+                elif applied != "held":
                     self.controls_installed = False
                     self.controls_state = None
         except (OSError, ValueError, TypeError):

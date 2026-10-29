@@ -94,7 +94,12 @@ internal class FocusGlide(view: View?) {
 internal val LocalFocusGlide = staticCompositionLocalOf<FocusGlide?> { null }
 
 internal object RingVeil {
-    var count by mutableIntStateOf(0)
+    private var state = mutableIntStateOf(0)
+    var count: Int
+        get() = state.intValue
+        set(value) { state.intValue = value }
+
+    internal fun reset() { state = mutableIntStateOf(0) }
 }
 
 @Composable
