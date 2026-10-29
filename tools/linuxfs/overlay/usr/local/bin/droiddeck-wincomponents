@@ -567,12 +567,12 @@ def apply(compat_path, app_id, selection=SELECTION, store=STORE, pending=PENDING
     owners = set(state["files"].values())
     registry_owners = {r.get("cid") for r in (state.get("registry") or {}).values() if isinstance(r, dict)}
     inferred = set()
-    if "requires" not in state:
-        loose = [c for c in recorded if c not in ids and c in owners and component(store, c) is None]
-        for cid in ids:
-            if component(store, cid) is None and cid not in owners and cid in recorded:
-                saved_requires = dict(saved_requires, **{cid: loose})
-                inferred.add(cid)
+    guessed = set(state.get("guessed") or []) if "requires" in state else set(ids)
+    loose = [c for c in recorded if c not in ids and c in owners]
+    for cid in ids:
+        if cid in guessed and component(store, cid) is None and cid not in owners and cid in recorded:
+            saved_requires = dict(saved_requires, **{cid: loose})
+            inferred.add(cid)
     kept_overrides, kept_requires = {}, {}
     for cid in expand(store, ids, saved_requires):
         found = component(store, cid)
@@ -628,7 +628,7 @@ def apply(compat_path, app_id, selection=SELECTION, store=STORE, pending=PENDING
     new_state = {"files": keep, "components": installed + sorted(held), "overrides": kept_overrides,
                  "requires": kept_requires, "registry": state.get("registry", {})}
     if inferred:
-        del new_state["requires"]
+        new_state["guessed"] = sorted(inferred)
     written = 0
     if values or new_state["registry"]:
         written, registry_notes = apply_registry(pfx, values, new_state, held)
