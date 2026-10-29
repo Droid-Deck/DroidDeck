@@ -304,8 +304,6 @@ def install_one(cid, name, channel, state, parents=()):
     entry = {"revision": number, "version": rev.get("version", ""), "channel": f"{track}/{risk}",
              "installed": now(), "size": d.get("size", 0), "info": from_store(name, dict(info["snap"], **{"snap-id": info.get("snap-id", "")}), rev, f"{track}/{risk}"),
              "base": meta.get("base") or ("core" if (meta.get("type") or "app") == "app" else ""), "apps": []}
-    state["snaps"][name] = entry
-    save_state(state)
     base = meta.get("base")
     if (meta.get("type") or "app") == "app":
         install_one(cid, base or "core", "latest/stable", state, parents + (name,))
@@ -315,6 +313,7 @@ def install_one(cid, name, channel, state, parents=()):
             install_one(cid, provider, "latest/stable", state, parents + (name,))
     entry["apps"] = link_bins(name, meta)
     write_desktop(name, number, meta)
+    state["snaps"][name] = entry
     save_state(state)
 
 

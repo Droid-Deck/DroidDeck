@@ -93,5 +93,12 @@ class DesktopImeTest(unittest.TestCase):
         self.assertFalse(self.state(2)['textField'])
 
 
+    def test_a_protocol_error_clears_the_field(self):
+        self.server.sendall(message(3, 0, struct.pack('<I', 100)))
+        self.assertTrue(self.state(1)['textField'])
+        self.server.sendall(message(1, 0, struct.pack('<II', 3, 1) + wl_string('bad request')))
+        self.assertEqual(self.proc.wait(5), 1)
+        self.assertFalse(self.state(2)['textField'])
+
 if __name__ == '__main__':
     unittest.main()

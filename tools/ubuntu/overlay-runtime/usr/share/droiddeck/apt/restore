@@ -40,5 +40,6 @@ if [ "$ok" = 1 ]; then
   echo "$runtime" > "$state/restored"
   notify "$(droiddeck-text desktop_restore_done_title)" "$(droiddeck-text desktop_restore_done_body)"
 else
+  [ ${#wanted[@]} -eq 0 ] || printf 'sudo apt install %s\n' "${wanted[*]}" >> "$log"
   notify "$(droiddeck-text desktop_restore_failed_title)" "$(droiddeck-text desktop_restore_failed_body)"
 fi

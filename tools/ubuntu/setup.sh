@@ -5,7 +5,7 @@ here=$(cd "$(dirname "$0")" && pwd)
 debs=${1:?directory with the DroidDeck-built .deb files}
 runtime_id=${2:?runtime id}
 stage=${3:?runtime or desktop}
-export DEBIAN_FRONTEND=noninteractive LANG=C.UTF-8 LC_ALL=C.UTF-8
+export DEBIAN_FRONTEND=noninteractive DROIDDECK_APT_RESTORING=1 LANG=C.UTF-8 LC_ALL=C.UTF-8
 repo=/var/lib/droiddeck/apt
 
 install_held() {

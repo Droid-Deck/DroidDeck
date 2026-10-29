@@ -103,6 +103,7 @@ def main():
                 _, code = struct.unpack_from("<II", payload)
                 message, _ = read_string(payload, 8)
                 print(f"droiddeck-ime: protocol error {code}: {message}", file=sys.stderr, flush=True)
+                report.write(False)
                 return 1
             if obj == REGISTRY_ID and opcode == 0:
                 (name,) = struct.unpack_from("<I", payload)

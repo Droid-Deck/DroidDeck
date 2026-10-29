@@ -29,7 +29,9 @@ class DirectTouchHold(
     private var upX = 0f
     private var upY = 0f
     private var liftId = 0
+    private var liftPending = false
     private val lift = Runnable {
+        liftPending = false
         if (forwarded) {
             touch.up(liftId, upX, upY)
             forwarded = false
@@ -57,6 +59,7 @@ class DirectTouchHold(
         handler.removeCallbacks(hold)
         handler.removeCallbacks(release)
         handler.removeCallbacks(lift)
+        liftPending = false
         release.run()
         if (forwarded) touch.cancel()
         forwarded = false
@@ -65,6 +68,10 @@ class DirectTouchHold(
 
     fun onTouch(event: MotionEvent): Boolean {
         if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+            if (liftPending) {
+                handler.removeCallbacks(lift)
+                lift.run()
+            }
             cancel()
             downX = event.x
             downY = event.y
@@ -106,6 +113,7 @@ class DirectTouchHold(
                 upX = event.x
                 upY = event.y
                 liftId = event.getPointerId(event.actionIndex)
+                liftPending = true
                 handler.postDelayed(lift, LIFT_MS)
             }
             MotionEvent.ACTION_CANCEL -> cancel()

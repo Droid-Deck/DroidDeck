@@ -2588,6 +2588,7 @@ struct relative_pointer {
 static struct wl_list g_relative_pointers;
 
 static double g_ptr_x, g_ptr_y;
+static int g_ptr_known;
 static double g_raw_x, g_raw_y;
 static int g_raw_valid;
 
@@ -2652,6 +2653,7 @@ static void constraint_end(struct constraint *k, int tell_client, const char *wh
         constraint_origin(k, &ox, &oy);
         g_ptr_x = ox + k->hint_x;
         g_ptr_y = oy + k->hint_y;
+        g_ptr_known = 1;
     }
     g_raw_valid = 0;
     if (k->gave_keys) {
@@ -2748,6 +2750,7 @@ static void constraints_surface_commit(struct surface *s) {
                 constraint_origin(k, &ox, &oy);
                 g_ptr_x = ox + k->hint_x;
                 g_ptr_y = oy + k->hint_y;
+                g_ptr_known = 1;
                 if (log_budget())
                     droiddeck_log("pointer", "position hint: pointer moved to %d,%d", (int)g_ptr_x, (int)g_ptr_y);
             }
@@ -2942,6 +2945,7 @@ static void pointer_input(double x, double y, int relative, uint32_t button, int
         }
         if (k) confine_clamp(k, &x, &y);
         g_ptr_x = x; g_ptr_y = y;
+        g_ptr_known = 1;
         if (k) {
             target = k->surface;
         } else if (g_desktop) {
@@ -3129,7 +3133,7 @@ static void publish_query_state(void) {
     int w = 0, h = 0, ow = 0, oh = 0, input_x = 0, input_y = 0, has_position = 0;
     scene_size(&w, &h);
     vkp_output_size(&ow, &oh);
-    if (w > 0 && h > 0) {
+    if (g_ptr_known && w > 0 && h > 0) {
         double ox, oy;
         if (ow > 0 && oh > 0 && vkp_scene_to_output(g_ptr_x, g_ptr_y, &ox, &oy)) {
             input_x = (int)(ox * INPUT_SPACE_W / ow);

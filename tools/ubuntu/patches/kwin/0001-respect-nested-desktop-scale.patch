@@ -4,12 +4,12 @@ Date: Wed, 28 Oct 2026 07:28:38 -0400
 Subject: [PATCH] Respect nested desktop scale
 
 ---
- src/backends/wayland/wayland_backend.cpp     | 30 +++++++++++++++++++-----
+ src/backends/wayland/wayland_backend.cpp     | 34 +++++++++++++++++++++++-----
  src/backends/wayland/wayland_egl_backend.cpp |  4 +++-
  src/backends/wayland/wayland_layer.cpp       |  2 +-
  src/backends/wayland/wayland_output.cpp      | 26 ++++++++++++++++----
  src/backends/wayland/wayland_output.h        |  2 ++
- 5 files changed, 51 insertions(+), 13 deletions(-)
+ 5 files changed, 55 insertions(+), 13 deletions(-)
 
 diff --git a/src/backends/wayland/wayland_backend.cpp b/src/backends/wayland/wayland_backend.cpp
 index 557156e..1f88013 100644
@@ -28,7 +28,7 @@ index 557156e..1f88013 100644
          Q_EMIT pointerMotionAbsolute(absolutePos, std::chrono::milliseconds(time), this);
      });
      connect(pointer, &Pointer::buttonStateChanged, this, [this](quint32 serial, quint32 time, quint32 button, Pointer::ButtonState nativeState) {
-@@ -180,7 +182,11 @@ WaylandInputDevice::WaylandInputDevice(KWayland::Client::RelativePointer *relati
+@@ -180,7 +182,15 @@ WaylandInputDevice::WaylandInputDevice(KWayland::Client::RelativePointer *relati
      , m_relativePointer(relativePointer)
  {
      connect(relativePointer, &RelativePointer::relativeMotion, this, [this](const QSizeF &delta, const QSizeF &deltaNonAccelerated, quint64 timestamp) {
@@ -36,12 +36,16 @@ index 557156e..1f88013 100644
 +        const auto pointer = m_seat->pointerDevice();
 +        const auto output = pointer && pointer->m_pointer
 +            ? m_seat->backend()->findOutput(pointer->m_pointer->enteredSurface()) : nullptr;
-+        const qreal factor = output ? output->presentationScale() / output->scale() : 1.0;
-+        Q_EMIT pointerMotion(sizeToPoint(delta) * factor, sizeToPoint(deltaNonAccelerated) * factor, std::chrono::microseconds(timestamp), this);
++        const auto toOutput = [output](const QSizeF &hostDelta) {
++            return output && qEnvironmentVariableIsSet("DROIDDECK_NESTED_SCALE")
++                ? output->mapToOutput(sizeToPoint(hostDelta)) - output->mapToOutput(QPointF())
++                : sizeToPoint(hostDelta);
++        };
++        Q_EMIT pointerMotion(toOutput(delta), toOutput(deltaNonAccelerated), std::chrono::microseconds(timestamp), this);
      });
  }
  
-@@ -197,13 +203,21 @@ WaylandInputDevice::WaylandInputDevice(KWayland::Client::Touch *touch, WaylandSe
+@@ -197,13 +207,21 @@ WaylandInputDevice::WaylandInputDevice(KWayland::Client::Touch *touch, WaylandSe
      connect(touch, &Touch::sequenceStarted, this, [this](TouchPoint *tp) {
          auto o = m_seat->backend()->findOutput(tp->surface());
          Q_ASSERT(o);
@@ -65,7 +69,7 @@ index 557156e..1f88013 100644
          Q_EMIT touchDown(tp->id(), position, std::chrono::milliseconds(tp->time()), this);
      });
      connect(touch, &Touch::pointRemoved, this, [this](TouchPoint *tp) {
-@@ -212,7 +226,11 @@ WaylandInputDevice::WaylandInputDevice(KWayland::Client::Touch *touch, WaylandSe
+@@ -212,7 +230,11 @@ WaylandInputDevice::WaylandInputDevice(KWayland::Client::Touch *touch, WaylandSe
      connect(touch, &Touch::pointMoved, this, [this](TouchPoint *tp) {
          auto o = m_seat->backend()->findOutput(tp->surface());
          Q_ASSERT(o);

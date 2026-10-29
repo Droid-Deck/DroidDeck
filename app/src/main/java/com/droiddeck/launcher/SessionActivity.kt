@@ -195,6 +195,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var lastUserPressMs = 0L
     private var pressDownX = 0f
     private var pressDownY = 0f
+    private var pressTravel = 0f
+    private var pressMoved = false
     private var controllerSettings by mutableStateOf<ControllerPrefs.Settings?>(null)
     private val sessionClipboard by lazy {
         SessionClipboard(this) {
@@ -3395,23 +3397,32 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     private fun notePress(event: MotionEvent) {
         val touch = event.isFromSource(InputDevice.SOURCE_TOUCHSCREEN)
-        val tap = when (event.actionMasked) {
-            MotionEvent.ACTION_BUTTON_PRESS, MotionEvent.ACTION_BUTTON_RELEASE -> true
-            MotionEvent.ACTION_DOWN -> {
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN, MotionEvent.ACTION_BUTTON_PRESS -> {
                 pressDownX = event.x
                 pressDownY = event.y
-                !touch
+                pressTravel = 0f
+                pressMoved = false
+                if (!touch) lastUserPressMs = android.os.SystemClock.uptimeMillis()
             }
-            MotionEvent.ACTION_UP -> !touch || isTap(event)
-            else -> false
+            MotionEvent.ACTION_POINTER_DOWN -> pressMoved = true
+            MotionEvent.ACTION_MOVE -> if (touch || event.buttonState != 0) {
+                val moved = if (event.isFromSource(InputDevice.SOURCE_MOUSE_RELATIVE)) {
+                    pressTravel += kotlin.math.hypot(event.x, event.y)
+                    pressTravel
+                } else {
+                    kotlin.math.hypot(event.x - pressDownX, event.y - pressDownY)
+                }
+                if (moved >= android.view.ViewConfiguration.get(this).scaledTouchSlop * 2f) {
+                    pressMoved = true
+                    if (!touch) lastUserPressMs = 0L
+                }
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_BUTTON_RELEASE -> {
+                val quick = !touch || event.eventTime - event.downTime < android.view.ViewConfiguration.getLongPressTimeout()
+                if (!pressMoved && quick) lastUserPressMs = android.os.SystemClock.uptimeMillis()
+            }
         }
-        if (tap) lastUserPressMs = android.os.SystemClock.uptimeMillis()
-    }
-
-    private fun isTap(event: MotionEvent): Boolean {
-        val slop = android.view.ViewConfiguration.get(this).scaledTouchSlop * 2f
-        return event.eventTime - event.downTime < android.view.ViewConfiguration.getLongPressTimeout() &&
-            kotlin.math.hypot(event.x - pressDownX, event.y - pressDownY) < slop
     }
 
     private fun onDesktopTextField(focused: Boolean) {
@@ -3651,6 +3662,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         onScreenControls?.reload()
         controllerSettings = ControllerPrefs.read(this)
         resumed = true
+        updateDesktopKeyboardButton()
         com.droiddeck.launcher.input.HomeButtonShortcuts.attach(this,
             enabled = {
                 resumed && window.decorView.hasWindowFocus() && !ended && !drawerOpen && !pcKeyboardOpen &&

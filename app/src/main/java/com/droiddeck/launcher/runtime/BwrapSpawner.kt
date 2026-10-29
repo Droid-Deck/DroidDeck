@@ -347,7 +347,15 @@ object BwrapSpawner {
             catch (e: IOException) {   }
             if (process.isAlive) {
                 Log.i(TAG, "sandbox $id: its bwrap is gone; stopping it")
-                process.destroy()
+                if (pid > 0) {
+                    runCatching { android.system.Os.kill(pid, android.system.OsConstants.SIGQUIT) }
+                } else {
+                    process.destroy()
+                }
+                try {
+                    if (!process.waitFor(3, java.util.concurrent.TimeUnit.SECONDS)) process.destroyForcibly()
+                } catch (_: InterruptedException) {
+                }
             }
         }, "bwrap-$id-watch").apply { isDaemon = true; start() }
         val buffer = ByteArray(16384)

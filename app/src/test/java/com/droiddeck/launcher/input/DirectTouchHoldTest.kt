@@ -156,6 +156,19 @@ class DirectTouchHoldTest {
         assertEquals(listOf("down 0 at 40.0,30.0", "cancel"), touches)
     }
 
+    @Test fun aQuickSecondTapLiftsTheFirstInsteadOfCancellingIt() {
+        touch(MotionEvent.ACTION_DOWN)
+        touch(MotionEvent.ACTION_UP, 50f)
+        advance(20)
+        touch(MotionEvent.ACTION_DOWN, 60f)
+        touch(MotionEvent.ACTION_UP, 60f)
+        advance(50)
+        assertEquals(
+            listOf("down 0 at 40.0,30.0", "up 0 at 50.0,30.0", "down 0 at 60.0,30.0", "up 0 at 60.0,30.0"),
+            touches,
+        )
+    }
+
     @Test fun theSecondFingerLiftsWithItsOwnId() {
         multi(MotionEvent.ACTION_DOWN, 0, 0 to 40f)
         multi(MotionEvent.ACTION_POINTER_DOWN, 1, 0 to 40f, 1 to 60f)

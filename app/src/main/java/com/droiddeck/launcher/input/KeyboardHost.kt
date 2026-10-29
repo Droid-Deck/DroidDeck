@@ -56,6 +56,17 @@ class KeyboardHost(
         return super.onApplyWindowInsets(insets)
     }
 
+    override fun onKeyPreIme(keyCode: Int, event: KeyEvent): Boolean {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R || keyCode != KeyEvent.KEYCODE_BACK || !shown) {
+            return super.onKeyPreIme(keyCode, event)
+        }
+        if (event.action == KeyEvent.ACTION_UP && !event.isCanceled) {
+            hide()
+            onImeChanged?.invoke(false)
+        }
+        return true
+    }
+
     fun toggle() = if (shown && imeVisible()) hide() else show()
 
     private fun imeVisible() = Build.VERSION.SDK_INT < Build.VERSION_CODES.R ||

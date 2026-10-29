@@ -1,4 +1,5 @@
 import re
+import shlex
 import subprocess
 import tempfile
 import unittest
@@ -25,7 +26,7 @@ class SteamRestartCapTest(unittest.TestCase):
         function = stuck_function()
         self.assertIsNotNone(function, "droiddeck-session has no steam_update_stuck()")
         with tempfile.TemporaryDirectory() as root:
-            script = function + "steam_root=%s\nmkdir -p \"$steam_root/package\"\n" % root
+            script = function + "steam_root=%s\nmkdir -p \"$steam_root/package\"\n" % shlex.quote(root)
             script += "installed=\"$steam_root/package/steam_client_linuxarm64.installed\"\n"
             script += "echo 0 > \"$installed\"\nsteam_updates=0\nsteam_installs=0\n"
             script += "steam_update_stamp=$(stat -c '%n %Y %s' \"$steam_root\"/package/*.installed)\n"

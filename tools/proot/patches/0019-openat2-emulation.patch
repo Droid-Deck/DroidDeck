@@ -4,14 +4,14 @@ Date: Wed, 28 Oct 2026 14:12:04 -0400
 Subject: [PATCH] syscall: emulate openat2 through a translated openat
 
 ---
- src/syscall/enter.c | 83 +++++++++++++++++++++++++++++++++++++++++++--
- 1 file changed, 81 insertions(+), 2 deletions(-)
+ src/syscall/enter.c | 51 +++++++++++++++++++++++++++++++++++++++++++++++++--
+ 1 file changed, 49 insertions(+), 2 deletions(-)
 
 diff --git a/src/syscall/enter.c b/src/syscall/enter.c
 index 121c742..66b9e6b 100644
 --- a/src/syscall/enter.c
 +++ b/src/syscall/enter.c
-@@ -491,9 +491,88 @@ int translate_syscall_enter(Tracee *tracee)
+@@ -491,9 +491,56 @@ int translate_syscall_enter(Tracee *tracee)
  			status = translate_path2(tracee, dirfd, path, SYSARG_2, REGULAR);
  		break;
  
@@ -39,6 +39,10 @@ index 121c742..66b9e6b 100644
 +			status = -EAGAIN;
 +			break;
 +		}
++		if ((how.resolve & 0x1f) != 0) {
++			status = -ENOSYS;
++			break;
++		}
 +#ifdef __ANDROID__
 +		if ((how.flags & __O_TMPFILE) != 0) {
 +			status = -EOPNOTSUPP;
@@ -49,42 +53,6 @@ index 121c742..66b9e6b 100644
 +		status = get_sysarg_path(tracee, path, SYSARG_2);
 +		if (status < 0)
 +			break;
-+
-+		if ((how.resolve & (0x08 | 0x10)) != 0) {
-+			char *start = path;
-+			int depth = 0;
-+			char *c;
-+
-+			if (path[0] == '/') {
-+				if ((how.resolve & 0x08) != 0) {
-+					status = -EXDEV;
-+					break;
-+				}
-+				while (*start == '/')
-+					start++;
-+			}
-+			for (c = start; *c != '\0';) {
-+				char *end = strchrnul(c, '/');
-+				size_t len = end - c;
-+				if (len == 2 && c[0] == '.' && c[1] == '.')
-+					depth--;
-+				else if (len > 0 && !(len == 1 && c[0] == '.'))
-+					depth++;
-+				if (depth < 0)
-+					break;
-+				c = *end == '/' ? end + 1 : end;
-+			}
-+			if (depth < 0) {
-+				status = -EXDEV;
-+				break;
-+			}
-+			if (start != path)
-+				memmove(path, start, strlen(start) + 1);
-+			if (path[0] == '\0')
-+				strcpy(path, ".");
-+		}
-+		if ((how.resolve & 0x04) != 0)
-+			how.flags |= O_NOFOLLOW;
 +
 +		if (   ((how.flags & O_NOFOLLOW) != 0)
 +			|| ((how.flags & O_EXCL) != 0 && (how.flags & O_CREAT) != 0))
