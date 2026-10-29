@@ -9,10 +9,13 @@ internal object GameJoltProbe {
     private const val MAX_SCRIPT = 3_000_000
     private const val MAX_SCRIPTS = 8
     private const val MAX_FOUND = 80
+    private const val MAX_REDIRECTS = 5
 
     private val endpoint = Regex("[\"'`](/?(?:site-api|web|x)/[^\"'`\\s]{3,140})[\"'`]")
     private val absolute = Regex("https?://[A-Za-z0-9.\\-]*gamejolt\\.(?:com|net)/[^\"'`\\s<>)]{0,140}")
     private val scriptSrc = Regex("<script[^>]+src=[\"']([^\"']+)[\"']")
+    private val WORD = Regex("[A-Za-z][A-Za-z_\\-]{0,30}")
+    private val TEMPLATE = Regex("[{$][A-Za-z0-9_.{}$]{0,38}")
     private val gameId = Regex("/(\\d+)/?(?:[?#].*)?$")
 
     private class Reply(val code: Int, val type: String, val finalUrl: String, val body: String)
@@ -33,14 +36,28 @@ internal object GameJoltProbe {
             host == "gamejolt.net" || host.endsWith(".gamejolt.net")
     }
 
-    private fun fetch(url: String, accept: String, limit: Int): Reply? = try {
-        val conn = (URL(url).openConnection() as HttpURLConnection).apply {
-            connectTimeout = 20_000
-            readTimeout = 20_000
-            instanceFollowRedirects = true
-            setRequestProperty("User-Agent", StoreNet.BROWSER_UA)
-            setRequestProperty("Accept", accept)
+    private fun open(url: String, accept: String): HttpURLConnection {
+        var target = url
+        repeat(MAX_REDIRECTS + 1) {
+            require(target.startsWith("https://") && isGameJoltHost(target)) { "host not allowed" }
+            val conn = (URL(target).openConnection() as HttpURLConnection).apply {
+                connectTimeout = 20_000
+                readTimeout = 20_000
+                instanceFollowRedirects = false
+                setRequestProperty("User-Agent", StoreNet.BROWSER_UA)
+                setRequestProperty("Accept", accept)
+            }
+            val code = conn.responseCode
+            val location = conn.getHeaderField("Location")
+            if (code !in 300..399 || location == null) return conn
+            conn.disconnect()
+            target = URL(URL(target), location).toString()
         }
+        throw java.io.IOException("too many redirects")
+    }
+
+    private fun fetch(url: String, accept: String, limit: Int): Reply? = try {
+        val conn = open(url, accept)
         try {
             val code = conn.responseCode
             val stream = if (code in 200..399) conn.inputStream else conn.errorStream
@@ -61,8 +78,25 @@ internal object GameJoltProbe {
             runCatching { conn.disconnect() }
         }
     } catch (e: Exception) {
-        log("GET failed $url: ${e.javaClass.simpleName} ${e.message}")
+        log("GET failed ${e.javaClass.simpleName} ${e.message}")
         null
+    }
+
+    private fun shape(raw: String): String {
+        val clean = raw.substringBefore('?').substringBefore('#')
+        val absoluteUrl = clean.startsWith("http://") || clean.startsWith("https://")
+        val host = if (absoluteUrl) runCatching { URL(clean).host.lowercase() }.getOrNull().orEmpty() else ""
+        val path = if (absoluteUrl) runCatching { URL(clean).path }.getOrNull().orEmpty() else clean
+        val segments = path.split('/').map { seg ->
+            when {
+                seg.isEmpty() -> seg
+                seg.matches(WORD) -> seg
+                seg.length <= 40 && (seg.startsWith("{") || seg.startsWith("$")) && seg.matches(TEMPLATE) -> seg
+                else -> "*"
+            }
+        }
+        val prefix = if (!absoluteUrl) "" else if (isGameJoltHost(clean)) "https://$host" else "https://[host]"
+        return prefix + segments.joinToString("/")
     }
 
     private fun report(label: String, url: String, accept: String, limit: Int): Reply? {
@@ -83,6 +117,10 @@ internal object GameJoltProbe {
     private fun probe(input: String) {
         log("start input=$input")
         val id = gameId.find(input)?.groupValues?.get(1)
+        if (!input.startsWith("https://") || !isGameJoltHost(input)) {
+            log("the link must be an https Game Jolt address")
+            return
+        }
         val game = report("game page", input, "text/html", MAX_PAGE) ?: return
         val found = linkedSetOf<String>()
         scan("game page", game.body, found)
@@ -100,7 +138,7 @@ internal object GameJoltProbe {
             log("script code=${js.code} bytes=${js.body.length} url=$src")
             scan("script", js.body, found)
         }
-        found.take(MAX_FOUND).forEach { log("endpoint: $it", SecretScrub.Urls.KEEP_PATH) }
+        found.map { shape(it) }.distinct().take(MAX_FOUND).forEach { log("endpoint: $it", SecretScrub.Urls.KEEP_PATH) }
         log("endpoint strings total=${found.size}")
         if (id != null) {
             report("candidate overview", "https://gamejolt.com/site-api/web/discover/games/overview/$id", "application/json", 60_000)
