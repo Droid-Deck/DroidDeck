@@ -1,6 +1,15 @@
 package com.droiddeck.launcher.ui
 
 import androidx.compose.foundation.LocalIndication
+import androidx.compose.ui.semantics.Role
+import androidx.compose.runtime.CompositionLocalProvider
+import com.droiddeck.launcher.stores.GameFacts
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.graphics.Shadow
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -29,6 +38,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.VideogameAsset
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -170,7 +181,7 @@ internal fun GameDetail(
     val scored = scores != null && (scores.metacritic != Lookup.None || scores.hltb != Lookup.None)
     val prefix = game?.protonPrefix?.takeIf { it.isDirectory }
     val tabs = buildList {
-        if (description.isNotBlank() || developer.isNotBlank() || publisher.isNotBlank() || releaseDate.isNotBlank() || (scored && stacked)) add(GameTab.ABOUT)
+        if (description.isNotBlank() || developer.isNotBlank() || publisher.isNotBlank() || releaseDate.isNotBlank() || scored || (!s.shortcutPicker && title.isNotBlank() && title != id)) add(GameTab.ABOUT)
         if (achievementState != null) add(GameTab.ACHIEVEMENTS)
         val cloud = game?.library == Library.XBOX_CLOUD
         if (game != null && !cloud) add(GameTab.LAUNCH)
@@ -196,56 +207,64 @@ internal fun GameDetail(
         val at = tabs.indexOf(tab).coerceAtLeast(0)
         picked = tabs[(at + step + tabs.size) % tabs.size]
     }
-    Column(Modifier.fillMaxWidth().onFocusChanged { inPage = it.hasFocus }.bumpers(onPrevious = { cycle(-1) }, onNext = { cycle(1) })) {
-        Rise(0) {
-            Box(Modifier.padding(bottom = 12.dp)) { BackLink(backLabel, compact = true, onClick = onBack) }
-        }
-        val hero: @Composable () -> Unit = {
-            DisposableEffect(Unit) { onDispose { StoresMotion.heroAt = null } }
-            GameHero(
-                title, item, installed, game,
-                Modifier.fillMaxWidth().heightIn(min = if (narrow) 170.dp else 210.dp).onGloballyPositioned { StoresMotion.heroAt = it.boundsInRoot() },
-                corner = { if (!s.shortcutPicker) RemoveButton(title, game, installed, a) },
-                scores = scores.takeIf { !stacked },
-            ) {
-                HeroEyebrow(source, game, item, installed, download?.location ?: failed?.location)
-                GameTitle(title, game?.logo ?: item?.logoUrl, if (narrow) 26.sp else 34.sp)
-                if (!failed?.error.isNullOrBlank()) Text(
-                    failed!!.error!!, fontSize = 13.sp, lineHeight = 17.sp, fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.error, maxLines = 3, overflow = TextOverflow.Ellipsis,
-                )
-                Spacer(Modifier.height(4.dp))
-                GameActions(store, id, game, item, installed, s, a, Modifier.focusRequester(lead))
-            }
-        }
-        if (StoresMotion.heroLands) hero() else Rise(1) { hero() }
-        if (!s.shortcutPicker) Rise(2) {
-            GameResourcesRow(title.takeUnless { it == id }.orEmpty(), game, Modifier.padding(top = 6.dp))
-        }
-        if (tab != null) Rise(2) {
-            Column(Modifier.fillMaxWidth().padding(top = 14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                val labels = tabs.map { t ->
-                    when (t) {
-                        GameTab.ABOUT -> stringResource(R.string.game_tab_about)
-                        GameTab.ACHIEVEMENTS -> achievementState?.list?.takeIf { it.isNotEmpty() }?.let { list ->
-                            stringResource(R.string.game_tab_achievements_count, stringResource(R.string.achievements_title), achievementState.done, list.size)
-                        } ?: stringResource(R.string.achievements_title)
-                        GameTab.LAUNCH -> stringResource(R.string.game_tab_launch)
-                        GameTab.SAVES -> stringResource(if (Store.byId(source).let { it == Store.GOG || it == Store.EPIC }) R.string.game_tab_saves_cloud else R.string.games_saves)
-                        GameTab.INSTALL -> stringResource(R.string.game_tab_install)
+    val art: Any? = game?.hero ?: item?.imageUrl ?: installed?.sidecar?.hero ?: installed?.sidecar?.cover
+    val artModel: Any? = if (art is String) cardArtRequest(art, item?.tallImageUrl) else art
+    val inSteam = !s.shortcutPicker && source != Library.SOURCE_STEAM && (game != null || installed != null) && !(game?.library == Library.XBOX_CLOUD && installed == null)
+    val inset = LocalDetailInset.current
+    GameBackdrop(artModel, art ?: game?.art, hueOf(title), fadeTop = inset.top < 8.dp, onArtPlaced = { StoresMotion.heroAt = it }) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = inset.horizontal).padding(top = inset.top).onFocusChanged { inPage = it.hasFocus }.bumpers(onPrevious = { cycle(-1) }, onNext = { cycle(1) })) {
+            Rise(0) {
+                Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.glass(CircleShape)) { BackLink(backLabel, compact = true, onClick = onBack) }
+                    Spacer(Modifier.weight(1f))
+                    if (!s.shortcutPicker) CompositionLocalProvider(LocalPillButtons provides true) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            if (installed != null && installed.sidecar.store == Store.ITCH) ItchCheckButton(installed)
+                            RemoveButton(title, game, installed, a)
+                        }
                     }
                 }
-                TabStrip(
-                    labels, tabs.indexOf(tab), { picked = tabs[it] }, Modifier.onFocusChanged { onStrip = it.hasFocus },
-                    focusRequesters = tabs.map { tabFocus.getValue(it) }, bumpers = tabs.size > 1, compact = narrow,
-                )
-                Box(Modifier.fillMaxWidth().onFocusChanged { if (inPanel && !it.hasFocus) dropped++; inPanel = it.hasFocus }.testTag("game-tab-${tab.name.lowercase()}")) {
-                    when (tab) {
-                        GameTab.ABOUT -> AboutTab(developer, publisher, releaseDate, description, scores, stacked)
-                        GameTab.ACHIEVEMENTS -> achievementState?.let { st -> AchievementsTab(StoreAchievements.forSource(store?.id)?.label.orEmpty(), st) }
-                        GameTab.LAUNCH -> if (game != null) LaunchTab(game, s, a, hopRail)
-                        GameTab.SAVES -> if (game != null && prefix != null) SavesTab(game, prefix, a)
-                        GameTab.INSTALL -> InstallTab(game, installed, item, store)
+            }
+            val header: @Composable () -> Unit = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    GameStatusLine(source, game, item, installed, download?.location ?: failed?.location, inSteam)
+                    GameTitle(title, game?.logo ?: item?.logoUrl, if (narrow) 30.sp else 40.sp)
+                    if (!failed?.error.isNullOrBlank()) Text(
+                        failed!!.error!!, fontSize = 13.sp, lineHeight = 17.sp, fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.error, maxLines = 3, overflow = TextOverflow.Ellipsis,
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    GameCapsule(scores) { GameActions(store, id, game, item, installed, s, a, Modifier.focusRequester(lead), compactMenu = stacked) }
+                }
+            }
+            if (StoresMotion.heroLands) header() else Rise(1) { header() }
+            if (tab != null) Rise(2) {
+                Column(Modifier.fillMaxWidth().padding(top = 14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    val labels = tabs.map { t ->
+                        when (t) {
+                            GameTab.ABOUT -> stringResource(R.string.game_tab_about)
+                            GameTab.ACHIEVEMENTS -> achievementState?.list?.takeIf { it.isNotEmpty() && !stacked }?.let { list ->
+                                stringResource(R.string.game_tab_achievements_count, stringResource(R.string.achievements_title), achievementState.done, list.size)
+                            } ?: stringResource(R.string.achievements_title)
+                            GameTab.LAUNCH -> stringResource(R.string.game_tab_launch)
+                            GameTab.SAVES -> stringResource(if (Store.byId(source).let { it == Store.GOG || it == Store.EPIC }) R.string.game_tab_saves_cloud else R.string.games_saves)
+                            GameTab.INSTALL -> stringResource(R.string.game_tab_install)
+                        }
+                    }
+                    GameTabBar(
+                        labels, tabs.indexOf(tab), { picked = tabs[it] }, Modifier.onFocusChanged { onStrip = it.hasFocus },
+                        focusRequesters = tabs.map { tabFocus.getValue(it) }, bumpers = tabs.size > 1, compact = stacked,
+                    )
+                    Box(Modifier.fillMaxWidth().onFocusChanged { if (inPanel && !it.hasFocus) dropped++; inPanel = it.hasFocus }.testTag("game-tab-${tab.name.lowercase()}")) {
+                        when (tab) {
+                            GameTab.ABOUT -> AboutTab(developer, publisher, releaseDate, description, scores, stacked) {
+                                if (!s.shortcutPicker) GameResourcesRow(title.takeUnless { it == id }.orEmpty(), game)
+                            }
+                            GameTab.ACHIEVEMENTS -> achievementState?.let { st -> AchievementsTab(StoreAchievements.forSource(store?.id)?.label.orEmpty(), st) }
+                            GameTab.LAUNCH -> if (game != null) LaunchTab(game, s, a, hopRail)
+                            GameTab.SAVES -> if (game != null && prefix != null) SavesTab(game, prefix, a)
+                            GameTab.INSTALL -> InstallTab(game, installed, item, store)
+                        }
                     }
                 }
             }
@@ -254,42 +273,21 @@ internal fun GameDetail(
 }
 
 @Composable
-private fun GameHero(
-    title: String, item: CatalogItem?, installed: InstalledStoreGame?, game: Library.SteamGame?, modifier: Modifier,
-    corner: @Composable BoxScope.() -> Unit, scores: GameScores?, content: @Composable ColumnScope.() -> Unit,
-) {
-    val colors = MaterialTheme.colorScheme
-    Box(modifier.clip(Shape16).background(artBrush(hueOf(title)))) {
-        val wide: Any? = game?.hero ?: item?.imageUrl ?: installed?.sidecar?.hero ?: installed?.sidecar?.cover
-        if (wide != null) {
-            // The card it came from keeps its own bitmap under the hero until the wide art is decoded.
-            val request = if (wide is String) cardArtRequest(wide, item?.tallImageUrl) else wide
-            AsyncImage(model = request, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
-        } else game?.art?.let { art ->
-            AsyncImage(
-                model = art, contentDescription = null, contentScale = ContentScale.Crop,
-                modifier = Modifier.matchParentSize().blur(24.dp).graphicsLayer { scaleX = 1.3f; scaleY = 1.3f },
-            )
-        }
-        Spacer(Modifier.matchParentSize().background(Brush.horizontalGradient(0f to colors.background.copy(alpha = 0.94f), 0.55f to colors.background.copy(alpha = 0.58f), 1f to Color.Transparent)))
-        var scoresWidth by remember { mutableStateOf(0) }
-        if (scores != null) {
-            Spacer(Modifier.matchParentSize().background(Brush.horizontalGradient(0.45f to Color.Transparent, 1f to colors.background.copy(alpha = 0.75f))))
-            HeroScores(scores, Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = 18.dp).onSizeChanged { scoresWidth = it.width })
-        }
-        val scoresSpace = with(LocalDensity.current) { if (scores != null && scoresWidth > 0) scoresWidth.toDp() + 16.dp else 0.dp }
-        Column(
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-            modifier = Modifier.align(Alignment.BottomStart).padding(start = 22.dp, end = 22.dp + scoresSpace, top = 18.dp, bottom = 18.dp),
-            content = content,
-        )
-        Box(Modifier.align(Alignment.TopEnd).padding(12.dp), content = corner)
+private fun SourceBadge(source: String) {
+    val c = sourceColours(source)
+    Row(
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp),
+        modifier = Modifier.glass(CircleShape, 0.06f).padding(horizontal = 10.dp, vertical = 4.dp),
+    ) {
+        Box(Modifier.size(8.dp).clip(CircleShape).background(c.dot))
+        Text(sourceLabel(source), fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp, color = MaterialTheme.colorScheme.onBackground, maxLines = 1)
     }
 }
 
 @Composable
-private fun HeroEyebrow(source: String, game: Library.SteamGame?, item: CatalogItem?, installed: InstalledStoreGame?, downloadAt: String?) {
+private fun GameStatusLine(source: String, game: Library.SteamGame?, item: CatalogItem?, installed: InstalledStoreGame?, downloadAt: String?, inSteam: Boolean) {
     val ctx = LocalContext.current
+    val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val folder = installed?.folder ?: game?.gameFiles
     val passName = item?.includedWith.orEmpty()
@@ -305,10 +303,68 @@ private fun HeroEyebrow(source: String, game: Library.SteamGame?, item: CatalogI
         else -> listOf(stringResource(R.string.stores_eyebrow_store))
     }
     val size = if (folder != null && (installed != null || game != null)) diskSize(installed, folder) else (item?.sizeBytes ?: 0L).takeIf { it > 0 }
-    val line = (state + listOfNotNull(size?.let { formatBytes(it) })).filter { it.isNotBlank() }.joinToString(" · ")
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        SourceChip(source)
-        Text(line.uppercase(), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.2.sp, color = pal.signal, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    val line = (state + listOfNotNull(size?.let { formatBytes(it) })).filter { it.isNotBlank() }.joinToString(" · ").replaceFirstChar { it.uppercase() }
+    val muted = colors.onBackground.copy(alpha = 0.78f)
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        SourceBadge(source)
+        Text(line, fontSize = 12.sp, color = muted, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+        if (inSteam) {
+            Text("·", fontSize = 12.sp, color = muted.copy(alpha = 0.5f))
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                Icon(Icons.Outlined.VideogameAsset, contentDescription = null, tint = muted, modifier = Modifier.size(15.dp))
+                Text(stringResource(R.string.stores_in_steam_label), fontSize = 12.sp, color = muted, maxLines = 1)
+                Icon(Icons.Filled.Check, contentDescription = null, tint = pal.good, modifier = Modifier.size(14.dp))
+            }
+        }
+    }
+}
+
+/** One frosted pill that holds the game's actions and its headline scores. */
+@Composable
+private fun GameCapsule(scores: GameScores?, actions: @Composable () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth().glass(RoundedCornerShape(30.dp)).padding(6.dp),
+    ) {
+        CompositionLocalProvider(LocalPillButtons provides true) { Box(Modifier.weight(1f)) { actions() } }
+        if (scores != null) CapsuleScores(scores, Modifier.padding(start = 8.dp, end = 10.dp))
+    }
+}
+
+@Composable
+private fun GameTabBar(
+    tabs: List<String>, selected: Int, onSelect: (Int) -> Unit,
+    modifier: Modifier = Modifier, focusRequesters: List<FocusRequester>? = null,
+    bumpers: Boolean = true, compact: Boolean = false,
+) {
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    Row(modifier.fillMaxWidth().glass(CircleShape).padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
+        if (bumpers) BumperKey("LB", stringResource(R.string.widgets_prev_tab)) { onSelect((selected + tabs.size - 1) % tabs.size) }
+        tabs.forEachIndexed { i, label ->
+            val on = i == selected
+            val src = remember { MutableInteractionSource() }
+            val hot = rememberHot(src)
+            val pick = { onSelect(i) }
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.weight(1f)
+                    .testTag("tab-$i")
+                    .then(focusRequesters?.getOrNull(i)?.let { Modifier.focusRequester(it) } ?: Modifier)
+                    .clip(CircleShape)
+                    .background(if (on) pal.signal.copy(alpha = 0.3f) else if (hot) pal.signal.copy(alpha = 0.14f) else Color.Transparent)
+                    .glideBorder(hot, CircleShape, pal.signal, if (on) pal.signal.copy(alpha = 0.5f) else Color.Transparent)
+                    .hoverable(src).selectable(selected = on, interactionSource = src, indication = null, role = Role.Tab, onClick = pick)
+                    .controllerConfirm(onClick = pick)
+                    .padding(horizontal = 6.dp, vertical = if (compact) 8.dp else 10.dp),
+            ) {
+                Text(
+                    label, fontSize = if (compact) 13.sp else 14.sp, fontWeight = if (on) FontWeight.Bold else FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    color = if (on || hot) colors.onBackground else colors.onSurfaceVariant,
+                )
+            }
+        }
+        if (bumpers) BumperKey("RB", stringResource(R.string.widgets_next_tab)) { onSelect((selected + 1) % tabs.size) }
     }
 }
 
@@ -318,17 +374,18 @@ private fun GameTitle(title: String, logo: Any?, titleSize: TextUnit) {
     if (logo != null && !failed) AsyncImage(
         model = logo, contentDescription = title, contentScale = ContentScale.Fit, alignment = Alignment.CenterStart,
         onError = { failed = true },
-        modifier = Modifier.padding(vertical = 4.dp).height((titleSize.value * 2.2f).dp).widthIn(max = (titleSize.value * 9f).dp).testTag("game-logo"),
+        modifier = Modifier.padding(vertical = 4.dp).height((titleSize.value * 1.5f).dp).widthIn(max = (titleSize.value * 7f).dp).clip(RoundedCornerShape(10.dp)).testTag("game-logo"),
     ) else Text(
         title, fontSize = titleSize, lineHeight = titleSize * 1.12f, fontWeight = FontWeight.Black,
         color = MaterialTheme.colorScheme.onBackground, maxLines = 2, overflow = TextOverflow.Ellipsis,
+        style = TextStyle(shadow = Shadow(Color.Black.copy(alpha = 0.55f), blurRadius = 24f)),
     )
 }
 
 @Composable
 internal fun GameActions(
     store: Store?, id: String?, game: Library.SteamGame?, item: CatalogItem?, installed: InstalledStoreGame?,
-    s: FrontEndState, a: FrontEndActions, leadOn: Modifier,
+    s: FrontEndState, a: FrontEndActions, leadOn: Modifier, compactMenu: Boolean = false,
 ) {
     val ctx = LocalContext.current
     val storeKey = if (store != null && id != null) "${store.id}:$id" else null
@@ -346,17 +403,20 @@ internal fun GameActions(
                 val gone = storeKey?.let { StoresState.uninstalling[it] }
                 val xboxBusy = store == Store.XBOX && id != null && XboxContent.busy(id)
                 PrimaryButton(
-                    stringResource(R.string.stores_play), enabled = !s.busy && gone == null && download == null && !xboxBusy,
+                    stringResource(R.string.stores_play), enabled = !s.busy && gone == null && download == null && !xboxBusy && (store != Store.GOG || installed?.sidecar?.isInstalled != false),
                     main = true, icon = Icons.Filled.PlayArrow, modifier = leadOn,
                 ) {
                     if (game != null) a.onSteamGame(game) else if (store != null && id != null) launchStoreGame(ctx, store, id, s, a)
                 }
-                if ((game?.source ?: store?.id) != Library.SOURCE_STEAM) ActionChip(stringResource(R.string.stores_in_steam), ok = true)
                 if (game != null) {
-                    FileButtons(game, a)
-                    GameShortcutMenu(game, a)
-                    EditArtButton(game)
+                    if (compactMenu) GameMoreMenu(game, a) else {
+                        FileButtons(game, a)
+                        GameShortcutMenu(game, a)
+                        EditArtButton(game)
+                    }
                 }
+                if (store == Store.ITCH && installed != null) ItchUpdateButton(installed, download == null && StoresState.uninstalling[installed.key] == null)
+                if (store == Store.GOG && installed != null) GogMaintenanceActions(installed)
                 if (store == Store.XBOX && id != null) XboxInstalledStream(id, game?.name ?: item?.title.orEmpty(), item)
                 if (store == Store.XBOX && installed != null && id != null) {
                     SecondaryButton(stringResource(R.string.stores_xbox_update), enabled = download == null && !XboxRuntime.isActive(id)) {
@@ -514,10 +574,10 @@ private fun GameShortcutMenu(g: Library.SteamGame, a: FrontEndActions) {
 
 /** The pencil opens the editor each kind of game always had: the shortcut editor for added games, art for the rest. */
 @Composable
-private fun EditArtButton(g: Library.SteamGame) {
+private fun rememberEditArt(g: Library.SteamGame): (() -> Unit)? {
     val ctx = LocalContext.current
     val folder = g.gameFiles
-    val open: (() -> Unit)? = when {
+    return when {
         g.library == Library.ADDED && g.source == Library.ADDED && folder != null -> {
             { GamesDialogState.editing = EditRequest(folder.path, openTarget = false, fromSummary = false, preview = EditPreview.of(ctx, g, folder.path)) }
         }
@@ -525,21 +585,47 @@ private fun EditArtButton(g: Library.SteamGame) {
         g.library == Library.ADDED && g.source != Library.ADDED && folder != null -> { { GamesDialogState.storeArt = g } }
         else -> null
     }
-    if (open != null) IconAction(Icons.Outlined.Edit, stringResource(R.string.common_edit), "game:edit", onClick = open)
 }
 
 @Composable
-private fun IconAction(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, id: String, danger: Boolean = false, enabled: Boolean = true, onClick: () -> Unit) {
+private fun EditArtButton(g: Library.SteamGame) {
+    val open = rememberEditArt(g) ?: return
+    IconAction(Icons.Outlined.Edit, stringResource(R.string.game_edit_art), "game:edit", onClick = open)
+}
+
+/** Narrow screens keep one More button in the capsule instead of a row of small ones. */
+@Composable
+private fun GameMoreMenu(g: Library.SteamGame, a: FrontEndActions) {
+    var open by remember(g.gameId) { mutableStateOf(false) }
+    val edit = rememberEditArt(g)
+    Box {
+        SecondaryButton(stringResource(R.string.game_more)) { open = !open }
+        AnchoredMenu(open, onDismiss = { open = false }, title = stringResource(R.string.game_more), compact = true) { first ->
+            var lead: FocusRequester? = first
+            fun take(): FocusRequester? = lead.also { lead = null }
+            g.gameFiles?.takeIf { it.isDirectory }?.let { dir -> MenuItem(stringResource(R.string.games_files), checked = false, focusRequester = take()) { open = false; a.onBrowseFiles(dir) } }
+            g.protonPrefix?.takeIf { it.isDirectory }?.let { dir -> MenuItem(stringResource(R.string.games_prefix), checked = false, focusRequester = take()) { open = false; a.onBrowseFiles(dir) } }
+            MenuItem(stringResource(R.string.game_shortcut_add), checked = false, focusRequester = take()) { open = false; a.onGameShortcut(g) }
+            MenuItem(stringResource(R.string.game_file_export), checked = false) { open = false; a.onExportGameFile(g) }
+            MenuItem(stringResource(R.string.game_link_copy), checked = false) { open = false; a.onCopyGameLink(g) }
+            edit?.let { run -> MenuItem(stringResource(R.string.game_edit_art), checked = false) { open = false; run() } }
+        }
+    }
+}
+
+@Composable
+internal fun IconAction(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, id: String, danger: Boolean = false, enabled: Boolean = true, onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
+    val shape = if (LocalPillButtons.current) CircleShape else Shape12
     val pal = LocalPalette.current
     val src = remember { MutableInteractionSource() }
     val hot = rememberHot(src) && enabled
     val accent = if (danger) colors.error else pal.signal
     Box(
         contentAlignment = Alignment.Center,
-        modifier = Modifier.paneItem(id).downToFirstTile().size(44.dp).clip(Shape12)
+        modifier = Modifier.paneItem(id).downToFirstTile().size(if (LocalPillButtons.current) 40.dp else 44.dp).clip(shape)
             .background(if (hot) accent.copy(alpha = if (danger) 0.22f else 0.14f) else if (danger) Color.Black.copy(alpha = 0.34f) else Color.White.copy(alpha = 0.03f))
-            .glideBorder(hot, Shape12, accent, pal.line2)
+            .glideBorder(hot, shape, accent, pal.line2)
             .alpha(if (enabled) 1f else 0.45f)
             .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = androidx.compose.ui.semantics.Role.Button, enabled = enabled, onClick = onClick)
             .controllerConfirm(enabled = enabled, onClick = onClick)
@@ -621,14 +707,10 @@ private fun InstallButton(label: String, modifier: Modifier = Modifier, onInstal
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun AboutTab(developer: String, publisher: String, releaseDate: String, description: String, scores: GameScores?, stacked: Boolean) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth().tabPanel()) {
-        if (scores != null) Box(Modifier.readable()) { StoreGameFacts(developer, publisher, releaseDate, scores, scoresInHero = !stacked) }
-        else if (developer.isNotBlank() || publisher.isNotBlank() || releaseDate.isNotBlank()) {
-            val parts = listOf(developer, publisher, com.droiddeck.launcher.stores.GameFacts.releaseLabel(releaseDate).orEmpty()).filter { it.isNotBlank() }.distinct()
-            Text(parts.joinToString(" · "), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.readable())
-        }
+private fun AboutTab(developer: String, publisher: String, releaseDate: String, description: String, scores: GameScores?, stacked: Boolean, resources: @Composable () -> Unit) {
+    val aboutText: @Composable () -> Unit = {
         if (description.isNotBlank()) {
             val floor = LocalDetailFloor.current
             val density = LocalDensity.current
@@ -637,12 +719,35 @@ private fun AboutTab(developer: String, publisher: String, releaseDate: String, 
             StoreAbout(description, room, Modifier.fillMaxWidth().then(fill))
         }
     }
+    if (stacked) Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth().tabPanel()) {
+        val released = GameFacts.releaseLabel(releaseDate).orEmpty()
+        val credits = listOf(developer, publisher, released).filter { it.isNotBlank() }.distinct()
+        if (credits.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.readable()) {
+            credits.forEachIndexed { i, part ->
+                Text(
+                    part, fontSize = 13.sp, fontWeight = if (i == 0 && part == developer) FontWeight.SemiBold else FontWeight.Normal,
+                    color = if (i == 0 && part == developer) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1,
+                    modifier = Modifier.clip(CircleShape).background(Color.White.copy(alpha = 0.07f)).border(1.dp, Color.White.copy(alpha = 0.12f), CircleShape).padding(horizontal = 12.dp, vertical = 6.dp),
+                )
+            }
+        }
+        aboutText()
+        resources()
+    } else Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top, modifier = Modifier.fillMaxWidth()) {
+        if (description.isNotBlank()) Column(Modifier.weight(1.3f).tabPanel()) { aboutText() }
+        Column((if (description.isNotBlank()) Modifier.weight(1f) else Modifier.fillMaxWidth()).tabPanel(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(headingUppercase(stringResource(R.string.store_details)), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 8.dp, bottom = 4.dp))
+            if (scores != null) StoreDetailRows(developer, publisher, releaseDate, scores) else StoreDetailRows(developer, publisher, releaseDate, GameScores(Lookup.None, Lookup.None))
+            Box(Modifier.padding(top = 8.dp)) { resources() }
+        }
+    }
 }
 
 private val AboutHeight = 260.dp
 
 @Composable
 internal fun Modifier.tabPanel(): Modifier {
+    if (LocalGlass.current != null) return glass(RoundedCornerShape(22.dp), 0.22f).padding(horizontal = 18.dp, vertical = 14.dp)
     val shape = RoundedCornerShape(16.dp)
     return clip(shape).background(MaterialTheme.colorScheme.surface).border(1.dp, LocalPalette.current.line, shape).padding(horizontal = 16.dp, vertical = 14.dp)
 }
@@ -674,7 +779,7 @@ private fun StoreAbout(text: String, height: Dp, modifier: Modifier = Modifier) 
         Text(text, fontSize = 14.sp, lineHeight = 21.sp, color = colors.onSurfaceVariant, modifier = Modifier.verticalScroll(scroll).padding(horizontal = 4.dp, vertical = 6.dp))
         if (scroll.value < scroll.maxValue) Box(
             Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(28.dp)
-                .background(Brush.verticalGradient(listOf(Color.Transparent, colors.surface))),
+                .background(Brush.verticalGradient(listOf(Color.Transparent, if (LocalGlass.current != null) colors.background.copy(alpha = 0.72f) else colors.surface))),
         )
     }
 }
@@ -828,12 +933,12 @@ internal fun Modifier.readable(): Modifier {
 }
 
 @Composable
-private fun FactRow(label: String, value: String) {
+internal fun FactRow(label: String, value: String, labelWidth: androidx.compose.ui.unit.Dp = 150.dp) {
     Row(
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         modifier = Modifier.fillMaxWidth().readable().padding(horizontal = 8.dp, vertical = 7.dp),
     ) {
-        Text(label, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.width(150.dp))
+        Text(label, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.width(labelWidth))
         Text(value, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onBackground, modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
     }
 }

@@ -51,7 +51,8 @@ object NoSteamLaunch {
 
     fun addedGame(context: Context, game: Library.SteamGame): AddedGames.Game? {
         val id = game.appId.toLong() and 0xFFFFFFFFL
-        return AddedGames.scan(context).firstOrNull { settingsId(it) == id }
+        val one = game.gameFiles?.let { AddedGames.single(context, it.path) }
+        return one?.takeIf { settingsId(it) == id } ?: AddedGames.scan(context).firstOrNull { settingsId(it) == id }
     }
 
     fun nameFor(program: String?, args: List<String>): String? = when (program) {
