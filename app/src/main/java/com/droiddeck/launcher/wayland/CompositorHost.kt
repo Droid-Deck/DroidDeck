@@ -13,7 +13,6 @@ import com.droiddeck.launcher.core.FileUtils
 import com.droiddeck.launcher.gpu.TurnipDriver
 import com.droiddeck.launcher.session.SessionPaths
 import com.droiddeck.launcher.session.SessionPrefs
-import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionState
 import java.io.File
 
@@ -48,31 +47,49 @@ object CompositorHost {
         }
     }
 
-    fun startOrAttach(
+    @Synchronized
+    fun prepare(
         context: Context,
-        surface: Surface?,
         outputWidth: Int,
         outputHeight: Int,
         refreshHz: Float,
         fpsLimit: Int,
-        mode: String = SessionService.MODE_STEAM,
+        checkCurrent: () -> Unit = {},
+    ): Boolean {
+        checkCurrent()
+        return startOrAttachOutput(context, null, outputWidth, outputHeight, refreshHz, fpsLimit) {
+            checkCurrent()
+            val runtimeDir = File(context.filesDir, ".wayland-rt").apply { mkdirs() }
+            FileUtils.copyAsset(context, "wayland/keymap.xkb", File(runtimeDir, "keymap.xkb"))
+            val choice = SessionPrefs.androidDriver(context)
+            displayChoice = choice
+            com.droiddeck.launcher.gpu.AutoDriverTrial.displayStarting(context, choice)
+            val turnip = TurnipDriver(context)
+            val driverId = turnip.install()
+            checkCurrent()
+            newSession(context)
+            com.droiddeck.launcher.gpu.TpUbwcHint.applyToProcess(context)
+            com.droiddeck.launcher.gpu.DriverSetupLog.write(context, "compositor.start driver=$driverId")
+            WaylandCompositor.nativeStartWithSurface(
+                null, runtimeDir.path, driverId?.let { turnip.driverPath(it) },
+                driverId?.let { turnip.libraryName(it) }, context.applicationInfo.nativeLibraryDir,
+            )
+        }
+    }
+
+    @Synchronized
+    fun attach(
+        context: Context,
+        surface: Surface,
+        outputWidth: Int,
+        outputHeight: Int,
+        refreshHz: Float,
+        fpsLimit: Int,
         display: Display? = null,
-    ): Boolean = startOrAttachOutput(context, surface, outputWidth, outputHeight, refreshHz, fpsLimit) {
-        val runtimeDir = File(context.filesDir, ".wayland-rt").apply { mkdirs() }
-        FileUtils.copyAsset(context, "wayland/keymap.xkb", File(runtimeDir, "keymap.xkb"))
-        val choice = SessionPrefs.androidDriver(context)
-        displayChoice = choice
-        com.droiddeck.launcher.gpu.AutoDriverTrial.displayStarting(context, choice)
-        val turnip = TurnipDriver(context)
-        val driverId = turnip.install()
-        configureHdr(context, mode, display)
-        newSession(context)
-        com.droiddeck.launcher.gpu.TpUbwcHint.applyToProcess(context)
-        com.droiddeck.launcher.gpu.DriverSetupLog.write(context, "compositor.start driver=$driverId")
-        WaylandCompositor.nativeStartWithSurface(
-            surface, runtimeDir.path, driverId?.let { turnip.driverPath(it) },
-            driverId?.let { turnip.libraryName(it) }, context.applicationInfo.nativeLibraryDir,
-        )
+    ) {
+        check(started) { "DroidDeck compositor is not prepared" }
+        updateDisplay(context, display)
+        startOrAttachOutput(context, surface, outputWidth, outputHeight, refreshHz, fpsLimit) {}
     }
 
     fun startOrAttach(
@@ -194,19 +211,30 @@ object CompositorHost {
         if (started) WaylandCompositor.nativeResetFirstFrame()
     }
 
-    private fun configureHdr(context: Context, mode: String, display: Display?) {
+    private fun updateDisplay(context: Context, display: Display?): HdrProbe {
         val probe = HdrSupport.probe(context, display)
         WaylandCompositor.nativeSetHdrDisplay(
             probe.displayId, probe.name, probe.formats, probe.hdr10,
             probe.maxLuminance, probe.maxAverageLuminance, probe.minLuminance,
             probe.ratioAvailable, probe.ratio, Build.VERSION.SDK_INT,
         )
+        return probe
+    }
+
+    @Synchronized
+    fun configureOutput(context: Context, mode: String, display: Display? = null, checkCurrent: () -> Unit = {}) {
+        checkCurrent()
+        val probe = updateDisplay(context, display)
+        if (started) return
         val wanted = SessionPrefs.hdr(context, mode)
         val on = wanted && probe.reason == null
         SessionState.hdr = on
         if (on) {
             try { android.system.Os.setenv("DROIDDECK_WAYLAND_HDR", "1", true) } catch (e: Exception) { Log.w("CompositorHost", "DROIDDECK_WAYLAND_HDR", e) }
             WaylandCompositor.nativeSetZeroCopy(true)
+        } else {
+            runCatching { android.system.Os.unsetenv("DROIDDECK_WAYLAND_HDR") }
+                .onFailure { Log.w("CompositorHost", "DROIDDECK_WAYLAND_HDR", it) }
         }
         WaylandCompositor.nativeSetHdrRequest(
             if (on) WaylandCompositor.HDR_MODE_ON else WaylandCompositor.HDR_MODE_OFF,

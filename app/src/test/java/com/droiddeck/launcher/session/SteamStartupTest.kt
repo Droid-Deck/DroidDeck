@@ -27,6 +27,8 @@ class SteamStartupTest {
     @Before fun setUp() {
         prefs.edit().clear().commit()
         SessionState.running = false
+        SessionState.stopRequested = false
+        SessionState.hdr = false
         SessionState.launcherVisible = true
         SessionState.phase = SessionPhase.IDLE
     }
@@ -79,6 +81,27 @@ class SteamStartupTest {
         SessionState.running = true
         SessionService.prepareSteam(app)
         assertNull(shadowOf(app).nextStartedService)
+    }
+
+    @Test fun hdrStartupWaitsForPlayToSelectTheActualOutput() {
+        installRuntimeFiles()
+        SessionPrefs.setSteamStartup(app, SteamStartup.BACKGROUND)
+        SessionPrefs.setHdr(app, SessionService.MODE_STEAM, true)
+        SessionService.prepareSteam(app)
+        assertNull(shadowOf(app).nextStartedService)
+        assertFalse(SessionState.running)
+        SessionPrefs.setHdr(app, SessionService.MODE_STEAM, false)
+        SessionService.prepareSteam(app)
+        assertNotNull(shadowOf(app).nextStartedService)
+    }
+
+    @Test fun aCancelledRequestCannotBeginAnotherSession() {
+        installRuntimeFiles()
+        SessionPrefs.setSteamStartup(app, SteamStartup.BACKGROUND)
+        SessionState.stopRequested = true
+        SessionService.prepareSteam(app)
+        assertNull(shadowOf(app).nextStartedService)
+        assertFalse(SessionState.running)
     }
 
     @Test fun startupAndTeardownExcludeAnotherBackgroundRequest() {

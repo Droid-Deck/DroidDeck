@@ -62,6 +62,9 @@ import com.droiddeck.launcher.glasses.SpatialTracking
 import com.droiddeck.launcher.glasses.TrackingRecovery
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.CancellationException
 import com.droiddeck.launcher.gpu.SteamVr
 import com.droiddeck.launcher.gpu.ScreenEffectLooks
 import com.droiddeck.launcher.gpu.ScreenEffects
@@ -1956,22 +1959,62 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
     }
 
+    private var surfacePreparation: Job? = null
+
     override fun surfaceCreated(holder: SurfaceHolder) {
         if (holder !== outputHolder()) return
         if (installingRuntime || SessionState.stopRequested || ended) return
-        SessionService.compositorPreparation?.let { preparation ->
-            glassesScope.launch {
-                preparation.join()
-                if (!isDestroyed && !isFinishing && holder === outputHolder() && holder.surface.isValid) surfaceCreated(holder)
+        surfacePreparation?.cancel()
+        val sessionId = SessionState.sessionId
+        val surface = holder.surface
+        val preparation = SessionService.compositorPreparation
+        if (!SessionState.running) SessionEvents.transition(SessionPhase.STARTING_COMPOSITOR, "compositor.starting")
+        surfacePreparation = glassesScope.launch {
+            val result = if (preparation != null) preparation.result.await() else {
+                val size = surfaceOutputSize(holder)
+                val mode = SessionPrefs.prefMode(intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_STEAM)
+                val display = glassesScreen?.display
+                val hz = refreshHz()
+                val fps = outputFpsLimit()
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    val worker = coroutineContext[Job]!!
+                    val checkCurrent = {
+                        worker.ensureActive()
+                        if (sessionId != SessionState.sessionId || SessionState.stopRequested ||
+                            SessionState.phase == SessionPhase.STOPPING) throw CancellationException("Session start cancelled")
+                    }
+                    runCatching {
+                        CompositorHost.configureOutput(this@SessionActivity, mode, display, checkCurrent)
+                        CompositorHost.prepare(this@SessionActivity, size.first, size.second, hz, fps, checkCurrent)
+                        Unit
+                    }
+                }
             }
-            return
+            if (sessionId != SessionState.sessionId || isDestroyed || isFinishing || ended ||
+                holder !== outputHolder() || holder.surface !== surface || !surface.isValid) return@launch
+            result.fold(
+                onSuccess = { attachPreparedOutput(holder) },
+                onFailure = { error ->
+                    if (error !is CancellationException) {
+                        Log.e(TAG, "compositor preparation failed", error)
+                        SessionEvents.fail("COMPOSITOR_PREPARATION", error.message ?: "Compositor preparation failed")
+                        onSessionEnded(-1)
+                    }
+                },
+            )
         }
-        if (!SessionState.running) {
-            SessionEvents.transition(SessionPhase.STARTING_COMPOSITOR, "compositor.starting")
-        }
+    }
+
+    private fun surfaceOutputSize(holder: SurfaceHolder): Pair<Int, Int> {
+        windowOutputSize(holder.surfaceFrame.width(), holder.surfaceFrame.height())?.let { return it }
+        if (SessionState.running && SessionState.firstFrameSeen) return SessionState.outputSize
+        return glassesOutputSize() ?: outputSize()
+    }
+
+    private fun attachPreparedOutput(holder: SurfaceHolder) {
+        if (SessionState.stopRequested || ended) return
         val previous = SessionState.outputSize
-        val live = windowOutputSize(holder.surfaceFrame.width(), holder.surfaceFrame.height())
-        val size = live ?: if (SessionState.running && SessionState.firstFrameSeen) previous else glassesOutputSize() ?: outputSize()
+        val size = surfaceOutputSize(holder)
         SessionState.outputSize = size
         if (!SessionState.running) SessionState.refreshHz = refreshHz()
         val panel = panelBounds()
@@ -1984,10 +2027,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         pushCardboard(activeCardboard)
         WaylandCompositor.nativeSetCardboardPoseFile(File(filesDir, ".wayland-rt/droiddeck-headpose").path)
         com.droiddeck.launcher.glasses.SpatialTracking.attachPublisher(File(filesDir, ".wayland-rt/droiddeck-spatialpose").path)
-        CompositorHost.startOrAttach(
-            this, holder.surface, size.first, size.second, refreshHz(), outputFpsLimit(),
-            SessionPrefs.prefMode(intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_STEAM),
-            glassesScreen?.display,
+        CompositorHost.attach(
+            this, holder.surface, size.first, size.second, refreshHz(), outputFpsLimit(), glassesScreen?.display,
         )
         onOutputAttached(holder)
         if (SessionState.running && size != previous) {
@@ -2071,6 +2112,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         // Hiding the phone surface after a handoff delivers a late destruction
         // callback. It must not reset the new output's size or attachment.
         if (holder !== outputHolder()) return
+        surfacePreparation?.cancel()
         cancelTouchGestures()
         surfaceW = 0
         surfaceH = 0
@@ -2197,6 +2239,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun onSessionEnded(status: Int) {
+        surfacePreparation?.cancel()
         ended = true
         ++steamVrRequestGeneration
         if (isInPictureInPictureMode) {

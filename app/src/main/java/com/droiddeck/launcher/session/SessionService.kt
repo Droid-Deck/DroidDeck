@@ -58,7 +58,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.UUID
-import kotlinx.coroutines.Job
+import kotlinx.coroutines.CancellationException
 
 class SessionService : Service() {
     override fun attachBaseContext(newBase: android.content.Context) =
@@ -416,20 +416,27 @@ class SessionService : Service() {
         if (SessionState.mode == MODE_STEAM) SessionState.steamUrl
             ?.takeIf { it.startsWith(GAME_URL_PREFIX) }?.let { watchGameExit(it.removePrefix(GAME_URL_PREFIX), gen) }
         acquireLocks()
-        val preparation = if (backgroundStart) Job().also { compositorStart = it } else null
+        val preparation = if (backgroundStart) CompositorPreparation() else null
+        compositorStart = preparation
         Thread({
-            try {
-                if (gen != sessionGen || !SessionState.running || SessionState.stopRequested) return@Thread
+            val result = runCatching {
+                if (gen != sessionGen || !SessionState.running || SessionState.stopRequested) {
+                    throw CancellationException("Session start cancelled")
+                }
                 OrphanReaper.reap("session starting")
                 ProtonExtras.awaitReplacement(120_000)
-                if (gen != sessionGen || !SessionState.running || SessionState.stopRequested) return@Thread
-                if (backgroundStart) prepareCompositor()
-            } catch (error: Exception) {
-                Log.e(TAG, "session preparation failed", error)
-                if (gen == sessionGen && SessionState.running) stopSession(-1)
+                if (gen != sessionGen || !SessionState.running || SessionState.stopRequested) {
+                    throw CancellationException("Session start cancelled")
+                }
+                if (preparation != null) prepareCompositor(preparation)
+            }
+            preparation?.result?.complete(result)
+            result.exceptionOrNull()?.let { error ->
+                if (error !is CancellationException) {
+                    Log.e(TAG, "session preparation failed", error)
+                    if (gen == sessionGen && SessionState.running) stopSession(-1)
+                }
                 return@Thread
-            } finally {
-                preparation?.complete()
             }
             if (gen == sessionGen && SessionState.running && !SessionState.stopRequested) runSession(gen)
         }, "session-start").start()
@@ -446,13 +453,15 @@ class SessionService : Service() {
         SessionState.followScreen = choice == SessionDisplay.FOLLOW_SCREEN
     }
 
-    private fun prepareCompositor() {
+    private fun prepareCompositor(preparation: CompositorPreparation) {
         val size = SessionState.outputSize
         val display = getSystemService(DisplayManager::class.java).getDisplay(sessionDisplayId)
-        CompositorHost.startOrAttach(
-            this, null, size.first, size.second, display?.refreshRate?.takeIf { it > 1f } ?: 60f,
-            SessionPrefs.compositorFpsLimit(0), display = display,
+        preparation.checkCurrent()
+        CompositorHost.prepare(
+            this, size.first, size.second, display?.refreshRate?.takeIf { it > 1f } ?: 60f,
+            SessionPrefs.compositorFpsLimit(0), preparation::checkCurrent,
         )
+        preparation.checkCurrent()
         SessionEvents.record("compositor.prepared")
     }
 
@@ -1869,6 +1878,7 @@ class SessionService : Service() {
             if (ended != null) SessionArtifacts.collectionStarted(ended)
             ended to SessionState.steamClientArch
         }
+        compositorStart?.result?.cancel()
         SessionState.micAvailable = false
         SessionState.micEnabled = false
         xrActivityVisible = false
@@ -2150,8 +2160,9 @@ class SessionService : Service() {
     }
 
     companion object {
-        @Volatile private var compositorStart: Job? = null
-        val compositorPreparation: Job? get() = compositorStart?.takeUnless { it.isCompleted }
+        @Volatile private var compositorStart: CompositorPreparation? = null
+        internal val compositorPreparation: CompositorPreparation?
+            get() = compositorStart?.takeIf { it.sessionId == SessionState.sessionId }
 
         private const val TAG = "SessionService"
         private const val TRACER_NICE = -6
@@ -2227,6 +2238,8 @@ class SessionService : Service() {
 
         private fun canPrepareSteam(context: Context): Boolean =
             SessionPrefs.steamStartup(context) == SteamStartup.BACKGROUND && SessionState.launcherVisible &&
+                // HDR capabilities are fixed at native startup, so Play must select the actual output first.
+                !SessionPrefs.hdr(context, MODE_STEAM) && !SessionState.hdr && !SessionState.stopRequested &&
                 !SessionState.running && SessionState.phase in setOf(SessionPhase.IDLE, SessionPhase.FAILED) &&
                 LinuxRuntime.isInstalled(context) && !LinuxRuntimeInstaller.isBusy() &&
                 !ProtonExtras.installInProgress && DesktopCatalog.interrupted(context).isEmpty() &&
