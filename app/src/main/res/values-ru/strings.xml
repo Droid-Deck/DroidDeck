@@ -613,7 +613,6 @@
     <string name="drawer_hud_color_amber">Янтарный</string>
     <string name="drawer_hud_color_violet">Фиолетовый</string>
     <string name="drawer_hud_opacity">Непрозрачность</string>
-    <string name="hud_matches_steam_overlay">Частота кадров, время кадров и показания берутся из тех же источников, что и оверлей производительности Steam.</string>
     <string name="hud_size">Размер</string>
     <string name="hud_size_hint">Касание HUD тоже меняет его размер.</string>
     <string name="hud_size_full">Полный</string>

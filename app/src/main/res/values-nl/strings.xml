@@ -607,7 +607,6 @@
     <string name="drawer_hud_color_amber">Amber</string>
     <string name="drawer_hud_color_violet">Violet</string>
     <string name="drawer_hud_opacity">Transparantie</string>
-    <string name="hud_matches_steam_overlay">Beeldsnelheid, frametijden en meetwaarden komen uit dezelfde bronnen als de prestatie-overlay van Steam.</string>
     <string name="hud_size">Grootte</string>
     <string name="hud_size_hint">Tikken op de HUD verandert ook de grootte.</string>
     <string name="hud_size_full">Volledig</string>

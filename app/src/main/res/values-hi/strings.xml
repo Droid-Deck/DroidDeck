@@ -607,7 +607,6 @@
     <string name="drawer_hud_color_amber">एम्बर</string>
     <string name="drawer_hud_color_violet">वायलेट</string>
     <string name="drawer_hud_opacity">ओपैसिटी</string>
-    <string name="hud_matches_steam_overlay">फ़्रेम दर, फ़्रेम टाइम और रीडिंग उन्हीं स्रोतों से आती हैं जिनसे Steam का परफ़ॉर्मेंस ओवरले उन्हें लेता है।</string>
     <string name="hud_size">आकार</string>
     <string name="hud_size_hint">HUD पर टैप करने से भी उसका आकार बदलता है।</string>
     <string name="hud_size_full">फ़ुल</string>

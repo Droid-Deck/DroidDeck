@@ -611,7 +611,6 @@
     <string name="drawer_hud_color_amber">Ámbar</string>
     <string name="drawer_hud_color_violet">Violeta</string>
     <string name="drawer_hud_opacity">Opacidad</string>
-    <string name="hud_matches_steam_overlay">La tasa de fotogramas, los tiempos de fotograma y las lecturas provienen de las mismas fuentes que la superposición de rendimiento de Steam.</string>
     <string name="hud_size">Tamaño</string>
     <string name="hud_size_hint">Tocar el HUD también cambia su tamaño.</string>
     <string name="hud_size_full">Completo</string>

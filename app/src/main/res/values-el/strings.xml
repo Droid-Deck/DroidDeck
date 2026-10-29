@@ -607,7 +607,6 @@
     <string name="drawer_hud_color_amber">Κεχριμπαρί</string>
     <string name="drawer_hud_color_violet">Βιολετί</string>
     <string name="drawer_hud_opacity">Διαφάνεια</string>
-    <string name="hud_matches_steam_overlay">Ο ρυθμός καρέ, οι χρόνοι καρέ και οι μετρήσεις προέρχονται από τις ίδιες πηγές με την επικάλυψη απόδοσης του Steam.</string>
     <string name="hud_size">Μέγεθος</string>
     <string name="hud_size_hint">Το πάτημα στο HUD αλλάζει επίσης το μέγεθός του.</string>
     <string name="hud_size_full">Πλήρες</string>

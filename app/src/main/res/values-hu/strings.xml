@@ -607,7 +607,6 @@
     <string name="drawer_hud_color_amber">Borostyán</string>
     <string name="drawer_hud_color_violet">Lila</string>
     <string name="drawer_hud_opacity">Átlátszatlanság</string>
-    <string name="hud_matches_steam_overlay">A képkockasebesség, a képkockaidők és a mért értékek ugyanazokból a forrásokból származnak, mint a Steam teljesítményátfedése.</string>
     <string name="hud_size">Méret</string>
     <string name="hud_size_hint">A HUD-ra koppintva is változik a mérete.</string>
     <string name="hud_size_full">Teljes</string>

@@ -607,7 +607,6 @@
     <string name="drawer_hud_color_amber">Ravgul</string>
     <string name="drawer_hud_color_violet">Violet</string>
     <string name="drawer_hud_opacity">Gennemsigtighed</string>
-    <string name="hud_matches_steam_overlay">Billedhastighed, billedtider og målinger kommer fra de samme kilder som Steams ydelsesoverlay.</string>
     <string name="hud_size">Størrelse</string>
     <string name="hud_size_hint">Et tryk på HUD ændrer også størrelsen.</string>
     <string name="hud_size_full">Fuld</string>

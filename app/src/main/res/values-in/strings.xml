@@ -605,7 +605,6 @@
     <string name="drawer_hud_color_amber">Ambar</string>
     <string name="drawer_hud_color_violet">Ungu</string>
     <string name="drawer_hud_opacity">Opasitas</string>
-    <string name="hud_matches_steam_overlay">Laju bingkai, waktu bingkai, dan pembacaan berasal dari sumber yang sama dengan overlay performa Steam.</string>
     <string name="hud_size">Ukuran</string>
     <string name="hud_size_hint">Mengetuk HUD juga mengubah ukurannya.</string>
     <string name="hud_size_full">Penuh</string>

@@ -607,7 +607,6 @@
     <string name="drawer_hud_color_amber">Amber</string>
     <string name="drawer_hud_color_violet">Fiolett</string>
     <string name="drawer_hud_opacity">Opasitet</string>
-    <string name="hud_matches_steam_overlay">Bildefrekvens, bildetider og måleverdier kommer fra de samme kildene som Steams ytelsesoverlegg.</string>
     <string name="hud_size">Størrelse</string>
     <string name="hud_size_hint">Et trykk på HUD-en endrer også størrelsen.</string>
     <string name="hud_size_full">Full</string>

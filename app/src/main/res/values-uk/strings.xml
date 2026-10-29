@@ -611,7 +611,6 @@
     <string name="drawer_hud_color_amber">Бурштиновий</string>
     <string name="drawer_hud_color_violet">Фіолетовий</string>
     <string name="drawer_hud_opacity">Непрозорість</string>
-    <string name="hud_matches_steam_overlay">Частота кадрів, час кадрів і показники беруться з тих самих джерел, що й оверлей продуктивності Steam.</string>
     <string name="hud_size">Розмір</string>
     <string name="hud_size_hint">Дотик до HUD також змінює його розмір.</string>
     <string name="hud_size_full">Повний</string>

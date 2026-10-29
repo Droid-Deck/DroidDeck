@@ -607,7 +607,6 @@
     <string name="drawer_hud_color_amber">Кехлибарено</string>
     <string name="drawer_hud_color_violet">Виолетово</string>
     <string name="drawer_hud_opacity">Прозрачност</string>
-    <string name="hud_matches_steam_overlay">Честотата на кадрите, времената на кадрите и показанията идват от същите източници като наслагването за производителност на Steam.</string>
     <string name="hud_size">Размер</string>
     <string name="hud_size_hint">Докосването на HUD също променя размера му.</string>
     <string name="hud_size_full">Пълен</string>

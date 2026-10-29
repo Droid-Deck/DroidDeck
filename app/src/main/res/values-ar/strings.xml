@@ -615,7 +615,6 @@
     <string name="drawer_hud_color_amber">كهرماني</string>
     <string name="drawer_hud_color_violet">بنفسجي</string>
     <string name="drawer_hud_opacity">العتامة</string>
-    <string name="hud_matches_steam_overlay">يأتي معدل الإطارات وأزمنة الإطارات والقراءات من المصادر نفسها التي تستخدمها طبقة الأداء في Steam.</string>
     <string name="hud_size">الحجم</string>
     <string name="hud_size_hint">النقر على HUD يغيّر حجمه أيضًا.</string>
     <string name="hud_size_full">كامل</string>

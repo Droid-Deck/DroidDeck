@@ -607,7 +607,6 @@
     <string name="drawer_hud_color_amber">アンバー</string>
     <string name="drawer_hud_color_violet">バイオレット</string>
     <string name="drawer_hud_opacity">不透明度</string>
-    <string name="hud_matches_steam_overlay">フレームレート、フレームタイム、各測定値は、Steamのパフォーマンスオーバーレイと同じソースから取得しています。</string>
     <string name="hud_size">サイズ</string>
     <string name="hud_size_hint">HUDをタップしてもサイズを切り替えられます。</string>
     <string name="hud_size_full">フル</string>

@@ -607,7 +607,6 @@
     <string name="drawer_hud_color_amber">호박색</string>
     <string name="drawer_hud_color_violet">보라색</string>
     <string name="drawer_hud_opacity">불투명도</string>
-    <string name="hud_matches_steam_overlay">프레임 속도, 프레임 타임, 측정값은 Steam 성능 오버레이와 같은 소스에서 가져옵니다.</string>
     <string name="hud_size">크기</string>
     <string name="hud_size_hint">HUD를 탭해도 크기가 바뀝니다.</string>
     <string name="hud_size_full">전체</string>

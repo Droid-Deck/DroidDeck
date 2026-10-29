@@ -607,7 +607,6 @@
     <string name="drawer_hud_color_amber">Kehribar</string>
     <string name="drawer_hud_color_violet">Mor</string>
     <string name="drawer_hud_opacity">Opaklık</string>
-    <string name="hud_matches_steam_overlay">Kare hızı, kare süreleri ve ölçümler, Steam\'in performans katmanıyla aynı kaynaklardan gelir.</string>
     <string name="hud_size">Boyut</string>
     <string name="hud_size_hint">HUD\'a dokunmak da boyutunu değiştirir.</string>
     <string name="hud_size_full">Tam</string>

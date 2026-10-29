@@ -605,7 +605,6 @@
     <string name="drawer_hud_color_amber">Hổ phách</string>
     <string name="drawer_hud_color_violet">Tím</string>
     <string name="drawer_hud_opacity">Độ mờ</string>
-    <string name="hud_matches_steam_overlay">Tốc độ khung hình, thời gian khung hình và các chỉ số lấy từ cùng nguồn với lớp phủ hiệu năng của Steam.</string>
     <string name="hud_size">Kích thước</string>
     <string name="hud_size_hint">Chạm vào HUD cũng thay đổi kích thước của nó.</string>
     <string name="hud_size_full">Đầy đủ</string>

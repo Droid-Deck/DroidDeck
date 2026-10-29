@@ -666,7 +666,6 @@
     <string name="drawer_hud_color_amber">Amber</string>
     <string name="drawer_hud_color_violet">Violet</string>
     <string name="drawer_hud_opacity">Opacity</string>
-    <string name="hud_matches_steam_overlay">Frame rate, frame times and readings come from the same sources as Steam\'s performance overlay.</string>
     <string name="hud_size">Size</string>
     <string name="hud_size_hint">Tapping the HUD also changes its size.</string>
     <string name="hud_size_full">Full</string>

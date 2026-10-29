@@ -611,7 +611,6 @@
     <string name="drawer_hud_color_amber">Ambrová</string>
     <string name="drawer_hud_color_violet">Fialová</string>
     <string name="drawer_hud_opacity">Průhlednost</string>
-    <string name="hud_matches_steam_overlay">Snímková frekvence, časy snímků a naměřené hodnoty pocházejí ze stejných zdrojů jako výkonnostní překryv Steamu.</string>
     <string name="hud_size">Velikost</string>
     <string name="hud_size_hint">Klepnutím na HUD se také změní jeho velikost.</string>
     <string name="hud_size_full">Plný</string>

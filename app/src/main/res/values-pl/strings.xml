@@ -611,7 +611,6 @@
     <string name="drawer_hud_color_amber">Bursztynowy</string>
     <string name="drawer_hud_color_violet">Fioletowy</string>
     <string name="drawer_hud_opacity">Przezroczystość</string>
-    <string name="hud_matches_steam_overlay">Liczba klatek, czasy klatek i odczyty pochodzą z tych samych źródeł co nakładka wydajności Steam.</string>
     <string name="hud_size">Rozmiar</string>
     <string name="hud_size_hint">Dotknięcie HUD również zmienia jego rozmiar.</string>
     <string name="hud_size_full">Pełny</string>

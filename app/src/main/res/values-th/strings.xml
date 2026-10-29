@@ -605,7 +605,6 @@
     <string name="drawer_hud_color_amber">อำพัน</string>
     <string name="drawer_hud_color_violet">ม่วง</string>
     <string name="drawer_hud_opacity">ความโปร่งใส</string>
-    <string name="hud_matches_steam_overlay">อัตราเฟรม เวลาเฟรม และค่าที่อ่านได้มาจากแหล่งเดียวกับโอเวอร์เลย์ประสิทธิภาพของ Steam</string>
     <string name="hud_size">ขนาด</string>
     <string name="hud_size_hint">การแตะ HUD จะเปลี่ยนขนาดด้วย</string>
     <string name="hud_size_full">เต็ม</string>

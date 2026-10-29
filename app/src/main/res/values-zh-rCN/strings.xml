@@ -607,7 +607,6 @@
     <string name="drawer_hud_color_amber">琥珀</string>
     <string name="drawer_hud_color_violet">紫罗兰</string>
     <string name="drawer_hud_opacity">不透明度</string>
-    <string name="hud_matches_steam_overlay">帧率、帧时间和各项读数与 Steam 性能叠加层来自相同的数据源。</string>
     <string name="hud_size">大小</string>
     <string name="hud_size_hint">轻点 HUD 也可以切换大小。</string>
     <string name="hud_size_full">完整</string>

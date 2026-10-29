@@ -609,7 +609,6 @@
     <string name="drawer_hud_color_amber">Chihlimbariu</string>
     <string name="drawer_hud_color_violet">Violet</string>
     <string name="drawer_hud_opacity">Opacitate</string>
-    <string name="hud_matches_steam_overlay">Rata de cadre, timpii de cadru și valorile citite provin din aceleași surse ca suprapunerea de performanță Steam.</string>
     <string name="hud_size">Dimensiune</string>
     <string name="hud_size_hint">Atingerea HUD-ului îi schimbă și dimensiunea.</string>
     <string name="hud_size_full">Complet</string>

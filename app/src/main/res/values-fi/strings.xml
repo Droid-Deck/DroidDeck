@@ -607,7 +607,6 @@
     <string name="drawer_hud_color_amber">Meripihka</string>
     <string name="drawer_hud_color_violet">Violetti</string>
     <string name="drawer_hud_opacity">Peittävyys</string>
-    <string name="hud_matches_steam_overlay">Kuvataajuus, kuva-ajat ja lukemat tulevat samoista lähteistä kuin Steamin suorituskykynäkymässä.</string>
     <string name="hud_size">Koko</string>
     <string name="hud_size_hint">HUD:n napauttaminen muuttaa myös sen kokoa.</string>
     <string name="hud_size_full">Täysi</string>
