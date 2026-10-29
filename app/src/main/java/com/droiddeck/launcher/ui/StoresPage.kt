@@ -1108,12 +1108,14 @@ internal fun ModeHeader(
                 modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp).padding(vertical = 4.dp),
             ) {
                 heading()
-                Row(
-                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.End),
-                    modifier = Modifier.weight(1f),
-                ) {
-                    searchButton()
-                    trailing()
+                Box(Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    ) {
+                        searchButton()
+                        trailing()
+                    }
                 }
             } else if (stacked) {
                 Box(Modifier.padding(vertical = 4.dp)) { heading() }

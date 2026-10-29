@@ -2,6 +2,7 @@
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 repo=$(cd "$here/../.." && pwd)
+. "$repo/tools/docker_platform.sh"
 
 native=0
 if [ "${1:-}" = --native ]; then native=1; shift; fi

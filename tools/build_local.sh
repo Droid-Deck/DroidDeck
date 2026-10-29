@@ -24,14 +24,8 @@ java_dir="${JAVA_HOME:-/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents
 [[ -x "$java_dir/bin/java" ]] || java_dir="${HOME}/.local/share/mise/installs/java/temurin-17"
 [[ "$java_dir" == */homebrew/* ]] && echo "using homebrew java path: $java_dir"
 [[ "$java_dir" == */mise/* ]] && echo "using mise java path: $java_dir"
-docker_platform=${DROIDDECK_DOCKER_PLATFORM:-}
-if [[ -z "${docker_platform}" ]]; then
-    case "$(uname -m)" in arm64|aarch64) docker_platform=linux/arm64 ;; *) docker_platform=linux/amd64 ;; esac
-fi
-export DROIDDECK_DOCKER_PLATFORM=${docker_platform}
-image_name=${DROIDDECK_BUILD_IMAGE:-droiddeck-local-cross:24.04-v3}
-[[ "${docker_platform}" == linux/arm64 && -z "${DROIDDECK_BUILD_IMAGE:-}" ]] && image_name=${image_name}-arm64
-export DROIDDECK_BUILD_IMAGE=${image_name}
+. "${repo_root}/tools/docker_platform.sh"
+image_name=${DROIDDECK_BUILD_IMAGE}
 build_variant=${DROIDDECK_BUILD_VARIANT:-release}
 case "$build_variant" in
     debug) gradle_task=assembleDebug ;;

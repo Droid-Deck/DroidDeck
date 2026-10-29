@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 repo=$(cd "$(dirname "$0")/../.." && pwd)
-image=${DROIDDECK_BUILD_IMAGE:-droiddeck-local-cross:24.04-v3}
-platform=${DROIDDECK_DOCKER_PLATFORM:-linux/amd64}
+. "$repo/tools/docker_platform.sh"
+image=${DROIDDECK_BUILD_IMAGE}
+platform=${DROIDDECK_DOCKER_PLATFORM}
 rust_cache="${HOME}/.cache/droiddeck-comet-rust${platform#linux/amd64}"
 rust_cache=${rust_cache/\/arm64/-arm64}
 docker run --rm --platform "$platform" -v "$repo:/src" \

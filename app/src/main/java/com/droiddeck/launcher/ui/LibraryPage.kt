@@ -639,9 +639,6 @@ private fun LibraryArt(e: LibraryEntry, wide: Any?, tall: Any?, download: Downlo
             else -> null
         }
         if (state != null) Box(Modifier.align(Alignment.TopEnd).padding(6.dp)) { StateChip(state, ChipTone.BUSY, small = true) }
-        if (download != null) Box(Modifier.align(Alignment.BottomCenter).padding(start = 6.dp, end = 6.dp, bottom = 5.dp)) {
-            ProgressBarThin(download.fraction, paused = download.state == DownloadState.PAUSED, verify = download.stage == DownloadStage.VERIFY)
-        }
         val showName = LibraryDisplay.title || hot
         val showSize = LibraryDisplay.size || hot
         if (showName || showSize) Column(
@@ -651,7 +648,10 @@ private fun LibraryArt(e: LibraryEntry, wide: Any?, tall: Any?, download: Downlo
                 .padding(start = 8.dp, end = 8.dp, top = 20.dp, bottom = if (download != null) 14.dp else 6.dp),
         ) {
             if (showName) Text(e.title, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = if (hot) 2 else 1, overflow = TextOverflow.Ellipsis, lineHeight = 13.sp)
-            if (showSize) LibraryMarker(e, null, showDownload = false)
+            if (showSize) LibrarySize(e)
+        }
+        if (download != null) Box(Modifier.align(Alignment.BottomCenter).padding(start = 6.dp, end = 6.dp, bottom = 5.dp)) {
+            ProgressBarThin(download.fraction, paused = download.state == DownloadState.PAUSED, verify = download.stage == DownloadStage.VERIFY)
         }
     }
 }
@@ -671,12 +671,20 @@ private fun RequestSize(e: LibraryEntry) {
     LaunchedEffect(item.key) { StoreSizes.request(ctx, item) }
 }
 
+private fun librarySize(e: LibraryEntry): Long? = if (e.installed) e.storeKey?.let { StoreSizes.onDisk[it] }
+    ?: e.game?.gameFiles?.let { FolderSizes.known[it.path] }
+    else e.item?.let { StoreSizes.size(it) }?.takeIf { it > 0 }
+
+@Composable
+private fun LibrarySize(e: LibraryEntry) {
+    val size = librarySize(e)?.takeIf { it > 0 } ?: return
+    Text(formatBytes(size), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1)
+}
+
 @Composable
 internal fun LibraryMarker(e: LibraryEntry, download: DownloadEntry?, showDownload: Boolean = true) {
     val pal = LocalPalette.current
-    val size = if (e.installed) e.storeKey?.let { StoreSizes.onDisk[it] }
-        ?: e.game?.gameFiles?.let { FolderSizes.known[it.path] }
-        else e.item?.let { StoreSizes.size(it) }?.takeIf { it > 0 }
+    val size = librarySize(e)
     when {
         download != null -> Text("${download.percent}%", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = pal.signal, maxLines = 1)
         e.item != null && StoresState.isUnfinished(e.item) -> Text(stringResource(R.string.stores_resume), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = pal.signal, maxLines = 1)
