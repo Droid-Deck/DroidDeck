@@ -2,6 +2,8 @@ package com.droiddeck.launcher.hud
 
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import kotlin.random.Random
 
@@ -54,6 +56,17 @@ class FrameStatsTest {
                 assertEquals(mango.frametimeData.max(), stats.graphMaxMs(), 0f)
             }
         }
+    }
+
+    @Test fun compositorFramesWakeTheHudWhenGamescopeSharesNone() {
+        val feed = GameFrameFeed(java.io.File("/nonexistent/droiddeck-hud/frames"))
+        var now = 1_000_000_000L
+        assertFalse(feed.poll(now))
+        feed.onCompositorFrame(now)
+        now += 16_666_667L
+        feed.onCompositorFrame(now)
+        assertTrue(feed.poll(now))
+        assertFalse(feed.poll(now + 1))
     }
 
     @Test fun aCompletedPeriodIsCountedWhenMangoHudWouldRedraw() {

@@ -160,6 +160,8 @@ internal class GameFrameFeed(private val file: File, val stats: FrameStats = Fra
     private val info = IntArray(5)
     @Volatile private var fromGamescope = false
     private var lastCompositorNs = 0L
+    @Volatile private var compositorFrames = 0L     // written by the compositor thread only
+    private var seenCompositorFrames = 0L
 
     @Volatile var engine = ""
         private set
@@ -176,11 +178,13 @@ internal class GameFrameFeed(private val file: File, val stats: FrameStats = Fra
 
     /** Main thread, once per display frame. True when new frames arrived. */
     fun poll(nowNs: Long): Boolean {
+        val compositorAdded = compositorFrames != seenCompositorFrames
+        seenCompositorFrames = compositorFrames
         if (handle == 0L) {
-            if (nowNs < nextOpenNs) return false
+            if (nowNs < nextOpenNs) return compositorAdded
             nextOpenNs = nowNs + REOPEN_NS
             handle = runCatching { HudFrames.nativeOpen(file.path) }.getOrDefault(0L)
-            if (handle == 0L) return false
+            if (handle == 0L) return compositorAdded
             // Frames already in the file were written before this reader started.
             HudFrames.nativePoll(handle, frametimes, times)
         }
@@ -201,7 +205,7 @@ internal class GameFrameFeed(private val file: File, val stats: FrameStats = Fra
             lastInfoNs = nowNs
             readInfo()
         }
-        return n > 0
+        return n > 0 || compositorAdded
     }
 
     /** Compositor thread: one frame shown on the panel. */
@@ -212,7 +216,10 @@ internal class GameFrameFeed(private val file: File, val stats: FrameStats = Fra
         }
         val last = lastCompositorNs
         lastCompositorNs = nowNs
-        if (last != 0L) stats.add(nowNs - last, nowNs)
+        if (last != 0L) {
+            stats.add(nowNs - last, nowNs)
+            compositorFrames++
+        }
     }
 
     fun close() {

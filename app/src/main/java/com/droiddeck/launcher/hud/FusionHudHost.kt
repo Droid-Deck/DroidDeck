@@ -29,6 +29,7 @@ class FusionHudHost(context: Context) {
     private var parent: ViewGroup? = null
     private var running = false
     private var hidden = false
+    private var backgrounded = false
     private var engine = ""
     private var gpuName = ""
     private var protonPid = 0
@@ -74,7 +75,7 @@ class FusionHudHost(context: Context) {
         hud.setMangoReadings(readings)
         hud.setGpuModel(cleanGpuName(GpuInfo.detect().displayName(context)))
         hud.onRefresh = Runnable { refreshLabels(hud) }
-        hud.setOnMovedListener { x, y -> SessionPrefs.setFusionHudPosition(context, x, y) }
+        hud.setOnMovedListener { _, _ -> keepOnScreen(hud); SessionPrefs.setFusionHudPosition(context, hud.x, hud.y) }
         hud.setOnSizeCycledListener { size -> FusionHudConfig.set(context, "hudSize", size); onConfigChanged?.invoke() }
         hud.setOnLockChangedListener { locked ->
             FusionHudConfig.set(context, "hudLocked", if (locked) "1" else "0")
@@ -107,8 +108,7 @@ class FusionHudHost(context: Context) {
         running = true
         WaylandCompositor.setGameListener(listener)
         Choreographer.getInstance().postFrameCallback(frameCallback)
-        showing = !hidden
-        view?.visibility = if (hidden) View.GONE else View.VISIBLE
+        applyShown()
     }
 
     fun stop() {
@@ -123,10 +123,20 @@ class FusionHudHost(context: Context) {
     /** Picture-in-picture and similar: keep running, draw nothing. */
     fun setHidden(hide: Boolean) {
         hidden = hide
-        if (running) {
-            view?.visibility = if (hide) View.GONE else View.VISIBLE
-            showing = !hide
-        }
+        applyShown()
+    }
+
+    /** The session screen is stopped (another app in front): draw nothing and stop reading sensors. */
+    fun setBackgrounded(stopped: Boolean) {
+        backgrounded = stopped
+        applyShown()
+    }
+
+    private fun applyShown() {
+        if (!running) return
+        val show = !hidden && !backgrounded
+        view?.visibility = if (show) View.VISIBLE else View.GONE
+        showing = show
     }
 
     /** A sensor report (FusionHUD's diagnostics) in Downloads/DroidDeck; null when it can't be written. */

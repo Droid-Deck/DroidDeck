@@ -3281,6 +3281,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         super.onStart()
         if (runtimeRemovalBlocked) return
         started = true
+        if (::hud.isInitialized) hud.setBackgrounded(false)
         refreshActivityDisplayId()
         displayManager.registerDisplayListener(displayListener, Handler(Looper.getMainLooper()))
         for (name in arrayOf("peak_refresh_rate", "min_refresh_rate")) {
@@ -3298,6 +3299,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     override fun onStop() {
         if (runtimeRemovalBlocked) { super.onStop(); return }
         started = false
+        if (::hud.isInitialized) hud.setBackgrounded(true)
         updateHandCamera()
         displayManager.unregisterDisplayListener(displayListener)
         contentResolver.unregisterContentObserver(refreshSettingObserver)
