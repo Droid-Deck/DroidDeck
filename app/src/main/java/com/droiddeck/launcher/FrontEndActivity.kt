@@ -1723,8 +1723,7 @@ class FrontEndActivity : ComponentActivity() {
         // The launcher can itself be shown on a non-default display (DeX, an external monitor); that one is not a "second screen".
         val ownDisplayId = if (android.os.Build.VERSION.SDK_INT >= 30) display?.displayId ?: android.view.Display.DEFAULT_DISPLAY else @Suppress("DEPRECATION") windowManager.defaultDisplay.displayId
         dualScreenMode = SessionPrefs.dualScreenMode(this)
-        secondScreenDisplays = if (dualScreenMode == com.droiddeck.launcher.input.DualScreen.MODE_OFF) emptyList()
-            else SecondScreenDisplays.available(displayManager, ownDisplayId)
+        secondScreenDisplays = SecondScreenDisplays.available(displayManager, ownDisplayId)
         dualScreenDevice = com.droiddeck.launcher.input.DualScreen.anyDisplay(displayManager, ownDisplayId) != null
         dualScreenLauncher = SessionPrefs.dualScreenLauncher(this)
         dualScreenControls = SessionPrefs.dualScreenSessionControls(this)

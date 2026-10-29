@@ -927,7 +927,7 @@
     <string name="setup_fullscreen_on">Hides the Android status and navigation bars</string>
     <string name="setup_fullscreen_off">Shows the Android status and navigation bars</string>
     <string name="setup_dual_screen">Dual screen</string>
-    <string name="setup_dual_screen_hint">Automatic uses the second screen on handhelds with a built-in one. On uses any second display. Off keeps everything on one screen.</string>
+    <string name="setup_dual_screen_hint">Automatic uses the second screen on handhelds with a built-in one. On uses any second display. Off keeps the launcher and games on one screen; you can still pick a second screen from the session menu.</string>
     <string name="setup_dual_screen_auto">Automatic</string>
     <string name="setup_dual_screen_on">On</string>
     <string name="setup_dual_screen_off">Off</string>

@@ -2909,9 +2909,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun refreshSecondScreenDisplays() {
         if (!::displayManager.isInitialized) return
         val primaryId = shownOnDisplayId
-        val dualOff = SessionPrefs.dualScreenMode(this) == com.droiddeck.launcher.input.DualScreen.MODE_OFF
         val candidates = SecondScreenDisplays.available(displayManager, primaryId)
-            .filter { !dualOff && (glassesScreen == null || it.id != glasses.displayId) }
+            .filter { glassesScreen == null || it.id != glasses.displayId }
         val oldIds = secondScreenDisplays.map { it.id }.toSet()
         secondScreenDisplays = candidates
         val newIds = candidates.map { it.id }.toSet()
