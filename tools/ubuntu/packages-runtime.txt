@@ -117,6 +117,7 @@ libnss-mdns
 libnss-myhostname
 libnss3
 libopenal1
+libopengl0
 libopenvr-api2
 libopus0
 libp11-kit0
@@ -143,6 +144,7 @@ libtasn1-6
 libthai0
 libudev1
 libunistring5
+libusb-1.0-0
 libuuid1
 libva2
 libvdpau1
