@@ -1357,6 +1357,8 @@ class FusionHudView(context: Context) : View(context) {
 
     override fun onTouchEvent(event: MotionEvent): Boolean = lockController.onTouchEvent(event)
 
+    internal val isDragging: Boolean get() = lockController.isDragging()
+
     private companion object {
         const val REFRESH_MS = 500L
         const val GRAPH_CLIP_MS = 49.9f

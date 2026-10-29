@@ -101,6 +101,8 @@ public class HudLockController {
 
     public boolean isLocked() { return locked; }
 
+    public boolean isDragging() { return dragging; }
+
     /** Feed from the host view's onTouchEvent. Always consumes (mirrors the legacy manual handlers). */
     public boolean onTouchEvent(MotionEvent event) {
         detector.onTouchEvent(event);

@@ -31,6 +31,8 @@ class FusionHudHost(context: Context) {
     private var hidden = false
     private var backgrounded = false
     private var polling = false
+    private var wantX = Float.NaN
+    private var wantY = Float.NaN
     private var engine = ""
     private var gpuName = ""
     private var protonPid = 0
@@ -76,20 +78,25 @@ class FusionHudHost(context: Context) {
         hud.setMangoReadings(readings)
         hud.setGpuModel(cleanGpuName(GpuInfo.detect().displayName(context)))
         hud.onRefresh = Runnable { refreshLabels(hud) }
-        hud.setOnMovedListener { _, _ -> keepOnScreen(hud); SessionPrefs.setFusionHudPosition(context, hud.x, hud.y) }
+        hud.setOnMovedListener { x, y ->
+            wantX = x; wantY = y
+            keepOnScreen(hud)
+            wantX = hud.x; wantY = hud.y
+            SessionPrefs.setFusionHudPosition(context, hud.x, hud.y)
+        }
         hud.setOnSizeCycledListener { size -> FusionHudConfig.set(context, "hudSize", size); onConfigChanged?.invoke() }
         hud.setOnLockChangedListener { locked ->
             FusionHudConfig.set(context, "hudLocked", if (locked) "1" else "0")
             onConfigChanged?.invoke()
         }
-        hud.addOnLayoutChangeListener { v, _, _, _, _, _, _, _, _ -> keepOnScreen(v) }
+        hud.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> if (!hud.isDragging) keepOnScreen(hud) }
         hud.visibility = View.GONE
         val margin = (16 * root.resources.displayMetrics.density).roundToInt()
         root.addView(hud, index, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
             leftMargin = margin
             topMargin = margin
         })
-        SessionPrefs.fusionHudPosition(context)?.let { (x, y) -> hud.post { hud.x = x; hud.y = y; keepOnScreen(hud) } }
+        SessionPrefs.fusionHudPosition(context)?.let { (x, y) -> wantX = x; wantY = y; hud.post { keepOnScreen(hud) } }
         view = hud
         parent = root
         applyConfig()
@@ -192,13 +199,19 @@ class FusionHudHost(context: Context) {
         return if (stats.size > 3 && stats[3] > 1f) stats[3] else 0f
     }
 
+    // The HUD is clamped from where the user left it (wantX/wantY, set on a drop or restore), not from where
+    // it is drawn: a window that shrinks and grows back (picture-in-picture, a fold) must not leave it in the
+    // corner the small window pushed it to.
     private fun keepOnScreen(v: View) {
         val p = v.parent as? View ?: return
         if (p.width <= 0 || p.height <= 0 || v.width <= 0 || v.height <= 0) return
+        if (wantX.isNaN()) { wantX = v.x; wantY = v.y }
         val maxX = (p.width - v.width).toFloat().coerceAtLeast(0f)
         val maxY = (p.height - v.height).toFloat().coerceAtLeast(0f)
-        if (v.x > maxX || v.x < 0f) v.x = v.x.coerceIn(0f, maxX)
-        if (v.y > maxY || v.y < 0f) v.y = v.y.coerceIn(0f, maxY)
+        val x = wantX.coerceIn(0f, maxX)
+        val y = wantY.coerceIn(0f, maxY)
+        if (v.x != x) v.x = x
+        if (v.y != y) v.y = y
     }
 
     companion object {
