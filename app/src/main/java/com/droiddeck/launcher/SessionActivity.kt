@@ -565,17 +565,22 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val overlayPadKeyGen = java.util.concurrent.atomic.AtomicInteger(0)
         dualSenseManager = com.droiddeck.launcher.input.DualSenseManager(this).also { ds ->
             ds.onActivationChanged = { active ->
-                if (!active) {
+                synchronized(overlayPadKeyGen) {
                     overlayPadKeyGen.incrementAndGet()
-                    uiHandler.post { releaseOverlayPadKeys() }
                 }
+                if (!active) uiHandler.post { releaseOverlayPadKeys() }
             }
             ds.onStateUpdated = { state ->
-                if (ds.isDualSenseActive && ds.uiOverlayActive) {
-                    val gen = overlayPadKeyGen.get()
+                val gen = synchronized(overlayPadKeyGen) {
+                    if (ds.isDualSenseActive && ds.uiOverlayActive) overlayPadKeyGen.get() else -1
+                }
+                if (gen >= 0) {
                     val next = com.droiddeck.launcher.input.LauncherPadKeys.held(state).toIntArray()
                     uiHandler.post {
-                        if (gen == overlayPadKeyGen.get() && ds.isDualSenseActive && ds.uiOverlayActive && !next.contentEquals(overlayPadKeys)) {
+                        val valid = synchronized(overlayPadKeyGen) {
+                            gen == overlayPadKeyGen.get() && ds.isDualSenseActive && ds.uiOverlayActive
+                        }
+                        if (valid && !next.contentEquals(overlayPadKeys)) {
                             dispatchOverlayPadKeys(next)
                         }
                     }
