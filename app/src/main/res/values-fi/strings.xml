@@ -830,6 +830,17 @@
     <string name="setup_fullscreen">Koko näyttö</string>
     <string name="setup_fullscreen_on">Piilottaa Androidin tila- ja navigointipalkit</string>
     <string name="setup_fullscreen_off">Näyttää Androidin tila- ja navigointipalkit</string>
+    <string name="setup_dual_screen">Kaksi näyttöä</string>
+    <string name="setup_dual_screen_hint">Automaattinen käyttää toista näyttöä kämmenlaitteissa, joissa sellainen on sisäänrakennettuna. Päällä käyttää mitä tahansa toista näyttöä. Pois pitää kaiken yhdellä näytöllä.</string>
+    <string name="setup_dual_screen_auto">Automaattinen</string>
+    <string name="setup_dual_screen_on">Päällä</string>
+    <string name="setup_dual_screen_off">Pois</string>
+    <string name="setup_dual_screen_menu">Alanäytön valikko</string>
+    <string name="setup_dual_screen_menu_hint">Siirtää osiot ja pelin aikaisen valikon toiselle näytölle ja kirjoitus tehdään siellä, joten yläruutu säilyttää koko näkymän. L2 ja R2 vaihtavat osiota.</string>
+    <string name="setup_dual_screen_controls">Alanäytön ohjaimet peleissä</string>
+    <string name="setup_dual_screen_controls_hint">Avaa kosketuslevyn ja näppäimistön toiselle näytölle, kun istunto alkaa.</string>
+    <string name="dual_typing_title">Kirjoitus yläruudulle</string>
+    <string name="dual_typing_done">Valmis</string>
     <string name="setup_default_home">Oletuskotisovellus</string>
     <string name="setup_choose_home">Valitse kotisovellus</string>
     <string name="setup_choose">Valitse</string>

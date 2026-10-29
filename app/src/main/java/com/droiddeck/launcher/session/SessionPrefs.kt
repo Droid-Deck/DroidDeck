@@ -86,6 +86,26 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("animations", on).apply()
     }
 
+    fun dualScreenMode(context: Context): String =
+        prefs(context).getString("dualScreenMode", null)?.takeIf { it in com.droiddeck.launcher.input.DualScreen.modes }
+            ?: com.droiddeck.launcher.input.DualScreen.MODE_AUTO
+
+    fun setDualScreenMode(context: Context, mode: String) {
+        prefs(context).edit().putString("dualScreenMode", mode).apply()
+    }
+
+    fun dualScreenLauncher(context: Context): Boolean = prefs(context).getBoolean("dualScreenLauncher", true)
+
+    fun setDualScreenLauncher(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("dualScreenLauncher", on).apply()
+    }
+
+    fun dualScreenSessionControls(context: Context): Boolean = prefs(context).getBoolean("dualScreenSessionControls", true)
+
+    fun setDualScreenSessionControls(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("dualScreenSessionControls", on).apply()
+    }
+
     fun gameStoresEnabled(context: Context): Boolean = prefs(context).getBoolean("gameStoresEnabled", true)
 
     fun setGameStoresEnabled(context: Context, on: Boolean) {

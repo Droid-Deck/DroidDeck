@@ -191,24 +191,28 @@ internal fun SideRail(
     }
 }
 
+internal fun railLabelIcon(key: String): Pair<Int, ImageVector> = when (key) {
+    "steam" -> R.string.rail_steam to Icons.Outlined.SportsEsports
+    "games" -> R.string.rail_games to Icons.Outlined.VideoLibrary
+    "stores" -> R.string.rail_stores to Icons.Outlined.LocalMall
+    "desktop" -> R.string.rail_desktop to Icons.Outlined.DesktopWindows
+    "components" -> R.string.rail_components to Icons.Outlined.Layers
+    "android-apps" -> R.string.rail_apps to Icons.Outlined.Apps
+    "setup" -> R.string.rail_setup to Icons.Outlined.Tune
+    else -> R.string.rail_updates to Icons.Outlined.SystemUpdate
+}
+
+internal fun setupNeedsAttention(s: FrontEndState): Boolean = !s.ready || (s.available != null && s.available != s.installed) ||
+    PhantomProcessLimit.blocksSteam(s.phantomProcessStatus)
+
 @Composable
 private fun NavigationItems(
     s: FrontEndState, shown: String, compact: Boolean, iconOnly: Boolean, height: Dp, width: Dp,
     place: (String) -> Modifier, onSelect: (String) -> Unit, onFocusSelect: (String) -> Unit,
 ) {
-    val setupNeedsAttention = !s.ready || (s.available != null && s.available != s.installed) ||
-        PhantomProcessLimit.blocksSteam(s.phantomProcessStatus)
+    val setupNeedsAttention = setupNeedsAttention(s)
     for (key in navigationKeys(s)) {
-        val (label, icon) = when (key) {
-            "steam" -> R.string.rail_steam to Icons.Outlined.SportsEsports
-            "games" -> R.string.rail_games to Icons.Outlined.VideoLibrary
-            "stores" -> R.string.rail_stores to Icons.Outlined.LocalMall
-            "desktop" -> R.string.rail_desktop to Icons.Outlined.DesktopWindows
-            "components" -> R.string.rail_components to Icons.Outlined.Layers
-            "android-apps" -> R.string.rail_apps to Icons.Outlined.Apps
-            "setup" -> R.string.rail_setup to Icons.Outlined.Tune
-            else -> R.string.rail_updates to Icons.Outlined.SystemUpdate
-        }
+        val (label, icon) = railLabelIcon(key)
         key(key) {
             RailItem(stringResource(label), icon, key, shown == key, compact, iconOnly, height, width,
                 badge = (key == "setup" && setupNeedsAttention) || (key == "updates" && s.updates.hasUpdate),

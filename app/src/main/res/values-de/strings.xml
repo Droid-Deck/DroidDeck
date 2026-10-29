@@ -822,6 +822,17 @@
     <string name="setup_fullscreen">Vollbild</string>
     <string name="setup_fullscreen_on">Blendet die Status- und Navigationsleiste von Android aus</string>
     <string name="setup_fullscreen_off">Zeigt die Status- und Navigationsleiste von Android an</string>
+    <string name="setup_dual_screen">Zwei Bildschirme</string>
+    <string name="setup_dual_screen_hint">Automatisch nutzt den zweiten Bildschirm auf Handhelds mit eingebautem Zweitbildschirm. Ein nutzt einen beliebigen zweiten Bildschirm. Aus lässt alles auf einem Bildschirm.</string>
+    <string name="setup_dual_screen_auto">Automatisch</string>
+    <string name="setup_dual_screen_on">Ein</string>
+    <string name="setup_dual_screen_off">Aus</string>
+    <string name="setup_dual_screen_menu">Menü auf dem unteren Bildschirm</string>
+    <string name="setup_dual_screen_menu_hint">Verschiebt die Bereiche und das Menü im Spiel auf den zweiten Bildschirm und tippt dort, damit der obere Bildschirm die volle Ansicht behält. L2 und R2 wechseln den Bereich.</string>
+    <string name="setup_dual_screen_controls">Steuerung auf dem unteren Bildschirm in Spielen</string>
+    <string name="setup_dual_screen_controls_hint">Öffnet beim Start einer Sitzung Trackpad und Tastatur auf dem zweiten Bildschirm.</string>
+    <string name="dual_typing_title">Eingabe für den oberen Bildschirm</string>
+    <string name="dual_typing_done">Fertig</string>
     <string name="setup_default_home">Standard-Startbildschirm-App</string>
     <string name="setup_choose_home">Startbildschirm-App auswählen</string>
     <string name="setup_choose">Auswählen</string>

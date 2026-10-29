@@ -546,6 +546,7 @@ class SessionService : Service() {
         val fakeInputDir = File(sessionRoot, "dev/input").apply { mkdirs() }
         val controllersOn = !File(Environment.getExternalStorageDirectory(), NO_PAD_SWITCH).exists()
         SessionState.deckPad = false
+        SessionState.secondScreenAutoOpened = false
         deckBinds = emptyList()
         inputSysfs = null
         if (controllersOn) {
@@ -1882,6 +1883,9 @@ class SessionService : Service() {
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
+        if (rootIntent?.component?.className in setOf(
+                com.droiddeck.launcher.ui.DualScreenActivity::class.java.name,
+                com.droiddeck.launcher.ui.SessionTypingActivity::class.java.name)) return
         if (pipTask || xrActivityVisible) {
             Log.i(TAG, "panel task dismissed - retaining the session under its active surface policy")
             activityVisible = false

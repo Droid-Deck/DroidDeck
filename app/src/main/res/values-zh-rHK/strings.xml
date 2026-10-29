@@ -829,6 +829,17 @@
     <string name="setup_fullscreen">全螢幕</string>
     <string name="setup_fullscreen_on">隱藏 Android 狀態列和導覽列</string>
     <string name="setup_fullscreen_off">顯示 Android 狀態列和導覽列</string>
+    <string name="setup_dual_screen">雙屏</string>
+    <string name="setup_dual_screen_hint">自動：在內置第二塊螢幕的掌機上使用該螢幕。開啟：使用任何第二塊顯示器。關閉：所有內容只顯示在一塊螢幕上。</string>
+    <string name="setup_dual_screen_auto">自動</string>
+    <string name="setup_dual_screen_on">開啟</string>
+    <string name="setup_dual_screen_off">關閉</string>
+    <string name="setup_dual_screen_menu">下屏選單</string>
+    <string name="setup_dual_screen_menu_hint">將各個分區和遊戲內選單移到第二塊螢幕並在那裡輸入，讓上屏保持完整畫面。L2 和 R2 切換分區。</string>
+    <string name="setup_dual_screen_controls">遊戲中的下屏控制</string>
+    <string name="setup_dual_screen_controls_hint">工作階段開始時在第二塊螢幕上開啟觸控板和鍵盤。</string>
+    <string name="dual_typing_title">正在為上屏輸入</string>
+    <string name="dual_typing_done">完成</string>
     <string name="setup_default_home">預設主畫面應用程式</string>
     <string name="setup_choose_home">選擇主畫面應用程式</string>
     <string name="setup_choose">選擇</string>

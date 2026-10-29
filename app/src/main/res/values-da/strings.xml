@@ -830,6 +830,17 @@
     <string name="setup_fullscreen">Fuldskærm</string>
     <string name="setup_fullscreen_on">Skjuler Androids status- og navigationsbjælker</string>
     <string name="setup_fullscreen_off">Viser Androids status- og navigationsbjælker</string>
+    <string name="setup_dual_screen">Dobbeltskærm</string>
+    <string name="setup_dual_screen_hint">Automatisk bruger den anden skærm på håndholdte enheder med en indbygget ekstra skærm. Til bruger enhver anden skærm. Fra holder alt på én skærm.</string>
+    <string name="setup_dual_screen_auto">Automatisk</string>
+    <string name="setup_dual_screen_on">Til</string>
+    <string name="setup_dual_screen_off">Fra</string>
+    <string name="setup_dual_screen_menu">Menu på nederste skærm</string>
+    <string name="setup_dual_screen_menu_hint">Flytter sektionerne og menuen i spillet til den anden skærm og skriver der, så den øverste skærm beholder hele visningen. L2 og R2 skifter sektion.</string>
+    <string name="setup_dual_screen_controls">Kontroller på nederste skærm i spil</string>
+    <string name="setup_dual_screen_controls_hint">Åbner pegefeltet og tastaturet på den anden skærm, når en session starter.</string>
+    <string name="dual_typing_title">Skriver til den øverste skærm</string>
+    <string name="dual_typing_done">Færdig</string>
     <string name="setup_default_home">Standard Home-app</string>
     <string name="setup_choose_home">Vælg en Home-app</string>
     <string name="setup_choose">Vælg</string>

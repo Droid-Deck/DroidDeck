@@ -12,6 +12,7 @@ object SettingsReset {
 
     internal val SESSION_KEYS = setOf(
         "orientation", "launcherFullscreen", "animations", "theme", "runSteamAtStartup", "addedGamesArt",
+        "dualScreenMode", "dualScreenLauncher", "dualScreenSessionControls",
         "gameStoresEnabled", "gameStoresSpeedTier", "gameStoresParallel", "storesOpenTab", "storesShowMature",
         "storesInstallLanguage",
         "hud", "hudDeck", "hudFps", "hudBattery", "hudGraph", "hudColor", "hudOpacity", "fusionHud", "fusionHudPos", "backActionsInverted", "backDoubleTapMs", "touch", "osc", "shape", "steamController",

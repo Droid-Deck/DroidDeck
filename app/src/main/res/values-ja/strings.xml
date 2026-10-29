@@ -829,6 +829,17 @@
     <string name="setup_fullscreen">全画面</string>
     <string name="setup_fullscreen_on">Androidのステータスバーとナビゲーションバーを非表示</string>
     <string name="setup_fullscreen_off">Androidのステータスバーとナビゲーションバーを表示</string>
+    <string name="setup_dual_screen">デュアル画面</string>
+    <string name="setup_dual_screen_hint">自動では、2画面目を内蔵した携帯機でその画面を使います。オンではどの2画面目でも使います。オフではすべてを1画面に表示します。</string>
+    <string name="setup_dual_screen_auto">自動</string>
+    <string name="setup_dual_screen_on">オン</string>
+    <string name="setup_dual_screen_off">オフ</string>
+    <string name="setup_dual_screen_menu">下画面メニュー</string>
+    <string name="setup_dual_screen_menu_hint">セクションとゲーム中のメニューを2画面目に移し、入力もそこで行うため、上画面は全体表示のままになります。L2とR2でセクションを切り替えます。</string>
+    <string name="setup_dual_screen_controls">ゲーム中の下画面コントロール</string>
+    <string name="setup_dual_screen_controls_hint">セッション開始時に2画面目にトラックパッドとキーボードを開きます。</string>
+    <string name="dual_typing_title">上画面に入力中</string>
+    <string name="dual_typing_done">完了</string>
     <string name="setup_default_home">デフォルトのホームアプリ</string>
     <string name="setup_choose_home">ホームアプリを選択</string>
     <string name="setup_choose">選択</string>

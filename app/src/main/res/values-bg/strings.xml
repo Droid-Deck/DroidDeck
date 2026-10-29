@@ -830,6 +830,17 @@
     <string name="setup_fullscreen">Цял екран</string>
     <string name="setup_fullscreen_on">Скрива лентите за състояние и навигация на Android</string>
     <string name="setup_fullscreen_off">Показва лентите за състояние и навигация на Android</string>
+    <string name="setup_dual_screen">Двоен екран</string>
+    <string name="setup_dual_screen_hint">Автоматично използва втория екран на преносими устройства с вграден такъв. Вкл. използва всеки втори дисплей. Изкл. държи всичко на един екран.</string>
+    <string name="setup_dual_screen_auto">Автоматично</string>
+    <string name="setup_dual_screen_on">Вкл.</string>
+    <string name="setup_dual_screen_off">Изкл.</string>
+    <string name="setup_dual_screen_menu">Меню на долния екран</string>
+    <string name="setup_dual_screen_menu_hint">Премества секциите и менюто по време на игра на втория екран и въвеждането става там, така горният екран остава с пълен изглед. L2 и R2 сменят секциите.</string>
+    <string name="setup_dual_screen_controls">Контроли на долния екран в игрите</string>
+    <string name="setup_dual_screen_controls_hint">Отваря тракпада и клавиатурата на втория екран при стартиране на сесия.</string>
+    <string name="dual_typing_title">Въвеждане за горния екран</string>
+    <string name="dual_typing_done">Готово</string>
     <string name="setup_default_home">Приложение за начален екран по подразбиране</string>
     <string name="setup_choose_home">Изберете приложение за начален екран</string>
     <string name="setup_choose">Избор</string>

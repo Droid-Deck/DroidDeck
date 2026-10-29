@@ -825,6 +825,17 @@
     <string name="setup_fullscreen">Schermo intero</string>
     <string name="setup_fullscreen_on">Nasconde la barra di stato e la barra di navigazione di Android</string>
     <string name="setup_fullscreen_off">Mostra la barra di stato e la barra di navigazione di Android</string>
+    <string name="setup_dual_screen">Doppio schermo</string>
+    <string name="setup_dual_screen_hint">Automatico usa il secondo schermo sulle console portatili che ne hanno uno integrato. Attivo usa qualsiasi secondo schermo. Disattivo tiene tutto su un solo schermo.</string>
+    <string name="setup_dual_screen_auto">Automatico</string>
+    <string name="setup_dual_screen_on">Attivo</string>
+    <string name="setup_dual_screen_off">Disattivo</string>
+    <string name="setup_dual_screen_menu">Menu sullo schermo inferiore</string>
+    <string name="setup_dual_screen_menu_hint">Sposta le sezioni e il menu di gioco sul secondo schermo e si digita lì, così lo schermo superiore mantiene la vista completa. L2 e R2 cambiano sezione.</string>
+    <string name="setup_dual_screen_controls">Controlli sullo schermo inferiore nei giochi</string>
+    <string name="setup_dual_screen_controls_hint">Apre il trackpad e la tastiera sul secondo schermo all\'avvio di una sessione.</string>
+    <string name="dual_typing_title">Digitazione per lo schermo superiore</string>
+    <string name="dual_typing_done">Fine</string>
     <string name="setup_default_home">App Home predefinita</string>
     <string name="setup_choose_home">Scegli un\'app Home</string>
     <string name="setup_choose">Scegli</string>

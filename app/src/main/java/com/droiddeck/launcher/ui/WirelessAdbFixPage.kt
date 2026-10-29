@@ -28,6 +28,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -40,10 +41,13 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.ImeOptions
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.droiddeck.launcher.core.PhantomProcessLimit
@@ -373,6 +377,31 @@ internal fun AdbTextField(
     val shape = RoundedCornerShape(8.dp)
     val inputHeight = if (compact) 44.dp else 52.dp
     val colors = MaterialTheme.colorScheme
+    val bottomTyping = LocalBottomTyping.current
+    val bottomTypingLatest = rememberUpdatedState(bottomTyping)
+    val typingRequest = remember { arrayOfNulls<TypingRequest>(1) }
+
+    fun typeOnBottom(editText: EditText): Boolean {
+        if (!bottomTypingLatest.value || !DualScreenPanel.attached) return false
+        val text = editText.text.toString()
+        val request = TypingRequest(
+            TextFieldValue(text, TextRange(editText.selectionStart.coerceIn(0, text.length), editText.selectionEnd.coerceIn(0, text.length))),
+            ImeOptions(singleLine = true, keyboardType = keyboardType, imeAction = imeAction),
+            { next ->
+                if (editText.text.toString() != next.text) editText.setText(next.text)
+                editText.setSelection(next.selection.start.coerceIn(0, next.text.length), next.selection.end.coerceIn(0, next.text.length))
+            },
+            { action -> editText.onEditorAction(imeActionFlag(action)) },
+            { editText.post { editText.clearFocus() } },
+        )
+        typingRequest[0] = request
+        DualScreenPanel.startTyping(request)
+        return true
+    }
+
+    DisposableEffect(Unit) {
+        onDispose { typingRequest[0]?.let { DualScreenPanel.stopTyping(it) } }
+    }
 
     Column(modifier = modifier.fillMaxWidth()) {
         if (showLabel) Text(
@@ -424,8 +453,12 @@ internal fun AdbTextField(
                                 else -> false
                             }
                         }
+                        showSoftInputOnFocus = !bottomTyping
+                        setOnClickListener { if (hasFocus() && !typeOnBottom(this) && bottomTypingLatest.value) showKeyboardHere(this) }
                         setOnFocusChangeListener { _, hasFocus ->
                             focused = hasFocus
+                            if (hasFocus) { if (!typeOnBottom(this) && bottomTypingLatest.value) showKeyboardHere(this) }
+                            else typingRequest[0]?.let { DualScreenPanel.stopTyping(it) }
                             onFocusChangeLatest.value(hasFocus)
                         }
                         addTextChangedListener(object : TextWatcher {
@@ -438,11 +471,12 @@ internal fun AdbTextField(
                     }
                 },
                 update = { editText ->
+                    editText.showSoftInputOnFocus = !bottomTyping
                     if (focusOnShow && !focusAsked[0]) {
                         focusAsked[0] = true
                         editText.post {
                             editText.requestFocus()
-                            (editText.context.getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager)
+                            if (!bottomTypingLatest.value) (editText.context.getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager)
                                 ?.showSoftInput(editText, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT)
                         }
                     }
@@ -547,6 +581,11 @@ private fun parseAdbAddress(value: String): AdbEndpoint? {
 
 private fun formatAddressHost(host: String): String = if (':' in host) "[$host]" else host
 private fun formatAdbAddress(host: String, port: Int): String = "${formatAddressHost(host)}:$port"
+
+private fun showKeyboardHere(editText: EditText) {
+    (editText.context.getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager)
+        ?.showSoftInput(editText, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT)
+}
 
 private fun imeActionFlag(action: ImeAction): Int = when (action) {
     ImeAction.Next -> EditorInfo.IME_ACTION_NEXT

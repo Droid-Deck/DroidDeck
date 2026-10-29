@@ -69,6 +69,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.input.InputMode
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -127,6 +130,11 @@ class FrontEndState(
     val integrationFocus: com.droiddeck.launcher.core.SteamIntegration.Feature? = null,
     val androidApps: List<HomeApp.LaunchableApp> = emptyList(),
     val secondScreenDisplays: List<SecondScreenDisplay> = emptyList(),
+    val dualScreen: Boolean = false,
+    val dualScreenDevice: Boolean = false,
+    val dualScreenMode: String = com.droiddeck.launcher.input.DualScreen.MODE_AUTO,
+    val dualScreenLauncher: Boolean = true,
+    val dualScreenControls: Boolean = true,
     val packages: List<PackageRow>? = null,
     val packageCatalogLoading: Boolean = false,
     val packageBusyId: String? = null,
@@ -229,6 +237,9 @@ class FrontEndActions(
     val onLauncherOrientation: (Int) -> Unit = {},
     val onLauncherFullscreen: (Boolean) -> Unit = {},
     val onAnimationsEnabled: (Boolean) -> Unit = {},
+    val onDualScreenMode: (String) -> Unit = {},
+    val onDualScreenLauncher: (Boolean) -> Unit = {},
+    val onDualScreenControls: (Boolean) -> Unit = {},
     val onDownloadSource: (String) -> Unit = {},
     val onDownloadMirror: (String) -> Unit = {},
     val onDownloadPrefix: (String) -> Unit = {},
@@ -401,10 +412,14 @@ internal suspend fun focusSoon(target: () -> FocusRequester) {
 @Composable
 fun FrontEndScreen(s: FrontEndState, a: FrontEndActions, page: (@Composable () -> Unit)? = null) {
     val frontFocus = remember { FrontFocus() }
+    val textInput = androidx.compose.ui.platform.LocalTextInputService.current
+    val bottomTextInput = remember(textInput) { textInput?.let { androidx.compose.ui.text.input.TextInputService(BottomScreenTextInput(it)) } }
     androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize()) {
         CompositionLocalProvider(
             LocalFrontFocus provides frontFocus,
             LocalNarrowPane provides (maxWidth < NarrowPaneWidth),
+            androidx.compose.ui.platform.LocalTextInputService provides (if (s.dualScreen) bottomTextInput else textInput),
+            LocalBottomTyping provides s.dualScreen,
         ) { FrontEndScreenBody(s, a, page, frontFocus) }
     }
 }
@@ -550,6 +565,18 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
     val window = LocalWindowInfo.current
     val androidContext = androidx.compose.ui.platform.LocalContext.current
     var anyFocused by remember { mutableStateOf(false) }
+    val paneRequester = remember { FocusRequester() }
+    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
+    suspend fun focusDualPane() {
+        repeat(30) {
+            withFrameNanos { }
+            if (anyFocused) return
+            runCatching { paneRequester.requestFocus() }
+            if (anyFocused) return
+            focusManager.moveFocus(FocusDirection.Down)
+            if (anyFocused) return
+        }
+    }
     androidx.compose.foundation.layout.BoxWithConstraints(
         modifier = Modifier.fillMaxSize().background(colors.background)
             .windowInsetsPadding(if (s.launcherFullscreen) WindowInsets.displayCutout else WindowInsets.systemBars)
@@ -560,7 +587,8 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
             if (processSettingsPageVisible) return@LaunchedEffect
             snapshotFlow { window.isWindowFocused }.first { it }
             if (inputModeManager.inputMode != InputMode.Keyboard) inputModeManager.requestInputMode(InputMode.Keyboard)
-            focusWithinFrames({ anyFocused }) { if (frontFocus.primaryAttached > 0) frontFocus.primary else frontFocus.railFor(railSelection) }
+            if (s.dualScreen && frontFocus.primaryAttached == 0) focusDualPane()
+            else focusWithinFrames({ anyFocused }) { if (frontFocus.primaryAttached > 0) frontFocus.primary else frontFocus.railFor(railSelection) }
         }
         var openPage by remember { mutableStateOf<String?>(null) }
         LaunchedEffect(s.pageKey) {
@@ -582,16 +610,22 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
                 return@LaunchedEffect
             }
             if (anyFocused) return@LaunchedEffect
-            focusWithinFrames({ anyFocused }) { if (frontFocus.primaryAttached > 0) frontFocus.primary else frontFocus.railFor(railSelection) }
+            if (s.dualScreen && frontFocus.primaryAttached == 0) focusDualPane()
+            else focusWithinFrames({ anyFocused }) { if (frontFocus.primaryAttached > 0) frontFocus.primary else frontFocus.railFor(railSelection) }
         }
         LaunchedEffect(railPicks) {
             if (railPicks == 0 || processSettingsPageVisible) return@LaunchedEffect
             kotlinx.coroutines.delay(Motion.ms(PAGE_EXIT_MS).toLong())
             if (inputModeManager.inputMode != InputMode.Keyboard) return@LaunchedEffect
-            withTimeoutOrNull(1_000) { snapshotFlow { frontFocus.primaryAttached > 0 }.first { it } } ?: return@LaunchedEffect
+            val entry = withTimeoutOrNull(1_000) { snapshotFlow { frontFocus.primaryAttached > 0 }.first { it } }
+            if (entry == null) {
+                if (s.dualScreen) focusDualPane()
+                return@LaunchedEffect
+            }
             focusWithinFrames({ frontFocus.focusedRail == null && anyFocused }) { frontFocus.paneEntry() }
         }
         val paneFocus = Modifier
+            .focusRequester(paneRequester)
             .focusProperties {
                 enter = { frontFocus.paneEntry() }
                 exit = { direction ->
@@ -617,12 +651,31 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
             focusWithinFrames({ frontFocus.last == r.control && anyFocused }) { frontFocus.items[r.control] ?: frontFocus.paneEntry() }
         }
         var screenAt by remember { mutableStateOf(Offset.Zero) }
+        if (s.dualScreen) DualPanelPublisher(s, railSelection, { key ->
+            if (processSettingsPageVisible) return@DualPanelPublisher
+            if (inputModeManager.inputMode != InputMode.Keyboard) inputModeManager.requestInputMode(InputMode.Keyboard)
+            focusManager.clearFocus(force = true)
+            onRailSelect(key)
+        }, a)
         CompositionLocalProvider(LocalShowSection provides { key -> selected = key }) {
         LauncherLayout(
-            bottomNavigation, pal.line,
-            Modifier.fillMaxSize().onGloballyPositioned { screenAt = it.positionInRoot() },
+            bottomNavigation && !s.dualScreen, pal.line,
+            Modifier.fillMaxSize().onGloballyPositioned { screenAt = it.positionInRoot() }
+                .then(if (s.dualScreen) Modifier.onKeyEvent { event ->
+                    val step = dualPageStep(event.nativeKeyEvent) ?: return@onKeyEvent false
+                    if (event.type == KeyEventType.KeyDown && !processSettingsPageVisible) {
+                        val keys = navigationKeys(s)
+                        val at = keys.indexOf(railSelectionNow.value)
+                        keys.getOrNull(at + step)?.let { key ->
+                            PageSwipe.direction = step
+                            onRailSelect(key)
+                        }
+                    }
+                    true
+                } else Modifier),
             navigation = {
-                if (bottomNavigation) BottomBar(s, railSelection, onRailSelect, onRailFocus, a, railFocus)
+                if (s.dualScreen) Unit
+                else if (bottomNavigation) BottomBar(s, railSelection, onRailSelect, onRailFocus, a, railFocus)
                 else SideRail(s, railSelection, onRailSelect, onRailFocus, a, railFocus.fillMaxHeight())
             },
         ) {
