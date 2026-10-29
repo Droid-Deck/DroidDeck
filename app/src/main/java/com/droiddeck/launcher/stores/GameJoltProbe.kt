@@ -10,6 +10,7 @@ internal object GameJoltProbe {
     private const val MAX_SCRIPTS = 8
     private const val MAX_FOUND = 80
     private const val MAX_REDIRECTS = 5
+    private const val MIN_ROUTE_COUNT = 3
 
     private val endpoint = Regex("[\"'`](/?(?:site-api|web|x)/[^\"'`\\s]{3,140})[\"'`]")
     private val absolute = Regex("https?://[A-Za-z0-9.\\-]*gamejolt\\.(?:com|net)/[^\"'`\\s<>)]{0,140}")
@@ -82,7 +83,23 @@ internal object GameJoltProbe {
         null
     }
 
-    private fun shape(raw: String): String {
+    private fun routeWords(found: Collection<String>): Set<String> {
+        val counts = HashMap<String, Int>()
+        found.forEach { raw ->
+            val path = raw.substringBefore('?').substringBefore('#').substringAfter("://").let { if (raw.contains("://")) it.substringAfter('/', "") else it }
+            path.split('/').filter { it.matches(WORD) }.toSet().forEach { counts[it] = (counts[it] ?: 0) + 1 }
+        }
+        return counts.filterValues { it >= MIN_ROUTE_COUNT }.keys
+    }
+
+    private fun keys(value: Any?, depth: Int): String = when {
+        value is org.json.JSONObject && depth > 0 -> value.keys().asSequence().take(40).joinToString(",", "{", "}") { k -> k + ":" + keys(value.opt(k), depth - 1) }
+        value is org.json.JSONObject -> "{...}"
+        value is org.json.JSONArray -> "[" + (if (value.length() > 0 && depth > 0) keys(value.opt(0), depth - 1) else "") + "]"
+        else -> ""
+    }
+
+    private fun shape(raw: String, common: Set<String>): String {
         val clean = raw.substringBefore('?').substringBefore('#')
         val absoluteUrl = clean.startsWith("http://") || clean.startsWith("https://")
         val host = if (absoluteUrl) runCatching { URL(clean).host.lowercase() }.getOrNull().orEmpty() else ""
@@ -90,12 +107,13 @@ internal object GameJoltProbe {
         val segments = path.split('/').map { seg ->
             when {
                 seg.isEmpty() -> seg
-                seg.matches(WORD) -> seg
+                seg.matches(WORD) && seg in common -> seg
                 seg.length <= 40 && (seg.startsWith("{") || seg.startsWith("$")) && seg.matches(TEMPLATE) -> seg
                 else -> "*"
             }
         }
-        val prefix = if (!absoluteUrl) "" else if (isGameJoltHost(clean)) "https://$host" else "https://[host]"
+        val scheme = if (clean.startsWith("http://")) "http" else "https"
+        val prefix = if (!absoluteUrl) "" else if (isGameJoltHost(clean)) "$scheme://$host" else "$scheme://[host]"
         return prefix + segments.joinToString("/")
     }
 
@@ -103,7 +121,10 @@ internal object GameJoltProbe {
         val r = fetch(url, accept, limit)
         if (r == null) return null
         log("$label code=${r.code} type=${r.type} bytes=${r.body.length} url=${r.finalUrl}")
-        log("$label head: ${r.body.take(400)}")
+        if (r.type.contains("json", ignoreCase = true)) {
+            val structure = runCatching { keys(org.json.JSONTokener(r.body).nextValue(), 3) }.getOrDefault("")
+            log("$label json keys: $structure")
+        }
         return r
     }
 
@@ -138,7 +159,8 @@ internal object GameJoltProbe {
             log("script code=${js.code} bytes=${js.body.length} url=$src")
             scan("script", js.body, found)
         }
-        found.map { shape(it) }.distinct().take(MAX_FOUND).forEach { log("endpoint: $it", SecretScrub.Urls.KEEP_PATH) }
+        val common = routeWords(found)
+        found.map { shape(it, common) }.distinct().take(MAX_FOUND).forEach { log("endpoint: $it", SecretScrub.Urls.KEEP_PATH) }
         log("endpoint strings total=${found.size}")
         if (id != null) {
             report("candidate overview", "https://gamejolt.com/site-api/web/discover/games/overview/$id", "application/json", 60_000)
