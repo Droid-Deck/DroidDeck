@@ -18,6 +18,7 @@ public final class PadBridge {
     private static final String TAG = "PadBridge";
     public static final int SLOTS = 4;
     private static final float DEAD_ZONE = 0.12f;
+    private float stickDeadZone = DEAD_ZONE;
     private static final int[] JOYSTICK_AXES = {
             MotionEvent.AXIS_X, MotionEvent.AXIS_Y, MotionEvent.AXIS_Z, MotionEvent.AXIS_RZ,
             MotionEvent.AXIS_RX, MotionEvent.AXIS_RY,
@@ -358,6 +359,14 @@ public final class PadBridge {
         return true;
     }
 
+    public synchronized void setStickDeadZone(int percent) {
+        stickDeadZone = Math.max(0, Math.min(25, percent)) / 100f;
+    }
+
+    static boolean inStickDeadZone(float x, float y, float deadZone) {
+        return x * x + y * y < deadZone * deadZone;
+    }
+
     public synchronized boolean onMotionEvent(MotionEvent event) {
         if (!isControllerMotionEvent(event) || excluded.test(event.getDeviceId())) return false;
         if (event.getAction() != MotionEvent.ACTION_MOVE) return false;
@@ -371,8 +380,9 @@ public final class PadBridge {
         int side = JoyCon.side(device);
         if (side >= 0) {
             int[] stick = JoyCon.stickAxes(side, device, event.getSource());
-            float x = axis(event, stick[0]);
-            float y = axis(event, stick[1]);
+            float x = event.getAxisValue(stick[0]);
+            float y = event.getAxisValue(stick[1]);
+            if (inStickDeadZone(x, y, stickDeadZone)) { x = 0f; y = 0f; }
             if (side == JoyCon.LEFT) {
                 pad.leftX = x;
                 pad.leftY = y;
@@ -385,11 +395,17 @@ public final class PadBridge {
             publish(slot);
             return true;
         }
-        pad.leftX = axis(event, MotionEvent.AXIS_X);
-        pad.leftY = axis(event, MotionEvent.AXIS_Y);
+        float lx = event.getAxisValue(MotionEvent.AXIS_X);
+        float ly = event.getAxisValue(MotionEvent.AXIS_Y);
         boolean wired = wiredXboxLayout(event);
-        pad.rightX = rightX(event, wired);
-        pad.rightY = rightY(event, wired);
+        float rx = event.getAxisValue(wired ? MotionEvent.AXIS_RX : MotionEvent.AXIS_Z);
+        float ry = event.getAxisValue(wired ? MotionEvent.AXIS_RY : MotionEvent.AXIS_RZ);
+        boolean leftCentred = inStickDeadZone(lx, ly, stickDeadZone);
+        boolean rightCentred = inStickDeadZone(rx, ry, stickDeadZone);
+        pad.leftX = leftCentred ? 0f : lx;
+        pad.leftY = leftCentred ? 0f : ly;
+        pad.rightX = rightCentred ? 0f : rx;
+        pad.rightY = rightCentred ? 0f : ry;
         int source = event.getSource();
         float lt = 0f;
         float rt = 0f;
