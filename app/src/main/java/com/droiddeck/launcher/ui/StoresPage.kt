@@ -1312,7 +1312,13 @@ private fun GameCard(
             item.store == Store.GOG && installed && com.droiddeck.launcher.stores.gog.GogMaintenance.checks[item.id]?.state == com.droiddeck.launcher.stores.gog.GogMaintenance.State.AVAILABLE -> stringResource(R.string.common_update)
             else -> null
         }
-        ArtCard(item.title, item.imageUrl, item.tallImageUrl, download, hot, capsule = false, chip = chip) { CardMarker(item, installed, download, status = false) }
+        val priced = installed || item.isFree || item.isDiscounted || item.hasPrice
+        val pill: (@Composable BoxScope.() -> Unit)? = if (priced && !LibraryDisplay.size && !hot) ({
+            Box(Modifier.align(Alignment.TopStart).padding(6.dp).clip(RoundedCornerShape(6.dp)).background(Color.Black.copy(alpha = 0.6f)).padding(horizontal = 6.dp, vertical = 2.dp)) {
+                CardMarker(item, installed, download, compact = true, status = false)
+            }
+        }) else null
+        ArtCard(item.title, item.imageUrl, item.tallImageUrl, download, hot, capsule = false, chip = chip, badge = pill) { CardMarker(item, installed, download, status = false) }
     }
 }
 
