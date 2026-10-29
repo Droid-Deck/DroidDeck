@@ -3223,4 +3223,9 @@
         <item quantity="few">%d aplicații</item>
         <item quantity="other">%d de aplicații</item>
     </plurals>
+    <string name="slow_usb_title">Conexiune USB lentă</string>
+    <string name="slow_usb_cable">%1$s este conectat prin %2$s (%3$s Mbps, aproximativ %4$d MB/s), așa că jocurile de pe el se vor încărca lent. Folosește un cablu USB 3 de 5 Gbps sau mai rapid, încearcă să întorci mufa USB-C sau folosește o unitate mai rapidă.</string>
+    <string name="slow_usb_port">%1$s este conectat prin %2$s (%3$s Mbps, aproximativ %4$d MB/s). Portul USB al acestui dispozitiv nu poate merge mai repede, așa că jocurile se vor încărca lent. Memoria internă sau un card microSD pot fi mai rapide.</string>
+    <string name="slow_usb_never">Nu mai afișa</string>
+    <string name="slow_usb_dismiss">Închide</string>
 </resources>

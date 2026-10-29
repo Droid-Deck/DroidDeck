@@ -3223,4 +3223,9 @@
         <item quantity="many">%d aplicações</item>
         <item quantity="other">%d aplicações</item>
     </plurals>
+    <string name="slow_usb_title">Ligação USB lenta</string>
+    <string name="slow_usb_cable">%1$s está ligado por %2$s (%3$s Mbps, cerca de %4$d MB/s), por isso os jogos vão carregar devagar. Use um cabo USB 3 de 5 Gbps ou mais, experimente virar a ficha USB-C ou use uma unidade mais rápida.</string>
+    <string name="slow_usb_port">%1$s está ligado por %2$s (%3$s Mbps, cerca de %4$d MB/s). A porta USB deste dispositivo não é mais rápida, por isso os jogos vão carregar devagar. O armazenamento interno ou um cartão microSD pode ser mais rápido.</string>
+    <string name="slow_usb_never">Não voltar a mostrar</string>
+    <string name="slow_usb_dismiss">Ignorar</string>
 </resources>

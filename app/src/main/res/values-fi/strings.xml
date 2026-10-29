@@ -3188,4 +3188,9 @@
         <item quantity="one">%d sovellus</item>
         <item quantity="other">%d sovellusta</item>
     </plurals>
+    <string name="slow_usb_title">Hidas USB-yhteys</string>
+    <string name="slow_usb_cable">%1$s on yhdistetty %2$s-yhteydellä (%3$s Mbps, noin %4$d Mt/s), joten pelit latautuvat hitaasti. Käytä vähintään 5 Gbps:n USB 3 -kaapelia, kokeile kääntää USB-C-liitin tai käytä nopeampaa asemaa.</string>
+    <string name="slow_usb_port">%1$s on yhdistetty %2$s-yhteydellä (%3$s Mbps, noin %4$d Mt/s). Tämän laitteen USB-portti ei ole nopeampi, joten pelit latautuvat hitaasti. Sisäinen tallennustila tai microSD-kortti voi olla nopeampi.</string>
+    <string name="slow_usb_never">Älä näytä uudelleen</string>
+    <string name="slow_usb_dismiss">Sulje</string>
 </resources>

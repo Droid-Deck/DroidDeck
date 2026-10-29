@@ -213,6 +213,7 @@ class FrontEndActivity : ComponentActivity() {
     }
     private val mediaReceiver = object : android.content.BroadcastReceiver() {
         override fun onReceive(context: android.content.Context?, intent: Intent?) {
+            if (intent?.action == Intent.ACTION_MEDIA_MOUNTED) com.droiddeck.launcher.session.UsbLink.replugged()
             ui.removeCallbacks(mediaRefresh)
             ui.postDelayed(mediaRefresh, MEDIA_SETTLE_MS)
         }
@@ -472,6 +473,7 @@ class FrontEndActivity : ComponentActivity() {
     private var oscMode by mutableStateOf(SessionPrefs.OSC_AUTO)
     private var backActionsInverted by mutableStateOf(false)
     private var gameStorage by mutableStateOf("")
+    private var slowUsb by mutableStateOf<com.droiddeck.launcher.session.UsbLink.SlowDrive?>(null)
     private var storageDiagnostics by mutableStateOf(false)
     private var storageOptions by mutableStateOf<List<GameStorage.Option>>(emptyList())
     private val pickGameStorage = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
@@ -965,6 +967,13 @@ class FrontEndActivity : ComponentActivity() {
                 if (decky.deckyPendingZip != null) com.droiddeck.launcher.ui.DeckyZipWarningDialog(
                     onConfirm = { decky.confirmPluginZip() }, onCancel = { decky.cancelPluginZip() },
                 )
+                slowUsb?.let { drive ->
+                    com.droiddeck.launcher.ui.SlowUsbDialog(drive) { never ->
+                        com.droiddeck.launcher.session.UsbLink.markShown(drive)
+                        if (never) SessionPrefs.setSlowUsbWarningOff(this)
+                        slowUsb = null
+                    }
+                }
                 val page: (@Composable () -> Unit)? = when {
                     showPerformance -> { { PerformanceHost() } }
                     showComponents -> { { ComponentsHost() } }
@@ -2198,6 +2207,7 @@ class FrontEndActivity : ComponentActivity() {
     }
 
     private fun refreshAddedGames() {
+        checkUsbLink()
         sgdbKeyKnown()
         fetchAddedGameArt()
     }
@@ -2302,6 +2312,15 @@ class FrontEndActivity : ComponentActivity() {
         }
         SessionPrefs.setGameStorage(this, path, label)
         gameStorage = path
+        checkUsbLink()
+    }
+
+    private fun checkUsbLink() {
+        if (slowUsb != null) return
+        Thread({
+            val drive = runCatching { com.droiddeck.launcher.session.UsbLink.slowLibrary(this) }.getOrNull()
+            if (drive != null) ui.post { if (slowUsb == null && !isFinishing) slowUsb = drive }
+        }, "usb-link").start()
     }
 
     private fun refreshCores() {

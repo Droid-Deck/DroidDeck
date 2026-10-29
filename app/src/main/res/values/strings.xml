@@ -3408,4 +3408,9 @@
     <string name="integration_brightness_needed">Turn on Brightness in Setup → Steam integration</string>
     <string name="gog_full_files">Native optimizations are unavailable. The download includes complete replacement files.</string>
     <string name="gog_recover">Verify patch result</string>
+    <string name="slow_usb_title">Slow USB connection</string>
+    <string name="slow_usb_cable">%1$s is connected over %2$s (%3$s Mbps, about %4$d MB/s), so games on it will load slowly. Use a USB 3 cable rated 5 Gbps or faster, try flipping the USB-C plug, or use a faster drive.</string>
+    <string name="slow_usb_port">%1$s is connected over %2$s (%3$s Mbps, about %4$d MB/s). This device\'s USB port can\'t go faster, so games on it will load slowly. Internal storage or a microSD card may be quicker.</string>
+    <string name="slow_usb_never">Don\'t show this again</string>
+    <string name="slow_usb_dismiss">Dismiss</string>
 </resources>

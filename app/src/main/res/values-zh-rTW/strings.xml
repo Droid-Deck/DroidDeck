@@ -3169,4 +3169,9 @@
     <plurals name="apps_count">
         <item quantity="other">%d 個應用程式</item>
     </plurals>
+    <string name="slow_usb_title">USB 連線速度慢</string>
+    <string name="slow_usb_cable">%1$s 透過 %2$s 連接（%3$s Mbps，約 %4$d MB/s），其中的遊戲載入會很慢。請使用 5 Gbps 或更快的 USB 3 傳輸線，試著翻轉 USB-C 插頭，或使用更快的硬碟。</string>
+    <string name="slow_usb_port">%1$s 透過 %2$s 連接（%3$s Mbps，約 %4$d MB/s）。此裝置的 USB 連接埠無法更快，遊戲載入會很慢。內部儲存空間或 microSD 卡可能更快。</string>
+    <string name="slow_usb_never">不再顯示</string>
+    <string name="slow_usb_dismiss">關閉</string>
 </resources>

@@ -3188,4 +3188,9 @@
         <item quantity="one">%d app</item>
         <item quantity="other">%d apps</item>
     </plurals>
+    <string name="slow_usb_title">Langsom USB-forbindelse</string>
+    <string name="slow_usb_cable">%1$s er tilsluttet via %2$s (%3$s Mbps, ca. %4$d MB/s), så spil på den indlæses langsomt. Brug et USB 3-kabel til 5 Gbps eller mere, prøv at vende USB-C-stikket, eller brug et hurtigere drev.</string>
+    <string name="slow_usb_port">%1$s er tilsluttet via %2$s (%3$s Mbps, ca. %4$d MB/s). Denne enheds USB-port kan ikke køre hurtigere, så spil på den indlæses langsomt. Intern lagerplads eller et microSD-kort kan være hurtigere.</string>
+    <string name="slow_usb_never">Vis ikke igen</string>
+    <string name="slow_usb_dismiss">Luk</string>
 </resources>

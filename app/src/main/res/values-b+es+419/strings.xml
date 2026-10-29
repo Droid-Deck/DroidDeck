@@ -3175,4 +3175,9 @@
         <item quantity="many">%d apps</item>
         <item quantity="other">%d apps</item>
     </plurals>
+    <string name="slow_usb_title">Conexión USB lenta</string>
+    <string name="slow_usb_cable">%1$s está conectado por %2$s (%3$s Mbps, unos %4$d MB/s), así que los juegos cargarán lento. Usa un cable USB 3 de 5 Gbps o más, prueba a voltear el conector USB-C o usa una unidad más rápida.</string>
+    <string name="slow_usb_port">%1$s está conectado por %2$s (%3$s Mbps, unos %4$d MB/s). El puerto USB de este dispositivo no admite más velocidad, así que los juegos cargarán lento. El almacenamiento interno o una microSD pueden ser más rápidos.</string>
+    <string name="slow_usb_never">No volver a mostrar</string>
+    <string name="slow_usb_dismiss">Descartar</string>
 </resources>

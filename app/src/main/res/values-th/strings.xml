@@ -3162,4 +3162,9 @@
     <plurals name="apps_count">
         <item quantity="other">%d แอป</item>
     </plurals>
+    <string name="slow_usb_title">การเชื่อมต่อ USB ช้า</string>
+    <string name="slow_usb_cable">%1$s เชื่อมต่อผ่าน %2$s (%3$s Mbps ประมาณ %4$d MB/s) เกมในไดรฟ์นี้จึงโหลดช้า ใช้สาย USB 3 ที่รองรับ 5 Gbps ขึ้นไป ลองกลับด้านหัว USB-C หรือใช้ไดรฟ์ที่เร็วกว่า</string>
+    <string name="slow_usb_port">%1$s เชื่อมต่อผ่าน %2$s (%3$s Mbps ประมาณ %4$d MB/s) พอร์ต USB ของอุปกรณ์นี้เร็วกว่านี้ไม่ได้ เกมจึงโหลดช้า ที่เก็บข้อมูลภายในหรือการ์ด microSD อาจเร็วกว่า</string>
+    <string name="slow_usb_never">ไม่ต้องแสดงอีก</string>
+    <string name="slow_usb_dismiss">ปิด</string>
 </resources>

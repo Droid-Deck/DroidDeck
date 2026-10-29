@@ -3188,4 +3188,9 @@
         <item quantity="one">%d app</item>
         <item quantity="other">%d apps</item>
     </plurals>
+    <string name="slow_usb_title">Trage USB-verbinding</string>
+    <string name="slow_usb_cable">%1$s is verbonden via %2$s (%3$s Mbps, ongeveer %4$d MB/s), dus games erop laden traag. Gebruik een USB 3-kabel van 5 Gbps of sneller, draai de USB-C-stekker om of gebruik een snellere schijf.</string>
+    <string name="slow_usb_port">%1$s is verbonden via %2$s (%3$s Mbps, ongeveer %4$d MB/s). De USB-poort van dit apparaat kan niet sneller, dus games laden traag. Interne opslag of een microSD-kaart kan sneller zijn.</string>
+    <string name="slow_usb_never">Niet meer tonen</string>
+    <string name="slow_usb_dismiss">Sluiten</string>
 </resources>

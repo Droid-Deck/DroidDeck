@@ -3177,4 +3177,9 @@
     <plurals name="apps_count">
         <item quantity="other">%d aplikasi</item>
     </plurals>
+    <string name="slow_usb_title">Koneksi USB lambat</string>
+    <string name="slow_usb_cable">%1$s terhubung melalui %2$s (%3$s Mbps, sekitar %4$d MB/s), jadi game di dalamnya akan dimuat lambat. Gunakan kabel USB 3 berkecepatan 5 Gbps atau lebih, coba balik colokan USB-C, atau gunakan drive yang lebih cepat.</string>
+    <string name="slow_usb_port">%1$s terhubung melalui %2$s (%3$s Mbps, sekitar %4$d MB/s). Port USB perangkat ini tidak bisa lebih cepat, jadi game akan dimuat lambat. Penyimpanan internal atau kartu microSD mungkin lebih cepat.</string>
+    <string name="slow_usb_never">Jangan tampilkan lagi</string>
+    <string name="slow_usb_dismiss">Tutup</string>
 </resources>

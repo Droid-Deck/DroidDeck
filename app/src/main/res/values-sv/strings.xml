@@ -3188,4 +3188,9 @@
         <item quantity="one">%d app</item>
         <item quantity="other">%d appar</item>
     </plurals>
+    <string name="slow_usb_title">Långsam USB-anslutning</string>
+    <string name="slow_usb_cable">%1$s är ansluten via %2$s (%3$s Mbit/s, cirka %4$d MB/s), så spel på den läses in långsamt. Använd en USB 3-kabel för 5 Gbit/s eller mer, prova att vända USB-C-kontakten eller använd en snabbare enhet.</string>
+    <string name="slow_usb_port">%1$s är ansluten via %2$s (%3$s Mbit/s, cirka %4$d MB/s). USB-porten på den här enheten kan inte gå snabbare, så spel läses in långsamt. Internt lagringsutrymme eller ett microSD-kort kan vara snabbare.</string>
+    <string name="slow_usb_never">Visa inte igen</string>
+    <string name="slow_usb_dismiss">Stäng</string>
 </resources>

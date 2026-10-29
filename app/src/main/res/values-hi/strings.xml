@@ -3188,4 +3188,9 @@
         <item quantity="one">%d ऐप</item>
         <item quantity="other">%d ऐप</item>
     </plurals>
+    <string name="slow_usb_title">धीमा USB कनेक्शन</string>
+    <string name="slow_usb_cable">%1$s %2$s (%3$s Mbps, लगभग %4$d MB/s) से जुड़ा है, इसलिए इस पर गेम धीरे लोड होंगे। 5 Gbps या तेज़ USB 3 केबल इस्तेमाल करें, USB-C प्लग पलटकर देखें, या तेज़ ड्राइव इस्तेमाल करें।</string>
+    <string name="slow_usb_port">%1$s %2$s (%3$s Mbps, लगभग %4$d MB/s) से जुड़ा है। इस डिवाइस का USB पोर्ट इससे तेज़ नहीं चलता, इसलिए गेम धीरे लोड होंगे। आंतरिक स्टोरेज या microSD कार्ड तेज़ हो सकता है।</string>
+    <string name="slow_usb_never">फिर से न दिखाएँ</string>
+    <string name="slow_usb_dismiss">बंद करें</string>
 </resources>

@@ -3164,4 +3164,9 @@
     <plurals name="apps_count">
         <item quantity="other">%d 個のアプリ</item>
     </plurals>
+    <string name="slow_usb_title">USB 接続が低速です</string>
+    <string name="slow_usb_cable">%1$s は %2$s（%3$s Mbps、約 %4$d MB/s）で接続されているため、ゲームの読み込みが遅くなります。5 Gbps 以上の USB 3 ケーブルを使うか、USB-C プラグを裏返すか、より高速なドライブを使ってください。</string>
+    <string name="slow_usb_port">%1$s は %2$s（%3$s Mbps、約 %4$d MB/s）で接続されています。この端末の USB ポートはこれ以上速くならないため、ゲームの読み込みが遅くなります。内部ストレージや microSD カードの方が速い場合があります。</string>
+    <string name="slow_usb_never">今後表示しない</string>
+    <string name="slow_usb_dismiss">閉じる</string>
 </resources>

@@ -21,6 +21,7 @@ object SessionPrefs {
     private const val LEGACY_SUSPEND_DOWNLOADS = "downloads"
     private const val STEAM_DOWNLOADS_IN_BACKGROUND = "steamDownloadsInBackground"
     private const val DECKY_ZIP_WARNING_SEEN = "deckyZipWarningSeen"
+    private const val SLOW_USB_WARNING_OFF = "slowUsbWarningOff"
 
     const val CONTROLLER_DECK = "deck"
     const val CONTROLLER_XBOX360 = "xbox360"
@@ -1277,6 +1278,12 @@ object SessionPrefs {
 
     fun setDeckyZipWarningSeen(context: Context) {
         prefs(context).edit().putBoolean(DECKY_ZIP_WARNING_SEEN, true).apply()
+    }
+
+    fun slowUsbWarningOff(context: Context): Boolean = prefs(context).getBoolean(SLOW_USB_WARNING_OFF, false)
+
+    fun setSlowUsbWarningOff(context: Context) {
+        prefs(context).edit().putBoolean(SLOW_USB_WARNING_OFF, true).apply()
     }
 
     fun steamDownloadsInBackground(context: Context): Boolean {
