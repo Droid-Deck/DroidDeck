@@ -596,6 +596,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
 
         val bridge = PadBridge(File(LinuxRuntime.sessionRoot(this), "dev/input"))
+        bridge.setStickDeadZone(ControllerPrefs.deadZone(this))
         bridge.setSelectSteam(ControllerPrefs.read(this).selectSteam)
         bridge.setBuiltinPad(SessionState.mode != SessionService.MODE_STEAM || SessionPrefs.builtinPad(this))
         padBridge = bridge
@@ -3828,6 +3829,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         joyConVr?.refresh()
         onScreenControls?.reload()
         controllerSettings = ControllerPrefs.read(this)
+        padBridge?.setStickDeadZone(ControllerPrefs.deadZone(this))
         resumed = true
         updateDesktopKeyboardButton()
         com.droiddeck.launcher.input.HomeButtonShortcuts.attach(this,
