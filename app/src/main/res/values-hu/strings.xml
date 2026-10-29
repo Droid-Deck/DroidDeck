@@ -3196,4 +3196,9 @@
     <string name="desktop_restore_done_body">A hozzáadott alkalmazások újra telepítve vannak.</string>
     <string name="desktop_restore_failed_title">Néhány szoftvert nem sikerült visszaállítani</string>
     <string name="desktop_restore_failed_body">Nézd meg a ~/.cache/droiddeck/apt-restore.log fájlt, majd próbáld a sudo apt install parancsot a Konsole-ban.</string>
+    <string name="slow_usb_title">Lassú USB-kapcsolat</string>
+    <string name="slow_usb_cable">A(z) %1$s %2$s kapcsolaton csatlakozik (%3$s Mbps, kb. %4$d MB/s), ezért a rajta lévő játékok lassan töltődnek be. Használj legalább 5 Gbps-os USB 3 kábelt, fordítsd meg az USB-C csatlakozót, vagy használj gyorsabb meghajtót.</string>
+    <string name="slow_usb_port">A(z) %1$s %2$s kapcsolaton csatlakozik (%3$s Mbps, kb. %4$d MB/s). Az eszköz USB-portja nem tud gyorsabb lenni, ezért a játékok lassan töltődnek be. A belső tárhely vagy egy microSD-kártya gyorsabb lehet.</string>
+    <string name="slow_usb_never">Ne jelenjen meg többé</string>
+    <string name="slow_usb_dismiss">Bezárás</string>
 </resources>

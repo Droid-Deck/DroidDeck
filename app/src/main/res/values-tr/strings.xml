@@ -3198,4 +3198,9 @@
     <string name="desktop_restore_done_body">Eklediğiniz uygulamalar yeniden yüklendi.</string>
     <string name="desktop_restore_failed_title">Bazı yazılımlar geri yüklenemedi</string>
     <string name="desktop_restore_failed_body">~/.cache/droiddeck/apt-restore.log dosyasına bakın, ardından Konsole\'da sudo apt install deneyin.</string>
+    <string name="slow_usb_title">Yavaş USB bağlantısı</string>
+    <string name="slow_usb_cable">%1$s, %2$s üzerinden bağlı (%3$s Mbps, yaklaşık %4$d MB/sn), bu yüzden üzerindeki oyunlar yavaş yüklenecek. 5 Gbps veya daha hızlı bir USB 3 kablo kullanın, USB-C fişini ters çevirmeyi deneyin ya da daha hızlı bir sürücü kullanın.</string>
+    <string name="slow_usb_port">%1$s, %2$s üzerinden bağlı (%3$s Mbps, yaklaşık %4$d MB/sn). Bu cihazın USB bağlantı noktası daha hızlı çalışamıyor, bu yüzden oyunlar yavaş yüklenecek. Dahili depolama veya bir microSD kart daha hızlı olabilir.</string>
+    <string name="slow_usb_never">Bir daha gösterme</string>
+    <string name="slow_usb_dismiss">Kapat</string>
 </resources>

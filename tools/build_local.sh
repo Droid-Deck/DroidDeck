@@ -24,7 +24,8 @@ java_dir="${JAVA_HOME:-/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents
 [[ -x "$java_dir/bin/java" ]] || java_dir="${HOME}/.local/share/mise/installs/java/temurin-17"
 [[ "$java_dir" == */homebrew/* ]] && echo "using homebrew java path: $java_dir"
 [[ "$java_dir" == */mise/* ]] && echo "using mise java path: $java_dir"
-image_name=${DROIDDECK_BUILD_IMAGE:-droiddeck-local-cross:24.04-v3}
+. "${repo_root}/tools/docker_platform.sh"
+image_name=${DROIDDECK_BUILD_IMAGE}
 build_variant=${DROIDDECK_BUILD_VARIANT:-release}
 case "$build_variant" in
     debug) gradle_task=assembleDebug ;;
@@ -113,7 +114,7 @@ image_id=$(docker image inspect --format '{{.Id}}' "${image_name}")
 rm -rf -- "${linuxfs_dir}"
 mkdir -p "${linuxfs_dir}"
 
-docker run --rm --platform linux/amd64 \
+docker run --rm --platform "${docker_platform}" \
     --user "$(id -u):$(id -g)" \
     -v "${repo_root}:/src" -w /src "${image_name}" bash -lc '
         set -euo pipefail
@@ -283,7 +284,7 @@ install -m644 "${mango_pkgs}/usr/bin/mangoapp" "${mango_dir}/mangoapp"
 for library in libfmt.so.10 libspdlog.so.1.13 libglfw.so.3 libtraceevent.so.1; do
     cp -L "${mango_pkgs}/usr/lib/${library}" "${mango_dir}/${library}"
 done
-docker run --rm --platform linux/amd64 --user "$(id -u):$(id -g)" -v "${repo_root}:/src" -w /src "${image_name}" \
+docker run --rm --platform "${docker_platform}" --user "$(id -u):$(id -g)" -v "${repo_root}:/src" -w /src "${image_name}" \
     aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -Wl,-soname,libtracefs.so.1 \
     -o app/src/main/assets/linuxfs/usr/local/lib/mangoapp/libtracefs.so.1 tools/mangoapp/libtracefs-shim.c
 mkdir -p "${linuxfs_dir}/usr/local/bin"

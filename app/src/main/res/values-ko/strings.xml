@@ -3172,4 +3172,9 @@
     <string name="desktop_restore_done_body">추가한 앱이 다시 설치되었습니다.</string>
     <string name="desktop_restore_failed_title">일부 소프트웨어를 복원하지 못했습니다</string>
     <string name="desktop_restore_failed_body">~/.cache/droiddeck/apt-restore.log를 확인한 다음 Konsole에서 sudo apt install을 시도하세요.</string>
+    <string name="slow_usb_title">USB 연결이 느립니다</string>
+    <string name="slow_usb_cable">%1$s이(가) %2$s(%3$s Mbps, 약 %4$d MB/s)로 연결되어 게임 로딩이 느립니다. 5 Gbps 이상의 USB 3 케이블을 사용하거나, USB-C 플러그를 뒤집어 꽂거나, 더 빠른 드라이브를 사용하세요.</string>
+    <string name="slow_usb_port">%1$s이(가) %2$s(%3$s Mbps, 약 %4$d MB/s)로 연결되어 있습니다. 이 기기의 USB 포트는 더 빠르게 동작하지 않아 게임 로딩이 느립니다. 내부 저장소나 microSD 카드가 더 빠를 수 있습니다.</string>
+    <string name="slow_usb_never">다시 표시 안 함</string>
+    <string name="slow_usb_dismiss">닫기</string>
 </resources>

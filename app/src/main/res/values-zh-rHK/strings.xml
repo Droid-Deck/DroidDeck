@@ -3177,4 +3177,9 @@
     <string name="desktop_restore_done_body">你加入的應用程式已重新安裝。</string>
     <string name="desktop_restore_failed_title">部分軟件無法還原</string>
     <string name="desktop_restore_failed_body">請查看 ~/.cache/droiddeck/apt-restore.log，然後在 Konsole 中嘗試 sudo apt install。</string>
+    <string name="slow_usb_title">USB 連線速度慢</string>
+    <string name="slow_usb_cable">%1$s 透過 %2$s 連接（%3$s Mbps，約 %4$d MB/s），當中的遊戲載入會很慢。請使用 5 Gbps 或更快的 USB 3 線，嘗試反轉 USB-C 插頭，或使用更快的硬碟。</string>
+    <string name="slow_usb_port">%1$s 透過 %2$s 連接（%3$s Mbps，約 %4$d MB/s）。此裝置的 USB 埠無法更快，遊戲載入會很慢。內部儲存空間或 microSD 卡可能更快。</string>
+    <string name="slow_usb_never">不再顯示</string>
+    <string name="slow_usb_dismiss">關閉</string>
 </resources>

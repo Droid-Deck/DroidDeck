@@ -3196,4 +3196,9 @@
     <string name="desktop_restore_done_body">Appene du la til er installert igjen.</string>
     <string name="desktop_restore_failed_title">Noe programvare kunne ikke gjenopprettes</string>
     <string name="desktop_restore_failed_body">Se ~/.cache/droiddeck/apt-restore.log, og prøv deretter sudo apt install i Konsole.</string>
+    <string name="slow_usb_title">Treg USB-tilkobling</string>
+    <string name="slow_usb_cable">%1$s er koblet til via %2$s (%3$s Mbps, ca. %4$d MB/s), så spill på den lastes inn tregt. Bruk en USB 3-kabel for 5 Gbps eller mer, prøv å snu USB-C-pluggen, eller bruk en raskere stasjon.</string>
+    <string name="slow_usb_port">%1$s er koblet til via %2$s (%3$s Mbps, ca. %4$d MB/s). USB-porten på denne enheten kan ikke gå raskere, så spill lastes inn tregt. Intern lagring eller et microSD-kort kan være raskere.</string>
+    <string name="slow_usb_never">Ikke vis igjen</string>
+    <string name="slow_usb_dismiss">Lukk</string>
 </resources>

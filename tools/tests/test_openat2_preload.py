@@ -94,7 +94,7 @@ COUNTER = r"""
 #include <sys/stat.h>
 #include <unistd.h>
 
-static int opens, stats, links;
+static int opens, stats, links, statxs;
 
 int openat(int dirfd, const char *path, int flags, ...) {
   va_list args;
@@ -120,8 +120,13 @@ ssize_t readlinkat(int dirfd, const char *path, char *buf, size_t size) {
   return ((ssize_t (*)(int, const char *, char *, size_t))dlsym(RTLD_NEXT, "readlinkat"))(dirfd, path, buf, size);
 }
 
+int statx(int dirfd, const char *path, int flags, unsigned int mask, struct statx *out) {
+  statxs++;
+  return ((int (*)(int, const char *, int, unsigned int, struct statx *))dlsym(RTLD_NEXT, "statx"))(dirfd, path, flags, mask, out);
+}
+
 __attribute__((destructor)) static void report(void) {
-  fprintf(stderr, "calls %d %d %d\n", opens, stats, links);
+  fprintf(stderr, "calls %d %d %d %d\n", opens, stats, links, statxs);
 }
 """
 
@@ -181,6 +186,40 @@ int main(int argc, char **argv) {
   }
   printf("OK\n");
   return close(fd);
+}
+"""
+
+RAW_LOOKUP = r"""
+#define _GNU_SOURCE
+#include <errno.h>
+#include <fcntl.h>
+#include <stdio.h>
+#include <sys/stat.h>
+#include <sys/syscall.h>
+#include <unistd.h>
+
+#ifdef SYS_newfstatat
+#define RAW_FSTATAT SYS_newfstatat
+#else
+#define RAW_FSTATAT SYS_fstatat64
+#endif
+
+int main(int argc, char **argv) {
+  struct stat st;
+  struct statx sx;
+  char link[64] = "";
+  if (syscall(RAW_FSTATAT, AT_FDCWD, argv[1], &st, 0) != 0) return 1;
+  if (syscall(RAW_FSTATAT, AT_FDCWD, argv[2], &st, 0) != -1 || errno != ENOENT) return 2;
+  long n = syscall(SYS_readlinkat, AT_FDCWD, argv[3], link, sizeof(link) - 1);
+  if (n <= 0) return 3;
+  sx.stx_size = 0;
+  long found = syscall(SYS_statx, AT_FDCWD, argv[1], 0, STATX_SIZE, &sx);
+  int have_statx = !(found == -1 && errno == ENOSYS);
+  if (have_statx && found != 0) return 4;
+  long missing = syscall(SYS_statx, AT_FDCWD, argv[2], 0, STATX_SIZE, &sx);
+  if (have_statx && (missing != -1 || errno != ENOENT)) return 5;
+  printf("%lld %.*s %llu\n", (long long)st.st_size, (int)n, link, (unsigned long long)sx.stx_size);
+  return 0;
 }
 """
 
@@ -311,6 +350,14 @@ class Openat2PreloadTest(unittest.TestCase):
         cls.raw = subprocess.run([str(cls.tmp / "raw_open"), str(tree / "etc/hostname"), str(tree / "missing")],
                                  capture_output=True, text=True, timeout=60,
                                  env=dict(os.environ, LD_PRELOAD="%s:%s" % (cls.lib, cls.tmp / "fp/libblfastpath.so")))
+        lookup = cls.tmp / "raw_lookup.c"
+        lookup.write_text(RAW_LOOKUP)
+        subprocess.run(["cc", "-O2", "-Wall", "-Werror", "-o", str(cls.tmp / "raw_lookup"), str(lookup)], check=True)
+        cls.lookup_args = [str(tree / "etc/hostname"), str(tree / "missing"), str(tree / "etc/alternatives/hn")]
+        cls.lookup_plain = subprocess.run([str(cls.tmp / "raw_lookup"), *cls.lookup_args], capture_output=True, text=True,
+                                          timeout=60, env=dict(os.environ, LD_PRELOAD=str(cls.lib)))
+        cls.lookup = subprocess.run([str(cls.tmp / "raw_lookup"), *cls.lookup_args], capture_output=True, text=True, timeout=60,
+                                    env=dict(os.environ, LD_PRELOAD="%s:%s" % (cls.lib, cls.tmp / "fp/libblfastpath.so")))
         (cls.tmp / "real").mkdir()
         subprocess.run(["cc", "-O2", "-Wall", "-Werror", "-fPIC", "-shared", "-pthread", "-o",
                         str(cls.tmp / "real/libblfastpath.so"), str(FASTPATH), "-ldl"], check=True)
@@ -328,6 +375,14 @@ class Openat2PreloadTest(unittest.TestCase):
         (cls.tmp / "extract").mkdir()
         cls.wrapper = subprocess.run([str(cls.tmp / "wrapper"), str(cls.tmp / "extract"), "file"], capture_output=True,
                                      text=True, timeout=20, env=dict(os.environ, LD_PRELOAD=str(cls.lib)))
+        (cls.tmp / "fex-lookup").mkdir()
+        shutil.copy(cls.tmp / "raw_lookup", cls.tmp / "fex-lookup/FEX")
+        try:
+            cls.fex_lookup = subprocess.run([str(cls.tmp / "fex-lookup/FEX"), *cls.lookup_args], capture_output=True, text=True,
+                                            timeout=20, env=dict(os.environ, PROOT_FP_ROOT="/", PROOT_FP_KEY="test",
+                                                                 LD_PRELOAD="%s:%s" % (cls.lib, cls.tmp / "real/libblfastpath.so")))
+        except subprocess.TimeoutExpired:
+            cls.fex_lookup = None
 
     @classmethod
     def tearDownClass(cls):
@@ -344,12 +399,23 @@ class Openat2PreloadTest(unittest.TestCase):
 
     def test_the_walk_asks_the_fast_path_when_it_is_loaded(self):
         self.assertEqual(self.counted, self.preload)
-        self.assertTrue(all(n > 0 for n in self.calls), self.calls)
+        self.assertTrue(all(n > 0 for n in self.calls[:3]), self.calls)
 
     def test_a_raw_openat_syscall_asks_the_fast_path_too(self):
         self.assertEqual(self.raw.returncode, 0, self.raw.stderr)
         self.assertEqual(self.raw.stdout, "inside\n")
-        self.assertEqual(self.raw.stderr.split("calls ")[-1].split(), ["2", "0", "0"])
+        self.assertEqual(self.raw.stderr.split("calls ")[-1].split(), ["2", "0", "0", "0"])
+
+    def test_raw_stat_readlink_and_statx_syscalls_ask_the_fast_path(self):
+        self.assertEqual(self.lookup_plain.returncode, 0, self.lookup_plain.stderr)
+        self.assertEqual(self.lookup.returncode, 0, self.lookup.stderr)
+        self.assertEqual(self.lookup.stdout, self.lookup_plain.stdout)
+        self.assertEqual(self.lookup.stderr.split("calls ")[-1].split(), ["0", "2", "1", "2"])
+
+    def test_raw_lookups_in_fex_answer_through_the_real_fast_path(self):
+        self.assertIsNotNone(self.fex_lookup, "hung")
+        self.assertEqual(self.fex_lookup.returncode, 0, self.fex_lookup.stderr)
+        self.assertEqual(self.fex_lookup.stdout, self.lookup_plain.stdout)
 
     def test_a_first_raw_openat_in_fex_does_not_wait_on_the_fast_path_starting(self):
         self.assertIsNotNone(self.fex, "hung")

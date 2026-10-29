@@ -3269,4 +3269,9 @@
     <string name="desktop_restore_done_body">Dodane aplikacje są ponownie zainstalowane.</string>
     <string name="desktop_restore_failed_title">Nie udało się przywrócić części oprogramowania</string>
     <string name="desktop_restore_failed_body">Sprawdź ~/.cache/droiddeck/apt-restore.log, a potem spróbuj sudo apt install w Konsole.</string>
+    <string name="slow_usb_title">Wolne połączenie USB</string>
+    <string name="slow_usb_cable">%1$s jest podłączony przez %2$s (%3$s Mb/s, około %4$d MB/s), więc gry na nim będą wczytywać się wolno. Użyj kabla USB 3 o przepustowości 5 Gb/s lub większej, odwróć wtyczkę USB-C albo użyj szybszego dysku.</string>
+    <string name="slow_usb_port">%1$s jest podłączony przez %2$s (%3$s Mb/s, około %4$d MB/s). Port USB tego urządzenia nie działa szybciej, więc gry będą wczytywać się wolno. Pamięć wewnętrzna lub karta microSD mogą być szybsze.</string>
+    <string name="slow_usb_never">Nie pokazuj ponownie</string>
+    <string name="slow_usb_dismiss">Zamknij</string>
 </resources>

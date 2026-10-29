@@ -66,6 +66,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import com.droiddeck.launcher.session.SessionPrefs
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -126,6 +128,20 @@ internal fun navigationKeys(s: FrontEndState) = buildList {
     add("setup"); add("updates")
 }
 
+internal object RailLabels {
+    var shown by mutableStateOf(true)
+        private set
+
+    fun load(context: android.content.Context) {
+        shown = SessionPrefs.railLabels(context)
+    }
+
+    fun set(context: android.content.Context, show: Boolean) {
+        shown = show
+        SessionPrefs.setRailLabels(context, show)
+    }
+}
+
 @Composable
 internal fun SideRail(
     s: FrontEndState, selected: String,
@@ -133,7 +149,9 @@ internal fun SideRail(
 ) {
     val colors = MaterialTheme.colorScheme
     val compact = LocalConfiguration.current.screenHeightDp < 420
-    val iconOnly = isNarrowScreen()
+    val railContext = LocalContext.current
+    remember { RailLabels.load(railContext) }
+    val iconOnly = isNarrowScreen() || !RailLabels.shown
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = modifier.width(if (iconOnly) 64.dp else 92.dp).background(colors.surface).padding(vertical = if (compact) 8.dp else 12.dp),

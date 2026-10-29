@@ -3231,4 +3231,9 @@
     <string name="desktop_restore_done_body">Le app che hai aggiunto sono di nuovo installate.</string>
     <string name="desktop_restore_failed_title">Non è stato possibile ripristinare alcuni software</string>
     <string name="desktop_restore_failed_body">Controlla ~/.cache/droiddeck/apt-restore.log, poi prova sudo apt install in Konsole.</string>
+    <string name="slow_usb_title">Connessione USB lenta</string>
+    <string name="slow_usb_cable">%1$s è collegato tramite %2$s (%3$s Mbps, circa %4$d MB/s), quindi i giochi si caricheranno lentamente. Usa un cavo USB 3 da 5 Gbps o più, prova a girare il connettore USB-C o usa un\'unità più veloce.</string>
+    <string name="slow_usb_port">%1$s è collegato tramite %2$s (%3$s Mbps, circa %4$d MB/s). La porta USB di questo dispositivo non va più veloce, quindi i giochi si caricheranno lentamente. La memoria interna o una microSD potrebbero essere più veloci.</string>
+    <string name="slow_usb_never">Non mostrare più</string>
+    <string name="slow_usb_dismiss">Chiudi</string>
 </resources>

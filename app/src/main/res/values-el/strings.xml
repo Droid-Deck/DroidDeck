@@ -3196,4 +3196,9 @@
     <string name="desktop_restore_done_body">Οι εφαρμογές που προσθέσατε εγκαταστάθηκαν ξανά.</string>
     <string name="desktop_restore_failed_title">Δεν ήταν δυνατή η επαναφορά ορισμένου λογισμικού</string>
     <string name="desktop_restore_failed_body">Δείτε το ~/.cache/droiddeck/apt-restore.log και μετά δοκιμάστε sudo apt install στο Konsole.</string>
+    <string name="slow_usb_title">Αργή σύνδεση USB</string>
+    <string name="slow_usb_cable">Η συσκευή %1$s συνδέεται μέσω %2$s (%3$s Mbps, περίπου %4$d MB/s), οπότε τα παιχνίδια θα φορτώνουν αργά. Χρησιμοποιήστε καλώδιο USB 3 των 5 Gbps ή περισσότερο, αναποδογυρίστε το βύσμα USB-C ή χρησιμοποιήστε ταχύτερο δίσκο.</string>
+    <string name="slow_usb_port">Η συσκευή %1$s συνδέεται μέσω %2$s (%3$s Mbps, περίπου %4$d MB/s). Η θύρα USB αυτής της συσκευής δεν υποστηρίζει μεγαλύτερη ταχύτητα, οπότε τα παιχνίδια θα φορτώνουν αργά. Ο εσωτερικός χώρος ή μια κάρτα microSD μπορεί να είναι ταχύτερα.</string>
+    <string name="slow_usb_never">Να μην εμφανιστεί ξανά</string>
+    <string name="slow_usb_dismiss">Κλείσιμο</string>
 </resources>

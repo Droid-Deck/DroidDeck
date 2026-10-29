@@ -2310,6 +2310,13 @@
     <string name="stores_resume">Resume</string>
     <string name="stores_refresh">Refresh</string>
     <string name="stores_sort">Sort</string>
+    <string name="setup_rail_labels">Sidebar labels</string>
+    <string name="setup_rail_labels_hint">Show names under the sidebar icons. Turn off for a slimmer sidebar.</string>
+    <string name="library_display">Display</string>
+    <string name="library_display_larger">Larger cards</string>
+    <string name="library_display_smaller">Smaller cards</string>
+    <string name="library_display_title">Show title</string>
+    <string name="library_display_size">Show size</string>
     <string name="stores_sort_last_played">Recently played</string>
     <string name="stores_sort_recently_installed">Recently installed</string>
     <string name="stores_sort_title_asc">Title A–Z</string>
@@ -3416,4 +3423,9 @@
     <string name="desktop_restore_failed_body">See ~/.cache/droiddeck/apt-restore.log, then try sudo apt install in Konsole.</string>
     <string name="gog_full_files">Native optimizations are unavailable. The download includes complete replacement files.</string>
     <string name="gog_recover">Verify patch result</string>
+    <string name="slow_usb_title">Slow USB connection</string>
+    <string name="slow_usb_cable">%1$s is connected over %2$s (%3$s Mbps, about %4$d MB/s), so games on it will load slowly. Use a USB 3 cable rated 5 Gbps or faster, try flipping the USB-C plug, or use a faster drive.</string>
+    <string name="slow_usb_port">%1$s is connected over %2$s (%3$s Mbps, about %4$d MB/s). This device\'s USB port can\'t go faster, so games on it will load slowly. Internal storage or a microSD card may be quicker.</string>
+    <string name="slow_usb_never">Don\'t show this again</string>
+    <string name="slow_usb_dismiss">Dismiss</string>
 </resources>

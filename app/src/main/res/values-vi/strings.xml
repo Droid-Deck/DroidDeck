@@ -3170,4 +3170,9 @@
     <string name="desktop_restore_done_body">Các ứng dụng bạn đã thêm đã được cài lại.</string>
     <string name="desktop_restore_failed_title">Không thể khôi phục một số phần mềm</string>
     <string name="desktop_restore_failed_body">Xem ~/.cache/droiddeck/apt-restore.log, rồi thử sudo apt install trong Konsole.</string>
+    <string name="slow_usb_title">Kết nối USB chậm</string>
+    <string name="slow_usb_cable">%1$s đang kết nối qua %2$s (%3$s Mbps, khoảng %4$d MB/s), nên trò chơi trên đó sẽ tải chậm. Hãy dùng cáp USB 3 tốc độ 5 Gbps trở lên, thử lật đầu cắm USB-C hoặc dùng ổ nhanh hơn.</string>
+    <string name="slow_usb_port">%1$s đang kết nối qua %2$s (%3$s Mbps, khoảng %4$d MB/s). Cổng USB của thiết bị này không thể nhanh hơn, nên trò chơi sẽ tải chậm. Bộ nhớ trong hoặc thẻ microSD có thể nhanh hơn.</string>
+    <string name="slow_usb_never">Không hiển thị lại</string>
+    <string name="slow_usb_dismiss">Đóng</string>
 </resources>

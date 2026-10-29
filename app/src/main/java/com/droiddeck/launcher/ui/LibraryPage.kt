@@ -3,6 +3,8 @@ package com.droiddeck.launcher.ui
 import android.view.KeyEvent
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
@@ -14,9 +16,12 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -27,6 +32,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridScope
+import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -35,12 +41,15 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.FilterAlt
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material.icons.filled.ViewList
 import androidx.compose.material.icons.filled.ViewModule
+import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -55,11 +64,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.onPreviewKeyEvent
@@ -88,6 +99,8 @@ import com.droiddeck.launcher.stores.StoreSizes
 import com.droiddeck.launcher.stores.StoresState
 import com.droiddeck.launcher.stores.arrangeStoreTabs
 import com.droiddeck.launcher.stores.download.DownloadEntry
+import com.droiddeck.launcher.stores.download.DownloadStage
+import com.droiddeck.launcher.stores.download.DownloadState
 import com.droiddeck.launcher.stores.formatBytes
 import com.droiddeck.launcher.stores.itch.ItchCollection
 import com.droiddeck.launcher.stores.itch.ItchCollections
@@ -147,6 +160,37 @@ internal fun librarySources(entries: List<LibraryEntry>, order: List<String>): L
         .filter { source -> entries.any { it.source == source } }
 
 /** Survives leaving the page, so Stores can open the Library on one store's owned games. */
+internal object LibraryDisplay {
+    val scales = listOf(0.75f, 0.875f, 1f, 1.2f, 1.45f)
+    var level by mutableIntStateOf(2)
+        private set
+    var title by mutableStateOf(true)
+        private set
+    var size by mutableStateOf(true)
+        private set
+
+    fun load(context: android.content.Context) {
+        level = SessionPrefs.libraryCardLevel(context).coerceIn(0, scales.lastIndex)
+        title = SessionPrefs.libraryShowTitle(context)
+        size = SessionPrefs.libraryShowSize(context)
+    }
+
+    fun step(context: android.content.Context, by: Int) {
+        level = (level + by).coerceIn(0, scales.lastIndex)
+        SessionPrefs.setLibraryCardLevel(context, level)
+    }
+
+    fun toggleTitle(context: android.content.Context) {
+        title = !title
+        SessionPrefs.setLibraryShowTitle(context, title)
+    }
+
+    fun toggleSize(context: android.content.Context) {
+        size = !size
+        SessionPrefs.setLibraryShowSize(context, size)
+    }
+}
+
 internal object LibraryView {
     var source by mutableStateOf(LIBRARY_ALL)
     var query by mutableStateOf("")
@@ -171,6 +215,7 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
     val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
     val inputMode = androidx.compose.ui.platform.LocalInputModeManager.current
     LaunchedEffect(Unit) { StoresState.refresh(ctx) }
+    remember { LibraryDisplay.load(ctx) }
     val stores = s.gameStoresEnabled && !s.shortcutPicker
     val signedIn = Store.entries.filter { StoresState.isSignedIn(it) }
     LaunchedEffect(stores, signedIn) { if (stores) signedIn.forEach { StoresState.loadLibrary(ctx, it) } }
@@ -360,7 +405,7 @@ private fun LibraryGrid(
 ) {
     val listMode = s.storesView == "list"
     val capsules = s.storesView == "capsules"
-    val tileWidth = if (capsules) CapsuleWidth else CardWidth
+    val tileWidth = (if (capsules) CapsuleWidth else if (listMode) CardWidth else LibraryCardWidth) * LibraryDisplay.scales[LibraryDisplay.level]
     val focus = LocalFrontFocus.current
     val scope = rememberCoroutineScope()
     val density = androidx.compose.ui.platform.LocalDensity.current
@@ -384,10 +429,11 @@ private fun LibraryGrid(
                     if (key.action == KeyEvent.ACTION_DOWN) {
                         val target = "card:${visible[next].key}"
                         val targetIndex = headerItems + next + if (split == 0) 0 else if (next < split) 1 else 2
+                        val currentIndex = headerItems + index + if (split == 0) 0 else if (index < split) 1 else 2
                         val shown = grid.layoutInfo.visibleItemsInfo.any { it.index == targetIndex }
                         if (!shown || (focus.attached[target] ?: 0) == 0 ||
                             runCatching { focus.items.getValue(target).requestFocus() }.isFailure) scope.launch {
-                            grid.scrollToItem(targetIndex)
+                            launch { grid.revealRow(currentIndex, targetIndex, direction, with(density) { 10.dp.toPx() }) }
                             focusWithinFrames({ focus.last == target }) { focus.items[target] ?: FocusRequester.Default }
                         }
                     }
@@ -397,7 +443,7 @@ private fun LibraryGrid(
         }
         val picker = s.shortcutPicker && e.game != null
         val choose = if (picker) ({ a.onSteamGame(e.game!!) }) else null
-        if (listMode) LibraryRow(e, first, navigation, choose, onOpen) else LibraryTile(e, capsules, first, navigation, choose, onOpen)
+        if (listMode) LibraryRow(e, first, navigation, choose, onOpen) else LibraryTile(e, capsules, first, navigation, choose, onOpen, showSource = source == LIBRARY_ALL)
     }
     LazyVerticalGrid(
         columns = if (listMode) GridCells.Fixed(1) else GridCells.Adaptive(tileWidth), state = grid,
@@ -445,6 +491,20 @@ private fun LibraryGrid(
     }
 }
 
+internal suspend fun LazyGridState.revealRow(currentIndex: Int, targetIndex: Int, direction: Int, gapPx: Float) {
+    val current = layoutInfo.visibleItemsInfo.firstOrNull { it.index == currentIndex }
+    if (current != null) {
+        val row = current.size.height + gapPx
+        val delta = if (direction > 0) {
+            current.offset.y + 2 * row - gapPx - (layoutInfo.viewportSize.height - layoutInfo.afterContentPadding)
+        } else {
+            current.offset.y - row - layoutInfo.beforeContentPadding
+        }
+        if (direction > 0 && delta > 0f || direction < 0 && delta < 0f) animateScrollBy(delta, tween(durationMillis = 160, easing = FastOutSlowInEasing))
+    }
+    if (layoutInfo.visibleItemsInfo.none { it.index == targetIndex }) scrollToItem(targetIndex)
+}
+
 private fun LazyGridScope.libraryGrid(entries: List<LibraryEntry>, empty: Int, tile: @Composable (LibraryEntry) -> Unit) {
     if (entries.isEmpty()) item(key = "empty", span = { GridItemSpan(maxLineSpan) }) {
         Box(Modifier.padding(vertical = 32.dp).fillMaxWidth(), contentAlignment = Alignment.Center) {
@@ -464,7 +524,7 @@ private fun LibraryHeader(
     ModeHeader(
         stringResource(R.string.rail_games), LibraryView.query, { LibraryView.query = it },
         placeholder = stringResource(R.string.stores_search_library),
-        clearSearchFocus = searchCleared,
+        clearSearchFocus = searchCleared, inlineWhenStacked = true,
         lead = {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(start = 2.dp, end = 4.dp)) {
                 Text(stringResource(R.string.rail_games), fontSize = if (narrow) 20.sp else 24.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, maxLines = 1)
@@ -473,6 +533,7 @@ private fun LibraryHeader(
             }
         },
     ) {
+        DisplayButton()
         if (showUninstalled != null || xbox) LibraryFilterButton(showUninstalled, onShowUninstalled, xbox)
         if (collections) CollectionsButton()
         SortButton(s, a)
@@ -532,7 +593,7 @@ private fun entryArt(e: LibraryEntry, tall: Boolean): Any? {
 }
 
 @Composable
-private fun LibraryTile(e: LibraryEntry, capsule: Boolean, first: Boolean, navigation: Modifier, choose: (() -> Unit)?, onOpen: (String) -> Unit) {
+private fun LibraryTile(e: LibraryEntry, capsule: Boolean, first: Boolean, navigation: Modifier, choose: (() -> Unit)?, onOpen: (String) -> Unit, showSource: Boolean) {
     val pal = LocalPalette.current
     val src = remember { MutableInteractionSource() }
     val hot = rememberHot(src)
@@ -556,9 +617,73 @@ private fun LibraryTile(e: LibraryEntry, capsule: Boolean, first: Boolean, navig
             .hoverable(src).clickable(role = Role.Button, interactionSource = src, indication = LocalIndication.current, onClick = open)
             .controllerConfirm(onClick = choose ?: open),
     ) {
-        CardFace(e.title, wide, tall, download, hot, capsule, dim = !e.installed && download == null,
-            badge = { SourceChip(e.source, small = true, modifier = Modifier.align(Alignment.TopStart).padding(6.dp)) }) {
-            LibraryMarker(e, download)
+        LibraryArt(e, wide, tall, download, hot, capsule, showSource)
+    }
+}
+
+internal val LibraryCardWidth = 150.dp
+
+internal fun libraryTileWidth() = LibraryCardWidth * LibraryDisplay.scales[LibraryDisplay.level]
+
+@Composable
+private fun LibraryArt(e: LibraryEntry, wide: Any?, tall: Any?, download: DownloadEntry?, hot: Boolean, capsule: Boolean, showSource: Boolean) {
+    val chip = when {
+        download != null -> "${download.percent}%"
+        e.item != null && StoresState.isUnfinished(e.item) -> stringResource(R.string.stores_resume)
+        e.installed && libraryUpdateAvailable(e) -> stringResource(R.string.common_update)
+        else -> null
+    }
+    ArtCard(
+        e.title, wide, tall, download, hot, capsule, chip,
+        badge = if (showSource) ({ SourceChip(e.source, small = true, modifier = Modifier.align(Alignment.TopStart).padding(6.dp)) }) else null,
+    ) { LibrarySize(e) }
+}
+
+@Composable
+internal fun ArtCard(
+    title: String, wide: Any?, tall: Any?, download: DownloadEntry?, hot: Boolean, capsule: Boolean, chip: String?,
+    badge: (@Composable BoxScope.() -> Unit)? = null, detail: @Composable () -> Unit,
+) {
+    val url = if (capsule) tall ?: wide else wide ?: tall
+    val art = cardArtRequest(url, tall)
+    val ratio = if (capsule) 5f / 7f else 16f / 9f
+    var offRatio by remember(url) { mutableStateOf(false) }
+    var trim by remember(url) { mutableStateOf(false) }
+    val blurs = android.os.Build.VERSION.SDK_INT >= 31
+    Box(
+        Modifier.fillMaxWidth().aspectRatio(ratio).background(Color(0xFF101318))
+            .then(if (url == null) Modifier.background(artBrush(hueOf(title))) else Modifier),
+    ) {
+        if (art != null && offRatio) {
+            AsyncImage(model = art, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize().blur(32.dp))
+            Spacer(Modifier.matchParentSize().background(Color.Black.copy(alpha = if (blurs) 0.18f else 0.6f)))
+        }
+        if (art != null) AsyncImage(
+            model = art, contentDescription = null, contentScale = if (trim) ContentScale.Crop else ContentScale.Fit, modifier = Modifier.matchParentSize(),
+            onSuccess = { r ->
+                val d = r.result.drawable
+                if (d.intrinsicWidth > 0 && d.intrinsicHeight > 0) {
+                    val shape = d.intrinsicWidth.toFloat() / d.intrinsicHeight
+                    trim = !capsule && shape > ratio * 1.25f
+                    offRatio = !trim && kotlin.math.abs(shape / ratio - 1f) > 0.03f
+                }
+            },
+        )
+        badge?.invoke(this)
+        if (chip != null) Box(Modifier.align(Alignment.TopEnd).padding(6.dp)) { StateChip(chip, ChipTone.BUSY, small = true) }
+        val showName = LibraryDisplay.title || hot
+        val showDetail = LibraryDisplay.size || hot
+        if (showName || showDetail) Column(
+            verticalArrangement = Arrangement.spacedBy(1.dp),
+            modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                .background(Brush.verticalGradient(0f to Color.Transparent, 0.6f to Color.Black.copy(alpha = 0.78f), 1f to Color.Black.copy(alpha = 0.92f)))
+                .padding(start = 8.dp, end = 8.dp, top = 20.dp, bottom = if (download != null) 14.dp else 6.dp),
+        ) {
+            if (showName) Text(title, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = if (hot) 2 else 1, overflow = TextOverflow.Ellipsis, lineHeight = 13.sp)
+            if (showDetail) detail()
+        }
+        if (download != null) Box(Modifier.align(Alignment.BottomCenter).padding(start = 6.dp, end = 6.dp, bottom = 5.dp)) {
+            ProgressBarThin(download.fraction, paused = download.state == DownloadState.PAUSED, verify = download.stage == DownloadStage.VERIFY)
         }
     }
 }
@@ -578,19 +703,27 @@ private fun RequestSize(e: LibraryEntry) {
     LaunchedEffect(item.key) { StoreSizes.request(ctx, item) }
 }
 
+private fun librarySize(e: LibraryEntry): Long? = if (e.installed) e.storeKey?.let { StoreSizes.onDisk[it] }
+    ?: e.game?.gameFiles?.let { FolderSizes.known[it.path] }
+    else e.item?.let { StoreSizes.size(it) }?.takeIf { it > 0 }
+
 @Composable
-internal fun LibraryMarker(e: LibraryEntry, download: DownloadEntry?) {
+private fun LibrarySize(e: LibraryEntry) {
+    val size = librarySize(e)?.takeIf { it > 0 } ?: return
+    Text(formatBytes(size), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1)
+}
+
+@Composable
+internal fun LibraryMarker(e: LibraryEntry, download: DownloadEntry?, showDownload: Boolean = true) {
     val pal = LocalPalette.current
-    val size = if (e.installed) e.storeKey?.let { StoreSizes.onDisk[it] }
-        ?: e.game?.gameFiles?.let { FolderSizes.known[it.path] }
-        else e.item?.let { StoreSizes.size(it) }?.takeIf { it > 0 }
+    val size = librarySize(e)
     when {
         download != null -> Text("${download.percent}%", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = pal.signal, maxLines = 1)
         e.item != null && StoresState.isUnfinished(e.item) -> Text(stringResource(R.string.stores_resume), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = pal.signal, maxLines = 1)
         else -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
             if (e.installed && libraryUpdateAvailable(e)) Text(stringResource(R.string.common_update), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = pal.signal, maxLines = 1)
             if (size != null && size > 0) Text(formatBytes(size), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1)
-            if (!e.installed) Icon(Icons.Outlined.Download, stringResource(R.string.stores_section_not_installed), tint = Color.White, modifier = Modifier.size(12.dp))
+            if (!e.installed && showDownload) Icon(Icons.Outlined.Download, stringResource(R.string.stores_section_not_installed), tint = Color.White, modifier = Modifier.size(12.dp))
         }
     }
 }
@@ -760,6 +893,45 @@ private fun CollectionsButton() {
                             Steps.fold()
                         }
                     }
+                }
+            })
+        }
+    }
+}
+
+@Composable
+internal fun DisplayButton() {
+    val pal = LocalPalette.current
+    val ctx = LocalContext.current
+    val title = stringResource(R.string.library_display)
+    var at by remember { mutableStateOf<Rect?>(null) }
+    Box(Modifier.onGloballyPositioned { at = it.boundsInRoot() }) {
+        HeaderIconButton(title, Icons.Filled.Visibility, "display") {
+            val from = at ?: return@HeaderIconButton
+            Steps.ask(StepAsk(
+                anchor = from, side = StepSide.Left, accent = pal.signal, pillCorner = 8.dp, items = 4,
+                handle = { Icon(Icons.Filled.Visibility, null, tint = pal.signal, modifier = Modifier.size(18.dp)) },
+            ) {
+                StepTitle(title)
+                StepList {
+                    val last = LibraryDisplay.scales.lastIndex
+                    StepChoice(
+                        stringResource(R.string.library_display_larger), icon = Icons.Filled.Add, enabled = open && LibraryDisplay.level < last,
+                        trailing = "${LibraryDisplay.level + 1}/${last + 1}",
+                        modifier = Modifier.fillMaxWidth().stepItem(0).focusRequester(first),
+                    ) { LibraryDisplay.step(ctx, 1) }
+                    StepChoice(
+                        stringResource(R.string.library_display_smaller), icon = Icons.Filled.Remove, enabled = open && LibraryDisplay.level > 0,
+                        modifier = Modifier.fillMaxWidth().stepItem(1),
+                    ) { LibraryDisplay.step(ctx, -1) }
+                    StepChoice(
+                        stringResource(R.string.library_display_title), selected = LibraryDisplay.title, enabled = open,
+                        modifier = Modifier.fillMaxWidth().stepItem(2),
+                    ) { LibraryDisplay.toggleTitle(ctx) }
+                    StepChoice(
+                        stringResource(R.string.library_display_size), selected = LibraryDisplay.size, enabled = open,
+                        modifier = Modifier.fillMaxWidth().stepItem(3),
+                    ) { LibraryDisplay.toggleSize(ctx) }
                 }
             })
         }

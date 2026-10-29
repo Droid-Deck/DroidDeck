@@ -3266,4 +3266,9 @@
     <string name="desktop_restore_done_body">Aplikace, které jste přidali, jsou znovu nainstalovány.</string>
     <string name="desktop_restore_failed_title">Část softwaru se nepodařilo obnovit</string>
     <string name="desktop_restore_failed_body">Podívejte se do ~/.cache/droiddeck/apt-restore.log a pak zkuste sudo apt install v Konsoli.</string>
+    <string name="slow_usb_title">Pomalé připojení USB</string>
+    <string name="slow_usb_cable">%1$s je připojen přes %2$s (%3$s Mb/s, asi %4$d MB/s), takže hry na něm se budou načítat pomalu. Použijte kabel USB 3 s rychlostí 5 Gb/s nebo vyšší, zkuste otočit konektor USB-C nebo použijte rychlejší disk.</string>
+    <string name="slow_usb_port">%1$s je připojen přes %2$s (%3$s Mb/s, asi %4$d MB/s). Port USB tohoto zařízení rychleji neumí, takže hry na něm se budou načítat pomalu. Interní úložiště nebo karta microSD může být rychlejší.</string>
+    <string name="slow_usb_never">Už nezobrazovat</string>
+    <string name="slow_usb_dismiss">Zavřít</string>
 </resources>

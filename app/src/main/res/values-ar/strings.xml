@@ -3336,4 +3336,9 @@
     <string name="desktop_restore_done_body">التطبيقات التي أضفتها مثبتة مرة أخرى.</string>
     <string name="desktop_restore_failed_title">تعذّرت استعادة بعض البرامج</string>
     <string name="desktop_restore_failed_body">راجع ‎~/.cache/droiddeck/apt-restore.log ثم جرّب sudo apt install في Konsole.</string>
+    <string name="slow_usb_title">اتصال USB بطيء</string>
+    <string name="slow_usb_cable">%1$s متصل عبر %2$s (%3$s ميغابت/ث، حوالي %4$d ميغابايت/ث)، لذا ستُحمَّل الألعاب عليه ببطء. استخدم كابل USB 3 بسرعة 5 جيجابت/ث أو أكثر، أو جرّب قلب قابس USB-C، أو استخدم محركًا أسرع.</string>
+    <string name="slow_usb_port">%1$s متصل عبر %2$s (%3$s ميغابت/ث، حوالي %4$d ميغابايت/ث). لا يدعم منفذ USB في هذا الجهاز سرعة أعلى، لذا ستُحمَّل الألعاب عليه ببطء. قد تكون الذاكرة الداخلية أو بطاقة microSD أسرع.</string>
+    <string name="slow_usb_never">عدم الإظهار مرة أخرى</string>
+    <string name="slow_usb_dismiss">إغلاق</string>
 </resources>

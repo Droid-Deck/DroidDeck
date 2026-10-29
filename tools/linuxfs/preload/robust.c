@@ -49,6 +49,7 @@ static int openat2_missing;
 static int (*next_fstatat)(int, const char *, bl_stat *, int);
 static int (*next_openat)(int, const char *, int, ...);
 static ssize_t (*next_readlinkat)(int, const char *, char *, size_t);
+static int (*next_statx)(int, const char *, int, unsigned int, struct statx *);
 
 static int find_fastpath(struct dl_phdr_info *info, size_t size, void *name) {
   (void)size;
@@ -68,6 +69,7 @@ __attribute__((constructor)) static void find_fastpath_calls(void) {
     next_fstatat = (int (*)(int, const char *, bl_stat *, int))dlsym(fastpath, BL_FSTATAT_NAME);
     next_openat = (int (*)(int, const char *, int, ...))dlsym(fastpath, "openat");
     next_readlinkat = (ssize_t (*)(int, const char *, char *, size_t))dlsym(fastpath, "readlinkat");
+    next_statx = (int (*)(int, const char *, int, unsigned int, struct statx *))dlsym(fastpath, "statx");
   }
 }
 
@@ -90,6 +92,13 @@ static long path_readlink(int dirfd, const char *path, char *buf, size_t size) {
     return real_syscall(SYS_readlinkat, (long)dirfd, (long)path, (long)buf, (long)size);
   }
   return next_readlinkat(dirfd, path, buf, size);
+}
+
+static long path_statx(int dirfd, const char *path, int flags, unsigned int mask, struct statx *out) {
+  if (!next_statx) {
+    return real_syscall(SYS_statx, (long)dirfd, (long)path, (long)flags, (long)mask, (long)out);
+  }
+  return next_statx(dirfd, path, flags, mask, out);
 }
 
 void *dlopen(const char *filename, int flags) {
@@ -384,6 +393,15 @@ long syscall(long number, ...) {
   }
   if (number == SYS_openat) {
     return path_open((int)args[0], (const char *)args[1], (int)args[2], args[3]);
+  }
+  if (number == BL_SYS_FSTATAT) {
+    return path_stat((int)args[0], (const char *)args[1], (bl_stat *)args[2], (int)args[3]);
+  }
+  if (number == SYS_readlinkat) {
+    return path_readlink((int)args[0], (const char *)args[1], (char *)args[2], (size_t)args[3]);
+  }
+  if (number == SYS_statx) {
+    return path_statx((int)args[0], (const char *)args[1], (int)args[2], (unsigned int)args[3], (struct statx *)args[4]);
   }
   if (number == SYS_execveat && execveat_is_execve(args)) {
     return real_syscall(SYS_execve, args[1], args[2], args[3]);

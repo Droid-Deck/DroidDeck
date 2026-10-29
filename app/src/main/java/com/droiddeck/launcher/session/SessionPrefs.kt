@@ -21,6 +21,8 @@ object SessionPrefs {
     private const val LEGACY_SUSPEND_DOWNLOADS = "downloads"
     private const val STEAM_DOWNLOADS_IN_BACKGROUND = "steamDownloadsInBackground"
     private const val DECKY_ZIP_WARNING_SEEN = "deckyZipWarningSeen"
+    private const val SLOW_USB_WARNING_OFF = "slowUsbWarningOff"
+    private const val SLOW_USB_DISMISSED = "slowUsbDismissed"
 
     const val CONTROLLER_DECK = "deck"
     const val CONTROLLER_XBOX360 = "xbox360"
@@ -123,6 +125,30 @@ object SessionPrefs {
 
     fun setStoresView(context: Context, view: String) {
         prefs(context).edit().putString("storesView", if (view in STORES_VIEWS) view else STORES_VIEWS.first()).apply()
+    }
+
+    fun libraryCardLevel(context: Context): Int = prefs(context).getInt("libraryCardLevel", 2)
+
+    fun setLibraryCardLevel(context: Context, level: Int) {
+        prefs(context).edit().putInt("libraryCardLevel", level).apply()
+    }
+
+    fun libraryShowTitle(context: Context): Boolean = prefs(context).getBoolean("libraryShowTitle", true)
+
+    fun setLibraryShowTitle(context: Context, show: Boolean) {
+        prefs(context).edit().putBoolean("libraryShowTitle", show).apply()
+    }
+
+    fun libraryShowSize(context: Context): Boolean = prefs(context).getBoolean("libraryShowSize", true)
+
+    fun setLibraryShowSize(context: Context, show: Boolean) {
+        prefs(context).edit().putBoolean("libraryShowSize", show).apply()
+    }
+
+    fun railLabels(context: Context): Boolean = prefs(context).getBoolean("railLabels", false)
+
+    fun setRailLabels(context: Context, show: Boolean) {
+        prefs(context).edit().putBoolean("railLabels", show).apply()
     }
 
     fun libraryShowUninstalled(context: Context): Boolean = prefs(context).getBoolean("libraryShowUninstalled", false)
@@ -1289,6 +1315,18 @@ object SessionPrefs {
 
     fun setDeckyZipWarningSeen(context: Context) {
         prefs(context).edit().putBoolean(DECKY_ZIP_WARNING_SEEN, true).apply()
+    }
+
+    fun slowUsbWarningOff(context: Context): Boolean = prefs(context).getBoolean(SLOW_USB_WARNING_OFF, false)
+
+    fun setSlowUsbWarningOff(context: Context) {
+        prefs(context).edit().putBoolean(SLOW_USB_WARNING_OFF, true).apply()
+    }
+
+    fun slowUsbDismissed(context: Context): Set<String> = prefs(context).getStringSet(SLOW_USB_DISMISSED, null)?.toSet().orEmpty()
+
+    fun setSlowUsbDismissed(context: Context, keys: Set<String>) {
+        prefs(context).edit().putStringSet(SLOW_USB_DISMISSED, keys.toSet()).apply()
     }
 
     fun steamDownloadsInBackground(context: Context): Boolean {

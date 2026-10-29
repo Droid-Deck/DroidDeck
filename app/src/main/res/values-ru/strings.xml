@@ -3268,4 +3268,9 @@
     <string name="desktop_restore_done_body">Добавленные вами приложения снова установлены.</string>
     <string name="desktop_restore_failed_title">Не удалось восстановить часть программ</string>
     <string name="desktop_restore_failed_body">Посмотрите ~/.cache/droiddeck/apt-restore.log, затем попробуйте sudo apt install в Konsole.</string>
+    <string name="slow_usb_title">Медленное подключение USB</string>
+    <string name="slow_usb_cable">%1$s подключён через %2$s (%3$s Мбит/с, около %4$d МБ/с), поэтому игры на нём будут загружаться медленно. Используйте кабель USB 3 на 5 Гбит/с или быстрее, попробуйте перевернуть разъём USB-C или возьмите более быстрый накопитель.</string>
+    <string name="slow_usb_port">%1$s подключён через %2$s (%3$s Мбит/с, около %4$d МБ/с). USB-порт этого устройства не работает быстрее, поэтому игры будут загружаться медленно. Внутренняя память или карта microSD могут быть быстрее.</string>
+    <string name="slow_usb_never">Больше не показывать</string>
+    <string name="slow_usb_dismiss">Закрыть</string>
 </resources>
