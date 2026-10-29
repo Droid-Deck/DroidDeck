@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.stores
 
+import com.droiddeck.launcher.core.SecretScrub
 import java.net.HttpURLConnection
 import java.net.URL
 
@@ -22,7 +23,15 @@ internal object GameJoltProbe {
         }, "gamejolt-probe").start()
     }
 
-    private fun log(line: String) = StoresState.logLine("gamejolt probe: ${line.replace('\n', ' ').take(500)}")
+    private fun log(line: String, urls: SecretScrub.Urls = SecretScrub.Urls.SHORT) =
+        StoresState.logLine("gamejolt probe: ${line.replace('\n', ' ').take(500)}", urls)
+
+    private fun isGameJoltHost(url: String): Boolean {
+        val host = runCatching { URL(url).host.lowercase() }.getOrNull() ?: return false
+        return host == "gjcdn.net" || host.endsWith(".gjcdn.net") ||
+            host == "gamejolt.com" || host.endsWith(".gamejolt.com") ||
+            host == "gamejolt.net" || host.endsWith(".gamejolt.net")
+    }
 
     private fun fetch(url: String, accept: String, limit: Int): Reply? = try {
         val conn = (URL(url).openConnection() as HttpURLConnection).apply {
@@ -81,7 +90,7 @@ internal object GameJoltProbe {
         val scripts = scriptSrc.findAll(game.body).map { it.groupValues[1] }
             .map { runCatching { URL(host, it).toString() }.getOrNull() }
             .filterNotNull()
-            .filter { it.contains("gamejolt") }
+            .filter { isGameJoltHost(it) }
             .distinct()
             .toList()
         log("scripts on page: ${scripts.size}")
@@ -91,7 +100,7 @@ internal object GameJoltProbe {
             log("script code=${js.code} bytes=${js.body.length} url=$src")
             scan("script", js.body, found)
         }
-        found.take(MAX_FOUND).forEach { log("endpoint: $it") }
+        found.take(MAX_FOUND).forEach { log("endpoint: $it", SecretScrub.Urls.KEEP_PATH) }
         log("endpoint strings total=${found.size}")
         if (id != null) {
             report("candidate overview", "https://gamejolt.com/site-api/web/discover/games/overview/$id", "application/json", 60_000)

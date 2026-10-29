@@ -109,6 +109,6 @@ object StoreLog {
     }
 
     @JvmStatic
-    fun redactLine(text: String): String =
-        com.droiddeck.launcher.core.SecretScrub.scrub(text, com.droiddeck.launcher.core.SecretScrub.Urls.SHORT, "…")
+    fun redactLine(text: String, urls: com.droiddeck.launcher.core.SecretScrub.Urls = com.droiddeck.launcher.core.SecretScrub.Urls.SHORT): String =
+        com.droiddeck.launcher.core.SecretScrub.scrub(text, urls, "…")
 }
