@@ -233,6 +233,20 @@ object SessionPrefs {
         prefs(context).edit().putInt("hudOpacity", percent.coerceIn(HUD_OPACITY_RANGE)).apply()
     }
 
+    fun fusionHudConfig(context: Context): String? = prefs(context).getString("fusionHud", null)
+
+    fun setFusionHudConfig(context: Context, config: String) {
+        prefs(context).edit().putString("fusionHud", config).apply()
+    }
+
+    fun fusionHudPosition(context: Context): Pair<Float, Float>? =
+        prefs(context).getString("fusionHudPos", null)?.split(',')?.mapNotNull { it.toFloatOrNull() }
+            ?.takeIf { it.size == 2 }?.let { it[0] to it[1] }
+
+    fun setFusionHudPosition(context: Context, x: Float, y: Float) {
+        prefs(context).edit().putString("fusionHudPos", "$x,$y").apply()
+    }
+
     const val HUD_COLOR_MINT = "mint"
     val HUD_COLORS = listOf(HUD_COLOR_MINT, "white", "sky", "amber", "violet")
     val HUD_OPACITY_RANGE = 30..100

@@ -349,6 +349,7 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
             },
             onDetailFocus = { detailFocused = it },
             modifier = Modifier.fillMaxWidth().weight(1f).onSizeChanged { viewportH = with(density) { it.height.toDp() } },
+            bleedHorizontal = padH,
             wrap = { key, content -> StoreTheme(Store.byId(key.substringBefore(':')) ?: store) { content() } },
             grid = {
                 AnimatedContent(

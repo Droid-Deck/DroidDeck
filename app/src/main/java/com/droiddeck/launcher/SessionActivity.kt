@@ -90,7 +90,8 @@ import com.droiddeck.launcher.input.TouchscreenGestures
 import com.droiddeck.launcher.input.ScrollTouchGestures
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.session.LoadingState
-import com.droiddeck.launcher.session.PerfHud
+import com.droiddeck.launcher.hud.FusionHudConfig
+import com.droiddeck.launcher.hud.FusionHudHost
 import com.droiddeck.launcher.session.PerfMode
 import com.droiddeck.launcher.session.SteamRepair
 import com.droiddeck.launcher.session.GameEnvironmentStore
@@ -158,7 +159,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private lateinit var surfaceView: SurfaceView
     private lateinit var sessionOverlay: ComposeView
     private lateinit var loading: LoadingState
-    private lateinit var hud: PerfHud
+    private lateinit var hud: FusionHudHost
     private lateinit var memoryHud: com.droiddeck.launcher.session.MemoryHud
     private var padBridge: PadBridge? = null
     private var joyConVr: com.droiddeck.launcher.input.JoyConVr? = null
@@ -372,9 +373,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var achievementsInFront by mutableStateOf<AchievementsInFront?>(null)
     private var achievementsOpen by mutableStateOf(false)
     private var hudOn by mutableStateOf(true)
-    private var hudFps by mutableStateOf(true)
-    private var hudBattery by mutableStateOf(true)
-    private var hudGraph by mutableStateOf(true)
+    private var hudConfig by mutableStateOf<Map<String, String>>(emptyMap())
     private var hudColor by mutableStateOf(SessionPrefs.HUD_COLOR_MINT)
     private var hudOpacity by mutableStateOf(SessionPrefs.HUD_OPACITY_DEFAULT)
     private var upscaler by mutableStateOf(0)
@@ -703,7 +702,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             val needProton = protonUser && com.droiddeck.launcher.runtime.DesktopCatalog.protonSeedNeeded(this)
             if (needRuntime || needResume || needDesktop || needProton) installThenStart(needRuntime, needDesktop, needProton, needResume)
         }
-        hud = PerfHud(this)
+        hud = FusionHudHost(this)
+        hud.onConfigChanged = { hudConfig = FusionHudConfig.load(this) }
+        hud.attach(root, root.childCount)
         memoryHud = com.droiddeck.launcher.session.MemoryHud(this)
         hud.onPresentingWindowChanged = {
             if (FrameGen.engine(this) != FrameGen.ENGINE_OFF) CompositorHost.rearmFrameGen { applyFrameGen() }
@@ -791,6 +792,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 onDispose { com.droiddeck.launcher.glasses.GlassesMenuMirror.setSessionMenuVisible(this@SessionActivity, false) }
             }
             androidx.compose.runtime.LaunchedEffect(drawerOpen, pcKeyboardOpen, achievementsOpen, pipUi) { updatePointerCapture() }
+            androidx.compose.runtime.LaunchedEffect(pipUi) { hud.setHidden(pipUi) }
             androidx.compose.runtime.LaunchedEffect(AgentGuest.steamKeyboard) { updateOnScreenControls() }
             androidx.compose.runtime.LaunchedEffect(AgentGuest.desktopTextField) { onDesktopTextField(AgentGuest.desktopTextField) }
             androidx.compose.runtime.LaunchedEffect(pipUi, pcKeyboardOpen) { updateDesktopKeyboardButton() }
@@ -808,9 +810,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             com.droiddeck.launcher.ui.FocusGlideHost(androidx.compose.ui.Modifier.fillMaxSize()) {
                 CursorOverlay({ cursorPos }, cursorVisible, resources.displayMetrics.density,
                     cursorImage, cursorHotX, cursorHotY, cursorImageScale)
-                val hudLines = listOf(hud.text, memoryHud.text).filter { it.isNotEmpty() }
-                if (hudLines.isNotEmpty() || hud.graph.size >= 2)
-                    HudText(hudLines.joinToString("\n"), hud.graph, hudColor, hudOpacity)
+                if (memoryHud.text.isNotEmpty()) HudText(memoryHud.text, hudColor, hudOpacity)
                 val phonePanel = glassesOutputActive && !loading.visible && !drawerOpen && !pcKeyboardOpen
                 if (phonePanel) GlassesPhonePanel(glasses, steamVrStatus == SteamVr.Status.RUNNING, headTracking)
                 if (trackingRecovery != null && !drawerOpen && !pcKeyboardOpen && !loading.visible) {
@@ -1007,11 +1007,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     isHomeApp = isHomeApp,
                     androidApps = androidApps,
                     hudOn = hudOn,
-                    hudFps = hudFps,
-                    hudBattery = hudBattery,
-                    hudGraph = hudGraph,
-                    hudColor = hudColor,
-                    hudOpacity = hudOpacity,
+                    hudConfig = hudConfig,
                     upscaler = upscaler, upscaleSharpness = upscaleSharpness,
                     effects = effects,
                     cardboard = cardboard,
@@ -1042,11 +1038,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     secondScreenDisplays = secondScreenDisplays,
                     selectedSecondScreenDisplay = selectedSecondScreenDisplay,
                     onHud = { on -> SessionPrefs.setHudEnabled(this@SessionActivity, on); hudOn = on; hud.refresh() },
-                    onHudFps = { on -> SessionPrefs.setHudShowFps(this@SessionActivity, on); hudFps = on; hud.refresh() },
-                    onHudBattery = { on -> SessionPrefs.setHudShowBattery(this@SessionActivity, on); hudBattery = on; hud.refresh() },
-                    onHudGraph = { on -> SessionPrefs.setHudShowGraph(this@SessionActivity, on); hudGraph = on; hud.refresh() },
-                    onHudColor = { color -> SessionPrefs.setHudColor(this@SessionActivity, color); hudColor = color },
-                    onHudOpacity = { percent -> SessionPrefs.setHudOpacity(this@SessionActivity, percent); hudOpacity = percent },
+                    onHudSetting = { key, value -> hudConfig = FusionHudConfig.set(this@SessionActivity, key, value); hud.applyConfig() },
+                    onHudReset = { hudConfig = FusionHudConfig.reset(this@SessionActivity); hud.applyConfig() },
+                    onHudExport = { exportHudDiagnostics() },
                     onUpscaler = { m ->
                         SessionPrefs.setUpscaler(this@SessionActivity, m); upscaler = m
                         WaylandCompositor.nativeSetUpscaler(m)
@@ -1687,6 +1681,15 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             else getString(R.string.load_starting_steam)
     }
 
+    private fun exportHudDiagnostics() {
+        glassesScope.launch {
+            val file = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { hud.exportDiagnostics() }
+            android.widget.Toast.makeText(this@SessionActivity,
+                if (file != null) getString(R.string.hud_export_done, file.path) else getString(R.string.hud_export_failed),
+                android.widget.Toast.LENGTH_LONG).show()
+        }
+    }
+
     private fun shareCurrentSessionLogs() {
         val folder = SessionPaths.current() ?: SessionPaths.lastEnded()
         if (folder == null || !folder.isDirectory) {
@@ -1712,9 +1715,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         unfoldedControlsWithController = SessionPrefs.unfoldedControlsWithController(this)
         picturePosition = SessionPrefs.picturePosition(this)
         hudOn = SessionPrefs.hudEnabled(this)
-        hudFps = SessionPrefs.hudShowFps(this)
-        hudBattery = SessionPrefs.hudShowBattery(this)
-        hudGraph = SessionPrefs.hudShowGraph(this)
+        hudConfig = FusionHudConfig.load(this)
         hudColor = SessionPrefs.hudColor(this)
         hudOpacity = SessionPrefs.hudOpacity(this)
         upscaler = SessionPrefs.upscaler(this)
@@ -3573,6 +3574,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         super.onStart()
         if (runtimeRemovalBlocked) return
         started = true
+        if (::hud.isInitialized) hud.setBackgrounded(false)
         refreshActivityDisplayId()
         displayManager.registerDisplayListener(displayListener, Handler(Looper.getMainLooper()))
         for (name in arrayOf("peak_refresh_rate", "min_refresh_rate")) {
@@ -3590,6 +3592,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     override fun onStop() {
         if (runtimeRemovalBlocked) { super.onStop(); return }
         started = false
+        if (::hud.isInitialized) hud.setBackgrounded(true)
         updateHandCamera()
         displayManager.unregisterDisplayListener(displayListener)
         contentResolver.unregisterContentObserver(refreshSettingObserver)

@@ -341,9 +341,9 @@ public final class LinuxRuntime {
     }
 
     public static String cpuTempSource() {
-        for (java.util.Map.Entry<String, File> e : new java.util.TreeMap<>(thermalZones()).entrySet()) {
-            File temp = new File(e.getValue(), "temp");
-            if (e.getKey().contains("cpu") && !e.getKey().contains("gpu") && temp.canRead()) return temp.getPath();
+        for (File zone : cpuTempZones()) {
+            File temp = new File(zone, "temp");
+            if (temp.canRead()) return temp.getPath();
         }
         return null;
     }
@@ -353,7 +353,7 @@ public final class LinuxRuntime {
         return firstReadable(kgsl + "temp", kgsl + "devfreq/temp", thermalZone("gpu"));
     }
 
-    private static String gpuLoadSource() {
+    public static String gpuLoadSource() {
         String kgsl = "/sys/class/kgsl/kgsl-3d0/";
         return firstReadable(kgsl + "gpu_busy_percentage", kgsl + "devfreq/gpu_load");
     }
@@ -367,7 +367,7 @@ public final class LinuxRuntime {
                         "/sys/devices/platform/soc@0/3d00000.gpu/devfreq/3d00000.gpu/cur_freq"},
                 {gpuTemp, "/sys/class/thermal/thermal_zone28/temp"},
                 {gpuTemp, "/sys/class/thermal/thermal_zone26/temp"},
-                {thermalZone("ddr"), "/sys/class/thermal/thermal_zone22/temp"},
+                {ddrTempSource(), "/sys/class/thermal/thermal_zone22/temp"},
         };
         for (String[] stat : stats) {
             boolean fed = false;
@@ -384,6 +384,36 @@ public final class LinuxRuntime {
         return path != null ? path : "none";
     }
 
+    private static String ddrTempSource() {
+        return thermalZone("ddr");
+    }
+
+    // MangoHud reads the GPU and DDR temperatures from these zone numbers (bindAdrenoStats). On phones
+    // where they are CPU zones, their type follows the temperature put there, so they stay out of the
+    // CPU average.
+    private static java.util.Map<String, String> replacedZoneTypes() {
+        java.util.Map<String, String> replaced = new java.util.HashMap<>();
+        if (gpuTempSource() != null) {
+            replaced.put("thermal_zone28", "gpu-thermal");
+            replaced.put("thermal_zone26", "gpu-thermal");
+        }
+        if (ddrTempSource() != null) replaced.put("thermal_zone22", "ddr-thermal");
+        return replaced;
+    }
+
+    /** The zones the session's MangoHud averages for the CPU temperature (all typed cpuN-thermal there). */
+    public static List<File> cpuTempZones() {
+        java.util.Map<String, String> replaced = replacedZoneTypes();
+        List<File> zones = new ArrayList<>();
+        for (java.util.Map.Entry<String, File> zone : new java.util.TreeMap<>(thermalZones()).entrySet()) {
+            String type = zone.getKey();
+            if (type.contains("cpu") && !type.contains("gpu") && !replaced.containsKey(zone.getValue().getName())) {
+                zones.add(zone.getValue());
+            }
+        }
+        return zones;
+    }
+
     private static void bindCpuTemps(List<String> cmd, File root) {
         File name = new File(root, "etc/droiddeck/cpu-thermal-type");
         try {
@@ -391,9 +421,18 @@ public final class LinuxRuntime {
         } catch (IOException e) {
             return;
         }
+        java.util.Map<String, String> replaced = replacedZoneTypes();
         for (java.util.Map.Entry<String, File> zone : thermalZones().entrySet()) {
             String type = zone.getKey();
-            if (type.contains("cpu") && !type.contains("gpu") && !type.matches("cpu\\d-(top-)?thermal")) {
+            String other = replaced.get(zone.getValue().getName());
+            if (other != null) {
+                File typeFile = new File(root, "etc/droiddeck/" + other + "-type");
+                try {
+                    if (!typeFile.isFile()) Files.write(typeFile.toPath(), (other + "\n").getBytes(StandardCharsets.US_ASCII));
+                    bind(cmd, typeFile.getPath() + ":" + new File(zone.getValue(), "type").getPath());
+                } catch (IOException ignored) {
+                }
+            } else if (type.contains("cpu") && !type.contains("gpu") && !type.matches("cpu\\d-(top-)?thermal")) {
                 bind(cmd, name.getPath() + ":" + new File(zone.getValue(), "type").getPath());
             }
         }

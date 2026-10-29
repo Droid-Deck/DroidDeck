@@ -33,12 +33,29 @@ import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.layout.layout
 import kotlinx.coroutines.delay
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
 
 /** A grid of cards with a game page that floods out of the opened card and drains back into it. */
 internal val LocalDetailFloor = compositionLocalOf<() -> Float> { { Float.MAX_VALUE } }
+
+/** How far the host reaches past the page's padding, so a game page can paint to the screen edge and still inset its content. */
+internal class DetailInset(val horizontal: Dp, val top: Dp)
+internal val LocalDetailInset = compositionLocalOf { DetailInset(0.dp, 0.dp) }
+
+private fun Modifier.bleed(horizontal: Dp, top: Dp): Modifier =
+    if (horizontal == 0.dp && top == 0.dp) this else layout { measurable, constraints ->
+        val h = horizontal.roundToPx()
+        val t = top.roundToPx()
+        val placeable = measurable.measure(
+            Constraints.fixed(constraints.maxWidth + h * 2, if (constraints.hasBoundedHeight) constraints.maxHeight + t else constraints.minHeight),
+        )
+        layout(constraints.maxWidth, placeable.height - t) { placeable.place(-h, -t) }
+    }
 
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
@@ -48,6 +65,8 @@ internal fun CardDetailHost(
     gridScrolled: () -> Boolean,
     onDetailFocus: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
+    bleedHorizontal: Dp = 0.dp,
+    bleedTop: Dp = 0.dp,
     wrap: @Composable (key: String, content: @Composable () -> Unit) -> Unit = { _, content -> content() },
     grid: @Composable () -> Unit,
     detail: @Composable (key: String) -> Unit,
@@ -86,7 +105,7 @@ internal fun CardDetailHost(
     val gridAlpha by animateFloatAsState(if (covering) 0f else 1f, if (covering) Motion.tw(320, 80) else Motion.tw(300, 100), label = "gridFade")
     val fade = with(density) { 14.dp.toPx() }
     Box(
-        modifier.clipToBounds()
+        modifier.bleed(bleedHorizontal, bleedTop).clipToBounds()
             .onGloballyPositioned { viewportAt = it.positionInRoot(); viewportH = it.size.height }
             .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
             .drawWithContent {
@@ -100,7 +119,7 @@ internal fun CardDetailHost(
     ) {
         CompositionLocalProvider(LocalFrontFocus provides if (covering) null else ff) {
             Column(
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier.fillMaxSize().padding(horizontal = bleedHorizontal).padding(top = bleedTop)
                     .graphicsLayer { scaleX = gridScale; scaleY = gridScale; alpha = gridAlpha }
                     .focusProperties { enter = { if (coveringNow.value) FocusRequester.Cancel else FocusRequester.Default } }
                     .focusGroup(),
@@ -111,7 +130,7 @@ internal fun CardDetailHost(
                 val body: @Composable () -> Unit = {
                     Column(
                         Modifier.fillMaxSize().pointerInput(Unit) { detectTapGestures { } }
-                            .verticalScroll(detailScroll).padding(top = 4.dp, bottom = 16.dp),
+                            .verticalScroll(detailScroll).padding(bottom = 16.dp),
                     ) {
                         Column(
                             Modifier.fillMaxWidth()
@@ -120,7 +139,7 @@ internal fun CardDetailHost(
                                 .focusGroup(),
                         ) {
                             val floor = { viewportAt.y + viewportH - with(density) { 16.dp.toPx() } - detailScroll.value }
-                            CompositionLocalProvider(LocalDetailFloor provides floor) { detail(key) }
+                            CompositionLocalProvider(LocalDetailFloor provides floor, LocalDetailInset provides DetailInset(bleedHorizontal, bleedTop + 4.dp)) { detail(key) }
                         }
                     }
                 }
