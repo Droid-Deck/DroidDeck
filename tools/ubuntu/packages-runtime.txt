@@ -161,6 +161,7 @@ libxcb-dri3-0
 libxcb-errors0
 libxcb-ewmh2
 libxcb-icccm4
+libxcb-keysyms1
 libxcb-present0
 libxcb-render-util0
 libxcb-render0

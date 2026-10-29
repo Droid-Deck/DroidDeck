@@ -78,6 +78,10 @@ install_turnip() {
   mkdir -p /usr/share/licenses/dd-turnip
   cp -r "$work/turnip/LICENSES" "$work/turnip/NOTICE" "$work/turnip/linux/meta.json" /usr/share/licenses/dd-turnip/
   rm -rf "$work"
+  if ldd "$multiarch/libvulkan_freedreno.so" 2>&1 | grep 'not found'; then
+    echo "DD-Turnip needs libraries this runtime does not ship; add their packages to packages-runtime.txt" >&2
+    return 1
+  fi
 }
 
 divert_to() {
