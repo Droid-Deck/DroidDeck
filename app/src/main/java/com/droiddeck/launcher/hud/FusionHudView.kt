@@ -778,7 +778,7 @@ class FusionHudView(context: Context) : View(context) {
         if (showBattery || showPower || showBatteryTemp) {
             val parts = ArrayList<Span>(); var any = false
             if (showBattery && s.battery.percent != null) { parts += numUnit(s.battery.percent.toString(), "%", valPx, unitPx); any = true }
-            if (showBatteryTemp && s.battery.tempC != null) { if (any) parts += gap(unitPx); parts += Span(" · ", colDim, subPx); parts += tempSpans(s.battery.tempC, HudMetrics.TempSensor.BATTERY, valPx, unitPx); any = true }
+            if (showBatteryTemp && s.battery.tempC != null) { if (any) parts += Span(" · ", colDim, subPx); parts += tempSpans(s.battery.tempC, HudMetrics.TempSensor.BATTERY, valPx, unitPx); any = true }
             if (showPower && s.battery.watts > 0f) { if (any) parts += Span(" · ", colDim, subPx); parts += numUnit(fmt1(s.battery.watts), "W", valPx, unitPx); any = true }
             if (any) tiles.add(Tile("BAT", colBat, parts, null, true))
         }
