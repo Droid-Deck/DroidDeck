@@ -343,7 +343,7 @@
     <string name="mode_steam_startup">Start Steam with DroidDeck</string>
     <string name="steam_startup_open">Open Steam</string>
     <string name="steam_startup_background">Prepare in background</string>
-    <string name="steam_startup_hint">Background preparation keeps the launcher open and uses memory sooner. Requires completed setup. HDR sessions start when you press Play.</string>
+    <string name="steam_startup_hint">Background preparation keeps the launcher open and uses memory sooner. Requires completed setup and an available game display.</string>
     <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">Checking for releases…</string>
     <string name="mode_decky_ready">Ready to install %1$s.</string>

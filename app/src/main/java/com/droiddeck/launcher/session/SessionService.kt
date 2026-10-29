@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.session
 
+import com.droiddeck.launcher.glasses.Glasses
 import com.droiddeck.launcher.core.AddonPack
 import com.droiddeck.launcher.gpu.LinuxVulkanDriver
 import com.droiddeck.launcher.gpu.LinuxVulkanDriverManager
@@ -344,7 +345,9 @@ class SessionService : Service() {
             return START_NOT_STICKY
         }
         val backgroundStart = intent?.action == ACTION_PREPARE_STEAM
-        if (backgroundStart && !canPrepareSteam(this)) {
+        val backgroundDisplay = if (backgroundStart) backgroundDisplay(this,
+            intent?.getIntExtra(EXTRA_ACTIVITY_DISPLAY_ID, Display.DEFAULT_DISPLAY) ?: Display.DEFAULT_DISPLAY) else null
+        if (backgroundStart && (!canPrepareSteam(this) || backgroundDisplay == null)) {
             if (!SessionState.running) stopSelf(startId)
             return START_NOT_STICKY
         }
@@ -363,7 +366,8 @@ class SessionService : Service() {
         activityVisible = !backgroundStart
         xrActivityVisible = false
         signInHold = false
-        sessionDisplayId = intent?.getIntExtra(EXTRA_DISPLAY_ID, Display.DEFAULT_DISPLAY) ?: Display.DEFAULT_DISPLAY
+        sessionDisplayId = backgroundDisplay?.displayId
+            ?: intent?.getIntExtra(EXTRA_DISPLAY_ID, Display.DEFAULT_DISPLAY) ?: Display.DEFAULT_DISPLAY
         activityDisplayId = intent?.getIntExtra(EXTRA_ACTIVITY_DISPLAY_ID, sessionDisplayId) ?: sessionDisplayId
         if (backgroundStart) prepareBackgroundOutput()
         screenOn = readScreenOn()
@@ -432,10 +436,8 @@ class SessionService : Service() {
             }
             preparation?.result?.complete(result)
             result.exceptionOrNull()?.let { error ->
-                if (error !is CancellationException) {
-                    Log.e(TAG, "session preparation failed", error)
-                    if (gen == sessionGen && SessionState.running) stopSession(-1)
-                }
+                if (error !is CancellationException) Log.e(TAG, "session preparation failed", error)
+                if (gen == sessionGen && SessionState.running) stopSession(if (error is CancellationException) 0 else -1)
                 return@Thread
             }
             if (gen == sessionGen && SessionState.running && !SessionState.stopRequested) runSession(gen)
@@ -456,9 +458,11 @@ class SessionService : Service() {
     private fun prepareCompositor(preparation: CompositorPreparation) {
         val size = SessionState.outputSize
         val display = getSystemService(DisplayManager::class.java).getDisplay(sessionDisplayId)
+            ?.takeIf { it.isValid } ?: throw CancellationException("Preparation output is no longer available")
         preparation.checkCurrent()
+        CompositorHost.configureOutput(this, MODE_STEAM, display, preparation::checkCurrent)
         CompositorHost.prepare(
-            this, size.first, size.second, display?.refreshRate?.takeIf { it > 1f } ?: 60f,
+            this, size.first, size.second, display.refreshRate.takeIf { it > 1f } ?: 60f,
             SessionPrefs.compositorFpsLimit(0), preparation::checkCurrent,
         )
         preparation.checkCurrent()
@@ -2238,8 +2242,7 @@ class SessionService : Service() {
 
         private fun canPrepareSteam(context: Context): Boolean =
             SessionPrefs.steamStartup(context) == SteamStartup.BACKGROUND && SessionState.launcherVisible &&
-                // HDR capabilities are fixed at native startup, so Play must select the actual output first.
-                !SessionPrefs.hdr(context, MODE_STEAM) && !SessionState.hdr && !SessionState.stopRequested &&
+                !SessionState.stopRequested &&
                 !SessionState.running && SessionState.phase in setOf(SessionPhase.IDLE, SessionPhase.FAILED) &&
                 LinuxRuntime.isInstalled(context) && !LinuxRuntimeInstaller.isBusy() &&
                 !ProtonExtras.installInProgress && DesktopCatalog.interrupted(context).isEmpty() &&
@@ -2247,10 +2250,22 @@ class SessionService : Service() {
                 !StorageState.cleaning && !StorageState.lowOnSpace(context) &&
                 !PhantomProcessLimit.blocksSteam(PhantomProcessLimit.read(context))
 
+        private fun backgroundDisplay(context: Context, launcherDisplayId: Int): Display? {
+            val glasses = Glasses.state.value
+            val displayId = if (Glasses.settings.value.gameOnGlasses && (glasses.present || glasses.hasDisplay)) {
+                if (!glasses.usable || glasses.switching3d) return null
+                glasses.displayId
+            } else launcherDisplayId
+            return context.getSystemService(DisplayManager::class.java).getDisplay(displayId)?.takeIf { it.isValid }
+        }
+
         fun prepareSteam(context: Context) {
             if (!canPrepareSteam(context)) return
+            val launcherDisplayId = contextDisplayId(context)
+            val display = backgroundDisplay(context, launcherDisplayId) ?: return
             val intent = Intent(context, SessionService::class.java).setAction(ACTION_PREPARE_STEAM)
-                .putExtra(EXTRA_DISPLAY_ID, contextDisplayId(context))
+                .putExtra(EXTRA_DISPLAY_ID, display.displayId)
+                .putExtra(EXTRA_ACTIVITY_DISPLAY_ID, launcherDisplayId)
             if (Build.VERSION.SDK_INT >= 26) context.startForegroundService(intent) else context.startService(intent)
         }
 

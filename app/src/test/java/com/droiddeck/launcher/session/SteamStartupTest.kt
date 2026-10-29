@@ -2,6 +2,11 @@ package com.droiddeck.launcher.session
 
 import android.content.Context
 import android.content.Intent
+import android.view.Display
+import com.droiddeck.launcher.glasses.Glasses
+import com.droiddeck.launcher.glasses.GlassesState
+import com.droiddeck.launcher.glasses.GlassesSettings
+import kotlinx.coroutines.flow.MutableStateFlow
 import com.droiddeck.launcher.BuildConfig
 import com.droiddeck.launcher.core.AddonPack
 import com.droiddeck.launcher.runtime.LinuxRuntime
@@ -23,8 +28,16 @@ import org.robolectric.util.ReflectionHelpers
 class SteamStartupTest {
     private val app get() = RuntimeEnvironment.getApplication()
     private val prefs get() = app.getSharedPreferences("session", Context.MODE_PRIVATE)
+    private val glassesState get() = ReflectionHelpers.getStaticField<MutableStateFlow<GlassesState>>(Glasses::class.java, "_state")
+    private val glassesSettings get() = ReflectionHelpers.getStaticField<MutableStateFlow<GlassesSettings>>(Glasses::class.java, "_settings")
+    private lateinit var savedGlasses: GlassesState
+    private lateinit var savedGlassesSettings: GlassesSettings
 
     @Before fun setUp() {
+        savedGlasses = glassesState.value
+        savedGlassesSettings = glassesSettings.value
+        glassesState.value = GlassesState()
+        glassesSettings.value = GlassesSettings()
         prefs.edit().clear().commit()
         SessionState.running = false
         SessionState.stopRequested = false
@@ -34,6 +47,8 @@ class SteamStartupTest {
     }
 
     @After fun tearDown() {
+        glassesState.value = savedGlasses
+        glassesSettings.value = savedGlassesSettings
         SessionState.running = false
         SessionState.launcherVisible = false
         SessionState.phase = SessionPhase.IDLE
@@ -83,16 +98,54 @@ class SteamStartupTest {
         assertNull(shadowOf(app).nextStartedService)
     }
 
-    @Test fun hdrStartupWaitsForPlayToSelectTheActualOutput() {
+    @Test fun hdrStartupPreparesForTheLauncherDisplay() {
         installRuntimeFiles()
         SessionPrefs.setSteamStartup(app, SteamStartup.BACKGROUND)
         SessionPrefs.setHdr(app, SessionService.MODE_STEAM, true)
         SessionService.prepareSteam(app)
+        val request = requireNotNull(shadowOf(app).nextStartedService)
+        assertEquals(Display.DEFAULT_DISPLAY, request.getIntExtra("displayId", -1))
+    }
+
+    @Test fun hdrStartupSelectsGlassesWhenTheyAreTheGameOutput() {
+        installRuntimeFiles()
+        SessionPrefs.setSteamStartup(app, SteamStartup.BACKGROUND)
+        SessionPrefs.setHdr(app, SessionService.MODE_STEAM, true)
+        val id = org.robolectric.shadows.ShadowDisplayManager.addDisplay("w1920dp-h1080dp")
+        glassesState.value = GlassesState(present = true, displayId = id)
+        SessionService.prepareSteam(app)
+        val request = requireNotNull(shadowOf(app).nextStartedService)
+        assertEquals(id, request.getIntExtra("displayId", -1))
+        assertEquals(Display.DEFAULT_DISPLAY, request.getIntExtra("activityDisplayId", -1))
+        glassesSettings.value = GlassesSettings(gameOnGlasses = false)
+        SessionService.prepareSteam(app)
+        assertEquals(Display.DEFAULT_DISPLAY,
+            requireNotNull(shadowOf(app).nextStartedService).getIntExtra("displayId", -1))
+    }
+
+    @Test fun anUnknownSelectedOutputDefersPreparationInsteadOfUsingThePhone() {
+        installRuntimeFiles()
+        SessionPrefs.setSteamStartup(app, SteamStartup.BACKGROUND)
+        SessionPrefs.setHdr(app, SessionService.MODE_STEAM, true)
+        glassesState.value = GlassesState(present = true)
+        SessionService.prepareSteam(app)
         assertNull(shadowOf(app).nextStartedService)
-        assertFalse(SessionState.running)
-        SessionPrefs.setHdr(app, SessionService.MODE_STEAM, false)
+        glassesSettings.value = GlassesSettings(gameOnGlasses = false)
         SessionService.prepareSteam(app)
         assertNotNull(shadowOf(app).nextStartedService)
+    }
+
+    @Test fun theServiceRechecksTheSelectedDisplayBeforeStarting() {
+        installRuntimeFiles()
+        SessionPrefs.setSteamStartup(app, SteamStartup.BACKGROUND)
+        SessionPrefs.setHdr(app, SessionService.MODE_STEAM, true)
+        SessionService.prepareSteam(app)
+        val request = requireNotNull(shadowOf(app).nextStartedService)
+        glassesState.value = GlassesState(present = true)
+        val service = Robolectric.buildService(SessionService::class.java).get()
+        service.onStartCommand(request, 0, 1)
+        assertFalse(SessionState.running)
+        assertEquals(SessionPhase.IDLE, SessionState.phase)
     }
 
     @Test fun aCancelledRequestCannotBeginAnotherSession() {

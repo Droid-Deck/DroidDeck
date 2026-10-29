@@ -5,6 +5,8 @@ import android.hardware.display.DisplayManager
 import android.os.Handler
 import android.os.Looper
 import android.view.Surface
+import android.view.Display
+import com.droiddeck.launcher.session.SessionPrefs
 import android.view.SurfaceView
 import android.view.SurfaceHolder
 import com.droiddeck.launcher.SessionActivity
@@ -50,6 +52,8 @@ class CompositorHostTest {
         ReflectionHelpers.setStaticField(CompositorHost::class.java, "attached", null)
         ReflectionHelpers.setStaticField(CompositorHost::class.java, "vsyncRunning", false)
         app.getSharedPreferences("session", Context.MODE_PRIVATE).edit().clear().commit()
+        Native.startHdr.clear()
+        Native.hdrRequests.clear()
         Native.displayIds.clear()
         Native.renderOnCommit.clear()
         Native.runtimes.clear()
@@ -182,6 +186,54 @@ class CompositorHostTest {
             CompositorHost.detach(surface)
             surface.release()
         }
+    }
+
+    @Test @Config(sdk = [33])
+    fun backgroundHdrIsConfiguredBeforeBootAndPreservedWhenStartingAGame() {
+        app.getSharedPreferences("session", Context.MODE_PRIVATE).edit().putBoolean("vsyncThread", false).commit()
+        val id = org.robolectric.shadows.ShadowDisplayManager.addDisplay("w1920dp-h1080dp")
+        val display = app.getSystemService(DisplayManager::class.java).getDisplay(id)
+        shadowOf(display).setDisplayHdrCapabilities(id, 1000f, 500f, 0.1f, Display.HdrCapabilities.HDR_TYPE_HDR10)
+        SessionPrefs.setHdr(app, SessionService.MODE_STEAM, true)
+        SessionState.mode = SessionService.MODE_STEAM
+        val service = Robolectric.buildService(SessionService::class.java).get()
+        ReflectionHelpers.setField(service, "sessionDisplayId", id)
+        ReflectionHelpers.callInstanceMethod<Unit>(service, "prepareCompositor",
+            ReflectionHelpers.ClassParameter.from(CompositorPreparation::class.java, CompositorPreparation()))
+        assertEquals(listOf(true), Native.startHdr)
+        assertEquals(listOf(WaylandCompositor.HDR_MODE_ON), Native.hdrRequests)
+        assertEquals(listOf<Surface?>(null), Native.starts)
+        assertEquals(listOf(id), Native.displayIds)
+        val surface = Surface(android.graphics.SurfaceTexture(0))
+        try {
+            CompositorHost.attach(app, surface, 1920, 1080, 60f, 0, display)
+            assertTrue(SessionService.launchGame(app, "570"))
+            val request = requireNotNull(shadowOf(app).nextStartedService)
+            assertEquals("570", request.getStringExtra(SessionService.EXTRA_GAME_ID))
+            service.onStartCommand(request, 0, 1)
+            assertTrue(SessionState.hdr)
+            assertEquals(1, Native.starts.size)
+            assertEquals(listOf(WaylandCompositor.HDR_MODE_ON), Native.hdrRequests)
+        } finally {
+            CompositorHost.detach(surface)
+            surface.release()
+        }
+    }
+
+    @Test @Config(sdk = [33])
+    fun anSdrSelectedDisplayDoesNotInheritHdrFromThePhone() {
+        val displays = app.getSystemService(DisplayManager::class.java)
+        val phone = displays.getDisplay(Display.DEFAULT_DISPLAY)
+        shadowOf(phone).setDisplayHdrCapabilities(phone.displayId, 1000f, 500f, 0.1f, Display.HdrCapabilities.HDR_TYPE_HDR10)
+        val id = org.robolectric.shadows.ShadowDisplayManager.addDisplay("w1920dp-h1080dp")
+        SessionPrefs.setHdr(app, SessionService.MODE_STEAM, true)
+        val service = Robolectric.buildService(SessionService::class.java).get()
+        ReflectionHelpers.setField(service, "sessionDisplayId", id)
+        ReflectionHelpers.callInstanceMethod<Unit>(service, "prepareCompositor",
+            ReflectionHelpers.ClassParameter.from(CompositorPreparation::class.java, CompositorPreparation()))
+        assertEquals(listOf(id), Native.displayIds)
+        assertEquals(listOf(WaylandCompositor.HDR_MODE_OFF), Native.hdrRequests)
+        assertEquals(listOf(false), Native.startHdr)
     }
 
     @Test fun preparationFailureIsRetainedForPlayInsteadOfReportedAsReady() {
@@ -358,6 +410,8 @@ class CompositorHostTest {
     @Implements(value = WaylandCompositor::class, isInAndroidSdk = false)
     class Native {
         companion object {
+            val startHdr = mutableListOf<Boolean>()
+            val hdrRequests = mutableListOf<Int>()
             val displayIds = mutableListOf<Int>()
             val renderOnCommit = mutableListOf<Boolean>()
             val runtimes = mutableListOf<String>()
@@ -367,7 +421,10 @@ class CompositorHostTest {
             val sizes = mutableListOf<Pair<Int, Int>>()
             @JvmStatic @Implementation fun __staticInitializer__() = Unit
             @JvmStatic @Implementation fun nativeStartWithSurface(surface: Surface?, runtime: String,
-                driver: String?, library: String?, nativeLibs: String?) { starts += surface; runtimes += runtime; drivers += driver }
+                driver: String?, library: String?, nativeLibs: String?) {
+                startHdr += SessionState.hdr
+                starts += surface; runtimes += runtime; drivers += driver
+            }
             @JvmStatic @Implementation fun nativeSetSurface(surface: Surface?) { surfaces += surface }
             @JvmStatic @Implementation fun nativeSetOutputSize(width: Int, height: Int) { sizes += width to height }
             @JvmStatic @Implementation fun nativeSetRenderOnCommit(on: Boolean) { renderOnCommit += on }
@@ -377,7 +434,7 @@ class CompositorHostTest {
             @JvmStatic @Implementation fun nativeResetFirstFrame() = Unit
             @JvmStatic @Implementation fun nativeVsync(time: Long) = Unit
             @JvmStatic @Implementation fun nativeSetZeroCopy(on: Boolean) = Unit
-            @JvmStatic @Implementation fun nativeSetHdrRequest(mode: Int, source: String, dxvk: Boolean, zeroCopy: Boolean) = Unit
+            @JvmStatic @Implementation fun nativeSetHdrRequest(mode: Int, source: String, dxvk: Boolean, zeroCopy: Boolean) { hdrRequests += mode }
             @JvmStatic @Implementation fun nativeSetHdrDisplay(id: Int, name: String, formats: String, hdr10: Boolean,
                 max: Float, average: Float, min: Float, ratioAvailable: Boolean, ratio: Float, sdk: Int) { displayIds += id }
         }
