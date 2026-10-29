@@ -51,6 +51,11 @@ class AgentStartActivity : Activity() {
     }
 
     private fun startSession(request: JSONObject) {
+        if (com.droiddeck.launcher.runtime.LinuxRuntimeInstaller.isBusy()) {
+            Log.w(TAG, "the Linux runtime is being installed or changed")
+            finish()
+            return
+        }
         try {
             AgentAccess.requireStart(this, request)
         } catch (e: AgentException) {

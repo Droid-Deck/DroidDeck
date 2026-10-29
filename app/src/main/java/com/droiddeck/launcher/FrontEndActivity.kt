@@ -2423,6 +2423,7 @@ class FrontEndActivity : ComponentActivity() {
         installed = LinuxRuntimeInstaller.installedVersion(this)
         ready = LinuxRuntime.isInstalled(this)
         removalPending = LinuxRuntimeInstaller.hasRemovalPending(this)
+        ui.post { autoUpdateRuntime() }
         frameGenLabel = FrameGen.label(this)
         romsDir = SessionPrefs.romsDir(this).takeIf { it.isNotEmpty() }
         logsEnabled = SessionPrefs.logsEnabled(this)
@@ -2627,17 +2628,23 @@ class FrontEndActivity : ComponentActivity() {
         }, "runtime-operation").start()
     }
 
+    private fun autoUpdateRuntime() {
+        val release = available ?: return
+        if (!lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED) || runtimeChangesBlocked() || removalPending) return
+        if (release.version == installed || installed == null) return
+        if (com.droiddeck.launcher.runtime.RuntimeAutoUpdate.claim(this, installed, release.version)) {
+            Log.i(TAG, "runtime: updating $installed to ${release.version} by itself")
+            install(release)
+        }
+    }
+
     private fun checkCatalog() {
         val release = LinuxRuntimeInstaller.fetchRelease()
         Log.i(TAG, "catalog: " + (release?.version ?: "unreachable"))
         ui.post {
             if (release == null) return@post
             available = release
-            if (!lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED) || runtimeChangesBlocked() || removalPending) return@post
-            if (com.droiddeck.launcher.runtime.RuntimeAutoUpdate.claim(this, installed, release.version)) {
-                Log.i(TAG, "runtime: updating $installed to ${release.version} by itself")
-                install(release)
-            }
+            autoUpdateRuntime()
         }
     }
 

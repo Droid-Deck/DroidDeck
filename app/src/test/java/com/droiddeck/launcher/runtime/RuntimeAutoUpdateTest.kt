@@ -33,4 +33,10 @@ class RuntimeAutoUpdateTest {
         repeat(RuntimeAutoUpdate.MAX_ATTEMPTS) { RuntimeAutoUpdate.claim(context, "ubuntu-r1-rc1", "ubuntu-r1-rc2") }
         assertTrue(RuntimeAutoUpdate.claim(context, "ubuntu-r1-rc1", "ubuntu-r1-rc3"))
     }
+
+    @Test fun goingBackToAnEarlierReleaseKeepsItsCount() {
+        repeat(RuntimeAutoUpdate.MAX_ATTEMPTS) { RuntimeAutoUpdate.claim(context, "ubuntu-r1-rc1", "ubuntu-r1-rc2") }
+        assertTrue(RuntimeAutoUpdate.claim(context, "ubuntu-r1-rc1", "ubuntu-r1-rc3"))
+        assertFalse(RuntimeAutoUpdate.claim(context, "ubuntu-r1-rc1", "ubuntu-r1-rc2"))
+    }
 }

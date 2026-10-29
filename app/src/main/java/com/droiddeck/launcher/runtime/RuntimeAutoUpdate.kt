@@ -19,7 +19,9 @@ object RuntimeAutoUpdate {
         synchronized(this) {
             val attempts = prefs.getInt(key, 0)
             if (!due(installed, release, attempts)) return false
-            prefs.edit().clear().putInt(key, attempts + 1).apply()
+            val edit = prefs.edit()
+            prefs.all.keys.filterNot { it.startsWith("${BuildConfig.VERSION_CODE}:") }.forEach { edit.remove(it) }
+            edit.putInt(key, attempts + 1).apply()
             return true
         }
     }
