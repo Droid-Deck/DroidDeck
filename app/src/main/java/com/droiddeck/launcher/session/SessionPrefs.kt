@@ -21,6 +21,8 @@ object SessionPrefs {
     private const val LEGACY_SUSPEND_DOWNLOADS = "downloads"
     private const val STEAM_DOWNLOADS_IN_BACKGROUND = "steamDownloadsInBackground"
     private const val DECKY_ZIP_WARNING_SEEN = "deckyZipWarningSeen"
+    private const val SLOW_USB_WARNING_OFF = "slowUsbWarningOff"
+    private const val SLOW_USB_DISMISSED = "slowUsbDismissed"
 
     const val CONTROLLER_DECK = "deck"
     const val CONTROLLER_XBOX360 = "xbox360"
@@ -123,6 +125,24 @@ object SessionPrefs {
 
     fun setStoresView(context: Context, view: String) {
         prefs(context).edit().putString("storesView", if (view in STORES_VIEWS) view else STORES_VIEWS.first()).apply()
+    }
+
+    fun libraryCardLevel(context: Context): Int = prefs(context).getInt("libraryCardLevel", 2)
+
+    fun setLibraryCardLevel(context: Context, level: Int) {
+        prefs(context).edit().putInt("libraryCardLevel", level).apply()
+    }
+
+    fun libraryShowTitle(context: Context): Boolean = prefs(context).getBoolean("libraryShowTitle", true)
+
+    fun setLibraryShowTitle(context: Context, show: Boolean) {
+        prefs(context).edit().putBoolean("libraryShowTitle", show).apply()
+    }
+
+    fun libraryShowSize(context: Context): Boolean = prefs(context).getBoolean("libraryShowSize", true)
+
+    fun setLibraryShowSize(context: Context, show: Boolean) {
+        prefs(context).edit().putBoolean("libraryShowSize", show).apply()
     }
 
     fun libraryShowUninstalled(context: Context): Boolean = prefs(context).getBoolean("libraryShowUninstalled", false)
@@ -231,6 +251,20 @@ object SessionPrefs {
 
     fun setHudOpacity(context: Context, percent: Int) {
         prefs(context).edit().putInt("hudOpacity", percent.coerceIn(HUD_OPACITY_RANGE)).apply()
+    }
+
+    fun fusionHudConfig(context: Context): String? = prefs(context).getString("fusionHud", null)
+
+    fun setFusionHudConfig(context: Context, config: String) {
+        prefs(context).edit().putString("fusionHud", config).apply()
+    }
+
+    fun fusionHudPosition(context: Context): Pair<Float, Float>? =
+        prefs(context).getString("fusionHudPos", null)?.split(',')?.mapNotNull { it.toFloatOrNull() }
+            ?.takeIf { it.size == 2 }?.let { it[0] to it[1] }
+
+    fun setFusionHudPosition(context: Context, x: Float, y: Float) {
+        prefs(context).edit().putString("fusionHudPos", "$x,$y").apply()
     }
 
     const val HUD_COLOR_MINT = "mint"
@@ -603,6 +637,7 @@ object SessionPrefs {
 
     fun mangoapp(context: Context): Boolean = prefs(context).getBoolean("mangoapp", true)
     fun vsyncThread(context: Context): Boolean = prefs(context).getBoolean("vsyncThread", true)
+    fun renderOnCommit(context: Context): Boolean = prefs(context).getBoolean("renderOnCommit", true)
     fun setMangoapp(context: Context, on: Boolean) { prefs(context).edit().putBoolean("mangoapp", on).apply() }
 
     fun zinkLazy(context: Context): Boolean = prefs(context).getBoolean("zinkLazy", true)
@@ -630,8 +665,74 @@ object SessionPrefs {
     fun logsEnabled(context: Context): Boolean =
         prefs(context).getBoolean("logs", true)
 
-    fun setLogsEnabled(context: Context, on: Boolean) {
-        prefs(context).edit().putBoolean("logs", on).apply()
+    fun setLogsEnabled(context: Context, on: Boolean): Boolean = synchronized(GameEnvironmentStore) {
+        setLogPreference(
+            context,
+            key = "logs",
+            oldValue = logsEnabled(context),
+            newValue = on,
+            newEffective = on && gameDebugLogsEnabled(context) && SessionPaths.currentSessionLogsRetained(context),
+        )
+    }
+
+    /** Extra Proton, Wine and graphics diagnostics for the next game launch; off unless chosen. */
+    fun gameDebugLogsEnabled(context: Context): Boolean =
+        prefs(context).getBoolean("gameDebugLogsEnabled", false)
+
+    fun setGameDebugLogsEnabled(context: Context, on: Boolean): Boolean = synchronized(GameEnvironmentStore) {
+        setLogPreference(
+            context,
+            key = "gameDebugLogsEnabled",
+            oldValue = gameDebugLogsEnabled(context),
+            newValue = on,
+            newEffective = logsEnabled(context) && on && SessionPaths.currentSessionLogsRetained(context),
+        )
+    }
+
+    private fun setLogPreference(
+        context: Context,
+        key: String,
+        oldValue: Boolean,
+        newValue: Boolean,
+        newEffective: Boolean,
+    ): Boolean {
+        if (oldValue == newValue) return true
+        val saved = prefs(context)
+        val oldEffective = logsEnabled(context) && gameDebugLogsEnabled(context) &&
+            SessionPaths.currentSessionLogsRetained(context)
+        fun publish(value: Boolean) = GameEnvironmentStore.publish(context, gameDebugLogsOverride = value)
+        if (oldEffective == newEffective) {
+            if (saved.edit().putBoolean(key, newValue).commit()) return true
+            saved.edit().putBoolean(key, oldValue).commit()
+            return false
+        }
+        if (oldEffective && !newEffective) {
+            try {
+                publish(false)
+            } catch (e: Exception) {
+                android.util.Log.e("GameEnvironment", "Could not disable game diagnostics", e)
+                return false
+            }
+            if (saved.edit().putBoolean(key, newValue).commit()) return true
+            saved.edit().putBoolean(key, oldValue).commit()
+            runCatching { publish(oldEffective) }
+                .onFailure { android.util.Log.e("GameEnvironment", "Could not restore game diagnostics", it) }
+            return false
+        }
+        if (!saved.edit().putBoolean(key, newValue).commit()) {
+            saved.edit().putBoolean(key, oldValue).commit()
+            return false
+        }
+        return try {
+            publish(newEffective)
+            true
+        } catch (e: Exception) {
+            saved.edit().putBoolean(key, oldValue).commit()
+            runCatching { publish(oldEffective) }
+                .onFailure { android.util.Log.e("GameEnvironment", "Could not restore game diagnostics", it) }
+            android.util.Log.e("GameEnvironment", "Could not update game diagnostics", e)
+            false
+        }
     }
 
     fun battleNetNoSteamSet(context: Context): Boolean = prefs(context).getBoolean("battleNetNoSteamSet", false)
@@ -1128,7 +1229,7 @@ object SessionPrefs {
             resolutionChosen(context, SessionService.MODE_DESKTOP)) SessionService.MODE_DESKTOP
         else prefMode(mode)
 
-    fun pipAutoEnter(context: Context): Boolean = prefs(context).getBoolean("pipAutoEnter", false)
+    fun pipAutoEnter(context: Context): Boolean = prefs(context).getBoolean("pipAutoEnter", true)
 
     fun setPipAutoEnter(context: Context, enabled: Boolean) {
         prefs(context).edit().putBoolean("pipAutoEnter", enabled).apply()
@@ -1171,7 +1272,8 @@ object SessionPrefs {
     }
 
     fun suspendPolicy(context: Context, mode: String): String =
-        prefs(context).getString("suspendPolicy.${prefMode(mode)}", SUSPEND_MANUAL)
+        prefs(context).getString("suspendPolicy.${prefMode(mode)}",
+            if (mode == SessionService.MODE_STEAM) SUSPEND_NATIVE else SUSPEND_MANUAL)
             ?.let { if (it == LEGACY_SUSPEND_DOWNLOADS) SUSPEND_AUTO else it }
             ?.takeIf { it in setOf(SUSPEND_AUTO, SUSPEND_NATIVE, SUSPEND_MANUAL, SUSPEND_NEVER) }
             ?.let { if (mode != SessionService.MODE_STEAM && it == SUSPEND_NATIVE) SUSPEND_AUTO else it }
@@ -1195,6 +1297,18 @@ object SessionPrefs {
 
     fun setDeckyZipWarningSeen(context: Context) {
         prefs(context).edit().putBoolean(DECKY_ZIP_WARNING_SEEN, true).apply()
+    }
+
+    fun slowUsbWarningOff(context: Context): Boolean = prefs(context).getBoolean(SLOW_USB_WARNING_OFF, false)
+
+    fun setSlowUsbWarningOff(context: Context) {
+        prefs(context).edit().putBoolean(SLOW_USB_WARNING_OFF, true).apply()
+    }
+
+    fun slowUsbDismissed(context: Context): Set<String> = prefs(context).getStringSet(SLOW_USB_DISMISSED, null)?.toSet().orEmpty()
+
+    fun setSlowUsbDismissed(context: Context, keys: Set<String>) {
+        prefs(context).edit().putStringSet(SLOW_USB_DISMISSED, keys.toSet()).apply()
     }
 
     fun steamDownloadsInBackground(context: Context): Boolean {

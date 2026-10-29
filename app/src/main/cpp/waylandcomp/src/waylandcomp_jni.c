@@ -36,6 +36,7 @@ extern void droiddeck_wayland_output_resized(void);
 extern void droiddeck_wayland_set_output_refresh_rate(int mhz);
 extern volatile int g_fps_limit;
 extern volatile int g_release_unpaced;
+extern volatile int g_render_on_commit;
 extern volatile int g_hide_shell;
 extern volatile int g_zero_copy;
 extern volatile unsigned g_zero_copy_last;
@@ -585,6 +586,12 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetLookName(JNIEnv *
     char *s = dup_jstr(env, name);
     vkp_effects_set_look(s);
     free(s);
+}
+
+JNIEXPORT void JNICALL
+Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetRenderOnCommit(JNIEnv *env, jclass clazz, jboolean on) {
+    g_render_on_commit = on ? 1 : 0;
+    __android_log_print(ANDROID_LOG_INFO, TAG, "render on commit %s", on ? "on" : "off");
 }
 
 JNIEXPORT void JNICALL

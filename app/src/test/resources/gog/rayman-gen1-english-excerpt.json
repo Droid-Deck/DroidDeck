@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "depot": {
+    "name": "Rayman 2 - The Great Escape",
+    "files": [
+      {
+        "offset": 384206096,
+        "hash": "a08070ecde7f746779259f7ce5775747",
+        "url": "1207658940/main.bin",
+        "path": "/Data/World/Levels/Raycap/Raycap.snd",
+        "size": 32
+      },
+      {
+        "offset": 114255832,
+        "hash": "67165fe729ffda351a04e8bd92e05531",
+        "url": "1207658940/main.bin",
+        "path": "/Data/World/Sound/Bnk_29.bnm",
+        "size": 76
+      },
+      {
+        "offset": 97474601,
+        "hash": "2d2e0b308cae5ff44a620fd32bf6cb4d",
+        "url": "1207658940/main.bin",
+        "path": "/Data/World/Sound/Bnk_43.bnm",
+        "size": 76
+      }
+    ]
+  }
+}

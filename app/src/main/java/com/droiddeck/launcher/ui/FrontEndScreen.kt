@@ -99,6 +99,8 @@ class FrontEndState(
     val frameGenLabel: String,
     val romsDir: String?,
     val logsEnabled: Boolean,
+    val gameDebugLogsEnabled: Boolean = false,
+    val gameDebugLogsNeedsRestart: Boolean = false,
     val vacDiagnostics: Boolean = false,
     val agentCommands: Boolean = false,
     val clearCachedApps: Boolean = false,
@@ -208,6 +210,7 @@ class FrontEndActions(
     val onFiles: () -> Unit,
     val onBrowseFiles: (File) -> Unit = {},
     val onLogs: () -> Unit,
+    val onGameDebugLogs: () -> Unit = {},
     val onVacDiagnostics: () -> Unit = {},
     val onAgentCommands: () -> Unit = {},
     val onClearCachedApps: (Boolean) -> Unit = {},
@@ -255,7 +258,7 @@ class FrontEndActions(
     val onCopyPhantomCommand: (Boolean) -> Unit = {},
     val onDismissPhantomGate: () -> Unit = {},
     val onStartWirelessAdbPairing: () -> Unit = {},
-    val onStartPairingGuide: (Int?) -> Boolean = { false },
+    val onStartPairingGuide: (Int?, Boolean) -> Boolean = { _, _ -> false },
     val onShowPhantomGate: () -> Unit = {},
     val onOpenNotificationSettings: () -> Unit = {},
     val controller: ControllerActions? = null,
@@ -428,6 +431,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
     var showWirelessAdbFix by rememberSaveable { mutableStateOf(false) }
     var showDeveloperDisplayChoice by rememberSaveable { mutableStateOf(false) }
     var developerChoiceGuided by rememberSaveable { mutableStateOf(false) }
+    var developerChoiceToggle by rememberSaveable { mutableStateOf(false) }
     var wirelessAdbDesiredEnabled by rememberSaveable { mutableStateOf(false) }
     var appToChooseDisplay by remember { mutableStateOf<HomeApp.LaunchableApp?>(null) }
     val colors = MaterialTheme.colorScheme
@@ -437,13 +441,26 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
     val processSettingsPageVisible = phantomGateVisible || showWirelessAdbFix || showDeveloperDisplayChoice
     val requestDeveloperOptions = {
         developerChoiceGuided = false
+        developerChoiceToggle = false
         if (s.secondScreenDisplays.isEmpty()) a.onOpenDeveloperOptions(null)
         else showDeveloperDisplayChoice = true
     }
     val openDeveloperOptionsOn: (Int?) -> Unit = { displayId ->
         if (developerChoiceGuided) a.onStartWirelessAdbPairing()
-        if (!developerChoiceGuided || !a.onStartPairingGuide(displayId)) a.onOpenDeveloperOptions(displayId)
+        val guided = developerChoiceGuided || developerChoiceToggle
+        if (!guided || !a.onStartPairingGuide(displayId, developerChoiceToggle)) a.onOpenDeveloperOptions(displayId)
         developerChoiceGuided = false
+        developerChoiceToggle = false
+    }
+    val requestChildProcessToggle = {
+        if (!PhantomProcessLimit.hasDeveloperToggle() || com.droiddeck.launcher.core.GlobalSettings.developerOptionsOn(ctx)) {
+            requestDeveloperOptions()
+        } else {
+            developerChoiceGuided = false
+            developerChoiceToggle = true
+            if (s.secondScreenDisplays.isEmpty()) openDeveloperOptionsOn(null)
+            else showDeveloperDisplayChoice = true
+        }
     }
     val startGuidedPairing = {
         if (!com.droiddeck.launcher.core.WirelessAdbPairingService.notificationsEnabled(ctx)) {
@@ -624,7 +641,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
                         if (s.secondScreenDisplays.isEmpty()) a.onAndroidApp(app, null)
                         else appToChooseDisplay = app
                     },
-                    onOpenDeveloperOptions = requestDeveloperOptions,
+                    onOpenDeveloperOptions = requestChildProcessToggle,
                     onRequestWirelessAdb = requestWirelessAdbFix,
                     onPairWirelessDebugging = startGuidedPairing,
                 )
@@ -659,7 +676,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
                 PhantomProcessGatePage(
                     status = s.phantomProcessStatus,
                     onDismiss = a.onDismissPhantomGate,
-                    onOpenDeveloperOptions = requestDeveloperOptions,
+                    onOpenDeveloperOptions = requestChildProcessToggle,
                     applyingSavedPairing = applyingSavedPairing,
                     onFixWithWirelessDebugging = fixPhantomLimit,
                     onEnterAddressManually = { requestWirelessAdbFix(false) },
@@ -696,6 +713,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
                 onDismiss = {
                     showDeveloperDisplayChoice = false
                     developerChoiceGuided = false
+                    developerChoiceToggle = false
                 },
             )
         }

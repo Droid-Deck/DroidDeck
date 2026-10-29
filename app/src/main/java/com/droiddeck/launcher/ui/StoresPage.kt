@@ -349,6 +349,7 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
             },
             onDetailFocus = { detailFocused = it },
             modifier = Modifier.fillMaxWidth().weight(1f).onSizeChanged { viewportH = with(density) { it.height.toDp() } },
+            bleedHorizontal = padH,
             wrap = { key, content -> StoreTheme(Store.byId(key.substringBefore(':')) ?: store) { content() } },
             grid = {
                 AnimatedContent(
@@ -851,6 +852,9 @@ private fun Storefront(
     var firstPlaced = false
     var columns by remember { mutableIntStateOf(1) }
     val density = androidx.compose.ui.platform.LocalDensity.current
+    val displayContext = LocalContext.current
+    remember { LibraryDisplay.load(displayContext) }
+    val tileWidth = libraryTileWidth()
     val focus = LocalFrontFocus.current
     val scope = rememberCoroutineScope()
     val searching = q.isNotEmpty() || browsing || catalog
@@ -892,9 +896,9 @@ private fun Storefront(
         GameCard(item, store, installedKeys, onOpen, first, navigation)
     }
     LazyVerticalGrid(
-        columns = GridCells.Adaptive(CardWidth), state = grid, modifier = Modifier.fillMaxSize().focusGroup().onSizeChanged {
+        columns = GridCells.Adaptive(tileWidth), state = grid, modifier = Modifier.fillMaxSize().focusGroup().onSizeChanged {
             val gap = with(density) { 10.dp.roundToPx() }
-            val minimum = with(density) { CardWidth.roundToPx() }
+            val minimum = with(density) { tileWidth.roundToPx() }
             columns = ((it.width + gap) / (minimum + gap)).coerceAtLeast(1)
         },
         horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -902,7 +906,7 @@ private fun Storefront(
     ) {
         item(key = "profile", span = { GridItemSpan(maxLineSpan) }) { Rise(1) { ProfileStrip(store, library.size, StoresState.library.containsKey(store), s, a) } }
         item(key = "search", span = { GridItemSpan(maxLineSpan) }) {
-            Rise(2) { ModeHeader(store.label, query, onQuery, placeholder = stringResource(R.string.stores_search_catalog, store.label), clearSearchFocus = clearSearchFocus) {} }
+            Rise(2) { ModeHeader(store.label, query, onQuery, placeholder = stringResource(R.string.stores_search_catalog, store.label), clearSearchFocus = clearSearchFocus, inlineWhenStacked = true) { DisplayButton() } }
         }
         barLine?.let { line -> item(key = "sync", span = { GridItemSpan(maxLineSpan) }) { Rise(3) { SyncBar(line) } } }
         StoresState.problems[store]?.let { line -> item(key = "problem", span = { GridItemSpan(maxLineSpan) }) { Rise(3) { Box(Modifier.padding(bottom = 8.dp)) { Note(line) } } } }
@@ -1058,7 +1062,7 @@ internal fun SectionLabel(title: String) {
 internal fun ModeHeader(
     title: String, query: String, onQuery: (String) -> Unit, placeholder: String,
     clearSearchFocus: Boolean = false,
-    lead: (@Composable () -> Unit)? = null, trailing: @Composable () -> Unit,
+    lead: (@Composable () -> Unit)? = null, inlineWhenStacked: Boolean = false, trailing: @Composable () -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
@@ -1100,8 +1104,23 @@ internal fun ModeHeader(
     }
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val stacked = maxWidth < NarrowPaneWidth
+        val inline = stacked && inlineWhenStacked && maxWidth >= 440.dp
         Column(Modifier.fillMaxWidth()) {
-            if (stacked) {
+            if (inline && !(searching || open > 0.01f)) Row(
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp).padding(vertical = 4.dp),
+            ) {
+                heading()
+                Box(Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    ) {
+                        searchButton()
+                        trailing()
+                    }
+                }
+            } else if (stacked) {
                 Box(Modifier.padding(vertical = 4.dp)) { heading() }
                 Row(
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -1237,7 +1256,7 @@ private fun Shelf(title: String, items: List<CatalogItem>?, card: @Composable (C
     if (items.isNullOrEmpty()) return
     Box(Modifier.padding(top = 10.dp, bottom = 8.dp)) { SectionLabel(title) }
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(vertical = 2.dp)) {
-        for (item in items.take(24)) key(item.key) { Box(Modifier.width(CardWidth)) { card(item) } }
+        for (item in items.take(24)) key(item.key) { Box(Modifier.width(libraryTileWidth())) { card(item) } }
     }
 }
 
@@ -1287,7 +1306,19 @@ private fun GameCard(
             .clip(RoundedCornerShape(10.dp)).glideBorder(hot, RoundedCornerShape(10.dp), pal.signal, pal.line)
             .hoverable(src).clickable(role = androidx.compose.ui.semantics.Role.Button, interactionSource = src, indication = LocalIndication.current, onClick = open).controllerConfirm(onClick = open),
     ) {
-        CardFace(item.title, item.imageUrl, item.tallImageUrl, download, hot) { CardMarker(item, installed, download) }
+        val chip = when {
+            download != null -> "${download.percent}%"
+            item.accessible && StoresState.isUnfinished(item) -> stringResource(R.string.stores_resume)
+            item.store == Store.GOG && installed && com.droiddeck.launcher.stores.gog.GogMaintenance.checks[item.id]?.state == com.droiddeck.launcher.stores.gog.GogMaintenance.State.AVAILABLE -> stringResource(R.string.common_update)
+            else -> null
+        }
+        val priced = installed || item.isFree || item.isDiscounted || item.hasPrice
+        val pill: (@Composable BoxScope.() -> Unit)? = if (priced && !LibraryDisplay.size && !hot) ({
+            Box(Modifier.align(Alignment.TopStart).padding(6.dp).clip(RoundedCornerShape(6.dp)).background(Color.Black.copy(alpha = 0.82f)).padding(horizontal = 6.dp, vertical = 2.dp)) {
+                CardMarker(item, installed, download, compact = true, status = false)
+            }
+        }) else null
+        ArtCard(item.title, item.imageUrl, item.tallImageUrl, download, hot, capsule = false, chip = chip, badge = pill) { CardMarker(item, installed, download, status = false) }
     }
 }
 
@@ -1309,8 +1340,6 @@ internal fun SyncBar(line: String) {
     }
 }
 
-private val CardStrip = 26.dp
-
 @Composable
 internal fun cardArtRequest(url: Any?, cover: Any?): coil.request.ImageRequest? {
     val ctx = LocalContext.current
@@ -1320,66 +1349,15 @@ internal fun cardArtRequest(url: Any?, cover: Any?): coil.request.ImageRequest? 
     }
 }
 
-@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-internal fun CardFace(
-    title: String, wide: Any?, tall: Any?, download: com.droiddeck.launcher.stores.download.DownloadEntry?, hot: Boolean, capsule: Boolean = false,
-    dim: Boolean = false, badge: (@Composable BoxScope.() -> Unit)? = null, marker: @Composable () -> Unit,
-) {
-    val url = if (capsule) tall ?: wide else wide ?: tall
-    val art = cardArtRequest(url, tall)
-    val blurs = android.os.Build.VERSION.SDK_INT >= 31
-    var landscape by remember(url) { mutableStateOf(false) }
-    BoxWithConstraints(Modifier.fillMaxWidth()) {
-        val total = if (capsule) maxWidth * 7f / 5f + CardStrip else maxWidth * 9f / 16f + CardStrip
-        Box(Modifier.fillMaxWidth().height(total).background(Color(0xFF101318)).then(if (url == null) Modifier.background(artBrush(hueOf(title))) else Modifier)) {
-            if (art != null && capsule && landscape) {
-                // Stores without portrait covers (itch) would lose most of the art to a portrait crop.
-                AsyncImage(model = art, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize().blur(24.dp))
-                Spacer(Modifier.matchParentSize().background(Color.Black.copy(alpha = if (blurs) 0.35f else 0.7f)))
-                AsyncImage(model = art, contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.matchParentSize().padding(bottom = CardStrip))
-            } else if (art != null) AsyncImage(
-                model = art, contentDescription = null, contentScale = if (capsule) ContentScale.Fit else ContentScale.Crop,
-                modifier = Modifier.matchParentSize().padding(bottom = if (capsule) CardStrip else 0.dp),
-                onSuccess = { r ->
-                    val drawn = r.result.drawable
-                    if (capsule && drawn.intrinsicWidth > 0 && drawn.intrinsicHeight > 0) landscape = drawn.intrinsicWidth > drawn.intrinsicHeight * 0.95f
-                },
-            )
-            if (dim) Spacer(Modifier.matchParentSize().background(Color.Black.copy(alpha = 0.5f)))
-            Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(CardStrip).clipToBounds()) {
-                if (art != null) AsyncImage(
-                    model = art, contentDescription = null, contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxWidth().wrapContentHeight(Alignment.Bottom, unbounded = true).height(total).blur(24.dp),
-                )
-                Spacer(Modifier.matchParentSize().background(Color.Black.copy(alpha = if (blurs) 0.45f else 0.7f)))
-                Row(
-                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    modifier = Modifier.matchParentSize().padding(horizontal = 8.dp),
-                ) {
-                    Text(
-                        title, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1,
-                        overflow = if (hot) TextOverflow.Clip else TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f).then(if (hot) Modifier.basicMarquee(iterations = Int.MAX_VALUE, initialDelayMillis = 700, velocity = 40.dp) else Modifier),
-                    )
-                    marker()
-                }
-            }
-            Spacer(Modifier.align(Alignment.BottomCenter).padding(bottom = CardStrip).fillMaxWidth().height(14.dp).background(Brush.verticalGradient(0f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.35f))))
-            if (download != null) Box(Modifier.align(Alignment.BottomCenter).padding(start = 6.dp, end = 6.dp, bottom = CardStrip + 5.dp)) {
-                ProgressBarThin(download.fraction, paused = download.state == DownloadState.PAUSED, verify = download.stage == DownloadStage.VERIFY)
-            }
-            badge?.invoke(this)
-        }
-    }
-}
-
-@Composable
-private fun CardMarker(item: CatalogItem, installed: Boolean, download: com.droiddeck.launcher.stores.download.DownloadEntry?, compact: Boolean = false) {
+private fun CardMarker(item: CatalogItem, installed: Boolean, download: com.droiddeck.launcher.stores.download.DownloadEntry?, compact: Boolean = false, status: Boolean = true) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val small = 10.sp
     when {
+        status && item.store == Store.GOG && download != null -> Text("${download.percent}%", fontSize = small, fontWeight = FontWeight.Bold, color = pal.signal, maxLines = 1)
+        status && item.store == Store.GOG && installed && com.droiddeck.launcher.stores.gog.GogMaintenance.checks[item.id]?.state == com.droiddeck.launcher.stores.gog.GogMaintenance.State.AVAILABLE ->
+            Text(stringResource(R.string.common_update), fontSize = small, fontWeight = FontWeight.Bold, color = pal.signal, maxLines = 1)
         installed -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
             val ctx = LocalContext.current
             val game = StoresState.installedGame(item.store, item.id)
@@ -1387,8 +1365,8 @@ private fun CardMarker(item: CatalogItem, installed: Boolean, download: com.droi
             if (!compact) com.droiddeck.launcher.stores.StoreSizes.onDisk[item.key]?.let { Text(formatBytes(it), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1) }
             Icon(Icons.Filled.Check, stringResource(R.string.stores_installed_chip), tint = pal.good, modifier = Modifier.size(11.dp))
         }
-        download != null -> Text("${download.percent}%", fontSize = small, fontWeight = FontWeight.Bold, color = pal.signal, maxLines = 1)
-        item.accessible && StoresState.isUnfinished(item) -> Text(stringResource(R.string.stores_resume), fontSize = small, fontWeight = FontWeight.Bold, color = pal.signal, maxLines = 1)
+        status && download != null -> Text("${download.percent}%", fontSize = small, fontWeight = FontWeight.Bold, color = pal.signal, maxLines = 1)
+        status && item.accessible && StoresState.isUnfinished(item) -> Text(stringResource(R.string.stores_resume), fontSize = small, fontWeight = FontWeight.Bold, color = pal.signal, maxLines = 1)
         item.accessible && compact -> Unit
         item.accessible -> com.droiddeck.launcher.stores.StoreSizes.size(item).takeIf { it > 0 }?.let { Text(formatBytes(it), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1) }
         item.isFree -> Text(stringResource(R.string.stores_free), fontSize = small, fontWeight = FontWeight.Bold, color = pal.good, maxLines = 1)

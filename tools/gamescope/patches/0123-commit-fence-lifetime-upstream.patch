@@ -1,0 +1,157 @@
+diff --git a/src/commit.cpp b/src/commit.cpp
+index c9d0001..f2e0f0c 100644
+--- a/src/commit.cpp
++++ b/src/commit.cpp
+@@ -105,14 +105,15 @@ bool commit_t::CloseFenceInternal()
+     if ( m_nCommitFence < 0 )
+         return false;
+ 
+-    // Will automatically remove from epoll!
+-    g_ImageWaiter.RemoveWaitable( this );
++    // Do not recreate an Rc after deletion has started.
++    if ( HasLiveReferences() )
++        g_ImageWaiter.RemoveWaitable( this );
+     close( m_nCommitFence );
+     m_nCommitFence = -1;
+     return true;
+ }
+ 
+-void commit_t::SetFence( int nFence, bool bMangoNudge, uint32_t uMangoMsgType, CommitDoneList_t *pDoneCommits )
++void commit_t::SetFence( int nFence, bool bMangoNudge, uint32_t uMangoMsgType, const std::shared_ptr<CommitDoneList_t> &pDoneCommits )
+ {
+     std::unique_lock lock( m_WaitableCommitStateMutex );
+     CloseFenceInternal();
+diff --git a/src/commit.h b/src/commit.h
+index 20f881d..8603a9a 100644
+--- a/src/commit.h
++++ b/src/commit.h
+@@ -1,6 +1,7 @@
+ #include "steamcompmgr_shared.hpp"
+ #include "Utils/NonCopyable.h"
+ 
++#include <memory>
+ #include <optional>
+ #include "main.hpp"
+ #include "rendervulkan.hpp"
+@@ -34,7 +35,7 @@ struct commit_t final : public gamescope::RcObject, public gamescope::IWaitable,
+ 
+ 	// Returns true if we had a fence that was closed.
+ 	bool CloseFenceInternal();
+-	void SetFence( int nFence, bool bMangoNudge, uint32_t uMangoMsgType, CommitDoneList_t *pDoneCommits );
++	void SetFence( int nFence, bool bMangoNudge, uint32_t uMangoMsgType, const std::shared_ptr<CommitDoneList_t> &pDoneCommits );
+ 
+ 	bool ShouldPreemptivelyUpscale( GamescopeUpscaleFilter eFilter, GamescopeUpscaleScaler eScaler );
+ 
+@@ -81,5 +82,5 @@ struct commit_t final : public gamescope::RcObject, public gamescope::IWaitable,
+ 	bool m_bMangoNudge = false;
+ 	// Typed mangoapp stream to nudge, 0 for none, never the legacy type.
+ 	uint32_t m_uMangoMsgType = 0;
+-	CommitDoneList_t *m_pDoneCommits = nullptr; // I hate this
+-};
+\ No newline at end of file
++	std::shared_ptr<CommitDoneList_t> m_pDoneCommits; // I hate this
++};
+diff --git a/src/steamcompmgr.cpp b/src/steamcompmgr.cpp
+index 5fb9086..22aa907 100644
+--- a/src/steamcompmgr.cpp
++++ b/src/steamcompmgr.cpp
+@@ -932,7 +932,7 @@ constexpr const T& clamp( const T& x, const T& min, const T& max )
+ 
+ extern bool g_bForceRelativeMouse;
+ 
+-CommitDoneList_t g_steamcompmgr_xdg_done_commits;
++std::shared_ptr<CommitDoneList_t> g_steamcompmgr_xdg_done_commits = std::make_shared<CommitDoneList_t>();
+ 
+ 
+ static std::mutex s_KeysToCloseMutex;
+@@ -8073,7 +8073,7 @@ bool handle_done_commit( steamcompmgr_win_t *w, xwayland_ctx_t *ctx, uint64_t co
+ // TODO: Merge these two functions.
+ void handle_done_commits_xwayland( xwayland_ctx_t *ctx, bool vblank, uint64_t vblank_idx )
+ {
+-	std::lock_guard<std::mutex> lock( ctx->doneCommits.listCommitsDoneLock );
++	std::lock_guard<std::mutex> lock( ctx->doneCommits->listCommitsDoneLock );
+ 
+ 	uint64_t next_refresh_time = g_SteamCompMgrVBlankTime.schedule.ulTargetVBlank;
+ 
+@@ -8090,7 +8090,7 @@ void handle_done_commits_xwayland( xwayland_ctx_t *ctx, bool vblank, uint64_t vb
+ 	uint64_t now = get_time_in_nanos();
+ 
+ 	// very fast loop yes
+-	for ( auto& entry : ctx->doneCommits.listCommitsDone )
++	for ( auto& entry : ctx->doneCommits->listCommitsDone )
+ 	{
+ 		steamcompmgr_win_t *entry_win = nullptr;
+ 		for ( steamcompmgr_win_t *w = ctx->list; w; w = w->xwayland().next )
+@@ -8130,12 +8130,12 @@ void handle_done_commits_xwayland( xwayland_ctx_t *ctx, bool vblank, uint64_t vb
+ 		}
+ 	}
+ 
+-	ctx->doneCommits.listCommitsDone.swap( commits_before_their_time );
++	ctx->doneCommits->listCommitsDone.swap( commits_before_their_time );
+ }
+ 
+ void handle_done_commits_xdg( bool vblank, uint64_t vblank_idx )
+ {
+-	std::lock_guard<std::mutex> lock( g_steamcompmgr_xdg_done_commits.listCommitsDoneLock );
++	std::lock_guard<std::mutex> lock( g_steamcompmgr_xdg_done_commits->listCommitsDoneLock );
+ 
+ 	uint64_t next_refresh_time = g_SteamCompMgrVBlankTime.schedule.ulTargetVBlank;
+ 
+@@ -8152,7 +8152,7 @@ void handle_done_commits_xdg( bool vblank, uint64_t vblank_idx )
+ 	uint64_t now = get_time_in_nanos();
+ 
+ 	// very fast loop yes
+-	for ( auto& entry : g_steamcompmgr_xdg_done_commits.listCommitsDone )
++	for ( auto& entry : g_steamcompmgr_xdg_done_commits->listCommitsDone )
+ 	{
+ 		steamcompmgr_win_t *entry_win = nullptr;
+ 		for (const auto& xdg_win : g_steamcompmgr_xdg_wins)
+@@ -8192,7 +8192,7 @@ void handle_done_commits_xdg( bool vblank, uint64_t vblank_idx )
+ 		}
+ 	}
+ 
+-	g_steamcompmgr_xdg_done_commits.listCommitsDone.swap( commits_before_their_time );
++	g_steamcompmgr_xdg_done_commits->listCommitsDone.swap( commits_before_their_time );
+ }
+ 
+ gamescope::ConVar<bool> cv_mangoapp_use_output_timing{ "mangoapp_use_output_timing", true };
+@@ -8359,7 +8359,7 @@ static TempUpscaleImage_t *GetTempUpscaleImage( global_focus_t *pFocus, uint32_t
+ 
+ gamescope::ConVar<bool> cv_surface_update_force_only_current_surface( "surface_update_force_only_current_surface", false, "Force updates to apply only to the current surface, ignoring commits for other surfaces." );
+ 
+-void update_wayland_res(CommitDoneList_t *doneCommits, steamcompmgr_win_t *w, ResListEntry_t& reslistentry)
++void update_wayland_res(const std::shared_ptr<CommitDoneList_t> &doneCommits, steamcompmgr_win_t *w, ResListEntry_t& reslistentry)
+ {
+ 	struct wlr_buffer *buf = reslistentry.buf;
+ 
+@@ -8632,7 +8632,7 @@ void check_new_xwayland_res(xwayland_ctx_t *ctx)
+ 	for ( uint32_t i = 0; i < tmp_queue.size(); i++ )
+ 	{
+ 		steamcompmgr_win_t	*w = find_win( ctx, tmp_queue[ i ].surf );
+-		update_wayland_res( &ctx->doneCommits, w, tmp_queue[ i ]);
++		update_wayland_res( ctx->doneCommits, w, tmp_queue[ i ]);
+ 	}
+ }
+ 
+@@ -8645,7 +8645,7 @@ void check_new_xdg_res()
+ 		{
+ 			if ( xdg_win->xdg().surface.main_surface == tmp_queue[ i ].surf )
+ 			{
+-				update_wayland_res( &g_steamcompmgr_xdg_done_commits, xdg_win.get(), tmp_queue[ i ] );
++				update_wayland_res( g_steamcompmgr_xdg_done_commits, xdg_win.get(), tmp_queue[ i ] );
+ 				break;
+ 			}
+ 		}
+diff --git a/src/xwayland_ctx.hpp b/src/xwayland_ctx.hpp
+index 81910a1..3a75650 100644
+--- a/src/xwayland_ctx.hpp
++++ b/src/xwayland_ctx.hpp
+@@ -92,7 +92,7 @@ struct xwayland_ctx_t final : public gamescope::IWaitable
+ 
+ 	std::unique_ptr<MouseCursor> cursor;
+ 
+-	CommitDoneList_t doneCommits;
++	std::shared_ptr<CommitDoneList_t> doneCommits = std::make_shared<CommitDoneList_t>();
+ 
+ 	double accum_x = 0.0;
+ 	double accum_y = 0.0;
