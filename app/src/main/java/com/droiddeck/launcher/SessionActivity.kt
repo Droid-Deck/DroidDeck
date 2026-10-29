@@ -192,6 +192,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var keyboard: KeyboardHost? = null
     private var desktopKeyboardButton: com.droiddeck.launcher.input.DesktopKeyboardButton? = null
     private var lastUserPressMs = 0L
+    private var pressDownX = 0f
+    private var pressDownY = 0f
     private var controllerSettings by mutableStateOf<ControllerPrefs.Settings?>(null)
     private val sessionClipboard by lazy {
         SessionClipboard(this) {
@@ -3391,11 +3393,24 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         SessionState.mode == SessionService.MODE_DESKTOP && SessionState.running && !pipUi
 
     private fun notePress(event: MotionEvent) {
-        when (event.actionMasked) {
-            MotionEvent.ACTION_DOWN, MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP,
-            MotionEvent.ACTION_BUTTON_PRESS, MotionEvent.ACTION_BUTTON_RELEASE ->
-                lastUserPressMs = android.os.SystemClock.uptimeMillis()
+        val touch = event.isFromSource(InputDevice.SOURCE_TOUCHSCREEN)
+        val tap = when (event.actionMasked) {
+            MotionEvent.ACTION_BUTTON_PRESS, MotionEvent.ACTION_BUTTON_RELEASE -> true
+            MotionEvent.ACTION_DOWN -> {
+                pressDownX = event.x
+                pressDownY = event.y
+                !touch
+            }
+            MotionEvent.ACTION_UP -> !touch || isTap(event)
+            else -> false
         }
+        if (tap) lastUserPressMs = android.os.SystemClock.uptimeMillis()
+    }
+
+    private fun isTap(event: MotionEvent): Boolean {
+        val slop = android.view.ViewConfiguration.get(this).scaledTouchSlop * 2f
+        return event.eventTime - event.downTime < android.view.ViewConfiguration.getLongPressTimeout() &&
+            kotlin.math.hypot(event.x - pressDownX, event.y - pressDownY) < slop
     }
 
     private fun onDesktopTextField(focused: Boolean) {
