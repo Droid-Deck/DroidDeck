@@ -254,6 +254,7 @@ object StoreInstallRoot {
                 val sidecar = StoreGameSidecar.read(folder)
                 when {
                     sidecar == null -> Unfinished(store, null, folder)
+                    store == Store.GOG && sidecar.state == StoreGameSidecar.STATE_UPDATING -> null
                     !sidecar.isInstalled -> Unfinished(store, sidecar.id, folder)
                     else -> null
                 }

@@ -15,6 +15,8 @@ object GogNative {
 
         fun onBytes(bytesDone: Long, bytesTotal: Long)
 
+        fun onMaintenance(networkBytes: Long, reusedBytes: Long, appliedBytes: Long)
+
         fun onLog(line: String)
 
         fun onComplete(success: Boolean, cancelled: Boolean, linkExpiry: Boolean, error: String, bytesWritten: Long, filesDone: Int)
@@ -26,7 +28,7 @@ object GogNative {
     fun isAvailable(): Boolean {
         available?.let { return it }
         val ok = try {
-            StoresNative.ensureLoaded() && nativeProbe() == 1
+            StoresNative.ensureLoaded() && nativeProbe() == 2
         } catch (t: Throwable) {
             Log.w(TAG, "native GOG engine unavailable: ${t.javaClass.simpleName}: ${t.message}")
             false
