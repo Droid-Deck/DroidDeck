@@ -17,6 +17,8 @@ The command/coverage/content-model regressions compile the renderer's actual C
 functions. They compare non-clear commands and modeled image contents with the
 baseline, including failure and resize cases. The model does not execute Vulkan
 shaders or a real GPU's filtering, color conversion or compression.
+The checked-in suite also locks 72 representative command/content hashes to the
+original `d1bd23df` renderer, in addition to checking clear/blit budgets.
 
 One omitted clear command per eligible intermediate frame is not a measured
 latency, FPS, physical-memory-bandwidth or VRAM improvement. A driver's fast-clear

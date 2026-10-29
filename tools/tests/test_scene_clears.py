@@ -11,6 +11,82 @@ REPO = Path(__file__).resolve().parents[2]
 SOURCE = REPO / "app/src/main/cpp/waylandcomp/src/vk_present.c"
 NATIVE = SOURCE.parent
 
+# Original d1bd23df with run_case defaults: non-clear trace and modeled content/layout/write-mask hashes.
+BASELINE = {
+    (0, 0): ("741cbd3ad6812688", "9c35dcbcbf986fcb"),
+    (0, 1): ("a50ed826e2d17ffe", "3953b4ca9b2592e0"),
+    (0, 2): ("275348f56492c01b", "d5e0acadf785f8de"),
+    (0, 3): ("a7cbcb8672519761", "e4081aa0e9bca81a"),
+    (0, 4): ("e1caff9151f6c66d", "34b5cdfb9e550963"),
+    (0, 5): ("1a2d0fc5ac5690c3", "48d658ad74f7b6e3"),
+    (0, 6): ("1346518d9e7fe012", "214f3292c3bcdc77"),
+    (0, 7): ("9f5fd34765ba8d2c", "5a6a71625b036e2f"),
+    (0, 8): ("fe28dcf086d153f5", "d68847118a4e54fd"),
+    (0, 9): ("b8097160d0d54799", "827a69cc9478e973"),
+    (0, 10): ("b65d32d200647225", "827a69cc9478e973"),
+    (0, 11): ("b65d32d200647225", "827a69cc9478e973"),
+    (0, 12): ("b8097160d0d54799", "827a69cc9478e973"),
+    (0, 13): ("372d8006dd7d2f7a", "315446a086a23133"),
+    (0, 14): ("741cbd3ad6812688", "9c35dcbcbf986fcb"),
+    (0, 15): ("4eadfbfbff805afc", "315446a086a23133"),
+    (0, 16): ("907d9936d748cd3c", "9c35dcbcbf986fcb"),
+    (0, 17): ("741cbd3ad6812688", "9c35dcbcbf986fcb"),
+    (0, 18): ("43bfaf7478097095", "07500677d89c744b"),
+    (0, 19): ("c8bb5ee1b59dbceb", "9c35dcbcbf986fcb"),
+    (0, 20): ("741cbd3ad6812688", "9c35dcbcbf986fcb"),
+    (0, 21): ("741cbd3ad6812688", "9c35dcbcbf986fcb"),
+    (0, 22): ("741cbd3ad6812688", "9c35dcbcbf986fcb"),
+    (0, 23): ("741cbd3ad6812688", "9c35dcbcbf986fcb"),
+    (1, 0): ("f543d2f121929bb3", "0c18bb2cd5738723"),
+    (1, 1): ("9d84fae448fc68fc", "e67d95f5e9ba1f0d"),
+    (1, 2): ("8977a324f3c4c6ea", "ebc7691a9f619ca5"),
+    (1, 3): ("8a1000f5095ca768", "8ebda80f0de0ee1d"),
+    (1, 4): ("109609155d25f3bc", "f81f976a3a697413"),
+    (1, 5): ("dcf5052ddb26a612", "d225772ba2a53f13"),
+    (1, 6): ("4af6cf3cb4382535", "4f5761f458d31453"),
+    (1, 7): ("028247b1d2d1243f", "a23e47938efa0e43"),
+    (1, 8): ("f663faea259bcef9", "cf824627986f4a9f"),
+    (1, 9): ("b85b129a100c296b", "46c50f9c971a8e03"),
+    (1, 10): ("b85b129a100c296b", "46c50f9c971a8e03"),
+    (1, 11): ("b85b129a100c296b", "46c50f9c971a8e03"),
+    (1, 12): ("ecbe737bc085aed4", "4d1f9aeafb6052a7"),
+    (1, 13): ("6e4e31ed9e630eb5", "4d1f9aeafb6052a7"),
+    (1, 14): ("4d0d1c162fbb2233", "4e85e87b867c377b"),
+    (1, 15): ("f543d2f121929bb3", "0c18bb2cd5738723"),
+    (1, 16): ("291f2a2a56451663", "0c18bb2cd5738723"),
+    (1, 17): ("f543d2f121929bb3", "0c18bb2cd5738723"),
+    (1, 18): ("4dab4a230abc0a70", "1cbe432a54c52183"),
+    (1, 19): ("f543d2f121929bb3", "0c18bb2cd5738723"),
+    (1, 20): ("ecbe737bc085aed4", "4d1f9aeafb6052a7"),
+    (1, 21): ("72da445d54589bb3", "0c18bb2cd5738723"),
+    (1, 22): ("3605cf4f8f129f5c", "0c18bb2cd5738723"),
+    (1, 23): ("f543d2f121929bb3", "0c18bb2cd5738723"),
+    (2, 0): ("ae39a333d3dc79ee", "0f09de2a9b99db4f"),
+    (2, 1): ("33c3c6185ef9ed47", "92ef62d60985568b"),
+    (2, 2): ("95ccbb983aa00155", "3890b8f97d41ccbf"),
+    (2, 3): ("5dc9af97dcbb7d5f", "b04060060f4035cf"),
+    (2, 4): ("099b42ad4070ae2b", "46742fd399940cbf"),
+    (2, 5): ("2c2d126e195dd2f9", "542fad5bccba053f"),
+    (2, 6): ("f3a8af54fd9e78b0", "fe01a50b184f0eb7"),
+    (2, 7): ("f86e8e44819188de", "aa6abec68c34c4e7"),
+    (2, 8): ("7c9a2356e807cb23", "d93ce7a1e9c4163b"),
+    (2, 9): ("ceb40c736a37fc74", "a0c864e3daccb1bf"),
+    (2, 10): ("9906632972d9a7a0", "a0c864e3daccb1bf"),
+    (2, 11): ("9906632972d9a7a0", "a0c864e3daccb1bf"),
+    (2, 12): ("894af32e456cc49c", "a4d3b125a4a290d3"),
+    (2, 13): ("0d2cc6f362a2f72a", "315446a086a23133"),
+    (2, 14): ("6c265880f9c84956", "2b6db527b5cacfb7"),
+    (2, 15): ("4eadfbfbff805afc", "315446a086a23133"),
+    (2, 16): ("94d5fa655b3c3da8", "0f09de2a9b99db4f"),
+    (2, 17): ("ae39a333d3dc79ee", "0f09de2a9b99db4f"),
+    (2, 18): ("69633b050002470a", "4412c8d19a457cbf"),
+    (2, 19): ("31feb4295875027d", "0f09de2a9b99db4f"),
+    (2, 20): ("ecbe737bc085aed4", "315446a086a23133"),
+    (2, 21): ("62d8aa6738ca79ee", "0f09de2a9b99db4f"),
+    (2, 22): ("7bcb0acade8523c3", "0f09de2a9b99db4f"),
+    (2, 23): ("ae39a333d3dc79ee", "0f09de2a9b99db4f"),
+}
+
 
 def function(source, signature):
     start = source.index(signature)
@@ -92,6 +168,13 @@ class SceneClearTest(unittest.TestCase):
         result = subprocess.run([str(self.binary), "cover"], capture_output=True, text=True, timeout=10)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(result.stdout.strip(), "PASS")
+
+    def test_commands_and_model_contents_match_original_main(self):
+        for (path, case), (trace, pixels) in BASELINE.items():
+            with self.subTest(path=path, case=case):
+                result = self.run_case(path, case)
+                self.assertEqual(result["trace"], int(trace, 16))
+                self.assertEqual(result["pixels"], int(pixels, 16))
 
     def test_single_full_blits_do_not_clear_intermediates(self):
         for path in range(3):
