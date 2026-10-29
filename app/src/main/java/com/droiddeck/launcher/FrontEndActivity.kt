@@ -473,6 +473,7 @@ class FrontEndActivity : ComponentActivity() {
     private var backActionsInverted by mutableStateOf(false)
     private var gameStorage by mutableStateOf("")
     private var slowUsb by mutableStateOf<com.droiddeck.launcher.session.UsbLink.SlowDrive?>(null)
+    private var usbScan = 0
     private var storageDiagnostics by mutableStateOf(false)
     private var storageOptions by mutableStateOf<List<GameStorage.Option>>(emptyList())
     private val pickGameStorage = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
@@ -2316,11 +2317,13 @@ class FrontEndActivity : ComponentActivity() {
     }
 
     private fun checkUsbLink() {
+        if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) { ui.post { checkUsbLink() }; return }
+        val scan = ++usbScan
         if (slowUsb != null) return
         Thread({
             val drive = runCatching { com.droiddeck.launcher.session.UsbLink.slowLibrary(this) }.getOrNull()
             if (drive != null) ui.post {
-                if (slowUsb == null && !isFinishing && com.droiddeck.launcher.session.UsbLink.stillDue(this, drive)) slowUsb = drive
+                if (scan == usbScan && slowUsb == null && !isFinishing && com.droiddeck.launcher.session.UsbLink.stillDue(this, drive)) slowUsb = drive
             }
         }, "usb-link").start()
     }
