@@ -4,6 +4,7 @@ import android.content.Context
 import com.droiddeck.launcher.core.GameEnvironment
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import org.json.JSONObject
+import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
@@ -12,6 +13,8 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import java.io.File
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28], manifest = Config.NONE)
@@ -21,8 +24,135 @@ class GameEnvironmentStoreTest {
 
     @Before fun setUp() {
         context = RuntimeEnvironment.getApplication()
+        context.getSharedPreferences("session", Context.MODE_PRIVATE).edit()
+            .remove("logs")
+            .remove("gameDebugLogsEnabled")
+            .commit()
         guest = File(LinuxRuntime.rootDir(context), "root/.config/droiddeck/game-environment.json")
         File(context.filesDir, "game-environment.json").delete()
+    }
+
+    @After fun tearDown() {
+        context.getSharedPreferences("session", Context.MODE_PRIVATE).edit()
+            .remove("logs")
+            .remove("gameDebugLogsEnabled")
+            .commit()
+    }
+
+    @Test fun gameDebugLogsAreOffByDefault() {
+        assertFalse(SessionPrefs.gameDebugLogsEnabled(context))
+
+        GameEnvironmentStore.save(context, GameEnvironment.Config())
+
+        assertFalse(JSONObject(guest.readText()).getBoolean(GameEnvironmentStore.GAME_DEBUG_LOGS))
+    }
+
+    @Test fun gameDebugLogsRequireSessionLogsAndPreserveCustomDiagnostics() {
+        val config = GameEnvironment.Config(shared = mapOf("PROTON_LOG" to "0", "WINEDEBUG" to "+warn"))
+        GameEnvironmentStore.save(context, config)
+
+        SessionPrefs.setGameDebugLogsEnabled(context, true)
+        var published = JSONObject(guest.readText())
+        assertTrue(published.getBoolean(GameEnvironmentStore.GAME_DEBUG_LOGS))
+        assertEquals("0", published.getJSONObject("shared").getString("PROTON_LOG"))
+        assertEquals("+warn", published.getJSONObject("shared").getString("WINEDEBUG"))
+        assertEquals(config, GameEnvironmentStore.read(context))
+
+        SessionPrefs.setLogsEnabled(context, false)
+        published = JSONObject(guest.readText())
+        assertFalse(published.getBoolean(GameEnvironmentStore.GAME_DEBUG_LOGS))
+        assertTrue(SessionPrefs.gameDebugLogsEnabled(context))
+
+        SessionPrefs.setLogsEnabled(context, true)
+        assertTrue(JSONObject(guest.readText()).getBoolean(GameEnvironmentStore.GAME_DEBUG_LOGS))
+    }
+
+    @Test fun failedGameDebugOptOutLeavesTheEnabledPreferenceVisible() {
+        assertTrue(SessionPrefs.setGameDebugLogsEnabled(context, true))
+        assertTrue(SessionPrefs.gameDebugLogsEnabled(context))
+        val guestDirectory = guest.parentFile!!
+        guestDirectory.deleteRecursively()
+        guestDirectory.parentFile!!.mkdirs()
+        guestDirectory.writeText("blocks the guest configuration directory\n")
+        try {
+            assertFalse(SessionPrefs.setGameDebugLogsEnabled(context, false))
+            assertTrue(SessionPrefs.gameDebugLogsEnabled(context))
+        } finally {
+            guestDirectory.delete()
+            guestDirectory.mkdirs()
+            GameEnvironmentStore.publish(context)
+        }
+        assertTrue(JSONObject(guest.readText()).getBoolean(GameEnvironmentStore.GAME_DEBUG_LOGS))
+    }
+
+    @Test fun unchangedEffectiveDiagnosticsDoNotRequireGuestPublication() {
+        assertFalse(SessionPrefs.gameDebugLogsEnabled(context))
+        val guestDirectory = guest.parentFile!!
+        guestDirectory.deleteRecursively()
+        guestDirectory.parentFile!!.mkdirs()
+        guestDirectory.writeText("blocks the guest configuration directory\n")
+        try {
+            assertTrue(SessionPrefs.setLogsEnabled(context, false))
+            assertFalse(SessionPrefs.logsEnabled(context))
+        } finally {
+            guestDirectory.delete()
+            guestDirectory.mkdirs()
+            SessionPrefs.setLogsEnabled(context, true)
+            GameEnvironmentStore.publish(context)
+        }
+    }
+
+    @Test fun logPreferenceUpdatesUseThePublisherLock() {
+        GameEnvironmentStore.publish(context)
+        val entered = CountDownLatch(1)
+        val finished = CountDownLatch(1)
+        lateinit var thread: Thread
+        synchronized(GameEnvironmentStore) {
+            thread = Thread {
+                entered.countDown()
+                SessionPrefs.setGameDebugLogsEnabled(context, true)
+                finished.countDown()
+            }
+            thread.start()
+            assertTrue(entered.await(5, TimeUnit.SECONDS))
+            assertFalse(finished.await(100, TimeUnit.MILLISECONDS))
+            assertFalse(SessionPrefs.gameDebugLogsEnabled(context))
+            assertFalse(JSONObject(guest.readText()).getBoolean(GameEnvironmentStore.GAME_DEBUG_LOGS))
+        }
+        assertTrue(finished.await(5, TimeUnit.SECONDS))
+        thread.join()
+        assertTrue(SessionPrefs.gameDebugLogsEnabled(context))
+        assertTrue(JSONObject(guest.readText()).getBoolean(GameEnvironmentStore.GAME_DEBUG_LOGS))
+    }
+
+    @Test fun gameDebugLogsWaitForARetainedSessionFolder() {
+        assertNull(SessionPaths.current())
+        assertTrue(SessionPaths.currentSessionLogsRetained(context))
+        GameEnvironmentStore.publish(context)
+        SessionPrefs.setLogsEnabled(context, false)
+        val cacheSession = SessionPaths.beginOrCurrent(context, "game-debug-logs")
+        try {
+            assertFalse(SessionPaths.currentSessionLogsRetained(context))
+
+            SessionPrefs.setLogsEnabled(context, true)
+            SessionPrefs.setGameDebugLogsEnabled(context, true)
+            assertTrue(SessionPrefs.gameDebugLogsEnabled(context))
+            assertFalse(JSONObject(guest.readText()).getBoolean(GameEnvironmentStore.GAME_DEBUG_LOGS))
+
+            assertEquals(cacheSession, SessionPaths.take())
+            SessionPaths.release(context, cacheSession)
+            val retainedSession = SessionPaths.beginOrCurrent(context, "game-debug-logs")
+            assertTrue(SessionPaths.currentSessionLogsRetained(context))
+
+            GameEnvironmentStore.publish(context)
+            assertTrue(JSONObject(guest.readText()).getBoolean(GameEnvironmentStore.GAME_DEBUG_LOGS))
+            assertEquals(retainedSession, SessionPaths.current())
+        } finally {
+            SessionPaths.take()?.let { ended ->
+                SessionPaths.release(context, ended)
+                ended.deleteRecursively()
+            }
+        }
     }
 
     @Test fun savedSettingsAndPublishedSettingsPreserveUnsetsAndLiteralValues() {

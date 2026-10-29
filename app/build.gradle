@@ -234,6 +234,7 @@ android {
             }
             // Robolectric keeps a sandbox per SDK level the tests ask for; seven no longer fit in Gradle's default 512 MB.
             maxHeapSize = '2g'
+            maxParallelForks = 2
             def logTarget = providers.systemProperty('robolectric.logging').orNull
             if (logTarget != null) systemProperty 'robolectric.logging', logTarget
         }
@@ -286,6 +287,13 @@ if (uvcDir) {
 }
 tasks.named('preBuild').configure { dependsOn(stageRuntimeAssets) }
 
+def stageGogNotices = tasks.register('stageGogNotices', Copy) {
+    from(layout.projectDirectory.dir('src/main/rust/stores/vendor/xdelta3')) { include 'LICENSE', 'README.droiddeck.md' }
+    into(layout.buildDirectory.dir('gogNotices/licenses/xdelta3'))
+}
+android.sourceSets.main.assets.srcDir(layout.buildDirectory.dir('gogNotices'))
+tasks.named('preBuild').configure { dependsOn(stageGogNotices) }
+
 def verifyRuntimeInputs = tasks.register('verifyRuntimeInputs', Exec) {
     mustRunAfter(stageSessionScripts, stageRuntimeAssets)
     workingDir rootProject.projectDir
@@ -303,6 +311,8 @@ def buildRustStores = tasks.register('buildRustStores', Exec) {
     description = 'Cross-compiles the store download engines (libdroiddeckstores.so) with cargo-ndk.'
     onlyIf { !skipRust }
     inputs.dir(rustCrateDir.dir('src'))
+    inputs.dir(rustCrateDir.dir('vendor'))
+    inputs.file(rustCrateDir.file('build.rs'))
     inputs.files(rustCrateDir.file('Cargo.toml'), rustCrateDir.file('Cargo.lock'))
     inputs.property('ndkVersion', android.ndkVersion)
     if (!skipRust) inputs.property('rustToolchain', providers.exec {

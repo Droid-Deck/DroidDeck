@@ -22,8 +22,8 @@ object DesktopCatalog {
         val icon: String, val category: String,
     )
 
-    fun fetch(url: String = CATALOG_URL): List<Entry>? {
-        val body = Downloader.downloadString(url) ?: return null
+    fun fetch(url: String = CATALOG_URL, cancelled: java.util.function.BooleanSupplier? = null): List<Entry>? {
+        val body = Downloader.downloadString(url, cancelled) ?: return null
         return try {
             val json = JSONObject(body)
             val arr = json.getJSONArray("packages")
@@ -71,9 +71,22 @@ object DesktopCatalog {
     }
 
     fun resumeInterrupted(context: Context, listener: LinuxRuntimeInstaller.ProgressListener?): String? = synchronized(installLock) {
+        resumeInterrupted(context, null, listener)
+    }
+
+    fun resumeInterrupted(
+        context: Context,
+        cancelled: Downloader.Cancellation?,
+        listener: LinuxRuntimeInstaller.ProgressListener?,
+    ): String? = synchronized(installLock) {
         for (entry in interrupted(context)) {
             Log.w(TAG, "finishing the interrupted install of ${entry.id} ${entry.version}")
-            install(context, entry, listener)?.let { return it }
+            val problem = if (cancelled == null) {
+                install(context, entry, listener)
+            } else {
+                install(context, entry, cancelled, listener)
+            }
+            if (problem != null) return problem
         }
         null
     }
@@ -144,10 +157,16 @@ object DesktopCatalog {
     }
 
     fun install(context: Context, entry: Entry, listener: LinuxRuntimeInstaller.ProgressListener?): String? = synchronized(installLock) {
-        installLocked(context, entry, listener)
+        installLocked(context, entry, null, listener)
     }
 
-    private fun installLocked(context: Context, entry: Entry, listener: LinuxRuntimeInstaller.ProgressListener?): String? {
+    fun install(context: Context, entry: Entry, cancelled: Downloader.Cancellation,
+                listener: LinuxRuntimeInstaller.ProgressListener?): String? = synchronized(installLock) {
+        installLocked(context, entry, cancelled, listener)
+    }
+
+    private fun installLocked(context: Context, entry: Entry, cancelled: Downloader.Cancellation?,
+                              listener: LinuxRuntimeInstaller.ProgressListener?): String? {
         val root = LinuxRuntime.rootDir(context)
         if (!root.isDirectory) return context.getString(R.string.deskpkg_runtime_missing)
         if (entry.sha256.isEmpty()) return context.getString(R.string.deskpkg_no_checksum, entry.name)
@@ -166,14 +185,20 @@ object DesktopCatalog {
             if (!downloaded(download, entry)) {
                 val downloading = context.getString(R.string.user_apps_downloading, entry.name)
                 report.onProgress(LinuxRuntimeInstaller.Step.DOWNLOADING, downloading, 0)
-                val ok = Downloader.downloadFile(entry.url, download, true, entry.sha256) { f ->
+                val progress = java.util.function.Consumer<Float> { f ->
                     report.onProgress(LinuxRuntimeInstaller.Step.DOWNLOADING, downloading, if (f < 0) -1 else Math.round(f * 100f))
                 }
-                if (!ok) return context.getString(R.string.user_apps_download_failed)
+                val ok = if (cancelled == null) {
+                    Downloader.downloadFile(entry.url, download, true, entry.sha256, progress)
+                } else {
+                    Downloader.downloadFile(entry.url, download, true, entry.sha256, cancelled, progress)
+                }
+                if (!ok || cancelled?.getAsBoolean() == true) return context.getString(R.string.user_apps_download_failed)
                 report.onProgress(LinuxRuntimeInstaller.Step.VERIFYING, context.getString(R.string.rtinst_verifying), -1)
                 val actual = Hashes.sha256(download)
                 if (!entry.sha256.equals(actual, ignoreCase = true)) return context.getString(R.string.deskpkg_checksum_mismatch)
             }
+            if (cancelled?.getAsBoolean() == true) return context.getString(R.string.user_apps_download_failed)
             report.onProgress(context.getString(R.string.deskpkg_installing, entry.name), -1)
             when (entry.kind) {
                 "appimage" -> {

@@ -23,13 +23,22 @@ fi
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 fetch() {
-  curl -fsSL --retry 3 -o "$WORK/$1" "$2"
-  echo "$3  $WORK/$1" | shasum -a 256 -c -
-  mkdir -p "$WORK/${1%%.*}"
-  tar -xzf "$WORK/$1" -C "$WORK/${1%%.*}" --strip-components=1
+  local name=$1 primary=$2 sha=$3 url fetched=0
+  shift 3
+  for url in "$primary" "$@"; do
+    if curl -fsSL --connect-timeout 15 --max-time 90 --retry 3 --retry-all-errors --retry-max-time 120 -o "$WORK/$name" "$url" &&
+        printf '%s  %s\n' "$sha" "$WORK/$name" | shasum -a 256 -c -; then
+      fetched=1
+      break
+    fi
+  done
+  [[ $fetched == 1 ]] || return 1
+  mkdir -p "$WORK/${name%%.*}"
+  tar -xzf "$WORK/$name" -C "$WORK/${name%%.*}" --strip-components=1
 }
 fetch proot.tar.gz "https://github.com/termux/proot/archive/${PROOT_COMMIT}.tar.gz" "$PROOT_SHA256"
-fetch talloc.tar.gz "https://www.samba.org/ftp/talloc/talloc-${TALLOC_VERSION}.tar.gz" "$TALLOC_SHA256"
+fetch talloc.tar.gz "https://www.samba.org/ftp/talloc/talloc-${TALLOC_VERSION}.tar.gz" "$TALLOC_SHA256" \
+  "https://distfiles.macports.org/talloc/talloc-${TALLOC_VERSION}.tar.gz"
 cp "$HERE/statx_mnt_id.h" "$WORK/proot/src/tracee/statx_mnt_id.h"
 cp "$HERE/profile.h" "$WORK/proot/src/syscall/profile.h"
 for patch in "$HERE"/patches/*.patch; do

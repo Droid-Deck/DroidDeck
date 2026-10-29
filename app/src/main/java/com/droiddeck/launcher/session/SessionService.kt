@@ -91,6 +91,7 @@ class SessionService : Service() {
     private var screenOn = true
     private var sessionDisplayId = Display.DEFAULT_DISPLAY
     private var manualPauseRequested = false
+    private var manualHold = false
     private var steamSleepToken: String? = null
     private var nativeSleepToken: String? = null
     private var nativeSleepReady = false
@@ -275,7 +276,11 @@ class SessionService : Service() {
                 val hold = intent?.getBooleanExtra(EXTRA_HOLD, false) == true
                 if (hold == signInHold) return START_NOT_STICKY
                 signInHold = hold
-                if (hold) manualPauseRequested = false
+                if (hold) {
+                    manualPauseRequested = false
+                    manualHold = false
+                    SessionState.manualPause = false
+                }
                 suspendAttemptFailed = false
                 updateSuspendPolicy()
                 return START_NOT_STICKY
@@ -302,6 +307,14 @@ class SessionService : Service() {
             ACTION_SUSPEND_NOW -> {
                 if (!SessionState.running) return START_NOT_STICKY
                 suspendDownloadNow = true
+                updateSuspendPolicy()
+                return START_NOT_STICKY
+            }
+            ACTION_PAUSE_NOW -> {
+                if (!SessionState.running || SessionState.suspended || signInHold) return START_NOT_STICKY
+                manualHold = true
+                SessionState.manualPause = true
+                suspendAttemptFailed = false
                 updateSuspendPolicy()
                 return START_NOT_STICKY
             }
@@ -347,6 +360,8 @@ class SessionService : Service() {
         SessionState.resumeRequested = false
         SessionState.resuming = false
         SessionState.resumeFailed = false
+        manualHold = false
+        SessionState.manualPause = false
         SessionState.pipActive = false
         pipTask = false
         SessionState.program = intent?.getStringExtra(EXTRA_PROGRAM)
@@ -386,10 +401,10 @@ class SessionService : Service() {
     }
 
     private fun collectSessionArtifacts(dir: File, steamArch: String?) {
+        SessionLogCapture.stopFor(dir)
         try {
             SessionArtifacts.collect(this, dir, "session stopped", steamArch)
         } finally {
-            SessionLogCapture.stopFor(dir)
             SessionPaths.release(this, dir)
         }
     }
@@ -474,13 +489,20 @@ class SessionService : Service() {
         SessionFiles.stage(this, root, startsSession = true)
         // Earlier sessions' reports still read the Steam logs and VAC marker this session replaces.
         SessionArtifacts.awaitCollections()
-        SessionArtifacts.finishAbandoned(this)
+        SessionArtifacts.finishAbandoned(this, beforeGuestStart = true)
         VacDiagnostics.arm(this)
         com.droiddeck.launcher.agent.AgentGuest.reset(this)
         com.droiddeck.launcher.stores.gog.GogComet.begin()
         com.droiddeck.launcher.stores.StoreLaunchRequests.start(this)
 
         val sessionDir = openSessionFolder()
+        try {
+            GameEnvironmentStore.publish(this)
+        } catch (e: Exception) {
+            Log.e(TAG, "could not publish the game environment", e)
+            stopSession(-1)
+            return
+        }
         val sessionLog = File(sessionDir, "session.log")
         val prootLine = "== proot: ${LinuxRuntime.prootBinary(this).path} (${LinuxRuntime.prootSource(this)})"
         Log.i(TAG, prootLine)
@@ -1345,6 +1367,8 @@ class SessionService : Service() {
         if (panelVisible) activityVisible = true
         screenOn = readScreenOn()
         manualPauseRequested = false
+        manualHold = false
+        SessionState.manualPause = false
         suspendDownloadNow = false
         if (steamSleepToken == null && (nativeSleepToken == null || nativeSleepFallback || nativeSleepIdle)) requestSteamWake()
         completeNativeSleep()
@@ -1552,12 +1576,12 @@ class SessionService : Service() {
             manualPauseRequested = false
         }
         val controller = suspendController ?: return
-        if (downloadsBlockingSuspend) acquireLocks()
-        val steamPause = SessionState.mode == MODE_STEAM && !downloadsBlockingSuspend && when (suspendPolicy) {
+        if (downloadsBlockingSuspend && !manualHold) acquireLocks()
+        val steamPause = SessionState.mode == MODE_STEAM && (manualHold || !downloadsBlockingSuspend && when (suspendPolicy) {
             SessionPrefs.SUSPEND_AUTO, SessionPrefs.SUSPEND_NATIVE -> hidden
             SessionPrefs.SUSPEND_MANUAL -> manualPauseRequested
             else -> false
-        }
+        })
         if (!steamPause) {
             completeNativeSleep()
         } else if (nativeSleepToken == null && steamSleepToken == null &&
@@ -1565,7 +1589,7 @@ class SessionService : Service() {
             prepareNativeSleep()
         }
         val prepared = SessionState.mode != MODE_STEAM || nativeSleepReady
-        val shouldSuspend = steamSleepToken != null || when (suspendPolicy) {
+        val shouldSuspend = steamSleepToken != null || (manualHold && prepared) || when (suspendPolicy) {
             SessionPrefs.SUSPEND_AUTO -> hidden && prepared && !downloadsBlockingSuspend
             SessionPrefs.SUSPEND_NATIVE -> hidden && nativeSleepReady && !downloadsBlockingSuspend
             SessionPrefs.SUSPEND_MANUAL -> manualPauseRequested && prepared && !downloadsBlockingSuspend
@@ -1613,6 +1637,8 @@ class SessionService : Service() {
                             SessionEvents.record("session.suspend_cancelled")
                         } else {
                             suspendAttemptFailed = true
+                            manualHold = false
+                            SessionState.manualPause = false
                             Log.w(TAG, "could not confirm that the session stopped")
                         }
                     }
@@ -1661,7 +1687,7 @@ class SessionService : Service() {
     }
 
     private fun resumeSteamSleepOnReturn() {
-        if (suspendPolicy in setOf(SessionPrefs.SUSPEND_AUTO, SessionPrefs.SUSPEND_NATIVE) && hasVisibleSurface) {
+        if (!manualHold && suspendPolicy in setOf(SessionPrefs.SUSPEND_AUTO, SessionPrefs.SUSPEND_NATIVE) && hasVisibleSurface) {
             if (steamSleepToken == null && (nativeSleepToken == null || nativeSleepFallback || nativeSleepIdle)) requestSteamWake()
             completeNativeSleep()
             completeSteamSleep()
@@ -1719,43 +1745,49 @@ class SessionService : Service() {
         }.onFailure { Log.w(TAG, "could not request Steam wake", it) }
     }
 
-    private fun finishSessionStop(status: Int, stoppedGen: Int) {
+    private fun finishSessionStop(status: Int, stoppedGen: Int, afterStopped: () -> Unit = {}) {
         mainHandler.post {
-            val agentSessionId = synchronized(stopLock) { agentEnvSessionIds.remove(stoppedGen) }
-            if (agentSessionId != null) runCatching { com.droiddeck.launcher.agent.AgentEnv.endSession(this, agentSessionId) }
-                .onFailure { Log.w(TAG, "clearing agent overrides for session $stoppedGen", it) }
-            if (stoppedGen != sessionGen || SessionState.running) {
-                Log.i(TAG, "session $stoppedGen finished stopping after a new one started")
-                return@post
+            try {
+                val agentSessionId = synchronized(stopLock) { agentEnvSessionIds.remove(stoppedGen) }
+                if (agentSessionId != null) runCatching { com.droiddeck.launcher.agent.AgentEnv.endSession(this, agentSessionId) }
+                    .onFailure { Log.w(TAG, "clearing agent overrides for session $stoppedGen", it) }
+                if (stoppedGen != sessionGen || SessionState.running) {
+                    Log.i(TAG, "session $stoppedGen finished stopping after a new one started")
+                    return@post
+                }
+                SessionState.suspended = false
+                SessionState.resumeRequested = false
+                SessionState.resuming = false
+                SessionState.resumeFailed = false
+                manualHold = false
+                SessionState.manualPause = false
+                SessionState.pipActive = false
+                pipTask = false
+                SessionState.guestPid = -1
+                com.droiddeck.launcher.agent.AgentGuest.stop()
+                com.droiddeck.launcher.stores.StoreLaunchRequests.stop()
+                Thread({ com.droiddeck.launcher.stores.CloudSaves.uploadAllDirty(applicationContext, "session-end", running = false) }, "cloud-session-end").start()
+                releaseLocks()
+                MemoryLog.stop()
+                com.droiddeck.launcher.core.BackgroundAppLimit.restoreAsync(applicationContext)
+                if (status == 0) {
+                    SessionEvents.transition(SessionPhase.IDLE, "session.stopped", mapOf("status" to status))
+                } else {
+                    val code = SessionState.failureCode ?: "GUEST_EXIT"
+                    val message = SessionState.failureMessage ?: "Session guest exited with status $status"
+                    val failureStatus = SessionState.failureStatus ?: status
+                    SessionEvents.fail(code, message, failureStatus)
+                }
+                SessionState.steamVr = false
+                com.droiddeck.launcher.glasses.Glasses.cancelSteamVrStart()
+                com.droiddeck.launcher.glasses.Glasses.setVrActive(false)
+                com.droiddeck.launcher.glasses.Glasses.set3dForVr(false)
+                SessionState.notifyEnded(status)
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf()
+            } finally {
+                afterStopped()
             }
-            SessionState.suspended = false
-            SessionState.resumeRequested = false
-            SessionState.resuming = false
-            SessionState.resumeFailed = false
-            SessionState.pipActive = false
-            pipTask = false
-            SessionState.guestPid = -1
-            com.droiddeck.launcher.agent.AgentGuest.stop()
-            com.droiddeck.launcher.stores.StoreLaunchRequests.stop()
-            Thread({ com.droiddeck.launcher.stores.CloudSaves.uploadAllDirty(applicationContext, "session-end", running = false) }, "cloud-session-end").start()
-            releaseLocks()
-            MemoryLog.stop()
-            com.droiddeck.launcher.core.BackgroundAppLimit.restoreAsync(applicationContext)
-            if (status == 0) {
-                SessionEvents.transition(SessionPhase.IDLE, "session.stopped", mapOf("status" to status))
-            } else {
-                val code = SessionState.failureCode ?: "GUEST_EXIT"
-                val message = SessionState.failureMessage ?: "Session guest exited with status $status"
-                val failureStatus = SessionState.failureStatus ?: status
-                SessionEvents.fail(code, message, failureStatus)
-            }
-            SessionState.steamVr = false
-            com.droiddeck.launcher.glasses.Glasses.cancelSteamVrStart()
-            com.droiddeck.launcher.glasses.Glasses.setVrActive(false)
-            com.droiddeck.launcher.glasses.Glasses.set3dForVr(false)
-            SessionState.notifyEnded(status)
-            stopForeground(STOP_FOREGROUND_REMOVE)
-            stopSelf()
         }
     }
 
@@ -1786,7 +1818,9 @@ class SessionService : Service() {
             SessionEvents.record("guest.exited", mapOf("status" to status))
             SessionEvents.transition(SessionPhase.STOPPING, "session.stopping", mapOf("status" to status))
             SessionState.running = false
-            Triple(SessionPaths.take(), SessionState.steamClientArch, sessionGen)
+            val ended = SessionPaths.take()
+            if (ended != null) SessionArtifacts.collectionStarted(ended)
+            Triple(ended, SessionState.steamClientArch, sessionGen)
         }
         SessionState.micAvailable = false
         SessionState.micEnabled = false
@@ -1814,8 +1848,6 @@ class SessionService : Service() {
         suspendController = null
         if (ended != null) {
             VacDiagnostics.snapshot(this, ended)
-            SessionArtifacts.collectionStarted(ended)
-            Thread({ collectSessionArtifacts(ended, endedArch) }, "session-collect").start()
         }
         components.reversed().forEach {
             try {
@@ -1825,6 +1857,9 @@ class SessionService : Service() {
             }
         }
         components.clear()
+        val collectEnded = {
+            if (ended != null) Thread({ collectSessionArtifacts(ended, endedArch) }, "session-collect").start()
+        }
         FakeInputWriter.releaseAllRingSlots()
         com.droiddeck.launcher.input.SteamTouchDevice.release()
         val steamClientMayRun = SessionState.mode == MODE_STEAM || SessionState.mode == MODE_DESKTOP
@@ -1836,13 +1871,13 @@ class SessionService : Service() {
                     auxiliary.forEach { (pid, started) -> teardown(pid, started) }
                     if (prootPid > 1) teardown(prootPid)
                     killGuestLeftovers()
-                    finishSessionStop(status, stoppedGen)
+                    finishSessionStop(status, stoppedGen, collectEnded)
                     if (launcherEnded) importLauncherGames()
                 }, "session-teardown").start()
             } else {
                 Thread({
                     com.droiddeck.launcher.stores.gog.GogComet.end(stoppedSession)
-                    finishSessionStop(status, stoppedGen)
+                    finishSessionStop(status, stoppedGen, collectEnded)
                     if (launcherEnded) importLauncherGames()
                 }, "gog-session-stop").start()
             }
@@ -2081,6 +2116,7 @@ class SessionService : Service() {
         const val ACTION_STOP = "com.droiddeck.launcher.STOP_SESSION"
         const val ACTION_RESUME = "com.droiddeck.launcher.RESUME_SESSION"
         const val ACTION_SUSPEND_NOW = "com.droiddeck.launcher.SUSPEND_NOW"
+        private const val ACTION_PAUSE_NOW = "com.droiddeck.launcher.PAUSE_NOW"
         private const val ACTION_PIP_BEGIN = "com.droiddeck.launcher.PIP_BEGIN"
         const val ACTION_LAUNCH_GAME = "com.droiddeck.launcher.LAUNCH_STEAM_GAME"
         const val ACTION_HOME_GUIDE = "com.droiddeck.launcher.HOME_GUIDE"
@@ -2155,6 +2191,7 @@ class SessionService : Service() {
         fun stop(context: Context) {
             if (!SessionState.running) {
                 SessionState.stopRequested = true
+                SessionState.installCancellation?.cancel()
                 return
             }
             context.startService(Intent(context, SessionService::class.java).setAction(ACTION_STOP))
@@ -2198,6 +2235,10 @@ class SessionService : Service() {
         fun holdForSignIn(context: Context, hold: Boolean) {
             if (!SessionState.running) return
             context.startService(Intent(context, SessionService::class.java).setAction(ACTION_SIGN_IN_HOLD).putExtra(EXTRA_HOLD, hold))
+        }
+
+        fun pause(context: Context) {
+            context.startService(Intent(context, SessionService::class.java).setAction(ACTION_PAUSE_NOW))
         }
 
         fun resume(context: Context) {
