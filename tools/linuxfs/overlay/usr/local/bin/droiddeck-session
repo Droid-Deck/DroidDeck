@@ -133,6 +133,9 @@ collect_steam_logs() {
   fi
 }
 trap 'collect_steam_logs 2>/dev/null || true' TERM INT HUP
+icd_library_loads() {
+  ! LD_LIBRARY_PATH="$(dirname "$1")${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" ldd "$1" 2>&1 | grep -q 'not found'
+}
 if [ -n "${BL_VK_DRIVER:-}" ]; then
   bl_icd_lib=$(sed -n 's/.*"library_path"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$BL_VK_DRIVER" 2>/dev/null | head -1)
   bl_icd_lib=$(printf '%s' "$bl_icd_lib" | sed 's|\\/|/|g')
@@ -140,12 +143,12 @@ if [ -n "${BL_VK_DRIVER:-}" ]; then
     /*) ;;
     ?*) bl_icd_lib="$(dirname "$BL_VK_DRIVER")/$bl_icd_lib" ;;
   esac
-  if [ -r "$BL_VK_DRIVER" ] && [ -n "$bl_icd_lib" ] && [ -r "$bl_icd_lib" ]; then
+  if [ -r "$BL_VK_DRIVER" ] && [ -n "$bl_icd_lib" ] && [ -r "$bl_icd_lib" ] && icd_library_loads "$bl_icd_lib"; then
     export VK_DRIVER_FILES="$BL_VK_DRIVER"
     export VK_ICD_FILENAMES="$BL_VK_DRIVER"
     echo "== vulkan driver: imported $bl_icd_lib (via $BL_VK_DRIVER)"
   else
-    echo "== vulkan driver: IGNORING $BL_VK_DRIVER (manifest or ${bl_icd_lib:-library} unreadable); using the runtime's own"
+    echo "== vulkan driver: IGNORING $BL_VK_DRIVER (manifest or ${bl_icd_lib:-library} unreadable, or its dependencies do not resolve in this runtime); using the runtime's own"
   fi
   unset bl_icd_lib
 fi
