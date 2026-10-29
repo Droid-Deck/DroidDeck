@@ -1727,6 +1727,7 @@ private fun StopConfirm(
         if (!open || !controllerActive || stopFocused || cancelFocused) return@LaunchedEffect
         delay(Motion.ms(300).toLong())
         withFrameNanos { }
+        if (stopFocused || cancelFocused) return@LaunchedEffect
         runCatching { cancelFocus.requestFocus() }
     }
     val p = pill ?: return

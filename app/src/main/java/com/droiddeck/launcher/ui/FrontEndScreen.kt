@@ -652,6 +652,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
         }
         var screenAt by remember { mutableStateOf(Offset.Zero) }
         if (s.dualScreen) DualPanelPublisher(s, railSelection, { key ->
+            if (processSettingsPageVisible) return@DualPanelPublisher
             if (inputModeManager.inputMode != InputMode.Keyboard) inputModeManager.requestInputMode(InputMode.Keyboard)
             focusManager.clearFocus(force = true)
             onRailSelect(key)

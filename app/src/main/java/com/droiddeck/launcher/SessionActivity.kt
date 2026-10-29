@@ -2815,6 +2815,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
         var presentation = secondScreenPresentation
         if (presentation?.display?.displayId != target.displayId) {
+            dropDockedDrawer()
             presentation?.closeControls()
             presentation = secondScreenPresentation(target)
             secondScreenPresentation = presentation
@@ -2960,7 +2961,15 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             (secondScreenPresentation?.showsKeyboard == true || dockDrawer()))
     }
 
+    private fun dropDockedDrawer() {
+        if (!drawerDocked) return
+        drawerDocked = false
+        drawerLayerOpen = false
+        drawerOpenState = false
+    }
+
     private fun closeSecondScreen(reset: Boolean) {
+        dropDockedDrawer()
         val focused = secondScreenPresentation?.window?.decorView?.hasWindowFocus() == true
         secondScreenPresentation?.closeControls()
         secondScreenPresentation = null
