@@ -1150,6 +1150,8 @@
     <string name="ctrl_stick_click_hint">Double-tap and hold a stick for L3 or R3</string>
     <string name="ctrl_adaptive">Adaptive sticks</string>
     <string name="ctrl_rumble">Game vibration</string>
+    <string name="ctrl_dead_zone">Stick dead zone</string>
+    <string name="ctrl_dead_zone_hint" formatted="false">Physical controller sticks. 0% disables the dead zone; the default is 12%.</string>
     <string name="ctrl_steam_button">Steam button</string>
     <string name="ctrl_qam_button">QAM button</string>
     <string name="ctrl_keyboard_button">Keyboard button</string>
