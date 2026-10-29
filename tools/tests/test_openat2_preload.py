@@ -169,8 +169,12 @@ int main(int argc, char **argv) {
   if (syscall(RAW_FSTATAT, AT_FDCWD, argv[2], &st, 0) != -1 || errno != ENOENT) return 2;
   long n = syscall(SYS_readlinkat, AT_FDCWD, argv[3], link, sizeof(link) - 1);
   if (n <= 0) return 3;
-  if (syscall(SYS_statx, AT_FDCWD, argv[1], 0, STATX_SIZE, &sx) != 0) return 4;
-  if (syscall(SYS_statx, AT_FDCWD, argv[2], 0, STATX_SIZE, &sx) != -1 || errno != ENOENT) return 5;
+  sx.stx_size = 0;
+  long found = syscall(SYS_statx, AT_FDCWD, argv[1], 0, STATX_SIZE, &sx);
+  int have_statx = !(found == -1 && errno == ENOSYS);
+  if (have_statx && found != 0) return 4;
+  long missing = syscall(SYS_statx, AT_FDCWD, argv[2], 0, STATX_SIZE, &sx);
+  if (have_statx && (missing != -1 || errno != ENOENT)) return 5;
   printf("%lld %.*s %llu\n", (long long)st.st_size, (int)n, link, (unsigned long long)sx.stx_size);
   return 0;
 }
