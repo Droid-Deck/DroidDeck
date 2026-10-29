@@ -360,6 +360,7 @@ internal fun AdbTextField(
     onNext: (() -> Unit)? = null,
     onDone: (() -> Unit)? = null,
     focusOnShow: Boolean = false,
+    showLabel: Boolean = true,
 ) {
     val context = LocalContext.current
     val focusAsked = remember { booleanArrayOf(false) }
@@ -374,7 +375,7 @@ internal fun AdbTextField(
     val colors = MaterialTheme.colorScheme
 
     Column(modifier = modifier.fillMaxWidth()) {
-        Text(
+        if (showLabel) Text(
             label,
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Medium,

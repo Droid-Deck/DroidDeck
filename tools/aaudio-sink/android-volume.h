@@ -3,10 +3,15 @@
 #include <pulsecore/core-rtclock.h>
 #include <pulsecore/core-subscribe.h>
 
+#define ANDROID_VOLUME_IDLE_MS 100
+#define ANDROID_VOLUME_ACTIVE_MS 16
+#define ANDROID_VOLUME_ACTIVE_TICKS 40
+
 struct android_volume {
     pa_sink *sink;
     char *directory;
     pa_time_event *timer;
+    unsigned active_ticks;
 };
 
 static bool android_volume_read(const char *directory, unsigned *level, unsigned *maximum, unsigned *muted) {
@@ -57,22 +62,39 @@ static void android_volume_refresh(pa_mainloop_api *api, pa_time_event *event, c
     char *processing = pa_sprintf_malloc("%s.processing", request);
     char *mute_processing = pa_sprintf_malloc("%s.processing", mute_request);
     if (access(request, F_OK) != 0 && access(mute_request, F_OK) != 0 &&
-        access(processing, F_OK) != 0 && access(mute_processing, F_OK) != 0 &&
-        android_volume_read(bridge->directory, &level, &maximum, &muted)) {
-        pa_cvolume volume;
-        if (bridge->sink->n_volume_steps != maximum + 1) {
-            bridge->sink->n_volume_steps = maximum + 1;
-            pa_subscription_post(bridge->sink->core, PA_SUBSCRIPTION_EVENT_SINK | PA_SUBSCRIPTION_EVENT_CHANGE, bridge->sink->index);
+        access(processing, F_OK) != 0 && access(mute_processing, F_OK) != 0) {
+        if (android_volume_read(bridge->directory, &level, &maximum, &muted)) {
+            pa_cvolume volume;
+            bool changed = false;
+            if (bridge->sink->n_volume_steps != maximum + 1) {
+                bridge->sink->n_volume_steps = maximum + 1;
+                pa_subscription_post(bridge->sink->core, PA_SUBSCRIPTION_EVENT_SINK | PA_SUBSCRIPTION_EVENT_CHANGE, bridge->sink->index);
+            }
+            pa_cvolume_set(&volume, bridge->sink->sample_spec.channels, (uint64_t)level * PA_VOLUME_NORM / maximum);
+            if (!pa_cvolume_equal(&volume, &bridge->sink->real_volume)) {
+                pa_sink_volume_changed(bridge->sink, &volume);
+                changed = true;
+            }
+            if (bridge->sink->muted != !!muted) {
+                pa_sink_mute_changed(bridge->sink, !!muted);
+                changed = true;
+            }
+            if (changed) bridge->active_ticks = ANDROID_VOLUME_ACTIVE_TICKS;
         }
-        pa_cvolume_set(&volume, bridge->sink->sample_spec.channels, (uint64_t)level * PA_VOLUME_NORM / maximum);
-        if (!pa_cvolume_equal(&volume, &bridge->sink->real_volume)) pa_sink_volume_changed(bridge->sink, &volume);
-        if (bridge->sink->muted != !!muted) pa_sink_mute_changed(bridge->sink, !!muted);
+    } else {
+        bridge->active_ticks = ANDROID_VOLUME_ACTIVE_TICKS;
     }
     pa_xfree(request);
     pa_xfree(mute_request);
     pa_xfree(processing);
     pa_xfree(mute_processing);
-    pa_core_rttime_restart(bridge->sink->core, event, pa_rtclock_now() + 100 * PA_USEC_PER_MSEC);
+    /* A held volume key steps Android every ~50 ms; sampling at 100 ms hands Steam uneven multi-step jumps. */
+    unsigned delay_ms = ANDROID_VOLUME_IDLE_MS;
+    if (bridge->active_ticks) {
+        bridge->active_ticks--;
+        delay_ms = ANDROID_VOLUME_ACTIVE_MS;
+    }
+    pa_core_rttime_restart(bridge->sink->core, event, pa_rtclock_now() + delay_ms * PA_USEC_PER_MSEC);
 }
 
 static struct android_volume *android_volume_new(pa_sink *sink, const char *directory) {
@@ -90,7 +112,7 @@ static struct android_volume *android_volume_new(pa_sink *sink, const char *dire
     pa_cvolume_reset(&sink->soft_volume, sink->sample_spec.channels);
     pa_sink_set_set_volume_callback(sink, android_volume_set);
     pa_sink_set_set_mute_callback(sink, android_volume_mute);
-    bridge->timer = pa_core_rttime_new(sink->core, pa_rtclock_now() + 100 * PA_USEC_PER_MSEC,
+    bridge->timer = pa_core_rttime_new(sink->core, pa_rtclock_now() + ANDROID_VOLUME_IDLE_MS * PA_USEC_PER_MSEC,
                                      android_volume_refresh, bridge);
     return bridge;
 }

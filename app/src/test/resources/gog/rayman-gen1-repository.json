@@ -1,0 +1,65 @@
+{
+  "product": {
+    "timestamp": 31847977,
+    "depots": [
+      {
+        "languages": [
+          "Neutral"
+        ],
+        "size": "1258944",
+        "gameIDs": [
+          "1207658940"
+        ],
+        "systems": [
+          "Windows"
+        ],
+        "manifest": "a01f6fb8-55a8-4f33-bc5b-5f5d2f591775.json"
+      },
+      {
+        "languages": [
+          "English"
+        ],
+        "size": "505011865",
+        "gameIDs": [
+          "1207658940"
+        ],
+        "systems": [
+          "Windows"
+        ],
+        "manifest": "ec88140c-2589-41a0-bbf3-8fc1f215fe5a.json"
+      },
+      {
+        "redist": "nGlide",
+        "size": "0",
+        "targetDir": "/"
+      }
+    ],
+    "support_commands": [
+      {
+        "languages": [
+          "Neutral"
+        ],
+        "executable": "/galaxy_rayman2_2.1.0.39.exe",
+        "gameID": "1207658940",
+        "argument": "",
+        "systems": [
+          "Windows"
+        ]
+      }
+    ],
+    "installDirectory": "Rayman 2",
+    "rootGameID": "1207658940",
+    "gameIDs": [
+      {
+        "gameID": "1207658940",
+        "name": {
+          "en": "Rayman 2 - The Great Escape"
+        },
+        "dependencies": [],
+        "standalone": true
+      }
+    ],
+    "projectName": "Rayman 2 - The Great Escape"
+  },
+  "version": 1
+}

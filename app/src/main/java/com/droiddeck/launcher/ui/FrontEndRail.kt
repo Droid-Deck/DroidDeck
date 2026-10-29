@@ -119,7 +119,7 @@ internal fun BottomBar(
     }
 }
 
-private fun navigationKeys(s: FrontEndState) = buildList {
+internal fun navigationKeys(s: FrontEndState) = buildList {
     add("steam"); add("games")
     if (s.gameStoresEnabled) add("stores")
     add("desktop"); add("components")
