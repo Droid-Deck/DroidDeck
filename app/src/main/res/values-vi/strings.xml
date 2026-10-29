@@ -614,7 +614,7 @@
     <string name="hud_size_minimal">Tối giản</string>
     <string name="hud_size_mega">Mega</string>
     <string name="hud_locked">Khóa vị trí</string>
-    <string name="hud_locked_hint">Kéo HUD để di chuyển; nhấn giữ để khóa hoặc mở khóa.</string>
+    <string name="hud_locked_hint">Kéo HUD để di chuyển; nhấn giữ để khóa. Khi khóa, thao tác chạm sẽ đi xuyên qua; tắt mục này để di chuyển lại.</string>
     <string name="hud_group_look">Giao diện</string>
     <string name="hud_scale">Kích thước trên màn hình</string>
     <string name="hud_color_soft">Dịu</string>

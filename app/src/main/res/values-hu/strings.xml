@@ -616,7 +616,7 @@
     <string name="hud_size_minimal">Minimális</string>
     <string name="hud_size_mega">Mega</string>
     <string name="hud_locked">Rögzítés a helyén</string>
-    <string name="hud_locked_hint">Húzd a HUD-ot az áthelyezéshez; hosszú nyomással rögzítheted vagy feloldhatod.</string>
+    <string name="hud_locked_hint">Húzd a HUD-ot az áthelyezéshez; hosszú nyomással rögzítheted. Rögzítve átengedi az érintéseket; kapcsold ki ezt, hogy újra mozgathasd.</string>
     <string name="hud_group_look">Megjelenés</string>
     <string name="hud_scale">Méret a képernyőn</string>
     <string name="hud_color_soft">Lágy</string>

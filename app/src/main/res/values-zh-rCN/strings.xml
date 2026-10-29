@@ -616,7 +616,7 @@
     <string name="hud_size_minimal">极简</string>
     <string name="hud_size_mega">超大</string>
     <string name="hud_locked">锁定位置</string>
-    <string name="hud_locked_hint">拖动 HUD 可移动位置；长按可锁定或解锁。</string>
+    <string name="hud_locked_hint">拖动 HUD 可移动位置；长按可锁定。锁定后触摸会穿透 HUD；关闭此选项即可再次移动。</string>
     <string name="hud_group_look">外观</string>
     <string name="hud_scale">屏幕显示大小</string>
     <string name="hud_color_soft">柔和</string>

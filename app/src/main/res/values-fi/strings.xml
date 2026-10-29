@@ -616,7 +616,7 @@
     <string name="hud_size_minimal">Minimaalinen</string>
     <string name="hud_size_mega">Mega</string>
     <string name="hud_locked">Lukitse paikalleen</string>
-    <string name="hud_locked_hint">Siirrä HUD:ia vetämällä; pitkä painallus lukitsee tai vapauttaa sen.</string>
+    <string name="hud_locked_hint">Siirrä HUD:ia vetämällä; pitkä painallus lukitsee sen. Lukittuna se päästää kosketukset läpi; poista tämä käytöstä siirtääksesi sitä taas.</string>
     <string name="hud_group_look">Ulkoasu</string>
     <string name="hud_scale">Koko näytöllä</string>
     <string name="hud_color_soft">Pehmeä</string>

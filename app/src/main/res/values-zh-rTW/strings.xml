@@ -616,7 +616,7 @@
     <string name="hud_size_minimal">極簡</string>
     <string name="hud_size_mega">超大</string>
     <string name="hud_locked">鎖定位置</string>
-    <string name="hud_locked_hint">拖曳 HUD 可移動位置；長按可鎖定或解鎖。</string>
+    <string name="hud_locked_hint">拖曳 HUD 可移動位置；長按可鎖定。鎖定後觸控會穿透 HUD；關閉此選項即可再次移動。</string>
     <string name="hud_group_look">外觀</string>
     <string name="hud_scale">螢幕顯示大小</string>
     <string name="hud_color_soft">柔和</string>
