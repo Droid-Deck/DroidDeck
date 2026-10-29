@@ -28,6 +28,10 @@ class FusionHudPanelTest {
         assertEquals(FusionSize.MINIMAL, FusionSize.from(FusionHudConfig.DEFAULTS["hudSize"]))
     }
 
+    @Test fun theHudStartsLocked() {
+        assertEquals("1", FusionHudConfig.DEFAULTS["hudLocked"])
+    }
+
     @Test fun everySizeDrawsTheDPanelWithEverythingInsideIt() {
         val stats = FrameStats()
         var now = 1_000_000_000L
@@ -99,7 +103,7 @@ class FusionHudPanelTest {
         val parent = FrameLayout(app)
         parent.addView(under, FrameLayout.LayoutParams(2000, 2000))
         parent.addView(hud, FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT))
-        hud.applyConfig(FusionHudConfig.encode(FusionHudConfig.DEFAULTS))
+        hud.applyConfig(FusionHudConfig.encode(FusionHudConfig.DEFAULTS + ("hudLocked" to "0")))
         hud.showForTest(SNAPSHOT, "DXVK", 0L)
         val exactly = View.MeasureSpec.makeMeasureSpec(2000, View.MeasureSpec.EXACTLY)
         parent.measure(exactly, exactly)
