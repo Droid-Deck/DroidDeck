@@ -8,8 +8,11 @@ import android.view.View
 import androidx.compose.runtime.MutableState
 import com.droiddeck.launcher.SessionActivity
 import com.droiddeck.launcher.glasses.GlassesScreen
+import com.droiddeck.launcher.session.SessionDisplay
+import com.droiddeck.launcher.session.SessionState
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -117,6 +120,26 @@ class ExternalOutputHandoffTest {
         assertSame(screen.holder, outputHolder())
     }
 
+    @Test fun theMonitorKeepsItsOwnSizeInsteadOfThePhoneChoice() {
+        val followed = SessionState.followScreen
+        try {
+            SessionState.followScreen = false
+            assertNull(windowOutputSize(2560, 1440))
+        } finally {
+            SessionState.followScreen = followed
+        }
+    }
+
+    @Test fun aFollowedMonitorIsSizedWithoutThePhoneControlsBelowTheGame() {
+        val followed = SessionState.followScreen
+        try {
+            SessionState.followScreen = true
+            assertEquals(SessionDisplay.followSize(2560, 1440, false), windowOutputSize(2560, 1440))
+        } finally {
+            SessionState.followScreen = followed
+        }
+    }
+
     @Test fun losingTheMonitorSurfaceClearsTheActiveOutput() {
         attach(screen.holder)
         activity.surfaceDestroyed(screen.holder)
@@ -137,6 +160,9 @@ class ExternalOutputHandoffTest {
     private fun restore() {
         ReflectionHelpers.callInstanceMethod<Void>(activity, "restorePhoneFromExternal", from(ExternalOutputScreen::class.java, screen))
     }
+
+    private fun windowOutputSize(width: Int, height: Int): Pair<Int, Int>? = ReflectionHelpers.callInstanceMethod(
+        activity, "windowOutputSize", from(Int::class.javaPrimitiveType, width), from(Int::class.javaPrimitiveType, height))
 
     private fun outputHolder(): SurfaceHolder = ReflectionHelpers.callInstanceMethod(activity, "outputHolder")
 

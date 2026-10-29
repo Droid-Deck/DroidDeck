@@ -2757,9 +2757,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 (width and 1.inv()) to (height and 1.inv())
             else -> null
         }
+        val external = externalScreen != null
         return if (SessionState.followScreen)
-            com.droiddeck.launcher.session.SessionDisplay.followSize(width, height, controlsBelowWanted(), SessionState.followScale)
-        else if (glassesScreen == null) outputSize() else null
+            com.droiddeck.launcher.session.SessionDisplay.followSize(width, height, !external && controlsBelowWanted(), SessionState.followScale)
+        else if (glassesScreen == null && !external) outputSize() else null
     }
 
     private fun resizeOutputForWindow(width: Int, height: Int) {
