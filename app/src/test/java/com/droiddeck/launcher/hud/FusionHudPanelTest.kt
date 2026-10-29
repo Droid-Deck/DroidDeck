@@ -3,8 +3,11 @@ package com.droiddeck.launcher.hud
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
+import android.os.Looper
+import android.os.SystemClock
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
 import android.widget.FrameLayout
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -13,9 +16,11 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import java.io.ByteArrayOutputStream
+import java.time.Duration
 import java.util.Base64
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
@@ -93,7 +98,7 @@ class FusionHudPanelTest {
         assertTrue(nothing.toString(), nothing.none { "BAT" in it })
     }
 
-    @Test fun aLockedHudLetsTouchesThroughToTheViewUnderIt() {
+    @Test fun aLockedHudLetsTouchesThroughOnlyWhereAControlTakesThem() {
         val app = RuntimeEnvironment.getApplication()
         var reached = 0
         val under = View(app).apply {
@@ -103,25 +108,35 @@ class FusionHudPanelTest {
         val parent = FrameLayout(app)
         parent.addView(under, FrameLayout.LayoutParams(2000, 2000))
         parent.addView(hud, FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT))
+        var control = false
+        hud.passesTouchAt = { _, _ -> control }
+        val locks = ArrayList<Boolean>()
+        hud.setOnLockChangedListener { locks += it }
         hud.applyConfig(FusionHudConfig.encode(FusionHudConfig.DEFAULTS + ("hudLocked" to "0")))
         hud.showForTest(SNAPSHOT, "DXVK", 0L)
         val exactly = View.MeasureSpec.makeMeasureSpec(2000, View.MeasureSpec.EXACTLY)
         parent.measure(exactly, exactly)
         parent.layout(0, 0, 2000, 2000)
         assertTrue(hud.width > 0 && hud.height > 0)
-        fun touch() {
+        fun touch(holdMs: Long = 50L) {
             val x = hud.width / 2f; val y = hud.height / 2f
-            for ((t, action) in listOf(0L to MotionEvent.ACTION_DOWN, 50L to MotionEvent.ACTION_UP)) {
-                val e = MotionEvent.obtain(0L, t, action, x, y, 0)
-                parent.dispatchTouchEvent(e)
-                e.recycle()
-            }
+            val down = SystemClock.uptimeMillis()
+            MotionEvent.obtain(down, down, MotionEvent.ACTION_DOWN, x, y, 0).also { parent.dispatchTouchEvent(it); it.recycle() }
+            shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(holdMs))
+            MotionEvent.obtain(down, SystemClock.uptimeMillis(), MotionEvent.ACTION_UP, x, y, 0).also { parent.dispatchTouchEvent(it); it.recycle() }
+            shadowOf(Looper.getMainLooper()).idle()
         }
+        control = true
         touch()
-        assertEquals("an unlocked HUD takes the touch (tap, drag, long press)", 0, reached)
+        assertEquals("an unlocked HUD keeps the touch (tap, drag, long press)", 0, reached)
         hud.applyConfig(FusionHudConfig.encode(FusionHudConfig.DEFAULTS + ("hudLocked" to "1")))
         touch()
-        assertEquals("a locked HUD passes it on", 1, reached)
+        assertEquals("a locked HUD passes it to the control under it", 1, reached)
+        control = false
+        touch()
+        assertEquals("a locked HUD keeps a touch no control takes", 1, reached)
+        touch(holdMs = ViewConfiguration.getLongPressTimeout() + 300L)
+        assertEquals("a long press there unlocks it", listOf(false), locks)
     }
 
     private companion object {

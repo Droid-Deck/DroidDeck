@@ -655,6 +655,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
         hud = FusionHudHost(this)
         hud.onConfigChanged = { hudConfig = FusionHudConfig.load(this) }
+        hud.passesTouchAt = ::controlTakesTouchAt
         hud.attach(root, root.childCount)
         memoryHud = com.droiddeck.launcher.session.MemoryHud(this)
         hud.onPresentingWindowChanged = {
@@ -2438,6 +2439,21 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun dispatchTrackballEvent(event: MotionEvent): Boolean =
         onCapturedPointer(event) || super.dispatchTrackballEvent(event)
+
+    /** Whether one of the on-screen control layers takes a finger going down at this screen point. */
+    private fun controlTakesTouchAt(rawX: Float, rawY: Float): Boolean {
+        val at = IntArray(2)
+        fun takes(view: View, hit: (Float, Float) -> Boolean): Boolean {
+            if (!view.isShown) return false
+            view.getLocationOnScreen(at)
+            val x = rawX - at[0]
+            val y = rawY - at[1]
+            return x >= 0f && y >= 0f && x < view.width && y < view.height && hit(x, y)
+        }
+        return onScreenControls?.let { takes(it, it::takesTouchAt) } == true ||
+            steamTouchControls?.let { takes(it, it::takesTouchAt) } == true ||
+            screenKeys?.let { takes(it, it::takesTouchAt) } == true
+    }
 
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {
         if (pipUi) return true
