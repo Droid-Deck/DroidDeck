@@ -648,10 +648,11 @@ class GameEnvironmentTest(unittest.TestCase):
             game.write_bytes(b"MZ")
             config = Path(tmp) / ".config/droiddeck/game-environment.json"
             config.parent.mkdir(parents=True)
-            for inherited, edits, expected in (({}, None, "2"), ({"vblank_mode": "0"}, None, "0"),
-                                               ({}, {"vblank_mode": "1"}, "1")):
-                with self.subTest(inherited=inherited, edits=edits):
-                    config.write_text(json.dumps({"version": 1, "games": {"1167630": edits or {}}}))
+            for inherited, edits, shared, expected in (({}, None, None, "2"), ({"vblank_mode": "0"}, None, None, "0"),
+                                                       ({}, {"vblank_mode": "1"}, None, "1"),
+                                                       ({}, None, {"vblank_mode": "1"}, "1")):
+                with self.subTest(inherited=inherited, edits=edits, shared=shared):
+                    config.write_text(json.dumps({"version": 1, "shared": shared or {}, "games": {"1167630": edits or {}}}))
                     env = {name: value for name, value in os.environ.items() if name != "vblank_mode"}
                     env.update(HOME=tmp, STEAM_COMPAT_DATA_PATH="/compatdata/1167630", **inherited)
                     result = subprocess.run([sys.executable, str(BIN / "droiddeck-game-env"), str(probe), "waitforexitandrun", str(game)],

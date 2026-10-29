@@ -767,6 +767,8 @@ def main():
             with path.open(encoding="utf-8") as source:
                 config = json.load(source)
             if waiting:
+                if "vblank_mode" in config.get("shared", {}):
+                    fixes.pop("vblank_mode", None)
                 env = apply_config(env, config, app_id, fixes)
             else:
                 env = apply_config(env, sync_config(config, app_id), app_id)

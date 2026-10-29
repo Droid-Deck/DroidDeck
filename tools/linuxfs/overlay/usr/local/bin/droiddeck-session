@@ -27,7 +27,7 @@ sync_timezone() {
   case "$zone" in ''|/*|*..*) return 0 ;; esac
   [ -f "/usr/share/zoneinfo/$zone" ] || return 0
   if [ "$(readlink /etc/localtime 2>/dev/null)" != "/usr/share/zoneinfo/$zone" ]; then
-    ln -sfn "/usr/share/zoneinfo/$zone" /etc/localtime.droiddeck && mv -Tf /etc/localtime.droiddeck /etc/localtime
+    ln -sfn "/usr/share/zoneinfo/$zone" /etc/localtime.droiddeck && mv -Tf /etc/localtime.droiddeck /etc/localtime || return 0
   fi
   [ "$(cat /etc/timezone 2>/dev/null)" = "$zone" ] || printf '%s\n' "$zone" > /etc/timezone
 } 2>/dev/null
