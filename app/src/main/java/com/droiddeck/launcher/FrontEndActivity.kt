@@ -669,6 +669,7 @@ class FrontEndActivity : ComponentActivity() {
     private var shortcutLibraryScanning by mutableStateOf(false)
     @Volatile private var libraryScanGeneration = 0
     @Volatile private var lastComponentRestore = 0L
+    @Volatile private var componentRestoreRetry = false
     private var pendingGameLink: String? = null
     private var gameLinkReading = false
     private var gameLinkTried = false
@@ -2498,16 +2499,31 @@ class FrontEndActivity : ComponentActivity() {
             val all = games.distinctBy { it.gameId }
             if (ready && scanGeneration == libraryScanGeneration) com.droiddeck.launcher.frontend.LibraryCache.save(this, all, scannedX64)
             val endedSession = SessionState.sessionId.takeIf { !SessionState.running && it != null && it != componentSweepSession }
-            if (ready && (!componentSweepDone || endedSession != null)) {
+            val sweepDue = ready && (!componentSweepDone || endedSession != null)
+            if (sweepDue) {
                 componentSweepDone = true
                 endedSession?.let { componentSweepSession = it }
-                ui.postDelayed({ Thread({ com.droiddeck.launcher.frontend.AutoComponents.sweep(this, all) }, "components-sweep").start() }, 10_000)
             }
             val now = android.os.SystemClock.elapsedRealtime()
-            if (ready && (lastComponentRestore == 0L || now - lastComponentRestore >= COMPONENT_RESTORE_MS)) {
+            val restoreDue = ready && (lastComponentRestore == 0L || now - lastComponentRestore >= COMPONENT_RESTORE_MS)
+            if (restoreDue) {
                 lastComponentRestore = now
-                ui.postDelayed({ Thread({ com.droiddeck.launcher.frontend.AutoComponents.restoreMissing(this) }, "components-restore").start() }, 10_000)
+            } else if (ready && !componentRestoreRetry) {
+                componentRestoreRetry = true
+                ui.postDelayed({
+                    componentRestoreRetry = false
+                    if (!isDestroyed) {
+                        lastComponentRestore = android.os.SystemClock.elapsedRealtime()
+                        Thread({ com.droiddeck.launcher.frontend.AutoComponents.restoreMissing(this) }, "components-restore").start()
+                    }
+                }, (COMPONENT_RESTORE_MS - (now - lastComponentRestore)).coerceAtLeast(0L))
             }
+            if (restoreDue || sweepDue) ui.postDelayed({
+                Thread({
+                    if (restoreDue) runCatching { com.droiddeck.launcher.frontend.AutoComponents.restoreMissing(this) }.onFailure { Log.w(TAG, "components: restore failed", it) }
+                    if (sweepDue) com.droiddeck.launcher.frontend.AutoComponents.sweep(this, all)
+                }, "components-restore").start()
+            }, 10_000)
             ui.post {
                 if (scanGeneration == libraryScanGeneration) {
                     val current = steamGames.filter { it.library != Library.ADDED }.associateBy { it.appId }
