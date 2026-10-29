@@ -666,6 +666,7 @@ class FrontEndActivity : ComponentActivity() {
     private var shortcutPicker by mutableStateOf(false)
     private var shortcutLibraryScanning by mutableStateOf(false)
     @Volatile private var libraryScanGeneration = 0
+    @Volatile private var lastComponentRestore = 0L
     private var pendingGameLink: String? = null
     private var gameSyncFolder by mutableStateOf<String?>(null)
     private fun pickGameExport(game: Library.SteamGame?) {
@@ -2472,10 +2473,12 @@ class FrontEndActivity : ComponentActivity() {
             if (ready && (!componentSweepDone || endedSession != null)) {
                 componentSweepDone = true
                 endedSession?.let { componentSweepSession = it }
-                ui.postDelayed({ Thread({
-                    com.droiddeck.launcher.frontend.AutoComponents.restoreMissing(this)
-                    com.droiddeck.launcher.frontend.AutoComponents.sweep(this, all)
-                }, "components-sweep").start() }, 10_000)
+                ui.postDelayed({ Thread({ com.droiddeck.launcher.frontend.AutoComponents.sweep(this, all) }, "components-sweep").start() }, 10_000)
+            }
+            val now = android.os.SystemClock.elapsedRealtime()
+            if (ready && (lastComponentRestore == 0L || now - lastComponentRestore >= COMPONENT_RESTORE_MS)) {
+                lastComponentRestore = now
+                ui.postDelayed({ Thread({ com.droiddeck.launcher.frontend.AutoComponents.restoreMissing(this) }, "components-restore").start() }, 10_000)
             }
             ui.post {
                 if (scanGeneration == libraryScanGeneration) {
@@ -2639,6 +2642,7 @@ class FrontEndActivity : ComponentActivity() {
     companion object {
         private const val TAG = "MainActivity"
         private const val MEDIA_SETTLE_MS = 1500L
+        private const val COMPONENT_RESTORE_MS = 60_000L
         private const val SESSION_SWITCH_WAIT_MS = 30_000L
         private const val SESSION_SWITCH_POLL_MS = 250L
         private const val KEY_PENDING_SWITCH = "pending_switch"

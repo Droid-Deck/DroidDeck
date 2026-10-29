@@ -150,6 +150,35 @@ class WinComponentsTest(unittest.TestCase):
         self.assertFalse((self.pfx / "syswow64/dmband.dll").exists())
         self.assertFalse((self.pfx / "syswow64/openal32.dll").exists())
 
+    def test_state_from_before_the_update_keeps_a_missing_bundles_parts(self):
+        dll = self.pfx / "syswow64/dmband.dll"
+        dll.parent.mkdir(parents=True)
+        dll.write_bytes(b"band")
+        self.compat.joinpath(".droiddeck-wincomponents.json").write_text(json.dumps({
+            "files": {"syswow64/dmband.dll": "dmband"}, "components": ["dmband", "directmusic"], "registry": {}}))
+        self.pick("directmusic")
+        names, notes = self.apply()
+        self.assertEqual(MODULE["overrides_value"](names), "dmband=n,b")
+        self.assertEqual(dll.read_bytes(), b"band")
+        self.assertEqual(len(notes), 2)
+        names, _ = self.apply()
+        self.assertEqual(MODULE["overrides_value"](names), "dmband=n,b")
+        self.assertTrue(dll.exists())
+
+    def test_a_missing_component_that_only_set_registry_values_keeps_them(self):
+        self.pfx.parent.mkdir(parents=True)
+        user = self.compat / "pfx/user.reg"
+        user.write_text('WINE REGISTRY Version 2\n\n[Software\\\\Test] 1700000000\n"Mode"="ours"\n')
+        ident = "HKCU\tsoftware\\test\tmode"
+        self.compat.joinpath(".droiddeck-wincomponents.json").write_text(json.dumps({
+            "files": {}, "components": ["tweak"], "requires": {}, "overrides": {"tweak": []},
+            "registry": {ident: {"prev": None, "cid": "tweak", "hive": "HKCU", "key": "Software\\Test", "name": "Mode"}}}))
+        self.pick("tweak")
+        _, notes = self.apply()
+        self.assertIn('"Mode"="ours"', user.read_text())
+        self.assertIn("tweak is not in the store; kept the files it placed until it is installed again", notes)
+        self.assertIn(ident, json.loads((self.compat / ".droiddeck-wincomponents.json").read_text())["registry"])
+
     def test_no_selection_touches_nothing(self):
         self.assertEqual(self.apply(), ([], []))
         self.assertFalse(self.compat.exists())

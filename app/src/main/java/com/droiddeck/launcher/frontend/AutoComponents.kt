@@ -89,7 +89,13 @@ object AutoComponents {
 
     private fun enqueue(context: Context, job: Job) {
         if (!queuedKeys.add(job.key)) {
-            if (job.asked && jobs.removeIf { it.key == job.key && !it.asked }) jobs.add(job)
+            synchronized(jobs) {
+                val old = jobs.firstOrNull { it.key == job.key }
+                if (old != null && ((job.asked && !old.asked) || (job.inSession && !old.inSession)) && jobs.remove(old)) {
+                    jobs.add(Job(old.game ?: job.game, old.component, old.asked || job.asked,
+                        if (job.asked && !old.asked) job.seq else old.seq, old.pics ?: job.pics, old.inSession || job.inSession))
+                }
+            }
             if (runNow && !draining) drain(context)
             return
         }
@@ -236,6 +242,13 @@ object AutoComponents {
             write(context, games)
         }
 
+        @Synchronized fun add(context: Context, key: String, ids: List<String>) {
+            val games = read(context)
+            val have = games.optJSONArray(key)?.let { a -> (0 until a.length()).map { a.optString(it) } }.orEmpty()
+            games.put(key, JSONArray((have + ids).distinct()))
+            write(context, games)
+        }
+
         @Synchronized fun drop(context: Context, id: String) {
             val games = read(context)
             for (k in games.keys().asSequence().toList()) {
@@ -321,15 +334,27 @@ object AutoComponents {
     fun restoreMissing(context: Context): List<String> {
         val selections = WinComponents.selections(context)
         if (selections.isEmpty()) return emptyList()
-        val installed = installedOf(context)
-        val picked = selections.values.flatMap { it.effective }.filter { WinComponents.validId(it) && it !in installed }.distinct()
-        if (picked.isEmpty()) return emptyList()
         val catalog = (catalogOf(context, false) ?: catalogOf(context, true))?.associateBy { it.name } ?: return emptyList()
-        val lost = picked.filter { it in catalog }
-        if (lost.isEmpty()) return emptyList()
+        val installed = installedOf(context)
+        val lostFor = selections.mapValues { (_, selection) ->
+            withParts(selection.effective.filter { WinComponents.validId(it) }, catalog).filter { it !in installed && it in catalog }
+        }.filterValues { it.isNotEmpty() }
+        if (lostFor.isEmpty()) return emptyList()
+        val lost = lostFor.values.flatten().distinct()
         Log.i(TAG, "wincomp: reinstalling ${lost.joinToString()}, picked for games but missing from the runtime")
+        lostFor.forEach { (key, ids) -> Pending.add(context, key, ids) }
         lost.forEach { queueDownload(context, it, asked = true, inSession = true) }
         return lost
+    }
+
+    private fun withParts(ids: List<String>, catalog: Map<String, WinComponents.Component>): List<String> {
+        val out = LinkedHashSet<String>()
+        fun visit(id: String, depth: Int) {
+            if (depth > 8 || !out.add(id)) return
+            catalog[id]?.dependencies?.forEach { visit(it, depth + 1) }
+        }
+        ids.forEach { visit(it, 0) }
+        return out.toList()
     }
 
     fun refreshLater(context: Context, game: Library.SteamGame) = queueGame(context, game, asked = true)

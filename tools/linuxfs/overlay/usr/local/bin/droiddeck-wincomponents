@@ -563,13 +563,25 @@ def apply(compat_path, app_id, selection=SELECTION, store=STORE, pending=PENDING
     held = set()
     saved_overrides = state.get("overrides") if isinstance(state.get("overrides"), dict) else {}
     saved_requires = state.get("requires") if isinstance(state.get("requires"), dict) else {}
+    recorded = [c for c in state.get("components", []) if isinstance(c, str) and valid_id(c)]
+    owners = set(state["files"].values())
+    registry_owners = {r.get("cid") for r in (state.get("registry") or {}).values() if isinstance(r, dict)}
+    if "requires" not in state:
+        loose = [c for c in recorded if c not in ids and c in owners and component(store, c) is None]
+        for cid in ids:
+            if component(store, cid) is None and cid not in owners and cid in recorded:
+                saved_requires = dict(saved_requires, **{cid: loose})
     kept_overrides, kept_requires = {}, {}
     for cid in expand(store, ids, saved_requires):
         found = component(store, cid)
         if found is None:
-            if cid in saved_requires or any(owner == cid for owner in state["files"].values()):
+            if cid in saved_requires or cid in recorded or cid in owners or cid in registry_owners:
                 held.add(cid)
-                names = [n for n in saved_overrides.get(cid, []) if isinstance(n, str)]
+                if cid in saved_overrides:
+                    names = [n for n in saved_overrides.get(cid, []) if isinstance(n, str)]
+                else:
+                    names = sorted({Path(rel).stem.lower() for rel, owner in state["files"].items()
+                                    if owner == cid and rel.lower().endswith(".dll")})
                 overrides += names
                 kept_overrides[cid] = names
                 if isinstance(saved_requires.get(cid), list):
