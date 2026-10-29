@@ -87,7 +87,7 @@ compile() {
     if [ "$native" = 1 ]; then
         (cd "$repo" && "${cmd[@]}")
     else
-        docker run --rm --platform linux/amd64 --user "$(id -u):$(id -g)" -v "$repo:/src" -w /src \
+        docker run --rm --platform "${DROIDDECK_DOCKER_PLATFORM:-linux/amd64}" --user "$(id -u):$(id -g)" -v "$repo:/src" -w /src \
             "${DROIDDECK_BUILD_IMAGE:-droiddeck-local-cross:24.04-v3}" "${cmd[@]}"
     fi
 }
