@@ -28,6 +28,7 @@ int fstatfs(int fd, struct statfs *out) {
   int result = (int)syscall(SYS_fstatfs, fd, out);
   if (result == 0 && strstr(path, "/fuse/")) out->f_type = 0x65735546;
   if (result == 0 && strstr(path, "/sdcardfs/")) out->f_type = 0x5dca2df5;
+  if (result == 0 && strstr(path, "/ext4/")) out->f_type = 0xef53;
   return result;
 }
 """
@@ -48,7 +49,7 @@ int main(int argc, char **argv) {
     struct stat st;
     errno = 1234;
     int result = fstat(fd, &st);
-    printf("%s %d\n", st.st_uid == real ? "real" : "user", result == 0 && errno == 1234);
+    printf("%s %d\n", st.st_uid == real ? "real" : st.st_uid == real + 1 ? "user" : "other", result == 0 && errno == 1234);
     close(fd);
   }
   return 0;

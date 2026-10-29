@@ -30,13 +30,12 @@ static int is_wineserver(void) {
 __attribute__((visibility("hidden")))
 void bl_storage_owner(int fd, struct stat *st) {
   struct statfs fs;
-  int saved;
+  int saved = errno;
   uid_t uid;
 
-  if (st == NULL || !is_wineserver()) return;
-  uid = getuid();
-  if (st->st_uid == uid) return;
-  saved = errno;
-  if (fstatfs(fd, &fs) == 0 && (fs.f_type == FUSE_MAGIC || fs.f_type == SDCARDFS_MAGIC)) st->st_uid = uid;
+  if (st != NULL && is_wineserver()) {
+    uid = getuid();
+    if (st->st_uid != uid && fstatfs(fd, &fs) == 0 && (fs.f_type == FUSE_MAGIC || fs.f_type == SDCARDFS_MAGIC)) st->st_uid = uid;
+  }
   errno = saved;
 }
