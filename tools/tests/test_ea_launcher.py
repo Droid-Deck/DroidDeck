@@ -201,6 +201,73 @@ class EaLauncherTest(unittest.TestCase):
         self.assertEqual(execvpe.call_count, 1)
         record.assert_not_called()
 
+    def test_failed_prescan_defers_to_original_evaluator_with_or_without_digest(self):
+        cases = (
+            ("unreadable", OSError("unreadable script")),
+            ("missing", FileNotFoundError("missing script")),
+            ("permission", PermissionError("script access denied")),
+            ("invalid_utf8", self.original + b"\xff"),
+            ("parser_failure", self.original + b'"missing value"'),
+            ("unquoted_root", self.original.replace(b'"evaluatorscript"', b'evaluatorscript', 1)),
+        )
+        for name, content in cases:
+            for digest in ("original-digest", None):
+                with self.subTest(case=name, digest=digest):
+                    read = {"side_effect": content} if isinstance(content, Exception) else {"return_value": content}
+                    record = mock.Mock()
+                    with mock.patch.object(Path, "read_bytes", **read), \
+                            mock.patch.object(START_GLOBALS["runpy"], "run_path", return_value=EA), \
+                            mock.patch.object(START_GLOBALS["subprocess"], "run", return_value=
+                                              subprocess.CompletedProcess(self.evaluator, 37)) as run, \
+                            mock.patch.object(START_GLOBALS["os"], "execvpe", return_value=37) as execute, \
+                            mock.patch.dict(START_GLOBALS, {"record_install_scripts": record}):
+                        self.assertEqual(GAME_ENV["start"](self.evaluator, self.env, digest), 37)
+                    if digest:
+                        run.assert_called_once_with(self.evaluator, env=self.env, check=False)
+                        self.assertIs(run.call_args.args[0], self.evaluator)
+                        self.assertIs(run.call_args.kwargs["env"], self.env)
+                        execute.assert_not_called()
+                    else:
+                        run.assert_not_called()
+                        execute.assert_called_once_with(self.proton, self.evaluator, self.env)
+                        self.assertIs(execute.call_args.args[1], self.evaluator)
+                        self.assertIs(execute.call_args.args[2], self.env)
+                    record.assert_not_called()
+                    self.assertFalse(self.compat.exists())
+                    self.assertEqual(self.source.read_bytes(), self.original)
+
+    def test_bad_script_does_not_hide_valid_ea_script_in_either_order(self):
+        bad = r"legacycompat\evaluatorscript_9999.vdf"
+        for scripts in ((bad, self.evaluator[-1]), (self.evaluator[-1], bad)):
+            with self.subTest(scripts=scripts):
+                command = self.evaluator[:-1] + list(scripts)
+                with mock.patch.object(EA_GLOBALS["subprocess"], "run", side_effect=self.install) as run:
+                    with EA["prepare"](command, self.env) as (prepared, env):
+                        self.assertIs(prepared, command)
+                        self.assertIs(env, self.env)
+                self.assertEqual(run.call_count, 1)
+                self.assert_installer_call(run.call_args)
+                self.assertEqual(self.source.read_bytes(), self.original)
+                (self.prefix / "drive_c/Program Files/Electronic Arts/EA Desktop/EA Desktop/EASteamLauncher.exe").unlink()
+
+    def test_installer_failure_remains_blocking_after_bad_script(self):
+        command = self.evaluator[:-1] + [r"legacycompat\evaluatorscript_9999.vdf", self.evaluator[-1]]
+        for digest in ("original-digest", None):
+            with self.subTest(digest=digest):
+                record = mock.Mock()
+                with mock.patch.object(START_GLOBALS["runpy"], "run_path", return_value=EA), \
+                        mock.patch.object(START_GLOBALS["subprocess"], "run", return_value=
+                                          subprocess.CompletedProcess([], 1)) as run, \
+                        mock.patch.object(START_GLOBALS["os"], "execvpe") as execute, \
+                        mock.patch.dict(START_GLOBALS, {"record_install_scripts": record}):
+                    self.assertEqual(GAME_ENV["start"](command, self.env, digest), 1)
+                self.assertEqual(run.call_count, 1)
+                self.assert_installer_call(run.call_args)
+                execute.assert_not_called()
+                record.assert_not_called()
+                self.assertFalse((self.prefix / ".droiddeck-install-scripts").exists())
+                self.assertEqual(self.source.read_bytes(), self.original)
+
     def test_installer_uses_game_display_only_when_available(self):
         for display in (None, "", ":7"):
             env = {"DISPLAY": ":0", "KEEP": "original"}

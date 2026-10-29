@@ -3,6 +3,7 @@ import contextlib
 from pathlib import Path
 import re
 import subprocess
+import sys
 
 
 TOKEN = re.compile(r'//[^\r\n]*|"((?:[^"\\]|\\.)*)"|([{}])')
@@ -112,7 +113,11 @@ def prepare(command, env):
             if not EVALUATOR.search(arg):
                 continue
             source = root / arg.replace('\\', '/')
-            processes.extend(ea_processes(source.read_bytes().decode('utf-8')))
+            try:
+                processes.extend(ea_processes(source.read_bytes().decode('utf-8')))
+            except (OSError, ValueError) as error:
+                print('droiddeck-ea: could not scan install script %s: %s; leaving it to Steam' %
+                      (source, error), file=sys.stderr)
     # Steam validates signed install scripts; run the prerequisite before the untouched evaluator.
     ensure_launcher(command, env, processes)
     yield command, env
