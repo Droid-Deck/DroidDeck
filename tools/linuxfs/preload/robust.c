@@ -92,7 +92,11 @@ static long path_readlink(int dirfd, const char *path, char *buf, size_t size) {
   return next_readlinkat(dirfd, path, buf, size);
 }
 
+void bl_inputudev_note_dlopen(const char *path, void *handle) __attribute__((weak, visibility("hidden")));
+
 void *dlopen(const char *filename, int flags) {
+  void *handle;
+
   if (!real_dlopen) {
     real_dlopen = (void *(*)(const char *, int))dlsym(RTLD_NEXT, "dlopen");
   }
@@ -102,7 +106,9 @@ void *dlopen(const char *filename, int flags) {
   if (basename && strcmp(basename, "vrclient.so") == 0) {
     flags &= ~RTLD_DEEPBIND;
   }
-  return real_dlopen(filename, flags);
+  handle = real_dlopen != NULL ? real_dlopen(filename, flags) : NULL;
+  if (handle != NULL && bl_inputudev_note_dlopen != NULL) bl_inputudev_note_dlopen(filename, handle);
+  return handle;
 }
 
 int bl_fsync_syscall(long number, const long *args, long *ret) __attribute__((visibility("hidden")));
