@@ -2630,7 +2630,15 @@ class FrontEndActivity : ComponentActivity() {
     private fun checkCatalog() {
         val release = LinuxRuntimeInstaller.fetchRelease()
         Log.i(TAG, "catalog: " + (release?.version ?: "unreachable"))
-        ui.post { if (release != null) available = release }
+        ui.post {
+            if (release == null) return@post
+            available = release
+            if (!lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED) || runtimeChangesBlocked() || removalPending) return@post
+            if (com.droiddeck.launcher.runtime.RuntimeAutoUpdate.claim(this, installed, release.version)) {
+                Log.i(TAG, "runtime: updating $installed to ${release.version} by itself")
+                install(release)
+            }
+        }
     }
 
     companion object {
