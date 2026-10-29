@@ -568,9 +568,9 @@ def apply(compat_path, app_id, selection=SELECTION, store=STORE, pending=PENDING
     registry_owners = {r.get("cid") for r in (state.get("registry") or {}).values() if isinstance(r, dict)}
     inferred = set()
     guessed = set(state.get("guessed") or []) if "requires" in state else set(ids)
-    loose = [c for c in recorded if c not in ids and c in owners]
+    loose = [c for c in recorded if c not in ids and (c in owners or c in registry_owners)]
     for cid in ids:
-        if cid in guessed and component(store, cid) is None and cid not in owners and cid in recorded:
+        if cid in guessed and component(store, cid) is None and cid in recorded:
             saved_requires = dict(saved_requires, **{cid: loose})
             inferred.add(cid)
     kept_overrides, kept_requires = {}, {}

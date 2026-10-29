@@ -183,6 +183,29 @@ class WinComponentsTest(unittest.TestCase):
         self.apply()
         self.assertFalse(dll.exists())
 
+    def test_a_missing_legacy_bundle_with_its_own_files_keeps_its_parts_and_their_registry(self):
+        self.pfx.parent.mkdir(parents=True)
+        user = self.compat / "pfx/user.reg"
+        user.write_text('WINE REGISTRY Version 2\n\n[Software\\\\Test] 1700000000\n"Mode"="ours"\n')
+        ident = "HKCU\tsoftware\\test\tmode"
+        own = self.compat / "pfx/drive_c/windows/syswow64/bundle.dll"
+        part = self.compat / "pfx/drive_c/windows/syswow64/part.dll"
+        for path in (own, part):
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(b"x")
+        self.compat.joinpath(".droiddeck-wincomponents.json").write_text(json.dumps({
+            "files": {"drive_c/windows/syswow64/bundle.dll": "bundle", "drive_c/windows/syswow64/part.dll": "part"},
+            "components": ["bundle", "part", "tweak"],
+            "registry": {ident: {"prev": None, "cid": "tweak", "hive": "HKCU", "key": "Software\\Test", "name": "Mode"}}}))
+        self.pick("bundle")
+        names, _ = self.apply()
+        self.assertEqual(set(MODULE["overrides_value"](names).split(";")), {"bundle=n,b", "part=n,b"})
+        self.assertTrue(own.exists() and part.exists())
+        self.assertIn('"Mode"="ours"', user.read_text())
+        saved = json.loads((self.compat / ".droiddeck-wincomponents.json").read_text())
+        self.assertEqual(saved["guessed"], ["bundle"])
+        self.assertIn(ident, saved["registry"])
+
     def test_a_missing_component_that_only_set_registry_values_keeps_them(self):
         self.pfx.parent.mkdir(parents=True)
         user = self.compat / "pfx/user.reg"
