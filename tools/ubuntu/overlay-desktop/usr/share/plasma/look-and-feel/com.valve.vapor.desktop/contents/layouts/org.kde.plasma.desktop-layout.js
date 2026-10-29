@@ -33,21 +33,10 @@ tasks.writeConfig("launchers", [
     "applications:org.kde.kate.desktop",
 ]);
 
-var bar = new Panel;
-bar.location = "top";
-bar.height = 2 * Math.ceil(gridUnit * 1.6 / 2);
-bar.addWidget("org.kde.plasma.pager");
-bar.addWidget("org.kde.plasma.panelspacer");
-var clock = bar.addWidget("org.kde.plasma.digitalclock");
-clock.currentConfigGroup = ["Appearance"];
-clock.writeConfig("dateFormat", "isoDate");
-clock.writeConfig("showDate", true);
-bar.addWidget("org.kde.plasma.panelspacer");
-var tray = bar.addWidget("org.kde.plasma.systemtray");
+var tray = dock.addWidget("org.kde.plasma.systemtray");
 var trayId = tray.readConfig("SystrayContainmentId");
 if (trayId) {
     var trayContainment = desktopById(trayId);
     trayContainment.currentConfigGroup = ["General"];
     trayContainment.writeConfig("scaleIconsToFit", true);
 }
-bar.addWidget("org.kde.plasma.showdesktop");
