@@ -19,6 +19,15 @@ per-app compatibility mapping, including while Steam is running when its live
 compatibility helper is attached. A newly installed Proton that the running
 client has not discovered yet applies when Steam next starts.
 
+For **Start without Steam**, `droiddeck-proton-run --app` decodes only the requested
+game's `appinfo.vdf` records to choose its executable and arguments. The reader still
+supports formats 27-29 and reads the file/string table; this is not a reduction in
+disk-read bytes. Repeated queries reuse a process-local cache, with partial coverage
+kept distinct from a complete decode. Partial queries share one immutable byte
+snapshot; a complete decode drops that byte snapshot, and a file timestamp change
+invalidates the cache. Bulk callers still request all entries. Launch selection,
+prefix/Proton choices and saved settings are unchanged.
+
 Each game can also override the stored FEX, DXVK and VKD3D-Proton package used
 by its selected Proton. The launch wrapper applies that game’s component files
 immediately before Proton starts, removes managed files that are absent from the
