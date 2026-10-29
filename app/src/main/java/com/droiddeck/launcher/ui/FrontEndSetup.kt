@@ -352,7 +352,6 @@ internal fun SetupPanel(
                             SettingsGroup(stringResource(R.string.setup_controller)) {
                                 ControllerRows(host, s.oscMode, controller, a.controller)
                             }
-                            DualSenseSettingsGroup(host, controller, a.controller)
                         }
                         if (s.controller == null || a.controller == null) Note(stringResource(R.string.setup_controller_unavailable))
                     }

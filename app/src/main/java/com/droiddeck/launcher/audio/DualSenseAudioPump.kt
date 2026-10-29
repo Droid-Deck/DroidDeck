@@ -71,6 +71,9 @@ class DualSenseAudioPump(private val fifo: File) : SessionPart() {
     }
 
     private fun pump() {
+        try {
+            android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_AUDIO)
+        } catch (_: Throwable) {}
         val audio = app()?.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
         val chunk = ByteArray(CHUNK_BYTES)
         var carry = 0

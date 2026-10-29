@@ -664,21 +664,54 @@ object DualSense {
      * and fakeinput_steam.cpp.
      */
     fun convertBtInputToUsb64(data: ByteArray, offset: Int = 0): ByteArray? {
-        if (offset < 0 || offset >= data.size) return null
+        val out = ByteArray(REPORT_SIZE_INPUT)
+        return if (convertBtInputToUsb64Into(data, offset, out)) out else null
+    }
+
+    /**
+     * Zero-allocation conversion of a 64-byte USB 0x01 input report, a 10-byte basic Bluetooth 0x01
+     * input report, or a 78-byte Bluetooth 0x31 extended input report into [outUsb64].
+     */
+    fun convertBtInputToUsb64Into(
+        data: ByteArray,
+        offset: Int = 0,
+        outUsb64: ByteArray
+    ): Boolean {
+        if (offset < 0 || offset >= data.size || outUsb64.size < REPORT_SIZE_INPUT) return false
+        val available = data.size - offset
         return when (data[offset]) {
             REPORT_ID_INPUT -> {
-                if (offset > data.size - REPORT_SIZE_INPUT) return null
-                data.copyOfRange(offset, offset + REPORT_SIZE_INPUT)
+                if (available >= REPORT_SIZE_INPUT) {
+                    System.arraycopy(data, offset, outUsb64, 0, REPORT_SIZE_INPUT)
+                    true
+                } else if (available >= REPORT_SIZE_BT_BASIC_INPUT) {
+                    outUsb64.fill(0, 0, REPORT_SIZE_INPUT)
+                    outUsb64[0] = REPORT_ID_INPUT
+                    outUsb64[1] = data[offset + 1]
+                    outUsb64[2] = data[offset + 2]
+                    outUsb64[3] = data[offset + 3]
+                    outUsb64[4] = data[offset + 4]
+                    outUsb64[5] = data[offset + 8]
+                    outUsb64[6] = data[offset + 9]
+                    outUsb64[8] = data[offset + 5]
+                    outUsb64[9] = data[offset + 6]
+                    outUsb64[10] = data[offset + 7]
+                    outUsb64[33] = 0x80.toByte()
+                    outUsb64[37] = 0x80.toByte()
+                    outUsb64[53] = 0x2A.toByte()
+                    true
+                } else {
+                    false
+                }
             }
             REPORT_ID_BT_INPUT -> {
-                if (offset > data.size - REPORT_SIZE_BT_INPUT) return null
-                if ((data[offset + 1].toInt() and 0x01) == 0) return null
-                val usb = ByteArray(REPORT_SIZE_INPUT)
-                usb[0] = REPORT_ID_INPUT
-                System.arraycopy(data, offset + 2, usb, 1, REPORT_SIZE_INPUT - 1)
-                usb
+                if (available < REPORT_SIZE_BT_INPUT) return false
+                if ((data[offset + 1].toInt() and 0x01) == 0) return false
+                outUsb64[0] = REPORT_ID_INPUT
+                System.arraycopy(data, offset + 2, outUsb64, 1, REPORT_SIZE_INPUT - 1)
+                true
             }
-            else -> null
+            else -> false
         }
     }
 
@@ -1128,18 +1161,93 @@ object DualSense {
     }
 
     fun playerLedMaskForMode(mode: String, batteryPercent: Int): Int = when (mode) {
+        ControllerPrefs.PLAYER_LEDS_P1 -> 0x04
+        ControllerPrefs.PLAYER_LEDS_P2 -> 0x0A
+        ControllerPrefs.PLAYER_LEDS_P3 -> 0x15
+        ControllerPrefs.PLAYER_LEDS_P4 -> 0x1B
+        ControllerPrefs.PLAYER_LEDS_ALL -> 0x1F
         ControllerPrefs.PLAYER_LEDS_BATTERY -> playerLedMaskForBattery(batteryPercent)
         ControllerPrefs.PLAYER_LEDS_OFF -> 0x00
         else -> 0x04
+    }
+
+    fun micLedForMode(mode: String, hardwareMuted: Boolean): Int = when (mode) {
+        ControllerPrefs.MIC_LED_ON -> 1
+        ControllerPrefs.MIC_LED_PULSE -> 2
+        ControllerPrefs.MIC_LED_OFF -> 0
+        else -> if (hardwareMuted) 1 else 0
     }
 
     fun triggerPresetEffect(mode: String): ByteArray? = when (mode) {
         ControllerPrefs.TRIGGER_FEEDBACK -> TriggerEffects.feedback(startPosition = 2, strength = 6)
         ControllerPrefs.TRIGGER_WEAPON -> TriggerEffects.weapon(startPosition = 2, endPosition = 6, strength = 7)
         ControllerPrefs.TRIGGER_BOW -> TriggerEffects.bow(startPosition = 1, endPosition = 5, strength = 6, snapForce = 7)
+        ControllerPrefs.TRIGGER_GALLOPING -> TriggerEffects.galloping(
+            startPosition = 1,
+            endPosition = 8,
+            firstFoot = 2,
+            secondFoot = 5,
+            frequency = 35
+        )
         ControllerPrefs.TRIGGER_VIBRATION -> TriggerEffects.vibration(startPosition = 2, amplitude = 6, frequency = 40)
+        ControllerPrefs.TRIGGER_MACHINE -> TriggerEffects.machine(
+            startPosition = 1,
+            endPosition = 9,
+            amplitudeA = 5,
+            amplitudeB = 7,
+            frequency = 45,
+            period = 20
+        )
+        ControllerPrefs.TRIGGER_SIMPLE_FEEDBACK -> TriggerEffects.simpleFeedback(start = 48, force = 6)
+        ControllerPrefs.TRIGGER_SIMPLE_WEAPON -> TriggerEffects.simpleWeapon(start = 48, end = 160, force = 7)
+        ControllerPrefs.TRIGGER_SIMPLE_VIBRATION -> TriggerEffects.simpleVibration(position = 48, amplitude = 6, frequency = 40)
+        ControllerPrefs.TRIGGER_LIMITED_FEEDBACK -> TriggerEffects.limitedFeedback(start = 32, force = 8)
+        ControllerPrefs.TRIGGER_LIMITED_WEAPON -> TriggerEffects.limitedWeapon(start = 32, end = 160, force = 9)
         ControllerPrefs.TRIGGER_OFF -> TriggerEffects.off()
         else -> null
+    }
+
+    /**
+     * Checks whether a 48-byte 0x02 USB output report carries an active adaptive trigger command
+     * on either R2 (enable0 & 0x04, report[11]) or L2 (enable0 & 0x08, report[22]).
+     */
+    fun hasActiveTriggerEffect(report: ByteArray): Boolean {
+        if (report.size < REPORT_SIZE_OUTPUT || report[0] != REPORT_ID_OUTPUT) return false
+        val enable0 = report[1].toInt() and 0xFF
+        val hasR2 = (enable0 and 0x04) != 0 && isActiveTriggerMode(report[11])
+        val hasL2 = (enable0 and 0x08) != 0 && isActiveTriggerMode(report[22])
+        return hasR2 || hasL2
+    }
+
+    /**
+     * Checks if two 48-byte 0x02 output reports are byte-for-byte identical.
+     */
+    fun isSameOutputPayload(prev: ByteArray?, curr: ByteArray): Boolean {
+        if (prev == null || prev.size < REPORT_SIZE_OUTPUT || curr.size < REPORT_SIZE_OUTPUT) return false
+        for (i in 0 until REPORT_SIZE_OUTPUT) {
+            if (prev[i] != curr[i]) return false
+        }
+        return true
+    }
+
+    /**
+     * Returns true when [curr] only updates non-zero rumble motor intensities compared to [prev]
+     * and does NOT modify adaptive triggers (L2/R2), lightbar RGB, player LEDs, or mic LED,
+     * nor is it a zero-rumble stop packet.
+     */
+    fun isRumbleOnlyChange(prev: ByteArray?, curr: ByteArray): Boolean {
+        if (prev == null || prev.size < REPORT_SIZE_OUTPUT || curr.size < REPORT_SIZE_OUTPUT) return false
+        if (curr[0] != REPORT_ID_OUTPUT) return false
+        if (shouldClearRumble(curr)) return false
+        val rightWeak = curr[3].toInt() and 0xFF
+        val leftStrong = curr[4].toInt() and 0xFF
+        if (rightWeak == 0 && leftStrong == 0) return false
+        // If enable flags changed or triggers/LEDs are being updated differently, do not coalesce
+        if (prev[1] != curr[1] || prev[2] != curr[2]) return false
+        for (i in 5 until REPORT_SIZE_OUTPUT) {
+            if (prev[i] != curr[i]) return false
+        }
+        return true
     }
 
     fun buildBluetoothOutputReport(

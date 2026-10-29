@@ -3,7 +3,10 @@ package com.droiddeck.launcher.input
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothProfile
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
@@ -69,6 +72,10 @@ class DualSenseManager(private val context: Context) {
     private var padBinRaf: RandomAccessFile? = null
     private var lastFakeInputDir: File? = null
     private var lastPadBinBytes: ByteArray? = null
+    private val padBinScratch = ByteArray(DualSense.REPORT_SIZE_INPUT)
+    private val lastWrittenPadBin = ByteArray(DualSense.REPORT_SIZE_INPUT)
+    private var hasLastWrittenPadBin = false
+    private var padBinLengthSet = false
 
     // Direct Android USB HID Reader / Writer state
     @Volatile var usbConnection: UsbDeviceConnection? = null
@@ -76,10 +83,29 @@ class DualSenseManager(private val context: Context) {
     @Volatile var usbEndpointIn: UsbEndpoint? = null
     @Volatile var usbEndpointOut: UsbEndpoint? = null
     @Volatile var usbCalibration: DualSense.Calibration? = null
+    @Volatile var rawCalibration05: ByteArray? = null
+        private set
     @Volatile var usbFirmwareInfo: DualSense.FirmwareInfo? = null
     @Volatile var usbPairingInfo: DualSense.PairingInfo? = null
     val motionNoiseCalibration = DualSense.MotionNoiseCalibration()
     private var usbReaderThread: Thread? = null
+
+    private var bluetoothReportReceiverRegistered = false
+    private val bluetoothReportReceiver = object : BroadcastReceiver() {
+        override fun onReceive(ctx: Context?, intent: Intent?) {
+            if (intent == null) return
+            val action = intent.action
+            if (action == "android.bluetooth.hidhost.profile.action.REPORT" ||
+                action == "android.bluetooth.input.profile.action.REPORT"
+            ) {
+                val reportData = intent.getByteArrayExtra("android.bluetooth.hidhost.profile.extra.REPORT")
+                    ?: intent.getByteArrayExtra("android.bluetooth.input.profile.extra.REPORT")
+                    ?: intent.getByteArrayExtra("android.bluetooth.profile.extra.REPORT")
+                    ?: return
+                onBluetoothFeatureReportReceived(reportData)
+            }
+        }
+    }
 
     // Phase 2: Wireless (Bluetooth / InputDevice) state
     @Volatile var isEdgeConnected: Boolean = false
@@ -88,9 +114,14 @@ class DualSenseManager(private val context: Context) {
     @Volatile private var lightbarTint: Int = ControllerPrefs.STEAM_BLUE
     @Volatile private var playerLedsMode: String = ControllerPrefs.PLAYER_LEDS_P1
     @Volatile private var playerLedBrightness: Int = DualSense.PLAYER_LED_BRIGHTNESS_HIGH
+    @Volatile private var micLedMode: String = ControllerPrefs.MIC_LED_MUTE
     @Volatile private var triggerMode: String = ControllerPrefs.TRIGGER_AUTO
+    @Volatile private var leftTriggerMode: String = ControllerPrefs.TRIGGER_AUTO
+    @Volatile private var rightTriggerMode: String = ControllerPrefs.TRIGGER_AUTO
     @Volatile private var touchpadEnabled: Boolean = true
     @Volatile private var gyroAutoCalEnabled: Boolean = true
+    @Volatile var gameNativeTriggersActive: Boolean = false
+        private set
     @Volatile private var lastBatteryPercent: Int = 100
     @Volatile private var lastBatteryCharging: Boolean = false
     @Volatile private var lastHeadphonesPlugged: Boolean = false
@@ -101,6 +132,10 @@ class DualSenseManager(private val context: Context) {
     @Volatile var btConnectTimestampMs: Long = 0L
     private var btOutputSeq: Int = 0
     @Volatile var pendingBtLightbarReport: ByteArray? = null
+    @Volatile var lastBtOutputSentMs: Long = 0L
+        private set
+    @Volatile private var lastBtSentPayload: ByteArray? = null
+    @Volatile var pendingBtRumbleReport: ByteArray? = null
     @Volatile var hardwareMicMuted: Boolean = false
     private var lastRawMuteButton: Boolean = false
     @Volatile var rumbleWatchdogArmed: Boolean = false
@@ -233,6 +268,8 @@ class DualSenseManager(private val context: Context) {
         padBinRaf = null
         lastFakeInputDir = null
         lastPadBinBytes = null
+        hasLastWrittenPadBin = false
+        padBinLengthSet = false
     }
 
     fun checkConnectedDevices() {
@@ -329,6 +366,9 @@ class DualSenseManager(private val context: Context) {
             applyUserPreferences()
 
             usbReaderThread = Thread({
+                try {
+                    android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_DISPLAY)
+                } catch (_: Throwable) {}
                 val buffer = ByteArray(DualSense.REPORT_SIZE_INPUT)
                 while (running && usbConnection === connection && !Thread.currentThread().isInterrupted) {
                     val read = connection.bulkTransfer(epIn, buffer, buffer.size, 1000)
@@ -351,9 +391,69 @@ class DualSenseManager(private val context: Context) {
         val buf = ByteArray(DualSense.REPORT_SIZE_CALIBRATION)
         buf[0] = DualSense.REPORT_ID_CALIBRATION
         val len = connection.controlTransfer(0xA1, 0x01, 0x0305, hidIntf.id, buf, buf.size, 1000)
-        if (len >= DualSense.REPORT_SIZE_CALIBRATION) DualSense.parseCalibrationReport(buf) else null
+        if (len >= DualSense.REPORT_SIZE_CALIBRATION) {
+            writeCalibration(buf)
+            DualSense.parseCalibrationReport(buf)
+        } else {
+            null
+        }
     } catch (e: Exception) {
         null
+    }
+
+    @Synchronized
+    fun writeCalibration(calReport: ByteArray): Boolean {
+        if (calReport.size < DualSense.REPORT_SIZE_CALIBRATION) return false
+        if (calReport[0] != DualSense.REPORT_ID_CALIBRATION) return false
+        val cal = calReport.copyOf(DualSense.REPORT_SIZE_CALIBRATION)
+        rawCalibration05 = cal
+        val dir = SessionState.fakeInputDir ?: return false
+        return try {
+            val file = File(dir, "cal_05.bin")
+            file.parentFile?.mkdirs()
+            file.writeBytes(cal)
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    @Synchronized
+    fun writeCalibration05(data: ByteArray): Boolean {
+        return writeCalibration(data)
+    }
+
+    private fun syncCalibrationToFakeInputDir(dir: File, cal: ByteArray? = rawCalibration05) {
+        if (cal == null || cal.size < DualSense.REPORT_SIZE_CALIBRATION) return
+        try {
+            val file = File(dir, "cal_05.bin")
+            file.parentFile?.mkdirs()
+            if (!file.exists() || file.length() != cal.size.toLong()) {
+                file.writeBytes(cal)
+                Log.i(TAG, "Wrote ${cal.size} bytes of genuine Feature 0x05 calibration to ${file.absolutePath}")
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to write cal_05.bin: $e")
+        }
+    }
+
+    fun onBluetoothFeatureReportReceived(reportData: ByteArray) {
+        val calBuf: ByteArray = if (reportData.size >= DualSense.REPORT_SIZE_CALIBRATION && reportData[0] == DualSense.REPORT_ID_CALIBRATION) {
+            reportData.copyOf(DualSense.REPORT_SIZE_CALIBRATION)
+        } else if (reportData.size >= DualSense.REPORT_SIZE_CALIBRATION - 1) {
+            ByteArray(DualSense.REPORT_SIZE_CALIBRATION).apply {
+                this[0] = DualSense.REPORT_ID_CALIBRATION
+                System.arraycopy(reportData, 0, this, 1, DualSense.REPORT_SIZE_CALIBRATION - 1)
+            }
+        } else {
+            return
+        }
+        val cal = DualSense.parseCalibrationReport(calBuf)
+        if (cal != null) {
+            usbCalibration = cal
+            writeCalibration(calBuf)
+            Log.i(TAG, "Processed Bluetooth Feature 0x05 calibration (${calBuf.size} bytes)")
+        }
     }
 
     private fun queryUsbFirmwareInfo(connection: UsbDeviceConnection, hidIntf: UsbInterface): DualSense.FirmwareInfo? = try {
@@ -388,6 +488,13 @@ class DualSenseManager(private val context: Context) {
         usbEndpointIn = null
         usbEndpointOut = null
         usbCalibration = null
+        rawCalibration05 = null
+        val dir = SessionState.fakeInputDir
+        if (dir != null) {
+            try {
+                File(dir, "cal_05.bin").delete()
+            } catch (_: Exception) {}
+        }
         usbFirmwareInfo = null
         usbPairingInfo = null
         rawUsbIds = null
@@ -494,7 +601,10 @@ class DualSenseManager(private val context: Context) {
         lightbarTint = prefs.tint
         playerLedsMode = prefs.dualSensePlayerLeds
         playerLedBrightness = prefs.dualSensePlayerLedBrightness
+        micLedMode = prefs.dualSenseMicLedMode
         triggerMode = prefs.dualSenseTriggerMode
+        leftTriggerMode = prefs.dualSenseLeftTriggerMode
+        rightTriggerMode = prefs.dualSenseRightTriggerMode
         touchpadEnabled = prefs.dualSenseTouchpad
         gyroAutoCalEnabled = prefs.dualSenseGyroAutoCal
         if (!touchpadEnabled) {
@@ -514,23 +624,100 @@ class DualSenseManager(private val context: Context) {
     fun applyUserPreferences(clearTriggersIfAuto: Boolean = false): Boolean {
         val (r, g, b) = DualSense.lightbarRgbForMode(lightbarMode, lightbarTint, lastBatteryPercent)
         val playerLeds = DualSense.playerLedMaskForMode(playerLedsMode, lastBatteryPercent)
-        val triggerEffect = DualSense.triggerPresetEffect(triggerMode)
+        val micLed = DualSense.micLedForMode(micLedMode, hardwareMicMuted)
+        val leftEffect = DualSense.triggerPresetEffect(leftTriggerMode)
+            ?: if (clearTriggersIfAuto) DualSense.TriggerEffects.off() else null
+        val rightEffect = DualSense.triggerPresetEffect(rightTriggerMode)
             ?: if (clearTriggersIfAuto) DualSense.TriggerEffects.off() else null
         lastAppliedBatteryBucket = lastBatteryPercent / 20
-        return sendOutputReport(
-            DualSense.buildOutputReport(
-                r = r,
-                g = g,
-                b = b,
-                playerLeds = playerLeds,
-                playerLedBrightness = playerLedBrightness,
-                rightTriggerEffect = triggerEffect,
-                leftTriggerEffect = triggerEffect,
-                isEdge = isEdgeConnected,
-                updateLightbar = true,
-                updatePlayerLeds = true,
-            )
+        val report = DualSense.buildOutputReport(
+            r = r,
+            g = g,
+            b = b,
+            micLed = micLed,
+            playerLeds = playerLeds,
+            playerLedBrightness = playerLedBrightness,
+            rightTriggerEffect = rightEffect,
+            leftTriggerEffect = leftEffect,
+            isEdge = isEdgeConnected,
+            updateLightbar = true,
+            updatePlayerLeds = true,
         )
+        if (micLedMode == ControllerPrefs.MIC_LED_OFF) {
+            report[2] = (report[2].toInt() or 0x01).toByte()
+            report[9] = 0
+        }
+        return sendOutputReport(report)
+    }
+
+    /**
+     * Automatic priority switching (Auto-Passthrough) between game-driven native DualSense
+     * adaptive triggers (`pad_Ctrl` / `ds_output.bin` / `@droiddeck-dualsense`) and the user's
+     * configured DSX profile:
+     * - When the game sends native adaptive trigger commands (`enable0 & 0x0C` with an active mode),
+     *   native game triggers immediately take priority (`gameNativeTriggersActive = true`).
+     * - When the game sends a rumble-only report without native trigger effects, the user's
+     *   configured DSX L2/R2 trigger presets are preserved on top of the game's rumble.
+     */
+    fun sendGameOutputReport(
+        report: ByteArray,
+        nowMs: Long = SystemClock.uptimeMillis()
+    ): Boolean {
+        if (report.size < DualSense.REPORT_SIZE_OUTPUT || report[0] != DualSense.REPORT_ID_OUTPUT) {
+            return false
+        }
+        if (DualSense.hasActiveTriggerEffect(report)) {
+            gameNativeTriggersActive = true
+            return sendOutputReport(report, nowMs)
+        }
+        val enable0 = report[1].toInt() and 0xFF
+        val gameTouchesTriggers = (enable0 and 0x0C) != 0
+        val leftEffect = DualSense.triggerPresetEffect(leftTriggerMode)
+        val rightEffect = DualSense.triggerPresetEffect(rightTriggerMode)
+        if (!gameNativeTriggersActive && (leftEffect != null || rightEffect != null)) {
+            val merged = report.copyOf(DualSense.REPORT_SIZE_OUTPUT)
+            var e0 = merged[1].toInt() and 0xFF
+            var e1 = merged[2].toInt() and 0xFF
+            if (rightEffect != null && (e0 and 0x04) == 0) {
+                e0 = e0 or 0x04
+                e1 = e1 or 0x40
+                System.arraycopy(rightEffect, 0, merged, 11, 11)
+            }
+            if (leftEffect != null && (e0 and 0x08) == 0) {
+                e0 = e0 or 0x08
+                e1 = e1 or 0x40
+                System.arraycopy(leftEffect, 0, merged, 22, 11)
+            }
+            merged[1] = e0.toByte()
+            merged[2] = e1.toByte()
+            return sendOutputReport(merged, nowMs)
+        }
+        if (gameTouchesTriggers && !DualSense.hasActiveTriggerEffect(report)) {
+            gameNativeTriggersActive = false
+            if (leftEffect != null || rightEffect != null) {
+                val merged = report.copyOf(DualSense.REPORT_SIZE_OUTPUT)
+                if (rightEffect != null) {
+                    merged[1] = (merged[1].toInt() or 0x04).toByte()
+                    merged[2] = (merged[2].toInt() or 0x40).toByte()
+                    System.arraycopy(rightEffect, 0, merged, 11, 11)
+                }
+                if (leftEffect != null) {
+                    merged[1] = (merged[1].toInt() or 0x08).toByte()
+                    merged[2] = (merged[2].toInt() or 0x40).toByte()
+                    System.arraycopy(leftEffect, 0, merged, 22, 11)
+                }
+                return sendOutputReport(merged, nowMs)
+            }
+        }
+        return sendOutputReport(report, nowMs)
+    }
+
+    fun onGameOutputSessionStopped() {
+        val hadNative = gameNativeTriggersActive
+        gameNativeTriggersActive = false
+        if (isDualSenseActive) {
+            applyUserPreferences(clearTriggersIfAuto = hadNative)
+        }
     }
 
     private fun updateLiveStatus() {
@@ -621,23 +808,46 @@ class DualSenseManager(private val context: Context) {
 
         // Phase 2: Wireless Bluetooth 0x31 Output Report dispatch (Adaptive Triggers, LEDs, Rumble)
         val btSender = bluetoothReportSender
-        if (btSender != null) {
-            val btReport = buildNextBluetoothOutputReport(data, nowMs)
-            if (btSender(btReport)) {
+        if (btSender != null || bluetoothHidHostProxy != null) {
+            val prevBt = lastBtSentPayload
+            if (prevBt != null && DualSense.isSameOutputPayload(prevBt, data)) {
                 updateRumbleWatchdog(data, nowMs)
                 return true
             }
-        }
-
-        if (bluetoothHidHostProxy != null) {
+            if (prevBt != null &&
+                DualSense.isRumbleOnlyChange(prevBt, data) &&
+                lastBtOutputSentMs > 0L &&
+                (nowMs - lastBtOutputSentMs) in 0 until BT_RUMBLE_COALESCE_MS
+            ) {
+                pendingBtRumbleReport = data.copyOf(DualSense.REPORT_SIZE_OUTPUT)
+                updateRumbleWatchdog(data, nowMs)
+                return true
+            }
+            pendingBtRumbleReport = null
             val btReport = buildNextBluetoothOutputReport(data, nowMs)
-            if (sendViaBluetoothHidHost(btReport)) {
+            val sent = if (btSender != null) {
+                btSender(btReport)
+            } else {
+                sendViaBluetoothHidHost(btReport)
+            }
+            if (sent) {
+                lastBtOutputSentMs = nowMs
+                lastBtSentPayload = data.copyOf(DualSense.REPORT_SIZE_OUTPUT)
                 updateRumbleWatchdog(data, nowMs)
                 return true
             }
         }
 
         return false
+    }
+
+    fun flushPendingBluetoothRumble(nowMs: Long = SystemClock.uptimeMillis()): Boolean {
+        val pending = pendingBtRumbleReport ?: return false
+        if (lastBtOutputSentMs > 0L && (nowMs - lastBtOutputSentMs) in 0 until BT_RUMBLE_COALESCE_MS) {
+            return false
+        }
+        pendingBtRumbleReport = null
+        return sendOutputReport(pending, nowMs)
     }
 
     /**
@@ -722,6 +932,24 @@ class DualSenseManager(private val context: Context) {
 
     private fun initBluetoothHidHost() {
         try {
+            val filter = IntentFilter().apply {
+                addAction("android.bluetooth.hidhost.profile.action.REPORT")
+                addAction("android.bluetooth.input.profile.action.REPORT")
+            }
+            if (Build.VERSION.SDK_INT >= 33) {
+                try {
+                    context.registerReceiver(bluetoothReportReceiver, filter, Context.RECEIVER_EXPORTED)
+                } catch (_: Exception) {
+                    context.registerReceiver(bluetoothReportReceiver, filter)
+                }
+            } else {
+                context.registerReceiver(bluetoothReportReceiver, filter)
+            }
+            bluetoothReportReceiverRegistered = true
+        } catch (e: Exception) {
+            Log.w(TAG, "Unable to register Bluetooth report receiver: $e")
+        }
+        try {
             val adapter = BluetoothAdapter.getDefaultAdapter() ?: return
             adapter.getProfileProxy(context, object : BluetoothProfile.ServiceListener {
                 override fun onServiceConnected(profile: Int, proxy: BluetoothProfile?) {
@@ -743,6 +971,12 @@ class DualSenseManager(private val context: Context) {
     }
 
     private fun closeBluetoothHidHost() {
+        if (bluetoothReportReceiverRegistered) {
+            try {
+                context.unregisterReceiver(bluetoothReportReceiver)
+            } catch (_: Exception) {}
+            bluetoothReportReceiverRegistered = false
+        }
         val proxy = bluetoothHidHostProxy ?: return
         bluetoothHidHostProxy = null
         try {
@@ -978,13 +1212,18 @@ class DualSenseManager(private val context: Context) {
         if (isDualSenseActive) return
         val prev = SessionPrefs.steamController(context)
         cachedPreference = prev
-        FakeInputWriter.setPadType(FakeInputWriter.PAD_TYPE_DUALSENSE)
-        SteamDeckPad.showPad(FakeInputWriter.PAD_TYPE_DUALSENSE)
+        val targetPadType = if (isEdgeConnected) FakeInputWriter.PAD_TYPE_DUALSENSE_EDGE else FakeInputWriter.PAD_TYPE_DUALSENSE
+        FakeInputWriter.setPadType(targetPadType)
+        SteamDeckPad.showPad(targetPadType)
         isDualSenseActive = true
         DeckControls.externalImuActive = true
         loadUserPreferences()
         updateLiveStatus()
         onActivationChanged?.invoke(true)
+        val dir = SessionState.fakeInputDir
+        if (dir != null) {
+            syncCalibrationToFakeInputDir(dir)
+        }
         Log.i(TAG, "DualSense activated as primary controller (cached preference: $prev -> dualsense)")
     }
 
@@ -1006,9 +1245,20 @@ class DualSenseManager(private val context: Context) {
         rawTwinDeviceId = -1
         routedHeadphones = null
         isEdgeConnected = false
+        rawCalibration05 = null
+        val dir = SessionState.fakeInputDir
+        if (dir != null) {
+            try {
+                File(dir, "cal_05.bin").delete()
+            } catch (_: Exception) {}
+        }
         btConnectTimestampMs = 0L
         btOutputSeq = 0
         pendingBtLightbarReport = null
+        lastBtOutputSentMs = 0L
+        lastBtSentPayload = null
+        pendingBtRumbleReport = null
+        gameNativeTriggersActive = false
         rumbleWatchdogArmed = false
         lastRumbleActiveMs = 0L
         lastFallbackLeftMotor = 0
@@ -1044,6 +1294,9 @@ class DualSenseManager(private val context: Context) {
         if (!com.droiddeck.launcher.BuildConfig.DEBUG) return
         val gen = startGeneration
         tcpThread = Thread({
+            try {
+                android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_DISPLAY)
+            } catch (_: Throwable) {}
             while (running && gen == startGeneration) {
                 try {
                     Socket("127.0.0.1", TCP_PORT).use { socket ->
@@ -1183,10 +1436,13 @@ class DualSenseManager(private val context: Context) {
 
         if (state.mute && !lastRawMuteButton) {
             hardwareMicMuted = !hardwareMicMuted
-            sendOutputReport(DualSense.buildMicMuteReport(hardwareMicMuted))
+            if (micLedMode == ControllerPrefs.MIC_LED_MUTE) {
+                sendOutputReport(DualSense.buildMicMuteReport(hardwareMicMuted))
+            }
         }
         lastRawMuteButton = state.mute
         flushPendingBluetoothLightbar(lastRawHidTimestamp)
+        flushPendingBluetoothRumble(lastRawHidTimestamp)
         checkRumbleWatchdog(lastRawHidTimestamp)
 
         // 2-4. Publish guest-visible touch, extras, and IMU state under the manager lock so a report
@@ -1270,30 +1526,36 @@ class DualSenseManager(private val context: Context) {
     @Synchronized
     private fun writePadBin(data: ByteArray, offset: Int) {
         val dir = SessionState.fakeInputDir ?: return
-        val usb64 = DualSense.convertBtInputToUsb64(data, offset) ?: return
+        if (!DualSense.convertBtInputToUsb64Into(data, offset, padBinScratch)) return
         try {
             if (dir != lastFakeInputDir || padBinRaf == null) {
                 padBinRaf?.close()
                 lastFakeInputDir = dir
                 lastPadBinBytes = null
+                hasLastWrittenPadBin = false
+                padBinLengthSet = false
                 val file = File(dir, "pad.bin")
                 file.parentFile?.mkdirs()
                 padBinRaf = RandomAccessFile(file, "rw")
+                syncCalibrationToFakeInputDir(dir)
             }
             val raf = padBinRaf ?: return
-            val prev = lastPadBinBytes
-            val len = raf.length()
-            if (prev != null && len == DualSense.REPORT_SIZE_INPUT.toLong() && DualSense.isSamePadBinState(prev, usb64, isEdgeConnected)) {
+            if (hasLastWrittenPadBin && padBinLengthSet &&
+                DualSense.isSamePadBinState(lastWrittenPadBin, padBinScratch, isEdgeConnected)
+            ) {
                 return
             }
             raf.seek(0)
-            raf.write(usb64, 0, DualSense.REPORT_SIZE_INPUT)
-            if (len != DualSense.REPORT_SIZE_INPUT.toLong()) {
+            raf.write(padBinScratch, 0, DualSense.REPORT_SIZE_INPUT)
+            if (!padBinLengthSet) {
                 raf.setLength(DualSense.REPORT_SIZE_INPUT.toLong())
+                padBinLengthSet = true
             }
-            lastPadBinBytes = usb64
+            System.arraycopy(padBinScratch, 0, lastWrittenPadBin, 0, DualSense.REPORT_SIZE_INPUT)
+            hasLastWrittenPadBin = true
+            lastPadBinBytes = lastWrittenPadBin
         } catch (e: Exception) {
-            // ignore
+            padBinLengthSet = false
         }
     }
 
@@ -1390,7 +1652,9 @@ class DualSenseManager(private val context: Context) {
         if (keyCode == KeyEvent.KEYCODE_MUTE || keyCode == KeyEvent.KEYCODE_VOLUME_MUTE || scanCode == 248) {
             if (down && !osMuteDown) {
                 hardwareMicMuted = !hardwareMicMuted
-                sendOutputReport(DualSense.buildMicMuteReport(hardwareMicMuted))
+                if (micLedMode == ControllerPrefs.MIC_LED_MUTE) {
+                    sendOutputReport(DualSense.buildMicMuteReport(hardwareMicMuted))
+                }
             }
             osMuteDown = down
             DeckControls.setDualSenseExtras(osMuteDown, osL4Down, osR4Down, osL5Down, osR5Down)
@@ -1427,6 +1691,8 @@ class DualSenseManager(private val context: Context) {
     companion object {
         private const val TAG = "DualSenseManager"
         const val TCP_PORT = 21337
+        /** Minimum interval (8 ms = 125 Hz) between coalesced Bluetooth 0x31 rumble-only output packets. */
+        const val BT_RUMBLE_COALESCE_MS = 8L
         /** First byte of a variable-length bridge frame; a plain output report always starts with 0x02. */
         const val BRIDGE_FRAME_MARKER: Byte = 0xB2.toByte()
         private const val RECONNECT_DELAY_MS = 1000L

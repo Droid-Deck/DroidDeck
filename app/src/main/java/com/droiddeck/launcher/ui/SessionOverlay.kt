@@ -623,11 +623,10 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                     stringResource(R.string.unfolded_controls_with_controller_hint), a.unfoldedControlsWithController,
                                     chipModifier = focus.track(page, "unfolded-controls-with-controller"),
                                     onChange = a.onUnfoldedControlsWithController)
-                            }
-                            a.controller?.let { c ->
-                                val dsCtx = LocalContext.current
-                                val dsStatus = com.droiddeck.launcher.input.DualSenseManager.liveStatus
-                                SettingsGroup(stringResource(R.string.ctrl_dualsense_group)) {
+                                a.controller?.let { c ->
+                                    val dsCtx = LocalContext.current
+                                    val dsStatus = com.droiddeck.launcher.input.DualSenseManager.liveStatus
+                                    val triggerChoices = dualSenseTriggerChoices()
                                     val statusText = if (dsStatus.connected) {
                                         stringResource(
                                             R.string.ctrl_dualsense_status_connected,
@@ -657,19 +656,61 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                         a.onControllerChanged()
                                     }
                                     ChoiceRow(
-                                        host, "drawer-ds-triggers", stringResource(R.string.ctrl_dualsense_triggers), null,
+                                        host, "drawer-ds-player-leds", stringResource(R.string.ctrl_dualsense_player_leds), null,
+                                        dualSensePlayerLedChoices(),
+                                        c.dualSensePlayerLeds,
+                                        chipModifier = focus.track(page, "drawer-ds-player-leds"),
+                                    ) { mode ->
+                                        com.droiddeck.launcher.input.ControllerPrefs.setDualSensePlayerLeds(dsCtx, mode)
+                                        a.onControllerChanged()
+                                    }
+                                    ChoiceRow(
+                                        host, "drawer-ds-led-brightness", stringResource(R.string.ctrl_dualsense_led_brightness), null,
                                         listOf(
-                                            com.droiddeck.launcher.input.ControllerPrefs.TRIGGER_AUTO to stringResource(R.string.ctrl_dualsense_trigger_auto),
-                                            com.droiddeck.launcher.input.ControllerPrefs.TRIGGER_FEEDBACK to stringResource(R.string.ctrl_dualsense_trigger_feedback),
-                                            com.droiddeck.launcher.input.ControllerPrefs.TRIGGER_WEAPON to stringResource(R.string.ctrl_dualsense_trigger_weapon),
-                                            com.droiddeck.launcher.input.ControllerPrefs.TRIGGER_BOW to stringResource(R.string.ctrl_dualsense_trigger_bow),
-                                            com.droiddeck.launcher.input.ControllerPrefs.TRIGGER_VIBRATION to stringResource(R.string.ctrl_dualsense_trigger_vibration),
-                                            com.droiddeck.launcher.input.ControllerPrefs.TRIGGER_OFF to stringResource(R.string.perf_cap_off),
+                                            0 to stringResource(R.string.ctrl_dualsense_led_high),
+                                            1 to stringResource(R.string.ctrl_dualsense_led_medium),
+                                            2 to stringResource(R.string.ctrl_dualsense_led_low),
                                         ),
+                                        c.dualSensePlayerLedBrightness,
+                                        chipModifier = focus.track(page, "drawer-ds-led-brightness"),
+                                    ) { b ->
+                                        com.droiddeck.launcher.input.ControllerPrefs.setDualSensePlayerLedBrightness(dsCtx, b)
+                                        a.onControllerChanged()
+                                    }
+                                    ChoiceRow(
+                                        host, "drawer-ds-mic-led", stringResource(R.string.ctrl_dualsense_mic_led), null,
+                                        dualSenseMicLedChoices(),
+                                        c.dualSenseMicLedMode,
+                                        chipModifier = focus.track(page, "drawer-ds-mic-led"),
+                                    ) { mode ->
+                                        com.droiddeck.launcher.input.ControllerPrefs.setDualSenseMicLedMode(dsCtx, mode)
+                                        a.onControllerChanged()
+                                    }
+                                    ChoiceRow(
+                                        host, "drawer-ds-triggers", stringResource(R.string.ctrl_dualsense_triggers), null,
+                                        triggerChoices,
                                         c.dualSenseTriggerMode,
                                         chipModifier = focus.track(page, "drawer-ds-triggers"),
                                     ) { mode ->
                                         com.droiddeck.launcher.input.ControllerPrefs.setDualSenseTriggerMode(dsCtx, mode)
+                                        a.onControllerChanged()
+                                    }
+                                    ChoiceRow(
+                                        host, "drawer-ds-triggers-l2", stringResource(R.string.ctrl_dualsense_triggers_l2), null,
+                                        triggerChoices,
+                                        c.dualSenseLeftTriggerMode,
+                                        chipModifier = focus.track(page, "drawer-ds-triggers-l2"),
+                                    ) { mode ->
+                                        com.droiddeck.launcher.input.ControllerPrefs.setDualSenseLeftTriggerMode(dsCtx, mode)
+                                        a.onControllerChanged()
+                                    }
+                                    ChoiceRow(
+                                        host, "drawer-ds-triggers-r2", stringResource(R.string.ctrl_dualsense_triggers_r2), null,
+                                        triggerChoices,
+                                        c.dualSenseRightTriggerMode,
+                                        chipModifier = focus.track(page, "drawer-ds-triggers-r2"),
+                                    ) { mode ->
+                                        com.droiddeck.launcher.input.ControllerPrefs.setDualSenseRightTriggerMode(dsCtx, mode)
                                         a.onControllerChanged()
                                     }
                                     ToggleRow(
@@ -684,6 +725,13 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                         c.dualSenseGyroAutoCal, chipModifier = focus.track(page, "drawer-ds-gyro-autocal"),
                                     ) { on ->
                                         com.droiddeck.launcher.input.ControllerPrefs.setDualSenseGyroAutoCal(dsCtx, on)
+                                        a.onControllerChanged()
+                                    }
+                                    ToggleRow(
+                                        host, "drawer-ds-audio", stringResource(R.string.ctrl_dualsense_audio), null,
+                                        c.dualSenseAudio, chipModifier = focus.track(page, "drawer-ds-audio"),
+                                    ) { on ->
+                                        com.droiddeck.launcher.input.ControllerPrefs.setDualSenseAudio(dsCtx, on)
                                         a.onControllerChanged()
                                     }
                                 }

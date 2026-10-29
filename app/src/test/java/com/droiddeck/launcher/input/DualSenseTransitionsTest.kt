@@ -243,7 +243,7 @@ class DualSenseTransitionsTest {
         assertTrue(manager.isDualSenseActive)
         assertTrue(DeckControls.externalImuActive)
         assertEquals(SessionPrefs.CONTROLLER_DS4, manager.cachedPreference)
-        assertEquals(FakeInputWriter.PAD_TYPE_DUALSENSE, RecordingWriter.lastPadType)
+        assertEquals(FakeInputWriter.PAD_TYPE_DUALSENSE_EDGE, RecordingWriter.lastPadType)
 
         manager.onUsbDeviceDetached(edge)
 

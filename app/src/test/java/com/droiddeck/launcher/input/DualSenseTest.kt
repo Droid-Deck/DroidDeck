@@ -456,6 +456,27 @@ class DualSenseTest {
     }
 
     @Test
+    fun testDualSenseEdgePrimarySlotRouting() {
+        SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_DECK)
+        val manager = DualSenseManager(context)
+        assertFalse(manager.isDualSenseActive)
+        assertFalse(manager.isEdgeConnected)
+
+        val edge = usbDevice(DualSense.PRODUCT_DUALSENSE_EDGE)
+        manager.onUsbDeviceAttached(edge)
+
+        assertTrue(manager.isDualSenseActive)
+        assertTrue(manager.isEdgeConnected)
+        assertEquals(FakeInputWriter.PAD_TYPE_DUALSENSE_EDGE, RecordingWriter.lastPadType)
+
+        manager.onUsbDeviceDetached(edge)
+        assertFalse(manager.isDualSenseActive)
+        assertFalse(manager.isEdgeConnected)
+        assertEquals(FakeInputWriter.PAD_TYPE_DECK, RecordingWriter.lastPadType)
+        manager.stop()
+    }
+
+    @Test
     fun testInputReportPipelineInDualSenseManager() {
         val manager = DualSenseManager(context)
         val report = createNeutralReport()
@@ -1147,14 +1168,31 @@ class DualSenseTest {
         assertEquals(Triple(0xFF, 0x33, 0x33), DualSense.lightbarRgbForMode(ControllerPrefs.LIGHTBAR_BATTERY, tintArgb, 15))
 
         assertEquals(0x04, DualSense.playerLedMaskForMode(ControllerPrefs.PLAYER_LEDS_P1, 80))
+        assertEquals(0x0A, DualSense.playerLedMaskForMode(ControllerPrefs.PLAYER_LEDS_P2, 80))
+        assertEquals(0x15, DualSense.playerLedMaskForMode(ControllerPrefs.PLAYER_LEDS_P3, 80))
+        assertEquals(0x1B, DualSense.playerLedMaskForMode(ControllerPrefs.PLAYER_LEDS_P4, 80))
+        assertEquals(0x1F, DualSense.playerLedMaskForMode(ControllerPrefs.PLAYER_LEDS_ALL, 80))
         assertEquals(0x1F, DualSense.playerLedMaskForMode(ControllerPrefs.PLAYER_LEDS_BATTERY, 85))
         assertEquals(0x00, DualSense.playerLedMaskForMode(ControllerPrefs.PLAYER_LEDS_OFF, 85))
+
+        assertEquals(1, DualSense.micLedForMode(ControllerPrefs.MIC_LED_MUTE, hardwareMuted = true))
+        assertEquals(0, DualSense.micLedForMode(ControllerPrefs.MIC_LED_MUTE, hardwareMuted = false))
+        assertEquals(1, DualSense.micLedForMode(ControllerPrefs.MIC_LED_ON, hardwareMuted = false))
+        assertEquals(2, DualSense.micLedForMode(ControllerPrefs.MIC_LED_PULSE, hardwareMuted = false))
+        assertEquals(0, DualSense.micLedForMode(ControllerPrefs.MIC_LED_OFF, hardwareMuted = true))
 
         assertNull(DualSense.triggerPresetEffect(ControllerPrefs.TRIGGER_AUTO))
         assertEquals(0x21.toByte(), DualSense.triggerPresetEffect(ControllerPrefs.TRIGGER_FEEDBACK)!![0])
         assertEquals(0x25.toByte(), DualSense.triggerPresetEffect(ControllerPrefs.TRIGGER_WEAPON)!![0])
         assertEquals(0x22.toByte(), DualSense.triggerPresetEffect(ControllerPrefs.TRIGGER_BOW)!![0])
+        assertEquals(0x23.toByte(), DualSense.triggerPresetEffect(ControllerPrefs.TRIGGER_GALLOPING)!![0])
         assertEquals(0x26.toByte(), DualSense.triggerPresetEffect(ControllerPrefs.TRIGGER_VIBRATION)!![0])
+        assertEquals(0x27.toByte(), DualSense.triggerPresetEffect(ControllerPrefs.TRIGGER_MACHINE)!![0])
+        assertEquals(0x01.toByte(), DualSense.triggerPresetEffect(ControllerPrefs.TRIGGER_SIMPLE_FEEDBACK)!![0])
+        assertEquals(0x02.toByte(), DualSense.triggerPresetEffect(ControllerPrefs.TRIGGER_SIMPLE_WEAPON)!![0])
+        assertEquals(0x06.toByte(), DualSense.triggerPresetEffect(ControllerPrefs.TRIGGER_SIMPLE_VIBRATION)!![0])
+        assertEquals(0x11.toByte(), DualSense.triggerPresetEffect(ControllerPrefs.TRIGGER_LIMITED_FEEDBACK)!![0])
+        assertEquals(0x12.toByte(), DualSense.triggerPresetEffect(ControllerPrefs.TRIGGER_LIMITED_WEAPON)!![0])
         assertEquals(0x05.toByte(), DualSense.triggerPresetEffect(ControllerPrefs.TRIGGER_OFF)!![0])
     }
 
@@ -1192,6 +1230,385 @@ class DualSenseTest {
         report[10] = 0x02 // Touchpad click
         manager.onInputReport(report)
         assertEquals(0, RecordingWriter.lastControls and 0xF0)
+
+        manager.stop()
+    }
+
+    // -------------------------------------------------------------------------
+    // Milestone 2 Tests: Edge Tuning, Edge Paddles, BT 10B, Calibration Relay
+    // -------------------------------------------------------------------------
+
+    @Test
+    fun testDualSenseEdgeTuningModeByte49Serialization() {
+        val manager = DualSenseManager(context)
+        val edge = usbDevice(DualSense.PRODUCT_DUALSENSE_EDGE)
+        manager.onUsbDeviceAttached(edge)
+        assertTrue(manager.isEdgeConnected)
+
+        // 1. Send report with Edge tuning mode active (0x0D in byte 49)
+        val report = createNeutralReport()
+        report[49] = 0x0D
+        manager.onInputReport(report)
+
+        val padBin = File(tempDir, "pad.bin")
+        assertTrue("pad.bin must be written", padBin.exists())
+        assertEquals(64L, padBin.length())
+        var padBytes = padBin.readBytes()
+        assertEquals(0x0D.toByte(), padBytes[49])
+
+        // 2. Switch profile to Profile 2 (0x02 in byte 49)
+        report[49] = 0x02
+        manager.onInputReport(report)
+        padBytes = padBin.readBytes()
+        assertEquals(0x02.toByte(), padBytes[49])
+
+        // 3. Verify output report Edge command serialization
+        val usbOutput = DualSense.buildOutputReport(isEdge = true, disableEdgeFnSwitching = true)
+        assertEquals(0xC7.toByte(), usbOutput[39])
+        assertEquals(0x80.toByte(), usbOutput[41])
+
+        val btOutput = DualSense.buildBluetoothOutputReport(usbOutput, seq = 3, isEdge = true)
+        assertEquals(0xC7.toByte(), btOutput[40])
+        assertEquals(0x80.toByte(), btOutput[42])
+        assertEquals(0x03.toByte(), btOutput[49])
+
+        // 4. In standard DualSense mode, timestamp jitter in byte 49 must be deduplicated
+        manager.onUsbDeviceDetached(edge)
+        assertFalse(manager.isEdgeConnected)
+        val dsReport1 = createNeutralReport()
+        dsReport1[49] = 0x5F
+        val dsReport2 = createNeutralReport()
+        dsReport2[49] = 0x60
+        assertTrue("Standard DualSense must deduplicate rolling timestamp byte 49",
+            DualSense.isSamePadBinState(dsReport1, dsReport2, isEdge = false))
+        assertFalse("DualSense Edge must recognize byte 49 profile changes",
+            DualSense.isSamePadBinState(dsReport1, dsReport2, isEdge = true))
+
+        manager.stop()
+    }
+
+    @Test
+    fun testDualSenseEdgePaddleButtonsParsingAndMapping() {
+        val manager = DualSenseManager(context)
+        val edge = usbDevice(DualSense.PRODUCT_DUALSENSE_EDGE)
+        manager.onUsbDeviceAttached(edge)
+
+        // Table-driven verification of each paddle and Fn button in isolation (USB 64B)
+        val buttonCases = listOf(
+            Triple(0x10, "Fn1 / L5", { s: DualSense.State -> s.l5 && !s.r5 && !s.l4 && !s.r4 }),
+            Triple(0x20, "Fn2 / R5", { s: DualSense.State -> !s.l5 && s.r5 && !s.l4 && !s.r4 }),
+            Triple(0x40, "Lb / L4",   { s: DualSense.State -> !s.l5 && !s.r5 && s.l4 && !s.r4 }),
+            Triple(0x80, "Rb / R4",   { s: DualSense.State -> !s.l5 && !s.r5 && !s.l4 && s.r4 })
+        )
+
+        for ((mask, name, predicate) in buttonCases) {
+            val report = createNeutralReport()
+            report[10] = mask.toByte()
+            val state = DualSense.parseInputReport(report, isEdge = true)!!
+            assertTrue("Isolated button $name with mask 0x${mask.toString(16)} failed predicate", predicate(state))
+            assertFalse("Button $name must not assert Mute", state.mute)
+            assertFalse("Button $name must not assert PS", state.ps)
+            assertFalse("Button $name must not assert TouchpadClick", state.touchpadClick)
+
+            // Test dispatch into DeckControls & RecordingWriter
+            manager.onInputReport(report)
+            when (mask) {
+                0x10 -> assertTrue("DeckControls.L5 must be set", (RecordingWriter.lastControls and DeckControls.L5) != 0)
+                0x20 -> assertTrue("DeckControls.R5 must be set", (RecordingWriter.lastControls and DeckControls.R5) != 0)
+                0x40 -> assertTrue("DeckControls.L4 must be set", (RecordingWriter.lastControls and DeckControls.L4) != 0)
+                0x80 -> assertTrue("DeckControls.R4 must be set", (RecordingWriter.lastControls and DeckControls.R4) != 0)
+            }
+        }
+
+        // Test combined chords: all 4 Edge buttons pressed simultaneously
+        val chordReport = createNeutralReport()
+        chordReport[10] = 0xF0.toByte() // L5 (0x10) | R5 (0x20) | L4 (0x40) | R4 (0x80)
+        val chordState = DualSense.parseInputReport(chordReport, isEdge = true)!!
+        assertTrue(chordState.l4)
+        assertTrue(chordState.r4)
+        assertTrue(chordState.l5)
+        assertTrue(chordState.r5)
+
+        manager.onInputReport(chordReport)
+        val expectedMask = DeckControls.L4 or DeckControls.R4 or DeckControls.L5 or DeckControls.R5
+        assertEquals(expectedMask, RecordingWriter.lastControls and expectedMask)
+
+        // Test Bluetooth 0x31 78-byte input report parsing (byte 10 maps to bt[11])
+        val btReport = ByteArray(DualSense.REPORT_SIZE_BT_INPUT)
+        btReport[0] = DualSense.REPORT_ID_BT_INPUT
+        btReport[1] = 0x01
+        btReport[11] = 0xF0.toByte()
+        val btState = DualSense.parseInputReport(btReport, isEdge = true)!!
+        assertTrue(btState.l4)
+        assertTrue(btState.r4)
+        assertTrue(btState.l5)
+        assertTrue(btState.r5)
+
+        manager.stop()
+    }
+
+    @Test
+    fun testBasicBluetooth10ByteReportSynthesisInConvertBtInputToUsb64() {
+        // Construct standard 10-byte basic Bluetooth report
+        val basic = ByteArray(DualSense.REPORT_SIZE_BT_BASIC_INPUT)
+        basic[0] = DualSense.REPORT_ID_INPUT // 0x01
+        basic[1] = 0x12 // LX
+        basic[2] = 0x34 // LY
+        basic[3] = 0x56 // RX
+        basic[4] = 0x78 // RY
+        basic[5] = 0x28 // Cross (0x20) + Hat 8 (0x08, neutral D-Pad)
+        basic[6] = 0x03 // L1 (0x01) + R1 (0x02)
+        basic[7] = 0x06 // TouchpadClick (0x02) + Mute (0x04)
+        basic[8] = 0xFE.toByte() // L2 analog trigger
+        basic[9] = 0x7F.toByte() // R2 analog trigger
+
+        val usb64 = DualSense.convertBtInputToUsb64(basic)
+        assertNotNull("convertBtInputToUsb64 must synthesize 64B USB report from 10B basic BT report", usb64)
+        usb64!!
+        assertEquals(64, usb64.size)
+        assertEquals(DualSense.REPORT_ID_INPUT, usb64[0])
+
+        // Verify stick mapping
+        assertEquals(0x12.toByte(), usb64[1])
+        assertEquals(0x34.toByte(), usb64[2])
+        assertEquals(0x56.toByte(), usb64[3])
+        assertEquals(0x78.toByte(), usb64[4])
+
+        // Verify analog triggers
+        assertEquals(0xFE.toByte(), usb64[5])
+        assertEquals(0x7F.toByte(), usb64[6])
+
+        // Verify button mappings
+        assertEquals(0x28.toByte(), usb64[8])  // Hat + face
+        assertEquals(0x03.toByte(), usb64[9])  // Shoulders
+        assertEquals(0x06.toByte(), usb64[10]) // System (TouchpadClick + Mute)
+
+        // Verify touch inactive markers
+        assertEquals(0x80.toByte(), usb64[33])
+        assertEquals(0x80.toByte(), usb64[37])
+
+        // Verify battery default
+        assertEquals(0x2A.toByte(), usb64[53])
+
+        // Verify parity between parseBasicBtInputReport and parseInputReport(usb64)
+        val basicState = DualSense.parseBasicBtInputReport(basic)!!
+        val synthState = DualSense.parseInputReport(usb64)!!
+        assertEquals(basicState.leftX, synthState.leftX, 0.01f)
+        assertEquals(basicState.leftY, synthState.leftY, 0.01f)
+        assertEquals(basicState.rightX, synthState.rightX, 0.01f)
+        assertEquals(basicState.rightY, synthState.rightY, 0.01f)
+        assertEquals(basicState.leftTrigger, synthState.leftTrigger, 0.01f)
+        assertEquals(basicState.rightTrigger, synthState.rightTrigger, 0.01f)
+        assertEquals(basicState.cross, synthState.cross)
+        assertEquals(basicState.l1, synthState.l1)
+        assertEquals(basicState.r1, synthState.r1)
+        assertEquals(basicState.mute, synthState.mute)
+        assertEquals(basicState.touchpadClick, synthState.touchpadClick)
+
+        // Verify DualSenseManager writes synthesized 64B report into pad.bin
+        val manager = DualSenseManager(context)
+        manager.onInputReport(basic)
+        val padBin = File(tempDir, "pad.bin")
+        assertTrue(padBin.exists())
+        assertEquals(64L, padBin.length())
+        val written = padBin.readBytes()
+        assertEquals(0x12.toByte(), written[1])
+        assertEquals(0xFE.toByte(), written[5])
+        assertEquals(0x06.toByte(), written[10])
+        manager.stop()
+    }
+
+    @Test
+    fun testFeature05CalibrationRelayToCal05Bin() {
+        val calBuf = ByteArray(DualSense.REPORT_SIZE_CALIBRATION)
+        val bb = ByteBuffer.wrap(calBuf).order(ByteOrder.LITTLE_ENDIAN)
+        calBuf[0] = DualSense.REPORT_ID_CALIBRATION // 0x05
+
+        // Gyro biases (+15, -25, +35)
+        bb.putShort(1, 15.toShort())
+        bb.putShort(3, (-25).toShort())
+        bb.putShort(5, 35.toShort())
+
+        // Gyro sensitivities (+8640 / -8640)
+        for (axis in 0..2) {
+            bb.putShort(7 + axis * 4, 8640.toShort())
+            bb.putShort(9 + axis * 4, (-8640).toShort())
+        }
+        bb.putShort(19, 540.toShort())
+        bb.putShort(21, 540.toShort())
+
+        // Accel sensitivities (+8292 / -8092)
+        for (axis in 0..2) {
+            bb.putShort(23 + axis * 4, 8292.toShort())
+            bb.putShort(25 + axis * 4, (-8092).toShort())
+        }
+
+        val manager = DualSenseManager(context)
+        assertTrue(manager.writeCalibration(calBuf))
+
+        val calFile = File(tempDir, "cal_05.bin")
+        assertTrue("cal_05.bin must exist in fakeInputDir", calFile.exists())
+        assertEquals("cal_05.bin must be exactly 41 bytes", 41L, calFile.length())
+        val written = calFile.readBytes()
+        assertEquals(DualSense.REPORT_ID_CALIBRATION, written[0])
+        assertEquals(15.toShort(), ByteBuffer.wrap(written).order(ByteOrder.LITTLE_ENDIAN).getShort(1))
+        assertEquals((-25).toShort(), ByteBuffer.wrap(written).order(ByteOrder.LITTLE_ENDIAN).getShort(3))
+
+        // Idempotent overwrite with new calibration
+        bb.putShort(1, 42.toShort())
+        assertTrue(manager.writeCalibration(calBuf))
+        assertEquals(41L, calFile.length())
+        assertEquals(42.toShort(), ByteBuffer.wrap(calFile.readBytes()).order(ByteOrder.LITTLE_ENDIAN).getShort(1))
+
+        // Invalid / degenerate report must be rejected
+        val invalidCal = ByteArray(10) // Too short
+        assertFalse(manager.writeCalibration(invalidCal))
+
+        val wrongId = calBuf.clone()
+        wrongId[0] = 0x01 // Wrong report ID
+        assertFalse(manager.writeCalibration(wrongId))
+
+        manager.stop()
+    }
+
+    @Test
+    fun testIndependentLeftRightTriggerModesAndMicLedPreference() {
+        ControllerPrefs.setDualSenseTriggerMode(context, ControllerPrefs.TRIGGER_FEEDBACK)
+        ControllerPrefs.setDualSenseLeftTriggerMode(context, ControllerPrefs.TRIGGER_BOW)
+        ControllerPrefs.setDualSenseRightTriggerMode(context, ControllerPrefs.TRIGGER_MACHINE)
+        ControllerPrefs.setDualSenseMicLedMode(context, ControllerPrefs.MIC_LED_PULSE)
+        ControllerPrefs.setDualSensePlayerLeds(context, ControllerPrefs.PLAYER_LEDS_P3)
+
+        val settings = ControllerPrefs.read(context)
+        assertEquals(ControllerPrefs.TRIGGER_BOW, settings.dualSenseLeftTriggerMode)
+        assertEquals(ControllerPrefs.TRIGGER_MACHINE, settings.dualSenseRightTriggerMode)
+        assertEquals(ControllerPrefs.MIC_LED_PULSE, settings.dualSenseMicLedMode)
+        assertEquals(ControllerPrefs.PLAYER_LEDS_P3, settings.dualSensePlayerLeds)
+
+        val manager = DualSenseManager(context)
+        val sentBt = mutableListOf<ByteArray>()
+        manager.bluetoothReportSender = { bt ->
+            sentBt.add(bt.clone())
+            true
+        }
+        manager.refreshUserPreferences()
+        assertTrue(manager.applyUserPreferences())
+        assertEquals(1, sentBt.size)
+        val bt = sentBt[0]
+        // bt[2..] mirrors usb[1..]:
+        // usb[9] (micLed = 2) -> bt[10]
+        // usb[11] (rightTriggerEffect = MACHINE 0x27) -> bt[12]
+        // usb[22] (leftTriggerEffect = BOW 0x22) -> bt[23]
+        // usb[44] (playerLeds = P3 0x15) -> bt[45]
+        assertEquals(2.toByte(), bt[10])
+        assertEquals(0x27.toByte(), bt[12])
+        assertEquals(0x22.toByte(), bt[23])
+        assertEquals(0x15.toByte(), bt[45])
+        manager.stop()
+    }
+
+    @Test
+    fun testBluetoothOutputCoalescingAndNoopDeduplication() {
+        val manager = DualSenseManager(context)
+        val sentBt = mutableListOf<ByteArray>()
+        manager.bluetoothReportSender = { bt ->
+            sentBt.add(bt.clone())
+            true
+        }
+
+        // 1. First rumble report at t = 1000ms is dispatched immediately
+        val r1 = DualSense.buildOutputReport(leftMotor = 80, rightMotor = 40, updateLightbar = false, lightbarSetup = 0)
+        assertTrue(manager.sendOutputReport(r1, nowMs = 1000L))
+        assertEquals(1, sentBt.size)
+
+        // 2. Identical payload at t = 1020ms is deduplicated (noop)
+        assertTrue(manager.sendOutputReport(r1.clone(), nowMs = 1020L))
+        assertEquals(1, sentBt.size)
+
+        // 3. Rumble-only update within 8ms window (t = 1003ms) is coalesced into pendingBtRumbleReport
+        val r2 = DualSense.buildOutputReport(leftMotor = 100, rightMotor = 50, updateLightbar = false, lightbarSetup = 0)
+        assertTrue(manager.sendOutputReport(r2, nowMs = 1003L))
+        assertEquals(1, sentBt.size)
+        assertNotNull(manager.pendingBtRumbleReport)
+
+        // 4. Flushing after 8ms window (t = 1010ms) dispatches the coalesced rumble report
+        assertTrue(manager.flushPendingBluetoothRumble(nowMs = 1010L))
+        assertEquals(2, sentBt.size)
+        assertNull(manager.pendingBtRumbleReport)
+        assertEquals(50.toByte(), sentBt[1][4])  // rightMotor at bt[4] (usb[3])
+        assertEquals(100.toByte(), sentBt[1][5]) // leftMotor at bt[5] (usb[4])
+
+        // 5. Trigger effect change within 8ms window (t = 1012ms) bypasses coalescing and sends immediately (0ms delay)
+        val triggerReport = DualSense.buildOutputReport(
+            leftMotor = 110,
+            rightMotor = 60,
+            rightTriggerEffect = DualSense.TriggerEffects.weapon(2, 6, 7),
+            updateLightbar = false,
+            lightbarSetup = 0
+        )
+        assertTrue(manager.sendOutputReport(triggerReport, nowMs = 1012L))
+        assertEquals(3, sentBt.size)
+        assertEquals(0x25.toByte(), sentBt[2][12])
+
+        // 6. Zero-rumble stop packet within 8ms window (t = 1014ms) bypasses coalescing and sends immediately
+        val stopReport = DualSense.buildRumbleClearReport()
+        assertTrue(manager.sendOutputReport(stopReport, nowMs = 1014L))
+        assertEquals(4, sentBt.size)
+        assertEquals(0.toByte(), sentBt[3][4])
+        assertEquals(0.toByte(), sentBt[3][5])
+
+        manager.stop()
+    }
+
+    @Test
+    fun testGameOutputReportAutoPassthroughAndDsxProfileFallback() {
+        // User configures L2 = Bow (0x22) and R2 = Weapon (0x25) in DSX Controller Settings
+        ControllerPrefs.setDualSenseLeftTriggerMode(context, ControllerPrefs.TRIGGER_BOW)
+        ControllerPrefs.setDualSenseRightTriggerMode(context, ControllerPrefs.TRIGGER_WEAPON)
+
+        val manager = DualSenseManager(context)
+        val sentBt = mutableListOf<ByteArray>()
+        manager.bluetoothReportSender = { bt ->
+            sentBt.add(bt.clone())
+            true
+        }
+        val dev = usbDevice(DualSense.PRODUCT_DUALSENSE)
+        manager.onUsbDeviceAttached(dev)
+        sentBt.clear()
+
+        // 1. Game sends a rumble-only report (no native trigger flags):
+        // User's DSX L2 (Bow 0x22) and R2 (Weapon 0x25) presets are preserved on top of game rumble!
+        val rumbleOnly = DualSense.buildOutputReport(leftMotor = 90, rightMotor = 45, updateLightbar = false, lightbarSetup = 0)
+        assertTrue(manager.sendGameOutputReport(rumbleOnly, nowMs = 2000L))
+        assertFalse(manager.gameNativeTriggersActive)
+        assertEquals(1, sentBt.size)
+        assertEquals(45.toByte(), sentBt[0][4])
+        assertEquals(90.toByte(), sentBt[0][5])
+        assertEquals(0x25.toByte(), sentBt[0][12]) // R2 = Weapon
+        assertEquals(0x22.toByte(), sentBt[0][23]) // L2 = Bow
+
+        // 2. Game sends a native DualSense adaptive trigger effect (R2 = Galloping 0x23, L2 = Machine 0x27):
+        // Auto-Passthrough immediately gives priority to the game's native trigger command!
+        val gameNative = DualSense.buildOutputReport(
+            leftMotor = 30,
+            rightMotor = 30,
+            rightTriggerEffect = DualSense.TriggerEffects.galloping(1, 8, 2, 5, 35),
+            leftTriggerEffect = DualSense.TriggerEffects.machine(1, 9, 5, 7, 45, 20),
+            updateLightbar = false,
+            lightbarSetup = 0
+        )
+        assertTrue(manager.sendGameOutputReport(gameNative, nowMs = 2020L))
+        assertTrue(manager.gameNativeTriggersActive)
+        assertEquals(2, sentBt.size)
+        assertEquals(0x23.toByte(), sentBt[1][12]) // R2 = Game Galloping
+        assertEquals(0x27.toByte(), sentBt[1][23]) // L2 = Game Machine
+
+        // 3. When the game session stops, user's DSX trigger profile (L2 = Bow, R2 = Weapon) is automatically restored
+        manager.onGameOutputSessionStopped()
+        assertFalse(manager.gameNativeTriggersActive)
+        assertEquals(3, sentBt.size)
+        assertEquals(0x25.toByte(), sentBt[2][12]) // R2 restored to Weapon
+        assertEquals(0x22.toByte(), sentBt[2][23]) // L2 restored to Bow
 
         manager.stop()
     }

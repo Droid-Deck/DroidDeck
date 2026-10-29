@@ -71,6 +71,9 @@ class DualSenseOutputBridge : SessionPart() {
 
         if (s != null) {
             serverThread = Thread({
+                try {
+                    android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_DISPLAY)
+                } catch (_: Throwable) {}
                 val buffer = ByteArray(REPORT_SIZE)
                 while (running && server === s) {
                     val client = try {
@@ -148,66 +151,86 @@ class DualSenseOutputBridge : SessionPart() {
             // ignore
         }
         activeLightsSession = null
+        DualSenseManager.activeManager?.onGameOutputSessionStopped()
     }
 
     private fun startFileWatcher() {
         fileWatchThread = Thread({
             val record = ByteArray(RECORD_SIZE)
-            while (running) {
-                val dir = SessionState.fakeInputDir
-                if (dir != null) {
-                    val file = File(dir, FILE_NAME)
-                    if (file.exists()) {
-                        try {
-                            RandomAccessFile(file, "r").use { raf ->
-                                val len = raf.length()
-                                if (len >= 56) {
-                                    raf.seek(0)
-                                    val read = raf.read(record)
-                                    if (read >= 56) {
-                                        val seq = (record[0].toLong() and 0xFF) or
-                                                ((record[1].toLong() and 0xFF) shl 8) or
-                                                ((record[2].toLong() and 0xFF) shl 16) or
-                                                ((record[3].toLong() and 0xFF) shl 24)
-                                        if (seq != lastObservedFileSeq) {
-                                            lastObservedFileSeq = seq
-                                            val copyLen = (record[4].toInt() and 0xFF) or
-                                                    ((record[5].toInt() and 0xFF) shl 8) or
-                                                    ((record[6].toInt() and 0xFF) shl 16) or
-                                                    ((record[7].toInt() and 0xFF) shl 24)
-                                            if (copyLen >= REPORT_SIZE && record[8] == REPORT_ID_OUTPUT) {
-                                                val report = ByteArray(REPORT_SIZE)
-                                                System.arraycopy(record, 8, report, 0, REPORT_SIZE)
+            var cachedFile: File? = null
+            var cachedRaf: RandomAccessFile? = null
+            try {
+                while (running) {
+                    if (activeClientSocket == null) {
+                        val dir = SessionState.fakeInputDir
+                        if (dir != null) {
+                            val file = File(dir, FILE_NAME)
+                            if (file.exists()) {
+                                try {
+                                    if (cachedRaf == null || cachedFile != file) {
+                                        try { cachedRaf?.close() } catch (_: Exception) {}
+                                        cachedFile = file
+                                        cachedRaf = RandomAccessFile(file, "r")
+                                    }
+                                    val raf = cachedRaf!!
+                                    val len = raf.length()
+                                    if (len >= 56) {
+                                        raf.seek(0)
+                                        val read = raf.read(record)
+                                        if (read >= 56) {
+                                            val seq = (record[0].toLong() and 0xFF) or
+                                                    ((record[1].toLong() and 0xFF) shl 8) or
+                                                    ((record[2].toLong() and 0xFF) shl 16) or
+                                                    ((record[3].toLong() and 0xFF) shl 24)
+                                            if (seq != lastObservedFileSeq) {
+                                                lastObservedFileSeq = seq
+                                                val copyLen = (record[4].toInt() and 0xFF) or
+                                                        ((record[5].toInt() and 0xFF) shl 8) or
+                                                        ((record[6].toInt() and 0xFF) shl 16) or
+                                                        ((record[7].toInt() and 0xFF) shl 24)
+                                                if (copyLen >= REPORT_SIZE && record[8] == REPORT_ID_OUTPUT) {
+                                                    val report = ByteArray(REPORT_SIZE)
+                                                    System.arraycopy(record, 8, report, 0, REPORT_SIZE)
+                                                    dispatchOutputReport(report)
+                                                }
+                                            }
+                                        }
+                                    } else if (len == REPORT_SIZE.toLong()) {
+                                        raf.seek(0)
+                                        val read = raf.read(record, 0, REPORT_SIZE)
+                                        if (read >= REPORT_SIZE && record[0] == REPORT_ID_OUTPUT) {
+                                            val report = ByteArray(REPORT_SIZE)
+                                            System.arraycopy(record, 0, report, 0, REPORT_SIZE)
+                                            if (!report.contentEquals(lastRawFileReport)) {
+                                                lastRawFileReport = report
                                                 dispatchOutputReport(report)
                                             }
                                         }
                                     }
-                                } else if (len == REPORT_SIZE.toLong()) {
-                                    raf.seek(0)
-                                    val read = raf.read(record, 0, REPORT_SIZE)
-                                    if (read >= REPORT_SIZE && record[0] == REPORT_ID_OUTPUT) {
-                                        val report = ByteArray(REPORT_SIZE)
-                                        System.arraycopy(record, 0, report, 0, REPORT_SIZE)
-                                        if (!report.contentEquals(lastRawFileReport)) {
-                                            lastRawFileReport = report
-                                            dispatchOutputReport(report)
-                                        }
-                                    }
+                                } catch (_: Exception) {
+                                    try { cachedRaf?.close() } catch (_: Exception) {}
+                                    cachedRaf = null
+                                    cachedFile = null
                                 }
+                            } else {
+                                if (cachedRaf != null) {
+                                    try { cachedRaf?.close() } catch (_: Exception) {}
+                                    cachedRaf = null
+                                    cachedFile = null
+                                }
+                                lastObservedFileSeq = -1L
+                                lastRawFileReport = null
                             }
-                        } catch (_: Exception) {
-                            // ignore concurrent read/write jitter
                         }
-                    } else {
-                        lastObservedFileSeq = -1L
-                        lastRawFileReport = null
+                    }
+                    try {
+                        Thread.sleep(FILE_POLL_INTERVAL_MS)
+                    } catch (_: InterruptedException) {
+                        break
                     }
                 }
-                try {
-                    Thread.sleep(FILE_POLL_INTERVAL_MS)
-                } catch (_: InterruptedException) {
-                    break
-                }
+            } finally {
+                try { cachedRaf?.close() } catch (_: Exception) {}
             }
         }, "dualsense-file-watcher").apply {
             isDaemon = true
@@ -279,9 +302,9 @@ class DualSenseOutputBridge : SessionPart() {
             return false
         }
 
-        // 1. Forward to active DualSenseManager if available
+        // 1. Forward to active DualSenseManager if available (with Game <-> DSX Auto-Passthrough)
         val manager = DualSenseManager.activeManager
-        if (manager != null && manager.sendOutputReport(report)) {
+        if (manager != null && manager.sendGameOutputReport(report)) {
             return true
         }
 

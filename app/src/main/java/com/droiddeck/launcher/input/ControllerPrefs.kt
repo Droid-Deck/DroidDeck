@@ -13,24 +13,63 @@ object ControllerPrefs {
     const val LIGHTBAR_OFF = "off"
 
     const val PLAYER_LEDS_P1 = "player1"
+    const val PLAYER_LEDS_P2 = "player2"
+    const val PLAYER_LEDS_P3 = "player3"
+    const val PLAYER_LEDS_P4 = "player4"
+    const val PLAYER_LEDS_ALL = "all"
     const val PLAYER_LEDS_BATTERY = "battery"
     const val PLAYER_LEDS_OFF = "off"
+
+    const val MIC_LED_MUTE = "mute"
+    const val MIC_LED_ON = "on"
+    const val MIC_LED_PULSE = "pulse"
+    const val MIC_LED_OFF = "off"
 
     const val TRIGGER_AUTO = "auto"
     const val TRIGGER_FEEDBACK = "feedback"
     const val TRIGGER_WEAPON = "weapon"
     const val TRIGGER_BOW = "bow"
+    const val TRIGGER_GALLOPING = "galloping"
     const val TRIGGER_VIBRATION = "vibration"
+    const val TRIGGER_MACHINE = "machine"
+    const val TRIGGER_SIMPLE_FEEDBACK = "simple_feedback"
+    const val TRIGGER_SIMPLE_WEAPON = "simple_weapon"
+    const val TRIGGER_SIMPLE_VIBRATION = "simple_vibration"
+    const val TRIGGER_LIMITED_FEEDBACK = "limited_feedback"
+    const val TRIGGER_LIMITED_WEAPON = "limited_weapon"
     const val TRIGGER_OFF = "off"
 
     val lightbarModes = listOf(LIGHTBAR_TINT, LIGHTBAR_BATTERY, LIGHTBAR_PS_BLUE, LIGHTBAR_OFF)
-    val playerLedModes = listOf(PLAYER_LEDS_P1, PLAYER_LEDS_BATTERY, PLAYER_LEDS_OFF)
+    val playerLedModes = listOf(
+        PLAYER_LEDS_P1,
+        PLAYER_LEDS_P2,
+        PLAYER_LEDS_P3,
+        PLAYER_LEDS_P4,
+        PLAYER_LEDS_ALL,
+        PLAYER_LEDS_BATTERY,
+        PLAYER_LEDS_OFF,
+    )
+    val micLedModes = listOf(MIC_LED_MUTE, MIC_LED_ON, MIC_LED_PULSE, MIC_LED_OFF)
     val playerLedBrightnesses = listOf(
         DualSense.PLAYER_LED_BRIGHTNESS_HIGH,
         DualSense.PLAYER_LED_BRIGHTNESS_MEDIUM,
         DualSense.PLAYER_LED_BRIGHTNESS_LOW,
     )
-    val triggerModes = listOf(TRIGGER_AUTO, TRIGGER_FEEDBACK, TRIGGER_WEAPON, TRIGGER_BOW, TRIGGER_VIBRATION, TRIGGER_OFF)
+    val triggerModes = listOf(
+        TRIGGER_AUTO,
+        TRIGGER_FEEDBACK,
+        TRIGGER_WEAPON,
+        TRIGGER_BOW,
+        TRIGGER_GALLOPING,
+        TRIGGER_VIBRATION,
+        TRIGGER_MACHINE,
+        TRIGGER_SIMPLE_FEEDBACK,
+        TRIGGER_SIMPLE_WEAPON,
+        TRIGGER_SIMPLE_VIBRATION,
+        TRIGGER_LIMITED_FEEDBACK,
+        TRIGGER_LIMITED_WEAPON,
+        TRIGGER_OFF,
+    )
 
     val tints = listOf(
         STEAM_BLUE to R.string.ctrl_tint_steam_blue,
@@ -80,7 +119,10 @@ object ControllerPrefs {
         val dualSenseLightbarMode: String = LIGHTBAR_TINT,
         val dualSensePlayerLeds: String = PLAYER_LEDS_P1,
         val dualSensePlayerLedBrightness: Int = DualSense.PLAYER_LED_BRIGHTNESS_HIGH,
+        val dualSenseMicLedMode: String = MIC_LED_MUTE,
         val dualSenseTriggerMode: String = TRIGGER_AUTO,
+        val dualSenseLeftTriggerMode: String = dualSenseTriggerMode,
+        val dualSenseRightTriggerMode: String = dualSenseTriggerMode,
         val dualSenseTouchpad: Boolean = true,
         val dualSenseGyroAutoCal: Boolean = true,
     )
@@ -108,7 +150,10 @@ object ControllerPrefs {
             dualSenseLightbarMode = dualSenseLightbarMode(context),
             dualSensePlayerLeds = dualSensePlayerLeds(context),
             dualSensePlayerLedBrightness = dualSensePlayerLedBrightness(context),
+            dualSenseMicLedMode = dualSenseMicLedMode(context),
             dualSenseTriggerMode = dualSenseTriggerMode(context),
+            dualSenseLeftTriggerMode = dualSenseLeftTriggerMode(context),
+            dualSenseRightTriggerMode = dualSenseRightTriggerMode(context),
             dualSenseTouchpad = dualSenseTouchpad(context),
             dualSenseGyroAutoCal = dualSenseGyroAutoCal(context),
         )
@@ -203,11 +248,41 @@ object ControllerPrefs {
         prefs(context).edit().putInt("dualSensePlayerLedBrightness", valid).apply()
     }
 
+    fun dualSenseMicLedMode(context: Context): String =
+        prefs(context).getString("dualSenseMicLedMode", MIC_LED_MUTE)?.takeIf { it in micLedModes } ?: MIC_LED_MUTE
+
+    fun setDualSenseMicLedMode(context: Context, mode: String) {
+        prefs(context).edit().putString("dualSenseMicLedMode", mode.takeIf { it in micLedModes } ?: MIC_LED_MUTE).apply()
+    }
+
     fun dualSenseTriggerMode(context: Context): String =
         prefs(context).getString("dualSenseTriggerMode", TRIGGER_AUTO)?.takeIf { it in triggerModes } ?: TRIGGER_AUTO
 
     fun setDualSenseTriggerMode(context: Context, mode: String) {
-        prefs(context).edit().putString("dualSenseTriggerMode", mode.takeIf { it in triggerModes } ?: TRIGGER_AUTO).apply()
+        val valid = mode.takeIf { it in triggerModes } ?: TRIGGER_AUTO
+        prefs(context).edit()
+            .putString("dualSenseTriggerMode", valid)
+            .putString("dualSenseLeftTriggerMode", valid)
+            .putString("dualSenseRightTriggerMode", valid)
+            .apply()
+    }
+
+    fun dualSenseLeftTriggerMode(context: Context): String =
+        prefs(context).getString("dualSenseLeftTriggerMode", null)?.takeIf { it in triggerModes }
+            ?: dualSenseTriggerMode(context)
+
+    fun setDualSenseLeftTriggerMode(context: Context, mode: String) {
+        val valid = mode.takeIf { it in triggerModes } ?: TRIGGER_AUTO
+        prefs(context).edit().putString("dualSenseLeftTriggerMode", valid).apply()
+    }
+
+    fun dualSenseRightTriggerMode(context: Context): String =
+        prefs(context).getString("dualSenseRightTriggerMode", null)?.takeIf { it in triggerModes }
+            ?: dualSenseTriggerMode(context)
+
+    fun setDualSenseRightTriggerMode(context: Context, mode: String) {
+        val valid = mode.takeIf { it in triggerModes } ?: TRIGGER_AUTO
+        prefs(context).edit().putString("dualSenseRightTriggerMode", valid).apply()
     }
 
     fun dualSenseTouchpad(context: Context): Boolean = prefs(context).getBoolean("dualSenseTouchpad", true)
