@@ -185,18 +185,19 @@ object AutoComponents {
         val catalog = (catalogOf(context, false) ?: catalogOf(context, true))?.associateBy { it.name } ?: return
         val wanted = autoPicks(findings, catalog)
         val user = WinComponents.selection(context, key).user
+        val before = WinComponents.selection(context, key).auto
         val installed = installedOf(context)
         val kept = LinkedHashMap<String, WinComponents.AutoReason>()
         val missing = ArrayList<String>()
         for ((id, reason) in wanted) {
             if (user[id] == false) { kept[id] = reason; continue }
             if (id in installed) { kept[id] = reason; continue }
+            if (id in before) kept[id] = reason
             synchronized(waiting) { waiting.getOrPut(id) { ArrayList() }.let { if (it.none { g -> appKey(g) == key }) it.add(game) } }
             queueDownload(context, id, asked, inSession)
             missing.add(id)
         }
         if (inSession) Pending.set(context, key, missing)
-        val before = WinComponents.selection(context, key).auto
         if (before.keys != kept.keys) {
             WinComponents.setAuto(context, key, kept)
             Log.i(TAG, "${game.name}: on by itself ${kept.keys.joinToString().ifEmpty { "(none)" }}")
@@ -316,6 +317,20 @@ object AutoComponents {
 
 
     fun beforeLaunch(context: Context, game: Library.SteamGame) = queueGame(context, game, asked = false)
+
+    fun restoreMissing(context: Context): List<String> {
+        val selections = WinComponents.selections(context)
+        if (selections.isEmpty()) return emptyList()
+        val installed = installedOf(context)
+        val picked = selections.values.flatMap { it.effective }.filter { WinComponents.validId(it) && it !in installed }.distinct()
+        if (picked.isEmpty()) return emptyList()
+        val catalog = (catalogOf(context, false) ?: catalogOf(context, true))?.associateBy { it.name } ?: return emptyList()
+        val lost = picked.filter { it in catalog }
+        if (lost.isEmpty()) return emptyList()
+        Log.i(TAG, "wincomp: reinstalling ${lost.joinToString()}, picked for games but missing from the runtime")
+        lost.forEach { queueDownload(context, it, asked = true, inSession = true) }
+        return lost
+    }
 
     fun refreshLater(context: Context, game: Library.SteamGame) = queueGame(context, game, asked = true)
 

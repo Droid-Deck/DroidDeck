@@ -2472,7 +2472,10 @@ class FrontEndActivity : ComponentActivity() {
             if (ready && (!componentSweepDone || endedSession != null)) {
                 componentSweepDone = true
                 endedSession?.let { componentSweepSession = it }
-                ui.postDelayed({ Thread({ com.droiddeck.launcher.frontend.AutoComponents.sweep(this, all) }, "components-sweep").start() }, 10_000)
+                ui.postDelayed({ Thread({
+                    com.droiddeck.launcher.frontend.AutoComponents.restoreMissing(this)
+                    com.droiddeck.launcher.frontend.AutoComponents.sweep(this, all)
+                }, "components-sweep").start() }, 10_000)
             }
             ui.post {
                 if (scanGeneration == libraryScanGeneration) {
