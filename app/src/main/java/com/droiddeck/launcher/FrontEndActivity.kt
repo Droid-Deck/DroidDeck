@@ -1615,6 +1615,7 @@ class FrontEndActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         compatLaunchVisible = true
+        com.droiddeck.launcher.ui.DualScreenPanel.yieldTo(taskId, false)
         orientation = SessionPrefs.orientation(this)
         launcherOrientation = com.droiddeck.launcher.core.AppUiPrefs.orientation(this)
         requestedOrientation = launcherOrientation
@@ -1766,9 +1767,12 @@ class FrontEndActivity : ComponentActivity() {
     private fun launchPending(): Boolean = gameLinkReading || (pendingGameLink != null && !gameLinkTried)
 
     private fun launchAndroidApp(app: HomeApp.LaunchableApp, displayId: Int?) {
+        val onOwnScreen = displayId == null || displayId == (display?.displayId ?: Display.DEFAULT_DISPLAY)
+        if (onOwnScreen) com.droiddeck.launcher.ui.DualScreenPanel.yieldTo(taskId, true)
         try {
             HomeApp.launch(this, app, displayId)
         } catch (_: Exception) {
+            com.droiddeck.launcher.ui.DualScreenPanel.yieldTo(taskId, false)
             val label = secondScreenDisplays.firstOrNull { it.id == displayId }?.label
             val message = when {
                 displayId == null || displayId == Display.DEFAULT_DISPLAY -> getString(R.string.android_app_open_failed_primary, app.label)

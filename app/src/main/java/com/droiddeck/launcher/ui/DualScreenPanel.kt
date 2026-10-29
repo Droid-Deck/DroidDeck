@@ -69,6 +69,7 @@ object DualScreenPanel {
     private var launching = false
         set(value) { field = value; available = value || activity != null }
     private var ownerTask = -1
+    private var ownerYielded = false
 
     var typing by mutableStateOf<TypingRequest?>(null)
         private set
@@ -118,6 +119,7 @@ object DualScreenPanel {
         hide()
         displayId = display
         ownerTask = task
+        ownerYielded = false
         launching = true
         val intent = Intent(context, DualScreenActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_MULTIPLE_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION)
@@ -146,7 +148,13 @@ object DualScreenPanel {
         return true
     }
 
+    // The panel resumes when an app opens over the owner on the primary screen; pulling the owner back would hide that app.
+    fun yieldTo(task: Int, app: Boolean) {
+        if (ownerTask == task) ownerYielded = app
+    }
+
     internal fun returnFocus(context: Context) {
+        if (ownerYielded) return
         val task = ownerTask.takeIf { it >= 0 } ?: return
         runCatching { (context.getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager).moveTaskToFront(task, 0) }
     }
