@@ -668,6 +668,7 @@ class FrontEndActivity : ComponentActivity() {
     @Volatile private var libraryScanGeneration = 0
     private var pendingGameLink: String? = null
     private var gameLinkReading = false
+    private var gameLinkTried = false
     private var gameSyncFolder by mutableStateOf<String?>(null)
     private fun pickGameExport(game: Library.SteamGame?) {
         onSavePicked = { folder ->
@@ -709,8 +710,10 @@ class FrontEndActivity : ComponentActivity() {
         } else shortcutLibraryScanning = false
         pendingGameLink = null
         gameLinkReading = false
+        gameLinkTried = false
         if (GameLaunchIntent.accepts(request.action)) {
             gameLinkReading = true
+            com.droiddeck.launcher.ui.DualScreenPanel.hide(taskId)
             val copy = Intent(request)
             Thread({
                 val id = GameLaunchIntent.read(this, copy)
@@ -927,6 +930,10 @@ class FrontEndActivity : ComponentActivity() {
     private fun handleGameLink(games: List<Library.SteamGame>) {
         if (!lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) return
         val id = pendingGameLink ?: return
+        gameLinkTried = true
+        ui.postDelayed({
+            if (!isDestroyed && lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) syncDualPanel()
+        }, LINK_PANEL_MS)
         val game = games.firstOrNull { it.gameIdString == id }
         if (game == null) {
             pendingGameLink = null
@@ -1504,6 +1511,9 @@ class FrontEndActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         if (intent.action == SteamIntegration.ACTION_SETUP) {
+            gameLinkReading = false
+            pendingGameLink = null
+            syncDualPanel()
             readIntegrationIntent(intent)
             return
         }
@@ -1745,7 +1755,7 @@ class FrontEndActivity : ComponentActivity() {
         else com.droiddeck.launcher.ui.DualScreenPanel.hide(taskId)
     }
 
-    private fun launchPending(): Boolean = pendingGameLink != null || gameLinkReading
+    private fun launchPending(): Boolean = gameLinkReading || (pendingGameLink != null && !gameLinkTried)
 
     private fun launchAndroidApp(app: HomeApp.LaunchableApp, displayId: Int?) {
         try {
@@ -2645,6 +2655,7 @@ class FrontEndActivity : ComponentActivity() {
     companion object {
         private const val TAG = "MainActivity"
         private const val MEDIA_SETTLE_MS = 1500L
+        private const val LINK_PANEL_MS = 1500L
         private const val SESSION_SWITCH_WAIT_MS = 30_000L
         private const val SESSION_SWITCH_POLL_MS = 250L
         private const val KEY_PENDING_SWITCH = "pending_switch"
