@@ -1,0 +1,79 @@
+name: Fork test build
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: The Build APK run on this fork whose apk to rename and sign
+        type: string
+        required: true
+      variant:
+        description: The package the test build installs as
+        type: choice
+        options: [antutu, ludashi, pubg]
+        default: antutu
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  test-build:
+    name: ${{ inputs.variant }} test build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: The apk
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN: ${{ inputs.run_id }}
+        run: gh run download "$RUN" -R "$GITHUB_REPOSITORY" -n droiddeck-apk -D in
+
+      - name: Rename and sign with the test key
+        env:
+          VARIANT: ${{ inputs.variant }}
+          TESTKEY_PASSWORD: android
+        run: |
+          set -euo pipefail
+          BUILD_TOOLS=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -n1)
+          pkg=$(awk -v v="$VARIANT" '!/^#/ && $1 == v { print $2 }' tools/release/variants.txt)
+          suffix=$(awk -v v="$VARIANT" '!/^#/ && $1 == v { print $3 }' tools/release/variants.txt)
+          [ -n "$pkg" ] || { echo "::error::no variant '$VARIANT' in tools/release/variants.txt"; exit 1; }
+          apks=(in/*.apk)
+          [ ${#apks[@]} = 1 ] && [ -f "${apks[0]}" ] || { echo "::error::expected one apk in the build"; exit 1; }
+          P=com.droiddeck.launcher
+          work=$(mktemp -d)
+          python3 tools/release/axml_rename.py "${apks[0]}" "$work/renamed.apk" \
+            "$P=$pkg" "$P.androidx-startup=$pkg.androidx-startup" "$P.logs=$pkg.logs" \
+            "$P.pairingguide=$pkg.pairingguide" "$P.pin=$pkg.pin" \
+            "$P.documents=$pkg.documents" "$P.home=$pkg.home" "$P.agent=$pkg.agent" \
+            "$P.vr_recovery=$pkg.vr_recovery" \
+            "$P.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION=$pkg.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+          got=$("$BUILD_TOOLS/aapt" dump badging "$work/renamed.apk" | sed -n "s/^package: name='\([^']*\)'.*/\1/p")
+          [ "$got" = "$pkg" ] || { echo "::error::the apk says package '$got', not '$pkg'"; exit 1; }
+          tree=$("$BUILD_TOOLS/aapt" dump xmltree "$work/renamed.apk" AndroidManifest.xml)
+          if grep -E 'android:(authorities|taskAffinity)' <<<"$tree" | grep -F "\"$P."; then
+            echo "::error::the manifest still names $P in an authority or task"
+            exit 1
+          fi
+          "$BUILD_TOOLS/zipalign" -p -f 4 "$work/renamed.apk" "$work/aligned.apk"
+          mkdir -p out
+          out="out/DroidDeck-test-${GITHUB_RUN_ID}${suffix}.apk"
+          "$BUILD_TOOLS/apksigner" sign \
+            --ks keystore/testkey.p12 --ks-type PKCS12 --ks-pass env:TESTKEY_PASSWORD \
+            --ks-key-alias testkey --key-pass env:TESTKEY_PASSWORD \
+            --v1-signing-enabled true --v2-signing-enabled true --v3-signing-enabled true --v4-signing-enabled false \
+            --out "$out" "$work/aligned.apk"
+          rm -f "$out.idsig"
+          "$BUILD_TOOLS/apksigner" verify --min-sdk-version 26 "$out"
+          echo "- \`$(basename "$out")\` installs as \`$pkg\`" >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: droiddeck-test-${{ inputs.variant }}
+          path: out/*.apk
+          if-no-files-found: error
