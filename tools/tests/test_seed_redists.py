@@ -65,6 +65,20 @@ UBISOFT_SCRIPT = r'''"installscript"
 '''
 
 
+EA_SCRIPT = r'''"InstallScript"
+{
+	"Run Process"
+	{
+		"EADesktopSetup"
+		{
+			"process 1"		"%INSTALLDIR%\\__Installer\\Origin\\redist\\internal\\EAappInstaller.exe"
+			"command 1"		"EAX_LAUNCH_CLIENT=0 IGNORE_INSTALLED=1"
+		}
+	}
+}
+'''
+
+
 class SeedRedistsTest(unittest.TestCase):
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
@@ -399,7 +413,66 @@ class SeedRedistsTest(unittest.TestCase):
         result = self.ubisoft()
         self.assertNotIn("Ubisoft Connect PC Client", self.reg.read_text())
         self.assertNotIn("Ubisoft Connect PC Client", (self.reg.parent / ".droiddeck-redists").read_text())
-        self.assertIn("Ubisoft Connect markers out", result.stdout)
+        self.assertIn("Ubisoft Connect and EA app markers out", result.stdout)
+
+    def ea(self, installer="EAappInstaller.exe"):
+        script = self.steam / "legacycompat/evaluatorscript_1237970.vdf"
+        script.parent.mkdir(parents=True, exist_ok=True)
+        script.write_text('"evaluatorscript"\n{\n\t"appid"\t\t"1237970"\n\t"1"\n'
+                          + "\n".join("\t" + line for line in EA_SCRIPT.replace("EAappInstaller.exe", installer).splitlines())
+                          + "\n}\n")
+        env = dict(os.environ, DROIDDECK_LIBRARIES="", DROIDDECK_SEED_SCRIPTS=str(script))
+        return subprocess.run(["bash", str(SCRIPT), str(self.steam)], env=env, capture_output=True, text=True, check=True)
+
+    def test_the_ea_app_installer_is_left_to_run_without_seeding_its_marker(self):
+        self.game()
+        self.ea()
+        self.assertNotIn('"EADesktopSetup"', self.reg.read_text())
+        self.assertNotIn("EADesktopSetup", (self.reg.parent / ".droiddeck-redists").read_text())
+        self.assertIn('"VCRedist2022"=dword:00000001', self.reg.read_text())
+        system, user = self.reg.read_bytes(), self.user.read_bytes()
+        self.ea("EAAPPINSTALLER.EXE")
+        self.assertEqual(system, self.reg.read_bytes())
+        self.assertEqual(user, self.user.read_bytes())
+
+    def test_the_ea_exception_requires_the_installer_basename(self):
+        self.ea("not-EAappInstaller.exe")
+        self.assertIn('"EADesktopSetup"=dword:00000001', self.reg.read_text())
+
+    def test_old_ea_markers_are_removed_once_without_resetting_the_prefix(self):
+        marker = "HKEY_LOCAL_MACHINE\\\\Software\\\\Valve\\\\Steam\\\\Apps\\\\1237970\tEADesktopSetup"
+        machine = '\n[Software\\\\Valve\\\\Steam\\\\Apps\\\\1237970] 1\n"Other"="keep"\n"EADesktopSetup"=dword:00000001\n'
+        wow64 = '\n[Software\\\\Wow6432Node\\\\Valve\\\\Steam\\\\Apps\\\\1237970] 1\n"EADesktopSetup"=dword:00000001\n'
+        other_app = '\n[Software\\\\Valve\\\\Steam\\\\Apps\\\\9999] 1\n"EADesktopSetup"=dword:00000001\n'
+        self.reg.write_text("WINE REGISTRY Version 2\n" + machine + wow64 + other_app)
+        self.user.write_text("WINE REGISTRY Version 2\n" + machine)
+        ledger = self.reg.parent / ".droiddeck-redists"
+        ledger.write_text(marker + "\n")
+        stamp = self.reg.parent / ".droiddeck-install-scripts"
+        stamp.write_text("previous-script-digest\n")
+        save = self.reg.parent / "drive_c/users/steamuser/Documents/Respawn/Titanfall2/profile/savegames/savegame.sav"
+        save.parent.mkdir(parents=True)
+        save.write_bytes(b"existing saved game")
+        user = self.user.read_bytes()
+        os.utime(self.reg, (1_000_000_000, 1_000_000_000))
+
+        result = self.ea()
+        registry = self.reg.read_text()
+        self.assertEqual(registry.count('"EADesktopSetup"'), 1)
+        self.assertIn(other_app, registry)
+        self.assertIn('"Other"="keep"', registry)
+        self.assertNotIn("EADesktopSetup", ledger.read_text())
+        self.assertIn("EA app markers out", result.stdout)
+        self.assertEqual(int(self.reg.stat().st_mtime), 1_000_000_000)
+        self.assertEqual(user, self.user.read_bytes())
+        self.assertEqual(save.read_bytes(), b"existing saved game")
+        self.assertEqual(stamp.read_text(), "previous-script-digest\n")
+
+        self.reg.write_text(registry + machine + wow64)
+        installed = self.reg.read_bytes()
+        self.ea()
+        self.assertEqual(installed, self.reg.read_bytes(), "real installer markers no longer in our ledger must stay")
+        self.assertNotIn("EADesktopSetup", ledger.read_text())
 
 if __name__ == "__main__":
     unittest.main()
