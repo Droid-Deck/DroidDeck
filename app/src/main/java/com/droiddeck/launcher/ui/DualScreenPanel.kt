@@ -114,7 +114,7 @@ object DualScreenPanel {
     }
 
     fun show(context: Context, display: Int, task: Int) {
-        if (shownOn == display) return
+        if (shownOn == display) { ownerTask = task; return }
         hide()
         displayId = display
         ownerTask = task
@@ -132,6 +132,10 @@ object DualScreenPanel {
         displayId = -1
         activity?.finishAndRemoveTask()
         activity = null
+    }
+
+    fun hide(task: Int) {
+        if (ownerTask == task || ownerTask < 0) hide()
     }
 
     internal fun attach(host: DualScreenActivity): Boolean {

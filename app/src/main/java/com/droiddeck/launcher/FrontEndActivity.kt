@@ -667,6 +667,7 @@ class FrontEndActivity : ComponentActivity() {
     private var shortcutLibraryScanning by mutableStateOf(false)
     @Volatile private var libraryScanGeneration = 0
     private var pendingGameLink: String? = null
+    private var gameLinkReading = false
     private var gameSyncFolder by mutableStateOf<String?>(null)
     private fun pickGameExport(game: Library.SteamGame?) {
         onSavePicked = { folder ->
@@ -707,14 +708,18 @@ class FrontEndActivity : ComponentActivity() {
             shortcutLibraryScanning = true
         } else shortcutLibraryScanning = false
         pendingGameLink = null
+        gameLinkReading = false
         if (GameLaunchIntent.accepts(request.action)) {
+            gameLinkReading = true
             val copy = Intent(request)
             Thread({
                 val id = GameLaunchIntent.read(this, copy)
                 ui.post {
                     if (intent === request && !isDestroyed) {
+                        gameLinkReading = false
                         pendingGameLink = id
                         if (id == null) {
+                            syncDualPanel()
                             android.widget.Toast.makeText(this, R.string.game_link_invalid, android.widget.Toast.LENGTH_LONG).show()
                         } else refresh()
                     }
@@ -928,6 +933,7 @@ class FrontEndActivity : ComponentActivity() {
             intent.data = null
             intent.action = Intent.ACTION_MAIN
             intent.removeExtra(GameLaunchIntent.EXTRA_APP_ID)
+            syncDualPanel()
             android.widget.Toast.makeText(this, R.string.game_link_missing, android.widget.Toast.LENGTH_LONG).show()
         } else if (launchGame(game, returnHome = true)) {
             pendingGameLink = null
@@ -1688,7 +1694,7 @@ class FrontEndActivity : ComponentActivity() {
         com.droiddeck.launcher.stores.battlenet.BattleNetClient.opener = null
         displayManager.unregisterDisplayListener(secondScreenDisplayListener)
         launcherStarted = false
-        com.droiddeck.launcher.ui.DualScreenPanel.hide()
+        com.droiddeck.launcher.ui.DualScreenPanel.hide(taskId)
         flood = null
         returning = null
         floodProgress = 0f
@@ -1734,9 +1740,12 @@ class FrontEndActivity : ComponentActivity() {
     }
 
     private fun syncDualPanel() {
+        if (launchPending()) return
         if (launcherStarted && dualDisplayId >= 0) com.droiddeck.launcher.ui.DualScreenPanel.show(this, dualDisplayId, taskId)
-        else com.droiddeck.launcher.ui.DualScreenPanel.hide()
+        else com.droiddeck.launcher.ui.DualScreenPanel.hide(taskId)
     }
+
+    private fun launchPending(): Boolean = pendingGameLink != null || gameLinkReading
 
     private fun launchAndroidApp(app: HomeApp.LaunchableApp, displayId: Int?) {
         try {
