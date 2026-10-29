@@ -90,7 +90,7 @@ divert_to() {
 record_apt_state() {
   mkdir -p /usr/share/droiddeck/apt
   apt-mark showmanual > /usr/share/droiddeck/apt/system-manual.txt
-  for f in /etc/apt/sources.list.d/* /etc/apt/keyrings/* /etc/apt/trusted.gpg.d/*; do
+  for f in /etc/apt/sources.list /etc/apt/sources.list.d/* /etc/apt/keyrings/* /etc/apt/trusted.gpg.d/* /usr/share/keyrings/*; do
     [ -f "$f" ] && echo "$f $(sha256sum "$f" | cut -d' ' -f1)"
   done > /usr/share/droiddeck/apt/system-sources.txt
 }

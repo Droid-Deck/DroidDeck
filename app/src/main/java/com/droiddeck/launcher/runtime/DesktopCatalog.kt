@@ -226,6 +226,7 @@ object DesktopCatalog {
                     check(FileUtils.writeString(journal, entryJson(entry).toString())) { "Could not record the package installation" }
                     keepDownload = true
                     marker(context, entry.id).delete()
+                    if (entry.id == DESKTOP_ID && desktopFromPack(root)) DesktopPack.prepareInstall(root)
                     if (!LinuxRuntimeInstaller.extract(context, download, root, report)) return context.getString(R.string.deskpkg_extract_failed)
                 }
             }

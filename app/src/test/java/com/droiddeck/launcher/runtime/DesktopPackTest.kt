@@ -109,6 +109,32 @@ class DesktopPackTest {
         File(root.parentFile, "outside").delete()
     }
 
+    @Test fun theDesktopKeepsPackagesTheUserInstalledBeforeIt() {
+        val bash = "Package: bash\nArchitecture: arm64\nVersion: 5.2"
+        val vim = "Package: vim\nArchitecture: arm64\nVersion: 9"
+        val kwin = "Package: kwin\nArchitecture: arm64\nVersion: 6.6"
+        file("var/lib/dpkg/status", "$bash\n\n$vim\n\n")
+        DesktopPack.prepareInstall(root)
+        file("${DesktopPack.META}/originals/var/lib/dpkg/status", "$bash\n\n")
+        file("var/lib/dpkg/status", "$bash\n\n$kwin\n\n")
+        manifest(listOf(line('C', "var/lib/dpkg/status")))
+        DesktopPack.finishInstall(root)
+        assertEquals("$bash\n\n$kwin\n\n$vim\n\n", File(root, "var/lib/dpkg/status").readText())
+        assertFalse(File(root, "var/lib/dpkg/status.droiddeck").exists())
+
+        val vlc = "Package: vlc\nArchitecture: arm64\nVersion: 3"
+        file("var/lib/dpkg/status", "$bash\n\n$kwin\n\n$vim\n\n$vlc\n\n")
+        DesktopPack.remove(root)
+        assertEquals("$bash\n\n$vim\n\n$vlc\n\n", File(root, "var/lib/dpkg/status").readText())
+    }
+
+    @Test fun mergingKeepsTheTargetWhenBothSidesChangedAPackage() {
+        val base = "Package: a\nVersion: 1\n\nPackage: b\nVersion: 1\n\nPackage: c\nVersion: 1\n"
+        val target = "Package: a\nVersion: 2\n\nPackage: b\nVersion: 1\n\nPackage: c\nVersion: 1\n"
+        val mine = "Package: a\nVersion: 3\n\nPackage: b\nVersion: 3\n"
+        assertEquals("Package: a\nVersion: 2\n\nPackage: b\nVersion: 3\n\n", DesktopPack.mergeStatus(base, target, mine))
+    }
+
     @Test fun pathsMayNotLeaveTheRuntime() {
         assertNull(DesktopPack.inside(root, "../x"))
         assertNull(DesktopPack.inside(root, "/etc/passwd"))
