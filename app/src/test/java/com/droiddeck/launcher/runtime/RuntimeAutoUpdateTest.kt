@@ -25,18 +25,24 @@ class RuntimeAutoUpdateTest {
     }
 
     @Test fun aFailingUpdateStopsTryingAfterAFewLaunches() {
-        repeat(RuntimeAutoUpdate.MAX_ATTEMPTS) { assertTrue(RuntimeAutoUpdate.claim(context, "ubuntu-r1-rc1", "ubuntu-r1-rc2")) }
-        assertFalse(RuntimeAutoUpdate.claim(context, "ubuntu-r1-rc1", "ubuntu-r1-rc2"))
+        repeat(RuntimeAutoUpdate.MAX_ATTEMPTS) { assertTrue(RuntimeAutoUpdate.claim(context, "ubuntu-r1-rc1", "ubuntu-r1-rc2", it * RuntimeAutoUpdate.RETRY_MS)) }
+        assertFalse(RuntimeAutoUpdate.claim(context, "ubuntu-r1-rc1", "ubuntu-r1-rc2", 10 * RuntimeAutoUpdate.RETRY_MS))
+    }
+
+    @Test fun aRetryWaitsBeforeUsingTheNextTry() {
+        assertTrue(RuntimeAutoUpdate.claim(context, "ubuntu-r1-rc1", "ubuntu-r1-rc2", 1_000L))
+        assertFalse(RuntimeAutoUpdate.claim(context, "ubuntu-r1-rc1", "ubuntu-r1-rc2", 2_000L))
+        assertTrue(RuntimeAutoUpdate.claim(context, "ubuntu-r1-rc1", "ubuntu-r1-rc2", 1_000L + RuntimeAutoUpdate.RETRY_MS))
     }
 
     @Test fun aNewerCatalogReleaseStartsAgain() {
-        repeat(RuntimeAutoUpdate.MAX_ATTEMPTS) { RuntimeAutoUpdate.claim(context, "ubuntu-r1-rc1", "ubuntu-r1-rc2") }
-        assertTrue(RuntimeAutoUpdate.claim(context, "ubuntu-r1-rc1", "ubuntu-r1-rc3"))
+        repeat(RuntimeAutoUpdate.MAX_ATTEMPTS) { RuntimeAutoUpdate.claim(context, "ubuntu-r1-rc1", "ubuntu-r1-rc2", it * RuntimeAutoUpdate.RETRY_MS) }
+        assertTrue(RuntimeAutoUpdate.claim(context, "ubuntu-r1-rc1", "ubuntu-r1-rc3", 5 * RuntimeAutoUpdate.RETRY_MS))
     }
 
     @Test fun goingBackToAnEarlierReleaseKeepsItsCount() {
-        repeat(RuntimeAutoUpdate.MAX_ATTEMPTS) { RuntimeAutoUpdate.claim(context, "ubuntu-r1-rc1", "ubuntu-r1-rc2") }
-        assertTrue(RuntimeAutoUpdate.claim(context, "ubuntu-r1-rc1", "ubuntu-r1-rc3"))
-        assertFalse(RuntimeAutoUpdate.claim(context, "ubuntu-r1-rc1", "ubuntu-r1-rc2"))
+        repeat(RuntimeAutoUpdate.MAX_ATTEMPTS) { RuntimeAutoUpdate.claim(context, "ubuntu-r1-rc1", "ubuntu-r1-rc2", it * RuntimeAutoUpdate.RETRY_MS) }
+        assertTrue(RuntimeAutoUpdate.claim(context, "ubuntu-r1-rc1", "ubuntu-r1-rc3", 5 * RuntimeAutoUpdate.RETRY_MS))
+        assertFalse(RuntimeAutoUpdate.claim(context, "ubuntu-r1-rc1", "ubuntu-r1-rc2", 10 * RuntimeAutoUpdate.RETRY_MS))
     }
 }

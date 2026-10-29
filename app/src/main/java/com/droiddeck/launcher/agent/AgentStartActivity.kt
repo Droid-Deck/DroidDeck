@@ -23,6 +23,9 @@ class AgentStartActivity : Activity() {
         Thread({
             try {
                 AgentBridgeProvider.awaitRecovery()
+                val until = android.os.SystemClock.elapsedRealtime() + RUNTIME_WAIT_MS
+                while (com.droiddeck.launcher.runtime.LinuxRuntimeInstaller.isBusy() && !isFinishing &&
+                    android.os.SystemClock.elapsedRealtime() < until) Thread.sleep(RUNTIME_POLL_MS)
                 runOnUiThread {
                     if (!isFinishing) startSession(request)
                 }
@@ -112,5 +115,7 @@ class AgentStartActivity : Activity() {
     companion object {
         const val EXTRA_REQUEST = "request"
         private const val TAG = "AgentStartActivity"
+        private const val RUNTIME_WAIT_MS = 15 * 60_000L
+        private const val RUNTIME_POLL_MS = 500L
     }
 }
