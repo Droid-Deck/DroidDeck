@@ -37,6 +37,19 @@ class PacmanSharedFilesTest(unittest.TestCase):
         self.assertFalse((self.top / "usr/lib/never-there").exists())
         self.assertFalse((lib / "droiddeck-shared-keep").exists())
 
+    def test_a_backup_for_a_file_still_missing_survives_the_next_save(self):
+        shared = self.top / "usr/lib/libshared.so"
+        shared.parent.mkdir(parents=True)
+        shared.write_text("shared")
+        lib = self.top / "lib"
+        lib.mkdir()
+        (lib / "droiddeck-shared-files").write_text("%s\n" % shared)
+        self.keep("save")
+        shared.unlink()
+        self.keep("save")
+        self.keep("restore")
+        self.assertEqual("shared", shared.read_text())
+
     def test_only_identical_files_are_taken_over(self):
         adopt = runpy.run_path(str(PACMAN / "adopt"), run_name="adopt")
         package = io.BytesIO()

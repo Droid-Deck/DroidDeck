@@ -4,11 +4,11 @@ store=/var/lib/pacman/droiddeck-shared-keep
 [ -s "$list" ] || exit 0
 case $1 in
   save)
-    rm -rf -- /var/lib/pacman/droiddeck-shared-keep
     mkdir -p "$store"
     while IFS= read -r path; do
       [ -e "$path" ] || [ -L "$path" ] || continue
       mkdir -p "$store${path%/*}"
+      rm -f -- "$store$path"
       cp -a -- "$path" "$store$path"
     done < "$list"
     ;;
