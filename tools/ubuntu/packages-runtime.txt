@@ -151,6 +151,8 @@ libudev1
 libunistring5
 libusb-1.0-0
 libuuid1
+libva-drm2
+libva-x11-2
 libva2
 libvdpau1
 libvulkan1
