@@ -284,10 +284,32 @@ public final class LinuxRuntime {
         return false;
     }
 
+    private static final String MALI_DEVICE = "/dev/mali0";
+
+    public static String gpuStandIn(Context context) {
+        if (new File(KGSL_DEVICE).exists()) return KGSL_DEVICE;
+        if (com.droiddeck.launcher.core.DeviceSupport.INSTANCE.vkBridge(context) && new File(MALI_DEVICE).exists()) return MALI_DEVICE;
+        return null;
+    }
+
+    public static String deviceNumbers(String path) {
+        try {
+            long dev = Os.stat(path).st_rdev;
+            long major = ((dev >> 8) & 0xfff) | ((dev >> 32) & ~0xfffL);
+            long minor = (dev & 0xff) | ((dev >> 12) & ~0xffL);
+            return major + ":" + minor;
+        } catch (ErrnoException e) {
+            return null;
+        }
+    }
+
     private static void bindGpuNode(Context context, List<String> cmd) {
+        String standIn = gpuStandIn(context);
+        if (standIn == null) return;
+        boolean kgsl = standIn.equals(KGSL_DEVICE);
         StructStat st;
         try {
-            st = Os.stat(KGSL_DEVICE);
+            st = Os.stat(standIn);
         } catch (ErrnoException e) {
             return;
         }
@@ -307,13 +329,14 @@ public final class LinuxRuntime {
             Files.write(new File(drm, "dev").toPath(),
                     (major + ":" + minor + "\n").getBytes(StandardCharsets.UTF_8));
             Files.write(new File(device, "uevent").toPath(),
-                    "DRIVER=kgsl-3d0\nMODALIAS=platform:kgsl-3d0\n".getBytes(StandardCharsets.UTF_8));
+                    (kgsl ? "DRIVER=kgsl-3d0\nMODALIAS=platform:kgsl-3d0\n" : "DRIVER=mali\nMODALIAS=platform:mali\n")
+                            .getBytes(StandardCharsets.UTF_8));
             File subsystem = new File(device, "subsystem");
             if (!Files.isSymbolicLink(subsystem.toPath())) {
                 Os.symlink("/sys/bus/platform", subsystem.getPath());
             }
             File driver = new File(device, "driver");
-            if (!Files.isSymbolicLink(driver.toPath())) {
+            if (kgsl && !Files.isSymbolicLink(driver.toPath())) {
                 Os.symlink("/sys/bus/platform/drivers/msm_drm", driver.getPath());
             }
         } catch (IOException | ErrnoException e) {
@@ -321,7 +344,7 @@ public final class LinuxRuntime {
         }
         bind(cmd, new File(base, "sys").getPath() + ":/sys/dev/char");
         bind(cmd, dri.getPath() + ":/dev/dri");
-        bind(cmd, KGSL_DEVICE + ":/dev/dri/" + node);
+        bind(cmd, standIn + ":/dev/dri/" + node);
         bindDrmClass(base, cmd, node, major + ":" + minor);
     }
 

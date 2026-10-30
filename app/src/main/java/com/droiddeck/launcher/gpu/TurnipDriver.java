@@ -291,6 +291,10 @@ public final class TurnipDriver {
         }
         String quest = QuestExperimental.INSTANCE.defaultAndroidDriver();
         if (quest != null) return quest;
+        if (com.droiddeck.launcher.core.DeviceSupport.INSTANCE.vkBridge(context)) {
+            Log.i(TAG, "Mali bridge: the compositor uses the system Vulkan driver");
+            return null;
+        }
         GpuInfo gpu = gpuDetector.get();
         if (gpu.getFamily() == GpuInfo.Family.NOT_ADRENO) {
             Log.i(TAG, "not an Adreno GPU; leaving the display driver to the system");

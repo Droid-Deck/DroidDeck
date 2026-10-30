@@ -196,6 +196,7 @@ object BwrapSpawner {
         LIB_DIRS.map { File(rootfs, "$it/$name") }.firstOrNull { it.exists() }
 
     private fun gpu(rootfs: String, root: File, env: MutableMap<String, String>): List<Bind>? {
+        env["VKBRIDGE_SOCKET"]?.let { sock -> if (File(sock).exists()) return bridgeGpu(rootfs, root, env, sock) }
         val driver = runtimeLib(rootfs, "libvulkan_freedreno.so")
         if (driver == null || !File("/dev/kgsl-3d0").exists()) return null
         if (env.containsKey("VK_ICD_FILENAMES") || env.containsKey("VK_DRIVER_FILES")) return null
@@ -215,6 +216,28 @@ object BwrapSpawner {
             env["GALLIUM_DRIVER"] = "zink"
         }
         env["LD_LIBRARY_PATH"] = listOf(env["LD_LIBRARY_PATH"], GPU_DIR).filter { !it.isNullOrEmpty() }.joinToString(":")
+        return binds
+    }
+
+    private fun bridgeGpu(rootfs: String, root: File, env: MutableMap<String, String>, socket: String): List<Bind>? {
+        val driver = File(rootfs, "usr/local/lib/vkbridge/libvulkan_droidbridge.so")
+        if (!driver.isFile) { Log.w(TAG, "gpu: vkbridge session but no bridge ICD in the runtime"); return null }
+        val binds = ArrayList<Bind>()
+        binds.add(Bind(driver.canonicalPath, "$GPU_DIR/libvulkan_droidbridge.so"))
+        val sockDir = File(socket).parent ?: return null
+        binds.add(Bind(sockDir, sockDir))
+        val icd = File(root.parentFile, "vkbridge_icd.json")
+        val api = runCatching {
+            JSONObject(File(rootfs, "usr/local/share/vkbridge/droidbridge_icd.json").readText()).getJSONObject("ICD").getString("api_version")
+        }.getOrNull() ?: run { Log.w(TAG, "gpu: vkbridge session but the runtime's bridge manifest is unreadable"); return null }
+        icd.writeText("{\"file_format_version\": \"1.0.0\", \"ICD\": {\"library_path\": \"$GPU_DIR/libvulkan_droidbridge.so\", \"api_version\": \"$api\"}}\n")
+        binds.add(Bind(icd.path, "$GPU_DIR/vkbridge_icd.json"))
+        env["VK_DRIVER_FILES"] = "$GPU_DIR/vkbridge_icd.json"
+        env["VK_ICD_FILENAMES"] = "$GPU_DIR/vkbridge_icd.json"
+        if (!env.containsKey("MESA_LOADER_DRIVER_OVERRIDE") && !env.containsKey("GALLIUM_DRIVER")) {
+            env["MESA_LOADER_DRIVER_OVERRIDE"] = "zink"
+            env["GALLIUM_DRIVER"] = "zink"
+        }
         return binds
     }
 

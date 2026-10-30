@@ -62,6 +62,7 @@ Java_com_droiddeck_launcher_gpu_VulkanInfo_nativeQuery(JNIEnv *env, jclass clazz
         LINE("driver_version=%u.%u.%u\n", p.driverVersion >> 22, (p.driverVersion >> 12) & 0x3ff, p.driverVersion & 0xfff);
         LINE("vendor_id=0x%04x\ndevice_id=0x%08x\n", p.vendorID, p.deviceID);
         LINE("max_image_2d=%u\n", p.limits.maxImageDimension2D);
+        LINE("max_push_constants=%u\n", p.limits.maxPushConstantsSize);
 
         uint32_t extCount = 0;
         if (vkEnumerateDeviceExtensionProperties) vkEnumerateDeviceExtensionProperties(device, NULL, &extCount, NULL);
@@ -91,6 +92,7 @@ Java_com_droiddeck_launcher_gpu_VulkanInfo_nativeQuery(JNIEnv *env, jclass clazz
             vkGetPhysicalDeviceFeatures(device, &f);
             LINE("geometry_shader=%s\ntessellation_shader=%s\ntexture_bc=%s\n",
                  f.geometryShader ? "yes" : "no", f.tessellationShader ? "yes" : "no", f.textureCompressionBC ? "yes" : "no");
+            LINE("shader_int64=%s\n", f.shaderInt64 ? "yes" : "no");
         }
         if (vkGetPhysicalDeviceMemoryProperties) {
             VkPhysicalDeviceMemoryProperties m;

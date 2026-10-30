@@ -326,6 +326,15 @@ class GameEnvironmentTest(unittest.TestCase):
             self.assertEqual(evaluate(), (0, 2))
             self.assertEqual(evaluate("changed"), (0, 3))
 
+    def test_the_mali_bridge_caps_the_vkd3d_feature_level(self):
+        bridge = {"BL_VKBRIDGE": "1", "VKD3D_FEATURE_LEVEL": "12_2"}
+        self.assertIn("capped", MODULE["bridge_feature_level"](bridge))
+        self.assertEqual(bridge["VKD3D_FEATURE_LEVEL"], "12_0")
+        for env in ({"BL_VKBRIDGE": "1", "VKD3D_FEATURE_LEVEL": "11_1"}, {"VKD3D_FEATURE_LEVEL": "12_2"}, {"BL_VKBRIDGE": "1"}):
+            before = dict(env)
+            self.assertIsNone(MODULE["bridge_feature_level"](env))
+            self.assertEqual(env, before)
+
     def test_profile_precedence_and_unset(self):
         env = {"KEEP": "inherited", "REMOVE": "inherited", "CUSTOM": "launch option"}
         config = {"version": 1, "shared": {"CUSTOM": "shared"}, "games": {"42": {"REMOVE": None, "CUSTOM": "game", "EMPTY": ""}}}
