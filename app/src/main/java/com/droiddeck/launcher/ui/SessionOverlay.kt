@@ -247,6 +247,8 @@ class DrawerActions(
     val onHudReset: () -> Unit = {},
     val onHudExport: () -> Unit = {},
     val onFrameGenPick: (FrameGen.Mode) -> Unit,
+    val fpsLimit: Int = 0,
+    val onFpsLimit: (Int) -> Unit = {},
     val onImportLossless: () -> Unit,
     val onKeyboard: () -> Unit,
     val onHardwareKeyboard: () -> Unit,
@@ -542,6 +544,10 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                         FrameGenMenu(host, a.frameGen, a.lossless, a.onFrameGenPick, a.onImportLossless)
                                     }
                                 }
+                                if (a.direct) ChoiceRow(host, "fps-limit", stringResource(R.string.drawer_frame_limit), null,
+                                    SessionPrefs.fpsLimitChoices.map { it to if (it == 0) stringResource(R.string.frame_gen_off) else it.toString() },
+                                    a.fpsLimit, note = stringResource(R.string.drawer_frame_limit_note),
+                                    chipModifier = focus.track(page, "fps-limit"), onPick = a.onFpsLimit)
                             }
                             SettingsGroup(stringResource(R.string.display_image_scaling)) {
                                 ChoiceRow(host, "upscaler", stringResource(R.string.display_filter), null,

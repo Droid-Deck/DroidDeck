@@ -1087,12 +1087,19 @@ object SessionPrefs {
     /** Compositor frame limit that releases buffers to the game unpaced. */
     const val FPS_UNPACED = -1
 
+    val fpsLimitChoices = listOf(0, 30, 40, 45, 60, 90, 120)
+
     /**
      * Buffers go back to the game as soon as they are replaced instead of once per refresh;
-     * Steam's Frame Limit in the Quick Access menu caps games. Mirroring still follows the glasses' refresh rate.
+     * Steam's Frame Limit in the Quick Access menu caps Steam games, and the drawer's limit caps games
+     * launched without Steam. Mirroring still follows the glasses' refresh rate.
      */
-    fun compositorFpsLimit(mirrorRefreshLimit: Int): Int =
-        if (mirrorRefreshLimit <= 0) FPS_UNPACED else mirrorRefreshLimit
+    fun compositorFpsLimit(mirrorRefreshLimit: Int, sessionLimit: Int = 0): Int = when {
+        mirrorRefreshLimit <= 0 && sessionLimit <= 0 -> FPS_UNPACED
+        mirrorRefreshLimit <= 0 -> sessionLimit
+        sessionLimit <= 0 -> mirrorRefreshLimit
+        else -> minOf(mirrorRefreshLimit, sessionLimit)
+    }
 
     val upscalerChoices = listOf(
         0 to "Linear", 2 to "Nearest", 4 to "AMD FSR 1", 3 to "Snapdragon GSR",
