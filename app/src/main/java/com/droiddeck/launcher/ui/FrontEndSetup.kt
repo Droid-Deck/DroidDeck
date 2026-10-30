@@ -16,6 +16,7 @@ import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -230,7 +231,7 @@ internal fun SetupPanel(
             PageHeader(stringResource(R.string.setup_title)) {
                 Box(Modifier.weight(1f)) { SheetChips(tabs, tab, chipFocus, onPick = pick) }
             }
-            Column(modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(bottom = 24.dp)) {
+            Column(modifier = Modifier.weight(1f).fillMaxWidth().focusGroup().verticalScroll(rememberScrollState()).padding(bottom = 24.dp)) {
                 when (tab) {
                     0 -> {
                         val gpuCheck: @Composable (Boolean) -> Unit = { divider ->
@@ -350,8 +351,10 @@ internal fun SetupPanel(
                     }
                     1 -> {
                         val controller = s.controller
-                        if (controller != null && a.controller != null) SettingsGroup(stringResource(R.string.setup_controller)) {
-                            ControllerRows(host, s.oscMode, controller, a.controller)
+                        if (controller != null && a.controller != null) {
+                            SettingsGroup(stringResource(R.string.setup_controller)) {
+                                ControllerRows(host, s.oscMode, controller, a.controller)
+                            }
                         }
                         if (s.controller == null || a.controller == null) Note(stringResource(R.string.setup_controller_unavailable))
                     }
@@ -360,10 +363,11 @@ internal fun SetupPanel(
                             SettingsGroup(stringResource(R.string.setup_group_look)) {
                                 SettingsRow(stringResource(R.string.setup_theme), stringResource(R.string.setup_theme_hint)) {
                                     Box {
-                                        ValueChip(stringResource(Themes.byId(s.theme).label), host.open == "theme") { host.open = if (host.open == "theme") null else "theme" }
+                                        ValueChip(stringResource(Themes.byId(s.theme).label), host.open == "theme", modifier = Modifier.paneItem("setting:theme")) { host.open = if (host.open == "theme") null else "theme" }
                                         AnchoredMenu(host.open == "theme", onDismiss = { if (host.open == "theme") host.open = null }, title = stringResource(R.string.setup_theme)) { firstItemFocus ->
+                                            val focusIndex = Themes.all.indexOfFirst { it.id == s.theme }.takeIf { it >= 0 } ?: 0
                                             Themes.all.forEachIndexed { index, theme ->
-                                                MenuItem(stringResource(theme.label), checked = s.theme == theme.id, focusRequester = if (index == 0) firstItemFocus else null) {
+                                                MenuItem(stringResource(theme.label), checked = s.theme == theme.id, focusRequester = if (index == focusIndex) firstItemFocus else null) {
                                                     a.onTheme(theme.id)
                                                     host.open = null
                                                 }

@@ -90,7 +90,10 @@ public class FakeInputWriter {
     public static final int PAD_TYPE_XBOX = 2;
     public static final int PAD_TYPE_DS4 = 3;
     public static final int PAD_TYPE_DUALSENSE = 4;
-    public static final int PAD_TYPE_MOUSE = 5;
+    public static final int PAD_TYPE_DUALSENSE_EDGE = 5;
+    public static final int PAD_TYPE_STEAM_2015 = 6;
+    public static final int PAD_TYPE_NONE = 7;
+    public static final int PAD_TYPE_MOUSE = 8;
 
     public static final short REL_X = 0x00;
     public static final short REL_Y = 0x01;
@@ -102,6 +105,7 @@ public class FakeInputWriter {
     public static final short MOUSE_BTN_RIGHT = 0x111;
     public static final short MOUSE_BTN_MIDDLE = 0x112;
     private static volatile int padType = -1;
+    public static int currentPadType() { return padType; }
     private static volatile boolean tritonConnected = false;
     private static final int TRITON_OFFSET = RING_SIZE + 64;
     private static final int TRITON_MAGIC = 0x4e525454;
@@ -128,13 +132,21 @@ public class FakeInputWriter {
     private static final RingSlot[] RING_SLOTS = new RingSlot[MAX_FAKE_INPUT_SLOTS];
 
     static {
-        System.loadLibrary("sdnative");
+        try {
+            System.loadLibrary("sdnative");
+        } catch (UnsatisfiedLinkError e) {
+            // Running in desktop unit test environment without Android JNI library
+        }
     }
 
     private static native void nativeStoreFence();
 
     public static void storeFence() {
-        nativeStoreFence();
+        try {
+            nativeStoreFence();
+        } catch (UnsatisfiedLinkError e) {
+            // Fallback for desktop unit tests
+        }
     }
 
     private final File eventFile;
@@ -432,7 +444,7 @@ public class FakeInputWriter {
                 writeSeq++;
             }
             writeSnapshotLocked(ring);
-            nativeStoreFence();
+            storeFence();
             ring.putLong(RING_WRITE_SEQ_OFFSET, writeSeq);
         }
         return true;
@@ -450,7 +462,7 @@ public class FakeInputWriter {
         }
         long seq = ring.getLong(RING_SNAPSHOT_SEQ_OFFSET);
         ring.putLong(RING_SNAPSHOT_SEQ_OFFSET, seq + 1);
-        nativeStoreFence();
+        storeFence();
         ring.putInt(RING_SNAPSHOT_BUTTONS_OFFSET, buttons);
         ring.putShort(RING_SNAPSHOT_AXES_OFFSET, clampShort(this.prevThumbLX));
         ring.putShort(RING_SNAPSHOT_AXES_OFFSET + 2, clampShort(this.prevThumbLY));
@@ -460,7 +472,7 @@ public class FakeInputWriter {
         ring.putShort(RING_SNAPSHOT_AXES_OFFSET + 10, clampShort(this.prevTriggerL));
         ring.putShort(RING_SNAPSHOT_AXES_OFFSET + 12, clampShort(this.prevHatX));
         ring.putShort(RING_SNAPSHOT_AXES_OFFSET + 14, clampShort(this.prevHatY));
-        nativeStoreFence();
+        storeFence();
         ring.putLong(RING_SNAPSHOT_SEQ_OFFSET, seq + 2);
     }
 
@@ -475,13 +487,13 @@ public class FakeInputWriter {
             if (ring == null) return;
             long seq = ring.getLong(IMU_SEQ_OFFSET);
             ring.putLong(IMU_SEQ_OFFSET, seq + 1);
-            nativeStoreFence();
+            storeFence();
             for (int i = 0; i < 3; i++) {
                 ring.putShort(IMU_ACCEL_OFFSET + i * 2, accel[i]);
                 ring.putShort(IMU_GYRO_OFFSET + i * 2, gyro[i]);
             }
             ring.putInt(IMU_OFFSET, IMU_MAGIC);
-            nativeStoreFence();
+            storeFence();
             ring.putLong(IMU_SEQ_OFFSET, seq + 2);
         }
     }
@@ -510,14 +522,30 @@ public class FakeInputWriter {
             if (ring == null) return;
             long seq = ring.getLong(IMU_SEQ_OFFSET);
             ring.putLong(IMU_SEQ_OFFSET, seq + 1);
-            nativeStoreFence();
+            storeFence();
             for (int i = 0; i < 4; i++) ring.putShort(DECK_PADS_OFFSET + i * 2, pads[i]);
             for (int i = 0; i < 2; i++) ring.putShort(DECK_PRESSURE_OFFSET + i * 2, pressure[i]);
             ring.putInt(DECK_CONTROLS_OFFSET, controls);
             ring.putInt(IMU_OFFSET, IMU_MAGIC);
-            nativeStoreFence();
+            storeFence();
             ring.putLong(IMU_SEQ_OFFSET, seq + 2);
         }
+    }
+
+    public static void setDeckIMU(int slot, short[] accel, short[] gyro) {
+        writeMotion(slot, accel, gyro);
+    }
+
+    public static void setDeckTouch(int slot, short[] pads, int touchControls) {
+        short[] pressure = new short[]{
+                (short) ((touchControls & 0x40) != 0 ? Short.MAX_VALUE : 0),
+                (short) ((touchControls & 0x80) != 0 ? Short.MAX_VALUE : 0)
+        };
+        writeDeckControls(slot, touchControls, pads, pressure);
+    }
+
+    public static void setDeckButtons(int slot, int buttonBitmask) {
+        writeDeckControls(slot, buttonBitmask, new short[4], new short[2]);
     }
 
     public static boolean padHasQam() {
@@ -535,7 +563,7 @@ public class FakeInputWriter {
         synchronized (ringSlot) {
             ByteBuffer ring = ringSlot.data;
             if (ring == null) return;
-            nativeStoreFence();
+            storeFence();
             ring.putInt(PAD_TYPE_OFFSET, PAD_TYPE_SET | type);
         }
     }
@@ -551,7 +579,7 @@ public class FakeInputWriter {
         synchronized (ringSlot) {
             ByteBuffer ring = ringSlot.data;
             if (ring == null) return;
-            nativeStoreFence();
+            storeFence();
             ring.putInt(LATENCY_OFFSET, flags);
         }
     }
@@ -563,7 +591,7 @@ public class FakeInputWriter {
         synchronized (ringSlot) {
             ByteBuffer ring = ringSlot.data;
             if (ring == null || ring.getInt(TRITON_OFFSET) != TRITON_MAGIC) return;
-            nativeStoreFence();
+            storeFence();
             ring.putInt(TRITON_CONNECTED_OFFSET, connected ? 1 : 0);
         }
     }
@@ -581,13 +609,13 @@ public class FakeInputWriter {
             long seq = ring.getLong(TRITON_INPUT_SEQ_OFFSET);
             if ((seq & 1) != 0) seq++;
             ring.putLong(TRITON_INPUT_SEQ_OFFSET, seq + 1);
-            nativeStoreFence();
+            storeFence();
             ring.putInt(TRITON_REPORT_ID_OFFSET, reportId);
             ring.putInt(TRITON_REPORT_LENGTH_OFFSET, report.length);
             for (int i = 0; i < TRITON_REPORT_MAX; i++) {
                 ring.put(TRITON_REPORT_OFFSET + i, i < report.length ? report[i] : 0);
             }
-            nativeStoreFence();
+            storeFence();
             ring.putLong(TRITON_INPUT_SEQ_OFFSET, seq + 2);
         }
     }
@@ -601,7 +629,7 @@ public class FakeInputWriter {
         synchronized (ringSlot) {
             ByteBuffer ring = ringSlot.data;
             if (ring == null || ring.getInt(TRITON_OFFSET) != TRITON_MAGIC) return null;
-            nativeStoreFence();
+            storeFence();
             long seq = ring.getLong(TRITON_OUTPUT_SEQ_OFFSET);
             if ((seq & 1) != 0 || seq <= lastSequence) return null;
             int length = ring.getShort(TRITON_OUTPUT_LENGTH_OFFSET) & 0xffff;
@@ -610,11 +638,11 @@ public class FakeInputWriter {
             ByteBuffer.wrap(output).order(ByteOrder.LITTLE_ENDIAN).putLong(seq);
             output[8] = (byte) (ring.getShort(TRITON_OUTPUT_FEATURE_OFFSET) != 0 ? 1 : 0);
             for (int i = 0; i < length; i++) output[9 + i] = ring.get(TRITON_OUTPUT_OFFSET + i);
-            nativeStoreFence();
+            storeFence();
             if (seq != ring.getLong(TRITON_OUTPUT_SEQ_OFFSET)) return null;
             // Acknowledge the exact report sequence taken so a concurrent timeout overwrite cannot lose its length.
             ring.putInt(TRITON_OUTPUT_ACK_OFFSET, (int) seq);
-            nativeStoreFence();
+            storeFence();
             return output;
         }
     }
@@ -625,7 +653,7 @@ public class FakeInputWriter {
         synchronized (ringSlot) {
             ByteBuffer ring = ringSlot.data;
             if (ring == null || ring.getInt(TRITON_OFFSET) != TRITON_MAGIC) return 0L;
-            nativeStoreFence();
+            storeFence();
             long request = ring.getLong(TRITON_GET_REQUEST_OFFSET);
             return request != ring.getLong(TRITON_GET_REPLY_OFFSET) ? request : 0L;
         }
@@ -640,7 +668,7 @@ public class FakeInputWriter {
             int length = report == null ? 0 : Math.min(report.length, TRITON_REPORT_MAX);
             for (int i = 0; i < TRITON_REPORT_MAX; i++) ring.put(TRITON_GET_OFFSET + i, i < length ? report[i] : 0);
             ring.putInt(TRITON_GET_LENGTH_OFFSET, length);
-            nativeStoreFence();
+            storeFence();
             ring.putLong(TRITON_GET_REPLY_OFFSET, request);
         }
     }
@@ -664,12 +692,12 @@ public class FakeInputWriter {
     private static void clearSnapshotLocked(ByteBuffer ring) {
         long seq = ring.getLong(RING_SNAPSHOT_SEQ_OFFSET);
         ring.putLong(RING_SNAPSHOT_SEQ_OFFSET, seq + 1);
-        nativeStoreFence();
+        storeFence();
         ring.putInt(RING_SNAPSHOT_BUTTONS_OFFSET, 0);
         for (int i = 0; i < 8; i++) {
             ring.putShort(RING_SNAPSHOT_AXES_OFFSET + (i * 2), (short) 0);
         }
-        nativeStoreFence();
+        storeFence();
         ring.putLong(RING_SNAPSHOT_SEQ_OFFSET, seq + 2);
     }
 

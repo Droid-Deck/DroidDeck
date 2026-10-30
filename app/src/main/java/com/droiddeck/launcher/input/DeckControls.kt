@@ -9,6 +9,12 @@ object DeckControls {
     private const val RIGHT_TOUCH = 32
     private const val LEFT_CLICK = 64
     private const val RIGHT_CLICK = 128
+    const val MUTE = 256
+    const val FULL_TOUCHPAD = 512
+    const val HEADPHONES = 1024
+    const val BATTERY_VALID = 2048
+
+    @Volatile var externalImuActive: Boolean = false
 
     private const val SLOT = 0
 
@@ -35,6 +41,45 @@ object DeckControls {
     fun setClick(right: Boolean, down: Boolean) {
         set(if (right) RIGHT_CLICK else LEFT_CLICK, down)
         pressure[if (right) 1 else 0] = if (down) Short.MAX_VALUE else 0
+        publish()
+    }
+
+    @Synchronized
+    fun setDualSenseTouch(x0: Short, y0: Short, down0: Boolean, x1: Short, y1: Short, down1: Boolean, click: Boolean) {
+        set(LEFT_TOUCH, down0)
+        set(RIGHT_TOUCH, down1)
+        set(FULL_TOUCHPAD, down0 || down1)
+        set(LEFT_CLICK or RIGHT_CLICK, click)
+        pads[0] = if (down0) x0 else 0
+        pads[1] = if (down0) y0 else 0
+        pads[2] = if (down1) x1 else 0
+        pads[3] = if (down1) y1 else 0
+        pressure[0] = if (click) Short.MAX_VALUE else 0
+        pressure[1] = 0
+        publish()
+    }
+
+    @Synchronized
+    fun setDualSenseExtras(
+        mute: Boolean,
+        l4: Boolean,
+        r4: Boolean,
+        l5: Boolean,
+        r5: Boolean,
+        headphonesPlugged: Boolean = false,
+        batteryStatusByte: Int = -1
+    ) {
+        set(MUTE, mute)
+        set(L4, l4)
+        set(R4, r4)
+        set(L5, l5)
+        set(R5, r5)
+        set(HEADPHONES, headphonesPlugged)
+        if (batteryStatusByte in 0..255) {
+            controls = (controls and 0x00FF0000.inv()) or BATTERY_VALID or ((batteryStatusByte and 0xFF) shl 16)
+        } else {
+            controls = controls and (BATTERY_VALID or 0x00FF0000).inv()
+        }
         publish()
     }
 

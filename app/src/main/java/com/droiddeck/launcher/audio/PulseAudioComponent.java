@@ -29,17 +29,58 @@ public class PulseAudioComponent extends SessionPart {
     private final File deviceControls;
     private File logFile;
     private final String micFifoPath;
+    private final String dualSenseFifoPath;
     private volatile int pid = -1;
 
     public PulseAudioComponent(Context context) {
-        this(context, null);
+        this(context, null, null);
     }
 
     public PulseAudioComponent(Context context, String micFifoPath) {
+        this(context, micFifoPath, null);
+    }
+
+    public PulseAudioComponent(Context context, String micFifoPath, String dualSenseFifoPath) {
         this.workingDir = new File(context.getFilesDir(), "pulseaudio");
         this.deviceControls = com.droiddeck.launcher.runtime.DeviceControlsComponent.directory(
                 com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(context));
         this.micFifoPath = micFifoPath;
+        this.dualSenseFifoPath = dualSenseFifoPath;
+    }
+
+    /**
+     * Wine names a PulseAudio sink "Wireless Controller" with a USB\VID_054C&PID_0CE6 path when it carries these bus
+     * properties, which is how DualSense-aware games find the pad's own 4-channel output (speaker 1-2, haptics 3-4).
+     */
+    static String dualSenseSinkLine(String fifoPath) {
+        return "load-module module-pipe-sink sink_name=DualSenseAudio file=\"" + fifoPath + "\""
+                + " format=s16le rate=48000 channels=4 channel_map=front-left,front-right,rear-left,rear-right"
+                + " sink_properties=\"device.description='Wireless Controller' device.bus=usb"
+                + " device.vendor.id=054c device.product.id=0ce6 device.form_factor=headset\"";
+    }
+
+    static ArrayList<String> buildConfig(String socketPath, String micFifoPath, String dualSenseFifoPath) {
+        return buildConfig(socketPath, micFifoPath, dualSenseFifoPath, null);
+    }
+
+    static ArrayList<String> buildConfig(String socketPath, String micFifoPath, String dualSenseFifoPath, File deviceControls) {
+        ArrayList<String> config = new ArrayList<>();
+        config.add("load-module module-native-protocol-unix auth-anonymous=1 auth-cookie-enabled=0 socket=\""
+                + socketPath + "\"");
+        config.add(".nofail");
+        String controlArg = deviceControls != null ? " control_dir=" + deviceControls : "";
+        config.add("load-module module-directaudio-native-sink sink_name=DirectAudio performance_mode=1 adaptive=1 decay=0 limiter=1 watchdog=1 volume=1.0" + controlArg);
+        config.add("set-default-sink DirectAudio");
+        if (dualSenseFifoPath != null && !dualSenseFifoPath.isEmpty()) {
+            config.add(dualSenseSinkLine(dualSenseFifoPath));
+        }
+        config.add(".fail");
+        if (micFifoPath != null && !micFifoPath.isEmpty()) {
+            config.add("load-module module-pipe-source source_name=" + MIC_SOURCE + " file=\""
+                    + micFifoPath + "\" format=s16le rate=48000 channels=1");
+            config.add("set-default-source " + MIC_SOURCE);
+        }
+        return config;
     }
 
     private String bundleChecksum() {
@@ -93,18 +134,10 @@ public class PulseAudioComponent extends SessionPart {
         if (micFifoPath != null && !micFifoPath.isEmpty()) {
             new File(micFifoPath).delete();
         }
-        ArrayList<String> config = new ArrayList<>();
-        config.add("load-module module-native-protocol-unix auth-anonymous=1 auth-cookie-enabled=0 socket=\""
-                + socket().getAbsolutePath() + "\"");
-        config.add(".nofail");
-        config.add("load-module module-directaudio-native-sink sink_name=DirectAudio performance_mode=1 adaptive=1 decay=0 limiter=1 watchdog=1 volume=1.0 control_dir=" + deviceControls);
-        config.add("set-default-sink DirectAudio");
-        config.add(".fail");
-        if (micFifoPath != null && !micFifoPath.isEmpty()) {
-            config.add("load-module module-pipe-source source_name=" + MIC_SOURCE + " file=\""
-                    + micFifoPath + "\" format=s16le rate=48000 channels=1");
-            config.add("set-default-source " + MIC_SOURCE);
+        if (dualSenseFifoPath != null && !dualSenseFifoPath.isEmpty()) {
+            new File(dualSenseFifoPath).delete();
         }
+        ArrayList<String> config = buildConfig(socket().getAbsolutePath(), micFifoPath, dualSenseFifoPath, deviceControls);
         FileUtils.writeString(new File(workingDir, "default.pa"), String.join("\n", config));
 
         File modules = new File(workingDir, "modules/arm64");

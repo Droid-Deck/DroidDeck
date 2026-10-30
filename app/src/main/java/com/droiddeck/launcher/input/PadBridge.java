@@ -52,6 +52,7 @@ public final class PadBridge {
     private volatile java.util.function.IntPredicate excluded = id -> false;
     private final FakeInputWriter[] playerWriters = new FakeInputWriter[SLOTS];
     private final PadState[] playerStates = new PadState[SLOTS];
+    private final boolean[] bridgeSlots = new boolean[SLOTS]; // slots fed by the SDL3 bridge app
     private final PadState effectiveState = new PadState();
     private final PadState homeGuideReport = new PadState();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
@@ -218,6 +219,7 @@ public final class PadBridge {
     }
 
     public static boolean isControllerKeyEvent(KeyEvent event) {
+        if (SdlBridgeClient.isBridged(event)) return false;
         InputDevice device = event.getDevice();
         if (device == null || device.isVirtual() || isSystemVirtualInputName(device.getName())) return false;
         if (KeyEvent.isGamepadButton(event.getKeyCode())) {
@@ -243,6 +245,7 @@ public final class PadBridge {
     }
 
     public static boolean isControllerMotionEvent(MotionEvent event) {
+        if (SdlBridgeClient.isBridged(event)) return false;
         InputDevice device = event.getDevice();
         return event.isFromSource(InputDevice.SOURCE_JOYSTICK) && device != null && !device.isVirtual()
                 && !isSystemVirtualInputName(device.getName())
@@ -309,6 +312,7 @@ public final class PadBridge {
     }
 
     public synchronized boolean onKeyEvent(KeyEvent event) {
+        if (DualSenseManager.shouldSuppress(event.getDevice())) return true;
         if (!isControllerKeyEvent(event) || excluded.test(event.getDeviceId())) return false;
         int slot = slotFor(event.getDevice());
         if (slot < 0) return false;
@@ -359,6 +363,7 @@ public final class PadBridge {
     }
 
     public synchronized boolean onMotionEvent(MotionEvent event) {
+        if (DualSenseManager.shouldSuppress(event.getDevice())) return true;
         if (!isControllerMotionEvent(event) || excluded.test(event.getDeviceId())) return false;
         if (event.getAction() != MotionEvent.ACTION_MOVE) return false;
         int slot = slotFor(event.getDevice());
@@ -476,6 +481,39 @@ public final class PadBridge {
             scheduleStats();
         }
         publish();
+    }
+
+    /** SDL3 bridge: reserves a free player slot (1..3) for an extra controller. @return the slot, or -1 if none is free. */
+    public synchronized int claimBridgeSlot() {
+        for (int slot = 1; slot < SLOTS; slot++) {
+            if (owners[slot] != NO_CONTROLLER || bridgeSlots[slot]) continue;
+            bridgeSlots[slot] = true;
+            playerStates[slot].clear();
+            Log.i(TAG, "SDL3 bridge controller is player " + (slot + 1));
+            return slot;
+        }
+        return -1;
+    }
+
+    /** SDL3 bridge: frees a slot taken with {@link #claimBridgeSlot()}. */
+    public synchronized void releaseBridgeSlot(int slot) {
+        if (slot < 1 || slot >= SLOTS || !bridgeSlots[slot]) return;
+        bridgeSlots[slot] = false;
+        playerStates[slot].clear();
+        if (playerWriters[slot] != null) {
+            playerWriters[slot].destroy();
+            playerWriters[slot] = null;
+        }
+        Log.i(TAG, "SDL3 bridge player " + (slot + 1) + " left");
+    }
+
+    /** SDL3 bridge: updates player [slot] (0 = primary pad, 1..3 = claimed bridge slots). */
+    public synchronized void applyExternalSlot(int slot, java.util.function.Consumer<PadState> mutation, boolean changed) {
+        if (slot <= 0) { applyExternal(mutation, changed); return; }
+        if (slot >= SLOTS || !bridgeSlots[slot]) return;
+        mutation.accept(playerStates[slot]);
+        if (changed) notePlayerInput();
+        publish(slot);
     }
 
     public synchronized void setSystemButtons(boolean guidePressed, boolean qamPressed) {
@@ -739,7 +777,7 @@ public final class PadBridge {
             return slot;
         }
         for (int slot = firstPlayerSlot(); slot < SLOTS; slot++) {
-            if (owners[slot] != NO_CONTROLLER) continue;
+            if (owners[slot] != NO_CONTROLLER || bridgeSlots[slot]) continue;
             owners[slot] = id;
             Log.i(TAG, "\"" + device.getName() + "\" (id " + id + ") is player " + (slot + 1));
             return slot;

@@ -163,6 +163,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private lateinit var memoryHud: com.droiddeck.launcher.session.MemoryHud
     private var padBridge: PadBridge? = null
     private var joyConVr: com.droiddeck.launcher.input.JoyConVr? = null
+    private var dualSenseManager: com.droiddeck.launcher.input.DualSenseManager? = null
     private var handCamera: com.droiddeck.launcher.handtracking.HandCamera? = null
     private var padMotion: com.droiddeck.launcher.input.PadMotion? = null
     private var resumed = false
@@ -512,6 +513,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private val deviceListener = object : InputManager.InputDeviceListener {
         override fun onInputDeviceAdded(deviceId: Int) {
             logInputDevice("connected", deviceId)
+            dualSenseManager?.onInputDeviceAdded(deviceId)
             joyConVr?.refresh()
             padBridge?.syncConnectedControllers()
             refreshControls()
@@ -520,6 +522,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
         override fun onInputDeviceRemoved(deviceId: Int) {
             Log.i(TAG, "input device $deviceId disconnected")
+            dualSenseManager?.onInputDeviceRemoved(deviceId)
             backQamInput.onDeviceRemoved(deviceId)
             joyConVr?.refresh()
             padBridge?.onDeviceRemoved(deviceId)
@@ -616,6 +619,32 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
         SteamControllerBle.listener = { uiHandler.post { updatePadMotion(); refreshControls() } }
         steamController = SteamControllerBle(this).also { it.start() }
+        val overlayPadKeyGen = java.util.concurrent.atomic.AtomicInteger(0)
+        dualSenseManager = com.droiddeck.launcher.input.DualSenseManager(this).also { ds ->
+            ds.onActivationChanged = { active ->
+                synchronized(overlayPadKeyGen) {
+                    overlayPadKeyGen.incrementAndGet()
+                }
+                if (!active) uiHandler.post { releaseOverlayPadKeys() }
+            }
+            ds.onStateUpdated = { state ->
+                val gen = synchronized(overlayPadKeyGen) {
+                    if (ds.isDualSenseActive && ds.uiOverlayActive) overlayPadKeyGen.get() else -1
+                }
+                if (gen >= 0) {
+                    val next = com.droiddeck.launcher.input.LauncherPadKeys.held(state).toIntArray()
+                    uiHandler.post {
+                        val valid = synchronized(overlayPadKeyGen) {
+                            gen == overlayPadKeyGen.get() && ds.isDualSenseActive && ds.uiOverlayActive
+                        }
+                        if (valid && !next.contentEquals(overlayPadKeys)) {
+                            dispatchOverlayPadKeys(next)
+                        }
+                    }
+                }
+            }
+            ds.start()
+        }
         padMotion = com.droiddeck.launcher.input.PadMotion(this) {
             @Suppress("DEPRECATION")
             (if (Build.VERSION.SDK_INT >= 30) display else windowManager.defaultDisplay)?.rotation ?: android.view.Surface.ROTATION_0
@@ -905,7 +934,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     }
                     if (nextGame != gestureGame) { gestureGame = nextGame; refreshGestureConfig() }
                 }
-                LaunchedEffect(drawerOpen, pcKeyboardOpen, achievementsOpen, gestureSettingsOpen, pipUi, SessionState.suspended) {
+                LaunchedEffect(drawerOpen, pcKeyboardOpen, achievementsOpen, gestureSettingsOpen, screenKeyPickerOpen, screenKeyEdit, screenLayoutsOpen, pipUi, SessionState.suspended) {
+                    val overlayActive = (drawerOpen || pcKeyboardOpen || achievementsOpen || gestureSettingsOpen || screenKeyPickerOpen || screenKeyEdit != null || screenLayoutsOpen) && !pipUi
+                    dualSenseManager?.uiOverlayActive = overlayActive
+                    if (!overlayActive) releaseOverlayPadKeys()
                     if (drawerOpen || pcKeyboardOpen || achievementsOpen || gestureSettingsOpen || pipUi || SessionState.suspended) {
                         backQamInput.cancel()
                         com.droiddeck.launcher.input.HomeButtonShortcuts.cancel(this@SessionActivity)
@@ -1202,6 +1234,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             onKeyboard = { drawerOpen = false; pcKeyboardOpen = false; keyboard?.toggle() },
             onHardwareKeyboard = ::togglePcKeyboard,
             controller = controllerSettings,
+            onControllerChanged = { updateControllerPrefs {} },
             onRumble = { on -> updateControllerPrefs { ControllerPrefs.setRumble(this@SessionActivity, on) } },
             onSteamButton = { on -> updateControllerPrefs { ControllerPrefs.setSteamButton(this@SessionActivity, on) } },
             onQamButton = { on -> updateControllerPrefs { ControllerPrefs.setQamButton(this@SessionActivity, on) } },
@@ -1471,6 +1504,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         change()
         controllerSettings = ControllerPrefs.read(this)
         onScreenControls?.reload()
+        com.droiddeck.launcher.input.DualSenseManager.refreshActivePreferences(this)
     }
 
     private fun routeBackAction() {
@@ -2458,10 +2492,18 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (screenKeyTextFocus) return super.dispatchKeyEvent(event)
         val pad = com.droiddeck.launcher.input.JoyCon.normalize(event)
         if (pad !== event) return dispatchKeyEvent(pad)
-        val fromController = PadBridge.isControllerKeyEvent(event)
+        if (event.keyCode == KeyEvent.KEYCODE_BUTTON_A) com.droiddeck.launcher.ui.HeldKeys.confirm = event.action == KeyEvent.ACTION_DOWN
+        if (event.action == KeyEvent.ACTION_DOWN) com.droiddeck.launcher.ui.HeldKeys.focusWakeup++
+        val fromController = PadBridge.isControllerKeyEvent(event) ||
+            (event.deviceId == -1 && event.isFromSource(InputDevice.SOURCE_GAMEPAD))
         if (fromController && event.action == KeyEvent.ACTION_DOWN) {
             if (drawerOpen && !drawerControllerActive) focusDrawer()
             drawerControllerActive = true
+        }
+        if ((drawerOpen || pcKeyboardOpen || achievementsOpen || gestureSettingsOpen || screenKeyPickerOpen || screenKeyEdit != null) &&
+            com.droiddeck.launcher.ui.ActiveGlideWindows.dispatchKeyEvent(window?.decorView, event)
+        ) {
+            return true
         }
         if (fromController && event.keyCode == KeyEvent.KEYCODE_BUTTON_B && ::loading.isInitialized && loading.visible && !loading.ended && !drawerOpen) {
             if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
@@ -2527,6 +2569,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if ((pcKeyboardOpen || achievementsOpen) && fromController) return super.dispatchKeyEvent(event)
         if (joyConVr?.onKeyEvent(event) == true) return true
         if (fromController && event.keyCode != KeyEvent.KEYCODE_BACK && padMouseMode() && padMouse.onKey(event)) return true
+        if (dualSenseManager?.onKeyEvent(event) == true) return true
         if (event.keyCode != KeyEvent.KEYCODE_BACK && padBridge?.onKeyEvent(event) == true) return true
         if (CompositorHost.isStarted && event.keyCode != KeyEvent.KEYCODE_BACK && !fromController) {
             val down = event.action == KeyEvent.ACTION_DOWN
@@ -2572,6 +2615,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (drawerDirectionKey != KeyEvent.KEYCODE_UNKNOWN) releaseDrawerDirection()
         if ((pcKeyboardOpen || achievementsOpen) && PadBridge.isControllerMotionEvent(event)) return super.dispatchGenericMotionEvent(event)
         if (joyConVr?.onMotionEvent(event) == true) return true
+        if (event.isFromSource(InputDevice.SOURCE_TOUCHPAD) && com.droiddeck.launcher.input.DualSense.isDualSense(event.device)) {
+            if (dualSenseManager?.onTouchpadEvent(event) == true) return true
+        }
         if (PadBridge.isControllerMotionEvent(event) && padMouseMode() && padMouse.onMotion(event)) return true
         if (padBridge?.onMotionEvent(event) == true) return true
         if (event.isFromSource(android.view.InputDevice.SOURCE_MOUSE) && !drawerOpen && onMouse(event)) return true
@@ -2599,6 +2645,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {
         if (pipUi) return true
+        if (event.isFromSource(InputDevice.SOURCE_TOUCHPAD) && com.droiddeck.launcher.input.DualSense.isDualSense(event.device)) {
+            if (dualSenseManager?.onTouchpadEvent(event) == true) return true
+        }
         notePress(event)
         if (event.actionMasked == MotionEvent.ACTION_DOWN && event.isFromSource(InputDevice.SOURCE_TOUCHSCREEN)) {
             drawerControllerActive = false
@@ -2667,6 +2716,29 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         drawerDirectionRepeatCount = 0
     }
 
+    private var overlayPadKeys = IntArray(0)
+
+    private fun dispatchOverlayPadKeys(next: IntArray) {
+        val now = SystemClock.uptimeMillis()
+        for (code in overlayPadKeys) {
+            if (code !in next) dispatchKeyEvent(KeyEvent(now, now, KeyEvent.ACTION_UP, code, 0, 0, -1, 0, 0, InputDevice.SOURCE_GAMEPAD or InputDevice.SOURCE_DPAD))
+        }
+        for (code in next) {
+            if (code !in overlayPadKeys) dispatchKeyEvent(KeyEvent(now, now, KeyEvent.ACTION_DOWN, code, 0, 0, -1, 0, 0, InputDevice.SOURCE_GAMEPAD or InputDevice.SOURCE_DPAD))
+        }
+        overlayPadKeys = next
+    }
+
+    private fun releaseOverlayPadKeys() {
+        val held = overlayPadKeys
+        if (held.isEmpty()) return
+        overlayPadKeys = IntArray(0)
+        val now = SystemClock.uptimeMillis()
+        for (code in held) {
+            dispatchKeyEvent(KeyEvent(now, now, KeyEvent.ACTION_UP, code, 0, 0, -1, 0, 0, InputDevice.SOURCE_GAMEPAD or InputDevice.SOURCE_DPAD))
+        }
+    }
+
     private fun dispatchDrawerKey(action: Int, repeatCount: Int, eventTime: Long) {
         val event = KeyEvent(
             drawerDirectionDownTime, eventTime, action, drawerDirectionKey,
@@ -2675,6 +2747,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (action == KeyEvent.ACTION_DOWN && repeatCount == 0) {
             Log.i(TAG, "drawer synthetic key=${KeyEvent.keyCodeToString(drawerDirectionKey)} viewFocused=${sessionOverlay.hasFocus()}")
         }
+        if (com.droiddeck.launcher.ui.ActiveGlideWindows.dispatchKeyEvent(window?.decorView, event)) return
         dispatchToDrawer(event)
     }
 
@@ -4360,6 +4433,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         joyConVr = null
         handCamera?.stop()
         handCamera = null
+        dualSenseManager?.stop()
+        dualSenseManager = null
         padBridge?.stop()
         steamController?.stop()
         if (SessionState.padBridge === padBridge) SessionState.padBridge = null

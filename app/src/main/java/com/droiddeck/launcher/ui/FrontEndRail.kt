@@ -3,6 +3,7 @@ package com.droiddeck.launcher.ui
 import androidx.compose.ui.platform.testTag
 import com.droiddeck.launcher.R
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
@@ -260,6 +261,7 @@ private fun RailItem(
         contentAlignment = Alignment.Center,
         modifier = Modifier
             .then(if (frontFocus != null) Modifier.focusRequester(frontFocus.railFor(key)) else Modifier)
+            .focusProperties { if (frontFocus != null) canFocus = frontFocus.focusedRail != null || current }
             .testTag("rail-$key")
             .then(place(key))
             .landingPop(Hops.railLanded[key] ?: 0)
@@ -271,6 +273,7 @@ private fun RailItem(
             .glideBorder(focused, Shape14, pal.signal)
             .hoverable(src)
             .selectable(selected = current, interactionSource = src, indication = LocalIndication.current, role = Role.Tab, onClick = onClick)
+            .controllerConfirm(onClick = onClick)
             .then(if (iconOnly) Modifier.semantics { contentDescription = label } else Modifier),
     ) {
         if (iconOnly) Icon(icon, contentDescription = null, tint = fg, modifier = Modifier.size(22.dp))
@@ -313,6 +316,7 @@ private fun ResumeRailItem(name: String, compact: Boolean, iconOnly: Boolean, on
             .glideBorder(focused, Shape14, pal.signal)
             .hoverable(src)
             .clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Button, onClick = onResume)
+            .controllerConfirm(onClick = onResume)
             .semantics { contentDescription = resumeDescription }
             .padding(vertical = if (iconOnly) 15.dp else if (compact) 6.dp else 9.dp, horizontal = 4.dp),
     ) {

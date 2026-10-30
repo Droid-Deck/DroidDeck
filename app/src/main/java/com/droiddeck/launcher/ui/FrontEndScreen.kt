@@ -347,16 +347,22 @@ internal class FrontFocus {
     fun railFor(key: String): FocusRequester = rail.getOrPut(key) { FocusRequester() }
     val items = HashMap<String, FocusRequester>()
     val attached = HashMap<String, Int>()
+    var attachedCount by mutableStateOf(0)
+    val attachedOrder = ArrayList<String>()
     var last by mutableStateOf<String?>(null)
     val firstTile = FocusRequester()
     var firstTileAttached = 0
+    fun firstAttachedItem(): FocusRequester? {
+        val id = attachedOrder.firstOrNull { (attached[it] ?: 0) > 0 } ?: return null
+        return items[id]
+    }
     fun paneEntry(): FocusRequester {
         val id = last
         return when {
             id == PRIMARY && primaryAttached > 0 -> primary
             id != null && id != PRIMARY && (attached[id] ?: 0) > 0 -> items.getValue(id)
             primaryAttached > 0 -> primary
-            else -> FocusRequester.Default
+            else -> firstAttachedItem() ?: FocusRequester.Default
         }
     }
     companion object { const val PRIMARY = "\u0000primary" }
@@ -385,7 +391,14 @@ internal fun Modifier.paneItem(id: String): Modifier {
     val req = remember(id) { ff.items.getOrPut(id) { FocusRequester() } }
     DisposableEffect(id) {
         ff.attached[id] = (ff.attached[id] ?: 0) + 1
-        onDispose { ff.attached[id] = (ff.attached[id] ?: 1) - 1 }
+        ff.attachedCount++
+        if (id !in ff.attachedOrder) ff.attachedOrder.add(id)
+        onDispose {
+            val next = (ff.attached[id] ?: 1) - 1
+            ff.attached[id] = next
+            ff.attachedCount--
+            if (next <= 0) ff.attachedOrder.remove(id)
+        }
     }
     return this.focusRequester(req).onFocusChanged { if (it.isFocused) ff.last = id }
 }
@@ -563,6 +576,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
     }
     val inputModeManager = LocalInputModeManager.current
     val window = LocalWindowInfo.current
+    val localView = androidx.compose.ui.platform.LocalView.current
     val androidContext = androidx.compose.ui.platform.LocalContext.current
     var anyFocused by remember { mutableStateOf(false) }
     val paneRequester = remember { FocusRequester() }
@@ -583,12 +597,16 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
             .onFocusChanged { anyFocused = it.hasFocus },
     ) {
         val bottomNavigation = maxHeight > maxWidth
-        LaunchedEffect(processSettingsPageVisible) {
+        LaunchedEffect(processSettingsPageVisible, HeldKeys.focusWakeup) {
             if (processSettingsPageVisible) return@LaunchedEffect
+            if (ActiveGlideWindows.hasActiveOverlay(localView)) return@LaunchedEffect
             snapshotFlow { window.isWindowFocused }.first { it }
+            if (ActiveGlideWindows.hasActiveOverlay(localView)) return@LaunchedEffect
             if (inputModeManager.inputMode != InputMode.Keyboard) inputModeManager.requestInputMode(InputMode.Keyboard)
-            if (s.dualScreen && frontFocus.primaryAttached == 0) focusDualPane()
-            else focusWithinFrames({ anyFocused }) { if (frontFocus.primaryAttached > 0) frontFocus.primary else frontFocus.railFor(railSelection) }
+            if (!anyFocused) {
+                if (s.dualScreen && frontFocus.primaryAttached == 0) focusDualPane()
+                else focusWithinFrames({ anyFocused }) { if (frontFocus.primaryAttached > 0) frontFocus.primary else frontFocus.railFor(railSelection) }
+            }
         }
         var openPage by remember { mutableStateOf<String?>(null) }
         LaunchedEffect(s.pageKey) {
@@ -602,7 +620,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
             if (processSettingsPageVisible) return@LaunchedEffect
             kotlinx.coroutines.delay(Motion.ms(PAGE_EXIT_MS).toLong())
             if (inputModeManager.inputMode != InputMode.Keyboard) return@LaunchedEffect
-            if (s.pageKey == "performance") {
+            if (s.pageKey == "performance" || s.pageKey == "controller-mapping") {
                 val back = "back:${androidContext.getString(R.string.mode_back)}"
                 focusWithinFrames({ frontFocus.last == back && anyFocused && frontFocus.focusedRail == null }) {
                     frontFocus.items[back] ?: FocusRequester.Default
@@ -617,7 +635,9 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
             if (railPicks == 0 || processSettingsPageVisible) return@LaunchedEffect
             kotlinx.coroutines.delay(Motion.ms(PAGE_EXIT_MS).toLong())
             if (inputModeManager.inputMode != InputMode.Keyboard) return@LaunchedEffect
-            val entry = withTimeoutOrNull(1_000) { snapshotFlow { frontFocus.primaryAttached > 0 }.first { it } }
+            val entry = withTimeoutOrNull(1_000) {
+                snapshotFlow { frontFocus.primaryAttached > 0 || frontFocus.attachedCount > 0 }.first { it }
+            }
             if (entry == null) {
                 if (s.dualScreen) focusDualPane()
                 return@LaunchedEffect

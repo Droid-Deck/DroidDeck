@@ -178,6 +178,10 @@ internal fun PrimaryButton(
     val scale by animateFloatAsState(if (pressed) 0.955f else if (hot) 1.02f else 1f, Motion.sp(0.5f, Spring.StiffnessMedium), label = "btnScale")
     val lift by animateFloatAsState(if (hot) 14f else 6f, Motion.tw(300), label = "btnLift")
     val placed = remember { arrayOfNulls<androidx.compose.ui.layout.LayoutCoordinates>(1) }
+    val activate = {
+        placed[0]?.takeIf { it.isAttached }?.let { LaunchOrigin.mark(it.boundsInRoot(), placed) }
+        onClick()
+    }
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = if (fill) Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally) else Arrangement.spacedBy(8.dp),
@@ -190,10 +194,8 @@ internal fun PrimaryButton(
             .background(if (enabled) Brush.linearGradient(listOf(colors.primary, pal.primary2)) else Brush.linearGradient(listOf(colors.surfaceVariant, colors.surfaceVariant)))
             .then(if (enabled) Modifier else Modifier.border(1.dp, pal.line2, btnShape))
             .glideBorder(hot, btnShape, pal.signal, hotFillAlpha = 0f)
-            .hoverable(src).clickable(role = Role.Button, interactionSource = src, indication = null, enabled = enabled) {
-                placed[0]?.takeIf { it.isAttached }?.let { LaunchOrigin.mark(it.boundsInRoot(), placed) }
-                onClick()
-            }
+            .hoverable(src).clickable(role = Role.Button, interactionSource = src, indication = null, enabled = enabled, onClick = activate)
+            .controllerConfirm(enabled = enabled, onClick = activate)
             .padding(
                 start = if (fill) 12.dp else if (large) 20.dp else if (pillMode) 18.dp else if (compact) 10.dp else if (icon != null) 14.dp else 18.dp,
                 end = if (fill) 12.dp else if (large) 26.dp else if (pillMode) 20.dp else if (compact) 10.dp else 18.dp,
@@ -274,13 +276,15 @@ internal fun Cog(size: androidx.compose.ui.unit.Dp = 48.dp, onClick: () -> Unit)
     val pal = LocalPalette.current
     val placed = remember { arrayOfNulls<androidx.compose.ui.layout.LayoutCoordinates>(1) }
     val cornerPx = with(androidx.compose.ui.platform.LocalDensity.current) { (if (size > 48.dp) 14.dp else 12.dp).toPx() }
+    val activate = {
+        placed[0]?.takeIf { it.isAttached }?.let { PageOrigin.mark(Origin(it.boundsInRoot(), cornerPx)) }
+        spins++
+        onClick()
+    }
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier.paneItem("cog").downToFirstTile().size(size).onGloballyPositioned { placed[0] = it }.clip(if (size > 48.dp) Shape14 else Shape12).background(Color.White.copy(alpha = 0.03f)).glideBorder(hot, if (size > 48.dp) Shape14 else Shape12, pal.signal, pal.line2)
-            .hoverable(src).clickable(role = androidx.compose.ui.semantics.Role.Button, interactionSource = src, indication = LocalIndication.current) {
-                placed[0]?.takeIf { it.isAttached }?.let { PageOrigin.mark(Origin(it.boundsInRoot(), cornerPx)) }
-                spins++
-                onClick()
-            },
+            .hoverable(src).clickable(role = androidx.compose.ui.semantics.Role.Button, interactionSource = src, indication = LocalIndication.current, onClick = activate)
+            .controllerConfirm(onClick = activate),
     ) { Icon(Icons.Filled.Settings, stringResource(R.string.drawer_page_settings), tint = if (hot) pal.signal else colors.onBackground, modifier = Modifier.size(if (size > 48.dp) 20.dp else 18.dp).rotate(rot)) }
 }

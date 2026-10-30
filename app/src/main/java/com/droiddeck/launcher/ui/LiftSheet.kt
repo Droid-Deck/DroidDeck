@@ -526,7 +526,7 @@ internal fun LiftHero(
                             if (k.keyCode == KeyEvent.KEYCODE_DPAD_UP) { if (k.action == KeyEvent.ACTION_DOWN) close(); true } else false
                         },
                 ) {
-                    SheetChips(tabs.map { it.second }, tab, chipFocus) { i -> travel = if (i > tab) 1 else -1; tab = i }
+                    SheetChips(tabs.map { it.second }, tab, chipFocus, inSheet = true) { i -> travel = if (i > tab) 1 else -1; tab = i }
                 }
                 Box(
                     Modifier
@@ -697,6 +697,7 @@ internal fun SheetChips(
     selected: Int,
     focus: List<FocusRequester>? = null,
     width: Dp = Dp.Unspecified,
+    inSheet: Boolean = false,
     onPick: (Int) -> Unit,
 ) {
     val pal = LocalPalette.current
@@ -712,6 +713,7 @@ internal fun SheetChips(
         val equal = !width.isSpecified && maxWidth / labels.size.coerceAtLeast(1) >= 96.dp
         val least = if (width.isSpecified) maxOf(width, 64.dp) else 64.dp
         val scroll = rememberScrollState()
+        val ff = LocalFrontFocus.current
         Box(if (equal) Modifier.fillMaxWidth() else Modifier.edgeFade(scroll).horizontalScroll(scroll).padding(3.dp)) {
             Row(
                 horizontalArrangement = Arrangement.spacedBy(ChipGap),
@@ -723,6 +725,12 @@ internal fun SheetChips(
                     val m = (if (equal) Modifier.weight(1f) else Modifier.widthIn(min = least))
                         .onGloballyPositioned { bounds[i] = it.boundsInParent() }
                         .focusRequester(chips[i])
+                        .focusProperties {
+                            canFocus = within || i == selected
+                            if (ff != null && !inSheet) {
+                                down = ff.firstAttachedItem() ?: FocusRequester.Default
+                            }
+                        }
                     SheetChip(label, i == selected, m.onFocusChanged { if (it.isFocused && i != selected) onPick(i) }) { onPick(i) }
                 }
             }
