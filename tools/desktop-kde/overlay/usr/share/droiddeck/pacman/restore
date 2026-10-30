@@ -12,7 +12,13 @@ done_for=$(cat "$state/restored" 2>/dev/null)
 [ ${#missing[@]} -eq 0 ] && [ "$done_for" = "$snapshot" ] && exit 0
 attempt="$snapshot ${missing[*]}"
 [ "$(cat "$state/attempted" 2>/dev/null)" = "$attempt" ] && exit 0
-echo "$attempt" > "$state/attempted"
+tries=$(cat "$state/tries" 2>/dev/null)
+count=0
+[ "${tries#* }" = "$attempt" ] && count=${tries%% *}
+count=$((count + 1))
+echo "$count $attempt" > "$state/tries"
+[ "$count" -ge 3 ] && echo "$attempt" > "$state/attempted"
+export DROIDDECK_PACMAN_RESTORING=1
 mkdir -p "${log%/*}"
 notify() { notify-send -a DroidDeck -i system-software-update "$@" 2>/dev/null; }
 notify "Restoring your packages" "Reinstalling software you added with pacman after a DroidDeck update."

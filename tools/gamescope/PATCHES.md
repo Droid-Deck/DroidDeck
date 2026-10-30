@@ -181,3 +181,31 @@ The nested Wayland backend's input thread reads the host display, but steamcompm
 does not watch that file descriptor, so buffer releases and presentation feedback
 queued by that read could wait up to one refresh for steamcompmgr's next poll. The
 input thread now wakes steamcompmgr after each read.
+
+## 0123 commit: fence lifetime fixes from upstream
+
+Backport of upstream commits 0efe47c and 666c52b by Matthew Schwartz (ValveSoftware/gamescope).
+Pending commits share ownership of their completion list with the Xwayland context, so a late
+fence signal can no longer append to a list freed with the context; and a commit being destroyed
+no longer hands the image waiter a new reference to itself. Both touch the code 0124 changes.
+
+## 0124 commit: mark a finished frame done at import
+
+Every game frame took two passes of steamcompmgr's loop: the import duplicated the buffer's
+fence and handed the commit to the image waiter (epoll add), then the waiter thread saw the fence
+signalled, removed and closed it and woke steamcompmgr again to handle the finished commit.
+`update_wayland_res` now polls the fence without waiting first. A frame that is already finished
+is marked done at once - no duplicate fence, no epoll add or delete, no waiter wake - and the main
+loop handles it in the same pass, after the import (FIFO commits still wait for a vblank). The
+`commit_ready_check` convar (default on, `gamescopectl commit_ready_check 0`) turns it off; the
+`xwm` log counts fences ready at import and waited for, every 10 s.
+
+## 0125 steamcompmgr: share mangoapp's frame times with DroidDeck's HUD
+
+DroidDeck's in-app HUD shows the same frame rate and frame times as Steam's performance overlay.
+DroidDeck's mangoapp (Valve's 20260902.1 build) reads the field at byte 16 of gamescope's messages as
+its frame time; gamescope 3.16.29 puts `app_frametime_ns` there, the time between signalled commits of
+the connector's windows (`mangoapp_nudge_app_frame`). With `DROIDDECK_HUD_FRAMES` set (droiddeck-session
+sets `/run/droiddeck-hud/frames`), gamescope maps that file and writes the same commits of connector 0,
+whether or not a mangoapp runs, plus the focused pid, output size, refresh, Steam focus and engine name.
+The layout is in the comment above `droiddeck_hud_frames_map`; the app reads it in `hudframes.c`.

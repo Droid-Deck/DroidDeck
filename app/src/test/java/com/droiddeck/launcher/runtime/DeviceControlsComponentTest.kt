@@ -66,6 +66,15 @@ class DeviceControlsComponentTest {
         assertEquals(3, audio.getStreamVolume(AudioManager.STREAM_MUSIC))
     }
 
+    @Test fun everyVolumeStepIsPublishedWithoutWaitingForThePoll() {
+        for (level in 2..5) {
+            audio.setStreamVolume(AudioManager.STREAM_MUSIC, level, 0)
+            context.sendBroadcast(android.content.Intent("android.media.VOLUME_CHANGED_ACTION"))
+            shadowOf(Looper.getMainLooper()).idle()
+            assertEquals(level.toString(), File(directory, "volume.state").readText().split(" ").first())
+        }
+    }
+
     @Test fun deniedBrightnessDoesNotOpenSettingsOrReplayAnOldSliderValueAfterPermission() {
         WriteSettingsShadow.writable = false
         request("brightness", "0.75")

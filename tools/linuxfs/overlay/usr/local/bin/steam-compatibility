@@ -276,6 +276,18 @@ bl_vacdiag() {
 }
 """
 
+# Steam's shader pre-caching runs its D3D driver query through every Proton tool at each start, as
+# "run <client>/bin/d3ddriverquery64.exe" in compatdata/0. Here it has never succeeded (exit 1 every time), and each
+# run started Wine in compatdata/0, where the two Protons upgrade the prefix back and forth for many seconds while the
+# game starts. Steam gets the same failure without starting Wine; other verbs and prefixes are left alone.
+BL_DRIVER_QUERY_SKIP = """
+case "$verb:${1##*/}:${STEAM_COMPAT_DATA_PATH%/}" in
+  run:d3ddriverquery64.exe:*/compatdata/0 | run:d3ddriverquery.exe:*/compatdata/0)
+    echo "droiddeck-proton: Steam's D3D driver query is not run (it fails here and would start Wine in compatdata/0)" >&2
+    exit 1 ;;
+esac
+"""
+
 BL_DIRECTAUDIO_SETUP = """
 bl_is_steam_installscript_target() {
   local target=${1:-}
@@ -408,7 +420,7 @@ LAUNCHER_TEMPLATE = LAUNCHER_SH
 
 def launcher_sh(sources=SOURCES):
     return (LAUNCHER_TEMPLATE % " ".join('"%s"' % n for n in sources)).replace(
-        "verb=$1; shift", "verb=$1; shift\n" + BL_DESKTOP_GPU_SETUP + BL_DIRECTAUDIO_SETUP + BL_GAME_CPUS_SETUP + BL_IDTECH3_SETUP
+        "verb=$1; shift", "verb=$1; shift\n" + BL_DRIVER_QUERY_SKIP + BL_DESKTOP_GPU_SETUP + BL_DIRECTAUDIO_SETUP + BL_GAME_CPUS_SETUP + BL_IDTECH3_SETUP
         + BL_VACDIAG_SETUP + BL_COMPONENTS_SETUP + BL_LIBPATH_SETUP + BL_STORE_SETUP, 1)
 
 
@@ -455,6 +467,15 @@ bl_store_launch "$@"
 BL_STORE_ARGS=("$@")
 bl_run ${BL_TASKSET:-} /usr/local/bin/droiddeck-game-env "$BL_STORE_PROTON" "$verb" "$@" "${BL_EXTRA_ARGS[@]}"
 """
+
+
+def extra_wrapper_sh(entry_point):
+    return (EXTRA_WRAPPER_SH % entry_point).replace(
+        'here=$(dirname "$0")',
+        'here=$(dirname "$0")\n' + BL_DRIVER_QUERY_SKIP + BL_DESKTOP_GPU_SETUP + BL_DIRECTAUDIO_SETUP + BL_GAME_CPUS_SETUP
+        + BL_IDTECH3_SETUP + BL_VACDIAG_SETUP + BL_COMPONENTS_SETUP + BL_LIBPATH_SETUP + BL_STORE_SETUP, 1)
+
+
 EXTRA_COMPAT_TOOL_VDF = """"compatibilitytools"
 {
 	"compat_tools"
@@ -678,11 +699,7 @@ def adopt_extras(tools):
         name = first_key(compat_vdf, ["compatibilitytools", "compat_tools"]) or entry
         wrapper = os.path.join(tool_dir, EXTRA_WRAPPER)
         try:
-            body = (EXTRA_WRAPPER_SH % entry_point).replace(
-                    'here=$(dirname "$0")',
-                    'here=$(dirname "$0")\n' + BL_DESKTOP_GPU_SETUP + BL_DIRECTAUDIO_SETUP + BL_GAME_CPUS_SETUP + BL_IDTECH3_SETUP
-                    + BL_VACDIAG_SETUP + BL_COMPONENTS_SETUP + BL_LIBPATH_SETUP + BL_STORE_SETUP, 1)
-            write_changed(wrapper, body, 0o755)
+            write_changed(wrapper, extra_wrapper_sh(entry_point), 0o755)
             write_changed(manifest, EXTRA_MANIFEST_VDF)
             write_changed(compat_vdf, EXTRA_COMPAT_TOOL_VDF % (name, display_name(entry)))
             legacy_wrapper = os.path.join(tool_dir, LEGACY_EXTRA_WRAPPER)

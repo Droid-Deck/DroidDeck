@@ -71,7 +71,7 @@ both build jobs verify the Arch Linux ARM signature and pinned SHA-256 as for ev
 The desktop workflow replaces the same-version `kwin_wayland` executable and `libkwin.so`; the rest
 comes from the signature-checked Arch packages. `desktop-kde.kwin.txt` records the source, patch,
 executable, library and build package hashes. Corresponding source is
-https://download.kde.org/stable/plasma/6.8.1/kwin-6.8.1.tar.xz plus the patch in this repository.
+https://download.kde.org/stable/plasma/6.8.2/kwin-6.8.2.tar.xz plus the patch in this repository.
 
 The inventories use `.gzip` rather than `.gz`: Android's asset packer expands `.gz` and strips
 its suffix. The shared local/CI runtime payload check verifies the exact APK names and bytes.

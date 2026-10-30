@@ -25,6 +25,7 @@ class RuntimeUserDataCarryTest {
         put(old, "root/save.dat", "mine")
         put(old, "opt/appimages/user/app1/app.AppImage")
         put(old, "opt/droiddeck-apps/game/run.sh")
+        put(old, "opt/droiddeck/wincomponents/d3dx9/component.json")
         put(old, "usr/local/share/applications/droiddeck-app-game.desktop")
         put(old, "usr/local/share/applications/droiddeck-appimage-app1.desktop")
         put(old, "usr/local/share/applications/other.desktop")
@@ -43,6 +44,7 @@ class RuntimeUserDataCarryTest {
         assertEquals("mine", File(staging, "root/save.dat").readText())
         assertFalse("the shipped home is replaced, not merged", File(staging, "root/.bashrc").exists())
         for (rel in listOf("opt/appimages/user/app1/app.AppImage", "opt/droiddeck-apps/game/run.sh",
+                "opt/droiddeck/wincomponents/d3dx9/component.json",
                 "usr/local/share/applications/droiddeck-app-game.desktop", "usr/local/share/applications/droiddeck-appimage-app1.desktop",
                 "opt/appimages/dolphin.AppImage", "usr/share/applications/droiddeck-dolphin.desktop", ".droiddeck-pkg-dolphin")) {
             assertTrue(rel, File(staging, rel).exists())
@@ -50,6 +52,47 @@ class RuntimeUserDataCarryTest {
         }
         assertEquals("system files come from the new runtime", "new system file", File(staging, "usr/bin/tool").readText())
         assertFalse("only DroidDeck's own menu entries are user data", File(staging, "usr/local/share/applications/other.desktop").exists())
+    }
+
+    @Test fun aMenuEntryTheNewRuntimeShipsIsNotCarried() {
+        val old = tmp.newFolder("old").also {
+            put(it, "root/save.dat", "mine")
+            put(it, "usr/share/applications/droiddeck-return-gaming.desktop", "old runtime")
+            put(it, "usr/share/applications/droiddeck-steam-x64.desktop", "made by the old desktop")
+        }
+        val staging = tmp.newFolder("new").also {
+            put(it, "root/.bashrc", "shipped")
+            put(it, "usr/share/applications/droiddeck-return-gaming.desktop", "new runtime")
+        }
+
+        val paths = RuntimeFileTree.existingUserPaths(old, staging)
+
+        assertTrue("root" in paths)
+        assertTrue("usr/share/applications/droiddeck-steam-x64.desktop" in paths)
+        assertFalse("usr/share/applications/droiddeck-return-gaming.desktop" in paths)
+        RuntimeFileTree.carryUserData(old, staging, false, paths)
+        assertEquals("new runtime", File(staging, "usr/share/applications/droiddeck-return-gaming.desktop").readText())
+    }
+
+    @Test fun cachesTiedToThePreviousRuntimeAreDropped() {
+        val root = tmp.newFolder("rt")
+        val keep = listOf("root/.cache/mozilla/cache2/entry", "root/.cache/droiddeck/session.log",
+            "root/.local/share/droiddeck/apt/packages.txt", "root/.local/share/Steam/steam.sh", "root/.config/kwinrc")
+        val drop = listOf("root/.local/share/droiddeck/pacman/packages.txt", "root/.cache/droiddeck/pacman-restore.log",
+            "root/.cache/mesa_shader_cache_db/index", "root/.cache/mesa_shader_cache/a/b", "root/.cache/appstream/x.xb",
+            "root/.cache/discover/c", "root/.cache/ksycoca6_en-POSIX_abc", "root/.cache/plasma_theme_Vapor.kcache",
+            "root/.cache/kwinsession.kcache", "root/.cache/qtshadercache-arm64-little_endian-lp64/s",
+            "root/.cache/event-sound-cache.tdb.1.aarch64-unknown-linux-gnu", "root/.cache/fontconfig/x.cache-9")
+        (keep + drop).forEach { put(root, it) }
+
+        RuntimeFileTree.dropStaleState(root)
+
+        keep.forEach { assertTrue(it, File(root, it).exists()) }
+        drop.forEach { assertFalse(it, File(root, it).exists()) }
+    }
+
+    @Test fun droppingStateWithoutAHomeDoesNothing() {
+        RuntimeFileTree.dropStaleState(tmp.newFolder("empty"))
     }
 
     @Test fun aFailureHalfwayPutsEverythingBack() {

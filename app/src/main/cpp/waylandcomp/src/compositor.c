@@ -263,9 +263,14 @@ static struct wl_event_source *g_render_idle, *g_frame_timer;
 
 static int g_dirty;
 static int64_t g_dirty_since_ns;
+volatile int g_render_on_commit = 1;
+static int64_t g_rendered_tick_ns;
+static int g_tick_held;
+static int64_t g_hold_missed_ns;
+#define HOLD_RETRY_NS 1000000000LL
 #define PACE_BUFFERS 32
 static struct {
-    unsigned ticks, ticks_late_2ms, renders, null_attaches, reattaches, presented, replaced, undrawn, distinct;
+    unsigned ticks, ticks_late_2ms, renders, commit_renders, null_attaches, reattaches, presented, replaced, undrawn, distinct;
     int64_t tick_late_ns, tick_late_max_ns, wait_ns, wait_max_ns;
     const void *buffers[PACE_BUFFERS];
     uint64_t game_frames_seen;
@@ -327,6 +332,7 @@ static struct {
 } g_perf;
 
 static void schedule_render(void);
+static void on_commit_idle(void *data);
 
 static int64_t now_ns(void) {
     struct timespec ts; clock_gettime(CLOCK_MONOTONIC, &ts);
@@ -497,6 +503,7 @@ struct active_touch { struct surface *surface; int pointer_fallback; };
 static struct active_touch g_touch_points[MAX_TOUCH_POINTS];
 static void touch_cancel_surface(struct surface *surface);
 static struct surface *g_grab;
+static void publish_query_state(void);
 static struct surface *g_key_target;
 static struct surface *g_ime_click;
 static int g_input_pipe[2] = {-1, -1};
@@ -590,6 +597,7 @@ static void map_toplevel(struct surface *s) {
     raise_kept_on_top();
     if (!g_desktop) g_key_target = s;
     apply_zorder();
+    publish_query_state();
 }
 
 static void unmap_toplevel(struct surface *s) {
@@ -2116,7 +2124,21 @@ void droiddeck_stream_frame(AHardwareBuffer *ahb) {
 
 unsigned droiddeck_stream_frames(void) { return atomic_load(&g_stream_frames); }
 
+static int64_t g_scene_due_ns;
+
+static int scene_held_for_limit(int64_t now, int64_t due, int limit, int unpaced) {
+    if (limit <= 0 || unpaced || due <= 0) return 0;
+    return now < due - 1000000LL;
+}
+
+static int64_t scene_next_due(int64_t now, int64_t due, int limit) {
+    if (limit <= 0) return 0;
+    const int64_t interval = 1000000000LL / limit;
+    return due > 0 && now - due < interval ? due + interval : now + interval;
+}
+
 static void render_scene(void) {
+    g_scene_due_ns = scene_next_due(now_ns(), g_scene_due_ns, g_fps_limit);
     if (atomic_load(&g_stream_on)) { g_dirty_since_ns = 0; render_stream(); return; }
     struct draw_list dl = {0};
     struct surface *s;
@@ -2132,6 +2154,8 @@ static void render_scene(void) {
         g_dirty_since_ns = 0;
     }
     g_dirty = 0;
+    g_rendered_tick_ns = g_tick_vsync_ns;
+    g_tick_held = 0;
     g_hud_fresh = 0;
     g_hdr_unimported = NULL;
     wl_list_for_each(s, &g_surfaces, link) s->drawn = 0;
@@ -2292,15 +2316,31 @@ static void render_scene(void) {
 
 static int on_fallback_timer(void *data) {
     g_fallback_armed = 0;
-    if (g_dirty) render_scene();
+    if (!g_dirty) return 0;
+    if (scene_held_for_limit(now_ns(), g_scene_due_ns, g_fps_limit, g_release_unpaced)) schedule_render();
+    else render_scene();
     return 0;
+}
+
+/* A new frame is drawn when it arrives instead of at the next screen tick, at most once per refresh,
+   while frames go straight back to the game (no compositor limit), without streaming or frame generation. */
+static int commit_renders_on(void) {
+    return g_render_on_commit && g_release_unpaced && !atomic_load(&g_stream_on) && !vkp_framegen_active();
+}
+
+static int render_on_commit(void) {
+    return commit_renders_on() && !g_render_idle && g_rendered_tick_ns != g_tick_vsync_ns;
 }
 
 static void schedule_render(void) {
     if (!g_dirty && !g_dirty_since_ns) g_dirty_since_ns = now_ns();
     g_dirty = 1;
     if (!g_display) return;
-    if (g_last_vsync_ns && now_ns() - g_last_vsync_ns < 100000000LL) return;
+    if (g_last_vsync_ns && now_ns() - g_last_vsync_ns < 100000000LL) {
+        if (render_on_commit())
+            g_render_idle = wl_event_loop_add_idle(wl_display_get_event_loop(g_display), on_commit_idle, NULL);
+        return;
+    }
     if (g_fallback_armed) return;
     if (!g_fallback_timer)
         g_fallback_timer = wl_event_loop_add_timer(wl_display_get_event_loop(g_display),
@@ -2312,6 +2352,13 @@ static void schedule_render(void) {
 
 static int scene_waits_for_game(int64_t now) {
     return g_hud_surface && !g_hud_fresh && now - g_hud_last_ns < 100000000LL && vkp_framegen_active();
+}
+
+static void on_commit_idle(void *data) {
+    g_render_idle = NULL;
+    if (!g_dirty || !commit_renders_on() || g_rendered_tick_ns == g_tick_vsync_ns || scene_waits_for_game(now_ns())) return;
+    g_pace.commit_renders++;
+    render_scene();
 }
 
 static void on_vsync(int64_t frame_time_ns) {
@@ -2330,9 +2377,23 @@ static void on_vsync(int64_t frame_time_ns) {
     }
     g_last_vsync_ns = now;
     g_tick_vsync_ns = frame_time_ns;
-    if (vkp_apply_window_request()) g_dirty = 1;
-    if (vkp_effects_sync()) g_dirty = 1;
-    if (vkp_cardboard_pose_changed()) g_dirty = 1;
+    int tick_change = 0;
+    if (vkp_apply_window_request()) tick_change = 1;
+    if (vkp_effects_sync()) tick_change = 1;
+    if (vkp_cardboard_pose_changed()) tick_change = 1;
+    if (tick_change) g_dirty = 1;
+    /* A frame that arrived after this refresh was already drawn is left for the next arrival to draw;
+       drawing it here would block that arrival too and keep every frame waiting for the tick. A client
+       that draws again only after its frame callback sends no such arrival: once a held frame is still
+       waiting at the next tick, the tick draws every frame for a second before holding one again. */
+    if (g_tick_held && g_dirty) g_hold_missed_ns = now;
+    g_tick_held = 0;
+    if (!tick_change && commit_renders_on() && g_dirty_since_ns && now - g_dirty_since_ns < g_refresh_ns &&
+        now - g_hold_missed_ns >= HOLD_RETRY_NS) {
+        g_tick_held = 1;
+        return;
+    }
+    if (g_dirty && scene_held_for_limit(now, g_scene_due_ns, g_fps_limit, g_release_unpaced)) return;
     if (g_dirty && !scene_waits_for_game(now)) render_scene();
 }
 
@@ -2390,6 +2451,7 @@ static const struct wl_touch_interface touch_impl = { .release = touch_release }
 static void touch_res_destroy(struct wl_resource *r) {
     for (int i = 0; i < g_ntouches; i++)
         if (g_touches[i].touch == r) { g_touches[i] = g_touches[--g_ntouches]; break; }
+    publish_query_state();
 }
 
 static void seat_get_pointer(struct wl_client *c, struct wl_resource *r, uint32_t id) {
@@ -2427,6 +2489,7 @@ static void seat_get_touch(struct wl_client *c, struct wl_resource *r, uint32_t 
         g_touches[g_ntouches].focus = NULL;
         g_ntouches++;
     }
+    publish_query_state();
 }
 static void seat_release(struct wl_client *c, struct wl_resource *r) { wl_resource_destroy(r); }
 static const struct wl_seat_interface seat_impl = {
@@ -2542,6 +2605,7 @@ struct relative_pointer {
 static struct wl_list g_relative_pointers;
 
 static double g_ptr_x, g_ptr_y;
+static int g_ptr_known;
 static double g_raw_x, g_raw_y;
 static int g_raw_valid;
 
@@ -2606,6 +2670,7 @@ static void constraint_end(struct constraint *k, int tell_client, const char *wh
         constraint_origin(k, &ox, &oy);
         g_ptr_x = ox + k->hint_x;
         g_ptr_y = oy + k->hint_y;
+        g_ptr_known = 1;
     }
     g_raw_valid = 0;
     if (k->gave_keys) {
@@ -2702,6 +2767,7 @@ static void constraints_surface_commit(struct surface *s) {
                 constraint_origin(k, &ox, &oy);
                 g_ptr_x = ox + k->hint_x;
                 g_ptr_y = oy + k->hint_y;
+                g_ptr_known = 1;
                 if (log_budget())
                     droiddeck_log("pointer", "position hint: pointer moved to %d,%d", (int)g_ptr_x, (int)g_ptr_y);
             }
@@ -2896,6 +2962,7 @@ static void pointer_input(double x, double y, int relative, uint32_t button, int
         }
         if (k) confine_clamp(k, &x, &y);
         g_ptr_x = x; g_ptr_y = y;
+        g_ptr_known = 1;
         if (k) {
             target = k->surface;
         } else if (g_desktop) {
@@ -2906,6 +2973,7 @@ static void pointer_input(double x, double y, int relative, uint32_t button, int
             if (button && !pressed) g_grab = NULL;
         }
     }
+    publish_query_state();
     if (!target) return;
 
     struct wl_client *client = wl_resource_get_client(target->resource);
@@ -2921,9 +2989,9 @@ static void pointer_input(double x, double y, int relative, uint32_t button, int
     // may have warped its cursor since the last motion (before taking lock,
     // or while releasing it), so that replay can become an unintended pan.
     // Absolute touch events still carry their position, including on clicks.
-    if (!(k && k->is_lock) && (!relative || dx != 0 || dy != 0))
+    int rel_consumed = send_relative_motion(client, dx, dy);
+    if (!(k && k->is_lock) && !(relative && rel_consumed) && (!relative || dx != 0 || dy != 0))
         for_each_pointer_of(client, sp) wl_pointer_send_motion(sp->ptr, t, fx, fy);
-    send_relative_motion(client, dx, dy);
     for_each_pointer_of(client, sp) {
         if (button)
             wl_pointer_send_button(sp->ptr, wl_display_next_serial(g_display), t, button,
@@ -3062,6 +3130,63 @@ static struct surface *touch_target_at(double x, double y) {
     return g_grab ? g_grab : g_key_target;
 }
 
+static pthread_mutex_t g_query_lock = PTHREAD_MUTEX_INITIALIZER;
+struct query_snapshot {
+    int has_position;
+    int input_x, input_y;
+    int focus_takes_touch;
+};
+static struct query_snapshot g_query = { 0, 0, 0, 1 };
+
+static void publish_query_state(void) {
+    struct surface *target = g_key_target ? g_key_target : (g_grab ? g_grab : toplevel_at(g_ptr_x, g_ptr_y));
+    int takes_touch = 1;
+    if (target) {
+        struct wl_client *client = wl_resource_get_client(target->resource);
+        struct seat_touch *st;
+        takes_touch = 0;
+        for_each_touch_of(client, st) takes_touch = 1;
+    }
+    int w = 0, h = 0, ow = 0, oh = 0, input_x = 0, input_y = 0, has_position = 0;
+    scene_size(&w, &h);
+    vkp_output_size(&ow, &oh);
+    if (g_ptr_known && w > 0 && h > 0) {
+        double ox, oy;
+        if (ow > 0 && oh > 0 && vkp_scene_to_output(g_ptr_x, g_ptr_y, &ox, &oy)) {
+            input_x = (int)(ox * INPUT_SPACE_W / ow);
+            input_y = (int)(oy * INPUT_SPACE_H / oh);
+        } else {
+            input_x = (int)(g_ptr_x * INPUT_SPACE_W / w);
+            input_y = (int)(g_ptr_y * INPUT_SPACE_H / h);
+        }
+        has_position = 1;
+    }
+    pthread_mutex_lock(&g_query_lock);
+    g_query.focus_takes_touch = takes_touch;
+    g_query.has_position = has_position;
+    g_query.input_x = input_x;
+    g_query.input_y = input_y;
+    pthread_mutex_unlock(&g_query_lock);
+}
+
+int droiddeck_focus_takes_touch(void) {
+    pthread_mutex_lock(&g_query_lock);
+    int takes_touch = g_query.focus_takes_touch;
+    pthread_mutex_unlock(&g_query_lock);
+    return takes_touch;
+}
+
+int droiddeck_cursor_input_pos(int *x, int *y) {
+    pthread_mutex_lock(&g_query_lock);
+    int has_position = g_query.has_position;
+    int input_x = g_query.input_x, input_y = g_query.input_y;
+    pthread_mutex_unlock(&g_query_lock);
+    if (!has_position) return 0;
+    *x = input_x;
+    *y = input_y;
+    return 1;
+}
+
 static void touch_down(int id, double x, double y) {
     if (id < 0 || id >= MAX_TOUCH_POINTS) return;
     struct surface *target = touch_target_at(x, y);
@@ -3161,6 +3286,7 @@ static void deliver_touch(const struct input_msg *m) {
     else if (m->p1 == 1) touch_motion(m->p2, x, y);
     else if (m->p1 == 2) touch_up(m->p2, x, y);
     else if (m->p1 == 3) touch_cancel_all();
+    publish_query_state();
 }
 
 static void key_event(uint32_t evdev, int pressed);
@@ -3458,13 +3584,13 @@ static int on_stats_timer(void *data) {
     if (g_pace.ticks || g_pace.renders || game || g_pace.reattaches || g_pace.null_attaches || g_pace.distinct ||
         g_pace.presented || g_pace.replaced || g_pace.undrawn) {
         droiddeck_log("pacing", "last 10 s: tick reaches compositor %.2f/%.2f ms late (%u ticks, %u over 2 ms) | "
-                   "new frame waits %.2f/%.2f ms to be drawn (%u scenes) | %llu game frames, %u re-attached after an "
+                   "new frame waits %.2f/%.2f ms to be drawn (%u scenes, %u on arrival) | %llu game frames, %u re-attached after an "
                    "empty attach, %u empty attaches, %u distinct buffers | feedback %u shown, %u replaced before drawing, "
                    "%u not drawn",
                    g_pace.ticks ? (double)g_pace.tick_late_ns / 1e6 / g_pace.ticks : 0.0, (double)g_pace.tick_late_max_ns / 1e6,
                    g_pace.ticks, g_pace.ticks_late_2ms,
                    g_pace.renders ? (double)g_pace.wait_ns / 1e6 / g_pace.renders : 0.0, (double)g_pace.wait_max_ns / 1e6,
-                   g_pace.renders, (unsigned long long)game, g_pace.reattaches, g_pace.null_attaches, g_pace.distinct,
+                   g_pace.renders, g_pace.commit_renders, (unsigned long long)game, g_pace.reattaches, g_pace.null_attaches, g_pace.distinct,
                    g_pace.presented, g_pace.replaced, g_pace.undrawn);
     }
     {

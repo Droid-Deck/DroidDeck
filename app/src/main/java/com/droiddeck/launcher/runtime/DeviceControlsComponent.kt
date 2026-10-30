@@ -1,7 +1,9 @@
 package com.droiddeck.launcher.runtime
 
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -34,6 +36,9 @@ class DeviceControlsComponent(context: Context, root: File, private val activity
     private val observer = object : ContentObserver(handler) {
         override fun onChange(selfChange: Boolean) { if (running) publish() }
     }
+    private val volumeSteps = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) { if (running) publishVolume() }
+    }
     private val requests = object : FileObserver(directory.path, CLOSE_WRITE or MOVED_TO) {
         override fun onEvent(event: Int, path: String?) {
             if (path in REQUESTS) handler.post { if (running) consume() }
@@ -50,13 +55,22 @@ class DeviceControlsComponent(context: Context, root: File, private val activity
         }
     }
 
-    fun publish(force: Boolean = false) {
+    private fun publishVolume() {
         try {
             directory.mkdirs()
             val level = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
             val maximum = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)
             val muted = audio.isStreamMute(AudioManager.STREAM_MUSIC)
             write("volume.state", "$level $maximum ${if (muted) 1 else 0}\n")
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not publish Android volume", e)
+        }
+    }
+
+    fun publish(force: Boolean = false) {
+        publishVolume()
+        try {
+            directory.mkdirs()
             val value = Settings.System.getInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS, 128)
             write("backlight/droiddeck/brightness", "$value\n")
             write("backlight/droiddeck/actual_brightness", "$value\n")
@@ -81,6 +95,10 @@ class DeviceControlsComponent(context: Context, root: File, private val activity
             permissionNotified = false
             context.contentResolver.registerContentObserver(Settings.System.CONTENT_URI, true, observer)
             requests.startWatching()
+            context.registerReceiver(volumeSteps, IntentFilter().apply {
+                addAction(VOLUME_CHANGED_ACTION)
+                addAction(STREAM_MUTE_CHANGED_ACTION)
+            }, null, handler)
             refresh.run()
         }
     }
@@ -90,6 +108,7 @@ class DeviceControlsComponent(context: Context, root: File, private val activity
             running = false
             handler.removeCallbacks(refresh)
             requests.stopWatching()
+            try { context.unregisterReceiver(volumeSteps) } catch (e: IllegalArgumentException) { }
             context.contentResolver.unregisterContentObserver(observer)
             context.getSystemService(NotificationManager::class.java).cancel(PERMISSION_NOTIFICATION)
         }
@@ -170,6 +189,9 @@ class DeviceControlsComponent(context: Context, root: File, private val activity
 
     companion object {
         private const val TAG = "DeviceControls"
+        // AudioService sends these on every stream step; the Settings observer and 250 ms poll lag a held volume key.
+        private const val VOLUME_CHANGED_ACTION = "android.media.VOLUME_CHANGED_ACTION"
+        private const val STREAM_MUTE_CHANGED_ACTION = "android.media.STREAM_MUTE_CHANGED_ACTION"
         private const val PERMISSION_CHANNEL = "brightness_permission"
         private const val PERMISSION_NOTIFICATION = 0x4442
         private val REQUESTS = setOf("brightness.request", "volume.request", "mute.request")

@@ -53,6 +53,7 @@ object CompositorHost {
         fpsLimit: Int,
     ): Boolean {
         ownVsyncThread = SessionPrefs.vsyncThread(context)
+        WaylandCompositor.nativeSetRenderOnCommit(SessionPrefs.renderOnCommit(context))
         pace(refreshHz, fpsLimit)
         if (!SessionState.running) WaylandCompositor.nativeSetOutputSize(outputWidth, outputHeight)
         if (started) {
