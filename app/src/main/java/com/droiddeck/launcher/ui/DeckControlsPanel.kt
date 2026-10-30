@@ -38,6 +38,7 @@ class DeckControlsPanel(
     private val onQam: () -> Unit,
     private val pad: PadBridge? = null,
     private val portraitDock: Boolean = false,
+    private val onMenu: (() -> Unit)? = null,
 ) : LinearLayout(context) {
     private enum class Tab(val label: Int) { GAMEPAD(R.string.deck_tab_gamepad), GRIPS(R.string.deck_tab_grips), LEFT(R.string.deck_tab_left), RIGHT(R.string.deck_tab_right), BOTH(R.string.deck_tab_both) }
 
@@ -90,6 +91,10 @@ class DeckControlsPanel(
             addView(tabs, FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, dp(44)))
         }
         addView(centre, LayoutParams(0, LayoutParams.MATCH_PARENT, 1f))
+        onMenu?.let {
+            addView(menuButton(context, it))
+            addView(space(dp(8)))
+        }
         if (SessionState.mode == SessionService.MODE_STEAM) {
             addView(roundButton("STEAM", context.getString(R.string.deck_open_steam_menu), onSteamMenu, wide = true))
             addView(space(dp(8)))
@@ -249,39 +254,35 @@ class DeckControlsPanel(
         show()
     }
 
-    private fun roundButton(label: String, description: String, onClick: () -> Unit, wide: Boolean = false) =
-        TextView(context).apply {
-            text = label
-            contentDescription = description
-            textSize = if (wide) 13f else 20f
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            letterSpacing = if (wide) 0.08f else 0f
-            gravity = Gravity.CENTER
-            setTextColor(TEXT)
-            background = outline(CORNER_PILL, SURFACE)
-            setPadding(if (wide) dp(16) else 0, 0, if (wide) dp(16) else 0, 0)
-            minWidth = dp(44)
-            layoutParams = LayoutParams(if (wide) LayoutParams.WRAP_CONTENT else dp(44), dp(44))
-            setOnClickListener {
-                performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-                onClick()
-            }
+    /** Whether a finger going down at ([x], [y]) lands on one of the panel's controls. */
+    fun takesTouchAt(x: Float, y: Float): Boolean = controlUnder(this, x, y)
+
+    // Every control here takes the touches it gets: buttons and tabs (clickable), the scrolling tab strip,
+    // and the drawn surfaces, pads and face buttons. The layouts around them do not.
+    private fun controlUnder(view: View, x: Float, y: Float): Boolean {
+        if (view.visibility != VISIBLE || x < 0f || y < 0f || x >= view.width || y >= view.height) return false
+        if (view.isClickable || view is HorizontalScrollView || view is Surface || view is DirectionPad || view is FaceButtons) return true
+        val group = view as? ViewGroup ?: return false
+        return (group.childCount - 1 downTo 0).any { i ->
+            val child = group.getChildAt(i)
+            controlUnder(child, x + group.scrollX - child.x, y + group.scrollY - child.y)
         }
+    }
+
+    private fun roundButton(label: String, description: String, onClick: () -> Unit, wide: Boolean = false) =
+        roundButton(context, label, description, onClick, wide)
 
     private fun space(width: Int) = View(context).apply { layoutParams = LayoutParams(width, 1) }
 
-    private fun outline(radius: Float, fill: Int) = GradientDrawable().apply {
-        cornerRadius = radius * resources.displayMetrics.density
-        setColor(fill)
-        setStroke(dp(1), LINE)
-    }
+    private fun outline(radius: Float, fill: Int) = outline(context, radius, fill)
 
     private fun filled(radius: Float, fill: Int) = GradientDrawable().apply {
         cornerRadius = radius * resources.displayMetrics.density
         setColor(fill)
     }
 
-    private fun dp(value: Int): Int = (value * resources.displayMetrics.density + 0.5f).toInt()
+    private fun dp(value: Int): Int = dp(context, value)
+
 
     private abstract class Surface(context: Context) : View(context) {
         protected val density = resources.displayMetrics.density
@@ -686,5 +687,47 @@ class DeckControlsPanel(
         private val TEXT = Color.rgb(0xF2, 0xF4, 0xF7)
         private val TEXT_DIM = Color.rgb(0x7A, 0x80, 0x8A)
         private val KNOB = Color.rgb(0x2A, 0x2D, 0x33)
+
+        internal fun dp(context: Context, value: Int): Int = (value * context.resources.displayMetrics.density + 0.5f).toInt()
+
+        internal fun outline(context: Context, radius: Float, fill: Int) = GradientDrawable().apply {
+            cornerRadius = radius * context.resources.displayMetrics.density
+            setColor(fill)
+            setStroke(dp(context, 1), LINE)
+        }
+
+        internal fun roundButton(context: Context, label: String, description: String, onClick: () -> Unit, wide: Boolean = false) =
+            TextView(context).apply {
+                text = label
+                contentDescription = description
+                textSize = if (wide) 13f else 20f
+                typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+                letterSpacing = if (wide) 0.08f else 0f
+                gravity = Gravity.CENTER
+                setTextColor(TEXT)
+                background = outline(context, CORNER_PILL, SURFACE)
+                setPadding(if (wide) dp(context, 16) else 0, 0, if (wide) dp(context, 16) else 0, 0)
+                minWidth = dp(context, 44)
+                layoutParams = LinearLayout.LayoutParams(if (wide) LinearLayout.LayoutParams.WRAP_CONTENT else dp(context, 44), dp(context, 44))
+                setOnClickListener {
+                    performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                    onClick()
+                }
+            }
+
+        internal fun menuButton(context: Context, onClick: () -> Unit) = android.widget.ImageView(context).apply {
+            setImageResource(R.drawable.ic_stat_session)
+            setColorFilter(TEXT)
+            contentDescription = context.getString(R.string.touch_droiddeck_menu)
+            scaleType = android.widget.ImageView.ScaleType.CENTER_INSIDE
+            val pad = dp(context, 11)
+            setPadding(pad, pad, pad, pad)
+            background = outline(context, CORNER_PILL, SURFACE)
+            layoutParams = LinearLayout.LayoutParams(dp(context, 44), dp(context, 44))
+            setOnClickListener {
+                performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                onClick()
+            }
+        }
     }
 }

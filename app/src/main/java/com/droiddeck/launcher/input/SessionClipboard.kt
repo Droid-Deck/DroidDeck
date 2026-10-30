@@ -16,13 +16,19 @@ class SessionClipboard(context: Context, private val hasFocus: () -> Boolean) {
     private val handler = Handler(Looper.getMainLooper())
     private val hostFile = File(context.filesDir, "session/android-clipboard")
     private var active = false
-    private val androidListener = ClipboardManager.OnPrimaryClipChangedListener { refresh() }
+    private var published = false
+    private var shared: String? = null
+    private var echo: String? = null
+    private val androidListener = ClipboardManager.OnPrimaryClipChangedListener { refresh(changed = true) }
     private val guestListener = object : WaylandCompositor.ClipboardListener {
         override fun onGuestClipboardText(text: String) {
             handler.post {
                 if (active && hasFocus() && WaylandCompositor.isClipboardListener(this)) {
                     val current = clipboard.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.text
+                    shared = text
+                    published = true
                     if (current?.toString() != text) {
+                        echo = text
                         clipboard.setPrimaryClip(ClipData.newPlainText("DroidDeck", text))
                     }
                 }
@@ -46,17 +52,23 @@ class SessionClipboard(context: Context, private val hasFocus: () -> Boolean) {
         handler.removeCallbacksAndMessages(null)
     }
 
-    fun refresh() {
+    fun refresh(changed: Boolean = false) {
         if (!active || !hasFocus()) return
         val clip = clipboard.primaryClip
-        if (clip == null) {
-            publish(null)
-        } else if (clip.itemCount > 0) {
-            publish(clip.getItemAt(0).text?.toString())
+        if (clip != null && clip.itemCount == 0) return
+        val text = clip?.getItemAt(0)?.text?.toString()
+        if (echo != null && text == echo) {
+            echo = null
+            return
         }
+        echo = null
+        if (!changed && published && text == shared) return
+        publish(text)
     }
 
     private fun publish(text: String?) {
+        published = true
+        shared = text
         WaylandCompositor.setClipboardText(text)
         val pending = File(hostFile.parentFile, "android-clipboard.pending")
         try {

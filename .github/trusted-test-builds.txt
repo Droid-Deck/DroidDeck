@@ -1,0 +1,5 @@
+# GitHub PR openers trusted for automatic release-signed test builds.
+FX192
+K11MCH1
+kingokksa
+ovurrsl

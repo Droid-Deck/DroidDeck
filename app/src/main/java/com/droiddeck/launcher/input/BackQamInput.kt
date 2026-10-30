@@ -4,7 +4,8 @@ import android.view.KeyEvent
 import android.os.Handler
 import android.os.Looper
 
-class BackQamInput(private val setPressed: (Boolean) -> Unit, private val onTap: (Boolean) -> Unit) {
+class BackQamInput(private val setPressed: (Boolean) -> Unit, private val onTap: (Boolean) -> Unit,
+    private val doubleTapMs: () -> Long = { 500 }, private val onCancel: () -> Unit = {}) {
     private class Press(val hold: Runnable, var held: Boolean = false, var used: Boolean = false)
     private val handler = Handler(Looper.getMainLooper())
     private val presses = mutableMapOf<Int, Press>()
@@ -15,6 +16,18 @@ class BackQamInput(private val setPressed: (Boolean) -> Unit, private val onTap:
     private fun cancelTap() {
         handler.removeCallbacks(singleTap)
         tapPending = false
+    }
+
+    fun onChordInput() {
+        if (presses.isEmpty()) return
+        val alreadyHeld = presses.values.any { it.held }
+        presses.values.forEach {
+            handler.removeCallbacks(it.hold)
+            it.held = true
+            it.used = true
+        }
+        cancelTap()
+        if (!alreadyHeld) setPressed(true)
     }
 
     fun onKeyEvent(event: KeyEvent, enabled: Boolean): Boolean {
@@ -48,7 +61,7 @@ class BackQamInput(private val setPressed: (Boolean) -> Unit, private val onTap:
                     if (press.held && presses.values.none { it.held }) setPressed(false)
                     if (!press.used && !event.isCanceled) {
                         if (tapPending) { cancelTap(); onTap(true) }
-                        else { tapPending = true; handler.postDelayed(singleTap, 500) }
+                        else { tapPending = true; handler.postDelayed(singleTap, doubleTapMs()) }
                     } else if (event.isCanceled) cancelTap()
                 }
                 press != null || wasCancelled || enabled
@@ -63,6 +76,7 @@ class BackQamInput(private val setPressed: (Boolean) -> Unit, private val onTap:
         presses.values.forEach { handler.removeCallbacks(it.hold) }
         cancelled.addAll(presses.keys)
         presses.clear()
+        onCancel()
         if (wasHeld) setPressed(false)
     }
 
@@ -71,6 +85,9 @@ class BackQamInput(private val setPressed: (Boolean) -> Unit, private val onTap:
         val press = presses.remove(device) ?: return
         handler.removeCallbacks(press.hold)
         cancelTap()
-        if (press.held && presses.values.none { it.held }) setPressed(false)
+        if (press.held && presses.values.none { it.held }) {
+            onCancel()
+            setPressed(false)
+        }
     }
 }

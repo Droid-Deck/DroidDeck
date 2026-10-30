@@ -21,6 +21,8 @@ object SessionPrefs {
     private const val LEGACY_SUSPEND_DOWNLOADS = "downloads"
     private const val STEAM_DOWNLOADS_IN_BACKGROUND = "steamDownloadsInBackground"
     private const val DECKY_ZIP_WARNING_SEEN = "deckyZipWarningSeen"
+    private const val SLOW_USB_WARNING_OFF = "slowUsbWarningOff"
+    private const val SLOW_USB_DISMISSED = "slowUsbDismissed"
 
     const val CONTROLLER_DECK = "deck"
     const val CONTROLLER_XBOX360 = "xbox360"
@@ -84,6 +86,32 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("animations", on).apply()
     }
 
+    fun dualScreenMode(context: Context): String =
+        prefs(context).getString("dualScreenMode", null)?.takeIf { it in com.droiddeck.launcher.input.DualScreen.modes }
+            ?: com.droiddeck.launcher.input.DualScreen.MODE_AUTO
+
+    fun setDualScreenMode(context: Context, mode: String) {
+        prefs(context).edit().putString("dualScreenMode", mode).apply()
+    }
+
+    fun secondScreenPanel(context: Context): String? = prefs(context).getString("secondScreenPanel", null)
+
+    fun setSecondScreenPanel(context: Context, mode: String) {
+        prefs(context).edit().putString("secondScreenPanel", mode).apply()
+    }
+
+    fun dualScreenLauncher(context: Context): Boolean = prefs(context).getBoolean("dualScreenLauncher", true)
+
+    fun setDualScreenLauncher(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("dualScreenLauncher", on).apply()
+    }
+
+    fun dualScreenSessionControls(context: Context): Boolean = prefs(context).getBoolean("dualScreenSessionControls", true)
+
+    fun setDualScreenSessionControls(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("dualScreenSessionControls", on).apply()
+    }
+
     fun gameStoresEnabled(context: Context): Boolean = prefs(context).getBoolean("gameStoresEnabled", true)
 
     fun setGameStoresEnabled(context: Context, on: Boolean) {
@@ -123,6 +151,30 @@ object SessionPrefs {
 
     fun setStoresView(context: Context, view: String) {
         prefs(context).edit().putString("storesView", if (view in STORES_VIEWS) view else STORES_VIEWS.first()).apply()
+    }
+
+    fun libraryCardLevel(context: Context): Int = prefs(context).getInt("libraryCardLevel", 2)
+
+    fun setLibraryCardLevel(context: Context, level: Int) {
+        prefs(context).edit().putInt("libraryCardLevel", level).apply()
+    }
+
+    fun libraryShowTitle(context: Context): Boolean = prefs(context).getBoolean("libraryShowTitle", true)
+
+    fun setLibraryShowTitle(context: Context, show: Boolean) {
+        prefs(context).edit().putBoolean("libraryShowTitle", show).apply()
+    }
+
+    fun libraryShowSize(context: Context): Boolean = prefs(context).getBoolean("libraryShowSize", true)
+
+    fun setLibraryShowSize(context: Context, show: Boolean) {
+        prefs(context).edit().putBoolean("libraryShowSize", show).apply()
+    }
+
+    fun railLabels(context: Context): Boolean = prefs(context).getBoolean("railLabels", false)
+
+    fun setRailLabels(context: Context, show: Boolean) {
+        prefs(context).edit().putBoolean("railLabels", show).apply()
     }
 
     fun libraryShowUninstalled(context: Context): Boolean = prefs(context).getBoolean("libraryShowUninstalled", false)
@@ -195,7 +247,7 @@ object SessionPrefs {
         prefs(context).edit().putInt("gameStoresParallel", count.coerceIn(1, 3)).apply()
     }
 
-    fun hudEnabled(context: Context): Boolean = prefs(context).getBoolean(hudKey(context), !mangoappSession(context))
+    fun hudEnabled(context: Context): Boolean = prefs(context).getBoolean(hudKey(context), false)
 
     fun setHudEnabled(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean(hudKey(context), on).apply()
@@ -233,6 +285,20 @@ object SessionPrefs {
         prefs(context).edit().putInt("hudOpacity", percent.coerceIn(HUD_OPACITY_RANGE)).apply()
     }
 
+    fun fusionHudConfig(context: Context): String? = prefs(context).getString("fusionHud", null)
+
+    fun setFusionHudConfig(context: Context, config: String) {
+        prefs(context).edit().putString("fusionHud", config).apply()
+    }
+
+    fun fusionHudPosition(context: Context): Pair<Float, Float>? =
+        prefs(context).getString("fusionHudPos", null)?.split(',')?.mapNotNull { it.toFloatOrNull() }
+            ?.takeIf { it.size == 2 }?.let { it[0] to it[1] }
+
+    fun setFusionHudPosition(context: Context, x: Float, y: Float) {
+        prefs(context).edit().putString("fusionHudPos", "$x,$y").apply()
+    }
+
     const val HUD_COLOR_MINT = "mint"
     val HUD_COLORS = listOf(HUD_COLOR_MINT, "white", "sky", "amber", "violet")
     val HUD_OPACITY_RANGE = 30..100
@@ -249,10 +315,32 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("lowLatency", on).apply()
     }
 
+    fun evdevMouse(context: Context): Boolean = prefs(context).getBoolean("evdevMouse", false)
+
+    fun setEvdevMouse(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("evdevMouse", on).apply()
+    }
+
+    fun directCursor(context: Context): Boolean = prefs(context).getBoolean("directCursor", false)
+
+    fun setDirectCursor(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("directCursor", on).apply()
+    }
+
     fun backActionsInverted(context: Context): Boolean = prefs(context).getBoolean("backActionsInverted", false)
 
     fun setBackActionsInverted(context: Context, inverted: Boolean) {
         prefs(context).edit().putBoolean("backActionsInverted", inverted).apply()
+    }
+
+    val BACK_DOUBLE_TAP_MS_OPTIONS = (100..800 step 100).toList()
+
+    fun backDoubleTapMs(context: Context): Int =
+        prefs(context).getInt("backDoubleTapMs", 500).takeIf { it in BACK_DOUBLE_TAP_MS_OPTIONS } ?: 500
+
+    fun setBackDoubleTapMs(context: Context, ms: Int) {
+        require(ms in BACK_DOUBLE_TAP_MS_OPTIONS)
+        prefs(context).edit().putInt("backDoubleTapMs", ms).apply()
     }
 
     const val TOUCH_AUTO = "auto"
@@ -592,6 +680,8 @@ object SessionPrefs {
     }
 
     fun mangoapp(context: Context): Boolean = prefs(context).getBoolean("mangoapp", true)
+    fun vsyncThread(context: Context): Boolean = prefs(context).getBoolean("vsyncThread", true)
+    fun renderOnCommit(context: Context): Boolean = prefs(context).getBoolean("renderOnCommit", true)
     fun setMangoapp(context: Context, on: Boolean) { prefs(context).edit().putBoolean("mangoapp", on).apply() }
 
     fun zinkLazy(context: Context): Boolean = prefs(context).getBoolean("zinkLazy", true)
@@ -642,8 +732,74 @@ object SessionPrefs {
     fun logsEnabled(context: Context): Boolean =
         prefs(context).getBoolean("logs", true)
 
-    fun setLogsEnabled(context: Context, on: Boolean) {
-        prefs(context).edit().putBoolean("logs", on).apply()
+    fun setLogsEnabled(context: Context, on: Boolean): Boolean = synchronized(GameEnvironmentStore) {
+        setLogPreference(
+            context,
+            key = "logs",
+            oldValue = logsEnabled(context),
+            newValue = on,
+            newEffective = on && gameDebugLogsEnabled(context) && SessionPaths.currentSessionLogsRetained(context),
+        )
+    }
+
+    /** Extra Proton, Wine and graphics diagnostics for the next game launch; off unless chosen. */
+    fun gameDebugLogsEnabled(context: Context): Boolean =
+        prefs(context).getBoolean("gameDebugLogsEnabled", false)
+
+    fun setGameDebugLogsEnabled(context: Context, on: Boolean): Boolean = synchronized(GameEnvironmentStore) {
+        setLogPreference(
+            context,
+            key = "gameDebugLogsEnabled",
+            oldValue = gameDebugLogsEnabled(context),
+            newValue = on,
+            newEffective = logsEnabled(context) && on && SessionPaths.currentSessionLogsRetained(context),
+        )
+    }
+
+    private fun setLogPreference(
+        context: Context,
+        key: String,
+        oldValue: Boolean,
+        newValue: Boolean,
+        newEffective: Boolean,
+    ): Boolean {
+        if (oldValue == newValue) return true
+        val saved = prefs(context)
+        val oldEffective = logsEnabled(context) && gameDebugLogsEnabled(context) &&
+            SessionPaths.currentSessionLogsRetained(context)
+        fun publish(value: Boolean) = GameEnvironmentStore.publish(context, gameDebugLogsOverride = value)
+        if (oldEffective == newEffective) {
+            if (saved.edit().putBoolean(key, newValue).commit()) return true
+            saved.edit().putBoolean(key, oldValue).commit()
+            return false
+        }
+        if (oldEffective && !newEffective) {
+            try {
+                publish(false)
+            } catch (e: Exception) {
+                android.util.Log.e("GameEnvironment", "Could not disable game diagnostics", e)
+                return false
+            }
+            if (saved.edit().putBoolean(key, newValue).commit()) return true
+            saved.edit().putBoolean(key, oldValue).commit()
+            runCatching { publish(oldEffective) }
+                .onFailure { android.util.Log.e("GameEnvironment", "Could not restore game diagnostics", it) }
+            return false
+        }
+        if (!saved.edit().putBoolean(key, newValue).commit()) {
+            saved.edit().putBoolean(key, oldValue).commit()
+            return false
+        }
+        return try {
+            publish(newEffective)
+            true
+        } catch (e: Exception) {
+            saved.edit().putBoolean(key, oldValue).commit()
+            runCatching { publish(oldEffective) }
+                .onFailure { android.util.Log.e("GameEnvironment", "Could not restore game diagnostics", it) }
+            android.util.Log.e("GameEnvironment", "Could not update game diagnostics", e)
+            false
+        }
     }
 
     fun battleNetNoSteamSet(context: Context): Boolean = prefs(context).getBoolean("battleNetNoSteamSet", false)
@@ -951,22 +1107,24 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("hdr.$mode", on).apply()
     }
 
-    /**
-     * Performance mode: buffers go back to the game as soon as they are replaced
-     * instead of once per refresh, and gamescope's WSI layer and winex11 reuse their per-present window checks.
-     */
-    fun performanceMode(context: Context, mode: String): Boolean = prefs(context).getBoolean("performanceMode.$mode", false)
-
-    fun setPerformanceMode(context: Context, mode: String, on: Boolean) {
-        prefs(context).edit().putBoolean("performanceMode.$mode", on).apply()
-    }
-
     /** Compositor frame limit that releases buffers to the game unpaced. */
     const val FPS_UNPACED = -1
 
-    /** Mirroring still follows the glasses' refresh rate when Performance mode is on. */
-    fun compositorFpsLimit(mirrorRefreshLimit: Int, performanceMode: Boolean): Int =
-        if (performanceMode && mirrorRefreshLimit <= 0) FPS_UNPACED else mirrorRefreshLimit
+    /** The drawer's frame limit slider: its first stop is Off. */
+    const val FPS_LIMIT_OFF = 15
+    const val FPS_LIMIT_MAX = 120
+
+    /**
+     * Buffers go back to the game as soon as they are replaced instead of once per refresh;
+     * Steam's Frame Limit in the Quick Access menu caps Steam games, and the drawer's limit caps games
+     * launched without Steam. Mirroring still follows the glasses' refresh rate.
+     */
+    fun compositorFpsLimit(mirrorRefreshLimit: Int, sessionLimit: Int = 0): Int = when {
+        mirrorRefreshLimit <= 0 && sessionLimit <= 0 -> FPS_UNPACED
+        mirrorRefreshLimit <= 0 -> sessionLimit
+        sessionLimit <= 0 -> mirrorRefreshLimit
+        else -> minOf(mirrorRefreshLimit, sessionLimit)
+    }
 
     val upscalerChoices = listOf(
         0 to "Linear", 2 to "Nearest", 4 to "AMD FSR 1", 3 to "Snapdragon GSR",
@@ -1147,7 +1305,7 @@ object SessionPrefs {
             resolutionChosen(context, SessionService.MODE_DESKTOP)) SessionService.MODE_DESKTOP
         else prefMode(mode)
 
-    fun pipAutoEnter(context: Context): Boolean = prefs(context).getBoolean("pipAutoEnter", false)
+    fun pipAutoEnter(context: Context): Boolean = prefs(context).getBoolean("pipAutoEnter", true)
 
     fun setPipAutoEnter(context: Context, enabled: Boolean) {
         prefs(context).edit().putBoolean("pipAutoEnter", enabled).apply()
@@ -1190,7 +1348,8 @@ object SessionPrefs {
     }
 
     fun suspendPolicy(context: Context, mode: String): String =
-        prefs(context).getString("suspendPolicy.${prefMode(mode)}", SUSPEND_MANUAL)
+        prefs(context).getString("suspendPolicy.${prefMode(mode)}",
+            if (mode == SessionService.MODE_STEAM) SUSPEND_NATIVE else SUSPEND_MANUAL)
             ?.let { if (it == LEGACY_SUSPEND_DOWNLOADS) SUSPEND_AUTO else it }
             ?.takeIf { it in setOf(SUSPEND_AUTO, SUSPEND_NATIVE, SUSPEND_MANUAL, SUSPEND_NEVER) }
             ?.let { if (mode != SessionService.MODE_STEAM && it == SUSPEND_NATIVE) SUSPEND_AUTO else it }
@@ -1214,6 +1373,18 @@ object SessionPrefs {
 
     fun setDeckyZipWarningSeen(context: Context) {
         prefs(context).edit().putBoolean(DECKY_ZIP_WARNING_SEEN, true).apply()
+    }
+
+    fun slowUsbWarningOff(context: Context): Boolean = prefs(context).getBoolean(SLOW_USB_WARNING_OFF, false)
+
+    fun setSlowUsbWarningOff(context: Context) {
+        prefs(context).edit().putBoolean(SLOW_USB_WARNING_OFF, true).apply()
+    }
+
+    fun slowUsbDismissed(context: Context): Set<String> = prefs(context).getStringSet(SLOW_USB_DISMISSED, null)?.toSet().orEmpty()
+
+    fun setSlowUsbDismissed(context: Context, keys: Set<String>) {
+        prefs(context).edit().putStringSet(SLOW_USB_DISMISSED, keys.toSet()).apply()
     }
 
     fun steamDownloadsInBackground(context: Context): Boolean {

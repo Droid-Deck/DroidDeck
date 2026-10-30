@@ -14,22 +14,59 @@ if [ -n "${BL_LOG:-}" ] && [ -z "${BL_INSIDE:-}" ]; then
   if [ "$(stat -c %s "$BL_LOG" 2>/dev/null || echo 0)" -gt 8388608 ]; then
     mv -f "$BL_LOG" "$BL_LOG.1"
   fi
-  exec > >({ dd of="$BL_LOG" oflag=append conv=notrunc iflag=count_bytes count="${BL_LOG_CAP:-268435456}" bs=65536 status=none; cat >/dev/null; }) 2>&1
+  dd=$(command -v gnudd || echo dd)
+  exec > >({ "$dd" of="$BL_LOG" oflag=append conv=notrunc iflag=count_bytes count="${BL_LOG_CAP:-268435456}" bs=65536 status=none; cat >/dev/null; }) 2>&1
   echo "== droiddeck-session $(date) mode=$mode $*"
   echo "== uid=$(id -u) size=${BL_WIDTH:-?}x${BL_HEIGHT:-?} icd=${VK_ICD_FILENAMES:-none}"
   echo "== gamescope: $(gamescope --version 2>&1 | head -1) at $(command -v gamescope)"
   echo "== rootfs: $(cat /.version 2>/dev/null || echo unversioned)"
 fi
 
+sync_timezone() {
+  local zone=${TZ:-}
+  case "$zone" in ''|/*|*..*) return 0 ;; esac
+  [ -f "/usr/share/zoneinfo/$zone" ] || return 0
+  if [ "$(readlink /etc/localtime 2>/dev/null)" != "/usr/share/zoneinfo/$zone" ]; then
+    ln -sfn "/usr/share/zoneinfo/$zone" /etc/localtime.droiddeck && mv -Tf /etc/localtime.droiddeck /etc/localtime || return 0
+  fi
+  [ "$(cat /etc/timezone 2>/dev/null)" = "$zone" ] || printf '%s\n' "$zone" > /etc/timezone
+} 2>/dev/null
+sync_timezone
+
+write_system_bus_config() {
+  mkdir -p /run/dbus /usr/local/share/droiddeck
+  cat > /usr/local/share/droiddeck/system-bus.conf <<'BUSCONF'
+<!DOCTYPE busconfig PUBLIC "-//freedesktop//DTD D-Bus Bus Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/dbus/1.0/busconfig.dtd">
+<busconfig>
+  <type>system</type>
+  <listen>unix:path=/run/dbus/system_bus_socket</listen>
+  <auth>EXTERNAL</auth>
+  <servicedir>/usr/share/droiddeck/system-services</servicedir>
+  <policy context="default">
+    <allow user="*"/>
+    <allow own="*"/>
+    <allow send_destination="*"/>
+    <allow receive_sender="*"/>
+  </policy>
+</busconfig>
+BUSCONF
+  rm -f /run/dbus/system_bus_socket
+}
+
 prepare_locale() {
   local dir=/usr/lib/locale stamp=/usr/lib/locale/.droiddeck-archive want have= pkg
-  pkg=(/var/lib/pacman/local/glibc-[0-9]*)
-  want=${pkg[0]##*/}
+  if [ -d /var/lib/pacman/local ]; then
+    pkg=(/var/lib/pacman/local/glibc-[0-9]*)
+    want=${pkg[0]##*/}
+  else
+    want=libc6-$(dpkg-query -W -f='${Version}' libc6 2>/dev/null)
+  fi
   [ -f "$stamp" ] && read -r have < "$stamp"
   [ "$have" = "$want" ] && [ -f "$dir/locale-archive" ] && [ ! "$dir/locale-archive" -nt "$stamp" ] && return 0
   [ -d "$dir/C.utf8" ] && command -v localedef >/dev/null 2>&1 || return 0
   DROIDDECK_LINK_RENAME=1 localedef --add-to-archive --replace "$dir/C.utf8" >/dev/null 2>&1 || return 0
-  rm -f /usr/lib/gconv/gconv-modules.cache
+  rm -f /usr/lib/gconv/gconv-modules.cache /usr/lib/aarch64-linux-gnu/gconv/gconv-modules.cache
   command -v iconvconfig >/dev/null 2>&1 && iconvconfig >/dev/null 2>&1
   printf '%s\n' "$want" > "$stamp"
   echo "== locale archive built for $want"
@@ -64,8 +101,33 @@ if [ -z "${BL_INSIDE:-}" ]; then
   if [ "${BL_ZRAM:-0}" = 1 ]; then printf 0 > /tmp/.bl-zram; else rm -f /tmp/.bl-zram; fi
 fi
 
+steam_devtools() {
+  _bl_cdp=()
+  if [ -f "$steam_root/.cef-enable-remote-debugging" ]; then
+    if timeout 5 python3 -c 'import socket, sys
+s = socket.socket()
+s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+s.bind(("127.0.0.1", int(sys.argv[1])))' "$1" 2>/dev/null; then
+      BL_CDP_PORT=$1
+      return 0
+    fi
+    echo "== steam: port $1 is held by another app; Decky cannot load this session and Steam's devtools use another port"
+  fi
+  BL_CDP_PORT=$((20000 + RANDOM % 30000))
+  _bl_cdp=(-cef-enable-debugging -devtools-port "$BL_CDP_PORT")
+}
+
 steam_update_stuck() {
-  [ "$1" -lt 60 ] || steam_updates=0
+  local stamp
+  stamp=$(stat -c '%n %Y %s' "${steam_root:-}"/package/*.installed 2>/dev/null)
+  if [ "$1" -ge 60 ]; then
+    steam_updates=0
+    steam_installs=0
+  elif [ "$stamp" != "${steam_update_stamp-$stamp}" ] && [ "${steam_installs:-0}" -lt 5 ]; then
+    steam_updates=0
+    steam_installs=$((${steam_installs:-0} + 1))
+  fi
+  steam_update_stamp=$stamp
   steam_updates=$((steam_updates + 1))
   [ "$steam_updates" -ge 3 ]
 }
@@ -210,6 +272,7 @@ rm -f "${XDG_RUNTIME_DIR:-/run/droiddeck}/droiddeck-remote-play"
 /usr/local/bin/droiddeck-steamvr unregister >/dev/null 2>&1 || true
 if [ "$mode" = lxqt ] || [ "$mode" = desktop ]; then
   /usr/local/bin/droiddeck-desktop-bookmarks || true
+  /usr/local/bin/droiddeck-downloads || true
 fi
 export FLATPAK_BWRAP=/usr/local/bin/droiddeck-bwrap
 export XDG_DATA_DIRS=$XDG_DATA_HOME/flatpak/exports/share:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}
@@ -277,6 +340,20 @@ if [ -z "${BL_INSIDE:-}" ]; then
     step "starting the desktop"
     start_agent --no-focus
     [ -x /usr/local/bin/droiddeck-desktop ] || { echo "== the desktop package is not installed"; exit 66; }
+    if command -v dbus-daemon >/dev/null 2>&1 && command -v droiddeck-netmanager >/dev/null 2>&1; then
+      write_system_bus_config
+      dbus-daemon --config-file=/usr/local/share/droiddeck/system-bus.conf --nofork --nopidfile &
+      for _ in $(seq 1 50); do
+        [ -S /run/dbus/system_bus_socket ] && break
+        nap 0.1
+      done
+      if [ -S /run/dbus/system_bus_socket ]; then
+        droiddeck-login1 --with-netmanager &
+        echo "== desktop: system bus up, network and power services running"
+      else
+        echo "== desktop: the system bus did not come up"
+      fi
+    fi
     cores=$(program_cores)
     if [ -n "$cores" ]; then
       echo "== desktop cores: $cores (the desktop and every program started from it)"
@@ -321,6 +398,8 @@ if [ -z "${BL_INSIDE:-}" ]; then
   fi
   if [ "${BL_REFRESH:-0}" -gt 0 ]; then
     args+=(-r "$BL_REFRESH")
+    # -r is the starting rate; gamescope follows the panel when it switches modes later.
+    export GAMESCOPE_NESTED_REFRESH_FOLLOWS_HOST=1
   fi
   [ "$mode" = steam ] && [ "${BL_STEAM_UI:-}" != desktop ] && args+=(-e)
   if [ "$mode" = steam ] && [ "${BL_XWAYLAND_COUNT:-2}" -gt 1 ]; then
@@ -338,6 +417,8 @@ if [ -z "${BL_INSIDE:-}" ]; then
     args+=(--mangoapp)
     echo "== gamescope: mangoapp on ($(command -v mangoapp), config $MANGOHUD_CONFIGFILE)"
   fi
+  # gamescope writes the frame times the app's HUD shows here (patch 0125).
+  mkdir -p /run/droiddeck-hud && export DROIDDECK_HUD_FRAMES=/run/droiddeck-hud/frames
   export BL_INSIDE=1
   # A fixed path: left to itself gamescope creates a new limiter state file on every start.
   rm -f "${XDG_RUNTIME_DIR:-/tmp}"/gamescope-limiter-*
@@ -540,7 +621,7 @@ case $mode in
     fi
     if [ "${BL_ZRAM:-0}" = 1 ]; then
       step "zRAM compression: on"
-      [ "${BL_ZRAM_CLIENT:-1}" = 1 ] || step "zRAM: Steam is not compressed while games run (turned off in Performance)"
+      [ "${BL_ZRAM_CLIENT:-1}" = 1 ] || step "zRAM: Steam and the hidden Epic Games Launcher are not compressed while games run (turned off in Performance)"
       _bl_ram_cap=0
       case ${BL_RAM_CAP_MB:-} in
         ''|0) ;;
@@ -550,16 +631,16 @@ case $mode in
       (
         bl_zram_scan() {
           _bl_game=0 _bl_pids=() _bl_others=() _bl_apps=
-          local _d _c _args _name _a _id
+          local _d _c _args _name _a _id _fex
           for _d in /proc/[0-9]*; do
             [ "${_d##*/}" != "$BASHPID" ] || continue
             _args=()
             # Under FEX the program is FEX's first argument. AppId= is its own argument.
             while IFS= read -r -d '' _c; do _args+=("$_c"); done 2>/dev/null < "$_d/cmdline" || true
             [ "${#_args[@]}" -gt 0 ] || continue
-            _name=${_args[0]}
+            _name=${_args[0]} _fex=0
             if [ "${#_args[@]}" -gt 1 ]; then
-              case ${_name##*/} in FEX|FEXInterpreter) _name=${_args[1]} ;; esac
+              case ${_name##*/} in FEX|FEXInterpreter) _name=${_args[1]} _fex=1 ;; esac
             fi
             case ${_name##*/} in
               reaper)
@@ -574,7 +655,13 @@ case $mode in
                 done
                 ;;
               steam|steamwebhelper) _bl_pids+=("${_d##*/}") ;;
-              *) _bl_others+=("${_d##*/}") ;;
+              *)
+                if [ "$_fex" = 1 ] && grep -qz '^DROIDDECK_EPIC_HIDDEN=1$' "$_d/environ" 2>/dev/null; then
+                  _bl_pids+=("${_d##*/}")
+                else
+                  _bl_others+=("${_d##*/}")
+                fi
+                ;;
             esac
           done
         }
@@ -921,23 +1008,7 @@ case $mode in
       set -- "$@" "$_bl_url"
     fi
     if command -v dbus-daemon >/dev/null 2>&1 && command -v droiddeck-netmanager >/dev/null 2>&1; then
-      mkdir -p /run/dbus /usr/local/share/droiddeck
-      cat > /usr/local/share/droiddeck/system-bus.conf <<'BUSCONF'
-<!DOCTYPE busconfig PUBLIC "-//freedesktop//DTD D-Bus Bus Configuration 1.0//EN"
- "http://www.freedesktop.org/standards/dbus/1.0/busconfig.dtd">
-<busconfig>
-  <type>system</type>
-  <listen>unix:path=/run/dbus/system_bus_socket</listen>
-  <auth>EXTERNAL</auth>
-  <policy context="default">
-    <allow user="*"/>
-    <allow own="*"/>
-    <allow send_destination="*"/>
-    <allow receive_sender="*"/>
-  </policy>
-</busconfig>
-BUSCONF
-      rm -f /run/dbus/system_bus_socket
+      write_system_bus_config
       dbus-daemon --config-file=/usr/local/share/droiddeck/system-bus.conf --nofork --nopidfile &
       system_bus=$!
       for _ in $(seq 1 50); do
@@ -1011,14 +1082,9 @@ BUSCONF
         echo "== Decky: installed loader architecture is unsupported by this guest; not starting"
       fi
     fi
-    _bl_cdp=()
-    if [ -f "$steam_root/.cef-enable-remote-debugging" ]; then
-      export BL_CDP_PORT=8080
-    else
-      export BL_CDP_PORT=$((20000 + RANDOM % 30000))
-      _bl_cdp=(-cef-enable-debugging -devtools-port "$BL_CDP_PORT")
-    fi
-    if [ -f "$HOME/.droiddeck-decky-enabled" ] && [ "${decky_arch:-}" = x86_64 ]; then
+    steam_devtools 8080
+    export BL_CDP_PORT
+    if [ -f "$HOME/.droiddeck-decky-enabled" ] && [ "${decky_arch:-}" = x86_64 ] && [ ${#_bl_cdp[@]} = 0 ]; then
       echo "== steam: devtools port $BL_CDP_PORT left open for the x86_64 Decky loader"
     else
       export BL_CDP_GUARD=$BL_CDP_PORT
@@ -1099,6 +1165,8 @@ BUSCONF
     fi
     echo "== steam args: ${_bl_ui[*]} ${_bl_cdp[*]} ${_bl_lang[*]} -clientbeta $steam_channel -no-cef-sandbox -cef-ozone-platform=x11 ${_bl_cef[*]} $*$([ "$steam_x64" = 1 ] && echo ' (x86-64 client under FEX)')"
     steam_updates=0
+    steam_installs=0
+    steam_update_stamp=$(stat -c '%n %Y %s' "$steam_root"/package/*.installed 2>/dev/null)
     rm -f "$HOME/.bl-stop-requested" "$STEAMOS_STEAM_SHUTDOWN_SENTINEL" "$STEAMOS_STEAM_REBOOT_SENTINEL"
     steam_other_game_running() {
       local line value n open

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="shortcuts_title">物理ボタンのショートカット</string>
+    <string name="shortcuts_dd_menu">DroidDeck メニュー</string>
+    <string name="shortcuts_capture">割り当て：%1$s</string>
+    <string name="shortcuts_press">ボタンを押して離してください。割り当ては自動的に保存されます。</string>
+    <string name="shortcuts_release">ボタンを離して続行してください。</string>
+    <string name="shortcuts_detected">%1$s：%2$s</string>
+    <string name="shortcuts_conflict">このボタンはすでに次の操作に割り当てられています：%1$s</string>
+    <string name="shortcuts_save">再割り当て</string>
+    <string name="shortcuts_retry">別のボタンを試す</string>
+    <string name="shortcuts_limitations">ホームボタンや一部の追加ボタンは使用できない場合があります。</string>
+</resources>

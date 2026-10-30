@@ -1,0 +1,90 @@
+#!/bin/bash
+me=${0##*/}
+usage() {
+  echo "usage: $me [-EHiknsSv] [-u user] [-g group] [-D directory] [--] command [arg ...]"
+  echo "       $me -e file ..."
+}
+known_user() {
+  case $1 in
+    ''|root|0|'#0'|"$(id -un 2>/dev/null)"|"#$(id -ru 2>/dev/null)") return 0 ;;
+  esac
+  echo "$me: unknown user $1" >&2
+  exit 1
+}
+
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games
+login=0 shell=0 edit=0 background=0 dir=
+[ "$me" = sudoedit ] && edit=1
+while [ $# -gt 0 ]; do
+  case $1 in
+    --) shift; break ;;
+    -h|--help) usage; exit 0 ;;
+    -V|--version) echo "DroidDeck sudo: runs commands as root inside the DroidDeck desktop"; exit 0 ;;
+    -l|--list) echo "User $(id -un 2>/dev/null) may run the following commands on $(uname -n):"; echo "    (ALL : ALL) ALL"; exit 0 ;;
+    -v|--validate|-K|--remove-timestamp) exit 0 ;;
+    -k|--reset-timestamp) shift; [ $# -eq 0 ] && exit 0 ;;
+    -i|--login) login=1; shift ;;
+    -s|--shell) shell=1; shift ;;
+    -e|--edit) edit=1; shift ;;
+    -b|--background) background=1; shift ;;
+    -E|--preserve-env|--preserve-env=*|-H|--set-home|-n|--non-interactive|-S|--stdin|-P|--preserve-groups|-A|--askpass|-B|--bell|-N|--no-update) shift ;;
+    -u|--user|-g|--group) [ $# -ge 2 ] || { usage >&2; exit 1; }; known_user "$2"; shift 2 ;;
+    --user=*|--group=*) known_user "${1#*=}"; shift ;;
+    -u*|-g*) known_user "${1:2}"; shift ;;
+    -D|--chdir) [ $# -ge 2 ] || { usage >&2; exit 1; }; dir=$2; shift 2 ;;
+    --chdir=*) dir=${1#*=}; shift ;;
+    -p|--prompt|-C|--close-from|-r|--role|-t|--type|-T|--command-timeout|-R|--chroot) [ $# -ge 2 ] || { usage >&2; exit 1; }; shift 2 ;;
+    --prompt=*|--close-from=*|--role=*|--type=*|--command-timeout=*) shift ;;
+    -[A-Za-z][A-Za-z]*)
+      flags=${1#-}; shift
+      split=()
+      while [ -n "$flags" ]; do
+        split+=("-${flags:0:1}")
+        case ${flags:0:1} in
+          u|g|D|p|C|r|t|T|R) [ -n "${flags:1}" ] && split+=("${flags:1}"); flags= ;;
+          *) flags=${flags:1} ;;
+        esac
+      done
+      set -- "${split[@]}" "$@"
+      ;;
+    -*) echo "$me: invalid option -- '${1#-}'" >&2; usage >&2; exit 1 ;;
+    *) break ;;
+  esac
+done
+
+if [ "$edit" = 1 ]; then
+  [ $# -gt 0 ] || { usage >&2; exit 1; }
+  editor=${SUDO_EDITOR:-${VISUAL:-${EDITOR:-nano}}}
+  exec $editor "$@"
+fi
+
+export SUDO_USER=${SUDO_USER:-$(id -un 2>/dev/null)}
+export SUDO_UID=${SUDO_UID:-$(id -ru 2>/dev/null)}
+export SUDO_GID=${SUDO_GID:-$(id -rg 2>/dev/null)}
+export SUDO_COMMAND="$*" USER=root LOGNAME=root
+[ -z "$dir" ] || cd "$dir" || exit 1
+
+target_shell=$(getent passwd "$(id -un 2>/dev/null)" | cut -d: -f7)
+target_shell=${target_shell:-/bin/bash}
+if [ "$login" = 1 ]; then
+  cd "${HOME:-/root}" 2>/dev/null
+  if [ $# -gt 0 ]; then set -- "$target_shell" -l -c "$*"; else set -- "$target_shell" -l; fi
+elif [ "$shell" = 1 ]; then
+  if [ $# -gt 0 ]; then set -- "${SHELL:-$target_shell}" -c "$*"; else set -- "${SHELL:-$target_shell}"; fi
+elif [ $# -eq 0 ]; then
+  usage >&2
+  exit 1
+elif ! command -v "$1" >/dev/null 2>&1; then
+  echo "$me: $1: command not found" >&2
+  exit 1
+fi
+
+if [ "$(id -u)" = 0 ]; then
+  [ "$background" = 1 ] && { "$@" & exit 0; }
+  exec "$@"
+fi
+if [ "$background" = 1 ]; then
+  /usr/local/bin/droiddeck-root "$@" </dev/null &
+  exit 0
+fi
+exec /usr/local/bin/droiddeck-root "$@"

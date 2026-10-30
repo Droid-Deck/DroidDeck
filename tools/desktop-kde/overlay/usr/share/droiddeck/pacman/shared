@@ -1,0 +1,7 @@
+#!/bin/bash
+list=/var/lib/pacman/droiddeck-shared
+[ -s "$list" ] || exit 0
+mapfile -t packages < <(grep -xF -f "$list")
+[ ${#packages[@]} -eq 0 ] && exit 0
+echo "error: ${packages[*]} shares files with other DroidDeck software, so pacman can't remove it." >&2
+exit 1

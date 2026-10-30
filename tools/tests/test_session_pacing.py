@@ -18,16 +18,19 @@ class SessionPacingTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             env = dict(os.environ, XDG_RUNTIME_DIR=directory, BL_REFRESH=str(refresh),
                        BL_MANGOAPP='0', BL_FPS='0', DROIDDECK_GAME_FRAME_LIMIT='0')
+            env.pop('GAMESCOPE_NESTED_REFRESH_FOLLOWS_HOST', None)
             env.update(overrides)
             script = '''
 set -u
 mode=steam
 pipewire_stub() { return 1; }
-run_gamescope() { printf 'ARG:%s\\n' "$@"; }
+run_gamescope() { printf 'ARG:%s\\n' "$@"; printf 'FOLLOW:%s\\n' "${GAMESCOPE_NESTED_REFRESH_FOLLOWS_HOST:-}"; }
 ''' + block
             result = subprocess.run(['bash', '-c', script], env=env, capture_output=True,
                                     text=True, timeout=5)
             self.assertEqual(0, result.returncode, result.stderr)
+            self.follow = [line.removeprefix('FOLLOW:') for line in result.stdout.splitlines()
+                           if line.startswith('FOLLOW:')]
             return [line.removeprefix('ARG:') for line in result.stdout.splitlines()
                     if line.startswith('ARG:')]
 
@@ -37,6 +40,12 @@ run_gamescope() { printf 'ARG:%s\\n' "$@"; }
                 args = self.launch(refresh)
                 self.assertEqual(str(refresh), args[args.index('-r') + 1])
                 self.assertIn('-e', args)
+
+    def test_gamescope_follows_the_panel_after_the_starting_rate(self):
+        self.launch(144)
+        self.assertEqual(['1'], self.follow)
+        self.launch(0)
+        self.assertEqual([''], self.follow)
 
     def test_retired_cap_variables_do_not_override_the_display_rate(self):
         for performance in ('0', '1'):

@@ -40,6 +40,29 @@ class BackQamInputTest {
         assertTrue(changes.isEmpty())
     }
 
+    @Test fun theConfiguredWindowControlsSingleAndDoubleTaps() {
+        for (window in listOf(100L, 800L)) {
+            taps.clear()
+            val configured = BackQamInput(changes::add, taps::add, doubleTapMs = { window })
+            fun press(action: Int) = configured.onKeyEvent(KeyEvent(action, KeyEvent.KEYCODE_BACK), true)
+            press(KeyEvent.ACTION_DOWN)
+            press(KeyEvent.ACTION_UP)
+            advance(window - 1)
+            assertTrue(taps.isEmpty())
+            press(KeyEvent.ACTION_DOWN)
+            press(KeyEvent.ACTION_UP)
+            assertEquals(listOf(true), taps)
+            taps.clear()
+            press(KeyEvent.ACTION_DOWN)
+            press(KeyEvent.ACTION_UP)
+            advance(window - 1)
+            assertTrue(taps.isEmpty())
+            advance(1)
+            assertEquals(listOf(false), taps)
+            assertTrue(changes.isEmpty())
+        }
+    }
+
     @Test fun aHoldStartsAt700msAndNeverProducesATap() {
         assertTrue(send(KeyEvent.ACTION_DOWN))
         advance(699)
@@ -88,6 +111,55 @@ class BackQamInputTest {
         assertEquals(listOf(true), changes)
         send(KeyEvent.ACTION_UP)
         assertEquals(listOf(true, false), changes)
+    }
+
+    @Test fun aChordImmediatelyStartsAHoldAndSuppressesTheTap() {
+        send(KeyEvent.ACTION_DOWN)
+        advance(25)
+        input.onChordInput()
+        assertEquals(listOf(true), changes)
+        input.onChordInput()
+        send(KeyEvent.ACTION_UP)
+        advance(1000)
+        assertEquals(listOf(true, false), changes)
+        assertTrue(taps.isEmpty())
+    }
+
+    @Test fun aChordOnTheSecondPressCancelsBothTapActions() {
+        send(KeyEvent.ACTION_DOWN)
+        send(KeyEvent.ACTION_UP)
+        advance(100)
+        send(KeyEvent.ACTION_DOWN)
+        input.onChordInput()
+        send(KeyEvent.ACTION_UP)
+        advance(1000)
+        assertEquals(listOf(true, false), changes)
+        assertTrue(taps.isEmpty())
+    }
+
+    @Test fun controllerInputAfterBackIsReleasedOrCancelledCannotStartAHold() {
+        send(KeyEvent.ACTION_DOWN)
+        send(KeyEvent.ACTION_UP)
+        input.onChordInput()
+        advance(500)
+        assertEquals(listOf(false), taps)
+        send(KeyEvent.ACTION_DOWN)
+        input.cancel()
+        input.onChordInput()
+        advance(1000)
+        assertTrue(changes.isEmpty())
+    }
+
+    @Test fun anImmediateChordKeepsAllBackOwnersUntilTheLastRelease() {
+        send(KeyEvent.ACTION_DOWN, device = 4)
+        send(KeyEvent.ACTION_DOWN, device = 5)
+        input.onChordInput()
+        input.onDeviceRemoved(4)
+        assertEquals(listOf(true), changes)
+        send(KeyEvent.ACTION_UP, device = 5)
+        advance(1000)
+        assertEquals(listOf(true, false), changes)
+        assertTrue(taps.isEmpty())
     }
 
     @Test fun disabledRoutingPreservesBackNavigation() {
