@@ -211,6 +211,26 @@ class GameEnvironmentTest(unittest.TestCase):
                                             env=env, text=True, capture_output=True, check=True)
                     self.assertEqual(result.stdout.strip(), expected)
 
+    def test_game_profile_directaudio_settings_reach_the_driver(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            probe = home / "probe"
+            probe.write_text("#!" + sys.executable + "\nimport os\nprint(' '.join(sorted(k + '=' + v for k, v in os.environ.items() if k.startswith('BANNER_AUDIO_DIRECT_'))))\n")
+            probe.chmod(0o755)
+            config = home / ".config/droiddeck/game-environment.json"
+            config.parent.mkdir(parents=True)
+            config.write_text(json.dumps({"version": 1, "games": {"42": {"AUDIO_DIRECT_MS": "80"}}}))
+            base = {key: value for key, value in os.environ.items() if "AUDIO_DIRECT_" not in key}
+            base.update(HOME=tmp, BL_MIC_ENABLED="0", STEAM_COMPAT_DATA_PATH="/compatdata/42",
+                        AUDIO_DIRECT_MS="60", AUDIO_DIRECT_PERIOD_MS="20", AUDIO_DIRECT_MIC="1",
+                        BANNER_AUDIO_DIRECT_MS="60", BANNER_AUDIO_DIRECT_MIC="1")
+            for driver, expected in (("directaudio,pulse", "BANNER_AUDIO_DIRECT_MIC=0 BANNER_AUDIO_DIRECT_MS=80 BANNER_AUDIO_DIRECT_PERIOD_MS=20"),
+                                     ("pulse", "BANNER_AUDIO_DIRECT_MIC=1 BANNER_AUDIO_DIRECT_MS=60")):
+                with self.subTest(driver=driver):
+                    result = subprocess.run([sys.executable, str(BIN / "droiddeck-game-env"), str(probe), "waitforexitandrun"],
+                                            env=dict(base, WINE_AUDIO_DRIVER=driver), text=True, capture_output=True, check=True)
+                    self.assertEqual(result.stdout.strip(), expected)
+
     def test_desktop_games_restart_on_the_gpu_with_steams_preloads_handed_back(self):
         with tempfile.TemporaryDirectory() as tmp:
             home = Path(tmp)

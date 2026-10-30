@@ -727,6 +727,15 @@ def record_install_scripts(digest, env):
         print("droiddeck-game-env: install scripts not recorded (%s)" % error, file=sys.stderr)
 
 
+def directaudio_settings(env):
+    if "directaudio" not in env.get("WINE_AUDIO_DRIVER", "").split(","):
+        return env
+    for name, value in list(env.items()):
+        if name.startswith("AUDIO_DIRECT_"):
+            env["BANNER_" + name] = value
+    return env
+
+
 def start(launch, launch_env, digest):
     if digest:
         code = subprocess.run(launch, env=launch_env, check=False).returncode
@@ -798,6 +807,7 @@ def main():
         command = offline_without_anticheat(command, env)
     if mic_enabled == "0":
         env["AUDIO_DIRECT_MIC"] = "0"
+    env = directaudio_settings(env)
     env = vram_cap(env)
     env = force_ssbs(command, env)
     game_cores(env)
