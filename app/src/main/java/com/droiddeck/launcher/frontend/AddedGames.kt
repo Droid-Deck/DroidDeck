@@ -243,7 +243,7 @@ object AddedGames {
             val base = canonical(dir)
             if (!inside(path, base)) continue
             val first = path.removePrefix("$base/").substringBefore('/')
-            File(dir, first).takeIf { it.isDirectory && !isSteamLibraryFolder(first) && it.path !in removed && owns(it) }?.let { return it }
+            File(dir, first).takeIf { it.isDirectory && !isSteamLibraryFolder(first) && it.path !in removed }?.let { return it }
         }
         return null
     }

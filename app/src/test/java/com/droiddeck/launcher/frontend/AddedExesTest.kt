@@ -112,19 +112,6 @@ class AddedExesTest {
         assertEquals(listOf(pick.path), AddedGames.scan(app).map { it.exe.path })
     }
 
-    @Test fun aGameInsideAGroupFolderOnGameStorageIsAddedOnItsOwn() {
-        val storage = tmp.newFolder("PC Games")
-        SessionPrefs.setAddedGamesDirs(app, emptyList())
-        SessionPrefs.setGameStorage(app, storage.path, "SD card")
-        exe(File(storage, "VNs/Albatross/Albatross.exe"))
-        exe(File(storage, "VNs/Angel Beats/SiglusEngine.exe"))
-        val pick = exe(File(storage, "VNs/Rance 01/Rance01.exe"))
-        val added = AddedGames.addExe(app, pick)
-        assertTrue(added is AddedGames.AddResult.Added)
-        assertEquals(pick.parentFile!!.path, (added as AddedGames.AddResult.Added).game.folder.path)
-        SessionPrefs.setGameStorage(app, SessionPrefs.GAME_STORAGE_OFF, "")
-    }
-
     @Test fun aRemovedGroupFolderOnGameStorageStaysRemoved() {
         val storage = tmp.newFolder("PC Games")
         SessionPrefs.setAddedGamesDirs(app, emptyList())
@@ -136,6 +123,18 @@ class AddedExesTest {
         val added = AddedGames.addExe(app, pick)
         assertTrue(added is AddedGames.AddResult.Added)
         assertTrue(group.path in SessionPrefs.removedAddedGames(app))
+        SessionPrefs.setGameStorage(app, SessionPrefs.GAME_STORAGE_OFF, "")
+    }
+
+    @Test fun aSiblingExeOfAGameOnGameStorageSwitchesThatGame() {
+        val storage = tmp.newFolder("PC Games")
+        SessionPrefs.setAddedGamesDirs(app, emptyList())
+        SessionPrefs.setGameStorage(app, storage.path, "SD card")
+        exe(File(storage, "Game/bin/Game.exe"))
+        val pick = exe(File(storage, "Game/launcher/Launcher.exe"))
+        val result = AddedGames.addExe(app, pick)
+        assertTrue(result is AddedGames.AddResult.Switched)
+        assertEquals(File(storage, "Game").path, (result as AddedGames.AddResult.Switched).game.folder.path)
         SessionPrefs.setGameStorage(app, SessionPrefs.GAME_STORAGE_OFF, "")
     }
 
