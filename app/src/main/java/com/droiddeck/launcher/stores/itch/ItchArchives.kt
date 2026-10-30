@@ -10,8 +10,12 @@ internal object ItchArchives {
     fun kind(file: File, filename: String): String {
         val extension = filename.substringAfterLast('.', "").lowercase()
         if (extension == "exe") return "exe"
+        return signature(file) ?: extension
+    }
+
+    private fun signature(file: File): String? {
         val head = runCatching { FileInputStream(file).use { input -> ByteArray(300).also { input.read(it) } } }.getOrNull()
-            ?: return extension
+            ?: return null
         fun at(i: Int, vararg bytes: Int) = bytes.indices.all { head.getOrNull(i + it) == bytes[it].toByte() }
         return when {
             at(0, 0x50, 0x4B) -> "zip"
@@ -21,7 +25,7 @@ internal object ItchArchives {
             at(0, 0x42, 0x5A, 0x68) -> "bz2"
             at(0, 0xFD, 0x37, 0x7A, 0x58, 0x5A, 0x00) -> "xz"
             at(257, 0x75, 0x73, 0x74, 0x61, 0x72) -> "tar"
-            else -> extension
+            else -> null
         }
     }
 
@@ -31,7 +35,7 @@ internal object ItchArchives {
             val files = dir.listFiles() ?: return
             for (file in files) {
                 if (Files.isSymbolicLink(file.toPath())) continue
-                if (file.isFile && kind(file, file.name) in PACKED) found.add(file)
+                if (file.isFile && signature(file) in PACKED) found.add(file)
                 else if (file.isDirectory && depth < 2 && !file.name.startsWith(".")) walk(file, depth + 1)
             }
         }

@@ -53,16 +53,18 @@ class ItchArchivesTest {
         assertNull(ItchArchives.inner(dir))
     }
 
+    @Test fun aNamedArchiveWithoutASignatureIsSkipped() {
+        file("extras.zip", 0x48, 0x69, size = 8192)
+        file("game.7z", 0x37, 0x7A, 0xBC, 0xAF, 0x27, 0x1C, size = 128)
+        assertEquals("game.7z", ItchArchives.inner(dir)?.name)
+    }
+
     @Test fun symlinksAreNotFollowed() {
-        val outside = Files.createTempDirectory("itch-outside").toFile()
-        try {
-            File(outside, "keep.zip").writeBytes(byteArrayOf(0x50, 0x4B, 3, 4))
-            Files.createSymbolicLink(File(dir, "link").toPath(), outside.toPath())
-            Files.createSymbolicLink(File(dir, "linked.zip").toPath(), File(outside, "keep.zip").toPath())
-            assertNull(ItchArchives.inner(dir))
-        } finally {
-            File(outside, "keep.zip").delete()
-            outside.delete()
-        }
+        val root = File(dir, "root").apply { mkdirs() }
+        val outside = File(dir, "outside").apply { mkdirs() }
+        File(outside, "keep.zip").writeBytes(byteArrayOf(0x50, 0x4B, 3, 4))
+        Files.createSymbolicLink(File(root, "link").toPath(), outside.toPath())
+        Files.createSymbolicLink(File(root, "linked.zip").toPath(), File(outside, "keep.zip").toPath())
+        assertNull(ItchArchives.inner(root))
     }
 }

@@ -26,6 +26,7 @@ import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
+import java.nio.file.Files
 import java.util.concurrent.atomic.AtomicBoolean
 
 internal class ItchInstaller(
@@ -195,7 +196,7 @@ internal class ItchInstaller(
                 unpack(inner, inner.name, handle)
                 if (cancelled.get()) break
                 inner.delete()
-                picked = StoreExe.pick(work, inner.name.substringBeforeLast('.').ifBlank { null }, item.title)
+                picked = StoreExe.pick(work, inner.name.substringBeforeLast('.').takeIf { it.endsWith(".exe", ignoreCase = true) }, item.title)
                 passes++
             }
             picked
@@ -255,7 +256,7 @@ internal class ItchInstaller(
         val binds = if (listOf(app.filesDir, app.cacheDir).any { work.absolutePath.startsWith(it.absolutePath + "/") }) null
             else listOf(work.absolutePath)
         fun bsdtar(args: List<String>, onLine: (String) -> Unit) =
-            GuestCommand.run(app, listOf("/usr/bin/bsdtar") + args, logName = "itch-unrar", extraBinds = binds, fastPath = true) { line ->
+            GuestCommand.run(app, listOf("/usr/bin/bsdtar") + args, logName = "itch-unrar", extraBinds = binds, fastPath = true, cancelled = cancelled) { line ->
                 if (!line.startsWith("proot ")) onLine(line)
             }
         var entries = 0L
@@ -280,28 +281,30 @@ internal class ItchInstaller(
         var written = 0L
         val buffer = ByteArray(64 * 1024)
         val limitKb = (Runtime.getRuntime().maxMemory() / 4 / 1024).coerceIn(32L * 1024, Int.MAX_VALUE.toLong()).toInt()
-        SevenZFile.builder().setFile(archive).setMaxMemoryLimitKb(limitKb).get().use { seven ->
-            while (true) {
-                if (cancelled.get()) return
-                val entry = seven.nextEntry ?: break
-                val file = target(entry.name)
-                if (file == null) {
-                    handle.log("itch.io: skipped an entry outside the game folder")
-                    continue
-                }
-                if (entry.isDirectory) {
-                    file.mkdirs()
-                    continue
-                }
-                file.parentFile?.mkdirs()
-                FileOutputStream(file).use { out ->
-                    while (true) {
-                        if (cancelled.get()) return
-                        val read = seven.read(buffer, 0, buffer.size)
-                        if (read < 0) break
-                        out.write(buffer, 0, read)
-                        written += read
-                        handle.stageProgress(written, total)
+        Files.newByteChannel(archive.toPath()).use { channel ->
+            SevenZFile.builder().setSeekableByteChannel(channel).setMaxMemoryLimitKb(limitKb).get().use { seven ->
+                while (true) {
+                    if (cancelled.get()) return
+                    val entry = seven.nextEntry ?: break
+                    val file = target(entry.name)
+                    if (file == null) {
+                        handle.log("itch.io: skipped an entry outside the game folder")
+                        continue
+                    }
+                    if (entry.isDirectory) {
+                        file.mkdirs()
+                        continue
+                    }
+                    file.parentFile?.mkdirs()
+                    FileOutputStream(file).use { out ->
+                        while (true) {
+                            if (cancelled.get()) return
+                            val read = seven.read(buffer, 0, buffer.size)
+                            if (read < 0) break
+                            out.write(buffer, 0, read)
+                            written += read
+                            handle.stageProgress(written, total)
+                        }
                     }
                 }
             }
