@@ -214,7 +214,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private lateinit var touchscreenGestures: TouchscreenGestures
     private var gestureConfig = com.droiddeck.launcher.input.TouchGestureConfig()
     private var gestureGame: String? = null
-    private var steamUiFocused = false
     private var gestureSettingsOpen by mutableStateOf(false)
     private var steamImportAsk by mutableStateOf<com.droiddeck.launcher.session.SteamImportPrompt.Ask?>(null)
     private var steamImportAnswered: String? = null
@@ -847,15 +846,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 }
             }
             androidx.compose.runtime.LaunchedEffect(picturePosition, SessionState.running, pipUi, cardboard.enabled) { applyGameAlignment() }
-            androidx.compose.runtime.LaunchedEffect(AgentGuest.focusRevision) {
-                val steamUi = SessionState.mode == SessionService.MODE_STEAM && kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                    AgentGuest.focus(this@SessionActivity)?.optLong("focusedApp")?.let { it <= 0 || it == 769L } ?: true
-                }
-                if (steamUi != steamUiFocused) {
-                    steamUiFocused = steamUi
-                    applySteamUiPacing()
-                }
-            }
             DroidDeckTheme {
             if (pipUi) {
                 if (SessionState.suspended) androidx.compose.foundation.layout.Box(
@@ -2094,7 +2084,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         CompositorHost.startOrAttach(
             this, holder.surface, runtimeDir.path,
             driverId?.let { turnip.driverPath(it) }, driverId?.let { turnip.libraryName(it) },
-            applicationInfo.nativeLibraryDir, size.first, size.second, refreshHz(), outputFpsLimit(), steamUiLimit(refreshHz()),
+            applicationInfo.nativeLibraryDir, size.first, size.second, refreshHz(), outputFpsLimit(),
         )
         onOutputAttached(holder)
         if (SessionState.running && size != previous) {
@@ -2234,23 +2224,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     private fun outputFpsLimit(): Int = SessionPrefs.compositorFpsLimit(mirrorRefreshLimit(), if (noSteamSession()) SessionState.fpsLimit else 0)
 
-    private fun steamUiLimit(hz: Float): Int =
-        if (steamUiFocused && SessionPrefs.steamUiPacing(this)) SessionPrefs.steamUiFpsLimit(hz) else 0
-
-    private fun applySteamUiPacing() {
-        if (!CompositorHost.isStarted) return
-        val hz = refreshHz()
-        val limit = steamUiLimit(hz)
-        CompositorHost.updatePacing(hz, outputFpsLimit(), limit)
-        Log.i(TAG, "pacing: " + if (limit > 0) "Steam UI at $limit fps on a ${Math.round(hz)} Hz screen" else "uncapped")
-    }
-
     private fun applyOutputPacing() {
         Log.i(TAG, "perf: " + PerfMode.apply(this, outputFpsLimit(), mirrorRefreshLimit()))
         if (CompositorHost.isStarted) {
             val hz = refreshHz()
             val changed = kotlin.math.abs(SessionState.refreshHz - hz) > 0.1f
-            CompositorHost.updatePacing(hz, outputFpsLimit(), steamUiLimit(hz))
+            CompositorHost.updatePacing(hz, outputFpsLimit())
             pushCardboard(activeCardboard)
             if (changed && ::surfaceView.isInitialized) applyFrameGen()
         }
