@@ -76,6 +76,15 @@ class MouseBackInputTest {
         assertEquals(listOf(true, false), presses)
     }
 
+    @Test fun overlappingPressesHoldTheButtonUntilTheLastRelease() {
+        input.onKeyEvent(key(KeyEvent.ACTION_DOWN), toGuest = true)
+        input.onKeyEvent(injected(KeyEvent.ACTION_DOWN), toGuest = true)
+        input.onKeyEvent(key(KeyEvent.ACTION_UP), toGuest = true)
+        assertEquals(listOf(true), presses)
+        input.onKeyEvent(injected(KeyEvent.ACTION_UP), toGuest = true)
+        assertEquals(listOf(true, false), presses)
+    }
+
     @Test fun cancelReleasesAHeldPressOnce() {
         input.onKeyEvent(injected(KeyEvent.ACTION_DOWN), toGuest = true)
         input.cancel()

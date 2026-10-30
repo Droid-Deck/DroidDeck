@@ -20,14 +20,14 @@ class MouseBackInput(private val sendRight: (Boolean) -> Unit, private val mouse
         if (device in held && (fromMouse || injected)) {
             if (event.action == KeyEvent.ACTION_UP) {
                 held.remove(device)
-                sendRight(false)
+                if (held.isEmpty()) sendRight(false)
             }
             return true
         }
         if (event.action != KeyEvent.ACTION_DOWN || event.repeatCount > 0 || !toGuest) return false
         if (!fromMouse && !(injected && mouseAttached())) return false
+        if (held.isEmpty()) sendRight(true)
         held.add(device)
-        sendRight(true)
         return true
     }
 
