@@ -856,7 +856,8 @@ private fun StopSessionButton(modifier: Modifier = Modifier, onClick: () -> Unit
     val fill by animateColorAsState(if (hot) colors.error.copy(alpha = 0.18f) else Color.Transparent, Motion.tw(220), label = "dangerFill")
     val shape = RoundedCornerShape(20.dp)
     val stopDescription = stringResource(R.string.stop_session)
-    var iconOnly by remember { mutableStateOf(false) }
+    val stopLabel = stringResource(R.string.drawer_stop)
+    var iconOnly by remember(stopLabel, androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp) { mutableStateOf(false) }
     Row(
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
         modifier = modifier.heightIn(min = 44.dp).semantics { contentDescription = stopDescription }.testTag("drawer-stop")
@@ -867,7 +868,7 @@ private fun StopSessionButton(modifier: Modifier = Modifier, onClick: () -> Unit
     ) {
         Icon(Icons.Outlined.PowerSettingsNew, contentDescription = null, tint = colors.error, modifier = Modifier.size(18.dp))
         if (!iconOnly) Text(
-            stringResource(R.string.drawer_stop), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = colors.error,
+            stopLabel, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = colors.error,
             maxLines = 1, softWrap = false, onTextLayout = { if (it.hasVisualOverflow) iconOnly = true },
         )
     }
