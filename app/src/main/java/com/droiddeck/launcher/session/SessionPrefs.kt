@@ -1094,6 +1094,15 @@ object SessionPrefs {
     fun compositorFpsLimit(mirrorRefreshLimit: Int): Int =
         if (mirrorRefreshLimit <= 0) FPS_UNPACED else mirrorRefreshLimit
 
+    private const val STEAM_UI_FPS = 60f
+
+    fun steamUiPacing(context: Context): Boolean = prefs(context).getBoolean("steamUiPacing", true)
+
+    fun steamUiFpsLimit(refreshHz: Float): Int {
+        val steps = ((refreshHz + 0.5f) / STEAM_UI_FPS).toInt()
+        return if (steps < 2) 0 else (refreshHz / steps + 0.01f).toInt()
+    }
+
     val upscalerChoices = listOf(
         0 to "Linear", 2 to "Nearest", 4 to "AMD FSR 1", 3 to "Snapdragon GSR",
         8 to "Snapdragon GSR (quality)", 7 to "NVIDIA NIS", 6 to "Sharpen only",
