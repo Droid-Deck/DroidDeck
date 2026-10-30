@@ -367,6 +367,11 @@ public final class PadBridge {
         return x * x + y * y < deadZone * deadZone;
     }
 
+    private static boolean hasChordStickInput(float x, float y) {
+        // Back/QAM must ignore the drift previously suppressed by the fixed per-axis dead zone.
+        return Math.max(Math.abs(x), Math.abs(y)) >= DEAD_ZONE;
+    }
+
     public synchronized boolean onMotionEvent(MotionEvent event) {
         if (!isControllerMotionEvent(event) || excluded.test(event.getDeviceId())) return false;
         if (event.getAction() != MotionEvent.ACTION_MOVE) return false;
@@ -390,7 +395,7 @@ public final class PadBridge {
                 pad.rightX = x;
                 pad.rightY = y;
             }
-            if (x != 0f || y != 0f) noteChordInput(slot);
+            if (hasChordStickInput(x, y)) noteChordInput(slot);
             if (Math.max(Math.abs(x), Math.abs(y)) > 0.5f) notePlayerInput();
             publish(slot);
             return true;
@@ -427,7 +432,7 @@ public final class PadBridge {
             pad.up = hatY < -0.5f;
             pad.down = hatY > 0.5f;
         }
-        if (pad.leftX != 0f || pad.leftY != 0f || pad.rightX != 0f || pad.rightY != 0f
+        if (hasChordStickInput(pad.leftX, pad.leftY) || hasChordStickInput(pad.rightX, pad.rightY)
                 || lt > 0f || rt > 0f || pad.up || pad.right || pad.down || pad.left) noteChordInput(slot);
         if (Math.max(Math.max(Math.abs(pad.leftX), Math.abs(pad.leftY)), Math.max(Math.abs(pad.rightX), Math.abs(pad.rightY))) > 0.5f
                 || lt > 0.5f || rt > 0.5f || pad.up || pad.right || pad.down || pad.left) {
