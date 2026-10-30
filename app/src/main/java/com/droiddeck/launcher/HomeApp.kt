@@ -148,7 +148,15 @@ object HomeApp {
     }.getOrNull()
 
     fun startShortcut(context: Context, info: ShortcutInfo) {
-        context.getSystemService(LauncherApps::class.java).startShortcut(info, null, null)
+        val task = generateSequence(context) { (it as? android.content.ContextWrapper)?.baseContext }
+            .filterIsInstance<android.app.Activity>().firstOrNull()?.taskId
+        task?.let { com.droiddeck.launcher.ui.DualScreenPanel.yieldTo(it, true) }
+        try {
+            context.getSystemService(LauncherApps::class.java).startShortcut(info, null, null)
+        } catch (e: Exception) {
+            task?.let { com.droiddeck.launcher.ui.DualScreenPanel.yieldTo(it, false) }
+            throw e
+        }
     }
 
     fun openAppInfo(context: Context, app: LaunchableApp) {
