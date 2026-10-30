@@ -1777,7 +1777,7 @@
     <string name="flatpakmgr_not_ready">Thiết lập Flatpak trước</string>
     <string name="flatpakmgr_starting">Đang khởi động</string>
     <string name="flatpakmgr_exit_status">Flatpak đã thoát với mã %1$d</string>
-    <string name="flatpakmgr_wrong_arch">%1$s được dựng cho %2$s, nhưng ứng dụng Flatpak ở đây phải dựng cho ARM64. Hãy dùng bản AppImage của ứng dụng; DroidDeck chạy AppImage x86 qua FEX.</string>
+    <string name="flatpakmgr_wrong_arch">%1$s được dựng cho %2$s, DroidDeck không chạy được. Ứng dụng Flatpak ở đây cần bản ARM64 hoặc x86_64.</string>
     <string name="flatpakmgr_installing">Đang cài %1$s</string>
     <string name="flatpakmgr_updating">Đang cập nhật %1$s</string>
     <string name="flatpakmgr_removing">Đang gỡ %1$s</string>

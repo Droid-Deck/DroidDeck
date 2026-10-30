@@ -1800,7 +1800,7 @@
     <string name="flatpakmgr_not_ready">Asenna Flatpak ensin</string>
     <string name="flatpakmgr_starting">Käynnistetään</string>
     <string name="flatpakmgr_exit_status">Flatpak sulkeutui tilakoodilla %1$d</string>
-    <string name="flatpakmgr_wrong_arch">%1$s on tehty alustalle %2$s, mutta Flatpak-sovellusten täytyy täällä olla ARM64-sovelluksia. Käytä sovelluksen AppImagea; DroidDeck ajaa x86-AppImaget FEXin kautta.</string>
+    <string name="flatpakmgr_wrong_arch">%1$s on tehty alustalle %2$s, jota DroidDeck ei pysty ajamaan. Flatpak-sovelluksista tarvitaan täällä ARM64- tai x86_64-versio.</string>
     <string name="flatpakmgr_installing">Asennetaan %1$s</string>
     <string name="flatpakmgr_updating">Päivitetään %1$s</string>
     <string name="flatpakmgr_removing">Poistetaan %1$s</string>

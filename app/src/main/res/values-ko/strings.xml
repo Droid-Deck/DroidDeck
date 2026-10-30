@@ -1777,7 +1777,7 @@
     <string name="flatpakmgr_not_ready">먼저 Flatpak을 설정하세요</string>
     <string name="flatpakmgr_starting">시작 중</string>
     <string name="flatpakmgr_exit_status">Flatpak이 종료되었습니다(상태 %1$d)</string>
-    <string name="flatpakmgr_wrong_arch">%1$s은(는) %2$s용으로 빌드되었지만 여기서는 Flatpak 앱이 ARM64용이어야 합니다. 대신 앱의 AppImage를 사용하세요. DroidDeck은 x86 AppImage를 FEX로 실행합니다.</string>
+    <string name="flatpakmgr_wrong_arch">%1$s은(는) DroidDeck이 실행할 수 없는 %2$s용으로 빌드되었습니다. 여기서 Flatpak 앱은 ARM64 또는 x86_64 빌드여야 합니다.</string>
     <string name="flatpakmgr_installing">%1$s 설치 중</string>
     <string name="flatpakmgr_updating">%1$s 업데이트 중</string>
     <string name="flatpakmgr_removing">%1$s 제거 중</string>

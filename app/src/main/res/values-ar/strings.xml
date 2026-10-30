@@ -1892,7 +1892,7 @@
     <string name="flatpakmgr_not_ready">أعِدّ Flatpak أولاً</string>
     <string name="flatpakmgr_starting">جارٍ البدء</string>
     <string name="flatpakmgr_exit_status">خرج Flatpak بالحالة %1$d</string>
-    <string name="flatpakmgr_wrong_arch">تم بناء %1$s لمعمارية %2$s، لكن تطبيقات Flatpak هنا يجب أن تكون لمعمارية ARM64. استخدم ملف AppImage للتطبيق بدلًا من ذلك؛ يشغّل DroidDeck ملفات AppImage لمعمارية x86 عبر FEX.</string>
+    <string name="flatpakmgr_wrong_arch">تم بناء %1$s لمعمارية %2$s، ولا يستطيع DroidDeck تشغيلها. تحتاج تطبيقات Flatpak هنا إلى إصدار لمعمارية ARM64 أو x86_64.</string>
     <string name="flatpakmgr_installing">جارٍ تثبيت %1$s</string>
     <string name="flatpakmgr_updating">جارٍ تحديث %1$s</string>
     <string name="flatpakmgr_removing">جارٍ إزالة %1$s</string>

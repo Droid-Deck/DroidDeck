@@ -1815,7 +1815,7 @@
     <string name="flatpakmgr_not_ready">Configure o Flatpak primeiro</string>
     <string name="flatpakmgr_starting">Iniciando</string>
     <string name="flatpakmgr_exit_status">O Flatpak terminou com o código %1$d</string>
-    <string name="flatpakmgr_wrong_arch">%1$s foi compilado para %2$s, mas aqui os apps Flatpak precisam ser para ARM64. Use o AppImage do app; o DroidDeck executa AppImages x86 pelo FEX.</string>
+    <string name="flatpakmgr_wrong_arch">%1$s foi compilado para %2$s, que o DroidDeck não consegue executar. Aqui os apps Flatpak precisam de uma versão para ARM64 ou x86_64.</string>
     <string name="flatpakmgr_installing">Instalando %1$s</string>
     <string name="flatpakmgr_updating">Atualizando %1$s</string>
     <string name="flatpakmgr_removing">Removendo %1$s</string>

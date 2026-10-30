@@ -1825,7 +1825,7 @@
     <string name="flatpakmgr_not_ready">请先配置 Flatpak</string>
     <string name="flatpakmgr_starting">启动中</string>
     <string name="flatpakmgr_exit_status">Flatpak 已退出，状态码 %1$d</string>
-    <string name="flatpakmgr_wrong_arch">%1$s 是为 %2$s 构建的，但这里的 Flatpak 应用必须为 ARM64 构建。请改用该应用的 AppImage；DroidDeck 会通过 FEX 运行 x86 AppImage。</string>
+    <string name="flatpakmgr_wrong_arch">%1$s 是为 %2$s 构建的，DroidDeck 无法运行。这里的 Flatpak 应用需要 ARM64 或 x86_64 版本。</string>
     <string name="flatpakmgr_installing">正在安装 %1$s</string>
     <string name="flatpakmgr_updating">正在更新 %1$s</string>
     <string name="flatpakmgr_removing">正在移除 %1$s</string>

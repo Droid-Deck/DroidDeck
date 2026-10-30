@@ -1792,7 +1792,7 @@
     <string name="flatpakmgr_not_ready">Richte zuerst Flatpak ein</string>
     <string name="flatpakmgr_starting">Wird gestartet</string>
     <string name="flatpakmgr_exit_status">Flatpak wurde mit Status %1$d beendet</string>
-    <string name="flatpakmgr_wrong_arch">%1$s wurde für %2$s gebaut, Flatpak-Apps müssen hier aber für ARM64 gebaut sein. Nutze stattdessen das AppImage der App; DroidDeck führt x86-AppImages über FEX aus.</string>
+    <string name="flatpakmgr_wrong_arch">%1$s wurde für %2$s gebaut, das DroidDeck nicht ausführen kann. Flatpak-Apps brauchen hier eine ARM64- oder x86_64-Version.</string>
     <string name="flatpakmgr_installing">%1$s wird installiert</string>
     <string name="flatpakmgr_updating">%1$s wird aktualisiert</string>
     <string name="flatpakmgr_removing">%1$s wird entfernt</string>

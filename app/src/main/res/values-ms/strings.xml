@@ -1777,7 +1777,7 @@
     <string name="flatpakmgr_not_ready">Sediakan Flatpak dahulu</string>
     <string name="flatpakmgr_starting">Memulakan</string>
     <string name="flatpakmgr_exit_status">Flatpak keluar dengan status %1$d</string>
-    <string name="flatpakmgr_wrong_arch">%1$s dibina untuk %2$s, tetapi apl Flatpak di sini mesti dibina untuk ARM64. Gunakan AppImage apl itu; DroidDeck menjalankan AppImage x86 melalui FEX.</string>
+    <string name="flatpakmgr_wrong_arch">%1$s dibina untuk %2$s, yang tidak dapat dijalankan oleh DroidDeck. Apl Flatpak di sini memerlukan binaan ARM64 atau x86_64.</string>
     <string name="flatpakmgr_installing">Memasang %1$s</string>
     <string name="flatpakmgr_updating">Mengemas kini %1$s</string>
     <string name="flatpakmgr_removing">Mengalih keluar %1$s</string>

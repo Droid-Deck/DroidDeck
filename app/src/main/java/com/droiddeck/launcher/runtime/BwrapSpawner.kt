@@ -75,7 +75,10 @@ object BwrapSpawner {
         }
     }
 
-    class Plan(val root: File, val binds: List<Bind>, val cwd: String, val argv: List<String>, val env: Map<String, String>)
+    class Plan(
+        val root: File, val binds: List<Bind>, val cwd: String, val argv: List<String>, val env: Map<String, String>,
+        val envTool: String = "/usr/bin/env",
+    )
 
     data class Bind(val host: String, val guest: String) {
         val spec: String get() = if (host == guest) host else "$host:$guest"
@@ -179,12 +182,13 @@ object BwrapSpawner {
         val argv = request.getJSONArray("argv").let { a -> (0 until a.length()).map { a.getString(it) } }
         val env = LinkedHashMap<String, String>()
         request.optJSONObject("env")?.let { e -> e.keys().forEach { k -> env[k] = e.getString(k) } }
-        if (binds.any { it.guest == "/dev" }) gpu(rootfs, root, env)?.forEach { addBind(it) }
+        val envTool = request.optString("envTool").takeIf { it.startsWith("/") }
+        if (envTool == null && binds.any { it.guest == "/dev" }) gpu(rootfs, root, env)?.forEach { addBind(it) }
         val libc = listOf("/usr/lib/aarch64-linux-gnu/libc.so.6", "/lib/aarch64-linux-gnu/libc.so.6").map { hostPath(binds, root.path, it) }
-        if (preloadFits(rootfs, libc.firstOrNull { File(it).isFile } ?: libc.first())) preload(session, rootfs, env).forEach { addBind(it) }
+        if (envTool == null && preloadFits(rootfs, libc.firstOrNull { File(it).isFile } ?: libc.first())) preload(session, rootfs, env).forEach { addBind(it) }
         zypakShims(binds, root, dir).forEach { addBind(it) }
         browserSandboxes(env)
-        return Plan(root, binds, request.optString("cwd", "/").ifEmpty { "/" }, argv, env)
+        return Plan(root, binds, request.optString("cwd", "/").ifEmpty { "/" }, argv, env, envTool ?: "/usr/bin/env")
     }
 
     private const val GPU_DIR = "/run/droiddeck-gpu"
@@ -325,7 +329,7 @@ object BwrapSpawner {
         val verbose = plan.env["DROIDDECK_PROOT_VERBOSE"]?.toIntOrNull()
         if (verbose != null) { cmd.add(1, "-v"); cmd.add(2, verbose.toString()) }
         plan.binds.forEach { cmd.add("-b"); cmd.add(it.spec) }
-        cmd.add("/usr/bin/env")
+        cmd.add(plan.envTool)
         cmd.add("-i")
         plan.env.forEach { (k, v) -> cmd.add("$k=$v") }
         cmd.addAll(plan.argv)
