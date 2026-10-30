@@ -605,6 +605,18 @@ class GameEnvironmentTest(unittest.TestCase):
             self.assertEqual(env.get("WINE_CPU_TOPOLOGY"), expected, env)
             self.assertEqual(env.get("PROTON_CPU_TOPOLOGY"), proton, env)
 
+    def test_only_games_get_the_larger_swapchain(self):
+        game = {"STEAM_COMPAT_DATA_PATH": "/steam/compatdata/945360"}
+        self.assertTrue(MODULE["game_images"](game))
+        self.assertEqual(game["GAMESCOPE_WSI_MIN_IMAGE_COUNT"], "8")
+        self.assertEqual(game["GAMESCOPE_WSI_ENSURE_MIN_IMAGE_COUNT"], "1")
+        own = {"STEAM_COMPAT_DATA_PATH": "/steam/compatdata/945360", "GAMESCOPE_WSI_MIN_IMAGE_COUNT": "3"}
+        MODULE["game_images"](own)
+        self.assertEqual(own["GAMESCOPE_WSI_MIN_IMAGE_COUNT"], "3")
+        for env in ({}, {"STEAM_COMPAT_DATA_PATH": "/steam/compatdata/0"}):
+            self.assertFalse(MODULE["game_images"](env))
+            self.assertNotIn("GAMESCOPE_WSI_MIN_IMAGE_COUNT", env)
+
     def test_opengl_games_do_not_wait_for_the_screen_refresh(self):
         cases = [
             ({}, "0"),
