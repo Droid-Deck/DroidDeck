@@ -223,8 +223,10 @@ class DualScreenActivity : ComponentActivity() {
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-        if (hasFocus) applyImmersiveMode()
-        else if (unfocusPending && !DualScreenPanel.typingShown) dropFocus()
+        if (hasFocus) {
+            applyImmersiveMode()
+            if (!DualScreenPanel.typingShown) DualScreenPanel.returnFocus(this)
+        } else if (unfocusPending && !DualScreenPanel.typingShown) dropFocus()
     }
 
     @Suppress("OVERRIDE_DEPRECATION")
