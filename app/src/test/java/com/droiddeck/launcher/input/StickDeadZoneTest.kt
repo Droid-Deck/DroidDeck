@@ -1,10 +1,12 @@
 package com.droiddeck.launcher.input
 
 import android.hardware.input.InputManager
+import android.os.Looper
 import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.MotionEvent
 import java.nio.file.Files
+import java.time.Duration
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
@@ -146,6 +148,66 @@ class StickDeadZoneTest {
             assertEquals(0f, PadBridge.rightX(event, false))
             assertEquals(0.6f, PadBridge.rightY(event, false))
         } finally { event.recycle() }
+    }
+
+    @Test fun zeroDeadZoneDriftDoesNotConsumeBackTap() {
+        val (taps, presses) = backTapWithMotion(device(), MotionEvent.AXIS_X to 0.01f)
+        assertEquals(0.01f, pad().leftX)
+        assertEquals(listOf(false), taps)
+        assertTrue(presses.isEmpty())
+    }
+
+    @Test fun zeroDeadZoneJoyConDriftDoesNotConsumeBackTap() {
+        val (taps, presses) = backTapWithMotion(device(joyCon = true), MotionEvent.AXIS_X to 0.01f)
+        assertEquals(0.01f, pad().leftX)
+        assertEquals(listOf(false), taps)
+        assertTrue(presses.isEmpty())
+    }
+
+    @Test fun diagonalInsideTheLegacyChordGuardDoesNotConsumeBackTap() {
+        val (taps, presses) = backTapWithMotion(device(), MotionEvent.AXIS_X to 0.09f, MotionEvent.AXIS_Y to 0.09f)
+        assertEquals(0.09f, pad().leftX)
+        assertEquals(0.09f, pad().leftY)
+        assertEquals(listOf(false), taps)
+        assertTrue(presses.isEmpty())
+    }
+
+    @Test fun intentionalMotionOnEitherStickStillMakesABackChord() {
+        val device = device()
+        for (axis in intArrayOf(MotionEvent.AXIS_X, MotionEvent.AXIS_Z)) {
+            val (taps, presses) = backTapWithMotion(device, axis to 0.5f)
+            assertTrue(taps.isEmpty())
+            assertEquals(listOf(true, false), presses)
+        }
+    }
+
+    @Test fun higherGameDeadZoneDoesNotDisableExistingBackChords() {
+        val (taps, presses) = backTapWithMotion(device(), MotionEvent.AXIS_X to 0.2f, deadZone = 25)
+        assertEquals(0f, pad().leftX)
+        assertTrue(taps.isEmpty())
+        assertEquals(listOf(true, false), presses)
+    }
+
+    @Test fun higherGameDeadZoneDoesNotDisableExistingJoyConBackChords() {
+        val (taps, presses) = backTapWithMotion(device(joyCon = true), MotionEvent.AXIS_X to 0.2f, deadZone = 25)
+        assertEquals(0f, pad().leftX)
+        assertTrue(taps.isEmpty())
+        assertEquals(listOf(true, false), presses)
+    }
+
+    private fun backTapWithMotion(device: InputDevice, vararg axes: Pair<Int, Float>, deadZone: Int = 0): Pair<List<Boolean>, List<Boolean>> {
+        val taps = mutableListOf<Boolean>()
+        val presses = mutableListOf<Boolean>()
+        val input = BackQamInput(presses::add, taps::add)
+        bridge.setStickDeadZone(deadZone)
+        bridge.setOnChordInput(input::onChordInput)
+        assertTrue(input.onKeyEvent(KeyEvent(0, 100, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_BACK,
+            0, 0, device.id, 0), true))
+        motion(device, *axes)
+        assertTrue(input.onKeyEvent(KeyEvent(0, 100, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_BACK,
+            0, 0, device.id, 0), true))
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(500))
+        return taps to presses
     }
 
     private fun pad() = requireNotNull(JoyConPadTest.RecordingWriter.pads[0])
