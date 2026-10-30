@@ -1133,7 +1133,6 @@
     <string name="games_never_played">Nunca jugado</string>
     <string name="games_runtime_busy_percent">Runtime ocupado · %1$d%%</string>
     <string name="games_runtime_busy">Runtime ocupado</string>
-    <string name="games_runtime_first_play">El runtime se instala al jugar</string>
     <string name="games_runtime_update">Actualización del runtime disponible</string>
     <string name="games_runtime_ready">● Runtime listo</string>
     <string name="games_internal">Almacenamiento interno</string>

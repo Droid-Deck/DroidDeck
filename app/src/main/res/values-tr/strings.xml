@@ -1117,7 +1117,6 @@
     <string name="games_never_played">Hiç oynanmadı</string>
     <string name="games_runtime_busy_percent">Çalışma ortamı meşgul · %1$d%%</string>
     <string name="games_runtime_busy">Çalışma ortamı meşgul</string>
-    <string name="games_runtime_first_play">Çalışma ortamı ilk Oyna\'da yüklenir</string>
     <string name="games_runtime_update">Çalışma ortamı güncellemesi var</string>
     <string name="games_runtime_ready">● Çalışma ortamı hazır</string>
     <string name="games_internal">Dahili depolama</string>

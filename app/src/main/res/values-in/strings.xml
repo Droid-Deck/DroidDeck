@@ -1119,7 +1119,6 @@
     <string name="games_never_played">Belum pernah dimainkan</string>
     <string name="games_runtime_busy_percent">Runtime sibuk · %1$d%%</string>
     <string name="games_runtime_busy">Runtime sibuk</string>
-    <string name="games_runtime_first_play">Runtime terinstal saat Main pertama kali</string>
     <string name="games_runtime_update">Pembaruan runtime tersedia</string>
     <string name="games_runtime_ready">● Runtime siap</string>
     <string name="games_internal">Penyimpanan internal</string>

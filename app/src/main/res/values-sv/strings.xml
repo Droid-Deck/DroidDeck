@@ -1125,7 +1125,6 @@
     <string name="games_never_played">Aldrig spelat</string>
     <string name="games_runtime_busy_percent">Körmiljö upptagen · %1$d %%</string>
     <string name="games_runtime_busy">Körmiljö upptagen</string>
-    <string name="games_runtime_first_play">Körmiljön installeras första gången du trycker på Play</string>
     <string name="games_runtime_update">Uppdatering av körmiljön tillgänglig</string>
     <string name="games_runtime_ready">● Körmiljö redo</string>
     <string name="games_internal">Internt lagringsutrymme</string>

@@ -359,6 +359,7 @@ int bl_openat2(int dirfd, const char *path, void *how, size_t size) {
 }
 
 int bl_writewatch_syscall(long number, const long *args, long (*real)(long, ...), long *rc) __attribute__((visibility("hidden")));
+int bl_clock_syscall(long number, const long *args, long (*real)(long, ...), long *ret) __attribute__((visibility("hidden")));
 
 long syscall(long number, ...) {
   va_list ap;
@@ -384,6 +385,9 @@ long syscall(long number, ...) {
   }
   if (!real_syscall) {
     real_syscall = (long (*)(long, ...)) dlsym(RTLD_NEXT, "syscall");
+  }
+  if (bl_clock_syscall(number, args, real_syscall, &handled)) {
+    return handled;
   }
   if (bl_writewatch_syscall(number, args, real_syscall, &handled)) {
     return handled;

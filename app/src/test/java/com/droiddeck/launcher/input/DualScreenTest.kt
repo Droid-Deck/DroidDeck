@@ -32,6 +32,24 @@ class DualScreenTest {
         assertFalse(DualScreen.isBuiltIn(null, "Pixel 8"))
     }
 
+    @Test fun aSecondPanelNeedsATouchscreenOfItsOwnSize() {
+        val top = 1920 to 1080
+        val bottom = 1280 to 960
+        assertTrue(DualScreen.hasOwnTouchPanel(bottom, top, listOf(1920 to 1080, 1280 to 960)))
+        assertTrue(DualScreen.hasOwnTouchPanel(bottom, top, listOf(1080 to 1920, 960 to 1280)))
+        assertTrue(DualScreen.hasOwnTouchPanel(bottom, top, listOf(1920 to 1080, 1279 to 959)))
+        assertFalse(DualScreen.hasOwnTouchPanel(bottom, top, listOf(1920 to 1080)))
+        assertFalse(DualScreen.hasOwnTouchPanel(bottom, top, emptyList()))
+    }
+
+    @Test fun aPhantomPanelTheSizeOfTheMainScreenIsNotASecondScreen() {
+        val main = 1920 to 1080
+        assertFalse(DualScreen.hasOwnTouchPanel(main, main, listOf(1920 to 1080)))
+        assertFalse(DualScreen.hasOwnTouchPanel(main, main, listOf(1080 to 1920)))
+        assertTrue(DualScreen.hasOwnTouchPanel(main, main, listOf(1920 to 1080, 1920 to 1080)))
+        assertTrue(DualScreen.hasOwnTouchPanel(main, null, listOf(1920 to 1080)))
+    }
+
     @Test fun oneScreenDevicesGetNoSecondScreenInAnyMode() {
         for (mode in DualScreen.modes) {
             SessionPrefs.setDualScreenMode(context, mode)

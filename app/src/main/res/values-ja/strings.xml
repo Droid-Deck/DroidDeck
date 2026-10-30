@@ -1121,7 +1121,6 @@
     <string name="games_never_played">未プレイ</string>
     <string name="games_runtime_busy_percent">実行環境は使用中 · %1$d%%</string>
     <string name="games_runtime_busy">実行環境は使用中</string>
-    <string name="games_runtime_first_play">初回実行時に実行環境を導入</string>
     <string name="games_runtime_update">実行環境にアップデートがあります</string>
     <string name="games_runtime_ready">● 実行環境の準備完了</string>
     <string name="games_internal">内部ストレージ</string>
