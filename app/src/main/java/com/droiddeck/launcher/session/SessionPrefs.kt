@@ -241,7 +241,7 @@ object SessionPrefs {
         prefs(context).edit().putInt("gameStoresParallel", count.coerceIn(1, 3)).apply()
     }
 
-    fun hudEnabled(context: Context): Boolean = prefs(context).getBoolean(hudKey(context), !mangoappSession(context))
+    fun hudEnabled(context: Context): Boolean = prefs(context).getBoolean(hudKey(context), false)
 
     fun setHudEnabled(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean(hudKey(context), on).apply()
