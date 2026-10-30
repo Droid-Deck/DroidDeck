@@ -104,7 +104,10 @@ fi
 steam_devtools() {
   _bl_cdp=()
   if [ -f "$steam_root/.cef-enable-remote-debugging" ]; then
-    if ! (: <"/dev/tcp/127.0.0.1/$1") 2>/dev/null; then
+    if timeout 5 python3 -c 'import socket, sys
+s = socket.socket()
+s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+s.bind(("127.0.0.1", int(sys.argv[1])))' "$1" 2>/dev/null; then
       BL_CDP_PORT=$1
       return 0
     fi
@@ -998,7 +1001,7 @@ case $mode in
     fi
     steam_devtools 8080
     export BL_CDP_PORT
-    if [ -f "$HOME/.droiddeck-decky-enabled" ] && [ "${decky_arch:-}" = x86_64 ]; then
+    if [ -f "$HOME/.droiddeck-decky-enabled" ] && [ "${decky_arch:-}" = x86_64 ] && [ ${#_bl_cdp[@]} = 0 ]; then
       echo "== steam: devtools port $BL_CDP_PORT left open for the x86_64 Decky loader"
     else
       export BL_CDP_GUARD=$BL_CDP_PORT
