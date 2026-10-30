@@ -141,6 +141,10 @@ class SecondScreenPresentation(
         if (created) renderMode()
     }
 
+    fun retryTerminal() {
+        if (created && isShowing && currentMode == SecondScreenMode.TERMINAL && terminalSession == null) renderMode()
+    }
+
     val showsKeyboard: Boolean get() = isShowing && !menuShown && currentMode == SecondScreenMode.KEYBOARD_TRACKPAD
 
     val showsControls: Boolean get() = isShowing && currentMode != SecondScreenMode.NONE
