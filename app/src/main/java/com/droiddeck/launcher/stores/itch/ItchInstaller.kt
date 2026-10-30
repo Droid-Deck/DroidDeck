@@ -65,7 +65,10 @@ internal class ItchInstaller(
         val buildId = ItchBuilds.buildId(upload)
         val exe = try {
             val patched = updating && !resuming && patch(key, downloadKeyId, uploadId, buildId, size, scratch, handle)
-            if (cancelled.get()) return null
+            if (cancelled.get()) {
+                if (patched) dropCaches(scratch)
+                return null
+            }
             if (!patched) {
                 handle.stage(DownloadStage.DOWNLOAD)
                 download(key, downloadKeyId, uploadId, upload.optString("updated_at", upload.optString("updatedAt")), archive, size, handle)
