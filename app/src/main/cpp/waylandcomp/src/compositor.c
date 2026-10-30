@@ -2124,7 +2124,15 @@ void droiddeck_stream_frame(AHardwareBuffer *ahb) {
 
 unsigned droiddeck_stream_frames(void) { return atomic_load(&g_stream_frames); }
 
+static int64_t g_scene_ns;
+
+static int scene_held_for_limit(int64_t now, int64_t last, int limit, int unpaced, int64_t refresh) {
+    if (limit <= 0 || unpaced || last <= 0) return 0;
+    return now - last < 1000000000LL / limit - refresh / 2;
+}
+
 static void render_scene(void) {
+    g_scene_ns = now_ns();
     if (atomic_load(&g_stream_on)) { g_dirty_since_ns = 0; render_stream(); return; }
     struct draw_list dl = {0};
     struct surface *s;
@@ -2377,6 +2385,7 @@ static void on_vsync(int64_t frame_time_ns) {
         g_tick_held = 1;
         return;
     }
+    if (g_dirty && scene_held_for_limit(now, g_scene_ns, g_fps_limit, g_release_unpaced, g_refresh_ns)) return;
     if (g_dirty && !scene_waits_for_game(now)) render_scene();
 }
 
