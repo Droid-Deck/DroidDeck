@@ -18,7 +18,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import com.droiddeck.launcher.frontend.Library
 import com.droiddeck.launcher.session.LoadingState
-import com.droiddeck.launcher.session.PerfHud
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -81,8 +80,8 @@ import androidx.compose.ui.text.style.TextOverflow
 
 
 @Composable
-fun HudText(text: String, graph: FloatArray = FloatArray(0), color: String = "mint", opacity: Int = 70) {
-    if (text.isEmpty() && graph.size < 2) return
+fun HudText(text: String, color: String = "mint", opacity: Int = 70) {
+    if (text.isEmpty()) return
     val accent = hudInk(color)
     val wash = (opacity.coerceIn(30, 100) / 100f)
     val ink = accent.copy(alpha = (0.5f + wash * 0.5f).coerceIn(0.62f, 1f))
@@ -99,48 +98,12 @@ fun HudText(text: String, graph: FloatArray = FloatArray(0), color: String = "mi
                 )
                 .padding(horizontal = 8.dp, vertical = 5.dp),
         ) {
-            if (text.isNotEmpty()) Text(
+            Text(
                 text,
                 fontFamily = FontFamily.Monospace,
                 fontSize = 12.sp,
                 color = ink,
                 textAlign = TextAlign.End,
-            )
-            if (graph.size >= 2) {
-                if (text.isNotEmpty()) Spacer(Modifier.height(4.dp))
-                HudGraph(graph, accent, wash)
-            }
-        }
-    }
-}
-
-@Composable
-private fun HudGraph(samples: FloatArray, accent: Color, wash: Float) {
-    Canvas(Modifier.width(148.dp).height(44.dp)) {
-        val maxMs = PerfHud.GRAPH_MAX_MS
-        val step = size.width / (samples.size - 1)
-        fun yOf(ms: Float) = size.height * (1f - (ms / maxMs).coerceIn(0f, 1f))
-        val fillAlpha = wash * 0.5f
-        val fill = Path().apply {
-            moveTo(0f, size.height)
-            samples.forEachIndexed { i, ms -> lineTo(i * step, yOf(ms)) }
-            lineTo(size.width, size.height)
-            close()
-        }
-        drawPath(
-            fill,
-            Brush.verticalGradient(listOf(HUD_SLOW.copy(alpha = fillAlpha), accent.copy(alpha = fillAlpha * 0.45f))),
-        )
-        val guide = yOf(16.7f)
-        drawLine(Color.White.copy(alpha = 0.32f), Offset(0f, guide), Offset(size.width, guide), strokeWidth = 1f)
-        for (i in 0 until samples.lastIndex) {
-            val tone = ((samples[i] - 8f) / 25f).coerceIn(0f, 1f)
-            drawLine(
-                mix(accent, HUD_SLOW, tone).copy(alpha = 0.55f + wash * 0.4f),
-                Offset(i * step, yOf(samples[i])),
-                Offset((i + 1) * step, yOf(samples[i + 1])),
-                strokeWidth = 2.5f,
-                cap = StrokeCap.Round,
             )
         }
     }
@@ -156,17 +119,6 @@ private fun hudInk(color: String): Color = Color(
     }.toInt(),
 )
 
-private fun mix(from: Color, to: Color, t: Float): Color {
-    val u = t.coerceIn(0f, 1f)
-    return Color(
-        red = from.red + (to.red - from.red) * u,
-        green = from.green + (to.green - from.green) * u,
-        blue = from.blue + (to.blue - from.blue) * u,
-        alpha = 1f,
-    )
-}
-
-private val HUD_SLOW = Color(0xFFFF5C6C.toInt())
 
 private class LoadStage(@androidx.annotation.StringRes val label: Int, @androidx.annotation.StringRes val detail: Int)
 

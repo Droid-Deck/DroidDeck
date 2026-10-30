@@ -1,0 +1,5 @@
+APT::Install-Recommends "true";
+APT::Sandbox::User "root";
+Dpkg::Options { "--force-confdef"; "--force-confold"; };
+DPkg::Post-Invoke { "[ ! -x /usr/share/droiddeck/apt/remember ] || /usr/share/droiddeck/apt/remember"; };
+APT::Update::Post-Invoke { "[ ! -x /usr/share/droiddeck/apt/remember ] || /usr/share/droiddeck/apt/remember"; };

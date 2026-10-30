@@ -46,6 +46,7 @@ class App : Application() {
         com.droiddeck.launcher.glasses.Glasses.init(this)
         com.droiddeck.launcher.glasses.GlassesMenuMirror.initialize(this)
         BwrapSpawner.start(this)
+        com.droiddeck.launcher.runtime.RootSpawner.start(this)
         com.droiddeck.launcher.frontend.GameFileSync.start(this)
         com.droiddeck.launcher.stores.StoresState.init(this)
         com.droiddeck.launcher.stores.StoresState.register(com.droiddeck.launcher.stores.gog.GogBackend)

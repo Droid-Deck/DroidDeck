@@ -81,7 +81,7 @@ object StoresState {
             runCatching { com.droiddeck.launcher.stores.battlenet.BattleNetClient.syncAccount(app) }
             val found = Store.entries.mapNotNull { store -> StoreAccounts.displayName(app, store)?.let { store to it } }
             val onDisk = StoreInstallRoot.gameFolders(app).mapNotNull { folder ->
-                StoreGameSidecar.read(folder)?.takeIf { it.isInstalled }?.let { InstalledStoreGame(it, folder) }
+                StoreGameSidecar.read(folder)?.takeIf { it.isInstalled || it.store == Store.GOG && it.state == StoreGameSidecar.STATE_UPDATING }?.let { InstalledStoreGame(it, folder) }
             } + runCatching { com.droiddeck.launcher.stores.battlenet.BattleNetBackend.installedGames(app) }.getOrDefault(emptyList())
             val partial = StoreInstallRoot.unfinished(app)
             val version = if (StoresNative.available) StoresNative.version ?: "" else ""
@@ -95,6 +95,7 @@ object StoresState {
                     engine = version
                     accountsLoaded = true
                 }
+                com.droiddeck.launcher.stores.gog.GogMaintenance.checkInstalled(app, onDisk)
             }
         }
     }
@@ -191,7 +192,10 @@ object StoresState {
             backend?.signOut(app)
             if (store == Store.GOG) com.droiddeck.launcher.stores.gog.GogComet.replaceAccount { StoreAccounts.clear(app, store) }
             else if (store != Store.XBOX || backend == null) StoreAccounts.clear(app, store)
-            if (store == Store.ITCH) com.droiddeck.launcher.stores.itch.ItchCollections.clear()
+            if (store == Store.ITCH) {
+                com.droiddeck.launcher.stores.itch.ItchCollections.clear()
+                com.droiddeck.launcher.stores.itch.ItchUpdates.clear(app)
+            }
             main.post {
                 if (store == Store.XBOX && StoreAccounts.signedInAs(app, store) != null) return@post
                 accounts.remove(store); library.remove(store); status.remove(store); problems.remove(store); libraryAsked.remove(store)
@@ -282,6 +286,7 @@ object StoresState {
                 main.post {
                     installed = installed.filterNot { it.folder.absolutePath == game.folder.absolutePath }
                     uninstalling.remove(key)
+                    if (game.sidecar.store == Store.ITCH) com.droiddeck.launcher.stores.itch.ItchUpdates.applied(app, key)
                 }
             })
             main.post(onDone)

@@ -1,0 +1,7 @@
+#!/bin/bash
+key=$1
+shift
+line=$(grep -m1 "^$key=" /etc/droiddeck/strings 2>/dev/null)
+text=${line#*=}
+[ -n "$line" ] || text=$key
+printf "$text\n" "$@"

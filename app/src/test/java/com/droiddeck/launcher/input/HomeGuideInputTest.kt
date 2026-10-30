@@ -7,6 +7,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowBuild
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28, 33], manifest = Config.NONE, application = Application::class)
@@ -24,6 +25,14 @@ class HomeGuideInputTest {
         assertTrue(input.onKeyEvent(home(KeyEvent.ACTION_DOWN, repeat = 1), true))
         assertFalse(input.onKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_BUTTON_X), true))
         assertTrue(input.onKeyEvent(home(KeyEvent.ACTION_UP, down = 77), true))
+        assertEquals(listOf(true, false), states)
+    }
+
+    @Test fun genericLayoutMoveHomeHoldsGuideLikeHome() {
+        val down = KeyEvent(10, 110, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MOVE_HOME, 0, 0, 10, 102)
+        val up = KeyEvent(10, 200, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_MOVE_HOME, 0, 0, 10, 102)
+        assertTrue(input.onKeyEvent(down, true))
+        assertTrue(input.onKeyEvent(up, true))
         assertEquals(listOf(true, false), states)
     }
 
@@ -58,5 +67,25 @@ class HomeGuideInputTest {
         input.onDeviceRemoved(11)
         assertEquals(listOf(true, false), states)
         assertEquals(1, cancellations)
+    }
+
+    private fun quickMenu(action: Int) = KeyEvent(10, 110, action, KeyEvent.KEYCODE_HOME, 0, 0, 10, 194)
+
+    @Test fun duoQuickMenuHomePassesThroughToTheSystemAndCancelsAHeldGuide() {
+        ShadowBuild.setModel("Retroid Pocket Duo")
+        assertTrue(input.onKeyEvent(home(KeyEvent.ACTION_DOWN), true))
+        assertFalse(input.onKeyEvent(quickMenu(KeyEvent.ACTION_DOWN), true))
+        assertEquals(listOf(true, false), states)
+        assertEquals(1, cancellations)
+        assertFalse(input.onKeyEvent(quickMenu(KeyEvent.ACTION_UP), true))
+        assertTrue(input.onKeyEvent(home(KeyEvent.ACTION_UP), true))
+        assertEquals(listOf(true, false), states)
+    }
+
+    @Test fun theSameScanCodeStillHoldsGuideOnOtherDevices() {
+        ShadowBuild.setModel("Retroid Pocket 5")
+        assertTrue(input.onKeyEvent(quickMenu(KeyEvent.ACTION_DOWN), true))
+        assertTrue(input.onKeyEvent(quickMenu(KeyEvent.ACTION_UP), true))
+        assertEquals(listOf(true, false), states)
     }
 }
