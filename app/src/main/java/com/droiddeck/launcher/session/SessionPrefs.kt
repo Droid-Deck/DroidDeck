@@ -94,6 +94,12 @@ object SessionPrefs {
         prefs(context).edit().putString("dualScreenMode", mode).apply()
     }
 
+    fun secondScreenPanel(context: Context): String? = prefs(context).getString("secondScreenPanel", null)
+
+    fun setSecondScreenPanel(context: Context, mode: String) {
+        prefs(context).edit().putString("secondScreenPanel", mode).apply()
+    }
+
     fun dualScreenLauncher(context: Context): Boolean = prefs(context).getBoolean("dualScreenLauncher", true)
 
     fun setDualScreenLauncher(context: Context, on: Boolean) {

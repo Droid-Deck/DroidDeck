@@ -1280,7 +1280,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 screenLayoutsOpen = true
             },
             onFexPreset = { v -> SessionPrefs.setFexPreset(this@SessionActivity, v); readPrefs() },
-            onSecondScreenMode = { mode -> if (docked) drawerOpen = false; typingReturnMode = null; selectSecondScreenMode(mode) },
+            onSecondScreenMode = { mode ->
+                if (docked) drawerOpen = false
+                typingReturnMode = null
+                if (mode != SecondScreenMode.NONE) SessionPrefs.setSecondScreenPanel(this@SessionActivity, mode.id)
+                selectSecondScreenMode(mode)
+            },
             onSecondScreenDisplay = ::selectSecondScreenDisplay,
             onLaunchAndroidApp = { app, displayId ->
                 drawerOpen = false
@@ -2956,7 +2961,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (secondScreenDisplays.none { it.id == target.displayId }) return
         SessionState.secondScreenAutoOpened = true
         selectedSecondScreenDisplay = target.displayId
-        selectSecondScreenMode(if (SessionState.deckPad) SecondScreenMode.DECK_CONTROLS else SecondScreenMode.KEYBOARD_TRACKPAD)
+        selectSecondScreenMode(SecondScreenMode.opening(SessionPrefs.secondScreenPanel(this), SessionState.deckPad))
     }
 
     private fun selectSecondScreenDisplay(displayId: Int) {
