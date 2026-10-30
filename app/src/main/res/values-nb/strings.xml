@@ -1125,7 +1125,6 @@
     <string name="games_never_played">Aldri spilt</string>
     <string name="games_runtime_busy_percent">Kjøretid opptatt · %1$d%%</string>
     <string name="games_runtime_busy">Kjøretid opptatt</string>
-    <string name="games_runtime_first_play">Kjøretiden installeres ved første Spill</string>
     <string name="games_runtime_update">Kjøretidsoppdatering tilgjengelig</string>
     <string name="games_runtime_ready">● Kjøretid klar</string>
     <string name="games_internal">Intern lagring</string>

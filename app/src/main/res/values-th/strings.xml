@@ -1119,7 +1119,6 @@
     <string name="games_never_played">ยังไม่เคยเล่น</string>
     <string name="games_runtime_busy_percent">รันไทม์กำลังทำงาน · %1$d%%</string>
     <string name="games_runtime_busy">รันไทม์กำลังทำงาน</string>
-    <string name="games_runtime_first_play">รันไทม์จะติดตั้งเมื่อกด Play ครั้งแรก</string>
     <string name="games_runtime_update">มีอัปเดตรันไทม์</string>
     <string name="games_runtime_ready">● รันไทม์พร้อมใช้งาน</string>
     <string name="games_internal">พื้นที่จัดเก็บภายใน</string>

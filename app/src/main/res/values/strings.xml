@@ -1274,7 +1274,6 @@
     <string name="games_never_played">Never played</string>
     <string name="games_runtime_busy_percent">Runtime busy · %1$d%%</string>
     <string name="games_runtime_busy">Runtime busy</string>
-    <string name="games_runtime_first_play">Runtime installs on first Play</string>
     <string name="games_runtime_update">Runtime update available</string>
     <string name="games_runtime_ready">● Runtime ready</string>
     <string name="games_internal">Internal storage</string>
