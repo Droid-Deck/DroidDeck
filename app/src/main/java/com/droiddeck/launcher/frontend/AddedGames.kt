@@ -234,6 +234,7 @@ object AddedGames {
         entries.map { File(it.folder) }.filter(::owns).maxByOrNull { canonical(it).length }?.let { return it }
         SessionPrefs.removedAddedGames(context).map { File(it) }.filter(::owns).maxByOrNull { canonical(it).length }?.let { return it }
         StoreInstallRoot.gameFolders(context).firstOrNull(::holds)?.let { return it }
+        val removed = SessionPrefs.removedAddedGames(context)
         val dirs = listOfNotNull(
             GameStorage.effective(context)?.let { File(it.path, "steamapps/common") },
             GameStorage.effective(context)?.let { File(it.path) },
@@ -242,7 +243,7 @@ object AddedGames {
             val base = canonical(dir)
             if (!inside(path, base)) continue
             val first = path.removePrefix("$base/").substringBefore('/')
-            File(dir, first).takeIf { it.isDirectory && !isSteamLibraryFolder(first) }?.let { return it }
+            File(dir, first).takeIf { it.isDirectory && !isSteamLibraryFolder(first) && it.path !in removed && owns(it) }?.let { return it }
         }
         return null
     }
