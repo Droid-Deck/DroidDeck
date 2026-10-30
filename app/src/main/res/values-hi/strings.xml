@@ -1125,7 +1125,6 @@
     <string name="games_never_played">कभी नहीं खेला</string>
     <string name="games_runtime_busy_percent">रनटाइम व्यस्त · %1$d%%</string>
     <string name="games_runtime_busy">रनटाइम व्यस्त</string>
-    <string name="games_runtime_first_play">पहली बार Play पर रनटाइम इंस्टॉल होता है</string>
     <string name="games_runtime_update">रनटाइम अपडेट उपलब्ध</string>
     <string name="games_runtime_ready">● रनटाइम तैयार</string>
     <string name="games_internal">इंटरनल स्टोरेज</string>

@@ -166,7 +166,7 @@ class FrontEndState(
     val sgdbUserKey: Boolean = false,
     val storesShowMature: Boolean = false,
     val storesSort: String = SessionPrefs.STORES_SORTS.first(),
-    val storesView: String = SessionPrefs.STORES_VIEWS.first(),
+    val storesView: String = SessionPrefs.DEFAULT_STORES_VIEW,
     val storeDownloadsActive: Int = 0,
     val updates: UpdatesState = UpdatesState(),
 )

@@ -113,12 +113,16 @@ public final class LinuxRuntime {
     }
 
     public static boolean isInstalled(Context context) {
+        return hasRootfs(context) && (patchedProot(context) || rootfsProotReady(context));
+    }
+
+    /** The rootfs alone: enough to read the game library, while the proot pack can still be downloading. */
+    public static boolean hasRootfs(Context context) {
         if (LinuxRuntimeInstaller.isRemoving() || LinuxRuntimeInstaller.hasRemovalPending(context)) return false;
         File root = rootDir(context);
         return (new File(root, "usr/bin/gamescope").isFile() || new File(root, "usr/games/gamescope").isFile())
                 && (new File(root, SESSION_SCRIPT.substring(1)).isFile()
-                        || new File(root, LegacyNames.SESSION_SCRIPT.substring(1)).isFile())
-                && (patchedProot(context) || rootfsProotReady(context));
+                        || new File(root, LegacyNames.SESSION_SCRIPT.substring(1)).isFile());
     }
 
     public static File vulkanIcd(Context context) {

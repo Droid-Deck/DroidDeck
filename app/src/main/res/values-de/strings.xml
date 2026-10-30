@@ -1117,7 +1117,6 @@
     <string name="games_never_played">Nie gespielt</string>
     <string name="games_runtime_busy_percent">Laufzeit beschäftigt · %1$d %%</string>
     <string name="games_runtime_busy">Laufzeit beschäftigt</string>
-    <string name="games_runtime_first_play">Laufzeit wird beim ersten „Spielen“ installiert</string>
     <string name="games_runtime_update">Laufzeit-Update verfügbar</string>
     <string name="games_runtime_ready">● Laufzeit bereit</string>
     <string name="games_internal">Interner Speicher</string>

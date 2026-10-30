@@ -543,7 +543,6 @@ class SessionService : Service() {
         val fakeInputDir = File(sessionRoot, "dev/input").apply { mkdirs() }
         val controllersOn = !File(Environment.getExternalStorageDirectory(), NO_PAD_SWITCH).exists()
         SessionState.deckPad = false
-        SessionState.secondScreenAutoOpened = false
         deckBinds = emptyList()
         inputSysfs = null
         if (controllersOn) {
@@ -717,6 +716,7 @@ class SessionService : Service() {
                     if (!pulse.setMicSuspended(false)) Log.w(TAG, "could not resume microphone source")
                 },
                 zramControl = File(filesDir, "${LinuxRuntime.DIR}/tmp/.bl-zram"),
+                clockControl = File(filesDir, "${LinuxRuntime.DIR}/tmp/.bl-clock"),
                 pagedOut = { processes, unacknowledged, residentKb, swapKb, swapBeforeKb, millis ->
                     Log.i(TAG, "paged out $processes processes ($unacknowledged unacknowledged) in $millis ms: " +
                         "resident ${residentKb / 1024} MB, zram ${swapBeforeKb / 1024} -> ${swapKb / 1024} MB")
@@ -1036,7 +1036,7 @@ class SessionService : Service() {
                 Log.w(TAG, "added games: ${root.host} is not a readable folder this session")
             }
         }
-        for ((host, guest) in com.droiddeck.launcher.stores.StoreInstallRoot.externalRoots(this)) {
+        for ((host, guest) in com.droiddeck.launcher.stores.StoreInstallRoot.externalRootsForXodus(this)) {
             if (host.isDirectory && host.canRead()) {
                 File(LinuxRuntime.rootDir(this), guest.removePrefix("/")).mkdirs()
                 binds.add(host.path + ":" + guest)

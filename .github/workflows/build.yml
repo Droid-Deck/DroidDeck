@@ -433,6 +433,7 @@ jobs:
         id: build-label
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           BUILD_REF: ${{ github.ref_name }}
           BUILD_SHA: ${{ github.sha }}
@@ -451,6 +452,7 @@ jobs:
           echo "label=$label" >> "$GITHUB_OUTPUT"
           echo "DROIDDECK_SOURCE_COMMIT=${PR_HEAD_SHA:-$BUILD_SHA}" >> "$GITHUB_ENV"
           echo "DROIDDECK_PR_NUMBER=${PR_NUMBER:-0}" >> "$GITHUB_ENV"
+          echo "DROIDDECK_PR_TITLE=${PR_TITLE//$'\n'/ }" >> "$GITHUB_ENV"
           echo "Build: \`$label\`" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Rust toolchain for the store engines (aarch64-linux-android)
@@ -760,7 +762,7 @@ jobs:
   checks:
     name: Compile and test APK
     needs: [build, python-tests]
-    if: ${{ always() && (github.event_name != 'pull_request' || !github.event.pull_request.draft) }}
+    if: ${{ !cancelled() && (github.event_name != 'pull_request' || !github.event.pull_request.draft) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:

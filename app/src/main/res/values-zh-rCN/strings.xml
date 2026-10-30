@@ -1204,7 +1204,6 @@
     <string name="games_never_played">从未游玩</string>
     <string name="games_runtime_busy_percent">运行时繁忙 · %1$d%%</string>
     <string name="games_runtime_busy">运行时繁忙</string>
-    <string name="games_runtime_first_play">运行时在首次“游玩”时安装</string>
     <string name="games_runtime_update">运行时有可用更新</string>
     <string name="games_runtime_ready">● 运行时就绪</string>
     <string name="games_internal">内部存储</string>

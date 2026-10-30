@@ -1123,7 +1123,6 @@
     <string name="games_never_played">플레이한 적 없음</string>
     <string name="games_runtime_busy_percent">런타임 사용 중 · %1$d%%</string>
     <string name="games_runtime_busy">런타임 사용 중</string>
-    <string name="games_runtime_first_play">처음 \"Steam 실행\" 시 런타임 설치</string>
     <string name="games_runtime_update">런타임 업데이트 있음</string>
     <string name="games_runtime_ready">● 런타임 준비됨</string>
     <string name="games_internal">내부 저장 공간</string>
