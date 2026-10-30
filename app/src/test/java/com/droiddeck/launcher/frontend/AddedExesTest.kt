@@ -142,7 +142,7 @@ class AddedExesTest {
         val storage = visualNovels()
         val vns = File(storage, "VNs")
         File(vns, "steamapps/common").mkdirs()
-        File(vns, "Extras/readme.txt").apply { parentFile!!.mkdirs(); writeText("x") }
+        File(vns, "Notes/readme.txt").apply { parentFile!!.mkdirs(); writeText("x") }
         assertEquals(listOf("Albatross", "Angel Beats", "Rance 01", "Sayonara").map { File(vns, it).path },
             AddedGames.scan(app).map { it.folder.path })
         val pick = File(vns, "Rance 01/Rance01.exe")

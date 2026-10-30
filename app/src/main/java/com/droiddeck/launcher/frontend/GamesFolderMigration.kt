@@ -24,16 +24,22 @@ object GamesFolderMigration {
         for (root in roots) {
             var n = 0
             val steamInstalls = AddedGames.steamInstallDirs(root.host)
-            val tops = root.host.listFiles { f -> f.isDirectory }?.sortedBy { it.name.lowercase() }.orEmpty()
-                .filterNot { AddedGames.isSteamLibraryFolder(it.name) || it.name.lowercase() in steamInstalls }
-            for (folder in tops.flatMap { AddedGames.groupGames(it) ?: listOf(it) }) {
-                if (folder.absolutePath in storeRoots || StoreGameSidecar.read(folder) != null) continue
-                if (folder.path in entries) continue
-                val picked = SessionPrefs.addedGameExe(context, folder.path).takeIf { it.isNotEmpty() }?.let { File(it) }?.takeIf { it.isFile }
-                val exe = picked ?: AddedGames.rank(folder).exes.firstOrNull() ?: continue
-                AddedExes.put(context, AddedExes.Entry(folder.path, exe.path, picked = picked != null))
-                entries.add(folder.path)
-                if (folder.path !in removed) n++
+            for (top in root.host.listFiles { f -> f.isDirectory }?.sortedBy { it.name.lowercase() }.orEmpty()) {
+                if (AddedGames.isSteamLibraryFolder(top.name) || top.name.lowercase() in steamInstalls) continue
+                if (top.absolutePath in storeRoots || StoreGameSidecar.read(top) != null) continue
+                if (top.path in entries) continue
+                val topPick = SessionPrefs.addedGameExe(context, top.path).takeIf { it.isNotEmpty() }?.let { File(it) }?.takeIf { it.isFile }
+                for (folder in AddedGames.groupGames(top) ?: listOf(top)) {
+                    if (folder.absolutePath in storeRoots || StoreGameSidecar.read(folder) != null) continue
+                    if (folder.path in entries) continue
+                    val picked = SessionPrefs.addedGameExe(context, folder.path).takeIf { it.isNotEmpty() }?.let { File(it) }?.takeIf { it.isFile }
+                        ?: topPick?.takeIf { it.path.startsWith(folder.path + File.separator) }
+                    val exe = picked ?: AddedGames.rank(folder).exes.firstOrNull() ?: continue
+                    AddedExes.put(context, AddedExes.Entry(folder.path, exe.path, picked = picked != null))
+                    entries.add(folder.path)
+                    if (folder != top && top.path in removed) SessionPrefs.setAddedGameRemoved(context, folder.path, true)
+                    else if (folder.path !in removed) n++
+                }
             }
             Log.i(TAG, "games: migrated ${root.host} → $n games")
         }

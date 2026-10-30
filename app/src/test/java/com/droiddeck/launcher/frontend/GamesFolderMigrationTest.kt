@@ -79,6 +79,23 @@ class GamesFolderMigrationTest {
         assertEquals(setOf(albatross.path, rance.path, solo.path), AddedGames.scan(app).map { it.folder.path }.toSet())
     }
 
+    @Test fun aRemovedOrAlreadyAddedFolderOfGamesKeepsItsState() {
+        val pc = tmp.newFolder("PC")
+        val gone = File(pc, "Gone"); exe(pc, "Gone/A/a.exe"); exe(pc, "Gone/B/b.exe")
+        val kept = File(pc, "Kept"); val keptExe = exe(pc, "Kept/A/a.exe"); exe(pc, "Kept/B/b.exe")
+        val store = File(pc, "Store"); exe(pc, "Store/Content/game.exe"); exe(pc, "Store/Tools/tool.exe")
+        StoreGameSidecar.file(store).writeText("""{"store":"gog","id":"2","title":"Store Game","exe":"Content/game.exe"}""")
+        val solo = File(pc, "Solo"); exe(pc, "Solo/Extras/viewer.exe"); exe(pc, "Solo/Content/solo.exe")
+        SessionPrefs.setAddedGamesDirs(app, listOf(pc.path))
+        SessionPrefs.setAddedGameRemoved(app, gone.path, true)
+        AddedExes.put(app, AddedExes.Entry(kept.path, keptExe.path))
+        GamesFolderMigration.run(app)
+        val entries = AddedExes.list(app).map { it.folder }.toSet()
+        assertEquals(setOf(File(gone, "A").path, File(gone, "B").path, kept.path, solo.path), entries)
+        assertTrue(SessionPrefs.removedAddedGames(app).containsAll(listOf(File(gone, "A").path, File(gone, "B").path)))
+        assertEquals(setOf(kept.path, solo.path), AddedGames.scan(app).map { it.folder.path }.toSet())
+    }
+
     @Test fun runningAgainChangesNothing() {
         val pc = tmp.newFolder("PC")
         exe(pc, "Alpha/Alpha.exe")
