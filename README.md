@@ -27,42 +27,17 @@ DroidDeck brings the SteamOS experience to Android: Valve's Steam client in Big 
 
 > DroidDeck has no website. Only download it from this repository's [Releases](https://github.com/Droid-Deck/DroidDeck/releases).
 
-## What it does
-
-Every game you own in one Library: Steam, GOG, Epic, Amazon, Xbox, Battle.net and itch.io.
-
 <p align="center">
   <img src="docs/releases/media/0.6.7/game-page.jpg" width="49%" alt="A GOG game's page with its art as the backdrop">
   <img src="docs/releases/media/0.6.7/battlenet-store.jpg" width="49%" alt="The Battle.net store catalog">
-</p>
-
-Steam Input chords, sliders and the volume indicator work like they do on a Deck.
-
-<p align="center"><img src="docs/releases/media/0.6.7/steam-input-chords.gif" width="60%" alt="Holding Back on a Retroid Pocket Duo while Steam shows its list of shortcuts"></p>
-
-Stream from Xbox Cloud Gaming with optional frame generation, or pause a game and let the device actually sleep.
-
-<p align="center">
   <img src="docs/releases/media/0.6.7/xbox-cloud-gaming.gif" width="49%" alt="Streaming Deep Rock Galactic with Xbox Cloud Gaming">
   <img src="docs/releases/media/0.6.7/pause-resume.gif" width="49%" alt="Pausing a session and resuming from the paused frame">
-</p>
-
-A full Ubuntu 26.04 desktop with Kubuntu's Plasma, `apt`, Flatpak and your Android keyboard.
-
-<p align="center">
   <img src="docs/releases/media/0.6.7/ubuntu-desktop-discover.jpg" width="49%" alt="Discover on the Kubuntu desktop">
   <img src="docs/releases/media/0.6.7/ubuntu-desktop-keyboard.gif" width="49%" alt="Typing into the Kubuntu app menu with the Android keyboard">
-</p>
-
-Both screens on dual screen handhelds, portrait mode, and the DroidDeck HUD.
-
-<p align="center">
+  <img src="docs/releases/media/0.6.7/steam-input-chords.gif" width="32%" alt="Holding Back on a Retroid Pocket Duo while Steam shows its list of shortcuts">
   <img src="docs/releases/media/0.6.7/dual-screen-steam-keyboard.gif" width="32%" alt="Steam search on the Retroid Pocket Duo with the keyboard on the bottom screen">
-  <img src="docs/releases/media/0.6.7/portrait-launcher.gif" width="32%" alt="The launcher in portrait">
   <img src="docs/releases/media/0.6.7/droiddeck-hud.gif" width="32%" alt="Tapping the DroidDeck HUD through its sizes while a game runs">
 </p>
-
-Plus smart glasses ([support matrix](docs/smart-glasses-support.md)), Steam Remote Play, VR and remappable shortcut buttons. Release notes live in [docs/releases](docs/releases).
 
 ## Install
 
@@ -70,6 +45,8 @@ Plus smart glasses ([support matrix](docs/smart-glasses-support.md)), Steam Remo
 2. About 3 GB free for the runtime, plus 1.1 GB for the desktop and emulators.
 3. Install the [APK](https://github.com/Droid-Deck/DroidDeck/releases/download/0.6.7/DroidDeck-0.6.7.apk), install the Linux runtime, press **Play** and sign in to Steam.
 4. On Android 14 and newer, turn on **Disable child process restrictions** in Developer options. On Android 12 and 13, Steam's first launch shows a **Fix it for me** button that walks you through it.
+
+Smart glasses setup is in the [support matrix](docs/smart-glasses-support.md). Release notes are in [docs/releases](docs/releases).
 
 Help, Preview builds and device reports are on [Discord](https://discord.gg/JRGAvawjsm). For bugs, post in **#bug-reports** with the zip from **Share logs**.
 
