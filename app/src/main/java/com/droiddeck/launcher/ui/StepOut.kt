@@ -220,11 +220,6 @@ internal fun StepOut(
                     pieces.forEachIndexed { i, a ->
                         launch { delay(Motion.ms(260 + i * 55).toLong()); a.animateTo(1f, Motion.tw(220)) }
                     }
-                    if (!moved && inputMode.inputMode == InputMode.Keyboard) launch {
-                        delay(Motion.ms(300).toLong())
-                        withFrameNanos { }
-                        runCatching { first.requestFocus() }
-                    }
                 }
             } else {
                 opener[0]?.let { o -> if (inputMode.inputMode == InputMode.Keyboard) runCatching { o.requester.requestFocus() } }
@@ -241,6 +236,13 @@ internal fun StepOut(
                 moving = false
                 onClosed()
             }
+        }
+
+        LaunchedEffect(open, measured) {
+            if (!open || measured == null || inputMode.inputMode != InputMode.Keyboard) return@LaunchedEffect
+            delay(Motion.ms(300).toLong())
+            withFrameNanos { }
+            runCatching { first.requestFocus() }
         }
 
         LaunchedEffect(open, grown, inputMode.inputMode) {
