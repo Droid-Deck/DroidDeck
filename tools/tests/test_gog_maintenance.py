@@ -109,6 +109,35 @@ class GogMaintenance(unittest.TestCase):
         with self.assertRaises(ValueError):
             G["lease"](self.folder, os.getpid())
 
+    def test_shared_store_lease_excludes_updates_until_the_game_exits(self):
+        import fcntl
+        (self.folder / ".droiddeck-store.json").write_text(json.dumps({"store": "epic", "id": "1"}))
+        control = self.folder / ".droiddeck-maintenance"
+        control.mkdir()
+        owner = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
+        self.addCleanup(lambda: owner.poll() is None and owner.kill())
+        lease = subprocess.Popen([sys.executable, str(BIN / "droiddeck-gog-maintenance"), "store-lease", str(self.folder), str(owner.pid)],
+                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        self.addCleanup(lease.stdout.close)
+        self.addCleanup(lease.stderr.close)
+        self.addCleanup(lambda: lease.poll() is None and lease.kill())
+        self.assertEqual(b"ready\n", lease.stdout.readline())
+        with G["lock_file"](control) as stream:
+            with self.assertRaises(BlockingIOError):
+                fcntl.lockf(stream, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        owner.terminate(); owner.wait()
+        lease.wait(timeout=5)
+        with G["lock_file"](control) as stream:
+            fcntl.lockf(stream, fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+    def test_shared_store_lease_rejects_applying_or_incomplete_journals(self):
+        (self.folder / ".droiddeck-store.json").write_text(json.dumps({"store": "amazon", "id": "1"}))
+        control = self.folder / ".droiddeck-maintenance"
+        control.mkdir()
+        (control / "operation.json").write_text(json.dumps({"schema": 1, "store": "amazon", "id": "1", "phase": "applying"}))
+        with self.assertRaises(ValueError):
+            G["store_lease"](self.folder, os.getpid())
+
     def test_running_game_and_wrong_prefix_are_distinguished(self):
         proc = self.folder / "proc"
         for pid, prefix, name in [(10, "/prefix/pfx", "game.exe"), (11, "/other/pfx", "other.exe"), (12, "/prefix/pfx", "services.exe")]:

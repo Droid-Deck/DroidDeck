@@ -95,7 +95,13 @@ pub fn build(files: &[PlanFile], windows: &[u32], budget: u64, cached: &[u32]) -
         }
         occupancy += window(c);
         let id = producers.len() as u32;
-        producers.push(Producer { chunk: c, anchor: NONE, preloaded: true, copy: 0, uses: Vec::new() });
+        producers.push(Producer {
+            chunk: c,
+            anchor: NONE,
+            preloaded: true,
+            copy: 0,
+            uses: Vec::new(),
+        });
         copies.insert(c, 1);
         active.insert(c, id);
         resident.insert(c, u);
@@ -114,7 +120,13 @@ pub fn build(files: &[PlanFile], windows: &[u32], budget: u64, cached: &[u32]) -
             None => {
                 let id = producers.len() as u32;
                 let copy = copies.entry(c).or_insert(0);
-                producers.push(Producer { chunk: c, anchor: f, preloaded: false, copy: *copy, uses: Vec::new() });
+                producers.push(Producer {
+                    chunk: c,
+                    anchor: f,
+                    preloaded: false,
+                    copy: *copy,
+                    uses: Vec::new(),
+                });
                 *copy += 1;
                 fetch.push(id);
                 active.insert(c, id);
@@ -161,8 +173,19 @@ pub fn build(files: &[PlanFile], windows: &[u32], budget: u64, cached: &[u32]) -
         }
     }
 
-    let refetches = producers.iter().filter(|p| !p.preloaded && p.copy > 0).count() as u32;
-    Schedule { file_start, use_file, use_producer, producers, fetch, peak_cache: peak, refetches }
+    let refetches = producers
+        .iter()
+        .filter(|p| !p.preloaded && p.copy > 0)
+        .count() as u32;
+    Schedule {
+        file_start,
+        use_file,
+        use_producer,
+        producers,
+        fetch,
+        peak_cache: peak,
+        refetches,
+    }
 }
 
 #[cfg(test)]
@@ -176,7 +199,12 @@ mod tests {
             parts: chunks
                 .iter()
                 .map(|&c| {
-                    let p = PlanPart { chunk: c, chunk_offset: 0, size: 10, file_offset: off };
+                    let p = PlanPart {
+                        chunk: c,
+                        chunk_offset: 0,
+                        size: 10,
+                        file_offset: off,
+                    };
                     off += 10;
                     p
                 })
@@ -228,7 +256,12 @@ mod tests {
 
     #[test]
     fn cached_chunks_are_reused_soonest_first() {
-        let s = build(&[file(&[0]), file(&[1]), file(&[2])], &[10, 10, 10], 20, &[2, 0, 1, 7]);
+        let s = build(
+            &[file(&[0]), file(&[1]), file(&[2])],
+            &[10, 10, 10],
+            20,
+            &[2, 0, 1, 7],
+        );
         assert!(s.fetch.is_empty() || s.fetch.iter().all(|&p| s.producers[p as usize].chunk == 2));
         let preloaded: Vec<u32> = s.producers.iter().filter(|p| p.preloaded).map(|p| p.chunk).collect();
         assert_eq!(preloaded, vec![0, 1]);

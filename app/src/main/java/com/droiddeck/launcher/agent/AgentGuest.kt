@@ -11,7 +11,9 @@ import android.os.FileObserver
 import android.util.Log
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.session.SessionEvents
+import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionState
+import com.droiddeck.launcher.session.SteamSessionUrl
 import org.json.JSONObject
 import java.io.File
 import java.util.UUID
@@ -154,6 +156,16 @@ object AgentGuest {
     fun focus(context: Context): JSONObject? =
         if (SessionState.running) readJson(File(dir(context), "focus.json")) else null
 
+    fun openSteamUrl(context: Context, url: String, timeoutMs: Long = STEAM_URL_TIMEOUT_MS): JSONObject {
+        require(SteamSessionUrl.isSupported(url)) { "Unsupported Steam navigation URL" }
+        val result = call(context, JSONObject().put("kind", "steam-url").put("url", url)
+            .put("timeout", (timeoutMs - 1_000).coerceAtLeast(1_000) / 1_000.0), timeoutMs, trusted = true)
+        check(SteamSessionUrl.wasOpened(result.optBoolean("ok"), result.optBoolean("launched"))) {
+            "Steam did not accept the navigation request"
+        }
+        return result
+    }
+
     fun selectedSteamAppId(context: Context): Long? {
         val result = call(context, JSONObject().put("kind", "steam-selection"), 6_000)
         if (!result.optBoolean("ok") || result.isNull("appId")) return null
@@ -252,4 +264,6 @@ object AgentGuest {
     } catch (e: Exception) {
         null
     }
+
+    private const val STEAM_URL_TIMEOUT_MS = 125_000L
 }

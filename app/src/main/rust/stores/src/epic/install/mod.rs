@@ -14,7 +14,7 @@ use serde_json::{json, Value};
 
 use super::build_info::{self, BuildInfo};
 use super::locale;
-use super::manifest::{self, Manifest};
+use super::manifest::{self, FileEntry, Manifest};
 use super::net;
 use schedule::{PlanFile, PlanPart};
 
@@ -40,9 +40,11 @@ pub enum Stop {
 pub struct Request {
     pub info: BuildInfo,
     pub game_dir: PathBuf,
+    pub target_manifest_path: Option<PathBuf>,
     pub scratch_dir: Option<PathBuf>,
     pub storage_label: String,
     pub tags: Vec<String>,
+    pub previous_tags: Vec<String>,
     pub max_workers: usize,
     pub process_workers: usize,
     pub ca_bundle: String,
@@ -56,17 +58,32 @@ impl Request {
             return Err("No install folder was given".into());
         }
         let scratch = net::str_of(v, "scratchDir");
-        let tags = v
+        let tags: Vec<String> = v
             .get("tags")
             .and_then(|t| t.as_array())
-            .map(|a| a.iter().filter_map(|t| t.as_str()).map(str::to_string).collect())
+            .map(|a| {
+                a.iter()
+                    .filter_map(|t| t.as_str())
+                    .map(str::to_string)
+                    .collect()
+            })
             .unwrap_or_default();
+        let previous_tags = v
+            .get("previousTags")
+            .and_then(|t| t.as_array())
+            .map(|a| a.iter().filter_map(|t| t.as_str()).map(str::to_string).collect())
+            .unwrap_or_else(|| tags.clone());
         Ok(Request {
             info,
             game_dir: PathBuf::from(game_dir),
+            target_manifest_path: match net::str_of(v, "targetManifestPath") {
+                "" => None,
+                path => Some(PathBuf::from(path)),
+            },
             scratch_dir: (!scratch.is_empty()).then(|| PathBuf::from(scratch)),
             storage_label: Some(net::str_of(v, "storageLabel")).filter(|s| !s.is_empty()).unwrap_or("storage").to_string(),
             tags,
+            previous_tags,
             max_workers: v.get("maxWorkers").and_then(|n| n.as_u64()).unwrap_or(32) as usize,
             process_workers: v.get("processWorkers").and_then(|n| n.as_u64()).unwrap_or(2) as usize,
             ca_bundle: net::str_of(v, "caBundle").to_string(),
@@ -106,7 +123,11 @@ impl Finished {
 pub fn safe_relative(path: &str) -> bool {
     !path.is_empty()
         && !path.starts_with('/')
-        && path.split('/').all(|seg| !seg.is_empty() && seg != "." && seg != "..")
+        && path != ".droiddeck-maintenance"
+        && !path.starts_with(".droiddeck-maintenance/")
+        && path
+            .split('/')
+            .all(|seg| !seg.is_empty() && seg != "." && seg != "..")
 }
 
 fn dir_has_entries(dir: &Path) -> bool {
@@ -140,14 +161,182 @@ pub fn fetch_manifest(info: &BuildInfo, log: &dyn Fn(&str)) -> Result<Manifest, 
     })
 }
 
+fn installed_manifest_path(game_dir: &Path) -> PathBuf {
+    game_dir.join(".droiddeck-maintenance/epic/installed.manifest")
+}
+
+fn read_installed_manifest(game_dir: &Path, log: &dyn Fn(&str)) -> Option<Manifest> {
+    let path = installed_manifest_path(game_dir);
+    match fs::symlink_metadata(&path) {
+        Ok(meta) if meta.is_file() && !meta.file_type().is_symlink() => {}
+        Ok(_) => {
+            log("obsolete Epic files preserved: retained manifest is not a regular file");
+            return None;
+        }
+        Err(_) => return None,
+    }
+    match fs::read(path).ok().and_then(|bytes| manifest::parse(&bytes).ok()) {
+        Some(manifest) => Some(manifest),
+        None => {
+            log("obsolete Epic files preserved: retained manifest is unavailable or invalid");
+            None
+        }
+    }
+}
+
+fn read_target_manifest(req: &Request) -> Result<Option<Vec<u8>>, String> {
+    let Some(path) = &req.target_manifest_path else {
+        return Ok(None);
+    };
+    let root = req
+        .game_dir
+        .canonicalize()
+        .map_err(|e| format!("Could not resolve the install folder: {e}"))?;
+    if fs::symlink_metadata(path)
+        .map(|m| m.file_type().is_symlink())
+        .unwrap_or(false)
+    {
+        return Err("The pinned Epic manifest is a symbolic link".into());
+    }
+    let candidate = path
+        .canonicalize()
+        .map_err(|e| format!("The pinned Epic manifest is unavailable: {e}"))?;
+    if !candidate.starts_with(&root) || !candidate.is_file() {
+        return Err("The pinned Epic manifest is outside the install folder".into());
+    }
+    fs::read(candidate)
+        .map(Some)
+        .map_err(|e| format!("Could not read the pinned Epic manifest: {e}"))
+}
+
+fn write_installed_manifest(game_dir: &Path, bytes: &[u8]) -> Result<(), String> {
+    let metadata = game_dir.join(".droiddeck-maintenance");
+    if fs::symlink_metadata(&metadata)
+        .map(|m| m.file_type().is_symlink())
+        .unwrap_or(false)
+    {
+        return Err("Epic maintenance metadata is a symbolic link".into());
+    }
+    let dir = metadata.join("epic");
+    if fs::symlink_metadata(&dir)
+        .map(|m| m.file_type().is_symlink())
+        .unwrap_or(false)
+    {
+        return Err("Epic maintenance metadata is a symbolic link".into());
+    }
+    fs::create_dir_all(&dir)
+        .map_err(|e| format!("Could not save the Epic install manifest: {e}"))?;
+    let temp = dir.join("installed.manifest.tmp");
+    if fs::symlink_metadata(&temp)
+        .map(|m| m.file_type().is_symlink())
+        .unwrap_or(false)
+    {
+        return Err("Epic maintenance metadata is a symbolic link".into());
+    }
+    fs::write(&temp, bytes)
+        .map_err(|e| format!("Could not save the Epic install manifest: {e}"))?;
+    fs::rename(&temp, installed_manifest_path(game_dir))
+        .map_err(|e| format!("Could not save the Epic install manifest: {e}"))
+}
+
+fn cleanup_obsolete(
+    game_dir: &Path,
+    old: &[FileEntry],
+    old_tags: &[String],
+    new: &[FileEntry],
+    new_tags: &[String],
+    cancel: &AtomicBool,
+    ev: &dyn Events,
+    log: &dyn Fn(&str),
+) -> Result<bool, Stop> {
+    let old_selected = locale::select(old, Some(old_tags));
+    let new_selected = locale::select(new, Some(new_tags));
+    let key = |path: &str| -> Option<String> {
+        if !safe_relative(path) {
+            return None;
+        }
+        Some(path.replace('\\', "/").to_lowercase())
+    };
+    let inventory = |files: &[FileEntry], indices: &[usize]| -> Option<HashSet<String>> {
+        let mut out = HashSet::new();
+        for &i in indices {
+            if !out.insert(key(&files[i].path)?) {
+                return None;
+            }
+        }
+        Some(out)
+    };
+    let Some(old_keys) = inventory(old, &old_selected) else {
+        log("obsolete Epic files preserved: old inventory contains unsafe or case-colliding paths");
+        return Ok(cancel.load(Ordering::Relaxed));
+    };
+    let Some(new_keys) = inventory(new, &new_selected) else {
+        log("obsolete Epic files preserved: target inventory contains unsafe or case-colliding paths");
+        return Ok(cancel.load(Ordering::Relaxed));
+    };
+    let _ = old_keys;
+    let Ok(root) = game_dir.canonicalize() else {
+        log("obsolete Epic files preserved: install folder could not be resolved");
+        return Ok(cancel.load(Ordering::Relaxed));
+    };
+    let mut removed = 0usize;
+    let mut preserved = 0usize;
+    for i in old_selected {
+        if cancel.load(Ordering::Relaxed) {
+            log("obsolete Epic cleanup cancelled; remaining files were preserved");
+            return Ok(true);
+        }
+        let file = &old[i];
+        let Some(k) = key(&file.path) else { preserved += 1; continue };
+        if new_keys.contains(&k) { continue; }
+        let Some(expected) = file.sha1 else { preserved += 1; continue };
+        let mut path = game_dir.to_path_buf();
+        let mut safe = true;
+        for segment in file.path.split('/') {
+            path.push(segment);
+            if fs::symlink_metadata(&path).map(|m| m.file_type().is_symlink()).unwrap_or(false) {
+                safe = false;
+                break;
+            }
+        }
+        let Ok(metadata) = fs::symlink_metadata(&path) else { continue };
+        let Ok(canonical) = path.canonicalize() else { preserved += 1; continue };
+        if !safe || !metadata.is_file() || !canonical.starts_with(&root) {
+            preserved += 1;
+            continue;
+        }
+        if !matches!(delta::check(&canonical, file.size, Some(expected), cancel), delta::Check::UpToDate) {
+            preserved += 1;
+            continue;
+        }
+        if !ev.before_replace() {
+            return Err(Stop::Failed("The install record could not be switched to updating; nothing was replaced".into()));
+        }
+        if cancel.load(Ordering::Relaxed) {
+            log("obsolete Epic cleanup cancelled; remaining files were preserved");
+            return Ok(true);
+        }
+        if fs::remove_file(&canonical).is_ok() { removed += 1; } else { preserved += 1; }
+    }
+    log(&format!("obsolete Epic cleanup removed={removed} preserved={preserved}"));
+    Ok(cancel.load(Ordering::Relaxed))
+}
+
 fn resume_from(stage: &Path, parts: &[PlanPart], size: u64) -> Option<HashSet<u64>> {
     let meta = fs::symlink_metadata(stage).ok()?;
     if !meta.is_file() || meta.len() > size {
         return None;
     }
     let list = fs::read_to_string(staging::list_path(stage)).ok()?;
-    let kept: HashSet<u64> = list.lines().map(|l| l.parse().ok()).collect::<Option<_>>()?;
-    let fits = |o: &u64| parts.iter().any(|p| p.file_offset == *o && p.file_offset + p.size as u64 <= meta.len());
+    let kept: HashSet<u64> = list
+        .lines()
+        .map(|l| l.parse().ok())
+        .collect::<Option<_>>()?;
+    let fits = |o: &u64| {
+        parts
+            .iter()
+            .any(|p| p.file_offset == *o && p.file_offset + p.size as u64 <= meta.len())
+    };
     (!kept.is_empty() && kept.iter().all(fits)).then_some(kept)
 }
 
@@ -155,7 +344,17 @@ pub fn run(req: &Request, cancel: &AtomicBool, ev: &dyn Events) -> Result<Finish
     let failed = |m: String| Stop::Failed(m);
     ev.status("Downloading the manifest…");
     let log = |line: &str| ev.log(line);
-    let manifest = fetch_manifest(&req.info, &log).map_err(failed)?;
+    let pinned_manifest = read_target_manifest(req).map_err(failed)?;
+    let manifest_bytes = match pinned_manifest {
+        Some(bytes) => bytes,
+        None => build_info::download_manifest(&req.info, &req.info.cdns, &log)
+            .ok_or_else(|| failed("The manifest could not be downloaded".into()))?,
+    };
+    let manifest = manifest::parse(&manifest_bytes).map_err(|e| {
+        ev.log(&format!("manifest parse: {e}"));
+        failed("The manifest could not be parsed".into())
+    })?;
+    let installed_manifest = read_installed_manifest(&req.game_dir, &log);
     cancelled(cancel)?;
     ev.status("Reading the manifest…");
 
@@ -166,7 +365,9 @@ pub fn run(req: &Request, cancel: &AtomicBool, ev: &dyn Events) -> Result<Finish
             return Err(failed(format!("The manifest has an unsafe path: {path}")));
         }
         if staging::conflicts(path) {
-            return Err(failed("The manifest conflicts with the staging folder".into()));
+            return Err(failed(
+                "The manifest conflicts with the staging folder".into(),
+            ));
         }
     }
     let disk_bytes: u64 = selected.iter().map(|&i| manifest.files[i].size).sum();
@@ -229,6 +430,25 @@ pub fn run(req: &Request, cancel: &AtomicBool, ev: &dyn Events) -> Result<Finish
         ev.log("every selected file is already up to date");
         clean_caches();
         ev.installing(disk_bytes, disk_bytes, total_selected, total_selected);
+        let cleanup_cancelled = if let Some(installed) = installed_manifest.as_ref() {
+            cleanup_obsolete(
+                &req.game_dir,
+                &installed.files,
+                &req.previous_tags,
+                &manifest.files,
+                &req.tags,
+                cancel,
+                ev,
+                &log,
+            )?
+        } else {
+            ev.log("obsolete Epic files preserved: no retained prior manifest is available");
+            cancel.load(Ordering::Relaxed)
+        };
+        if cleanup_cancelled || cancel.load(Ordering::Relaxed) {
+            return Err(Stop::Cancelled);
+        }
+        write_installed_manifest(&req.game_dir, &manifest_bytes).map_err(failed)?;
         return Ok(finished);
     }
 
@@ -248,7 +468,12 @@ pub fn run(req: &Request, cancel: &AtomicBool, ev: &dyn Events) -> Result<Finish
             if info.window_exact && part.offset as u64 + part.size as u64 > info.window as u64 {
                 return Err(failed(format!("A chunk is too short for {}", f.path)));
             }
-            parts.push(PlanPart { chunk: c as u32, chunk_offset: part.offset, size: part.size, file_offset: offset });
+            parts.push(PlanPart {
+                chunk: c as u32,
+                chunk_offset: part.offset,
+                size: part.size,
+                file_offset: offset,
+            });
             offset += part.size as u64;
         }
         let mut resume = None;
@@ -261,13 +486,19 @@ pub fn run(req: &Request, cancel: &AtomicBool, ev: &dyn Events) -> Result<Finish
                     resumed_bytes += bytes;
                     kept_size = bytes;
                     parts.retain(|p| !kept.contains(&p.file_offset));
-                    resume = Some(writer::Resume { stage, kept: kept.into_iter().collect() });
+                    resume = Some(writer::Resume {
+                        stage,
+                        kept: kept.into_iter().collect(),
+                    });
                 }
                 None => staging::remove_partial(&stage),
             }
         }
         kept_sizes.push(kept_size);
-        plan_files.push(PlanFile { size: f.size, parts: parts.clone() });
+        plan_files.push(PlanFile {
+            size: f.size,
+            parts: parts.clone(),
+        });
         engine_files.push(writer::EngineFile {
             path: f.path.clone(),
             dest: req.game_dir.join(&f.path),
@@ -292,10 +523,15 @@ pub fn run(req: &Request, cancel: &AtomicBool, ev: &dyn Events) -> Result<Finish
     let sizes: Vec<space::PendingSize> = pending
         .iter()
         .zip(&kept_sizes)
-        .map(|(&(i, old), kept)| space::PendingSize { new_size: manifest.files[i].size - kept, old_size: old })
+        .map(|(&(i, old), kept)| space::PendingSize {
+            new_size: manifest.files[i].size - kept,
+            old_size: old,
+        })
         .collect();
     let free_game = space::free_bytes(&req.game_dir);
-    let scratch_space = scratch.as_ref().map(|s| space::Scratch { free: space::free_bytes(s) });
+    let scratch_space = scratch.as_ref().map(|s| space::Scratch {
+        free: space::free_bytes(s),
+    });
     let plan = space::plan(&sizes, free_game, scratch_space, &req.storage_label).map_err(failed)?;
     let cache_dir = match (&scratch, plan.cache_on_scratch) {
         (Some(s), true) => s.clone(),
@@ -311,7 +547,51 @@ pub fn run(req: &Request, cancel: &AtomicBool, ev: &dyn Events) -> Result<Finish
             position += 1;
         }
     }
-    let reused = cache::prepare(&cache_dir, &manifest.chunks, &first_use, plan.cache_budget, cancel);
+    let mut reused = cache::prepare(
+        &cache_dir,
+        &manifest.chunks,
+        &first_use,
+        plan.cache_budget,
+        cancel,
+    );
+    if let Some(installed) = installed_manifest.as_ref() {
+        let needed_chunks: HashSet<u32> = first_use.keys().copied().collect();
+        let cached_bytes: u64 = reused
+            .iter()
+            .map(|i| manifest.chunks[*i as usize].window as u64)
+            .sum();
+        let remaining_budget = plan.cache_budget.saturating_sub(cached_bytes);
+        let (seeded, _) = cache::seed_from_verified_installed(
+            &cache_dir,
+            &req.game_dir,
+            installed,
+            &manifest,
+            &needed_chunks,
+            &reused,
+            remaining_budget,
+            cancel,
+        );
+        if !seeded.is_empty() {
+            reused = cache::prepare(
+                &cache_dir,
+                &manifest.chunks,
+                &first_use,
+                plan.cache_budget,
+                cancel,
+            );
+            let retained: Vec<u32> = seeded.into_iter().filter(|i| reused.contains(i)).collect();
+            let bytes: u64 = retained
+                .iter()
+                .map(|i| manifest.chunks[*i as usize].window as u64)
+                .sum();
+            if !retained.is_empty() {
+                ev.log(&format!(
+                    "reused {} verified installed-file chunks ({bytes} bytes)",
+                    retained.len()
+                ));
+            }
+        }
+    }
     cancelled(cancel)?;
     let windows: Vec<u32> = manifest.chunks.iter().map(|c| c.window).collect();
     let schedule = schedule::build(&plan_files, &windows, plan.cache_budget, &reused);
@@ -356,6 +636,25 @@ cache_budget_mib={} overlap_mib={} free_game={free_game} workers={} process_work
     finished.files_written = stats.files_written;
     clean_caches();
     ev.installing(disk_bytes, disk_bytes, total_selected, total_selected);
+    let cleanup_cancelled = if let Some(installed) = installed_manifest.as_ref() {
+        cleanup_obsolete(
+            &req.game_dir,
+            &installed.files,
+            &req.previous_tags,
+            &manifest.files,
+            &req.tags,
+            cancel,
+            ev,
+            &log,
+        )?
+    } else {
+        ev.log("obsolete Epic files preserved: no retained prior manifest is available");
+        cancel.load(Ordering::Relaxed)
+    };
+    if cleanup_cancelled || cancel.load(Ordering::Relaxed) {
+        return Err(Stop::Cancelled);
+    }
+    write_installed_manifest(&req.game_dir, &manifest_bytes).map_err(failed)?;
     Ok(finished)
 }
 

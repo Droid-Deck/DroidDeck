@@ -67,6 +67,7 @@ def generation(pid):
 
 
 def lease(folder, owner):
+    folder = Path(folder).resolve(strict=True)
     root = control(folder)
     with lock_file(root) as stream:
         fcntl.lockf(stream, fcntl.LOCK_SH | fcntl.LOCK_NB)
@@ -75,6 +76,36 @@ def lease(folder, owner):
             raise ValueError("Resume or recover the GOG update before playing")
         journal = root / "operation.json"
         if journal.exists() and read(journal).get("phase") != "download":
+            raise ValueError("GOG maintenance is incomplete")
+        common_journal = folder / ".droiddeck-maintenance" / "operation.json"
+        if common_journal.exists() and read(common_journal).get("phase") not in ("queued", "download"):
+            raise ValueError("Store maintenance is incomplete")
+        start = generation(owner)
+        if start is None:
+            raise ValueError("Game launcher has exited")
+        print("ready", flush=True)
+        sys.stdout.close()
+        while generation(owner) == start:
+            time.sleep(0.25)
+    return 0
+
+
+def store_lease(folder, owner):
+    folder = Path(folder).resolve(strict=True)
+    root = folder / ".droiddeck-maintenance"
+    if root.is_symlink():
+        raise ValueError("maintenance control directory is a symbolic link")
+    root.mkdir(exist_ok=True)
+    with lock_file(root) as stream:
+        fcntl.lockf(stream, fcntl.LOCK_SH | fcntl.LOCK_NB)
+        sidecar = read(folder / ".droiddeck-store.json")
+        if sidecar.get("state", "installed") != "installed":
+            raise ValueError("Resume or recover the store update before playing")
+        journal = root / "operation.json"
+        if journal.exists() and read(journal).get("phase") not in ("queued", "download"):
+            raise ValueError("Store maintenance is incomplete")
+        gog_journal = folder / ".droiddeck-gog" / "operation.json"
+        if gog_journal.exists() and read(gog_journal).get("phase") != "download":
             raise ValueError("GOG maintenance is incomplete")
         start = generation(owner)
         if start is None:
@@ -325,6 +356,8 @@ def prepare_setup(folder, command, env):
 def main(argv):
     if len(argv) == 3 and argv[0] == "lease":
         return lease(argv[1], int(argv[2]))
+    if len(argv) == 3 and argv[0] == "store-lease":
+        return store_lease(argv[1], int(argv[2]))
     if len(argv) == 4 and argv[0] == "idle":
         return idle(*argv[1:])
     if len(argv) == 2 and argv[0] == "status":

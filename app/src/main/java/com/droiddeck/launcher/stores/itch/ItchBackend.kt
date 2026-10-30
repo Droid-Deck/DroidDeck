@@ -10,6 +10,7 @@ import com.droiddeck.launcher.stores.Store
 import com.droiddeck.launcher.stores.StoreBackend
 import com.droiddeck.launcher.stores.StoreInstallRoot
 import com.droiddeck.launcher.stores.StoreSizes
+import com.droiddeck.launcher.stores.maintenance.StoreMaintenanceAdapter
 import com.droiddeck.launcher.stores.StoresState
 import com.droiddeck.launcher.stores.download.DownloadEntry
 import com.droiddeck.launcher.stores.download.DownloadQueue
@@ -17,6 +18,8 @@ import java.io.File
 
 object ItchBackend : StoreBackend {
     override val store: Store = Store.ITCH
+
+    override fun maintenanceAdapter(): StoreMaintenanceAdapter = ItchMaintenanceAdapter
 
     override fun signIn(context: Context) {
         context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(ItchApi.KEYS_PAGE)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))

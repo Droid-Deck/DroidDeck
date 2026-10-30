@@ -2,7 +2,9 @@ use serde_json::{json, Value};
 
 use super::build_info::{self, BuildInfo};
 use super::net::str_of;
-use super::{account, achievements, catalog, install, launch, library, locale, manifest, savesync, shop};
+use super::{
+    account, achievements, catalog, install, launch, library, locale, manifest, savesync, shop,
+};
 
 fn error(message: impl Into<String>) -> Value {
     json!({ "error": message.into() })
@@ -45,10 +47,16 @@ fn dispatch(op: &str, req: &Value) -> Value {
             Ok(list) => json!({ "records": list.iter().map(|o| json!({
                 "appName": o.app_name, "namespace": o.namespace, "catalogItemId": o.catalog_item_id,
             })).collect::<Vec<_>>() }),
-            Err(library::ListError::SignIn) => json!({ "error": "sign-in refused", "signIn": true }),
+            Err(library::ListError::SignIn) => {
+                json!({ "error": "sign-in refused", "signIn": true })
+            }
             Err(library::ListError::Failed(e)) => error(e),
         },
-        "catalog.details" => match catalog::details(token, str_of(req, "namespace"), str_of(req, "catalogItemId")) {
+        "catalog.details" => match catalog::details(
+            token,
+            str_of(req, "namespace"),
+            str_of(req, "catalogItemId"),
+        ) {
             Some(d) => json!({ "details": d }),
             None => error("no catalog answer"),
         },
@@ -70,9 +78,13 @@ fn dispatch(op: &str, req: &Value) -> Value {
             Some(info) => json!({ "info": info.to_json() }),
             None => error("The manifest could not be fetched"),
         },
-        "build.cdns" => json!({ "cdns": info_of(req).map(|i| build_info::cdns_to_json(&i.cdns)).unwrap_or(json!([])) }),
+        "build.cdns" => {
+            json!({ "cdns": info_of(req).map(|i| build_info::cdns_to_json(&i.cdns)).unwrap_or(json!([])) })
+        }
         "build.prereq" => match info_of(req).map(|i| install::fetch_manifest(&i, &|_: &str| {})) {
-            Some(Ok(m)) => json!({ "name": m.prereq_name, "path": m.prereq_path, "read": m.prereq_read }),
+            Some(Ok(m)) => {
+                json!({ "name": m.prereq_name, "path": m.prereq_path, "read": m.prereq_read })
+            }
             Some(Err(e)) => error(e),
             None => error("no build information"),
         },
@@ -86,17 +98,29 @@ fn dispatch(op: &str, req: &Value) -> Value {
             Some(list) => json!({ "list": list }),
             None => error("unreachable"),
         },
-        "cloud.list" => match savesync::list(token, str_of(req, "accountId"), str_of(req, "appName")) {
-            Ok(files) => json!({ "files": files }),
-            Err(e) => error(e),
-        },
+        "cloud.list" => {
+            match savesync::list(token, str_of(req, "accountId"), str_of(req, "appName")) {
+                Ok(files) => json!({ "files": files }),
+                Err(e) => error(e),
+            }
+        }
         "cloud.writeLinks" => {
             let names: Vec<String> = req
                 .get("names")
                 .and_then(|n| n.as_array())
-                .map(|a| a.iter().filter_map(|n| n.as_str()).map(str::to_string).collect())
+                .map(|a| {
+                    a.iter()
+                        .filter_map(|n| n.as_str())
+                        .map(str::to_string)
+                        .collect()
+                })
                 .unwrap_or_default();
-            match savesync::write_links(token, str_of(req, "accountId"), str_of(req, "appName"), &names) {
+            match savesync::write_links(
+                token,
+                str_of(req, "accountId"),
+                str_of(req, "appName"),
+                &names,
+            ) {
                 Ok(links) => json!({ "links": links }),
                 Err(e) => error(e),
             }
@@ -154,11 +178,42 @@ pub fn inspect(bytes: &[u8], request: &str) -> String {
         Err(e) => return error(e).to_string(),
     };
     let out = match str_of(&req, "op") {
+        "estimate" => {
+            let tags: Option<Vec<String>> = req.get("tags").and_then(|t| t.as_array()).map(|a| {
+                a.iter()
+                    .filter_map(|t| t.as_str())
+                    .map(str::to_string)
+                    .collect()
+            });
+            let selected = locale::select(&m.files, tags.as_deref());
+            let mut chunks = std::collections::HashSet::new();
+            let mut disk_bytes = 0u64;
+            for &i in &selected {
+                let file = &m.files[i];
+                disk_bytes = disk_bytes.saturating_add(file.size);
+                for part in &file.parts {
+                    if let Some(&chunk) = m.chunk_index.get(&part.guid) {
+                        chunks.insert(chunk);
+                    }
+                }
+            }
+            let download_bytes: u64 = chunks.iter().fold(0u64, |sum, &i| {
+                    let chunk = &m.chunks[i];
+                    sum.saturating_add(if chunk.cdn_size > 0 {
+                        chunk.cdn_size
+                    } else {
+                        chunk.window as u64
+                    })
+                });
+            json!({ "files": selected.len(), "chunks": chunks.len(), "downloadBytes": download_bytes, "diskBytes": disk_bytes })
+        }
         "select" => {
-            let tags: Option<Vec<String>> = req
-                .get("tags")
-                .and_then(|t| t.as_array())
-                .map(|a| a.iter().filter_map(|t| t.as_str()).map(str::to_string).collect());
+            let tags: Option<Vec<String>> = req.get("tags").and_then(|t| t.as_array()).map(|a| {
+                a.iter()
+                    .filter_map(|t| t.as_str())
+                    .map(str::to_string)
+                    .collect()
+            });
             json!({ "indices": locale::select(&m.files, tags.as_deref()) })
         }
         "launch" => json!({
@@ -187,13 +242,21 @@ mod tests {
         let v: Value = serde_json::from_str(&call("locale", r#"{"language":"pt","region":"BR"}"#)).unwrap();
         assert_eq!(v["key"], "pt-BR");
         assert_eq!(v["launchLocale"], "pt");
-        let v: Value = serde_json::from_str(&call("auth.codeFromPage", r#"{"text":"{\"authorizationCode\":\"c1\"}"}"#)).unwrap();
+        let v: Value = serde_json::from_str(&call(
+            "auth.codeFromPage",
+            r#"{"text":"{\"authorizationCode\":\"c1\"}"}"#,
+        ))
+        .unwrap();
         assert_eq!(v["code"], "c1");
         let v: Value = serde_json::from_str(&call("nope", "{}")).unwrap();
         assert!(v["error"].is_string());
         let v: Value = serde_json::from_str(&call("launch.args", r#"{"namespace":"ns","appName":"A"}"#)).unwrap();
         assert_eq!(v["args"][0], "-EpicPortal");
-        let v: Value = serde_json::from_str(&call("launch.split", r#"{"command":"-PCStore=EGS \"-log=a b.txt\""}"#)).unwrap();
+        let v: Value = serde_json::from_str(&call(
+            "launch.split",
+            r#"{"command":"-PCStore=EGS \"-log=a b.txt\""}"#,
+        ))
+        .unwrap();
         assert_eq!(v["args"], json!(["-PCStore=EGS", "-log=a b.txt"]));
     }
 
@@ -207,8 +270,18 @@ mod tests {
             prereq: None,
             chunks: vec![],
             files: vec![
-                TestFile { path: "x.exe".into(), sha1: [0; 20], tags: vec![], parts: vec![] },
-                TestFile { path: "de.pak".into(), sha1: [0; 20], tags: vec!["German".into()], parts: vec![] },
+                TestFile {
+                    path: "x.exe".into(),
+                    sha1: [0; 20],
+                    tags: vec![],
+                    parts: vec![],
+                },
+                TestFile {
+                    path: "de.pak".into(),
+                    sha1: [0; 20],
+                    tags: vec!["German".into()],
+                    parts: vec![],
+                },
             ],
             compress: false,
             meta_tail: vec![],
@@ -224,5 +297,48 @@ mod tests {
         assert_eq!(v["args"], json!(["-PCStore=EGS", "-log=a b.txt"]));
         let v: Value = serde_json::from_str(&inspect(b"nonsense", "{}")).unwrap();
         assert!(v["error"].is_string());
+    }
+
+    #[test]
+    fn estimate_counts_unique_chunks_and_selected_disk_bytes() {
+        use crate::epic::manifest::{
+            testing::{build, chunk, TestFile, TestManifest},
+            PartRef,
+        };
+        let chunk = chunk(50, 4);
+        let part = PartRef {
+            guid: chunk.guid,
+            offset: 0,
+            size: 4,
+        };
+        let manifest = TestManifest {
+            version: 21,
+            build: "1".into(),
+            exe: "Game.exe".into(),
+            prereq: None,
+            chunks: vec![chunk],
+            files: vec![
+                TestFile {
+                    path: "a.bin".into(),
+                    sha1: [1; 20],
+                    tags: vec![],
+                    parts: vec![part],
+                },
+                TestFile {
+                    path: "b.bin".into(),
+                    sha1: [2; 20],
+                    tags: vec![],
+                    parts: vec![part],
+                },
+            ],
+            compress: false,
+            meta_tail: Vec::new(),
+        };
+        let response: Value =
+            serde_json::from_str(&inspect(&build(&manifest), r#"{"op":"estimate"}"#)).unwrap();
+        assert_eq!(response["files"], 2);
+        assert_eq!(response["chunks"], 1);
+        assert_eq!(response["downloadBytes"], 1000);
+        assert_eq!(response["diskBytes"], 8);
     }
 }

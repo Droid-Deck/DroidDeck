@@ -65,14 +65,18 @@ fn dispatch(op: &str, req: &Value) -> Value {
                 let games = library::visible(all);
                 json!({ "total": total, "games": games.iter().map(library::Game::to_json).collect::<Vec<_>>() })
             }
-            Err(Failure::SignIn) => json!({ "error": "Amazon refused the session", "signIn": true }),
+            Err(Failure::SignIn) => {
+                json!({ "error": "Amazon refused the session", "signIn": true })
+            }
             Err(Failure::Other(e)) => error(e),
         },
         "download.lookup" => match distribution::game_download(token, str_of(req, "entitlementId")) {
             Ok(d) => json!({ "downloadUrl": d.base_url, "versionId": d.version_id }),
             Err(f) => error(f.message()),
         },
-        "download.size" => json!({ "bytes": install::size_of(token, str_of(req, "entitlementId")) }),
+        "download.size" => {
+            json!({ "bytes": install::size_of(token, str_of(req, "entitlementId")) })
+        }
         "launch.spec" => {
             let dir = str_of(req, "gameDir");
             if dir.is_empty() {
@@ -82,7 +86,11 @@ fn dispatch(op: &str, req: &Value) -> Value {
             json!({ "exe": spec.exe, "args": spec.args, "source": spec.source, "warning": spec.warning })
         }
         "launch.env" => {
-            let env = launch::fuel_environment(str_of(req, "entitlementId"), str_of(req, "sku"), str_of(req, "displayName"));
+            let env = launch::fuel_environment(
+                str_of(req, "entitlementId"),
+                str_of(req, "sku"),
+                str_of(req, "displayName"),
+            );
             json!({ "env": env.iter().map(|(k, v)| json!([k, v])).collect::<Vec<_>>() })
         }
         _ => error(format!("unknown operation {op}")),
@@ -105,7 +113,11 @@ pub fn fetch(op: &str, request: &str) -> Option<Vec<u8>> {
 
 pub fn inspect(bytes: &[u8], _request: &str) -> String {
     match manifest::parse(bytes) {
-        Ok(m) => json!({ "totalBytes": m.total_size(), "files": m.files.len() }).to_string(),
+        Ok(m) => json!({
+            "totalBytes": m.total_size(),
+            "files": m.files.len(),
+            "unverifiableFiles": m.files.iter().filter(|f| !f.has_supported_hash() && !(f.size == 0 && f.digest.is_empty())).count(),
+        }).to_string(),
         Err(e) => error(e).to_string(),
     }
 }
@@ -123,12 +135,23 @@ mod tests {
         assert_eq!(v["redirectMarker"], "openid.oa2.authorization_code=");
         assert!(v["userAgent"].as_str().unwrap().contains("Firefox"));
         assert_eq!(v["serial"].as_str().unwrap().len(), 32);
-        let v: Value = serde_json::from_str(&call("auth.register", r#"{"url":"https://www.amazon.com/?a=1"}"#)).unwrap();
+        let v: Value = serde_json::from_str(&call(
+            "auth.register",
+            r#"{"url":"https://www.amazon.com/?a=1"}"#,
+        ))
+        .unwrap();
         assert_eq!(v["noCode"], true);
         let v: Value = serde_json::from_str(&call("auth.register", r#"{"code":"c"}"#)).unwrap();
         assert!(v["error"].is_string() && v.get("noCode").is_none());
-        let v: Value = serde_json::from_str(&call("launch.env", r#"{"entitlementId":"e","sku":"s","displayName":""}"#)).unwrap();
-        assert_eq!(v["env"][2], json!(["AMAZON_GAMES_FUEL_ENTITLEMENT_ID", "e"]));
+        let v: Value = serde_json::from_str(&call(
+            "launch.env",
+            r#"{"entitlementId":"e","sku":"s","displayName":""}"#,
+        ))
+        .unwrap();
+        assert_eq!(
+            v["env"][2],
+            json!(["AMAZON_GAMES_FUEL_ENTITLEMENT_ID", "e"])
+        );
         assert_eq!(v["env"][4][1], "Player");
         let v: Value = serde_json::from_str(&call("nope", "{}")).unwrap();
         assert!(v["error"].is_string());
@@ -138,13 +161,36 @@ mod tests {
     #[test]
     fn inspect_sizes() {
         let msg = message(&[vec![
-            Entry { path: "a", size: 10, algorithm: Some(0), digest: &[1; 32] },
-            Entry { path: "b\\c", size: 5, algorithm: Some(0), digest: &[2; 32] },
+            Entry {
+                path: "a",
+                size: 10,
+                algorithm: Some(0),
+                digest: &[1; 32],
+            },
+            Entry {
+                path: "b\\c",
+                size: 5,
+                algorithm: Some(0),
+                digest: &[2; 32],
+            },
         ]]);
         let v: Value = serde_json::from_str(&inspect(&frame(&msg, b"", true), "{}")).unwrap();
         assert_eq!(v["totalBytes"], 15);
         assert_eq!(v["files"], 2);
+        assert_eq!(v["unverifiableFiles"], 0);
         let v: Value = serde_json::from_str(&inspect(b"xx", "{}")).unwrap();
         assert!(v["error"].is_string());
+    }
+
+    #[test]
+    fn inspect_reports_unsupported_file_hashes() {
+        let msg = message(&[vec![Entry {
+            path: "a",
+            size: 2,
+            algorithm: Some(7),
+            digest: &[1, 2],
+        }]]);
+        let v: Value = serde_json::from_str(&inspect(&frame(&msg, b"", true), "{}")).unwrap();
+        assert_eq!(v["unverifiableFiles"], 1);
     }
 }

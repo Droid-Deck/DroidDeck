@@ -11,14 +11,17 @@ import com.droiddeck.launcher.stores.StoreGameSidecar
 import com.droiddeck.launcher.stores.StoreInstallRoot
 import com.droiddeck.launcher.stores.StoreInstalls
 import com.droiddeck.launcher.stores.StoreNet
+import com.droiddeck.launcher.stores.InstalledStoreGame
 import com.droiddeck.launcher.stores.download.DownloadQueue
 import com.droiddeck.launcher.stores.download.DownloadStage
+import com.droiddeck.launcher.stores.maintenance.StoreMaintenance
 import org.apache.commons.compress.archivers.sevenz.SevenZFile
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
 import org.apache.commons.compress.archivers.zip.ZipFile
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream
 import org.apache.commons.compress.compressors.xz.XZCompressorInputStream
+import org.json.JSONObject
 import java.io.BufferedInputStream
 import java.io.File
 import java.io.FileInputStream
@@ -31,6 +34,7 @@ internal class ItchInstaller(
     private val app: Context,
     private val item: CatalogItem,
     private val folder: File,
+    private val maintenanceTarget: JSONObject? = null,
 ) : DownloadQueue.DownloadJob {
     private val cancelled = AtomicBoolean(false)
     private var work: File = folder
@@ -55,18 +59,34 @@ internal class ItchInstaller(
         val upload = (if (chosen.isBlank()) ItchUploads.windows(uploads) else ItchUploads.byId(uploads, chosen))
             ?: throw IllegalStateException(app.getString(R.string.stores_itch_no_upload))
         val uploadId = upload.optString("id")
+        val version = ItchUploads.updatedAt(upload)
         val filename = ItchUploads.filename(upload)
         val size = ItchUploads.size(upload)
+        maintenanceTarget?.let {
+            require(it.optInt("schema") == 1 && it.optString("gameId") == gameId &&
+                it.optString("downloadKeyId") == downloadKeyId && it.optString("uploadId") == uploadId &&
+                it.optString("updatedAt") == version && it.optString("filename") == filename && it.optLong("size") == size) {
+                "The pinned itch.io upload changed; prepare maintenance again"
+            }
+        }
         val scratch = StoreInstallRoot.scratchDir(app, Store.ITCH, item.id)
         scratch.mkdirs()
         val archive = File(scratch, filename.ifBlank { "download.bin" })
         val exe = try {
             handle.stage(DownloadStage.DOWNLOAD)
-            download(key, downloadKeyId, uploadId, upload.optString("updated_at", upload.optString("updatedAt")), archive, size, handle)
+            download(key, downloadKeyId, uploadId, version, archive, size, handle)
             if (cancelled.get()) return null
             handle.stage(DownloadStage.INSTALL)
             install(archive, filename, handle, resuming)
         } catch (t: Throwable) {
+            if (maintenanceTarget != null) {
+                runCatching { handle.interruptible(true) }
+                val beforeSidecar = previous
+                val recoverableCommit = runCatching { ItchStaging.recover(folder) }.getOrDefault(true)
+                if (t is ItchStaging.PreflightConflict && !recoverableCommit && beforeSidecar != null) {
+                    runCatching { StoreMaintenance.complete(app, InstalledStoreGame(beforeSidecar, folder)) }
+                }
+            }
             if (!cancelled.get()) dropCaches(scratch)
             throw t
         }
@@ -77,6 +97,15 @@ internal class ItchInstaller(
         }
         archive.delete()
         StoreInstalls.deleteTree(scratch)
+        if (maintenanceTarget != null) {
+            val beforeSidecar = previous ?: throw IllegalStateException("The installed itch.io sidecar disappeared")
+            try {
+                StoreMaintenance.complete(app, InstalledStoreGame(beforeSidecar, folder), version,
+                    beforeSidecar.extra + ("uploadId" to maintenanceTarget.optString("uploadId")))
+                ItchUpdates.applied(app, item.key)
+            } finally { handle.interruptible(true) }
+            return folder.path
+        }
         val sidecar = StoreGameSidecar(
             store = Store.ITCH,
             id = item.id,
@@ -84,13 +113,14 @@ internal class ItchInstaller(
             exe = exe,
             args = previous?.args.orEmpty(),
             env = previous?.env.orEmpty(),
-            installVersion = upload.optString("updated_at", upload.optString("updatedAt")),
+            installVersion = version,
             installedAt = System.currentTimeMillis(),
             cover = item.imageUrl,
             hero = item.imageUrl,
             extra = mapOf("gameId" to gameId, "downloadKeyId" to downloadKeyId, "uploadId" to uploadId),
             cloud = false,
         )
+        if (!updating) ItchStaging.writeInventory(folder, ItchStaging.inventory(folder))
         StoreInstalls.complete(app, folder, sidecar) { done, steps -> handle.stageProgress(done.toLong(), steps.toLong()) }
         ItchUpdates.applied(app, item.key)
         return folder.path
@@ -98,7 +128,13 @@ internal class ItchInstaller(
 
     override fun cancel(deleteFiles: Boolean) {
         cancelled.set(true)
-        if (deleteFiles) dropCaches(StoreInstallRoot.scratchDir(app, Store.ITCH, item.id))
+        if (deleteFiles) {
+            dropCaches(StoreInstallRoot.scratchDir(app, Store.ITCH, item.id))
+            if (maintenanceTarget != null) {
+                val phase = runCatching { StoreMaintenance.readOperation(folder)?.optString("phase") }.getOrNull()
+                if (phase in setOf("queued", "download")) runCatching { StoreMaintenance.clearOperation(folder) }
+            }
+        }
     }
 
     private fun dropCaches(scratch: File) {
@@ -182,6 +218,7 @@ internal class ItchInstaller(
         work = if (updating) File(folder, ItchStaging.DIR) else folder
         if (updating) ItchStaging.delete(work)
         work.mkdirs()
+        val availableBeforeExtraction = if (maintenanceTarget != null) StoreInstallRoot.availableBytes(folder) else StoreInstallRoot.SPACE_UNKNOWN
         if (resuming) clearPartialInstall()
         val exe = try {
             when (val kind = sniff(archive, filename)) {
@@ -193,8 +230,10 @@ internal class ItchInstaller(
                 "gz", "bz2", "xz" -> untar(archive, kind, handle) ?: single(archive, kind, handle)
                 else -> copy(archive, File(work, filename.ifBlank { "game" }))
             }
-            val hint = filename.substringBeforeLast('.')
-            StoreExe.pick(work, hint.ifBlank { null }, item.title)
+            if (maintenanceTarget != null) previous?.exe.orEmpty() else {
+                val hint = filename.substringBeforeLast('.')
+                StoreExe.pick(work, hint.ifBlank { null }, item.title)
+            }
         } catch (t: Throwable) {
             if (updating) ItchStaging.delete(work)
             throw t
@@ -203,6 +242,42 @@ internal class ItchInstaller(
             handle.log("itch.io: no exe found in ${folder.name}")
             if (updating) ItchStaging.delete(work)
             return null
+        }
+        if (maintenanceTarget != null) {
+            val stagedBytes = ItchStaging.regularFileBytes(work)
+                ?: throw IllegalStateException("Could not measure the extracted itch.io archive")
+            val requiredBytes = ItchStaging.additionalBytesRequired(stagedBytes, backupExtraBytes = 0L)
+            handle.diskSize(requiredBytes)
+            if (StoreInstallRoot.insufficientSpace(requiredBytes, availableBeforeExtraction)) {
+                throw IllegalStateException(app.getString(R.string.stores_storage_insufficient,
+                    com.droiddeck.launcher.stores.formatBytes(requiredBytes),
+                    com.droiddeck.launcher.stores.formatBytes(availableBeforeExtraction)))
+            }
+        }
+        if (updating && maintenanceTarget != null) {
+            handle.interruptible(false)
+            synchronized(commit) {
+                if (cancelled.get()) {
+                    handle.interruptible(true)
+                    ItchStaging.delete(work)
+                    return null
+                }
+                val old = previous ?: throw IllegalStateException("The installed itch.io sidecar disappeared")
+                val game = InstalledStoreGame(old, folder)
+                StoreMaintenance.withApplyLease(game) {
+                    val targetInventory = ItchStaging.inventory(work)
+                    val savedInventory = ItchStaging.readInventoryIfPresent(folder)
+                    val targetUploadId = maintenanceTarget?.optString("uploadId").orEmpty()
+                    val targetVersion = maintenanceTarget?.optString("updatedAt").orEmpty()
+                    val installedExactUpload = targetUploadId.isNotBlank() && old.extra["uploadId"] == targetUploadId &&
+                        old.installVersion == targetVersion
+                    val managed = ItchStaging.previousInventory(savedInventory, targetInventory, installedExactUpload, old.exe)
+                    ItchStaging.commit(work, folder, managed, onCommitted = { next ->
+                        ItchStaging.writeInventory(folder, next)
+                    })
+                }
+            }
+            return exe
         }
         if (updating) synchronized(commit) {
             if (cancelled.get()) {

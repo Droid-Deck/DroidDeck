@@ -5,6 +5,7 @@ use super::net::hex_lower;
 use super::proto::{Fields, Value};
 
 pub const SHA256_ALGORITHM: u64 = 0;
+pub const SHAKE128_ALGORITHM: u64 = 1;
 
 pub const RESERVED_ROOT_NAMES: &[&str] = &[
     ".droiddeck-store.json",
@@ -12,6 +13,7 @@ pub const RESERVED_ROOT_NAMES: &[&str] = &[
     ".droiddeck-launch.bat",
     ".amazon_download_in_progress",
     ".amazon_download_complete",
+    ".droiddeck-maintenance",
 ];
 
 pub const TEMP_SUFFIX: &str = ".tmp";
@@ -30,6 +32,14 @@ impl GameFile {
             self.digest.as_slice().try_into().ok()
         } else {
             None
+        }
+    }
+
+    pub fn has_supported_hash(&self) -> bool {
+        match self.algorithm {
+            SHA256_ALGORITHM => self.digest.len() == 32,
+            SHAKE128_ALGORITHM => !self.digest.is_empty(),
+            _ => false,
         }
     }
 
@@ -69,6 +79,13 @@ pub fn check_path(raw: &str) -> Result<String, String> {
             "." | ".." => return refuse("relative segment"),
             _ => {}
         }
+    }
+    if path
+        .split('/')
+        .next()
+        .is_some_and(|first| first.eq_ignore_ascii_case(".droiddeck-maintenance"))
+    {
+        return refuse("DroidDeck's own metadata");
     }
     if !path.contains('/') && RESERVED_ROOT_NAMES.iter().any(|r| r.eq_ignore_ascii_case(&path)) {
         return refuse("DroidDeck's own file");
@@ -118,7 +135,12 @@ fn parse_file(data: &[u8]) -> Result<Option<GameFile>, String> {
     if algorithm == SHA256_ALGORITHM && !digest.is_empty() && digest.len() != 32 {
         return Err(format!("The manifest has a {}-byte SHA-256 for {path}", digest.len()));
     }
-    Ok(Some(GameFile { path, size, algorithm, digest }))
+    Ok(Some(GameFile {
+        path,
+        size,
+        algorithm,
+        digest,
+    }))
 }
 
 pub fn parse_message(data: &[u8]) -> Result<Manifest, String> {
@@ -138,7 +160,9 @@ pub fn parse_message(data: &[u8]) -> Result<Manifest, String> {
                 (2, _) => return Err("file field has the wrong type".into()),
                 _ => continue,
             };
-            let Some(file) = parse_file(entry)? else { continue };
+            let Some(file) = parse_file(entry)? else {
+                continue;
+            };
             out.entries += 1;
             match index.get(&file.path) {
                 Some(&i) => {
@@ -219,10 +243,25 @@ mod tests {
         let d2: Vec<u8> = Sha256::digest(b"two").to_vec();
         let msg = message(&[
             vec![
-                Entry { path: "Binaries\\Win64\\Game.exe", size: 3, algorithm: Some(0), digest: &d1 },
-                Entry { path: "", size: 9, algorithm: None, digest: &d1 },
+                Entry {
+                    path: "Binaries\\Win64\\Game.exe",
+                    size: 3,
+                    algorithm: Some(0),
+                    digest: &d1,
+                },
+                Entry {
+                    path: "",
+                    size: 9,
+                    algorithm: None,
+                    digest: &d1,
+                },
             ],
-            vec![Entry { path: "fuel.json", size: 3, algorithm: None, digest: &d2 }],
+            vec![Entry {
+                path: "fuel.json",
+                size: 3,
+                algorithm: None,
+                digest: &d2,
+            }],
         ]);
         for xz in [true, false] {
             let m = parse(&frame(&msg, b"\x0a\x00", xz)).unwrap();
@@ -238,7 +277,12 @@ mod tests {
 
     #[test]
     fn other_algorithms_are_not_verified_but_still_named() {
-        let msg = message(&[vec![Entry { path: "a", size: 1, algorithm: Some(7), digest: &[0xab, 0xcd] }]]);
+        let msg = message(&[vec![Entry {
+            path: "a",
+            size: 1,
+            algorithm: Some(7),
+            digest: &[0xab, 0xcd],
+        }]]);
         let m = parse_message(&msg).unwrap();
         assert_eq!(m.files[0].sha256(), None);
         assert_eq!(m.files[0].cdn_name(), "abcd");
@@ -249,8 +293,18 @@ mod tests {
         let a = [1u8; 32];
         let b = [2u8; 32];
         let msg = message(&[vec![
-            Entry { path: "x\\y.bin", size: 1, algorithm: Some(0), digest: &a },
-            Entry { path: "x/y.bin", size: 2, algorithm: Some(0), digest: &b },
+            Entry {
+                path: "x\\y.bin",
+                size: 1,
+                algorithm: Some(0),
+                digest: &a,
+            },
+            Entry {
+                path: "x/y.bin",
+                size: 2,
+                algorithm: Some(0),
+                digest: &b,
+            },
         ]]);
         let m = parse_message(&msg).unwrap();
         assert_eq!(m.files.len(), 1);
@@ -273,9 +327,16 @@ mod tests {
             ".droiddeck-store.json",
             ".DroidDeck-Launch.BAT",
             ".amazon_download_complete",
+            ".droiddeck-maintenance/operation.json",
+            ".DROIDDECK-MAINTENANCE/amazon/installed.manifest",
         ] {
             assert!(check_path(bad).is_err(), "{bad}");
-            let msg = message(&[vec![Entry { path: bad, size: 1, algorithm: Some(0), digest: &[0; 32] }]]);
+            let msg = message(&[vec![Entry {
+                path: bad,
+                size: 1,
+                algorithm: Some(0),
+                digest: &[0; 32],
+            }]]);
             let err = parse_message(&msg).unwrap_err();
             assert!(err.contains(bad), "{err}");
         }
@@ -285,18 +346,48 @@ mod tests {
 
     #[test]
     fn malformed_entries_are_errors() {
-        let no_hash = message(&[vec![Entry { path: "a", size: 5, algorithm: Some(0), digest: &[] }]]);
+        let no_hash = message(&[vec![Entry {
+            path: "a",
+            size: 5,
+            algorithm: Some(0),
+            digest: &[],
+        }]]);
         assert!(parse_message(&no_hash).is_err());
-        let empty_ok = message(&[vec![Entry { path: "e", size: 0, algorithm: Some(0), digest: &[] }]]);
+        let empty_ok = message(&[vec![Entry {
+            path: "e",
+            size: 0,
+            algorithm: Some(0),
+            digest: &[],
+        }]]);
         assert_eq!(parse_message(&empty_ok).unwrap().files[0].sha256(), None);
-        let short = message(&[vec![Entry { path: "a", size: 5, algorithm: Some(0), digest: &[1, 2] }]]);
+        let short = message(&[vec![Entry {
+            path: "a",
+            size: 5,
+            algorithm: Some(0),
+            digest: &[1, 2],
+        }]]);
         assert!(parse_message(&short).is_err());
         let clash = message(&[vec![
-            Entry { path: "a.bin", size: 1, algorithm: Some(0), digest: &[1; 32] },
-            Entry { path: "a.bin.tmp", size: 1, algorithm: Some(0), digest: &[2; 32] },
+            Entry {
+                path: "a.bin",
+                size: 1,
+                algorithm: Some(0),
+                digest: &[1; 32],
+            },
+            Entry {
+                path: "a.bin.tmp",
+                size: 1,
+                algorithm: Some(0),
+                digest: &[2; 32],
+            },
         ]]);
         assert!(parse_message(&clash).is_err());
-        let mut truncated = message(&[vec![Entry { path: "a", size: 1, algorithm: Some(0), digest: &[1; 32] }]]);
+        let mut truncated = message(&[vec![Entry {
+            path: "a",
+            size: 1,
+            algorithm: Some(0),
+            digest: &[1; 32],
+        }]]);
         truncated.truncate(truncated.len() - 3);
         assert!(parse_message(&truncated).is_err());
         assert!(parse_message(&[0x08, 0x01]).is_err());

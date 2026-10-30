@@ -14,7 +14,9 @@ pub enum Check {
 }
 
 fn hash_file(path: &Path, cancel: &AtomicBool) -> Option<Option<Hash>> {
-    let Ok(mut f) = fs::File::open(path) else { return Some(None) };
+    let Ok(mut f) = fs::File::open(path) else {
+        return Some(None);
+    };
     let mut h = Sha1::new();
     let mut buf = vec![0u8; 1024 * 1024];
     loop {
@@ -31,10 +33,13 @@ fn hash_file(path: &Path, cancel: &AtomicBool) -> Option<Option<Hash>> {
 }
 
 pub fn check(dest: &Path, size: u64, sha1: Option<Hash>, cancel: &AtomicBool) -> Check {
-    let old_size = match fs::metadata(dest) {
-        Ok(m) if m.is_file() => m.len(),
+    let old_size = match fs::symlink_metadata(dest) {
+        Ok(m) if m.is_file() && !m.file_type().is_symlink() => m.len(),
         _ => return Check::Pending { old_size: 0 },
     };
+    if old_size == 0 && size == 0 && sha1.is_none() {
+        return Check::UpToDate;
+    }
     let Some(expected) = sha1 else {
         return Check::Pending { old_size };
     };
@@ -61,10 +66,25 @@ mod tests {
         let good: Hash = Sha1::digest(b"hello").into();
         let cancel = AtomicBool::new(false);
         assert!(matches!(check(&f, 5, Some(good), &cancel), Check::UpToDate));
-        assert!(matches!(check(&f, 5, None, &cancel), Check::Pending { old_size: 5 }));
-        assert!(matches!(check(&f, 6, Some(good), &cancel), Check::Pending { old_size: 5 }));
-        assert!(matches!(check(&f, 5, Some([0; 20]), &cancel), Check::Pending { .. }));
-        assert!(matches!(check(&dir.join("missing"), 5, Some(good), &cancel), Check::Pending { old_size: 0 }));
+        let empty = dir.join("empty.bin");
+        fs::write(&empty, b"").unwrap();
+        assert!(matches!(check(&empty, 0, None, &cancel), Check::UpToDate));
+        assert!(matches!(
+            check(&f, 5, None, &cancel),
+            Check::Pending { old_size: 5 }
+        ));
+        assert!(matches!(
+            check(&f, 6, Some(good), &cancel),
+            Check::Pending { old_size: 5 }
+        ));
+        assert!(matches!(
+            check(&f, 5, Some([0; 20]), &cancel),
+            Check::Pending { .. }
+        ));
+        assert!(matches!(
+            check(&dir.join("missing"), 5, Some(good), &cancel),
+            Check::Pending { old_size: 0 }
+        ));
         cancel.store(true, Ordering::Relaxed);
         assert!(matches!(check(&f, 5, Some(good), &cancel), Check::Cancelled));
         let _ = fs::remove_dir_all(&dir);

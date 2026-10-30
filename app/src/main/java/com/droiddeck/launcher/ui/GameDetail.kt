@@ -101,6 +101,7 @@ import com.droiddeck.launcher.stores.StoresState
 import com.droiddeck.launcher.stores.battlenet.BattleNetInstall
 import com.droiddeck.launcher.stores.download.DownloadQueue
 import com.droiddeck.launcher.stores.download.DownloadState
+import com.droiddeck.launcher.stores.maintenance.StoreMaintenance
 import com.droiddeck.launcher.stores.formatBytes
 import com.droiddeck.launcher.stores.xbox.XboxBackend
 import com.droiddeck.launcher.stores.xbox.XboxCloudGames
@@ -415,27 +416,19 @@ internal fun GameActions(
                         EditArtButton(game)
                     }
                 }
-                if (store == Store.ITCH && installed != null) ItchUpdateButton(installed, download == null && StoresState.uninstalling[installed.key] == null)
+                if (store == Store.ITCH && installed != null && StoreMaintenance.adapter(installed) == null) ItchUpdateButton(installed, download == null && StoresState.uninstalling[installed.key] == null)
                 if (store == Store.GOG && installed != null) GogMaintenanceActions(installed)
+                if (store != Store.GOG && installed != null && installed.key !in StoresState.uninstalling && StoreMaintenance.adapter(installed) != null) StoreMaintenanceActions(installed)
+                if (store == null && game != null && game.source == Library.SOURCE_STEAM && game.appId > 0) SteamClientMaintenanceActions(a, s.sessionRunning)
                 if (store == Store.XBOX && id != null) XboxInstalledStream(id, game?.name ?: item?.title.orEmpty(), item)
                 if (store == Store.XBOX && installed != null && id != null) {
-                    SecondaryButton(stringResource(R.string.stores_xbox_update), enabled = download == null && !XboxRuntime.isActive(id)) {
+                    if (StoreMaintenance.adapter(installed) == null) SecondaryButton(stringResource(R.string.stores_xbox_update), enabled = download == null && !XboxRuntime.isActive(id)) {
                         runCatching { XboxBackend.update(ctx, installed) }
                             .onFailure { StoresState.problems[Store.XBOX] = it.message ?: ctx.getString(R.string.stores_xbox_close_first) }
                     }
                     SecondaryButton(stringResource(R.string.stores_xbox_manage), enabled = download == null) { XboxContent.manage(ctx, installed) }
                 }
-                if (store == Store.BATTLENET) {
-                    if (installed != null && id != null) {
-                        LaunchedEffect(id) { BattleNetInstall.checkUpdate(ctx, installed) }
-                        if (download != null) {
-                            ActionChip(downloadLabel(download), ok = false)
-                            if (download.state != DownloadState.PAUSED) SecondaryButton(stringResource(R.string.stores_dl_pause)) { DownloadQueue.pause(download.key) }
-                            else SecondaryButton(stringResource(R.string.stores_dl_resume)) { DownloadQueue.resume(ctx, download.key) }
-                        } else if (BattleNetInstall.updates[id] == true) {
-                            SecondaryButton(stringResource(R.string.bnet_update)) { BattleNetInstall.update(ctx, installed) }
-                        }
-                    }
+                if (store == Store.BATTLENET && installed == null) {
                     SecondaryButton(stringResource(R.string.bnet_open)) { a.onBattleNet() }
                 }
             }

@@ -19,6 +19,8 @@ import com.droiddeck.launcher.stores.StoresState
 import com.droiddeck.launcher.stores.download.DownloadEntry
 import com.droiddeck.launcher.stores.download.DownloadQueue
 import com.droiddeck.launcher.stores.download.DownloadStage
+import com.droiddeck.launcher.stores.maintenance.MaintenanceCheck
+import com.droiddeck.launcher.stores.maintenance.MaintenanceCheckState
 import org.json.JSONObject
 import java.io.File
 import java.net.HttpURLConnection
@@ -176,6 +178,18 @@ object BattleNetInstall {
 
     fun checkUpdate(context: Context, game: InstalledStoreGame, force: Boolean = false) = check(game.sidecar.id, game.folder, force)
 
+    fun maintenanceCheck(context: Context, game: InstalledStoreGame): MaintenanceCheck {
+        val product = product(game.sidecar.id)
+            ?: return MaintenanceCheck(MaintenanceCheckState.UNKNOWN, reason = "Battle.net does not support this installed product")
+        val local = runCatching { buildKey(File(game.folder, BUILD_INFO).readText()) }.getOrNull()
+            ?: return MaintenanceCheck(MaintenanceCheckState.UNKNOWN, reason = "The installed Battle.net build is unknown")
+        val latest = runCatching { latestBuild(fetch(VERSIONS.format(Locale.ROOT, local.first, product)), local.first) }
+            .getOrElse { return MaintenanceCheck(MaintenanceCheckState.FAILED, reason = it.message ?: "Battle.net update check failed") }
+            ?: return MaintenanceCheck(MaintenanceCheckState.UNKNOWN, reason = "Battle.net did not provide a build for region ${local.first}")
+        return if (latest == local.second) MaintenanceCheck(MaintenanceCheckState.CURRENT, latest)
+        else MaintenanceCheck(MaintenanceCheckState.AVAILABLE, latest)
+    }
+
     internal fun check(id: String, folder: File, force: Boolean) {
         val product = product(id) ?: return
         val now = System.currentTimeMillis()
@@ -271,8 +285,9 @@ internal class BattleNetInstaller(
         var reason: String? = null
         val code = BattleNetInstall.run(app, args, cancelled) { line ->
             when {
-                line.startsWith(BattleNetInstall.PROGRESS) ->
-                    runCatching { JSONObject(line.removePrefix(BattleNetInstall.PROGRESS)) }.getOrNull()?.let { progress(handle, it) }
+                line.startsWith(BattleNetInstall.PROGRESS) -> runCatching { JSONObject(line.removePrefix(BattleNetInstall.PROGRESS)) }.getOrNull()?.let {
+                    progress(handle, it)
+                }
                 line == BattleNetInstall.STATE + "waiting" -> handle.stage(DownloadStage.MANIFEST, app.getString(R.string.bnet_dl_waiting))
                 line == BattleNetInstall.STATE + "queued" -> handle.stage(DownloadStage.MANIFEST, app.getString(R.string.bnet_dl_queued))
                 line == BattleNetInstall.STATE + "starting" -> handle.stage(DownloadStage.MANIFEST, app.getString(R.string.bnet_dl_starting))

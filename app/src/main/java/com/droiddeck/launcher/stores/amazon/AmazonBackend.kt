@@ -12,10 +12,12 @@ import com.droiddeck.launcher.stores.StoreLoginActivity
 import com.droiddeck.launcher.stores.StoresState
 import com.droiddeck.launcher.stores.download.DownloadEntry
 import com.droiddeck.launcher.stores.download.DownloadQueue
+import com.droiddeck.launcher.stores.maintenance.StoreMaintenanceAdapter
 import org.json.JSONObject
 
 object AmazonBackend : StoreBackend {
     override val store: Store = Store.AMAZON
+    override fun maintenanceAdapter(): StoreMaintenanceAdapter = AmazonMaintenanceAdapter
 
     init {
         LoginFlows.amazonFlow = { AmazonLogin.create() }

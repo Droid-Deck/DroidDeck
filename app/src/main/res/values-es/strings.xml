@@ -1272,6 +1272,7 @@
     <string name="game_link_invalid">Enlace de inicio de juego no válido.</string>
     <string name="game_link_missing">Este juego ya no está en tu biblioteca de DroidDeck.</string>
     <string name="game_link_session_busy">Detén la sesión actual antes de iniciar un juego de Steam.</string>
+    <string name="store_maintenance_launch_blocked">Hay una tarea de mantenimiento en curso. Termínala antes de iniciar este juego.</string>
     <string name="game_link_failed">No se pudo enviar el juego a Steam. Intenta iniciarlo de nuevo.</string>
     <string name="setup_retry_removal">Reintentar eliminación</string>
     <string name="runtime_removing">Eliminando</string>

@@ -7,10 +7,18 @@ import androidx.compose.runtime.setValue
 import com.droiddeck.launcher.stores.*
 import com.droiddeck.launcher.stores.download.DownloadEntry
 import com.droiddeck.launcher.stores.download.DownloadQueue
+import com.droiddeck.launcher.stores.maintenance.MaintenanceCheck
+import com.droiddeck.launcher.stores.maintenance.MaintenanceCheckState
+import com.droiddeck.launcher.stores.maintenance.MaintenanceProposal
+import com.droiddeck.launcher.stores.maintenance.MaintenanceAction
+import com.droiddeck.launcher.stores.maintenance.StoreMaintenance
+import com.droiddeck.launcher.stores.maintenance.StoreMaintenanceAdapter
+import org.json.JSONObject
 import java.io.File
 
 object XboxBackend : StoreBackend {
     override val store = Store.XBOX
+    override fun maintenanceAdapter(): StoreMaintenanceAdapter = XboxMaintenanceAdapter
     @Volatile private var access: Map<String, String> = emptyMap()
     @Volatile private var generation = 0
     private var syncing: Int? = null
@@ -146,6 +154,55 @@ object XboxBackend : StoreBackend {
         val root = game.folder.parentFile!!.parentFile!!
         com.droiddeck.launcher.stores.download.SavedQueue.remember(context, item, root)
         enqueue(context, item, root)
+    }
+
+    internal fun maintenanceCheck(context: Context, game: InstalledStoreGame): MaintenanceCheck {
+        return try {
+        if (StoreAccounts.signedInAs(context, store) == null)
+            return MaintenanceCheck(MaintenanceCheckState.FAILED, reason = "Sign in to Xbox before checking package updates")
+        val contentId = game.sidecar.extra["contentId"].orEmpty()
+        if (!contentId.matches(Regex("[a-fA-F0-9-]{36}")))
+            return MaintenanceCheck(MaintenanceCheckState.UNKNOWN, reason = "The installed Xbox package identity is unknown")
+        val market = game.sidecar.extra["market"]?.takeIf { it.matches(Regex("[A-Z]{2}")) } ?: Xodus.market()
+        val plan = Xodus.run(context.applicationContext, listOf("resolve-package", game.sidecar.id, "--json", "--market", market))
+        if (plan.optString("status") != "ready")
+            return MaintenanceCheck(MaintenanceCheckState.UNKNOWN, reason = "Xodus did not resolve a current Xbox package")
+        val choice = XboxCatalog.objects(plan.optJSONArray("choices")).firstOrNull { it.optString("contentId").equals(contentId, true) }
+            ?: return MaintenanceCheck(MaintenanceCheckState.UNKNOWN, reason = "The installed Xbox package is not in the current package choices")
+        val version = listOf("version", "packageVersion", "package_version").firstNotNullOfOrNull { key -> choice.optString(key).takeIf { it.isNotBlank() } }
+            ?: return MaintenanceCheck(MaintenanceCheckState.UNKNOWN, reason = "Xodus did not expose a current package version")
+        val installed = runCatching { XboxManifest.read(game.folder).version }.getOrDefault(game.sidecar.installVersion)
+        if (installed.isBlank()) MaintenanceCheck(MaintenanceCheckState.UNKNOWN, version, "The installed Xbox package version is unknown")
+        else MaintenanceCheck(if (installed == version) MaintenanceCheckState.CURRENT else MaintenanceCheckState.AVAILABLE, version)
+        } catch (error: Exception) {
+            MaintenanceCheck(MaintenanceCheckState.FAILED, reason = error.message ?: "Xbox package check failed")
+        }
+    }
+
+    internal fun prepareMaintenance(context: Context, game: InstalledStoreGame): MaintenanceProposal {
+        check(!XboxRuntime.isActive(game.sidecar.id)) { "Close this Xbox game before updating it." }
+        val contentId = game.sidecar.extra["contentId"].orEmpty()
+        require(contentId.matches(Regex("[a-fA-F0-9-]{36}"))) { "The installed Xbox package identity is unknown." }
+        val market = game.sidecar.extra["market"]?.takeIf { it.matches(Regex("[A-Z]{2}")) } ?: Xodus.market()
+        val version = maintenanceCheck(context, game).takeIf { it.state == MaintenanceCheckState.AVAILABLE }?.version.orEmpty()
+        val size = MaintenanceProposal.UNKNOWN_BYTES
+        val target = JSONObject().put("schema", 1).put("contentId", contentId).put("market", market).put("version", version)
+        return MaintenanceProposal(game.folder.canonicalFile, game.sidecar, version.ifBlank { "latest licensed Xbox package" }, MaintenanceAction.UPDATE,
+            downloadBytes = size, diskBytes = size, description = "Xodus refreshes the installed package through its licensed streaming path.", target = target)
+    }
+
+    internal fun enqueueMaintenance(context: Context, game: InstalledStoreGame, proposal: MaintenanceProposal): Boolean {
+        val sidecar = game.sidecar
+        val item = CatalogItem(store, sidecar.id, sidecar.title, sidecar.hero, tallImageUrl = sidecar.cover,
+            owned = sidecar.extra["access"] == "owned", subscription = sidecar.extra["access"] == "gamepass",
+            extra = sidecar.extra + mapOf("contentId" to proposal.target.getString("contentId"), "market" to proposal.target.getString("market"),
+                StoreMaintenance.OPERATION_KEY to MaintenanceAction.UPDATE.name, StoreMaintenance.FOLDER_KEY to game.folder.canonicalPath))
+        val root = game.folder.parentFile?.parentFile ?: error("Xbox install root is missing")
+        val entry = DownloadEntry(store, sidecar.id, sidecar.title, cover = sidecar.cover,
+            bytesTotal = proposal.downloadBytes, location = StoreInstallRoot.labelFor(context, game.folder))
+        return DownloadQueue.enqueueIfIdle(context.applicationContext, entry, onAccepted = {
+            com.droiddeck.launcher.stores.download.SavedQueue.remember(context, item, root)
+        }) { XboxInstaller(context.applicationContext, item, game.folder, game) }
     }
 
     private fun enqueue(context: Context, item: CatalogItem, root: File) {

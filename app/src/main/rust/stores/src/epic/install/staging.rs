@@ -44,7 +44,9 @@ pub fn remove_partial(partial: &Path) {
 }
 
 pub fn partials(dir: &Path) -> HashMap<String, PathBuf> {
-    let Ok(entries) = fs::read_dir(dir) else { return HashMap::new() };
+    let Ok(entries) = fs::read_dir(dir) else {
+        return HashMap::new();
+    };
     entries
         .flatten()
         .map(|e| e.file_name().to_string_lossy().into_owned())
@@ -77,7 +79,11 @@ pub fn recover(game_dir: &Path) -> Result<PathBuf, String> {
     let game = fs::canonicalize(game_dir).map_err(|e| format!("game folder: {e}"))?;
     let expected = game.join(DIR_NAME);
     let dir = game_dir.join(DIR_NAME);
-    let refuse = |why: &str| Err(format!("The staging folder {DIR_NAME} is not usable ({why}); nothing was changed"));
+    let refuse = |why: &str| {
+        Err(format!(
+            "The staging folder {DIR_NAME} is not usable ({why}); nothing was changed"
+        ))
+    };
 
     match fs::symlink_metadata(&dir) {
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
@@ -140,8 +146,13 @@ pub fn recover(game_dir: &Path) -> Result<PathBuf, String> {
 }
 
 pub fn remove_if_idle(dir: &Path) {
-    let Ok(entries) = fs::read_dir(dir) else { return };
-    let names: Vec<String> = entries.flatten().map(|e| e.file_name().to_string_lossy().into_owned()).collect();
+    let Ok(entries) = fs::read_dir(dir) else {
+        return;
+    };
+    let names: Vec<String> = entries
+        .flatten()
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .collect();
     if names.iter().all(|n| n == OWNER_FILE) {
         let marker = dir.join(OWNER_FILE);
         if names.is_empty() || fs::read(&marker).map(|c| c == OWNER_MARKER).unwrap_or(false) {

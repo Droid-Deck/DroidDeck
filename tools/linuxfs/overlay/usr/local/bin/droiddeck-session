@@ -187,6 +187,9 @@ nap() {
   [ -n "${bl_nap_fd:-}" ] || exec {bl_nap_fd}<> <(:)
   read -r -t "$1" -u "$bl_nap_fd" _ 2>/dev/null || :
 }
+steam_uninstall_id_valid() {
+  [[ ${1:-} =~ ^[1-9][0-9]{0,9}$ ]] && [ "$1" -le 4294967295 ]
+}
 export XDG_DATA_HOME=${XDG_DATA_HOME:-$HOME/.local/share}
 export XDG_CONFIG_HOME=${XDG_CONFIG_HOME:-$HOME/.config}
 export XDG_CACHE_HOME=${XDG_CACHE_HOME:-$HOME/.cache}
@@ -1242,13 +1245,12 @@ case $mode in
           if [ -f "$BL_LAUNCH_DIR/steam-uninstall" ]; then
             uninstall_id=$(cat "$BL_LAUNCH_DIR/steam-uninstall" 2>/dev/null)
             rm -f "$BL_LAUNCH_DIR/steam-uninstall"
-            case $uninstall_id in
-              ''|0*|*[!0-9]*|???????????*) echo "== steam: ignored invalid uninstall request" ;;
-              *)
-                echo "== steam: opening the uninstall dialog for $uninstall_id"
-                "${steam_client[@]}" "steam://uninstall/$uninstall_id" >/dev/null 2>&1 &
-                ;;
-            esac
+            if steam_uninstall_id_valid "$uninstall_id"; then
+              echo "== steam: opening the uninstall dialog for $uninstall_id"
+              "${steam_client[@]}" "steam://uninstall/$uninstall_id" >/dev/null 2>&1 &
+            else
+              echo "== steam: ignored invalid uninstall request"
+            fi
           fi
           if [ -f "$BL_LAUNCH_DIR/steam-game" ]; then
             game_id=$(cat "$BL_LAUNCH_DIR/steam-game" 2>/dev/null)

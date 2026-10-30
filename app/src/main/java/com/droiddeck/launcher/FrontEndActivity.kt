@@ -1094,9 +1094,35 @@ class FrontEndActivity : ComponentActivity() {
                         onPlay = { playSteam() },
                         onPlaySteamVr = { playSteamVr() },
                         onSteamUrl = { url ->
-                            if (!SessionState.running) startSession(
-                                Intent(this, SessionActivity::class.java).putExtra(SessionService.EXTRA_STEAM_URL, url), steamSession = true,
-                            )
+                            if (!com.droiddeck.launcher.session.SteamSessionUrl.isSupported(url)) {
+                                android.widget.Toast.makeText(this, R.string.steam_navigation_failed, android.widget.Toast.LENGTH_LONG).show()
+                            } else if (!SessionState.running) {
+                                android.widget.Toast.makeText(this, R.string.steam_navigation_failed, android.widget.Toast.LENGTH_LONG).show()
+                            } else if (SessionState.mode != SessionService.MODE_STEAM) {
+                                android.widget.Toast.makeText(this, R.string.steam_navigation_switch_mode, android.widget.Toast.LENGTH_LONG).show()
+                            } else if (SessionState.stopRequested) {
+                                android.widget.Toast.makeText(this, R.string.game_link_session_busy, android.widget.Toast.LENGTH_LONG).show()
+                            } else {
+                                if (SessionState.suspended) SessionService.resume(this)
+                                val context = applicationContext
+                                val sessionId = SessionState.sessionId
+                                Thread({
+                                    val opened = runCatching {
+                                        com.droiddeck.launcher.agent.AgentGuest.openSteamUrl(context, url)
+                                    }.isSuccess
+                                    ui.post {
+                                        val canResume = com.droiddeck.launcher.session.SteamSessionUrl.canResume(
+                                            sessionId, SessionState.sessionId, SessionState.running,
+                                            SessionState.stopRequested, isDestroyed,
+                                        )
+                                        if (opened && canResume) startActivity(Intent(this, SessionActivity::class.java).setAction(SessionService.ACTION_RESUME)
+                                            .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP))
+                                        else if (!opened && !isDestroyed) android.widget.Toast.makeText(
+                                            this, R.string.steam_navigation_failed, android.widget.Toast.LENGTH_LONG,
+                                        ).show()
+                                    }
+                                }, "steam-navigation").start()
+                            }
                         },
                         onPlayDesktopUi = {
                             startSession(Intent(this, SessionActivity::class.java)
@@ -1107,7 +1133,11 @@ class FrontEndActivity : ComponentActivity() {
                             if (shortcutPicker) chooseGameShortcut(g)
                             else {
                                 com.droiddeck.launcher.frontend.AutoComponents.beforeLaunch(this, g)
-                                com.droiddeck.launcher.stores.StoreLaunch.prepare(this, g) { launchGame(g) }
+                                com.droiddeck.launcher.stores.StoreLaunch.prepare(this, g, onBlocked = {
+                                    android.widget.Toast.makeText(
+                                        this, R.string.store_maintenance_launch_blocked, android.widget.Toast.LENGTH_LONG,
+                                    ).show()
+                                }) { launchGame(g) }
                             }
                         },
                         onEpicLauncher = { openEpicLauncher() },
