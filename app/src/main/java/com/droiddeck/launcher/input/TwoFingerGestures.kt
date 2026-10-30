@@ -26,7 +26,6 @@ class TwoFingerGestures(private val slopPx: Float, private val listener: Listene
     private var startSpan = 0f
     private var lastX = 0f
     private var lastY = 0f
-    private var anchored = false
     private val starts = HashMap<Int, Pair<Float, Float>>()
     private val held = ArrayList<MotionEvent>()
     private val hold = Runnable {
@@ -85,7 +84,7 @@ class TwoFingerGestures(private val slopPx: Float, private val listener: Listene
                         return true
                     }
                     State.SCROLLING -> {
-                        anchored = false
+                        anchor(event, -1)
                         return true
                     }
                     State.HELD, State.TAPPED -> return true
@@ -111,7 +110,6 @@ class TwoFingerGestures(private val slopPx: Float, private val listener: Listene
                         listener.cancelTouch()
                         lastX = midX(event)
                         lastY = midY(event)
-                        anchored = true
                         listener.scrollStart(lastX, lastY)
                         return true
                     }
@@ -122,8 +120,7 @@ class TwoFingerGestures(private val slopPx: Float, private val listener: Listene
                     if (event.pointerCount >= 2) {
                         val mx = midX(event)
                         val my = midY(event)
-                        if (anchored) listener.scroll(lastX - mx, lastY - my)
-                        anchored = true
+                        listener.scroll(lastX - mx, lastY - my)
                         lastX = mx
                         lastY = my
                     }
@@ -145,7 +142,7 @@ class TwoFingerGestures(private val slopPx: Float, private val listener: Listene
                     return true
                 }
                 State.SCROLLING -> {
-                    anchored = false
+                    anchor(event, event.actionIndex)
                     return true
                 }
                 State.HELD, State.TAPPED -> return true
@@ -202,6 +199,13 @@ class TwoFingerGestures(private val slopPx: Float, private val listener: Listene
     private fun moved(event: MotionEvent): Boolean = (0 until event.pointerCount).any { i ->
         val start = starts[event.getPointerId(i)] ?: return@any false
         hypot(event.getX(i) - start.first, event.getY(i) - start.second) > slopPx
+    }
+
+    private fun anchor(event: MotionEvent, lifted: Int) {
+        val kept = (0 until event.pointerCount).filter { it != lifted }
+        if (kept.size < 2) return
+        lastX = (event.getX(kept[0]) + event.getX(kept[1])) / 2f
+        lastY = (event.getY(kept[0]) + event.getY(kept[1])) / 2f
     }
 
     private fun span(event: MotionEvent) = hypot(event.getX(1) - event.getX(0), event.getY(1) - event.getY(0))

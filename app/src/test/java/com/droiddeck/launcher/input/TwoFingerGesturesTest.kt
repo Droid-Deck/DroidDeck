@@ -71,9 +71,21 @@ class TwoFingerGesturesTest {
         assertTrue(touch(MotionEvent.ACTION_POINTER_UP, 1, 1 to (400f to 260f), 2 to (500f to 260f)))
         assertTrue(touch(MotionEvent.ACTION_MOVE, 0, 1 to (400f to 250f)))
         assertTrue(touch(MotionEvent.ACTION_POINTER_DOWN, 1, 1 to (400f to 250f), 3 to (800f to 600f)))
-        assertTrue(touch(MotionEvent.ACTION_MOVE, 0, 1 to (400f to 250f), 3 to (800f to 600f)))
         assertTrue(touch(MotionEvent.ACTION_MOVE, 0, 1 to (400f to 230f), 3 to (800f to 580f)))
         assertEquals(listOf("cancel", "start 450.0,260.0", "scroll 0.0,20.0"), calls)
+    }
+
+    @Test fun aThirdFingerLiftingDuringAScrollKeepsTheRemainingMidpoint() {
+        val c = 3 to (450f to 500f)
+        touch(MotionEvent.ACTION_DOWN, 0, a)
+        time += 20
+        touch(MotionEvent.ACTION_POINTER_DOWN, 1, a, b)
+        time += 20
+        touch(MotionEvent.ACTION_MOVE, 0, 1 to (400f to 260f), 2 to (500f to 260f))
+        assertTrue(touch(MotionEvent.ACTION_POINTER_DOWN, 2, 1 to (400f to 260f), 2 to (500f to 260f), c))
+        assertTrue(touch(MotionEvent.ACTION_POINTER_UP, 0, 1 to (400f to 260f), 2 to (500f to 260f), c))
+        assertTrue(touch(MotionEvent.ACTION_MOVE, 0, 2 to (500f to 250f), c))
+        assertEquals(listOf("cancel", "start 450.0,260.0", "scroll 0.0,5.0"), calls)
     }
 
     @Test fun pinchPassesThroughForZoom() {
