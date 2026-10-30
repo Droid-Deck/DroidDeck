@@ -44,6 +44,7 @@ python3 /usr/local/bin/droiddeck-pad-defaults 2>&1 | sed 's/^/[pads] /'
 ( while sleep 30; do python3 /usr/local/bin/droiddeck-pad-defaults 2>&1 | sed 's/^/[pads] /'; done ) &
 python3 /usr/local/bin/droiddeck-desktop-gpu 2>&1 | sed 's/^/[gpu] /'
 /usr/local/bin/droiddeck-desktop-window-rules 2>&1 | sed 's/^/[rules] /'
+( python3 /usr/local/bin/droiddeck-library-perms 2>&1 | sed 's/^/[perms] /' ) &
 mkdir -p /usr/local/share/applications
 cat > /usr/local/share/applications/droiddeck-ime.desktop <<'ENTRY'
 [Desktop Entry]

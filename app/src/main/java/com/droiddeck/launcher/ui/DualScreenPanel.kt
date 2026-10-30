@@ -69,6 +69,7 @@ object DualScreenPanel {
     private var launching = false
         set(value) { field = value; available = value || activity != null }
     private var ownerTask = -1
+    private var ownerYielded = false
 
     var typing by mutableStateOf<TypingRequest?>(null)
         private set
@@ -114,10 +115,11 @@ object DualScreenPanel {
     }
 
     fun show(context: Context, display: Int, task: Int) {
-        if (shownOn == display) return
+        if (shownOn == display) { ownerTask = task; return }
         hide()
         displayId = display
         ownerTask = task
+        ownerYielded = false
         launching = true
         val intent = Intent(context, DualScreenActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_MULTIPLE_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION)
@@ -134,6 +136,10 @@ object DualScreenPanel {
         activity = null
     }
 
+    fun hide(task: Int) {
+        if (ownerTask == task || ownerTask < 0) hide()
+    }
+
     internal fun attach(host: DualScreenActivity): Boolean {
         if (!launching && activity == null) return false
         if (activity !== host) activity?.finishAndRemoveTask()
@@ -142,9 +148,27 @@ object DualScreenPanel {
         return true
     }
 
+    // The panel resumes when an app opens over the owner on the primary screen; pulling the owner back would hide that app.
+    fun yieldTo(task: Int, app: Boolean) {
+        if (ownerTask == task) ownerYielded = app
+    }
+
     internal fun returnFocus(context: Context) {
+        if (ownerYielded) return
         val task = ownerTask.takeIf { it >= 0 } ?: return
         runCatching { (context.getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager).moveTaskToFront(task, 0) }
+    }
+
+    internal fun reclaimFocus(context: Context) {
+        if (ownerYielded) return
+        val task = ownerTask.takeIf { it >= 0 } ?: return
+        val manager = context.getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager
+        runCatching {
+            manager.appTasks.firstOrNull {
+                @Suppress("DEPRECATION")
+                (if (android.os.Build.VERSION.SDK_INT >= 29) it.taskInfo.taskId else it.taskInfo.persistentId) == task
+            }?.moveToFront() ?: manager.moveTaskToFront(task, 0)
+        }
     }
 
     internal fun detach(host: DualScreenActivity) {
@@ -162,7 +186,7 @@ class DualScreenActivity : ComponentActivity() {
             finishAndRemoveTask()
             return
         }
-        window.addFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         applyImmersiveMode()
         setContent {
             val model = DualScreenPanel.model
@@ -197,7 +221,6 @@ class DualScreenActivity : ComponentActivity() {
 
     private fun dropFocus() {
         unfocusPending = false
-        window.addFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
     }
 
     override fun onResume() {
@@ -205,10 +228,17 @@ class DualScreenActivity : ComponentActivity() {
         if (!DualScreenPanel.typingShown) DualScreenPanel.returnFocus(this)
     }
 
+    override fun onTopResumedActivityChanged(isTopResumedActivity: Boolean) {
+        super.onTopResumedActivityChanged(isTopResumedActivity)
+        if (isTopResumedActivity && !DualScreenPanel.typingShown) DualScreenPanel.returnFocus(this)
+    }
+
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-        if (hasFocus) applyImmersiveMode()
-        else if (unfocusPending && !DualScreenPanel.typingShown) dropFocus()
+        if (hasFocus) {
+            applyImmersiveMode()
+            if (!DualScreenPanel.typingShown) DualScreenPanel.reclaimFocus(this)
+        } else if (unfocusPending && !DualScreenPanel.typingShown) dropFocus()
     }
 
     @Suppress("OVERRIDE_DEPRECATION")

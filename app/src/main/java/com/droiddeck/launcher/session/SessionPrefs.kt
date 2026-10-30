@@ -94,6 +94,12 @@ object SessionPrefs {
         prefs(context).edit().putString("dualScreenMode", mode).apply()
     }
 
+    fun secondScreenPanel(context: Context): String? = prefs(context).getString("secondScreenPanel", null)
+
+    fun setSecondScreenPanel(context: Context, mode: String) {
+        prefs(context).edit().putString("secondScreenPanel", mode).apply()
+    }
+
     fun dualScreenLauncher(context: Context): Boolean = prefs(context).getBoolean("dualScreenLauncher", true)
 
     fun setDualScreenLauncher(context: Context, on: Boolean) {
@@ -241,7 +247,7 @@ object SessionPrefs {
         prefs(context).edit().putInt("gameStoresParallel", count.coerceIn(1, 3)).apply()
     }
 
-    fun hudEnabled(context: Context): Boolean = prefs(context).getBoolean(hudKey(context), !mangoappSession(context))
+    fun hudEnabled(context: Context): Boolean = prefs(context).getBoolean(hudKey(context), false)
 
     fun setHudEnabled(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean(hudKey(context), on).apply()
@@ -1081,12 +1087,30 @@ object SessionPrefs {
     /** Compositor frame limit that releases buffers to the game unpaced. */
     const val FPS_UNPACED = -1
 
+    /** The drawer's frame limit slider: its first stop is Off. */
+    const val FPS_LIMIT_OFF = 15
+    const val FPS_LIMIT_MAX = 120
+
     /**
      * Buffers go back to the game as soon as they are replaced instead of once per refresh;
-     * Steam's Frame Limit in the Quick Access menu caps games. Mirroring still follows the glasses' refresh rate.
+     * Steam's Frame Limit in the Quick Access menu caps Steam games, and the drawer's limit caps games
+     * launched without Steam. Mirroring still follows the glasses' refresh rate.
      */
-    fun compositorFpsLimit(mirrorRefreshLimit: Int): Int =
-        if (mirrorRefreshLimit <= 0) FPS_UNPACED else mirrorRefreshLimit
+    fun compositorFpsLimit(mirrorRefreshLimit: Int, sessionLimit: Int = 0): Int = when {
+        mirrorRefreshLimit <= 0 && sessionLimit <= 0 -> FPS_UNPACED
+        mirrorRefreshLimit <= 0 -> sessionLimit
+        sessionLimit <= 0 -> mirrorRefreshLimit
+        else -> minOf(mirrorRefreshLimit, sessionLimit)
+    }
+
+    private const val STEAM_UI_FPS = 60f
+
+    fun steamUiPacing(context: Context): Boolean = prefs(context).getBoolean("steamUiPacing", true)
+
+    fun steamUiFpsLimit(refreshHz: Float): Int {
+        val steps = ((refreshHz + 0.5f) / STEAM_UI_FPS).toInt()
+        return if (steps < 2) 0 else (refreshHz / steps + 0.01f).toInt()
+    }
 
     val upscalerChoices = listOf(
         0 to "Linear", 2 to "Nearest", 4 to "AMD FSR 1", 3 to "Snapdragon GSR",

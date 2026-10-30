@@ -3351,4 +3351,9 @@
     <string name="slow_usb_port">%1$s متصل عبر %2$s (%3$s ميغابت/ث، حوالي %4$d ميغابايت/ث). لا يدعم منفذ USB في هذا الجهاز سرعة أعلى، لذا ستُحمَّل الألعاب عليه ببطء. قد تكون الذاكرة الداخلية أو بطاقة microSD أسرع.</string>
     <string name="slow_usb_never">عدم الإظهار مرة أخرى</string>
     <string name="slow_usb_dismiss">إغلاق</string>
+    <string name="steam_import_title">هل تريد إعادة تشغيل Steam لإضافة ألعابك؟</string>
+    <string name="steam_import_body">يمكن لـ Steam إدراج هذه الألعاب التي تملكها كألعاب مثبتة: %1$s. يجب إعادة تشغيله لإظهارها. أعد التشغيل الآن، أو ستُضاف في المرة القادمة التي يبدأ فيها Steam.</string>
+    <string name="steam_import_names_more">%1$s و%2$d أخرى</string>
+    <string name="steam_import_now">إعادة التشغيل الآن</string>
+    <string name="steam_import_later">لاحقًا</string>
 </resources>

@@ -3281,4 +3281,9 @@
     <string name="slow_usb_port">%1$s je připojen přes %2$s (%3$s Mb/s, asi %4$d MB/s). Port USB tohoto zařízení rychleji neumí, takže hry na něm se budou načítat pomalu. Interní úložiště nebo karta microSD může být rychlejší.</string>
     <string name="slow_usb_never">Už nezobrazovat</string>
     <string name="slow_usb_dismiss">Zavřít</string>
+    <string name="steam_import_title">Restartovat Steam a přidat vaše hry?</string>
+    <string name="steam_import_body">Steam může tyto vaše hry zobrazit jako nainstalované: %1$s. Aby je ukázal, musí se restartovat. Restartujte teď, nebo se přidají při příštím spuštění Steamu.</string>
+    <string name="steam_import_names_more">%1$s a %2$d dalších</string>
+    <string name="steam_import_now">Restartovat teď</string>
+    <string name="steam_import_later">Později</string>
 </resources>

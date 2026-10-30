@@ -3211,4 +3211,9 @@
     <string name="slow_usb_port">%1$s er tilsluttet via %2$s (%3$s Mbps, ca. %4$d MB/s). Denne enheds USB-port kan ikke køre hurtigere, så spil på den indlæses langsomt. Intern lagerplads eller et microSD-kort kan være hurtigere.</string>
     <string name="slow_usb_never">Vis ikke igen</string>
     <string name="slow_usb_dismiss">Luk</string>
+    <string name="steam_import_title">Genstart Steam for at tilføje dine spil?</string>
+    <string name="steam_import_body">Steam kan vise disse spil, du ejer, som installerede: %1$s. Steam skal genstartes for at vise dem. Genstart nu, eller de bliver tilføjet næste gang Steam starter.</string>
+    <string name="steam_import_names_more">%1$s og %2$d mere</string>
+    <string name="steam_import_now">Genstart nu</string>
+    <string name="steam_import_later">Senere</string>
 </resources>

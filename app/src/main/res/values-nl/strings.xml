@@ -3211,4 +3211,9 @@
     <string name="slow_usb_port">%1$s is verbonden via %2$s (%3$s Mbps, ongeveer %4$d MB/s). De USB-poort van dit apparaat kan niet sneller, dus games laden traag. Interne opslag of een microSD-kaart kan sneller zijn.</string>
     <string name="slow_usb_never">Niet meer tonen</string>
     <string name="slow_usb_dismiss">Sluiten</string>
+    <string name="steam_import_title">Steam opnieuw starten om je games toe te voegen?</string>
+    <string name="steam_import_body">Steam kan deze games die je bezit als geïnstalleerd tonen: %1$s. Steam moet opnieuw starten om ze te tonen. Start nu opnieuw, of ze worden toegevoegd de volgende keer dat Steam start.</string>
+    <string name="steam_import_names_more">%1$s en nog %2$d</string>
+    <string name="steam_import_now">Nu opnieuw starten</string>
+    <string name="steam_import_later">Later</string>
 </resources>

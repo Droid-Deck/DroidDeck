@@ -3185,4 +3185,9 @@
     <string name="slow_usb_port">%1$s disambungkan melalui %2$s (%3$s Mbps, kira-kira %4$d MB/s). Port USB peranti ini tidak boleh lebih pantas, jadi permainan akan dimuatkan perlahan. Storan dalaman atau kad microSD mungkin lebih pantas.</string>
     <string name="slow_usb_never">Jangan tunjukkan lagi</string>
     <string name="slow_usb_dismiss">Tutup</string>
+    <string name="steam_import_title">Mulakan semula Steam untuk menambah permainan anda?</string>
+    <string name="steam_import_body">Steam boleh menyenaraikan permainan milik anda ini sebagai dipasang: %1$s. Steam perlu dimulakan semula untuk menunjukkannya. Mulakan semula sekarang, atau ia akan ditambah apabila Steam dimulakan seterusnya.</string>
+    <string name="steam_import_names_more">%1$s dan %2$d lagi</string>
+    <string name="steam_import_now">Mulakan semula sekarang</string>
+    <string name="steam_import_later">Kemudian</string>
 </resources>

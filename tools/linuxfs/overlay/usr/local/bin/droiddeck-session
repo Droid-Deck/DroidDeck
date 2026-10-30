@@ -22,6 +22,17 @@ if [ -n "${BL_LOG:-}" ] && [ -z "${BL_INSIDE:-}" ]; then
   echo "== rootfs: $(cat /.version 2>/dev/null || echo unversioned)"
 fi
 
+sync_timezone() {
+  local zone=${TZ:-}
+  case "$zone" in ''|/*|*..*) return 0 ;; esac
+  [ -f "/usr/share/zoneinfo/$zone" ] || return 0
+  if [ "$(readlink /etc/localtime 2>/dev/null)" != "/usr/share/zoneinfo/$zone" ]; then
+    ln -sfn "/usr/share/zoneinfo/$zone" /etc/localtime.droiddeck && mv -Tf /etc/localtime.droiddeck /etc/localtime || return 0
+  fi
+  [ "$(cat /etc/timezone 2>/dev/null)" = "$zone" ] || printf '%s\n' "$zone" > /etc/timezone
+} 2>/dev/null
+sync_timezone
+
 write_system_bus_config() {
   mkdir -p /run/dbus /usr/local/share/droiddeck
   cat > /usr/local/share/droiddeck/system-bus.conf <<'BUSCONF'
@@ -89,6 +100,22 @@ clear_stale_tmp() {
 if [ -z "${BL_INSIDE:-}" ]; then
   if [ "${BL_ZRAM:-0}" = 1 ]; then printf 0 > /tmp/.bl-zram; else rm -f /tmp/.bl-zram; fi
 fi
+
+steam_devtools() {
+  _bl_cdp=()
+  if [ -f "$steam_root/.cef-enable-remote-debugging" ]; then
+    if timeout 5 python3 -c 'import socket, sys
+s = socket.socket()
+s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+s.bind(("127.0.0.1", int(sys.argv[1])))' "$1" 2>/dev/null; then
+      BL_CDP_PORT=$1
+      return 0
+    fi
+    echo "== steam: port $1 is held by another app; Decky cannot load this session and Steam's devtools use another port"
+  fi
+  BL_CDP_PORT=$((20000 + RANDOM % 30000))
+  _bl_cdp=(-cef-enable-debugging -devtools-port "$BL_CDP_PORT")
+}
 
 steam_update_stuck() {
   local stamp
@@ -972,14 +999,9 @@ case $mode in
         echo "== Decky: installed loader architecture is unsupported by this guest; not starting"
       fi
     fi
-    _bl_cdp=()
-    if [ -f "$steam_root/.cef-enable-remote-debugging" ]; then
-      export BL_CDP_PORT=8080
-    else
-      export BL_CDP_PORT=$((20000 + RANDOM % 30000))
-      _bl_cdp=(-cef-enable-debugging -devtools-port "$BL_CDP_PORT")
-    fi
-    if [ -f "$HOME/.droiddeck-decky-enabled" ] && [ "${decky_arch:-}" = x86_64 ]; then
+    steam_devtools 8080
+    export BL_CDP_PORT
+    if [ -f "$HOME/.droiddeck-decky-enabled" ] && [ "${decky_arch:-}" = x86_64 ] && [ ${#_bl_cdp[@]} = 0 ]; then
       echo "== steam: devtools port $BL_CDP_PORT left open for the x86_64 Decky loader"
     else
       export BL_CDP_GUARD=$BL_CDP_PORT

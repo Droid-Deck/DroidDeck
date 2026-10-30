@@ -3246,4 +3246,9 @@
     <string name="slow_usb_port">%1$s este conectat prin %2$s (%3$s Mbps, aproximativ %4$d MB/s). Portul USB al acestui dispozitiv nu poate merge mai repede, așa că jocurile se vor încărca lent. Memoria internă sau un card microSD pot fi mai rapide.</string>
     <string name="slow_usb_never">Nu mai afișa</string>
     <string name="slow_usb_dismiss">Închide</string>
+    <string name="steam_import_title">Repornești Steam pentru a adăuga jocurile tale?</string>
+    <string name="steam_import_body">Steam poate afișa ca instalate aceste jocuri pe care le deții: %1$s. Trebuie să repornească pentru a le afișa. Repornește acum sau vor fi adăugate la următoarea pornire a Steam.</string>
+    <string name="steam_import_names_more">%1$s și încă %2$d</string>
+    <string name="steam_import_now">Repornește acum</string>
+    <string name="steam_import_later">Mai târziu</string>
 </resources>

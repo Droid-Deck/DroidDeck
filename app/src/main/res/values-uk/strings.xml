@@ -3281,4 +3281,9 @@
     <string name="slow_usb_port">%1$s під’єднано через %2$s (%3$s Мбіт/с, близько %4$d МБ/с). USB-порт цього пристрою не працює швидше, тому ігри завантажуватимуться повільно. Внутрішня пам’ять або карта microSD можуть бути швидшими.</string>
     <string name="slow_usb_never">Більше не показувати</string>
     <string name="slow_usb_dismiss">Закрити</string>
+    <string name="steam_import_title">Перезапустити Steam, щоб додати ваші ігри?</string>
+    <string name="steam_import_body">Steam може показати ці ваші ігри як встановлені: %1$s. Для цього його треба перезапустити. Перезапустіть зараз, або їх буде додано під час наступного запуску Steam.</string>
+    <string name="steam_import_names_more">%1$s і ще %2$d</string>
+    <string name="steam_import_now">Перезапустити зараз</string>
+    <string name="steam_import_later">Пізніше</string>
 </resources>

@@ -27,6 +27,7 @@ fonts-noto-core
 gamescope
 gir1.2-flatpak-1.0
 gir1.2-glib-2.0
+gir1.2-gtk-3.0
 gnu-coreutils
 gnupg-agent
 gpgv
@@ -46,6 +47,7 @@ libatomic1
 libatspi2.0-0t64
 libavahi-client3
 libavahi-common3
+libblas3
 libblkid1
 libbrotli1
 libbz2-1.0
@@ -100,6 +102,7 @@ libk5crypto3
 libkeyutils1
 libkrb5-3
 libkrb5support0
+liblapack3
 liblcms2-2
 libliftoff0
 liblua5.4-0
@@ -117,13 +120,16 @@ libnss-mdns
 libnss-myhostname
 libnss3
 libopenal1
+libopengl0
 libopenvr-api2
 libopus0
 libp11-kit0
 libpango-1.0-0
 libpangocairo-1.0-0
 libpangoft2-1.0-0
+libpci3
 libpcre2-8-0
+libpcsclite1
 libpipewire-0.3-0t64
 libpixman-1-0
 libpng16-16t64
@@ -143,6 +149,7 @@ libtasn1-6
 libthai0
 libudev1
 libunistring5
+libusb-1.0-0
 libuuid1
 libva2
 libvdpau1

@@ -3185,4 +3185,9 @@
     <string name="slow_usb_port">%1$s เชื่อมต่อผ่าน %2$s (%3$s Mbps ประมาณ %4$d MB/s) พอร์ต USB ของอุปกรณ์นี้เร็วกว่านี้ไม่ได้ เกมจึงโหลดช้า ที่เก็บข้อมูลภายในหรือการ์ด microSD อาจเร็วกว่า</string>
     <string name="slow_usb_never">ไม่ต้องแสดงอีก</string>
     <string name="slow_usb_dismiss">ปิด</string>
+    <string name="steam_import_title">รีสตาร์ต Steam เพื่อเพิ่มเกมของคุณหรือไม่</string>
+    <string name="steam_import_body">Steam แสดงเกมที่คุณเป็นเจ้าของเหล่านี้ว่าติดตั้งแล้วได้: %1$s ต้องรีสตาร์ตเพื่อให้แสดง รีสตาร์ตเลย หรือเกมจะถูกเพิ่มเมื่อ Steam เริ่มครั้งถัดไป</string>
+    <string name="steam_import_names_more">%1$s และอีก %2$d เกม</string>
+    <string name="steam_import_now">รีสตาร์ตเลย</string>
+    <string name="steam_import_later">ภายหลัง</string>
 </resources>

@@ -25,6 +25,7 @@ class RuntimeUserDataCarryTest {
         put(old, "root/save.dat", "mine")
         put(old, "opt/appimages/user/app1/app.AppImage")
         put(old, "opt/droiddeck-apps/game/run.sh")
+        put(old, "opt/droiddeck/wincomponents/d3dx9/component.json")
         put(old, "usr/local/share/applications/droiddeck-app-game.desktop")
         put(old, "usr/local/share/applications/droiddeck-appimage-app1.desktop")
         put(old, "usr/local/share/applications/other.desktop")
@@ -43,6 +44,7 @@ class RuntimeUserDataCarryTest {
         assertEquals("mine", File(staging, "root/save.dat").readText())
         assertFalse("the shipped home is replaced, not merged", File(staging, "root/.bashrc").exists())
         for (rel in listOf("opt/appimages/user/app1/app.AppImage", "opt/droiddeck-apps/game/run.sh",
+                "opt/droiddeck/wincomponents/d3dx9/component.json",
                 "usr/local/share/applications/droiddeck-app-game.desktop", "usr/local/share/applications/droiddeck-appimage-app1.desktop",
                 "opt/appimages/dolphin.AppImage", "usr/share/applications/droiddeck-dolphin.desktop", ".droiddeck-pkg-dolphin")) {
             assertTrue(rel, File(staging, rel).exists())

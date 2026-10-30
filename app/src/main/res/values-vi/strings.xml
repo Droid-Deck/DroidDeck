@@ -3185,4 +3185,9 @@
     <string name="slow_usb_port">%1$s đang kết nối qua %2$s (%3$s Mbps, khoảng %4$d MB/s). Cổng USB của thiết bị này không thể nhanh hơn, nên trò chơi sẽ tải chậm. Bộ nhớ trong hoặc thẻ microSD có thể nhanh hơn.</string>
     <string name="slow_usb_never">Không hiển thị lại</string>
     <string name="slow_usb_dismiss">Đóng</string>
+    <string name="steam_import_title">Khởi động lại Steam để thêm trò chơi của bạn?</string>
+    <string name="steam_import_body">Steam có thể hiển thị các trò chơi bạn sở hữu này là đã cài đặt: %1$s. Steam cần khởi động lại để hiển thị chúng. Khởi động lại ngay, hoặc chúng sẽ được thêm vào lần tới Steam khởi động.</string>
+    <string name="steam_import_names_more">%1$s và %2$d trò chơi khác</string>
+    <string name="steam_import_now">Khởi động lại ngay</string>
+    <string name="steam_import_later">Để sau</string>
 </resources>
