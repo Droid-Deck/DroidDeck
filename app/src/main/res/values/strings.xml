@@ -643,7 +643,7 @@
     <string name="driver_delete_in_use">Its files are removed. It\'s in use, so the default takes over.</string>
     <string name="drawer_page_display">Display</string>
     <string name="drawer_frame_limit">Frame limit</string>
-    <string name="drawer_frame_limit_note">Caps this game. The display switches to a refresh rate the cap divides evenly. Steam games use Steam\'s Frame Limit in the Quick Access menu.</string>
+    <string name="drawer_frame_limit_note">Caps this game. The display switches to a refresh rate the cap divides evenly when it has one; other caps can look uneven. Steam games use Steam\'s Frame Limit in the Quick Access menu.</string>
     <string name="drawer_page_effects">Effects</string>
     <string name="drawer_page_controls">Controls</string>
     <string name="drawer_page_components">Components</string>
