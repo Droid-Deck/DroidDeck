@@ -7,8 +7,9 @@ import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
-import android.widget.Button
+import android.widget.TextView
 import androidx.compose.ui.test.*
+import androidx.compose.ui.semantics.SemanticsProperties.StateDescription
 import androidx.compose.runtime.MutableState
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.SessionActivity
@@ -75,6 +76,28 @@ class SessionSecondScreenTest {
 
     @Test fun steamTrackpadKeepsWorkingSteamShortcuts() = checkShortcuts(steam = true)
 
+    @Test fun trackpadMenuButtonOnlyAppearsWhenTheMenuCanMove() {
+        SessionState.mode = SessionService.MODE_STEAM
+        val activity = Robolectric.buildActivity(SessionActivity::class.java).get()
+        val display = activity.getSystemService(DisplayManager::class.java).getDisplay(Display.DEFAULT_DISPLAY)
+        val label = context.getString(R.string.touch_droiddeck_menu)
+        for (movable in listOf(false, true)) {
+            var menus = 0
+            val panel = SecondScreenPresentation(activity, display, { _, _, _, _ -> }, { _, _ -> }, {},
+                {}, {}, {}, onMenu = if (movable) ({ menus++ }) else null)
+            try {
+                panel.create()
+                panel.showMode(SecondScreenMode.KEYBOARD_TRACKPAD)
+                val buttons = descendants(panel.window!!.decorView).filter { it.contentDescription == label }.toList()
+                assertEquals(if (movable) 1 else 0, buttons.size)
+                buttons.forEach { it.performClick() }
+                assertEquals(if (movable) 1 else 0, menus)
+            } finally {
+                panel.closeControls()
+            }
+        }
+    }
+
     @Test
     @Config(sdk = [34], shadows = [PadBridgeRoutingTest.RegisteredKeyEvent::class])
     fun controllerBumpersReachTheSecondScreenInBothSessionModes() {
@@ -85,7 +108,7 @@ class SessionSecondScreenTest {
             SessionState.mode = mode
             val activity = Robolectric.buildActivity(SessionActivity::class.java).get()
             fun <T> state(name: String): MutableState<T> = ReflectionHelpers.getField(activity, "$name\$delegate")
-            state<Boolean>("drawerOpen").value = true
+            state<Boolean>("drawerOpenState").value = true
             state<Boolean>("drawerControllerActive").value = true
             state<List<SecondScreenDisplay>>("secondScreenDisplays").value = listOf(SecondScreenDisplay(1, "Bottom screen"))
             for ((button, page) in listOf(KeyEvent.KEYCODE_BUTTON_R1 to SessionDrawerPage.SECOND_SCREEN,
@@ -95,6 +118,69 @@ class SessionSecondScreenTest {
                 assertEquals(page, state<SessionDrawerPage>("drawerPage").value)
             }
         }
+    }
+
+    @Test
+    @Config(sdk = [34], shadows = [PadBridgeRoutingTest.RegisteredKeyEvent::class])
+    fun drawerShortcutsConsumeRepeatsAndReleasesAfterClosing() {
+        val device = InputDeviceBuilder.newBuilder().setId(43).setName("Drawer shortcut test pad")
+            .setDescriptor("drawer-shortcut-pad").setExternal(true).setSources(InputDevice.SOURCE_GAMEPAD).build()
+        shadowOf(context.getSystemService(InputManager::class.java)).addInputDevice(device)
+        SessionState.mode = SessionService.MODE_STEAM
+        val activity = Robolectric.buildActivity(SessionActivity::class.java).get()
+        val open: MutableState<Boolean> = ReflectionHelpers.getField(activity, "drawerOpenState\$delegate")
+        val controller: MutableState<Boolean> = ReflectionHelpers.getField(activity, "drawerControllerActive\$delegate")
+        controller.value = true
+        for (button in listOf(KeyEvent.KEYCODE_BUTTON_SELECT, KeyEvent.KEYCODE_BUTTON_START)) {
+            fun event(action: Int, repeat: Int = 0) = KeyEvent(0L, 0L, action, button, repeat, 0,
+                device.id, 0, 0, InputDevice.SOURCE_GAMEPAD)
+            open.value = true
+            assertTrue(activity.dispatchKeyEvent(event(KeyEvent.ACTION_DOWN)))
+            assertEquals(false, open.value)
+            open.value = true
+            assertTrue(activity.dispatchKeyEvent(event(KeyEvent.ACTION_DOWN, 1)))
+            assertEquals(true, open.value)
+            open.value = false
+            assertTrue(activity.dispatchKeyEvent(event(KeyEvent.ACTION_UP)))
+            val held: Set<Pair<Int, Int>> = ReflectionHelpers.getField(activity, "drawerShortcutKeysDown")
+            assertTrue(held.isEmpty())
+        }
+    }
+
+    @Test fun sessionMicrophoneCanBeTurnedOff() {
+        val changes = mutableListOf<Boolean>()
+        compose.setContent {
+            DroidDeckTheme {
+                SessionDrawer(true, SessionDrawerPage.SESSION, false, {},
+                    actions(true, emptyList(), micAvailable = true, micEnabled = true, onMic = changes::add))
+            }
+        }
+        compose.onNodeWithTag("setting-microphone").assertIsEnabled()
+            .assert(SemanticsMatcher.expectValue(StateDescription, context.getString(R.string.widgets_on))).performClick()
+        assertEquals(listOf(false), changes)
+    }
+
+    @Test fun sessionMicrophoneCanBeTurnedBackOn() {
+        val changes = mutableListOf<Boolean>()
+        compose.setContent {
+            DroidDeckTheme {
+                SessionDrawer(true, SessionDrawerPage.SESSION, false, {},
+                    actions(true, emptyList(), micAvailable = true, onMic = changes::add))
+            }
+        }
+        compose.onNodeWithTag("setting-microphone").assertIsEnabled()
+            .assert(SemanticsMatcher.expectValue(StateDescription, context.getString(R.string.widgets_off))).performClick()
+        assertEquals(listOf(true), changes)
+    }
+
+    @Test fun sessionWithoutMicrophoneOmitsCaptureControl() {
+        compose.setContent {
+            DroidDeckTheme {
+                SessionDrawer(true, SessionDrawerPage.SESSION, false, {}, actions(false, emptyList()))
+            }
+        }
+        compose.onNodeWithTag("setting-microphone").assertDoesNotExist()
+        compose.onNodeWithText(context.getString(R.string.mode_mic)).assertDoesNotExist()
     }
 
     private fun checkModes(steam: Boolean) {
@@ -124,9 +210,9 @@ class SessionSecondScreenTest {
         try {
             panel.create()
             panel.showMode(SecondScreenMode.KEYBOARD_TRACKPAD)
-            val buttons = descendants(panel.window!!.decorView).filterIsInstance<Button>().toList()
+            val buttons = descendants(panel.window!!.decorView).filterIsInstance<TextView>().filter { it.isClickable }.toList()
             assertTrue(buttons.any { it.text == context.getString(R.string.second_show_keyboard) })
-            val shortcuts = buttons.filter { it.text == "STEAM" || it.text == "…" }
+            val shortcuts = buttons.filter { it.text == "STEAM" || it.text == "•••" }
             if (steam) {
                 assertEquals(2, shortcuts.size)
                 shortcuts.forEach { it.performClick() }
@@ -145,8 +231,11 @@ class SessionSecondScreenTest {
         if (view is ViewGroup) for (index in 0 until view.childCount) yieldAll(descendants(view.getChildAt(index)))
     }
 
-    private fun actions(steam: Boolean, displays: List<SecondScreenDisplay>, select: (SecondScreenMode) -> Unit = {}) =
+    private fun actions(steam: Boolean, displays: List<SecondScreenDisplay>,
+        micAvailable: Boolean = false, micEnabled: Boolean = false, onMic: (Boolean) -> Unit = {},
+        select: (SecondScreenMode) -> Unit = {}) =
         DrawerActions(steam = steam, isHomeApp = false, androidApps = emptyList(), hudOn = false,
+            micAvailable = micAvailable, micEnabled = micEnabled, onMicEnabled = onMic,
             frameGen = FrameGen.Mode.OFF, lossless = Lossless.State.NONE, oscMode = "never",
             onScreenButtonsVisible = false, suspendPolicy = "auto", backActionsInverted = false,
             touchMode = "auto", touchAuto = "trackpad", fexPreset = "default",

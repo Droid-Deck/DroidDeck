@@ -1,0 +1,103 @@
+diff --git a/src/steamcompmgr.cpp b/src/steamcompmgr.cpp
+index 22aa907..0aef598 100644
+--- a/src/steamcompmgr.cpp
++++ b/src/steamcompmgr.cpp
+@@ -8359,6 +8359,33 @@ static TempUpscaleImage_t *GetTempUpscaleImage( global_focus_t *pFocus, uint32_t
+ 
+ gamescope::ConVar<bool> cv_surface_update_force_only_current_surface( "surface_update_force_only_current_surface", false, "Force updates to apply only to the current surface, ignoring commits for other surfaces." );
+ 
++gamescope::ConVar<bool> cv_commit_ready_check( "commit_ready_check", true, "Check a new commit's fence at import; a finished frame is marked done in the same pass instead of through the image waiter." );
++
++// Set when update_wayland_res marks a commit done itself, so the main loop handles it in the same pass.
++static bool s_bXwaylandCommitsDoneAtImport = false;
++static bool s_bXdgCommitsDoneAtImport = false;
++
++static bool commit_fence_ready_now( int nFd )
++{
++	struct pollfd pfd = { .fd = nFd, .events = POLLIN, .revents = 0 };
++	return poll( &pfd, 1, 0 ) == 1 && ( pfd.revents & POLLIN );
++}
++
++static void note_commit_fence( bool bReadyAtImport )
++{
++	static uint64_t s_ulReady = 0, s_ulWaited = 0, s_ulLastLog = 0;
++	( bReadyAtImport ? s_ulReady : s_ulWaited )++;
++	uint64_t now = get_time_in_nanos();
++	if ( !s_ulLastLog )
++		s_ulLastLog = now;
++	if ( now - s_ulLastLog >= 10'000'000'000ul )
++	{
++		xwm_log.infof( "commit fences, last 10 s: %lu ready at import, %lu waited for", s_ulReady, s_ulWaited );
++		s_ulReady = s_ulWaited = 0;
++		s_ulLastLog = now;
++	}
++}
++
+ void update_wayland_res(const std::shared_ptr<CommitDoneList_t> &doneCommits, steamcompmgr_win_t *w, ResListEntry_t& reslistentry)
+ {
+ 	struct wlr_buffer *buf = reslistentry.buf;
+@@ -8602,7 +8629,11 @@ void update_wayland_res(const std::shared_ptr<CommitDoneList_t> &doneCommits, st
+ 		struct wlr_dmabuf_attributes dmabuf = {0};
+ 		if ( wlr_buffer_get_dmabuf( buf, &dmabuf ) )
+ 		{
+-			fence = dup( dmabuf.fd[0] );
++			// A finished buffer needs no fence of its own.
++			if ( cv_commit_ready_check && commit_fence_ready_now( dmabuf.fd[0] ) )
++				bKnownReady = true;
++			else
++				fence = dup( dmabuf.fd[0] );
+ 		}
+ 		else
+ 		{
+@@ -8610,11 +8641,22 @@ void update_wayland_res(const std::shared_ptr<CommitDoneList_t> &doneCommits, st
+ 		}
+ 	}
+ 
++	if ( cv_commit_ready_check )
++	{
++		if ( !bKnownReady && fence >= 0 && commit_fence_ready_now( fence ) )
++			bKnownReady = true;
++		note_commit_fence( bKnownReady );
++	}
++
+ 	gpuvis_trace_printf( "pushing wait for commit %lu win %lx", newCommit->commitID, w->type == steamcompmgr_win_type_t::XWAYLAND ? w->xwayland().id : 0 );
+ 	{
+ 		newCommit->SetFence( fence, mango_nudge, uMangoMsgType, doneCommits );
+ 		if ( bKnownReady )
++		{
+ 			newCommit->Signal();
++			if ( cv_commit_ready_check )
++				( w->type == steamcompmgr_win_type_t::XWAYLAND ? s_bXwaylandCommitsDoneAtImport : s_bXdgCommitsDoneAtImport ) = true;
++		}
+ 		else
+ 			g_ImageWaiter.AddWaitable( newCommit.get() );
+ 	}
+@@ -9400,6 +9442,13 @@ void steamcompmgr_check_xdg(bool vblank, uint64_t vblank_idx)
+ 	}
+ 
+ 	check_new_xdg_res();
++
++	// Commits marked done at import: handle them now rather than on the next wake. FIFO commits still wait for a vblank.
++	if ( s_bXdgCommitsDoneAtImport )
++	{
++		s_bXdgCommitsDoneAtImport = false;
++		handle_done_commits_xdg( false, vblank_idx );
++	}
+ }
+ 
+ void update_edid_prop()
+@@ -10512,6 +10561,14 @@ steamcompmgr_main(int argc, char **argv)
+ 			gamescope_xwayland_server_t *server = NULL;
+ 			for (size_t i = 0; (server = wlserver_get_xwayland_server(i)); i++)
+ 				check_new_xwayland_res(server->ctx.get());
++
++			// Commits marked done at import: handle them now rather than on the next wake. FIFO commits still wait for a vblank.
++			if ( s_bXwaylandCommitsDoneAtImport )
++			{
++				s_bXwaylandCommitsDoneAtImport = false;
++				for (size_t i = 0; (server = wlserver_get_xwayland_server(i)); i++)
++					handle_done_commits_xwayland(server->ctx.get(), false, vblank_idx);
++			}
+ 		}
+ 
+ 

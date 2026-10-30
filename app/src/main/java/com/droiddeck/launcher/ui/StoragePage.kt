@@ -1,5 +1,9 @@
 package com.droiddeck.launcher.ui
 
+import android.app.Activity
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.LocalIndication
@@ -43,7 +47,7 @@ import androidx.compose.material.icons.outlined.SaveAlt
 import androidx.compose.material.icons.outlined.ShoppingBag
 import androidx.compose.material.icons.outlined.Storage
 import androidx.compose.material.icons.outlined.VideogameAsset
-import androidx.compose.material3.AlertDialog
+import com.droiddeck.launcher.ui.GlideAlertDialog as AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -51,6 +55,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -65,6 +70,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -74,6 +80,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.droiddeck.launcher.R
+import com.droiddeck.launcher.files.InAppFilePicker
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.storage.Bucket
 import com.droiddeck.launcher.storage.CleanItem
@@ -84,6 +91,8 @@ import com.droiddeck.launcher.storage.StorageState
 import com.droiddeck.launcher.storage.ToolReason
 import com.droiddeck.launcher.storage.ToolState
 import com.droiddeck.launcher.storage.ToolUsage
+import com.droiddeck.launcher.stores.StoreInstallRoot
+import java.io.File
 import java.text.DateFormat
 import java.util.Date
 
@@ -144,6 +153,113 @@ internal fun StoragePanel(s: FrontEndState, a: FrontEndActions) {
     }
 }
 
+@Composable
+private fun DefaultStorageGroup() {
+    val ctx = LocalContext.current
+    var value by remember { mutableStateOf(SessionPrefs.defaultStorage(ctx)) }
+    var open by remember { mutableStateOf(false) }
+    var revision by remember { mutableIntStateOf(0) }
+    val customPath = SessionPrefs.defaultStorageFolder(ctx)
+    val customTarget = remember(customPath, revision) { StoreInstallRoot.customTarget(ctx) }
+    val detected = remember(customPath, revision) { StoreInstallRoot.detectedExternalTarget(ctx) }
+    val customLabel = SessionPrefs.defaultStorageFolderLabel(ctx).ifBlank {
+        customPath.takeIf { it.isNotBlank() }?.let { File(it).name }.orEmpty()
+    }
+    val pickFolder = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode != Activity.RESULT_OK) return@rememberLauncherForActivityResult
+        val path = InAppFilePicker.pickedPath(result.data) ?: return@rememberLauncherForActivityResult
+        val problem = StoreInstallRoot.prepareDefaultFolder(ctx, File(path))
+        if (problem != null) {
+            Toast.makeText(ctx, ctx.getString(R.string.main_storage_not_usable, problem), Toast.LENGTH_LONG).show()
+            return@rememberLauncherForActivityResult
+        }
+        SessionPrefs.setDefaultStorageFolder(ctx, path, StoreInstallRoot.folderLabel(ctx, File(path)))
+        SessionPrefs.setDefaultStorage(ctx, SessionPrefs.DEFAULT_STORAGE_EXTERNAL)
+        value = SessionPrefs.DEFAULT_STORAGE_EXTERNAL
+        revision++
+        open = false
+    }
+    fun chooseFolder() {
+        open = false
+        val initial = customPath.takeIf { it.isNotBlank() && File(it).isDirectory }
+            ?: detected?.root?.parentFile?.takeIf { it.isDirectory }?.absolutePath
+        pickFolder.launch(InAppFilePicker.buildDirIntent(ctx, ctx.getString(R.string.storage_default_choose_folder), initial))
+    }
+    val title = stringResource(R.string.storage_default_title)
+    val chip = when (value) {
+        SessionPrefs.DEFAULT_STORAGE_INTERNAL -> stringResource(R.string.storage_default_internal)
+        SessionPrefs.DEFAULT_STORAGE_EXTERNAL -> when {
+            customPath.isNotBlank() -> customTarget?.label
+                ?: "$customLabel · ${stringResource(R.string.storage_default_folder_missing)}"
+            detected != null -> detected.label
+            else -> stringResource(R.string.storage_default_external)
+        }
+        else -> stringResource(R.string.storage_default_ask)
+    }
+    fun pick(next: String) {
+        SessionPrefs.setDefaultStorage(ctx, next)
+        value = next
+        open = false
+    }
+    SettingsGroup(stringResource(R.string.storage_default_group)) {
+        SettingsRow(label = title, hint = stringResource(R.string.storage_default_hint)) {
+            Box {
+                ValueChip(chip, open, modifier = Modifier.testTag("setting-default-storage")) { open = !open }
+                AnchoredMenu(
+                    open, onDismiss = { open = false }, title = title,
+                    note = stringResource(R.string.storage_default_note),
+                ) { firstItemFocus ->
+                    MenuItem(
+                        stringResource(R.string.storage_default_ask), value == SessionPrefs.DEFAULT_STORAGE_ASK,
+                        detail = stringResource(R.string.storage_default_ask_detail),
+                        focusRequester = firstItemFocus,
+                    ) { pick(SessionPrefs.DEFAULT_STORAGE_ASK) }
+                    MenuItem(
+                        stringResource(R.string.storage_default_internal), value == SessionPrefs.DEFAULT_STORAGE_INTERNAL,
+                    ) { pick(SessionPrefs.DEFAULT_STORAGE_INTERNAL) }
+                    if (detected == null && customPath.isBlank()) {
+                        MenuItem(
+                            stringResource(R.string.storage_default_external), value == SessionPrefs.DEFAULT_STORAGE_EXTERNAL,
+                            detail = stringResource(R.string.storage_default_choose_folder_detail),
+                        ) { chooseFolder() }
+                    } else {
+                        if (detected != null) {
+                            MenuItem(
+                                stringResource(R.string.storage_default_external),
+                                value == SessionPrefs.DEFAULT_STORAGE_EXTERNAL && customPath.isBlank(),
+                                detail = detected.let { target ->
+                                    val free = target.freeBytes
+                                    if (free >= 0) stringResource(R.string.storage_default_external_detail, target.label, gb(free))
+                                    else target.label
+                                },
+                            ) {
+                                SessionPrefs.clearDefaultStorageFolder(ctx)
+                                pick(SessionPrefs.DEFAULT_STORAGE_EXTERNAL)
+                                revision++
+                            }
+                        }
+                        if (customPath.isNotBlank()) {
+                            MenuItem(
+                                stringResource(R.string.storage_default_folder, customLabel),
+                                value == SessionPrefs.DEFAULT_STORAGE_EXTERNAL,
+                                detail = customTarget?.let { target ->
+                                    val free = target.freeBytes
+                                    if (free >= 0) stringResource(R.string.storage_default_folder_free, gb(free))
+                                    else stringResource(R.string.storage_default_folder_missing)
+                                } ?: stringResource(R.string.storage_default_folder_missing),
+                            ) { if (customTarget != null) pick(SessionPrefs.DEFAULT_STORAGE_EXTERNAL) else chooseFolder() }
+                        }
+                        MenuItem(
+                            stringResource(R.string.storage_default_choose_folder), checked = false,
+                            detail = stringResource(R.string.storage_default_choose_folder_detail),
+                        ) { chooseFolder() }
+                    }
+                }
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun Overview(report: StorageReport, sessionRunning: Boolean, onCleanUp: () -> Unit, onOpen: (String) -> Unit) {
@@ -154,13 +270,10 @@ private fun Overview(report: StorageReport, sessionRunning: Boolean, onCleanUp: 
     val safe = StorageState.safeBytes(report)
     val low = report.free < StorageState.LOW_SPACE_BYTES
     ActionStatus()
-    Row(
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(18.dp),
-        modifier = Modifier.fillMaxWidth().padding(top = 8.dp).clip(Shape14).background(colors.surface).border(1.dp, pal.line, Shape14)
-            .padding(horizontal = 18.dp, vertical = 14.dp),
-    ) {
-        Column(Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    val summary = Modifier.fillMaxWidth().padding(top = 8.dp).clip(Shape14).background(colors.surface).border(1.dp, pal.line, Shape14)
+        .padding(horizontal = 18.dp, vertical = 14.dp)
+    val usage: @Composable (Modifier) -> Unit = { m -> Column(m) {
+            FlowRow(verticalArrangement = Arrangement.spacedBy(4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(stringResource(R.string.storage_internal), fontSize = 17.sp, fontWeight = FontWeight.Bold, color = colors.onBackground)
                 Text("· " + stringResource(R.string.storage_used_of, gb(used), gb(report.total)), fontSize = 15.sp, color = colors.onSurfaceVariant)
                 Pill(stringResource(R.string.storage_free, gb(report.free)), if (low) AttentionAmber else pal.good)
@@ -176,19 +289,27 @@ private fun Overview(report: StorageReport, sessionRunning: Boolean, onCleanUp: 
                 Bucket.entries.forEach { Legend(BucketColors.getValue(it), bucketLabel(it)) }
                 Legend(OtherApps, stringResource(R.string.storage_other_apps))
             }
-        }
+        } }
+    val freeable: @Composable (Modifier) -> Unit = { m -> Column(m) {
+        Text(stringResource(R.string.storage_safe_now), fontSize = 13.sp, color = colors.onSurfaceVariant)
+        Text(gb(safe), fontSize = 26.sp, fontWeight = FontWeight.Bold, color = if (safe > 0) pal.good else colors.onBackground)
+        Text(stringResource(R.string.storage_safe_hint), fontSize = 12.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(bottom = 10.dp))
+        PrimaryButton(stringResource(R.string.storage_clean_up), enabled = !sessionRunning && !StorageState.cleaning, compact = true, onClick = onCleanUp)
+    } }
+    if (wide) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(18.dp), modifier = summary) {
+        usage(Modifier.weight(1f))
         Box(Modifier.width(1.dp).height(120.dp).background(pal.line))
-        Column(Modifier.widthIn(min = 170.dp, max = 210.dp)) {
-            Text(stringResource(R.string.storage_safe_now), fontSize = 13.sp, color = colors.onSurfaceVariant)
-            Text(gb(safe), fontSize = 26.sp, fontWeight = FontWeight.Bold, color = if (safe > 0) pal.good else colors.onBackground)
-            Text(stringResource(R.string.storage_safe_hint), fontSize = 12.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(bottom = 10.dp))
-            PrimaryButton(stringResource(R.string.storage_clean_up), enabled = !sessionRunning && !StorageState.cleaning, compact = true, onClick = onCleanUp)
-        }
+        freeable(Modifier.widthIn(min = 170.dp, max = 210.dp))
+    } else Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = summary) {
+        usage(Modifier.fillMaxWidth())
+        Box(Modifier.fillMaxWidth().height(1.dp).background(pal.line))
+        freeable(Modifier.fillMaxWidth())
     }
     if (sessionRunning) {
         Spacer(Modifier.height(8.dp))
         Note(stringResource(R.string.storage_session_running))
     }
+    DefaultStorageGroup()
     SectionTitle(stringResource(R.string.storage_where), null)
     val unused = report.unusedTools.sumOf { it.bytes }
     val tiles = listOf<@Composable (Modifier) -> Unit>(
@@ -729,17 +850,23 @@ private fun GameDataView(report: StorageReport, sessionRunning: Boolean, onBack:
     val ctx = LocalContext.current
     val busy = sessionRunning || StorageState.cleaning
     var confirm by remember { mutableStateOf<com.droiddeck.launcher.storage.Leftover?>(null) }
+    var confirmPrefix by remember { mutableStateOf<com.droiddeck.launcher.storage.GameUsage?>(null) }
     SubHeader(stringResource(R.string.storage_game_data), stringResource(R.string.storage_game_data_hint, gb(report.prefixes), gb(report.workshop), gb(report.shaders)), onBack)
     ActionStatus()
     if (sessionRunning) { Note(stringResource(R.string.storage_session_running)); Spacer(Modifier.height(4.dp)) }
-    val games = report.games.filter { it.data >= ONE_MB }.sortedByDescending { it.data }
+    val games = report.games.filter { it.data >= ONE_MB || it.prefixDir != null }.sortedByDescending { it.data }
     SectionTitle(stringResource(R.string.storage_data_installed), gb(games.sumOf { it.data }))
     ListCard {
         if (games.isEmpty()) Text(stringResource(R.string.storage_no_games), fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(16.dp))
         games.forEachIndexed { i, g ->
             ItemRow(
                 gameName(g), stringResource(R.string.storage_data_parts, gb(g.prefix), gb(g.shaders), gb(g.workshop)), g.data, i == games.lastIndex,
-                action = { SecondaryButton(stringResource(R.string.storage_clear_shaders), compact = true, enabled = !busy && g.shaders >= ONE_MB) { StorageState.clearShaders(ctx, g.appId, g.x64) } },
+                action = {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        SecondaryButton(stringResource(R.string.storage_clear_shaders), compact = true, enabled = !busy && g.shaders >= ONE_MB) { StorageState.clearShaders(ctx, g.appId, g.x64) }
+                        SecondaryButton(stringResource(R.string.storage_reset_prefix), compact = true, enabled = !busy && g.prefixDir != null) { confirmPrefix = g }
+                    }
+                },
             )
         }
     }
@@ -770,6 +897,13 @@ private fun GameDataView(report: StorageReport, sessionRunning: Boolean, onBack:
     if (report.otherPrefixes > 0) {
         SectionTitle(stringResource(R.string.storage_data_other), null)
         ListCard { ItemRow(stringResource(R.string.storage_data_other_title), stringResource(R.string.storage_data_other_detail), report.otherPrefixes, true) }
+    }
+    confirmPrefix?.let { g ->
+        ConfirmDialog(
+            stringResource(R.string.storage_reset_prefix_title, gameName(g)),
+            stringResource(R.string.storage_reset_prefix_confirm, gb(g.prefix), g.library), stringResource(R.string.storage_reset_prefix),
+            onConfirm = { StorageState.resetPrefix(ctx, g) }, onDismiss = { confirmPrefix = null },
+        )
     }
     confirm?.let { l ->
         ConfirmDialog(

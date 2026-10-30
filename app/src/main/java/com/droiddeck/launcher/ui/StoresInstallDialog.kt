@@ -84,7 +84,7 @@ internal fun InstallWhereDialog(item: CatalogItem, onDismiss: () -> Unit) {
                 )
                 Text(
                     stringResource(R.string.common_cancel), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = colors.onSurfaceVariant,
-                    modifier = Modifier.clip(Shape12).clickable(role = Role.Button, onClick = close).controllerConfirm(onClick = close).padding(horizontal = 10.dp, vertical = 6.dp),
+                    modifier = Modifier.clip(Shape12).focusGlide().clickable(role = Role.Button, onClick = close).controllerConfirm(onClick = close).padding(horizontal = 10.dp, vertical = 6.dp),
                 )
             }
         }

@@ -32,12 +32,6 @@ internal object GlassesRendering {
         return if (hz == 30 && kotlin.math.abs(state.hz - 30f) >= 0.5f) 60 else hz
     }
 
-    fun fpsLimit(requested: Int, mirrorRefreshLimit: Int): Int = when {
-        mirrorRefreshLimit <= 0 -> requested
-        requested <= 0 -> mirrorRefreshLimit
-        else -> minOf(requested, mirrorRefreshLimit)
-    }
-
     fun usesGlasses(state: GlassesState, outputActive: Boolean, steamVrRunning: Boolean): Boolean =
         outputActive || (steamVrRunning && state.usable)
 

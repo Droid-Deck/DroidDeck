@@ -64,6 +64,18 @@ class GpuDetectionTest {
         assertEquals(Support.UNSUPPORTED, info(false, 830).support)
     }
 
+    @Test fun adreno722IsSupportedOnlyOnTheRetroidPocketDuo() {
+        assertEquals(true, GpuInfo.verifiedOn(722, "Retroid Pocket Duo"))
+        assertEquals(false, GpuInfo.verifiedOn(722, "Retroid Pocket 5"))
+        assertEquals(false, GpuInfo.verifiedOn(720, "Retroid Pocket Duo"))
+        assertEquals(false, GpuInfo.verifiedOn(740, "Retroid Pocket Duo"))
+        val duo = info(true, 722).copy(verifiedDevice = true)
+        assertEquals(Support.TESTED, duo.support)
+        assertEquals("Supported", duo.supportText)
+        assertEquals(Family.A7XX_LOW, duo.family)
+        assertEquals(Support.UNTESTED, info(true, 722).support)
+    }
+
     @Test fun userFacingTextPerTier() {
         assertEquals("Supported", info(true, 830).supportText)
         assertEquals("Experimental Adreno 850 support: requires compatible experimental display and game drivers; not verified on this device", info(true, 850).supportText)

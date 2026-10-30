@@ -4,6 +4,7 @@
 Usage: removal-manifests.py <LXQt tar.zst> <KDE r1 tar.zst> <KDE r2 tar.zst>
                            <emulators tar.zst> <verified KDE package cache> <output dir>
                            <verified LXQt package cache>
+       removal-manifests.py --add <KDE tar.zst> <tag> <sha256> <verified KDE package cache> <output dir>
 Removal includes desktop applications/themes and our overlay, not their shared dependencies.
 The KDE cache is verified against the published desktop-kde.packages.txt before use.
 The LXQt cache contains the signed application packages listed by desktop.packages.txt;
@@ -63,10 +64,7 @@ def write(out, name, records):
             gz.write(('\n'.join(sorted(set(records))) + '\n').encode())
 
 
-def main():
-    archives = [pathlib.Path(p) for p in sys.argv[1:5]]
-    cache, out, legacy_cache = map(pathlib.Path, sys.argv[5:8])
-    here = pathlib.Path(__file__).resolve().parent
+def application_paths(here, cache):
     seeds = {line.strip() for line in (here / 'seeds.txt').read_text().splitlines() if line.strip() and not line.startswith('#')} - SHARED_SEEDS
     packages = dict(line.split() for line in (cache / 'desktop-kde.packages.txt').read_text().splitlines())
     selected = set()
@@ -79,10 +77,39 @@ def main():
         if sha(archive) != digest:
             raise ValueError(f'{filename}: source package checksum mismatch')
         with tarfile.open(archive) as tar:
-            selected.update(e.name.removeprefix('./').rstrip('/') for e in tar if not e.isdir())
+            selected.update(e.name.removeprefix('./').rstrip('/') for e in tar if not e.isdir() and not e.name.removeprefix('./').startswith('.'))
         found.add(package)
     assert found == seeds, f'missing desktop packages: {seeds - found}'
-    selected.update(str(p.relative_to(here / 'overlay')) for p in (here / 'overlay').rglob('*') if p.is_file())
+    selected.update(str(p.relative_to(here / 'overlay')) for p in (here / 'overlay').rglob('*') if p.is_file() or p.is_symlink())
+    return selected, packages, seeds
+
+
+def add(archive, tag, digest, cache, out):
+    here = pathlib.Path(__file__).resolve().parent
+    selected, packages, seeds = application_paths(here, cache)
+    inv = inventory(archive, digest)
+    generated = ('usr/share/droiddeck/pacman/', 'usr/lib/droiddeck/')
+    remove = gzip.decompress((out / 'kde-remove.tsv.gzip').read_bytes()).decode().splitlines()
+    keep = gzip.decompress((out / 'kde-keep.txt.gzip').read_bytes()).decode().splitlines()
+    remove += [record for path, record in inv.items() if path in selected or path.startswith(generated)]
+    keep += list(inv)
+    write(out, 'kde-remove.tsv.gzip', remove)
+    write(out, 'kde-keep.txt.gzip', keep)
+    versions = (out / 'versions.txt').read_text().split()
+    (out / 'versions.txt').write_text('\n'.join(dict.fromkeys(versions + [tag])) + '\n')
+    sources = json.loads((out / 'sources.json').read_text())
+    sources['archives'][tag] = digest
+    sources['desktopApplications'] = {n: h for n, h in packages.items() if n.rsplit('-', 3)[0] in seeds}
+    (out / 'sources.json').write_text(json.dumps(sources, indent=2) + '\n')
+    print(tag, digest)
+    print('KDE removable paths', sum(path in selected or path.startswith(generated) for path in inv))
+
+
+def main():
+    archives = [pathlib.Path(p) for p in sys.argv[1:5]]
+    cache, out, legacy_cache = map(pathlib.Path, sys.argv[5:8])
+    here = pathlib.Path(__file__).resolve().parent
+    selected, packages, seeds = application_paths(here, cache)
     inventories = [inventory(p, pin[1]) for p, pin in zip(archives, PINS)]
     out.mkdir(parents=True, exist_ok=True)
     legacy_seeds = {line.strip() for line in (here / 'lxqt-applications.txt').read_text().splitlines()
@@ -115,4 +142,7 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    if sys.argv[1:2] == ['--add']:
+        add(pathlib.Path(sys.argv[2]), sys.argv[3], sys.argv[4], pathlib.Path(sys.argv[5]), pathlib.Path(sys.argv[6]))
+    else:
+        main()

@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.ui
 
+import androidx.compose.foundation.shape.CircleShape
 import com.droiddeck.launcher.R
 import androidx.compose.ui.res.stringResource
 import android.content.Context
@@ -17,7 +18,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.material3.AlertDialog
+import com.droiddeck.launcher.ui.GlideAlertDialog as AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -44,6 +45,7 @@ import com.droiddeck.launcher.core.WirelessAdbPairingService.Stage
 @Composable
 fun PhantomProcessGatePage(
     status: PhantomProcessStatus,
+    applyingSavedPairing: Boolean,
     onDismiss: () -> Unit,
     onOpenDeveloperOptions: () -> Unit,
     onFixWithWirelessDebugging: () -> Unit,
@@ -76,7 +78,7 @@ fun PhantomProcessGatePage(
             BoxWithConstraints(Modifier.fillMaxWidth()) {
                 val wide = maxWidth >= 620.dp
                 val fix: @Composable ColumnScope.() -> Unit = {
-                    FixGroup(hasToggle, stage, environment, compact, onOpenDeveloperOptions, onFixWithWirelessDebugging,
+                    FixGroup(hasToggle, stage, environment, compact, applyingSavedPairing, onOpenDeveloperOptions, onFixWithWirelessDebugging,
                         onOpenNotificationSettings, onCancel = { WirelessAdbPairingService.cancel(context) })
                 }
                 val side: @Composable ColumnScope.() -> Unit = {
@@ -118,6 +120,7 @@ private fun FixGroup(
     stage: Stage,
     environment: GateEnvironment,
     compact: Boolean,
+    applyingSavedPairing: Boolean,
     onOpenDeveloperOptions: () -> Unit,
     onFixWithWirelessDebugging: () -> Unit,
     onOpenNotificationSettings: () -> Unit,
@@ -130,6 +133,10 @@ private fun FixGroup(
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             when {
+                applyingSavedPairing -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                    Body(stringResource(R.string.adbpair_applying))
+                }
                 pairing -> PairingProgress(stage, onCancel)
                 hasToggle -> {
                     Body(stringResource(R.string.gate_toggle_steps))
@@ -276,12 +283,12 @@ fun DeveloperDisplayChoiceDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
                 Text(stringResource(R.string.gate_choose_display))
-                TextButton(modifier = Modifier.fillMaxWidth(), onClick = onMainScreen) { Text(stringResource(R.string.gate_main_screen)) }
+                TextButton(modifier = Modifier.fillMaxWidth().focusGlide(CircleShape), onClick = onMainScreen) { Text(stringResource(R.string.gate_main_screen)) }
                 displays.forEach { (id, label) ->
-                    TextButton(modifier = Modifier.fillMaxWidth(), onClick = { onSecondaryScreen(id) }) { Text(label) }
+                    TextButton(modifier = Modifier.fillMaxWidth().focusGlide(CircleShape), onClick = { onSecondaryScreen(id) }) { Text(label) }
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } },
+        confirmButton = { TextButton(onClick = onDismiss, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.common_cancel)) } },
     )
 }

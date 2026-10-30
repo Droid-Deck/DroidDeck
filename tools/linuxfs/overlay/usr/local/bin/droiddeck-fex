@@ -11,6 +11,7 @@ import shutil
 import struct
 import subprocess
 import sys
+import time
 
 HOME = os.environ.get("HOME") or "/root"
 STEAM_ROOT = os.path.join(HOME, ".local", "share", "Steam")
@@ -27,6 +28,8 @@ PRELOADS = "/usr/local/lib/droiddeck-fex"
 URUNTIME = "/usr/local/lib/droiddeck/uruntime"
 HOST_PRELOAD = "/etc/ld.so.preload"
 FEX_APPID = "3127680"
+OWN_FEX = "/usr/local"
+OWN_FEX_TAG = os.path.join(OWN_FEX, "share", "fex-emu", ".droiddeck-tag")
 SNIPER_APPID = "1628350"
 SLR4_APPID = "4183110"
 INSTALL_DIRS = {FEX_APPID: "FEX-Emu", SNIPER_APPID: "SteamLinuxRuntime_sniper", SLR4_APPID: "SteamLinuxRuntime_4"}
@@ -152,8 +155,52 @@ def first_dir(prefix, candidates):
     return None
 
 
+def own_fex_loads():
+    for name in ("FEX", "FEXServer"):
+        binary = os.path.join(OWN_FEX, "bin", name)
+        if not os.access(binary, os.X_OK):
+            return False
+        try:
+            listed = subprocess.run(["/usr/lib/ld-linux-aarch64.so.1", "--list", binary],
+                                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=20)
+        except (OSError, subprocess.TimeoutExpired):
+            return False
+        if listed.returncode != 0 or b"not found" in listed.stdout:
+            return False
+    return True
+
+
+def update_own_fex():
+    wanted = os.environ.get("BL_FEX_TAG")
+    if not wanted:
+        return
+    if (read_text(OWN_FEX_TAG) or "").strip() == wanted and own_fex_loads():
+        return
+    failed = os.path.join(STATE, "update-failed")
+    try:
+        if (read_text(failed) or "").strip() == wanted and time.time() - os.path.getmtime(failed) < 3600:
+            return
+    except OSError:
+        pass
+    say("installing DroidDeck's FEX build %s" % wanted)
+    try:
+        code = subprocess.call([os.path.join(BIN_DIR, "droiddeck-fex-update")], stdout=sys.stderr)
+    except OSError:
+        code = 1
+    if code == 0:
+        with contextlib.suppress(OSError):
+            os.remove(failed)
+        return
+    with contextlib.suppress(OSError):
+        with open(failed, "w", encoding="utf-8") as handle:
+            handle.write(wanted + "\n")
+    say("DroidDeck's FEX build %s did not install; using the FEX already here" % wanted)
+
+
 def fex_install():
     prefixes = []
+    if os.path.isfile(OWN_FEX_TAG) and own_fex_loads():
+        prefixes.append((OWN_FEX, False))
     tool = app_dir(FEX_APPID)
     if tool:
         prefixes += [(os.path.join(tool, sub), True) for sub in ("usr", "", "files/usr", "files")]
@@ -445,6 +492,7 @@ def describe(fex, platform, graphics=None):
 
 def prepare(app=SNIPER_APPID):
     with locked():
+        update_own_fex()
         fex = fex_install()
         platform = runtime_platform(app)
         status = describe(fex, platform)
@@ -589,7 +637,8 @@ def guest_environment(fex, env):
         result["FEX_THUNKHOSTLIBS"] = fex["host_thunks"]
         result["FEX_THUNKGUESTLIBS"] = fex["guest_thunks"]
         result["FEX_THUNKCONFIG"] = os.path.join(CONFIG_DIR, "ThunksConfig.json")
-    preload = [part for part in split_paths(result.get("LD_PRELOAD")) if os.path.exists(part) and not is_arm(part)]
+    preload = [part for part in split_paths(result.get("LD_PRELOAD"))
+               if "/" not in part or (os.path.exists(part) and not is_arm(part))]
     library_path = [part for part in (result.get("LD_LIBRARY_PATH") or "").split(":")
                     if part and "arm64" not in part and "aarch64" not in part]
     for name, parts in (("LD_PRELOAD", preload), ("LD_LIBRARY_PATH", library_path)):
@@ -671,15 +720,26 @@ def launch(command, env, mode, decide=None):
     return os.execve(fex["bin"], [fex["bin"], program] + command[1:], guest)
 
 
-def game_environment(env):
+def game_environment(env, command):
     try:
         game_env = runpy.run_path(os.path.join(BIN_DIR, "droiddeck-game-env"))
         env = game_env["game_gpu"](env)
         app = game_env["game_id"](env) or env.get("SteamAppId") or env.get("SteamGameId")
         if not app:
             return env
-        with open(GAME_ENVIRONMENT, encoding="utf-8") as source:
-            return game_env["apply_config"](env, json.load(source), str(app))
+        fixes = {}
+        game = game_env["Game"](resolve(command[0], env), command[1:])
+        for check in game_env["FIXES"]:
+            found = check(game)
+            if found and found[0]:
+                fixes.update(found[0])
+                say(found[2])
+        try:
+            with open(GAME_ENVIRONMENT, encoding="utf-8") as source:
+                config = json.load(source)
+        except FileNotFoundError:
+            config = {"version": 1}
+        return game_env["apply_config"](env, config, str(app), fixes)
     except FileNotFoundError:
         return env
     except Exception as error:
@@ -718,6 +778,7 @@ def extracted():
 
 def want_fex():
     with locked():
+        update_own_fex()
         status = describe(fex_install(), runtime_platform(), graphics_platform())
         if not status["ready"]:
             request_install()
@@ -810,7 +871,7 @@ def main(argv):
             return 0
         if not command:
             return 2
-        return launch(command, game_environment(dict(os.environ)), os.environ.get("DROIDDECK_FEX", "auto"))
+        return launch(command, game_environment(dict(os.environ), command), os.environ.get("DROIDDECK_FEX", "auto"))
     if action == "run":
         try:
             mode, decide, command = parse_run(args)

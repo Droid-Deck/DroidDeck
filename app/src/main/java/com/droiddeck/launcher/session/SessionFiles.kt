@@ -25,6 +25,8 @@ object SessionFiles {
         "usr/local/bin/droiddeck-gpu" to "usr/local/bin/droiddeck-gpu",
         "usr/local/bin/droiddeck-desktop-gpu" to "usr/local/bin/droiddeck-desktop-gpu",
         "usr/local/bin/droiddeck-desktop-window-rules" to "usr/local/bin/droiddeck-desktop-window-rules",
+        "usr/local/bin/droiddeck-library-perms" to "usr/local/bin/droiddeck-library-perms",
+        "usr/local/bin/droiddeck-ime" to "usr/local/bin/droiddeck-ime",
         "usr/local/bin/kwin_wayland_wrapper" to "usr/local/bin/kwin_wayland_wrapper",
         "usr/lib/firefox/defaults/pref/droiddeck.js" to "usr/lib/firefox/defaults/pref/droiddeck.js",
         "etc/xdg/autostart/droiddeck-clipboard.desktop" to "etc/xdg/autostart/droiddeck-clipboard.desktop",
@@ -32,7 +34,7 @@ object SessionFiles {
 
     /** Puts the session's files in place; [startsSession] is true only for the call that starts the Steam session. */
     fun stage(context: Context, root: File, startsSession: Boolean = false) {
-        if (DesktopCatalog.desktopInstalled(root)) try { DesktopCatalog.cleanLegacy(context) }
+        if (DesktopCatalog.desktopInstalled(root) && !DesktopCatalog.desktopFromPack(root)) try { DesktopCatalog.cleanLegacy(context) }
         catch (e: Exception) { Log.w(TAG, "LXQt cleanup will retry next session", e) }
         GameEnvironmentStore.publish(context)
         WinComponents.publish(context)
@@ -58,8 +60,10 @@ object SessionFiles {
             "usr/local/bin/droiddeck-steam-install" to "usr/local/bin/droiddeck-steam-install",
             "usr/local/bin/droiddeck-steam-ui-scale" to "usr/local/bin/droiddeck-steam-ui-scale",
             "usr/local/bin/droiddeck-steam-language" to "usr/local/bin/droiddeck-steam-language",
+            "usr/local/bin/droiddeck-steam-shaders" to "usr/local/bin/droiddeck-steam-shaders",
             "usr/local/bin/droiddeck-steam-desktop-ui" to "usr/local/bin/droiddeck-steam-desktop-ui",
             "usr/local/bin/droiddeck-steam-library" to "usr/local/bin/droiddeck-steam-library",
+            "usr/local/bin/droiddeck-steam-share" to "usr/local/bin/droiddeck-steam-share",
             "usr/local/bin/droiddeck-seed-redists" to "usr/local/bin/droiddeck-seed-redists",
             "usr/local/bin/droiddeck-launcher-cores" to "usr/local/bin/droiddeck-launcher-cores",
             "usr/local/bin/droiddeck-proton-extra" to "usr/local/bin/droiddeck-proton-extra",
@@ -68,16 +72,30 @@ object SessionFiles {
             "usr/local/bin/droiddeck-steam-launch" to "usr/local/bin/droiddeck-steam-launch",
             "usr/local/bin/droiddeck-desktop-games" to "usr/local/bin/droiddeck-desktop-games",
             "usr/local/bin/droiddeck-desktop-bookmarks" to "usr/local/bin/droiddeck-desktop-bookmarks",
+            "usr/local/bin/droiddeck-downloads" to "usr/local/bin/droiddeck-downloads",
+            "usr/local/bin/droiddeck-root" to "usr/local/bin/droiddeck-root",
+            "usr/local/bin/droiddeck-text" to "usr/local/bin/droiddeck-text",
+            "usr/local/bin/droiddeck-snapd" to "usr/local/bin/droiddeck-snapd",
+            "usr/local/bin/droiddeck-emulators" to "usr/local/bin/droiddeck-emulators",
+            "usr/local/bin/droiddeck-snap-run" to "usr/local/bin/droiddeck-snap-run",
+            "usr/local/bin/droiddeck-snap-confine" to "usr/local/bin/droiddeck-snap-confine",
+            "usr/local/bin/droiddeck-snapctl" to "usr/local/bin/droiddeck-snapctl",
+            "usr/local/bin/droiddeck-systemd-run" to "usr/local/bin/systemd-run",
+            "usr/local/bin/droiddeck-snap-cli" to "usr/local/bin/snap",
             "usr/local/bin/droiddeck-steam-shim" to "usr/local/bin/droiddeck-steam-shim",
             "usr/local/bin/droiddeck-steam-shortcuts" to "usr/local/bin/droiddeck-steam-shortcuts",
             "usr/local/bin/droiddeck-xbox" to "usr/local/bin/droiddeck-xbox",
             "usr/local/bin/droiddeck-store-launch" to "usr/local/bin/droiddeck-store-launch",
+            "usr/local/bin/droiddeck-gog-maintenance" to "usr/local/bin/droiddeck-gog-maintenance",
+            "usr/local/bin/droiddeck-battlenet" to "usr/local/bin/droiddeck-battlenet",
             "usr/local/bin/droiddeck-epic" to "usr/local/bin/droiddeck-epic",
             "usr/local/bin/droiddeck-epic-steam" to "usr/local/bin/droiddeck-epic-steam",
             "usr/local/bin/droiddeck-open-url" to "usr/local/bin/droiddeck-open-url",
             "usr/local/bin/droiddeck-steam-games" to "usr/local/bin/droiddeck-steam-games",
             "usr/local/bin/droiddeck-pad-defaults" to "usr/local/bin/droiddeck-pad-defaults",
             "usr/local/bin/droiddeck-steam-x64" to "usr/local/bin/droiddeck-steam-x64",
+            "usr/local/bin/droiddeck-fex-update" to "usr/local/bin/droiddeck-fex-update",
+            "usr/local/bin/droiddeck-steamrt-shim" to "usr/local/bin/droiddeck-steamrt-shim",
             "usr/local/bin/droiddeck-x64-arm-proton" to "usr/local/bin/droiddeck-x64-arm-proton",
             "usr/local/bin/droiddeck-x64-arm-webhelper" to "usr/local/bin/droiddeck-x64-arm-webhelper",
             "usr/local/bin/droiddeck-x64-webhelper" to "usr/local/bin/droiddeck-x64-webhelper",
@@ -94,6 +112,15 @@ object SessionFiles {
             "usr/local/bin/droiddeck-script-run" to "usr/local/bin/droiddeck-script-run",
             "usr/local/bin/droiddeck-open" to "usr/local/bin/droiddeck-open",
             "usr/local/bin/droiddeck-proton-run" to "usr/local/bin/droiddeck-proton-run",
+            "usr/local/bin/droiddeck-innoextract" to "usr/local/bin/droiddeck-innoextract",
+            "usr/local/lib/droiddeck-inno/innoextract" to "usr/local/lib/droiddeck-inno/innoextract",
+            "usr/local/lib/droiddeck-inno/libboost_container.so.1.92.0" to "usr/local/lib/droiddeck-inno/libboost_container.so.1.92.0",
+            "usr/local/lib/droiddeck-inno/libboost_filesystem.so.1.92.0" to "usr/local/lib/droiddeck-inno/libboost_filesystem.so.1.92.0",
+            "usr/local/lib/droiddeck-inno/libboost_iostreams.so.1.92.0" to "usr/local/lib/droiddeck-inno/libboost_iostreams.so.1.92.0",
+            "usr/local/lib/droiddeck-inno/libboost_program_options.so.1.92.0" to "usr/local/lib/droiddeck-inno/libboost_program_options.so.1.92.0",
+            "usr/local/lib/droiddeck-inno/libboost_random.so.1.92.0" to "usr/local/lib/droiddeck-inno/libboost_random.so.1.92.0",
+            "usr/local/share/licenses/droiddeck-inno/LICENSE.innoextract" to "usr/local/share/licenses/droiddeck-inno/LICENSE.innoextract",
+            "usr/local/share/licenses/droiddeck-inno/LICENSE.boost" to "usr/local/share/licenses/droiddeck-inno/LICENSE.boost",
             "usr/bin/steamos-update" to "usr/bin/steamos-update",
             "usr/bin/steamos-select-branch" to "usr/bin/steamos-select-branch",
             "usr/bin/steamos-session-select" to "usr/bin/steamos-session-select",
@@ -138,6 +165,8 @@ object SessionFiles {
         } + listOf("libvulkan-thunk.so", "libwebkitinput.so").map { "x86_64/$it" to "usr/local/lib/droiddeck-fex/x86_64/$it" }
         val optional = (arrayOf(
             "usr/local/bin/gamescope" to "usr/local/bin/gamescope",
+            // The gamescope pack carries its own WSI layer (patch 0117); it replaces the runtime's stock copy.
+            "usr/lib/libVkLayer_FROG_gamescope_wsi_aarch64.so" to "usr/lib/libVkLayer_FROG_gamescope_wsi_aarch64.so",
             "usr/local/lib/droiddeck/uruntime" to "usr/local/lib/droiddeck/uruntime",
             "usr/local/lib/droiddeck-pipewire.tzst" to "usr/local/lib/droiddeck-pipewire.tzst",
             "usr/local/share/licenses/uruntime/LICENSE" to "usr/local/share/licenses/uruntime/LICENSE",
@@ -202,7 +231,11 @@ object SessionFiles {
         if (!File(Environment.getExternalStorageDirectory(), NO_PAD_SWITCH).exists()) {
             preload.append("/usr/local/lib/libfakeinput.so\n")
         }
-        if (ProotFastPath.enabled(context)) preload.append(ProotFastPath.LIBRARY + "\n")
+        if (ProotFastPath.enabled(context)) {
+            val library = com.droiddeck.launcher.agent.AgentEnv.fastPathLibrary(context)
+            preload.append(library + "\n")
+            if (startsSession && library != ProotFastPath.LIBRARY) Log.i(TAG, "fast path preload: $library (debugging override)")
+        }
         val etc = File(root, "etc").apply { mkdirs() }
         val staged = File(etc, "ld.so.preload.staged")
         if (!FileUtils.writeString(staged, preload.toString())
@@ -214,12 +247,19 @@ object SessionFiles {
             Log.e(TAG, "could not write steam-compatibility-label")
         }
         writeCjkFontConfig(root, etc)
+        writeDesktopStrings(context, File(etc, "droiddeck").apply { mkdirs() })
         val droiddeckEtc = File(etc, "droiddeck").apply { mkdirs() }
         val stagedSocket = File(droiddeckEtc, "bwrap-socket.staged")
         if (!FileUtils.writeString(stagedSocket, BwrapSpawner.socket(context) + "\n")
             || !stagedSocket.renameTo(File(droiddeckEtc, "bwrap-socket"))) {
             stagedSocket.delete()
             Log.e(TAG, "could not write bwrap-socket")
+        }
+        val stagedRoot = File(droiddeckEtc, "root-socket.staged")
+        if (!FileUtils.writeString(stagedRoot, com.droiddeck.launcher.runtime.RootSpawner.socket(context) + "\n")
+            || !stagedRoot.renameTo(File(droiddeckEtc, "root-socket"))) {
+            stagedRoot.delete()
+            Log.e(TAG, "could not write root-socket")
         }
 
         BootMovie.syncFromSteam(context)
@@ -388,10 +428,12 @@ object SessionFiles {
     private fun activeStartupMovie(text: String): VdfBlock? = customizationMovie(text) ?: olderMovie(text)
 
     /** The movie Steam's config selects, as a path like `/uioverrides/movies/x.webm`; null when none is named. */
-    internal fun startupMoviePath(config: File): String? {
+    internal fun startupMoviePath(config: File): String? = startupMovieLocalPath(config)?.takeIf { it.isNotEmpty() }
+
+    internal fun startupMovieLocalPath(config: File): String? {
         val text = runCatching { config.readText() }.getOrNull() ?: return null
         val movie = activeStartupMovie(text) ?: return null
-        return scalar(text.substring(movie.keyStart, movie.close + 1), "LocalPath")?.takeIf { it.isNotEmpty() }
+        return scalar(text.substring(movie.keyStart, movie.close + 1), "LocalPath")
     }
 
     /** Both `StartupMovie` sections of Steam's config as written there, for the report; null when there is none. */
@@ -563,6 +605,28 @@ object SessionFiles {
      * The fonts themselves are bind-mounted by LinuxRuntime.bindSystemFonts() into
      * /usr/local/share/fonts/android; here we only need to point fontconfig at them.
      */
+    private val DESKTOP_STRINGS = listOf(
+        "desktop_restore_title" to R.string.desktop_restore_title,
+        "desktop_restore_body" to R.string.desktop_restore_body,
+        "desktop_restore_done_title" to R.string.desktop_restore_done_title,
+        "desktop_restore_done_body" to R.string.desktop_restore_done_body,
+        "desktop_restore_failed_title" to R.string.desktop_restore_failed_title,
+        "desktop_restore_failed_body" to R.string.desktop_restore_failed_body,
+    )
+
+    private fun writeDesktopStrings(context: Context, dir: File) {
+        val text = DESKTOP_STRINGS.joinToString("") { (key, id) ->
+            key + "=" + context.getString(id).replace("\\", "\\\\").replace("%", "%%").replace("\n", "\\n") + "\n"
+        }
+        val target = File(dir, "strings")
+        if (FileUtils.readString(target) == text) return
+        val staged = File(dir, "strings.staged")
+        if (!FileUtils.writeString(staged, text) || !staged.renameTo(target)) {
+            staged.delete()
+            Log.e(TAG, "could not write desktop strings")
+        }
+    }
+
     private fun writeCjkFontConfig(root: File, etc: File) {
         try {
             val confDir = File(etc, "fonts/conf.d").apply { mkdirs() }

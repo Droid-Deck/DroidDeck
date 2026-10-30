@@ -6,6 +6,7 @@ import android.util.Log;
 
 
 import com.droiddeck.launcher.R;
+import com.droiddeck.launcher.session.SessionPrefs;
 import com.droiddeck.launcher.core.ArchivePaths;
 import com.droiddeck.launcher.core.Downloader;
 import com.droiddeck.launcher.core.Hashes;
@@ -34,7 +35,7 @@ public final class LinuxRuntimeInstaller {
     private static final String TAG = "LinuxRuntimeInstaller";
 
     public static final String CATALOG_URL =
-            "https://raw.githubusercontent.com/Droid-Deck/DroidDeck-Components/main/linuxfs.json";
+            "https://raw.githubusercontent.com/Droid-Deck/DroidDeck-Components/main/linuxfs-ubuntu.json";
 
     private static final String VERSION_FILE = ".version";
 
@@ -87,8 +88,20 @@ public final class LinuxRuntimeInstaller {
         return v == null ? null : v.trim();
     }
 
+    private static String catalogUrl() {
+        if (!com.droiddeck.launcher.BuildConfig.DEBUG) return CATALOG_URL;
+        try {
+            Object value = Class.forName("android.os.SystemProperties").getMethod("get", String.class)
+                    .invoke(null, "debug.droiddeck.linuxfs");
+            if (value instanceof String && ((String) value).startsWith("http")) return (String) value;
+        } catch (ReflectiveOperationException e) {
+            Log.w(TAG, "catalog override: " + e);
+        }
+        return CATALOG_URL;
+    }
+
     public static Release fetchRelease() {
-        String body = Downloader.downloadString(CATALOG_URL);
+        String body = Downloader.downloadString(catalogUrl());
         if (body == null || body.isEmpty()) return null;
         try {
             JSONObject json = new JSONObject(body);
@@ -262,7 +275,9 @@ public final class LinuxRuntimeInstaller {
             emptyTrash(LinuxRuntime.rootDir(context).getParentFile());
             String downloading = context.getString(R.string.rtinst_downloading);
             if (listener != null) listener.onProgress(Step.DOWNLOADING, downloading, 0);
-            if (!AddonPack.PROOT.await(context)) throw new IOException("Cannot download proot");
+            if (!LinuxRuntime.patchedProot(context) && !AddonPack.PROOT.await(context)
+                    && !SessionPrefs.allowStockProot(context))
+                throw new IOException("Cannot download proot");
             if (!AddonPack.DIRECTAUDIO.await(context)) throw new IOException("Cannot download DirectAudio");
             boolean ok = Downloader.downloadFile(release.url, archive, true, release.sha256, (fraction) -> {
                 if (listener != null) {
@@ -289,7 +304,7 @@ public final class LinuxRuntimeInstaller {
             recoverInterruptedSwap(root, staging, old);
             if (!discard(staging, null) || !staging.mkdirs()) return false;
             if (listener != null) listener.onProgress(context.getString(R.string.rtinst_extracting), -1);
-            if (!extract(context, archive, staging, listener)) {
+            if (!extract(context, archive, staging, root, listener)) {
                 RuntimeFileTree.delete(staging, null);
                 return false;
             }
@@ -299,28 +314,55 @@ public final class LinuxRuntimeInstaller {
                 discard(staging, null);
                 return false;
             }
+            java.util.List<String> carryPaths = root.isDirectory()
+                    ? RuntimeFileTree.existingUserPaths(root, staging) : java.util.Collections.emptyList();
             if (root.isDirectory() && !root.renameTo(old)) {
                 RuntimeFileTree.delete(staging, null);
                 return false;
             }
+            File carryMarker = new File(staging, CARRY_MARKER);
+            java.util.List<String> encodedPaths = new java.util.ArrayList<>();
+            for (String rel : carryPaths) encodedPaths.add(java.net.URLEncoder.encode(rel, "UTF-8"));
+            if (!FileUtils.writeString(carryMarker, String.join("\n", encodedPaths))) {
+                if (old.isDirectory() && !old.renameTo(root))
+                    Log.w(TAG, "could not restore the previous runtime; retained at " + old);
+                discard(staging, null);
+                return false;
+            }
 
+            java.util.List<String> carried;
             try {
-                RuntimeFileTree.carryHome(old, staging);
+                carried = RuntimeFileTree.carryUserData(old, staging, false, carryPaths);
             } catch (IOException e) {
-                Log.w(TAG, "could not carry root across the update; rolling back", e);
-                old.renameTo(root);
-                try { RuntimeFileTree.delete(staging, null); }
-                catch (IOException cleanup) { Log.w(TAG, "could not clear the failed staging tree", cleanup); }
+                Log.w(TAG, "could not carry user data across the update; rolling back", e);
+                if (old.isDirectory() && !old.renameTo(root))
+                    Log.w(TAG, "could not restore the previous runtime; retained at " + old);
+                if (e.getSuppressed().length == 0) {
+                    new File(staging, CARRY_MARKER).delete();
+                    try { RuntimeFileTree.delete(staging, null); }
+                    catch (IOException cleanup) { Log.w(TAG, "could not clear the failed staging tree", cleanup); }
+                } else {
+                    Log.w(TAG, "incomplete rollback; retaining user data in " + staging);
+                }
                 return false;
             }
 
             if (!staging.renameTo(root)) {
-                File keptTo = new File(staging, USER_DATA);
-                if (keptTo.isDirectory() && old.isDirectory()) keptTo.renameTo(new File(old, USER_DATA));
-                if (old.isDirectory()) old.renameTo(root);
+                if (old.isDirectory()) {
+                    try {
+                        RuntimeFileTree.carryBack(staging, old, carried);
+                        new File(staging, CARRY_MARKER).delete();
+                    } catch (IOException e) { Log.w(TAG, "could not move all user data back after a failed swap", e); }
+                    old.renameTo(root);
+                }
                 return false;
             }
+            new File(root, CARRY_MARKER).delete();
+            try { RuntimeFileTree.dropStaleState(root); }
+            catch (IOException e) { Log.w(TAG, "could not clear caches left by the previous runtime", e); }
             discard(old, null);
+            try { com.droiddeck.launcher.session.SessionFiles.INSTANCE.stage(context, root, false); }
+            catch (Exception e) { Log.w(TAG, "could not stage the session files into the new runtime", e); }
             return LinuxRuntime.isInstalled(context);
         } catch (Exception e) {
             Log.e(TAG, "install", e);
@@ -330,17 +372,41 @@ public final class LinuxRuntimeInstaller {
         }
     }
 
+    static final String CARRY_MARKER = ".droiddeck-carry";
+
     static void recoverInterruptedSwap(File root, File staging, File old) throws IOException {
+        if (!root.isDirectory() && old.isDirectory()) {
+            if (!old.renameTo(root)) throw new IOException("Cannot restore the previous runtime at " + old);
+            Log.w(TAG, "restored the previous runtime after an interrupted update");
+        }
+        File marker = new File(staging, CARRY_MARKER);
+        if (!RuntimeFileTree.exists(marker.toPath())) return;
         File target = root.isDirectory() ? root : old;
+        String markerContent = FileUtils.readString(marker);
+        if (markerContent == null) throw new IOException("Cannot read runtime recovery marker: " + marker);
+        if (!markerContent.equals("1")) {
+            java.util.List<String> intended = new java.util.ArrayList<>();
+            for (String rel : markerContent.split("\\n"))
+                if (!rel.isEmpty()) intended.add(java.net.URLDecoder.decode(rel, "UTF-8"));
+            if (target.isDirectory()) RuntimeFileTree.recoverCarriedPaths(staging, target, intended);
+            if (staging.isDirectory() && RuntimeFileTree.hasPaths(staging, intended))
+                throw new IOException("User data still needs recovery from " + staging);
+            marker.delete();
+            return;
+        }
         File stagedHome = new File(staging, USER_DATA);
         File home = new File(target, USER_DATA);
-        if (target.isDirectory() && stagedHome.isDirectory() && (!home.exists() || isEmptyDir(home))) {
+        if (target.isDirectory() && stagedHome.isDirectory() && (!RuntimeFileTree.exists(home.toPath()) || isEmptyDir(home))) {
             RuntimeFileTree.carryHome(staging, target);
             Log.w(TAG, "recovered " + USER_DATA + " from an interrupted update");
         }
-        if (!root.isDirectory() && old.isDirectory() && old.renameTo(root)) {
-            Log.w(TAG, "restored the previous runtime after an interrupted update");
+        if (target.isDirectory() && staging.isDirectory()) {
+            java.util.List<String> rest = RuntimeFileTree.carryUserData(staging, target, true);
+            if (!rest.isEmpty()) Log.w(TAG, "recovered " + rest + " from an interrupted update");
         }
+        if (staging.isDirectory() && RuntimeFileTree.hasUserData(staging, target))
+            throw new IOException("User data still needs recovery from " + staging);
+        new File(staging, CARRY_MARKER).delete();
     }
 
     static final String TRASH = ".runtime-trash";
@@ -364,9 +430,10 @@ public final class LinuxRuntimeInstaller {
             Log.i(TAG, "some runtime leftovers still cannot be deleted: " + trash);
     }
 
-    private static boolean isEmptyDir(File dir) {
-        String[] names = dir.list();
-        return dir.isDirectory() && names != null && names.length == 0;
+    private static boolean isEmptyDir(File dir) throws IOException {
+        try (java.nio.file.DirectoryStream<java.nio.file.Path> entries = java.nio.file.Files.newDirectoryStream(dir.toPath())) {
+            return !entries.iterator().hasNext();
+        }
     }
 
     public static Removal beginUninstall(Context context) {
@@ -462,6 +529,10 @@ public final class LinuxRuntimeInstaller {
     // Packages extract over the live runtime and their archives list a link before the file it
     // names, so a kill mid-way must leave neither a truncated file nor a link to a missing one.
     public static boolean extract(Context context, File archive, File destination, ProgressListener listener) {
+        return extract(context, archive, destination, destination, listener);
+    }
+
+    static boolean extract(Context context, File archive, File destination, File linkRoot, ProgressListener listener) {
         long entries = 0;
         String extracting = context.getString(R.string.rtinst_extracting);
         java.util.LinkedHashMap<File, String> links = new java.util.LinkedHashMap<>();
@@ -486,7 +557,7 @@ public final class LinuxRuntimeInstaller {
                     links.remove(file);
                     links.put(file, entry.getLinkName());
                 } else if (entry.isLink()) {
-                    File target = ArchivePaths.inside(destination, entry.getLinkName());
+                    File target = hardLinkTarget(destination, entry.getLinkName());
                     if (target == null) {
                         Log.w(TAG, "skipping hard link outside the rootfs: " + entry.getLinkName());
                         continue;
@@ -497,11 +568,11 @@ public final class LinuxRuntimeInstaller {
                     try {
                         Files.createLink(part.toPath(), target.toPath());
                     } catch (IOException | UnsupportedOperationException e) {
-                        if (target.isFile()) {
+                        if (!l2sLink(target, part, destination, linkRoot) && target.isFile()) {
                             Files.copy(target.toPath(), part.toPath(), StandardCopyOption.REPLACE_EXISTING);
                         }
                     }
-                    if (part.exists()) place(part, file);
+                    if (Files.exists(part.toPath(), java.nio.file.LinkOption.NOFOLLOW_LINKS)) place(part, file);
                 } else if (entry.isFile()) {
                     links.remove(file);
                     File part = partFile(file);
@@ -534,6 +605,67 @@ public final class LinuxRuntimeInstaller {
             return true;
         } catch (Exception e) {
             Log.e(TAG, "extract", e);
+            return false;
+        }
+    }
+
+    static File hardLinkTarget(File destination, String name) throws IOException {
+        java.nio.file.Path path = java.nio.file.Paths.get(name).normalize();
+        java.nio.file.Path last = path.getFileName();
+        if (last == null || last.toString().isEmpty() || last.toString().equals("..")) return null;
+        java.nio.file.Path parent = path.getParent();
+        File dir = parent == null ? destination : ArchivePaths.inside(destination, parent.toString());
+        return dir == null ? null : new File(dir, last.toString());
+    }
+
+    private static final String L2S = ".l2s.";
+
+    static boolean l2sLink(File target, File link) {
+        return l2sLink(target, link, null, null);
+    }
+
+    static boolean l2sLink(File target, File link, File tree, File linkTree) {
+        java.nio.file.Path here = tree == null ? null : tree.toPath().toAbsolutePath().normalize();
+        java.nio.file.Path there = linkTree == null ? here : linkTree.toPath().toAbsolutePath().normalize();
+        java.util.function.UnaryOperator<java.nio.file.Path> shown = path -> {
+            java.nio.file.Path p = path.toAbsolutePath().normalize();
+            return here == null || !p.startsWith(here) ? p : there.resolve(here.relativize(p));
+        };
+        java.util.function.UnaryOperator<java.nio.file.Path> actual = path -> {
+            java.nio.file.Path p = path.toAbsolutePath().normalize();
+            return there == null || !p.startsWith(there) ? p : here.resolve(there.relativize(p));
+        };
+        try {
+            java.nio.file.Path original = target.toPath().toAbsolutePath().normalize();
+            java.nio.file.Path intermediate;
+            if (Files.isSymbolicLink(original)) {
+                intermediate = actual.apply(Files.readSymbolicLink(original));
+                if (!intermediate.getFileName().toString().startsWith(L2S) || !Files.isSymbolicLink(intermediate)) return false;
+                java.nio.file.Path fin = actual.apply(Files.readSymbolicLink(intermediate));
+                String name = fin.getFileName().toString();
+                int count = Integer.parseInt(name.substring(name.length() - 4)) + 1;
+                java.nio.file.Path next = fin.resolveSibling(name.substring(0, name.length() - 4) + String.format(java.util.Locale.ROOT, "%04d", count));
+                Files.move(fin, next, StandardCopyOption.ATOMIC_MOVE);
+                Files.delete(intermediate);
+                Files.createSymbolicLink(intermediate, shown.apply(next));
+            } else {
+                if (!Files.isRegularFile(original, java.nio.file.LinkOption.NOFOLLOW_LINKS)) return false;
+                java.nio.file.Path dir = original.getParent();
+                String base = L2S + original.getFileName();
+                int suffix = 1;
+                do {
+                    intermediate = dir.resolve(base + String.format(java.util.Locale.ROOT, "%04d", suffix++));
+                } while (Files.exists(intermediate, java.nio.file.LinkOption.NOFOLLOW_LINKS) && suffix < 1000);
+                java.nio.file.Path fin = dir.resolve(intermediate.getFileName() + ".0002");
+                Files.move(original, fin, StandardCopyOption.ATOMIC_MOVE);
+                Files.createSymbolicLink(intermediate, shown.apply(fin));
+                Files.createSymbolicLink(original, shown.apply(intermediate));
+            }
+            Files.deleteIfExists(link.toPath());
+            Files.createSymbolicLink(link.toPath(), shown.apply(intermediate));
+            return true;
+        } catch (IOException | RuntimeException e) {
+            Log.w(TAG, "l2s link " + link + " -> " + target + ": " + e);
             return false;
         }
     }

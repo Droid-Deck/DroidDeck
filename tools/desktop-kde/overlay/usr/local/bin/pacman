@@ -1,0 +1,31 @@
+#!/bin/bash
+dir=/usr/share/droiddeck/pacman
+[ -r "$dir/pacman.conf" ] || exec /usr/bin/pacman "$@"
+"$dir/prepare" || exit 1
+install=0
+if [ "$(id -u)" = 0 ]; then
+  letters= install=1
+  for arg in "$@"; do
+    case $arg in
+      --) break ;;
+      --sync) letters+=S ;;
+      --search|--info|--clean|--groups|--list|--print|--print-format|--downloadonly) install=0 ;;
+      --*) ;;
+      -*) letters+=${arg#-} ;;
+    esac
+  done
+  case $letters in *S*) ;; *) install=0 ;; esac
+  case $letters in *[sicglpw]*) install=0 ;; esac
+  [ "$install" = 1 ] && set -- --needed "$@"
+fi
+[ "$install" = 1 ] || exec /usr/bin/pacman --config "$dir/pacman.conf" "$@"
+/usr/bin/pacman --config "$dir/pacman.conf" "$@" && exit 0
+status=$?
+mapfile -t paths < <("$dir/adopt" "$@")
+[ ${#paths[@]} -gt 0 ] || exit "$status"
+overwrite=()
+for path in "${paths[@]}"; do overwrite+=(--overwrite "$path"); done
+/usr/bin/pacman --config "$dir/pacman.conf" "${overwrite[@]}" "$@" || exit
+mapfile -t shared < <(/usr/bin/pacman --config "$dir/pacman.conf" -Qqd 2>/dev/null | grep -xF -f /var/lib/pacman/droiddeck-shared)
+[ ${#shared[@]} -eq 0 ] || /usr/bin/pacman --config "$dir/pacman.conf" -D --asexplicit "${shared[@]}" >/dev/null
+"$dir/remember"
