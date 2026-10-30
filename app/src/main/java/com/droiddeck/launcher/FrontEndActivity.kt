@@ -1576,7 +1576,10 @@ class FrontEndActivity : ComponentActivity() {
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-        if (hasFocus) applyLauncherFullscreen()
+        if (hasFocus) {
+            com.droiddeck.launcher.ui.DualScreenPanel.yieldTo(taskId, false)
+            applyLauncherFullscreen()
+        }
     }
 
     private fun applyLauncherFullscreen() {
