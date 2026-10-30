@@ -1339,17 +1339,7 @@ class SessionService : Service() {
 
     /** A Steam game is running: the client runs each one under its reaper, and Proton's script
      *  waits on the game with waitforexitandrun. Read from the command lines, as ComponentsManager does. */
-    private fun steamGameRunning(): Boolean {
-        val procs = File("/proc").listFiles() ?: return false
-        for (p in procs) {
-            if (!p.name.all(Char::isDigit)) continue
-            val cmd = runCatching { File(p, "cmdline").readBytes() }.getOrNull() ?: continue
-            if (cmd.isEmpty()) continue
-            val text = String(cmd).replace('\u0000', ' ')
-            if (text.contains("SteamLaunch AppId=") || text.contains("waitforexitandrun")) return true
-        }
-        return false
-    }
+    private fun steamGameRunning(): Boolean = SteamGameProcess.running()
 
     private fun resumeSession(panelVisible: Boolean = true) {
         if (SessionState.suspended) SessionState.resumeRequested = true
