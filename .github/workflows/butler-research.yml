@@ -32,3 +32,13 @@ jobs:
           note "$(./butler verify --help 2>&1 | head -60 || true)" "verify"
           note "$(./butler dl --help 2>&1 | head -40 || true)" "dl"
           note "$(./butler sign --help 2>&1 | head -40 || true)" "sign"
+
+      - name: Request formats inside butler
+        run: |
+          cd b
+          note() { local t=${1//'%'/'%25'}; t=${t//$'\n'/'%0A'}; echo "::notice title=$2::$t"; }
+          strings -n 6 butler | grep -E '/(builds|uploads|wharf)/|upgrade-paths|download_key_id|uuid=' | sort -u | head -80 > found.txt || true
+          note "$(cat found.txt)" "urls"
+          note "$(strings -n 6 butler | grep -i -E 'download/|/download' | sort -u | head -40 || true)" "download"
+          note "$(./butler diff --help 2>&1 | head -40 || true)" "diff"
+          note "$(./butler singlediff --help 2>&1 | head -30 || true)" "singlediff"
