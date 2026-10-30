@@ -607,7 +607,6 @@
     <string name="drawer_hud_color_amber">Κεχριμπαρί</string>
     <string name="drawer_hud_color_violet">Βιολετί</string>
     <string name="drawer_hud_opacity">Διαφάνεια</string>
-    <string name="hud_matches_steam_overlay">Ο ρυθμός καρέ, οι χρόνοι καρέ και οι μετρήσεις προέρχονται από τις ίδιες πηγές με την επικάλυψη απόδοσης του Steam.</string>
     <string name="hud_size">Μέγεθος</string>
     <string name="hud_size_hint">Το πάτημα στο HUD αλλάζει επίσης το μέγεθός του.</string>
     <string name="hud_size_full">Πλήρες</string>
@@ -616,7 +615,7 @@
     <string name="hud_size_minimal">Ελάχιστο</string>
     <string name="hud_size_mega">Μέγα</string>
     <string name="hud_locked">Κλείδωμα θέσης</string>
-    <string name="hud_locked_hint">Σύρετε το HUD για να το μετακινήσετε· ένα παρατεταμένο πάτημα το κλειδώνει ή το ξεκλειδώνει.</string>
+    <string name="hud_locked_hint">Σύρετε το HUD για να το μετακινήσετε· ένα παρατεταμένο πάτημα το κλειδώνει ή το ξεκλειδώνει. Όσο είναι κλειδωμένο, τα χειριστήρια οθόνης από κάτω του εξακολουθούν να λειτουργούν.</string>
     <string name="hud_group_look">Εμφάνιση</string>
     <string name="hud_scale">Μέγεθος στην οθόνη</string>
     <string name="hud_color_soft">Απαλό</string>
@@ -704,6 +703,8 @@
     <string name="drawer_low_latency_controller_hint">Το χειριστήριο αναφέρει στα 1000 Hz αντί για 250 Hz. Λίγο περισσότερο CPU.</string>
     <string name="drawer_low_latency_touch">Αφή χαμηλής καθυστέρησης</string>
     <string name="drawer_low_latency_touch_hint">Οι αφές παρακάμπτουν την ομαδοποίηση καρέ, οπότε ο χειρισμός αφής του Steam τρέχει στα 1000 Hz. Λίγο περισσότερο CPU.</string>
+    <string name="drawer_evdev_mouse">Ακατέργαστο κανάλι ποντικιού</string>
+    <string name="drawer_direct_cursor">Δείκτης</string>
     <string name="drawer_pc_keyboard">Πληκτρολόγιο PC</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Δεύτερη οθόνη</string>
@@ -828,6 +829,17 @@
     <string name="setup_fullscreen">Πλήρης οθόνη</string>
     <string name="setup_fullscreen_on">Αποκρύπτει τις γραμμές κατάστασης και πλοήγησης του Android</string>
     <string name="setup_fullscreen_off">Εμφανίζει τις γραμμές κατάστασης και πλοήγησης του Android</string>
+    <string name="setup_dual_screen">Διπλή οθόνη</string>
+    <string name="setup_dual_screen_hint">Το Αυτόματο χρησιμοποιεί τη δεύτερη οθόνη σε φορητές συσκευές με ενσωματωμένη. Το Ενεργό χρησιμοποιεί οποιαδήποτε δεύτερη οθόνη. Το Ανενεργό κρατά τα πάντα σε μία οθόνη.</string>
+    <string name="setup_dual_screen_auto">Αυτόματο</string>
+    <string name="setup_dual_screen_on">Ενεργό</string>
+    <string name="setup_dual_screen_off">Ανενεργό</string>
+    <string name="setup_dual_screen_menu">Μενού κάτω οθόνης</string>
+    <string name="setup_dual_screen_menu_hint">Μεταφέρει τις ενότητες και το μενού του παιχνιδιού στη δεύτερη οθόνη και η πληκτρολόγηση γίνεται εκεί, ώστε η πάνω οθόνη να κρατά την πλήρη προβολή. Τα L2 και R2 αλλάζουν ενότητα.</string>
+    <string name="setup_dual_screen_controls">Χειριστήρια κάτω οθόνης στα παιχνίδια</string>
+    <string name="setup_dual_screen_controls_hint">Ανοίγει την επιφάνεια αφής και το πληκτρολόγιο στη δεύτερη οθόνη όταν ξεκινά μια συνεδρία.</string>
+    <string name="dual_typing_title">Πληκτρολόγηση για την πάνω οθόνη</string>
+    <string name="dual_typing_done">Τέλος</string>
     <string name="setup_default_home">Προεπιλεγμένη εφαρμογή αρχικής οθόνης</string>
     <string name="setup_choose_home">Επιλογή εφαρμογής αρχικής οθόνης</string>
     <string name="setup_choose">Επιλογή</string>
@@ -3188,9 +3200,20 @@
         <item quantity="one">%d εφαρμογή</item>
         <item quantity="other">%d εφαρμογές</item>
     </plurals>
+    <string name="desktop_restore_title">Επαναφορά του λογισμικού σας</string>
+    <string name="desktop_restore_body">Επανεγκατάσταση των εφαρμογών που προσθέσατε μετά από ενημέρωση του DroidDeck.</string>
+    <string name="desktop_restore_done_title">Το λογισμικό επαναφέρθηκε</string>
+    <string name="desktop_restore_done_body">Οι εφαρμογές που προσθέσατε εγκαταστάθηκαν ξανά.</string>
+    <string name="desktop_restore_failed_title">Δεν ήταν δυνατή η επαναφορά ορισμένου λογισμικού</string>
+    <string name="desktop_restore_failed_body">Δείτε το ~/.cache/droiddeck/apt-restore.log και μετά δοκιμάστε sudo apt install στο Konsole.</string>
     <string name="slow_usb_title">Αργή σύνδεση USB</string>
     <string name="slow_usb_cable">Η συσκευή %1$s συνδέεται μέσω %2$s (%3$s Mbps, περίπου %4$d MB/s), οπότε τα παιχνίδια θα φορτώνουν αργά. Χρησιμοποιήστε καλώδιο USB 3 των 5 Gbps ή περισσότερο, αναποδογυρίστε το βύσμα USB-C ή χρησιμοποιήστε ταχύτερο δίσκο.</string>
     <string name="slow_usb_port">Η συσκευή %1$s συνδέεται μέσω %2$s (%3$s Mbps, περίπου %4$d MB/s). Η θύρα USB αυτής της συσκευής δεν υποστηρίζει μεγαλύτερη ταχύτητα, οπότε τα παιχνίδια θα φορτώνουν αργά. Ο εσωτερικός χώρος ή μια κάρτα microSD μπορεί να είναι ταχύτερα.</string>
     <string name="slow_usb_never">Να μην εμφανιστεί ξανά</string>
     <string name="slow_usb_dismiss">Κλείσιμο</string>
+    <string name="steam_import_title">Επανεκκίνηση του Steam για να προστεθούν τα παιχνίδια σας;</string>
+    <string name="steam_import_body">Το Steam μπορεί να εμφανίσει αυτά τα παιχνίδια που έχετε ως εγκατεστημένα: %1$s. Πρέπει να γίνει επανεκκίνηση για να εμφανιστούν. Κάντε επανεκκίνηση τώρα ή θα προστεθούν την επόμενη φορά που θα ξεκινήσει το Steam.</string>
+    <string name="steam_import_names_more">%1$s και %2$d ακόμη</string>
+    <string name="steam_import_now">Επανεκκίνηση τώρα</string>
+    <string name="steam_import_later">Αργότερα</string>
 </resources>

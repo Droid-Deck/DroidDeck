@@ -611,7 +611,6 @@
     <string name="drawer_hud_color_amber">Ambrová</string>
     <string name="drawer_hud_color_violet">Fialová</string>
     <string name="drawer_hud_opacity">Průhlednost</string>
-    <string name="hud_matches_steam_overlay">Snímková frekvence, časy snímků a naměřené hodnoty pocházejí ze stejných zdrojů jako výkonnostní překryv Steamu.</string>
     <string name="hud_size">Velikost</string>
     <string name="hud_size_hint">Klepnutím na HUD se také změní jeho velikost.</string>
     <string name="hud_size_full">Plný</string>
@@ -620,7 +619,7 @@
     <string name="hud_size_minimal">Minimální</string>
     <string name="hud_size_mega">Mega</string>
     <string name="hud_locked">Zamknout na místě</string>
-    <string name="hud_locked_hint">Přetažením HUD přesunete; dlouhým stiskem ho zamknete nebo odemknete.</string>
+    <string name="hud_locked_hint">Přetažením HUD přesunete; dlouhým stiskem ho zamknete nebo odemknete. Když je zamknutý, ovládací prvky na obrazovce pod ním dál fungují.</string>
     <string name="hud_group_look">Vzhled</string>
     <string name="hud_scale">Velikost na obrazovce</string>
     <string name="hud_color_soft">Jemná</string>
@@ -708,6 +707,8 @@
     <string name="drawer_low_latency_controller_hint">Ovladač hlásí na 1000 Hz místo 250 Hz. O něco víc CPU.</string>
     <string name="drawer_low_latency_touch">Dotek s nízkým zpožděním</string>
     <string name="drawer_low_latency_touch_hint">Doteky přeskakují dávkování snímků, takže ovládání dotykem ve Steamu běží na 1000 Hz. O něco víc CPU.</string>
+    <string name="drawer_evdev_mouse">Surový kanál myši</string>
+    <string name="drawer_direct_cursor">Kurzor</string>
     <string name="drawer_pc_keyboard">Klávesnice PC</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Druhá obrazovka</string>
@@ -834,6 +835,17 @@
     <string name="setup_fullscreen">Celá obrazovka</string>
     <string name="setup_fullscreen_on">Skryje stavový a navigační panel Androidu</string>
     <string name="setup_fullscreen_off">Zobrazí stavový a navigační panel Androidu</string>
+    <string name="setup_dual_screen">Dvě obrazovky</string>
+    <string name="setup_dual_screen_hint">Automaticky používá druhou obrazovku na kapesních zařízeních, která ji mají vestavěnou. Zapnuto používá jakýkoli druhý displej. Vypnuto nechá vše na jedné obrazovce.</string>
+    <string name="setup_dual_screen_auto">Automaticky</string>
+    <string name="setup_dual_screen_on">Zapnuto</string>
+    <string name="setup_dual_screen_off">Vypnuto</string>
+    <string name="setup_dual_screen_menu">Nabídka na spodní obrazovce</string>
+    <string name="setup_dual_screen_menu_hint">Přesune sekce a herní nabídku na druhou obrazovku a píše se tam, takže horní obrazovka zůstane celá volná. L2 a R2 přepínají sekce.</string>
+    <string name="setup_dual_screen_controls">Ovládání na spodní obrazovce ve hrách</string>
+    <string name="setup_dual_screen_controls_hint">Při spuštění relace otevře touchpad a klávesnici na druhé obrazovce.</string>
+    <string name="dual_typing_title">Psaní pro horní obrazovku</string>
+    <string name="dual_typing_done">Hotovo</string>
     <string name="setup_default_home">Výchozí domovská aplikace</string>
     <string name="setup_choose_home">Vybrat domovskou aplikaci</string>
     <string name="setup_choose">Vybrat</string>
@@ -3258,9 +3270,20 @@
         <item quantity="many">%d aplikace</item>
         <item quantity="other">%d aplikací</item>
     </plurals>
+    <string name="desktop_restore_title">Obnovování vašeho softwaru</string>
+    <string name="desktop_restore_body">Přeinstalace aplikací, které jste přidali, po aktualizaci DroidDecku.</string>
+    <string name="desktop_restore_done_title">Software obnoven</string>
+    <string name="desktop_restore_done_body">Aplikace, které jste přidali, jsou znovu nainstalovány.</string>
+    <string name="desktop_restore_failed_title">Část softwaru se nepodařilo obnovit</string>
+    <string name="desktop_restore_failed_body">Podívejte se do ~/.cache/droiddeck/apt-restore.log a pak zkuste sudo apt install v Konsoli.</string>
     <string name="slow_usb_title">Pomalé připojení USB</string>
     <string name="slow_usb_cable">%1$s je připojen přes %2$s (%3$s Mb/s, asi %4$d MB/s), takže hry na něm se budou načítat pomalu. Použijte kabel USB 3 s rychlostí 5 Gb/s nebo vyšší, zkuste otočit konektor USB-C nebo použijte rychlejší disk.</string>
     <string name="slow_usb_port">%1$s je připojen přes %2$s (%3$s Mb/s, asi %4$d MB/s). Port USB tohoto zařízení rychleji neumí, takže hry na něm se budou načítat pomalu. Interní úložiště nebo karta microSD může být rychlejší.</string>
     <string name="slow_usb_never">Už nezobrazovat</string>
     <string name="slow_usb_dismiss">Zavřít</string>
+    <string name="steam_import_title">Restartovat Steam a přidat vaše hry?</string>
+    <string name="steam_import_body">Steam může tyto vaše hry zobrazit jako nainstalované: %1$s. Aby je ukázal, musí se restartovat. Restartujte teď, nebo se přidají při příštím spuštění Steamu.</string>
+    <string name="steam_import_names_more">%1$s a %2$d dalších</string>
+    <string name="steam_import_now">Restartovat teď</string>
+    <string name="steam_import_later">Později</string>
 </resources>

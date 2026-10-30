@@ -66,6 +66,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import com.droiddeck.launcher.session.SessionPrefs
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -126,6 +128,20 @@ internal fun navigationKeys(s: FrontEndState) = buildList {
     add("setup"); add("updates")
 }
 
+internal object RailLabels {
+    var shown by mutableStateOf(true)
+        private set
+
+    fun load(context: android.content.Context) {
+        shown = SessionPrefs.railLabels(context)
+    }
+
+    fun set(context: android.content.Context, show: Boolean) {
+        shown = show
+        SessionPrefs.setRailLabels(context, show)
+    }
+}
+
 @Composable
 internal fun SideRail(
     s: FrontEndState, selected: String,
@@ -133,7 +149,9 @@ internal fun SideRail(
 ) {
     val colors = MaterialTheme.colorScheme
     val compact = LocalConfiguration.current.screenHeightDp < 420
-    val iconOnly = isNarrowScreen()
+    val railContext = LocalContext.current
+    remember { RailLabels.load(railContext) }
+    val iconOnly = isNarrowScreen() || !RailLabels.shown
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = modifier.width(if (iconOnly) 64.dp else 92.dp).background(colors.surface).padding(vertical = if (compact) 8.dp else 12.dp),
@@ -173,24 +191,28 @@ internal fun SideRail(
     }
 }
 
+internal fun railLabelIcon(key: String): Pair<Int, ImageVector> = when (key) {
+    "steam" -> R.string.rail_steam to Icons.Outlined.SportsEsports
+    "games" -> R.string.rail_games to Icons.Outlined.VideoLibrary
+    "stores" -> R.string.rail_stores to Icons.Outlined.LocalMall
+    "desktop" -> R.string.rail_desktop to Icons.Outlined.DesktopWindows
+    "components" -> R.string.rail_components to Icons.Outlined.Layers
+    "android-apps" -> R.string.rail_apps to Icons.Outlined.Apps
+    "setup" -> R.string.rail_setup to Icons.Outlined.Tune
+    else -> R.string.rail_updates to Icons.Outlined.SystemUpdate
+}
+
+internal fun setupNeedsAttention(s: FrontEndState): Boolean = !s.ready || (s.available != null && s.available != s.installed) ||
+    PhantomProcessLimit.blocksSteam(s.phantomProcessStatus)
+
 @Composable
 private fun NavigationItems(
     s: FrontEndState, shown: String, compact: Boolean, iconOnly: Boolean, height: Dp, width: Dp,
     place: (String) -> Modifier, onSelect: (String) -> Unit, onFocusSelect: (String) -> Unit,
 ) {
-    val setupNeedsAttention = !s.ready || (s.available != null && s.available != s.installed) ||
-        PhantomProcessLimit.blocksSteam(s.phantomProcessStatus)
+    val setupNeedsAttention = setupNeedsAttention(s)
     for (key in navigationKeys(s)) {
-        val (label, icon) = when (key) {
-            "steam" -> R.string.rail_steam to Icons.Outlined.SportsEsports
-            "games" -> R.string.rail_games to Icons.Outlined.VideoLibrary
-            "stores" -> R.string.rail_stores to Icons.Outlined.LocalMall
-            "desktop" -> R.string.rail_desktop to Icons.Outlined.DesktopWindows
-            "components" -> R.string.rail_components to Icons.Outlined.Layers
-            "android-apps" -> R.string.rail_apps to Icons.Outlined.Apps
-            "setup" -> R.string.rail_setup to Icons.Outlined.Tune
-            else -> R.string.rail_updates to Icons.Outlined.SystemUpdate
-        }
+        val (label, icon) = railLabelIcon(key)
         key(key) {
             RailItem(stringResource(label), icon, key, shown == key, compact, iconOnly, height, width,
                 badge = (key == "setup" && setupNeedsAttention) || (key == "updates" && s.updates.hasUpdate),

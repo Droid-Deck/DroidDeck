@@ -12,11 +12,12 @@ object SettingsReset {
 
     internal val SESSION_KEYS = setOf(
         "orientation", "launcherFullscreen", "animations", "theme", "runSteamAtStartup", "addedGamesArt",
+        "dualScreenMode", "dualScreenLauncher", "dualScreenSessionControls",
         "gameStoresEnabled", "gameStoresSpeedTier", "gameStoresParallel", "storesOpenTab", "storesShowMature",
         "storesInstallLanguage",
         "hud", "hudDeck", "hudFps", "hudBattery", "hudGraph", "hudColor", "hudOpacity", "fusionHud", "fusionHudPos", "backActionsInverted", "backDoubleTapMs", "touch", "osc", "shape", "steamController",
         "gamepadLeft", "gamepadRight", "pipAutoEnter", "unfoldedControls", "unfoldedControlsWithController",
-        "stretch16x9", "picturePosition",
+        "stretch16x9", "picturePosition", "railLabels",
         "gpuDriverMode", "androidDriver", "linuxDriver", "linuxDriver.steam", "linuxDriver.desktop",
         "tuSysmem", "glThread", "noGlError", "zinkLazy", "mangoapp", "gpuClockPin", "gamescopeRealtime", "ramCapMb", "vramCapMb", "zramClient",
         "directAudio", "mic", "wifiDiscovery", "clientCpusOverride", "clientCpus", "gameCpus",

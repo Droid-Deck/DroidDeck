@@ -638,6 +638,27 @@ class GameEnvironmentTest(unittest.TestCase):
                     self.assertEqual(result.stdout.strip(), expected)
                     self.assertEqual(said in result.stderr, expected == "0" and not inherited, result.stderr)
 
+    def test_teardown_keeps_its_own_vsync_unless_the_player_chose(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            probe = Path(tmp) / "probe"
+            probe.write_text("#!" + sys.executable + "\nimport os\nprint(os.environ.get('vblank_mode', 'unset'))\n")
+            probe.chmod(0o755)
+            game = Path(tmp) / "Teardown/teardown.exe"
+            game.parent.mkdir()
+            game.write_bytes(b"MZ")
+            config = Path(tmp) / ".config/droiddeck/game-environment.json"
+            config.parent.mkdir(parents=True)
+            for inherited, edits, shared, expected in (({}, None, None, "2"), ({"vblank_mode": "0"}, None, None, "0"),
+                                                       ({}, {"vblank_mode": "1"}, None, "1"),
+                                                       ({}, None, {"vblank_mode": "1"}, "1")):
+                with self.subTest(inherited=inherited, edits=edits, shared=shared):
+                    config.write_text(json.dumps({"version": 1, "shared": shared or {}, "games": {"1167630": edits or {}}}))
+                    env = {name: value for name, value in os.environ.items() if name != "vblank_mode"}
+                    env.update(HOME=tmp, STEAM_COMPAT_DATA_PATH="/compatdata/1167630", **inherited)
+                    result = subprocess.run([sys.executable, str(BIN / "droiddeck-game-env"), str(probe), "waitforexitandrun", str(game)],
+                                            env=env, text=True, capture_output=True, check=True)
+                    self.assertEqual(result.stdout.strip(), expected, result.stderr)
+
     def test_windows_cpu_0_is_the_fastest_core(self):
         os_mod = MODULE["os"]
         pocket_fit = {0: 379, 1: 379, 2: 923, 3: 923, 4: 923, 5: 867, 6: 867, 7: 1024}

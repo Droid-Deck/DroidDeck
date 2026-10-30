@@ -141,11 +141,13 @@ static int traced_by_match(const char *key) {
   return found;
 }
 
-static long init_sys(long nr, long a, long b, long c) {
+static long init_sys4(long nr, long a, long b, long c, long d) {
   static long (*real_syscall)(long, ...);
   if (!real_syscall) real_syscall = (long (*)(long, ...))dlsym(RTLD_NEXT, "syscall");
-  return real_syscall(nr, a, b, c);
+  return real_syscall(nr, a, b, c, d);
 }
+
+static long init_sys(long nr, long a, long b, long c) { return init_sys4(nr, a, b, c, 0); }
 
 static int program_32bit(const char *prog, int scripts) {
   char head[256];
@@ -504,7 +506,7 @@ static long own_exe(char *g) {
     memcpy(g, exe_text, n + 1);
     return n;
   }
-  long t = syscall(SYS_readlinkat, AT_FDCWD, "/proc/self/exe", g, PATH_MAX - 1);
+  long t = init_sys4(SYS_readlinkat, AT_FDCWD, (long)"/proc/self/exe", (long)g, PATH_MAX - 1);
   if (t <= 0 || t >= PATH_MAX - 1) return FP_SLOW;
   g[t] = 0;
   static pthread_mutex_t exe_lock = PTHREAD_MUTEX_INITIALIZER;

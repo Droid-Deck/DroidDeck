@@ -57,7 +57,8 @@ import kotlinx.coroutines.withTimeoutOrNull
  *
  * Gestures go through [HudLockController]: long-press toggles the position lock (with a lock/unlock
  * badge fade), a tap cycles the size (Full→Tiles→Pill→Minimal→Full), and a drag repositions — tap +
- * drag are frozen while locked.
+ * drag are frozen while locked. A locked HUD lets a touch through where an on-screen control under it
+ * takes it ([passesTouchAt]); everywhere else it keeps the touch, so a long press there unlocks it.
  */
 class FusionHudView(context: Context) : View(context) {
 
@@ -294,7 +295,7 @@ class FusionHudView(context: Context) : View(context) {
         showDxVer = cfg.get("showDxVer", "1") == "1"
         showSession = cfg.get("showSession", "1") == "1"
         tempDisplay = HudMetrics.TempDisplay.from(cfg)
-        lockController.setLocked(cfg.get("hudLocked", "0") == "1")
+        lockController.setLocked(cfg.get("hudLocked", "1") == "1")
 
         colorIntensity = when (cfg.get("hudColor", "vivid")) {
             "soft" -> 0.72f; "mid" -> 0.88f; else -> 1.0f
@@ -865,25 +866,20 @@ class FusionHudView(context: Context) : View(context) {
         }
         // RAM % (system-wide) takes the slot the latency row used to occupy, matching the GPU/CPU idiom
         // on the row above it. colRam keeps RAM's identity colour consistent with the Full/Tiles sizes.
-        if (showRAM) {
+        if (showRAM) stack.add(listOf(Span("RAM ${s.ramPercent.roundToInt()}%", colRam, stkPx)))
+        // One battery row, as on the other sizes: each part shows on its own switch, so the battery
+        // temperature no longer goes with the RAM switch and watts show without the battery level.
+        if (showBattery || showPower || showBatteryTemp) {
             val l = ArrayList<Span>()
-            l += Span("RAM ${s.ramPercent.roundToInt()}%", colRam, stkPx)
-            // Battery temperature as a "BAT" chip right after RAM (pill-only placement, per user
-            // request). Colour-banded warm→red via tempSpans/TempSensor.BATTERY — the exact same
-            // danger bands the GPU/CPU temps use. Only shown when the battery-temp toggle is on
-            // and a reading is available; the other sizes keep battery temp in the battery row.
-            if (showBatteryTemp && s.battery.tempC != null) {
-                l += Span(" · ", colDim, stkPx)
-                l += Span("BAT ", colBat, stkPx)
-                l += tempSpans(s.battery.tempC, HudMetrics.TempSensor.BATTERY, stkPx, stkPx * 0.62f)
+            fun part(spans: List<Span>) {
+                l += if (l.isEmpty()) Span("BAT ", colBat, stkPx) else Span(" · ", colDim, stkPx)
+                l += spans
             }
-            stack.add(l)
-        }
-        if (showBattery || showPower) {
-            val l = ArrayList<Span>(); var any = false
-            if (showBattery && s.battery.percent != null) { l += Span("BAT ${s.battery.percent}%", colBat, stkPx); any = true }
-            if (showPower && s.battery.watts > 0f) { if (any) l += Span(" · ", colDim, stkPx); l += Span("${fmt1(s.battery.watts)}W", colDim, stkPx) }
-            if (any) stack.add(l)
+            if (showBattery && s.battery.percent != null) part(listOf(Span("${s.battery.percent}%", colBat, stkPx)))
+            if (showBatteryTemp && s.battery.tempC != null)
+                part(tempSpans(s.battery.tempC, HudMetrics.TempSensor.BATTERY, stkPx, stkPx * 0.62f))
+            if (showPower && s.battery.watts > 0f) part(listOf(Span("${fmt1(s.battery.watts)}W", colDim, stkPx)))
+            if (l.isNotEmpty()) stack.add(l)
         }
         // Latency (+ the display server, + optional VRAM) drops to the bottom of the stack, under the
         // battery row. The display server sits here, not on the GPU-model line: that line is the
@@ -1340,6 +1336,8 @@ class FusionHudView(context: Context) : View(context) {
     @VisibleForTesting internal fun panelForTest(): RectF? = dPanel
     @VisibleForTesting internal fun panelRadiusForTest(): Float = dRadius
     @VisibleForTesting internal fun graphForTest(): RectF? = graphRect
+    @VisibleForTesting internal fun linesForTest(): List<String> =
+        glyphs.groupBy { it.baseline.roundToInt() }.toSortedMap().values.map { line -> line.sortedBy { it.x }.joinToString("") { it.text } }
 
     private fun drawChip(canvas: Canvas, rect: RectF) {
         val r = sp(6f)
@@ -1355,7 +1353,15 @@ class FusionHudView(context: Context) : View(context) {
         DroidDeckMark.draw(canvas, rect.centerX() - markW / 2f, rect.centerY() - markH / 2f, markH, blend(colValue), accent)
     }
 
-    override fun onTouchEvent(event: MotionEvent): Boolean = lockController.onTouchEvent(event)
+    /** Screen point → whether an on-screen control under the HUD takes a touch there. */
+    internal var passesTouchAt: ((rawX: Float, rawY: Float) -> Boolean)? = null
+
+    // Declining the down event hands the whole gesture to the views under the HUD.
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        if (event.actionMasked == MotionEvent.ACTION_DOWN && lockController.isLocked() &&
+            passesTouchAt?.invoke(event.rawX, event.rawY) == true) return false
+        return lockController.onTouchEvent(event)
+    }
 
     internal val isDragging: Boolean get() = lockController.isDragging()
 

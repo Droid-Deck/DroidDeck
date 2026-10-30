@@ -27,6 +27,8 @@ extern int  droiddeck_cursor_snapshot(int *out, int cap);
 extern int  droiddeck_cursor_serial(void);
 extern int droiddeck_hud_frame_times(float *out, int len, int64_t *total);
 extern void droiddeck_wayland_send_key(int evdev, int state);
+extern int  droiddeck_focus_takes_touch(void);
+extern int  droiddeck_cursor_input_pos(int *x, int *y);
 extern void droiddeck_wayland_send_scene_input(int type, int a, int b);
 extern void droiddeck_wayland_vsync(int64_t frame_time_ns);
 extern void droiddeck_stream_set(int on);
@@ -294,6 +296,25 @@ JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSendKey(
         JNIEnv *env, jclass clazz, jint evdev, jint state) {
     droiddeck_wayland_send_key(evdev, state);
+}
+
+JNIEXPORT jboolean JNICALL
+Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeFocusTakesTouch(
+        JNIEnv *env, jclass clazz) {
+    (void)env; (void)clazz;
+    return droiddeck_focus_takes_touch() ? JNI_TRUE : JNI_FALSE;
+}
+
+JNIEXPORT jboolean JNICALL
+Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeCursorInputPos(
+        JNIEnv *env, jclass clazz, jintArray out) {
+    (void)clazz;
+    if (!out || (*env)->GetArrayLength(env, out) < 2) return JNI_FALSE;
+    int pos[2];
+    if (!droiddeck_cursor_input_pos(&pos[0], &pos[1])) return JNI_FALSE;
+    jint jpos[2] = {pos[0], pos[1]};
+    (*env)->SetIntArrayRegion(env, out, 0, 2, jpos);
+    return JNI_TRUE;
 }
 
 JNIEXPORT void JNICALL

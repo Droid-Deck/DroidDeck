@@ -666,7 +666,6 @@
     <string name="drawer_hud_color_amber">Amber</string>
     <string name="drawer_hud_color_violet">Violet</string>
     <string name="drawer_hud_opacity">Opacity</string>
-    <string name="hud_matches_steam_overlay">Frame rate, frame times and readings come from the same sources as Steam\'s performance overlay.</string>
     <string name="hud_size">Size</string>
     <string name="hud_size_hint">Tapping the HUD also changes its size.</string>
     <string name="hud_size_full">Full</string>
@@ -675,7 +674,7 @@
     <string name="hud_size_minimal">Minimal</string>
     <string name="hud_size_mega">Mega</string>
     <string name="hud_locked">Lock in place</string>
-    <string name="hud_locked_hint">Drag the HUD to move it; a long press locks or unlocks it.</string>
+    <string name="hud_locked_hint">Drag the HUD to move it; a long press locks or unlocks it. While it is locked, on-screen controls under it still work.</string>
     <string name="hud_group_look">Look</string>
     <string name="hud_scale">Size on screen</string>
     <string name="hud_color_soft">Soft</string>
@@ -789,6 +788,8 @@
     <string name="drawer_low_latency_controller_hint">Pad reports at 1000 Hz instead of 250 Hz. Slightly more CPU.</string>
     <string name="drawer_low_latency_touch">Low-latency touch</string>
     <string name="drawer_low_latency_touch_hint">Touches skip frame batching; Steam touch controls at 1000 Hz. Slightly more CPU.</string>
+    <string name="drawer_evdev_mouse">Raw mouse channel</string>
+    <string name="drawer_direct_cursor">Cursor</string>
     <string name="drawer_pc_keyboard">PC keyboard</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Second screen</string>
@@ -925,6 +926,17 @@
     <string name="setup_fullscreen">Fullscreen</string>
     <string name="setup_fullscreen_on">Hides the Android status and navigation bars</string>
     <string name="setup_fullscreen_off">Shows the Android status and navigation bars</string>
+    <string name="setup_dual_screen">Dual screen</string>
+    <string name="setup_dual_screen_hint">Automatic uses the second screen on handhelds with a built-in one. On uses any second display. Off keeps the launcher and games on one screen; you can still pick a second screen from the session menu.</string>
+    <string name="setup_dual_screen_auto">Automatic</string>
+    <string name="setup_dual_screen_on">On</string>
+    <string name="setup_dual_screen_off">Off</string>
+    <string name="setup_dual_screen_menu">Bottom screen menu</string>
+    <string name="setup_dual_screen_menu_hint">Moves the sections and the in-game menu to the second screen and types there, so the top screen keeps the full view. L2 and R2 switch sections.</string>
+    <string name="setup_dual_screen_controls">Bottom screen controls in games</string>
+    <string name="setup_dual_screen_controls_hint">Opens the trackpad and keyboard on the second screen when a session starts.</string>
+    <string name="dual_typing_title">Typing on the top screen</string>
+    <string name="dual_typing_done">Done</string>
     <string name="setup_default_home">Default Home app</string>
     <string name="setup_choose_home">Choose a Home app</string>
     <string name="setup_choose">Choose</string>
@@ -2308,6 +2320,8 @@
     <string name="stores_resume">Resume</string>
     <string name="stores_refresh">Refresh</string>
     <string name="stores_sort">Sort</string>
+    <string name="setup_rail_labels">Sidebar labels</string>
+    <string name="setup_rail_labels_hint">Show names under the sidebar icons. Turn off for a slimmer sidebar.</string>
     <string name="library_display">Display</string>
     <string name="library_display_larger">Larger cards</string>
     <string name="library_display_smaller">Smaller cards</string>
@@ -3391,7 +3405,6 @@
     <string name="integration_title">Steam integration</string>
     <string name="integration_count">%1$d of %2$d on</string>
     <string name="integration_set_up">Set up</string>
-    <string name="integration_later">Not now</string>
     <string name="integration_location">Location</string>
     <string name="integration_app_info">App info</string>
     <string name="integration_wifi">Wi-Fi names</string>
@@ -3411,6 +3424,12 @@
     <string name="integration_shortcuts_service">DroidDeck Home button</string>
     <string name="integration_shortcuts_service_description">Pass Home button presses to Steam Guide while a Steam session is focused and DroidDeck is the default Home app. Does not read screen content.</string>
     <string name="integration_brightness_needed">Turn on Brightness in Setup → Steam integration</string>
+    <string name="desktop_restore_title">Restoring your software</string>
+    <string name="desktop_restore_body">Reinstalling the apps you added after a DroidDeck update.</string>
+    <string name="desktop_restore_done_title">Software restored</string>
+    <string name="desktop_restore_done_body">The apps you added are installed again.</string>
+    <string name="desktop_restore_failed_title">Some software couldn\'t be restored</string>
+    <string name="desktop_restore_failed_body">See ~/.cache/droiddeck/apt-restore.log, then try sudo apt install in Konsole.</string>
     <string name="gog_full_files">Native optimizations are unavailable. The download includes complete replacement files.</string>
     <string name="gog_recover">Verify patch result</string>
     <string name="slow_usb_title">Slow USB connection</string>
@@ -3418,4 +3437,9 @@
     <string name="slow_usb_port">%1$s is connected over %2$s (%3$s Mbps, about %4$d MB/s). This device\'s USB port can\'t go faster, so games on it will load slowly. Internal storage or a microSD card may be quicker.</string>
     <string name="slow_usb_never">Don\'t show this again</string>
     <string name="slow_usb_dismiss">Dismiss</string>
+    <string name="steam_import_title">Restart Steam to add your games?</string>
+    <string name="steam_import_body">Steam can list these games you own as installed: %1$s. It has to restart to show them. Restart now, or they will be added the next time Steam starts.</string>
+    <string name="steam_import_names_more">%1$s and %2$d more</string>
+    <string name="steam_import_now">Restart now</string>
+    <string name="steam_import_later">Later</string>
 </resources>

@@ -609,7 +609,6 @@
     <string name="drawer_hud_color_amber">Chihlimbariu</string>
     <string name="drawer_hud_color_violet">Violet</string>
     <string name="drawer_hud_opacity">Opacitate</string>
-    <string name="hud_matches_steam_overlay">Rata de cadre, timpii de cadru și valorile citite provin din aceleași surse ca suprapunerea de performanță Steam.</string>
     <string name="hud_size">Dimensiune</string>
     <string name="hud_size_hint">Atingerea HUD-ului îi schimbă și dimensiunea.</string>
     <string name="hud_size_full">Complet</string>
@@ -618,7 +617,7 @@
     <string name="hud_size_minimal">Minimal</string>
     <string name="hud_size_mega">Mega</string>
     <string name="hud_locked">Blochează pe loc</string>
-    <string name="hud_locked_hint">Trage HUD-ul pentru a-l muta; o apăsare lungă îl blochează sau îl deblochează.</string>
+    <string name="hud_locked_hint">Trage HUD-ul pentru a-l muta; o apăsare lungă îl blochează sau îl deblochează. Cât timp e blocat, comenzile de pe ecran de sub el funcționează în continuare.</string>
     <string name="hud_group_look">Aspect</string>
     <string name="hud_scale">Dimensiune pe ecran</string>
     <string name="hud_color_soft">Discretă</string>
@@ -706,6 +705,8 @@
     <string name="drawer_low_latency_controller_hint">Controllerul raportează la 1000 Hz în loc de 250 Hz. Consum CPU puțin mai mare.</string>
     <string name="drawer_low_latency_touch">Atingere cu latență mică</string>
     <string name="drawer_low_latency_touch_hint">Atingerile sar peste gruparea cadrelor, deci controlul tactil Steam rulează la 1000 Hz. Consum CPU puțin mai mare.</string>
+    <string name="drawer_evdev_mouse">Canal brut de mouse</string>
+    <string name="drawer_direct_cursor">Cursor</string>
     <string name="drawer_pc_keyboard">Tastatură de PC</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Al doilea ecran</string>
@@ -831,6 +832,17 @@
     <string name="setup_fullscreen">Ecran complet</string>
     <string name="setup_fullscreen_on">Ascunde barele de stare și de navigare Android</string>
     <string name="setup_fullscreen_off">Arată barele de stare și de navigare Android</string>
+    <string name="setup_dual_screen">Ecran dublu</string>
+    <string name="setup_dual_screen_hint">Automat folosește al doilea ecran pe consolele portabile care au unul integrat. Pornit folosește orice al doilea afișaj. Oprit păstrează totul pe un singur ecran.</string>
+    <string name="setup_dual_screen_auto">Automat</string>
+    <string name="setup_dual_screen_on">Pornit</string>
+    <string name="setup_dual_screen_off">Oprit</string>
+    <string name="setup_dual_screen_menu">Meniu pe ecranul de jos</string>
+    <string name="setup_dual_screen_menu_hint">Mută secțiunile și meniul din joc pe al doilea ecran și scrierea se face acolo, astfel încât ecranul de sus păstrează imaginea completă. L2 și R2 schimbă secțiunea.</string>
+    <string name="setup_dual_screen_controls">Comenzi pe ecranul de jos în jocuri</string>
+    <string name="setup_dual_screen_controls_hint">Deschide trackpadul și tastatura pe al doilea ecran când pornește o sesiune.</string>
+    <string name="dual_typing_title">Scriere pentru ecranul de sus</string>
+    <string name="dual_typing_done">Gata</string>
     <string name="setup_default_home">Aplicația Acasă implicită</string>
     <string name="setup_choose_home">Alege o aplicație Acasă</string>
     <string name="setup_choose">Alege</string>
@@ -3223,9 +3235,20 @@
         <item quantity="few">%d aplicații</item>
         <item quantity="other">%d de aplicații</item>
     </plurals>
+    <string name="desktop_restore_title">Se restaurează software-ul</string>
+    <string name="desktop_restore_body">Se reinstalează aplicațiile adăugate de tine după o actualizare DroidDeck.</string>
+    <string name="desktop_restore_done_title">Software restaurat</string>
+    <string name="desktop_restore_done_body">Aplicațiile adăugate de tine sunt instalate din nou.</string>
+    <string name="desktop_restore_failed_title">O parte din software nu a putut fi restaurată</string>
+    <string name="desktop_restore_failed_body">Vezi ~/.cache/droiddeck/apt-restore.log, apoi încearcă sudo apt install în Konsole.</string>
     <string name="slow_usb_title">Conexiune USB lentă</string>
     <string name="slow_usb_cable">%1$s este conectat prin %2$s (%3$s Mbps, aproximativ %4$d MB/s), așa că jocurile de pe el se vor încărca lent. Folosește un cablu USB 3 de 5 Gbps sau mai rapid, încearcă să întorci mufa USB-C sau folosește o unitate mai rapidă.</string>
     <string name="slow_usb_port">%1$s este conectat prin %2$s (%3$s Mbps, aproximativ %4$d MB/s). Portul USB al acestui dispozitiv nu poate merge mai repede, așa că jocurile se vor încărca lent. Memoria internă sau un card microSD pot fi mai rapide.</string>
     <string name="slow_usb_never">Nu mai afișa</string>
     <string name="slow_usb_dismiss">Închide</string>
+    <string name="steam_import_title">Repornești Steam pentru a adăuga jocurile tale?</string>
+    <string name="steam_import_body">Steam poate afișa ca instalate aceste jocuri pe care le deții: %1$s. Trebuie să repornească pentru a le afișa. Repornește acum sau vor fi adăugate la următoarea pornire a Steam.</string>
+    <string name="steam_import_names_more">%1$s și încă %2$d</string>
+    <string name="steam_import_now">Repornește acum</string>
+    <string name="steam_import_later">Mai târziu</string>
 </resources>

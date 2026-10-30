@@ -13,7 +13,7 @@ internal fun FusionHudSettings(host: MenuHost, a: DrawerActions, track: (String)
     fun on(key: String) = cfg[key] == "1"
     fun int(key: String, fallback: Int) = cfg[key]?.toIntOrNull() ?: fallback
 
-    SettingsGroup(stringResource(R.string.drawer_hud), detail = stringResource(R.string.hud_matches_steam_overlay)) {
+    SettingsGroup(stringResource(R.string.drawer_hud)) {
         ToggleRow(host, "hud", stringResource(R.string.drawer_hud), null, a.hudOn, chipModifier = track("hud"), onChange = a.onHud)
         if (!a.hudOn) return@SettingsGroup
         val size = FusionSize.from(cfg["hudSize"])

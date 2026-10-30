@@ -607,7 +607,6 @@
     <string name="drawer_hud_color_amber">Ravgul</string>
     <string name="drawer_hud_color_violet">Violet</string>
     <string name="drawer_hud_opacity">Gennemsigtighed</string>
-    <string name="hud_matches_steam_overlay">Billedhastighed, billedtider og målinger kommer fra de samme kilder som Steams ydelsesoverlay.</string>
     <string name="hud_size">Størrelse</string>
     <string name="hud_size_hint">Et tryk på HUD ændrer også størrelsen.</string>
     <string name="hud_size_full">Fuld</string>
@@ -616,7 +615,7 @@
     <string name="hud_size_minimal">Minimal</string>
     <string name="hud_size_mega">Mega</string>
     <string name="hud_locked">Lås fast</string>
-    <string name="hud_locked_hint">Træk i HUD for at flytte det; et langt tryk låser eller frigør det.</string>
+    <string name="hud_locked_hint">Træk i HUD for at flytte det; et langt tryk låser eller frigør det. Mens det er låst, virker skærmknapperne under det stadig.</string>
     <string name="hud_group_look">Udseende</string>
     <string name="hud_scale">Størrelse på skærmen</string>
     <string name="hud_color_soft">Blød</string>
@@ -704,6 +703,8 @@
     <string name="drawer_low_latency_controller_hint">Controlleren rapporterer ved 1000 Hz i stedet for 250 Hz. Lidt mere CPU.</string>
     <string name="drawer_low_latency_touch">Berøring med lav forsinkelse</string>
     <string name="drawer_low_latency_touch_hint">Berøringer springer billedsamling over; Steams berøringsstyring kører ved 1000 Hz. Lidt mere CPU.</string>
+    <string name="drawer_evdev_mouse">Rå musekanal</string>
+    <string name="drawer_direct_cursor">Markør</string>
     <string name="drawer_pc_keyboard">PC-tastatur</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Anden skærm</string>
@@ -828,6 +829,17 @@
     <string name="setup_fullscreen">Fuldskærm</string>
     <string name="setup_fullscreen_on">Skjuler Androids status- og navigationsbjælker</string>
     <string name="setup_fullscreen_off">Viser Androids status- og navigationsbjælker</string>
+    <string name="setup_dual_screen">Dobbeltskærm</string>
+    <string name="setup_dual_screen_hint">Automatisk bruger den anden skærm på håndholdte enheder med en indbygget ekstra skærm. Til bruger enhver anden skærm. Fra holder alt på én skærm.</string>
+    <string name="setup_dual_screen_auto">Automatisk</string>
+    <string name="setup_dual_screen_on">Til</string>
+    <string name="setup_dual_screen_off">Fra</string>
+    <string name="setup_dual_screen_menu">Menu på nederste skærm</string>
+    <string name="setup_dual_screen_menu_hint">Flytter sektionerne og menuen i spillet til den anden skærm og skriver der, så den øverste skærm beholder hele visningen. L2 og R2 skifter sektion.</string>
+    <string name="setup_dual_screen_controls">Kontroller på nederste skærm i spil</string>
+    <string name="setup_dual_screen_controls_hint">Åbner pegefeltet og tastaturet på den anden skærm, når en session starter.</string>
+    <string name="dual_typing_title">Skriver til den øverste skærm</string>
+    <string name="dual_typing_done">Færdig</string>
     <string name="setup_default_home">Standard Home-app</string>
     <string name="setup_choose_home">Vælg en Home-app</string>
     <string name="setup_choose">Vælg</string>
@@ -3188,9 +3200,20 @@
         <item quantity="one">%d app</item>
         <item quantity="other">%d apps</item>
     </plurals>
+    <string name="desktop_restore_title">Gendanner din software</string>
+    <string name="desktop_restore_body">Geninstallerer de apps, du tilføjede, efter en DroidDeck-opdatering.</string>
+    <string name="desktop_restore_done_title">Software gendannet</string>
+    <string name="desktop_restore_done_body">De apps, du tilføjede, er installeret igen.</string>
+    <string name="desktop_restore_failed_title">Noget software kunne ikke gendannes</string>
+    <string name="desktop_restore_failed_body">Se ~/.cache/droiddeck/apt-restore.log, og prøv derefter sudo apt install i Konsole.</string>
     <string name="slow_usb_title">Langsom USB-forbindelse</string>
     <string name="slow_usb_cable">%1$s er tilsluttet via %2$s (%3$s Mbps, ca. %4$d MB/s), så spil på den indlæses langsomt. Brug et USB 3-kabel til 5 Gbps eller mere, prøv at vende USB-C-stikket, eller brug et hurtigere drev.</string>
     <string name="slow_usb_port">%1$s er tilsluttet via %2$s (%3$s Mbps, ca. %4$d MB/s). Denne enheds USB-port kan ikke køre hurtigere, så spil på den indlæses langsomt. Intern lagerplads eller et microSD-kort kan være hurtigere.</string>
     <string name="slow_usb_never">Vis ikke igen</string>
     <string name="slow_usb_dismiss">Luk</string>
+    <string name="steam_import_title">Genstart Steam for at tilføje dine spil?</string>
+    <string name="steam_import_body">Steam kan vise disse spil, du ejer, som installerede: %1$s. Steam skal genstartes for at vise dem. Genstart nu, eller de bliver tilføjet næste gang Steam starter.</string>
+    <string name="steam_import_names_more">%1$s og %2$d mere</string>
+    <string name="steam_import_now">Genstart nu</string>
+    <string name="steam_import_later">Senere</string>
 </resources>

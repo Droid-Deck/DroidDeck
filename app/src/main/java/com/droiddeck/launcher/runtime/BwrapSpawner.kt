@@ -180,7 +180,8 @@ object BwrapSpawner {
         val env = LinkedHashMap<String, String>()
         request.optJSONObject("env")?.let { e -> e.keys().forEach { k -> env[k] = e.getString(k) } }
         if (binds.any { it.guest == "/dev" }) gpu(rootfs, root, env)?.forEach { addBind(it) }
-        preload(session, rootfs, env).forEach { addBind(it) }
+        val libc = listOf("/usr/lib/aarch64-linux-gnu/libc.so.6", "/lib/aarch64-linux-gnu/libc.so.6").map { hostPath(binds, root.path, it) }
+        if (preloadFits(rootfs, libc.firstOrNull { File(it).isFile } ?: libc.first())) preload(session, rootfs, env).forEach { addBind(it) }
         zypakShims(binds, root, dir).forEach { addBind(it) }
         browserSandboxes(env)
         return Plan(root, binds, request.optString("cwd", "/").ifEmpty { "/" }, argv, env)
@@ -188,16 +189,20 @@ object BwrapSpawner {
 
     private const val GPU_DIR = "/run/droiddeck-gpu"
 
+    private val LIB_DIRS = listOf("usr/lib/aarch64-linux-gnu", "usr/lib")
+    private val GPU_LIBS = listOf("libdisplay-info.so.3", "libdisplay-info.so.2", "libSPIRV-Tools.so", "libSPIRV-Tools-opt.so")
+
+    private fun runtimeLib(rootfs: String, name: String): File? =
+        LIB_DIRS.map { File(rootfs, "$it/$name") }.firstOrNull { it.exists() }
+
     private fun gpu(rootfs: String, root: File, env: MutableMap<String, String>): List<Bind>? {
-        val lib = File(rootfs, "usr/lib")
-        val driver = File(lib, "libvulkan_freedreno.so")
-        if (!driver.isFile || !File("/dev/kgsl-3d0").exists()) return null
+        val driver = runtimeLib(rootfs, "libvulkan_freedreno.so")
+        if (driver == null || !File("/dev/kgsl-3d0").exists()) return null
         if (env.containsKey("VK_ICD_FILENAMES") || env.containsKey("VK_DRIVER_FILES")) return null
         if (env["BL_DESKTOP"] == "1" && env["GAMESCOPE_WAYLAND_DISPLAY"] == null) return null
-        val binds = ArrayList<Bind>()
-        for (name in listOf("libvulkan_freedreno.so", "libdisplay-info.so.3", "libSPIRV-Tools.so", "libSPIRV-Tools-opt.so")) {
-            val f = File(lib, name)
-            if (!f.exists()) { Log.w(TAG, "gpu: the runtime has no $name; apps draw on the CPU"); return null }
+        val binds = arrayListOf(Bind(driver.canonicalPath, "$GPU_DIR/libvulkan_freedreno.so"))
+        for (name in GPU_LIBS) {
+            val f = runtimeLib(rootfs, name) ?: continue
             binds.add(Bind(f.canonicalPath, "$GPU_DIR/$name"))
         }
         val icd = File(root.parentFile, "freedreno_icd.json")
@@ -225,6 +230,27 @@ object BwrapSpawner {
             binds.addAll(bindsFor(session, rootfs, dev, dev))
         }
         return binds
+    }
+
+    private val GLIBC_RELEASE = Regex("release version 2\\.(\\d+)")
+    private val GLIBC_NEED = Regex("GLIBC_2\\.(\\d+)")
+    private val glibcMinors = java.util.concurrent.ConcurrentHashMap<String, Int>()
+
+    private fun glibcMinor(file: File, pattern: Regex, pick: (Sequence<Int>) -> Int?): Int? {
+        val key = "${file.path}:${file.length()}:${file.lastModified()}:${pattern.pattern}"
+        glibcMinors[key]?.let { return it }
+        val text = runCatching { String(file.readBytes(), Charsets.ISO_8859_1) }.getOrNull() ?: return null
+        return pick(pattern.findAll(text).map { it.groupValues[1].toInt() })?.also { glibcMinors[key] = it }
+    }
+
+    internal fun preloadFits(rootfs: String, sandboxLibc: String): Boolean {
+        val libc = File(sandboxLibc)
+        if (!libc.isFile) return true
+        val have = glibcMinor(libc, GLIBC_RELEASE) { it.firstOrNull() } ?: return true
+        val libs = FileUtils.readString(File(rootfs, "etc/ld.so.preload"))?.lines()
+            ?.map { it.trim() }?.filter { it.startsWith("/") } ?: return true
+        val need = libs.mapNotNull { File(rootfs + it).takeIf { f -> f.isFile }?.let { f -> glibcMinor(f, GLIBC_NEED) { m -> m.maxOrNull() } } }.maxOrNull() ?: return true
+        return have >= need
     }
 
     private const val PRELOAD_DIR = "/run/droiddeck-preload"
@@ -321,7 +347,15 @@ object BwrapSpawner {
             catch (e: IOException) {   }
             if (process.isAlive) {
                 Log.i(TAG, "sandbox $id: its bwrap is gone; stopping it")
-                process.destroy()
+                if (pid > 0) {
+                    runCatching { android.system.Os.kill(pid, android.system.OsConstants.SIGQUIT) }
+                } else {
+                    process.destroy()
+                }
+                try {
+                    if (!process.waitFor(3, java.util.concurrent.TimeUnit.SECONDS)) process.destroyForcibly()
+                } catch (_: InterruptedException) {
+                }
             }
         }, "bwrap-$id-watch").apply { isDaemon = true; start() }
         val buffer = ByteArray(16384)

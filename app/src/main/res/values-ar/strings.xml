@@ -615,7 +615,6 @@
     <string name="drawer_hud_color_amber">كهرماني</string>
     <string name="drawer_hud_color_violet">بنفسجي</string>
     <string name="drawer_hud_opacity">العتامة</string>
-    <string name="hud_matches_steam_overlay">يأتي معدل الإطارات وأزمنة الإطارات والقراءات من المصادر نفسها التي تستخدمها طبقة الأداء في Steam.</string>
     <string name="hud_size">الحجم</string>
     <string name="hud_size_hint">النقر على HUD يغيّر حجمه أيضًا.</string>
     <string name="hud_size_full">كامل</string>
@@ -624,7 +623,7 @@
     <string name="hud_size_minimal">مصغّر</string>
     <string name="hud_size_mega">ضخم</string>
     <string name="hud_locked">تثبيت في مكانه</string>
-    <string name="hud_locked_hint">اسحب HUD لتحريكه؛ والضغط مطولًا يثبّته أو يلغي تثبيته.</string>
+    <string name="hud_locked_hint">اسحب HUD لتحريكه؛ والضغط مطولًا يثبّته أو يلغي تثبيته. أثناء تثبيته، تظل عناصر التحكم على الشاشة الموجودة تحته تعمل.</string>
     <string name="hud_group_look">المظهر</string>
     <string name="hud_scale">الحجم على الشاشة</string>
     <string name="hud_color_soft">هادئ</string>
@@ -712,6 +711,8 @@
     <string name="drawer_low_latency_controller_hint">تبلغ وحدة التحكم بمعدل 1000 هرتز بدلًا من 250 هرتز. استهلاك معالج أعلى قليلًا.</string>
     <string name="drawer_low_latency_touch">لمس بزمن استجابة منخفض</string>
     <string name="drawer_low_latency_touch_hint">تتجاوز اللمسات تجميع الإطارات، فيعمل اللمس في Steam بمعدل 1000 هرتز. استهلاك معالج أعلى قليلًا.</string>
+    <string name="drawer_evdev_mouse">قناة فأرة خام</string>
+    <string name="drawer_direct_cursor">المؤشر</string>
     <string name="drawer_pc_keyboard">لوحة مفاتيح الكمبيوتر</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">الشاشة الثانية</string>
@@ -840,6 +841,17 @@
     <string name="setup_fullscreen">ملء الشاشة</string>
     <string name="setup_fullscreen_on">يخفي شريطي الحالة والتنقّل في Android</string>
     <string name="setup_fullscreen_off">يعرض شريطي الحالة والتنقّل في Android</string>
+    <string name="setup_dual_screen">الشاشة المزدوجة</string>
+    <string name="setup_dual_screen_hint">يستخدم الوضع التلقائي الشاشة الثانية في الأجهزة المحمولة التي تحتوي على شاشة مدمجة. يستخدم وضع التشغيل أي شاشة ثانية. يُبقي وضع الإيقاف كل شيء على شاشة واحدة.</string>
+    <string name="setup_dual_screen_auto">تلقائي</string>
+    <string name="setup_dual_screen_on">تشغيل</string>
+    <string name="setup_dual_screen_off">إيقاف</string>
+    <string name="setup_dual_screen_menu">قائمة الشاشة السفلية</string>
+    <string name="setup_dual_screen_menu_hint">ينقل الأقسام وقائمة اللعبة إلى الشاشة الثانية ويتم الكتابة هناك، لتبقى الشاشة العلوية بعرضها الكامل. يبدّل L2 وR2 بين الأقسام.</string>
+    <string name="setup_dual_screen_controls">عناصر تحكم الشاشة السفلية في الألعاب</string>
+    <string name="setup_dual_screen_controls_hint">يفتح لوحة اللمس ولوحة المفاتيح على الشاشة الثانية عند بدء الجلسة.</string>
+    <string name="dual_typing_title">الكتابة على الشاشة العلوية</string>
+    <string name="dual_typing_done">تم</string>
     <string name="setup_default_home">تطبيق الشاشة الرئيسية الافتراضي</string>
     <string name="setup_choose_home">اختيار تطبيق للشاشة الرئيسية</string>
     <string name="setup_choose">اختيار</string>
@@ -3328,9 +3340,20 @@
         <item quantity="many">%d تطبيقًا</item>
         <item quantity="other">%d تطبيق</item>
     </plurals>
+    <string name="desktop_restore_title">جارٍ استعادة برامجك</string>
+    <string name="desktop_restore_body">إعادة تثبيت التطبيقات التي أضفتها بعد تحديث DroidDeck.</string>
+    <string name="desktop_restore_done_title">تمت استعادة البرامج</string>
+    <string name="desktop_restore_done_body">التطبيقات التي أضفتها مثبتة مرة أخرى.</string>
+    <string name="desktop_restore_failed_title">تعذّرت استعادة بعض البرامج</string>
+    <string name="desktop_restore_failed_body">راجع ‎~/.cache/droiddeck/apt-restore.log ثم جرّب sudo apt install في Konsole.</string>
     <string name="slow_usb_title">اتصال USB بطيء</string>
     <string name="slow_usb_cable">%1$s متصل عبر %2$s (%3$s ميغابت/ث، حوالي %4$d ميغابايت/ث)، لذا ستُحمَّل الألعاب عليه ببطء. استخدم كابل USB 3 بسرعة 5 جيجابت/ث أو أكثر، أو جرّب قلب قابس USB-C، أو استخدم محركًا أسرع.</string>
     <string name="slow_usb_port">%1$s متصل عبر %2$s (%3$s ميغابت/ث، حوالي %4$d ميغابايت/ث). لا يدعم منفذ USB في هذا الجهاز سرعة أعلى، لذا ستُحمَّل الألعاب عليه ببطء. قد تكون الذاكرة الداخلية أو بطاقة microSD أسرع.</string>
     <string name="slow_usb_never">عدم الإظهار مرة أخرى</string>
     <string name="slow_usb_dismiss">إغلاق</string>
+    <string name="steam_import_title">هل تريد إعادة تشغيل Steam لإضافة ألعابك؟</string>
+    <string name="steam_import_body">يمكن لـ Steam إدراج هذه الألعاب التي تملكها كألعاب مثبتة: %1$s. يجب إعادة تشغيله لإظهارها. أعد التشغيل الآن، أو ستُضاف في المرة القادمة التي يبدأ فيها Steam.</string>
+    <string name="steam_import_names_more">%1$s و%2$d أخرى</string>
+    <string name="steam_import_now">إعادة التشغيل الآن</string>
+    <string name="steam_import_later">لاحقًا</string>
 </resources>

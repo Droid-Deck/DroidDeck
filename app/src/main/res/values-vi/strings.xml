@@ -605,7 +605,6 @@
     <string name="drawer_hud_color_amber">Hổ phách</string>
     <string name="drawer_hud_color_violet">Tím</string>
     <string name="drawer_hud_opacity">Độ mờ</string>
-    <string name="hud_matches_steam_overlay">Tốc độ khung hình, thời gian khung hình và các chỉ số lấy từ cùng nguồn với lớp phủ hiệu năng của Steam.</string>
     <string name="hud_size">Kích thước</string>
     <string name="hud_size_hint">Chạm vào HUD cũng thay đổi kích thước của nó.</string>
     <string name="hud_size_full">Đầy đủ</string>
@@ -614,7 +613,7 @@
     <string name="hud_size_minimal">Tối giản</string>
     <string name="hud_size_mega">Mega</string>
     <string name="hud_locked">Khóa vị trí</string>
-    <string name="hud_locked_hint">Kéo HUD để di chuyển; nhấn giữ để khóa hoặc mở khóa.</string>
+    <string name="hud_locked_hint">Kéo HUD để di chuyển; nhấn giữ để khóa hoặc mở khóa. Khi đã khóa, các nút điều khiển trên màn hình bên dưới vẫn hoạt động.</string>
     <string name="hud_group_look">Giao diện</string>
     <string name="hud_scale">Kích thước trên màn hình</string>
     <string name="hud_color_soft">Dịu</string>
@@ -702,6 +701,8 @@
     <string name="drawer_low_latency_controller_hint">Tay cầm báo cáo ở 1000 Hz thay vì 250 Hz. Tốn thêm một chút CPU.</string>
     <string name="drawer_low_latency_touch">Cảm ứng độ trễ thấp</string>
     <string name="drawer_low_latency_touch_hint">Cảm ứng bỏ qua việc gộp khung hình, nên điều khiển cảm ứng của Steam chạy ở 1000 Hz. Tốn thêm một chút CPU.</string>
+    <string name="drawer_evdev_mouse">Kênh chuột thô</string>
+    <string name="drawer_direct_cursor">Con trỏ</string>
     <string name="drawer_pc_keyboard">Bàn phím PC</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Màn hình thứ hai</string>
@@ -825,6 +826,17 @@
     <string name="setup_fullscreen">Toàn màn hình</string>
     <string name="setup_fullscreen_on">Ẩn thanh trạng thái và thanh điều hướng của Android</string>
     <string name="setup_fullscreen_off">Hiện thanh trạng thái và thanh điều hướng của Android</string>
+    <string name="setup_dual_screen">Màn hình kép</string>
+    <string name="setup_dual_screen_hint">Tự động dùng màn hình thứ hai trên máy cầm tay có màn hình thứ hai tích hợp. Bật dùng bất kỳ màn hình thứ hai nào. Tắt giữ mọi thứ trên một màn hình.</string>
+    <string name="setup_dual_screen_auto">Tự động</string>
+    <string name="setup_dual_screen_on">Bật</string>
+    <string name="setup_dual_screen_off">Tắt</string>
+    <string name="setup_dual_screen_menu">Menu ở màn hình dưới</string>
+    <string name="setup_dual_screen_menu_hint">Chuyển các mục và menu trong trò chơi sang màn hình thứ hai và nhập liệu ở đó, để màn hình trên giữ toàn bộ khung nhìn. L2 và R2 chuyển mục.</string>
+    <string name="setup_dual_screen_controls">Điều khiển màn hình dưới khi chơi game</string>
+    <string name="setup_dual_screen_controls_hint">Mở bàn di chuột và bàn phím trên màn hình thứ hai khi phiên bắt đầu.</string>
+    <string name="dual_typing_title">Đang nhập cho màn hình trên</string>
+    <string name="dual_typing_done">Xong</string>
     <string name="setup_default_home">Ứng dụng Màn hình chính mặc định</string>
     <string name="setup_choose_home">Chọn một ứng dụng Màn hình chính</string>
     <string name="setup_choose">Chọn</string>
@@ -3162,9 +3174,20 @@
     <plurals name="apps_count">
         <item quantity="other">%d ứng dụng</item>
     </plurals>
+    <string name="desktop_restore_title">Đang khôi phục phần mềm của bạn</string>
+    <string name="desktop_restore_body">Đang cài lại các ứng dụng bạn đã thêm sau khi cập nhật DroidDeck.</string>
+    <string name="desktop_restore_done_title">Đã khôi phục phần mềm</string>
+    <string name="desktop_restore_done_body">Các ứng dụng bạn đã thêm đã được cài lại.</string>
+    <string name="desktop_restore_failed_title">Không thể khôi phục một số phần mềm</string>
+    <string name="desktop_restore_failed_body">Xem ~/.cache/droiddeck/apt-restore.log, rồi thử sudo apt install trong Konsole.</string>
     <string name="slow_usb_title">Kết nối USB chậm</string>
     <string name="slow_usb_cable">%1$s đang kết nối qua %2$s (%3$s Mbps, khoảng %4$d MB/s), nên trò chơi trên đó sẽ tải chậm. Hãy dùng cáp USB 3 tốc độ 5 Gbps trở lên, thử lật đầu cắm USB-C hoặc dùng ổ nhanh hơn.</string>
     <string name="slow_usb_port">%1$s đang kết nối qua %2$s (%3$s Mbps, khoảng %4$d MB/s). Cổng USB của thiết bị này không thể nhanh hơn, nên trò chơi sẽ tải chậm. Bộ nhớ trong hoặc thẻ microSD có thể nhanh hơn.</string>
     <string name="slow_usb_never">Không hiển thị lại</string>
     <string name="slow_usb_dismiss">Đóng</string>
+    <string name="steam_import_title">Khởi động lại Steam để thêm trò chơi của bạn?</string>
+    <string name="steam_import_body">Steam có thể hiển thị các trò chơi bạn sở hữu này là đã cài đặt: %1$s. Steam cần khởi động lại để hiển thị chúng. Khởi động lại ngay, hoặc chúng sẽ được thêm vào lần tới Steam khởi động.</string>
+    <string name="steam_import_names_more">%1$s và %2$d trò chơi khác</string>
+    <string name="steam_import_now">Khởi động lại ngay</string>
+    <string name="steam_import_later">Để sau</string>
 </resources>

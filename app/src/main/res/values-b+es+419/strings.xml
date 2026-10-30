@@ -602,7 +602,6 @@
     <string name="drawer_hud_color_amber">Ámbar</string>
     <string name="drawer_hud_color_violet">Violeta</string>
     <string name="drawer_hud_opacity">Opacidad</string>
-    <string name="hud_matches_steam_overlay">La tasa de fotogramas, los tiempos de fotograma y las lecturas provienen de las mismas fuentes que la superposición de rendimiento de Steam.</string>
     <string name="hud_size">Tamaño</string>
     <string name="hud_size_hint">Tocar el HUD también cambia su tamaño.</string>
     <string name="hud_size_full">Completo</string>
@@ -611,7 +610,7 @@
     <string name="hud_size_minimal">Mínimo</string>
     <string name="hud_size_mega">Mega</string>
     <string name="hud_locked">Fijar posición</string>
-    <string name="hud_locked_hint">Arrastra el HUD para moverlo; una pulsación larga lo bloquea o lo desbloquea.</string>
+    <string name="hud_locked_hint">Arrastra el HUD para moverlo; una pulsación larga lo bloquea o lo desbloquea. Mientras está bloqueado, los controles en pantalla que tiene debajo siguen funcionando.</string>
     <string name="hud_group_look">Aspecto</string>
     <string name="hud_scale">Tamaño en pantalla</string>
     <string name="hud_color_soft">Suave</string>
@@ -723,6 +722,8 @@
     <string name="drawer_low_latency_controller_hint">El control informa a 1000 Hz en lugar de 250 Hz. Usa algo más de CPU.</string>
     <string name="drawer_low_latency_touch">Táctil de baja latencia</string>
     <string name="drawer_low_latency_touch_hint">Los toques omiten la agrupación de fotogramas; los controles táctiles de Steam van a 1000 Hz. Usa algo más de CPU.</string>
+    <string name="drawer_evdev_mouse">Canal de ratón sin procesar</string>
+    <string name="drawer_direct_cursor">Cursor</string>
     <string name="drawer_pc_keyboard">Teclado de PC</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Segunda pantalla</string>
@@ -851,6 +852,17 @@
     <string name="setup_fullscreen">Pantalla completa</string>
     <string name="setup_fullscreen_on">Oculta las barras de estado y navegación de Android</string>
     <string name="setup_fullscreen_off">Muestra las barras de estado y navegación de Android</string>
+    <string name="setup_dual_screen">Pantalla dual</string>
+    <string name="setup_dual_screen_hint">Automático usa la segunda pantalla en consolas portátiles que la traen integrada. Activado usa cualquier segunda pantalla. Desactivado deja todo en una sola pantalla.</string>
+    <string name="setup_dual_screen_auto">Automático</string>
+    <string name="setup_dual_screen_on">Activado</string>
+    <string name="setup_dual_screen_off">Desactivado</string>
+    <string name="setup_dual_screen_menu">Menú en la pantalla inferior</string>
+    <string name="setup_dual_screen_menu_hint">Mueve las secciones y el menú del juego a la segunda pantalla y escribe ahí, para que la pantalla superior conserve la vista completa. L2 y R2 cambian de sección.</string>
+    <string name="setup_dual_screen_controls">Controles en la pantalla inferior en juegos</string>
+    <string name="setup_dual_screen_controls_hint">Abre el trackpad y el teclado en la segunda pantalla cuando empieza una sesión.</string>
+    <string name="dual_typing_title">Escribiendo en la pantalla superior</string>
+    <string name="dual_typing_done">Listo</string>
     <string name="setup_default_home">App de inicio predeterminada</string>
     <string name="setup_choose_home">Elige una app de inicio</string>
     <string name="setup_choose">Elegir</string>
@@ -3175,9 +3187,20 @@
         <item quantity="many">%d apps</item>
         <item quantity="other">%d apps</item>
     </plurals>
+    <string name="desktop_restore_title">Restaurando tu software</string>
+    <string name="desktop_restore_body">Reinstalando las apps que agregaste después de una actualización de DroidDeck.</string>
+    <string name="desktop_restore_done_title">Software restaurado</string>
+    <string name="desktop_restore_done_body">Las apps que agregaste están instaladas otra vez.</string>
+    <string name="desktop_restore_failed_title">No se pudo restaurar parte del software</string>
+    <string name="desktop_restore_failed_body">Revisa ~/.cache/droiddeck/apt-restore.log y luego prueba sudo apt install en Konsole.</string>
     <string name="slow_usb_title">Conexión USB lenta</string>
     <string name="slow_usb_cable">%1$s está conectado por %2$s (%3$s Mbps, unos %4$d MB/s), así que los juegos cargarán lento. Usa un cable USB 3 de 5 Gbps o más, prueba a voltear el conector USB-C o usa una unidad más rápida.</string>
     <string name="slow_usb_port">%1$s está conectado por %2$s (%3$s Mbps, unos %4$d MB/s). El puerto USB de este dispositivo no admite más velocidad, así que los juegos cargarán lento. El almacenamiento interno o una microSD pueden ser más rápidos.</string>
     <string name="slow_usb_never">No volver a mostrar</string>
     <string name="slow_usb_dismiss">Descartar</string>
+    <string name="steam_import_title">¿Reiniciar Steam para agregar tus juegos?</string>
+    <string name="steam_import_body">Steam puede mostrar como instalados estos juegos que tienes: %1$s. Tiene que reiniciarse para mostrarlos. Reinicia ahora o se agregarán la próxima vez que Steam se inicie.</string>
+    <string name="steam_import_names_more">%1$s y %2$d más</string>
+    <string name="steam_import_now">Reiniciar ahora</string>
+    <string name="steam_import_later">Más tarde</string>
 </resources>

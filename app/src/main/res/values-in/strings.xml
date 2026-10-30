@@ -605,7 +605,6 @@
     <string name="drawer_hud_color_amber">Ambar</string>
     <string name="drawer_hud_color_violet">Ungu</string>
     <string name="drawer_hud_opacity">Opasitas</string>
-    <string name="hud_matches_steam_overlay">Laju bingkai, waktu bingkai, dan pembacaan berasal dari sumber yang sama dengan overlay performa Steam.</string>
     <string name="hud_size">Ukuran</string>
     <string name="hud_size_hint">Mengetuk HUD juga mengubah ukurannya.</string>
     <string name="hud_size_full">Penuh</string>
@@ -614,7 +613,7 @@
     <string name="hud_size_minimal">Minimal</string>
     <string name="hud_size_mega">Mega</string>
     <string name="hud_locked">Kunci posisi</string>
-    <string name="hud_locked_hint">Seret HUD untuk memindahkannya; tekan lama untuk mengunci atau membuka kuncinya.</string>
+    <string name="hud_locked_hint">Seret HUD untuk memindahkannya; tekan lama untuk mengunci atau membuka kuncinya. Saat terkunci, kontrol layar di bawahnya tetap berfungsi.</string>
     <string name="hud_group_look">Tampilan</string>
     <string name="hud_scale">Ukuran di layar</string>
     <string name="hud_color_soft">Lembut</string>
@@ -702,6 +701,8 @@
     <string name="drawer_low_latency_controller_hint">Pengontrol melapor pada 1000 Hz, bukan 250 Hz. Sedikit lebih banyak CPU.</string>
     <string name="drawer_low_latency_touch">Sentuh latensi rendah</string>
     <string name="drawer_low_latency_touch_hint">Sentuhan melewati pengelompokan frame, jadi kontrol sentuh Steam berjalan pada 1000 Hz. Sedikit lebih banyak CPU.</string>
+    <string name="drawer_evdev_mouse">Kanal mouse mentah</string>
+    <string name="drawer_direct_cursor">Kursor</string>
     <string name="drawer_pc_keyboard">Keyboard PC</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Layar kedua</string>
@@ -825,6 +826,17 @@
     <string name="setup_fullscreen">Layar penuh</string>
     <string name="setup_fullscreen_on">Menyembunyikan bilah status dan navigasi Android</string>
     <string name="setup_fullscreen_off">Menampilkan bilah status dan navigasi Android</string>
+    <string name="setup_dual_screen">Layar ganda</string>
+    <string name="setup_dual_screen_hint">Otomatis memakai layar kedua pada perangkat genggam yang memiliki layar bawaan. Aktif memakai layar kedua apa pun. Nonaktif membuat semuanya tetap di satu layar.</string>
+    <string name="setup_dual_screen_auto">Otomatis</string>
+    <string name="setup_dual_screen_on">Aktif</string>
+    <string name="setup_dual_screen_off">Nonaktif</string>
+    <string name="setup_dual_screen_menu">Menu layar bawah</string>
+    <string name="setup_dual_screen_menu_hint">Memindahkan bagian dan menu dalam game ke layar kedua dan mengetik di sana, agar layar atas tetap menampilkan tampilan penuh. L2 dan R2 berpindah bagian.</string>
+    <string name="setup_dual_screen_controls">Kontrol layar bawah dalam game</string>
+    <string name="setup_dual_screen_controls_hint">Membuka trackpad dan keyboard di layar kedua saat sesi dimulai.</string>
+    <string name="dual_typing_title">Mengetik untuk layar atas</string>
+    <string name="dual_typing_done">Selesai</string>
     <string name="setup_default_home">Aplikasi Utama default</string>
     <string name="setup_choose_home">Pilih aplikasi Utama</string>
     <string name="setup_choose">Pilih</string>
@@ -3177,9 +3189,20 @@
     <plurals name="apps_count">
         <item quantity="other">%d aplikasi</item>
     </plurals>
+    <string name="desktop_restore_title">Memulihkan perangkat lunak Anda</string>
+    <string name="desktop_restore_body">Menginstal ulang aplikasi yang Anda tambahkan setelah pembaruan DroidDeck.</string>
+    <string name="desktop_restore_done_title">Perangkat lunak dipulihkan</string>
+    <string name="desktop_restore_done_body">Aplikasi yang Anda tambahkan sudah terinstal lagi.</string>
+    <string name="desktop_restore_failed_title">Beberapa perangkat lunak tidak dapat dipulihkan</string>
+    <string name="desktop_restore_failed_body">Lihat ~/.cache/droiddeck/apt-restore.log, lalu coba sudo apt install di Konsole.</string>
     <string name="slow_usb_title">Koneksi USB lambat</string>
     <string name="slow_usb_cable">%1$s terhubung melalui %2$s (%3$s Mbps, sekitar %4$d MB/s), jadi game di dalamnya akan dimuat lambat. Gunakan kabel USB 3 berkecepatan 5 Gbps atau lebih, coba balik colokan USB-C, atau gunakan drive yang lebih cepat.</string>
     <string name="slow_usb_port">%1$s terhubung melalui %2$s (%3$s Mbps, sekitar %4$d MB/s). Port USB perangkat ini tidak bisa lebih cepat, jadi game akan dimuat lambat. Penyimpanan internal atau kartu microSD mungkin lebih cepat.</string>
     <string name="slow_usb_never">Jangan tampilkan lagi</string>
     <string name="slow_usb_dismiss">Tutup</string>
+    <string name="steam_import_title">Mulai ulang Steam untuk menambahkan game Anda?</string>
+    <string name="steam_import_body">Steam dapat menampilkan game milik Anda ini sebagai terpasang: %1$s. Steam harus dimulai ulang untuk menampilkannya. Mulai ulang sekarang, atau game akan ditambahkan saat Steam dimulai berikutnya.</string>
+    <string name="steam_import_names_more">%1$s dan %2$d lainnya</string>
+    <string name="steam_import_now">Mulai ulang sekarang</string>
+    <string name="steam_import_later">Nanti</string>
 </resources>

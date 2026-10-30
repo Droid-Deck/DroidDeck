@@ -605,7 +605,6 @@
     <string name="drawer_hud_color_amber">อำพัน</string>
     <string name="drawer_hud_color_violet">ม่วง</string>
     <string name="drawer_hud_opacity">ความโปร่งใส</string>
-    <string name="hud_matches_steam_overlay">อัตราเฟรม เวลาเฟรม และค่าที่อ่านได้มาจากแหล่งเดียวกับโอเวอร์เลย์ประสิทธิภาพของ Steam</string>
     <string name="hud_size">ขนาด</string>
     <string name="hud_size_hint">การแตะ HUD จะเปลี่ยนขนาดด้วย</string>
     <string name="hud_size_full">เต็ม</string>
@@ -614,7 +613,7 @@
     <string name="hud_size_minimal">มินิมอล</string>
     <string name="hud_size_mega">เมกะ</string>
     <string name="hud_locked">ล็อกตำแหน่ง</string>
-    <string name="hud_locked_hint">ลาก HUD เพื่อย้าย กดค้างเพื่อล็อกหรือปลดล็อก</string>
+    <string name="hud_locked_hint">ลาก HUD เพื่อย้าย กดค้างเพื่อล็อกหรือปลดล็อก ขณะล็อก ปุ่มควบคุมบนหน้าจอที่อยู่ด้านล่างยังใช้งานได้</string>
     <string name="hud_group_look">รูปลักษณ์</string>
     <string name="hud_scale">ขนาดบนหน้าจอ</string>
     <string name="hud_color_soft">อ่อน</string>
@@ -702,6 +701,8 @@
     <string name="drawer_low_latency_controller_hint">คอนโทรลเลอร์รายงานที่ 1000 Hz แทน 250 Hz ใช้ CPU เพิ่มขึ้นเล็กน้อย</string>
     <string name="drawer_low_latency_touch">การสัมผัสความหน่วงต่ำ</string>
     <string name="drawer_low_latency_touch_hint">การสัมผัสข้ามการรวมเฟรม ทำให้ระบบสัมผัสของ Steam ทำงานที่ 1000 Hz ใช้ CPU เพิ่มขึ้นเล็กน้อย</string>
+    <string name="drawer_evdev_mouse">ช่องเมาส์ดิบ</string>
+    <string name="drawer_direct_cursor">เคอร์เซอร์</string>
     <string name="drawer_pc_keyboard">แป้นพิมพ์พีซี</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">หน้าจอที่สอง</string>
@@ -825,6 +826,17 @@
     <string name="setup_fullscreen">เต็มจอ</string>
     <string name="setup_fullscreen_on">ซ่อนแถบสถานะและแถบนำทางของ Android</string>
     <string name="setup_fullscreen_off">แสดงแถบสถานะและแถบนำทางของ Android</string>
+    <string name="setup_dual_screen">หน้าจอคู่</string>
+    <string name="setup_dual_screen_hint">อัตโนมัติจะใช้หน้าจอที่สองบนเครื่องพกพาที่มีหน้าจอที่สองในตัว เปิดจะใช้หน้าจอที่สองใดก็ได้ ปิดจะแสดงทุกอย่างบนหน้าจอเดียว</string>
+    <string name="setup_dual_screen_auto">อัตโนมัติ</string>
+    <string name="setup_dual_screen_on">เปิด</string>
+    <string name="setup_dual_screen_off">ปิด</string>
+    <string name="setup_dual_screen_menu">เมนูหน้าจอล่าง</string>
+    <string name="setup_dual_screen_menu_hint">ย้ายส่วนต่าง ๆ และเมนูระหว่างเล่นเกมไปที่หน้าจอที่สองและพิมพ์ที่นั่น เพื่อให้หน้าจอบนแสดงเต็มพื้นที่ L2 และ R2 ใช้สลับส่วน</string>
+    <string name="setup_dual_screen_controls">ปุ่มควบคุมหน้าจอล่างในเกม</string>
+    <string name="setup_dual_screen_controls_hint">เปิดแทร็กแพดและแป้นพิมพ์บนหน้าจอที่สองเมื่อเริ่มเซสชัน</string>
+    <string name="dual_typing_title">กำลังพิมพ์ให้หน้าจอบน</string>
+    <string name="dual_typing_done">เสร็จสิ้น</string>
     <string name="setup_default_home">แอปหน้าจอหลักเริ่มต้น</string>
     <string name="setup_choose_home">เลือกแอปหน้าจอหลัก</string>
     <string name="setup_choose">เลือก</string>
@@ -3162,9 +3174,20 @@
     <plurals name="apps_count">
         <item quantity="other">%d แอป</item>
     </plurals>
+    <string name="desktop_restore_title">กำลังกู้คืนซอฟต์แวร์ของคุณ</string>
+    <string name="desktop_restore_body">กำลังติดตั้งแอปที่คุณเพิ่มไว้อีกครั้งหลังการอัปเดต DroidDeck</string>
+    <string name="desktop_restore_done_title">กู้คืนซอฟต์แวร์แล้ว</string>
+    <string name="desktop_restore_done_body">แอปที่คุณเพิ่มไว้ติดตั้งกลับมาแล้ว</string>
+    <string name="desktop_restore_failed_title">กู้คืนซอฟต์แวร์บางส่วนไม่ได้</string>
+    <string name="desktop_restore_failed_body">ดู ~/.cache/droiddeck/apt-restore.log แล้วลองใช้ sudo apt install ใน Konsole</string>
     <string name="slow_usb_title">การเชื่อมต่อ USB ช้า</string>
     <string name="slow_usb_cable">%1$s เชื่อมต่อผ่าน %2$s (%3$s Mbps ประมาณ %4$d MB/s) เกมในไดรฟ์นี้จึงโหลดช้า ใช้สาย USB 3 ที่รองรับ 5 Gbps ขึ้นไป ลองกลับด้านหัว USB-C หรือใช้ไดรฟ์ที่เร็วกว่า</string>
     <string name="slow_usb_port">%1$s เชื่อมต่อผ่าน %2$s (%3$s Mbps ประมาณ %4$d MB/s) พอร์ต USB ของอุปกรณ์นี้เร็วกว่านี้ไม่ได้ เกมจึงโหลดช้า ที่เก็บข้อมูลภายในหรือการ์ด microSD อาจเร็วกว่า</string>
     <string name="slow_usb_never">ไม่ต้องแสดงอีก</string>
     <string name="slow_usb_dismiss">ปิด</string>
+    <string name="steam_import_title">รีสตาร์ต Steam เพื่อเพิ่มเกมของคุณหรือไม่</string>
+    <string name="steam_import_body">Steam แสดงเกมที่คุณเป็นเจ้าของเหล่านี้ว่าติดตั้งแล้วได้: %1$s ต้องรีสตาร์ตเพื่อให้แสดง รีสตาร์ตเลย หรือเกมจะถูกเพิ่มเมื่อ Steam เริ่มครั้งถัดไป</string>
+    <string name="steam_import_names_more">%1$s และอีก %2$d เกม</string>
+    <string name="steam_import_now">รีสตาร์ตเลย</string>
+    <string name="steam_import_later">ภายหลัง</string>
 </resources>

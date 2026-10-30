@@ -613,7 +613,6 @@
     <string name="drawer_hud_color_amber">Янтарный</string>
     <string name="drawer_hud_color_violet">Фиолетовый</string>
     <string name="drawer_hud_opacity">Непрозрачность</string>
-    <string name="hud_matches_steam_overlay">Частота кадров, время кадров и показания берутся из тех же источников, что и оверлей производительности Steam.</string>
     <string name="hud_size">Размер</string>
     <string name="hud_size_hint">Касание HUD тоже меняет его размер.</string>
     <string name="hud_size_full">Полный</string>
@@ -622,7 +621,7 @@
     <string name="hud_size_minimal">Минимальный</string>
     <string name="hud_size_mega">Мега</string>
     <string name="hud_locked">Закрепить на месте</string>
-    <string name="hud_locked_hint">Перетащите HUD, чтобы переместить его; долгое нажатие закрепляет или открепляет его.</string>
+    <string name="hud_locked_hint">Перетащите HUD, чтобы переместить его; долгое нажатие закрепляет или открепляет его. Пока он закреплён, экранные элементы управления под ним продолжают работать.</string>
     <string name="hud_group_look">Внешний вид</string>
     <string name="hud_scale">Размер на экране</string>
     <string name="hud_color_soft">Мягкий</string>
@@ -710,6 +709,8 @@
     <string name="drawer_low_latency_controller_hint">Контроллер опрашивается на 1000 Гц вместо 250 Гц. Немного больше нагрузки на CPU.</string>
     <string name="drawer_low_latency_touch">Сенсор с низкой задержкой</string>
     <string name="drawer_low_latency_touch_hint">Касания идут без объединения кадров; сенсорное управление Steam работает на 1000 Гц. Немного больше нагрузки на CPU.</string>
+    <string name="drawer_evdev_mouse">Сырой канал мыши</string>
+    <string name="drawer_direct_cursor">Курсор</string>
     <string name="drawer_pc_keyboard">Клавиатура ПК</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Второй экран</string>
@@ -836,6 +837,17 @@
     <string name="setup_fullscreen">Полноэкранный режим</string>
     <string name="setup_fullscreen_on">Скрывает строку состояния и панель навигации Android</string>
     <string name="setup_fullscreen_off">Показывает строку состояния и панель навигации Android</string>
+    <string name="setup_dual_screen">Два экрана</string>
+    <string name="setup_dual_screen_hint">Автоматически — использует второй экран на портативных устройствах со встроенным вторым экраном. Вкл. — использует любой второй дисплей. Выкл. — всё остаётся на одном экране.</string>
+    <string name="setup_dual_screen_auto">Автоматически</string>
+    <string name="setup_dual_screen_on">Вкл.</string>
+    <string name="setup_dual_screen_off">Выкл.</string>
+    <string name="setup_dual_screen_menu">Меню на нижнем экране</string>
+    <string name="setup_dual_screen_menu_hint">Переносит разделы и меню в игре на второй экран, и ввод выполняется там, поэтому верхний экран остаётся полностью свободным. L2 и R2 переключают разделы.</string>
+    <string name="setup_dual_screen_controls">Управление на нижнем экране в играх</string>
+    <string name="setup_dual_screen_controls_hint">Открывает тачпад и клавиатуру на втором экране при запуске сеанса.</string>
+    <string name="dual_typing_title">Ввод для верхнего экрана</string>
+    <string name="dual_typing_done">Готово</string>
     <string name="setup_default_home">Главный экран по умолчанию</string>
     <string name="setup_choose_home">Выбрать главный экран</string>
     <string name="setup_choose">Выбрать</string>
@@ -3260,9 +3272,20 @@
         <item quantity="many">%d приложений</item>
         <item quantity="other">%d приложения</item>
     </plurals>
+    <string name="desktop_restore_title">Восстановление программ</string>
+    <string name="desktop_restore_body">Повторная установка добавленных вами приложений после обновления DroidDeck.</string>
+    <string name="desktop_restore_done_title">Программы восстановлены</string>
+    <string name="desktop_restore_done_body">Добавленные вами приложения снова установлены.</string>
+    <string name="desktop_restore_failed_title">Не удалось восстановить часть программ</string>
+    <string name="desktop_restore_failed_body">Посмотрите ~/.cache/droiddeck/apt-restore.log, затем попробуйте sudo apt install в Konsole.</string>
     <string name="slow_usb_title">Медленное подключение USB</string>
     <string name="slow_usb_cable">%1$s подключён через %2$s (%3$s Мбит/с, около %4$d МБ/с), поэтому игры на нём будут загружаться медленно. Используйте кабель USB 3 на 5 Гбит/с или быстрее, попробуйте перевернуть разъём USB-C или возьмите более быстрый накопитель.</string>
     <string name="slow_usb_port">%1$s подключён через %2$s (%3$s Мбит/с, около %4$d МБ/с). USB-порт этого устройства не работает быстрее, поэтому игры будут загружаться медленно. Внутренняя память или карта microSD могут быть быстрее.</string>
     <string name="slow_usb_never">Больше не показывать</string>
     <string name="slow_usb_dismiss">Закрыть</string>
+    <string name="steam_import_title">Перезапустить Steam, чтобы добавить ваши игры?</string>
+    <string name="steam_import_body">Steam может показать эти ваши игры как установленные: %1$s. Для этого его нужно перезапустить. Перезапустите сейчас, или они будут добавлены при следующем запуске Steam.</string>
+    <string name="steam_import_names_more">%1$s и ещё %2$d</string>
+    <string name="steam_import_now">Перезапустить сейчас</string>
+    <string name="steam_import_later">Позже</string>
 </resources>

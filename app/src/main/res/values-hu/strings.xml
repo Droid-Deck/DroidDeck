@@ -607,7 +607,6 @@
     <string name="drawer_hud_color_amber">Borostyán</string>
     <string name="drawer_hud_color_violet">Lila</string>
     <string name="drawer_hud_opacity">Átlátszatlanság</string>
-    <string name="hud_matches_steam_overlay">A képkockasebesség, a képkockaidők és a mért értékek ugyanazokból a forrásokból származnak, mint a Steam teljesítményátfedése.</string>
     <string name="hud_size">Méret</string>
     <string name="hud_size_hint">A HUD-ra koppintva is változik a mérete.</string>
     <string name="hud_size_full">Teljes</string>
@@ -616,7 +615,7 @@
     <string name="hud_size_minimal">Minimális</string>
     <string name="hud_size_mega">Mega</string>
     <string name="hud_locked">Rögzítés a helyén</string>
-    <string name="hud_locked_hint">Húzd a HUD-ot az áthelyezéshez; hosszú nyomással rögzítheted vagy feloldhatod.</string>
+    <string name="hud_locked_hint">Húzd a HUD-ot az áthelyezéshez; hosszú nyomással rögzítheted vagy feloldhatod. Rögzítve is működnek az alatta lévő képernyős vezérlők.</string>
     <string name="hud_group_look">Megjelenés</string>
     <string name="hud_scale">Méret a képernyőn</string>
     <string name="hud_color_soft">Lágy</string>
@@ -704,6 +703,8 @@
     <string name="drawer_low_latency_controller_hint">A kontroller 250 Hz helyett 1000 Hz-en jelent. Kicsit több CPU.</string>
     <string name="drawer_low_latency_touch">Alacsony késleltetésű érintés</string>
     <string name="drawer_low_latency_touch_hint">Az érintések kihagyják a képkockák kötegelését, így a Steam érintésvezérlése 1000 Hz-en fut. Kicsit több CPU.</string>
+    <string name="drawer_evdev_mouse">Nyers egércsatorna</string>
+    <string name="drawer_direct_cursor">Kurzor</string>
     <string name="drawer_pc_keyboard">PC-billentyűzet</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Második képernyő</string>
@@ -828,6 +829,17 @@
     <string name="setup_fullscreen">Teljes képernyő</string>
     <string name="setup_fullscreen_on">Elrejti az Android állapot- és navigációs sávokat</string>
     <string name="setup_fullscreen_off">Megjeleníti az Android állapot- és navigációs sávokat</string>
+    <string name="setup_dual_screen">Két képernyő</string>
+    <string name="setup_dual_screen_hint">Az Automatikus a beépített második képernyővel rendelkező kézikonzolokon használja a második képernyőt. A Be bármilyen második kijelzőt használ. A Ki mindent egy képernyőn tart.</string>
+    <string name="setup_dual_screen_auto">Automatikus</string>
+    <string name="setup_dual_screen_on">Be</string>
+    <string name="setup_dual_screen_off">Ki</string>
+    <string name="setup_dual_screen_menu">Menü az alsó képernyőn</string>
+    <string name="setup_dual_screen_menu_hint">A szakaszokat és a játék közbeni menüt a második képernyőre helyezi, és ott történik a gépelés, így a felső képernyő teljes nézetet kap. Az L2 és R2 vált szakaszt.</string>
+    <string name="setup_dual_screen_controls">Alsó képernyős vezérlők játékokban</string>
+    <string name="setup_dual_screen_controls_hint">Munkamenet indításakor megnyitja az érintőpadot és a billentyűzetet a második képernyőn.</string>
+    <string name="dual_typing_title">Gépelés a felső képernyőre</string>
+    <string name="dual_typing_done">Kész</string>
     <string name="setup_default_home">Alapértelmezett kezdőképernyő alkalmazás</string>
     <string name="setup_choose_home">Válasszon kezdőképernyő alkalmazást</string>
     <string name="setup_choose">Kiválasztás</string>
@@ -3188,9 +3200,20 @@
         <item quantity="one">%d alkalmazás</item>
         <item quantity="other">%d alkalmazás</item>
     </plurals>
+    <string name="desktop_restore_title">Szoftverek visszaállítása</string>
+    <string name="desktop_restore_body">A hozzáadott alkalmazások újratelepítése egy DroidDeck-frissítés után.</string>
+    <string name="desktop_restore_done_title">Szoftverek visszaállítva</string>
+    <string name="desktop_restore_done_body">A hozzáadott alkalmazások újra telepítve vannak.</string>
+    <string name="desktop_restore_failed_title">Néhány szoftvert nem sikerült visszaállítani</string>
+    <string name="desktop_restore_failed_body">Nézd meg a ~/.cache/droiddeck/apt-restore.log fájlt, majd próbáld a sudo apt install parancsot a Konsole-ban.</string>
     <string name="slow_usb_title">Lassú USB-kapcsolat</string>
     <string name="slow_usb_cable">A(z) %1$s %2$s kapcsolaton csatlakozik (%3$s Mbps, kb. %4$d MB/s), ezért a rajta lévő játékok lassan töltődnek be. Használj legalább 5 Gbps-os USB 3 kábelt, fordítsd meg az USB-C csatlakozót, vagy használj gyorsabb meghajtót.</string>
     <string name="slow_usb_port">A(z) %1$s %2$s kapcsolaton csatlakozik (%3$s Mbps, kb. %4$d MB/s). Az eszköz USB-portja nem tud gyorsabb lenni, ezért a játékok lassan töltődnek be. A belső tárhely vagy egy microSD-kártya gyorsabb lehet.</string>
     <string name="slow_usb_never">Ne jelenjen meg többé</string>
     <string name="slow_usb_dismiss">Bezárás</string>
+    <string name="steam_import_title">Újraindítod a Steamet a játékaid hozzáadásához?</string>
+    <string name="steam_import_body">A Steam telepítettként mutathatja ezeket a saját játékaidat: %1$s. Ehhez újra kell indulnia. Indítsd újra most, vagy a Steam következő indításakor kerülnek be.</string>
+    <string name="steam_import_names_more">%1$s és még %2$d</string>
+    <string name="steam_import_now">Újraindítás most</string>
+    <string name="steam_import_later">Később</string>
 </resources>

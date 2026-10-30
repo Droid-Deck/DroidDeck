@@ -607,7 +607,6 @@
     <string name="drawer_hud_color_amber">Amber</string>
     <string name="drawer_hud_color_violet">Lila</string>
     <string name="drawer_hud_opacity">Opacitet</string>
-    <string name="hud_matches_steam_overlay">Bildfrekvens, bildtider och mätvärden kommer från samma källor som Steams prestandaöverlägg.</string>
     <string name="hud_size">Storlek</string>
     <string name="hud_size_hint">Ett tryck på HUD:en ändrar också dess storlek.</string>
     <string name="hud_size_full">Full</string>
@@ -616,7 +615,7 @@
     <string name="hud_size_minimal">Minimal</string>
     <string name="hud_size_mega">Mega</string>
     <string name="hud_locked">Lås på plats</string>
-    <string name="hud_locked_hint">Dra HUD:en för att flytta den; ett långt tryck låser eller låser upp den.</string>
+    <string name="hud_locked_hint">Dra HUD:en för att flytta den; ett långt tryck låser eller låser upp den. När den är låst fungerar skärmkontrollerna under den fortfarande.</string>
     <string name="hud_group_look">Utseende</string>
     <string name="hud_scale">Storlek på skärmen</string>
     <string name="hud_color_soft">Mjuk</string>
@@ -704,6 +703,8 @@
     <string name="drawer_low_latency_controller_hint">Handkontrollen rapporterar i 1000 Hz i stället för 250 Hz. Något mer CPU.</string>
     <string name="drawer_low_latency_touch">Pekning med låg latens</string>
     <string name="drawer_low_latency_touch_hint">Pekningar hoppar över bildrutebatchning; Steams pekstyrning går i 1000 Hz. Något mer CPU.</string>
+    <string name="drawer_evdev_mouse">Rå muskanal</string>
+    <string name="drawer_direct_cursor">Markör</string>
     <string name="drawer_pc_keyboard">PC-tangentbord</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Andra skärmen</string>
@@ -828,6 +829,17 @@
     <string name="setup_fullscreen">Helskärm</string>
     <string name="setup_fullscreen_on">Döljer Androids statusfält och navigeringsfält</string>
     <string name="setup_fullscreen_off">Visar Androids statusfält och navigeringsfält</string>
+    <string name="setup_dual_screen">Dubbelskärm</string>
+    <string name="setup_dual_screen_hint">Automatiskt använder den andra skärmen på handhållna enheter med en inbyggd andra skärm. På använder vilken andra skärm som helst. Av håller allt på en skärm.</string>
+    <string name="setup_dual_screen_auto">Automatiskt</string>
+    <string name="setup_dual_screen_on">På</string>
+    <string name="setup_dual_screen_off">Av</string>
+    <string name="setup_dual_screen_menu">Meny på nedre skärmen</string>
+    <string name="setup_dual_screen_menu_hint">Flyttar avsnitten och menyn i spelet till den andra skärmen och skrivandet sker där, så att den övre skärmen behåller hela vyn. L2 och R2 byter avsnitt.</string>
+    <string name="setup_dual_screen_controls">Kontroller på nedre skärmen i spel</string>
+    <string name="setup_dual_screen_controls_hint">Öppnar styrplattan och tangentbordet på den andra skärmen när en session startar.</string>
+    <string name="dual_typing_title">Skriver för den övre skärmen</string>
+    <string name="dual_typing_done">Klar</string>
     <string name="setup_default_home">Standardapp för startskärmen</string>
     <string name="setup_choose_home">Välj en app för startskärmen</string>
     <string name="setup_choose">Välj</string>
@@ -3188,9 +3200,20 @@
         <item quantity="one">%d app</item>
         <item quantity="other">%d appar</item>
     </plurals>
+    <string name="desktop_restore_title">Återställer din programvara</string>
+    <string name="desktop_restore_body">Installerar om apparna du lade till efter en DroidDeck-uppdatering.</string>
+    <string name="desktop_restore_done_title">Programvaran återställd</string>
+    <string name="desktop_restore_done_body">Apparna du lade till är installerade igen.</string>
+    <string name="desktop_restore_failed_title">Viss programvara kunde inte återställas</string>
+    <string name="desktop_restore_failed_body">Se ~/.cache/droiddeck/apt-restore.log och prova sedan sudo apt install i Konsole.</string>
     <string name="slow_usb_title">Långsam USB-anslutning</string>
     <string name="slow_usb_cable">%1$s är ansluten via %2$s (%3$s Mbit/s, cirka %4$d MB/s), så spel på den läses in långsamt. Använd en USB 3-kabel för 5 Gbit/s eller mer, prova att vända USB-C-kontakten eller använd en snabbare enhet.</string>
     <string name="slow_usb_port">%1$s är ansluten via %2$s (%3$s Mbit/s, cirka %4$d MB/s). USB-porten på den här enheten kan inte gå snabbare, så spel läses in långsamt. Internt lagringsutrymme eller ett microSD-kort kan vara snabbare.</string>
     <string name="slow_usb_never">Visa inte igen</string>
     <string name="slow_usb_dismiss">Stäng</string>
+    <string name="steam_import_title">Starta om Steam för att lägga till dina spel?</string>
+    <string name="steam_import_body">Steam kan visa de här spelen du äger som installerade: %1$s. Steam måste startas om för att visa dem. Starta om nu, annars läggs de till nästa gång Steam startar.</string>
+    <string name="steam_import_names_more">%1$s och %2$d till</string>
+    <string name="steam_import_now">Starta om nu</string>
+    <string name="steam_import_later">Senare</string>
 </resources>

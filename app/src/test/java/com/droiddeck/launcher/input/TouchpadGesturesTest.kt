@@ -25,11 +25,14 @@ class TouchpadGesturesTest {
     private val listener = object : PointerGestures.Listener {
         override fun onMove(x: Float, y: Float) { events += "move" }
         override fun onButton(button: Int, pressed: Boolean, x: Float, y: Float) {
-            val name = if (button == PointerGestures.BTN_RIGHT) "right" else "left"
+            val name = when (button) { PointerGestures.BTN_RIGHT -> "right"; PointerGestures.BTN_MIDDLE -> "middle"; else -> "left" }
             events += "$name ${if (pressed) "down" else "up"}"
         }
         override fun onWheel(steps: Int) { events += "wheel $steps" }
         override fun onLongPress() { events += "long press" }
+        override fun onScroll(dx: Float, dy: Float) { events += "scroll" }
+        override fun onScrollEnd() { events += "scroll end" }
+        override fun onZoom(steps: Int) { events += "zoom $steps" }
     }
 
     @Before fun setUp() {
@@ -41,10 +44,56 @@ class TouchpadGesturesTest {
     @Test fun tapHoldsTheLeftButtonBeforeReleasingIt() {
         tap()
         assertEquals(listOf("left down"), events)
-        advance(40)
+        advance(TouchTiming.CLICK_MS - 10)
         assertEquals(listOf("left down"), events)
         advance(100)
         assertEquals(listOf("left down", "left up"), events)
+    }
+
+    @Test fun threeFingerTapClicksTheMiddleButton() {
+        touch(MotionEvent.ACTION_DOWN, 0, 1 to (400f to 300f))
+        advance(10)
+        touch(MotionEvent.ACTION_POINTER_DOWN, 1, 1 to (400f to 300f), 2 to (600f to 310f))
+        advance(10)
+        touch(MotionEvent.ACTION_POINTER_DOWN, 2, 1 to (400f to 300f), 2 to (600f to 310f), 3 to (800f to 320f))
+        advance(60)
+        touch(MotionEvent.ACTION_POINTER_UP, 2, 1 to (400f to 300f), 2 to (600f to 310f), 3 to (800f to 320f))
+        touch(MotionEvent.ACTION_POINTER_UP, 1, 1 to (400f to 300f), 2 to (600f to 310f))
+        touch(MotionEvent.ACTION_UP, 0, 1 to (400f to 300f))
+        advance(100)
+        assertEquals(listOf("middle down", "middle up"), events)
+    }
+
+    @Test fun desktopTwoFingerSlideScrollsSmoothlyAndStops() {
+        touchpad.desktop = true
+        touch(MotionEvent.ACTION_DOWN, 0, 1 to (400f to 300f))
+        advance(10)
+        touch(MotionEvent.ACTION_POINTER_DOWN, 1, 1 to (400f to 300f), 2 to (600f to 300f))
+        for (step in 1..5) {
+            advance(16)
+            touch(MotionEvent.ACTION_MOVE, 0, 1 to (400f to 300f + step * 20f), 2 to (600f to 300f + step * 20f))
+        }
+        touch(MotionEvent.ACTION_POINTER_UP, 1, 1 to (400f to 400f), 2 to (600f to 400f))
+        touch(MotionEvent.ACTION_UP, 0, 1 to (400f to 400f))
+        advance(100)
+        assertTrue(events.contains("scroll"))
+        assertEquals("scroll end", events.last())
+        assertFalse(events.any { it.startsWith("right") || it.startsWith("wheel") })
+    }
+
+    @Test fun desktopPinchZoomsWithoutScrolling() {
+        touchpad.desktop = true
+        touch(MotionEvent.ACTION_DOWN, 0, 1 to (500f to 300f))
+        advance(10)
+        touch(MotionEvent.ACTION_POINTER_DOWN, 1, 1 to (500f to 300f), 2 to (600f to 300f))
+        for (step in 1..6) {
+            advance(16)
+            touch(MotionEvent.ACTION_MOVE, 0, 1 to (500f - step * 30f to 300f), 2 to (600f + step * 30f to 300f))
+        }
+        touch(MotionEvent.ACTION_POINTER_UP, 1, 1 to (320f to 300f), 2 to (780f to 300f))
+        touch(MotionEvent.ACTION_UP, 0, 1 to (320f to 300f))
+        advance(100)
+        assertTrue(events.isNotEmpty() && events.all { it.startsWith("zoom -") })
     }
 
     @Test fun twoFingerTapHoldsTheRightButtonBeforeReleasingIt() {
@@ -56,7 +105,7 @@ class TouchpadGesturesTest {
         advance(10)
         touch(MotionEvent.ACTION_UP, 0, 1 to (400f to 300f))
         assertEquals(listOf("right down"), events)
-        advance(30)
+        advance(TouchTiming.CLICK_MS - 20)
         assertEquals(listOf("right down"), events)
         advance(100)
         assertEquals(listOf("right down", "right up"), events)
@@ -71,7 +120,7 @@ class TouchpadGesturesTest {
         advance(10)
         touch(MotionEvent.ACTION_UP, 0, 1 to (400f to 300f))
         assertEquals(listOf("right down"), events)
-        advance(40)
+        advance(TouchTiming.CLICK_MS - 10)
         assertEquals(listOf("right down"), events)
         advance(100)
         assertEquals(listOf("right down", "right up"), events)

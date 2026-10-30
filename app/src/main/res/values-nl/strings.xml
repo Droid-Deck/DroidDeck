@@ -607,7 +607,6 @@
     <string name="drawer_hud_color_amber">Amber</string>
     <string name="drawer_hud_color_violet">Violet</string>
     <string name="drawer_hud_opacity">Transparantie</string>
-    <string name="hud_matches_steam_overlay">Beeldsnelheid, frametijden en meetwaarden komen uit dezelfde bronnen als de prestatie-overlay van Steam.</string>
     <string name="hud_size">Grootte</string>
     <string name="hud_size_hint">Tikken op de HUD verandert ook de grootte.</string>
     <string name="hud_size_full">Volledig</string>
@@ -616,7 +615,7 @@
     <string name="hud_size_minimal">Minimaal</string>
     <string name="hud_size_mega">Mega</string>
     <string name="hud_locked">Vastzetten</string>
-    <string name="hud_locked_hint">Sleep de HUD om hem te verplaatsen; lang drukken zet hem vast of los.</string>
+    <string name="hud_locked_hint">Sleep de HUD om hem te verplaatsen; lang drukken zet hem vast of los. Zolang hij vastzit, blijven de schermknoppen eronder werken.</string>
     <string name="hud_group_look">Weergave</string>
     <string name="hud_scale">Grootte op scherm</string>
     <string name="hud_color_soft">Zacht</string>
@@ -704,6 +703,8 @@
     <string name="drawer_low_latency_controller_hint">De controller rapporteert op 1000 Hz in plaats van 250 Hz. Iets meer CPU.</string>
     <string name="drawer_low_latency_touch">Aanraking met lage latentie</string>
     <string name="drawer_low_latency_touch_hint">Aanrakingen slaan framebundeling over; Steam-aanraakbediening op 1000 Hz. Iets meer CPU.</string>
+    <string name="drawer_evdev_mouse">Ruw muiskanaal</string>
+    <string name="drawer_direct_cursor">Cursor</string>
     <string name="drawer_pc_keyboard">Pc-toetsenbord</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Tweede scherm</string>
@@ -828,6 +829,17 @@
     <string name="setup_fullscreen">Volledig scherm</string>
     <string name="setup_fullscreen_on">Verbergt de statusbalk en navigatiebalk van Android</string>
     <string name="setup_fullscreen_off">Toont de statusbalk en navigatiebalk van Android</string>
+    <string name="setup_dual_screen">Dubbel scherm</string>
+    <string name="setup_dual_screen_hint">Automatisch gebruikt het tweede scherm op handhelds met een ingebouwd scherm. Aan gebruikt elk tweede scherm. Uit houdt alles op één scherm.</string>
+    <string name="setup_dual_screen_auto">Automatisch</string>
+    <string name="setup_dual_screen_on">Aan</string>
+    <string name="setup_dual_screen_off">Uit</string>
+    <string name="setup_dual_screen_menu">Menu op het onderste scherm</string>
+    <string name="setup_dual_screen_menu_hint">Verplaatst de onderdelen en het menu in het spel naar het tweede scherm en typt daar, zodat het bovenste scherm het volledige beeld houdt. L2 en R2 wisselen van onderdeel.</string>
+    <string name="setup_dual_screen_controls">Bediening op het onderste scherm in games</string>
+    <string name="setup_dual_screen_controls_hint">Opent het trackpad en toetsenbord op het tweede scherm wanneer een sessie start.</string>
+    <string name="dual_typing_title">Typen voor het bovenste scherm</string>
+    <string name="dual_typing_done">Klaar</string>
     <string name="setup_default_home">Standaard startschermapp</string>
     <string name="setup_choose_home">Kies een startschermapp</string>
     <string name="setup_choose">Kiezen</string>
@@ -3188,9 +3200,20 @@
         <item quantity="one">%d app</item>
         <item quantity="other">%d apps</item>
     </plurals>
+    <string name="desktop_restore_title">Je software wordt hersteld</string>
+    <string name="desktop_restore_body">De apps die je hebt toegevoegd worden na een DroidDeck-update opnieuw geïnstalleerd.</string>
+    <string name="desktop_restore_done_title">Software hersteld</string>
+    <string name="desktop_restore_done_body">De apps die je hebt toegevoegd zijn weer geïnstalleerd.</string>
+    <string name="desktop_restore_failed_title">Sommige software kon niet worden hersteld</string>
+    <string name="desktop_restore_failed_body">Bekijk ~/.cache/droiddeck/apt-restore.log en probeer daarna sudo apt install in Konsole.</string>
     <string name="slow_usb_title">Trage USB-verbinding</string>
     <string name="slow_usb_cable">%1$s is verbonden via %2$s (%3$s Mbps, ongeveer %4$d MB/s), dus games erop laden traag. Gebruik een USB 3-kabel van 5 Gbps of sneller, draai de USB-C-stekker om of gebruik een snellere schijf.</string>
     <string name="slow_usb_port">%1$s is verbonden via %2$s (%3$s Mbps, ongeveer %4$d MB/s). De USB-poort van dit apparaat kan niet sneller, dus games laden traag. Interne opslag of een microSD-kaart kan sneller zijn.</string>
     <string name="slow_usb_never">Niet meer tonen</string>
     <string name="slow_usb_dismiss">Sluiten</string>
+    <string name="steam_import_title">Steam opnieuw starten om je games toe te voegen?</string>
+    <string name="steam_import_body">Steam kan deze games die je bezit als geïnstalleerd tonen: %1$s. Steam moet opnieuw starten om ze te tonen. Start nu opnieuw, of ze worden toegevoegd de volgende keer dat Steam start.</string>
+    <string name="steam_import_names_more">%1$s en nog %2$d</string>
+    <string name="steam_import_now">Nu opnieuw starten</string>
+    <string name="steam_import_later">Later</string>
 </resources>

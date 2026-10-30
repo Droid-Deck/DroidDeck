@@ -86,6 +86,32 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("animations", on).apply()
     }
 
+    fun dualScreenMode(context: Context): String =
+        prefs(context).getString("dualScreenMode", null)?.takeIf { it in com.droiddeck.launcher.input.DualScreen.modes }
+            ?: com.droiddeck.launcher.input.DualScreen.MODE_AUTO
+
+    fun setDualScreenMode(context: Context, mode: String) {
+        prefs(context).edit().putString("dualScreenMode", mode).apply()
+    }
+
+    fun secondScreenPanel(context: Context): String? = prefs(context).getString("secondScreenPanel", null)
+
+    fun setSecondScreenPanel(context: Context, mode: String) {
+        prefs(context).edit().putString("secondScreenPanel", mode).apply()
+    }
+
+    fun dualScreenLauncher(context: Context): Boolean = prefs(context).getBoolean("dualScreenLauncher", true)
+
+    fun setDualScreenLauncher(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("dualScreenLauncher", on).apply()
+    }
+
+    fun dualScreenSessionControls(context: Context): Boolean = prefs(context).getBoolean("dualScreenSessionControls", true)
+
+    fun setDualScreenSessionControls(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("dualScreenSessionControls", on).apply()
+    }
+
     fun gameStoresEnabled(context: Context): Boolean = prefs(context).getBoolean("gameStoresEnabled", true)
 
     fun setGameStoresEnabled(context: Context, on: Boolean) {
@@ -143,6 +169,12 @@ object SessionPrefs {
 
     fun setLibraryShowSize(context: Context, show: Boolean) {
         prefs(context).edit().putBoolean("libraryShowSize", show).apply()
+    }
+
+    fun railLabels(context: Context): Boolean = prefs(context).getBoolean("railLabels", false)
+
+    fun setRailLabels(context: Context, show: Boolean) {
+        prefs(context).edit().putBoolean("railLabels", show).apply()
     }
 
     fun libraryShowUninstalled(context: Context): Boolean = prefs(context).getBoolean("libraryShowUninstalled", false)
@@ -215,7 +247,7 @@ object SessionPrefs {
         prefs(context).edit().putInt("gameStoresParallel", count.coerceIn(1, 3)).apply()
     }
 
-    fun hudEnabled(context: Context): Boolean = prefs(context).getBoolean(hudKey(context), !mangoappSession(context))
+    fun hudEnabled(context: Context): Boolean = prefs(context).getBoolean(hudKey(context), false)
 
     fun setHudEnabled(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean(hudKey(context), on).apply()
@@ -281,6 +313,18 @@ object SessionPrefs {
 
     fun setLowLatency(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("lowLatency", on).apply()
+    }
+
+    fun evdevMouse(context: Context): Boolean = prefs(context).getBoolean("evdevMouse", false)
+
+    fun setEvdevMouse(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("evdevMouse", on).apply()
+    }
+
+    fun directCursor(context: Context): Boolean = prefs(context).getBoolean("directCursor", false)
+
+    fun setDirectCursor(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("directCursor", on).apply()
     }
 
     fun backActionsInverted(context: Context): Boolean = prefs(context).getBoolean("backActionsInverted", false)

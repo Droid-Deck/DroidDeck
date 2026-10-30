@@ -44,6 +44,9 @@ class FusionHudHost(context: Context) {
     /** The HUD itself changed a setting: a tap cycles the size, a long press locks it. */
     var onConfigChanged: (() -> Unit)? = null
 
+    /** Screen point → whether an on-screen control takes a touch there; a locked HUD lets those through. */
+    var passesTouchAt: ((rawX: Float, rawY: Float) -> Boolean)? = null
+
     private val listener = object : WaylandCompositor.GameListener {
         override fun onGameSurface(window: String?, gpuName: String?) {
             if (!gpuName.isNullOrBlank()) handler.post { this@FusionHudHost.gpuName = cleanGpuName(gpuName) }
@@ -90,6 +93,7 @@ class FusionHudHost(context: Context) {
             onConfigChanged?.invoke()
         }
         hud.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> if (!hud.isDragging) keepOnScreen(hud) }
+        hud.passesTouchAt = { x, y -> passesTouchAt?.invoke(x, y) == true }
         hud.visibility = View.GONE
         val margin = (16 * root.resources.displayMetrics.density).roundToInt()
         root.addView(hud, index, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {

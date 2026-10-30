@@ -607,7 +607,6 @@
     <string name="drawer_hud_color_amber">एम्बर</string>
     <string name="drawer_hud_color_violet">वायलेट</string>
     <string name="drawer_hud_opacity">ओपैसिटी</string>
-    <string name="hud_matches_steam_overlay">फ़्रेम दर, फ़्रेम टाइम और रीडिंग उन्हीं स्रोतों से आती हैं जिनसे Steam का परफ़ॉर्मेंस ओवरले उन्हें लेता है।</string>
     <string name="hud_size">आकार</string>
     <string name="hud_size_hint">HUD पर टैप करने से भी उसका आकार बदलता है।</string>
     <string name="hud_size_full">फ़ुल</string>
@@ -616,7 +615,7 @@
     <string name="hud_size_minimal">मिनिमल</string>
     <string name="hud_size_mega">मेगा</string>
     <string name="hud_locked">जगह पर लॉक करें</string>
-    <string name="hud_locked_hint">HUD को खिसकाने के लिए उसे ड्रैग करें; देर तक दबाने से वह लॉक या अनलॉक होता है।</string>
+    <string name="hud_locked_hint">HUD को खिसकाने के लिए उसे ड्रैग करें; देर तक दबाने से वह लॉक या अनलॉक होता है। लॉक रहने पर भी उसके नीचे के ऑन-स्क्रीन कंट्रोल काम करते रहते हैं।</string>
     <string name="hud_group_look">लुक</string>
     <string name="hud_scale">स्क्रीन पर आकार</string>
     <string name="hud_color_soft">हल्का</string>
@@ -704,6 +703,8 @@
     <string name="drawer_low_latency_controller_hint">कंट्रोलर 250 Hz के बजाय 1000 Hz पर रिपोर्ट करता है। थोड़ा ज़्यादा CPU।</string>
     <string name="drawer_low_latency_touch">कम लेटेंसी टच</string>
     <string name="drawer_low_latency_touch_hint">टच फ़्रेम बैचिंग छोड़ देते हैं, इसलिए Steam का टच कंट्रोल 1000 Hz पर चलता है। थोड़ा ज़्यादा CPU।</string>
+    <string name="drawer_evdev_mouse">रॉ माउस चैनल</string>
+    <string name="drawer_direct_cursor">कर्सर</string>
     <string name="drawer_pc_keyboard">पीसी कीबोर्ड</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">दूसरी स्क्रीन</string>
@@ -828,6 +829,17 @@
     <string name="setup_fullscreen">फ़ुलस्क्रीन</string>
     <string name="setup_fullscreen_on">Android स्टेटस और नेविगेशन बार छिपाता है</string>
     <string name="setup_fullscreen_off">Android स्टेटस और नेविगेशन बार दिखाता है</string>
+    <string name="setup_dual_screen">डुअल स्क्रीन</string>
+    <string name="setup_dual_screen_hint">ऑटोमैटिक, बिल्ट-इन दूसरी स्क्रीन वाले हैंडहेल्ड पर दूसरी स्क्रीन इस्तेमाल करता है। चालू किसी भी दूसरे डिस्प्ले का इस्तेमाल करता है। बंद सब कुछ एक स्क्रीन पर रखता है।</string>
+    <string name="setup_dual_screen_auto">ऑटोमैटिक</string>
+    <string name="setup_dual_screen_on">चालू</string>
+    <string name="setup_dual_screen_off">बंद</string>
+    <string name="setup_dual_screen_menu">नीचे की स्क्रीन पर मेनू</string>
+    <string name="setup_dual_screen_menu_hint">सेक्शन और गेम के दौरान का मेनू दूसरी स्क्रीन पर ले जाता है और टाइपिंग वहीं होती है, ताकि ऊपर की स्क्रीन पूरा दृश्य दिखाए। L2 और R2 सेक्शन बदलते हैं।</string>
+    <string name="setup_dual_screen_controls">गेम में नीचे की स्क्रीन के कंट्रोल</string>
+    <string name="setup_dual_screen_controls_hint">सेशन शुरू होने पर दूसरी स्क्रीन पर ट्रैकपैड और कीबोर्ड खोलता है।</string>
+    <string name="dual_typing_title">ऊपर की स्क्रीन के लिए टाइपिंग</string>
+    <string name="dual_typing_done">हो गया</string>
     <string name="setup_default_home">डिफ़ॉल्ट होम ऐप</string>
     <string name="setup_choose_home">होम ऐप चुनें</string>
     <string name="setup_choose">चुनें</string>
@@ -3188,9 +3200,20 @@
         <item quantity="one">%d ऐप</item>
         <item quantity="other">%d ऐप</item>
     </plurals>
+    <string name="desktop_restore_title">आपका सॉफ़्टवेयर वापस लाया जा रहा है</string>
+    <string name="desktop_restore_body">DroidDeck अपडेट के बाद आपके जोड़े गए ऐप्स फिर से इंस्टॉल किए जा रहे हैं।</string>
+    <string name="desktop_restore_done_title">सॉफ़्टवेयर वापस आ गया</string>
+    <string name="desktop_restore_done_body">आपके जोड़े गए ऐप्स फिर से इंस्टॉल हो गए हैं।</string>
+    <string name="desktop_restore_failed_title">कुछ सॉफ़्टवेयर वापस नहीं लाया जा सका</string>
+    <string name="desktop_restore_failed_body">~/.cache/droiddeck/apt-restore.log देखें, फिर Konsole में sudo apt install आज़माएँ।</string>
     <string name="slow_usb_title">धीमा USB कनेक्शन</string>
     <string name="slow_usb_cable">%1$s %2$s (%3$s Mbps, लगभग %4$d MB/s) से जुड़ा है, इसलिए इस पर गेम धीरे लोड होंगे। 5 Gbps या तेज़ USB 3 केबल इस्तेमाल करें, USB-C प्लग पलटकर देखें, या तेज़ ड्राइव इस्तेमाल करें।</string>
     <string name="slow_usb_port">%1$s %2$s (%3$s Mbps, लगभग %4$d MB/s) से जुड़ा है। इस डिवाइस का USB पोर्ट इससे तेज़ नहीं चलता, इसलिए गेम धीरे लोड होंगे। आंतरिक स्टोरेज या microSD कार्ड तेज़ हो सकता है।</string>
     <string name="slow_usb_never">फिर से न दिखाएँ</string>
     <string name="slow_usb_dismiss">बंद करें</string>
+    <string name="steam_import_title">अपने गेम जोड़ने के लिए Steam फिर से शुरू करें?</string>
+    <string name="steam_import_body">Steam आपके इन गेम को इंस्टॉल के रूप में दिखा सकता है: %1$s. इन्हें दिखाने के लिए इसे फिर से शुरू करना होगा। अभी फिर से शुरू करें, या ये अगली बार Steam शुरू होने पर जुड़ जाएंगे।</string>
+    <string name="steam_import_names_more">%1$s और %2$d और</string>
+    <string name="steam_import_now">अभी फिर से शुरू करें</string>
+    <string name="steam_import_later">बाद में</string>
 </resources>

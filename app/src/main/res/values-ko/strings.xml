@@ -607,7 +607,6 @@
     <string name="drawer_hud_color_amber">호박색</string>
     <string name="drawer_hud_color_violet">보라색</string>
     <string name="drawer_hud_opacity">불투명도</string>
-    <string name="hud_matches_steam_overlay">프레임 속도, 프레임 타임, 측정값은 Steam 성능 오버레이와 같은 소스에서 가져옵니다.</string>
     <string name="hud_size">크기</string>
     <string name="hud_size_hint">HUD를 탭해도 크기가 바뀝니다.</string>
     <string name="hud_size_full">전체</string>
@@ -616,7 +615,7 @@
     <string name="hud_size_minimal">미니멀</string>
     <string name="hud_size_mega">메가</string>
     <string name="hud_locked">위치 고정</string>
-    <string name="hud_locked_hint">HUD를 드래그하여 이동하고, 길게 눌러 고정하거나 해제합니다.</string>
+    <string name="hud_locked_hint">HUD를 드래그하여 이동하고, 길게 눌러 고정하거나 해제합니다. 고정된 동안에도 아래에 있는 화면 컨트롤은 계속 작동합니다.</string>
     <string name="hud_group_look">외관</string>
     <string name="hud_scale">화면상 크기</string>
     <string name="hud_color_soft">은은함</string>
@@ -704,6 +703,8 @@
     <string name="drawer_low_latency_controller_hint">컨트롤러가 250 Hz 대신 1000 Hz로 보고됩니다. CPU 사용량이 약간 늘어납니다.</string>
     <string name="drawer_low_latency_touch">저지연 터치</string>
     <string name="drawer_low_latency_touch_hint">터치가 프레임 병합을 건너뛰고 Steam 터치가 1000 Hz로 보고됩니다. CPU 사용량이 약간 늘어납니다.</string>
+    <string name="drawer_evdev_mouse">원시 마우스 채널</string>
+    <string name="drawer_direct_cursor">커서</string>
     <string name="drawer_pc_keyboard">PC 키보드</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">보조 화면</string>
@@ -827,6 +828,17 @@
     <string name="setup_fullscreen">전체 화면</string>
     <string name="setup_fullscreen_on">Android 상태 표시줄 및 탐색 표시줄 숨기기</string>
     <string name="setup_fullscreen_off">Android 상태 표시줄 및 탐색 표시줄 표시</string>
+    <string name="setup_dual_screen">듀얼 화면</string>
+    <string name="setup_dual_screen_hint">자동은 두 번째 화면이 내장된 휴대용 기기에서 그 화면을 사용합니다. 켜기는 모든 두 번째 디스플레이를 사용합니다. 끄기는 모든 것을 한 화면에 둡니다.</string>
+    <string name="setup_dual_screen_auto">자동</string>
+    <string name="setup_dual_screen_on">켜기</string>
+    <string name="setup_dual_screen_off">끄기</string>
+    <string name="setup_dual_screen_menu">하단 화면 메뉴</string>
+    <string name="setup_dual_screen_menu_hint">섹션과 게임 중 메뉴를 두 번째 화면으로 옮기고 입력도 그곳에서 하므로 상단 화면은 전체 보기를 유지합니다. L2와 R2로 섹션을 전환합니다.</string>
+    <string name="setup_dual_screen_controls">게임 중 하단 화면 컨트롤</string>
+    <string name="setup_dual_screen_controls_hint">세션이 시작되면 두 번째 화면에 트랙패드와 키보드를 엽니다.</string>
+    <string name="dual_typing_title">상단 화면에 입력 중</string>
+    <string name="dual_typing_done">완료</string>
     <string name="setup_default_home">기본 홈 앱</string>
     <string name="setup_choose_home">홈 앱 선택</string>
     <string name="setup_choose">선택</string>
@@ -3164,9 +3176,20 @@
     <plurals name="apps_count">
         <item quantity="other">앱 %d개</item>
     </plurals>
+    <string name="desktop_restore_title">소프트웨어 복원 중</string>
+    <string name="desktop_restore_body">DroidDeck 업데이트 후 추가한 앱을 다시 설치하고 있습니다.</string>
+    <string name="desktop_restore_done_title">소프트웨어 복원됨</string>
+    <string name="desktop_restore_done_body">추가한 앱이 다시 설치되었습니다.</string>
+    <string name="desktop_restore_failed_title">일부 소프트웨어를 복원하지 못했습니다</string>
+    <string name="desktop_restore_failed_body">~/.cache/droiddeck/apt-restore.log를 확인한 다음 Konsole에서 sudo apt install을 시도하세요.</string>
     <string name="slow_usb_title">USB 연결이 느립니다</string>
     <string name="slow_usb_cable">%1$s이(가) %2$s(%3$s Mbps, 약 %4$d MB/s)로 연결되어 게임 로딩이 느립니다. 5 Gbps 이상의 USB 3 케이블을 사용하거나, USB-C 플러그를 뒤집어 꽂거나, 더 빠른 드라이브를 사용하세요.</string>
     <string name="slow_usb_port">%1$s이(가) %2$s(%3$s Mbps, 약 %4$d MB/s)로 연결되어 있습니다. 이 기기의 USB 포트는 더 빠르게 동작하지 않아 게임 로딩이 느립니다. 내부 저장소나 microSD 카드가 더 빠를 수 있습니다.</string>
     <string name="slow_usb_never">다시 표시 안 함</string>
     <string name="slow_usb_dismiss">닫기</string>
+    <string name="steam_import_title">게임을 추가하려면 Steam을 다시 시작할까요?</string>
+    <string name="steam_import_body">보유한 다음 게임을 Steam에서 설치됨으로 표시할 수 있습니다: %1$s. 표시하려면 Steam을 다시 시작해야 합니다. 지금 다시 시작하거나, 다음에 Steam을 시작할 때 추가됩니다.</string>
+    <string name="steam_import_names_more">%1$s 외 %2$d개</string>
+    <string name="steam_import_now">지금 다시 시작</string>
+    <string name="steam_import_later">나중에</string>
 </resources>

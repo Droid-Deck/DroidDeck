@@ -607,7 +607,6 @@
     <string name="drawer_hud_color_amber">Kehribar</string>
     <string name="drawer_hud_color_violet">Mor</string>
     <string name="drawer_hud_opacity">Opaklık</string>
-    <string name="hud_matches_steam_overlay">Kare hızı, kare süreleri ve ölçümler, Steam\'in performans katmanıyla aynı kaynaklardan gelir.</string>
     <string name="hud_size">Boyut</string>
     <string name="hud_size_hint">HUD\'a dokunmak da boyutunu değiştirir.</string>
     <string name="hud_size_full">Tam</string>
@@ -616,7 +615,7 @@
     <string name="hud_size_minimal">Minimal</string>
     <string name="hud_size_mega">Mega</string>
     <string name="hud_locked">Yerinde kilitle</string>
-    <string name="hud_locked_hint">Taşımak için HUD\'u sürükleyin; uzun basmak onu kilitler veya kilidini açar.</string>
+    <string name="hud_locked_hint">Taşımak için HUD\'u sürükleyin; uzun basmak onu kilitler veya kilidini açar. Kilitliyken altındaki ekran kontrolleri çalışmaya devam eder.</string>
     <string name="hud_group_look">Görünüm</string>
     <string name="hud_scale">Ekrandaki boyut</string>
     <string name="hud_color_soft">Yumuşak</string>
@@ -704,6 +703,8 @@
     <string name="drawer_low_latency_controller_hint">Kumanda 250 Hz yerine 1000 Hz bildirir. CPU kullanımı biraz artar.</string>
     <string name="drawer_low_latency_touch">Düşük gecikmeli dokunma</string>
     <string name="drawer_low_latency_touch_hint">Dokunmalar kare gruplamasını atlar; Steam dokunmatik kontrolleri 1000 Hz çalışır. CPU kullanımı biraz artar.</string>
+    <string name="drawer_evdev_mouse">Ham fare kanalı</string>
+    <string name="drawer_direct_cursor">İmleç</string>
     <string name="drawer_pc_keyboard">PC klavyesi</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">İkinci ekran</string>
@@ -820,6 +821,17 @@
     <string name="setup_fullscreen">Tam ekran</string>
     <string name="setup_fullscreen_on">Android durum ve gezinme çubuklarını gizler</string>
     <string name="setup_fullscreen_off">Android durum ve gezinme çubuklarını gösterir</string>
+    <string name="setup_dual_screen">Çift ekran</string>
+    <string name="setup_dual_screen_hint">Otomatik, dahili ikinci ekranı olan el konsollarında ikinci ekranı kullanır. Açık, herhangi bir ikinci ekranı kullanır. Kapalı, her şeyi tek ekranda tutar.</string>
+    <string name="setup_dual_screen_auto">Otomatik</string>
+    <string name="setup_dual_screen_on">Açık</string>
+    <string name="setup_dual_screen_off">Kapalı</string>
+    <string name="setup_dual_screen_menu">Alt ekran menüsü</string>
+    <string name="setup_dual_screen_menu_hint">Bölümleri ve oyun içi menüyü ikinci ekrana taşır ve yazma orada yapılır, böylece üst ekran tam görünümü korur. L2 ve R2 bölümler arasında geçiş yapar.</string>
+    <string name="setup_dual_screen_controls">Oyunlarda alt ekran kontrolleri</string>
+    <string name="setup_dual_screen_controls_hint">Bir oturum başladığında ikinci ekranda dokunmatik yüzeyi ve klavyeyi açar.</string>
+    <string name="dual_typing_title">Üst ekran için yazılıyor</string>
+    <string name="dual_typing_done">Bitti</string>
     <string name="setup_default_home">Varsayılan ana ekran uygulaması</string>
     <string name="setup_choose_home">Ana ekran uygulaması seçin</string>
     <string name="setup_choose">Seç</string>
@@ -3190,9 +3202,20 @@
         <item quantity="one">%d uygulama</item>
         <item quantity="other">%d uygulama</item>
     </plurals>
+    <string name="desktop_restore_title">Yazılımınız geri yükleniyor</string>
+    <string name="desktop_restore_body">Eklediğiniz uygulamalar DroidDeck güncellemesinden sonra yeniden yükleniyor.</string>
+    <string name="desktop_restore_done_title">Yazılım geri yüklendi</string>
+    <string name="desktop_restore_done_body">Eklediğiniz uygulamalar yeniden yüklendi.</string>
+    <string name="desktop_restore_failed_title">Bazı yazılımlar geri yüklenemedi</string>
+    <string name="desktop_restore_failed_body">~/.cache/droiddeck/apt-restore.log dosyasına bakın, ardından Konsole\'da sudo apt install deneyin.</string>
     <string name="slow_usb_title">Yavaş USB bağlantısı</string>
     <string name="slow_usb_cable">%1$s, %2$s üzerinden bağlı (%3$s Mbps, yaklaşık %4$d MB/sn), bu yüzden üzerindeki oyunlar yavaş yüklenecek. 5 Gbps veya daha hızlı bir USB 3 kablo kullanın, USB-C fişini ters çevirmeyi deneyin ya da daha hızlı bir sürücü kullanın.</string>
     <string name="slow_usb_port">%1$s, %2$s üzerinden bağlı (%3$s Mbps, yaklaşık %4$d MB/sn). Bu cihazın USB bağlantı noktası daha hızlı çalışamıyor, bu yüzden oyunlar yavaş yüklenecek. Dahili depolama veya bir microSD kart daha hızlı olabilir.</string>
     <string name="slow_usb_never">Bir daha gösterme</string>
     <string name="slow_usb_dismiss">Kapat</string>
+    <string name="steam_import_title">Oyunlarınızı eklemek için Steam yeniden başlatılsın mı?</string>
+    <string name="steam_import_body">Steam sahip olduğunuz bu oyunları yüklü olarak gösterebilir: %1$s. Bunları göstermek için yeniden başlaması gerekir. Şimdi yeniden başlatın ya da Steam bir sonraki açılışta onları ekleyecek.</string>
+    <string name="steam_import_names_more">%1$s ve %2$d tane daha</string>
+    <string name="steam_import_now">Şimdi yeniden başlat</string>
+    <string name="steam_import_later">Daha sonra</string>
 </resources>

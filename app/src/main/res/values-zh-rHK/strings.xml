@@ -607,7 +607,6 @@
     <string name="drawer_hud_color_amber">琥珀色</string>
     <string name="drawer_hud_color_violet">紫羅蘭</string>
     <string name="drawer_hud_opacity">不透明度</string>
-    <string name="hud_matches_steam_overlay">幀率、幀時間和各項讀數與 Steam 效能疊加層來自相同的來源。</string>
     <string name="hud_size">大小</string>
     <string name="hud_size_hint">輕按 HUD 亦可切換大小。</string>
     <string name="hud_size_full">完整</string>
@@ -616,7 +615,7 @@
     <string name="hud_size_minimal">極簡</string>
     <string name="hud_size_mega">超大</string>
     <string name="hud_locked">鎖定位置</string>
-    <string name="hud_locked_hint">拖曳 HUD 可移動位置；長按可鎖定或解鎖。</string>
+    <string name="hud_locked_hint">拖曳 HUD 可移動位置；長按可鎖定或解鎖。鎖定時，下方的螢幕控制項仍可使用。</string>
     <string name="hud_group_look">外觀</string>
     <string name="hud_scale">螢幕顯示大小</string>
     <string name="hud_color_soft">柔和</string>
@@ -704,6 +703,8 @@
     <string name="drawer_low_latency_controller_hint">控制器以 1000 Hz 而非 250 Hz 回報。CPU 使用率略高。</string>
     <string name="drawer_low_latency_touch">低延遲觸控</string>
     <string name="drawer_low_latency_touch_hint">觸控略過幀合併，Steam 觸控以 1000 Hz 回報。CPU 使用率略高。</string>
+    <string name="drawer_evdev_mouse">原生滑鼠通道</string>
+    <string name="drawer_direct_cursor">游標</string>
     <string name="drawer_pc_keyboard">電腦鍵盤</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">第二螢幕</string>
@@ -827,6 +828,17 @@
     <string name="setup_fullscreen">全螢幕</string>
     <string name="setup_fullscreen_on">隱藏 Android 狀態列和導覽列</string>
     <string name="setup_fullscreen_off">顯示 Android 狀態列和導覽列</string>
+    <string name="setup_dual_screen">雙屏</string>
+    <string name="setup_dual_screen_hint">自動：在內置第二塊螢幕的掌機上使用該螢幕。開啟：使用任何第二塊顯示器。關閉：所有內容只顯示在一塊螢幕上。</string>
+    <string name="setup_dual_screen_auto">自動</string>
+    <string name="setup_dual_screen_on">開啟</string>
+    <string name="setup_dual_screen_off">關閉</string>
+    <string name="setup_dual_screen_menu">下屏選單</string>
+    <string name="setup_dual_screen_menu_hint">將各個分區和遊戲內選單移到第二塊螢幕並在那裡輸入，讓上屏保持完整畫面。L2 和 R2 切換分區。</string>
+    <string name="setup_dual_screen_controls">遊戲中的下屏控制</string>
+    <string name="setup_dual_screen_controls_hint">工作階段開始時在第二塊螢幕上開啟觸控板和鍵盤。</string>
+    <string name="dual_typing_title">正在為上屏輸入</string>
+    <string name="dual_typing_done">完成</string>
     <string name="setup_default_home">預設主畫面應用程式</string>
     <string name="setup_choose_home">選擇主畫面應用程式</string>
     <string name="setup_choose">選擇</string>
@@ -3169,9 +3181,20 @@
     <plurals name="apps_count">
         <item quantity="other">%d 個應用程式</item>
     </plurals>
+    <string name="desktop_restore_title">正在還原你的軟件</string>
+    <string name="desktop_restore_body">DroidDeck 更新後正在重新安裝你加入的應用程式。</string>
+    <string name="desktop_restore_done_title">軟件已還原</string>
+    <string name="desktop_restore_done_body">你加入的應用程式已重新安裝。</string>
+    <string name="desktop_restore_failed_title">部分軟件無法還原</string>
+    <string name="desktop_restore_failed_body">請查看 ~/.cache/droiddeck/apt-restore.log，然後在 Konsole 中嘗試 sudo apt install。</string>
     <string name="slow_usb_title">USB 連線速度慢</string>
     <string name="slow_usb_cable">%1$s 透過 %2$s 連接（%3$s Mbps，約 %4$d MB/s），當中的遊戲載入會很慢。請使用 5 Gbps 或更快的 USB 3 線，嘗試反轉 USB-C 插頭，或使用更快的硬碟。</string>
     <string name="slow_usb_port">%1$s 透過 %2$s 連接（%3$s Mbps，約 %4$d MB/s）。此裝置的 USB 埠無法更快，遊戲載入會很慢。內部儲存空間或 microSD 卡可能更快。</string>
     <string name="slow_usb_never">不再顯示</string>
     <string name="slow_usb_dismiss">關閉</string>
+    <string name="steam_import_title">重新啟動 Steam 以加入你的遊戲？</string>
+    <string name="steam_import_body">Steam 可將你擁有的這些遊戲顯示為已安裝：%1$s。需要重新啟動 Steam 才會顯示。立即重新啟動，或在下次啟動 Steam 時加入。</string>
+    <string name="steam_import_names_more">%1$s 及另外 %2$d 款</string>
+    <string name="steam_import_now">立即重新啟動</string>
+    <string name="steam_import_later">稍後</string>
 </resources>

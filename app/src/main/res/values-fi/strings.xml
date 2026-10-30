@@ -607,7 +607,6 @@
     <string name="drawer_hud_color_amber">Meripihka</string>
     <string name="drawer_hud_color_violet">Violetti</string>
     <string name="drawer_hud_opacity">Peittävyys</string>
-    <string name="hud_matches_steam_overlay">Kuvataajuus, kuva-ajat ja lukemat tulevat samoista lähteistä kuin Steamin suorituskykynäkymässä.</string>
     <string name="hud_size">Koko</string>
     <string name="hud_size_hint">HUD:n napauttaminen muuttaa myös sen kokoa.</string>
     <string name="hud_size_full">Täysi</string>
@@ -616,7 +615,7 @@
     <string name="hud_size_minimal">Minimaalinen</string>
     <string name="hud_size_mega">Mega</string>
     <string name="hud_locked">Lukitse paikalleen</string>
-    <string name="hud_locked_hint">Siirrä HUD:ia vetämällä; pitkä painallus lukitsee tai vapauttaa sen.</string>
+    <string name="hud_locked_hint">Siirrä HUD:ia vetämällä; pitkä painallus lukitsee tai vapauttaa sen. Lukittuna sen alla olevat näytön ohjaimet toimivat edelleen.</string>
     <string name="hud_group_look">Ulkoasu</string>
     <string name="hud_scale">Koko näytöllä</string>
     <string name="hud_color_soft">Pehmeä</string>
@@ -704,6 +703,8 @@
     <string name="drawer_low_latency_controller_hint">Ohjain raportoi 1000 Hz:n taajuudella 250 Hz:n sijaan. Hieman enemmän CPU:ta.</string>
     <string name="drawer_low_latency_touch">Matalan viiveen kosketus</string>
     <string name="drawer_low_latency_touch_hint">Kosketukset ohittavat ruutujen niputuksen, joten Steamin kosketusohjaus toimii 1000 Hz:llä. Hieman enemmän CPU:ta.</string>
+    <string name="drawer_evdev_mouse">Raaka hiirikanava</string>
+    <string name="drawer_direct_cursor">Osoitin</string>
     <string name="drawer_pc_keyboard">PC-näppäimistö</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Toinen näyttö</string>
@@ -828,6 +829,17 @@
     <string name="setup_fullscreen">Koko näyttö</string>
     <string name="setup_fullscreen_on">Piilottaa Androidin tila- ja navigointipalkit</string>
     <string name="setup_fullscreen_off">Näyttää Androidin tila- ja navigointipalkit</string>
+    <string name="setup_dual_screen">Kaksi näyttöä</string>
+    <string name="setup_dual_screen_hint">Automaattinen käyttää toista näyttöä kämmenlaitteissa, joissa sellainen on sisäänrakennettuna. Päällä käyttää mitä tahansa toista näyttöä. Pois pitää kaiken yhdellä näytöllä.</string>
+    <string name="setup_dual_screen_auto">Automaattinen</string>
+    <string name="setup_dual_screen_on">Päällä</string>
+    <string name="setup_dual_screen_off">Pois</string>
+    <string name="setup_dual_screen_menu">Alanäytön valikko</string>
+    <string name="setup_dual_screen_menu_hint">Siirtää osiot ja pelin aikaisen valikon toiselle näytölle ja kirjoitus tehdään siellä, joten yläruutu säilyttää koko näkymän. L2 ja R2 vaihtavat osiota.</string>
+    <string name="setup_dual_screen_controls">Alanäytön ohjaimet peleissä</string>
+    <string name="setup_dual_screen_controls_hint">Avaa kosketuslevyn ja näppäimistön toiselle näytölle, kun istunto alkaa.</string>
+    <string name="dual_typing_title">Kirjoitus yläruudulle</string>
+    <string name="dual_typing_done">Valmis</string>
     <string name="setup_default_home">Oletuskotisovellus</string>
     <string name="setup_choose_home">Valitse kotisovellus</string>
     <string name="setup_choose">Valitse</string>
@@ -3188,9 +3200,20 @@
         <item quantity="one">%d sovellus</item>
         <item quantity="other">%d sovellusta</item>
     </plurals>
+    <string name="desktop_restore_title">Ohjelmistojasi palautetaan</string>
+    <string name="desktop_restore_body">Lisäämiäsi sovelluksia asennetaan uudelleen DroidDeck-päivityksen jälkeen.</string>
+    <string name="desktop_restore_done_title">Ohjelmistot palautettu</string>
+    <string name="desktop_restore_done_body">Lisäämäsi sovellukset on asennettu uudelleen.</string>
+    <string name="desktop_restore_failed_title">Joitakin ohjelmistoja ei voitu palauttaa</string>
+    <string name="desktop_restore_failed_body">Katso ~/.cache/droiddeck/apt-restore.log ja kokeile sitten sudo apt install Konsolessa.</string>
     <string name="slow_usb_title">Hidas USB-yhteys</string>
     <string name="slow_usb_cable">%1$s on yhdistetty %2$s-yhteydellä (%3$s Mbps, noin %4$d Mt/s), joten pelit latautuvat hitaasti. Käytä vähintään 5 Gbps:n USB 3 -kaapelia, kokeile kääntää USB-C-liitin tai käytä nopeampaa asemaa.</string>
     <string name="slow_usb_port">%1$s on yhdistetty %2$s-yhteydellä (%3$s Mbps, noin %4$d Mt/s). Tämän laitteen USB-portti ei ole nopeampi, joten pelit latautuvat hitaasti. Sisäinen tallennustila tai microSD-kortti voi olla nopeampi.</string>
     <string name="slow_usb_never">Älä näytä uudelleen</string>
     <string name="slow_usb_dismiss">Sulje</string>
+    <string name="steam_import_title">Käynnistetäänkö Steam uudelleen pelien lisäämiseksi?</string>
+    <string name="steam_import_body">Steam voi näyttää nämä omistamasi pelit asennettuina: %1$s. Se täytyy käynnistää uudelleen, jotta ne näkyvät. Käynnistä uudelleen nyt, tai ne lisätään, kun Steam käynnistyy seuraavan kerran.</string>
+    <string name="steam_import_names_more">%1$s ja %2$d muuta</string>
+    <string name="steam_import_now">Käynnistä uudelleen nyt</string>
+    <string name="steam_import_later">Myöhemmin</string>
 </resources>

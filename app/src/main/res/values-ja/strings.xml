@@ -607,7 +607,6 @@
     <string name="drawer_hud_color_amber">アンバー</string>
     <string name="drawer_hud_color_violet">バイオレット</string>
     <string name="drawer_hud_opacity">不透明度</string>
-    <string name="hud_matches_steam_overlay">フレームレート、フレームタイム、各測定値は、Steamのパフォーマンスオーバーレイと同じソースから取得しています。</string>
     <string name="hud_size">サイズ</string>
     <string name="hud_size_hint">HUDをタップしてもサイズを切り替えられます。</string>
     <string name="hud_size_full">フル</string>
@@ -616,7 +615,7 @@
     <string name="hud_size_minimal">ミニマル</string>
     <string name="hud_size_mega">メガ</string>
     <string name="hud_locked">位置を固定</string>
-    <string name="hud_locked_hint">HUDはドラッグで移動できます。長押しで固定または解除します。</string>
+    <string name="hud_locked_hint">HUDはドラッグで移動できます。長押しで固定または解除します。固定中も、下にある画面上のコントロールは使えます。</string>
     <string name="hud_group_look">外観</string>
     <string name="hud_scale">画面上のサイズ</string>
     <string name="hud_color_soft">ソフト</string>
@@ -704,6 +703,8 @@
     <string name="drawer_low_latency_controller_hint">コントローラーが 250 Hz ではなく 1000 Hz で報告されます。CPU 使用率がわずかに上がります。</string>
     <string name="drawer_low_latency_touch">低遅延タッチ</string>
     <string name="drawer_low_latency_touch_hint">タッチはフレームの結合を省略し、Steam のタッチは 1000 Hz で報告されます。CPU 使用率がわずかに上がります。</string>
+    <string name="drawer_evdev_mouse">生のマウス経路</string>
+    <string name="drawer_direct_cursor">カーソル</string>
     <string name="drawer_pc_keyboard">PCキーボード</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">セカンドスクリーン</string>
@@ -827,6 +828,17 @@
     <string name="setup_fullscreen">全画面</string>
     <string name="setup_fullscreen_on">Androidのステータスバーとナビゲーションバーを非表示</string>
     <string name="setup_fullscreen_off">Androidのステータスバーとナビゲーションバーを表示</string>
+    <string name="setup_dual_screen">デュアル画面</string>
+    <string name="setup_dual_screen_hint">自動では、2画面目を内蔵した携帯機でその画面を使います。オンではどの2画面目でも使います。オフではすべてを1画面に表示します。</string>
+    <string name="setup_dual_screen_auto">自動</string>
+    <string name="setup_dual_screen_on">オン</string>
+    <string name="setup_dual_screen_off">オフ</string>
+    <string name="setup_dual_screen_menu">下画面メニュー</string>
+    <string name="setup_dual_screen_menu_hint">セクションとゲーム中のメニューを2画面目に移し、入力もそこで行うため、上画面は全体表示のままになります。L2とR2でセクションを切り替えます。</string>
+    <string name="setup_dual_screen_controls">ゲーム中の下画面コントロール</string>
+    <string name="setup_dual_screen_controls_hint">セッション開始時に2画面目にトラックパッドとキーボードを開きます。</string>
+    <string name="dual_typing_title">上画面に入力中</string>
+    <string name="dual_typing_done">完了</string>
     <string name="setup_default_home">デフォルトのホームアプリ</string>
     <string name="setup_choose_home">ホームアプリを選択</string>
     <string name="setup_choose">選択</string>
@@ -3164,9 +3176,20 @@
     <plurals name="apps_count">
         <item quantity="other">%d 個のアプリ</item>
     </plurals>
+    <string name="desktop_restore_title">ソフトウェアを復元しています</string>
+    <string name="desktop_restore_body">DroidDeck の更新後、追加したアプリを再インストールしています。</string>
+    <string name="desktop_restore_done_title">ソフトウェアを復元しました</string>
+    <string name="desktop_restore_done_body">追加したアプリが再びインストールされました。</string>
+    <string name="desktop_restore_failed_title">一部のソフトウェアを復元できませんでした</string>
+    <string name="desktop_restore_failed_body">~/.cache/droiddeck/apt-restore.log を確認してから、Konsole で sudo apt install を試してください。</string>
     <string name="slow_usb_title">USB 接続が低速です</string>
     <string name="slow_usb_cable">%1$s は %2$s（%3$s Mbps、約 %4$d MB/s）で接続されているため、ゲームの読み込みが遅くなります。5 Gbps 以上の USB 3 ケーブルを使うか、USB-C プラグを裏返すか、より高速なドライブを使ってください。</string>
     <string name="slow_usb_port">%1$s は %2$s（%3$s Mbps、約 %4$d MB/s）で接続されています。この端末の USB ポートはこれ以上速くならないため、ゲームの読み込みが遅くなります。内部ストレージや microSD カードの方が速い場合があります。</string>
     <string name="slow_usb_never">今後表示しない</string>
     <string name="slow_usb_dismiss">閉じる</string>
+    <string name="steam_import_title">ゲームを追加するために Steam を再起動しますか?</string>
+    <string name="steam_import_body">所有している次のゲームを Steam でインストール済みとして表示できます: %1$s。表示するには Steam の再起動が必要です。今すぐ再起動するか、次に Steam を起動したときに追加されます。</string>
+    <string name="steam_import_names_more">%1$s ほか %2$d 件</string>
+    <string name="steam_import_now">今すぐ再起動</string>
+    <string name="steam_import_later">後で</string>
 </resources>
