@@ -36,6 +36,9 @@ import kotlin.math.abs
  * under 90 fps against 2-7% unboosted. A game with no frames (Factorio's benchmark, a loading screen)
  * or one falling behind the panel is boosted; one holding pace keeps what it has for [PACE_LEAVE_S]
  * seconds and is then let go.
+ *
+ * Part of the Performance boost switch, on by default only where it was measured ([measuredHere]).
+ * Another phone's HAL may boost differently, or not at all.
  */
 object GameThreadHints {
     private const val TAG = "GameThreadHints"
@@ -46,21 +49,23 @@ object GameThreadHints {
     private const val LEAVE = 0.15 // a capped game's main thread idles to ~30% on a prime core; under 0.3 it hopped back and forth
     private const val MAX_THREADS = 2 // one per prime core; a third would be sped up in place instead
     private const val TOP_PROCESSES = 3
-    private const val PACE_WINDOW_S = 3
-    private const val PACE_LEAVE_S = 10
+    internal const val PACE_WINDOW_S = 3
+    internal const val PACE_LEAVE_S = 10
     private const val PACE_TOLERANCE = 0.08
 
     /** Busy, but not the game: the app itself and the Steam client, whose UI would otherwise hold the prime cores. */
     private val NOT_GAMES = setOf("steam", "steamwebhelper")
+
+    /** The Odin 3 (CQ8725S), where the boost was measured. */
+    val measuredHere: Boolean get() = Build.VERSION.SDK_INT >= 31 && Build.SOC_MODEL == "CQ8725S"
 
     private var worker: Thread? = null
 
     /** At a session's start. The line is for the log. */
     @Synchronized
     fun start(context: Context): String {
-        if (!SessionPrefs.gameThreadHints(context)) return "game thread hints: off"
-        // Measured on the Odin 3 (CQ8725S) only; another HAL may boost differently, or not at all.
-        if (Build.VERSION.SDK_INT < 31 || Build.SOC_MODEL != "CQ8725S") return "game thread hints: Odin 3 only"
+        if (!SessionPrefs.performanceBoost(context)) return "game thread hints: off"
+        if (Build.VERSION.SDK_INT < 31) return "game thread hints: needs Android 12"
         val hm = context.getSystemService(PerformanceHintManager::class.java)
             ?: return "game thread hints: no PerformanceHintManager"
         val pm = context.getSystemService(PowerManager::class.java)
