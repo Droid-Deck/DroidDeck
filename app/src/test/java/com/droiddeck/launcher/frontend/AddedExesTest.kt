@@ -138,6 +138,19 @@ class AddedExesTest {
         SessionPrefs.setGameStorage(app, SessionPrefs.GAME_STORAGE_OFF, "")
     }
 
+    @Test fun aGroupFolderWithFoldersHoldingNoGameStillListsEachGame() {
+        val storage = visualNovels()
+        val vns = File(storage, "VNs")
+        File(vns, "steamapps/common").mkdirs()
+        File(vns, "Extras/readme.txt").apply { parentFile!!.mkdirs(); writeText("x") }
+        assertEquals(listOf("Albatross", "Angel Beats", "Rance 01", "Sayonara").map { File(vns, it).path },
+            AddedGames.scan(app).map { it.folder.path })
+        val pick = File(vns, "Rance 01/Rance01.exe")
+        assertEquals(pick.parentFile!!.path, result(AddedGames.addExe(app, pick)).folder.path)
+        assertEquals(4, AddedGames.scan(app).size)
+        SessionPrefs.setGameStorage(app, SessionPrefs.GAME_STORAGE_OFF, "")
+    }
+
     @Test fun anExePickedInAGroupFolderOnGameStorageIsItsOwnGame() {
         val storage = visualNovels()
         val vns = File(storage, "VNs")

@@ -67,6 +67,18 @@ class GamesFolderMigrationTest {
         assertTrue(GameStorage.gamesFolderLibraries(app).isEmpty())
     }
 
+    @Test fun aFolderOfGamesInAnOldGamesFolderBecomesOneEntryPerGame() {
+        val pc = tmp.newFolder("PC")
+        val rance = File(pc, "VNs/Rance 01"); exe(pc, "VNs/Rance 01/Rance01.exe")
+        val albatross = File(pc, "VNs/Albatross"); exe(pc, "VNs/Albatross/Albatross Log.exe")
+        File(pc, "VNs/steamapps").mkdirs()
+        val solo = File(pc, "Solo"); exe(pc, "Solo/Solo.exe")
+        SessionPrefs.setAddedGamesDirs(app, listOf(pc.path))
+        GamesFolderMigration.run(app)
+        assertEquals(setOf(albatross.path, rance.path, solo.path), AddedExes.list(app).map { it.folder }.toSet())
+        assertEquals(setOf(albatross.path, rance.path, solo.path), AddedGames.scan(app).map { it.folder.path }.toSet())
+    }
+
     @Test fun runningAgainChangesNothing() {
         val pc = tmp.newFolder("PC")
         exe(pc, "Alpha/Alpha.exe")
