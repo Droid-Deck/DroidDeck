@@ -124,6 +124,14 @@ internal enum class StepSide {
     Right,
 }
 
+internal fun fitStepSide(preferred: StepSide, pill: Rect, hostWidth: Float, wanted: Float): StepSide {
+    val leftRoom = pill.right
+    val rightRoom = hostWidth - pill.left
+    val room = if (preferred == StepSide.Left) leftRoom else rightRoom
+    val other = if (preferred == StepSide.Left) rightRoom else leftRoom
+    return if (room >= wanted || other <= room) preferred else if (preferred == StepSide.Left) StepSide.Right else StepSide.Left
+}
+
 internal class StepOutScope(private val items: List<Animatable<Float, AnimationVector1D>>, val first: FocusRequester, val open: Boolean, val maxHeight: Dp) {
     fun Modifier.stepItem(i: Int): Modifier = graphicsLayer {
         val v = items[i.coerceIn(0, items.lastIndex)].value
@@ -141,7 +149,7 @@ private val OutFillet = 10.dp
 internal fun StepOut(
     open: Boolean,
     pill: Rect,
-    side: StepSide,
+    preferredSide: StepSide,
     accent: Color,
     onDismiss: () -> Unit,
     onClosed: () -> Unit,
@@ -177,8 +185,10 @@ internal fun StepOut(
             maxOf(hostHeight - pill.bottom - pull, pill.top - pull).coerceAtLeast(44.dp.toPx()).toDp()
         }
         val up = measured?.let { pill.bottom + pull + it.height > hostHeight && pill.top - pull - it.height >= 0f } ?: false
+        val wantedW = with(density) { maxWidth.toPx() }
+        val side = fitStepSide(preferredSide, pill, hostWidth, wantedW)
         val room = if (side == StepSide.Left) pill.right else hostWidth - pill.left
-        val maxW = with(density) { maxWidth.toPx() }.coerceAtMost(room).coerceAtLeast(pill.width)
+        val maxW = wantedW.coerceAtMost(room).coerceAtLeast(pill.width)
         LaunchedEffect(open, measured) {
             if (!open && !grown) { onClosed(); return@LaunchedEffect }
             val c = measured ?: return@LaunchedEffect

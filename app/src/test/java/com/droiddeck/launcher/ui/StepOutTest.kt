@@ -37,6 +37,22 @@ class StepOutTest {
         assertEquals(300f, b.bottom, 0.5f)
     }
 
+    @Test fun aLeftMenuWithRoomStaysLeft() {
+        assertEquals(StepSide.Left, fitStepSide(StepSide.Left, Rect(1900f, 20f, 1980f, 80f), hostWidth = 2400f, wanted = 840f))
+    }
+
+    @Test fun aLeftMenuNearTheLeftEdgeOpensRight() {
+        assertEquals(StepSide.Right, fitStepSide(StepSide.Left, Rect(300f, 20f, 420f, 80f), hostWidth = 1080f, wanted = 840f))
+    }
+
+    @Test fun aRightMenuNearTheRightEdgeOpensLeft() {
+        assertEquals(StepSide.Left, fitStepSide(StepSide.Right, Rect(900f, 20f, 1000f, 80f), hostWidth = 1080f, wanted = 840f))
+    }
+
+    @Test fun aSqueezedMenuKeepsItsSideWhenTheOtherSideIsNarrower() {
+        assertEquals(StepSide.Left, fitStepSide(StepSide.Left, Rect(600f, 20f, 700f, 80f), hostWidth = 1080f, wanted = 840f))
+    }
+
     @Test fun aClosedOutlineIsJustThePill() {
         val path = Path()
         stepPathRight(path, pill, right = pill.right, bottom = pill.bottom, pullTop = pill.bottom + 6f, box = 16f, fillet = 10f, pillCorner = 12f)
