@@ -2,6 +2,7 @@ package com.droiddeck.launcher.input
 
 import android.hardware.input.InputManager
 import android.view.InputDevice
+import android.view.KeyEvent
 import android.view.MotionEvent
 import java.nio.file.Files
 import org.junit.After
@@ -50,6 +51,30 @@ class StickDeadZoneTest {
         ControllerPrefs.setDeadZone(context, 25)
         ControllerPrefs.resetAll(context)
         assertEquals(12, ControllerPrefs.deadZone(context))
+    }
+
+    @Test fun changingDeadZonePreservesOfficialShortcutsAndControllerSettings() {
+        val button = PhysicalShortcuts.Button("test-pad", "Test pad", KeyEvent.KEYCODE_BUTTON_MODE, 0)
+        val binding = PhysicalShortcuts.Binding(button, PhysicalShortcuts.Action.QAM)
+        PhysicalShortcuts.assign(context, button, binding.action)
+        ControllerPrefs.setTarget(context, "a", "b")
+        ControllerPrefs.setRumble(context, false)
+        for (percent in ControllerPrefs.deadZones) {
+            ControllerPrefs.setDeadZone(context, percent)
+            val settings = ControllerPrefs.read(context)
+            assertEquals(percent, settings.deadZone)
+            assertEquals(listOf(binding), PhysicalShortcuts.read(context))
+            assertEquals("b", settings.mapping["a"])
+            assertFalse(settings.rumble)
+        }
+    }
+
+    @Test fun assigningAnOfficialShortcutPreservesDeadZone() {
+        ControllerPrefs.setDeadZone(context, 25)
+        PhysicalShortcuts.assign(context,
+            PhysicalShortcuts.Button("test-pad", "Test pad", KeyEvent.KEYCODE_BUTTON_MODE, 0),
+            PhysicalShortcuts.Action.STEAM)
+        assertEquals(25, ControllerPrefs.read(context).deadZone)
     }
 
     @Test fun defaultSuppressesBothAxesInsideTheCircle() {
