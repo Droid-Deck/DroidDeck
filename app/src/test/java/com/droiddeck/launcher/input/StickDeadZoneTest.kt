@@ -114,8 +114,134 @@ class StickDeadZoneTest {
         assertEquals(0f, pad().leftX)
         assertEquals(0.4f, pad().rightX)
         bridge.setStickDeadZone(0)
-        motion(device, MotionEvent.AXIS_X to 0.2f)
         assertEquals(0.2f, pad().leftX)
+        assertEquals(0.4f, pad().rightX)
+    }
+
+    @Test fun changingPreferenceReprojectsAllSticksWithoutAnotherMotionEvent() {
+        motion(device(), MotionEvent.AXIS_X to 0.2f, MotionEvent.AXIS_Y to 0.02f,
+            MotionEvent.AXIS_Z to 0.03f, MotionEvent.AXIS_RZ to -0.04f)
+        bridge.setStickDeadZone(25)
+        assertEquals(0f, pad().leftX)
+        assertEquals(0f, pad().rightY)
+        bridge.setStickDeadZone(0)
+        assertEquals(0.2f, pad().leftX)
+        assertEquals(0.02f, pad().leftY)
+        assertEquals(0.03f, pad().rightX)
+        assertEquals(-0.04f, pad().rightY)
+    }
+
+    @Test fun preferenceChangesReprojectEveryPlayer() {
+        motion(device(id = 61), MotionEvent.AXIS_X to 0.2f)
+        motion(device(id = 62), MotionEvent.AXIS_Z to -0.2f)
+        bridge.setStickDeadZone(25)
+        assertEquals(0f, pad().leftX)
+        assertEquals(0f, requireNotNull(JoyConPadTest.RecordingWriter.pads[1]).rightX)
+        bridge.setStickDeadZone(0)
+        assertEquals(0.2f, pad().leftX)
+        assertEquals(-0.2f, requireNotNull(JoyConPadTest.RecordingWriter.pads[1]).rightX)
+    }
+
+    @Test fun preferenceChangesReprojectBothHalvesOfAJoyConPair() {
+        val left = device(joyCon = true, id = 61)
+        val right = device(joyCon = true, id = 62, rightJoyCon = true)
+        motion(left)
+        motion(right)
+        motion(left, MotionEvent.AXIS_X to 0.2f)
+        motion(right, MotionEvent.AXIS_RX to -0.2f)
+        bridge.setStickDeadZone(25)
+        assertEquals(0f, pad().leftX)
+        assertEquals(0f, pad().rightX)
+        bridge.setStickDeadZone(0)
+        assertEquals(0.2f, pad().leftX)
+        assertEquals(-0.2f, pad().rightX)
+    }
+
+    @Test fun preferenceChangesDoNotReplaceTouchStickInput() {
+        motion(device(), MotionEvent.AXIS_X to 0.2f, MotionEvent.AXIS_Z to -0.2f)
+        bridge.applyTouch { it.leftX = 0.8f }
+        bridge.setStickDeadZone(25)
+        assertEquals(0.8f, pad().leftX)
+        assertEquals(0f, pad().rightX)
+        bridge.setStickDeadZone(0)
+        assertEquals(0.8f, pad().leftX)
+        assertEquals(-0.2f, pad().rightX)
+    }
+
+    @Test fun preferenceChangesDoNotReplaceExternalStickInput() {
+        motion(device(), MotionEvent.AXIS_X to 0.2f, MotionEvent.AXIS_Z to -0.2f)
+        bridge.applyExternal({ it.rightX = 0.8f }, true)
+        bridge.setStickDeadZone(25)
+        assertEquals(0f, pad().leftX)
+        assertEquals(0.8f, pad().rightX)
+    }
+
+    @Test fun buttonAndTriggerMutationsKeepPhysicalSticksReprojectable() {
+        motion(device(), MotionEvent.AXIS_X to 0.2f)
+        bridge.applyExternal({ it.leftTrigger = 0.7f; it.press(PadState.X, true) }, true)
+        bridge.setStickDeadZone(25)
+        assertEquals(0f, pad().leftX)
+        assertEquals(0.7f, pad().leftTrigger)
+        assertTrue(pad().isDown(PadState.X))
+        bridge.setStickDeadZone(0)
+        assertEquals(0.2f, pad().leftX)
+    }
+
+    @Test fun releaseAllDiscardsEvenPreviouslyFilteredRawMotion() {
+        motion(device(), MotionEvent.AXIS_X to 0.05f)
+        bridge.releaseAll()
+        bridge.setStickDeadZone(0)
+        assertEquals(0f, pad().leftX)
+    }
+
+    @Test fun aDisconnectedControllerDoesNotReturnOnPreferenceChange() {
+        val device = device()
+        motion(device, MotionEvent.AXIS_X to 0.2f)
+        bridge.onDeviceRemoved(device.id)
+        bridge.setStickDeadZone(0)
+        assertEquals(0f, pad().leftX)
+    }
+
+    @Test fun pairingDoesNotRestoreAnOldJoyConPosition() {
+        val left = device(joyCon = true, id = 61)
+        val right = device(joyCon = true, id = 62, rightJoyCon = true)
+        motion(left, MotionEvent.AXIS_X to 0.2f)
+        motion(right)
+        bridge.setStickDeadZone(0)
+        assertEquals(0f, pad().leftX)
+    }
+
+    @Test fun aControllerRemovedWhileInactiveDoesNotReturnOnPreferenceChange() {
+        val device = device()
+        motion(device, MotionEvent.AXIS_X to 0.05f)
+        shadowOf(context.getSystemService(InputManager::class.java)).removeInputDevice(device.id)
+        bridge.setStickDeadZone(0)
+        assertEquals(0f, pad().leftX)
+    }
+
+    @Test fun excludedControllerInputIsNotRestoredOnPreferenceChange() {
+        val device = device()
+        motion(device, MotionEvent.AXIS_X to 0.2f)
+        bridge.setExcluded { it == device.id }
+        bridge.setStickDeadZone(0)
+        assertEquals(0f, pad().leftX)
+    }
+
+    @Test fun preferenceChangesDoNotGenerateChordInput() {
+        motion(device(), MotionEvent.AXIS_X to 0.2f)
+        var notifications = 0
+        bridge.setOnChordInput { notifications++ }
+        bridge.setStickDeadZone(25)
+        bridge.setStickDeadZone(0)
+        assertEquals(0, notifications)
+    }
+
+    @Test fun aStoppedBridgeDoesNotRepublishOldInput() {
+        motion(device(), MotionEvent.AXIS_X to 0.2f)
+        bridge.stop()
+        JoyConPadTest.RecordingWriter.pads.clear()
+        bridge.setStickDeadZone(0)
+        assertTrue(JoyConPadTest.RecordingWriter.pads.isEmpty())
     }
 
     @Test fun theBoundaryPassesThroughWithoutRescaling() {
@@ -224,13 +350,14 @@ class StickDeadZoneTest {
             0, 0, 1f, 1f, device.id, 0, InputDevice.SOURCE_JOYSTICK, 0)
     }
 
-    private fun device(wired: Boolean = false, joyCon: Boolean = false): InputDevice {
-        val builder = InputDeviceBuilder.newBuilder().setId(61).setName(if (joyCon) "Joy-Con (L)" else "dead-zone pad")
-            .setDescriptor("dead-zone-pad").setExternal(true)
+    private fun device(wired: Boolean = false, joyCon: Boolean = false, id: Int = 61, rightJoyCon: Boolean = false): InputDevice {
+        val builder = InputDeviceBuilder.newBuilder().setId(id)
+            .setName(if (joyCon) if (rightJoyCon) "Joy-Con (R)" else "Joy-Con (L)" else "dead-zone pad")
+            .setDescriptor("dead-zone-pad-$id").setExternal(true)
             .setSources(InputDevice.SOURCE_GAMEPAD or InputDevice.SOURCE_JOYSTICK)
             .setKeyboardType(InputDevice.KEYBOARD_TYPE_NON_ALPHABETIC)
             .setVendorId(if (joyCon) 0x057e else if (wired) 0x20d6 else 0)
-            .setProductId(if (joyCon) 0x2006 else if (wired) 0x2063 else 0)
+            .setProductId(if (joyCon) if (rightJoyCon) 0x2007 else 0x2006 else if (wired) 0x2063 else 0)
         for (axis in intArrayOf(MotionEvent.AXIS_X, MotionEvent.AXIS_Y, MotionEvent.AXIS_Z,
             MotionEvent.AXIS_RZ, MotionEvent.AXIS_RX, MotionEvent.AXIS_RY)) {
             builder.addMotionRange(axis, InputDevice.SOURCE_JOYSTICK, -1f, 1f, 0f, 0f, 0f)
