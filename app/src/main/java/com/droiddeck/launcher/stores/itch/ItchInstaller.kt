@@ -64,7 +64,8 @@ internal class ItchInstaller(
         val archive = File(scratch, filename.ifBlank { "download.bin" })
         val buildId = ItchBuilds.buildId(upload)
         val exe = try {
-            var patched = updating && !resuming && patch(key, downloadKeyId, uploadId, buildId, size, scratch, handle)
+            var patched = updating && !resuming && previous?.isInstalled == true &&
+                patch(key, downloadKeyId, uploadId, buildId, size, scratch, handle)
             if (cancelled.get()) {
                 if (patched) dropCaches(scratch)
                 return null
