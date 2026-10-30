@@ -1823,6 +1823,7 @@
     <string name="flatpakmgr_not_ready">Configurează mai întâi Flatpak</string>
     <string name="flatpakmgr_starting">Se pornește</string>
     <string name="flatpakmgr_exit_status">Flatpak s-a închis cu starea %1$d</string>
+    <string name="flatpakmgr_wrong_arch">%1$s este construită pentru %2$s, dar aici aplicațiile Flatpak trebuie să fie pentru ARM64. Folosește în schimb AppImage-ul aplicației; DroidDeck rulează AppImage-urile x86 prin FEX.</string>
     <string name="flatpakmgr_installing">Se instalează %1$s</string>
     <string name="flatpakmgr_updating">Se actualizează %1$s</string>
     <string name="flatpakmgr_removing">Se elimină %1$s</string>

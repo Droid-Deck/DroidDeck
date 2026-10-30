@@ -1748,6 +1748,7 @@
     <string name="flatpakmgr_not_ready">先にFlatpakをセットアップしてください</string>
     <string name="flatpakmgr_starting">開始中</string>
     <string name="flatpakmgr_exit_status">Flatpakがステータス%1$dで終了しました</string>
+    <string name="flatpakmgr_wrong_arch">%1$s は %2$s 向けにビルドされていますが、ここでは Flatpak アプリは ARM64 向けである必要があります。代わりにアプリの AppImage を使ってください。DroidDeck は x86 の AppImage を FEX で実行します。</string>
     <string name="flatpakmgr_installing">%1$sをインストール中</string>
     <string name="flatpakmgr_updating">%1$sを更新中</string>
     <string name="flatpakmgr_removing">%1$sを削除中</string>

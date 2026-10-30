@@ -1792,6 +1792,7 @@
     <string name="flatpakmgr_not_ready">Önce Flatpak\'i kurun</string>
     <string name="flatpakmgr_starting">Başlatılıyor</string>
     <string name="flatpakmgr_exit_status">Flatpak %1$d durum koduyla çıktı</string>
+    <string name="flatpakmgr_wrong_arch">%1$s %2$s için derlenmiş, ancak buradaki Flatpak uygulamaları ARM64 için derlenmiş olmalı. Bunun yerine uygulamanın AppImage dosyasını kullanın; DroidDeck x86 AppImage dosyalarını FEX ile çalıştırır.</string>
     <string name="flatpakmgr_installing">%1$s yükleniyor</string>
     <string name="flatpakmgr_updating">%1$s güncelleniyor</string>
     <string name="flatpakmgr_removing">%1$s kaldırılıyor</string>

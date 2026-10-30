@@ -141,9 +141,14 @@ def install_bundle(path):
     inst = installation()
     bundle = Gio.File.new_for_path(path)
     try:
-        app_id = Flatpak.BundleRef.new(bundle).get_name()
+        ref = Flatpak.BundleRef.new(bundle)
+        app_id = ref.get_name()
     except GLib.Error as err:
         emit(e="error", message="%s is not a Flatpak bundle (%s)" % (os.path.basename(path), err.message))
+        return 1
+    if ref.get_arch() != Flatpak.get_default_arch():
+        emit(e="error", code="arch", id=app_id, arch=ref.get_arch(),
+             message="%s is built for %s, not %s" % (app_id, ref.get_arch(), Flatpak.get_default_arch()))
         return 1
     if app_ref(inst, app_id) is not None:
         emit(e="done", id=app_id, note="already installed")

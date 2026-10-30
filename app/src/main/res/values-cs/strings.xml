@@ -1846,6 +1846,7 @@
     <string name="flatpakmgr_not_ready">Nejprve nastavte Flatpak</string>
     <string name="flatpakmgr_starting">Spouštění</string>
     <string name="flatpakmgr_exit_status">Flatpak skončil s návratovým kódem %1$d</string>
+    <string name="flatpakmgr_wrong_arch">%1$s je sestaveno pro %2$s, ale aplikace Flatpak zde musí být pro ARM64. Použijte AppImage aplikace; DroidDeck spouští x86 AppImage přes FEX.</string>
     <string name="flatpakmgr_installing">Instalování %1$s</string>
     <string name="flatpakmgr_updating">Aktualizování %1$s</string>
     <string name="flatpakmgr_removing">Odstraňování %1$s</string>

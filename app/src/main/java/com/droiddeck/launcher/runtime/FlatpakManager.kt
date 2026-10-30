@@ -117,7 +117,11 @@ object FlatpakManager {
                 when (o.optString("e")) {
                     "op" -> { step = stage(context, o); onProgress(step, overall(o, 0)) }
                     "progress" -> onProgress(step, overall(o, o.optInt("percent")))
-                    "error" -> { error = o.optString("message"); Log.w(TAG, "$verb $id: $error") }
+                    "error" -> {
+                        error = if (o.optString("code") == "arch") context.getString(R.string.flatpakmgr_wrong_arch, o.optString("id"), o.optString("arch"))
+                            else o.optString("message")
+                        Log.w(TAG, "$verb $id: ${o.optString("message")}")
+                    }
                     "warning" -> Log.w(TAG, "$verb $id: ${o.optString("message")}")
                     "done" -> onDone(o)
                 }

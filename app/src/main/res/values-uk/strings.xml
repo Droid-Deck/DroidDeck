@@ -1846,6 +1846,7 @@
     <string name="flatpakmgr_not_ready">Спершу налаштуйте Flatpak</string>
     <string name="flatpakmgr_starting">Запуск</string>
     <string name="flatpakmgr_exit_status">Flatpak завершився з кодом %1$d</string>
+    <string name="flatpakmgr_wrong_arch">%1$s зібрано для %2$s, а застосунки Flatpak тут мають бути зібрані для ARM64. Використайте AppImage цього застосунку: DroidDeck запускає x86 AppImage через FEX.</string>
     <string name="flatpakmgr_installing">Встановлення %1$s</string>
     <string name="flatpakmgr_updating">Оновлення %1$s</string>
     <string name="flatpakmgr_removing">Видалення %1$s</string>

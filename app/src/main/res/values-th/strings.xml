@@ -1777,6 +1777,7 @@
     <string name="flatpakmgr_not_ready">ตั้งค่า Flatpak ก่อน</string>
     <string name="flatpakmgr_starting">กำลังเริ่ม</string>
     <string name="flatpakmgr_exit_status">Flatpak ออกด้วยสถานะ %1$d</string>
+    <string name="flatpakmgr_wrong_arch">%1$s สร้างมาสำหรับ %2$s แต่แอป Flatpak ที่นี่ต้องสร้างสำหรับ ARM64 ให้ใช้ AppImage ของแอปแทน DroidDeck จะเรียกใช้ AppImage x86 ผ่าน FEX</string>
     <string name="flatpakmgr_installing">กำลังติดตั้ง %1$s</string>
     <string name="flatpakmgr_updating">กำลังอัปเดต %1$s</string>
     <string name="flatpakmgr_removing">กำลังลบ %1$s</string>

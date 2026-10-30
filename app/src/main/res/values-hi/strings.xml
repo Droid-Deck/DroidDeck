@@ -1800,6 +1800,7 @@
     <string name="flatpakmgr_not_ready">पहले Flatpak सेट करें</string>
     <string name="flatpakmgr_starting">शुरू हो रहा है</string>
     <string name="flatpakmgr_exit_status">Flatpak status %1$d के साथ बंद हुआ</string>
+    <string name="flatpakmgr_wrong_arch">%1$s %2$s के लिए बना है, पर यहाँ Flatpak ऐप ARM64 के लिए बने होने चाहिए। इसके बजाय ऐप का AppImage इस्तेमाल करें; DroidDeck x86 AppImage को FEX से चलाता है।</string>
     <string name="flatpakmgr_installing">%1$s इंस्टॉल हो रहा है</string>
     <string name="flatpakmgr_updating">%1$s अपडेट हो रहा है</string>
     <string name="flatpakmgr_removing">%1$s हटाया जा रहा है</string>

@@ -1800,6 +1800,7 @@
     <string name="flatpakmgr_not_ready">Настрой Flatpak първо</string>
     <string name="flatpakmgr_starting">Стартиране</string>
     <string name="flatpakmgr_exit_status">Flatpak приключи със код %1$d</string>
+    <string name="flatpakmgr_wrong_arch">%1$s е създадено за %2$s, но приложенията Flatpak тук трябва да са за ARM64. Използвайте AppImage на приложението; DroidDeck изпълнява x86 AppImage чрез FEX.</string>
     <string name="flatpakmgr_installing">Инсталиране на %1$s</string>
     <string name="flatpakmgr_updating">Актуализиране на %1$s</string>
     <string name="flatpakmgr_removing">Премахване на %1$s</string>

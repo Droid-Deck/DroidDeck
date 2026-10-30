@@ -1800,6 +1800,7 @@
     <string name="flatpakmgr_not_ready">Előbb állítsa be a Flatpakot</string>
     <string name="flatpakmgr_starting">Indítás</string>
     <string name="flatpakmgr_exit_status">A Flatpak %1$d állapotkóddal lépett ki</string>
+    <string name="flatpakmgr_wrong_arch">A(z) %1$s %2$s rendszerre készült, de az itteni Flatpak-alkalmazásoknak ARM64-re kell készülniük. Használd inkább az alkalmazás AppImage-ét; a DroidDeck az x86 AppImage-eket FEX-en keresztül futtatja.</string>
     <string name="flatpakmgr_installing">%1$s telepítése</string>
     <string name="flatpakmgr_updating">%1$s frissítése</string>
     <string name="flatpakmgr_removing">%1$s eltávolítása</string>
