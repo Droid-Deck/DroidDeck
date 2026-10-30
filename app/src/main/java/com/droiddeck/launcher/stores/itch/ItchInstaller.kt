@@ -62,12 +62,31 @@ internal class ItchInstaller(
         val scratch = StoreInstallRoot.scratchDir(app, Store.ITCH, item.id)
         scratch.mkdirs()
         val archive = File(scratch, filename.ifBlank { "download.bin" })
+        val buildId = ItchBuilds.buildId(upload)
         val exe = try {
-            handle.stage(DownloadStage.DOWNLOAD)
-            download(key, downloadKeyId, uploadId, upload.optString("updated_at", upload.optString("updatedAt")), archive, size, handle)
-            if (cancelled.get()) return null
-            handle.stage(DownloadStage.INSTALL)
-            install(archive, filename, handle, resuming)
+            var patched = updating && !resuming && previous?.isInstalled == true &&
+                patch(key, downloadKeyId, uploadId, buildId, size, scratch, handle)
+            if (cancelled.get()) {
+                if (patched) dropCaches(scratch)
+                return null
+            }
+            var picked: String? = null
+            if (patched) {
+                picked = install(archive, filename, handle, resuming, true)
+                if (picked == null) {
+                    if (cancelled.get()) return null
+                    handle.log("itch.io: the patched copy of ${item.title} has no exe, doing a full update")
+                    patched = false
+                }
+            }
+            if (!patched) {
+                handle.stage(DownloadStage.DOWNLOAD)
+                download(key, downloadKeyId, uploadId, upload.optString("updated_at", upload.optString("updatedAt")), archive, size, handle)
+                if (cancelled.get()) return null
+                handle.stage(DownloadStage.INSTALL)
+                picked = install(archive, filename, handle, resuming, false)
+            }
+            picked
         } catch (t: Throwable) {
             if (!cancelled.get()) dropCaches(scratch)
             throw t
@@ -90,7 +109,7 @@ internal class ItchInstaller(
             installedAt = System.currentTimeMillis(),
             cover = item.imageUrl,
             hero = item.imageUrl,
-            extra = mapOf("gameId" to gameId, "downloadKeyId" to downloadKeyId, "uploadId" to uploadId),
+            extra = mapOf("gameId" to gameId, "downloadKeyId" to downloadKeyId, "uploadId" to uploadId, "buildId" to buildId),
             cloud = false,
         )
         StoreInstalls.complete(app, folder, sidecar) { done, steps -> handle.stageProgress(done.toLong(), steps.toLong()) }
@@ -180,13 +199,37 @@ internal class ItchInstaller(
         }
     }
 
-    private fun install(archive: File, filename: String, handle: DownloadQueue.JobHandle, resuming: Boolean): String? {
+    private fun patch(key: String, downloadKeyId: String, uploadId: String, buildId: String, fullSize: Long, scratch: File, handle: DownloadQueue.JobHandle): Boolean {
+        val installed = previous?.extra.orEmpty()
+        val from = installed["buildId"].orEmpty()
+        if (installed["uploadId"] != uploadId || from.isBlank() || buildId.isBlank() || from == buildId) return false
+        val out = File(folder, ItchStaging.DIR)
+        ItchStaging.delete(out)
+        scratch.mkdirs()
+        val outcome = try {
+            ItchPatch.run(app, key, downloadKeyId, from, buildId, fullSize, folder, out, scratch, handle, cancelled)
+        } catch (t: Exception) {
+            ItchPatch.Outcome.Failed("${t.javaClass.simpleName} ${t.message}")
+        }
+        when (outcome) {
+            ItchPatch.Outcome.Applied -> {
+                handle.log("itch.io: patched ${item.title} from build $from to $buildId")
+                return true
+            }
+            ItchPatch.Outcome.Cancelled -> Unit
+            is ItchPatch.Outcome.Failed -> handle.log("itch.io: no patch for ${item.title}, doing a full update (${outcome.reason})")
+        }
+        ItchStaging.delete(out)
+        return false
+    }
+
+    private fun install(archive: File, filename: String, handle: DownloadQueue.JobHandle, resuming: Boolean, patched: Boolean = false): String? {
         work = if (updating) File(folder, ItchStaging.DIR) else folder
-        if (updating) ItchStaging.delete(work)
+        if (updating && !patched) ItchStaging.delete(work)
         work.mkdirs()
         if (resuming) clearPartialInstall()
         val exe = try {
-            unpack(archive, filename, handle)
+            if (!patched) unpack(archive, filename, handle)
             val hint = filename.substringBeforeLast('.')
             var picked = StoreExe.pick(work, hint.ifBlank { null }, item.title)
             var passes = 0

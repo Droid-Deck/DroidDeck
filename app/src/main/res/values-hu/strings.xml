@@ -1125,7 +1125,6 @@
     <string name="games_never_played">Még nem játszott</string>
     <string name="games_runtime_busy_percent">Futtatókörnyezet dolgozik · %1$d%%</string>
     <string name="games_runtime_busy">Futtatókörnyezet dolgozik</string>
-    <string name="games_runtime_first_play">A futtatókörnyezet az első Játék gombnyomáskor települ</string>
     <string name="games_runtime_update">Elérhető futtatókörnyezet-frissítés</string>
     <string name="games_runtime_ready">● A futtatókörnyezet kész</string>
     <string name="games_internal">Belső tárhely</string>

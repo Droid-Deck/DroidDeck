@@ -1121,7 +1121,6 @@
     <string name="games_never_played">從未玩過</string>
     <string name="games_runtime_busy_percent">運行環境繁忙 · %1$d%%</string>
     <string name="games_runtime_busy">運行環境繁忙</string>
-    <string name="games_runtime_first_play">首次開啟 Steam 時安裝運行環境</string>
     <string name="games_runtime_update">運行環境有可用更新</string>
     <string name="games_runtime_ready">● 運行環境已就緒</string>
     <string name="games_internal">內部儲存空間</string>

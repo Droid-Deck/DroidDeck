@@ -93,6 +93,9 @@ fun ControllerMappingPage(mapping: Map<String, String>, onPick: (String, String)
         lede = stringResource(R.string.ctrl_mapping_lede),
         onBack = onBack,
     ) {
+        SettingsGroup(stringResource(R.string.shortcuts_title)) {
+            PhysicalShortcutRows()
+        }
         SettingsGroup(stringResource(R.string.ctrl_onscreen_buttons)) {
             val targets = ControllerPrefs.targets.map { (id, label) -> id to stringResource(label) }
             for ((id, name) in ControllerPrefs.mappable) {

@@ -1125,7 +1125,6 @@
     <string name="games_never_played">Ei pelattu koskaan</string>
     <string name="games_runtime_busy_percent">Ajoympäristö varattu · %1$d %%</string>
     <string name="games_runtime_busy">Ajoympäristö varattu</string>
-    <string name="games_runtime_first_play">Ajoympäristö asentuu ensimmäisellä Pelaa-painalluksella</string>
     <string name="games_runtime_update">Ajoympäristön päivitys saatavilla</string>
     <string name="games_runtime_ready">● Ajoympäristö valmis</string>
     <string name="games_internal">Sisäinen tallennustila</string>

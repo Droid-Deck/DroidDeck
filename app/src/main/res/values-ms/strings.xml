@@ -1119,7 +1119,6 @@
     <string name="games_never_played">Belum pernah dimainkan</string>
     <string name="games_runtime_busy_percent">Masa jalan sibuk · %1$d%%</string>
     <string name="games_runtime_busy">Masa jalan sibuk</string>
-    <string name="games_runtime_first_play">Masa jalan dipasang pada Main pertama</string>
     <string name="games_runtime_update">Kemas kini masa jalan tersedia</string>
     <string name="games_runtime_ready">● Masa jalan sedia</string>
     <string name="games_internal">Storan dalaman</string>

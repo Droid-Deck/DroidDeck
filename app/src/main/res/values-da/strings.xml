@@ -1125,7 +1125,6 @@
     <string name="games_never_played">Aldrig spillet</string>
     <string name="games_runtime_busy_percent">Runtime optaget · %1$d%%</string>
     <string name="games_runtime_busy">Runtime optaget</string>
-    <string name="games_runtime_first_play">Runtime installeres ved første Spil</string>
     <string name="games_runtime_update">Runtimeopdatering tilgængelig</string>
     <string name="games_runtime_ready">● Runtime klar</string>
     <string name="games_internal">Internt lager</string>

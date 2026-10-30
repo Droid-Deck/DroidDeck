@@ -1119,7 +1119,6 @@
     <string name="games_never_played">Chưa chơi bao giờ</string>
     <string name="games_runtime_busy_percent">Runtime đang bận · %1$d%%</string>
     <string name="games_runtime_busy">Runtime đang bận</string>
-    <string name="games_runtime_first_play">Runtime sẽ cài ở lần Play đầu tiên</string>
     <string name="games_runtime_update">Có cập nhật runtime</string>
     <string name="games_runtime_ready">● Runtime đã sẵn sàng</string>
     <string name="games_internal">Bộ nhớ trong</string>
