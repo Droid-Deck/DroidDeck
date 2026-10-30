@@ -2225,11 +2225,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun mirrorRefreshLimit(): Int =
         GlassesRendering.mirrorRefreshLimit(glassesSettings, glasses, glassesScreen != null)
 
-    private fun outputFpsLimit(pip: Boolean = pipUi): Int =
+    private fun outputFpsLimit(): Int = outputFpsLimit(pipUi)
+
+    private fun outputFpsLimit(pip: Boolean): Int =
         SessionPrefs.compositorFpsLimit(mirrorRefreshLimit(), if (noSteamSession()) SessionState.fpsLimit else 0, pip)
 
     private fun applyOutputPacing() {
-        Log.i(TAG, "perf: " + PerfMode.apply(this, outputFpsLimit(pip = false), mirrorRefreshLimit()))
+        Log.i(TAG, "perf: " + PerfMode.apply(this, outputFpsLimit(false), mirrorRefreshLimit()))
         if (CompositorHost.isStarted) {
             val hz = refreshHz()
             val changed = kotlin.math.abs(SessionState.refreshHz - hz) > 0.1f
