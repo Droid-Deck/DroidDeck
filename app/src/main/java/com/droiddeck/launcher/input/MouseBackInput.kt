@@ -15,7 +15,9 @@ class MouseBackInput(private val sendRight: (Boolean) -> Unit, private val mouse
     fun onKeyEvent(event: KeyEvent, toGuest: Boolean): Boolean {
         if (event.keyCode != KeyEvent.KEYCODE_BACK) return false
         val device = event.deviceId
-        if (device in held) {
+        val fromMouse = isFromMouse(event)
+        val injected = isInjectedBack(event)
+        if (device in held && (fromMouse || injected)) {
             if (event.action == KeyEvent.ACTION_UP) {
                 held.remove(device)
                 sendRight(false)
@@ -23,10 +25,16 @@ class MouseBackInput(private val sendRight: (Boolean) -> Unit, private val mouse
             return true
         }
         if (event.action != KeyEvent.ACTION_DOWN || event.repeatCount > 0 || !toGuest) return false
-        if (!isFromMouse(event) && !(isInjectedBack(event) && mouseAttached())) return false
+        if (!fromMouse && !(injected && mouseAttached())) return false
         held.add(device)
         sendRight(true)
         return true
+    }
+
+    fun cancel() {
+        if (held.isEmpty()) return
+        held.clear()
+        sendRight(false)
     }
 
     companion object {
