@@ -233,6 +233,14 @@ picker. Its launcher sets five FuelPump variables frozen at install time: `FUEL_
 `AMAZON_GAMES_FUEL_DISPLAY_NAME` (the account name, `Player` without one). No Amazon Games SDK files
 are deployed into the prefix and `fuel.json` `PostInstall` steps are not run.
 
+A GOG game's exe comes from its own manifest first: `goggame-<id>.info`'s play task in category
+`game` (`isPrimary` first), or a primary `launcher` task for launcher games, whose `path` stays
+inside the folder; any other `goggame-*.info` in the folder supplies the task only when the
+product's own has none. Else the product's `temp_executable`, else a score over the folder's `.exe`
+files - a word of the game's title in the name first (Blood Omen's `kain.exe` over its `dxconfig.exe`),
+config and tool names (`config`, `settings`, `launcher`, `editor`, `crashreport`, …) last, shallower
+and bigger ahead on a tie.
+
 A game's web links reach Android: `droiddeck-store-launch` sets the prefix's
 `HKCU\Software\Wine\WineBrowser` `Browsers` to `/usr/local/bin/droiddeck-open-url`, which is also
 `xdg-open` first on the game's PATH, and hands http(s) addresses to the app, which opens them in

@@ -23,11 +23,15 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -261,7 +265,7 @@ public final class GogDownloadManager {
             if (clientId != null && !clientId.isEmpty()) GogPrefs.get(ctx).edit().putString("client_id_" + game.gameId, clientId).apply();
             String clientSecret = manifest.optString("clientSecret", null);
             if (clientSecret != null && !clientSecret.isEmpty()) GogPrefs.get(ctx).edit().putString("client_secret_" + game.gameId, clientSecret).apply();
-            out.result = new Result(pickExe(installPath, tempExe, game.title), gm.buildId, planned);
+            out.result = new Result(pickExe(installPath, game.gameId, tempExe, game.title), gm.buildId, planned);
             out.result.dependencies = dependencies;
             out.result.dependenciesRead = true;
             out.result.language = resolved;
@@ -433,7 +437,7 @@ public final class GogDownloadManager {
             if (anyFailed.get()) { out.error = "one or more files failed to download"; return out; }
             cb.onProgress("Finishing…", 96);
             writeFile(new File(installPath, MARKER), ("{\"gameId\":\"" + game.gameId + "\",\"generation\":1}").getBytes("UTF-8"));
-            out.result = new Result(pickExe(installPath, null, game.title), "", planned);
+            out.result = new Result(pickExe(installPath, game.gameId, null, game.title), "", planned);
             return out;
         } catch (Exception e) {
             out.error = "exception: " + e.getClass().getSimpleName();
@@ -483,7 +487,7 @@ public final class GogDownloadManager {
             for (InstallerPart part : parts) new File(installPath, part.filename).delete();
             deleteDir(new File(installPath, "tmp"));
             deleteDir(new File(installPath, "commonappdata"));
-            String exe = pickExe(installPath, null, game.title);
+            String exe = pickExe(installPath, game.gameId, null, game.title);
             if (exe.isEmpty()) throw new InstallException("The installer was extracted but no game executable was found");
             cb.onLog("gog: installer extracted natively; game exe " + exe);
             GogMaintenance.captureOffline(game.gameId, installPath, downloads);
@@ -1085,7 +1089,99 @@ public final class GogDownloadManager {
         dir.delete();
     }
 
-    static String pickExe(File installPath, String tempExe, String title) {
+    /**
+     * GOG's own manifest names the game's play task: Blood Omen's is kain.exe while dxconfig.exe is
+     * its separate tool task (#680). The product's own {@code goggame-<id>.info} decides when it has
+     * one; any other {@code goggame-*.info} in the folder is only the fallback. Builds without a
+     * manifest fall through to the hint and search below.
+     */
+    private static String declaredGameExe(File installPath, String gameId) {
+        File own = gameId == null || gameId.isEmpty() ? null : new File(installPath, "goggame-" + gameId + ".info");
+        if (own != null && !own.isFile()) own = null;
+        List<File> others = new ArrayList<>();
+        File[] files = installPath.listFiles();
+        if (files != null) {
+            Arrays.sort(files);
+            for (File f : files) {
+                if (f.equals(own) || !f.isFile() || !f.getName().startsWith("goggame-") || !f.getName().endsWith(".info")) continue;
+                others.add(f);
+            }
+        }
+        String root;
+        try {
+            root = installPath.getCanonicalPath() + File.separator;
+        } catch (Exception e) {
+            return "";
+        }
+        if (own != null) {
+            GameTask task = bestGameTask(installPath, own, root);
+            if (task != null) return task.path;
+        }
+        GameTask best = null;
+        for (File manifest : others) {
+            GameTask task = bestGameTask(installPath, manifest, root);
+            if (task != null && (best == null || task.rank > best.rank)) best = task;
+        }
+        return best == null ? "" : best.path;
+    }
+
+    private static final class GameTask {
+        final String path;
+        final int rank;
+        GameTask(String path, int rank) { this.path = path; this.rank = rank; }
+    }
+
+    /** The task this manifest would be played from, or null when it names none that exists. */
+    private static GameTask bestGameTask(File installPath, File manifest, String root) {
+        JSONArray tasks;
+        try {
+            tasks = new JSONObject(new String(Files.readAllBytes(manifest.toPath()), StandardCharsets.UTF_8))
+                    .optJSONArray("playTasks");
+        } catch (Exception ignored) {
+            return null; // A truncated manifest is not a reason to fail an install that downloaded fine.
+        }
+        if (tasks == null) return null;
+        GameTask best = null;
+        for (int i = 0; i < tasks.length(); i++) {
+            JSONObject task = tasks.optJSONObject(i);
+            if (task == null) continue;
+            int rank = taskRank(task);
+            if (rank == 0 || (best != null && rank <= best.rank)) continue;
+            String path = task.optString("path", "").replace('\\', '/').replaceFirst("^(\\.?/)+", "");
+            if (path.isEmpty()) continue;
+            File exe = new File(installPath, path);
+            if (!exe.isFile()) continue;
+            try {
+                if (!exe.getCanonicalPath().startsWith(root)) continue;
+            } catch (Exception e) {
+                continue;
+            }
+            best = new GameTask(path, rank);
+        }
+        return best;
+    }
+
+    /**
+     * GOG's categories that launch the game: a primary task wins, and a primary {@code launcher} is
+     * how GOG ships games that start through one. {@code tool} and {@code document} name no game.
+     */
+    private static int taskRank(JSONObject task) {
+        String category = task.optString("category").toLowerCase(Locale.ROOT);
+        boolean primary = task.optBoolean("isPrimary", false);
+        if ("game".equals(category)) return primary ? 4 : 2;
+        if ("launcher".equals(category)) return primary ? 3 : 1;
+        return 0;
+    }
+
+    /** Exe names that belong to the config or tool shims around the game, not to the game. */
+    private static final String[] TOOL_STEM_PARTS = {
+            "config", "setting", "setup", "install", "unins", "touchup", "crashreport",
+            "report", "editor", "launcher", "diagnostic",
+    };
+
+    static String pickExe(File installPath, String gameId, String tempExe, String title) {
+        String declared = declaredGameExe(installPath, gameId);
+        if (!declared.isEmpty()) return declared;
         if (tempExe != null) {
             File hinted = new File(installPath, tempExe);
             if (hinted.isFile()) return relative(installPath, hinted);
@@ -1093,13 +1189,53 @@ public final class GogDownloadManager {
         List<File> candidates = new ArrayList<>();
         collectExeRecursive(installPath, candidates);
         if (candidates.isEmpty()) return "";
-        String key = title.toLowerCase().replaceAll("[^a-z0-9]", "");
-        File best = candidates.get(0);
-        for (File f : candidates) {
-            String n = f.getName().toLowerCase().replaceAll("\\.exe$", "").replaceAll("[^a-z0-9]", "");
-            if (!n.isEmpty() && (n.equals(key) || key.startsWith(n) || n.startsWith(key))) { best = f; break; }
+        String key = title.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "");
+        List<String> words = new ArrayList<>();
+        for (String word : title.toLowerCase(Locale.ROOT).split("[^a-z0-9]+")) {
+            if (word.length() >= 4 && !words.contains(word)) words.add(word);
         }
-        return relative(installPath, best);
+        Map<File, Integer> scores = new HashMap<>();
+        for (File f : candidates) scores.put(f, exeScore(f, key, words));
+        Collections.sort(candidates, (a, b) -> {
+            int byScore = Integer.compare(scores.get(b), scores.get(a));
+            if (byScore != 0) return byScore;
+            int byDepth = Integer.compare(depth(installPath, a), depth(installPath, b));
+            if (byDepth != 0) return byDepth;
+            int bySize = Long.compare(b.length(), a.length());
+            if (bySize != 0) return bySize;
+            return relative(installPath, a).compareTo(relative(installPath, b));
+        });
+        return relative(installPath, candidates.get(0));
+    }
+
+    /**
+     * A word of the game's title in the exe name is the strongest hint: Blood Omen's kain.exe beats
+     * the dxconfig.exe beside it (#680). Config and tool exes lose even when their name is the only
+     * one resembling the title, and the depth penalty keeps a bundled tool below the game's own
+     * folder. Before this, whatever the folder listing returned first was kept.
+     */
+    private static int exeScore(File f, String key, List<String> words) {
+        String stem = f.getName().toLowerCase(Locale.ROOT).replaceAll("\\.exe$", "").replaceAll("[^a-z0-9]", "");
+        int score = 0;
+        if (!stem.isEmpty() && !key.isEmpty()) {
+            if (stem.equals(key)) score += 120;
+            else if (key.startsWith(stem) || stem.startsWith(key)) score += 80;
+        }
+        for (String word : words) {
+            if (stem.equals(word)) { score += 100; break; }
+            if (stem.contains(word)) { score += 40; break; }
+        }
+        for (String part : TOOL_STEM_PARTS) {
+            if (stem.contains(part)) { score -= 110; break; }
+        }
+        return score;
+    }
+
+    private static int depth(File root, File f) {
+        String path = relative(root, f);
+        int depth = 0;
+        for (int i = 0; i < path.length(); i++) if (path.charAt(i) == '/') depth++;
+        return depth;
     }
 
     private static String relative(File root, File f) {
