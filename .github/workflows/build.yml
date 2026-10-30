@@ -622,7 +622,7 @@ jobs:
         run: |
           set -o pipefail
           mkdir -p app/build
-          ./gradlew lintVitalRelease testReleaseUnitTest --console=plain --info --stacktrace -Drobolectric.logging=stderr -PndkVersion="$NDK_VERSION" 2>&1 | tee app/build/unit-tests.log
+          ./gradlew testReleaseUnitTest --console=plain --info --stacktrace -Drobolectric.logging=stderr -PndkVersion="$NDK_VERSION" 2>&1 | tee app/build/unit-tests.log
 
       - name: Upload unit test diagnostics
         id: unit-test-diagnostics
@@ -637,6 +637,14 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+      - name: Release lint
+        id: lint
+        if: always() && steps.apk-upload.outcome == 'success'
+        env:
+          DROIDDECK_BUILD_LABEL: ${{ steps.build-label.outputs.label }}
+          SGDB_API_KEY: ${{ secrets.SGDB_API_KEY }}
+        run: ./gradlew lintVitalRelease --console=plain -PndkVersion="$NDK_VERSION"
+
       - name: Report on the pull request
         if: always() && github.event_name == 'pull_request'
         continue-on-error: true
@@ -648,6 +656,7 @@ jobs:
           UNIT_TEST_OUTCOME: ${{ steps.unit-tests.outcome }}
           TEST_DIAGNOSTICS_URL: ${{ steps.unit-test-diagnostics.outputs.artifact-url }}
           APK_OUTCOME: ${{ steps.apk-upload.outcome }}
+          LINT_OUTCOME: ${{ steps.lint.outcome }}
         run: bash tools/release/report-build.sh
 
   store-tests:

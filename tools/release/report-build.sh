@@ -7,8 +7,8 @@ MARK="<!-- droiddeck-pr-build -->"
   echo
   [ -f /tmp/pr-merge.md ] && cat /tmp/pr-merge.md
   echo
-  case "$BUILD_OUTCOME:$UNIT_TEST_OUTCOME:$APK_OUTCOME" in
-    success:success:success)
+  case "$BUILD_OUTCOME:$UNIT_TEST_OUTCOME:$APK_OUTCOME:${LINT_OUTCOME:-success}" in
+    success:success:success:success)
       echo "###  Build passed"
       echo
       echo "The \`droiddeck-apk\` artifact is [on this run]($RUN_URL), signed with the public test key."
@@ -17,6 +17,11 @@ MARK="<!-- droiddeck-pr-build -->"
       echo "For other PRs, a maintainer can add the \`publish-test\` label to request a signed build."
       echo
       echo "Fallback: [open **PR Release Publish**]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/workflows/pr-release-publish.yml) on \`main\` and enter PR \`$PR\`."
+      ;;
+    success:success:success:*)
+      echo "### ERROR: Release lint failed"
+      echo
+      echo "The APK compiled and unit tests passed, but \`lintVitalRelease\` found fatal issues. See [the run]($RUN_URL)."
       ;;
     success:success:*)
       echo "###  APK publication incomplete"
