@@ -14,6 +14,7 @@ public class FakeInputWriter {
 
     public static final short EV_SYN = 0x00;
     public static final short EV_KEY = 0x01;
+    public static final short EV_REL = 0x02;
     public static final short EV_ABS = 0x03;
     public static final short EV_MSC = 0x04;
 
@@ -52,7 +53,8 @@ public class FakeInputWriter {
     private static final int EVENT_SIZE = 24;
     static final int MAX_EVENTS_PER_UPDATE = 32;
     private static final int BUFFER_SIZE = EVENT_SIZE * MAX_EVENTS_PER_UPDATE;
-    private static final int MAX_FAKE_INPUT_SLOTS = 4;
+    private static final int MAX_FAKE_INPUT_SLOTS = 5;
+    public static final int MOUSE_SLOT = 4;
 
     private static final int RING_CAPACITY_EVENTS = 4096;
     private static final int RING_HEADER_SIZE = 64;
@@ -88,6 +90,17 @@ public class FakeInputWriter {
     public static final int PAD_TYPE_XBOX = 2;
     public static final int PAD_TYPE_DS4 = 3;
     public static final int PAD_TYPE_DUALSENSE = 4;
+    public static final int PAD_TYPE_MOUSE = 5;
+
+    public static final short REL_X = 0x00;
+    public static final short REL_Y = 0x01;
+    public static final short REL_HWHEEL = 0x06;
+    public static final short REL_WHEEL = 0x08;
+    public static final short REL_WHEEL_HI_RES = 0x0b;
+    public static final short REL_HWHEEL_HI_RES = 0x0c;
+    public static final short MOUSE_BTN_LEFT = 0x110;
+    public static final short MOUSE_BTN_RIGHT = 0x111;
+    public static final short MOUSE_BTN_MIDDLE = 0x112;
     private static volatile int padType = -1;
     private static volatile boolean tritonConnected = false;
     private static final int TRITON_OFFSET = RING_SIZE + 64;
@@ -136,6 +149,8 @@ public class FakeInputWriter {
     private int prevThumbLX, prevThumbLY, prevThumbRX, prevThumbRY;
     private int prevTriggerL, prevTriggerR;
     private int prevHatX, prevHatY;
+    private final boolean[] prevMouseButtons = new boolean[3];
+    private float pendingMouseX, pendingMouseY;
     private boolean hasChanges = false;
     private boolean pendingFullResend = false;
     private boolean forceResend = false;
@@ -201,7 +216,7 @@ public class FakeInputWriter {
         return FakeInputRingPaths.ringFile(fakeInputDir, slot);
     }
 
-    private static void initializeRingHeader(ByteBuffer data) {
+    private static void initializeRingHeader(int slot, ByteBuffer data) {
         data.order(ByteOrder.LITTLE_ENDIAN);
         data.putInt(RING_MAGIC_OFFSET, RING_MAGIC);
         data.putInt(RING_VERSION_OFFSET, RING_VERSION);
@@ -221,7 +236,7 @@ public class FakeInputWriter {
             data.putShort(IMU_ACCEL_OFFSET + (i * 2), (short) 0);
         }
         data.putInt(DECK_CONTROLS_OFFSET, 0);
-        int type = padType;
+        int type = slot == MOUSE_SLOT ? PAD_TYPE_MOUSE : padType;
         data.putInt(PAD_TYPE_OFFSET, type >= 0 ? PAD_TYPE_SET | type : 0);
         data.putInt(LATENCY_OFFSET, latency);
         data.putInt(TRITON_OFFSET, TRITON_MAGIC);
@@ -312,7 +327,7 @@ public class FakeInputWriter {
             raf.setLength(RING_FILE_SIZE);
             channel = raf.getChannel();
             ByteBuffer data = channel.map(FileChannel.MapMode.READ_WRITE, 0, RING_FILE_SIZE);
-            initializeRingHeader(data);
+            initializeRingHeader(slot, data);
 
             RingSlot ringSlot = new RingSlot();
             ringSlot.data = data;
@@ -745,6 +760,14 @@ public class FakeInputWriter {
             prevHatY = 0;
             writeEvent(EV_ABS, ABS_HAT0Y, 0);
         }
+        for (int i = 0; i < prevMouseButtons.length; i++) {
+            if (prevMouseButtons[i]) {
+                prevMouseButtons[i] = false;
+                writeEvent(EV_KEY, (short) (MOUSE_BTN_LEFT + i), 0);
+            }
+        }
+        pendingMouseX = 0;
+        pendingMouseY = 0;
 
         if (hasChanges) {
             writeEvent(EV_SYN, SYN_REPORT, 0);
@@ -873,5 +896,65 @@ public class FakeInputWriter {
 
     public boolean isOpen() {
         return isOpen;
+    }
+
+    public synchronized void writeMouseDelta(float dx, float dy) {
+        if (!isOpen && !open())
+            return;
+        pendingMouseX += dx;
+        pendingMouseY += dy;
+        int x = (int) Math.floor(pendingMouseX);
+        int y = (int) Math.floor(pendingMouseY);
+        if (x == 0 && y == 0)
+            return;
+        pendingMouseX -= x;
+        pendingMouseY -= y;
+        buffer.clear();
+        hasChanges = false;
+        if (x != 0) writeEvent(EV_REL, REL_X, x);
+        if (y != 0) writeEvent(EV_REL, REL_Y, y);
+        writeEvent(EV_SYN, SYN_REPORT, 0);
+        buffer.flip();
+        if (!flushBuffer())
+            Log.e(TAG, "Mouse delta write error: fake input mmap ring unavailable");
+    }
+
+    public synchronized void writeMouseButton(short code, boolean pressed) {
+        if (code < MOUSE_BTN_LEFT || code > MOUSE_BTN_MIDDLE)
+            return;
+        int idx = code - MOUSE_BTN_LEFT;
+        if (!isOpen && !open())
+            return;
+        if (prevMouseButtons[idx] == pressed)
+            return;
+        prevMouseButtons[idx] = pressed;
+        buffer.clear();
+        hasChanges = false;
+        writeEvent(EV_KEY, code, pressed ? 1 : 0);
+        writeEvent(EV_SYN, SYN_REPORT, 0);
+        buffer.flip();
+        if (!flushBuffer())
+            Log.e(TAG, "Mouse button write error: fake input mmap ring unavailable");
+    }
+
+    public synchronized void writeMouseWheel(int verticalClicks, int horizontalClicks, int value120) {
+        if (verticalClicks == 0 && horizontalClicks == 0)
+            return;
+        if (!isOpen && !open())
+            return;
+        buffer.clear();
+        hasChanges = false;
+        if (verticalClicks != 0) {
+            writeEvent(EV_REL, REL_WHEEL, verticalClicks);
+            writeEvent(EV_REL, REL_WHEEL_HI_RES, verticalClicks * value120);
+        }
+        if (horizontalClicks != 0) {
+            writeEvent(EV_REL, REL_HWHEEL, horizontalClicks);
+            writeEvent(EV_REL, REL_HWHEEL_HI_RES, horizontalClicks * value120);
+        }
+        writeEvent(EV_SYN, SYN_REPORT, 0);
+        buffer.flip();
+        if (!flushBuffer())
+            Log.e(TAG, "Mouse wheel write error: fake input mmap ring unavailable");
     }
 }

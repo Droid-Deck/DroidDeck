@@ -57,6 +57,23 @@ class DesktopSteamLaunchTest(unittest.TestCase):
         self.assertEqual(result.stdout.splitlines()[-1], 'steam://rungameid/501590')
         self.assertFalse((self.session / 'steam-launch').exists())
 
+    def test_exit_without_a_running_client_starts_nothing(self):
+        result = self.launch('desktop', 'steam://exit')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, '')
+        self.assertFalse((self.session / 'steam-launch').exists())
+
+    def test_shim_turns_shutdown_into_exit_url(self):
+        launch = self.root / 'record-launch'
+        launch.write_text('#!/bin/bash\nprintf "%s\\n" "$@"\n')
+        launch.chmod(0o755)
+        shim = self.root / 'shim'
+        shim.write_text((BIN / 'droiddeck-steam-shim').read_text().replace(
+            '/usr/local/bin/droiddeck-steam-launch', str(launch)))
+        result = subprocess.run(['bash', str(shim), '-shutdown'], env=self.env, text=True, capture_output=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.splitlines(), ['desktop', 'steam://exit'])
+
     def test_second_click_forwards_without_another_supervisor(self):
         lock = self.root / 'cache/droiddeck/steam-desktop.lock'
         lock.parent.mkdir(parents=True)

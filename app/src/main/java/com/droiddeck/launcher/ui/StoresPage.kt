@@ -253,13 +253,17 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
         val ids = tabs.filter { it.shown }.map { it.store.id }
         if (ids.isEmpty()) return
         val at = ids.indexOf(chip)
-        pickChip(ids[if (at < 0) (if (step > 0) 0 else ids.size - 1) else (at + step + ids.size) % ids.size])
+        val id = ids[if (at < 0) (if (step > 0) 0 else ids.size - 1) else (at + step + ids.size) % ids.size]
+        chip = id; openGame = null; query = ""
+        move("item:storechip:$id")
     }
     fun openModes(st: Store) {
         if (chip != st.id) pickChip(st.id) else move("first")
     }
     BackHandler(enabled = openGame != null) { closeGame() }
     BackHandler(enabled = arranging) { arranging = false }
+    var contentFocused by remember { mutableStateOf(false) }
+    BackHandler(enabled = contentFocused && openGame == null && !arranging) { move("item:storechip:$chip") }
     LaunchedEffect(arranging) {
         val focus = ff ?: return@LaunchedEffect
         if (!arranging || inputMode.inputMode != androidx.compose.ui.input.InputMode.Keyboard) return@LaunchedEffect
@@ -348,7 +352,7 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
                 else scroll.value > 0
             },
             onDetailFocus = { detailFocused = it },
-            modifier = Modifier.fillMaxWidth().weight(1f).onSizeChanged { viewportH = with(density) { it.height.toDp() } },
+            modifier = Modifier.fillMaxWidth().weight(1f).onFocusChanged { contentFocused = it.hasFocus }.onSizeChanged { viewportH = with(density) { it.height.toDp() } },
             bleedHorizontal = padH,
             wrap = { key, content -> StoreTheme(Store.byId(key.substringBefore(':')) ?: store) { content() } },
             grid = {
@@ -885,7 +889,7 @@ private fun Storefront(
                         val visibleTarget = grid.layoutInfo.visibleItemsInfo.any { it.index == targetIndex }
                         if (!visibleTarget || (focus.attached[target] ?: 0) == 0 ||
                             runCatching { focus.items.getValue(target).requestFocus() }.isFailure) scope.launch {
-                            grid.scrollToItem(targetIndex)
+                            launch { grid.revealRow(headerItems + index, targetIndex, direction, with(density) { 10.dp.toPx() }) }
                             focusWithinFrames({ focus.last == target }) { focus.items[target] ?: androidx.compose.ui.focus.FocusRequester.Default }
                         }
                     }

@@ -13,6 +13,7 @@ import com.droiddeck.launcher.stores.StoreInstalls
 import com.droiddeck.launcher.stores.StoreNet
 import com.droiddeck.launcher.stores.download.DownloadQueue
 import com.droiddeck.launcher.stores.download.DownloadStage
+import org.apache.commons.compress.MemoryLimitException
 import org.apache.commons.compress.archivers.sevenz.SevenZFile
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
 import org.apache.commons.compress.archivers.zip.ZipFile
@@ -25,6 +26,7 @@ import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
+import java.nio.file.Files
 import java.util.concurrent.atomic.AtomicBoolean
 
 internal class ItchInstaller(
@@ -60,12 +62,31 @@ internal class ItchInstaller(
         val scratch = StoreInstallRoot.scratchDir(app, Store.ITCH, item.id)
         scratch.mkdirs()
         val archive = File(scratch, filename.ifBlank { "download.bin" })
+        val buildId = ItchBuilds.buildId(upload)
         val exe = try {
-            handle.stage(DownloadStage.DOWNLOAD)
-            download(key, downloadKeyId, uploadId, upload.optString("updated_at", upload.optString("updatedAt")), archive, size, handle)
-            if (cancelled.get()) return null
-            handle.stage(DownloadStage.INSTALL)
-            install(archive, filename, handle, resuming)
+            var patched = updating && !resuming && previous?.isInstalled == true &&
+                patch(key, downloadKeyId, uploadId, buildId, size, scratch, handle)
+            if (cancelled.get()) {
+                if (patched) dropCaches(scratch)
+                return null
+            }
+            var picked: String? = null
+            if (patched) {
+                picked = install(archive, filename, handle, resuming, true)
+                if (picked == null) {
+                    if (cancelled.get()) return null
+                    handle.log("itch.io: the patched copy of ${item.title} has no exe, doing a full update")
+                    patched = false
+                }
+            }
+            if (!patched) {
+                handle.stage(DownloadStage.DOWNLOAD)
+                download(key, downloadKeyId, uploadId, upload.optString("updated_at", upload.optString("updatedAt")), archive, size, handle)
+                if (cancelled.get()) return null
+                handle.stage(DownloadStage.INSTALL)
+                picked = install(archive, filename, handle, resuming, false)
+            }
+            picked
         } catch (t: Throwable) {
             if (!cancelled.get()) dropCaches(scratch)
             throw t
@@ -88,7 +109,7 @@ internal class ItchInstaller(
             installedAt = System.currentTimeMillis(),
             cover = item.imageUrl,
             hero = item.imageUrl,
-            extra = mapOf("gameId" to gameId, "downloadKeyId" to downloadKeyId, "uploadId" to uploadId),
+            extra = mapOf("gameId" to gameId, "downloadKeyId" to downloadKeyId, "uploadId" to uploadId, "buildId" to buildId),
             cloud = false,
         )
         StoreInstalls.complete(app, folder, sidecar) { done, steps -> handle.stageProgress(done.toLong(), steps.toLong()) }
@@ -178,23 +199,50 @@ internal class ItchInstaller(
         }
     }
 
-    private fun install(archive: File, filename: String, handle: DownloadQueue.JobHandle, resuming: Boolean): String? {
+    private fun patch(key: String, downloadKeyId: String, uploadId: String, buildId: String, fullSize: Long, scratch: File, handle: DownloadQueue.JobHandle): Boolean {
+        val installed = previous?.extra.orEmpty()
+        val from = installed["buildId"].orEmpty()
+        if (installed["uploadId"] != uploadId || from.isBlank() || buildId.isBlank() || from == buildId) return false
+        val out = File(folder, ItchStaging.DIR)
+        ItchStaging.delete(out)
+        scratch.mkdirs()
+        val outcome = try {
+            ItchPatch.run(app, key, downloadKeyId, from, buildId, fullSize, folder, out, scratch, handle, cancelled)
+        } catch (t: Exception) {
+            ItchPatch.Outcome.Failed("${t.javaClass.simpleName} ${t.message}")
+        }
+        when (outcome) {
+            ItchPatch.Outcome.Applied -> {
+                handle.log("itch.io: patched ${item.title} from build $from to $buildId")
+                return true
+            }
+            ItchPatch.Outcome.Cancelled -> Unit
+            is ItchPatch.Outcome.Failed -> handle.log("itch.io: no patch for ${item.title}, doing a full update (${outcome.reason})")
+        }
+        ItchStaging.delete(out)
+        return false
+    }
+
+    private fun install(archive: File, filename: String, handle: DownloadQueue.JobHandle, resuming: Boolean, patched: Boolean = false): String? {
         work = if (updating) File(folder, ItchStaging.DIR) else folder
-        if (updating) ItchStaging.delete(work)
+        if (updating && !patched) ItchStaging.delete(work)
         work.mkdirs()
         if (resuming) clearPartialInstall()
         val exe = try {
-            when (val kind = sniff(archive, filename)) {
-                "zip" -> unzip(archive, handle)
-                "7z" -> sevenZip(archive, handle)
-                "rar" -> unrar(archive, handle)
-                "exe" -> copy(archive, File(work, filename.ifBlank { "game.exe" }))
-                "tar" -> untar(archive, null, handle)
-                "gz", "bz2", "xz" -> untar(archive, kind, handle) ?: single(archive, kind, handle)
-                else -> copy(archive, File(work, filename.ifBlank { "game" }))
-            }
+            if (!patched) unpack(archive, filename, handle)
             val hint = filename.substringBeforeLast('.')
-            StoreExe.pick(work, hint.ifBlank { null }, item.title)
+            var picked = StoreExe.pick(work, hint.ifBlank { null }, item.title)
+            var passes = 0
+            while (picked.isBlank() && passes < 2 && !cancelled.get()) {
+                val inner = ItchArchives.inner(work) ?: break
+                handle.log("itch.io: no exe yet, unpacking ${inner.name}")
+                unpack(inner, inner.name, handle)
+                if (cancelled.get()) break
+                inner.delete()
+                picked = StoreExe.pick(work, inner.name.substringBeforeLast('.').takeIf { it.endsWith(".exe", ignoreCase = true) }, item.title)
+                passes++
+            }
+            picked
         } catch (t: Throwable) {
             if (updating) ItchStaging.delete(work)
             throw t
@@ -221,21 +269,20 @@ internal class ItchInstaller(
         return exe
     }
 
-    private fun sniff(file: File, filename: String): String {
-        val extension = filename.substringAfterLast('.', "").lowercase()
-        if (extension == "exe") return "exe"
-        val head = runCatching { FileInputStream(file).use { input -> ByteArray(300).also { input.read(it) } } }.getOrNull()
-            ?: return extension
-        fun at(i: Int, vararg bytes: Int) = bytes.indices.all { head.getOrNull(i + it) == bytes[it].toByte() }
-        return when {
-            at(0, 0x50, 0x4B) -> "zip"
-            at(0, 0x37, 0x7A, 0xBC, 0xAF, 0x27, 0x1C) -> "7z"
-            at(0, 0x52, 0x61, 0x72, 0x21) -> "rar"
-            at(0, 0x1F, 0x8B) -> "gz"
-            at(0, 0x42, 0x5A, 0x68) -> "bz2"
-            at(0, 0xFD, 0x37, 0x7A, 0x58, 0x5A, 0x00) -> "xz"
-            at(257, 0x75, 0x73, 0x74, 0x61, 0x72) -> "tar"
-            else -> extension
+    private fun unpack(archive: File, filename: String, handle: DownloadQueue.JobHandle) {
+        when (val kind = ItchArchives.kind(archive, filename)) {
+            "zip" -> unzip(archive, handle)
+            "7z" -> try {
+                sevenZip(archive, handle)
+            } catch (e: MemoryLimitException) {
+                handle.log("itch.io: ${archive.name} needs more memory than the app has, unpacking it in the runtime")
+                unrar(archive, handle, kind)
+            }
+            "rar" -> unrar(archive, handle, kind)
+            "exe" -> copy(archive, File(work, filename.ifBlank { "game.exe" }))
+            "tar" -> untar(archive, null, handle)
+            "gz", "bz2", "xz" -> untar(archive, kind, handle) ?: single(archive, kind, handle)
+            else -> copy(archive, File(work, filename.ifBlank { "game" }))
         }
     }
 
@@ -247,12 +294,12 @@ internal class ItchInstaller(
     }
 
     // No JVM library reads RAR5; the runtime's bsdtar (libarchive) does.
-    private fun unrar(archive: File, handle: DownloadQueue.JobHandle) {
-        if (!LinuxRuntime.isInstalled(app)) throw IllegalStateException(app.getString(R.string.stores_itch_archive, "rar"))
+    private fun unrar(archive: File, handle: DownloadQueue.JobHandle, kind: String) {
+        if (!LinuxRuntime.isInstalled(app)) throw IllegalStateException(app.getString(R.string.stores_itch_archive, kind))
         val binds = if (listOf(app.filesDir, app.cacheDir).any { work.absolutePath.startsWith(it.absolutePath + "/") }) null
             else listOf(work.absolutePath)
         fun bsdtar(args: List<String>, onLine: (String) -> Unit) =
-            GuestCommand.run(app, listOf("/usr/bin/bsdtar") + args, logName = "itch-unrar", extraBinds = binds, fastPath = true) { line ->
+            GuestCommand.run(app, listOf("/usr/bin/bsdtar") + args, logName = "itch-unrar", extraBinds = binds, fastPath = true, cancelled = cancelled) { line ->
                 if (!line.startsWith("proot ")) onLine(line)
             }
         var entries = 0L
@@ -276,28 +323,31 @@ internal class ItchInstaller(
         val total = archive.length()
         var written = 0L
         val buffer = ByteArray(64 * 1024)
-        SevenZFile.builder().setFile(archive).get().use { seven ->
-            while (true) {
-                if (cancelled.get()) return
-                val entry = seven.nextEntry ?: break
-                val file = target(entry.name)
-                if (file == null) {
-                    handle.log("itch.io: skipped an entry outside the game folder")
-                    continue
-                }
-                if (entry.isDirectory) {
-                    file.mkdirs()
-                    continue
-                }
-                file.parentFile?.mkdirs()
-                FileOutputStream(file).use { out ->
-                    while (true) {
-                        if (cancelled.get()) return
-                        val read = seven.read(buffer, 0, buffer.size)
-                        if (read < 0) break
-                        out.write(buffer, 0, read)
-                        written += read
-                        handle.stageProgress(written, total)
+        val limitKb = (Runtime.getRuntime().maxMemory() / 4 / 1024).coerceIn(32L * 1024, Int.MAX_VALUE.toLong()).toInt()
+        Files.newByteChannel(archive.toPath()).use { channel ->
+            SevenZFile.builder().setSeekableByteChannel(channel).setMaxMemoryLimitKb(limitKb).get().use { seven ->
+                while (true) {
+                    if (cancelled.get()) return
+                    val entry = seven.nextEntry ?: break
+                    val file = target(entry.name)
+                    if (file == null) {
+                        handle.log("itch.io: skipped an entry outside the game folder")
+                        continue
+                    }
+                    if (entry.isDirectory) {
+                        file.mkdirs()
+                        continue
+                    }
+                    file.parentFile?.mkdirs()
+                    FileOutputStream(file).use { out ->
+                        while (true) {
+                            if (cancelled.get()) return
+                            val read = seven.read(buffer, 0, buffer.size)
+                            if (read < 0) break
+                            out.write(buffer, 0, read)
+                            written += read
+                            handle.stageProgress(written, total)
+                        }
                     }
                 }
             }

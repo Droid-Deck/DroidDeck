@@ -101,16 +101,18 @@ def registry_values(root):
     return good
 
 
-def expand(store, ids):
+def expand(store, ids, saved=None):
     """The picks with everything they bundle, each once, a bundle's parts before it."""
     out, seen = [], set()
+    saved = saved if isinstance(saved, dict) else {}
 
     def visit(cid, depth):
         if cid in seen or depth > 8:
             return
         seen.add(cid)
         found = component(store, cid)
-        for dep in (found[2] if found else []):
+        parts = found[2] if found else [d for d in saved.get(cid, []) if valid_id(d)]
+        for dep in parts:
             visit(dep, depth + 1)
         out.append(cid)
 
@@ -444,7 +446,7 @@ def list_line(name, current, item, separator, add, at_end=True):
     return reg_value_line(name, "expand_sz" if expand else "sz", separator.join(items))
 
 
-def apply_registry(pfx, values, state):
+def apply_registry(pfx, values, state, held=()):
     """Writes the picked components' registry values into the prefix and takes out the ones of
     components turned off: a value goes back to what it was before, an entry added to a list such
     as PATH just leaves the list. Returns (values written, notes)."""
@@ -477,6 +479,9 @@ def apply_registry(pfx, values, state):
         keep[ident] = dict(record, cid=cid, hive=value["hive"], key=value["key"], name=name)
     for ident, record in old.items():
         if ident in keep or not isinstance(record, dict) or not isinstance(record.get("key"), str):
+            continue
+        if record.get("cid") in held:
+            keep[ident] = record
             continue
         reg = files.get(record.get("hive"))
         if reg is None:
@@ -555,14 +560,44 @@ def apply(compat_path, app_id, selection=SELECTION, store=STORE, pending=PENDING
     copied = 0
     installed = []
     values = []
-    for cid in expand(store, ids):
+    held = set()
+    saved_overrides = state.get("overrides") if isinstance(state.get("overrides"), dict) else {}
+    saved_requires = state.get("requires") if isinstance(state.get("requires"), dict) else {}
+    recorded = [c for c in state.get("components", []) if isinstance(c, str) and valid_id(c)]
+    owners = set(state["files"].values())
+    registry_owners = {r.get("cid") for r in (state.get("registry") or {}).values() if isinstance(r, dict)}
+    inferred = set()
+    guessed = set(state.get("guessed") or []) if "requires" in state else set(ids)
+    loose = [c for c in recorded if c not in ids and (c in owners or c in registry_owners)]
+    for cid in ids:
+        if cid in guessed and component(store, cid) is None and cid in recorded:
+            saved_requires = dict(saved_requires, **{cid: loose})
+            inferred.add(cid)
+    kept_overrides, kept_requires = {}, {}
+    for cid in expand(store, ids, saved_requires):
         found = component(store, cid)
         if found is None:
-            notes.append("%s is not installed; skipped" % cid)
+            if cid in saved_requires or cid in recorded or cid in owners or cid in registry_owners:
+                held.add(cid)
+                if cid in saved_overrides:
+                    names = [n for n in saved_overrides.get(cid, []) if isinstance(n, str)]
+                else:
+                    names = sorted({Path(rel).stem.lower() for rel, owner in state["files"].items()
+                                    if owner == cid and rel.lower().endswith(".dll")})
+                overrides += names
+                kept_overrides[cid] = names
+                if isinstance(saved_requires.get(cid), list) and cid not in inferred:
+                    kept_requires[cid] = saved_requires[cid]
+                notes.append("%s is not in the store; kept the files it placed until it is installed again" % cid)
+            else:
+                notes.append("%s is not installed; skipped" % cid)
             continue
         installed.append(cid)
-        names, files, _, registry = found
+        names, files, requires, registry = found
         overrides += names
+        kept_overrides[cid] = list(names)
+        if requires:
+            kept_requires[cid] = list(requires)
         values += [(cid, value) for value in registry]
         for rel, src in files:
             if place(src, pfx / rel, None if rel in state["files"] else compat / BACKUP / rel):
@@ -571,6 +606,9 @@ def apply(compat_path, app_id, selection=SELECTION, store=STORE, pending=PENDING
     removed = restored = 0
     for rel, cid in state["files"].items():
         if rel in keep:
+            continue
+        if cid in held:
+            keep[rel] = cid
             continue
         path = existing(pfx / rel)
         saved = compat / BACKUP / rel
@@ -587,10 +625,13 @@ def apply(compat_path, app_id, selection=SELECTION, store=STORE, pending=PENDING
         except FileNotFoundError:
             pass
     compat.mkdir(parents=True, exist_ok=True)
-    new_state = {"files": keep, "components": installed, "registry": state.get("registry", {})}
+    new_state = {"files": keep, "components": installed + sorted(held), "overrides": kept_overrides,
+                 "requires": kept_requires, "registry": state.get("registry", {})}
+    if inferred:
+        new_state["guessed"] = sorted(inferred)
     written = 0
     if values or new_state["registry"]:
-        written, registry_notes = apply_registry(pfx, values, new_state)
+        written, registry_notes = apply_registry(pfx, values, new_state, held)
         notes += registry_notes
     save_state(compat, new_state)
     if copied or removed or restored or written:
