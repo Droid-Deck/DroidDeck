@@ -3022,7 +3022,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             closeSecondScreen(reset = true)
             SessionState.secondScreenAutoOpened = false
         } else if (started && secondScreenMode != SecondScreenMode.NONE && secondScreenPresentation == null) showSecondScreen(secondScreenMode)
-        else if (started && ::loading.isInitialized && !loading.visible) openDualScreenControls()
+        else if (started && !ended && ::loading.isInitialized && !loading.visible) openDualScreenControls()
         updateKeyboardRoute()
     }
 
