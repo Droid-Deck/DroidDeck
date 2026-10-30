@@ -1181,7 +1181,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     textureLodBias = it
                 }
             },
-            fpsLimit = SessionState.fpsLimit,
+            fpsLimit = fpsLimit,
             onFpsLimit = { fps ->
                 SessionState.fpsLimit = fps
                 fpsLimit = fps
