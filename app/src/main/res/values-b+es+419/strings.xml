@@ -584,7 +584,7 @@
     <string name="perf_ram_cap">Límite de RAM</string>
     <string name="perf_ram_cap_hint">Se aplica mientras se ejecuta el cliente de Steam, en modo Steam o desde el escritorio. Cuando la sesión usa más de esto, Steam y luego los demás procesos compatibles de la sesión se comprimen en zRAM. Es un límite flexible: no se cierra nada, pero los juegos pueden tener microcortes mientras se recuperan las páginas.</string>
     <string name="perf_ram_cap_unavailable">Requiere swap de zRAM, y este dispositivo no lo tiene.</string>
-    <string name="perf_vram_cap">Límite de RVAM</string>
+    <string name="perf_vram_cap">Límite de VRAM</string>
     <string name="perf_vram_cap_hint">La memoria de video que DXVK informa a los juegos Direct3D, para que calculen sus texturas con menos. Los ajustes de DXVK propios de un juego siguen teniendo prioridad. Se aplica en la próxima sesión.</string>
     <string name="perf_gpuclock">Mantener la GPU a su reloj máximo</string>
     <string name="perf_gpuclock_hint">Solo Adreno. Menos microcortes, más consumo de batería y calor.</string>

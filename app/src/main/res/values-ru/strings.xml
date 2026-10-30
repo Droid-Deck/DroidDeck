@@ -1045,7 +1045,7 @@
     <string name="gate_needs_notifications">Код сопряжения придет в уведомлении. Разрешите DroidDeck отправлять уведомления или используйте «Другие способы».</string>
     <string name="gate_allow_notifications">Разрешить уведомления</string>
     <string name="gate_step1">Откройте Настройки → Для разработчиков → Отладка по Wi-Fi и включите ее</string>
-    <string name="gate_step2">Нажмите «Сопряжение устройства с помощью кода»</string>
+    <string name="gate_step2">Нажмите «Подключить устройство с помощью кода подключения»</string>
     <string name="gate_step3">Введите код сопряжения в уведомлении DroidDeck</string>
     <string name="pairguide_build_number">В разделе «О телефоне» нажмите «Номер сборки» 7 раз</string>
     <string name="pairguide_wireless">Включите «Отладку по Wi-Fi»</string>
@@ -3360,9 +3360,9 @@
     <string name="library_filter_added">Добавленные</string>
     <string name="library_filter">Фильтр</string>
     <string name="library_filter_installed">Только установленные</string>
-    <string name="library_filter_all_owned">Все купленные игры</string>
+    <string name="library_filter_all_owned">Все ваши игры</string>
     <string name="library_no_installed_matches">Нет установленных игр, подходящих под эти фильтры.</string>
-    <string name="library_browse_owned">Просмотреть купленные игры</string>
+    <string name="library_browse_owned">Просмотреть ваши игры</string>
     <string name="game_tab_launch">Запуск</string>
     <string name="game_tab_saves_cloud">Сохранения и облако</string>
     <string name="game_launch_shortcut">Ярлык Steam</string>

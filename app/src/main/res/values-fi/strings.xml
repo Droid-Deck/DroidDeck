@@ -1038,8 +1038,8 @@
     <string name="pairguide_build_number">Napauta Tietoa puhelimesta -kohdassa Koontiversiota 7 kertaa</string>
     <string name="pairguide_wireless">Ota Langaton virheenkorjaus käyttöön</string>
     <string name="pairguide_pair">Avaa Langaton virheenkorjaus ja napauta ”Muodosta laitepari laiteparikoodilla”</string>
-    <string name="pairguide_child_process">Ota käyttöön ”Poista aliprosessien rajoitukset käytöstä”</string>
-    <string name="pairguide_row_child_process">Poista aliprosessien rajoitukset käytöstä</string>
+    <string name="pairguide_child_process">Ota käyttöön ”Poista käytöstä alatason prosessirajoitukset”</string>
+    <string name="pairguide_row_child_process">Poista käytöstä alatason prosessirajoitukset</string>
     <string name="pairguide_row_build_number">Koontiversio</string>
     <string name="pairguide_row_wireless">Langaton virheenkorjaus</string>
     <string name="pairguide_row_pair">Muodosta laitepari laiteparikoodilla</string>

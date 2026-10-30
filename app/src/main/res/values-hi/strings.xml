@@ -3288,9 +3288,9 @@
     <string name="library_filter_added">जोड़े गए</string>
     <string name="library_filter">फ़िल्टर</string>
     <string name="library_filter_installed">सिर्फ़ इंस्टॉल किए</string>
-    <string name="library_filter_all_owned">सभी खरीदे गए गेम</string>
+    <string name="library_filter_all_owned">आपके सभी गेम</string>
     <string name="library_no_installed_matches">इन फ़िल्टर से कोई इंस्टॉल किया गेम मेल नहीं खाता।</string>
-    <string name="library_browse_owned">खरीदे गए गेम देखें</string>
+    <string name="library_browse_owned">आपके गेम देखें</string>
     <string name="game_tab_launch">लॉन्च</string>
     <string name="game_tab_saves_cloud">सेव और क्लाउड</string>
     <string name="game_launch_shortcut">Steam शॉर्टकट</string>

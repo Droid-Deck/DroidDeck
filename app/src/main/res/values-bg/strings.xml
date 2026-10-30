@@ -1035,12 +1035,12 @@
     <string name="gate_step1">Отворете Настройки → Опции за програмисти → Безжично отстраняване на грешки и го включете</string>
     <string name="gate_step2">Докоснете „Сдвояване на устройство с код за сдвояване“</string>
     <string name="gate_step3">Въведете кода в известието на DroidDeck</string>
-    <string name="pairguide_build_number">В „Всичко за телефона“ докоснете „Номер на компилацията“ 7 пъти</string>
+    <string name="pairguide_build_number">В „Всичко за телефона“ докоснете „Номер на версията“ 7 пъти</string>
     <string name="pairguide_wireless">Включете „Безжично отстраняване на грешки“</string>
     <string name="pairguide_pair">Отворете „Безжично отстраняване на грешки“, след което докоснете „Сдвояване на устройството с код за сдвояване“</string>
     <string name="pairguide_child_process">Включете „Деактивиране на ограниченията за дъщерните процеси“</string>
     <string name="pairguide_row_child_process">Деактивиране на ограниченията за дъщерните процеси</string>
-    <string name="pairguide_row_build_number">Номер на компилацията</string>
+    <string name="pairguide_row_build_number">Номер на версията</string>
     <string name="pairguide_row_wireless">Безжично отстраняване на грешки</string>
     <string name="pairguide_row_pair">Сдвояване на устройството с код за сдвояване</string>
     <string name="gate_waiting">Изчакване на изскачащия прозорец за сдвояване…</string>

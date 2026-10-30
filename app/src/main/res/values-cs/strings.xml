@@ -1050,8 +1050,8 @@
     <string name="pairguide_build_number">V části O telefonu klepněte 7krát na Číslo sestavení</string>
     <string name="pairguide_wireless">Zapněte Bezdrátové ladění</string>
     <string name="pairguide_pair">Otevřete Bezdrátové ladění a klepněte na „Spárovat zařízení pomocí párovacího kódu“</string>
-    <string name="pairguide_child_process">Zapněte „Zakázat omezení podřízených procesů“</string>
-    <string name="pairguide_row_child_process">Zakázat omezení podřízených procesů</string>
+    <string name="pairguide_child_process">Zapněte „Deaktivace omezení podřízených procesů“</string>
+    <string name="pairguide_row_child_process">Deaktivace omezení podřízených procesů</string>
     <string name="pairguide_row_build_number">Číslo sestavení</string>
     <string name="pairguide_row_wireless">Bezdrátové ladění</string>
     <string name="pairguide_row_pair">Spárovat zařízení pomocí párovacího kódu</string>

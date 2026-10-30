@@ -619,7 +619,7 @@
     <string name="driver_delete_in_use">De bestanden worden verwijderd. Hij is in gebruik, dus de standaard neemt het over.</string>
     <string name="drawer_page_display">Scherm</string>
     <string name="drawer_frame_limit">Framelimiet</string>
-    <string name="drawer_frame_limit_note">Begrenst deze game. Het scherm schakelt over naar een vernieuwingsfrequentie die de limiet precies deelt, als die er is; andere limieten kunnen ongelijkmatig ogen. Steam-games gebruiken de framelimiet van Steam in het Snelmenu.</string>
+    <string name="drawer_frame_limit_note">Begrenst deze game. Het scherm schakelt over naar een vernieuwingsfrequentie die precies deelbaar is door de limiet, als die er is; andere limieten kunnen ongelijkmatig ogen. Steam-games gebruiken de framelimiet van Steam in het Snelmenu.</string>
     <string name="drawer_page_effects">Effecten</string>
     <string name="drawer_page_controls">Bediening</string>
     <string name="drawer_page_components">Componenten</string>

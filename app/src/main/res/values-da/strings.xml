@@ -1038,8 +1038,8 @@
     <string name="pairguide_build_number">Tryk 7 gange på Buildnummer under Om telefonen</string>
     <string name="pairguide_wireless">Slå Trådløs fejlretning til</string>
     <string name="pairguide_pair">Åbn Trådløs fejlretning, og tryk på “Par enhed med parringskode”</string>
-    <string name="pairguide_child_process">Slå “Deaktiver begrænsninger for underordnede processer” til</string>
-    <string name="pairguide_row_child_process">Deaktiver begrænsninger for underordnede processer</string>
+    <string name="pairguide_child_process">Slå “Deaktiver begrænsningerne for underprocesser” til</string>
+    <string name="pairguide_row_child_process">Deaktiver begrænsningerne for underprocesser</string>
     <string name="pairguide_row_build_number">Buildnummer</string>
     <string name="pairguide_row_wireless">Trådløs fejlretning</string>
     <string name="pairguide_row_pair">Par enhed med parringskode</string>

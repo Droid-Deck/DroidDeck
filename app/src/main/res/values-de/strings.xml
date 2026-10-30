@@ -619,7 +619,7 @@
     <string name="driver_delete_in_use">Seine Dateien werden entfernt. Er ist in Verwendung, daher übernimmt der Standard.</string>
     <string name="drawer_page_display">Anzeige</string>
     <string name="drawer_frame_limit">Bildratenlimit</string>
-    <string name="drawer_frame_limit_note">Begrenzt dieses Spiel. Der Bildschirm wechselt zu einer Bildwiederholrate, die das Limit glatt teilt, sofern vorhanden; andere Limits können ungleichmäßig wirken. Steam-Spiele nutzen das Bildratenlimit von Steam im Schnellzugriffsmenü.</string>
+    <string name="drawer_frame_limit_note">Begrenzt dieses Spiel. Der Bildschirm wechselt zu einer Bildwiederholrate, die durch das Limit glatt teilbar ist, sofern vorhanden; andere Limits können ungleichmäßig wirken. Steam-Spiele nutzen das Bildratenlimit von Steam im Schnellzugriffsmenü.</string>
     <string name="drawer_page_effects">Effekte</string>
     <string name="drawer_page_controls">Steuerung</string>
     <string name="drawer_page_components">Komponenten</string>
@@ -1030,8 +1030,8 @@
     <string name="pairguide_build_number">Tippe unter „Über das Telefon“ 7-mal auf „Build-Nummer“</string>
     <string name="pairguide_wireless">Aktiviere „Debugging über WLAN“</string>
     <string name="pairguide_pair">Öffne „Debugging über WLAN“ und tippe dann auf „Gerät mit Kopplungscode koppeln“</string>
-    <string name="pairguide_child_process">Aktiviere „Einschränkungen für untergeordnete Prozesse deaktivieren“</string>
-    <string name="pairguide_row_child_process">Einschränkungen für untergeordnete Prozesse deaktivieren</string>
+    <string name="pairguide_child_process">Aktiviere „Beschränkungen für Unterprozesse deaktivieren“</string>
+    <string name="pairguide_row_child_process">Beschränkungen für Unterprozesse deaktivieren</string>
     <string name="pairguide_row_build_number">Build-Nummer</string>
     <string name="pairguide_row_wireless">Debugging über WLAN</string>
     <string name="pairguide_row_pair">Gerät mit Kopplungscode koppeln</string>

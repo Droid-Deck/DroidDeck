@@ -3378,7 +3378,7 @@
     <string name="desktop_restore_done_body">Eklediğiniz uygulamalar yeniden yüklendi.</string>
     <string name="desktop_restore_failed_title">Bazı yazılımlar geri yüklenemedi</string>
     <string name="desktop_restore_failed_body">~/.cache/droiddeck/apt-restore.log dosyasına bakın, ardından Konsole\'da sudo apt install deneyin.</string>
-    <string name="gog_full_files">Yerel iyileştirmeler kullanılamıyor. İndirme, tam yedek dosyaları içerir.</string>
+    <string name="gog_full_files">Yerel iyileştirmeler kullanılamıyor. İndirme, yerine geçecek tam dosyaları içerir.</string>
     <string name="gog_recover">Yama sonucunu doğrula</string>
     <string name="slow_usb_title">Yavaş USB bağlantısı</string>
     <string name="slow_usb_cable">%1$s, %2$s üzerinden bağlı (%3$s Mbps, yaklaşık %4$d MB/sn), bu yüzden üzerindeki oyunlar yavaş yüklenecek. 5 Gbps veya daha hızlı bir USB 3 kablo kullanın, USB-C fişini ters çevirmeyi deneyin ya da daha hızlı bir sürücü kullanın.</string>
