@@ -34,17 +34,18 @@ object GamesFolderMigration {
                 val owner = played?.let { exe -> top.listFiles { f -> f.isDirectory }?.firstOrNull { exe.path.startsWith(it.path + File.separator) } }
                 val folders = when {
                     groups == null -> listOf(top)
-                    topPick != null && owner == null -> listOf(top)
-                    topPick != null && owner != null && owner !in groups -> (groups + owner).sortedBy { it.name.lowercase() }
-                    else -> groups
+                    topPick == null || owner in groups -> groups
+                    owner == null || owner.name.startsWith(".") || AddedGames.isSteamLibraryFolder(owner.name) -> listOf(top)
+                    else -> (groups + owner).sortedBy { it.name.lowercase() }
                 }
                 for (folder in folders) {
                     if (folder.absolutePath in storeRoots || StoreGameSidecar.read(folder) != null) continue
                     if (folder.path in entries) continue
                     val picked = SessionPrefs.addedGameExe(context, folder.path).takeIf { it.isNotEmpty() }?.let { File(it) }?.takeIf { it.isFile }
                         ?: topPick?.takeIf { it.path.startsWith(folder.path + File.separator) }
-                    val exe = picked ?: AddedGames.rank(folder).exes.firstOrNull() ?: continue
-                    AddedExes.put(context, AddedExes.Entry(folder.path, exe.path, picked = picked != null))
+                    val ranked = AddedGames.rank(folder).exes.firstOrNull()
+                    val exe = picked ?: played?.takeIf { folder == owner } ?: ranked ?: continue
+                    AddedExes.put(context, AddedExes.Entry(folder.path, exe.path, picked = picked != null || exe != ranked))
                     entries.add(folder.path)
                     if (folder != top && folder == owner) SessionPrefs.inheritAddedGame(context, top.path, folder.path)
                     if (folder != top && top.path in removed) SessionPrefs.setAddedGameRemoved(context, folder.path, true)

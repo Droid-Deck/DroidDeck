@@ -103,12 +103,16 @@ class GamesFolderMigrationTest {
         val pick = exe(pc, "VNs/C/helper.exe")
         val loose = File(pc, "Loose"); exe(pc, "Loose/A/a.exe"); exe(pc, "Loose/B/b.exe")
         val loosePick = exe(pc, "Loose/setup.exe")
+        val lib = File(pc, "Lib"); exe(pc, "Lib/A/a.exe"); exe(pc, "Lib/B/b.exe")
+        val libPick = exe(pc, "Lib/steamapps/common/Tool/helper.exe")
         SessionPrefs.setAddedGamesDirs(app, listOf(pc.path))
         SessionPrefs.setAddedGameExe(app, vns.path, pick.path)
         SessionPrefs.setAddedGameExe(app, loose.path, loosePick.path)
+        SessionPrefs.setAddedGameExe(app, lib.path, libPick.path)
         GamesFolderMigration.run(app)
         val entries = AddedExes.list(app).associateBy { it.folder }
-        assertEquals(setOf(File(vns, "A").path, File(vns, "B").path, File(vns, "C").path, loose.path), entries.keys)
+        assertEquals(setOf(File(vns, "A").path, File(vns, "B").path, File(vns, "C").path, loose.path, lib.path), entries.keys)
+        assertEquals(libPick.path, entries.getValue(lib.path).exe)
         assertEquals(pick.path, entries.getValue(File(vns, "C").path).exe)
         assertTrue(entries.getValue(File(vns, "C").path).picked)
         assertEquals(loosePick.path, entries.getValue(loose.path).exe)
@@ -142,6 +146,24 @@ class GamesFolderMigrationTest {
         assertEquals("", SessionPrefs.addedGameLaunch(app, File(vns, "Albatross").path))
         assertEquals(0x8333_4444L, games.getValue(File(plain, "A").path).appId)
         assertTrue(games.getValue(File(plain, "B").path).appId != 0x8333_4444L)
+    }
+
+    @Test fun aSplitFolderKeepsTheExeItLaunchedWithoutAPick() {
+        val pc = tmp.newFolder("PC")
+        val vns = File(pc, "VNs")
+        val launched = exe(pc, "VNs/Rance/VNsPlayer.exe"); exe(pc, "VNs/Rance/Rance.exe")
+        val other = exe(pc, "VNs/Other/Other.exe")
+        SessionPrefs.setAddedGamesDirs(app, listOf(pc.path))
+        SessionPrefs.addedGameAppId(app, vns.path, 0x8555_6666L)
+        GamesFolderMigration.run(app)
+        val entries = AddedExes.list(app).associateBy { it.folder }
+        assertEquals(launched.path, entries.getValue(File(vns, "Rance").path).exe)
+        assertTrue(entries.getValue(File(vns, "Rance").path).picked)
+        assertFalse(entries.getValue(File(vns, "Other").path).picked)
+        val games = AddedGames.scan(app).associateBy { it.folder.path }
+        assertEquals(launched.path, games.getValue(File(vns, "Rance").path).exe.path)
+        assertEquals(0x8555_6666L, games.getValue(File(vns, "Rance").path).appId)
+        assertEquals(other.path, games.getValue(File(vns, "Other").path).exe.path)
     }
 
     @Test fun runningAgainChangesNothing() {
