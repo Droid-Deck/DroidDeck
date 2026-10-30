@@ -28,7 +28,11 @@ internal object ItchPatch {
         return stage(context)
     }
 
-    private fun stage(context: Context): Boolean {
+    private val stageLock = Any()
+
+    private fun stage(context: Context): Boolean = synchronized(stageLock) { stageLocked(context) }
+
+    private fun stageLocked(context: Context): Boolean {
         val pack = AddonPack.BUTLER.dir(context)
         val root = File(LinuxRuntime.rootDir(context), DIR.removePrefix("/"))
         val packaged = File(pack, "version").readText()
