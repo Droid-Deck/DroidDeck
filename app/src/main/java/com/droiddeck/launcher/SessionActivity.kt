@@ -830,6 +830,15 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 }
             }
             androidx.compose.runtime.LaunchedEffect(picturePosition, SessionState.running, pipUi, cardboard.enabled) { applyGameAlignment() }
+            androidx.compose.runtime.LaunchedEffect(AgentGuest.focusRevision) {
+                val steamUi = SessionState.mode == SessionService.MODE_STEAM && kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    AgentGuest.focus(this@SessionActivity)?.optLong("focusedApp")?.let { it <= 0 || it == 769L } ?: true
+                }
+                if (steamUi != steamUiFocused) {
+                    steamUiFocused = steamUi
+                    applySteamUiPacing()
+                }
+            }
             DroidDeckTheme {
             if (pipUi) {
                 if (SessionState.suspended) androidx.compose.foundation.layout.Box(
@@ -895,11 +904,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                         }
                     }
                     if (nextGame != gestureGame) { gestureGame = nextGame; refreshGestureConfig() }
-                    val steamUi = SessionState.mode == SessionService.MODE_STEAM && nextGame == null
-                    if (steamUi != steamUiFocused) {
-                        steamUiFocused = steamUi
-                        applySteamUiPacing()
-                    }
                 }
                 LaunchedEffect(drawerOpen, pcKeyboardOpen, achievementsOpen, gestureSettingsOpen, pipUi, SessionState.suspended) {
                     if (drawerOpen || pcKeyboardOpen || achievementsOpen || gestureSettingsOpen || pipUi || SessionState.suspended) {
