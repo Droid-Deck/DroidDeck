@@ -10,7 +10,7 @@ internal object DroidDeckHudConfig {
      * locked, so like the old HUD it lets touches through until it is unlocked to move it.
      */
     val DEFAULTS: Map<String, String> = linkedMapOf(
-        "hudSize" to "minimal", "hudLocked" to "1", "hudScale" to "100", "hudOpacity" to "80", "hudColor" to "mid",
+        "hudSize" to "minimal", "hudLocked" to "1", "hudScale" to "100", "hudDock" to "none", "hudOpacity" to "80", "hudColor" to "mid",
         "hudOutline" to "40", "hudOutlineAccent" to "1",
         "showFPS" to "1", "showFPSGraph" to "1", "showCPUUsage" to "1", "showCPULoad" to "1", "showGPULoad" to "1",
         "showVram" to "1", "showRAM" to "1", "showPower" to "1", "showTemp" to "1", "showBatteryTemp" to "1",

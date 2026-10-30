@@ -66,6 +66,15 @@ enum class DroidDeckHudSize(val token: String, val label: String) {
     }
 }
 
+/** The screen edge the HUD is tucked against, where only its FPS tab shows ([NONE] = floating free). */
+enum class DroidDeckHudDock(val token: String) {
+    NONE("none"), LEFT("left"), RIGHT("right"), TOP("top"), BOTTOM("bottom");
+
+    companion object {
+        fun from(token: String?): DroidDeckHudDock = values().firstOrNull { it.token == token } ?: NONE
+    }
+}
+
 /**
  * The Wayland HDR state the DroidDeck HUD shows on its own line, directly under the latency · display-server
  * line (the host sets it with [DroidDeckHudView.setHdrState]). [NONE] = no line at all: every session whose

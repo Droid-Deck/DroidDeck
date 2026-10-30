@@ -135,6 +135,25 @@ class DroidDeckHudPanelTest {
         assertEquals("a long press there unlocks it", listOf(false), locks)
     }
 
+    @Test fun aDockedHudIsJustTheFpsTabAndATapBringsItBack() {
+        val app = RuntimeEnvironment.getApplication()
+        val hud = DroidDeckHudView(app)
+        hud.applyConfig(DroidDeckHudConfig.encode(DroidDeckHudConfig.DEFAULTS + ("hudSize" to "full") + ("hudDock" to "left")))
+        hud.showForTest(SNAPSHOT, "DXVK", 0L)
+        val unspecified = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+        hud.measure(unspecified, unspecified)
+        hud.layout(0, 0, hud.measuredWidth, hud.measuredHeight)
+        assertEquals(DroidDeckHudDock.LEFT, hud.dock)
+        assertTrue("a tab, not the panel: ${hud.width}x${hud.height}", hud.width < 400 && hud.height < 200)
+        val docks = ArrayList<String>()
+        hud.setOnDockChangedListener { docks += it }
+        val down = SystemClock.uptimeMillis()
+        MotionEvent.obtain(down, down, MotionEvent.ACTION_DOWN, 5f, 5f, 0).also { hud.dispatchTouchEvent(it); it.recycle() }
+        MotionEvent.obtain(down, down + 40, MotionEvent.ACTION_UP, 5f, 5f, 0).also { hud.dispatchTouchEvent(it); it.recycle() }
+        shadowOf(Looper.getMainLooper()).idle()
+        assertEquals("a locked, docked HUD still answers a tap", listOf("none"), docks)
+    }
+
     private companion object {
         val SNAPSHOT = HudMetrics.Snapshot(64, 52, 3302, 1050, 89, 79, 10_800_000_000L, 16_000_000_000L, 67f,
             1_800_000_000L, HudMetrics.Battery(16f, false, 79, 34, null),

@@ -83,11 +83,17 @@ class DroidDeckHudHost(context: Context) {
         hud.onRefresh = Runnable { refreshLabels(hud) }
         hud.setOnMovedListener { x, y ->
             wantX = x; wantY = y
+            dockEdgeFor(hud)?.let { edge -> setDock(hud, edge); return@setOnMovedListener }
             keepOnScreen(hud)
             wantX = hud.x; wantY = hud.y
             SessionPrefs.setDroidDeckHudPosition(context, hud.x, hud.y)
         }
         hud.setOnSizeCycledListener { size -> DroidDeckHudConfig.set(context, "hudSize", size); onConfigChanged?.invoke() }
+        hud.setOnDockChangedListener { token -> setDock(hud, DroidDeckHudDock.from(token)) }
+        hud.setOnScaledListener { percent ->
+            DroidDeckHudConfig.set(context, "hudScale", percent.toString())
+            onConfigChanged?.invoke()
+        }
         hud.setOnLockChangedListener { locked ->
             DroidDeckHudConfig.set(context, "hudLocked", if (locked) "1" else "0")
             onConfigChanged?.invoke()
@@ -203,6 +209,43 @@ class DroidDeckHudHost(context: Context) {
         return if (stats.size > 3 && stats[3] > 1f) stats[3] else 0f
     }
 
+    /** The edge the HUD was dropped over, once a good part of it hangs past that edge; null when it stays. */
+    private fun dockEdgeFor(v: View): DroidDeckHudDock? {
+        val p = v.parent as? View ?: return null
+        if (p.width <= 0 || p.height <= 0 || v.width <= 0 || v.height <= 0) return null
+        val over = mapOf(
+            DroidDeckHudDock.LEFT to -v.x / v.width,
+            DroidDeckHudDock.RIGHT to (v.x + v.width - p.width) / v.width,
+            DroidDeckHudDock.TOP to -v.y / v.height,
+            DroidDeckHudDock.BOTTOM to (v.y + v.height - p.height) / v.height,
+        ).maxByOrNull { it.value } ?: return null
+        return over.key.takeIf { over.value >= DOCK_OVERHANG }
+    }
+
+    /** Tucks the HUD against [edge] as its FPS tab, or with [DroidDeckHudDock.NONE] brings it back out from where it was docked. */
+    private fun setDock(hud: DroidDeckHudView, edge: DroidDeckHudDock) {
+        if (edge == DroidDeckHudDock.NONE) {
+            when (hud.dock) {
+                DroidDeckHudDock.LEFT -> wantX = 0f
+                DroidDeckHudDock.RIGHT -> wantX = Float.MAX_VALUE
+                DroidDeckHudDock.TOP -> wantY = 0f
+                DroidDeckHudDock.BOTTOM -> wantY = Float.MAX_VALUE
+                DroidDeckHudDock.NONE -> {}
+            }
+        } else {
+            val p = hud.parent as? View
+            if (p != null) {
+                wantX = wantX.coerceIn(0f, p.width.toFloat())
+                wantY = wantY.coerceIn(0f, p.height.toFloat())
+            }
+            SessionPrefs.setDroidDeckHudPosition(context, wantX, wantY)
+        }
+        DroidDeckHudConfig.set(context, "hudDock", edge.token)
+        applyConfig()
+        hud.post { keepOnScreen(hud) }
+        onConfigChanged?.invoke()
+    }
+
     // The HUD is clamped from where the user left it (wantX/wantY, set on a drop or restore), not from where
     // it is drawn: a window that shrinks and grows back (picture-in-picture, a fold) must not leave it in the
     // corner the small window pushed it to.
@@ -212,13 +255,23 @@ class DroidDeckHudHost(context: Context) {
         if (wantX.isNaN()) { wantX = v.x; wantY = v.y }
         val maxX = (p.width - v.width).toFloat().coerceAtLeast(0f)
         val maxY = (p.height - v.height).toFloat().coerceAtLeast(0f)
-        val x = wantX.coerceIn(0f, maxX)
-        val y = wantY.coerceIn(0f, maxY)
+        var x = wantX.coerceIn(0f, maxX)
+        var y = wantY.coerceIn(0f, maxY)
+        when (v.let { it as? DroidDeckHudView }?.dock) {
+            DroidDeckHudDock.LEFT -> x = 0f
+            DroidDeckHudDock.RIGHT -> x = maxX
+            DroidDeckHudDock.TOP -> y = 0f
+            DroidDeckHudDock.BOTTOM -> y = maxY
+            else -> {}
+        }
         if (v.x != x) v.x = x
         if (v.y != y) v.y = y
     }
 
     companion object {
+        /** How much of the HUD, as a share of its own size, must hang past a screen edge for it to dock there. */
+        private const val DOCK_OVERHANG = 0.4f
+
         /** True while the HUD is on screen; DroidDeck keeps sampling VRAM for it (GpuMemComponent). */
         @Volatile @JvmStatic var showing = false
             private set

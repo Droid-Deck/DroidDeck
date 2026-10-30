@@ -23,6 +23,7 @@ import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.Typeface
 import android.text.format.DateFormat
+import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.View
 import androidx.annotation.VisibleForTesting
@@ -32,6 +33,7 @@ import java.util.Date
 import java.util.Locale
 import java.util.function.BiConsumer
 import java.util.function.Consumer
+import java.util.function.IntConsumer
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -146,7 +148,13 @@ class DroidDeckHudView(context: Context) : View(context) {
     private var headerMark: RectF? = null
     private var chipRect: RectF? = null
 
-    // Every size sits in the DroidDeck mark's D: a straight left side split by the orb, round on the
+    // Pushed past a screen edge, the HUD shrinks to a tab with the FPS that stays at that edge.
+    var dock = DroidDeckHudDock.NONE
+        private set
+    private var tabRect: RectF? = null
+    private val tabPath = Path()
+
+    // Every size sits in the DroidDeck mark's D: a straight left side, round on the
     // right. Its fixed layers (fill, header band, watermark, glowing outline) go into a bitmap, because
     // Android before 9 skips glow on shapes drawn with hardware acceleration.
     private var dPanel: RectF? = null
@@ -213,11 +221,41 @@ class DroidDeckHudView(context: Context) : View(context) {
     fun setOnMovedListener(l: BiConsumer<Float, Float>?) { onMovedListener = l }
     fun setOnSizeCycledListener(l: Consumer<String>?) { onSizeCycledListener = l }
     fun setOnLockChangedListener(l: Consumer<Boolean>?) { onLockChangedListener = l }
+    private var onDockChangedListener: Consumer<String>? = null
+    private var onScaledListener: IntConsumer? = null
+    fun setOnDockChangedListener(l: Consumer<String>?) { onDockChangedListener = l }
+    /** A pinch settled on this size, in percent. */
+    fun setOnScaledListener(l: IntConsumer?) { onScaledListener = l }
 
     private val lockController = HudLockController(context, this, object : HudLockController.Callbacks {
         override fun onTap() { cycleSize() }
         override fun onMoved(x: Float, y: Float) { onMovedListener?.accept(x, y) }
         override fun onLockChanged(locked: Boolean) { onLockChangedListener?.accept(locked) }
+        override fun onPinch(factor: Float) {
+            val next = (scale * factor).coerceIn(MIN_SCALE, MAX_SCALE)
+            if (next == scale) return
+            scale = next
+            rebuildAndInvalidate()
+        }
+        override fun onPinchEnd() { onScaledListener?.accept((scale * 100f).roundToInt()) }
+    })
+
+    // A docked tab always takes touches, locked or not: a tap or a pull away from the edge brings the HUD back.
+    private val dockDetector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
+        override fun onDown(e: MotionEvent): Boolean = true
+        override fun onSingleTapUp(e: MotionEvent): Boolean { onDockChangedListener?.accept(DroidDeckHudDock.NONE.token); return true }
+        override fun onScroll(e1: MotionEvent?, e2: MotionEvent, distanceX: Float, distanceY: Float): Boolean {
+            if (e1 == null) return false
+            val inward = when (dock) {
+                DroidDeckHudDock.LEFT -> e2.rawX - e1.rawX
+                DroidDeckHudDock.RIGHT -> e1.rawX - e2.rawX
+                DroidDeckHudDock.TOP -> e2.rawY - e1.rawY
+                DroidDeckHudDock.BOTTOM -> e1.rawY - e2.rawY
+                DroidDeckHudDock.NONE -> 0f
+            }
+            if (inward > 12f * density) onDockChangedListener?.accept(DroidDeckHudDock.NONE.token)
+            return true
+        }
     })
 
     // ---- Public surface (symmetric with the other overlays) ---------------
@@ -296,6 +334,7 @@ class DroidDeckHudView(context: Context) : View(context) {
         showSession = cfg.get("showSession", "1") == "1"
         tempDisplay = HudMetrics.TempDisplay.from(cfg)
         lockController.setLocked(cfg.get("hudLocked", "1") == "1")
+        dock = DroidDeckHudDock.from(cfg.get("hudDock", "none"))
 
         colorIntensity = when (cfg.get("hudColor", "vivid")) {
             "soft" -> 0.72f; "mid" -> 0.88f; else -> 1.0f
@@ -495,9 +534,10 @@ class DroidDeckHudView(context: Context) : View(context) {
     // ---- Layout builders --------------------------------------------------
     private fun rebuild() {
         glyphs.clear(); tileRects.clear(); graphRect = null
-        headerMark = null; chipRect = null; dPanel = null; dDividerTop = -1f
+        headerMark = null; chipRect = null; dPanel = null; dDividerTop = -1f; tabRect = null
         val s = snap
         if (s == null) { contentW = 0f; contentH = 0f; return }
+        if (dock != DroidDeckHudDock.NONE) { buildDockTab(); return }
         when (size) {
             DroidDeckHudSize.FULL -> { buildFull(s); intoPanel(sp(10f), header = true) }
             DroidDeckHudSize.TILES -> { buildTiles(s); intoPanel(sp(9f), header = true) }
@@ -507,6 +547,39 @@ class DroidDeckHudView(context: Context) : View(context) {
         }
     }
 
+    /** The docked tab: the FPS alone, in a box square on the edge it sits against. */
+    private fun buildDockTab() {
+        val numPx = sp(20f); val unitPx = sp(8.5f)
+        val spans = listOf(Span(one(fpsNow), colValue, numPx), Span("fps", colDim, unitPx))
+        val padX = sp(9f); val padY = sp(7f)
+        val cap = capHeight(numPx)
+        placeRun(padX, padY + cap, spans)
+        contentW = runWidth(spans) + 2f * padX
+        contentH = cap + 2f * padY
+        tabRect = RectF(0f, 0f, contentW, contentH)
+    }
+
+    private fun drawTab(canvas: Canvas, rect: RectF) {
+        val r = sp(8f); val stroke = max(outlineWidth(), sp(1.5f)); val h = stroke / 2f
+        val round = floatArrayOf(r, r, r, r, r, r, r, r)
+        val edge = when (dock) {
+            DroidDeckHudDock.LEFT -> intArrayOf(0, 3)
+            DroidDeckHudDock.RIGHT -> intArrayOf(1, 2)
+            DroidDeckHudDock.TOP -> intArrayOf(0, 1)
+            DroidDeckHudDock.BOTTOM -> intArrayOf(2, 3)
+            DroidDeckHudDock.NONE -> intArrayOf()
+        }
+        for (corner in edge) { round[corner * 2] = 0f; round[corner * 2 + 1] = 0f }
+        tabPath.rewind()
+        tabPath.addRoundRect(rect.left + h, rect.top + h, rect.right - h, rect.bottom - h, round, Path.Direction.CW)
+        headerPaint.shader = null
+        headerPaint.color = withAlpha(panelColor(), max(Color.alpha(panelColor()), 200))
+        canvas.drawPath(tabPath, headerPaint)
+        strokePaint.strokeWidth = stroke
+        strokePaint.color = outlineColor()
+        canvas.drawPath(tabPath, strokePaint)
+    }
+
     // ---- DroidDeck panel, header and chip -----------------------------------
     /** The clock sits in the header on every size but the Pill, which keeps it under the FPS. */
     private fun footerClock(): Boolean = showClockTime && size == DroidDeckHudSize.PILL
@@ -514,7 +587,7 @@ class DroidDeckHudView(context: Context) : View(context) {
     private fun measureSans(text: String, sizePx: Float): Float { wordmarkPaint.textSize = sizePx; return wordmarkPaint.measureText(text) }
 
     private fun panelInset() = sp(8f)              // room for the glow around the panel
-    private fun panelLeft() = sp(13f)              // the orb and its glow stick out of the left side
+    private fun panelLeft() = sp(13f)              // the outline's glow sticks out of the left side
     private fun contentLeft() = panelLeft() + sp(16f)
 
     /** The DroidDeck mark, "DroidDeck" and the clock across the top, starting on [left], with the same
@@ -1204,6 +1277,7 @@ class DroidDeckHudView(context: Context) : View(context) {
         }
 
         chipRect?.let { drawChip(canvas, it) }
+        tabRect?.let { drawTab(canvas, it) }
 
         // Text
         for (g in glyphs) {
@@ -1253,19 +1327,17 @@ class DroidDeckHudView(context: Context) : View(context) {
         Color.argb(alpha, Color.red(color), Color.green(color), Color.blue(color))
 
     /** The D: straight left side with small corners, round on the right with radius [rad] (a half circle
-     *  when it is half the height). [split] > 0 leaves that much open above and below the middle of the
-     *  left side, where the orb sits. */
-    private fun dShape(l: Float, t: Float, r: Float, b: Float, rad: Float, corner: Float, split: Float): Path {
-        val cy = (t + b) / 2f
+     *  when it is half the height). */
+    private fun dShape(l: Float, t: Float, r: Float, b: Float, rad: Float, corner: Float): Path {
         return Path().apply {
-            if (split > 0f) moveTo(l, cy + split) else moveTo(l, t + corner)
+            moveTo(l, t + corner)
             lineTo(l, b - corner); quadTo(l, b, l + corner, b)
             lineTo(r - rad, b)
             arcTo(r - 2f * rad, b - 2f * rad, r, b, 90f, -90f, false)
             lineTo(r, t + rad)
             arcTo(r - 2f * rad, t, r, t + 2f * rad, 0f, -90f, false)
             lineTo(l + corner, t); quadTo(l, t, l, t + corner)
-            if (split > 0f) lineTo(l, cy - split) else close()
+            close()
         }
     }
 
@@ -1285,7 +1357,7 @@ class DroidDeckHudView(context: Context) : View(context) {
         val bmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val c = Canvas(bmp)
         val corner = sp(6f)
-        val body = dShape(panel.left, panel.top, panel.right, panel.bottom, dRadius, corner, 0f)
+        val body = dShape(panel.left, panel.top, panel.right, panel.bottom, dRadius, corner)
         bgPaint.color = panelColor()
         c.drawPath(body, bgPaint)
         c.save()
@@ -1307,7 +1379,7 @@ class DroidDeckHudView(context: Context) : View(context) {
         c.restore()
         if (stroke > 0f) {
             val h = stroke / 2f
-            val outline = dShape(panel.left + h, panel.top + h, panel.right - h, panel.bottom - h, dRadius - h, corner, sp(9f))
+            val outline = dShape(panel.left + h, panel.top + h, panel.right - h, panel.bottom - h, dRadius - h, corner)
             val blur = BlurMaskFilter((sp(3.2f) - 0.5f).coerceAtLeast(0.5f) / 0.57735f, BlurMaskFilter.Blur.NORMAL)
             glowPaint.strokeWidth = stroke
             // Two blurred passes under the sharp one, as the 4-in-1 preview's neon.
@@ -1356,6 +1428,7 @@ class DroidDeckHudView(context: Context) : View(context) {
 
     // Declining the down event hands the whole gesture to the views under the HUD.
     override fun onTouchEvent(event: MotionEvent): Boolean {
+        if (dock != DroidDeckHudDock.NONE) return dockDetector.onTouchEvent(event)
         if (event.actionMasked == MotionEvent.ACTION_DOWN && lockController.isLocked() &&
             passesTouchAt?.invoke(event.rawX, event.rawY) == true) return false
         return lockController.onTouchEvent(event)
@@ -1365,6 +1438,8 @@ class DroidDeckHudView(context: Context) : View(context) {
 
     private companion object {
         const val REFRESH_MS = 500L
+        const val MIN_SCALE = 0.5f
+        const val MAX_SCALE = 2f
         const val GRAPH_CLIP_MS = 49.9f
 
         fun parseIntOr(s: String?, d: Int): Int = try { s?.trim()?.toInt() ?: d } catch (e: Exception) { d }
