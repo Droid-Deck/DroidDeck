@@ -529,6 +529,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             refreshControls()
             updatePointerCapture()
             updateHandCamera()
+            refreshSecondScreenDisplays()
         }
         override fun onInputDeviceRemoved(deviceId: Int) {
             physicalShortcuts.onDeviceRemoved(deviceId)
@@ -540,6 +541,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             refreshControls()
             updatePointerCapture()
             updateHandCamera()
+            refreshSecondScreenDisplays()
         }
         override fun onInputDeviceChanged(deviceId: Int) {
             joyConVr?.refresh()
@@ -3923,6 +3925,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
         (getSystemService(INPUT_SERVICE) as? InputManager)
             ?.registerInputDeviceListener(deviceListener, Handler(Looper.getMainLooper()))
+        refreshSecondScreenDisplays()
         if (SessionState.guestPid > 1) padBridge?.syncConnectedControllers()
         joyConVr?.refresh()
         onScreenControls?.reload()
