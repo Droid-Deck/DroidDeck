@@ -493,7 +493,7 @@ private fun AlphabetScroller(entries: List<AppEntry>, favoriteCount: Int, grid: 
                 .clip(RoundedCornerShape(11.dp))
                 .background(if (dragging != null) colors.surface.copy(alpha = 0.85f) else Color.Transparent)
                 .onSizeChanged { height = it.height.coerceAtLeast(1) }
-                .pointerInput(letters) {
+                .pointerInput(firstAt, leadItems) {
                     awaitEachGesture {
                         val down = awaitFirstDown()
                         down.consume()
