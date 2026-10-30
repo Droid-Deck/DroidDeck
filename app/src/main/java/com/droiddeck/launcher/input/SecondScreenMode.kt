@@ -13,7 +13,7 @@ enum class SecondScreenMode(val id: String, @StringRes val label: Int) {
 
     companion object {
         fun opening(remembered: String?, deckPad: Boolean): SecondScreenMode =
-            entries.firstOrNull { it != NONE && it.id == remembered } ?: if (deckPad) DECK_CONTROLS else KEYBOARD_TRACKPAD
+            entries.firstOrNull { it != NONE && it.id == remembered && (it != DECK_CONTROLS || deckPad) } ?: if (deckPad) DECK_CONTROLS else KEYBOARD_TRACKPAD
     }
 }
 

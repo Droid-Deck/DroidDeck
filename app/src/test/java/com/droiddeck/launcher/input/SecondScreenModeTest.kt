@@ -11,8 +11,12 @@ class SecondScreenModeTest {
 
     @Test fun thePanelTheUserPickedLastOpensAgain() {
         assertEquals(SecondScreenMode.KEYBOARD_TRACKPAD, SecondScreenMode.opening("keyboard-trackpad", deckPad = true))
-        assertEquals(SecondScreenMode.DECK_CONTROLS, SecondScreenMode.opening("deck-controls", deckPad = false))
+        assertEquals(SecondScreenMode.DECK_CONTROLS, SecondScreenMode.opening("deck-controls", deckPad = true))
         assertEquals(SecondScreenMode.TERMINAL, SecondScreenMode.opening("terminal", deckPad = true))
+    }
+
+    @Test fun deckControlsNeedTheDeckPad() {
+        assertEquals(SecondScreenMode.KEYBOARD_TRACKPAD, SecondScreenMode.opening("deck-controls", deckPad = false))
     }
 
     @Test fun anUnknownOrClosedChoiceFallsBackToTheDefault() {
