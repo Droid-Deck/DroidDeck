@@ -108,6 +108,7 @@ libliftoff0
 liblua5.4-0
 libluajit-5.1-2
 liblzma5
+liblzo2-2
 libmount1
 libmp3lame0
 libmpg123-0t64
@@ -151,6 +152,8 @@ libudev1
 libunistring5
 libusb-1.0-0
 libuuid1
+libva-drm2
+libva-x11-2
 libva2
 libvdpau1
 libvulkan1

@@ -1121,7 +1121,6 @@
     <string name="games_never_played">從未執行</string>
     <string name="games_runtime_busy_percent">執行環境繁忙 · %1$d%%</string>
     <string name="games_runtime_busy">執行環境繁忙</string>
-    <string name="games_runtime_first_play">首次點擊「執行」時安裝執行環境</string>
     <string name="games_runtime_update">執行環境有可用更新</string>
     <string name="games_runtime_ready">● 執行環境已就緒</string>
     <string name="games_internal">內部儲存空間</string>

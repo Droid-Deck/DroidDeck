@@ -1131,7 +1131,6 @@
     <string name="games_never_played">Niciodată jucat</string>
     <string name="games_runtime_busy_percent">Mediu de execuție ocupat · %1$d%%</string>
     <string name="games_runtime_busy">Mediu de execuție ocupat</string>
-    <string name="games_runtime_first_play">Mediul de execuție se instalează la prima apăsare pe Play</string>
     <string name="games_runtime_update">Actualizare disponibilă pentru mediul de execuție</string>
     <string name="games_runtime_ready">● Mediu de execuție pregătit</string>
     <string name="games_internal">Stocare internă</string>

@@ -1133,7 +1133,6 @@
     <string name="games_never_played">Jamais lancé</string>
     <string name="games_runtime_busy_percent">Environnement d\'exécution occupé · %1$d%%</string>
     <string name="games_runtime_busy">Environnement d\'exécution occupé</string>
-    <string name="games_runtime_first_play">Installation de l\'environnement d\'exécution lors du premier lancement du jeu</string>
     <string name="games_runtime_update">Mise à jour de l\'environnement d\'exécution disponible</string>
     <string name="games_runtime_ready">● Environnement d\'exécution prêt</string>
     <string name="games_internal">Stockage interne</string>

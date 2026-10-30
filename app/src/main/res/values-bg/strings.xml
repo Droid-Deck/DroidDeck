@@ -1125,7 +1125,6 @@
     <string name="games_never_played">Никога не е играна</string>
     <string name="games_runtime_busy_percent">Средата за изпълнение е заета · %1$d%%</string>
     <string name="games_runtime_busy">Средата за изпълнение е заета</string>
-    <string name="games_runtime_first_play">Средата за изпълнение се инсталира при първото Play</string>
     <string name="games_runtime_update">Налична актуализация на средата за изпълнение</string>
     <string name="games_runtime_ready">● Средата за изпълнение е готова</string>
     <string name="games_internal">Вътрешна памет</string>

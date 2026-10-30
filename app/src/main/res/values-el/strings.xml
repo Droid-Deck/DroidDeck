@@ -1125,7 +1125,6 @@
     <string name="games_never_played">Δεν έχει παιχτεί ποτέ</string>
     <string name="games_runtime_busy_percent">Το runtime είναι απασχολημένο · %1$d%%</string>
     <string name="games_runtime_busy">Το runtime είναι απασχολημένο</string>
-    <string name="games_runtime_first_play">Το runtime εγκαθίσταται στο πρώτο Play</string>
     <string name="games_runtime_update">Υπάρχει ενημέρωση runtime</string>
     <string name="games_runtime_ready">● Το runtime είναι έτοιμο</string>
     <string name="games_internal">Εσωτερική αποθήκευση</string>
