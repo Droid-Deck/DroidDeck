@@ -28,15 +28,10 @@ DroidDeck brings the SteamOS experience to Android: Valve's Steam client in Big 
 > DroidDeck has no website. Only download it from this repository's [Releases](https://github.com/Droid-Deck/DroidDeck/releases).
 
 <p align="center">
-  <img src="docs/releases/media/0.6.7/game-page.jpg" width="49%" alt="A GOG game's page with its art as the backdrop">
-  <img src="docs/releases/media/0.6.7/battlenet-store.jpg" width="49%" alt="The Battle.net store catalog">
-  <img src="docs/releases/media/0.6.7/xbox-cloud-gaming.gif" width="49%" alt="Streaming Deep Rock Galactic with Xbox Cloud Gaming">
-  <img src="docs/releases/media/0.6.7/pause-resume.gif" width="49%" alt="Pausing a session and resuming from the paused frame">
-  <img src="docs/releases/media/0.6.7/ubuntu-desktop-discover.jpg" width="49%" alt="Discover on the Kubuntu desktop">
-  <img src="docs/releases/media/0.6.7/ubuntu-desktop-keyboard.gif" width="49%" alt="Typing into the Kubuntu app menu with the Android keyboard">
-  <img src="docs/releases/media/0.6.7/steam-input-chords.gif" width="32%" alt="Holding Back on a Retroid Pocket Duo while Steam shows its list of shortcuts">
-  <img src="docs/releases/media/0.6.7/dual-screen-steam-keyboard.gif" width="32%" alt="Steam search on the Retroid Pocket Duo with the keyboard on the bottom screen">
-  <img src="docs/releases/media/0.6.7/droiddeck-hud.gif" width="32%" alt="Tapping the DroidDeck HUD through its sizes while a game runs">
+  <img src="docs/releases/media/0.3.0/in-game.gif" width="49%" alt="A Windows game running through Proton with the on-screen controls">
+  <img src="docs/releases/media/0.4.0/multi-controller.gif" width="49%" alt="Two controllers playing split screen on one handheld">
+  <img src="docs/releases/media/0.5.0/glasses-steamvr.gif" width="49%" alt="A SteamVR game in stereo">
+  <img src="docs/releases/media/0.6.7/ubuntu-desktop-discover.jpg" width="49%" alt="The Kubuntu desktop with Discover open">
 </p>
 
 ## Install
