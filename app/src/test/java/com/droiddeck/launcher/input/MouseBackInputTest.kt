@@ -67,6 +67,24 @@ class MouseBackInputTest {
         assertTrue(presses.isEmpty())
     }
 
+    @Test fun navigationBarBackWhileAnInjectedBackIsHeldStaysBack() {
+        input.onKeyEvent(injected(KeyEvent.ACTION_DOWN), toGuest = true)
+        assertFalse(input.onKeyEvent(navigationBar(KeyEvent.ACTION_DOWN), toGuest = true))
+        assertFalse(input.onKeyEvent(navigationBar(KeyEvent.ACTION_UP), toGuest = true))
+        assertEquals(listOf(true), presses)
+        assertTrue(input.onKeyEvent(injected(KeyEvent.ACTION_UP), toGuest = true))
+        assertEquals(listOf(true, false), presses)
+    }
+
+    @Test fun cancelReleasesAHeldPressOnce() {
+        input.onKeyEvent(injected(KeyEvent.ACTION_DOWN), toGuest = true)
+        input.cancel()
+        assertEquals(listOf(true, false), presses)
+        input.onKeyEvent(injected(KeyEvent.ACTION_UP), toGuest = true)
+        input.cancel()
+        assertEquals(listOf(true, false), presses)
+    }
+
     @Test fun controllerBackStaysBack() {
         val source = InputDevice.SOURCE_GAMEPAD or InputDevice.SOURCE_KEYBOARD
         assertFalse(input.onKeyEvent(key(KeyEvent.ACTION_DOWN, source = source), toGuest = true))
