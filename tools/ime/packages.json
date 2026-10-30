@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "release": "Fedora 44 Everything aarch64",
+  "mirror": "https://mirrors.kernel.org/fedora/releases/44/Everything/aarch64/os/Packages/",
+  "packages": {
+    "ibus-pinyin": {
+      "filename": "ibus-pinyin-1.5.1-7.fc44.aarch64.rpm",
+      "url": "https://mirrors.kernel.org/fedora/releases/44/Everything/aarch64/os/Packages/i/ibus-pinyin-1.5.1-7.fc44.aarch64.rpm",
+      "sha256": "fcae3a5f4263c005efa0751737bd653d4dca8ca53777362ad519f6bcbd99587c"
+    },
+    "pyzy": {
+      "filename": "pyzy-0.1.0-37.fc44.aarch64.rpm",
+      "url": "https://mirrors.kernel.org/fedora/releases/44/Everything/aarch64/os/Packages/p/pyzy-0.1.0-37.fc44.aarch64.rpm",
+      "sha256": "aa41dfdaa052ac5432e2fd4c64ea706a7153b6e7b72f18bf1633006f7190b76f"
+    },
+    "pyzy-db-android": {
+      "filename": "pyzy-db-android-0.1.0-37.fc44.noarch.rpm",
+      "url": "https://mirrors.kernel.org/fedora/releases/44/Everything/aarch64/os/Packages/p/pyzy-db-android-0.1.0-37.fc44.noarch.rpm",
+      "sha256": "bcaafe36fc93b892b1901607c887fd4efbc47eaa5b829bfe0347aa3137f41576"
+    },
+    "lua-libs": {
+      "filename": "lua-libs-5.4.8-5.fc44.aarch64.rpm",
+      "url": "https://mirrors.kernel.org/fedora/releases/44/Everything/aarch64/os/Packages/l/lua-libs-5.4.8-5.fc44.aarch64.rpm",
+      "sha256": "d719e35a8c2f771084f0b0d135a3ac68c51b032fc2199507685fe3ea32cee8fc"
+    }
+  }
+}

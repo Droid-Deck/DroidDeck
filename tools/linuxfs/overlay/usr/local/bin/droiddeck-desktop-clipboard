@@ -1,7 +1,15 @@
 #!/bin/bash
-[ -n "${BL_ANDROID_CLIPBOARD:-}" ] && [ -n "${DISPLAY:-}" ] || exit 0
-/usr/local/bin/droiddeck-clipboard "$BL_ANDROID_CLIPBOARD" &
-child=$!
-trap 'kill "$child" 2>/dev/null' EXIT
+[ -n "${DISPLAY:-}" ] || exit 0
+children=()
+if [ -n "${BL_ANDROID_CLIPBOARD:-}" ]; then
+  /usr/local/bin/droiddeck-clipboard "$BL_ANDROID_CLIPBOARD" &
+  children+=("$!")
+fi
+if [ -n "${BL_LAUNCH_DIR:-}" ] && [ -x /usr/local/bin/droiddeck-text-input ]; then
+  /usr/local/bin/droiddeck-text-input "$BL_LAUNCH_DIR/text-input.sock" &
+  children+=("$!")
+fi
+[ "${#children[@]}" -gt 0 ] || exit 0
+trap 'kill "${children[@]}" 2>/dev/null' EXIT
 trap 'exit 0' TERM INT
-wait "$child"
+wait "${children[@]}"

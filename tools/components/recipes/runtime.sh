@@ -10,6 +10,8 @@ done
 for f in tools/linuxfs/overlay/usr/bin/* tools/linuxfs/overlay/usr/bin/steamos-polkit-helpers/*; do
   [ -f "$f" ] && install -Dm644 "$f" "$D/${f#tools/linuxfs/overlay/}"
 done
+mkdir -p app/build/ime-packages
+python3 tools/ime/prepare.py --packages app/build/ime-packages --download --output "$D"
 if [ -f tools/gamescope/release.env ]; then
   . tools/gamescope/release.env
   curl -fsSL --retry 5 --retry-all-errors --connect-timeout 20 -o gamescope.tzst "https://github.com/${GAMESCOPE_REPO:-${GITHUB_REPOSITORY}}/releases/download/${GAMESCOPE_TAG}/gamescope.tzst"

@@ -45,7 +45,7 @@ if ! command -v docker >/dev/null 2>&1; then
     echo "Docker is required to cross-compile the glibc ARM64 preload libraries." >&2
     exit 1
 fi
-for tool in curl tar zstd shasum unzip python3; do
+for tool in curl tar zstd shasum unzip python3 rpm2cpio cpio; do
     if ! command -v "${tool}" >/dev/null 2>&1; then
         echo "${tool} is required to build the CI-equivalent APK." >&2
         exit 1
@@ -387,6 +387,8 @@ if ! restore_step comet "${comet_key}" "${comet_out}"; then
     save_step comet "${comet_key}" "${comet_out}"
 fi
 bash tools/packs/build.sh app/build/packs
+mkdir -p "${cache_dir}/ime"
+python3 "${repo_root}/tools/ime/prepare.py" --packages "${cache_dir}/ime" --download --output "${linuxfs_dir}"
 python3 tools/release/runtime_inputs.py record
 ./gradlew "${gradle_task}" --console=plain -PndkVersion="${ndk_version}" ${gradle_rust_arg}
 python3 tools/release/check_session_assets.py "app/build/outputs/apk/${build_variant}/app-${build_variant}.apk"

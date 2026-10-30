@@ -11,6 +11,7 @@ import com.droiddeck.launcher.runtime.DesktopCatalog
 import com.droiddeck.launcher.runtime.LegacyNames
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.runtime.ProotFastPath
+import org.json.JSONObject
 import java.io.File
 
 object SessionFiles {
@@ -18,6 +19,8 @@ object SessionFiles {
     private const val NO_PAD_SWITCH = "Download/droiddeck-no-pad"
     const val DIRECTAUDIO_DIR = "usr/local/lib/directaudio"
     private const val STAGED_LEDGER = "usr/local/.droiddeck-staged"
+    private const val IME_MANIFEST = "usr/local/share/droiddeck/ime-files.json"
+    private const val IME_DEFAULT_MODE = 420
     val DIRECTAUDIO_SETS = arrayOf("linux-wine11", "linux-wine11-systhread")
 
     internal val DESKTOP_FILES = arrayOf(
@@ -56,6 +59,8 @@ object SessionFiles {
             "usr/local/bin/steam-compatibility" to "usr/local/bin/steam-compatibility",
             "usr/local/bin/droiddeck-clipboard" to "usr/local/bin/droiddeck-clipboard",
             "usr/local/bin/droiddeck-desktop-clipboard" to "usr/local/bin/droiddeck-desktop-clipboard",
+            "usr/local/bin/droiddeck-text-input" to "usr/local/bin/droiddeck-text-input",
+            "usr/local/bin/droiddeck-steam-ime" to "usr/local/bin/droiddeck-steam-ime",
             "usr/local/bin/droiddeck-gpu-window" to "usr/local/bin/droiddeck-gpu-window",
             "usr/local/bin/droiddeck-steam-install" to "usr/local/bin/droiddeck-steam-install",
             "usr/local/bin/droiddeck-steam-ui-scale" to "usr/local/bin/droiddeck-steam-ui-scale",
@@ -225,6 +230,7 @@ object SessionFiles {
             }
             if (installed) ledger.staged(key, target) else Log.e(TAG, "DirectAudio $set/$relative NOT staged")
         }
+        stageImeFiles(context, root, ledger)
         ledger.save()
         for (old in arrayOf("aarch64-unix", "aarch64-windows", "i386-windows")) File(root, "$DIRECTAUDIO_DIR/lib/wine/$old").deleteRecursively()
         val preload = StringBuilder("/usr/local/lib/libblsession.so\n")
@@ -298,6 +304,42 @@ object SessionFiles {
         // before that, and a Steam that is already running writes its own choice back when it exits.
         if (force && allDone && allInstalled && startsSession) SessionPrefs.setBootMovieApplyNext(context, false)
         seen?.let { SessionPrefs.setBootMovieSteamSeen(context, it) }
+    }
+
+    private fun stageImeFiles(context: Context, root: File, ledger: StageLedger) {
+        val entries = LinkedHashMap<String, Int>()
+        try {
+            val text = context.assets.open("linuxfs/$IME_MANIFEST").bufferedReader().use { it.readText() }
+            val files = JSONObject(text).getJSONObject("files")
+            for (name in files.keys()) {
+                entries[name] = files.optJSONObject(name)?.optString("mode").orEmpty().toIntOrNull(8) ?: IME_DEFAULT_MODE
+            }
+            entries[IME_MANIFEST] = IME_DEFAULT_MODE
+        } catch (e: Exception) {
+            Log.w(TAG, "the Chinese input payload is not bundled; Steam sessions start without it", e)
+            return
+        }
+        for ((relative, mode) in entries) {
+            val target = File(root, relative)
+            if (ledger.current(relative, target)) continue
+            val staged = File(target.parentFile, target.name + ".staged")
+            var installed = false
+            try {
+                target.parentFile?.mkdirs()
+                context.assets.open("linuxfs/$relative").use { input ->
+                    staged.outputStream().use { output -> FileUtils.copy(input, output) }
+                }
+                installed = staged.setReadable(true, false) &&
+                    staged.setWritable((mode and 0x80) != 0, true) &&
+                    staged.setExecutable((mode and 0x49) != 0, false) &&
+                    staged.renameTo(target)
+            } catch (e: Exception) {
+                Log.w(TAG, "could not stage $relative", e)
+            } finally {
+                if (!installed) staged.delete()
+            }
+            if (installed) ledger.staged(relative, target) else Log.e(TAG, "$relative NOT staged")
+        }
     }
 
     /**

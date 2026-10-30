@@ -1,0 +1,458 @@
+#!/usr/bin/python3
+"""Deliver committed Android IME text to the focused X11 client."""
+import ctypes
+import ctypes.util
+import os
+import select
+import signal
+import socket
+import stat
+import struct
+import sys
+
+MAX_TEXT = 65536
+CLIENT_TIMEOUT = 2.0
+FOCUS_PROPERTY = b'GAMESCOPE_KEYBOARD_FOCUS_DISPLAY'
+ANY_PROPERTY_TYPE = 0
+PROPERTY_WORDS = 1024
+PR_SET_PDEATHSIG = 1
+UNICODE_KEYSYM_FLAG = 0x01000000
+X11_SPECIAL_KEYSYMS = {
+    '\r': 0xff0d,  # XK_Return
+    '\n': 0xff0d,  # XK_Return
+    '\b': 0xff08,  # XK_BackSpace
+    '\u007f': 0xffff,  # XK_Delete
+    '\t': 0xff09,  # XK_Tab
+}
+
+_STOP = False
+
+
+class XModifierKeymap(ctypes.Structure):
+    _fields_ = [('max_keypermod', ctypes.c_int),
+                ('modifiermap', ctypes.POINTER(ctypes.c_ubyte))]
+
+
+class _DisplayState:
+    """Keep mappings stable until shutdown because clients may decode key events later."""
+
+    __slots__ = ('handle', 'codes', 'owned')
+
+    def __init__(self, handle):
+        self.handle = handle
+        self.codes = {}    # keysym -> keycode, stable for the session
+        self.owned = {}    # keycode -> (width, original row) for shutdown restore
+
+
+class XBridge:
+    def __init__(self):
+        self.lib = ctypes.CDLL(ctypes.util.find_library('X11') or 'libX11.so.6')
+        self.xtst = ctypes.CDLL(ctypes.util.find_library('Xtst') or 'libXtst.so.6')
+        self._open_displays = {}
+        self._declare()
+
+    def _declare(self):
+        lib = self.lib
+        lib.XOpenDisplay.argtypes = [ctypes.c_char_p]
+        lib.XOpenDisplay.restype = ctypes.c_void_p
+        lib.XCloseDisplay.argtypes = [ctypes.c_void_p]
+        lib.XCloseDisplay.restype = ctypes.c_int
+        lib.XDefaultRootWindow.argtypes = [ctypes.c_void_p]
+        lib.XDefaultRootWindow.restype = ctypes.c_ulong
+        lib.XInternAtom.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_int]
+        lib.XInternAtom.restype = ctypes.c_ulong
+        lib.XGetWindowProperty.argtypes = [
+            ctypes.c_void_p, ctypes.c_ulong, ctypes.c_ulong, ctypes.c_long, ctypes.c_long,
+            ctypes.c_int, ctypes.c_ulong, ctypes.POINTER(ctypes.c_ulong),
+            ctypes.POINTER(ctypes.c_int), ctypes.POINTER(ctypes.c_ulong),
+            ctypes.POINTER(ctypes.c_ulong), ctypes.POINTER(ctypes.c_void_p)]
+        lib.XGetWindowProperty.restype = ctypes.c_int
+        lib.XFree.argtypes = [ctypes.c_void_p]
+        lib.XFree.restype = ctypes.c_int
+        lib.XDisplayKeycodes.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_int),
+                                         ctypes.POINTER(ctypes.c_int)]
+        lib.XDisplayKeycodes.restype = ctypes.c_int
+        lib.XGetKeyboardMapping.argtypes = [ctypes.c_void_p, ctypes.c_ubyte, ctypes.c_int,
+                                            ctypes.POINTER(ctypes.c_int)]
+        lib.XGetKeyboardMapping.restype = ctypes.POINTER(ctypes.c_ulong)
+        lib.XChangeKeyboardMapping.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int,
+                                               ctypes.POINTER(ctypes.c_ulong), ctypes.c_int]
+        lib.XChangeKeyboardMapping.restype = ctypes.c_int
+        lib.XSync.argtypes = [ctypes.c_void_p, ctypes.c_int]
+        lib.XSync.restype = ctypes.c_int
+        lib.XQueryKeymap.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+        lib.XQueryKeymap.restype = ctypes.c_int
+        lib.XGetModifierMapping.argtypes = [ctypes.c_void_p]
+        lib.XGetModifierMapping.restype = ctypes.POINTER(XModifierKeymap)
+        lib.XFreeModifiermap.argtypes = [ctypes.POINTER(XModifierKeymap)]
+        lib.XFreeModifiermap.restype = ctypes.c_int
+        self.xtst.XTestFakeKeyEvent.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_int,
+                                                ctypes.c_ulong]
+        self.xtst.XTestFakeKeyEvent.restype = ctypes.c_int
+
+    def state(self, name):
+        existing = self._open_displays.get(name)
+        if existing is not None:
+            return existing
+        handle = self.lib.XOpenDisplay(name.encode())
+        if not handle:
+            return None
+        state = _DisplayState(handle)
+        self._open_displays[name] = state
+        return state
+
+    def display(self, name):
+        state = self.state(name)
+        return state.handle if state else None
+
+    def close(self):
+        for state in self._open_displays.values():
+            for keycode, (width, original) in state.owned.items():
+                row = (ctypes.c_ulong * width)(*original)
+                self.lib.XChangeKeyboardMapping(state.handle, keycode, width, row, 1)
+            self.lib.XSync(state.handle, 0)
+            self.lib.XCloseDisplay(state.handle)
+        self._open_displays.clear()
+
+    def target_display(self):
+        main = os.environ.get('DISPLAY', '').strip()
+        if not main:
+            return None
+        game = os.environ.get('STEAM_GAME_DISPLAY_0', '').strip()
+        if not game or game == main:
+            return main
+        main_display = self.display(main)
+        if not main_display:
+            return None
+        focused = self._focused_display(main_display)
+        if focused == game:
+            return game
+        if focused == main:
+            return main
+        return None
+
+    def _focused_display(self, display):
+        root = self.lib.XDefaultRootWindow(display)
+        atom = self.lib.XInternAtom(display, FOCUS_PROPERTY, 0)
+        if not atom:
+            return None
+        actual_type = ctypes.c_ulong(0)
+        actual_format = ctypes.c_int(0)
+        items = ctypes.c_ulong(0)
+        remaining = ctypes.c_ulong(0)
+        data = ctypes.c_void_p()
+        status = self.lib.XGetWindowProperty(
+            display, root, atom, 0, PROPERTY_WORDS, 0, ANY_PROPERTY_TYPE,
+            ctypes.byref(actual_type), ctypes.byref(actual_format), ctypes.byref(items),
+            ctypes.byref(remaining), ctypes.byref(data))
+        if status != 0 or not data or not items.value:
+            if data:
+                self.lib.XFree(data)
+            return None
+        try:
+            raw = _property_bytes(data, actual_format.value, items.value)
+        finally:
+            self.lib.XFree(data)
+        if raw is None:
+            return None
+        raw = raw.split(b'\0', 1)[0]
+        if not raw:
+            return None
+        try:
+            return raw.decode('ascii')
+        except UnicodeDecodeError:
+            return None
+
+    def keymap(self, display):
+        lowest = ctypes.c_int(0)
+        highest = ctypes.c_int(0)
+        self.lib.XDisplayKeycodes(display, ctypes.byref(lowest), ctypes.byref(highest))
+        if lowest.value < 0 or highest.value < lowest.value:
+            return None
+        count = highest.value - lowest.value + 1
+        width = ctypes.c_int(0)
+        symbols = self.lib.XGetKeyboardMapping(display, lowest.value, count, ctypes.byref(width))
+        if not symbols:
+            return None
+        if width.value <= 0:
+            self.lib.XFree(ctypes.cast(symbols, ctypes.c_void_p))
+            return None
+        rows = [[symbols[index * width.value + level] for level in range(width.value)]
+                for index in range(count)]
+        self.lib.XFree(ctypes.cast(symbols, ctypes.c_void_p))
+        return lowest.value, width.value, rows
+
+    def held_keys(self, display):
+        state = ctypes.create_string_buffer(32)
+        if not self.lib.XQueryKeymap(display, ctypes.cast(state, ctypes.c_void_p)):
+            return set()
+        raw = state.raw
+        return {keycode for keycode in range(len(raw) * 8)
+                if raw[keycode >> 3] >> (keycode & 7) & 1}
+
+    def modifier_keys(self, display):
+        mapping = self.lib.XGetModifierMapping(display)
+        if not mapping:
+            return set()
+        try:
+            width = mapping.contents.max_keypermod
+            keys = mapping.contents.modifiermap
+            return {keys[index] for index in range(8 * width) if keys[index]}
+        finally:
+            self.lib.XFreeModifiermap(mapping)
+
+    def empty_rows(self, display, reserved):
+        keymap = self.keymap(display)
+        if keymap is None:
+            return []
+        lowest, width, rows = keymap
+        held = self.held_keys(display)
+        modifiers = self.modifier_keys(display)
+        available = []
+        for index in range(len(rows) - 1, -1, -1):
+            keycode = lowest + index
+            if keycode < 8 or keycode > 255 or keycode in held or keycode in modifiers:
+                continue
+            if keycode in reserved:
+                continue
+            row = rows[index]
+            if any(row):
+                continue
+            available.append((keycode, width, tuple(row)))
+        return available
+
+    def type_text(self, state, text):
+        """Reserve all required mappings before injecting any part of a frame."""
+        handle = state.handle
+        needed = []
+        seen = set()
+        for character in text:
+            keysym = _character_keysym(character)
+            if keysym not in seen:
+                seen.add(keysym)
+                needed.append(keysym)
+        missing = [keysym for keysym in needed if keysym not in state.codes]
+        if missing:
+            available = self.empty_rows(handle, set(state.codes.values()))
+            if len(available) < len(missing):
+                _log_capacity_exhausted()
+                return False
+            for keysym, (keycode, width, original) in zip(missing, available):
+                row = (ctypes.c_ulong * width)(*[keysym] * width)
+                # XChangeKeyboardMapping queues the request and returns 0.
+                self.lib.XChangeKeyboardMapping(handle, keycode, width, row, 1)
+                state.codes[keysym] = keycode
+                state.owned[keycode] = (width, original)
+            self.lib.XSync(handle, 0)
+        for character in text:
+            if _STOP:
+                return False
+            keycode = state.codes[_character_keysym(character)]
+            if not self._tap(handle, keycode):
+                return False
+        return True
+
+    def _tap(self, handle, keycode):
+        pressed = False
+        try:
+            if not self.xtst.XTestFakeKeyEvent(handle, keycode, 1, 0):
+                return False
+            pressed = True
+            self.lib.XSync(handle, 0)
+            if not self.xtst.XTestFakeKeyEvent(handle, keycode, 0, 0):
+                return False
+            pressed = False
+            self.lib.XSync(handle, 0)
+        finally:
+            if pressed:
+                self.xtst.XTestFakeKeyEvent(handle, keycode, 0, 0)
+                self.lib.XSync(handle, 0)
+        return True
+
+
+def _character_keysym(character):
+    keysym = X11_SPECIAL_KEYSYMS.get(character)
+    if keysym is not None:
+        return keysym
+    codepoint = ord(character)
+    return codepoint if codepoint < 256 else UNICODE_KEYSYM_FLAG | codepoint
+
+
+def _log_capacity_exhausted():
+    try:
+        sys.stderr.write('droiddeck-text-input: not enough empty keycodes for this frame\n')
+        sys.stderr.flush()
+    except OSError:
+        pass
+
+
+def _property_bytes(data, actual_format, items):
+    if actual_format == 8:
+        return ctypes.string_at(data, items)
+    if actual_format == 32:
+        # Xlib exposes format-32 property items as native longs, including on 64-bit systems.
+        words = ctypes.cast(data, ctypes.POINTER(ctypes.c_ulong))
+        return b''.join(struct.pack('<I', words[index] & 0xffffffff)
+                        for index in range(items))
+    return None
+
+
+def _recv_exact(connection, count):
+    chunks = []
+    remaining = count
+    while remaining > 0:
+        try:
+            chunk = connection.recv(remaining)
+        except OSError:
+            return None
+        if not chunk:
+            return None
+        chunks.append(chunk)
+        remaining -= len(chunk)
+    return b''.join(chunks)
+
+
+def read_request(connection):
+    header = _recv_exact(connection, 4)
+    if header is None:
+        return None
+    length = struct.unpack('>I', header)[0]
+    if length < 1 or length > MAX_TEXT:
+        return None
+    body = _recv_exact(connection, length)
+    if body is None:
+        return None
+    if b'\0' in body:
+        return None
+    try:
+        return body.decode('utf-8')
+    except UnicodeDecodeError:
+        return None
+
+
+def answer(connection, accepted):
+    try:
+        connection.sendall(b'\x01' if accepted else b'\x00')
+        connection.shutdown(socket.SHUT_WR)
+    except OSError:
+        return
+    # Drain unread bytes so close() does not reset the connection after the ACK.
+    try:
+        connection.settimeout(0.2)
+        while connection.recv(4096):
+            pass
+    except OSError:
+        pass
+
+
+def deliver(bridge, text):
+    target = bridge.target_display()
+    if target is None:
+        return False
+    state = bridge.state(target)
+    if state is None:
+        return False
+    return bridge.type_text(state, text)
+
+
+def serve_connection(connection, bridge):
+    connection.settimeout(CLIENT_TIMEOUT)
+    text = read_request(connection)
+    accepted = False
+    if text is not None:
+        try:
+            accepted = deliver(bridge, text)
+        except Exception:
+            accepted = False
+    answer(connection, accepted)
+
+
+def _identity(path):
+    try:
+        info = os.stat(path)
+    except OSError:
+        return None
+    return info.st_dev, info.st_ino
+
+
+def _release(path, owned):
+    if owned is None:
+        return
+    try:
+        info = os.lstat(path)
+    except OSError:
+        return
+    if stat.S_ISSOCK(info.st_mode) and (info.st_dev, info.st_ino) == owned:
+        try:
+            os.unlink(path)
+        except OSError:
+            pass
+
+
+def serve(path, bridge):
+    server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    owned = None
+    try:
+        server.bind(path)
+        os.chmod(path, 0o600)
+        server.listen(8)
+        server.setblocking(False)
+        owned = _identity(path)
+        while not _STOP:
+            try:
+                ready, _, _ = select.select([server], [], [], 0.25)
+            except OSError:
+                break
+            if not ready:
+                continue
+            try:
+                connection, _ = server.accept()
+            except OSError:
+                if _STOP:
+                    break
+                continue
+            try:
+                serve_connection(connection, bridge)
+            finally:
+                connection.close()
+    finally:
+        server.close()
+        _release(path, owned)
+    return 0
+
+
+def _stop(signum, frame):
+    global _STOP
+    _STOP = True
+
+
+def _adopt_parent_death():
+    parent = os.getppid()
+    try:
+        libc = ctypes.CDLL(None, use_errno=True)
+        libc.prctl.argtypes = [ctypes.c_int, ctypes.c_ulong, ctypes.c_ulong, ctypes.c_ulong,
+                               ctypes.c_ulong]
+        libc.prctl.restype = ctypes.c_int
+        libc.prctl(PR_SET_PDEATHSIG, signal.SIGTERM, 0, 0, 0)
+    except (OSError, AttributeError):
+        return True
+    return os.getppid() == parent and parent > 1
+
+
+def main(argv):
+    if len(argv) != 2 or not argv[1]:
+        return 2
+    if not _adopt_parent_death():
+        return 0
+    os.umask(0o077)
+    for name in ('SIGTERM', 'SIGINT', 'SIGHUP'):
+        signal.signal(getattr(signal, name), _stop)
+    bridge = XBridge()
+    try:
+        return serve(argv[1], bridge)
+    finally:
+        bridge.close()
+
+
+if __name__ == '__main__':
+    sys.exit(main(sys.argv))
