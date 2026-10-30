@@ -301,7 +301,7 @@ public final class WaylandCompositor {
 
     public static native void nativeSendSceneInput(int type, int a, int b);
 
-    public static final int FG_ENGINE_LSFG = 0, FG_ENGINE_DDFG = 1;
+    public static final int FG_ENGINE_LSFG = 0, FG_ENGINE_DDFG = 1, FG_ENGINE_WFG = 2;
 
     public static native void nativeSetFrameGenEngine(int kind);
 
