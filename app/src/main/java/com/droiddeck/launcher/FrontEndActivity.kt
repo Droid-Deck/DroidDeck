@@ -670,6 +670,18 @@ class FrontEndActivity : ComponentActivity() {
     @Volatile private var libraryScanGeneration = 0
     @Volatile private var lastComponentRestore = 0L
     @Volatile private var componentRestoreRetry = false
+    private val componentRestoreLock = Any()
+
+    private fun retryComponentRestore() {
+        val run = synchronized(componentRestoreLock) {
+            componentRestoreRetry = false
+            val now = android.os.SystemClock.elapsedRealtime()
+            (!isDestroyed && now - lastComponentRestore >= COMPONENT_RESTORE_MS).also { if (it) lastComponentRestore = now }
+        }
+        if (run) Thread({
+            runCatching { com.droiddeck.launcher.frontend.AutoComponents.restoreMissing(this) }.onFailure { Log.w(TAG, "components: restore failed", it) }
+        }, "components-restore").start()
+    }
     private var pendingGameLink: String? = null
     private var gameLinkReading = false
     private var gameLinkTried = false
@@ -2504,19 +2516,16 @@ class FrontEndActivity : ComponentActivity() {
                 componentSweepDone = true
                 endedSession?.let { componentSweepSession = it }
             }
-            val now = android.os.SystemClock.elapsedRealtime()
-            val restoreDue = ready && (lastComponentRestore == 0L || now - lastComponentRestore >= COMPONENT_RESTORE_MS)
-            if (restoreDue) {
-                lastComponentRestore = now
-            } else if (ready && !componentRestoreRetry) {
-                componentRestoreRetry = true
-                ui.postDelayed({
-                    componentRestoreRetry = false
-                    if (!isDestroyed) {
-                        lastComponentRestore = android.os.SystemClock.elapsedRealtime()
-                        Thread({ com.droiddeck.launcher.frontend.AutoComponents.restoreMissing(this) }, "components-restore").start()
-                    }
-                }, (COMPONENT_RESTORE_MS - (now - lastComponentRestore)).coerceAtLeast(0L))
+            val restoreDue = synchronized(componentRestoreLock) {
+                val now = android.os.SystemClock.elapsedRealtime()
+                val due = ready && (lastComponentRestore == 0L || now - lastComponentRestore >= COMPONENT_RESTORE_MS)
+                if (due) {
+                    lastComponentRestore = now
+                } else if (ready && !componentRestoreRetry) {
+                    componentRestoreRetry = true
+                    ui.postDelayed({ retryComponentRestore() }, (COMPONENT_RESTORE_MS - (now - lastComponentRestore)).coerceAtLeast(0L))
+                }
+                due
             }
             if (restoreDue || sweepDue) ui.postDelayed({
                 Thread({
