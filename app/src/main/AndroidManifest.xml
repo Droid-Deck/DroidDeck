@@ -69,6 +69,12 @@
             </intent-filter>
             <meta-data android:name="android.accessibilityservice" android:resource="@xml/home_button_service" />
         </service>
+        <receiver android:name=".core.ShortcutsListingReceiver" android:exported="false"
+            android:process=":shortcuts_sync">
+            <intent-filter>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
         <meta-data android:name="com.oculus.supportedDevices" android:value="quest2|quest3|quest3s" />
         <activity android:name=".QuestXrActivity" android:exported="true" android:launchMode="singleTask"
             android:permission="android.permission.DUMP"

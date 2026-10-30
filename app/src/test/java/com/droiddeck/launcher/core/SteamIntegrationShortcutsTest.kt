@@ -63,4 +63,25 @@ class SteamIntegrationShortcutsTest {
         SteamIntegration.syncShortcutsListing(context)
         assertFalse(listed())
     }
+
+    @Test fun anUpdateHidesAnUnchosenServiceWithoutOpeningDroidDeck() {
+        val replaced = Intent(Intent.ACTION_MY_PACKAGE_REPLACED).setPackage(context.packageName)
+        assertTrue(context.packageManager.queryBroadcastReceivers(replaced, 0)
+            .any { it.activityInfo.name == ShortcutsListingReceiver::class.java.name })
+        assertTrue(listed())
+        ShortcutsListingReceiver().onReceive(context, replaced)
+        assertFalse(listed())
+    }
+
+    @Test fun anUpdateLeavesAChosenServiceListed() {
+        choose(service.flattenToString())
+        ShortcutsListingReceiver().onReceive(context, Intent(Intent.ACTION_MY_PACKAGE_REPLACED))
+        assertTrue(listed())
+        assertTrue(SteamIntegration.shortcutsChosen(context))
+    }
+
+    @Test fun otherBroadcastsChangeNothing() {
+        ShortcutsListingReceiver().onReceive(context, Intent(Intent.ACTION_BOOT_COMPLETED))
+        assertTrue(listed())
+    }
 }
