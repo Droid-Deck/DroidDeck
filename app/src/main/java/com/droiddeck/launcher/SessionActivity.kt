@@ -212,6 +212,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var gestureConfig = com.droiddeck.launcher.input.TouchGestureConfig()
     private var gestureGame: String? = null
     private var gestureSettingsOpen by mutableStateOf(false)
+    private var steamImportAsk by mutableStateOf<com.droiddeck.launcher.session.SteamImportPrompt.Ask?>(null)
+    private var steamImportAnswered: String? = null
     private var directHoldBehavior by mutableStateOf(com.droiddeck.launcher.input.TouchGestureConfig.MOUSE_BEHAVIOR_CLICK)
     private var screenKeyPickerOpen by mutableStateOf(false)
     private var screenKeyBind: List<Int>? = null
@@ -902,6 +904,26 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     }
                 }
                 com.droiddeck.launcher.ui.GestureFeedback(recognizedGesture)
+                LaunchedEffect(Unit) {
+                    val root = LinuxRuntime.rootDir(this@SessionActivity)
+                    while (true) {
+                        val ask = if (SessionState.running && SessionState.mode == SessionService.MODE_STEAM) {
+                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.droiddeck.launcher.session.SteamImportPrompt.read(root) }
+                        } else null
+                        steamImportAsk = ask?.takeIf { it.token != steamImportAnswered }
+                        kotlinx.coroutines.delay(1500)
+                    }
+                }
+                steamImportAsk?.takeIf { !loading.visible }?.let { ask ->
+                    androidx.compose.runtime.key(ask.token) {
+                        com.droiddeck.launcher.ui.SteamImportDialog(ask.games) { now ->
+                            steamImportAnswered = ask.token
+                            steamImportAsk = null
+                            val root = LinuxRuntime.rootDir(this@SessionActivity)
+                            Thread({ com.droiddeck.launcher.session.SteamImportPrompt.answer(root, ask.token, now) }, "steam-import-answer").start()
+                        }
+                    }
+                }
                 if (gestureSettingsOpen) com.droiddeck.launcher.ui.TouchGestureDialog(
                     game = gestureGame,
                     onDismiss = { gestureSettingsOpen = false },

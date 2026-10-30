@@ -3284,4 +3284,9 @@
     <string name="slow_usb_port">%1$s jest podłączony przez %2$s (%3$s Mb/s, około %4$d MB/s). Port USB tego urządzenia nie działa szybciej, więc gry będą wczytywać się wolno. Pamięć wewnętrzna lub karta microSD mogą być szybsze.</string>
     <string name="slow_usb_never">Nie pokazuj ponownie</string>
     <string name="slow_usb_dismiss">Zamknij</string>
+    <string name="steam_import_title">Uruchomić ponownie Steam, aby dodać Twoje gry?</string>
+    <string name="steam_import_body">Steam może pokazać te posiadane gry jako zainstalowane: %1$s. Aby je pokazać, musi się uruchomić ponownie. Uruchom ponownie teraz albo zostaną dodane przy następnym uruchomieniu Steam.</string>
+    <string name="steam_import_names_more">%1$s i %2$d więcej</string>
+    <string name="steam_import_now">Uruchom ponownie teraz</string>
+    <string name="steam_import_later">Później</string>
 </resources>

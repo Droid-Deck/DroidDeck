@@ -3437,4 +3437,9 @@
     <string name="slow_usb_port">%1$s is connected over %2$s (%3$s Mbps, about %4$d MB/s). This device\'s USB port can\'t go faster, so games on it will load slowly. Internal storage or a microSD card may be quicker.</string>
     <string name="slow_usb_never">Don\'t show this again</string>
     <string name="slow_usb_dismiss">Dismiss</string>
+    <string name="steam_import_title">Restart Steam to add your games?</string>
+    <string name="steam_import_body">Steam can list these games you own as installed: %1$s. It has to restart to show them. Restart now, or they will be added the next time Steam starts.</string>
+    <string name="steam_import_names_more">%1$s and %2$d more</string>
+    <string name="steam_import_now">Restart now</string>
+    <string name="steam_import_later">Later</string>
 </resources>

@@ -116,6 +116,7 @@ class ImportsTest(unittest.TestCase):
         result = Mock(returncode=0, stdout='DROIDDECK_OWNERSHIP=' + json.dumps(dict(account='123', owned={'42': True})))
         with patch.object(imports, 'identify', side_effect=[None, 42]) as identify, \
              patch.object(imports, 'request_restart'), \
+             patch.object(imports, 'ask_restart', return_value=True), \
              patch.object(imports, 'time', Mock(monotonic=Mock(side_effect=[0, 301]),
                                                sleep=Mock(side_effect=[None, RuntimeError('stop')]))), \
              patch.object(imports.subprocess, 'run', return_value=result), \
@@ -126,7 +127,7 @@ class ImportsTest(unittest.TestCase):
         snapshot = imports.read_json(self.acct / 'config' / imports.STATE, {})
         self.assertTrue(snapshot['owned']['42'])
 
-    def run_watch(self, beats, routes=None, busy=False):
+    def run_watch(self, beats, routes=None, busy=False, answer=True):
         listing = self.root / 'games.json'
         listing.write_text(json.dumps([self.game]))
         if routes is not None:
@@ -138,16 +139,53 @@ class ImportsTest(unittest.TestCase):
         with patch.object(imports, 'identify', return_value=42), \
              patch.object(imports, 'game_running', return_value=False), \
              patch.object(imports, 'request_restart') as restart, \
+             patch.object(imports, 'ask_restart', return_value=answer) as asked, \
              patch.object(imports, 'time', Mock(monotonic=Mock(side_effect=list(range(0, 30 * beats, 30))),
                                                sleep=Mock(side_effect=[None] * (beats - 1) + [RuntimeError('stop')]))), \
              patch.object(imports.subprocess, 'run', return_value=result), \
              patch('builtins.print'):
             with self.assertRaisesRegex(RuntimeError, 'stop'):
                 imports.watch(self.steam, listing)
+        self.asked = asked
         return restart
 
     def test_newly_owned_game_restarts_the_client_once(self):
         self.assertEqual(1, self.run_watch(3).call_count)
+
+    def test_an_import_that_did_not_take_restarts_only_once_across_sessions(self):
+        self.assertEqual(1, self.run_watch(3).call_count)
+        self.assertEqual(0, self.run_watch(3).call_count)
+        self.assertEqual([42], imports.read_json(self.acct / 'config' / imports.TRIED, None))
+
+    def test_later_skips_the_restart_and_does_not_ask_again(self):
+        self.assertEqual(0, self.run_watch(3, answer=False).call_count)
+        self.assertEqual([['Example']], [c.args[0] for c in self.asked.call_args_list])
+        self.assertEqual(0, self.run_watch(3).call_count)
+        self.assertEqual(0, self.asked.call_count)
+
+    def test_the_app_answers_the_restart_question(self):
+        home = self.root / 'home'
+        folder = home / '.cache/droiddeck'
+        replies = []
+        def sleep(_):
+            ask = json.loads((folder / 'steam-import.json').read_text())
+            replies.append(ask['games'])
+            (folder / 'steam-import.answer').write_text(json.dumps(dict(token=ask['token'], choice=choice)))
+        for choice, expected in (('now', True), ('later', False)):
+            with patch.dict(os.environ, HOME=str(home)):
+                self.assertEqual(expected, imports.ask_restart(['Example'], clock=iter(range(100)).__next__, sleep=sleep))
+            self.assertFalse((folder / 'steam-import.json').exists())
+            self.assertFalse((folder / 'steam-import.answer').exists())
+        self.assertEqual([['Example'], ['Example']], replies)
+
+    def test_no_answer_means_later(self):
+        with patch.dict(os.environ, HOME=str(self.root / 'home')):
+            self.assertFalse(imports.ask_restart(['Example'], timeout=5, clock=iter(range(100)).__next__, sleep=lambda _: None))
+
+    def test_a_tried_import_that_took_is_forgotten(self):
+        imports.save_json(self.acct / 'config' / imports.TRIED, [42])
+        self.assertEqual(0, self.run_watch(2, routes={'1': 42}).call_count)
+        self.assertEqual([], imports.read_json(self.acct / 'config' / imports.TRIED, None))
 
     def test_imported_game_does_not_restart_the_client(self):
         self.assertEqual(0, self.run_watch(2, routes={'1': 42}).call_count)

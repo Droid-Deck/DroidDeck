@@ -3211,4 +3211,9 @@
     <string name="slow_usb_port">A(z) %1$s %2$s kapcsolaton csatlakozik (%3$s Mbps, kb. %4$d MB/s). Az eszköz USB-portja nem tud gyorsabb lenni, ezért a játékok lassan töltődnek be. A belső tárhely vagy egy microSD-kártya gyorsabb lehet.</string>
     <string name="slow_usb_never">Ne jelenjen meg többé</string>
     <string name="slow_usb_dismiss">Bezárás</string>
+    <string name="steam_import_title">Újraindítod a Steamet a játékaid hozzáadásához?</string>
+    <string name="steam_import_body">A Steam telepítettként mutathatja ezeket a saját játékaidat: %1$s. Ehhez újra kell indulnia. Indítsd újra most, vagy a Steam következő indításakor kerülnek be.</string>
+    <string name="steam_import_names_more">%1$s és még %2$d</string>
+    <string name="steam_import_now">Újraindítás most</string>
+    <string name="steam_import_later">Később</string>
 </resources>

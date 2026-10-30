@@ -3213,4 +3213,9 @@
     <string name="slow_usb_port">%1$s, %2$s üzerinden bağlı (%3$s Mbps, yaklaşık %4$d MB/sn). Bu cihazın USB bağlantı noktası daha hızlı çalışamıyor, bu yüzden oyunlar yavaş yüklenecek. Dahili depolama veya bir microSD kart daha hızlı olabilir.</string>
     <string name="slow_usb_never">Bir daha gösterme</string>
     <string name="slow_usb_dismiss">Kapat</string>
+    <string name="steam_import_title">Oyunlarınızı eklemek için Steam yeniden başlatılsın mı?</string>
+    <string name="steam_import_body">Steam sahip olduğunuz bu oyunları yüklü olarak gösterebilir: %1$s. Bunları göstermek için yeniden başlaması gerekir. Şimdi yeniden başlatın ya da Steam bir sonraki açılışta onları ekleyecek.</string>
+    <string name="steam_import_names_more">%1$s ve %2$d tane daha</string>
+    <string name="steam_import_now">Şimdi yeniden başlat</string>
+    <string name="steam_import_later">Daha sonra</string>
 </resources>

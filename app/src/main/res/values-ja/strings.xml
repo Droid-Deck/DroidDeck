@@ -3187,4 +3187,9 @@
     <string name="slow_usb_port">%1$s は %2$s（%3$s Mbps、約 %4$d MB/s）で接続されています。この端末の USB ポートはこれ以上速くならないため、ゲームの読み込みが遅くなります。内部ストレージや microSD カードの方が速い場合があります。</string>
     <string name="slow_usb_never">今後表示しない</string>
     <string name="slow_usb_dismiss">閉じる</string>
+    <string name="steam_import_title">ゲームを追加するために Steam を再起動しますか?</string>
+    <string name="steam_import_body">所有している次のゲームを Steam でインストール済みとして表示できます: %1$s。表示するには Steam の再起動が必要です。今すぐ再起動するか、次に Steam を起動したときに追加されます。</string>
+    <string name="steam_import_names_more">%1$s ほか %2$d 件</string>
+    <string name="steam_import_now">今すぐ再起動</string>
+    <string name="steam_import_later">後で</string>
 </resources>

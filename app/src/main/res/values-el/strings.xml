@@ -3211,4 +3211,9 @@
     <string name="slow_usb_port">Η συσκευή %1$s συνδέεται μέσω %2$s (%3$s Mbps, περίπου %4$d MB/s). Η θύρα USB αυτής της συσκευής δεν υποστηρίζει μεγαλύτερη ταχύτητα, οπότε τα παιχνίδια θα φορτώνουν αργά. Ο εσωτερικός χώρος ή μια κάρτα microSD μπορεί να είναι ταχύτερα.</string>
     <string name="slow_usb_never">Να μην εμφανιστεί ξανά</string>
     <string name="slow_usb_dismiss">Κλείσιμο</string>
+    <string name="steam_import_title">Επανεκκίνηση του Steam για να προστεθούν τα παιχνίδια σας;</string>
+    <string name="steam_import_body">Το Steam μπορεί να εμφανίσει αυτά τα παιχνίδια που έχετε ως εγκατεστημένα: %1$s. Πρέπει να γίνει επανεκκίνηση για να εμφανιστούν. Κάντε επανεκκίνηση τώρα ή θα προστεθούν την επόμενη φορά που θα ξεκινήσει το Steam.</string>
+    <string name="steam_import_names_more">%1$s και %2$d ακόμη</string>
+    <string name="steam_import_now">Επανεκκίνηση τώρα</string>
+    <string name="steam_import_later">Αργότερα</string>
 </resources>
