@@ -740,7 +740,10 @@ class FrontEndActivity : ComponentActivity() {
                         if (id == null) {
                             syncDualPanel()
                             android.widget.Toast.makeText(this, R.string.game_link_invalid, android.widget.Toast.LENGTH_LONG).show()
-                        } else refresh()
+                        } else {
+                            handleGameLink(steamGames, scanned = false)
+                            refresh()
+                        }
                     }
                 }
             }, "game-launch-file").start()
@@ -943,9 +946,10 @@ class FrontEndActivity : ComponentActivity() {
         ui.postDelayed(poll, SESSION_SWITCH_POLL_MS)
     }
 
-    private fun handleGameLink(games: List<Library.SteamGame>) {
+    private fun handleGameLink(games: List<Library.SteamGame>, scanned: Boolean = true) {
         if (!lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) return
         val id = pendingGameLink ?: return
+        if (!scanned && games.none { it.gameIdString == id }) return
         gameLinkTried = true
         ui.postDelayed({
             if (!isDestroyed && lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) syncDualPanel()
