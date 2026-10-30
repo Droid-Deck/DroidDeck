@@ -162,6 +162,30 @@ class AddedExesTest {
         SessionPrefs.setGameStorage(app, SessionPrefs.GAME_STORAGE_OFF, "")
     }
 
+    @Test fun aSiblingExeOfAnAddedGameOnGameStorageSwitchesThatGame() {
+        val storage = tmp.newFolder("PC Games")
+        SessionPrefs.setAddedGamesDirs(app, emptyList())
+        SessionPrefs.setGameStorage(app, storage.path, "SD card")
+        val held = exe(File(storage, "Game/bin/Game.exe"))
+        val pick = exe(File(storage, "Game/launcher/Launcher.exe"))
+        val game = File(storage, "Game")
+        AddedExes.put(app, AddedExes.Entry(game.path, held.path))
+        val result = AddedGames.addExe(app, pick)
+        assertTrue(result is AddedGames.AddResult.Switched)
+        assertEquals(game.path, (result as AddedGames.AddResult.Switched).game.folder.path)
+        SessionPrefs.setGameStorage(app, SessionPrefs.GAME_STORAGE_OFF, "")
+    }
+
+    @Test fun aHiddenFolderInAGroupIsAddedAsItsOwnGame() {
+        val storage = visualNovels()
+        val vns = File(storage, "VNs")
+        val pick = exe(File(vns, ".Gamma/Gamma.exe"))
+        val game = result(AddedGames.addExe(app, pick))
+        assertEquals(pick.parentFile!!.path, game.folder.path)
+        assertTrue(AddedGames.scan(app).any { it.folder.path == pick.parentFile!!.path })
+        SessionPrefs.setGameStorage(app, SessionPrefs.GAME_STORAGE_OFF, "")
+    }
+
     @Test fun aFolderThatDeclaresItsExeInASubfolderStaysOneGame() {
         val storage = tmp.newFolder("PC Games")
         SessionPrefs.setAddedGamesDirs(app, emptyList())

@@ -264,8 +264,9 @@ object AddedGames {
             if (!inside(path, base)) continue
             val first = path.removePrefix("$base/").substringBefore('/')
             val top = File(dir, first).takeIf { it.isDirectory && !isSteamLibraryFolder(first) && it.path !in removed } ?: continue
+            val group = groupGames(top) ?: return top
             if (top.path in entries.map { it.folder }) return null
-            return groupGames(top)?.firstOrNull(::holds) ?: top
+            return group.firstOrNull(::holds)
         }
         return null
     }
