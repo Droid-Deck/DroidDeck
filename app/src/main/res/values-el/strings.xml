@@ -3187,6 +3187,8 @@
     <string name="apps_filter_hidden">Κρυφές</string>
     <string name="apps_hide">Απόκρυψη</string>
     <string name="apps_unhide">Εμφάνιση στις εφαρμογές</string>
+    <string name="apps_favorite">Προσθήκη στα αγαπημένα</string>
+    <string name="apps_unfavorite">Αφαίρεση από τα αγαπημένα</string>
     <string name="apps_shortcut_remove">Αφαίρεση συντόμευσης</string>
     <string name="apps_pin_title">Προσθήκη στις Εφαρμογές</string>
     <string name="apps_pin_add">Προσθήκη</string>

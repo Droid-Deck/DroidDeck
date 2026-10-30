@@ -3187,6 +3187,8 @@
     <string name="apps_filter_hidden">Скрити</string>
     <string name="apps_hide">Скриване</string>
     <string name="apps_unhide">Показване в приложенията</string>
+    <string name="apps_favorite">Добави в любими</string>
+    <string name="apps_unfavorite">Премахни от любими</string>
     <string name="apps_shortcut_remove">Премахване на прекия път</string>
     <string name="apps_pin_title">Добавяне към приложенията</string>
     <string name="apps_pin_add">Добавяне</string>

@@ -3187,6 +3187,8 @@
     <string name="apps_filter_hidden">Dolda</string>
     <string name="apps_hide">Dölj</string>
     <string name="apps_unhide">Visa i appar</string>
+    <string name="apps_favorite">Lägg till i favoriter</string>
+    <string name="apps_unfavorite">Ta bort från favoriter</string>
     <string name="apps_shortcut_remove">Ta bort genväg</string>
     <string name="apps_pin_title">Lägg till i Appar</string>
     <string name="apps_pin_add">Lägg till</string>

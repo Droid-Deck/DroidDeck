@@ -3187,6 +3187,8 @@
     <string name="apps_filter_hidden">Ausgeblendet</string>
     <string name="apps_hide">Ausblenden</string>
     <string name="apps_unhide">In Apps anzeigen</string>
+    <string name="apps_favorite">Zu Favoriten hinzufügen</string>
+    <string name="apps_unfavorite">Aus Favoriten entfernen</string>
     <string name="apps_shortcut_remove">Verknüpfung entfernen</string>
     <string name="apps_pin_title">Zu Apps hinzufügen</string>
     <string name="apps_pin_add">Hinzufügen</string>

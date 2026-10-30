@@ -3189,6 +3189,8 @@
     <string name="apps_filter_hidden">Gizli</string>
     <string name="apps_hide">Gizle</string>
     <string name="apps_unhide">Uygulamalarda göster</string>
+    <string name="apps_favorite">Favorilere ekle</string>
+    <string name="apps_unfavorite">Favorilerden kaldır</string>
     <string name="apps_shortcut_remove">Kısayolu kaldır</string>
     <string name="apps_pin_title">Uygulamalara ekle</string>
     <string name="apps_pin_add">Ekle</string>

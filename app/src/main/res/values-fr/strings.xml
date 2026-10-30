@@ -3223,6 +3223,8 @@
     <string name="apps_filter_hidden">Masquées</string>
     <string name="apps_hide">Masquer</string>
     <string name="apps_unhide">Afficher dans les applications</string>
+    <string name="apps_favorite">Ajouter aux favoris</string>
+    <string name="apps_unfavorite">Retirer des favoris</string>
     <string name="apps_shortcut_remove">Retirer le raccourci</string>
     <string name="apps_pin_title">Ajouter aux applications</string>
     <string name="apps_pin_add">Ajouter</string>
