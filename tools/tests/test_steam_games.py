@@ -113,6 +113,7 @@ class ImportsTest(unittest.TestCase):
         listing = self.root / 'games.json'
         listing.write_text(json.dumps([self.game]))
         from unittest.mock import Mock
+        idle = imports.downloads_idle
         result = Mock(returncode=0, stdout='DROIDDECK_OWNERSHIP=' + json.dumps(dict(account='123', owned={'42': True})))
         with patch.object(imports, 'identify', side_effect=[None, 42]) as identify, \
              patch.object(imports, 'request_restart'), \
@@ -127,7 +128,7 @@ class ImportsTest(unittest.TestCase):
         snapshot = imports.read_json(self.acct / 'config' / imports.STATE, {})
         self.assertTrue(snapshot['owned']['42'])
 
-    def run_watch(self, beats, routes=None, busy=False, answer=True):
+    def run_watch(self, beats, routes=None, busy=False, answer=True, started=False):
         listing = self.root / 'games.json'
         listing.write_text(json.dumps([self.game]))
         if routes is not None:
@@ -135,11 +136,13 @@ class ImportsTest(unittest.TestCase):
         if busy:
             (self.steam / 'steamapps/downloading/7').mkdir(parents=True)
         from unittest.mock import Mock
+        idle = imports.downloads_idle
         result = Mock(returncode=0, stdout='DROIDDECK_OWNERSHIP=' + json.dumps(dict(account='123', owned={'42': True})))
         with patch.object(imports, 'identify', return_value=42), \
              patch.object(imports, 'game_running', return_value=False), \
              patch.object(imports, 'request_restart') as restart, \
              patch.object(imports, 'ask_restart', return_value=answer) as asked, \
+             patch.object(imports, 'downloads_idle', side_effect=lambda root: idle(root) and not (started and asked.called)), \
              patch.object(imports, 'time', Mock(monotonic=Mock(side_effect=list(range(0, 30 * beats, 30))),
                                                sleep=Mock(side_effect=[None] * (beats - 1) + [RuntimeError('stop')]))), \
              patch.object(imports.subprocess, 'run', return_value=result), \
@@ -162,6 +165,10 @@ class ImportsTest(unittest.TestCase):
         self.assertEqual([['Example']], [c.args[0] for c in self.asked.call_args_list])
         self.assertEqual(0, self.run_watch(3).call_count)
         self.assertEqual(0, self.asked.call_count)
+
+    def test_a_download_started_while_asking_leaves_the_import_for_the_next_start(self):
+        self.assertEqual(0, self.run_watch(3, started=True).call_count)
+        self.assertEqual(1, self.asked.call_count)
 
     def test_the_app_answers_the_restart_question(self):
         home = self.root / 'home'

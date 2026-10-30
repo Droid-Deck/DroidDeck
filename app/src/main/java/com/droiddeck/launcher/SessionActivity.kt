@@ -917,10 +917,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 steamImportAsk?.takeIf { !loading.visible }?.let { ask ->
                     androidx.compose.runtime.key(ask.token) {
                         com.droiddeck.launcher.ui.SteamImportDialog(ask.games) { now ->
-                            steamImportAnswered = ask.token
-                            steamImportAsk = null
                             val root = LinuxRuntime.rootDir(this@SessionActivity)
-                            Thread({ com.droiddeck.launcher.session.SteamImportPrompt.answer(root, ask.token, now) }, "steam-import-answer").start()
+                            Thread({
+                                if (com.droiddeck.launcher.session.SteamImportPrompt.answer(root, ask.token, now)) runOnUiThread {
+                                    steamImportAnswered = ask.token
+                                    if (steamImportAsk?.token == ask.token) steamImportAsk = null
+                                }
+                            }, "steam-import-answer").start()
                         }
                     }
                 }

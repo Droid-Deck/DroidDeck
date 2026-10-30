@@ -281,7 +281,7 @@ def watch(steam_root, listing):
             names = sorted({game["name"] for game in games if candidates.get(game["folder"]) in pending})
             try:
                 remember_tried(steam_root, account, pending)
-                if ask_restart(names):
+                if ask_restart(names) and not game_running() and downloads_idle(steam_root):
                     print("droiddeck-steam-games: restarting the client once to import %s" % pending, flush=True)
                     request_restart(steam_root)
                 else:
