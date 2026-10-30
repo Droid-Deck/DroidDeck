@@ -276,7 +276,7 @@ internal fun AndroidAppsPage(s: FrontEndState, modifier: Modifier, onLaunch: (Ho
                 if (apps.isEmpty()) null else AppEntry.Folder(f, apps)
             }
             val grouped = folderEntries.flatMap { f -> f.apps.map { it.key } }.toSet()
-            (folderEntries + kept.filter { it.key !in grouped }.map { AppEntry.App(it) } + shortcuts).sortedWith(AppsView.comparator()).favoritesFirst(favorites)
+            (folderEntries + kept.filter { it.key !in grouped || it.key in favorites }.map { AppEntry.App(it) } + shortcuts).sortedWith(AppsView.comparator()).favoritesFirst(favorites)
         }
     }
     val favoriteCount = if (q.isEmpty()) entries.takeWhile { it.isFavorite(favorites) }.size else 0
@@ -315,7 +315,7 @@ internal fun AndroidAppsPage(s: FrontEndState, modifier: Modifier, onLaunch: (Ho
                 }
             }
             Box(Modifier.weight(1f).fillMaxWidth()) {
-                val scroller = q.isEmpty() && byName && entries.size > 16
+                val scroller = q.isEmpty() && byName && entries.size - favoriteCount > 16
                 LazyVerticalGrid(
                     columns = GridCells.Adaptive(if (narrow) 84.dp else 96.dp),
                     state = grid,
@@ -631,13 +631,12 @@ private fun AppMenu(
                 }
             }
             if (shortcuts.isNotEmpty()) Box(Modifier.fillMaxWidth().padding(vertical = 4.dp).height(1.dp).background(LocalPalette.current.line))
-            if (!isHidden && folderId == null) MenuItem(stringResource(if (isFavorite) R.string.apps_unfavorite else R.string.apps_favorite), checked = false,
+            if (!isHidden) MenuItem(stringResource(if (isFavorite) R.string.apps_unfavorite else R.string.apps_favorite), checked = false,
                 focusRequester = if (shortcuts.isEmpty()) first else null) {
                 onDismiss()
                 HomeFavorites.set(ctx, app.key, !isFavorite)
             }
-            if (!isHidden) MenuItem(stringResource(R.string.apps_add_to_folder), checked = false,
-                focusRequester = if (shortcuts.isEmpty() && folderId != null) first else null) { choosing = true }
+            if (!isHidden) MenuItem(stringResource(R.string.apps_add_to_folder), checked = false) { choosing = true }
             if (folderId != null) MenuItem(stringResource(R.string.apps_remove_from_folder), checked = false) {
                 HomeFolders.remove(ctx, app.key)
                 onDismiss()
