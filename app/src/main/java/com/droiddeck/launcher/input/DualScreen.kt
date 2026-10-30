@@ -4,7 +4,11 @@ import android.content.Context
 import android.hardware.display.DisplayManager
 import android.os.Build
 import android.view.Display
+import android.view.InputDevice
+import android.view.MotionEvent
 import com.droiddeck.launcher.session.SessionPrefs
+import kotlin.math.abs
+import kotlin.math.roundToInt
 
 object DualScreen {
     const val MODE_AUTO = "auto"
@@ -12,14 +16,20 @@ object DualScreen {
     const val MODE_OFF = "off"
     val modes = listOf(MODE_AUTO, MODE_ON, MODE_OFF)
     private const val TYPE_INTERNAL = 1
-    private const val TYPE_OVERLAY = 4
-    private const val TYPE_VIRTUAL = 5
     private val knownModels = setOf("retroid pocket duo", "ayn thor")
+    private val touchedDisplays = mutableSetOf<Int>()
 
     fun builtInDisplay(displayManager: DisplayManager, primaryDisplayId: Int): Display? {
-        val awake = displayManager.getDisplay(primaryDisplayId)?.let { it.state != Display.STATE_OFF } ?: true
-        if (displayManager.displays.count { addressable(it, awake) } < 2) return null
-        return internalDisplay(displayManager, primaryDisplayId) { addressable(it, awake) }
+        val primary = displayManager.getDisplay(primaryDisplayId)
+        val awake = primary?.state != Display.STATE_OFF
+        val panels = if (awake) touchPanels() else emptyList()
+        return internalDisplay(displayManager, primaryDisplayId) {
+            if (awake && it.state == Display.STATE_OFF) return@internalDisplay false
+            synchronized(touchedDisplays) {
+                if (awake && hasOwnTouchPanel(size(it), primary?.let(::size), panels)) touchedDisplays += it.displayId
+                it.displayId in touchedDisplays
+            }
+        }
     }
 
     private fun internalDisplay(displayManager: DisplayManager, primaryDisplayId: Int, accept: (Display) -> Boolean = { true }): Display? =
@@ -28,11 +38,28 @@ object DualScreen {
                 isBuiltIn(displayType(it), Build.MODEL) && accept(it)
         }
 
-    private fun addressable(display: Display, awake: Boolean): Boolean =
-        display.isValid && addressable(displayType(display), display.state, awake)
+    internal fun hasOwnTouchPanel(display: Pair<Int, Int>, primary: Pair<Int, Int>?, panels: List<Pair<Int, Int>>): Boolean {
+        val matching = panels.count { covers(it, display) }
+        return if (primary != null && covers(primary, display)) matching >= 2 else matching >= 1
+    }
 
-    internal fun addressable(type: Int?, state: Int, awake: Boolean): Boolean =
-        type != TYPE_VIRTUAL && type != TYPE_OVERLAY && (!awake || state != Display.STATE_OFF)
+    private fun covers(panel: Pair<Int, Int>, display: Pair<Int, Int>): Boolean =
+        (near(panel.first, display.first) && near(panel.second, display.second)) ||
+            (near(panel.first, display.second) && near(panel.second, display.first))
+
+    private fun near(a: Int, b: Int) = abs(a - b) <= 2
+
+    private fun size(display: Display): Pair<Int, Int> =
+        display.mode.let { it.physicalWidth to it.physicalHeight }
+
+    private fun touchPanels(): List<Pair<Int, Int>> =
+        InputDevice.getDeviceIds().toList().mapNotNull { id ->
+            val device = InputDevice.getDevice(id) ?: return@mapNotNull null
+            if (device.isVirtual || !device.supportsSource(InputDevice.SOURCE_TOUCHSCREEN)) return@mapNotNull null
+            val x = device.getMotionRange(MotionEvent.AXIS_X, InputDevice.SOURCE_TOUCHSCREEN) ?: return@mapNotNull null
+            val y = device.getMotionRange(MotionEvent.AXIS_Y, InputDevice.SOURCE_TOUCHSCREEN) ?: return@mapNotNull null
+            (x.max - x.min + 1f).roundToInt() to (y.max - y.min + 1f).roundToInt()
+        }
 
     fun display(context: Context, displayManager: DisplayManager, primaryDisplayId: Int): Display? =
         when (SessionPrefs.dualScreenMode(context)) {

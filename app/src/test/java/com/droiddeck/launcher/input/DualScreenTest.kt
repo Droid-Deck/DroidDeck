@@ -32,18 +32,22 @@ class DualScreenTest {
         assertFalse(DualScreen.isBuiltIn(null, "Pixel 8"))
     }
 
-    @Test fun onlyLitPhysicalScreensAreAddressable() {
-        assertTrue(DualScreen.addressable(1, Display.STATE_ON, awake = true))
-        assertTrue(DualScreen.addressable(2, Display.STATE_ON, awake = true))
-        assertTrue(DualScreen.addressable(null, Display.STATE_ON, awake = true))
-        assertFalse(DualScreen.addressable(1, Display.STATE_OFF, awake = true))
-        assertFalse(DualScreen.addressable(4, Display.STATE_ON, awake = true))
-        assertFalse(DualScreen.addressable(5, Display.STATE_ON, awake = true))
+    @Test fun aSecondPanelNeedsATouchscreenOfItsOwnSize() {
+        val top = 1920 to 1080
+        val bottom = 1280 to 960
+        assertTrue(DualScreen.hasOwnTouchPanel(bottom, top, listOf(1920 to 1080, 1280 to 960)))
+        assertTrue(DualScreen.hasOwnTouchPanel(bottom, top, listOf(1080 to 1920, 960 to 1280)))
+        assertTrue(DualScreen.hasOwnTouchPanel(bottom, top, listOf(1920 to 1080, 1279 to 959)))
+        assertFalse(DualScreen.hasOwnTouchPanel(bottom, top, listOf(1920 to 1080)))
+        assertFalse(DualScreen.hasOwnTouchPanel(bottom, top, emptyList()))
     }
 
-    @Test fun aSleepingDeviceKeepsItsSecondScreen() {
-        assertTrue(DualScreen.addressable(1, Display.STATE_OFF, awake = false))
-        assertFalse(DualScreen.addressable(5, Display.STATE_OFF, awake = false))
+    @Test fun aPhantomPanelTheSizeOfTheMainScreenIsNotASecondScreen() {
+        val main = 1920 to 1080
+        assertFalse(DualScreen.hasOwnTouchPanel(main, main, listOf(1920 to 1080)))
+        assertFalse(DualScreen.hasOwnTouchPanel(main, main, listOf(1080 to 1920)))
+        assertTrue(DualScreen.hasOwnTouchPanel(main, main, listOf(1920 to 1080, 1920 to 1080)))
+        assertTrue(DualScreen.hasOwnTouchPanel(main, null, listOf(1920 to 1080)))
     }
 
     @Test fun oneScreenDevicesGetNoSecondScreenInAnyMode() {
