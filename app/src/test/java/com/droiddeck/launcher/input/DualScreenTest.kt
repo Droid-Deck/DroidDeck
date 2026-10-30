@@ -32,13 +32,18 @@ class DualScreenTest {
         assertFalse(DualScreen.isBuiltIn(null, "Pixel 8"))
     }
 
-    @Test fun aynHandheldsOtherThanTheThorHaveOneScreen() {
-        for (model in listOf("AYN Odin2", "AYN Odin2 Portal", "AYN Odin2 Mini", "AYN Odin 3")) {
-            assertFalse(model, DualScreen.isBuiltIn(1, model))
-            assertFalse(model, DualScreen.isBuiltIn(null, model))
-        }
-        assertTrue(DualScreen.isBuiltIn(1, "AYN Thor"))
-        assertTrue(DualScreen.isBuiltIn(1, "AYN Thor Max"))
+    @Test fun onlyLitPhysicalScreensAreAddressable() {
+        assertTrue(DualScreen.addressable(1, Display.STATE_ON, awake = true))
+        assertTrue(DualScreen.addressable(2, Display.STATE_ON, awake = true))
+        assertTrue(DualScreen.addressable(null, Display.STATE_ON, awake = true))
+        assertFalse(DualScreen.addressable(1, Display.STATE_OFF, awake = true))
+        assertFalse(DualScreen.addressable(4, Display.STATE_ON, awake = true))
+        assertFalse(DualScreen.addressable(5, Display.STATE_ON, awake = true))
+    }
+
+    @Test fun aSleepingDeviceKeepsItsSecondScreen() {
+        assertTrue(DualScreen.addressable(1, Display.STATE_OFF, awake = false))
+        assertFalse(DualScreen.addressable(5, Display.STATE_OFF, awake = false))
     }
 
     @Test fun oneScreenDevicesGetNoSecondScreenInAnyMode() {
