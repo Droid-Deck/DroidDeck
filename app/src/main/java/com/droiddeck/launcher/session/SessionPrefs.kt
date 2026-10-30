@@ -1087,7 +1087,9 @@ object SessionPrefs {
     /** Compositor frame limit that releases buffers to the game unpaced. */
     const val FPS_UNPACED = -1
 
-    val fpsLimitChoices = listOf(0, 30, 40, 45, 60, 90, 120)
+    /** The drawer's frame limit slider: its first stop is Off. */
+    const val FPS_LIMIT_OFF = 15
+    const val FPS_LIMIT_MAX = 120
 
     /**
      * Buffers go back to the game as soon as they are replaced instead of once per refresh;

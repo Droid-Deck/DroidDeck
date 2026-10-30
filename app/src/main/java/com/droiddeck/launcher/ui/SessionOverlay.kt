@@ -537,6 +537,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                         SessionDrawerPage.DISPLAY -> {
                             SettingsGroup(stringResource(R.string.drawer_page_display)) {
                                 val fgOpen = host.open == "fg"
+                                val offLabel = stringResource(R.string.frame_gen_off)
                                 val fgLabel = FrameGen.label(LocalContext.current, a.frameGen)
                                 SettingsRow(stringResource(R.string.frame_gen_title), null, highlighted = fgOpen) {
                                     Box {
@@ -544,10 +545,13 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                         FrameGenMenu(host, a.frameGen, a.lossless, a.onFrameGenPick, a.onImportLossless)
                                     }
                                 }
-                                if (a.direct) ChoiceRow(host, "fps-limit", stringResource(R.string.drawer_frame_limit), null,
-                                    SessionPrefs.fpsLimitChoices.map { it to if (it == 0) stringResource(R.string.frame_gen_off) else it.toString() },
-                                    a.fpsLimit, note = stringResource(R.string.drawer_frame_limit_note),
-                                    chipModifier = focus.track(page, "fps-limit"), onPick = a.onFpsLimit)
+                                if (a.direct) SliderRow(
+                                    stringResource(R.string.drawer_frame_limit), stringResource(R.string.drawer_frame_limit_note),
+                                    a.fpsLimit.takeIf { it > 0 } ?: SessionPrefs.FPS_LIMIT_OFF,
+                                    SessionPrefs.FPS_LIMIT_OFF..SessionPrefs.FPS_LIMIT_MAX, step = 5,
+                                    format = { if (it <= SessionPrefs.FPS_LIMIT_OFF) offLabel else it.toString() },
+                                    modifier = focus.track(page, "fps-limit"),
+                                    onChange = { a.onFpsLimit(if (it <= SessionPrefs.FPS_LIMIT_OFF) 0 else it) })
                             }
                             SettingsGroup(stringResource(R.string.display_image_scaling)) {
                                 ChoiceRow(host, "upscaler", stringResource(R.string.display_filter), null,
