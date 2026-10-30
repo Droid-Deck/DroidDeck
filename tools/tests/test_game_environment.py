@@ -194,18 +194,18 @@ class GameEnvironmentTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             home = Path(tmp)
             probe = home / "probe"
-            probe.write_text("#!" + sys.executable + "\nimport os\nprint(os.environ.get('BANNER_AUDIO_DIRECT_MIC', 'unset'))\n")
+            probe.write_text("#!" + sys.executable + "\nimport os\nprint(os.environ.get('AUDIO_DIRECT_MIC', 'unset'))\n")
             probe.chmod(0o755)
             config = home / ".config/droiddeck/game-environment.json"
             config.parent.mkdir(parents=True)
             for enabled, override, expected in (("1", None, "1"), ("0", "1", "0"), ("1", "0", "0")):
                 with self.subTest(enabled=enabled, override=override):
                     profile = {} if override is None else {
-                        "BANNER_AUDIO_DIRECT_MIC": override, "BL_MIC_ENABLED": override,
+                        "AUDIO_DIRECT_MIC": override, "BL_MIC_ENABLED": override,
                     }
                     config.write_text(json.dumps({"version": 1, "games": {"42": profile}}))
                     env = dict(os.environ, HOME=tmp, BL_MIC_ENABLED=enabled,
-                               BANNER_AUDIO_DIRECT_MIC="1", STEAM_COMPAT_DATA_PATH="/compatdata/42")
+                               AUDIO_DIRECT_MIC="1", STEAM_COMPAT_DATA_PATH="/compatdata/42")
                     result = subprocess.run([sys.executable, str(BIN / "droiddeck-game-env"),
                                              str(probe), "waitforexitandrun"],
                                             env=env, text=True, capture_output=True, check=True)
@@ -1497,11 +1497,11 @@ class DirectAudioPrefixTest(unittest.TestCase):
             (self.windows / folder).mkdir(parents=True)
         self.reg = self.compat / "pfx/user.reg"
 
-    def run_setup(self, verb="waitforexitandrun", target="game.exe", cwd=None):
-        script = COMPAT["BL_DIRECTAUDIO_SETUP"] + '\nverb=$2\nbl_directaudio "$1" "$3"\necho "WINEDLLPATH=$WINEDLLPATH"\necho "WINE_AUDIO_DRIVER=${WINE_AUDIO_DRIVER:-}"\n'
+    def run_setup(self, verb="waitforexitandrun", target="game.exe", cwd=None, extra=None):
+        script = COMPAT["BL_DIRECTAUDIO_SETUP"] + '\nverb=$2\nbl_directaudio "$1" "$3"\necho "WINEDLLPATH=$WINEDLLPATH"\necho "WINE_AUDIO_DRIVER=${WINE_AUDIO_DRIVER:-}"\nenv | grep "^BANNER_AUDIO_DIRECT_" | sort\n'
         steam = self.compat.parent / "Steam"
         env = dict(os.environ, BL_DIRECTAUDIO=str(self.sets), STEAM_COMPAT_DATA_PATH=str(self.compat),
-                   STEAM_COMPAT_CLIENT_INSTALL_PATH=str(steam))
+                   STEAM_COMPAT_CLIENT_INSTALL_PATH=str(steam), **(extra or {}))
         env.pop("WINEDLLPATH", None)
         env.pop("WINE_AUDIO_DRIVER", None)
         return subprocess.run(["bash", "-c", script, "bash", str(self.tool), verb, target], cwd=cwd, env=env,
@@ -1549,6 +1549,21 @@ class DirectAudioPrefixTest(unittest.TestCase):
         self.assertIn("DirectAudio selected", result.stderr)
         self.assertEqual(self.link("system32"), str(self.audio / "lib/wine/aarch64-windows/winedirectaudio.drv"))
         self.assertEqual(self.audio_values(), [("[Software\\\\Wine\\\\Drivers]", '"Audio"="directaudio,pulse"')])
+    def test_audio_direct_settings_reach_the_driver_under_its_own_names(self):
+        self.reg.write_text("WINE REGISTRY Version 2\n\n#arch=win64\n")
+        result = self.run_setup(extra={"AUDIO_DIRECT_MS": "60", "AUDIO_DIRECT_PERIOD_MS": "20",
+                                       "AUDIO_DIRECT_RELAY": "/run/relay.sock", "OTHER_AUDIO_DIRECT_MS": "5"})
+        lines = [line for line in result.stdout.splitlines() if line.startswith("BANNER_")]
+        self.assertEqual(lines, ["BANNER_AUDIO_DIRECT_MS=60", "BANNER_AUDIO_DIRECT_PERIOD_MS=20",
+                                 "BANNER_AUDIO_DIRECT_RELAY=/run/relay.sock"])
+
+    def test_audio_direct_settings_are_not_handed_on_when_directaudio_stays_off(self):
+        legacycompat = self.compat.parent / "Steam/legacycompat"
+        legacycompat.mkdir(parents=True)
+        (legacycompat / "iscriptevaluator.exe").write_bytes(b"Steam install-script evaluator")
+        result = self.run_setup(target="iscriptevaluator.exe", cwd=legacycompat, extra={"AUDIO_DIRECT_MS": "60"})
+        self.assertNotIn("BANNER_AUDIO_DIRECT_MS", result.stdout)
+
     def test_non_launch_verbs_preserve_audio_configuration(self):
         for verb in ("getcompatpath", "getnativepath", "destroyprefix"):
             with self.subTest(verb=verb):

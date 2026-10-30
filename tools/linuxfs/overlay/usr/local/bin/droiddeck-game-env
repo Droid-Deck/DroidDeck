@@ -797,7 +797,7 @@ def main():
     if app_id and len(command) > 1 and command[1] == "waitforexitandrun":
         command = offline_without_anticheat(command, env)
     if mic_enabled == "0":
-        env["BANNER_AUDIO_DIRECT_MIC"] = "0"
+        env["AUDIO_DIRECT_MIC"] = "0"
     env = vram_cap(env)
     env = force_ssbs(command, env)
     game_cores(env)

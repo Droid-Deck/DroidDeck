@@ -335,6 +335,11 @@ bl_directaudio() {
   fi
   WINEDLLPATH="$da/lib/wine${WINEDLLPATH:+:$WINEDLLPATH}"
   export WINEDLLPATH
+  for name in $(compgen -e); do
+    case $name in
+      AUDIO_DIRECT_*) export "BANNER_$name=${!name}" ;;
+    esac
+  done
   WINE_AUDIO_DRIVER="directaudio,pulse"
   export WINE_AUDIO_DRIVER
   pfx="${STEAM_COMPAT_DATA_PATH:-}/pfx"
