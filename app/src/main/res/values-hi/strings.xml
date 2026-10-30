@@ -3211,4 +3211,9 @@
     <string name="slow_usb_port">%1$s %2$s (%3$s Mbps, लगभग %4$d MB/s) से जुड़ा है। इस डिवाइस का USB पोर्ट इससे तेज़ नहीं चलता, इसलिए गेम धीरे लोड होंगे। आंतरिक स्टोरेज या microSD कार्ड तेज़ हो सकता है।</string>
     <string name="slow_usb_never">फिर से न दिखाएँ</string>
     <string name="slow_usb_dismiss">बंद करें</string>
+    <string name="steam_import_title">अपने गेम जोड़ने के लिए Steam फिर से शुरू करें?</string>
+    <string name="steam_import_body">Steam आपके इन गेम को इंस्टॉल के रूप में दिखा सकता है: %1$s. इन्हें दिखाने के लिए इसे फिर से शुरू करना होगा। अभी फिर से शुरू करें, या ये अगली बार Steam शुरू होने पर जुड़ जाएंगे।</string>
+    <string name="steam_import_names_more">%1$s और %2$d और</string>
+    <string name="steam_import_now">अभी फिर से शुरू करें</string>
+    <string name="steam_import_later">बाद में</string>
 </resources>

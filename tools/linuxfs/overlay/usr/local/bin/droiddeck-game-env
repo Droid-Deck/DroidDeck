@@ -132,6 +132,12 @@ def arkham_city_x87(game):
 
 
 @fix
+def teardown_vsync(game):
+    if game.stem == "teardown":
+        return {"vblank_mode": "2"}, [], "Teardown: OpenGL keeps the game's own vsync"
+
+
+@fix
 def protonfixes_off(game):
     if game.stem in ("blackops3", "darksoulsremastered"):
         return {"PROTONFIXES_DISABLE": "1"}, [], "umu-protonfixes off (its ALSA audio and VC++ installer steps fail here)"
@@ -442,6 +448,14 @@ def gl_vsync(env):
     return True
 
 
+def game_images(env):
+    if game_id(env) is None:
+        return False
+    env.setdefault("GAMESCOPE_WSI_MIN_IMAGE_COUNT", "8")
+    env.setdefault("GAMESCOPE_WSI_ENSURE_MIN_IMAGE_COUNT", "1")
+    return True
+
+
 def apply_config(env, config, app_id, fixes=None):
     if config.get("version") != 1:
         raise ValueError("unsupported environment configuration")
@@ -741,11 +755,15 @@ def main():
     if app_id:
         gl_default = gl_vsync(env)
         waiting = len(command) > 1 and command[1] == "waitforexitandrun"
+        if waiting:
+            game_images(env)
         fixes = {}
         if waiting:
             command = skip_red_launcher(command)
             ubisoft_overlay_off(env)
             fixes, extra, notes = engine_fixes(command[2], command[3:]) if len(command) > 2 else ({}, [], [])
+            if not gl_default:
+                fixes.pop("vblank_mode", None)
             for note in notes:
                 print("droiddeck-game-env: " + note, file=sys.stderr)
             command += extra
@@ -759,6 +777,8 @@ def main():
             with path.open(encoding="utf-8") as source:
                 config = json.load(source)
             if waiting:
+                if "vblank_mode" in config.get("shared", {}):
+                    fixes.pop("vblank_mode", None)
                 env = apply_config(env, config, app_id, fixes)
             else:
                 env = apply_config(env, sync_config(config, app_id), app_id)

@@ -3248,4 +3248,9 @@
     <string name="slow_usb_port">%1$s est connecté en %2$s (%3$s Mbit/s, environ %4$d Mo/s). Le port USB de cet appareil ne va pas plus vite, les jeux se chargeront donc lentement. Le stockage interne ou une carte microSD peut être plus rapide.</string>
     <string name="slow_usb_never">Ne plus afficher</string>
     <string name="slow_usb_dismiss">Fermer</string>
+    <string name="steam_import_title">Redémarrer Steam pour ajouter vos jeux ?</string>
+    <string name="steam_import_body">Steam peut afficher comme installés ces jeux que vous possédez : %1$s. Il doit redémarrer pour les afficher. Redémarrez maintenant, ou ils seront ajoutés au prochain démarrage de Steam.</string>
+    <string name="steam_import_names_more">%1$s et %2$d de plus</string>
+    <string name="steam_import_now">Redémarrer maintenant</string>
+    <string name="steam_import_later">Plus tard</string>
 </resources>

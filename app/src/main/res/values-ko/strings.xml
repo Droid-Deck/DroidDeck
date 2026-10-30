@@ -3187,4 +3187,9 @@
     <string name="slow_usb_port">%1$s이(가) %2$s(%3$s Mbps, 약 %4$d MB/s)로 연결되어 있습니다. 이 기기의 USB 포트는 더 빠르게 동작하지 않아 게임 로딩이 느립니다. 내부 저장소나 microSD 카드가 더 빠를 수 있습니다.</string>
     <string name="slow_usb_never">다시 표시 안 함</string>
     <string name="slow_usb_dismiss">닫기</string>
+    <string name="steam_import_title">게임을 추가하려면 Steam을 다시 시작할까요?</string>
+    <string name="steam_import_body">보유한 다음 게임을 Steam에서 설치됨으로 표시할 수 있습니다: %1$s. 표시하려면 Steam을 다시 시작해야 합니다. 지금 다시 시작하거나, 다음에 Steam을 시작할 때 추가됩니다.</string>
+    <string name="steam_import_names_more">%1$s 외 %2$d개</string>
+    <string name="steam_import_now">지금 다시 시작</string>
+    <string name="steam_import_later">나중에</string>
 </resources>

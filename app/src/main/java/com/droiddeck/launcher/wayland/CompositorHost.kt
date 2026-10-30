@@ -59,25 +59,25 @@ object CompositorHost {
         checkCurrent: () -> Unit = {},
     ) {
         checkCurrent()
-        startOrAttachOutput(context, null, outputWidth, outputHeight, refreshHz, fpsLimit) {
-            checkCurrent()
-            val runtimeDir = File(context.filesDir, ".wayland-rt").apply { mkdirs() }
-            FileUtils.copyAsset(context, "wayland/keymap.xkb", File(runtimeDir, "keymap.xkb"))
-            val choice = SessionPrefs.androidDriver(context)
-            displayChoice = choice
-            com.droiddeck.launcher.gpu.AutoDriverTrial.displayStarting(context, choice)
-            val turnip = TurnipDriver(context)
-            val driverId = turnip.install()
-            checkCurrent()
-            configureOutput(context, mode, display)
-            newSession(context)
-            com.droiddeck.launcher.gpu.TpUbwcHint.applyToProcess(context)
-            com.droiddeck.launcher.gpu.DriverSetupLog.write(context, "compositor.start driver=$driverId")
-            WaylandCompositor.nativeStartWithSurface(
-                null, runtimeDir.path, driverId?.let { turnip.driverPath(it) },
-                driverId?.let { turnip.libraryName(it) }, context.applicationInfo.nativeLibraryDir,
-            )
-        }
+        if (started && attached != null) return
+        configurePacing(context, refreshHz, fpsLimit, 0)
+        WaylandCompositor.nativeSetOutputSize(outputWidth, outputHeight)
+        if (started) return
+        val runtimeDir = File(context.filesDir, ".wayland-rt").apply { mkdirs() }
+        FileUtils.copyAsset(context, "wayland/keymap.xkb", File(runtimeDir, "keymap.xkb"))
+        val choice = SessionPrefs.androidDriver(context)
+        displayChoice = choice
+        com.droiddeck.launcher.gpu.AutoDriverTrial.displayStarting(context, choice)
+        val turnip = TurnipDriver(context)
+        val driverId = turnip.install()
+        checkCurrent()
+        configureOutput(context, mode, display)
+        newSession(context)
+        com.droiddeck.launcher.gpu.TpUbwcHint.applyToProcess(context)
+        com.droiddeck.launcher.gpu.DriverSetupLog.write(context, "compositor.start driver=$driverId")
+        WaylandCompositor.nativeStartWithSurface(null, runtimeDir.path, driverId?.let { turnip.driverPath(it) },
+            driverId?.let { turnip.libraryName(it) }, context.applicationInfo.nativeLibraryDir)
+        started = true
     }
 
     @Synchronized
@@ -89,12 +89,18 @@ object CompositorHost {
         refreshHz: Float,
         fpsLimit: Int,
         display: Display? = null,
+        uiLimit: Int = 0,
     ) {
         check(started) { "DroidDeck compositor is not prepared" }
         updateDisplay(context, display)
-        startOrAttachOutput(context, surface, outputWidth, outputHeight, refreshHz, fpsLimit) {}
+        configurePacing(context, refreshHz, fpsLimit, uiLimit)
+        if (!SessionState.running) WaylandCompositor.nativeSetOutputSize(outputWidth, outputHeight)
+        attached = surface
+        WaylandCompositor.nativeSetSurface(surface)
+        resumeVsync()
     }
 
+    @Synchronized
     fun startOrAttach(
         context: Context,
         surface: Surface,
@@ -106,51 +112,37 @@ object CompositorHost {
         outputHeight: Int,
         refreshHz: Float,
         fpsLimit: Int,
-    ): Boolean = startOrAttachOutput(context, surface, outputWidth, outputHeight, refreshHz, fpsLimit) {
-        com.droiddeck.launcher.gpu.TpUbwcHint.applyToProcess(context)
-        WaylandCompositor.nativeStartWithSurface(surface, xdgRuntimeDir, driverPath, libraryName, nativeLibDir)
+        uiLimit: Int = 0,
+    ): Boolean {
+        configurePacing(context, refreshHz, fpsLimit, uiLimit)
+        if (!SessionState.running || !started) WaylandCompositor.nativeSetOutputSize(outputWidth, outputHeight)
+        val created = !started
+        if (created) {
+            com.droiddeck.launcher.gpu.TpUbwcHint.applyToProcess(context)
+            WaylandCompositor.nativeStartWithSurface(surface, xdgRuntimeDir, driverPath, libraryName, nativeLibDir)
+            started = true
+        } else WaylandCompositor.nativeSetSurface(surface)
+        attached = surface
+        resumeVsync()
+        return created
     }
 
-    @Synchronized
-    private fun startOrAttachOutput(
-        context: Context,
-        surface: Surface?,
-        outputWidth: Int,
-        outputHeight: Int,
-        refreshHz: Float,
-        fpsLimit: Int,
-        start: () -> Unit,
-    ): Boolean {
-        if (started && surface == null && attached != null) return false
+    private fun configurePacing(context: Context, refreshHz: Float, fpsLimit: Int, uiLimit: Int) {
         ownVsyncThread = SessionPrefs.vsyncThread(context)
         WaylandCompositor.nativeSetRenderOnCommit(SessionPrefs.renderOnCommit(context))
-        pace(refreshHz, fpsLimit)
-        if (!SessionState.running || !started || surface == null) WaylandCompositor.nativeSetOutputSize(outputWidth, outputHeight)
-        if (started) {
-            if (surface != null) {
-                attached = surface
-                WaylandCompositor.nativeSetSurface(surface)
-                resumeVsync()
-            }
-            return false
-        }
-        start()
-        attached = surface
-        started = true
-        if (surface != null) resumeVsync()
-        return true
+        pace(refreshHz, fpsLimit, uiLimit)
     }
 
-    private fun pace(refreshHz: Float, fpsLimit: Int) {
-        WaylandCompositor.nativeSetFpsLimit(fpsLimit)
+    private fun pace(refreshHz: Float, fpsLimit: Int, uiLimit: Int = 0) {
+        WaylandCompositor.nativeSetFpsLimit(if (fpsLimit == SessionPrefs.FPS_UNPACED && uiLimit > 0) uiLimit else fpsLimit)
         WaylandCompositor.nativeSetLayerFrameRate(if (fpsLimit > 0) fpsLimit.toFloat() else refreshHz)
         WaylandCompositor.nativeSetOutputRefreshRate(refreshHz)
         SessionState.refreshHz = refreshHz
     }
 
     @Synchronized
-    fun updatePacing(refreshHz: Float, fpsLimit: Int) {
-        if (started) pace(refreshHz, fpsLimit)
+    fun updatePacing(refreshHz: Float, fpsLimit: Int, uiLimit: Int = 0) {
+        if (started) pace(refreshHz, fpsLimit, uiLimit)
     }
 
     @Synchronized
@@ -226,7 +218,6 @@ object CompositorHost {
 
     private fun configureOutput(context: Context, mode: String, display: Display?) {
         val probe = updateDisplay(context, display)
-        if (started) return
         val wanted = SessionPrefs.hdr(context, mode)
         val on = wanted && probe.reason == null
         SessionState.hdr = on

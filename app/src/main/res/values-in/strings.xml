@@ -3200,4 +3200,9 @@
     <string name="slow_usb_port">%1$s terhubung melalui %2$s (%3$s Mbps, sekitar %4$d MB/s). Port USB perangkat ini tidak bisa lebih cepat, jadi game akan dimuat lambat. Penyimpanan internal atau kartu microSD mungkin lebih cepat.</string>
     <string name="slow_usb_never">Jangan tampilkan lagi</string>
     <string name="slow_usb_dismiss">Tutup</string>
+    <string name="steam_import_title">Mulai ulang Steam untuk menambahkan game Anda?</string>
+    <string name="steam_import_body">Steam dapat menampilkan game milik Anda ini sebagai terpasang: %1$s. Steam harus dimulai ulang untuk menampilkannya. Mulai ulang sekarang, atau game akan ditambahkan saat Steam dimulai berikutnya.</string>
+    <string name="steam_import_names_more">%1$s dan %2$d lainnya</string>
+    <string name="steam_import_now">Mulai ulang sekarang</string>
+    <string name="steam_import_later">Nanti</string>
 </resources>

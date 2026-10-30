@@ -212,7 +212,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private lateinit var touchscreenGestures: TouchscreenGestures
     private var gestureConfig = com.droiddeck.launcher.input.TouchGestureConfig()
     private var gestureGame: String? = null
+    private var steamUiFocused = false
     private var gestureSettingsOpen by mutableStateOf(false)
+    private var steamImportAsk by mutableStateOf<com.droiddeck.launcher.session.SteamImportPrompt.Ask?>(null)
+    private var steamImportAnswered: String? = null
     private var directHoldBehavior by mutableStateOf(com.droiddeck.launcher.input.TouchGestureConfig.MOUSE_BEHAVIOR_CLICK)
     private var screenKeyPickerOpen by mutableStateOf(false)
     private var screenKeyBind: List<Int>? = null
@@ -828,6 +831,15 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 }
             }
             androidx.compose.runtime.LaunchedEffect(picturePosition, SessionState.running, pipUi, cardboard.enabled) { applyGameAlignment() }
+            androidx.compose.runtime.LaunchedEffect(AgentGuest.focusRevision) {
+                val steamUi = SessionState.mode == SessionService.MODE_STEAM && kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    AgentGuest.focus(this@SessionActivity)?.optLong("focusedApp")?.let { it <= 0 || it == 769L } ?: true
+                }
+                if (steamUi != steamUiFocused) {
+                    steamUiFocused = steamUi
+                    applySteamUiPacing()
+                }
+            }
             DroidDeckTheme {
             if (pipUi) {
                 if (SessionState.suspended) androidx.compose.foundation.layout.Box(
@@ -903,6 +915,29 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     }
                 }
                 com.droiddeck.launcher.ui.GestureFeedback(recognizedGesture)
+                LaunchedEffect(Unit) {
+                    val root = LinuxRuntime.rootDir(this@SessionActivity)
+                    while (true) {
+                        val ask = if (SessionState.running && SessionState.mode == SessionService.MODE_STEAM) {
+                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.droiddeck.launcher.session.SteamImportPrompt.read(root) }
+                        } else null
+                        steamImportAsk = ask?.takeIf { it.token != steamImportAnswered }
+                        kotlinx.coroutines.delay(1500)
+                    }
+                }
+                steamImportAsk?.takeIf { !loading.visible }?.let { ask ->
+                    androidx.compose.runtime.key(ask.token) {
+                        com.droiddeck.launcher.ui.SteamImportDialog(ask.games) { now ->
+                            val root = LinuxRuntime.rootDir(this@SessionActivity)
+                            Thread({
+                                if (com.droiddeck.launcher.session.SteamImportPrompt.answer(root, ask.token, now)) runOnUiThread {
+                                    steamImportAnswered = ask.token
+                                    if (steamImportAsk?.token == ask.token) steamImportAsk = null
+                                }
+                            }, "steam-import-answer").start()
+                        }
+                    }
+                }
                 if (gestureSettingsOpen) com.droiddeck.launcher.ui.TouchGestureDialog(
                     game = gestureGame,
                     onDismiss = { gestureSettingsOpen = false },
@@ -1256,7 +1291,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 screenLayoutsOpen = true
             },
             onFexPreset = { v -> SessionPrefs.setFexPreset(this@SessionActivity, v); readPrefs() },
-            onSecondScreenMode = { mode -> if (docked) drawerOpen = false; typingReturnMode = null; selectSecondScreenMode(mode) },
+            onSecondScreenMode = { mode ->
+                if (docked) drawerOpen = false
+                typingReturnMode = null
+                if (mode != SecondScreenMode.NONE) SessionPrefs.setSecondScreenPanel(this@SessionActivity, mode.id)
+                selectSecondScreenMode(mode)
+            },
             onSecondScreenDisplay = ::selectSecondScreenDisplay,
             onLaunchAndroidApp = { app, displayId ->
                 drawerOpen = false
@@ -2022,7 +2062,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         WaylandCompositor.nativeSetCardboardPoseFile(File(filesDir, ".wayland-rt/droiddeck-headpose").path)
         com.droiddeck.launcher.glasses.SpatialTracking.attachPublisher(File(filesDir, ".wayland-rt/droiddeck-spatialpose").path)
         CompositorHost.attach(
-            this, holder.surface, size.first, size.second, refreshHz(), outputFpsLimit(), glassesScreen?.display,
+            this, holder.surface, size.first, size.second, refreshHz(), outputFpsLimit(), glassesScreen?.display, steamUiLimit(refreshHz()),
         )
         onOutputAttached(holder)
         if (SessionState.running && size != previous) {
@@ -2163,12 +2203,23 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     private fun outputFpsLimit(): Int = SessionPrefs.compositorFpsLimit(mirrorRefreshLimit())
 
+    private fun steamUiLimit(hz: Float): Int =
+        if (steamUiFocused && SessionPrefs.steamUiPacing(this)) SessionPrefs.steamUiFpsLimit(hz) else 0
+
+    private fun applySteamUiPacing() {
+        if (!CompositorHost.isStarted) return
+        val hz = refreshHz()
+        val limit = steamUiLimit(hz)
+        CompositorHost.updatePacing(hz, outputFpsLimit(), limit)
+        Log.i(TAG, "pacing: " + if (limit > 0) "Steam UI at $limit fps on a ${Math.round(hz)} Hz screen" else "uncapped")
+    }
+
     private fun applyOutputPacing() {
         Log.i(TAG, "perf: " + PerfMode.apply(this, outputFpsLimit(), mirrorRefreshLimit()))
         if (CompositorHost.isStarted) {
             val hz = refreshHz()
             val changed = kotlin.math.abs(SessionState.refreshHz - hz) > 0.1f
-            CompositorHost.updatePacing(hz, outputFpsLimit())
+            CompositorHost.updatePacing(hz, outputFpsLimit(), steamUiLimit(hz))
             pushCardboard(activeCardboard)
             if (changed && ::surfaceView.isInitialized) applyFrameGen()
         }
@@ -2903,9 +2954,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun refreshSecondScreenDisplays() {
         if (!::displayManager.isInitialized) return
         val primaryId = shownOnDisplayId
-        val dualOff = SessionPrefs.dualScreenMode(this) == com.droiddeck.launcher.input.DualScreen.MODE_OFF
         val candidates = SecondScreenDisplays.available(displayManager, primaryId)
-            .filter { !dualOff && (glassesScreen == null || it.id != glasses.displayId) }
+            .filter { glassesScreen == null || it.id != glasses.displayId }
         val oldIds = secondScreenDisplays.map { it.id }.toSet()
         secondScreenDisplays = candidates
         val newIds = candidates.map { it.id }.toSet()
@@ -2926,7 +2976,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (secondScreenDisplays.none { it.id == target.displayId }) return
         SessionState.secondScreenAutoOpened = true
         selectedSecondScreenDisplay = target.displayId
-        selectSecondScreenMode(if (SessionState.deckPad) SecondScreenMode.DECK_CONTROLS else SecondScreenMode.KEYBOARD_TRACKPAD)
+        selectSecondScreenMode(SecondScreenMode.opening(SessionPrefs.secondScreenPanel(this), SessionState.deckPad))
     }
 
     private fun selectSecondScreenDisplay(displayId: Int) {

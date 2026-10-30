@@ -341,6 +341,7 @@
     <string name="mode_suspend_note">Auto pauses in the background and resumes when shown. Manual waits for Resume. Never keeps running.</string>
     <string name="mode_startup">Startup</string>
     <string name="mode_steam_startup">Start Steam with DroidDeck</string>
+    <string name="mode_steam_startup_hint">Opens the Steam session when DroidDeck launches.</string>
     <string name="steam_startup_open">Open Steam</string>
     <string name="steam_startup_background">Prepare in background</string>
     <string name="steam_startup_hint">Background preparation keeps the launcher open and uses memory sooner. Requires completed setup and an available game display.</string>
@@ -929,7 +930,7 @@
     <string name="setup_fullscreen_on">Hides the Android status and navigation bars</string>
     <string name="setup_fullscreen_off">Shows the Android status and navigation bars</string>
     <string name="setup_dual_screen">Dual screen</string>
-    <string name="setup_dual_screen_hint">Automatic uses the second screen on handhelds with a built-in one. On uses any second display. Off keeps everything on one screen.</string>
+    <string name="setup_dual_screen_hint">Automatic uses the second screen on handhelds with a built-in one. On uses any second display. Off keeps the launcher and games on one screen; you can still pick a second screen from the session menu.</string>
     <string name="setup_dual_screen_auto">Automatic</string>
     <string name="setup_dual_screen_on">On</string>
     <string name="setup_dual_screen_off">Off</string>
@@ -3439,4 +3440,9 @@
     <string name="slow_usb_port">%1$s is connected over %2$s (%3$s Mbps, about %4$d MB/s). This device\'s USB port can\'t go faster, so games on it will load slowly. Internal storage or a microSD card may be quicker.</string>
     <string name="slow_usb_never">Don\'t show this again</string>
     <string name="slow_usb_dismiss">Dismiss</string>
+    <string name="steam_import_title">Restart Steam to add your games?</string>
+    <string name="steam_import_body">Steam can list these games you own as installed: %1$s. It has to restart to show them. Restart now, or they will be added the next time Steam starts.</string>
+    <string name="steam_import_names_more">%1$s and %2$d more</string>
+    <string name="steam_import_now">Restart now</string>
+    <string name="steam_import_later">Later</string>
 </resources>

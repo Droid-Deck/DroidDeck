@@ -105,6 +105,14 @@ gamescope's WSI layer presents every swapchain in FIFO at the limit. A
 `vblank_mode` from the launch options or the environment editor is kept, and
 **Remove** in the editor leaves Mesa's own default.
 
+A game launch (`waitforexitandrun`) also gets
+`GAMESCOPE_WSI_MIN_IMAGE_COUNT=8` and `GAMESCOPE_WSI_ENSURE_MIN_IMAGE_COUNT=1`,
+so an uncapped game keeps drawing while gamescope turns buffers around. The
+session itself no longer sets them: the Steam client's UI renders through the
+same WSI layer, and with eight images and no frame limit it drew flat out
+(about 240 frames a second at 120 Hz) and heated the device. Values set in the
+launch options or the environment editor are kept.
+
 ## Defaults and available suggestions
 
 The initial configuration enables Mesa shader caching with

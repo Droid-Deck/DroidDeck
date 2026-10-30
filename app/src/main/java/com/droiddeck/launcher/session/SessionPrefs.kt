@@ -94,6 +94,12 @@ object SessionPrefs {
         prefs(context).edit().putString("dualScreenMode", mode).apply()
     }
 
+    fun secondScreenPanel(context: Context): String? = prefs(context).getString("secondScreenPanel", null)
+
+    fun setSecondScreenPanel(context: Context, mode: String) {
+        prefs(context).edit().putString("secondScreenPanel", mode).apply()
+    }
+
     fun dualScreenLauncher(context: Context): Boolean = prefs(context).getBoolean("dualScreenLauncher", true)
 
     fun setDualScreenLauncher(context: Context, on: Boolean) {
@@ -241,7 +247,7 @@ object SessionPrefs {
         prefs(context).edit().putInt("gameStoresParallel", count.coerceIn(1, 3)).apply()
     }
 
-    fun hudEnabled(context: Context): Boolean = prefs(context).getBoolean(hudKey(context), !mangoappSession(context))
+    fun hudEnabled(context: Context): Boolean = prefs(context).getBoolean(hudKey(context), false)
 
     fun setHudEnabled(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean(hudKey(context), on).apply()
@@ -1095,6 +1101,15 @@ object SessionPrefs {
      */
     fun compositorFpsLimit(mirrorRefreshLimit: Int): Int =
         if (mirrorRefreshLimit <= 0) FPS_UNPACED else mirrorRefreshLimit
+
+    private const val STEAM_UI_FPS = 60f
+
+    fun steamUiPacing(context: Context): Boolean = prefs(context).getBoolean("steamUiPacing", true)
+
+    fun steamUiFpsLimit(refreshHz: Float): Int {
+        val steps = ((refreshHz + 0.5f) / STEAM_UI_FPS).toInt()
+        return if (steps < 2) 0 else (refreshHz / steps + 0.01f).toInt()
+    }
 
     val upscalerChoices = listOf(
         0 to "Linear", 2 to "Nearest", 4 to "AMD FSR 1", 3 to "Snapdragon GSR",

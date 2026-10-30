@@ -52,7 +52,7 @@ class CompositorHostTest {
         ReflectionHelpers.setStaticField(CompositorHost::class.java, "attached", null)
         ReflectionHelpers.setStaticField(CompositorHost::class.java, "vsyncRunning", false)
         app.getSharedPreferences("session", Context.MODE_PRIVATE).edit().clear().commit()
-        listOf(Native.startHdr, Native.hdrRequests, Native.displayIds,
+        listOf(Native.fpsLimits, Native.startHdr, Native.hdrRequests, Native.displayIds,
             Native.runtimes, Native.drivers, Native.starts, Native.surfaces, Native.sizes).forEach { it.clear() }
         Driver.installs = 0
         Driver.beforeInstall = {}
@@ -109,6 +109,18 @@ class CompositorHostTest {
                 "/native", 1920, 1080, 120f, 0))
             assertEquals(1, Native.starts.size)
             assertSame(surface, Native.surfaces.last())
+        }
+    }
+
+    @Test fun preparedOutputKeepsTheSteamUiLimitAndReleasesItForGames() {
+        CompositorHost.prepare(app, 1280, 720, 120f, SessionPrefs.FPS_UNPACED)
+        withSurface { surface ->
+            CompositorHost.attach(app, surface, 1280, 720, 120f, SessionPrefs.FPS_UNPACED,
+                uiLimit = SessionPrefs.steamUiFpsLimit(120f))
+            assertEquals(60, Native.fpsLimits.last())
+            CompositorHost.updatePacing(120f, SessionPrefs.FPS_UNPACED)
+            assertEquals(SessionPrefs.FPS_UNPACED, Native.fpsLimits.last())
+            assertEquals(120f, SessionState.refreshHz)
         }
     }
 
@@ -327,6 +339,7 @@ class CompositorHostTest {
     @Implements(value = WaylandCompositor::class, isInAndroidSdk = false)
     class Native {
         companion object {
+            val fpsLimits = mutableListOf<Int>()
             val startHdr = mutableListOf<Boolean>()
             val hdrRequests = mutableListOf<Int>()
             val displayIds = mutableListOf<Int>()
@@ -342,6 +355,7 @@ class CompositorHostTest {
                 starts += surface; runtimes += runtime; drivers += driver
             }
             @JvmStatic @Implementation fun nativeSetSurface(surface: Surface?) { surfaces += surface }
+            @JvmStatic @Implementation fun nativeSetFpsLimit(limit: Int) { fpsLimits += limit }
             @JvmStatic @Implementation fun nativeSetOutputSize(width: Int, height: Int) { sizes += width to height }
             @JvmStatic @Implementation fun nativeSetHdrRequest(mode: Int, source: String, dxvk: Boolean, zeroCopy: Boolean) { hdrRequests += mode }
             @JvmStatic @Implementation fun nativeSetHdrDisplay(id: Int, name: String, formats: String, hdr10: Boolean,

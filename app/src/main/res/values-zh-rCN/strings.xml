@@ -3193,4 +3193,9 @@
     <string name="slow_usb_port">%1$s 通过 %2$s 连接（%3$s Mbps，约 %4$d MB/s）。此设备的 USB 接口无法更快，游戏加载会很慢。内部存储或 microSD 卡可能更快。</string>
     <string name="slow_usb_never">不再显示</string>
     <string name="slow_usb_dismiss">关闭</string>
+    <string name="steam_import_title">重启 Steam 以添加你的游戏？</string>
+    <string name="steam_import_body">Steam 可以将你拥有的这些游戏显示为已安装：%1$s。需要重启 Steam 才能显示。现在重启，或在下次启动 Steam 时添加。</string>
+    <string name="steam_import_names_more">%1$s 等另外 %2$d 款</string>
+    <string name="steam_import_now">立即重启</string>
+    <string name="steam_import_later">稍后</string>
 </resources>

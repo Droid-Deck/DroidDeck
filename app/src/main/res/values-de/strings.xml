@@ -3211,4 +3211,9 @@
     <string name="slow_usb_port">%1$s ist über %2$s verbunden (%3$s Mbit/s, etwa %4$d MB/s). Der USB-Anschluss dieses Geräts kann nicht schneller, daher laden Spiele darauf langsam. Interner Speicher oder eine microSD-Karte können schneller sein.</string>
     <string name="slow_usb_never">Nicht mehr anzeigen</string>
     <string name="slow_usb_dismiss">Schließen</string>
+    <string name="steam_import_title">Steam neu starten, um deine Spiele hinzuzufügen?</string>
+    <string name="steam_import_body">Steam kann diese Spiele, die du besitzt, als installiert anzeigen: %1$s. Dafür muss Steam neu starten. Starte jetzt neu, oder sie werden beim nächsten Start von Steam hinzugefügt.</string>
+    <string name="steam_import_names_more">%1$s und %2$d weitere</string>
+    <string name="steam_import_now">Jetzt neu starten</string>
+    <string name="steam_import_later">Später</string>
 </resources>

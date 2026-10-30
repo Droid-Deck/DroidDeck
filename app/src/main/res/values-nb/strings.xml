@@ -3211,4 +3211,9 @@
     <string name="slow_usb_port">%1$s er koblet til via %2$s (%3$s Mbps, ca. %4$d MB/s). USB-porten på denne enheten kan ikke gå raskere, så spill lastes inn tregt. Intern lagring eller et microSD-kort kan være raskere.</string>
     <string name="slow_usb_never">Ikke vis igjen</string>
     <string name="slow_usb_dismiss">Lukk</string>
+    <string name="steam_import_title">Starte Steam på nytt for å legge til spillene dine?</string>
+    <string name="steam_import_body">Steam kan vise disse spillene du eier som installert: %1$s. Steam må startes på nytt for å vise dem. Start på nytt nå, eller så legges de til neste gang Steam starter.</string>
+    <string name="steam_import_names_more">%1$s og %2$d til</string>
+    <string name="steam_import_now">Start på nytt nå</string>
+    <string name="steam_import_later">Senere</string>
 </resources>
