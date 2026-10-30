@@ -462,6 +462,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var secondScreenDisplays by mutableStateOf<List<SecondScreenDisplay>>(emptyList())
     private var selectedSecondScreenDisplay by mutableStateOf(SessionState.secondScreenDisplay)
     private var started = false
+    private var dualControlsProvisional = false
     private var sessionActivityDisplayId = Display.DEFAULT_DISPLAY
     private lateinit var displayManager: DisplayManager
     private var secondScreenPresentation: SecondScreenPresentation? = null
@@ -3006,6 +3007,15 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         SessionState.secondScreenAutoOpened = true
         selectedSecondScreenDisplay = target.displayId
         selectSecondScreenMode(SecondScreenMode.opening(SessionPrefs.secondScreenPanel(this), SessionState.deckPad))
+        dualControlsProvisional = ::loading.isInitialized && loading.visible
+    }
+
+    private fun settleDualScreenControls() {
+        if (!dualControlsProvisional) return
+        dualControlsProvisional = false
+        if (pipUi || secondScreenMode == SecondScreenMode.NONE) return
+        val wanted = SecondScreenMode.opening(SessionPrefs.secondScreenPanel(this), SessionState.deckPad)
+        if (wanted != secondScreenMode) selectSecondScreenMode(wanted)
     }
 
     private fun selectSecondScreenDisplay(displayId: Int) {
@@ -3016,6 +3026,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun selectSecondScreenMode(mode: SecondScreenMode) {
+        dualControlsProvisional = false
         if (mode == SecondScreenMode.NONE) {
             closeSecondScreen(reset = true)
             return
@@ -4359,7 +4370,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             loading.visible = false
             hud.start()
             memoryHud.start()
-            if (started) openDualScreenControls()
+            if (started) {
+                settleDualScreenControls()
+                openDualScreenControls()
+            }
         }
     }
 
