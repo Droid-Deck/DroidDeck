@@ -100,6 +100,29 @@ class SessionSecondScreenTest {
         }
     }
 
+    @Test fun terminalOpenedBeforeItWasReadyIsRetriedButOtherPanelsAreLeftAlone() {
+        SessionState.mode = SessionService.MODE_STEAM
+        val activity = Robolectric.buildActivity(SessionActivity::class.java).get()
+        val display = activity.getSystemService(DisplayManager::class.java).getDisplay(Display.DEFAULT_DISPLAY)
+        val panel = SecondScreenPresentation(activity, display, { _, _, _, _ -> }, { _, _ -> }, {}, {}, {}, {})
+        try {
+            panel.show()
+            panel.showMode(SecondScreenMode.KEYBOARD_TRACKPAD)
+            val root = panel.window!!.decorView
+            val trackpad = descendants(root).toList()
+            panel.retryTerminal()
+            assertEquals(trackpad, descendants(root).toList())
+            panel.showMode(SecondScreenMode.TERMINAL)
+            val notReady = context.getString(R.string.second_terminal_not_ready)
+            val before = descendants(root).filter { (it as? TextView)?.text == notReady }.single()
+            panel.retryTerminal()
+            val after = descendants(root).filter { (it as? TextView)?.text == notReady }.single()
+            assertTrue(before !== after)
+        } finally {
+            panel.closeControls()
+        }
+    }
+
     @Test fun desktopTrackpadOmitsSteamShortcuts() = checkShortcuts(steam = false)
 
     @Test fun steamTrackpadKeepsWorkingSteamShortcuts() = checkShortcuts(steam = true)

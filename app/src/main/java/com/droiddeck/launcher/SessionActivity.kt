@@ -3043,7 +3043,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         dualControlsProvisional = false
         if (secondScreenMode == SecondScreenMode.NONE) return
         val wanted = SecondScreenMode.opening(SessionPrefs.secondScreenPanel(this), SessionState.deckPad)
-        if (wanted != secondScreenMode) selectSecondScreenMode(wanted)
+        if (wanted != secondScreenMode) selectSecondScreenMode(wanted) else secondScreenPresentation?.retryTerminal()
     }
 
     private fun selectSecondScreenDisplay(displayId: Int) {
