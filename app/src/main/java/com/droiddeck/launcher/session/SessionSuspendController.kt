@@ -26,6 +26,9 @@ internal class SessionSuspendController(
     private val nowNanos: () -> Long = System::nanoTime,
     private val pagedOut: (processes: Int, unacknowledged: Int, residentKb: Long, swapKb: Long, swapBeforeKb: Long, millis: Long) -> Unit =
         { _, _, _, _, _, _ -> },
+    // processes is 0 when the read-back was skipped because MemAvailable could not take it.
+    private val pagedIn: (processes: Int, swapKb: Long, swapBeforeKb: Long, availableKb: Long, millis: Long) -> Unit =
+        { _, _, _, _, _ -> },
 ) {
     private enum class Role { SESSION_ROOT, SESSION_CHILD, HELPER_ROOT, HELPER_CHILD }
 
@@ -49,6 +52,7 @@ internal class SessionSuspendController(
     @Volatile private var cancelled = false
     private var frozen = emptyList<ProcessRecord>()
     private var frozenSince: Long? = null
+    private var pagedOutTargets = emptyList<ProcessRecord>()
 
     fun freeze(pageOut: Boolean = false, completion: (Boolean) -> Unit) {
         cancelled = false
@@ -107,6 +111,8 @@ internal class SessionSuspendController(
                 if (interrupted) Thread.currentThread().interrupt()
             }
             completion(complete)
+            // A cancelled or failed freeze leaves the game running with whatever the page-out already moved.
+            if (!complete && frozen.isEmpty() && !interrupted) readBack()
         }, { completion(false) })
     }
 
@@ -123,6 +129,7 @@ internal class SessionSuspendController(
             val resumed = restoreSafely(records)
             if (resumed) frozen = emptyList()
             completion(resumed)
+            if (resumed) readBack()
         }, { completion(false) })
     }
 
@@ -289,6 +296,7 @@ internal class SessionSuspendController(
             }
         }
         if (targets.isEmpty()) return
+        pagedOutTargets = (pagedOutTargets + targets).distinct()
         val acks = targets.associateWith { File(control.parentFile, "${control.name}.ack.${it.pid}") }
         acks.values.forEach { it.delete() }
         val start = nowMillis()
@@ -307,6 +315,55 @@ internal class SessionSuspendController(
         acks.values.forEach { it.delete() }
         val after = memoryKb(targets)
         pagedOut(targets.size, unacknowledged, after.first, after.second, before.second, nowMillis() - start)
+    }
+
+    // Left in zram, the paged-out memory comes back one major fault at a time while the game runs; in a heavy
+    // game that is hundreds of faults per frame and stalls of a quarter second and more, long after the resume.
+    // libblsession's handler reads back only the swapped pages (mode 0, as the session script does for the client).
+    // The handler runs on whichever thread takes the signal, so that thread pauses for the read-back,
+    // once and right after the resume instead of mid-game.
+    private fun readBack() {
+        val targets = pagedOutTargets.filterNot { isGone(it) }
+        pagedOutTargets = emptyList()
+        val control = zramControl?.takeIf { it.isFile } ?: return
+        if (targets.isEmpty() || closing) return
+        val before = memoryKb(targets).second
+        if (before == 0L) return
+        val available = availableKb()
+        if (available - before < READ_BACK_HEADROOM_KB) {
+            pagedIn(0, before, before, available, 0)
+            return
+        }
+        try {
+            control.writeText("0")
+        } catch (_: IOException) {
+            return
+        }
+        val start = nowMillis()
+        for (record in targets) send(record, SIGURG)
+        var swap = before
+        var unchanged = 0
+        try {
+            while (!closing && nowMillis() - start < READ_BACK_TIMEOUT_MS) {
+                sleep(READ_BACK_POLL_MS)
+                val current = memoryKb(targets).second
+                unchanged = if (current == swap) unchanged + 1 else 0
+                swap = current
+                if (swap == 0L || unchanged >= 2) break
+            }
+        } catch (_: InterruptedException) {
+            Thread.currentThread().interrupt()
+        }
+        pagedIn(targets.size, swap, before, available, nowMillis() - start)
+    }
+
+    private fun availableKb(): Long = try {
+        File(procRoot, "meminfo").useLines { lines ->
+            lines.firstOrNull { it.startsWith("MemAvailable:") }
+                ?.substringAfter(':')?.trim()?.substringBefore(' ')?.toLongOrNull() ?: 0L
+        }
+    } catch (_: IOException) {
+        0L
     }
 
     private fun isGone(record: ProcessRecord): Boolean =
@@ -410,6 +467,9 @@ internal class SessionSuspendController(
         const val PAGE_OUT_POLL_MS = 100L
         const val PAGE_OUT_START_MS = 2_000L
         const val PAGE_OUT_TIMEOUT_MS = 12_000L
+        const val READ_BACK_POLL_MS = 100L
+        const val READ_BACK_TIMEOUT_MS = 5_000L
+        const val READ_BACK_HEADROOM_KB = 1_048_576L
         const val RESTORE_CHECKS = 80
         const val FREEZE_TIMEOUT_MS = 8_000L
         const val FREEZE_MAX_PASSES = 256

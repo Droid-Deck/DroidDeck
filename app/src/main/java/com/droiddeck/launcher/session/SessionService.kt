@@ -727,6 +727,19 @@ class SessionService : Service() {
                         ))
                     }
                 },
+                pagedIn = { processes, swapKb, swapBeforeKb, availableKb, millis ->
+                    if (processes == 0) {
+                        Log.i(TAG, "left ${swapBeforeKb / 1024} MB in zram after resume: only ${availableKb / 1024} MB available")
+                    } else {
+                        Log.i(TAG, "read back $processes processes in $millis ms: zram ${swapBeforeKb / 1024} -> ${swapKb / 1024} MB")
+                    }
+                    mainHandler.post {
+                        SessionEvents.record("session.paged_in", mapOf(
+                            "processes" to processes, "swapMb" to swapKb / 1024, "swapBeforeMb" to swapBeforeKb / 1024,
+                            "availableMb" to availableKb / 1024, "ms" to millis,
+                        ))
+                    }
+                },
             )
             updateDownloadMonitoring()
             mainHandler.post { updateSuspendPolicy() }
