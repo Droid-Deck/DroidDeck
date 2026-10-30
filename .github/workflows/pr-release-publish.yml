@@ -233,9 +233,9 @@ jobs:
             .head.sha == $head and .base.sha == $base
           ' <<<"$current" >/dev/null ||
             { echo "::error::PR #$PR_NUMBER moved on while its build was checked; publish again"; exit 1; }
-          if [ "$EVENT_NAME" = workflow_run ] || { [ "$EVENT_NAME" = workflow_dispatch ] && [ -n "$AUTO_RUN" ]; }; then
+          if [ "$EVENT_NAME" = workflow_run ] || { [ "$EVENT_NAME" = workflow_dispatch ] && [ -n "$AUTO_RUN$APK_RUN" ]; }; then
             jq -e 'any(.labels[]; .name == "no-test-build")' <<<"$current" >/dev/null && skip "it is labelled no-test-build"
-            if [ "$EVENT_NAME" = workflow_dispatch ]; then
+            if [ -n "$AUTO_RUN" ]; then
               git fetch --no-tags origin main
               git show origin/main:.github/trusted-test-builds.txt | grep -Fixq -- "$(jq -r .user.login <<<"$current")" || skip "the PR opener is no longer trusted"
             fi
