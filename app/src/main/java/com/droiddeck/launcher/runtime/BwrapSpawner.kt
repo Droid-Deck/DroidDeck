@@ -225,6 +225,7 @@ object BwrapSpawner {
         val binds = ArrayList<Bind>()
         val paths = libs.map { lib -> "$PRELOAD_DIR/${lib.substringAfterLast('/')}".also { binds.add(Bind(rootfs + lib, it)) } }
         env["LD_PRELOAD"] = (paths + listOfNotNull(env["LD_PRELOAD"]?.takeIf { it.isNotBlank() })).joinToString(":")
+        env["BL_NO_KGSL_POLL_FIX"] = "1"
         File(rootfs, NET_LINK).takeIf { it.isFile }?.let { binds.add(Bind(it.path, "/$NET_LINK")) }
         env["FAKE_EVDEV_DIR"]?.let { File(it).parent }?.let { dev ->
             binds.addAll(bindsFor(session, rootfs, dev, dev))
