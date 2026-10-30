@@ -1439,6 +1439,12 @@ case $mode in
         set --
         continue
       fi
+      if [ "$steam_x64" = 1 ] && [ "$rc" -eq 132 ] && [ -z "${_bl_x64_sigill:-}" ]; then
+        _bl_x64_sigill=1
+        echo "== steam: the x86-64 client stopped on an illegal instruction after it updated itself; starting it again once"
+        set --
+        continue
+      fi
       [ "$rc" -eq 42 ] || break
       if steam_update_stuck "$steam_ran"; then
         echo "== steam: asked to restart for an update $steam_updates times and it is not installing; the session stops here rather than loop"
