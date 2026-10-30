@@ -170,6 +170,41 @@ class StickDeadZoneTest {
         assertEquals(-0.2f, pad().rightX)
     }
 
+    @Test fun explicitZeroTouchWriteDiscardsFilteredPhysicalLeftStick() {
+        motion(device(), MotionEvent.AXIS_X to 0.05f, MotionEvent.AXIS_Z to -0.05f)
+        bridge.applyTouch(PadBridge.LEFT_STICK) { it.leftX = 0f; it.leftY = 0f }
+        bridge.setStickDeadZone(0)
+        assertEquals(0f, pad().leftX)
+        assertEquals(-0.05f, pad().rightX)
+    }
+
+    @Test fun explicitZeroTouchWriteDiscardsFilteredPhysicalRightStick() {
+        motion(device(), MotionEvent.AXIS_X to 0.05f, MotionEvent.AXIS_Z to -0.05f)
+        bridge.applyTouch(PadBridge.RIGHT_STICK) { it.rightX = 0f; it.rightY = 0f }
+        bridge.setStickDeadZone(0)
+        assertEquals(0.05f, pad().leftX)
+        assertEquals(0f, pad().rightX)
+    }
+
+    @Test fun routedTouchStickWritesKeepSeparatePhysicalInput() {
+        motion(device(), MotionEvent.AXIS_X to 0.05f)
+        bridge.setTouchRoute(object : PadBridge.TouchRoute {
+            override fun active() = true
+            override fun accept(state: PadState) { assertEquals(0f, state.leftX) }
+        })
+        bridge.applyTouch(PadBridge.LEFT_STICK) { it.leftX = 0f; it.leftY = 0f }
+        bridge.setStickDeadZone(0)
+        assertEquals(0.05f, pad().leftX)
+    }
+
+    @Test fun touchButtonOnlyWritesKeepFilteredPhysicalSticks() {
+        motion(device(), MotionEvent.AXIS_X to 0.05f)
+        bridge.applyTouch { it.press(PadState.A, true) }
+        bridge.setStickDeadZone(0)
+        assertEquals(0.05f, pad().leftX)
+        assertTrue(pad().isDown(PadState.A))
+    }
+
     @Test fun preferenceChangesDoNotReplaceExternalStickInput() {
         motion(device(), MotionEvent.AXIS_X to 0.2f, MotionEvent.AXIS_Z to -0.2f)
         bridge.applyExternal({ it.rightX = 0.8f }, true)
