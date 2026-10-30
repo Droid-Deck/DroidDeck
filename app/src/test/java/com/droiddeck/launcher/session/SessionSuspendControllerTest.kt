@@ -139,6 +139,17 @@ class SessionSuspendControllerTest {
         assertTrue(fixture.pagedIn.single().third > 0L)
     }
 
+    @Test fun cancelledFreezeLeavesAPendingPageOutHandlerReadingBack() {
+        val fixture = fixture(17)
+        fixture.control.writeText("0")
+        fixture.handlerStalls = true
+        fixture.afterSleep = { if (fixture.now >= 500) fixture.controller.cancelFreeze() }
+        fixture.controller.freeze(pageOut = true) { assertFalse(it) }
+        assertEquals(2, fixture.signals.count { it.signal == URG })
+        assertEquals("0", fixture.control.readText())
+        assertEquals(Triple(1, 0L, 0L), fixture.pagedIn.single())
+    }
+
     @Test fun cpuMustBeStableAcrossTwoCompleteSnapshots() {
         val fixture = fixture(17)
         var changes = 0
