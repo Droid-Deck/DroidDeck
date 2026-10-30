@@ -184,17 +184,20 @@ internal class ItchInstaller(
         work.mkdirs()
         if (resuming) clearPartialInstall()
         val exe = try {
-            when (val kind = sniff(archive, filename)) {
-                "zip" -> unzip(archive, handle)
-                "7z" -> sevenZip(archive, handle)
-                "rar" -> unrar(archive, handle)
-                "exe" -> copy(archive, File(work, filename.ifBlank { "game.exe" }))
-                "tar" -> untar(archive, null, handle)
-                "gz", "bz2", "xz" -> untar(archive, kind, handle) ?: single(archive, kind, handle)
-                else -> copy(archive, File(work, filename.ifBlank { "game" }))
-            }
+            unpack(archive, filename, handle)
             val hint = filename.substringBeforeLast('.')
-            StoreExe.pick(work, hint.ifBlank { null }, item.title)
+            var picked = StoreExe.pick(work, hint.ifBlank { null }, item.title)
+            var passes = 0
+            while (picked.isBlank() && passes < 2 && !cancelled.get()) {
+                val inner = ItchArchives.inner(work) ?: break
+                handle.log("itch.io: no exe yet, unpacking ${inner.name}")
+                unpack(inner, inner.name, handle)
+                if (cancelled.get()) break
+                inner.delete()
+                picked = StoreExe.pick(work, inner.name.substringBeforeLast('.').ifBlank { null }, item.title)
+                passes++
+            }
+            picked
         } catch (t: Throwable) {
             if (updating) ItchStaging.delete(work)
             throw t
@@ -221,21 +224,15 @@ internal class ItchInstaller(
         return exe
     }
 
-    private fun sniff(file: File, filename: String): String {
-        val extension = filename.substringAfterLast('.', "").lowercase()
-        if (extension == "exe") return "exe"
-        val head = runCatching { FileInputStream(file).use { input -> ByteArray(300).also { input.read(it) } } }.getOrNull()
-            ?: return extension
-        fun at(i: Int, vararg bytes: Int) = bytes.indices.all { head.getOrNull(i + it) == bytes[it].toByte() }
-        return when {
-            at(0, 0x50, 0x4B) -> "zip"
-            at(0, 0x37, 0x7A, 0xBC, 0xAF, 0x27, 0x1C) -> "7z"
-            at(0, 0x52, 0x61, 0x72, 0x21) -> "rar"
-            at(0, 0x1F, 0x8B) -> "gz"
-            at(0, 0x42, 0x5A, 0x68) -> "bz2"
-            at(0, 0xFD, 0x37, 0x7A, 0x58, 0x5A, 0x00) -> "xz"
-            at(257, 0x75, 0x73, 0x74, 0x61, 0x72) -> "tar"
-            else -> extension
+    private fun unpack(archive: File, filename: String, handle: DownloadQueue.JobHandle) {
+        when (val kind = ItchArchives.kind(archive, filename)) {
+            "zip" -> unzip(archive, handle)
+            "7z" -> sevenZip(archive, handle)
+            "rar" -> unrar(archive, handle)
+            "exe" -> copy(archive, File(work, filename.ifBlank { "game.exe" }))
+            "tar" -> untar(archive, null, handle)
+            "gz", "bz2", "xz" -> untar(archive, kind, handle) ?: single(archive, kind, handle)
+            else -> copy(archive, File(work, filename.ifBlank { "game" }))
         }
     }
 
