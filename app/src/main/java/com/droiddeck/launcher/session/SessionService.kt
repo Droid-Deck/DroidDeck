@@ -896,7 +896,7 @@ class SessionService : Service() {
             if (!SessionPrefs.zramClient(this)) guest.add("BL_ZRAM_CLIENT=0")
         }
         SessionPrefs.vramCapMb(this).takeIf { it > 0 }?.let { guest.add("BL_VRAM_MB=$it") }
-        guest.add("BANNER_AUDIO_DIRECT_DECAY=0")
+        guest.add("AUDIO_DIRECT_DECAY=0")
         val extra = extraEnv() + agentEnvironment
         if (extra.none { it.startsWith("TU_DEBUG=") }) guest.add("$GAME_TU_DEBUG=" + (tuOverride ?: if (tuDriver) "sysmem" else ""))
         extra.forEach { guest.add(it) }
@@ -945,7 +945,7 @@ class SessionService : Service() {
         val wantsMic = SessionPrefs.micEnabled(this) &&
             checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
         guest.add("BL_MIC_ENABLED=" + if (wantsMic) "1" else "0")
-        guest.add("BANNER_AUDIO_DIRECT_MIC=" + if (wantsMic) "1" else "0")
+        guest.add("AUDIO_DIRECT_MIC=" + if (wantsMic) "1" else "0")
         val audioDir = File(filesDir, "directaudio").apply { mkdirs() }
         val relaySocket = File(audioDir, "relay.sock")
         val micFifo = if (wantsMic) File(audioDir, "mic.fifo") else null
@@ -973,7 +973,11 @@ class SessionService : Service() {
         }
         if (wantsDirectAudio) {
             guest.add("BL_DIRECTAUDIO=/" + SessionFiles.DIRECTAUDIO_DIR)
-            guest.add("BANNER_AUDIO_DIRECT_RELAY=" + relaySocket.absolutePath)
+            guest.add("AUDIO_DIRECT_RELAY=" + relaySocket.absolutePath)
+            val lowLatency = com.droiddeck.launcher.audio.DirectAudioTiming.lowLatencyOutput()
+            val timing = com.droiddeck.launcher.audio.DirectAudioTiming.environment(lowLatency)
+            guest.addAll(timing)
+            Log.i(TAG, "audio: Android output " + (if (lowLatency) "is low-latency; DirectAudio keeps its defaults" else "is not low-latency; DirectAudio uses " + timing.joinToString(" ")))
         }
         Log.i(TAG, "audio: client DirectAudio (in-process sink)" + (if (wantsDirectAudio) " + DirectAudio for games" else "")
             + (if (wantsMic) " + microphone" else "") +
