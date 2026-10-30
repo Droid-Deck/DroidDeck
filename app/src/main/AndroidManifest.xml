@@ -61,7 +61,6 @@
         <service android:name=".glasses.LumaRgbCaptureService" android:exported="false"
             android:process=":rgb_diagnostic" />
         <service android:name=".input.HomeButtonService"
-            android:enabled="false"
             android:label="@string/integration_shortcuts_service"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
             android:exported="true">

@@ -29,11 +29,18 @@ class SteamIntegrationShortcutsTest {
         Settings.Secure.putString(context.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES, value)
 
     @Test fun theShortcutsServiceIsHiddenUntilChosen() {
-        assertFalse(context.packageManager.getServiceInfo(service, PackageManager.MATCH_DISABLED_COMPONENTS).enabled)
-        assertFalse(listed())
+        assertTrue(listed())
         assertFalse(SteamIntegration.shortcutsChosen(context))
         SteamIntegration.syncShortcutsListing(context)
         assertFalse(listed())
+        assertEquals(PackageManager.COMPONENT_ENABLED_STATE_DISABLED, context.packageManager.getComponentEnabledSetting(service))
+    }
+
+    @Test fun anUpdateKeepsAServiceTheUserAlreadyTurnedOn() {
+        choose(service.flattenToString())
+        SteamIntegration.syncShortcutsListing(context)
+        assertTrue(listed())
+        assertTrue(SteamIntegration.shortcutsChosen(context))
     }
 
     @Test fun openingShortcutSetupListsTheServiceAndBackingOutHidesItAgain() {
@@ -41,7 +48,7 @@ class SteamIntegrationShortcutsTest {
         assertTrue(listed())
         SteamIntegration.syncShortcutsListing(context)
         assertFalse(listed())
-        assertEquals(PackageManager.COMPONENT_ENABLED_STATE_DEFAULT, context.packageManager.getComponentEnabledSetting(service))
+        assertEquals(PackageManager.COMPONENT_ENABLED_STATE_DISABLED, context.packageManager.getComponentEnabledSetting(service))
     }
 
     @Test fun aChosenServiceStaysListed() {
