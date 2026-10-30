@@ -2,6 +2,7 @@ package com.droiddeck.launcher.input
 
 import android.hardware.input.InputManager
 import android.os.Looper
+import android.util.SparseArray
 import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.MotionEvent
@@ -17,6 +18,7 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.shadows.InputDeviceBuilder
+import org.robolectric.util.ReflectionHelpers
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34], manifest = Config.NONE, instrumentedPackages = ["com.droiddeck.launcher.input.FakeInputWriter"],
@@ -214,7 +216,9 @@ class StickDeadZoneTest {
     @Test fun aControllerRemovedWhileInactiveDoesNotReturnOnPreferenceChange() {
         val device = device()
         motion(device, MotionEvent.AXIS_X to 0.05f)
-        shadowOf(context.getSystemService(InputManager::class.java)).removeInputDevice(device.id)
+        val manager = ReflectionHelpers.callStaticMethod<Any>(Class.forName("android.hardware.input.InputManagerGlobal"), "getInstance")
+        ReflectionHelpers.getField<SparseArray<InputDevice>>(manager, "mInputDevices").remove(device.id)
+        assertNull(InputDevice.getDevice(device.id))
         bridge.setStickDeadZone(0)
         assertEquals(0f, pad().leftX)
     }
