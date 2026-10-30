@@ -84,4 +84,14 @@ class SteamIntegrationShortcutsTest {
         ShortcutsListingReceiver().onReceive(context, Intent(Intent.ACTION_BOOT_COMPLETED))
         assertTrue(listed())
     }
+
+    @Test fun turningTheServiceOffInSettingsHidesItAtOnce() {
+        choose(service.flattenToString())
+        val running = org.robolectric.Robolectric.buildService(HomeButtonService::class.java).create().get()
+        running.onUnbind(null)
+        assertTrue(listed())
+        choose("")
+        running.onUnbind(null)
+        assertFalse(listed())
+    }
 }
