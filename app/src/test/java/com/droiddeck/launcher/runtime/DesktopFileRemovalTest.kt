@@ -94,4 +94,12 @@ class DesktopFileRemovalTest {
         assertFalse(File(root, "var/lib/pacman/sync/droiddeck.db").exists())
         assertFalse(File(root, "var/lib/pacman/droiddeck-desktop").exists())
     }
+
+    @Test fun aSymlinkedSyncDirectoryIsNotFollowed() {
+        val outside = File(dir, "outside/droiddeck.db").apply { parentFile.mkdirs(); writeText("keep") }
+        File(root, "var/lib/pacman/local").mkdirs()
+        Files.createSymbolicLink(File(root, "var/lib/pacman/sync").toPath(), outside.parentFile.toPath())
+        DesktopFileRemoval.removeRecords(root, emptySet())
+        assertEquals("keep", outside.readText())
+    }
 }

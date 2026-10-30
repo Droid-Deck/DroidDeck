@@ -97,8 +97,10 @@ internal object DesktopFileRemoval {
             }
             if (!dir.delete()) throw IOException("Cannot remove $dir")
         }
-        for (name in listOf("sync/droiddeck.db", "droiddeck-desktop")) {
-            val file = File(lib, name)
+        val sync = File(lib, "sync")
+        val files = listOf(File(lib, "droiddeck-desktop")) +
+            listOfNotNull(File(sync, "droiddeck.db").takeUnless { Files.isSymbolicLink(sync.toPath()) })
+        for (file in files) {
             if (Files.isSymbolicLink(file.toPath()) || file.isFile) Files.delete(file.toPath())
         }
     }

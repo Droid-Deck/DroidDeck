@@ -57,10 +57,7 @@ class SessionClipboard(context: Context, private val hasFocus: () -> Boolean) {
         val clip = clipboard.primaryClip
         if (clip != null && clip.itemCount == 0) return
         val text = clip?.getItemAt(0)?.text?.toString()
-        if (echo != null && text == echo) {
-            echo = null
-            return
-        }
+        if (echo != null && text == echo) return
         echo = null
         if (!changed && published && text == shared) return
         publish(text)

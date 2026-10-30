@@ -26,6 +26,7 @@ class TwoFingerGestures(private val slopPx: Float, private val listener: Listene
     private var startSpan = 0f
     private var lastX = 0f
     private var lastY = 0f
+    private var anchored = false
     private val starts = HashMap<Int, Pair<Float, Float>>()
     private val held = ArrayList<MotionEvent>()
     private val hold = Runnable {
@@ -83,7 +84,11 @@ class TwoFingerGestures(private val slopPx: Float, private val listener: Listene
                         pass(State.PASSING)
                         return true
                     }
-                    State.SCROLLING, State.HELD, State.TAPPED -> return true
+                    State.SCROLLING -> {
+                        anchored = false
+                        return true
+                    }
+                    State.HELD, State.TAPPED -> return true
                     else -> Unit
                 }
             }
@@ -106,6 +111,7 @@ class TwoFingerGestures(private val slopPx: Float, private val listener: Listene
                         listener.cancelTouch()
                         lastX = midX(event)
                         lastY = midY(event)
+                        anchored = true
                         listener.scrollStart(lastX, lastY)
                         return true
                     }
@@ -116,7 +122,8 @@ class TwoFingerGestures(private val slopPx: Float, private val listener: Listene
                     if (event.pointerCount >= 2) {
                         val mx = midX(event)
                         val my = midY(event)
-                        listener.scroll(lastX - mx, lastY - my)
+                        if (anchored) listener.scroll(lastX - mx, lastY - my)
+                        anchored = true
                         lastX = mx
                         lastY = my
                     }
@@ -137,7 +144,11 @@ class TwoFingerGestures(private val slopPx: Float, private val listener: Listene
                     pass(State.PASSING)
                     return true
                 }
-                State.SCROLLING, State.HELD, State.TAPPED -> return true
+                State.SCROLLING -> {
+                    anchored = false
+                    return true
+                }
+                State.HELD, State.TAPPED -> return true
                 else -> Unit
             }
             MotionEvent.ACTION_UP -> {
