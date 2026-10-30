@@ -39,6 +39,11 @@ Disabling the toggle clears queued and persistent agent environment settings and
 overrides. Disabled settings cannot apply at the next session start. Already running commands and
 effects already applied to a session are not undone; stop and restart that session to discard them.
 
+Program overrides prepend their directory to the normal session PATH, including `/usr/games`
+where Ubuntu installs `gamescopereaper`. An explicit `PATH=...` environment entry replaces that
+default. Keep the runtime directories when setting a custom PATH; if an old persistent override
+hides runtime tools, inspect `env list`, clear or correct that entry, and restart the session.
+
 Authorized command execution runs inside the runtime containing Steam's saved login. CDP evaluates
 JavaScript in the authenticated Steam client, and preferences can contain private values. These
 capabilities remain unrestricted when enabled: the toggle is an explicit opt-in, not credential
