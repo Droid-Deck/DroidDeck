@@ -464,6 +464,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var secondScreenDisplays by mutableStateOf<List<SecondScreenDisplay>>(emptyList())
     private var selectedSecondScreenDisplay by mutableStateOf(SessionState.secondScreenDisplay)
     private var started = false
+    private var dualControlsProvisional: Boolean
+        get() = SessionState.secondScreenProvisional
+        set(value) { SessionState.secondScreenProvisional = value }
     private var sessionActivityDisplayId = Display.DEFAULT_DISPLAY
     private lateinit var displayManager: DisplayManager
     private var secondScreenPresentation: SecondScreenPresentation? = null
@@ -580,6 +583,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             SessionState.steamUi = intent.getStringExtra(SessionService.EXTRA_STEAM_UI)
             SessionState.steamUrl = intent.getStringExtra(SessionService.EXTRA_STEAM_URL)
             SessionState.steamVr = intent.getBooleanExtra(EXTRA_STEAMVR, false)
+            SessionState.secondScreenAutoOpened = false
+            SessionState.secondScreenProvisional = false
         } else if (intent.getBooleanExtra(EXTRA_STEAMVR, false) && SessionState.mode == SessionService.MODE_STEAM) {
             SessionState.steamVr = true
         }
@@ -3030,6 +3035,15 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         SessionState.secondScreenAutoOpened = true
         selectedSecondScreenDisplay = target.displayId
         selectSecondScreenMode(SecondScreenMode.opening(SessionPrefs.secondScreenPanel(this), SessionState.deckPad))
+        dualControlsProvisional = ::loading.isInitialized && loading.visible
+    }
+
+    private fun settleDualScreenControls() {
+        if (!dualControlsProvisional || pipUi || !started || (::loading.isInitialized && loading.visible)) return
+        dualControlsProvisional = false
+        if (secondScreenMode == SecondScreenMode.NONE) return
+        val wanted = SecondScreenMode.opening(SessionPrefs.secondScreenPanel(this), SessionState.deckPad)
+        if (wanted != secondScreenMode) selectSecondScreenMode(wanted) else secondScreenPresentation?.retryTerminal()
     }
 
     private fun selectSecondScreenDisplay(displayId: Int) {
@@ -3040,6 +3054,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun selectSecondScreenMode(mode: SecondScreenMode) {
+        dualControlsProvisional = false
         if (mode == SecondScreenMode.NONE) {
             closeSecondScreen(reset = true)
             return
@@ -3818,7 +3833,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             updateOnScreenControls()
             if (resumed) { sessionClipboard.start(); updatePadMotion() }
-            if (started) refreshSecondScreenDisplays()
+            if (started) {
+                settleDualScreenControls()
+                refreshSecondScreenDisplays()
+            }
             if (CompositorHost.isStarted) applyFrameGen()
         }
     }
@@ -3854,9 +3872,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         for (name in arrayOf("peak_refresh_rate", "min_refresh_rate")) {
             contentResolver.registerContentObserver(android.provider.Settings.System.getUriFor(name), false, refreshSettingObserver)
         }
+        settleDualScreenControls()
         refreshSecondScreenDisplays()
         if (secondScreenMode != SecondScreenMode.NONE && secondScreenPresentation == null) showSecondScreen(secondScreenMode)
-        else if (::loading.isInitialized && !loading.visible) openDualScreenControls()
+        else openDualScreenControls()
         startedScreens++
         SessionService.setActivityVisible(this, true, sessionActivityDisplayId)
         Glasses.rescan()
@@ -4384,7 +4403,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             loading.visible = false
             hud.start()
             memoryHud.start()
-            if (started) openDualScreenControls()
+            if (started) {
+                settleDualScreenControls()
+                openDualScreenControls()
+            }
         }
     }
 

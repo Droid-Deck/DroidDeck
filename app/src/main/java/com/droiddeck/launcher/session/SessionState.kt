@@ -92,6 +92,7 @@ object SessionState {
     @Volatile var secondScreenMode = com.droiddeck.launcher.input.SecondScreenMode.NONE
     @Volatile var secondScreenDisplay = -1
     @Volatile var secondScreenAutoOpened = false
+    @Volatile var secondScreenProvisional = false
 
     @Volatile
     var mode = "steam"
