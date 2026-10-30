@@ -543,7 +543,6 @@ class SessionService : Service() {
         val fakeInputDir = File(sessionRoot, "dev/input").apply { mkdirs() }
         val controllersOn = !File(Environment.getExternalStorageDirectory(), NO_PAD_SWITCH).exists()
         SessionState.deckPad = false
-        SessionState.secondScreenAutoOpened = false
         deckBinds = emptyList()
         inputSysfs = null
         if (controllersOn) {
