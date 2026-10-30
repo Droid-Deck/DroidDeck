@@ -33,7 +33,7 @@ static int64_t g_refresh_ns = 16666667;
 volatile int g_render_on_commit = 1;
 volatile int g_release_unpaced = 1;
 volatile int g_fps_limit;
-static int64_t g_scene_ns;
+static int64_t g_scene_due_ns;
 static atomic_int g_stream_on;
 static struct { unsigned ticks, ticks_late_2ms, commit_renders; int64_t tick_late_ns, tick_late_max_ns; } g_pace;
 static struct { unsigned ticks; } g_perf;

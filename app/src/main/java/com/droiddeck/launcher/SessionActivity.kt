@@ -2249,7 +2249,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     private fun applyFrameGen() {
         val hz = refreshHz()
-        val pip = pipUi
+        val pip = pipUi && mirrorRefreshLimit() <= 0
         val request = frameGenRequests.incrementAndGet()
         Thread({
             val problem = synchronized(frameGenRequests) {

@@ -12,7 +12,7 @@ SOURCE = ROOT / 'app/src/main/cpp/waylandcomp/src/compositor.c'
 
 
 def extract_function(source, name):
-    match = re.search(r'^static int ' + re.escape(name) + r'\([^;]*?\) \{', source, re.MULTILINE)
+    match = re.search(r'^static int(?:64_t)? ' + re.escape(name) + r'\([^;]*?\) \{', source, re.MULTILINE)
     if match is None:
         raise AssertionError(f'Missing compositor function: {name}')
     cursor, depth = match.end(), 1
@@ -27,29 +27,54 @@ HARNESS = r'''
 #include <stdint.h>
 #include <stdio.h>
 
-%s
+@FUNCTIONS@
 
 #define MS 1000000LL
 
-int main(void) {
-    const int64_t hz120 = 8333333, hz60 = 16666667;
-    assert(!scene_held_for_limit(100 * MS, 0, 30, 0, hz120));
-    assert(!scene_held_for_limit(100 * MS, 90 * MS, 0, 0, hz120));
-    assert(!scene_held_for_limit(100 * MS, 99 * MS, 30, 1, hz120));
-    assert(scene_held_for_limit(100 * MS, 92 * MS, 30, 0, hz120));
-    assert(scene_held_for_limit(100 * MS, 75 * MS, 30, 0, hz120));
-    assert(!scene_held_for_limit(100 * MS, 70 * MS, 30, 0, hz120));
-    assert(!scene_held_for_limit(100 * MS, 67 * MS, 30, 0, hz120));
-    assert(scene_held_for_limit(100 * MS, 80 * MS, 30, 0, hz60));
-    assert(!scene_held_for_limit(100 * MS, 75 * MS, 30, 0, hz60));
-    assert(!scene_held_for_limit(100 * MS, 88 * MS, 120, 0, hz120));
+static int run(int64_t refresh, int limit, int64_t jitter, int seconds) {
     int renders = 0;
-    int64_t last = 0;
-    for (int64_t tick = 0; tick < 120; tick++) {
-        int64_t now = 1000 * MS + tick * hz120;
-        if (!scene_held_for_limit(now, last, 30, 0, hz120)) { renders++; last = now; }
+    int64_t due = 0;
+    for (int64_t tick = 0; tick * refresh < seconds * 1000 * MS; tick++) {
+        int64_t now = 1000 * MS + tick * refresh + (tick % 2 ? jitter : -jitter);
+        if (scene_held_for_limit(now, due, limit, 0)) continue;
+        renders++;
+        due = scene_next_due(now, due, limit);
     }
-    assert(renders == 30);
+    return renders;
+}
+
+int main(void) {
+    assert(!scene_held_for_limit(100 * MS, 0, 30, 0));
+    assert(!scene_held_for_limit(100 * MS, 130 * MS, 0, 0));
+    assert(!scene_held_for_limit(100 * MS, 130 * MS, 30, 1));
+    assert(scene_held_for_limit(100 * MS, 130 * MS, 30, 0));
+    assert(scene_held_for_limit(100 * MS, 102 * MS, 30, 0));
+    assert(!scene_held_for_limit(100 * MS, 101 * MS, 30, 0));
+    assert(!scene_held_for_limit(100 * MS, 90 * MS, 30, 0));
+    assert(scene_next_due(100 * MS, 0, 0) == 0);
+    assert(scene_next_due(100 * MS, 0, 25) == 140 * MS);
+    assert(scene_next_due(101 * MS, 100 * MS, 25) == 140 * MS);
+    assert(scene_next_due(200 * MS, 100 * MS, 25) == 240 * MS);
+    const struct { int64_t refresh; int limit; int expected; } cases[] = {
+        {8333333, 30, 300}, {8333333, 60, 600}, {16666667, 25, 250}, {16666667, 30, 300},
+        {10000000, 30, 300}, {11111111, 30, 300}, {6944444, 40, 400}, {16666667, 120, 600},
+    };
+    for (unsigned i = 0; i < sizeof cases / sizeof cases[0]; i++) {
+        int got = run(cases[i].refresh, cases[i].limit, 0, 10);
+        if (got > cases[i].expected + 1 || got < cases[i].expected - 2) {
+            fprintf(stderr, "refresh %lld limit %d: %d renders, expected %d\n",
+                    (long long)cases[i].refresh, cases[i].limit, got, cases[i].expected);
+            return 1;
+        }
+        got = run(cases[i].refresh, cases[i].limit, 300000, 10);
+        if (got > cases[i].expected + 1 || got < cases[i].expected - 2) {
+            fprintf(stderr, "jittered refresh %lld limit %d: %d renders, expected %d\n",
+                    (long long)cases[i].refresh, cases[i].limit, got, cases[i].expected);
+            return 1;
+        }
+    }
+    int fallback = run(8 * MS, 30, 0, 10);
+    assert(fallback <= 301 && fallback >= 290);
     puts("PASS");
     return 0;
 }
@@ -61,7 +86,8 @@ class SceneLimitHoldTest(unittest.TestCase):
         compiler = shutil.which(os.environ.get('CC', 'cc'))
         if compiler is None:
             self.skipTest('A host C compiler is required')
-        harness = HARNESS % extract_function(SOURCE.read_text(), 'scene_held_for_limit')
+        source = SOURCE.read_text()
+        harness = HARNESS.replace('@FUNCTIONS@', '\n'.join(extract_function(source, name) for name in ('scene_held_for_limit', 'scene_next_due')))
         with tempfile.TemporaryDirectory(prefix='droiddeck-scene-hold-') as folder:
             path = Path(folder)
             (path / 'hold.c').write_text(harness)
