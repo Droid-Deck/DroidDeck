@@ -174,7 +174,7 @@ class DualScreenActivity : ComponentActivity() {
             finishAndRemoveTask()
             return
         }
-        window.addFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         applyImmersiveMode()
         setContent {
             val model = DualScreenPanel.model
@@ -209,12 +209,16 @@ class DualScreenActivity : ComponentActivity() {
 
     private fun dropFocus() {
         unfocusPending = false
-        window.addFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
     }
 
     override fun onResume() {
         super.onResume()
         if (!DualScreenPanel.typingShown) DualScreenPanel.returnFocus(this)
+    }
+
+    override fun onTopResumedActivityChanged(isTopResumedActivity: Boolean) {
+        super.onTopResumedActivityChanged(isTopResumedActivity)
+        if (isTopResumedActivity && !DualScreenPanel.typingShown) DualScreenPanel.returnFocus(this)
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
