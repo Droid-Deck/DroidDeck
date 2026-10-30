@@ -495,7 +495,7 @@ class DeckControlsPanel(
         private fun move(dx: Float, dy: Float, r: Float) {
             knobX = dx
             knobY = dy
-            pad.applyTouch { s ->
+            pad.applyTouch(if (right) PadBridge.RIGHT_STICK else PadBridge.LEFT_STICK) { s ->
                 if (right) { s.rightX = dx / r; s.rightY = dy / r } else { s.leftX = dx / r; s.leftY = dy / r }
             }
             invalidate()
