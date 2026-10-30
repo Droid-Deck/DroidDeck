@@ -36,6 +36,9 @@ class App : Application() {
         }
         if (process == "$packageName:vr_recovery" || process == "$packageName:rgb_diagnostic") return
         CrashHandler.install(this)
+        if (com.droiddeck.launcher.core.SteamIntegration.shortcutsChosen(this)) {
+            com.droiddeck.launcher.core.SteamIntegration.setShortcutsListed(this, true)
+        }
         com.droiddeck.launcher.session.QuestExperimental.initialize(this)
         com.droiddeck.launcher.session.SessionPrefs.applyNtsyncDefault(this)
         com.droiddeck.launcher.session.SessionPrefs.settleGpuDriverMode(this)

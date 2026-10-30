@@ -4,6 +4,7 @@ import android.accessibilityservice.AccessibilityServiceInfo
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.provider.Settings
 import android.view.accessibility.AccessibilityManager
@@ -54,6 +55,29 @@ object SteamIntegration {
         }.getOrDefault(android.app.AppOpsManager.MODE_ALLOWED)
         return mode == android.app.AppOpsManager.MODE_ERRORED || mode == android.app.AppOpsManager.MODE_IGNORED
     }
+
+    private fun shortcutsComponent(context: Context) = ComponentName(context, HomeButtonService::class.java)
+
+    fun shortcutsChosen(context: Context): Boolean {
+        val target = shortcutsComponent(context)
+        val enabled = runCatching {
+            Settings.Secure.getString(context.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)
+        }.getOrNull().orEmpty()
+        return enabled.split(':').any { ComponentName.unflattenFromString(it.trim()) == target }
+    }
+
+    fun setShortcutsListed(context: Context, listed: Boolean) {
+        val packages = context.packageManager
+        val component = shortcutsComponent(context)
+        val state = if (listed) PackageManager.COMPONENT_ENABLED_STATE_ENABLED else PackageManager.COMPONENT_ENABLED_STATE_DEFAULT
+        runCatching {
+            if (packages.getComponentEnabledSetting(component) != state) {
+                packages.setComponentEnabledSetting(component, state, PackageManager.DONT_KILL_APP)
+            }
+        }
+    }
+
+    fun syncShortcutsListing(context: Context) = setShortcutsListed(context, shortcutsChosen(context))
 
     fun dismissSuggestion(context: Context) {
         SessionPrefs.sessionPrefs(context).edit().putBoolean("steam_integration_seen", true).apply()
