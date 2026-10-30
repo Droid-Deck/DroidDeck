@@ -368,7 +368,7 @@ public final class PadBridge {
     }
 
     private static boolean hasChordStickInput(float x, float y) {
-        // Back/QAM must ignore the drift previously suppressed by the fixed per-axis dead zone.
+        // Back/QAM keeps the legacy neutral threshold independently of game-stick filtering.
         return Math.max(Math.abs(x), Math.abs(y)) >= DEAD_ZONE;
     }
 
@@ -387,6 +387,7 @@ public final class PadBridge {
             int[] stick = JoyCon.stickAxes(side, device, event.getSource());
             float x = event.getAxisValue(stick[0]);
             float y = event.getAxisValue(stick[1]);
+            boolean chordStickInput = hasChordStickInput(x, y);
             if (inStickDeadZone(x, y, stickDeadZone)) { x = 0f; y = 0f; }
             if (side == JoyCon.LEFT) {
                 pad.leftX = x;
@@ -395,7 +396,7 @@ public final class PadBridge {
                 pad.rightX = x;
                 pad.rightY = y;
             }
-            if (hasChordStickInput(x, y)) noteChordInput(slot);
+            if (chordStickInput) noteChordInput(slot);
             if (Math.max(Math.abs(x), Math.abs(y)) > 0.5f) notePlayerInput();
             publish(slot);
             return true;
@@ -432,7 +433,7 @@ public final class PadBridge {
             pad.up = hatY < -0.5f;
             pad.down = hatY > 0.5f;
         }
-        if (hasChordStickInput(pad.leftX, pad.leftY) || hasChordStickInput(pad.rightX, pad.rightY)
+        if (hasChordStickInput(lx, ly) || hasChordStickInput(rx, ry)
                 || lt > 0f || rt > 0f || pad.up || pad.right || pad.down || pad.left) noteChordInput(slot);
         if (Math.max(Math.max(Math.abs(pad.leftX), Math.abs(pad.leftY)), Math.max(Math.abs(pad.rightX), Math.abs(pad.rightY))) > 0.5f
                 || lt > 0.5f || rt > 0.5f || pad.up || pad.right || pad.down || pad.left) {
