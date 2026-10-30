@@ -1467,7 +1467,14 @@ int close(int fd) {
   bl_vdec_closed(fd);
   uint64_t *t = __atomic_load_n(&ns_fdt, __ATOMIC_ACQUIRE);
   if (t && fd >= 0 && fd < NS_FDS && __atomic_load_n(&t[fd], __ATOMIC_ACQUIRE)) ns_forget(fd);
-  return ns_close_fd(fd);
+  int saved = errno;
+  int mode = fd >= 0 ? fcntl(fd, F_GETFL) : -1;
+  int r = ns_close_fd(fd);
+  if (r < 0 && errno == EIO && mode >= 0 && (mode & O_ACCMODE) == O_RDONLY) {
+    errno = saved;
+    return 0;
+  }
+  return r;
 }
 
 int dup2(int oldfd, int newfd) {
