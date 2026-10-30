@@ -7,6 +7,8 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Typeface
 import android.os.Bundle
+import android.text.TextPaint
+import android.text.TextUtils
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
@@ -66,7 +68,8 @@ object BuildWatermark {
     private const val TAG = "build-watermark"
 
     private class MarkView(context: Context, private val lines: List<String>) : View(context) {
-        private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        private var shown = lines
+        private val paint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
             color = 0xE6FFFFFF.toInt()
             typeface = Typeface.MONOSPACE
             textSize = TypedValue.applyDimension(
@@ -86,15 +89,19 @@ object BuildWatermark {
         }
 
         override fun onMeasure(widthSpec: Int, heightSpec: Int) {
-            val width = lines.maxOf { paint.measureText(it) }.toInt() + paddingForShadow() * 2
-            setMeasuredDimension(width, (lineHeight * lines.size).toInt() + paddingForShadow() * 2)
+            val pad = paddingForShadow() * 2
+            val limit = if (MeasureSpec.getMode(widthSpec) == MeasureSpec.UNSPECIFIED) Float.MAX_VALUE
+                else (MeasureSpec.getSize(widthSpec) - pad).coerceAtLeast(0).toFloat()
+            shown = lines.map { TextUtils.ellipsize(it, paint, limit, TextUtils.TruncateAt.END).toString() }
+            val width = shown.maxOf { paint.measureText(it) }.toInt() + pad
+            setMeasuredDimension(width, (lineHeight * shown.size).toInt() + pad)
         }
 
         override fun onDraw(canvas: Canvas) {
             val pad = paddingForShadow()
             val radius = 3f * resources.displayMetrics.density
             canvas.drawRoundRect(0f, 0f, width.toFloat(), height.toFloat(), radius, radius, backdrop)
-            lines.forEachIndexed { i, line ->
+            shown.forEachIndexed { i, line ->
                 canvas.drawText(line, width - pad.toFloat(), pad - paint.ascent() + lineHeight * i, paint)
             }
         }
