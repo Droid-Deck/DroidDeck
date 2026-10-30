@@ -169,12 +169,16 @@ object AddedGames {
     internal fun groupGames(folder: File): List<File>? {
         val files = folder.listFiles() ?: return null
         if (files.any { it.isFile && it.name.endsWith(".exe", ignoreCase = true) && !skipExe(it.name) }) return null
+        if (declaredExes(folder).isNotEmpty()) return null
         val dirs = files.filter { it.isDirectory && !it.name.startsWith(".") }.sortedBy { it.name.lowercase() }
         if (dirs.size < 2 || dirs.any { it.name.lowercase() in GAME_PARTS }) return null
         return dirs.takeIf { all -> all.all { rank(it).exes.isNotEmpty() } }
     }
 
-    private fun expand(folder: File): List<File> = groupGames(folder) ?: listOf(folder)
+    private fun expand(folder: File, entries: Set<String>): List<File> =
+        if (folder.path in entries) listOf(folder) else groupGames(folder) ?: listOf(folder)
+
+    private fun entryFolders(context: Context): Set<String> = AddedExes.list(context).map { it.folder }.toSet()
 
     /** The card's Steam libraries: the arm64 client's steamapps and the x86-64 client's own folder beside it. */
     internal fun isSteamLibraryFolder(name: String): Boolean =
@@ -188,13 +192,15 @@ object AddedGames {
             GameStorage.effective(context)?.let { File(it.path, "steamapps/common") },
         )
         val removed = SessionPrefs.removedAddedGames(context).toSet()
+        val entries = entryFolders(context)
         for (dir in folders.distinctBy { it.absolutePath }) {
             if (!dir.isDirectory) { Log.w(TAG, "$dir is not a folder; skipped"); continue }
             val steamInstalls = steamInstallDirs(dir)
             for (folder in dir.listFiles { f -> f.isDirectory }?.sortedBy { it.name.lowercase() } ?: emptyList()) {
                 if (folder.name.lowercase() in steamInstalls || isSteamLibraryFolder(folder.name)) continue
+                if (folder.path in removed) continue
                 if (folder.name == "Games" && StoreInstallRoot.roots(context).any { it.absolutePath == folder.absolutePath }) continue
-                for (game in expand(folder)) if (game.path !in removed) scanGame(context, game, out)
+                for (game in expand(folder, entries)) if (game.path !in removed) scanGame(context, game, out)
             }
         }
         for (entry in AddedExes.list(context)) {
@@ -257,9 +263,9 @@ object AddedGames {
             val base = canonical(dir)
             if (!inside(path, base)) continue
             val first = path.removePrefix("$base/").substringBefore('/')
-            val top = File(dir, first).takeIf { it.isDirectory && !isSteamLibraryFolder(first) } ?: continue
-            groupGames(top)?.firstOrNull(::holds)?.let { return it }
-            if (top.path !in removed) return top
+            val top = File(dir, first).takeIf { it.isDirectory && !isSteamLibraryFolder(first) && it.path !in removed } ?: continue
+            if (top.path in entries.map { it.folder }) return null
+            return groupGames(top)?.firstOrNull(::holds) ?: top
         }
         return null
     }
@@ -312,10 +318,11 @@ object AddedGames {
         if (guestPath(app, dir) == null) bindFolder(app, dir)
         val removed = SessionPrefs.removedAddedGames(app).toSet()
         val listed = listedFolders(app, removed)
+        val entries = entryFolders(app)
         var already = 0
         val fresh = ArrayList<String>()
         val added = ArrayList<Game>()
-        for (sub in dir.listFiles { f -> f.isDirectory && (showHidden || !f.name.startsWith(".")) }?.sortedBy { it.name.lowercase() }.orEmpty().flatMap(::expand)) {
+        for (sub in dir.listFiles { f -> f.isDirectory && (showHidden || !f.name.startsWith(".")) }?.sortedBy { it.name.lowercase() }.orEmpty().flatMap { expand(it, entries) }) {
             val path = canonical(sub)
             if (listed.any { it == path || inside(path, it) || inside(it, path) }) { already++; continue }
             onChecking(sub.name)
@@ -349,6 +356,7 @@ object AddedGames {
 
     private fun listedFolders(context: Context, removed: Set<String>): List<String> {
         val out = ArrayList<String>()
+        val entries = entryFolders(context)
         GamesFolderMigration.run(context)
         val dirs = listOfNotNull(
             GameStorage.effective(context)?.let { File(it.path) },
@@ -356,9 +364,9 @@ object AddedGames {
         )
         for (dir in dirs.distinctBy { it.absolutePath }) {
             for (folder in dir.listFiles { f -> f.isDirectory }.orEmpty()) {
-                if (isSteamLibraryFolder(folder.name)) continue
+                if (folder.path in removed || isSteamLibraryFolder(folder.name)) continue
                 if (folder.name == "Games" && StoreInstallRoot.roots(context).any { it.absolutePath == folder.absolutePath }) continue
-                expand(folder).filter { it.path !in removed }.forEach { out.add(canonical(it)) }
+                expand(folder, entries).filter { it.path !in removed }.forEach { out.add(canonical(it)) }
             }
         }
         AddedExes.list(context).filter { it.folder !in removed }.forEach { out.add(canonical(File(it.folder))) }

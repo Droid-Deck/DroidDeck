@@ -158,7 +158,26 @@ class AddedExesTest {
         val game = result(AddedGames.addExe(app, pick))
         assertEquals(pick.parentFile!!.path, game.folder.path)
         assertTrue(group.path in SessionPrefs.removedAddedGames(app))
-        assertTrue(AddedGames.scan(app).any { it.folder.path == pick.parentFile!!.path })
+        assertEquals(listOf(pick.parentFile!!.path), AddedGames.scan(app).map { it.folder.path })
+        SessionPrefs.setGameStorage(app, SessionPrefs.GAME_STORAGE_OFF, "")
+    }
+
+    @Test fun aFolderThatDeclaresItsExeInASubfolderStaysOneGame() {
+        val storage = tmp.newFolder("PC Games")
+        SessionPrefs.setAddedGamesDirs(app, emptyList())
+        SessionPrefs.setGameStorage(app, storage.path, "SD card")
+        exe(File(storage, "Halo/Content/Halo.exe"))
+        exe(File(storage, "Halo/Tools/ModKit.exe"))
+        File(storage, "Halo/MicrosoftGame.config").writeText("<Game><Executable Name=\"Content\\Halo.exe\" /></Game>")
+        assertEquals(listOf(File(storage, "Halo").path), AddedGames.scan(app).map { it.folder.path })
+        SessionPrefs.setGameStorage(app, SessionPrefs.GAME_STORAGE_OFF, "")
+    }
+
+    @Test fun aGroupFolderTheUserAddedAsOneGameStaysOneGame() {
+        val storage = visualNovels()
+        val vns = File(storage, "VNs")
+        AddedExes.put(app, AddedExes.Entry(vns.path, File(vns, "Albatross/Albatross Log.exe").path))
+        assertEquals(listOf(vns.path), AddedGames.scan(app).map { it.folder.path })
         SessionPrefs.setGameStorage(app, SessionPrefs.GAME_STORAGE_OFF, "")
     }
 
