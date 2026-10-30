@@ -188,6 +188,21 @@ impl Placer<'_> {
             let _ = fs::remove_file(&tmp);
             return Err(SinkError::Fatal(self.fail(format!("Could not put {} in place: {e}", job.path))));
         }
+        // Sync directory to persist the rename
+        if let Some(parent) = job.dest.parent() {
+            match std::fs::File::open(parent) {
+                Ok(dir) => {
+                    if let Err(err) = dir.sync_all() {
+                        // Log but don't fail - file content is synced, only directory metadata might not be
+                        // On restart, the file will be re-downloaded if needed
+                        eprintln!("Amazon: directory sync failed for {} err={err}", job.dest.display());
+                    }
+                }
+                Err(err) => {
+                    eprintln!("Amazon: could not open directory for sync {} err={err}", parent.display());
+                }
+            }
+        }
         self.placed[i].store(true, Ordering::SeqCst);
         self.placed_bytes.fetch_add(job.size, Ordering::Relaxed);
         self.files_placed.fetch_add(1, Ordering::Relaxed);
