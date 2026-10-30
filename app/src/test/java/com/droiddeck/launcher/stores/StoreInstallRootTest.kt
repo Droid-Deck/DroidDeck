@@ -150,6 +150,20 @@ class StoreInstallRootTest {
         assertTrue(xodus.any { it.first.absolutePath == File(library, "Games").absolutePath })
     }
 
+    @Test fun theSteamLibraryGetsItsOwnGuestPathWhenItSharesACardWithAnotherStoreRoot() {
+        val card = File(app.filesDir, "same-card/Games")
+        val library = File(app.filesDir, "same-card/steam/Games")
+        val base = "/mnt/droiddeck-stores/ABCD-1234"
+
+        val roots = StoreInstallRoot.withSelectedLibrary(listOf(card to base), library, base)
+        assertEquals(2, roots.map { it.second }.distinct().size)
+        assertEquals(base, roots.single { it.first == card }.second)
+        assertTrue(roots.single { it.first == library }.second.startsWith("$base-"))
+        assertEquals("${roots.single { it.first == library }.second}/Xbox/Doom",
+            StoreInstallRoot.externalGuestPath(File(library, "Xbox/Doom"), roots))
+        assertEquals(roots, StoreInstallRoot.withSelectedLibrary(roots, library, base))
+    }
+
     @Test fun externalStoreBindsCreateGuestTargetsAndSkipUnavailableVolumes() {
         val host = File(app.filesDir, "card/Games").apply { mkdirs() }
         val guestRoot = "/mnt/droiddeck-stores/card"
