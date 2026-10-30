@@ -292,6 +292,10 @@ jobs:
     if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
     runs-on: ubuntu-24.04
     timeout-minutes: 45
+    permissions:
+      contents: read
+      actions: write
+      pull-requests: write
     outputs:
       variants: ${{ steps.variants.outputs.list }}
     steps:
@@ -532,7 +536,7 @@ jobs:
         run: |
           set -o pipefail
           python3 tools/release/runtime_inputs.py record
-          ./gradlew assembleRelease --console=plain -PndkVersion="$NDK_VERSION" 2>&1 | tee /tmp/build.log
+          ./gradlew assembleRelease -x lintVitalRelease --console=plain -PndkVersion="$NDK_VERSION" 2>&1 | tee /tmp/build.log
           python3 tools/release/check_session_assets.py app/build/outputs/apk/release/app-release.apk
           python3 tools/release/runtime_inputs.py apk app/build/outputs/apk/release/app-release.apk
 
@@ -553,29 +557,6 @@ jobs:
           name: stores-cargo-lock
           path: app/src/main/rust/stores/Cargo.lock
           if-no-files-found: ignore
-
-      - name: Unit tests
-        id: unit-tests
-        env:
-          DROIDDECK_BUILD_LABEL: ${{ steps.build-label.outputs.label }}
-          SGDB_API_KEY: ${{ secrets.SGDB_API_KEY }}
-        run: |
-          set -o pipefail
-          mkdir -p app/build
-          ./gradlew testReleaseUnitTest --console=plain --info --stacktrace -Drobolectric.logging=stderr -PndkVersion="$NDK_VERSION" 2>&1 | tee app/build/unit-tests.log
-
-      - name: Upload unit test diagnostics
-        id: unit-test-diagnostics
-        if: always() && steps.unit-tests.outcome != 'skipped'
-        uses: actions/upload-artifact@v4
-        with:
-          name: unit-test-results
-          path: |
-            app/build/unit-tests.log
-            app/build/test-results/testReleaseUnitTest/
-            app/build/reports/tests/testReleaseUnitTest/
-          if-no-files-found: ignore
-          retention-days: 14
 
       - name: Sign with the testkey (v1 + v2 + v3)
         run: |
@@ -614,13 +595,47 @@ jobs:
           retention-days: 30
           compression-level: 0
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload the add-on packs
+        uses: actions/upload-artifact@v4
         with:
           name: droiddeck-packs
           path: app/build/packs/*.tar.zst
           if-no-files-found: error
           retention-days: 30
           compression-level: 0
+
+      - name: Sign this PR build before its tests finish
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          gh workflow run pr-release-publish.yml -R "$GITHUB_REPOSITORY" --ref main \
+            -f "pr_number=$PR" -f "apk_run_id=$GITHUB_RUN_ID"
+
+      - name: Unit tests
+        id: unit-tests
+        env:
+          DROIDDECK_BUILD_LABEL: ${{ steps.build-label.outputs.label }}
+          SGDB_API_KEY: ${{ secrets.SGDB_API_KEY }}
+        run: |
+          set -o pipefail
+          mkdir -p app/build
+          ./gradlew lintVitalRelease testReleaseUnitTest --console=plain --info --stacktrace -Drobolectric.logging=stderr -PndkVersion="$NDK_VERSION" 2>&1 | tee app/build/unit-tests.log
+
+      - name: Upload unit test diagnostics
+        id: unit-test-diagnostics
+        if: always() && steps.unit-tests.outcome != 'skipped'
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-results
+          path: |
+            app/build/unit-tests.log
+            app/build/test-results/testReleaseUnitTest/
+            app/build/reports/tests/testReleaseUnitTest/
+          if-no-files-found: ignore
+          retention-days: 14
 
       - name: Report on the pull request
         if: always() && github.event_name == 'pull_request'

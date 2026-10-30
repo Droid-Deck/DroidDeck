@@ -12,6 +12,10 @@ on:
         description: Completed build run for automatic publishing
         required: false
         type: string
+      apk_run_id:
+        description: Same-repository build run that has uploaded its APK; signs it before its tests finish
+        required: false
+        type: string
   pull_request_target:
     types: [labeled]
     branches: [main]
@@ -81,6 +85,8 @@ jobs:
       label: ${{ steps.gate.outputs.label }}
       skip: ${{ steps.gate.outputs.skip }}
       automatic: ${{ steps.gate.outputs.automatic }}
+      early: ${{ steps.gate.outputs.early }}
+      announce: ${{ steps.gate.outputs.announce }}
       variants: ${{ steps.variants.outputs.list }}
     steps:
       - uses: actions/checkout@v4
@@ -100,6 +106,7 @@ jobs:
           ACTION: ${{ github.event.action }}
           BUILT_SHA: ${{ github.event.workflow_run.head_sha }}
           AUTO_RUN: ${{ inputs.automatic_build_run_id }}
+          APK_RUN: ${{ inputs.apk_run_id }}
         run: |
           set -euo pipefail
           [[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]] || { echo "::error::Invalid PR number '$PR_NUMBER'"; exit 1; }
@@ -126,52 +133,83 @@ jobs:
             opener=$(jq -r .user.login <<<"$pr")
             git show origin/main:.github/trusted-test-builds.txt | grep -Fixq -- "$opener" || skip "PR opener @$opener is not trusted for automatic signing"
             echo "automatic=true" >> "$GITHUB_OUTPUT"
+          elif [ "$EVENT_NAME" = workflow_dispatch ] && [ -n "$APK_RUN" ]; then
+            [[ "$APK_RUN" =~ ^[1-9][0-9]*$ ]] || { echo '::error::Invalid APK build run ID'; exit 1; }
+            [ "$(jq -r .head.repo.full_name <<<"$pr")" = "$GITHUB_REPOSITORY" ] || skip "it comes from a fork"
+            jq -e 'any(.labels[]; .name == "no-test-build")' <<<"$pr" >/dev/null && skip "it is labelled no-test-build"
+            echo "automatic=true" >> "$GITHUB_OUTPUT"
+            echo "early=true" >> "$GITHUB_OUTPUT"
           fi
           head=$(jq -r '.head.sha' <<<"$pr")
           base=$(jq -r '.base.sha' <<<"$pr")
+          if [ "$EVENT_NAME" = workflow_run ] &&
+             gh release view "pr-$PR_NUMBER" -R Droid-Deck/DroidDeck-CI --json body --jq .body 2>/dev/null | grep -Fq "Commit: $head"; then
+            { echo "announce=true"; echo "pr_number=$PR_NUMBER"; echo "head_sha=$head"; } >> "$GITHUB_OUTPUT"
+            skip "${head:0:7} was signed when its APK was built"
+          fi
 
           run_id=
-          for attempt in $(seq 1 240); do
-            latest=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/build.yml/runs?event=pull_request&head_sha=$head&per_page=100" |
-              jq -c --arg head "$head" --arg repo "$(jq -r .head.repo.full_name <<<"$pr")" --arg ref "$(jq -r .head.ref <<<"$pr")" '
-                [.workflow_runs[] | select(.head_sha == $head and .head_repository.full_name == $repo and .head_branch == $ref)] |
-                sort_by([.created_at, .run_attempt]) | last // empty')
-            if [[ -z "$latest" && "$attempt" == 1 ]]; then
-              git fetch --no-tags origin main
-              git fetch --no-tags origin "refs/pull/$PR_NUMBER/head"
-              git diff --no-renames --name-only -z "$base...FETCH_HEAD" > "$RUNNER_TEMP/pr-changed-paths"
-              excluded=true
-              while IFS= read -r -d '' path; do
-                case "$path" in
-                  *.md|LICENSE|.gitignore) ;;
-                  *) excluded=false; break ;;
-                esac
-              done < "$RUNNER_TEMP/pr-changed-paths"
-              [ "$excluded" = false ] || skip "its changes do not trigger the APK build"
-            fi
-            if [[ -n "$latest" && $(jq -r .status <<<"$latest") == completed ]]; then
-              conclusion=$(jq -r .conclusion <<<"$latest")
-              if [[ "$conclusion" == success ]]; then
-                run_id=$(jq -r .id <<<"$latest")
-                if [ -n "$AUTO_RUN" ] && [ "$run_id" != "$AUTO_RUN" ]; then
-                  skip "a newer build exists"
-                fi
-                break
+          if [ -n "$APK_RUN" ]; then
+            run=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$APK_RUN")
+            jq -e --arg head "$head" --arg repo "$GITHUB_REPOSITORY" --arg ref "$(jq -r .head.ref <<<"$pr")" '
+              .event == "pull_request" and .head_sha == $head and
+              .head_repository.full_name == $repo and .head_branch == $ref
+            ' <<<"$run" >/dev/null || skip "run $APK_RUN is not a build of ${head:0:7}"
+            jobs=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$APK_RUN/jobs?per_page=100")
+            for job in 'Pin source tree' 'Prepare verified components' 'Xbox ARM64 backend'; do
+              jq -e --arg name "$job" 'any(.jobs[]; .name == $name and .conclusion == "success")' <<<"$jobs" >/dev/null ||
+                { echo "::error::$job did not pass in run $APK_RUN"; exit 1; }
+            done
+            jq -e 'any(.jobs[]; .name == "Compile APK and Android tests" and
+              any(.steps[]; .name == "Upload the add-on packs" and .conclusion == "success"))' <<<"$jobs" >/dev/null ||
+              { echo "::error::Run $APK_RUN has not uploaded its APK and packs"; exit 1; }
+            validation=$(gh api "repos/$GITHUB_REPOSITORY/commits/$head/statuses?per_page=100" --jq '
+              [.[] | select(.context == "Build APK" and .creator.login == "github-actions[bot]")] | first | .description // ""')
+            [[ "$validation" == "Source validated"* ]] || skip "source validation has not passed for ${head:0:7}"
+            run_id=$APK_RUN
+          else
+            for attempt in $(seq 1 240); do
+              latest=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/build.yml/runs?event=pull_request&head_sha=$head&per_page=100" |
+                jq -c --arg head "$head" --arg repo "$(jq -r .head.repo.full_name <<<"$pr")" --arg ref "$(jq -r .head.ref <<<"$pr")" '
+                  [.workflow_runs[] | select(.head_sha == $head and .head_repository.full_name == $repo and .head_branch == $ref)] |
+                  sort_by([.created_at, .run_attempt]) | last // empty')
+              if [[ -z "$latest" && "$attempt" == 1 ]]; then
+                git fetch --no-tags origin main
+                git fetch --no-tags origin "refs/pull/$PR_NUMBER/head"
+                git diff --no-renames --name-only -z "$base...FETCH_HEAD" > "$RUNNER_TEMP/pr-changed-paths"
+                excluded=true
+                while IFS= read -r -d '' path; do
+                  case "$path" in
+                    *.md|LICENSE|.gitignore) ;;
+                    *) excluded=false; break ;;
+                  esac
+                done < "$RUNNER_TEMP/pr-changed-paths"
+                [ "$excluded" = false ] || skip "its changes do not trigger the APK build"
               fi
-              [[ "$conclusion" == action_required ]] || { echo "::error::The latest PR build is not green ($conclusion)"; exit 1; }
-            fi
-            status=not-started
-            [[ -z "$latest" ]] || status=$(jq -r .status <<<"$latest")
-            echo "Waiting for the PR build of ${head:0:7} to finish ($status)"
-            sleep 30
-          done
-          [[ -n "$run_id" ]] || { echo '::error::The PR build did not finish within 120 minutes'; exit 1; }
-          run=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id")
-          jq -e --arg head "$head" --arg repo "$(jq -r .head.repo.full_name <<<"$pr")" --arg ref "$(jq -r .head.ref <<<"$pr")" '
-            .event == "pull_request" and .head_sha == $head and .conclusion == "success" and
-            .head_repository.full_name == $repo and .head_branch == $ref
-          ' <<<"$run" >/dev/null ||
-            { echo "::error::Build run $run_id is not a green build of PR #$PR_NUMBER at ${head:0:7}"; exit 1; }
+              if [[ -n "$latest" && $(jq -r .status <<<"$latest") == completed ]]; then
+                conclusion=$(jq -r .conclusion <<<"$latest")
+                if [[ "$conclusion" == success ]]; then
+                  run_id=$(jq -r .id <<<"$latest")
+                  if [ -n "$AUTO_RUN" ] && [ "$run_id" != "$AUTO_RUN" ]; then
+                    skip "a newer build exists"
+                  fi
+                  break
+                fi
+                [[ "$conclusion" == action_required ]] || { echo "::error::The latest PR build is not green ($conclusion)"; exit 1; }
+              fi
+              status=not-started
+              [[ -z "$latest" ]] || status=$(jq -r .status <<<"$latest")
+              echo "Waiting for the PR build of ${head:0:7} to finish ($status)"
+              sleep 30
+            done
+            [[ -n "$run_id" ]] || { echo '::error::The PR build did not finish within 120 minutes'; exit 1; }
+            run=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id")
+            jq -e --arg head "$head" --arg repo "$(jq -r .head.repo.full_name <<<"$pr")" --arg ref "$(jq -r .head.ref <<<"$pr")" '
+              .event == "pull_request" and .head_sha == $head and .conclusion == "success" and
+              .head_repository.full_name == $repo and .head_branch == $ref
+            ' <<<"$run" >/dev/null ||
+              { echo "::error::Build run $run_id is not a green build of PR #$PR_NUMBER at ${head:0:7}"; exit 1; }
+          fi
 
           sdk=${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}
           tools=$(find "$sdk/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)
@@ -373,7 +411,7 @@ jobs:
           short=${HEAD_SHA:0:7}
           mark='<!-- droiddeck-pr-release -->'
           if [ "$TRUSTED_OPENER" = true ]; then
-            NEXT='Each green build of a new push is signed and published here on its own. Label the PR `no-test-build` to stop that.'
+            NEXT='Each new push is signed and published here on its own once its APK builds. Label the PR `no-test-build` to stop that.'
           else
             NEXT='Pushes to this PR do not re-sign automatically. After a new green build, a maintainer can add the `publish-test` label again.'
           fi
@@ -402,7 +440,7 @@ jobs:
           fi
 
       - name: Update the Discord PR announcement
-        if: ${{ always() && steps.publish.outcome == 'success' }}
+        if: ${{ always() && steps.publish.outcome == 'success' && needs.authorize.outputs.early != 'true' }}
         env:
           WEBHOOK: ${{ secrets.DISCORD_PR_BUILDS_WEBHOOK }}
           GH_TOKEN: ${{ github.token }}
@@ -410,6 +448,44 @@ jobs:
           HEAD_SHA: ${{ needs.authorize.outputs.head_sha }}
           RELEASE: ${{ steps.publish.outputs.release }}
           APK: ${{ steps.publish.outputs.apk }}
+        run: python3 tools/release/pr_discord.py publish
+
+  announce:
+    needs: authorize
+    if: ${{ needs.authorize.outputs.announce == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Find the signed build
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ needs.authorize.outputs.pr_number }}
+        run: |
+          set -euo pipefail
+          repo=Droid-Deck/DroidDeck-CI
+          tag="pr-$PR_NUMBER"
+          apk=$(gh release view "$tag" -R "$repo" --json assets --jq '.assets[].name' |
+            awk '/^DroidDeck-.*\.apk$/ && (length(a) == 0 || length($0) < length(a)) { a = $0 } END { print a }')
+          [ -n "$apk" ] || { echo "::error::$tag has no APK"; exit 1; }
+          echo "release=$GITHUB_SERVER_URL/$repo/releases/tag/$tag" >> "$GITHUB_OUTPUT"
+          echo "apk=$GITHUB_SERVER_URL/$repo/releases/download/$tag/$apk" >> "$GITHUB_OUTPUT"
+      - name: Update the Discord PR announcement
+        env:
+          WEBHOOK: ${{ secrets.DISCORD_PR_BUILDS_WEBHOOK }}
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ needs.authorize.outputs.pr_number }}
+          HEAD_SHA: ${{ needs.authorize.outputs.head_sha }}
+          RELEASE: ${{ steps.release.outputs.release }}
+          APK: ${{ steps.release.outputs.apk }}
         run: python3 tools/release/pr_discord.py publish
 
   catalog:
