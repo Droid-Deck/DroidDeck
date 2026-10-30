@@ -147,10 +147,10 @@ object SessionPrefs {
     }
 
     fun storesView(context: Context): String =
-        prefs(context).getString("storesView", null)?.takeIf { it in STORES_VIEWS } ?: STORES_VIEWS.first()
+        prefs(context).getString("storesView", null)?.takeIf { it in STORES_VIEWS } ?: DEFAULT_STORES_VIEW
 
     fun setStoresView(context: Context, view: String) {
-        prefs(context).edit().putString("storesView", if (view in STORES_VIEWS) view else STORES_VIEWS.first()).apply()
+        prefs(context).edit().putString("storesView", if (view in STORES_VIEWS) view else DEFAULT_STORES_VIEW).apply()
     }
 
     fun libraryCardLevel(context: Context): Int = prefs(context).getInt("libraryCardLevel", 2)
@@ -199,6 +199,7 @@ object SessionPrefs {
 
     val STORES_SORTS = listOf("lastPlayed", "recentlyInstalled", "titleAsc", "titleDesc", "sizeDesc", "sizeAsc", "releaseDateDesc")
     val STORES_VIEWS = listOf("cards", "capsules", "list")
+    const val DEFAULT_STORES_VIEW = "capsules"
 
     fun storesInstallTarget(context: Context): String = prefs(context).getString("storesInstallTarget", "") ?: ""
 
@@ -441,11 +442,15 @@ object SessionPrefs {
 
     /**
      * Shader pre-caching as the launcher last set it, until a session reports it written into the
-     * client's config.vdf; after that the client's own toggle is the user's again.
+     * client's config.vdf; after that the client's own toggle is the user's again. A client that
+     * has never written a config.vdf starts with pre-caching off.
      */
     fun pendingShaderPrecache(context: Context): Boolean? {
         val prefs = prefs(context)
-        if (!prefs.contains("shaderPrecache")) return null
+        if (!prefs.contains("shaderPrecache")) {
+            if (steamConfig(context).exists()) return null
+            prefs.edit().putBoolean("shaderPrecache", false).apply()
+        }
         val on = prefs.getBoolean("shaderPrecache", true)
         val applied = shaderPrecacheApplied(context)
         val written = runCatching { applied.readText().trim() }.getOrNull() ?: return on
@@ -460,9 +465,12 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("shaderPrecache", on).apply()
     }
 
+    private fun steamConfig(context: Context) =
+        java.io.File(steamRoot(context, steamClientArch(context)), "config/config.vdf")
+
     fun shaderPrecache(context: Context): Boolean = pendingShaderPrecache(context)
         ?: runCatching { com.droiddeck.launcher.storage.SteamStorage.shaderPrecache(
-            java.io.File(steamRoot(context, steamClientArch(context)), "config/config.vdf").readText()) }.getOrDefault(true)
+            steamConfig(context).readText()) }.getOrDefault(true)
 
     fun stretch16x9(context: Context): Boolean = prefs(context).getBoolean("stretch16x9", false)
 
