@@ -270,7 +270,23 @@ impl<'a> Engine<'a> {
                     .map_err(|e| format!("Could not assemble or atomically replace {}: {e}", file.path))?;
             }
             fs::rename(&stage, &file.dest)
-                .map_err(|e| format!("Could not assemble or atomically replace {}: {e}", file.path))
+                .map_err(|e| format!("Could not assemble or atomically replace {}: {e}", file.path))?;
+            // Sync directory to persist the rename
+            if let Some(parent) = file.dest.parent() {
+                match std::fs::File::open(parent) {
+                    Ok(dir) => {
+                        if let Err(err) = dir.sync_all() {
+                            // Log but don't fail - file content is synced, only directory metadata might not be
+                            // On restart, the file will be re-downloaded if needed
+                            eprintln!("Epic: directory sync failed for {} err={err}", file.dest.display());
+                        }
+                    }
+                    Err(err) => {
+                        eprintln!("Epic: could not open directory for sync {} err={err}", parent.display());
+                    }
+                }
+            }
+            Ok(())
         })();
         if file.resume.is_some() {
             let _ = fs::remove_file(staging::list_path(&stage));
