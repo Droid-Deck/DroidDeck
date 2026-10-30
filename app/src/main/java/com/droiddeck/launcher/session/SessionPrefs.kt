@@ -1096,11 +1096,16 @@ object SessionPrefs {
      * Steam's Frame Limit in the Quick Access menu caps Steam games, and the drawer's limit caps games
      * launched without Steam. Mirroring still follows the glasses' refresh rate.
      */
-    fun compositorFpsLimit(mirrorRefreshLimit: Int, sessionLimit: Int = 0): Int = when {
-        mirrorRefreshLimit <= 0 && sessionLimit <= 0 -> FPS_UNPACED
-        mirrorRefreshLimit <= 0 -> sessionLimit
-        sessionLimit <= 0 -> mirrorRefreshLimit
-        else -> minOf(mirrorRefreshLimit, sessionLimit)
+    const val PIP_FPS = 30
+
+    fun compositorFpsLimit(mirrorRefreshLimit: Int, sessionLimit: Int = 0, pip: Boolean = false): Int {
+        val limit = when {
+            mirrorRefreshLimit <= 0 && sessionLimit <= 0 -> FPS_UNPACED
+            mirrorRefreshLimit <= 0 -> sessionLimit
+            sessionLimit <= 0 -> mirrorRefreshLimit
+            else -> minOf(mirrorRefreshLimit, sessionLimit)
+        }
+        return if (pip && mirrorRefreshLimit <= 0 && (limit <= 0 || limit > PIP_FPS)) PIP_FPS else limit
     }
 
     val upscalerChoices = listOf(

@@ -2124,7 +2124,21 @@ void droiddeck_stream_frame(AHardwareBuffer *ahb) {
 
 unsigned droiddeck_stream_frames(void) { return atomic_load(&g_stream_frames); }
 
+static int64_t g_scene_due_ns;
+
+static int scene_held_for_limit(int64_t now, int64_t due, int limit, int unpaced) {
+    if (limit <= 0 || unpaced || due <= 0) return 0;
+    return now < due - 1000000LL;
+}
+
+static int64_t scene_next_due(int64_t now, int64_t due, int limit) {
+    if (limit <= 0) return 0;
+    const int64_t interval = 1000000000LL / limit;
+    return due > 0 && now - due < interval ? due + interval : now + interval;
+}
+
 static void render_scene(void) {
+    g_scene_due_ns = scene_next_due(now_ns(), g_scene_due_ns, g_fps_limit);
     if (atomic_load(&g_stream_on)) { g_dirty_since_ns = 0; render_stream(); return; }
     struct draw_list dl = {0};
     struct surface *s;
@@ -2302,7 +2316,9 @@ static void render_scene(void) {
 
 static int on_fallback_timer(void *data) {
     g_fallback_armed = 0;
-    if (g_dirty) render_scene();
+    if (!g_dirty) return 0;
+    if (scene_held_for_limit(now_ns(), g_scene_due_ns, g_fps_limit, g_release_unpaced)) schedule_render();
+    else render_scene();
     return 0;
 }
 
@@ -2377,6 +2393,7 @@ static void on_vsync(int64_t frame_time_ns) {
         g_tick_held = 1;
         return;
     }
+    if (g_dirty && scene_held_for_limit(now, g_scene_due_ns, g_fps_limit, g_release_unpaced)) return;
     if (g_dirty && !scene_waits_for_game(now)) render_scene();
 }
 
