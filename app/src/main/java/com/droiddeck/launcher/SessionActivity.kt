@@ -3011,11 +3011,14 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val newIds = candidates.map { it.id }.toSet()
         if (secondScreenMode != SecondScreenMode.NONE && oldIds.isNotEmpty() && selectedSecondScreenDisplay !in newIds) {
             closeSecondScreen(reset = true)
+            SessionState.secondScreenAutoOpened = false
             return
         }
         if (selectedSecondScreenDisplay !in newIds) selectedSecondScreenDisplay = candidates.firstOrNull()?.id ?: -1
-        if (secondScreenMode != SecondScreenMode.NONE && candidates.isEmpty()) closeSecondScreen(reset = true)
-        else if (started && secondScreenMode != SecondScreenMode.NONE && secondScreenPresentation == null) showSecondScreen(secondScreenMode)
+        if (secondScreenMode != SecondScreenMode.NONE && candidates.isEmpty()) {
+            closeSecondScreen(reset = true)
+            SessionState.secondScreenAutoOpened = false
+        } else if (started && secondScreenMode != SecondScreenMode.NONE && secondScreenPresentation == null) showSecondScreen(secondScreenMode)
         else if (started && ::loading.isInitialized && !loading.visible) openDualScreenControls()
         updateKeyboardRoute()
     }
