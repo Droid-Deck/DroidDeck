@@ -1434,6 +1434,9 @@ class DroidDeckHudView(context: Context) : View(context) {
         return lockController.onTouchEvent(event)
     }
 
+    internal val contentWidth: Float get() = contentW
+    internal val contentHeight: Float get() = contentH
+
     internal val isDragging: Boolean get() = lockController.isDragging()
 
     private companion object {
