@@ -1,0 +1,34 @@
+name: Butler research
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  research:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 10
+    steps:
+      - name: Download butler for linux arm64
+        run: |
+          set -euo pipefail
+          note() { local t=${1//'%'/'%25'}; t=${t//$'\n'/'%0A'}; echo "::notice title=$2::$t"; }
+          mkdir -p b && cd b
+          curl -fsSL -D headers.txt -o butler.zip "https://broth.itch.zone/butler/linux-arm64/LATEST/archive/default"
+          unzip -q butler.zip
+          chmod +x butler
+          note "$(sha256sum butler.zip; sha256sum butler; file butler; ls -l; grep -i -E '^(HTTP|location|content-)' headers.txt)" "download"
+          note "$(./butler version 2>&1 || true)" "version"
+          note "$(./butler --help 2>&1 | head -60 || true)" "commands"
+
+      - name: Option listings
+        run: |
+          cd b
+          note() { local t=${1//'%'/'%25'}; t=${t//$'\n'/'%0A'}; echo "::notice title=$2::$t"; }
+          note "$(./butler apply --help 2>&1 | head -60 || true)" "apply"
+          note "$(./butler heal --help 2>&1 | head -60 || true)" "heal"
+          note "$(./butler verify --help 2>&1 | head -60 || true)" "verify"
+          note "$(./butler dl --help 2>&1 | head -40 || true)" "dl"
+          note "$(./butler sign --help 2>&1 | head -40 || true)" "sign"
