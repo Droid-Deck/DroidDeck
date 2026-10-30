@@ -1,4 +1,5 @@
 import hashlib
+import io
 import json
 import os
 import shutil
@@ -29,6 +30,24 @@ def config_text(entries):
 
 
 class GameDebugLoggingTest(unittest.TestCase):
+    def test_maintenance_precision_survives_run_with_performance_game_settings(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            config = home / ".config/droiddeck/game-environment.json"
+            config.parent.mkdir(parents=True)
+            config.write_text(json.dumps({"version": 1, "shared": {"FEX_X87REDUCEDPRECISION": "1"},
+                                          "games": {"42": {"FEX_X87REDUCEDPRECISION": "1"}}}))
+            probe = home / "proton"
+            probe.write_text("#!" + sys.executable + "\nimport os\nprint(os.environ['FEX_X87REDUCEDPRECISION'])\n")
+            probe.chmod(0o755)
+            base = {**os.environ, "HOME": tmp, "STEAM_COMPAT_DATA_PATH": str(home / "compatdata/42")}
+            maintenance = subprocess.run([sys.executable, str(BIN / "droiddeck-game-env"), str(probe), "run"],
+                env={**base, "DROIDDECK_GOG_MAINTENANCE": "1", "FEX_X87REDUCEDPRECISION": "0"}, text=True, capture_output=True, check=True)
+            game = subprocess.run([sys.executable, str(BIN / "droiddeck-game-env"), str(probe), "waitforexitandrun"],
+                env={**base, "FEX_X87REDUCEDPRECISION": "1"}, text=True, capture_output=True, check=True)
+            self.assertEqual("0", maintenance.stdout.strip())
+            self.assertEqual("1", game.stdout.strip())
+
     def test_real_game_launch_without_config_file_keeps_the_base_environment(self):
         with tempfile.TemporaryDirectory() as tmp:
             home = Path(tmp)
@@ -585,6 +604,72 @@ class GameEnvironmentTest(unittest.TestCase):
                 MODULE["cpu_topology"](env)
             self.assertEqual(env.get("WINE_CPU_TOPOLOGY"), expected, env)
             self.assertEqual(env.get("PROTON_CPU_TOPOLOGY"), proton, env)
+
+    def test_only_games_get_the_larger_swapchain(self):
+        game = {"STEAM_COMPAT_DATA_PATH": "/steam/compatdata/945360"}
+        self.assertTrue(MODULE["game_images"](game))
+        self.assertEqual(game["GAMESCOPE_WSI_MIN_IMAGE_COUNT"], "8")
+        self.assertEqual(game["GAMESCOPE_WSI_ENSURE_MIN_IMAGE_COUNT"], "1")
+        own = {"STEAM_COMPAT_DATA_PATH": "/steam/compatdata/945360", "GAMESCOPE_WSI_MIN_IMAGE_COUNT": "3"}
+        MODULE["game_images"](own)
+        self.assertEqual(own["GAMESCOPE_WSI_MIN_IMAGE_COUNT"], "3")
+        for env in ({}, {"STEAM_COMPAT_DATA_PATH": "/steam/compatdata/0"}):
+            self.assertFalse(MODULE["game_images"](env))
+            self.assertNotIn("GAMESCOPE_WSI_MIN_IMAGE_COUNT", env)
+
+    def test_opengl_games_do_not_wait_for_the_screen_refresh(self):
+        cases = [
+            ({}, "0"),
+            ({"STEAM_COMPAT_DATA_PATH": "/steam/compatdata/-686078602"}, "0"),
+            ({"vblank_mode": "2"}, "2"),
+            ({"vblank_mode": ""}, ""),
+            ({"STEAM_COMPAT_DATA_PATH": "/steam/compatdata/0"}, None),
+            ({"STEAM_COMPAT_DATA_PATH": ""}, None),
+        ]
+        for env, expected in cases:
+            env.setdefault("STEAM_COMPAT_DATA_PATH", "/steam/compatdata/3608888694")
+            added = expected == "0" and "vblank_mode" not in env
+            self.assertEqual(MODULE["gl_vsync"](env), added, env)
+            self.assertEqual(env.get("vblank_mode"), expected, env)
+        said = "OpenGL does not wait for the screen refresh"
+        with tempfile.TemporaryDirectory() as tmp:
+            probe = Path(tmp) / "probe"
+            probe.write_text("#!" + sys.executable + "\nimport os\nprint(os.environ.get('vblank_mode', 'unset'))\n")
+            probe.chmod(0o755)
+            config = Path(tmp) / ".config/droiddeck/game-environment.json"
+            config.parent.mkdir(parents=True)
+            for inherited, edits, expected in (({}, None, "0"), ({"vblank_mode": "3"}, None, "3"),
+                                               ({}, {"vblank_mode": None}, "unset"), ({}, {"vblank_mode": "2"}, "2"),
+                                               ({"vblank_mode": "3"}, {"vblank_mode": None}, "unset")):
+                with self.subTest(inherited=inherited, edits=edits):
+                    config.write_text(json.dumps({"version": 1, "games": {"42": edits or {}}}))
+                    env = {name: value for name, value in os.environ.items() if name != "vblank_mode"}
+                    env.update(HOME=tmp, STEAM_COMPAT_DATA_PATH="/compatdata/42", **inherited)
+                    result = subprocess.run([sys.executable, str(BIN / "droiddeck-game-env"), str(probe), "waitforexitandrun"],
+                                            env=env, text=True, capture_output=True, check=True)
+                    self.assertEqual(result.stdout.strip(), expected)
+                    self.assertEqual(said in result.stderr, expected == "0" and not inherited, result.stderr)
+
+    def test_teardown_keeps_its_own_vsync_unless_the_player_chose(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            probe = Path(tmp) / "probe"
+            probe.write_text("#!" + sys.executable + "\nimport os\nprint(os.environ.get('vblank_mode', 'unset'))\n")
+            probe.chmod(0o755)
+            game = Path(tmp) / "Teardown/teardown.exe"
+            game.parent.mkdir()
+            game.write_bytes(b"MZ")
+            config = Path(tmp) / ".config/droiddeck/game-environment.json"
+            config.parent.mkdir(parents=True)
+            for inherited, edits, shared, expected in (({}, None, None, "2"), ({"vblank_mode": "0"}, None, None, "0"),
+                                                       ({}, {"vblank_mode": "1"}, None, "1"),
+                                                       ({}, None, {"vblank_mode": "1"}, "1")):
+                with self.subTest(inherited=inherited, edits=edits, shared=shared):
+                    config.write_text(json.dumps({"version": 1, "shared": shared or {}, "games": {"1167630": edits or {}}}))
+                    env = {name: value for name, value in os.environ.items() if name != "vblank_mode"}
+                    env.update(HOME=tmp, STEAM_COMPAT_DATA_PATH="/compatdata/1167630", **inherited)
+                    result = subprocess.run([sys.executable, str(BIN / "droiddeck-game-env"), str(probe), "waitforexitandrun", str(game)],
+                                            env=env, text=True, capture_output=True, check=True)
+                    self.assertEqual(result.stdout.strip(), expected, result.stderr)
 
     def test_windows_cpu_0_is_the_fastest_core(self):
         os_mod = MODULE["os"]

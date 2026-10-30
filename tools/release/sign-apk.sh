@@ -29,7 +29,7 @@ else
     "$P=$pkg" "$P.androidx-startup=$pkg.androidx-startup" "$P.logs=$pkg.logs" \
     "$P.pairingguide=$pkg.pairingguide" "$P.pin=$pkg.pin" \
     "$P.documents=$pkg.documents" "$P.home=$pkg.home" "$P.agent=$pkg.agent" \
-    "$P.vr_recovery=$pkg.vr_recovery" \
+    "$P.vr_recovery=$pkg.vr_recovery" "$P.dualscreen=$pkg.dualscreen" "$P.typing=$pkg.typing" \
     "$P.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION=$pkg.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
 fi
 got=$("$BUILD_TOOLS/aapt" dump badging "$work/renamed.apk" | sed -n "s/^package: name='\([^']*\)'.*/\1/p")

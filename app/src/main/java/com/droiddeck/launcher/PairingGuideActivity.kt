@@ -58,6 +58,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.droiddeck.launcher.core.AppLanguage
 import com.droiddeck.launcher.core.GlobalSettings
+import com.droiddeck.launcher.core.PhantomProcessLimit
 import com.droiddeck.launcher.core.WirelessAdbPairingService
 import com.droiddeck.launcher.core.WirelessAdbPairingService.Stage
 import com.droiddeck.launcher.ui.DroidDeckTheme
@@ -67,9 +68,10 @@ import com.droiddeck.launcher.ui.SecondaryButton
 import kotlinx.coroutines.delay
 
 class PairingGuideActivity : ComponentActivity() {
-    enum class Step { BUILD_NUMBER, WIRELESS_DEBUGGING, PAIR, CODE, WORKING, DONE, FAILED }
+    enum class Step { BUILD_NUMBER, CHILD_PROCESS, WIRELESS_DEBUGGING, PAIR, CODE, WORKING, DONE, FAILED }
 
     private var settingsDisplay: Int? = null
+    private var toggleOnly = false
     private var inPip by mutableStateOf(false)
     private var launchPending = false
 
@@ -78,6 +80,7 @@ class PairingGuideActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         settingsDisplay = intent.getIntExtra(EXTRA_DISPLAY, -1).takeIf { it >= 0 }
+        toggleOnly = intent.getBooleanExtra(EXTRA_TOGGLE_ONLY, false)
         setContent { DroidDeckTheme { Guide() } }
         launchPending = savedInstanceState == null
     }
@@ -86,6 +89,7 @@ class PairingGuideActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         settingsDisplay = intent.getIntExtra(EXTRA_DISPLAY, -1).takeIf { it >= 0 }
+        toggleOnly = intent.getBooleanExtra(EXTRA_TOGGLE_ONLY, false)
         launchPending = true
     }
 
@@ -108,7 +112,7 @@ class PairingGuideActivity : ComponentActivity() {
 
     private fun launchSettings() {
         launchPending = false
-        openSettings(stepFor(this, WirelessAdbPairingService.stage.value))
+        openSettings(stepFor(SettingsState.read(this), WirelessAdbPairingService.stage.value, toggleOnly))
     }
 
     private fun enterPip() {
@@ -121,7 +125,9 @@ class PairingGuideActivity : ComponentActivity() {
         val intent = if (step == Step.BUILD_NUMBER) {
             Intent(Settings.ACTION_DEVICE_INFO_SETTINGS).putExtra(HIGHLIGHT_KEY, "build_number")
         } else {
-            Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS).putExtra(HIGHLIGHT_KEY, "toggle_adb_wireless")
+            Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS).apply {
+                if (step != Step.CHILD_PROCESS) putExtra(HIGHLIGHT_KEY, "toggle_adb_wireless")
+            }
         }.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         val display = settingsDisplay
         runCatching {
@@ -147,10 +153,10 @@ class PairingGuideActivity : ComponentActivity() {
                 delay(500)
             }
         }
-        val step = stepFor(settingsState, stage)
+        val step = stepFor(settingsState, stage, toggleOnly)
         var previous by remember { mutableStateOf(step) }
         LaunchedEffect(step) {
-            if (previous == Step.BUILD_NUMBER && step == Step.WIRELESS_DEBUGGING) openSettings(step)
+            if (previous == Step.BUILD_NUMBER && (step == Step.WIRELESS_DEBUGGING || step == Step.CHILD_PROCESS)) openSettings(step)
             previous = step
             when (step) {
                 Step.DONE -> { delay(1_500); returnToApp() }
@@ -158,7 +164,7 @@ class PairingGuideActivity : ComponentActivity() {
                 else -> Unit
             }
         }
-        LaunchedEffect(stage) { if (stage == Stage.Idle) finish() }
+        LaunchedEffect(stage) { if (stage == Stage.Idle && !toggleOnly) finish() }
         BackHandler(enabled = !inPip && settingsDisplay == null) { enterPip() }
 
         Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background), contentAlignment = Alignment.Center) {
@@ -199,7 +205,7 @@ class PairingGuideActivity : ComponentActivity() {
                         openSettings(step)
                     })
                     SecondaryButton(stringResource(R.string.common_cancel), onClick = {
-                        WirelessAdbPairingService.cancel(this@PairingGuideActivity)
+                        if (!toggleOnly) WirelessAdbPairingService.cancel(this@PairingGuideActivity)
                         returnToApp()
                     })
                 }
@@ -210,6 +216,7 @@ class PairingGuideActivity : ComponentActivity() {
     @Composable
     private fun instruction(step: Step, stage: Stage): String = when (step) {
         Step.BUILD_NUMBER -> stringResource(R.string.pairguide_build_number)
+        Step.CHILD_PROCESS -> stringResource(R.string.pairguide_child_process)
         Step.WIRELESS_DEBUGGING -> stringResource(R.string.pairguide_wireless)
         Step.PAIR -> stringResource(R.string.pairguide_pair)
         Step.CODE -> (stage as? Stage.CodeNeeded)?.error ?: stringResource(R.string.gate_step3)
@@ -226,6 +233,7 @@ class PairingGuideActivity : ComponentActivity() {
         val beat by pulse.animateFloat(0f, 1f, infiniteRepeatable(tween(900, easing = LinearEasing), RepeatMode.Restart), label = "beat")
         val label = when (step) {
             Step.BUILD_NUMBER -> stringResource(R.string.pairguide_row_build_number)
+            Step.CHILD_PROCESS -> stringResource(R.string.pairguide_row_child_process)
             Step.WIRELESS_DEBUGGING -> stringResource(R.string.pairguide_row_wireless)
             Step.PAIR -> stringResource(R.string.pairguide_row_pair)
             Step.CODE -> stringResource(R.string.adbpair_enter_code)
@@ -240,7 +248,7 @@ class PairingGuideActivity : ComponentActivity() {
             Text(label, style = if (compact) MaterialTheme.typography.labelMedium else MaterialTheme.typography.bodyLarge,
                 color = colors.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
             when (step) {
-                Step.WIRELESS_DEBUGGING -> Toggle(on = beat > 0.5f, accent = accent, compact = compact)
+                Step.WIRELESS_DEBUGGING, Step.CHILD_PROCESS -> Toggle(on = beat > 0.5f, accent = accent, compact = compact)
                 else -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     if (step == Step.BUILD_NUMBER) Text("×7", style = MaterialTheme.typography.labelLarge, color = accent)
                     Box(contentAlignment = Alignment.Center) {
@@ -267,7 +275,8 @@ class PairingGuideActivity : ComponentActivity() {
     @Composable
     private fun StepDots(step: Step) {
         val accent = LocalPalette.current.signal
-        val shown = listOf(Step.BUILD_NUMBER, Step.WIRELESS_DEBUGGING, Step.PAIR, Step.CODE)
+        val shown = if (toggleOnly) listOf(Step.BUILD_NUMBER, Step.CHILD_PROCESS)
+        else listOf(Step.BUILD_NUMBER, Step.WIRELESS_DEBUGGING, Step.PAIR, Step.CODE)
         val at = shown.indexOf(step).takeIf { it >= 0 } ?: shown.size
         Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
             shown.forEachIndexed { index, _ ->
@@ -278,22 +287,30 @@ class PairingGuideActivity : ComponentActivity() {
         }
     }
 
-    private data class SettingsState(val developerOptions: Boolean, val wirelessDebugging: Boolean) {
+    private data class SettingsState(
+        val developerOptions: Boolean,
+        val wirelessDebugging: Boolean,
+        val childProcessBlocked: Boolean,
+    ) {
         companion object {
             fun read(context: Context) = SettingsState(
                 GlobalSettings.developerOptionsOn(context),
                 GlobalSettings.wirelessDebuggingOn(context),
+                PhantomProcessLimit.blocksSteam(PhantomProcessLimit.read(context)),
             )
         }
     }
 
     companion object {
         private const val EXTRA_DISPLAY = "settingsDisplay"
+        private const val EXTRA_TOGGLE_ONLY = "toggleOnly"
         private const val HIGHLIGHT_KEY = ":settings:fragment_args_key"
 
-        private fun stepFor(context: Context, stage: Stage) = stepFor(SettingsState.read(context), stage)
-
-        private fun stepFor(settings: SettingsState, stage: Stage): Step = when (stage) {
+        private fun stepFor(settings: SettingsState, stage: Stage, toggleOnly: Boolean): Step = if (toggleOnly) when {
+            !settings.developerOptions -> Step.BUILD_NUMBER
+            settings.childProcessBlocked -> Step.CHILD_PROCESS
+            else -> Step.DONE
+        } else when (stage) {
             is Stage.Working -> Step.WORKING
             Stage.Done -> Step.DONE
             is Stage.Failed -> Step.FAILED
@@ -317,10 +334,11 @@ class PairingGuideActivity : ComponentActivity() {
             return mode == AppOpsManager.MODE_ALLOWED
         }
 
-        fun start(context: Context, settingsDisplay: Int?): Boolean {
+        fun start(context: Context, settingsDisplay: Int?, toggleOnly: Boolean = false): Boolean {
             if (settingsDisplay == null && !canFloat(context)) return false
             context.startActivity(Intent(context, PairingGuideActivity::class.java)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                .putExtra(EXTRA_TOGGLE_ONLY, toggleOnly)
                 .apply { if (settingsDisplay != null) putExtra(EXTRA_DISPLAY, settingsDisplay) })
             return true
         }

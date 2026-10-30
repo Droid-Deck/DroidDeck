@@ -1,0 +1,6 @@
+[Desktop Entry]
+Type=Application
+Name=Avahi Zeroconf Browser
+Exec=/usr/bin/avahi-discover
+Icon=network-wired
+NoDisplay=true

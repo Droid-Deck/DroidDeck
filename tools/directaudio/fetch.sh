@@ -15,7 +15,7 @@ fetch() {
   local name=$1 sha=$2 kept="${cache}/$2-$1" part
   if ! echo "${sha}  ${kept}" | sha256sum -c - >/dev/null 2>&1; then
     part=$(mktemp "${kept}.part.XXXXXX")
-    curl -fsSL --retry 3 -o "${part}" \
+    curl -fsSL --retry 5 --retry-all-errors --connect-timeout 20 -o "${part}" \
       "https://github.com/${DIRECTAUDIO_REPO}/releases/download/${DIRECTAUDIO_TAG}/${name}"
     echo "${sha}  ${part}" | sha256sum -c - >/dev/null || { echo "${name}: checksum mismatch" >&2; rm -f "${part}"; exit 1; }
     mv "${part}" "${kept}"
@@ -26,7 +26,7 @@ fetch directaudio-linux-wine11.zip "${DIRECTAUDIO_WINE11_SHA256}"
 fetch directaudio-linux-wine11-systhread.zip "${DIRECTAUDIO_SYSTHREAD_SHA256}"
 source_archive="${cache}/${DIRECTAUDIO_SOURCE_SHA256}-directaudio-source.tar.gz"
 if ! echo "${DIRECTAUDIO_SOURCE_SHA256}  ${source_archive}" | sha256sum -c - >/dev/null 2>&1; then
-  curl -fsSL --retry 3 -o "${work}/source.tar.gz" \
+  curl -fsSL --retry 5 --retry-all-errors --connect-timeout 20 -o "${work}/source.tar.gz" \
     "https://github.com/${DIRECTAUDIO_REPO}/archive/${DIRECTAUDIO_SOURCE_COMMIT}.tar.gz"
   echo "${DIRECTAUDIO_SOURCE_SHA256}  ${work}/source.tar.gz" | sha256sum -c - >/dev/null
   mv "${work}/source.tar.gz" "${source_archive}"

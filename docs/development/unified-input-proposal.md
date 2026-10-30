@@ -106,8 +106,17 @@ The shared PC-key definitions are adapted from kingokksa's
 [#1305](https://github.com/Droid-Deck/DroidDeck/pull/1305) at `76fc9b31`.
 Device capture and identity handling build on the approach in jmarti326's
 [#1202](https://github.com/Droid-Deck/DroidDeck/pull/1202) at `42db788f`.
-Neither PR is merged wholesale; their broader UI and device behavior should be
-coordinated with their authors.
+The initial implementation adapted these parts rather than merging either PR
+wholesale. Upstream subsequently merged #1202; the October 30 integration retains
+its global physical shortcuts, saved assignments and configuration UI alongside
+the profile bindings.
+
+Explicit captured bindings in the active profile take precedence over a global
+physical shortcut for the same key. Otherwise the global shortcut precedes the
+default Back/QAM handling and logical controller routing. A consumed shortcut
+does not also reach the guest, and its release remains consumed across menu
+changes. Shortcut capture remains available from Input profiles, the session
+menu and mode settings. Profile editing gates execution of these shortcuts.
 
 ### Ownership and lifecycle
 

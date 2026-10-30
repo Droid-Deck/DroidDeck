@@ -132,6 +132,12 @@ def arkham_city_x87(game):
 
 
 @fix
+def teardown_vsync(game):
+    if game.stem == "teardown":
+        return {"vblank_mode": "2"}, [], "Teardown: OpenGL keeps the game's own vsync"
+
+
+@fix
 def protonfixes_off(game):
     if game.stem in ("blackops3", "darksoulsremastered"):
         return {"PROTONFIXES_DISABLE": "1"}, [], "umu-protonfixes off (its ALSA audio and VC++ installer steps fail here)"
@@ -432,6 +438,24 @@ def cpu_topology(env, command=()):
     print("droiddeck-game-env: Windows sees %d cores (%s)" % (len(cores), env["WINE_CPU_TOPOLOGY"]), file=sys.stderr)
 
 
+def gl_vsync(env):
+    """OpenGL stops waiting for each screen refresh; Steam's Frame Limit still holds the game through gamescope."""
+    # Wine asks for interval 1 on every GL window, and WineD3D's front-buffer drawing (DirectDraw,
+    # Direct3D 1-7) never lowers it, so those games ran at the refresh rate with no limit set.
+    if "vblank_mode" in env or game_id(env) is None:
+        return False
+    env["vblank_mode"] = "0"
+    return True
+
+
+def game_images(env):
+    if game_id(env) is None:
+        return False
+    env.setdefault("GAMESCOPE_WSI_MIN_IMAGE_COUNT", "8")
+    env.setdefault("GAMESCOPE_WSI_ENSURE_MIN_IMAGE_COUNT", "1")
+    return True
+
+
 def apply_config(env, config, app_id, fixes=None):
     if config.get("version") != 1:
         raise ValueError("unsupported environment configuration")
@@ -729,12 +753,17 @@ def main():
         digest = None
     app_id = game_id(env)
     if app_id:
+        gl_default = gl_vsync(env)
         waiting = len(command) > 1 and command[1] == "waitforexitandrun"
+        if waiting:
+            game_images(env)
         fixes = {}
         if waiting:
             command = skip_red_launcher(command)
             ubisoft_overlay_off(env)
             fixes, extra, notes = engine_fixes(command[2], command[3:]) if len(command) > 2 else ({}, [], [])
+            if not gl_default:
+                fixes.pop("vblank_mode", None)
             for note in notes:
                 print("droiddeck-game-env: " + note, file=sys.stderr)
             command += extra
@@ -748,6 +777,8 @@ def main():
             with path.open(encoding="utf-8") as source:
                 config = json.load(source)
             if waiting:
+                if "vblank_mode" in config.get("shared", {}):
+                    fixes.pop("vblank_mode", None)
                 env = apply_config(env, config, app_id, fixes)
             else:
                 env = apply_config(env, sync_config(config, app_id), app_id)
@@ -761,6 +792,8 @@ def main():
             env = apply_game_debug_logs(env, config, debug_dir)
             if env is not before_debug:
                 print("droiddeck-game-env: game debug logs enabled for this launch", file=sys.stderr)
+        if gl_default and env.get("vblank_mode") == "0":
+            print("droiddeck-game-env: OpenGL does not wait for the screen refresh (vblank_mode=0)", file=sys.stderr)
     if app_id and len(command) > 1 and command[1] == "waitforexitandrun":
         command = offline_without_anticheat(command, env)
     if mic_enabled == "0":

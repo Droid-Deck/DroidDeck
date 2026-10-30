@@ -54,6 +54,8 @@ const assert = require('assert');
 globalThis.window = globalThis;
 const requests = [], callbacks = [];
 const timers = [];
+let now = 0;
+Object.defineProperty(globalThis, 'performance', { value: { now: () => now }, configurable: true });
 globalThis.setTimeout = callback => timers.push(callback);
 let current = 1;
 window.droiddeckBrightnessChanged = value => requests.push(Number(value));
@@ -69,16 +71,19 @@ const script = require('fs').readFileSync(process.argv[2], 'utf8');
 assert.strictEqual(eval(script), 'installed');
 assert.strictEqual(eval(script), 'present');
 const bridge = window.__droiddeckBrightness;
+now = 10000;
 bridge.set(0.5);
 bridge.set(0.5);
 assert.deepStrictEqual(requests, []);
 callbacks.forEach(cb => cb({ flBrightness: 0.8 }));
 assert.deepStrictEqual(requests, [0.8]);
+now += 1000;
 bridge.set(0.7992126);
 assert.deepStrictEqual(requests, [0.8]);
 for (const value of [NaN, Infinity, -1, 2, '0.5']) callbacks.forEach(cb => cb({ flBrightness: value }));
 assert.deepStrictEqual(requests, [0.8]);
 assert.strictEqual(callbacks.length, 1);
+now += 1000;
 SteamClient.System.Display.SetBrightness = value => callbacks.forEach(cb => cb({ flBrightness: value + 0.1 }));
 bridge.set(0.3);
 assert.deepStrictEqual(requests, [0.8]);
@@ -89,6 +94,17 @@ bridge.set(0.65);
 timers.forEach(callback => callback());
 callbacks.forEach(cb => cb({ flBrightness: 0.7 }));
 assert.deepStrictEqual(requests, [0.8, 0.6, 0.7]);
+// A held stick: Android's lagging readbacks must not pull Steam back while it keeps stepping.
+let applied = [];
+SteamClient.System.Display.SetBrightness = value => applied.push(value);
+for (const value of [0.71, 0.72, 0.73]) { now += 50; callbacks.forEach(cb => cb({ flBrightness: value })); }
+assert.strictEqual(bridge.set(0.71), 'held');
+now += 100;
+assert.strictEqual(bridge.set(0.72), 'held');
+assert.deepStrictEqual(applied, []);
+now += 800;
+assert.strictEqual(bridge.set(0.3), true);
+assert.deepStrictEqual(applied, [0.3]);
 """
         with tempfile.TemporaryDirectory() as directory:
             script = Path(directory) / "bridge.js"
@@ -125,6 +141,27 @@ assert.deepStrictEqual(requests, [0.8, 0.6, 0.7]);
                 path.write_text(json.dumps({"brightness": 0.5, "revision": 2}))
                 helper.sync_controls()
                 self.assertEqual(len(calls), 2)
+            finally:
+                globals_["CONTROLS_DIR"] = previous
+
+    def test_a_readback_held_by_the_bridge_is_retried_instead_of_cached(self):
+        with tempfile.TemporaryDirectory() as directory:
+            globals_ = LIVE["Helper"].sync_controls.__globals__
+            previous = globals_["CONTROLS_DIR"]
+            try:
+                globals_["CONTROLS_DIR"] = directory
+                Path(directory, "state.json").write_text(json.dumps({"brightness": 0.5, "revision": 1}))
+                results = ["held", "held", True]
+                helper = LIVE["Helper"]("/steam", 0)
+                helper.controls_installed = True
+                helper.page = type("Page", (), {"evaluate": lambda self, expression: results.pop(0)})()
+                helper.sync_controls()
+                helper.sync_controls()
+                self.assertTrue(helper.controls_installed)
+                self.assertIsNone(helper.controls_state)
+                helper.sync_controls()
+                self.assertEqual(helper.controls_state["revision"], 1)
+                self.assertEqual(results, [])
             finally:
                 globals_["CONTROLS_DIR"] = previous
 

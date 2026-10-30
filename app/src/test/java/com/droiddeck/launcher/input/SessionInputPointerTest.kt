@@ -41,6 +41,8 @@ class SessionInputPointerTest {
         refresh()
         CompositorShadow.pointers.clear()
         CompositorShadow.events.clear()
+        CompositorShadow.keys.clear()
+        WriterShadow.mouse.clear()
     }
 
     @After fun tearDown() {
@@ -124,6 +126,55 @@ class SessionInputPointerTest {
         assertFalse(state<Boolean>("cursorVisible").value)
     }
 
+    @Test fun mappedPointerStaysVisibleWithDirectTouchSelected() {
+        ReflectionHelpers.setField(activity, "routedTouchMode", com.droiddeck.launcher.session.SessionPrefs.TOUCH_DIRECT)
+        state<Boolean>("directCursorOn").value = false
+        output.pointer(20f, 10f)
+        assertTrue(state<Boolean>("cursorVisible").value)
+    }
+
+    @Test fun touchpadZoomDoesNotReleaseCtrlHeldByTheProfileOrScreenKeys() {
+        val held = ReflectionHelpers.getField<HeldInput>(activity, "heldKeys")
+        output.key(29, true)
+        held.set(64, 29, true)
+        ReflectionHelpers.getField<PointerGestures.Listener>(activity, "pointerListener").onZoom(1)
+        assertEquals(listOf(29 to 1), CompositorShadow.keys)
+        output.key(29, false)
+        assertEquals(listOf(29 to 1), CompositorShadow.keys)
+        held.set(64, 29, false)
+        assertEquals(listOf(29 to 1, 29 to 0), CompositorShadow.keys)
+        assertEquals(listOf(Triple(4, 1, 0)), CompositorShadow.events)
+    }
+
+    @Test fun routedMouseUsesRawBackendAndKeepsSharedButtonOwnership() {
+        ReflectionHelpers.setField(activity, "mouseWriter", FakeInputWriter(activity.cacheDir.path, FakeInputWriter.MOUSE_SLOT))
+        ReflectionHelpers.setField(activity, "evdevMouseActive", true)
+        ReflectionHelpers.setField(activity, "pointerLocked", true)
+        val held = ReflectionHelpers.getField<HeldInput>(activity, "heldButtons")
+        output.button(272, true)
+        held.set(2, 272, true)
+        output.button(272, false)
+        assertEquals(listOf("button:272:true"), WriterShadow.mouse)
+        held.set(2, 272, false)
+        output.pointer(2.5f, -1.25f)
+        output.scroll(2)
+        assertEquals(listOf("button:272:true", "button:272:false", "delta:2.5:-1.25", "wheel:-2:0:120"), WriterShadow.mouse)
+        assertTrue(CompositorShadow.events.isEmpty())
+    }
+
+    @Test fun leavingRawMouseReleasesItsHoldBeforeReturningToTheWaylandSeat() {
+        ReflectionHelpers.setField(activity, "mouseWriter", FakeInputWriter(activity.cacheDir.path, FakeInputWriter.MOUSE_SLOT))
+        ReflectionHelpers.setField(activity, "evdevMouseActive", true)
+        output.button(272, true)
+        invoke("closeEvdevMouse")
+        output.button(272, false)
+        assertEquals(listOf("button:272:true", "button:272:false", "release"), WriterShadow.mouse)
+        assertTrue(CompositorShadow.events.isEmpty())
+        output.button(272, true)
+        output.button(272, false)
+        assertEquals(listOf(Triple(3, 272, 1), Triple(3, 272, 0)), CompositorShadow.events)
+    }
+
     private fun refresh() = invoke("refreshInputProfile")
     private fun invoke(name: String) = ReflectionHelpers.callInstanceMethod<Unit>(activity, name)
     private fun <T> state(name: String): MutableState<T> = ReflectionHelpers.getField(activity, "$name\$delegate")
@@ -133,15 +184,22 @@ class SessionInputPointerTest {
         companion object {
             val pointers = mutableListOf<Triple<Int, Int, Int>>()
             val events = mutableListOf<Triple<Int, Int, Int>>()
+            val keys = mutableListOf<Pair<Int, Int>>()
             @JvmStatic @Implementation fun __staticInitializer__() {}
             @JvmStatic @Implementation fun nativeSendPointer(action: Int, x: Int, y: Int) { pointers += Triple(action, x, y) }
             @JvmStatic @Implementation fun nativeSendSceneInput(type: Int, code: Int, value: Int) { events += Triple(type, code, value) }
+            @JvmStatic @Implementation fun nativeSendKey(code: Int, value: Int) { keys += code to value }
         }
     }
 
     @Implements(value = FakeInputWriter::class, isInAndroidSdk = false)
     class WriterShadow {
+        @Implementation fun writeMouseButton(code: Short, down: Boolean) { mouse += "button:$code:$down" }
+        @Implementation fun writeMouseDelta(dx: Float, dy: Float) { mouse += "delta:$dx:$dy" }
+        @Implementation fun writeMouseWheel(vertical: Int, horizontal: Int, value120: Int) { mouse += "wheel:$vertical:$horizontal:$value120" }
+        @Implementation fun softRelease() { mouse += "release" }
         companion object {
+            val mouse = mutableListOf<String>()
             @JvmStatic @Implementation fun __staticInitializer__() {}
             @JvmStatic @Implementation fun writeDeckControls(index: Int, mask: Int, pads: ShortArray, pressure: ShortArray) {}
         }

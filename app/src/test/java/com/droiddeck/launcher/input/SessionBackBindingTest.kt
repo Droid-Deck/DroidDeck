@@ -94,6 +94,46 @@ class SessionBackBindingTest {
         assertTrue(events.isEmpty())
     }
 
+    @Test fun capturedProfileBindingTakesPrecedenceOverGlobalShortcut() {
+        assignMenuShortcut()
+        bindings.configure(listOf(PhysicalInputBinding(PhysicalInputKey.capture(event(true))!!, InputAction.Keys(listOf(28)))))
+        assertTrue(activity.dispatchKeyEvent(event(true)))
+        assertTrue(activity.dispatchKeyEvent(event(false)))
+        assertEquals(listOf(28 to true, 28 to false), events)
+        assertFalse(drawerOpen())
+    }
+
+    @Test fun globalShortcutOverridesDefaultBackQamAndConsumesReleaseAcrossMenuChange() {
+        assignMenuShortcut()
+        assertTrue(activity.dispatchKeyEvent(event(true)))
+        assertTrue(drawerOpen())
+        advance(700)
+        assertFalse(JoyConPadTest.RecordingWriter.pads[0]?.isDown(PadState.QAM) == true)
+        assertTrue(activity.dispatchKeyEvent(event(false)))
+        assertTrue(drawerOpen())
+        assertTrue(activity.dispatchKeyEvent(event(true)))
+        assertFalse(drawerOpen())
+        assertTrue(activity.dispatchKeyEvent(event(false)))
+        assertTrue(events.isEmpty())
+    }
+
+    @Test fun inputSettingsDoNotExecuteGlobalShortcuts() {
+        assignMenuShortcut()
+        ReflectionHelpers.getField<MutableState<Boolean>>(activity, "inputSettingsOpen\$delegate").value = true
+        activity.dispatchKeyEvent(event(true))
+        activity.dispatchKeyEvent(event(false))
+        assertFalse(drawerOpen())
+        assertTrue(events.isEmpty())
+    }
+
+    private fun assignMenuShortcut() {
+        ReflectionHelpers.getField<PhysicalShortcutRouter>(activity, "physicalShortcuts").bindings =
+            listOf(PhysicalShortcuts.Binding(PhysicalShortcuts.button(event(true))!!, PhysicalShortcuts.Action.DROIDDECK))
+    }
+
+    private fun drawerOpen(): Boolean =
+        ReflectionHelpers.getField<MutableState<Boolean>>(activity, "drawerOpenState\$delegate").value
+
     private fun event(down: Boolean) = KeyEvent(0L, 0L, if (down) KeyEvent.ACTION_DOWN else KeyEvent.ACTION_UP,
         KeyEvent.KEYCODE_BACK, 0, 0, 42, 158, 0, InputDevice.SOURCE_KEYBOARD)
 

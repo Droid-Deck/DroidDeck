@@ -186,6 +186,36 @@ across 389 suites, zero failures/errors/skips**, using the same Java/SDK/NDK
 settings and `-PskipRust=true`. A new APK build, Thor validation and latency
 measurement were not performed for this merge.
 
+### Upstream shortcuts and dual-screen integration (2026-10-30)
+
+Merged upstream `6ffe675a` without rewriting the published branch. The merge
+preserves upstream's docked second-screen menu, keyboard routing, remembered
+panel selection, touch routing and physical shortcuts from #1202, together with
+the active input profiles and custom lower-screen layouts.
+
+Captured profile keys take precedence over global physical shortcuts, which in
+turn precede default Back/QAM handling. Both use the original device/key identity
+before Joy-Con normalization. Input-profile editing blocks shortcut execution;
+consumed releases remain consumed when a shortcut opens or closes the menu.
+The upstream shortcut configuration remains accessible from the input settings.
+
+Mapped mouse output uses upstream's existing Wayland/raw-mouse helpers, retaining
+shared button ownership. Changing the raw-mouse backend releases held buttons on
+the outgoing backend. Touchpad zoom has an independent Ctrl owner, so it cannot
+release Ctrl held by the profile or screen keys. Mapped pointer movement retains
+the frame-callback rendering update and cursor visibility behavior.
+
+Eight new regressions cover these interactions and reopening a custom panel with
+either controller type. The upstream shortcut-page UI test now exercises the
+replacement Input profiles page. The complete `:app:testDebugUnitTest` run passes
+**2,918 tests across 413 suites, zero failures/errors/skips**, using Java 17,
+NDK `28.2.13676358` and `-PskipRust=true`. The PR diff against upstream also passes
+`git diff --check origin/main`.
+
+This run compiles Android Java/Kotlin and resources. A new APK build, Thor test
+and latency measurement were not performed for this merge; the full release
+build remains an upstream CI check.
+
 ## Manual AYN Thor results
 
 The user performed the following checks in the installed candidate. The desktop

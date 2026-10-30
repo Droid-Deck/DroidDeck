@@ -45,6 +45,9 @@ fun InputSettingsPage(onBack: () -> Unit, onChanged: () -> Unit = {}) {
     val names = listOf(InputProfile.GAME to stringResource(R.string.input_profile_game), InputProfile.DESKTOP to stringResource(R.string.input_profile_desktop))
     SettingsPage(host, title = stringResource(R.string.input_settings), eyebrow = stringResource(R.string.setup_controller),
         lede = stringResource(R.string.input_settings_hint), onBack = onBack) {
+        SettingsGroup(stringResource(R.string.shortcuts_title)) {
+            PhysicalShortcutRows()
+        }
         SettingsGroup(stringResource(R.string.input_profiles)) {
             ChoiceRow(host, "input-active", stringResource(R.string.input_active_profile), stringResource(R.string.input_auto_hint),
                 listOf(InputProfiles.AUTO to stringResource(R.string.common_auto)) + names, selected) {

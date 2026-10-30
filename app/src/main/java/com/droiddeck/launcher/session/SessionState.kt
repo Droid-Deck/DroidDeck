@@ -38,6 +38,9 @@ object SessionState {
     var installing: String? = null
 
     @Volatile
+    var installCancellation: com.droiddeck.launcher.core.Downloader.Cancellation? = null
+
+    @Volatile
     var stopRequested = false
 
     @Volatile
@@ -88,6 +91,7 @@ object SessionState {
 
     @Volatile var secondScreenMode = com.droiddeck.launcher.input.SecondScreenMode.NONE
     @Volatile var secondScreenDisplay = -1
+    @Volatile var secondScreenAutoOpened = false
 
     @Volatile
     var mode = "steam"
@@ -103,6 +107,10 @@ object SessionState {
 
     @Volatile
     var upscaleRatio: Float = 0f
+
+    /** Frame limit chosen in the drawer for a game launched without Steam; 0 is off. */
+    @Volatile
+    var fpsLimit: Int = 0
 
     @Volatile
     var firstFrameSeen = false

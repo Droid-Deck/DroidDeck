@@ -115,7 +115,7 @@ public final class LinuxRuntime {
     public static boolean isInstalled(Context context) {
         if (LinuxRuntimeInstaller.isRemoving() || LinuxRuntimeInstaller.hasRemovalPending(context)) return false;
         File root = rootDir(context);
-        return new File(root, "usr/bin/gamescope").isFile()
+        return (new File(root, "usr/bin/gamescope").isFile() || new File(root, "usr/games/gamescope").isFile())
                 && (new File(root, SESSION_SCRIPT.substring(1)).isFile()
                         || new File(root, LegacyNames.SESSION_SCRIPT.substring(1)).isFile())
                 && (patchedProot(context) || rootfsProotReady(context));
@@ -341,9 +341,9 @@ public final class LinuxRuntime {
     }
 
     public static String cpuTempSource() {
-        for (java.util.Map.Entry<String, File> e : new java.util.TreeMap<>(thermalZones()).entrySet()) {
-            File temp = new File(e.getValue(), "temp");
-            if (e.getKey().contains("cpu") && !e.getKey().contains("gpu") && temp.canRead()) return temp.getPath();
+        for (File zone : cpuTempZones()) {
+            File temp = new File(zone, "temp");
+            if (temp.canRead()) return temp.getPath();
         }
         return null;
     }
@@ -353,7 +353,7 @@ public final class LinuxRuntime {
         return firstReadable(kgsl + "temp", kgsl + "devfreq/temp", thermalZone("gpu"));
     }
 
-    private static String gpuLoadSource() {
+    public static String gpuLoadSource() {
         String kgsl = "/sys/class/kgsl/kgsl-3d0/";
         return firstReadable(kgsl + "gpu_busy_percentage", kgsl + "devfreq/gpu_load");
     }
@@ -367,7 +367,7 @@ public final class LinuxRuntime {
                         "/sys/devices/platform/soc@0/3d00000.gpu/devfreq/3d00000.gpu/cur_freq"},
                 {gpuTemp, "/sys/class/thermal/thermal_zone28/temp"},
                 {gpuTemp, "/sys/class/thermal/thermal_zone26/temp"},
-                {thermalZone("ddr"), "/sys/class/thermal/thermal_zone22/temp"},
+                {ddrTempSource(), "/sys/class/thermal/thermal_zone22/temp"},
         };
         for (String[] stat : stats) {
             boolean fed = false;
@@ -384,6 +384,36 @@ public final class LinuxRuntime {
         return path != null ? path : "none";
     }
 
+    private static String ddrTempSource() {
+        return thermalZone("ddr");
+    }
+
+    // MangoHud reads the GPU and DDR temperatures from these zone numbers (bindAdrenoStats). On phones
+    // where they are CPU zones, their type follows the temperature put there, so they stay out of the
+    // CPU average.
+    private static java.util.Map<String, String> replacedZoneTypes() {
+        java.util.Map<String, String> replaced = new java.util.HashMap<>();
+        if (gpuTempSource() != null) {
+            replaced.put("thermal_zone28", "gpu-thermal");
+            replaced.put("thermal_zone26", "gpu-thermal");
+        }
+        if (ddrTempSource() != null) replaced.put("thermal_zone22", "ddr-thermal");
+        return replaced;
+    }
+
+    /** The zones the session's MangoHud averages for the CPU temperature (all typed cpuN-thermal there). */
+    public static List<File> cpuTempZones() {
+        java.util.Map<String, String> replaced = replacedZoneTypes();
+        List<File> zones = new ArrayList<>();
+        for (java.util.Map.Entry<String, File> zone : new java.util.TreeMap<>(thermalZones()).entrySet()) {
+            String type = zone.getKey();
+            if (type.contains("cpu") && !type.contains("gpu") && !replaced.containsKey(zone.getValue().getName())) {
+                zones.add(zone.getValue());
+            }
+        }
+        return zones;
+    }
+
     private static void bindCpuTemps(List<String> cmd, File root) {
         File name = new File(root, "etc/droiddeck/cpu-thermal-type");
         try {
@@ -391,9 +421,18 @@ public final class LinuxRuntime {
         } catch (IOException e) {
             return;
         }
+        java.util.Map<String, String> replaced = replacedZoneTypes();
         for (java.util.Map.Entry<String, File> zone : thermalZones().entrySet()) {
             String type = zone.getKey();
-            if (type.contains("cpu") && !type.contains("gpu") && !type.matches("cpu\\d-(top-)?thermal")) {
+            String other = replaced.get(zone.getValue().getName());
+            if (other != null) {
+                File typeFile = new File(root, "etc/droiddeck/" + other + "-type");
+                try {
+                    if (!typeFile.isFile()) Files.write(typeFile.toPath(), (other + "\n").getBytes(StandardCharsets.US_ASCII));
+                    bind(cmd, typeFile.getPath() + ":" + new File(zone.getValue(), "type").getPath());
+                } catch (IOException ignored) {
+                }
+            } else if (type.contains("cpu") && !type.contains("gpu") && !type.matches("cpu\\d-(top-)?thermal")) {
                 bind(cmd, name.getPath() + ":" + new File(zone.getValue(), "type").getPath());
             }
         }
@@ -448,12 +487,72 @@ public final class LinuxRuntime {
                 + "\\" + host.version + "\\" + host.machine + "\\localdomain\\-1\\";
     }
 
-    public static void writeAccounts(Context context) throws IOException {
+    public static synchronized void writeAccounts(Context context) throws IOException {
         File root = rootDir(context);
         int uid = Process.myUid();
-        Files.write(new File(root, "etc/passwd").toPath(),
-                ("root:x:" + uid + ":" + uid + ":root:/root:/bin/bash\n").getBytes(StandardCharsets.UTF_8));
-        Files.write(new File(root, "etc/group").toPath(),
-                ("root:x:" + uid + ":\n").getBytes(StandardCharsets.UTF_8));
+        mergeAccounts(new File(root, "etc/passwd"), 2,
+                "root:x:" + uid + ":" + uid + ":root:/root:/bin/bash", "root:x:0:0:root:/root:/bin/bash", uid);
+        mergeAccounts(new File(root, "etc/group"), 2,
+                "root:x:" + uid + ":", "root:x:0:", uid);
+        File group = new File(root, "etc/group");
+        String groups = new String(Files.readAllBytes(group.toPath()), StandardCharsets.UTF_8);
+        writeIfChanged(group, groups, withStorageGroups(groups));
+    }
+
+    private static final String[][] STORAGE_GROUPS = {
+            {"sdcard_rw", "1015"}, {"media_rw", "1023"}, {"everybody", "9997"}};
+
+    static String withStorageGroups(String groups) {
+        StringBuilder out = new StringBuilder();
+        List<String> present = new ArrayList<>();
+        for (String line : groups.split("\n")) {
+            if (line.trim().isEmpty()) continue;
+            String[] fields = line.split(":", -1);
+            if (fields.length >= 4) {
+                for (String[] storage : STORAGE_GROUPS) {
+                    if (fields[0].equals(storage[0])) present.add(storage[0]);
+                    if (!fields[2].equals(storage[1])) continue;
+                    present.add(storage[0]);
+                    if (!java.util.Arrays.asList(fields[3].split(",")).contains("root")) {
+                        fields[3] = fields[3].isEmpty() ? "root" : fields[3] + ",root";
+                        line = String.join(":", fields);
+                    }
+                }
+            }
+            out.append(line).append('\n');
+        }
+        for (String[] storage : STORAGE_GROUPS) {
+            if (!present.contains(storage[0])) {
+                out.append(storage[0]).append(":x:").append(storage[1]).append(":root\n");
+            }
+        }
+        return out.toString();
+    }
+
+    static String mergedAccounts(String existing, int idField, String own, String zero, int uid) {
+        StringBuilder out = new StringBuilder(own).append('\n').append(zero).append('\n');
+        if (existing == null) return out.toString();
+        String ownId = Integer.toString(uid);
+        for (String line : existing.split("\n")) {
+            if (line.trim().isEmpty()) continue;
+            String[] fields = line.split(":", -1);
+            if (fields.length <= idField) continue;
+            if (fields[0].equals("root") || fields[idField].equals("0") || fields[idField].equals(ownId)) continue;
+            out.append(line).append('\n');
+        }
+        return out.toString();
+    }
+
+    private static void mergeAccounts(File file, int idField, String own, String zero, int uid) throws IOException {
+        String existing = file.isFile() ? new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8) : null;
+        writeIfChanged(file, existing, mergedAccounts(existing, idField, own, zero, uid));
+    }
+
+    private static void writeIfChanged(File file, String existing, String merged) throws IOException {
+        if (merged.equals(existing)) return;
+        File staged = File.createTempFile(file.getName(), ".staged", file.getParentFile());
+        Files.write(staged.toPath(), merged.getBytes(StandardCharsets.UTF_8));
+        Files.move(staged.toPath(), file.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING,
+                java.nio.file.StandardCopyOption.ATOMIC_MOVE);
     }
 }

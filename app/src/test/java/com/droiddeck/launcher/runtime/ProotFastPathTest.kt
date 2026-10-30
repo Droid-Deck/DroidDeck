@@ -10,6 +10,12 @@ import java.io.File
 class ProotFastPathTest {
     private val root = File("/data/data/com.droiddeck.launcher/files/linuxfs")
 
+    @Test fun guestEnvironmentCarriesTheHostAndroidApi() {
+        for (sdk in listOf(33, 35, 36)) {
+            assertTrue(ProotFastPath.guestEnv(root, emptyList(), "test", sdk).contains("PROOT_FP_ANDROID_API=$sdk"))
+        }
+    }
+
     @Test fun aSessionsUsualBindsGetAKey() {
         val binds = (1..87).map { "/host/$it:/guest/$it" }
         assertNotNull(ProotFastPath.key(root, binds))

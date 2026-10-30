@@ -446,4 +446,55 @@ class WinCompSourcesTest {
         AutoComponents.drain(app)
         assertTrue(AutoComponents.queued().isEmpty())
     }
+
+    @Test fun aLostPartOfAnInstalledBundleIsReinstalledAndTheGameWaitsForIt() = withFakeWorker {
+        val bundle = WinComponents.Component("directmusic", "", "", "ready", listOf("dmband"), emptyList())
+        AutoComponents.catalogOf = { _, _ -> catalog3 + ready("dmband") + bundle }
+        installedNow.addAll(listOf("directmusic", "d3dx9"))
+        WinComponents.setUser(app, "4242", "directmusic", true)
+        WinComponents.setUser(app, "4242", "d3dx9", true)
+        session = true
+        gameUp = true
+        assertEquals(listOf("dmband"), AutoComponents.restoreMissing(app))
+        assertTrue(downloaded.isEmpty())
+        assertEquals("[\"dmband\"]", AutoComponents.Pending.read(app).optJSONArray("4242").toString())
+        gameUp = false
+        AutoComponents.drain(app)
+        assertEquals(listOf("dmband"), downloaded)
+        assertEquals(0, AutoComponents.Pending.read(app).length())
+        assertTrue(AutoComponents.restoreMissing(app).isEmpty())
+    }
+
+    @Test fun aRestoreRunsADownloadQueuedBeforeTheSessionWithoutWaitingForItToEnd() = withFakeWorker {
+        WinComponents.setUser(app, "4243", "vcredist2019_dll", true)
+        session = true
+        AutoComponents.queueGame(app, game(tmp.newFolder("Wait"), Library.ADDED), asked = true)
+        AutoComponents.restoreMissing(app)
+        AutoComponents.restoreMissing(app)
+        assertEquals(listOf("vcredist2019_dll"), downloaded)
+        session = false
+        AutoComponents.drain(app)
+    }
+
+    @Test fun aGameJobThatRunsFirstKeepsARestoredComponentPending() = withFakeWorker {
+        AutoComponents.catalogOf = { _, _ -> catalog3 + ready("dmband") }
+        val seen = ArrayList<List<String>>()
+        AutoComponents.installer = { _, c, _, _ ->
+            if (c.name == "dmband") seen.add(AutoComponents.Pending.ids(app, "1262580"))
+            downloaded.add(c.name); installedNow.add(c.name); null
+        }
+        val game = payback()
+        WinComponents.setUser(app, "1262580", "dmband", true)
+        session = true
+        gameUp = true
+        AutoComponents.queueInSession(app, game)
+        AutoComponents.restoreMissing(app)
+        gameUp = false
+        AutoComponents.drain(app)
+        assertEquals(1, seen.size)
+        assertTrue("dmband" in seen.single())
+        assertEquals(0, AutoComponents.Pending.read(app).length())
+        session = false
+        AutoComponents.drain(app)
+    }
 }
