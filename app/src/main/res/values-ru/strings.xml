@@ -1139,7 +1139,6 @@
     <string name="games_never_played">Никогда не запускалась</string>
     <string name="games_runtime_busy_percent">Среда выполнения занята · %1$d%%</string>
     <string name="games_runtime_busy">Среда выполнения занята</string>
-    <string name="games_runtime_first_play">Среда выполнения установится при первом запуске игры</string>
     <string name="games_runtime_update">Доступно обновление среды выполнения</string>
     <string name="games_runtime_ready">● Среда выполнения готова</string>
     <string name="games_internal">Внутреннее хранилище</string>

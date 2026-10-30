@@ -3,6 +3,9 @@ package com.droiddeck.launcher.session
 import android.os.Process
 import java.io.File
 import java.io.IOException
+import java.io.RandomAccessFile
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.RejectedExecutionException
@@ -19,6 +22,8 @@ internal class SessionSuspendController(
     private val nowMillis: () -> Long = { System.nanoTime() / 1_000_000 },
     private val executor: ExecutorService = Executors.newSingleThreadExecutor(),
     private val zramControl: File? = null,
+    private val clockControl: File? = null,
+    private val nowNanos: () -> Long = System::nanoTime,
     private val pagedOut: (processes: Int, unacknowledged: Int, residentKb: Long, swapKb: Long, swapBeforeKb: Long, millis: Long) -> Unit =
         { _, _, _, _, _, _ -> },
 ) {
@@ -43,6 +48,7 @@ internal class SessionSuspendController(
     @Volatile private var closing = false
     @Volatile private var cancelled = false
     private var frozen = emptyList<ProcessRecord>()
+    private var frozenSince: Long? = null
 
     fun freeze(pageOut: Boolean = false, completion: (Boolean) -> Unit) {
         cancelled = false
@@ -93,6 +99,7 @@ internal class SessionSuspendController(
             } catch (_: Exception) {
             } finally {
                 frozen = records.values.toList()
+                if (complete && frozenSince == null) frozenSince = nowNanos()
                 if (!complete) {
                     if (restoreSafely(frozen)) frozen = emptyList()
                     runAudio(resumeAudio)
@@ -111,6 +118,7 @@ internal class SessionSuspendController(
     fun resume(completion: (Boolean) -> Unit) {
         submit({
             val records = frozen
+            advanceClock()
             runAudio(resumeAudio)
             val resumed = restoreSafely(records)
             if (resumed) frozen = emptyList()
@@ -121,6 +129,7 @@ internal class SessionSuspendController(
     fun closeAndResume(completion: () -> Unit) {
         closing = true
         submit({
+            advanceClock()
             if (restoreSafely(frozen)) frozen = emptyList()
             completion()
             executor.shutdown()
@@ -132,6 +141,23 @@ internal class SessionSuspendController(
             executor.execute(task)
         } catch (_: RejectedExecutionException) {
             rejected()
+        }
+    }
+
+    private fun advanceClock() {
+        val since = frozenSince ?: return
+        frozenSince = null
+        val control = clockControl?.takeIf { it.isFile && it.length() >= Long.SIZE_BYTES } ?: return
+        try {
+            RandomAccessFile(control, "rw").use { file ->
+                val bytes = ByteArray(Long.SIZE_BYTES)
+                file.readFully(bytes)
+                val shift = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN).long.coerceAtLeast(0L) +
+                    (nowNanos() - since).coerceAtLeast(0L)
+                file.seek(0L)
+                file.write(ByteBuffer.allocate(Long.SIZE_BYTES).order(ByteOrder.LITTLE_ENDIAN).putLong(shift).array())
+            }
+        } catch (_: IOException) {
         }
     }
 

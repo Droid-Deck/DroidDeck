@@ -1137,7 +1137,6 @@
     <string name="games_never_played">Nigdy nie grano</string>
     <string name="games_runtime_busy_percent">Środowisko zajęte · %1$d%%</string>
     <string name="games_runtime_busy">Środowisko zajęte</string>
-    <string name="games_runtime_first_play">Środowisko instaluje się przy pierwszym uruchomieniu</string>
     <string name="games_runtime_update">Dostępna aktualizacja środowiska</string>
     <string name="games_runtime_ready">● Środowisko gotowe</string>
     <string name="games_internal">Pamięć wewnętrzna</string>

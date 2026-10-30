@@ -1123,7 +1123,6 @@
     <string name="games_never_played">Nunca jogado</string>
     <string name="games_runtime_busy_percent">Ambiente de execução ocupado · %1$d%%</string>
     <string name="games_runtime_busy">Ambiente de execução ocupado</string>
-    <string name="games_runtime_first_play">O ambiente de execução é instalado ao tocar em Jogar pela primeira vez</string>
     <string name="games_runtime_update">Atualização do ambiente de execução disponível</string>
     <string name="games_runtime_ready">● Ambiente de execução pronto</string>
     <string name="games_internal">Armazenamento interno</string>

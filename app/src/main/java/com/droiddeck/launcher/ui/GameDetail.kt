@@ -614,25 +614,35 @@ private fun GameMoreMenu(g: Library.SteamGame, a: FrontEndActions) {
 }
 
 @Composable
-internal fun IconAction(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, id: String, danger: Boolean = false, enabled: Boolean = true, onClick: () -> Unit) {
+internal fun IconAction(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, id: String, danger: Boolean = false, enabled: Boolean = true, frosted: Boolean = false, onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
-    val shape = if (LocalPillButtons.current) CircleShape else Shape12
+    val pill = LocalPillButtons.current
+    val shape = if (pill) CircleShape else Shape12
     val pal = LocalPalette.current
     val src = remember { MutableInteractionSource() }
     val hot = rememberHot(src) && enabled
     val accent = if (danger) colors.error else pal.signal
-    Box(
-        contentAlignment = Alignment.Center,
-        modifier = Modifier.paneItem(id).downToFirstTile().size(if (LocalPillButtons.current) 40.dp else 44.dp).clip(shape)
-            .background(if (hot) accent.copy(alpha = if (danger) 0.22f else 0.14f) else if (danger) Color.Black.copy(alpha = 0.34f) else Color.White.copy(alpha = 0.03f))
-            .glideBorder(hot, shape, accent, pal.line2)
-            .alpha(if (enabled) 1f else 0.45f)
-            .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = androidx.compose.ui.semantics.Role.Button, enabled = enabled, onClick = onClick)
-            .controllerConfirm(enabled = enabled, onClick = onClick)
-            .semantics { contentDescription = label },
-    ) {
-        Icon(icon, contentDescription = null, tint = if (danger && hot) colors.error else if (danger) Color.White else colors.onBackground, modifier = Modifier.size(18.dp))
+    val fill = when {
+        hot -> accent.copy(alpha = if (danger) 0.22f else 0.14f)
+        pill -> Color.White.copy(alpha = 0.09f)
+        danger -> Color.Black.copy(alpha = 0.34f)
+        else -> Color.White.copy(alpha = 0.03f)
     }
+    val button: @Composable () -> Unit = {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier.paneItem(id).downToFirstTile().size(if (pill) 40.dp else 44.dp).clip(shape)
+                .background(fill)
+                .glideBorder(hot, shape, accent, if (pill) Color.White.copy(alpha = 0.14f) else pal.line2)
+                .alpha(if (enabled) 1f else 0.45f)
+                .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = androidx.compose.ui.semantics.Role.Button, enabled = enabled, onClick = onClick)
+                .controllerConfirm(enabled = enabled, onClick = onClick)
+                .semantics { contentDescription = label },
+        ) {
+            Icon(icon, contentDescription = null, tint = if (danger && hot) colors.error else if (danger && !pill) Color.White else colors.onBackground, modifier = Modifier.size(18.dp))
+        }
+    }
+    if (frosted) Box(Modifier.glass(CircleShape)) { button() } else button()
 }
 
 @Composable
@@ -645,7 +655,7 @@ private fun RemoveButton(title: String, game: Library.SteamGame?, installed: Ins
         val gone = StoresState.uninstalling[key]
         if (gone != null) {
             val uninstalling = stringResource(R.string.stores_uninstalling)
-            Box(contentAlignment = Alignment.Center, modifier = Modifier.size(44.dp).clip(Shape12).background(Color.Black.copy(alpha = 0.34f)).semantics { contentDescription = uninstalling }) {
+            Box(contentAlignment = Alignment.Center, modifier = Modifier.size(40.dp).glass(CircleShape).semantics { contentDescription = uninstalling }) {
                 if (gone > 0f) CircularProgressIndicator(progress = { gone }, strokeWidth = 2.dp, color = colors.error, trackColor = colors.error.copy(alpha = 0.22f), modifier = Modifier.size(20.dp))
                 else CircularProgressIndicator(strokeWidth = 2.dp, color = colors.error, modifier = Modifier.size(20.dp))
             }
@@ -659,7 +669,7 @@ private fun RemoveButton(title: String, game: Library.SteamGame?, installed: Ins
         val busy = StoresState.download(key)?.isActive == true || (installed.sidecar.store == Store.XBOX && XboxContent.busy(installed.sidecar.id))
         val placed = remember { arrayOfNulls<androidx.compose.ui.layout.LayoutCoordinates>(1) }
         Box(Modifier.onGloballyPositioned { placed[0] = it }) {
-            IconAction(Icons.Outlined.Delete, remove, "game:remove", danger = true, enabled = !busy) {
+            IconAction(Icons.Outlined.Delete, remove, "game:remove", danger = true, enabled = !busy, frosted = true) {
                 val at = placed[0]?.takeIf { it.isAttached }?.boundsInRoot() ?: return@IconAction
                 var confirmed = false
                 Steps.ask(StepAsk(anchor = at, side = StepSide.Left, accent = colors.error, items = 3, pillCorner = 12.dp, maxWidth = 340.dp,
@@ -682,7 +692,7 @@ private fun RemoveButton(title: String, game: Library.SteamGame?, installed: Ins
     var asking by remember(g.gameId) { mutableStateOf(false) }
     val shortcut = kind == GameRemoval.Kind.SHORTCUT
     val label = stringResource(if (shortcut) R.string.edit_remove else R.string.common_uninstall)
-    IconAction(Icons.Outlined.Delete, label, "game:remove", danger = true) { asking = true }
+    IconAction(Icons.Outlined.Delete, label, "game:remove", danger = true, frosted = true) { asking = true }
     if (asking) ConfirmDialog(
         title = if (shortcut) stringResource(R.string.games_remove_title, g.name) else stringResource(R.string.stores_uninstall_title, g.name),
         text = when {

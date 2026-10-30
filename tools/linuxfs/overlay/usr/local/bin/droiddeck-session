@@ -99,6 +99,8 @@ clear_stale_tmp() {
 [ -z "${BL_INSIDE:-}" ] && clear_stale_tmp
 if [ -z "${BL_INSIDE:-}" ]; then
   if [ "${BL_ZRAM:-0}" = 1 ]; then printf 0 > /tmp/.bl-zram; else rm -f /tmp/.bl-zram; fi
+  rm -f /tmp/.bl-clock
+  head -c 8 /dev/zero > /tmp/.bl-clock
 fi
 
 steam_devtools() {
@@ -1436,6 +1438,12 @@ case $mode in
       fi
       if [ -f "$HOME/.bl-restart-once" ]; then
         echo "== steam: restarting once so the new compatibility layer is in the client's lists"
+        set --
+        continue
+      fi
+      if [ "$steam_x64" = 1 ] && [ "$rc" -eq 132 ] && [ -z "${_bl_x64_sigill:-}" ]; then
+        _bl_x64_sigill=1
+        echo "== steam: the x86-64 client stopped on an illegal instruction after it updated itself; starting it again once"
         set --
         continue
       fi

@@ -1137,7 +1137,6 @@
     <string name="games_never_played">Ще не грали</string>
     <string name="games_runtime_busy_percent">Середовище зайняте · %1$d%%</string>
     <string name="games_runtime_busy">Середовище зайняте</string>
-    <string name="games_runtime_first_play">Середовище встановлюється під час першого натискання «Грати»</string>
     <string name="games_runtime_update">Є оновлення середовища</string>
     <string name="games_runtime_ready">● Середовище готове</string>
     <string name="games_internal">Внутрішнє сховище</string>

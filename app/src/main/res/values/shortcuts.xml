@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="shortcuts_title">Physical button shortcuts</string>
+    <string name="shortcuts_dd_menu">DroidDeck menu</string>
+    <string name="shortcuts_capture">Assign: %1$s</string>
+    <string name="shortcuts_press">Press and release a button. Your assignment saves automatically.</string>
+    <string name="shortcuts_release">Release the button to continue.</string>
+    <string name="shortcuts_detected">%1$s: %2$s</string>
+    <string name="shortcuts_conflict">This button is already assigned to: %1$s</string>
+    <string name="shortcuts_save">Reassign</string>
+    <string name="shortcuts_retry">Try another button</string>
+    <string name="shortcuts_limitations">Home and some extra buttons may be unavailable.</string>
+</resources>

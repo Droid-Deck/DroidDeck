@@ -322,7 +322,14 @@ def wallpaper_bmp(width, height):
 
 
 def reg_value(reg, key, name, value):
-    line = '"%s"="%s"' % (name, value.replace("\\", "\\\\").replace('"', '\\"'))
+    return reg_line(reg, key, name, '"%s"="%s"' % (name, value.replace("\\", "\\\\").replace('"', '\\"')))
+
+
+def reg_dword(reg, key, name, number):
+    return reg_line(reg, key, name, '"%s"=dword:%08x' % (name, number))
+
+
+def reg_line(reg, key, name, line):
     try:
         with open(reg, encoding="utf-8", errors="replace") as f:
             rows = f.read().splitlines()
@@ -345,6 +352,16 @@ def desktop_size():
     if width.isdigit() and height.isdigit() and 0 < int(width) <= 7680 and 0 < int(height) <= 4320:
         return int(width), int(height)
     return 1280, 720
+
+
+def desktop_dpi():
+    width, height = desktop_size()
+    return 96 * max(4, int(min(width / 1920.0, height / 1080.0) * 4)) // 4
+
+
+def dpi(root):
+    reg = os.path.join(prefix(root), "pfx", "user.reg")
+    return os.path.isfile(reg) and reg_dword(reg, DESKTOP_KEY, "LogPixels", desktop_dpi())
 
 
 def wallpaper(root):
@@ -492,6 +509,10 @@ def configure(root, library=None):
         wallpaper(root)
     except OSError as error:
         say("Battle.net's desktop wallpaper not set: %s" % error)
+    try:
+        dpi(root)
+    except OSError as error:
+        say("Battle.net's desktop scale not set: %s" % error)
     wow_settings(root)
     if change == "first":
         say("wrote Battle.net's first config: hardware acceleration off, streaming off, closing itself as it launches a game, "

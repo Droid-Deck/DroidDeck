@@ -1149,7 +1149,6 @@
     <string name="games_never_played">لم يتم تشغيلها أبدًا</string>
     <string name="games_runtime_busy_percent">بيئة التشغيل مشغولة · %1$d%%</string>
     <string name="games_runtime_busy">بيئة التشغيل مشغولة</string>
-    <string name="games_runtime_first_play">تُثبَّت بيئة التشغيل عند أول تشغيل</string>
     <string name="games_runtime_update">يتوفر تحديث لبيئة التشغيل</string>
     <string name="games_runtime_ready">● بيئة التشغيل جاهزة</string>
     <string name="games_internal">التخزين الداخلي</string>

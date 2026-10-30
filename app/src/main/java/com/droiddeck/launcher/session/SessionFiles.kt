@@ -290,6 +290,7 @@ object SessionFiles {
                 "stage session=$startsSession pending=$force choice=${SessionPrefs.bootMovie(context)} movie=${startupMovie?.path} " +
                     "staged=$bigPictureMovieInstalled done=$done steam=${home.path} config: $before -> ${startupMoviePath(config)}",
             )
+            if (startsSession) disableIdleSleep(home)
             if (!done) allDone = false
             if (!bigPictureMovieInstalled) allInstalled = false
             if (done && home.path.contains(".droiddeck-x64") == activeIsX64) seen = if (bigPictureMovieInstalled) BOOT_MOVIE_PATH else ""
@@ -524,6 +525,43 @@ object SessionFiles {
         } catch (e: Exception) {
             staged.delete()
             Log.w(TAG, "could not write Steam startup movie selection", e)
+            false
+        }
+    }
+
+    private val IDLE_SLEEP_TIMERS = listOf("IdleSuspendBatterySeconds", "IdleSuspendACSeconds")
+
+    /**
+     * Sets Steam's Power > "Sleep after" (battery and plugged in) to Disabled at every session start: Android
+     * owns the device's sleep, and a client that suspends inside the session only shows a black screen. Dimming stays the user's. Runs
+     * only before the client starts, which rewrites its config on exit.
+     */
+    internal fun disableIdleSleep(steamHome: File): Boolean {
+        val config = File(steamHome, "config/config.vdf")
+        val text = runCatching { config.readText() }.getOrNull() ?: return false
+        val newline = if (text.contains("\r\n")) "\r\n" else "\n"
+        val steam = findSteamBlock(text) ?: return false
+        val system = findObject(text, "system", steam.open + 1, steam.close)
+        val updated = if (system != null) {
+            val block = text.substring(system.keyStart, system.close + 1)
+            text.replaceRange(system.keyStart, system.close + 1, IDLE_SLEEP_TIMERS.fold(block) { acc, key -> setScalar(acc, key, "0", newline) })
+        } else {
+            val lineStart = text.lastIndexOf('\n', steam.close).let { if (it < 0) 0 else it + 1 }
+            val indent = text.substring(lineStart, steam.close).takeWhile { it == '\t' || it == ' ' } + "\t"
+            val section = (listOf(indent + "\"system\"", indent + "{") +
+                IDLE_SLEEP_TIMERS.map { "$indent\t\"$it\"\t\t\"0\"" } + (indent + "}")).joinToString(newline) + newline
+            text.substring(0, lineStart) + section + text.substring(lineStart)
+        }
+        val staged = File(config.parentFile, config.name + ".staged")
+        return try {
+            if (updated != text) {
+                staged.writeText(updated)
+                if (!staged.renameTo(config)) { staged.delete(); return false }
+            }
+            true
+        } catch (e: Exception) {
+            staged.delete()
+            Log.w(TAG, "could not disable Steam's idle sleep", e)
             false
         }
     }

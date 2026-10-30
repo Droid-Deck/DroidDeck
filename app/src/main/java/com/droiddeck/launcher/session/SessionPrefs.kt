@@ -1087,20 +1087,25 @@ object SessionPrefs {
     /** Compositor frame limit that releases buffers to the game unpaced. */
     const val FPS_UNPACED = -1
 
+    /** The drawer's frame limit slider: its first stop is Off. */
+    const val FPS_LIMIT_OFF = 15
+    const val FPS_LIMIT_MAX = 120
+
     /**
      * Buffers go back to the game as soon as they are replaced instead of once per refresh;
-     * Steam's Frame Limit in the Quick Access menu caps games. Mirroring still follows the glasses' refresh rate.
+     * Steam's Frame Limit in the Quick Access menu caps Steam games, and the drawer's limit caps games
+     * launched without Steam. Mirroring still follows the glasses' refresh rate.
      */
-    fun compositorFpsLimit(mirrorRefreshLimit: Int): Int =
-        if (mirrorRefreshLimit <= 0) FPS_UNPACED else mirrorRefreshLimit
+    const val PIP_FPS = 30
 
-    private const val STEAM_UI_FPS = 60f
-
-    fun steamUiPacing(context: Context): Boolean = prefs(context).getBoolean("steamUiPacing", true)
-
-    fun steamUiFpsLimit(refreshHz: Float): Int {
-        val steps = ((refreshHz + 0.5f) / STEAM_UI_FPS).toInt()
-        return if (steps < 2) 0 else (refreshHz / steps + 0.01f).toInt()
+    fun compositorFpsLimit(mirrorRefreshLimit: Int, sessionLimit: Int = 0, pip: Boolean = false): Int {
+        val limit = when {
+            mirrorRefreshLimit <= 0 && sessionLimit <= 0 -> FPS_UNPACED
+            mirrorRefreshLimit <= 0 -> sessionLimit
+            sessionLimit <= 0 -> mirrorRefreshLimit
+            else -> minOf(mirrorRefreshLimit, sessionLimit)
+        }
+        return if (pip && mirrorRefreshLimit <= 0 && (limit <= 0 || limit > PIP_FPS)) PIP_FPS else limit
     }
 
     val upscalerChoices = listOf(
