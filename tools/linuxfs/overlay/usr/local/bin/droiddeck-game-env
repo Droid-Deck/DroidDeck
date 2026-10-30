@@ -754,8 +754,9 @@ def main():
     app_id = game_id(env)
     if app_id:
         gl_default = gl_vsync(env)
-        game_images(env)
         waiting = len(command) > 1 and command[1] == "waitforexitandrun"
+        if waiting:
+            game_images(env)
         fixes = {}
         if waiting:
             command = skip_red_launcher(command)
