@@ -1,3 +1,4 @@
+import errno
 import os
 from pathlib import Path
 import shutil
@@ -34,7 +35,6 @@ PROGRAM = r"""
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
-#include <string.h>
 #include <unistd.h>
 
 static void check(const char *name, const char *path, int flags) {
@@ -44,8 +44,9 @@ static void check(const char *name, const char *path, int flags) {
   if (read(fd, b, sizeof b) < 0) {}
   errno = 0;
   int r = close(fd);
+  int error = r ? errno : 0;
   int still_open = fcntl(fd, F_GETFD) >= 0;
-  printf("%s %d %s %d\n", name, r, r ? strerror(errno) : "ok", still_open);
+  printf("%s %d %d %d\n", name, r, error, still_open);
 }
 
 int main(int argc, char **argv) {
@@ -91,16 +92,15 @@ class CloseEioPreloadTest(unittest.TestCase):
 
     def test_a_flush_error_on_a_read_only_file_is_not_a_close_failure(self):
         out = self.run_program([self.preload, self.shim])
-        self.assertEqual(["0", "ok", "0"], out["readonly"])
+        self.assertEqual(["0", "0", "0"], out["readonly"])
 
     def test_a_flush_error_after_writing_access_is_still_reported(self):
         out = self.run_program([self.preload, self.shim])
-        self.assertEqual("-1", out["readwrite"][0])
-        self.assertEqual("0", out["readwrite"][-1])
+        self.assertEqual(["-1", str(errno.EIO), "0"], out["readwrite"])
 
     def test_other_closes_are_unchanged(self):
         out = self.run_program([self.preload, self.shim])
-        self.assertEqual(["0", "ok", "0"], out["plain"])
+        self.assertEqual(["0", "0", "0"], out["plain"])
         self.assertEqual(["-1", "1"], out["badfd"])
 
     def test_without_the_session_library_the_error_reaches_the_program(self):
