@@ -53,6 +53,18 @@ class StepOutTest {
         assertEquals(StepSide.Left, fitStepSide(StepSide.Left, Rect(600f, 20f, 700f, 80f), hostWidth = 1080f, wanted = 840f))
     }
 
+    @Test fun theOutlineReachFollowsTheChosenSide() {
+        val wide = Rect(600f, 20f, 700f, 80f)
+        assertEquals(600f to 300f, stepReach(StepSide.Left, wide, hostWidth = 1080f, width = 400))
+        assertEquals(700f to 1000f, stepReach(StepSide.Right, wide, hostWidth = 1080f, width = 400))
+    }
+
+    @Test fun theOutlineReachStaysInsideTheHost() {
+        val near = Rect(100f, 20f, 200f, 80f)
+        assertEquals(100f to 0f, stepReach(StepSide.Left, near, hostWidth = 1080f, width = 400))
+        assertEquals(200f to 1080f, stepReach(StepSide.Right, near, hostWidth = 1080f, width = 1200))
+    }
+
     @Test fun aClosedOutlineIsJustThePill() {
         val path = Path()
         stepPathRight(path, pill, right = pill.right, bottom = pill.bottom, pullTop = pill.bottom + 6f, box = 16f, fillet = 10f, pillCorner = 12f)
