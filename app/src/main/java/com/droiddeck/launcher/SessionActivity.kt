@@ -543,6 +543,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             physicalShortcuts.onDeviceRemoved(deviceId)
             Log.i(TAG, "input device $deviceId disconnected")
             backQamInput.onDeviceRemoved(deviceId)
+            mouseBackInput.cancel()
             joyConVr?.refresh()
             padBridge?.onDeviceRemoved(deviceId)
             if (::padMouse.isInitialized) padMouse.reset()
@@ -2483,7 +2484,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 event.deviceId, event.device?.name, event.source, event.flags))
         }
         val mouseToGuest = !pipUi && !drawerOpen && !pcKeyboardOpen && !achievementsOpen && !gestureSettingsOpen &&
-            !(::loading.isInitialized && loading.ended)
+            !SessionState.suspended && !(::loading.isInitialized && (loading.visible || loading.ended))
         if (mouseBackInput.onKeyEvent(event, mouseToGuest)) return true
         val backToQam = !pipUi && !screenKeyTextFocus && !drawerOpen && !pcKeyboardOpen && !achievementsOpen &&
             SessionState.mode == SessionService.MODE_STEAM && SessionState.running && SessionState.firstFrameSeen &&
@@ -3980,6 +3981,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (runtimeRemovalBlocked) { super.onPause(); return }
         physicalShortcuts.clear()
         backQamInput.cancel()
+        mouseBackInput.cancel()
         capturePausedFrame()
         sessionClipboard.stop()
         if (::touchscreenGestures.isInitialized) touchscreenGestures.cancel()
@@ -4368,6 +4370,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         super.onWindowFocusChanged(hasFocus)
         if (!hasFocus) com.droiddeck.launcher.input.HomeButtonShortcuts.cancel(this)
         if (!hasFocus) backQamInput.cancel()
+        if (!hasFocus) mouseBackInput.cancel()
         if (!hasFocus && ::padMouse.isInitialized) padMouse.reset()
         if (runtimeRemovalBlocked) return
         if (!hasFocus) {
