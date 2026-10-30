@@ -662,7 +662,6 @@
     <string name="hud_export_failed">บันทึกรายงาน HUD ไม่ได้</string>
     <string name="hud_reset">รีเซ็ตการตั้งค่า HUD</string>
     <string name="hud_reset_button">รีเซ็ต</string>
-    <string name="hud_credit">FusionHUD โดย The412Banner, github.com/The412Banner/FusionHUD (GPL-3.0)</string>
     <string name="drawer_scaling">โหมดการปรับขนาด</string>
     <string name="drawer_scaling_sharpness">ความคมชัดของการปรับขนาด</string>
     <string name="drawer_effects">เอฟเฟกต์หน้าจอ</string>

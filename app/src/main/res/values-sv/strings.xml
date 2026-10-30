@@ -664,7 +664,6 @@
     <string name="hud_export_failed">Det gick inte att spara HUD-rapporten.</string>
     <string name="hud_reset">Återställ HUD-inställningar</string>
     <string name="hud_reset_button">Återställ</string>
-    <string name="hud_credit">FusionHUD av The412Banner, github.com/The412Banner/FusionHUD (GPL-3.0).</string>
     <string name="drawer_scaling">Skalningsläge</string>
     <string name="drawer_scaling_sharpness">Skalningsskärpa</string>
     <string name="drawer_effects">Skärmeffekter</string>

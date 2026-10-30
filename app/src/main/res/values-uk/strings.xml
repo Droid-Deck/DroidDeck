@@ -668,7 +668,6 @@
     <string name="hud_export_failed">Не вдалося зберегти звіт HUD.</string>
     <string name="hud_reset">Скинути налаштування HUD</string>
     <string name="hud_reset_button">Скинути</string>
-    <string name="hud_credit">FusionHUD від The412Banner, github.com/The412Banner/FusionHUD (GPL-3.0).</string>
     <string name="drawer_scaling">Режим масштабування</string>
     <string name="drawer_scaling_sharpness">Чіткість масштабування</string>
     <string name="drawer_effects">Ефекти екрана</string>

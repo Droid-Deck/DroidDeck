@@ -666,7 +666,6 @@
     <string name="hud_export_failed">Raportul HUD nu a putut fi salvat.</string>
     <string name="hud_reset">Resetează setările HUD</string>
     <string name="hud_reset_button">Resetează</string>
-    <string name="hud_credit">FusionHUD de The412Banner, github.com/The412Banner/FusionHUD (GPL-3.0).</string>
     <string name="drawer_scaling">Mod de scalare</string>
     <string name="drawer_scaling_sharpness">Claritatea scalării</string>
     <string name="drawer_effects">Efecte de ecran</string>

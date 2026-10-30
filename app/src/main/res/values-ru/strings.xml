@@ -670,7 +670,6 @@
     <string name="hud_export_failed">Не удалось сохранить отчет HUD.</string>
     <string name="hud_reset">Сбросить настройки HUD</string>
     <string name="hud_reset_button">Сбросить</string>
-    <string name="hud_credit">FusionHUD от The412Banner, github.com/The412Banner/FusionHUD (GPL-3.0).</string>
     <string name="drawer_scaling">Режим масштабирования</string>
     <string name="drawer_scaling_sharpness">Резкость масштабирования</string>
     <string name="drawer_effects">Экранные эффекты</string>

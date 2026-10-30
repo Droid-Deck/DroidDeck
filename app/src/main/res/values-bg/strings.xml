@@ -664,7 +664,6 @@
     <string name="hud_export_failed">Отчетът за HUD не можа да бъде записан.</string>
     <string name="hud_reset">Нулиране на настройките на HUD</string>
     <string name="hud_reset_button">Нулиране</string>
-    <string name="hud_credit">FusionHUD от The412Banner, github.com/The412Banner/FusionHUD (GPL-3.0).</string>
     <string name="drawer_scaling">Режим на мащабиране</string>
     <string name="drawer_scaling_sharpness">Острота на мащабиране</string>
     <string name="drawer_effects">Ефекти на екрана</string>

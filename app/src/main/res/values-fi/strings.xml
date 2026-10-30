@@ -664,7 +664,6 @@
     <string name="hud_export_failed">HUD-raporttia ei voitu tallentaa.</string>
     <string name="hud_reset">Palauta HUD-asetukset</string>
     <string name="hud_reset_button">Palauta</string>
-    <string name="hud_credit">FusionHUD, tekijä The412Banner, github.com/The412Banner/FusionHUD (GPL-3.0).</string>
     <string name="drawer_scaling">Skaalaustila</string>
     <string name="drawer_scaling_sharpness">Skaalauksen terävyys</string>
     <string name="drawer_effects">Näyttötehosteet</string>

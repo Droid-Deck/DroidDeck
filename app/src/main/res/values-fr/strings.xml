@@ -668,7 +668,6 @@
     <string name="hud_export_failed">Impossible d\'enregistrer le rapport du HUD.</string>
     <string name="hud_reset">Réinitialiser les paramètres du HUD</string>
     <string name="hud_reset_button">Réinitialiser</string>
-    <string name="hud_credit">FusionHUD par The412Banner, github.com/The412Banner/FusionHUD (GPL-3.0).</string>
     <string name="drawer_scaling">Mode de mise à l\'échelle</string>
     <string name="drawer_scaling_sharpness">Netteté de la mise à l\'échelle</string>
     <string name="drawer_effects">Effets d\'écran</string>

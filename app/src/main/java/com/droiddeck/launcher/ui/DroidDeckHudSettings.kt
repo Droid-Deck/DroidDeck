@@ -4,11 +4,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import com.droiddeck.launcher.R
-import com.droiddeck.launcher.hud.FusionSize
+import com.droiddeck.launcher.hud.DroidDeckHudSize
 
-/** Bannerlator's Fusion HUD settings (DeckOverlaySettings): one row per key of the HUD's config string. */
+/** Bannerlator's DroidDeck HUD settings (DeckOverlaySettings): one row per key of the HUD's config string. */
 @Composable
-internal fun FusionHudSettings(host: MenuHost, a: DrawerActions, track: (String) -> Modifier) {
+internal fun DroidDeckHudSettings(host: MenuHost, a: DrawerActions, track: (String) -> Modifier) {
     val cfg = a.hudConfig
     fun on(key: String) = cfg[key] == "1"
     fun int(key: String, fallback: Int) = cfg[key]?.toIntOrNull() ?: fallback
@@ -16,14 +16,14 @@ internal fun FusionHudSettings(host: MenuHost, a: DrawerActions, track: (String)
     SettingsGroup(stringResource(R.string.drawer_hud)) {
         ToggleRow(host, "hud", stringResource(R.string.drawer_hud), null, a.hudOn, chipModifier = track("hud"), onChange = a.onHud)
         if (!a.hudOn) return@SettingsGroup
-        val size = FusionSize.from(cfg["hudSize"])
+        val size = DroidDeckHudSize.from(cfg["hudSize"])
         ChoiceRow(host, "hud-size", stringResource(R.string.hud_size), stringResource(R.string.hud_size_hint),
             listOf(
-                FusionSize.FULL to stringResource(R.string.hud_size_full),
-                FusionSize.TILES to stringResource(R.string.hud_size_tiles),
-                FusionSize.PILL to stringResource(R.string.hud_size_pill),
-                FusionSize.MINIMAL to stringResource(R.string.hud_size_minimal),
-                FusionSize.MEGA to stringResource(R.string.hud_size_mega),
+                DroidDeckHudSize.FULL to stringResource(R.string.hud_size_full),
+                DroidDeckHudSize.TILES to stringResource(R.string.hud_size_tiles),
+                DroidDeckHudSize.PILL to stringResource(R.string.hud_size_pill),
+                DroidDeckHudSize.MINIMAL to stringResource(R.string.hud_size_minimal),
+                DroidDeckHudSize.MEGA to stringResource(R.string.hud_size_mega),
             ),
             size, chipModifier = track("hud-size")) { a.onHudSetting("hudSize", it.token) }
         ToggleRow(host, "hud-locked", stringResource(R.string.hud_locked), stringResource(R.string.hud_locked_hint), on("hudLocked"),
@@ -47,7 +47,7 @@ internal fun FusionHudSettings(host: MenuHost, a: DrawerActions, track: (String)
             if (cfg["hudOutlineAccent"] == "0") "0" else "1", chipModifier = track("hud-outline-color")) { a.onHudSetting("hudOutlineAccent", it) }
     }
 
-    val size = FusionSize.from(cfg["hudSize"])
+    val size = DroidDeckHudSize.from(cfg["hudSize"])
     val chips = size.supportedChips() + EXTRA[size].orEmpty()
     SettingsGroup(stringResource(R.string.hud_group_metrics)) {
         for (metric in METRICS) {
@@ -84,7 +84,7 @@ internal fun FusionHudSettings(host: MenuHost, a: DrawerActions, track: (String)
         }
     }
 
-    SettingsGroup(stringResource(R.string.hud_group_more), detail = stringResource(R.string.hud_credit)) {
+    SettingsGroup(stringResource(R.string.hud_group_more)) {
         ActionRow(stringResource(R.string.hud_export), stringResource(R.string.hud_export_hint),
             stringResource(R.string.hud_export_button), onClick = a.onHudExport, modifier = track("hud-export"))
         ActionRow(stringResource(R.string.hud_reset), null, stringResource(R.string.hud_reset_button),
@@ -95,11 +95,11 @@ internal fun FusionHudSettings(host: MenuHost, a: DrawerActions, track: (String)
 private fun flag(on: Boolean) = if (on) "1" else "0"
 
 // The Pill also draws the battery temperature and watts.
-private val EXTRA = mapOf(FusionSize.PILL to setOf("Temp", "Power"))
+private val EXTRA = mapOf(DroidDeckHudSize.PILL to setOf("Temp", "Power"))
 
 private class HudMetric(val chip: String, val key: String, val label: Int)
 
-// FusionSize.supportedChips() names; Wrapper and DX version have nothing to show in DroidDeck.
+// DroidDeckHudSize.supportedChips() names; Wrapper and DX version have nothing to show in DroidDeck.
 private val METRICS = listOf(
     HudMetric("FPS", "showFPS", R.string.drawer_hud_fps),
     HudMetric("FPS graph", "showFPSGraph", R.string.hud_metric_graph),
@@ -124,10 +124,10 @@ private val METRICS = listOf(
     HudMetric("Clock", "showClock", R.string.hud_metric_clock),
 )
 
-// Switches a size lists but never draws (FusionHudView): the Pill and Minimal always show the FPS, the
+// Switches a size lists but never draws (DroidDeckHudView): the Pill and Minimal always show the FPS, the
 // Pill has no graph, Tiles has no graph and no 0.01% low.
 private val HIDDEN = mapOf(
-    FusionSize.PILL to setOf("FPS", "FPS graph"),
-    FusionSize.MINIMAL to setOf("FPS"),
-    FusionSize.TILES to setOf("FPS graph", "0.01% low"),
+    DroidDeckHudSize.PILL to setOf("FPS", "FPS graph"),
+    DroidDeckHudSize.MINIMAL to setOf("FPS"),
+    DroidDeckHudSize.TILES to setOf("FPS graph", "0.01% low"),
 )

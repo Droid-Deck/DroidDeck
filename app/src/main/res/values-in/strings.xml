@@ -662,7 +662,6 @@
     <string name="hud_export_failed">Tidak dapat menyimpan laporan HUD.</string>
     <string name="hud_reset">Setel ulang setelan HUD</string>
     <string name="hud_reset_button">Setel ulang</string>
-    <string name="hud_credit">FusionHUD oleh The412Banner, github.com/The412Banner/FusionHUD (GPL-3.0).</string>
     <string name="drawer_scaling">Mode penskalaan</string>
     <string name="drawer_scaling_sharpness">Ketajaman penskalaan</string>
     <string name="drawer_effects">Efek layar</string>

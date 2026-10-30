@@ -664,7 +664,6 @@
     <string name="hud_export_failed">HUD 보고서를 저장할 수 없습니다.</string>
     <string name="hud_reset">HUD 설정 초기화</string>
     <string name="hud_reset_button">초기화</string>
-    <string name="hud_credit">FusionHUD 제작: The412Banner, github.com/The412Banner/FusionHUD (GPL-3.0).</string>
     <string name="drawer_scaling">스케일링 모드</string>
     <string name="drawer_scaling_sharpness">스케일링 선명도</string>
     <string name="drawer_effects">화면 효과</string>

@@ -664,7 +664,6 @@
     <string name="hud_export_failed">Nem sikerült menteni a HUD-jelentést.</string>
     <string name="hud_reset">HUD-beállítások visszaállítása</string>
     <string name="hud_reset_button">Visszaállítás</string>
-    <string name="hud_credit">FusionHUD, készítette: The412Banner, github.com/The412Banner/FusionHUD (GPL-3.0).</string>
     <string name="drawer_scaling">Méretezési mód</string>
     <string name="drawer_scaling_sharpness">Méretezési élesség</string>
     <string name="drawer_effects">Képernyőeffektek</string>

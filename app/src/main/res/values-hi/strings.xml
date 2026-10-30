@@ -664,7 +664,6 @@
     <string name="hud_export_failed">HUD रिपोर्ट सेव नहीं हो सकी।</string>
     <string name="hud_reset">HUD सेटिंग रीसेट करें</string>
     <string name="hud_reset_button">रीसेट करें</string>
-    <string name="hud_credit">The412Banner का FusionHUD, github.com/The412Banner/FusionHUD (GPL-3.0)।</string>
     <string name="drawer_scaling">स्केलिंग मोड</string>
     <string name="drawer_scaling_sharpness">स्केलिंग शार्पनेस</string>
     <string name="drawer_effects">स्क्रीन इफ़ेक्ट</string>

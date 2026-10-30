@@ -664,7 +664,6 @@
     <string name="hud_export_failed">无法保存 HUD 报告。</string>
     <string name="hud_reset">重置 HUD 设置</string>
     <string name="hud_reset_button">重置</string>
-    <string name="hud_credit">FusionHUD，作者 The412Banner，github.com/The412Banner/FusionHUD (GPL-3.0)。</string>
     <string name="drawer_scaling">缩放模式</string>
     <string name="drawer_scaling_sharpness">缩放锐度</string>
     <string name="drawer_effects">屏幕效果</string>

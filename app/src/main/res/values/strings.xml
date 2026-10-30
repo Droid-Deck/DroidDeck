@@ -725,7 +725,6 @@
     <string name="hud_export_failed">Couldn\'t save the HUD report.</string>
     <string name="hud_reset">Reset HUD settings</string>
     <string name="hud_reset_button">Reset</string>
-    <string name="hud_credit">FusionHUD by The412Banner, github.com/The412Banner/FusionHUD (GPL-3.0).</string>
     <string name="drawer_scaling">Scaling mode</string>
     <string name="drawer_scaling_sharpness">Scaling sharpness</string>
     <string name="drawer_effects">Screen effects</string>

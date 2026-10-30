@@ -662,7 +662,6 @@
     <string name="hud_export_failed">Không thể lưu báo cáo HUD.</string>
     <string name="hud_reset">Đặt lại thiết lập HUD</string>
     <string name="hud_reset_button">Đặt lại</string>
-    <string name="hud_credit">FusionHUD của The412Banner, github.com/The412Banner/FusionHUD (GPL-3.0).</string>
     <string name="drawer_scaling">Chế độ chia tỷ lệ</string>
     <string name="drawer_scaling_sharpness">Độ sắc nét khi chia tỷ lệ</string>
     <string name="drawer_effects">Hiệu ứng màn hình</string>

@@ -664,7 +664,6 @@
     <string name="hud_export_failed">Δεν ήταν δυνατή η αποθήκευση της αναφοράς HUD.</string>
     <string name="hud_reset">Επαναφορά ρυθμίσεων HUD</string>
     <string name="hud_reset_button">Επαναφορά</string>
-    <string name="hud_credit">FusionHUD από The412Banner, github.com/The412Banner/FusionHUD (GPL-3.0).</string>
     <string name="drawer_scaling">Λειτουργία κλιμάκωσης</string>
     <string name="drawer_scaling_sharpness">Οξύτητα κλιμάκωσης</string>
     <string name="drawer_effects">Εφέ οθόνης</string>

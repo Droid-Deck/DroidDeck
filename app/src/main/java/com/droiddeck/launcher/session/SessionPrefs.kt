@@ -286,18 +286,18 @@ object SessionPrefs {
         prefs(context).edit().putInt("hudOpacity", percent.coerceIn(HUD_OPACITY_RANGE)).apply()
     }
 
-    fun fusionHudConfig(context: Context): String? = prefs(context).getString("fusionHud", null)
+    fun droidDeckHudConfig(context: Context): String? = prefs(context).getString("__KEEP_droidDeckHud__", null)
 
-    fun setFusionHudConfig(context: Context, config: String) {
-        prefs(context).edit().putString("fusionHud", config).apply()
+    fun setDroidDeckHudConfig(context: Context, config: String) {
+        prefs(context).edit().putString("__KEEP_droidDeckHud__", config).apply()
     }
 
-    fun fusionHudPosition(context: Context): Pair<Float, Float>? =
-        prefs(context).getString("fusionHudPos", null)?.split(',')?.mapNotNull { it.toFloatOrNull() }
+    fun droidDeckHudPosition(context: Context): Pair<Float, Float>? =
+        prefs(context).getString("__KEEP_droidDeckHudPos__", null)?.split(',')?.mapNotNull { it.toFloatOrNull() }
             ?.takeIf { it.size == 2 }?.let { it[0] to it[1] }
 
-    fun setFusionHudPosition(context: Context, x: Float, y: Float) {
-        prefs(context).edit().putString("fusionHudPos", "$x,$y").apply()
+    fun setDroidDeckHudPosition(context: Context, x: Float, y: Float) {
+        prefs(context).edit().putString("__KEEP_droidDeckHudPos__", "$x,$y").apply()
     }
 
     const val HUD_COLOR_MINT = "mint"

@@ -664,7 +664,6 @@
     <string name="hud_export_failed">HUDレポートを保存できませんでした。</string>
     <string name="hud_reset">HUD設定をリセット</string>
     <string name="hud_reset_button">リセット</string>
-    <string name="hud_credit">FusionHUD 作者：The412Banner、github.com/The412Banner/FusionHUD (GPL-3.0)。</string>
     <string name="drawer_scaling">スケーリングモード</string>
     <string name="drawer_scaling_sharpness">スケーリングのシャープネス</string>
     <string name="drawer_effects">画面エフェクト</string>

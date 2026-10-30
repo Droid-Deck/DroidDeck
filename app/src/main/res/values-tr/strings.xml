@@ -664,7 +664,6 @@
     <string name="hud_export_failed">HUD raporu kaydedilemedi.</string>
     <string name="hud_reset">HUD ayarlarını sıfırla</string>
     <string name="hud_reset_button">Sıfırla</string>
-    <string name="hud_credit">FusionHUD, yapımcı: The412Banner, github.com/The412Banner/FusionHUD (GPL-3.0).</string>
     <string name="drawer_scaling">Ölçekleme modu</string>
     <string name="drawer_scaling_sharpness">Ölçekleme keskinliği</string>
     <string name="drawer_effects">Ekran efektleri</string>

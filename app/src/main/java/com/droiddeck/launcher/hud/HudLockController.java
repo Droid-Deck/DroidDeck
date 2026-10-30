@@ -29,17 +29,17 @@ import java.util.function.Consumer;
 
 /**
  * Shared touch + lock behaviour for every in-game performance HUD (classic FrameRating(+Horizontal),
- * GameHub PerfHudView, GameNative PerformanceHudView, and the Fusion HUD). One place so the four
+ * GameHub PerfHudView, GameNative PerformanceHudView, and the DroidDeck HUD). One place so the four
  * overlays can't drift:
  *
  * <ul>
  *   <li><b>tap</b> → {@link Callbacks#onTap()} (orientation-toggle for the first three; size-cycle for
- *       Fusion) — a no-op that only re-flashes the lock badge while locked.</li>
+ *       the DroidDeck HUD) — a no-op that only re-flashes the lock badge while locked.</li>
  *   <li><b>drag</b> → moves the host view and, on release, {@link Callbacks#onMoved} to persist the
  *       position — disabled (frozen) while locked.</li>
  *   <li><b>long-press</b> → toggles {@code hudLocked}, persisted via {@link Callbacks#onLockChanged}
  *       and kept in sync with the "Lock in place" menu chip. Works locked or unlocked (so a long-press
- *       always unlocks); a locked {@code FusionHudView} passes touches on only over on-screen controls.</li>
+ *       always unlocks); a locked {@code DroidDeckHudView} passes touches on only over on-screen controls.</li>
  * </ul>
  *
  * <p>On every lock/unlock (and on a blocked gesture while locked) a small padlock badge fades in →
@@ -52,7 +52,7 @@ import java.util.function.Consumer;
 public class HudLockController {
 
     public interface Callbacks {
-        /** Unlocked single tap: orientation-toggle (classic/gamehub/gamenative) or size-cycle (fusion). */
+        /** Unlocked single tap: orientation-toggle (classic/gamehub/gamenative) or size-cycle (DroidDeck HUD). */
         void onTap();
         /** Drag released (unlocked): persist the new (x, y). */
         void onMoved(float x, float y);

@@ -92,8 +92,8 @@ import com.droiddeck.launcher.input.TouchscreenGestures
 import com.droiddeck.launcher.input.ScrollTouchGestures
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.session.LoadingState
-import com.droiddeck.launcher.hud.FusionHudConfig
-import com.droiddeck.launcher.hud.FusionHudHost
+import com.droiddeck.launcher.hud.DroidDeckHudConfig
+import com.droiddeck.launcher.hud.DroidDeckHudHost
 import com.droiddeck.launcher.session.PerfMode
 import com.droiddeck.launcher.session.SteamRepair
 import com.droiddeck.launcher.session.GameEnvironmentStore
@@ -161,7 +161,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private lateinit var surfaceView: SurfaceView
     private lateinit var sessionOverlay: ComposeView
     private lateinit var loading: LoadingState
-    private lateinit var hud: FusionHudHost
+    private lateinit var hud: DroidDeckHudHost
     private lateinit var memoryHud: com.droiddeck.launcher.session.MemoryHud
     private var padBridge: PadBridge? = null
     private val physicalShortcuts = PhysicalShortcutRouter()
@@ -746,8 +746,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             val needProton = protonUser && com.droiddeck.launcher.runtime.DesktopCatalog.protonSeedNeeded(this)
             if (needRuntime || needResume || needDesktop || needProton) installThenStart(needRuntime, needDesktop, needProton, needResume)
         }
-        hud = FusionHudHost(this)
-        hud.onConfigChanged = { hudConfig = FusionHudConfig.load(this) }
+        hud = DroidDeckHudHost(this)
+        hud.onConfigChanged = { hudConfig = DroidDeckHudConfig.load(this) }
         hud.passesTouchAt = ::controlTakesTouchAt
         hud.attach(root, root.childCount)
         memoryHud = com.droiddeck.launcher.session.MemoryHud(this)
@@ -1180,8 +1180,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             secondScreenDisplays = secondScreenDisplays,
             selectedSecondScreenDisplay = selectedSecondScreenDisplay,
             onHud = { on -> SessionPrefs.setHudEnabled(this@SessionActivity, on); hudOn = on; hud.refresh() },
-            onHudSetting = { key, value -> hudConfig = FusionHudConfig.set(this@SessionActivity, key, value); hud.applyConfig() },
-            onHudReset = { hudConfig = FusionHudConfig.reset(this@SessionActivity); hud.applyConfig() },
+            onHudSetting = { key, value -> hudConfig = DroidDeckHudConfig.set(this@SessionActivity, key, value); hud.applyConfig() },
+            onHudReset = { hudConfig = DroidDeckHudConfig.reset(this@SessionActivity); hud.applyConfig() },
             onHudExport = { exportHudDiagnostics() },
             onUpscaler = { m ->
                 SessionPrefs.setUpscaler(this@SessionActivity, m); upscaler = m
@@ -1821,7 +1821,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         unfoldedControlsWithController = SessionPrefs.unfoldedControlsWithController(this)
         picturePosition = SessionPrefs.picturePosition(this)
         hudOn = SessionPrefs.hudEnabled(this)
-        hudConfig = FusionHudConfig.load(this)
+        hudConfig = DroidDeckHudConfig.load(this)
         hudColor = SessionPrefs.hudColor(this)
         hudOpacity = SessionPrefs.hudOpacity(this)
         upscaler = SessionPrefs.upscaler(this)

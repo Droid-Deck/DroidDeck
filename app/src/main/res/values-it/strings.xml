@@ -666,7 +666,6 @@
     <string name="hud_export_failed">Impossibile salvare il rapporto dell\'HUD.</string>
     <string name="hud_reset">Ripristina impostazioni HUD</string>
     <string name="hud_reset_button">Ripristina</string>
-    <string name="hud_credit">FusionHUD di The412Banner, github.com/The412Banner/FusionHUD (GPL-3.0).</string>
     <string name="drawer_scaling">Modalità di ridimensionamento</string>
     <string name="drawer_scaling_sharpness">Nitidezza del ridimensionamento</string>
     <string name="drawer_effects">Effetti schermo</string>

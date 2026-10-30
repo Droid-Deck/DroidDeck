@@ -672,7 +672,6 @@
     <string name="hud_export_failed">تعذّر حفظ تقرير HUD.</string>
     <string name="hud_reset">إعادة ضبط إعدادات HUD</string>
     <string name="hud_reset_button">إعادة ضبط</string>
-    <string name="hud_credit">FusionHUD من The412Banner، github.com/The412Banner/FusionHUD (GPL-3.0).</string>
     <string name="drawer_scaling">وضع التحجيم</string>
     <string name="drawer_scaling_sharpness">حدة التحجيم</string>
     <string name="drawer_effects">مؤثرات الشاشة</string>

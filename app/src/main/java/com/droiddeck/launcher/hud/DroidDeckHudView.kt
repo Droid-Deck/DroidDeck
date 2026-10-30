@@ -47,7 +47,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 
 /**
- * Fusion HUD — the 4th selectable in-game overlay. One color-coded visual language rendered at four
+ * DroidDeck HUD — the 4th selectable in-game overlay. One color-coded visual language rendered at four
  * SIZE modes (Full / Tiles / Pill / Minimal / Mega), all driven by [FrameStats] (gamescope's frame times
  * read by MangoHud's rules) + a single cached [HudMetrics.Snapshot]. Pure Canvas drawing.
  *
@@ -60,7 +60,7 @@ import kotlinx.coroutines.withTimeoutOrNull
  * drag are frozen while locked. A locked HUD lets a touch through where an on-screen control under it
  * takes it ([passesTouchAt]); everywhere else it keeps the touch, so a long press there unlocks it.
  */
-class FusionHudView(context: Context) : View(context) {
+class DroidDeckHudView(context: Context) : View(context) {
 
     private var frames: FrameStats? = null
     internal fun setFrameStats(stats: FrameStats?) { frames = stats }
@@ -78,7 +78,7 @@ class FusionHudView(context: Context) : View(context) {
     private val density = resources.displayMetrics.density
 
     // ---- Config -----------------------------------------------------------
-    private var size = FusionSize.FULL
+    private var size = DroidDeckHudSize.FULL
     private var scale = 1f
     private var bgOpacity = 0.8f
     private var outlineIntensity = 0.4f
@@ -114,7 +114,7 @@ class FusionHudView(context: Context) : View(context) {
 
     private var engineLabel = ""
     private var displayServer = ""     // "X11" / "Wayland": which display server the game runs on
-    private var hdrState = FusionHdr.NONE  // Wayland HDR, on its own line under latency · display server
+    private var hdrState = DroidDeckHudHdr.NONE  // Wayland HDR, on its own line under latency · display server
     private var gpuModel = ""
     // The GPU name a Wayland session reports to games instead of the real adapter ("" = none). It has
     // to travel separately from gpuModel: Wayland hands the spoof to DXVK and leaves the Vulkan device
@@ -227,9 +227,9 @@ class FusionHudView(context: Context) : View(context) {
      *  in place of the real model, marked so it can't be read as the chip that is really rendering. */
     fun setGpuSpoofName(s: String?) { gpuSpoofName = s ?: ""; post { rebuildAndInvalidate() } }
     fun setDisplayServer(s: String?) { displayServer = s ?: ""; post { rebuildAndInvalidate() } }
-    /** [FusionHdr] code; [FusionHdr.NONE] (the default) draws no HDR line anywhere. Any thread. */
+    /** [DroidDeckHudHdr] code; [DroidDeckHudHdr.NONE] (the default) draws no HDR line anywhere. Any thread. */
     fun setHdrState(state: Int) {
-        val v = if (state in FusionHdr.ON..FusionHdr.NOT_ON_THIS_SCREEN) state else FusionHdr.NONE
+        val v = if (state in DroidDeckHudHdr.ON..DroidDeckHudHdr.NOT_ON_THIS_SCREEN) state else DroidDeckHudHdr.NONE
         post { if (v != hdrState) { hdrState = v; rebuildAndInvalidate() } }
     }
     fun setWineVersion(s: String?) { if ((s ?: "") != wineVersion) { wineVersion = s ?: ""; post { rebuildAndInvalidate() } } }
@@ -255,7 +255,7 @@ class FusionHudView(context: Context) : View(context) {
         if (graphRect != null) invalidate()
     }
 
-    /** Fusion has no orientation (tap cycles size instead); kept for a symmetric host surface. */
+    /** The HUD has no orientation (tap cycles size instead); kept for a symmetric host surface. */
     fun setVertical(vertical: Boolean) { /* no-op */ }
     fun isVertical(): Boolean = false
 
@@ -269,7 +269,7 @@ class FusionHudView(context: Context) : View(context) {
         if (configString.isNullOrEmpty()) return
         val cfg = KeyValueSet(configString)
 
-        size = FusionSize.from(cfg.get("hudSize", "minimal"))
+        size = DroidDeckHudSize.from(cfg.get("hudSize", "minimal"))
         showFPS = cfg.get("showFPS", "1") == "1"
         showEngine = cfg.get("showEngine", "1") == "1"
         showGpuModel = cfg.get("showGpuModel", "1") == "1"
@@ -285,7 +285,7 @@ class FusionHudView(context: Context) : View(context) {
         showGraph = cfg.get("showFPSGraph", "0") == "1"
         showLow001 = cfg.get("showLow001", "1") == "1"
         fpsDecimal = cfg.get("fpsDecimal", "1") == "1"
-        showClockTime = cfg.get("showClock", "1") == "1"   // Fusion clock defaults ON
+        showClockTime = cfg.get("showClock", "1") == "1"   // the clock defaults ON
         showPerCore = cfg.get("showPerCore", "1") == "1"
         showSwap = cfg.get("showSwap", "1") == "1"
         showNet = cfg.get("showNet", "1") == "1"
@@ -453,27 +453,27 @@ class FusionHudView(context: Context) : View(context) {
     private fun glowing(spans: List<Span>): List<Span> =
         spans.mapIndexed { i, s -> if (i == 0) Span(s.text, s.color, s.sizePx, glow = true) else s }
 
-    // ---- Wayland HDR state (one line of its own; nothing at all for FusionHdr.NONE) ----
+    // ---- Wayland HDR state (one line of its own; nothing at all for DroidDeckHudHdr.NONE) ----
     /** The state as a full line: "HDR", "HDR (no headroom)", "HDR off", "HDR ready", "HDR tone-mapped",
      *  "HDR not on this screen". */
     private fun hdrLine(px: Float): List<Span> = when (hdrState) {
-        FusionHdr.ON -> listOf(Span("HDR", colHdr, px))
-        FusionHdr.NO_HEADROOM -> listOf(Span("HDR", colHdr, px), Span(" (no headroom)", colBat, px))
-        FusionHdr.OFF -> listOf(Span("HDR off", colDim, px))
-        FusionHdr.READY -> listOf(Span("HDR ready", colDim, px))
-        FusionHdr.TONEMAPPED -> listOf(Span("HDR", colDim, px), Span(" tone-mapped", colBat, px))
-        FusionHdr.NOT_ON_THIS_SCREEN -> listOf(Span("HDR", colDim, px), Span(" not on this screen", colBat, px))
+        DroidDeckHudHdr.ON -> listOf(Span("HDR", colHdr, px))
+        DroidDeckHudHdr.NO_HEADROOM -> listOf(Span("HDR", colHdr, px), Span(" (no headroom)", colBat, px))
+        DroidDeckHudHdr.OFF -> listOf(Span("HDR off", colDim, px))
+        DroidDeckHudHdr.READY -> listOf(Span("HDR ready", colDim, px))
+        DroidDeckHudHdr.TONEMAPPED -> listOf(Span("HDR", colDim, px), Span(" tone-mapped", colBat, px))
+        DroidDeckHudHdr.NOT_ON_THIS_SCREEN -> listOf(Span("HDR", colDim, px), Span(" not on this screen", colBat, px))
         else -> emptyList()
     }
     /** The value after an "HDR" label (Full / Mega): "on", "no headroom", "off", "ready", "tone-mapped",
      *  "not on this screen". */
     private fun hdrValue(px: Float): List<Span> = when (hdrState) {
-        FusionHdr.ON -> listOf(Span("on", colHdr, px))
-        FusionHdr.NO_HEADROOM -> listOf(Span("no headroom", colBat, px))
-        FusionHdr.OFF -> listOf(Span("off", colDim, px))
-        FusionHdr.READY -> listOf(Span("ready", colDim, px))
-        FusionHdr.TONEMAPPED -> listOf(Span("tone-mapped", colBat, px))
-        FusionHdr.NOT_ON_THIS_SCREEN -> listOf(Span("not on this screen", colBat, px))
+        DroidDeckHudHdr.ON -> listOf(Span("on", colHdr, px))
+        DroidDeckHudHdr.NO_HEADROOM -> listOf(Span("no headroom", colBat, px))
+        DroidDeckHudHdr.OFF -> listOf(Span("off", colDim, px))
+        DroidDeckHudHdr.READY -> listOf(Span("ready", colDim, px))
+        DroidDeckHudHdr.TONEMAPPED -> listOf(Span("tone-mapped", colBat, px))
+        DroidDeckHudHdr.NOT_ON_THIS_SCREEN -> listOf(Span("not on this screen", colBat, px))
         else -> emptyList()
     }
     private fun hdrText(): String = hdrLine(1f).joinToString("") { it.text }
@@ -499,17 +499,17 @@ class FusionHudView(context: Context) : View(context) {
         val s = snap
         if (s == null) { contentW = 0f; contentH = 0f; return }
         when (size) {
-            FusionSize.FULL -> { buildFull(s); intoPanel(sp(10f), header = true) }
-            FusionSize.TILES -> { buildTiles(s); intoPanel(sp(9f), header = true) }
-            FusionSize.PILL -> { buildPill(s); intoPanel(sp(10f), header = false) }
-            FusionSize.MINIMAL -> buildMinimal(s)
-            FusionSize.MEGA -> { buildMega(s); intoPanel(sp(10f), header = true) }
+            DroidDeckHudSize.FULL -> { buildFull(s); intoPanel(sp(10f), header = true) }
+            DroidDeckHudSize.TILES -> { buildTiles(s); intoPanel(sp(9f), header = true) }
+            DroidDeckHudSize.PILL -> { buildPill(s); intoPanel(sp(10f), header = false) }
+            DroidDeckHudSize.MINIMAL -> buildMinimal(s)
+            DroidDeckHudSize.MEGA -> { buildMega(s); intoPanel(sp(10f), header = true) }
         }
     }
 
     // ---- DroidDeck panel, header and chip -----------------------------------
     /** The clock sits in the header on every size but the Pill, which keeps it under the FPS. */
-    private fun footerClock(): Boolean = showClockTime && size == FusionSize.PILL
+    private fun footerClock(): Boolean = showClockTime && size == DroidDeckHudSize.PILL
 
     private fun measureSans(text: String, sizePx: Float): Float { wordmarkPaint.textSize = sizePx; return wordmarkPaint.measureText(text) }
 
@@ -672,7 +672,7 @@ class FusionHudView(context: Context) : View(context) {
             rows.add(HudRow(Span("GPU", colGpu, rowPx), gpuModelSpans(rowPx, colValue)))
         if (displayServer.isNotBlank())
             rows.add(HudRow(Span("DISP", colDisp, rowPx), listOf(Span(displayServer, colValue, rowPx))))
-        if (hdrState != FusionHdr.NONE)
+        if (hdrState != DroidDeckHudHdr.NONE)
             rows.add(HudRow(Span("HDR", colHdr, rowPx), hdrValue(rowPx)))
         if (showGPU) {
             val v = ArrayList<Span>()
@@ -784,7 +784,7 @@ class FusionHudView(context: Context) : View(context) {
                 dxVersion().ifBlank { null }, false))
         if (displayServer.isNotBlank())
             tiles.add(Tile("DISPLAY", colDisp, listOf(Span(displayServer, colValue, valPx)),
-                if (hdrState != FusionHdr.NONE) hdrText() else null, false))
+                if (hdrState != DroidDeckHudHdr.NONE) hdrText() else null, false))
         if (showGpuModel && gpuNameText().isNotBlank())
             tiles.add(Tile("GPU", colGpu, gpuModelSpans(valPx, colValue), null, true))
         if (showBattery || showPower || showBatteryTemp) {
@@ -893,7 +893,7 @@ class FusionHudView(context: Context) : View(context) {
         }
         // Wayland HDR state on its OWN line directly under the latency · display-server line (it ran off
         // the capsule's right edge as "40.3ms · Wayland · HDR (no headroom)"). Only in HDR sessions.
-        if (hdrState != FusionHdr.NONE) stack.add(hdrLine(stkPx))
+        if (hdrState != DroidDeckHudHdr.NONE) stack.add(hdrLine(stkPx))
 
         var statsW = 0f
         for (l in stack) statsW = max(statsW, runWidth(l))
@@ -963,7 +963,7 @@ class FusionHudView(context: Context) : View(context) {
         }
         val footerLabel = listOf(if (showEngine) engineLabel else "", displayServer)
             .filter { it.isNotBlank() }.joinToString(" · ")
-        val hdr = if (hdrState != FusionHdr.NONE) hdrLine(footPx) else emptyList()
+        val hdr = if (hdrState != DroidDeckHudHdr.NONE) hdrLine(footPx) else emptyList()
 
         val (headerBottom, headerRight) = addPanelHeader(left, inner)
         val x = headerRight
@@ -1143,7 +1143,7 @@ class FusionHudView(context: Context) : View(context) {
         val band = ArrayList<List<Span>>()
         if (showResolution) band.add(listOf(Span("RES ", colDim, bandPx), Span(resolutionString(), colValue, bandPx)))
         if (displayServer.isNotBlank()) band.add(listOf(Span("DISP ", colDim, bandPx), Span(displayServer, colDisp, bandPx)))
-        if (hdrState != FusionHdr.NONE) band.add(listOf(Span("HDR ", colDim, bandPx)) + hdrValue(bandPx))
+        if (hdrState != DroidDeckHudHdr.NONE) band.add(listOf(Span("HDR ", colDim, bandPx)) + hdrValue(bandPx))
         if (showProton && wineVersion.isNotBlank()) band.add(listOf(Span(wineVersion, colVram, bandPx)))
         if (showSession) band.add(listOf(Span("elapsed ", colDim, bandPx), Span(elapsedString(), colValue, bandPx)))
         if (band.isNotEmpty()) {
@@ -1315,8 +1315,6 @@ class FusionHudView(context: Context) : View(context) {
                 glowPaint.maskFilter = if (pass < 2) blur else null
                 glowPaint.style = Paint.Style.STROKE; glowPaint.color = outlineColor()
                 c.drawPath(outline, glowPaint)
-                glowPaint.style = Paint.Style.FILL; glowPaint.color = accent
-                c.drawCircle(panel.left + h, panel.centerY(), sp(5.5f), glowPaint)
             }
             glowPaint.maskFilter = null
         }

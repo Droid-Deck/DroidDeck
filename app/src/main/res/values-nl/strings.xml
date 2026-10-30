@@ -664,7 +664,6 @@
     <string name="hud_export_failed">Kan het HUD-rapport niet opslaan.</string>
     <string name="hud_reset">HUD-instellingen resetten</string>
     <string name="hud_reset_button">Resetten</string>
-    <string name="hud_credit">FusionHUD door The412Banner, github.com/The412Banner/FusionHUD (GPL-3.0).</string>
     <string name="drawer_scaling">Schaalmodus</string>
     <string name="drawer_scaling_sharpness">Schaalscherpte</string>
     <string name="drawer_effects">Schermeffecten</string>

@@ -17,15 +17,15 @@ import java.io.File
 import kotlin.math.roundToInt
 
 /**
- * FusionHUD on the session screen, in place of the old text HUD: the view, the frame feed from gamescope
+ * DroidDeck HUD on the session screen, in place of the old text HUD: the view, the frame feed from gamescope
  * (MangoHud's frame times) and MangoHud's readings, started with the session's first frame.
  */
-class FusionHudHost(context: Context) {
+class DroidDeckHudHost(context: Context) {
     private val context = context.applicationContext
     private val handler = Handler(Looper.getMainLooper())
     private val feed = GameFrameFeed(File(LinuxRuntime.rootDir(this.context), HudFrames.PATH))
     private val readings = MangoReadings(File(this.context.filesDir, "session"), LinuxRuntime.rootDir(this.context))
-    private var view: FusionHudView? = null
+    private var view: DroidDeckHudView? = null
     private var parent: ViewGroup? = null
     private var running = false
     private var hidden = false
@@ -49,7 +49,7 @@ class FusionHudHost(context: Context) {
 
     private val listener = object : WaylandCompositor.GameListener {
         override fun onGameSurface(window: String?, gpuName: String?) {
-            if (!gpuName.isNullOrBlank()) handler.post { this@FusionHudHost.gpuName = cleanGpuName(gpuName) }
+            if (!gpuName.isNullOrBlank()) handler.post { this@DroidDeckHudHost.gpuName = cleanGpuName(gpuName) }
             if (window != null && window != lastWindow) {
                 lastWindow = window
                 handler.post { onPresentingWindowChanged?.invoke() }
@@ -76,7 +76,7 @@ class FusionHudHost(context: Context) {
     /** Adds the HUD to [root] at [index] (above the game surface, under the session overlay). */
     fun attach(root: FrameLayout, index: Int) {
         if (view != null) return
-        val hud = FusionHudView(root.context)
+        val hud = DroidDeckHudView(root.context)
         hud.setFrameStats(feed.stats)
         hud.setMangoReadings(readings)
         hud.setGpuModel(cleanGpuName(GpuInfo.detect().displayName(context)))
@@ -85,11 +85,11 @@ class FusionHudHost(context: Context) {
             wantX = x; wantY = y
             keepOnScreen(hud)
             wantX = hud.x; wantY = hud.y
-            SessionPrefs.setFusionHudPosition(context, hud.x, hud.y)
+            SessionPrefs.setDroidDeckHudPosition(context, hud.x, hud.y)
         }
-        hud.setOnSizeCycledListener { size -> FusionHudConfig.set(context, "hudSize", size); onConfigChanged?.invoke() }
+        hud.setOnSizeCycledListener { size -> DroidDeckHudConfig.set(context, "hudSize", size); onConfigChanged?.invoke() }
         hud.setOnLockChangedListener { locked ->
-            FusionHudConfig.set(context, "hudLocked", if (locked) "1" else "0")
+            DroidDeckHudConfig.set(context, "hudLocked", if (locked) "1" else "0")
             onConfigChanged?.invoke()
         }
         hud.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> if (!hud.isDragging) keepOnScreen(hud) }
@@ -100,14 +100,14 @@ class FusionHudHost(context: Context) {
             leftMargin = margin
             topMargin = margin
         })
-        SessionPrefs.fusionHudPosition(context)?.let { (x, y) -> wantX = x; wantY = y; hud.post { keepOnScreen(hud) } }
+        SessionPrefs.droidDeckHudPosition(context)?.let { (x, y) -> wantX = x; wantY = y; hud.post { keepOnScreen(hud) } }
         view = hud
         parent = root
         applyConfig()
     }
 
     fun applyConfig() {
-        view?.applyConfig(FusionHudConfig.encode(FusionHudConfig.load(context)))
+        view?.applyConfig(DroidDeckHudConfig.encode(DroidDeckHudConfig.load(context)))
     }
 
     fun refresh() {
@@ -157,7 +157,7 @@ class FusionHudHost(context: Context) {
         }
     }
 
-    /** A sensor report (FusionHUD's diagnostics) in Downloads/DroidDeck; null when it can't be written. */
+    /** A sensor report (DroidDeck HUD's diagnostics) in Downloads/DroidDeck; null when it can't be written. */
     fun exportDiagnostics(): File? = runCatching {
         val dir = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "DroidDeck")
         dir.mkdirs()
@@ -180,7 +180,7 @@ class FusionHudHost(context: Context) {
         file
     }.getOrNull()
 
-    private fun refreshLabels(hud: FusionHudView) {
+    private fun refreshLabels(hud: DroidDeckHudView) {
         if (feed.engine.isNotBlank() && !feed.steamFocused) engine = feed.engine
         hud.setEngineLabel(engine)
         if (gpuName.isNotBlank()) hud.setGpuModel(gpuName)

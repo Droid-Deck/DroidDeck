@@ -666,7 +666,6 @@
     <string name="hud_export_failed">Não foi possível guardar o relatório do HUD.</string>
     <string name="hud_reset">Repor definições do HUD</string>
     <string name="hud_reset_button">Repor</string>
-    <string name="hud_credit">FusionHUD por The412Banner, github.com/The412Banner/FusionHUD (GPL-3.0).</string>
     <string name="drawer_scaling">Modo de escala</string>
     <string name="drawer_scaling_sharpness">Nitidez da escala</string>
     <string name="drawer_effects">Efeitos de ecrã</string>
