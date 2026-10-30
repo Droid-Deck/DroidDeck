@@ -19,11 +19,14 @@ object DualScreen {
     fun builtInDisplay(displayManager: DisplayManager, primaryDisplayId: Int): Display? {
         val awake = displayManager.getDisplay(primaryDisplayId)?.let { it.state != Display.STATE_OFF } ?: true
         if (displayManager.displays.count { addressable(it, awake) } < 2) return null
-        return displayManager.getDisplays(DisplayManager.DISPLAY_CATEGORY_PRESENTATION).firstOrNull {
-            it.displayId != primaryDisplayId && (it.flags and Display.FLAG_PRESENTATION) != 0 && addressable(it, awake) &&
-                isBuiltIn(displayType(it), Build.MODEL)
-        }
+        return internalDisplay(displayManager, primaryDisplayId) { addressable(it, awake) }
     }
+
+    private fun internalDisplay(displayManager: DisplayManager, primaryDisplayId: Int, accept: (Display) -> Boolean = { true }): Display? =
+        displayManager.getDisplays(DisplayManager.DISPLAY_CATEGORY_PRESENTATION).firstOrNull {
+            it.isValid && it.displayId != primaryDisplayId && (it.flags and Display.FLAG_PRESENTATION) != 0 &&
+                isBuiltIn(displayType(it), Build.MODEL) && accept(it)
+        }
 
     private fun addressable(display: Display, awake: Boolean): Boolean =
         display.isValid && addressable(displayType(display), display.state, awake)
@@ -34,7 +37,7 @@ object DualScreen {
     fun display(context: Context, displayManager: DisplayManager, primaryDisplayId: Int): Display? =
         when (SessionPrefs.dualScreenMode(context)) {
             MODE_OFF -> null
-            MODE_ON -> builtInDisplay(displayManager, primaryDisplayId) ?: anyDisplay(displayManager, primaryDisplayId)
+            MODE_ON -> internalDisplay(displayManager, primaryDisplayId) ?: anyDisplay(displayManager, primaryDisplayId)
             else -> builtInDisplay(displayManager, primaryDisplayId)
         }
 
