@@ -17,6 +17,8 @@ import java.util.concurrent.atomic.AtomicIntegerArray;
 public final class PadBridge {
     private static final String TAG = "PadBridge";
     public static final int SLOTS = 4;
+    public static final int LEFT_STICK = 1;
+    public static final int RIGHT_STICK = 2;
     private static final float DEAD_ZONE = 0.12f;
     private float stickDeadZone = DEAD_ZONE;
     private static final int[] JOYSTICK_AXES = {
@@ -501,6 +503,10 @@ public final class PadBridge {
     }
 
     public synchronized void applyTouch(java.util.function.Consumer<PadState> mutation) {
+        applyTouch(0, mutation);
+    }
+
+    public synchronized void applyTouch(int stickWrites, java.util.function.Consumer<PadState> mutation) {
         if (!builtinPad) return;
         if (touchRoute != null && touchRoute.active()) {
             mutation.accept(routedTouch);
@@ -520,6 +526,7 @@ public final class PadBridge {
             return;
         }
         routedTouch.clear();
+        retainedSticks[0] &= ~stickWrites;
         mutateState(mutation);
         activeControllerId = NO_CONTROLLER;
         slotControllers.set(0, NO_CONTROLLER);
