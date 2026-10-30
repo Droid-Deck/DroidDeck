@@ -32,6 +32,15 @@ class DualScreenTest {
         assertFalse(DualScreen.isBuiltIn(null, "Pixel 8"))
     }
 
+    @Test fun aynHandheldsOtherThanTheThorHaveOneScreen() {
+        for (model in listOf("AYN Odin2", "AYN Odin2 Portal", "AYN Odin2 Mini", "AYN Odin 3")) {
+            assertFalse(model, DualScreen.isBuiltIn(1, model))
+            assertFalse(model, DualScreen.isBuiltIn(null, model))
+        }
+        assertTrue(DualScreen.isBuiltIn(1, "AYN Thor"))
+        assertTrue(DualScreen.isBuiltIn(1, "AYN Thor Max"))
+    }
+
     @Test fun oneScreenDevicesGetNoSecondScreenInAnyMode() {
         for (mode in DualScreen.modes) {
             SessionPrefs.setDualScreenMode(context, mode)

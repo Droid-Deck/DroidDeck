@@ -32,8 +32,11 @@ object DualScreen {
             it.isValid && it.displayId != primaryDisplayId && (it.flags and Display.FLAG_PRESENTATION) != 0
         }
 
-    internal fun isBuiltIn(type: Int?, model: String): Boolean =
-        if (type != null) type == TYPE_INTERNAL else model.trim().lowercase() in knownModels
+    internal fun isBuiltIn(type: Int?, model: String): Boolean {
+        val name = model.trim().lowercase()
+        if (name.startsWith("ayn ") && "thor" !in name) return false
+        return if (type != null) type == TYPE_INTERNAL else name in knownModels
+    }
 
     private fun displayType(display: Display): Int? =
         runCatching { Display::class.java.getMethod("getType").invoke(display) as Int }.getOrNull()
