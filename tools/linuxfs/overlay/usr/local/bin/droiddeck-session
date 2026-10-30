@@ -99,6 +99,8 @@ clear_stale_tmp() {
 [ -z "${BL_INSIDE:-}" ] && clear_stale_tmp
 if [ -z "${BL_INSIDE:-}" ]; then
   if [ "${BL_ZRAM:-0}" = 1 ]; then printf 0 > /tmp/.bl-zram; else rm -f /tmp/.bl-zram; fi
+  rm -f /tmp/.bl-clock
+  head -c 8 /dev/zero > /tmp/.bl-clock
 fi
 
 steam_devtools() {
