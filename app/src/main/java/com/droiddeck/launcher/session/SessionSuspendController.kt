@@ -322,13 +322,14 @@ internal class SessionSuspendController(
     // libblsession's handler reads back only the swapped pages (mode 0, as the session script does for the client).
     // The handler runs on whichever thread takes the signal, so that thread pauses for the read-back,
     // once and right after the resume instead of mid-game.
+    // It signals even with nothing in zram yet: after a cancelled freeze a page-out handler may not have started,
+    // and it reads the mode only when it starts, so it reads back instead of paging out.
     private fun readBack() {
         val targets = pagedOutTargets.filterNot { isGone(it) }
         pagedOutTargets = emptyList()
         val control = zramControl?.takeIf { it.isFile } ?: return
         if (targets.isEmpty() || closing) return
         val before = memoryKb(targets).second
-        if (before == 0L) return
         val available = availableKb()
         if (available - before < READ_BACK_HEADROOM_KB) {
             pagedIn(0, before, before, available, 0)
@@ -349,7 +350,7 @@ internal class SessionSuspendController(
                 val current = memoryKb(targets).second
                 unchanged = if (current == swap) unchanged + 1 else 0
                 swap = current
-                if (swap == 0L || unchanged >= 2) break
+                if (swap == 0L || unchanged >= READ_BACK_STABLE_POLLS) break
             }
         } catch (_: InterruptedException) {
             Thread.currentThread().interrupt()
@@ -468,6 +469,7 @@ internal class SessionSuspendController(
         const val PAGE_OUT_START_MS = 2_000L
         const val PAGE_OUT_TIMEOUT_MS = 12_000L
         const val READ_BACK_POLL_MS = 100L
+        const val READ_BACK_STABLE_POLLS = 5
         const val READ_BACK_TIMEOUT_MS = 5_000L
         const val READ_BACK_HEADROOM_KB = 1_048_576L
         const val RESTORE_CHECKS = 80
