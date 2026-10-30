@@ -1726,6 +1726,8 @@
     <string name="fm_accept">接受</string>
     <string name="fm_decline">拒绝</string>
     <string name="fm_drive_not_readable">%1$s 已挂载，但当前无法读取</string>
+    <string name="fm_drive_access_title">允许访问 %1$s</string>
+    <string name="fm_drive_access_text">Android 允许 DroidDeck 看到此驱动器，但不允许读取。请为 DroidDeck 开启“所有文件访问权限”，然后返回。</string>
     <string name="fm_list_view">列表视图</string>
     <string name="fm_grid_view">网格视图</string>
     <string name="fm_search">搜索</string>

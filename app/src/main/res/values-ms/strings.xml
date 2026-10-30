@@ -1678,6 +1678,8 @@
     <string name="fm_accept">Terima</string>
     <string name="fm_decline">Tolak</string>
     <string name="fm_drive_not_readable">%1$s dilekapkan tetapi tidak dapat dibaca sekarang</string>
+    <string name="fm_drive_access_title">Benarkan akses kepada %1$s</string>
+    <string name="fm_drive_access_text">Android membenarkan DroidDeck melihat pemacu ini tetapi tidak membacanya. Hidupkan Akses semua fail untuk DroidDeck, kemudian kembali.</string>
     <string name="fm_list_view">Paparan senarai</string>
     <string name="fm_grid_view">Paparan grid</string>
     <string name="fm_search">Cari</string>

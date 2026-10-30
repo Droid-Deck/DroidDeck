@@ -1649,6 +1649,8 @@
     <string name="fm_accept">接受</string>
     <string name="fm_decline">拒絕</string>
     <string name="fm_drive_not_readable">%1$s 已掛載，但目前無法讀取</string>
+    <string name="fm_drive_access_title">允許存取 %1$s</string>
+    <string name="fm_drive_access_text">Android 允許 DroidDeck 看到這個磁碟，但不允許讀取。請為 DroidDeck 開啟「所有檔案存取權」，然後返回。</string>
     <string name="fm_list_view">清單檢視</string>
     <string name="fm_grid_view">格狀檢視</string>
     <string name="fm_search">搜尋</string>

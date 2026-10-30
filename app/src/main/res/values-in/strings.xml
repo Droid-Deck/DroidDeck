@@ -1678,6 +1678,8 @@
     <string name="fm_accept">Terima</string>
     <string name="fm_decline">Tolak</string>
     <string name="fm_drive_not_readable">%1$s terpasang tetapi tidak dapat dibaca saat ini</string>
+    <string name="fm_drive_access_title">Izinkan akses ke %1$s</string>
+    <string name="fm_drive_access_text">Android mengizinkan DroidDeck melihat drive ini tetapi tidak membacanya. Aktifkan Akses semua file untuk DroidDeck, lalu kembali.</string>
     <string name="fm_list_view">Tampilan daftar</string>
     <string name="fm_grid_view">Tampilan kisi</string>
     <string name="fm_search">Cari</string>

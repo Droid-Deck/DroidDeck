@@ -1699,6 +1699,8 @@
     <string name="fm_accept">Accepteren</string>
     <string name="fm_decline">Weigeren</string>
     <string name="fm_drive_not_readable">%1$s is gekoppeld, maar nu niet leesbaar</string>
+    <string name="fm_drive_access_title">Toegang tot %1$s toestaan</string>
+    <string name="fm_drive_access_text">Android laat DroidDeck deze schijf zien, maar niet lezen. Zet Toegang tot alle bestanden aan voor DroidDeck en kom daarna terug.</string>
     <string name="fm_list_view">Lijstweergave</string>
     <string name="fm_grid_view">Rasterweergave</string>
     <string name="fm_search">Zoeken</string>

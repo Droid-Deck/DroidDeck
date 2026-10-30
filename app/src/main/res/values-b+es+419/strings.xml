@@ -1784,6 +1784,8 @@
     <string name="fm_accept">Aceptar</string>
     <string name="fm_decline">Rechazar</string>
     <string name="fm_drive_not_readable">%1$s está montado, pero ahora mismo no se puede leer</string>
+    <string name="fm_drive_access_title">Permitir acceso a %1$s</string>
+    <string name="fm_drive_access_text">Android deja que DroidDeck vea esta unidad, pero no que la lea. Activa Acceso a todos los archivos para DroidDeck y vuelve.</string>
     <string name="fm_list_view">Vista de lista</string>
     <string name="fm_grid_view">Vista de cuadrícula</string>
     <string name="fm_search">Buscar</string>

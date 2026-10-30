@@ -1699,6 +1699,8 @@
     <string name="fm_accept">Elfogadom</string>
     <string name="fm_decline">Elutasítom</string>
     <string name="fm_drive_not_readable">A %1$s csatolva van, de jelenleg nem olvasható</string>
+    <string name="fm_drive_access_title">Hozzáférés engedélyezése: %1$s</string>
+    <string name="fm_drive_access_text">Az Android látni engedi a DroidDecknek ezt a meghajtót, de olvasni nem. Kapcsold be a DroidDecknél az Összes fájlhoz való hozzáférést, majd gyere vissza.</string>
     <string name="fm_list_view">Listanézet</string>
     <string name="fm_grid_view">Rácsnézet</string>
     <string name="fm_search">Keresés</string>

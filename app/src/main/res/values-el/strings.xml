@@ -1699,6 +1699,8 @@
     <string name="fm_accept">Αποδοχή</string>
     <string name="fm_decline">Απόρριψη</string>
     <string name="fm_drive_not_readable">Το %1$s είναι προσαρτημένο αλλά δεν είναι αναγνώσιμο αυτή τη στιγμή</string>
+    <string name="fm_drive_access_title">Να επιτραπεί η πρόσβαση στο %1$s</string>
+    <string name="fm_drive_access_text">Το Android επιτρέπει στο DroidDeck να βλέπει αυτόν τον δίσκο αλλά όχι να τον διαβάζει. Ενεργοποιήστε την Πρόσβαση σε όλα τα αρχεία για το DroidDeck και επιστρέψτε.</string>
     <string name="fm_list_view">Προβολή λίστας</string>
     <string name="fm_grid_view">Προβολή πλέγματος</string>
     <string name="fm_search">Αναζήτηση</string>

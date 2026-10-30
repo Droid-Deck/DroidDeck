@@ -1678,6 +1678,8 @@
     <string name="fm_accept">수락</string>
     <string name="fm_decline">거절</string>
     <string name="fm_drive_not_readable">%1$s이(가) 마운트되었지만 지금은 읽을 수 없습니다</string>
+    <string name="fm_drive_access_title">%1$s 액세스 허용</string>
+    <string name="fm_drive_access_text">Android에서 DroidDeck이 이 드라이브를 볼 수는 있지만 읽을 수는 없습니다. DroidDeck의 모든 파일 액세스를 켠 다음 돌아오세요.</string>
     <string name="fm_list_view">목록 보기</string>
     <string name="fm_grid_view">격자 보기</string>
     <string name="fm_search">검색</string>

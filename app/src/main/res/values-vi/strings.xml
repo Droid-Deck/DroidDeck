@@ -1678,6 +1678,8 @@
     <string name="fm_accept">Chấp nhận</string>
     <string name="fm_decline">Từ chối</string>
     <string name="fm_drive_not_readable">%1$s đã được gắn nhưng hiện không đọc được</string>
+    <string name="fm_drive_access_title">Cho phép truy cập %1$s</string>
+    <string name="fm_drive_access_text">Android cho DroidDeck thấy ổ này nhưng không đọc được. Hãy bật Quyền truy cập mọi tệp cho DroidDeck rồi quay lại.</string>
     <string name="fm_list_view">Xem dạng danh sách</string>
     <string name="fm_grid_view">Xem dạng lưới</string>
     <string name="fm_search">Tìm kiếm</string>

@@ -1678,6 +1678,8 @@
     <string name="fm_accept">ยอมรับ</string>
     <string name="fm_decline">ปฏิเสธ</string>
     <string name="fm_drive_not_readable">%1$s ติดตั้งอยู่แต่อ่านไม่ได้ในขณะนี้</string>
+    <string name="fm_drive_access_title">อนุญาตให้เข้าถึง %1$s</string>
+    <string name="fm_drive_access_text">Android ให้ DroidDeck เห็นไดรฟ์นี้แต่อ่านไม่ได้ เปิดสิทธิ์เข้าถึงไฟล์ทั้งหมดให้ DroidDeck แล้วกลับมาที่นี่</string>
     <string name="fm_list_view">มุมมองรายการ</string>
     <string name="fm_grid_view">มุมมองตาราง</string>
     <string name="fm_search">ค้นหา</string>

@@ -1783,6 +1783,8 @@
     <string name="fm_accept">موافق</string>
     <string name="fm_decline">رفض</string>
     <string name="fm_drive_not_readable">تم تركيب %1$s لكن تتعذّر قراءته حاليًا</string>
+    <string name="fm_drive_access_title">السماح بالوصول إلى %1$s</string>
+    <string name="fm_drive_access_text">يتيح Android لتطبيق DroidDeck رؤية محرك الأقراص هذا دون قراءته. فعّل الوصول إلى جميع الملفات لتطبيق DroidDeck ثم عُد.</string>
     <string name="fm_list_view">عرض القائمة</string>
     <string name="fm_grid_view">عرض الشبكة</string>
     <string name="fm_search">بحث</string>

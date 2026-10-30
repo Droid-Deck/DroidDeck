@@ -1691,6 +1691,8 @@
     <string name="fm_accept">Kabul et</string>
     <string name="fm_decline">Reddet</string>
     <string name="fm_drive_not_readable">%1$s bağlı ancak şu anda okunamıyor</string>
+    <string name="fm_drive_access_title">%1$s erişimine izin ver</string>
+    <string name="fm_drive_access_text">Android, DroidDeck\'in bu sürücüyü görmesine izin veriyor ama okumasına izin vermiyor. DroidDeck için Tüm dosyalara erişimi açın, sonra geri dönün.</string>
     <string name="fm_list_view">Liste görünümü</string>
     <string name="fm_grid_view">Izgara görünümü</string>
     <string name="fm_search">Ara</string>

@@ -1741,6 +1741,8 @@
     <string name="fm_accept">Přijmout</string>
     <string name="fm_decline">Odmítnout</string>
     <string name="fm_drive_not_readable">%1$s je připojeno, ale momentálně není čitelné</string>
+    <string name="fm_drive_access_title">Povolit přístup k %1$s</string>
+    <string name="fm_drive_access_text">Android umožňuje aplikaci DroidDeck tento disk vidět, ale ne číst. Zapněte pro DroidDeck Přístup ke všem souborům a pak se vraťte.</string>
     <string name="fm_list_view">Zobrazení seznamu</string>
     <string name="fm_grid_view">Zobrazení mřížky</string>
     <string name="fm_search">Hledat</string>

@@ -1741,6 +1741,8 @@
     <string name="fm_accept">Прийняти</string>
     <string name="fm_decline">Відхилити</string>
     <string name="fm_drive_not_readable">%1$s: підключено, але читання зараз недоступне</string>
+    <string name="fm_drive_access_title">Дозволити доступ до %1$s</string>
+    <string name="fm_drive_access_text">Android дозволяє DroidDeck бачити цей диск, але не читати його. Увімкніть для DroidDeck доступ до всіх файлів і поверніться.</string>
     <string name="fm_list_view">Список</string>
     <string name="fm_grid_view">Сітка</string>
     <string name="fm_search">Пошук</string>

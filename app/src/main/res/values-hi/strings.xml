@@ -1699,6 +1699,8 @@
     <string name="fm_accept">स्वीकार करें</string>
     <string name="fm_decline">अस्वीकार करें</string>
     <string name="fm_drive_not_readable">%1$s माउंट है लेकिन अभी पढ़ा नहीं जा सकता</string>
+    <string name="fm_drive_access_title">%1$s तक पहुँच दें</string>
+    <string name="fm_drive_access_text">Android, DroidDeck को यह ड्राइव दिखाता है पर पढ़ने नहीं देता। DroidDeck के लिए सभी फ़ाइलों का ऐक्सेस चालू करें, फिर वापस आएँ।</string>
     <string name="fm_list_view">लिस्ट व्यू</string>
     <string name="fm_grid_view">ग्रिड व्यू</string>
     <string name="fm_search">सर्च</string>

@@ -1649,6 +1649,8 @@
     <string name="fm_accept">承諾</string>
     <string name="fm_decline">拒否</string>
     <string name="fm_drive_not_readable">%1$sはマウントされていますが、現在読み取れません</string>
+    <string name="fm_drive_access_title">%1$sへのアクセスを許可</string>
+    <string name="fm_drive_access_text">Android では DroidDeck がこのドライブを表示できますが、読み取れません。DroidDeck の「全ファイルへのアクセス」をオンにしてから戻ってください。</string>
     <string name="fm_list_view">リスト表示</string>
     <string name="fm_grid_view">グリッド表示</string>
     <string name="fm_search">検索</string>

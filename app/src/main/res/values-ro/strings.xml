@@ -1720,6 +1720,8 @@
     <string name="fm_accept">Acceptă</string>
     <string name="fm_decline">Refuză</string>
     <string name="fm_drive_not_readable">%1$s este montat, dar nu poate fi citit acum</string>
+    <string name="fm_drive_access_title">Permite accesul la %1$s</string>
+    <string name="fm_drive_access_text">Android permite DroidDeck să vadă această unitate, dar nu să o citească. Activează Acces la toate fișierele pentru DroidDeck, apoi revino.</string>
     <string name="fm_list_view">Vizualizare listă</string>
     <string name="fm_grid_view">Vizualizare grilă</string>
     <string name="fm_search">Căutare</string>

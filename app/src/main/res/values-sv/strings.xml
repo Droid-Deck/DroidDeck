@@ -1699,6 +1699,8 @@
     <string name="fm_accept">Acceptera</string>
     <string name="fm_decline">Avböj</string>
     <string name="fm_drive_not_readable">%1$s är monterad men inte läsbar just nu</string>
+    <string name="fm_drive_access_title">Tillåt åtkomst till %1$s</string>
+    <string name="fm_drive_access_text">Android låter DroidDeck se den här enheten men inte läsa den. Slå på Åtkomst till alla filer för DroidDeck och kom sedan tillbaka.</string>
     <string name="fm_list_view">Listvy</string>
     <string name="fm_grid_view">Rutnätsvy</string>
     <string name="fm_search">Sök</string>

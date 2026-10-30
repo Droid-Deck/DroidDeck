@@ -1691,6 +1691,8 @@
     <string name="fm_accept">Akzeptieren</string>
     <string name="fm_decline">Ablehnen</string>
     <string name="fm_drive_not_readable">%1$s ist eingebunden, aber derzeit nicht lesbar</string>
+    <string name="fm_drive_access_title">Zugriff auf %1$s erlauben</string>
+    <string name="fm_drive_access_text">Android lässt DroidDeck dieses Laufwerk sehen, aber nicht lesen. Aktiviere für DroidDeck den Zugriff auf alle Dateien und komm dann zurück.</string>
     <string name="fm_list_view">Listenansicht</string>
     <string name="fm_grid_view">Rasteransicht</string>
     <string name="fm_search">Suchen</string>

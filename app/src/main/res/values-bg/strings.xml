@@ -1699,6 +1699,8 @@
     <string name="fm_accept">Приемам</string>
     <string name="fm_decline">Отказвам</string>
     <string name="fm_drive_not_readable">%1$s е монтирано, но в момента не може да се прочете</string>
+    <string name="fm_drive_access_title">Разрешаване на достъп до %1$s</string>
+    <string name="fm_drive_access_text">Android позволява на DroidDeck да вижда това устройство, но не и да го чете. Включете Достъп до всички файлове за DroidDeck и се върнете.</string>
     <string name="fm_list_view">Изглед като списък</string>
     <string name="fm_grid_view">Изглед като мрежа</string>
     <string name="fm_search">Търсене</string>

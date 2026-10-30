@@ -1699,6 +1699,8 @@
     <string name="fm_accept">Hyväksy</string>
     <string name="fm_decline">Hylkää</string>
     <string name="fm_drive_not_readable">%1$s on liitetty, mutta ei ole luettavissa juuri nyt</string>
+    <string name="fm_drive_access_title">Salli pääsy kohteeseen %1$s</string>
+    <string name="fm_drive_access_text">Android antaa DroidDeckin nähdä tämän aseman mutta ei lukea sitä. Ota DroidDeckille käyttöön Pääsy kaikkiin tiedostoihin ja palaa sitten takaisin.</string>
     <string name="fm_list_view">Luettelonäkymä</string>
     <string name="fm_grid_view">Ruudukkonäkymä</string>
     <string name="fm_search">Hae</string>

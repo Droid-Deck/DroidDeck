@@ -1792,6 +1792,8 @@
     <string name="fm_accept">Accept</string>
     <string name="fm_decline">Decline</string>
     <string name="fm_drive_not_readable">%1$s is mounted but not readable right now</string>
+    <string name="fm_drive_access_title">Allow access to %1$s</string>
+    <string name="fm_drive_access_text">Android lets DroidDeck see this drive but not read it. Turn on All files access for DroidDeck, then come back.</string>
     <string name="fm_list_view">List view</string>
     <string name="fm_grid_view">Grid view</string>
     <string name="fm_search">Search</string>
