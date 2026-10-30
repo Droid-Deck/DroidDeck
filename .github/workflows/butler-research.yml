@@ -42,3 +42,15 @@ jobs:
           note "$(strings -n 6 butler | grep -i -E 'download/|/download' | sort -u | head -40 || true)" "download"
           note "$(./butler diff --help 2>&1 | head -40 || true)" "diff"
           note "$(./butler singlediff --help 2>&1 | head -30 || true)" "singlediff"
+
+      - name: Versioned download and glibc need
+        run: |
+          cd b
+          note() { local t=${1//'%'/'%25'}; t=${t//$'\n'/'%0A'}; echo "::notice title=$2::$t"; }
+          v=$(./butler version | sed -n 's/^v\([0-9.]*\),.*/\1/p')
+          mkdir -p pinned
+          code=$(curl -sS -L -o pinned/butler.zip -w '%{http_code} %{url_effective}' "https://broth.itch.zone/butler/linux-arm64/$v/archive/default" || true)
+          nl=$'\n'
+          note "version=$v${nl}$code${nl}$(sha256sum pinned/butler.zip 2>&1)${nl}latest zip: $(sha256sum butler.zip | cut -d' ' -f1)" "versioned"
+          note "$(objdump -T butler | grep -o 'GLIBC_[0-9.]*' | sort -uV | tail -3; ldd butler 2>&1 | head -8; ldd 7z.so 2>&1 | head -8; ldd libc7zip.so 2>&1 | head -8)" "glibc"
+          note "$(curl -sSI https://broth.itch.zone/butler/linux-arm64/LATEST/archive/default | head -15)" "latest-headers"
