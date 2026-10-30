@@ -21,6 +21,8 @@ class ItchBuildsTest {
         assertEquals("56", ItchBuilds.buildId(JSONObject().put("buildId", "56")))
         assertEquals("", ItchBuilds.buildId(JSONObject().put("build_id", JSONObject.NULL)))
         assertEquals("", ItchBuilds.buildId(JSONObject().put("build_id", 0)))
+        assertEquals("", ItchBuilds.buildId(JSONObject().put("build_id", "00")))
+        assertEquals("57", ItchBuilds.buildId(JSONObject().put("build_id", "057")))
         assertEquals("", ItchBuilds.buildId(JSONObject()))
     }
 

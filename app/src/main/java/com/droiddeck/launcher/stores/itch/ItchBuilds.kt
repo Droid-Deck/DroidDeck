@@ -19,7 +19,7 @@ internal object ItchBuilds {
         val value = upload.opt("build_id") ?: upload.opt("buildId")
         return when (value) {
             is Number -> value.toLong().takeIf { it > 0 }?.toString().orEmpty()
-            is String -> value.takeIf { it.all(Char::isDigit) && it != "0" }.orEmpty()
+            is String -> value.takeIf { it.all(Char::isDigit) }?.toLongOrNull()?.takeIf { it > 0 }?.toString().orEmpty()
             else -> ""
         }
     }

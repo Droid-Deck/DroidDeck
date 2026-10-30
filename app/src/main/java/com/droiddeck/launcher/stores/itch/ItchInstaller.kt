@@ -64,18 +64,28 @@ internal class ItchInstaller(
         val archive = File(scratch, filename.ifBlank { "download.bin" })
         val buildId = ItchBuilds.buildId(upload)
         val exe = try {
-            val patched = updating && !resuming && patch(key, downloadKeyId, uploadId, buildId, size, scratch, handle)
+            var patched = updating && !resuming && patch(key, downloadKeyId, uploadId, buildId, size, scratch, handle)
             if (cancelled.get()) {
                 if (patched) dropCaches(scratch)
                 return null
+            }
+            var picked: String? = null
+            if (patched) {
+                picked = install(archive, filename, handle, resuming, true)
+                if (picked == null) {
+                    if (cancelled.get()) return null
+                    handle.log("itch.io: the patched copy of ${item.title} has no exe, doing a full update")
+                    patched = false
+                }
             }
             if (!patched) {
                 handle.stage(DownloadStage.DOWNLOAD)
                 download(key, downloadKeyId, uploadId, upload.optString("updated_at", upload.optString("updatedAt")), archive, size, handle)
                 if (cancelled.get()) return null
                 handle.stage(DownloadStage.INSTALL)
+                picked = install(archive, filename, handle, resuming, false)
             }
-            install(archive, filename, handle, resuming, patched)
+            picked
         } catch (t: Throwable) {
             if (!cancelled.get()) dropCaches(scratch)
             throw t
