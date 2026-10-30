@@ -13,6 +13,7 @@ import com.droiddeck.launcher.stores.StoreInstalls
 import com.droiddeck.launcher.stores.StoreNet
 import com.droiddeck.launcher.stores.download.DownloadQueue
 import com.droiddeck.launcher.stores.download.DownloadStage
+import org.apache.commons.compress.MemoryLimitException
 import org.apache.commons.compress.archivers.sevenz.SevenZFile
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
 import org.apache.commons.compress.archivers.zip.ZipFile
@@ -227,8 +228,13 @@ internal class ItchInstaller(
     private fun unpack(archive: File, filename: String, handle: DownloadQueue.JobHandle) {
         when (val kind = ItchArchives.kind(archive, filename)) {
             "zip" -> unzip(archive, handle)
-            "7z" -> sevenZip(archive, handle)
-            "rar" -> unrar(archive, handle)
+            "7z" -> try {
+                sevenZip(archive, handle)
+            } catch (e: MemoryLimitException) {
+                handle.log("itch.io: ${archive.name} needs more memory than the app has, unpacking it in the runtime")
+                unrar(archive, handle, kind)
+            }
+            "rar" -> unrar(archive, handle, kind)
             "exe" -> copy(archive, File(work, filename.ifBlank { "game.exe" }))
             "tar" -> untar(archive, null, handle)
             "gz", "bz2", "xz" -> untar(archive, kind, handle) ?: single(archive, kind, handle)
@@ -244,8 +250,8 @@ internal class ItchInstaller(
     }
 
     // No JVM library reads RAR5; the runtime's bsdtar (libarchive) does.
-    private fun unrar(archive: File, handle: DownloadQueue.JobHandle) {
-        if (!LinuxRuntime.isInstalled(app)) throw IllegalStateException(app.getString(R.string.stores_itch_archive, "rar"))
+    private fun unrar(archive: File, handle: DownloadQueue.JobHandle, kind: String) {
+        if (!LinuxRuntime.isInstalled(app)) throw IllegalStateException(app.getString(R.string.stores_itch_archive, kind))
         val binds = if (listOf(app.filesDir, app.cacheDir).any { work.absolutePath.startsWith(it.absolutePath + "/") }) null
             else listOf(work.absolutePath)
         fun bsdtar(args: List<String>, onLine: (String) -> Unit) =
@@ -273,7 +279,8 @@ internal class ItchInstaller(
         val total = archive.length()
         var written = 0L
         val buffer = ByteArray(64 * 1024)
-        SevenZFile.builder().setFile(archive).get().use { seven ->
+        val limitKb = (Runtime.getRuntime().maxMemory() / 4 / 1024).coerceIn(32L * 1024, Int.MAX_VALUE.toLong()).toInt()
+        SevenZFile.builder().setFile(archive).setMaxMemoryLimitKb(limitKb).get().use { seven ->
             while (true) {
                 if (cancelled.get()) return
                 val entry = seven.nextEntry ?: break
