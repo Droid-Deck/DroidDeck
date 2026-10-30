@@ -96,6 +96,54 @@ class GamesFolderMigrationTest {
         assertEquals(setOf(kept.path, solo.path), AddedGames.scan(app).map { it.folder.path }.toSet())
     }
 
+    @Test fun aGameSelectedOutsideTheRankedFoldersStaysListed() {
+        val pc = tmp.newFolder("PC")
+        val vns = File(pc, "VNs")
+        exe(pc, "VNs/A/a.exe"); exe(pc, "VNs/B/b.exe")
+        val pick = exe(pc, "VNs/C/helper.exe")
+        val loose = File(pc, "Loose"); exe(pc, "Loose/A/a.exe"); exe(pc, "Loose/B/b.exe")
+        val loosePick = exe(pc, "Loose/setup.exe")
+        SessionPrefs.setAddedGamesDirs(app, listOf(pc.path))
+        SessionPrefs.setAddedGameExe(app, vns.path, pick.path)
+        SessionPrefs.setAddedGameExe(app, loose.path, loosePick.path)
+        GamesFolderMigration.run(app)
+        val entries = AddedExes.list(app).associateBy { it.folder }
+        assertEquals(setOf(File(vns, "A").path, File(vns, "B").path, File(vns, "C").path, loose.path), entries.keys)
+        assertEquals(pick.path, entries.getValue(File(vns, "C").path).exe)
+        assertTrue(entries.getValue(File(vns, "C").path).picked)
+        assertEquals(loosePick.path, entries.getValue(loose.path).exe)
+        val games = AddedGames.scan(app).associateBy { it.folder.path }
+        assertEquals(pick.path, games.getValue(File(vns, "C").path).exe.path)
+        assertEquals(loosePick.path, games.getValue(loose.path).exe.path)
+    }
+
+    @Test fun aSplitFolderHandsItsSettingsToTheGameItLaunched() {
+        val pc = tmp.newFolder("PC")
+        val vns = File(pc, "VNs")
+        exe(pc, "VNs/Albatross/Albatross.exe")
+        val pick = exe(pc, "VNs/Rance 01/Rance01.exe")
+        File(pc, "VNs/Notes").mkdirs()
+        val plain = File(pc, "Plain"); exe(pc, "Plain/A/a.exe"); exe(pc, "Plain/B/b.exe")
+        SessionPrefs.setAddedGamesDirs(app, listOf(pc.path))
+        SessionPrefs.setAddedGameExe(app, vns.path, pick.path)
+        SessionPrefs.addedGameAppId(app, vns.path, 0x8111_2222L)
+        SessionPrefs.setAddedGameName(app, vns.path, "Rance")
+        SessionPrefs.setAddedGameLaunch(app, vns.path, "-windowed")
+        SessionPrefs.setAddedGameName(app, File(vns, "Rance 01").path, "Rance 01 Remake")
+        SessionPrefs.addedGameAppId(app, plain.path, 0x8333_4444L)
+        GamesFolderMigration.run(app)
+        val rance = File(vns, "Rance 01").path
+        val games = AddedGames.scan(app).associateBy { it.folder.path }
+        assertEquals(0x8111_2222L, games.getValue(rance).appId)
+        assertEquals("Rance 01 Remake", games.getValue(rance).name)
+        assertEquals("-windowed", games.getValue(rance).launchOptions)
+        assertEquals(pick.path, games.getValue(rance).exe.path)
+        assertTrue(games.getValue(File(vns, "Albatross").path).appId != 0x8111_2222L)
+        assertEquals("", SessionPrefs.addedGameLaunch(app, File(vns, "Albatross").path))
+        assertEquals(0x8333_4444L, games.getValue(File(plain, "A").path).appId)
+        assertTrue(games.getValue(File(plain, "B").path).appId != 0x8333_4444L)
+    }
+
     @Test fun runningAgainChangesNothing() {
         val pc = tmp.newFolder("PC")
         exe(pc, "Alpha/Alpha.exe")

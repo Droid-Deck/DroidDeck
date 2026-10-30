@@ -29,7 +29,16 @@ object GamesFolderMigration {
                 if (top.absolutePath in storeRoots || StoreGameSidecar.read(top) != null) continue
                 if (top.path in entries) continue
                 val topPick = SessionPrefs.addedGameExe(context, top.path).takeIf { it.isNotEmpty() }?.let { File(it) }?.takeIf { it.isFile }
-                for (folder in AddedGames.groupGames(top) ?: listOf(top)) {
+                val groups = AddedGames.groupGames(top)
+                val played = topPick ?: groups?.let { AddedGames.rank(top).exes.firstOrNull() }
+                val owner = played?.let { exe -> top.listFiles { f -> f.isDirectory }?.firstOrNull { exe.path.startsWith(it.path + File.separator) } }
+                val folders = when {
+                    groups == null -> listOf(top)
+                    topPick != null && owner == null -> listOf(top)
+                    topPick != null && owner != null && owner !in groups -> (groups + owner).sortedBy { it.name.lowercase() }
+                    else -> groups
+                }
+                for (folder in folders) {
                     if (folder.absolutePath in storeRoots || StoreGameSidecar.read(folder) != null) continue
                     if (folder.path in entries) continue
                     val picked = SessionPrefs.addedGameExe(context, folder.path).takeIf { it.isNotEmpty() }?.let { File(it) }?.takeIf { it.isFile }
@@ -37,6 +46,7 @@ object GamesFolderMigration {
                     val exe = picked ?: AddedGames.rank(folder).exes.firstOrNull() ?: continue
                     AddedExes.put(context, AddedExes.Entry(folder.path, exe.path, picked = picked != null))
                     entries.add(folder.path)
+                    if (folder != top && folder == owner) SessionPrefs.inheritAddedGame(context, top.path, folder.path)
                     if (folder != top && top.path in removed) SessionPrefs.setAddedGameRemoved(context, folder.path, true)
                     else if (folder.path !in removed) n++
                 }

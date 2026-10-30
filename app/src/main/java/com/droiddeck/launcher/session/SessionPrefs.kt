@@ -1015,19 +1015,32 @@ object SessionPrefs {
         if (previous != null && !p.contains("addedAppId:$folderPath")) {
             val moved = movedAddedGame(p.all, previous, folderPath)
             moved.keys.forEach { edit.remove(it) }
-            moved.values.forEach { (name, value) ->
-                when (value) {
-                    is String -> edit.putString(name, value)
-                    is Long -> edit.putLong(name, value)
-                    is Int -> edit.putInt(name, value)
-                    is Boolean -> edit.putBoolean(name, value)
-                    is Float -> edit.putFloat(name, value)
-                }
-            }
+            moved.values.forEach { (name, value) -> edit.putValue(name, value) }
             val removed = removedAddedGames(context)
             if (previous in removed) edit.putString("removedAddedGames", removed.map { if (it == previous) folderPath else it }.joinToString("\n"))
         }
         edit.apply()
+    }
+
+    fun inheritAddedGame(context: Context, from: String, to: String) = synchronized(addedGameLock) {
+        val p = prefs(context)
+        val all = p.all
+        val edit = p.edit()
+        all.filterKeys { it.startsWith("added") && it.endsWith(":$from") }.forEach { (name, value) ->
+            val key = name.removeSuffix(from) + to
+            if (key !in all) edit.putValue(key, value)
+        }
+        edit.apply()
+    }
+
+    private fun android.content.SharedPreferences.Editor.putValue(name: String, value: Any?) {
+        when (value) {
+            is String -> putString(name, value)
+            is Long -> putLong(name, value)
+            is Int -> putInt(name, value)
+            is Boolean -> putBoolean(name, value)
+            is Float -> putFloat(name, value)
+        }
     }
 
     internal fun movedAddedGame(all: Map<String, *>, from: String, to: String): Map<String, Pair<String, Any?>> =
