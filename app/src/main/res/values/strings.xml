@@ -597,6 +597,17 @@
     <string name="perf_noglerror_hint">Turns off per-call GL validation.</string>
     <string name="perf_gsrealtime">gamescope: realtime GPU queue</string>
     <string name="perf_gsrealtime_hint">Prioritizes the compositor\'s GPU work. Can smooth frame pacing at some cost to games.</string>
+    <string name="perf_boost_group">Boost</string>
+    <string name="perf_boost">Performance boost</string>
+    <string name="perf_boost_hint">Asks the phone to run the game\'s busiest threads on its fastest cores while the game falls behind. Lets go when the game keeps up, the phone is hot or battery saver is on. Android 12 or newer. More battery use and heat.</string>
+    <string name="perf_samsung_sdk">Samsung performance SDK</string>
+    <string name="perf_samsung_sdk_missing">With the boost on, Samsung phones can also raise their CPU, GPU and memory clocks. Download the SDK from developer.samsung.com/galaxy-performance (free Samsung account) and import the zip.</string>
+    <string name="perf_samsung_sdk_ready">Imported. With the boost on, Samsung\'s CPU, GPU and memory clocks are raised too.</string>
+    <string name="perf_samsung_sdk_import">Import</string>
+    <string name="perf_samsung_sdk_pick">Choose PerformanceSDK_v1.0.0.zip from Samsung</string>
+    <string name="perf_samsung_sdk_imported">Samsung performance SDK imported</string>
+    <string name="perf_samsung_sdk_invalid">That file is not Samsung\'s Galaxy Performance SDK</string>
+    <string name="perf_samsung_sdk_failed">Could not import the Samsung performance SDK</string>
     <string name="perf_gpu">GPU</string>
     <string name="perf_memory">Memory</string>
     <string name="perf_cap_off">Off</string>

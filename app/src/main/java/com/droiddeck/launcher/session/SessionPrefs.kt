@@ -615,8 +615,18 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("gpuClockPin", on).apply()
     }
 
-    /** Whether the game's busiest threads are named to the power HAL for a boost (GameThreadHints). */
-    fun gameThreadHints(context: Context): Boolean = prefs(context).getBoolean("gameThreadHints", true)
+    /**
+     * The performance boost: the game's busiest threads named to the power HAL (GameThreadHints) and,
+     * on a Samsung phone with Samsung's SDK imported, its clock floors (SamsungPerf).
+     */
+    fun performanceBoost(context: Context): Boolean = prefs(context).getBoolean("performanceBoost", GameThreadHints.measuredHere)
+
+    fun setPerformanceBoost(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("performanceBoost", on).apply()
+    }
+
+    /** Hidden: offers the Samsung SDK import on any phone, to test the import where there is no Samsung. */
+    fun samsungPerfAnyPhone(context: Context): Boolean = prefs(context).getBoolean("samsungPerfAnyPhone", false)
 
     fun prootNoSeccomp(context: Context): Boolean = prefs(context).getBoolean("prootNoSeccomp", false)
 
