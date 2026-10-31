@@ -207,6 +207,7 @@ struct surface {
     struct wl_resource *dmabuf;
     struct dmabuf_buffer *dmabuf_buf;
     struct wl_listener dmabuf_destroy;
+    int dmabuf_unsynced;
     const void *last_dmabuf;
     int buf_w, buf_h, has_content;
     int buf_alpha;
@@ -282,6 +283,41 @@ static void pace_note_buffer(const void *buffer) {
     if (g_pace.distinct < PACE_BUFFERS) g_pace.buffers[g_pace.distinct] = buffer;
     g_pace.distinct++;
 }
+#define ORDER_BUFFERS 8
+#define ORDER_RING 24
+static struct {
+    const void *buffers[ORDER_BUFFERS];
+    unsigned known;
+    int last;
+    unsigned commits, in_cycle, breaks, same_again;
+    char ring[ORDER_RING + 1];
+    unsigned ring_n;
+    unsigned poll_ready, poll_busy, poll_timeout;
+    int64_t poll_wait_ns, poll_wait_max_ns;
+} g_ord = { .last = -1 };
+
+/* Records which of the client's buffers each commit carries, so a log shows whether commits arrive in
+   the swapchain's cyclic order or the order itself breaks before the compositor samples anything. */
+static void order_note_commit(const void *buffer) {
+    int idx = -1;
+    for (unsigned i = 0; i < g_ord.known; i++)
+        if (g_ord.buffers[i] == buffer) { idx = (int)i; break; }
+    if (idx < 0) {
+        if (g_ord.known >= ORDER_BUFFERS) return;
+        idx = (int)g_ord.known;
+        g_ord.buffers[g_ord.known++] = buffer;
+    }
+    g_ord.commits++;
+    if (idx == g_ord.last) g_ord.same_again++;
+    else if (g_ord.known >= 3 && g_ord.last >= 0) {
+        if (idx == (g_ord.last + 1) % (int)g_ord.known) g_ord.in_cycle++;
+        else g_ord.breaks++;
+    }
+    g_ord.last = idx;
+    g_ord.ring[g_ord.ring_n % ORDER_RING] = (char)('0' + idx);
+    g_ord.ring_n++;
+}
+
 static int64_t g_last_vsync_ns;
 static int64_t g_tick_vsync_ns;
 static int64_t g_refresh_ns = 16666667;
@@ -785,6 +821,8 @@ static void take_dmabuf(struct surface *s, struct dmabuf_buffer *b, struct wl_re
         if (!s->dmabuf && s->last_dmabuf == buffer) g_pace.reattaches++;
         s->last_dmabuf = buffer;
         pace_note_buffer(buffer);
+        order_note_commit(buffer);
+        s->dmabuf_unsynced = 1;
         drop_dmabuf(s, 1);
         s->dmabuf = buffer;
         s->dmabuf_buf = b;
@@ -795,7 +833,7 @@ static void take_dmabuf(struct surface *s, struct dmabuf_buffer *b, struct wl_re
     if (!b->img && !b->import_failed && b->n_planes >= 1) {
         b->img = vkp_image_from_dmabuf(b->fd[0], b->format, b->modifier, b->width, b->height,
                                        b->stride[0], b->offset[0]);
-        if (b->img && g_zero_copy) sc_layer_probe_dmabuf_fd(b->fd[0]);
+        if (b->img) sc_layer_probe_dmabuf_fd(b->fd[0]);
         if (!b->img) {
             b->import_failed = 1;
             WLOGE("dmabuf import failed (%dx%d fmt=0x%08x mod=0x%llx)", b->width, b->height,
@@ -2158,7 +2196,25 @@ static void render_scene(void) {
     g_tick_held = 0;
     g_hud_fresh = 0;
     g_hdr_unimported = NULL;
-    wl_list_for_each(s, &g_surfaces, link) s->drawn = 0;
+    wl_list_for_each(s, &g_surfaces, link) {
+        s->drawn = 0;
+        if (s->dmabuf_unsynced && s->dmabuf_buf && s->dmabuf_buf->n_planes >= 1) {
+            struct pollfd p = {.fd = s->dmabuf_buf->fd[0], .events = POLLIN};
+            const int64_t t0 = now_ns();
+            int r;
+            if (poll(&p, 1, 0) > 0) {
+                g_ord.poll_ready++;
+            } else {
+                g_ord.poll_busy++;
+                do { r = poll(&p, 1, 16); } while (r < 0 && errno == EINTR);
+                if (r == 0) g_ord.poll_timeout++;
+                const int64_t d = now_ns() - t0;
+                g_ord.poll_wait_ns += d;
+                if (d > g_ord.poll_wait_max_ns) g_ord.poll_wait_max_ns = d;
+            }
+        }
+        s->dmabuf_unsynced = 0;
+    }
     scene_size(&w, &h);
     if (w != g_scene_w || h != g_scene_h) {
         if (g_desktop) droiddeck_log("desktop", "size %dx%d", w, h);
@@ -3592,6 +3648,21 @@ static int on_stats_timer(void *data) {
                    g_pace.renders ? (double)g_pace.wait_ns / 1e6 / g_pace.renders : 0.0, (double)g_pace.wait_max_ns / 1e6,
                    g_pace.renders, g_pace.commit_renders, (unsigned long long)game, g_pace.reattaches, g_pace.null_attaches, g_pace.distinct,
                    g_pace.presented, g_pace.replaced, g_pace.undrawn);
+    }
+    if (g_ord.commits) {
+        char ring[ORDER_RING + 1];
+        const unsigned n = g_ord.ring_n < ORDER_RING ? g_ord.ring_n : ORDER_RING;
+        for (unsigned i = 0; i < n; i++) ring[i] = g_ord.ring[(g_ord.ring_n - n + i) % ORDER_RING];
+        ring[n] = 0;
+        droiddeck_log("order", "last 10 s: %u commits over %u buffers, %u followed the cycle, %u broke it, %u repeated the same buffer | "
+                   "producer fence at draw: %u ready, %u still busy (%u timed out, waited %.2f/%.2f ms) | last commits %s",
+                   g_ord.commits, g_ord.known, g_ord.in_cycle, g_ord.breaks, g_ord.same_again,
+                   g_ord.poll_ready, g_ord.poll_busy, g_ord.poll_timeout,
+                   g_ord.poll_busy ? (double)g_ord.poll_wait_ns / 1e6 / g_ord.poll_busy : 0.0,
+                   (double)g_ord.poll_wait_max_ns / 1e6, ring);
+        g_ord.commits = g_ord.in_cycle = g_ord.breaks = g_ord.same_again = 0;
+        g_ord.poll_ready = g_ord.poll_busy = g_ord.poll_timeout = 0;
+        g_ord.poll_wait_ns = g_ord.poll_wait_max_ns = 0;
     }
     {
         const uint64_t seen = g_game_frames;
