@@ -1,0 +1,13 @@
+diff --git a/tools/prepare-build.py b/tools/prepare-build.py
+index d505ea23..ef7cbccc 100644
+--- a/tools/prepare-build.py
++++ b/tools/prepare-build.py
+@@ -32,6 +32,8 @@ def prepare(args):
+     snapshot.mkdir()
+     for name in ('hybris', 'compat'):
+         shutil.copytree(root / name, snapshot / name, symlinks=True)
++    # hybris/vulkan/Makefile.am installs $(srcdir)/../../LICENSE.GPL3 with the BC kernels.
++    shutil.copy2(root / 'LICENSE.GPL3', snapshot / 'LICENSE.GPL3')
+     shutil.copytree(args.protocols.resolve(), snapshot / 'protocols', symlinks=True)
+     (snapshot / 'tools').mkdir()
+     for name in ('stage-runtime.py', 'prepare-build.py'):
