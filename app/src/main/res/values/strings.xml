@@ -601,7 +601,7 @@
     <string name="perf_boost">Performance boost</string>
     <string name="perf_boost_hint">Asks the phone to run the game\'s busiest threads on its fastest cores while the game falls behind. Lets go when the game keeps up, the phone is hot or battery saver is on. Android 12 or newer. Samsung phones also raise their CPU, GPU and memory clocks. More battery use and heat. What it did is in boost.log in the session\'s logs.</string>
     <string name="perf_boost_check">Check the boost</string>
-    <string name="perf_boost_check_hint">For testing: during a game the boost is paused every other minute, and boost.log ends with a fair comparison and a verdict. Play at least 6 minutes, then turn this off.</string>
+    <string name="perf_boost_check_hint">For testing: during a game the boost is paused every other minute, and boost.log ends with a fair comparison and a verdict. The first minute is not counted. Play at least 7 minutes, then turn this off.</string>
     <string name="perf_gpu">GPU</string>
     <string name="perf_memory">Memory</string>
     <string name="perf_cap_off">Off</string>
