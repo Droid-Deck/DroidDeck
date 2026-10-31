@@ -1900,7 +1900,7 @@
     <string name="bottom_page_chat">Chat &amp; voice</string>
     <string name="bottom_chat_why">Read and answer Steam chat here while the game keeps running on the main screen. It uses the account Steam is signed in with.</string>
     <string name="bottom_chat_not_signed_in">Steam has no web sign-in to share yet, so sign in here once.</string>
-    <string name="bottom_chat_stopped">Android closed the chat page while DroidDeck was in the background. Open it again to continue.</string>
+    <string name="bottom_chat_stopped">Android closed the chat page while DroidDeck was in the background. It opens again when you come back to DroidDeck.</string>
     <string name="bottom_chat_open">Open Steam Chat</string>
     <string name="bottom_chat_close">Close chat</string>
     <string name="bottom_chat_mic_on">Mic on</string>
