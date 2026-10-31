@@ -131,7 +131,7 @@ internal object GameJoltProbe {
         throw java.io.IOException("too many redirects")
     }
 
-    private fun fetch(url: String, accept: String, limit: Int, body: String? = null): Reply? = try {
+    private fun fetch(url: String, accept: String, limit: Int, body: String? = null, label: String = "request"): Reply? = try {
         val conn = open(url, accept, body)
         try {
             val code = conn.responseCode
@@ -153,7 +153,7 @@ internal object GameJoltProbe {
             runCatching { conn.disconnect() }
         }
     } catch (e: Exception) {
-        log("GET failed ${e.javaClass.simpleName} ${e.message}")
+        log("${if (body != null) "POST" else "GET"} failed for $label: ${e.javaClass.simpleName} ${e.message}")
         null
     }
 
@@ -192,7 +192,7 @@ internal object GameJoltProbe {
     }
 
     private fun report(label: String, url: String, accept: String, limit: Int, body: String? = null): Reply? {
-        val r = fetch(url, accept, limit, body)
+        val r = fetch(url, accept, limit, body, label)
         if (r == null) return null
         log("$label code=${r.code} type=${r.type} bytes=${r.body.length} url=${r.finalUrl}")
         if (r.type.contains("json", ignoreCase = true)) {
@@ -280,13 +280,13 @@ internal object GameJoltProbe {
                 }.getOrDefault(0L)
             } ?: 0L
             if (buildId > 0) {
-                val reply = report("candidate download url", "https://gamejolt.com/site-api/web/discover/games/builds/get-download-url/$buildId", "application/json", 50_000)
-                report("candidate download url post", "https://gamejolt.com/site-api/web/discover/games/builds/get-download-url/$buildId", "application/json", 50_000, "")
-                report("candidate download url post os", "https://gamejolt.com/site-api/web/discover/games/builds/get-download-url/$buildId", "application/json", 50_000, "os=windows&arch=64")
-                reply?.let { r ->
-                    runCatching {
-                        val node = org.json.JSONObject(r.body).optJSONObject("payload")?.optString("url").orEmpty()
-                        if (node.isNotEmpty()) log("candidate download url shape: ${shape(node, emptySet())}", SecretScrub.Urls.KEEP_PATH)
+                val endpointUrl = "https://gamejolt.com/site-api/web/discover/games/builds/get-download-url/$buildId"
+                listOf("candidate download url" to null, "candidate download url post" to "", "candidate download url post os" to "os=windows&arch=64").forEach { (label, form) ->
+                    report(label, endpointUrl, "application/json", 50_000, form)?.let { r ->
+                        runCatching {
+                            val node = org.json.JSONObject(r.body).optJSONObject("payload")?.optString("url").orEmpty()
+                            if (node.isNotEmpty()) log("$label shape: ${shape(node, emptySet())}", SecretScrub.Urls.KEEP_PATH)
+                        }
                     }
                 }
             } else {
