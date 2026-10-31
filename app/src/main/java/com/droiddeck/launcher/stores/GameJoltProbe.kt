@@ -7,7 +7,8 @@ import java.net.URL
 internal object GameJoltProbe {
     private const val MAX_PAGE = 800_000
     private const val MAX_SCRIPT = 3_000_000
-    private const val MAX_SCRIPTS = 150
+    private const val MAX_SCRIPTS = 700
+    private const val PARALLEL = 8
     private const val MAX_JSON = 3_000_000
     private const val MAX_FOUND = 300
     private const val JSON_DEPTH = 5
@@ -35,6 +36,7 @@ internal object GameJoltProbe {
         }
     }.getOrNull()
 
+    private val noise = Regex("/dash/(developer|communities|sites|avatar|header|profile|email)|communities|/posts/|stickers|polls|realms|custom-buttons|collaborators|playlists", RegexOption.IGNORE_CASE)
     private val CHUNK_EXTENSIONS = setOf("js", "mjs", "css", "json", "map")
     private val CHUNK_DIRS = setOf("assets", "chunks", "static", "js", "dist")
 
@@ -169,11 +171,11 @@ internal object GameJoltProbe {
         return r
     }
 
-    private fun scan(label: String, text: String, into: MutableSet<String>) {
+    private fun scan(label: String, text: String, into: MutableSet<String>, quiet: Boolean = false) {
         val before = into.size
         endpoint.findAll(text).forEach { into.add(it.groupValues[1]) }
         absolute.findAll(text).forEach { into.add(it.value) }
-        log("$label found ${into.size - before} new strings")
+        if (!quiet) log("$label found ${into.size - before} new strings")
     }
 
     private fun probe(input: String) {
@@ -194,31 +196,56 @@ internal object GameJoltProbe {
         val seen = HashSet<String>(queue)
         val fromScripts = linkedSetOf<String>()
         var fetched = 0
-        while (queue.isNotEmpty() && fetched < MAX_SCRIPTS) {
-            val src = queue.removeFirst()
-            fetched++
-            val js = fetch(src, "*/*", MAX_SCRIPT) ?: continue
-            log("script code=${js.code} bytes=${js.body.length} url=${chunkShape(src)}", SecretScrub.Urls.KEEP_PATH)
-            scan("script", js.body, fromScripts)
-            val refs = scriptRef.findAll(js.body).map { it.groupValues[1] }.toList()
-            if (fetched == 1) {
-                log("script refs found: ${refs.size}")
-                refs.map { chunkShape(it) }.groupingBy { it }.eachCount().entries.sortedByDescending { it.value }.take(8)
-                    .forEach { log("script ref shape: ${it.key} x${it.value}", SecretScrub.Urls.KEEP_PATH) }
+        val pool = java.util.concurrent.Executors.newFixedThreadPool(PARALLEL)
+        try {
+            while (queue.isNotEmpty() && fetched < MAX_SCRIPTS) {
+                val batch = ArrayList<String>()
+                while (queue.isNotEmpty() && batch.size < PARALLEL && fetched + batch.size < MAX_SCRIPTS) batch.add(queue.removeFirst())
+                val replies = batch.map { src -> pool.submit(java.util.concurrent.Callable<Reply?> { fetch(src, "*/*", MAX_SCRIPT) }) }.map { it.get() }
+                replies.forEach { js ->
+                    fetched++
+                    if (js == null) return@forEach
+                    if (js.code != 200) log("script code=${js.code} url=${chunkShape(js.finalUrl)}", SecretScrub.Urls.KEEP_PATH)
+                    scan("script", js.body, fromScripts, quiet = true)
+                    val refs = scriptRef.findAll(js.body).map { it.groupValues[1] }.toList()
+                    if (fetched == 1) {
+                        log("script refs found: ${refs.size}")
+                        refs.map { chunkShape(it) }.groupingBy { it }.eachCount().entries.sortedByDescending { it.value }.take(8)
+                            .forEach { log("script ref shape: ${it.key} x${it.value}", SecretScrub.Urls.KEEP_PATH) }
+                    }
+                    refs.mapNotNull { resolve(js.finalUrl, it) }
+                        .filter { isGameJoltHost(it) && seen.add(it) }
+                        .forEach { queue.addLast(it) }
+                }
             }
-            refs.mapNotNull { resolve(js.finalUrl, it) }
-                .filter { isGameJoltHost(it) && seen.add(it) }
-                .forEach { queue.addLast(it) }
+        } finally {
+            pool.shutdown()
         }
         log("scripts fetched: $fetched, still queued: ${queue.size}")
         val common = routeWords(found)
         found.map { shape(it, common) }.distinct().take(MAX_FOUND).forEach { log("page endpoint: $it", SecretScrub.Urls.KEEP_PATH) }
         val scriptWords = routeWords(fromScripts, 1)
-        val ranked = fromScripts.map { shape(it, scriptWords) }.distinct().sortedByDescending { interesting.containsMatchIn(it) }
+        val ranked = fromScripts.map { shape(it, scriptWords) }.distinct().filterNot { noise.containsMatchIn(it) }.sortedByDescending { interesting.containsMatchIn(it) }
         ranked.take(MAX_FOUND).forEach { log("script endpoint: $it", SecretScrub.Urls.KEEP_PATH) }
         log("endpoint strings total=${found.size + fromScripts.size}")
         if (id != null) {
-            report("candidate overview", "https://gamejolt.com/site-api/web/discover/games/overview/$id", "application/json", MAX_JSON)
+            val overview = report("candidate overview", "https://gamejolt.com/site-api/web/discover/games/overview/$id", "application/json", MAX_JSON)
+            val buildId = overview?.let {
+                runCatching {
+                    org.json.JSONObject(it.body).optJSONObject("payload")?.optJSONArray("builds")?.optJSONObject(0)?.optLong("id") ?: 0L
+                }.getOrDefault(0L)
+            } ?: 0L
+            if (buildId > 0) {
+                val reply = report("candidate download url", "https://gamejolt.com/site-api/web/discover/games/builds/get-download-url/$buildId", "application/json", 50_000)
+                reply?.let { r ->
+                    runCatching {
+                        val node = org.json.JSONObject(r.body).optJSONObject("payload")?.optString("url").orEmpty()
+                        if (node.isNotEmpty()) log("candidate download url shape: ${shape(node, emptySet())}", SecretScrub.Urls.KEEP_PATH)
+                    }
+                }
+            } else {
+                log("no build id in the overview, skipped the download candidate")
+            }
         } else {
             log("no numeric game id in the input, skipped the overview candidate")
         }
