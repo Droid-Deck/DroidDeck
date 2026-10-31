@@ -147,6 +147,15 @@ object HomeApp {
             .getShortcutIconDrawable(info, context.resources.displayMetrics.densityDpi)?.toBitmap(px, px)
     }.getOrNull()
 
+    fun keepOutOfRecents(activity: android.app.Activity, hidden: Boolean) {
+        runCatching {
+            activity.getSystemService(android.app.ActivityManager::class.java).appTasks.firstOrNull {
+                @Suppress("DEPRECATION")
+                (if (Build.VERSION.SDK_INT >= 29) it.taskInfo.taskId else it.taskInfo.persistentId) == activity.taskId
+            }?.setExcludeFromRecents(hidden)
+        }
+    }
+
     fun startShortcut(context: Context, info: ShortcutInfo) {
         val task = generateSequence(context) { (it as? android.content.ContextWrapper)?.baseContext }
             .filterIsInstance<android.app.Activity>().firstOrNull()?.taskId

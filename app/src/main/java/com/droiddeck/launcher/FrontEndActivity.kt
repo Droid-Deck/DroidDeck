@@ -1574,6 +1574,22 @@ class FrontEndActivity : ComponentActivity() {
         startSession(Intent(this, SessionActivity::class.java).putExtra(SessionActivity.EXTRA_STEAMVR, steamVr), steamSession = true)
     }
 
+    @Suppress("OVERRIDE_DEPRECATION")
+    override fun startActivityForResult(intent: Intent, requestCode: Int, options: Bundle?) {
+        val outside = com.droiddeck.launcher.ui.DualScreenPanel.shownOn >= 0 &&
+            com.droiddeck.launcher.ui.DualScreenPanel.opensOutside(packageName, intent.component?.packageName ?: intent.`package` ?: intent.resolveActivity(packageManager)?.packageName)
+        if (outside) {
+            com.droiddeck.launcher.ui.DualScreenPanel.yieldTo(taskId, true)
+            window.decorView.postDelayed({ if (hasWindowFocus()) com.droiddeck.launcher.ui.DualScreenPanel.yieldTo(taskId, false) }, 1500)
+        }
+        try {
+            super.startActivityForResult(intent, requestCode, options)
+        } catch (e: RuntimeException) {
+            if (outside) com.droiddeck.launcher.ui.DualScreenPanel.yieldTo(taskId, false)
+            throw e
+        }
+    }
+
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
         if (hasFocus) {
@@ -1647,6 +1663,7 @@ class FrontEndActivity : ComponentActivity() {
         compatLaunchVisible = true
         com.droiddeck.launcher.ui.DualScreenPanel.yieldTo(taskId, false)
         com.droiddeck.launcher.ui.DualScreenPanel.ownerPaused(taskId, false)
+        HomeApp.keepOutOfRecents(this, !SessionState.running && HomeApp.isDefault(this))
         orientation = SessionPrefs.orientation(this)
         launcherOrientation = com.droiddeck.launcher.core.AppUiPrefs.orientation(this)
         requestedOrientation = launcherOrientation
