@@ -44,8 +44,10 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import java.io.File
 import kotlin.coroutines.resume
+import kotlin.math.roundToInt
 
 private const val STEAM_CHAT = "https://steamcommunity.com/chat"
+private const val CHAT_PAGE_SCALE = 0.75f
 private val STEAM_HOSTS = listOf("steamcommunity.com", "steam-chat.com", "steampowered.com", "steamstatic.com", "steamcontent.com")
 
 /** Steam chat stays on Steam's own sites; anything else is not opened on the bottom screen. */
@@ -56,6 +58,20 @@ internal fun steamChatAllows(host: String?): Boolean =
 internal fun desktopUserAgent(webView: String?): String {
     val chrome = webView?.let { Regex("Chrome/[\\d.]+").find(it)?.value } ?: "Chrome/127.0.6533.103"
     return "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) $chrome Safari/537.36"
+}
+
+/**
+ * At the panel's own scale Steam's desktop chat gets about 600x300 CSS pixels and its friends list collapses, so the
+ * page is laid out [cssWidth] wide and drawn at [scale]; Steam's site header is hidden to leave the height to the chat.
+ */
+internal fun steamChatFitScript(cssWidth: Int, scale: Float): String {
+    val zoom = "%.2f".format(java.util.Locale.US, scale)
+    return "(function(){var m=document.querySelector('meta[name=viewport]');" +
+        "if(!m){m=document.createElement('meta');m.name='viewport';document.head.appendChild(m);}" +
+        "m.content='width=$cssWidth, initial-scale=$zoom';" +
+        "if(!document.getElementById('dd-chat-fit')){var s=document.createElement('style');s.id='dd-chat-fit';" +
+        "s.textContent='#global_header{display:none!important}';document.head.appendChild(s);}" +
+        "window.dispatchEvent(new Event('resize'));})()"
 }
 
 @Composable
@@ -79,26 +95,24 @@ fun BottomChatPage() {
         fromSteam = cookies.any { it.header.startsWith("steamLoginSecure=") }
     }
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        VoiceRow(context)
         if (!chatOpen) {
+            VoiceRow(context)
             Column(Modifier.weight(1f).fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically)) {
                 Text(stringResource(R.string.bottom_chat_why), fontSize = 15.sp, color = colors.onBackground, textAlign = TextAlign.Center)
                 BottomPillButton(stringResource(R.string.bottom_chat_open), "bottom-chat-open") { chatOpen = true }
             }
         } else {
+            VoiceRow(context, onClose = { chatOpen = false },
+                note = if (fromSteam == false) stringResource(R.string.bottom_chat_not_signed_in) else "")
             Box(Modifier.weight(1f).fillMaxWidth().clip(RoundedCornerShape(14.dp))) { if (fromSteam != null) SteamChatView() }
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text(if (fromSteam == false) stringResource(R.string.bottom_chat_not_signed_in) else "", fontSize = 12.sp,
-                    color = colors.onSurfaceVariant, maxLines = 2, modifier = Modifier.weight(1f).padding(end = 8.dp))
-                BottomPillButton(stringResource(R.string.bottom_chat_close), "bottom-chat-close") { chatOpen = false }
-            }
         }
     }
 }
 
+/** With [onClose] set the chat is open: the row also carries Close and leaves out the long mic hint. */
 @Composable
-private fun VoiceRow(context: Context) {
+private fun VoiceRow(context: Context, onClose: (() -> Unit)? = null, note: String = "") {
     val colors = MaterialTheme.colorScheme
     val audio = remember { context.getSystemService(Context.AUDIO_SERVICE) as AudioManager }
     val max = remember { audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1) }
@@ -109,17 +123,16 @@ private fun VoiceRow(context: Context) {
         volume = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
     }
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (onClose != null) BottomPillButton(stringResource(R.string.bottom_chat_close), "bottom-chat-close", onClose)
         if (SessionState.micAvailable) {
             val on = SessionState.micEnabled
             BottomPillButton(stringResource(if (on) R.string.bottom_chat_mic_on else R.string.bottom_chat_mic_off), "bottom-chat-mic") {
                 SessionService.setMicEnabled(context, !on)
             }
-        } else {
-            Text(stringResource(R.string.bottom_chat_mic_unavailable), fontSize = 12.sp, color = colors.onSurfaceVariant,
-                maxLines = 3, modifier = Modifier.weight(1f))
         }
-        Text(stringResource(R.string.bottom_chat_volume, volume * 100 / max), fontSize = 14.sp, color = colors.onSurfaceVariant,
-            modifier = if (SessionState.micAvailable) Modifier.weight(1f) else Modifier, textAlign = TextAlign.End)
+        val hint = if (onClose == null && !SessionState.micAvailable) stringResource(R.string.bottom_chat_mic_unavailable) else note
+        Text(hint, fontSize = 12.sp, color = colors.onSurfaceVariant, maxLines = 3, modifier = Modifier.weight(1f))
+        Text(stringResource(R.string.bottom_chat_volume, volume * 100 / max), fontSize = 14.sp, color = colors.onSurfaceVariant)
         BottomPillButton("−", "bottom-chat-volume-down") { step(AudioManager.ADJUST_LOWER) }
         BottomPillButton("+", "bottom-chat-volume-up") { step(AudioManager.ADJUST_RAISE) }
     }
@@ -142,6 +155,11 @@ private fun SteamChatView() {
             webViewClient = object : WebViewClient() {
                 override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean =
                     !steamChatAllows(request.url.host)
+
+                override fun onPageFinished(view: WebView, url: String) {
+                    val scale = view.resources.displayMetrics.density * CHAT_PAGE_SCALE
+                    if (view.width > 0) view.evaluateJavascript(steamChatFitScript((view.width / scale).roundToInt(), CHAT_PAGE_SCALE), null)
+                }
             }
             loadUrl(STEAM_CHAT)
         }
