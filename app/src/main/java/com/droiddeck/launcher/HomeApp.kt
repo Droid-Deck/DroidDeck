@@ -147,8 +147,6 @@ object HomeApp {
             .getShortcutIconDrawable(info, context.resources.displayMetrics.densityDpi)?.toBitmap(px, px)
     }.getOrNull()
 
-    private val hiddenTasks = mutableSetOf<Int>()
-
     fun trackRecents(app: android.app.Application) {
         app.registerActivityLifecycleCallbacks(object : android.app.Application.ActivityLifecycleCallbacks {
             override fun onActivityCreated(activity: android.app.Activity, savedInstanceState: android.os.Bundle?) = Unit
@@ -164,16 +162,34 @@ object HomeApp {
     private fun syncRecents(activity: android.app.Activity) =
         keepOutOfRecents(activity, activity is FrontEndActivity && !SessionState.running && isDefault(activity))
 
-    internal fun recentsChange(hidden: Boolean, task: Int, tasks: MutableSet<Int> = hiddenTasks): Boolean =
-        if (hidden) tasks.add(task) else tasks.remove(task)
+    internal enum class RecentsStep { HIDE, SHOW, FORGET, NONE }
+
+    internal fun recentsStep(hidden: Boolean, owned: Boolean, excluded: Boolean): RecentsStep = when {
+        hidden && !excluded -> RecentsStep.HIDE
+        !hidden && owned && excluded -> RecentsStep.SHOW
+        !hidden && owned -> RecentsStep.FORGET
+        else -> RecentsStep.NONE
+    }
 
     fun keepOutOfRecents(activity: android.app.Activity, hidden: Boolean) {
-        if (!recentsChange(hidden, activity.taskId)) return
+        val prefs = activity.getSharedPreferences("home-recents", Context.MODE_PRIVATE)
+        val owned = prefs.getStringSet("tasks", null).orEmpty()
+        val id = activity.taskId.toString()
+        if (!hidden && id !in owned) return
         runCatching {
-            activity.getSystemService(android.app.ActivityManager::class.java).appTasks.firstOrNull {
-                @Suppress("DEPRECATION")
-                (if (Build.VERSION.SDK_INT >= 29) it.taskInfo.taskId else it.taskInfo.persistentId) == activity.taskId
-            }?.setExcludeFromRecents(hidden)
+            @Suppress("DEPRECATION")
+            fun idOf(task: android.app.ActivityManager.AppTask) =
+                if (Build.VERSION.SDK_INT >= 29) task.taskInfo.taskId else task.taskInfo.persistentId
+            val tasks = activity.getSystemService(android.app.ActivityManager::class.java).appTasks
+            val task = tasks.firstOrNull { idOf(it) == activity.taskId } ?: return
+            val excluded = task.taskInfo.baseIntent.flags and Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS != 0
+            val step = recentsStep(hidden, id in owned, excluded)
+            if (step == RecentsStep.NONE) return
+            if (step != RecentsStep.FORGET) task.setExcludeFromRecents(step == RecentsStep.HIDE)
+            val live = tasks.map { idOf(it).toString() }.toSet()
+            val next = owned.filter { it in live && it != id }.toMutableSet()
+            if (step == RecentsStep.HIDE) next += id
+            prefs.edit().putStringSet("tasks", next).apply()
         }
     }
 

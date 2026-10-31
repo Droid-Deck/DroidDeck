@@ -1,16 +1,22 @@
 package com.droiddeck.launcher
 
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
+import com.droiddeck.launcher.HomeApp.RecentsStep
+import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class HomeRecentsTest {
-    @Test fun onlyTasksTheLauncherHidOnItsOwnAreShownAgain() {
-        val hidden = mutableSetOf<Int>()
-        assertFalse(HomeApp.recentsChange(false, 7, hidden))
-        assertTrue(HomeApp.recentsChange(true, 7, hidden))
-        assertFalse(HomeApp.recentsChange(true, 7, hidden))
-        assertTrue(HomeApp.recentsChange(false, 7, hidden))
-        assertFalse(HomeApp.recentsChange(false, 7, hidden))
+    @Test fun theLauncherHidesAVisibleTaskAndTakesItOver() {
+        assertEquals(RecentsStep.HIDE, HomeApp.recentsStep(hidden = true, owned = false, excluded = false))
+    }
+
+    @Test fun aTaskSomeoneElseExcludedIsNeverClaimedOrShown() {
+        assertEquals(RecentsStep.NONE, HomeApp.recentsStep(hidden = true, owned = false, excluded = true))
+        assertEquals(RecentsStep.NONE, HomeApp.recentsStep(hidden = false, owned = false, excluded = true))
+    }
+
+    @Test fun onlyATaskTheLauncherHidItselfIsShownAgain() {
+        assertEquals(RecentsStep.SHOW, HomeApp.recentsStep(hidden = false, owned = true, excluded = true))
+        assertEquals(RecentsStep.FORGET, HomeApp.recentsStep(hidden = false, owned = true, excluded = false))
+        assertEquals(RecentsStep.NONE, HomeApp.recentsStep(hidden = true, owned = true, excluded = true))
     }
 }
