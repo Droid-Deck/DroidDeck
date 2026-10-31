@@ -23,8 +23,20 @@ pub fn store(dir: &Path, name: &str, data: &[u8]) -> Result<PathBuf, String> {
     let result = (|| -> std::io::Result<()> {
         let mut f = fs::File::create(&part)?;
         f.write_all(data)?;
-        f.flush()?;
-        fs::rename(&part, &path)
+        f.sync_all()?;
+        drop(f);
+        fs::rename(&part, &path)?;
+        if let Some(parent) = path.parent() {
+            match std::fs::File::open(parent) {
+                Ok(dir) => {
+                    if let Err(err) = dir.sync_all() {
+                        eprintln!("Epic: chunk cache dir sync failed dir={} err={}", parent.display(), err);
+                    }
+                }
+                Err(err) => eprintln!("Epic: chunk cache dir open failed dir={} err={}", parent.display(), err),
+            }
+        }
+        Ok(())
     })();
     if let Err(e) = result {
         let _ = fs::remove_file(&part);
