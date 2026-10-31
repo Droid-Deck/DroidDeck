@@ -35,7 +35,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.droiddeck.launcher.R
-import com.droiddeck.launcher.session.SessionEvents
 import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionState
 import com.droiddeck.launcher.session.SteamWebLogin
@@ -63,7 +62,9 @@ internal fun desktopUserAgent(webView: String?): String {
 
 /**
  * At the panel's own scale Steam's desktop chat gets about 600x300 CSS pixels and its friends list collapses, so the
- * page is laid out [cssWidth] wide and drawn at [scale]; Steam's site header is hidden to leave the height to the chat.
+ * page is laid out [cssWidth] wide and drawn at [scale]. In a WebView the chat's full-height containers (body,
+ * #friendslist-container, .chat_main) come out 0 px tall, which folds the friends list, so they are given the
+ * window's height; Steam's site header (the rows before .chat_main_flex) is hidden to leave that height to the chat.
  */
 internal fun steamChatFitScript(cssWidth: Int, scale: Float): String {
     val zoom = "%.2f".format(java.util.Locale.US, scale)
@@ -71,30 +72,12 @@ internal fun steamChatFitScript(cssWidth: Int, scale: Float): String {
         "if(!m){m=document.createElement('meta');m.name='viewport';document.head.appendChild(m);}" +
         "m.content='width=$cssWidth, initial-scale=$zoom';" +
         "if(!document.getElementById('dd-chat-fit')){var s=document.createElement('style');s.id='dd-chat-fit';" +
-        "s.textContent='#global_header{display:none!important}';document.head.appendChild(s);}" +
+        "s.textContent='$STEAM_CHAT_FIT_CSS';document.head.appendChild(s);}" +
         "window.dispatchEvent(new Event('resize'));})()"
 }
 
-// Test builds only: records the chat page's element structure (tags, ids, classes, sizes; no text) to find what
-// holds the header and limits the friends list height. Remove once the layout is fixed. It goes to the session's
-// events.jsonl because the Retroid Pocket Duo's logcat drops app lines below error level.
-private const val CHAT_LAYOUT_PROBE = "(function(){" +
-    "function m(v){return String(v).replace(/\\d{6,}/g,'#');}" +
-    "function d(e){if(!e||!e.tagName)return null;var r=e.getBoundingClientRect(),c=getComputedStyle(e);" +
-    "var k=typeof e.className==='string'&&e.className.trim()?'.'+e.className.trim().split(/\\s+/).slice(0,4).join('.'):'';" +
-    "return m(e.tagName.toLowerCase()+(e.id?'#'+e.id:'')+k)+' y='+Math.round(r.top)+' h='+Math.round(r.height)+" +
-    "' css='+c.height+' pos='+c.position+' disp='+c.display;}" +
-    "function ch(e){var o=[];while(e&&e!==document.documentElement&&o.length<16){o.push(d(e));e=e.parentElement;}return o;}" +
-    "var w=innerWidth,h=innerHeight;" +
-    "return JSON.stringify({w:w,h:h,dpr:devicePixelRatio,vp:(document.querySelector('meta[name=viewport]')||{}).content," +
-    "top:ch(document.elementFromPoint(w/2,8)),list:ch(document.elementFromPoint(40,h*0.6))," +
-    "bottom:ch(document.elementFromPoint(40,h-6)),body:[].slice.call(document.body.children,0,16).map(d)});})()"
-
-private fun logChatLayout(view: WebView, round: Int) {
-    view.evaluateJavascript(CHAT_LAYOUT_PROBE) { json ->
-        SessionEvents.record("chat.layout", mapOf("round" to round, "layout" to json))
-    }
-}
+internal const val STEAM_CHAT_FIT_CSS = "html,body,#friendslist-container,.chat_main{height:100%!important}" +
+    ".chat_main>:has(~.chat_main_flex){display:none!important}"
 
 @Composable
 fun BottomChatPage() {
@@ -181,9 +164,6 @@ private fun SteamChatView() {
                 override fun onPageFinished(view: WebView, url: String) {
                     val scale = view.resources.displayMetrics.density * CHAT_PAGE_SCALE
                     if (view.width > 0) view.evaluateJavascript(steamChatFitScript((view.width / scale).roundToInt(), CHAT_PAGE_SCALE), null)
-                    SessionEvents.record("chat.page_finished", mapOf("url" to url.substringBefore('?'), "view" to "${view.width}x${view.height}"))
-                    view.postDelayed({ logChatLayout(view, 1) }, 4_000L)
-                    view.postDelayed({ logChatLayout(view, 2) }, 12_000L)
                 }
             }
             loadUrl(STEAM_CHAT)
