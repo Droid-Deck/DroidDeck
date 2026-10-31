@@ -26,15 +26,20 @@ pub fn store(dir: &Path, name: &str, data: &[u8]) -> Result<PathBuf, String> {
         f.sync_all()?;
         drop(f);
         fs::rename(&part, &path)?;
-        if let Some(parent) = path.parent() {
+        let mut dir_to_sync = path.parent();
+        while let Some(parent) = dir_to_sync {
             match std::fs::File::open(parent) {
                 Ok(dir) => {
                     if let Err(err) = dir.sync_all() {
                         eprintln!("Epic: chunk cache dir sync failed dir={} err={}", parent.display(), err);
                     }
                 }
-                Err(err) => eprintln!("Epic: chunk cache dir open failed dir={} err={}", parent.display(), err),
+                Err(err) => {
+                    eprintln!("Epic: chunk cache dir open failed dir={} err={}", parent.display(), err);
+                    break;
+                }
             }
+            dir_to_sync = parent.parent();
         }
         Ok(())
     })();

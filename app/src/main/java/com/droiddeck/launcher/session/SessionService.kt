@@ -1851,8 +1851,8 @@ class SessionService : Service() {
                         auxiliary.forEach { (pid, started) -> teardown(pid, started) }
                         if (prootPid > 1) teardown(prootPid)
                         killGuestLeftovers()
-                    } catch (e: InterruptedException) {
-                        Thread.currentThread().interrupt()
+                    } catch (e: Throwable) {
+                        if (e is InterruptedException) Thread.currentThread().interrupt()
                     } finally {
                         finishSessionStop(status, stoppedGen, collectEnded)
                         if (launcherEnded) importLauncherGames()
@@ -1862,8 +1862,8 @@ class SessionService : Service() {
                 Thread({
                     try {
                         com.droiddeck.launcher.stores.gog.GogComet.end(stoppedSession)
-                    } catch (e: InterruptedException) {
-                        Thread.currentThread().interrupt()
+                    } catch (e: Throwable) {
+                        if (e is InterruptedException) Thread.currentThread().interrupt()
                     } finally {
                         finishSessionStop(status, stoppedGen, collectEnded)
                         if (launcherEnded) importLauncherGames()

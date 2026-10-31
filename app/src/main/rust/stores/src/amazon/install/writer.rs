@@ -189,19 +189,20 @@ impl Placer<'_> {
             return Err(SinkError::Fatal(self.fail(format!("Could not put {} in place: {e}", job.path))));
         }
         // Sync directory to persist the rename
-        if let Some(parent) = job.dest.parent() {
+        let mut dir_to_sync = job.dest.parent();
+        while let Some(parent) = dir_to_sync {
             match std::fs::File::open(parent) {
                 Ok(dir) => {
                     if let Err(err) = dir.sync_all() {
-                        // Log but don't fail - file content is synced, only directory metadata might not be
-                        // On restart, the file will be re-downloaded if needed
                         eprintln!("Amazon: directory sync failed for {} err={err}", job.dest.display());
                     }
                 }
                 Err(err) => {
                     eprintln!("Amazon: could not open directory for sync {} err={err}", parent.display());
+                    break;
                 }
             }
+            dir_to_sync = parent.parent();
         }
         self.placed[i].store(true, Ordering::SeqCst);
         self.placed_bytes.fetch_add(job.size, Ordering::Relaxed);

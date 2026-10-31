@@ -397,7 +397,8 @@ impl<'a> GogSink<'a> {
             return Err(format!("file rename failed: {}", file.relative_path));
         }
         // Sync directory to persist the rename
-        if let Some(parent) = st.out_path.parent() {
+        let mut dir_to_sync = st.out_path.parent();
+        while let Some(parent) = dir_to_sync {
             match std::fs::File::open(parent) {
                 Ok(dir) => {
                     if let Err(err) = dir.sync_all() {
@@ -408,8 +409,10 @@ impl<'a> GogSink<'a> {
                 Err(err) => {
                     self.log(&format!("FILE dir open failed file={} dir={} err={}",
                         file.relative_path, parent.display(), err));
+                    break;
                 }
             }
+            dir_to_sync = parent.parent();
         }
         st.finalized = true;
         Ok(())
