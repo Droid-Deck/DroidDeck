@@ -7,6 +7,8 @@ import android.view.InputDevice
 import android.view.MotionEvent
 import android.view.SurfaceView
 import android.view.View
+import androidx.compose.runtime.MutableState
+import androidx.compose.ui.geometry.Offset
 import com.droiddeck.launcher.SessionActivity
 import com.droiddeck.launcher.agent.AgentGuest
 import com.droiddeck.launcher.session.SessionPrefs
@@ -46,6 +48,7 @@ class SessionSteamKeyboardTest {
         SessionPrefs.setOscMode(activity, SessionPrefs.OSC_ALWAYS)
         SessionPrefs.setTouchMode(activity, SessionPrefs.TOUCH_GESTURES)
         CompositorShadow.touches.clear()
+        CompositorShadow.touchEvents.clear()
         CompositorShadow.pointer.clear()
         steamKeyboard(false)
     }
@@ -100,6 +103,22 @@ class SessionSteamKeyboardTest {
         refreshControls()
         assertEquals(View.VISIBLE, controls.visibility)
         assertEquals(SessionPrefs.TOUCH_GESTURES, effectiveTouchMode())
+    }
+
+    @Test fun keyboardTouchIsImmediateAndKeepsTheCursorWhileGameTouchUpdatesIt() {
+        steamKeyboard(true)
+        val cursor: MutableState<Offset> = ReflectionHelpers.getField(activity, "cursorPos\$delegate")
+        val before = cursor.value
+        val now = SystemClock.uptimeMillis()
+        val event = MotionEvent.obtain(now, now, MotionEvent.ACTION_DOWN, -20f, 900f, 0)
+        try { assertTrue(activity.onTouchEvent(event)) } finally { event.recycle() }
+        assertEquals(listOf(listOf(3, -1, 0, 0), listOf(0, 0, 0, 1079)), CompositorShadow.touchEvents)
+        assertEquals(before, cursor.value)
+
+        val gameTouch: DirectTouchHold.Touch = ReflectionHelpers.getField(activity, "directTouchSink")
+        gameTouch.move(4, -20f, 900f)
+        assertEquals(listOf(1, 4, 0, 1079), CompositorShadow.touchEvents.last())
+        assertEquals(Offset(0f, 600f), cursor.value)
     }
 
     @Test fun mouseCanReachKeyboardOutsideTheGamePictureAndReturnsToGameBounds() {
@@ -157,9 +176,13 @@ class SessionSteamKeyboardTest {
     class CompositorShadow {
         companion object {
             val touches = mutableListOf<Int>()
+            val touchEvents = mutableListOf<List<Int>>()
             val pointer = mutableListOf<Int>()
             @JvmStatic @Implementation fun __staticInitializer__() {}
-            @JvmStatic @Implementation fun nativeSendTouch(action: Int, id: Int, x: Int, y: Int) { touches += action }
+            @JvmStatic @Implementation fun nativeSendTouch(action: Int, id: Int, x: Int, y: Int) {
+                touches += action
+                touchEvents += listOf(action, id, x, y)
+            }
             @JvmStatic @Implementation fun nativeSendSceneInput(type: Int, code: Int, value: Int) {}
             @JvmStatic @Implementation fun nativeSendPointer(action: Int, x: Int, y: Int) {
                 pointer.clear()

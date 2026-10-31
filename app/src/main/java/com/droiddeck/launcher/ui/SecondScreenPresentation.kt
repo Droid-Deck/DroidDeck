@@ -6,7 +6,6 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
-import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.view.Display
@@ -16,7 +15,6 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewConfiguration
-import android.view.WindowInsets
 import android.view.WindowManager
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
@@ -91,13 +89,6 @@ class SecondScreenPresentation(
         window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         frame.addView(root, FrameLayout.LayoutParams(-1, -1))
         setContentView(frame)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            root.setOnApplyWindowInsetsListener { view, insets ->
-                if (insets.isVisible(WindowInsets.Type.ime())) imeSeen = true
-                else if (imeSeen) keyboardClosed()
-                view.onApplyWindowInsets(insets)
-            }
-        }
         applyImmersiveMode()
         renderMode()
     }
@@ -210,6 +201,7 @@ class SecondScreenPresentation(
 
     private fun renderMode() {
         fieldKeyboard = false
+        imeSeen = false
         keyboardHost?.hide()
         keyboardHost = null
         keyboardPending = false
@@ -265,6 +257,10 @@ class SecondScreenPresentation(
             if (fieldKeyboard && event.action == KeyEvent.ACTION_UP &&
                 (event.keyCode == KeyEvent.KEYCODE_ENTER || event.keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER)) root.post { closeFieldKeyboard() }
             handled
+        }
+        host.onImeChanged = { visible ->
+            if (visible) imeSeen = true
+            else if (imeSeen) keyboardClosed()
         }
         keyboardHost = host
         root.addView(host, ViewGroup.LayoutParams(1, 1))

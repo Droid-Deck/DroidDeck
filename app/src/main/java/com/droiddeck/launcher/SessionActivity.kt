@@ -680,10 +680,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             keys.visibility = if (screenKeysShown) View.VISIBLE else View.GONE
             root.addView(keys)
         }
-        keyboard = KeyboardHost(this).also { host ->
-            host.onImeChanged = { updateDesktopKeyboardButton() }
-            root.addView(host)
-        }
+        keyboard = KeyboardHost(this).also { root.addView(it) }
         desktopKeyboardButton = com.droiddeck.launcher.input.DesktopKeyboardButton(this) { keyboard?.show() }
             .also { root.addView(it) }
         touchpad = TouchpadGestures(PointerGestures.slop(this), pointerListener)
@@ -851,7 +848,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 }
             }
             androidx.compose.runtime.LaunchedEffect(AgentGuest.desktopTextField) { onDesktopTextField(AgentGuest.desktopTextField) }
-            androidx.compose.runtime.LaunchedEffect(pipUi, androidKeyboardVisible, keyboardCoversPad()) { updateDesktopKeyboardButton() }
+            androidx.compose.runtime.LaunchedEffect(pipUi, androidKeyboardVisible) { updateDesktopKeyboardButton() }
             val keyboardRequestsSeen = androidx.compose.runtime.remember { intArrayOf(AgentGuest.keyboardRequests) }
             androidx.compose.runtime.LaunchedEffect(AgentGuest.keyboardRequests) {
                 if (AgentGuest.keyboardRequests != keyboardRequestsSeen[0]) {
@@ -3480,13 +3477,14 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         override fun cancel() = WaylandCompositor.nativeSendTouch(3, -1, 0, 0)
     }
 
-    private fun sendDirectTouch(action: Int, pointerId: Int, x: Float, y: Float) {
-        val rect = drawnRect() ?: return
+    private fun sendDirectTouch(action: Int, pointerId: Int, x: Float, y: Float,
+        rect: android.graphics.RectF? = drawnRect(), updateCursor: Boolean = true) {
+        if (rect == null) return
         val cx = x.coerceIn(rect.left, rect.right)
         val cy = y.coerceIn(rect.top, rect.bottom)
         WaylandCompositor.nativeSendTouch(action, pointerId,
             InputSpace.x(cx, surfaceView.width), InputSpace.y(cy, surfaceView.height))
-        showCursor(cx, cy)
+        if (updateCursor) showCursor(cx, cy)
     }
 
     private fun dispatchDirectTouch(event: MotionEvent): Boolean {
@@ -3520,10 +3518,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     private fun sendDirectTouch(event: MotionEvent, rect: android.graphics.RectF): Boolean {
         fun sendTouch(action: Int, index: Int) {
-            val x = event.getX(index).coerceIn(rect.left, rect.right)
-            val y = event.getY(index).coerceIn(rect.top, rect.bottom)
-            WaylandCompositor.nativeSendTouch(action, event.getPointerId(index),
-                InputSpace.x(x, surfaceView.width), InputSpace.y(y, surfaceView.height))
+            sendDirectTouch(action, event.getPointerId(index), event.getX(index), event.getY(index),
+                rect, updateCursor = false)
         }
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
