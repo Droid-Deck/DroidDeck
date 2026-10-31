@@ -79,6 +79,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.onPreviewKeyEvent
@@ -368,7 +369,7 @@ internal fun AndroidAppsPage(s: FrontEndState, modifier: Modifier, onLaunch: (Ho
                         ) {
                             val cell = if (narrow) 84.dp else 96.dp
                             val count = ((maxWidth + 10.dp) / (cell + 10.dp)).toInt().coerceAtLeast(1)
-                            val width = (maxWidth - 10.dp * (count - 1)) / count
+                            val width = with(LocalDensity.current) { ((constraints.maxWidth - 10.dp.roundToPx() * (count - 1)) / count).toDp() }
                             FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                                 for (e in entries.take(favoriteCount)) key(e.key) { Box(Modifier.width(width)) { tile(e) } }
                             }
