@@ -89,9 +89,12 @@ private fun VoiceRow(context: Context) {
             BottomPillButton(stringResource(if (on) R.string.bottom_chat_mic_on else R.string.bottom_chat_mic_off), "bottom-chat-mic") {
                 SessionService.setMicEnabled(context, !on)
             }
+        } else {
+            Text(stringResource(R.string.bottom_chat_mic_unavailable), fontSize = 12.sp, color = colors.onSurfaceVariant,
+                maxLines = 3, modifier = Modifier.weight(1f))
         }
         Text(stringResource(R.string.bottom_chat_volume, volume * 100 / max), fontSize = 14.sp, color = colors.onSurfaceVariant,
-            modifier = Modifier.weight(1f), textAlign = TextAlign.End)
+            modifier = if (SessionState.micAvailable) Modifier.weight(1f) else Modifier, textAlign = TextAlign.End)
         BottomPillButton("−", "bottom-chat-volume-down") { step(AudioManager.ADJUST_LOWER) }
         BottomPillButton("+", "bottom-chat-volume-up") { step(AudioManager.ADJUST_RAISE) }
     }

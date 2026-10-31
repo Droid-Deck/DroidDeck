@@ -39,8 +39,17 @@ import com.droiddeck.launcher.R
 import com.droiddeck.launcher.session.BottomNotifications
 import kotlinx.coroutines.delay
 
+/** DroidDeck's own switch on Android 11 and later; the list of all apps before that. */
+internal fun notificationAccessIntent(context: android.content.Context): Intent =
+    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+        Intent(Settings.ACTION_NOTIFICATION_LISTENER_DETAIL_SETTINGS).putExtra(
+            Settings.EXTRA_NOTIFICATION_LISTENER_COMPONENT_NAME,
+            android.content.ComponentName(context, com.droiddeck.launcher.session.BottomNotificationListener::class.java).flattenToString(),
+        )
+    } else Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
+
 @Composable
-fun BottomNotificationsPage() {
+fun BottomNotificationsPage(openSettings: ((Intent, () -> Boolean) -> Unit)?) {
     val context = LocalContext.current
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
@@ -56,9 +65,9 @@ fun BottomNotificationsPage() {
             verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically)) {
             Text(stringResource(R.string.bottom_notifications_why), fontSize = 15.sp, color = colors.onBackground, textAlign = TextAlign.Center)
             BottomPillButton(stringResource(R.string.bottom_notifications_allow), "bottom-notifications-allow") {
-                runCatching {
-                    context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                }
+                val intent = notificationAccessIntent(context)
+                if (openSettings != null) openSettings(intent) { BottomNotifications.granted(context) }
+                else runCatching { context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
             }
         }
         return
