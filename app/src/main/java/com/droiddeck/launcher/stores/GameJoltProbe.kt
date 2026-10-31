@@ -37,7 +37,7 @@ internal object GameJoltProbe {
     }.getOrNull()
 
     private val noise = Regex("/dash/(developer|communities|sites|avatar|header|profile|email)|communities|/posts/|stickers|polls|realms|custom-buttons|collaborators|playlists", RegexOption.IGNORE_CASE)
-    private val markers = listOf("get-download-url/", "/web/download/info/", "/web/discover/games", "/web/search\"", "/web/search`", "/web/search'", "getQueryString(", "getDownloadUrl(", "/web/auth/check\"", "/web/library\"", "/web/checkout/setup-order")
+    private val markers = listOf("get-download-url/", "/web/download/info/", "/web/discover/games", "/web/search\"", "/web/search`", "/web/search'", "getQueryString(", "push(`section=`", "5-less", "everyone", "getDownloadUrl(", "/web/auth/check\"", "/web/library\"", "/web/checkout/setup-order")
     private val DIGITS = Regex("[0-9]+")
     private val IDENT = Regex("[A-Za-z_$][A-Za-z0-9_$]*")
     private val CODE_WORDS = setOf(
@@ -50,6 +50,7 @@ internal object GameJoltProbe {
     private const val MAX_CONTEXTS = 6
     private const val CONTEXT_BEFORE = 60
     private const val CONTEXT_AFTER = 300
+    private const val LONG_AFTER = 1200
 
     private fun maskCode(text: String): String =
         text.replace('\n', ' ').let { flat ->
@@ -95,8 +96,8 @@ internal object GameJoltProbe {
     private fun log(line: String, urls: SecretScrub.Urls = SecretScrub.Urls.SHORT) =
         StoresState.logLine("gamejolt probe: ${line.replace('\n', ' ').take(500)}", urls)
 
-    private fun logLong(label: String, text: String) {
-        text.chunked(450).take(MAX_STRUCTURE_LINES).forEachIndexed { i, part -> log("$label[$i] $part") }
+    private fun logLong(label: String, text: String, urls: SecretScrub.Urls = SecretScrub.Urls.SHORT) {
+        text.chunked(450).take(MAX_STRUCTURE_LINES).forEachIndexed { i, part -> log("$label[$i] $part", urls) }
     }
 
     private fun isGameJoltHost(url: String): Boolean {
@@ -259,8 +260,8 @@ internal object GameJoltProbe {
                             from = at + marker.length
                             if (marker == "/web/discover/games" && js.body.getOrNull(from) == '/' && js.body.getOrNull(from + 1)?.isLetter() == true) continue
                             contexts[marker] = (contexts[marker] ?: 0) + 1
-                            val window = js.body.substring(maxOf(0, at - CONTEXT_BEFORE), minOf(js.body.length, at + marker.length + CONTEXT_AFTER))
-                            log("code shape [${marker.trim('"', '`')}]: ${maskCode(window)}", SecretScrub.Urls.KEEP_PATH)
+                            val window = js.body.substring(maxOf(0, at - CONTEXT_BEFORE), minOf(js.body.length, at + marker.length + (if (marker == "push(`section=`") LONG_AFTER else CONTEXT_AFTER)))
+                            logLong("code shape [${marker.trim('"', '`')}]", maskCode(window), SecretScrub.Urls.KEEP_PATH)
                         }
                     }
                     val refs = scriptRef.findAll(js.body).map { it.groupValues[1] }.toList()
