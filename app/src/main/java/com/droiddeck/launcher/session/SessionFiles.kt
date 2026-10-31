@@ -167,6 +167,9 @@ object SessionFiles {
             "usr/local/bin/gamescope" to "usr/local/bin/gamescope",
             // The gamescope pack carries its own WSI layer (patch 0117); it replaces the runtime's stock copy.
             "usr/lib/libVkLayer_FROG_gamescope_wsi_aarch64.so" to "usr/lib/libVkLayer_FROG_gamescope_wsi_aarch64.so",
+            "usr/local/lib/vkbridge/libvulkan_droidbridge.so" to "usr/local/lib/vkbridge/libvulkan_droidbridge.so",
+            "usr/local/share/vkbridge/droidbridge_icd.json" to "usr/local/share/vkbridge/droidbridge_icd.json",
+            "usr/local/bin/droiddeck-vkbridge-smoke" to "usr/local/bin/droiddeck-vkbridge-smoke",
             "usr/local/lib/droiddeck/uruntime" to "usr/local/lib/droiddeck/uruntime",
             "usr/local/lib/droiddeck-pipewire.tzst" to "usr/local/lib/droiddeck-pipewire.tzst",
             "usr/local/share/licenses/uruntime/LICENSE" to "usr/local/share/licenses/uruntime/LICENSE",

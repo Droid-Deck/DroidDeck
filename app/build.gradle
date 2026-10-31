@@ -341,6 +341,21 @@ def buildRustStores = tasks.register('buildRustStores', Exec) {
 if (!skipRust) android.sourceSets.main.jniLibs.srcDir(rustJniLibsDir)
 tasks.named('preBuild').configure { dependsOn(buildRustStores) }
 
+def maliBridgeDir = rootProject.file('external/MaliBridge')
+def vkbridgeJniLibsDir = layout.buildDirectory.dir('vkbridgeJniLibs')
+def buildVkBridgeServer = tasks.register('buildVkBridgeServer', Exec) {
+    description = 'Builds the Vulkan bridge server (libvkbridge_server.so) with the NDK.'
+    inputs.dir(new File(maliBridgeDir, 'common'))
+    inputs.dir(new File(maliBridgeDir, 'server'))
+    inputs.dir(new File(maliBridgeDir, 'third_party'))
+    inputs.file(new File(maliBridgeDir, 'scripts/build-server-android.sh'))
+    outputs.dir(vkbridgeJniLibsDir)
+    commandLine 'bash', new File(maliBridgeDir, 'scripts/build-server-android.sh').absolutePath,
+        android.ndkDirectory.absolutePath, vkbridgeJniLibsDir.get().asFile.absolutePath
+}
+android.sourceSets.main.jniLibs.srcDir(vkbridgeJniLibsDir)
+tasks.named('preBuild').configure { dependsOn(buildVkBridgeServer) }
+
 dependencies {
     implementation "org.opencv:opencv:${trackingPack.OPENCV_VERSION}"
     implementation 'org.khronos.openxr:openxr_loader_for_android:1.1.49'

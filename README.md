@@ -66,6 +66,13 @@ Compatibility and performance vary by device. Desktop compositing is software re
 DroidDeck is [GPL-3.0](LICENSE). Steam and Proton belong to Valve Corporation. VITURE, RayNeo, XREAL, Rokid, REDMAGIC, Nintendo Switch and Joy-Con are trademarks of their owners. This project is not affiliated with any of them.
 
 <details>
+<summary><b>Mali GPUs</b></summary>
+
+- GPUs other than Adreno draw through [MaliBridge by ASEbrahim](https://github.com/ASEbrahim/MaliBridge) (GPL-3.0-or-later, with the attribution terms in its NOTICE), built from the `external/MaliBridge` submodule. Its DroidDeck integration is [@ASEbrahim](https://github.com/ASEbrahim)'s work from their [DroidDeck fork](https://github.com/ASEbrahim/DroidDeck); it credits Vulkan-Headers, Arm's HWCPipe, bcdec, Lee Gao's etc2_encode and Mali research, David Cimo, The412Banner and others. See [docs/third-party/malibridge](docs/third-party/malibridge/README.md).
+
+</details>
+
+<details>
 <summary><b>Runtime, Wine and Proton</b></summary>
 
 - Runtime, shim, input and controller work build on WinNative and Bannerlator by maxjivi05.

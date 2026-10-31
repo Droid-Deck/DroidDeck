@@ -1,0 +1,21 @@
+MaliBridge
+Copyright (C) 2026 ASEbrahim and MaliBridge contributors
+https://github.com/ASEbrahim/MaliBridge
+
+MaliBridge is free software: you can redistribute it and/or modify it under the terms of the GNU
+General Public License as published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version. See LICENSE.
+
+Additional terms under section 7 of the GNU GPL version 3:
+
+1. Attribution (section 7(b)). Anyone who conveys MaliBridge, or a work based on it, in source or
+   object form must keep the notice "MaliBridge by ASEbrahim" with a link to
+   https://github.com/ASEbrahim/MaliBridge in the conveyed work's documentation, and, where the
+   work has a user interface that shows credits, licences or an "about" screen, in that screen.
+
+2. Names (section 7(e)). This licence grants no right to use the name "MaliBridge" or the
+   author's name to name or promote a modified version. A modified version must be marked as
+   changed and must not be presented as MaliBridge or as the author's work.
+
+Third-party components keep their own licences and notices (third_party/ and the files that name
+them).

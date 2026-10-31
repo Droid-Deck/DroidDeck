@@ -161,7 +161,7 @@ collect_steam_logs() {
     cp "$fex_state/status.json" "$fex_state/config/Config.json" "$BL_DEBUG_DIR/droiddeck-fex/" 2>/dev/null
   fi
 }
-trap 'collect_steam_logs 2>/dev/null || true' TERM INT HUP
+trap 'bl_stopping=1; collect_steam_logs 2>/dev/null || true' TERM INT HUP
 if [ -n "${BL_VK_DRIVER:-}" ]; then
   bl_icd_lib=$(sed -n 's/.*"library_path"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$BL_VK_DRIVER" 2>/dev/null | head -1)
   bl_icd_lib=$(printf '%s' "$bl_icd_lib" | sed 's|\\/|/|g')
@@ -177,6 +177,82 @@ if [ -n "${BL_VK_DRIVER:-}" ]; then
     echo "== vulkan driver: IGNORING $BL_VK_DRIVER (manifest or ${bl_icd_lib:-library} unreadable); using the runtime's own"
   fi
   unset bl_icd_lib
+fi
+bl_webhelper_layout() {
+  if [ -n "${BL_VKBRIDGE_WEBHELPER_ARGS:-}" ]; then
+    printf '%s\n' "$BL_VKBRIDGE_WEBHELPER_ARGS"
+  elif [ -z "${BL_VKBRIDGE_CEF_ANGLE:-}" ]; then
+    echo stock
+  elif [ "$BL_VKBRIDGE_CEF_ANGLE" = vulkan ] && [ "${BL_VKBRIDGE_CEF_VULKAN:-1}" != 0 ]; then
+    echo "--use-gl=angle --use-angle=vulkan +Vulkan +VulkanFromANGLE +DefaultANGLEVulkan"
+  else
+    echo "--use-gl=angle --use-angle=$BL_VKBRIDGE_CEF_ANGLE"
+  fi
+}
+bl_now_ms() {
+  if [ -n "${EPOCHREALTIME:-}" ]; then
+    local t=${EPOCHREALTIME/[.,]/}
+    echo $((10#$t / 1000))
+  else
+    date +%s%3N
+  fi
+}
+vkbridge_wait_socket() {
+  local sock=$1 limit=${2:-10000} start now waited
+  [ -n "$sock" ] || return 1
+  if [ -S "$sock" ]; then
+    echo "== vkbridge: server socket ready (waited 0 ms)"
+    return 0
+  fi
+  start=$(bl_now_ms)
+  while :; do
+    now=$(bl_now_ms)
+    waited=$((now - start))
+    if [ -S "$sock" ]; then
+      echo "== vkbridge: server socket ready (waited $waited ms; the server listens after its startup probe)"
+      return 0
+    fi
+    if [ -n "${bl_stopping:-}" ]; then
+      echo "== vkbridge: no server socket after $waited ms; the session is stopping"
+      return 1
+    fi
+    if [ "$waited" -ge "$limit" ]; then
+      echo "== vkbridge: no server socket after $waited ms (gave up at $limit ms)"
+      return 1
+    fi
+    sleep 0.05
+  done
+}
+if [ "${BL_VKBRIDGE:-0}" = 1 ]; then
+  bl_vkb_icd=/usr/local/share/vkbridge/droidbridge_icd.json
+  [ -z "${BL_INSIDE:-}" ] && vkbridge_wait_socket "${VKBRIDGE_SOCKET:-}" "${BL_VKBRIDGE_WAIT_MS:-10000}"
+  bl_vkb_missing=
+  [ -r "$bl_vkb_icd" ] || bl_vkb_missing="$bl_vkb_missing icd"
+  [ -r /usr/local/lib/vkbridge/libvulkan_droidbridge.so ] || bl_vkb_missing="$bl_vkb_missing library"
+  [ -S "${VKBRIDGE_SOCKET:-}" ] || bl_vkb_missing="$bl_vkb_missing socket"
+  if [ -z "$bl_vkb_missing" ]; then
+    export VK_DRIVER_FILES=$bl_vkb_icd VK_ICD_FILENAMES=$bl_vkb_icd
+    export VKBRIDGE_SOCKET VKBRIDGE_CLIENT_LOG
+    if [ -r /root/.vkbridge-env ]; then
+      while IFS='=' read -r _k _v; do
+        case "$_k" in VKBRIDGE_*|BL_VKBRIDGE_*) export "$_k=$_v" ;; esac
+      done < /root/.vkbridge-env
+      [ -z "${BL_INSIDE:-}" ] && echo "== vkbridge: development settings from /root/.vkbridge-env: $(cut -d= -f1 /root/.vkbridge-env | tr '\n' ' ')"
+    fi
+    export VKD3D_FEATURE_LEVEL=${VKD3D_FEATURE_LEVEL:-12_0}
+    unset TU_DEBUG
+    if [ -z "${BL_INSIDE:-}" ]; then
+      step "vkbridge self-test"
+      timeout 60 /usr/local/bin/droiddeck-vkbridge-smoke 2>&1 | sed 's/^/== vkbridge: /'
+      if command -v vulkaninfo >/dev/null 2>&1; then
+        timeout 30 vulkaninfo --summary 2>&1 | sed -n '/^Devices:/,$p' | head -40 | sed 's/^/== vulkaninfo: /'
+      fi
+    fi
+    echo "== vulkan driver: Mali bridge ($bl_vkb_icd, server at $VKBRIDGE_SOCKET)"
+  else
+    echo "== vulkan driver: Mali bridge requested but NOT usable (icd $bl_vkb_icd, socket ${VKBRIDGE_SOCKET:-unset}; missing:$bl_vkb_missing); this GPU will show a black screen"
+  fi
+  unset bl_vkb_icd bl_vkb_missing
 fi
 export GAMESCOPE_FORCE_VULKAN_REALTIME=${BL_GAMESCOPE_REALTIME:-0}
 
@@ -309,6 +385,13 @@ if [ -z "${BL_INSIDE:-}" ]; then
   # plane on the phone's compositor; a controller-driven cursor is the reason to turn it on.
   if [ "$mode" = steam ] && [ "${BL_CURSOR_COMPOSITE:-0}" = 1 ]; then
     export gamescope_cursor_composite=2
+  fi
+  # Through the Mali bridge, Steam's UI flickered while gamescope handed its layers to the phone's
+  # compositor as separate planes, for a reason not yet found; one composited image does not
+  # (Mali-G76 MC4: 145 footer flips in 6 s at rest, 0 composited).
+  if [ "$mode" = steam ] && [ "${BL_VKBRIDGE:-0}" = 1 ] && [ -z "${gamescope_composite_force:-}" ]; then
+    export gamescope_composite_force=1
+    echo "== gamescope: composites every frame (Mali bridge: the Steam UI flickers on separate planes)"
   fi
   args=(--backend wayland --expose-wayland -f -W "$width" -H "$height" -w "$nested" -h "$nested_h")
   if [ "$nested" != "$width" ] || [ "$nested_h" != "$height" ]; then
@@ -1022,6 +1105,28 @@ case $mode in
     if [ "${BL_DESKTOP:-}" = 1 ] && [ "${BL_STEAM_UI:-}" = desktop ]; then
       _bl_cef=(-cef-disable-gpu)
       _bl_ui=(-nobigpicture)
+    fi
+    if [ "${BL_VKBRIDGE:-0}" = 1 ]; then
+      # On the GPU the Steam UI held about 400 MB through the bridge (Mali-G76 MC4, 3 GB of RAM); with
+      # a game loading beside it, Android's low-memory killer took the whole session down.
+      if [ -z "${BL_VKBRIDGE_CEF_GPU:-}" ]; then
+        _bl_mem_kb=$(awk '/^MemTotal:/ {print $2}' /proc/meminfo 2>/dev/null)
+        if [ "${_bl_mem_kb:-0}" -gt 0 ] && [ "$_bl_mem_kb" -lt 4194304 ]; then
+          BL_VKBRIDGE_CEF_GPU=0
+          echo "== steam: $((_bl_mem_kb / 1024)) MB of RAM: the browser UI draws in software to leave games the memory"
+        fi
+      fi
+      if [ "${BL_VKBRIDGE_CEF_GPU:-1}" = 0 ]; then
+        _bl_cef=(-cef-disable-gpu -cef-disable-gpu-compositing)
+        echo "== steam: browser UI in software (Mali bridge)"
+      elif [ "${_bl_cef[0]}" = -cef-force-gpu ]; then
+        _bl_cef=(-cef-force-gpu -cef-use-gl=angle -cef-use-angle="${BL_VKBRIDGE_CEF_ANGLE:-vulkan}")
+      fi
+      [ "${BL_VKBRIDGE_CEF_LOG:-0}" = 1 ] && _bl_cef+=(-cef-enable-logging=stderr -cef-v=1)
+      [ -n "${BL_VKBRIDGE_CEF_EXTRA:-}" ] && read -r -a _bl_cef_extra <<<"$BL_VKBRIDGE_CEF_EXTRA" && _bl_cef+=("${_bl_cef_extra[@]}")
+      BL_WEBHELPER_ARGS=$(bl_webhelper_layout)
+      export BL_WEBHELPER_ARGS
+      echo "== steam: web helper process layout: $BL_WEBHELPER_ARGS (Mali bridge)"
     fi
     if [ "${BL_STEAM_UI:-}" != desktop ]; then
       if [ "$steam_x64" = 0 ] || [ "${BL_X64_DECK:-1}" != 0 ]; then

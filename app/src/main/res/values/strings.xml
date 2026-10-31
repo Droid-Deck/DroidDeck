@@ -3405,6 +3405,19 @@
     <string name="stores_xbox_cloud_settings">Cloud settings</string>
     <string name="xbox_cloud_gaming" translatable="false">Xbox Cloud Gaming</string>
     <string name="xbox_filter_game_pass" translatable="false">Game Pass</string>
+    <string name="setup_gpu_bridge_off">Mali bridge: off</string>
+    <string name="setup_gpu_bridge_on">Mali bridge: on</string>
+    <string name="setup_bridge_safe">Safe mode</string>
+    <string name="setup_bridge_safe_on">Safe mode: on</string>
+    <string name="setup_bridge_safe_off">Safe mode: off</string>
+    <string name="setup_bridge_safe_on_detail">Most compatible. Recommended for a new device.</string>
+    <string name="setup_bridge_safe_off_detail">Faster where this GPU passed its checks.</string>
+    <string name="setup_bridge_dxvk">DXVK</string>
+    <string name="setup_bridge_dxvk_auto">DXVK: automatic</string>
+    <string name="setup_bridge_dxvk_proton">DXVK: Proton\'s own</string>
+    <string name="setup_bridge_dxvk_auto_detail">Uses an older DXVK where this GPU\'s Vulkan is too old for Proton\'s.</string>
+    <string name="setup_bridge_dxvk_proton_detail">Every Proton keeps its own DXVK, even where this GPU\'s Vulkan may be too old for it.</string>
+    <string name="setup_gpu_bridge_detail">%1$s is not an Adreno. The experimental Vulkan bridge is on: the session draws through the phone\'s own driver. Expect bugs; send the session logs.</string>
     <string name="integration_title">Steam integration</string>
     <string name="integration_count">%1$d of %2$d on</string>
     <string name="integration_set_up">Set up</string>

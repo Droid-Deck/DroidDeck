@@ -1,0 +1,3 @@
+[submodule "external/MaliBridge"]
+	path = external/MaliBridge
+	url = https://github.com/ASEbrahim/MaliBridge.git
