@@ -1890,6 +1890,12 @@
     <string name="bottom_notifications_none">No notifications.</string>
     <string name="bottom_notifications_count">%1$d notifications</string>
     <string name="bottom_notifications_clear">Clear</string>
+    <string name="bottom_page_screenshots">Screenshots</string>
+    <string name="bottom_shots_where">Saved to Pictures/DroidDeck. Steam screenshots show here too.</string>
+    <string name="bottom_shots_take">Take screenshot</string>
+    <string name="bottom_shots_saved">Screenshot saved.</string>
+    <string name="bottom_shots_failed">Could not take a screenshot.</string>
+    <string name="bottom_shots_none">No screenshots yet.</string>
 
     <string name="rtinst_removing">Removing Linux runtime</string>
     <plurals name="rtinst_removing_entries">

@@ -123,6 +123,7 @@ import com.droiddeck.launcher.ui.SecondScreenPresentation
 import com.droiddeck.launcher.ui.BottomDashboard
 import com.droiddeck.launcher.ui.BottomPage
 import com.droiddeck.launcher.ui.sessionBottomPages
+import com.droiddeck.launcher.ui.BottomPageActions
 import com.droiddeck.launcher.ui.DroidDeckTheme
 import com.droiddeck.launcher.wayland.CompositorHost
 import com.droiddeck.launcher.wayland.WaylandCompositor
@@ -3133,7 +3134,40 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     )
 
     /** Pages for the bottom-screen dashboard; the dashboard is offered only while at least one exists. */
-    private fun bottomPages(): List<BottomPage> = sessionBottomPages()
+    private fun bottomPages(): List<BottomPage> = sessionBottomPages(BottomPageActions(takeScreenshot = ::captureScreenshot))
+
+    /** Copies the game frame (no overlay) at the size it is shown and saves it to Pictures/DroidDeck. */
+    private fun captureScreenshot(onDone: (Boolean) -> Unit) {
+        val width = if (::surfaceView.isInitialized) surfaceView.width else 0
+        val height = if (::surfaceView.isInitialized) surfaceView.height else 0
+        if (width <= 0 || height <= 0 || surfaceView.holder.surface?.isValid != true) {
+            onDone(false)
+            return
+        }
+        val bitmap = try {
+            android.graphics.Bitmap.createBitmap(width, height, android.graphics.Bitmap.Config.ARGB_8888)
+        } catch (_: OutOfMemoryError) {
+            onDone(false)
+            return
+        }
+        try {
+            android.view.PixelCopy.request(surfaceView, bitmap, { result ->
+                if (result != android.view.PixelCopy.SUCCESS) {
+                    bitmap.recycle()
+                    onDone(false)
+                    return@request
+                }
+                Thread {
+                    val saved = com.droiddeck.launcher.session.BottomScreenshots.save(applicationContext, bitmap)
+                    bitmap.recycle()
+                    runOnUiThread { onDone(saved) }
+                }.start()
+            }, uiHandler)
+        } catch (_: IllegalArgumentException) {
+            bitmap.recycle()
+            onDone(false)
+        }
+    }
 
     private fun tapSteamButton() {
         if (SessionState.mode == SessionService.MODE_STEAM) {
