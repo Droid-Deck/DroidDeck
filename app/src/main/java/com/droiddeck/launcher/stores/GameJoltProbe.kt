@@ -37,7 +37,7 @@ internal object GameJoltProbe {
     }.getOrNull()
 
     private val noise = Regex("/dash/(developer|communities|sites|avatar|header|profile|email)|communities|/posts/|stickers|polls|realms|custom-buttons|collaborators|playlists", RegexOption.IGNORE_CASE)
-    private val markers = listOf("get-download-url/", "/web/download/info/", "/web/discover/games\"", "/web/discover/games`", "/web/search\"", "/web/search`", "/web/auth/check\"", "/web/library\"", "/web/checkout/setup-order")
+    private val markers = listOf("get-download-url/", "/web/download/info/", "/web/discover/games", "/web/search\"", "/web/search`", "/web/auth/check\"", "/web/library\"", "/web/checkout/setup-order")
     private val DIGITS = Regex("[0-9]+")
     private val IDENT = Regex("[A-Za-z_$][A-Za-z0-9_$]*")
     private val CODE_WORDS = setOf(
@@ -46,13 +46,19 @@ internal object GameJoltProbe {
         "Api", "sendRequest", "sendFieldsRequest", "noErrorRedirect", "detach", "package", "release", "payload", "user", "token", "owned", "sellable",
         "checkout", "order", "library", "auth", "check", "true", "false", "null", "new", "return", "await", "async", "const", "let", "var",
     )
-    private const val MAX_CONTEXTS = 3
+    private const val MAX_CONTEXTS = 6
     private const val CONTEXT_BEFORE = 60
-    private const val CONTEXT_AFTER = 180
+    private const val CONTEXT_AFTER = 300
 
     private fun maskCode(text: String): String =
-        IDENT.replace(text.replace('\n', ' ')) { m -> if (m.value.length <= 2 || m.value in CODE_WORDS) m.value else "_" }
-            .replace(DIGITS, "#")
+        text.replace('\n', ' ').let { flat ->
+            IDENT.replace(flat) { m ->
+                val before = flat.getOrNull(m.range.first - 1)
+                val after = flat.getOrNull(m.range.last + 1)
+                val structural = m.value.length <= 24 && m.value.all { it.isLetter() } && (before == '/' || before == '.' || after == ':')
+                if (m.value.length <= 2 || m.value in CODE_WORDS || structural) m.value else "_"
+            }
+        }.replace(DIGITS, "#")
 
     private val CHUNK_EXTENSIONS = setOf("js", "mjs", "css", "json", "map")
     private val CHUNK_DIRS = setOf("assets", "chunks", "static", "js", "dist")
@@ -231,6 +237,7 @@ internal object GameJoltProbe {
                             val at = js.body.indexOf(marker, from)
                             if (at < 0) break
                             from = at + marker.length
+                            if (marker == "/web/discover/games" && js.body.getOrNull(from) == '/' && js.body.getOrNull(from + 1)?.isLetter() == true) continue
                             contexts[marker] = (contexts[marker] ?: 0) + 1
                             val window = js.body.substring(maxOf(0, at - CONTEXT_BEFORE), minOf(js.body.length, at + marker.length + CONTEXT_AFTER))
                             log("code shape [${marker.trim('"', '`')}]: ${maskCode(window)}", SecretScrub.Urls.KEEP_PATH)
@@ -281,6 +288,7 @@ internal object GameJoltProbe {
         report("candidate browse", "https://gamejolt.com/site-api/web/discover/games", "application/json", MAX_JSON)
         val slug = runCatching { URL(input).path }.getOrDefault("").substringAfter("/games/", "").substringBefore('/')
         if (slug.isNotEmpty()) report("candidate search", "https://gamejolt.com/site-api/web/search?q=" + java.net.URLEncoder.encode(slug, "UTF-8"), "application/json", MAX_JSON)
+        if (slug.isNotEmpty()) report("candidate game search", "https://gamejolt.com/site-api/web/search/games?q=" + java.net.URLEncoder.encode(slug, "UTF-8") + "&page=1", "application/json", MAX_JSON)
         report("game api without a key", "https://api.gamejolt.com/api/game/v1_2/users/", "application/json", 20_000)
         if (slug.isNotEmpty()) report("search page", "https://gamejolt.com/search?q=" + java.net.URLEncoder.encode(slug, "UTF-8"), "text/html", MAX_PAGE)
         log("done")
