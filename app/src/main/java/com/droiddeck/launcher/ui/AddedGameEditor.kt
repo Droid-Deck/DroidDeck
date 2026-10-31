@@ -221,7 +221,7 @@ private fun ArtOnlyEditor(
     var logoOpen by remember { mutableStateOf(false) }
     var launchOptions by remember { mutableStateOf<String?>(null) }
     var launchVersion by remember { mutableIntStateOf(0) }
-    var editingLaunch by remember { mutableStateOf(false) }
+    var editingLaunch by remember { mutableStateOf<String?>(null) }
     var launchSaving by remember { mutableStateOf(false) }
     var launchError by remember { mutableStateOf<Int?>(null) }
     val position = rememberLogoPosition(target, version)
@@ -237,7 +237,7 @@ private fun ArtOnlyEditor(
             modifier = Modifier.fillMaxWidth().heightIn(max = maxHeight).verticalScroll(rememberScrollState()),
         ) {
             if (launchAppId != null) {
-                FieldRow(stringResource(R.string.edit_launch_options), focus = first, onClick = { if (launchOptions != null && !launchSaving) editingLaunch = true }) {
+                FieldRow(stringResource(R.string.edit_launch_options), focus = first, onClick = { if (!launchSaving) launchOptions?.let { editingLaunch = it } }) {
                     val options = launchOptions
                     if (options == null || launchSaving) Loading() else ValueText(options.ifEmpty { "—" }, muted = options.isEmpty())
                 }
@@ -258,8 +258,8 @@ private fun ArtOnlyEditor(
             PickerRow(Icons.Outlined.Tune, stringResource(R.string.art_adjust_logo), logoPositionSummary(position?.value), enabled = target != null && position != null) { logoOpen = true }
         }
     }
-    if (editingLaunch && launchAppId != null) TextEntryDialog(stringResource(R.string.edit_launch_options), launchOptions.orEmpty(), onDismiss = { editingLaunch = false }) { value ->
-        val before = launchOptions.orEmpty()
+    val before = editingLaunch
+    if (before != null && launchAppId != null) TextEntryDialog(stringResource(R.string.edit_launch_options), before, onDismiss = { editingLaunch = null }) { value ->
         if (launchSaving || value == before.trim()) return@TextEntryDialog
         launchSaving = true
         scope.launch {
@@ -270,7 +270,10 @@ private fun ArtOnlyEditor(
                     SteamLaunchOptions.Saved.DESKTOP -> R.string.edit_launch_options_desktop
                     SteamLaunchOptions.Saved.NO -> R.string.edit_launch_options_not_saved
                 }
-                if (saved == SteamLaunchOptions.Saved.YES) launchOptions = value else launchVersion++
+                if (saved == SteamLaunchOptions.Saved.YES) launchOptions = value else {
+                    launchOptions = null
+                    launchVersion++
+                }
             } finally {
                 launchSaving = false
             }
