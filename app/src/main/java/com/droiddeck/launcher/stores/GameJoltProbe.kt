@@ -7,7 +7,7 @@ import java.net.URL
 internal object GameJoltProbe {
     private const val MAX_PAGE = 800_000
     private const val MAX_SCRIPT = 3_000_000
-    private const val MAX_SCRIPTS = 24
+    private const val MAX_SCRIPTS = 150
     private const val MAX_JSON = 3_000_000
     private const val MAX_FOUND = 300
     private const val JSON_DEPTH = 5
@@ -24,6 +24,16 @@ internal object GameJoltProbe {
     private val WORD = Regex("[A-Za-z][A-Za-z_\\-]{0,30}")
     private val TEMPLATE = Regex("[{$][A-Za-z0-9_.{}$]{0,38}")
     private val gameId = Regex("/(\\d+)/?(?:[?#].*)?$")
+
+    private fun resolve(base: String, ref: String): String? = runCatching {
+        val root = URL(base)
+        when {
+            ref.startsWith("http://") || ref.startsWith("https://") -> ref
+            ref.startsWith("/") -> URL(root, ref).toString()
+            ref.startsWith("assets/") -> URL(root, "/$ref").toString()
+            else -> URL(root, ref).toString()
+        }
+    }.getOrNull()
 
     private class Reply(val code: Int, val type: String, val finalUrl: String, val body: String)
 
@@ -167,10 +177,15 @@ internal object GameJoltProbe {
             val src = queue.removeFirst()
             fetched++
             val js = fetch(src, "*/*", MAX_SCRIPT) ?: continue
-            log("script code=${js.code} bytes=${js.body.length} url=$src")
+            log("script code=${js.code} bytes=${js.body.length} url=$src", SecretScrub.Urls.KEEP_PATH)
             scan("script", js.body, fromScripts)
-            scriptRef.findAll(js.body).map { it.groupValues[1] }
-                .mapNotNull { runCatching { URL(URL(js.finalUrl), it).toString() }.getOrNull() }
+            val refs = scriptRef.findAll(js.body).map { it.groupValues[1] }.toList()
+            if (fetched == 1) {
+                refs.take(5).forEach { log("script ref sample: $it", SecretScrub.Urls.KEEP_PATH) }
+                val at = js.body.indexOf(refs.firstOrNull().orEmpty())
+                if (at >= 0) log("script ref context: ${js.body.substring(maxOf(0, at - 200), minOf(js.body.length, at + 200))}", SecretScrub.Urls.KEEP_PATH)
+            }
+            refs.mapNotNull { resolve(js.finalUrl, it) }
                 .filter { isGameJoltHost(it) && seen.add(it) }
                 .forEach { queue.addLast(it) }
         }
