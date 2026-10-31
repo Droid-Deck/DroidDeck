@@ -3925,7 +3925,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun onResume() {
         super.onResume()
-        HomeApp.keepOutOfRecents(this, false)
         if (refreshActivityDisplayId() && started) {
             SessionService.setActivityDisplay(this, sessionActivityDisplayId)
         }

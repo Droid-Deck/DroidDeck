@@ -147,7 +147,28 @@ object HomeApp {
             .getShortcutIconDrawable(info, context.resources.displayMetrics.densityDpi)?.toBitmap(px, px)
     }.getOrNull()
 
+    private val hiddenTasks = mutableSetOf<Int>()
+
+    fun trackRecents(app: android.app.Application) {
+        app.registerActivityLifecycleCallbacks(object : android.app.Application.ActivityLifecycleCallbacks {
+            override fun onActivityCreated(activity: android.app.Activity, savedInstanceState: android.os.Bundle?) = Unit
+            override fun onActivityStarted(activity: android.app.Activity) = Unit
+            override fun onActivityResumed(activity: android.app.Activity) = syncRecents(activity)
+            override fun onActivityPaused(activity: android.app.Activity) { if (activity is FrontEndActivity) syncRecents(activity) }
+            override fun onActivityStopped(activity: android.app.Activity) = Unit
+            override fun onActivitySaveInstanceState(activity: android.app.Activity, outState: android.os.Bundle) = Unit
+            override fun onActivityDestroyed(activity: android.app.Activity) = Unit
+        })
+    }
+
+    private fun syncRecents(activity: android.app.Activity) =
+        keepOutOfRecents(activity, activity is FrontEndActivity && !SessionState.running && isDefault(activity))
+
+    internal fun recentsChange(hidden: Boolean, task: Int, tasks: MutableSet<Int> = hiddenTasks): Boolean =
+        if (hidden) tasks.add(task) else tasks.remove(task)
+
     fun keepOutOfRecents(activity: android.app.Activity, hidden: Boolean) {
+        if (!recentsChange(hidden, activity.taskId)) return
         runCatching {
             activity.getSystemService(android.app.ActivityManager::class.java).appTasks.firstOrNull {
                 @Suppress("DEPRECATION")

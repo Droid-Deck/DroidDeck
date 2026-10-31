@@ -1663,7 +1663,6 @@ class FrontEndActivity : ComponentActivity() {
         compatLaunchVisible = true
         com.droiddeck.launcher.ui.DualScreenPanel.yieldTo(taskId, false)
         com.droiddeck.launcher.ui.DualScreenPanel.ownerPaused(taskId, false)
-        HomeApp.keepOutOfRecents(this, !SessionState.running && HomeApp.isDefault(this))
         orientation = SessionPrefs.orientation(this)
         launcherOrientation = com.droiddeck.launcher.core.AppUiPrefs.orientation(this)
         requestedOrientation = launcherOrientation
