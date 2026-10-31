@@ -53,6 +53,24 @@ class BoostReportTest {
     }
 
     @Test fun `the switch's hint asks for as many minutes as the verdict needs`() {
-        assertEquals(6, BoostReport.minutesForVerdict())
+        assertEquals(7, BoostReport.minutesForVerdict())
+    }
+
+    @Test fun `the check starts after the first minute of play, boost on first`() {
+        (1..60).forEach { assertNull(BoostReport.checkWindow(it)) }
+        assertEquals(false to 0, BoostReport.checkWindow(61))
+        assertEquals(false to 59, BoostReport.checkWindow(120))
+        assertEquals(true to 0, BoostReport.checkWindow(121))
+        assertEquals(true to 59, BoostReport.checkWindow(180))
+        assertEquals(false to 0, BoostReport.checkWindow(181))
+    }
+
+    @Test fun `the minutes asked for give both sides enough counted seconds`() {
+        val seconds = IntArray(2)
+        for (s in 1..BoostReport.minutesForVerdict() * 60) {
+            val (pause, at) = BoostReport.checkWindow(s) ?: continue
+            if (at >= BoostReport.SETTLE_S) seconds[if (pause) 1 else 0]++
+        }
+        assertTrue(seconds.joinToString(), seconds.all { it >= BoostReport.CHECK_MIN_S })
     }
 }

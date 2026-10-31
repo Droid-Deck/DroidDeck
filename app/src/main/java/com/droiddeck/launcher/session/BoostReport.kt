@@ -21,12 +21,14 @@ import kotlin.math.roundToInt
  * the game presents frames.
  *
  * With "Check the boost" on, the boost is paused for every other [WINDOW_S] seconds of play, so the
- * frame rate with and without it is compared over the same stretch of game. The first [SETTLE_S]
- * seconds after each switch are not counted.
+ * frame rate with and without it is compared over the same stretch of game. The first [WARMUP_S]
+ * seconds of play (loading, shader compiles) and the first [SETTLE_S] seconds after each switch are
+ * not counted.
  */
 object BoostReport {
     private const val TAG = "BoostReport"
     private const val STATUS_S = 30
+    internal const val WARMUP_S = 60
     internal const val WINDOW_S = 60
     internal const val SETTLE_S = 5
     internal const val CHECK_MIN_S = 120 // counted seconds on each side before there is a verdict
@@ -74,7 +76,14 @@ object BoostReport {
 
     internal fun minutesForVerdict(): Int {
         val windows = (CHECK_MIN_S + WINDOW_S - SETTLE_S - 1) / (WINDOW_S - SETTLE_S)
-        return 2 * windows * WINDOW_S / 60
+        return (WARMUP_S + 2 * windows * WINDOW_S + 59) / 60
+    }
+
+    /** Where second [played] of play falls in the check: null in the warm-up, else whether the boost is paused and the second's place in its window. */
+    internal fun checkWindow(played: Int): Pair<Boolean, Int>? {
+        if (played <= WARMUP_S) return null
+        val n = played - WARMUP_S - 1
+        return (n / WINDOW_S % 2 == 1) to n % WINDOW_S
     }
 
     /** From Check the boost: whether the boost made the game faster where it matters. */
@@ -199,6 +208,7 @@ object BoostReport {
             r.firstFrameMs = System.currentTimeMillis()
             line(r, "the game shows frames; fastest cores: ${GameThreadHints.startLine.removePrefix("game thread hints: ")}; " +
                 "Samsung clocks: ${SamsungPerf.state}")
+            if (r.check) line(r, "check: starts after the first $WARMUP_S s of play, so loading is not counted")
         }
         r.played++
         val thermal = if (Build.VERSION.SDK_INT >= 29) pm.currentThermalStatus else 0
@@ -208,13 +218,14 @@ object BoostReport {
         r.batteryEnd = battery(bm)
         r.lastFrameMs = System.currentTimeMillis()
 
-        if (r.check) {
-            val pause = (r.played - 1) / WINDOW_S % 2 == 1
-            if (pause != paused) {
+        val window = if (r.check) checkWindow(r.played) else null
+        if (window != null) {
+            val (pause, at) = window
+            if (at == 0) {
                 paused = pause
                 line(r, if (pause) "check: boost paused for $WINDOW_S s" else "check: boost on for $WINDOW_S s")
             }
-            if ((r.played - 1) % WINDOW_S >= SETTLE_S) (if (pause) r.checkOff else r.checkOn).add(fps, ma, thermal)
+            if (at >= SETTLE_S) (if (pause) r.checkOff else r.checkOn).add(fps, ma, thermal)
         }
 
         val threads = GameThreadHints.boostedThreads
@@ -327,7 +338,7 @@ object BoostReport {
         }
         line(r, "heat: hottest ${THERMAL.getOrElse(r.hottest) { "${r.hottest}" }}; battery: $battery")
         if (r.check) {
-            line(r, "check: counted ${clock(r.checkOn.seconds)} with the boost on and ${clock(r.checkOff.seconds)} paused (first $SETTLE_S s after each switch skipped)")
+            line(r, "check: counted ${clock(r.checkOn.seconds)} with the boost on and ${clock(r.checkOff.seconds)} paused (first $WARMUP_S s of play and first $SETTLE_S s after each switch skipped)")
             line(r, "check, boost on: ${side(r.checkOn)}")
             line(r, "check, paused:   ${side(r.checkOff)}")
             line(r, "verdict: ${verdict(r.checkOn, r.checkOff)}")
