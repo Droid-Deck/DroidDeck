@@ -46,6 +46,7 @@ internal object GameJoltProbe {
         "Api", "sendRequest", "sendFieldsRequest", "noErrorRedirect", "detach", "package", "release", "payload", "user", "token", "owned", "sellable",
         "checkout", "order", "library", "auth", "check", "true", "false", "null", "new", "return", "await", "async", "const", "let", "var",
     )
+    private const val SAMPLE_IDS = 5
     private const val MAX_CONTEXTS = 6
     private const val CONTEXT_BEFORE = 60
     private const val CONTEXT_AFTER = 300
@@ -163,7 +164,8 @@ internal object GameJoltProbe {
         runCatching {
             val payload = org.json.JSONObject(r.body).optJSONObject("payload") ?: return@runCatching
             val games = payload.optJSONArray("games")
-            log("$label payload=${keys(payload, 1)} games=${games?.length() ?: -1} page=${payload.opt("page")} perPage=${payload.opt("perPage")} count=${payload.opt("gamesCount") ?: payload.opt("count")}")
+            val ids = games?.let { list -> (0 until minOf(list.length(), SAMPLE_IDS)).joinToString(",") { list.optJSONObject(it)?.optLong("id")?.toString().orEmpty() } }.orEmpty()
+            log("$label query=${url.substringAfter('?')} payload=${keys(payload, 1)} games=${games?.length() ?: -1} ids=[$ids] page=${payload.opt("page")} perPage=${payload.opt("perPage")} count=${payload.opt("gamesCount") ?: payload.opt("count")}")
         }
     }
 
@@ -310,6 +312,7 @@ internal object GameJoltProbe {
         listOf(
             "best free windows" to "section=best&price=free&os=windows",
             "best two systems" to "section=best&os=linux,mac",
+            "hot page two" to "section=hot&page=2",
             "hot tag page two" to "section=hot&tag=action&page=2",
             "new paid" to "section=new&price=paid",
             "everything together" to "section=best&tag=action&price=free&os=windows&browser=html&maturity=everyone&status=complete&partners=partners",
