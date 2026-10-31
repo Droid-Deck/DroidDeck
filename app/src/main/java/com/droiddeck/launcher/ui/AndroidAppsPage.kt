@@ -16,6 +16,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.focusable
@@ -138,6 +139,8 @@ private sealed interface AppEntry : AppEntryKey {
         override val updatedAt get() = 0L
     }
 }
+
+private val FavoriteGold = Color(0xFFF5C542)
 
 private fun AppEntry.isFavorite(favorites: Set<String>) = this is AppEntry.App && app.key in favorites
 
@@ -358,11 +361,18 @@ internal fun AndroidAppsPage(s: FrontEndState, modifier: Modifier, onLaunch: (Ho
                             },
                         )
                     }
-                    if (favoriteCount > 0) {
-                        item(key = "favorites-label", span = { GridItemSpan(maxLineSpan) }) { SectionLabel(stringResource(R.string.apps_favorites)) }
-                        items(entries.take(favoriteCount), key = { it.key }) { tile(it) }
-                        item(key = "favorites-gap", span = { GridItemSpan(maxLineSpan) }) { Spacer(Modifier.height(4.dp)) }
-                        if (entries.size > favoriteCount) item(key = "apps-label", span = { GridItemSpan(maxLineSpan) }) { SectionLabel(appsFilterLabel(filter)) }
+                    if (favoriteCount > 0) item(key = "favorites", span = { GridItemSpan(maxLineSpan) }) {
+                        BoxWithConstraints(
+                            Modifier.fillMaxWidth().padding(bottom = 8.dp).clip(Shape12)
+                                .background(FavoriteGold.copy(alpha = 0.08f)).border(1.dp, FavoriteGold.copy(alpha = 0.3f), Shape12).padding(10.dp),
+                        ) {
+                            val cell = if (narrow) 84.dp else 96.dp
+                            val count = ((maxWidth + 10.dp) / (cell + 10.dp)).toInt().coerceAtLeast(1)
+                            val width = (maxWidth - 10.dp * (count - 1)) / count
+                            FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                for (e in entries.take(favoriteCount)) key(e.key) { Box(Modifier.width(width)) { tile(e) } }
+                            }
+                        }
                     }
                     items(entries.drop(favoriteCount), key = { it.key }) { tile(it) }
                 }
@@ -479,9 +489,9 @@ private fun AlphabetScroller(entries: List<AppEntry>, favoriteCount: Int, grid: 
     var dragging by remember { mutableStateOf<String?>(null) }
     val current by remember(entries, leadItems, favoriteCount) {
         derivedStateOf {
-            val i = grid.firstVisibleItemIndex - leadItems - (if (favoriteCount > 0) 3 else 0)
-            if (favoriteCount > 0 && i < favoriteCount) null
-            else entries.getOrNull(i.coerceIn(0, (entries.size - 1).coerceAtLeast(0)))?.let { indexLetter(it.label) }
+            val i = grid.firstVisibleItemIndex - leadItems
+            if (favoriteCount > 0 && i < 1) null
+            else entries.getOrNull((i + (if (favoriteCount > 0) favoriteCount - 1 else 0)).coerceIn(0, (entries.size - 1).coerceAtLeast(0)))?.let { indexLetter(it.label) }
         }
     }
     var height by remember { mutableIntStateOf(1) }
@@ -491,7 +501,7 @@ private fun AlphabetScroller(entries: List<AppEntry>, favoriteCount: Int, grid: 
         if (letter != dragging) {
             dragging = letter
             val at = firstAt[letter] ?: 0
-            scope.launch { grid.scrollToItem(if (at == 0) 0 else leadItems + (if (favoriteCount > 0) 3 else 0) + at) }
+            scope.launch { grid.scrollToItem(if (at == 0) 0 else leadItems + at - (if (favoriteCount > 0) favoriteCount - 1 else 0)) }
         }
     }
     Box(modifier.width(22.dp)) {
@@ -652,6 +662,7 @@ private fun AppMenu(
             MenuItem(stringResource(if (isHidden) R.string.apps_unhide else R.string.apps_hide), checked = false,
                 focusRequester = if (isHidden && shortcuts.isEmpty()) first else null) {
                 onDismiss()
+                if (!isHidden) HomeFavorites.set(ctx, app.key, false)
                 HomeHidden.set(ctx, app.key, !isHidden)
             }
             MenuItem(stringResource(R.string.apps_app_info), checked = false) {
