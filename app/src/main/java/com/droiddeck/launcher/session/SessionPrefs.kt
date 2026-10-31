@@ -974,6 +974,19 @@ object SessionPrefs {
         prefs(context).edit().putString("addedLaunch:$folderPath", options.trim()).apply()
     }
 
+    /** Launch options set here for a Steam game, which replace the ones in Steam; null when none were set here. */
+    fun steamGameLaunch(context: Context, appId: Int): String? = prefs(context).getString("steamLaunch:$appId", null)
+
+    fun setSteamGameLaunch(context: Context, appId: Int, options: String) {
+        prefs(context).edit().putString("steamLaunch:$appId", options.trim()).apply()
+    }
+
+    /** Every Steam game with launch options set here, by app ID. */
+    fun steamGameLaunches(context: Context): Map<Int, String> = prefs(context).all.mapNotNull { (key, value) ->
+        val appId = key.takeIf { it.startsWith("steamLaunch:") }?.substringAfter(':')?.toIntOrNull() ?: return@mapNotNull null
+        (value as? String)?.let { appId to it }
+    }.toMap()
+
     fun addedGameAdopted(context: Context, folderPath: String, field: String): String? =
         prefs(context).getString("addedAdopted:$field:$folderPath", null)
 

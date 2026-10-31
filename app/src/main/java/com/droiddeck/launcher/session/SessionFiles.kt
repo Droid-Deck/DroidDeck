@@ -290,7 +290,10 @@ object SessionFiles {
                 "stage session=$startsSession pending=$force choice=${SessionPrefs.bootMovie(context)} movie=${startupMovie?.path} " +
                     "staged=$bigPictureMovieInstalled done=$done steam=${home.path} config: $before -> ${startupMoviePath(config)}",
             )
-            if (startsSession) disableIdleSleep(home)
+            if (startsSession) {
+                disableIdleSleep(home)
+                com.droiddeck.launcher.frontend.SteamLaunchOptions.stage(context, home)
+            }
             if (!done) allDone = false
             if (!bigPictureMovieInstalled) allInstalled = false
             if (done && home.path.contains(".droiddeck-x64") == activeIsX64) seen = if (bigPictureMovieInstalled) BOOT_MOVIE_PATH else ""
