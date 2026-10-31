@@ -1899,7 +1899,10 @@
     <string name="stats_best_lap">Best lap</string>
     <string name="stats_tires">Tires °C</string>
     <string name="stats_trace">Throttle and brake, last 10 s</string>
-    <string name="stats_speed_chart">Speed, km/h</string>
+    <string name="stats_speed_chart">Speed, %1$s</string>
+    <string name="stats_gear">Gear</string>
+    <string name="stats_speed_units">Speed units</string>
+    <string name="stats_speed_units_auto">Automatic (%1$s)</string>
     <string name="stats_throttle">Throttle</string>
     <string name="stats_brake">Brake</string>
     <string name="stats_lights">Dashboard</string>

@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.ui
 
+import android.content.res.Resources
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -47,6 +49,7 @@ import com.droiddeck.launcher.session.GameStatusFiles
 import com.droiddeck.launcher.session.GameTelemetry
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.SessionState
+import com.droiddeck.launcher.session.SpeedUnit
 import com.droiddeck.launcher.session.StatsDash
 import com.droiddeck.launcher.session.StatsStrip
 import com.droiddeck.launcher.session.Telemetry
@@ -107,6 +110,8 @@ fun BottomTelemetryPage(fps: () -> Float?, runningGame: () -> String? = { null }
     var unknown by remember { mutableStateOf<List<UnknownTraffic>>(emptyList()) }
     var strip by remember { mutableStateOf(StatsStrip.from(SessionPrefs.statsStrip(context))) }
     var dash by remember { mutableStateOf(StatsDash.from(SessionPrefs.statsDash(context))) }
+    var speedUnit by remember { mutableStateOf(SpeedUnit.from(SessionPrefs.statsSpeedUnit(context))) }
+    val shownUnit = speedUnit.resolve(Resources.getSystem().configuration.locales[0].country)
     val fpsHistory = remember { History(PERF_N) }
     val cpuHistory = remember { History(PERF_N) }
     val gpuHistory = remember { History(PERF_N) }
@@ -229,7 +234,7 @@ fun BottomTelemetryPage(fps: () -> Float?, runningGame: () -> String? = { null }
         race?.let { r ->
             val shown = dash.resolve(r.source)
             traceTick.let {
-                RaceDashView(shown, r, TraceData(throttleTrace.snapshot(), brakeTrace.snapshot(), speedTrace.snapshot())) {
+                RaceDashView(shown, r, TraceData(throttleTrace.snapshot(), brakeTrace.snapshot(), speedTrace.snapshot()), shownUnit) {
                     dash = StatsDash.tapped(shown)
                     SessionPrefs.setStatsDash(context, dash.id)
                 }
@@ -299,6 +304,11 @@ fun BottomTelemetryPage(fps: () -> Float?, runningGame: () -> String? = { null }
             Text(stringResource(R.string.bottom_telemetry_port_busy, busyPorts.sorted().joinToString()), fontSize = 13.sp,
                 color = colors.error, modifier = Modifier.padding(horizontal = 4.dp))
         }
+        ChoiceRow(stringResource(R.string.stats_speed_units),
+            if (speedUnit == SpeedUnit.AUTO) stringResource(R.string.stats_speed_units_auto, shownUnit.label) else speedUnit.label) {
+            speedUnit = speedUnit.next()
+            SessionPrefs.setStatsSpeedUnit(context, speedUnit.id)
+        }
         Text(stringResource(R.string.stats_tap_hint), fontSize = 12.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(horizontal = 4.dp))
     }
 }
@@ -314,6 +324,16 @@ private fun httpGet(url: String): String {
     }
 }
 
+
+@Composable
+private fun ChoiceRow(title: String, value: String, onClick: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    Row(Modifier.fillMaxWidth().clickable(role = Role.Button, onClick = onClick).padding(horizontal = 4.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically) {
+        Text(title, fontSize = 15.sp, color = colors.onBackground, modifier = Modifier.weight(1f))
+        Text(value, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = LocalPalette.current.primary)
+    }
+}
 
 @Composable
 private fun SwitchRow(title: String, hint: String?, checked: Boolean, enabled: Boolean, onChange: (Boolean) -> Unit) {

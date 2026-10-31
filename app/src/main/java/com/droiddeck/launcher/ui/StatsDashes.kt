@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.sp
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.session.GameStatusFiles
 import com.droiddeck.launcher.session.GameTelemetry
+import com.droiddeck.launcher.session.SpeedUnit
 import com.droiddeck.launcher.session.StatsDash
 import com.droiddeck.launcher.session.Telemetry
 import kotlin.math.abs
@@ -62,16 +63,16 @@ internal const val TRACE_N = 150
 
 internal class TraceData(val throttle: List<Float>, val brake: List<Float>, val speed: List<Float>)
 
-/** The racing dash in [style]; a tap moves to the next one. */
+/** The racing dash in [style] with speeds in [unit] (km/h or mph); a tap moves to the next one. */
 @Composable
-internal fun RaceDashView(style: StatsDash, t: Telemetry, trace: TraceData, onTap: () -> Unit) {
+internal fun RaceDashView(style: StatsDash, t: Telemetry, trace: TraceData, unit: SpeedUnit, onTap: () -> Unit) {
     Box(Modifier.fillMaxWidth().clickable(onClick = onTap)) {
         when (style) {
-            StatsDash.AUTO, StatsDash.SPEEDOMETER -> SpeedometerDash(t)
-            StatsDash.CIRCUIT -> CircuitDash(t)
-            StatsDash.TRACE -> TraceDash(t, trace)
-            StatsDash.DIALS -> DialsDash(t)
-            StatsDash.GLANCE -> GlanceDash(t)
+            StatsDash.AUTO, StatsDash.SPEEDOMETER -> SpeedometerDash(t, unit)
+            StatsDash.CIRCUIT -> CircuitDash(t, unit)
+            StatsDash.TRACE -> TraceDash(t, trace, unit)
+            StatsDash.DIALS -> DialsDash(t, unit)
+            StatsDash.GLANCE -> GlanceDash(t, unit)
         }
     }
 }
@@ -117,23 +118,29 @@ private fun DrawScope.needle(cx: Float, cy: Float, len: Float, deg: Float, color
     drawCircle(hub, radius = 7.dp.toPx(), center = Offset(cx, cy))
 }
 
-private fun speedScale(speed: Float?): Float = if ((speed ?: 0f) > 210f) 320f else 220f
+private fun speedValue(t: Telemetry, unit: SpeedUnit): Float = (t.speedKmh ?: 0f) * unit.perKmh
+
+private fun speedScale(speed: Float, unit: SpeedUnit): Float =
+    if (unit == SpeedUnit.MPH) (if (speed > 130f) 200f else 140f) else (if (speed > 210f) 320f else 220f)
 
 private fun rpmScale(t: Telemetry): Float = max(t.maxRpm ?: 9000f, t.rpm ?: 0f)
 
-private fun kmh(t: Telemetry) = t.speedKmh?.let { "%.0f".format(it) } ?: "–"
+private fun speedText(t: Telemetry, unit: SpeedUnit) = t.speedKmh?.let { "%.0f".format(it * unit.perKmh) } ?: "–"
 
 @Composable
-private fun SpeedometerDash(t: Telemetry) {
+private fun unitAndGear(t: Telemetry, unit: SpeedUnit) = "${unit.label} · ${stringResource(R.string.stats_gear)} ${t.gear ?: "–"}"
+
+@Composable
+private fun SpeedometerDash(t: Telemetry, unit: SpeedUnit) {
     val colors = MaterialTheme.colorScheme
     val accent = LocalPalette.current.primary
     Row(Modifier.fillMaxWidth().height(DASH_H), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         StatsCard(stringResource(R.string.stats_speed), Modifier.weight(1.55f).fillMaxHeight()) {
             Box(Modifier.fillMaxWidth().weight(1f)) {
-                SpeedDial(t, Modifier.fillMaxSize())
+                SpeedDial(t, unit, Modifier.fillMaxSize())
                 Column(Modifier.align(Alignment.BottomCenter), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(t.gear ?: "–", fontSize = 44.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace, color = accent)
-                    Text("${kmh(t)} km/h", fontSize = 16.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace, color = colors.onBackground)
+                    Text(speedText(t, unit), fontSize = 44.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace, color = accent)
+                    Text(unitAndGear(t, unit), fontSize = 16.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace, color = colors.onBackground)
                     Text(t.rpm?.let { "%,.0f rpm".format(it) } ?: "", fontSize = 11.sp, fontFamily = FontFamily.Monospace, color = colors.onSurfaceVariant)
                 }
             }
@@ -148,12 +155,13 @@ private fun SpeedometerDash(t: Telemetry) {
 }
 
 @Composable
-private fun SpeedDial(t: Telemetry, modifier: Modifier) {
+private fun SpeedDial(t: Telemetry, unit: SpeedUnit, modifier: Modifier) {
     val pal = LocalPalette.current
     val colors = MaterialTheme.colorScheme
     val measurer = rememberTextMeasurer()
     val labelStyle = TextStyle(color = colors.onSurfaceVariant, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
-    val vmax = speedScale(t.speedKmh)
+    val speed = speedValue(t, unit)
+    val vmax = speedScale(speed, unit)
     val rpmFraction = ((t.rpm ?: 0f) / rpmScale(t)).coerceIn(0f, 1f)
     Canvas(modifier) {
         val r = min(size.width * 0.42f, size.height * 0.47f)
@@ -166,7 +174,7 @@ private fun SpeedDial(t: Telemetry, modifier: Modifier) {
         drawArc(pal.line, DIAL_START - 90f, DIAL_SWEEP, false, topLeft = tl, size = box, style = Stroke(5.dp.toPx(), cap = StrokeCap.Round))
         if (rpmFraction > 0f) drawArc(if (rpmFraction > 0.9f) StatsColors.brake else pal.primary, DIAL_START - 90f, DIAL_SWEEP * rpmFraction, false,
             topLeft = tl, size = box, style = Stroke(5.dp.toPx(), cap = StrokeCap.Round))
-        needle(cx, cy, r - 16.dp.toPx(), dialAngle(t.speedKmh ?: 0f, vmax), colors.onBackground, pal.primary)
+        needle(cx, cy, r - 16.dp.toPx(), dialAngle(speed, vmax), colors.onBackground, pal.primary)
     }
 }
 
@@ -219,7 +227,7 @@ private fun GForce(t: Telemetry, modifier: Modifier) {
 }
 
 @Composable
-private fun CircuitDash(t: Telemetry) {
+private fun CircuitDash(t: Telemetry, unit: SpeedUnit) {
     val colors = MaterialTheme.colorScheme
     val accent = LocalPalette.current.primary
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -234,8 +242,8 @@ private fun CircuitDash(t: Telemetry) {
             }
             StatsCard("", Modifier.weight(1.2f).fillMaxHeight()) {
                 Column(Modifier.fillMaxWidth().weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                    Text(t.gear ?: "–", fontSize = 72.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace, color = accent)
-                    Text("${kmh(t)} km/h", fontSize = 24.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace, color = colors.onBackground)
+                    Text(speedText(t, unit), fontSize = 72.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace, color = accent)
+                    Text(unitAndGear(t, unit), fontSize = 24.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace, color = colors.onBackground)
                     Text(t.rpm?.let { rpm -> t.maxRpm?.let { "%,.0f / %,.0f rpm".format(rpm, it) } ?: "%,.0f rpm".format(rpm) } ?: "",
                         fontSize = 12.sp, fontFamily = FontFamily.Monospace, color = colors.onSurfaceVariant)
                 }
@@ -318,7 +326,7 @@ private fun TireBox(c: Float, modifier: Modifier) {
 }
 
 @Composable
-private fun TraceDash(t: Telemetry, trace: TraceData) {
+private fun TraceDash(t: Telemetry, trace: TraceData, unit: SpeedUnit) {
     val colors = MaterialTheme.colorScheme
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         StatsCard(stringResource(R.string.stats_trace), Modifier.fillMaxWidth().height(168.dp)) {
@@ -328,13 +336,14 @@ private fun TraceDash(t: Telemetry, trace: TraceData) {
             }
             TraceChart(listOf(trace.throttle to StatsColors.throttle, trace.brake to StatsColors.brake), 1f, Modifier.fillMaxWidth().weight(1f))
         }
-        val top = max(200f, (trace.speed.maxOrNull() ?: 0f) * 1.1f)
-        StatsCard(stringResource(R.string.stats_speed_chart), Modifier.fillMaxWidth().height(114.dp)) {
+        val speeds = trace.speed.map { it * unit.perKmh }
+        val top = max(if (unit == SpeedUnit.MPH) 125f else 200f, (speeds.maxOrNull() ?: 0f) * 1.1f)
+        StatsCard(stringResource(R.string.stats_speed_chart, unit.label), Modifier.fillMaxWidth().height(114.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                Legend(StatsColors.speed, "${stringResource(R.string.stats_speed)} ${kmh(t)}")
+                Legend(StatsColors.speed, "${stringResource(R.string.stats_speed)} ${speedText(t, unit)}")
                 Text("0 – %.0f".format(top), fontSize = 11.sp, fontFamily = FontFamily.Monospace, color = colors.onSurfaceVariant)
             }
-            TraceChart(listOf(trace.speed to StatsColors.speed), top, Modifier.fillMaxWidth().weight(1f))
+            TraceChart(listOf(speeds to StatsColors.speed), top, Modifier.fillMaxWidth().weight(1f))
         }
     }
 }
@@ -370,14 +379,16 @@ private fun TraceChart(series: List<Pair<List<Float>, Color>>, max: Float, modif
 }
 
 @Composable
-private fun DialsDash(t: Telemetry) {
+private fun DialsDash(t: Telemetry, unit: SpeedUnit) {
     val colors = MaterialTheme.colorScheme
     val rpmMax = (rpmScale(t) / 1000f).let { kotlin.math.ceil(it) * 1000f }
     val hasExtras = t.lights != null || t.turboBar != null || t.engineTempC != null || t.oilTempC != null
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(Modifier.fillMaxWidth().height(if (hasExtras) DASH_H - 56.dp else DASH_H), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             StatsCard("", Modifier.weight(1f).fillMaxHeight()) {
-                ArcDial(t.speedKmh ?: 0f, speedScale(t.speedKmh), 40f, { "%.0f".format(it) }, null, kmh(t), "km/h", Modifier.fillMaxWidth().weight(1f))
+                val speed = speedValue(t, unit)
+                ArcDial(speed, speedScale(speed, unit), if (unit == SpeedUnit.MPH) 20f else 40f, { "%.0f".format(it) }, null,
+                    speedText(t, unit), unit.label, Modifier.fillMaxWidth().weight(1f))
             }
             StatsCard("", Modifier.weight(1f).fillMaxHeight()) {
                 ArcDial(t.rpm ?: 0f, rpmMax, 1000f, { "%.0f".format(it / 1000f) }, t.maxRpm?.let { it * 0.9f },
@@ -433,7 +444,7 @@ private fun Lamp(label: String, on: Boolean, color: Color) {
 }
 
 @Composable
-private fun GlanceDash(t: Telemetry) {
+private fun GlanceDash(t: Telemetry, unit: SpeedUnit) {
     val colors = MaterialTheme.colorScheme
     val accent = LocalPalette.current.primary
     val ratio = ((t.rpm ?: 0f) / rpmScale(t)).coerceIn(0f, 1f)
@@ -442,8 +453,8 @@ private fun GlanceDash(t: Telemetry) {
         StatsCard("", Modifier.weight(1f).fillMaxHeight()) {
             Bar(ratio, if (ratio > 0.9f) StatsColors.brake else accent, Modifier.fillMaxWidth().height(14.dp))
             Column(Modifier.fillMaxWidth().weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                Text(t.gear ?: "–", fontSize = 110.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace, color = accent, lineHeight = 112.sp)
-                Text("${kmh(t)} km/h", fontSize = 34.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace, color = colors.onBackground)
+                Text(speedText(t, unit), fontSize = 110.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace, color = accent, lineHeight = 112.sp)
+                Text(unitAndGear(t, unit), fontSize = 34.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace, color = colors.onBackground)
             }
         }
         EdgeBar(t.brake, StatsColors.brake)

@@ -112,6 +112,12 @@ object SessionPrefs {
         prefs(context).edit().putString("statsStrip", id).apply()
     }
 
+    fun statsSpeedUnit(context: Context): String? = prefs(context).getString("statsSpeedUnit", null)
+
+    fun setStatsSpeedUnit(context: Context, id: String) {
+        prefs(context).edit().putString("statsSpeedUnit", id).apply()
+    }
+
     fun statsDash(context: Context): String? = prefs(context).getString("statsDash", null)
 
     fun setStatsDash(context: Context, id: String) {
