@@ -1875,6 +1875,8 @@
     <string name="second_mode_keyboard_trackpad">Keyboard + trackpad</string>
     <string name="second_mode_terminal">Terminal</string>
     <string name="second_mode_deck_controls">Deck grips + trackpads</string>
+    <string name="second_mode_dashboard">Dashboard</string>
+    <string name="bottom_dashboard_empty">Nothing to show here yet.</string>
 
     <string name="rtinst_removing">Removing Linux runtime</string>
     <plurals name="rtinst_removing_entries">

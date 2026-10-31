@@ -120,6 +120,8 @@ import com.droiddeck.launcher.ui.LoadingOverlay
 import com.droiddeck.launcher.ui.SessionDrawer
 import com.droiddeck.launcher.ui.SessionPausedOverlay
 import com.droiddeck.launcher.ui.SecondScreenPresentation
+import com.droiddeck.launcher.ui.BottomDashboard
+import com.droiddeck.launcher.ui.BottomPage
 import com.droiddeck.launcher.ui.DroidDeckTheme
 import com.droiddeck.launcher.wayland.CompositorHost
 import com.droiddeck.launcher.wayland.WaylandCompositor
@@ -1177,6 +1179,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             touchAuto = getString(if (usingTouchpad()) R.string.session_touch_auto_touchpad else R.string.session_touch_auto_direct),
             fexPreset = fexPreset,
             secondScreenMode = secondScreenMode,
+            dashboardAvailable = bottomPages().isNotEmpty(),
             secondScreenDisplays = secondScreenDisplays,
             selectedSecondScreenDisplay = selectedSecondScreenDisplay,
             onHud = { on -> SessionPrefs.setHudEnabled(this@SessionActivity, on); hudOn = on; hud.refresh() },
@@ -3038,7 +3041,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (secondScreenDisplays.none { it.id == target.displayId }) return
         SessionState.secondScreenAutoOpened = true
         selectedSecondScreenDisplay = target.displayId
-        selectSecondScreenMode(SecondScreenMode.opening(SessionPrefs.secondScreenPanel(this), SessionState.deckPad))
+        selectSecondScreenMode(SecondScreenMode.opening(SessionPrefs.secondScreenPanel(this), SessionState.deckPad, bottomPages().isNotEmpty()))
         dualControlsProvisional = ::loading.isInitialized && loading.visible
     }
 
@@ -3046,7 +3049,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (!dualControlsProvisional || pipUi || !started || (::loading.isInitialized && loading.visible)) return
         dualControlsProvisional = false
         if (secondScreenMode == SecondScreenMode.NONE) return
-        val wanted = SecondScreenMode.opening(SessionPrefs.secondScreenPanel(this), SessionState.deckPad)
+        val wanted = SecondScreenMode.opening(SessionPrefs.secondScreenPanel(this), SessionState.deckPad, bottomPages().isNotEmpty())
         if (wanted != secondScreenMode) selectSecondScreenMode(wanted) else secondScreenPresentation?.retryTerminal()
     }
 
@@ -3116,7 +3119,20 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         menu = {
             DroidDeckTheme { SessionMenu(docked = true) }
         },
+        dashboard = if (bottomPages().isEmpty()) null else ({
+            DroidDeckTheme {
+                BottomDashboard(
+                    bottomPages(), SessionPrefs.bottomPage(this),
+                    onPage = { SessionPrefs.setBottomPage(this, it) },
+                    onClose = { selectSecondScreenMode(SecondScreenMode.NONE) },
+                    onMenu = if (dockDrawer()) ({ drawerOpen = true }) else null,
+                )
+            }
+        }),
     )
+
+    /** Pages for the bottom-screen dashboard; the dashboard is offered only while at least one exists. */
+    private fun bottomPages(): List<BottomPage> = emptyList()
 
     private fun tapSteamButton() {
         if (SessionState.mode == SessionService.MODE_STEAM) {

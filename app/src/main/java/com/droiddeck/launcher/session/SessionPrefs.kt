@@ -100,6 +100,12 @@ object SessionPrefs {
         prefs(context).edit().putString("secondScreenPanel", mode).apply()
     }
 
+    fun bottomPage(context: Context): String? = prefs(context).getString("bottomPage", null)
+
+    fun setBottomPage(context: Context, page: String) {
+        prefs(context).edit().putString("bottomPage", page).apply()
+    }
+
     fun dualScreenLauncher(context: Context): Boolean = prefs(context).getBoolean("dualScreenLauncher", true)
 
     fun setDualScreenLauncher(context: Context, on: Boolean) {
