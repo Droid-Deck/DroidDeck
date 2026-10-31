@@ -536,8 +536,6 @@ class FrontEndActivity : ComponentActivity() {
     private var dualScreenLauncher by mutableStateOf(true)
     private var dualScreenControls by mutableStateOf(true)
     private var launcherStarted = false
-    private var dualPanelSettleAt = 0L
-    private var dualPanelShow: Runnable? = null
     private lateinit var displayManager: DisplayManager
     private val secondScreenDisplayListener = object : DisplayManager.DisplayListener {
         override fun onDisplayAdded(displayId: Int) = refreshSecondScreenDisplays()
@@ -987,8 +985,6 @@ class FrontEndActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        dualPanelSettleAt = if (HomeApp.isDefault(this)) 0L
-            else android.os.SystemClock.uptimeMillis() + DUAL_PANEL_SETTLE_MS
         if (savedInstanceState == null) readIntegrationIntent(intent)
         readGameIntent(intent)
         gameSyncFolder = GameFileSync.folder(this)
@@ -1768,8 +1764,6 @@ class FrontEndActivity : ComponentActivity() {
         displayManager.unregisterDisplayListener(secondScreenDisplayListener)
         getSystemService(android.hardware.input.InputManager::class.java)?.unregisterInputDeviceListener(secondScreenTouchListener)
         launcherStarted = false
-        dualPanelShow?.let(ui::removeCallbacks)
-        dualPanelShow = null
         com.droiddeck.launcher.ui.DualScreenPanel.hide(taskId)
         flood = null
         returning = null
@@ -1816,27 +1810,8 @@ class FrontEndActivity : ComponentActivity() {
 
     private fun syncDualPanel() {
         if (launchPending()) return
-        if (launcherStarted && dualDisplayId >= 0) {
-            val display = dualDisplayId
-            val task = taskId
-            if (com.droiddeck.launcher.ui.DualScreenPanel.shownOn == display) {
-                com.droiddeck.launcher.ui.DualScreenPanel.show(this, display, task)
-                return
-            }
-            dualPanelShow?.let(ui::removeCallbacks)
-            val show = Runnable {
-                dualPanelShow = null
-                if (launcherStarted && dualDisplayId == display && !launchPending()) {
-                    com.droiddeck.launcher.ui.DualScreenPanel.show(this, display, task)
-                }
-            }
-            dualPanelShow = show
-            ui.postDelayed(show, (dualPanelSettleAt - android.os.SystemClock.uptimeMillis()).coerceAtLeast(0L))
-        } else {
-            dualPanelShow?.let(ui::removeCallbacks)
-            dualPanelShow = null
-            com.droiddeck.launcher.ui.DualScreenPanel.hide(taskId)
-        }
+        if (launcherStarted && dualDisplayId >= 0) com.droiddeck.launcher.ui.DualScreenPanel.show(this, dualDisplayId, taskId)
+        else com.droiddeck.launcher.ui.DualScreenPanel.hide(taskId)
     }
 
     private fun launchPending(): Boolean = gameLinkReading || (pendingGameLink != null && !gameLinkTried)
@@ -2777,8 +2752,6 @@ class FrontEndActivity : ComponentActivity() {
         private const val MEDIA_SETTLE_MS = 1500L
         private const val COMPONENT_RESTORE_MS = 60_000L
         private const val LINK_PANEL_MS = 1500L
-        // iisu on the AYN Thor backgrounds DroidDeck when another activity claims the bottom screen during its launch transition.
-        private const val DUAL_PANEL_SETTLE_MS = 3_000L
         private const val SESSION_SWITCH_WAIT_MS = 30_000L
         private const val SESSION_SWITCH_POLL_MS = 250L
         private const val KEY_PENDING_SWITCH = "pending_switch"
