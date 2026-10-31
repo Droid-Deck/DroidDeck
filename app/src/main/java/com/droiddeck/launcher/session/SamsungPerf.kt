@@ -77,7 +77,7 @@ object SamsungPerf {
     }
 
     private val connectLock = Any()
-    private var floors: List<Floor>? = null
+    @Volatile private var floors: List<Floor>? = null
     @Volatile private var unavailable: String? = null
     private var socket: LocalSocket? = null // kept open for the process's life, as the SDK does
 
@@ -145,6 +145,20 @@ object SamsungPerf {
 
     private var worker: Thread? = null
 
+    /** For BoostReport: whether the floors are held now, and what the library answered when they were asked for. */
+    @Volatile internal var holding = false
+    @Volatile internal var lastResults = emptyList<Int>()
+
+    /** For BoostReport. */
+    internal val state: String
+        get() = unavailable?.let { "not available: $it" }
+            ?: floors?.let { f -> "connected, floors " + f.joinToString { "${TYPE_NAMES[it.type]} ${it.value}" } }
+            ?: "connecting"
+
+    internal fun floorValue(type: Int): Int? = floors?.firstOrNull { it.type == type }?.value
+
+    private val TYPE_NAMES = mapOf(CPU_MIN to "CPU", GPU_MIN to "GPU", BUS_MIN to "bus", CPU_CORES_MIN to "cores")
+
     /** At a session's start. The line is for the log. */
     @Synchronized
     fun start(context: Context): String {
@@ -178,13 +192,27 @@ object SamsungPerf {
                 val paced = frames.size > GameThreadHints.PACE_WINDOW_S && GameThreadHints.holdsPace(fps, SessionState.refreshHz.toDouble())
                 pacedFor = if (paced) pacedFor + 1 else 0
                 val hot = Build.VERSION.SDK_INT >= 29 && pm.currentThermalStatus >= PowerManager.THERMAL_STATUS_SEVERE
-                val want = fps >= 1 && !pm.isPowerSaveMode && !hot && pacedFor < GameThreadHints.PACE_LEAVE_S
+                val why = when {
+                    BoostReport.paused -> "check pause"
+                    fps < 1 -> "no frames"
+                    pm.isPowerSaveMode -> "battery saver"
+                    hot -> "hot"
+                    pacedFor >= GameThreadHints.PACE_LEAVE_S -> "game kept up"
+                    else -> null
+                }
+                val want = why == null
                 if (want && (!boosting || tick % RENEW_S == 0)) {
                     val results = floors.map { Boost.requestBoost(it.type, it.value, it.timeoutMs) }
-                    if (!boosting) Log.i(TAG, "boosting (game ${fps.toInt()} fps, results $results)")
+                    holding = true
+                    if (!boosting) {
+                        lastResults = results
+                        Log.i(TAG, "boosting (game ${fps.toInt()} fps, results $results)")
+                    }
                 } else if (!want && boosting) {
+                    holding = false // first, so BoostReport does not read the release as Samsung letting go
                     Boost.releaseBoost()
-                    Log.i(TAG, "let go (game ${fps.toInt()} fps${if (hot) ", hot" else ""}${if (paced) ", holding pace" else ""})")
+                    BoostReport.letGo(why!!)
+                    Log.i(TAG, "let go ($why, game ${fps.toInt()} fps)")
                 }
                 boosting = want
                 tick++
@@ -195,6 +223,7 @@ object SamsungPerf {
             Log.w(TAG, "stopped", t)
         } finally {
             if (boosting) runCatching { Boost.releaseBoost() }
+            holding = false
         }
     }
 }
