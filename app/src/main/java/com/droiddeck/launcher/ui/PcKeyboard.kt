@@ -36,6 +36,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.key
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -136,11 +137,13 @@ fun PcKeyboard(
                                 key.label.length == 1 && key.label[0].isLetter() && (shifted xor capsOn) -> key.label.uppercase()
                                 else -> key.label
                             }
-                            KeyCap(
-                                label, key.weight, lit, locked = state == MOD_LOCKED,
-                                modifier = if (r == 0 && i == 0) Modifier.focusRequester(firstKey) else Modifier,
-                                onDown = { press(key) }, onUp = { release(key) },
-                            )
+                            key(key.code) {
+                                KeyCap(
+                                    label, key.weight, lit, locked = state == MOD_LOCKED,
+                                    modifier = if (r == 0 && i == 0) Modifier.focusRequester(firstKey) else Modifier,
+                                    onDown = { press(key) }, onUp = { release(key) },
+                                )
+                            }
                         }
                     }
                 }
@@ -174,8 +177,11 @@ private fun RowScope.KeyCap(
                 awaitEachGesture {
                     awaitFirstDown().consume()
                     down = true; onDown()
-                    waitForUpOrCancellation()?.consume()
-                    down = false; onUp()
+                    try {
+                        waitForUpOrCancellation()?.consume()
+                    } finally {
+                        down = false; onUp()
+                    }
                 }
             }
             .onPreviewKeyEvent { e ->

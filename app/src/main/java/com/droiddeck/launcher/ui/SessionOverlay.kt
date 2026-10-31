@@ -677,7 +677,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                 remember { PcKeyboardPrefs.load(keyboardContext) }
                                 SliderRow(
                                     stringResource(R.string.pckb_size), stringResource(R.string.pckb_size_hint),
-                                    PcKeyboardPrefs.size, SessionPrefs.PC_KEYBOARD_SIZE_RANGE, step = 5,
+                                    PcKeyboardPrefs.size, SessionPrefs.PC_KEYBOARD_SIZE_RANGE, step = 1,
                                     format = { "$it%" }, modifier = focus.track(page, "pckb-size"),
                                     onChange = { PcKeyboardPrefs.setSize(keyboardContext, it) })
                                 SliderRow(
