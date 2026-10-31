@@ -346,7 +346,6 @@ object AddedGameArt {
     internal fun forgetOtherAppsArt(context: Context, game: AddedGames.Game): Boolean {
         val cache = cacheDir(context, game)
         val recorded = SteamMatch.get(context, game.folder.path)?.takeIf { it.appId != null }
-        // Builds before SteamMatch kept the app ID in this marker, the one the files named included.
         val legacy = runCatching { File(cache, "steam-appid").readText().trim().toInt() }.getOrNull()?.takeIf { it > 0 }
         val before = recorded?.appId ?: legacy ?: return false
         val identity = runCatching { GameIdentifier.identify(game.exe) }.getOrNull()

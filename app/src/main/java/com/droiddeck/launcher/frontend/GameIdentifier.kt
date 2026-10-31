@@ -5,7 +5,6 @@ import java.io.File
 object GameIdentifier {
 
     private const val MAX_PARENT_DEPTH = 6
-    // Spacewar, the Steamworks SDK sample: Steam emulators and multiplayer fixes name it in place of the game.
     internal const val SPACEWAR = 480
 
     enum class Source { STEAM_APPID_TXT, STEAM_MANIFEST_ACF, STEAM_EMU_INI, GOG_INFO, PE_VERSION, FILENAME, NONE }

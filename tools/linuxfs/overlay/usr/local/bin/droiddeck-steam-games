@@ -20,7 +20,6 @@ LIBRARY = "/mnt/droiddeck-sd"
 LEGACY_LIBRARY = "/mnt/bannerlator-sd"
 PARKED = ".droiddeck-parked"
 BASE_ID = 76561197960265728
-# Spacewar, the Steamworks SDK sample: Steam emulators and multiplayer fixes put it in steam_appid.txt.
 SPACEWAR = 480
 
 
