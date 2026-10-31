@@ -48,4 +48,22 @@ class GameStorageTest {
         SessionPrefs.setAddedGamesDirs(app, odd.map { it.path })
         assertTrue(GameStorage.gamesFolderLibraries(app).isEmpty())
     }
+
+    @Test fun anUnpluggedDriveFallsBackToInternalWithoutForgettingIt() {
+        val gone = "/storage/0000-0000/Android/data/com.droiddeck.launcher/files/steam"
+        SessionPrefs.setGameStorage(app, gone, "USB drive")
+        assertNull(GameStorage.effective(app))
+        assertNull(GameStorage.x64CardLibrary(app))
+        assertEquals(gone, SessionPrefs.gameStorage(app))
+    }
+
+    @Test fun aPluggedInDriveStaysTheLibrary() {
+        val files = tmp.newFolder("files")
+        val steam = File(files, "steam")
+        SessionPrefs.setGameStorage(app, steam.path, "USB drive")
+        assertEquals(steam.path, GameStorage.effective(app)?.path)
+        steam.mkdirs()
+        assertEquals(steam.path, GameStorage.effective(app)?.path)
+        assertEquals("USB drive", GameStorage.effective(app)?.label)
+    }
 }
