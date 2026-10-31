@@ -37,6 +37,13 @@ class MouseBackInput(private val sendRight: (Boolean) -> Unit, private val mouse
         sendRight(false)
     }
 
+    fun onDeviceRemoved(deviceId: Int) {
+        if (held.isEmpty()) return
+        held.remove(deviceId)
+        if (!mouseAttached()) held.remove(KeyCharacterMap.VIRTUAL_KEYBOARD)
+        if (held.isEmpty()) sendRight(false)
+    }
+
     companion object {
         fun isFromMouse(event: KeyEvent): Boolean =
             event.isFromSource(InputDevice.SOURCE_MOUSE) || event.isFromSource(InputDevice.SOURCE_MOUSE_RELATIVE)
