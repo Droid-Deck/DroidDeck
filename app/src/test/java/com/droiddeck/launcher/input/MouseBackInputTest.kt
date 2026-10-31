@@ -85,6 +85,26 @@ class MouseBackInputTest {
         assertEquals(listOf(true, false), presses)
     }
 
+    @Test fun anUnrelatedDeviceDisconnectingKeepsTheButtonHeld() {
+        input.onKeyEvent(key(KeyEvent.ACTION_DOWN), toGuest = true)
+        input.onKeyEvent(injected(KeyEvent.ACTION_DOWN), toGuest = true)
+        input.onDeviceRemoved(9)
+        assertEquals(listOf(true), presses)
+    }
+
+    @Test fun theMouseDisconnectingReleasesItsPress() {
+        input.onKeyEvent(key(KeyEvent.ACTION_DOWN), toGuest = true)
+        input.onDeviceRemoved(7)
+        assertEquals(listOf(true, false), presses)
+    }
+
+    @Test fun theLastMouseDisconnectingReleasesAnInjectedPress() {
+        input.onKeyEvent(injected(KeyEvent.ACTION_DOWN), toGuest = true)
+        mouse = false
+        input.onDeviceRemoved(7)
+        assertEquals(listOf(true, false), presses)
+    }
+
     @Test fun cancelReleasesAHeldPressOnce() {
         input.onKeyEvent(injected(KeyEvent.ACTION_DOWN), toGuest = true)
         input.cancel()
