@@ -219,6 +219,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var steamImportAnswered: String? = null
     private var directHoldBehavior by mutableStateOf(com.droiddeck.launcher.input.TouchGestureConfig.MOUSE_BEHAVIOR_CLICK)
     private var relativeMouseMode by mutableIntStateOf(0)
+    @Volatile private var appliedRelativeMouseMode: Int? = null
     private var screenKeyPickerOpen by mutableStateOf(false)
     private var screenKeyBind: List<Int>? = null
     private var screenKeyDir: Int? = null
@@ -2793,17 +2794,16 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         relativeMouseRequests.execute {
             val result = runCatching { AgentGuest.call(this, request, 8_000, trusted = true) }
             val ok = result.getOrNull()?.optBoolean("ok") == true
-            if (!ok) Log.w(TAG, "gamescope did not take relative mouse: ${result.exceptionOrNull() ?: result.getOrNull()}")
+            if (ok) appliedRelativeMouseMode = mode
+            else Log.w(TAG, "gamescope did not take relative mouse: ${result.exceptionOrNull() ?: result.getOrNull()}")
         }
     }
 
     private fun refreshGestureConfig() {
         gestureConfig = com.droiddeck.launcher.input.GesturePrefs.read(this, gestureGame)
         directHoldBehavior = gestureConfig.directHoldBehavior
-        if (relativeMouseMode != gestureConfig.relativeMouseMode) {
-            relativeMouseMode = gestureConfig.relativeMouseMode
-            setRelativeMouse(relativeMouseMode)
-        }
+        relativeMouseMode = gestureConfig.relativeMouseMode
+        if (appliedRelativeMouseMode != relativeMouseMode) setRelativeMouse(relativeMouseMode)
         gestureTouchStreamGate.reset()
         if (::touchscreenGestures.isInitialized) touchscreenGestures.configure(gestureConfig)
         if (::directTouchHold.isInitialized) directTouchHold.configure(gestureConfig)
