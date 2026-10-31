@@ -65,6 +65,18 @@ class BoostReportTest {
         assertEquals(false to 0, BoostReport.checkWindow(181))
     }
 
+    @Test fun `the status names why the boost is off, once for a reason both parts give`() {
+        assertEquals("too hot", BoostReport.offReasons("too hot", "too hot"))
+        assertEquals("game keeps up, too hot", BoostReport.offReasons("game keeps up", "too hot"))
+        assertEquals("battery saver", BoostReport.offReasons("battery saver", null))
+        assertEquals("no reason given", BoostReport.offReasons(null, null))
+    }
+
+    @Test fun `the summary gives how long each reason kept a part off, longest first`() {
+        assertEquals("7:40 too hot, 0:20 game keeps up", BoostReport.offTimes(linkedMapOf("game keeps up" to 20, "too hot" to 460)))
+        assertEquals("", BoostReport.offTimes(emptyMap()))
+    }
+
     @Test fun `the minutes asked for give both sides enough counted seconds`() {
         val seconds = IntArray(2)
         for (s in 1..BoostReport.minutesForVerdict() * 60) {

@@ -17,8 +17,8 @@ import kotlin.math.roundToInt
 /**
  * What the Performance boost did in a session, in boost.log in the session folder and in the app log:
  * whether each part (GameThreadHints, SamsungPerf) came on and can be seen working, a status line
- * every [STATUS_S] seconds of play, and a summary with a verdict when the session ends. Play is time
- * the game presents frames.
+ * every [STATUS_S] seconds of play with why a part is off, and a summary with a verdict when the
+ * session ends. Play is time the game presents frames.
  *
  * With "Check the boost" on, the boost is paused for every other [WINDOW_S] seconds of play, so the
  * frame rate with and without it is compared over the same stretch of game. The first [WARMUP_S]
@@ -88,6 +88,14 @@ object BoostReport {
         return (n / WINDOW_S % 2 == 1) to n % WINDOW_S
     }
 
+    /** Why neither part boosts now, from what each says (Samsung's only where the phone has its service). */
+    internal fun offReasons(cores: String?, samsung: String?): String =
+        listOfNotNull(cores, samsung).distinct().joinToString().ifEmpty { "no reason given" }
+
+    /** Seconds a part was off, by reason, most first. */
+    internal fun offTimes(off: Map<String, Int>): String =
+        off.entries.sortedByDescending { it.value }.joinToString { "${clock(it.value)} ${it.key}" }
+
     /** From Check the boost: whether the boost made the game faster where it matters. */
     internal fun verdict(on: Side, off: Side): String {
         if (on.seconds < CHECK_MIN_S || off.seconds < CHECK_MIN_S) {
@@ -122,6 +130,8 @@ object BoostReport {
         val onTier = IntArray(3)
         val recentTier = IntArray(3)
         var samsungHeld = 0
+        val coresOff = LinkedHashMap<String, Int>()
+        val samsungOff = LinkedHashMap<String, Int>()
         var heldFor = 0
         var cpuBefore = emptyMap<String, Long>()
         var gpuBefore: Long? = null
@@ -234,6 +244,11 @@ object BoostReport {
         val samsung = SamsungPerf.holding
         (if (samsung || threads.isNotEmpty()) r.boosted else r.unboosted).add(fps, ma, thermal)
         if (samsung) r.samsungHeld++
+        val coresWhy = GameThreadHints.offWhy ?: "unknown"
+        val samsungWhy = (SamsungPerf.offWhy ?: "unknown").takeIf { SamsungPerf.connected }
+        if (threads.isEmpty()) r.coresOff[coresWhy] = (r.coresOff[coresWhy] ?: 0) + 1
+        if (!samsung && samsungWhy != null) r.samsungOff[samsungWhy] = (r.samsungOff[samsungWhy] ?: 0) + 1
+        val off = if (samsung || threads.isNotEmpty()) null else offReasons(coresWhy, samsungWhy)
         if (threads.isNotEmpty()) {
             r.coresBoosted++
             for (tid in threads) {
@@ -244,7 +259,7 @@ object BoostReport {
         }
         r.recent.add(fps)
         if (r.played % STATUS_S == 0) {
-            status(r, threads.size, samsung, thermal, bm, ma)
+            status(r, threads.size, samsung, off, thermal, bm, ma)
             r.recent.clear()
             r.recentTier.fill(0)
         }
@@ -295,17 +310,17 @@ object BoostReport {
         }
     }
 
-    private fun status(r: Run, threads: Int, samsung: Boolean, thermal: Int, bm: BatteryManager?, ma: Int?) {
+    private fun status(r: Run, threads: Int, samsung: Boolean, off: String?, thermal: Int, bm: BatteryManager?, ma: Int?) {
         val state = when {
             paused -> "paused for the check"
-            samsung || threads > 0 -> "on"
-            else -> "not needed right now"
+            off == null -> "on"
+            else -> "off now: $off"
         }
         val checks = r.recentTier.sum()
-        val cores = if (threads == 0) "no threads" else "$threads threads" +
+        val cores = if (threads == 0) "no threads" + because(GameThreadHints.offWhy) else "$threads threads" +
             if (checks > 0) ", on the fastest cores ${r.recentTier[2] * 100 / checks} % of checks" else ""
         val battery = battery(bm)?.let { "$it %" + (ma?.let { m -> ", $m mA" } ?: "") + if (bm?.isCharging == true) ", charging" else "" } ?: "unknown"
-        line(r, "status: boost $state; fastest cores: $cores; Samsung clocks: ${if (samsung) "held" else "not held"}; " +
+        line(r, "status: boost $state; fastest cores: $cores; Samsung clocks: ${if (samsung) "held" else "not held" + because(SamsungPerf.offWhy)}; " +
             "CPU minimum ${mhz(cpuMins())}; game ${r.recent.average().roundToInt()} fps, slowest second ${r.recent.minOrNull() ?: 0}; " +
             "heat ${THERMAL.getOrElse(thermal) { "$thermal" }}; battery $battery")
     }
@@ -321,11 +336,13 @@ object BoostReport {
         line(r, "fastest cores: ${GameThreadHints.startLine.removePrefix("game thread hints: ")}; boosted ${share(r.coresBoosted, r.played)} of play" +
             (if (checks > 0) "; boosted threads were on the fastest cores in ${share(r.onTier[2], checks)} of checks, " +
                 "middle ${share(r.onTier[1], checks)}, slowest ${share(r.onTier[0], checks)}" else "") +
-            (if (GameThreadHints.refused > 0) "; Android refused a hint session ${GameThreadHints.refused} times" else ""))
+            (if (GameThreadHints.refused > 0) "; Android refused a hint session ${GameThreadHints.refused} times" else "") +
+            (if (r.coresOff.isNotEmpty()) "; off ${offTimes(r.coresOff)}" else ""))
         val counts = synchronized(letGoCounts) { letGoCounts.entries.joinToString { "${it.value}x ${it.key}" } }
         line(r, "Samsung clocks: ${SamsungPerf.state}; held ${share(r.samsungHeld, r.played)} of play; " +
             "${r.clocks ?: "never held long enough to look at the clocks"}; let go early ${r.drops} times" +
-            if (counts.isNotEmpty()) "; DroidDeck let go: $counts" else "")
+            (if (counts.isNotEmpty()) "; DroidDeck let go: $counts" else "") +
+            (if (r.samsungOff.isNotEmpty()) "; off ${offTimes(r.samsungOff)}" else ""))
         line(r, "game: ${all.average.roundToInt()} fps average, slowest 5 % of seconds ${all.low}; " +
             "boosted ${r.boosted.average.roundToInt()} fps for ${clock(r.boosted.seconds)}, not boosted ${r.unboosted.average.roundToInt()} fps for ${clock(r.unboosted.seconds)} " +
             "(not a fair comparison: the boost runs when the game falls behind)")
@@ -353,18 +370,24 @@ object BoostReport {
         val cores = when {
             start != "game thread hints: watching" -> "fastest cores not on (${start.removePrefix("game thread hints: ")})"
             r.coresBoosted == 0 && GameThreadHints.refused > 0 -> "fastest cores refused by Android"
-            r.coresBoosted == 0 -> "fastest cores never needed"
+            r.coresBoosted == 0 -> "fastest cores never on (${mostly(r.coresOff, r.played)})"
             else -> "fastest cores working"
         }
         val samsung = when {
             SamsungPerf.state.startsWith("not available") -> "Samsung clocks not available on this phone"
-            r.samsungHeld == 0 -> "Samsung clocks never needed"
+            r.samsungHeld == 0 -> "Samsung clocks never on (${mostly(r.samsungOff, r.played)})"
             r.drops > 0 -> "Samsung clocks working, but Samsung let go early ${r.drops} times"
             r.cpuRaised.isNullOrEmpty() && !r.gpuRaised -> "Samsung clocks asked for, but the phone shows no raised speed"
             else -> "Samsung clocks working and stayed on"
         }
         return "$cores; $samsung"
     }
+
+    private fun because(why: String?) = why?.let { " ($it)" } ?: ""
+
+    /** The reason a part was off longest, and for how long. */
+    private fun mostly(off: Map<String, Int>, played: Int) =
+        off.maxByOrNull { it.value }?.let { "${it.key} ${clock(it.value)} of ${clock(played)}" } ?: "no reason given"
 
     private fun side(s: Side) = "${"%.1f".format(Locale.US, s.average)} fps, slowest 5 % ${s.low}" +
         (s.draw?.let { ", battery ${it.roundToInt()} mA" } ?: "") + ", hottest ${THERMAL.getOrElse(s.hottest) { "${s.hottest}" }}"
