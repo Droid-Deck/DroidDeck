@@ -2836,6 +2836,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         override fun onWheel(steps: Int) { sendSceneWheel(steps) }
         override fun onScroll(dx: Float, dy: Float) = fingerScroll(dx, dy)
         override fun onScrollEnd() = fingerScrollEnd()
+        override fun onThreeFingerTap(): Boolean {
+            uiHandler.post { togglePcKeyboard() }
+            return true
+        }
         override fun onZoom(steps: Int) {
             WaylandCompositor.nativeSendKey(KEY_LEFTCTRL, 1)
             sendSceneWheel(steps)

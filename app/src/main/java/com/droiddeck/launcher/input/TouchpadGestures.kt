@@ -240,7 +240,8 @@ class TouchpadGestures(
                 }
                 if (desktop && scrolled && event.pointerCount == 2) listener.onScrollEnd()
                 if (fingers >= 3) {
-                    if (event.pointerCount == 2 && secondWasTap && !scrolled && event.eventTime - downAt < TouchTiming.TAP_MS * 2)
+                    if (event.pointerCount == 2 && secondWasTap && !scrolled && event.eventTime - downAt < TouchTiming.TAP_MS * 2 &&
+                        !listener.onThreeFingerTap())
                         click(PointerGestures.BTN_MIDDLE)
                     if (event.pointerCount == 2) secondWasTap = false
                 } else if (twoFingers && secondWasTap && event.eventTime - secondDownAt < TouchTiming.TAP_MS && !scrolled) {
