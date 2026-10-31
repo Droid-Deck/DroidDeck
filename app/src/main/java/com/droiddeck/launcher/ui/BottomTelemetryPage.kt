@@ -178,7 +178,7 @@ fun BottomTelemetryPage(fps: () -> Float?) {
             }
         }
         if (race == null && thunder.isEmpty() && elite == null) {
-            Text(stringResource(R.string.bottom_telemetry_help, GameTelemetry.CODEMASTERS_PORT, GameTelemetry.FORZA_PORT, GameTelemetry.OUTGAUGE_PORT),
+            Text(stringResource(R.string.bottom_telemetry_help),
                 fontSize = 14.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(horizontal = 4.dp))
         }
         for (u in unknown) {
