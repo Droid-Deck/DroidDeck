@@ -35,6 +35,7 @@ internal object GameJoltProbe {
         }
     }.getOrNull()
 
+    private val CHUNK_EXTENSIONS = setOf("js", "mjs", "css", "json", "map")
     private val CHUNK_DIRS = setOf("assets", "chunks", "static", "js", "dist")
 
     private fun chunkShape(raw: String): String {
@@ -46,7 +47,7 @@ internal object GameJoltProbe {
         val shaped = parts.mapIndexed { i, seg ->
             when {
                 seg.isEmpty() -> seg
-                i == parts.lastIndex -> "*." + seg.substringAfterLast('.', "")
+                i == parts.lastIndex -> seg.substringAfterLast('.', "").lowercase().let { ext -> if (ext in CHUNK_EXTENSIONS) "*.$ext" else "*" }
                 seg in CHUNK_DIRS || seg == "." || seg == ".." -> seg
                 else -> "*"
             }
