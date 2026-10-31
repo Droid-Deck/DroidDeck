@@ -74,6 +74,18 @@ class GameIdentifierTest {
     }
 
     @Test
+    fun spacewarManifest_leavesTheGamesOwnManifestForTheSameFolder() {
+        val steamapps = tmp.newFolder("steamapps")
+        File(steamapps, "appmanifest_480.acf").writeText(""""AppState" { "appid" "480" "name" "Spacewar" "installdir" "PEAK" }""")
+        File(steamapps, "appmanifest_3527290.acf").writeText(""""AppState" { "appid" "3527290" "name" "PEAK" "installdir" "PEAK" }""")
+        val game = File(steamapps, "common/PEAK").apply { mkdirs() }
+        val id = GameIdentifier.identify(exeIn(game, "PEAK.exe"))
+        assertEquals(3527290, id.appId)
+        assertEquals("PEAK", id.name)
+        assertEquals(GameIdentifier.Source.STEAM_MANIFEST_ACF, id.source)
+    }
+
+    @Test
     fun steamManifestAcf_matchedByInstalldir_givesAppIdAndName() {
         val steamapps = tmp.newFolder("steamapps")
         File(steamapps, "appmanifest_1623730.acf").writeText(

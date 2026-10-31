@@ -135,12 +135,12 @@ object GameIdentifier {
         val match = manifests.firstOrNull { m ->
             val text = readSmallTextFile(m) ?: return@firstOrNull false
             val installdir = vdfValue(text, "installdir")
-            gameFolder != null && installdir != null && installdir.equals(gameFolder, ignoreCase = true)
+            gameFolder != null && installdir != null && installdir.equals(gameFolder, ignoreCase = true) &&
+                vdfValue(text, "appid")?.toIntOrNull() != SPACEWAR
         } ?: return null
 
         val text = readSmallTextFile(match) ?: return null
         val appId = vdfValue(text, "appid")?.toIntOrNull()?.takeIf { it > 0 }
-        if (appId == SPACEWAR) return null
         val name = vdfValue(text, "name")?.takeIf { it.isNotBlank() }
         return if (appId == null && name == null) null else Acf(appId, name)
     }
