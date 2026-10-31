@@ -1553,9 +1553,6 @@
     <string name="theme_icon_blue_detail">Schwarzer Grund, weiße Schrift, das Blau für alles Ausgewählte, Fokussierte oder Gedrückte.</string>
     <string name="theme_electric">Elektrisches Marineblau</string>
     <string name="theme_electric_detail">Das Blau heller, auf Flächen, die eher zu Marineblau als zu Grau tendieren.</string>
-    <string name="input_key_esc">Esc</string>
-    <string name="input_key_ctrl">Strg</string>
-    <string name="input_key_alt">Alt</string>
     <string name="theme_inner_gamer">Inner Gamer</string>
     <string name="theme_inner_gamer_detail">Farben, die durch den Regenbogen wechseln. Folgt den Animationseinstellungen von Android.</string>
     <string name="theme_rgb_speed">Geschwindigkeit</string>

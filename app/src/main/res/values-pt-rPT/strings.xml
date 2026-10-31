@@ -1569,9 +1569,6 @@
     <string name="theme_icon_blue_detail">Fundo preto, texto branco e o azul para tudo o que está selecionado, focado ou premido.</string>
     <string name="theme_electric">Azul-marinho elétrico</string>
     <string name="theme_electric_detail">O azul mais vivo, em superfícies que tendem para o azul-marinho em vez do cinzento.</string>
-    <string name="input_key_esc">Esc</string>
-    <string name="input_key_ctrl">Ctrl</string>
-    <string name="input_key_alt">Alt</string>
     <string name="theme_inner_gamer">Inner Gamer</string>
     <string name="theme_inner_gamer_detail">Cores que percorrem o arco-íris. Respeita as definições de animação do Android.</string>
     <string name="theme_rgb_speed">Velocidade</string>

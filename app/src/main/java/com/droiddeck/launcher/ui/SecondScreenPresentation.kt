@@ -68,7 +68,6 @@ class SecondScreenPresentation(
     }
     private var currentMode = SecondScreenMode.NONE
     private var keyboardHost: KeyboardHost? = null
-    private var keyboardButton: TextView? = null
     private var keyboardPending = false
     private var imeSeen = false
     private var fieldKeyboard = false
@@ -112,7 +111,6 @@ class SecondScreenPresentation(
 
     private fun showPendingKeyboard() {
         keyboardPending = false
-        keyboardButton?.text = context.getString(R.string.drawer_android_keyboard)
         for (delay in longArrayOf(150L, 450L)) root.postDelayed({
             val host = keyboardHost
             if (host != null && !imeSeen && showsKeyboard) host.show()
@@ -131,7 +129,6 @@ class SecondScreenPresentation(
         fieldKeyboard = false
         imeSeen = false
         keyboardHost?.hide()
-        keyboardButton?.text = context.getString(R.string.drawer_android_keyboard)
         onKeyboardClosed()
     }
 
@@ -215,7 +212,6 @@ class SecondScreenPresentation(
         fieldKeyboard = false
         keyboardHost?.hide()
         keyboardHost = null
-        keyboardButton = null
         keyboardPending = false
         closeTerminal()
         root.removeAllViews()
@@ -250,16 +246,8 @@ class SecondScreenPresentation(
             setPadding(dp(14), 0, dp(8), 0)
             isSingleLine = true
         }, LinearLayout.LayoutParams(0, -2, 1f))
-        lateinit var keyboardButton: TextView
-        keyboardButton = DeckControlsPanel.roundButton(context, context.getString(R.string.drawer_android_keyboard),
-            context.getString(R.string.drawer_android_keyboard), {
-                val host = keyboardHost
-                if (host != null) {
-                    host.toggle()
-                }
-            }, wide = true)
-        controls.addView(keyboardButton)
-        this.keyboardButton = keyboardButton
+        controls.addView(DeckControlsPanel.roundButton(context, context.getString(R.string.drawer_android_keyboard),
+            context.getString(R.string.drawer_android_keyboard), { keyboardHost?.toggle() }, wide = true))
         onMenu?.let {
             controls.addView(gap())
             controls.addView(DeckControlsPanel.menuButton(context, it))
@@ -336,9 +324,9 @@ class SecondScreenPresentation(
             }
             keys.addView(button)
         }
-        val ctrl = context.getString(R.string.input_key_ctrl)
-        val alt = context.getString(R.string.input_key_alt)
-        key(context.getString(R.string.input_key_esc), "\u001b")
+        val ctrl = context.getString(R.string.pckb_key_ctrl)
+        val alt = context.getString(R.string.pckb_key_alt)
+        key(context.getString(R.string.pckb_key_esc), "\u001b")
         key(context.getString(R.string.second_key_tab), "\t")
         key(ctrl, "") { button ->
             ctrlActive = !ctrlActive

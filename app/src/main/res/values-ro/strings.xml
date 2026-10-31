@@ -1577,9 +1577,6 @@
     <string name="theme_icon_blue_detail">Fundal negru, text alb, albastrul pentru tot ce este selectat, focalizat sau apăsat.</string>
     <string name="theme_electric">Bleumarin electric</string>
     <string name="theme_electric_detail">Albastrul mai strălucitor, pe suprafețe care tind spre bleumarin în loc de gri.</string>
-    <string name="input_key_esc">Esc</string>
-    <string name="input_key_ctrl">Ctrl</string>
-    <string name="input_key_alt">Alt</string>
     <string name="theme_inner_gamer">Inner Gamer</string>
     <string name="theme_inner_gamer_detail">Culori care parcurg curcubeul. Respectă setările de animație din Android.</string>
     <string name="theme_rgb_speed">Viteză</string>

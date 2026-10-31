@@ -1561,9 +1561,6 @@
     <string name="theme_icon_blue_detail">Svart bakgrund, vit text, den blå färgen för allt som är markerat, i fokus eller nedtryckt.</string>
     <string name="theme_electric">Elektrisk marinblå</string>
     <string name="theme_electric_detail">Den blå färgen klarare, på ytor som lutar åt marinblått i stället för grått.</string>
-    <string name="input_key_esc">Esc</string>
-    <string name="input_key_ctrl">Ctrl</string>
-    <string name="input_key_alt">Alt</string>
     <string name="theme_inner_gamer">Inner Gamer</string>
     <string name="theme_inner_gamer_detail">Färger som växlar genom regnbågen. Följer Androids animationsinställningar.</string>
     <string name="theme_rgb_speed">Hastighet</string>

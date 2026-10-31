@@ -1545,9 +1545,6 @@
     <string name="theme_icon_blue_detail">Nền đen, chữ trắng, xanh cho mọi thứ được chọn, lấy nét hoặc nhấn.</string>
     <string name="theme_electric">Xanh điện navy</string>
     <string name="theme_electric_detail">Màu xanh sáng hơn, trên các bề mặt nghiêng về navy thay vì xám.</string>
-    <string name="input_key_esc">Esc</string>
-    <string name="input_key_ctrl">Ctrl</string>
-    <string name="input_key_alt">Alt</string>
     <string name="theme_inner_gamer">Inner Gamer</string>
     <string name="theme_inner_gamer_detail">Màu sắc chuyển dần qua cả dải cầu vồng. Tuân theo cài đặt hiệu ứng động của Android.</string>
     <string name="theme_rgb_speed">Tốc độ</string>

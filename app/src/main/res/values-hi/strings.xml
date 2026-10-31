@@ -1561,9 +1561,6 @@
     <string name="theme_icon_blue_detail">काली ज़मीन, सफ़ेद टाइप, चुने, फ़ोकस या दबाए गए हर चीज़ के लिए ब्लू रंग।</string>
     <string name="theme_electric">इलेक्ट्रिक नेवी</string>
     <string name="theme_electric_detail">ब्लू रंग ज़्यादा चमकीला, उन सतहों पर जो ग्रे के बजाय नेवी की ओर झुकती हैं।</string>
-    <string name="input_key_esc">Esc</string>
-    <string name="input_key_ctrl">Ctrl</string>
-    <string name="input_key_alt">Alt</string>
     <string name="theme_inner_gamer">Inner Gamer</string>
     <string name="theme_inner_gamer_detail">इंद्रधनुष के रंगों में बदलते रंग। Android की एनिमेशन सेटिंग का पालन करती है।</string>
     <string name="theme_rgb_speed">गति</string>

@@ -1577,9 +1577,6 @@
     <string name="theme_icon_blue_detail">Fond noir, texte blanc, et le bleu pour tout élément sélectionné, ciblé ou pressé.</string>
     <string name="theme_electric">Marine électrique</string>
     <string name="theme_electric_detail">Un bleu plus vif, sur des surfaces qui tirent vers le marine plutôt que vers le gris.</string>
-    <string name="input_key_esc">Échap</string>
-    <string name="input_key_ctrl">Ctrl</string>
-    <string name="input_key_alt">Alt</string>
     <string name="theme_inner_gamer">Inner Gamer</string>
     <string name="theme_inner_gamer_detail">Des couleurs qui parcourent l\'arc-en-ciel. Respecte les réglages d\'animation d\'Android.</string>
     <string name="theme_rgb_speed">Vitesse</string>

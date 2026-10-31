@@ -1561,9 +1561,6 @@
     <string name="theme_icon_blue_detail">Zwarte achtergrond, witte tekst, het blauw voor alles wat geselecteerd, gefocust of ingedrukt is.</string>
     <string name="theme_electric">Elektrisch marineblauw</string>
     <string name="theme_electric_detail">Het blauw feller, op vlakken die naar marineblauw neigen in plaats van grijs.</string>
-    <string name="input_key_esc">Esc</string>
-    <string name="input_key_ctrl">Ctrl</string>
-    <string name="input_key_alt">Alt</string>
     <string name="theme_inner_gamer">Inner Gamer</string>
     <string name="theme_inner_gamer_detail">Kleuren die door de regenboog lopen. Volgt de animatie-instellingen van Android.</string>
     <string name="theme_rgb_speed">Snelheid</string>

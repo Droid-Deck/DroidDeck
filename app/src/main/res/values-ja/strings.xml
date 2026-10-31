@@ -1516,9 +1516,6 @@
     <string name="theme_icon_blue_detail">黒の背景に白の文字、選択・フォーカス・押下時には青を使用します。</string>
     <string name="theme_electric">エレクトリックネイビー</string>
     <string name="theme_electric_detail">より明るい青を、グレーではなくネイビー寄りの画面に使用します。</string>
-    <string name="input_key_esc">Esc</string>
-    <string name="input_key_ctrl">Ctrl</string>
-    <string name="input_key_alt">Alt</string>
     <string name="theme_inner_gamer">Inner Gamer</string>
     <string name="theme_inner_gamer_detail">虹色に変化し続けるカラー。Android のアニメーション設定に従います。</string>
     <string name="theme_rgb_speed">速度</string>

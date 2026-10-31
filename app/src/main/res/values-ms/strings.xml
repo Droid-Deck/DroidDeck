@@ -1545,9 +1545,6 @@
     <string name="theme_icon_blue_detail">Latar hitam, teks putih, biru untuk semua yang dipilih, difokus atau ditekan.</string>
     <string name="theme_electric">Navy elektrik</string>
     <string name="theme_electric_detail">Biru lebih cerah, pada permukaan yang lebih cenderung navy daripada kelabu.</string>
-    <string name="input_key_esc">Esc</string>
-    <string name="input_key_ctrl">Ctrl</string>
-    <string name="input_key_alt">Alt</string>
     <string name="theme_inner_gamer">Inner Gamer</string>
     <string name="theme_inner_gamer_detail">Warna yang bertukar merentasi pelangi. Mengikut tetapan animasi Android.</string>
     <string name="theme_rgb_speed">Kelajuan</string>

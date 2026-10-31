@@ -102,9 +102,9 @@ private fun gestureKeyTitle(key: String): String {
     if (named != null) return stringResource(named)
     if (key.startsWith("CTRL_") || key.startsWith("SHIFT_") || key.startsWith("ALT_")) {
         val name = stringResource(when (key.substringBefore('_')) {
-            "CTRL" -> R.string.input_key_ctrl
+            "CTRL" -> R.string.pckb_key_ctrl
             "SHIFT" -> R.string.gesture_key_shift
-            else -> R.string.input_key_alt
+            else -> R.string.pckb_key_alt
         })
         return stringResource(if (key.endsWith("_L")) R.string.gesture_key_left else R.string.gesture_key_right, name)
     }

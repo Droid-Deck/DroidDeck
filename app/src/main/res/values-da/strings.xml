@@ -1561,9 +1561,6 @@
     <string name="theme_icon_blue_detail">Sort baggrund, hvid skrift, blå til alt, der er valgt, fokuseret eller trykket.</string>
     <string name="theme_electric">Elektrisk marineblå</string>
     <string name="theme_electric_detail">Den blå er klarere, på overflader der trækker mod marineblåt i stedet for gråt.</string>
-    <string name="input_key_esc">Esc</string>
-    <string name="input_key_ctrl">Ctrl</string>
-    <string name="input_key_alt">Alt</string>
     <string name="theme_inner_gamer">Inner Gamer</string>
     <string name="theme_inner_gamer_detail">Farver, der skifter gennem regnbuen. Følger Androids animationsindstillinger.</string>
     <string name="theme_rgb_speed">Hastighed</string>
