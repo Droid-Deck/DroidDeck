@@ -1374,6 +1374,15 @@
     <string name="proton_cancel_queued">Cancel queued</string>
     <string name="pckb_android">Android keyboard</string>
     <string name="pckb_hide">Hide  ✕</string>
+    <string name="pckb_size">Size on screen</string>
+    <string name="pckb_size_hint">Share of the screen the keyboard takes, header included.</string>
+    <string name="pckb_opacity">Opacity</string>
+    <string name="pckb_opacity_hint">Lower it to see the game behind the keyboard.</string>
+    <string name="pckb_hidden_keys">Hidden keys</string>
+    <string name="pckb_hidden_keys_hint">Keys you rarely use stay off the keyboard.</string>
+    <string name="pckb_group_function">Esc and function row</string>
+    <string name="pckb_group_nav">Ins / Del / Home / End / PgUp / PgDn</string>
+    <string name="pckb_group_arrows">Arrow keys</string>
     <string name="main_launch_named">Launch %1$s</string>
     <string name="main_choose_screen">Choose a screen. Secondary: %1$s.</string>
     <string name="main_secondary_gone">The secondary display is no longer available.</string>

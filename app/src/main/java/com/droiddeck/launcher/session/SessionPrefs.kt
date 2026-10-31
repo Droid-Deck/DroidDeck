@@ -286,6 +286,32 @@ object SessionPrefs {
         prefs(context).edit().putInt("hudOpacity", percent.coerceIn(HUD_OPACITY_RANGE)).apply()
     }
 
+    const val PC_KEYBOARD_SIZE_DEFAULT = 47
+    val PC_KEYBOARD_SIZE_RANGE = 25..70
+    const val PC_KEYBOARD_OPACITY_DEFAULT = 100
+    val PC_KEYBOARD_OPACITY_RANGE = 30..100
+
+    fun pcKeyboardSize(context: Context): Int =
+        prefs(context).getInt("pcKeyboardSize", PC_KEYBOARD_SIZE_DEFAULT).takeIf { it in PC_KEYBOARD_SIZE_RANGE } ?: PC_KEYBOARD_SIZE_DEFAULT
+
+    fun setPcKeyboardSize(context: Context, percent: Int) {
+        prefs(context).edit().putInt("pcKeyboardSize", percent.coerceIn(PC_KEYBOARD_SIZE_RANGE)).apply()
+    }
+
+    fun pcKeyboardOpacity(context: Context): Int =
+        prefs(context).getInt("pcKeyboardOpacity", PC_KEYBOARD_OPACITY_DEFAULT).takeIf { it in PC_KEYBOARD_OPACITY_RANGE } ?: PC_KEYBOARD_OPACITY_DEFAULT
+
+    fun setPcKeyboardOpacity(context: Context, percent: Int) {
+        prefs(context).edit().putInt("pcKeyboardOpacity", percent.coerceIn(PC_KEYBOARD_OPACITY_RANGE)).apply()
+    }
+
+    fun pcKeyboardHiddenKeys(context: Context): Set<String> =
+        idList(prefs(context).getString("pcKeyboardHiddenKeys", null)).toSet()
+
+    fun setPcKeyboardHiddenKeys(context: Context, hidden: Set<String>) {
+        prefs(context).edit().putString("pcKeyboardHiddenKeys", hidden.joinToString(",")).apply()
+    }
+
     fun droidDeckHudConfig(context: Context): String? = prefs(context).getString("__KEEP_droidDeckHud__", null)
 
     fun setDroidDeckHudConfig(context: Context, config: String) {

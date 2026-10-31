@@ -51,6 +51,15 @@ val PC_KEY_ROWS: List<List<PcKey>> = listOf(
 
 val PC_MODIFIERS: Set<Int> = setOf(42, 54, 29, 97, 56, 100, 125)
 
+// Sticky modifiers are excluded: hiding a locked modifier would leave it pressed forever.
+val PC_KEY_HIDDEN_GROUPS: Map<String, Set<Int>> = mapOf(
+    "function" to ((59..68).toSet() + setOf(1, 87, 88)),
+    "nav" to setOf(110, 111, 102, 107, 104, 109),
+    "arrows" to setOf(103, 105, 108, 106),
+)
+
+val PC_KEY_GROUP_IDS: Map<Int, String> = mapOf(0 to "function", 1 to "nav", 2 to "arrows")
+
 val PC_KEYS: Map<Int, PcKey> = PC_KEY_ROWS.flatten().associateBy { it.code }
 
 fun pcKeyLabel(context: Context, code: Int): String {
