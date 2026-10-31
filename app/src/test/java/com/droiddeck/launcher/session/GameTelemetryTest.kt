@@ -34,6 +34,29 @@ class GameTelemetryTest {
         assertEquals(0.5f, t.fuel!!, 0.001f)
     }
 
+    // Values from a DiRT Showdown packet recorded on a Retroid Pocket Duo (extradata 3 still sends 152 bytes there).
+    @Test fun codemastersShortPacketFromDirtShowdown() {
+        val data = packet(152) {
+            putFloat(1 * 4, 80.085f)
+            putFloat(7 * 4, 10.739f)
+            putFloat(29 * 4, 0.816f)
+            putFloat(33 * 4, 1f)
+            putFloat(37 * 4, 827.531f)
+        }
+        val t = GameTelemetry.parse(GameTelemetry.CODEMASTERS_PORT, data, data.size)!!
+        assertEquals(38.66f, t.speedKmh!!, 0.01f)
+        assertEquals("1", t.gear)
+        assertEquals(8275.31f, t.rpm!!, 0.01f)
+        assertEquals(0.816f, t.throttle!!, 0.001f)
+        assertEquals(1, t.lap)
+        assertEquals(80.085f, t.currentLapS!!, 0.001f)
+        assertNull(t.maxRpm)
+        assertNull(t.laps)
+        assertNull(t.position)
+        assertNull(t.fuel)
+        assertNull(t.lastLapS)
+    }
+
     @Test fun codemastersReverseAndNeutral() {
         fun gear(g: Float) = GameTelemetry.parse(GameTelemetry.CODEMASTERS_PORT, packet(264) { putFloat(33 * 4, g) }, 264)!!.gear
         assertEquals("N", gear(0f))
@@ -90,7 +113,7 @@ class GameTelemetryTest {
     }
 
     @Test fun shortPacketsAreIgnored() {
-        assertNull(GameTelemetry.parse(GameTelemetry.CODEMASTERS_PORT, ByteArray(100), 100))
+        assertNull(GameTelemetry.parse(GameTelemetry.CODEMASTERS_PORT, ByteArray(148), 148))
         assertNull(GameTelemetry.parse(GameTelemetry.OUTGAUGE_PORT, ByteArray(40), 40))
         assertNull(GameTelemetry.parse(1234, ByteArray(400), 400))
     }
