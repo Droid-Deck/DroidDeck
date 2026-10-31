@@ -34,7 +34,6 @@ DOTNET_FEX = {
     "FEX_MEMCPYSETTSOENABLED": "1",
     "FEX_HALFBARRIERTSOENABLED": "1",
     "FEX_X87REDUCEDPRECISION": "0",
-    "FEX_MULTIBLOCK": "0",
 }
 
 
@@ -85,7 +84,7 @@ def is_godot(game):
 @fix
 def dotnet_memory_ordering(game):
     if "coreclr.dll" in game.files:
-        return DOTNET_FEX, [], ".NET runtime: FEX with full TSO and without multiblock"
+        return DOTNET_FEX, [], ".NET runtime: FEX with full TSO"
 
 
 @fix

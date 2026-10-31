@@ -452,7 +452,7 @@ class GameEnvironmentTest(unittest.TestCase):
                 (game / name).touch()
             env, extra, notes = MODULE["engine_fixes"](str(game / "Game.exe"), [])
             self.assertEqual(env["FEX_TSOENABLED"], "1")
-            self.assertEqual(env["FEX_MULTIBLOCK"], "0")
+            self.assertNotIn("FEX_MULTIBLOCK", env)
             self.assertEqual(env["WINEDLLOVERRIDES"], "libsentry.windows.release.x86_64=d")
             self.assertEqual(extra, ["--rendering-driver", "vulkan"])
             self.assertEqual(MODULE["engine_fixes"](str(game / "Game.exe"), ["--rendering-driver", "opengl3"])[1], [])
