@@ -1,0 +1,37 @@
+#!/bin/bash
+dir=/usr/share/droiddeck/pacman
+state=/root/.local/share/droiddeck/pacman
+list=$state/packages.txt
+log=/root/.cache/droiddeck/pacman-restore.log
+[ -s "$list" ] && [ -r "$dir/pacman.conf" ] || exit 0
+pacman() { /usr/local/bin/pacman "$@"; }
+"$dir/prepare" || exit 0
+snapshot=$(sha256sum "$dir/droiddeck.db" | cut -d' ' -f1)
+mapfile -t missing < <(grep -vxF -f <(pacman -Qq 2>/dev/null) "$list")
+done_for=$(cat "$state/restored" 2>/dev/null)
+[ ${#missing[@]} -eq 0 ] && [ "$done_for" = "$snapshot" ] && exit 0
+attempt="$snapshot ${missing[*]}"
+[ "$(cat "$state/attempted" 2>/dev/null)" = "$attempt" ] && exit 0
+tries=$(cat "$state/tries" 2>/dev/null)
+count=0
+[ "${tries#* }" = "$attempt" ] && count=${tries%% *}
+count=$((count + 1))
+echo "$count $attempt" > "$state/tries"
+[ "$count" -ge 3 ] && echo "$attempt" > "$state/attempted"
+export DROIDDECK_PACMAN_RESTORING=1
+mkdir -p "${log%/*}"
+notify() { notify-send -a DroidDeck -i system-software-update "$@" 2>/dev/null; }
+notify "Restoring your packages" "Reinstalling software you added with pacman after a DroidDeck update."
+export LD_PRELOAD="/usr/lib/droiddeck/libdroiddeck-root.so${LD_PRELOAD:+:$LD_PRELOAD}"
+{
+  date
+  ok=1
+  [ "$done_for" = "$snapshot" ] || pacman -Su --noconfirm || ok=0
+  [ ${#missing[@]} -eq 0 ] || pacman -S --needed --noconfirm "${missing[@]}" || ok=0
+} >> "$log" 2>&1
+if [ "$ok" = 1 ]; then
+  echo "$snapshot" > "$state/restored"
+  notify "Packages restored" "Your pacman packages are installed again."
+else
+  notify "Some packages couldn't be restored" "See $log, then try sudo pacman -S in Konsole."
+fi

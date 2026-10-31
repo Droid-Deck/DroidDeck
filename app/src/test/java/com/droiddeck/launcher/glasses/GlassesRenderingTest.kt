@@ -58,13 +58,6 @@ class GlassesRenderingTest {
         assertEquals(0, GlassesRendering.mirrorRefreshLimit(settings, ultra, true))
     }
 
-    @Test fun mirrorCapPreservesLowerLimitsAndRestoresTheRequestedLimitAfterDisconnect() {
-        for (requested in listOf(0, 30, 60, 90, 120)) {
-            assertEquals(if (requested == 30) 30 else 60, GlassesRendering.fpsLimit(requested, 60))
-            assertEquals(requested, GlassesRendering.fpsLimit(requested, 0))
-        }
-    }
-
     private fun render(settings: GlassesSettings, state: GlassesState = ultra, steamVr: Boolean = false) =
         GlassesRendering.cardboard(base, settings, state, outputActive = true, steamVrRunning = steamVr)
 

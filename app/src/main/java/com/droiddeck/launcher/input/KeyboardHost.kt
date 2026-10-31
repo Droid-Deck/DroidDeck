@@ -2,6 +2,7 @@ package com.droiddeck.launcher.input
 
 import android.app.Activity
 import android.content.Context
+import android.os.Build
 import android.text.InputType
 import android.view.KeyCharacterMap
 import android.view.KeyEvent
@@ -26,6 +27,7 @@ class KeyboardHost(
     private val map: KeyCharacterMap = KeyCharacterMap.load(KeyCharacterMap.VIRTUAL_KEYBOARD)
     private val imeVisibility = mutableStateOf(false)
     val imeVisible: Boolean get() = imeVisibility.value
+    var onImeChanged: ((Boolean) -> Unit)? = null
     private var previousFocus: View? = null
     // Fullscreen content can consume IME insets before they reach this view.
     private val observeIme = ViewTreeObserver.OnGlobalLayoutListener {
@@ -50,6 +52,17 @@ class KeyboardHost(
         return KeyConnection()
     }
 
+    override fun onKeyPreIme(keyCode: Int, event: KeyEvent): Boolean {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R || keyCode != KeyEvent.KEYCODE_BACK || !isFocusable) {
+            return super.onKeyPreIme(keyCode, event)
+        }
+        if (event.action == KeyEvent.ACTION_UP && !event.isCanceled) {
+            hide()
+            onImeChanged?.invoke(false)
+        }
+        return true
+    }
+
     fun toggle() = if (isFocusable && imeVisible) hide() else show()
 
     override fun onApplyWindowInsets(insets: WindowInsets): WindowInsets {
@@ -60,7 +73,10 @@ class KeyboardHost(
     private fun applyInsets(insets: WindowInsetsCompat) {
         val visible = insets.isVisible(WindowInsetsCompat.Type.ime())
         if (imeVisible && !visible) releaseFocus()
-        imeVisibility.value = visible
+        if (visible != imeVisible) {
+            imeVisibility.value = visible
+            onImeChanged?.invoke(visible)
+        }
     }
 
     fun show() {

@@ -238,7 +238,7 @@ static int ensure_ring(uint32_t w, uint32_t h, VkFormat fmt, uint32_t n) {
     }
     g_ring_w = w; g_ring_h = h; g_ring_fmt = fmt;
     LOGD("framegen: generation ring %ux%u x%u", w, h, n);
-    return 1;
+    return 2;
 }
 
 
@@ -350,6 +350,7 @@ int vkp_framegen_run(VkCommandBuffer cmd, VkImage scene, VkImageView scene_view,
         fge_configure((uint32_t)mult, (uint32_t)atomic_load(&g_target), flow, hz,
                       atomic_load(&g_model), atomic_load(&g_preset));
     }
+    const int size_changed = g_built_w != (uint32_t)w || g_built_h != (uint32_t)h || g_built_fmt != fmt;
     if (!fge_prepare((uint32_t)w, (uint32_t)h, fmt)) {
         if (fmt != VK_FORMAT_R8G8B8A8_UNORM && fge_unavailable()) {
             refuse_format(fmt, kind, w, h, "build its chain");
@@ -361,15 +362,23 @@ int vkp_framegen_run(VkCommandBuffer cmd, VkImage scene, VkImageView scene_view,
         }
         return 0;
     }
-    if (g_built_w != (uint32_t)w || g_built_h != (uint32_t)h || g_built_fmt != fmt) {
+    if (size_changed) {
         g_built_w = (uint32_t)w; g_built_h = (uint32_t)h; g_built_fmt = fmt;
         g_generating_logged = 0;
     }
     uint32_t want = (uint32_t)(mult - 1);
-    if (!ensure_ring((uint32_t)w, (uint32_t)h, fmt, want)) {
+    const int ring = ensure_ring((uint32_t)w, (uint32_t)h, fmt, want);
+    if (!ring) {
         if (fmt != VK_FORMAT_R8G8B8A8_UNORM) { refuse_format(fmt, kind, w, h, "make its generation ring"); return 0; }
         FGLOG("no memory for the generation ring (%dx%d x%u); frame generation stays off", w, h, want);
         mark_failed(kind);
+        return 0;
+    }
+    /* The ring and the engine's images are new on this frame. Dispatching into them now
+     * null-dereferenced Turnip (vkp_framegen_run, first Steam frame, 2560x1440 to the panel).
+     * Show this frame as it is; generation starts once the size has settled. */
+    if (size_changed || ring == 2) {
+        FGLOG("frame generation catches up at %dx%d; this frame is shown as it is", w, h);
         return 0;
     }
 

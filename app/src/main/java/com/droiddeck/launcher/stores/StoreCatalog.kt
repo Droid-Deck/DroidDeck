@@ -61,33 +61,38 @@ fun installedCards(store: Store, installed: List<InstalledStoreGame>, library: L
     }.distinctBy { it.id }.sortedBy { it.title.lowercase() }
 }
 
-private fun releaseDateValue(item: CatalogItem): Long =
-    item.releaseDate.take(10).takeIf { it.length == 10 }?.let { raw ->
-        runCatching { java.time.LocalDate.parse(raw).toEpochDay() }.getOrDefault(0L)
+private fun releaseDateValue(raw: String): Long =
+    raw.take(10).takeIf { it.length == 10 }?.let { day ->
+        runCatching { java.time.LocalDate.parse(day).toEpochDay() }.getOrDefault(0L)
     } ?: 0L
 
-fun sortCatalogItems(
-    items: List<CatalogItem>,
+fun <T> sortGames(
+    items: List<T>,
     sort: String,
-    lastPlayed: (CatalogItem) -> Long = { 0L },
-    installedAt: (CatalogItem) -> Long = { 0L },
-    size: (CatalogItem) -> Long = { it.sizeBytes },
-): List<CatalogItem> = when (sort) {
-    "lastPlayed" -> items.sortedWith(compareByDescending(lastPlayed).thenBy { it.title.lowercase() })
-    "recentlyInstalled" -> items.sortedWith(compareByDescending(installedAt).thenBy { it.title.lowercase() })
-    "titleAsc" -> items.sortedBy { it.title.lowercase() }
-    "titleDesc" -> items.sortedByDescending { it.title.lowercase() }
-    "sizeDesc" -> items.sortedWith(compareByDescending(size).thenBy { it.title.lowercase() })
-    "sizeAsc" -> items.sortedWith(compareBy<CatalogItem> { size(it).takeIf { b -> b > 0 } ?: Long.MAX_VALUE }.thenBy { it.title.lowercase() })
-    "releaseDateDesc" -> items.sortedWith(compareByDescending(::releaseDateValue).thenBy { it.title.lowercase() })
-    else -> items
+    title: (T) -> String,
+    releaseDate: (T) -> String,
+    lastPlayed: (T) -> Long = { 0L },
+    installedAt: (T) -> Long = { 0L },
+    size: (T) -> Long = { 0L },
+): List<T> {
+    val byTitle = compareBy<T> { title(it).lowercase() }
+    return when (sort) {
+        "lastPlayed" -> items.sortedWith(compareByDescending(lastPlayed).then(byTitle))
+        "recentlyInstalled" -> items.sortedWith(compareByDescending(installedAt).then(byTitle))
+        "titleAsc" -> items.sortedWith(byTitle)
+        "titleDesc" -> items.sortedWith(byTitle.reversed())
+        "sizeDesc" -> items.sortedWith(compareByDescending(size).then(byTitle))
+        "sizeAsc" -> items.sortedWith(compareBy<T> { size(it).takeIf { b -> b > 0 } ?: Long.MAX_VALUE }.then(byTitle))
+        "releaseDateDesc" -> items.sortedWith(compareByDescending<T> { releaseDateValue(releaseDate(it)) }.then(byTitle))
+        else -> items
+    }
 }
 
-internal fun retainCatalogOrder(items: List<CatalogItem>, previous: List<CatalogItem>): List<CatalogItem> {
+internal fun <T> retainOrder(items: List<T>, previous: List<T>, key: (T) -> String): List<T> {
     if (items.size != previous.size) return items
-    val byKey = items.associateBy { it.key }
-    if (previous.any { it.key !in byKey }) return items
-    return previous.map { byKey.getValue(it.key) }
+    val byKey = items.associateBy(key)
+    if (previous.any { key(it) !in byKey }) return items
+    return previous.map { byKey.getValue(key(it)) }
 }
 
 /** A detail page opens for search results too; the library wins when it already knows the product. */

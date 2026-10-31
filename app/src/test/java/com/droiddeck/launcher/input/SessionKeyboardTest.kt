@@ -116,6 +116,7 @@ class SessionKeyboardTest {
     class PadShadow {
         @Implementation fun __constructor__(directory: File) {}
         @Implementation fun releaseAll() { releases++ }
+        @Implementation fun cancelBackQam() {}
         @Implementation fun triggerSteamKeyboard() { requests++ }
 
         companion object {

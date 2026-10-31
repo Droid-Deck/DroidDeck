@@ -24,7 +24,6 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.material.icons.Icons
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.material.icons.filled.Pause
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.Icon
 import androidx.compose.foundation.Canvas
@@ -81,8 +80,8 @@ import androidx.compose.ui.text.style.TextOverflow
 
 
 @Composable
-fun HudText(text: String, graph: FloatArray = FloatArray(0), color: String = "mint", opacity: Int = 70) {
-    if (text.isEmpty() && graph.size < 2) return
+fun HudText(text: String, color: String = "mint", opacity: Int = 70) {
+    if (text.isEmpty()) return
     val accent = hudInk(color)
     val wash = (opacity.coerceIn(30, 100) / 100f)
     val ink = accent.copy(alpha = (0.5f + wash * 0.5f).coerceIn(0.62f, 1f))
@@ -99,48 +98,12 @@ fun HudText(text: String, graph: FloatArray = FloatArray(0), color: String = "mi
                 )
                 .padding(horizontal = 8.dp, vertical = 5.dp),
         ) {
-            if (text.isNotEmpty()) Text(
+            Text(
                 text,
                 fontFamily = FontFamily.Monospace,
                 fontSize = 12.sp,
                 color = ink,
                 textAlign = TextAlign.End,
-            )
-            if (graph.size >= 2) {
-                if (text.isNotEmpty()) Spacer(Modifier.height(4.dp))
-                HudGraph(graph, accent, wash)
-            }
-        }
-    }
-}
-
-@Composable
-private fun HudGraph(samples: FloatArray, accent: Color, wash: Float) {
-    Canvas(Modifier.width(148.dp).height(44.dp)) {
-        val maxMs = (samples.maxOrNull() ?: 16.7f).coerceAtLeast(16.7f)
-        val step = size.width / (samples.size - 1)
-        fun yOf(ms: Float) = size.height * (1f - (ms / maxMs).coerceIn(0f, 1f))
-        val fillAlpha = wash * 0.5f
-        val fill = Path().apply {
-            moveTo(0f, size.height)
-            samples.forEachIndexed { i, ms -> lineTo(i * step, yOf(ms)) }
-            lineTo(size.width, size.height)
-            close()
-        }
-        drawPath(
-            fill,
-            Brush.verticalGradient(listOf(HUD_SLOW.copy(alpha = fillAlpha), accent.copy(alpha = fillAlpha * 0.45f))),
-        )
-        val guide = yOf(16.7f)
-        drawLine(Color.White.copy(alpha = 0.32f), Offset(0f, guide), Offset(size.width, guide), strokeWidth = 1f)
-        for (i in 0 until samples.lastIndex) {
-            val tone = ((samples[i] - 8f) / 25f).coerceIn(0f, 1f)
-            drawLine(
-                mix(accent, HUD_SLOW, tone).copy(alpha = 0.55f + wash * 0.4f),
-                Offset(i * step, yOf(samples[i])),
-                Offset((i + 1) * step, yOf(samples[i + 1])),
-                strokeWidth = 2.5f,
-                cap = StrokeCap.Round,
             )
         }
     }
@@ -156,17 +119,6 @@ private fun hudInk(color: String): Color = Color(
     }.toInt(),
 )
 
-private fun mix(from: Color, to: Color, t: Float): Color {
-    val u = t.coerceIn(0f, 1f)
-    return Color(
-        red = from.red + (to.red - from.red) * u,
-        green = from.green + (to.green - from.green) * u,
-        blue = from.blue + (to.blue - from.blue) * u,
-        alpha = 1f,
-    )
-}
-
-private val HUD_SLOW = Color(0xFFFF5C6C.toInt())
 
 private class LoadStage(@androidx.annotation.StringRes val label: Int, @androidx.annotation.StringRes val detail: Int)
 
@@ -332,6 +284,7 @@ private fun CancelHint(onCancel: () -> Unit, modifier: Modifier = Modifier) {
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
         modifier = modifier.heightIn(min = 44.dp).clip(RoundedCornerShape(22.dp))
             .background(if (hot) colors.onBackground.copy(alpha = 0.08f) else Color.Transparent)
+            .glideBorder(hot, RoundedCornerShape(22.dp), LocalPalette.current.signal)
             .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Button, onClick = onCancel)
             .padding(horizontal = 12.dp),
     ) {
@@ -343,39 +296,5 @@ private fun CancelHint(onCancel: () -> Unit, modifier: Modifier = Modifier) {
             ))
         }
         Text(stringResource(R.string.common_cancel), fontSize = 13.sp, color = colors.onSurfaceVariant)
-    }
-}
-
-@Composable
-fun SessionPausedOverlay(title: String = stringResource(R.string.load_steam_paused), onResume: () -> Unit) {
-    val colors = MaterialTheme.colorScheme
-    val pal = LocalPalette.current
-    val resumeFocus = remember { FocusRequester() }
-    LaunchedEffect(Unit) {
-        androidx.compose.runtime.withFrameNanos { }
-        runCatching { resumeFocus.requestFocus() }
-    }
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(pal.background.copy(alpha = 0.94f))
-            .blockTouches(),
-        contentAlignment = Alignment.Center,
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-            modifier = Modifier.widthIn(max = 440.dp).padding(32.dp),
-        ) {
-            Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(bottom = 6.dp).size(64.dp).border(2.dp, pal.line2, CircleShape)) {
-                Icon(Icons.Filled.Pause, contentDescription = null, tint = colors.onBackground, modifier = Modifier.size(30.dp))
-            }
-            Text(title, fontSize = 28.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, textAlign = TextAlign.Center)
-            PrimaryButton(
-                stringResource(R.string.resume_session),
-                modifier = Modifier.padding(top = 14.dp).focusRequester(resumeFocus).controllerConfirm(onClick = onResume),
-                onClick = onResume,
-            )
-        }
     }
 }

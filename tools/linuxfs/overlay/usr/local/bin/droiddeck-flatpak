@@ -109,21 +109,31 @@ def run(t, state, report_done=True):
     return 0
 
 
+def arches():
+    native = Flatpak.get_default_arch()
+    return [native, "x86_64"] if native == "aarch64" else [native]
+
+
 def install(app_id):
     inst = installation()
-    arch = Flatpak.get_default_arch()
     if app_ref(inst, app_id) is not None:
         emit(e="done", note="already installed")
         return 0
-    branch, last = None, None
-    for candidate in ("stable", "master"):
-        try:
-            branch = inst.fetch_remote_ref_sync(REMOTE, Flatpak.RefKind.APP, app_id, arch, candidate, None).get_branch()
+    arch, branch, last = None, None, None
+    for candidate_arch in arches():
+        for candidate in ("stable", "master"):
+            try:
+                branch = inst.fetch_remote_ref_sync(REMOTE, Flatpak.RefKind.APP, app_id, candidate_arch, candidate,
+                                                    None).get_branch()
+                arch = candidate_arch
+                break
+            except GLib.Error as err:
+                last = err
+        if branch is not None:
             break
-        except GLib.Error as err:
-            last = err
     if branch is None:
-        emit(e="error", message="%s is not on Flathub for %s (%s)" % (app_id, arch, last.message if last else "no branch"))
+        emit(e="error", message="%s is not on Flathub for %s (%s)" % (app_id, " or ".join(arches()),
+                                                                      last.message if last else "no branch"))
         return 1
     t, state = transaction(inst)
     t.add_install(REMOTE, "app/%s/%s/%s" % (app_id, arch, branch), None)
@@ -141,9 +151,14 @@ def install_bundle(path):
     inst = installation()
     bundle = Gio.File.new_for_path(path)
     try:
-        app_id = Flatpak.BundleRef.new(bundle).get_name()
+        ref = Flatpak.BundleRef.new(bundle)
+        app_id = ref.get_name()
     except GLib.Error as err:
         emit(e="error", message="%s is not a Flatpak bundle (%s)" % (os.path.basename(path), err.message))
+        return 1
+    if ref.get_arch() not in arches():
+        emit(e="error", code="arch", id=app_id, arch=ref.get_arch(),
+             message="%s is built for %s, not %s" % (app_id, ref.get_arch(), " or ".join(arches())))
         return 1
     if app_ref(inst, app_id) is not None:
         emit(e="done", id=app_id, note="already installed")

@@ -39,7 +39,7 @@ internal fun StepsLayer(origin: Offset) {
     androidx.activity.compose.BackHandler(enabled = Steps.open) { Steps.fold() }
     key(ask) {
         StepOut(
-            open = Steps.open, pill = ask.anchor.translate(-origin), side = ask.side, accent = ask.accent,
+            open = Steps.open, pill = ask.anchor.translate(-origin), preferredSide = ask.side, accent = ask.accent,
             onDismiss = { Steps.fold() }, onClosed = { Steps.closed(ask) },
             pillCorner = ask.pillCorner, maxWidth = ask.maxWidth, items = ask.items, handle = ask.handle, content = ask.content,
         )

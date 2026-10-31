@@ -8,6 +8,7 @@ add_library(droiddeckwayland SHARED
         src/sc_layer.c
         src/ahb_swapchain.c
         src/waylandcomp_jni.c
+        src/gpu_clock_pin.c
         src/droiddeck_ext.c
         src/wl_dmabuf.c
         src/wl_clipboard.c
@@ -32,6 +33,8 @@ add_library(droiddeckwayland SHARED
         generated/banner-ahb-v1-protocol.c
         src/framegen_bridge.c
         src/framegen_jni.c
+        src/hudframes.c
+        src/hudframes_jni.c
 )
 target_compile_options(droiddeckwayland PRIVATE
         $<$<COMPILE_LANGUAGE:C>:-Wall -Wextra -Wno-unused-parameter -Wno-missing-field-initializers>)
@@ -94,4 +97,5 @@ target_link_libraries(droiddeckwayland
         dl
         log
         android
+        nativewindow
 )

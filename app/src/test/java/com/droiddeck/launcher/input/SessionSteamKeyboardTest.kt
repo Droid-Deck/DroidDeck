@@ -129,7 +129,12 @@ class SessionSteamKeyboardTest {
             override fun onButton(button: Int, pressed: Boolean, x: Float, y: Float) { buttons += pressed }
             override fun onWheel(steps: Int) {}
             override fun onLongPress() {}
-        }) {}
+        }, object : DirectTouchHold.Touch {
+            override fun down(pointerId: Int, x: Float, y: Float) {}
+            override fun move(pointerId: Int, x: Float, y: Float) {}
+            override fun up(pointerId: Int, x: Float, y: Float) {}
+            override fun cancel() {}
+        }).also { it.configure(TouchGestureConfig()) }
         ReflectionHelpers.setField(activity, "directTouchHold", hold)
         val now = SystemClock.uptimeMillis()
         val event = MotionEvent.obtain(now, now, MotionEvent.ACTION_DOWN, 20f, 500f, 0)

@@ -14,6 +14,7 @@ import urllib.parse
 import urllib.request
 
 STATE = ".droiddeck-games.json"
+TRIED = ".droiddeck-import-tried.json"
 WINNATIVE = ".winnative-steam/steamapps"
 LIBRARY = "/mnt/droiddeck-sd"
 LEGACY_LIBRARY = "/mnt/bannerlator-sd"
@@ -179,10 +180,44 @@ def request_restart(steam_root):
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=30)
 
 
+def ask_restart(names, timeout=600, clock=None, sleep=None):
+    """The app asks whether to restart the client now; anything but "now" leaves the import to the next start."""
+    clock, sleep = clock or time.monotonic, sleep or time.sleep
+    folder = Path(os.environ.get("HOME", "/root"), ".cache/droiddeck")
+    ask, answer = folder / "steam-import.json", folder / "steam-import.answer"
+    token = str(time.time_ns())
+    answer.unlink(missing_ok=True)
+    save_json(ask, {"token": token, "games": names})
+    try:
+        deadline = clock() + timeout
+        while clock() < deadline:
+            reply = read_json(answer, None)
+            if isinstance(reply, dict) and reply.get("token") == token:
+                return reply.get("choice") == "now"
+            sleep(1)
+        return False
+    finally:
+        ask.unlink(missing_ok=True)
+        answer.unlink(missing_ok=True)
+
+
 def unimported(steam_root, snapshot, candidates):
-    routes = read_json(Path(steam_root) / "userdata" / snapshot["account"] / "config/.droiddeck-routes.json", {})
+    config = Path(steam_root) / "userdata" / snapshot["account"] / "config"
+    routes = read_json(config / ".droiddeck-routes.json", {})
     routed = set(routes.values()) if isinstance(routes, dict) else set()
-    return sorted({appid for appid in candidates.values() if snapshot["owned"].get(str(appid)) is True} - routed)
+    tried = read_json(config / TRIED, [])
+    tried = {appid for appid in tried if isinstance(appid, int)} if isinstance(tried, list) else set()
+    owned = {appid for appid in candidates.values() if snapshot["owned"].get(str(appid)) is True}
+    if tried - routed != tried:
+        save_json(config / TRIED, sorted(tried - routed))
+    return sorted(owned - routed - tried)
+
+
+def remember_tried(steam_root, account, appids):
+    config = Path(steam_root) / "userdata" / account / "config"
+    tried = read_json(config / TRIED, [])
+    tried = {appid for appid in tried if isinstance(appid, int)} if isinstance(tried, list) else set()
+    save_json(config / TRIED, sorted(tried | set(appids)))
 
 
 def watch(steam_root, listing):
@@ -193,7 +228,7 @@ def watch(steam_root, listing):
     next_lookup = 0
     last_status = None
     probed, next_probe, failures = None, 0, 0
-    pending, requested = [], []
+    pending, requested, account = [], [], None
     while True:
         now = time.monotonic()
         for game in games:
@@ -233,6 +268,7 @@ def watch(steam_root, listing):
                     snapshot["sources"] = sources
                     save_json(Path(steam_root) / "userdata" / snapshot["account"] / "config" / STATE, snapshot)
                     pending = unimported(steam_root, snapshot, candidates)
+                    account = snapshot["account"]
                     status = "matched %d/%d games; %d owned" % (len(candidates), len(games), sum(snapshot["owned"].values()))
             except (OSError, ValueError, KeyError, StopIteration, subprocess.TimeoutExpired) as error:
                 status = "ownership check unavailable: " + str(error)
@@ -242,9 +278,14 @@ def watch(steam_root, listing):
             status = last_status
         if pending and pending != requested and not game_running() and downloads_idle(steam_root):
             requested = pending
-            print("droiddeck-steam-games: restarting the client once to import %s" % pending, flush=True)
+            names = sorted({game["name"] for game in games if candidates.get(game["folder"]) in pending})
             try:
-                request_restart(steam_root)
+                remember_tried(steam_root, account, pending)
+                if ask_restart(names) and not game_running() and downloads_idle(steam_root):
+                    print("droiddeck-steam-games: restarting the client once to import %s" % pending, flush=True)
+                    request_restart(steam_root)
+                else:
+                    print("droiddeck-steam-games: %s will be imported the next time the client starts" % pending, flush=True)
             except (OSError, subprocess.TimeoutExpired) as error:
                 print("droiddeck-steam-games: restart unavailable: %s" % error, flush=True)
         if status != last_status:
@@ -436,6 +477,7 @@ def route(steam_root, acct, games):
                 if seed_install(steam_root, game, appid):
                     routes[str(game["appid"])] = appid
                     continue
+                print(f"droiddeck-steam-games: {game.get('name', appid)} stays a shortcut this session: it could not be linked as Steam app {appid}")
             except OSError as error:
                 print(f"droiddeck-steam-games: import unavailable ({error})")
         elif isinstance(appid, int) and 0 < appid < 0x80000000 and seeded(steamapps, game, appid):
