@@ -38,6 +38,7 @@ internal object GameJoltProbe {
 
     private val noise = Regex("/dash/(developer|communities|sites|avatar|header|profile|email)|communities|/posts/|stickers|polls|realms|custom-buttons|collaborators|playlists", RegexOption.IGNORE_CASE)
     private val markers = listOf("get-download-url/", "/web/download/info/", "/web/discover/games\"", "/web/discover/games`", "/web/search\"", "/web/search`", "/web/auth/check\"", "/web/library\"", "/web/checkout/setup-order")
+    private val DIGITS = Regex("[0-9]+")
     private val IDENT = Regex("[A-Za-z_$][A-Za-z0-9_$]*")
     private val CODE_WORDS = setOf(
         "id", "key", "game", "build", "builds", "params", "query", "page", "sort", "filter", "type", "os", "limit", "price", "free", "tag", "tags",
@@ -51,6 +52,7 @@ internal object GameJoltProbe {
 
     private fun maskCode(text: String): String =
         IDENT.replace(text.replace('\n', ' ')) { m -> if (m.value.length <= 2 || m.value in CODE_WORDS) m.value else "_" }
+            .replace(DIGITS, "#")
 
     private val CHUNK_EXTENSIONS = setOf("js", "mjs", "css", "json", "map")
     private val CHUNK_DIRS = setOf("assets", "chunks", "static", "js", "dist")
@@ -277,11 +279,10 @@ internal object GameJoltProbe {
             log("no numeric game id in the input, skipped the overview candidate")
         }
         report("candidate browse", "https://gamejolt.com/site-api/web/discover/games", "application/json", MAX_JSON)
-        val slug = input.substringAfter("/games/", "").substringBefore('/')
+        val slug = runCatching { URL(input).path }.getOrDefault("").substringAfter("/games/", "").substringBefore('/')
         if (slug.isNotEmpty()) report("candidate search", "https://gamejolt.com/site-api/web/search?q=" + java.net.URLEncoder.encode(slug, "UTF-8"), "application/json", MAX_JSON)
         report("game api without a key", "https://api.gamejolt.com/api/game/v1_2/users/", "application/json", 20_000)
-        val query = input.substringAfter("/games/", "").substringBefore('/')
-        if (query.isNotEmpty()) report("search page", "https://gamejolt.com/search?q=" + java.net.URLEncoder.encode(query, "UTF-8"), "text/html", MAX_PAGE)
+        if (slug.isNotEmpty()) report("search page", "https://gamejolt.com/search?q=" + java.net.URLEncoder.encode(slug, "UTF-8"), "text/html", MAX_PAGE)
         log("done")
     }
 }
