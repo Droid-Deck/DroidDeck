@@ -2358,6 +2358,8 @@
     <string name="edit_target">Target</string>
     <string name="edit_start_in">Mulai di</string>
     <string name="edit_launch_options">Opsi peluncuran</string>
+    <string name="edit_launch_options_steam_hint">Dibagikan dengan Properti Steam: perubahan di salah satunya muncul di keduanya.</string>
+    <string name="edit_launch_options_not_saved">Tidak dapat menyimpan opsi peluncuran ke Steam. Coba lagi.</string>
     <string name="edit_artwork">Artwork</string>
     <string name="edit_other_exe">Exe lain…</string>
     <string name="edit_remove">Hapus</string>

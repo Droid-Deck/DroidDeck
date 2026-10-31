@@ -205,7 +205,6 @@ internal fun StoreGameArtEditor(folder: String, name: String, onClose: () -> Uni
     ArtOnlyEditor(name, target, g, { c -> g?.let { AddedGameArt.describe(c, it) }.orEmpty() }, onClose, onChanged)
 }
 
-/** The art editor, and for a Steam game ([launchAppId]) its launch options, which replace the ones set in Steam. */
 @Composable
 private fun ArtOnlyEditor(
     name: String, target: ArtTarget?, refresh: Any?, describe: (Context) -> List<AddedGameArt.SlotState>,
@@ -223,6 +222,7 @@ private fun ArtOnlyEditor(
     var launchOptions by remember { mutableStateOf<String?>(null) }
     var launchVersion by remember { mutableIntStateOf(0) }
     var editingLaunch by remember { mutableStateOf(false) }
+    var launchNotSaved by remember { mutableStateOf(false) }
     val position = rememberLogoPosition(target, version)
     LaunchedEffect(version, refresh) { if (target != null) arts = withContext(Dispatchers.IO) { describe(app) } }
     LaunchedEffect(launchAppId, launchVersion) { if (launchAppId != null) launchOptions = withContext(Dispatchers.IO) { SteamLaunchOptions.current(app, launchAppId) } }
@@ -240,7 +240,8 @@ private fun ArtOnlyEditor(
                     val options = launchOptions
                     if (options == null) Loading() else ValueText(options.ifEmpty { "—" }, muted = options.isEmpty())
                 }
-                Text(stringResource(R.string.edit_launch_options_steam_hint), fontSize = 12.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(start = 4.dp))
+                if (launchNotSaved) Text(stringResource(R.string.edit_launch_options_not_saved), fontSize = 12.sp, color = colors.error, modifier = Modifier.padding(start = 4.dp))
+                else Text(stringResource(R.string.edit_launch_options_steam_hint), fontSize = 12.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(start = 4.dp))
             }
             Text(stringResource(R.string.edit_artwork), fontSize = 12.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(start = 4.dp, top = if (launchAppId != null) 8.dp else 2.dp))
             for (slot in AddedGameArt.Slot.values()) key(slot) {
@@ -256,10 +257,9 @@ private fun ArtOnlyEditor(
         }
     }
     if (editingLaunch && launchAppId != null) TextEntryDialog(stringResource(R.string.edit_launch_options), launchOptions.orEmpty(), onDismiss = { editingLaunch = false }) { value ->
-        // Unchanged, Steam's own options stay Steam's instead of becoming a copy that overwrites them from now on.
         if (value == launchOptions.orEmpty().trim()) return@TextEntryDialog
         scope.launch {
-            withContext(Dispatchers.IO) { SteamLaunchOptions.set(app, launchAppId, value) }
+            launchNotSaved = !withContext(Dispatchers.IO) { SteamLaunchOptions.set(app, launchAppId, value) }
             launchVersion++
         }
     }

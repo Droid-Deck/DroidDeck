@@ -2508,7 +2508,8 @@
     <string name="edit_target">Target</string>
     <string name="edit_start_in">Start in</string>
     <string name="edit_launch_options">Launch options</string>
-    <string name="edit_launch_options_steam_hint">Overwrites the launch options set in Steam\'s Properties.</string>
+    <string name="edit_launch_options_steam_hint">Shared with Steam\'s Properties: a change in either one shows in both.</string>
+    <string name="edit_launch_options_not_saved">Could not save the launch options to Steam. Try again.</string>
     <string name="edit_artwork">Artwork</string>
     <string name="edit_other_exe">Other exe…</string>
     <string name="edit_remove">Remove</string>

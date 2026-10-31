@@ -2427,6 +2427,8 @@
     <string name="edit_target">Cíl</string>
     <string name="edit_start_in">Spustit v</string>
     <string name="edit_launch_options">Možnosti spuštění</string>
+    <string name="edit_launch_options_steam_hint">Sdíleno s Vlastnostmi ve Steamu: změna na jednom místě se projeví na obou.</string>
+    <string name="edit_launch_options_not_saved">Možnosti spuštění se nepodařilo uložit do Steamu. Zkuste to znovu.</string>
     <string name="edit_artwork">Grafika</string>
     <string name="edit_other_exe">Jiný exe…</string>
     <string name="edit_remove">Odstranit</string>

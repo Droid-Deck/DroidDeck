@@ -92,7 +92,20 @@ object SteamLiveShortcuts {
         if (evaluate(context, js) != null) Log.i(TAG, "live shortcuts: updated $id")
     }
 
-    /** Sets a Steam game's launch options in the running client, which keeps them itself; false when no client took them. */
+    fun launchOptions(context: Context, appId: Long): String? {
+        if (!clientRunning()) return null
+        val js = """
+            new Promise(done => {
+              let handle = null, answer;
+              const finish = d => { clearTimeout(timer); try { handle?.unregister(); } catch (e) {} done(d); };
+              const timer = setTimeout(() => finish(null), 4000);
+              handle = SteamClient.Apps.RegisterForAppDetails(${appId and 0xFFFFFFFFL}, d => { answer = d; if (handle) finish(d); });
+              if (answer !== undefined) finish(answer);
+            }).then(d => typeof d?.strLaunchOptions === 'string' ? d.strLaunchOptions : null)
+        """.trimIndent()
+        return evaluate(context, js)
+    }
+
     fun setLaunchOptions(context: Context, appId: Long, options: String): Boolean {
         if (!clientRunning()) return false
         val id = appId and 0xFFFFFFFFL

@@ -2358,6 +2358,8 @@
     <string name="edit_target">대상</string>
     <string name="edit_start_in">시작 위치</string>
     <string name="edit_launch_options">실행 옵션</string>
+    <string name="edit_launch_options_steam_hint">Steam 속성과 공유됩니다. 어느 한쪽에서 바꾸면 양쪽에 모두 반영됩니다.</string>
+    <string name="edit_launch_options_not_saved">실행 옵션을 Steam에 저장하지 못했습니다. 다시 시도하세요.</string>
     <string name="edit_artwork">아트워크</string>
     <string name="edit_other_exe">다른 exe…</string>
     <string name="edit_remove">제거</string>

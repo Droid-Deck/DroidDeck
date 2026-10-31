@@ -2381,6 +2381,8 @@
     <string name="edit_target">Цел</string>
     <string name="edit_start_in">Старт в</string>
     <string name="edit_launch_options">Настройки за стартиране</string>
+    <string name="edit_launch_options_steam_hint">Общи са със „Свойства“ в Steam: промяна на едното място се вижда и на двете.</string>
+    <string name="edit_launch_options_not_saved">Настройките за стартиране не можаха да бъдат запазени в Steam. Опитайте отново.</string>
     <string name="edit_artwork">Визия</string>
     <string name="edit_other_exe">Друг exe…</string>
     <string name="edit_remove">Премахни</string>

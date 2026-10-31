@@ -2400,6 +2400,8 @@
     <string name="edit_target">目标</string>
     <string name="edit_start_in">起始位置</string>
     <string name="edit_launch_options">启动选项</string>
+    <string name="edit_launch_options_steam_hint">与 Steam 的“属性”共用：在任一处更改，两处都会更新。</string>
+    <string name="edit_launch_options_not_saved">无法将启动选项保存到 Steam。请重试。</string>
     <string name="edit_artwork">美术图</string>
     <string name="edit_other_exe">其他 exe…</string>
     <string name="edit_remove">移除</string>

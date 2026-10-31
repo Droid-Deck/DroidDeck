@@ -1,28 +1,21 @@
 package com.droiddeck.launcher.frontend
 
-import android.content.Context
-import com.droiddeck.launcher.session.SessionPrefs
 import java.io.File
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
-import org.junit.Before
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
-import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
 class SteamLaunchOptionsTest {
     @get:Rule val tmp = TemporaryFolder()
-    private val app get() = RuntimeEnvironment.getApplication()
-
-    @Before fun clear() {
-        app.getSharedPreferences("session", Context.MODE_PRIVATE).edit().clear().commit()
-    }
 
     private fun config(apps: String) = listOf(
         "\"UserLocalConfigStore\"", "{", "\t\"Software\"", "\t{", "\t\t\"Valve\"", "\t\t{", "\t\t\t\"Steam\"", "\t\t\t{",
@@ -103,31 +96,31 @@ class SteamLaunchOptionsTest {
 
     private fun localConfig(home: File, account: String) = File(home, "userdata/$account/config/localconfig.vdf").apply { parentFile!!.mkdirs() }
 
-    @Test fun sessionStartPutsTheOptionsSetHereIntoEveryAccount() {
+    @Test fun aChangeGoesToTheSignedInAccountOnly() {
         val home = steamHome()
-        val first = localConfig(home, "60974196").apply { writeText(config(apps(*sparking))) }
-        val second = localConfig(home, "123").apply { writeText(config("\t\t\t\t\"language\"\t\t\"english\"")) }
-        SteamLaunchOptions.stage(app, home)
-        assertEquals("-dx11", SteamLaunchOptions.launchOptions(first.readText(), 1790600))
-        assertNull(SteamLaunchOptions.launchOptions(second.readText(), 1790600))
-
-        SessionPrefs.setSteamGameLaunch(app, 1790600, " -dx12 ")
-        SessionPrefs.setSteamGameLaunch(app, 400, "-novid")
-        SteamLaunchOptions.stage(app, home)
-        for (file in listOf(first, second)) {
-            assertEquals("-dx12", SteamLaunchOptions.launchOptions(file.readText(), 1790600))
-            assertEquals("-novid", SteamLaunchOptions.launchOptions(file.readText(), 400))
-        }
-        assertEquals(false, File(first.parentFile, "localconfig.vdf.staged").exists())
+        val signedIn = localConfig(home, "60974196").apply { writeText(config(apps(*sparking))) }
+        val other = localConfig(home, "123").apply { writeText(config("\t\t\t\t\"language\"\t\t\"english\"")) }
+        val untouched = other.readText()
+        assertTrue(SteamLaunchOptions.write(home, 1790600, "-dx12"))
+        assertEquals("-dx12", SteamLaunchOptions.launchOptions(signedIn.readText(), 1790600))
+        assertEquals(untouched, other.readText())
+        assertFalse(File(signedIn.parentFile, "localconfig.vdf.staged").exists())
     }
 
-    @Test fun steamsOwnOptionsComeFromTheSignedInAccount() {
+    @Test fun whatSteamWroteLastIsWhatTheGameHas() {
         val home = steamHome()
-        localConfig(home, "60974196").writeText(config(apps(*sparking)))
-        assertEquals("-dx11", SteamLaunchOptions.steam(home, 1790600))
+        val config = localConfig(home, "60974196").apply { writeText(config(apps(*sparking))) }
+        assertTrue(SteamLaunchOptions.write(home, 1790600, "-dx12"))
+        config.writeText(SteamLaunchOptions.withLaunchOptions(config.readText(), 1790600, "-vulkan")!!)
+        assertEquals("-vulkan", SteamLaunchOptions.steam(home, 1790600))
         assertNull(SteamLaunchOptions.steam(home, 400))
-        assertEquals(mapOf<Int, String>(), SessionPrefs.steamGameLaunches(app))
-        SessionPrefs.setSteamGameLaunch(app, 1790600, "")
-        assertEquals(mapOf(1790600 to ""), SessionPrefs.steamGameLaunches(app))
+    }
+
+    @Test fun nothingIsWrittenWithoutASignedInAccountsConfig() {
+        assertFalse(SteamLaunchOptions.write(tmp.newFolder("NoSteam"), 1790600, "-dx11"))
+        val home = steamHome()
+        assertFalse(SteamLaunchOptions.write(home, 1790600, "-dx11"))
+        localConfig(home, "60974196").writeText("\"InstallConfigStore\"\n{\n}\n")
+        assertFalse(SteamLaunchOptions.write(home, 1790600, "-dx11"))
     }
 }

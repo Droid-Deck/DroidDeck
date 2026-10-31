@@ -2401,6 +2401,8 @@
     <string name="edit_target">Destino</string>
     <string name="edit_start_in">Iniciar en</string>
     <string name="edit_launch_options">Opciones de lanzamiento</string>
+    <string name="edit_launch_options_steam_hint">Se comparten con las Propiedades de Steam: un cambio en cualquiera de los dos se ve en ambos.</string>
+    <string name="edit_launch_options_not_saved">No se pudieron guardar las opciones de lanzamiento en Steam. Inténtalo de nuevo.</string>
     <string name="edit_artwork">Ilustraciones</string>
     <string name="edit_other_exe">Otro exe…</string>
     <string name="edit_remove">Quitar</string>

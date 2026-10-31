@@ -2427,6 +2427,8 @@
     <string name="edit_target">Ціль</string>
     <string name="edit_start_in">Робоча папка</string>
     <string name="edit_launch_options">Параметри запуску</string>
+    <string name="edit_launch_options_steam_hint">Спільні з «Властивостями» Steam: зміна в одному місці видна в обох.</string>
+    <string name="edit_launch_options_not_saved">Не вдалося зберегти параметри запуску в Steam. Спробуйте ще раз.</string>
     <string name="edit_artwork">Графіка</string>
     <string name="edit_other_exe">Інший exe…</string>
     <string name="edit_remove">Вилучити</string>
