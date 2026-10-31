@@ -106,6 +106,18 @@ object SessionPrefs {
         prefs(context).edit().putString("bottomPage", page).apply()
     }
 
+    fun statsStrip(context: Context): String? = prefs(context).getString("statsStrip", null)
+
+    fun setStatsStrip(context: Context, id: String) {
+        prefs(context).edit().putString("statsStrip", id).apply()
+    }
+
+    fun statsDash(context: Context): String? = prefs(context).getString("statsDash", null)
+
+    fun setStatsDash(context: Context, id: String) {
+        prefs(context).edit().putString("statsDash", id).apply()
+    }
+
     /** In-game stats "Send dashboard data" Automatic: on unless the user switched it off. */
     fun telemetryAuto(context: Context): Boolean = prefs(context).getBoolean("telemetryAuto", true)
 

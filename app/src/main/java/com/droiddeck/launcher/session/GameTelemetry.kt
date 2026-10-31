@@ -18,6 +18,18 @@ data class Telemetry(
     val fuel: Float? = null,
     val currentLapS: Float? = null,
     val lastLapS: Float? = null,
+    val bestLapS: Float? = null,
+    /** G-force as the game sends it (lateral, longitudinal) and steering from -1 (left) to 1 (right). */
+    val gLat: Float? = null,
+    val gLon: Float? = null,
+    val steer: Float? = null,
+    /** Front left, front right, rear left, rear right. */
+    val tireTempsC: List<Float>? = null,
+    val turboBar: Float? = null,
+    val engineTempC: Float? = null,
+    val oilTempC: Float? = null,
+    /** OutGauge dashboard lights that are on, as GameTelemetry.DL_* bits. */
+    val lights: Int? = null,
 )
 
 /**
@@ -47,14 +59,25 @@ object GameTelemetry {
     }.getOrNull()
 
     private const val MPS_TO_KMH = 3.6f
+    private const val GRAVITY = 9.81f
+
+    // OutGauge DashLights / ShowLights bits (Live for Speed InSim; BeamNG uses the same values).
+    const val DL_SHIFT = 1
+    const val DL_HANDBRAKE = 4
+    const val DL_PITSPEED = 8
+    const val DL_TC = 16
+    const val DL_ABS = 1024
 
     // Float indexes of the Codemasters packet; engine rpm values are sent divided by 10. Older games
     // (DiRT Showdown) send only the first 38 floats, so lap count, position, fuel and max rpm are missing there.
     private const val CM_LAP_TIME = 1
     private const val CM_SPEED = 7
     private const val CM_THROTTLE = 29
+    private const val CM_STEER = 30
     private const val CM_BRAKE = 31
     private const val CM_GEAR = 33
+    private const val CM_G_LAT = 34
+    private const val CM_G_LON = 35
     private const val CM_LAP = 36
     private const val CM_RPM = 37
     private const val CM_POSITION = 39
@@ -90,6 +113,9 @@ object GameTelemetry {
             fuel = if (capacity > 0f) (f(CM_FUEL) / capacity).coerceIn(0f, 1f) else null,
             currentLapS = f(CM_LAP_TIME).takeIf { it > 0f },
             lastLapS = f(CM_LAST_LAP).takeIf { it > 0f },
+            gLat = f(CM_G_LAT),
+            gLon = f(CM_G_LON),
+            steer = f(CM_STEER).coerceIn(-1f, 1f),
         )
     }
 
@@ -114,6 +140,8 @@ object GameTelemetry {
         if (dash < 0) return Telemetry(source = "Forza", rpm = rpm, maxRpm = maxRpm.takeIf { it > 0f })
         if (!racing) return Telemetry(source = "Forza")
         val gear = buf.get(dash + 75).toInt() and 0xFF
+        // Tire temperatures are read as Fahrenheit, as community Data Out parsers do; not checked on a device.
+        val tiresF = (0 until 4).map { buf.getFloat(dash + 24 + it * 4) }
         return Telemetry(
             source = "Forza",
             speedKmh = buf.getFloat(dash + 12) * MPS_TO_KMH,
@@ -127,6 +155,11 @@ object GameTelemetry {
             fuel = buf.getFloat(dash + 44).coerceIn(0f, 1f),
             currentLapS = buf.getFloat(dash + 60).takeIf { it > 0f },
             lastLapS = buf.getFloat(dash + 56).takeIf { it > 0f },
+            bestLapS = buf.getFloat(dash + 52).takeIf { it > 0f },
+            gLat = buf.getFloat(20) / GRAVITY,
+            gLon = buf.getFloat(28) / GRAVITY,
+            steer = (buf.get(dash + 76).toFloat() / 127f).coerceIn(-1f, 1f),
+            tireTempsC = tiresF.takeIf { f -> f.any { it > 0f } }?.map { (it - 32f) * 5f / 9f },
         )
     }
 
@@ -148,6 +181,10 @@ object GameTelemetry {
             throttle = buf.getFloat(48).coerceIn(0f, 1f),
             brake = buf.getFloat(52).coerceIn(0f, 1f),
             fuel = buf.getFloat(28).coerceIn(0f, 1f),
+            turboBar = buf.getFloat(20).takeIf { it != 0f },
+            engineTempC = buf.getFloat(24).takeIf { it != 0f },
+            oilTempC = buf.getFloat(36).takeIf { it != 0f },
+            lights = buf.getInt(44).takeIf { buf.getInt(40) != 0 },
         )
     }
 }
@@ -157,7 +194,7 @@ object GameStatusFiles {
     const val WAR_THUNDER_STATE = "http://127.0.0.1:8111/state"
     private const val ELITE_APP = "359320"
     private const val ELITE_STATUS = "pfx/drive_c/users/steamuser/Saved Games/Frontier Developments/Elite Dangerous/Status.json"
-    private const val WAR_THUNDER_ROWS = 12
+    const val WAR_THUNDER_ROWS = 12
 
     /** War Thunder's own labels (for example "TAS, km/h") with their values, while a match runs. */
     internal fun warThunder(json: String): List<Pair<String, String>> {
@@ -166,7 +203,7 @@ object GameStatusFiles {
         return state.keys().asSequence().filter { it != "valid" }.mapNotNull { key ->
             val value = state.opt(key) as? Number ?: return@mapNotNull null
             key to if (value.toDouble() % 1.0 == 0.0) value.toLong().toString() else "%.1f".format(java.util.Locale.US, value.toDouble())
-        }.take(WAR_THUNDER_ROWS).toList()
+        }.toList()
     }
 
     fun eliteStatusFile(runtimeRoot: java.io.File, mounts: Map<String, java.io.File>): java.io.File? {

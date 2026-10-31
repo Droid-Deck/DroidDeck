@@ -123,6 +123,71 @@ class GameTelemetryTest {
         assertNull(GameTelemetry.parse(GameTelemetry.OUTGAUGE_PORT, ByteArray(40), 40))
         assertNull(GameTelemetry.parse(1234, ByteArray(400), 400))
     }
+
+    // DiRT Showdown's 38 floats already carry steering and both G-forces.
+    @Test fun codemastersGForceAndSteering() {
+        val data = packet(152) {
+            putFloat(30 * 4, -0.5f)
+            putFloat(33 * 4, 2f)
+            putFloat(34 * 4, 1.2f)
+            putFloat(35 * 4, -0.8f)
+        }
+        val t = GameTelemetry.parse(GameTelemetry.CODEMASTERS_PORT, data, data.size)!!
+        assertEquals(-0.5f, t.steer!!, 1e-4f)
+        assertEquals(1.2f, t.gLat!!, 1e-4f)
+        assertEquals(-0.8f, t.gLon!!, 1e-4f)
+    }
+
+    @Test fun forzaReadsBestLapSteeringGForceAndTires() {
+        val dash = 232
+        val data = packet(311) {
+            putInt(0, 1)
+            putFloat(20, 9.81f)
+            putFloat(28, -4.905f)
+            putFloat(dash + 24, 212f)
+            putFloat(dash + 28, 32f)
+            putFloat(dash + 32, 194f)
+            putFloat(dash + 36, 176f)
+            putFloat(dash + 52, 81.5f)
+            put(dash + 75, 3)
+            put(dash + 76, (-127).toByte())
+        }
+        val t = GameTelemetry.parse(GameTelemetry.FORZA_PORT, data, data.size)!!
+        assertEquals(1f, t.gLat!!, 1e-3f)
+        assertEquals(-0.5f, t.gLon!!, 1e-3f)
+        assertEquals(listOf(100f, 0f, 90f, 80f), t.tireTempsC!!.map { Math.round(it).toFloat() })
+        assertEquals(81.5f, t.bestLapS!!, 1e-4f)
+        assertEquals(-1f, t.steer!!, 1e-4f)
+    }
+
+    @Test fun forzaWithoutTireDataLeavesThemOut() {
+        val data = packet(311) { putInt(0, 1); put(232 + 75, 2) }
+        assertNull(GameTelemetry.parse(GameTelemetry.FORZA_PORT, data, data.size)!!.tireTempsC)
+    }
+
+    @Test fun outGaugeReadsTurboTemperaturesAndLights() {
+        val data = packet(92) {
+            put(10, 3)
+            putFloat(20, 0.8f)
+            putFloat(24, 92f)
+            putFloat(36, 104f)
+            putInt(40, GameTelemetry.DL_SHIFT or GameTelemetry.DL_ABS or GameTelemetry.DL_HANDBRAKE)
+            putInt(44, GameTelemetry.DL_SHIFT or GameTelemetry.DL_ABS)
+        }
+        val t = GameTelemetry.parse(GameTelemetry.OUTGAUGE_PORT, data, data.size)!!
+        assertEquals(0.8f, t.turboBar!!, 1e-4f)
+        assertEquals(92f, t.engineTempC!!, 1e-4f)
+        assertEquals(104f, t.oilTempC!!, 1e-4f)
+        assertEquals(GameTelemetry.DL_SHIFT or GameTelemetry.DL_ABS, t.lights)
+    }
+
+    // BeamNG leaves some OutGauge fields at zero; those stay hidden.
+    @Test fun outGaugeZeroFieldsStayHidden() {
+        val t = GameTelemetry.parse(GameTelemetry.OUTGAUGE_PORT, packet(92) { put(10, 2) }, 92)!!
+        assertNull(t.turboBar)
+        assertNull(t.engineTempC)
+        assertNull(t.lights)
+    }
 }
 
 @RunWith(RobolectricTestRunner::class)
@@ -132,6 +197,18 @@ class GameStatusFilesTest {
         assertEquals(emptyList<Pair<String, String>>(), GameStatusFiles.warThunder("""{"valid": false}"""))
         val rows = GameStatusFiles.warThunder("""{"valid": true, "H, m": 1520, "TAS, km/h": 512.4, "name": "x"}""")
         assertEquals(listOf("H, m" to "1520", "TAS, km/h" to "512.4"), rows)
+    }
+
+    @Test fun warThunderKeepsEveryNumberForTheFlightLayout() {
+        val json = buildString {
+            append("{\"valid\": true")
+            for (i in 0 until 20) append(", \"k$i\": $i")
+            append(", \"IAS, km/h\": 512, \"throttle 1, %\": 110}")
+        }
+        val rows = GameStatusFiles.warThunder(json)
+        assertEquals(22, rows.size)
+        assertTrue(com.droiddeck.launcher.ui.FlightLabels.drawable(rows))
+        assertEquals("110", rows.toMap()["throttle 1, %"])
     }
 
     @Test fun eliteAtTheMenusShowsNothing() {
