@@ -36,7 +36,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.droiddeck.launcher.R
-import com.droiddeck.launcher.session.SessionEvents
 import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionState
 import com.droiddeck.launcher.session.SteamWebLogin
@@ -82,28 +81,6 @@ internal fun steamChatFitScript(cssWidth: Int, scale: Float): String {
 internal const val STEAM_CHAT_FIT_CSS =
     "html,body,#friendslist-container,.chat_main,.chat_main_flex,.friendsListContainer,.friendlist{height:100%!important}" +
     ".chat_main>:has(~.chat_main_flex){display:none!important}"
-
-// Test builds only: records the chat's element tree under .chat_main (tags, ids, classes, sizes, flex settings; no
-// text) to see what still limits the friends column. Remove once the layout is fixed. It goes to the session's
-// events.jsonl because the Retroid Pocket Duo's logcat drops app lines below error level.
-private const val CHAT_LAYOUT_PROBE = "(function(){" +
-    "function m(v){return String(v).replace(/\\d{6,}/g,'#');}" +
-    "function d(e){var r=e.getBoundingClientRect(),c=getComputedStyle(e);" +
-    "var k=typeof e.className==='string'&&e.className.trim()?'.'+e.className.trim().split(/\\s+/).slice(0,4).join('.'):'';" +
-    "return m(e.tagName.toLowerCase()+(e.id?'#'+e.id:'')+k)+' y='+Math.round(r.top)+' h='+Math.round(r.height)+" +
-    "' css='+c.height+' min='+c.minHeight+' max='+c.maxHeight+' disp='+c.display+' dir='+c.flexDirection+" +
-    "' flex='+c.flex+' pos='+c.position+' ov='+c.overflowY+(e.style.height?' inline='+e.style.height:'');}" +
-    "var out=[];function t(e,n){if(!e||out.length>=220)return;out.push(n+' '+d(e));" +
-    "if(n<12)for(var i=0;i<e.children.length&&i<10;i++)t(e.children[i],n+1);}" +
-    "t(document.querySelector('.chat_main'),0);" +
-    "return JSON.stringify({w:innerWidth,h:innerHeight,html:d(document.documentElement),body:d(document.body)," +
-    "fit:!!document.getElementById('dd-chat-fit'),tree:out});})()"
-
-private fun logChatLayout(view: WebView, round: Int) {
-    view.evaluateJavascript(CHAT_LAYOUT_PROBE) { json ->
-        SessionEvents.record("chat.layout", mapOf("round" to round, "layout" to json))
-    }
-}
 
 @Composable
 fun BottomChatPage() {
@@ -201,9 +178,6 @@ private fun SteamChatView(onStopped: () -> Unit) {
                 override fun onPageFinished(view: WebView, url: String) {
                     val scale = view.resources.displayMetrics.density * CHAT_PAGE_SCALE
                     if (view.width > 0) view.evaluateJavascript(steamChatFitScript((view.width / scale).roundToInt(), CHAT_PAGE_SCALE), null)
-                    SessionEvents.record("chat.page_finished", mapOf("url" to url.substringBefore('?'), "view" to "${view.width}x${view.height}"))
-                    view.postDelayed({ logChatLayout(view, 1) }, 4_000L)
-                    view.postDelayed({ logChatLayout(view, 2) }, 12_000L)
                 }
 
                 // Android ends the page's renderer once DroidDeck goes to picture-in-picture ("isolated not needed"
