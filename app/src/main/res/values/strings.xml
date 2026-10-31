@@ -1907,7 +1907,7 @@
     <string name="bottom_chat_mic_off">Mic off</string>
     <string name="bottom_chat_mic_unavailable">Mic is off for this game. To talk, turn on Microphone in DroidDeck\'s Steam settings (Audio) and start the game again.</string>
     <string name="bottom_chat_volume">Volume %1$d%%</string>
-    <string name="bottom_page_telemetry">Telemetry</string>
+    <string name="bottom_page_telemetry">In-game stats</string>
     <string name="bottom_telemetry_fps">FPS</string>
     <string name="bottom_telemetry_cpu">CPU</string>
     <string name="bottom_telemetry_gpu">GPU</string>
@@ -1923,7 +1923,7 @@
     <string name="bottom_telemetry_balance">Balance</string>
     <string name="bottom_telemetry_war_thunder">War Thunder</string>
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
-    <string name="bottom_telemetry_help">Racing games show a live dash here when they send telemetry to 127.0.0.1: DiRT Showdown, DiRT Rally, DiRT 4 and GRID on port %1$d (motion or UDP output on, extradata 3), Forza "Data Out" on port %2$d, BeamNG.drive and Live for Speed OutGauge on port %3$d. War Thunder and Elite Dangerous show up on their own. FPS needs the HUD on.</string>
+    <string name="bottom_telemetry_help">Racing games show a live dash here when their own data output is on and set to 127.0.0.1 (the game\'s settings call it telemetry, motion or UDP output): DiRT Showdown, DiRT Rally, DiRT 4 and GRID on port %1$d (extradata 3), Forza "Data Out" on port %2$d, BeamNG.drive and Live for Speed OutGauge on port %3$d. War Thunder and Elite Dangerous show up on their own. The numbers stay on this device. FPS needs the HUD on.</string>
     <string name="bottom_telemetry_unknown_format">Port %1$d receives data (%2$d packets of %3$d bytes), but in a format this page cannot read yet.</string>
     <string name="bottom_telemetry_port_busy">Another program already uses port %1$s, so that game cannot show here.</string>
 
