@@ -49,7 +49,6 @@ import java.io.File
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.HttpURLConnection
-import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.SocketTimeoutException
 import java.net.URL
@@ -92,7 +91,7 @@ fun BottomTelemetryPage(fps: () -> Float?) {
                 DatagramSocket(null).apply {
                     reuseAddress = true
                     soTimeout = 500
-                    bind(InetSocketAddress(InetAddress.getLoopbackAddress(), port))
+                    bind(InetSocketAddress(GameTelemetry.LISTEN_ADDRESS, port))
                 }
             }.getOrNull()
             if (socket == null) {
