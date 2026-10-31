@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.droiddeck.launcher.R
+import com.droiddeck.launcher.session.SessionEvents
 import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionState
 import com.droiddeck.launcher.session.SteamWebLogin
@@ -74,8 +75,9 @@ internal fun steamChatFitScript(cssWidth: Int, scale: Float): String {
         "window.dispatchEvent(new Event('resize'));})()"
 }
 
-// Test builds only: logs the chat page's element structure (tags, ids, classes, sizes; no text) to find what
-// holds the header and limits the friends list height. Remove once the layout is fixed.
+// Test builds only: records the chat page's element structure (tags, ids, classes, sizes; no text) to find what
+// holds the header and limits the friends list height. Remove once the layout is fixed. It goes to the session's
+// events.jsonl because the Retroid Pocket Duo's logcat drops app lines below error level.
 private const val CHAT_LAYOUT_PROBE = "(function(){" +
     "function m(v){return String(v).replace(/\\d{6,}/g,'#');}" +
     "function d(e){if(!e||!e.tagName)return null;var r=e.getBoundingClientRect(),c=getComputedStyle(e);" +
@@ -90,7 +92,7 @@ private const val CHAT_LAYOUT_PROBE = "(function(){" +
 
 private fun logChatLayout(view: WebView, round: Int) {
     view.evaluateJavascript(CHAT_LAYOUT_PROBE) { json ->
-        json.orEmpty().chunked(3000).forEachIndexed { i, part -> android.util.Log.i("BottomChatLayout", "r$round p$i $part") }
+        SessionEvents.record("chat.layout", mapOf("round" to round, "layout" to json))
     }
 }
 
@@ -179,7 +181,7 @@ private fun SteamChatView() {
                 override fun onPageFinished(view: WebView, url: String) {
                     val scale = view.resources.displayMetrics.density * CHAT_PAGE_SCALE
                     if (view.width > 0) view.evaluateJavascript(steamChatFitScript((view.width / scale).roundToInt(), CHAT_PAGE_SCALE), null)
-                    android.util.Log.i("BottomChatLayout", "page finished ${url.substringBefore('?')} view ${view.width}x${view.height}")
+                    SessionEvents.record("chat.page_finished", mapOf("url" to url.substringBefore('?'), "view" to "${view.width}x${view.height}"))
                     view.postDelayed({ logChatLayout(view, 1) }, 4_000L)
                     view.postDelayed({ logChatLayout(view, 2) }, 12_000L)
                 }
