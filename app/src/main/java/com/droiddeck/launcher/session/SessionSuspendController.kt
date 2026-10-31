@@ -26,7 +26,9 @@ internal class SessionSuspendController(
     private val nowNanos: () -> Long = System::nanoTime,
     private val pagedOut: (processes: Int, unacknowledged: Int, residentKb: Long, swapKb: Long, swapBeforeKb: Long, millis: Long) -> Unit =
         { _, _, _, _, _, _ -> },
-    // processes is 0 when the read-back was skipped because MemAvailable could not take it.
+    // False with a RAM cap set: the user asked for the session to use less memory, so nothing is read back.
+    private val readBackAllowed: () -> Boolean = { true },
+    // processes is 0 when the read-back was skipped: a RAM cap, or MemAvailable could not take it.
     private val pagedIn: (processes: Int, swapKb: Long, swapBeforeKb: Long, availableKb: Long, millis: Long) -> Unit =
         { _, _, _, _, _ -> },
 ) {
@@ -330,8 +332,8 @@ internal class SessionSuspendController(
         val control = zramControl?.takeIf { it.isFile } ?: return
         if (targets.isEmpty() || closing) return
         val before = memoryKb(targets).second
-        val available = availableKb()
-        if (available - before < READ_BACK_HEADROOM_KB) {
+        val (total, available) = meminfoKb()
+        if (!readBackAllowed() || !canTake(before, total, available)) {
             pagedIn(0, before, before, available, 0)
             return
         }
@@ -358,13 +360,26 @@ internal class SessionSuspendController(
         pagedIn(targets.size, swap, before, available, nowMillis() - start)
     }
 
-    private fun availableKb(): Long = try {
-        File(procRoot, "meminfo").useLines { lines ->
-            lines.firstOrNull { it.startsWith("MemAvailable:") }
-                ?.substringAfter(':')?.trim()?.substringBefore(' ')?.toLongOrNull() ?: 0L
+    // Reading back moves the swap into resident memory, out of MemAvailable. On a device short on memory that
+    // could push Android's low-memory killer onto DroidDeck itself, so the memory comes back only when
+    // MemAvailable is at least twice the swap and keeps 1 GB or a tenth of MemTotal, whichever is more, after it.
+    // Otherwise it stays in zram and faults back in as the game touches it, as before.
+    private fun canTake(swapKb: Long, totalKb: Long, availableKb: Long): Boolean =
+        availableKb >= swapKb * READ_BACK_AVAILABLE_FACTOR &&
+            availableKb - swapKb >= maxOf(READ_BACK_HEADROOM_KB, totalKb / READ_BACK_TOTAL_SHARE)
+
+    // MemTotal and MemAvailable, 0 when unreadable (which skips the read-back).
+    private fun meminfoKb(): Pair<Long, Long> = try {
+        val values = HashMap<String, Long>()
+        File(procRoot, "meminfo").forEachLine { line ->
+            val name = line.substringBefore(':')
+            if (name == "MemTotal" || name == "MemAvailable") {
+                line.substringAfter(':').trim().substringBefore(' ').toLongOrNull()?.let { values[name] = it }
+            }
         }
+        (values["MemTotal"] ?: 0L) to (values["MemAvailable"] ?: 0L)
     } catch (_: IOException) {
-        0L
+        0L to 0L
     }
 
     private fun isGone(record: ProcessRecord): Boolean =
@@ -472,6 +487,8 @@ internal class SessionSuspendController(
         const val READ_BACK_STABLE_POLLS = 5
         const val READ_BACK_TIMEOUT_MS = 5_000L
         const val READ_BACK_HEADROOM_KB = 1_048_576L
+        const val READ_BACK_AVAILABLE_FACTOR = 2L
+        const val READ_BACK_TOTAL_SHARE = 10L
         const val RESTORE_CHECKS = 80
         const val FREEZE_TIMEOUT_MS = 8_000L
         const val FREEZE_MAX_PASSES = 256

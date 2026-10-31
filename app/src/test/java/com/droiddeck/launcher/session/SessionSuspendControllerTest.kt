@@ -128,6 +128,41 @@ class SessionSuspendControllerTest {
         assertEquals(listOf(Triple(0, 3_000_000L, 3_000_000L)), fixture.pagedIn)
     }
 
+    @Test fun readBackNeedsTwiceTheSwapAvailable() {
+        val fixture = fixture(17)
+        fixture.control.writeText("0")
+        fixture.availableKb = 5_500_000L
+        fixture.controller.freeze(pageOut = true) { assertTrue(it) }
+        val before = fixture.signals.size
+        fixture.controller.resume { assertTrue(it) }
+        assertFalse(fixture.signals.drop(before).any { it.signal == URG })
+        assertEquals(listOf(Triple(0, 3_000_000L, 3_000_000L)), fixture.pagedIn)
+    }
+
+    @Test fun readBackKeepsATenthOfMemTotalAvailable() {
+        val fixture = fixture(17)
+        fixture.control.writeText("0")
+        fixture.totalKb = 40_000_000L
+        fixture.availableKb = 6_500_000L
+        fixture.controller.freeze(pageOut = true) { assertTrue(it) }
+        val before = fixture.signals.size
+        fixture.controller.resume { assertTrue(it) }
+        assertFalse(fixture.signals.drop(before).any { it.signal == URG })
+        assertEquals(listOf(Triple(0, 3_000_000L, 3_000_000L)), fixture.pagedIn)
+    }
+
+    @Test fun noReadBackWithARamCap() {
+        val fixture = fixture(17)
+        fixture.control.writeText("0")
+        fixture.readBackAllowed = false
+        fixture.controller.freeze(pageOut = true) { assertTrue(it) }
+        val before = fixture.signals.size
+        fixture.controller.resume { assertTrue(it) }
+        assertFalse(fixture.signals.drop(before).any { it.signal == URG })
+        assertEquals("1", fixture.control.readText())
+        assertEquals(listOf(Triple(0, 3_000_000L, 3_000_000L)), fixture.pagedIn)
+    }
+
     @Test fun cancelledFreezeReadsBackWhatThePageOutAlreadyMoved() {
         val fixture = fixture(17)
         fixture.control.writeText("0")
@@ -446,6 +481,8 @@ class SessionSuspendControllerTest {
         val pagedOut = mutableListOf<Triple<Int, Long, Long>>()
         val pagedIn = mutableListOf<Triple<Int, Long, Long>>()
         var availableKb = 8_000_000L
+        var totalKb = 16_000_000L
+        var readBackAllowed = true
         private var gameResidentKb = 4_000_000L
         private var gameSwapKb = 0L
         private var pagingOut = false
@@ -464,6 +501,7 @@ class SessionSuspendControllerTest {
                 pagedOut += Triple(processes, resident, swap)
                 this.unacknowledged = unacknowledged
             },
+            readBackAllowed = { readBackAllowed },
             pagedIn = { processes, swap, swapBefore, _, _ -> pagedIn += Triple(processes, swap, swapBefore) },
         )
 
@@ -527,7 +565,7 @@ class SessionSuspendControllerTest {
         }
 
         fun sync() {
-            File(proc, "meminfo").writeText("MemTotal:\t16000000 kB\nMemAvailable:\t$availableKb kB\n")
+            File(proc, "meminfo").writeText("MemTotal:\t$totalKb kB\nMemFree:\t1000 kB\nMemAvailable:\t$availableKb kB\n")
             for (group in groups) {
                 val dir = File(proc, group.pid.toString())
                 if (group == root && rootGone) { dir.deleteRecursively(); continue }
