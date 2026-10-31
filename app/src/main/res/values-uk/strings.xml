@@ -751,6 +751,10 @@
     <string name="drawer_low_latency_touch">Дотик із низькою затримкою</string>
     <string name="drawer_low_latency_touch_hint">Дотики обходять групування кадрів, тож сенсорне керування Steam працює на 1000 Hz. Трохи більше навантаження на CPU.</string>
     <string name="drawer_evdev_mouse">Сирий канал миші</string>
+    <string name="drawer_relative_mouse">Відносна миша</string>
+    <string name="drawer_relative_mouse_auto">Автоматично</string>
+    <string name="drawer_relative_mouse_on">Увімкнено</string>
+    <string name="drawer_relative_mouse_off">Вимкнено</string>
     <string name="drawer_direct_cursor">Курсор</string>
     <string name="drawer_pc_keyboard">Клавіатура ПК</string>
     <string name="drawer_android_keyboard">Android</string>
