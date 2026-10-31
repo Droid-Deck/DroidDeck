@@ -59,7 +59,7 @@ object DesktopCatalog {
             .sortedBy { it.name }
             .mapNotNull { f -> FileUtils.readString(f)?.let { runCatching { entryFrom(JSONObject(it)) }.getOrNull() } }
 
-    private val installLock = Any()
+    internal val installLock = Any()
 
     private fun downloadFile(context: Context, entry: Entry) = File(context.cacheDir, "pkg-${entry.id}-${entry.sha256.take(12)}.download")
 
@@ -238,6 +238,10 @@ object DesktopCatalog {
             FileUtils.writeString(marker(context, entry.id), entry.version)
             check(installed(context, entry.id) == entry.version) { "Could not finish package installation" }
             check(!journal.exists() || journal.delete()) { "Could not finish package installation" }
+            // Only once the journal is cleared: a failed language pack must not mark the finished
+            // desktop install as unfinished, and a resumed install still brings translations too.
+            if (entry.id == DESKTOP_ID) DesktopI18n.ensure(context, report)
+                ?.let { Log.w(TAG, "desktop language: $it") }
             keepDownload = false
             return null
         } catch (e: Exception) {

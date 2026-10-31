@@ -744,7 +744,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             val protonUser = (intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_STEAM) == SessionService.MODE_STEAM ||
                 program == com.droiddeck.launcher.runtime.BattleNet.PROGRAM || program == com.droiddeck.launcher.session.NoSteamLaunch.PROTON_RUN
             val needProton = protonUser && com.droiddeck.launcher.runtime.DesktopCatalog.protonSeedNeeded(this)
-            if (needRuntime || needResume || needDesktop || needProton) installThenStart(needRuntime, needDesktop, needProton, needResume)
+            val installPending = needRuntime || needResume || needDesktop || needProton
+            if (installPending) installThenStart(needRuntime, needDesktop, needProton, needResume)
+            // Pending installations ensure the language through installLocked or
+            // installThenStart's success path, so the early call only serves
+            // sessions that start without installing.
+            if (!installPending && intent.getStringExtra(SessionService.EXTRA_MODE) == SessionService.MODE_DESKTOP) ensureDesktopLanguage()
         }
         hud = DroidDeckHudHost(this)
         hud.onConfigChanged = { hudConfig = DroidDeckHudConfig.load(this) }
@@ -1944,6 +1949,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     focusEndedScreen()
                     return@post
                 }
+                if (intent.getStringExtra(SessionService.EXTRA_MODE) == SessionService.MODE_DESKTOP) ensureDesktopLanguage()
                 loading.percent = -1
                 loading.say(getString(R.string.session_starting_session), LoadingState.Topic.SESSION, readable = false)
                 outputHolder().let { if (it.surface?.isValid == true) surfaceCreated(it) }
@@ -2013,6 +2019,21 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         } finally {
             if (SessionState.installCancellation === cancellation) SessionState.installCancellation = null
         }
+    }
+
+    /**
+     * Applies a ready language before the guest starts; a missing pack or failed download only
+     * logs while the session starts in English.
+     */
+    private fun ensureDesktopLanguage() {
+        if (com.droiddeck.launcher.runtime.DesktopI18n.applyLocal(applicationContext) == null) return
+        Thread({
+            val problem = com.droiddeck.launcher.runtime.DesktopI18n.ensure(applicationContext, null)
+            if (problem != null) {
+                Log.w(TAG, "desktop language: $problem")
+                SessionEvents.record("desktop.language_failed", mapOf("reason" to problem))
+            }
+        }, "desktop-i18n").start()
     }
 
     private fun installProton(): String? {
