@@ -456,6 +456,15 @@ def game_images(env):
     return True
 
 
+def turnip_cached_memory(env):
+    """Turnip maps the GPU memory the CPU reads uncached on KGSL, so a game that reads it back crawls (Dungeons &
+    Dragons Online's graphics start-up took minutes). It is mapped cached and coherent instead."""
+    if game_id(env) is None:
+        return False
+    env.setdefault("tu_override_uncached_as_cache_coherent", "true")
+    return True
+
+
 def apply_config(env, config, app_id, fixes=None):
     if config.get("version") != 1:
         raise ValueError("unsupported environment configuration")
@@ -766,6 +775,7 @@ def main():
         waiting = len(command) > 1 and command[1] == "waitforexitandrun"
         if waiting:
             game_images(env)
+            turnip_cached_memory(env)
         fixes = {}
         if waiting:
             command = skip_red_launcher(command)

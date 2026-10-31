@@ -637,6 +637,17 @@ class GameEnvironmentTest(unittest.TestCase):
             self.assertFalse(MODULE["game_images"](env))
             self.assertNotIn("GAMESCOPE_WSI_MIN_IMAGE_COUNT", env)
 
+    def test_only_games_get_cached_turnip_memory(self):
+        game = {"STEAM_COMPAT_DATA_PATH": "/steam/compatdata/945360"}
+        self.assertTrue(MODULE["turnip_cached_memory"](game))
+        self.assertEqual(game["tu_override_uncached_as_cache_coherent"], "true")
+        own = {"STEAM_COMPAT_DATA_PATH": "/steam/compatdata/945360", "tu_override_uncached_as_cache_coherent": "false"}
+        MODULE["turnip_cached_memory"](own)
+        self.assertEqual(own["tu_override_uncached_as_cache_coherent"], "false")
+        for env in ({}, {"STEAM_COMPAT_DATA_PATH": "/steam/compatdata/0"}):
+            self.assertFalse(MODULE["turnip_cached_memory"](env))
+            self.assertNotIn("tu_override_uncached_as_cache_coherent", env)
+
     def test_opengl_games_do_not_wait_for_the_screen_refresh(self):
         cases = [
             ({}, "0"),
