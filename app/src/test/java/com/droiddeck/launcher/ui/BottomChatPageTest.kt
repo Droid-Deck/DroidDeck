@@ -22,7 +22,8 @@ class BottomChatPageTest {
             java.util.Locale.setDefault(java.util.Locale.GERMANY)
             val js = steamChatFitScript(821, 0.75f)
             assertTrue(js.contains("m.content='width=821, initial-scale=0.75'"))
-            assertTrue(js.contains("#global_header{display:none!important}"))
+            assertTrue(js.contains("s.textContent='$STEAM_CHAT_FIT_CSS'"))
+            assertFalse(STEAM_CHAT_FIT_CSS.contains('\''))
         } finally {
             java.util.Locale.setDefault(before)
         }
