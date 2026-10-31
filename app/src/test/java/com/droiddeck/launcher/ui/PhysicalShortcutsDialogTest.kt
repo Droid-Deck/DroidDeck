@@ -66,9 +66,9 @@ class PhysicalShortcutsDialogTest {
         }
     }
 
-    @Test fun buttonMappingPageOpensPhysicalShortcutAssignments() {
+    @Test fun inputSettingsPageOpensPhysicalShortcutAssignments() {
         compose.setContent {
-            DroidDeckTheme { ControllerMappingPage(emptyMap(), { _, _ -> }, {}, {}) }
+            DroidDeckTheme { InputSettingsPage(onBack = {}) }
         }
         compose.onNodeWithTag("shortcuts-assign-STEAM").assertExists()
         compose.onNodeWithTag("shortcuts-assign-QAM").assertExists()

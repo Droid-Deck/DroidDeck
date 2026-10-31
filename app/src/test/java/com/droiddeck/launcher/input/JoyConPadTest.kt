@@ -240,16 +240,26 @@ class JoyConPadTest {
         @Implementation fun open(): Boolean = true
         @Implementation fun close() = Unit
         @Implementation fun destroy() = Unit
-        @Implementation fun writePad(state: PadState) { pads[slot] = PadState().apply { copyFrom(state) } }
+        @Implementation fun writePad(state: PadState) {
+            pads[slot] = PadState().apply { copyFrom(state) }
+            padWrites++
+        }
 
         companion object {
             val pads = HashMap<Int, PadState>()
+            var padWrites = 0
+            var deckWrites = 0
             var grips = 0
+            var deckPads = ShortArray(4)
 
             @JvmStatic @Implementation fun __staticInitializer__() = Unit
 
             @JvmStatic @Implementation
-            fun writeDeckControls(slot: Int, controls: Int, pads: ShortArray, pressure: ShortArray) { grips = controls }
+            fun writeDeckControls(slot: Int, controls: Int, pads: ShortArray, pressure: ShortArray) {
+                grips = controls
+                deckPads = pads.copyOf()
+                deckWrites++
+            }
         }
     }
 }

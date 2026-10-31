@@ -158,7 +158,7 @@ class OnScreenControls(
     }
 
     private fun applySettings() {
-        for (control in controls) control.target = settings.mapping[control.id] ?: control.id
+        for (control in controls) control.target = if (pad?.hasInputRouter() == true) control.id else settings.mapping[control.id] ?: control.id
         val tint = settings.tint
         val alpha = settings.opacity / 100f
         fun shade(a: Int, f: Float) = Color.argb((a * alpha).toInt(), (Color.red(tint) * f).toInt(), (Color.green(tint) * f).toInt(), (Color.blue(tint) * f).toInt())
@@ -212,6 +212,7 @@ class OnScreenControls(
 
     override fun onDetachedFromWindow() {
         releaseAll()
+        pad?.releaseTouch(this)
         super.onDetachedFromWindow()
     }
 
@@ -708,12 +709,27 @@ class OnScreenControls(
     private fun apply() {
         val bridge = pad
         if (bridge == null || editing) { invalidate(); return }
+        if (bridge.hasInputRouter()) {
+            bridge.applyTouch(this, InputRole.PRIMARY) { state ->
+                state.clear()
+                for (control in controls) {
+                    if (!isVisible(control)) continue
+                    if (control.stick >= 0) {
+                        if (control.stick == 0) { state.leftX = control.kx / control.radius; state.leftY = control.ky / control.radius }
+                        else { state.rightX = control.kx / control.radius; state.rightY = control.ky / control.radius }
+                        if (settings.stickClick) state.press(if (control.stick == 0) PadState.L3 else PadState.R3, control.clicked)
+                    } else write(state, control.id, control.pressedBy != -1)
+                }
+            }
+            invalidate()
+            return
+        }
         val qamHeld = controls.any { it.id == "qam" && it.pressedBy != -1 }
         if (buttonsOnly) {
             bridge.setSystemButtons(controls.any { it.id == "guide" && it.pressedBy != -1 }, qamHeld)
         } else {
             bridge.setSystemButtons(false, qamHeld)
-            bridge.applyTouch { state ->
+            bridge.applyTouch(this, InputRole.PRIMARY) { state ->
                 val used = HashSet<String>()
                 val held = HashSet<String>()
                 for (control in controls) {
@@ -753,6 +769,7 @@ class OnScreenControls(
             "l3" -> state.press(PadState.L3, down)
             "r3" -> state.press(PadState.R3, down)
             "guide" -> state.press(PadState.GUIDE, down)
+            "qam" -> state.press(PadState.QAM, down)
             "lt" -> state.leftTrigger = if (down) 1f else 0f
             "rt" -> state.rightTrigger = if (down) 1f else 0f
             "up" -> state.up = down
