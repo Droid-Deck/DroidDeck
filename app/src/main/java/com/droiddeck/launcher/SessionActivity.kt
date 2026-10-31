@@ -358,11 +358,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var drawerGameProfileId by mutableStateOf<Long?>(null)
     private var fpsLimit by mutableStateOf(SessionState.fpsLimit)
 
-    private fun noSteamSession(): Boolean = SessionState.mode == SessionService.MODE_RUN &&
+    private fun noSteamSession(): Boolean = (SessionState.mode == SessionService.MODE_RUN &&
         SessionState.program in setOf(
             com.droiddeck.launcher.session.NoSteamLaunch.PROTON_RUN, com.droiddeck.launcher.session.NoSteamLaunch.EPIC,
             com.droiddeck.launcher.session.NoSteamLaunch.BATTLENET,
-        )
+        )) || SessionState.mode == SessionService.MODE_DESKTOP
     private val drawerGameInventory = GameProfileInventoryCache<Library.SteamGame>()
     private var drawerGameInventoryRevision = 0L
     private var drawerGameFexPresetSaving by mutableStateOf(false)
