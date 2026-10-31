@@ -7,14 +7,19 @@ import java.net.URL
 internal object GameJoltProbe {
     private const val MAX_PAGE = 800_000
     private const val MAX_SCRIPT = 3_000_000
-    private const val MAX_SCRIPTS = 8
-    private const val MAX_FOUND = 80
+    private const val MAX_SCRIPTS = 24
+    private const val MAX_JSON = 3_000_000
+    private const val MAX_FOUND = 300
+    private const val JSON_DEPTH = 5
+    private const val MAX_STRUCTURE_LINES = 30
     private const val MAX_REDIRECTS = 5
     private const val MIN_ROUTE_COUNT = 3
     private const val MAX_WRAPS = 4
 
     private val endpoint = Regex("[\"'`](/?(?:site-api|web|x)/[^\"'`\\s]{3,140})[\"'`]")
     private val absolute = Regex("https?://[A-Za-z0-9.\\-]*gamejolt\\.(?:com|net)/[^\"'`\\s<>)]{0,140}")
+    private val scriptRef = Regex("[\"'`]([^\"'`\\s]{3,140}\\.js)[\"'`]")
+    private val interesting = Regex("discover|download|build|search|library|token|login|oauth|auth|game|site-api", RegexOption.IGNORE_CASE)
     private val scriptSrc = Regex("<script[^>]+src=[\"']([^\"']+)[\"']")
     private val WORD = Regex("[A-Za-z][A-Za-z_\\-]{0,30}")
     private val TEMPLATE = Regex("[{$][A-Za-z0-9_.{}$]{0,38}")
@@ -30,6 +35,10 @@ internal object GameJoltProbe {
 
     private fun log(line: String, urls: SecretScrub.Urls = SecretScrub.Urls.SHORT) =
         StoresState.logLine("gamejolt probe: ${line.replace('\n', ' ').take(500)}", urls)
+
+    private fun logLong(label: String, text: String) {
+        text.chunked(450).take(MAX_STRUCTURE_LINES).forEachIndexed { i, part -> log("$label[$i] $part") }
+    }
 
     private fun isGameJoltHost(url: String): Boolean {
         val host = runCatching { URL(url).host.lowercase() }.getOrNull() ?: return false
@@ -123,8 +132,8 @@ internal object GameJoltProbe {
         if (r == null) return null
         log("$label code=${r.code} type=${r.type} bytes=${r.body.length} url=${r.finalUrl}")
         if (r.type.contains("json", ignoreCase = true)) {
-            val structure = runCatching { keys(org.json.JSONTokener(r.body).nextValue(), 3) }.getOrDefault("")
-            log("$label json keys: $structure")
+            val structure = runCatching { keys(org.json.JSONTokener(r.body).nextValue(), JSON_DEPTH) }.getOrElse { "unreadable: ${it.javaClass.simpleName}" }
+            logLong("$label json keys", structure)
         }
         return r
     }
@@ -147,24 +156,32 @@ internal object GameJoltProbe {
         val found = linkedSetOf<String>()
         scan("game page", game.body, found)
         val host = URL(game.finalUrl)
-        val scripts = scriptSrc.findAll(game.body).map { it.groupValues[1] }
-            .map { runCatching { URL(host, it).toString() }.getOrNull() }
-            .filterNotNull()
-            .filter { isGameJoltHost(it) }
-            .distinct()
-            .toList()
-        log("scripts on page: ${scripts.size}")
-        scripts.take(MAX_SCRIPTS).forEach { src ->
-            val js = fetch(src, "*/*", MAX_SCRIPT)
-            if (js == null) return@forEach
+        val queue = ArrayDeque(scriptSrc.findAll(game.body).map { it.groupValues[1] }
+            .mapNotNull { runCatching { URL(host, it).toString() }.getOrNull() }
+            .filter { isGameJoltHost(it) }.distinct().toList())
+        log("scripts on page: ${queue.size}")
+        val seen = HashSet<String>(queue)
+        val fromScripts = linkedSetOf<String>()
+        var fetched = 0
+        while (queue.isNotEmpty() && fetched < MAX_SCRIPTS) {
+            val src = queue.removeFirst()
+            fetched++
+            val js = fetch(src, "*/*", MAX_SCRIPT) ?: continue
             log("script code=${js.code} bytes=${js.body.length} url=$src")
-            scan("script", js.body, found)
+            scan("script", js.body, fromScripts)
+            scriptRef.findAll(js.body).map { it.groupValues[1] }
+                .mapNotNull { runCatching { URL(URL(src), it).toString() }.getOrNull() }
+                .filter { isGameJoltHost(it) && seen.add(it) }
+                .forEach { queue.addLast(it) }
         }
+        log("scripts fetched: $fetched, still queued: ${queue.size}")
         val common = routeWords(found)
-        found.map { shape(it, common) }.distinct().take(MAX_FOUND).forEach { log("endpoint: $it", SecretScrub.Urls.KEEP_PATH) }
-        log("endpoint strings total=${found.size}")
+        found.map { shape(it, common) }.distinct().take(MAX_FOUND).forEach { log("page endpoint: $it", SecretScrub.Urls.KEEP_PATH) }
+        val ranked = fromScripts.sortedByDescending { interesting.containsMatchIn(it) }
+        ranked.take(MAX_FOUND).forEach { log("script endpoint: $it", SecretScrub.Urls.KEEP_PATH) }
+        log("endpoint strings total=${found.size + fromScripts.size}")
         if (id != null) {
-            report("candidate overview", "https://gamejolt.com/site-api/web/discover/games/overview/$id", "application/json", 60_000)
+            report("candidate overview", "https://gamejolt.com/site-api/web/discover/games/overview/$id", "application/json", MAX_JSON)
         } else {
             log("no numeric game id in the input, skipped the overview candidate")
         }
