@@ -74,6 +74,26 @@ internal fun steamChatFitScript(cssWidth: Int, scale: Float): String {
         "window.dispatchEvent(new Event('resize'));})()"
 }
 
+// Test builds only: logs the chat page's element structure (tags, ids, classes, sizes; no text) to find what
+// holds the header and limits the friends list height. Remove once the layout is fixed.
+private const val CHAT_LAYOUT_PROBE = "(function(){" +
+    "function m(v){return String(v).replace(/\\d{6,}/g,'#');}" +
+    "function d(e){if(!e||!e.tagName)return null;var r=e.getBoundingClientRect(),c=getComputedStyle(e);" +
+    "var k=typeof e.className==='string'&&e.className.trim()?'.'+e.className.trim().split(/\\s+/).slice(0,4).join('.'):'';" +
+    "return m(e.tagName.toLowerCase()+(e.id?'#'+e.id:'')+k)+' y='+Math.round(r.top)+' h='+Math.round(r.height)+" +
+    "' css='+c.height+' pos='+c.position+' disp='+c.display;}" +
+    "function ch(e){var o=[];while(e&&e!==document.documentElement&&o.length<16){o.push(d(e));e=e.parentElement;}return o;}" +
+    "var w=innerWidth,h=innerHeight;" +
+    "return JSON.stringify({w:w,h:h,dpr:devicePixelRatio,vp:(document.querySelector('meta[name=viewport]')||{}).content," +
+    "top:ch(document.elementFromPoint(w/2,8)),list:ch(document.elementFromPoint(40,h*0.6))," +
+    "bottom:ch(document.elementFromPoint(40,h-6)),body:[].slice.call(document.body.children,0,16).map(d)});})()"
+
+private fun logChatLayout(view: WebView, round: Int) {
+    view.evaluateJavascript(CHAT_LAYOUT_PROBE) { json ->
+        json.orEmpty().chunked(3000).forEachIndexed { i, part -> android.util.Log.i("BottomChatLayout", "r$round p$i $part") }
+    }
+}
+
 @Composable
 fun BottomChatPage() {
     val context = LocalContext.current
@@ -159,6 +179,9 @@ private fun SteamChatView() {
                 override fun onPageFinished(view: WebView, url: String) {
                     val scale = view.resources.displayMetrics.density * CHAT_PAGE_SCALE
                     if (view.width > 0) view.evaluateJavascript(steamChatFitScript((view.width / scale).roundToInt(), CHAT_PAGE_SCALE), null)
+                    android.util.Log.i("BottomChatLayout", "page finished ${url.substringBefore('?')} view ${view.width}x${view.height}")
+                    view.postDelayed({ logChatLayout(view, 1) }, 4_000L)
+                    view.postDelayed({ logChatLayout(view, 2) }, 12_000L)
                 }
             }
             loadUrl(STEAM_CHAT)
