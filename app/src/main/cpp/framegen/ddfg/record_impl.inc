@@ -1,5 +1,5 @@
 
-namespace {
+namespace ddfg {
 struct ScratchState {
     VkBuffer synthUbo[ddfg::FrameGen::kSynthSlots]{};
     VkDeviceMemory synthUboMem[ddfg::FrameGen::kSynthSlots]{};
@@ -25,7 +25,8 @@ struct ScratchState {
     bool flowInited = false;
     bool flowReady = false;
 };
-ScratchState g_scratch;
+FrameGen::FrameGen() : scratch_(std::make_unique<ScratchState>()) {}
+FrameGen::~FrameGen() { destroy(); }
 }
 
 static bool makeUbo(const ddfg::DeviceDispatch* dd, VkDevice dev,
@@ -122,7 +123,7 @@ static void mulAff(const double A[3][3], const double B[3][3], double out[3][3])
 
 namespace ddfg {
 
-static bool ensureScratch(FrameGen* fg, const DeviceDispatch* dd, VkDevice dev,
+static bool ensureScratch(ScratchState& S, FrameGen* fg, const DeviceDispatch* dd, VkDevice dev,
                           const VkPhysicalDeviceMemoryProperties& mp, VkDescriptorPool pool,
                           VkSampler samp, VkExtent2D ext,
                           std::vector<FrameGen::Img>& pyrA, std::vector<FrameGen::Img>& pyrB,
@@ -135,24 +136,24 @@ static bool ensureScratch(FrameGen* fg, const DeviceDispatch* dd, VkDevice dev,
                           FrameGen::Img& flowRegA, FrameGen::Img& flowRegB, VkBuffer* gmSsbo,
                           int kLevels, const Config& cfg);
 
-static void destroyScratch(const DeviceDispatch* dd, VkDevice dev, VkDescriptorPool pool) {
+void FrameGen::releaseScratch() {
     auto freeUbo = [&](VkBuffer& b, VkDeviceMemory& m, void*& p) {
-        if (m) dd->UnmapMemory(dev, m);
-        if (b) dd->DestroyBuffer(dev, b, nullptr);
-        if (m) dd->FreeMemory(dev, m, nullptr);
+        if (m) dd_->UnmapMemory(device_, m);
+        if (b) dd_->DestroyBuffer(device_, b, nullptr);
+        if (m) dd_->FreeMemory(device_, m, nullptr);
         b = VK_NULL_HANDLE; m = VK_NULL_HANDLE; p = nullptr;
     };
-    auto& S = g_scratch;
+    auto& S = *scratch_;
     for (int s = 0; s < FrameGen::kSynthSlots; ++s) freeUbo(S.synthUbo[s], S.synthUboMem[s], S.synthUboPtr[s]);
     freeUbo(S.expandUbo,  S.expandUboMem,  S.expandUboPtr);
     freeUbo(S.flowRegUbo, S.flowRegUboMem, S.flowRegUboPtr);
     for (size_t i = 0; i < S.flowUbo.size(); ++i) freeUbo(S.flowUbo[i], S.flowUboMem[i], S.flowUboPtr[i]);
     for (int s = 0; s < FrameGen::kGmSlots; ++s) freeUbo(S.gmUbo[s], S.gmUboMem[s], S.gmUboPtr[s]);
-    if (pool && dd->ResetDescriptorPool) dd->ResetDescriptorPool(dev, pool, 0);
     S = ScratchState{};
 }
 
 void FrameGen::configure(const Config& c) {
+    if (completionUnknown_) return;
     cfg_ = c; cfg_.sanitize();
     int want = flowFinestForPreset(cfg_.perfPreset);
     const int maxFinest = kLevels - 2;
@@ -174,14 +175,11 @@ void FrameGen::configure(const Config& c) {
 
 
 
-    dd_->DeviceWaitIdle(device_);
-    destroyScratch(dd_, device_, descPool_);
-    if (!onResize(extent_, VK_FORMAT_UNDEFINED,  true))
-        DDFG_LOGE("perf-preset live rebuild: onResize FAILED at %ux%u - FG disabled until next resize",
+    if (!onResize(extent_, VK_FORMAT_UNDEFINED,  true)) {
+        DDFG_LOGE("perf-preset live rebuild: onResize FAILED at %ux%u - frame generation unavailable",
                  extent_.width, extent_.height);
-    for (int i = 0; i < 6; ++i) gmRun_[i] = 0.0;
-    for (int s = 0; s < kGmSlots; ++s) { gmSlotValid_[s] = false; for (int i = 0; i < 6; ++i) gmLinAt_[s][i] = 0.0; }
-    gmHaveEst_ = false; gmEngaged_ = false; gmStableCount_ = 0; gmLastTransPx_ = 0.0f;
+        return;
+    }
     DDFG_LOGI("perf-preset live rebuild DONE (kFlowFinest=%d, flow predictor reset)", flowFinest_);
 }
 
@@ -254,14 +252,15 @@ bool FrameGen::updateGlobalMotion(uint32_t gmSlot, VkExtent2D fullExtent) {
 void FrameGen::record(VkCommandBuffer cmd, VkImageView prevView, VkImageView currView,
                       VkImageView outView, float alpha, uint32_t gmSlot, uint32_t synthSlot, bool reuseFlow) {
     if (!valid()) return;
+    auto& S = *scratch_;
     if (gmSlot >= (uint32_t)kGmSlots) gmSlot = 0;
     if (synthSlot >= (uint32_t)kSynthSlots) synthSlot = 0;
     const bool m4 = (cfg_.model == 4);
     const Pipe& flowP   = m4 ? pFlowM4_   : pFlow_;
     const Pipe& expandP = m4 ? pExpandM4_ : pExpand_;
 
-    if (!g_scratch.built || g_scratch.builtFor.width != extent_.width || g_scratch.builtFor.height != extent_.height) {
-        ensureScratch(this, dd_, device_, memProps_, descPool_, linear_, extent_,
+    if (!S.built || S.builtFor.width != extent_.width || S.builtFor.height != extent_.height) {
+        ensureScratch(S, this, dd_, device_, memProps_, descPool_, linear_, extent_,
                       pyrA_, pyrB_, pyrAs_, flowLvl_, flowExpA_, flowExpB_,
                       pLuma_, pDown_, flowP, expandP, pSynth_, pGmReduce_, pGmPrewarp_,
                       pFlowReg_, flowRegA_, flowRegB_, gmSsbo_, kLevels, cfg_);
@@ -269,10 +268,10 @@ void FrameGen::record(VkCommandBuffer cmd, VkImageView prevView, VkImageView cur
 
     // Every generation of one real frame is recorded into the same command buffer, so the flow
     // between prev and curr is computed once and each generation gets its own synth UBO and set.
-    if (reuseFlow && !g_scratch.flowReady) return;
+    if (reuseFlow && !S.flowReady) return;
     if (!reuseFlow) {
         bool gmEngaged = updateGlobalMotion(gmSlot, extent_);
-        if (g_scratch.gmUboPtr[gmSlot]) {
+        if (S.gmUboPtr[gmSlot]) {
             GMUBO g{};
             g.lin[0]=(float)gmRun_[0]; g.lin[1]=(float)gmRun_[1]; g.lin[2]=(float)gmRun_[2]; g.lin[3]=(float)gmRun_[3];
             g.linT[0]=(float)gmRun_[4]; g.linT[1]=(float)gmRun_[5]; g.linT[2]=gmEngaged?1.0f:0.0f; g.linT[3]=0.0f;
@@ -280,7 +279,7 @@ void FrameGen::record(VkCommandBuffer cmd, VkImageView prevView, VkImageView cur
                 g.app[0]=(float)gmRun_[0]; g.app[1]=(float)gmRun_[1]; g.app[2]=(float)gmRun_[2]; g.app[3]=(float)gmRun_[3];
                 g.appT[0]=(float)gmRun_[4]; g.appT[1]=(float)gmRun_[5];
             }
-            std::memcpy(g_scratch.gmUboPtr[gmSlot], &g, sizeof(g));
+            std::memcpy(S.gmUboPtr[gmSlot], &g, sizeof(g));
         }
         {
             static int lastEng = -1;
@@ -291,15 +290,15 @@ void FrameGen::record(VkCommandBuffer cmd, VkImageView prevView, VkImageView cur
             }
         }
 
-        wImg(dd_, device_, g_scratch.sLumaCurr, 32, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, currView, linear_, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-        wImg(dd_, device_, g_scratch.sLumaPrev, 32, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, prevView, linear_, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+        wImg(dd_, device_, S.sLumaCurr, 32, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, currView, linear_, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+        wImg(dd_, device_, S.sLumaPrev, 32, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, prevView, linear_, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
     }
 
     SynthUBO su{cfg_.flowScale, alpha, cfg_.beta, cfg_.lambda, cfg_.epsilon, cfg_.photoScale, 0, 0,
                 cfg_.hudX0, cfg_.hudY0, cfg_.hudX1, cfg_.hudY1};
-    if (g_scratch.synthUboPtr[synthSlot]) std::memcpy(g_scratch.synthUboPtr[synthSlot], &su, sizeof(su));
+    if (S.synthUboPtr[synthSlot]) std::memcpy(S.synthUboPtr[synthSlot], &su, sizeof(su));
 
-    const VkDescriptorSet synthSet = g_scratch.sSynth[synthSlot];
+    const VkDescriptorSet synthSet = S.sSynth[synthSlot];
     wImg(dd_, device_, synthSet, 32, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, prevView, linear_, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
     wImg(dd_, device_, synthSet, 33, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, currView, linear_, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
     wImg(dd_, device_, synthSet, 48, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, outView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL);
@@ -336,17 +335,17 @@ void FrameGen::record(VkCommandBuffer cmd, VkImageView prevView, VkImageView cur
             }
         }
 
-        disp(pLuma_, g_scratch.sLumaCurr, levelExtent(extent_, 0));
-        disp(pLuma_, g_scratch.sLumaPrev, levelExtent(extent_, 0));
+        disp(pLuma_, S.sLumaCurr, levelExtent(extent_, 0));
+        disp(pLuma_, S.sLumaPrev, levelExtent(extent_, 0));
         bar(pyrA_[0]); bar(pyrB_[0]);
         for (int l = 1; l < kLevels; ++l) {
-            disp(pDown_, g_scratch.sDownA[l - 1], levelExtent(extent_, l));
-            disp(pDown_, g_scratch.sDownB[l - 1], levelExtent(extent_, l));
+            disp(pDown_, S.sDownA[l - 1], levelExtent(extent_, l));
+            disp(pDown_, S.sDownB[l - 1], levelExtent(extent_, l));
             bar(pyrA_[l]); bar(pyrB_[l]);
         }
-        if (gmBuffersReady_ && g_scratch.sGmReduce[gmSlot]) {
+        if (gmBuffersReady_ && S.sGmReduce[gmSlot]) {
             dd_->CmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, pGmReduce_.pipeline);
-            dd_->CmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, pGmReduce_.layout, 0, 1, &g_scratch.sGmReduce[gmSlot], 0, nullptr);
+            dd_->CmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, pGmReduce_.layout, 0, 1, &S.sGmReduce[gmSlot], 0, nullptr);
             dd_->CmdDispatch(cmd, (uint32_t)(kGmThreads / 64), 1, 1);
             VkMemoryBarrier mb{VK_STRUCTURE_TYPE_MEMORY_BARRIER};
             mb.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT; mb.dstAccessMask = VK_ACCESS_HOST_READ_BIT;
@@ -354,11 +353,11 @@ void FrameGen::record(VkCommandBuffer cmd, VkImageView prevView, VkImageView cur
                                     0, 1, &mb, 0, nullptr, 0, nullptr);
         }
         for (int l = flowFinest_; l < kLevels; ++l) {
-            disp(pGmPrewarp_, g_scratch.sGmPrewarp[gmSlot][l], levelExtent(extent_, l));
+            disp(pGmPrewarp_, S.sGmPrewarp[gmSlot][l], levelExtent(extent_, l));
             bar(pyrAs_[l]);
         }
         for (int l = kLevels - 1; l >= flowFinest_; --l) {
-            disp(flowP, g_scratch.sFlow[l], levelExtent(extent_, l));
+            disp(flowP, S.sFlow[l], levelExtent(extent_, l));
             bar(flowLvl_[l]);
         }
 
@@ -366,16 +365,16 @@ void FrameGen::record(VkCommandBuffer cmd, VkImageView prevView, VkImageView cur
         if (frEngaged) {
             const int F = flowFinest_;
             const VkExtent2D fe = levelExtent(extent_, F);
-            if (g_scratch.flowRegUboPtr) {
+            if (S.flowRegUboPtr) {
                 FlowRegUBO fu{cfg_.frDt, cfg_.frLambda, cfg_.frEdge, cfg_.frEps};
-                std::memcpy(g_scratch.flowRegUboPtr, &fu, sizeof(fu));
+                std::memcpy(S.flowRegUboPtr, &fu, sizeof(fu));
             }
             FrameGen::Img* last = nullptr;
             for (int it = 0; it < cfg_.frIters; ++it) {
                 VkDescriptorSet set; FrameGen::Img* outImg;
-                if      (it == 0)      { set = g_scratch.sFlowReg0;  outImg = &flowRegA_; }
-                else if (it % 2 == 1)  { set = g_scratch.sFlowRegAB; outImg = &flowRegB_; }
-                else                   { set = g_scratch.sFlowRegBA; outImg = &flowRegA_; }
+                if      (it == 0)      { set = S.sFlowReg0;  outImg = &flowRegA_; }
+                else if (it % 2 == 1)  { set = S.sFlowRegAB; outImg = &flowRegB_; }
+                else                   { set = S.sFlowRegBA; outImg = &flowRegA_; }
                 dd_->CmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, pFlowReg_.pipeline);
                 dd_->CmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, pFlowReg_.layout, 0, 1, &set, 0, nullptr);
                 dd_->CmdDispatch(cmd, (fe.width + 15) / 16, (fe.height + 15) / 16, 1);
@@ -409,14 +408,14 @@ void FrameGen::record(VkCommandBuffer cmd, VkImageView prevView, VkImageView cur
             }
         }
 
-        disp(expandP, g_scratch.sExpand[gmSlot], levelExtent(extent_, 0));
+        disp(expandP, S.sExpand[gmSlot], levelExtent(extent_, 0));
         bar(flowExpA_); bar(flowExpB_);
-        g_scratch.flowReady = true;
+        S.flowReady = true;
     }
     disp(pSynth_, synthSet, levelExtent(extent_, 0));
 }
 
-static bool ensureScratch(FrameGen* fg, const DeviceDispatch* dd, VkDevice dev,
+static bool ensureScratch(ScratchState& S, FrameGen* fg, const DeviceDispatch* dd, VkDevice dev,
                           const VkPhysicalDeviceMemoryProperties& mp, VkDescriptorPool pool,
                           VkSampler samp, VkExtent2D ext,
                           std::vector<FrameGen::Img>& pyrA, std::vector<FrameGen::Img>& pyrB,
@@ -428,7 +427,6 @@ static bool ensureScratch(FrameGen* fg, const DeviceDispatch* dd, VkDevice dev,
                           const FrameGen::Pipe& pGmPrewarp, const FrameGen::Pipe& pFlowReg,
                           FrameGen::Img& flowRegA, FrameGen::Img& flowRegB, VkBuffer* gmSsbo,
                           int kLevels, const Config& cfg) {
-    auto& S = g_scratch;
     S = ScratchState{};
     const auto GEN = VK_IMAGE_LAYOUT_GENERAL;
 
