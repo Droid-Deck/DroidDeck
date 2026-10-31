@@ -157,6 +157,16 @@ internal object GameJoltProbe {
         null
     }
 
+    private fun brief(label: String, url: String) {
+        val r = fetch(url, "application/json", MAX_JSON, null, label) ?: return
+        log("$label code=${r.code} bytes=${r.body.length}")
+        runCatching {
+            val payload = org.json.JSONObject(r.body).optJSONObject("payload") ?: return@runCatching
+            val games = payload.optJSONArray("games")
+            log("$label payload=${keys(payload, 1)} games=${games?.length() ?: -1} page=${payload.opt("page")} perPage=${payload.opt("perPage")} count=${payload.opt("gamesCount") ?: payload.opt("count")}")
+        }
+    }
+
     private fun routeWords(found: Collection<String>, minCount: Int = MIN_ROUTE_COUNT): Set<String> {
         val counts = HashMap<String, Int>()
         found.forEach { raw ->
@@ -295,8 +305,15 @@ internal object GameJoltProbe {
         } else {
             log("no numeric game id in the input, skipped the overview candidate")
         }
-        report("candidate browse", "https://gamejolt.com/site-api/web/discover/games", "application/json", MAX_JSON)
-        report("candidate browse page", "https://gamejolt.com/site-api/web/discover/games?page=1", "application/json", MAX_JSON)
+        val browse = "https://gamejolt.com/site-api/web/discover/games?"
+        report("candidate browse featured", browse + "section=featured&page=1", "application/json", MAX_JSON)
+        listOf(
+            "best free windows" to "section=best&price=free&os=windows",
+            "best two systems" to "section=best&os=linux,mac",
+            "hot tag page two" to "section=hot&tag=action&page=2",
+            "new paid" to "section=new&price=paid",
+            "everything together" to "section=best&tag=action&price=free&os=windows&browser=html&maturity=everyone&status=complete&partners=partners",
+        ).forEach { (label, query) -> brief("candidate browse $label", browse + query) }
         val slug = runCatching { URL(input).path }.getOrDefault("").substringAfter("/games/", "").substringBefore('/')
         if (slug.isNotEmpty()) report("candidate search", "https://gamejolt.com/site-api/web/search?q=" + java.net.URLEncoder.encode(slug, "UTF-8"), "application/json", MAX_JSON)
         if (slug.isNotEmpty()) report("candidate game search", "https://gamejolt.com/site-api/web/search/games?q=" + java.net.URLEncoder.encode(slug, "UTF-8") + "&page=1", "application/json", MAX_JSON)
