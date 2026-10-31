@@ -937,6 +937,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                         gestureGame = nextGame
                         refreshGestureConfig()
                     }
+                    if (secondScreenDisplays.isNotEmpty()) kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        runCatching { com.droiddeck.launcher.session.TelemetryOutput.applyAutomatic(this@SessionActivity, nextGame) }
+                    }
                 }
                 LaunchedEffect(drawerOpen, pcKeyboardOpen, achievementsOpen, gestureSettingsOpen, pipUi, SessionState.suspended) {
                     if (drawerOpen || pcKeyboardOpen || achievementsOpen || gestureSettingsOpen || pipUi || SessionState.suspended) {

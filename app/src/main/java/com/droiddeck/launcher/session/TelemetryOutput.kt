@@ -1,5 +1,7 @@
 package com.droiddeck.launcher.session
 
+import android.content.Context
+import com.droiddeck.launcher.frontend.Library
 import java.io.File
 
 /**
@@ -59,6 +61,21 @@ object TelemetryOutput {
         if (!on) original.delete()
         true
     }.getOrDefault(false)
+
+    /** Automatic: turns the output on for every found game the user has not switched off and that is not running. */
+    fun applyAutomatic(context: Context, running: String?) {
+        if (!SessionPrefs.telemetryAuto(context)) return
+        automaticTargets(scan(Library.compatdataDirs(context)), SessionPrefs.telemetryOff(context), running).forEach { set(it, true) }
+    }
+
+    internal fun key(game: Game) = "${game.prefixId}/${game.name}"
+
+    internal fun automaticTargets(games: List<Game>, off: Set<String>, running: String?): List<Game> =
+        games.filter { !it.on && key(it) !in off && !isRunning(it.prefixId, running) }
+
+    /** Games DroidDeck changed, which go back to their own setting when Automatic is switched off. */
+    internal fun restoreTargets(games: List<Game>, running: String?): List<Game> =
+        games.filter { File(it.file.path + ORIGINAL_SUFFIX).isFile && !isRunning(it.prefixId, running) }
 
     /** Whether [running] (the focused Steam app id, or another key for non-Steam programs) may be the game in [prefixId]. */
     internal fun isRunning(prefixId: String, running: String?): Boolean {

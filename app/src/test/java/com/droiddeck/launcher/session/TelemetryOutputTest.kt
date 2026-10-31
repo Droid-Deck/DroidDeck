@@ -77,6 +77,30 @@ class TelemetryOutputTest {
         assertTrue(TelemetryOutput.isRunning("2848447563", "program:/games/x.exe"))
     }
 
+    @Test fun automaticSkipsGamesThatAreOnSwitchedOffOrRunning() {
+        val f = File("x")
+        val showdownGame = TelemetryOutput.Game("DiRT Showdown", "2848447563", f, on = false)
+        val rally = TelemetryOutput.Game("DiRT Rally 2.0", "690790", f, on = false)
+        val grid = TelemetryOutput.Game("GRID", "703860", f, on = true)
+        val games = listOf(showdownGame, rally, grid)
+        assertEquals(listOf(showdownGame, rally), TelemetryOutput.automaticTargets(games, emptySet(), null))
+        assertEquals(listOf(rally), TelemetryOutput.automaticTargets(games, setOf("2848447563/DiRT Showdown"), null))
+        assertEquals(listOf(showdownGame), TelemetryOutput.automaticTargets(games, emptySet(), "690790"))
+        assertEquals("690790/DiRT Rally 2.0", TelemetryOutput.key(rally))
+    }
+
+    @Test fun switchingAutomaticOffRestoresOnlyGamesDroidDeckChanged() {
+        val compatdata = tmp.newFolder("steamapps", "compatdata")
+        val changed = configFile(compatdata, "2848447563", "DiRT Showdown").apply { writeText(showdown) }
+        val own = configFile(compatdata, "690790", "DiRT Rally 2.0")
+            .apply { writeText("<x><udp enabled=\"true\" ip=\"127.0.0.1\" port=\"20777\" /></x>") }
+        assertTrue(TelemetryOutput.set(TelemetryOutput.scan(listOf(compatdata)).first { it.name == "DiRT Showdown" }, true))
+        val targets = TelemetryOutput.restoreTargets(TelemetryOutput.scan(listOf(compatdata)), null)
+        assertEquals(listOf(changed), targets.map { it.file })
+        assertTrue(own.isFile)
+        assertTrue(TelemetryOutput.restoreTargets(TelemetryOutput.scan(listOf(compatdata)), "2848447563").isEmpty())
+    }
+
     private fun configFile(compatdata: File, id: String, game: String): File =
         File(compatdata, "$id/pfx/drive_c/users/steamuser/Documents/My Games/$game/hardwaresettings/hardware_settings_config.xml")
             .apply { parentFile!!.mkdirs() }
