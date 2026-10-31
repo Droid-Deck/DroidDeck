@@ -3,6 +3,7 @@ package com.droiddeck.launcher.ui
 import android.annotation.SuppressLint
 import android.content.Context
 import android.media.AudioManager
+import android.view.ViewGroup
 import android.webkit.CookieManager
 import android.webkit.RenderProcessGoneDetail
 import android.webkit.WebResourceRequest
@@ -20,6 +21,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -30,11 +32,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionState
@@ -63,10 +68,8 @@ internal fun desktopUserAgent(webView: String?): String {
 
 /**
  * At the panel's own scale Steam's desktop chat gets about 600x300 CSS pixels and its friends list collapses, so the
- * page is laid out [cssWidth] wide and drawn at [scale]. In a WebView the chat's full-height containers (body,
- * #friendslist-container, .chat_main and the friends column inside it) come out 0 px tall, which folds the friends
- * list, so they are given the window's height; Steam's site header (the rows before .chat_main_flex) is hidden to
- * leave that height to the chat.
+ * page is laid out [cssWidth] wide and drawn at [scale]. Steam's site header (the rows before .chat_main_flex; its
+ * class name is generated) is hidden to leave the height to the friends list and the chat.
  */
 internal fun steamChatFitScript(cssWidth: Int, scale: Float): String {
     val zoom = "%.2f".format(java.util.Locale.US, scale)
@@ -78,17 +81,26 @@ internal fun steamChatFitScript(cssWidth: Int, scale: Float): String {
         "window.dispatchEvent(new Event('resize'));})()"
 }
 
-internal const val STEAM_CHAT_FIT_CSS =
-    "html,body,#friendslist-container,.chat_main,.chat_main_flex,.friendsListContainer,.friendlist{height:100%!important}" +
-    ".chat_main>:has(~.chat_main_flex){display:none!important}"
+internal const val STEAM_CHAT_FIT_CSS = ".chat_main>:has(~.chat_main_flex){display:none!important}"
 
 @Composable
 fun BottomChatPage() {
     val context = LocalContext.current
     val colors = MaterialTheme.colorScheme
-    var chatOpen by remember { mutableStateOf(false) }
-    // Set when Android ended the page's renderer; the closed page then says why the chat went away.
+    var chatOpen by remember { mutableStateOf(true) }
+    // Set when Android ended the page's renderer; the chat opens again once DroidDeck is back in front.
     var stopped by remember { mutableStateOf(false) }
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    DisposableEffect(lifecycle) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME && stopped) {
+                stopped = false
+                chatOpen = true
+            }
+        }
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer) }
+    }
     // null while the Steam client's sign-in is being copied, then whether there was one.
     var fromSteam by remember { mutableStateOf<Boolean?>(null) }
     LaunchedEffect(chatOpen) {
@@ -162,6 +174,9 @@ private fun VoiceRow(context: Context, onClose: (() -> Unit)? = null, note: Stri
 private fun SteamChatView(onStopped: () -> Unit) {
     AndroidView(factory = { ctx ->
         WebView(ctx).apply {
+            // AndroidView's default WRAP_CONTENT height gives the page a 0 px tall viewport, which collapses Steam
+            // chat's full-height layout (measured on the Retroid Pocket Duo: html and every container 0 px).
+            layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
             setBackgroundColor(0xFF0A0B0D.toInt())
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
@@ -181,7 +196,7 @@ private fun SteamChatView(onStopped: () -> Unit) {
                 }
 
                 // Android ends the page's renderer once DroidDeck goes to picture-in-picture ("isolated not needed"
-                // on the Retroid Pocket Duo); the page cannot come back, so the chat closes instead of showing a dead page.
+                // on the Retroid Pocket Duo); the page cannot come back, so the chat closes and reopens on resume.
                 override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
                     onStopped()
                     return true
