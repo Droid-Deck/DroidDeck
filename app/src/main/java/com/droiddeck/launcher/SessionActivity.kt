@@ -3130,7 +3130,36 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     )
 
     /** Pages for the bottom-screen dashboard; the dashboard is offered only while at least one exists. */
-    private fun bottomPages(): List<BottomPage> = sessionBottomPages(BottomPageActions(takeScreenshot = ::captureScreenshot, fps = { if (::hud.isInitialized) hud.liveFps else null }))
+    private fun bottomPages(): List<BottomPage> = sessionBottomPages(BottomPageActions(
+        takeScreenshot = ::captureScreenshot,
+        fps = { if (::hud.isInitialized) hud.liveFps else null },
+        openSettings = ::openSettingsBelow,
+    ))
+
+    // A settings page opened on the bottom screen sits under the dashboard window, so the dashboard hides
+    // until the setting is on; choosing Dashboard in the menu again shows it sooner.
+    private fun openSettingsBelow(intent: android.content.Intent, done: () -> Boolean) {
+        val presentation = secondScreenPresentation ?: return
+        val options = android.app.ActivityOptions.makeBasic().setLaunchDisplayId(presentation.display.displayId)
+        val opened = listOf(intent, android.content.Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)).any {
+            runCatching { startActivity(android.content.Intent(it).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK), options.toBundle()) }
+                .onFailure { e -> Log.w(TAG, "could not open ${it.action} on display ${presentation.display.displayId}", e) }
+                .isSuccess
+        }
+        if (!opened) return
+        presentation.hide()
+        var checks = 0
+        uiHandler.postDelayed(object : Runnable {
+            override fun run() {
+                if (secondScreenPresentation !== presentation || presentation.isShowing) return
+                if (done()) {
+                    presentation.show()
+                    return
+                }
+                if (++checks < SETTINGS_WATCH_CHECKS) uiHandler.postDelayed(this, SETTINGS_WATCH_MS)
+            }
+        }, SETTINGS_WATCH_MS)
+    }
 
     /** Copies the game frame (no overlay) at the size it is shown and saves it to Pictures/DroidDeck. */
     private fun captureScreenshot(onDone: (Boolean) -> Unit) {
@@ -4560,6 +4589,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         private const val TEXT_FIELD_TAP_MS = 1_000L
         private const val PAUSED_FRAME_MAX_EDGE = 1920f
         private const val PAUSED_FRAME_REDRAW_MS = 150L
+        private const val SETTINGS_WATCH_MS = 1_000L
+        private const val SETTINGS_WATCH_CHECKS = 600
         private const val TAG = "SessionActivity"
         private var startedScreens = 0
         @Volatile private var activeInstallWorker: Any? = null
