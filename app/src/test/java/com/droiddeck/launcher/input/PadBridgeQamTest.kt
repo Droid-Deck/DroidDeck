@@ -440,13 +440,79 @@ class PadBridgeQamTest {
         assertFalse(pad().isDown(PadState.GUIDE))
     }
 
+    @Test fun zeroDeadZoneDriftDoesNotKeepAxesBlockedAfterBackRelease() {
+        val device = controller()
+        bridge.setStickDeadZone(0)
+        motion(device, MotionEvent.AXIS_X, 0.01f)
+        bridge.setBackQamPressed(true)
+        advanceTime()
+        bridge.setBackQamPressed(false)
+        advanceTime()
+        motion(device, MotionEvent.AXIS_X, 0.5f)
+        assertEquals(0.5f, pad().leftX)
+    }
+
+    @Test fun circularDiagonalDriftDoesNotKeepAxesBlockedAfterBackRelease() {
+        val device = controller()
+        motion(device, MotionEvent.AXIS_X to 0.09f, MotionEvent.AXIS_Y to 0.09f)
+        bridge.setBackQamPressed(true)
+        advanceTime()
+        bridge.setBackQamPressed(false)
+        advanceTime()
+        motion(device, MotionEvent.AXIS_X, 0.5f)
+        assertEquals(0.5f, pad().leftX)
+    }
+
+    @Test fun changingPreferenceDoesNotBypassARequiredPhysicalNeutralReturn() {
+        val device = controller()
+        bridge.setStickDeadZone(25)
+        motion(device, MotionEvent.AXIS_X, 0.2f)
+        bridge.setBackQamPressed(true)
+        advanceTime()
+        bridge.setBackQamPressed(false)
+        advanceTime()
+        bridge.setStickDeadZone(0)
+        assertEquals(0f, pad().leftX)
+        motion(device, MotionEvent.AXIS_X, 0.05f)
+        motion(device, MotionEvent.AXIS_X, 0.5f)
+        assertEquals(0.5f, pad().leftX)
+    }
+
+    @Test fun smallVirtualStickInputStillRequiresItsOriginalNeutralRelease() {
+        bridge.applyExternal({ it.leftX = 0.01f }, true)
+        bridge.setBackQamPressed(true)
+        advanceTime()
+        bridge.setBackQamPressed(false)
+        advanceTime()
+        bridge.applyExternal({ it.leftX = 0.5f }, true)
+        assertEquals(0f, pad().leftX)
+        bridge.applyExternal({ it.leftX = 0f }, true)
+        bridge.applyExternal({ it.leftX = 0.5f }, true)
+        assertEquals(0.5f, pad().leftX)
+    }
+
+    @Test fun smallTriggerInputStillRequiresItsOriginalNeutralRelease() {
+        bridge.applyExternal({ it.leftTrigger = 0.01f }, true)
+        bridge.setBackQamPressed(true)
+        advanceTime()
+        bridge.setBackQamPressed(false)
+        advanceTime()
+        bridge.applyExternal({ it.leftTrigger = 0.5f }, true)
+        assertEquals(0f, pad().leftTrigger)
+        bridge.applyExternal({ it.leftTrigger = 0f }, true)
+        bridge.applyExternal({ it.leftTrigger = 0.5f }, true)
+        assertEquals(0.5f, pad().leftTrigger)
+    }
+
     private fun key(device: InputDevice, code: Int, action: Int = KeyEvent.ACTION_DOWN, repeat: Int = 0, scan: Int = 0) =
         KeyEvent(0L, 0L, action, code, repeat, 0, device.id, scan, 0, InputDevice.SOURCE_GAMEPAD)
 
-    private fun motion(device: InputDevice, axis: Int, value: Float) {
+    private fun motion(device: InputDevice, axis: Int, value: Float) = motion(device, axis to value)
+
+    private fun motion(device: InputDevice, vararg values: Pair<Int, Float>) {
         val event = MotionEvent.obtain(0L, 0L, MotionEvent.ACTION_MOVE, 1,
             arrayOf(MotionEvent.PointerProperties().apply { id = 0 }),
-            arrayOf(MotionEvent.PointerCoords().apply { setAxisValue(axis, value) }),
+            arrayOf(MotionEvent.PointerCoords().apply { for ((axis, value) in values) setAxisValue(axis, value) }),
             0, 0, 1f, 1f, device.id, 0, InputDevice.SOURCE_JOYSTICK, 0)
         try { assertTrue(bridge.onMotionEvent(event)) } finally { event.recycle() }
     }

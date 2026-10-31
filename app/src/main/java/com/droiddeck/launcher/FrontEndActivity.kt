@@ -1412,6 +1412,7 @@ class FrontEndActivity : ComponentActivity() {
                             onStickClick = { on -> ControllerPrefs.setStickClick(this, on); refreshController() },
                             onAdaptiveSticks = { on -> ControllerPrefs.setAdaptiveSticks(this, on); refreshController() },
                             onRumble = { on -> ControllerPrefs.setRumble(this, on); refreshController() },
+                            onDeadZone = { v -> ControllerPrefs.setDeadZone(this, v); refreshController() },
                             onSteamButton = { on -> ControllerPrefs.setSteamButton(this, on); refreshController() },
                             onQamButton = { on -> ControllerPrefs.setQamButton(this, on); refreshController() },
                             onKeyboardButton = { on -> ControllerPrefs.setKeyboardButton(this, on); refreshController() },
