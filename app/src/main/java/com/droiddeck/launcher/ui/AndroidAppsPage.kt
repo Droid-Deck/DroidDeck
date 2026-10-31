@@ -319,7 +319,7 @@ internal fun AndroidAppsPage(s: FrontEndState, modifier: Modifier, onLaunch: (Ho
                 val tile: @Composable (AppEntry) -> Unit = { entry ->
                     when (entry) {
                         is AppEntry.App -> AppTile(
-                            entry.app, folderId = null, onLaunch = onLaunch, onNewFolder = newFolder,
+                            entry.app, folderId = folders.firstOrNull { entry.app.key in it.apps }?.id, onLaunch = onLaunch, onNewFolder = newFolder,
                             first = entry === entries.first(),
                         )
                         is AppEntry.Shortcut -> PinnedTile(entry.pinned, first = entry === entries.first())
