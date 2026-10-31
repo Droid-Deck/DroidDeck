@@ -3130,7 +3130,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     )
 
     /** Pages for the bottom-screen dashboard; the dashboard is offered only while at least one exists. */
-    private fun bottomPages(): List<BottomPage> = sessionBottomPages(BottomPageActions(takeScreenshot = ::captureScreenshot))
+    private fun bottomPages(): List<BottomPage> = sessionBottomPages(BottomPageActions(takeScreenshot = ::captureScreenshot, fps = { if (::hud.isInitialized) hud.liveFps else null }))
 
     /** Copies the game frame (no overlay) at the size it is shown and saves it to Pictures/DroidDeck. */
     private fun captureScreenshot(onDone: (Boolean) -> Unit) {

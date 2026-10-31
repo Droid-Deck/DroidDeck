@@ -41,6 +41,9 @@ class FusionHudHost(context: Context) {
 
     var onPresentingWindowChanged: (() -> Unit)? = null
 
+    /** The frame rate the HUD shows; null while the HUD is off and not counting frames. */
+    val liveFps: Float? get() = if (polling) feed.stats.fps else null
+
     /** The HUD itself changed a setting: a tap cycles the size, a long press locks it. */
     var onConfigChanged: (() -> Unit)? = null
 

@@ -1904,6 +1904,24 @@
     <string name="bottom_chat_mic_on">Mic on</string>
     <string name="bottom_chat_mic_off">Mic off</string>
     <string name="bottom_chat_volume">Volume %1$d%%</string>
+    <string name="bottom_page_telemetry">Telemetry</string>
+    <string name="bottom_telemetry_fps">FPS</string>
+    <string name="bottom_telemetry_cpu">CPU</string>
+    <string name="bottom_telemetry_gpu">GPU</string>
+    <string name="bottom_telemetry_battery">Battery</string>
+    <string name="bottom_telemetry_lap">Lap</string>
+    <string name="bottom_telemetry_position">Position</string>
+    <string name="bottom_telemetry_this_lap">This lap</string>
+    <string name="bottom_telemetry_last_lap">Last lap</string>
+    <string name="bottom_telemetry_fuel">Fuel</string>
+    <string name="bottom_telemetry_cargo">Cargo</string>
+    <string name="bottom_telemetry_pips">Pips SYS · ENG · WEP</string>
+    <string name="bottom_telemetry_legal">Legal state</string>
+    <string name="bottom_telemetry_balance">Balance</string>
+    <string name="bottom_telemetry_war_thunder">War Thunder</string>
+    <string name="bottom_telemetry_elite">Elite Dangerous</string>
+    <string name="bottom_telemetry_help">Racing games show a live dash here when they send telemetry to 127.0.0.1: DiRT Rally, DiRT 4 and GRID on port %1$d (UDP on, extradata 3), Forza "Data Out" on port %2$d, BeamNG.drive and Live for Speed OutGauge on port %3$d. War Thunder and Elite Dangerous show up on their own. FPS needs the HUD on.</string>
+    <string name="bottom_telemetry_port_busy">Another program already uses port %1$s, so that game cannot show here.</string>
 
     <string name="rtinst_removing">Removing Linux runtime</string>
     <plurals name="rtinst_removing_entries">
