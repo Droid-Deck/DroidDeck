@@ -61,14 +61,21 @@ object GameThreadHints {
 
     private var worker: Thread? = null
 
-    /** For BoostReport: the last start line, the threads boosted now, and hint sessions refused. */
+    /** For BoostReport: the last start line, the threads boosted now, why none is, and hint sessions refused. */
     @Volatile internal var startLine = "game thread hints: off"
     @Volatile internal var boostedThreads = emptySet<Int>()
+    @Volatile internal var offWhy: String? = null
     @Volatile internal var refused = 0
 
     /** At a session's start. The line is for the log. */
     @Synchronized
-    fun start(context: Context): String = begin(context).also { startLine = it }
+    fun start(context: Context): String {
+        offWhy = "starting"
+        return begin(context).also {
+            startLine = it
+            if (it != "game thread hints: watching") offWhy = it.removePrefix("game thread hints: ")
+        }
+    }
 
     private fun begin(context: Context): String {
         refused = 0
@@ -105,10 +112,16 @@ object GameThreadHints {
                     val fps = (frames.last() - frames.first()).toDouble() / (frames.size - 1).coerceAtLeast(1)
                     val paced = frames.size > PACE_WINDOW_S && holdsPace(fps, SessionState.refreshHz.toDouble())
                     pacedFor = if (paced) pacedFor + 1 else 0
-                    // Not SEVERE: the Odin 3 reports it once its skin reaches 50 C, a couple of minutes into any game.
-                    val spare = pm.isPowerSaveMode || pm.currentThermalStatus >= PowerManager.THERMAL_STATUS_CRITICAL || BoostReport.paused
+                    val spare = when {
+                        BoostReport.paused -> "check pause"
+                        pm.isPowerSaveMode -> "battery saver"
+                        // Not SEVERE: the Odin 3 reports it once its skin reaches 50 C, a couple of minutes into any game.
+                        pm.currentThermalStatus >= PowerManager.THERMAL_STATUS_CRITICAL -> "too hot"
+                        pacedFor >= PACE_LEAVE_S -> "game keeps up"
+                        else -> null
+                    }
                     val next = when {
-                        spare || pacedFor >= PACE_LEAVE_S -> emptySet()
+                        spare != null -> emptySet()
                         paced -> pick(boosted, busy.filterKeys { it in boosted })
                         else -> pick(boosted, busy)
                     }
@@ -121,6 +134,7 @@ object GameThreadHints {
                             next.joinToString { "${readName("/proc/$it/comm")}/$it ${((busy[it] ?: 0.0) * 100).toInt()}%" }.ifEmpty { "nothing" } +
                             " (game ${fps.toInt()} fps${if (paced) ", holding pace" else ""})")
                     }
+                    offWhy = offReason(spare, boosted, paced, next)
                 }
                 session?.reportActualWorkDuration(TARGET_NS * 3 / 2)
                 Thread.sleep(REPORT_MS)
@@ -132,6 +146,15 @@ object GameThreadHints {
             session?.close()
             boostedThreads = emptySet()
         }
+    }
+
+    /** Why no thread is boosted, for the log; null while one is. [spare] is why the boost is held back, if it is. */
+    internal fun offReason(spare: String?, boosted: Set<Int>, paced: Boolean, next: Set<Int>): String? = when {
+        spare != null -> spare
+        boosted.isNotEmpty() -> null
+        paced -> "game keeps up"
+        next.isEmpty() -> "no thread busy enough"
+        else -> "Android refused the hint"
     }
 
     /** A new session over [tids] in place of [session]; null for none. The set changes seldom, so no setThreads. */

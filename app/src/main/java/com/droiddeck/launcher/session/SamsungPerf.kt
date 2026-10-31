@@ -128,6 +128,7 @@ object SamsungPerf {
 
     private fun fail(why: String): List<Floor>? {
         unavailable = why
+        offWhy = why
         Log.i(TAG, "not available: $why")
         return null
     }
@@ -149,9 +150,12 @@ object SamsungPerf {
 
     private var worker: Thread? = null
 
-    /** For BoostReport: whether the floors are held now, and what the library answered when they were asked for. */
+    /** For BoostReport: whether the floors are held now, why not, and what the library answered when they were asked for. */
     @Volatile internal var holding = false
+    @Volatile internal var offWhy: String? = null
     @Volatile internal var lastResults = emptyList<Int>()
+
+    internal val connected get() = floors != null
 
     /** For BoostReport. */
     internal val state: String
@@ -174,6 +178,7 @@ object SamsungPerf {
         unavailable?.let { return "samsung boost: $it" }
         val app = context.applicationContext
         worker?.interrupt()
+        offWhy = "starting"
         worker = Thread({ run(app) }, "samsung-boost").apply { isDaemon = true; start() }
         return "samsung boost: watching"
     }
@@ -204,10 +209,11 @@ object SamsungPerf {
                     BoostReport.paused -> "check pause"
                     fps < 1 -> "no frames"
                     pm.isPowerSaveMode -> "battery saver"
-                    hot -> "hot"
-                    pacedFor >= GameThreadHints.PACE_LEAVE_S -> "game kept up"
+                    hot -> "too hot"
+                    pacedFor >= GameThreadHints.PACE_LEAVE_S -> "game keeps up"
                     else -> null
                 }
+                offWhy = why
                 val want = why == null
                 if (want) {
                     val results = request(floors)

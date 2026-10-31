@@ -24,6 +24,14 @@ class GameThreadHintsTest {
         assertEquals(setOf(2), GameThreadHints.pick(setOf(1, 2), mapOf(2 to 0.7)))
     }
 
+    @Test fun `the log is told why no thread is boosted`() {
+        assertEquals("too hot", GameThreadHints.offReason("too hot", emptySet(), false, emptySet()))
+        assertEquals(null, GameThreadHints.offReason(null, setOf(1), true, setOf(1)))
+        assertEquals("game keeps up", GameThreadHints.offReason(null, emptySet(), true, emptySet()))
+        assertEquals("no thread busy enough", GameThreadHints.offReason(null, emptySet(), false, emptySet()))
+        assertEquals("Android refused the hint", GameThreadHints.offReason(null, emptySet(), false, setOf(1)))
+    }
+
     @Test fun `a game at the panel's rate or a fraction of it holds pace`() {
         assertTrue(GameThreadHints.holdsPace(119.0, 120.0))
         assertTrue(GameThreadHints.holdsPace(60.5, 120.0))
