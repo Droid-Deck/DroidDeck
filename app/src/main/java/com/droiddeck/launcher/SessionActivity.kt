@@ -745,6 +745,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 program == com.droiddeck.launcher.runtime.BattleNet.PROGRAM || program == com.droiddeck.launcher.session.NoSteamLaunch.PROTON_RUN
             val needProton = protonUser && com.droiddeck.launcher.runtime.DesktopCatalog.protonSeedNeeded(this)
             if (needRuntime || needResume || needDesktop || needProton) installThenStart(needRuntime, needDesktop, needProton, needResume)
+            else if (intent.getStringExtra(SessionService.EXTRA_MODE) == SessionService.MODE_DESKTOP) ensureDesktopLanguage()
         }
         hud = DroidDeckHudHost(this)
         hud.onConfigChanged = { hudConfig = DroidDeckHudConfig.load(this) }
@@ -2013,6 +2014,17 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         } finally {
             if (SessionState.installCancellation === cancellation) SessionState.installCancellation = null
         }
+    }
+
+    /** Runs beside the desktop start: a missing pack or index only logs and the session starts in English. */
+    private fun ensureDesktopLanguage() {
+        Thread({
+            val problem = com.droiddeck.launcher.runtime.DesktopI18n.ensure(applicationContext, null)
+            if (problem != null) {
+                Log.w(TAG, "desktop language: $problem")
+                SessionEvents.record("desktop.language_failed", mapOf("reason" to problem))
+            }
+        }, "desktop-i18n").start()
     }
 
     private fun installProton(): String? {
