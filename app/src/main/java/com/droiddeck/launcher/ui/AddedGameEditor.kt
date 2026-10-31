@@ -256,6 +256,8 @@ private fun ArtOnlyEditor(
         }
     }
     if (editingLaunch && launchAppId != null) TextEntryDialog(stringResource(R.string.edit_launch_options), launchOptions.orEmpty(), onDismiss = { editingLaunch = false }) { value ->
+        // Unchanged, Steam's own options stay Steam's instead of becoming a copy that overwrites them from now on.
+        if (value == launchOptions.orEmpty().trim()) return@TextEntryDialog
         scope.launch {
             withContext(Dispatchers.IO) { SteamLaunchOptions.set(app, launchAppId, value) }
             launchVersion++
