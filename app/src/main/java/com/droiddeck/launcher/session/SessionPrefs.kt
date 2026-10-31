@@ -356,6 +356,9 @@ object SessionPrefs {
     val PC_KEYBOARD_SIZE_RANGE = 25..70
     const val PC_KEYBOARD_OPACITY_DEFAULT = 100
     val PC_KEYBOARD_OPACITY_RANGE = 30..100
+    const val PC_KEYBOARD_LONG_PRESS_DEFAULT = true
+    const val PC_KEYBOARD_LONG_PRESS_MS_DEFAULT = 300
+    val PC_KEYBOARD_LONG_PRESS_MS_RANGE = 100..900
 
     fun pcKeyboardSize(context: Context): Int =
         prefs(context).getInt("pcKeyboardSize", PC_KEYBOARD_SIZE_DEFAULT).takeIf { it in PC_KEYBOARD_SIZE_RANGE } ?: PC_KEYBOARD_SIZE_DEFAULT
@@ -383,6 +386,21 @@ object SessionPrefs {
 
     fun setPcKeyboardHiddenKeys(context: Context, hidden: Set<String>) {
         prefs(context).edit().putString("pcKeyboardHiddenKeys", hidden.joinToString(",")).apply()
+    }
+
+    fun pcKeyboardLongPress(context: Context): Boolean =
+        prefs(context).getBoolean("pcKeyboardLongPress", PC_KEYBOARD_LONG_PRESS_DEFAULT)
+
+    fun setPcKeyboardLongPress(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("pcKeyboardLongPress", on).apply()
+    }
+
+    fun pcKeyboardLongPressMs(context: Context): Int =
+        prefs(context).getInt("pcKeyboardLongPressMs", PC_KEYBOARD_LONG_PRESS_MS_DEFAULT)
+            .takeIf { it in PC_KEYBOARD_LONG_PRESS_MS_RANGE } ?: PC_KEYBOARD_LONG_PRESS_MS_DEFAULT
+
+    fun setPcKeyboardLongPressMs(context: Context, ms: Int) {
+        prefs(context).edit().putInt("pcKeyboardLongPressMs", ms.coerceIn(PC_KEYBOARD_LONG_PRESS_MS_RANGE)).apply()
     }
 
     fun droidDeckHudConfig(context: Context): String? = prefs(context).getString("__KEEP_droidDeckHud__", null)

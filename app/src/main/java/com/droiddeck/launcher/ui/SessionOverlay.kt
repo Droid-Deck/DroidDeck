@@ -710,6 +710,16 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                     ),
                                     PC_KEY_GROUP_IDS.filterValues { it in PcKeyboardPrefs.hiddenKeys }.keys,
                                     onToggle = { id, on -> PcKeyboardPrefs.toggleHiddenKey(keyboardContext, PC_KEY_GROUP_IDS.getValue(id), on) })
+                                ToggleRow(host, "pckb-long-press", stringResource(R.string.pckb_long_press),
+                                    stringResource(R.string.pckb_long_press_hint), PcKeyboardPrefs.longPress,
+                                    chipModifier = focus.track(page, "pckb-long-press"),
+                                    onChange = { PcKeyboardPrefs.setLongPress(keyboardContext, it) })
+                                SliderRow(
+                                    stringResource(R.string.pckb_long_press_delay), stringResource(R.string.pckb_long_press_delay_hint),
+                                    PcKeyboardPrefs.longPressMs, SessionPrefs.PC_KEYBOARD_LONG_PRESS_MS_RANGE, step = 50,
+                                    enabled = PcKeyboardPrefs.longPress, format = { "$it ms" },
+                                    modifier = focus.track(page, "pckb-long-press-ms"),
+                                    onChange = { PcKeyboardPrefs.setLongPressMs(keyboardContext, it) })
                             }
                         }
                         SessionDrawerPage.SECOND_SCREEN -> {

@@ -59,6 +59,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 private const val MOD_OFF = 0
 private const val MOD_ONCE = 1
@@ -97,8 +100,25 @@ fun PcKeyboard(
         if (key.code == 58) capsOn = !capsOn
         releaseOnceModifiers()
     }
+    // Long-press commit for character keys: send a full shift-wrapped sequence through a local
+    // flag, never mods[42], so a held key must not flip the whole panel's shifted rendering.
+    var synthShift by remember { mutableStateOf(false) }
+    fun holdStart(key: PcKey) {
+        val userShifted = (mods[42] ?: MOD_OFF) != MOD_OFF || (mods[54] ?: MOD_OFF) != MOD_OFF
+        val isLetter = key.label.length == 1 && key.label[0].isLetter()
+        if (!userShifted && !(isLetter && capsOn)) { sendKey(42, true); synthShift = true }
+        sendKey(key.code, true)
+    }
+    fun holdEnd(key: PcKey) {
+        sendKey(key.code, false)
+        if (synthShift) { sendKey(42, false); synthShift = false }
+        releaseOnceModifiers()
+    }
     androidx.compose.runtime.DisposableEffect(Unit) {
-        onDispose { for ((code, state) in mods.toMap()) if (state != MOD_OFF) sendKey(code, false) }
+        onDispose {
+            if (synthShift) { sendKey(42, false); synthShift = false }
+            for ((code, state) in mods.toMap()) if (state != MOD_OFF) sendKey(code, false)
+        }
     }
     LaunchedEffect(Unit) { runCatching { firstKey.requestFocus() } }
 
@@ -106,6 +126,8 @@ fun PcKeyboard(
     remember { PcKeyboardPrefs.load(prefsContext) }
     val hiddenCodes = PcKeyboardPrefs.hiddenKeys.flatMap { PC_KEY_HIDDEN_GROUPS[it].orEmpty() }.toSet()
     val rows = PC_KEY_ROWS.map { row -> row.filter { it.code !in hiddenCodes } }.filter { it.isNotEmpty() }
+    val longPress = PcKeyboardPrefs.longPress
+    val longPressMs = PcKeyboardPrefs.longPressMs
 
     BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
         val rowHeight = ((maxHeight * (PcKeyboardPrefs.size / 100f) - 24.dp - 3.dp * rows.size - 10.dp) / rows.size)
@@ -137,11 +159,17 @@ fun PcKeyboard(
                                 key.label.length == 1 && key.label[0].isLetter() && (shifted xor capsOn) -> key.label.uppercase()
                                 else -> key.label
                             }
+                            val isLetterKey = key.label.length == 1 && key.label[0].isLetter()
+                            val delayed = longPress && (key.shifted != null || isLetterKey)
+                            val hint = if (longPress && rowHeight >= 26.dp && !shifted) key.shifted else null
                             key(key.code) {
                                 KeyCap(
-                                    label, key.weight, lit, locked = state == MOD_LOCKED,
+                                    label, hint, key, key.weight, lit, locked = state == MOD_LOCKED,
                                     modifier = if (r == 0 && i == 0) Modifier.focusRequester(firstKey) else Modifier,
+                                    immediate = !delayed, thresholdMs = longPressMs.toLong(),
                                     onDown = { press(key) }, onUp = { release(key) },
+                                    onTap = { press(key); release(key) },
+                                    onHoldStart = { holdStart(key) }, onHoldEnd = { holdEnd(key) },
                                 )
                             }
                         }
@@ -154,8 +182,10 @@ fun PcKeyboard(
 
 @Composable
 private fun RowScope.KeyCap(
-    label: String, weight: Float, lit: Boolean, locked: Boolean,
-    modifier: Modifier, onDown: () -> Unit, onUp: () -> Unit,
+    label: String, hint: String?, key: PcKey, weight: Float, lit: Boolean, locked: Boolean,
+    modifier: Modifier, immediate: Boolean, thresholdMs: Long,
+    onDown: () -> Unit, onUp: () -> Unit,
+    onTap: () -> Unit, onHoldStart: () -> Unit, onHoldEnd: () -> Unit,
 ) {
     val pal = LocalPalette.current
     val src = remember { MutableInteractionSource() }
@@ -173,14 +203,43 @@ private fun RowScope.KeyCap(
         modifier = modifier.weight(weight).fillMaxHeight()
             .background(fill, RoundedCornerShape(7.dp))
             .glideBorder(focused, RoundedCornerShape(7.dp), pal.signal, if (lit) pal.signal.copy(alpha = 0.7f) else Color.White.copy(alpha = 0.12f))
-            .pointerInput(Unit) {
-                awaitEachGesture {
-                    awaitFirstDown().consume()
-                    down = true; onDown()
-                    try {
-                        waitForUpOrCancellation()?.consume()
-                    } finally {
-                        down = false; onUp()
+            .pointerInput(key, immediate, thresholdMs) {
+                if (immediate) {
+                    awaitEachGesture {
+                        awaitFirstDown().consume()
+                        down = true; onDown()
+                        try {
+                            waitForUpOrCancellation()?.consume()
+                        } finally {
+                            down = false; onUp()
+                        }
+                    }
+                } else {
+                    coroutineScope {
+                        val scope = this
+                        awaitEachGesture {
+                            awaitFirstDown().consume()
+                            down = true
+                            var held = false
+                            var done = false
+                            val timer = scope.launch {
+                                delay(thresholdMs)
+                                held = true
+                                onHoldStart()
+                            }
+                            try {
+                                val up = waitForUpOrCancellation()
+                                up?.consume()
+                                when {
+                                    held -> { onHoldEnd(); done = true }
+                                    up != null -> { onTap(); done = true }
+                                }
+                            } finally {
+                                timer.cancel()
+                                down = false
+                                if (!done && held) onHoldEnd()
+                            }
+                        }
                     }
                 }
             }
@@ -198,6 +257,11 @@ private fun RowScope.KeyCap(
         Text(
             label, fontSize = if (label.length > 2) 11.sp else 15.sp, fontWeight = FontWeight.SemiBold,
             color = Color.White, textAlign = TextAlign.Center, maxLines = 1,
+        )
+        if (hint != null) Text(
+            hint, fontSize = 9.sp, fontWeight = FontWeight.Medium, maxLines = 1,
+            color = Color.White.copy(alpha = 0.55f),
+            modifier = Modifier.align(Alignment.TopEnd).padding(top = 2.dp, end = 3.dp),
         )
     }
 }
