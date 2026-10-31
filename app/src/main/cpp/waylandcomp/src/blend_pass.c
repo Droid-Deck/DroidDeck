@@ -6,6 +6,7 @@
 
 #include "blend_vert.h"
 #include "blend_frag.h"
+#include "rotate_vert.h"
 
 struct pc_blend { float dst[4]; float src[4]; };
 
@@ -15,11 +16,11 @@ static VkSampler g_sampler;
 static VkDescriptorSetLayout g_dsl;
 static VkPipelineLayout g_pl;
 static VkDescriptorPool g_dpool;
-static VkShaderModule g_vert, g_frag;
+static VkShaderModule g_vert, g_frag, g_rot_vert;
 static unsigned g_frame = 1;
 
 #define NFMT 4
-static struct { VkFormat fmt; VkRenderPass rp; VkPipeline pipe; } g_out[NFMT];
+static struct { VkFormat fmt; VkRenderPass rp; VkPipeline pipe, rot; } g_out[NFMT];
 
 #define NSRC 32
 static struct { VkImage img; VkImageView view; VkDescriptorSet ds; unsigned frame; } g_src[NSRC];
@@ -85,10 +86,10 @@ static VkRenderPass make_rp(VkFormat fmt) {
     return rp;
 }
 
-static VkPipeline make_pipe(VkRenderPass rp) {
+static VkPipeline make_pipe(VkRenderPass rp, VkShaderModule vert, int blend) {
     VkPipelineShaderStageCreateInfo st[2] = {
         {.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, .stage = VK_SHADER_STAGE_VERTEX_BIT,
-         .module = g_vert, .pName = "main"},
+         .module = vert, .pName = "main"},
         {.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
          .module = g_frag, .pName = "main"}};
     VkPipelineVertexInputStateCreateInfo vi = {.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO};
@@ -105,11 +106,12 @@ static VkPipeline make_pipe(VkRenderPass rp) {
     VkPipelineMultisampleStateCreateInfo ms = {.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
                                                .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT};
     VkPipelineColorBlendAttachmentState ba = {
-        .blendEnable = VK_TRUE, .srcColorBlendFactor = VK_BLEND_FACTOR_ONE,
+        .blendEnable = blend ? VK_TRUE : VK_FALSE, .srcColorBlendFactor = VK_BLEND_FACTOR_ONE,
         .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA, .colorBlendOp = VK_BLEND_OP_ADD,
         .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE, .dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
         .alphaBlendOp = VK_BLEND_OP_ADD,
-        .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT};
+        .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT |
+                          (blend ? 0 : VK_COLOR_COMPONENT_A_BIT)};
     VkPipelineColorBlendStateCreateInfo cb = {.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
                                               .attachmentCount = 1, .pAttachments = &ba};
     VkGraphicsPipelineCreateInfo pi = {.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO, .stageCount = 2,
@@ -125,11 +127,12 @@ static VkPipeline make_pipe(VkRenderPass rp) {
 static void objects_destroy(void) {
     if (g_vert) g_vk.DestroyShaderModule(g_dev, g_vert, NULL);
     if (g_frag) g_vk.DestroyShaderModule(g_dev, g_frag, NULL);
+    if (g_rot_vert) g_vk.DestroyShaderModule(g_dev, g_rot_vert, NULL);
     if (g_dpool) g_vk.DestroyDescriptorPool(g_dev, g_dpool, NULL);
     if (g_pl) g_vk.DestroyPipelineLayout(g_dev, g_pl, NULL);
     if (g_dsl) g_vk.DestroyDescriptorSetLayout(g_dev, g_dsl, NULL);
     if (g_sampler) g_vk.DestroySampler(g_dev, g_sampler, NULL);
-    g_vert = g_frag = VK_NULL_HANDLE; g_dpool = VK_NULL_HANDLE; g_pl = VK_NULL_HANDLE;
+    g_vert = g_frag = g_rot_vert = VK_NULL_HANDLE; g_dpool = VK_NULL_HANDLE; g_pl = VK_NULL_HANDLE;
     g_dsl = VK_NULL_HANDLE; g_sampler = VK_NULL_HANDLE;
 }
 
@@ -159,6 +162,7 @@ static int objects_ensure(void) {
     if (g_vk.CreateDescriptorPool(g_dev, &dpi, NULL, &g_dpool) != VK_SUCCESS) goto fail;
     if (!(g_vert = shader(blend_vert_code, sizeof(blend_vert_code)))) goto fail;
     if (!(g_frag = shader(blend_frag_code, sizeof(blend_frag_code)))) goto fail;
+    if (!(g_rot_vert = shader(rotate_vert_code, sizeof(rotate_vert_code)))) goto fail;
     g_ready = 1;
     droiddeck_log("gpu", "alpha composition ready on %s: translucent surfaces are blended over what is under them",
             vkp_gpu_name());
@@ -175,7 +179,7 @@ static int out_slot(VkFormat fmt) {
     for (i = 0; i < NFMT && g_out[i].pipe; i++) if (g_out[i].fmt == fmt) return i;
     if (i == NFMT) return -1;
     VkRenderPass rp = make_rp(fmt);
-    VkPipeline pipe = rp ? make_pipe(rp) : VK_NULL_HANDLE;
+    VkPipeline pipe = rp ? make_pipe(rp, g_vert, 1) : VK_NULL_HANDLE;
     if (!pipe) {
         if (rp) g_vk.DestroyRenderPass(g_dev, rp, NULL);
         return -1;
@@ -301,5 +305,33 @@ int blendp_draw(VkCommandBuffer cmd, VkImage src, VkFormat src_fmt, int src_w, i
     g_vk.CmdDraw(cmd, 4, 1, 0, 0);
     g_vk.CmdEndRenderPass(cmd);
     if (!src_general) src_layout(cmd, src, sampled, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+    return 0;
+}
+
+int blendp_rotate(VkCommandBuffer cmd, VkImage src, VkFormat src_fmt, int src_w, int src_h,
+                  VkImage dst, VkFormat dst_fmt, int dst_w, int dst_h, int degrees) {
+    if (!src || !dst || src_w <= 0 || src_h <= 0 || dst_w <= 0 || dst_h <= 0 || objects_ensure() != 0) return -1;
+    if (degrees != 90 && degrees != 270) return -1;
+    int slot = out_slot(dst_fmt);
+    if (slot < 0) return -1;
+    if (!g_out[slot].rot && !(g_out[slot].rot = make_pipe(g_out[slot].rp, g_rot_vert, 0))) return -1;
+    VkDescriptorSet ds = src_ensure(src, src_fmt, VK_IMAGE_LAYOUT_GENERAL);
+    if (!ds) return -1;
+    VkFramebuffer fb = dst_ensure(dst, dst_fmt, dst_w, dst_h, g_out[slot].rp);
+    if (!fb) return -1;
+    struct pc_blend pc = {.dst = {-1.0f, -1.0f, 1.0f, 1.0f}};
+    if (degrees == 90) { pc.src[0] = 0.0f; pc.src[1] = 1.0f; pc.src[2] = 1.0f; pc.src[3] = 0.0f; }
+    else { pc.src[0] = 1.0f; pc.src[1] = 0.0f; pc.src[2] = 0.0f; pc.src[3] = 1.0f; }
+    VkRenderPassBeginInfo rpi = {.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO, .renderPass = g_out[slot].rp,
+                                 .framebuffer = fb, .renderArea = {{0, 0}, {(uint32_t)dst_w, (uint32_t)dst_h}}};
+    VkViewport vp = {0, 0, (float)dst_w, (float)dst_h, 0, 1};
+    g_vk.CmdBeginRenderPass(cmd, &rpi, VK_SUBPASS_CONTENTS_INLINE);
+    g_vk.CmdSetViewport(cmd, 0, 1, &vp);
+    g_vk.CmdSetScissor(cmd, 0, 1, &rpi.renderArea);
+    g_vk.CmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, g_out[slot].rot);
+    g_vk.CmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, g_pl, 0, 1, &ds, 0, NULL);
+    g_vk.CmdPushConstants(cmd, g_pl, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pc), &pc);
+    g_vk.CmdDraw(cmd, 4, 1, 0, 0);
+    g_vk.CmdEndRenderPass(cmd);
     return 0;
 }

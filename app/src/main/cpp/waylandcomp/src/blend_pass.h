@@ -10,4 +10,7 @@ void blendp_begin_frame(void);
 int blendp_draw(VkCommandBuffer cmd, VkImage src, VkFormat src_fmt, int src_w, int src_h, int src_general,
                 VkImage dst, VkFormat dst_fmt, int dst_w, int dst_h, const VkImageBlit *blit);
 
+int blendp_rotate(VkCommandBuffer cmd, VkImage src, VkFormat src_fmt, int src_w, int src_h,
+                  VkImage dst, VkFormat dst_fmt, int dst_w, int dst_h, int degrees);
+
 #endif

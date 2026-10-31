@@ -116,7 +116,8 @@ static VkResult timed_wait(VkFence fence, uint64_t timeout) {
 static struct { VkImage img; VkDeviceMemory mem; int w, h; } g_scene;
 
 struct vkp_img_slot { VkImage img; VkDeviceMemory mem; int w, h; VkFormat fmt; };
-static struct vkp_img_slot g_mixed, g_hdrscene, g_fgscene;
+static struct vkp_img_slot g_mixed, g_hdrscene, g_fgscene, g_land;
+static int g_prerot, g_prerot_failed;
 #define HDR_FMT VK_FORMAT_A2B10G10R10_UNORM_PACK32
 #define FG_HDR_FMT VK_FORMAT_R16G16B16A16_SFLOAT
 
@@ -661,6 +662,20 @@ static void log_surface_formats(const VkSurfaceFormatKHR *f, uint32_t n) {
                hdr_n ? hdr : "none", hdr_cut ? " (+more)" : "");
 }
 
+struct vkp_img_slot;
+static int ensure_img(struct vkp_img_slot *s, int w, int h, VkFormat fmt, VkImageUsageFlags usage, const char *what);
+
+static int prerotate_degrees(const VkSurfaceCapabilitiesKHR *caps) {
+    if (g_prerot_failed) return 0;
+    char v[PROP_VALUE_MAX] = "";
+    __system_property_get("debug.droiddeck.prerotate", v);
+    if (v[0] == '0') return 0;
+    if (!(caps->supportedTransforms & caps->currentTransform)) return 0;
+    if (caps->currentTransform == VK_SURFACE_TRANSFORM_ROTATE_90_BIT_KHR) return 90;
+    if (caps->currentTransform == VK_SURFACE_TRANSFORM_ROTATE_270_BIT_KHR) return 270;
+    return 0;
+}
+
 static int swap_init_locked(void) {
 
     VkAndroidSurfaceCreateInfoKHR aci = {
@@ -733,11 +748,18 @@ static int swap_init_locked(void) {
     VkSurfaceTransformFlagBitsKHR pretrans =
         (caps.supportedTransforms & VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR)
             ? VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR : caps.currentTransform;
+    g_prerot = prerotate_degrees(&caps);
+    VkExtent2D image_extent = g_extent;
+    if (g_prerot) {
+        pretrans = caps.currentTransform;
+        image_extent.width = g_extent.height;
+        image_extent.height = g_extent.width;
+    }
 
     VkSwapchainCreateInfoKHR sci = {
         .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR, .surface = g_surface,
         .minImageCount = want, .imageFormat = chosen.format, .imageColorSpace = chosen.colorSpace,
-        .imageExtent = g_extent, .imageArrayLayers = 1,
+        .imageExtent = image_extent, .imageArrayLayers = 1,
         .imageUsage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
         .imageSharingMode = VK_SHARING_MODE_EXCLUSIVE, .preTransform = pretrans,
         .compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
@@ -754,6 +776,17 @@ static int swap_init_locked(void) {
         g_swap_fmt = sdr_choice.format;
         cr = g_vk.CreateSwapchainKHR(g_dev, &sci, NULL, &g_swapchain);
     }
+    if (cr != VK_SUCCESS && g_prerot) {
+        droiddeck_log("gpu", "the driver refused a swapchain turned for the panel (%s): the display rotates the "
+                   "picture instead", vk_result_name(cr));
+        g_prerot = 0;
+        g_prerot_failed = 1;
+        g_swapchain = VK_NULL_HANDLE;
+        sci.preTransform = (caps.supportedTransforms & VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR)
+                               ? VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR : caps.currentTransform;
+        sci.imageExtent = g_extent;
+        cr = g_vk.CreateSwapchainKHR(g_dev, &sci, NULL, &g_swapchain);
+    }
     if (cr != VK_SUCCESS) {
         g_swapchain = VK_NULL_HANDLE;
         SWLOGE("present: vkCreateSwapchainKHR failed (%d)", (int)cr);
@@ -762,6 +795,18 @@ static int swap_init_locked(void) {
     g_vk.GetSwapchainImagesKHR(g_dev, g_swapchain, &g_nimg, NULL);
     g_images = calloc(g_nimg, sizeof(VkImage));
     g_vk.GetSwapchainImagesKHR(g_dev, g_swapchain, &g_nimg, g_images);
+    if (g_prerot && ensure_img(&g_land, (int)g_extent.width, (int)g_extent.height, g_swap_fmt,
+                               VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+                                   VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+                               "panel rotation") != 0) {
+        g_prerot_failed = 1;
+        droiddeck_log("gpu", "the panel-rotation image could not be made: the display rotates the picture instead");
+        destroy_swapchain();
+        return -1;
+    }
+    if (g_prerot)
+        droiddeck_log("gpu", "the panel is mounted at %d degrees: frames are turned on the GPU before they are shown, "
+                   "so the display hardware can show the game layer directly", g_prerot);
 
     droiddeck_log("gpu", "screen output %ux%u, %u buffers, vsync%s", g_extent.width, g_extent.height, g_nimg,
                g_swap_extra ? " (frame generation: several presents per frame)" : "");
@@ -1345,6 +1390,53 @@ static const char *vk_result_name(VkResult r) {
 }
 
 
+static VkImage out_image(uint32_t img) {
+    return g_prerot ? g_land.img : g_images[img];
+}
+
+static void finish_out_image(VkCommandBuffer cmd, uint32_t img) {
+    VkImageSubresourceRange range = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+    if (!g_prerot) {
+        VkImageMemoryBarrier b_present = {
+            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            .newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED, .image = g_images[img],
+            .subresourceRange = range, .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT};
+        g_vk.CmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+                                0, 0, NULL, 0, NULL, 1, &b_present);
+        return;
+    }
+    VkImageMemoryBarrier pre[2] = {
+        {.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+         .newLayout = VK_IMAGE_LAYOUT_GENERAL, .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+         .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED, .image = g_land.img, .subresourceRange = range,
+         .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+         .dstAccessMask = VK_ACCESS_SHADER_READ_BIT},
+        {.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+         .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+         .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED, .image = g_images[img], .subresourceRange = range,
+         .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT}};
+    g_vk.CmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                            VK_PIPELINE_STAGE_TRANSFER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                            0, 0, NULL, 0, NULL, 2, pre);
+    VkClearColorValue black = {.float32 = {0.0f, 0.0f, 0.0f, 1.0f}};
+    g_vk.CmdClearColorImage(cmd, g_images[img], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &black, 1, &range);
+    if (blendp_rotate(cmd, g_land.img, g_swap_fmt, (int)g_extent.width, (int)g_extent.height, g_images[img],
+                      g_swap_fmt, (int)g_extent.height, (int)g_extent.width, g_prerot) != 0 && !g_prerot_failed) {
+        g_prerot_failed = 1;
+        droiddeck_log("gpu", "the panel-rotation pass could not be built on this driver: the display rotates the "
+                   "picture from the next frame");
+        g_surface_checked_ns = 0;
+    }
+    VkImageMemoryBarrier b_present = {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        .newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED, .image = g_images[img], .subresourceRange = range,
+        .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT};
+    g_vk.CmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                            VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, NULL, 0, NULL, 1, &b_present);
+}
+
 static void record_screen_blit(VkCommandBuffer cmd, VkImage src, int src_w, int src_h,
                                int scene_w, int scene_h, uint32_t img, VkFilter filter, int cardboard) {
     VkImageSubresourceRange range = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
@@ -1370,7 +1462,7 @@ static void record_screen_blit(VkCommandBuffer cmd, VkImage src, int src_w, int 
         {.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
          .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
          .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED, .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-         .image = g_images[img], .subresourceRange = range, .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT},
+         .image = out_image(img), .subresourceRange = range, .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT},
         {.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, .oldLayout = VK_IMAGE_LAYOUT_GENERAL,
          .newLayout = VK_IMAGE_LAYOUT_GENERAL,
          .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED, .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
@@ -1387,9 +1479,9 @@ static void record_screen_blit(VkCommandBuffer cmd, VkImage src, int src_w, int 
                              .srcOffsets = {{0, 0, 0}, {src_w, src_h, 1}},
                              .dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
                              .dstOffsets = {{0, 0, 0}, {src_w, src_h, 1}}};
-    if (!have_blit || !record_bars_clear(cmd, g_images[img], &blit)) {
+    if (!have_blit || !record_bars_clear(cmd, out_image(img), &blit)) {
         VkClearColorValue black = {.float32 = {0.0f, 0.0f, 0.0f, 1.0f}};
-        g_vk.CmdClearColorImage(cmd, g_images[img], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &black, 1, &range);
+        g_vk.CmdClearColorImage(cmd, out_image(img), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &black, 1, &range);
     }
     VkMemoryBarrier mb = {.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
                           .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
@@ -1397,15 +1489,9 @@ static void record_screen_blit(VkCommandBuffer cmd, VkImage src, int src_w, int 
     g_vk.CmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
                             0, 1, &mb, 0, NULL, 0, NULL);
     if (have_blit)
-        g_vk.CmdBlitImage(cmd, src, VK_IMAGE_LAYOUT_GENERAL, g_images[img],
+        g_vk.CmdBlitImage(cmd, src, VK_IMAGE_LAYOUT_GENERAL, out_image(img),
                           VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &blit, filter);
-    VkImageMemoryBarrier b_present = {
-        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-        .newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED, .image = g_images[img],
-        .subresourceRange = range, .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT};
-    g_vk.CmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-                            0, 0, NULL, 0, NULL, 1, &b_present);
+    finish_out_image(cmd, img);
 }
 
 static int acquire_image(int k, int first, uint32_t *img, VkResult *ar_out) {
@@ -1439,6 +1525,10 @@ int vkp_render_plain(int scene_w, int scene_h) {
 
 static void check_surface_changed(void) {
     if (!g_swapchain || !g_surface || g_dev_state != 1) return;
+    if (g_prerot && g_prerot_failed) {
+        destroy_swapchain();
+        return;
+    }
     const int64_t now = perf_now();
     if (now - g_surface_checked_ns < 100000000LL) return;
     g_surface_checked_ns = now;
@@ -1612,7 +1702,7 @@ static int render_impl(int scene_w, int scene_h, const struct vkp_draw *draws, i
         .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
         .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
         .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED, .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .image = pass ? scene_img : g_images[img], .subresourceRange = range,
+        .image = pass ? scene_img : out_image(img), .subresourceRange = range,
         .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT};
     for (int i = 0; i < n; i++) {
         struct vkp_image *im = draws[i].img;
@@ -1636,11 +1726,11 @@ static int render_impl(int scene_w, int scene_h, const struct vkp_draw *draws, i
         }
     }
     g_vk.CmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_HOST_BIT | VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT |
-                                 (pass ? VK_PIPELINE_STAGE_ALL_COMMANDS_BIT : 0),
+                                 ((pass || g_prerot) ? VK_PIPELINE_STAGE_ALL_COMMANDS_BIT : 0),
                             VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, NULL, 0, NULL, (uint32_t)nb, bars);
     free(bars);
 
-    VkImage target = pass ? scene_img : g_images[img];
+    VkImage target = pass ? scene_img : out_image(img);
     int covered = 0;
     VkImageBlit cover_blit;
     if (!(hf && pass)) {
@@ -1687,13 +1777,7 @@ static int render_impl(int scene_w, int scene_h, const struct vkp_draw *draws, i
     VkImage result = scene_img;
     int rw = scene_w, rh = scene_h;
     if (!pass) {
-        VkImageMemoryBarrier b_present = {
-            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-            .newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED, .image = g_images[img],
-            .subresourceRange = range, .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT};
-        g_vk.CmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-                                0, 0, NULL, 0, NULL, 1, &b_present);
+        finish_out_image(cmd, img);
     } else {
         VkImageLayout result_layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
         if (fx) {
