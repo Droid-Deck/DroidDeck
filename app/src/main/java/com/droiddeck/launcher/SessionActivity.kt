@@ -3144,6 +3144,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         takeScreenshot = ::captureScreenshot,
         fps = { if (::hud.isInitialized) hud.liveFps else null },
         openSettings = ::openSettingsBelow,
+        runningGame = { gestureGame },
     ))
 
     // A settings page opened on the bottom screen sits under the dashboard window, so the dashboard hides

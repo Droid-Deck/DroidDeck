@@ -1891,6 +1891,11 @@
     <string name="bottom_notifications_count">%1$d notifications</string>
     <string name="bottom_notifications_clear">Clear</string>
     <string name="bottom_page_screenshots">Screenshots</string>
+    <string name="bottom_telemetry_send_title">Send dashboard data</string>
+    <string name="bottom_telemetry_send_note">This changes the game\'s own data output setting. It takes effect the next time the game starts; turning it off puts the old setting back.</string>
+    <string name="bottom_telemetry_send_close">Close %1$s to change this.</string>
+    <string name="bottom_telemetry_send_failed">Could not change the settings of %1$s.</string>
+    <string name="bottom_telemetry_send_menu">%1$s: turn on %2$s in the game\'s settings with IP 127.0.0.1 and port %3$d.</string>
     <string name="bottom_shots_where">Saved to Pictures/DroidDeck. Steam screenshots show here too.</string>
     <string name="bottom_shots_take">Take screenshot</string>
     <string name="bottom_shots_saved">Screenshot saved.</string>
