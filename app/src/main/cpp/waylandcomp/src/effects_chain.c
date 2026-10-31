@@ -370,6 +370,13 @@ void vkp_effects_set_formats(VkFormat scene_fmt, VkFormat target_fmt) {
     }
 }
 
+static int chain_failed(void) {
+    objects_destroy();
+    g_ready = -1;
+    droiddeck_log("error", "effects: the screen-effect chain could not be built on this driver; effects are off for this session");
+    return -1;
+}
+
 static int objects_ensure(void) {
     if (g_ready) return g_ready == 1 ? 0 : -1;
     if (!g_dev || !g_vk.CreateGraphicsPipelines) { g_ready = -1; droiddeck_log("error", "effects: no device for the chain"); return -1; }
@@ -415,32 +422,40 @@ static int objects_ensure(void) {
                                       .poolSizeCount = 1, .pPoolSizes = &ps};
     if (g_vk.CreateDescriptorPool(g_dev, &dpi, NULL, &g_dpool) != VK_SUCCESS) goto fail;
 
-    VkShaderModule vert = shader(upscale_vert_code, sizeof(upscale_vert_code));
-    if (!vert) goto fail;
-#define MK(slot, code, name) do { g_pipe[slot] = post_pipeline(vert, code, sizeof(code), name); if (!g_pipe[slot]) { g_vk.DestroyShaderModule(g_dev, vert, NULL); goto fail; } } while (0)
-    MK(P_SGSR, sgsr_code, "sgsr");
-    MK(P_SGSR_HQ, sgsr_quality_code, "sgsr_quality");
-    MK(P_NIS, nis_code, "nis");
-    MK(P_EASU, fsr_easu_code, "fsr_easu");
-    MK(P_RCAS, fsr_rcas_code, "fsr_rcas");
-    MK(P_CAS, cas_code, "cas");
-    MK(P_COLOR, color_code, "color");
-    MK(P_FXAA, fxaa_code, "fxaa");
-    MK(P_TOON, toon_code, "toon");
-    MK(P_HDR, hdr_code, "hdr");
-    MK(P_NTSC, ntsc_code, "ntsc");
-    MK(P_CRT, crt_code, "crt");
-    MK(P_DEBAND, deband_code, "deband");
-#undef MK
-    g_vk.DestroyShaderModule(g_dev, vert, NULL);
     g_ready = 1;
-    droiddeck_log("effects", "chain ready: 13 passes (SGSR, SGSR HQ, NIS, FSR EASU+RCAS, CAS, colour, FXAA, Toon, HDR, NTSC, CRT, deband) on %s", vkp_gpu_name());
+    droiddeck_log("effects", "shared resources ready on %s; effect pipelines are created when needed", vkp_gpu_name());
     return 0;
 fail:
-    objects_destroy();
-    g_ready = -1;
-    droiddeck_log("error", "effects: the screen-effect chain could not be built on this driver; effects are off for this session");
-    return -1;
+    return chain_failed();
+}
+
+static int pipelines_ensure(int spatial, const struct fx_settings *s) {
+    VkShaderModule vert = VK_NULL_HANDLE;
+#define MK(needed, slot, code, name) do { \
+    if ((needed) && !g_pipe[slot]) { \
+        if (!vert && !(vert = shader(upscale_vert_code, sizeof(upscale_vert_code)))) goto fail; \
+        if (!(g_pipe[slot] = post_pipeline(vert, code, sizeof(code), name))) goto fail; \
+    } \
+} while (0)
+    MK(spatial == 3, P_SGSR, sgsr_code, "sgsr");
+    MK(spatial == 8, P_SGSR_HQ, sgsr_quality_code, "sgsr_quality");
+    MK(spatial == 7, P_NIS, nis_code, "nis");
+    MK(spatial == 4 || spatial == 5, P_EASU, fsr_easu_code, "fsr_easu");
+    MK(spatial == 4 || spatial == 5 || spatial == 6, P_RCAS, fsr_rcas_code, "fsr_rcas");
+    MK(cas_active(s), P_CAS, cas_code, "cas");
+    MK(s->color_on, P_COLOR, color_code, "color");
+    MK(s->fxaa, P_FXAA, fxaa_code, "fxaa");
+    MK(s->toon, P_TOON, toon_code, "toon");
+    MK(s->hdr_on, P_HDR, hdr_code, "hdr");
+    MK(s->ntsc, P_NTSC, ntsc_code, "ntsc");
+    MK(s->crt, P_CRT, crt_code, "crt");
+    MK(s->deband_on, P_DEBAND, deband_code, "deband");
+#undef MK
+    if (vert) g_vk.DestroyShaderModule(g_dev, vert, NULL);
+    return 0;
+fail:
+    if (vert) g_vk.DestroyShaderModule(g_dev, vert, NULL);
+    return chain_failed();
 }
 
 
@@ -475,9 +490,10 @@ static const float FULL_NDC[4] = {-1.0f, -1.0f, 1.0f, 1.0f};
 
 VkImage vkp_effects_run(VkCommandBuffer cmd, VkImage scene, int scene_w, int scene_h,
                         int out_w, int out_h, int *res_w, int *res_h) {
-    const struct fx_settings *s;
     vkp_effects_sync();
-    s = &g_cur;
+    const struct fx_settings frame = g_cur;
+    const struct fx_settings *s = &frame;
+    const VkFilter blit_filter = s->scaling == 2 ? VK_FILTER_NEAREST : VK_FILTER_LINEAR;
     *res_w = scene_w; *res_h = scene_h;
 
     int cw = out_w > 0 ? out_w : scene_w, ch = out_h > 0 ? out_h : scene_h;
@@ -492,7 +508,8 @@ VkImage vkp_effects_run(VkCommandBuffer cmd, VkImage scene, int scene_w, int sce
     const int resize = cw != scene_w || ch != scene_h;
     const int npasses = ((spatial || resize) ? 1 : 0) + nfx;
 
-    if ((spatial || nfx) && objects_ensure() == 0 && scene_ensure(scene, scene_w, scene_h) == 0 &&
+    if ((spatial || nfx) && objects_ensure() == 0 && pipelines_ensure(spatial, s) == 0 &&
+        scene_ensure(scene, scene_w, scene_h) == 0 &&
         target_ensure(&g_t[0], cw, ch, "chain") == 0 && (npasses < 2 || target_ensure(&g_t[1], cw, ch, "chain") == 0) &&
         (!(spatial == 4 || spatial == 5) || target_ensure(&g_mid, cw, ch, "EASU") == 0)) {
         VkDescriptorSet cur_ds;
@@ -543,7 +560,7 @@ VkImage vkp_effects_run(VkCommandBuffer cmd, VkImage scene, int scene_w, int sce
             VkImageBlit bl = {.srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1}, .srcOffsets = {{0, 0, 0}, {scene_w, scene_h, 1}},
                               .dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1}, .dstOffsets = {{0, 0, 0}, {cw, ch, 1}}};
             g_vk.CmdBlitImage(cmd, scene, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, dst->img, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                              1, &bl, vkp_effects_blit_filter());
+                              1, &bl, blit_filter);
             barrier(cmd, dst->img, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
                     VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
                     VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT);
