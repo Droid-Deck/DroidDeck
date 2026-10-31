@@ -222,7 +222,8 @@ private fun ArtOnlyEditor(
     var launchOptions by remember { mutableStateOf<String?>(null) }
     var launchVersion by remember { mutableIntStateOf(0) }
     var editingLaunch by remember { mutableStateOf(false) }
-    var launchNotSaved by remember { mutableStateOf(false) }
+    var launchSaving by remember { mutableStateOf(false) }
+    var launchError by remember { mutableStateOf<Int?>(null) }
     val position = rememberLogoPosition(target, version)
     LaunchedEffect(version, refresh) { if (target != null) arts = withContext(Dispatchers.IO) { describe(app) } }
     LaunchedEffect(launchAppId, launchVersion) { if (launchAppId != null) launchOptions = withContext(Dispatchers.IO) { SteamLaunchOptions.current(app, launchAppId) } }
@@ -236,11 +237,12 @@ private fun ArtOnlyEditor(
             modifier = Modifier.fillMaxWidth().heightIn(max = maxHeight).verticalScroll(rememberScrollState()),
         ) {
             if (launchAppId != null) {
-                FieldRow(stringResource(R.string.edit_launch_options), focus = first, onClick = { if (launchOptions != null) editingLaunch = true }) {
+                FieldRow(stringResource(R.string.edit_launch_options), focus = first, onClick = { if (launchOptions != null && !launchSaving) editingLaunch = true }) {
                     val options = launchOptions
-                    if (options == null) Loading() else ValueText(options.ifEmpty { "—" }, muted = options.isEmpty())
+                    if (options == null || launchSaving) Loading() else ValueText(options.ifEmpty { "—" }, muted = options.isEmpty())
                 }
-                if (launchNotSaved) Text(stringResource(R.string.edit_launch_options_not_saved), fontSize = 12.sp, color = colors.error, modifier = Modifier.padding(start = 4.dp))
+                val error = launchError
+                if (error != null) Text(stringResource(error), fontSize = 12.sp, color = colors.error, modifier = Modifier.padding(start = 4.dp))
                 else Text(stringResource(R.string.edit_launch_options_steam_hint), fontSize = 12.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(start = 4.dp))
             }
             Text(stringResource(R.string.edit_artwork), fontSize = 12.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(start = 4.dp, top = if (launchAppId != null) 8.dp else 2.dp))
@@ -257,10 +259,21 @@ private fun ArtOnlyEditor(
         }
     }
     if (editingLaunch && launchAppId != null) TextEntryDialog(stringResource(R.string.edit_launch_options), launchOptions.orEmpty(), onDismiss = { editingLaunch = false }) { value ->
-        if (value == launchOptions.orEmpty().trim()) return@TextEntryDialog
+        val before = launchOptions.orEmpty()
+        if (launchSaving || value == before.trim()) return@TextEntryDialog
+        launchSaving = true
         scope.launch {
-            launchNotSaved = !withContext(Dispatchers.IO) { SteamLaunchOptions.set(app, launchAppId, value) }
-            launchVersion++
+            try {
+                val saved = withContext(Dispatchers.IO) { SteamLaunchOptions.set(app, launchAppId, value, before) }
+                launchError = when (saved) {
+                    SteamLaunchOptions.Saved.YES -> null
+                    SteamLaunchOptions.Saved.DESKTOP -> R.string.edit_launch_options_desktop
+                    SteamLaunchOptions.Saved.NO -> R.string.edit_launch_options_not_saved
+                }
+                if (saved == SteamLaunchOptions.Saved.YES) launchOptions = value else launchVersion++
+            } finally {
+                launchSaving = false
+            }
         }
     }
     val chosen = target ?: return

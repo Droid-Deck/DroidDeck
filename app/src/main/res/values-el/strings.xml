@@ -2383,6 +2383,7 @@
     <string name="edit_launch_options">Επιλογές εκκίνησης</string>
     <string name="edit_launch_options_steam_hint">Κοινές με τις Ιδιότητες του Steam: μια αλλαγή στο ένα σημείο εμφανίζεται και στα δύο.</string>
     <string name="edit_launch_options_not_saved">Δεν ήταν δυνατή η αποθήκευση των επιλογών εκκίνησης στο Steam. Δοκιμάστε ξανά.</string>
+    <string name="edit_launch_options_desktop">Το Steam μπορεί να είναι ανοιχτό στη συνεδρία επιφάνειας εργασίας. Αλλάξτε τις επιλογές εκκίνησης από τις Ιδιότητές του ή κλείστε πρώτα τη συνεδρία.</string>
     <string name="edit_artwork">Γραφικά</string>
     <string name="edit_other_exe">Άλλο exe…</string>
     <string name="edit_remove">Κατάργηση</string>

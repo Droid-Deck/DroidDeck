@@ -2360,6 +2360,7 @@
     <string name="edit_launch_options">Tùy chọn khởi chạy</string>
     <string name="edit_launch_options_steam_hint">Dùng chung với Thuộc tính của Steam: thay đổi ở một nơi sẽ hiện ở cả hai.</string>
     <string name="edit_launch_options_not_saved">Không thể lưu tùy chọn khởi chạy vào Steam. Hãy thử lại.</string>
+    <string name="edit_launch_options_desktop">Steam có thể đang mở trong phiên desktop. Hãy đổi tùy chọn khởi chạy trong Thuộc tính của Steam, hoặc đóng phiên trước.</string>
     <string name="edit_artwork">Hình ảnh</string>
     <string name="edit_other_exe">Exe khác…</string>
     <string name="edit_remove">Xóa</string>

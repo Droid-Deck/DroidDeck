@@ -2429,6 +2429,7 @@
     <string name="edit_launch_options">Параметри запуску</string>
     <string name="edit_launch_options_steam_hint">Спільні з «Властивостями» Steam: зміна в одному місці видна в обох.</string>
     <string name="edit_launch_options_not_saved">Не вдалося зберегти параметри запуску в Steam. Спробуйте ще раз.</string>
+    <string name="edit_launch_options_desktop">Steam може бути відкритий у сеансі робочого столу. Змініть параметри запуску в його «Властивостях» або спершу закрийте сеанс.</string>
     <string name="edit_artwork">Графіка</string>
     <string name="edit_other_exe">Інший exe…</string>
     <string name="edit_remove">Вилучити</string>

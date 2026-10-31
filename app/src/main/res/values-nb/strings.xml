@@ -2383,6 +2383,7 @@
     <string name="edit_launch_options">Startalternativer</string>
     <string name="edit_launch_options_steam_hint">Delt med Egenskaper i Steam: en endring det ene stedet vises begge steder.</string>
     <string name="edit_launch_options_not_saved">Kunne ikke lagre startalternativene i Steam. Prøv igjen.</string>
+    <string name="edit_launch_options_desktop">Steam kan være åpent i skrivebordssesjonen. Endre startalternativene under Egenskaper der, eller lukk sesjonen først.</string>
     <string name="edit_artwork">Grafikk</string>
     <string name="edit_other_exe">Annen exe…</string>
     <string name="edit_remove">Fjern</string>

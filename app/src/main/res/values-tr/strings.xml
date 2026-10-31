@@ -2372,6 +2372,7 @@
     <string name="edit_launch_options">Başlatma seçenekleri</string>
     <string name="edit_launch_options_steam_hint">Steam Özellikleri ile ortaktır: birinde yapılan değişiklik ikisinde de görünür.</string>
     <string name="edit_launch_options_not_saved">Başlatma seçenekleri Steam\'e kaydedilemedi. Tekrar deneyin.</string>
+    <string name="edit_launch_options_desktop">Steam masaüstü oturumunda açık olabilir. Başlatma seçeneklerini Steam Özellikleri\'nden değiştirin veya önce oturumu kapatın.</string>
     <string name="edit_artwork">Görsel</string>
     <string name="edit_other_exe">Diğer exe…</string>
     <string name="edit_remove">Kaldır</string>

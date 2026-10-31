@@ -21,12 +21,21 @@ object SteamLaunchOptions {
     fun current(context: Context, appId: Int): String =
         SteamLiveShortcuts.launchOptions(context, appId.toLong()) ?: steam(SessionPrefs.activeSteamRoot(context), appId).orEmpty()
 
-    fun set(context: Context, appId: Int, options: String): Boolean {
+    enum class Saved { YES, NO, DESKTOP }
+
+    /** Saves [options] only while Steam still has [shown], the value the editor showed. */
+    fun set(context: Context, appId: Int, options: String, shown: String): Saved {
         val value = options.trim()
-        if (SteamLiveShortcuts.setLaunchOptions(context, appId.toLong(), value)) return true
-        // A running client writes its own copy over the file when it exits.
-        if (SessionState.running && SessionState.mode == SessionService.MODE_STEAM) return false
-        return write(SessionPrefs.activeSteamRoot(context), appId, value)
+        // A session's client writes its own copy over the file when it exits; the live calls reach only a Steam session's client.
+        if (SessionState.running && SessionState.mode == SessionService.MODE_DESKTOP) return Saved.DESKTOP
+        if (SessionState.running && SessionState.mode == SessionService.MODE_STEAM) {
+            val live = SteamLiveShortcuts.launchOptions(context, appId.toLong()) ?: return Saved.NO
+            if (live.trim() != shown.trim()) return Saved.NO
+            return if (SteamLiveShortcuts.setLaunchOptions(context, appId.toLong(), value)) Saved.YES else Saved.NO
+        }
+        val home = SessionPrefs.activeSteamRoot(context)
+        if (steam(home, appId).orEmpty().trim() != shown.trim()) return Saved.NO
+        return if (write(home, appId, value)) Saved.YES else Saved.NO
     }
 
     internal fun steam(steamHome: File, appId: Int): String? {
@@ -43,6 +52,10 @@ object SteamLaunchOptions {
         val staged = File(config.parentFile, config.name + ".staged")
         return try {
             staged.writeText(updated)
+            if (config.readText() != text) {
+                staged.delete()
+                return false
+            }
             Files.move(staged.toPath(), config.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
             true
         } catch (e: Exception) {

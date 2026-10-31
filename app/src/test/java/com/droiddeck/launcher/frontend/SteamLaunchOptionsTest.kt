@@ -1,6 +1,10 @@
 package com.droiddeck.launcher.frontend
 
+import com.droiddeck.launcher.session.SessionPrefs
+import com.droiddeck.launcher.session.SessionService
+import com.droiddeck.launcher.session.SessionState
 import java.io.File
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -10,6 +14,7 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
@@ -88,7 +93,7 @@ class SteamLaunchOptionsTest {
         assertNull(SteamLaunchOptions.launchOptions("", 1790600))
     }
 
-    private fun steamHome(): File = tmp.newFolder("Steam").also { home ->
+    private fun steamHome(home: File = tmp.newFolder("Steam")): File = home.also {
         File(home, "config").mkdirs()
         File(home, "config/loginusers.vdf").writeText(
             "\"users\"\n{\n\t\"76561198021239924\"\n\t{\n\t\t\"AccountName\"\t\t\"a\"\n\t\t\"MostRecent\"\t\t\"1\"\n\t}\n}\n")
@@ -114,6 +119,31 @@ class SteamLaunchOptionsTest {
         config.writeText(SteamLaunchOptions.withLaunchOptions(config.readText(), 1790600, "-vulkan")!!)
         assertEquals("-vulkan", SteamLaunchOptions.steam(home, 1790600))
         assertNull(SteamLaunchOptions.steam(home, 400))
+    }
+
+    private val app get() = RuntimeEnvironment.getApplication()
+
+    @After fun noSession() {
+        SessionState.running = false
+        SessionState.mode = SessionService.MODE_STEAM
+        SessionPrefs.activeSteamRoot(app).deleteRecursively()
+    }
+
+    @Test fun aValueChangedInSteamSinceItWasShownIsNotOverwritten() {
+        val config = localConfig(steamHome(SessionPrefs.activeSteamRoot(app)), "60974196").apply { writeText(config(apps(*sparking))) }
+        assertEquals(SteamLaunchOptions.Saved.NO, SteamLaunchOptions.set(app, 1790600, "-dx12", shown = "-vulkan"))
+        assertEquals("-dx11", SteamLaunchOptions.launchOptions(config.readText(), 1790600))
+        assertEquals(SteamLaunchOptions.Saved.YES, SteamLaunchOptions.set(app, 1790600, "-dx12", shown = "-dx11"))
+        assertEquals("-dx12", SteamLaunchOptions.launchOptions(config.readText(), 1790600))
+    }
+
+    @Test fun aDesktopSessionLeavesTheFileToItsClient() {
+        val config = localConfig(steamHome(SessionPrefs.activeSteamRoot(app)), "60974196").apply { writeText(config(apps(*sparking))) }
+        val before = config.readText()
+        SessionState.running = true
+        SessionState.mode = SessionService.MODE_DESKTOP
+        assertEquals(SteamLaunchOptions.Saved.DESKTOP, SteamLaunchOptions.set(app, 1790600, "-dx12", shown = "-dx11"))
+        assertEquals(before, config.readText())
     }
 
     @Test fun nothingIsWrittenWithoutASignedInAccountsConfig() {

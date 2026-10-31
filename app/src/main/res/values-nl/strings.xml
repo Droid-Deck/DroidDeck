@@ -2383,6 +2383,7 @@
     <string name="edit_launch_options">Opstartopties</string>
     <string name="edit_launch_options_steam_hint">Gedeeld met de Eigenschappen in Steam: een wijziging op de ene plek is op beide te zien.</string>
     <string name="edit_launch_options_not_saved">De opstartopties konden niet in Steam worden opgeslagen. Probeer het opnieuw.</string>
+    <string name="edit_launch_options_desktop">Steam is misschien geopend in de desktopsessie. Wijzig de opstartopties daar in de Eigenschappen, of sluit eerst de sessie.</string>
     <string name="edit_artwork">Artwork</string>
     <string name="edit_other_exe">Andere exe…</string>
     <string name="edit_remove">Verwijderen</string>

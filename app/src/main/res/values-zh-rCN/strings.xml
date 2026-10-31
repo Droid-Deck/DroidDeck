@@ -2402,6 +2402,7 @@
     <string name="edit_launch_options">启动选项</string>
     <string name="edit_launch_options_steam_hint">与 Steam 的“属性”共用：在任一处更改，两处都会更新。</string>
     <string name="edit_launch_options_not_saved">无法将启动选项保存到 Steam。请重试。</string>
+    <string name="edit_launch_options_desktop">Steam 可能正在桌面会话中运行。请在 Steam 的“属性”中更改启动选项，或先关闭该会话。</string>
     <string name="edit_artwork">美术图</string>
     <string name="edit_other_exe">其他 exe…</string>
     <string name="edit_remove">移除</string>

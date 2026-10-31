@@ -2383,6 +2383,7 @@
     <string name="edit_launch_options">Startalternativ</string>
     <string name="edit_launch_options_steam_hint">Delas med Egenskaper i Steam: en ändring på det ena stället syns på båda.</string>
     <string name="edit_launch_options_not_saved">Det gick inte att spara startalternativen i Steam. Försök igen.</string>
+    <string name="edit_launch_options_desktop">Steam kan vara öppet i skrivbordssessionen. Ändra startalternativen under Egenskaper där, eller stäng sessionen först.</string>
     <string name="edit_artwork">Bildmaterial</string>
     <string name="edit_other_exe">Annan exe…</string>
     <string name="edit_remove">Ta bort</string>

@@ -2328,6 +2328,7 @@
     <string name="edit_launch_options">啟動選項</string>
     <string name="edit_launch_options_steam_hint">與 Steam 的「內容」共用：在任一處變更，兩處都會更新。</string>
     <string name="edit_launch_options_not_saved">無法將啟動選項儲存至 Steam。請再試一次。</string>
+    <string name="edit_launch_options_desktop">Steam 可能正在桌面工作階段中執行。請在 Steam 的「內容」中變更啟動選項，或先關閉該工作階段。</string>
     <string name="edit_artwork">圖片</string>
     <string name="edit_other_exe">其他 exe…</string>
     <string name="edit_remove">移除</string>
