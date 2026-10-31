@@ -470,10 +470,10 @@ private fun AlphabetScroller(entries: List<AppEntry>, favoriteCount: Int, grid: 
     }
     val letters = remember(firstAt) { firstAt.keys.toList() }
     var dragging by remember { mutableStateOf<String?>(null) }
-    val current by remember(entries, leadItems) {
+    val current by remember(entries, leadItems, favoriteCount) {
         derivedStateOf {
             val i = (grid.firstVisibleItemIndex - leadItems).coerceIn(0, (entries.size - 1).coerceAtLeast(0))
-            entries.getOrNull(i)?.let { indexLetter(it.label) }
+            if (i < favoriteCount) null else entries.getOrNull(i)?.let { indexLetter(it.label) }
         }
     }
     var height by remember { mutableIntStateOf(1) }
