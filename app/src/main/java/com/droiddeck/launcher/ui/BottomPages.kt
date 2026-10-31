@@ -14,11 +14,13 @@ class BottomPageActions(
     val fps: () -> Float? = { null },
     /** Opens an Android settings page on the bottom screen; the dashboard comes back once [done] is true. */
     val openSettings: ((intent: android.content.Intent, done: () -> Boolean) -> Unit)? = null,
+    /** The focused game's Steam app id as text (or another key for non-Steam programs); null in the Steam menus. */
+    val runningGame: () -> String? = { null },
 )
 
 /** The pages the bottom-screen dashboard offers during a session, in tab order. */
 fun sessionBottomPages(actions: BottomPageActions): List<BottomPage> = listOf(
-    BottomPage("telemetry", R.string.bottom_page_telemetry, Icons.Outlined.Speed) { BottomTelemetryPage(actions.fps) },
+    BottomPage("telemetry", R.string.bottom_page_telemetry, Icons.Outlined.Speed) { BottomTelemetryPage(actions.fps, actions.runningGame) },
     BottomPage("downloads", R.string.bottom_page_downloads, Icons.Outlined.Download) { BottomDownloadsPage() },
     BottomPage("notifications", R.string.bottom_page_notifications, Icons.Outlined.Notifications) { BottomNotificationsPage(actions.openSettings) },
     BottomPage("screenshots", R.string.bottom_page_screenshots, Icons.Outlined.PhotoLibrary) { BottomScreenshotsPage(actions.takeScreenshot) },

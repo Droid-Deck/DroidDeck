@@ -12,15 +12,19 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -28,11 +32,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.droiddeck.launcher.R
+import com.droiddeck.launcher.frontend.Library
 import com.droiddeck.launcher.hud.HudMetrics
 import com.droiddeck.launcher.hud.MangoReadings
 import com.droiddeck.launcher.runtime.LinuxRuntime
@@ -40,6 +46,7 @@ import com.droiddeck.launcher.session.GameStatusFiles
 import com.droiddeck.launcher.session.GameTelemetry
 import com.droiddeck.launcher.session.SessionState
 import com.droiddeck.launcher.session.Telemetry
+import com.droiddeck.launcher.session.TelemetryOutput
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -61,6 +68,7 @@ private const val THUNDER_MS = 500L
 private const val THUNDER_RETRY_MS = 3_000L
 private const val ELITE_MS = 1_000L
 private const val ELITE_SEARCH_MS = 10_000L
+private const val OUTPUT_SCAN_MS = 3_000L
 
 /** What arrives on one telemetry port; written only by that port's listener. */
 private class PortTraffic {
@@ -72,9 +80,15 @@ private class PortTraffic {
 private data class UnknownTraffic(val port: Int, val packets: Long, val length: Int)
 
 @Composable
-fun BottomTelemetryPage(fps: () -> Float?) {
+fun BottomTelemetryPage(fps: () -> Float?, runningGame: () -> String? = { null }) {
     val context = LocalContext.current
     val colors = MaterialTheme.colorScheme
+    val scope = rememberCoroutineScope()
+    var outputs by remember { mutableStateOf<List<TelemetryOutput.Game>>(emptyList()) }
+    var menuGames by remember { mutableStateOf<List<TelemetryOutput.MenuGame>>(emptyList()) }
+    var running by remember { mutableStateOf<String?>(null) }
+    var outputFailed by remember { mutableStateOf<String?>(null) }
+    var rescan by remember { mutableIntStateOf(0) }
     val latest = remember { AtomicReference<Pair<Long, Telemetry>?>(null) }
     var race by remember { mutableStateOf<Telemetry?>(null) }
     var fpsNow by remember { mutableStateOf<Float?>(null) }
@@ -159,6 +173,18 @@ fun BottomTelemetryPage(fps: () -> Float?) {
             delay(ELITE_MS)
         }
     }
+    LaunchedEffect(Unit) {
+        menuGames = withContext(Dispatchers.IO) {
+            runCatching { Library.steamGames(context).mapNotNull { TelemetryOutput.MENU_GAMES[it.appId] }.distinct() }.getOrDefault(emptyList())
+        }
+    }
+    LaunchedEffect(rescan) {
+        while (isActive) {
+            outputs = withContext(Dispatchers.IO) { runCatching { TelemetryOutput.scan(Library.compatdataDirs(context)) }.getOrDefault(emptyList()) }
+            running = runningGame()
+            delay(OUTPUT_SCAN_MS)
+        }
+    }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         DeviceRow(fpsNow, device)
@@ -180,6 +206,32 @@ fun BottomTelemetryPage(fps: () -> Float?) {
         if (race == null && thunder.isEmpty() && elite == null) {
             Text(stringResource(R.string.bottom_telemetry_help),
                 fontSize = 14.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(horizontal = 4.dp))
+        }
+        if (outputs.isNotEmpty() || menuGames.isNotEmpty()) TelemetryCard(stringResource(R.string.bottom_telemetry_send_title)) {
+            for (game in outputs) {
+                val locked = TelemetryOutput.isRunning(game.prefixId, running)
+                Row(
+                    Modifier.fillMaxWidth().toggleable(game.on, enabled = !locked, role = Role.Switch) { want ->
+                        scope.launch {
+                            val ok = withContext(Dispatchers.IO) { TelemetryOutput.set(game, want) }
+                            outputFailed = if (ok) null else game.name
+                            rescan++
+                        }
+                    }.padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f).padding(end = 12.dp)) {
+                        Text(game.name, fontSize = 15.sp, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        if (locked) Text(stringResource(R.string.bottom_telemetry_send_close, game.name), fontSize = 12.sp, color = colors.onSurfaceVariant)
+                    }
+                    Switch(game.on, null, enabled = !locked)
+                }
+            }
+            for (game in menuGames) {
+                Text(stringResource(R.string.bottom_telemetry_send_menu, game.name, game.setting, game.port), fontSize = 13.sp, color = colors.onSurfaceVariant)
+            }
+            if (outputs.isNotEmpty()) Text(stringResource(R.string.bottom_telemetry_send_note), fontSize = 12.sp, color = colors.onSurfaceVariant)
+            outputFailed?.let { Text(stringResource(R.string.bottom_telemetry_send_failed, it), fontSize = 12.sp, color = colors.error) }
         }
         for (u in unknown) {
             Text(stringResource(R.string.bottom_telemetry_unknown_format, u.port, u.packets, u.length), fontSize = 13.sp,
