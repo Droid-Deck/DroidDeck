@@ -66,4 +66,15 @@ class GameStorageTest {
         assertEquals(steam.path, GameStorage.effective(app)?.path)
         assertEquals("USB drive", GameStorage.effective(app)?.label)
     }
+
+    @Test fun onlyASavedDriveThatIsMissingCountsAsDisconnected() {
+        SessionPrefs.setGameStorage(app, "", "")
+        assertFalse(GameStorage.disconnected(app))
+        SessionPrefs.setGameStorage(app, SessionPrefs.GAME_STORAGE_OFF, "")
+        assertFalse(GameStorage.disconnected(app))
+        SessionPrefs.setGameStorage(app, "/storage/0000-0000/Android/data/com.droiddeck.launcher/files/steam", "USB drive")
+        assertTrue(GameStorage.disconnected(app))
+        SessionPrefs.setGameStorage(app, tmp.newFolder("plugged").path, "USB drive")
+        assertFalse(GameStorage.disconnected(app))
+    }
 }
