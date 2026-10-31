@@ -93,13 +93,13 @@ internal object GameJoltProbe {
         null
     }
 
-    private fun routeWords(found: Collection<String>): Set<String> {
+    private fun routeWords(found: Collection<String>, minCount: Int = MIN_ROUTE_COUNT): Set<String> {
         val counts = HashMap<String, Int>()
         found.forEach { raw ->
             val path = raw.substringBefore('?').substringBefore('#').substringAfter("://").let { if (raw.contains("://")) it.substringAfter('/', "") else it }
             path.split('/').filter { it.matches(WORD) }.toSet().forEach { counts[it] = (counts[it] ?: 0) + 1 }
         }
-        return counts.filterValues { it >= MIN_ROUTE_COUNT }.keys
+        return counts.filterValues { it >= minCount }.keys
     }
 
     private fun keys(value: Any?, depth: Int, wraps: Int = MAX_WRAPS): String = when {
@@ -170,14 +170,15 @@ internal object GameJoltProbe {
             log("script code=${js.code} bytes=${js.body.length} url=$src")
             scan("script", js.body, fromScripts)
             scriptRef.findAll(js.body).map { it.groupValues[1] }
-                .mapNotNull { runCatching { URL(URL(src), it).toString() }.getOrNull() }
+                .mapNotNull { runCatching { URL(URL(js.finalUrl), it).toString() }.getOrNull() }
                 .filter { isGameJoltHost(it) && seen.add(it) }
                 .forEach { queue.addLast(it) }
         }
         log("scripts fetched: $fetched, still queued: ${queue.size}")
         val common = routeWords(found)
         found.map { shape(it, common) }.distinct().take(MAX_FOUND).forEach { log("page endpoint: $it", SecretScrub.Urls.KEEP_PATH) }
-        val ranked = fromScripts.sortedByDescending { interesting.containsMatchIn(it) }
+        val scriptWords = routeWords(fromScripts, 1)
+        val ranked = fromScripts.map { shape(it, scriptWords) }.distinct().sortedByDescending { interesting.containsMatchIn(it) }
         ranked.take(MAX_FOUND).forEach { log("script endpoint: $it", SecretScrub.Urls.KEEP_PATH) }
         log("endpoint strings total=${found.size + fromScripts.size}")
         if (id != null) {
