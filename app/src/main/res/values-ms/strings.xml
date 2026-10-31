@@ -2358,6 +2358,9 @@
     <string name="edit_target">Sasaran</string>
     <string name="edit_start_in">Mula dalam</string>
     <string name="edit_launch_options">Pilihan pelancaran</string>
+    <string name="edit_launch_options_steam_hint">Dikongsi dengan Properties dalam Steam: perubahan di salah satu tempat dipaparkan di kedua-duanya.</string>
+    <string name="edit_launch_options_not_saved">Tidak dapat menyimpan pilihan pelancaran ke Steam. Cuba lagi.</string>
+    <string name="edit_launch_options_desktop">Steam mungkin terbuka dalam sesi desktop. Tukar pilihan pelancaran dalam Properties Steam, atau tutup sesi itu dahulu.</string>
     <string name="edit_artwork">Seni</string>
     <string name="edit_other_exe">Exe lain…</string>
     <string name="edit_remove">Alih keluar</string>

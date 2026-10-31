@@ -2325,6 +2325,9 @@
     <string name="edit_target">ターゲット</string>
     <string name="edit_start_in">開始フォルダ</string>
     <string name="edit_launch_options">起動オプション</string>
+    <string name="edit_launch_options_steam_hint">Steam のプロパティと共通です。どちらかで変更すると両方に反映されます。</string>
+    <string name="edit_launch_options_not_saved">起動オプションを Steam に保存できませんでした。もう一度お試しください。</string>
+    <string name="edit_launch_options_desktop">デスクトップのセッションで Steam が開いている可能性があります。Steam のプロパティで起動オプションを変更するか、先にセッションを終了してください。</string>
     <string name="edit_artwork">アートワーク</string>
     <string name="edit_other_exe">別の exe…</string>
     <string name="edit_remove">削除</string>

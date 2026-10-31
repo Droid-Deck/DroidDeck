@@ -2381,6 +2381,9 @@
     <string name="edit_target">Cél</string>
     <string name="edit_start_in">Indítás innen</string>
     <string name="edit_launch_options">Indítási beállítások</string>
+    <string name="edit_launch_options_steam_hint">Közös a Steam Tulajdonságaival: az egyik helyen végzett módosítás mindkettőben megjelenik.</string>
+    <string name="edit_launch_options_not_saved">Az indítási beállításokat nem sikerült menteni a Steambe. Próbáld újra.</string>
+    <string name="edit_launch_options_desktop">Lehet, hogy a Steam nyitva van az asztali munkamenetben. Módosítsd az indítási beállításokat a Tulajdonságaiban, vagy előbb zárd be a munkamenetet.</string>
     <string name="edit_artwork">Illusztráció</string>
     <string name="edit_other_exe">Másik exe…</string>
     <string name="edit_remove">Eltávolítás</string>

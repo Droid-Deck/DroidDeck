@@ -2370,6 +2370,9 @@
     <string name="edit_target">Ziel</string>
     <string name="edit_start_in">Ausführen in</string>
     <string name="edit_launch_options">Startoptionen</string>
+    <string name="edit_launch_options_steam_hint">Gemeinsam mit den Eigenschaften in Steam: Eine Änderung an einer Stelle gilt für beide.</string>
+    <string name="edit_launch_options_not_saved">Die Startoptionen konnten nicht in Steam gespeichert werden. Versuche es erneut.</string>
+    <string name="edit_launch_options_desktop">Steam ist eventuell in der Desktop-Sitzung geöffnet. Ändere die Startoptionen dort in den Eigenschaften oder beende zuerst die Sitzung.</string>
     <string name="edit_artwork">Grafiken</string>
     <string name="edit_other_exe">Andere EXE…</string>
     <string name="edit_remove">Entfernen</string>

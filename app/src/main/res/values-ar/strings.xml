@@ -2473,6 +2473,9 @@
     <string name="edit_target">الهدف</string>
     <string name="edit_start_in">بدء التشغيل في</string>
     <string name="edit_launch_options">خيارات التشغيل</string>
+    <string name="edit_launch_options_steam_hint">مشتركة مع خصائص Steam: أي تغيير في أحدهما يظهر في كليهما.</string>
+    <string name="edit_launch_options_not_saved">تعذّر حفظ خيارات التشغيل في Steam. حاول مرة أخرى.</string>
+    <string name="edit_launch_options_desktop">قد يكون Steam مفتوحًا في جلسة سطح المكتب. غيّر خيارات التشغيل من خصائصه، أو أغلق الجلسة أولًا.</string>
     <string name="edit_artwork">الصور الفنية</string>
     <string name="edit_other_exe">ملف exe آخر…</string>
     <string name="edit_remove">إزالة</string>

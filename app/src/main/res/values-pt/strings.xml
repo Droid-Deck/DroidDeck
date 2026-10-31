@@ -2393,6 +2393,9 @@
     <string name="edit_target">Destino</string>
     <string name="edit_start_in">Iniciar em</string>
     <string name="edit_launch_options">Opções de inicialização</string>
+    <string name="edit_launch_options_steam_hint">Compartilhadas com as Propriedades da Steam: uma alteração em um dos lugares aparece nos dois.</string>
+    <string name="edit_launch_options_not_saved">Não foi possível salvar as opções de inicialização na Steam. Tente novamente.</string>
+    <string name="edit_launch_options_desktop">A Steam pode estar aberta na sessão da área de trabalho. Altere as opções de inicialização nas Propriedades dela ou feche a sessão primeiro.</string>
     <string name="edit_artwork">Artes</string>
     <string name="edit_other_exe">Outro exe…</string>
     <string name="edit_remove">Remover</string>

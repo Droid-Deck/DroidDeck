@@ -2358,6 +2358,9 @@
     <string name="edit_target">เป้าหมาย</string>
     <string name="edit_start_in">เริ่มที่</string>
     <string name="edit_launch_options">ตัวเลือกการเปิด</string>
+    <string name="edit_launch_options_steam_hint">ใช้ร่วมกับคุณสมบัติใน Steam: เปลี่ยนที่ใดที่หนึ่งก็จะแสดงในทั้งสองที่</string>
+    <string name="edit_launch_options_not_saved">บันทึกตัวเลือกการเปิดลงใน Steam ไม่ได้ ลองอีกครั้ง</string>
+    <string name="edit_launch_options_desktop">Steam อาจเปิดอยู่ในเซสชันเดสก์ท็อป เปลี่ยนตัวเลือกการเปิดในคุณสมบัติของ Steam หรือปิดเซสชันก่อน</string>
     <string name="edit_artwork">ภาพปก</string>
     <string name="edit_other_exe">exe อื่น…</string>
     <string name="edit_remove">ลบ</string>

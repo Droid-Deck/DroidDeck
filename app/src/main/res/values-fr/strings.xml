@@ -2401,6 +2401,9 @@
     <string name="edit_target">Cible</string>
     <string name="edit_start_in">Démarrer dans</string>
     <string name="edit_launch_options">Options de lancement</string>
+    <string name="edit_launch_options_steam_hint">Partagées avec les Propriétés de Steam : une modification d’un côté apparaît des deux.</string>
+    <string name="edit_launch_options_not_saved">Impossible d’enregistrer les options de lancement dans Steam. Réessayez.</string>
+    <string name="edit_launch_options_desktop">Steam est peut-être ouvert dans la session Bureau. Modifiez les options de lancement dans ses Propriétés, ou fermez d’abord la session.</string>
     <string name="edit_artwork">Illustrations</string>
     <string name="edit_other_exe">Autre exe…</string>
     <string name="edit_remove">Retirer</string>

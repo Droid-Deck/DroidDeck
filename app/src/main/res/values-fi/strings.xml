@@ -2381,6 +2381,9 @@
     <string name="edit_target">Kohde</string>
     <string name="edit_start_in">Käynnistyskansio</string>
     <string name="edit_launch_options">Käynnistysasetukset</string>
+    <string name="edit_launch_options_steam_hint">Jaettu Steamin Ominaisuuksien kanssa: muutos jommassakummassa näkyy molemmissa.</string>
+    <string name="edit_launch_options_not_saved">Käynnistysasetuksia ei voitu tallentaa Steamiin. Yritä uudelleen.</string>
+    <string name="edit_launch_options_desktop">Steam voi olla auki työpöytäistunnossa. Muuta käynnistysasetuksia sen Ominaisuuksista tai sulje istunto ensin.</string>
     <string name="edit_artwork">Kuvitus</string>
     <string name="edit_other_exe">Toinen exe…</string>
     <string name="edit_remove">Poista</string>
