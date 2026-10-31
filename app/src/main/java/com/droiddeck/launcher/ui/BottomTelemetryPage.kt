@@ -63,6 +63,15 @@ private const val THUNDER_RETRY_MS = 3_000L
 private const val ELITE_MS = 1_000L
 private const val ELITE_SEARCH_MS = 10_000L
 
+/** What arrives on one telemetry port; written only by that port's listener. */
+private class PortTraffic {
+    @Volatile var packets = 0L
+    @Volatile var length = 0
+    @Volatile var readable = true
+}
+
+private data class UnknownTraffic(val port: Int, val packets: Long, val length: Int)
+
 @Composable
 fun BottomTelemetryPage(fps: () -> Float?) {
     val context = LocalContext.current
@@ -74,6 +83,8 @@ fun BottomTelemetryPage(fps: () -> Float?) {
     var thunder by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
     var elite by remember { mutableStateOf<GameStatusFiles.Elite?>(null) }
     var busyPorts by remember { mutableStateOf<Set<Int>>(emptySet()) }
+    val traffic = remember { GameTelemetry.PORTS.associateWith { PortTraffic() } }
+    var unknown by remember { mutableStateOf<List<UnknownTraffic>>(emptyList()) }
 
     LaunchedEffect(Unit) {
         for (port in GameTelemetry.PORTS) launch(Dispatchers.IO) {
@@ -88,6 +99,7 @@ fun BottomTelemetryPage(fps: () -> Float?) {
                 withContext(Dispatchers.Main) { busyPorts = busyPorts + port }
                 return@launch
             }
+            val seen = traffic.getValue(port)
             socket.use {
                 val data = ByteArray(2048)
                 val packet = DatagramPacket(data, data.size)
@@ -95,7 +107,11 @@ fun BottomTelemetryPage(fps: () -> Float?) {
                     try {
                         packet.length = data.size
                         it.receive(packet)
-                        GameTelemetry.parse(port, data, packet.length)?.let { t -> latest.set(System.currentTimeMillis() to t) }
+                        val t = GameTelemetry.parse(port, data, packet.length)
+                        seen.packets++
+                        seen.length = packet.length
+                        seen.readable = t != null
+                        if (t != null) latest.set(System.currentTimeMillis() to t)
                     } catch (_: SocketTimeoutException) {
                     } catch (_: java.io.IOException) {
                         break
@@ -107,6 +123,7 @@ fun BottomTelemetryPage(fps: () -> Float?) {
             val reading = latest.get()
             race = reading?.takeIf { System.currentTimeMillis() - it.first < TELEMETRY_STALE_MS }?.second
             fpsNow = fps()
+            unknown = traffic.filter { (_, t) -> t.packets > 0 && !t.readable }.map { (port, t) -> UnknownTraffic(port, t.packets, t.length) }
             delay(DRAW_MS)
         }
     }
@@ -164,6 +181,10 @@ fun BottomTelemetryPage(fps: () -> Float?) {
         if (race == null && thunder.isEmpty() && elite == null) {
             Text(stringResource(R.string.bottom_telemetry_help, GameTelemetry.CODEMASTERS_PORT, GameTelemetry.FORZA_PORT, GameTelemetry.OUTGAUGE_PORT),
                 fontSize = 14.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(horizontal = 4.dp))
+        }
+        for (u in unknown) {
+            Text(stringResource(R.string.bottom_telemetry_unknown_format, u.port, u.packets, u.length), fontSize = 13.sp,
+                color = colors.error, modifier = Modifier.padding(horizontal = 4.dp))
         }
         if (busyPorts.isNotEmpty()) {
             Text(stringResource(R.string.bottom_telemetry_port_busy, busyPorts.sorted().joinToString()), fontSize = 13.sp,

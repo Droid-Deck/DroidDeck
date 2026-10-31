@@ -23,7 +23,7 @@ data class Telemetry(
 /**
  * Racing telemetry games send over UDP to 127.0.0.1. Each format has its own port, the one the game or
  * its common tools use by default:
- * - [CODEMASTERS_PORT]: DiRT Rally 1/2, DiRT 4, GRID ("extradata 3" float array).
+ * - [CODEMASTERS_PORT]: DiRT Rally 1/2, DiRT 4, GRID ("extradata 3" float array), DiRT Showdown (152-byte packet).
  * - [FORZA_PORT]: Forza Motorsport 7/2023 and Forza Horizon 4/5 "Data Out" (Sled and Dash).
  * - [OUTGAUGE_PORT]: BeamNG.drive and Live for Speed OutGauge.
  */
@@ -45,7 +45,8 @@ object GameTelemetry {
 
     private const val MPS_TO_KMH = 3.6f
 
-    // Float indexes of the Codemasters "extradata 3" packet; engine rpm values are sent divided by 10.
+    // Float indexes of the Codemasters packet; engine rpm values are sent divided by 10. Older games
+    // (DiRT Showdown) send only the first 38 floats, so lap count, position, fuel and max rpm are missing there.
     private const val CM_LAP_TIME = 1
     private const val CM_SPEED = 7
     private const val CM_THROTTLE = 29
@@ -59,11 +60,12 @@ object GameTelemetry {
     private const val CM_LAPS = 60
     private const val CM_LAST_LAP = 62
     private const val CM_MAX_RPM = 63
-    private const val CM_FLOATS = 64
+    private const val CM_MIN_FLOATS = 38
 
     internal fun codemasters(buf: ByteBuffer, length: Int): Telemetry? {
-        if (length < CM_FLOATS * 4) return null
-        fun f(i: Int) = buf.getFloat(i * 4)
+        if (length < CM_MIN_FLOATS * 4) return null
+        val floats = length / 4
+        fun f(i: Int) = if (i < floats) buf.getFloat(i * 4) else 0f
         val gear = f(CM_GEAR).toInt()
         val capacity = f(CM_FUEL_CAPACITY)
         return Telemetry(
