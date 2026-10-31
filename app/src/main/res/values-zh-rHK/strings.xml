@@ -2460,6 +2460,11 @@
     <string name="flathub_remove_note">其設定和檔案會保留。</string>
     <string name="flathub_keep">保留</string>
     <string name="desktop_size">佔用空間</string>
+    <string name="desktop_language">語言包</string>
+    <string name="desktop_language_installed">%1$s · 已安裝</string>
+    <string name="desktop_language_missing">%1$s · 未安裝</string>
+    <string name="desktop_language_builtin">%1$s · 內置</string>
+    <string name="desktop_language_reinstall">重新安裝</string>
     <string name="desktop_uninstall_title">解除安裝桌面？</string>
     <string name="desktop_all_systems">全部</string>
     <string name="gog_achievements">GOG 成就</string>

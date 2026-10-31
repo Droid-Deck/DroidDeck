@@ -2459,6 +2459,11 @@
     <string name="flathub_remove_note">設定とファイルは保持されます。</string>
     <string name="flathub_keep">保持</string>
     <string name="desktop_size">ディスク上のサイズ</string>
+    <string name="desktop_language">言語パック</string>
+    <string name="desktop_language_installed">%1$s · インストール済み</string>
+    <string name="desktop_language_missing">%1$s · 未インストール</string>
+    <string name="desktop_language_builtin">%1$s · 組み込み</string>
+    <string name="desktop_language_reinstall">再インストール</string>
     <string name="desktop_uninstall_title">デスクトップをアンインストールしますか？</string>
     <string name="desktop_all_systems">すべて</string>
     <string name="gog_achievements">GOGの実績</string>

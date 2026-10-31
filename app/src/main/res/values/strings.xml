@@ -2647,6 +2647,11 @@
     <string name="flathub_remove_note">Its settings and files are kept.</string>
     <string name="flathub_keep">Keep</string>
     <string name="desktop_size">Size on disk</string>
+    <string name="desktop_language">Language pack</string>
+    <string name="desktop_language_installed">%1$s · Installed</string>
+    <string name="desktop_language_missing">%1$s · Not installed</string>
+    <string name="desktop_language_builtin">%1$s · Built in</string>
+    <string name="desktop_language_reinstall">Reinstall</string>
     <string name="desktop_uninstall_title">Uninstall the desktop?</string>
     <string name="desktop_all_systems">All</string>
     <string name="gog_achievements">GOG achievements</string>
