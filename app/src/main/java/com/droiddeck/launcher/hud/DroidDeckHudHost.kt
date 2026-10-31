@@ -254,64 +254,60 @@ class DroidDeckHudHost(context: Context) {
     }
 
     /**
-     * The HUD shrinks toward the screen edge it docks to and the tab grows out of that edge; undocking plays
-     * it the other way. [commit] swaps the layout while the view is invisible between the two halves. Timing
-     * and curve are the launcher's own ([Motion]), and off when animations are off.
+     * One shape contracts into the tab, and the tab expands back out to the HUD: the view is scaled onto the
+     * tab's exact rectangle, and the layouts swap at that same size and place. Timing and curve are the
+     * launcher's own ([Motion]), and off when animations are off.
      */
     private fun animateDock(hud: DroidDeckHudView, edge: DroidDeckHudDock, commit: () -> Unit) {
         hud.animate().cancel()
         hud.scaleX = 1f; hud.scaleY = 1f; hud.alpha = 1f
         val p = hud.parent as? View
         if (Motion.scale == 0f || p == null || !hud.isLaidOut || hud.width <= 0) { commit(); return }
-        val side = if (edge == DroidDeckHudDock.NONE) hud.dock else edge
-        val cx = hud.x + hud.width / 2f
-        val cy = hud.y + hud.height / 2f
-        fun pivotToward(v: View) {
-            when (side) {
-                DroidDeckHudDock.LEFT -> { v.pivotX = -v.x; v.pivotY = cy - v.y }
-                DroidDeckHudDock.RIGHT -> { v.pivotX = p.width - v.x; v.pivotY = cy - v.y }
-                DroidDeckHudDock.TOP -> { v.pivotX = cx - v.x; v.pivotY = -v.y }
-                DroidDeckHudDock.BOTTOM -> { v.pivotX = cx - v.x; v.pivotY = p.height - v.y }
-                DroidDeckHudDock.NONE -> {}
-            }
+        if (edge != DroidDeckHudDock.NONE) {
+            val (tabW, tabH) = hud.dockTabSize()
+            val (tabX, tabY) = settled(p, edge, tabW, tabH)
+            val sx = tabW / hud.width; val sy = tabH / hud.height
+            hud.pivotX = pivotFor(hud.x, tabX, sx) - hud.x
+            hud.pivotY = pivotFor(hud.y, tabY, sy) - hud.y
+            hud.animate().scaleX(sx).scaleY(sy).setDuration(Motion.ms(300).toLong()).setInterpolator(EASE)
+                .withEndAction {
+                    commit()
+                    hud.scaleX = 1f; hud.scaleY = 1f
+                    hud.x = tabX; hud.y = tabY
+                    hud.alpha = 0.5f
+                    hud.animate().alpha(1f).setDuration(Motion.ms(120).toLong()).start()
+                }.start()
+        } else {
+            val tabX = hud.x; val tabY = hud.y
+            val tabW = hud.width.toFloat(); val tabH = hud.height.toFloat()
+            commit()
+            val w = hud.contentWidth; val h = hud.contentHeight
+            val (x, y) = settled(p, DroidDeckHudDock.NONE, w, h)
+            hud.x = x; hud.y = y
+            val sx = tabW / w; val sy = tabH / h
+            hud.pivotX = pivotFor(x, tabX, sx) - x
+            hud.pivotY = pivotFor(y, tabY, sy) - y
+            hud.scaleX = sx; hud.scaleY = sy
+            hud.animate().scaleX(1f).scaleY(1f).setDuration(Motion.ms(360).toLong()).setInterpolator(EASE).start()
         }
-        pivotToward(hud)
-        hud.animate().scaleX(TUCKED).scaleY(TUCKED).alpha(0f)
-            .setDuration(Motion.ms(150).toLong()).setInterpolator(EXIT)
-            .withEndAction {
-                commit()
-                // The new layout is not measured yet; its size is known from the rebuild, and the edge it grows
-                // from is the view's own edge, so there is no frame to wait for.
-                val w = hud.contentWidth; val h = hud.contentHeight
-                placeNow(hud, p, w, h)
-                hud.pivotX = when (side) {
-                    DroidDeckHudDock.LEFT -> 0f
-                    DroidDeckHudDock.RIGHT -> w
-                    else -> (cx - hud.x).coerceIn(0f, w)
-                }
-                hud.pivotY = when (side) {
-                    DroidDeckHudDock.TOP -> 0f
-                    DroidDeckHudDock.BOTTOM -> h
-                    else -> (cy - hud.y).coerceIn(0f, h)
-                }
-                hud.scaleX = TUCKED; hud.scaleY = TUCKED; hud.alpha = 0f
-                hud.animate().scaleX(1f).scaleY(1f).alpha(1f)
-                    .setDuration(Motion.ms(360).toLong()).setInterpolator(EASE).start()
-            }.start()
     }
 
-    /** Puts the HUD where [keepOnScreen] will settle it once its new size is laid out, so it does not start the animation off screen. */
-    private fun placeNow(v: DroidDeckHudView, p: View, w: Float, h: Float) {
+    /** The pivot, in parent coordinates, that scaling by [scale] takes a span starting at [from] onto one starting at [to]. */
+    private fun pivotFor(from: Float, to: Float, scale: Float): Float =
+        if (scale > 0.999f) from else (to - from * scale) / (1f - scale)
+
+    /** Where a [w] x [h] HUD or tab sits once [keepOnScreen] has settled it against [dock]. */
+    private fun settled(p: View, dock: DroidDeckHudDock, w: Float, h: Float): Pair<Float, Float> {
         val maxX = (p.width - w).coerceAtLeast(0f); val maxY = (p.height - h).coerceAtLeast(0f)
         var x = wantX.coerceIn(0f, maxX); var y = wantY.coerceIn(0f, maxY)
-        when (v.dock) {
+        when (dock) {
             DroidDeckHudDock.LEFT -> x = 0f
             DroidDeckHudDock.RIGHT -> x = maxX
             DroidDeckHudDock.TOP -> y = 0f
             DroidDeckHudDock.BOTTOM -> y = maxY
             DroidDeckHudDock.NONE -> {}
         }
-        v.x = x; v.y = y
+        return Pair(x, y)
     }
 
     // The HUD is clamped from where the user left it (wantX/wantY, set on a drop or restore), not from where
@@ -339,10 +335,7 @@ class DroidDeckHudHost(context: Context) {
     companion object {
         /** How much of the HUD, as a share of its own size, must hang past a screen edge for it to dock there. */
         private const val DOCK_OVERHANG = 0.4f
-        private const val TUCKED = 0.3f
         private val EASE = PathInterpolator(0.2f, 0.8f, 0.2f, 1f)
-        // The way out speeds up so the HUD stays in view until the way back in takes over.
-        private val EXIT = PathInterpolator(0.4f, 0f, 1f, 1f)
 
         /** True while the HUD is on screen; DroidDeck keeps sampling VRAM for it (GpuMemComponent). */
         @Volatile @JvmStatic var showing = false

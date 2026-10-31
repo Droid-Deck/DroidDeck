@@ -549,15 +549,20 @@ class DroidDeckHudView(context: Context) : View(context) {
 
     /** The docked tab: the FPS alone, in a box square on the edge it sits against. */
     private fun buildDockTab() {
-        val numPx = sp(20f); val unitPx = sp(8.5f)
-        val spans = listOf(Span(one(fpsNow), colValue, numPx), Span("fps", colDim, unitPx))
+        val numPx = sp(20f)
+        val spans = tabSpans()
         val padX = sp(9f); val padY = sp(7f)
-        val cap = capHeight(numPx)
-        placeRun(padX, padY + cap, spans)
-        contentW = runWidth(spans) + 2f * padX
-        contentH = cap + 2f * padY
+        placeRun(padX, padY + capHeight(numPx), spans)
+        val (w, h) = dockTabSize()
+        contentW = w; contentH = h
         tabRect = RectF(0f, 0f, contentW, contentH)
     }
+
+    private fun tabSpans() = listOf(Span(one(fpsNow), colValue, sp(20f)), Span("fps", colDim, sp(8.5f)))
+
+    /** The size the docked tab has, so the HUD can contract to exactly that shape before the tab replaces it. */
+    internal fun dockTabSize(): Pair<Float, Float> =
+        Pair(runWidth(tabSpans()) + 2f * sp(9f), capHeight(sp(20f)) + 2f * sp(7f))
 
     private fun drawTab(canvas: Canvas, rect: RectF) {
         val r = sp(8f); val stroke = max(outlineWidth(), sp(1.5f)); val h = stroke / 2f
