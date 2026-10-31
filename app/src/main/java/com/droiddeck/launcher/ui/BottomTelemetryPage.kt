@@ -44,6 +44,7 @@ import com.droiddeck.launcher.hud.MangoReadings
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.session.GameStatusFiles
 import com.droiddeck.launcher.session.GameTelemetry
+import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.SessionState
 import com.droiddeck.launcher.session.Telemetry
 import com.droiddeck.launcher.session.TelemetryOutput
@@ -89,6 +90,7 @@ fun BottomTelemetryPage(fps: () -> Float?, runningGame: () -> String? = { null }
     var running by remember { mutableStateOf<String?>(null) }
     var outputFailed by remember { mutableStateOf<String?>(null) }
     var rescan by remember { mutableIntStateOf(0) }
+    var auto by remember { mutableStateOf(SessionPrefs.telemetryAuto(context)) }
     val latest = remember { AtomicReference<Pair<Long, Telemetry>?>(null) }
     var race by remember { mutableStateOf<Telemetry?>(null) }
     var fpsNow by remember { mutableStateOf<Float?>(null) }
@@ -208,23 +210,30 @@ fun BottomTelemetryPage(fps: () -> Float?, runningGame: () -> String? = { null }
                 fontSize = 14.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(horizontal = 4.dp))
         }
         if (outputs.isNotEmpty() || menuGames.isNotEmpty()) TelemetryCard(stringResource(R.string.bottom_telemetry_send_title)) {
+            if (outputs.isNotEmpty()) SwitchRow(stringResource(R.string.bottom_telemetry_send_auto), stringResource(R.string.bottom_telemetry_send_auto_hint), auto, true) { want ->
+                scope.launch {
+                    withContext(Dispatchers.IO) {
+                        SessionPrefs.setTelemetryAuto(context, want)
+                        if (want) TelemetryOutput.applyAutomatic(context, running)
+                        else TelemetryOutput.restoreTargets(outputs, running).forEach { TelemetryOutput.set(it, false) }
+                    }
+                    auto = want
+                    rescan++
+                }
+            }
             for (game in outputs) {
                 val locked = TelemetryOutput.isRunning(game.prefixId, running)
-                Row(
-                    Modifier.fillMaxWidth().toggleable(game.on, enabled = !locked, role = Role.Switch) { want ->
-                        scope.launch {
-                            val ok = withContext(Dispatchers.IO) { TelemetryOutput.set(game, want) }
-                            outputFailed = if (ok) null else game.name
-                            rescan++
+                SwitchRow(game.name, if (locked) stringResource(R.string.bottom_telemetry_send_close, game.name) else null, game.on, !locked) { want ->
+                    scope.launch {
+                        val ok = withContext(Dispatchers.IO) {
+                            val key = TelemetryOutput.key(game)
+                            val off = SessionPrefs.telemetryOff(context)
+                            SessionPrefs.setTelemetryOff(context, if (want) off - key else off + key)
+                            TelemetryOutput.set(game, want)
                         }
-                    }.padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(Modifier.weight(1f).padding(end = 12.dp)) {
-                        Text(game.name, fontSize = 15.sp, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        if (locked) Text(stringResource(R.string.bottom_telemetry_send_close, game.name), fontSize = 12.sp, color = colors.onSurfaceVariant)
+                        outputFailed = if (ok) null else game.name
+                        rescan++
                     }
-                    Switch(game.on, null, enabled = !locked)
                 }
             }
             for (game in menuGames) {
@@ -265,6 +274,21 @@ private fun DeviceRow(fps: Float?, s: HudMetrics.Snapshot?) {
             .joinToString(" ").ifEmpty { "–" }, Modifier.weight(1f))
         TelemetryTile(stringResource(R.string.bottom_telemetry_battery), listOfNotNull(s?.battery?.percent?.let { "$it%" },
             s?.battery?.watts?.takeIf { it > 0f }?.let { "%.1fW".format(it) }).joinToString(" ").ifEmpty { "–" }, Modifier.weight(1f))
+    }
+}
+
+@Composable
+private fun SwitchRow(title: String, hint: String?, checked: Boolean, enabled: Boolean, onChange: (Boolean) -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    Row(
+        Modifier.fillMaxWidth().toggleable(checked, enabled = enabled, role = Role.Switch, onValueChange = onChange).padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f).padding(end = 12.dp)) {
+            Text(title, fontSize = 15.sp, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (hint != null) Text(hint, fontSize = 12.sp, color = colors.onSurfaceVariant)
+        }
+        Switch(checked, null, enabled = enabled)
     }
 }
 
