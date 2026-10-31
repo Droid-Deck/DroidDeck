@@ -85,7 +85,7 @@ object BottomScreenshots {
         shots
     }.getOrDefault(emptyList())
 
-    /** userdata/<account>/760/remote/<app>/screenshots/*.jpg in each Steam home; the thumbnails folder is skipped. */
+    /** The .jpg files in userdata/<account>/760/remote/<app>/screenshots of each Steam home; the thumbnails folder is skipped. */
     internal fun steam(runtimeRoot: File): List<BottomShot> =
         SteamDownloadMonitor.STEAM_HOMES.flatMap { home ->
             File(runtimeRoot, "$home/userdata").listFiles { f -> f.isDirectory }.orEmpty().flatMap { account ->
