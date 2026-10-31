@@ -1,6 +1,9 @@
 package com.droiddeck.launcher.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -46,6 +49,8 @@ import com.droiddeck.launcher.session.GameStatusFiles
 import com.droiddeck.launcher.session.GameTelemetry
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.SessionState
+import com.droiddeck.launcher.session.StatsDash
+import com.droiddeck.launcher.session.StatsStrip
 import com.droiddeck.launcher.session.Telemetry
 import com.droiddeck.launcher.session.TelemetryOutput
 import kotlinx.coroutines.Dispatchers
@@ -70,6 +75,8 @@ private const val THUNDER_RETRY_MS = 3_000L
 private const val ELITE_MS = 1_000L
 private const val ELITE_SEARCH_MS = 10_000L
 private const val OUTPUT_SCAN_MS = 3_000L
+/** Top strip history: one reading a second for 30 s. */
+private const val PERF_N = 30
 
 /** What arrives on one telemetry port; written only by that port's listener. */
 private class PortTraffic {
@@ -100,6 +107,18 @@ fun BottomTelemetryPage(fps: () -> Float?, runningGame: () -> String? = { null }
     var busyPorts by remember { mutableStateOf<Set<Int>>(emptySet()) }
     val traffic = remember { GameTelemetry.PORTS.associateWith { PortTraffic() } }
     var unknown by remember { mutableStateOf<List<UnknownTraffic>>(emptyList()) }
+    var strip by remember { mutableStateOf(StatsStrip.from(SessionPrefs.statsStrip(context))) }
+    var dash by remember { mutableStateOf(StatsDash.from(SessionPrefs.statsDash(context))) }
+    val fpsHistory = remember { History(PERF_N) }
+    val cpuHistory = remember { History(PERF_N) }
+    val gpuHistory = remember { History(PERF_N) }
+    val wattsHistory = remember { History(PERF_N) }
+    val throttleTrace = remember { History(TRACE_N) }
+    val brakeTrace = remember { History(TRACE_N) }
+    val speedTrace = remember { History(TRACE_N) }
+    var perfTick by remember { mutableIntStateOf(0) }
+    var traceTick by remember { mutableIntStateOf(0) }
+    var clock by remember { mutableStateOf("") }
 
     LaunchedEffect(Unit) {
         for (port in GameTelemetry.PORTS) launch(Dispatchers.IO) {
@@ -137,6 +156,12 @@ fun BottomTelemetryPage(fps: () -> Float?, runningGame: () -> String? = { null }
         while (isActive) {
             val reading = latest.get()
             race = reading?.takeIf { System.currentTimeMillis() - it.first < TELEMETRY_STALE_MS }?.second
+            race?.let { r ->
+                throttleTrace.add(r.throttle ?: 0f)
+                brakeTrace.add(r.brake ?: 0f)
+                speedTrace.add(r.speedKmh ?: 0f)
+                traceTick++
+            }
             fpsNow = fps()
             unknown = traffic.filter { (_, t) -> t.packets > 0 && !t.readable }.map { (port, t) -> UnknownTraffic(port, t.packets, t.length) }
             delay(DRAW_MS)
@@ -146,6 +171,14 @@ fun BottomTelemetryPage(fps: () -> Float?, runningGame: () -> String? = { null }
         val metrics = HudMetrics(context).apply { setMangoReadings(MangoReadings(File(context.filesDir, "session"), LinuxRuntime.rootDir(context))) }
         while (isActive) {
             device = withContext(Dispatchers.IO) { runCatching { metrics.snapshot() }.getOrNull() }
+            fps()?.takeIf { it > 0f }?.let { fpsHistory.add(it) }
+            device?.let { s ->
+                s.cpuPercent?.let { cpuHistory.add(it.toFloat()) }
+                s.gpuPercent?.let { gpuHistory.add(it.toFloat()) }
+                s.battery?.watts?.takeIf { it > 0f }?.let { wattsHistory.add(it) }
+            }
+            clock = java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT).format(java.util.Date())
+            perfTick++
             delay(METRICS_MS)
         }
     }
@@ -189,11 +222,28 @@ fun BottomTelemetryPage(fps: () -> Float?, runningGame: () -> String? = { null }
     }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        DeviceRow(fpsNow, device)
-        race?.let { RaceDash(it) }
-        if (thunder.isNotEmpty()) TelemetryCard(stringResource(R.string.bottom_telemetry_war_thunder)) { ValueGrid(thunder) }
+        perfTick.let {
+            StatsStripView(strip, StripData(fpsNow, device, fpsHistory.snapshot(), cpuHistory.snapshot(), gpuHistory.snapshot(), wattsHistory.snapshot(), clock)) {
+                strip = strip.next()
+                SessionPrefs.setStatsStrip(context, strip.id)
+            }
+        }
+        race?.let { r ->
+            val shown = dash.resolve(r.source)
+            traceTick.let {
+                RaceDashView(shown, r, TraceData(throttleTrace.snapshot(), brakeTrace.snapshot(), speedTrace.snapshot())) {
+                    dash = StatsDash.tapped(shown)
+                    SessionPrefs.setStatsDash(context, dash.id)
+                }
+            }
+        }
+        if (thunder.isNotEmpty()) {
+            if (FlightLabels.drawable(thunder)) FlightDash(thunder)
+            else TelemetryCard(stringResource(R.string.bottom_telemetry_war_thunder)) { ValueGrid(thunder.take(GameStatusFiles.WAR_THUNDER_ROWS)) }
+        }
         elite?.let { e ->
-            TelemetryCard(stringResource(R.string.bottom_telemetry_elite)) {
+            if (e.pips != null || e.fuelMain != null) ShipDash(e)
+            else TelemetryCard(stringResource(R.string.bottom_telemetry_elite)) {
                 ValueGrid(listOfNotNull(
                     e.fuelMain?.let { stringResource(R.string.bottom_telemetry_fuel) to "%.1f t".format(it) },
                     e.cargo?.let { stringResource(R.string.bottom_telemetry_cargo) to "%.0f t".format(it) },
@@ -250,6 +300,54 @@ fun BottomTelemetryPage(fps: () -> Float?, runningGame: () -> String? = { null }
             Text(stringResource(R.string.bottom_telemetry_port_busy, busyPorts.sorted().joinToString()), fontSize = 13.sp,
                 color = colors.error, modifier = Modifier.padding(horizontal = 4.dp))
         }
+        LayoutPicker(strip, dash,
+            onStrip = { strip = it; SessionPrefs.setStatsStrip(context, it.id) },
+            onDash = { dash = it; SessionPrefs.setStatsDash(context, it.id) })
+    }
+}
+
+@Composable
+private fun LayoutPicker(strip: StatsStrip, dash: StatsDash, onStrip: (StatsStrip) -> Unit, onDash: (StatsDash) -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    TelemetryCard(stringResource(R.string.stats_layout)) {
+        PickRow(stringResource(R.string.stats_layout_top), StatsStrip.entries.map { it to stringResource(stripLabel(it)) }, strip, onStrip)
+        PickRow(stringResource(R.string.stats_layout_dash), StatsDash.entries.map { it to stringResource(dashLabel(it)) }, dash, onDash)
+        Text(stringResource(R.string.stats_layout_hint), fontSize = 12.sp, color = colors.onSurfaceVariant)
+    }
+}
+
+private fun stripLabel(s: StatsStrip): Int = when (s) {
+    StatsStrip.PANEL -> R.string.stats_strip_panel
+    StatsStrip.TILES -> R.string.stats_strip_tiles
+    StatsStrip.RINGS -> R.string.stats_strip_rings
+}
+
+private fun dashLabel(d: StatsDash): Int = when (d) {
+    StatsDash.AUTO -> R.string.stats_dash_auto
+    StatsDash.SPEEDOMETER -> R.string.stats_dash_speedometer
+    StatsDash.CIRCUIT -> R.string.stats_dash_circuit
+    StatsDash.TRACE -> R.string.stats_dash_trace
+    StatsDash.DIALS -> R.string.stats_dash_dials
+    StatsDash.GLANCE -> R.string.stats_dash_glance
+}
+
+@Composable
+private fun <T> PickRow(title: String, options: List<Pair<T, String>>, selected: T, onPick: (T) -> Unit) {
+    val pal = LocalPalette.current
+    val colors = MaterialTheme.colorScheme
+    val shape = RoundedCornerShape(50)
+    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(title, fontSize = 13.sp, color = colors.onSurfaceVariant, modifier = Modifier.width(44.dp))
+        for ((value, label) in options) {
+            val on = value == selected
+            Text(label, fontSize = 13.sp, fontWeight = if (on) FontWeight.Bold else FontWeight.Normal,
+                color = if (on) colors.background else colors.onBackground, maxLines = 1,
+                modifier = Modifier.clip(shape).background(if (on) pal.primary else Color.Transparent)
+                    .border(1.dp, if (on) pal.primary else pal.line, shape)
+                    .clickable { onPick(value) }
+                    .padding(horizontal = 12.dp, vertical = 6.dp))
+        }
     }
 }
 
@@ -264,18 +362,6 @@ private fun httpGet(url: String): String {
     }
 }
 
-@Composable
-private fun DeviceRow(fps: Float?, s: HudMetrics.Snapshot?) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        TelemetryTile(stringResource(R.string.bottom_telemetry_fps), fps?.takeIf { it > 0f }?.let { "%.0f".format(it) } ?: "–", Modifier.weight(1f))
-        TelemetryTile(stringResource(R.string.bottom_telemetry_cpu), listOfNotNull(s?.cpuPercent?.let { "$it%" }, s?.cpuTempC?.let { "$it°" })
-            .joinToString(" ").ifEmpty { "–" }, Modifier.weight(1f))
-        TelemetryTile(stringResource(R.string.bottom_telemetry_gpu), listOfNotNull(s?.gpuPercent?.let { "$it%" }, s?.gpuTempC?.let { "$it°" })
-            .joinToString(" ").ifEmpty { "–" }, Modifier.weight(1f))
-        TelemetryTile(stringResource(R.string.bottom_telemetry_battery), listOfNotNull(s?.battery?.percent?.let { "$it%" },
-            s?.battery?.watts?.takeIf { it > 0f }?.let { "%.1fW".format(it) }).joinToString(" ").ifEmpty { "–" }, Modifier.weight(1f))
-    }
-}
 
 @Composable
 private fun SwitchRow(title: String, hint: String?, checked: Boolean, enabled: Boolean, onChange: (Boolean) -> Unit) {
@@ -292,14 +378,6 @@ private fun SwitchRow(title: String, hint: String?, checked: Boolean, enabled: B
     }
 }
 
-@Composable
-private fun TelemetryTile(label: String, value: String, modifier: Modifier) {
-    val colors = MaterialTheme.colorScheme
-    Column(modifier.clip(RoundedCornerShape(12.dp)).background(LocalPalette.current.surface).padding(horizontal = 10.dp, vertical = 8.dp)) {
-        Text(label, fontSize = 11.sp, color = colors.onSurfaceVariant, maxLines = 1)
-        Text(value, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
-    }
-}
 
 @Composable
 private fun TelemetryCard(title: String, content: @Composable () -> Unit) {
@@ -332,48 +410,5 @@ internal fun lapTime(seconds: Float): String {
     return "%d:%02d.%03d".format(total / 60_000, total / 1000 % 60, total % 1000)
 }
 
-@Composable
-private fun RaceDash(t: Telemetry) {
-    val colors = MaterialTheme.colorScheme
-    val pal = LocalPalette.current
-    TelemetryCard(t.source) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            Text(t.gear ?: "–", fontSize = 56.sp, fontWeight = FontWeight.Bold, color = pal.signal)
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(t.speedKmh?.let { "%.0f km/h".format(it) } ?: "–", fontSize = 30.sp, fontWeight = FontWeight.Bold, color = colors.onBackground)
-                val rpm = t.rpm
-                if (rpm != null) {
-                    val max = t.maxRpm
-                    Text(if (max != null) "%.0f / %.0f rpm".format(rpm, max) else "%.0f rpm".format(rpm), fontSize = 14.sp, color = colors.onSurfaceVariant)
-                    if (max != null) Bar((rpm / max).coerceIn(0f, 1f), if (rpm / max > 0.92f) colors.error else pal.signal)
-                }
-            }
-            Row(Modifier.height(72.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                t.throttle?.let { Pedal(it, pal.good) }
-                t.brake?.let { Pedal(it, colors.error) }
-            }
-        }
-        ValueGrid(listOfNotNull(
-            t.lap?.let { lap -> stringResource(R.string.bottom_telemetry_lap) to (t.laps?.let { "$lap / $it" } ?: "$lap") },
-            t.position?.let { stringResource(R.string.bottom_telemetry_position) to "P$it" },
-            t.currentLapS?.let { stringResource(R.string.bottom_telemetry_this_lap) to lapTime(it) },
-            t.lastLapS?.let { stringResource(R.string.bottom_telemetry_last_lap) to lapTime(it) },
-            t.fuel?.let { stringResource(R.string.bottom_telemetry_fuel) to "%.0f%%".format(it * 100) },
-        ))
-    }
-}
 
-@Composable
-private fun Bar(fraction: Float, color: Color) {
-    Box(Modifier.fillMaxWidth().height(10.dp).clip(RoundedCornerShape(5.dp)).background(LocalPalette.current.line)) {
-        Box(Modifier.fillMaxWidth(fraction).fillMaxHeight().background(color))
-    }
-}
 
-@Composable
-private fun Pedal(fraction: Float, color: Color) {
-    Box(Modifier.width(14.dp).fillMaxHeight().clip(RoundedCornerShape(4.dp)).background(LocalPalette.current.line),
-        contentAlignment = Alignment.BottomCenter) {
-        Box(Modifier.fillMaxWidth().fillMaxHeight(fraction.coerceIn(0f, 1f)).background(color))
-    }
-}
