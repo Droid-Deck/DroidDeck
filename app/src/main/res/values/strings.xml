@@ -1076,9 +1076,9 @@
     <string name="gate_eyebrow">Steam</string>
     <string name="gate_lede">Android stops apps that start many background processes, and Steam starts dozens. Until this changes, games close without an error.</string>
     <string name="gate_fix_for_me">Fix it for me</string>
-    <string name="gate_toggle_steps">Turn on “Disable child process restrictions”, then come back. Leave Developer options on, or the switch turns off again.</string>
+    <string name="gate_toggle_steps">If your ROM has “Disable child process restrictions”, turn it on and keep Developer options on. If the switch is missing or the check still fails, use Wireless debugging below.</string>
     <string name="gate_open_dev">Open Developer options</string>
-    <string name="gate_no_toggle">This Android version has no switch for it, so DroidDeck changes it over Wireless debugging. Takes about a minute, no computer needed.</string>
+    <string name="gate_no_toggle">If Developer options has no child-process switch, DroidDeck can change and verify the limit over Wireless debugging. No computer needed.</string>
     <string name="gate_needs_wifi">Wireless debugging needs Wi-Fi. Any network works; it doesn\'t need internet.</string>
     <string name="gate_needs_notifications">The pairing code goes in a notification. Allow notifications for DroidDeck, or use Other ways.</string>
     <string name="gate_allow_notifications">Allow notifications</string>
@@ -1096,7 +1096,7 @@
     <string name="gate_waiting">Waiting for the pairing pop-up…</string>
     <string name="gate_code_needed">Pop-up found. Enter its code in the notification.</string>
     <string name="gate_status">Status</string>
-    <string name="gate_polling">Checking every 2 seconds. This page closes when it\'s off.</string>
+    <string name="gate_polling">Checking every 2 seconds. This page closes when the limit is verified.</string>
     <string name="gate_other_ways">Other ways</string>
     <string name="gate_other_toggle">Wireless debugging, manual address, computer ADB</string>
     <string name="gate_other_no_toggle">Manual address, computer ADB, Developer options</string>
@@ -1104,7 +1104,7 @@
     <string name="gate_some_roms">Some ROMs add the switch anyway. Look for “child process” in Developer options.</string>
     <string name="gate_manual_hint">If the notification doesn\'t work, enter the pop-up\'s address and code yourself.</string>
     <string name="gate_enter_manually">Enter address manually</string>
-    <string name="gate_from_computer">From a computer with ADB:</string>
+    <string name="gate_from_computer">From a computer with ADB. If your ROM hides the process-count setting from apps, use Wireless debugging afterwards to verify it:</string>
     <string name="gate_copy_command">Copy command</string>
     <string name="gate_choose_display">Choose which display to open Android Settings on.</string>
     <string name="gate_main_screen">Main screen</string>
@@ -1987,6 +1987,14 @@
     <string name="adbfix_not_confirmed">Android did not confirm the child-process limit was changed: %1$s</string>
     <string name="adbfix_no_pairing">No Wireless debugging pairing is saved</string>
     <string name="adbfix_enter_address">Enter the current Wireless debugging IP address &amp; Port</string>
+    <string name="adbfix_local_only">Use this device\'s Wireless debugging address. Another device cannot verify this device\'s child-process limit.</string>
+    <string name="adbfix_legacy_sync_title">Restore settings changed by older DroidDeck?</string>
+    <string name="adbfix_legacy_sync_message">An older Android 12 repair may have disabled system configuration updates (DeviceConfig) across this device. Continuing may re-enable these updates as well as restore child-process limits. DroidDeck cannot tell whether another tool changed this policy later. Continue only if you also want configuration updates restored. A device restart may be needed.</string>
+    <string name="adbfix_legacy_sync_restore">Restore limits and configuration updates</string>
+    <string name="adbfix_legacy_sync_retry">Restore older settings</string>
+    <string name="adbfix_legacy_sync_cancelled">Restoration cancelled.</string>
+    <string name="adbfix_legacy_sync_confirmation_required">Confirm restoration of the older system configuration sync setting before continuing.</string>
+    <string name="adbfix_legacy_sync_not_confirmed">Child-process limits were restored, but the older system configuration sync setting could not be verified. Retry restoration. %1$s</string>
 
     <string name="adbpair_timed_out">Timed out waiting for the pairing pop-up. Try again from DroidDeck.</string>
     <string name="adbpair_discovery_failed_code">Could not look for the pairing pop-up (%1$d). Check that Wi-Fi is on.</string>
@@ -2152,8 +2160,8 @@
     <string name="phantom_instructions_fix">%1$s If that is not possible, connect this device to a computer with ADB and run the command below. Return here and check again.</string>
     <string name="phantom_instructions_off">Steam sessions can start.</string>
     <string name="phantom_instructions_not_applicable">This Android version does not use this limit.</string>
-    <string name="phantom_fix_toggle">Turn on “Disable child process restrictions” in Developer options, and keep Developer options on afterwards.</string>
-    <string name="phantom_fix_no_toggle">This Android version has no switch for it. Use Wireless debugging to change it from this device.</string>
+    <string name="phantom_fix_toggle">Turn on “Disable child process restrictions” if your ROM provides it, or use Wireless debugging to change and verify the limit.</string>
+    <string name="phantom_fix_no_toggle">Use Wireless debugging to change and verify the limit if Developer options has no child-process switch.</string>
     <string name="upd_block_no_apk">This build has no download for this copy of DroidDeck.</string>
     <string name="upd_block_version_code">Android won\'t install it over this build because its versionCode %1$d is below the installed %2$d.</string>
     <string name="upd_fail_downgrade">Android won\'t install an older version over a newer one. Stay on this build until the channel catches up.</string>
