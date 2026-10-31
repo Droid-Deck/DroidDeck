@@ -88,7 +88,7 @@ def identify(game):
     folder = Path(game["folder"])
     steamapps = folder.parent.parent
     for library in ([steamapps] if folder.parent.name == "common" and steamapps.name == "steamapps" else []) + [folder.parent / WINNATIVE]:
-        matches = manifest_ids(library, folder.name)
+        matches = [appid for appid in manifest_ids(library, folder.name) if appid != SPACEWAR]
         if matches:
             return matches[0] if len(matches) == 1 else None
     ids = set()
@@ -109,7 +109,7 @@ def identify(game):
             ids = {int(item["id"]) for item in items
                    if key(item.get("name", "")) == key(game["name"]) and key(game["name"])}
             if ids:
-                return next(iter(ids)) if len(ids) == 1 else None
+                return next(iter(ids)) if len(ids) == 1 and SPACEWAR not in ids else None
         return None
     except (OSError, ValueError, KeyError):
         return None

@@ -454,6 +454,21 @@ class ImportsTest(unittest.TestCase):
         with patch.object(imports.urllib.request, 'urlopen', side_effect=AssertionError):
             self.assertEqual(42, imports.identify(game))
 
+    def test_a_spacewar_manifest_names_no_game(self):
+        folder = self.root / 'second/steamapps/common/PEAK'
+        folder.mkdir(parents=True)
+        (folder.parent.parent / 'appmanifest_480.acf').write_text('"AppState" { "installdir" "PEAK" }')
+        (folder / 'steam_appid.txt').write_text('3527290\n')
+        game = dict(self.game, folder=str(folder), exe=str(folder / 'PEAK.exe'))
+        with patch.object(imports.urllib.request, 'urlopen', side_effect=AssertionError):
+            self.assertEqual(3527290, imports.identify(game))
+
+    def test_a_store_search_answering_spacewar_names_no_game(self):
+        with patch.object(imports.urllib.request, 'urlopen') as request:
+            request.return_value.__enter__.return_value.read.return_value = json.dumps(
+                {'items': [{'id': 480, 'name': 'Spacewar'}]}).encode()
+            self.assertIsNone(imports.identify(dict(self.game, name='Spacewar')))
+
     def test_store_requires_unique_exact_title(self):
         cases = [([{'id': 42, 'name': 'Example Deluxe'}], None),
                  ([{'id': 42, 'name': 'Example'}, {'id': 43, 'name': 'Example'}], None),

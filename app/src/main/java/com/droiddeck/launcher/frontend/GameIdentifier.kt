@@ -140,6 +140,7 @@ object GameIdentifier {
 
         val text = readSmallTextFile(match) ?: return null
         val appId = vdfValue(text, "appid")?.toIntOrNull()?.takeIf { it > 0 }
+        if (appId == SPACEWAR) return null
         val name = vdfValue(text, "name")?.takeIf { it.isNotBlank() }
         return if (appId == null && name == null) null else Acf(appId, name)
     }
