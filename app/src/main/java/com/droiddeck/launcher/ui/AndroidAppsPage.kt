@@ -102,6 +102,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.zIndex
 import com.droiddeck.launcher.HomeApp
 import com.droiddeck.launcher.HomeFolders
+import com.droiddeck.launcher.HomeFavorites
 import com.droiddeck.launcher.HomeHidden
 import com.droiddeck.launcher.HomePins
 import android.content.pm.ShortcutInfo
@@ -136,6 +137,13 @@ private sealed interface AppEntry : AppEntryKey {
         override val installedAt get() = 0L
         override val updatedAt get() = 0L
     }
+}
+
+private fun AppEntry.isFavorite(favorites: Set<String>) = this is AppEntry.App && app.key in favorites
+
+private fun List<AppEntry>.favoritesFirst(favorites: Set<String>): List<AppEntry> {
+    val (top, rest) = partition { it.isFavorite(favorites) }
+    return top + rest
 }
 
 private fun indexLetter(label: String): String {
@@ -234,7 +242,7 @@ internal interface AppEntryKey {
 @Composable
 internal fun AndroidAppsPage(s: FrontEndState, modifier: Modifier, onLaunch: (HomeApp.LaunchableApp) -> Unit) {
     val ctx = LocalContext.current
-    remember { HomeFolders.load(ctx); HomeWidgets.load(ctx); HomeHidden.load(ctx); AppsView.load(ctx); true }
+    remember { HomeFolders.load(ctx); HomeWidgets.load(ctx); HomeHidden.load(ctx); HomeFavorites.load(ctx); AppsView.load(ctx); true }
     val colors = MaterialTheme.colorScheme
     val narrow = LocalNarrowPane.current
     val padH = if (narrow) 16.dp else 22.dp
@@ -249,10 +257,11 @@ internal fun AndroidAppsPage(s: FrontEndState, modifier: Modifier, onLaunch: (Ho
     val member: (String) -> HomeApp.LaunchableApp? = { byKey[it] ?: byPkg[it] }
     val pins = HomePins.pinned
     val hidden = HomeHidden.keys
+    val favorites = HomeFavorites.keys
     val q = query.trim()
     val filter = AppsView.filter
     val sort = AppsView.sort
-    val entries: List<AppEntry> = remember(s.androidApps, folders, q, filter, sort, pins, hidden) {
+    val entries: List<AppEntry> = remember(s.androidApps, folders, q, filter, sort, pins, hidden, favorites) {
         val kept = s.androidApps.filter { AppsView.keeps(it) }
         val shortcuts = if (filter == AppsView.ALL) pins.map { AppEntry.Shortcut(it) } else emptyList()
         if (q.isNotEmpty()) {
@@ -260,16 +269,17 @@ internal fun AndroidAppsPage(s: FrontEndState, modifier: Modifier, onLaunch: (Ho
                 .sortedWith(compareBy<Pair<Int, AppEntry>> { it.first }.thenBy(String.CASE_INSENSITIVE_ORDER) { it.second.label })
                 .map { it.second }
         } else if (filter != AppsView.ALL) {
-            kept.map { AppEntry.App(it) }.sortedWith(AppsView.comparator())
+            kept.map { AppEntry.App(it) }.sortedWith(AppsView.comparator()).favoritesFirst(favorites)
         } else {
             val folderEntries = folders.mapNotNull { f ->
                 val apps = f.apps.mapNotNull(member).filter { it.key !in hidden }.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.label })
                 if (apps.isEmpty()) null else AppEntry.Folder(f, apps)
             }
             val grouped = folderEntries.flatMap { f -> f.apps.map { it.key } }.toSet()
-            (folderEntries + kept.filter { it.key !in grouped }.map { AppEntry.App(it) } + shortcuts).sortedWith(AppsView.comparator())
+            (folderEntries + kept.filter { it.key !in grouped || it.key in favorites }.map { AppEntry.App(it) } + shortcuts).sortedWith(AppsView.comparator()).favoritesFirst(favorites)
         }
     }
+    val favoriteCount = if (q.isEmpty()) entries.takeWhile { it.isFavorite(favorites) }.size else 0
     val grid = rememberLazyGridState()
     LaunchedEffect(q, filter, sort) { grid.scrollToItem(0) }
     val widgetsShown = q.isEmpty() && filter == AppsView.ALL && HomeWidgets.widgets.isNotEmpty()
@@ -305,7 +315,7 @@ internal fun AndroidAppsPage(s: FrontEndState, modifier: Modifier, onLaunch: (Ho
                 }
             }
             Box(Modifier.weight(1f).fillMaxWidth()) {
-                val scroller = q.isEmpty() && byName && entries.size > 16
+                val scroller = q.isEmpty() && byName && entries.size - favoriteCount > 16
                 LazyVerticalGrid(
                     columns = GridCells.Adaptive(if (narrow) 84.dp else 96.dp),
                     state = grid,
@@ -349,7 +359,7 @@ internal fun AndroidAppsPage(s: FrontEndState, modifier: Modifier, onLaunch: (Ho
                         }
                     }
                 }
-                if (scroller) AlphabetScroller(entries, grid, leadItems, Modifier.align(Alignment.CenterEnd).fillMaxHeight().padding(end = 4.dp, top = 8.dp, bottom = 8.dp))
+                if (scroller) AlphabetScroller(entries, favoriteCount, grid, leadItems, Modifier.align(Alignment.CenterEnd).fillMaxHeight().padding(end = 4.dp, top = 8.dp, bottom = 8.dp))
             }
         }
 
@@ -362,7 +372,7 @@ internal fun AndroidAppsPage(s: FrontEndState, modifier: Modifier, onLaunch: (Ho
             var last by remember { mutableStateOf(folder) }
             if (folder != null) last = folder
             last?.let { f ->
-                FolderSheet(f, f.apps.mapNotNull(member).filter { it.key !in hidden }.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.label }), renameOnOpen, onLaunch, newFolder) {
+                FolderSheet(f, f.apps.mapNotNull(member).filter { it.key !in hidden }.sortedWith(compareByDescending<HomeApp.LaunchableApp> { it.key in favorites }.thenBy(String.CASE_INSENSITIVE_ORDER) { it.label }), renameOnOpen, onLaunch, newFolder) {
                     openFolder = null
                     renameOnOpen = false
                 }
@@ -449,13 +459,13 @@ private fun HeaderChoiceButton(
 }
 
 @Composable
-private fun AlphabetScroller(entries: List<AppEntry>, grid: LazyGridState, leadItems: Int, modifier: Modifier) {
+private fun AlphabetScroller(entries: List<AppEntry>, favoriteCount: Int, grid: LazyGridState, leadItems: Int, modifier: Modifier) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val scope = rememberCoroutineScope()
-    val firstAt = remember(entries) {
+    val firstAt = remember(entries, favoriteCount) {
         val map = LinkedHashMap<String, Int>()
-        entries.forEachIndexed { i, e -> map.putIfAbsent(indexLetter(e.label), i) }
+        entries.forEachIndexed { i, e -> if (i >= favoriteCount) map.putIfAbsent(indexLetter(e.label), i) }
         map
     }
     val letters = remember(firstAt) { firstAt.keys.toList() }
@@ -483,7 +493,7 @@ private fun AlphabetScroller(entries: List<AppEntry>, grid: LazyGridState, leadI
                 .clip(RoundedCornerShape(11.dp))
                 .background(if (dragging != null) colors.surface.copy(alpha = 0.85f) else Color.Transparent)
                 .onSizeChanged { height = it.height.coerceAtLeast(1) }
-                .pointerInput(letters) {
+                .pointerInput(firstAt, leadItems) {
                     awaitEachGesture {
                         val down = awaitFirstDown()
                         down.consume()
@@ -592,6 +602,7 @@ private fun AppMenu(
         }
     }
     val isHidden = app.key in HomeHidden.keys
+    val isFavorite = app.key in HomeFavorites.keys
     AnchoredMenu(open, onDismiss = onDismiss, title = app.label, compact = true, minWidth = 200.dp) { first ->
         if (choosing) {
             val others = HomeFolders.folders.filter { it.id != folderId }
@@ -620,7 +631,12 @@ private fun AppMenu(
                 }
             }
             if (shortcuts.isNotEmpty()) Box(Modifier.fillMaxWidth().padding(vertical = 4.dp).height(1.dp).background(LocalPalette.current.line))
-            if (!isHidden) MenuItem(stringResource(R.string.apps_add_to_folder), checked = false, focusRequester = if (shortcuts.isEmpty()) first else null) { choosing = true }
+            if (!isHidden) MenuItem(stringResource(if (isFavorite) R.string.apps_unfavorite else R.string.apps_favorite), checked = false,
+                focusRequester = if (shortcuts.isEmpty()) first else null) {
+                onDismiss()
+                HomeFavorites.set(ctx, app.key, !isFavorite)
+            }
+            if (!isHidden) MenuItem(stringResource(R.string.apps_add_to_folder), checked = false) { choosing = true }
             if (folderId != null) MenuItem(stringResource(R.string.apps_remove_from_folder), checked = false) {
                 HomeFolders.remove(ctx, app.key)
                 onDismiss()

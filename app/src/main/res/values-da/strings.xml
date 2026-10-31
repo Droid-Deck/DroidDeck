@@ -3362,6 +3362,8 @@
     <string name="apps_filter_hidden">Skjulte</string>
     <string name="apps_hide">Skjul</string>
     <string name="apps_unhide">Vis i apps</string>
+    <string name="apps_favorite">Føj til favoritter</string>
+    <string name="apps_unfavorite">Fjern fra favoritter</string>
     <string name="apps_shortcut_remove">Fjern genvej</string>
     <string name="apps_pin_title">Føj til Apps</string>
     <string name="apps_pin_add">Tilføj</string>

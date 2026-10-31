@@ -1208,6 +1208,8 @@
     <string name="apps_filter_hidden">Hidden</string>
     <string name="apps_hide">Hide</string>
     <string name="apps_unhide">Show in apps</string>
+    <string name="apps_favorite">Favorite</string>
+    <string name="apps_unfavorite">Unfavorite</string>
     <string name="apps_shortcut_remove">Remove shortcut</string>
     <string name="apps_pin_title">Add to Apps</string>
     <string name="apps_pin_add">Add</string>

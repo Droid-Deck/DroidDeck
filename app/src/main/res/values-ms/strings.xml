@@ -3335,6 +3335,8 @@
     <string name="apps_filter_hidden">Tersembunyi</string>
     <string name="apps_hide">Sembunyikan</string>
     <string name="apps_unhide">Tunjukkan dalam apl</string>
+    <string name="apps_favorite">Tambah ke kegemaran</string>
+    <string name="apps_unfavorite">Alih keluar daripada kegemaran</string>
     <string name="apps_shortcut_remove">Alih keluar pintasan</string>
     <string name="apps_pin_title">Tambah pada Apl</string>
     <string name="apps_pin_add">Tambah</string>

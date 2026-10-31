@@ -3398,6 +3398,8 @@
     <string name="apps_filter_hidden">Ocultos</string>
     <string name="apps_hide">Ocultar</string>
     <string name="apps_unhide">Mostrar nos apps</string>
+    <string name="apps_favorite">Adicionar aos favoritos</string>
+    <string name="apps_unfavorite">Remover dos favoritos</string>
     <string name="apps_shortcut_remove">Remover atalho</string>
     <string name="apps_pin_title">Adicionar aos Apps</string>
     <string name="apps_pin_add">Adicionar</string>
