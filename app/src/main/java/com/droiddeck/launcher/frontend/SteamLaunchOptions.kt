@@ -10,10 +10,6 @@ import java.io.File
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 
-/**
- * A Steam game's launch options, kept only where Steam keeps them: in the running client, else in the signed-in account's
- * `localconfig.vdf` of the active client. The Edit screen and Steam's Properties read and change the same value.
- */
 object SteamLaunchOptions {
     private const val TAG = "SteamLaunchOptions"
     private val STEAM = listOf("UserLocalConfigStore", "Software", "Valve", "Steam")
@@ -23,10 +19,8 @@ object SteamLaunchOptions {
 
     enum class Saved { YES, NO, DESKTOP }
 
-    /** Saves [options] only while Steam still has [shown], the value the editor showed. */
     fun set(context: Context, appId: Int, options: String, shown: String): Saved {
         val value = options.trim()
-        // A session's client writes its own copy over the file when it exits; the live calls reach only a Steam session's client.
         if (SessionState.running && SessionState.mode == SessionService.MODE_DESKTOP) return Saved.DESKTOP
         if (SessionState.running && SessionState.mode == SessionService.MODE_STEAM) {
             val live = SteamLiveShortcuts.launchOptions(context, appId.toLong()) ?: return Saved.NO
@@ -89,10 +83,8 @@ object SteamLaunchOptions {
         return updated.substring(0, lineStart) + indent + "\"LaunchOptions\"\t\t" + value + newline + updated.substring(lineStart)
     }
 
-    /** Its value runs from [valueStart] to [end]: a quoted string, or a section's braces. */
     private class Entry(val key: String, val valueStart: Int, val end: Int, val section: Boolean)
 
-    /** Steam matches keys without regard to case. */
     private fun section(text: String, path: List<String>): Entry? {
         var found: Entry? = null
         for (key in path) {
@@ -102,7 +94,6 @@ object SteamLaunchOptions {
         return found
     }
 
-    /** [open] -1 and [close] at the end of [text] mean the top level. */
     private fun entries(text: String, open: Int, close: Int): List<Entry> {
         val found = ArrayList<Entry>()
         var key: String? = null

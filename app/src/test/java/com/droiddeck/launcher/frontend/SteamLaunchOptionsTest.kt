@@ -77,7 +77,6 @@ class SteamLaunchOptionsTest {
     }
 
     @Test fun onlyTheGamesOwnSectionChanges() {
-        // A section named like the game, deeper inside another app, is not the game's.
         val other = arrayOf(
             "\t\t\t\t\t\"7\"", "\t\t\t\t\t{", "\t\t\t\t\t\t\"1790600\"", "\t\t\t\t\t\t{", "\t\t\t\t\t\t\t\"LaunchOptions\"\t\t\"keep\"", "\t\t\t\t\t\t}", "\t\t\t\t\t}",
         )
@@ -123,14 +122,22 @@ class SteamLaunchOptionsTest {
 
     private val app get() = RuntimeEnvironment.getApplication()
 
+    private val written = ArrayList<File>()
+
+    private fun sessionConfig(): File {
+        val home = steamHome(SessionPrefs.activeSteamRoot(app))
+        return localConfig(home, "60974196").apply { writeText(config(apps(*sparking))) }
+            .also { written += it; written += File(home, "config/loginusers.vdf") }
+    }
+
     @After fun noSession() {
         SessionState.running = false
         SessionState.mode = SessionService.MODE_STEAM
-        SessionPrefs.activeSteamRoot(app).deleteRecursively()
+        written.forEach { it.delete() }
     }
 
     @Test fun aValueChangedInSteamSinceItWasShownIsNotOverwritten() {
-        val config = localConfig(steamHome(SessionPrefs.activeSteamRoot(app)), "60974196").apply { writeText(config(apps(*sparking))) }
+        val config = sessionConfig()
         assertEquals(SteamLaunchOptions.Saved.NO, SteamLaunchOptions.set(app, 1790600, "-dx12", shown = "-vulkan"))
         assertEquals("-dx11", SteamLaunchOptions.launchOptions(config.readText(), 1790600))
         assertEquals(SteamLaunchOptions.Saved.YES, SteamLaunchOptions.set(app, 1790600, "-dx12", shown = "-dx11"))
@@ -138,7 +145,7 @@ class SteamLaunchOptionsTest {
     }
 
     @Test fun aDesktopSessionLeavesTheFileToItsClient() {
-        val config = localConfig(steamHome(SessionPrefs.activeSteamRoot(app)), "60974196").apply { writeText(config(apps(*sparking))) }
+        val config = sessionConfig()
         val before = config.readText()
         SessionState.running = true
         SessionState.mode = SessionService.MODE_DESKTOP
