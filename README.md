@@ -28,9 +28,9 @@ DroidDeck brings the SteamOS experience to Android: Valve's Steam client in Big 
 > DroidDeck has no website. Only download it from this repository's [Releases](https://github.com/Droid-Deck/DroidDeck/releases).
 
 <p align="center">
+  <img src="docs/releases/media/0.5.0/epic-launch-through-steam.gif" width="49%" alt="A game launched from Steam Big Picture, then the Steam menu and Quick Access performance panel over it">
   <img src="docs/releases/media/0.3.0/in-game.gif" width="49%" alt="A Windows game running through Proton with the on-screen controls">
   <img src="docs/releases/media/0.4.0/multi-controller.gif" width="49%" alt="Two controllers playing split screen on one handheld">
-  <img src="docs/releases/media/0.5.0/glasses-steamvr.gif" width="49%" alt="A SteamVR game in stereo">
   <img src="docs/releases/media/0.6.7/ubuntu-desktop-discover.jpg" width="49%" alt="The Kubuntu desktop with Discover open">
 </p>
 
