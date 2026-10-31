@@ -300,8 +300,8 @@ object StoresState {
         main.post { libraryListener?.invoke() }
     }
 
-    fun logLine(raw: String) {
-        val text = StoreLog.redactLine(raw)
+    fun logLine(raw: String, urls: com.droiddeck.launcher.core.SecretScrub.Urls = com.droiddeck.launcher.core.SecretScrub.Urls.SHORT) {
+        val text = StoreLog.redactLine(raw, urls)
         Log.i(TAG, text)
         val app = appContext ?: return
         StoreLogFiles.stamped(app, text)
