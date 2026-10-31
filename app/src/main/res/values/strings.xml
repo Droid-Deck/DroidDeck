@@ -2030,6 +2030,7 @@
     <string name="loadstate_starting">Starting the session…</string>
     <string name="loadstate_elapsed">%1$d:%2$02d elapsed · still working</string>
     <string name="loadstate_steam_update">Downloading the Steam client update · %1$d%%</string>
+    <string name="loadstate_steam_update_applying">Applying the Steam client update…</string>
     <string name="loadstate_steam_client">Downloading the Steam client · %1$s</string>
 
     <string name="pextra_busy">A compatibility tool install is already running</string>
