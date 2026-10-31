@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 import hashlib
+from contextlib import nullcontext
 import json
 import os
 import re
@@ -616,10 +617,8 @@ EVALUATOR_SCRIPT = re.compile(r"(?:^|[\\/])evaluatorscript_[0-9]+\.vdf$", re.IGN
 
 
 def mark_install_scripts(command, env):
-    """The client is about to run a game's install scripts (iscriptevaluator.exe): mark every process
-    in them but a Vulkan runtime installer as already run first, so no redistributable installer
-    starts - on first launch the shared ones may still be downloading, and on ARM64 Proton the VC++
-    ones stop with an error."""
+    """Seed redistributables supplied by DroidDeck before Steam evaluates the game's install scripts.
+    Vulkan, Ubisoft Connect and EA app installers still need to run."""
     if not any(arg.lower().replace("\\", "/").endswith("iscriptevaluator.exe") for arg in command):
         return []
     root = env.get("BL_X64_STEAM_ROOT") or env.get("STEAM_COMPAT_CLIENT_INSTALL_PATH") or str(Path.home() / ".local/share/Steam")
@@ -736,12 +735,21 @@ def directaudio_settings(env):
 
 
 def start(launch, launch_env, digest):
-    if digest:
-        code = subprocess.run(launch, env=launch_env, check=False).returncode
-        if code == 0:
-            record_install_scripts(digest, launch_env)
-        return code
-    return os.execvpe(launch[0], launch, launch_env)
+    try:
+        prepare = nullcontext((launch, launch_env))
+        if any(arg.lower().startswith("steam2ea://") or arg.lower().replace("\\", "/").endswith("iscriptevaluator.exe") for arg in launch[2:]):
+            ea = runpy.run_path(str(Path(__file__).with_name("droiddeck-ea")))
+            prepare = ea["prepare"](launch, launch_env)
+        with prepare as (prepared, prepared_env):
+            if digest:
+                code = subprocess.run(prepared, env=prepared_env, check=False).returncode
+                if code == 0 and digest:
+                    record_install_scripts(digest, launch_env)
+                return code
+            return os.execvpe(prepared[0], prepared, prepared_env)
+    except (RuntimeError, ValueError) as error:
+        print("droiddeck-game-env: %s" % error, file=sys.stderr)
+        return 1
 
 
 def main():

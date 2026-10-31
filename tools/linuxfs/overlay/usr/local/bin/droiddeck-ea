@@ -1,0 +1,123 @@
+#!/usr/bin/python3
+import contextlib
+from pathlib import Path
+import re
+import subprocess
+import sys
+
+
+TOKEN = re.compile(r'//[^\r\n]*|"((?:[^"\\]|\\.)*)"|([{}])')
+EVALUATOR = re.compile(r'(?:^|[\\/])evaluatorscript_[0-9]+\.vdf$', re.I)
+INSTALL_ARGS = ('/quiet', '/norestart', 'EAX_LAUNCH_CLIENT=0', 'IGNORE_INSTALLED=1')
+
+
+def unquote(value):
+    return re.sub(r'\\(.)', r'\1', value)
+
+
+def ea_processes(text):
+    tokens = iter(m for m in TOKEN.finditer(text) if not m[0].startswith('//'))
+    programs = []
+
+    def block(nested=False, run_process=False):
+        for key in tokens:
+            if key[2] == '}':
+                if not nested:
+                    raise ValueError('unexpected closing brace')
+                break
+            if key[2]:
+                raise ValueError('unnamed block')
+            value = next(tokens, None)
+            if value is None or value[2] == '}':
+                raise ValueError('missing value')
+            name = unquote(key[1]).lower()
+            if value[2] == '{':
+                block(True, name == 'run process' or (run_process and name != 'run process on uninstall'))
+            elif run_process and re.fullmatch(r'process [0-9]+', name):
+                program = unquote(value[1])
+                if program.replace('\\', '/').rsplit('/', 1)[-1].lower() == 'eaappinstaller.exe':
+                    programs.append(program)
+        else:
+            if nested:
+                raise ValueError('unclosed block')
+
+    block()
+    return programs
+
+
+def installer_environment(env):
+    result = dict(env)
+    display = env.get('STEAM_GAME_DISPLAY_0')
+    if display:
+        result['DISPLAY'] = display
+    return result
+
+
+def launcher_installed(prefix):
+    base = prefix / 'drive_c/Program Files/Electronic Arts/EA Desktop'
+    folders = [base / 'EA Desktop', *base.glob('*/EA Desktop')]
+    return any((p / 'EADesktop.exe').is_file() and (p / 'EASteamLauncher.exe').is_file() for p in folders)
+
+
+@contextlib.contextmanager
+def installation_lock(prefix):
+    import fcntl
+    with (prefix.parent / '.droiddeck-ea-install.lock').open('a') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        yield
+
+
+def ensure_launcher(command, env, processes=()):
+    uri = len(command) >= 3 and command[1] == 'waitforexitandrun' and command[2].lower().startswith('steam2ea://')
+    if not uri and not processes:
+        return
+    compat = env.get('STEAM_COMPAT_DATA_PATH')
+    if not compat:
+        raise RuntimeError('EA app needs the game compatibility prefix')
+    prefix = Path(compat) / 'pfx'
+    if launcher_installed(prefix):
+        return
+    roots = [Path(env['STEAM_COMPAT_INSTALL_PATH'])] if env.get('STEAM_COMPAT_INSTALL_PATH') else []
+    roots.append(Path.cwd())
+    candidates = []
+    for program in processes:
+        path = program.replace('\\', '/')
+        if path.lower().startswith('%installdir%/'):
+            candidates.extend(root / path[len('%installdir%/'):] for root in roots)
+        elif path.lower().startswith('z:/'):
+            candidates.append(Path(path[2:]))
+        elif Path(path).is_absolute():
+            candidates.append(Path(path))
+    candidates.extend(root / '__Installer/Origin/redist/internal/EAappInstaller.exe' for root in roots)
+    installer = next((p for p in candidates if p.is_file()), None)
+    if installer is None:
+        raise RuntimeError('EA app is missing and the game-bundled EAappInstaller.exe was not found')
+    prefix.parent.mkdir(parents=True, exist_ok=True)
+    with installation_lock(prefix):
+        if launcher_installed(prefix):
+            return
+        print('droiddeck-ea: installing the game-bundled EA app into this game prefix', flush=True)
+        code = subprocess.run([command[0], 'run', str(installer), *INSTALL_ARGS],
+                              env=installer_environment(env), check=False).returncode
+        if code not in (0, 3010) or not launcher_installed(prefix):
+            raise RuntimeError('EA app installation did not complete (exit %s); retry the game to try again' % code)
+
+
+@contextlib.contextmanager
+def prepare(command, env):
+    processes = []
+    if any(arg.lower().replace('\\', '/').endswith('iscriptevaluator.exe') for arg in command):
+        root = Path(env.get('BL_X64_STEAM_ROOT') or env.get('STEAM_COMPAT_CLIENT_INSTALL_PATH')
+                    or Path.home() / '.local/share/Steam')
+        for arg in command:
+            if not EVALUATOR.search(arg):
+                continue
+            source = root / arg.replace('\\', '/')
+            try:
+                processes.extend(ea_processes(source.read_bytes().decode('utf-8')))
+            except (OSError, ValueError) as error:
+                print('droiddeck-ea: could not scan install script %s: %s; leaving it to Steam' %
+                      (source, error), file=sys.stderr)
+    # Steam validates signed install scripts; run the prerequisite before the untouched evaluator.
+    ensure_launcher(command, env, processes)
+    yield command, env
