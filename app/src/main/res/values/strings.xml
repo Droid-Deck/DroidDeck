@@ -1877,6 +1877,19 @@
     <string name="second_mode_deck_controls">Deck grips + trackpads</string>
     <string name="second_mode_dashboard">Dashboard</string>
     <string name="bottom_dashboard_empty">Nothing to show here yet.</string>
+    <string name="bottom_page_downloads">Downloads</string>
+    <string name="bottom_downloads_none">No downloads running.</string>
+    <string name="bottom_downloads_steam">Steam</string>
+    <string name="bottom_downloads_shader">Downloading shader cache</string>
+    <string name="bottom_downloads_paused">Paused</string>
+    <string name="bottom_downloads_queued">Waiting to start</string>
+    <string name="bottom_page_notifications">Notifications</string>
+    <string name="bottom_notifications_listener">DroidDeck bottom screen</string>
+    <string name="bottom_notifications_why">Show messages and other notifications here while you play. Android asks you once to allow notification access for DroidDeck. They stay on this screen only and are not saved.</string>
+    <string name="bottom_notifications_allow">Allow notification access</string>
+    <string name="bottom_notifications_none">No notifications.</string>
+    <string name="bottom_notifications_count">%1$d notifications</string>
+    <string name="bottom_notifications_clear">Clear</string>
 
     <string name="rtinst_removing">Removing Linux runtime</string>
     <plurals name="rtinst_removing_entries">

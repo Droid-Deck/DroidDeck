@@ -122,6 +122,7 @@ import com.droiddeck.launcher.ui.SessionPausedOverlay
 import com.droiddeck.launcher.ui.SecondScreenPresentation
 import com.droiddeck.launcher.ui.BottomDashboard
 import com.droiddeck.launcher.ui.BottomPage
+import com.droiddeck.launcher.ui.sessionBottomPages
 import com.droiddeck.launcher.ui.DroidDeckTheme
 import com.droiddeck.launcher.wayland.CompositorHost
 import com.droiddeck.launcher.wayland.WaylandCompositor
@@ -3132,7 +3133,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     )
 
     /** Pages for the bottom-screen dashboard; the dashboard is offered only while at least one exists. */
-    private fun bottomPages(): List<BottomPage> = emptyList()
+    private fun bottomPages(): List<BottomPage> = sessionBottomPages()
 
     private fun tapSteamButton() {
         if (SessionState.mode == SessionService.MODE_STEAM) {
