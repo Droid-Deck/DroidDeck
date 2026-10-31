@@ -11,12 +11,14 @@ object StoreLaunch {
     const val LAUNCHER = ".droiddeck-launch.bat"
     const val EPIC_CODE = ".droiddeck-epic-code"
     const val EPIC_ARGS = ".droiddeck-epic-args"
+    const val REGISTRY_HOOK = ".droiddeck-registry.bat"
 
     fun writeLauncher(folder: File, sidecar: StoreGameSidecar): StoreGameSidecar {
-        val needs = sidecar.args.isNotEmpty() || sidecar.env.isNotEmpty() || sidecar.store == Store.EPIC
+        val needs = sidecar.args.isNotEmpty() || sidecar.env.isNotEmpty() || sidecar.store == Store.EPIC ||
+            File(folder, REGISTRY_HOOK).exists()
         val file = File(folder, LAUNCHER)
         if (!needs) { file.delete(); return sidecar.copy(launcher = null) }
-        file.writeText(launcherText(sidecar))
+        file.writeText(launcherText(sidecar.copy(exe = bodyExe(folder, sidecar.exe))))
         return sidecar.copy(launcher = LAUNCHER)
     }
 
@@ -31,6 +33,7 @@ object StoreLaunch {
         for ((k, v) in sidecar.env) if (ENV_NAME.matches(k)) lines += "set \"$k=${v.replace("\"", "")}\""
         val args = sidecar.args.joinToString(" ") { quoteArg(it) }
         val run = "\"%~dp0$exe\"" + (if (args.isNotEmpty()) " $args" else "")
+        lines += "if exist \"%~dp0$REGISTRY_HOOK\" call \"%~dp0$REGISTRY_HOOK\""
         if (sidecar.store == Store.EPIC) {
             lines += "if exist \"%~dp0$EPIC_ARGS\" goto client"
             lines += "set \"$CODE_VAR=\""
@@ -75,12 +78,28 @@ object StoreLaunch {
     fun refreshLauncher(folder: File, sidecar: StoreGameSidecar) {
         if (sidecar.launcher != LAUNCHER) return
         val file = File(folder, LAUNCHER)
-        val text = launcherText(sidecar)
+        val text = launcherText(sidecar.copy(exe = bodyExe(folder, sidecar.exe)))
         if (runCatching { file.readText() }.getOrNull() != text) {
             file.writeText(text)
             Log.i(TAG, "launcher rewritten for ${sidecar.id}")
         }
     }
+
+    private const val UPLAY_STUB = "UplayLaunch"
+
+    private fun bodyExe(folder: File, exe: String): String {
+        val name = exe.substringAfterLast('/').substringAfterLast('\\')
+        if (!name.startsWith(UPLAY_STUB, ignoreCase = true)) return exe
+        val candidates = File(folder, "bin").listFiles { f -> f.isFile && f.extension.equals("exe", true) }
+            ?: return exe
+        val want = normalised(folder.name)
+        val found = candidates.firstOrNull { want.isNotEmpty() && normalised(it.nameWithoutExtension) == want }
+            ?: candidates.maxByOrNull { it.length() }
+            ?: return exe
+        return "bin/" + found.name
+    }
+
+    private fun normalised(name: String): String = name.lowercase().filter { it.isLetterOrDigit() }
 
     fun prepare(context: Context, store: Store, id: String, onReady: () -> Unit) {
         if (store != Store.EPIC) { onReady(); return }
