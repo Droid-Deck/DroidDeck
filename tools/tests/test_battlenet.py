@@ -1117,6 +1117,11 @@ class AgentTest(Temp):
         self.assertIn("lang = a(5), country = a(6), region = a(7), out = a(8)", script)
         self.assertIn('"--internalclienttools"', (BIN / "droiddeck-battlenet").read_text())
 
+    def test_the_driver_waits_on_the_install_form_and_names_a_folder_that_is_taken(self):
+        script = BNET["AGENT_SCRIPT"]
+        self.assertIn(r'if (/"form"\s*:\s*\{/.test(s)) {', script)
+        self.assertIn("the game folder already holds a game", script)
+
 
 class AgentJobTest(Harness):
     def setUp(self):
