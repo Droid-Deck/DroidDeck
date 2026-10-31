@@ -33,6 +33,9 @@ object GameTelemetry {
     const val OUTGAUGE_PORT = 4444
     val PORTS = listOf(CODEMASTERS_PORT, FORZA_PORT, OUTGAUGE_PORT)
 
+    // Games send to 127.0.0.1; on Android InetAddress.getLoopbackAddress() is ::1, which IPv4 packets never reach.
+    val LISTEN_ADDRESS: java.net.InetAddress = java.net.InetAddress.getByAddress(byteArrayOf(127, 0, 0, 1))
+
     fun parse(port: Int, data: ByteArray, length: Int): Telemetry? = runCatching {
         val buf = ByteBuffer.wrap(data, 0, length).order(ByteOrder.LITTLE_ENDIAN)
         when (port) {

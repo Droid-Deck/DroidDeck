@@ -2,6 +2,7 @@ package com.droiddeck.launcher.session
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -110,6 +111,11 @@ class GameTelemetryTest {
         assertEquals("2", t.gear)
         assertEquals(72f, t.speedKmh!!, 0.01f)
         assertEquals(4000f, t.rpm!!, 0.01f)
+    }
+
+    @Test fun listensOnIpv4Loopback() {
+        assertTrue(GameTelemetry.LISTEN_ADDRESS is java.net.Inet4Address)
+        assertEquals("127.0.0.1", GameTelemetry.LISTEN_ADDRESS.hostAddress)
     }
 
     @Test fun shortPacketsAreIgnored() {
