@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.media.AudioManager
 import android.webkit.CookieManager
+import android.webkit.RenderProcessGoneDetail
 import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
@@ -63,8 +64,9 @@ internal fun desktopUserAgent(webView: String?): String {
 /**
  * At the panel's own scale Steam's desktop chat gets about 600x300 CSS pixels and its friends list collapses, so the
  * page is laid out [cssWidth] wide and drawn at [scale]. In a WebView the chat's full-height containers (body,
- * #friendslist-container, .chat_main) come out 0 px tall, which folds the friends list, so they are given the
- * window's height; Steam's site header (the rows before .chat_main_flex) is hidden to leave that height to the chat.
+ * #friendslist-container, .chat_main and the friends column inside it) come out 0 px tall, which folds the friends
+ * list, so they are given the window's height; Steam's site header (the rows before .chat_main_flex) is hidden to
+ * leave that height to the chat.
  */
 internal fun steamChatFitScript(cssWidth: Int, scale: Float): String {
     val zoom = "%.2f".format(java.util.Locale.US, scale)
@@ -76,7 +78,8 @@ internal fun steamChatFitScript(cssWidth: Int, scale: Float): String {
         "window.dispatchEvent(new Event('resize'));})()"
 }
 
-internal const val STEAM_CHAT_FIT_CSS = "html,body,#friendslist-container,.chat_main{height:100%!important}" +
+internal const val STEAM_CHAT_FIT_CSS =
+    "html,body,#friendslist-container,.chat_main,.chat_main_flex,.friendsListContainer,.friendlist{height:100%!important}" +
     ".chat_main>:has(~.chat_main_flex){display:none!important}"
 
 @Composable
@@ -84,6 +87,8 @@ fun BottomChatPage() {
     val context = LocalContext.current
     val colors = MaterialTheme.colorScheme
     var chatOpen by remember { mutableStateOf(false) }
+    // Set when Android ended the page's renderer; the closed page then says why the chat went away.
+    var stopped by remember { mutableStateOf(false) }
     // null while the Steam client's sign-in is being copied, then whether there was one.
     var fromSteam by remember { mutableStateOf<Boolean?>(null) }
     LaunchedEffect(chatOpen) {
@@ -104,13 +109,22 @@ fun BottomChatPage() {
             VoiceRow(context)
             Column(Modifier.weight(1f).fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically)) {
+                if (stopped) Text(stringResource(R.string.bottom_chat_stopped), fontSize = 13.sp, color = colors.onSurfaceVariant, textAlign = TextAlign.Center)
                 Text(stringResource(R.string.bottom_chat_why), fontSize = 15.sp, color = colors.onBackground, textAlign = TextAlign.Center)
-                BottomPillButton(stringResource(R.string.bottom_chat_open), "bottom-chat-open") { chatOpen = true }
+                BottomPillButton(stringResource(R.string.bottom_chat_open), "bottom-chat-open") {
+                    stopped = false
+                    chatOpen = true
+                }
             }
         } else {
             VoiceRow(context, onClose = { chatOpen = false },
                 note = if (fromSteam == false) stringResource(R.string.bottom_chat_not_signed_in) else "")
-            Box(Modifier.weight(1f).fillMaxWidth().clip(RoundedCornerShape(14.dp))) { if (fromSteam != null) SteamChatView() }
+            Box(Modifier.weight(1f).fillMaxWidth().clip(RoundedCornerShape(14.dp))) {
+                if (fromSteam != null) SteamChatView(onStopped = {
+                    stopped = true
+                    chatOpen = false
+                })
+            }
         }
     }
 }
@@ -145,7 +159,7 @@ private fun VoiceRow(context: Context, onClose: (() -> Unit)? = null, note: Stri
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-private fun SteamChatView() {
+private fun SteamChatView(onStopped: () -> Unit) {
     AndroidView(factory = { ctx ->
         WebView(ctx).apply {
             setBackgroundColor(0xFF0A0B0D.toInt())
@@ -164,6 +178,13 @@ private fun SteamChatView() {
                 override fun onPageFinished(view: WebView, url: String) {
                     val scale = view.resources.displayMetrics.density * CHAT_PAGE_SCALE
                     if (view.width > 0) view.evaluateJavascript(steamChatFitScript((view.width / scale).roundToInt(), CHAT_PAGE_SCALE), null)
+                }
+
+                // Android ends the page's renderer once DroidDeck goes to picture-in-picture ("isolated not needed"
+                // on the Retroid Pocket Duo); the page cannot come back, so the chat closes instead of showing a dead page.
+                override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
+                    onStopped()
+                    return true
                 }
             }
             loadUrl(STEAM_CHAT)
