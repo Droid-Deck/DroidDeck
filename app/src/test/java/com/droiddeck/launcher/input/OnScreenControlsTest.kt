@@ -219,7 +219,7 @@ class OnScreenControlsTest {
         val left = control("ls")
         val x = value(left, "cx")
         val y = value(left, "cy")
-        val reach = value(left, "radius") * 1.4f * sqrt(1.5f)
+        val reach = activationReach(left)
         assertFalse(touch(MotionEvent.ACTION_DOWN, 1 to (x to y - reach - 1f)))
         assertTrue(touch(MotionEvent.ACTION_DOWN, 1 to (x to y - reach + 1f)))
         assertEquals(y - reach + 1f, value(left, "ay"), 0.001f)
@@ -231,7 +231,7 @@ class OnScreenControlsTest {
     @Test fun leftAdaptiveStickCanStartAtTheLeftEdgeAndReleaseNormally() {
         val left = control("ls")
         val y = value(left, "cy")
-        val reach = value(left, "radius") * 1.4f * sqrt(1.5f)
+        val reach = activationReach(left)
         assertFalse(touch(MotionEvent.ACTION_DOWN, 1 to (0f to y - reach - 1f)))
         assertTrue(touch(MotionEvent.ACTION_DOWN, 1 to (0f to y)))
         assertEquals(1, field(left, "pressedBy"))
@@ -249,7 +249,7 @@ class OnScreenControlsTest {
         val right = control("rs")
         val x = value(right, "cx")
         val y = value(right, "cy")
-        val reach = value(right, "radius") * 1.4f * sqrt(1.5f)
+        val reach = activationReach(right)
         assertFalse(touch(MotionEvent.ACTION_DOWN, 1 to (1199f to y)))
         assertFalse(touch(MotionEvent.ACTION_DOWN, 1 to (x + reach + 1f to y)))
         assertTrue(touch(MotionEvent.ACTION_DOWN, 1 to (x + reach - 1f to y)))
@@ -348,8 +348,7 @@ class OnScreenControlsTest {
             val edge = value(button, "cy") - radius * if (id == "rb") 1.05f else 1.25f
             val x = value(button, "cx")
             val left = control("ls")
-            left.javaClass.getDeclaredField("cx").apply { isAccessible = true }.setFloat(left, x)
-            left.javaClass.getDeclaredField("cy").apply { isAccessible = true }.setFloat(left, edge - 10f)
+            moveControl(left, x, edge - 10f)
             assertFalse(touch(MotionEvent.ACTION_DOWN, 1 to (x to edge - 4f)))
             assertEquals(-1, field(left, "pressedBy"))
             assertTrue(touch(MotionEvent.ACTION_DOWN, 1 to (x to edge - 6f)))
@@ -364,8 +363,7 @@ class OnScreenControlsTest {
         val y = value(button, "cy")
         val edge = y - value(button, "radius") * 1.25f
         val left = control("ls")
-        left.javaClass.getDeclaredField("cx").apply { isAccessible = true }.setFloat(left, x + 200f)
-        left.javaClass.getDeclaredField("cy").apply { isAccessible = true }.setFloat(left, y)
+        moveControl(left, x + 200f, y)
         assertTrue(touch(MotionEvent.ACTION_DOWN, 1 to (x to y)))
         assertEquals(1, field(button, "pressedBy"))
         assertEquals(-1, field(left, "pressedBy"))
@@ -447,6 +445,13 @@ class OnScreenControlsTest {
     private fun field(owner: Any, name: String): Any = owner.javaClass.getDeclaredField(name).apply { isAccessible = true }.get(owner)!!
     private fun nullableFloat(owner: Any, name: String) = owner.javaClass.getDeclaredField(name).apply { isAccessible = true }.get(owner) as Float?
     private fun value(owner: Any, name: String) = field(owner, name) as Float
+
+    private fun activationReach(control: Any) = value(control, "radius") * 1.4f * sqrt(1.5f)
+
+    private fun moveControl(control: Any, x: Float, y: Float) {
+        control.javaClass.getDeclaredField("cx").apply { isAccessible = true }.setFloat(control, x)
+        control.javaClass.getDeclaredField("cy").apply { isAccessible = true }.setFloat(control, y)
+    }
 
     private fun pixel(x: Float, y: Float): Int {
         val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
