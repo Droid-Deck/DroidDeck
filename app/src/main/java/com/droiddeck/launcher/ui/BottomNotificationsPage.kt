@@ -63,8 +63,8 @@ fun BottomNotificationsPage() {
         }
         return
     }
-    val items = BottomNotifications.items
-    if (items.isEmpty()) {
+    val shown = BottomNotifications.items
+    if (shown.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text(stringResource(R.string.bottom_notifications_none), fontSize = 15.sp, color = colors.onSurfaceVariant)
         }
@@ -73,12 +73,12 @@ fun BottomNotificationsPage() {
     val timeFormat = remember { android.text.format.DateFormat.getTimeFormat(context) }
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text(stringResource(R.string.bottom_notifications_count, items.size), fontSize = 13.sp, color = colors.onSurfaceVariant,
+            Text(stringResource(R.string.bottom_notifications_count, shown.size), fontSize = 13.sp, color = colors.onSurfaceVariant,
                 modifier = Modifier.weight(1f))
             BottomPillButton(stringResource(R.string.bottom_notifications_clear), "bottom-notifications-clear") { BottomNotifications.clear() }
         }
         LazyColumn(Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(items.toList(), key = { it.key }) { n ->
+            items(shown.toList(), key = { it.key }) { n ->
                 Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(pal.surface).padding(horizontal = 14.dp, vertical = 10.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {

@@ -56,7 +56,7 @@ import java.net.URL
 import java.util.concurrent.atomic.AtomicReference
 
 private const val DRAW_MS = 66L
-private const val STALE_MS = 3_000L
+private const val TELEMETRY_STALE_MS = 3_000L
 private const val METRICS_MS = 1_000L
 private const val THUNDER_MS = 500L
 private const val THUNDER_RETRY_MS = 3_000L
@@ -97,13 +97,15 @@ fun BottomTelemetryPage(fps: () -> Float?) {
                         it.receive(packet)
                         GameTelemetry.parse(port, data, packet.length)?.let { t -> latest.set(System.currentTimeMillis() to t) }
                     } catch (_: SocketTimeoutException) {
+                    } catch (_: java.io.IOException) {
+                        break
                     }
                 }
             }
         }
         while (isActive) {
             val reading = latest.get()
-            race = reading?.takeIf { System.currentTimeMillis() - it.first < STALE_MS }?.second
+            race = reading?.takeIf { System.currentTimeMillis() - it.first < TELEMETRY_STALE_MS }?.second
             fpsNow = fps()
             delay(DRAW_MS)
         }
@@ -145,9 +147,9 @@ fun BottomTelemetryPage(fps: () -> Float?) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         DeviceRow(fpsNow, device)
         race?.let { RaceDash(it) }
-        if (thunder.isNotEmpty()) Card(stringResource(R.string.bottom_telemetry_war_thunder)) { ValueGrid(thunder) }
+        if (thunder.isNotEmpty()) TelemetryCard(stringResource(R.string.bottom_telemetry_war_thunder)) { ValueGrid(thunder) }
         elite?.let { e ->
-            Card(stringResource(R.string.bottom_telemetry_elite)) {
+            TelemetryCard(stringResource(R.string.bottom_telemetry_elite)) {
                 ValueGrid(listOfNotNull(
                     e.fuelMain?.let { stringResource(R.string.bottom_telemetry_fuel) to "%.1f t".format(it) },
                     e.cargo?.let { stringResource(R.string.bottom_telemetry_cargo) to "%.0f t".format(it) },
@@ -184,18 +186,18 @@ private fun httpGet(url: String): String {
 @Composable
 private fun DeviceRow(fps: Float?, s: HudMetrics.Snapshot?) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Tile(stringResource(R.string.bottom_telemetry_fps), fps?.takeIf { it > 0f }?.let { "%.0f".format(it) } ?: "–", Modifier.weight(1f))
-        Tile(stringResource(R.string.bottom_telemetry_cpu), listOfNotNull(s?.cpuPercent?.let { "$it%" }, s?.cpuTempC?.let { "$it°" })
+        TelemetryTile(stringResource(R.string.bottom_telemetry_fps), fps?.takeIf { it > 0f }?.let { "%.0f".format(it) } ?: "–", Modifier.weight(1f))
+        TelemetryTile(stringResource(R.string.bottom_telemetry_cpu), listOfNotNull(s?.cpuPercent?.let { "$it%" }, s?.cpuTempC?.let { "$it°" })
             .joinToString(" ").ifEmpty { "–" }, Modifier.weight(1f))
-        Tile(stringResource(R.string.bottom_telemetry_gpu), listOfNotNull(s?.gpuPercent?.let { "$it%" }, s?.gpuTempC?.let { "$it°" })
+        TelemetryTile(stringResource(R.string.bottom_telemetry_gpu), listOfNotNull(s?.gpuPercent?.let { "$it%" }, s?.gpuTempC?.let { "$it°" })
             .joinToString(" ").ifEmpty { "–" }, Modifier.weight(1f))
-        Tile(stringResource(R.string.bottom_telemetry_battery), listOfNotNull(s?.battery?.percent?.let { "$it%" },
+        TelemetryTile(stringResource(R.string.bottom_telemetry_battery), listOfNotNull(s?.battery?.percent?.let { "$it%" },
             s?.battery?.watts?.takeIf { it > 0f }?.let { "%.1fW".format(it) }).joinToString(" ").ifEmpty { "–" }, Modifier.weight(1f))
     }
 }
 
 @Composable
-private fun Tile(label: String, value: String, modifier: Modifier) {
+private fun TelemetryTile(label: String, value: String, modifier: Modifier) {
     val colors = MaterialTheme.colorScheme
     Column(modifier.clip(RoundedCornerShape(12.dp)).background(LocalPalette.current.surface).padding(horizontal = 10.dp, vertical = 8.dp)) {
         Text(label, fontSize = 11.sp, color = colors.onSurfaceVariant, maxLines = 1)
@@ -204,7 +206,7 @@ private fun Tile(label: String, value: String, modifier: Modifier) {
 }
 
 @Composable
-private fun Card(title: String, content: @Composable () -> Unit) {
+private fun TelemetryCard(title: String, content: @Composable () -> Unit) {
     val pal = LocalPalette.current
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(pal.surface).padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -238,7 +240,7 @@ internal fun lapTime(seconds: Float): String {
 private fun RaceDash(t: Telemetry) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
-    Card(t.source) {
+    TelemetryCard(t.source) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             Text(t.gear ?: "–", fontSize = 56.sp, fontWeight = FontWeight.Bold, color = pal.signal)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
