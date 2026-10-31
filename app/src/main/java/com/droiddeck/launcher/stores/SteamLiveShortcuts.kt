@@ -92,6 +92,15 @@ object SteamLiveShortcuts {
         if (evaluate(context, js) != null) Log.i(TAG, "live shortcuts: updated $id")
     }
 
+    /** Sets a Steam game's launch options in the running client, which keeps them itself; false when no client took them. */
+    fun setLaunchOptions(context: Context, appId: Long, options: String): Boolean {
+        if (!clientRunning()) return false
+        val id = appId and 0xFFFFFFFFL
+        val done = evaluate(context, "(async () => { SteamClient.Apps.SetAppLaunchOptions($id, ${JSONObject.quote(options)}); return 1; })()") != null
+        if (done) Log.i(TAG, "live: launch options for $id")
+        return done
+    }
+
     fun setArt(context: Context, appId: Long, assetType: Int?, file: java.io.File?, iconPath: String? = null) {
         if (!clientRunning()) return
         val id = appId and 0xFFFFFFFFL
