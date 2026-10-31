@@ -1,0 +1,37 @@
+patching file vulkan/layer/device.c
+Hunk #1 succeeded at 20 (offset -1 lines).
+diff --git a/hybris/vulkan/layer/device.c b/hybris/vulkan/layer/device.c
+index d0b36eec..a97981fa 100644
+--- a/hybris/vulkan/layer/device.c
++++ b/hybris/vulkan/layer/device.c
+@@ -20,6 +20,17 @@
+ #include <stdio.h>
+ #include <string.h>
+ 
++/* Same condition as hybris_shader_device_create's polygon flag: the app enables fillModeNonSolid and the layer
++ * emulates it. Polygon draws need the recorded bind/viewport/rendering state. */
++static int polygon_tracking(VkPhysicalDevice physical, const VkDeviceCreateInfo *info)
++{
++    VkBool32 requested = info->pEnabledFeatures ? info->pEnabledFeatures->fillModeNonSolid : VK_FALSE;
++    for (const VkBaseInStructure *node = info->pNext; node; node = node->pNext)
++        if (node->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2)
++            requested = ((const VkPhysicalDeviceFeatures2 *)node)->features.fillModeNonSolid;
++    return requested && hybris_shader_polygon_emulated(physical);
++}
++
+ struct device_state {
+     struct hybris_layer_device device;
+     struct hybris_layer_command_dispatch recording;
+@@ -96,7 +107,8 @@ VkResult VKAPI_CALL hybris_layer_create_device(VkPhysicalDevice physical,
+-        /* Resource lifetime/ownership is shared infrastructure, not an
+-         * application-specific rendering workaround. Flush/readback changes
+-         * remain gated by application_policy inside their own hooks. */
+-        .track_commands = 1,
++        /* Recording state is kept only for its users: the application policy
++         * (upload flush, readback) and polygon-mode emulation. Every tracked
++         * bind/draw/viewport/query takes the command registry mutex, which cost
++         * ~10% of a Unity menu's frame rate on PowerVR with neither in use. */
++        .track_commands = instance.application_policy != 0 || polygon_tracking(physical, info),
+         .instance_generation = instance.generation}, .custom_allocator = allocator != NULL};
+     if (allocator) state->allocator = *allocator;
+     pthread_mutex_lock(&guard);
