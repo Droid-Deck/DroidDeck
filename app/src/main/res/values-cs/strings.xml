@@ -746,6 +746,10 @@
     <string name="drawer_low_latency_touch">Dotek s nízkým zpožděním</string>
     <string name="drawer_low_latency_touch_hint">Doteky přeskakují dávkování snímků, takže ovládání dotykem ve Steamu běží na 1000 Hz. O něco víc CPU.</string>
     <string name="drawer_evdev_mouse">Surový kanál myši</string>
+    <string name="drawer_relative_mouse">Relativní myš</string>
+    <string name="drawer_relative_mouse_auto">Automaticky</string>
+    <string name="drawer_relative_mouse_on">Zapnuto</string>
+    <string name="drawer_relative_mouse_off">Vypnuto</string>
     <string name="drawer_direct_cursor">Kurzor</string>
     <string name="drawer_pc_keyboard">Klávesnice PC</string>
     <string name="drawer_android_keyboard">Android</string>

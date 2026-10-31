@@ -746,6 +746,10 @@
     <string name="drawer_low_latency_touch">Сенсор с низкой задержкой</string>
     <string name="drawer_low_latency_touch_hint">Касания идут без объединения кадров; сенсорное управление Steam работает на 1000 Гц. Немного больше нагрузки на CPU.</string>
     <string name="drawer_evdev_mouse">Сырой канал мыши</string>
+    <string name="drawer_relative_mouse">Относительная мышь</string>
+    <string name="drawer_relative_mouse_auto">Автоматически</string>
+    <string name="drawer_relative_mouse_on">Включено</string>
+    <string name="drawer_relative_mouse_off">Выключено</string>
     <string name="drawer_direct_cursor">Курсор</string>
     <string name="drawer_pc_keyboard">Клавиатура ПК</string>
     <string name="drawer_android_keyboard">Android</string>

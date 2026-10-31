@@ -740,6 +740,10 @@
     <string name="drawer_low_latency_touch">การสัมผัสความหน่วงต่ำ</string>
     <string name="drawer_low_latency_touch_hint">การสัมผัสข้ามการรวมเฟรม ทำให้ระบบสัมผัสของ Steam ทำงานที่ 1000 Hz ใช้ CPU เพิ่มขึ้นเล็กน้อย</string>
     <string name="drawer_evdev_mouse">ช่องเมาส์ดิบ</string>
+    <string name="drawer_relative_mouse">เมาส์แบบสัมพัทธ์</string>
+    <string name="drawer_relative_mouse_auto">อัตโนมัติ</string>
+    <string name="drawer_relative_mouse_on">เปิด</string>
+    <string name="drawer_relative_mouse_off">ปิด</string>
     <string name="drawer_direct_cursor">เคอร์เซอร์</string>
     <string name="drawer_pc_keyboard">แป้นพิมพ์พีซี</string>
     <string name="drawer_android_keyboard">Android</string>

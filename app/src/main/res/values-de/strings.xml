@@ -742,6 +742,10 @@
     <string name="drawer_low_latency_touch">Touch mit geringer Latenz</string>
     <string name="drawer_low_latency_touch_hint">Touch überspringt das Zusammenfassen von Frames, Steam-Touch meldet mit 1000 Hz. Die CPU-Last ist etwas höher.</string>
     <string name="drawer_evdev_mouse">Roher Mauskanal</string>
+    <string name="drawer_relative_mouse">Relative Maus</string>
+    <string name="drawer_relative_mouse_auto">Automatisch</string>
+    <string name="drawer_relative_mouse_on">An</string>
+    <string name="drawer_relative_mouse_off">Aus</string>
     <string name="drawer_direct_cursor">Zeiger</string>
     <string name="drawer_pc_keyboard">PC-Tastatur</string>
     <string name="drawer_android_keyboard">Android</string>
