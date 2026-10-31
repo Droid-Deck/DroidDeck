@@ -37,7 +37,7 @@ internal object GameJoltProbe {
     }.getOrNull()
 
     private val noise = Regex("/dash/(developer|communities|sites|avatar|header|profile|email)|communities|/posts/|stickers|polls|realms|custom-buttons|collaborators|playlists", RegexOption.IGNORE_CASE)
-    private val markers = listOf("get-download-url/", "/web/download/info/", "/web/discover/games", "/web/search\"", "/web/search`", "/web/auth/check\"", "/web/library\"", "/web/checkout/setup-order")
+    private val markers = listOf("get-download-url/", "/web/download/info/", "/web/discover/games", "/web/search\"", "/web/search`", "/web/search'", "/web/auth/check\"", "/web/library\"", "/web/checkout/setup-order")
     private val DIGITS = Regex("[0-9]+")
     private val IDENT = Regex("[A-Za-z_$][A-Za-z0-9_$]*")
     private val CODE_WORDS = setOf(
@@ -54,8 +54,10 @@ internal object GameJoltProbe {
         text.replace('\n', ' ').let { flat ->
             IDENT.replace(flat) { m ->
                 val before = flat.getOrNull(m.range.first - 1)
-                val after = flat.getOrNull(m.range.last + 1)
-                val structural = m.value.length <= 24 && m.value.all { it.isLetter() } && (before == '/' || before == '.' || after == ':')
+                val next = m.range.last + 1
+                val keyEnd = if (flat.getOrNull(next) == '"' || flat.getOrNull(next) == '\'') next + 1 else next
+                val isKey = flat.getOrNull(keyEnd) == ':'
+                val structural = m.value.length <= 24 && m.value.all { it.isLetter() || it == '_' } && (before == '/' || before == '.' || isKey)
                 if (m.value.length <= 2 || m.value in CODE_WORDS || structural) m.value else "_"
             }
         }.replace(DIGITS, "#")
