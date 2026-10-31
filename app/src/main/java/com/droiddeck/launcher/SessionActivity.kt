@@ -543,7 +543,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             physicalShortcuts.onDeviceRemoved(deviceId)
             Log.i(TAG, "input device $deviceId disconnected")
             backQamInput.onDeviceRemoved(deviceId)
-            mouseBackInput.cancel()
+            mouseBackInput.onDeviceRemoved(deviceId)
             joyConVr?.refresh()
             padBridge?.onDeviceRemoved(deviceId)
             if (::padMouse.isInitialized) padMouse.reset()
