@@ -37,7 +37,7 @@ internal object GameJoltProbe {
     }.getOrNull()
 
     private val noise = Regex("/dash/(developer|communities|sites|avatar|header|profile|email)|communities|/posts/|stickers|polls|realms|custom-buttons|collaborators|playlists", RegexOption.IGNORE_CASE)
-    private val markers = listOf("get-download-url/", "/web/download/info/", "/web/discover/games", "/web/search\"", "/web/search`", "/web/search'", "/web/auth/check\"", "/web/library\"", "/web/checkout/setup-order")
+    private val markers = listOf("get-download-url/", "/web/download/info/", "/web/discover/games", "/web/search\"", "/web/search`", "/web/search'", "getQueryString(", "getDownloadUrl(", "/web/auth/check\"", "/web/library\"", "/web/checkout/setup-order")
     private val DIGITS = Regex("[0-9]+")
     private val IDENT = Regex("[A-Za-z_$][A-Za-z0-9_$]*")
     private val CODE_WORDS = setOf(
@@ -105,7 +105,7 @@ internal object GameJoltProbe {
             host == "gamejolt.net" || host.endsWith(".gamejolt.net")
     }
 
-    private fun open(url: String, accept: String): HttpURLConnection {
+    private fun open(url: String, accept: String, body: String? = null): HttpURLConnection {
         var target = url
         repeat(MAX_REDIRECTS + 1) {
             require(target.startsWith("https://") && isGameJoltHost(target)) { "host not allowed" }
@@ -115,7 +115,13 @@ internal object GameJoltProbe {
                 instanceFollowRedirects = false
                 setRequestProperty("User-Agent", StoreNet.BROWSER_UA)
                 setRequestProperty("Accept", accept)
+                if (body != null) {
+                    requestMethod = "POST"
+                    doOutput = true
+                    setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
+                }
             }
+            if (body != null) conn.outputStream.use { it.write(body.toByteArray()) }
             val code = conn.responseCode
             val location = conn.getHeaderField("Location")
             if (code !in 300..399 || location == null) return conn
@@ -125,8 +131,8 @@ internal object GameJoltProbe {
         throw java.io.IOException("too many redirects")
     }
 
-    private fun fetch(url: String, accept: String, limit: Int): Reply? = try {
-        val conn = open(url, accept)
+    private fun fetch(url: String, accept: String, limit: Int, body: String? = null): Reply? = try {
+        val conn = open(url, accept, body)
         try {
             val code = conn.responseCode
             val stream = if (code in 200..399) conn.inputStream else conn.errorStream
@@ -185,8 +191,8 @@ internal object GameJoltProbe {
         return prefix + segments.joinToString("/")
     }
 
-    private fun report(label: String, url: String, accept: String, limit: Int): Reply? {
-        val r = fetch(url, accept, limit)
+    private fun report(label: String, url: String, accept: String, limit: Int, body: String? = null): Reply? {
+        val r = fetch(url, accept, limit, body)
         if (r == null) return null
         log("$label code=${r.code} type=${r.type} bytes=${r.body.length} url=${r.finalUrl}")
         if (r.type.contains("json", ignoreCase = true)) {
@@ -275,6 +281,8 @@ internal object GameJoltProbe {
             } ?: 0L
             if (buildId > 0) {
                 val reply = report("candidate download url", "https://gamejolt.com/site-api/web/discover/games/builds/get-download-url/$buildId", "application/json", 50_000)
+                report("candidate download url post", "https://gamejolt.com/site-api/web/discover/games/builds/get-download-url/$buildId", "application/json", 50_000, "")
+                report("candidate download url post os", "https://gamejolt.com/site-api/web/discover/games/builds/get-download-url/$buildId", "application/json", 50_000, "os=windows&arch=64")
                 reply?.let { r ->
                     runCatching {
                         val node = org.json.JSONObject(r.body).optJSONObject("payload")?.optString("url").orEmpty()
@@ -288,6 +296,7 @@ internal object GameJoltProbe {
             log("no numeric game id in the input, skipped the overview candidate")
         }
         report("candidate browse", "https://gamejolt.com/site-api/web/discover/games", "application/json", MAX_JSON)
+        report("candidate browse page", "https://gamejolt.com/site-api/web/discover/games?page=1", "application/json", MAX_JSON)
         val slug = runCatching { URL(input).path }.getOrDefault("").substringAfter("/games/", "").substringBefore('/')
         if (slug.isNotEmpty()) report("candidate search", "https://gamejolt.com/site-api/web/search?q=" + java.net.URLEncoder.encode(slug, "UTF-8"), "application/json", MAX_JSON)
         if (slug.isNotEmpty()) report("candidate game search", "https://gamejolt.com/site-api/web/search/games?q=" + java.net.URLEncoder.encode(slug, "UTF-8") + "&page=1", "application/json", MAX_JSON)
