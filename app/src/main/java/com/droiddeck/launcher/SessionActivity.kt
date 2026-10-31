@@ -2781,22 +2781,29 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun layoutNames(): List<String> =
         com.droiddeck.launcher.input.ControllerPrefs.screenLayouts(this).keys.sorted()
 
+    private val relativeMouseRequests = java.util.concurrent.Executors.newSingleThreadExecutor { runnable ->
+        Thread(runnable, "relative-mouse").apply { isDaemon = true }
+    }
+
     private fun setRelativeMouse(mode: Int) {
         val request = org.json.JSONObject()
             .put("kind", "exec")
             .put("argv", org.json.JSONArray(listOf("gamescopectl", "relative_mouse", mode.toString())))
             .put("timeout", 5.0)
-        Thread({
+        relativeMouseRequests.execute {
             val result = runCatching { AgentGuest.call(this, request, 8_000, trusted = true) }
             val ok = result.getOrNull()?.optBoolean("ok") == true
             if (!ok) Log.w(TAG, "gamescope did not take relative mouse: ${result.exceptionOrNull() ?: result.getOrNull()}")
-        }, "relative-mouse").start()
+        }
     }
 
     private fun refreshGestureConfig() {
         gestureConfig = com.droiddeck.launcher.input.GesturePrefs.read(this, gestureGame)
         directHoldBehavior = gestureConfig.directHoldBehavior
-        relativeMouseMode = gestureConfig.relativeMouseMode
+        if (relativeMouseMode != gestureConfig.relativeMouseMode) {
+            relativeMouseMode = gestureConfig.relativeMouseMode
+            setRelativeMouse(relativeMouseMode)
+        }
         gestureTouchStreamGate.reset()
         if (::touchscreenGestures.isInitialized) touchscreenGestures.configure(gestureConfig)
         if (::directTouchHold.isInitialized) directTouchHold.configure(gestureConfig)
@@ -4433,6 +4440,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun onDestroy() {
         com.droiddeck.launcher.input.HomeButtonShortcuts.detach(this)
+        relativeMouseRequests.shutdownNow()
         backQamInput.cancel()
         steamVrRecovery.close()
         uiHandler.removeCallbacks(steamTouchRetry)
