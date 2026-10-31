@@ -3166,6 +3166,7 @@
     <string name="apps_unhide">앱에 표시</string>
     <string name="apps_favorite">즐겨찾기에 추가</string>
     <string name="apps_unfavorite">즐겨찾기에서 삭제</string>
+    <string name="apps_favorites">즐겨찾기</string>
     <string name="apps_shortcut_remove">바로가기 삭제</string>
     <string name="apps_pin_title">앱에 추가</string>
     <string name="apps_pin_add">추가</string>

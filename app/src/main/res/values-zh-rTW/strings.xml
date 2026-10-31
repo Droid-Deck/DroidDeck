@@ -3171,6 +3171,7 @@
     <string name="apps_unhide">在應用程式中顯示</string>
     <string name="apps_favorite">加入最愛</string>
     <string name="apps_unfavorite">從最愛中移除</string>
+    <string name="apps_favorites">最愛</string>
     <string name="apps_shortcut_remove">移除捷徑</string>
     <string name="apps_pin_title">新增至應用程式</string>
     <string name="apps_pin_add">新增</string>

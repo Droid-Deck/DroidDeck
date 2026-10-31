@@ -316,6 +316,19 @@ internal fun AndroidAppsPage(s: FrontEndState, modifier: Modifier, onLaunch: (Ho
             }
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 val scroller = q.isEmpty() && byName && entries.size - favoriteCount > 16
+                val tile: @Composable (AppEntry) -> Unit = { entry ->
+                    when (entry) {
+                        is AppEntry.App -> AppTile(
+                            entry.app, folderId = null, onLaunch = onLaunch, onNewFolder = newFolder,
+                            first = entry === entries.first(),
+                        )
+                        is AppEntry.Shortcut -> PinnedTile(entry.pinned, first = entry === entries.first())
+                        is AppEntry.Folder -> FolderTile(entry, first = entry === entries.first(), onOpen = { renameOnOpen = false; openFolder = entry.folder.id }) {
+                            renameOnOpen = true
+                            openFolder = entry.folder.id
+                        }
+                    }
+                }
                 LazyVerticalGrid(
                     columns = GridCells.Adaptive(if (narrow) 84.dp else 96.dp),
                     state = grid,
@@ -345,19 +358,13 @@ internal fun AndroidAppsPage(s: FrontEndState, modifier: Modifier, onLaunch: (Ho
                             },
                         )
                     }
-                    items(entries, key = { it.key }) { entry ->
-                        when (entry) {
-                            is AppEntry.App -> AppTile(
-                                entry.app, folderId = null, onLaunch = onLaunch, onNewFolder = newFolder,
-                                first = entry === entries.first(),
-                            )
-                            is AppEntry.Shortcut -> PinnedTile(entry.pinned, first = entry === entries.first())
-                            is AppEntry.Folder -> FolderTile(entry, first = entry === entries.first(), onOpen = { renameOnOpen = false; openFolder = entry.folder.id }) {
-                                renameOnOpen = true
-                                openFolder = entry.folder.id
-                            }
-                        }
+                    if (favoriteCount > 0) {
+                        item(key = "favorites-label", span = { GridItemSpan(maxLineSpan) }) { SectionLabel(stringResource(R.string.apps_favorites)) }
+                        items(entries.take(favoriteCount), key = { it.key }) { tile(it) }
+                        item(key = "favorites-gap", span = { GridItemSpan(maxLineSpan) }) { Spacer(Modifier.height(4.dp)) }
+                        if (entries.size > favoriteCount) item(key = "apps-label", span = { GridItemSpan(maxLineSpan) }) { SectionLabel(appsFilterLabel(filter)) }
                     }
+                    items(entries.drop(favoriteCount), key = { it.key }) { tile(it) }
                 }
                 if (scroller) AlphabetScroller(entries, favoriteCount, grid, leadItems, Modifier.align(Alignment.CenterEnd).fillMaxHeight().padding(end = 4.dp, top = 8.dp, bottom = 8.dp))
             }
@@ -472,8 +479,9 @@ private fun AlphabetScroller(entries: List<AppEntry>, favoriteCount: Int, grid: 
     var dragging by remember { mutableStateOf<String?>(null) }
     val current by remember(entries, leadItems, favoriteCount) {
         derivedStateOf {
-            val i = (grid.firstVisibleItemIndex - leadItems).coerceIn(0, (entries.size - 1).coerceAtLeast(0))
-            if (i < favoriteCount) null else entries.getOrNull(i)?.let { indexLetter(it.label) }
+            val i = grid.firstVisibleItemIndex - leadItems - (if (favoriteCount > 0) 3 else 0)
+            if (favoriteCount > 0 && i < favoriteCount) null
+            else entries.getOrNull(i.coerceIn(0, (entries.size - 1).coerceAtLeast(0)))?.let { indexLetter(it.label) }
         }
     }
     var height by remember { mutableIntStateOf(1) }
@@ -483,7 +491,7 @@ private fun AlphabetScroller(entries: List<AppEntry>, favoriteCount: Int, grid: 
         if (letter != dragging) {
             dragging = letter
             val at = firstAt[letter] ?: 0
-            scope.launch { grid.scrollToItem(if (at == 0) 0 else leadItems + at) }
+            scope.launch { grid.scrollToItem(if (at == 0) 0 else leadItems + (if (favoriteCount > 0) 3 else 0) + at) }
         }
     }
     Box(modifier.width(22.dp)) {

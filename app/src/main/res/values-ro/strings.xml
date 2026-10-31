@@ -3223,6 +3223,7 @@
     <string name="apps_unhide">Afișează în aplicații</string>
     <string name="apps_favorite">Adaugă la favorite</string>
     <string name="apps_unfavorite">Elimină din favorite</string>
+    <string name="apps_favorites">Favorite</string>
     <string name="apps_shortcut_remove">Elimină comanda rapidă</string>
     <string name="apps_pin_title">Adaugă în Aplicații</string>
     <string name="apps_pin_add">Adaugă</string>

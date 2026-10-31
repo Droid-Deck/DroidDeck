@@ -3225,6 +3225,7 @@
     <string name="apps_unhide">Afficher dans les applications</string>
     <string name="apps_favorite">Ajouter aux favoris</string>
     <string name="apps_unfavorite">Retirer des favoris</string>
+    <string name="apps_favorites">Favoris</string>
     <string name="apps_shortcut_remove">Retirer le raccourci</string>
     <string name="apps_pin_title">Ajouter aux applications</string>
     <string name="apps_pin_add">Ajouter</string>

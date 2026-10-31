@@ -3189,6 +3189,7 @@
     <string name="apps_unhide">Tonen in apps</string>
     <string name="apps_favorite">Toevoegen aan favorieten</string>
     <string name="apps_unfavorite">Verwijderen uit favorieten</string>
+    <string name="apps_favorites">Favorieten</string>
     <string name="apps_shortcut_remove">Snelkoppeling verwijderen</string>
     <string name="apps_pin_title">Toevoegen aan Apps</string>
     <string name="apps_pin_add">Toevoegen</string>

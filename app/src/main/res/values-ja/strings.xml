@@ -3166,6 +3166,7 @@
     <string name="apps_unhide">アプリに表示</string>
     <string name="apps_favorite">お気に入りに追加</string>
     <string name="apps_unfavorite">お気に入りから削除</string>
+    <string name="apps_favorites">お気に入り</string>
     <string name="apps_shortcut_remove">ショートカットを削除</string>
     <string name="apps_pin_title">アプリに追加</string>
     <string name="apps_pin_add">追加</string>

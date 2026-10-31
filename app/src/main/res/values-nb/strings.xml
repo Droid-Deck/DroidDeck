@@ -3189,6 +3189,7 @@
     <string name="apps_unhide">Vis i apper</string>
     <string name="apps_favorite">Legg til i favoritter</string>
     <string name="apps_unfavorite">Fjern fra favoritter</string>
+    <string name="apps_favorites">Favoritter</string>
     <string name="apps_shortcut_remove">Fjern snarvei</string>
     <string name="apps_pin_title">Legg til i Apper</string>
     <string name="apps_pin_add">Legg til</string>

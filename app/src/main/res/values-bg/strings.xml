@@ -3189,6 +3189,7 @@
     <string name="apps_unhide">Показване в приложенията</string>
     <string name="apps_favorite">Добави в любими</string>
     <string name="apps_unfavorite">Премахни от любими</string>
+    <string name="apps_favorites">Любими</string>
     <string name="apps_shortcut_remove">Премахване на прекия път</string>
     <string name="apps_pin_title">Добавяне към приложенията</string>
     <string name="apps_pin_add">Добавяне</string>

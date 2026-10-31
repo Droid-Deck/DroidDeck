@@ -3257,6 +3257,7 @@
     <string name="apps_unhide">Zobrazit v aplikacích</string>
     <string name="apps_favorite">Přidat do oblíbených</string>
     <string name="apps_unfavorite">Odebrat z oblíbených</string>
+    <string name="apps_favorites">Oblíbené</string>
     <string name="apps_shortcut_remove">Odebrat zkratku</string>
     <string name="apps_pin_title">Přidat do aplikací</string>
     <string name="apps_pin_add">Přidat</string>

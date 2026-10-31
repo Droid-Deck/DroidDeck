@@ -3257,6 +3257,7 @@
     <string name="apps_unhide">Показувати в застосунках</string>
     <string name="apps_favorite">Додати до вибраного</string>
     <string name="apps_unfavorite">Видалити з вибраного</string>
+    <string name="apps_favorites">Вибране</string>
     <string name="apps_shortcut_remove">Вилучити ярлик</string>
     <string name="apps_pin_title">Додати до застосунків</string>
     <string name="apps_pin_add">Додати</string>
