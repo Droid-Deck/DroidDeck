@@ -2,12 +2,15 @@ package com.droiddeck.launcher.ui
 
 import android.hardware.display.DisplayManager
 import android.hardware.input.InputManager
+import android.os.Build
 import android.view.Display
 import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
+import androidx.core.graphics.Insets
+import androidx.core.view.WindowInsetsCompat
 import androidx.compose.ui.test.*
 import androidx.compose.ui.semantics.SemanticsProperties.StateDescription
 import androidx.compose.runtime.MutableState
@@ -17,6 +20,7 @@ import com.droiddeck.launcher.gpu.FrameGen
 import com.droiddeck.launcher.gpu.Lossless
 import com.droiddeck.launcher.input.SecondScreenDisplay
 import com.droiddeck.launcher.input.SecondScreenMode
+import com.droiddeck.launcher.input.KeyboardHost
 import com.droiddeck.launcher.input.PadBridgeRoutingTest
 import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionState
@@ -126,6 +130,48 @@ class SessionSecondScreenTest {
     @Test fun desktopTrackpadOmitsSteamShortcuts() = checkShortcuts(steam = false)
 
     @Test fun steamTrackpadKeepsWorkingSteamShortcuts() = checkShortcuts(steam = true)
+
+    @Test
+    @Config(sdk = [28, 33])
+    fun fieldKeyboardClosesOnceAfterAnObservedImeDismissal() {
+        val activity = Robolectric.buildActivity(SessionActivity::class.java).get()
+        val display = activity.getSystemService(DisplayManager::class.java).getDisplay(Display.DEFAULT_DISPLAY)
+        var closed = 0
+        val panel = SecondScreenPresentation(activity, display, { _, _, _, _ -> }, { _, _ -> }, {},
+            {}, {}, {}, onKeyboardClosed = { closed++ })
+        try {
+            panel.show()
+            panel.showMode(SecondScreenMode.KEYBOARD_TRACKPAD)
+            panel.requestKeyboard(forField = true)
+            val host = descendants(panel.window!!.decorView).filterIsInstance<KeyboardHost>().single()
+            fun ime(visible: Boolean) {
+                val height = if (visible) 300 else 0
+                val builder = WindowInsetsCompat.Builder()
+                if (Build.VERSION.SDK_INT < 30) {
+                    @Suppress("DEPRECATION")
+                    builder.setSystemWindowInsets(Insets.of(0, 0, 0, height))
+                } else {
+                    builder.setInsets(WindowInsetsCompat.Type.ime(), Insets.of(0, 0, 0, height))
+                        .setVisible(WindowInsetsCompat.Type.ime(), visible)
+                }
+                host.dispatchApplyWindowInsets(builder.build().toWindowInsets()!!)
+            }
+            ime(false)
+            assertTrue(panel.fieldKeyboardOpen)
+            assertEquals(0, closed)
+            host.show()
+            ime(true)
+            assertTrue(panel.fieldKeyboardOpen)
+            ime(false)
+            assertFalse(panel.fieldKeyboardOpen)
+            assertFalse(host.onCheckIsTextEditor())
+            assertEquals(1, closed)
+            ime(false)
+            assertEquals(1, closed)
+        } finally {
+            panel.closeControls()
+        }
+    }
 
     @Test fun trackpadMenuButtonOnlyAppearsWhenTheMenuCanMove() {
         SessionState.mode = SessionService.MODE_STEAM
@@ -262,7 +308,7 @@ class SessionSecondScreenTest {
             panel.create()
             panel.showMode(SecondScreenMode.KEYBOARD_TRACKPAD)
             val buttons = descendants(panel.window!!.decorView).filterIsInstance<TextView>().filter { it.isClickable }.toList()
-            assertTrue(buttons.any { it.text == context.getString(R.string.second_show_keyboard) })
+            assertTrue(buttons.any { it.text == context.getString(R.string.drawer_android_keyboard) })
             val shortcuts = buttons.filter { it.text == "STEAM" || it.text == "•••" }
             if (steam) {
                 assertEquals(2, shortcuts.size)
@@ -291,7 +337,8 @@ class SessionSecondScreenTest {
             onScreenButtonsVisible = false, suspendPolicy = "auto", backActionsInverted = false,
             touchMode = "auto", touchAuto = "trackpad", fexPreset = "default",
             secondScreenMode = SecondScreenMode.NONE, secondScreenDisplays = displays, selectedSecondScreenDisplay = 1,
-            onHud = {}, onFrameGenPick = {}, onImportLossless = {}, onKeyboard = {}, onHardwareKeyboard = {},
+            onHud = {}, onFrameGenPick = {}, onImportLossless = {}, onAndroidKeyboard = {},
+            onSteamKeyboard = if (steam) ({}) else null,
             onSteamMenu = null, onQam = null, onOsc = {}, onSuspendPolicy = {}, onBackActionsInverted = {},
             onTouch = {}, onFexPreset = {}, onSecondScreenMode = select, onSecondScreenDisplay = {},
             onLaunchAndroidApp = { _, _ -> }, onBackground = {}, onShareLogs = {}, onStop = {}, onClose = {})

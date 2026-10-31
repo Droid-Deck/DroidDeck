@@ -745,7 +745,6 @@
     <string name="drawer_low_latency_touch_hint">Atingerile sar peste gruparea cadrelor, deci controlul tactil Steam rulează la 1000 Hz. Consum CPU puțin mai mare.</string>
     <string name="drawer_evdev_mouse">Canal brut de mouse</string>
     <string name="drawer_direct_cursor">Cursor</string>
-    <string name="drawer_pc_keyboard">Tastatură de PC</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Al doilea ecran</string>
     <string name="drawer_second_screen_mode">Mod</string>
@@ -1255,7 +1254,6 @@
     <string name="deck_left_trackpad">Trackpad-ul stâng</string>
     <string name="second_trackpad">Trackpad</string>
     <string name="second_show_keyboard">Arată tastatura</string>
-    <string name="second_hide_keyboard">Ascunde tastatura</string>
     <string name="second_terminal">Terminal Linux</string>
     <string name="second_terminal_not_ready">Sesiunea Linux nu este încă pregătită pentru un terminal.</string>
     <string name="rail_steam">Steam</string>
@@ -1285,8 +1283,6 @@
     <string name="proton_remove_body">Jocurile setate pe această versiune trebuie comutate pe alt Proton.</string>
     <string name="proton_install_now">Instalează acum</string>
     <string name="proton_cancel_queued">Anulează cererea în așteptare</string>
-    <string name="pckb_android">Tastatura Android</string>
-    <string name="pckb_hide">Ascunde  ✕</string>
     <string name="main_launch_named">Lansează %1$s</string>
     <string name="main_choose_screen">Alege un ecran. Secundar: %1$s.</string>
     <string name="main_secondary_gone">Ecranul secundar nu mai este disponibil.</string>

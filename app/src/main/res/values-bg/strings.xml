@@ -743,7 +743,6 @@
     <string name="drawer_low_latency_touch_hint">Докосванията пропускат групирането на кадри; управлението с докосване в Steam работи при 1000 Hz. Малко повече CPU.</string>
     <string name="drawer_evdev_mouse">Суров канал за мишка</string>
     <string name="drawer_direct_cursor">Курсор</string>
-    <string name="drawer_pc_keyboard">Клавиатура за компютър</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Втори екран</string>
     <string name="drawer_second_screen_mode">Режим</string>
@@ -1249,7 +1248,6 @@
     <string name="deck_left_trackpad">Ляв тракпад</string>
     <string name="second_trackpad">Тракпад</string>
     <string name="second_show_keyboard">Показване на клавиатурата</string>
-    <string name="second_hide_keyboard">Скриване на клавиатурата</string>
     <string name="second_terminal">Терминал на Linux</string>
     <string name="second_terminal_not_ready">Сесията на Linux все още не е готова за терминал.</string>
     <string name="rail_steam">Steam</string>
@@ -1279,8 +1277,6 @@
     <string name="proton_remove_body">Игрите, зададени на тази версия, трябва да бъдат превключени към друг Proton.</string>
     <string name="proton_install_now">Инсталиране сега</string>
     <string name="proton_cancel_queued">Отказ на изчакването</string>
-    <string name="pckb_android">Клавиатура на Android</string>
-    <string name="pckb_hide">Скриване  ✕</string>
     <string name="main_launch_named">Пускане на %1$s</string>
     <string name="main_choose_screen">Избери екран. Втори: %1$s.</string>
     <string name="main_secondary_gone">Вторият екран вече не е достъпен.</string>

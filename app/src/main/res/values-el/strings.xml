@@ -743,7 +743,6 @@
     <string name="drawer_low_latency_touch_hint">Οι αφές παρακάμπτουν την ομαδοποίηση καρέ, οπότε ο χειρισμός αφής του Steam τρέχει στα 1000 Hz. Λίγο περισσότερο CPU.</string>
     <string name="drawer_evdev_mouse">Ακατέργαστο κανάλι ποντικιού</string>
     <string name="drawer_direct_cursor">Δείκτης</string>
-    <string name="drawer_pc_keyboard">Πληκτρολόγιο PC</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Δεύτερη οθόνη</string>
     <string name="drawer_second_screen_mode">Λειτουργία</string>
@@ -1249,7 +1248,6 @@
     <string name="deck_left_trackpad">Αριστερή πινακίδα αφής</string>
     <string name="second_trackpad">Πινακίδα αφής</string>
     <string name="second_show_keyboard">Εμφάνιση πληκτρολογίου</string>
-    <string name="second_hide_keyboard">Απόκρυψη πληκτρολογίου</string>
     <string name="second_terminal">Τερματικό Linux</string>
     <string name="second_terminal_not_ready">Η συνεδρία Linux δεν είναι ακόμα έτοιμη για τερματικό.</string>
     <string name="rail_steam">Steam</string>
@@ -1279,8 +1277,6 @@
     <string name="proton_remove_body">Τα παιχνίδια που έχουν ρυθμιστεί σε αυτή την έκδοση πρέπει να αλλάξουν σε άλλο Proton.</string>
     <string name="proton_install_now">Εγκατάσταση τώρα</string>
     <string name="proton_cancel_queued">Ακύρωση σε εκκρεμότητα</string>
-    <string name="pckb_android">Πληκτρολόγιο Android</string>
-    <string name="pckb_hide">Απόκρυψη  ✕</string>
     <string name="main_launch_named">Εκκίνηση %1$s</string>
     <string name="main_choose_screen">Επιλέξτε οθόνη. Δευτερεύουσα: %1$s.</string>
     <string name="main_secondary_gone">Η δευτερεύουσα οθόνη δεν είναι πλέον διαθέσιμη.</string>

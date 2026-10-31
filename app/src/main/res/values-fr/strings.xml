@@ -745,7 +745,6 @@
     <string name="drawer_low_latency_touch_hint">Les touchers ignorent le regroupement d\'images ; les commandes tactiles Steam passent à 1000 Hz. Un peu plus de CPU.</string>
     <string name="drawer_evdev_mouse">Canal souris brut</string>
     <string name="drawer_direct_cursor">Curseur</string>
-    <string name="drawer_pc_keyboard">Clavier PC</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Deuxième écran</string>
     <string name="drawer_second_screen_mode">Mode</string>
@@ -1255,7 +1254,6 @@
     <string name="deck_left_trackpad">Pavé tactile gauche</string>
     <string name="second_trackpad">Pavé tactile</string>
     <string name="second_show_keyboard">Afficher le clavier</string>
-    <string name="second_hide_keyboard">Masquer le clavier</string>
     <string name="second_terminal">Terminal Linux</string>
     <string name="second_terminal_not_ready">La session Linux n\'est pas prête, le terminal ne peut pas être utilisé.</string>
     <string name="rail_steam">Steam</string>
@@ -1285,8 +1283,6 @@
     <string name="proton_remove_body">Les jeux configurés sur cette version devront passer à un autre Proton.</string>
     <string name="proton_install_now">Installer maintenant</string>
     <string name="proton_cancel_queued">Annuler la file d\'attente</string>
-    <string name="pckb_android">Clavier Android</string>
-    <string name="pckb_hide">Masquer ✕</string>
     <string name="main_launch_named">Lancer %1$s</string>
     <string name="main_choose_screen">Choisir l\'écran. Écran secondaire : %1$s.</string>
     <string name="main_secondary_gone">L\'écran secondaire n\'est plus disponible.</string>

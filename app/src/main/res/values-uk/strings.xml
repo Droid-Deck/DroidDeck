@@ -747,7 +747,6 @@
     <string name="drawer_low_latency_touch_hint">Дотики обходять групування кадрів, тож сенсорне керування Steam працює на 1000 Hz. Трохи більше навантаження на CPU.</string>
     <string name="drawer_evdev_mouse">Сирий канал миші</string>
     <string name="drawer_direct_cursor">Курсор</string>
-    <string name="drawer_pc_keyboard">Клавіатура ПК</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Другий екран</string>
     <string name="drawer_second_screen_mode">Режим</string>
@@ -1261,7 +1260,6 @@
     <string name="deck_left_trackpad">Лівий трекпад</string>
     <string name="second_trackpad">Трекпад</string>
     <string name="second_show_keyboard">Показати клавіатуру</string>
-    <string name="second_hide_keyboard">Сховати клавіатуру</string>
     <string name="second_terminal">Термінал Linux</string>
     <string name="second_terminal_not_ready">Сеанс Linux ще не готовий до роботи з терміналом.</string>
     <string name="rail_steam">Steam</string>
@@ -1291,8 +1289,6 @@
     <string name="proton_remove_body">Для ігор, налаштованих на цю версію, доведеться вибрати інший Proton.</string>
     <string name="proton_install_now">Встановити зараз</string>
     <string name="proton_cancel_queued">Прибрати з черги</string>
-    <string name="pckb_android">Клавіатура Android</string>
-    <string name="pckb_hide">Сховати  ✕</string>
     <string name="main_launch_named">Запустити %1$s</string>
     <string name="main_choose_screen">Виберіть екран. Додатковий: %1$s.</string>
     <string name="main_secondary_gone">Додатковий дисплей більше не доступний.</string>

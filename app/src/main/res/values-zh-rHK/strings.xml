@@ -730,7 +730,6 @@
     <string name="drawer_low_latency_touch_hint">觸控略過幀合併，Steam 觸控以 1000 Hz 回報。CPU 使用率略高。</string>
     <string name="drawer_evdev_mouse">原生滑鼠通道</string>
     <string name="drawer_direct_cursor">游標</string>
-    <string name="drawer_pc_keyboard">電腦鍵盤</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">第二螢幕</string>
     <string name="drawer_second_screen_mode">模式</string>
@@ -1229,7 +1228,6 @@
     <string name="deck_left_trackpad">左側觸控板</string>
     <string name="second_trackpad">觸控板</string>
     <string name="second_show_keyboard">顯示鍵盤</string>
-    <string name="second_hide_keyboard">隱藏鍵盤</string>
     <string name="second_terminal">Linux 終端機</string>
     <string name="second_terminal_not_ready">Linux 會話尚未準備好使用終端機。</string>
     <string name="rail_steam">Steam</string>
@@ -1259,8 +1257,6 @@
     <string name="proton_remove_body">設為使用此版本的遊戲須改用其他 Proton。</string>
     <string name="proton_install_now">立即安裝</string>
     <string name="proton_cancel_queued">取消排隊</string>
-    <string name="pckb_android">Android 鍵盤</string>
-    <string name="pckb_hide">隱藏 ✕</string>
     <string name="main_launch_named">啟動 %1$s</string>
     <string name="main_choose_screen">選擇螢幕。副螢幕：%1$s。</string>
     <string name="main_secondary_gone">副螢幕已無法使用。</string>
