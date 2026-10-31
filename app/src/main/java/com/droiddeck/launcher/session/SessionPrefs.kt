@@ -132,13 +132,6 @@ object SessionPrefs {
         prefs(context).edit().putStringSet("telemetryOff", keys.toSet()).apply()
     }
 
-    /** Games the user switched on by hand, as TelemetryOutput keys; Automatic keeps them on. */
-    fun telemetryOnByHand(context: Context): Set<String> = prefs(context).getStringSet("telemetryOnByHand", null)?.toSet().orEmpty()
-
-    fun setTelemetryOnByHand(context: Context, keys: Set<String>) {
-        prefs(context).edit().putStringSet("telemetryOnByHand", keys.toSet()).apply()
-    }
-
     fun dualScreenLauncher(context: Context): Boolean = prefs(context).getBoolean("dualScreenLauncher", true)
 
     fun setDualScreenLauncher(context: Context, on: Boolean) {

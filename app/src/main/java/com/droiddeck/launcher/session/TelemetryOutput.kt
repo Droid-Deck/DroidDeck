@@ -10,10 +10,7 @@ import java.io.File
  * In-game stats listener; the file as it was is kept beside it, and its element is put back when turned off.
  */
 object TelemetryOutput {
-    data class Game(val name: String, val prefixId: String, val file: File, val on: Boolean) {
-        /** DiRT 3 and DiRT Showdown can stop at the end of a race with WinSock error 10038 while this output is on. */
-        val raceEndCrash: Boolean get() = name.lowercase().replace(" ", "") in RACE_END_CRASH
-    }
+    data class Game(val name: String, val prefixId: String, val file: File, val on: Boolean)
 
     data class MenuGame(val name: String, val setting: String, val port: Int)
 
@@ -31,7 +28,6 @@ object TelemetryOutput {
     private const val ADDRESS = "127.0.0.1"
     private const val EXTRADATA = "3"
     private val TAGS = listOf("udp", "motion")
-    private val RACE_END_CRASH = setOf("dirtshowdown", "dirt3")
     // Byte-for-byte: every byte maps to one char and back, whatever the file's own encoding is.
     private val BYTES = Charsets.ISO_8859_1
 
@@ -66,24 +62,16 @@ object TelemetryOutput {
         true
     }.getOrDefault(false)
 
-    /**
-     * Automatic: turns the output on for every found game the user has not switched off and that is not running.
-     * Games with the race-end crash are left to the user, and ones Automatic switched on go back to their own setting.
-     */
+    /** Automatic: turns the output on for every found game the user has not switched off and that is not running. */
     fun applyAutomatic(context: Context, running: String?) {
         if (!SessionPrefs.telemetryAuto(context)) return
-        val games = scan(Library.compatdataDirs(context))
-        automaticTargets(games, SessionPrefs.telemetryOff(context), running).forEach { set(it, true) }
-        automaticRestores(games, SessionPrefs.telemetryOnByHand(context), running).forEach { set(it, false) }
+        automaticTargets(scan(Library.compatdataDirs(context)), SessionPrefs.telemetryOff(context), running).forEach { set(it, true) }
     }
 
     internal fun key(game: Game) = "${game.prefixId}/${game.name}"
 
     internal fun automaticTargets(games: List<Game>, off: Set<String>, running: String?): List<Game> =
-        games.filter { !it.on && !it.raceEndCrash && key(it) !in off && !isRunning(it.prefixId, running) }
-
-    internal fun automaticRestores(games: List<Game>, onByHand: Set<String>, running: String?): List<Game> =
-        games.filter { it.raceEndCrash && it.on && key(it) !in onByHand && File(it.file.path + ORIGINAL_SUFFIX).isFile && !isRunning(it.prefixId, running) }
+        games.filter { !it.on && key(it) !in off && !isRunning(it.prefixId, running) }
 
     /** Games DroidDeck changed, which go back to their own setting when Automatic is switched off. */
     internal fun restoreTargets(games: List<Game>, running: String?): List<Game> =

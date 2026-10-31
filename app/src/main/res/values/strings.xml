@@ -1916,7 +1916,6 @@
     <string name="stats_fuel_main">Main %1$s t</string>
     <string name="stats_fuel_reserve">Reserve %1$s t</string>
     <string name="stats_tap_hint">Tap the top strip or the dash to change its style.</string>
-    <string name="bottom_telemetry_send_crash">This game can stop at the end of a race while this is on, so Automatic leaves it off.</string>
     <string name="bottom_telemetry_send_title">Send dashboard data</string>
     <string name="bottom_telemetry_send_auto">Automatic</string>
     <string name="bottom_telemetry_send_auto_hint">Turns it on for every game listed here, including games found later. Games you switch off stay off.</string>

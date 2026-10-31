@@ -271,18 +271,13 @@ fun BottomTelemetryPage(fps: () -> Float?, runningGame: () -> String? = { null }
             }
             for (game in outputs) {
                 val locked = TelemetryOutput.isRunning(game.prefixId, running)
-                val hint = listOfNotNull(
-                    if (locked) stringResource(R.string.bottom_telemetry_send_close, game.name) else null,
-                    if (game.raceEndCrash) stringResource(R.string.bottom_telemetry_send_crash) else null,
-                ).joinToString("\n").ifEmpty { null }
+                val hint = if (locked) stringResource(R.string.bottom_telemetry_send_close, game.name) else null
                 SwitchRow(game.name, hint, game.on, !locked) { want ->
                     scope.launch {
                         val ok = withContext(Dispatchers.IO) {
                             val key = TelemetryOutput.key(game)
                             val off = SessionPrefs.telemetryOff(context)
-                            val byHand = SessionPrefs.telemetryOnByHand(context)
                             SessionPrefs.setTelemetryOff(context, if (want) off - key else off + key)
-                            SessionPrefs.setTelemetryOnByHand(context, if (want) byHand + key else byHand - key)
                             TelemetryOutput.set(game, want)
                         }
                         outputFailed = if (ok) null else game.name
