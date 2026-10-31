@@ -33,6 +33,8 @@ object BoostReport {
     internal const val SETTLE_S = 5
     internal const val CHECK_MIN_S = 120 // counted seconds on each side before there is a verdict
     private const val CONFIRM_S = 2 // held this long before the clocks are compared
+    private const val SAMPLES = 5
+    private const val SAMPLE_MS = 200L
     private const val RAISED = 1.1
     private val THERMAL = listOf("none", "light", "moderate", "severe", "critical", "emergency", "shutdown")
     private val GPU_MIN_FILES = listOf(
@@ -259,7 +261,7 @@ object BoostReport {
         }
         r.heldFor++
         if (r.heldFor == CONFIRM_S && r.clocks == null) {
-            val now = cpuMins()
+            val (now, gpuNow) = peakMins(gpuFile)
             val raised = now.filter { (policy, khz) -> r.cpuBefore[policy]?.let { khz > it * RAISED } == true }
             r.cpuRaised = raised.mapValues { (policy, khz) -> r.cpuBefore.getValue(policy) to khz }
             val cpu = when {
@@ -269,7 +271,6 @@ object BoostReport {
                     "$policy ${ba.first / 1000} -> ${ba.second / 1000} MHz"
                 }
             }
-            val gpuNow = gpuFile?.let(::readLong)
             val gpuThen = r.gpuBefore
             r.gpuRaised = gpuNow != null && gpuThen != null && gpuNow > gpuThen * RAISED
             val gpu = when {
@@ -373,6 +374,18 @@ object BoostReport {
     private fun clock(seconds: Int) = "%d:%02d".format(seconds / 60, seconds % 60)
 
     private fun mhz(mins: Map<String, Long>) = if (mins.isEmpty()) "unknown" else mins.values.joinToString("/") { "${it / 1000}" } + " MHz"
+
+    /** The highest CPU and GPU minimums over [SAMPLES] readings [SAMPLE_MS] apart, so a floor between two renewals is still seen. */
+    private fun peakMins(gpuFile: File?): Pair<Map<String, Long>, Long?> {
+        val cpu = LinkedHashMap<String, Long>()
+        var gpu: Long? = null
+        repeat(SAMPLES) { i ->
+            if (i > 0) Thread.sleep(SAMPLE_MS)
+            cpuMins().forEach { (policy, khz) -> cpu[policy] = maxOf(cpu[policy] ?: 0L, khz) }
+            gpuFile?.let(::readLong)?.let { g -> gpu = maxOf(gpu ?: 0L, g) }
+        }
+        return cpu to gpu
+    }
 
     /** Each CPU policy's minimum speed in kHz, as the kernel holds it now. */
     private fun cpuMins(): Map<String, Long> =

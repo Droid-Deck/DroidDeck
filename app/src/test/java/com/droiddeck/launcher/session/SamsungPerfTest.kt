@@ -54,6 +54,13 @@ class SamsungPerfTest {
         assertEquals(listOf(SamsungPerf.CPU_MIN, SamsungPerf.CPU_CORES_MIN, SamsungPerf.BUS_MIN), floors.map { it.type })
     }
 
+    @Test fun `the floors are renewed before Samsung's one-second hold runs out`() {
+        assertEquals(500L, SamsungPerf.renewMs(SamsungPerf.HOLD_MS))
+        assertEquals(500L, SamsungPerf.renewMs(1000))
+        assertEquals(150L, SamsungPerf.renewMs(300))
+        assertEquals(100L, SamsungPerf.renewMs(50))
+    }
+
     @Test(expected = EOFException::class) fun `a short answer is refused`() {
         SamsungPerf.readLevels(ByteArrayInputStream(table(-1).copyOf(100)))
     }

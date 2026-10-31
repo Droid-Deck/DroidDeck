@@ -25,8 +25,9 @@ import kotlin.random.Random
  * firmware library [LIBRARY] ([Boost]) holds a level. Other phones have neither, and nothing happens.
  *
  * The floors are those of the SDK's CPU, GPU and bus presets (the middle of five levels, at least four
- * cores online), renewed every [RENEW_S] seconds with a [HOLD_MS] timeout, so Samsung lets go on its
- * own if the app dies.
+ * cores online), asked for with a timeout of at most [HOLD_MS], so Samsung lets go on its own if the
+ * app dies. Samsung may hold a request for less than asked (1 s on an SM8850 Galaxy Z Fold), so they
+ * are renewed every [renewMs].
  */
 object SamsungPerf {
     private const val TAG = "SamsungPerf"
@@ -46,7 +47,10 @@ object SamsungPerf {
     private const val LEVEL = 2
     private const val CORES = 4
     internal const val HOLD_MS = 5000
-    private const val RENEW_S = 2
+    private const val SEEN_HOLD_MS = 1000
+
+    /** Half the hold, and no later than half the shortest hold Samsung has been seen to use. */
+    internal fun renewMs(holdMs: Int): Long = (minOf(holdMs, SEEN_HOLD_MS) / 2).coerceAtLeast(100).toLong()
 
     /** The floors the phone offers, five values each from low to high, and the longest timeout (≤ 0: none). */
     internal class Levels(val cpu: IntArray, val gpu: IntArray, val bus: IntArray, val maxTimeoutMs: Int)
@@ -152,7 +156,11 @@ object SamsungPerf {
     /** For BoostReport. */
     internal val state: String
         get() = unavailable?.let { "not available: $it" }
-            ?: floors?.let { f -> "connected, floors " + f.joinToString { "${TYPE_NAMES[it.type]} ${it.value}" } }
+            ?: floors?.let { f ->
+                val hold = f.minOf { it.timeoutMs }
+                "connected, floors " + f.joinToString { "${TYPE_NAMES[it.type]} ${it.value}" } +
+                    ", asked for $hold ms at a time, renewed every ${renewMs(hold)} ms"
+            }
             ?: "connecting"
 
     internal fun floorValue(type: Int): Int? = floors?.firstOrNull { it.type == type }?.value
@@ -179,11 +187,11 @@ object SamsungPerf {
 
     private fun run(context: Context) {
         val floors = connect() ?: return
+        val renew = renewMs(floors.minOf { it.timeoutMs })
         val pm = context.getSystemService(PowerManager::class.java)
         val frames = ArrayDeque<Long>()
         var pacedFor = 0
         var boosting = false
-        var tick = 0
         try {
             while (!Thread.currentThread().isInterrupted) {
                 frames.addLast(WaylandCompositor.gameFrameCount())
@@ -201,22 +209,27 @@ object SamsungPerf {
                     else -> null
                 }
                 val want = why == null
-                if (want && (!boosting || tick % RENEW_S == 0)) {
-                    val results = floors.map { Boost.requestBoost(it.type, it.value, it.timeoutMs) }
+                if (want) {
+                    val results = request(floors)
                     holding = true
                     if (!boosting) {
                         lastResults = results
                         Log.i(TAG, "boosting (game ${fps.toInt()} fps, results $results)")
                     }
-                } else if (!want && boosting) {
+                } else if (boosting) {
                     holding = false // first, so BoostReport does not read the release as Samsung letting go
                     Boost.releaseBoost()
                     BoostReport.letGo(why!!)
                     Log.i(TAG, "let go ($why, game ${fps.toInt()} fps)")
                 }
                 boosting = want
-                tick++
-                Thread.sleep(1000)
+                var slept = 0L
+                while (slept + renew < 1000) {
+                    Thread.sleep(renew)
+                    slept += renew
+                    if (boosting) request(floors)
+                }
+                Thread.sleep(1000 - slept)
             }
         } catch (_: InterruptedException) {
         } catch (t: Throwable) {
@@ -226,4 +239,6 @@ object SamsungPerf {
             holding = false
         }
     }
+
+    private fun request(floors: List<Floor>) = floors.map { Boost.requestBoost(it.type, it.value, it.timeoutMs) }
 }
