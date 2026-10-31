@@ -277,9 +277,38 @@ class CloudHooks(unittest.TestCase):
         for sh in (compat.LAUNCHER_SH, compat.EXTRA_WRAPPER_SH):
             self.assertIn('bl_run ${BL_TASKSET:-} /usr/local/bin/droiddeck-game-env', sh)
             self.assertNotIn('exec ${BL_TASKSET:-} /usr/local/bin/droiddeck-game-env', sh)
-        self.assertIn('[ $? -eq 10 ] && BL_STORE_EXIT=1', compat.BL_STORE_SETUP)
+        self.assertIn('[ $rc -eq 10 ] && BL_STORE_EXIT=1', compat.BL_STORE_SETUP)
         self.assertIn('droiddeck-store-launch --exited --code "$rc" "${BL_STORE_ARGS[@]}"', compat.BL_STORE_SETUP)
         self.assertIn('exec "$@"', compat.BL_STORE_SETUP)
+
+
+BNET_EXE = '/root/.local/share/Steam/steamapps/compatdata/2596113170/pfx/drive_c/Program Files (x86)/Battle.net/Battle.net.exe'
+
+
+class BattleNet(unittest.TestCase):
+    def test_a_games_shortcut_is_handed_to_droiddeck_battlenet(self):
+        self.assertEqual([store.BATTLENET, 'launch', 'Fen'], store.battlenet(['waitforexitandrun', BNET_EXE, '--exec=launch Fen'], env={}))
+        self.assertEqual([store.BATTLENET, 'launch', 'OSI'], store.battlenet(['"%s"' % BNET_EXE, '--exec="launch OSI"'], env={}))
+        self.assertEqual([store.BATTLENET, 'open'], store.battlenet([BNET_EXE], env={}))
+
+    def test_anything_else_and_its_own_starts_are_left_alone(self):
+        other = BNET_EXE.replace('2596113170', '123')
+        self.assertIsNone(store.battlenet([other, '--exec=launch Fen'], env={}))
+        self.assertIsNone(store.battlenet(['/x/Diablo IV/Diablo IV.exe'], env={}))
+        self.assertIsNone(store.battlenet([BNET_EXE, '--exec=launch Fen'], env={'BL_BATTLENET': '1'}))
+        self.assertEqual([store.BATTLENET, 'open'], store.battlenet([BNET_EXE, '--exec=launch Fen;rm'], env={}))
+
+    def test_the_launch_runs_there_and_the_wrapper_ends_with_it(self):
+        with patch.dict(os.environ, {}, clear=False), patch.object(store.subprocess, 'call', return_value=0) as call:
+            os.environ.pop('BL_BATTLENET', None)
+            self.assertEqual(store.RAN, store.main([BNET_EXE, '--exec=launch Pro']))
+        call.assert_called_once_with([store.BATTLENET, 'launch', 'Pro'])
+        with patch.dict(os.environ, {}, clear=False), patch.object(store.subprocess, 'call', return_value=1):
+            os.environ.pop('BL_BATTLENET', None)
+            self.assertEqual(store.RAN_FAILED, store.main([BNET_EXE, '--exec=launch Pro']))
+        self.assertIn('[ $rc -eq 11 ] && exit 0', compat.BL_STORE_SETUP)
+        self.assertIn('[ $rc -eq 12 ] && exit 1', compat.BL_STORE_SETUP)
+        self.assertLess(compat.BL_STORE_SETUP.index('droiddeck-store-launch "$@"'), compat.BL_STORE_SETUP.index('[ $rc -eq 11 ] && exit 0'))
 
 
 class Launchers(unittest.TestCase):
@@ -362,6 +391,30 @@ def set_registry(**arguments):
 
 
 class GogRegistry(unittest.TestCase):
+    def test_patch_registration_uses_authentic_build_and_the_prefix_registry_executable(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = game(root, store_id='gog', ident='7')
+            (folder / 'goggame-7.id').write_text(json.dumps({'buildId': 'opaque-0001'}))
+            proton = Path(root) / 'proton'; proton.write_text('selected Proton')
+            data = Path(root) / 'compat'
+            executable = data / 'pfx/drive_c/windows/system32/reg.exe'
+            executable.parent.mkdir(parents=True); executable.write_bytes(b'MZreg')
+            (data / 'pfx/system.reg').write_text('registry')
+            imported = []
+            def run(argv, **kwargs):
+                self.assertEqual([str(proton), 'run', str(executable), 'import'], argv[:4])
+                text = Path(argv[4][2:].replace('\\', '/')).read_bytes()[2:].decode('utf-16-le')
+                imported.append(text)
+                return __import__('subprocess').CompletedProcess(argv, 0)
+            record = {'id': '7', 'build': 'opaque-0001', 'version': 'RC-final'}
+            with patch.object(store.subprocess, 'run', side_effect=run):
+                self.assertTrue(store.apply_gog_registry(folder, str(data), str(proton), installation=record).startswith('written='))
+            self.assertIn('[HKEY_LOCAL_MACHINE\\Software\\GOG.com\\Games\\7]', imported[0])
+            self.assertIn('"BUILDID"="opaque-0001"', imported[0])
+            self.assertIn('"VER"="RC-final"', imported[0])
+            with self.assertRaises(ValueError):
+                store.apply_gog_registry(folder, str(data), str(proton), installation=dict(record, build='invented'))
+
     def test_the_scripts_registry_values_are_read_with_the_games_paths(self):
         with tempfile.TemporaryDirectory() as root:
             folder = game(root, store_id='gog', ident='1454587428')

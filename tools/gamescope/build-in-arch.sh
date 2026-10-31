@@ -39,7 +39,7 @@ else
 fi
 PREP
 makepkg -A -s --noconfirm --skipchecksums --skippgpcheck
-meson test -C src/build --no-rebuild --print-errorlogs cursor_routing
+meson test -C src/build --no-rebuild --print-errorlogs cursor_routing wayland_scaling
 ls -l *.pkg.tar.*
 "
 cd "$WORK"
@@ -49,7 +49,11 @@ tar --use-compress-program=unzstd -xf "$PKG" -C out --strip-components=2 usr/bin
 mv out/gamescope out/usr/local/bin/gamescope
 chmod 755 out/usr/local/bin/gamescope
 strip --strip-unneeded out/usr/local/bin/gamescope || true
-NEEDED=$(readelf -d out/usr/local/bin/gamescope | sed -n 's/.*NEEDED.*\[\(.*\)\]/\1/p')
+# The WSI layer carries patches too (0117); the runtime's stock copy is replaced.
+mkdir -p out/usr/lib
+tar --use-compress-program=unzstd -xf "$PKG" -C out usr/lib/libVkLayer_FROG_gamescope_wsi_aarch64.so
+strip --strip-unneeded out/usr/lib/libVkLayer_FROG_gamescope_wsi_aarch64.so || true
+NEEDED=$(for f in out/usr/local/bin/gamescope out/usr/lib/libVkLayer_FROG_gamescope_wsi_aarch64.so; do readelf -d "$f" | sed -n 's/.*NEEDED.*\[\(.*\)\]/\1/p'; done | sort -u)
 echo "NEEDED: $NEEDED"
 MISSING=""
 for lib in $NEEDED; do grep -qx "$lib" tools/gamescope/runtime-sonames.txt || MISSING="$MISSING $lib"; done

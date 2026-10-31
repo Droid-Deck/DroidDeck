@@ -1,0 +1,140 @@
+#!/usr/bin/env python3
+import json
+import os
+import select
+import socket
+import struct
+import sys
+import time
+
+DISPLAY_ID = 1
+REGISTRY_ID = 2
+METHOD_ID = 3
+SETTLE = 0.15
+
+
+def wl_string(value):
+    data = value.encode() + b"\0"
+    return struct.pack("<I", len(data)) + data + b"\0" * (-len(data) % 4)
+
+
+def read_string(payload, offset):
+    (length,) = struct.unpack_from("<I", payload, offset)
+    start = offset + 4
+    text = payload[start:start + length - 1].decode(errors="replace")
+    return text, start + length + (-length % 4)
+
+
+class Connection:
+    def __init__(self, sock):
+        self.sock = sock
+        self.buffer = b""
+
+    def send(self, obj, opcode, payload=b""):
+        self.sock.sendall(struct.pack("<II", obj, ((8 + len(payload)) << 16) | opcode) + payload)
+
+    def messages(self, timeout):
+        ready, _, _ = select.select([self.sock], [], [], timeout)
+        if not ready:
+            return []
+        data, _, _, _ = self.sock.recvmsg(65536, socket.CMSG_SPACE(16 * 4))
+        if not data:
+            raise EOFError
+        self.buffer += data
+        out = []
+        while len(self.buffer) >= 8:
+            obj, word = struct.unpack_from("<II", self.buffer)
+            size = word >> 16
+            if size < 8 or len(self.buffer) < size:
+                break
+            out.append((obj, word & 0xFFFF, self.buffer[8:size]))
+            self.buffer = self.buffer[size:]
+        return out
+
+
+class Report:
+    def __init__(self, directory):
+        self.directory = directory
+        self.seq = 0
+        self.sent = None
+
+    def write(self, field, hint=0, purpose=0):
+        state = (field, purpose)
+        if state == self.sent or not self.directory:
+            return
+        self.sent = state
+        self.seq += 1
+        os.makedirs(self.directory, exist_ok=True)
+        target = os.path.join(self.directory, "ime.json")
+        temp = target + ".tmp"
+        fd = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w") as handle:
+            json.dump({"textField": field, "hint": hint, "purpose": purpose, "seq": self.seq}, handle)
+        os.replace(temp, target)
+        print(f"droiddeck-ime: text field {'focused' if field else 'left'}", file=sys.stderr, flush=True)
+
+
+def connect():
+    fd = os.environ.pop("WAYLAND_SOCKET", "")
+    if fd.isdigit():
+        return socket.socket(socket.AF_UNIX, socket.SOCK_STREAM, fileno=int(fd))
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    sock.connect(os.path.join(os.environ["XDG_RUNTIME_DIR"], os.environ.get("WAYLAND_DISPLAY", "wayland-0")))
+    return sock
+
+
+def main():
+    launch = os.environ.get("BL_LAUNCH_DIR", "")
+    report = Report(os.path.join(launch, "agent") if launch else "")
+    conn = Connection(connect())
+    conn.send(DISPLAY_ID, 1, struct.pack("<I", REGISTRY_ID))
+    contexts = {}
+    current = None
+    pending = None
+    while True:
+        timeout = None if pending is None else max(0.0, pending - time.monotonic())
+        try:
+            batch = conn.messages(timeout)
+        except (EOFError, ConnectionError):
+            report.write(False)
+            return 0
+        for obj, opcode, payload in batch:
+            if obj == DISPLAY_ID and opcode == 0:
+                _, code = struct.unpack_from("<II", payload)
+                message, _ = read_string(payload, 8)
+                print(f"droiddeck-ime: protocol error {code}: {message}", file=sys.stderr, flush=True)
+                report.write(False)
+                return 1
+            if obj == REGISTRY_ID and opcode == 0:
+                (name,) = struct.unpack_from("<I", payload)
+                interface, offset = read_string(payload, 4)
+                (version,) = struct.unpack_from("<I", payload, offset)
+                if interface == "zwp_input_method_v1":
+                    conn.send(REGISTRY_ID, 0, struct.pack("<I", name) + wl_string(interface)
+                              + struct.pack("<II", min(version, 1), METHOD_ID))
+            elif obj == METHOD_ID and opcode == 0:
+                (context,) = struct.unpack_from("<I", payload)
+                contexts[context] = [0, 0]
+                current = context
+                pending = None
+                report.write(True)
+            elif obj == METHOD_ID and opcode == 1:
+                (context,) = struct.unpack_from("<I", payload)
+                contexts.pop(context, None)
+                conn.send(context, 0)
+                if context == current:
+                    current = None
+                    pending = time.monotonic() + SETTLE
+            elif obj in contexts and opcode == 2:
+                hint, purpose = struct.unpack_from("<II", payload)
+                contexts[obj] = [hint, purpose]
+                if obj == current:
+                    report.write(True, hint, purpose)
+        if pending is not None and time.monotonic() >= pending:
+            pending = None
+            if current is None:
+                report.write(False)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

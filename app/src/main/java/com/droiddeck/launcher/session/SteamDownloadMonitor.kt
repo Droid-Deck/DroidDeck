@@ -1,7 +1,7 @@
 package com.droiddeck.launcher.session
 
 import java.io.File
-import java.io.RandomAccessFile
+import java.io.FileInputStream
 
 internal class SteamDownloadMonitor {
     private data class ManifestState(
@@ -63,16 +63,17 @@ internal class SteamDownloadMonitor {
             lastContentActivityAt = 0L
         }
         runCatching {
-            RandomAccessFile(log, "r").use { input ->
-                input.seek(contentLogOffset)
+            FileInputStream(log).use { input ->
+                input.channel.position(contentLogOffset)
+                val reader = input.bufferedReader(Charsets.ISO_8859_1)
                 while (true) {
-                    val line = input.readLine() ?: break
+                    val line = reader.readLine() ?: break
                     when {
                         "Client version:" in line -> {
                             activeContentUpdates.clear()
                             lastContentActivityAt = 0L
                         }
-                        CONTENT_UPDATE.find(line)?.let { match ->
+                        " update changed : " in line && CONTENT_UPDATE.find(line)?.let { match ->
                             val appId = match.groupValues[1]
                             val updateType = match.groupValues[2]
                             val state = match.groupValues[3]
@@ -85,14 +86,15 @@ internal class SteamDownloadMonitor {
                             }
                             true
                         } == true -> Unit
-                        CURRENT_RATE.find(line)?.groupValues?.get(1)?.toDoubleOrNull()?.let { it > 0.0 } == true ->
+                        "Current download rate: " in line &&
+                            CURRENT_RATE.find(line)?.groupValues?.get(1)?.toDoubleOrNull()?.let { it > 0.0 } == true ->
                             lastContentActivityAt = now
                         "Downloading " in line && " chunks for depot " in line ->
                             lastContentActivityAt = now
                     }
                     if (activeContentUpdates.isNotEmpty()) lastContentActivityAt = now
                 }
-                contentLogOffset = input.filePointer
+                contentLogOffset = input.channel.position()
             }
         }
         return activeContentUpdates.isNotEmpty() && lastContentActivityAt > 0L &&

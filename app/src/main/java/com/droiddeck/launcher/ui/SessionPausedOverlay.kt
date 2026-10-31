@@ -17,6 +17,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
@@ -76,6 +77,7 @@ class PausedFrame(val image: ImageBitmap, val bounds: android.graphics.Rect)
 
 private const val CARD_SCALE = 0.82f
 private const val FRAME_WAIT_MS = 600L
+private val PopEasing = CubicBezierEasing(0.3f, 1.5f, 0.4f, 1f)
 
 private fun tone(saturation: Float, brightness: Float): ColorMatrix =
     ColorMatrix().apply {
@@ -89,6 +91,7 @@ fun SessionPausedOverlay(
     engaged: Boolean,
     failures: Int,
     frame: PausedFrame?,
+    animateIn: Boolean,
     title: String,
     onResume: () -> Unit,
     onFrameNeeded: () -> Unit,
@@ -105,6 +108,18 @@ fun SessionPausedOverlay(
     LaunchedEffect(suspended, engaged) {
         when {
             suspended && !engaged -> {
+                if (!shown && animateIn) {
+                    if (currentFrame == null) {
+                        onFrameNeeded()
+                        withTimeoutOrNull(FRAME_WAIT_MS) { snapshotFlow { currentFrame }.first { it != null } }
+                    }
+                    shown = true
+                    launch { press.animateTo(1f, Motion.sp(0.5f, Spring.StiffnessMedium)) }
+                    launch { ring.animateTo(0f, Motion.tw(200)) }
+                    launch { lift.animateTo(1f, Motion.tw(520)) }
+                    orb.animateTo(1f, Motion.tw(380, delay = if (orb.value < 0.5f) 260 else 0, easing = PopEasing))
+                    return@LaunchedEffect
+                }
                 if (!shown) {
                     if (currentFrame == null) {
                         onFrameNeeded()
@@ -168,6 +183,8 @@ fun SessionPausedOverlay(
         runCatching { focus.requestFocus() }
     }
     val resumeLabel = stringResource(R.string.resume_session)
+    val source = remember { MutableInteractionSource() }
+    val focused by source.collectIsFocusedAsState()
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier
@@ -176,7 +193,7 @@ fun SessionPausedOverlay(
             .focusRequester(focus)
             .controllerConfirm(enabled = idle, onClick = onResume)
             .clickable(
-                interactionSource = remember { MutableInteractionSource() },
+                interactionSource = source,
                 indication = null,
                 role = Role.Button,
                 onClickLabel = resumeLabel,
@@ -187,7 +204,7 @@ fun SessionPausedOverlay(
         } else {
             Box(Modifier.fillMaxSize().graphicsLayer { alpha = presence }.background(Color.Black.copy(alpha = 0.55f)))
         }
-        ResumeOrb(orb.value, press.value, ring.value, shake.value, idle)
+        ResumeOrb(orb.value, press.value, ring.value, shake.value, idle, focused)
     }
 }
 
@@ -221,7 +238,7 @@ private fun BoxScope.PausedCard(frame: PausedFrame, lift: Float, presence: Float
 }
 
 @Composable
-private fun ResumeOrb(presence: Float, press: Float, ring: Float, shake: Float, idle: Boolean) {
+private fun ResumeOrb(presence: Float, press: Float, ring: Float, shake: Float, idle: Boolean, focused: Boolean) {
     val glintAlpha by animateFloatAsState(if (idle) 1f else 0f, Motion.tw(160), label = "glintAlpha")
     val glint: State<Float>? = if (Motion.scale > 0f) {
         rememberInfiniteTransition(label = "glint").animateFloat(
@@ -245,6 +262,7 @@ private fun ResumeOrb(presence: Float, press: Float, ring: Float, shake: Float, 
             }
             .clip(CircleShape)
             .background(Color.White.copy(alpha = 0.08f))
+            .glideBorder(focused, CircleShape, Color.White, hotFillAlpha = 0f)
             .drawWithContent {
                 drawContent()
                 val stroke = 2.5.dp.toPx()

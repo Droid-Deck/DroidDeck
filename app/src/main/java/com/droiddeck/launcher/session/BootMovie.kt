@@ -51,7 +51,7 @@ object BootMovie {
         SessionPrefs.setBootMovieApplyNext(context, true)
         BootMovieReport.note(context, "picked $id here; Steam names ${SessionFiles.startupMoviePath(BootMovieLibrary.steamConfig(context))}")
         // Whatever Steam names right now is about to be replaced, so it is not a pick to adopt later.
-        SessionFiles.startupMoviePath(BootMovieLibrary.steamConfig(context))?.let { SessionPrefs.setBootMovieSteamSeen(context, it) }
+        SessionFiles.startupMovieLocalPath(BootMovieLibrary.steamConfig(context))?.let { SessionPrefs.setBootMovieSteamSeen(context, it) }
     }
 
     fun customName(context: Context): String? =
@@ -167,10 +167,12 @@ object BootMovie {
      * that movie becomes the choice here. Steam already plays it, so nothing is staged over it. True when the choice changed.
      */
     fun syncFromSteam(context: Context): Boolean {
-        val path = SessionFiles.startupMoviePath(BootMovieLibrary.steamConfig(context)) ?: return false
-        if (path == SessionPrefs.bootMovieSteamSeen(context)) return false
-        SessionPrefs.setBootMovieSteamSeen(context, path)
-        if (path == SessionFiles.BOOT_MOVIE_PATH) return false
+        val named = SessionFiles.startupMovieLocalPath(BootMovieLibrary.steamConfig(context)) ?: return false
+        val seen = SessionPrefs.bootMovieSteamSeen(context)
+        if (named == seen) return false
+        SessionPrefs.setBootMovieSteamSeen(context, named)
+        if (named == SessionFiles.BOOT_MOVIE_PATH || (named.isEmpty() && seen == null)) return false
+        val path = named.ifEmpty { "/movies/steam_os_startup.webm" }
         val prefix = "/uioverrides/movies/"
         // The list names a bought movie from the Steam folder (/config/communityitemscache/...), Steam's config from its config folder.
         val id = if (path.startsWith(prefix)) BootMovieLibrary.idOf(path.removePrefix(prefix)) else {

@@ -11,6 +11,7 @@ import androidx.compose.foundation.focusGroup
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.onFocusChanged
 import android.provider.Settings
 import android.view.Display
@@ -68,6 +69,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.input.InputMode
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -98,8 +102,14 @@ class FrontEndState(
     val frameGenLabel: String,
     val romsDir: String?,
     val logsEnabled: Boolean,
+    val gameDebugLogsEnabled: Boolean = false,
+    val gameDebugLogsNeedsRestart: Boolean = false,
     val vacDiagnostics: Boolean = false,
     val agentCommands: Boolean = false,
+    val clearCachedApps: Boolean = false,
+    val adbPaired: Boolean = false,
+    val backgroundAppLimit: Int = -1,
+    val memoryHud: String = "off",
     val steamGames: List<Library.SteamGame>,
     val steamGamesX64: Boolean = false,
     val emulators: List<Library.Emulator>,
@@ -116,14 +126,22 @@ class FrontEndState(
     val isHomeApp: Boolean = false,
     val homeScreenEnabled: Boolean = false,
     val defaultHomeLabel: String? = null,
+    val integration: com.droiddeck.launcher.core.SteamIntegration.State = com.droiddeck.launcher.core.SteamIntegration.State(suggested = false),
+    val integrationFocus: com.droiddeck.launcher.core.SteamIntegration.Feature? = null,
     val androidApps: List<HomeApp.LaunchableApp> = emptyList(),
     val secondScreenDisplays: List<SecondScreenDisplay> = emptyList(),
+    val dualScreen: Boolean = false,
+    val dualScreenDevice: Boolean = false,
+    val dualScreenMode: String = com.droiddeck.launcher.input.DualScreen.MODE_AUTO,
+    val dualScreenLauncher: Boolean = true,
+    val dualScreenControls: Boolean = true,
     val packages: List<PackageRow>? = null,
     val packageCatalogLoading: Boolean = false,
     val packageBusyId: String? = null,
     val packageStage: String? = null,
     val packagePercent: Int = -1,
     val sessionRunning: Boolean = false,
+    val battleNetInstalled: Boolean = false,
     val removalPending: Boolean = false,
     val runtimeActionsBlocked: Boolean = false,
     val backActionsInverted: Boolean = false,
@@ -133,21 +151,22 @@ class FrontEndState(
     val phantomProcessStatus: PhantomProcessStatus = PhantomProcessStatus.NOT_APPLICABLE,
     val showPhantomGate: Boolean = false,
     val orientation: Int = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE,
+    val launcherOrientation: Int = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_USER,
     val launcherFullscreen: Boolean = true,
     val downloadSource: String = DownloadSource.MODE_AUTO,
     val downloadMirror: String = "",
     val downloadPrefix: String = "",
+    val downloadProxy: String = "",
     val animationsEnabled: Boolean = true,
     val launcherIcon: String = com.droiddeck.launcher.LauncherIcon.DARK,
     val gameStoresEnabled: Boolean = true,
     val gameStoresSpeedTier: String = "fast",
-    val storesOpenTab: String = SessionPrefs.STORES_OPEN_LIBRARY,
     val navigate: String? = null,
     val addedGamesArt: Boolean = true,
     val sgdbUserKey: Boolean = false,
     val storesShowMature: Boolean = false,
     val storesSort: String = SessionPrefs.STORES_SORTS.first(),
-    val storesView: String = SessionPrefs.STORES_VIEWS.first(),
+    val storesView: String = SessionPrefs.DEFAULT_STORES_VIEW,
     val storeDownloadsActive: Int = 0,
     val updates: UpdatesState = UpdatesState(),
 )
@@ -176,6 +195,7 @@ class FrontEndActions(
     val onEmulator: (Library.Emulator) -> Unit,
     val onFlatpakApp: (String, String) -> Unit = { _, _ -> },
     val onUserApp: (com.droiddeck.launcher.runtime.UserApps.App) -> Unit = {},
+    val onBattleNet: () -> Unit = {},
     val onRom: (Library.Rom) -> Unit,
     val onResume: () -> Unit,
     val onSteamSettings: () -> Unit,
@@ -198,8 +218,12 @@ class FrontEndActions(
     val onFiles: () -> Unit,
     val onBrowseFiles: (File) -> Unit = {},
     val onLogs: () -> Unit,
+    val onGameDebugLogs: () -> Unit = {},
     val onVacDiagnostics: () -> Unit = {},
     val onAgentCommands: () -> Unit = {},
+    val onClearCachedApps: (Boolean) -> Unit = {},
+    val onMemoryHud: (String) -> Unit = {},
+    val onBackgroundAppLimit: (Int) -> Unit = {},
     val onShareLogs: () -> Unit = {},
     val onClearLogs: () -> Unit = {},
     val onResetSettings: () -> Unit = {},
@@ -210,14 +234,18 @@ class FrontEndActions(
     val onAppScale: (Int) -> Unit = {},
     val onLauncherIcon: (String) -> Unit = {},
     val onOrientation: (Int) -> Unit = {},
+    val onLauncherOrientation: (Int) -> Unit = {},
     val onLauncherFullscreen: (Boolean) -> Unit = {},
     val onAnimationsEnabled: (Boolean) -> Unit = {},
+    val onDualScreenMode: (String) -> Unit = {},
+    val onDualScreenLauncher: (Boolean) -> Unit = {},
+    val onDualScreenControls: (Boolean) -> Unit = {},
     val onDownloadSource: (String) -> Unit = {},
     val onDownloadMirror: (String) -> Unit = {},
     val onDownloadPrefix: (String) -> Unit = {},
+    val onDownloadProxy: (String) -> Unit = {},
     val onGameStoresEnabled: (Boolean) -> Unit = {},
     val onGameStoresSpeedTier: (String) -> Unit = {},
-    val onStoresOpenTab: (String) -> Unit = {},
     val onNavigated: () -> Unit = {},
     val onStoresShowMature: (Boolean) -> Unit = {},
     val onStoresSort: (String) -> Unit = {},
@@ -225,6 +253,11 @@ class FrontEndActions(
     val onLibraryChanged: () -> Unit = {},
     val onHomeApp: () -> Unit = {},
     val onHomeScreen: (Boolean) -> Unit = {},
+    val onSteamIntegration: (com.droiddeck.launcher.core.SteamIntegration.Feature?) -> Unit = {},
+    val onDismissIntegration: () -> Unit = {},
+    val onIntegration: (com.droiddeck.launcher.core.SteamIntegration.Feature) -> Unit = {},
+    val onIntegrationAppInfo: () -> Unit = {},
+    val onIntegrationLocation: () -> Unit = {},
     val onAndroidApp: (HomeApp.LaunchableApp, Int?) -> Unit = { _, _ -> },
     val onBackActionsInverted: (Boolean) -> Unit = {},
     val onRefreshPhantomStatus: () -> Unit = {},
@@ -236,6 +269,8 @@ class FrontEndActions(
     val onCopyPhantomCommand: (Boolean) -> Unit = {},
     val onDismissPhantomGate: () -> Unit = {},
     val onStartWirelessAdbPairing: () -> Unit = {},
+    val onStartPairingGuide: (Int?, Boolean) -> Boolean = { _, _ -> false },
+    val onShowPhantomGate: () -> Unit = {},
     val onOpenNotificationSettings: () -> Unit = {},
     val controller: ControllerActions? = null,
     val updates: UpdatesActions = UpdatesActions(),
@@ -377,7 +412,16 @@ internal suspend fun focusSoon(target: () -> FocusRequester) {
 @Composable
 fun FrontEndScreen(s: FrontEndState, a: FrontEndActions, page: (@Composable () -> Unit)? = null) {
     val frontFocus = remember { FrontFocus() }
-    CompositionLocalProvider(LocalFrontFocus provides frontFocus) { FrontEndScreenBody(s, a, page, frontFocus) }
+    val textInput = androidx.compose.ui.platform.LocalTextInputService.current
+    val bottomTextInput = remember(textInput) { textInput?.let { androidx.compose.ui.text.input.TextInputService(BottomScreenTextInput(it)) } }
+    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize()) {
+        CompositionLocalProvider(
+            LocalFrontFocus provides frontFocus,
+            LocalNarrowPane provides (maxWidth < NarrowPaneWidth),
+            androidx.compose.ui.platform.LocalTextInputService provides (if (s.dualScreen) bottomTextInput else textInput),
+            LocalBottomTyping provides s.dualScreen,
+        ) { FrontEndScreenBody(s, a, page, frontFocus) }
+    }
 }
 
 @OptIn(ExperimentalComposeUiApi::class)
@@ -391,12 +435,18 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
             "stores:downloads" -> { com.droiddeck.launcher.stores.StoresState.openDownloads = true; selected = "stores" }
             "components" -> a.onComponents(true)
             "setup:launcher" -> { SetupTabs.openLauncher = true; selected = "setup" }
+            "setup:integration" -> { SetupTabs.openOverview = true; selected = "setup" }
             else -> selected = target
         }
         a.onNavigated()
     }
+    LaunchedEffect(com.droiddeck.launcher.stores.StoresState.openGameRequest) {
+        if (com.droiddeck.launcher.stores.StoresState.openGameRequest != null) selected = "stores"
+    }
     var showWirelessAdbFix by rememberSaveable { mutableStateOf(false) }
     var showDeveloperDisplayChoice by rememberSaveable { mutableStateOf(false) }
+    var developerChoiceGuided by rememberSaveable { mutableStateOf(false) }
+    var developerChoiceToggle by rememberSaveable { mutableStateOf(false) }
     var wirelessAdbDesiredEnabled by rememberSaveable { mutableStateOf(false) }
     var appToChooseDisplay by remember { mutableStateOf<HomeApp.LaunchableApp?>(null) }
     val colors = MaterialTheme.colorScheme
@@ -405,8 +455,48 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
     val phantomGateVisible = s.showPhantomGate && PhantomProcessLimit.blocksSteam(s.phantomProcessStatus)
     val processSettingsPageVisible = phantomGateVisible || showWirelessAdbFix || showDeveloperDisplayChoice
     val requestDeveloperOptions = {
+        developerChoiceGuided = false
+        developerChoiceToggle = false
         if (s.secondScreenDisplays.isEmpty()) a.onOpenDeveloperOptions(null)
         else showDeveloperDisplayChoice = true
+    }
+    val openDeveloperOptionsOn: (Int?) -> Unit = { displayId ->
+        if (developerChoiceGuided) a.onStartWirelessAdbPairing()
+        val guided = developerChoiceGuided || developerChoiceToggle
+        if (!guided || !a.onStartPairingGuide(displayId, developerChoiceToggle)) a.onOpenDeveloperOptions(displayId)
+        developerChoiceGuided = false
+        developerChoiceToggle = false
+    }
+    val requestChildProcessToggle = {
+        if (!PhantomProcessLimit.hasDeveloperToggle() || com.droiddeck.launcher.core.GlobalSettings.developerOptionsOn(ctx)) {
+            requestDeveloperOptions()
+        } else {
+            developerChoiceGuided = false
+            developerChoiceToggle = true
+            if (s.secondScreenDisplays.isEmpty()) openDeveloperOptionsOn(null)
+            else showDeveloperDisplayChoice = true
+        }
+    }
+    val startGuidedPairing = {
+        if (!com.droiddeck.launcher.core.WirelessAdbPairingService.notificationsEnabled(ctx)) {
+            wirelessAdbDesiredEnabled = false
+            showWirelessAdbFix = true
+        } else {
+            developerChoiceGuided = true
+            if (s.secondScreenDisplays.isEmpty()) openDeveloperOptionsOn(null)
+            else showDeveloperDisplayChoice = true
+        }
+    }
+    var applyingSavedPairing by remember { mutableStateOf(false) }
+    val fixPhantomLimit = {
+        if (!s.adbPaired || !com.droiddeck.launcher.core.GlobalSettings.wirelessDebuggingOn(ctx)) startGuidedPairing()
+        else if (!applyingSavedPairing) {
+            applyingSavedPairing = true
+            a.onSetPhantomProcessLimit(false) { error ->
+                applyingSavedPairing = false
+                if (error != null) startGuidedPairing()
+            }
+        }
     }
     val requestWirelessAdbFix: (Boolean) -> Unit = { enabled ->
         wirelessAdbDesiredEnabled = enabled
@@ -437,7 +527,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
     }
     LaunchedEffect(s.isHomeApp) { if (!s.isHomeApp && selected == "android-apps") selected = "steam" }
     LaunchedEffect(s.steamGames.isEmpty()) {
-        if (s.steamGames.isEmpty() && selected.startsWith("app:")) selected = "games"
+        if (s.steamGames.isEmpty() && selected.startsWith("app:") && GameRef.parse(selected).appId != null) selected = "games"
     }
     remember { Motion.refresh(ctx); true }
 
@@ -449,6 +539,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
         selected.startsWith("emu:") || selected.startsWith("rom:") || selected.startsWith("user:") || selected == "store" -> "desktop"
         else -> s.pageKey ?: selected
     }
+    val railSelectionNow = androidx.compose.runtime.rememberUpdatedState(railSelection)
     var railPicks by remember { mutableStateOf(0) }
     val showRailPage: (String, Boolean) -> Unit = { key, focusContent ->
         if (key == "components") a.onComponents(focusContent)
@@ -474,16 +565,30 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
     val window = LocalWindowInfo.current
     val androidContext = androidx.compose.ui.platform.LocalContext.current
     var anyFocused by remember { mutableStateOf(false) }
-    Box(
+    val paneRequester = remember { FocusRequester() }
+    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
+    suspend fun focusDualPane() {
+        repeat(30) {
+            withFrameNanos { }
+            if (anyFocused) return
+            runCatching { paneRequester.requestFocus() }
+            if (anyFocused) return
+            focusManager.moveFocus(FocusDirection.Down)
+            if (anyFocused) return
+        }
+    }
+    androidx.compose.foundation.layout.BoxWithConstraints(
         modifier = Modifier.fillMaxSize().background(colors.background)
             .windowInsetsPadding(if (s.launcherFullscreen) WindowInsets.displayCutout else WindowInsets.systemBars)
             .onFocusChanged { anyFocused = it.hasFocus },
     ) {
+        val bottomNavigation = maxHeight > maxWidth
         LaunchedEffect(processSettingsPageVisible) {
             if (processSettingsPageVisible) return@LaunchedEffect
             snapshotFlow { window.isWindowFocused }.first { it }
             if (inputModeManager.inputMode != InputMode.Keyboard) inputModeManager.requestInputMode(InputMode.Keyboard)
-            focusWithinFrames({ anyFocused }) { if (frontFocus.primaryAttached > 0) frontFocus.primary else frontFocus.railFor(railSelection) }
+            if (s.dualScreen && frontFocus.primaryAttached == 0) focusDualPane()
+            else focusWithinFrames({ anyFocused }) { if (frontFocus.primaryAttached > 0) frontFocus.primary else frontFocus.railFor(railSelection) }
         }
         var openPage by remember { mutableStateOf<String?>(null) }
         LaunchedEffect(s.pageKey) {
@@ -505,20 +610,35 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
                 return@LaunchedEffect
             }
             if (anyFocused) return@LaunchedEffect
-            focusWithinFrames({ anyFocused }) { if (frontFocus.primaryAttached > 0) frontFocus.primary else frontFocus.railFor(railSelection) }
+            if (s.dualScreen && frontFocus.primaryAttached == 0) focusDualPane()
+            else focusWithinFrames({ anyFocused }) { if (frontFocus.primaryAttached > 0) frontFocus.primary else frontFocus.railFor(railSelection) }
         }
         LaunchedEffect(railPicks) {
             if (railPicks == 0 || processSettingsPageVisible) return@LaunchedEffect
             kotlinx.coroutines.delay(Motion.ms(PAGE_EXIT_MS).toLong())
             if (inputModeManager.inputMode != InputMode.Keyboard) return@LaunchedEffect
-            withTimeoutOrNull(1_000) { snapshotFlow { frontFocus.primaryAttached > 0 }.first { it } } ?: return@LaunchedEffect
+            val entry = withTimeoutOrNull(1_000) { snapshotFlow { frontFocus.primaryAttached > 0 }.first { it } }
+            if (entry == null) {
+                if (s.dualScreen) focusDualPane()
+                return@LaunchedEffect
+            }
             focusWithinFrames({ frontFocus.focusedRail == null && anyFocused }) { frontFocus.paneEntry() }
         }
         val paneFocus = Modifier
-            .focusProperties { enter = { frontFocus.paneEntry() } }
+            .focusRequester(paneRequester)
+            .focusProperties {
+                enter = { frontFocus.paneEntry() }
+                exit = { direction ->
+                    if (bottomNavigation && direction == FocusDirection.Down) frontFocus.railFor(railSelection)
+                    else FocusRequester.Default
+                }
+            }
             .focusGroup()
         val railFocus = Modifier
-            .focusProperties { enter = { frontFocus.railFor(railSelection) } }
+            .focusProperties {
+                enter = { frontFocus.railFor(railSelection) }
+                if (bottomNavigation) up = frontFocus.paneEntry()
+            }
             .focusGroup()
         LaunchedEffect(Hops.restore) {
             val r = Hops.restore ?: return@LaunchedEffect
@@ -531,25 +651,61 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
             focusWithinFrames({ frontFocus.last == r.control && anyFocused }) { frontFocus.items[r.control] ?: frontFocus.paneEntry() }
         }
         var screenAt by remember { mutableStateOf(Offset.Zero) }
+        if (s.dualScreen) DualPanelPublisher(s, railSelection, { key ->
+            if (processSettingsPageVisible) return@DualPanelPublisher
+            if (inputModeManager.inputMode != InputMode.Keyboard) inputModeManager.requestInputMode(InputMode.Keyboard)
+            focusManager.clearFocus(force = true)
+            onRailSelect(key)
+        }, a)
         CompositionLocalProvider(LocalShowSection provides { key -> selected = key }) {
-        Row(modifier = Modifier.fillMaxSize().onGloballyPositioned { screenAt = it.positionInRoot() }) {
-            SideRail(s, railSelection, onRailSelect, onRailFocus, a, railFocus.fillMaxHeight())
-            Box(Modifier.width(1.dp).fillMaxHeight().background(pal.line))
-            Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
+        LauncherLayout(
+            bottomNavigation && !s.dualScreen, pal.line,
+            Modifier.fillMaxSize().onGloballyPositioned { screenAt = it.positionInRoot() }
+                .then(if (s.dualScreen) Modifier.onKeyEvent { event ->
+                    val step = dualPageStep(event.nativeKeyEvent) ?: return@onKeyEvent false
+                    if (event.type == KeyEventType.KeyDown && !processSettingsPageVisible) {
+                        val keys = navigationKeys(s)
+                        val at = keys.indexOf(railSelectionNow.value)
+                        keys.getOrNull(at + step)?.let { key ->
+                            PageSwipe.direction = step
+                            onRailSelect(key)
+                        }
+                    }
+                    true
+                } else Modifier),
+            navigation = {
+                if (s.dualScreen) Unit
+                else if (bottomNavigation) BottomBar(s, railSelection, onRailSelect, onRailFocus, a, railFocus)
+                else SideRail(s, railSelection, onRailSelect, onRailFocus, a, railFocus.fillMaxHeight())
+            },
+        ) {
                 Pane(
-                    s, selected, a, page, Modifier.weight(1f).fillMaxWidth().then(paneFocus), { selected = it },
+                    s, selected, a, page,
+                    Modifier.fillMaxSize().then(paneFocus).pageSwipe({ !processSettingsPageVisible && appToChooseDisplay == null }) { dir ->
+                        val keys = navigationKeys(s)
+                        val at = keys.indexOf(railSelectionNow.value)
+                        if (at >= 0) keys.getOrNull(at + dir)?.let { key ->
+                            PageSwipe.direction = dir
+                            showRailPage(key, false)
+                        }
+                    },
+                    { selected = it },
                     onAndroidAppClick = { app ->
                         if (s.secondScreenDisplays.isEmpty()) a.onAndroidApp(app, null)
                         else appToChooseDisplay = app
                     },
-                    onOpenDeveloperOptions = requestDeveloperOptions,
+                    onOpenDeveloperOptions = requestChildProcessToggle,
                     onRequestWirelessAdb = requestWirelessAdbFix,
+                    onPairWirelessDebugging = startGuidedPairing,
                 )
-            }
         }
 
         }
         FlightsLayer(screenAt)
+        GamesDialogs(a, s.steamGames)
+        StoreTheme(com.droiddeck.launcher.stores.Store.XBOX) { XboxStoreDialogs() }
+        com.droiddeck.launcher.stores.StoresState.pendingInstall?.let { item -> StoreTheme(item.store) { InstallWhere(item) } }
+        com.droiddeck.launcher.stores.StoresState.itchPicking?.let { item -> StoreTheme(item.store) { ItchBuildPicker(item) { com.droiddeck.launcher.stores.StoresState.itchPicking = null } } }
         StepsLayer(screenAt)
 
         appToChooseDisplay?.let { app ->
@@ -573,11 +729,9 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
                 PhantomProcessGatePage(
                     status = s.phantomProcessStatus,
                     onDismiss = a.onDismissPhantomGate,
-                    onOpenDeveloperOptions = requestDeveloperOptions,
-                    onFixWithWirelessDebugging = {
-                        a.onStartWirelessAdbPairing()
-                        requestDeveloperOptions()
-                    },
+                    onOpenDeveloperOptions = requestChildProcessToggle,
+                    applyingSavedPairing = applyingSavedPairing,
+                    onFixWithWirelessDebugging = fixPhantomLimit,
                     onEnterAddressManually = { requestWirelessAdbFix(false) },
                     onCopyCommand = { a.onCopyPhantomCommand(false) },
                     onOpenNotificationSettings = a.onOpenNotificationSettings,
@@ -603,13 +757,17 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
                 },
                 onMainScreen = {
                     showDeveloperDisplayChoice = false
-                    a.onOpenDeveloperOptions(null)
+                    openDeveloperOptionsOn(null)
                 },
                 onSecondaryScreen = { displayId ->
                     showDeveloperDisplayChoice = false
-                    a.onOpenDeveloperOptions(displayId)
+                    openDeveloperOptionsOn(displayId)
                 },
-                onDismiss = { showDeveloperDisplayChoice = false },
+                onDismiss = {
+                    showDeveloperDisplayChoice = false
+                    developerChoiceGuided = false
+                    developerChoiceToggle = false
+                },
             )
         }
     }

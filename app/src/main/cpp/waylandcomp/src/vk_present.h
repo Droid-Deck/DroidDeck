@@ -16,6 +16,7 @@ enum vkp_align { VKP_ALIGN_CENTER = 0, VKP_ALIGN_TOP = 1, VKP_ALIGN_BOTTOM = 2, 
 void vk_present_set_scale_mode(int mode, int alignment);
 int vkp_game_picture_rect(float rect[4]);
 int vkp_output_to_scene(double ox, double oy, double *sx, double *sy);
+int vkp_scene_to_output(double sx, double sy, double *ox, double *oy);
 void vkp_output_size(int *w, int *h);
 
 struct vkp_image;
@@ -34,6 +35,9 @@ struct vkp_image *vkp_image_import_dmabuf(int fd, uint32_t drm_format, uint64_t 
 int vkp_image_is_dmabuf(const struct vkp_image *img);
 
 struct vkp_image *vkp_image_create_shm(int w, int h);
+struct AHardwareBuffer;
+struct vkp_image *vkp_image_from_ahb(struct AHardwareBuffer *ahb);
+void vkp_wait_idle(void);
 void vkp_image_upload_shm(struct vkp_image *img, const void *data, int stride);
 
 int vkp_image_width(const struct vkp_image *img);

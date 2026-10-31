@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.ui
 
+import androidx.compose.foundation.shape.CircleShape
 import androidx.annotation.StringRes
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -33,7 +34,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.LayoutDirection
-import androidx.compose.ui.window.Dialog
+import com.droiddeck.launcher.ui.GlideDialog as Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.input.GestureKeys
@@ -72,7 +73,7 @@ fun TouchGestureDialog(game: String?, onDismiss: () -> Unit, onSaved: () -> Unit
     GestureDialogFrame(onDismiss,
         footer = {
             Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = onDismiss) { Text(stringResource(R.string.gesture_cancel)) }
+                TextButton(onClick = onDismiss, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.gesture_cancel)) }
                 Spacer(Modifier.width(12.dp))
                 Button(onClick = {
                     if (defaults != initialDefaults) GesturePrefs.save(context, null, defaults)
@@ -80,13 +81,13 @@ fun TouchGestureDialog(game: String?, onDismiss: () -> Unit, onSaved: () -> Unit
                         gameDraft?.let { GesturePrefs.save(context, targetGame, it) } ?: GesturePrefs.clear(context, targetGame)
                     }
                     onSaved()
-                }, modifier = Modifier.testTag("gesture-save")) { Text(stringResource(R.string.gesture_save_changes)) }
+                }, modifier = Modifier.testTag("gesture-save").focusGlide(CircleShape)) { Text(stringResource(R.string.gesture_save_changes)) }
             }
         }) {
         ScrollableTabRow(tab, edgePadding = 12.dp, containerColor = p.surface, divider = { HorizontalDivider(color = p.line) }) {
             tabs.forEachIndexed { index, title ->
                 Tab(tab == index, onClick = { tab = index }, text = { Text(stringResource(title)) }, selectedContentColor = p.onBackground,
-                    unselectedContentColor = p.onSurfaceVariant, modifier = Modifier.testTag("gesture-tab-$index"))
+                    unselectedContentColor = p.onSurfaceVariant, modifier = Modifier.testTag("gesture-tab-$index").focusGlide())
             }
         }
         key(tab) {
@@ -96,7 +97,7 @@ fun TouchGestureDialog(game: String?, onDismiss: () -> Unit, onSaved: () -> Unit
                         GestureFilterChip(!forGame, onClick = { forGame = false }, label = { Text(stringResource(R.string.gesture_defaults)) }, modifier = Modifier.testTag("gesture-scope-default"))
                         if (targetGame != null) GestureFilterChip(forGame, onClick = { forGame = true }, label = { Text(stringResource(R.string.gesture_game)) }, modifier = Modifier.testTag("gesture-scope-game"))
                     }
-                    if (forGame && gameDraft != null) TextButton(onClick = { gameDraft = null }, modifier = Modifier.testTag("gesture-inherit")) { Text(stringResource(R.string.gesture_use_defaults)) }
+                    if (forGame && gameDraft != null) TextButton(onClick = { gameDraft = null }, modifier = Modifier.testTag("gesture-inherit").focusGlide(CircleShape)) { Text(stringResource(R.string.gesture_use_defaults)) }
                 }
                 when (tab) {
                     0 -> {
@@ -151,12 +152,12 @@ fun TouchGestureDialog(game: String?, onDismiss: () -> Unit, onSaved: () -> Unit
                         }
                         GestureSettingsCard(R.string.gesture_recognition) {
                             Text(stringResource(R.string.gesture_threshold, config.gestureThreshold), style = MaterialTheme.typography.bodyMedium)
-                            Slider(config.gestureThreshold.toFloat(), { change(config.copy(gestureThreshold = it.toInt())) }, valueRange = 10f..100f, steps = 17)
+                            Slider(config.gestureThreshold.toFloat(), { change(config.copy(gestureThreshold = it.toInt())) }, valueRange = 10f..100f, steps = 17, modifier = Modifier.focusGlide())
                         }
                         GestureSettingsCard(R.string.gesture_feedback) {
                             GestureToggle(R.string.gesture_debug, config.showGestureDebugOverlay) { change(config.copy(showGestureDebugOverlay = it)) }
                         }
-                        OutlinedButton(onClick = { change(TouchGestureConfig()) }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.gesture_reset)) }
+                        OutlinedButton(onClick = { change(TouchGestureConfig()) }, modifier = Modifier.fillMaxWidth().focusGlide(CircleShape)) { Text(stringResource(R.string.gesture_reset)) }
                     }
                 }
             }
@@ -177,7 +178,7 @@ private fun GestureDialogFrame(onDismiss: () -> Unit,
                     contentColor = p.onBackground, border = BorderStroke(1.dp, p.line2)) {
                     Column {
                         Row(Modifier.fillMaxWidth().padding(end = 4.dp), horizontalArrangement = Arrangement.End) {
-                            IconButton(onClick = onDismiss, modifier = Modifier.size(40.dp)) { Icon(Icons.Default.Close, stringResource(R.string.gesture_close)) }
+                            IconButton(onClick = onDismiss, modifier = Modifier.size(40.dp).focusGlide(CircleShape)) { Icon(Icons.Default.Close, stringResource(R.string.gesture_close)) }
                         }
                         content()
                         HorizontalDivider(color = p.line)
@@ -201,7 +202,7 @@ private fun GestureCard(@StringRes title: Int, checked: Boolean, onToggle: (Bool
     Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), color = p.surface,
         border = BorderStroke(1.dp, if (checked) p.line2 else p.line)) {
         Column {
-            Row(Modifier.fillMaxWidth().toggleable(checked, role = Role.Switch, onValueChange = onToggle)
+            Row(Modifier.fillMaxWidth().focusGlide().toggleable(checked, role = Role.Switch, onValueChange = onToggle)
                 .padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f).padding(end = 12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(stringResource(title), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
@@ -217,7 +218,7 @@ private fun GestureCard(@StringRes title: Int, checked: Boolean, onToggle: (Bool
 private fun GestureActionField(id: String, @StringRes gesture: Int, selected: String, choices: List<String>, onChoose: (String) -> Unit) {
     var open by remember { mutableStateOf(false) }
     val p = LocalPalette.current
-    Surface(onClick = { open = true }, modifier = Modifier.fillMaxWidth().testTag("gesture-choice-$id"), shape = RoundedCornerShape(10.dp),
+    Surface(onClick = { open = true }, modifier = Modifier.fillMaxWidth().testTag("gesture-choice-$id").focusGlide(RoundedCornerShape(10.dp)), shape = RoundedCornerShape(10.dp),
         color = p.surfaceVariant, contentColor = p.onBackground, border = BorderStroke(1.dp, p.line2)) {
         Row(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
@@ -239,10 +240,10 @@ internal fun GestureActionPicker(choices: List<String>, selected: String, onDism
     val shown = filterGestureActions(catalog, query, category)
     val p = LocalPalette.current
     GestureDialogFrame(onDismiss) {
-        OutlinedTextField(query, onValueChange = { query = it }, modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).testTag("gesture-action-search"),
+        OutlinedTextField(query, onValueChange = { query = it }, modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).testTag("gesture-action-search").focusGlide(RoundedCornerShape(12.dp)),
             singleLine = true, shape = RoundedCornerShape(12.dp), placeholder = { Text(stringResource(R.string.gesture_search_actions)) },
             leadingIcon = { Icon(Icons.Default.Search, null) }, trailingIcon = {
-                if (query.isNotEmpty()) IconButton(onClick = { query = "" }) { Icon(Icons.Default.Close, stringResource(R.string.gesture_clear_search)) }
+                if (query.isNotEmpty()) IconButton(onClick = { query = "" }, modifier = Modifier.focusGlide(CircleShape)) { Icon(Icons.Default.Close, stringResource(R.string.gesture_clear_search)) }
             })
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             GestureFilterChip(category == null, onClick = { category = null }, label = { Text(stringResource(R.string.gesture_all_actions)) })
@@ -262,7 +263,7 @@ internal fun GestureActionPicker(choices: List<String>, selected: String, onDism
                         val isSelected = action.id == selected
                         Surface(shape = RoundedCornerShape(12.dp), color = if (isSelected) p.primary.copy(alpha = 0.12f) else p.surface,
                             border = BorderStroke(1.dp, if (isSelected) p.primary else p.line)) {
-                            Row(Modifier.fillMaxWidth().selectable(isSelected, role = Role.RadioButton, onClick = { onChoose(action.id) })
+                            Row(Modifier.fillMaxWidth().focusGlide().selectable(isSelected, role = Role.RadioButton, onClick = { onChoose(action.id) })
                                 .testTag("gesture-action-${action.id}").padding(horizontal = 14.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Icon(when (group) { GestureActionGroup.MOUSE -> Icons.Default.Mouse; GestureActionGroup.APP -> Icons.Default.TouchApp; else -> Icons.Default.Keyboard },
                                     null, tint = if (isSelected) p.primary else p.onSurfaceVariant, modifier = Modifier.size(22.dp))
@@ -289,7 +290,7 @@ private fun GestureHoldOptions(action: String, behavior: String, delay: Int, onB
 @Composable
 private fun GestureFilterChip(selected: Boolean, onClick: () -> Unit, label: @Composable () -> Unit, modifier: Modifier = Modifier) {
     val p = LocalPalette.current
-    FilterChip(selected, onClick, label, modifier = modifier, colors = FilterChipDefaults.filterChipColors(
+    FilterChip(selected, onClick, label, modifier = modifier.focusGlide(), colors = FilterChipDefaults.filterChipColors(
         containerColor = p.surface, labelColor = p.onSurfaceVariant,
         selectedContainerColor = p.primary.copy(alpha = 0.16f), selectedLabelColor = p.onBackground))
 }
@@ -314,9 +315,9 @@ private fun GestureSettingsCard(@StringRes title: Int, content: @Composable Colu
 
 @Composable
 private fun GestureToggle(@StringRes title: Int, checked: Boolean, change: (Boolean) -> Unit) {
-    Row(Modifier.fillMaxWidth().toggleable(checked, role = Role.Switch, onValueChange = change).padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().focusGlide().toggleable(checked, role = Role.Switch, onValueChange = change).padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(stringResource(title), Modifier.weight(1f).padding(end = 12.dp), style = MaterialTheme.typography.bodyMedium)
-        Switch(checked, null)
+        Switch(checked, null, modifier = Modifier.focusGlide())
     }
 }
 
@@ -326,5 +327,5 @@ private fun GestureDelay(label: String, value: Int, change: (Int) -> Unit) {
         Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
         Text(stringResource(R.string.gesture_ms, value), Modifier.background(LocalPalette.current.surfaceVariant, RoundedCornerShape(6.dp)).padding(horizontal = 10.dp, vertical = 5.dp), style = MaterialTheme.typography.labelLarge)
     }
-    Slider(value.toFloat().coerceIn(100f, 1000f), { change((it / 50).toInt() * 50) }, valueRange = 100f..1000f, steps = 17)
+    Slider(value.toFloat().coerceIn(100f, 1000f), { change((it / 50).toInt() * 50) }, valueRange = 100f..1000f, steps = 17, modifier = Modifier.focusGlide())
 }

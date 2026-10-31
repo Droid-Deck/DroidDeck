@@ -56,8 +56,9 @@ class BatteryComponent(val dir: File, private val vpowerDir: File) : SessionPart
             val timeToEmptyS = if (discharging && chargeNowUah > 0 && abs(currentAvgUa) > 0) chargeNowUah * 3600L / abs(currentAvgUa) else 0L
             val charging = status == BatteryManager.BATTERY_STATUS_CHARGING
             val timeToFullS = if (charging && chargeFullUah > chargeNowUah && abs(currentAvgUa) > 0) (chargeFullUah - chargeNowUah) * 3600L / abs(currentAvgUa) else 0L
+            // Android can keep reporting charging at 100%; Linux reports Full there, and Steam shows 99% until it does.
             val statusText = when (status) {
-                BatteryManager.BATTERY_STATUS_CHARGING -> "Charging"
+                BatteryManager.BATTERY_STATUS_CHARGING -> if (pct >= 100) "Full" else "Charging"
                 BatteryManager.BATTERY_STATUS_DISCHARGING -> "Discharging"
                 BatteryManager.BATTERY_STATUS_FULL -> "Full"
                 BatteryManager.BATTERY_STATUS_NOT_CHARGING -> "Not charging"

@@ -1,6 +1,5 @@
 package com.droiddeck.launcher.stores
 
-import android.os.Build
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
@@ -13,6 +12,8 @@ import javax.crypto.spec.GCMParameterSpec
 
 object CredentialCipher {
     const val VERSION = 1
+    /** Sealed with the hardware-keystore (TEE) key; [VERSION] envelopes keep opening with the older, possibly StrongBox, key. */
+    const val VERSION_TEE = 2
     const val ALG = "AES/GCM"
     private const val TRANSFORMATION = "AES/GCM/NoPadding"
     private const val TAG_BITS = 128
@@ -21,6 +22,11 @@ object CredentialCipher {
         fun key(): SecretKey
 
         fun existing(): SecretKey = key()
+
+        /** Key for [VERSION] envelopes written before [VERSION_TEE]. */
+        fun legacy(): SecretKey = existing()
+
+        val version: Int get() = VERSION
     }
 
     class KeyMissing : java.security.GeneralSecurityException("no key")
@@ -29,33 +35,33 @@ object CredentialCipher {
         e is android.security.keystore.KeyPermanentlyInvalidatedException ||
         e is KeyMissing || e is org.json.JSONException || e is IllegalArgumentException
 
+    // StrongBox took over 10 s per Xbox credential write on a tester's phone, past the backend's
+    // 10 s reply timeout, so new writes use a TEE key. The old alias stays readable.
     object Keystore : KeyProvider {
-        private const val ALIAS = "droiddeck-store-credentials"
+        private const val LEGACY_ALIAS = "droiddeck-store-credentials"
+        private const val ALIAS = "droiddeck-store-credentials-tee"
         private const val PROVIDER = "AndroidKeyStore"
 
-        @Synchronized
-        override fun existing(): SecretKey {
-            val ks = KeyStore.getInstance(PROVIDER).apply { load(null) }
-            return ks.getKey(ALIAS, null) as? SecretKey ?: throw KeyMissing()
-        }
+        override val version: Int get() = VERSION_TEE
 
         @Synchronized
-        override fun key(): SecretKey {
-            val ks = KeyStore.getInstance(PROVIDER).apply { load(null) }
-            (ks.getKey(ALIAS, null) as? SecretKey)?.let { return it }
-            if (Build.VERSION.SDK_INT >= 28) {
-                try { return generate(strongBox = true) } catch (e: Exception) {   }
-            }
-            return generate(strongBox = false)
-        }
+        override fun existing(): SecretKey = stored(ALIAS) ?: throw KeyMissing()
 
-        private fun generate(strongBox: Boolean): SecretKey {
+        @Synchronized
+        override fun legacy(): SecretKey = stored(LEGACY_ALIAS) ?: throw KeyMissing()
+
+        @Synchronized
+        override fun key(): SecretKey = stored(ALIAS) ?: generate()
+
+        private fun stored(alias: String): SecretKey? =
+            KeyStore.getInstance(PROVIDER).apply { load(null) }.getKey(alias, null) as? SecretKey
+
+        private fun generate(): SecretKey {
             val spec = KeyGenParameterSpec.Builder(ALIAS, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
                 .setKeySize(256)
                 .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
                 .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
                 .setUserAuthenticationRequired(false)
-                .apply { if (strongBox && Build.VERSION.SDK_INT >= 28) setIsStrongBoxBacked(true) }
                 .build()
             return KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, PROVIDER).run { init(spec); generateKey() }
         }
@@ -64,15 +70,16 @@ object CredentialCipher {
     fun seal(plain: String, keys: KeyProvider): JSONObject {
         val cipher = Cipher.getInstance(TRANSFORMATION).apply { init(Cipher.ENCRYPT_MODE, keys.key()) }
         val ct = cipher.doFinal(plain.toByteArray(Charsets.UTF_8))
-        return JSONObject().put("v", VERSION).put("alg", ALG)
+        return JSONObject().put("v", keys.version).put("alg", ALG)
             .put("iv", b64(cipher.iv)).put("ct", b64(ct))
     }
 
     fun open(envelope: JSONObject, keys: KeyProvider): String {
-        require(envelope.optInt("v", -1) == VERSION && envelope.optString("alg") == ALG) { "unknown envelope" }
+        val version = envelope.optInt("v", -1)
+        require((version == VERSION || version == VERSION_TEE) && envelope.optString("alg") == ALG) { "unknown envelope" }
         val iv = Base64.decode(envelope.getString("iv"), Base64.NO_WRAP)
         val ct = Base64.decode(envelope.getString("ct"), Base64.NO_WRAP)
-        val cipher = Cipher.getInstance(TRANSFORMATION).apply { init(Cipher.DECRYPT_MODE, keys.existing(), GCMParameterSpec(TAG_BITS, iv)) }
+        val cipher = Cipher.getInstance(TRANSFORMATION).apply { init(Cipher.DECRYPT_MODE, if (version == VERSION) keys.legacy() else keys.existing(), GCMParameterSpec(TAG_BITS, iv)) }
         return String(cipher.doFinal(ct), Charsets.UTF_8)
     }
 

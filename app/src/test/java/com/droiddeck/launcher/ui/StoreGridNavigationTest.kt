@@ -46,9 +46,4 @@ class StoreGridNavigationTest {
         assertEquals(10, storeGridNeighbor(6, 11, 4, 1, split = 6))
         assertNull(storeGridNeighbor(1, 11, 4, -1, split = 6))
     }
-
-    @Test fun installedGamesComeFirstKeepingTheirSortedOrder() {
-        val items = listOf("a", "b", "c", "d").map { com.droiddeck.launcher.stores.CatalogItem(com.droiddeck.launcher.stores.Store.GOG, it, it, null) }
-        assertEquals(listOf("b", "d", "a", "c"), installedFirst(items, setOf("d", "b")).map { it.id })
-    }
 }

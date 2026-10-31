@@ -88,6 +88,7 @@ class StoreLoginActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        requestedOrientation = com.droiddeck.launcher.core.AppUiPrefs.orientation(this)
         store = Store.byId(intent.getStringExtra(EXTRA_STORE))
         clientUrl = intent.getStringExtra(EXTRA_CLIENT_URL)?.takeIf { store == Store.EPIC }
         oauthState = savedInstanceState?.getString(KEY_STATE) ?: generateState()
@@ -130,7 +131,7 @@ class StoreLoginActivity : ComponentActivity() {
     private fun newFlow(state: String): Flow? {
         val url = clientUrl
         if (url != null) return com.droiddeck.launcher.stores.epic.EpicClient.loginFlow(url, chromeUa)
-        return store?.let { LoginFlows.forStore(it, state) }
+        return store?.let { LoginFlows.forStore(it, state, chromeUa) }
     }
 
     override fun finish() {
