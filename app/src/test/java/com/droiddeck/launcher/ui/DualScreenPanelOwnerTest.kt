@@ -52,6 +52,22 @@ class DualScreenPanelOwnerTest {
         assertEquals(10, DualScreenPanel.focusTask(fromPanel = true))
     }
 
+    @Test fun aScreenFromAnotherAppKeepsTheTopScreenAfterABottomScreenTouch() {
+        DualScreenPanel.show(app, 2, 10)
+        assertTrue(DualScreenPanel.opensOutside("com.droiddeck.launcher", "com.android.packageinstaller"))
+        DualScreenPanel.yieldTo(10, true)
+        DualScreenPanel.ownerPaused(10, true)
+        assertNull(DualScreenPanel.focusTask(fromPanel = true))
+        DualScreenPanel.ownerPaused(10, false)
+        DualScreenPanel.yieldTo(10, false)
+        assertEquals(10, DualScreenPanel.focusTask(fromPanel = true))
+    }
+
+    @Test fun droidDecksOwnScreensAndUnresolvedIntentsDoNotYield() {
+        assertFalse(DualScreenPanel.opensOutside("com.droiddeck.launcher", "com.droiddeck.launcher"))
+        assertFalse(DualScreenPanel.opensOutside("com.droiddeck.launcher", null))
+    }
+
     @Test fun anotherTasksPauseDoesNotStopThePanelReturningFocus() {
         DualScreenPanel.show(app, 2, 10)
         DualScreenPanel.ownerPaused(11, true)

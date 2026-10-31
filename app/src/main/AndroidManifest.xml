@@ -105,6 +105,7 @@
             android:exported="true"
             android:screenOrientation="user"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|density|keyboard|keyboardHidden|navigation">
+            <layout android:defaultWidth="1024dp" android:defaultHeight="640dp" />
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />

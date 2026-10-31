@@ -155,6 +155,8 @@ object DualScreenPanel {
         if (ownerTask == task) ownerYielded = app
     }
 
+    fun opensOutside(own: String, target: String?): Boolean = target != null && target != own
+
     fun ownerPaused(task: Int, paused: Boolean) {
         if (ownerTask == task) ownerPaused = paused
     }
