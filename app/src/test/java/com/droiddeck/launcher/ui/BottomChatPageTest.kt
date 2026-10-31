@@ -16,6 +16,18 @@ class BottomChatPageTest {
         assertFalse(steamChatAllows(null))
     }
 
+    @Test fun chatFitScriptUsesADotDecimalInEveryLocale() {
+        val before = java.util.Locale.getDefault()
+        try {
+            java.util.Locale.setDefault(java.util.Locale.GERMANY)
+            val js = steamChatFitScript(821, 0.75f)
+            assertTrue(js.contains("m.content='width=821, initial-scale=0.75'"))
+            assertTrue(js.contains("#global_header{display:none!important}"))
+        } finally {
+            java.util.Locale.setDefault(before)
+        }
+    }
+
     @Test fun desktopAgentKeepsTheWebViewChromeVersion() {
         val ua = desktopUserAgent("Mozilla/5.0 (Linux; Android 15; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/141.0.7390.122 Mobile Safari/537.36")
         assertEquals("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.122 Safari/537.36", ua)
