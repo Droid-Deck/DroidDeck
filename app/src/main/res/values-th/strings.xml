@@ -741,7 +741,6 @@
     <string name="drawer_low_latency_touch_hint">การสัมผัสข้ามการรวมเฟรม ทำให้ระบบสัมผัสของ Steam ทำงานที่ 1000 Hz ใช้ CPU เพิ่มขึ้นเล็กน้อย</string>
     <string name="drawer_evdev_mouse">ช่องเมาส์ดิบ</string>
     <string name="drawer_direct_cursor">เคอร์เซอร์</string>
-    <string name="drawer_pc_keyboard">แป้นพิมพ์พีซี</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">หน้าจอที่สอง</string>
     <string name="drawer_second_screen_mode">โหมด</string>
@@ -1243,7 +1242,6 @@
     <string name="deck_left_trackpad">แทร็กแพดซ้าย</string>
     <string name="second_trackpad">แทร็กแพด</string>
     <string name="second_show_keyboard">แสดงแป้นพิมพ์</string>
-    <string name="second_hide_keyboard">ซ่อนแป้นพิมพ์</string>
     <string name="second_terminal">เทอร์มินัล Linux</string>
     <string name="second_terminal_not_ready">เซสชัน Linux ยังไม่พร้อมสำหรับเทอร์มินัล</string>
     <string name="rail_steam">Steam</string>
@@ -1273,8 +1271,6 @@
     <string name="proton_remove_body">เกมที่ตั้งไว้ให้ใช้รุ่นนี้ต้องเปลี่ยนไปใช้ Proton อื่น</string>
     <string name="proton_install_now">ติดตั้งตอนนี้</string>
     <string name="proton_cancel_queued">ยกเลิกรายการที่รออยู่</string>
-    <string name="pckb_android">แป้นพิมพ์ Android</string>
-    <string name="pckb_hide">ซ่อน  ✕</string>
     <string name="main_launch_named">เปิด %1$s</string>
     <string name="main_choose_screen">เลือกหน้าจอ หน้าจอที่สอง: %1$s</string>
     <string name="main_secondary_gone">หน้าจอที่สองไม่พร้อมใช้งานแล้ว</string>

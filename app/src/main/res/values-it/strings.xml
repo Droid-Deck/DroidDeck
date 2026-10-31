@@ -745,7 +745,6 @@
     <string name="drawer_low_latency_touch_hint">I tocchi saltano il raggruppamento dei frame; i controlli touch di Steam passano a 1000 Hz. Un po\' più di CPU.</string>
     <string name="drawer_evdev_mouse">Canale mouse grezzo</string>
     <string name="drawer_direct_cursor">Cursore</string>
-    <string name="drawer_pc_keyboard">Tastiera PC</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Secondo schermo</string>
     <string name="drawer_second_screen_mode">Modalità</string>
@@ -1247,7 +1246,6 @@
     <string name="deck_left_trackpad">Trackpad sinistro</string>
     <string name="second_trackpad">Trackpad</string>
     <string name="second_show_keyboard">Mostra tastiera</string>
-    <string name="second_hide_keyboard">Nascondi tastiera</string>
     <string name="second_terminal">Terminale Linux</string>
     <string name="second_terminal_not_ready">La sessione Linux non è ancora pronta per un terminale.</string>
     <string name="rail_steam">Steam</string>
@@ -1277,8 +1275,6 @@
     <string name="proton_remove_body">I giochi impostati su questa versione devono passare a un altro Proton.</string>
     <string name="proton_install_now">Installa ora</string>
     <string name="proton_cancel_queued">Togli dalla coda</string>
-    <string name="pckb_android">Tastiera Android</string>
-    <string name="pckb_hide">Nascondi  ✕</string>
     <string name="main_launch_named">Avvia %1$s</string>
     <string name="main_choose_screen">Scegli uno schermo. Secondario: %1$s.</string>
     <string name="main_secondary_gone">Lo schermo secondario non è più disponibile.</string>

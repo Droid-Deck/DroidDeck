@@ -741,7 +741,6 @@
     <string name="drawer_low_latency_touch_hint">Sentuhan melewati pengelompokan frame, jadi kontrol sentuh Steam berjalan pada 1000 Hz. Sedikit lebih banyak CPU.</string>
     <string name="drawer_evdev_mouse">Kanal mouse mentah</string>
     <string name="drawer_direct_cursor">Kursor</string>
-    <string name="drawer_pc_keyboard">Keyboard PC</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Layar kedua</string>
     <string name="drawer_second_screen_mode">Mode</string>
@@ -1243,7 +1242,6 @@
     <string name="deck_left_trackpad">Trackpad kiri</string>
     <string name="second_trackpad">Trackpad</string>
     <string name="second_show_keyboard">Tampilkan keyboard</string>
-    <string name="second_hide_keyboard">Sembunyikan keyboard</string>
     <string name="second_terminal">Terminal Linux</string>
     <string name="second_terminal_not_ready">Sesi Linux belum siap untuk terminal.</string>
     <string name="rail_steam">Steam</string>
@@ -1273,8 +1271,6 @@
     <string name="proton_remove_body">Game yang diatur ke versi ini harus dialihkan ke Proton lain.</string>
     <string name="proton_install_now">Instal sekarang</string>
     <string name="proton_cancel_queued">Batalkan antrean</string>
-    <string name="pckb_android">Keyboard Android</string>
-    <string name="pckb_hide">Sembunyikan  ✕</string>
     <string name="main_launch_named">Luncurkan %1$s</string>
     <string name="main_choose_screen">Pilih layar. Sekunder: %1$s.</string>
     <string name="main_secondary_gone">Layar sekunder tidak lagi tersedia.</string>

@@ -747,7 +747,6 @@
     <string name="drawer_low_latency_touch_hint">Doteky přeskakují dávkování snímků, takže ovládání dotykem ve Steamu běží na 1000 Hz. O něco víc CPU.</string>
     <string name="drawer_evdev_mouse">Surový kanál myši</string>
     <string name="drawer_direct_cursor">Kurzor</string>
-    <string name="drawer_pc_keyboard">Klávesnice PC</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Druhá obrazovka</string>
     <string name="drawer_second_screen_mode">Režim</string>
@@ -1261,7 +1260,6 @@
     <string name="deck_left_trackpad">Levý trackpad</string>
     <string name="second_trackpad">Trackpad</string>
     <string name="second_show_keyboard">Zobrazit klávesnici</string>
-    <string name="second_hide_keyboard">Skrýt klávesnici</string>
     <string name="second_terminal">Terminál Linuxu</string>
     <string name="second_terminal_not_ready">Relace Linuxu ještě není připravena na terminál.</string>
     <string name="rail_steam">Steam</string>
@@ -1291,8 +1289,6 @@
     <string name="proton_remove_body">Hry nastavené na tuto verzi je nutné přepnout na jiný Proton.</string>
     <string name="proton_install_now">Instalovat nyní</string>
     <string name="proton_cancel_queued">Zrušit čekající</string>
-    <string name="pckb_android">Klávesnice Androidu</string>
-    <string name="pckb_hide">Skrýt ✕</string>
     <string name="main_launch_named">Spustit %1$s</string>
     <string name="main_choose_screen">Vyberte obrazovku. Druhá: %1$s.</string>
     <string name="main_secondary_gone">Druhá obrazovka už není dostupná.</string>

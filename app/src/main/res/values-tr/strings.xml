@@ -743,7 +743,6 @@
     <string name="drawer_low_latency_touch_hint">Dokunmalar kare gruplamasını atlar; Steam dokunmatik kontrolleri 1000 Hz çalışır. CPU kullanımı biraz artar.</string>
     <string name="drawer_evdev_mouse">Ham fare kanalı</string>
     <string name="drawer_direct_cursor">İmleç</string>
-    <string name="drawer_pc_keyboard">PC klavyesi</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">İkinci ekran</string>
     <string name="drawer_second_screen_mode">Mod</string>
@@ -1241,7 +1240,6 @@
     <string name="deck_left_trackpad">Sol dokunmatik yüzey</string>
     <string name="second_trackpad">Dokunmatik yüzey</string>
     <string name="second_show_keyboard">Klavyeyi göster</string>
-    <string name="second_hide_keyboard">Klavyeyi gizle</string>
     <string name="second_terminal">Linux terminali</string>
     <string name="second_terminal_not_ready">Linux oturumu henüz terminal için hazır değil.</string>
     <string name="rail_steam">Steam</string>
@@ -1271,8 +1269,6 @@
     <string name="proton_remove_body">Bu sürüme ayarlı oyunlar başka bir Proton sürümüne geçirilmelidir.</string>
     <string name="proton_install_now">Şimdi yükle</string>
     <string name="proton_cancel_queued">Sıradakini iptal et</string>
-    <string name="pckb_android">Android klavyesi</string>
-    <string name="pckb_hide">Gizle  ✕</string>
     <string name="main_launch_named">Başlat: %1$s</string>
     <string name="main_choose_screen">Bir ekran seçin. İkincil: %1$s.</string>
     <string name="main_secondary_gone">İkincil ekran artık kullanılamıyor.</string>

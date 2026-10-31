@@ -743,7 +743,6 @@
     <string name="drawer_low_latency_touch_hint">Berøringer springer billedsamling over; Steams berøringsstyring kører ved 1000 Hz. Lidt mere CPU.</string>
     <string name="drawer_evdev_mouse">Rå musekanal</string>
     <string name="drawer_direct_cursor">Markør</string>
-    <string name="drawer_pc_keyboard">PC-tastatur</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Anden skærm</string>
     <string name="drawer_second_screen_mode">Tilstand</string>
@@ -1249,7 +1248,6 @@
     <string name="deck_left_trackpad">Venstre trackpad</string>
     <string name="second_trackpad">Trackpad</string>
     <string name="second_show_keyboard">Vis tastatur</string>
-    <string name="second_hide_keyboard">Skjul tastatur</string>
     <string name="second_terminal">Linux-terminal</string>
     <string name="second_terminal_not_ready">Linux-sessionen er ikke klar til en terminal endnu.</string>
     <string name="rail_steam">Steam</string>
@@ -1279,8 +1277,6 @@
     <string name="proton_remove_body">Spil, der er sat til denne version, skal skiftes til en anden Proton.</string>
     <string name="proton_install_now">Installer nu</string>
     <string name="proton_cancel_queued">Annuller afventende</string>
-    <string name="pckb_android">Android-tastatur</string>
-    <string name="pckb_hide">Skjul  ✕</string>
     <string name="main_launch_named">Start %1$s</string>
     <string name="main_choose_screen">Vælg en skærm. Sekundær: %1$s.</string>
     <string name="main_secondary_gone">Den sekundære skærm er ikke længere tilgængelig.</string>

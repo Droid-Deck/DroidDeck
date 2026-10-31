@@ -741,7 +741,6 @@
     <string name="drawer_low_latency_touch_hint">Cảm ứng bỏ qua việc gộp khung hình, nên điều khiển cảm ứng của Steam chạy ở 1000 Hz. Tốn thêm một chút CPU.</string>
     <string name="drawer_evdev_mouse">Kênh chuột thô</string>
     <string name="drawer_direct_cursor">Con trỏ</string>
-    <string name="drawer_pc_keyboard">Bàn phím PC</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Màn hình thứ hai</string>
     <string name="drawer_second_screen_mode">Chế độ</string>
@@ -1243,7 +1242,6 @@
     <string name="deck_left_trackpad">Trackpad trái</string>
     <string name="second_trackpad">Trackpad</string>
     <string name="second_show_keyboard">Hiện bàn phím</string>
-    <string name="second_hide_keyboard">Ẩn bàn phím</string>
     <string name="second_terminal">Terminal Linux</string>
     <string name="second_terminal_not_ready">Phiên Linux chưa sẵn sàng cho terminal.</string>
     <string name="rail_steam">Steam</string>
@@ -1273,8 +1271,6 @@
     <string name="proton_remove_body">Game đang đặt dùng phiên bản này phải chuyển sang một Proton khác.</string>
     <string name="proton_install_now">Cài ngay</string>
     <string name="proton_cancel_queued">Hủy hàng chờ</string>
-    <string name="pckb_android">Bàn phím Android</string>
-    <string name="pckb_hide">Ẩn  ✕</string>
     <string name="main_launch_named">Khởi chạy %1$s</string>
     <string name="main_choose_screen">Chọn một màn hình. Phụ: %1$s.</string>
     <string name="main_secondary_gone">Màn hình phụ không còn khả dụng.</string>

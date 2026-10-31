@@ -747,7 +747,6 @@
     <string name="drawer_low_latency_touch_hint">Касания идут без объединения кадров; сенсорное управление Steam работает на 1000 Гц. Немного больше нагрузки на CPU.</string>
     <string name="drawer_evdev_mouse">Сырой канал мыши</string>
     <string name="drawer_direct_cursor">Курсор</string>
-    <string name="drawer_pc_keyboard">Клавиатура ПК</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Второй экран</string>
     <string name="drawer_second_screen_mode">Режим</string>
@@ -1261,7 +1260,6 @@
     <string name="deck_left_trackpad">Левый тачпад</string>
     <string name="second_trackpad">Тачпад</string>
     <string name="second_show_keyboard">Показать клавиатуру</string>
-    <string name="second_hide_keyboard">Скрыть клавиатуру</string>
     <string name="second_terminal">Терминал Linux</string>
     <string name="second_terminal_not_ready">Сессия Linux не готова, терминал недоступен.</string>
     <string name="rail_steam">Steam</string>
@@ -1291,8 +1289,6 @@
     <string name="proton_remove_body">Игры, настроенные на эту версию, нужно переключить на другой Proton.</string>
     <string name="proton_install_now">Установить сейчас</string>
     <string name="proton_cancel_queued">Убрать из очереди</string>
-    <string name="pckb_android">Клавиатура Android</string>
-    <string name="pckb_hide">Скрыть ✕</string>
     <string name="main_launch_named">Запустить %1$s</string>
     <string name="main_choose_screen">Выберите экран. Дополнительный экран: %1$s.</string>
     <string name="main_secondary_gone">Дополнительный экран недоступен.</string>

@@ -751,7 +751,6 @@
     <string name="drawer_low_latency_touch_hint">تتجاوز اللمسات تجميع الإطارات، فيعمل اللمس في Steam بمعدل 1000 هرتز. استهلاك معالج أعلى قليلًا.</string>
     <string name="drawer_evdev_mouse">قناة فأرة خام</string>
     <string name="drawer_direct_cursor">المؤشر</string>
-    <string name="drawer_pc_keyboard">لوحة مفاتيح الكمبيوتر</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">الشاشة الثانية</string>
     <string name="drawer_second_screen_mode">الوضع</string>
@@ -1273,7 +1272,6 @@
     <string name="deck_left_trackpad">لوحة اللمس اليسرى</string>
     <string name="second_trackpad">لوحة اللمس</string>
     <string name="second_show_keyboard">إظهار لوحة المفاتيح</string>
-    <string name="second_hide_keyboard">إخفاء لوحة المفاتيح</string>
     <string name="second_terminal">الوحدة الطرفية لـ Linux</string>
     <string name="second_terminal_not_ready">جلسة Linux ليست جاهزة للوحدة الطرفية بعد.</string>
     <string name="rail_steam">Steam</string>
@@ -1303,8 +1301,6 @@
     <string name="proton_remove_body">يجب تحويل الألعاب المضبوطة على هذا الإصدار إلى إصدار Proton آخر.</string>
     <string name="proton_install_now">التثبيت الآن</string>
     <string name="proton_cancel_queued">إلغاء الطلب المعلَّق</string>
-    <string name="pckb_android">لوحة مفاتيح Android</string>
-    <string name="pckb_hide">إخفاء  ✕</string>
     <string name="main_launch_named">تشغيل %1$s</string>
     <string name="main_choose_screen">اختر شاشة. الشاشة الثانوية: %1$s.</string>
     <string name="main_secondary_gone">لم تعد الشاشة الثانوية متاحة.</string>

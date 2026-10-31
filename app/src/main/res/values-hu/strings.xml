@@ -743,7 +743,6 @@
     <string name="drawer_low_latency_touch_hint">Az érintések kihagyják a képkockák kötegelését, így a Steam érintésvezérlése 1000 Hz-en fut. Kicsit több CPU.</string>
     <string name="drawer_evdev_mouse">Nyers egércsatorna</string>
     <string name="drawer_direct_cursor">Kurzor</string>
-    <string name="drawer_pc_keyboard">PC-billentyűzet</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Második képernyő</string>
     <string name="drawer_second_screen_mode">Mód</string>
@@ -1249,7 +1248,6 @@
     <string name="deck_left_trackpad">Bal érintőpad</string>
     <string name="second_trackpad">Érintőpad</string>
     <string name="second_show_keyboard">Billentyűzet megjelenítése</string>
-    <string name="second_hide_keyboard">Billentyűzet elrejtése</string>
     <string name="second_terminal">Linux terminál</string>
     <string name="second_terminal_not_ready">A Linux-munkamenet még nem áll készen a terminálra.</string>
     <string name="rail_steam">Steam</string>
@@ -1279,8 +1277,6 @@
     <string name="proton_remove_body">Az erre a verzióra beállított játékokat másik Protonra kell állítani.</string>
     <string name="proton_install_now">Telepítés most</string>
     <string name="proton_cancel_queued">Várakozó megszakítása</string>
-    <string name="pckb_android">Android billentyűzet</string>
-    <string name="pckb_hide">Elrejtés  ✕</string>
     <string name="main_launch_named">%1$s indítása</string>
     <string name="main_choose_screen">Válasszon képernyőt. Másodlagos: %1$s.</string>
     <string name="main_secondary_gone">A másodlagos kijelző már nem elérhető.</string>

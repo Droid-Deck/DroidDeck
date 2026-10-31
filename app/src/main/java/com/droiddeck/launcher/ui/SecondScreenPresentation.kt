@@ -6,7 +6,6 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
-import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.view.Display
@@ -16,7 +15,6 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewConfiguration
-import android.view.WindowInsets
 import android.view.WindowManager
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
@@ -68,7 +66,6 @@ class SecondScreenPresentation(
     }
     private var currentMode = SecondScreenMode.NONE
     private var keyboardHost: KeyboardHost? = null
-    private var keyboardButton: TextView? = null
     private var keyboardPending = false
     private var imeSeen = false
     private var fieldKeyboard = false
@@ -92,13 +89,6 @@ class SecondScreenPresentation(
         window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         frame.addView(root, FrameLayout.LayoutParams(-1, -1))
         setContentView(frame)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            root.setOnApplyWindowInsetsListener { view, insets ->
-                if (insets.isVisible(WindowInsets.Type.ime())) imeSeen = true
-                else if (imeSeen) keyboardClosed()
-                view.onApplyWindowInsets(insets)
-            }
-        }
         applyImmersiveMode()
         renderMode()
     }
@@ -112,7 +102,6 @@ class SecondScreenPresentation(
 
     private fun showPendingKeyboard() {
         keyboardPending = false
-        keyboardButton?.text = context.getString(R.string.second_hide_keyboard)
         for (delay in longArrayOf(150L, 450L)) root.postDelayed({
             val host = keyboardHost
             if (host != null && !imeSeen && showsKeyboard) host.show()
@@ -130,8 +119,7 @@ class SecondScreenPresentation(
     private fun keyboardClosed() {
         fieldKeyboard = false
         imeSeen = false
-        keyboardHost?.takeIf { it.shown }?.hide()
-        keyboardButton?.text = context.getString(R.string.second_show_keyboard)
+        keyboardHost?.hide()
         onKeyboardClosed()
     }
 
@@ -154,7 +142,7 @@ class SecondScreenPresentation(
         val content = menu ?: return
         menuShown = on
         if (on) {
-            keyboardHost?.takeIf { it.shown }?.hide()
+            keyboardHost?.hide()
             window?.decorView?.let { decor ->
                 decor.setViewTreeLifecycleOwner(sessionActivity)
                 decor.setViewTreeViewModelStoreOwner(sessionActivity)
@@ -213,9 +201,9 @@ class SecondScreenPresentation(
 
     private fun renderMode() {
         fieldKeyboard = false
+        imeSeen = false
         keyboardHost?.hide()
         keyboardHost = null
-        keyboardButton = null
         keyboardPending = false
         closeTerminal()
         root.removeAllViews()
@@ -250,17 +238,8 @@ class SecondScreenPresentation(
             setPadding(dp(14), 0, dp(8), 0)
             isSingleLine = true
         }, LinearLayout.LayoutParams(0, -2, 1f))
-        lateinit var keyboardButton: TextView
-        keyboardButton = DeckControlsPanel.roundButton(context, context.getString(R.string.second_show_keyboard),
-            context.getString(R.string.second_show_keyboard), {
-                val host = keyboardHost
-                if (host != null) {
-                    host.toggle()
-                    keyboardButton.text = context.getString(if (host.shown) R.string.second_hide_keyboard else R.string.second_show_keyboard)
-                }
-            }, wide = true)
-        controls.addView(keyboardButton)
-        this.keyboardButton = keyboardButton
+        controls.addView(DeckControlsPanel.roundButton(context, context.getString(R.string.drawer_android_keyboard),
+            context.getString(R.string.drawer_android_keyboard), { keyboardHost?.toggle() }, wide = true))
         onMenu?.let {
             controls.addView(gap())
             controls.addView(DeckControlsPanel.menuButton(context, it))
@@ -278,6 +257,10 @@ class SecondScreenPresentation(
             if (fieldKeyboard && event.action == KeyEvent.ACTION_UP &&
                 (event.keyCode == KeyEvent.KEYCODE_ENTER || event.keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER)) root.post { closeFieldKeyboard() }
             handled
+        }
+        host.onImeChanged = { visible ->
+            if (visible) imeSeen = true
+            else if (imeSeen) keyboardClosed()
         }
         keyboardHost = host
         root.addView(host, ViewGroup.LayoutParams(1, 1))

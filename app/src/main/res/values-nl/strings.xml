@@ -743,7 +743,6 @@
     <string name="drawer_low_latency_touch_hint">Aanrakingen slaan framebundeling over; Steam-aanraakbediening op 1000 Hz. Iets meer CPU.</string>
     <string name="drawer_evdev_mouse">Ruw muiskanaal</string>
     <string name="drawer_direct_cursor">Cursor</string>
-    <string name="drawer_pc_keyboard">Pc-toetsenbord</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Tweede scherm</string>
     <string name="drawer_second_screen_mode">Modus</string>
@@ -1249,7 +1248,6 @@
     <string name="deck_left_trackpad">Linkertrackpad</string>
     <string name="second_trackpad">Trackpad</string>
     <string name="second_show_keyboard">Toetsenbord tonen</string>
-    <string name="second_hide_keyboard">Toetsenbord verbergen</string>
     <string name="second_terminal">Linux-terminal</string>
     <string name="second_terminal_not_ready">De Linux-sessie is nog niet klaar voor een terminal.</string>
     <string name="rail_steam">Steam</string>
@@ -1279,8 +1277,6 @@
     <string name="proton_remove_body">Games die op deze versie zijn ingesteld, moeten naar een andere Proton worden overgezet.</string>
     <string name="proton_install_now">Nu installeren</string>
     <string name="proton_cancel_queued">Wachtrij annuleren</string>
-    <string name="pckb_android">Android-toetsenbord</string>
-    <string name="pckb_hide">Verbergen  ✕</string>
     <string name="main_launch_named">%1$s starten</string>
     <string name="main_choose_screen">Kies een scherm. Tweede scherm: %1$s.</string>
     <string name="main_secondary_gone">Het tweede scherm is niet meer beschikbaar.</string>
