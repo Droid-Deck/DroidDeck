@@ -38,13 +38,13 @@ internal object GameJoltProbe {
 
     private val noise = Regex("/dash/(developer|communities|sites|avatar|header|profile|email)|communities|/posts/|stickers|polls|realms|custom-buttons|collaborators|playlists", RegexOption.IGNORE_CASE)
     private val markers = listOf("get-download-url/", "/web/download/info/", "/web/discover/games", "/web/search\"", "/web/search`", "/web/search'", "getQueryString(", "push(`section=`", "5-less", "everyone", "getDownloadUrl(", "/web/auth/check\"", "/web/library\"", "/web/checkout/setup-order")
-    private val DIGITS = Regex("[0-9]+")
+    private val DIGITS = Regex("[0-9]+(?![0-9]|-less)")
     private val IDENT = Regex("[A-Za-z_$][A-Za-z0-9_$]*")
     private val CODE_WORDS = setOf(
         "id", "key", "game", "build", "builds", "params", "query", "page", "sort", "filter", "type", "os", "limit", "price", "free", "tag", "tags",
         "section", "offset", "cursor", "search", "discover", "web", "download", "info", "games", "get", "url", "post", "method", "body", "headers",
         "Api", "sendRequest", "sendFieldsRequest", "noErrorRedirect", "detach", "package", "release", "payload", "user", "token", "owned", "sellable",
-        "checkout", "order", "library", "auth", "check", "true", "false", "null", "new", "return", "await", "async", "const", "let", "var",
+        "checkout", "order", "library", "auth", "check", "everyone", "teen", "adult", "complete", "wip", "devlog", "free", "sale", "paid", "html", "flash", "unity", "windows", "mac", "linux", "other", "partners", "less", "maturity", "price", "browser", "status", "true", "false", "null", "new", "return", "await", "async", "const", "let", "var",
     )
     private const val SAMPLE_IDS = 5
     private const val MAX_CONTEXTS = 6
