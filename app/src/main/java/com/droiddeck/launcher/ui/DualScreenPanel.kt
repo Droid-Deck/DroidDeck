@@ -166,18 +166,13 @@ object DualScreenPanel {
         return ownerTask.takeIf { it >= 0 }
     }
 
-    internal fun tookFocus(fresh: Boolean, touchedAt: Long, now: Long): Boolean =
-        fresh || now - touchedAt in 0..TOUCH_FOCUS_MS
-
-    private const val TOUCH_FOCUS_MS = 1000L
-
     internal fun returnFocus(context: Context, fromPanel: Boolean = false) {
         val task = focusTask(fromPanel) ?: return
         runCatching { (context.getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager).moveTaskToFront(task, 0) }
     }
 
     internal fun reclaimFocus(context: Context) {
-        val task = focusTask(false) ?: return
+        val task = focusTask(true) ?: return
         val manager = context.getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager
         runCatching {
             manager.appTasks.firstOrNull {
@@ -245,21 +240,16 @@ class DualScreenActivity : ComponentActivity() {
     }
 
     private var topResumed = false
-    private var fresh = true
-    private var touchedAt = Long.MIN_VALUE
 
     override fun onTopResumedActivityChanged(isTopResumedActivity: Boolean) {
         super.onTopResumedActivityChanged(isTopResumedActivity)
         topResumed = isTopResumedActivity
-        val took = DualScreenPanel.tookFocus(fresh, touchedAt, android.os.SystemClock.uptimeMillis())
-        fresh = false
-        if (isTopResumedActivity && !DualScreenPanel.typingShown) DualScreenPanel.returnFocus(this, fromPanel = took)
+        if (isTopResumedActivity && !DualScreenPanel.typingShown) DualScreenPanel.returnFocus(this, fromPanel = true)
     }
 
     override fun dispatchTouchEvent(event: android.view.MotionEvent): Boolean {
-        if (event.actionMasked == android.view.MotionEvent.ACTION_DOWN) {
-            touchedAt = event.downTime
-            if (topResumed && !DualScreenPanel.typingShown) DualScreenPanel.returnFocus(this, fromPanel = true)
+        if (event.actionMasked == android.view.MotionEvent.ACTION_DOWN && topResumed && !DualScreenPanel.typingShown) {
+            DualScreenPanel.returnFocus(this, fromPanel = true)
         }
         return super.dispatchTouchEvent(event)
     }
