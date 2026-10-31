@@ -1897,6 +1897,13 @@
     <string name="bottom_shots_saved">Screenshot saved.</string>
     <string name="bottom_shots_failed">Could not take a screenshot.</string>
     <string name="bottom_shots_none">No screenshots yet.</string>
+    <string name="bottom_page_chat">Chat &amp; voice</string>
+    <string name="bottom_chat_why">Read and answer Steam chat here while the game keeps running on the main screen. Sign in to Steam once; DroidDeck keeps you signed in.</string>
+    <string name="bottom_chat_open">Open Steam Chat</string>
+    <string name="bottom_chat_close">Close chat</string>
+    <string name="bottom_chat_mic_on">Mic on</string>
+    <string name="bottom_chat_mic_off">Mic off</string>
+    <string name="bottom_chat_volume">Volume %1$d%%</string>
 
     <string name="rtinst_removing">Removing Linux runtime</string>
     <plurals name="rtinst_removing_entries">

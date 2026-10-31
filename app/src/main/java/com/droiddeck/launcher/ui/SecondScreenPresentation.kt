@@ -199,7 +199,8 @@ class SecondScreenPresentation(
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        val forward = menuShown || currentMode != SecondScreenMode.TERMINAL || PadBridge.isControllerKeyEvent(event)
+        val ownKeys = currentMode == SecondScreenMode.TERMINAL || currentMode == SecondScreenMode.DASHBOARD
+        val forward = menuShown || !ownKeys || PadBridge.isControllerKeyEvent(event)
         if (forward && sessionActivity.dispatchKeyEvent(event)) return true
         return super.dispatchKeyEvent(event)
     }
