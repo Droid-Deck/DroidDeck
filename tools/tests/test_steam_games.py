@@ -391,6 +391,61 @@ class ImportsTest(unittest.TestCase):
         with patch.object(imports.urllib.request, 'urlopen', side_effect=AssertionError):
             self.assertEqual(42, imports.identify(self.game))
 
+    def test_spacewar_appid_names_no_game(self):
+        (self.folder / 'steam_appid.txt').write_text('480\n')
+        with patch.object(imports.urllib.request, 'urlopen', side_effect=OSError):
+            self.assertIsNone(imports.identify(self.game))
+
+    def import_as(self, appid):
+        self.assertTrue(imports.seed_install(self.steam, self.game, appid))
+        self.assertTrue((self.steam / f'steamapps/appmanifest_{appid}.acf').is_file())
+
+    def snapshot_names(self, appid, owned):
+        imports.save_json(self.acct / 'config' / imports.STATE,
+                          dict(account='123', owned={str(appid): owned},
+                               candidates={str(self.folder): appid},
+                               sources={str(self.folder): imports.source_stamp(self.game)}))
+
+    def assert_not_imported_as(self, appid):
+        self.assertFalse((self.steam / f'steamapps/appmanifest_{appid}.acf').exists())
+        self.assertFalse(os.path.lexists(self.steam / f'steamapps/common/DroidDeck-{appid}'))
+
+    def test_spacewar_import_is_released_and_never_made_again(self):
+        self.import_as(480)
+        self.snapshot_names(480, owned=True)
+        with patch('builtins.print'):
+            self.assertEqual(([self.game], {}), imports.route(self.steam, self.acct, [self.game]))
+        self.assert_not_imported_as(480)
+        self.assertEqual(b'game', self.exe.read_bytes())
+
+    def test_import_follows_the_app_the_files_name_now(self):
+        self.snapshot()
+        imports.route(self.steam, self.acct, [self.game])
+        self.snapshot_names(43, owned=True)
+        with patch('builtins.print'):
+            self.assertEqual(([], {str(self.game['appid']): 43}), imports.route(self.steam, self.acct, [self.game]))
+        self.assert_not_imported_as(42)
+        self.assertEqual(self.folder, (self.steam / 'steamapps/common/DroidDeck-43').resolve())
+
+    def test_unowned_new_appid_leaves_a_shortcut(self):
+        self.snapshot()
+        imports.route(self.steam, self.acct, [self.game])
+        self.snapshot_names(43, owned=False)
+        with patch('builtins.print'):
+            self.assertEqual(([self.game], {}), imports.route(self.steam, self.acct, [self.game]))
+        self.assert_not_imported_as(42)
+        self.assert_not_imported_as(43)
+
+    def test_import_stays_while_the_new_identity_is_unknown(self):
+        self.snapshot()
+        imports.route(self.steam, self.acct, [self.game])
+        for candidates in ({}, {str(self.folder): 43}):
+            imports.save_json(self.acct / 'config' / imports.STATE,
+                              dict(account='123', owned={'43': True}, candidates=candidates,
+                                   sources={str(self.folder): ['stale']}))
+            imports.route(self.steam, self.acct, [self.game])
+            self.assertTrue((self.steam / 'steamapps/appmanifest_42.acf').is_file())
+
     def test_manifest_identity_uses_install_directory(self):
         folder = self.root / 'second/steamapps/common/Custom Name'
         folder.mkdir(parents=True)
@@ -398,6 +453,21 @@ class ImportsTest(unittest.TestCase):
         game = dict(self.game, folder=str(folder), exe=str(folder / 'game.exe'))
         with patch.object(imports.urllib.request, 'urlopen', side_effect=AssertionError):
             self.assertEqual(42, imports.identify(game))
+
+    def test_a_spacewar_manifest_names_no_game(self):
+        folder = self.root / 'second/steamapps/common/PEAK'
+        folder.mkdir(parents=True)
+        (folder.parent.parent / 'appmanifest_480.acf').write_text('"AppState" { "installdir" "PEAK" }')
+        (folder / 'steam_appid.txt').write_text('3527290\n')
+        game = dict(self.game, folder=str(folder), exe=str(folder / 'PEAK.exe'))
+        with patch.object(imports.urllib.request, 'urlopen', side_effect=AssertionError):
+            self.assertEqual(3527290, imports.identify(game))
+
+    def test_a_store_search_answering_spacewar_names_no_game(self):
+        with patch.object(imports.urllib.request, 'urlopen') as request:
+            request.return_value.__enter__.return_value.read.return_value = json.dumps(
+                {'items': [{'id': 480, 'name': 'Spacewar'}]}).encode()
+            self.assertIsNone(imports.identify(dict(self.game, name='Spacewar')))
 
     def test_store_requires_unique_exact_title(self):
         cases = [([{'id': 42, 'name': 'Example Deluxe'}], None),
