@@ -10,11 +10,19 @@ data class PcKey(
     val weight: Float = 1f,
     val shifted: String? = null,
     @StringRes val labelRes: Int = 0,
+    val synthShift: Boolean = false,
 )
 
 internal fun k(label: String, code: Int, weight: Float = 1f, shifted: String? = null) = PcKey(label, code, weight, shifted)
 
 internal fun k(@StringRes labelRes: Int, code: Int, weight: Float = 1f) = PcKey("", code, weight, null, labelRes)
+
+internal fun symbolKey(c: String, weight: Float = 1f): PcKey {
+    val ch = c[0].code
+    val plain = EvdevKeys.unshiftedChar(ch)
+    val base = if (plain != 0) plain else ch
+    return PcKey(c, EvdevKeys.fromKeyCode(EvdevKeys.keycodeForChar(base)), weight, synthShift = plain != 0 && plain != ch)
+}
 
 val PC_KEY_ROWS: List<List<PcKey>> = listOf(
     listOf(
@@ -50,6 +58,16 @@ val PC_KEY_ROWS: List<List<PcKey>> = listOf(
 )
 
 val PC_MODIFIERS: Set<Int> = setOf(42, 54, 29, 97, 56, 100, 125)
+
+// Symbol page for the ?123 view: kept out of PC_KEY_ROWS so ScreenKeyPicker's hard indices stay intact.
+val PC_SYMBOL_ROWS: List<List<PcKey>> = listOf(
+    listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "0").map { symbolKey(it, 1.5f) },
+    listOf("!", "@", "#", "$", "%", "^", "&", "*", "(", ")", "_", "+").map { symbolKey(it, 1.25f) },
+    listOf("[", "]", "\\", "{", "}", "|", ";", "'", ":", "\"", ".", "/").map { symbolKey(it, 1.25f) } +
+        listOf(k(R.string.pckb_key_backspace, 14, 2f)),
+    listOf("-", "=", "`", ",", "~", "<", ">", "?").map { symbolKey(it, 1.25f) } +
+        listOf(k(R.string.pckb_key_space, 57, 6.25f), k(R.string.pckb_key_enter, 28, 2.25f)),
+)
 
 // Sticky modifiers are excluded: hiding a locked modifier would leave it pressed forever.
 val PC_KEY_HIDDEN_GROUPS: Map<String, Set<Int>> = mapOf(
