@@ -1845,19 +1845,29 @@ class SessionService : Service() {
         val finishAfterTeardown: () -> Unit = {
             if (prootPid > 1 || auxiliary.isNotEmpty()) {
                 Thread({
-                    if (prootPid > 1 && steamClientMayRun) askSteamToExit(prootPid)
-                    com.droiddeck.launcher.stores.gog.GogComet.end(stoppedSession)
-                    auxiliary.forEach { (pid, started) -> teardown(pid, started) }
-                    if (prootPid > 1) teardown(prootPid)
-                    killGuestLeftovers()
-                    finishSessionStop(status, stoppedGen, collectEnded)
-                    if (launcherEnded) importLauncherGames()
+                    try {
+                        if (prootPid > 1 && steamClientMayRun) askSteamToExit(prootPid)
+                        com.droiddeck.launcher.stores.gog.GogComet.end(stoppedSession)
+                        auxiliary.forEach { (pid, started) -> teardown(pid, started) }
+                        if (prootPid > 1) teardown(prootPid)
+                        killGuestLeftovers()
+                    } catch (e: InterruptedException) {
+                        Thread.currentThread().interrupt()
+                    } finally {
+                        finishSessionStop(status, stoppedGen, collectEnded)
+                        if (launcherEnded) importLauncherGames()
+                    }
                 }, "session-teardown").start()
             } else {
                 Thread({
-                    com.droiddeck.launcher.stores.gog.GogComet.end(stoppedSession)
-                    finishSessionStop(status, stoppedGen, collectEnded)
-                    if (launcherEnded) importLauncherGames()
+                    try {
+                        com.droiddeck.launcher.stores.gog.GogComet.end(stoppedSession)
+                    } catch (e: InterruptedException) {
+                        Thread.currentThread().interrupt()
+                    } finally {
+                        finishSessionStop(status, stoppedGen, collectEnded)
+                        if (launcherEnded) importLauncherGames()
+                    }
                 }, "gog-session-stop").start()
             }
         }
