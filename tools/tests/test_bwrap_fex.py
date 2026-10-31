@@ -66,6 +66,22 @@ class BwrapFexTest(unittest.TestCase):
         self.assertTrue(self.shim["through_fex"](s))
         self.assertEqual("/bin/sh", s.command[1])
 
+    def test_a_bind_whose_source_is_a_symlink_resolves_from_the_source(self):
+        real = self.dir / "store" / "tool-real"
+        elf(real, 62)
+        os.symlink("tool-real", self.dir / "store" / "tool-link")
+        s = self.spec(["/opt/tool"])
+        s.ops.append({"t": "bind", "src": str(self.dir / "store" / "tool-link"), "dest": "/opt/tool", "try": False,
+                      "ro": True})
+        self.assertTrue(self.shim["through_fex"](s))
+        self.assertEqual("/opt/tool", s.command[1])
+
+    def test_a_relative_path_entry_is_searched_from_the_working_directory(self):
+        s = self.spec(["r2modman"], path="bin")
+        s.cwd = "/app"
+        self.assertTrue(self.shim["through_fex"](s))
+        self.assertEqual("/app/bin/r2modman", s.command[1])
+
     def test_an_arm64_program_runs_as_it_is(self):
         s = self.spec(["arm-tool"])
         self.assertFalse(self.shim["through_fex"](s))

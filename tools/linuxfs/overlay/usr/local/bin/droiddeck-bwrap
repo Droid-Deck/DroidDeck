@@ -230,9 +230,21 @@ def sandbox_link(s, path):
             continue
         if op["t"] == "symlink":
             return op["target"]
+        if op["t"] == "bind":
+            return None
         break
-    here = host_path(s, path)
+    here = sandbox_source(s, path)
     return os.readlink(here) if os.path.islink(here) else None
+
+
+def sandbox_source(s, path):
+    for op in reversed(s.ops):
+        if op["t"] != "bind":
+            continue
+        dest = op["dest"].rstrip("/")
+        if path == dest or path.startswith(dest + "/"):
+            return real(op["src"]).rstrip("/") + path[len(dest):]
+    return path
 
 
 def sandbox_file(s, path):
@@ -254,7 +266,7 @@ def sandbox_file(s, path):
         parts = [p for p in os.path.normpath(os.path.join(base, link)).split("/") if p] + parts[i + 1:]
         done = "/"
         i = 0
-    here = host_path(s, done)
+    here = sandbox_source(s, done)
     return here if os.path.isfile(here) else None
 
 
@@ -262,8 +274,11 @@ def program_path(s, program):
     if "/" in program:
         return os.path.normpath(os.path.join(s.cwd or "/", program))
     for folder in s.env.get("PATH", "/usr/bin:/bin").split(":"):
-        if folder and sandbox_file(s, os.path.join(folder, program)):
-            return os.path.join(folder, program)
+        if not folder:
+            continue
+        candidate = os.path.normpath(os.path.join(s.cwd or "/", folder, program))
+        if sandbox_file(s, candidate):
+            return candidate
     return None
 
 
