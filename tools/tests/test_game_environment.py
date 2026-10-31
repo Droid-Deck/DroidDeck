@@ -1731,6 +1731,33 @@ class UbisoftOverlayTest(unittest.TestCase):
             self.assertEqual(sorted(p.name for p in settings.parent.iterdir()), ["settings.yaml"])
 
 
+class QpcTimerTest(unittest.TestCase):
+    TIMER = runpy.run_path(str(BIN / "droiddeck-qpc-timer"))
+
+    def test_wrappers_point_the_timer_after_the_component_swaps(self):
+        for script in (COMPAT["launcher_sh"](), COMPAT["extra_wrapper_sh"]("proton")):
+            self.assertIn("bl_qpc_timer() {", script)
+            self.assertLess(script.index('bl_components "'), script.index('bl_qpc_timer "'))
+
+    def test_only_a_known_ntdll_changes_and_its_original_is_kept(self):
+        with tempfile.TemporaryDirectory() as root:
+            wine = Path(root, "files/lib/wine/aarch64-windows")
+            wine.mkdir(parents=True)
+            ntdll = wine / "ntdll.dll"
+            stock = bytes(range(256)) * 4
+            ntdll.write_bytes(stock)
+            patch = self.TIMER["patch_ntdll_timer"]
+            patch(root)
+            self.assertEqual(ntdll.read_bytes(), stock)
+            self.assertFalse((wine / "ntdll.dll.orig").exists())
+            known = {hashlib.sha256(stock).hexdigest(): [(4, stock[4:8].hex(), "c0035fd6")]}
+            with mock.patch.dict(self.TIMER["NTDLL_TIMER"], known, clear=True):
+                patch(root)
+                patch(root)
+            self.assertEqual((wine / "ntdll.dll.orig").read_bytes(), stock)
+            self.assertEqual(ntdll.read_bytes(), stock[:4] + bytes.fromhex("c0035fd6") + stock[8:])
+
+
 if __name__ == "__main__":
     unittest.main()
 

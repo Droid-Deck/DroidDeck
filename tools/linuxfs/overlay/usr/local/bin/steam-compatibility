@@ -288,6 +288,14 @@ case "$verb:${1##*/}:${STEAM_COMPAT_DATA_PATH%/}" in
 esac
 """
 
+BL_QPC_TIMER_SETUP = """
+bl_qpc_timer() {
+  [ "${verb:-}" = waitforexitandrun ] || return 0
+  command -v droiddeck-qpc-timer >/dev/null 2>&1 || return 0
+  droiddeck-qpc-timer "$1" || true
+}
+"""
+
 BL_DIRECTAUDIO_SETUP = """
 bl_is_steam_installscript_target() {
   local target=${1:-}
@@ -407,6 +415,7 @@ for name in %s; do
 done
 if [ -n "$depot" ]; then
   bl_components "$depot"
+  bl_qpc_timer "$depot"
   bl_directaudio "$depot" "$@"
   bl_game_cpus
   bl_idtech3 "$@"
@@ -426,7 +435,7 @@ LAUNCHER_TEMPLATE = LAUNCHER_SH
 def launcher_sh(sources=SOURCES):
     return (LAUNCHER_TEMPLATE % " ".join('"%s"' % n for n in sources)).replace(
         "verb=$1; shift", "verb=$1; shift\n" + BL_DRIVER_QUERY_SKIP + BL_DESKTOP_GPU_SETUP + BL_DIRECTAUDIO_SETUP + BL_GAME_CPUS_SETUP + BL_IDTECH3_SETUP
-        + BL_VACDIAG_SETUP + BL_COMPONENTS_SETUP + BL_LIBPATH_SETUP + BL_STORE_SETUP, 1)
+        + BL_VACDIAG_SETUP + BL_COMPONENTS_SETUP + BL_QPC_TIMER_SETUP + BL_LIBPATH_SETUP + BL_STORE_SETUP, 1)
 
 
 LAUNCHER_SH = launcher_sh()
@@ -462,6 +471,7 @@ if [ -n "${PROOT_FP_KEY:-}" ] && [ -f "$audit" ]; then
   esac
 fi
 bl_components "$here"
+bl_qpc_timer "$here"
 bl_directaudio "$here" "$@"
 bl_game_cpus
 bl_idtech3 "$@"
@@ -478,7 +488,7 @@ def extra_wrapper_sh(entry_point):
     return (EXTRA_WRAPPER_SH % entry_point).replace(
         'here=$(dirname "$0")',
         'here=$(dirname "$0")\n' + BL_DRIVER_QUERY_SKIP + BL_DESKTOP_GPU_SETUP + BL_DIRECTAUDIO_SETUP + BL_GAME_CPUS_SETUP
-        + BL_IDTECH3_SETUP + BL_VACDIAG_SETUP + BL_COMPONENTS_SETUP + BL_LIBPATH_SETUP + BL_STORE_SETUP, 1)
+        + BL_IDTECH3_SETUP + BL_VACDIAG_SETUP + BL_COMPONENTS_SETUP + BL_QPC_TIMER_SETUP + BL_LIBPATH_SETUP + BL_STORE_SETUP, 1)
 
 
 EXTRA_COMPAT_TOOL_VDF = """"compatibilitytools"

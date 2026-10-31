@@ -1,0 +1,94 @@
+#!/usr/bin/env python3
+"""Points an ARM64EC Proton's QueryPerformanceCounter at the CPU's generic timer.
+
+    droiddeck-qpc-timer PROTON_DIR
+
+Windows on ARM answers QueryPerformanceCounter from the generic timer (cntvct_el0) without leaving user space. Wine's
+ARM64EC ntdll makes a system call for every one, through the BT module's syscall callback and Wine's dispatcher into
+clock_gettime, and games that read the clock constantly pay for it: Dungeons & Dragons Online calls it hundreds of
+thousands of times a second while it loads, 5.1% of its game thread, and 0.06% with the timer.
+
+The Windows side's RtlQueryPerformanceCounter, RtlQueryPerformanceFrequency (cntfrq_el0) and NtQueryPerformanceCounter
+system call stub read the timer instead. Wine's Linux side keeps its own 100 ns counter, which its timeouts are built
+on, and its Windows-side users all take the frequency along with the counter.
+
+Only an ntdll.dll whose SHA-256 and original bytes are known below is changed, and the Proton's own file is kept
+beside it as ntdll.dll.orig; anything else is left alone. It never fails a launch.
+"""
+import hashlib
+import os
+import shutil
+import stat
+import sys
+
+# ntdll.dll builds by SHA-256 -> (file offset, original bytes, new bytes).
+NTDLL_TIMER = {
+    # DroidDeck-Proton 11-11.9
+    "18e970a8d2fdde2496d197b52eb80e87626e169a00b986dbe2c3d918839cfaf6": [
+        # #RtlQueryPerformanceCounter: mrs x8, cntvct_el0; str x8, [x0]; mov w0, #1; ret
+        (0xdf350, "fd7bbfa9fd030091e1031faaed470094", "48e03bd5080000f920008052c0035fd6"),
+        # #RtlQueryPerformanceFrequency: mrs x8, cntfrq_el0; str x8, [x0]; mov w0, #1; ret
+        (0xdf370, "08d092520813a072080000f920008052", "08e03bd5080000f920008052c0035fd6"),
+        # #NtQueryPerformanceCounter$hp_target (the system call stub): both from the timer, STATUS_SUCCESS
+        (0xccbe0, "280680d2e9031eaa50ba41f9700000b4100640f9700000b5d0040090",
+         "48e03bd5080000f9610000b408e03bd5280000f9e0031f2ac0035fd6"),
+    ],
+}
+
+
+def say(message):
+    print("droiddeck-qpc-timer: %s" % message, file=sys.stderr, flush=True)
+
+
+def put_in_place(path, data):
+    """Replaces path with data, keeping the original beside it as .orig. False when it already holds data."""
+    with open(path, "rb") as f:
+        if f.read() == data:
+            return False
+    original = path + ".orig"
+    if not os.path.isfile(original):
+        shutil.copy2(path, original)
+    staged = path + ".qpc-new"
+    with open(staged, "wb") as f:
+        f.write(data)
+    os.chmod(staged, stat.S_IMODE(os.stat(original).st_mode))
+    os.replace(staged, path)
+    return True
+
+
+def patch_ntdll_timer(proton_dir):
+    name = os.path.basename(os.path.normpath(proton_dir))
+    path = os.path.join(proton_dir, "files", "lib", "wine", "aarch64-windows", "ntdll.dll")
+    if not os.path.isfile(path):
+        return
+    original = path + ".orig"
+    with open(original if os.path.isfile(original) else path, "rb") as f:
+        stock = f.read()
+    patches = NTDLL_TIMER.get(hashlib.sha256(stock).hexdigest())
+    if patches is None:
+        say("keeping %s's own QueryPerformanceCounter: not an ntdll.dll this knows" % name)
+        return
+    patched = bytearray(stock)
+    for offset, old, new in patches:
+        old, new = bytes.fromhex(old), bytes.fromhex(new)
+        if stock[offset:offset + len(old)] != old:
+            say("keeping %s's own QueryPerformanceCounter: ntdll.dll differs at %#x" % (name, offset))
+            return
+        patched[offset:offset + len(new)] = new
+    if put_in_place(path, bytes(patched)):
+        say("%s: QueryPerformanceCounter reads the CPU timer" % name)
+
+
+def main(argv):
+    if len(argv) != 1:
+        say("usage: droiddeck-qpc-timer PROTON_DIR")
+        return 0
+    try:
+        patch_ntdll_timer(argv[0])
+    except OSError as error:
+        say("left the Proton as it was: %s" % error)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
