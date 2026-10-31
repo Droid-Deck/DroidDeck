@@ -111,6 +111,26 @@ class DirtTelemetryFixTest(unittest.TestCase):
         self.assertEqual(os.readlink(self.target), str(newer))
         self.assertFalse(os.path.lexists(self.target.with_name("ws2_32.dll.droiddeck-original")))
 
+    def test_after_a_proton_switch_the_running_protons_file_goes_back(self):
+        MODULE["swap_dirt_ws2"](self.prefix)
+        other = Path(self.tmp.name) / "GE-Proton/proton"
+        other_own = other.parent / "files/lib/wine/i386-windows/ws2_32.dll"
+        other_own.parent.mkdir(parents=True)
+        other_own.write_bytes(b"MZ GE wine ws2_32")
+        other.write_text("")
+        self.assertTrue(MODULE["restore_dirt_ws2"](self.prefix, other))
+        self.assertEqual(os.readlink(self.target), str(other_own))
+        self.assertFalse(os.path.lexists(self.target.with_name("ws2_32.dll.droiddeck-original")))
+
+    def test_restore_follows_a_proton_reached_through_a_linked_folder(self):
+        MODULE["swap_dirt_ws2"](self.prefix)
+        pack = Path(self.tmp.name) / "pack"
+        (pack / "files/lib/wine").mkdir(parents=True)
+        (pack / "files/lib/wine/i386-windows").symlink_to(self.own.parent)
+        (pack / "proton").write_text("")
+        self.assertTrue(MODULE["restore_dirt_ws2"](self.prefix, pack / "proton"))
+        self.assertEqual(os.readlink(self.target), str(self.own))
+
     def test_a_stand_in_left_without_the_saved_link_is_replaced_by_protons_own_file(self):
         self.target.unlink()
         self.target.write_bytes(self.stand_in.read_bytes())
