@@ -53,6 +53,11 @@ object GameStorage {
         }
     }
 
+    fun disconnected(context: Context): Boolean {
+        val pref = SessionPrefs.gameStorage(context)
+        return pref.isNotEmpty() && pref != SessionPrefs.GAME_STORAGE_OFF && !attached(File(pref))
+    }
+
     internal fun attached(path: File): Boolean =
         path.isDirectory || path.parentFile?.isDirectory == true ||
             runCatching { Environment.getExternalStorageState(path) }.getOrNull() == Environment.MEDIA_MOUNTED

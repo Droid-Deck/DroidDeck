@@ -106,9 +106,11 @@ object StoreInstallRoot {
 
     fun installRoot(context: Context): File = internalRoot(context)
 
-    fun externalTarget(context: Context): Target? =
-        if (SessionPrefs.defaultStorageFolder(context).isNotBlank()) customTarget(context)
-        else detectedExternalTarget(context)
+    fun externalTarget(context: Context): Target? = when {
+        SessionPrefs.defaultStorageFolder(context).isNotBlank() -> customTarget(context)
+        GameStorage.disconnected(context) -> null
+        else -> detectedExternalTarget(context)
+    }
 
     internal fun externalTarget(targets: List<Target>, internalRoot: File): Target? =
         targets.firstOrNull { it.folder && it.root.absolutePath != internalRoot.absolutePath }
