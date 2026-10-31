@@ -60,6 +60,9 @@ object BattleNet {
 
     val STORE: List<Title> get() = TITLES.distinctBy { it.code }.filter { it.uid != "d3cn" && it.code != "WoWC" }
 
+    // Blizzard's China client installs some products under a CN uid; they are the same games and keep their store identity.
+    private val CN_UIDS = mapOf("s2_cn" to "s2", "osic" to "osi", "anbs_cn" to "anbs")
+
     fun notInstalled(title: Title, installedIds: Collection<String?>) =
         installedIds.mapNotNull { id -> id?.let(::title)?.code }.none { it == title.code }
 
@@ -155,8 +158,10 @@ object BattleNet {
     internal fun title(uid: String): Title? {
         val id = uid.lowercase()
         TITLES.firstOrNull { it.uid == id }?.let { return it }
+        CN_UIDS[id]?.let { alias -> TITLES.firstOrNull { it.uid == alias }?.let { return it } }
         val base = id.substringBeforeLast('_', "")
-        return if (base.isNotEmpty() && id.substringAfterLast('_') in LOCALES) TITLES.firstOrNull { it.uid == base } else null
+        if (base.isEmpty() || id.substringAfterLast('_') !in LOCALES) return null
+        return TITLES.firstOrNull { it.uid == base } ?: CN_UIDS[base]?.let { alias -> TITLES.firstOrNull { it.uid == alias } }
     }
 
     fun games(context: Context): List<Game> {
