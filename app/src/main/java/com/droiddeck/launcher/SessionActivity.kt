@@ -218,6 +218,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private lateinit var touchscreenGestures: TouchscreenGestures
     private var gestureConfig = com.droiddeck.launcher.input.TouchGestureConfig()
     private var gestureGame: String? = null
+    private var gameStarts by mutableIntStateOf(0)
     private var gestureSettingsOpen by mutableStateOf(false)
     private var steamImportAsk by mutableStateOf<com.droiddeck.launcher.session.SteamImportPrompt.Ask?>(null)
     private var steamImportAnswered: String? = null
@@ -931,7 +932,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                             }
                         }
                     }
-                    if (nextGame != gestureGame) { gestureGame = nextGame; refreshGestureConfig() }
+                    if (nextGame != gestureGame) {
+                        if (nextGame != null) gameStarts++
+                        gestureGame = nextGame
+                        refreshGestureConfig()
+                    }
                 }
                 LaunchedEffect(drawerOpen, pcKeyboardOpen, achievementsOpen, gestureSettingsOpen, pipUi, SessionState.suspended) {
                     if (drawerOpen || pcKeyboardOpen || achievementsOpen || gestureSettingsOpen || pipUi || SessionState.suspended) {
@@ -3121,6 +3126,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             DroidDeckTheme {
                 BottomDashboard(
                     bottomPages(), SessionPrefs.bottomPage(this),
+                    gameStarts = gameStarts,
                     onPage = { SessionPrefs.setBottomPage(this, it) },
                     onClose = { selectSecondScreenMode(SecondScreenMode.NONE) },
                     onMenu = if (dockDrawer()) ({ drawerOpen = true }) else null,

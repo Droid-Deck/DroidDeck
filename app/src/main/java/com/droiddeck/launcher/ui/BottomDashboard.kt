@@ -24,6 +24,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -53,7 +54,13 @@ class BottomPage(
 )
 
 internal fun pickBottomPage(remembered: String?, ids: List<String>): String? =
-    ids.firstOrNull { it == remembered } ?: ids.firstOrNull()
+    ids.firstOrNull { it == remembered } ?: ids.firstOrNull { it == DEFAULT_PAGE } ?: ids.firstOrNull()
+
+/** The page a game start switches to; not saved, so the page the user picked still opens next time. */
+internal fun pageForGameStart(ids: List<String>): String? = GAME_PAGE.takeIf { it in ids }
+
+private const val DEFAULT_PAGE = "chat"
+private const val GAME_PAGE = "telemetry"
 
 /** Tabs show their names while every tab still fits at [TAB_WIDTH]; otherwise only the open tab keeps its name. */
 internal fun bottomTabsWithLabels(widthDp: Float, tabs: Int): Boolean = tabs * TAB_WIDTH + 2 * BAR_BUTTON <= widthDp
@@ -68,9 +75,14 @@ fun BottomDashboard(
     onPage: (String) -> Unit,
     onClose: () -> Unit,
     onMenu: (() -> Unit)?,
+    gameStarts: Int = 0,
 ) {
     val colors = MaterialTheme.colorScheme
     var current by remember { mutableStateOf(pickBottomPage(remembered, pages.map { it.id })) }
+    val startsWhenOpened = remember { gameStarts }
+    LaunchedEffect(gameStarts) {
+        if (gameStarts != startsWhenOpened) pageForGameStart(pages.map { it.id })?.let { current = it }
+    }
     val page = pages.firstOrNull { it.id == current } ?: pages.firstOrNull()
     BoxWithConstraints(Modifier.fillMaxSize().background(colors.background)) {
         val labels = bottomTabsWithLabels(maxWidth.value, pages.size)
