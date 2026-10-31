@@ -24,3 +24,15 @@ class BottomDashboardTest {
         assertFalse(bottomTabsWithLabels(360f, 3))
     }
 }
+
+class BottomDownloadsRateTest {
+    @Test fun rateIsBytesPerSecondBetweenReads() {
+        assertEquals(1_000_000L, downloadRate(0L, 0L, 2_000_000L, 2_000L))
+    }
+
+    @Test fun noMovementOrARestartIsZero() {
+        assertEquals(0L, downloadRate(500L, 0L, 500L, 2_000L))
+        assertEquals(0L, downloadRate(500L, 0L, 100L, 2_000L))
+        assertEquals(0L, downloadRate(-1L, 0L, 100L, 2_000L))
+    }
+}

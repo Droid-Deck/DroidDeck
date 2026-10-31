@@ -73,7 +73,9 @@ class SessionService : Service() {
     private var downloadMonitorTask: Runnable? = null
     private var downloadActive = false
     private var clientInstallActive = false
-    @Volatile private var steamLibraryMounts = emptyMap<String, File>()
+    private var steamLibraryMounts: Map<String, File>
+        get() = SessionState.steamLibraryMounts
+        set(value) { SessionState.steamLibraryMounts = value }
     private var suspendDownloadNow = false
     private var suspendPolicy = SessionPrefs.SUSPEND_MANUAL
     private var steamDownloadsInBackground = false
