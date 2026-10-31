@@ -1731,6 +1731,55 @@ class UbisoftOverlayTest(unittest.TestCase):
             self.assertEqual(sorted(p.name for p in settings.parent.iterdir()), ["settings.yaml"])
 
 
+class QpcTimerTest(unittest.TestCase):
+    TIMER = runpy.run_path(str(BIN / "droiddeck-qpc-timer"))
+
+    def test_wrappers_point_the_timer_after_the_component_swaps(self):
+        for script in (COMPAT["launcher_sh"](), COMPAT["extra_wrapper_sh"]("proton")):
+            self.assertIn("bl_qpc_timer() {", script)
+            self.assertLess(script.index('bl_components "'), script.index('bl_qpc_timer "'))
+
+    def test_only_a_known_ntdll_changes_and_its_original_is_kept(self):
+        with tempfile.TemporaryDirectory() as root:
+            wine = Path(root, "files/lib/wine/aarch64-windows")
+            wine.mkdir(parents=True)
+            ntdll = wine / "ntdll.dll"
+            stock = bytes(range(256)) * 4
+            ntdll.write_bytes(stock)
+            patch = self.TIMER["patch_ntdll_timer"]
+            patch(root)
+            self.assertEqual(ntdll.read_bytes(), stock)
+            self.assertFalse((wine / "ntdll.dll.orig").exists())
+            known = {hashlib.sha256(stock).hexdigest(): [(4, stock[4:8].hex(), "c0035fd6")]}
+            with mock.patch.dict(self.TIMER["NTDLL_TIMER"], known, clear=True):
+                patch(root)
+                patch(root)
+            self.assertEqual((wine / "ntdll.dll.orig").read_bytes(), stock)
+            self.assertEqual(ntdll.read_bytes(), stock[:4] + bytes.fromhex("c0035fd6") + stock[8:])
+
+    def test_a_build_that_replaced_a_patched_ntdll_is_never_overwritten_from_the_old_original(self):
+        with tempfile.TemporaryDirectory() as root:
+            wine = Path(root, "files/lib/wine/aarch64-windows")
+            wine.mkdir(parents=True)
+            ntdll = wine / "ntdll.dll"
+            old, newer = bytes(range(256)) * 4, bytes(range(255, -1, -1)) * 4
+            ntdll.write_bytes(old)
+            patch = self.TIMER["patch_ntdll_timer"]
+            known = {hashlib.sha256(old).hexdigest(): [(4, old[4:8].hex(), "c0035fd6")]}
+            with mock.patch.dict(self.TIMER["NTDLL_TIMER"], known, clear=True):
+                patch(root)
+                ntdll.write_bytes(newer)
+                patch(root)
+                self.assertEqual(ntdll.read_bytes(), newer)
+                self.assertEqual((wine / "ntdll.dll.orig").read_bytes(), old)
+                # A build it knows is patched in turn, and becomes the original kept beside it.
+                self.TIMER["NTDLL_TIMER"][hashlib.sha256(newer).hexdigest()] = [(4, newer[4:8].hex(), "c0035fd6")]
+                patch(root)
+            self.assertEqual((wine / "ntdll.dll.orig").read_bytes(), newer)
+            self.assertEqual(ntdll.read_bytes(), newer[:4] + bytes.fromhex("c0035fd6") + newer[8:])
+            self.assertEqual(sorted(p.name for p in wine.iterdir()), ["ntdll.dll", "ntdll.dll.orig"])
+
+
 if __name__ == "__main__":
     unittest.main()
 
