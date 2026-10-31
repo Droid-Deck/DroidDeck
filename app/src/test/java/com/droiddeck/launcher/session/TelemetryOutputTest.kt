@@ -79,13 +79,13 @@ class TelemetryOutputTest {
 
     @Test fun automaticSkipsGamesThatAreOnSwitchedOffOrRunning() {
         val f = File("x")
-        val showdownGame = TelemetryOutput.Game("DiRT Showdown", "2848447563", f, on = false)
+        val dirt4 = TelemetryOutput.Game("DiRT 4", "421020", f, on = false)
         val rally = TelemetryOutput.Game("DiRT Rally 2.0", "690790", f, on = false)
         val grid = TelemetryOutput.Game("GRID", "703860", f, on = true)
-        val games = listOf(showdownGame, rally, grid)
-        assertEquals(listOf(showdownGame, rally), TelemetryOutput.automaticTargets(games, emptySet(), null))
-        assertEquals(listOf(rally), TelemetryOutput.automaticTargets(games, setOf("2848447563/DiRT Showdown"), null))
-        assertEquals(listOf(showdownGame), TelemetryOutput.automaticTargets(games, emptySet(), "690790"))
+        val games = listOf(dirt4, rally, grid)
+        assertEquals(listOf(dirt4, rally), TelemetryOutput.automaticTargets(games, emptySet(), null))
+        assertEquals(listOf(rally), TelemetryOutput.automaticTargets(games, setOf("421020/DiRT 4"), null))
+        assertEquals(listOf(dirt4), TelemetryOutput.automaticTargets(games, emptySet(), "690790"))
         assertEquals("690790/DiRT Rally 2.0", TelemetryOutput.key(rally))
     }
 
@@ -99,6 +99,30 @@ class TelemetryOutputTest {
         assertEquals(listOf(changed), targets.map { it.file })
         assertTrue(own.isFile)
         assertTrue(TelemetryOutput.restoreTargets(TelemetryOutput.scan(listOf(compatdata)), "2848447563").isEmpty())
+    }
+
+    @Test fun automaticLeavesTheRaceEndCrashGamesToTheUser() {
+        val f = File("x")
+        val showdownGame = TelemetryOutput.Game("DiRT Showdown", "2848447563", f, on = false)
+        val dirt3 = TelemetryOutput.Game("DiRT3", "321040", f, on = false)
+        val rally = TelemetryOutput.Game("DiRT Rally 2.0", "690790", f, on = false)
+        assertTrue(showdownGame.raceEndCrash)
+        assertTrue(dirt3.raceEndCrash)
+        assertFalse(rally.raceEndCrash)
+        assertEquals(listOf(rally), TelemetryOutput.automaticTargets(listOf(showdownGame, dirt3, rally), emptySet(), null))
+    }
+
+    @Test fun automaticPutsBackAShowdownItSwitchedOnButNotOneTheUserDid() {
+        val compatdata = tmp.newFolder("steamapps", "compatdata")
+        val config = configFile(compatdata, "2848447563", "DiRT Showdown").apply { writeText(showdown) }
+        val game = TelemetryOutput.scan(listOf(compatdata)).single()
+        assertTrue(TelemetryOutput.set(game, true))
+        val on = TelemetryOutput.scan(listOf(compatdata))
+        assertEquals(on, TelemetryOutput.automaticRestores(on, emptySet(), null))
+        assertTrue(TelemetryOutput.automaticRestores(on, setOf("2848447563/DiRT Showdown"), null).isEmpty())
+        assertTrue(TelemetryOutput.automaticRestores(on, emptySet(), "2848447563").isEmpty())
+        on.forEach { TelemetryOutput.set(it, false) }
+        assertEquals(showdown, config.readText())
     }
 
     private fun configFile(compatdata: File, id: String, game: String): File =

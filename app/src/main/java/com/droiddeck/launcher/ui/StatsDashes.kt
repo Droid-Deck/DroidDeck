@@ -240,17 +240,14 @@ private fun CircuitDash(t: Telemetry) {
                         fontSize = 12.sp, fontFamily = FontFamily.Monospace, color = colors.onSurfaceVariant)
                 }
             }
-            Column(Modifier.weight(0.9f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                StatsCard(stringResource(R.string.bottom_telemetry_fuel), Modifier.fillMaxWidth().weight(1f)) {
-                    val fuel = t.fuel
-                    if (fuel != null) {
-                        Bar(fuel, colors.onBackground, Modifier.fillMaxWidth().height(14.dp))
-                        Text("${(fuel * 100).roundToInt()}%", fontSize = 13.sp, fontFamily = FontFamily.Monospace, color = colors.onSurfaceVariant)
-                    } else Text("–", fontSize = 13.sp, color = colors.onSurfaceVariant)
+            val fuel = t.fuel
+            val tires = t.tireTempsC?.takeIf { it.size == 4 }
+            if (fuel != null || tires != null) Column(Modifier.weight(0.9f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (fuel != null) StatsCard(stringResource(R.string.bottom_telemetry_fuel), Modifier.fillMaxWidth().weight(1f)) {
+                    Bar(fuel, colors.onBackground, Modifier.fillMaxWidth().height(14.dp))
+                    Text("${(fuel * 100).roundToInt()}%", fontSize = 13.sp, fontFamily = FontFamily.Monospace, color = colors.onSurfaceVariant)
                 }
-                t.tireTempsC?.takeIf { it.size == 4 }?.let { tires ->
-                    StatsCard(stringResource(R.string.stats_tires), Modifier.fillMaxWidth().weight(1.3f)) { Tires(tires, Modifier.fillMaxWidth().weight(1f)) }
-                }
+                if (tires != null) StatsCard(stringResource(R.string.stats_tires), Modifier.fillMaxWidth().weight(1.3f)) { Tires(tires, Modifier.fillMaxWidth().weight(1f)) }
             }
         }
     }

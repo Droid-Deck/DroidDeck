@@ -1,9 +1,6 @@
 package com.droiddeck.launcher.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,6 +17,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -273,12 +271,18 @@ fun BottomTelemetryPage(fps: () -> Float?, runningGame: () -> String? = { null }
             }
             for (game in outputs) {
                 val locked = TelemetryOutput.isRunning(game.prefixId, running)
-                SwitchRow(game.name, if (locked) stringResource(R.string.bottom_telemetry_send_close, game.name) else null, game.on, !locked) { want ->
+                val hint = listOfNotNull(
+                    if (locked) stringResource(R.string.bottom_telemetry_send_close, game.name) else null,
+                    if (game.raceEndCrash) stringResource(R.string.bottom_telemetry_send_crash) else null,
+                ).joinToString("\n").ifEmpty { null }
+                SwitchRow(game.name, hint, game.on, !locked) { want ->
                     scope.launch {
                         val ok = withContext(Dispatchers.IO) {
                             val key = TelemetryOutput.key(game)
                             val off = SessionPrefs.telemetryOff(context)
+                            val byHand = SessionPrefs.telemetryOnByHand(context)
                             SessionPrefs.setTelemetryOff(context, if (want) off - key else off + key)
+                            SessionPrefs.setTelemetryOnByHand(context, if (want) byHand + key else byHand - key)
                             TelemetryOutput.set(game, want)
                         }
                         outputFailed = if (ok) null else game.name
@@ -300,54 +304,7 @@ fun BottomTelemetryPage(fps: () -> Float?, runningGame: () -> String? = { null }
             Text(stringResource(R.string.bottom_telemetry_port_busy, busyPorts.sorted().joinToString()), fontSize = 13.sp,
                 color = colors.error, modifier = Modifier.padding(horizontal = 4.dp))
         }
-        LayoutPicker(strip, dash,
-            onStrip = { strip = it; SessionPrefs.setStatsStrip(context, it.id) },
-            onDash = { dash = it; SessionPrefs.setStatsDash(context, it.id) })
-    }
-}
-
-@Composable
-private fun LayoutPicker(strip: StatsStrip, dash: StatsDash, onStrip: (StatsStrip) -> Unit, onDash: (StatsDash) -> Unit) {
-    val colors = MaterialTheme.colorScheme
-    TelemetryCard(stringResource(R.string.stats_layout)) {
-        PickRow(stringResource(R.string.stats_layout_top), StatsStrip.entries.map { it to stringResource(stripLabel(it)) }, strip, onStrip)
-        PickRow(stringResource(R.string.stats_layout_dash), StatsDash.entries.map { it to stringResource(dashLabel(it)) }, dash, onDash)
-        Text(stringResource(R.string.stats_layout_hint), fontSize = 12.sp, color = colors.onSurfaceVariant)
-    }
-}
-
-private fun stripLabel(s: StatsStrip): Int = when (s) {
-    StatsStrip.PANEL -> R.string.stats_strip_panel
-    StatsStrip.TILES -> R.string.stats_strip_tiles
-    StatsStrip.RINGS -> R.string.stats_strip_rings
-}
-
-private fun dashLabel(d: StatsDash): Int = when (d) {
-    StatsDash.AUTO -> R.string.stats_dash_auto
-    StatsDash.SPEEDOMETER -> R.string.stats_dash_speedometer
-    StatsDash.CIRCUIT -> R.string.stats_dash_circuit
-    StatsDash.TRACE -> R.string.stats_dash_trace
-    StatsDash.DIALS -> R.string.stats_dash_dials
-    StatsDash.GLANCE -> R.string.stats_dash_glance
-}
-
-@Composable
-private fun <T> PickRow(title: String, options: List<Pair<T, String>>, selected: T, onPick: (T) -> Unit) {
-    val pal = LocalPalette.current
-    val colors = MaterialTheme.colorScheme
-    val shape = RoundedCornerShape(50)
-    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(title, fontSize = 13.sp, color = colors.onSurfaceVariant, modifier = Modifier.width(44.dp))
-        for ((value, label) in options) {
-            val on = value == selected
-            Text(label, fontSize = 13.sp, fontWeight = if (on) FontWeight.Bold else FontWeight.Normal,
-                color = if (on) colors.background else colors.onBackground, maxLines = 1,
-                modifier = Modifier.clip(shape).background(if (on) pal.primary else Color.Transparent)
-                    .border(1.dp, if (on) pal.primary else pal.line, shape)
-                    .clickable { onPick(value) }
-                    .padding(horizontal = 12.dp, vertical = 6.dp))
-        }
+        Text(stringResource(R.string.stats_tap_hint), fontSize = 12.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(horizontal = 4.dp))
     }
 }
 
@@ -374,7 +331,12 @@ private fun SwitchRow(title: String, hint: String?, checked: Boolean, enabled: B
             Text(title, fontSize = 15.sp, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (hint != null) Text(hint, fontSize = 12.sp, color = colors.onSurfaceVariant)
         }
-        Switch(checked, null, enabled = enabled)
+        val pal = LocalPalette.current
+        Switch(checked, null, enabled = enabled, colors = SwitchDefaults.colors(
+            disabledCheckedTrackColor = pal.primary.copy(alpha = 0.45f),
+            disabledCheckedThumbColor = colors.background,
+            disabledCheckedBorderColor = pal.primary.copy(alpha = 0.45f),
+        ))
     }
 }
 
