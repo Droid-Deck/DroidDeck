@@ -4,6 +4,12 @@ import android.content.Context
 import com.droiddeck.launcher.core.AppUiPrefs
 import com.droiddeck.launcher.gpu.FrameGen
 import com.droiddeck.launcher.input.ControllerPrefs
+import com.droiddeck.launcher.input.InputAction
+import com.droiddeck.launcher.input.InputControl
+import com.droiddeck.launcher.input.InputProfile
+import com.droiddeck.launcher.input.InputProfiles
+import com.droiddeck.launcher.input.InputRole
+import com.droiddeck.launcher.input.InputSurfaceLayout
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
@@ -20,7 +26,7 @@ class SettingsResetTest {
     private val session get() = prefs("session")
 
     @Before fun clear() {
-        listOf("session", "controller", "app-ui", "frame_gen", "steam_touch", "agent").forEach {
+        listOf("session", "controller", "input-profiles", "input-surfaces", "app-ui", "frame_gen", "steam_touch", "agent").forEach {
             prefs(it).edit().clear().commit()
         }
     }
@@ -115,6 +121,21 @@ class SettingsResetTest {
         assertEquals("/storage/ABCD-1234", SessionPrefs.gameStorage(app))
         assertTrue(SessionPrefs.micAsked(app))
         assertEquals("a:1,2", prefs("steam_touch").getString("copiedLayout", null))
+    }
+
+    @Test fun inputProfilesAndSurfacesResetWithoutRestoringLegacyMappings() {
+        ControllerPrefs.setTarget(app, "a", "b")
+        InputProfiles.select(app, InputProfile.DESKTOP)
+        InputProfiles.save(app, InputProfile.defaults(InputProfile.GAME)
+            .withBinding(InputRole.PHYSICAL, InputControl.A, InputAction.Disabled))
+        InputSurfaceLayout.save(app, InputProfile.DESKTOP, emptyList())
+
+        assertTrue(SettingsReset.resetAll(app, gameProfiles = false))
+
+        assertEquals(InputProfiles.AUTO, InputProfiles.selection(app))
+        assertEquals(InputProfile.defaults(InputProfile.GAME), InputProfiles.read(app, InputProfile.GAME))
+        assertEquals(InputProfile.defaults(InputProfile.DESKTOP), InputProfiles.read(app, InputProfile.DESKTOP))
+        assertEquals(InputSurfaceLayout.defaults(), InputSurfaceLayout.read(app, InputProfile.DESKTOP))
     }
 
     @Test fun gameTextureFilteringIsKeptUnlessGameProfilesAreReset() {

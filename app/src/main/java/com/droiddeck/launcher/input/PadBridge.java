@@ -54,11 +54,24 @@ public final class PadBridge {
     private final PadState[] playerStates = new PadState[SLOTS];
     private final PadState effectiveState = new PadState();
     private final PadState homeGuideReport = new PadState();
+    private final PadState combinedState = new PadState();
+    private InputRouter inputRouter;
+    private final InputRouter.PadSource[] physicalRoutes = new InputRouter.PadSource[SLOTS];
+    private final java.util.IdentityHashMap<Object, TouchSource> touchSources = new java.util.IdentityHashMap<>();
+    private final Object defaultTouchSource = new Object();
+
+    private static final class TouchSource {
+        final PadState raw = new PadState();
+        final PadState passthrough = new PadState();
+        final InputRole role;
+        InputRouter.PadSource route;
+        TouchSource(InputRole role) { this.role = role; }
+    }
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private boolean open;
-    private volatile boolean selectSteam;
     private volatile boolean builtinPad = true;
     private TouchRoute touchRoute;
+    private boolean touchMouseActive;
     private final PadState routedTouch = new PadState();
     private boolean systemGuidePressed;
     private boolean systemQamPressed;
@@ -67,6 +80,7 @@ public final class PadBridge {
     private int homeGuideSlot = -1;
     private final PadState lastBackQamReport = new PadState();
     private final PadState lastWrittenReport = new PadState();
+    private final PadState liveReport = new PadState();
     private boolean backQamAxesBlocked;
     private final java.util.Set<Runnable> backQamWrites = new java.util.HashSet<>();
     private long backQamDelayMs, backQamWriteAt;
@@ -74,6 +88,11 @@ public final class PadBridge {
     private int chordButton = -1;
     private boolean chordButtonPressed;
     private boolean qamTapPressed;
+    private boolean guideTapPressed;
+    private int guideTapGeneration;
+    private boolean vrStickTapPressed;
+    private int vrStickTapGeneration;
+    private boolean routedQamPressed;
     private int qamChordGeneration;
     private volatile Runnable onPlayerInput;
     private Runnable onChordInput;
@@ -114,8 +133,34 @@ public final class PadBridge {
         for (int slot = 1; slot < SLOTS; slot++) playerStates[slot] = new PadState();
     }
 
-    public void setSelectSteam(boolean on) {
-        selectSteam = on;
+    public synchronized void setInputRouter(InputRouter router) {
+        if (inputRouter == router) return;
+        for (InputRouter.PadSource route : physicalRoutes) if (route != null) route.close();
+        for (TouchSource source : touchSources.values()) if (source.route != null) source.route.close();
+        inputRouter = router;
+        for (int slot = 0; slot < SLOTS; slot++) physicalRoutes[slot] = router == null ? null : router.pad(InputRole.PHYSICAL, stateFor(slot));
+        for (TouchSource source : touchSources.values()) source.route = router == null ? null : router.pad(source.role, source.raw);
+        clearBackQamWrites();
+        if (open) publish();
+        for (int slot = 1; slot < SLOTS; slot++) if (playerWriters[slot] != null) publish(slot);
+    }
+
+    public synchronized boolean hasInputRouter() { return inputRouter != null; }
+
+    public synchronized void setInputProfile(InputProfile profile) {
+        if (inputRouter == null) return;
+        inputRouter.setProfile(profile);
+        clearBackQamWrites();
+        if (open) publish();
+        for (int slot = 1; slot < SLOTS; slot++) if (playerWriters[slot] != null) publish(slot);
+    }
+
+    public synchronized void setInputEnabled(boolean enabled) {
+        if (inputRouter == null || !inputRouter.setEnabled(enabled)) return;
+        if (!enabled) clearBackQamWrites();
+        if (open) publish();
+        for (int slot = 1; slot < SLOTS; slot++) if (playerWriters[slot] != null) publish(slot);
+        DeckControls.INSTANCE.refresh();
     }
 
     public void setExcluded(java.util.function.IntPredicate devices) {
@@ -142,10 +187,18 @@ public final class PadBridge {
         homeGuidePressed = false;
         clearBackQamWrites();
         routedTouch.clear();
+        for (TouchSource source : touchSources.values()) {
+            source.raw.clear();
+            if (source.route != null) source.route.release();
+        }
         systemGuidePressed = false;
         systemQamPressed = false;
         backQamPressed = false;
         qamTapPressed = false;
+        guideTapPressed = false;
+        guideTapGeneration++;
+        vrStickTapPressed = false;
+        vrStickTapGeneration++;
         qamChordActive = false;
         chordButtonPressed = false;
         qamChordGeneration++;
@@ -163,6 +216,16 @@ public final class PadBridge {
     }
 
     public synchronized void stop() {
+        guideTapPressed = false;
+        guideTapGeneration++;
+        vrStickTapPressed = false;
+        vrStickTapGeneration++;
+        if (inputRouter != null) inputRouter.releaseAll();
+        for (TouchSource source : touchSources.values()) if (source.route != null) source.route.close();
+        touchSources.clear();
+        for (InputRouter.PadSource route : physicalRoutes) if (route != null) route.close();
+        Arrays.fill(physicalRoutes, null);
+        inputRouter = null;
         homeGuidePressed = false;
         homeGuideSlot = -1;
         clearBackQamWrites();
@@ -314,6 +377,7 @@ public final class PadBridge {
         if (slot < 0) return false;
         int side = JoyCon.side(event.getDevice());
         if (side >= 0 && partners[slot] != NO_CONTROLLER && JoyCon.isRail(side, event.getScanCode())) return true;
+        long timing = InputTiming.begin();
         PadState pad = stateFor(slot);
         boolean pressed = event.getAction() == KeyEvent.ACTION_DOWN;
         switch (event.getKeyCode()) {
@@ -324,9 +388,6 @@ public final class PadBridge {
             case KeyEvent.KEYCODE_BUTTON_L1: pad.press(4, pressed); break;
             case KeyEvent.KEYCODE_BUTTON_R1: pad.press(5, pressed); break;
             case KeyEvent.KEYCODE_BUTTON_SELECT:
-                if (selectSteam) pad.press(PadState.GUIDE, pressed);
-                else pad.press(6, pressed);
-                break;
             case KeyEvent.KEYCODE_BACK: pad.press(6, pressed); break;
             case KeyEvent.KEYCODE_BUTTON_START:
             case KeyEvent.KEYCODE_MENU: pad.press(7, pressed); break;
@@ -355,6 +416,7 @@ public final class PadBridge {
         statButtons++;
         scheduleStats();
         publish(slot);
+        InputTiming.end(timing);
         return true;
     }
 
@@ -363,6 +425,7 @@ public final class PadBridge {
         if (event.getAction() != MotionEvent.ACTION_MOVE) return false;
         int slot = slotFor(event.getDevice());
         if (slot < 0) return false;
+        long timing = InputTiming.begin();
         PadState pad = stateFor(slot);
         noteDevice(event.getDevice(), slot);
         statAxes++;
@@ -383,6 +446,7 @@ public final class PadBridge {
             if (x != 0f || y != 0f) noteChordInput(slot);
             if (Math.max(Math.abs(x), Math.abs(y)) > 0.5f) notePlayerInput();
             publish(slot);
+            InputTiming.end(timing);
             return true;
         }
         pad.leftX = axis(event, MotionEvent.AXIS_X);
@@ -418,6 +482,7 @@ public final class PadBridge {
             notePlayerInput();
         }
         publish(slot);
+        InputTiming.end(timing);
         return true;
     }
 
@@ -435,35 +500,37 @@ public final class PadBridge {
 
     public synchronized void setTouchRoute(TouchRoute route) {
         touchRoute = route;
+        touchMouseActive = false;
         routedTouch.clear();
     }
 
     public synchronized void applyTouch(java.util.function.Consumer<PadState> mutation) {
+        applyTouch(defaultTouchSource, InputRole.PRIMARY, mutation);
+    }
+
+    public synchronized void applyTouch(Object owner, InputRole role, java.util.function.Consumer<PadState> mutation) {
         if (!builtinPad) return;
-        if (touchRoute != null && touchRoute.active()) {
-            mutation.accept(routedTouch);
-            touchRoute.accept(routedTouch);
-            boolean changed = false;
-            for (int button : ROUTED_PASS_THROUGH) {
-                boolean down = routedTouch.isDown(button);
-                if (state.isDown(button) == down) continue;
-                state.press(button, down);
-                changed = true;
-            }
-            if (changed) {
-                activeControllerId = NO_CONTROLLER;
-                slotControllers.set(0, NO_CONTROLLER);
-                publish();
-            }
-            return;
+        long timing = InputTiming.begin();
+        TouchSource source = touchSources.get(owner);
+        if (source == null) {
+            source = new TouchSource(role);
+            if (inputRouter != null) source.route = inputRouter.pad(role);
+            touchSources.put(owner, source);
         }
-        routedTouch.clear();
-        mutation.accept(state);
+        mutation.accept(source.raw);
         activeControllerId = NO_CONTROLLER;
         slotControllers.set(0, NO_CONTROLLER);
         notePlayerInput();
         statOnScreen++;
         scheduleStats();
+        publish();
+        InputTiming.end(timing);
+    }
+
+    public synchronized void releaseTouch(Object owner) {
+        TouchSource source = touchSources.remove(owner);
+        if (source == null) return;
+        if (source.route != null) source.route.close();
         publish();
     }
 
@@ -489,17 +556,31 @@ public final class PadBridge {
     }
 
     public synchronized void releaseAll() {
+        guideTapGeneration++;
+        vrStickTapPressed = false;
+        vrStickTapGeneration++;
+        routedQamPressed = false;
+        systemGuidePressed = false;
+        systemQamPressed = false;
+        guideTapPressed = false;
+        qamTapPressed = false;
+        qamChordActive = false;
+        chordButtonPressed = false;
+        qamChordGeneration++;
+        if (inputRouter != null) inputRouter.releaseAll();
+        if (inputRouter == null) for (TouchSource source : touchSources.values()) source.raw.clear();
+        routedTouch.clear();
+        DeckControls.INSTANCE.suspend();
+        if (inputRouter == null) state.clear();
         homeGuidePressed = false;
         homeGuideSlot = -1;
         clearBackQamWrites();
-        routedTouch.clear();
         backQamPressed = false;
-        releaseBackPaddles();
-        state.clear();
+        if (inputRouter == null) releaseBackPaddles();
         publish();
         for (int slot = 1; slot < SLOTS; slot++) {
             if (playerWriters[slot] == null) continue;
-            playerStates[slot].clear();
+            if (inputRouter == null) playerStates[slot].clear();
             publish(slot);
         }
     }
@@ -539,7 +620,11 @@ public final class PadBridge {
         if (!homeGuidePressed) return;
         clearBackQamWrites();
         homeGuidePressed = false;
-        state.clear();
+        if (inputRouter == null) state.clear();
+        else {
+            inputRouter.releaseAll();
+            DeckControls.INSTANCE.suspend();
+        }
         publish();
     }
 
@@ -562,7 +647,7 @@ public final class PadBridge {
             writeBackQamReport(modifier, modifierAt);
         }
         if (!pressed && !backQamPressed && !homeGuidePressed) {
-            backQamAxesBlocked = hasAxes(state);
+            backQamAxesBlocked = hasAxes(liveReport);
             if (!backQamWrites.isEmpty()) {
                 PadState neutral = new PadState();
                 neutral.copyFrom(lastWrittenReport);
@@ -578,7 +663,11 @@ public final class PadBridge {
         if (!backQamPressed && backQamWrites.isEmpty()) return;
         clearBackQamWrites();
         backQamPressed = false;
-        state.clear();
+        if (inputRouter == null) state.clear();
+        else {
+            inputRouter.releaseAll();
+            DeckControls.INSTANCE.suspend();
+        }
         publish();
     }
 
@@ -614,7 +703,8 @@ public final class PadBridge {
     }
 
     private void writePad(PadState report) {
-        if (backQamAxesBlocked && !hasAxes(state)) backQamAxesBlocked = false;
+        liveReport.copyFrom(report);
+        if (backQamAxesBlocked && !hasAxes(liveReport)) backQamAxesBlocked = false;
         long at = android.os.SystemClock.uptimeMillis();
         // Steam must see the modifier before a partner; preserve quick press/release pairs in order.
         if (backQamPressed || homeGuidePressed || !backQamWrites.isEmpty()) at += backQamDelayMs;
@@ -644,9 +734,9 @@ public final class PadBridge {
         PadState live = new PadState();
         live.copyFrom(report);
         if (queued) {
-            live.leftX = state.leftX; live.leftY = state.leftY;
-            live.rightX = state.rightX; live.rightY = state.rightY;
-            live.leftTrigger = state.leftTrigger; live.rightTrigger = state.rightTrigger;
+            live.leftX = liveReport.leftX; live.leftY = liveReport.leftY;
+            live.rightX = liveReport.rightX; live.rightY = liveReport.rightY;
+            live.leftTrigger = liveReport.leftTrigger; live.rightTrigger = liveReport.rightTrigger;
         }
         boolean held = (backQamPressed && report.isDown(PadState.QAM)) || (homeGuidePressed && report.isDown(PadState.GUIDE));
         if ((queued && !held) || backQamAxesBlocked) clearAxes(live);
@@ -665,6 +755,34 @@ public final class PadBridge {
         int generation = qamChordGeneration;
         publish();
         chordHandler.postDelayed(() -> releaseQamTap(generation), QAM_A_HOLD_MS);
+    }
+
+    public synchronized void triggerSteamMenu() {
+        if (!builtinPad || guideTapPressed) return;
+        guideTapPressed = true;
+        int generation = ++guideTapGeneration;
+        publish();
+        chordHandler.postDelayed(() -> {
+            synchronized (PadBridge.this) {
+                if (generation != guideTapGeneration) return;
+                guideTapPressed = false;
+                publish();
+            }
+        }, 90);
+    }
+
+    public synchronized void triggerVrStickSwitch() {
+        if (!builtinPad || vrStickTapPressed) return;
+        vrStickTapPressed = true;
+        int generation = ++vrStickTapGeneration;
+        publish();
+        chordHandler.postDelayed(() -> {
+            synchronized (PadBridge.this) {
+                if (generation != vrStickTapGeneration) return;
+                vrStickTapPressed = false;
+                publish();
+            }
+        }, 120);
     }
 
     private synchronized void releaseQamTap(int generation) {
@@ -791,6 +909,7 @@ public final class PadBridge {
     }
 
     private void free(int slot) {
+        if (physicalRoutes[slot] != null) physicalRoutes[slot].release();
         Log.i(TAG, "player " + (slot + 1) + " (id " + owners[slot] + ") left");
         owners[slot] = NO_CONTROLLER;
         partners[slot] = NO_CONTROLLER;
@@ -844,6 +963,7 @@ public final class PadBridge {
             publish();
             return;
         }
+        PadState output = physicalRoutes[slot] == null ? playerStates[slot] : physicalRoutes[slot].route(playerStates[slot]);
         FakeInputWriter player = playerWriters[slot];
         if (player == null) {
             player = new FakeInputWriter(fakeInputDir.getAbsolutePath(), slot);
@@ -853,31 +973,60 @@ public final class PadBridge {
             }
             playerWriters[slot] = player;
         }
-        PadState report = playerStates[slot];
         if (slot == homeGuideSlot) {
-            homeGuideReport.copyFrom(report);
+            homeGuideReport.copyFrom(output);
             homeGuideReport.press(PadState.GUIDE, true);
-            report = homeGuideReport;
+            output = homeGuideReport;
         }
-        player.writePad(report);
+        player.writePad(output);
     }
 
     private void publish() {
         if (!builtinPad && !open && owners[0] == NO_CONTROLLER && partners[0] == NO_CONTROLLER) return;
+        PadState output = physicalRoutes[0] == null ? state : physicalRoutes[0].route(state);
+        boolean mouseRoute = (!touchSources.isEmpty() || touchMouseActive) && touchRoute != null && touchRoute.active();
+        touchMouseActive = mouseRoute && !touchSources.isEmpty();
+        if (mouseRoute) routedTouch.clear();
+        if (!touchSources.isEmpty()) {
+            combinedState.copyFrom(output);
+            for (TouchSource source : touchSources.values()) {
+                PadState touch = source.route == null ? source.raw : source.route.route(source.raw);
+                if (mouseRoute) {
+                    routedTouch.merge(touch);
+                    source.passthrough.clear();
+                    for (int button : ROUTED_PASS_THROUGH) source.passthrough.press(button, touch.isDown(button));
+                    combinedState.merge(source.passthrough);
+                } else combinedState.merge(touch);
+            }
+            output = combinedState;
+        }
+        if (mouseRoute) touchRoute.accept(routedTouch);
+        boolean guide = systemGuidePressed || qamChordActive || guideTapPressed || homeGuidePressed;
+        boolean routedQam = output.isDown(PadState.QAM);
+        boolean routedQamStarted = routedQam && !routedQamPressed;
+        routedQamPressed = routedQam;
+        if (routedQamStarted && !nativeQam() && !qamChordActive) {
+            startChord(PadState.A);
+            return;
+        }
+        boolean qam = nativeQam() && (systemQamPressed || qamTapPressed || backQamPressed);
         if (!open && !start()) {
             statDropped++;
             return;
         }
-        boolean guide = systemGuidePressed || qamChordActive || homeGuidePressed;
-        boolean qam = nativeQam() && (systemQamPressed || qamTapPressed || backQamPressed);
-        if (!guide && !qam) {
-            writePad(state);
+        if (!guide && !qam && !vrStickTapPressed && (!routedQam || nativeQam())) {
+            writePad(output);
             return;
         }
-        effectiveState.copyFrom(state);
+        effectiveState.copyFrom(output);
+        if (!nativeQam()) effectiveState.press(PadState.QAM, false);
         if (guide) effectiveState.press(PadState.GUIDE, true);
         if (qam) effectiveState.press(PadState.QAM, true);
         if (chordButtonPressed) effectiveState.press(chordButton, true);
+        if (vrStickTapPressed) {
+            effectiveState.press(PadState.L3, true);
+            effectiveState.press(PadState.R3, true);
+        }
         writePad(effectiveState);
     }
 

@@ -5,6 +5,7 @@ import android.util.Log
 import com.droiddeck.launcher.core.DownloadSource
 import com.droiddeck.launcher.core.GameEnvironment
 import com.droiddeck.launcher.input.ControllerPrefs
+import com.droiddeck.launcher.input.InputProfiles
 import com.droiddeck.launcher.runtime.LinuxRuntime
 
 object SettingsReset {
@@ -43,6 +44,7 @@ object SettingsReset {
         val session = context.getSharedPreferences("session", Context.MODE_PRIVATE)
         session.edit().apply { session.all.keys.filter { isSessionSetting(it) }.forEach { remove(it) } }.commit()
         ControllerPrefs.resetAll(context)
+        InputProfiles.resetAll(context)
         context.getSharedPreferences("app-ui", Context.MODE_PRIVATE).edit().clear().commit()
         context.getSharedPreferences("frame_gen", Context.MODE_PRIVATE).edit().clear().commit()
         context.getSharedPreferences("steam_touch", Context.MODE_PRIVATE).edit()

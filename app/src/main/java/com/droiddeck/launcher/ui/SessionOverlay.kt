@@ -273,6 +273,7 @@ class DrawerActions(
     val directCursor: Boolean = false,
     val onDirectCursor: (Boolean) -> Unit = {},
     val onTouch: (String) -> Unit,
+    val onInputSettings: () -> Unit = {},
     val onGestureSettings: () -> Unit = {},
     val touchActive: String = "",
     val directHoldBehavior: String = MOUSE_BEHAVIOR_CLICK,
@@ -585,6 +586,8 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                 ChoiceRow(host, "touch", stringResource(R.string.mode_touch), null,
                                     listOf(SessionPrefs.TOUCH_AUTO to stringResource(R.string.drawer_touch_auto, a.touchAuto), SessionPrefs.TOUCH_PAD to stringResource(R.string.mode_touch_touchpad), SessionPrefs.TOUCH_DIRECT to stringResource(R.string.mode_touch_direct), SessionPrefs.TOUCH_GESTURES to stringResource(R.string.mode_touch_gestures), SessionPrefs.TOUCH_OFF to stringResource(R.string.widgets_off)),
                                     a.touchMode, chipModifier = focus.track(page, "touch"), onPick = a.onTouch)
+                                ActionRow(stringResource(R.string.input_settings), null, stringResource(R.string.ctrl_edit), a.onInputSettings,
+                                    modifier = focus.track(page, "input-settings"))
                                 if (a.touchActive == SessionPrefs.TOUCH_DIRECT)
                                     ToggleRow(host, "direct-cursor", stringResource(R.string.drawer_direct_cursor),
                                         null, a.directCursor,
@@ -1189,7 +1192,7 @@ private fun SteamVrRow(a: DrawerActions) {
 private fun SecondScreenGroup(host: MenuHost, a: DrawerActions, track: (String) -> Modifier) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
-    val modes = listOf(SecondScreenMode.NONE, SecondScreenMode.KEYBOARD_TRACKPAD, SecondScreenMode.TERMINAL) +
+    val modes = listOf(SecondScreenMode.NONE, SecondScreenMode.KEYBOARD_TRACKPAD, SecondScreenMode.CUSTOM_CONTROLS, SecondScreenMode.TERMINAL) +
         if (com.droiddeck.launcher.session.SessionState.deckPad) listOf(SecondScreenMode.DECK_CONTROLS) else emptyList()
     SettingsGroup(stringResource(R.string.drawer_second_screen_mode)) {
         Column(Modifier.fillMaxWidth().selectableGroup()) {

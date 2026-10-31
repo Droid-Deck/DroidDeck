@@ -19,6 +19,12 @@ class SecondScreenModeTest {
         assertEquals(SecondScreenMode.KEYBOARD_TRACKPAD, SecondScreenMode.opening("deck-controls", deckPad = false))
     }
 
+    @Test fun customControlsReopenWithEitherControllerType() {
+        for (deckPad in listOf(false, true)) {
+            assertEquals(SecondScreenMode.CUSTOM_CONTROLS, SecondScreenMode.opening("custom-controls", deckPad))
+        }
+    }
+
     @Test fun anUnknownOrClosedChoiceFallsBackToTheDefault() {
         assertEquals(SecondScreenMode.DECK_CONTROLS, SecondScreenMode.opening("none", deckPad = true))
         assertEquals(SecondScreenMode.KEYBOARD_TRACKPAD, SecondScreenMode.opening("gone", deckPad = false))
