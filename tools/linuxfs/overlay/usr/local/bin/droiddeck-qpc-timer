@@ -13,11 +13,11 @@ system call stub read the timer instead. Wine's Linux side keeps its own 100 ns 
 on, and its Windows-side users all take the frequency along with the counter.
 
 Only an ntdll.dll whose SHA-256 and original bytes are known below is changed, and the Proton's own file is kept
-beside it as ntdll.dll.orig; anything else is left alone. It never fails a launch.
+beside it as ntdll.dll.orig; anything else, including a build that later replaced a patched one, is left alone. It
+never fails a launch.
 """
 import hashlib
 import os
-import shutil
 import stat
 import sys
 
@@ -40,20 +40,18 @@ def say(message):
     print("droiddeck-qpc-timer: %s" % message, file=sys.stderr, flush=True)
 
 
-def put_in_place(path, data):
-    """Replaces path with data, keeping the original beside it as .orig. False when it already holds data."""
-    with open(path, "rb") as f:
-        if f.read() == data:
-            return False
-    original = path + ".orig"
-    if not os.path.isfile(original):
-        shutil.copy2(path, original)
-    staged = path + ".qpc-new"
-    with open(staged, "wb") as f:
-        f.write(data)
-    os.chmod(staged, stat.S_IMODE(os.stat(original).st_mode))
-    os.replace(staged, path)
-    return True
+def replace_with(path, data, mode):
+    """Replaces path with data through a staging file of this process's own, so no reader sees half of it."""
+    staged = "%s.qpc-%d" % (path, os.getpid())
+    try:
+        with open(staged, "wb") as f:
+            f.write(data)
+        os.chmod(staged, mode)
+        os.replace(staged, path)
+    except OSError:
+        if os.path.lexists(staged):
+            os.unlink(staged)
+        raise
 
 
 def patch_ntdll_timer(proton_dir):
@@ -62,8 +60,13 @@ def patch_ntdll_timer(proton_dir):
     if not os.path.isfile(path):
         return
     original = path + ".orig"
-    with open(original if os.path.isfile(original) else path, "rb") as f:
-        stock = f.read()
+    with open(path, "rb") as f:
+        live = f.read()
+    stock = live
+    if hashlib.sha256(live).hexdigest() not in NTDLL_TIMER and os.path.isfile(original):
+        # Patched before: the Proton's own file is the one kept beside it.
+        with open(original, "rb") as f:
+            stock = f.read()
     patches = NTDLL_TIMER.get(hashlib.sha256(stock).hexdigest())
     if patches is None:
         say("keeping %s's own QueryPerformanceCounter: not an ntdll.dll this knows" % name)
@@ -75,8 +78,18 @@ def patch_ntdll_timer(proton_dir):
             say("keeping %s's own QueryPerformanceCounter: ntdll.dll differs at %#x" % (name, offset))
             return
         patched[offset:offset + len(new)] = new
-    if put_in_place(path, bytes(patched)):
-        say("%s: QueryPerformanceCounter reads the CPU timer" % name)
+    patched = bytes(patched)
+    if live == patched:
+        return
+    if live != stock:
+        say("keeping %s's own QueryPerformanceCounter: ntdll.dll was replaced after it was patched" % name)
+        return
+    # The original is written from the bytes checked above, before ntdll.dll changes: launches running at once write
+    # the same bytes, and a patched ntdll.dll always has its original beside it.
+    mode = stat.S_IMODE(os.stat(path).st_mode)
+    replace_with(original, stock, mode)
+    replace_with(path, patched, mode)
+    say("%s: QueryPerformanceCounter reads the CPU timer" % name)
 
 
 def main(argv):

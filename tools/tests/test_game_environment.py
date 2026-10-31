@@ -1757,6 +1757,28 @@ class QpcTimerTest(unittest.TestCase):
             self.assertEqual((wine / "ntdll.dll.orig").read_bytes(), stock)
             self.assertEqual(ntdll.read_bytes(), stock[:4] + bytes.fromhex("c0035fd6") + stock[8:])
 
+    def test_a_build_that_replaced_a_patched_ntdll_is_never_overwritten_from_the_old_original(self):
+        with tempfile.TemporaryDirectory() as root:
+            wine = Path(root, "files/lib/wine/aarch64-windows")
+            wine.mkdir(parents=True)
+            ntdll = wine / "ntdll.dll"
+            old, newer = bytes(range(256)) * 4, bytes(range(255, -1, -1)) * 4
+            ntdll.write_bytes(old)
+            patch = self.TIMER["patch_ntdll_timer"]
+            known = {hashlib.sha256(old).hexdigest(): [(4, old[4:8].hex(), "c0035fd6")]}
+            with mock.patch.dict(self.TIMER["NTDLL_TIMER"], known, clear=True):
+                patch(root)
+                ntdll.write_bytes(newer)
+                patch(root)
+                self.assertEqual(ntdll.read_bytes(), newer)
+                self.assertEqual((wine / "ntdll.dll.orig").read_bytes(), old)
+                # A build it knows is patched in turn, and becomes the original kept beside it.
+                self.TIMER["NTDLL_TIMER"][hashlib.sha256(newer).hexdigest()] = [(4, newer[4:8].hex(), "c0035fd6")]
+                patch(root)
+            self.assertEqual((wine / "ntdll.dll.orig").read_bytes(), newer)
+            self.assertEqual(ntdll.read_bytes(), newer[:4] + bytes.fromhex("c0035fd6") + newer[8:])
+            self.assertEqual(sorted(p.name for p in wine.iterdir()), ["ntdll.dll", "ntdll.dll.orig"])
+
 
 if __name__ == "__main__":
     unittest.main()
