@@ -17,6 +17,19 @@ class BottomDashboardTest {
         assertNull(pickBottomPage("shots", emptyList()))
     }
 
+    @Test fun withNothingPickedTheChatOpens() {
+        val ids = listOf("telemetry", "downloads", "notifications", "screenshots", "chat")
+        assertEquals("chat", pickBottomPage(null, ids))
+        assertEquals("chat", pickBottomPage("gone", ids))
+        assertEquals("telemetry", pickBottomPage("telemetry", ids))
+        assertEquals("screenshots", pickBottomPage("screenshots", ids))
+    }
+
+    @Test fun aGameStartShowsTheInGameStats() {
+        assertEquals("telemetry", pageForGameStart(listOf("telemetry", "downloads", "chat")))
+        assertNull(pageForGameStart(listOf("downloads", "chat")))
+    }
+
     @Test fun tabNamesShowOnlyWhileEveryTabFits() {
         // Retroid Pocket Duo bottom panel: 1280x960 at 320 dpi = 640 dp wide.
         assertTrue(bottomTabsWithLabels(640f, 4))
